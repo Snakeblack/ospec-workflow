@@ -55,7 +55,7 @@ Skills (appear in autocomplete):
 - `/sdd-explore <topic>` → investigate an idea; reads codebase, compares approaches; no files created
 - `/sdd-apply [change]` → implement tasks in batches; checks off items as it goes
 - `/sdd-verify [change]` → validate implementation against specs; reports CRITICAL / WARNING / SUGGESTION
-- `/sdd-archive [change]` → close a change and persist final state in the active artifact store 
+- `/sdd-archive [change]` → close a change and persist final state in the active artifact store
 - `/sdd-onboard` → guided end-to-end walkthrough of SDD using your real codebase
 
 Meta-commands (type directly — orchestrator handles them, won't appear in autocomplete):
@@ -148,6 +148,16 @@ For each sub-agent launch:
 3. Inject BEFORE the sub-agent's task-specific instructions
 
 **Key rule**: inject compact rules TEXT, not paths. Phase agents may also load their explicit `%USERPROFILE%\\.copilot\\skills\\...\\SKILL.md` paths when their agent instructions require it.
+
+### Communication Skill Routing
+
+Use `caveman-*` skills through the registry only; do not hard-load their full `SKILL.md` files into phase agents.
+
+- Inject `caveman` only when the user activated caveman mode or asked for shorter replies. It affects user-facing summaries, not OpenSpec artifacts.
+- Inject `caveman-review` only for review comments or PR review output.
+- Inject `caveman-commit` only for commit-message generation.
+- Never auto-inject `caveman-help` or `caveman-compress`; require explicit user invocation.
+- Keep specs, designs, tasks, verify reports, archive reports, and persisted progress in normal precise prose unless the user explicitly asks to compress them.
 
 ### Skill Resolution Feedback
 

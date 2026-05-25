@@ -1,59 +1,42 @@
 ---
 name: caveman-help
-description: >
-  Quick-reference card for all caveman modes, skills, and commands.
-  One-shot display, not a persistent mode. Trigger: /caveman-help,
-  "caveman help", "what caveman commands", "how do I use caveman".
+description: "Trigger: /caveman-help, caveman help, what caveman commands, how do I use caveman. Show one-shot caveman command help."
+license: Apache-2.0
+metadata:
+  author: manuel-retamozo-garcia
+  version: "1.0"
 ---
 
-# Caveman Help
+## Activation Contract
 
-Display this reference card when invoked. One-shot — do NOT change mode, write flag files, or persist anything. Output in caveman style.
+Load only when the user asks for caveman help or invokes `/caveman-help`. This is one-shot help; it must not activate or deactivate any caveman mode.
 
-## Modes
+## Hard Rules
 
-| Mode | Trigger | What change |
-|------|---------|-------------|
-| **Lite** | `/caveman lite` | Drop filler. Keep sentence structure. |
-| **Full** | `/caveman` | Drop articles, filler, pleasantries, hedging. Fragments OK. Default. |
-| **Ultra** | `/caveman ultra` | Extreme compression. Bare fragments. Tables over prose. |
-| **Wenyan-Lite** | `/caveman wenyan-lite` | Classical Chinese style, light compression. |
-| **Wenyan-Full** | `/caveman wenyan` | Full 文言文. Maximum classical terseness. |
-| **Wenyan-Ultra** | `/caveman wenyan-ultra` | Extreme. Ancient scholar on a budget. |
+- Keep the help compact and scannable.
+- Do not write files, flags, config, or persistent state.
+- Do not load compression scripts.
+- Use caveman style for the help output, but keep commands exact.
 
-Mode stick until changed or session end.
+## Decision Gates
 
-## Skills
+| User asks | Show |
+| --- | --- |
+| General help | Modes, task skills, deactivate command. |
+| Specific mode | Only that mode plus activation command. |
+| Config/defaults | Default mode and precedence if known. |
 
-| Skill | Trigger | What it do |
-|-------|---------|-----------|
-| **caveman-commit** | `/caveman-commit` | Terse commit messages. Conventional Commits. ≤50 char subject. |
-| **caveman-review** | `/caveman-review` | One-line PR comments: `L42: bug: user null. Add guard.` |
-| **caveman-compress** | `/caveman:compress <file>` | Compress .md files to caveman prose. Saves ~46% input tokens. |
-| **caveman-help** | `/caveman-help` | This card. |
+## Execution Steps
 
-## Deactivate
+1. Identify whether the user wants full help or a narrow answer.
+2. Show commands exactly: `/caveman`, `/caveman lite`, `/caveman ultra`, `/caveman wenyan`, `/caveman-review`, `/caveman-commit`, `/caveman:compress <file>`.
+3. Mention deactivation: `stop caveman` or `normal mode`.
+4. When showing defaults, state precedence: `CAVEMAN_DEFAULT_MODE` > `~/.config/caveman/config.json` > `full`.
 
-Say "stop caveman" or "normal mode". Resume anytime with `/caveman`.
+## Output Contract
 
-## Configure Default Mode
+Return a compact help card. Do not end by asking a follow-up question.
 
-Default mode = `full`. Change it:
+## References
 
-**Environment variable** (highest priority):
-```bash
-export CAVEMAN_DEFAULT_MODE=ultra
-```
-
-**Config file** (`~/.config/caveman/config.json`):
-```json
-{ "defaultMode": "lite" }
-```
-
-Set `"off"` to disable auto-activation on session start. User can still activate manually with `/caveman`.
-
-Resolution: env var > config file > `full`.
-
-## More
-
-Full docs: https://github.com/JuliusBrussee/caveman
+- None.

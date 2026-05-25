@@ -1,65 +1,46 @@
 ---
 name: caveman-commit
-description: >
-  Ultra-compressed commit message generator. Cuts noise from commit messages while preserving
-  intent and reasoning. Conventional Commits format. Subject ≤50 chars, body only when "why"
-  isn't obvious. Use when user says "write a commit", "commit message", "generate commit",
-  "/commit", or invokes /caveman-commit. Auto-triggers when staging changes.
+description: "Trigger: write a commit, commit message, generate commit, /commit, /caveman-commit. Generate terse Conventional Commits messages."
+license: Apache-2.0
+metadata:
+  author: manuel-retamozo-garcia
+  version: "1.0"
 ---
 
-Write commit messages terse and exact. Conventional Commits format. No fluff. Why over what.
+## Activation Contract
 
-## Rules
+Load when the user asks for a commit message or invokes `/commit` or `/caveman-commit`. Apply only to commit-message generation.
 
-**Subject line:**
-- `<type>(<scope>): <imperative summary>` — `<scope>` optional
-- Types: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `chore`, `build`, `ci`, `style`, `revert`
-- Imperative mood: "add", "fix", "remove" — not "added", "adds", "adding"
-- ≤50 chars when possible, hard cap 72
-- No trailing period
-- Match project convention for capitalization after the colon
+## Hard Rules
 
-**Body (only if needed):**
-- Skip entirely when subject is self-explanatory
-- Add body only for: non-obvious *why*, breaking changes, migration notes, linked issues
-- Wrap at 72 chars
-- Bullets `-` not `*`
-- Reference issues/PRs at end: `Closes #42`, `Refs #17`
+- Use Conventional Commits: `<type>(<scope>): <imperative summary>`.
+- Prefer subject length <=50 chars; hard cap 72 chars.
+- Use imperative mood: `add`, `fix`, `remove`; never `added`, `adds`, or `adding`.
+- Do not add `Co-Authored-By`, AI attribution, emojis, "I", "we", or "this commit".
+- Add a body only for non-obvious why, breaking changes, migrations, security fixes, reverts, or linked issues.
+- Wrap body at 72 chars. Use `BREAKING CHANGE:` for breaking changes.
+- Do not stage, commit, amend, or modify files.
 
-**What NEVER goes in:**
-- "This commit does X", "I", "we", "now", "currently" — the diff says what
-- "As requested by..." — use Co-authored-by trailer
-- "Generated with Claude Code" or any AI attribution
-- Emoji (unless project convention requires)
-- Restating the file name when scope already says it
+## Decision Gates
 
-## Examples
+| Change | Commit shape |
+| --- | --- |
+| Obvious small change | Subject only. |
+| Non-obvious why | Subject plus short body. |
+| Breaking change | `!` in subject plus `BREAKING CHANGE:` body. |
+| Security, migration, revert | Body required. |
 
-Diff: new endpoint for user profile with body explaining the why
-- ❌ "feat: add a new endpoint to get user profile information from the database"
-- ✅
-  ```
-  feat(api): add GET /users/:id/profile
+## Execution Steps
 
-  Mobile client needs profile data without the full user payload
-  to reduce LTE bandwidth on cold-launch screens.
+1. Inspect the provided diff or staged changes when available.
+2. Choose the narrowest correct type and optional scope.
+3. Write the shortest accurate subject.
+4. Add body only when the future reader needs context not visible in the diff.
 
-  Closes #128
-  ```
+## Output Contract
 
-Diff: breaking API change
-- ✅
-  ```
-  feat(api)!: rename /v1/orders to /v1/checkout
+Return only the commit message in a fenced text block.
 
-  BREAKING CHANGE: clients on /v1/orders must migrate to /v1/checkout
-  before 2026-06-01. Old route returns 410 after that date.
-  ```
+## References
 
-## Auto-Clarity
-
-Always include body for: breaking changes, security fixes, data migrations, anything reverting a prior commit. Never compress these into subject-only — future debuggers need the context.
-
-## Boundaries
-
-Only generates the commit message. Does not run `git commit`, does not stage files, does not amend. Output the message as a code block ready to paste. "stop caveman-commit" or "normal mode": revert to verbose commit style.
+- None.
