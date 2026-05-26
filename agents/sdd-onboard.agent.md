@@ -35,12 +35,14 @@ Execute all steps from the skill directly in this context window:
 
 Keep teaching concise: explain the concept, show the artifact, then continue only with user approval at required gates.
 
+If the project is empty or lacks a real codebase to improve, return `blocked` and recommend `sdd-foundation`. Do not invent a toy onboarding change.
+
 ## Result Contract
 
 Return a structured result with these fields:
 - `status`: `success` | `blocked` | `partial`
 - `executive_summary`: one-sentence description of what was onboarded
 - `artifacts`: OpenSpec file paths written
-- `next_recommended`: `sdd-new` (to start a real change independently)
+- `next_recommended`: `sdd-foundation` if blocked for an empty project, otherwise `sdd-new`
 - `risks`: any warnings about the onboarding session
 - `skill_resolution`: `injected`, `fallback-registry`, `fallback-path`, or `none`

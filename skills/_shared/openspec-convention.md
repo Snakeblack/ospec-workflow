@@ -22,12 +22,25 @@ openspec/
         └── verify-report.md <- from sdd-verify
 ```
 
+Foundation docs for empty projects live beside OpenSpec:
+
+```text
+docs/
+├── product/
+├── architecture/
+├── roadmap.md
+└── references/
+    ├── raw/
+    └── processed/
+```
+
 ## Artifact File Paths
 
 | Skill | Creates / Reads | Path |
 |-------|----------------|------|
 | orchestrator | Creates/Updates | `openspec/changes/{change-name}/state.yaml` |
 | sdd-init | Creates | `openspec/config.yaml`, `openspec/specs/`, `openspec/changes/`, `openspec/changes/archive/` |
+| sdd-foundation | Creates/Updates | `docs/product/**`, `docs/architecture/**`, `docs/references/**`, `docs/roadmap.md`, `openspec/config.yaml` |
 | sdd-explore | Creates (optional) | `openspec/changes/{change-name}/exploration.md` |
 | sdd-propose | Creates | `openspec/changes/{change-name}/proposal.md` |
 | sdd-spec | Creates | `openspec/changes/{change-name}/specs/{domain}/spec.md` |
@@ -48,6 +61,7 @@ Tasks:      openspec/changes/{change-name}/tasks.md
 Verify:     openspec/changes/{change-name}/verify-report.md
 Config:     openspec/config.yaml
 Main specs: openspec/specs/{domain}/spec.md
+Foundation: docs/product/brief.md, docs/architecture/technical-baseline.md, docs/roadmap.md
 ```
 
 ## Writing Rules
@@ -70,6 +84,9 @@ context: |
   Style: {detected}
 
 rules:
+  foundation:
+    - Ask one blocking question at a time
+    - Do not generate application code before scaffold/project setup is approved
   proposal:
     - Include rollback plan for risky changes
   specs:

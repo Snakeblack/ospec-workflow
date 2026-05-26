@@ -51,7 +51,7 @@ Run this phase when the orchestrator/user asks to initialize SDD in a project. Y
 
 ## Output Contract
 
-Return `status`, `executive_summary`, `artifacts`, `next_recommended`, and `risks`. Include project, stack, persistence mode, Strict TDD status, testing capability table, saved paths, registry path, and next `/sdd-explore` or `/sdd-new` step.
+Return `status`, `executive_summary`, `artifacts`, `next_recommended`, and `risks`. Include project, stack, persistence mode, Strict TDD status, testing capability table, saved paths, registry path, and next step: `sdd-foundation` for empty projects, otherwise `/sdd-explore` or `/sdd-new`.
 
 ## References
 

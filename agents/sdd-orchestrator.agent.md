@@ -2,7 +2,7 @@
 name: sdd-orchestrator
 description: Orchestrates the SDD workflow by delegating phases to specialized SDD subagents.
 tools: ['read', 'search', 'edit', 'execute', 'agent']
-agents: ['sdd-init', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-onboard']
+agents: ['sdd-init', 'sdd-foundation', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-onboard']
 model: 'GPT-5.5 (copilot)'
 user-invocable: true
 disable-model-invocation: true
@@ -52,6 +52,7 @@ SDD is the structured planning layer for substantial changes.
 
 Skills (appear in autocomplete):
 - `/sdd-init` → initialize SDD context; detects stack, bootstraps persistence
+- `/sdd-foundation` → guide new-project discovery, foundation docs, and config completion for empty workspaces
 - `/sdd-explore <topic>` → investigate an idea; reads codebase, compares approaches; no files created
 - `/sdd-apply [change]` → implement tasks in batches; checks off items as it goes
 - `/sdd-verify [change]` → validate implementation against specs; reports CRITICAL / WARNING / SUGGESTION
@@ -67,7 +68,7 @@ Meta-commands (type directly — orchestrator handles them, won't appear in auto
 
 ### SDD Init Guard (MANDATORY)
 
-Before executing ANY SDD command (`/sdd-new`, `/sdd-ff`, `/sdd-continue`, `/sdd-explore`, `/sdd-apply`, `/sdd-verify`, `/sdd-archive`), check if `sdd-init` has been run for this project:
+Before executing ANY SDD command (`/sdd-foundation`, `/sdd-new`, `/sdd-ff`, `/sdd-continue`, `/sdd-explore`, `/sdd-apply`, `/sdd-verify`, `/sdd-archive`), check if `sdd-init` has been run for this project:
 
 1. Check for `openspec/config.yaml` with project context and testing capabilities.
 2. If found, init was done; proceed normally.
@@ -79,6 +80,17 @@ This ensures:
 - The project context (stack, conventions) is available for all phases
 
 Do NOT skip this check. Do NOT ask the user — just run init silently if needed.
+
+### Foundation Guard (MANDATORY FOR EMPTY PROJECTS)
+
+After the init guard, read `openspec/config.yaml`. If it says `project.status: empty`, `architecture: none-detected`, stack arrays are empty, or the user asks to define/build a project from scratch, run `sdd-foundation` before `/sdd-new`, `/sdd-ff`, or `/sdd-onboard`.
+
+`sdd-foundation` is a guided pre-SDD phase:
+- It asks one blocking question at a time and may return `blocked` with `next_question`.
+- It creates or updates `docs/product/`, `docs/architecture/`, `docs/references/`, `docs/roadmap.md`, and `openspec/config.yaml`.
+- It does NOT create application code or package manifests.
+
+If `sdd-foundation` returns `blocked`, surface the one `next_question` and STOP. Do not continue into proposal/spec/design until the foundation has enough product, stack, architecture, and testing context.
 
 ### Execution Mode
 
@@ -184,6 +196,7 @@ Each phase has explicit read/write rules:
 
 | Phase | Reads | Writes |
 |-------|-------|--------|
+| `sdd-foundation` | `openspec/config.yaml` + `docs/**` | foundation docs + updated `openspec/config.yaml` |
 | `sdd-explore` | nothing | `exploration.md` |
 | `sdd-propose` | exploration (optional) | `proposal` |
 | `sdd-spec` | proposal (required) | `spec` |
@@ -224,6 +237,7 @@ When launching sub-agents for SDD phases, pass these exact OpenSpec paths as art
 | Artifact | Path |
 |----------|-----------|
 | Project context/testing | `openspec/config.yaml` |
+| Foundation docs | `docs/product/brief.md`, `docs/product/functional-scope.md`, `docs/architecture/technical-baseline.md`, `docs/roadmap.md` |
 | Exploration | `openspec/changes/{change-name}/exploration.md` |
 | Proposal | `openspec/changes/{change-name}/proposal.md` |
 | Spec | `openspec/changes/{change-name}/specs/**/spec.md` |

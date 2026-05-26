@@ -42,6 +42,6 @@ Return a structured result with these fields:
 - `status`: `success` | `blocked` | `partial`
 - `executive_summary`: one-sentence description of what was initialized
 - `artifacts`: OpenSpec paths and registry paths written
-- `next_recommended`: `sdd-explore` or `sdd-new`
+- `next_recommended`: `sdd-foundation` for empty projects, otherwise `sdd-explore` or `sdd-new`
 - `risks`: any warnings about the detected stack, Strict TDD status, or persistence setup
 - `skill_resolution`: `injected`, `fallback-registry`, `fallback-path`, or `none`

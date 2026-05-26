@@ -40,6 +40,8 @@ Let me scan your codebase for opportunities..."
 
 Then scan the codebase for a real, small improvement opportunity:
 
+If the project has no application code, manifests, or actionable docs, STOP and recommend `sdd-foundation` first. Do not invent an onboarding change in an empty workspace.
+
 ```
 Criteria for a good onboarding change:
 ├── Small scope — completable in one session (30-60 min)
