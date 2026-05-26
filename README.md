@@ -4,6 +4,17 @@ Configuracion personal para GitHub Copilot en VS Code basada en Spec-Driven Deve
 
 El plugin actual se declara en `.plugin/plugin.json` como `ospec-workflow` version `1.0.0`.
 
+## Origen y adaptacion
+
+Este workflow esta basado en dos piezas:
+
+| Base | Como se usa aqui |
+| --- | --- |
+| SDD con OpenSpec | OpenSpec actua como memoria versionable: `openspec/config.yaml`, specs principales, cambios activos y archivo. |
+| [`gentle-ai`](https://github.com/Gentleman-Programming/gentle-ai) de Gentleman-Programming | Se toma como referencia para el modelo de ecosistema con agentes, skills, SDD y delegacion; aqui se adapta a VS Code como plugin/bundle. |
+
+La diferencia importante es el destino: este repo no intenta instalar todo un ecosistema global. Empaqueta el workflow para VS Code, con agentes Copilot, subagentes de fase, reglas compartidas y una configuracion pensada para GitHub Copilot o para otros agentes/proveedores cuando el entorno permite conectar modelos mediante API key.
+
 ## Vista rapida
 
 | Ruta | Proposito |
