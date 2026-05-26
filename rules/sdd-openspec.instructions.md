@@ -21,6 +21,7 @@ Default to `openspec` only when the orchestrator/user selected persisted artifac
 | Artifact                | Path                                                             |
 | ----------------------- | ---------------------------------------------------------------- |
 | Project context/testing | `openspec/config.yaml`                                           |
+| Foundation docs         | `docs/product/brief.md`, `docs/product/functional-scope.md`, `docs/architecture/technical-baseline.md`, `docs/roadmap.md` |
 | Exploration             | `openspec/changes/{change-name}/exploration.md`                  |
 | Proposal                | `openspec/changes/{change-name}/proposal.md`                     |
 | Spec delta              | `openspec/changes/{change-name}/specs/{domain}/spec.md`          |
@@ -36,6 +37,7 @@ Default to `openspec` only when the orchestrator/user selected persisted artifac
 
 - Create the change directory before writing artifacts.
 - If a target artifact already exists, read it first and update it; do not blindly overwrite.
+- Preserve raw project/source documents under `docs/references/raw/` before writing processed summaries under `docs/references/processed/`.
 - If `apply-progress.md` exists, merge previous progress with new progress.
 - Archive only after verification has no CRITICAL issues.
 - The archive is an audit trail. Never delete archived changes.

@@ -14,6 +14,12 @@ Use this file as a compact shared protocol. The detailed source contracts remain
 - Phase agents must not call recursive or nested subagent orchestration unless the orchestrator explicitly owns that step.
 - Do not create or modify Copilot workspace folders as part of this bundle.
 
+## Empty Project Foundation
+
+- If `openspec/config.yaml` exists but says `project.status: empty`, stack arrays are empty, or architecture is `none-detected`, route new-project work through `sdd-foundation` before normal SDD changes.
+- `sdd-foundation` may write foundation docs and update `openspec/config.yaml`; it must not create application code or scaffolds.
+- When `sdd-foundation` returns `blocked` with `next_question`, surface that single question and stop.
+
 ## Skill loading compatibility
 
 1. Prefer an injected `## Project Standards (auto-resolved)` block when the orchestrator can extract compact rules.
@@ -45,3 +51,5 @@ Every phase returns:
 - `next_recommended`: next phase or `none`
 - `risks`: discovered risks or `None`
 - `skill_resolution`: `injected`, `fallback-registry`, `fallback-path`, or `none`
+
+`sdd-foundation` may also return `open_questions` and one `next_question` when blocked.
