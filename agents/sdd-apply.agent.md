@@ -2,7 +2,7 @@
 name: sdd-apply
 description: 'Implement assigned SDD tasks from specs and design while preserving review workload and TDD evidence.'
 tools: ['read', 'search', 'edit', 'execute']
-model: 'GPT-5.5 (copilot)'
+model: 'GPT-5.3-Codex (copilot)'
 user-invocable: false
 target: vscode
 ---

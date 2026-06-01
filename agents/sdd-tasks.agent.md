@@ -2,7 +2,7 @@
 name: sdd-tasks
 description: 'Break an SDD change into concrete implementation tasks with a review workload forecast.'
 tools: ['read', 'search', 'edit']
-model: 'GPT-5.5 (copilot)'
+model: 'GPT-5.4 mini (copilot)'
 user-invocable: false
 target: vscode
 handoffs:

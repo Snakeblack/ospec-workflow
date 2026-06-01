@@ -3,7 +3,7 @@ name: sdd-orchestrator
 description: Orchestrates the SDD workflow by delegating phases to specialized SDD subagents.
 tools: ['read', 'search', 'edit', 'execute', 'agent']
 agents: ['sdd-init', 'sdd-foundation', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-onboard']
-model: 'GPT-5.5 (copilot)'
+model: 'GPT-5.4 (copilot)'
 user-invocable: true
 disable-model-invocation: true
 target: vscode

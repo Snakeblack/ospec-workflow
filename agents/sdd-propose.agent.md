@@ -3,7 +3,7 @@ name: sdd-propose
 description: 'Create a concise SDD proposal with intent, scope, capabilities, approach, risks, and rollback plan.'
 tools: ['read', 'search', 'edit']
 model:
-  - 'GPT-5.5 (copilot)'
+  - 'Claude Sonnet 4.6 (copilot)'
 user-invocable: false
 target: vscode
 ---

@@ -2,7 +2,7 @@
 name: sdd-design
 description: 'Create the SDD technical design with architecture decisions, data flow, file changes, and testing strategy.'
 tools: ['read', 'search', 'edit']
-model: 'GPT-5.5 (copilot)'
+model: 'Claude Opus 4.8 (copilot)'
 user-invocable: false
 target: vscode
 ---

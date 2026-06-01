@@ -2,7 +2,7 @@
 name: sdd-onboard
 description: 'Guide a user through a real SDD cycle on the current codebase.'
 tools: ['read', 'search', 'edit', 'execute']
-model: 'GPT-5.5 (copilot)'
+model: 'Claude Sonnet 4.6 (copilot)'
 user-invocable: false
 target: vscode
 ---
