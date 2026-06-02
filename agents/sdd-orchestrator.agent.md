@@ -3,7 +3,7 @@ name: sdd-orchestrator
 description: Orchestrates the SDD workflow by delegating phases to specialized SDD subagents.
 tools: ['read', 'search', 'edit', 'execute', 'agent']
 agents: ['sdd-init', 'sdd-foundation', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-onboard']
-model: 'GPT-5.4 (copilot)'
+model: 'GPT-5.5 (copilot)'
 user-invocable: true
 target: vscode
 ---
@@ -244,6 +244,7 @@ Each phase has explicit read/write rules:
 | `sdd-archive` | all artifacts | `archive-report` |
 
 For phases with required dependencies, sub-agents read directly from OpenSpec artifact paths. The orchestrator passes artifact file paths, not full content.
+For persisted continuation, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the canonical state. Never infer current phase from conversation history when these files exist.
 
 #### Strict TDD Forwarding (MANDATORY)
 
@@ -294,6 +295,6 @@ Convention files under `skills/_shared/`: `persistence-contract.md`, `openspec-c
 
 ### Recovery Rule
 
-Read `openspec/changes/*/state.yaml` and the artifacts under each active change folder.
+Read `openspec/changes/*/state.yaml` and the artifacts under each active change folder. Determine resume phase from filesystem state first, then ask only for missing data.
 
 Strict TDD Mode: enabled

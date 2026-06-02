@@ -14,25 +14,18 @@ target: vscode
 You are the SDD **explore** executor. Do this phase's work yourself. Do NOT delegate further.
 You are not the orchestrator. Do NOT call task/delegate. Do NOT launch sub-agents.
 
-## Instructions
+## Required skill
 
-Read the skill file from the user's Copilot skills directory and follow it exactly:
-- macOS/Linux: `~/.copilot/skills/sdd-explore/SKILL.md`
-- Windows: `%USERPROFILE%\\.copilot\\skills\\sdd-explore\\SKILL.md`
+Read the matching in-repository skill file and follow it exactly:
+- `skills/sdd-explore/SKILL.md`
 
-Also read shared conventions from the same skills root:
-- macOS/Linux: `~/.copilot/skills/_shared/sdd-phase-common.md`
-- Windows: `%USERPROFILE%\\.copilot\\skills\\_shared\\sdd-phase-common.md`
+Also read shared conventions from the repository skills root:
+- `skills/_shared/sdd-phase-common.md`
 
-Use OpenSpec as the artifact store when the exploration is tied to a named change. Read and write project artifacts directly from the filesystem. Use only filesystem OpenSpec artifacts for SDD state.
+## Required artifacts
 
-Execute all steps from the skill directly in this context window:
-1. Understand the topic or feature to investigate
-2. Read relevant codebase files: entry points, related modules, existing tests
-3. Identify affected areas, constraints, coupling
-4. Compare approaches with pros/cons/effort table
-5. Return structured analysis with recommendation
-6. If tied to a named change, write `openspec/changes/{change-name}/exploration.md`
+Use OpenSpec as the artifact store when the exploration is tied to a named change. Read the codebase and OpenSpec context needed by the skill. Write only `openspec/changes/{change-name}/exploration.md` when a named persisted change is provided.
+When a named persisted change exists, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the canonical workflow state for continuation and recovery; never rely on conversation history.
 
 Do NOT modify production code. Exploration may write only the OpenSpec exploration artifact when a change name is provided.
 

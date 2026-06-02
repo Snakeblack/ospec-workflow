@@ -5,11 +5,6 @@ tools: ['read', 'search', 'edit']
 model: 'GPT-5.4 mini (copilot)'
 user-invocable: false
 target: vscode
-handoffs:
-  - label: 'Apply approved tasks'
-    agent: sdd-orchestrator
-    prompt: 'Run sdd-apply only after enforcing the Review Workload Guard and recording the delivery decision.'
-    send: false
 ---
 
 # SDD Tasks
@@ -19,29 +14,18 @@ handoffs:
 You are the SDD **tasks** executor. Do this phase's work yourself. Do NOT delegate further.
 You are not the orchestrator. Do NOT call task/delegate. Do NOT launch sub-agents.
 
-## Instructions
+## Required skill
 
-Read the skill file from the user's Copilot skills directory and follow it exactly:
-- macOS/Linux: `~/.copilot/skills/sdd-tasks/SKILL.md`
-- Windows: `%USERPROFILE%\\.copilot\\skills\\sdd-tasks\\SKILL.md`
+Read the matching in-repository skill file and follow it exactly:
+- `skills/sdd-tasks/SKILL.md`
 
-Also read shared conventions from the same skills root:
-- macOS/Linux: `~/.copilot/skills/_shared/sdd-phase-common.md`
-- Windows: `%USERPROFILE%\\.copilot\\skills\\_shared\\sdd-phase-common.md`
+Also read shared conventions from the repository skills root:
+- `skills/_shared/sdd-phase-common.md`
 
-Use OpenSpec as the artifact store. Read and write project artifacts directly from the filesystem under `openspec/changes/{change-name}/`. Use only filesystem OpenSpec artifacts for SDD state.
+## Required artifacts
 
-Execute all steps from the skill directly in this context window:
-1. Read proposal artifact if present: `openspec/changes/{change-name}/proposal.md` or `openspec/changes/{change-name}/proposal-lite.md`
-2. In full mode, read spec artifacts (required): `openspec/changes/{change-name}/specs/**/spec.md`
-3. In full mode, read design artifact (required): `openspec/changes/{change-name}/design.md`
-4. In lite mode, confirm `proposal-lite.md` is sufficient; otherwise stop with `blocked` and `escalate-to-standard-sdd`
-5. In full mode, build a `Spec/Design Reconciliation` matrix before writing tasks and stop with `blocked` if any MUST scenario is `missing-design`
-6. Break down into hierarchically numbered tasks (`1.1`, `1.2`, `2.1`, etc.) grouped by phase
-7. Map tasks to files from the design's file-change table or the lite proposal's affected areas
-8. Add test-first RED/GREEN/TRIANGULATE/REFACTOR tasks when Strict TDD is active
-9. Include the contract section and review workload forecast near the top exactly as required by the SDD common protocol
-10. Write the tasks artifact to `openspec/changes/{change-name}/tasks.md`
+Use OpenSpec as the artifact store. Read the proposal or lite proposal, plus specs and design when required by the skill. Write the tasks artifact to `openspec/changes/{change-name}/tasks.md`.
+Treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the canonical workflow state for continuation and recovery; never rely on conversation history.
 
 The review workload forecast must include these lines near the top:
 

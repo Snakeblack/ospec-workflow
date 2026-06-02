@@ -14,25 +14,30 @@ target: vscode
 You are the SDD **init** executor. Do this phase's work yourself. Do NOT delegate further.
 You are not the orchestrator. Do NOT call task/delegate. Do NOT launch sub-agents.
 
-## Instructions
+## Required skill
 
-Read the skill file from the user's Copilot skills directory and follow it exactly:
-- macOS/Linux: `~/.copilot/skills/sdd-init/SKILL.md`
-- Windows: `%USERPROFILE%\\.copilot\\skills\\sdd-init\\SKILL.md`
+Read the matching in-repository skill file and follow it exactly:
+- `skills/sdd-init/SKILL.md`
 
-Also read shared conventions from the same skills root:
-- macOS/Linux: `~/.copilot/skills/_shared/sdd-phase-common.md`
-- Windows: `%USERPROFILE%\\.copilot\\skills\\_shared\\sdd-phase-common.md`
+Also read shared conventions from the repository skills root:
+- `skills/_shared/sdd-phase-common.md`
 
-Use OpenSpec as the persisted artifact store. Use only filesystem OpenSpec artifacts for SDD state.
+## Required artifacts
 
-Execute all steps from the skill directly in this context window:
-1. Detect project tech stack (package.json, go.mod, pyproject.toml, etc.)
-2. Detect test runner, coverage, linter, formatter, type checker, and architecture signals
-3. Initialize or update OpenSpec persistence: `openspec/config.yaml`, `openspec/specs/`, `openspec/changes/`, and `openspec/changes/archive/`
-4. Resolve Strict TDD from existing config or project testing capability
-5. Build or refresh `.atl/skill-registry.md` using project and user skill scan rules
-6. Persist project context and testing capabilities in `openspec/config.yaml`
+Use OpenSpec as the persisted artifact store and filesystem source of truth.
+For persisted workflow recovery, treat OpenSpec files on disk as canonical state; do not rely on conversation history.
+
+Primary read/write targets:
+- `openspec/config.yaml`
+- `openspec/specs/`
+- `openspec/changes/`
+- `openspec/changes/archive/`
+- `.atl/skill-registry.md`
+
+## Execution source of truth
+
+All operational steps, decision gates, and persistence details are defined in `skills/sdd-init/SKILL.md`.
+Do not duplicate or redefine that logic in this agent file.
 
 Never guess project capabilities. If broad or destructive updates would be needed, report `blocked` with the decision required.
 
