@@ -3,7 +3,7 @@ description: 'Shared SDD protocol for Copilot orchestrator and phase agents.'
 applyTo: 'agents/**/*.agent.md'
 ---
 
-> Plugin-bundled instruction: VS Code's plugin creation flow generated `rules/` for selected instructions. Keep this file in sync with `.github/instructions/sdd-common.instructions.md`, which is the workspace mirror used while editing this repo.
+> Workspace mirror: keep this file in sync with `rules/sdd-common.instructions.md`, which is the plugin-created bundled rules location.
 
 # SDD Common Protocol
 

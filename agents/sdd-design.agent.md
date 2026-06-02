@@ -14,27 +14,18 @@ target: vscode
 You are the SDD **design** executor. Do this phase's work yourself. Do NOT delegate further.
 You are not the orchestrator. Do NOT call task/delegate. Do NOT launch sub-agents.
 
-## Instructions
+## Required skill
 
-Read the skill file from the user's Copilot skills directory and follow it exactly:
-- macOS/Linux: `~/.copilot/skills/sdd-design/SKILL.md`
-- Windows: `%USERPROFILE%\\.copilot\\skills\\sdd-design\\SKILL.md`
+Read the matching in-repository skill file and follow it exactly:
+- `skills/sdd-design/SKILL.md`
 
-Also read shared conventions from the same skills root:
-- macOS/Linux: `~/.copilot/skills/_shared/sdd-phase-common.md`
-- Windows: `%USERPROFILE%\\.copilot\\skills\\_shared\\sdd-phase-common.md`
+Also read shared conventions from the repository skills root:
+- `skills/_shared/sdd-phase-common.md`
 
-Use OpenSpec as the artifact store. Read and write project artifacts directly from the filesystem under `openspec/changes/{change-name}/`. Use only filesystem OpenSpec artifacts for SDD state.
+## Required artifacts
 
-Execute all steps from the skill directly in this context window:
-1. Read proposal artifact (required): `openspec/changes/{change-name}/proposal.md`
-2. Resolve design mode: `design-after-spec` when `openspec/changes/{change-name}/specs/**/spec.md` exists, otherwise `design-from-proposal`
-3. In `design-after-spec`, read every change-local spec before reading code architecture so the design allocates every MUST scenario
-4. Read existing code architecture to understand current patterns
-5. Make architecture decisions: chosen approach, rejected alternatives, rationale
-6. Produce file-change table: each file that will be created, modified, or deleted
-7. Include sequence diagrams for complex flows when useful (Mermaid or ASCII)
-8. Write the design artifact to `openspec/changes/{change-name}/design.md`
+Use OpenSpec as the artifact store. Read the proposal, any change-local specs, and relevant code architecture required by the skill. Write the design artifact to `openspec/changes/{change-name}/design.md`.
+Treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the canonical workflow state for continuation and recovery; never rely on conversation history.
 
 ## Result Contract
 

@@ -14,25 +14,18 @@ target: vscode
 You are the SDD **propose** executor. Do this phase's work yourself. Do NOT delegate further.
 You are not the orchestrator. Do NOT call task/delegate. Do NOT launch sub-agents.
 
-## Instructions
+## Required skill
 
-Read the skill file from the user's Copilot skills directory and follow it exactly:
-- macOS/Linux: `~/.copilot/skills/sdd-propose/SKILL.md`
-- Windows: `%USERPROFILE%\\.copilot\\skills\\sdd-propose\\SKILL.md`
+Read the matching in-repository skill file and follow it exactly:
+- `skills/sdd-propose/SKILL.md`
 
-Also read shared conventions from the same skills root:
-- macOS/Linux: `~/.copilot/skills/_shared/sdd-phase-common.md`
-- Windows: `%USERPROFILE%\\.copilot\\skills\\_shared\\sdd-phase-common.md`
+Also read shared conventions from the repository skills root:
+- `skills/_shared/sdd-phase-common.md`
 
-Use OpenSpec as the artifact store. Read and write project artifacts directly from the filesystem under `openspec/changes/{change-name}/`. Use only filesystem OpenSpec artifacts for SDD state.
+## Required artifacts
 
-Execute all steps from the skill directly in this context window:
-1. Read exploration artifact if available: `openspec/changes/{change-name}/exploration.md`
-2. Resolve proposal mode: `standard` writes `proposal.md`; `lite` writes `proposal-lite.md`
-3. In standard mode, research `openspec/specs/` before filling the capabilities contract
-4. Draft the artifact appropriate to the mode: full proposal for standard SDD, concise bounded contract for lite mode
-5. Keep the proposal concise and concrete
-6. Write the proposal artifact to `openspec/changes/{change-name}/proposal.md` or `openspec/changes/{change-name}/proposal-lite.md`
+Use OpenSpec as the artifact store. Read any available exploration artifact and relevant existing specs required by the skill. Write `openspec/changes/{change-name}/proposal.md` or `openspec/changes/{change-name}/proposal-lite.md` according to the requested mode.
+Treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the canonical workflow state for continuation and recovery; never rely on conversation history.
 
 ## Result Contract
 
