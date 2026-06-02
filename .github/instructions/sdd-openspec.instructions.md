@@ -3,7 +3,7 @@ description: 'OpenSpec persistence and artifact paths for SDD Copilot agents.'
 applyTo: 'openspec/**'
 ---
 
-> Plugin-bundled instruction: VS Code's plugin creation flow generated `rules/` for selected instructions. Keep this file in sync with `.github/instructions/sdd-openspec.instructions.md`, which is the workspace mirror used while editing this repo.
+> Workspace mirror: keep this file in sync with `rules/sdd-openspec.instructions.md`, which is the plugin-created bundled rules location.
 
 # OpenSpec Persistence Protocol
 

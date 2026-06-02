@@ -3,7 +3,7 @@ description: 'Strict TDD forwarding and evidence rules for SDD apply and verify 
 applyTo: '**/*.{spec.ts,test.ts,cs}'
 ---
 
-> Plugin-bundled instruction: VS Code's plugin creation flow generated `rules/` for selected instructions. Keep this file in sync with `.github/instructions/sdd-strict-tdd.instructions.md`, which is the workspace mirror used while editing this repo.
+> Workspace mirror: keep this file in sync with `rules/sdd-strict-tdd.instructions.md`, which is the plugin-created bundled rules location.
 
 # Strict TDD Protocol
 
@@ -11,7 +11,7 @@ Load these rules only when `openspec/config.yaml` explicitly enables `strict_tdd
 
 ## Apply phase
 
-- Follow RED → GREEN → TRIANGULATE → REFACTOR for every assigned task.
+- Follow RED -> GREEN -> TRIANGULATE -> REFACTOR for every assigned task.
 - Do not write production code before a failing or newly impossible test exists.
 - Execute the relevant test file for GREEN when a verified command-execution tool is available.
 - If command execution is unavailable, report `blocked`; do not fake GREEN evidence.
