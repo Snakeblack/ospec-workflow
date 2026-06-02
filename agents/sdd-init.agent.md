@@ -32,7 +32,7 @@ Primary read/write targets:
 - `openspec/specs/`
 - `openspec/changes/`
 - `openspec/changes/archive/`
-- `.atl/skill-registry.md`
+- project skill registry, when present
 
 ## Execution source of truth
 

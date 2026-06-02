@@ -185,7 +185,7 @@ ALL sub-agent launch prompts that involve reading, writing, or reviewing code MU
 The orchestrator resolves skills from the registry ONCE (at session start or first delegation), caches the compact rules, and injects matching rules into each sub-agent's prompt.
 
 Orchestrator skill resolution (do once per session):
-1. Read `.atl/skill-registry.md` from the project root.
+1. Read the project skill registry if it exists.
 2. Cache the **Compact Rules** section and the **User Skills** trigger table.
 3. If no registry exists, warn user and proceed without project-specific standards.
 

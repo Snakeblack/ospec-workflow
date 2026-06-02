@@ -6,7 +6,7 @@ Cada fase produce un artefacto concreto y deja el sistema listo para la siguient
 
 | Fase | Lee | Escribe | Resultado |
 | --- | --- | --- | --- |
-| `sdd-init` | Repo real, manifests, configs, tests. | `openspec/config.yaml`, carpetas base, `.atl/skill-registry.md`. | Proyecto listo para SDD persistido. |
+| `sdd-init` | Repo real, manifests, configs, tests. | `openspec/config.yaml`, carpetas base y registro compacto de skills cuando aplique. | Proyecto listo para SDD persistido. |
 | `sdd-foundation` | `openspec/config.yaml`, `docs/**`, documentos fuente. | `docs/product/**`, `docs/architecture/**`, `docs/roadmap.md`, config actualizada. | Base de producto y arquitectura para proyectos vacios. |
 | `sdd-explore` | Codigo, specs y artefactos relevantes cuando hacen falta. | `exploration.md` si hay cambio nombrado. | Estado actual, opciones, riesgos y recomendacion. |
 | `sdd-propose` | Exploracion, specs existentes, peticion del usuario. | `proposal.md` o `proposal-lite.md`. | Intencion, alcance, capacidades, riesgos y rollback. |
