@@ -39,6 +39,15 @@ proposal -> specs --> tasks -> apply -> verify -> archive
 lite: proposal-lite -> tasks -> apply -> verify
 ```
 
+## Modos de ejecucion
+
+El orquestador usa `vscode/askQuestions` para pausar y pedir decision del usuario en gates criticos:
+
+- **Interactive** (default): despues de cada fase muestra un resumen y pregunta si continuar, detener o ajustar.
+- **Automatic**: ejecuta todas las fases seguidas sin pausar; muestra el resultado final.
+
+Los gates interactivos tambien se activan para decisiones de estrategia de entrega, carga de revision y bloqueos arquitectonicos.
+
 ## Documentacion principal
 
 1. [docs/README.md](docs/README.md)
