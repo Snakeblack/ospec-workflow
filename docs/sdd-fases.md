@@ -2,6 +2,21 @@
 
 Cada fase produce un artefacto concreto y deja el sistema listo para la siguiente. Esa es la gracia: no se mezcla descubrimiento, contrato, diseno, implementacion y verificacion en una sola bola de barro.
 
+## Orquestador interactivo
+
+El orquestador (`sdd-orchestrator`) coordina todas las fases y usa `vscode/askQuestions` para pausar y pedir decision del usuario en momentos criticos:
+
+- **Modo Interactive** (default): despues de cada fase muestra un resumen y pregunta si continuar, detener o ajustar antes de lanzar la siguiente.
+- **Modo Automatic**: ejecuta todas las fases seguidas sin pausar; muestra el resultado final.
+
+Gates interactivos obligatorios:
+- Eleccion de modo de ejecucion y estrategia de entrega en el primer comando.
+- Decision de carga de revision antes de `sdd-apply` (chained PRs vs exception).
+- Bloqueos arquitectonicos, de scope o de testing.
+- Continuacion de fases en modo interactivo.
+
+Cuando una fase necesita decision del usuario, devuelve `status: blocked` con `question_gate` y el orquestador convierte eso en una pregunta interactiva. La fase no avanza hasta recibir respuesta.
+
 ## Resumen
 
 | Fase | Lee | Escribe | Resultado |

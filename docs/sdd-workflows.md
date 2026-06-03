@@ -2,6 +2,24 @@
 
 El plugin soporta varias lineas de trabajo. Todas comparten una idea: el estado persistido vive en OpenSpec y el orquestador decide la siguiente fase segura.
 
+## Modos de ejecucion
+
+Antes de la primera ejecucion, el orquestador pregunta el modo:
+
+| Modo | Comportamiento |
+|------|---------------|
+| **Interactive** (default) | Muestra resumen tras cada fase y pregunta si continuar, detener o ajustar. |
+| **Automatic** | Ejecuta todas las fases seguidas sin pausar. |
+
+Estrategia de entrega (se elige una vez y se cachea):
+
+| Estrategia | Comportamiento |
+|------------|---------------|
+| `ask-on-risk` (default) | Pregunta solo si hay riesgo de PR grande. |
+| `auto-chain` | Divide automaticamente en PRs encadenadas. |
+| `single-pr` | Intenta una sola PR, exige excepcion si supera presupuesto. |
+| `exception-ok` | Permite PR grande con excepcion explicita. |
+
 ## 1. Proyecto existente
 
 Usa esta linea cuando el repo ya tiene codigo, tests o arquitectura detectable.
