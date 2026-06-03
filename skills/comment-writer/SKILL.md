@@ -27,7 +27,7 @@ Use it for:
 | Keep it short | Prefer 1 to 3 short paragraphs or a tight bullet list. |
 | Explain why | Give the technical reason when asking for a change. |
 | Avoid pile-ons | Comment on the highest-value issue, not every tiny preference. |
-| Match thread language | Write in the thread/user language. If writing in Spanish, use Rioplatense Spanish/voseo: `podés`, `tenés`, `fijate`, `dale`. |
+| Match thread language | Write in the thread/user language. If writing in Spanish, use Madrid-Style Spanish. |
 | No em dashes | Use commas, periods, or parentheses instead. |
 
 ## Comment Formula
