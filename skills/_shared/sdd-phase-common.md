@@ -113,6 +113,51 @@ Example:
 (other values: `fallback-registry`, `fallback-path`, or `none — no registry found`)
 ```
 
+### Blocking Question Envelope
+
+When a phase cannot safely continue without user input, return `status: blocked`.
+
+Do not ask the user directly. The orchestrator owns user interaction.
+
+Use this shape when the question benefits from options, multi-select, or recommendation metadata:
+
+```json
+{
+  "status": "blocked",
+  "blocker_type": "needs_user_decision",
+  "executive_summary": "Why the phase is blocked.",
+  "question_gate": {
+    "reason": "Why this answer is required before continuing.",
+    "questions": [
+      {
+        "header": "Short title",
+        "question": "Concrete user-facing question.",
+        "options": [
+          {
+            "label": "Recommended option",
+            "description": "Why this is recommended.",
+            "recommended": true
+          },
+          {
+            "label": "Alternative option"
+          }
+        ],
+        "multiSelect": false,
+        "allowFreeformInput": true
+      }
+    ]
+  },
+  "artifacts": [],
+  "next_recommended": "Ask user, then rerun this phase.",
+  "risks": ["Risk if the decision is guessed."],
+  "skill_resolution": "injected"
+}
+```
+
+If the phase skill has a legacy `next_question` field, it may return `next_question` as plain text. Prefer `question_gate` when structured options are useful.
+
+On `blocked`, update `openspec/changes/{change-name}/state.yaml` with `status: blocked` and record the question or blocker in `blocking_questions`.
+
 ## E. Review Workload Guard
 
 SDD must protect reviewer cognitive load, not only generate tasks.

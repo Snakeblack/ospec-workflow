@@ -33,8 +33,11 @@ Do NOT modify production code. Do NOT fix issues found. The orchestrator decides
 
 Return a structured result with these fields:
 - `status`: `success` | `blocked` | `partial`
+- `question_gate`: optional structured blocking question for the orchestrator to ask with `vscode/askQuestions` when `status` is `blocked`
 - `executive_summary`: one-sentence verdict (for example, `PASS - 12/12 scenarios compliant, all tests green`)
 - `artifacts`: OpenSpec file paths written, especially `openspec/changes/{change-name}/verify-report.md`
 - `next_recommended`: `sdd-archive` (if PASS), or the most relevant upstream phase based on issue origin (`sdd-apply`, `sdd-tasks`, `sdd-design`, `sdd-spec`)
 - `risks`: CRITICAL issues (must fix) and WARNINGs (should fix)
 - `skill_resolution`: `injected`, `fallback-registry`, `fallback-path`, or `none`
+
+If you need user input, do NOT ask the user directly. Return `status: blocked` with `question_gate` or `next_question`. The orchestrator will ask the user through `vscode/askQuestions` and relaunch you with the answer.

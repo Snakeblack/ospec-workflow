@@ -31,8 +31,11 @@ Treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the ca
 
 Return a structured result with these fields:
 - `status`: `success` | `blocked` | `partial`
+- `question_gate`: optional structured blocking question for the orchestrator to ask with `vscode/askQuestions` when `status` is `blocked`
 - `executive_summary`: one-sentence description of the chosen architecture and key decisions
 - `artifacts`: OpenSpec file paths written, especially `openspec/changes/{change-name}/design.md`
 - `next_recommended`: `sdd-tasks` (once spec is also done)
 - `risks`: architectural risks, open decisions, or patterns that deviate from existing codebase
 - `skill_resolution`: `injected`, `fallback-registry`, `fallback-path`, or `none`
+
+If you need user input, do NOT ask the user directly. Return `status: blocked` with `question_gate` or `next_question`. The orchestrator will ask the user through `vscode/askQuestions` and relaunch you with the answer.
