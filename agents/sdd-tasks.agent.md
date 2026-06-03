@@ -42,8 +42,11 @@ Also include estimated changed lines, delivery strategy, suggested split, and wo
 
 Return a structured result with these fields:
 - `status`: `success` | `blocked` | `partial`
+- `question_gate`: optional structured blocking question for the orchestrator to ask with `vscode/askQuestions` when `status` is `blocked`
 - `executive_summary`: one-sentence description of the task breakdown (phase count, total task count)
 - `artifacts`: OpenSpec file paths written, especially `openspec/changes/{change-name}/tasks.md`
 - `next_recommended`: `sdd-apply`
 - `risks`: tasks that are large or have hidden dependencies, phases that may need splitting
 - `skill_resolution`: `injected`, `fallback-registry`, `fallback-path`, or `none`
+
+If you need user input, do NOT ask the user directly. Return `status: blocked` with `question_gate` or `next_question`. The orchestrator will ask the user through `vscode/askQuestions` and relaunch you with the answer.

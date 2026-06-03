@@ -33,8 +33,11 @@ Use the current ISO date for archive folder naming.
 
 Return a structured result with these fields:
 - `status`: `success` | `blocked` | `partial`
+- `question_gate`: optional structured blocking question for the orchestrator to ask with `vscode/askQuestions` when `status` is `blocked`
 - `executive_summary`: one-sentence confirmation that the change is archived and closed
 - `artifacts`: OpenSpec file paths written or moved, including the archived folder path
 - `next_recommended`: `none` (change is complete) or a new `/sdd-new` if follow-up is needed
 - `risks`: any artifacts that could not be merged or archived cleanly
 - `skill_resolution`: `injected`, `fallback-registry`, `fallback-path`, or `none`
+
+If you need user input, do NOT ask the user directly. Return `status: blocked` with `question_gate` or `next_question`. The orchestrator will ask the user through `vscode/askQuestions` and relaunch you with the answer.
