@@ -2,7 +2,7 @@
 name: sdd-archive
 description: 'Archive a verified SDD change by syncing delta specs and moving the change folder.'
 tools: ['read', 'search', 'edit']
-model: 'GPT-5.4 mini (copilot)'
+model: 'Qwen 3.6 MSC1 (customendpoint)'
 user-invocable: false
 target: vscode
 ---

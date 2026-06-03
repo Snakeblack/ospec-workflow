@@ -2,7 +2,7 @@
 name: sdd-spec
 description: 'Write SDD requirements and scenarios as new or delta OpenSpec specs.'
 tools: ['read', 'search', 'edit']
-model: 'Claude Sonnet 4.6 (copilot)'
+model: 'GPT-5.3-Codex (copilot)'
 user-invocable: false
 target: vscode
 ---

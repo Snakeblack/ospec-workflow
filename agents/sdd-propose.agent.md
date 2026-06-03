@@ -2,7 +2,7 @@
 name: sdd-propose
 description: 'Create a concise SDD proposal with intent, scope, capabilities, approach, risks, and rollback plan.'
 tools: ['read', 'search', 'edit']
-model: 'Claude Sonnet 4.6 (copilot)'
+model: 'Qwen 3.6 MSC1 (customendpoint)'
 user-invocable: false
 target: vscode
 ---

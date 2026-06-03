@@ -2,7 +2,7 @@
 name: sdd-onboard
 description: 'Guide a user through a real SDD cycle on the current codebase.'
 tools: ['read', 'search', 'edit', 'execute']
-model: 'Claude Sonnet 4.6 (copilot)'
+model: 'Qwen 3.6 MSC1 (customendpoint)'
 user-invocable: false
 target: vscode
 ---

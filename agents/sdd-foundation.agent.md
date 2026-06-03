@@ -2,7 +2,7 @@
 name: sdd-foundation
 description: 'Build project foundation docs and OpenSpec context for an empty or from-scratch project.'
 tools: ['read', 'search', 'edit']
-model: 'GPT-5.5 (copilot)'
+model: 'Qwen 3.6 MSC1 (customendpoint)'
 user-invocable: false
 target: vscode
 ---

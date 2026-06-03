@@ -2,7 +2,7 @@
 name: sdd-tasks
 description: 'Break an SDD change into concrete implementation tasks with a review workload forecast.'
 tools: ['read', 'search', 'edit']
-model: 'GPT-5.4 mini (copilot)'
+model: 'Qwen 3.6 MSC1 (customendpoint)'
 user-invocable: false
 target: vscode
 ---

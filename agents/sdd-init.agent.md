@@ -2,7 +2,7 @@
 name: sdd-init
 description: 'Initialize SDD project context, OpenSpec persistence, testing capabilities, and skill registry.'
 tools: ['read', 'search', 'edit', 'execute']
-model: 'GPT-5.4 mini (copilot)'
+model: 'Qwen 3.6 MSC1 (customendpoint)'
 user-invocable: false
 target: vscode
 ---
