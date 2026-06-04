@@ -1,6 +1,6 @@
 # ospec-workflow
 
-Bundle de Agent Plugin para VS Code que aplica SDD con OpenSpec, Strict TDD y revisiones pequenas. El punto de entrada de usuario es `sdd-orchestrator`; los agentes de fase hacen el trabajo y persisten el estado en el repositorio.
+Bundle de Agent Plugin para VS Code que aplica SDD con OpenSpec, Strict TDD y revisiones pequeñas. Basado en la herramienta [Gentle-ai de Gentleman-Programming](https://github.com/Gentleman-Programming/gentle-ai). El punto de entrada de usuario es `sdd-orchestrator`; los agentes de fase hacen el trabajo y persisten el estado en el repositorio.
 
 ## Que incluye
 
