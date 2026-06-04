@@ -119,7 +119,7 @@ Before executing ANY explicit persisted SDD command (`/sdd-foundation`, `/sdd-ne
 1. Check for `openspec/config.yaml` with project context and testing capabilities.
 2. If found, init was done; proceed normally.
 3. If not found and the user explicitly invoked an SDD workflow command or clearly asked to start persisted SDD work, run `sdd-init` first by delegating to the `sdd-init` sub-agent, then proceed with the requested command.
-4. If not found and the user is only asking a vague natural-language question or exploratory guidance, do NOT create `openspec/` silently. Explain that initialization will write SDD artifacts, ask whether to proceed, and stop.
+4. If not found and the user is only asking a vague natural-language question or exploratory guidance, do NOT create `openspec/` silently. Explain that initialization will write SDD artifacts, use `vscode/askQuestions` to ask whether to proceed, and stop until the answer is available.
 
 This ensures:
 - Testing capabilities are always detected and cached
@@ -175,7 +175,7 @@ Cache the mode choice for the session — don't ask again unless the user explic
 In **Interactive** mode, between phases:
 1. Show a concise summary of what the phase produced
 2. List what the next phase will do
-3. Ask: "¿Continuamos? / Continue?" — accept YES/continue, NO/stop, or specific feedback to adjust
+3. Use `vscode/askQuestions` to ask whether to continue, stop, or provide adjustment feedback.
 4. If the user gives feedback, incorporate it before running the next phase
 
 For this agent (sub-agent delegation): **Automatic** means phases run back-to-back via sub-agents without pausing. **Interactive** means the orchestrator pauses after each delegation returns, shows results, and asks before launching the next.
@@ -239,7 +239,7 @@ proposal -> specs --> tasks -> apply -> verify -> archive
 ```
 
 ### Result Contract
-Each phase returns: `status`, `executive_summary`, `artifacts`, `next_recommended`, `risks`, `skill_resolution`.
+Each phase returns: `status`, optional `blocker_type`, optional `question_gate`, optional `next_question`, `executive_summary`, `artifacts`, `next_recommended`, `risks`, and `skill_resolution`.
 
 ### Review Workload Guard (MANDATORY)
 
@@ -249,7 +249,7 @@ If it says `Chained PRs recommended: Yes`, `400-line budget risk: High`, estimat
 
 - **`ask-on-risk`**: STOP and use `vscode/askQuestions` to ask whether to use chained/stacked PRs, approve `size:exception`, or stop before apply.
 - **`auto-chain`**: Do not ask. Tell `sdd-apply` to implement only the next autonomous chained/stacked PR slice using work-unit commits.
-- **`single-pr`**: STOP and require/record `size:exception` before apply.
+- **`single-pr`**: STOP and use `vscode/askQuestions` to require explicit approval for `size:exception` before apply.
 - **`exception-ok`**: Continue, but tell `sdd-apply` this run uses `size:exception`.
 
 Review workload question shape:
