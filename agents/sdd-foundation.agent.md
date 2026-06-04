@@ -43,5 +43,3 @@ Return a structured result with these fields:
 - `skill_resolution`: `injected`, `fallback-registry`, `fallback-path`, or `none`
 
 If you need user input, do NOT ask the user directly. Return `status: blocked` with `question_gate` or `next_question`. The orchestrator will ask the user through `vscode/askQuestions` and relaunch you with the answer.
-
-If you need user input, do NOT ask the user directly. Return `status: blocked` with `question_gate` or `next_question`. The orchestrator will ask the user through `vscode/askQuestions` and relaunch you with the answer.
