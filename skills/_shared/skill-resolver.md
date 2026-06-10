@@ -111,3 +111,50 @@ This prevents silent degradation where the orchestrator forgets skills after com
 - **judgment-day**: follows this protocol before launching Judge A, Judge B, and Fix Agent
 - **pr-review**: already has internal skill loading — should migrate to this protocol for consistency
 - **Any future skill that delegates**: MUST reference this protocol
+
+## Registry cache protocol
+
+The compact skill registry SHOULD be cached using a deterministic fingerprint.
+
+Suggested cache path:
+
+`.ospec/cache/skill-registry.cache.json`
+
+Fingerprint inputs:
+
+- `skills/**/SKILL.md`
+- `skills/_shared/*.md`
+- `rules/**/*.md`
+- optional project convention files detected by `sdd-init`
+
+Cache shape:
+
+```json
+{
+  "version": 1,
+  "fingerprint": "sha256:...",
+  "generated_at": "ISO-8601",
+  "skills": [
+    {
+      "id": "angular",
+      "path": "skills/angular/SKILL.md",
+      "triggers": ["*.ts", "*.html", "Angular"],
+      "compact_rules": ["..."]
+    }
+  ]
+}
+```
+
+If fingerprint is unchanged, reuse the cache.
+If cache is missing or stale, regenerate compact rules.
+
+## Fallback policy
+
+Default path: inject compact rules text.
+
+Fallback path: pass exact `SKILL.md` paths only when:
+
+- compact rules are missing;
+- high-fidelity audit is required;
+- the skill is too specific to summarize safely;
+- cache is stale and cannot be regenerated.

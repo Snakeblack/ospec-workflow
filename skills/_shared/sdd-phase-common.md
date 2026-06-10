@@ -173,3 +173,15 @@ SDD must protect reviewer cognitive load, not only generate tasks.
 - In a Feature Branch Chain, PR #1 targets the feature/tracker branch and later child PRs target the immediate previous PR branch; if GitHub shows previous slices in a child diff, retarget/rebase until the diff is clean.
 
 This guard exists to reduce reviewer burnout and keep implementation delivery safe. Do not treat it as optional process noise.
+
+## Runtime continuation
+
+Every phase that writes artifacts must preserve resumability:
+
+- update `openspec/changes/{change-name}/state.yaml`;
+- append, do not overwrite, historical progress where applicable;
+- include `skill_resolution`;
+- include any `approval_updates`;
+- include any `runtime_observability` warnings.
+
+Conversation history is non-canonical.

@@ -1,0 +1,183 @@
+"use strict";
+
+const assert = require("node:assert/strict");
+const fs = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
+const test = require("node:test");
+
+const {
+  CACHE_RELATIVE_PATH,
+  runSessionStart,
+} = require("./session-start.js");
+
+async function createFixture(t, { withOpenSpec = true } = {}) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "ospec-hook-"));
+  const pluginRoot = path.join(root, "plugin");
+  const workspace = path.join(root, "workspace");
+
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+
+  await fs.mkdir(path.join(pluginRoot, "skills", "example"), {
+    recursive: true,
+  });
+  await fs.mkdir(path.join(pluginRoot, "skills", "_shared"), {
+    recursive: true,
+  });
+  await fs.mkdir(path.join(pluginRoot, "rules"), { recursive: true });
+  await fs.mkdir(workspace, { recursive: true });
+
+  await fs.writeFile(
+    path.join(pluginRoot, "skills", "example", "SKILL.md"),
+    [
+      "---",
+      "name: example",
+      'description: "Example skill. Trigger: JavaScript, hooks"',
+      "---",
+      "",
+      "## Hard Rules",
+      "",
+      "- Keep output deterministic.",
+      "- Do not mutate OpenSpec.",
+      "",
+    ].join("\n"),
+  );
+  await fs.writeFile(
+    path.join(pluginRoot, "skills", "_shared", "runtime.md"),
+    "Shared runtime contract.\n",
+  );
+  await fs.writeFile(
+    path.join(pluginRoot, "rules", "common.md"),
+    "Common project rule.\n",
+  );
+
+  if (withOpenSpec) {
+    await fs.mkdir(path.join(workspace, "openspec"), { recursive: true });
+    await fs.writeFile(
+      path.join(workspace, "openspec", "config.yaml"),
+      "strict_tdd: true\n",
+    );
+  }
+
+  return { pluginRoot, root, workspace };
+}
+
+test("creates the registry cache when OpenSpec is detected", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t);
+  const generatedAt = new Date("2026-06-10T08:00:00.000Z");
+
+  const result = await runSessionStart({
+    input: { cwd: workspace },
+    pluginRoot,
+    now: () => generatedAt,
+  });
+
+  assert.deepEqual(result, {
+    status: "ok",
+    ospecDetected: true,
+    registry: {
+      status: "fresh",
+      path: CACHE_RELATIVE_PATH,
+    },
+  });
+
+  const cache = JSON.parse(
+    await fs.readFile(
+      path.join(workspace, ...CACHE_RELATIVE_PATH.split("/")),
+      "utf8",
+    ),
+  );
+
+  assert.equal(cache.version, 1);
+  assert.match(cache.fingerprint, /^sha256:[a-f0-9]{64}$/);
+  assert.equal(cache.generated_at, generatedAt.toISOString());
+  assert.deepEqual(cache.skills, [
+    {
+      id: "example",
+      path: "skills/example/SKILL.md",
+      triggers: ["JavaScript", "hooks"],
+      compact_rules: [
+        "Keep output deterministic.",
+        "Do not mutate OpenSpec.",
+      ],
+    },
+  ]);
+});
+
+test("does not rewrite a cache whose fingerprint is unchanged", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t);
+  const cachePath = path.join(
+    workspace,
+    ...CACHE_RELATIVE_PATH.split("/"),
+  );
+
+  await runSessionStart({
+    input: { cwd: workspace },
+    pluginRoot,
+    now: () => new Date("2026-06-10T08:00:00.000Z"),
+  });
+  const originalCache = await fs.readFile(cachePath, "utf8");
+
+  const result = await runSessionStart({
+    input: { cwd: workspace },
+    pluginRoot,
+    now: () => new Date("2026-06-10T09:00:00.000Z"),
+  });
+
+  assert.equal(result.registry.status, "fresh");
+  assert.equal(await fs.readFile(cachePath, "utf8"), originalCache);
+});
+
+test("regenerates the cache after a fingerprint input changes", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t);
+  const cachePath = path.join(
+    workspace,
+    ...CACHE_RELATIVE_PATH.split("/"),
+  );
+
+  await runSessionStart({
+    input: { cwd: workspace },
+    pluginRoot,
+    now: () => new Date("2026-06-10T08:00:00.000Z"),
+  });
+  const originalCache = JSON.parse(await fs.readFile(cachePath, "utf8"));
+
+  await fs.writeFile(
+    path.join(pluginRoot, "rules", "common.md"),
+    "Changed project rule.\n",
+  );
+  await runSessionStart({
+    input: { cwd: workspace },
+    pluginRoot,
+    now: () => new Date("2026-06-10T09:00:00.000Z"),
+  });
+
+  const updatedCache = JSON.parse(await fs.readFile(cachePath, "utf8"));
+
+  assert.notEqual(updatedCache.fingerprint, originalCache.fingerprint);
+  assert.equal(updatedCache.generated_at, "2026-06-10T09:00:00.000Z");
+});
+
+test("does not create auxiliary files without OpenSpec", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t, {
+    withOpenSpec: false,
+  });
+
+  const result = await runSessionStart({
+    input: { cwd: workspace },
+    pluginRoot,
+  });
+
+  assert.deepEqual(result, {
+    status: "ok",
+    ospecDetected: false,
+    registry: {
+      status: "skipped",
+      path: CACHE_RELATIVE_PATH,
+    },
+  });
+  await assert.rejects(
+    fs.stat(path.join(workspace, ".ospec")),
+    (error) => error.code === "ENOENT",
+  );
+});

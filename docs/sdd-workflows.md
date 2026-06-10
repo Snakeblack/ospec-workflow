@@ -197,3 +197,13 @@ Para `/sdd-new`, `/sdd-ff` y `/sdd-continue`, el orquestador puede trabajar en d
 | `auto` | Ejecuta fases encadenadas y muestra resultado final, salvo que un guard bloquee. |
 
 El modo interactivo es mas lento, pero mejor para aprender y tomar decisiones. El automatico sirve cuando el equipo ya confia en el workflow y el cambio esta acotado.
+
+## 11. Continuación tras compactación o nueva sesión
+
+Cuando una sesión se compacta o se cierra, la recuperación se hace en este orden:
+
+1. `openspec/changes/{change-name}/state.yaml`
+2. artefactos de fase existentes;
+3. `.ospec/session/session-summary.md`, si existe;
+4. cache de skills, si fingerprint sigue válido;
+5. conversación solo como contexto auxiliar no canónico.

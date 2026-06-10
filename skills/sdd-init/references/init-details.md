@@ -18,6 +18,17 @@
 - Scan project convention files: `agents.md`, `AGENTS.md`, project-level `CLAUDE.md`, `.cursorrules`, `GEMINI.md`, and `copilot-instructions.md`.
 - For index files such as `AGENTS.md`, extract referenced file paths and include both the index and referenced files in the registry.
 
+## Skill registry responsibility
+
+`sdd-init` creates the initial project skill registry when missing.
+
+Normal registry freshness is handled by the `SessionStart` hook. Do not make every SDD command pay full registry discovery cost unless:
+
+- registry is missing;
+- fingerprint is stale;
+- user explicitly requests reindex;
+- project stack/config changed.
+
 ## LLM-First Skill Criteria
 
 - Treat skills as runtime instruction contracts, not human documentation.

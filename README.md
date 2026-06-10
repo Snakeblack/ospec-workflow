@@ -48,6 +48,29 @@ El orquestador usa `vscode/askQuestions` para pausar y pedir decision del usuari
 
 Los gates interactivos tambien se activan para decisiones de estrategia de entrega, carga de revision y bloqueos arquitectonicos.
 
+## Harness runtime
+
+Este plugin no solo define agentes y skills. También incluye hooks ligeros para:
+
+- refrescar el registro compacto de skills;
+- proteger herramientas peligrosas;
+- persistir resumen de sesión antes de compactación;
+- detectar pérdida de skill cache tras subagentes;
+- escribir continuidad mínima al cerrar una sesión.
+
+## Token budget
+
+Regla por defecto:
+
+- comandos: routing fino;
+- orquestador: coordinación, no ejecución;
+- agentes de fase: ejecución;
+- skills: conocimiento on-demand;
+- hooks: automatización fuera del prompt;
+- OpenSpec: fuente de verdad persistida.
+
+No pegar artefactos largos en prompts si pueden leerse desde disco.
+
 ## Documentacion principal
 
 1. [docs/README.md](docs/README.md)

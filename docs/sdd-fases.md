@@ -154,3 +154,15 @@ Regla clave: no archiva con issues CRITICAL. El archivo es auditoria, no papeler
 Guia al usuario por un ciclo real pequeno en su propio repo. No es una demo de juguete. Busca una mejora de bajo riesgo, crea artefactos, implementa, verifica y archiva.
 
 Regla clave: si el workspace esta vacio, debe recomendar `sdd-foundation` primero. No se inventa una mejora donde no hay sistema.
+
+## Runtime harness transversal
+
+Además de las fases SDD, el plugin tiene automatización de ciclo de vida:
+
+| Hook | Responsabilidad |
+| --- | --- |
+| `SessionStart` | Validar OpenSpec y refrescar cache de skills si cambió el fingerprint. |
+| `PreToolUse` | Bloquear o elevar a confirmación operaciones peligrosas. |
+| `PreCompact` | Persistir resumen mínimo antes de compactación. |
+| `SubagentStop` | Detectar pérdida de skill cache o resultados incompletos. |
+| `Stop` | Escribir resumen de sesión y siguiente acción recomendada. |
