@@ -2,7 +2,8 @@
 name: sdd-tasks
 description: 'Break an SDD change into concrete implementation tasks with a review workload forecast.'
 tools: ['read', 'search', 'edit']
-model: 'Qwen 3.6 MSC1 (customendpoint)'
+# modelo intencionalmente omitido.
+# Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
 user-invocable: false
 target: vscode
 ---

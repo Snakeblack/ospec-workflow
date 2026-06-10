@@ -2,7 +2,8 @@
 name: sdd-archive
 description: 'Archive a verified SDD change by syncing delta specs and moving the change folder.'
 tools: ['read', 'search', 'edit']
-model: 'Qwen 3.6 MSC1 (customendpoint)'
+# modelo intencionalmente omitido.
+# Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
 user-invocable: false
 target: vscode
 ---

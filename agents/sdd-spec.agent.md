@@ -2,7 +2,8 @@
 name: sdd-spec
 description: 'Write SDD requirements and scenarios as new or delta OpenSpec specs.'
 tools: ['read', 'search', 'edit']
-model: 'Qwen 3.6 MSC1 (customendpoint)'
+# modelo intencionalmente omitido.
+# Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
 user-invocable: false
 target: vscode
 ---

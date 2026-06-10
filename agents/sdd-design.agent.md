@@ -2,7 +2,8 @@
 name: sdd-design
 description: 'Create the SDD technical design with architecture decisions, data flow, file changes, and testing strategy.'
 tools: ['read', 'search', 'edit']
-model: 'Claude Opus 4.8 (copilot)'
+# modelo intencionalmente omitido.
+# Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
 user-invocable: false
 target: vscode
 ---

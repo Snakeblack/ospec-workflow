@@ -2,7 +2,8 @@
 name: sdd-foundation
 description: 'Build project foundation docs and OpenSpec context for an empty or from-scratch project.'
 tools: ['read', 'search', 'edit']
-model: 'Qwen 3.6 MSC1 (customendpoint)'
+# modelo intencionalmente omitido.
+# Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
 user-invocable: false
 target: vscode
 ---

@@ -1,0 +1,16 @@
+profile: default
+description: Single-model fallback. Do not force model routing in bundled agents.
+
+routing:
+  sdd-orchestrator: inherit
+  sdd-init: inherit
+  sdd-foundation: inherit
+  sdd-explore: inherit
+  sdd-propose: inherit
+  sdd-spec: inherit
+  sdd-design: inherit
+  sdd-tasks: inherit
+  sdd-apply: inherit
+  sdd-verify: inherit
+  sdd-archive: inherit
+  sdd-onboard: inherit

@@ -3,7 +3,8 @@ name: sdd-orchestrator
 description: Orchestrates the SDD workflow by delegating phases to specialized SDD subagents.
 tools: ['read', 'search', 'edit', 'execute', 'agent', 'vscode/askQuestions']
 agents: ['sdd-init', 'sdd-foundation', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-onboard']
-model: 'Qwen 3.6 MSC1 (customendpoint)'
+# modelo intencionalmente omitido.
+# Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
 user-invocable: true
 target: vscode
 ---

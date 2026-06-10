@@ -1,0 +1,12 @@
+profile: cheap
+description: Token and cost efficient mode.
+
+routing:
+  sdd-orchestrator: inherit
+  sdd-explore: cheap-reasoning
+  sdd-propose: cheap-reasoning
+  sdd-spec: inherit
+  sdd-design: inherit
+  sdd-tasks: inherit
+  sdd-apply: coding-default
+  sdd-verify: medium-reasoning

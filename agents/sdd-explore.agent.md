@@ -2,7 +2,8 @@
 name: sdd-explore
 description: 'Explore an SDD idea by investigating current code, options, risks, and a recommended approach.'
 tools: ['read', 'search', 'edit']
-model: 'Qwen 3.6 MSC1 (customendpoint)'
+# modelo intencionalmente omitido.
+# Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
 user-invocable: false
 target: vscode
 ---

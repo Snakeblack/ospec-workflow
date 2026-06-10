@@ -2,7 +2,8 @@
 name: sdd-propose
 description: 'Create a concise SDD proposal with intent, scope, capabilities, approach, risks, and rollback plan.'
 tools: ['read', 'search', 'edit']
-model: 'Qwen 3.6 MSC1 (customendpoint)'
+# modelo intencionalmente omitido.
+# Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
 user-invocable: false
 target: vscode
 ---

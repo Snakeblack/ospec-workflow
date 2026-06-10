@@ -2,7 +2,8 @@
 name: sdd-verify
 description: 'Verify an SDD implementation against specs, design, tasks, and runtime test evidence.'
 tools: ['read', 'search', 'edit', 'execute']
-model: 'GPT-5.5 (copilot)'
+# modelo intencionalmente omitido.
+# Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
 user-invocable: false
 target: vscode
 ---

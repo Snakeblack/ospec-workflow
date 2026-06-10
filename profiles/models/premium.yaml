@@ -1,0 +1,12 @@
+profile: premium
+description: Higher reasoning budget for architecture and verification.
+
+routing:
+  sdd-orchestrator: inherit
+  sdd-explore: medium-reasoning
+  sdd-propose: medium-reasoning
+  sdd-spec: medium-reasoning
+  sdd-design: high-reasoning
+  sdd-tasks: medium-reasoning
+  sdd-apply: coding-default
+  sdd-verify: high-reasoning
