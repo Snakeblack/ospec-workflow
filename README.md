@@ -1,34 +1,57 @@
 # ospec-workflow
 
-Bundle de Agent Plugin para VS Code que aplica SDD con OpenSpec, Strict TDD y revisiones pequeñas. Basado en la herramienta [Gentle-ai de Gentleman-Programming](https://github.com/Gentleman-Programming/gentle-ai). El punto de entrada de usuario es `sdd-orchestrator`; los agentes de fase hacen el trabajo y persisten el estado en el repositorio.
+Plugin de agentes para VS Code que aplica Spec-Driven Development (SDD) con OpenSpec, Strict TDD, agentes especializados y cambios revisables. Está basado en [Gentle-ai de Gentleman Programming](https://github.com/Gentleman-Programming/gentle-ai).
 
-## Que incluye
+La versión actual es **2.1.0**. El usuario trabaja con `sdd-orchestrator`; el orquestador coordina, los agentes de fase ejecutan y OpenSpec conserva el estado versionable.
 
-| Ruta | Proposito |
+## Inicio rápido
+
+1. Instala el repositorio como VS Code Agent Plugin.
+2. Revisa el manifiesto, los hooks y los servidores MCP antes de habilitarlo.
+3. Inicia un cambio con `/sdd-new`.
+4. Continúa el flujo con `/sdd-continue` o ejecútalo por fases.
+5. Verifica con `/sdd-verify` y archiva con `/sdd-archive`.
+
+Consulta la [guía de instalación](docs/plugin-installation.md) para instalación remota, desarrollo local y requisitos de confianza.
+
+## Qué incluye
+
+| Ruta | Propósito |
 | --- | --- |
-| `.plugin/` | Manifiesto del plugin (`ospec-workflow`, segun `.plugin/plugin.json`). |
-| `agents/` | Orquestador y agentes de fase SDD. |
-| `commands/` | Prompt files visibles para el usuario. |
-| `rules/` | Instrucciones compartidas para SDD, OpenSpec y Strict TDD. |
-| `skills/` | Skills reutilizables y contratos de fase. |
-| `docs/` | Documentacion de metodologia, fases, workflows y OpenSpec. |
-| `.mcp.json` | Configuracion de Context7 MCP. |
-| `openspec/` | Memoria versionable del flujo SDD cuando se usa OpenSpec. |
+| `.plugin/plugin.json` | Manifiesto principal del plugin. |
+| `agents/` | Orquestador y agentes especializados por fase. |
+| `commands/` | Comandos visibles y routing hacia el orquestador. |
+| `skills/` | Capacidades bajo demanda y contratos compartidos. |
+| `rules/` | Reglas persistentes de SDD, OpenSpec y Strict TDD. |
+| `hooks/` | Declaración de eventos del ciclo de vida del plugin. |
+| `scripts/` | Implementación y tests del runtime de hooks. |
+| `profiles/models/` | Perfiles opcionales de routing de modelos. |
+| `docs/` | Documentación detallada de arquitectura y uso. |
+| `.mcp.json` | Configuración MCP mínima del plugin. |
+| `openspec/` | Fuente de verdad versionable de cada cambio SDD. |
 
-## Comandos visibles
+## Comandos SDD
 
 | Comando | Uso |
 | --- | --- |
-| `/sdd-new` | Iniciar un cambio SDD persistido. |
-| `/sdd-lite` | Flujo reducido para cambios triviales o small. |
-| `/sdd-continue` | Continuar desde el estado de OpenSpec. |
-| `/sdd-apply` | Ejecutar una tanda de implementacion. |
-| `/sdd-verify` | Verificar contra specs, diseno y tests. |
-| `/sdd-archive` | Archivar el cambio una vez verificado. |
+| `/sdd-init` | Detecta el proyecto y prepara OpenSpec, testing y registro de skills. |
+| `/sdd-new` | Inicia un cambio persistido y selecciona el workflow. |
+| `/sdd-lite` | Ejecuta el flujo reducido para cambios pequeños y de bajo riesgo. |
+| `/sdd-ff` | Completa la planificación: propuesta, specs, diseño y tareas. |
+| `/sdd-continue` | Reanuda la siguiente fase disponible desde OpenSpec. |
+| `/sdd-explore` | Investiga una idea sin implementar. |
+| `/sdd-propose` | Define intención, alcance, riesgos y enfoque del cambio. |
+| `/sdd-spec` | Escribe requisitos y escenarios verificables. |
+| `/sdd-design` | Define arquitectura, flujo de datos y estrategia de testing. |
+| `/sdd-tasks` | Divide el cambio en unidades implementables y revisables. |
+| `/sdd-apply` | Implementa tareas en tandas revisables. |
+| `/sdd-verify` | Comprueba specs, diseño, tareas y evidencia de tests. |
+| `/sdd-archive` | Consolida y archiva un cambio verificado. |
+| `/sdd-onboard` | Guía un ciclo SDD real sobre el repositorio actual. |
 
-Los prompt files viven en `commands/*.prompt.md`. `/sdd-ff` es un atajo de planificacion gestionado por `sdd-orchestrator`, pero no tiene prompt file propio. `sdd-init` y `sdd-foundation` son fases internas de arranque y base, y `sdd-onboard` es el flujo guiado.
+`sdd-foundation` crea la base documental cuando el proyecto está vacío. Los agentes de fase no deben invocarse como un equipo descoordinado: el orquestador conserva el orden y los contratos.
 
-## Flujo SDD
+## Flujo
 
 ```text
 proposal -> specs --> tasks -> apply -> verify -> archive
@@ -39,50 +62,69 @@ proposal -> specs --> tasks -> apply -> verify -> archive
 lite: proposal-lite -> tasks -> apply -> verify
 ```
 
-## Modos de ejecucion
+El modo **Interactive** pausa entre fases para revisar decisiones. El modo **Automatic** encadena las fases, pero nunca evita los gates de riesgo, arquitectura, testing o carga de revisión.
 
-El orquestador usa `vscode/askQuestions` para pausar y pedir decision del usuario en gates criticos:
+## Runtime y continuidad
 
-- **Interactive** (default): despues de cada fase muestra un resumen y pregunta si continuar, detener o ajustar.
-- **Automatic**: ejecuta todas las fases seguidas sin pausar; muestra el resultado final.
+Los hooks descargan del prompt tareas repetitivas del ciclo de vida:
 
-Los gates interactivos tambien se activan para decisiones de estrategia de entrega, carga de revision y bloqueos arquitectonicos.
+| Evento | Responsabilidad |
+| --- | --- |
+| `SessionStart` | Valida OpenSpec y refresca la caché compacta de skills. |
+| `PreToolUse` | Bloquea o solicita confirmación para comandos peligrosos. |
+| `PreCompact` | Persiste un resumen recuperable antes de compactar contexto. |
+| `SubagentStop` | Detecta degradación en la resolución de skills. |
+| `Stop` | Registra la continuidad mínima de la sesión. |
 
-## Harness runtime
+Los hooks ejecutan código local con Node.js. Deben revisarse antes de instalar el plugin. `.ospec/cache` y `.ospec/session` son auxiliares; **OpenSpec sigue siendo la fuente de verdad**.
 
-Este plugin no solo define agentes y skills. También incluye hooks ligeros para:
+## Routing de modelos
 
-- refrescar el registro compacto de skills;
-- proteger herramientas peligrosas;
-- persistir resumen de sesión antes de compactación;
-- detectar pérdida de skill cache tras subagentes;
-- escribir continuidad mínima al cerrar una sesión.
+Los agentes no fijan nombres de modelos concretos. Por defecto heredan el modelo seleccionado y pueden usar perfiles locales:
 
-## Token budget
+- `default`: fallback de un solo modelo;
+- `cheap`: reduce coste en exploración y propuesta;
+- `premium`: aumenta razonamiento en diseño y verificación.
 
-Regla por defecto:
+Los perfiles viven en `profiles/models/`. Consulta [model-routing.md](docs/model-routing.md).
 
-- comandos: routing fino;
-- orquestador: coordinación, no ejecución;
-- agentes de fase: ejecución;
-- skills: conocimiento on-demand;
-- hooks: automatización fuera del prompt;
-- OpenSpec: fuente de verdad persistida.
+## MCP
 
-No pegar artefactos largos en prompts si pueden leerse desde disco.
+La configuración predeterminada se mantiene deliberadamente pequeña:
 
-## Documentacion principal
+- Context7 para documentación actualizada de librerías;
+- MarkItDown para conversión de documentos.
 
-1. [docs/README.md](docs/README.md)
-2. [docs/sdd-metodologia.md](docs/sdd-metodologia.md)
-3. [docs/sdd-fases.md](docs/sdd-fases.md)
-4. [docs/sdd-workflows.md](docs/sdd-workflows.md)
-5. [docs/openspec.md](docs/openspec.md)
-6. [docs/tdd-y-revision.md](docs/tdd-y-revision.md)
-7. [docs/plugin-installation.md](docs/plugin-installation.md)
+Los servidores adicionales deben activarse explícitamente. Consulta [mcp-policy.md](docs/mcp-policy.md).
 
-## Notas operativas
+## Garantías del workflow
 
-- El plugin se declara en `.plugin/plugin.json` como `ospec-workflow`.
-- OpenSpec usa `openspec/config.yaml`, `openspec/specs/` y `openspec/changes/` como memoria versionable.
-- Los detalles finos viven en `docs/`; este README solo orienta y enlaza.
+- Strict TDD cuando el proyecto dispone de runner compatible.
+- Artefactos y progreso recuperables desde `openspec/changes/{change-name}/`.
+- Aprobaciones bloqueantes persistidas en `state.yaml`, nunca inferidas del historial del chat.
+- Prompts dinámicos delimitados para separar intención, artefactos, estándares y contexto de aprobación.
+- Skills resueltas como reglas compactas para controlar el presupuesto de tokens.
+- Cambios organizados en unidades revisables, con guardas cuando la carga supera el presupuesto recomendado.
+
+## Documentación
+
+| Documento | Contenido |
+| --- | --- |
+| [docs/README.md](docs/README.md) | Índice y recorrido recomendado. |
+| [docs/sdd-metodologia.md](docs/sdd-metodologia.md) | Principios y modelo mental. |
+| [docs/sdd-fases.md](docs/sdd-fases.md) | Contratos de cada fase. |
+| [docs/sdd-workflows.md](docs/sdd-workflows.md) | Flujos estándar, lite, fast-forward y continuación. |
+| [docs/openspec.md](docs/openspec.md) | Persistencia, specs delta y archivado. |
+| [docs/tdd-y-revision.md](docs/tdd-y-revision.md) | Strict TDD y presupuesto de revisión. |
+| [docs/harness-runtime.md](docs/harness-runtime.md) | Arquitectura del runtime de hooks. |
+| [docs/plugin-installation.md](docs/plugin-installation.md) | Instalación, confianza y diagnóstico. |
+
+## Desarrollo
+
+La suite del runtime usa el test runner nativo de Node.js:
+
+```powershell
+node --test "scripts/**/*.test.js"
+```
+
+Antes de publicar cambios en el manifiesto, hooks o MCP, revisa expresamente la nueva superficie de ejecución y confianza.
