@@ -250,14 +250,16 @@ test("claude rewrites ${input} to $ARGUMENTS", () => {
   assert.doesNotMatch(cmd, /\$\{input\}/);
 });
 
-test("claude rewrites ${input:name} to $name plus a frontmatter declaration", () => {
+test("claude rewrites ${input:name} to $name and declares it in the arguments frontmatter", () => {
   const out = transform({ files: makeSource(), profile: claude, models: MODELS });
   const cmd = find(out, "commands/sdd-apply.md").content;
   assert.match(cmd, /\$changeName/);
   assert.doesNotMatch(cmd, /\$\{input:changeName\}/);
   const fm = parse(cmd).frontmatter;
-  assert.ok(getField(fm, "argument-hint"));
-  assert.match(getField(fm, "argument-hint").value, /changeName/);
+  // `arguments` is what actually enables `$name` substitution in Claude
+  assert.equal(getField(fm, "arguments").value, "changeName");
+  // argument-hint is the autocomplete hint (plain name, not a YAML array)
+  assert.equal(getField(fm, "argument-hint").value, "changeName");
 });
 
 test("claude drops the inert agent:/context: command routing keys", () => {

@@ -1,6 +1,7 @@
 ---
 name: sdd-apply
 description: Run or continue apply for an OpenSpec change.
+arguments: changeName
 argument-hint: changeName
 ---
 

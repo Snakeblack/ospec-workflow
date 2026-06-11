@@ -236,6 +236,11 @@ function handleCommand(file, profile) {
     });
     body = body.replace(/\$\{input\}/g, "$ARGUMENTS");
     if (named.length > 0) {
+      // `arguments` (space-separated names) is what actually enables `$name`
+      // substitution in Claude; `argument-hint` is only the autocomplete hint.
+      frontmatter = setScalar(frontmatter, "arguments", named.join(" "));
+      // Plain names (no [..] — that parses as a YAML array). argument-hint is only the
+      // autocomplete hint; `arguments` is what enables substitution.
       frontmatter = setScalar(frontmatter, "argument-hint", named.join(" "));
     }
   }
