@@ -63,107 +63,205 @@ Ejemplo minimo de `settings.json`:
 
 Si guardas el repositorio en otra ruta, sustituye el valor por la ruta local de tu clon.
 
-## Generar para otros targets con `configure`
 
-El origen canónico es el repositorio en formato VS Code: VS Code lo carga directamente
-sin transformación. Para Claude Code y GitHub Copilot CLI, el generador produce un árbol
-nativo y validado en `dist/<target>/` sin tocar el origen.
+## Generar para otros targets con configure
+
+El repositorio usa VS Code Agent Plugin como formato canonico. VS Code puede cargar el repositorio directamente. Para Claude Code y GitHub Copilot CLI, el generador produce arboles nativos en `dist/` sin modificar el origen.
 
 ```powershell
-# Claude Code (con gate de validación)
+# Claude Code: carga temporal de una sesion
 node scripts/configure/cli.js --target claude --out dist/claude
 
-# GitHub Copilot (CLI + coding agent): layout .github/
+# Claude Code: instalacion persistente con marketplace local
+node scripts/configure/claude-marketplace.js
+
+# GitHub Copilot CLI / coding agent
 node scripts/configure/cli.js --target github-copilot --out dist/github-copilot
 
-# Omitir el validador (inspección rápida)
+# Omitir validacion para inspeccion rapida
 node scripts/configure/cli.js --target claude --out dist/claude --no-validate
 ```
 
-| Target | Qué hace el generador | Validación |
+| Target | Salida | Validacion |
 | --- | --- | --- |
-| `vscode` | Identidad: el origen ya es VS Code, no se transforma. | No aplica. |
-| `claude` | Renombra `*.agent.md`/`*.prompt.md` → `*.md`, reestructura el manifiesto y los hooks (anidados), sustituye nombres de herramientas (context-aware: namespaced en toda la prosa, genéricos solo en backticks), reescribe variables de comando (`${input}` → `$ARGUMENTS`; `${input:name}` → `$name` + `arguments:`), incorpora `rules/` y emite el orquestador como **skill** (`skills/sdd-orchestrator/SKILL.md`). | `claude plugin validate --strict` 0/0. |
-| `github-copilot` | Agentes → `.github/agents/*.agent.md` (`target: github-copilot`, `vscode/askQuestions`→`ask_user`); comandos → `.github/prompts/*.prompt.md` (conserva `${input:...}` y `agent:`); reglas → `.github/instructions/*.instructions.md` (`applyTo: "**"`); hooks → `.github/hooks/hooks.json` (schema Copilot: `version`, eventos camelCase, `bash`/`powershell`, `timeoutSec`); `.mcp.json` (root) tal cual. Descarta manifiesto y skills. | Golden fixtures (no hay validador propio del CLI). |
+| `claude` | Renombra `*.agent.md`/`*.prompt.md` a `*.md`, reestructura el manifiesto y los hooks, sustituye nombres de herramientas, reescribe variables de comando (`${input}` -> `$ARGUMENTS`; `${input:name}` -> `$name` + `arguments:`), incorpora `rules/` y emite el orquestador como **skill** (`skills/sdd-orchestrator/SKILL.md`). Genera `dist/claude/`, pensado para carga temporal con `claude --plugin-dir`. | `claude plugin validate --strict dist/claude` |
+| `claude-marketplace` | Envuelve el arbol Claude en un marketplace local instalable. Genera `dist/claude-marketplace/.claude-plugin/marketplace.json` y coloca el plugin en `dist/claude-marketplace/plugins/ospec-workflow/`. | `claude plugin validate dist/claude-marketplace` y `claude plugin validate --strict dist/claude-marketplace/plugins/ospec-workflow` |
+| `github-copilot` | Genera layout `.github/` con instrucciones, prompts, chatmodes, MCP y runtime de hooks para GitHub Copilot CLI / coding agent. | Validacion manual del arbol generado y de los archivos `.github/`. |
 
-El origen nunca se modifica: tras cualquier número de ejecuciones, VS Code sigue cargando
-el repositorio tal cual. Trata `dist/` como salida de build (está en `.gitignore`).
+Cada arbol generado es **autocontenido**: el generador sigue los `require` desde los hooks e incluye su runtime (`scripts/hooks/` + sus dependencias de `scripts/lib/`), sin tests ni el propio generador.
 
-### Instalar el árbol generado por herramienta
+En Claude Code hay dos salidas distintas:
+
+- `dist/claude`: sirve para carga temporal con `--plugin-dir`.
+- `dist/claude-marketplace`: envuelve el plugin Claude en un marketplace local para instalacion persistente entre sesiones.
+
+## Instalar el arbol generado por herramienta
 
 - **VS Code**: usa el repositorio directamente (`chat.pluginLocations`), sin generar.
-- **Claude Code**: genera `dist/claude/` e instálalo como plugin local de Claude apuntando
-  a esa carpeta. Es autocontenido: incluye `.claude-plugin/plugin.json` y el runtime de hooks bajo
-  `scripts/` (referenciado vía `${CLAUDE_PLUGIN_ROOT}`).
-- **GitHub Copilot**: genera `dist/github-copilot/` y copia su contenido (`.github/`, `.mcp.json` y
-  `scripts/`) en la raíz del repo destino. El árbol es **autocontenido**: el generador incluye el
-  runtime de los hooks (`scripts/hooks/*.js` + sus dependencias de `scripts/lib/`), resuelto siguiendo
-  los `require` desde los hooks, sin tests ni el propio generador.
+- **Claude Code temporal**: genera `dist/claude/` y cargalo con `claude --plugin-dir dist/claude`. Esta via solo aplica a la sesion actual.
+- **Claude Code persistente**: genera `dist/claude-marketplace/`, registra ese marketplace local y despues instala `ospec-workflow@ospec-tools`.
+- **GitHub Copilot CLI / coding agent**: genera `dist/github-copilot/` y copia su contenido (`.github/`, `.mcp.json` y `scripts/`) en la raiz del repo destino.
+
+### Claude Code: prueba temporal de una sesion
+
+Usa esta via para validar el plugin generado sin tocar la configuracion global de Claude Code:
+
+```powershell
+node scripts/configure/cli.js --target claude --out dist/claude
+claude plugin validate --strict dist/claude
+claude --plugin-dir dist/claude
+```
+
+Verificacion dentro de Claude Code:
+
+```text
+/plugin
+/sdd-new
+/sdd-verify
+```
+
+Resultado esperado:
+
+- `ospec-workflow` aparece habilitado durante esa sesion.
+- Los comandos `/sdd-new`, `/sdd-lite`, `/sdd-continue`, `/sdd-apply`, `/sdd-verify` y `/sdd-archive` estan disponibles.
+- El orquestador aparece como skill namespaced del plugin.
+
+### Claude Code: instalacion persistente con marketplace local
+
+Usa esta via cuando quieras que Claude Code recuerde el plugin entre sesiones.
+
+Primero genera el marketplace local:
+
+```powershell
+node scripts/configure/claude-marketplace.js
+```
+
+Valida el marketplace y el plugin incluido:
+
+```powershell
+claude plugin validate dist/claude-marketplace
+claude plugin validate --strict dist/claude-marketplace/plugins/ospec-workflow
+```
+
+Añade el marketplace con una ruta local explicita:
+
+```powershell
+$marketplace = (Resolve-Path ".\dist\claude-marketplace").ProviderPath
+claude plugin marketplace add "$marketplace" --scope user
+```
+
+Instala el plugin desde ese marketplace:
+
+```powershell
+claude plugin install ospec-workflow@ospec-tools
+```
+
+Abre Claude Code normalmente:
+
+```powershell
+claude
+```
+
+Verifica dentro de la sesion:
+
+```text
+/plugin
+/reload-plugins
+```
+
+Resultado esperado:
+
+- El marketplace `ospec-tools` aparece registrado.
+- El plugin `ospec-workflow@ospec-tools` aparece instalado y habilitado.
+- Los comandos SDD y el skill del orquestador estan disponibles sin usar `--plugin-dir`.
+
+#### Nota para PowerShell
+
+No uses esta forma:
+
+```powershell
+claude plugin marketplace add dist/claude-marketplace --scope user
+```
+
+En Windows/PowerShell puede interpretarse como un origen Git/GitHub en lugar de como una ruta local, provocando errores de clonacion SSH como:
+
+```text
+Failed to clone marketplace repository
+SSH host key is not in your known_hosts file
+```
+
+Usa una ruta local explicita:
+
+```powershell
+claude plugin marketplace add .\dist\claude-marketplace --scope user
+```
+
+O, preferiblemente:
+
+```powershell
+$marketplace = (Resolve-Path ".\dist\claude-marketplace").ProviderPath
+claude plugin marketplace add "$marketplace" --scope user
+```
+
+La estructura esperada del marketplace generado es:
+
+```text
+dist/claude-marketplace/
+  .claude-plugin/
+    marketplace.json
+  plugins/
+    ospec-workflow/
+      .claude-plugin/
+        plugin.json
+      agents/
+      commands/
+      skills/
+      hooks/
+      scripts/
+      .mcp.json
+```
+
+### GitHub Copilot CLI / coding agent
+
+Genera el arbol nativo:
+
+```powershell
+node scripts/configure/cli.js --target github-copilot --out dist/github-copilot
+```
+
+Copia el contenido generado en la raiz del repositorio destino:
+
+```text
+dist/github-copilot/
+  .github/
+  .mcp.json
+  scripts/
+```
+
+Verifica que los archivos `.github/` generados quedan en la raiz del repo destino y que los scripts de hooks viajan junto al runtime necesario.
 
 ## Como verificar que cargaron los agentes y los skills
 
 Empieza por los puntos de entrada visibles y luego inspecciona mas detalle solo si falta algo.
 
-| Comprobacion | Resultado esperado |
+| Entorno | Comprobacion |
 | --- | --- |
-| Vista de Agent Plugins | `ospec-workflow` aparece en la lista y esta habilitado. |
-| Selector de agente en Chat | `sdd-orchestrator` esta disponible como agente SDD para el usuario. |
-| Puntos de entrada de archivos prompt | `/sdd-new`, `/sdd-lite`, `/sdd-continue`, `/sdd-apply`, `/sdd-verify` y `/sdd-archive` estan disponibles. |
-| Detalles del plugin | Los agentes, comandos, skills, servidores MCP y hooks aparecen desde `.claude-plugin/plugin.json`. |
+| VS Code | El plugin aparece en la vista de Agent Plugins y expone los comandos/chatmodes esperados. |
+| Claude Code temporal | Al lanzar con `claude --plugin-dir dist/claude`, `ospec-workflow` aparece en `/plugin` durante esa sesion. |
+| Claude Code persistente | Al instalar desde `ospec-workflow@ospec-tools`, el plugin aparece en `/plugin` sin usar `--plugin-dir`. |
+| GitHub Copilot CLI / coding agent | El repo destino contiene `.github/`, `.mcp.json` y `scripts/` generados. |
 
-Prueba rapida:
+En Claude Code, si algo no aparece despues de instalar el plugin persistente, ejecuta:
 
 ```text
-Pregunta al orquestador SDD: resume los comandos SDD disponibles sin crear archivos.
+/reload-plugins
 ```
 
-Comportamiento esperado:
+Y vuelve a revisar:
 
-- El orquestador explica el flujo SDD.
-- No expone los agentes de fase como comandos normales de usuario.
-- Puede referenciar skills y reglas compartidas cuando haga falta.
-- No crea artefactos OpenSpec para una peticion de resumen en solo lectura.
-
-Si los skills no parecen cargarse, confirma que el plugin esta habilitado y que el repositorio contiene `skills/`. Este repositorio no incluye un archivo de registro de skills especifico del proyecto, y eso no deberia bloquear la carga del plugin.
-
-## Como verificar la disponibilidad del servidor MCP
-
-El plugin declara la configuracion MCP en `.mcp.json`.
-
-| Servidor MCP | Proposito | Entrada requerida |
-| --- | --- | --- |
-| `io.github.upstash/context7` | Busqueda de documentacion de librerias con Context7. | `CONTEXT7_API_KEY` |
-| `microsoft/markitdown` | Conversion de documentos (PDF/Office) a Markdown. | Ninguna (usa `uvx markitdown-mcp`). |
-
-Pasos de verificacion:
-
-1. Confirma que el plugin esta habilitado.
-2. Abre la seccion de MCP o herramientas que exponga tu version de VS Code.
-3. Confirma que `io.github.upstash/context7` aparece como servidor disponible.
-4. Inicia un chat que necesite documentacion de librerias y permite el servidor MCP de Context7 cuando se solicite.
-5. Proporciona `CONTEXT7_API_KEY` solo a traves del prompt seguro de VS Code, no en el texto del chat.
-
-Comportamiento esperado:
-
-- VS Code inicia el comando MCP configurado cuando se usa el servidor.
-- El servidor solicita `CONTEXT7_API_KEY` si todavia no esta disponible.
-- El chat puede recuperar documentacion de librerias a traves de Context7.
-
-Si el servidor no esta disponible, comprueba que Node.js y `npx` estan en `PATH`, que tu organizacion permite el uso de MCP y que el prompt de la clave API se completo correctamente.
-
-## Como desactivar los hooks si hace falta
-
-Los hooks pueden ejecutar comandos locales. Desactivalos si necesitas inspeccionar el plugin en un modo sin ejecucion, depurar fallos de hooks o cumplir una restriccion de entorno.
-
-Opciones seguras recomendadas:
-
-| Opcion | Cuando usarla | Resultado |
-| --- | --- | --- |
-| Desactivar el plugin | Quieres detener todo el comportamiento del plugin. | Los agentes, comandos, skills, MCP y hooks dejan de cargarse desde este plugin. |
-| Usar una copia local sin hooks | Quieres agentes y skills pero sin ejecucion de hooks mientras pruebas. | La copia local puede omitir la entrada `hooks` del manifiesto antes de registrarla con `chat.pluginLocations`. |
-| Denegar los prompts de confianza o politica | Todavia no quieres permitir ejecucion local de codigo. | VS Code no deberia ejecutar los comandos locales proporcionados por el plugin. |
-
-No borres los scripts de hooks solo para desactivar su ejecucion. Es preferible desactivar el plugin o usar una copia separada para que las actualizaciones desde el repositorio sigan siendo revisables.
+```text
+/plugin
+```
 
 ## Solucion de problemas
 
