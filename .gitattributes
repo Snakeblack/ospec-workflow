@@ -1,0 +1,4 @@
+# Generator source and golden fixtures must stay byte-for-byte stable across
+# platforms: the pure transform emits LF, so the committed goldens must be LF
+# regardless of the host's core.autocrlf setting or the snapshot tests break.
+scripts/configure/__fixtures__/** text eol=lf

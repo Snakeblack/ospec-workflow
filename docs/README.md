@@ -4,13 +4,27 @@ Esta carpeta explica la metodologia SDD de este plugin para VS Code/Copilot. El 
 
 ## Lectura recomendada
 
+**Metodología SDD**
+
 | Documento | Para que sirve |
 | --- | --- |
 | [sdd-metodologia.md](sdd-metodologia.md) | Modelo mental: problema, roles, principios y cuando usar SDD. |
 | [sdd-fases.md](sdd-fases.md) | Explicacion fase por fase: entrada, salida, reglas y errores que evita. |
-| [sdd-workflows.md](sdd-workflows.md) | Lineas de trabajo reales: proyecto nuevo, cambio normal, lite, fast-forward, continuacion y onboarding. |
+| [sdd-workflows.md](sdd-workflows.md) | Lineas de trabajo reales: estandar, lite, fast-forward, foundation, baseline brownfield, continuacion, workspace y onboarding. |
 | [openspec.md](openspec.md) | Como se persisten artefactos, specs delta, specs principales y archivo. |
 | [tdd-y-revision.md](tdd-y-revision.md) | Strict TDD, evidencia, verificacion y presupuesto de revision. |
+
+**Runtime, modelos y empaquetado**
+
+| Documento | Para que sirve |
+| --- | --- |
+| [harness-runtime.md](harness-runtime.md) | Capas del arnes, hooks y backend de artefactos (adapter). |
+| [model-routing.md](model-routing.md) | Tiers `agente→modelo` y formato de modelo por target (`models.yaml`). |
+| [mcp-policy.md](mcp-policy.md) | Politica y configuracion de servidores MCP. |
+| [plugin-installation.md](plugin-installation.md) | Instalacion, **generacion multi-target** (`claude` / `github-copilot`), confianza y diagnostico. |
+
+El formato canonico es un plugin de VS Code; el generador (`scripts/configure/cli.js`) produce arboles
+nativos para Claude Code y GitHub Copilot CLI en `dist/<target>/`. Ver `plugin-installation.md`.
 
 ## Idea central
 

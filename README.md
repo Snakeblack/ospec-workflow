@@ -1,31 +1,53 @@
 # ospec-workflow
 
-Plugin de agentes para VS Code que aplica Spec-Driven Development (SDD) con OpenSpec, Strict TDD, agentes especializados y cambios revisables. Está basado en [Gentle-ai de Gentleman Programming](https://github.com/Gentleman-Programming/gentle-ai).
+Spec-Driven Development (SDD) llave en mano: OpenSpec como fuente de verdad, Strict TDD, un orquestador
+que coordina agentes de fase, y cambios revisables de principio a fin. Está basado en
+[Gentle-ai de Gentleman Programming](https://github.com/Gentleman-Programming/gentle-ai).
 
-La versión actual es **2.1.0**. El usuario trabaja con `sdd-orchestrator`; el orquestador coordina, los agentes de fase ejecutan y OpenSpec conserva el estado versionable.
+El **formato canónico es un plugin de agentes para VS Code**: VS Code carga este repositorio tal cual,
+sin compilar nada. Para llevar el mismo workflow a **Claude Code** o **GitHub Copilot CLI**, un
+generador (`scripts/configure/cli.js`) produce un árbol nativo y validado de cada herramienta en
+`dist/<target>/` sin tocar el origen. Un solo source, tres destinos. Ver
+[Compatibilidad multi-target](#compatibilidad-multi-target).
+
+La versión actual es **2.1.0**. El usuario trabaja con `sdd-orchestrator`; el orquestador coordina, los
+agentes de fase ejecutan y OpenSpec conserva el estado versionable.
 
 ## Inicio rápido
 
+**En VS Code** (uso directo del source):
+
 1. Instala el repositorio como VS Code Agent Plugin.
 2. Revisa el manifiesto, los hooks y los servidores MCP antes de habilitarlo.
-3. Inicia un cambio con `/sdd-new`.
+3. Inicia un cambio con `/sdd-new` (o `/sdd-ff`, `/sdd-lite`, `/sdd-baseline` según el caso).
 4. Continúa el flujo con `/sdd-continue` o ejecútalo por fases.
 5. Verifica con `/sdd-verify` y archiva con `/sdd-archive`.
 
-Consulta la [guía de instalación](docs/plugin-installation.md) para instalación remota, desarrollo local y requisitos de confianza.
+**Para Claude Code o GitHub Copilot CLI** (genera el árbol nativo):
+
+```powershell
+node scripts/configure/cli.js --target claude          --out dist/claude
+node scripts/configure/cli.js --target github-copilot  --out dist/github-copilot
+```
+
+Consulta la [guía de instalación](docs/plugin-installation.md) para instalación remota, desarrollo
+local, generación por target y requisitos de confianza.
 
 ## Qué incluye
 
 | Ruta | Propósito |
 | --- | --- |
-| `.plugin/plugin.json` | Manifiesto principal del plugin. |
+| `.claude-plugin/plugin.json` | Manifiesto principal del plugin. |
 | `agents/` | Orquestador y agentes especializados por fase. |
 | `commands/` | Comandos visibles y routing hacia el orquestador. |
 | `skills/` | Capacidades bajo demanda y contratos compartidos. |
 | `rules/` | Reglas persistentes de SDD, OpenSpec y Strict TDD. |
 | `hooks/` | Declaración de eventos del ciclo de vida del plugin. |
-| `scripts/` | Implementación y tests del runtime de hooks. |
-| `profiles/models/` | Perfiles opcionales de routing de modelos. |
+| `scripts/hooks/` | Runtime de los hooks (Node.js) y sus tests. |
+| `scripts/lib/` | Librerías compartidas: estado OpenSpec, artifact-store y el núcleo del generador (`frontmatter`, `model-resolver`, `target-transform`, perfiles). |
+| `scripts/configure/` | CLI del generador multi-target (`cli.js`) y fixtures golden. |
+| `models.yaml` | Tablas tier→modelo por target para el generador. |
+| `profiles/models/` | Perfiles opcionales de routing de modelos (uso directo en VS Code). |
 | `docs/` | Documentación detallada de arquitectura y uso. |
 | `.mcp.json` | Configuración MCP mínima del plugin. |
 | `openspec/` | Fuente de verdad versionable de cada cambio SDD. |
@@ -53,18 +75,36 @@ Consulta la [guía de instalación](docs/plugin-installation.md) para instalaci�
 
 `sdd-foundation` crea la base documental cuando el proyecto está vacío. Los agentes de fase no deben invocarse como un equipo descoordinado: el orquestador conserva el orden y los contratos.
 
-## Flujo
+## Flujos
+
+El ciclo completo estándar es:
 
 ```text
 proposal -> specs --> tasks -> apply -> verify -> archive
              ^
              |
            design
-
-lite: proposal-lite -> tasks -> apply -> verify
 ```
 
-El modo **Interactive** pausa entre fases para revisar decisiones. El modo **Automatic** encadena las fases, pero nunca evita los gates de riesgo, arquitectura, testing o carga de revisión.
+Pero no todo cambio recorre el ciclo entero. El orquestador elige la línea según el contexto:
+
+| Línea | Cuándo | Recorrido |
+| --- | --- | --- |
+| **Estándar** | Repo con código existente | `/sdd-new` → `/sdd-continue` (o por fases) → `/sdd-apply` → `/sdd-verify` → `/sdd-archive` |
+| **Fast-forward** | El cambio está claro; quieres llegar a tareas rápido | `/sdd-ff` = proposal → specs → design → tasks (no implementa) |
+| **Lite** | Cambio trivial o pequeño | `/sdd-lite` = proposal-lite → tasks → apply → verify |
+| **Proyecto nuevo/vacío** | No hay producto, stack ni arquitectura | `/sdd-foundation` fija cimientos antes de `/sdd-new` o `/sdd-ff` |
+| **Baseline brownfield** | Hay código pero `openspec/specs/` está vacío | `/sdd-baseline` siembra specs de comportamiento actual por dominios (en tandas) |
+| **Continuación** | Retomar un cambio a medias | `/sdd-continue` recupera estado desde `state.yaml`, sin depender del chat |
+| **Workspace multi-repo** | Federación de varios repos | `/sdd-workspace` para atlas, estado e impacto cross-repo |
+| **Onboarding** | Aprender la metodología sobre un caso real | `/sdd-onboard` guía un ciclo completo |
+
+`/sdd-apply` trabaja por tandas revisables (fusiona `apply-progress.md`); cuando el cambio supera el
+presupuesto de ~400 líneas, el orquestador propone PRs encadenadas (`stacked-to-main` o
+`feature-branch-chain`) o exige una `size:exception` consciente. El modo **Interactive** pausa entre
+fases para revisar decisiones; el **Automatic** las encadena, pero nunca evita los gates de riesgo,
+arquitectura, testing o carga de revisión. Detalle completo en
+[docs/sdd-workflows.md](docs/sdd-workflows.md).
 
 ## Runtime y continuidad
 
@@ -89,6 +129,30 @@ Los agentes no fijan nombres de modelos concretos. Por defecto heredan el modelo
 - `premium`: aumenta razonamiento en diseño y verificación.
 
 Los perfiles viven en `profiles/models/`. Consulta [model-routing.md](docs/model-routing.md).
+
+## Compatibilidad multi-target
+
+El origen canónico está en formato VS Code y se carga directamente, sin transformación.
+Para otros targets, un generador puro (`scripts/configure/cli.js`) produce un árbol nativo
+y validado en `dist/<target>/` sin tocar el origen:
+
+| Target | Salida |
+| --- | --- |
+| `vscode` | Identidad: el repositorio tal cual. |
+| `claude` | Árbol `.claude-plugin`: renombra archivos, reestructura manifiesto y hooks, sustituye herramientas (context-aware), reescribe variables de comando, incorpora `rules/` y emite el orquestador como **skill**. Gate: `claude plugin validate --strict` 0/0. |
+| `github-copilot` | Layout `.github/`: agentes a `.github/agents/*.agent.md` (`target: github-copilot`, `vscode/askQuestions`→`ask_user`), comandos a `.github/prompts/*.prompt.md`, reglas a `.github/instructions/*.instructions.md` (`applyTo: "**"`), hooks a `.github/hooks/hooks.json` (schema Copilot) y `.mcp.json` tal cual. Descarta manifiesto y skills. |
+
+```powershell
+node scripts/configure/cli.js --target claude          --out dist/claude
+node scripts/configure/cli.js --target github-copilot  --out dist/github-copilot
+```
+
+La transform es pura y testeada bajo Strict TDD; el CLI es la capa de IO con un gate de
+validación por target (golden fixtures, y `claude plugin validate` para `claude`). La selección de
+modelo se abstrae en tiers (`models.yaml`). Cada árbol generado es **autocontenido**: el generador
+sigue los `require` desde los hooks e incluye su runtime (`scripts/hooks/` + sus dependencias de
+`scripts/lib/`), sin tests ni el propio generador. Consulta [model-routing.md](docs/model-routing.md)
+y la [guía de instalación](docs/plugin-installation.md).
 
 ## MCP
 
@@ -115,18 +179,22 @@ Los servidores adicionales deben activarse explícitamente. Consulta [mcp-policy
 | [docs/README.md](docs/README.md) | Índice y recorrido recomendado. |
 | [docs/sdd-metodologia.md](docs/sdd-metodologia.md) | Principios y modelo mental. |
 | [docs/sdd-fases.md](docs/sdd-fases.md) | Contratos de cada fase. |
-| [docs/sdd-workflows.md](docs/sdd-workflows.md) | Flujos estándar, lite, fast-forward y continuación. |
+| [docs/sdd-workflows.md](docs/sdd-workflows.md) | Líneas de trabajo: estándar, lite, fast-forward, foundation, baseline brownfield, continuación, workspace y onboarding. |
 | [docs/openspec.md](docs/openspec.md) | Persistencia, specs delta y archivado. |
 | [docs/tdd-y-revision.md](docs/tdd-y-revision.md) | Strict TDD y presupuesto de revisión. |
 | [docs/harness-runtime.md](docs/harness-runtime.md) | Arquitectura del runtime de hooks. |
-| [docs/plugin-installation.md](docs/plugin-installation.md) | Instalación, confianza y diagnóstico. |
+| [docs/model-routing.md](docs/model-routing.md) | Tiers de modelo y formato por target (`models.yaml`). |
+| [docs/mcp-policy.md](docs/mcp-policy.md) | Política y configuración de servidores MCP. |
+| [docs/plugin-installation.md](docs/plugin-installation.md) | Instalación, generación por target, confianza y diagnóstico. |
 
 ## Desarrollo
 
-La suite del runtime usa el test runner nativo de Node.js:
+La suite (runtime de hooks + generador multi-target) usa el test runner nativo de Node.js, bajo
+Strict TDD:
 
 ```powershell
 node --test "scripts/**/*.test.js"
 ```
 
-Antes de publicar cambios en el manifiesto, hooks o MCP, revisa expresamente la nueva superficie de ejecución y confianza.
+Antes de publicar cambios en el manifiesto, hooks, MCP o el generador, revisa expresamente la nueva
+superficie de ejecución y confianza.

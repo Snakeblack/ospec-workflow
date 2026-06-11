@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "node \"scripts/hooks/session-start.js\"",
+        "powershell": "node \"scripts/hooks/session-start.js\""
+      }
+    ],
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "node \"scripts/hooks/pre-tool-use.js\"",
+        "powershell": "node \"scripts/hooks/pre-tool-use.js\"",
+        "timeoutSec": 5
+      }
+    ]
+  }
+}

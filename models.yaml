@@ -1,0 +1,37 @@
+# Per-agent model configuration for the multi-target generator.
+#
+# Two tables, both hand-editable:
+#   agents: which TIER each agent needs (the only per-agent decision).
+#   tiers:  how each tier maps to a concrete model PER target.
+#
+# Claude uses aliases (auto-track the latest model). VS Code uses
+# "Name (vendor)" strings; an array is a fallback order. The github-copilot
+# target injects no model (agents inherit the session model), so it has no column.
+
+agents:
+  sdd-design: premium
+  sdd-verify: premium
+  sdd-propose: premium
+  sdd-orchestrator: premium
+  sdd-apply: default
+  sdd-spec: default
+  sdd-tasks: default
+  sdd-init: default
+  sdd-foundation: default
+  sdd-onboard: default
+  sdd-workspace: default
+  sdd-baseline: default
+  sdd-explore: cheap
+  sdd-archive: cheap
+  _default: default
+
+tiers:
+  premium:
+    claude: opus
+    vscode: ["Claude Opus 4.8 (copilot)", "GPT-5.5 (copilot)"]
+  default:
+    claude: sonnet
+    vscode: ["Claude Sonnet 4.6 (copilot)", "GPT-5.3-Codex (copilot)"]
+  cheap:
+    claude: haiku
+    vscode: ["Qwen 3.6 MSC1 (customendpoint)", "GPT-5.4-mini (copilot)"]
