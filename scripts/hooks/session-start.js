@@ -12,7 +12,7 @@ const {
 const { readBaselineState } = require("../lib/ospec-state.js");
 const {
   ARTIFACT_STORE_RELATIVE_PATHS,
-  createArtifactStore,
+  createArtifactStoreFromConfig,
 } = require("../lib/artifact-store.js");
 
 const CACHE_VERSION = 1;
@@ -59,7 +59,7 @@ async function runSessionStart({
   now = () => new Date(),
 } = {}) {
   const workspace = resolveWorkspace(input, fallbackCwd);
-  const store = createArtifactStore({ mode, workspace });
+  const store = await createArtifactStoreFromConfig({ mode, workspace });
   const cachePath = store.cachePath();
   const ospecDetected = await store.isInitialized();
 

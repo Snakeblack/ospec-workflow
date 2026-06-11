@@ -54,8 +54,8 @@ Verification: `node --test "scripts/**/*.test.js"`. Depends on Phase 1.
 
 Verification: `node --test "scripts/**/*.test.js"`. Depends on Phases 2–3.
 
-- [ ] 4.1 **[RED]** Add cases to the four hook test files: with `artifact_store.backend: workspace-federated` the hook constructs a federated store; absent/unknown → `openspec`; existing openspec assertions remain unchanged (regression).
-- [ ] 4.2 **[GREEN]** In `session-start.js`, `pre-compact.js`, `stop.js`, `subagent-stop.js`: read config, resolve mode via `readBackendMode`, pass it to `createArtifactStore`. Keep the `mode` parameter override for tests. All tests green.
+- [x] 4.1 **[RED]** Add cases to the four hook test files: with `artifact_store.backend: workspace-federated` the hook constructs a federated store; absent/unknown → `openspec`; existing openspec assertions remain unchanged (regression).
+- [x] 4.2 **[GREEN]** In `session-start.js`, `pre-compact.js`, `stop.js`, `subagent-stop.js`: read config, resolve mode via `readBackendMode`, pass it to `createArtifactStore`. Keep the `mode` parameter override for tests. All tests green.
 
 ## Phase 5: Prompt — `sdd-workspace` trio
 

@@ -293,3 +293,38 @@ test("omits baseline key when config has no baseline block", async (t) => {
 
   assert.equal(result.baseline, undefined);
 });
+
+test("federated backend without an atlas is treated as uninitialized", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t, {
+    configContent: "artifact_store:\n  backend: workspace-federated\n",
+  });
+
+  const result = await runSessionStart({
+    input: { cwd: workspace },
+    pluginRoot,
+    now: () => new Date("2026-06-10T08:00:00.000Z"),
+  });
+
+  assert.equal(result.ospecDetected, false);
+  assert.equal(result.registry.status, "skipped");
+});
+
+test("federated backend with an atlas refreshes the registry", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t, {
+    configContent: "artifact_store:\n  backend: workspace-federated\n",
+  });
+
+  await fs.writeFile(
+    path.join(workspace, "openspec", "workspace.yaml"),
+    ["members:", "  - id: api", "    path: ../api"].join("\n"),
+  );
+
+  const result = await runSessionStart({
+    input: { cwd: workspace },
+    pluginRoot,
+    now: () => new Date("2026-06-10T08:00:00.000Z"),
+  });
+
+  assert.equal(result.ospecDetected, true);
+  assert.equal(result.registry.status, "fresh");
+});

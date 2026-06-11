@@ -4,7 +4,9 @@
 
 const fs = require("node:fs/promises");
 const path = require("node:path");
-const { createArtifactStore } = require("../lib/artifact-store.js");
+const {
+  createArtifactStoreFromConfig,
+} = require("../lib/artifact-store.js");
 
 const PHASE_RANKS = new Map([
   ["explore", 1],
@@ -211,7 +213,7 @@ function normalizePhase(value) {
 }
 
 async function findActiveChange(workspace, mode) {
-  const store = createArtifactStore({ mode, workspace });
+  const store = await createArtifactStoreFromConfig({ mode, workspace });
 
   return (await store.findActiveChanges())[0] || null;
 }
@@ -420,7 +422,7 @@ async function runPreCompact({
       ? input.cwd
       : fallbackCwd,
   );
-  const store = createArtifactStore({ mode, workspace });
+  const store = await createArtifactStoreFromConfig({ mode, workspace });
   const activeChange = (await store.findActiveChanges())[0] || null;
 
   if (!activeChange) {

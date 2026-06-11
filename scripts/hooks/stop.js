@@ -11,7 +11,7 @@ const {
 } = require("./pre-compact.js");
 const {
   ARTIFACT_STORE_RELATIVE_PATHS,
-  createArtifactStore,
+  createArtifactStoreFromConfig,
 } = require("../lib/artifact-store.js");
 
 const LATEST_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.latestSession;
@@ -104,7 +104,7 @@ async function runStop({
       ? input.cwd
       : fallbackCwd,
   );
-  const store = createArtifactStore({ mode, workspace });
+  const store = await createArtifactStoreFromConfig({ mode, workspace });
   const activeChange = (await store.findActiveChanges())[0] || null;
   const changeName = activeChange
     ? extractFirstScalar(activeChange.content, [["change", "name"]]) ||

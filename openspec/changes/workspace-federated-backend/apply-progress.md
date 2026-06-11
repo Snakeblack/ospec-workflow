@@ -17,10 +17,17 @@ Notes:
 - No behavior change for existing repos: hooks still construct `openspec` by default.
   Backend selection is Unit B.
 
-## Unit B — Harness wiring (PR #2) — PENDING
+## Unit B — Harness wiring (PR #2) — DONE
 
-Phase 4: the four stateful hooks resolve `artifact_store.backend` via `readBackendMode`
-and pass it to `createArtifactStore`. Regression suite must stay green.
+Branch: `feat/federated-runtime-core` (stacked). Strict TDD. Suite: 79/79 green.
+
+Phase 4: added `createArtifactStoreFromConfig({ workspace, mode })` to
+`artifact-store.js` — resolves the backend from the coordinator `openspec/config.yaml`
+via `readBackendMode` (explicit `mode` overrides; absent/unknown → openspec), keeping
+the config path inside the store (no path literals leak back into hooks). The four
+stateful hooks (`session-start`, `pre-compact`, `stop`, `subagent-stop`) now construct
+via this factory. New backend-selection tests on session-start, pre-compact, and stop;
+subagent-stop wired for uniformity (no behavior change, guarded by regression).
 
 ## Unit C — Prompt surfaces (PR #3) — PENDING
 

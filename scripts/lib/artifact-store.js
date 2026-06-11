@@ -202,9 +202,36 @@ function createArtifactStore({
   return createOpenSpecStore(resolvedWorkspace);
 }
 
+// Resolve the backend from openspec/config.yaml (coordinator-local, identical
+// across modes), then build the matching store. An explicit `mode` overrides the
+// config — used by tests. Unknown/absent config falls back to openspec.
+async function createArtifactStoreFromConfig({
+  workspace = process.cwd(),
+  mode,
+} = {}) {
+  const resolvedWorkspace = path.resolve(workspace);
+
+  if (mode) {
+    return createArtifactStore({ mode, workspace: resolvedWorkspace });
+  }
+
+  const config = await createArtifactStore({
+    workspace: resolvedWorkspace,
+  }).readConfig();
+  const resolvedMode = config
+    ? ospec.readBackendMode(config)
+    : DEFAULT_ARTIFACT_STORE_MODE;
+
+  return createArtifactStore({
+    mode: resolvedMode,
+    workspace: resolvedWorkspace,
+  });
+}
+
 module.exports = {
   ARTIFACT_STORE_MODES,
   ARTIFACT_STORE_RELATIVE_PATHS,
   DEFAULT_ARTIFACT_STORE_MODE,
   createArtifactStore,
+  createArtifactStoreFromConfig,
 };

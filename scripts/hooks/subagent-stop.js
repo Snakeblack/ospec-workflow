@@ -6,7 +6,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const {
   ARTIFACT_STORE_RELATIVE_PATHS,
-  createArtifactStore,
+  createArtifactStoreFromConfig,
 } = require("../lib/artifact-store.js");
 
 const EVENT_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.runtimeEvents;
@@ -227,7 +227,7 @@ async function runSubagentStop({
     action: "refresh-registry-next-delegation",
   };
 
-  const store = createArtifactStore({ mode, workspace });
+  const store = await createArtifactStoreFromConfig({ mode, workspace });
   await store.appendRuntimeEvent(event);
 
   return {
