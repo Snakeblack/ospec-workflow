@@ -23,15 +23,53 @@ agentes de fase ejecutan y OpenSpec conserva el estado versionable.
 4. Continúa el flujo con `/sdd-continue` o ejecútalo por fases.
 5. Verifica con `/sdd-verify` y archiva con `/sdd-archive`.
 
-**Para Claude Code o GitHub Copilot CLI** (genera el árbol nativo):
+### Claude Code
+
+Para probar el plugin generado solo durante la sesión actual:
 
 ```powershell
-node scripts/configure/cli.js --target claude          --out dist/claude
-node scripts/configure/cli.js --target github-copilot  --out dist/github-copilot
+node scripts/configure/cli.js --target claude --out dist/claude
+claude plugin validate --strict dist/claude
+claude --plugin-dir dist/claude
 ```
 
-Consulta la [guía de instalación](docs/plugin-installation.md) para instalación remota, desarrollo
-local, generación por target y requisitos de confianza.
+`--plugin-dir` no instala el plugin entre sesiones. Para instalación persistente, genera y registra un marketplace local:
+
+```powershell
+node scripts/configure/claude-marketplace.js
+
+claude plugin validate dist/claude-marketplace
+claude plugin validate --strict dist/claude-marketplace/plugins/ospec-workflow
+
+$marketplace = (Resolve-Path ".\dist\claude-marketplace").ProviderPath
+claude plugin marketplace add "$marketplace" --scope user
+
+claude plugin install ospec-workflow@ospec-tools
+```
+
+Después puedes abrir Claude Code normalmente:
+
+```powershell
+claude
+```
+
+Y verificar dentro de la sesión:
+```text
+/plugin
+/reload-plugins
+```
+
+En PowerShell, evita `claude plugin marketplace add dist/claude-marketplace --scope user`; usa `.\dist\claude-marketplace` o `Resolve-Path` para que Claude Code lo trate como ruta local y no como origen Git/GitHub.
+
+### GitHub Copilot CLI
+
+Genera el layout nativo para github:
+
+```powershell
+node scripts/configure/cli.js --target github-copilot --out dist/github-copilot
+```
+
+Consulta la [guía de instalación](docs/plugin-installation.md) para instalación remota, desarrollo local, marketplace local de Claude Code y requisitos de confianza.
 
 ## Qué incluye
 
