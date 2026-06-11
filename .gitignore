@@ -2,6 +2,13 @@
 .atl/
 .ospec/
 
+# SDD planning artifacts — kept local, not published to the repo
+openspec/
+
+# Build outputs and coverage
+dist/
+coverage/
+
 # Node
 node_modules/
 npm-debug.log*
