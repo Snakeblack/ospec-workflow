@@ -1,0 +1,33 @@
+change: workspace-federated-backend
+status: ready-for-apply
+workflow: standard
+updated: 2026-06-11T03:10:00Z
+phases:
+  explore:
+    status: pending
+    artifact: ""
+  proposal:
+    status: done
+    artifact: proposal.md
+  spec:
+    status: done
+    artifacts:
+      - specs/artifact-store-federated/spec.md
+      - specs/sdd-session-hooks/spec.md
+      - specs/sdd-workspace/spec.md
+  design:
+    status: done
+    artifact: design.md
+  tasks:
+    status: done
+    artifact: tasks.md
+  apply:
+    status: pending
+    artifact: apply-progress.md
+  verify:
+    status: pending
+    artifact: verify-report.md
+  archive:
+    status: pending
+    artifact: archive-report.md
+blocking_questions: []
