@@ -35,6 +35,26 @@ async function writeChange(workspace, name, state) {
   return changePath;
 }
 
+async function writeAtlas(workspace, body) {
+  const atlasPath = path.join(workspace, "openspec", "workspace.yaml");
+
+  await fs.mkdir(path.dirname(atlasPath), { recursive: true });
+  await fs.writeFile(atlasPath, body);
+}
+
+async function writeMemberChange(workspace, memberDir, name, state) {
+  const changePath = path.join(
+    workspace,
+    memberDir,
+    "openspec",
+    "changes",
+    name,
+  );
+
+  await fs.mkdir(changePath, { recursive: true });
+  await fs.writeFile(path.join(changePath, "state.yaml"), state);
+}
+
 test("exposes the supported modes and a default", () => {
   assert.deepEqual(ARTIFACT_STORE_MODES, ["openspec", "workspace-federated"]);
   assert.equal(DEFAULT_ARTIFACT_STORE_MODE, "openspec");
@@ -130,16 +150,100 @@ test("openspec: appends runtime events and injects the workspace", async (t) => 
   assert.equal(line.agent, "sdd-apply");
 });
 
-test("workspace-federated: shares the derived layout but defers canonical ops", async (t) => {
+test("workspace-federated: keeps the derived layout workspace-local", async (t) => {
   const workspace = await createWorkspace(t);
   const store = createArtifactStore({ mode: "workspace-federated", workspace });
 
-  // Derived (workspace-local) paths still work — the door is real, not faked.
   assert.equal(store.cacheRelativePath, ".ospec/cache/skill-registry.cache.json");
   const event = await store.appendRuntimeEvent({ agent: "sdd-apply" });
   assert.equal(event.path, ".ospec/runtime/subagent-events.jsonl");
+});
 
-  // Canonical, multi-repo resolution is not implemented yet.
-  await assert.rejects(() => store.isInitialized(), /does not implement/i);
-  await assert.rejects(() => store.findActiveChanges(), /does not implement/i);
+test("workspace-federated: isInitialized reflects atlas presence", async (t) => {
+  const workspace = await createWorkspace(t);
+  const store = createArtifactStore({ mode: "workspace-federated", workspace });
+
+  assert.equal(await store.isInitialized(), false);
+
+  await writeAtlas(
+    workspace,
+    ["members:", "  - id: api", "    path: member-api"].join("\n"),
+  );
+
+  assert.equal(await store.isInitialized(), true);
+});
+
+test("workspace-federated: keeps changeDirectory and config coordinator-local", async (t) => {
+  const workspace = await createWorkspace(t);
+  const store = createArtifactStore({ mode: "workspace-federated", workspace });
+
+  assert.equal(
+    store.changeDirectory("rollout"),
+    path.join(workspace, "openspec", "changes", "rollout"),
+  );
+  assert.equal(await store.readConfig(), null);
+
+  await writeConfig(workspace, "schema: spec-driven\n");
+
+  assert.match(await store.readConfig(), /spec-driven/);
+});
+
+test("workspace-federated: unions coordinator and member changes with source tags", async (t) => {
+  const workspace = await createWorkspace(t);
+
+  await writeAtlas(
+    workspace,
+    ["members:", "  - id: api", "    path: member-api"].join("\n"),
+  );
+  await writeChange(workspace, "rollout", "change:\n  status: planning\n");
+  await writeMemberChange(
+    workspace,
+    "member-api",
+    "add-endpoint",
+    "change:\n  status: applying\n",
+  );
+  await writeMemberChange(
+    workspace,
+    "member-api",
+    "shipped",
+    "status: archived\n",
+  );
+
+  const store = createArtifactStore({ mode: "workspace-federated", workspace });
+  const active = await store.findActiveChanges();
+
+  assert.deepEqual(
+    active.map((change) => `${change.source}:${change.directoryName}`).sort(),
+    [".:rollout", "api:add-endpoint"],
+  );
+});
+
+test("workspace-federated: skips an unreachable member without throwing", async (t) => {
+  const workspace = await createWorkspace(t);
+
+  await writeAtlas(
+    workspace,
+    [
+      "members:",
+      "  - id: api",
+      "    path: member-api",
+      "  - id: ghost",
+      "    path: nowhere",
+    ].join("\n"),
+  );
+  await writeMemberChange(
+    workspace,
+    "member-api",
+    "add-endpoint",
+    "change:\n  status: applying\n",
+  );
+
+  const store = createArtifactStore({ mode: "workspace-federated", workspace });
+  const active = await store.findActiveChanges();
+
+  assert.deepEqual(
+    active.map((change) => change.directoryName),
+    ["add-endpoint"],
+  );
+  assert.equal(active.warnings[0].member, "ghost");
 });

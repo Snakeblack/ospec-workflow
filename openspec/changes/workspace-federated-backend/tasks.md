@@ -33,22 +33,22 @@ Chain strategy: feature-branch-chain
 
 Verification: `node --test "scripts/**/*.test.js"`. 1.1 before 1.2.
 
-- [ ] 1.1 **[RED]** Add `scripts/lib/workspace-atlas.test.js`: `parseAtlas` parses members + contracts; ignores unsupported nested shape; empty/malformed content → `{ members: [], contracts: [] }`. `resolveMembers` resolves relative and absolute `path`, applies default `openspec_root: openspec`, marks a missing path `reachable: false`. `computeImpact` returns provider+consumers, leaf→self, multi-contract union.
-- [ ] 1.2 **[GREEN]** Add `scripts/lib/workspace-atlas.js` with `parseAtlas`, `resolveMembers`, `computeImpact` using `node:*` builtins only (mirror `ospec-state.js` parsers). Export all three. All tests green.
+- [x] 1.1 **[RED]** Add `scripts/lib/workspace-atlas.test.js`: `parseAtlas` parses members + contracts; ignores unsupported nested shape; empty/malformed content → `{ members: [], contracts: [] }`. `resolveMembers` resolves relative and absolute `path`, applies default `openspec_root: openspec`, marks a missing path `reachable: false`. `computeImpact` returns provider+consumers, leaf→self, multi-contract union.
+- [x] 1.2 **[GREEN]** Add `scripts/lib/workspace-atlas.js` with `parseAtlas`, `resolveMembers`, `computeImpact` using `node:*` builtins only (mirror `ospec-state.js` parsers). Export all three. All tests green.
 
 ## Phase 2: Runtime — `readBackendMode()` (Strict TDD)
 
 Verification: `node --test "scripts/**/*.test.js"`. Independent of Phase 1.
 
-- [ ] 2.1 **[RED]** Add tests in `scripts/lib/ospec-state.test.js`: `readBackendMode(content)` → `openspec` when `artifact_store` block absent; `workspace-federated` when set; `openspec` for an unknown value; tolerant of CRLF and comments.
-- [ ] 2.2 **[GREEN]** Add `readBackendMode(configContent)` to `scripts/lib/ospec-state.js` (indentation-scoped, mirrors `readStatus`); validate against `ARTIFACT_STORE_MODES`, fall back to `openspec` on unknown; add to `module.exports`. All tests green.
+- [x] 2.1 **[RED]** Add tests in `scripts/lib/ospec-state.test.js`: `readBackendMode(content)` → `openspec` when `artifact_store` block absent; `workspace-federated` when set; `openspec` for an unknown value; tolerant of CRLF and comments.
+- [x] 2.2 **[GREEN]** Add `readBackendMode(configContent)` to `scripts/lib/ospec-state.js` (indentation-scoped, mirrors `readStatus`); validate against `ARTIFACT_STORE_MODES`, fall back to `openspec` on unknown; add to `module.exports`. All tests green.
 
 ## Phase 3: Runtime — Federated store ops (Strict TDD)
 
 Verification: `node --test "scripts/**/*.test.js"`. Depends on Phase 1.
 
-- [ ] 3.1 **[RED]** Extend `scripts/lib/artifact-store.test.js`: federated `isInitialized` true with atlas / false without; `findActiveChanges` unions coordinator + member changes with `source` tags; excludes member terminal states; skips an unreachable member without throwing; `changeDirectory` returns the coordinator path; derived paths unchanged.
-- [ ] 3.2 **[GREEN]** Replace the not-implemented federated branch in `scripts/lib/artifact-store.js` with real ops using `workspace-atlas.js` (`parseAtlas`/`resolveMembers`) and `ospec-state.findActiveChanges` per member; keep the derived surface shared; record skipped members as warnings on the return value, not exceptions. All tests green (including the existing openspec suite).
+- [x] 3.1 **[RED]** Extend `scripts/lib/artifact-store.test.js`: federated `isInitialized` true with atlas / false without; `findActiveChanges` unions coordinator + member changes with `source` tags; excludes member terminal states; skips an unreachable member without throwing; `changeDirectory` returns the coordinator path; derived paths unchanged.
+- [x] 3.2 **[GREEN]** Replace the not-implemented federated branch in `scripts/lib/artifact-store.js` with real ops using `workspace-atlas.js` (`parseAtlas`/`resolveMembers`) and `ospec-state.findActiveChanges` per member; keep the derived surface shared; record skipped members as warnings on the return value, not exceptions. All tests green (including the existing openspec suite).
 
 ## Phase 4: Harness — hook backend selection (Strict TDD)
 

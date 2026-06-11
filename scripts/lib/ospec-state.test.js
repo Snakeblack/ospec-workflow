@@ -11,6 +11,7 @@ const {
   appendRuntimeEvent,
   findActiveChanges,
   findOpenSpecRoot,
+  readBackendMode,
   readBaselineState,
   readState,
   writeSessionSummary,
@@ -248,6 +249,36 @@ test("readBaselineState skips comment lines inside and outside the block", () =>
 
   assert.equal(result.status, "partial");
   assert.deepEqual(result.domains_pending, ["auth"]);
+});
+
+test("readBackendMode defaults to openspec when the artifact_store block is absent", () => {
+  assert.equal(readBackendMode("schema: spec-driven\n"), "openspec");
+  assert.equal(readBackendMode(""), "openspec");
+});
+
+test("readBackendMode reads a configured federated backend", () => {
+  const content = [
+    "schema: spec-driven",
+    "artifact_store:",
+    "  backend: workspace-federated",
+  ].join("\n");
+
+  assert.equal(readBackendMode(content), "workspace-federated");
+});
+
+test("readBackendMode falls back to openspec for an unknown backend", () => {
+  const content = ["artifact_store:", "  backend: dropbox"].join("\n");
+
+  assert.equal(readBackendMode(content), "openspec");
+});
+
+test("readBackendMode tolerates CRLF and trailing comments", () => {
+  const content = [
+    "artifact_store:",
+    "  backend: workspace-federated # active",
+  ].join("\r\n");
+
+  assert.equal(readBackendMode(content), "workspace-federated");
 });
 
 test("readBaselineState does not bleed into subsequent top-level blocks", () => {

@@ -3,6 +3,10 @@
 const crypto = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const {
+  ARTIFACT_STORE_MODES,
+  DEFAULT_ARTIFACT_STORE_MODE,
+} = require("./artifact-store-modes.js");
 
 const TERMINAL_STATUSES = new Set([
   "archived",
@@ -144,6 +148,38 @@ function readBaselineState(content) {
   }
 
   return foundBaseline ? result : null;
+}
+
+function readBackendMode(content) {
+  let inArtifactStore = false;
+
+  for (const raw of String(content).split(/\r?\n/)) {
+    const trimmed = raw.trim();
+    const indent = raw.match(/^\s*/)[0].length;
+
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    if (indent === 0) {
+      inArtifactStore = trimmed === "artifact_store:";
+      continue;
+    }
+
+    if (inArtifactStore) {
+      const match = trimmed.match(/^backend:\s*(.+)$/);
+
+      if (match) {
+        const mode = parseScalar(match[1]);
+
+        return ARTIFACT_STORE_MODES.includes(mode)
+          ? mode
+          : DEFAULT_ARTIFACT_STORE_MODE;
+      }
+    }
+  }
+
+  return DEFAULT_ARTIFACT_STORE_MODE;
 }
 
 function resolveWorkspaceFromChange(changePath) {
@@ -328,6 +364,7 @@ module.exports = {
   appendRuntimeEvent,
   findActiveChanges,
   findOpenSpecRoot,
+  readBackendMode,
   readBaselineState,
   readState,
   writeSessionSummary,

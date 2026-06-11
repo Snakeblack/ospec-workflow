@@ -4,9 +4,11 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 
 const ospec = require("./ospec-state.js");
-
-const DEFAULT_ARTIFACT_STORE_MODE = "openspec";
-const ARTIFACT_STORE_MODES = ["openspec", "workspace-federated"];
+const atlas = require("./workspace-atlas.js");
+const {
+  ARTIFACT_STORE_MODES,
+  DEFAULT_ARTIFACT_STORE_MODE,
+} = require("./artifact-store-modes.js");
 
 // Single source of truth for the on-disk layout. Hooks MUST resolve every path
 // through a store instead of hardcoding these literals, so a second backend
@@ -36,13 +38,6 @@ const CANONICAL_LAYOUT = {
 
 function toRelativeSegments(relativePath) {
   return relativePath.split("/");
-}
-
-function notImplemented(mode, operation) {
-  return new Error(
-    `Artifact store mode "${mode}" does not implement ${operation} yet. ` +
-      "Multi-repo canonical resolution is on the workspace-federated roadmap.",
-  );
 }
 
 async function pathExists(filePath) {
@@ -83,7 +78,10 @@ function createDerivedSurface(workspace) {
   };
 }
 
-function createOpenSpecStore(workspace) {
+// Coordinator-local surface shared by every mode: the config, change directory,
+// session summary, and the derived .ospec/ layout always resolve against the
+// coordinator workspace. Modes differ only in isInitialized + findActiveChanges.
+function createCoordinatorSurface(workspace) {
   const derived = createDerivedSurface(workspace);
   const configPath = () =>
     path.join(workspace, ...toRelativeSegments(CANONICAL_LAYOUT.config));
@@ -95,12 +93,10 @@ function createOpenSpecStore(workspace) {
     );
 
   return {
-    mode: "openspec",
     workspace,
     ...derived,
     configPath,
     changeDirectory,
-    isInitialized: () => pathExists(configPath()),
     async readConfig() {
       try {
         return await fs.readFile(configPath(), "utf8");
@@ -112,34 +108,77 @@ function createOpenSpecStore(workspace) {
         throw error;
       }
     },
-    async findActiveChanges() {
-      const openspecRoot = await ospec.findOpenSpecRoot(workspace);
-      return ospec.findActiveChanges(openspecRoot);
-    },
     writeSessionSummary: (changeName, content) =>
       ospec.writeSessionSummary(changeDirectory(changeName), content),
   };
 }
 
+function createOpenSpecStore(workspace) {
+  const base = createCoordinatorSurface(workspace);
+
+  return {
+    mode: "openspec",
+    ...base,
+    isInitialized: () => pathExists(base.configPath()),
+    async findActiveChanges() {
+      const openspecRoot = await ospec.findOpenSpecRoot(workspace);
+      return ospec.findActiveChanges(openspecRoot);
+    },
+  };
+}
+
 function createWorkspaceFederatedStore(workspace) {
-  const derived = createDerivedSurface(workspace);
-  const defer = (operation) => () =>
-    Promise.reject(notImplemented("workspace-federated", operation));
+  const base = createCoordinatorSurface(workspace);
+  const atlasPath = path.join(workspace, "openspec", "workspace.yaml");
+
+  async function loadAtlas() {
+    try {
+      return atlas.parseAtlas(await fs.readFile(atlasPath, "utf8"));
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        return null;
+      }
+
+      throw error;
+    }
+  }
 
   return {
     mode: "workspace-federated",
-    workspace,
-    ...derived,
-    configPath: () => {
-      throw notImplemented("workspace-federated", "configPath");
+    ...base,
+    async isInitialized() {
+      const parsed = await loadAtlas();
+      return Boolean(parsed && parsed.members.length > 0);
     },
-    changeDirectory: () => {
-      throw notImplemented("workspace-federated", "changeDirectory");
+    async findActiveChanges() {
+      const parsed = (await loadAtlas()) || { members: [], contracts: [] };
+      const aggregated = [];
+      const warnings = [];
+
+      const coordinatorRoot = await ospec.findOpenSpecRoot(workspace);
+      for (const change of await ospec.findActiveChanges(coordinatorRoot)) {
+        aggregated.push({ ...change, source: "." });
+      }
+
+      for (const member of await atlas.resolveMembers(workspace, parsed)) {
+        if (!member.reachable) {
+          warnings.push({ member: member.id, reason: "unreachable" });
+          continue;
+        }
+
+        for (const change of await ospec.findActiveChanges(member.root)) {
+          aggregated.push({ ...change, source: member.id });
+        }
+      }
+
+      // Skips are non-fatal observability, exposed without disturbing the array.
+      Object.defineProperty(aggregated, "warnings", {
+        value: warnings,
+        enumerable: false,
+      });
+
+      return aggregated;
     },
-    isInitialized: defer("isInitialized"),
-    readConfig: defer("readConfig"),
-    findActiveChanges: defer("findActiveChanges"),
-    writeSessionSummary: defer("writeSessionSummary"),
   };
 }
 
