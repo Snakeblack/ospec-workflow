@@ -50,3 +50,62 @@ The hook MUST emit no baseline hint when `openspec/config.yaml` is absent, when 
 - WHEN a session starts
 - THEN the hook emits the basic pending/partial hint without staleness detail
 - AND the hook exits without error
+
+## Backend Selection Requirements (workspace-federated)
+
+Merged from change `workspace-federated-backend` (2026-06-11). The four stateful hooks
+construct their artifact store from the configured backend via
+`createArtifactStoreFromConfig`.
+
+### Requirement: Backend Resolution From Config
+
+Before constructing a store, each stateful hook MUST read `artifact_store.backend` from
+`openspec/config.yaml` (when present) and pass it as the store `mode`. When the key is
+absent, malformed, or the config is missing, the hook MUST default to `openspec`. An
+unknown backend value MUST fall back to `openspec` rather than throwing; surfacing a
+warning on the unknown value is RECOMMENDED.
+
+#### Scenario: Federated backend selected
+
+- GIVEN `openspec/config.yaml` contains `artifact_store.backend: workspace-federated`
+- WHEN a hook constructs its store
+- THEN the store mode is `workspace-federated`
+
+#### Scenario: Absent key defaults to openspec
+
+- GIVEN a config with no `artifact_store` block
+- WHEN a hook constructs its store
+- THEN the store mode is `openspec`
+- AND existing behavior is unchanged
+
+#### Scenario: Unknown backend falls back safely
+
+- GIVEN `artifact_store.backend: dropbox`
+- WHEN a hook constructs its store
+- THEN the store mode is `openspec`
+- AND the hook completes without error
+
+### Requirement: Federated Session Continuity
+
+When the backend is `workspace-federated`, `pre-compact` and `stop` MUST operate on the
+aggregated active changes returned by the federated store, selecting the most recently
+updated change across all members for the session summary and latest trace. The derived
+`.ospec/` write locations MUST remain coordinator-workspace-local.
+
+#### Scenario: Summary spans members
+
+- GIVEN a federated coordinator where a member has the newest active change
+- WHEN `pre-compact` runs
+- THEN the session summary describes that member's change
+- AND it is written under the coordinator `.ospec/session/`
+
+### Requirement: Non-Regression For openspec
+
+With `artifact_store.backend` absent or `openspec`, every hook MUST produce the same
+output it produced before backend selection existed.
+
+#### Scenario: openspec output unchanged
+
+- GIVEN a standard single-repo workspace with no `artifact_store` block
+- WHEN each hook runs
+- THEN its result envelope is identical to the pre-change behavior
