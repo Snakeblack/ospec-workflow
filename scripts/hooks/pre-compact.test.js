@@ -34,6 +34,44 @@ async function createChange(workspace, name, state, artifacts = {}) {
   return changeDirectory;
 }
 
+async function createMemberChange(workspace, memberDir, name, state) {
+  const changeDirectory = path.join(
+    workspace,
+    memberDir,
+    "openspec",
+    "changes",
+    name,
+  );
+
+  await fs.mkdir(changeDirectory, { recursive: true });
+  await fs.writeFile(path.join(changeDirectory, "state.yaml"), state);
+}
+
+test("selects the federated backend and summarizes a member change", async (t) => {
+  const workspace = await createWorkspace(t);
+
+  await fs.writeFile(
+    path.join(workspace, "openspec", "config.yaml"),
+    "artifact_store:\n  backend: workspace-federated\n",
+  );
+  await fs.writeFile(
+    path.join(workspace, "openspec", "workspace.yaml"),
+    ["members:", "  - id: api", "    path: member-api"].join("\n"),
+  );
+  await createMemberChange(
+    workspace,
+    "member-api",
+    "add-endpoint",
+    "change:\n  status: applying\n",
+  );
+
+  const result = await runPreCompact({ input: { cwd: workspace } });
+
+  assert.equal(result.status, "written");
+  assert.equal(result.change, "add-endpoint");
+  assert.equal(result.path, ".ospec/session/add-endpoint/session-summary.md");
+});
+
 test("writes the minimal session summary for the active change", async (t) => {
   const workspace = await createWorkspace(t);
   const changeDirectory = await createChange(

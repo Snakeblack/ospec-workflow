@@ -13,6 +13,44 @@ Default: use `openspec` for persisted SDD workflows. Use `none` only when the us
 - **`openspec`**: Source of truth. Files in repo, git history, team-shareable, full audit trail.
 - **`none`**: Ephemeral. Lost when the conversation ends.
 
+> **Prompt-layer mode vs. harness backend.** This `artifact_store.mode`
+> (`openspec | none`) is a *prompt-layer* decision: it tells a phase agent
+> whether to persist to files or return inline. It is distinct from the
+> *harness* backend adapter in `scripts/lib/artifact-store.js`, whose modes
+> (`openspec | workspace-federated`) decide **where and how** the runtime
+> resolves the on-disk layout for hooks. The two are aligned on `openspec` but
+> answer different questions. `workspace-federated` (multi-repo) is implemented
+> for reads (aggregated cross-repo active changes); coordinated multi-repo
+> **writes** remain roadmapped.
+
+## Workspace Federation (harness backend: `workspace-federated`)
+
+Selected by `artifact_store.backend: workspace-federated` in `openspec/config.yaml`.
+A **coordinator** repo declares its members in `openspec/workspace.yaml` (the atlas);
+each member stays a standard OpenSpec repo. The harness aggregates active changes across
+all reachable members, tagging each with a `source` member id (coordinator entries use
+`source: "."`). Unreachable members are skipped fail-open, never fatal. See
+`sdd-workspace` (`init`/`status`/`impact`) and `docs/harness-runtime.md`.
+
+**Change-linking model.** A cross-repo change is coordinated centrally: the coordinator
+change folder holds the cross-cutting `proposal.md`/`design.md` plus `federation.yaml`
+linking each member to its slice change:
+
+```yaml
+federation_id: rollout-auth-v2
+coordinator_change: rollout-auth-v2
+slices:
+  - member: api
+    change: add-token-endpoint
+  - member: web
+    change: consume-token-endpoint
+```
+
+**v1 boundary (read-and-link).** The federated store reads and reconciles member state
+but MUST NOT write into a member repo; `changeDirectory`/`writeSessionSummary`/`readConfig`
+stay coordinator-local, and the derived `.ospec/` surface stays in the coordinator
+workspace. Slices are authored inside each member with the normal single-repo workflow.
+
 ## Behavior Per Mode
 
 | Mode | Read from | Write to | Project files |

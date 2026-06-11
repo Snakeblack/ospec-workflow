@@ -3,6 +3,10 @@
 const crypto = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const {
+  ARTIFACT_STORE_MODES,
+  DEFAULT_ARTIFACT_STORE_MODE,
+} = require("./artifact-store-modes.js");
 
 const TERMINAL_STATUSES = new Set([
   "archived",
@@ -72,6 +76,110 @@ function readStatus(content) {
   }
 
   return topLevelStatus;
+}
+
+const BASELINE_LIST_KEYS = new Set(["domains_pending", "domains_done", "stale_domains"]);
+const BASELINE_SCALAR_KEYS = new Set(["status", "last_checked"]);
+const BASELINE_TOP_KEY = "baseline:";
+const BASELINE_FIELD_INDENT = 2;
+const BASELINE_LIST_ITEM_INDENT = 4;
+
+function readBaselineState(content) {
+  const lines = content.split(/\r?\n/);
+  let foundBaseline = false;
+  let inBaseline = false;
+  let currentListKey = null;
+  const result = {
+    status: "",
+    domains_pending: [],
+    domains_done: [],
+    stale_domains: [],
+    last_checked: "",
+  };
+
+  for (const raw of lines) {
+    const trimmed = raw.trim();
+    const indent = raw.match(/^\s*/)[0].length;
+
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    if (indent === 0) {
+      inBaseline = trimmed === BASELINE_TOP_KEY;
+      if (inBaseline) {
+        foundBaseline = true;
+      }
+      currentListKey = null;
+      continue;
+    }
+
+    if (!inBaseline) {
+      continue;
+    }
+
+    if (indent === BASELINE_FIELD_INDENT) {
+      currentListKey = null;
+
+      const inlineEmptyList = trimmed.match(/^(\w+):\s*\[\]$/);
+      if (inlineEmptyList && BASELINE_LIST_KEYS.has(inlineEmptyList[1])) {
+        result[inlineEmptyList[1]] = [];
+        continue;
+      }
+
+      const keyValue = trimmed.match(/^(\w+):\s*(.*)$/);
+      if (keyValue) {
+        const key = keyValue[1];
+        const rawValue = keyValue[2].trim();
+
+        if (BASELINE_LIST_KEYS.has(key) && rawValue === "") {
+          currentListKey = key;
+          result[key] = [];
+        } else if (BASELINE_SCALAR_KEYS.has(key)) {
+          result[key] = parseScalar(rawValue);
+        }
+      }
+    } else if (indent >= BASELINE_LIST_ITEM_INDENT && currentListKey !== null) {
+      const listItem = trimmed.match(/^-\s+(.+)$/);
+      if (listItem) {
+        result[currentListKey].push(listItem[1].trim());
+      }
+    }
+  }
+
+  return foundBaseline ? result : null;
+}
+
+function readBackendMode(content) {
+  let inArtifactStore = false;
+
+  for (const raw of String(content).split(/\r?\n/)) {
+    const trimmed = raw.trim();
+    const indent = raw.match(/^\s*/)[0].length;
+
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    if (indent === 0) {
+      inArtifactStore = trimmed === "artifact_store:";
+      continue;
+    }
+
+    if (inArtifactStore) {
+      const match = trimmed.match(/^backend:\s*(.+)$/);
+
+      if (match) {
+        const mode = parseScalar(match[1]);
+
+        return ARTIFACT_STORE_MODES.includes(mode)
+          ? mode
+          : DEFAULT_ARTIFACT_STORE_MODE;
+      }
+    }
+  }
+
+  return DEFAULT_ARTIFACT_STORE_MODE;
 }
 
 function resolveWorkspaceFromChange(changePath) {
@@ -256,6 +364,8 @@ module.exports = {
   appendRuntimeEvent,
   findActiveChanges,
   findOpenSpecRoot,
+  readBackendMode,
+  readBaselineState,
   readState,
   writeSessionSummary,
 };

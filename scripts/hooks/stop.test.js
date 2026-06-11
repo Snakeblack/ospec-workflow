@@ -41,6 +41,44 @@ async function readLatest(workspace) {
   );
 }
 
+async function createMemberChange(workspace, memberDir, name, state) {
+  const changeDirectory = path.join(
+    workspace,
+    memberDir,
+    "openspec",
+    "changes",
+    name,
+  );
+
+  await fs.mkdir(changeDirectory, { recursive: true });
+  await fs.writeFile(path.join(changeDirectory, "state.yaml"), state);
+}
+
+test("selects the federated backend and traces a member change", async (t) => {
+  const workspace = await createWorkspace(t);
+
+  await fs.writeFile(
+    path.join(workspace, "openspec", "config.yaml"),
+    "artifact_store:\n  backend: workspace-federated\n",
+  );
+  await fs.writeFile(
+    path.join(workspace, "openspec", "workspace.yaml"),
+    ["members:", "  - id: api", "    path: member-api"].join("\n"),
+  );
+  await createMemberChange(
+    workspace,
+    "member-api",
+    "add-endpoint",
+    "change:\n  status: applying\n",
+  );
+
+  const result = await runStop({ input: { cwd: workspace } });
+  const latest = await readLatest(workspace);
+
+  assert.equal(result.activeChange, "add-endpoint");
+  assert.match(latest, /add-endpoint/);
+});
+
 test("writes a short trace for the active change", async (t) => {
   const workspace = await createWorkspace(t);
   const changeDirectory = await createChange(

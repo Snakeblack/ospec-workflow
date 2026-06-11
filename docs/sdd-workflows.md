@@ -207,3 +207,70 @@ Cuando una sesión se compacta o se cierra, la recuperación se hace en este ord
 3. `.ospec/session/session-summary.md`, si existe;
 4. cache de skills, si fingerprint sigue válido;
 5. conversación solo como contexto auxiliar no canónico.
+
+## 12. Baseline para repos brownfield
+
+Usa esta linea cuando el repo tiene codigo existente pero `openspec/specs/` esta vacio y necesitas establecer una linea base de comportamiento actual.
+
+```text
+/sdd-init
+# Advisory aparece → consentir o saltar
+/sdd-baseline        # batch 0: mapa de dominios
+/sdd-baseline        # batch 1: primer dominio
+/sdd-baseline        # batch 2: segundo dominio
+# ... un batch por dominio hasta que devuelva success
+```
+
+### Flujo batch-0 — Mapa de dominios
+
+El primer `/sdd-baseline` detecta que no existe `openspec/specs/_baseline/manifest.md` y:
+
+1. Escanea el repo y agrupa archivos en clusters de capacidad (NO listados de directorios).
+2. Devuelve `blocked` con `question_gate` que incluye el mapa de dominios propuesto.
+3. El orquestador presenta el mapa al usuario via `vscode/askQuestions`.
+4. Con el mapa aprobado, el ejecutor escribe `openspec/specs/_baseline/manifest.md` (seccion Domain Map) e `openspec/specs/_baseline/index.md`, actualiza `openspec/config.yaml` con `domains_pending` y devuelve `partial`.
+
+### Flujo por dominio — batch N
+
+Cada batch posterior:
+
+1. Lee el manifest para identificar que dominios ya tienen entrada `done`.
+2. Toma el primer dominio pendiente de `domains_pending` que no tenga `spec.md` existente (skip rule).
+3. Explora las fuentes del dominio y escribe `openspec/specs/{domain}/spec.md`.
+4. Captura `git rev-parse --short HEAD` como hash de commit.
+5. APPENDA una fila en la tabla Entries de `openspec/specs/_baseline/manifest.md` (`domain | done | N | hash | UTC`).
+6. APPENDA una linea en `openspec/specs/_baseline/index.md`.
+7. Mueve el dominio de `domains_pending` a `domains_done` en `openspec/config.yaml`.
+8. Devuelve `partial` si quedan dominios pendientes, o `success` si todos estan listos.
+
+### Flujo de resume tras interrupcion
+
+Si una sesion muere a mitad de un batch, el manifest no tendra entrada para ese dominio (las entradas se escriben SOLO en completion). En el siguiente `/sdd-baseline`:
+
+- Manifest sin entrada `done` para ese dominio → se trata como pendiente.
+- El executor re-especifica el dominio desde cero, sobreescribiendo el `spec.md` huerfano si existiera.
+- El historial del manifest nunca se edita; solo se appendean filas nuevas.
+
+Esta propiedad se garantiza escribiendo entradas **solo al completar** el dominio, nunca al empezar.
+
+### Flujo de staleness y refresh
+
+Cuando `sdd-status` detecta que archivos de un dominio cambiaron desde el hash registrado en el manifest, escribe `stale_domains` y `last_checked` en `openspec/config.yaml`. El hook `session-start.js` lee ese cache y emite un hint sin ejecutar git.
+
+Para refrescar:
+
+```text
+/sdd-baseline
+```
+
+El ejecutor re-especifica solo los dominios en `stale_domains` o con `status: pending`, appendeando filas `refreshed` con el nuevo hash. Los dominios `done` y no-stale no se tocan.
+
+### Skip rule y ownership
+
+`sdd-baseline` NUNCA escribe donde ya existe `openspec/specs/{domain}/spec.md`, sin importar quien lo creo. Los dominios con spec preexistente se registran como `skipped` en el manifest.
+
+`sdd-archive` owns los specs que evolucionan. Una vez que un cambio se archiva y su spec se promueve a `openspec/specs/`, ese dominio queda fuera del alcance de baseline para siempre.
+
+### Advisory del orquestador
+
+Cuando `baseline.status` es `pending` o `partial`, el orquestador muestra el Baseline Advisory antes del primer `/sdd-new` o `/sdd-explore` de la sesion. El advisory cubre: que es, ganancias, costos, y la advertencia de skip-rule loss. Es informativo; no bloquea otros comandos. Ver la seccion **Baseline Advisory** en `agents/sdd-orchestrator.agent.md`.

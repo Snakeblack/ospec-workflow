@@ -2,7 +2,6 @@
 
 "use strict";
 
-const fs = require("node:fs/promises");
 const path = require("node:path");
 const {
   calculateFingerprint,
@@ -10,20 +9,37 @@ const {
   readRegistryCache,
   writeRegistryCache,
 } = require("../lib/skill-registry.js");
+const { readBaselineState } = require("../lib/ospec-state.js");
+const {
+  ARTIFACT_STORE_RELATIVE_PATHS,
+  createArtifactStoreFromConfig,
+} = require("../lib/artifact-store.js");
 
 const CACHE_VERSION = 1;
-const CACHE_RELATIVE_PATH = ".ospec/cache/skill-registry.cache.json";
+const CACHE_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.cache;
 
-async function pathIsFile(filePath) {
-  try {
-    return (await fs.stat(filePath)).isFile();
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      return false;
-    }
-
-    throw error;
+function buildBaselineHint(baselineState) {
+  if (!baselineState) {
+    return null;
   }
+
+  const { status, domains_pending, stale_domains } = baselineState;
+
+  if (status === "pending") {
+    return "Baseline not started. Run /sdd-baseline to seed openspec/specs/.";
+  }
+
+  if (status === "partial") {
+    const count = domains_pending.length;
+    return `Baseline partial: ${count} domain(s) pending. Run /sdd-baseline to resume.`;
+  }
+
+  if (stale_domains.length > 0) {
+    const list = stale_domains.join(", ");
+    return `Baseline done but ${stale_domains.length} domain(s) stale: ${list}. Run /sdd-baseline refresh to update.`;
+  }
+
+  return null;
 }
 
 function resolveWorkspace(input, fallbackCwd) {
@@ -39,13 +55,13 @@ async function runSessionStart({
   input = {},
   fallbackCwd = process.cwd(),
   pluginRoot = path.resolve(__dirname, "../.."),
+  mode,
   now = () => new Date(),
 } = {}) {
   const workspace = resolveWorkspace(input, fallbackCwd);
-  const cachePath = path.join(workspace, ...CACHE_RELATIVE_PATH.split("/"));
-  const ospecDetected = await pathIsFile(
-    path.join(workspace, "openspec", "config.yaml"),
-  );
+  const store = await createArtifactStoreFromConfig({ mode, workspace });
+  const cachePath = store.cachePath();
+  const ospecDetected = await store.isInitialized();
 
   if (!ospecDetected) {
     return {
@@ -53,27 +69,39 @@ async function runSessionStart({
       ospecDetected: false,
       registry: {
         status: "skipped",
-        path: CACHE_RELATIVE_PATH,
+        path: store.cacheRelativePath,
       },
     };
+  }
+
+  let baselineHint = null;
+  try {
+    const configContent = await store.readConfig();
+    if (configContent !== null) {
+      baselineHint = buildBaselineHint(readBaselineState(configContent));
+    }
+  } catch {
+    // Baseline state read failure must not break session start
   }
 
   const registry = await discoverSkills(pluginRoot);
   const fingerprint = await calculateFingerprint(registry.fingerprintPaths);
   const currentCache = await readRegistryCache(cachePath);
 
+  const registryResult = {
+    status: "fresh",
+    path: store.cacheRelativePath,
+  };
+
   if (
     currentCache?.version === CACHE_VERSION &&
     currentCache.fingerprint === fingerprint
   ) {
-    return {
-      status: "ok",
-      ospecDetected: true,
-      registry: {
-        status: "fresh",
-        path: CACHE_RELATIVE_PATH,
-      },
-    };
+    const result = { status: "ok", ospecDetected: true, registry: registryResult };
+    if (baselineHint !== null) {
+      result.baseline = { hint: baselineHint };
+    }
+    return result;
   }
 
   await writeRegistryCache(cachePath, {
@@ -83,14 +111,11 @@ async function runSessionStart({
     skills: registry.skills,
   });
 
-  return {
-    status: "ok",
-    ospecDetected: true,
-    registry: {
-      status: "fresh",
-      path: CACHE_RELATIVE_PATH,
-    },
-  };
+  const result = { status: "ok", ospecDetected: true, registry: registryResult };
+  if (baselineHint !== null) {
+    result.baseline = { hint: baselineHint };
+  }
+  return result;
 }
 
 async function readJsonInput(stream = process.stdin) {

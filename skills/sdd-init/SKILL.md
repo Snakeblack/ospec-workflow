@@ -39,6 +39,9 @@ Run this phase when the orchestrator/user asks to initialize SDD in a project. Y
 | strict TDD marker/config found | Use that value. |
 | no marker/config but test runner exists | Default `strict_tdd: true`. |
 | no test runner | Set `strict_tdd: false` and explain unavailable. |
+| existing code detected AND `openspec/specs/` empty AND no `baseline` block | Activate brownfield branch: write `baseline` block, return `next_recommended: sdd-baseline`. |
+| `baseline` block already present (any status) | Preserve it unchanged; if `status` is `pending` or `partial`, return `next_recommended: sdd-baseline`. |
+| `baseline.status: done` | Brownfield branch does not activate; fall back to standard `next_recommended` logic. |
 
 ## Execution Steps
 
@@ -48,7 +51,8 @@ Run this phase when the orchestrator/user asks to initialize SDD in a project. Y
 4. Initialize persistence for the resolved mode.
 5. Build `.atl/skill-registry.md` using the skill-registry scan rules.
 6. Persist testing capabilities and project context.
-7. Return the structured initialization envelope.
+7. **Brownfield branch** (openspec mode only): if existing application code is detected outside `openspec/`, `docs/`, and dotfiles AND `openspec/specs/` is empty AND `openspec/config.yaml` has no `baseline` block, write the `baseline` block with `status: pending`, empty `domains_pending`, `domains_done`, `stale_domains`, and `last_checked: ""`. On re-init, if a `baseline` block already exists, preserve it unchanged.
+8. Return the structured initialization envelope.
 
 ## Output Contract
 

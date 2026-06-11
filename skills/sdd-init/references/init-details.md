@@ -1,5 +1,23 @@
 # SDD Init Details
 
+## Brownfield Detection Checklist
+
+A project is **brownfield** when BOTH conditions hold; absence of either means the brownfield branch does NOT activate.
+
+**Condition 1 — Existing application code detected** (at least one of):
+- Source files in recognized language extensions (`.js`, `.ts`, `.py`, `.rb`, `.go`, `.rs`, `.java`, `.cs`, `.php`, `.swift`, `.kt`) exist outside `openspec/`, `docs/`, and dotfiles/dot-directories.
+- A `package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`, `pom.xml`, or `build.gradle` is present at the repo root.
+- A non-empty `src/`, `lib/`, `app/`, or `pkg/` directory exists.
+
+**Condition 2 — `openspec/specs/` is empty** (all of):
+- `openspec/specs/` does not contain any `{domain}/spec.md` file.
+- No archive-owned spec has been promoted yet.
+
+**Exclusions — brownfield branch does NOT activate when**:
+- The repo has no detectable code or stack (foundation flow owns that case).
+- `openspec/config.yaml` already contains a `baseline` block (preserve it unchanged).
+- `baseline.status: done` (all domains already specced; skip advisory).
+
 ## Testing Capability Checklist
 
 - Test runner: `package.json` scripts/deps, `pyproject.toml`, `pytest.ini`, `go.mod`, `Cargo.toml`, `Makefile`.

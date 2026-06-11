@@ -2,7 +2,7 @@
 name: sdd-orchestrator
 description: Orchestrates the SDD workflow by delegating phases to specialized SDD subagents.
 tools: ['read', 'search', 'edit', 'execute', 'agent', 'vscode/askQuestions']
-agents: ['sdd-init', 'sdd-foundation', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-onboard']
+agents: ['sdd-init', 'sdd-foundation', 'sdd-baseline', 'sdd-workspace', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-onboard']
 # modelo intencionalmente omitido.
 # Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
 user-invocable: true
@@ -162,6 +162,77 @@ This ensures:
 - The project context (stack, conventions) is available for all phases
 
 Do NOT skip this check. Silent init is allowed only for explicit persisted workflow requests.
+
+### Baseline Advisory (optional, brownfield repos only)
+
+After the Init Guard completes and before the first `/sdd-new` or `/sdd-explore` of a session, check `openspec/config.yaml` for `baseline.status`. If the value is `pending` or `partial`, surface the Baseline Advisory to the user via `vscode/askQuestions` before any proposal or exploration work starts.
+
+**Advisory content MUST cover all four points:**
+
+1. **What `/sdd-baseline` is** — it seeds `openspec/specs/` with baseline specs of existing behavior, in one-domain batches, so each domain's current behavior becomes the source of truth before any SDD change runs against it.
+2. **Gains** — changes become grounded in verified baseline specs; archive merges are accurate because the starting state is documented.
+3. **Costs** — each domain requires a dedicated exploration batch; this is a token spend and takes multiple sessions to complete; it is resumable across sessions.
+4. **Skip-rule loss warning** — domains that evolve through archived SDD changes before baseline runs permanently lose their current-state baseline spec, because `sdd-archive` will own those spec files and `sdd-baseline` will skip them.
+
+**Routing on response:**
+
+- **User consents** → launch the `sdd-baseline` executor. Relaunch it from the first pending domain while it returns `partial`, until it returns `success` or the user defers.
+- **User declines** → proceed with the originally requested command. Suppress the advisory for the remainder of the session.
+- **`baseline.status: done`** → advisory is silent; proceed normally.
+
+The advisory is advisory-only. It MUST NOT block other SDD commands and MUST NOT auto-run `sdd-baseline` without explicit user consent.
+
+Advisory question shape:
+
+```json
+{
+  "questions": [
+    {
+      "header": "Baseline Advisory",
+      "question": "Your repo has no baseline specs yet. Running /sdd-baseline seeds openspec/specs/ with current-behavior specs for each domain before you start SDD changes. Continue with baseline first, or skip and proceed with your request?",
+      "options": [
+        {
+          "label": "Run /sdd-baseline now",
+          "description": "Seed baseline specs first. Resumable across sessions.",
+          "recommended": true
+        },
+        {
+          "label": "Skip baseline",
+          "description": "Proceed with the requested command. Domains evolved before baseline runs permanently lose their current-state seed."
+        }
+      ],
+      "allowFreeformInput": false
+    }
+  ]
+}
+```
+
+Add `sdd-baseline` to the `agents` list in the agent frontmatter when using this advisory.
+
+### Workspace Federation (optional, multi-repo)
+
+This applies only when `openspec/config.yaml` has `artifact_store.backend: workspace-federated`.
+For single-repo work (the default `openspec` backend) skip this section entirely.
+
+**Aggregated recovery.** When the backend is federated, the active-change view spans all
+member repos declared in `openspec/workspace.yaml`. Recover from the **aggregated**
+active changes (each tagged with a `source` member id), not just the coordinator's. The
+SessionStart/PreCompact/Stop hooks already aggregate; treat their summaries as spanning
+members. Never assume a single active change.
+
+**Impact Advisory (before a cross-repo change).** Before launching `/sdd-new` (or an
+equivalent request) for work that touches more than one member, delegate to
+`sdd-workspace impact <change>` to compute the affected members from the contract graph,
+then surface them with `vscode/askQuestions` so the user can scope reviewer load and
+delivery (chained PRs per member are usually right). Do not auto-plan a cross-repo
+change without this.
+
+**Boundaries.** v1 federation is **read-and-link**: the orchestrator reads and reconciles
+member state but MUST NOT write SDD artifacts into member repos through the federated
+store. Each member runs its own standard change folder; the coordinator holds the
+cross-cutting proposal/design and a `federation.yaml` linking member slices. Use
+`sdd-workspace` (`init`/`status`/`impact`) as the front door; add it to the `agents` list
+when operating a federated workspace.
 
 ### Foundation Guard (MANDATORY FOR EMPTY PROJECTS)
 
