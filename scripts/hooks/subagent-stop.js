@@ -5,11 +5,11 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const {
-  RUNTIME_EVENT_RELATIVE_PATH,
-  appendRuntimeEvent,
-} = require("../lib/ospec-state.js");
+  ARTIFACT_STORE_RELATIVE_PATHS,
+  createArtifactStore,
+} = require("../lib/artifact-store.js");
 
-const EVENT_RELATIVE_PATH = RUNTIME_EVENT_RELATIVE_PATH;
+const EVENT_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.runtimeEvents;
 const RESULT_FIELDS = [
   "result",
   "output",
@@ -201,6 +201,7 @@ function resolveTimestamp(input, now) {
 async function runSubagentStop({
   input = {},
   fallbackCwd = process.cwd(),
+  mode,
   now = () => new Date(),
 } = {}) {
   const workspace = path.resolve(
@@ -226,7 +227,8 @@ async function runSubagentStop({
     action: "refresh-registry-next-delegation",
   };
 
-  await appendRuntimeEvent({ workspace, ...event });
+  const store = createArtifactStore({ mode, workspace });
+  await store.appendRuntimeEvent(event);
 
   return {
     status: "warning-recorded",

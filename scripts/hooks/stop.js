@@ -10,11 +10,11 @@ const {
   formatNextAction,
 } = require("./pre-compact.js");
 const {
-  findActiveChanges,
-  findOpenSpecRoot,
-} = require("../lib/ospec-state.js");
+  ARTIFACT_STORE_RELATIVE_PATHS,
+  createArtifactStore,
+} = require("../lib/artifact-store.js");
 
-const LATEST_RELATIVE_PATH = ".ospec/session/latest.md";
+const LATEST_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.latestSession;
 
 function toPortablePath(filePath) {
   return filePath.split(path.sep).join("/");
@@ -50,21 +50,15 @@ function resolveSessionId(input) {
   return sessionId || "unknown";
 }
 
-async function resolveDetailedSummary(workspace, activeChange) {
+async function resolveDetailedSummary(store, activeChange) {
   if (!activeChange) {
     return "None";
   }
 
-  const summaryPath = path.join(
-    workspace,
-    ".ospec",
-    "session",
-    activeChange.directoryName,
-    "session-summary.md",
-  );
+  const summaryPath = store.sessionSummaryPath(activeChange.directoryName);
 
   return (await pathIsFile(summaryPath))
-    ? toPortablePath(path.relative(workspace, summaryPath))
+    ? toPortablePath(path.relative(store.workspace, summaryPath))
     : "None";
 }
 
@@ -102,6 +96,7 @@ async function writeLatestTrace(filePath, content) {
 async function runStop({
   input = {},
   fallbackCwd = process.cwd(),
+  mode,
   now = () => new Date(),
 } = {}) {
   const workspace = path.resolve(
@@ -109,8 +104,8 @@ async function runStop({
       ? input.cwd
       : fallbackCwd,
   );
-  const openspecRoot = await findOpenSpecRoot(workspace);
-  const activeChange = (await findActiveChanges(openspecRoot))[0] || null;
+  const store = createArtifactStore({ mode, workspace });
+  const activeChange = (await store.findActiveChanges())[0] || null;
   const changeName = activeChange
     ? extractFirstScalar(activeChange.content, [["change", "name"]]) ||
       activeChange.directoryName
@@ -131,15 +126,12 @@ async function runStop({
   const nextRecommended = activeChange
     ? extractFirstScalar(activeChange.content, [["next_recommended"]])
     : "";
-  const latestPath = path.join(
-    workspace,
-    ...LATEST_RELATIVE_PATH.split("/"),
-  );
+  const latestPath = store.latestSessionPath();
   const latestSummary = renderLatestSummary({
     activeChange,
     changeName,
     currentPhase,
-    detailedSummary: await resolveDetailedSummary(workspace, activeChange),
+    detailedSummary: await resolveDetailedSummary(store, activeChange),
     endedAt: resolveTimestamp(input, now),
     nextAction: activeChange
       ? formatNextAction(nextRecommended, changeName)

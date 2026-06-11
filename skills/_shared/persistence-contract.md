@@ -13,6 +13,15 @@ Default: use `openspec` for persisted SDD workflows. Use `none` only when the us
 - **`openspec`**: Source of truth. Files in repo, git history, team-shareable, full audit trail.
 - **`none`**: Ephemeral. Lost when the conversation ends.
 
+> **Prompt-layer mode vs. harness backend.** This `artifact_store.mode`
+> (`openspec | none`) is a *prompt-layer* decision: it tells a phase agent
+> whether to persist to files or return inline. It is distinct from the
+> *harness* backend adapter in `scripts/lib/artifact-store.js`, whose modes
+> (`openspec | workspace-federated`) decide **where and how** the runtime
+> resolves the on-disk layout for hooks. The two are aligned on `openspec` but
+> answer different questions. `workspace-federated` (multi-repo) is roadmapped,
+> not yet implemented.
+
 ## Behavior Per Mode
 
 | Mode | Read from | Write to | Project files |

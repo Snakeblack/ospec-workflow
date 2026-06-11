@@ -4,11 +4,7 @@
 
 const fs = require("node:fs/promises");
 const path = require("node:path");
-const {
-  findActiveChanges,
-  findOpenSpecRoot,
-  writeSessionSummary,
-} = require("../lib/ospec-state.js");
+const { createArtifactStore } = require("../lib/artifact-store.js");
 
 const PHASE_RANKS = new Map([
   ["explore", 1],
@@ -214,11 +210,10 @@ function normalizePhase(value) {
     .toLowerCase();
 }
 
-async function findActiveChange(workspace) {
-  const openspecRoot = await findOpenSpecRoot(workspace);
-  const activeChanges = await findActiveChanges(openspecRoot);
+async function findActiveChange(workspace, mode) {
+  const store = createArtifactStore({ mode, workspace });
 
-  return activeChanges[0] || null;
+  return (await store.findActiveChanges())[0] || null;
 }
 
 async function collectSpecArtifacts(changeDirectory) {
@@ -415,13 +410,18 @@ function renderSummary({
   ].join("\n");
 }
 
-async function runPreCompact({ input = {}, fallbackCwd = process.cwd() } = {}) {
+async function runPreCompact({
+  input = {},
+  fallbackCwd = process.cwd(),
+  mode,
+} = {}) {
   const workspace = path.resolve(
     typeof input.cwd === "string" && input.cwd.trim()
       ? input.cwd
       : fallbackCwd,
   );
-  const activeChange = await findActiveChange(workspace);
+  const store = createArtifactStore({ mode, workspace });
+  const activeChange = (await store.findActiveChanges())[0] || null;
 
   if (!activeChange) {
     return { status: "skipped", reason: "no-active-change" };
@@ -451,8 +451,8 @@ async function runPreCompact({ input = {}, fallbackCwd = process.cwd() } = {}) {
       changeName,
     ),
   });
-  const writeResult = await writeSessionSummary(
-    activeChange.changeDirectory,
+  const writeResult = await store.writeSessionSummary(
+    activeChange.directoryName,
     summary,
   );
 
