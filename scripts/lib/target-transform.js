@@ -41,6 +41,10 @@ function handleFile(file, profile, models, rulesContent) {
     return nestHooks(file);
   }
 
+  if (profile.hooks && profile.hooks.format === "copilot" && path === (profile.hooks.source || "hooks/hooks.json")) {
+    return copilotHooks(file, profile);
+  }
+
   if (isRulesFile(path)) {
     if (profile.rules && isInlineStrategy(profile.rules.strategy)) {
       return null; // content folded into the orchestrator agent/skill
@@ -137,6 +141,35 @@ function nestHooks(file) {
   }
 
   return { path: file.path, content: JSON.stringify({ ...obj, hooks: nested }, null, 2) };
+}
+
+// Reshape the source hooks into GitHub Copilot CLI's project-hook schema at
+// .github/hooks/hooks.json: { version, hooks: { <camelCaseEvent>: [ { type,
+// bash, powershell, timeoutSec } ] } }. Events without a Copilot equivalent are
+// dropped; the plugin-root path variable is stripped to a repo-relative command.
+function copilotHooks(file, profile) {
+  const obj = JSON.parse(file.content);
+  const events = obj.hooks || {};
+  const eventMap = profile.hooks.eventMap || {};
+  const stripVar = profile.hooks.stripPathVar;
+  const out = {};
+
+  for (const [event, entries] of Object.entries(events)) {
+    const mapped = eventMap[event];
+    if (!mapped) {
+      continue; // no Copilot equivalent (e.g. PreCompact)
+    }
+    out[mapped] = entries.map((entry) => {
+      const command = stripVar ? entry.command.split(stripVar).join("") : entry.command;
+      const hook = { type: "command", bash: command, powershell: command };
+      if (entry.timeout !== undefined) {
+        hook.timeoutSec = entry.timeout;
+      }
+      return hook;
+    });
+  }
+
+  return { path: profile.hooks.location, content: JSON.stringify({ version: 1, hooks: out }, null, 2) };
 }
 
 // --- rules inlining --------------------------------------------------------

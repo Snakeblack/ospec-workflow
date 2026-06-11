@@ -84,7 +84,7 @@ node scripts/configure/cli.js --target claude --out dist/claude --no-validate
 | --- | --- | --- |
 | `vscode` | Identidad: el origen ya es VS Code, no se transforma. | No aplica. |
 | `claude` | Renombra `*.agent.md`/`*.prompt.md` → `*.md`, reestructura el manifiesto y los hooks (anidados), sustituye nombres de herramientas (context-aware: namespaced en toda la prosa, genéricos solo en backticks), reescribe variables de comando (`${input}` → `$ARGUMENTS`; `${input:name}` → `$name` + `arguments:`), incorpora `rules/` y emite el orquestador como **skill** (`skills/sdd-orchestrator/SKILL.md`). | `claude plugin validate --strict` 0/0. |
-| `github-copilot` | Agentes → `.github/agents/*.agent.md` (`target: github-copilot`, descarta `vscode/askQuestions`); comandos → `.github/prompts/*.prompt.md` (conserva `${input:...}` y `agent:`); reglas → `.github/instructions/*.instructions.md` (`applyTo: "**"`). Descarta manifiesto, hooks, skills y `.mcp.json`. | Golden fixtures (no hay validador propio del CLI). |
+| `github-copilot` | Agentes → `.github/agents/*.agent.md` (`target: github-copilot`, `vscode/askQuestions`→`ask_user`); comandos → `.github/prompts/*.prompt.md` (conserva `${input:...}` y `agent:`); reglas → `.github/instructions/*.instructions.md` (`applyTo: "**"`); hooks → `.github/hooks/hooks.json` (schema Copilot: `version`, eventos camelCase, `bash`/`powershell`, `timeoutSec`); `.mcp.json` (root) tal cual. Descarta manifiesto y skills. | Golden fixtures (no hay validador propio del CLI). |
 
 El origen nunca se modifica: tras cualquier número de ejecuciones, VS Code sigue cargando
 el repositorio tal cual. Trata `dist/` como salida de build (está en `.gitignore`).
@@ -94,8 +94,10 @@ el repositorio tal cual. Trata `dist/` como salida de build (está en `.gitignor
 - **VS Code**: usa el repositorio directamente (`chat.pluginLocations`), sin generar.
 - **Claude Code**: genera `dist/claude/` e instálalo como plugin local de Claude apuntando
   a esa carpeta (contiene su propio `.claude-plugin/plugin.json`).
-- **GitHub Copilot**: genera `dist/github-copilot/` y copia su `.github/` en la raíz del repo destino
-  (agentes, prompts e instructions quedan donde Copilot CLI y el coding agent los cargan).
+- **GitHub Copilot**: genera `dist/github-copilot/` y copia su `.github/` y `.mcp.json` en la raíz del
+  repo destino (agentes, prompts, instructions, hooks y MCP quedan donde Copilot CLI y el coding agent
+  los cargan). Los hooks referencian `scripts/hooks/*.js` de forma relativa al repo, así que el repo
+  destino debe incluir `scripts/`.
 
 ## Como verificar que cargaron los agentes y los skills
 

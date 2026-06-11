@@ -104,6 +104,10 @@ function makeSource() {
       path: "skills/foo/SKILL.md",
       content: "---\nname: foo\ndescription: d\n---\n\nbody. Ask via `vscode/askQuestions` when blocked.\n",
     },
+    {
+      path: ".mcp.json",
+      content: JSON.stringify({ mcpServers: { context7: { type: "stdio", command: "npx" } } }, null, 2),
+    },
   ];
 }
 
@@ -336,10 +340,12 @@ test("github-copilot emits agents under .github/agents with target: github-copil
   assert.equal(getField(fm, "model"), null); // no model injection
 });
 
-test("github-copilot keeps valid tool aliases and drops vscode/askQuestions from the grant", () => {
+test("github-copilot keeps valid tool aliases and maps vscode/askQuestions to ask_user", () => {
   const out = transform({ files: makeSource(), profile: githubCopilot, models: MODELS });
   const fm = parse(find(out, ".github/agents/sdd-apply.agent.md").content).frontmatter;
-  assert.deepEqual(getField(fm, "tools").value, ["read", "search", "edit"]);
+  assert.deepEqual(getField(fm, "tools").value, ["read", "search", "edit", "ask_user"]);
+  const body = find(out, ".github/agents/sdd-apply.agent.md").content;
+  assert.match(body, /`ask_user`/);
 });
 
 test("github-copilot orchestrator stays a normal agent (not a skill)", () => {
@@ -368,11 +374,33 @@ test("github-copilot turns rules into .github/instructions/*.instructions.md wit
   assert.match(instr.content, /ALWAYS use OpenSpec/);
 });
 
-test("github-copilot drops plugin-only artifacts (manifest, hooks, skills)", () => {
+test("github-copilot drops plugin-only artifacts (manifest, skills) but keeps MCP and hooks", () => {
   const out = transform({ files: makeSource(), profile: githubCopilot, models: MODELS });
   assert.ok(!find(out, ".claude-plugin/plugin.json"));
-  assert.ok(!find(out, "hooks/hooks.json"));
   assert.ok(!out.files.some((f) => f.path.startsWith("skills/")));
+});
+
+test("github-copilot keeps .mcp.json unchanged (project-level MCP)", () => {
+  const out = transform({ files: makeSource(), profile: githubCopilot, models: MODELS });
+  const mcp = find(out, ".mcp.json");
+  assert.ok(mcp, ".mcp.json must be kept at the repo root");
+  assert.deepEqual(JSON.parse(mcp.content), { mcpServers: { context7: { type: "stdio", command: "npx" } } });
+});
+
+test("github-copilot reshapes hooks into .github/hooks/hooks.json with the Copilot schema", () => {
+  const out = transform({ files: makeSource(), profile: githubCopilot, models: MODELS });
+  assert.ok(!find(out, "hooks/hooks.json"));
+  const hooks = find(out, ".github/hooks/hooks.json");
+  assert.ok(hooks, "hooks must move to .github/hooks/hooks.json");
+  const parsed = JSON.parse(hooks.content);
+  assert.equal(parsed.version, 1);
+  // PascalCase events -> camelCase
+  assert.ok(parsed.hooks.sessionStart, "SessionStart -> sessionStart");
+  assert.ok(parsed.hooks.preToolUse, "PreToolUse -> preToolUse");
+  // command -> bash/powershell, timeout -> timeoutSec
+  assert.equal(parsed.hooks.sessionStart[0].type, "command");
+  assert.equal(parsed.hooks.sessionStart[0].bash, "node x.js");
+  assert.equal(parsed.hooks.preToolUse[0].timeoutSec, 5);
 });
 
 test("no vscode/ namespaced strings remain anywhere in a github-copilot tree", () => {
