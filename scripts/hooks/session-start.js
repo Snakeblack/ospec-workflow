@@ -10,6 +10,7 @@ const {
   readRegistryCache,
   writeRegistryCache,
 } = require("../lib/skill-registry.js");
+const { readBaselineState } = require("../lib/ospec-state.js");
 
 const CACHE_VERSION = 1;
 const CACHE_RELATIVE_PATH = ".ospec/cache/skill-registry.cache.json";
@@ -24,6 +25,30 @@ async function pathIsFile(filePath) {
 
     throw error;
   }
+}
+
+function buildBaselineHint(baselineState) {
+  if (!baselineState) {
+    return null;
+  }
+
+  const { status, domains_pending, stale_domains } = baselineState;
+
+  if (status === "pending") {
+    return "Baseline not started. Run /sdd-baseline to seed openspec/specs/.";
+  }
+
+  if (status === "partial") {
+    const count = domains_pending.length;
+    return `Baseline partial: ${count} domain(s) pending. Run /sdd-baseline to resume.`;
+  }
+
+  if (stale_domains.length > 0) {
+    const list = stale_domains.join(", ");
+    return `Baseline done but ${stale_domains.length} domain(s) stale: ${list}. Run /sdd-baseline refresh to update.`;
+  }
+
+  return null;
 }
 
 function resolveWorkspace(input, fallbackCwd) {
@@ -58,22 +83,35 @@ async function runSessionStart({
     };
   }
 
+  let baselineHint = null;
+  try {
+    const configContent = await fs.readFile(
+      path.join(workspace, "openspec", "config.yaml"),
+      "utf8",
+    );
+    baselineHint = buildBaselineHint(readBaselineState(configContent));
+  } catch {
+    // Baseline state read failure must not break session start
+  }
+
   const registry = await discoverSkills(pluginRoot);
   const fingerprint = await calculateFingerprint(registry.fingerprintPaths);
   const currentCache = await readRegistryCache(cachePath);
+
+  const registryResult = {
+    status: "fresh",
+    path: CACHE_RELATIVE_PATH,
+  };
 
   if (
     currentCache?.version === CACHE_VERSION &&
     currentCache.fingerprint === fingerprint
   ) {
-    return {
-      status: "ok",
-      ospecDetected: true,
-      registry: {
-        status: "fresh",
-        path: CACHE_RELATIVE_PATH,
-      },
-    };
+    const result = { status: "ok", ospecDetected: true, registry: registryResult };
+    if (baselineHint !== null) {
+      result.baseline = { hint: baselineHint };
+    }
+    return result;
   }
 
   await writeRegistryCache(cachePath, {
@@ -83,14 +121,11 @@ async function runSessionStart({
     skills: registry.skills,
   });
 
-  return {
-    status: "ok",
-    ospecDetected: true,
-    registry: {
-      status: "fresh",
-      path: CACHE_RELATIVE_PATH,
-    },
-  };
+  const result = { status: "ok", ospecDetected: true, registry: registryResult };
+  if (baselineHint !== null) {
+    result.baseline = { hint: baselineHint };
+  }
+  return result;
 }
 
 async function readJsonInput(stream = process.stdin) {

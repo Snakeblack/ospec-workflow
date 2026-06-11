@@ -35,6 +35,7 @@ Consulta la [guía de instalación](docs/plugin-installation.md) para instalaci�
 | Comando | Uso |
 | --- | --- |
 | `/sdd-init` | Detecta el proyecto y prepara OpenSpec, testing y registro de skills. |
+| `/sdd-baseline` | Seed openspec/specs/ with baseline specs of existing behavior (brownfield repos, resumable batches). |
 | `/sdd-new` | Inicia un cambio persistido y selecciona el workflow. |
 | `/sdd-lite` | Ejecuta el flujo reducido para cambios pequeños y de bajo riesgo. |
 | `/sdd-ff` | Completa la planificación: propuesta, specs, diseño y tareas. |

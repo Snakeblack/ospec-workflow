@@ -57,6 +57,11 @@ docs/
 | sdd-archive | Creates | `openspec/changes/{change-name}/archive-report.md` |
 | sdd-archive | Moves | `openspec/changes/{change-name}/` → `openspec/changes/archive/YYYY-MM-DD-{change-name}/` |
 | sdd-archive | Updates | `openspec/specs/{domain}/spec.md` (merges deltas into main specs) |
+| sdd-baseline | Creates | `openspec/specs/_baseline/manifest.md` (append-first batch-progress log) |
+| sdd-baseline | Creates | `openspec/specs/_baseline/index.md` (append-first lazy domain index) |
+| sdd-baseline | Creates | `openspec/specs/{domain}/spec.md` for empty domains only (NEVER overwrites existing files) |
+
+**Spec ownership rule**: `sdd-baseline` seeds empty domains — it writes `openspec/specs/{domain}/spec.md` only when that file does not yet exist. `sdd-archive` owns evolving specs — it merges delta specs into `openspec/specs/{domain}/spec.md` for domains that already have baseline or prior specs. `sdd-baseline` MUST NEVER write where `openspec/specs/{domain}/spec.md` already exists, regardless of whether the file was created by baseline or by archive.
 
 ## Reading Artifacts
 

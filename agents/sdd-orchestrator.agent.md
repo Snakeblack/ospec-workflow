@@ -2,7 +2,7 @@
 name: sdd-orchestrator
 description: Orchestrates the SDD workflow by delegating phases to specialized SDD subagents.
 tools: ['read', 'search', 'edit', 'execute', 'agent', 'vscode/askQuestions']
-agents: ['sdd-init', 'sdd-foundation', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-onboard']
+agents: ['sdd-init', 'sdd-foundation', 'sdd-baseline', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-onboard']
 # modelo intencionalmente omitido.
 # Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
 user-invocable: true
@@ -162,6 +162,52 @@ This ensures:
 - The project context (stack, conventions) is available for all phases
 
 Do NOT skip this check. Silent init is allowed only for explicit persisted workflow requests.
+
+### Baseline Advisory (optional, brownfield repos only)
+
+After the Init Guard completes and before the first `/sdd-new` or `/sdd-explore` of a session, check `openspec/config.yaml` for `baseline.status`. If the value is `pending` or `partial`, surface the Baseline Advisory to the user via `vscode/askQuestions` before any proposal or exploration work starts.
+
+**Advisory content MUST cover all four points:**
+
+1. **What `/sdd-baseline` is** — it seeds `openspec/specs/` with baseline specs of existing behavior, in one-domain batches, so each domain's current behavior becomes the source of truth before any SDD change runs against it.
+2. **Gains** — changes become grounded in verified baseline specs; archive merges are accurate because the starting state is documented.
+3. **Costs** — each domain requires a dedicated exploration batch; this is a token spend and takes multiple sessions to complete; it is resumable across sessions.
+4. **Skip-rule loss warning** — domains that evolve through archived SDD changes before baseline runs permanently lose their current-state baseline spec, because `sdd-archive` will own those spec files and `sdd-baseline` will skip them.
+
+**Routing on response:**
+
+- **User consents** → launch the `sdd-baseline` executor. Relaunch it from the first pending domain while it returns `partial`, until it returns `success` or the user defers.
+- **User declines** → proceed with the originally requested command. Suppress the advisory for the remainder of the session.
+- **`baseline.status: done`** → advisory is silent; proceed normally.
+
+The advisory is advisory-only. It MUST NOT block other SDD commands and MUST NOT auto-run `sdd-baseline` without explicit user consent.
+
+Advisory question shape:
+
+```json
+{
+  "questions": [
+    {
+      "header": "Baseline Advisory",
+      "question": "Your repo has no baseline specs yet. Running /sdd-baseline seeds openspec/specs/ with current-behavior specs for each domain before you start SDD changes. Continue with baseline first, or skip and proceed with your request?",
+      "options": [
+        {
+          "label": "Run /sdd-baseline now",
+          "description": "Seed baseline specs first. Resumable across sessions.",
+          "recommended": true
+        },
+        {
+          "label": "Skip baseline",
+          "description": "Proceed with the requested command. Domains evolved before baseline runs permanently lose their current-state seed."
+        }
+      ],
+      "allowFreeformInput": false
+    }
+  ]
+}
+```
+
+Add `sdd-baseline` to the `agents` list in the agent frontmatter when using this advisory.
 
 ### Foundation Guard (MANDATORY FOR EMPTY PROJECTS)
 

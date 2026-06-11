@@ -11,6 +11,7 @@ const {
   appendRuntimeEvent,
   findActiveChanges,
   findOpenSpecRoot,
+  readBaselineState,
   readState,
   writeSessionSummary,
 } = require("./ospec-state.js");
@@ -148,4 +149,120 @@ test("appends runtime events without serializing workspace metadata", async (t) 
   assert.equal(lines[0].workspace, undefined);
   assert.equal(lines[0].agent, "sdd-apply");
   assert.equal(lines[1].agent, "sdd-spec");
+});
+
+test("readBaselineState returns null when baseline block is absent", () => {
+  assert.equal(readBaselineState("strict_tdd: true\ntesting:\n  command: node --test\n"), null);
+});
+
+test("readBaselineState returns null for empty content", () => {
+  assert.equal(readBaselineState(""), null);
+});
+
+test("readBaselineState parses status: pending with all inline empty lists", () => {
+  const content = [
+    "baseline:",
+    "  status: pending",
+    "  domains_pending: []",
+    "  domains_done: []",
+    "  stale_domains: []",
+    '  last_checked: ""',
+  ].join("\n");
+  const result = readBaselineState(content);
+
+  assert.equal(result.status, "pending");
+  assert.deepEqual(result.domains_pending, []);
+  assert.deepEqual(result.domains_done, []);
+  assert.deepEqual(result.stale_domains, []);
+  assert.equal(result.last_checked, "");
+});
+
+test("readBaselineState parses status: partial with indented list items", () => {
+  const content = [
+    "baseline:",
+    "  status: partial",
+    "  domains_pending:",
+    "    - auth",
+    "    - payments",
+    "  domains_done:",
+    "    - users",
+    "  stale_domains: []",
+    '  last_checked: ""',
+  ].join("\n");
+  const result = readBaselineState(content);
+
+  assert.equal(result.status, "partial");
+  assert.deepEqual(result.domains_pending, ["auth", "payments"]);
+  assert.deepEqual(result.domains_done, ["users"]);
+  assert.deepEqual(result.stale_domains, []);
+});
+
+test("readBaselineState parses status: done with stale_domains list", () => {
+  const content = [
+    "baseline:",
+    "  status: done",
+    "  domains_pending: []",
+    "  domains_done:",
+    "    - auth",
+    "    - users",
+    "  stale_domains:",
+    "    - auth",
+    "  last_checked: 2026-06-10T14:00:00Z",
+  ].join("\n");
+  const result = readBaselineState(content);
+
+  assert.equal(result.status, "done");
+  assert.deepEqual(result.domains_done, ["auth", "users"]);
+  assert.deepEqual(result.stale_domains, ["auth"]);
+  assert.equal(result.last_checked, "2026-06-10T14:00:00Z");
+});
+
+test("readBaselineState normalizes CRLF line endings", () => {
+  const content = [
+    "baseline:",
+    "  status: pending",
+    "  domains_pending: []",
+    "  domains_done: []",
+    "  stale_domains: []",
+    '  last_checked: ""',
+  ].join("\r\n");
+  const result = readBaselineState(content);
+
+  assert.equal(result.status, "pending");
+  assert.deepEqual(result.domains_pending, []);
+});
+
+test("readBaselineState skips comment lines inside and outside the block", () => {
+  const content = [
+    "# top-level comment",
+    "baseline:",
+    "  # comment inside block",
+    "  status: partial",
+    "  domains_pending:",
+    "    - auth",
+    "  domains_done: []",
+    "  stale_domains: []",
+    '  last_checked: ""',
+  ].join("\n");
+  const result = readBaselineState(content);
+
+  assert.equal(result.status, "partial");
+  assert.deepEqual(result.domains_pending, ["auth"]);
+});
+
+test("readBaselineState does not bleed into subsequent top-level blocks", () => {
+  const content = [
+    "baseline:",
+    "  status: done",
+    "  domains_pending: []",
+    "  domains_done: []",
+    "  stale_domains: []",
+    '  last_checked: ""',
+    "strict_tdd: true",
+    "testing:",
+    "  command: node --test",
+  ].join("\n");
+  const result = readBaselineState(content);
+
+  assert.equal(result.status, "done");
 });

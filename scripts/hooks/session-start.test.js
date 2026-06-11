@@ -11,7 +11,10 @@ const {
   runSessionStart,
 } = require("./session-start.js");
 
-async function createFixture(t, { withOpenSpec = true } = {}) {
+async function createFixture(
+  t,
+  { withOpenSpec = true, configContent = "strict_tdd: true\n" } = {},
+) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "ospec-hook-"));
   const pluginRoot = path.join(root, "plugin");
   const workspace = path.join(root, "workspace");
@@ -55,7 +58,7 @@ async function createFixture(t, { withOpenSpec = true } = {}) {
     await fs.mkdir(path.join(workspace, "openspec"), { recursive: true });
     await fs.writeFile(
       path.join(workspace, "openspec", "config.yaml"),
-      "strict_tdd: true\n",
+      configContent,
     );
   }
 
@@ -180,4 +183,113 @@ test("does not create auxiliary files without OpenSpec", async (t) => {
     fs.stat(path.join(workspace, ".ospec")),
     (error) => error.code === "ENOENT",
   );
+});
+
+function baselineConfig(fields) {
+  return [
+    "strict_tdd: true",
+    "baseline:",
+    `  status: ${fields.status}`,
+    `  domains_pending:${fields.domains_pending.length === 0 ? " []" : ""}`,
+    ...fields.domains_pending.map((d) => `    - ${d}`),
+    `  domains_done:${fields.domains_done.length === 0 ? " []" : ""}`,
+    ...fields.domains_done.map((d) => `    - ${d}`),
+    `  stale_domains:${fields.stale_domains.length === 0 ? " []" : ""}`,
+    ...fields.stale_domains.map((d) => `    - ${d}`),
+    `  last_checked: "${fields.last_checked ?? ""}"`,
+    "",
+  ].join("\n");
+}
+
+test("emits baseline hint when baseline.status is pending", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t, {
+    configContent: baselineConfig({
+      status: "pending",
+      domains_pending: [],
+      domains_done: [],
+      stale_domains: [],
+    }),
+  });
+
+  const result = await runSessionStart({
+    input: { cwd: workspace },
+    pluginRoot,
+    now: () => new Date("2026-06-10T08:00:00.000Z"),
+  });
+
+  assert.equal(typeof result.baseline, "object");
+  assert.equal(typeof result.baseline.hint, "string");
+  assert.ok(result.baseline.hint.length > 0);
+});
+
+test("emits hint naming pending count when baseline is partial with 2 pending domains", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t, {
+    configContent: baselineConfig({
+      status: "partial",
+      domains_pending: ["auth", "payments"],
+      domains_done: ["users"],
+      stale_domains: [],
+    }),
+  });
+
+  const result = await runSessionStart({
+    input: { cwd: workspace },
+    pluginRoot,
+    now: () => new Date("2026-06-10T08:00:00.000Z"),
+  });
+
+  assert.equal(typeof result.baseline, "object");
+  assert.ok(result.baseline.hint.includes("2"));
+});
+
+test("emits hint listing stale domain when baseline is done with a stale entry", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t, {
+    configContent: baselineConfig({
+      status: "done",
+      domains_pending: [],
+      domains_done: ["auth"],
+      stale_domains: ["auth"],
+      last_checked: "2026-06-10T12:00:00Z",
+    }),
+  });
+
+  const result = await runSessionStart({
+    input: { cwd: workspace },
+    pluginRoot,
+    now: () => new Date("2026-06-10T08:00:00.000Z"),
+  });
+
+  assert.equal(typeof result.baseline, "object");
+  assert.ok(result.baseline.hint.includes("auth"));
+});
+
+test("omits baseline key when baseline.status is done with no stale domains", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t, {
+    configContent: baselineConfig({
+      status: "done",
+      domains_pending: [],
+      domains_done: ["auth"],
+      stale_domains: [],
+    }),
+  });
+
+  const result = await runSessionStart({
+    input: { cwd: workspace },
+    pluginRoot,
+    now: () => new Date("2026-06-10T08:00:00.000Z"),
+  });
+
+  assert.equal(result.baseline, undefined);
+});
+
+test("omits baseline key when config has no baseline block", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t);
+
+  const result = await runSessionStart({
+    input: { cwd: workspace },
+    pluginRoot,
+    now: () => new Date("2026-06-10T08:00:00.000Z"),
+  });
+
+  assert.equal(result.baseline, undefined);
 });
