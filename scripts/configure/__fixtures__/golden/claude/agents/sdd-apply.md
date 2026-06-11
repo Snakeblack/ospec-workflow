@@ -7,4 +7,4 @@ model: sonnet
 
 # SDD Apply
 
-Use Read and Grep to find the work. Ask via AskUserQuestion when blocked.
+Use read and search to find the work. Ask via AskUserQuestion when blocked.

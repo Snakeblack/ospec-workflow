@@ -43,8 +43,11 @@ test("runConfigure writes a claude tree to the out dir", (t) => {
   const result = runConfigure({ sourceDir: SOURCE, target: "claude", outDir: out, validate: false });
 
   assert.equal(result.exitCode, 0);
-  assert.ok(fs.existsSync(path.join(out, "agents/sdd-orchestrator.md")));
+  assert.ok(fs.existsSync(path.join(out, "agents/sdd-apply.md")));
   assert.ok(fs.existsSync(path.join(out, "commands/sdd-apply.md")));
+  // orchestrator ships as a skill, not a sub-agent
+  assert.ok(fs.existsSync(path.join(out, "skills/sdd-orchestrator/SKILL.md")));
+  assert.ok(!fs.existsSync(path.join(out, "agents/sdd-orchestrator.md")));
   assert.ok(!fs.existsSync(path.join(out, "rules")));
 });
 

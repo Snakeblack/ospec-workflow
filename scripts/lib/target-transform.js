@@ -38,13 +38,16 @@ function handleFile(file, profile, models, rulesContent) {
   }
 
   if (isRulesFile(path)) {
-    if (profile.rules && profile.rules.strategy === "inline-into-agent") {
-      return null; // content folded into the orchestrator agent
+    if (profile.rules && isInlineStrategy(profile.rules.strategy)) {
+      return null; // content folded into the orchestrator agent/skill
     }
     return { path, content: file.content };
   }
 
   if (isAgent(path, profile)) {
+    if (profile.orchestrator && profile.orchestrator.emitAs === "skill" && agentBaseName(path, profile) === profile.orchestrator.agent) {
+      return emitOrchestratorSkill(file, profile, rulesContent);
+    }
     return handleAgent(file, profile, models, rulesContent);
   }
 
@@ -52,10 +55,19 @@ function handleFile(file, profile, models, rulesContent) {
     return handleCommand(file, profile);
   }
 
+  // Passthrough (skills, shared docs). Tool names are still substituted so no
+  // foreign namespace survives anywhere in the generated tree.
+  if (profile.toolMap && path.endsWith(".md")) {
+    return { path, content: substituteProse(file.content, profile.toolMap) };
+  }
   return { path, content: file.content };
 }
 
 // --- dispatch helpers ------------------------------------------------------
+
+function isInlineStrategy(strategy) {
+  return strategy === "inline-into-agent" || strategy === "inline-into-orchestrator";
+}
 
 function isRulesFile(path) {
   return path.startsWith("rules/");
@@ -67,6 +79,10 @@ function isAgent(path, profile) {
 
 function isCommand(path, profile) {
   return path.startsWith("commands/") && path.endsWith(profile.commandFile.from);
+}
+
+function agentBaseName(path, profile) {
+  return path.slice("agents/".length, path.length - profile.agentFile.from.length);
 }
 
 function renameExtension(path, { from, to }) {
@@ -108,18 +124,48 @@ function nestHooks(file) {
 // --- rules inlining --------------------------------------------------------
 
 function collectRules(files, profile) {
-  if (!profile.rules || profile.rules.strategy !== "inline-into-agent") {
+  if (!profile.rules || !isInlineStrategy(profile.rules.strategy)) {
     return "";
   }
 
   const parts = [];
   for (const file of files) {
     if (isRulesFile(file.path)) {
-      parts.push(parse(file.content).body.trim());
+      let body = parse(file.content).body.trim();
+      if (profile.toolMap) {
+        body = substituteProse(body, profile.toolMap);
+      }
+      parts.push(body);
     }
   }
 
   return parts.join("\n\n");
+}
+
+// --- orchestrator-as-skill (claude) ----------------------------------------
+
+function emitOrchestratorSkill(file, profile, rulesContent) {
+  const parsed = parse(file.content);
+  let body = parsed.body;
+
+  if (profile.toolMap) {
+    body = substituteProse(body, profile.toolMap);
+  }
+  if (rulesContent) {
+    body = body.replace(/\s*$/, "") + "\n\n" + rulesContent + "\n";
+  }
+
+  const nameField = getField(parsed.frontmatter, "name");
+  const name = (nameField && nameField.value) || profile.orchestrator.agent;
+  const descField = getField(parsed.frontmatter, "description");
+  const description = profile.orchestrator.description || (descField && descField.value) || "";
+
+  const frontmatter = [
+    { key: "name", value: name, rawLines: [`name: ${name}`] },
+    { key: "description", value: description, rawLines: [`description: ${JSON.stringify(description)}`] },
+  ];
+
+  return { path: profile.orchestrator.skillPath, content: serialize({ frontmatter, body }) };
 }
 
 // --- agents ----------------------------------------------------------------
@@ -148,7 +194,13 @@ function handleAgent(file, profile, models, rulesContent) {
     }
   }
 
-  if (rulesContent && profile.rules && profile.rules.agent && agentName === profile.rules.agent) {
+  // inline-into-agent (e.g. copilot-cli): fold rules into the orchestrator agent body.
+  if (
+    rulesContent &&
+    profile.rules &&
+    profile.rules.strategy === "inline-into-agent" &&
+    agentName === profile.rules.agent
+  ) {
     body = body.replace(/\s*$/, "") + "\n\n" + rulesContent + "\n";
   }
 
@@ -161,8 +213,14 @@ function handleCommand(file, profile) {
   const newPath = renameExtension(file.path, profile.commandFile);
   let { frontmatter, body } = parse(file.content);
 
-  if (profile.frontmatter && profile.frontmatter.stripKeys) {
-    frontmatter = stripKeys(frontmatter, profile.frontmatter.stripKeys);
+  if (profile.frontmatter) {
+    const strip = [
+      ...(profile.frontmatter.stripKeys || []),
+      ...(profile.frontmatter.commandStripKeys || []),
+    ];
+    if (strip.length > 0) {
+      frontmatter = stripKeys(frontmatter, strip);
+    }
   }
 
   if (profile.toolMap) {
@@ -219,21 +277,28 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
 }
 
-// Match a tool name as a distinct token: not flanked by word chars or a slash,
-// so generic names (read, edit) don't corrupt substrings like "already".
+// Match a tool name as a distinct token: not flanked by word chars or a slash.
 function tokenRegExp(key) {
   return new RegExp(`(?<![\\w/])${escapeRegExp(key)}(?![\\w/])`, "g");
 }
 
+// Substitute tool names in prose. Namespaced names (containing `/`) are
+// unambiguous tool references and are replaced everywhere — this is what keeps a
+// generated tree free of `vscode/` strings. Generic names (read, edit, agent)
+// collide with ordinary English, so they are replaced ONLY inside backtick code
+// spans, where they are explicit tool references — never in bare prose.
 function substituteProse(body, toolMap) {
   let out = body;
-  // Longest keys first so namespaced names match before any bare prefix.
   const keys = Object.keys(toolMap).sort((a, b) => b.length - a.length);
 
   for (const key of keys) {
     const replacement = toolMap[key];
     const primary = Array.isArray(replacement) ? replacement[0] : replacement;
-    out = out.replace(tokenRegExp(key), primary);
+    if (key.includes("/")) {
+      out = out.replace(tokenRegExp(key), primary);
+    } else {
+      out = out.replace(new RegExp("`" + escapeRegExp(key) + "`", "g"), "`" + primary + "`");
+    }
   }
 
   return out;

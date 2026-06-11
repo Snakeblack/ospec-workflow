@@ -17,7 +17,9 @@ module.exports = {
   hooks: { shape: "nested", location: "hooks/hooks.json" },
   frontmatter: {
     stripKeys: ["target", "user-invocable", "disable-model-invocation"],
-    commandRouting: { addKeys: { context: "fork" }, keep: ["agent"] },
+    // Claude commands are flat skills: `agent:`/`context:` routing keys are inert,
+    // so strip the routing key rather than emit dead frontmatter.
+    commandStripKeys: ["agent"],
   },
   toolMap: {
     "vscode/askQuestions": "AskUserQuestion",
@@ -29,6 +31,15 @@ module.exports = {
   },
   commandVars: { positional: "$ARGUMENTS", named: "arguments-frontmatter" },
   model: { format: "alias" },
-  rules: { strategy: "inline-into-agent", agent: "sdd-orchestrator" },
+  // Claude plugins do not load CLAUDE.md and sub-agents are one-shot workers, so the
+  // orchestrator persona ships as a SKILL (the documented context-loading vehicle).
+  rules: { strategy: "inline-into-orchestrator" },
+  orchestrator: {
+    agent: "sdd-orchestrator",
+    emitAs: "skill",
+    skillPath: "skills/sdd-orchestrator/SKILL.md",
+    description:
+      "SDD orchestrator — coordinate phases, delegate to the sdd-* phase agents, enforce review/TDD gates, and persist OpenSpec state. Load for any /sdd-* or spec-driven workflow request.",
+  },
   validate: 'claude plugin validate --strict "{out}"',
 };

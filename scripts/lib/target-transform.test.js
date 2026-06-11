@@ -70,12 +70,19 @@ function makeSource() {
         "target: vscode\n" +
         "---\n" +
         "\n" +
-        "Use read and search to explore. Ask via vscode/askQuestions.\n",
+        "Use `read` and `search` to explore. Ask via `vscode/askQuestions`. Any phase agent runs read-only.\n",
     },
     {
       path: "agents/sdd-orchestrator.agent.md",
       content:
-        "---\n" + "name: sdd-orchestrator\n" + "tools: ['read']\n" + "target: vscode\n" + "---\n" + "\n" + "Orchestrator body.\n",
+        "---\n" +
+        "name: sdd-orchestrator\n" +
+        "description: Coordinates SDD.\n" +
+        "tools: ['read']\n" +
+        "target: vscode\n" +
+        "---\n" +
+        "\n" +
+        "Orchestrator body. Delegate to each phase agent. Ask via `vscode/askQuestions`.\n",
     },
     {
       path: "commands/sdd-apply.prompt.md",
@@ -91,9 +98,12 @@ function makeSource() {
     },
     {
       path: "rules/sdd-openspec.instructions.md",
-      content: "---\n" + "name: rules\n" + "---\n" + "\n" + "ALWAYS use OpenSpec.\n",
+      content: "---\n" + "name: rules\n" + "---\n" + "\n" + "ALWAYS use OpenSpec. For blocking decisions use `vscode/askQuestions`.\n",
     },
-    { path: "skills/foo/SKILL.md", content: "---\nname: foo\n---\n\nbody\n" },
+    {
+      path: "skills/foo/SKILL.md",
+      content: "---\nname: foo\ndescription: d\n---\n\nbody. Ask via `vscode/askQuestions` when blocked.\n",
+    },
   ];
 }
 
@@ -181,7 +191,7 @@ test("copilot-cli preserves the agent and command suffixes", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Requirement: Tool-Name Substitution
+// Requirement: Tool-Name Substitution (context-aware)
 // ---------------------------------------------------------------------------
 
 test("claude substitutes tool names in the frontmatter grant, expanding one-to-many", () => {
@@ -190,29 +200,43 @@ test("claude substitutes tool names in the frontmatter grant, expanding one-to-m
   assert.deepEqual(getField(fm, "tools").value, ["Read", "Grep", "Glob", "Edit", "AskUserQuestion"]);
 });
 
-test("claude substitutes tool names in prose using the primary for one-to-many", () => {
+test("claude substitutes backticked tool references in prose, primary for one-to-many", () => {
   const out = transform({ files: makeSource(), profile: claude, models: MODELS });
   const agent = find(out, "agents/sdd-apply.md").content;
-  assert.match(agent, /Use Read and Grep to explore/);
-  assert.match(agent, /Ask via AskUserQuestion/);
+  assert.match(agent, /Use `Read` and `Grep` to explore/);
+  assert.match(agent, /Ask via `AskUserQuestion`/);
+});
+
+test("claude does NOT corrupt the generic word 'agent' in bare prose", () => {
+  const out = transform({ files: makeSource(), profile: claude, models: MODELS });
+  const agent = find(out, "agents/sdd-apply.md").content;
+  assert.match(agent, /Any phase agent runs read-only/); // unchanged concept word
+  assert.doesNotMatch(agent, /phase Agent/);
 });
 
 test("copilot-cli maps the question tool to ask_user", () => {
   const out = transform({ files: makeSource(), profile: copilotCli, models: MODELS });
   const agent = find(out, "agents/sdd-apply.agent.md").content;
-  assert.match(agent, /Ask via ask_user/);
+  assert.match(agent, /Ask via `ask_user`/);
 });
 
-test("no vscode/ namespaced strings remain in a claude tree", () => {
+test("no vscode/ namespaced strings remain anywhere in a claude tree (agents, commands, skills, inlined rules)", () => {
   const out = transform({ files: makeSource(), profile: claude, models: MODELS });
   const all = out.files.map((f) => f.content).join("\n");
   assert.doesNotMatch(all, /vscode\//);
 });
 
-test("no vscode/ namespaced strings remain in a copilot-cli tree", () => {
+test("no vscode/ namespaced strings remain anywhere in a copilot-cli tree", () => {
   const out = transform({ files: makeSource(), profile: copilotCli, models: MODELS });
   const all = out.files.map((f) => f.content).join("\n");
   assert.doesNotMatch(all, /vscode\//);
+});
+
+test("skills passthrough content is tool-substituted (CRITICAL-1 guard)", () => {
+  const out = transform({ files: makeSource(), profile: claude, models: MODELS });
+  const skill = find(out, "skills/foo/SKILL.md").content;
+  assert.match(skill, /Ask via `AskUserQuestion`/);
+  assert.doesNotMatch(skill, /vscode\//);
 });
 
 // ---------------------------------------------------------------------------
@@ -236,11 +260,11 @@ test("claude rewrites ${input:name} to $name plus a frontmatter declaration", ()
   assert.match(getField(fm, "argument-hint").value, /changeName/);
 });
 
-test("claude preserves agent routing and adds context: fork", () => {
+test("claude drops the inert agent:/context: command routing keys", () => {
   const out = transform({ files: makeSource(), profile: claude, models: MODELS });
   const fm = parse(find(out, "commands/sdd-apply.md").content).frontmatter;
-  assert.equal(getField(fm, "agent").value, "sdd-orchestrator");
-  assert.equal(getField(fm, "context").value, "fork");
+  assert.equal(getField(fm, "agent"), null);
+  assert.equal(getField(fm, "context"), null);
 });
 
 // ---------------------------------------------------------------------------
@@ -261,13 +285,41 @@ test("copilot-cli strips the target key", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Requirement: Orchestrator Delivery (claude → skill)
+// ---------------------------------------------------------------------------
+
+test("claude emits the orchestrator as a skill, not a sub-agent", () => {
+  const out = transform({ files: makeSource(), profile: claude, models: MODELS });
+  assert.ok(find(out, "skills/sdd-orchestrator/SKILL.md"), "orchestrator skill must exist");
+  assert.ok(!find(out, "agents/sdd-orchestrator.md"), "orchestrator must NOT be a sub-agent");
+});
+
+test("the orchestrator skill carries name + description and the inlined rules, with no model/tools/target", () => {
+  const out = transform({ files: makeSource(), profile: claude, models: MODELS });
+  const skill = find(out, "skills/sdd-orchestrator/SKILL.md").content;
+  const fm = parse(skill).frontmatter;
+  assert.equal(getField(fm, "name").value, "sdd-orchestrator");
+  assert.ok(getField(fm, "description"));
+  assert.equal(getField(fm, "model"), null);
+  assert.equal(getField(fm, "tools"), null);
+  assert.equal(getField(fm, "target"), null);
+  assert.match(skill, /ALWAYS use OpenSpec/); // inlined rule
+  assert.doesNotMatch(skill, /vscode\//); // inlined rule was tool-substituted
+});
+
+// ---------------------------------------------------------------------------
 // Requirement: Rules Inlining
 // ---------------------------------------------------------------------------
 
-test("claude inlines rules content into the orchestrator and drops the rules dir", () => {
+test("claude drops the rules dir (content inlined into the orchestrator skill)", () => {
   const out = transform({ files: makeSource(), profile: claude, models: MODELS });
   assert.ok(!out.files.some((f) => f.path.startsWith("rules/")));
-  const orch = find(out, "agents/sdd-orchestrator.md").content;
+});
+
+test("copilot-cli inlines rules into the orchestrator AGENT (its architecture stays agent-based)", () => {
+  const out = transform({ files: makeSource(), profile: copilotCli, models: MODELS });
+  assert.ok(!out.files.some((f) => f.path.startsWith("rules/")));
+  const orch = find(out, "agents/sdd-orchestrator.agent.md").content;
   assert.match(orch, /ALWAYS use OpenSpec/);
 });
 
@@ -280,7 +332,7 @@ test("vscode keeps the rules directory (identity transform)", () => {
 // Model resolution
 // ---------------------------------------------------------------------------
 
-test("claude adds the resolved model alias to agents", () => {
+test("claude adds the resolved model alias to phase agents", () => {
   const out = transform({ files: makeSource(), profile: claude, models: MODELS });
   const fm = parse(find(out, "agents/sdd-apply.md").content).frontmatter;
   assert.equal(getField(fm, "model").value, "sonnet");
@@ -296,13 +348,4 @@ test("vscode does not inject a model key (source intentionally omits it)", () =>
   const out = transform({ files: makeSource(), profile: vscode, models: MODELS });
   const fm = parse(find(out, "agents/sdd-apply.agent.md").content).frontmatter;
   assert.equal(getField(fm, "model"), null);
-});
-
-// ---------------------------------------------------------------------------
-// Requirement: Source Non-Regression (passthrough files untouched)
-// ---------------------------------------------------------------------------
-
-test("unrelated files pass through unchanged", () => {
-  const out = transform({ files: makeSource(), profile: claude, models: MODELS });
-  assert.equal(find(out, "skills/foo/SKILL.md").content, "---\nname: foo\n---\n\nbody\n");
 });
