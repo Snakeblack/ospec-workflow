@@ -43,8 +43,11 @@ local, generación por target y requisitos de confianza.
 | `skills/` | Capacidades bajo demanda y contratos compartidos. |
 | `rules/` | Reglas persistentes de SDD, OpenSpec y Strict TDD. |
 | `hooks/` | Declaración de eventos del ciclo de vida del plugin. |
-| `scripts/` | Implementación y tests del runtime de hooks. |
-| `profiles/models/` | Perfiles opcionales de routing de modelos. |
+| `scripts/hooks/` | Runtime de los hooks (Node.js) y sus tests. |
+| `scripts/lib/` | Librerías compartidas: estado OpenSpec, artifact-store y el núcleo del generador (`frontmatter`, `model-resolver`, `target-transform`, perfiles). |
+| `scripts/configure/` | CLI del generador multi-target (`cli.js`) y fixtures golden. |
+| `models.yaml` | Tablas tier→modelo por target para el generador. |
+| `profiles/models/` | Perfiles opcionales de routing de modelos (uso directo en VS Code). |
 | `docs/` | Documentación detallada de arquitectura y uso. |
 | `.mcp.json` | Configuración MCP mínima del plugin. |
 | `openspec/` | Fuente de verdad versionable de cada cambio SDD. |
@@ -176,18 +179,22 @@ Los servidores adicionales deben activarse explícitamente. Consulta [mcp-policy
 | [docs/README.md](docs/README.md) | Índice y recorrido recomendado. |
 | [docs/sdd-metodologia.md](docs/sdd-metodologia.md) | Principios y modelo mental. |
 | [docs/sdd-fases.md](docs/sdd-fases.md) | Contratos de cada fase. |
-| [docs/sdd-workflows.md](docs/sdd-workflows.md) | Flujos estándar, lite, fast-forward y continuación. |
+| [docs/sdd-workflows.md](docs/sdd-workflows.md) | Líneas de trabajo: estándar, lite, fast-forward, foundation, baseline brownfield, continuación, workspace y onboarding. |
 | [docs/openspec.md](docs/openspec.md) | Persistencia, specs delta y archivado. |
 | [docs/tdd-y-revision.md](docs/tdd-y-revision.md) | Strict TDD y presupuesto de revisión. |
 | [docs/harness-runtime.md](docs/harness-runtime.md) | Arquitectura del runtime de hooks. |
-| [docs/plugin-installation.md](docs/plugin-installation.md) | Instalación, confianza y diagnóstico. |
+| [docs/model-routing.md](docs/model-routing.md) | Tiers de modelo y formato por target (`models.yaml`). |
+| [docs/mcp-policy.md](docs/mcp-policy.md) | Política y configuración de servidores MCP. |
+| [docs/plugin-installation.md](docs/plugin-installation.md) | Instalación, generación por target, confianza y diagnóstico. |
 
 ## Desarrollo
 
-La suite del runtime usa el test runner nativo de Node.js:
+La suite (runtime de hooks + generador multi-target) usa el test runner nativo de Node.js, bajo
+Strict TDD:
 
 ```powershell
 node --test "scripts/**/*.test.js"
 ```
 
-Antes de publicar cambios en el manifiesto, hooks o MCP, revisa expresamente la nueva superficie de ejecución y confianza.
+Antes de publicar cambios en el manifiesto, hooks, MCP o el generador, revisa expresamente la nueva
+superficie de ejecución y confianza.
