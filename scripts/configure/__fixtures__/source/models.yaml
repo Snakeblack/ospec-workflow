@@ -1,0 +1,16 @@
+agents:
+  sdd-orchestrator: premium
+  sdd-apply: default
+  _default: default
+
+tiers:
+  premium:
+    claude: opus
+    vscode: ["Claude Opus 4.8 (copilot)"]
+    copilot-cli: inherit
+  default:
+    claude: sonnet
+    vscode: ["Claude Sonnet 4.6 (copilot)"]
+    copilot-cli: inherit
+  cheap:
+    claude: haiku
