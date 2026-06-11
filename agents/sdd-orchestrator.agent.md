@@ -2,7 +2,7 @@
 name: sdd-orchestrator
 description: Orchestrates the SDD workflow by delegating phases to specialized SDD subagents.
 tools: ['read', 'search', 'edit', 'execute', 'agent', 'vscode/askQuestions']
-agents: ['sdd-init', 'sdd-foundation', 'sdd-baseline', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-onboard']
+agents: ['sdd-init', 'sdd-foundation', 'sdd-baseline', 'sdd-workspace', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-onboard']
 # modelo intencionalmente omitido.
 # Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
 user-invocable: true
@@ -208,6 +208,31 @@ Advisory question shape:
 ```
 
 Add `sdd-baseline` to the `agents` list in the agent frontmatter when using this advisory.
+
+### Workspace Federation (optional, multi-repo)
+
+This applies only when `openspec/config.yaml` has `artifact_store.backend: workspace-federated`.
+For single-repo work (the default `openspec` backend) skip this section entirely.
+
+**Aggregated recovery.** When the backend is federated, the active-change view spans all
+member repos declared in `openspec/workspace.yaml`. Recover from the **aggregated**
+active changes (each tagged with a `source` member id), not just the coordinator's. The
+SessionStart/PreCompact/Stop hooks already aggregate; treat their summaries as spanning
+members. Never assume a single active change.
+
+**Impact Advisory (before a cross-repo change).** Before launching `/sdd-new` (or an
+equivalent request) for work that touches more than one member, delegate to
+`sdd-workspace impact <change>` to compute the affected members from the contract graph,
+then surface them with `vscode/askQuestions` so the user can scope reviewer load and
+delivery (chained PRs per member are usually right). Do not auto-plan a cross-repo
+change without this.
+
+**Boundaries.** v1 federation is **read-and-link**: the orchestrator reads and reconciles
+member state but MUST NOT write SDD artifacts into member repos through the federated
+store. Each member runs its own standard change folder; the coordinator holds the
+cross-cutting proposal/design and a `federation.yaml` linking member slices. Use
+`sdd-workspace` (`init`/`status`/`impact`) as the front door; add it to the `agents` list
+when operating a federated workspace.
 
 ### Foundation Guard (MANDATORY FOR EMPTY PROJECTS)
 

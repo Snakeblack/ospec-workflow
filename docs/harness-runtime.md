@@ -35,9 +35,17 @@ Modos:
 
 - `openspec` (por defecto): adapter actual. Delega en `scripts/lib/ospec-state.js`;
   comportamiento idéntico al previo a la extracción.
-- `workspace-federated` (roadmap): comparte el layout derivado `.ospec/`
-  (workspace-local), pero las operaciones canónicas multi-repo todavía no están
-  implementadas y fallan con un error explícito. La puerta es real, no simulada.
+- `workspace-federated`: comparte el layout derivado `.ospec/` (workspace-local) y
+  resuelve lo canónico desde un atlas `openspec/workspace.yaml`. `isInitialized` lee el
+  atlas; `findActiveChanges` agrega los changes de cada miembro alcanzable etiquetados
+  con `source` (coordinador = `.`) reusando `ospec-state.findActiveChanges`; los miembros
+  inalcanzables se omiten fail-open. Implementado para **lectura**; la escritura
+  coordinada multi-repo queda en el roadmap (`changeDirectory`/`writeSessionSummary`
+  permanecen coordinator-local). Parser del atlas: `scripts/lib/workspace-atlas.js`.
+
+Selección de backend: los hooks llaman `createArtifactStoreFromConfig`, que lee
+`artifact_store.backend` de `openspec/config.yaml` (`readBackendMode`) y construye el
+store; ausente o desconocido → `openspec`. Front door: `sdd-workspace` (init/status/impact).
 
 Este `mode` del arnés (dónde y cómo se resuelve el backend) es distinto del
 `artifact_store.mode` de la capa de prompts (`openspec | none`, que decide si una

@@ -1,7 +1,7 @@
 change: workspace-federated-backend
-status: applying
+status: ready-for-verify
 workflow: standard
-updated: 2026-06-11T04:05:00Z
+updated: 2026-06-11T04:30:00Z
 phases:
   explore:
     status: pending
@@ -22,7 +22,7 @@ phases:
     status: done
     artifact: tasks.md
   apply:
-    status: partial
+    status: done
     artifact: apply-progress.md
   verify:
     status: pending

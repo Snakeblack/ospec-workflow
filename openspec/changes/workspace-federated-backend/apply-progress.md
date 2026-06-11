@@ -29,6 +29,21 @@ stateful hooks (`session-start`, `pre-compact`, `stop`, `subagent-stop`) now con
 via this factory. New backend-selection tests on session-start, pre-compact, and stop;
 subagent-stop wired for uniformity (no behavior change, guarded by regression).
 
-## Unit C — Prompt surfaces (PR #3) — PENDING
+## Unit C — Prompt surfaces (PR #3) — DONE
 
-Phases 5–6: `sdd-workspace` trio, orchestrator Impact Advisory, convention/docs.
+Branch: `feat/federated-runtime-core` (stacked). Review + sdd-verify (no JS, no TDD).
+Runtime suite still 79/79 green (Markdown additions do not affect it; `sdd-workspace`
+is excluded from the skill registry by the `sdd-*` rule).
+
+Phase 5: `agents/sdd-workspace.agent.md`, `skills/sdd-workspace/SKILL.md`,
+`commands/sdd-workspace.prompt.md` — `init`/`status`/`impact`, read-only to members,
+confirm-before-write atlas.
+
+Phase 6: orchestrator gains a Workspace Federation section (aggregated recovery +
+Impact Advisory + read-and-link boundary) and `sdd-workspace` in its `agents` list;
+`persistence-contract.md` documents backend selection, the atlas, and the
+`federation.yaml` change-linking model; `docs/harness-runtime.md` reflects the
+implemented federated reads; README gains a `/sdd-workspace` row.
+
+All three units (A, B, C) of the planned change are applied. Pending: `sdd-verify`
+checklist against the three specs, then `sdd-archive`.

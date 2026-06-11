@@ -61,14 +61,14 @@ Verification: `node --test "scripts/**/*.test.js"`. Depends on Phases 2–3.
 
 Verification: review + sdd-verify checklist against `sdd-workspace` spec. 5.1–5.3 independent.
 
-- [ ] 5.1 Create `agents/sdd-workspace.agent.md`: executor boundary (mirror `agents/sdd-foundation.agent.md`); reads `skills/sdd-workspace/SKILL.md` + `_shared/sdd-phase-common.md`; result contract; `blocked + question_gate` for atlas confirmation on `init`.
-- [ ] 5.2 Create `skills/sdd-workspace/SKILL.md`: `init` (scan siblings for `openspec/`, propose members, write atlas only on confirmation, update-not-overwrite), `status` (aggregated active changes + unreachable flagging), `impact <change>` (contract-graph affected members); read-only-to-members rule.
-- [ ] 5.3 Create `commands/sdd-workspace.prompt.md`: frontmatter (`name: sdd-workspace`, `agent: sdd-orchestrator`, `argument-hint: "<init|status|impact> [change]"`), routing prompt, `${input}` passthrough.
+- [x] 5.1 Create `agents/sdd-workspace.agent.md`: executor boundary (mirror `agents/sdd-foundation.agent.md`); reads `skills/sdd-workspace/SKILL.md` + `_shared/sdd-phase-common.md`; result contract; `blocked + question_gate` for atlas confirmation on `init`.
+- [x] 5.2 Create `skills/sdd-workspace/SKILL.md`: `init` (scan siblings for `openspec/`, propose members, write atlas only on confirmation, update-not-overwrite), `status` (aggregated active changes + unreachable flagging), `impact <change>` (contract-graph affected members); read-only-to-members rule.
+- [x] 5.3 Create `commands/sdd-workspace.prompt.md`: frontmatter (`name: sdd-workspace`, `agent: sdd-orchestrator`, `argument-hint: "<init|status|impact> [change]"`), routing prompt, `${input}` passthrough.
 
 ## Phase 6: Prompt — Orchestrator, convention, docs
 
 Verification: review + sdd-verify. 6.1–6.3 independent.
 
-- [ ] 6.1 Modify `agents/sdd-orchestrator.agent.md`: federated recovery (resume from aggregated active changes when backend is federated) + **Impact Advisory** before a cross-repo change (run `sdd-workspace impact`, surface affected members via `askQuestions`); add `sdd-workspace` to the `agents` list.
-- [ ] 6.2 Modify `skills/_shared/persistence-contract.md`: document `artifact_store.backend` selection and the coordinator/atlas/`federation.yaml` change-linking model; clarify the v1 read-and-link boundary.
-- [ ] 6.3 Modify `docs/harness-runtime.md` (atlas + federated ops) and add a `/sdd-workspace` row to the `README.md` command table.
+- [x] 6.1 Modify `agents/sdd-orchestrator.agent.md`: federated recovery (resume from aggregated active changes when backend is federated) + **Impact Advisory** before a cross-repo change (run `sdd-workspace impact`, surface affected members via `askQuestions`); add `sdd-workspace` to the `agents` list.
+- [x] 6.2 Modify `skills/_shared/persistence-contract.md`: document `artifact_store.backend` selection and the coordinator/atlas/`federation.yaml` change-linking model; clarify the v1 read-and-link boundary.
+- [x] 6.3 Modify `docs/harness-runtime.md` (atlas + federated ops) and add a `/sdd-workspace` row to the `README.md` command table.
