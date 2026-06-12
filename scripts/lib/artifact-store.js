@@ -120,6 +120,8 @@ function createOpenSpecStore(workspace) {
     mode: "openspec",
     ...base,
     isInitialized: () => pathExists(base.configPath()),
+    // Single-repo backend: no federated workspace context to surface.
+    describeWorkspace: async () => null,
     async findActiveChanges() {
       const openspecRoot = await ospec.findOpenSpecRoot(workspace);
       return ospec.findActiveChanges(openspecRoot);
@@ -149,6 +151,29 @@ function createWorkspaceFederatedStore(workspace) {
     async isInitialized() {
       const parsed = await loadAtlas();
       return Boolean(parsed && parsed.members.length > 0);
+    },
+    // Federated workspace shape (members + contracts) for the v2 registry cache,
+    // so a delegator reads cross-repo context without re-parsing workspace.yaml.
+    // Sorted by id for a deterministic cache.
+    async describeWorkspace() {
+      const parsed = await loadAtlas();
+      if (!parsed || parsed.members.length === 0) {
+        return null;
+      }
+
+      const members = (await atlas.resolveMembers(workspace, parsed))
+        .map((member) => ({ id: member.id, reachable: member.reachable }))
+        .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+
+      const contracts = parsed.contracts
+        .map((contract) => ({
+          id: contract.id,
+          provider: contract.provider,
+          consumers: contract.consumers || [],
+        }))
+        .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+
+      return { members, contracts };
     },
     async findActiveChanges() {
       const parsed = (await loadAtlas()) || { members: [], contracts: [] };

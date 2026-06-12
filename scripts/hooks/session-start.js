@@ -15,7 +15,7 @@ const {
   createArtifactStoreFromConfig,
 } = require("../lib/artifact-store.js");
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const CACHE_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.cache;
 
 function buildBaselineHint(baselineState) {
@@ -101,12 +101,18 @@ async function runSessionStart({
   };
 
   if (!cacheHit) {
-    await writeRegistryCache(cachePath, {
+    const cache = {
       version: CACHE_VERSION,
       fingerprint,
       generated_at: now().toISOString(),
       skills: registry.skills,
-    });
+    };
+    // v2: federate the workspace shape into the cache (null in single-repo mode).
+    const workspaceContext = await store.describeWorkspace();
+    if (workspaceContext) {
+      cache.workspace = workspaceContext;
+    }
+    await writeRegistryCache(cachePath, cache);
   }
 
   const result = { status: "ok", ospecDetected: true, registry: registryResult };

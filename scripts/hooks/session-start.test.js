@@ -91,8 +91,9 @@ test("creates the registry cache when OpenSpec is detected", async (t) => {
     ),
   );
 
-  assert.equal(cache.version, 1);
+  assert.equal(cache.version, 2);
   assert.match(cache.fingerprint, /^sha256:[a-f0-9]{64}$/);
+  assert.equal(cache.workspace, undefined); // openspec mode: no federated context
   assert.equal(cache.generated_at, generatedAt.toISOString());
   assert.deepEqual(cache.skills, [
     {
@@ -316,7 +317,17 @@ test("federated backend with an atlas refreshes the registry", async (t) => {
 
   await fs.writeFile(
     path.join(workspace, "openspec", "workspace.yaml"),
-    ["members:", "  - id: api", "    path: ../api"].join("\n"),
+    [
+      "members:",
+      "  - id: api",
+      "    path: ../api",
+      "  - id: web",
+      "    path: ../web",
+      "contracts:",
+      "  - id: auth",
+      "    provider: api",
+      "    consumers: [web]",
+    ].join("\n"),
   );
 
   const result = await runSessionStart({
@@ -327,4 +338,18 @@ test("federated backend with an atlas refreshes the registry", async (t) => {
 
   assert.equal(result.ospecDetected, true);
   assert.equal(result.registry.status, "generated");
+
+  // v2 federates atlas context into the cache so a delegator sees the workspace
+  // shape (members + contracts) without re-parsing workspace.yaml.
+  const cache = JSON.parse(
+    await fs.readFile(path.join(workspace, ...CACHE_RELATIVE_PATH.split("/")), "utf8"),
+  );
+  assert.equal(cache.version, 2);
+  assert.deepEqual(
+    cache.workspace.members.map((member) => member.id),
+    ["api", "web"],
+  );
+  assert.deepEqual(cache.workspace.contracts, [
+    { id: "auth", provider: "api", consumers: ["web"] },
+  ]);
 });

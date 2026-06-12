@@ -15,6 +15,28 @@ Reducir carga permanente del prompt y mover automatización repetitiva a hooks.
 7. `.ospec/cache`: cache auxiliar; el registro compacto de skills vive en `.ospec/cache/skill-registry.cache.json`.
 8. `.ospec/session`: continuidad auxiliar.
 
+### Esquema de la cache del registro (v2)
+
+`.ospec/cache/skill-registry.cache.json` usa `version: 2`:
+
+```json
+{
+  "version": 2,
+  "fingerprint": "sha256:…",
+  "generated_at": "…ISO…",
+  "skills": [ { "id": "…", "path": "…", "triggers": ["…"], "compact_rules": ["…"] } ],
+  "workspace": { "members": [ { "id": "api", "reachable": true } ], "contracts": [ { "id": "auth", "provider": "api", "consumers": ["web"] } ] }
+}
+```
+
+- `workspace` solo aparece en modo `workspace-federated`: federa el atlas (miembros y
+  contratos) en la cache para que un delegador lea el contexto cross-repo sin reparsear
+  `workspace.yaml`. En modo `openspec` se omite.
+- Migración: `session-start` invalida cualquier cache con `version` distinto de 2 (cache miss)
+  y la regenera; no hay migración manual.
+- El hook reporta `registry.status`: `generated` (creada/refrescada), `reused` (hit de
+  fingerprint, sin escritura) o `skipped` (sin OpenSpec).
+
 ## No fuente de verdad
 
 `.ospec/cache` y `.ospec/session` nunca sustituyen a OpenSpec. `.atl/` es residuo legacy ignorado; no es estado activo del registro ni del runtime.
