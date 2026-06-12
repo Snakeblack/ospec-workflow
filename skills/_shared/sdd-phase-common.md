@@ -51,28 +51,28 @@ status: "planning | ready-for-apply | applying | ready-for-verify | verified | a
 last_updated: 2026-06-01T19:12:00Z
 blocking_questions: []
 phases:
-	proposal:
-		status: "done | pending"
-		artifact: "openspec/changes/{change-name}/proposal.md"
-	spec:
-		status: "done | pending"
-		artifacts:
-			- "openspec/changes/{change-name}/specs/{domain}/spec.md"
-	design:
-		status: "done | pending"
-		artifact: "openspec/changes/{change-name}/design.md"
-	tasks:
-		status: "done | pending"
-		artifact: "openspec/changes/{change-name}/tasks.md"
-	apply:
-		status: "pending | partial | done"
-		artifact: "openspec/changes/{change-name}/apply-progress.md"
-	verify:
-		status: "pending | done"
-		artifact: "openspec/changes/{change-name}/verify-report.md"
-	archive:
-		status: "pending | done"
-		artifact: "openspec/changes/{change-name}/archive-report.md"
+  proposal:
+    status: "done | pending"
+    artifact: "openspec/changes/{change-name}/proposal.md"
+  spec:
+    status: "done | pending"
+    artifacts:
+      - "openspec/changes/{change-name}/specs/{domain}/spec.md"
+  design:
+    status: "done | pending"
+    artifact: "openspec/changes/{change-name}/design.md"
+  tasks:
+    status: "done | pending"
+    artifact: "openspec/changes/{change-name}/tasks.md"
+  apply:
+    status: "pending | partial | done"
+    artifact: "openspec/changes/{change-name}/apply-progress.md"
+  verify:
+    status: "pending | done"
+    artifact: "openspec/changes/{change-name}/verify-report.md"
+  archive:
+    status: "pending | done"
+    artifact: "openspec/changes/{change-name}/archive-report.md"
 ```
 
 State update rules:
