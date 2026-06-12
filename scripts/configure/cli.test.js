@@ -125,6 +125,29 @@ test("a clean validator run keeps a zero exit", (t) => {
   assert.equal(result.exitCode, 0);
 });
 
+test("github-copilot validation uses the profile-level validator command", (t) => {
+  const out = tmpOut(t);
+  let validatorProfile = null;
+  let validatorOut = null;
+  const runValidator = (profile, outDir) => {
+    validatorProfile = profile;
+    validatorOut = outDir;
+    return { status: 0, stdout: "0 errors, 0 warnings\n", stderr: "" };
+  };
+
+  const result = runConfigure({
+    sourceDir: SOURCE,
+    target: "github-copilot",
+    outDir: out,
+    validate: true,
+    runValidator,
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(validatorOut, out);
+  assert.match(validatorProfile.validate, /validate-github-copilot\.js/);
+});
+
 // ---------------------------------------------------------------------------
 // Golden snapshots
 // ---------------------------------------------------------------------------

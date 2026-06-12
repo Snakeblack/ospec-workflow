@@ -21,10 +21,9 @@ Esta carpeta explica la metodologia SDD de este plugin para VS Code/Copilot. El 
 | [harness-runtime.md](harness-runtime.md) | Capas del arnes, hooks y backend de artefactos (adapter). |
 | [model-routing.md](model-routing.md) | Tiers `agente→modelo` y formato de modelo por target (`models.yaml`). |
 | [mcp-policy.md](mcp-policy.md) | Politica y configuracion de servidores MCP. |
-| [plugin-installation.md](plugin-installation.md) | Instalacion, **generacion multi-target** (`claude` / `github-copilot`), confianza y diagnostico. |
+| [plugin-installation.md](plugin-installation.md) | Instalacion, **generacion multi-target** (`vscode` / `claude` / `github-copilot`), confianza y diagnostico. |
 
-El formato canonico es un plugin de VS Code; el generador (`scripts/configure/cli.js`) produce arboles
-nativos para Claude Code y GitHub Copilot CLI en `dist/<target>/`. Ver `plugin-installation.md`.
+El formato canonico es `vscode` y se carga directo desde el repositorio; el generador (`scripts/configure/cli.js`) produce arboles nativos para Claude Code y GitHub Copilot CLI en `dist/<target>/`. Ver `plugin-installation.md`.
 
 ## Idea central
 

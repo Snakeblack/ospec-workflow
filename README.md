@@ -10,7 +10,7 @@ generador (`scripts/configure/cli.js`) produce un árbol nativo y validado de ca
 `dist/<target>/` sin tocar el origen. Un solo source, tres destinos. Ver
 [Compatibilidad multi-target](#compatibilidad-multi-target).
 
-La versión actual es **2.1.0**. El usuario trabaja con `sdd-orchestrator`; el orquestador coordina, los
+La versión actual es **2.2.0**. El usuario trabaja con `sdd-orchestrator`; el orquestador coordina, los
 agentes de fase ejecutan y OpenSpec conserva el estado versionable.
 
 ## Inicio rápido
@@ -75,7 +75,8 @@ Consulta la [guía de instalación](docs/plugin-installation.md) para instalaci�
 
 | Ruta | Propósito |
 | --- | --- |
-| `.claude-plugin/plugin.json` | Manifiesto principal del plugin. |
+| `.plugin.json` | Manifiesto canónico para VS Code/direct-load. |
+| `.claude-plugin/plugin.json` | Manifiesto de compatibilidad para distribución Claude. |
 | `agents/` | Orquestador y agentes especializados por fase. |
 | `commands/` | Comandos visibles y routing hacia el orquestador. |
 | `skills/` | Capacidades bajo demanda y contratos compartidos. |
@@ -83,7 +84,7 @@ Consulta la [guía de instalación](docs/plugin-installation.md) para instalaci�
 | `hooks/` | Declaración de eventos del ciclo de vida del plugin. |
 | `scripts/hooks/` | Runtime de los hooks (Node.js) y sus tests. |
 | `scripts/lib/` | Librerías compartidas: estado OpenSpec, artifact-store y el núcleo del generador (`frontmatter`, `model-resolver`, `target-transform`, perfiles). |
-| `scripts/configure/` | CLI del generador multi-target (`cli.js`) y fixtures golden. |
+| `scripts/configure/` | CLI del generador multi-target (`cli.js`), validadores por perfil y fixtures golden. |
 | `models.yaml` | Tablas tier→modelo por target para el generador. |
 | `profiles/models/` | Perfiles opcionales de routing de modelos (uso directo en VS Code). |
 | `docs/` | Documentación detallada de arquitectura y uso. |
@@ -176,9 +177,9 @@ y validado en `dist/<target>/` sin tocar el origen:
 
 | Target | Salida |
 | --- | --- |
-| `vscode` | Identidad: el repositorio tal cual. |
+| `vscode` | Identidad canónica: VS Code carga el repositorio tal cual, sin generar `dist/`. |
 | `claude` | Árbol `.claude-plugin`: renombra archivos, reestructura manifiesto y hooks, sustituye herramientas (context-aware), reescribe variables de comando, incorpora `rules/` y emite el orquestador como **skill**. Gate: `claude plugin validate --strict` 0/0. |
-| `github-copilot` | Layout `.github/`: agentes a `.github/agents/*.agent.md` (`target: github-copilot`, `vscode/askQuestions`→`ask_user`), comandos a `.github/prompts/*.prompt.md`, reglas a `.github/instructions/*.instructions.md` (`applyTo: "**"`), hooks a `.github/hooks/hooks.json` (schema Copilot) y `.mcp.json` tal cual. Descarta manifiesto y skills. |
+| `github-copilot` | Layout `.github/`: agentes a `.github/agents/*.agent.md` (`target: github-copilot`, `vscode/askQuestions`→`ask_user`), comandos a `.github/prompts/*.prompt.md`, reglas a `.github/instructions/*.instructions.md` (`applyTo: "**"`), hooks a `.github/hooks/hooks.json` (schema Copilot) y `.mcp.json` tal cual. Validado por `scripts/configure/validate-github-copilot.js` dentro del flujo de perfiles. |
 
 ```powershell
 node scripts/configure/cli.js --target claude          --out dist/claude
@@ -186,7 +187,7 @@ node scripts/configure/cli.js --target github-copilot  --out dist/github-copilot
 ```
 
 La transform es pura y testeada bajo Strict TDD; el CLI es la capa de IO con un gate de
-validación por target (golden fixtures, y `claude plugin validate` para `claude`). La selección de
+validación por target (golden fixtures, `claude plugin validate` para `claude` y validador GitHub Copilot). La selección de
 modelo se abstrae en tiers (`models.yaml`). Cada árbol generado es **autocontenido**: el generador
 sigue los `require` desde los hooks e incluye su runtime (`scripts/hooks/` + sus dependencias de
 `scripts/lib/`), sin tests ni el propio generador. Consulta [model-routing.md](docs/model-routing.md)
@@ -225,14 +226,16 @@ Los servidores adicionales deben activarse explícitamente. Consulta [mcp-policy
 | [docs/mcp-policy.md](docs/mcp-policy.md) | Política y configuración de servidores MCP. |
 | [docs/plugin-installation.md](docs/plugin-installation.md) | Instalación, generación por target, confianza y diagnóstico. |
 
-## Desarrollo
+## Validación
 
-La suite (runtime de hooks + generador multi-target) usa el test runner nativo de Node.js, bajo
-Strict TDD:
+Un solo comando cubre la verificación local y de CI del runtime de hooks, generador multi-target,
+validadores de perfiles y artefactos esperados:
 
 ```powershell
-node --test "scripts/**/*.test.js"
+node scripts/check.js
 ```
+
+CI ejecuta el mismo gate en `.github/workflows/validate-harness.yml` con Node 22 y matriz multi-OS.
 
 Antes de publicar cambios en el manifiesto, hooks, MCP o el generador, revisa expresamente la nueva
 superficie de ejecución y confianza.

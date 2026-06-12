@@ -4,9 +4,11 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-Plugin version tracks `.plugin/plugin.json`.
+Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
+
+## [2.2.0] - 2026-06-12
 
 ### Added
 - Multi-target plugin compatibility: a dependency-free generator
@@ -24,12 +26,26 @@ Plugin version tracks `.plugin/plugin.json`.
 - Brownfield bootstrap path: `sdd-baseline` agent, command, and skill to seed
   `openspec/specs/` with current-behavior specs in resumable per-domain batches.
 - Baseline Advisory gate in the orchestrator for brownfield repos.
+- Validation harness hardening: `node scripts/check.js` is now the single local
+  and CI verification entry point, running native tests and generating GitHub
+  Copilot output through the profile-level validator.
+- GitHub Copilot distribution validator for required `.github/` layout, hook
+  schema, frontmatter semantics, forbidden plugin residue, placeholder leaks,
+  local absolute paths, and unexpected Markdown suffixes.
+- Multi-OS GitHub Actions workflow (`validate-harness.yml`) covering Ubuntu,
+  Windows, and macOS with Node.js 22.
 - Canonical OSS files: `LICENSE` (MIT), `CONTRIBUTING.md`, `SECURITY.md`,
   `CODE_OF_CONDUCT.md`, and this changelog.
 
 ### Fixed
 - Installation docs drift: hooks are Node.js (not PowerShell) and the MCP
   surface documents both Context7 and MarkItDown.
+- P0 harness safety: removed legacy `.atl` registry inheritance from runtime
+  guidance, unified skill registry cache resolution, and hardened PreToolUse
+  command inspection for unknown tools carrying command payloads.
+- GitHub Copilot validation robustness: required paths now check file vs
+  directory type before traversal, and residue checks catch case-insensitive
+  `vscode` references.
 
 ## [2.1.0] - 2026-06-11
 
@@ -57,6 +73,7 @@ Plugin version tracks `.plugin/plugin.json`.
 - Interactive workflow gates through `vscode/askQuestions`.
 - Strict TDD mode when the project exposes a compatible test runner.
 
-[Unreleased]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/mretamozo-hiberuscom/ospec-workflow/releases/tag/v2.0.0

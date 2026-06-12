@@ -17,3 +17,5 @@ npm-debug.log*
 Thumbs.db
 .idea/
 *.swp
+
+.atl/

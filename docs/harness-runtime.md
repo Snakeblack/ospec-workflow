@@ -12,12 +12,12 @@ Reducir carga permanente del prompt y mover automatización repetitiva a hooks.
 4. Skills: capacidades on-demand.
 5. Hooks: lifecycle automation.
 6. OpenSpec: fuente de verdad.
-7. `.ospec/cache`: cache auxiliar.
+7. `.ospec/cache`: cache auxiliar; el registro compacto de skills vive en `.ospec/cache/skill-registry.cache.json`.
 8. `.ospec/session`: continuidad auxiliar.
 
 ## No fuente de verdad
 
-`.ospec/cache` y `.ospec/session` nunca sustituyen a OpenSpec.
+`.ospec/cache` y `.ospec/session` nunca sustituyen a OpenSpec. `.atl/` es residuo legacy ignorado; no es estado activo del registro ni del runtime.
 
 ## Backend de artefactos (adapter)
 

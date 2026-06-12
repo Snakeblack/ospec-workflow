@@ -6,7 +6,7 @@ Los Agent Plugins estan en vista previa. Antes de instalar, revisa el contenido 
 
 ## Que proporciona este plugin
 
-El manifiesto del plugin es `.claude-plugin/plugin.json`. Declara el paquete de trabajo que VS Code carga cuando el plugin esta habilitado.
+El repositorio mantiene dos manifiestos sincronizados: `.plugin.json` es el manifiesto canonico para VS Code/direct-load y `.claude-plugin/plugin.json` conserva la forma esperada por la distribucion Claude generada.
 
 | Area | Fuente | Que proporciona |
 | --- | --- | --- |
@@ -33,8 +33,8 @@ Usa esta via cuando quieras que VS Code gestione el plugin desde un repositorio 
 
 Lista de comprobacion de confianza antes de aceptar:
 
-- Confirma que `.claude-plugin/plugin.json` apunta solo a los activos esperados del plugin.
-- Revisa `hooks.json` porque inicia scripts locales de PowerShell.
+- Confirma que `.plugin.json` y `.claude-plugin/plugin.json` apuntan solo a los activos esperados del plugin.
+- Revisa `hooks/hooks.json` porque inicia scripts locales de Node.js.
 - Revisa `scripts/hooks/` porque esos scripts se ejecutan en eventos de hook.
 - Revisa `.mcp.json` porque puede iniciar procesos locales para servidores MCP.
 - Confirma que estas comodo proporcionando `CONTEXT7_API_KEY` cuando necesites acceso a MCP.
@@ -66,7 +66,7 @@ Si guardas el repositorio en otra ruta, sustituye el valor por la ruta local de 
 
 ## Generar para otros targets con configure
 
-El repositorio usa VS Code Agent Plugin como formato canonico. VS Code puede cargar el repositorio directamente. Para Claude Code y GitHub Copilot CLI, el generador produce arboles nativos en `dist/` sin modificar el origen.
+El repositorio usa VS Code Agent Plugin como formato canonico. El target `vscode` es identidad: VS Code puede cargar el repositorio directamente, sin generar `dist/`. Para Claude Code y GitHub Copilot CLI, el generador produce arboles nativos en `dist/` sin modificar el origen.
 
 ```powershell
 # Claude Code: carga temporal de una sesion
@@ -84,11 +84,18 @@ node scripts/configure/cli.js --target claude --out dist/claude --no-validate
 
 | Target | Salida | Validacion |
 | --- | --- | --- |
+| `vscode` | Carga directa del repositorio fuente con `.plugin.json`; no genera salida. | `node scripts/check.js` |
 | `claude` | Renombra `*.agent.md`/`*.prompt.md` a `*.md`, reestructura el manifiesto y los hooks, sustituye nombres de herramientas, reescribe variables de comando (`${input}` -> `$ARGUMENTS`; `${input:name}` -> `$name` + `arguments:`), incorpora `rules/` y emite el orquestador como **skill** (`skills/sdd-orchestrator/SKILL.md`). Genera `dist/claude/`, pensado para carga temporal con `claude --plugin-dir`. | `claude plugin validate --strict dist/claude` |
 | `claude-marketplace` | Envuelve el arbol Claude en un marketplace local instalable. Genera `dist/claude-marketplace/.claude-plugin/marketplace.json` y coloca el plugin en `dist/claude-marketplace/plugins/ospec-workflow/`. | `claude plugin validate dist/claude-marketplace` y `claude plugin validate --strict dist/claude-marketplace/plugins/ospec-workflow` |
-| `github-copilot` | Genera layout `.github/` con instrucciones, prompts, chatmodes, MCP y runtime de hooks para GitHub Copilot CLI / coding agent. | Validacion manual del arbol generado y de los archivos `.github/`. |
+| `github-copilot` | Genera layout `.github/` con instrucciones, prompts, chatmodes, MCP y runtime de hooks para GitHub Copilot CLI / coding agent. | `scripts/configure/validate-github-copilot.js`, ejecutado por la validacion de perfiles y por `node scripts/check.js`. |
 
 Cada arbol generado es **autocontenido**: el generador sigue los `require` desde los hooks e incluye su runtime (`scripts/hooks/` + sus dependencias de `scripts/lib/`), sin tests ni el propio generador.
+
+Validacion local recomendada antes de publicar cambios:
+
+```powershell
+node scripts/check.js
+```
 
 En Claude Code hay dos salidas distintas:
 
@@ -268,10 +275,10 @@ Y vuelve a revisar:
 | Sintoma | Causa probable | Que revisar |
 | --- | --- | --- |
 | Faltan la UI de Agent Plugins | La vista previa de Agent Plugins no esta disponible o la politica la deshabilita. | Confirma que tu version de VS Code soporta Agent Plugins y revisa la politica de tu organizacion. |
-| El plugin no aparece desde `chat.pluginLocations` | La ruta apunta a la carpeta equivocada o VS Code no se ha recargado. | Apunta a la raiz del repositorio que contiene `.claude-plugin/plugin.json` y luego recarga VS Code. |
-| Faltan los archivos prompt | El plugin esta deshabilitado o no se cargaron los activos prompt. | Confirma que `.claude-plugin/plugin.json` referencia `commands/` y que el plugin esta habilitado. |
-| Falta `sdd-orchestrator` | No se cargaron los activos de agentes. | Confirma que `.claude-plugin/plugin.json` referencia `agents/` y que la vista de Agent Plugins no muestra errores. |
-| Los skills parecen no estar disponibles | No se cargaron los activos de skills o la peticion no activo un skill. | Confirma que `.claude-plugin/plugin.json` referencia `skills/` y vuelve a probar con una peticion SDD. |
+| El plugin no aparece desde `chat.pluginLocations` | La ruta apunta a la carpeta equivocada o VS Code no se ha recargado. | Apunta a la raiz del repositorio que contiene `.plugin.json` y luego recarga VS Code. |
+| Faltan los archivos prompt | El plugin esta deshabilitado o no se cargaron los activos prompt. | Confirma que `.plugin.json` referencia `commands/` y que el plugin esta habilitado. |
+| Falta `sdd-orchestrator` | No se cargaron los activos de agentes. | Confirma que `.plugin.json` referencia `agents/` y que la vista de Agent Plugins no muestra errores. |
+| Los skills parecen no estar disponibles | No se cargaron los activos de skills o la peticion no activo un skill. | Confirma que `.plugin.json` referencia `skills/` y vuelve a probar con una peticion SDD. |
 | Falta el servidor MCP | MCP esta deshabilitado, bloqueado por la politica o no esta disponible en la version actual. | Revisa los ajustes de MCP/herramientas, la politica de la organizacion, Node.js/`npx` (Context7) y `uv`/`uvx` (MarkItDown). |
 | Context7 pide una clave | Hace falta `CONTEXT7_API_KEY`. | Proporcionala desde el prompt de VS Code cuando confies en la ejecucion del servidor. |
 | Falla la ejecucion del hook | Problema con Node.js, resolucion de rutas o politica de scripts. | Confirma que Node.js esta en `PATH`, revisa `hooks/hooks.json`, la resolucion de `${PLUGIN_ROOT}` y los scripts de `scripts/hooks/`. |
@@ -289,7 +296,7 @@ Trata la version del manifiesto del plugin como la version del paquete instalado
 
 Flujo de actualizacion para usuarios ya instalados:
 
-1. Revisa el changelog o el diff antes de actualizar, especialmente si cambian `.claude-plugin/plugin.json`, `.mcp.json`, `hooks.json` o `scripts/hooks/`.
+1. Revisa el changelog o el diff antes de actualizar, especialmente si cambian `.plugin.json`, `.claude-plugin/plugin.json`, `.mcp.json`, `hooks/hooks.json` o `scripts/hooks/`.
 2. Haz pull o reinstala desde la URL del repositorio Git.
 3. Recarga VS Code.
 4. Vuelve a ejecutar las comprobaciones de agente, comandos, MCP y hooks de este documento.

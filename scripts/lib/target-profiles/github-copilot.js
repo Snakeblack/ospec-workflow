@@ -60,5 +60,5 @@ module.exports = {
   drop: [".claude-plugin/", "skills/"],
 
   // No model injection: the source omits model and github-copilot has no models.yaml column.
-  validate: null,
+  validate: 'node scripts/configure/validate-github-copilot.js "{out}"',
 };

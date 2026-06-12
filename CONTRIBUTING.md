@@ -6,8 +6,8 @@ that workflow for anything beyond trivial fixes.
 
 ## Ground rules
 
-- **Trust surface first.** Any change to `.plugin/plugin.json`, `.mcp.json`,
-  `hooks/hooks.json`, or `scripts/hooks/` changes the local execution and trust
+- **Trust surface first.** Any change to `.plugin.json`, `.claude-plugin/plugin.json`,
+  `.mcp.json`, `hooks/hooks.json`, or `scripts/hooks/` changes the local execution and trust
   surface. Call it out explicitly in the PR description.
 - **Single source of truth.** The README, the manifest, and the actual repo
   structure must agree. If you add a command, agent, hook, or MCP server,
@@ -24,10 +24,10 @@ that workflow for anything beyond trivial fixes.
 
 ## Tests
 
-The runtime suite uses the native Node.js test runner:
+Use the same local gate as CI:
 
 ```powershell
-node --test "scripts/**/*.test.js"
+node scripts/check.js
 ```
 
 Add or update tests for any change to `scripts/`. Hook scripts use CommonJS
@@ -37,7 +37,7 @@ Add or update tests for any change to `scripts/`. Hook scripts use CommonJS
 
 - Use conventional-commit style prefixes (`feat:`, `fix:`, `docs:`, `chore:`,
   `refactor:`) — the history already follows this.
-- Bump `.plugin/plugin.json` (and `.plugin.json`) per
+- Bump `.plugin.json` and `.claude-plugin/plugin.json` per
   [SemVer](https://semver.org/): patch for non-behavioral fixes, minor for
   backward-compatible capability, major for breaking the trust surface or phase
   contracts. Record the change in `CHANGELOG.md`.
