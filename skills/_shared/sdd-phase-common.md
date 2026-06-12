@@ -6,13 +6,20 @@ Executor boundary: every SDD phase agent is an EXECUTOR, not an orchestrator. Do
 
 ## A. Skill Loading
 
-1. Check if the orchestrator injected a `## Project Standards (auto-resolved)` block in your launch prompt. If yes, follow those rules — they are pre-digested compact rules from the skill registry cache. **Do NOT read any SKILL.md files.**
+Two distinct layers — do not conflate them:
+
+- **Your phase procedure** — your phase-specific `SKILL.md` plus this common protocol. This is your actual instruction set; **always read both**, regardless of anything below. Without them you have no procedure.
+- **Project standards** — project-specific coding/convention rules resolved from the skill registry. The steps below decide only how you pick these up; they never tell you to skip your phase procedure.
+
+How to load project standards:
+
+1. Check if the orchestrator injected a `## Project Standards (auto-resolved)` block in your launch prompt. If yes, follow those rules — they are pre-digested compact rules from the skill registry cache. **Do NOT additionally read the registry or other skills' `SKILL.md` files** (your own phase skill is still required, per above).
 2. If no Project Standards block was provided, use the orchestrator session cache when explicitly supplied in the launch prompt.
 3. If no session cache was supplied, read `.ospec/cache/skill-registry.cache.json` from the project root if it exists and apply compact rules whose triggers match your current task.
 4. If no compact-rule source exists, check for exact `SKILL: Load` instructions. If present, load those exact skill files.
 5. If no source exists, proceed with your phase skill only and report `skill_resolution: none`.
 
-NOTE: the preferred path is (1) — compact rules pre-injected by the orchestrator. If `## Project Standards` is present, IGNORE any `SKILL: Load` instructions — they are redundant.
+NOTE: the preferred path is (1) — compact rules pre-injected by the orchestrator. If `## Project Standards` is present, IGNORE any `SKILL: Load` instructions — they are redundant. This never overrides loading your own phase skill.
 
 ## B. Artifact Retrieval (OpenSpec Mode)
 

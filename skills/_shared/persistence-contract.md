@@ -127,7 +127,7 @@ If mode is `none`, return the artifact inline only.
 
 ## Skill Registry
 
-The orchestrator pre-resolves compact rules from the skill registry and injects them as `## Project Standards (auto-resolved)` in your launch prompt. Sub-agents do NOT read the registry or individual SKILL.md files — rules arrive pre-digested.
+The orchestrator pre-resolves compact rules from the skill registry and injects them as `## Project Standards (auto-resolved)` in your launch prompt. With that block present, sub-agents do NOT read the registry or *other* skills' SKILL.md files — those project standards arrive pre-digested. This does not affect a phase agent's own phase SKILL.md, which is always required (see `sdd-phase-common.md` §A).
 
 To generate/update: run the `skill-registry` skill, or run `sdd-init`.
 
