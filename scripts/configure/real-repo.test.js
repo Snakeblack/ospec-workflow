@@ -1,0 +1,99 @@
+"use strict";
+
+// Real-repo integration: the golden snapshots exercise a reduced fixture tree,
+// so these tests generate from the actual repository root to catch issues that
+// only surface against the full source (e.g. a skill file with namespace/path
+// residue, or a phase agent that references a skill the target drops). No
+// external CLI is required, so this runs cross-platform in CI.
+
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const test = require("node:test");
+
+const { runConfigure } = require("./cli.js");
+const { validate } = require("./validate-github-copilot.js");
+
+const ROOT = path.resolve(__dirname, "..", "..");
+
+function tmpOut(t) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-real-repo-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  return dir;
+}
+
+function walk(root, relDir = "", acc = []) {
+  const absDir = path.join(root, relDir);
+  if (!fs.existsSync(absDir) || !fs.statSync(absDir).isDirectory()) {
+    return acc;
+  }
+  for (const entry of fs.readdirSync(absDir, { withFileTypes: true })) {
+    const rel = relDir ? `${relDir}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      walk(root, rel, acc);
+    } else if (entry.isFile()) {
+      acc.push(rel);
+    }
+  }
+  return acc;
+}
+
+test("real repo: all three targets generate non-empty trees", (t) => {
+  for (const target of ["claude", "vscode", "github-copilot"]) {
+    const out = tmpOut(t);
+    const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    assert.ok(result.files.length > 0, `${target} produced no files`);
+  }
+});
+
+test("real repo: github-copilot output passes its own validator", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "github-copilot", outDir: out, validate: false });
+
+  const result = validate(out);
+
+  assert.deepEqual(result.errors, [], `validator errors:\n${result.errors.join("\n")}`);
+});
+
+test("real repo: github-copilot ships every source skill file", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "github-copilot", outDir: out, validate: false });
+
+  const sourceSkills = walk(ROOT, "skills").filter((rel) => rel.endsWith(".md"));
+  assert.ok(sourceSkills.length > 0, "source must contain skills to test");
+  for (const rel of sourceSkills) {
+    assert.ok(fs.existsSync(path.join(out, rel)), `skill dropped from github-copilot output: ${rel}`);
+  }
+});
+
+test("real repo: every skill a phase agent says to load exists in github-copilot output", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "github-copilot", outDir: out, validate: false });
+
+  const agentDir = path.join(out, ".github", "agents");
+  const reference = /`(skills\/[^`]+\.md)`/g;
+  let checked = 0;
+  for (const file of walk(agentDir)) {
+    const text = fs.readFileSync(path.join(agentDir, file), "utf8");
+    for (const match of text.matchAll(reference)) {
+      const rel = match[1];
+      assert.ok(fs.existsSync(path.join(out, rel)), `${file} loads ${rel}, but it is not shipped`);
+      checked += 1;
+    }
+  }
+  assert.ok(checked > 0, "expected at least one agent to reference a skill file");
+});
+
+test("real repo: no foreign vscode/ namespace survives in the claude tree", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "claude", outDir: out, validate: false });
+
+  for (const file of walk(out)) {
+    if (!file.endsWith(".md")) {
+      continue;
+    }
+    const text = fs.readFileSync(path.join(out, file), "utf8");
+    assert.doesNotMatch(text, /vscode\//, `vscode/ namespace residue in ${file}`);
+  }
+});
