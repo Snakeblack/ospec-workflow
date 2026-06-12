@@ -30,15 +30,27 @@ test("validate accepts generated github-copilot output", (t) => {
 test("validate rejects prompt target residue and forbidden paths", (t) => {
   const out = tmpOut(t);
   runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
-  fs.mkdirSync(path.join(out, "skills"));
+  fs.mkdirSync(path.join(out, ".claude-plugin"));
   const promptPath = path.join(out, ".github/prompts/sdd-apply.prompt.md");
   const prompt = fs.readFileSync(promptPath, "utf8");
   fs.writeFileSync(promptPath, prompt.replace("---\n\n", "target: github-copilot\n---\n\n"));
 
   const result = validate(out);
 
-  assert.ok(result.errors.some((error) => error.includes("forbidden path present: skills")));
+  assert.ok(result.errors.some((error) => error.includes("forbidden path present: .claude-plugin")));
   assert.ok(result.errors.some((error) => error.includes("must not include target frontmatter")));
+});
+
+test("validate requires the skills tree so agent skill references resolve", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  // A clean generated tree ships skills/ — removing it must fail the gate.
+  assert.equal(validate(out).errors.length, 0);
+  fs.rmSync(path.join(out, "skills"), { recursive: true, force: true });
+
+  const result = validate(out);
+
+  assert.ok(result.errors.some((error) => error.includes("missing required path: skills")));
 });
 
 test("validate rejects malformed Copilot hooks", (t) => {

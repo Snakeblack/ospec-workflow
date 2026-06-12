@@ -13,9 +13,12 @@ const REQUIRED_PATHS = [
   { rel: ".mcp.json", type: "file" },
   { rel: "scripts/hooks", type: "directory" },
   { rel: "scripts/lib", type: "directory" },
+  // Skills ship as readable files: every phase agent's "Skills to load before work"
+  // section reads skills/<phase>/SKILL.md, so the tree must be present.
+  { rel: "skills", type: "directory" },
 ];
 
-const FORBIDDEN_PATHS = [".claude-plugin", "skills", "rules", "hooks/hooks.json"];
+const FORBIDDEN_PATHS = [".claude-plugin", "rules", "hooks/hooks.json"];
 
 const FORBIDDEN_TEXT = [
   { pattern: /vscode\//i, label: "vscode namespace residue" },

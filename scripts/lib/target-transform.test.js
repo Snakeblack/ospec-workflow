@@ -374,10 +374,15 @@ test("github-copilot turns rules into .github/instructions/*.instructions.md wit
   assert.match(instr.content, /ALWAYS use OpenSpec/);
 });
 
-test("github-copilot drops plugin-only artifacts (manifest, skills) but keeps MCP and hooks", () => {
+test("github-copilot drops the plugin manifest but preserves skills (agents read them as files)", () => {
   const out = transform({ files: makeSource(), profile: githubCopilot, models: MODELS });
   assert.ok(!find(out, ".claude-plugin/plugin.json"));
-  assert.ok(!out.files.some((f) => f.path.startsWith("skills/")));
+  // Every SDD phase agent has a "Skills to load before work" section pointing at
+  // skills/<phase>/SKILL.md and skills/_shared/*.md. If skills are dropped those
+  // references dangle, so the Copilot distribution MUST ship the skill tree.
+  const skill = find(out, "skills/foo/SKILL.md");
+  assert.ok(skill, "skills must ship so agent 'Skills to load' references resolve");
+  assert.doesNotMatch(skill.content, /vscode\//); // tool-substituted on the way through
 });
 
 test("github-copilot keeps .mcp.json unchanged (project-level MCP)", () => {

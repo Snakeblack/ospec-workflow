@@ -7,8 +7,11 @@
 //     (microsoft/vscode .github/agents/demonstrate.md)
 //   - prompts -> .github/prompts/<name>.prompt.md (keeps ${input:...} + `agent:` routing)
 //   - rules   -> .github/instructions/<name>.instructions.md (with `applyTo: "**"`)
-// Plugin-only artifacts (manifest, hooks, .mcp.json, plugin skills) are dropped:
-// Copilot does not consume them.
+//   - skills  -> shipped at repo-relative skills/ (NOT auto-loaded by Copilot, but
+//     every phase agent's "Skills to load before work" section reads them as files,
+//     so the tree must be present or those references dangle).
+// Only the Claude plugin manifest (.claude-plugin/) is dropped: Copilot loads
+// customization from .github/, .mcp.json, and skills/ read on demand.
 
 module.exports = {
   id: "github-copilot",
@@ -55,9 +58,10 @@ module.exports = {
   // vscode/askQuestions maps to Copilot's structured question tool, ask_user.
   toolMap: { "vscode/askQuestions": "ask_user" },
 
-  // Drop only artifacts Copilot does not consume. .mcp.json and hooks are KEPT
-  // (hooks are reshaped to .github/hooks/; MCP passes through).
-  drop: [".claude-plugin/", "skills/"],
+  // Drop only the Claude plugin manifest. .mcp.json and hooks are KEPT (hooks are
+  // reshaped to .github/hooks/; MCP passes through), and skills/ ships so agent
+  // "Skills to load before work" references resolve.
+  drop: [".claude-plugin/"],
 
   // No model injection: the source omits model and github-copilot has no models.yaml column.
   validate: 'node scripts/configure/validate-github-copilot.js "{out}"',
