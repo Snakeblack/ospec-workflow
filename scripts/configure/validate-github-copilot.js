@@ -225,6 +225,90 @@ function validateHooks(root, errors) {
   }
 }
 
+// Each phase agent's "Skills to load before work" section names skills/<...>.md
+// files it will read. If the generator drops one, the reference dangles, so every
+// referenced skill must ship in the output.
+function validateSkillReferences(root, errors) {
+  const refRe = /`(skills\/[^`]+\.md)`/g;
+  for (const file of listMarkdown(root, ".github/agents", ".agent.md")) {
+    const text = readUtf8(root, file);
+    for (const match of text.matchAll(refRe)) {
+      if (!exists(root, match[1])) {
+        addError(errors, `${file} references missing skill: ${match[1]}`);
+      }
+    }
+  }
+}
+
+// Copilot hook commands invoke repo-relative node scripts (the ${CLAUDE_PLUGIN_ROOT}
+// prefix is stripped at generation). Every referenced script must be present, or
+// the hook fails at runtime.
+function validateHookScripts(root, errors) {
+  const rel = ".github/hooks/hooks.json";
+  if (pathType(root, rel) !== "file") {
+    return;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(readUtf8(root, rel));
+  } catch {
+    return; // JSON shape already reported by validateHooks
+  }
+
+  const scriptRe = /(scripts\/[^\s"']+\.js)/g;
+  for (const actions of Object.values(parsed.hooks || {})) {
+    if (!Array.isArray(actions)) {
+      continue;
+    }
+    for (const action of actions) {
+      for (const command of [action && action.bash, action && action.powershell]) {
+        if (typeof command !== "string") {
+          continue;
+        }
+        for (const match of command.matchAll(scriptRe)) {
+          if (!exists(root, match[1])) {
+            addError(errors, `${rel} references missing script: ${match[1]}`);
+          }
+        }
+      }
+    }
+  }
+}
+
+// .mcp.json passes through unchanged; confirm it is a usable Copilot MCP config:
+// an mcpServers object whose entries each define a command (stdio) or url (http/sse).
+function validateMcp(root, errors) {
+  const rel = ".mcp.json";
+  if (pathType(root, rel) !== "file") {
+    return;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(readUtf8(root, rel));
+  } catch (error) {
+    addError(errors, `${rel} is not valid JSON: ${error.message}`);
+    return;
+  }
+
+  const servers = parsed.mcpServers;
+  if (!servers || typeof servers !== "object" || Array.isArray(servers)) {
+    addError(errors, `${rel} must have an mcpServers object`);
+    return;
+  }
+
+  for (const [name, server] of Object.entries(servers)) {
+    if (!server || typeof server !== "object" || Array.isArray(server)) {
+      addError(errors, `${rel} server ${name} must be an object`);
+      continue;
+    }
+    const hasCommand = typeof server.command === "string" && server.command.length > 0;
+    const hasUrl = typeof server.url === "string" && server.url.length > 0;
+    if (!hasCommand && !hasUrl) {
+      addError(errors, `${rel} server ${name} must define a command (stdio) or url (http/sse)`);
+    }
+  }
+}
+
 function validate(root) {
   const errors = [];
   const warnings = [];
@@ -240,6 +324,9 @@ function validate(root) {
   validateForbiddenText(absRoot, errors);
   validateMarkdown(absRoot, errors);
   validateHooks(absRoot, errors);
+  validateSkillReferences(absRoot, errors);
+  validateHookScripts(absRoot, errors);
+  validateMcp(absRoot, errors);
 
   return { errors, warnings };
 }

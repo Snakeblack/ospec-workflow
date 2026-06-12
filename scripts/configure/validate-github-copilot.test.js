@@ -80,6 +80,47 @@ test("validate reports required path type mismatches without throwing", (t) => {
   assert.ok(result.errors.some((error) => error.includes("required file is not a file: .mcp.json")));
 });
 
+test("validate rejects an agent that references a skill the tree does not ship", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  fs.writeFileSync(
+    path.join(out, ".github/agents/ghost.agent.md"),
+    "---\nname: ghost\ntarget: github-copilot\n---\n\nRead `skills/ghost/SKILL.md` before work.\n",
+  );
+
+  const result = validate(out);
+
+  assert.ok(result.errors.some((error) => error.includes("references missing skill: skills/ghost/SKILL.md")));
+});
+
+test("validate rejects a hook that invokes a missing script", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  fs.writeFileSync(
+    path.join(out, ".github/hooks/hooks.json"),
+    JSON.stringify(
+      { version: 1, hooks: { sessionStart: [{ type: "command", bash: 'node "scripts/hooks/ghost.js"' }] } },
+      null,
+      2,
+    ),
+  );
+
+  const result = validate(out);
+
+  assert.ok(result.errors.some((error) => error.includes("references missing script: scripts/hooks/ghost.js")));
+});
+
+test("validate rejects a malformed .mcp.json (missing servers and missing transport)", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+
+  fs.writeFileSync(path.join(out, ".mcp.json"), JSON.stringify({}, null, 2));
+  assert.ok(validate(out).errors.some((error) => error.includes("must have an mcpServers object")));
+
+  fs.writeFileSync(path.join(out, ".mcp.json"), JSON.stringify({ mcpServers: { bad: { type: "stdio" } } }, null, 2));
+  assert.ok(validate(out).errors.some((error) => error.includes("server bad must define a command")));
+});
+
 test("validate rejects case-insensitive vscode residue and unexpected Copilot markdown suffixes", (t) => {
   const out = tmpOut(t);
   runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
