@@ -201,7 +201,7 @@ test("vscode preserves the agent and command suffixes (identity)", () => {
 test("claude substitutes tool names in the frontmatter grant, expanding one-to-many", () => {
   const out = transform({ files: makeSource(), profile: claude, models: MODELS });
   const fm = parse(find(out, "agents/sdd-apply.md").content).frontmatter;
-  assert.deepEqual(getField(fm, "tools").value, ["Read", "Grep", "Glob", "Edit", "AskUserQuestion"]);
+  assert.deepEqual(getField(fm, "tools").value, ["Read", "Grep", "Glob", "Edit", "Write", "AskUserQuestion"]);
 });
 
 test("claude substitutes backticked tool references in prose, primary for one-to-many", () => {

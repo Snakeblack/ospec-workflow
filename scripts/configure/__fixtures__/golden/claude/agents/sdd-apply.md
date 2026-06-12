@@ -1,7 +1,7 @@
 ---
 name: sdd-apply
 description: Implement assigned SDD tasks under strict TDD.
-tools: ['Read', 'Grep', 'Glob', 'Edit', 'Bash', 'AskUserQuestion']
+tools: ['Read', 'Grep', 'Glob', 'Edit', 'Write', 'Bash', 'PowerShell', 'AskUserQuestion']
 model: sonnet
 ---
 

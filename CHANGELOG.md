@@ -8,6 +8,23 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-06-12
+
+### Fixed
+- Claude target tool grants now match the official Claude Code tools reference.
+  The `edit` abstract tool mapped only to `Edit` (modify-existing), so every phase
+  agent was granted a toolset that could not create the artifacts its own prose
+  tells it to `Write` (`proposal.md`, `design.md`, `tasks.md`, spec deltas, source
+  and test files). `edit` now expands to `["Edit", "Write"]`, mirroring the existing
+  `search → ["Grep", "Glob"]` one-to-many mapping.
+
+### Changed
+- `execute` maps to `["Bash", "PowerShell"]` for the Claude target so test and build
+  commands run cross-OS: on Windows without Git Bash the `Bash` tool is unavailable
+  and `PowerShell` is the native shell tool. Where one shell tool is absent it is
+  simply not loaded, so the grant is harmless. Aligns the agent toolsets with the
+  existing multi-OS validation workflow.
+
 ## [2.2.0] - 2026-06-12
 
 ### Added

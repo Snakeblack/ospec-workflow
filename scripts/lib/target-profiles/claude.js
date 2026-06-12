@@ -24,8 +24,15 @@ module.exports = {
   toolMap: {
     "vscode/askQuestions": "AskUserQuestion",
     read: "Read",
-    edit: "Edit",
-    execute: "Bash",
+    // Claude splits file mutation into Edit (modify existing) + Write (create/overwrite).
+    // The abstract `edit` conflates both, and every phase agent's prose says "Write
+    // <artifact>" for files that do not exist yet, so grant both or agents cannot
+    // create their artifacts. Prose references collapse to the primary (Edit).
+    edit: ["Edit", "Write"],
+    // On Windows without Git Bash, the Bash tool is unavailable and PowerShell is the
+    // native shell tool; grant both so test/build commands run cross-OS. Where one is
+    // absent it is simply not loaded (harmless). Prose references collapse to Bash.
+    execute: ["Bash", "PowerShell"],
     search: ["Grep", "Glob"],
     agent: "Agent",
   },
