@@ -75,8 +75,8 @@ Consulta la [guía de instalación](docs/plugin-installation.md) para instalaci�
 
 | Ruta | Propósito |
 | --- | --- |
-| `.plugin.json` | Manifiesto canónico para VS Code/direct-load. |
-| `.claude-plugin/plugin.json` | Manifiesto de compatibilidad para distribución Claude. |
+| `.plugin.json` | Manifiesto **canónico** (VS Code/direct-load). Editá este primero. |
+| `.claude-plugin/plugin.json` | Copia de compatibilidad para la distribución Claude; también es la fuente que lee el generador (`scripts/configure/cli.js`). Debe reflejar el canónico — `scripts/manifest-sync.test.js` lo verifica en CI. |
 | `agents/` | Orquestador y agentes especializados por fase. |
 | `commands/` | Comandos visibles y routing hacia el orquestador. |
 | `skills/` | Capacidades bajo demanda y contratos compartidos. |

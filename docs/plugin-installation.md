@@ -6,7 +6,7 @@ Los Agent Plugins estan en vista previa. Antes de instalar, revisa el contenido 
 
 ## Que proporciona este plugin
 
-El repositorio mantiene dos manifiestos sincronizados: `.plugin.json` es el manifiesto canonico para VS Code/direct-load y `.claude-plugin/plugin.json` conserva la forma esperada por la distribucion Claude generada.
+El repositorio mantiene dos manifiestos sincronizados: `.plugin.json` es el manifiesto canonico para VS Code/direct-load y `.claude-plugin/plugin.json` conserva la forma esperada por la distribucion Claude generada (y es la fuente que lee el generador). Edita siempre el canonico primero; ambos deben coincidir y `scripts/manifest-sync.test.js` lo verifica en CI.
 
 | Area | Fuente | Que proporciona |
 | --- | --- | --- |
