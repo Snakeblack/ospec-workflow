@@ -88,28 +88,26 @@ async function runSessionStart({
   const fingerprint = await calculateFingerprint(registry.fingerprintPaths);
   const currentCache = await readRegistryCache(cachePath);
 
+  // Report whether the cache was reused (fingerprint hit, no write) or
+  // generated (created/refreshed). Callers use this to tell a cheap cache hit
+  // from real regeneration work instead of conflating both as "fresh".
+  const cacheHit =
+    currentCache?.version === CACHE_VERSION &&
+    currentCache.fingerprint === fingerprint;
+
   const registryResult = {
-    status: "fresh",
+    status: cacheHit ? "reused" : "generated",
     path: store.cacheRelativePath,
   };
 
-  if (
-    currentCache?.version === CACHE_VERSION &&
-    currentCache.fingerprint === fingerprint
-  ) {
-    const result = { status: "ok", ospecDetected: true, registry: registryResult };
-    if (baselineHint !== null) {
-      result.baseline = { hint: baselineHint };
-    }
-    return result;
+  if (!cacheHit) {
+    await writeRegistryCache(cachePath, {
+      version: CACHE_VERSION,
+      fingerprint,
+      generated_at: now().toISOString(),
+      skills: registry.skills,
+    });
   }
-
-  await writeRegistryCache(cachePath, {
-    version: CACHE_VERSION,
-    fingerprint,
-    generated_at: now().toISOString(),
-    skills: registry.skills,
-  });
 
   const result = { status: "ok", ospecDetected: true, registry: registryResult };
   if (baselineHint !== null) {

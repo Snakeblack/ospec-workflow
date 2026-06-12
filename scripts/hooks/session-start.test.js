@@ -79,7 +79,7 @@ test("creates the registry cache when OpenSpec is detected", async (t) => {
     status: "ok",
     ospecDetected: true,
     registry: {
-      status: "fresh",
+      status: "generated",
       path: CACHE_RELATIVE_PATH,
     },
   });
@@ -127,7 +127,7 @@ test("does not rewrite a cache whose fingerprint is unchanged", async (t) => {
     now: () => new Date("2026-06-10T09:00:00.000Z"),
   });
 
-  assert.equal(result.registry.status, "fresh");
+  assert.equal(result.registry.status, "reused");
   assert.equal(await fs.readFile(cachePath, "utf8"), originalCache);
 });
 
@@ -326,5 +326,5 @@ test("federated backend with an atlas refreshes the registry", async (t) => {
   });
 
   assert.equal(result.ospecDetected, true);
-  assert.equal(result.registry.status, "fresh");
+  assert.equal(result.registry.status, "generated");
 });
