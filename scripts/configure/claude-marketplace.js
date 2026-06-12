@@ -1,12 +1,46 @@
 "use strict";
 
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { runConfigure } = require("./cli.js");
 
 function writeJson(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, JSON.stringify(value, null, 2) + "\n", "utf8");
+}
+
+// Guard the recursive delete that precedes every build. `--out` is attacker- or
+// fat-finger-controlled; without this an `--out C:\` or `--out .` would nuke
+// unrelated data. We refuse the filesystem root, the home directory, anything
+// that is (or contains) --source or the cwd, and any non-empty directory that
+// is not a previous marketplace build. A prior build is recognised by its
+// .claude-plugin/marketplace.json marker, so re-runs stay idempotent.
+function assertSafeOutDir(outDir, sourceDir) {
+  const abs = path.resolve(outDir);
+  const refuse = (reason) => {
+    throw new Error(`refusing to clobber --out ${abs}: ${reason}`);
+  };
+
+  if (abs === path.parse(abs).root) refuse("filesystem root");
+  const home = os.homedir();
+  if (home && abs === path.resolve(home)) refuse("home directory");
+  if (abs === path.resolve(sourceDir)) refuse("equals --source");
+
+  for (const protectedDir of [path.resolve(sourceDir), process.cwd()]) {
+    if (protectedDir === abs || protectedDir.startsWith(abs + path.sep)) {
+      refuse(`is an ancestor of ${protectedDir}`);
+    }
+  }
+
+  if (fs.existsSync(abs)) {
+    if (!fs.statSync(abs).isDirectory()) refuse("not a directory");
+    const nonEmpty = fs.readdirSync(abs).length > 0;
+    const isPriorBuild = fs.existsSync(path.join(abs, ".claude-plugin", "marketplace.json"));
+    if (nonEmpty && !isPriorBuild) {
+      refuse("non-empty and not a previous marketplace build (missing .claude-plugin/marketplace.json)");
+    }
+  }
 }
 
 function parseArgs(argv) {
@@ -35,6 +69,7 @@ function buildClaudeMarketplace(options) {
   const outDir = path.resolve(options.out);
   const pluginDir = path.join(outDir, "plugins", options.pluginName);
 
+  assertSafeOutDir(outDir, options.source);
   fs.rmSync(outDir, { recursive: true, force: true });
 
   const result = runConfigure({
@@ -94,5 +129,6 @@ if (require.main === module) {
 }
 
 module.exports = {
+  assertSafeOutDir,
   buildClaudeMarketplace,
 };
