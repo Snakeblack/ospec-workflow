@@ -33,7 +33,7 @@ async function readEvents(workspace) {
     .map((line) => JSON.parse(line));
 }
 
-test("records fallback resolution from a structured result", async (t) => {
+test("records fallback-registry resolution from a structured result", async (t) => {
   const workspace = await createWorkspace(t);
 
   const result = await runSubagentStop({
@@ -60,7 +60,7 @@ test("records fallback resolution from a structured result", async (t) => {
   ]);
 });
 
-test("extracts fallback or none from textual and JSON results", () => {
+test("extracts degraded or none resolution from textual and JSON results", () => {
   assert.equal(
     findTextResolution(
       'Completed work.\n{"status":"partial","skill_resolution":"fallback-path"}',
@@ -73,7 +73,9 @@ test("extracts fallback or none from textual and JSON results", () => {
     }),
     "none",
   );
-  assert.equal(isDegradedResolution("fallback-future-source"), true);
+  assert.equal(isDegradedResolution("fallback-registry"), true);
+  assert.equal(isDegradedResolution("fallback-path"), true);
+  assert.equal(isDegradedResolution("injected"), false);
 });
 
 test("uses the latest structured resolution from a transcript", async (t) => {

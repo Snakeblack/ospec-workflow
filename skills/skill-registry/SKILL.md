@@ -9,7 +9,7 @@ metadata:
 
 ## Purpose
 
-You generate or update the **skill registry** — a catalog of all available skills with **compact rules** (pre-digested, 5-15 line summaries) that any delegator injects directly into sub-agent prompts. Sub-agents do NOT read the registry or individual SKILL.md files — they receive compact rules pre-resolved in their launch prompt.
+You generate or update the **skill registry cache** — a JSON catalog of all available skills with **compact rules** (pre-digested, 5-15 line summaries) that any delegator injects directly into sub-agent prompts. Sub-agents do NOT read individual SKILL.md files unless no compact-rule source exists and exact paths are supplied.
 
 This is the foundation of the **Skill Resolver Protocol** (see `_shared/skill-resolver.md`). The registry is built ONCE (expensive), then read cheaply at every delegation.
 
@@ -98,59 +98,40 @@ Format per skill:
 4. For non-index files (`.cursorrules`, `CLAUDE.md`, etc.): record the file directly.
 5. The final table should include the index file AND all paths it references — zero extra hops for sub-agents.
 
-### Step 3: Write the Registry
+### Step 3: Write the Registry Cache
 
-Build the registry markdown:
+Build the registry cache JSON:
 
-```markdown
-# Skill Registry
-
-**Delegator use only.** Any agent that launches sub-agents reads this registry to resolve compact rules, then injects them directly into sub-agent prompts. Sub-agents do NOT read this registry or individual SKILL.md files.
-
-See `_shared/skill-resolver.md` for the full resolution protocol.
-
-## User Skills
-
-| Trigger | Skill | Path |
-|---------|-------|------|
-| {trigger from frontmatter} | {skill name} | {full path to SKILL.md} |
-| ... | ... | ... |
-
-## Compact Rules
-
-Pre-digested rules per skill. Delegators copy matching blocks into sub-agent prompts as `## Project Standards (auto-resolved)`.
-
-### {skill-name-1}
-- Rule 1
-- Rule 2
-- ...
-
-### {skill-name-2}
-- Rule 1
-- Rule 2
-- ...
-
-{repeat for each skill}
-
-## Project Conventions
-
-| File | Path | Notes |
-|------|------|-------|
-| {index file} | {path} | Index — references files below |
-| {referenced file} | {extracted path} | Referenced by {index file} |
-| {standalone file} | {path} | |
-
-Read the convention files listed above for project-specific patterns and rules. All referenced paths have been extracted — no need to read index files to discover more.
+```json
+{
+  "version": 1,
+  "fingerprint": "sha256:...",
+  "generated_at": "ISO-8601",
+  "skills": [
+    {
+      "id": "skill-name",
+      "path": "skills/skill-name/SKILL.md",
+      "triggers": ["trigger from frontmatter"],
+      "compact_rules": ["Rule 1", "Rule 2"]
+    }
+  ],
+  "project_conventions": [
+    {
+      "path": "AGENTS.md",
+      "notes": "Index file or convention source"
+    }
+  ]
+}
 ```
 
 ### Step 4: Persist the Registry
 
 **This step is MANDATORY — do NOT skip it.**
 
-Create the `.atl/` directory in the project root if it doesn't exist, then write:
+Create the `.ospec/cache/` directory in the project root if it doesn't exist, then write:
 
 ```
-.atl/skill-registry.md
+.ospec/cache/skill-registry.cache.json
 ```
 
 ### Step 5: Return Summary
@@ -159,7 +140,7 @@ Create the `.atl/` directory in the project root if it doesn't exist, then write
 ## Skill Registry Updated
 
 **Project**: {project name}
-**Location**: .atl/skill-registry.md
+**Location**: .ospec/cache/skill-registry.cache.json
 
 ### User Skills Found
 | Skill | Trigger |
@@ -173,7 +154,7 @@ Create the `.atl/` directory in the project root if it doesn't exist, then write
 | {file} | {path} |
 
 ### Next Steps
-The orchestrator reads this registry once per session and passes pre-resolved skill paths to sub-agents via their launch prompts.
+The orchestrator reads this registry cache once per session and passes pre-resolved compact rules to sub-agents via their launch prompts.
 To update after installing/removing skills, run this again.
 
 ### Scan Warnings
@@ -182,11 +163,10 @@ To update after installing/removing skills, run this again.
 
 ## Rules
 
-- ALWAYS write `.atl/skill-registry.md` regardless of any SDD persistence mode
+- ALWAYS write `.ospec/cache/skill-registry.cache.json` when the project uses persisted OpenSpec artifacts
 - SKIP `sdd-*`, `_shared`, and `skill-registry` directories when scanning
 - Read SKILL.md files (respecting the 200-line guard in Step 1) to generate accurate compact rules — this is a build-time cost, not a runtime cost
 - Compact rules MUST be 5-15 lines per skill — concise, actionable, no fluff
 - Include ALL convention index files found (not just the first)
 - If no skills or conventions are found, write an empty registry (so sub-agents don't waste time searching)
-- Add `.atl/` to the project's `.gitignore` if it exists and `.atl` is not already listed
 - Missing directories, permission errors, broken symlinks/junctions, and unreadable roots MUST be downgraded to warnings. They must never abort registry creation.

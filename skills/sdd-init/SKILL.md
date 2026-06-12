@@ -25,9 +25,9 @@ Run this phase when the orchestrator/user asks to initialize SDD in a project. Y
 - Detect the real stack, conventions, architecture, testing tools, and persistence mode; never guess.
 - In `openspec` mode, follow `../_shared/openspec-convention.md` and write file artifacts.
 - In `openspec` mode, treat OpenSpec files on disk as canonical workflow state for continuation and recovery; never rely on conversation history.
-- In `none` mode, return detected context only; write no SDD artifacts except the registry if required.
+- In `none` mode, return detected context only; write no SDD artifacts except the skill registry cache if required.
 - Always persist testing capabilities in `openspec/config.yaml` `testing:` when mode is `openspec`.
-- Always build `.atl/skill-registry.md`.
+- Always build `.ospec/cache/skill-registry.cache.json`.
 - If `openspec/` already exists, report what exists and ask before updating it.
 
 ## Decision Gates
@@ -35,7 +35,7 @@ Run this phase when the orchestrator/user asks to initialize SDD in a project. Y
 | Input | Action |
 |---|---|
 | `mode=openspec` | Create/update openspec bootstrap files only. |
-| `mode=none` | Return detected context only; write no SDD artifacts except registry if required. |
+| `mode=none` | Return detected context only; write no SDD artifacts except the skill registry cache if required. |
 | strict TDD marker/config found | Use that value. |
 | no marker/config but test runner exists | Default `strict_tdd: true`. |
 | no test runner | Set `strict_tdd: false` and explain unavailable. |
@@ -49,7 +49,7 @@ Run this phase when the orchestrator/user asks to initialize SDD in a project. Y
 2. Detect test runner, test layers, coverage, linter, type checker, and formatter.
 3. Resolve Strict TDD from agent marker, `openspec/config.yaml`, detected runner fallback, or no-runner fallback.
 4. Initialize persistence for the resolved mode.
-5. Build `.atl/skill-registry.md` using the skill-registry scan rules.
+5. Build `.ospec/cache/skill-registry.cache.json` using the skill-registry scan rules.
 6. Persist testing capabilities and project context.
 7. **Brownfield branch** (openspec mode only): if existing application code is detected outside `openspec/`, `docs/`, and dotfiles AND `openspec/specs/` is empty AND `openspec/config.yaml` has no `baseline` block, write the `baseline` block with `status: pending`, empty `domains_pending`, `domains_done`, `stale_domains`, and `last_checked: ""`. On re-init, if a `baseline` block already exists, preserve it unchanged.
 8. Return the structured initialization envelope.

@@ -27,7 +27,7 @@ function normalizeResolution(value) {
 }
 
 function isDegradedResolution(resolution) {
-  return resolution === "none" || resolution.startsWith("fallback");
+  return ["fallback-registry", "fallback-path", "none"].includes(resolution);
 }
 
 function findStructuredResolution(value, seen = new Set()) {

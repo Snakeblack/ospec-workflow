@@ -24,11 +24,13 @@ Use this file as a compact shared protocol. The detailed source contracts remain
 
 ## Skill loading compatibility
 
-1. Prefer an injected `## Project Standards (auto-resolved)` block when the orchestrator can extract compact rules.
-2. If the registry is index-only, pass exact `SKILL.md` paths under `## Skills to load before work`.
-3. If neither exists, continue with phase rules and report `skill_resolution: none`.
-4. Phase agents must report `skill_resolution` in their result envelope.
-5. Communication skills affect assistant replies, not persisted SDD artifacts. Task-specific variants apply only to their output type. File-transform skills require explicit user invocation.
+1. Use `Project Standards` already injected in the launch prompt.
+2. Otherwise use the orchestrator session cache when supplied.
+3. Otherwise read `.ospec/cache/skill-registry.cache.json`.
+4. Otherwise load exact `SKILL.md` fallback paths when supplied.
+5. If no source exists, continue with phase rules and report `skill_resolution: none`.
+6. Phase agents must report `skill_resolution` in their result envelope.
+7. Communication skills affect assistant replies, not persisted SDD artifacts. Task-specific variants apply only to their output type. File-transform skills require explicit user invocation.
 
 ## Review workload guard
 

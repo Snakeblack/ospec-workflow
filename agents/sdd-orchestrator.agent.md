@@ -411,12 +411,14 @@ If verification returns mixed defects, route to the earliest upstream phase repr
 
 ALL sub-agent launch prompts that involve reading, writing, or reviewing code MUST include pre-resolved **compact rules** from the skill registry. Follow the **Skill Resolver Protocol** (see `_shared/skill-resolver.md` in the skills directory).
 
-The orchestrator resolves skills from the registry ONCE (at session start or first delegation), caches the compact rules, and injects matching rules into each sub-agent's prompt.
+The orchestrator resolves skills from `.ospec/cache/skill-registry.cache.json` ONCE (at session start or first delegation), caches the compact rules, and injects matching rules into each sub-agent's prompt.
 
 Orchestrator skill resolution (do once per session):
-1. Read the project skill registry if it exists.
-2. Cache the **Compact Rules** section and the **User Skills** trigger table.
-3. If no registry exists, warn user and proceed without project-specific standards.
+1. Use `Project Standards` already injected in the launch prompt when present.
+2. Otherwise use the orchestrator session cache when present.
+3. Otherwise read `.ospec/cache/skill-registry.cache.json` if it exists.
+4. Otherwise pass exact `SKILL.md` fallback paths only when supplied.
+5. If no source exists, warn user, proceed without project-specific standards, and report `skill_resolution: none`.
 
 For each sub-agent launch:
 1. Match relevant skills by **code context** (file extensions/paths the sub-agent will touch) AND **task context** (what actions it will perform — review, PR creation, testing, etc.)
@@ -424,7 +426,7 @@ For each sub-agent launch:
 3. Inject BEFORE the sub-agent's task-specific instructions
 4. Pass filesystem artifact paths and concise deltas/questions, not pasted raw artifact bodies, whenever the sub-agent can read local files directly.
 
-**Key rule**: inject compact rules TEXT, not paths. Phase agents may also load their explicit `%USERPROFILE%\\.copilot\\skills\\...\\SKILL.md` paths when their agent instructions require it.
+**Key rule**: inject compact rules TEXT when available, not paths. Phase agents may load exact `SKILL.md` paths only when no compact-rule source exists and those paths were explicitly supplied.
 **Context budget rule**: never inline the full contents of `proposal.md`, `proposal-lite.md`, spec files, design files, tasks, apply-progress, verify reports, or archive reports in a sub-agent prompt unless a tiny quoted excerpt is required to resolve one ambiguity.
 
 ### Communication Skill Routing
@@ -440,8 +442,8 @@ Use `caveman-*` skills through the registry only; do not hard-load their full `S
 ### Skill Resolution Feedback
 
 After every delegation that returns a result, check the `skill_resolution` field:
-- `injected` → all good, skills were passed correctly
-- `fallback-registry`, `fallback-path`, or `none` → skill cache was lost (likely compaction). Re-read the registry immediately and inject compact rules in all subsequent delegations.
+- `injected` → all good, compact rules were passed correctly
+- `fallback-registry`, `fallback-path`, or `none` → session cache was unavailable or no compact-rule source existed. Re-read the registry cache immediately and inject compact rules in all subsequent delegations when possible.
 
 This is a self-correction mechanism. Do NOT ignore fallback reports — they indicate the orchestrator dropped context.
 
@@ -454,7 +456,7 @@ Sub-agents get a fresh context with NO memory. The orchestrator controls context
 - Read context: orchestrator passes relevant current-session context and file paths in the sub-agent prompt. Sub-agent does not rely on persistent memory.
 - Write context: sub-agent MUST include significant discoveries, decisions, or bug fixes in its return envelope before returning.
 - Always add to sub-agent prompt: `"If you make important discoveries, decisions, or fix bugs, include them in your final return envelope with affected paths and rationale."`
-- Skills: orchestrator resolves compact rules from the registry and injects them as `## Project Standards (auto-resolved)` in the sub-agent prompt. Phase agents may also load their explicit `.copilot/skills/.../SKILL.md` paths when required by their agent instructions.
+- Skills: orchestrator resolves compact rules from `.ospec/cache/skill-registry.cache.json` and injects them as `## Project Standards (auto-resolved)` in the sub-agent prompt. Phase agents may load exact `SKILL.md` paths only when no compact-rule source exists and those paths were explicitly supplied.
 
 #### SDD Phases
 

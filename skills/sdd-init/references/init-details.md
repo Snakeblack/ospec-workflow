@@ -65,8 +65,8 @@ openspec/config.yaml
   testing: detected testing capabilities
   rules: phase-specific defaults
 
-.atl/skill-registry.md
-  full skill registry markdown
+.ospec/cache/skill-registry.cache.json
+  compact skill registry JSON cache
 ```
 
 ## OpenSpec Skeleton

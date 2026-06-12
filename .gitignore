@@ -1,5 +1,4 @@
 # Local runtime caches and session hints (never the source of truth)
-.atl/
 .ospec/
 
 # SDD planning artifacts — kept local, not published to the repo

@@ -1,133 +1,36 @@
 # Skill Resolver — Universal Protocol
 
-Any agent that **delegates work to sub-agents** MUST follow this protocol to resolve and inject relevant skills. This applies to the ATL orchestrator, judgment-day, pr-review, and ANY future skill or workflow that launches sub-agents.
+Any agent that **delegates work to sub-agents** MUST follow this protocol to resolve and inject relevant skills. This applies to any orchestrator, phase controller, or future workflow that launches sub-agents.
 
 ## Why This Exists
 
-Sub-agents are born with NO context about what skills exist. Without skill injection, a judge reviewing a Next.js project won't know React 19 patterns, a fix agent won't follow project conventions, and a PR creator won't use the project's PR template.
+Sub-agents are born with no context about what skills exist. Without skill injection, a reviewer may miss project conventions, a fix agent may ignore testing standards, and a PR creator may miss the expected review shape.
 
 ## When to Apply
 
-Before EVERY sub-agent launch that involves **reading, writing, or reviewing code**. Skip only for purely mechanical delegations (e.g., "run this test command").
+Before every sub-agent launch that involves **reading, writing, or reviewing code**. Skip only for purely mechanical delegations, such as running one known test command.
 
-## The Protocol
+## Resolution Order
 
-### Step 1: Obtain the Skill Registry (once per session)
+Use exactly one ordered strategy across all agents and documents:
 
-The registry contains a **Compact Rules** section with pre-digested rules per skill (5-15 lines each). This is what you inject — NOT full SKILL.md paths.
+1. `Project Standards` already injected in the launch prompt.
+2. Orchestrator session cache.
+3. `.ospec/cache/skill-registry.cache.json`.
+4. Exact `SKILL.md` fallback paths explicitly provided for the task.
+5. `skill_resolution: none` if no source exists.
 
-Resolution order:
-1. Already cached from earlier in this session? → use cache
-2. Read `.atl/skill-registry.md` from the project root if it exists
-3. No registry found? → proceed without skills (but warn the user: "No skill registry found — sub-agents will work without project-specific standards. Run `skill-registry` to fix this.")
+If `## Project Standards (auto-resolved)` is present, use it and do not load additional skill sources unless the orchestrator explicitly requests a high-fidelity fallback. Prefer compact rules; use full `SKILL.md` files only as fallback step 4.
 
-### Step 2: Match Relevant Skills
+## Registry Cache
 
-Match skills on TWO dimensions:
+The durable registry cache lives at:
 
-**A. Code Context** — what files will the sub-agent touch or review?
-
-Map file patterns to skills from the registry (common examples — always defer to the registry's Trigger field as the source of truth):
-- `.tsx`, `.jsx` → react skills
-- `.ts` → typescript skills
-- `app/**`, `pages/**` → nextjs/angular/framework skills
-- `.py` → python/django skills
-- `.go` → go skills
-- `*.test.*`, `*.spec.*` → testing skills
-- Style files → tailwind/css skills
-
-Use the `Trigger` field in the registry's User Skills table to match. Skills whose triggers mention the relevant technology or file type are matches.
-
-**B. Task Context** — what ACTIONS will the sub-agent perform?
-
-| Sub-agent action | Match skills with triggers mentioning... |
-|-----------------|------------------------------------------|
-| Create a PR | "PR", "pull request" |
-| Write/review code | The specific framework/language |
-| Create Jira tickets | "Jira", "epic", "task" |
-| Write Notion docs | "Notion", "RFC", "PRD" |
-| Write comments | "comment" |
-| Run tests | "test", "vitest", "pytest", "playwright" |
-
-### Step 3: Inject into Sub-Agent Prompt
-
-From the registry's **Compact Rules** section, copy the matching skill blocks directly into the sub-agent's prompt:
-
-```
-## Project Standards (auto-resolved)
-
-{paste compact rules blocks for each matching skill}
+```text
+.ospec/cache/skill-registry.cache.json
 ```
 
-This goes BEFORE the sub-agent's task-specific instructions, so standards are loaded before work begins.
-
-**Key rule**: inject the COMPACT RULES text, not paths. The sub-agent should NOT read any SKILL.md files — the rules arrive pre-digested in its prompt.
-
-### Step 4: Include Project Conventions
-
-If the registry has a **Project Conventions** section, and the sub-agent will work on the project's code, also add:
-
-```
-## Project Conventions
-Read these files for project-specific patterns:
-- {path1} — {notes}
-- {path2} — {notes}
-```
-
-Project conventions are short references (paths + notes), so passing them is cheap. The sub-agent reads them only if relevant to its task.
-
-## Token Budget
-
-The compact rules section should add **50-150 tokens per skill** to a sub-agent's prompt. For a typical delegation matching 3-4 skills, that's ~400-600 tokens — negligible compared to the code the sub-agent will read.
-
-If more than **5 skill blocks** match, keep only the 5 most relevant (prioritize code context matches over task context matches).
-
-## Compaction Safety
-
-This protocol is compaction-safe because:
-- The registry lives in `.atl/skill-registry.md`, not in the orchestrator's memory
-- Each delegation re-reads the registry if needed (Step 1 handles cache miss)
-- Compact rules are copied into each sub-agent's prompt at launch time — even if the orchestrator forgets, the sub-agents already have the rules
-
-## Feedback Loop
-
-Sub-agents MUST report their skill resolution status in their return envelope:
-
-- `injected` — received `## Project Standards (auto-resolved)` from the orchestrator (ideal path)
-- `fallback-registry` — no standards received, self-loaded from skill registry
-- `fallback-path` — no standards received, loaded via `SKILL: Load` path
-- `none` — no skills loaded at all
-
-**Orchestrator self-correction rule**: if a sub-agent reports anything other than `injected`, the orchestrator MUST:
-1. Re-read the skill registry immediately (it may have been lost to compaction)
-2. Ensure ALL subsequent delegations include `## Project Standards (auto-resolved)`
-3. Log a warning to the user: "Skill cache miss detected — reloaded registry for future delegations."
-
-This prevents silent degradation where the orchestrator forgets skills after compaction and all subsequent sub-agents work without standards.
-
-## Integration Points
-
-- **ATL Orchestrator**: follows this protocol for ALL delegations (SDD and non-SDD)
-- **judgment-day**: follows this protocol before launching Judge A, Judge B, and Fix Agent
-- **pr-review**: already has internal skill loading — should migrate to this protocol for consistency
-- **Any future skill that delegates**: MUST reference this protocol
-
-## Registry cache protocol
-
-The compact skill registry SHOULD be cached using a deterministic fingerprint.
-
-Suggested cache path:
-
-`.ospec/cache/skill-registry.cache.json`
-
-Fingerprint inputs:
-
-- `skills/**/SKILL.md`
-- `skills/_shared/*.md`
-- `rules/**/*.md`
-- optional project convention files detected by `sdd-init`
-
-Cache shape:
+Suggested cache shape:
 
 ```json
 {
@@ -145,16 +48,87 @@ Cache shape:
 }
 ```
 
-If fingerprint is unchanged, reuse the cache.
-If cache is missing or stale, regenerate compact rules.
+Fingerprint inputs should include `skills/**/SKILL.md`, `skills/_shared/*.md`, `rules/**/*.md`, and detected project convention files. If the fingerprint is unchanged, reuse the cache. If cache is missing or stale, regenerate compact rules.
 
-## Fallback policy
+## Match Relevant Skills
 
-Default path: inject compact rules text.
+Match skills on two dimensions:
 
-Fallback path: pass exact `SKILL.md` paths only when:
+### Code Context
 
-- compact rules are missing;
-- high-fidelity audit is required;
-- the skill is too specific to summarize safely;
-- cache is stale and cannot be regenerated.
+What files will the sub-agent touch or review?
+
+Common examples — always defer to registry `triggers` as the source of truth:
+
+- `.tsx`, `.jsx` → React skills
+- `.ts` → TypeScript skills
+- `app/**`, `pages/**` → framework skills
+- `.py` → Python skills
+- `.go` → Go skills
+- `*.test.*`, `*.spec.*` → testing skills
+- Style files → CSS/design-system skills
+
+### Task Context
+
+What action will the sub-agent perform?
+
+| Sub-agent action | Match skills with triggers mentioning... |
+| --- | --- |
+| Create a PR | "PR", "pull request" |
+| Write/review code | The specific framework/language |
+| Create tickets | "issue", "Jira", "epic", "task" |
+| Write docs | "docs", "RFC", "README" |
+| Write comments | "comment" |
+| Run tests | "test", "vitest", "pytest", "playwright" |
+
+If more than five skill blocks match, keep only the five most relevant. Prioritize code-context matches over task-context matches.
+
+## Inject into Sub-Agent Prompt
+
+Copy matching compact rule blocks into the sub-agent prompt before task-specific instructions:
+
+```markdown
+## Project Standards (auto-resolved)
+
+{paste compact rules blocks for each matching skill}
+```
+
+Key rule: inject compact rules text when available. The sub-agent should read exact `SKILL.md` files only when the orchestrator explicitly chose fallback step 4.
+
+## Project Conventions
+
+If Project Standards or the registry cache includes project conventions, and the sub-agent will work on the project's code, also add:
+
+```markdown
+## Project Conventions
+Read these files for project-specific patterns:
+- {path1} — {notes}
+- {path2} — {notes}
+```
+
+Keep conventions compact: at most five blocks per delegation, 50–150 tokens each, prioritized by affected files and requested action.
+
+## Compaction Safety
+
+This protocol is compaction-safe because:
+
+- The durable registry lives in `.ospec/cache/skill-registry.cache.json`, not only in orchestrator memory.
+- Each delegation can rehydrate the session cache from the registry cache if needed.
+- Compact rules are copied into each sub-agent's prompt at launch time.
+
+## Feedback Loop
+
+Sub-agents MUST report their skill resolution status in their return envelope:
+
+- `injected` — received `## Project Standards (auto-resolved)` from the orchestrator.
+- `fallback-registry` — no standards received, self-loaded from `.ospec/cache/skill-registry.cache.json`.
+- `fallback-path` — no standards or registry cache received, loaded exact `SKILL.md` fallback paths.
+- `none` — no skills loaded at all.
+
+Orchestrator self-correction rule: if a sub-agent reports anything other than `injected`, the orchestrator MUST rehydrate the session cache from `.ospec/cache/skill-registry.cache.json` or explicit fallback paths before subsequent delegations.
+
+## Integration Points
+
+- **SDD orchestrator**: follows this protocol for all delegations.
+- **Phase agents**: use injected Project Standards first, then the registry cache or exact path fallback.
+- **Any future workflow that delegates**: MUST reference this protocol.

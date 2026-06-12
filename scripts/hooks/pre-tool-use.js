@@ -147,11 +147,15 @@ function makeDecision(permissionDecision, permissionDecisionReason) {
 }
 
 function evaluateToolUse(input) {
-  if (!isShellTool(input?.tool_name)) {
-    return makeDecision("allow", "Tool is outside the shell command policy.");
-  }
+  const commands = extractCommands(input?.tool_input);
 
-  const commands = extractCommands(input.tool_input);
+  if (commands.length === 0) {
+    if (!isShellTool(input?.tool_name)) {
+      return makeDecision("allow", "Tool did not include a command payload.");
+    }
+
+    return makeDecision("allow", "Shell tool did not include a command payload.");
+  }
 
   for (const command of commands) {
     const denyRule = findMatchingRule(command, DENY_RULES);
@@ -169,7 +173,7 @@ function evaluateToolUse(input) {
     }
   }
 
-  return makeDecision("allow", "Shell command passed the safety policy.");
+  return makeDecision("allow", "Command payload passed the safety policy.");
 }
 
 async function readJsonInput(stream = process.stdin) {
