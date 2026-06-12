@@ -23,6 +23,10 @@ function transform({ files, profile, models }) {
     out.push(handled);
   }
 
+  // Sort by path so the output is deterministic regardless of the input's
+  // filesystem-dependent read order (stable across OSes and CI runners).
+  out.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+
   return { files: out };
 }
 

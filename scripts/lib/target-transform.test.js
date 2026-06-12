@@ -125,6 +125,15 @@ test("transform is idempotent: same inputs yield equal outputs", () => {
   assert.deepEqual(a, b);
 });
 
+test("transform output is sorted by path and independent of input order", () => {
+  const src = makeSource();
+  const a = transform({ files: src, profile: claude, models: MODELS }).files.map((f) => f.path);
+  const b = transform({ files: [...src].reverse(), profile: claude, models: MODELS }).files.map((f) => f.path);
+
+  assert.deepEqual(a, b, "output order must not depend on input order");
+  assert.deepEqual(a, [...a].sort(), "output must be sorted by path");
+});
+
 test("transform does not mutate the input files collection", () => {
   const input = makeSource();
   const before = JSON.stringify(input);

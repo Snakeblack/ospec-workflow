@@ -110,11 +110,65 @@ function gatherRuntimeScripts(sourceDir) {
   return out.sort((a, b) => a.path.localeCompare(b.path));
 }
 
+// Write the generated tree deterministically and prune stale artifacts from a
+// previous run — but ONLY within the top-level roots this output owns (e.g.
+// .github/, skills/, .mcp.json). Files the generator never produces are left
+// untouched, so pointing --out at a populated directory cannot delete unrelated
+// data. No whole-directory rmSync, so there is no destructive blast radius.
 function writeTree(outDir, { files }) {
-  for (const file of files) {
-    const abs = path.join(outDir, file.path);
+  const sorted = [...files].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  const desired = new Set(sorted.map((file) => file.path));
+  const managedRoots = new Set(sorted.map((file) => file.path.split("/")[0]));
+
+  pruneStale(outDir, managedRoots, desired);
+
+  for (const file of sorted) {
+    const abs = path.join(outDir, ...file.path.split("/"));
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     fs.writeFileSync(abs, file.content);
+  }
+}
+
+// Within each managed root, delete files not present in `desired` (POSIX-relative
+// paths), then remove directories left empty. Roots that are files (e.g.
+// .mcp.json) are simply overwritten by the write loop.
+function pruneStale(outDir, managedRoots, desired) {
+  for (const root of managedRoots) {
+    const absRoot = path.join(outDir, ...root.split("/"));
+    if (!fs.existsSync(absRoot) || !fs.statSync(absRoot).isDirectory()) {
+      continue;
+    }
+    for (const rel of walkRel(absRoot)) {
+      const relFromOut = `${root}/${rel}`;
+      if (!desired.has(relFromOut)) {
+        fs.rmSync(path.join(absRoot, ...rel.split("/")), { force: true });
+      }
+    }
+    pruneEmptyDirs(absRoot);
+  }
+}
+
+function walkRel(absDir, relDir = "", acc = []) {
+  for (const entry of fs.readdirSync(absDir, { withFileTypes: true })) {
+    const rel = relDir ? `${relDir}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      walkRel(path.join(absDir, entry.name), rel, acc);
+    } else if (entry.isFile()) {
+      acc.push(rel);
+    }
+  }
+  return acc;
+}
+
+function pruneEmptyDirs(absDir) {
+  for (const entry of fs.readdirSync(absDir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      const child = path.join(absDir, entry.name);
+      pruneEmptyDirs(child);
+      if (fs.readdirSync(child).length === 0) {
+        fs.rmdirSync(child);
+      }
+    }
   }
 }
 

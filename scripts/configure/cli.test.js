@@ -186,6 +186,29 @@ for (const target of ["claude", "github-copilot"]) {
 }
 
 // ---------------------------------------------------------------------------
+// Safe + deterministic output
+// ---------------------------------------------------------------------------
+
+test("regenerating prunes stale generated files but keeps unrelated entries", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: SOURCE, target: "claude", outDir: out, validate: false });
+
+  // A stale artifact under a managed root (a renamed/removed skill) and unrelated
+  // user data outside any managed root.
+  const stale = path.join(out, "skills", "ghost", "SKILL.md");
+  fs.mkdirSync(path.dirname(stale), { recursive: true });
+  fs.writeFileSync(stale, "stale\n");
+  const keep = path.join(out, "NOTES.md");
+  fs.writeFileSync(keep, "user notes\n");
+
+  runConfigure({ sourceDir: SOURCE, target: "claude", outDir: out, validate: false });
+
+  assert.ok(!fs.existsSync(stale), "stale generated file must be pruned");
+  assert.ok(!fs.existsSync(path.dirname(stale)), "emptied stale directory must be pruned");
+  assert.ok(fs.existsSync(keep), "unrelated top-level file must be kept");
+});
+
+// ---------------------------------------------------------------------------
 // loadTree + parseModels
 // ---------------------------------------------------------------------------
 
