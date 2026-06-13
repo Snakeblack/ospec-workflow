@@ -220,6 +220,59 @@ When `routing:` is absent from `openspec/config.yaml` or resolves to `[]`, the o
 2. **Change Classification**: classify the change and select `lite` (trivial/small) or standard SDD (normal/high-risk).
 3. No `route:` block is written to `state.yaml` in fallback mode.
 
+### Brownfield Route Handler
+
+When the routing table selects the `brownfield` route (Step 3 of Route Selection & Dispatch), execute the `brownfield-advisory` gate **before** any route phase begins.
+
+#### Session-Scoped Skip Suppression
+
+Check the current session context for the flag `_brownfield_advisory_shown`. If it is `true`, skip the advisory entirely and proceed directly with the originally requested SDD command. The flag is session-scoped only — it is NOT persisted to `state.yaml`. The advisory reappears in a new session whenever `baseline.status` remains `pending` or `partial`.
+
+#### Brownfield Advisory (vscode/askQuestions)
+
+If the session flag is not set, use `vscode/askQuestions` to present the two-option advisory:
+
+```json
+{
+  "questions": [
+    {
+      "header": "Brownfield baseline advisory",
+      "question": "This repo has a pending baseline. Running sdd-baseline first captures existing architecture and reduces spec drift. Do you want to run it now?",
+      "options": [
+        {
+          "label": "Run /sdd-baseline now",
+          "description": "Capture the existing codebase as a baseline before continuing. Recommended for brownfield repos.",
+          "recommended": true
+        },
+        {
+          "label": "Skip baseline and proceed",
+          "description": "Continue with the originally requested SDD command without running sdd-baseline. The advisory will not appear again this session."
+        }
+      ],
+      "allowFreeformInput": false
+    }
+  ]
+}
+```
+
+Do not continue until the user responds.
+
+#### On Consent — Launch sdd-baseline Loop
+
+If the user selects "Run /sdd-baseline now":
+
+1. Delegate to `sdd-baseline` for the first pending domain.
+2. While `sdd-baseline` returns `status: partial`, relaunch it for the next pending domain.
+3. After `sdd-baseline` returns `status: success` (or all pending domains are complete), set `_brownfield_advisory_shown: true` in the session context.
+4. Proceed with the originally requested SDD command.
+
+#### On Decline — Proceed Immediately
+
+If the user selects "Skip baseline and proceed":
+
+1. Set `_brownfield_advisory_shown: true` in the session context.
+2. Proceed with the originally requested SDD command without launching `sdd-baseline` and without emitting any error or warning.
+
 ### Workspace Federation (optional, multi-repo)
 
 This applies only when `openspec/config.yaml` has `artifact_store.backend: workspace-federated`.

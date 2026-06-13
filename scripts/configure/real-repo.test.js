@@ -178,3 +178,26 @@ test("real repo: orchestrator conditional clarify references residual_ambiguity"
     "sdd-orchestrator must reference residual_ambiguity for conditional clarify gate"
   );
 });
+
+test("real repo: orchestrator brownfield route replaces standalone Baseline Advisory", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "vscode", outDir: out, validate: false });
+
+  const orchestratorPath = path.join(out, "agents", "sdd-orchestrator.agent.md");
+  assert.ok(
+    fs.existsSync(orchestratorPath),
+    "sdd-orchestrator.agent.md missing from vscode output"
+  );
+
+  const text = fs.readFileSync(orchestratorPath, "utf8");
+  assert.doesNotMatch(
+    text,
+    /### Baseline Advisory \(optional, brownfield repos only\)/,
+    "sdd-orchestrator must NOT contain the standalone Baseline Advisory heading"
+  );
+  assert.match(
+    text,
+    /Brownfield Route Handler/,
+    "sdd-orchestrator must contain Brownfield Route Handler section"
+  );
+});
