@@ -15,7 +15,7 @@ openspec/
         ├── exploration.md   <- (optional) from sdd-explore
         ├── proposal.md      <- from sdd-propose
         ├── proposal-lite.md <- optional from lite mode
-        ├── specs/           <- from sdd-spec
+        ├── specs/           <- from sdd-spec; updated by sdd-clarify (## Clarifications)
         │   └── {domain}/
         │       └── spec.md  <- Change-local spec (delta for existing domains, full spec for new domains)
         ├── design.md        <- from sdd-design
@@ -48,6 +48,7 @@ docs/
 | sdd-propose | Creates | `openspec/changes/{change-name}/proposal.md` |
 | sdd-propose (lite mode) | Creates | `openspec/changes/{change-name}/proposal-lite.md` |
 | sdd-spec | Creates | `openspec/changes/{change-name}/specs/{domain}/spec.md` |
+| sdd-clarify | Updates | `openspec/changes/{change-name}/specs/{domain}/spec.md` (appends `## Clarifications` + normative edits) |
 | sdd-design | Creates | `openspec/changes/{change-name}/design.md` |
 | sdd-tasks | Creates | `openspec/changes/{change-name}/tasks.md` |
 | every phase executor | Updates | `openspec/changes/{change-name}/state.yaml` |
