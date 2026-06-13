@@ -163,51 +163,62 @@ This ensures:
 
 Do NOT skip this check. Silent init is allowed only for explicit persisted workflow requests.
 
-### Baseline Advisory (optional, brownfield repos only)
+### Route Selection & Dispatch
 
-After the Init Guard completes and before the first `/sdd-new` or `/sdd-explore` of a session, check `openspec/config.yaml` for `baseline.status`. If the value is `pending` or `partial`, surface the Baseline Advisory to the user via `vscode/askQuestions` before any proposal or exploration work starts.
+After the Init Guard completes and before launching any SDD phase, select the route for this change using the declarative routing table in `openspec/config.yaml`.
 
-**Advisory content MUST cover all four points:**
+#### Step 1: Parse and Validate the Routing Table
 
-1. **What `/sdd-baseline` is** — it seeds `openspec/specs/` with baseline specs of existing behavior, in one-domain batches, so each domain's current behavior becomes the source of truth before any SDD change runs against it.
-2. **Gains** — changes become grounded in verified baseline specs; archive merges are accurate because the starting state is documented.
-3. **Costs** — each domain requires a dedicated exploration batch; this is a token spend and takes multiple sessions to complete; it is resumable across sessions.
-4. **Skip-rule loss warning** — domains that evolve through archived SDD changes before baseline runs permanently lose their current-state baseline spec, because `sdd-archive` will own those spec files and `sdd-baseline` will skip them.
+1. Read `openspec/config.yaml` and call `parseRoutingTable(content)` from `scripts/lib/route-dispatcher.js` to extract the `routing:` block.
+2. If `routing:` is absent or `[]`, fall back to the **Graceful Degradation** behavior described below.
+3. Execute `validateRouteTable(routes)` and log any errors.
+   Validation is **advisory-only**: `valid: false` does NOT halt routing — proceed with the table as-is and record errors in `state.yaml`.
 
-**Routing on response:**
+#### Step 2: Classify the Change
 
-- **User consents** → launch the `sdd-baseline` executor. Relaunch it from the first pending domain while it returns `partial`, until it returns `success` or the user defers.
-- **User declines** → proceed with the originally requested command. Suppress the advisory for the remainder of the session.
-- **`baseline.status: done`** → advisory is silent; proceed normally.
+Call `classifyChange(ctx)` where `ctx` carries the current context signals (`classification`, `project.status`, `baseline.status`, `artifact_store.backend`).
 
-The advisory is advisory-only. It MUST NOT block other SDD commands and MUST NOT auto-run `sdd-baseline` without explicit user consent.
+- `confidence: 'deterministic'` → proceed to Step 3 without asking the user.
+- `confidence: 'advisory'` → use `vscode/askQuestions` to ask the user to clarify intent **before** committing to a route. Do NOT auto-route on advisory signals.
 
-Advisory question shape:
+#### Step 3: Evaluate Conditions — First Match Wins
 
-```json
-{
-  "questions": [
-    {
-      "header": "Baseline Advisory",
-      "question": "Your repo has no baseline specs yet. Running /sdd-baseline seeds openspec/specs/ with current-behavior specs for each domain before you start SDD changes. Continue with baseline first, or skip and proceed with your request?",
-      "options": [
-        {
-          "label": "Run /sdd-baseline now",
-          "description": "Seed baseline specs first. Resumable across sessions.",
-          "recommended": true
-        },
-        {
-          "label": "Skip baseline",
-          "description": "Proceed with the requested command. Domains evolved before baseline runs permanently lose their current-state seed."
-        }
-      ],
-      "allowFreeformInput": false
-    }
-  ]
-}
+Walk the route table top-to-bottom. The **first** route whose `conditions` are all satisfied by the current context is selected. Stop evaluating after the first match.
+
+#### Step 4: Record the Route Decision in `state.yaml`
+
+**Before launching any phase**, write the following block to `openspec/changes/{change-name}/state.yaml`:
+
+```yaml
+route:
+  intended_route: {selected-route-name}
+  actual_route: {selected-route-name}   # differs from intended only on explicit user override
+  route_rationale: "{which condition matched and why}"
+  validated: {true|false}
+  validation_errors: []                 # non-empty when validateRouteTable returned errors
 ```
 
-Add `sdd-baseline` to the `agents` list in the agent frontmatter when using this advisory.
+These fields MUST be present before the first phase of the selected route executes.
+
+#### Step 5: Execute the Route
+
+Run the route's `phases` in declared order. Run each `gate` at its defined hook point:
+
+| Gate | Hook point |
+|------|-----------|
+| `impact` | Before proposal (federated route) |
+| `brownfield-advisory` | Before any phase (brownfield route, first gate) |
+| `clarify` | After `sdd-spec`, before `sdd-design` |
+| `review-workload` | After `sdd-tasks` |
+| `4r-review-gate` | After `sdd-apply` (debug route); after successful `sdd-verify` (standard route) |
+
+#### Graceful Degradation (routing: absent or empty)
+
+When `routing:` is absent from `openspec/config.yaml` or resolves to `[]`, the orchestrator MUST fall back to its legacy guard sequence without error:
+
+1. **Foundation check**: if `project.status: empty`, `architecture: none-detected`, or the user asks to build from scratch → run `sdd-foundation` first.
+2. **Change Classification**: classify the change and select `lite` (trivial/small) or standard SDD (normal/high-risk).
+3. No `route:` block is written to `state.yaml` in fallback mode.
 
 ### Workspace Federation (optional, multi-repo)
 
@@ -234,38 +245,6 @@ cross-cutting proposal/design and a `federation.yaml` linking member slices. Use
 `sdd-workspace` (`init`/`status`/`impact`) as the front door; add it to the `agents` list
 when operating a federated workspace.
 
-### Foundation Guard (MANDATORY FOR EMPTY PROJECTS)
-
-After the init guard, read `openspec/config.yaml`. If it says `project.status: empty`, `architecture: none-detected`, stack arrays are empty, or the user asks to define/build a project from scratch, run `sdd-foundation` before `/sdd-new`, `/sdd-ff`, or `/sdd-onboard`.
-
-`sdd-foundation` is a guided pre-SDD phase:
-- It asks one blocking question at a time and may return `blocked` with `next_question`.
-- It creates or updates `docs/product/`, `docs/architecture/`, `docs/references/`, `docs/roadmap.md`, and `openspec/config.yaml`.
-- It does NOT create application code or package manifests.
-
-If `sdd-foundation` returns `blocked` with `next_question`, convert `next_question` into a `vscode/askQuestions` call and wait for the user's answer.
-
-After receiving the answer:
-1. Persist the answer in the orchestration context for this session.
-2. Relaunch `sdd-foundation` with the answer and the same OpenSpec artifact paths.
-3. Do not continue into proposal/spec/design until `sdd-foundation` returns `success` or `partial` with enough foundation context.
-
-If `next_question` is plain text, ask it as a single freeform question.
-If `next_question` contains options, map them to `options`.
-
-Foundation plain-text question shape:
-
-```json
-{
-  "questions": [
-    {
-      "header": "Foundation",
-      "question": "<next_question>",
-      "allowFreeformInput": true
-    }
-  ]
-}
-```
 
 ### Execution Mode
 
