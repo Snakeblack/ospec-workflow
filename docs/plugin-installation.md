@@ -78,6 +78,9 @@ node scripts/configure/claude-marketplace.js
 # GitHub Copilot CLI / coding agent
 node scripts/configure/cli.js --target github-copilot --out dist/github-copilot
 
+# opencode
+node scripts/configure/cli.js --target opencode --out dist/opencode
+
 # Omitir validacion para inspeccion rapida
 node scripts/configure/cli.js --target claude --out dist/claude --no-validate
 ```
@@ -88,6 +91,7 @@ node scripts/configure/cli.js --target claude --out dist/claude --no-validate
 | `claude` | Renombra `*.agent.md`/`*.prompt.md` a `*.md`, reestructura el manifiesto y los hooks, sustituye nombres de herramientas, reescribe variables de comando (`${input}` -> `$ARGUMENTS`; `${input:name}` -> `$name` + `arguments:`), incorpora `rules/` y emite el orquestador como **skill** (`skills/sdd-orchestrator/SKILL.md`). Genera `dist/claude/`, pensado para carga temporal con `claude --plugin-dir`. | `claude plugin validate --strict dist/claude` |
 | `claude-marketplace` | Envuelve el arbol Claude en un marketplace local instalable. Genera `dist/claude-marketplace/.claude-plugin/marketplace.json` y coloca el plugin en `dist/claude-marketplace/plugins/ospec-workflow/`. | `claude plugin validate dist/claude-marketplace` y `claude plugin validate --strict dist/claude-marketplace/plugins/ospec-workflow` |
 | `github-copilot` | Genera layout `.github/` con instrucciones, prompts, chatmodes, MCP y runtime de hooks para GitHub Copilot CLI / coding agent. | `scripts/configure/validate-github-copilot.js`, ejecutado por la validacion de perfiles y por `node scripts/check.js`. |
+| `opencode` | Genera layout `.opencode/` (`agents/`, `commands/`, `instructions/`, `plugins/ospec.js`) mas `opencode.json` (schema + `mcp` + `instructions`) para opencode. Sin hooks de shell: el runtime se puentea con un plugin JS. | `scripts/configure/validate-opencode.js`, ejecutado por la validacion de perfiles y por `node scripts/check.js`. |
 
 Cada arbol generado es **autocontenido**: el generador sigue los `require` desde los hooks e incluye su runtime (`scripts/hooks/` + sus dependencias de `scripts/lib/`), sin tests ni el propio generador.
 
@@ -108,6 +112,7 @@ En Claude Code hay dos salidas distintas:
 - **Claude Code temporal**: genera `dist/claude/` y cargalo con `claude --plugin-dir dist/claude`. Esta via solo aplica a la sesion actual.
 - **Claude Code persistente**: genera `dist/claude-marketplace/`, registra ese marketplace local y despues instala `ospec-workflow@ospec-tools`.
 - **GitHub Copilot CLI / coding agent**: genera `dist/github-copilot/` y copia su contenido (`.github/`, `.mcp.json` y `scripts/`) en la raiz del repo destino.
+- **opencode**: genera `dist/opencode/` y copia su contenido (`.opencode/`, `opencode.json`, `skills/` y `scripts/`) en la raiz del repo destino. opencode descubre agentes/comandos/instrucciones bajo `.opencode/` y lee `opencode.json` (MCP + instructions); el plugin `.opencode/plugins/ospec.js` puentea el runtime de hooks.
 
 ### Claude Code: prueba temporal de una sesion
 

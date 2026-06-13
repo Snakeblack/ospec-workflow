@@ -15,6 +15,7 @@ const PROFILES = {
   claude: require("../lib/target-profiles/claude.js"),
   vscode: require("../lib/target-profiles/vscode.js"),
   "github-copilot": require("../lib/target-profiles/github-copilot.js"),
+  opencode: require("../lib/target-profiles/opencode.js"),
 };
 
 // Source roots that make up a plugin tree. Files are read into the

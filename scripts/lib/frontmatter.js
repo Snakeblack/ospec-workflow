@@ -119,6 +119,19 @@ function setArray(frontmatter, key, values) {
   });
 }
 
+// Emit a nested YAML block map, e.g. setBlockMap(fm, "tools", [["read", true],
+// ["bash", true]]) -> "tools:\n  read: true\n  bash: true". Keys are plain
+// tokens (tool names); values are serialized as-is (booleans/strings).
+function setBlockMap(frontmatter, key, entries) {
+  const pairs = Array.isArray(entries) ? entries : Object.entries(entries);
+  const rawLines = [`${key}:`, ...pairs.map(([k, v]) => `  ${k}: ${v}`)];
+  return upsert(frontmatter, key, {
+    key,
+    value: Object.fromEntries(pairs),
+    rawLines,
+  });
+}
+
 module.exports = {
   parse,
   serialize,
@@ -126,4 +139,5 @@ module.exports = {
   stripKeys,
   setScalar,
   setArray,
+  setBlockMap,
 };

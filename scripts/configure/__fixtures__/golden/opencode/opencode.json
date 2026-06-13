@@ -1,0 +1,24 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "io.github.upstash/context7": {
+      "type": "local",
+      "command": [
+        "npx",
+        "@upstash/context7-mcp@1.0.31"
+      ],
+      "enabled": true
+    },
+    "microsoft/markitdown": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "markitdown-mcp@0.0.1a4"
+      ],
+      "enabled": true
+    }
+  },
+  "instructions": [
+    ".opencode/instructions/*.md"
+  ]
+}

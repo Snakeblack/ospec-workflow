@@ -7,6 +7,8 @@
 # Claude uses aliases (auto-track the latest model). VS Code uses
 # "Name (vendor)" strings; an array is a fallback order. The github-copilot
 # target injects no model (agents inherit the session model), so it has no column.
+# opencode uses "provider/model" slugs (verified against models.dev); edit these
+# as models.dev publishes newer Claude releases.
 
 agents:
   sdd-design: premium
@@ -29,9 +31,12 @@ tiers:
   premium:
     claude: opus
     vscode: ["Claude Opus 4.8 (copilot)", "GPT-5.5 (copilot)"]
+    opencode: anthropic/claude-opus-4-8
   default:
     claude: sonnet
     vscode: ["Claude Sonnet 4.6 (copilot)", "GPT-5.3-Codex (copilot)"]
+    opencode: anthropic/claude-sonnet-4-6
   cheap:
     claude: haiku
     vscode: ["Qwen 3.6 MSC1 (customendpoint)", "GPT-5.4-mini (copilot)"]
+    opencode: anthropic/claude-haiku-4-6

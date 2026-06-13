@@ -8,6 +8,21 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+### Added
+- `opencode` (opencode.ai / SST) target for the multi-target generator. Transforms
+  the canonical source into opencode's native layout, verified against the official
+  docs: agents to `.opencode/agents/*.md` (`mode: primary|subagent`, `tools:` as a
+  map, `provider/model` slugs), commands to `.opencode/commands/*.md` (keep `agent:`
+  routing; `${input:name}` → positional `$1`/`$2`, `${input}` → `$ARGUMENTS`), rules
+  to `.opencode/instructions/*.md` referenced from `opencode.json`, and MCP folded
+  into `opencode.json` (`mcp` with `type: local|remote`; VS Code `${input:NAME}`/
+  `${NAME}` placeholders in env/header values rewritten to opencode's `{env:NAME}`).
+  Because opencode has no
+  shell-command hooks, the SDD runtime (`session-start` / `pre-tool-use`) is bridged
+  through a JS plugin at `.opencode/plugins/ospec.js`. Gated by a dedicated Node
+  validator (`scripts/configure/validate-opencode.js`) plus golden fixtures, wired
+  into `node scripts/check.js`. Adds the `opencode` column to `models.yaml`.
+
 ## [2.3.0] - 2026-06-12
 
 ### Fixed

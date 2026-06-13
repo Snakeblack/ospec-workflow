@@ -6,7 +6,7 @@
 // scripts/configure/cli.js. Composes the per-concern transforms below, driven
 // entirely by the declarative target profile. See design.md / specs/target-generator.
 
-const { parse, serialize, getField, stripKeys, setScalar, setArray } = require("./frontmatter.js");
+const { parse, serialize, getField, stripKeys, setScalar, setArray, setBlockMap } = require("./frontmatter.js");
 const { resolveModel, OMIT } = require("./model-resolver.js");
 
 // A file collection is an array of { path, content:string }.
@@ -21,6 +21,12 @@ function transform({ files, profile, models }) {
       continue; // dropped (e.g. rules inlined elsewhere)
     }
     out.push(handled);
+  }
+
+  // Files synthesized from collected source data (not 1:1 with any input): the
+  // opencode.json config (schema + mcp + instructions) and the plugin shim.
+  for (const synthesized of synthesizeFiles(files, profile)) {
+    out.push(synthesized);
   }
 
   // Sort by path so the output is deterministic regardless of the input's
@@ -55,6 +61,9 @@ function handleFile(file, profile, models, rulesContent) {
     }
     if (profile.rules && profile.rules.strategy === "to-instructions") {
       return toInstructionFile(file, profile);
+    }
+    if (profile.rules && profile.rules.strategy === "to-instructions-config") {
+      return toInstructionConfigFile(file, profile);
     }
     return { path, content: file.content };
   }
@@ -234,8 +243,20 @@ function handleAgent(file, profile, models) {
   const nameField = getField(frontmatter, "name");
   const agentName = nameField ? nameField.value : undefined;
 
+  // Capture mode from user-invocable before it is stripped: the user-invocable
+  // entry agent becomes a `primary` agent, every worker a `subagent`.
+  let mode;
+  if (profile.agentMode) {
+    const invocable = getField(frontmatter, "user-invocable");
+    mode = invocable && invocable.value === "false" ? profile.agentMode.subagent : profile.agentMode.primary;
+  }
+
   if (profile.frontmatter && profile.frontmatter.stripKeys) {
     frontmatter = stripKeys(frontmatter, profile.frontmatter.stripKeys);
+  }
+
+  if (mode) {
+    frontmatter = setScalar(frontmatter, "mode", mode);
   }
 
   if (profile.setAgentFrontmatter) {
@@ -245,7 +266,9 @@ function handleAgent(file, profile, models) {
   }
 
   if (profile.toolMap) {
-    frontmatter = mapToolsFrontmatter(frontmatter, profile.toolMap, profile.dropTools);
+    frontmatter = profile.toolsAsMap
+      ? mapToolsFrontmatterAsMap(frontmatter, profile.toolMap, profile.dropTools)
+      : mapToolsFrontmatter(frontmatter, profile.toolMap, profile.dropTools);
     body = substituteProse(body, profile.toolMap);
   }
 
@@ -285,7 +308,20 @@ function handleCommand(file, profile) {
     body = substituteProse(body, profile.toolMap);
   }
 
-  if (profile.commandVars) {
+  if (profile.commandVars && profile.commandVars.style === "positional") {
+    // opencode has no named arguments: map each distinct ${input:name} to a
+    // positional $1/$2 (by first appearance) and bare ${input} to $ARGUMENTS.
+    const order = [];
+    body = body.replace(/\$\{input:([A-Za-z0-9_-]+)\}/g, (_match, name) => {
+      let index = order.indexOf(name);
+      if (index === -1) {
+        order.push(name);
+        index = order.length - 1;
+      }
+      return "$" + (index + 1);
+    });
+    body = body.replace(/\$\{input\}/g, "$ARGUMENTS");
+  } else if (profile.commandVars) {
     const named = [];
     body = body.replace(/\$\{input:([A-Za-z0-9_-]+)\}/g, (_match, name) => {
       named.push(name);
@@ -339,6 +375,35 @@ function mapToolsFrontmatter(frontmatter, toolMap, dropTools) {
   return setArray(frontmatter, "tools", mapped);
 }
 
+// Like mapToolsFrontmatter, but emits the opencode `tools:` MAP shape (tool ->
+// true) instead of an array. Abstract tools expand to their built-in name(s);
+// duplicates (e.g. read -> read appearing twice) collapse to one entry.
+function mapToolsFrontmatterAsMap(frontmatter, toolMap, dropTools) {
+  const field = getField(frontmatter, "tools");
+  if (!field || !Array.isArray(field.value)) {
+    return frontmatter;
+  }
+
+  const drop = new Set(dropTools || []);
+  const seen = new Set();
+  const entries = [];
+  for (const tool of field.value) {
+    if (drop.has(tool)) {
+      continue;
+    }
+    const replacement = toolMap[tool];
+    const names = replacement === undefined ? [tool] : Array.isArray(replacement) ? replacement : [replacement];
+    for (const name of names) {
+      if (!seen.has(name)) {
+        seen.add(name);
+        entries.push([name, true]);
+      }
+    }
+  }
+
+  return setBlockMap(frontmatter, "tools", entries);
+}
+
 // rules/<name>.instructions.md -> <profile.rules.dir>/<name>.instructions.md, made
 // always-on with an applyTo glob (the .github/instructions/ format).
 function toInstructionFile(file, profile) {
@@ -349,6 +414,104 @@ function toInstructionFile(file, profile) {
   frontmatter = setScalar(frontmatter, "applyTo", `"${profile.rules.applyTo}"`);
   const base = file.path.slice("rules/".length);
   return { path: `${profile.rules.dir}/${base}`, content: serialize({ frontmatter, body }) };
+}
+
+// rules/<name>.instructions.md -> <profile.rules.dir>/<name>.instructions.md as
+// PLAIN markdown (frontmatter dropped): opencode injects the whole file as
+// instruction text via opencode.json "instructions", so VS Code-only frontmatter
+// (applyTo/description) would just be noise. The file is wired in by
+// synthesizeConfig's instructions glob.
+function toInstructionConfigFile(file, profile) {
+  let { body } = parse(file.content);
+  if (profile.toolMap) {
+    body = substituteProse(body, profile.toolMap);
+  }
+  const base = file.path.slice("rules/".length);
+  return { path: `${profile.rules.dir}/${base}`, content: body.replace(/^\s+/, "") };
+}
+
+// --- synthesized files (opencode.json + plugin) ----------------------------
+
+// Files built from collected source data rather than mapped 1:1 from an input.
+function synthesizeFiles(files, profile) {
+  const out = [];
+
+  if (profile.config) {
+    out.push(synthesizeConfig(files, profile));
+  }
+  if (profile.plugin) {
+    out.push({ path: profile.plugin.location, content: profile.plugin.source });
+  }
+
+  return out;
+}
+
+// Build the root opencode.json: $schema + mcp (transformed from the source
+// .mcp.json) + instructions glob. opencode does NOT read .mcp.json, so its server
+// definitions are folded in here under the opencode `mcp` schema.
+function synthesizeConfig(files, profile) {
+  const config = { $schema: profile.config.schema };
+
+  if (profile.config.mcpFrom) {
+    const mcpFile = files.find((file) => file.path === profile.config.mcpFrom);
+    if (mcpFile) {
+      const servers = transformMcpServers(JSON.parse(mcpFile.content).mcpServers);
+      if (Object.keys(servers).length > 0) {
+        config.mcp = servers;
+      }
+    }
+  }
+
+  if (profile.config.instructionsGlob && files.some((file) => isRulesFile(file.path))) {
+    config.instructions = [profile.config.instructionsGlob];
+  }
+
+  return { path: profile.config.location, content: JSON.stringify(config, null, 2) };
+}
+
+// .mcp.json {mcpServers:{name:{command,args,env}|{url,headers}}} -> opencode `mcp`
+// {name:{type:"local",command:[cmd,...args],environment,enabled}} or remote.
+function transformMcpServers(mcpServers) {
+  const out = {};
+  for (const [name, server] of Object.entries(mcpServers || {})) {
+    if (!server || typeof server !== "object") {
+      continue;
+    }
+    if (typeof server.url === "string" && server.url) {
+      const remote = { type: "remote", url: server.url, enabled: true };
+      if (server.headers && Object.keys(server.headers).length > 0) {
+        remote.headers = mapVarValues(server.headers);
+      }
+      out[name] = remote;
+    } else if (typeof server.command === "string" && server.command) {
+      const command = [server.command, ...(Array.isArray(server.args) ? server.args : [])];
+      const local = { type: "local", command, enabled: true };
+      if (server.env && Object.keys(server.env).length > 0) {
+        local.environment = mapVarValues(server.env);
+      }
+      out[name] = local;
+    }
+  }
+  return out;
+}
+
+// Rewrite VS Code-style placeholders in config string values to opencode's
+// {env:NAME} interpolation: ${input:NAME}, ${env:NAME}, and bare ${NAME} all
+// become {env:NAME}. opencode has no input-prompt placeholder, so a secret that
+// VS Code would prompt for is sourced from the environment instead.
+function toOpencodeVars(value) {
+  if (typeof value !== "string") {
+    return value;
+  }
+  return value.replace(/\$\{(?:input:|env:)?([A-Za-z_][A-Za-z0-9_]*)\}/g, "{env:$1}");
+}
+
+function mapVarValues(obj) {
+  const out = {};
+  for (const [key, value] of Object.entries(obj)) {
+    out[key] = toOpencodeVars(value);
+  }
+  return out;
 }
 
 function escapeRegExp(value) {
