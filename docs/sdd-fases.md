@@ -26,6 +26,7 @@ Cuando una fase necesita decision del usuario, devuelve `status: blocked` con `q
 | `sdd-explore` | Codigo, specs y artefactos relevantes cuando hacen falta. | `exploration.md` si hay cambio nombrado. | Estado actual, opciones, riesgos y recomendacion. |
 | `sdd-propose` | Exploracion, specs existentes, peticion del usuario. | `proposal.md` o `proposal-lite.md`. | Intencion, alcance, capacidades, riesgos y rollback. |
 | `sdd-spec` | `proposal.md`, specs principales existentes. | `specs/{domain}/spec.md` dentro del cambio. | Requisitos y escenarios testables sin tocar specs principales. |
+| `sdd-clarify` | `proposal.md`, specs del cambio (change-local), specs principales (contexto). | `specs/{domain}/spec.md` dentro del cambio (`## Clarifications`). | Ambiguedades materiales resueltas; specs ancladas antes del diseno. |
 | `sdd-design` | Propuesta, specs del cambio si existen y codigo real. | `design.md`. | Enfoque tecnico en modo `design-from-proposal` o `design-after-spec`. |
 | `sdd-tasks` | Specs + diseno o `proposal-lite.md`. | `tasks.md`. | Tareas pequenas, reconciliadas y con forecast de review. |
 | `sdd-apply` | Tasks, specs + diseno o `proposal-lite.md`, progreso previo. | Codigo, `tasks.md`, `apply-progress.md`. | Implementacion trazable con estados reales. |
@@ -88,6 +89,20 @@ Si una capacidad ya existe, escribe delta specs con secciones ADDED, MODIFIED y 
 Las capacidades nuevas tampoco se escriben directamente en `openspec/specs/`: primero viven como specs change-local completas dentro de `openspec/changes/{change-name}/specs/...`. `sdd-archive` es la unica fase que las promociona a spec principal.
 
 Regla clave: specs dicen QUE debe pasar, no COMO implementarlo.
+
+## `sdd-clarify`
+
+Es el gate de ambiguedad entre `sdd-spec` y `sdd-design`. Analiza las specs change-local en busca de lagunas materiales — aquellas cuya respuesta cambiaria la arquitectura, el modelo de datos, el desglose de tareas, los tests automatizados, los flujos UX o el alcance de compliance — y las resuelve antes de que el diseno las amplifique.
+
+**Fast-path (cero preguntas)**: si las specs tienen actores, criterios de aceptacion y sin texto placeholder ni marcadores de decision sin resolver, retorna `status: success` inmediatamente con `"No critical ambiguities detected"`. No hay interaccion con el usuario.
+
+**Gate de preguntas (ambiguedades detectadas)**: genera como maximo 5 preguntas agrupadas en un unico `question_gate`. El orquestador las presenta al usuario en una sola llamada a `vscode/askQuestions` y relanza `sdd-clarify` con todas las respuestas en un solo ciclo. Cada pregunta es de tipo multiple-choice (2-5 opciones, `multiSelect: false`) o respuesta corta (`allowFreeformInput: true`, respuesta esperada de 5 palabras o menos). Las ambiguedades que superen el cap de 5 se listan en `risks` como `follow-up required`.
+
+**Encoding de respuestas**: cada respuesta aceptada se codifica inline en el `spec.md` correspondiente mediante dos operaciones: (1) se agrega un bullet `- Q: {pregunta} → A: {respuesta}` bajo `## Clarifications / ### Session YYYY-MM-DD`; (2) se edita la seccion normativa del requisito que abordaba la pregunta y se elimina cualquier clausula contradictoria. Las entradas `Q: … → A: …` se deduplicam antes de escribir.
+
+**Terminacion anticipada**: si el usuario responde con `stop`, `done` o `skip` (deteccion keyword-exact, case-insensitive, palabra completa), la fase detiene el interrogatorio y retorna `status: success` con cobertura parcial; las preguntas no respondidas van a `risks` como `deferred by user`.
+
+**Alcance de escritura**: es de solo lectura para todo archivo excepto las specs change-local bajo `openspec/changes/{change-name}/specs/`. No crea secciones, requisitos ni escenarios que no existieran en la spec original. Las transiciones de estado en `state.yaml` (`phases.clarify.status: pending | blocked | done | skipped`) son responsabilidad del orquestador.
 
 ## `sdd-design`
 
