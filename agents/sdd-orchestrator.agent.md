@@ -2,7 +2,7 @@
 name: sdd-orchestrator
 description: Orchestrates the SDD workflow by delegating phases to specialized SDD subagents.
 tools: ['read', 'search', 'edit', 'execute', 'agent', 'vscode/askQuestions']
-agents: ['sdd-init', 'sdd-foundation', 'sdd-baseline', 'sdd-workspace', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-onboard']
+agents: ['sdd-init', 'sdd-foundation', 'sdd-baseline', 'sdd-workspace', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-clarify', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-onboard']
 # modelo intencionalmente omitido.
 # Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
 user-invocable: true
@@ -338,10 +338,7 @@ Delivery strategy question shape:
 
 ### Dependency Graph
 ```
-proposal -> specs --> tasks -> apply -> verify -> archive
-             ^
-             |
-           design
+proposal -> specs --> clarify --> design --> tasks -> apply -> verify -> archive
 ```
 
 ### Result Contract
@@ -468,6 +465,7 @@ Each phase has explicit read/write rules:
 | `sdd-explore` | codebase/specs context as needed | `exploration.md` |
 | `sdd-propose` | exploration (optional) | `proposal` or `proposal-lite` |
 | `sdd-spec` | proposal (required) | `spec` |
+| `sdd-clarify` | proposal + change-local `specs/**/spec.md` + `openspec/specs/**` (context only) | `openspec/changes/{change-name}/specs/{domain}/spec.md` (`## Clarifications` append + normative edits) |
 | `sdd-design` | proposal + change-local specs (when present) | `design` |
 | `sdd-tasks` | spec + design (required) or `proposal-lite` in lite mode | `tasks` |
 | `sdd-apply` | tasks + spec + design + **apply-progress (if exists)**, or `proposal-lite` in lite mode | `apply-progress` |
@@ -476,6 +474,16 @@ Each phase has explicit read/write rules:
 
 For phases with required dependencies, sub-agents read directly from OpenSpec artifact paths. The orchestrator passes artifact file paths, not full content.
 For persisted continuation, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the canonical state. Never infer current phase from conversation history when these files exist.
+
+#### sdd-clarify Routing (MANDATORY after sdd-spec success)
+
+After `sdd-spec` returns `status: success`, launch `sdd-clarify` before `sdd-design`:
+
+1. **On `status: success`**: record `phases.clarify.status: done` and `phases.clarify.questions_asked: {N}` in `state.yaml`; proceed to `sdd-design`.
+2. **On `status: blocked` with `question_gate`**: call `vscode/askQuestions` with the `question_gate` payload; wait for all answers; relaunch `sdd-clarify` with the answers; record `state.yaml` `status: blocked` and `blocking_questions` while waiting. On relaunch success, go to step 1.
+3. **Skip detection (pre-launch)**: if the user signals intent to skip clarification (e.g., "skip clarify", "no clarification needed"), set `phases.clarify.status: skipped` in `state.yaml` and route directly to `sdd-design` without launching `sdd-clarify`.
+
+Valid values for `phases.clarify.status`: `pending | blocked | done | skipped`.
 
 #### Strict TDD Forwarding (MANDATORY)
 

@@ -129,3 +129,34 @@ test("real repo: no foreign vscode/ namespace survives in the claude tree", (t) 
     assert.doesNotMatch(text, /vscode\//, `vscode/ namespace residue in ${file}`);
   }
 });
+
+test("real repo: sdd-clarify agent propagates to all four targets", (t) => {
+  const targetPaths = {
+    claude: "agents/sdd-clarify.md",
+    vscode: "agents/sdd-clarify.agent.md",
+    "github-copilot": ".github/agents/sdd-clarify.agent.md",
+    opencode: ".opencode/agents/sdd-clarify.md",
+  };
+
+  for (const [target, expectedPath] of Object.entries(targetPaths)) {
+    const out = tmpOut(t);
+    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    assert.ok(
+      fs.existsSync(path.join(out, expectedPath)),
+      `sdd-clarify agent missing from ${target} output at ${expectedPath}`
+    );
+  }
+});
+
+test("real repo: sdd-clarify skill propagates to opencode and github-copilot", (t) => {
+  const skillRel = "skills/sdd-clarify/SKILL.md";
+
+  for (const target of ["opencode", "github-copilot"]) {
+    const out = tmpOut(t);
+    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    assert.ok(
+      fs.existsSync(path.join(out, skillRel)),
+      `sdd-clarify SKILL.md missing from ${target} output`
+    );
+  }
+});
