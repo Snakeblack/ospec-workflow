@@ -317,7 +317,7 @@ Delivery strategy question shape:
 
 ### Dependency Graph
 ```
-proposal -> specs --> clarify --> design --> tasks -> apply -> verify -> archive
+proposal -> specs --> [clarify?] --> design --> tasks -> apply -> verify -> archive
 ```
 
 ### Result Contract
@@ -456,11 +456,25 @@ For persisted continuation, treat `openspec/changes/{change-name}/state.yaml` pl
 
 #### sdd-clarify Routing (MANDATORY after sdd-spec success)
 
-After `sdd-spec` returns `status: success`, launch `sdd-clarify` before `sdd-design`:
+After `sdd-spec` returns `status: success`, evaluate the clarify gate before `sdd-design`.
+
+**Gate SKIP — all three conditions must hold simultaneously:**
+- Active route is `lite`; AND
+- Change classification is `trivial` or `small`; AND
+- `sdd-spec` did NOT return `residual_ambiguity: true`.
+
+When all three hold: set `phases.clarify.status: skipped` in `state.yaml` and route directly to `sdd-design` without launching `sdd-clarify`.
+
+**Gate RUNS when ANY of the following is true:**
+- The active route is `standard`, `brownfield`, `federated`, or `foundation`; OR
+- Change classification is `normal` or `high-risk`; OR
+- `sdd-spec` returned `residual_ambiguity: true` (overrides the lite-route skip rule regardless of classification).
+
+When the gate runs:
 
 1. **On `status: success`**: record `phases.clarify.status: done` and `phases.clarify.questions_asked: {N}` in `state.yaml`; proceed to `sdd-design`.
 2. **On `status: blocked` with `question_gate`**: call `vscode/askQuestions` with the `question_gate` payload; wait for all answers; relaunch `sdd-clarify` with the answers; record `state.yaml` `status: blocked` and `blocking_questions` while waiting. On relaunch success, go to step 1.
-3. **Skip detection (pre-launch)**: if the user signals intent to skip clarification (e.g., "skip clarify", "no clarification needed"), set `phases.clarify.status: skipped` in `state.yaml` and route directly to `sdd-design` without launching `sdd-clarify`.
+3. **User-explicit skip (pre-launch)**: if the user signals intent to skip clarification (e.g., "skip clarify", "no clarification needed"), set `phases.clarify.status: skipped` in `state.yaml` and route directly to `sdd-design` without launching `sdd-clarify`.
 
 Valid values for `phases.clarify.status`: `pending | blocked | done | skipped`.
 

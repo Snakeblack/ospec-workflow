@@ -160,3 +160,21 @@ test("real repo: sdd-clarify skill propagates to opencode and github-copilot", (
     );
   }
 });
+
+test("real repo: orchestrator conditional clarify references residual_ambiguity", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "vscode", outDir: out, validate: false });
+
+  const orchestratorPath = path.join(out, "agents", "sdd-orchestrator.agent.md");
+  assert.ok(
+    fs.existsSync(orchestratorPath),
+    "sdd-orchestrator.agent.md missing from vscode output"
+  );
+
+  const text = fs.readFileSync(orchestratorPath, "utf8");
+  assert.match(
+    text,
+    /residual_ambiguity/,
+    "sdd-orchestrator must reference residual_ambiguity for conditional clarify gate"
+  );
+});
