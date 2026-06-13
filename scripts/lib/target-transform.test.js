@@ -7,6 +7,7 @@ const { transform } = require("./target-transform.js");
 const claude = require("./target-profiles/claude.js");
 const vscode = require("./target-profiles/vscode.js");
 const githubCopilot = require("./target-profiles/github-copilot.js");
+const opencode = require("./target-profiles/opencode.js");
 const { parse, getField } = require("./frontmatter.js");
 
 // ---------------------------------------------------------------------------
@@ -20,8 +21,8 @@ const MODELS = {
     _default: "default",
   },
   tiers: {
-    premium: { claude: "opus", vscode: ["Claude Opus 4.8 (copilot)"] },
-    default: { claude: "sonnet", vscode: ["Claude Sonnet 4.6 (copilot)"] },
+    premium: { claude: "opus", vscode: ["Claude Opus 4.8 (copilot)"], opencode: "anthropic/claude-opus-4-8" },
+    default: { claude: "sonnet", vscode: ["Claude Sonnet 4.6 (copilot)"], opencode: "anthropic/claude-sonnet-4-6" },
     cheap: { claude: "haiku" },
   },
 };
@@ -428,4 +429,113 @@ test("github-copilot does not mutate the input collection", () => {
   const before = JSON.stringify(input);
   transform({ files: input, profile: githubCopilot, models: MODELS });
   assert.equal(JSON.stringify(input), before);
+});
+
+// ---------------------------------------------------------------------------
+// Requirement: opencode target
+// ---------------------------------------------------------------------------
+
+test("opencode remaps agents/commands under .opencode/ as flat .md", () => {
+  const out = transform({ files: makeSource(), profile: opencode, models: MODELS });
+  assert.ok(find(out, ".opencode/agents/sdd-apply.md"), "agent under .opencode/agents");
+  assert.ok(find(out, ".opencode/commands/sdd-apply.md"), "command under .opencode/commands");
+  assert.equal(find(out, "agents/sdd-apply.agent.md"), undefined, "no source-path residue");
+});
+
+test("opencode emits the tools grant as a YAML map and expands abstract tools", () => {
+  const out = transform({ files: makeSource(), profile: opencode, models: MODELS });
+  const apply = find(out, ".opencode/agents/sdd-apply.md").content;
+  // read/search/edit/vscode/askQuestions -> read, grep, glob, edit, write, question
+  assert.match(apply, /tools:\n(?:\s{2}\w+: true\n)+/);
+  for (const tool of ["read", "grep", "glob", "edit", "write", "question"]) {
+    assert.match(apply, new RegExp(`\n {2}${tool}: true\n`), `tools map must enable ${tool}`);
+  }
+  assert.doesNotMatch(apply, /tools: \[/, "tools must be a map, not an array");
+});
+
+test("opencode derives mode from user-invocable (subagent worker vs primary entry)", () => {
+  const out = transform({ files: makeSource(), profile: opencode, models: MODELS });
+  assert.match(find(out, ".opencode/agents/sdd-apply.md").content, /\nmode: subagent\n/);
+  assert.match(find(out, ".opencode/agents/sdd-orchestrator.md").content, /\nmode: primary\n/);
+});
+
+test("opencode injects provider/model slugs by tier", () => {
+  const out = transform({ files: makeSource(), profile: opencode, models: MODELS });
+  assert.match(find(out, ".opencode/agents/sdd-orchestrator.md").content, /\nmodel: anthropic\/claude-opus-4-8\n/);
+  assert.match(find(out, ".opencode/agents/sdd-apply.md").content, /\nmodel: anthropic\/claude-sonnet-4-6\n/);
+});
+
+test("opencode commands keep agent routing, drop name, and use positional/$ARGUMENTS", () => {
+  const out = transform({ files: makeSource(), profile: opencode, models: MODELS });
+  const cmd = find(out, ".opencode/commands/sdd-apply.md").content;
+  assert.match(cmd, /\nagent: sdd-orchestrator\n/, "keep agent routing");
+  assert.doesNotMatch(cmd, /\nname:/, "drop name (filename is the id)");
+  assert.match(cmd, /\$1/, "named ${input:changeName} -> $1");
+  assert.match(cmd, /\$ARGUMENTS/, "bare ${input} -> $ARGUMENTS");
+  assert.doesNotMatch(cmd, /\$\{input/, "no VS Code input placeholders remain");
+});
+
+test("opencode synthesizes opencode.json with mcp (from .mcp.json) and instructions glob", () => {
+  const out = transform({ files: makeSource(), profile: opencode, models: MODELS });
+  const cfg = JSON.parse(find(out, "opencode.json").content);
+  assert.equal(cfg.$schema, "https://opencode.ai/config.json");
+  assert.deepEqual(cfg.mcp.context7, { type: "local", command: ["npx"], enabled: true });
+  assert.deepEqual(cfg.instructions, [".opencode/instructions/*.md"]);
+  assert.equal(find(out, ".mcp.json"), undefined, ".mcp.json is consumed, not shipped");
+});
+
+test("opencode rules become plain instruction files (frontmatter dropped)", () => {
+  const out = transform({ files: makeSource(), profile: opencode, models: MODELS });
+  const rule = find(out, ".opencode/instructions/sdd-openspec.instructions.md");
+  assert.ok(rule, "rule emitted under .opencode/instructions");
+  assert.doesNotMatch(rule.content, /^---/, "instruction file carries no frontmatter");
+  assert.match(rule.content, /^ALWAYS use OpenSpec/, "body preserved");
+});
+
+test("opencode emits the plugin shim and drops the shell hooks.json", () => {
+  const out = transform({ files: makeSource(), profile: opencode, models: MODELS });
+  const plugin = find(out, ".opencode/plugins/ospec.js");
+  assert.ok(plugin, "plugin shim emitted");
+  assert.match(plugin.content, /scripts\/hooks\/pre-tool-use\.js/);
+  assert.match(plugin.content, /scripts\/hooks\/session-start\.js/);
+  assert.equal(find(out, "hooks/hooks.json"), undefined, "shell hooks.json dropped");
+});
+
+test("opencode drops the Claude plugin manifest", () => {
+  const out = transform({ files: makeSource(), profile: opencode, models: MODELS });
+  assert.equal(find(out, ".claude-plugin/plugin.json"), undefined);
+});
+
+test("no vscode/ namespaced strings remain anywhere in an opencode tree", () => {
+  const out = transform({ files: makeSource(), profile: opencode, models: MODELS });
+  const all = out.files.map((f) => f.content).join("\n");
+  assert.doesNotMatch(all, /vscode\//);
+});
+
+test("opencode does not mutate the input collection", () => {
+  const input = makeSource();
+  const before = JSON.stringify(input);
+  transform({ files: input, profile: opencode, models: MODELS });
+  assert.equal(JSON.stringify(input), before);
+});
+
+test("opencode rewrites MCP env/header placeholders to {env:NAME}", () => {
+  const files = [
+    {
+      path: ".mcp.json",
+      content: JSON.stringify({
+        mcpServers: {
+          ctx: { type: "stdio", command: "npx", args: ["x"], env: { API_KEY: "${input:API_KEY}", BARE: "${BARE}" } },
+          remote: { url: "https://h/mcp", headers: { Authorization: "Bearer ${env:TOKEN}" } },
+        },
+      }),
+    },
+    { path: "rules/r.instructions.md", content: "---\nname: r\n---\n\nbody\n" },
+  ];
+  const out = transform({ files, profile: opencode, models: MODELS });
+  const cfg = JSON.parse(find(out, "opencode.json").content);
+  assert.equal(cfg.mcp.ctx.environment.API_KEY, "{env:API_KEY}");
+  assert.equal(cfg.mcp.ctx.environment.BARE, "{env:BARE}");
+  assert.equal(cfg.mcp.remote.headers.Authorization, "Bearer {env:TOKEN}");
+  assert.doesNotMatch(find(out, "opencode.json").content, /\$\{/, "no VS Code ${...} placeholders remain");
 });

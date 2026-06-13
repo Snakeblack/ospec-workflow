@@ -32,11 +32,11 @@ no escribe la clave `model:` y el host usa el modelo de la sesión.
 
 ### Tabla `tiers` → modelo por target
 
-| Tier | `claude` (alias) | `vscode` (orden de fallback) |
-| --- | --- | --- |
-| `premium` | `opus` | `Claude Opus 4.8 (copilot)`, `GPT-5.5 (copilot)` |
-| `default` | `sonnet` | `Claude Sonnet 4.6 (copilot)`, `GPT-5.3-Codex (copilot)` |
-| `cheap` | `haiku` | `Qwen 3.6 MSC1 (customendpoint)`, `GPT-5.4-mini (copilot)` |
+| Tier | `claude` (alias) | `vscode` (orden de fallback) | `opencode` (`provider/model`) |
+| --- | --- | --- | --- |
+| `premium` | `opus` | `Claude Opus 4.8 (copilot)`, `GPT-5.5 (copilot)` | `anthropic/claude-opus-4-8` |
+| `default` | `sonnet` | `Claude Sonnet 4.6 (copilot)`, `GPT-5.3-Codex (copilot)` | `anthropic/claude-sonnet-4-6` |
+| `cheap` | `haiku` | `Qwen 3.6 MSC1 (customendpoint)`, `GPT-5.4-mini (copilot)` | `anthropic/claude-haiku-4-6` |
 
 El target `github-copilot` no inyecta `model:` (el origen lo omite y no hay columna `github-copilot`
 en `tiers`): los agentes generados heredan el modelo de la sesión de Copilot.
@@ -53,6 +53,9 @@ serializa en el frontmatter:
   VS Code usa el primero disponible. Admite vendors como `copilot` y `customendpoint`.
 - **`github-copilot`**: no se escribe `model:` (OMIT); el agente hereda el modelo de la sesión de
   Copilot, evitando la sintaxis de modelo aún poco especificada de GitHub.
+- **`opencode`**: un slug `provider/model` (p.ej. `anthropic/claude-opus-4-8`) como escalar. Los IDs
+  exactos se verifican contra [models.dev](https://models.dev); edita la columna `opencode` de
+  `models.yaml` cuando models.dev publique versiones nuevas.
 
 ## Perfiles locales heredados
 

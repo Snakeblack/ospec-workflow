@@ -60,12 +60,14 @@ function main() {
     process.stdout.write("\n(note) claude CLI not found — generating the claude target without its validator.\n");
   }
 
-  // github-copilot always validates (local node validator); vscode is an identity
-  // transform with no validator; claude validates only when its CLI is installed.
+  // github-copilot and opencode always validate (local node validators); vscode is
+  // an identity transform with no validator; claude validates only when its CLI is
+  // installed.
   const targets = [
     { target: "claude", validate: claudeOk },
     { target: "vscode", validate: false },
     { target: "github-copilot", validate: true },
+    { target: "opencode", validate: true },
   ];
 
   for (const { target, validate } of targets) {

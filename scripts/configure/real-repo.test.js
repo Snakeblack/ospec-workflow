@@ -14,6 +14,7 @@ const test = require("node:test");
 
 const { runConfigure } = require("./cli.js");
 const { validate } = require("./validate-github-copilot.js");
+const { validate: validateOpencode } = require("./validate-opencode.js");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 
@@ -39,8 +40,8 @@ function walk(root, relDir = "", acc = []) {
   return acc;
 }
 
-test("real repo: all three targets generate non-empty trees", (t) => {
-  for (const target of ["claude", "vscode", "github-copilot"]) {
+test("real repo: all four targets generate non-empty trees", (t) => {
+  for (const target of ["claude", "vscode", "github-copilot", "opencode"]) {
     const out = tmpOut(t);
     const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
     assert.ok(result.files.length > 0, `${target} produced no files`);
@@ -54,6 +55,37 @@ test("real repo: github-copilot output passes its own validator", (t) => {
   const result = validate(out);
 
   assert.deepEqual(result.errors, [], `validator errors:\n${result.errors.join("\n")}`);
+});
+
+test("real repo: opencode output passes its own validator", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "opencode", outDir: out, validate: false });
+
+  const result = validateOpencode(out);
+
+  assert.deepEqual(result.errors, [], `validator errors:\n${result.errors.join("\n")}`);
+});
+
+test("real repo: opencode ships every source skill file the agents read by path", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "opencode", outDir: out, validate: false });
+
+  const sourceSkills = walk(ROOT, "skills").filter((rel) => rel.endsWith(".md"));
+  assert.ok(sourceSkills.length > 0, "source must contain skills to test");
+  for (const rel of sourceSkills) {
+    assert.ok(fs.existsSync(path.join(out, rel)), `skill dropped from opencode output: ${rel}`);
+  }
+});
+
+test("real repo: opencode plugin bridges to scripts that ship in the tree", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "opencode", outDir: out, validate: false });
+
+  const plugin = fs.readFileSync(path.join(out, ".opencode", "plugins", "ospec.js"), "utf8");
+  for (const rel of ["scripts/hooks/pre-tool-use.js", "scripts/hooks/session-start.js"]) {
+    assert.match(plugin, new RegExp(rel.replace(/\//g, "\\/")), `plugin must bridge ${rel}`);
+    assert.ok(fs.existsSync(path.join(out, rel)), `bridged script not shipped: ${rel}`);
+  }
 });
 
 test("real repo: github-copilot ships every source skill file", (t) => {

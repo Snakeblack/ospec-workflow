@@ -69,6 +69,14 @@ Genera el layout nativo para github:
 node scripts/configure/cli.js --target github-copilot --out dist/github-copilot
 ```
 
+### opencode
+
+Genera el layout nativo para opencode (`.opencode/` + `opencode.json`):
+
+```powershell
+node scripts/configure/cli.js --target opencode --out dist/opencode
+```
+
 Consulta la [guía de instalación](docs/plugin-installation.md) para instalación remota, desarrollo local, marketplace local de Claude Code y requisitos de confianza.
 
 ## Qué incluye
@@ -180,14 +188,16 @@ y validado en `dist/<target>/` sin tocar el origen:
 | `vscode` | Identidad canónica: VS Code carga el repositorio tal cual, sin generar `dist/`. |
 | `claude` | Árbol `.claude-plugin`: renombra archivos, reestructura manifiesto y hooks, sustituye herramientas (context-aware), reescribe variables de comando, incorpora `rules/` y emite el orquestador como **skill**. Gate: `claude plugin validate --strict` 0/0. |
 | `github-copilot` | Layout `.github/`: agentes a `.github/agents/*.agent.md` (`target: github-copilot`, `vscode/askQuestions`→`ask_user`), comandos a `.github/prompts/*.prompt.md`, reglas a `.github/instructions/*.instructions.md` (`applyTo: "**"`), hooks a `.github/hooks/hooks.json` (schema Copilot) y `.mcp.json` tal cual. Validado por `scripts/configure/validate-github-copilot.js` dentro del flujo de perfiles. |
+| `opencode` | Layout `.opencode/` + `opencode.json`: agentes a `.opencode/agents/*.md` (`mode: primary\|subagent`, `tools:` como **mapa**, modelo `provider/model`), comandos a `.opencode/commands/*.md` (conserva `agent:`, args `$1`/`$ARGUMENTS`), reglas a `.opencode/instructions/*.md` referenciadas por `instructions` en `opencode.json`, MCP plegado dentro de `opencode.json` (`mcp` con `type: local\|remote`) y, como opencode no tiene hooks de shell, el runtime se puentea con un plugin JS en `.opencode/plugins/ospec.js`. Validado por `scripts/configure/validate-opencode.js`. |
 
 ```powershell
 node scripts/configure/cli.js --target claude          --out dist/claude
 node scripts/configure/cli.js --target github-copilot  --out dist/github-copilot
+node scripts/configure/cli.js --target opencode        --out dist/opencode
 ```
 
 La transform es pura y testeada bajo Strict TDD; el CLI es la capa de IO con un gate de
-validación por target (golden fixtures, `claude plugin validate` para `claude` y validador GitHub Copilot). La selección de
+validación por target (golden fixtures, `claude plugin validate` para `claude` y validadores Node para GitHub Copilot y opencode). La selección de
 modelo se abstrae en tiers (`models.yaml`). Cada árbol generado es **autocontenido**: el generador
 sigue los `require` desde los hooks e incluye su runtime (`scripts/hooks/` + sus dependencias de
 `scripts/lib/`), sin tests ni el propio generador. Consulta [model-routing.md](docs/model-routing.md)
