@@ -601,28 +601,76 @@ test("classifyChange returns advisory confidence for empty context", () => {
 // Purity: no I/O or global mutation during any call
 // ---------------------------------------------------------------------------
 
-test("validateRoute executes without requiring fs or network (pure function)", () => {
-  // A pure function call on an arbitrary object should not throw
-  // and must not depend on filesystem state — confirmed by running
-  // with a deliberately malformed entry that exercises all branches.
-  const result = validateRoute({});
-
-  // We don't assert valid here, but the call must complete without I/O error
-  assert.ok(typeof result.valid === "boolean");
-  assert.ok(Array.isArray(result.errors));
+test("validateRoute does not mutate frozen input (input-immutability proof)", () => {
+  // Violation scenario: if validateRoute wrote to 'entry' (e.g. entry._cache = result,
+  // or entry.name = entry.name.trim()), Node.js strict-mode would throw
+  // TypeError: Cannot assign to read only property on a frozen object.
+  // assert.doesNotThrow therefore proves the function only reads its argument.
+  const frozenEntry = Object.freeze({
+    name: "probe",
+    classification: "normal",
+    conditions: Object.freeze({ "project.status": "active" }),
+    phases: Object.freeze(["sdd-apply"]),
+    gates: Object.freeze([]),
+    description: "immutability probe",
+  });
+  assert.doesNotThrow(() => validateRoute(frozenEntry));
+  // Must still produce correct output — freeze must not corrupt the result
+  const result = validateRoute(frozenEntry);
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.errors, []);
 });
 
-test("parseRoutingTable executes without filesystem access (pure string->object)", () => {
-  // Passing arbitrary string content must never attempt a file read
-  const routes = parseRoutingTable("not yaml at all\n");
+test("parseRoutingTable is deterministic and returns independent arrays on repeated calls (no global mutation)", () => {
+  // Capture global constant before any calls — if the function pushes to KNOWN_PHASES
+  // (global mutation), the final deepEqual will catch it.
+  const knownPhasesBefore = KNOWN_PHASES.slice();
 
-  assert.ok(Array.isArray(routes));
+  const yaml = [
+    "routing:",
+    "  - name: probe",
+    "    classification: normal",
+    "    conditions:",
+    "      project.status: active",
+    "    phases:",
+    "      - sdd-apply",
+    "    gates: []",
+    "    description: probe route",
+  ].join("\n");
+
+  const routes1 = parseRoutingTable(yaml);
+  const routes2 = parseRoutingTable(yaml);
+
+  // Determinism: identical inputs must yield identical outputs
+  assert.deepEqual(routes1, routes2);
+
+  // Output isolation: mutating routes1 must not corrupt routes2.
+  // Violation scenario: if parseRoutingTable returned a shared internal reference,
+  // routes1 === routes2 and this mutation would corrupt both — assert.equal would fail.
+  routes1[0].name = "mutated";
+  assert.equal(routes2[0].name, "probe");
+
+  // Global constants must be unchanged after both calls
+  assert.deepEqual(KNOWN_PHASES, knownPhasesBefore);
 });
 
-test("classifyChange executes with arbitrary plain object (no I/O required)", () => {
-  const result = classifyChange({ anything: "goes" });
+test("classifyChange does not mutate frozen context and is deterministic (purity proof)", () => {
+  // Violation scenario: if classifyChange wrote to ctx (e.g. ctx._route = 'standard')
+  // on a frozen object, Node.js strict-mode throws TypeError.
+  const frozenCtx = Object.freeze({ "project.status": "active" });
+  assert.doesNotThrow(() => classifyChange(frozenCtx));
 
-  assert.ok(typeof result.confidence === "string");
+  // Determinism: calling twice with identical frozen input must return equal outputs
+  const r1 = classifyChange(frozenCtx);
+  const r2 = classifyChange(frozenCtx);
+  assert.deepEqual(r1, r2);
+  assert.equal(r1.confidence, "deterministic");
+
+  // Output isolation: results must be independent objects, not a shared cached reference.
+  // Violation scenario: if the function cached and reused one result object (global mutation),
+  // r1 === r2 and mutating r1.confidence would corrupt r2 — the final assert would fail.
+  r1.confidence = "mutated";
+  assert.equal(r2.confidence, "deterministic");
 });
 
 // ---------------------------------------------------------------------------
