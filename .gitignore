@@ -1,3 +1,8 @@
+# Runtime session renders — derivados efímeros de openspec/changes/**/state.yaml,
+# regenerados por los hooks. La verdad versionada es state.yaml (en openspec/),
+# no estos renders. Mantener local para evitar trazabilidad stale en git.
+.ospec/
+
 # Build outputs and coverage
 dist/
 coverage/
