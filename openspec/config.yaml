@@ -109,7 +109,10 @@ routing:
   - name: brownfield
     classification: [normal, high-risk]
     conditions:
-      baseline.status: pending
+      match: any
+      baseline.status: [pending, partial]
+      specs_empty_with_code: true
+      code_without_specs: true
     phases: [sdd-baseline]
     gates: [brownfield-advisory]
     description: "Advisory-first baseline pass for brownfield repos."
