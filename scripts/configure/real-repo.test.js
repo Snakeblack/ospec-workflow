@@ -326,10 +326,19 @@ test("real repo: all four review-* skills propagate to opencode and github-copil
   }
 });
 
-test("real repo: live brownfield routing entry matches brownfield ctx and rejects baselined ctx", () => {
+// openspec/ is gitignored, so config.yaml ships only in a local working tree, not
+// in a fresh CI checkout. This guard self-skips the live-config assertion when the
+// file is absent (matching e2e.test.js); the matchConditions/parser behavior itself
+// is covered deterministically by the route-dispatcher unit tests.
+const LIVE_CONFIG_PATH = path.join(ROOT, "openspec", "config.yaml");
+const HAS_LIVE_CONFIG = fs.existsSync(LIVE_CONFIG_PATH);
+
+test(
+  "real repo: live brownfield routing entry matches brownfield ctx and rejects baselined ctx",
+  { skip: HAS_LIVE_CONFIG ? false : "openspec/config.yaml not present (gitignored; local dev only)" },
+  () => {
   // (a) read live config.yaml from repo root
-  const configPath = path.join(ROOT, "openspec", "config.yaml");
-  const content = fs.readFileSync(configPath, "utf8");
+  const content = fs.readFileSync(LIVE_CONFIG_PATH, "utf8");
 
   // (b) parse and find brownfield entry
   const parsed = parseRoutingTable(content);
