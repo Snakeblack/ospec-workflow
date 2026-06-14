@@ -1,0 +1,27 @@
+{
+  "name": "ospec-workflow",
+  "version": "2.3.0",
+  "private": true,
+  "description": "Spec-Driven Development workflow with OpenSpec, strict TDD, phase agents, skills, hooks, and verification contracts.",
+  "license": "MIT",
+  "author": {
+    "name": "Manuel Michael Retamozo García"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mretamozo-hiberuscom/ospec-workflow.git"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node scripts/check.js",
+    "build:claude": "node scripts/configure/claude-marketplace.js",
+    "setup:claude": "node scripts/configure/install-claude.js",
+    "reload:claude": "node scripts/configure/install-claude.js --build-only",
+    "build:copilot": "node scripts/configure/cli.js --target github-copilot --out dist/github-copilot",
+    "build:opencode": "node scripts/configure/cli.js --target opencode --out dist/opencode",
+    "install:opencode": "node scripts/configure/install-target.js opencode",
+    "install:copilot": "node scripts/configure/install-target.js github-copilot"
+  }
+}

@@ -25,56 +25,86 @@ agentes de fase ejecutan y OpenSpec conserva el estado versionable.
 
 ### Claude Code
 
-Para probar el plugin generado solo durante la sesión actual:
+#### Para usuarios finales (sin clonar el repo ni Node)
+
+El repositorio no se instala directo: la fuente canónica está en formato VS Code y
+el target `claude` requiere una transformación obligatoria. El artefacto ya
+construido se publica en la branch `release` (vía CI), así que basta con:
 
 ```powershell
-node scripts/configure/cli.js --target claude --out dist/claude
-claude plugin validate --strict dist/claude
-claude --plugin-dir dist/claude
-```
-
-`--plugin-dir` no instala el plugin entre sesiones. Para instalación persistente, genera y registra un marketplace local:
-
-```powershell
-node scripts/configure/claude-marketplace.js
-
-claude plugin validate dist/claude-marketplace
-claude plugin validate --strict dist/claude-marketplace/plugins/ospec-workflow
-
-$marketplace = (Resolve-Path ".\dist\claude-marketplace").ProviderPath
-claude plugin marketplace add "$marketplace" --scope user
-
+claude plugin marketplace add https://github.com/mretamozo-hiberuscom/ospec-workflow.git#release
 claude plugin install ospec-workflow@ospec-tools
 ```
 
-Después puedes abrir Claude Code normalmente:
+Para equipos, puedes versionar esto en `.claude/settings.json` y que a cada
+miembro se le ofrezca instalarlo al confiar la carpeta del proyecto:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "ospec-tools": {
+      "source": { "source": "github", "repo": "mretamozo-hiberuscom/ospec-workflow", "ref": "release" }
+    }
+  },
+  "enabledPlugins": ["ospec-workflow@ospec-tools"]
+}
+```
+
+#### Para desarrollo del plugin (un solo comando)
+
+Probar solo durante la sesión actual, sin instalar:
 
 ```powershell
-claude
+node scripts/configure/cli.js --target claude --out dist/claude
+claude --plugin-dir dist/claude
 ```
 
-Y verificar dentro de la sesión:
-```text
-/plugin
-/reload-plugins
+Instalación persistente desde el marketplace local. El comando es **idempotente**:
+la primera vez registra e instala, y en cada cambio reconstruye y actualiza.
+
+```powershell
+npm run setup:claude
 ```
 
-En PowerShell, evita `claude plugin marketplace add dist/claude-marketplace --scope user`; usa `.\dist\claude-marketplace` o `Resolve-Path` para que Claude Code lo trate como ruta local y no como origen Git/GitHub.
+Después abrí Claude Code normalmente (`claude`) y, dentro de la sesión, `/reload-plugins`.
+
+Mientras iterás con una sesión abierta, lo más rápido es solo reconstruir y recargar:
+
+```powershell
+npm run reload:claude   # build (con validación strict) — luego /reload-plugins en la sesión
+```
+
+> `npm run setup:claude` reemplaza el flujo manual de cinco pasos. El build ya corre
+> `claude plugin validate --strict`, y el registro del marketplace + install solo
+> hacen falta una vez (después se hace `update`). Si preferís el flujo crudo, sigue
+> disponible en [docs/plugin-installation.md](docs/plugin-installation.md).
 
 ### GitHub Copilot CLI
 
-Genera el layout nativo para github:
+opencode y Copilot **no tienen marketplace ni `plugin install`**: se consumen
+copiando el árbol generado a la raíz del repo destino. Un solo comando buildea y
+sincroniza (sobrescribe) la salida en el repo destino:
 
 ```powershell
-node scripts/configure/cli.js --target github-copilot --out dist/github-copilot
+npm run install:copilot -- ../mi-proyecto   # build + copia .github/, .mcp.json, scripts/
 ```
+
+Build solo (sin copiar), si querés inspeccionar `dist/` antes:
+
+```powershell
+npm run build:copilot
+```
+
+Agregá `--dry-run` para ver qué copiaría sin escribir:
+`node scripts/configure/install-target.js github-copilot ../mi-proyecto --dry-run`.
 
 ### opencode
 
-Genera el layout nativo para opencode (`.opencode/` + `opencode.json`):
+Mismo modelo: build + sync a la raíz del repo destino (`.opencode/`, `opencode.json`, `skills/`, `scripts/`):
 
 ```powershell
-node scripts/configure/cli.js --target opencode --out dist/opencode
+npm run install:opencode -- ../mi-proyecto   # build + copia el árbol .opencode/
+npm run build:opencode                        # solo build a dist/opencode
 ```
 
 Consulta la [guía de instalación](docs/plugin-installation.md) para instalación remota, desarrollo local, marketplace local de Claude Code y requisitos de confianza.
