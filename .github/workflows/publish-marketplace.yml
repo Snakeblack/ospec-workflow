@@ -1,0 +1,56 @@
+name: Publish Marketplace
+
+# End users cannot install the repo directly: the canonical source is in VS Code
+# format and the `claude` target transform (agent/command renames, tool mapping,
+# model resolution, rules-into-orchestrator) is mandatory. This workflow builds
+# the marketplace and publishes the BUILT artifact to the orphan `release`
+# branch, so users install with two commands and no clone/Node:
+#
+#   claude plugin marketplace add https://github.com/<owner>/<repo>.git#release
+#   claude plugin install ospec-workflow@ospec-tools
+#
+# Validation is intentionally skipped here (--no-validate): the `claude` CLI is
+# not available in CI, and the Validate Harness workflow already gates source.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+# Needs write to push the release branch; nothing else.
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-marketplace
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Build and publish marketplace
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build marketplace
+        run: node scripts/configure/claude-marketplace.js --no-validate
+
+      - name: Publish to release branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd dist/claude-marketplace
+          git init -q
+          git checkout -q -b release
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "publish marketplace from ${GITHUB_SHA}"
+          git push -q --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" release
