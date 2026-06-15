@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -222,6 +223,108 @@ func TestPreCompact_ResolveCwdHardening(t *testing.T) {
 		}
 		if !r.Continue {
 			t.Errorf("continue: got false, want true for non-existent absolute cwd")
+		}
+	})
+
+	// fu-pt2: cwd pointing to a file (not a directory) falls back to ".".
+	// Covers the !info.IsDir() branch in resolveCwd, which was previously untested.
+	// The production path already returns "." for this case; this test adds coverage.
+	t.Run("cwd pointing to a file falls back to '.'", func(t *testing.T) {
+		dir := t.TempDir()
+		filePath := filepath.Join(dir, "not-a-dir.txt")
+		if err := os.WriteFile(filePath, []byte("regular file"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		stdin, _ := json.Marshal(map[string]any{"cwd": filePath})
+		out, code := hooks.Dispatch([]string{"pre-compact"}, stdin)
+		if code != 0 {
+			t.Errorf("exitCode: got %d, want 0", code)
+		}
+		var r preCompactResult
+		if err := json.Unmarshal(out, &r); err != nil {
+			t.Fatalf("parse: %v; raw=%q", err, out)
+		}
+		if !r.Continue {
+			t.Errorf("continue: got false, want true when cwd is a file (fallback to '.')")
+		}
+	})
+}
+
+// TestPreCompact_WalkErrorSurfacesSystemMessage verifies the fu-pt4 Walk-error policy
+// after WARNING-1 remediation:
+//
+//   - Benign case (missing specs/ dir): filepath.Walk fires with os.Lstat ENOENT for
+//     specsRoot. This is the expected state for every lite change and every standard
+//     change before the spec phase. It MUST produce an EMPTY systemMessage — mirroring
+//     readFilePermissive's ENOENT/EACCES policy. (RED: current code surfaces ENOENT.)
+//
+//   - Genuine scan error (existing specs/ with unreadable child): Walk fires with
+//     EACCES for a directory the process cannot read. This IS a real error and MUST
+//     produce a non-empty systemMessage. POSIX-only; skipped on Windows (chmod 0000
+//     is a no-op) and when running as root (root bypasses mode bits).
+//
+// On every path: continue:true, exit 0 (non-blocking contract preserved).
+func TestPreCompact_WalkErrorSurfacesSystemMessage(t *testing.T) {
+	// ── benign case: missing specs/ must NOT surface a systemMessage ─────────────
+	// This is the positive assertion that proves the benign-ENOENT fix is in place.
+	// RED against the pre-fix code: current collectSpecArtifactsPC surfaces ENOENT
+	// from the missing specsRoot as a walkWarning → systemMessage non-empty.
+	t.Run("benign missing specs dir produces empty systemMessage", func(t *testing.T) {
+		ws := createPreCompactWorkspace(t)
+		createPreCompactChange(t, ws, "specless-change",
+			"change:\n  name: specless-change\n  status: active\n  current_phase: apply\n",
+			nil,
+		)
+		r, code := runPreCompact(t, ws)
+		if code != 0 {
+			t.Errorf("exitCode: got %d, want 0", code)
+		}
+		if !r.Continue {
+			t.Errorf("continue: got false, want true")
+		}
+		if r.SystemMessage != "" {
+			t.Errorf("systemMessage: got %q, want empty (missing specs/ is benign; stat-before-walk guard not applied)", r.SystemMessage)
+		}
+	})
+
+	// ── genuine scan error: unreadable child in existing specs/ ─────────────────
+	// chmod 0000 is a no-op on Windows; this sub-test is POSIX-only.
+	// Equivalent to //go:build !windows at the sub-test level.
+	t.Run("genuine scan error in existing specs dir surfaces systemMessage", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("chmod 0000 is a no-op on Windows; genuine-scan-error path not exercisable")
+		}
+		if os.Getuid() == 0 {
+			t.Skip("running as root; unreadable dirs are readable by root; skipping")
+		}
+		ws := createPreCompactWorkspace(t)
+		changeDir := createPreCompactChange(t, ws, "scan-error-change",
+			"change:\n  name: scan-error-change\n  status: active\n  current_phase: apply\n",
+			nil,
+		)
+		// Create specs/ directory with a mode-0000 subdirectory that Walk cannot enter.
+		specsDir := filepath.Join(changeDir, "specs")
+		if err := os.MkdirAll(specsDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		unreadableDir := filepath.Join(specsDir, "domain-a")
+		if err := os.MkdirAll(unreadableDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(unreadableDir, 0000); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(unreadableDir, 0755) }) // allow t.TempDir cleanup
+
+		r, code := runPreCompact(t, ws)
+		if code != 0 {
+			t.Errorf("exitCode: got %d, want 0", code)
+		}
+		if !r.Continue {
+			t.Errorf("continue: got false, want true (genuine scan error must be non-blocking)")
+		}
+		if r.SystemMessage == "" {
+			t.Error("systemMessage: empty, want non-empty for genuine Walk error in existing specs dir")
 		}
 	})
 }

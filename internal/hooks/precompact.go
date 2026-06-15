@@ -63,24 +63,32 @@ func (h *preCompactHandler) Run(stdin []byte) ([]byte, int) {
 		return continueWithError(fmt.Sprintf("PreCompact could not persist the session summary: %s", err.Error())), 0
 	}
 
-	if err := runPreCompact(input.Cwd); err != nil {
+	warn, err := runPreCompact(input.Cwd)
+	if err != nil {
 		return continueWithError(fmt.Sprintf("PreCompact could not persist the session summary: %s", err.Error())), 0
 	}
 
+	if warn != "" {
+		b, _ := json.Marshal(map[string]any{"continue": true, "systemMessage": warn})
+		return b, 0
+	}
 	b, _ := json.Marshal(map[string]bool{"continue": true})
 	return b, 0
 }
 
-func runPreCompact(cwd string) error {
+// runPreCompact returns (walkWarning, error). walkWarning is non-empty when
+// collectSpecArtifactsPC encountered a Walk error during artifact discovery.
+// The caller surfaces it as a non-blocking systemMessage (continue:true, exit 0).
+func runPreCompact(cwd string) (string, error) {
 	workspace := resolveCwd(cwd)
 	s := store.NewStore(workspace)
 
 	changes, err := s.FindActiveChanges()
 	if err != nil {
-		return err
+		return "", err
 	}
 	if len(changes) == 0 {
-		return nil // no active change → silently skip
+		return "", nil // no active change → silently skip
 	}
 	activeChange := changes[0]
 
@@ -97,9 +105,9 @@ func runPreCompact(cwd string) error {
 		{"phase"},
 	})
 
-	lastArtifact, err := inferLastCompletedArtifact(workspace, activeChange, currentPhase)
+	lastArtifact, walkWarning, err := inferLastCompletedArtifact(workspace, activeChange, currentPhase)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	approvals := formatApprovalsPC(activeChange.Content)
@@ -108,16 +116,16 @@ func runPreCompact(cwd string) error {
 	nextAction := yamllite.FormatNextAction(nextRec, changeName)
 
 	summary := renderSummaryPC(renderSummaryPCArgs{
-		changeName:           changeName,
-		currentPhase:         currentPhase,
+		changeName:            changeName,
+		currentPhase:          currentPhase,
 		lastCompletedArtifact: lastArtifact,
-		blockers:             blockers,
-		approvals:            approvals,
-		nextAction:           nextAction,
+		blockers:              blockers,
+		approvals:             approvals,
+		nextAction:            nextAction,
 	})
 
 	_, err = s.WriteSessionSummary(activeChange.DirectoryName, summary)
-	return err
+	return walkWarning, err
 }
 
 // ── last-artifact inference ────────────────────────────────────────────────────
@@ -136,13 +144,39 @@ func pathIsFilePC(p string) bool {
 	return err == nil && info.Mode().IsRegular()
 }
 
-func collectSpecArtifactsPC(changeDir string) []artifactCandidate {
+// collectSpecArtifactsPC walks changeDir/specs collecting spec.md files.
+// Returns (candidates, warning) where warning is non-empty only when filepath.Walk
+// encounters a GENUINE error inside an existing tree — not the expected benign case
+// where specsRoot itself is absent or inaccessible.
+//
+// Missing or inaccessible specsRoot is treated as benign: it is the expected state
+// for lite changes and standard changes before the spec phase. This mirrors the
+// ENOENT/EACCES policy of readFilePermissive, so the "no specs/ yet" condition is
+// never surfaced as a user-visible systemMessage.
+func collectSpecArtifactsPC(changeDir string) ([]artifactCandidate, string) {
 	specsRoot := filepath.Join(changeDir, "specs")
+
+	// Guard: stat specsRoot before walking. An absent (ENOENT) or inaccessible
+	// (EACCES) specsRoot is benign — mirror readFilePermissive's errno policy.
+	// Only walk when specsRoot is confirmed present and accessible, so the
+	// "no specs/ yet" steady state never triggers a user-visible warning.
+	if _, err := os.Lstat(specsRoot); err != nil {
+		if os.IsNotExist(err) || os.IsPermission(err) {
+			return nil, "" // benign: absent/inaccessible root, no warning
+		}
+		// Non-benign stat error on specsRoot itself — surface it.
+		return nil, fmt.Sprintf("PreCompact: artifact scan error at %s: %s", specsRoot, err.Error())
+	}
+
 	var out []artifactCandidate
+	var walkWarning string
 
 	_ = filepath.Walk(specsRoot, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil
+			if walkWarning == "" {
+				walkWarning = fmt.Sprintf("PreCompact: artifact scan error at %s: %s", path, err.Error())
+			}
+			return nil // non-fatal: continue walking
 		}
 		if !info.IsDir() && info.Name() == "spec.md" {
 			rel := toPortablePathPC(path[len(changeDir)+1:]) // strip changeDir prefix + sep
@@ -155,17 +189,20 @@ func collectSpecArtifactsPC(changeDir string) []artifactCandidate {
 	})
 
 	sort.Slice(out, func(i, j int) bool { return out[i].relativePath < out[j].relativePath })
-	return out
+	return out, walkWarning
 }
 
-func inferLastCompletedArtifact(workspace string, activeChange *store.ActiveChange, phase string) (string, error) {
+// inferLastCompletedArtifact returns (lastArtifact, walkWarning, error).
+// walkWarning is non-empty when collectSpecArtifactsPC encountered a Walk error;
+// it is surfaced by the caller as a non-blocking systemMessage.
+func inferLastCompletedArtifact(workspace string, activeChange *store.ActiveChange, phase string) (string, string, error) {
 	// Check for explicit override.
 	explicit := yamllite.ExtractFirstScalar(activeChange.Content, [][]string{
 		{"runtime", "last_completed_artifact"},
 		{"last_completed_artifact"},
 	})
 	if explicit != "" {
-		return toPortablePathPC(explicit), nil
+		return toPortablePathPC(explicit), "", nil
 	}
 
 	currentRank := phaseRanks[normalizePhase(phase)]
@@ -173,7 +210,8 @@ func inferLastCompletedArtifact(workspace string, activeChange *store.ActiveChan
 		currentRank = 1<<31 - 1 // infinity
 	}
 
-	candidates := append(append([]artifactCandidate{}, artifactCandidates...), collectSpecArtifactsPC(activeChange.ChangeDirectory)...)
+	specCandidates, walkWarning := collectSpecArtifactsPC(activeChange.ChangeDirectory)
+	candidates := append(append([]artifactCandidate{}, artifactCandidates...), specCandidates...)
 
 	var existing []artifactCandidate
 	for _, c := range candidates {
@@ -183,7 +221,7 @@ func inferLastCompletedArtifact(workspace string, activeChange *store.ActiveChan
 	}
 
 	if len(existing) == 0 {
-		return "None", nil
+		return "None", walkWarning, nil
 	}
 
 	// Sort: highest rank first, then reverse-alpha.
@@ -198,9 +236,9 @@ func inferLastCompletedArtifact(workspace string, activeChange *store.ActiveChan
 	abs := filepath.Join(activeChange.ChangeDirectory, filepath.FromSlash(best.relativePath))
 	rel, err := filepath.Rel(workspace, abs)
 	if err != nil {
-		return toPortablePathPC(abs), nil
+		return toPortablePathPC(abs), walkWarning, nil
 	}
-	return toPortablePathPC(rel), nil
+	return toPortablePathPC(rel), walkWarning, nil
 }
 
 // ── rendering ─────────────────────────────────────────────────────────────────

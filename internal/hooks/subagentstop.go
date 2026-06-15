@@ -259,9 +259,13 @@ func runSubagentStop(input map[string]any) ([]byte, int) {
 	resolution := findResolutionInInput(input)
 	if resolution == "" {
 		if tp, ok := input["transcript_path"].(string); ok {
-			if res, err := findResolutionInTranscript(tp); err == nil {
-				resolution = res
+			res, err := findResolutionInTranscript(tp)
+			if err != nil {
+				msg := fmt.Sprintf("SubagentStop observability failed: %s", err.Error())
+				b, _ := json.Marshal(map[string]any{"continue": true, "systemMessage": msg})
+				return b, 0
 			}
+			resolution = res
 		}
 	}
 

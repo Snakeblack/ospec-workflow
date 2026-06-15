@@ -480,6 +480,42 @@ func TestSubagentStop_DriveRootCwdFallback(t *testing.T) {
 	}
 }
 
+// TestSubagentStop_TranscriptIOError verifies that when transcript_path points to a
+// directory (valid absolute path that passes validatePath but causes os.ReadFile to
+// return a non-ENOENT/EACCES error), the hook surfaces the error via systemMessage
+// instead of silently dropping it.
+//
+// Before the fix: runSubagentStop catches `err == nil` (silent drop); systemMessage
+// is empty → test FAILS (RED).
+// After the fix: the error is surfaced via systemMessage; continue:true, exit 0 → GREEN.
+//
+// Note: on POSIX os.ReadFile on a directory returns EISDIR (not ENOENT, not EACCES),
+// so readFilePermissive propagates it. On Windows the error is ERROR_INVALID_FUNCTION
+// (not caught by os.IsPermission), so readFilePermissive also propagates it — the same
+// t.TempDir() trigger works on both platforms.
+func TestSubagentStop_TranscriptIOError(t *testing.T) {
+	ws := t.TempDir()
+	transcriptDir := t.TempDir() // directory, not a file — os.ReadFile returns I/O error
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":             ws,
+		"agent_type":      "sdd-apply",
+		"transcript_path": transcriptDir,
+	})
+
+	r, code := runSubagentStop(t, stdin)
+
+	if code != 0 {
+		t.Errorf("exitCode: got %d, want 0", code)
+	}
+	if !r.Continue {
+		t.Errorf("continue: got false, want true")
+	}
+	if r.SystemMessage == "" {
+		t.Error("systemMessage: empty, want non-empty for transcript I/O error (silent-drop bug not fixed)")
+	}
+}
+
 func TestSubagentStop_Triangulate(t *testing.T) {
 	t.Run("error path continues with message", func(t *testing.T) {
 		out, code := hooks.Dispatch([]string{"subagent-stop"}, []byte("{bad"))
