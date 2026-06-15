@@ -8,6 +8,8 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-06-15
+
 ### Added
 - `opencode` (opencode.ai / SST) target for the multi-target generator. Transforms
   the canonical source into opencode's native layout, verified against the official
@@ -22,6 +24,16 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
   through a JS plugin at `.opencode/plugins/ospec.js`. Gated by a dedicated Node
   validator (`scripts/configure/validate-opencode.js`) plus golden fixtures, wired
   into `node scripts/check.js`. Adds the `opencode` column to `models.yaml`.
+- Phase `sdd-clarify` between `spec` and `design` to resolve design decisions early.
+- GPT model routing tiers for `opencode` target in `models.yaml`.
+
+### Changed
+- Migrated the 5 hooks from JavaScript to a compiled Go binary (`ospec-hooks`), enhancing hook performance and robustness.
+- Added path traversal validation for `transcript_path` and `cwd` inside the hooks runner.
+- Handled hook event concurrency with file-based locking.
+- Simplified installation with single commands per target (e.g. `npm run setup:claude`).
+- Hardened multi-OS validation and workflow concurrency in CI.
+- Unified routing dispatcher with intent-based routing and 4R review gate.
 
 ## [2.3.0] - 2026-06-12
 
@@ -105,7 +117,9 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 - Interactive workflow gates through `vscode/askQuestions`.
 - Strict TDD mode when the project exposes a compatible test runner.
 
-[Unreleased]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.3.0...v2.4.0
+[2.3.0]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/mretamozo-hiberuscom/ospec-workflow/releases/tag/v2.0.0
