@@ -1,0 +1,104 @@
+schema: sdd-change-state
+change: hooks-error-path-hardening
+
+origin:
+  follow_up_of: hooks-path-traversal-hardening
+  follow_up_ids:
+    - fu-pt1-transcript-ioerror-logging
+    - fu-pt2-resolvecwd-filevsdir-test
+    - fu-pt3-readfilepermissive-nonenoent-test
+    - fu-pt4-walk-error-swallow
+  summary: |
+    Advisory reliability/resilience follow-ups accepted (not implemented) during the
+    4R review gate of hooks-path-traversal-hardening. Error-path logging + test-coverage
+    hardening of the Go ospec-hooks runtime. No new behavior; observability + test gaps only.
+
+classification: small
+
+route:
+  intended_route: lite
+  actual_route: lite
+  route_rationale: "Bounded reliability/test-hardening across internal/hooks; no architectural change, no public-contract change, no security-behavior change. classification: small -> lite route (phases: propose, tasks, apply, verify; no gates)."
+  validated: true
+  validation_errors: []
+
+session:
+  execution_mode: interactive
+  delivery_strategy: exception-ok
+  artifact_store: openspec
+  strict_tdd: true
+  test_command: "npm test"
+  go_test_command: "go test ./..."
+
+status: archived
+last_updated: 2026-06-16T19:30:00Z
+
+approvals:
+  - id: fu-pt4-walk-policy-001
+    gate: confirm-first
+    decision: add-minimal-logging
+    source: AskUserQuestion
+    accepted_at: 2026-06-16T12:00:00Z
+    applies_to:
+      - sdd-apply
+    notes: "fu-pt4: surface filepath.Walk errors in collectSpecArtifactsPC via systemMessage (non-blocking, continue:true). Minimal logging only — no config flag, no new log target."
+  - id: warning-1-enoent-remediation-002
+    gate: verify-routing
+    decision: fix-now-then-reverify
+    source: AskUserQuestion
+    accepted_at: 2026-06-16T15:30:00Z
+    applies_to:
+      - sdd-apply
+      - sdd-verify
+    notes: "WARNING-1 (verify-report): exclude benign os.IsNotExist/os.IsPermission on specs root from the fu-pt4 Walk warning; retarget TestPreCompact_WalkErrorSurfacesSystemMessage to a genuine scan error (existing specs/ with unreadable child, //go:build !windows). Re-run sdd-verify after."
+
+phases:
+  propose:
+    status: done
+    artifact: openspec/changes/archive/2026-06-16-hooks-error-path-hardening/proposal-lite.md
+  tasks:
+    status: done
+    artifact: openspec/changes/archive/2026-06-16-hooks-error-path-hardening/tasks.md
+  apply:
+    status: done
+    artifact: openspec/changes/archive/2026-06-16-hooks-error-path-hardening/apply-progress.md
+    rework_batch: 2
+    rework_note: "WARNING-1 remediation applied: stat-before-walk guard in collectSpecArtifactsPC; TestPreCompact_WalkErrorSurfacesSystemMessage retargeted to benign-empty + genuine-error sub-tests."
+  verify:
+    status: done
+    artifact: openspec/changes/archive/2026-06-16-hooks-error-path-hardening/verify-report.md
+    verdict: PASS WITH WARNINGS
+    reverified_batch: 2
+    previous_verdict: PASS WITH WARNINGS
+    previous_warnings:
+      - "fu-pt4 surfaces benign missing-specs ENOENT as a Walk-error systemMessage on the normal path (inconsistent with readFilePermissive ENOENT/EACCES benign policy); recommend excluding benign ENOENT and retargeting the fu-pt4 test before archive."
+    resolved_warnings:
+      - "WARNING-1 RESOLVED: stat-before-walk guard in collectSpecArtifactsPC excludes benign ENOENT/EACCES on specsRoot; genuine deeper Walk errors still surfaced. Benign sub-test asserts empty systemMessage and passes on all platforms; full suite 7/7 green non-cached."
+    open_suggestions:
+      - "SUGGESTION-1 (platform limitation): POSIX CI must run internal/hooks to exercise the genuine-scan-error and EACCES chmod-0000 sub-tests skipped on Windows."
+    note: "Re-verified after WARNING-1 remediation (Batch 2). WARNING-1 closed; only documented POSIX-CI gap remains. Ready for archive."
+  archive:
+    status: done
+    artifact: openspec/changes/archive/2026-06-16-hooks-error-path-hardening/archive-report.md
+
+scope_items:
+  - id: fu-pt1-transcript-ioerror-logging
+    severity: WARNING
+    origin: review-resilience
+    where: internal/hooks/subagentstop.go (~line 262, caller of findResolutionInTranscript)
+    problem: "Non-ENOENT/EACCES I/O error from findResolutionInTranscript is caught via `if err == nil` and silently dropped (no log/systemMessage), hiding real disk errors."
+  - id: fu-pt2-resolvecwd-filevsdir-test
+    severity: WARNING
+    origin: review-reliability
+    where: internal/hooks/precompact.go (resolveCwd, !info.IsDir branch) + precompact_test.go
+    problem: "The fallback-to-'.' branch when cwd resolves to a file (not a directory) is untested."
+  - id: fu-pt3-readfilepermissive-nonenoent-test
+    severity: SUGGESTION
+    origin: review-reliability
+    where: internal/hooks/subagentstop.go (readFilePermissive non-ENOENT/EACCES return) + subagentstop_test.go
+    problem: "The error-propagation path for I/O errors other than ENOENT/EACCES is untested."
+  - id: fu-pt4-walk-error-swallow
+    severity: SUGGESTION
+    origin: review-resilience
+    where: internal/hooks/precompact.go (collectSpecArtifactsPC, filepath.Walk callback)
+    problem: "filepath.Walk errors are swallowed (return nil) without logging; incomplete artifact discovery is silent. Pre-existing behavior — confirm desired policy before changing."
