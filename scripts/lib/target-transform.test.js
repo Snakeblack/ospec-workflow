@@ -522,6 +522,125 @@ test("opencode does not mutate the input collection", () => {
   assert.equal(JSON.stringify(input), before);
 });
 
+// ---------------------------------------------------------------------------
+// Requirement: MCP Placeholder Normalization (per-profile opt-in)
+// ---------------------------------------------------------------------------
+
+test("claude rewrites ${input:NAME} in .mcp.json env to ${NAME:-} (no ${input: residual)", () => {
+  const files = [
+    {
+      path: ".mcp.json",
+      content: JSON.stringify(
+        {
+          mcpServers: {
+            context7: {
+              type: "stdio",
+              command: "npx",
+              args: ["@upstash/context7-mcp"],
+              env: { CONTEXT7_API_KEY: "${input:CONTEXT7_API_KEY}" },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    },
+  ];
+  const out = transform({ files, profile: claude, models: MODELS });
+  const mcp = find(out, ".mcp.json");
+  assert.ok(mcp, ".mcp.json must be present in claude output");
+  const obj = JSON.parse(mcp.content);
+  assert.equal(obj.mcpServers.context7.env.CONTEXT7_API_KEY, "${CONTEXT7_API_KEY:-}");
+  assert.doesNotMatch(mcp.content, /\$\{input:/, "no ${input: residual in claude .mcp.json");
+});
+
+test("github-copilot rewrites ${input:NAME} in .mcp.json env to ${NAME:-} (no ${input: residual)", () => {
+  const files = [
+    {
+      path: ".mcp.json",
+      content: JSON.stringify(
+        {
+          mcpServers: {
+            context7: {
+              type: "stdio",
+              command: "npx",
+              args: ["@upstash/context7-mcp"],
+              env: { CONTEXT7_API_KEY: "${input:CONTEXT7_API_KEY}" },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    },
+  ];
+  const out = transform({ files, profile: githubCopilot, models: MODELS });
+  const mcp = find(out, ".mcp.json");
+  assert.ok(mcp, ".mcp.json must be present in github-copilot output");
+  const obj = JSON.parse(mcp.content);
+  assert.equal(obj.mcpServers.context7.env.CONTEXT7_API_KEY, "${CONTEXT7_API_KEY:-}");
+  assert.doesNotMatch(mcp.content, /\$\{input:/, "no ${input: residual in github-copilot .mcp.json");
+});
+
+test("claude normalizes ${input:KEY} across env, args, url, and headers — no ${input: in any field", () => {
+  const files = [
+    {
+      path: ".mcp.json",
+      content: JSON.stringify(
+        {
+          mcpServers: {
+            svc: {
+              type: "stdio",
+              command: "node",
+              args: ["--env=${input:ARG_KEY}"],
+              env: { MY_KEY: "${input:MY_KEY}" },
+              url: "https://host?token=${input:URL_KEY}",
+              headers: { Authorization: "Bearer ${input:HDR_KEY}" },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    },
+  ];
+  const out = transform({ files, profile: claude, models: MODELS });
+  const mcp = find(out, ".mcp.json");
+  assert.ok(mcp, ".mcp.json must be present");
+  const obj = JSON.parse(mcp.content);
+  assert.equal(obj.mcpServers.svc.env.MY_KEY, "${MY_KEY:-}", "env value must be rewritten");
+  assert.equal(obj.mcpServers.svc.args[0], "--env=${ARG_KEY:-}", "args value must be rewritten");
+  assert.equal(obj.mcpServers.svc.url, "https://host?token=${URL_KEY:-}", "url value must be rewritten");
+  assert.equal(obj.mcpServers.svc.headers.Authorization, "Bearer ${HDR_KEY:-}", "headers value must be rewritten");
+  assert.doesNotMatch(mcp.content, /\$\{input:/, "no ${input: residual in any field");
+});
+
+test("vscode preserves ${input:NAME} in .mcp.json verbatim — no normalization opt-in", () => {
+  const files = [
+    {
+      path: ".mcp.json",
+      content: JSON.stringify(
+        {
+          mcpServers: {
+            context7: {
+              type: "stdio",
+              command: "npx",
+              args: ["@upstash/context7-mcp"],
+              env: { CONTEXT7_API_KEY: "${input:CONTEXT7_API_KEY}" },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    },
+  ];
+  const out = transform({ files, profile: vscode, models: MODELS });
+  const mcp = find(out, ".mcp.json");
+  assert.ok(mcp, ".mcp.json must be present in vscode output");
+  assert.match(mcp.content, /\$\{input:CONTEXT7_API_KEY\}/, "vscode must preserve ${input:NAME} verbatim");
+});
+
 test("opencode rewrites MCP env/header placeholders to {env:NAME}", () => {
   const files = [
     {

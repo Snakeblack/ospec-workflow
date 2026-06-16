@@ -58,6 +58,10 @@ module.exports = {
   // vscode/askQuestions maps to Copilot's structured question tool, ask_user.
   toolMap: { "vscode/askQuestions": "ask_user" },
 
+  // Rewrite ${input:NAME} → ${NAME:-} in .mcp.json env/args/url/headers.
+  // Copilot CLI shares the same ${VAR:-default} syntax as Claude Code.
+  mcpPlaceholders: { style: "env-expansion" },
+
   // Drop only the Claude plugin manifest. .mcp.json and hooks are KEPT (hooks are
   // reshaped to .github/hooks/; MCP passes through), and skills/ ships so agent
   // "Skills to load before work" references resolve.
