@@ -98,3 +98,44 @@ One minor implementation note: the golden `.mcp.json` files for claude and githu
   1. `feat(generator): normaliza placeholders ${input:NAME} en .mcp.json para claude y github-copilot` (work unit 1)
   2. `test(fixtures): agrega env block en source fixture y actualiza goldens claude/github-copilot/opencode` (work unit 2)
   3. `feat(validators): detecta placeholders residuales de tipo input en .mcp.json y opencode.json` (work unit 3)
+
+---
+
+## Fix-Pass Batch (4R Review Findings) — 2026-06-16
+
+**Batch**: 2 (fix-pass addressing 4R review)
+**Test baseline before fixes**: 296/296 green
+
+### Completed Fix Tasks
+
+- [x] Fix 1 — Updated stale "passes through unchanged" comment in `github-copilot.js` (two locations: MCP comment ~line 47 and drop comment ~line 65)
+- [x] Fix 2 — Extended "command is intentionally NOT rewritten" comment in `target-transform.js` with the WHY rationale (executable path, not a secret value)
+- [x] Fix 3 — Added mutation guard test (`normalizeMcpPlaceholders does not mutate original input file or server objects`) exercising all 4 assignment branches (env/args/url/headers)
+- [x] Fix 4 — Added idempotency test (`normalization is idempotent: running transform twice yields byte-identical output`) proving no double-nesting `${NAME:-:-}`
+- [x] Fix 5a — Dropped orphaned "Step 8:" prefix from branch comment in `target-transform.js` `handleFile`
+- [x] Fix 5b — Added two-placeholder triangulation test (`toEnvExpansion rewrites two placeholders in a single string value`) for `"${input:A}-${input:B}"` → `"${A:-}-${B:-}"`
+
+### Fix-Pass Files Changed
+
+| File | Action | What Was Done |
+|------|--------|---------------|
+| `scripts/lib/target-profiles/github-copilot.js` | Modified | Updated 2 comments: MCP section now says "normalized via normalizeMcpPlaceholders" and drop comment updated |
+| `scripts/lib/target-transform.js` | Modified | Extended `command` rationale comment; dropped "Step 8:" prefix from `handleFile` branch comment |
+| `scripts/lib/target-transform.test.js` | Modified | Added 3 new tests (mutation guard, idempotency, two-placeholder triangulation) |
+
+### Fix-Pass TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| Fix 3 | `target-transform.test.js` | Unit | 51/51 | Written (would fail if normalizeMcpPlaceholders mutated input) | 54/54 — passes immediately (impl correct) | All 4 fields checked + deepEqual snapshot | N/A |
+| Fix 4 | `target-transform.test.js` | Unit | 51/51 | Written (would fail if double-nesting occurred) | 54/54 — passes immediately | `:-:-` pattern check + byte-identical assert | N/A |
+| Fix 5b | `target-transform.test.js` | Unit | 51/51 | Written (would fail if only first placeholder normalized) | 54/54 — passes immediately | Two distinct placeholders in one string value | N/A |
+
+### Fix-Pass Test Summary
+
+- **New tests written**: 3
+- **Total tests after fix-pass**: 299/299 (full npm test suite)
+- **Goldens changed**: NONE — comment and test changes only; no behavior change
+- **Commits**:
+  - `docs(generator): corrige comentarios obsoletos sobre normalizacion de .mcp.json`
+  - `test(generator): agrega guardas de mutacion, idempotencia y triangulacion para normalizeMcpPlaceholders`

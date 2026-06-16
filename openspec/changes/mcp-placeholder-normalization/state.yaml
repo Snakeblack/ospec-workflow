@@ -8,7 +8,7 @@ session:
   delivery_strategy: single-pr
 
 status: ready-for-verify
-last_updated: 2026-06-16T14:00:00Z
+last_updated: 2026-06-16T18:30:00Z
 
 blocking_questions: []
 
@@ -30,7 +30,8 @@ phases:
     status: done
     artifact: openspec/changes/mcp-placeholder-normalization/apply-progress.md
   verify:
-    status: pending
+    status: done
+    artifact: openspec/changes/mcp-placeholder-normalization/verify-report.md
   archive:
     status: pending
 
