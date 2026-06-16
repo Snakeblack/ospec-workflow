@@ -661,3 +661,101 @@ test("opencode rewrites MCP env/header placeholders to {env:NAME}", () => {
   assert.equal(cfg.mcp.remote.headers.Authorization, "Bearer {env:TOKEN}");
   assert.doesNotMatch(find(out, "opencode.json").content, /\$\{/, "no VS Code ${...} placeholders remain");
 });
+
+test("normalizeMcpPlaceholders does not mutate original input file or server objects (mutation guard)", () => {
+  // Uses all four rewritten fields so every assignment branch in normalizeMcpPlaceholders executes.
+  const mcpContent = JSON.stringify(
+    {
+      mcpServers: {
+        svc: {
+          type: "stdio",
+          command: "node",
+          args: ["--env=${input:ARG_KEY}"],
+          env: { MY_KEY: "${input:MY_KEY}" },
+          url: "https://host?token=${input:URL_KEY}",
+          headers: { Authorization: "Bearer ${input:HDR_KEY}" },
+        },
+      },
+    },
+    null,
+    2,
+  );
+  const files = [{ path: ".mcp.json", content: mcpContent }];
+  // Snapshot the original file and its parsed server before transform.
+  const originalFileRef = files[0];
+  const originalContentSnapshot = originalFileRef.content;
+  const originalServerSnapshot = JSON.parse(originalFileRef.content).mcpServers.svc;
+
+  transform({ files, profile: claude, models: MODELS });
+
+  // The file object in the input array must be untouched.
+  assert.equal(files[0].content, originalContentSnapshot, "original file.content must be unchanged");
+  assert.equal(files[0], originalFileRef, "same file object reference — not replaced");
+  // The parsed server's fields must still hold the original ${input:...} values.
+  const reparsed = JSON.parse(files[0].content).mcpServers.svc;
+  assert.equal(reparsed.env.MY_KEY, "${input:MY_KEY}", "original env must be unchanged");
+  assert.equal(reparsed.args[0], "--env=${input:ARG_KEY}", "original args must be unchanged");
+  assert.equal(reparsed.url, "https://host?token=${input:URL_KEY}", "original url must be unchanged");
+  assert.equal(reparsed.headers.Authorization, "Bearer ${input:HDR_KEY}", "original headers must be unchanged");
+  // Snapshot deep-equal confirms no hidden mutation on the parsed objects either.
+  assert.deepEqual(reparsed, originalServerSnapshot, "server object must deep-equal pre-transform snapshot");
+});
+
+test("normalization is idempotent: running transform twice on .mcp.json yields byte-identical output", () => {
+  // f(f(x)) == f(x): the ${NAME:-} form must NOT be re-matched by the ${input:NAME} regex,
+  // preventing double-nesting such as ${NAME:-:-}.
+  const files = [
+    {
+      path: ".mcp.json",
+      content: JSON.stringify(
+        {
+          mcpServers: {
+            context7: {
+              type: "stdio",
+              command: "npx",
+              args: ["@upstash/context7-mcp", "--env=${input:CONTEXT7_API_KEY}"],
+              env: { CONTEXT7_API_KEY: "${input:CONTEXT7_API_KEY}" },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    },
+  ];
+  // First pass — rewrite ${input:NAME} → ${NAME:-}.
+  const out1 = transform({ files, profile: githubCopilot, models: MODELS });
+  const normalizedContent = find(out1, ".mcp.json").content;
+
+  // Second pass — feed the already-normalized content back through.
+  const out2 = transform({ files: [{ path: ".mcp.json", content: normalizedContent }], profile: githubCopilot, models: MODELS });
+  const twiceContent = find(out2, ".mcp.json").content;
+
+  assert.equal(twiceContent, normalizedContent, "second transform must produce byte-identical output (no double-nesting)");
+  assert.doesNotMatch(twiceContent, /:-:-/, "must not contain double-nested :-:- form");
+});
+
+test("toEnvExpansion rewrites two placeholders in a single string value — both normalized (triangulation)", () => {
+  // Triangulation: a value with TWO ${input:...} tokens in one string.
+  const files = [
+    {
+      path: ".mcp.json",
+      content: JSON.stringify(
+        {
+          mcpServers: {
+            svc: {
+              type: "stdio",
+              command: "node",
+              env: { COMBINED: "${input:A}-${input:B}" },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    },
+  ];
+  const out = transform({ files, profile: claude, models: MODELS });
+  const obj = JSON.parse(find(out, ".mcp.json").content);
+  assert.equal(obj.mcpServers.svc.env.COMBINED, "${A:-}-${B:-}", "both placeholders must be normalized in one pass");
+});
