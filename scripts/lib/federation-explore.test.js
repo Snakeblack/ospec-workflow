@@ -318,3 +318,67 @@ test("classifyMember derives the common layer from a shared directory name", asy
 
   assert.equal(classification.layer, "common");
 });
+
+// --- Security: path traversal containment (write path, risk-critical-001) ----
+
+test("explore never enrolls or writes outside the container on a traversal path", async (t) => {
+  const root = await makeContainer(t);
+
+  // A legitimate in-root member that must still be enrolled (regression).
+  await makeMember(root, "svc-api", {
+    files: { "package.json": '{ "name": "svc-api" }\n' },
+  });
+
+  // Sibling target OUTSIDE the container that the traversal path would write into.
+  const outside = path.join(root, "..", `evil-${path.basename(root)}`);
+
+  t.after(() => fs.rm(outside, { recursive: true, force: true }));
+
+  await fs.writeFile(
+    path.join(root, ".gitmodules"),
+    [
+      '[submodule "evil"]',
+      `  path = ../evil-${path.basename(root)}`,
+      "  url = https://example.com/evil.git",
+      "",
+    ].join("\n"),
+  );
+
+  const result = await explore(root);
+
+  // The malicious member is skipped — no enroll, not in the member rows.
+  assert.ok(!result.members.some((m) => String(m.id).includes("evil-")));
+  assert.ok(result.members.some((m) => m.id === "svc-api"));
+
+  // CRITICAL: nothing was created outside the container root (no arbitrary write).
+  assert.equal(await exists(outside), false);
+  assert.equal(await exists(path.join(outside, MARKER_RELATIVE_PATH)), false);
+
+  // A fail-open traversal warning surfaced; the run still succeeded.
+  assert.equal(result.status, "success");
+  assert.ok(result.warnings.some((w) => /escape/i.test(w)));
+});
+
+test("explore writes no artifacts when the only member escapes the container", async (t) => {
+  const root = await makeContainer(t);
+  const outside = path.join(root, "..", `evil-${path.basename(root)}`);
+
+  t.after(() => fs.rm(outside, { recursive: true, force: true }));
+
+  await fs.writeFile(
+    path.join(root, ".gitmodules"),
+    [
+      '[submodule "evil"]',
+      `  path = ../evil-${path.basename(root)}`,
+      "  url = https://example.com/evil.git",
+      "",
+    ].join("\n"),
+  );
+
+  const result = await explore(root);
+
+  assert.equal(result.members.length, 0);
+  assert.deepEqual(result.artifacts, []);
+  assert.equal(await exists(outside), false);
+  assert.ok(result.warnings.some((w) => /escape/i.test(w)));
+});

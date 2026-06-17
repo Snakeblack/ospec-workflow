@@ -14,6 +14,7 @@ const {
   scanMemberMarkers,
   mergeMarkersIntoAtlas,
   serializeAtlas,
+  isWithinRoot,
 } = require("./workspace-atlas.js");
 
 const SAMPLE_ATLAS = [
@@ -337,6 +338,68 @@ test("scanMemberMarkers returns empty with a warning for a container with no mem
 
   assert.equal(result.length, 0);
   assert.ok(result.warnings.length > 0);
+});
+
+test("isWithinRoot accepts nested members and rejects traversal/absolute escapes", () => {
+  const root = path.join(path.sep, "srv", "container");
+
+  assert.equal(isWithinRoot(root, path.join(root, "svc-api")), true);
+  assert.equal(isWithinRoot(root, path.join(root, "libs", "shared")), true);
+  // Degenerate: a candidate that resolves to the container root itself is rejected.
+  assert.equal(isWithinRoot(root, root), false);
+  // Parent traversal escapes the container.
+  assert.equal(isWithinRoot(root, path.resolve(root, "..", "evil")), false);
+  // A sibling that merely shares a name prefix is NOT inside (root + path.sep guard).
+  assert.equal(isWithinRoot(root, `${root}-evil`), false);
+});
+
+test("scanMemberMarkers rejects a .gitmodules path that escapes the container root (read path)", async (t) => {
+  const ws = await createWorkspace(t);
+  // A legitimate in-root member that must still be discovered (regression).
+  await writeMember(ws, "svc-api", { marker: MARKER_API });
+
+  // Plant a marker OUTSIDE the container that a traversal path would otherwise read.
+  const outside = path.join(ws, "..", `evil-${path.basename(ws)}`);
+  await fs.mkdir(path.join(outside, "openspec"), { recursive: true });
+  await fs.writeFile(
+    path.join(outside, "openspec", "federation.member.yaml"),
+    MARKER_API,
+  );
+  t.after(() => fs.rm(outside, { recursive: true, force: true }));
+
+  await fs.writeFile(
+    path.join(ws, ".gitmodules"),
+    [
+      '[submodule "evil"]',
+      `  path = ../evil-${path.basename(ws)}`,
+      "  url = https://example.com/evil.git",
+      '[submodule "abs"]',
+      `  path = ${path.join(os.tmpdir(), "abs-escape-target")}`,
+      "  url = https://example.com/abs.git",
+      "",
+    ].join("\n"),
+  );
+
+  const result = await scanMemberMarkers(ws);
+
+  // Only the in-root member is discovered; the escaping paths are skipped.
+  assert.deepEqual(
+    result.map((entry) => entry.memberDir),
+    ["svc-api"],
+  );
+  // No out-of-tree READ happened for the escaping members.
+  assert.ok(!result.some((entry) => String(entry.memberDir).includes("evil-")));
+  // A fail-open warning is surfaced for each rejected traversal path.
+  assert.ok(
+    result.warnings.some(
+      (w) => /escape/i.test(w) && w.includes(`../evil-${path.basename(ws)}`),
+    ),
+  );
+  assert.ok(
+    result.warnings.some(
+      (w) => /escape/i.test(w) && w.includes("abs-escape-target"),
+    ),
+  );
 });
 
 test("mergeMarkersIntoAtlas unions member entries from multiple markers", () => {

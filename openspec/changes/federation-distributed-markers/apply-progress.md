@@ -573,3 +573,157 @@ The C1 apply phase is **fully delivered** across the Feature Branch Chain:
   `openspec/federation.member.yaml` and un-gitignore the cache (documented in design Migration).
 
 **Next recommended**: `sdd-verify` — the apply phase is complete; all WUs delivered and staged-ready.
+
+---
+
+# WU6 — Security Fix: Path-Traversal Containment (`risk-critical-001`, FOLLOW-ON slice)
+
+**Batch**: WU6 (Phase 7) — built on top of WU1 (`4efe753`), WU2 (`f30ab07`), WU3 (`06462da`), WU4 (`fda2c5e`), WU5 (`c3d3ff7`) on `feat/federation-distributed-markers`. WU6 is a follow-on security slice raised by the 4R risk reviewer (CRITICAL `risk-critical-001`); it depends on WU1 (`scanMemberMarkers`) and WU4 (`explore`/`enroll`).
+**Mode**: Strict TDD (strict_tdd: true, runner `npm test` → `node scripts/check.js` → `node --test scripts/**/*.test.js` + 4 target generators).
+**Delivery**: Feature Branch Chain (approval `review-workload-001`) — this batch = **WU6**, follow-on child PR on top of WU5's branch.
+**Skill resolution**: fallback-config (no `.ospec/cache/skill-registry.cache.json`; rules injected via `## Project Standards` from `openspec/config.yaml`).
+
+## The vulnerability (closed by WU6)
+
+`parseGitmodulesPaths` extracted `.gitmodules` `path = ...` values and inserted them
+**unvalidated** into `memberDirs` (`scanMemberMarkers`, `workspace-atlas.js`). Both downstream
+paths trusted that set:
+
+- **Write path**: `explore` (`federation-explore.js`) iterates `scanMemberMarkers` output and
+  calls `enroll(memberRoot, …)` → `fs.mkdir(openspecDir, { recursive })` + atomic marker write.
+  A `.gitmodules` with `path = ../../../../tmp/evil` (or an absolute path) caused directory
+  creation + file write **outside** `containerRoot` (arbitrary file write/create).
+- **Read path**: the same unvalidated dir feeds `loadMarkerFromMember` / `classifyMember`,
+  enabling **out-of-tree reads** (info disclosure).
+
+## The fix
+
+A single shared containment invariant — `isWithinRoot(containerRoot, candidateAbs)` — applied
+at the **single discovery boundary** `scanMemberMarkers`. Because BOTH the read path
+(`loadMarkerFromMember`/`classifyMember`) and the write path (`explore` → `enroll`) consume the
+output of `scanMemberMarkers`, guarding there closes both with no duplicated check (the security
+invariant lives in one place). Escaping `.gitmodules` member paths are **warned and skipped**
+(fail-open, consistent with the module's posture); the run continues with the remaining valid
+members and never throws/aborts on a traversal attempt.
+
+```js
+function isWithinRoot(containerRoot, candidateAbs) {
+  const root = path.resolve(containerRoot);
+  const candidate = path.resolve(candidateAbs);
+  if (candidate === root) return false;            // degenerate: member == root
+  return candidate.startsWith(root + path.sep);    // strictly below root only
+}
+```
+
+Both `../evil` traversal and absolute paths resolve outside `root + path.sep` and are rejected;
+a name-prefix sibling (`/srv/container-evil`) is correctly rejected by the `root + path.sep`
+guard.
+
+## Per-task status (WU6)
+
+### Phase 7 — WU6
+
+- [x] 7.1 RED tests in `scripts/lib/workspace-atlas.test.js`: `isWithinRoot` unit (nested accept / equal-root reject / parent-traversal reject / name-prefix-sibling reject) + `scanMemberMarkers` rejects a `.gitmodules` `path = ../evil` AND an absolute path (read path) — escaping members skipped (no out-of-tree read), in-root member still discovered, fail-open warning surfaced.
+- [x] 7.2 RED tests in `scripts/lib/federation-explore.test.js`: `explore` on a traversal `.gitmodules` creates NOTHING outside `containerRoot` (no enroll/mkdir/marker write), skips the malicious member, still enrolls the legitimate in-root member, surfaces a traversal warning; an all-escaping container writes no artifacts.
+- [x] 7.3 `isWithinRoot(containerRoot, candidateAbs)` added to `scripts/lib/workspace-atlas.js` and exported.
+- [x] 7.4 Guard applied in `scanMemberMarkers`: escaping `.gitmodules` member dirs warned + skipped; warnings merged into the returned `warnings`. Single boundary protects read + write paths. No change needed in `federation-explore.js` or `federation-marker.js` (both consume `scanMemberMarkers`).
+- [x] 7.5 Full `npm test` green; WU1–WU5 baseline + 4 new WU6 tests all pass.
+
+## Test evidence (WU6)
+
+| Run | Command | Result |
+|-----|---------|--------|
+| RED gate | `node --test workspace-atlas.test.js federation-explore.test.js` (tests present, guard absent) | `33 pass / 4 fail` (`isWithinRoot is not a function`; scan read-path; 2× explore write-path) |
+| GREEN | same two files (after guard) | `37 pass / 0 fail / 0 skipped` |
+| Full suite (7.5) | `npm test` (`node scripts/check.js`) | `All checks passed.` (4 targets generate + validate; `0 errors, 0 warnings`) |
+| Full native suite | `node --test scripts/**/*.test.js` | `357 pass / 0 fail / 0 skipped` (353 WU1–WU5 baseline + 4 WU6) |
+| Additive check | `git diff --numstat scripts/lib/workspace-atlas.js` | `29 / 1` — the single deletion is `const warnings = [];` → `const warnings = [...traversalWarnings];` inside `scanMemberMarkers`; `parseAtlas` remains byte-identical |
+
+> The known WU1 `git` integration flake in `artifact-store.test.js` did NOT appear this run
+> (full native suite `357/357` clean). It is outside WU6 scope; if it ever surfaces, re-run to
+> confirm it is the pre-existing flake, not a WU6 regression.
+
+## TDD Cycle Evidence (WU6)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| 7.3 `isWithinRoot` | `workspace-atlas.test.js` | Unit | ✅ 50/50 federation tests | ✅ Written | ✅ Passed | ✅ 5 cases (nested / equal-root / parent-traversal / name-prefix-sibling / nested-deep) | ➖ Clean as written |
+| 7.4 `scanMemberMarkers` guard (read path) | `workspace-atlas.test.js` | Unit (fs fixtures) | ✅ 50/50 | ✅ Written | ✅ Passed | ✅ relative `../evil` + absolute escape + in-root regression + warning | ➖ Single helper, no extraction |
+| 7.4 `explore` guard (write path) | `federation-explore.test.js` | Integration (fs container fixtures) | ✅ 50/50 | ✅ Written | ✅ Passed | ✅ traversal-no-write + in-root-still-enrolled + all-escaping-no-artifacts | ➖ Reuses shared guard |
+
+### Test Summary (WU6)
+
+- Total new tests written: 4 (3 in `workspace-atlas.test.js`, 1 added there as `isWithinRoot` unit; 2 in `federation-explore.test.js`) → **4 net new `test(...)` blocks** (`isWithinRoot` unit, `scanMemberMarkers` read-path, 2× `explore` write-path)
+- Total tests passing (full native suite): 357 (353 WU1–WU5 baseline + 4 WU6)
+- Layers used: Unit (2), Integration (2)
+- Approval tests (refactoring): None — WU6 is additive; the only existing-code edit is the guard inside `scanMemberMarkers` (no test modified)
+- Pure functions created: `isWithinRoot` (pure, deterministic, OS-aware via `path.resolve`/`path.sep`)
+
+## Files touched (WU6)
+
+| File | Action | What was done |
+|------|--------|---------------|
+| `scripts/lib/workspace-atlas.js` | Modified (additive guard) | Added pure `isWithinRoot(containerRoot, candidateAbs)` + applied it in `scanMemberMarkers` to warn+skip escaping `.gitmodules` member dirs; merged traversal warnings into the returned `warnings`; exported `isWithinRoot`. `parseAtlas` byte-identical (29 additions / 1 deletion, the deletion being `const warnings = []` → spread). |
+| `scripts/lib/workspace-atlas.test.js` | Modified (additive) | Added `isWithinRoot` unit test + `scanMemberMarkers` traversal read-path test (relative + absolute escape, in-root regression, warning). Imported `isWithinRoot`. Existing tests unchanged. |
+| `scripts/lib/federation-explore.test.js` | Modified (additive) | Added 2 write-path security tests (`explore` traversal-no-write + all-escaping-no-artifacts). Existing tests unchanged. |
+| `openspec/changes/federation-distributed-markers/tasks.md` | Modified | Added Phase 7 (7.1–7.5) checked off `[x]`. |
+| `openspec/changes/federation-distributed-markers/state.yaml` | Modified | Added `WU6.status: done` (phases `[Phase 7]`); extended chain `order`/`slices` with WU6; `gates['4r-review-gate'].findings[risk-critical-001].status: remediated` + `remediated_by: WU6`; flagged the prior verify run `stale: true` (re-run required, verdict unchanged). |
+| `openspec/changes/federation-distributed-markers/apply-progress.md` | Modified | Appended this WU6 section; WU1–WU5 history preserved verbatim. |
+
+## How both paths are now guarded
+
+- **Read path** — `scanMemberMarkers` calls `loadMarkerFromMember` only for member dirs that
+  pass `isWithinRoot`; escaping `.gitmodules` paths are skipped before any `fs.readFile`, so
+  out-of-tree reads (`classifyMember` included, since it runs only over `explore`'s `discovered`
+  rows) can no longer occur.
+- **Write path** — `explore` enrolls only the members in `scanMemberMarkers`'s filtered output;
+  the escaping member never reaches `enroll`, so `fs.mkdir`/atomic marker write outside
+  `containerRoot` is impossible. The follow-up `rescan` inside `explore` uses the same guarded
+  function, so the rebuilt atlas also excludes escaping members.
+
+## Suggested work-unit commit (WU6)
+
+Not committed/pushed (left staged-ready for the maintainer). Suggested single work-unit commit
+(type `fix` for the security remediation; no model attribution, no `Co-Authored-By`):
+
+```
+fix(federation): rechaza rutas de miembro que escapan del contenedor (path traversal)
+
+Cierra la vulnerabilidad critica risk-critical-001: parseGitmodulesPaths insertaba los
+valores `path = ...` de .gitmodules sin validar en memberDirs, permitiendo que explore ->
+enroll creara directorios y escribiera marcadores FUERA de containerRoot (escritura
+arbitraria) y que loadMarkerFromMember/classifyMember leyeran fuera del arbol (divulgacion
+de informacion). Anade el invariante compartido isWithinRoot(containerRoot, candidateAbs) en
+workspace-atlas.js y lo aplica en el unico punto de descubrimiento scanMemberMarkers: las
+rutas de miembro que escapan (../evil o absolutas) se avisan y se omiten en modo fail-open,
+sin abortar la corrida, protegiendo a la vez la ruta de lectura (loadMarkerFromMember/
+classifyMember) y la de escritura (explore -> enroll), que consumen la salida de
+scanMemberMarkers. Cobertura TDD: 4 tests nuevos RED-first (isWithinRoot, scanMemberMarkers
+read-path, explore write-path x2); suite completa 357/357 en verde. parseAtlas byte-identico.
+```
+
+## Deviations from design (WU6)
+
+WU6 is not in the original C1 design — it is a follow-on remediation for the 4R CRITICAL
+finding `risk-critical-001`. Implementation notes:
+- **Single-boundary guard over duplicated checks**: the risk reviewer's `fix_hint` suggested
+  rejecting "after resolving memberRoot". Rather than duplicating the check in `explore` AND in
+  the read helpers, the guard lives once in `scanMemberMarkers` (the only place member dirs are
+  discovered). Both consumers (`explore` write path and the in-scan read) inherit it, keeping the
+  security invariant in one auditable place — exactly as the task requested.
+- **Fail-open, not fail-closed**: a traversal attempt warns and skips the offending member, then
+  continues with the valid ones, matching the module's established fail-open posture
+  (`loadMarkerFromMember`, `mergeMarkersIntoAtlas`). It never throws/aborts the whole run.
+- **`federation-explore.js` and `federation-marker.js` untouched**: the guard at the discovery
+  boundary fully protects the `explore` → `enroll` write path, so no edits were needed in those
+  modules; this keeps the WU6 diff minimal and the invariant centralized.
+
+## Verify re-run required (NOT changed by apply)
+
+The committed verify run (`PASS WITH WARNINGS`, `353 pass`) predates WU6. `state.yaml` now flags
+`phases.verify.stale: true` with the reason; the apply phase did **not** alter the verify verdict.
+A re-run of `sdd-verify` (and optionally `review-risk`) is required to re-bless the tree and
+confirm `risk-critical-001` is closed.
+
+**Next recommended**: re-run `sdd-verify` (apply complete with `357/357` green), then re-run
+`review-risk` to confirm closure of `risk-critical-001`.

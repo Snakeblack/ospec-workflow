@@ -24,8 +24,8 @@ session:
   delivery_strategy: single-pr
   reply_language: es
 
-status: ready-for-verify
-last_updated: 2026-06-17T15:30:00Z
+status: verified
+last_updated: 2026-06-17T18:30:00Z
 
 route:
   intended_route: standard
@@ -98,10 +98,80 @@ phases:
       WU5:
         status: done
         phases: ["Phase 6"]
+      WU6:
+        status: done
+        phases: ["Phase 7"]
+        note: >
+          Follow-on security slice closing risk-critical-001 (path traversal).
+          Added after apply was done; apply remains done.
   verify:
-    status: pending
+    status: done
+    artifact: openspec/changes/federation-distributed-markers/verify-report.md
+    verdict: PASS WITH WARNINGS
+    test_evidence: "353 pass / 0 fail / 0 skipped (node --test scripts/**/*.test.js)"
+    stale: true
+    stale_reason: >
+      WU6 security fix landed after this verify run (now 357 pass / 0 fail / 0
+      skipped). A re-run of sdd-verify is required to re-bless the tree. Verdict
+      NOT changed here by the apply phase.
   archive:
     status: pending
+
+gates:
+  4r-review-gate:
+    status: done
+    on_blocker: advisory
+    findings_summary: "1 CRITICAL, 4 WARNING (3 reliability/resilience + 1 risk), 6 SUGGESTION"
+    surfaced_to_user: true
+    findings:
+      - id: risk-critical-001
+        reviewer: review-risk
+        severity: CRITICAL
+        origin: code-bug
+        summary: >
+          Path traversal in member scanning. parseGitmodulesPaths inserts
+          .gitmodules `path = ...` values unvalidated into memberDirs; explore →
+          enroll then mkdir/writes a marker outside containerRoot (arbitrary file
+          write/create). Same root cause enables out-of-tree reads (W: info disclosure).
+        affected:
+          - scripts/lib/workspace-atlas.js:441
+          - scripts/lib/federation-explore.js:216
+          - scripts/lib/federation-marker.js:363
+        fix_hint: >
+          After resolving memberRoot, reject (warn+skip) any path whose
+          path.resolve(containerRoot, memberDir) does not start with
+          containerRoot + path.sep.
+        status: remediated
+        remediated_by: WU6
+        remediation: >
+          Added shared isWithinRoot(containerRoot, candidateAbs) guard in
+          workspace-atlas.js and applied it at the single discovery boundary
+          (scanMemberMarkers): escaping .gitmodules member paths are warned and
+          skipped (fail-open), protecting BOTH the read path (loadMarkerFromMember/
+          classifyMember) and the write path (explore -> enroll). Covered by 4 new
+          RED-first tests (workspace-atlas.test.js + federation-explore.test.js).
+      - id: reliability-warning-001
+        reviewer: review-reliability
+        severity: WARNING
+        origin: tasks-gap
+        summary: git integration test non-deterministic (env not isolated; spawnSync exit codes unchecked).
+        affected: [scripts/lib/artifact-store.test.js:368]
+      - id: resilience-warning-001
+        reviewer: review-resilience
+        severity: WARNING
+        origin: code-bug
+        summary: >
+          readExistingMarker swallows ALL non-ENOENT errors as "corrupt"; a transient
+          EACCES/EBUSY read error makes enroll overwrite a healthy marker (data loss).
+        affected: [scripts/lib/federation-marker.js:345]
+        fix_hint: rethrow when error.code is neither ENOENT nor a parse failure.
+      - id: reliability-warning-002
+        reviewer: review-reliability
+        severity: WARNING
+        origin: tasks-gap
+        summary: corrupt/empty existing-marker recovery path in enroll has no test.
+        affected: [scripts/lib/federation-marker.js:324]
+    suggestions_count: 6
 
 approvals:
   - id: execution-mode-001
@@ -133,7 +203,7 @@ approvals:
 
 chain:
   strategy: feature-branch-chain
-  order: [WU1, WU2, WU3, WU4, WU5]
+  order: [WU1, WU2, WU3, WU4, WU5, WU6]
   slices:
     - id: WU1
       scope: workspace-atlas.js marker read/merge/serialize + loadAtlas regeneration branch + Phase 1 regression baseline
@@ -154,6 +224,12 @@ chain:
     - id: WU5
       scope: .gitignore, persistence-contract.md, orchestrator note, final verification
       depends_on: [WU1, WU2, WU3, WU4]
+      status: done
+    - id: WU6
+      scope: security fix — path-traversal containment guard (isWithinRoot + scanMemberMarkers boundary)
+      depends_on: [WU1, WU4]
+      risk: high
+      remediates: risk-critical-001
       status: done
   delivered: true
 

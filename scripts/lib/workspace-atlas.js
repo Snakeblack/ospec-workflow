@@ -429,8 +429,28 @@ function parseGitmodulesPaths(content) {
   return paths;
 }
 
+// Containment guard for member discovery. A member directory declared in
+// `.gitmodules` is attacker-influenced input; without this check a `path = ...`
+// value such as `../../tmp/evil` or an absolute path would let the read path
+// (`loadMarkerFromMember`) and the write path (`explore` → `enroll`) operate on
+// directories OUTSIDE the container root (arbitrary file write / out-of-tree
+// read). The single security invariant lives here: a candidate is contained
+// only when it resolves strictly below `containerRoot`. The exact-equal-to-root
+// degenerate case is rejected so a member can never be the root itself.
+function isWithinRoot(containerRoot, candidateAbs) {
+  const root = path.resolve(containerRoot);
+  const candidate = path.resolve(candidateAbs);
+
+  if (candidate === root) {
+    return false;
+  }
+
+  return candidate.startsWith(root + path.sep);
+}
+
 async function scanMemberMarkers(containerRoot) {
   const memberDirs = new Set();
+  const traversalWarnings = [];
 
   try {
     const gitmodules = await fs.readFile(
@@ -439,6 +459,13 @@ async function scanMemberMarkers(containerRoot) {
     );
 
     for (const declared of parseGitmodulesPaths(gitmodules)) {
+      if (!isWithinRoot(containerRoot, path.resolve(containerRoot, declared))) {
+        traversalWarnings.push(
+          `ignoring member path "${declared}" from .gitmodules: it escapes the container root`,
+        );
+        continue;
+      }
+
       memberDirs.add(declared);
     }
   } catch (error) {
@@ -491,7 +518,7 @@ async function scanMemberMarkers(containerRoot) {
     }
   }
 
-  const warnings = [];
+  const warnings = [...traversalWarnings];
 
   if (results.length === 0) {
     warnings.push(
@@ -707,6 +734,7 @@ function serializeAtlas(atlas) {
 
 module.exports = {
   computeImpact,
+  isWithinRoot,
   loadMarkerFromMember,
   mergeMarkersIntoAtlas,
   parseAtlas,

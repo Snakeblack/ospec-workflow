@@ -136,3 +136,15 @@ Chain strategy: pending
 - [x] 6.1 Add `openspec/workspace.yaml` to `.gitignore`.
 - [x] 6.2 Modify `skills/_shared/persistence-contract.md`: add a section for the atlas-as-derived-cache inversion — markers (`openspec/federation.member.yaml` in member repos) are the sole source of truth; `openspec/workspace.yaml` is a regenerable cache; valid cache is trusted; absent or corrupt → regenerate; `git ls-files` warn-on-detect if tracked; C1 never executes `git rm --cached` or any destructive git operation automatically.
 - [x] 6.3 [NO-REGRESSION] Run full `npm test` suite — all phases green. Inspect `git diff scripts/lib/workspace-atlas.js` and confirm `parseAtlas` function body is byte-identical to pre-C1 baseline (only additive changes below the existing `module.exports` line are expected).
+
+## Phase 7: WU6 — Security Fix (path-traversal `risk-critical-001`)
+
+> Follow-on security slice raised by the 4R risk reviewer (CRITICAL `risk-critical-001`).
+> Built on top of WU1–WU5 (`4efe753`, `f30ab07`, `06462da`, `fda2c5e`, `c3d3ff7`) on
+> `feat/federation-distributed-markers`. Closes the path-traversal arbitrary-write / out-of-tree-read.
+
+- [x] 7.1 [TEST-RED] In `scripts/lib/workspace-atlas.test.js`, add failing tests for the containment guard: `isWithinRoot(containerRoot, candidateAbs)` accepts nested members, rejects the exact-equal-to-root degenerate case, parent traversal, and name-prefix siblings; `scanMemberMarkers` rejects a `.gitmodules` `path = ../evil` and an absolute path (read path) — escaping members are skipped (no out-of-tree read) and a fail-open warning is surfaced, while the in-root member is still discovered.
+- [x] 7.2 [TEST-RED] In `scripts/lib/federation-explore.test.js`, add failing tests for the write path: `explore` on a container whose `.gitmodules` declares a traversal `path = ../evil` creates NOTHING outside `containerRoot` (no `enroll`/`mkdir`/marker write), skips the malicious member, still enrolls the legitimate in-root member, and surfaces a traversal warning; an all-escaping container writes no artifacts.
+- [x] 7.3 Add `isWithinRoot(containerRoot, candidateAbs)` to `scripts/lib/workspace-atlas.js`: resolve both paths and return `true` only when the candidate resolves strictly below `containerRoot` (`startsWith(root + path.sep)`), rejecting the exact-equal-to-root degenerate case. Export it.
+- [x] 7.4 Apply the guard at the single discovery boundary in `scanMemberMarkers`: reject (warn + skip) any `.gitmodules`-declared member dir that escapes the container root, collecting fail-open warnings into the returned `warnings`. This protects BOTH the read path (`loadMarkerFromMember`/`classifyMember`) and the write path (`explore` → `enroll`), which both consume `scanMemberMarkers` output.
+- [x] 7.5 [NO-REGRESSION] Run full `npm test` — all Phase 1–6 tests plus the new WU6 tests pass. Confirm exact counts and that the change is additive (no existing test modified, `parseAtlas` byte-identical).
