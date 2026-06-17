@@ -382,3 +382,55 @@ test("explore writes no artifacts when the only member escapes the container", a
   assert.equal(await exists(outside), false);
   assert.ok(result.warnings.some((w) => /escape/i.test(w)));
 });
+
+// WU7 (risk-warning-symlink-001): a real symlink planted inside the container,
+// referenced by a clean (no `../`) .gitmodules path, must NOT let explore →
+// enroll mkdir/write a marker THROUGH the symlink, outside the real container.
+test("explore never enrolls or writes through a symlinked member that escapes the container", async (t) => {
+  const root = await makeContainer(t);
+
+  // A legitimate in-root member that must still be enrolled (regression).
+  await makeMember(root, "svc-api", {
+    files: { "package.json": '{ "name": "svc-api" }\n' },
+  });
+
+  // A real, empty directory OUTSIDE the container (no openspec yet).
+  const outside = path.join(root, "..", `escape-${path.basename(root)}`);
+  await fs.mkdir(outside, { recursive: true });
+  t.after(() => fs.rm(outside, { recursive: true, force: true }));
+
+  // Plant a symlink INSIDE the container whose name has no `../`.
+  const linkType = process.platform === "win32" ? "junction" : "dir";
+  try {
+    await fs.symlink(outside, path.join(root, "legit"), linkType);
+  } catch (error) {
+    if (error.code === "EPERM" || error.code === "EACCES") {
+      t.skip("symlink creation not permitted on this platform");
+      return;
+    }
+    throw error;
+  }
+
+  await fs.writeFile(
+    path.join(root, ".gitmodules"),
+    [
+      '[submodule "legit"]',
+      "  path = legit",
+      "  url = https://example.com/legit.git",
+      "",
+    ].join("\n"),
+  );
+
+  const result = await explore(root);
+
+  // The symlinked member is skipped; the genuine in-root member is still enrolled.
+  assert.ok(!result.members.some((m) => m.id === "legit"));
+  assert.ok(result.members.some((m) => m.id === "svc-api"));
+
+  // CRITICAL: nothing was written through the symlink, outside the real container.
+  assert.equal(await exists(path.join(outside, MARKER_RELATIVE_PATH)), false);
+
+  // Fail-open: a warning surfaced and the run still succeeded.
+  assert.equal(result.status, "success");
+  assert.ok(result.warnings.some((w) => /escape|symlink/i.test(w)));
+});

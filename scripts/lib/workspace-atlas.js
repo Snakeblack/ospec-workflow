@@ -448,6 +448,60 @@ function isWithinRoot(containerRoot, candidateAbs) {
   return candidate.startsWith(root + path.sep);
 }
 
+// Physical containment guard layered on top of the lexical `isWithinRoot`.
+// `isWithinRoot` resolves paths textually, so a member directory that is a real
+// SYMLINK whose name has no `../` passes the lexical check yet physically points
+// OUTSIDE the container — letting the read path (`loadMarkerFromMember`) and the
+// write path (`explore` → `enroll`) follow it out of root. This resolves the
+// real on-disk target with `fs.realpath` before re-checking containment.
+//   - a path that does not exist yet (ENOENT on lstat) is ACCEPTED — that is the
+//     normal first-enroll case for an in-root member dir already cleared by
+//     lexical containment;
+//   - a non-symlink entry is ACCEPTED without paying for realpath on every
+//     normal member;
+//   - an EXISTING symlink (or Windows junction) is resolved and rejected when it
+//     escapes the real container root (or dangles); an in-root symlink target is
+//     still accepted.
+async function isRealPathWithinRoot(containerRoot, candidateAbs) {
+  let entryStats;
+
+  try {
+    entryStats = await fs.lstat(candidateAbs);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return true;
+    }
+
+    return false;
+  }
+
+  if (!entryStats.isSymbolicLink()) {
+    return true;
+  }
+
+  let realRoot;
+
+  try {
+    realRoot = await fs.realpath(containerRoot);
+  } catch {
+    realRoot = path.resolve(containerRoot);
+  }
+
+  let realCandidate;
+
+  try {
+    realCandidate = await fs.realpath(candidateAbs);
+  } catch {
+    return false;
+  }
+
+  if (realCandidate === realRoot) {
+    return false;
+  }
+
+  return realCandidate.startsWith(realRoot + path.sep);
+}
+
 async function scanMemberMarkers(containerRoot) {
   const memberDirs = new Set();
   const traversalWarnings = [];
@@ -507,9 +561,19 @@ async function scanMemberMarkers(containerRoot) {
   const results = [];
 
   for (const memberDir of memberDirs) {
-    const loaded = await loadMarkerFromMember(
-      path.join(containerRoot, memberDir),
-    );
+    const memberAbs = path.join(containerRoot, memberDir);
+
+    // Physical containment: reject member dirs that are symlinks escaping the
+    // real container root (lexical isWithinRoot above cannot see through them).
+    // Fail-open — warn and skip, never abort the whole run.
+    if (!(await isRealPathWithinRoot(containerRoot, memberAbs))) {
+      traversalWarnings.push(
+        `ignoring member path "${memberDir}": it is a symlink that escapes the container root`,
+      );
+      continue;
+    }
+
+    const loaded = await loadMarkerFromMember(memberAbs);
 
     if (loaded.ok) {
       results.push({ memberDir, marker: loaded.marker, warning: loaded.warning });

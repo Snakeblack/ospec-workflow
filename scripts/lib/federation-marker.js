@@ -343,15 +343,32 @@ function stripTimestamp(data) {
 }
 
 async function readExistingMarker(markerPath) {
+  let content;
+
+  // Read and parse are distinct failure domains and MUST be told apart:
+  //   - ENOENT on read  → the marker is absent; return null so enroll writes a
+  //                        fresh one.
+  //   - any other read error (EACCES/EBUSY/EISDIR/transient lock) → a genuine
+  //                        I/O fault; RETHROW so enroll aborts for this member
+  //                        instead of treating a healthy-but-unreadable marker
+  //                        as absent and OVERWRITING it (data loss).
+  //   - parse failure on present content → the marker is corrupt; return null
+  //                        so enroll self-heals by rewriting it cleanly.
   try {
-    return parseMarker(await fs.readFile(markerPath, "utf8"));
+    content = await fs.readFile(markerPath, "utf8");
   } catch (error) {
     if (error.code === "ENOENT") {
       return null;
     }
 
-    // A corrupt/unparseable existing marker is treated as absent so enroll can
-    // rewrite it cleanly rather than aborting.
+    throw error;
+  }
+
+  try {
+    return parseMarker(content);
+  } catch {
+    // A present-but-unparseable marker is treated as absent so enroll can
+    // rewrite it cleanly (self-heal) rather than aborting.
     return null;
   }
 }

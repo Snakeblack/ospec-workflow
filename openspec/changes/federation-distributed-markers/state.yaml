@@ -25,7 +25,7 @@ session:
   reply_language: es
 
 status: verified
-last_updated: 2026-06-17T18:30:00Z
+last_updated: 2026-06-18T00:00:00Z
 
 route:
   intended_route: standard
@@ -104,16 +104,32 @@ phases:
         note: >
           Follow-on security slice closing risk-critical-001 (path traversal).
           Added after apply was done; apply remains done.
+      WU7:
+        status: done
+        phases: ["Phase 8"]
+        note: >
+          Follow-on hardening slice closing resilience-warning-001 (readExistingMarker
+          data-loss on non-ENOENT I/O error) and risk-warning-symlink-001 (lexical-only
+          containment symlink escape). Added after apply was done; apply remains done.
   verify:
     status: done
-    artifact: openspec/changes/federation-distributed-markers/verify-report.md
-    verdict: PASS WITH WARNINGS
-    test_evidence: "353 pass / 0 fail / 0 skipped (node --test scripts/**/*.test.js)"
     stale: true
     stale_reason: >
-      WU6 security fix landed after this verify run (now 357 pass / 0 fail / 0
-      skipped). A re-run of sdd-verify is required to re-bless the tree. Verdict
-      NOT changed here by the apply phase.
+      Committed verify run (PASS WITH WARNINGS, 357 pass) predates WU7. WU7 closed
+      resilience-warning-001 and risk-warning-symlink-001 (hardening). A final
+      sdd-verify re-run is required to re-bless the tree and confirm both findings
+      are closed by tests (full native suite now 362 pass / 0 fail / 0 skipped).
+    artifact: openspec/changes/federation-distributed-markers/verify-report.md
+    verdict: PASS WITH WARNINGS
+    test_evidence: "357 pass / 0 fail / 0 skipped (node --test scripts/**/*.test.js; also embedded in npm test via check.js Native Node tests step)"
+    reverified_at: 2026-06-17T19:05:00Z
+    reverify_note: >
+      Re-verified after WU6 (commit 8656fc4) landed the path-traversal containment
+      fix. risk-critical-001 confirmed CLOSED BY TESTS (isWithinRoot guard at the
+      scanMemberMarkers boundary; 4 RED-first tests prove read+write paths reject
+      escaping .gitmodules member paths fail-open). parseAtlas byte-identical; no
+      regressions; 353 WU1-WU5 tests preserved + 4 WU6 = 357 green. Six non-blocking
+      WARNINGs remain (W1-W6), none in WU6 scope. Verdict unchanged: PASS WITH WARNINGS.
   archive:
     status: pending
 
@@ -128,6 +144,9 @@ gates:
         reviewer: review-risk
         severity: CRITICAL
         origin: code-bug
+        status: closed
+        remediated_by: WU6
+        confirmed_by: review-risk re-review (commit 8656fc4) + sdd-verify re-run (357/357)
         summary: >
           Path traversal in member scanning. parseGitmodulesPaths inserts
           .gitmodules `path = ...` values unvalidated into memberDirs; explore →
@@ -160,17 +179,57 @@ gates:
         reviewer: review-resilience
         severity: WARNING
         origin: code-bug
+        status: closed
+        remediated_by: WU7
+        confirmed_by: sdd-apply WU7 RED-first tests (federation-marker.test.js) + full native suite 362/362
         summary: >
           readExistingMarker swallows ALL non-ENOENT errors as "corrupt"; a transient
           EACCES/EBUSY read error makes enroll overwrite a healthy marker (data loss).
         affected: [scripts/lib/federation-marker.js:345]
         fix_hint: rethrow when error.code is neither ENOENT nor a parse failure.
+        remediation: >
+          Split readExistingMarker into a read phase and a parse phase. ENOENT on read
+          -> null (absent, write fresh); any other read error (EACCES/EBUSY/EISDIR/lock)
+          -> RETHROW so enroll aborts instead of overwriting a healthy marker; parse
+          failure on present content -> null (corrupt self-heal rewrite). Covered by 2
+          RED-first tests (EACCES data-loss + EISDIR rethrow) plus a green self-heal
+          regression test.
       - id: reliability-warning-002
         reviewer: review-reliability
         severity: WARNING
         origin: tasks-gap
+        status: closed
+        remediated_by: WU7
+        confirmed_by: sdd-apply WU7 self-heal regression test (federation-marker.test.js)
         summary: corrupt/empty existing-marker recovery path in enroll has no test.
         affected: [scripts/lib/federation-marker.js:324]
+        remediation: >
+          Added a green regression test asserting a present-but-unparseable (whitespace)
+          marker is rewritten with status "written" (corrupt self-heal path covered).
+      - id: risk-warning-symlink-001
+        reviewer: review-risk
+        severity: WARNING
+        origin: code-bug
+        status: closed
+        remediated_by: WU7
+        confirmed_by: sdd-apply WU7 RED-first symlink tests (workspace-atlas.test.js + federation-explore.test.js) + full native suite 362/362
+        summary: >
+          WU6 containment (isWithinRoot) is purely lexical (path.resolve, not
+          fs.realpath). A real symlink planted inside containerRoot whose name does
+          not contain ../ passes the check and lets loadMarkerFromMember/enroll
+          follow it out of root. Distinct from risk-critical-001 (lexical ../ /
+          absolute vector, which is closed). Advisory, non-blocking for C1.
+        affected: [scripts/lib/workspace-atlas.js:441]
+        fix_hint: resolve with fs.realpath before the containment check, or refuse symlinked member dirs.
+        remediation: >
+          Added a physical containment guard isRealPathWithinRoot(containerRoot, candidateAbs)
+          that resolves the real on-disk path with fs.realpath/fs.lstat and applied it at the
+          scanMemberMarkers discovery->use boundary (warn + skip, fail-open). A not-yet-existing
+          first-enroll dir (lstat ENOENT) is accepted; a non-symlink entry is accepted; an
+          EXISTING symlink escaping or dangling outside the real root is rejected. The lexical
+          isWithinRoot ../ /absolute rejection is preserved (no risk-critical-001 regression).
+          Both read (loadMarkerFromMember/classifyMember) and write (explore -> enroll) paths
+          inherit the guard since both consume scanMemberMarkers. Covered by 2 RED-first tests.
     suggestions_count: 6
 
 approvals:
@@ -203,7 +262,7 @@ approvals:
 
 chain:
   strategy: feature-branch-chain
-  order: [WU1, WU2, WU3, WU4, WU5, WU6]
+  order: [WU1, WU2, WU3, WU4, WU5, WU6, WU7]
   slices:
     - id: WU1
       scope: workspace-atlas.js marker read/merge/serialize + loadAtlas regeneration branch + Phase 1 regression baseline
@@ -230,6 +289,12 @@ chain:
       depends_on: [WU1, WU4]
       risk: high
       remediates: risk-critical-001
+      status: done
+    - id: WU7
+      scope: hardening — readExistingMarker I/O-vs-absence distinction + physical (realpath) symlink containment in scanMemberMarkers
+      depends_on: [WU2, WU4, WU6]
+      risk: high
+      remediates: [resilience-warning-001, reliability-warning-002, risk-warning-symlink-001]
       status: done
   delivered: true
 

@@ -212,3 +212,88 @@ test("enroll leaves no temporary file behind after an atomic write", async (t) =
     [],
   );
 });
+
+// --- WU7 Fix A: I/O error vs absence vs corrupt-marker -----------------------
+// resilience-warning-001 / reliability-warning-002. readExistingMarker must
+// distinguish "marker absent" (ENOENT → write fresh) and "present-but-unparseable"
+// (parse failure → self-heal rewrite) from a "genuine I/O error" (EACCES/EBUSY/
+// EISDIR → rethrow so enroll aborts instead of destroying the canonical marker).
+
+test("enroll rethrows a transient I/O read error and does NOT overwrite a healthy marker", async (t) => {
+  const ws = await createWorkspace(t);
+  const memberDir = path.join(ws, "svc-api");
+  const oldTimestamp = "2020-01-01T00:00:00.000Z";
+
+  // Seed a HEALTHY, readable marker — the canonical source of truth.
+  await fs.mkdir(path.join(memberDir, "openspec"), { recursive: true });
+  const seeded = serializeMarker({ ...buildData(), updated_at: oldTimestamp });
+  await fs.writeFile(path.join(memberDir, MARKER_RELATIVE_PATH), seeded);
+
+  // Simulate a transient, non-ENOENT read failure (e.g. EACCES/EBUSY) on the
+  // marker read only; every other fs op behaves normally.
+  const realReadFile = fs.readFile;
+  fs.readFile = async (target, ...rest) => {
+    if (String(target).endsWith("federation.member.yaml")) {
+      const error = new Error("EACCES: permission denied, open");
+      error.code = "EACCES";
+      throw error;
+    }
+
+    return realReadFile(target, ...rest);
+  };
+
+  try {
+    await assert.rejects(
+      () => enroll(memberDir, buildData({ member: { role: "secondary" } })),
+      (error) => error.code === "EACCES",
+    );
+  } finally {
+    fs.readFile = realReadFile;
+  }
+
+  // The healthy marker must be intact — enroll must NOT have overwritten it.
+  const after = await fs.readFile(
+    path.join(memberDir, MARKER_RELATIVE_PATH),
+    "utf8",
+  );
+  assert.equal(after, seeded);
+});
+
+test("enroll rethrows EISDIR when the marker path is a directory (no silent overwrite)", async (t) => {
+  const ws = await createWorkspace(t);
+  const memberDir = path.join(ws, "svc-api");
+
+  // Make the marker PATH itself a directory → fs.readFile raises EISDIR, which
+  // is a genuine I/O error, not "marker absent".
+  await fs.mkdir(path.join(memberDir, MARKER_RELATIVE_PATH), { recursive: true });
+
+  await assert.rejects(
+    () => enroll(memberDir, buildData()),
+    (error) => error.code === "EISDIR",
+  );
+
+  // No stray atomic temp file from a half-done write must be left behind.
+  const entries = await fs.readdir(path.join(memberDir, "openspec"));
+  assert.deepEqual(
+    entries.filter((name) => name.endsWith(".tmp")),
+    [],
+  );
+});
+
+test("enroll rewrites a present-but-unparseable marker (corrupt self-heal stays green)", async (t) => {
+  const ws = await createWorkspace(t);
+  const memberDir = path.join(ws, "svc-api");
+
+  // A present marker whose content fails parseMarker (whitespace only).
+  await fs.mkdir(path.join(memberDir, "openspec"), { recursive: true });
+  await fs.writeFile(path.join(memberDir, MARKER_RELATIVE_PATH), "   \n");
+
+  const result = await enroll(memberDir, buildData());
+
+  assert.equal(result.status, "written");
+
+  const parsed = parseMarker(
+    await fs.readFile(path.join(memberDir, MARKER_RELATIVE_PATH), "utf8"),
+  );
+  assert.equal(parsed.member.id, "svc-api");
+});

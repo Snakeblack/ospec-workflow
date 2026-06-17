@@ -402,6 +402,62 @@ test("scanMemberMarkers rejects a .gitmodules path that escapes the container ro
   );
 });
 
+// WU7 (risk-warning-symlink-001): lexical isWithinRoot alone trusts a member
+// directory whose NAME has no `../` even when it is a real symlink physically
+// pointing OUTSIDE the container. scanMemberMarkers must resolve the real path
+// and reject such an escaping symlink (warn + skip), without out-of-tree reads.
+test("scanMemberMarkers rejects a symlinked member that escapes the container (read path)", async (t) => {
+  const ws = await createWorkspace(t);
+  // A legitimate in-root member that must still be discovered (regression).
+  await writeMember(ws, "svc-api", { marker: MARKER_API });
+
+  // A real directory OUTSIDE the container carrying a marker a symlink would expose.
+  const outside = path.join(ws, "..", `escape-${path.basename(ws)}`);
+  await fs.mkdir(path.join(outside, "openspec"), { recursive: true });
+  await fs.writeFile(
+    path.join(outside, "openspec", "federation.member.yaml"),
+    MARKER_API,
+  );
+  t.after(() => fs.rm(outside, { recursive: true, force: true }));
+
+  // Plant a symlink INSIDE the container whose name has no `../` (passes lexical).
+  const linkType = process.platform === "win32" ? "junction" : "dir";
+  try {
+    await fs.symlink(outside, path.join(ws, "legit"), linkType);
+  } catch (error) {
+    if (error.code === "EPERM" || error.code === "EACCES") {
+      t.skip("symlink creation not permitted on this platform");
+      return;
+    }
+    throw error;
+  }
+
+  await fs.writeFile(
+    path.join(ws, ".gitmodules"),
+    [
+      '[submodule "legit"]',
+      "  path = legit",
+      "  url = https://example.com/legit.git",
+      "",
+    ].join("\n"),
+  );
+
+  const result = await scanMemberMarkers(ws);
+
+  // Only the genuine in-root member survives; the escaping symlink is rejected.
+  assert.deepEqual(
+    result.map((entry) => entry.memberDir),
+    ["svc-api"],
+  );
+  assert.ok(!result.some((entry) => entry.memberDir === "legit"));
+  // No out-of-tree READ happened through the symlink.
+  assert.ok(
+    result.warnings.some(
+      (w) => /escape|symlink/i.test(w) && w.includes("legit"),
+    ),
+  );
+});
+
 test("mergeMarkersIntoAtlas unions member entries from multiple markers", () => {
   const { atlas } = mergeMarkersIntoAtlas([
     buildMarker({

@@ -727,3 +727,223 @@ confirm `risk-critical-001` is closed.
 
 **Next recommended**: re-run `sdd-verify` (apply complete with `357/357` green), then re-run
 `review-risk` to confirm closure of `risk-critical-001`.
+
+---
+
+# WU7 — Hardening: I/O-Error Distinction + Physical Symlink Containment (FOLLOW-ON slice)
+
+**Batch**: WU7 (Phase 8) — built on top of WU1 (`4efe753`), WU2 (`f30ab07`), WU3 (`06462da`), WU4 (`fda2c5e`), WU5 (`c3d3ff7`), WU6 (`8656fc4`) on `feat/federation-distributed-markers`. WU7 is a follow-on hardening slice raised by the 4R reviewers (two advisory WARNINGs); it depends on WU2 (`enroll`/`readExistingMarker`), WU4 (`explore`) and WU6 (`scanMemberMarkers` containment boundary).
+**Mode**: Strict TDD (strict_tdd: true, runner `npm test` → `node scripts/check.js` → `node --test scripts/**/*.test.js` + 4 target generators).
+**Delivery**: Feature Branch Chain (approval `review-workload-001`) — this batch = **WU7**, follow-on child PR on top of WU6's branch.
+**Skill resolution**: fallback-config (no `.ospec/cache/skill-registry.cache.json`; rules injected via `## Project Standards` from `openspec/config.yaml`).
+
+## The two hardening findings (closed by WU7)
+
+### Fix A — `resilience-warning-001` (+ `reliability-warning-002`): data loss in `readExistingMarker`
+
+`readExistingMarker` wrapped BOTH the `fs.readFile` and the `parseMarker` calls in a single
+`try`, and the `catch` special-cased only `ENOENT`; EVERY other error fell through to
+`return null`. So a HEALTHY-but-temporarily-unreadable marker (transient `EACCES`/`EBUSY`,
+an `EISDIR`, a lock) was reported as "absent", and `enroll` then OVERWROTE the canonical
+source-of-truth marker → data loss. `reliability-warning-002` flagged that the
+corrupt/empty self-heal recovery path had no test.
+
+### Fix B — `risk-warning-symlink-001`: lexical-only containment
+
+WU6's `isWithinRoot` is purely lexical (`path.resolve`). A real SYMLINK planted inside
+`containerRoot` whose name has no `../` (e.g. a `.gitmodules` `path = legit` where `legit`
+is a symlink) resolves lexically inside root but physically points OUTSIDE, letting
+`loadMarkerFromMember` (read) and `explore` → `enroll` (write) follow it out of root.
+Distinct from `risk-critical-001` (lexical `../`/absolute vector, already closed by WU6).
+
+## The fixes
+
+### Fix A — explicit read-vs-parse failure domains
+
+`readExistingMarker` now performs the read and the parse as TWO distinct `try` blocks:
+
+```js
+async function readExistingMarker(markerPath) {
+  let content;
+  try {
+    content = await fs.readFile(markerPath, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return null; // absent → write fresh
+    throw error;                              // genuine I/O error → abort, never overwrite
+  }
+  try {
+    return parseMarker(content);
+  } catch {
+    return null;                              // present-but-unparseable → self-heal rewrite
+  }
+}
+```
+
+This makes the distinguishing logic explicit:
+- **absent** (`ENOENT` on read) → `null` → `enroll` writes a fresh marker;
+- **genuine I/O error** (`error.code` is anything other than `ENOENT` on read — `EACCES`/
+  `EBUSY`/`EISDIR`/lock) → **RETHROW** → `enroll` aborts for that member and the healthy
+  marker is preserved;
+- **corrupt** (present content that fails `parseMarker`) → `null` → `enroll` self-heals by
+  rewriting cleanly. The self-heal path is structurally separated from the I/O path, so it
+  stays intact.
+
+### Fix B — physical (`realpath`) containment at the single boundary
+
+A new pure-ish guard `isRealPathWithinRoot(containerRoot, candidateAbs)` resolves the real
+on-disk target with `fs.lstat`/`fs.realpath` and is applied in `scanMemberMarkers` at the
+discovery→use boundary (the same single boundary WU6 used), so BOTH the read path
+(`loadMarkerFromMember`/`classifyMember`) and the write path (`explore` → `enroll`) inherit it:
+
+```js
+async function isRealPathWithinRoot(containerRoot, candidateAbs) {
+  let entryStats;
+  try { entryStats = await fs.lstat(candidateAbs); }
+  catch (error) { return error.code === "ENOENT"; } // absent → accept (first-enroll); else reject
+  if (!entryStats.isSymbolicLink()) return true;     // real dir already cleared lexical → accept
+  let realRoot;
+  try { realRoot = await fs.realpath(containerRoot); } catch { realRoot = path.resolve(containerRoot); }
+  let realCandidate;
+  try { realCandidate = await fs.realpath(candidateAbs); } catch { return false; } // dangling → reject
+  if (realCandidate === realRoot) return false;
+  return realCandidate.startsWith(realRoot + path.sep);
+}
+```
+
+- a **not-yet-existing** member dir (`lstat` → `ENOENT`) is ACCEPTED — the normal first-enroll
+  case, already cleared by the lexical check;
+- a **non-symlink** entry is ACCEPTED without paying for `realpath` on every normal member;
+- an **EXISTING symlink** (or Windows junction, which `lstat` also flags as a symlink) is
+  resolved and REJECTED when its real target escapes the real container root (or dangles);
+  an in-root symlink target is still accepted.
+
+The lexical `isWithinRoot` `../`/absolute rejection from WU6 is left untouched (no
+`risk-critical-001` regression). `federation-explore.js` and `federation-marker.js` need NO
+edits — `explore` consumes `scanMemberMarkers`, so the boundary guard covers its write path.
+
+## Per-task status (WU7)
+
+### Phase 8 — WU7
+
+- [x] 8.1 RED-first tests in `scripts/lib/federation-marker.test.js`: transient `EACCES` on a HEALTHY marker → `enroll` rejects + marker byte-preserved (no overwrite); marker-path-is-a-directory → `EISDIR` rethrown, no `.tmp` left; present-but-unparseable (whitespace) marker → `status: written` self-heal (green regression, closes `reliability-warning-002`).
+- [x] 8.2 RED-first tests in `scripts/lib/workspace-atlas.test.js` (read path) and `scripts/lib/federation-explore.test.js` (write path): a REAL symlink inside the container (clean name, `.gitmodules path = legit`) pointing outside is skipped with a warning, no out-of-tree read; `explore` never writes a marker THROUGH the symlink outside the real container while still enrolling the legit in-root member. `t.skip()` guard for OSes that cannot create symlinks (not triggered — junctions worked on this Windows host).
+- [x] 8.3 `readExistingMarker` split into read-phase + parse-phase in `scripts/lib/federation-marker.js`: ENOENT→null, other read error→rethrow, parse failure→null.
+- [x] 8.4 `isRealPathWithinRoot` added to `scripts/lib/workspace-atlas.js` and applied at the `scanMemberMarkers` discovery→use boundary (warn + skip, fail-open). Lexical `isWithinRoot` preserved.
+- [x] 8.5 Full `npm test` green; WU1–WU6 baseline + 5 new WU7 tests all pass.
+
+## Test evidence (WU7)
+
+| Run | Command | Result |
+|-----|---------|--------|
+| RED gate | `node --test federation-marker.test.js workspace-atlas.test.js federation-explore.test.js` (tests present, fixes absent) | `47 pass / 4 fail` (EACCES data-loss; EISDIR rethrow; scan symlink read-path; explore symlink write-path). The self-heal regression was green from the start. |
+| GREEN | same three files (after both fixes) | `51 pass / 0 fail / 0 skipped` |
+| Full suite (8.5) | `npm test` (`node scripts/check.js`) | `All checks passed.` (4 targets generate + validate; `0 errors, 0 warnings`) |
+| Full native suite | `node --test scripts/**/*.test.js` | `362 pass / 0 fail / 0 skipped` (357 WU1–WU6 baseline + 5 WU7) |
+| Additive check | `git diff --numstat federation-marker.js workspace-atlas.js` | `20 / 3` (marker) and `67 / 3` (atlas) — `parseAtlas` byte-identical; the small deletions are the `readExistingMarker` body restructure and the `scanMemberMarkers` final-loop `loadMarkerFromMember(...)` call reshaped to add the guard. |
+
+> The known WU1 `git` integration flake in `artifact-store.test.js` did NOT appear this run
+> (full native suite `362/362` clean). It is outside WU7 scope; if it ever surfaces, re-run to
+> confirm it is the pre-existing flake, not a WU7 regression.
+
+## TDD Cycle Evidence (WU7)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| 8.3 `readExistingMarker` (Fix A) | `federation-marker.test.js` | Unit (fs fixtures + readFile stub) | ✅ 46/46 prior | ✅ Written | ✅ Passed | ✅ 3 cases (EACCES data-loss / EISDIR rethrow+no-tmp / corrupt self-heal stays green) | ➖ Clean as written |
+| 8.4 `isRealPathWithinRoot` + `scanMemberMarkers` guard (Fix B, read path) | `workspace-atlas.test.js` | Unit (real symlink/junction fixtures) | ✅ 50/50 federation | ✅ Written | ✅ Passed | ✅ symlink-escape skipped + in-root regression + warning | ➖ Single guard, no extraction |
+| 8.4 `explore` guard (Fix B, write path) | `federation-explore.test.js` | Integration (real symlink container fixture) | ✅ 50/50 | ✅ Written | ✅ Passed | ✅ no-write-through-symlink + legit-still-enrolled + warning | ➖ Reuses shared boundary |
+
+### Test Summary (WU7)
+
+- Total new tests written: 5 (3 in `federation-marker.test.js`, 1 in `workspace-atlas.test.js`, 1 in `federation-explore.test.js`)
+- Total tests passing (full native suite): 362 (357 WU1–WU6 baseline + 5 WU7)
+- Layers used: Unit (4), Integration (1)
+- Approval tests (refactoring): None — WU7 edits are localized to `readExistingMarker` and the `scanMemberMarkers` guard; no existing test modified
+- Pure functions created: `isRealPathWithinRoot` (I/O-bound by necessity — it resolves real on-disk paths; deterministic given the filesystem)
+
+## Files touched (WU7)
+
+| File | Action | What was done |
+|------|--------|---------------|
+| `scripts/lib/federation-marker.js` | Modified | Split `readExistingMarker` into read-phase + parse-phase: ENOENT→null (absent), other read error→RETHROW (genuine I/O error, no overwrite), parse failure→null (corrupt self-heal). 20 additions / 3 deletions. |
+| `scripts/lib/workspace-atlas.js` | Modified (additive guard) | Added `isRealPathWithinRoot(containerRoot, candidateAbs)` (lstat/realpath physical containment) + applied it at the `scanMemberMarkers` discovery→use boundary (warn + skip escaping symlinks, fail-open). Lexical `isWithinRoot` untouched; `parseAtlas` byte-identical. 67 additions / 3 deletions. |
+| `scripts/lib/federation-marker.test.js` | Modified (additive) | Added 3 Fix-A tests (EACCES data-loss, EISDIR rethrow + no-tmp, corrupt self-heal). Existing tests unchanged. |
+| `scripts/lib/workspace-atlas.test.js` | Modified (additive) | Added 1 Fix-B read-path symlink-escape test. Existing tests unchanged. |
+| `scripts/lib/federation-explore.test.js` | Modified (additive) | Added 1 Fix-B write-path symlink-escape test. Existing tests unchanged. |
+| `openspec/changes/federation-distributed-markers/tasks.md` | Modified | Added Phase 8 (8.1–8.5) checked off `[x]`. |
+| `openspec/changes/federation-distributed-markers/state.yaml` | Modified | Added `WU7.status: done` (phases `[Phase 8]`); extended chain `order`/`slices` with WU7; set `resilience-warning-001`, `reliability-warning-002`, `risk-warning-symlink-001` to `status: closed` + `remediated_by: WU7`; flagged the prior verify run `stale: true` (re-run required). |
+| `openspec/changes/federation-distributed-markers/apply-progress.md` | Modified | Appended this WU7 section; WU1–WU6 history preserved verbatim. |
+
+## How both findings are now closed
+
+- **`resilience-warning-001` / `reliability-warning-002` (Fix A)** — `enroll` can no longer
+  mistake an unreadable healthy marker for an absent one: a non-ENOENT read error propagates
+  and aborts the write (proven by the `EACCES` data-loss test asserting the marker is
+  byte-preserved, and the `EISDIR` rethrow test). The corrupt-marker self-heal is structurally
+  separated into the parse phase and proven by the present-but-unparseable rewrite test.
+- **`risk-warning-symlink-001` (Fix B)** — an existing symlink/junction member dir that
+  physically escapes the real container root is resolved via `realpath` and rejected at the
+  single discovery boundary, fail-open, before any read or write. Proven by the
+  `scanMemberMarkers` read-path test (no out-of-tree read) and the `explore` write-path test
+  (no marker written through the symlink), with a normal in-root member still discovered/enrolled.
+
+## Suggested work-unit commit (WU7)
+
+Not committed/pushed (left staged-ready for the maintainer). Suggested single work-unit commit
+(type `fix` for the hardening remediation; no model attribution, no `Co-Authored-By`):
+
+```
+fix(federation): evita perdida de datos en lectura de marcador y refuerza la contencion ante symlinks
+
+Cierra dos hallazgos advisory del 4R. resilience-warning-001 (+ reliability-warning-002):
+readExistingMarker envolvia lectura y parseo en un solo try y trataba TODO error que no fuera
+ENOENT como "ausente", de modo que un marcador sano pero temporalmente ilegible (EACCES/EBUSY/
+EISDIR/bloqueo) hacia que enroll SOBREESCRIBIERA la fuente de verdad (perdida de datos). Ahora
+separa lectura y parseo en dominios de fallo distintos: ENOENT en lectura -> null (ausente,
+escribe nuevo); cualquier otro error de lectura -> RELANZA para que enroll aborte sin
+sobreescribir; fallo de parseo sobre contenido presente -> null (auto-reparacion reescribiendo
+limpio), que permanece en verde. risk-warning-symlink-001: la contencion isWithinRoot de WU6 es
+solo lexica (path.resolve), asi que un symlink real plantado dentro de containerRoot con nombre
+sin ../ pasaba el chequeo y permitia que loadMarkerFromMember/enroll lo siguieran fuera del raiz.
+Anade el guard fisico isRealPathWithinRoot (lstat/realpath) en el unico limite de descubrimiento
+scanMemberMarkers: una ruta inexistente (primer enroll) se acepta, una entrada no-symlink se
+acepta, y un symlink existente que escapa o cuelga fuera del raiz real se avisa y se omite en modo
+fail-open, protegiendo a la vez la ruta de lectura y la de escritura (explore -> enroll). Conserva
+el rechazo lexico ../ /absoluto de WU6 (sin regresion de risk-critical-001). Cobertura TDD: 5 tests
+nuevos RED-first (EACCES, EISDIR, auto-reparacion; scanMemberMarkers y explore con symlink real);
+suite completa 362/362 en verde. parseAtlas byte-identico.
+```
+
+## Deviations from design (WU7)
+
+WU7 is not in the original C1 design — it is a follow-on remediation for two 4R advisory
+WARNINGs. Implementation notes:
+- **Read-vs-parse split over a code-flag**: rather than inspecting the error to guess whether it
+  came from `fs.readFile` or `parseMarker`, the function performs the read and the parse in two
+  separate `try` blocks. This makes the I/O-error-vs-parse-failure distinction structural and
+  unambiguous, which is more robust than pattern-matching error messages.
+- **Single-boundary physical guard, layered on the lexical one**: `isRealPathWithinRoot` is
+  applied at the same `scanMemberMarkers` discovery→use boundary as WU6's lexical guard, keeping
+  the security invariant in one auditable place. The lexical check stays as the cheap first gate
+  (rejects `../`/absolute before any fs call); the physical check is the second gate (only
+  pays for `realpath` on actual symlink entries).
+- **ENOENT accepted to preserve first-enroll**: per the task, a not-yet-existing in-root member
+  dir (the normal first-enroll case) must still be accepted, so `lstat` → `ENOENT` returns
+  accept. Only an EXISTING symlink escaping (or a dangling symlink, via `realpath` throwing) is
+  rejected — distinguished by checking `lstat` BEFORE `realpath`.
+- **`federation-explore.js`/`federation-marker.js` untouched for Fix B**: the boundary guard at
+  `scanMemberMarkers` fully covers `explore`'s write path (it consumes the filtered output), so
+  no edits were needed there — keeping the WU7 diff minimal and the invariant centralized.
+- **Symlinks really exercised on Windows**: the `t.skip()` fallback was provided for OSes that
+  cannot create symlinks, but on this Windows host directory junctions (`fs.symlink(..., "junction")`)
+  succeeded without elevation, so both Fix-B tests ran for real (0 skipped).
+
+## Verify re-run required (NOT changed by apply)
+
+The committed verify run (`PASS WITH WARNINGS`, `357 pass`) predates WU7. `state.yaml` now flags
+`phases.verify.stale: true` with the reason; the apply phase did **not** alter the verify verdict.
+A re-run of `sdd-verify` (and optionally `review-resilience`/`review-risk`) is required to
+re-bless the tree and confirm `resilience-warning-001` and `risk-warning-symlink-001` are closed.
+
+**Next recommended**: re-run `sdd-verify` (apply complete with `362/362` green), then archive via
+`sdd-archive` once verify re-blesses the tree.
