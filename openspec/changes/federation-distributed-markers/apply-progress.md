@@ -195,3 +195,117 @@ None blocking. Implementation notes:
 - **Normalized idempotency comparison**: the design says "deep-equality of the stripped objects". Implemented with `node:util.isDeepStrictEqual` after stripping `updated_at` from both the parsed existing marker and the incoming data. This is order-insensitive (a caller supplying `member` keys in a different order still resolves to `status:'fresh'`), which is stricter/safer than a raw string comparison and is covered by a dedicated triangulation test.
 - **Corrupt existing marker**: if an existing `federation.member.yaml` is present but unparseable, `enroll` treats it as absent and rewrites cleanly (fail-safe), rather than aborting. This keeps `enroll` resilient and aligns with the federation fail-open posture; it is not contradicted by any spec scenario.
 - **Module self-contained**: `parseMarker`/serializer helpers are reimplemented inside `federation-marker.js` rather than imported from `workspace-atlas.js`, per the design decision to keep the member-repo WRITE path separate from the hook-facing READ/aggregation module (`workspace-atlas.js` does not export `parseMarker`). Both share the same YAML-subset conventions so markers round-trip across modules.
+
+---
+
+# WU3 — `sdd-init` Container Detection + `target_dir`
+
+**Batch**: WU3 (Phase 4) — built on top of WU1 (`4efe753`) and WU2 (`f30ab07`) on `feat/federation-distributed-markers`. Per the WU2 return and `state.yaml` chain, WU3 depends only on WU1 and is independent of WU2.
+**Mode**: Strict TDD (strict_tdd: true, runner `npm test` → `node scripts/check.js` → `node --test scripts/**/*.test.js` + 4 target generators).
+**Delivery**: Feature Branch Chain (approval `review-workload-001`) — this batch = **WU3**, child PR on top of WU1's branch.
+**Skill resolution**: fallback-config (no `.ospec/cache/skill-registry.cache.json`; rules injected via `## Project Standards` from `openspec/config.yaml`).
+
+## Scope of this batch
+
+- **Phase 4: WU3 — `sdd-init` federated bridge** (tasks 4.1–4.2): document the `target_dir`
+  resolution (`## Parameters` block, cwd fallback, ENOENT → blocked) and the depth-1 multirepo
+  container-detection gate (no own `.git` + ≥2 child `.git` → blocked + `federated|normal`
+  question_gate) in the two source-of-truth markdown files.
+
+Phases 5–6 (WU4–WU5) are **NOT** implemented in this batch and remain pending.
+
+## Per-task status (WU3)
+
+### Phase 4 — WU3
+
+- [x] 4.1 `skills/sdd-init/SKILL.md` — added a `## Pre-Execution: Federated Bridge` section with Step 0a (resolve `target_dir` from the `## Parameters` block; absent/missing → cwd; present + ENOENT → `status: blocked` + `question_gate(invalid-path)`, no writes) and Step 0b (depth-1 child scan; no own `.git` AND ≥2 children with `.git` dir/file → `status: blocked` + `question_gate` with exactly `federated`/`normal`, before any artifact write; own `.git` and <2 children fall through to normal init).
+- [x] 4.2 `agents/sdd-init.agent.md` — added a `## Parameters` section documenting the `target_dir` contract (absent → cwd; present + valid → init scoped to that path; present + non-existent → `status: blocked` + `question_gate`), and the note that the orchestrator injects the block — NOT env vars, NOT dynamic frontmatter.
+
+## TDD note (documentation-contract deliverable)
+
+WU3 changes no executable code — the deliverable is the documented behavior contract inside
+two markdown files. Following the repo's existing markdown content-contract test pattern
+(`scripts/docs-lint.test.js`, `scripts/manifest-sync.test.js`), the contract was pinned with a
+new `node --test` file `scripts/sdd-init-federation.test.js` that asserts the required
+behavioral tokens are present in `skills/sdd-init/SKILL.md` and `agents/sdd-init.agent.md`.
+Tests were written RED-first against the not-yet-written contract.
+
+## Test evidence (WU3)
+
+| Run | Command | Result |
+|-----|---------|--------|
+| RED gate | `node --test scripts/sdd-init-federation.test.js` (file present, contract absent) | `0 pass / 10 fail` |
+| GREEN (intermediate) | same, after first SKILL/agent edits | `8 pass / 2 fail` (two regex-order mismatches in the prose) |
+| GREEN | same, after wording fixes (contiguous `two or more (≥2) … .git`, `absent → cwd`, `no own .git`) | `10 pass / 0 fail / 0 skipped` |
+| Full suite (4.x) | `npm test` (`node scripts/check.js`) | `All checks passed.` (4 targets generate + validate; `0 errors, 0 warnings`) |
+| Full native suite | `node --test scripts/**/*.test.js` | `337 pass / 0 fail / 0 skipped` (327 WU1+WU2 baseline + 10 WU3) |
+
+> The known WU1 `git` integration flake in `artifact-store.test.js` did NOT appear this run
+> (full native suite `337/337` clean). It is outside WU3 scope.
+
+## TDD Cycle Evidence (WU3)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| 4.1 `SKILL.md` federated bridge | `sdd-init-federation.test.js` | Unit (content contract) | N/A (new test file) | ✅ Written | ✅ Passed | ✅ 7 cases (target_dir / cwd-fallback / ENOENT-blocked+invalid-path / depth-1+no-own-.git+≥2 / federated+normal / before-any-write / single-repo fall-through) | ➖ Prose only |
+| 4.2 `agent.md` `## Parameters` | `sdd-init-federation.test.js` | Unit (content contract) | N/A (new test file) | ✅ Written | ✅ Passed | ✅ 3 cases (## Parameters+target_dir / absent→cwd+valid→scoped+missing→blocked / orchestrator-injects + not-env-var/frontmatter) | ➖ Prose only |
+
+### Test Summary (WU3)
+
+- Total new tests written: 10 (all in `scripts/sdd-init-federation.test.js`)
+- Total tests passing (full native suite): 337 (327 WU1+WU2 baseline + 10 WU3)
+- Layers used: Unit / content-contract (10)
+- Approval tests (refactoring): None — WU3 only adds new doc sections; no existing test modified
+- Pure functions created: None — WU3 is a documentation-contract deliverable (no executable code)
+
+## Files touched (WU3)
+
+| File | Action | What was done |
+|------|--------|---------------|
+| `skills/sdd-init/SKILL.md` | Modified (additive) | Added `## Pre-Execution: Federated Bridge` section (Step 0a `target_dir` resolution + Step 0b multirepo container-detection gate). Existing sections untouched. |
+| `agents/sdd-init.agent.md` | Modified (additive) | Added a `## Parameters` section documenting the `target_dir` contract + orchestrator-injection note. Existing sections untouched. |
+| `scripts/sdd-init-federation.test.js` | Created | 10 RED-first content-contract tests pinning the WU3 behavior in the two markdown files. |
+| `openspec/changes/federation-distributed-markers/tasks.md` | Modified | Phase 4 (4.1–4.2) checked off `[x]`. |
+| `openspec/changes/federation-distributed-markers/state.yaml` | Modified | `WU3.status: done` (phases `[Phase 4]`); chain slice WU3 `done`; apply stays `partial`, top-level `applying`. |
+| `openspec/changes/federation-distributed-markers/apply-progress.md` | Modified | Appended this WU3 section; WU1 + WU2 history preserved verbatim. |
+
+## Suggested work-unit commit (WU3)
+
+Not committed/pushed (left staged-ready for the maintainer). Suggested single work-unit commit grouping the WU3 contract test + the two documentation edits:
+
+```
+feat(federation): puente federado de sdd-init con target_dir y deteccion de contenedor multirepo
+
+Documenta en skills/sdd-init/SKILL.md el paso de pre-ejecucion: resuelve target_dir desde el
+bloque ## Parameters (ausente o clave faltante -> cwd; presente con ENOENT -> status blocked +
+question_gate invalid-path, sin escrituras) y la puerta de deteccion de contenedor a profundidad
+1 (sin .git propio Y >=2 hijos con .git de tipo directorio o archivo -> status blocked +
+question_gate con las opciones federated/normal, antes de cualquier escritura; repo unico con
+.git propio y <2 hijos continuan el flujo normal). Anade en agents/sdd-init.agent.md la seccion
+## Parameters con el contrato de target_dir (ausente -> cwd; valido -> init acotado a esa ruta;
+inexistente -> blocked + question_gate) y la nota de que el orquestador inyecta el bloque, no
+variables de entorno ni frontmatter dinamico. Fija el contrato con scripts/sdd-init-federation.test.js
+(10 tests de contenido RED-first). Cobertura TDD: 10 tests nuevos; suite completa 337/337 en verde.
+```
+
+## Deviations from design (WU3)
+
+None blocking. Implementation notes:
+- **Contract-as-tests for a docs deliverable**: WU3 has no executable code, so strict TDD was
+  honored by writing a content-contract test (`scripts/sdd-init-federation.test.js`) RED-first,
+  asserting the required behavioral tokens in the two markdown files. This mirrors the repo's
+  established markdown content-contract tests (`docs-lint.test.js`, `manifest-sync.test.js`) and
+  gives the verify phase an executable gate for the WU3 behavior.
+- **Wording tuned to the contract regexes**: two prose phrasings were adjusted during GREEN so
+  the contract tokens read contiguously (`two or more (≥2) … .git`, `no own .git`, `absent → cwd`)
+  — no behavioral change, only word order, so the documented contract and its test agree.
+- **No generator/agent regeneration needed in-repo**: `agents/*.agent.md` + `skills/**` are the
+  source of truth; the 4-target generators (claude/vscode/github-copilot/opencode) ran inside
+  `npm test` and validated the edits (`0 errors, 0 warnings`). No committed `dist/` exists to update.
+
+## Remaining work (NOT in this batch)
+
+- [ ] WU4 (Phase 5) — `sdd-workspace` `enroll` + `explore`/`classify` subcommand (depends on WU1+WU2).
+- [ ] WU5 (Phase 6) — `.gitignore`, `persistence-contract.md`, orchestrator note + final verification (depends on WU1–WU4).
+
+**Next recommended**: run WU4 — `sdd-workspace` `enroll` + `explore` subcommand (depends on WU1+WU2, both already committed).
