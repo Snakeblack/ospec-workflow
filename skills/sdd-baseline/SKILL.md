@@ -127,9 +127,9 @@ After completing a domain, the aggregated state file `{coordinator_root}/openspe
   "task": "Perform baseline for member svc-payments",
   "parameters": {
     "federation_member_id": "svc-payments",
-    "target_dir": "c:/Users/sn4ke/dev/activos/svc-payments",
+    "target_dir": "../svc-payments",
     "parent_change": "federated-baseline-orchestration",
-    "coordinator_root": "c:/Users/sn4ke/dev/activos/ospec-workflow"
+    "coordinator_root": "../ospec-workflow"
   }
 }
 ```
