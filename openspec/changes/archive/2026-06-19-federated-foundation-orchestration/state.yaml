@@ -1,0 +1,85 @@
+change: federated-foundation-orchestration
+program: federation (C3)
+depends_on:
+  - federated-baseline-orchestration   # C2 (archived 2026-06-19)
+created_at: "2026-06-19"
+branch: main
+
+classification: normal
+classification_confidence: deterministic
+classification_rationale: >
+  Orchestrator and foundation agent changes to support federated parameter passing,
+  scanning sibling member specifications, and interactive MarkItDown fallback.
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: >
+    project.status is active. Standard SDD route is selected.
+  validated: true
+  validation_errors: []
+
+session:
+  execution_mode: interactive
+  delivery_strategy: ask-on-risk
+  reply_language: es
+
+phases:
+  explore:
+    status: done
+    artifact: "openspec/changes/federated-foundation-orchestration/exploration.md"
+    completed_at: "2026-06-19T01:00:00Z"
+  propose:
+    status: done
+    artifact: "openspec/changes/federated-foundation-orchestration/proposal.md"
+    completed_at: "2026-06-19T01:10:00Z"
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/federated-foundation-orchestration/specs/skills/spec.md
+      - openspec/changes/federated-foundation-orchestration/specs/agents/spec.md
+    completed_at: "2026-06-19T01:20:00Z"
+  clarify:
+    status: skipped
+    completed_at: "2026-06-19T01:25:00Z"
+  design:
+    status: done
+    artifact: "openspec/changes/federated-foundation-orchestration/design.md"
+    completed_at: "2026-06-19T01:30:00Z"
+  tasks:
+    status: done
+    artifact: "openspec/changes/federated-foundation-orchestration/tasks.md"
+    completed_at: "2026-06-19T01:35:00Z"
+  apply:
+    status: done
+    completed_at: "2026-06-19T01:50:00Z"
+    artifacts:
+      - agents/sdd-foundation.agent.md
+      - agents/sdd-orchestrator.agent.md
+      - skills/sdd-foundation/SKILL.md
+      - scripts/sdd-foundation-federated.test.js
+      - openspec/changes/federated-foundation-orchestration/apply-progress.md
+  verify:
+    status: done
+    completed_at: "2026-06-19T01:53:00Z"
+    artifact: "openspec/changes/federated-foundation-orchestration/verify-report.md"
+  archive:
+    status: done
+    completed_at: "2026-06-19T01:55:00Z"
+
+approvals:
+  - id: execution-mode-c3
+    gate: execution-mode
+    decision: interactive
+    source: vscode/askQuestions
+    accepted_at: "2026-06-19"
+    applies_to:
+      - orchestrator
+  - id: delivery-strategy-c3
+    gate: delivery-strategy
+    decision: ask-on-risk
+    source: vscode/askQuestions
+    accepted_at: "2026-06-19"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
