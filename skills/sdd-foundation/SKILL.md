@@ -41,71 +41,66 @@ Run this phase when a project has `openspec/config.yaml` but little or no detect
 | Noisy docs present | Normalize into processed references with traceability to raw files. |
 | Enough foundation facts | Update docs and `openspec/config.yaml`; recommend first SDD change. |
 
+## Parameters (modo federado)
+
+Cuando opera en un espacio de trabajo federado (multirepo), la fase `sdd-foundation` acepta y utiliza los siguientes parámetros inyectados por el orquestador:
+
+| Parámetro | Tipo | Descripción |
+|---|---|---|
+| `workspace_yaml` | string | Ruta física del atlas cache (`openspec/workspace.yaml`) en el coordinador |
+| `parent_change` | string | Nombre del cambio activo en el coordinador |
+
 ## Markitdown Document Ingestion (Optional)
 
-Before launching the first discovery question, offer document ingestion to the user.
+Antes de iniciar la primera pregunta de descubrimiento, se ofrece al usuario la posibilidad de ingerir documentos de contexto.
 
 ### Step 1 — Offer via vscode/askQuestions
 
-Ask the user whether they have project documents (PDF, functional spec, architecture doc, etc.)
-they want to contribute as foundation context. This call MUST happen before any discovery
-question is asked. Use `vscode/askQuestions` with two options:
+Preguntar al usuario si tiene documentos del proyecto (PDF, especificación funcional, arquitectura, etc.) que desee aportar como contexto. Esta consulta DEBE ocurrir antes de iniciar las preguntas de descubrimiento. Usar `vscode/askQuestions` con:
 
-- **Yes, I have documents** — proceed to Step 2.
-- **No, skip** — proceed directly to manual discovery (Step 3).
+- **Sí, tengo documentos** — proceder al Step 2.
+- **No, omitir** — proceder directamente al descubrimiento manual (Step 3).
 
-If the user declines or provides no documents, proceed to Step 3 immediately.
+### Step 2 — MCP ingestion (cuando el usuario confirma disponibilidad)
 
-### Step 2 — MCP ingestion (when user confirms documents available)
+Para cada documento suministrado:
 
-For each document the user supplies:
-
-1. Check whether `mcp__microsoft_markitdown__convert_to_markdown` is available on the current
-   target. If it is NOT available, skip to Step 3 (silent fallback — do not tell the user).
-2. Call `mcp__microsoft_markitdown__convert_to_markdown` with the document path or content.
-3. On success:
-   - Preserve the raw source under `docs/references/raw/` (filename unchanged).
-   - Write the converted markdown to `docs/references/processed/` (same base name, `.md`
-     extension).
-   - Collect all converted content; pass it as additional context when launching `sdd-foundation`
-     for the first discovery cycle.
-4. On MCP error for any single document:
-   - Log the error internally (e.g., a note in the agent's working context).
-   - Do **NOT** surface the error to the user as a workflow blocker or warning.
-   - Treat the document as if it were not supplied; continue with any remaining documents.
-   - If all documents fail, proceed to Step 3.
+1. Comprobar si el servidor MCP `mcp__microsoft_markitdown__convert_to_markdown` está disponible en el cliente actual.
+2. **Si el servidor MCP NO está disponible**:
+   - Detener el flujo de ingesta y presentar un gate interactivo al usuario mediante `vscode/askQuestions` con las siguientes opciones de remediación:
+     - **Configurar MarkItDown automáticamente**: Permitir que el agente intente realizar la instalación/configuración del servidor MCP localmente.
+     - **Configurar manualmente con guía**: El agente suspenderá la ingesta, proveerá las instrucciones paso a paso para configurar el servidor (ej. registrar `markitdown-mcp` en `.mcp.json` usando `uvx` u otros medios) y guiará al usuario interactivamente.
+     - **Saltar ingesta de documentos**: Omitir la ingesta y continuar al descubrimiento manual (Step 3).
+3. **Si el servidor MCP está disponible (o es configurado exitosamente)**, llamar a `mcp__microsoft_markitdown__convert_to_markdown` con la ruta o contenido del documento.
+4. En caso de éxito:
+   - Preservar el original en `docs/references/raw/` (nombre sin modificar).
+   - Guardar el markdown convertido en `docs/references/processed/` (mismo nombre base, extensión `.md`).
+   - Coleccionar todo el markdown y pasarlo como contexto adicional al lanzar `sdd-foundation`.
+5. En caso de error del MCP en un documento individual, registrarlo en el contexto interno y continuar con los demás documentos. Si todos fallan, proceder a Step 3.
 
 ### Step 3 — Manual discovery fallback
 
-Proceed with the standard one-question-at-a-time guided discovery defined in `## Execution Steps`
-below. This path is always safe and is the default when:
-
-- The user declines the ingestion offer.
-- `mcp__microsoft_markitdown__convert_to_markdown` is unavailable on the active target.
-- The MCP tool returns an error for every supplied document.
-- The target is `github-copilot` or `opencode` and does not have the MCP configured.
-
-**NEVER** surface MCP absence or MCP errors as workflow blockers. The foundation route MUST
-proceed regardless of MCP availability.
+Proceder con el descubrimiento guiado estándar paso a paso definido en `## Execution Steps` abajo. Este camino se utiliza si el usuario declina, si elige saltar la ingesta ante la ausencia del MCP, o si todos los documentos fallan.
 
 ## Execution Steps
 
-1. Load shared SDD rules and project standards if provided by the orchestrator.
-2. Read `openspec/config.yaml`, existing `docs/**`, and any candidate source documents.
-3. Build a gap map: product, users, capabilities, non-functional constraints, stack, architecture, commands, testing, deployment, roadmap.
-4. Persist confirmed facts and open questions into docs/config before returning, even when discovery is incomplete.
-5. If a blocking gap remains, ask exactly one question and return `blocked`.
-6. Create or update:
+1. Load shared SDD rules and project standards if provided by the orchestrator. En modo federado, recibir el parámetro `workspace_yaml` y mapear la ubicación del atlas.
+2. Read `openspec/config.yaml`, existing `docs/**`, and any candidate source documents. En modo federado, leer también `openspec/workspace.yaml` para descubrir los miembros del workspace y sus relaciones de contratos.
+3. Para cada miembro descubierto, si el miembro está inicializado (tiene `openspec/config.yaml`), leer sus especificaciones locales bajo `{member}/openspec/specs/**/spec.md` resolviendo su ruta mediante la ruta relativa del atlas.
+4. Build a gap map: product, users, capabilities, non-functional constraints, stack, architecture, commands, testing, deployment, roadmap.
+5. Persist confirmed facts and open questions into docs/config before returning, even when discovery is incomplete.
+6. If a blocking gap remains, ask exactly one question and return `blocked`.
+7. Create or update:
    - `docs/product/brief.md`
    - `docs/product/functional-scope.md`
    - `docs/product/glossary.md`
-   - `docs/architecture/technical-baseline.md`
+   - `docs/architecture/technical-baseline.md` (En modo federado, incluir obligatoriamente la sección **"Mapa de Contratos e Interacciones"** detallando de forma estructurada qué contratos `provides` y `consumers` están definidos entre los módulos del atlas).
    - `docs/architecture/decisions/README.md`
    - `docs/roadmap.md`
    - `docs/references/raw/README.md`
    - `docs/references/processed/README.md`
-7. Update `openspec/config.yaml` with foundation context, selected stack, expected commands, testing intent, and `rules.foundation`.
-8. Return the structured result and recommend `/sdd-new scaffold-project` or the first named capability.
+8. Update `openspec/config.yaml` with foundation context, selected stack, expected commands, testing intent, and `rules.foundation`.
+9. Return the structured result and recommend `/sdd-new scaffold-project` or the first named capability.
 
 ## Output Contract
 

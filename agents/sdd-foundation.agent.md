@@ -49,10 +49,11 @@ Before launching the first discovery question, the skill offers to ingest projec
 documents are available, the skill calls `mcp__microsoft_markitdown__convert_to_markdown` for
 each document and passes the converted content as foundation context.
 
-When the MCP tool is unavailable, returns an error, or the user declines, the skill falls back
-silently to manual one-question-at-a-time discovery. The fallback is never surfaced as a workflow
-blocker. See `skills/sdd-foundation/SKILL.md` — `## Markitdown Document Ingestion (Optional)`
-for the full degradation rules.
+When the MCP tool is unavailable, the agent initiates an interactive fallback loop (asking the user via `vscode/askQuestions` whether they want to configure it automatically, configure it manually with guidance, or skip document ingestion). See `skills/sdd-foundation/SKILL.md` — `## Markitdown Document Ingestion (Optional)` for the full degradation rules.
+
+### Federated Workspace Mode
+
+When operating in a federated multirepo workspace, this agent accepts parameters like `workspace_yaml` and `parent_change`. It scans the member repositories defined in `workspace.yaml` and reads their member specification files (e.g. `{member}/openspec/specs/**/spec.md`) to synthesize the overall project foundation and map dependencies.
 
 ## Result Contract
 
