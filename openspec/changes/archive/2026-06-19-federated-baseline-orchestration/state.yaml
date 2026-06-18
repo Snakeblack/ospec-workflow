@@ -68,11 +68,21 @@ phases:
     artifact: "openspec/changes/federated-baseline-orchestration/tasks.md"
     completed_at: "2026-06-18T18:00:00Z"
   apply:
-    status: pending
+    status: done
+    completed_at: "2026-06-18T22:40:00Z"
+    artifacts:
+      - agents/sdd-orchestrator.agent.md
+      - agents/sdd-baseline.agent.md
+      - skills/sdd-baseline/SKILL.md
+      - .gitignore
+      - openspec/changes/federated-baseline-orchestration/apply-progress.md
   verify:
-    status: pending
+    status: done
+    completed_at: "2026-06-18T22:45:00Z"
+    artifact: "openspec/changes/federated-baseline-orchestration/verify-report.md"
   archive:
-    status: pending
+    status: done
+    completed_at: "2026-06-18T22:50:00Z"
 
 gates:
   clarify:
