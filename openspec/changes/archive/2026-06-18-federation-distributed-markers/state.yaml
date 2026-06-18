@@ -24,7 +24,7 @@ session:
   delivery_strategy: single-pr
   reply_language: es
 
-status: verified
+status: archived
 last_updated: 2026-06-18T00:00:00Z
 
 route:
@@ -113,25 +113,63 @@ phases:
           containment symlink escape). Added after apply was done; apply remains done.
   verify:
     status: done
-    stale: true
-    stale_reason: >
-      Committed verify run (PASS WITH WARNINGS, 357 pass) predates WU7. WU7 closed
-      resilience-warning-001 and risk-warning-symlink-001 (hardening). A final
-      sdd-verify re-run is required to re-bless the tree and confirm both findings
-      are closed by tests (full native suite now 362 pass / 0 fail / 0 skipped).
+    stale: false
     artifact: openspec/changes/federation-distributed-markers/verify-report.md
     verdict: PASS WITH WARNINGS
-    test_evidence: "357 pass / 0 fail / 0 skipped (node --test scripts/**/*.test.js; also embedded in npm test via check.js Native Node tests step)"
-    reverified_at: 2026-06-17T19:05:00Z
+    test_evidence: "362 pass / 0 fail / 0 skipped (node --test scripts/**/*.test.js; also embedded in npm test via check.js Native Node tests step; npm test → All checks passed., 0 errors/0 warnings)"
+    reverified_at: 2026-06-18T00:00:00Z
     reverify_note: >
-      Re-verified after WU6 (commit 8656fc4) landed the path-traversal containment
-      fix. risk-critical-001 confirmed CLOSED BY TESTS (isWithinRoot guard at the
-      scanMemberMarkers boundary; 4 RED-first tests prove read+write paths reject
-      escaping .gitmodules member paths fail-open). parseAtlas byte-identical; no
-      regressions; 353 WU1-WU5 tests preserved + 4 WU6 = 357 green. Six non-blocking
-      WARNINGs remain (W1-W6), none in WU6 scope. Verdict unchanged: PASS WITH WARNINGS.
+      FINAL re-verify after WU7 (commit a6e3c46) landed the hardening slice. Both WU7
+      findings confirmed CLOSED BY TESTS: Fix A resilience-warning-001 / reliability-warning-002
+      (readExistingMarker now splits read vs parse; non-ENOENT I/O errors rethrow so a healthy
+      marker is byte-preserved instead of overwritten, proven by EACCES byte-preservation +
+      EISDIR rethrow tests; present-but-unparseable self-heal still rewrites status:written);
+      Fix B risk-warning-symlink-001 (physical isRealPathWithinRoot lstat/realpath guard at the
+      scanMemberMarkers boundary skips an existing symlink/junction escaping the real container
+      on BOTH read and write paths, proven by scanMemberMarkers read-path + explore write-path
+      symlink-escape tests; first-enroll and in-root members still work). risk-critical-001 (WU6)
+      remains CLOSED with no regression (lexical isWithinRoot ../-/absolute rejection preserved
+      alongside the new physical guard). parseAtlas byte-identical across WU6+WU7. Full native
+      suite 362/362 (353 WU1-WU5 + 4 WU6 + 5 WU7); isolated artifact-store 17/17 (git flake
+      reliability-warning-001 did NOT reproduce). Remaining open advisories: W1 spec wording,
+      W2 heuristic corruption, W3 git flake, W4 agent-procedure static-proof, S1-S6 suggestions
+      (incl. explore non-atomic write + 2 readability). Verdict: PASS WITH WARNINGS; ready to archive.
   archive:
-    status: pending
+    status: done
+    artifact: openspec/changes/federation-distributed-markers/archive-report.md
+    archived_at: 2026-06-18T00:00:00Z
+    archive_location: openspec/changes/archive/2026-06-18-federation-distributed-markers/
+    close_gate: pass-with-warnings-accepted
+    specs_synced:
+      - domain: federation-markers
+        action: created
+        requirements_added: 7
+      - domain: workspace-explore
+        action: created
+        requirements_added: 3
+      - domain: agents
+        action: updated
+        requirements_added: 1
+      - domain: skills
+        action: updated
+        requirements_added: 2
+    spec_drift: none
+    index_updated: openspec/specs/_baseline/index.md
+    follow_ups_carried_forward:
+      anchor: openspec/changes/federation-distributed-markers/program.md
+      proposed_change: federation-c1-hardening
+      findings: [W1, W2, W3, W4, S1, S2, S3, S4, S5, S6, readability-1, readability-2]
+    physical_move:
+      status: pending-user
+      reason: archive agent environment has no terminal/move/delete tooling
+      command: >
+        git mv openspec/changes/federation-distributed-markers
+        openspec/changes/archive/2026-06-18-federation-distributed-markers
+    git:
+      branch: feat/federation-distributed-markers
+      branch_deleted: false
+      pushed: false
+      archive_commit_created: false
 
 gates:
   4r-review-gate:

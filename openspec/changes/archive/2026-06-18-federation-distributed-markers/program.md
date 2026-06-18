@@ -84,3 +84,29 @@ planifican al llegar a ellos (evitar diseñar sobre supuestos de fases previas).
 - Autoría de cambios cross-cutting multi-repo (v2).
 - Greenfield: bootstrap más allá de marcarlos (se aborda cuando exista demanda real).
 - Renombrado de variables por target (heredado de otros follow-ups del harness).
+
+## Hallazgos no bloqueantes heredados de C1 (registro de follow-up)
+
+> Registrado por `sdd-archive` el 2026-06-18 al cerrar C1 (`federation-distributed-markers`).
+> El veredicto final de `sdd-verify` fue **PASS WITH WARNINGS** (362/362 tests, `stale: false`).
+> Todos los hallazgos CRITICAL/bloqueantes se cerraron en WU6 (`risk-critical-001`) y WU7
+> (`resilience-warning-001` / `reliability-warning-002` / `risk-warning-symlink-001`). Los
+> ítems de abajo son advisories ABIERTOS — NO regresiones — que NO deben perderse.
+
+Se propone un cambio dedicado de endurecimiento **C6 — `federation-c1-hardening`** (no
+bloqueante, planificable en paralelo a C2–C5) que agrupe estos follow-ups:
+
+| Id | Tipo | Resumen | Destino sugerido |
+|---|---|---|---|
+| W1 | spec-gap | Inconsistencia de redacción entre `workspace-explore` › *Member Classification* ("las 4 dimensiones se registran en el marcador vía `enroll`") y `federation-markers` › *Derived Member State* (brownfield/init-done NO se almacenan en el marcador). La implementación es coherente con el spec autoritativo (`federation-markers`); reconciliar la prosa. | C6 (reconciliación de spec) |
+| W2 | design-gap | `isCorruptCache` es heurístico: marca como corrupta toda caché no vacía que parsea a 0 members y 0 contracts → un workspace federado legítimamente vacío dispararía una regeneración innecesaria (idempotente, bajo impacto). | C6 |
+| W3 / `reliability-warning-001` | code-bug / known-flake | Test de integración `git` (`artifact-store.test.js > warns but keeps loading when workspace.yaml is git-tracked`) intermitentemente flaky (sin seam de DI sobre `spawnSync`). NO reprodujo en verify (362/362 + 17/17 aislado). De-flake o seam sobre `spawnSync`. | C6 |
+| W4 | design-gap (inherente) | Escenarios de procedimiento de agente para `sdd-init` (`target_dir`, ENOENT→blocked, gate de contenedor) sólo verificados por `static-proof` content-contract, no por ejecución runtime del agente. Limitación inherente a entregables markdown-agente. Aceptado. | C6 (o aceptación permanente) |
+| S1 | suggestion | Marcadores escritos por explore omiten `roster` y `member.remote` → `loadMarkerFromMember` emite warning fail-open "no remote" por cada miembro. Inofensivo pero ruidoso; suprimir/etiquetar marcadores origen-explore. | C6 |
+| S2 | suggestion | `federation-explore.js` es un módulo lib nuevo no enumerado en la tabla *File Changes* del diseño (el diseño realizaba explore como subcomando `SKILL.md`). Actualizar el diseño retroactivamente para trazabilidad. | C6 |
+| S3 | suggestion | `explore` escribe `workspace.yaml` + `workspace-map.md` sin barrera transaccional; un crash a mitad de run puede dejar una caché parcialmente regenerada (auto-sanada en el siguiente run; bajo impacto). | C6 |
+| S4–S6 / readability ×2 | suggestion / readability | SUGGESTIONs 4R restantes + dos advisories de `review-readability` (densidad de nombres/comentarios en los módulos lib nuevos). Cosméticos, no afectan comportamiento ni tests. | C6 |
+
+Trazabilidad de origen: ver `openspec/changes/archive/2026-06-18-federation-distributed-markers/verify-report.md`
+(secciones *Issues Found* y *Verdict*) y `state.yaml` › `gates.4r-review-gate.findings`.
+
