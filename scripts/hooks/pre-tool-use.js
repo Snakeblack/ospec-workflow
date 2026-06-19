@@ -5,6 +5,13 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+/**
+ * Regex that matches forbidden AI/model attribution.
+ * Must stay in sync with rules/no-model-attribution.instructions.md.
+ */
+const FORBIDDEN_ATTRIBUTION_RE =
+  /co-authored-by|generated (?:with|by)|🤖|claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere/i;
+
 const SHELL_TOOL_NAMES = new Set([
   "runcommand",
   "runinterminal",
@@ -371,6 +378,14 @@ function evaluateToolUse(input) {
     }
   }
 
+  // Deny git commit commands whose message contains AI/model attribution
+  for (const command of commands) {
+    const attributionResult = checkCommitAttribution(command);
+    if (attributionResult) {
+      return makeDecision("deny", attributionResult);
+    }
+  }
+
   for (const command of commands) {
     const askRule = findMatchingRule(command, ASK_RULES);
 
@@ -409,6 +424,28 @@ async function main() {
   }
 }
 
+/**
+ * Extracts the commit message from a `git commit -m "..."` command string
+ * and checks it for forbidden AI/model attribution.
+ * Returns a denial reason string if attribution is found, or null if clean.
+ */
+function checkCommitAttribution(command) {
+  if (!/\bgit\s+commit\b/i.test(command)) {
+    return null;
+  }
+
+  // Extract all -m / --message arguments (may appear multiple times for multi-paragraph messages)
+  const messageMatches = command.matchAll(/(?:-m|--message)\s+(?:"([^"]*)"|'([^']*)'|([^\s;|&]+))/gi);
+  for (const match of messageMatches) {
+    const msg = match[1] ?? match[2] ?? match[3] ?? "";
+    if (FORBIDDEN_ATTRIBUTION_RE.test(msg)) {
+      return `Commit bloqueado: el mensaje contiene atribución AI/modelo prohibida. Elimina líneas como 'Co-Authored-By', nombres de modelo (Claude, GPT, Gemini, etc.) y usa Conventional Commits sin atribución. Consulta rules/no-model-attribution.instructions.md.`;
+    }
+  }
+
+  return null;
+}
+
 if (require.main === module) {
   void main();
 }
@@ -416,6 +453,8 @@ if (require.main === module) {
 module.exports = {
   ASK_RULES,
   DENY_RULES,
+  FORBIDDEN_ATTRIBUTION_RE,
+  checkCommitAttribution,
   evaluateToolUse,
   extractCommands,
   isShellTool,

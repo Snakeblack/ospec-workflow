@@ -103,7 +103,22 @@ Protege contra fugas de información confidencial y el acceso no deseado a crede
 
 ### 3. Git Pre-commit Hook
 Validador local que asegura la calidad del repositorio antes de consolidar cambios:
-- **Instalación**: Se configura de manera idempotente usando `npm run setup:git-hooks` (ejecuta [setup-git-hooks.js](../scripts/setup-git-hooks.js) para instalar el hook en `.git/hooks/pre-commit`).
+- **Instalación**: Se configura de manera idempotente usando `npm run setup:git-hooks` (ejecuta [setup-git-hooks.js](../scripts/setup-git-hooks.js) para instalar los hooks en `.git/hooks/`).
 - **Validación de Workspace**: Invoca `scripts/check.js` para asegurar que el plugin compila y todos los tests pasan.
 - **Validación de Strict TDD**: Si `strict_tdd: true` en `openspec/config.yaml`, rechaza commits si hay cambios de código de producción preparados (`staged`) sin sus correspondientes archivos de prueba (`*_test.go`, `*.test.js`) o su archivo `tasks.md` de planificación.
 - **Bypass**: Habilita la variable de entorno `DISABLE_OSPEC_PRECOMMIT=true` o usa `git commit --no-verify`.
+
+### 4. No-Model-Attribution Enforcement (Tres Capas)
+Protege estrictamente contra la inserción de atribución AI/modelo en commits y PRs. La política se define en [no-model-attribution.instructions.md](../rules/no-model-attribution.instructions.md) y se aplica mediante **tres capas de defensa**:
+
+| Capa | Cuándo actúa | Qué bloquea |
+| --- | --- | --- |
+| **PreToolUse DENY** (`pre-tool-use.js`) | Antes de que el agente ejecute `git commit -m "..."` | Escanea el argumento `-m`/`--message` del comando; deniega si contiene patrones prohibidos |
+| **Git `commit-msg` Hook** (`commit-msg-hook.js`) | Después de que el usuario/IDE componga el mensaje | Lee el archivo temporal de mensaje de Git; rechaza el commit si contiene atribución |
+| **Rules file** (`rules/no-model-attribution.instructions.md`) | Carga del contexto del agente | Instruye al modelo para que nunca genere atribución; primera barrera pasiva |
+
+**Patrones prohibidos** (case-insensitive): `co-authored-by`, `generated with|by`, `🤖`, nombres de modelos y vendors (`claude`, `anthropic`, `opus`, `sonnet`, `haiku`, `fable`, `gpt`, `chatgpt`, `openai`, `codex`, `copilot`, `gemini`, `bard`, `llama`, `mistral`, `cohere`).
+
+**Instalación**: `npm run setup:git-hooks` instala tanto el `pre-commit` como el `commit-msg` hook. El PreToolUse DENY está integrado en el hook `PreToolUse` del arnés y no requiere instalación adicional.
+
+**Bypass**: `DISABLE_OSPEC_ATTRIBUTION_CHECK=true` desactiva únicamente el `commit-msg` hook. El DENY de PreToolUse no tiene bypass — es un bloqueo absoluto para agentes.

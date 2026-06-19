@@ -3,6 +3,44 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+function installHook(hooksDir, hookName, scriptRelPath) {
+  const hookPath = path.join(hooksDir, hookName);
+  const hookCommand = `\nnode "$(git rev-parse --show-toplevel)/${scriptRelPath}"`;
+
+  let existingContent = "";
+  if (fs.existsSync(hookPath)) {
+    existingContent = fs.readFileSync(hookPath, "utf8");
+  }
+
+  const scriptBasename = path.basename(scriptRelPath);
+  if (existingContent.includes(scriptBasename)) {
+    console.log(`Git Hook: El hook ${hookName} ya está instalado.`);
+    return;
+  }
+
+  let newContent = existingContent;
+  if (!newContent.startsWith("#!")) {
+    newContent = "#!/bin/sh\n" + newContent;
+  }
+
+  // For commit-msg, Git passes the message file path as $1
+  if (hookName === "commit-msg") {
+    newContent = newContent.trimEnd() + `\nnode "$(git rev-parse --show-toplevel)/${scriptRelPath}" "$1"\n`;
+  } else {
+    newContent = newContent.trimEnd() + hookCommand + "\n";
+  }
+
+  fs.writeFileSync(hookPath, newContent, { mode: 0o755, encoding: "utf8" });
+  console.log(`Git Hook: Hook ${hookName} instalado exitosamente.`);
+
+  // Asegurar permisos de ejecución en entornos no Windows
+  try {
+    fs.chmodSync(hookPath, 0o755);
+  } catch (err) {
+    // Ignorar fallos de chmod en sistemas sin soporte (ej. Windows)
+  }
+}
+
 function setup() {
   const repoRoot = path.resolve(__dirname, "..");
   const gitDir = path.join(repoRoot, ".git");
@@ -17,34 +55,11 @@ function setup() {
     fs.mkdirSync(hooksDir, { recursive: true });
   }
 
-  const preCommitPath = path.join(hooksDir, "pre-commit");
-  const hookCommand = '\nnode "$(git rev-parse --show-toplevel)/scripts/hooks/pre-commit-hook.js"';
-  
-  let existingContent = "";
-  if (fs.existsSync(preCommitPath)) {
-    existingContent = fs.readFileSync(preCommitPath, "utf8");
-  }
+  // 1. Pre-commit hook: workspace validation + strict TDD
+  installHook(hooksDir, "pre-commit", "scripts/hooks/pre-commit-hook.js");
 
-  if (existingContent.includes("pre-commit-hook.js")) {
-    console.log("Git Hook: El hook pre-commit ya está instalado.");
-  } else {
-    // Si ya existe contenido, lo preservamos y añadimos nuestro script al final.
-    let newContent = existingContent;
-    if (!newContent.startsWith("#!")) {
-      newContent = "#!/bin/sh\n" + newContent;
-    }
-    newContent = newContent.trimEnd() + "\n" + hookCommand + "\n";
-    
-    fs.writeFileSync(preCommitPath, newContent, { mode: 0o755, encoding: "utf8" });
-    console.log("Git Hook: Hook pre-commit instalado exitosamente.");
-  }
-
-  // Asegurar permisos de ejecución en entornos no Windows
-  try {
-    fs.chmodSync(preCommitPath, 0o755);
-  } catch (err) {
-    // Ignorar fallos de chmod en sistemas sin soporte (ej. Windows)
-  }
+  // 2. Commit-msg hook: blocks AI/model attribution in commit messages
+  installHook(hooksDir, "commit-msg", "scripts/hooks/commit-msg-hook.js");
 }
 
 if (require.main === module) {
