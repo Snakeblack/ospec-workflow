@@ -1,10 +1,51 @@
 change:
   name: federation-c1-hardening
-  status: planning
-  phase: tasks
+  status: ready-for-verify
+  phase: apply
   classification: normal
   delivery: single-pr
   delivery_strategy: exception-ok
   artifact_store: openspec
   created_at: "2026-06-19T00:25:00Z"
-  updated_at: "2026-06-19T00:25:00Z"
+  updated_at: "2026-06-19T12:00:00Z"
+phases:
+  proposal:
+    status: done
+    artifact: openspec/changes/federation-c1-hardening/proposal.md
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/federation-c1-hardening/specs/federation-c1-hardening/spec.md
+  design:
+    status: done
+    artifact: openspec/changes/federation-c1-hardening/design.md
+  tasks:
+    status: done
+    artifact: openspec/changes/federation-c1-hardening/tasks.md
+  apply:
+    status: done
+    artifact: openspec/changes/federation-c1-hardening/apply-progress.md
+  verify:
+    status: done-dry-run
+    artifact: inline — no verify-report.md written (user requested dry-run)
+    note: >
+      Dry-run verify on 2026-06-19. Code correct, 454/454 tests green.
+      Process gap found: change was implemented+merged in commit 810b502 without
+      an apply phase. Remediated this session: apply-progress.md reconstructed
+      (honest, no fabricated RED), tasks.md checked, JSDoc T5.1 closed, nextMember
+      comment fixed.
+  archive:
+    status: pending
+    artifact: openspec/changes/federation-c1-hardening/archive-report.md
+gates:
+  4r-review-gate:
+    status: done
+    on_blocker: advisory
+    findings_summary: >
+      risk: 1 CRITICAL (resolveMembers path-containment) — surfaced, actioned,
+      then REVERTED as a false positive (sibling-member topology is by-design).
+      reliability: 6 over-flagged CRITICAL downgraded to SUGGESTION (input
+      validation on internal lib fns). resilience: 4 WARNING (I/O error paths).
+      readability: 1 real comment bug (fixed in A2) + JSDoc/nesting suggestions.
+    surfaced_to_user: true
+blocking_questions: []
