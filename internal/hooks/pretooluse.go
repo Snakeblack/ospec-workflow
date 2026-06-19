@@ -5,6 +5,12 @@ package hooks
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
 
 	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/rules"
 )
@@ -79,11 +85,265 @@ func makeDecision(decision, reason string) []byte {
 	return b
 }
 
+func findWorkspaceRoot() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "."
+	}
+	dir := cwd
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		if _, err := os.Stat(filepath.Join(dir, "package.json")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return cwd
+}
+
+func extractPaths(v interface{}) []string {
+	var paths []string
+	var traverse func(x interface{})
+	traverse = func(x interface{}) {
+		if x == nil {
+			return
+		}
+		switch val := x.(type) {
+		case string:
+			cleaned := val
+			if strings.HasPrefix(cleaned, "file://") {
+				cleaned = strings.TrimPrefix(cleaned, "file://")
+				cleaned = strings.TrimPrefix(cleaned, "/")
+			}
+			// Check if absolute path exists and is a file
+			if info, err := os.Stat(cleaned); err == nil && !info.IsDir() {
+				if abs, err := filepath.Abs(cleaned); err == nil {
+					paths = append(paths, abs)
+				}
+			} else {
+				// Check relative to workspace root
+				root := findWorkspaceRoot()
+				rel := filepath.Join(root, cleaned)
+				if info, err := os.Stat(rel); err == nil && !info.IsDir() {
+					if abs, err := filepath.Abs(rel); err == nil {
+						paths = append(paths, abs)
+					}
+				}
+			}
+		case []interface{}:
+			for _, item := range val {
+				traverse(item)
+			}
+		case map[string]interface{}:
+			for _, item := range val {
+				traverse(item)
+			}
+		}
+	}
+	traverse(v)
+	return paths
+}
+
+var codeExtensions = map[string]bool{
+	".js": true, ".go": true, ".json": true, ".yaml": true, ".yml": true,
+	".md": true, ".ts": true, ".py": true, ".txt": true, ".rs": true,
+	".c": true, ".cpp": true, ".h": true, ".html": true, ".css": true,
+}
+
+func estimateTokens(filePath string) int {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return 0
+	}
+	bytes := info.Size()
+	ext := strings.ToLower(filepath.Ext(filePath))
+	if codeExtensions[ext] {
+		return int(float64(bytes)/4.0 + 0.5)
+	}
+	return int((float64(bytes)/6.0)*1.3 + 0.5)
+}
+
+func FindActiveChangeName() string {
+	root := findWorkspaceRoot()
+	changesRoot := filepath.Join(root, "openspec", "changes")
+	entries, err := os.ReadDir(changesRoot)
+	if err != nil {
+		return "unknown"
+	}
+	for _, entry := range entries {
+		if entry.IsDir() && entry.Name() != "archive" {
+			statePath := filepath.Join(changesRoot, entry.Name(), "state.yaml")
+			content, err := os.ReadFile(statePath)
+			if err == nil {
+				if strings.Contains(string(content), "status: active") {
+					return entry.Name()
+				}
+			}
+		}
+	}
+	return "unknown"
+}
+
+type tokenEvent struct {
+	T  int   `json:"t"`
+	TS int64 `json:"ts"`
+}
+
+func getCumulativeTokens(changeName string) int {
+	if changeName == "unknown" {
+		return 0
+	}
+	root := findWorkspaceRoot()
+	logPath := filepath.Join(root, ".ospec", "session", changeName, "token-events.jsonl")
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		return 0
+	}
+	lines := strings.Split(string(content), "\n")
+	total := 0
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		var ev tokenEvent
+		if err := json.Unmarshal([]byte(trimmed), &ev); err == nil {
+			total += ev.T
+		}
+	}
+	return total
+}
+
+func recordTokens(changeName string, tokens int) {
+	if changeName == "unknown" || tokens <= 0 {
+		return
+	}
+	root := findWorkspaceRoot()
+	logDir := filepath.Join(root, ".ospec", "session", changeName)
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return
+	}
+	logPath := filepath.Join(logDir, "token-events.jsonl")
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	ev := tokenEvent{
+		T:  tokens,
+		TS: time.Now().UnixNano() / int64(time.Millisecond),
+	}
+	b, err := json.Marshal(ev)
+	if err == nil {
+		_, _ = f.Write(append(b, '\n'))
+	}
+}
+
 func (h *preToolUseHandler) Run(stdin []byte) ([]byte, int) {
 	var input preToolUseInput
 	if err := json.Unmarshal(stdin, &input); err != nil {
 		return makeDecision("ask",
 			"The safety hook could not inspect this tool call: "+err.Error()), 0
+	}
+
+	if os.Getenv("DISABLE_AGENT_SHIELD") != "true" {
+		var rawInput struct {
+			ToolInput map[string]interface{} `json:"tool_input"`
+		}
+		_ = json.Unmarshal(stdin, &rawInput)
+
+		paths := extractPaths(rawInput.ToolInput)
+		for _, filePath := range paths {
+			filename := strings.ToLower(filepath.Base(filePath))
+			ext := strings.ToLower(filepath.Ext(filePath))
+
+			// Bloqueo estricto (deny)
+			isSshKey := strings.HasPrefix(filename, "id_") && (ext == "" || ext == ".key" || ext == ".pem" || filename == "id_rsa" || filename == "id_ecdsa" || filename == "id_ed25519")
+			
+			// Check if .git/config inside workspace
+			root := findWorkspaceRoot()
+			isGitConfig := filename == "config" && strings.Contains(filepath.ToSlash(filePath), "/.git/config") && strings.HasPrefix(filepath.Clean(filePath), filepath.Clean(root))
+			isNpmrc := filename == ".npmrc"
+
+			if isSshKey || isGitConfig || isNpmrc {
+				return makeDecision("deny", "Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente."), 0
+			}
+
+			// Advertencia interactiva (ask) por nombre de archivo
+			isEnv := strings.HasPrefix(filename, ".env")
+			isSecrets := filename == "secrets.json" || filename == "credentials"
+			if isEnv || isSecrets {
+				return makeDecision("ask", "Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura?"), 0
+			}
+
+			// Escaneo de contenido para archivos < 1MB
+			if info, err := os.Stat(filePath); err == nil && info.Size() < 1024*1024 {
+				if contentBytes, err := os.ReadFile(filePath); err == nil {
+					content := string(contentBytes)
+
+					// Patterns
+					patterns := []string{
+						`sk-[a-zA-Z0-9]{48}`,
+						`AIzaSy[a-zA-Z0-9-_]{33}`,
+						`AKIA[A-Z0-9]{16}`,
+						`xox[baprs]-[0-9a-zA-Z]{10,48}`,
+						`eyJ[a-zA-Z0-9-_]+\.eyJ[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+`,
+					}
+
+					hasSecret := false
+					for _, pattern := range patterns {
+						if match, _ := regexp.MatchString(pattern, content); match {
+							hasSecret = true
+							break
+						}
+					}
+
+					// Generic passwords
+					genericRegex := `(?i)(?:password|passwd|pass|contrase[nñ]a|secret|key|token|private_key)\s*[:=]\s*["'][^"']{6,}["']`
+					passMatch, _ := regexp.MatchString(genericRegex, content)
+
+					if hasSecret || passMatch {
+						return makeDecision("ask", "Advertencia de seguridad: El contenido de este archivo parece contener credenciales o tokens. ¿Está seguro de permitir su lectura?"), 0
+					}
+				}
+			}
+		}
+	}
+
+	if os.Getenv("DISABLE_TOKEN_ADVISOR") != "true" {
+		var rawInput struct {
+			ToolInput map[string]interface{} `json:"tool_input"`
+		}
+		_ = json.Unmarshal(stdin, &rawInput)
+
+		paths := extractPaths(rawInput.ToolInput)
+		currentTokens := 0
+		for _, p := range paths {
+			currentTokens += estimateTokens(p)
+		}
+
+		if currentTokens > 20000 {
+			reason := fmt.Sprintf("El archivo solicitado excede el límite de tokens sugerido de 20,000 (%d tokens estimados). ¿Desea continuar con su lectura?", currentTokens)
+			return makeDecision("ask", reason), 0
+		}
+
+		changeName := FindActiveChangeName()
+		cumulativeTokens := getCumulativeTokens(changeName)
+		if cumulativeTokens+currentTokens > 90000 {
+			reason := fmt.Sprintf("El consumo acumulado de tokens de la sesión (%d tokens) excede el umbral crítico de 90,000 tokens. Se recomienda forzar una compactación antes de continuar.", cumulativeTokens+currentTokens)
+			return makeDecision("ask", reason), 0
+		}
+
+		if currentTokens > 0 {
+			recordTokens(changeName, currentTokens)
+		}
 	}
 
 	cmds := extractCommands(&input)

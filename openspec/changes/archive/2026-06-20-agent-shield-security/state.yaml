@@ -1,0 +1,43 @@
+change:
+  name: agent-shield-security
+  status: active
+  phase: archive
+  classification: normal
+  delivery: single-pr
+  delivery_strategy: exception-ok
+  artifact_store: openspec
+  created_at: "2026-06-20T00:15:00Z"
+  updated_at: "2026-06-20T00:15:00Z"
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Ruta estándar seleccionada para el desarrollo de la característica de seguridad AgentShield."
+  validated: true
+  validation_errors: []
+phases:
+  proposal:
+    status: done
+    artifact: openspec/changes/agent-shield-security/proposal.md
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/agent-shield-security/specs/agent-shield-security/spec.md
+      - openspec/changes/agent-shield-security/specs/hooks/spec.md
+  clarify:
+    status: done
+  design:
+    status: done
+    artifact: openspec/changes/agent-shield-security/design.md
+  tasks:
+    status: done
+    artifact: openspec/changes/agent-shield-security/tasks.md
+  apply:
+    status: done
+  verify:
+    status: done
+  archive:
+    status: done
+gates:
+  4r-review-gate:
+    status: done
+blocking_questions: []

@@ -2,6 +2,7 @@
 
 "use strict";
 
+const fs = require("node:fs");
 const path = require("node:path");
 const {
   calculateFingerprint,
@@ -119,6 +120,63 @@ async function runSessionStart({
   if (baselineHint !== null) {
     result.baseline = { hint: baselineHint };
   }
+
+  if (process.env.DISABLE_AGENT_SHIELD !== "true") {
+    const alerts = [];
+    
+    // Check .env and .npmrc files in workspace root
+    const envFiles = [".env", ".env.local", ".env.development", ".env.production", ".npmrc"];
+    let gitignoreContent = "";
+    try {
+      gitignoreContent = fs.readFileSync(path.join(workspace, ".gitignore"), "utf8");
+    } catch (e) {}
+
+    const gitignoreLines = gitignoreContent
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(line => line && !line.startsWith("#"));
+
+    for (const f of envFiles) {
+      if (fs.existsSync(path.join(workspace, f))) {
+        // Check if f is listed in .gitignore
+        const ignored = gitignoreLines.some(line => line === f || line.includes(f));
+        if (!ignored) {
+          alerts.push({
+            type: "unignored-env-file",
+            file: f,
+            reason: "El archivo sensible no está ignorado en Git"
+          });
+        }
+      }
+    }
+
+    // Check .git/config in workspace root
+    const gitConfigPath = path.join(workspace, ".git", "config");
+    if (fs.existsSync(gitConfigPath)) {
+      try {
+        const gitConfigContent = fs.readFileSync(gitConfigPath, "utf8");
+        // Regex to check for embedded credentials in https URLs
+        if (/https?:\/\/[^/:\s]+:[^/:\s]+@/.test(gitConfigContent)) {
+          alerts.push({
+            type: "embedded-credentials",
+            file: ".git/config",
+            reason: "El archivo contiene credenciales en texto plano"
+          });
+        }
+      } catch (e) {}
+    }
+
+    if (alerts.length > 0) {
+      result.security = {
+        status: "warning",
+        alerts
+      };
+      
+      const fileAlerts = alerts.map(a => `${a.file} (${a.reason})`).join(", ");
+      result.systemMessage = `Cuidado: Se detectaron riesgos de seguridad en la inicialización: ${fileAlerts}. Por favor asegúrate de corregirlos.`;
+    }
+  }
+
   return result;
 }
 

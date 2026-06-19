@@ -6,7 +6,9 @@ package hooks
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -35,6 +37,8 @@ type sessionStartOutput struct {
 	OspecDetected bool              `json:"ospecDetected"`
 	Registry      registryResult    `json:"registry"`
 	Baseline      *baselineResult   `json:"baseline,omitempty"`
+	Security      *securityResult   `json:"security,omitempty"`
+	SystemMessage string            `json:"systemMessage,omitempty"`
 }
 
 type registryResult struct {
@@ -44,6 +48,17 @@ type registryResult struct {
 
 type baselineResult struct {
 	Hint string `json:"hint"`
+}
+
+type securityResult struct {
+	Status string          `json:"status"`
+	Alerts []securityAlert `json:"alerts"`
+}
+
+type securityAlert struct {
+	Type   string `json:"type"`
+	File   string `json:"file"`
+	Reason string `json:"reason"`
 }
 
 // buildBaselineHint ports buildBaselineHint from session-start.js.
@@ -165,9 +180,9 @@ func runSessionStart(input sessionStartInput) ([]byte, int) {
 				rules[j] = r
 			}
 			skillsSlice[i] = map[string]any{
-				"id":           sk.ID,
-				"path":         sk.Path,
-				"triggers":     triggers,
+				"id":            sk.ID,
+				"path":          sk.Path,
+				"triggers":      triggers,
 				"compact_rules": rules,
 			}
 		}
@@ -193,6 +208,72 @@ func runSessionStart(input sessionStartInput) ([]byte, int) {
 	}
 	if baselineHint != "" {
 		out.Baseline = &baselineResult{Hint: baselineHint}
+	}
+
+	if os.Getenv("DISABLE_AGENT_SHIELD") != "true" {
+		var alerts []securityAlert
+
+		// Check .env and .npmrc files in workspace root
+		envFiles := []string{".env", ".env.local", ".env.development", ".env.production", ".npmrc"}
+
+		// Read .gitignore
+		var gitignoreLines []string
+		if gitignoreData, err := os.ReadFile(filepath.Join(workspace, ".gitignore")); err == nil {
+			lines := strings.Split(string(gitignoreData), "\n")
+			for _, line := range lines {
+				trimmed := strings.TrimSpace(line)
+				if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
+					gitignoreLines = append(gitignoreLines, trimmed)
+				}
+			}
+		}
+
+		for _, f := range envFiles {
+			if _, err := os.Stat(filepath.Join(workspace, f)); err == nil {
+				// Check if ignored in gitignore
+				ignored := false
+				for _, line := range gitignoreLines {
+					if line == f || strings.Contains(line, f) {
+						ignored = true
+						break
+					}
+				}
+				if !ignored {
+					alerts = append(alerts, securityAlert{
+						Type:   "unignored-env-file",
+						File:   f,
+						Reason: "El archivo sensible no está ignorado en Git",
+					})
+				}
+			}
+		}
+
+		// Check .git/config in workspace root
+		gitConfigPath := filepath.Join(workspace, ".git", "config")
+		if _, err := os.Stat(gitConfigPath); err == nil {
+			if configData, err := os.ReadFile(gitConfigPath); err == nil {
+				match, _ := regexp.MatchString(`https?://[^/:\s]+:[^/:\s]+@`, string(configData))
+				if match {
+					alerts = append(alerts, securityAlert{
+						Type:   "embedded-credentials",
+						File:   ".git/config",
+						Reason: "El archivo contiene credenciales en texto plano",
+					})
+				}
+			}
+		}
+
+		if len(alerts) > 0 {
+			out.Security = &securityResult{
+				Status: "warning",
+				Alerts: alerts,
+			}
+			var alertDetails []string
+			for _, a := range alerts {
+				alertDetails = append(alertDetails, fmt.Sprintf("%s (%s)", a.File, a.Reason))
+			}
+			out.SystemMessage = fmt.Sprintf("Cuidado: Se detectaron riesgos de seguridad en la inicialización: %s. Por favor asegúrate de corregirlos.", strings.Join(alertDetails, ", "))
+		}
 	}
 
 	b, _ := json.Marshal(out)

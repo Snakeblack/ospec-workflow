@@ -2,6 +2,9 @@
 
 "use strict";
 
+const fs = require("node:fs");
+const path = require("node:path");
+
 const SHELL_TOOL_NAMES = new Set([
   "runcommand",
   "runinterminal",
@@ -146,7 +149,210 @@ function makeDecision(permissionDecision, permissionDecisionReason) {
   };
 }
 
+function extractPaths(obj) {
+  const paths = [];
+  function traverse(current) {
+    if (!current) return;
+    if (typeof current === "string") {
+      let cleaned = current.replace(/^file:\/\/\/?/, "");
+      try {
+        if (fs.existsSync(cleaned) && fs.statSync(cleaned).isFile()) {
+          paths.push(path.resolve(cleaned));
+        } else {
+          const relative = path.join(process.cwd(), cleaned);
+          if (fs.existsSync(relative) && fs.statSync(relative).isFile()) {
+            paths.push(path.resolve(relative));
+          }
+        }
+      } catch (err) {
+        // ignore
+      }
+    } else if (typeof current === "object") {
+      for (const key in current) {
+        if (Object.prototype.hasOwnProperty.call(current, key)) {
+          traverse(current[key]);
+        }
+      }
+    }
+  }
+  traverse(obj);
+  return paths;
+}
+
+const CODE_EXTENSIONS = new Set([
+  ".js", ".go", ".json", ".yaml", ".yml", ".md", ".ts", ".py", ".txt", ".rs", ".c", ".cpp", ".h", ".html", ".css"
+]);
+
+function estimateTokens(filePath) {
+  try {
+    const stats = fs.statSync(filePath);
+    const bytes = stats.size;
+    const ext = path.extname(filePath).toLowerCase();
+    if (CODE_EXTENSIONS.has(ext)) {
+      return Math.round(bytes / 4);
+    } else {
+      return Math.round((bytes / 6) * 1.3);
+    }
+  } catch (err) {
+    return 0;
+  }
+}
+
+function findActiveChangeNameSync() {
+  const changesRoot = path.join(process.cwd(), "openspec", "changes");
+  try {
+    if (!fs.existsSync(changesRoot)) return "unknown";
+    const entries = fs.readdirSync(changesRoot, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name !== "archive") {
+        const statePath = path.join(changesRoot, entry.name, "state.yaml");
+        if (fs.existsSync(statePath)) {
+          const content = fs.readFileSync(statePath, "utf8");
+          if (content.includes("status: active")) {
+            return entry.name;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    // ignore
+  }
+  return "unknown";
+}
+
+function getCumulativeTokensSync(changeName) {
+  if (changeName === "unknown") return 0;
+  const logPath = path.join(process.cwd(), ".ospec", "session", changeName, "token-events.jsonl");
+  try {
+    if (!fs.existsSync(logPath)) return 0;
+    const content = fs.readFileSync(logPath, "utf8");
+    let total = 0;
+    for (const line of content.split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed) {
+        try {
+          const obj = JSON.parse(trimmed);
+          if (typeof obj.t === "number") {
+            total += obj.t;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+    return total;
+  } catch (err) {
+    return 0;
+  }
+}
+
+function recordTokensSync(changeName, tokens) {
+  if (changeName === "unknown" || tokens <= 0) return;
+  const logDir = path.join(process.cwd(), ".ospec", "session", changeName);
+  const logPath = path.join(logDir, "token-events.jsonl");
+  try {
+    fs.mkdirSync(logDir, { recursive: true });
+    fs.appendFileSync(logPath, JSON.stringify({ t: tokens, ts: Date.now() }) + "\n", "utf8");
+  } catch (err) {
+    // ignore
+  }
+}
+
 function evaluateToolUse(input) {
+  if (process.env.DISABLE_AGENT_SHIELD !== "true") {
+    const paths = extractPaths(input?.tool_input);
+    for (const filePath of paths) {
+      const filename = path.basename(filePath).toLowerCase();
+      const ext = path.extname(filePath).toLowerCase();
+      
+      // Bloqueo estricto (deny)
+      const isSshKey = filename.startsWith("id_") && (ext === "" || ext === ".key" || ext === ".pem" || filename === "id_rsa" || filename === "id_ecdsa" || filename === "id_ed25519");
+      const isGitConfig = filename === "config" && filePath.includes(path.join(".git", "config"));
+      const isNpmrc = filename === ".npmrc";
+      
+      if (isSshKey || isGitConfig || isNpmrc) {
+        return makeDecision(
+          "deny",
+          `Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente.`
+        );
+      }
+      
+      // Advertencia interactiva (ask) por nombre de archivo
+      const isEnv = filename.startsWith(".env");
+      const isSecrets = filename === "secrets.json" || filename === "credentials";
+      if (isEnv || isSecrets) {
+        return makeDecision(
+          "ask",
+          `Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura?`
+        );
+      }
+
+      // Escaneo de contenido para archivos < 1MB
+      try {
+        const stats = fs.statSync(filePath);
+        if (stats.size < 1024 * 1024) { // < 1MB
+          const content = fs.readFileSync(filePath, "utf8");
+          
+          // Tokens conocidos
+          const patterns = [
+            /sk-[a-zA-Z0-9]{48}/, // OpenAI API Key
+            /AIzaSy[a-zA-Z0-9-_]{33}/, // Google Cloud API Key
+            /AKIA[A-Z0-9]{16}/, // AWS Access Key
+            /xox[baprs]-[0-9a-zA-Z]{10,48}/, // Slack Token
+            /eyJ[a-zA-Z0-9-_]+\.eyJ[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+/ // JWT
+          ];
+          
+          let hasSecret = false;
+          for (const pattern of patterns) {
+            if (pattern.test(content)) {
+              hasSecret = true;
+              break;
+            }
+          }
+          
+          // Contraseñas genéricas: password = "..." o similares
+          const genericPassRegex = /(?:password|passwd|pass|contrase[nñ]a|secret|key|token|private_key)\s*[:=]\s*["'][^"']{6,}["']/i;
+          if (hasSecret || genericPassRegex.test(content)) {
+            return makeDecision(
+              "ask",
+              `Advertencia de seguridad: El contenido de este archivo parece contener credenciales o tokens. ¿Está seguro de permitir su lectura?`
+            );
+          }
+        }
+      } catch (e) {
+        // ignore read/stat errors
+      }
+    }
+  }
+
+  if (process.env.DISABLE_TOKEN_ADVISOR !== "true") {
+    const paths = extractPaths(input?.tool_input);
+    let currentTokens = 0;
+    for (const filePath of paths) {
+      currentTokens += estimateTokens(filePath);
+    }
+
+    if (currentTokens > 20000) {
+      return makeDecision(
+        "ask",
+        `El archivo solicitado excede el límite de tokens sugerido de 20,000 (${currentTokens.toLocaleString()} tokens estimados). ¿Desea continuar con su lectura?`
+      );
+    }
+
+    const changeName = findActiveChangeNameSync();
+    const cumulativeTokens = getCumulativeTokensSync(changeName);
+    if (cumulativeTokens + currentTokens > 90000) {
+      return makeDecision(
+        "ask",
+        `El consumo acumulado de tokens de la sesión (${(cumulativeTokens + currentTokens).toLocaleString()} tokens) excede el umbral crítico de 90,000 tokens. Se recomienda forzar una compactación antes de continuar.`
+      );
+    }
+
+    if (currentTokens > 0) {
+      recordTokensSync(changeName, currentTokens);
+    }
+  }
+
   const commands = extractCommands(input?.tool_input);
 
   if (commands.length === 0) {
@@ -214,4 +420,5 @@ module.exports = {
   extractCommands,
   isShellTool,
   normalizeToolName,
+  findActiveChangeNameSync,
 };

@@ -7,6 +7,7 @@ const {
   evaluateToolUse,
   extractCommands,
   isShellTool,
+  findActiveChangeNameSync,
 } = require("./pre-tool-use.js");
 
 function decisionFor(command, toolName = "runTerminalCommand") {
@@ -194,3 +195,182 @@ test("allows malformed command input without crashing", () => {
     assert.equal(decision.permissionDecision, "allow");
   }
 });
+
+const fs = require("node:fs");
+const path = require("node:path");
+
+test("token budget advisor: respects DISABLE_TOKEN_ADVISOR env bypass", () => {
+  const oldEnv = process.env.DISABLE_TOKEN_ADVISOR;
+  try {
+    process.env.DISABLE_TOKEN_ADVISOR = "true";
+    const tempFile = path.join(process.cwd(), "temp_heavy_file.txt");
+    fs.writeFileSync(tempFile, "A".repeat(90000), "utf8");
+
+    const decision = evaluateToolUse({
+      tool_name: "view_file",
+      tool_input: { AbsolutePath: tempFile },
+    }).hookSpecificOutput;
+
+    assert.equal(decision.permissionDecision, "allow");
+    fs.unlinkSync(tempFile);
+  } finally {
+    if (oldEnv === undefined) {
+      delete process.env.DISABLE_TOKEN_ADVISOR;
+    } else {
+      process.env.DISABLE_TOKEN_ADVISOR = oldEnv;
+    }
+  }
+});
+
+test("token budget advisor: asks on heavy file reads exceeding 20k tokens", () => {
+  const tempFile = path.join(process.cwd(), "temp_heavy_file_source.js");
+  fs.writeFileSync(tempFile, "A".repeat(90000), "utf8");
+  try {
+    const decision = evaluateToolUse({
+      tool_name: "view_file",
+      tool_input: { AbsolutePath: tempFile },
+    }).hookSpecificOutput;
+
+    assert.equal(decision.permissionDecision, "ask");
+    assert.match(decision.permissionDecisionReason, /tokens/i);
+  } finally {
+    fs.unlinkSync(tempFile);
+  }
+});
+
+test("token budget advisor: asks on cumulative session tokens exceeding 90k tokens", () => {
+  const activeChange = findActiveChangeNameSync();
+  const targetChange = activeChange === "unknown" ? "token-budget-advisor" : activeChange;
+  
+  let createdTempChange = false;
+  const tempChangeDir = path.join(process.cwd(), "openspec", "changes", "token-budget-advisor");
+  if (activeChange === "unknown") {
+    fs.mkdirSync(tempChangeDir, { recursive: true });
+    fs.writeFileSync(path.join(tempChangeDir, "state.yaml"), "status: active\n", "utf8");
+    createdTempChange = true;
+  }
+
+  const tempSessionDir = path.join(process.cwd(), ".ospec", "session", targetChange);
+  fs.mkdirSync(tempSessionDir, { recursive: true });
+  const tempLog = path.join(tempSessionDir, "token-events.jsonl");
+  fs.writeFileSync(tempLog, '{"t":95000,"ts":123456}\n', "utf8");
+  try {
+    const decision = evaluateToolUse({
+      tool_name: "view_file",
+      tool_input: { AbsolutePath: "some_small_file.txt" },
+    }).hookSpecificOutput;
+
+    assert.equal(decision.permissionDecision, "ask");
+    assert.match(decision.permissionDecisionReason, /compacta/i);
+  } finally {
+    fs.rmSync(path.join(process.cwd(), ".ospec"), { recursive: true, force: true });
+    if (createdTempChange) {
+      fs.rmSync(tempChangeDir, { recursive: true, force: true });
+    }
+  }
+});
+
+test("agent-shield: respects DISABLE_AGENT_SHIELD env bypass in PreToolUse", () => {
+  const oldEnv = process.env.DISABLE_AGENT_SHIELD;
+  process.env.DISABLE_AGENT_SHIELD = "true";
+  try {
+    const tempFile = path.join(process.cwd(), "id_rsa");
+    fs.writeFileSync(tempFile, "SSH PRIVATE KEY", "utf8");
+    try {
+      const decision = evaluateToolUse({
+        tool_name: "view_file",
+        tool_input: { AbsolutePath: tempFile },
+      }).hookSpecificOutput;
+      assert.equal(decision.permissionDecision, "allow");
+    } finally {
+      fs.unlinkSync(tempFile);
+    }
+  } finally {
+    if (oldEnv === undefined) {
+      delete process.env.DISABLE_AGENT_SHIELD;
+    } else {
+      process.env.DISABLE_AGENT_SHIELD = oldEnv;
+    }
+  }
+});
+
+test("agent-shield: denies SSH private keys, workspace .git/config, and .npmrc", () => {
+  const files = ["id_rsa", "id_ed25519", ".npmrc"];
+  for (const filename of files) {
+    const tempFile = path.join(process.cwd(), filename);
+    fs.writeFileSync(tempFile, "sensitive data", "utf8");
+    try {
+      const decision = evaluateToolUse({
+        tool_name: "view_file",
+        tool_input: { AbsolutePath: tempFile },
+      }).hookSpecificOutput;
+      assert.equal(decision.permissionDecision, "deny", filename);
+    } finally {
+      fs.unlinkSync(tempFile);
+    }
+  }
+
+  // Check .git/config within a temporary mock workspace path
+  const tempGitDir = path.join(process.cwd(), "temp_git_dir");
+  const gitDir = path.join(tempGitDir, ".git");
+  fs.mkdirSync(gitDir, { recursive: true });
+  const gitConfig = path.join(gitDir, "config");
+  fs.writeFileSync(gitConfig, "git config data", "utf8");
+  try {
+    const decision = evaluateToolUse({
+      tool_name: "view_file",
+      tool_input: { AbsolutePath: gitConfig },
+    }).hookSpecificOutput;
+    assert.equal(decision.permissionDecision, "deny", "git config");
+  } finally {
+    fs.unlinkSync(gitConfig);
+    fs.rmdirSync(gitDir);
+    fs.rmdirSync(tempGitDir);
+  }
+});
+
+test("agent-shield: asks before reading .env, secrets.json, and credentials", () => {
+  const files = [".env", ".env.local", "secrets.json", "credentials"];
+  for (const filename of files) {
+    const tempFile = path.join(process.cwd(), filename);
+    fs.writeFileSync(tempFile, "data", "utf8");
+    try {
+      const decision = evaluateToolUse({
+        tool_name: "view_file",
+        tool_input: { AbsolutePath: tempFile },
+      }).hookSpecificOutput;
+      assert.equal(decision.permissionDecision, "ask", filename);
+    } finally {
+      fs.unlinkSync(tempFile);
+    }
+  }
+});
+
+test("agent-shield: scans file contents for API tokens and passwords", () => {
+  // Test OpenAI API key pattern
+  const tempFile = path.join(process.cwd(), "code_sample.js");
+  fs.writeFileSync(tempFile, "const openAIKey = 'sk-123456789012345678901234567890123456789012345678';", "utf8");
+  try {
+    const decision = evaluateToolUse({
+      tool_name: "view_file",
+      tool_input: { AbsolutePath: tempFile },
+    }).hookSpecificOutput;
+    assert.equal(decision.permissionDecision, "ask", "OpenAI key");
+  } finally {
+    fs.unlinkSync(tempFile);
+  }
+
+  // Test generic password assignment pattern
+  fs.writeFileSync(tempFile, "db_password = \"superSecretAdmin123\"", "utf8");
+  try {
+    const decision = evaluateToolUse({
+      tool_name: "view_file",
+      tool_input: { AbsolutePath: tempFile },
+    }).hookSpecificOutput;
+    assert.equal(decision.permissionDecision, "ask", "generic password");
+  } finally {
+    fs.unlinkSync(tempFile);
+  }
+});
+
+

@@ -25,7 +25,16 @@ type sessionStartResult struct {
 	Baseline *struct {
 		Hint string `json:"hint"`
 	} `json:"baseline"`
-	Message string `json:"message"`
+	Security *struct {
+		Status string `json:"status"`
+		Alerts []struct {
+			Type   string `json:"type"`
+			File   string `json:"file"`
+			Reason string `json:"reason"`
+		} `json:"alerts"`
+	} `json:"security"`
+	SystemMessage string `json:"systemMessage"`
+	Message       string `json:"message"`
 }
 
 // runSessionStart dispatches "session-start" and decodes the result.
@@ -377,3 +386,84 @@ func containsString(s, sub string) bool {
 			return false
 		}())
 }
+
+func TestSessionStart_AgentShield_Bypass(t *testing.T) {
+	os.Setenv("DISABLE_AGENT_SHIELD", "true")
+	defer os.Unsetenv("DISABLE_AGENT_SHIELD")
+
+	ws := createWorkspaceWithConfig(t, "strict_tdd: true\n")
+	pr := createMinimalPluginRoot(t)
+
+	// Write unignored .env file
+	os.WriteFile(filepath.Join(ws, ".env"), []byte("API_KEY=123"), 0644)
+	os.WriteFile(filepath.Join(ws, ".gitignore"), []byte("other_file\n"), 0644)
+
+	got, _ := runSessionStart(t, makeSessionInput(ws, pr, "2026-06-10T08:00:00.000Z"))
+
+	if got.Security != nil {
+		t.Errorf("expected security block to be nil when bypassed, got non-nil")
+	}
+}
+
+func TestSessionStart_AgentShield_UnignoredEnv(t *testing.T) {
+	ws := createWorkspaceWithConfig(t, "strict_tdd: true\n")
+	pr := createMinimalPluginRoot(t)
+
+	// Write unignored .env file
+	os.WriteFile(filepath.Join(ws, ".env"), []byte("API_KEY=123"), 0644)
+	os.WriteFile(filepath.Join(ws, ".gitignore"), []byte("other_file\n"), 0644)
+
+	got, _ := runSessionStart(t, makeSessionInput(ws, pr, "2026-06-10T08:00:00.000Z"))
+
+	if got.Security == nil {
+		t.Fatal("expected security block to be non-nil")
+	}
+	if got.Security.Status != "warning" {
+		t.Errorf("expected security status warning, got %q", got.Security.Status)
+	}
+
+	found := false
+	for _, alert := range got.Security.Alerts {
+		if alert.File == ".env" && alert.Type == "unignored-env-file" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected alert for .env file")
+	}
+
+	if !containsString(got.SystemMessage, "Cuidado") {
+		t.Errorf("expected systemMessage to contain 'Cuidado', got %q", got.SystemMessage)
+	}
+}
+
+func TestSessionStart_AgentShield_GitConfig(t *testing.T) {
+	ws := createWorkspaceWithConfig(t, "strict_tdd: true\n")
+	pr := createMinimalPluginRoot(t)
+
+	// Write credentials in .git/config
+	os.MkdirAll(filepath.Join(ws, ".git"), 0755)
+	os.WriteFile(filepath.Join(ws, ".git", "config"), []byte("[remote \"origin\"]\n  url = https://user:secret123@github.com/org/repo.git\n"), 0644)
+
+	got, _ := runSessionStart(t, makeSessionInput(ws, pr, "2026-06-10T08:00:00.000Z"))
+
+	if got.Security == nil {
+		t.Fatal("expected security block to be non-nil")
+	}
+	if got.Security.Status != "warning" {
+		t.Errorf("expected security status warning, got %q", got.Security.Status)
+	}
+
+	found := false
+	for _, alert := range got.Security.Alerts {
+		if alert.File == ".git/config" && alert.Type == "embedded-credentials" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected alert for .git/config")
+	}
+}
+

@@ -10,7 +10,7 @@ generador (`scripts/configure/cli.js`) produce un árbol nativo y validado de ca
 `dist/<target>/` sin tocar el origen. Un solo source, tres destinos. Ver
 [Compatibilidad multi-target](#compatibilidad-multi-target).
 
-La versión actual es **2.4.0**. El usuario trabaja con `sdd-orchestrator`; el orquestador coordina, los
+La versión actual es **2.4.7**. El usuario trabaja con `sdd-orchestrator`; el orquestador coordina, los
 agentes de fase ejecutan y OpenSpec conserva el estado versionable.
 
 ## Inicio rápido
@@ -30,9 +30,13 @@ agentes de fase ejecutan y OpenSpec conserva el estado versionable.
 
 En ambos casos:
 1. Revisa el manifiesto, los hooks y los servidores MCP antes de habilitarlo.
-2. Inicia un cambio con `/sdd-new` (o `/sdd-ff`, `/sdd-lite`, `/sdd-baseline` según el caso).
-3. Continúa el flujo con `/sdd-continue` o ejecútalo por fases.
-4. Verifica con `/sdd-verify` y archiva con `/sdd-archive`.
+2. Instala el hook pre-commit de Git para validar tus cambios locales automáticamente:
+   ```powershell
+   npm run setup:git-hooks
+   ```
+3. Inicia un cambio con `/sdd-new` (o `/sdd-ff`, `/sdd-lite`, `/sdd-baseline` según el caso).
+4. Continúa el flujo con `/sdd-continue` o ejecútalo por fases.
+5. Verifica con `/sdd-verify` y archiva con `/sdd-archive`.
 
 ### Claude Code
 
@@ -224,17 +228,25 @@ arquitectura, testing o carga de revisión. Detalle completo en
 
 ## Runtime y continuidad
 
-Los hooks descargan del prompt tareas repetitivas del ciclo de vida:
+Los hooks descargan del prompt tareas repetitivas del ciclo de vida y aplican políticas de seguridad y control:
 
 | Evento | Responsabilidad |
 | --- | --- |
-| `SessionStart` | Valida OpenSpec y refresca la caché compacta de skills. |
-| `PreToolUse` | Bloquea o solicita confirmación para comandos peligrosos. |
+| `SessionStart` | Valida OpenSpec, refresca la caché compacta de skills y ejecuta escaneos de seguridad de **AgentShield** (alertas por archivos `.env` expuestos o credenciales en `.git/config`). |
+| `PreToolUse` | Bloquea o solicita confirmación para comandos peligrosos, evalúa límites de **Token Budget Advisor** (límite de 20k tokens por archivo, 90k tokens acumulados por sesión) e implementa **AgentShield** (bloqueo de claves SSH, `.npmrc`, `.git/config`, y prompts interactivos ante secretos). |
 | `PreCompact` | Persiste un resumen recuperable antes de compactar contexto. |
 | `SubagentStop` | Detecta degradación en la resolución de skills. |
 | `Stop` | Registra la continuidad mínima de la sesión. |
 
-Los hooks ejecutan código local con Node.js. Deben revisarse antes de instalar el plugin. `.ospec/cache` y `.ospec/session` son auxiliares; **OpenSpec sigue siendo la fuente de verdad**.
+### Variables de Entorno de Bypass (Harness Gates)
+
+Puedes omitir temporalmente las distintas comprobaciones de seguridad, presupuestos y validadores utilizando las siguientes variables de entorno:
+
+- `DISABLE_AGENT_SHIELD=true`: Desactiva el escaneo y los bloqueos/preguntas de archivos sensibles y credenciales (AgentShield).
+- `DISABLE_TOKEN_ADVISOR=true`: Desactiva la comprobación del tamaño de tokens estimados en lecturas de archivos de la sesión (Token Budget Advisor).
+- `DISABLE_OSPEC_PRECOMMIT=true`: Desactiva la ejecución local de la validación del espacio de trabajo y Strict TDD en el hook pre-commit de Git.
+
+Los hooks ejecutan código nativo (Node.js o ejecutables Go optimizados). `.ospec/cache` y `.ospec/session` son auxiliares; **OpenSpec sigue siendo la fuente de verdad**.
 
 ## Routing de modelos
 

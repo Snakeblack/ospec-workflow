@@ -89,15 +89,29 @@ Then it MUST:
    `status: "generated"`.
 8. For `workspace-federated` mode: federate the workspace shape (members + contracts,
    sorted by `id`) into the `cache.workspace` field.
-9. Return:
-   ```json
-   {
-     "status": "ok",
-     "ospecDetected": true,
-     "registry": { "status": "generated|reused", "path": ".ospec/cache/skill-registry.cache.json" }
-   }
-   ```
-   (plus `"baseline": { "hint": "..." }` when a hint is present).
+9. **AGENT SHIELD SECURITY CHECK**:
+   Si la variable de entorno `DISABLE_AGENT_SHIELD=true` no está activa, el hook MUST escanear el espacio de trabajo en busca de riesgos de seguridad y adjuntar los resultados en la propiedad `security` de la respuesta JSON:
+   - Verificar si archivos como `.env`, `.env.local` y `.npmrc` existen y no están incluidos en `.gitignore`.
+   - Verificar si el archivo `.git/config` contiene credenciales incrustadas (patrón `https://[^:]+:[^@]+@`).
+10. Return:
+    ```json
+    {
+      "status": "ok",
+      "ospecDetected": true,
+      "registry": { "status": "generated|reused", "path": ".ospec/cache/skill-registry.cache.json" },
+      "security": {
+        "status": "warning" | "ok",
+        "alerts": [
+          {
+            "type": "unignored-env-file" | "embedded-credentials",
+            "file": ".env" | ".git/config",
+            "reason": "El archivo sensible no está ignorado en Git" | "El archivo contiene credenciales en texto plano"
+          }
+        ]
+      }
+    }
+    ```
+    (plus `"baseline": { "hint": "..." }` when a hint is present, and `"systemMessage": "..."` containing warnings when `security.status === "warning"`).
 
 ### 2.2 Baseline hint logic
 
@@ -158,6 +172,8 @@ Then it MUST evaluate the call and return:
 }
 ```
 
+(Previously: Evaluaba los comandos de terminal en busca de reglas de DENY y ASK. Ahora incorpora además las validaciones de límites de tokens del Token Budget Advisor).
+
 ### 3.2 Command extraction
 
 The hook MUST extract candidate commands from `tool_input` as follows:
@@ -167,7 +183,7 @@ The hook MUST extract candidate commands from `tool_input` as follows:
 - Null, undefined, non-array, and non-string elements are silently skipped.
 
 If no commands are extracted (regardless of whether the tool is a shell tool): return
-`allow`.
+`allow` (a menos que se disparen las alertas de lectura pesada de archivos descritas en §3.6).
 
 ### 3.3 Shell tool recognition
 
@@ -182,8 +198,23 @@ diagnostic context in log messages. Command inspection applies to all tool types
 
 Evaluation MUST proceed in this order; the first match wins:
 
-**Step 1 — DENY (no recovery).** Test each extracted command against every deny rule.
-If any command matches any deny rule: return `deny` with the matching rule's reason.
+**Step 1 — BYPASS (Bypasses de Advisors).**
+- Si la variable de entorno `DISABLE_TOKEN_ADVISOR=true` está activa: se omiten los Pasos 3 y 4 del Advisor de Tokens.
+- Si la variable de entorno `DISABLE_AGENT_SHIELD=true` está activa: se omiten las validaciones de AgentShield descritas en el Paso 2.
+
+**Step 2 — AGENT SHIELD SECURITY (Protección contra Fuga de Secretos).**
+Si el agente intenta leer un archivo (herramientas como `view_file` o lectura de URLs/recursos) y el archivo solicitado es sensible:
+- Si es una clave privada SSH (`id_rsa`, `id_ecdsa`, `id_ed25519`), `.git/config` o `.npmrc`, retornar `deny` con la razón: *"Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente."*
+- Si es `.env`, `.env.*`, `secrets.json`, `credentials` o archivos que contienen secretos detectados heurísticamente (como contraseñas fuertes o tokens de API usando expresiones regulares) en archivos de texto de tamaño inferior a 1MB, retornar `ask` con la razón: *"Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura?"*
+
+**Step 3 — TOKEN BUDGET ADVISOR (Lectura Pesada).**
+Si la herramienta lee archivos (como `view_file` o lectura de recurso) y el archivo tiene un tamaño de caracteres estimado superior a **80,000 caracteres** (equivalente heurístico a 20,000 tokens): el hook MUST retornar `ask` advirtiendo sobre el costo de lectura del archivo y requiriendo confirmación.
+
+**Step 4 — SESSION TOKENS (Contexto Saturado).**
+Si la sesión acumulada de tokens leídos (obtenida del histórico de eventos `.ospec/runtime/subagent-events.jsonl` o de la memoria de sesión) excede los **90,000 tokens** acumulados: el hook MUST retornar `ask` alertando al usuario de la inminente saturación de contexto y sugiriendo la compactación.
+
+**Step 5 — DENY (no recovery).** Test cada comando extraído contra las reglas de denegación.
+Si algún comando coincide con una regla de denegación: retornar `deny` con la razón correspondiente.
 
 | Pattern intent | Example |
 |---|---|
@@ -196,9 +227,8 @@ If any command matches any deny rule: return `deny` with the matching rule's rea
 | Raw write to block device | `dd if=image.iso of=/dev/sda` |
 | Format or clear a disk | `Clear-Disk -Number 0`, `format C:` |
 
-**Step 2 — ASK (requires user confirmation).** Test each extracted command against
-every ask rule. If any command matches any ask rule: return `ask` with the matching
-rule's reason.
+**Step 6 — ASK (requires user confirmation).** Test cada comando extraído contra las reglas de consulta.
+Si algún comando coincide con una regla de consulta: retornar `ask` con la razón correspondiente.
 
 | Pattern intent | Example |
 |---|---|
@@ -213,14 +243,13 @@ rule's reason.
 | Force-push with lease | `git push --force-with-lease` |
 | Machine restart or shutdown | `shutdown -h now`, `reboot`, `Restart-Computer` |
 
-**Step 3 — ALLOW.** Return `allow`.
+**Step 7 — ALLOW.** Retornar `allow`.
 
-**Deny beats ask**: When a command sequence matches both a deny rule and an ask rule
-(in separate commands in the array), `deny` MUST win.
+**Deny beats ask**: Cuando una secuencia de comandos coincide a la vez con una regla de denegación y una de consulta (en comandos separados del array), `deny` MUST ganar.
 
 ### 3.5 Error handling
-On any parse or evaluation error: return `ask` with a message explaining why the hook
-could not inspect the call. The hook MUST NOT crash or exit non-zero.
+
+En cualquier error de parseo o evaluación: retornar `ask` explicando que el hook no pudo inspeccionar la llamada. El hook MUST NOT fallar ni salir con código distinto de cero.
 
 ---
 

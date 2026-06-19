@@ -24,6 +24,13 @@ SAFETY NET -> RED -> GREEN -> TRIANGULATE -> REFACTOR
 
 TDD no es "hacer tests". TDD es disenar desde comportamiento. Si escribes el codigo primero y luego un test que lo acompana, eso puede ser testing, pero no es TDD.
 
+### Guardas locales en Git (Pre-commit Hook)
+
+Para asegurar que las reglas del ciclo Strict TDD no se pasen por alto, el arnés incluye un hook de pre-commit que actúa como validador local de Git:
+- **Control de Strict TDD**: Si `strict_tdd: true` está activo en `openspec/config.yaml`, el hook de Git examina los archivos preparados (`staged`) para el commit. Si detecta archivos de producción modificados en rutas de código activas (como `internal/`, `cmd/`, `scripts/hooks/`, `scripts/lib/`), requerirá obligatoriamente que también esté preparado al menos un archivo de pruebas correspondiente (`*_test.go`, `*.test.js`) o el archivo `tasks.md` de planificación.
+- **Validación del Workspace**: Ejecuta localmente `scripts/check.js` para asegurar la paridad e integridad de todos los targets y evitar subir código con errores de sintaxis o tests rotos.
+- **Instalación y bypass**: Instala el hook ejecutando `npm run setup:git-hooks`. Puedes omitirlo temporalmente con la variable `DISABLE_OSPEC_PRECOMMIT=true` o la opción de git `--no-verify`.
+
 ## Evidencia obligatoria
 
 `sdd-apply` debe guardar una tabla de evidencia en `apply-progress.md`:

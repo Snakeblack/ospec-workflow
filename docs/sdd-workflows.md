@@ -2,6 +2,12 @@
 
 El plugin soporta varias lineas de trabajo. Todas comparten una idea: el estado persistido vive en OpenSpec y el orquestador decide la siguiente fase segura.
 
+## Mapa General de Flujos, Agentes y Caminos SDD
+
+El siguiente diagrama detalla la orquestación completa de todos los flujos de trabajo admitidos, los entregables de cada fase, las guardas y la interacción del orquestador con agentes especializados (como `sdd-clarify`):
+
+![Orquestación de Flujos SDD](./diagramas/sdd-workflow-orchestration.png)
+
 ## Modos de ejecucion
 
 Antes de la primera ejecucion, el orquestador pregunta el modo:

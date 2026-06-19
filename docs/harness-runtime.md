@@ -4,6 +4,12 @@
 
 Reducir carga permanente del prompt y mover automatización repetitiva a hooks.
 
+## Diagrama General de Flujos y Componentes
+
+El siguiente diagrama detalla cómo interactúan los comandos de usuario, el orquestador, los agentes de fase, las capas de persistencia y el ciclo de vida de los hooks (seguridad, tokens y Git):
+
+![Harness Runtime](./diagramas/harness-runtime.png)
+
 ## Capas
 
 1. Commands: routing visible.
@@ -73,3 +79,31 @@ Este `mode` del arnés (dónde y cómo se resuelve el backend) es distinto del
 `artifact_store.mode` de la capa de prompts (`openspec | none`, que decide si una
 fase persiste o devuelve inline). Ver [openspec.md](openspec.md) y la
 `persistence-contract` compartida.
+
+## Filtros de Seguridad y Presupuesto de Tokens (AgentShield y Token Budget Advisor)
+
+El arnés incorpora políticas activas durante el ciclo de vida del agente para evitar el consumo desmedido de tokens y proteger archivos o credenciales sensibles.
+
+### 1. Token Budget Advisor (PreToolUse)
+Controla la lectura excesiva de archivos para proteger el contexto del modelo:
+- **Límite de archivo individual**: Bloquea con advertencia interactiva (`ask`) lecturas de un único archivo que estime más de **20,000 tokens** (~80 KB en código o ~120 KB en texto).
+- **Límite acumulado de sesión**: Si el total acumulado de la sesión excede los **90,000 tokens** (registrado en `.ospec/session/<changeName>/token-events.jsonl`), advierte interactivamente para aconsejar una compactación de contexto.
+- **Bypass**: Habilita la variable de entorno `DISABLE_TOKEN_ADVISOR=true` para omitir esta validación.
+
+### 2. AgentShield Security (SessionStart y PreToolUse)
+Protege contra fugas de información confidencial y el acceso no deseado a credenciales:
+- **SessionStart**:
+  - Escanea la raíz del espacio de trabajo para detectar archivos sensibles (`.env`, `.env.local`, `.env.development`, `.env.production`, `.npmrc`) que no estén ignorados en `.gitignore`.
+  - Verifica si `.git/config` contiene credenciales incrustadas en texto plano en URLs `http`/`https`.
+  - Emite alertas en el canal del sistema si se encuentran riesgos.
+- **PreToolUse (Lectura de archivos)**:
+  - **Bloqueo Estricto (`deny`)**: Niega el acceso a claves privadas SSH (ej. `id_rsa`, `id_ed25519`, archivos que empiecen con `id_` con extensión `.key`/`.pem`), el archivo `.npmrc` y el archivo `.git/config` del repositorio.
+  - **Pregunta Interactiva (`ask`)**: Solicita aprobación explícita del usuario para leer archivos `.env*`, `secrets.json`, `credentials` o cualquier archivo menor a 1 MB que contenga patrones de claves API conocidas (OpenAI `sk-`, Google Cloud `AIzaSy`, AWS `AKIA`, Slack `xox-`, JWT) o expresiones regulares de contraseñas/secretos (`password = "..."`).
+- **Bypass**: Habilita la variable de entorno `DISABLE_AGENT_SHIELD=true` para desactivar este escudo.
+
+### 3. Git Pre-commit Hook
+Validador local que asegura la calidad del repositorio antes de consolidar cambios:
+- **Instalación**: Se configura de manera idempotente usando `npm run setup:git-hooks` (ejecuta [setup-git-hooks.js](../scripts/setup-git-hooks.js) para instalar el hook en `.git/hooks/pre-commit`).
+- **Validación de Workspace**: Invoca `scripts/check.js` para asegurar que el plugin compila y todos los tests pasan.
+- **Validación de Strict TDD**: Si `strict_tdd: true` en `openspec/config.yaml`, rechaza commits si hay cambios de código de producción preparados (`staged`) sin sus correspondientes archivos de prueba (`*_test.go`, `*.test.js`) o su archivo `tasks.md` de planificación.
+- **Bypass**: Habilita la variable de entorno `DISABLE_OSPEC_PRECOMMIT=true` o usa `git commit --no-verify`.

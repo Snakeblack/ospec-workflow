@@ -1,0 +1,42 @@
+change:
+  name: git-precommit-hook
+  status: active
+  phase: archive
+  classification: normal
+  delivery: single-pr
+  delivery_strategy: exception-ok
+  artifact_store: openspec
+  created_at: "2026-06-20T00:15:00Z"
+  updated_at: "2026-06-20T00:15:00Z"
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Ruta estándar seleccionada para el desarrollo de la validación local pre-commit."
+  validated: true
+  validation_errors: []
+phases:
+  proposal:
+    status: done
+    artifact: openspec/changes/git-precommit-hook/proposal.md
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/git-precommit-hook/specs/git-precommit-hook/spec.md
+  clarify:
+    status: done
+  design:
+    status: done
+    artifact: openspec/changes/git-precommit-hook/design.md
+  tasks:
+    status: done
+    artifact: openspec/changes/git-precommit-hook/tasks.md
+  apply:
+    status: done
+  verify:
+    status: done
+  archive:
+    status: done
+gates:
+  4r-review-gate:
+    status: done
+blocking_questions: []

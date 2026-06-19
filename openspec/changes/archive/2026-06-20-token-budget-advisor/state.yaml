@@ -1,0 +1,46 @@
+change:
+  name: token-budget-advisor
+  status: active
+  phase: proposal
+  classification: normal
+  delivery: single-pr
+  delivery_strategy: exception-ok
+  artifact_store: openspec
+  created_at: "2026-06-20T00:15:00Z"
+  updated_at: "2026-06-20T00:15:00Z"
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Ruta estándar seleccionada para el desarrollo de la característica Token Budget Advisor."
+  validated: true
+  validation_errors: []
+phases:
+  proposal:
+    status: done
+    artifact: openspec/changes/token-budget-advisor/proposal.md
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/token-budget-advisor/specs/token-budget-advisor/spec.md
+      - openspec/changes/token-budget-advisor/specs/hooks/spec.md
+  clarify:
+    status: done
+    questions_asked: 3
+  design:
+    status: done
+    artifact: openspec/changes/token-budget-advisor/design.md
+  tasks:
+    status: done
+    artifact: openspec/changes/token-budget-advisor/tasks.md
+  apply:
+    status: done
+  verify:
+    status: done
+    artifact: openspec/changes/token-budget-advisor/verify-report.md
+  archive:
+    status: done
+    artifact: openspec/changes/token-budget-advisor/archive-report.md
+gates:
+  4r-review-gate:
+    status: done
+blocking_questions: []

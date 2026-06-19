@@ -283,3 +283,205 @@ func TestPreToolUse_Triangulate(t *testing.T) {
 		}
 	})
 }
+
+func TestPreToolUse_TokenBudgetAdvisor(t *testing.T) {
+	t.Run("respects DISABLE_TOKEN_ADVISOR env bypass", func(t *testing.T) {
+		os.Setenv("DISABLE_TOKEN_ADVISOR", "true")
+		defer os.Unsetenv("DISABLE_TOKEN_ADVISOR")
+
+		tempFile := filepath.Join(".", "temp_heavy_file.txt")
+		content := make([]byte, 90000)
+		for i := range content {
+			content[i] = 'A'
+		}
+		os.WriteFile(tempFile, content, 0644)
+		defer os.Remove(tempFile)
+
+		stdin := []byte(`{
+			"tool_name": "view_file",
+			"tool_input": {
+				"AbsolutePath": "` + filepath.ToSlash(tempFile) + `"
+			}
+		}`)
+		got, _ := runPreToolUse(t, stdin)
+		if got.PermissionDecision != "allow" {
+			t.Errorf("expected allow, got %q", got.PermissionDecision)
+		}
+	})
+
+	t.Run("asks on heavy file reads exceeding 20k tokens", func(t *testing.T) {
+		tempFile := filepath.Join(".", "temp_heavy_file_source.js")
+		content := make([]byte, 90000)
+		for i := range content {
+			content[i] = 'A'
+		}
+		os.WriteFile(tempFile, content, 0644)
+		defer os.Remove(tempFile)
+
+		stdin := []byte(`{
+			"tool_name": "view_file",
+			"tool_input": {
+				"AbsolutePath": "` + filepath.ToSlash(tempFile) + `"
+			}
+		}`)
+		got, _ := runPreToolUse(t, stdin)
+		if got.PermissionDecision != "ask" {
+			t.Errorf("expected ask, got %q", got.PermissionDecision)
+		}
+	})
+
+	t.Run("asks on cumulative session tokens exceeding 90k tokens", func(t *testing.T) {
+		activeChange := hooks.FindActiveChangeName()
+		targetChange := activeChange
+		if targetChange == "unknown" {
+			targetChange = "token-budget-advisor"
+		}
+		root := findWorkspaceRoot()
+		tempSessionDir := filepath.Join(root, ".ospec", "session", targetChange)
+		os.MkdirAll(tempSessionDir, 0755)
+		defer os.RemoveAll(filepath.Join(root, ".ospec"))
+
+		tempLog := filepath.Join(tempSessionDir, "token-events.jsonl")
+		os.WriteFile(tempLog, []byte(`{"t":95000,"ts":123456}
+`), 0644)
+
+		stdin := []byte(`{
+			"tool_name": "view_file",
+			"tool_input": {
+				"AbsolutePath": "some_small_file.txt"
+			}
+		}`)
+		got, _ := runPreToolUse(t, stdin)
+		if got.PermissionDecision != "ask" {
+			t.Errorf("expected ask, got %q", got.PermissionDecision)
+		}
+	})
+
+	t.Run("agent-shield respects DISABLE_AGENT_SHIELD env bypass in PreToolUse", func(t *testing.T) {
+		os.Setenv("DISABLE_AGENT_SHIELD", "true")
+		defer os.Unsetenv("DISABLE_AGENT_SHIELD")
+
+		tempFile := filepath.Join(".", "id_rsa")
+		os.WriteFile(tempFile, []byte("SSH PRIVATE KEY"), 0644)
+		defer os.Remove(tempFile)
+
+		stdin := []byte(`{
+			"tool_name": "view_file",
+			"tool_input": {
+				"AbsolutePath": "` + filepath.ToSlash(tempFile) + `"
+			}
+		}`)
+		got, _ := runPreToolUse(t, stdin)
+		if got.PermissionDecision != "allow" {
+			t.Errorf("expected allow, got %q", got.PermissionDecision)
+		}
+	})
+
+	t.Run("agent-shield denies SSH private keys, workspace .git/config, and .npmrc", func(t *testing.T) {
+		files := []string{"id_rsa", "id_ed25519", ".npmrc"}
+		for _, filename := range files {
+			tempFile := filepath.Join(".", filename)
+			os.WriteFile(tempFile, []byte("sensitive data"), 0644)
+			defer os.Remove(tempFile)
+
+			stdin := []byte(`{
+				"tool_name": "view_file",
+				"tool_input": {
+					"AbsolutePath": "` + filepath.ToSlash(tempFile) + `"
+				}
+			}`)
+			got, _ := runPreToolUse(t, stdin)
+			if got.PermissionDecision != "deny" {
+				t.Errorf("expected deny for %s, got %q", filename, got.PermissionDecision)
+			}
+		}
+
+		// Check .git/config within a temporary mock workspace path
+		tempGitDir := filepath.Join(".", "temp_git_dir_go")
+		os.MkdirAll(filepath.Join(tempGitDir, ".git"), 0755)
+		defer os.RemoveAll(tempGitDir)
+
+		gitConfig := filepath.Join(tempGitDir, ".git", "config")
+		os.WriteFile(gitConfig, []byte("git config data"), 0644)
+
+		stdin := []byte(`{
+			"tool_name": "view_file",
+			"tool_input": {
+				"AbsolutePath": "` + filepath.ToSlash(gitConfig) + `"
+			}
+		}`)
+		got, _ := runPreToolUse(t, stdin)
+		if got.PermissionDecision != "deny" {
+			t.Errorf("expected deny for git config, got %q", got.PermissionDecision)
+		}
+	})
+
+	t.Run("agent-shield asks before reading .env, secrets.json, and credentials", func(t *testing.T) {
+		files := []string{".env", ".env.local", "secrets.json", "credentials"}
+		for _, filename := range files {
+			tempFile := filepath.Join(".", filename)
+			os.WriteFile(tempFile, []byte("data"), 0644)
+			defer os.Remove(tempFile)
+
+			stdin := []byte(`{
+				"tool_name": "view_file",
+				"tool_input": {
+					"AbsolutePath": "` + filepath.ToSlash(tempFile) + `"
+				}
+			}`)
+			got, _ := runPreToolUse(t, stdin)
+			if got.PermissionDecision != "ask" {
+				t.Errorf("expected ask for %s, got %q", filename, got.PermissionDecision)
+			}
+		}
+	})
+
+	t.Run("agent-shield scans file contents for API tokens and passwords", func(t *testing.T) {
+		tempFile := filepath.Join(".", "code_sample.js")
+		
+		// Test OpenAI API key pattern
+		os.WriteFile(tempFile, []byte("const openAIKey = 'sk-123456789012345678901234567890123456789012345678';"), 0644)
+		defer os.Remove(tempFile)
+
+		stdin := []byte(`{
+			"tool_name": "view_file",
+			"tool_input": {
+				"AbsolutePath": "` + filepath.ToSlash(tempFile) + `"
+			}
+		}`)
+		got, _ := runPreToolUse(t, stdin)
+		if got.PermissionDecision != "ask" {
+			t.Errorf("expected ask for OpenAI key, got %q", got.PermissionDecision)
+		}
+
+		// Test generic password assignment pattern
+		os.WriteFile(tempFile, []byte("db_password = \"superSecretAdmin123\""), 0644)
+		got, _ = runPreToolUse(t, stdin)
+		if got.PermissionDecision != "ask" {
+			t.Errorf("expected ask for generic password, got %q", got.PermissionDecision)
+		}
+	})
+}
+
+func findWorkspaceRoot() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "."
+	}
+	dir := cwd
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		if _, err := os.Stat(filepath.Join(dir, "package.json")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return cwd
+}
+

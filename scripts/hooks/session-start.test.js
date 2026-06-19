@@ -353,3 +353,70 @@ test("federated backend with an atlas refreshes the registry", async (t) => {
     { id: "auth", provider: "api", consumers: ["web"] },
   ]);
 });
+
+test("agent-shield: respects DISABLE_AGENT_SHIELD env bypass in SessionStart", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t);
+  const oldEnv = process.env.DISABLE_AGENT_SHIELD;
+  process.env.DISABLE_AGENT_SHIELD = "true";
+  try {
+    // Create an unignored .env file
+    await fs.writeFile(path.join(workspace, ".env"), "API_KEY=123", "utf8");
+    await fs.writeFile(path.join(workspace, ".gitignore"), "other_file\n", "utf8");
+
+    const result = await runSessionStart({
+      input: { cwd: workspace },
+      pluginRoot,
+    });
+
+    assert.equal(result.security, undefined);
+    assert.equal(result.systemMessage, undefined);
+  } finally {
+    if (oldEnv === undefined) {
+      delete process.env.DISABLE_AGENT_SHIELD;
+    } else {
+      process.env.DISABLE_AGENT_SHIELD = oldEnv;
+    }
+  }
+});
+
+test("agent-shield: scans for unignored env files in SessionStart", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t);
+  // Create an unignored .env file
+  await fs.writeFile(path.join(workspace, ".env"), "API_KEY=123", "utf8");
+  await fs.writeFile(path.join(workspace, ".gitignore"), "other_file\n", "utf8");
+
+  const result = await runSessionStart({
+    input: { cwd: workspace },
+    pluginRoot,
+  });
+
+  assert.ok(result.security);
+  assert.equal(result.security.status, "warning");
+  const alert = result.security.alerts.find(a => a.file === ".env");
+  assert.ok(alert);
+  assert.equal(alert.type, "unignored-env-file");
+  assert.match(result.systemMessage, /cuidado/i);
+});
+
+test("agent-shield: scans for embedded credentials in .git/config in SessionStart", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t);
+  await fs.mkdir(path.join(workspace, ".git"), { recursive: true });
+  await fs.writeFile(
+    path.join(workspace, ".git", "config"),
+    "[remote \"origin\"]\n  url = https://user:secret123@github.com/org/repo.git\n",
+    "utf8"
+  );
+
+  const result = await runSessionStart({
+    input: { cwd: workspace },
+    pluginRoot,
+  });
+
+  assert.ok(result.security);
+  assert.equal(result.security.status, "warning");
+  const alert = result.security.alerts.find(a => a.file === ".git/config");
+  assert.ok(alert);
+  assert.equal(alert.type, "embedded-credentials");
+  assert.match(result.systemMessage, /credenciales/i);
+});
+
