@@ -19,6 +19,7 @@ Esta carpeta explica la metodologia SDD de este plugin para VS Code/Copilot. El 
 | Documento | Para que sirve |
 | --- | --- |
 | [harness-runtime.md](harness-runtime.md) | Capas del arnes, hooks y backend de artefactos (adapter). |
+| [harness-go-js-parity.md](harness-go-js-parity.md) | Frontera Go/JS, contrato de paridad, brecha de federacion y caminos para cerrarla (parche vs migracion completa). |
 | [model-routing.md](model-routing.md) | Tiers `agente→modelo` y formato de modelo por target (`models.yaml`). |
 | [mcp-policy.md](mcp-policy.md) | Politica y configuracion de servidores MCP. |
 | [plugin-installation.md](plugin-installation.md) | Instalacion, **generacion multi-target** (`vscode` / `claude` / `github-copilot`), confianza y diagnostico. |
