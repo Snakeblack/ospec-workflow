@@ -76,3 +76,58 @@ test("resolveInvocation falls back to node <sub>.js when no binary ships", () =>
     args: [path.join(HOOKS_DIR, "pre-tool-use.js")],
   });
 });
+
+test("resolveInvocation bypasses binary and returns node fallback for session-start when backend is workspace-federated", () => {
+  const suffix = { goos: "linux", goarch: "amd64", ext: "" };
+  const platform = path.join(HOOKS_DIR, "ospec-hooks-linux-amd64");
+  const configPath = path.join(process.cwd(), "openspec", "config.yaml");
+  
+  const exists = (p) => p === platform || p === configPath;
+  const readFileSync = (p) => {
+    if (p === configPath) {
+      return "artifact_store:\n  backend: workspace-federated\n";
+    }
+    throw new Error(`Unexpected read of: ${p}`);
+  };
+
+  const invocation = resolveInvocation("session-start", HOOKS_DIR, suffix, exists, readFileSync);
+  assert.deepEqual(invocation, {
+    command: process.execPath,
+    args: [path.join(HOOKS_DIR, "session-start.js")],
+  });
+});
+
+test("resolveInvocation does not read config and uses binary for pre-tool-use even under federated backend (hot path optimization)", () => {
+  const suffix = { goos: "linux", goarch: "amd64", ext: "" };
+  const platform = path.join(HOOKS_DIR, "ospec-hooks-linux-amd64");
+  
+  const exists = (p) => p === platform;
+  const readFileSync = (p) => {
+    throw new Error(`Should not read filesystem/config on hot path! Attempted read of: ${p}`);
+  };
+
+  const invocation = resolveInvocation("pre-tool-use", HOOKS_DIR, suffix, exists, readFileSync);
+  assert.deepEqual(invocation, {
+    command: platform,
+    args: ["pre-tool-use"],
+  });
+});
+
+test("resolveInvocation handles missing config file gracefully, defaulting to openspec backend and using Go binary", () => {
+  const suffix = { goos: "linux", goarch: "amd64", ext: "" };
+  const platform = path.join(HOOKS_DIR, "ospec-hooks-linux-amd64");
+  const configPath = path.join(process.cwd(), "openspec", "config.yaml");
+  
+  const exists = (p) => p === platform; // configPath does not exist
+  const readFileSync = (p) => {
+    throw new Error(`Should not attempt read since config does not exist! Attempted read of: ${p}`);
+  };
+
+  const invocation = resolveInvocation("session-start", HOOKS_DIR, suffix, exists, readFileSync);
+  assert.deepEqual(invocation, {
+    command: platform,
+    args: ["session-start"],
+  });
+});
+
+

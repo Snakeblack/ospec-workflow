@@ -64,6 +64,39 @@ function binaryCandidates(scriptDir, suffix = hostBinarySuffix()) {
   ];
 }
 
+const FEDERATION_AWARE_HOOKS = new Set([
+  "session-start",
+  "pre-compact",
+  "stop",
+]);
+
+function readBackendModeSync(configPath, readFileSync = fs.readFileSync) {
+  try {
+    const content = readFileSync(configPath, "utf8");
+    let inArtifactStore = false;
+    for (const raw of content.split(/\r?\n/)) {
+      const trimmed = raw.trim();
+      const indent = raw.match(/^\s*/)[0].length;
+      if (!trimmed || trimmed.startsWith("#")) {
+        continue;
+      }
+      if (indent === 0) {
+        inArtifactStore = trimmed === "artifact_store:";
+        continue;
+      }
+      if (inArtifactStore) {
+        const match = trimmed.match(/^backend:\s*(.+)$/);
+        if (match) {
+          return match[1].replace(/^(["'])([\s\S]*)\1$/, "$2").replace(/\s+#.*$/, "").trim();
+        }
+      }
+    }
+  } catch (err) {
+    // Ignore and default
+  }
+  return "openspec";
+}
+
 function resolveBinary(scriptDir, suffix = hostBinarySuffix(), exists = fs.existsSync) {
   for (const candidate of binaryCandidates(scriptDir, suffix)) {
     if (exists(candidate)) {
@@ -75,13 +108,24 @@ function resolveBinary(scriptDir, suffix = hostBinarySuffix(), exists = fs.exist
 
 // Resolve what to run and how. Pure so it can be unit-tested without spawning:
 // returns { command, args } for either the native binary or the Node fallback.
-function resolveInvocation(sub, scriptDir, suffix = hostBinarySuffix(), exists = fs.existsSync) {
+function resolveInvocation(sub, scriptDir, suffix = hostBinarySuffix(), exists = fs.existsSync, readFileSync = fs.readFileSync) {
+  if (FEDERATION_AWARE_HOOKS.has(sub)) {
+    const configPath = path.join(process.cwd(), "openspec", "config.yaml");
+    if (exists(configPath)) {
+      const mode = readBackendModeSync(configPath, readFileSync);
+      if (mode === "workspace-federated") {
+        return { command: process.execPath, args: [path.join(scriptDir, `${sub}.js`)] };
+      }
+    }
+  }
+
   const binary = resolveBinary(scriptDir, suffix, exists);
   if (binary) {
     return { command: binary, args: [sub] };
   }
   return { command: process.execPath, args: [path.join(scriptDir, `${sub}.js`)] };
 }
+
 
 function main(argv, scriptDir = __dirname) {
   const sub = argv[0];
