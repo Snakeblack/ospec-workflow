@@ -34,6 +34,8 @@ release/dist/ospec-hooks.exe
 release/dist/ospec-hooks-*
 scripts/hooks/ospec-hooks
 scripts/hooks/ospec-hooks.exe
+/ospec-hooks
+/ospec-hooks.exe
 
 # federation baseline working state — change-scoped, not a canonical artifact
 openspec/changes/*/federation-baseline-status.yaml
