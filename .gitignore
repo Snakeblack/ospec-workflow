@@ -16,6 +16,10 @@ coverage/
 node_modules/
 npm-debug.log*
 
+# Python
+__pycache__/
+*.pyc
+
 # Editor / OS noise
 .DS_Store
 Thumbs.db

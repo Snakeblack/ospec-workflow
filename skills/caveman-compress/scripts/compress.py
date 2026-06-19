@@ -9,8 +9,18 @@ Usage:
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import List
+
+# Windows consoles default to a non-UTF-8 code page (cp1252) where the status
+# emojis printed below would raise UnicodeEncodeError mid-compression. Best-effort
+# switch the output streams to UTF-8 so a status line never aborts the run.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 
 OUTER_FENCE_REGEX = re.compile(
     r"\A\s*(`{3,}|~{3,})[^\n]*\n(.*)\n\1\s*\Z", re.DOTALL
@@ -46,8 +56,10 @@ def call_claude(prompt: str) -> str:
                 messages=[{"role": "user", "content": prompt}],
             )
             return strip_llm_wrapper(msg.content[0].text.strip())
-        except ImportError:
-            pass  # anthropic not installed, fall back to CLI
+        except Exception:
+            # Any SDK failure (missing package, network, rate limit, auth) falls
+            # back to the CLI path instead of aborting compress_file mid-flow.
+            pass
     # Fallback: use claude CLI (handles desktop auth)
     try:
         result = subprocess.run(
@@ -59,7 +71,12 @@ def call_claude(prompt: str) -> str:
         )
         return strip_llm_wrapper(result.stdout.strip())
     except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Claude call failed:\n{e.stderr}")
+        # Truncate CLI stderr so verbose provider diagnostics are not dumped
+        # verbatim to the terminal.
+        stderr = (e.stderr or "").strip()
+        if len(stderr) > 500:
+            stderr = "..." + stderr[-500:]
+        raise RuntimeError(f"Claude call failed:\n{stderr}")
 
 
 def build_compress_prompt(original: str) -> str:
@@ -113,6 +130,22 @@ Return ONLY the fixed compressed file. No explanation.
 # ---------- Core Logic ----------
 
 
+def _atomic_write(path: Path, text: str) -> None:
+    """Write text to path via temp file + os.replace.
+
+    os.replace is atomic on the same filesystem, so path always contains either
+    its previous content or the full new content — never a half-written file.
+    The temp file is removed if the write fails before the replace.
+    """
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        tmp.write_text(text)
+        os.replace(tmp, path)
+    finally:
+        if tmp.exists():
+            tmp.unlink()
+
+
 def compress_file(filepath: Path) -> bool:
     # Resolve and validate path
     filepath = filepath.resolve()
@@ -142,9 +175,15 @@ def compress_file(filepath: Path) -> bool:
     print("Compressing with Claude...")
     compressed = call_claude(build_compress_prompt(original_text))
 
-    # Save original as backup, write compressed to original path
+    # Save original as backup, then write compressed atomically. If the
+    # compressed write fails, filepath keeps its original content (the atomic
+    # replace never ran), so drop the backup to avoid blocking a re-run.
     backup_path.write_text(original_text)
-    filepath.write_text(compressed)
+    try:
+        _atomic_write(filepath, compressed)
+    except OSError:
+        backup_path.unlink(missing_ok=True)
+        raise
 
     # Step 2: Validate + Retry
     for attempt in range(MAX_RETRIES):
@@ -162,7 +201,7 @@ def compress_file(filepath: Path) -> bool:
 
         if attempt == MAX_RETRIES - 1:
             # Restore original on failure
-            filepath.write_text(original_text)
+            _atomic_write(filepath, original_text)
             backup_path.unlink(missing_ok=True)
             print("❌ Failed after retries — original restored")
             return False
@@ -171,6 +210,6 @@ def compress_file(filepath: Path) -> bool:
         compressed = call_claude(
             build_fix_prompt(original_text, compressed, result.errors)
         )
-        filepath.write_text(compressed)
+        _atomic_write(filepath, compressed)
 
     return True

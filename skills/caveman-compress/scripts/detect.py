@@ -8,6 +8,10 @@ from pathlib import Path
 # Extensions that are natural language and compressible
 COMPRESSIBLE_EXTENSIONS = {".md", ".txt", ".markdown", ".rst"}
 
+# Structured-data formats: skipped extensions that classify as "config" rather
+# than "code". Every other skip extension is treated as "code".
+CONFIG_EXTENSIONS = {".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".env"}
+
 # Extensions that are code/config and should be skipped
 SKIP_EXTENSIONS = {
     ".py", ".js", ".ts", ".tsx", ".jsx", ".json", ".yaml", ".yml",
@@ -71,7 +75,7 @@ def detect_file_type(filepath: Path) -> str:
     if ext in COMPRESSIBLE_EXTENSIONS:
         return "natural_language"
     if ext in SKIP_EXTENSIONS:
-        return "code" if ext not in {".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".env"} else "config"
+        return "config" if ext in CONFIG_EXTENSIONS else "code"
 
     # Extensionless files (like CLAUDE.md, TODO) — check content
     if not ext:

@@ -148,6 +148,11 @@ def validate_bullets(orig, comp, result):
 
 
 def validate(original_path: Path, compressed_path: Path) -> ValidationResult:
+    if not original_path.is_file():
+        raise ValueError(f"original file not found: {original_path}")
+    if not compressed_path.is_file():
+        raise ValueError(f"compressed file not found: {compressed_path}")
+
     result = ValidationResult()
 
     orig = read_file(original_path)
