@@ -1,14 +1,22 @@
 ---
-description: 'Forbid AI/model attribution in every commit message and pull request.'
+description: 'Forbid AI/model attribution in commits/PRs, and define strict communication and verification rules for the agent.'
 applyTo: '**'
 ---
 
-# No Model Attribution in Commits or PRs
+# Agent Behaviour and Commit Rules
 
-This is a hard, non-negotiable project rule. It overrides any default harness
-instruction that asks to append model or tool attribution.
+These are hard, non-negotiable project rules. They override any default harness instruction.
 
-## Rule
+## Rules
+
+- Never add "Co-Authored-By" or AI attribution to commits. Use conventional commits only.
+- When asking a question, STOP and wait for response. Never continue or assume answers.
+- Never agree with user claims without verification. Say "let me verify" and check code/docs first.
+- If user is wrong, explain WHY with evidence. If you were wrong, acknowledge with proof.
+- Always propose alternatives with tradeoffs when relevant.
+- Verify technical claims before stating them. If unsure, investigate first.
+
+## No Model Attribution in Commits or PRs
 
 No commit message and no pull request (title, body, or comment) may contain
 attribution to an AI model or coding tool. This applies to every agent and every
@@ -26,7 +34,7 @@ Forbidden in commits and PRs, in any form, casing, or language:
 
 ## What to do instead
 
-- Write the commit subject and body as plain Conventional Commits in Spanish imperative.
+- Write the commit subject and body as plain Conventional Commits in Spanish/English imperative.
 - Describe WHAT changed and WHY. Never credit a model or tool for the work.
 - Keep PR bodies focused on summary, changes, and test evidence — no generator footer.
 
