@@ -333,13 +333,27 @@ func TestPreToolUse_TokenBudgetAdvisor(t *testing.T) {
 	t.Run("asks on cumulative session tokens exceeding 90k tokens", func(t *testing.T) {
 		activeChange := hooks.FindActiveChangeName()
 		targetChange := activeChange
+		root := findWorkspaceRoot()
+
+		// When no active change exists (e.g. CI), create a temporary one
+		// so FindActiveChangeName() inside the handler can resolve it.
+		createdTempChange := false
 		if targetChange == "unknown" {
 			targetChange = "token-budget-advisor"
+			tempChangeDir := filepath.Join(root, "openspec", "changes", targetChange)
+			os.MkdirAll(tempChangeDir, 0755)
+			os.WriteFile(filepath.Join(tempChangeDir, "state.yaml"), []byte("status: active\n"), 0644)
+			createdTempChange = true
 		}
-		root := findWorkspaceRoot()
+
 		tempSessionDir := filepath.Join(root, ".ospec", "session", targetChange)
 		os.MkdirAll(tempSessionDir, 0755)
-		defer os.RemoveAll(filepath.Join(root, ".ospec"))
+		defer func() {
+			os.RemoveAll(filepath.Join(root, ".ospec"))
+			if createdTempChange {
+				os.RemoveAll(filepath.Join(root, "openspec", "changes", "token-budget-advisor"))
+			}
+		}()
 
 		tempLog := filepath.Join(tempSessionDir, "token-events.jsonl")
 		os.WriteFile(tempLog, []byte(`{"t":95000,"ts":123456}
