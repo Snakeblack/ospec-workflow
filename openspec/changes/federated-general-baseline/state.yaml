@@ -30,6 +30,26 @@ phases:
     artifact: "openspec/changes/federated-general-baseline/exploration.md"
     completed_at: "2026-06-19T02:02:00Z"
   propose:
+    status: done
+    artifact: "openspec/changes/federated-general-baseline/proposal.md"
+    completed_at: "2026-06-19T02:03:00Z"
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/federated-general-baseline/specs/federated-general-baseline/spec.md
+    completed_at: "2026-06-19T02:03:15Z"
+  clarify:
+    status: skipped
+    completed_at: "2026-06-19T02:03:20Z"
+  design:
+    status: done
+    artifact: "openspec/changes/federated-general-baseline/design.md"
+    completed_at: "2026-06-19T02:03:25Z"
+  tasks:
+    status: done
+    artifact: "openspec/changes/federated-general-baseline/tasks.md"
+    completed_at: "2026-06-19T02:03:30Z"
+  apply:
     status: pending
     completed_at: null
 
