@@ -3,11 +3,11 @@
 "use strict";
 
 const fs = require("node:fs/promises");
-const path = require("node:path");
 const {
   ARTIFACT_STORE_RELATIVE_PATHS,
   createArtifactStoreFromConfig,
 } = require("../lib/artifact-store.js");
+const { validatePath, resolveWorkspaceCwd } = require("../lib/pathsafe.js");
 
 const EVENT_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.runtimeEvents;
 const RESULT_FIELDS = [
@@ -159,12 +159,16 @@ function findResolutionInJsonLines(content) {
 }
 
 async function findResolutionInTranscript(transcriptPath) {
-  if (typeof transcriptPath !== "string" || !transcriptPath.trim()) {
+  // Reject relative paths, ".." traversal, and filesystem roots before any read
+  // (parity with internal/hooks/subagentstop.go). A rejected path is treated as
+  // absent — identical degradation to ENOENT.
+  const { cleaned, ok } = validatePath(transcriptPath);
+  if (!ok) {
     return "";
   }
 
   try {
-    const content = await fs.readFile(transcriptPath, "utf8");
+    const content = await fs.readFile(cleaned, "utf8");
     const parsed = parseJsonText(content);
 
     if (parsed) {
@@ -204,11 +208,7 @@ async function runSubagentStop({
   mode,
   now = () => new Date(),
 } = {}) {
-  const workspace = path.resolve(
-    typeof input.cwd === "string" && input.cwd.trim()
-      ? input.cwd
-      : fallbackCwd,
-  );
+  const workspace = resolveWorkspaceCwd(input.cwd, fallbackCwd);
   const resolution =
     findResolutionInInput(input) ||
     (await findResolutionInTranscript(input.transcript_path));

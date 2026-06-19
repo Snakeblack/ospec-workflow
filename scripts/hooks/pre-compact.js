@@ -7,6 +7,7 @@ const path = require("node:path");
 const {
   createArtifactStoreFromConfig,
 } = require("../lib/artifact-store.js");
+const { resolveWorkspaceCwd } = require("../lib/pathsafe.js");
 
 const PHASE_RANKS = new Map([
   ["explore", 1],
@@ -417,11 +418,7 @@ async function runPreCompact({
   fallbackCwd = process.cwd(),
   mode,
 } = {}) {
-  const workspace = path.resolve(
-    typeof input.cwd === "string" && input.cwd.trim()
-      ? input.cwd
-      : fallbackCwd,
-  );
+  const workspace = resolveWorkspaceCwd(input.cwd, fallbackCwd);
   const store = await createArtifactStoreFromConfig({ mode, workspace });
   const activeChange = (await store.findActiveChanges())[0] || null;
 

@@ -13,6 +13,8 @@ const {
   ARTIFACT_STORE_RELATIVE_PATHS,
   createArtifactStoreFromConfig,
 } = require("../lib/artifact-store.js");
+const { writeFileAtomic } = require("../lib/atomic-write.js");
+const { resolveWorkspaceCwd } = require("../lib/pathsafe.js");
 
 const LATEST_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.latestSession;
 
@@ -89,8 +91,9 @@ function renderLatestSummary({
 }
 
 async function writeLatestTrace(filePath, content) {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, content, "utf8");
+  // Atomic temp+rename so a crash mid-write never leaves the next session
+  // reading a partially written latest.md.
+  await writeFileAtomic(filePath, content);
 }
 
 async function runStop({
@@ -99,11 +102,7 @@ async function runStop({
   mode,
   now = () => new Date(),
 } = {}) {
-  const workspace = path.resolve(
-    typeof input.cwd === "string" && input.cwd.trim()
-      ? input.cwd
-      : fallbackCwd,
-  );
+  const workspace = resolveWorkspaceCwd(input.cwd, fallbackCwd);
   const store = await createArtifactStoreFromConfig({ mode, workspace });
   const activeChange = (await store.findActiveChanges())[0] || null;
   const changeName = activeChange
