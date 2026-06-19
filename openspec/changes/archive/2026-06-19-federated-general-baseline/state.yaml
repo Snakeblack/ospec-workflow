@@ -5,7 +5,7 @@ depends_on:
 created_at: "2026-06-19"
 branch: main
 
-status: "verified"
+status: "archived"
 last_updated: "2026-06-19T00:07:00Z"
 blocking_questions: []
 classification: normal
@@ -59,6 +59,10 @@ phases:
   verify:
     status: done
     artifact: "openspec/changes/federated-general-baseline/verify-report.md"
+    completed_at: "2026-06-19T00:07:00Z"
+  archive:
+    status: done
+    artifact: "openspec/changes/archive/2026-06-19-federated-general-baseline/archive-report.md"
     completed_at: "2026-06-19T00:07:00Z"
 
 gates:
