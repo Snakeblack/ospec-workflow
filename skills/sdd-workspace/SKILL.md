@@ -57,6 +57,7 @@ and cross-repo contracts (see `_shared/persistence-contract.md`).
 | `status` | Aggregate active changes across reachable members; flag unreachable. |
 | `impact`, change touches a provider | List provider plus its contract consumers. |
 | `impact`, no contract for the touched member | Report the member affects only itself. |
+| `general-baseline` | Scan member manifests and generate shared baseline report docs/architecture/shared-baseline.md |
 
 ## Execution Steps
 
@@ -140,6 +141,14 @@ and cross-repo contracts (see `_shared/persistence-contract.md`).
    every contract whose `provider` is that member.
 3. Return `success` with the affected member set so the orchestrator can scope reviewer
    load before planning. Writes nothing.
+
+### `general-baseline`
+
+1. Parse `openspec/workspace.yaml`. For each member, resolve its directory path relative to the coordinator root.
+2. Scan and parse manifests (`package.json`, `go.mod`) in each member's directory.
+3. Compare dependencies across members to classify them as aligned (same version everywhere) or misaligned (version deviations).
+4. Call `analyzeGeneralBaseline(workspaceYamlPath, coordinatorRoot)` from `scripts/lib/workspace-general-baseline.js` to execute the comparison and synthesize `docs/architecture/shared-baseline.md`.
+5. Return `success` with the report path `docs/architecture/shared-baseline.md` in `artifacts`.
 
 ## Atlas Format (supported subset)
 

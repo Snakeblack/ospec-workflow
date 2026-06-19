@@ -1,6 +1,6 @@
 ---
 name: sdd-workspace
-description: 'Manage the workspace-federated atlas and surface cross-repo state (init, status, impact). Never writes into member repos.'
+description: 'Manage the workspace-federated atlas and surface cross-repo state (init, status, impact, general-baseline). Never writes into member repos.'
 tools: ['read', 'search', 'edit', 'execute']
 # modelo intencionalmente omitido.
 # Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
@@ -40,13 +40,14 @@ Do NOT create application code, package manifests, dependency files, or CI files
 
 ## Subcommands
 
-Parse the leading token of the user input as the subcommand: `init`, `enroll`, `explore`, `status`, or `impact`. Default to `status` when no subcommand is given.
+Parse the leading token of the user input as the subcommand: `init`, `enroll`, `explore`, `status`, `impact`, or `general-baseline`. Default to `status` when no subcommand is given.
 
 - `init` — scan sibling directories for OpenSpec member repos, propose a member list, and write the atlas only after explicit confirmation.
 - `enroll` — **orchestrator-only**. Write `openspec/federation.member.yaml` in a member dir via `federation-marker.js enroll`. Idempotent: identical data leaves the marker byte-stable and does NOT refresh `updated_at`. This is the ONLY member-repo write the agent performs.
 - `explore` (alias `classify`) — depth-1 container scan; classify each member (type/layer/brownfield/init-done); `enroll` each; regenerate `openspec/workspace.yaml` and `openspec/workspace-map.md`. A per-member enroll failure is recorded as `pending` and never aborts the run; the atlas is rebuilt from the markers actually written. An empty container writes no artifacts.
 - `status` — report each member's active changes (aggregated, tagged by member id) and flag unreachable members.
 - `impact <change>` — list the members affected by a change through the contract graph (provider plus its consumers).
+- `general-baseline` — scan member package/go manifests, analyze aligned and misaligned dependencies, and generate a unified baseline report at `docs/architecture/shared-baseline.md`.
 
 > **Stale contract graph caveat**: a provider declares its contracts and their `consumers`
 > in `provides[]`. A new consumer added WITHOUT re-enrolling its provider leaves the

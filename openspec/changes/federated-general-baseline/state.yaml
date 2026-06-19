@@ -5,6 +5,9 @@ depends_on:
 created_at: "2026-06-19"
 branch: main
 
+status: "verified"
+last_updated: "2026-06-19T00:07:00Z"
+blocking_questions: []
 classification: normal
 classification_confidence: deterministic
 classification_rationale: >
@@ -50,7 +53,22 @@ phases:
     artifact: "openspec/changes/federated-general-baseline/tasks.md"
     completed_at: "2026-06-19T02:03:30Z"
   apply:
-    status: pending
-    completed_at: null
+    status: done
+    artifact: "openspec/changes/federated-general-baseline/apply-progress.md"
+    completed_at: "2026-06-19T00:06:00Z"
+  verify:
+    status: done
+    artifact: "openspec/changes/federated-general-baseline/verify-report.md"
+    completed_at: "2026-06-19T00:07:00Z"
+
+gates:
+  clarify:
+    status: skipped
+    completed_at: "2026-06-19T02:03:20Z"
+  4r-review-gate:
+    status: done
+    on_blocker: advisory
+    findings_summary: "0 BLOCKER, 0 WARNING"
+    surfaced_to_user: true
 
 approvals: []
