@@ -11,8 +11,11 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 ## [2.4.5] - 2026-06-19
 
 ### Added
-- Soporte para instalación global en `github-copilot`: añadido el script `npm run install:global:copilot` que compila el target, copia binarios, agentes, prompts, instrucciones, hooks y skills directamente en `~/.copilot/` e integra de forma automática los servidores MCP en `mcp-config.json`.
-- Documentación detallada en el `README.md` y en `docs/plugin-installation.md` explicando las dos modalidades de instalación (local y global) de GitHub Copilot CLI.
+- Ruteo de modelos para el target VS Code: habilitado el parámetro `model: true` en el perfil `vscode.js` para inyectar los modelos resueltos de `models.yaml` en el frontmatter de los agentes generados en `dist/vscode/`.
+- Scripts de configuración automatizada: añadidos los comandos `"setup:vscode"`, `"setup:copilot"`, y `"setup:opencode"` para compilar y configurar automáticamente los targets locales y globales.
+- Configuración automática de VS Code: el script `install-vscode.js` localiza y actualiza la ruta del plugin en el archivo `settings.json` del usuario (tanto para VS Code normal como Insiders), generando un backup previo.
+- Robustez en instaladores globales: los instaladores de OpenCode y Copilot CLI ahora crean de forma recursiva sus directorios globales si no existen en el sistema.
+- Comandos de recarga unificados: registrados `"reload:vscode"`, `"reload:copilot"` y `"reload:opencode"` para facilitar el ciclo de desarrollo.
 
 ## [2.4.4] - 2026-06-19
 

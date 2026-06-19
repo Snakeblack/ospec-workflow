@@ -43,13 +43,28 @@ El soporte de plugins puede estar deshabilitado por la politica de la organizaci
 
 ## Como habilitarlo localmente con `chat.pluginLocations`
 
-Usa esta via cuando estes desarrollando o probando este repositorio directamente desde disco.
+Usa esta via cuando estes desarrollando o probando este repositorio directamente desde disco en VS Code. Admite dos modalidades:
 
+### Opción A: Sin ruteo de modelos (Uso directo del source)
 1. Clona el repositorio en local.
 2. Abre la configuracion de VS Code en formato JSON.
 3. Agrega la raiz de este repositorio a `chat.pluginLocations`.
 4. Recarga VS Code.
-5. Abre la vista de Agent Plugins y confirma que `ospec-workflow` esta habilitado.
+
+### Opción B: Con ruteo de modelos de `models.yaml` (Recomendado)
+1. Clona el repositorio en local.
+2. Ejecuta el script de configuración automática para VS Code:
+   ```powershell
+   npm run setup:vscode
+   ```
+   *(Esto compila el target VS Code a `dist/vscode` y lo añade automáticamente a `chat.pluginLocations` en tu configuración).*
+3. Si realizas cambios en el código y quieres recargar el plugin, ejecuta:
+   ```powershell
+   npm run reload:vscode
+   ```
+4. Recarga VS Code.
+
+En ambos casos, abre la vista de Agent Plugins y confirma que `ospec-workflow` esta habilitado.
 
 Ejemplo minimo de `settings.json`:
 
@@ -79,13 +94,13 @@ node scripts/configure/claude-marketplace.js
 node scripts/configure/cli.js --target github-copilot --out dist/github-copilot
 
 # GitHub Copilot CLI (instalación global)
-npm run install:global:copilot
+npm run setup:copilot
 
 # opencode (construcción local)
 node scripts/configure/cli.js --target opencode --out dist/opencode
 
 # opencode (instalación global)
-npm run install:global:opencode
+npm run setup:opencode
 
 # Omitir validacion para inspeccion rapida
 node scripts/configure/cli.js --target claude --out dist/claude --no-validate
@@ -275,8 +290,10 @@ Verifica que los archivos `.github/` generados quedan en la raíz del repo desti
 Instala el plugin de forma permanente a nivel de usuario:
 
 ```powershell
-npm run install:global:copilot
+npm run setup:copilot
 ```
+
+*(Si realizas modificaciones y necesitas actualizar la instalación global, puedes re-ejecutar `npm run reload:copilot` o `npm run setup:copilot` indistintamente).*
 
 Este instalador idempotente realiza los siguientes pasos:
 1. Compila el target `github-copilot` en `dist/github-copilot/`.
@@ -305,8 +322,10 @@ Esto copiará el árbol `.opencode/`, `opencode.json`, `skills/` y `scripts/` (i
 Instala el plugin de forma permanente a nivel de usuario:
 
 ```powershell
-npm run install:global:opencode
+npm run setup:opencode
 ```
+
+*(Si realizas modificaciones y necesitas actualizar la instalación global, puedes re-ejecutar `npm run reload:opencode` o `npm run setup:opencode` indistintamente).*
 
 Este instalador idempotente realiza los siguientes pasos:
 1. Compila el target `opencode` en `dist/opencode/`.

@@ -15,13 +15,24 @@ agentes de fase ejecutan y OpenSpec conserva el estado versionable.
 
 ## Inicio rápido
 
-**En VS Code** (uso directo del source):
+- **Opción A (Uso directo del source - sin ruteo de modelos)**:
+  1. Agrega la raíz de este repositorio clonado a `chat.pluginLocations` en tu `settings.json` de VS Code.
+- **Opción B (Compilado con ruteo de modelos de `models.yaml` - Recomendado)**:
+  1. Ejecuta el script de configuración automática:
+     ```powershell
+     npm run setup:vscode
+     ```
+     *(Esto compila el target VS Code a `dist/vscode` y lo añade automáticamente a `chat.pluginLocations` de tus editores VS Code/Insiders).*
+  2. Si deseas realizar cambios futuros e inyectarlos de nuevo:
+     ```powershell
+     npm run reload:vscode
+     ```
 
-1. Instala el repositorio como VS Code Agent Plugin.
-2. Revisa el manifiesto, los hooks y los servidores MCP antes de habilitarlo.
-3. Inicia un cambio con `/sdd-new` (o `/sdd-ff`, `/sdd-lite`, `/sdd-baseline` según el caso).
-4. Continúa el flujo con `/sdd-continue` o ejecútalo por fases.
-5. Verifica con `/sdd-verify` y archiva con `/sdd-archive`.
+En ambos casos:
+1. Revisa el manifiesto, los hooks y los servidores MCP antes de habilitarlo.
+2. Inicia un cambio con `/sdd-new` (o `/sdd-ff`, `/sdd-lite`, `/sdd-baseline` según el caso).
+3. Continúa el flujo con `/sdd-continue` o ejecútalo por fases.
+4. Verifica con `/sdd-verify` y archiva con `/sdd-archive`.
 
 ### Claude Code
 
@@ -100,7 +111,8 @@ Agregá `--dry-run` para ver qué copiaría sin escribir:
 Registra todos los agentes, comandos, instrucciones y plugins de manera global en el directorio de configuración del usuario (`~/.copilot/`) y fusiona la configuración MCP en `mcp-config.json` de forma automática. De esta forma, el agente `sdd-orchestrator` y sus comandos estarán disponibles en cualquier proyecto abierto:
 
 ```powershell
-npm run install:global:copilot              # build + copia global + merge config
+npm run setup:copilot              # build + copia global + merge config (idempotente)
+npm run reload:copilot             # reconstruye y actualiza la instalación global
 ```
 
 ### opencode
@@ -121,7 +133,8 @@ npm run build:opencode                        # solo build a dist/opencode
 Registra todos los agentes, comandos, instrucciones y plugins de manera global en el directorio de configuración del usuario (`~/.config/opencode/`) y fusiona el archivo `opencode.json` (MCP y configs) de forma automática. De esta forma, el agente `ospec-workflow` (accesible presionando Tab o escribiendo su nombre) estará disponible en cualquier proyecto abierto:
 
 ```powershell
-npm run install:global:opencode              # build + copia global + merge config
+npm run setup:opencode             # build + copia global + merge config (idempotente)
+npm run reload:opencode            # reconstruye y actualiza la instalación global
 ```
 
 Consulta la [guía de instalación](docs/plugin-installation.md) para instalación remota, desarrollo local, marketplace local de Claude Code y requisitos de confianza.

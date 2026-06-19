@@ -19,9 +19,8 @@ function main() {
   const globalDir = path.join(home, ".copilot");
 
   if (!fs.existsSync(globalDir)) {
-    process.stderr.write(`Global Copilot CLI configuration directory not found at ${globalDir}\n`);
-    process.exitCode = 1;
-    return;
+    process.stdout.write(`Creating global Copilot CLI configuration directory at ${globalDir}...\n`);
+    fs.mkdirSync(globalDir, { recursive: true });
   }
 
   // 1. Build the target github-copilot to dist/github-copilot

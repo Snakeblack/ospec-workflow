@@ -329,10 +329,10 @@ test("claude adds the resolved model alias to phase agents", () => {
   assert.equal(getField(fm, "model").value, "sonnet");
 });
 
-test("vscode does not inject a model key (source intentionally omits it)", () => {
+test("vscode injects resolved model keys from models.yaml", () => {
   const out = transform({ files: makeSource(), profile: vscode, models: MODELS });
   const fm = parse(find(out, "agents/sdd-apply.agent.md").content).frontmatter;
-  assert.equal(getField(fm, "model"), null);
+  assert.deepEqual(getField(fm, "model").value, ["Claude Sonnet 4.6 (copilot)"]);
 });
 
 // ---------------------------------------------------------------------------

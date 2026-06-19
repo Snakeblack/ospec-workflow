@@ -19,9 +19,8 @@ function main() {
   const globalDir = path.join(home, ".config", "opencode");
 
   if (!fs.existsSync(globalDir)) {
-    process.stderr.write(`Global OpenCode configuration directory not found at ${globalDir}\n`);
-    process.exitCode = 1;
-    return;
+    process.stdout.write(`Creating global OpenCode configuration directory at ${globalDir}...\n`);
+    fs.mkdirSync(globalDir, { recursive: true });
   }
 
   // 1. Build the target opencode to dist/opencode
