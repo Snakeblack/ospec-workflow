@@ -13,8 +13,8 @@ name: Publish Marketplace
 # not available in CI, and the Validate Harness workflow already gates source.
 
 on:
-  push:
-    tags: ["v*"]
+  release:
+    types: [released]
   workflow_dispatch:
 
 # Needs write to push the release branch; nothing else.

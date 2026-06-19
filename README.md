@@ -47,6 +47,15 @@ claude plugin marketplace add https://github.com/mretamozo-hiberuscom/ospec-work
 claude plugin install ospec-workflow@ospec-tools
 ```
 
+La branch `release` es un canal "latest" continuo: CI la republica cada vez que
+publicas un GitHub Release. Si ya lo tienes instalado, Claude Code cachea el
+marketplace, así que para recibir la última versión actualiza explícitamente:
+
+```powershell
+claude plugin marketplace update ospec-tools
+claude plugin update ospec-workflow@ospec-tools
+```
+
 Para equipos, puedes versionar esto en `.claude/settings.json` y que a cada
 miembro se le ofrezca instalarlo al confiar la carpeta del proyecto:
 
