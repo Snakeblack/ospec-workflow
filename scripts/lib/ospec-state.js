@@ -84,6 +84,32 @@ const BASELINE_TOP_KEY = "baseline:";
 const BASELINE_FIELD_INDENT = 2;
 const BASELINE_LIST_ITEM_INDENT = 4;
 
+// Applies one indent-2 baseline field line to result and returns the list key
+// that subsequent list items belong to (or null for scalar / non-list fields).
+function applyBaselineField(trimmed, result) {
+  const inlineEmptyList = trimmed.match(/^(\w+):\s*\[\]$/);
+  if (inlineEmptyList && BASELINE_LIST_KEYS.has(inlineEmptyList[1])) {
+    result[inlineEmptyList[1]] = [];
+    return null;
+  }
+
+  const keyValue = trimmed.match(/^(\w+):\s*(.*)$/);
+  if (!keyValue) {
+    return null;
+  }
+
+  const key = keyValue[1];
+  const rawValue = keyValue[2].trim();
+  if (BASELINE_LIST_KEYS.has(key) && rawValue === "") {
+    result[key] = [];
+    return key;
+  }
+  if (BASELINE_SCALAR_KEYS.has(key)) {
+    result[key] = parseScalar(rawValue);
+  }
+  return null;
+}
+
 function readBaselineState(content) {
   const lines = content.split(/\r?\n/);
   let foundBaseline = false;
@@ -119,26 +145,7 @@ function readBaselineState(content) {
     }
 
     if (indent === BASELINE_FIELD_INDENT) {
-      currentListKey = null;
-
-      const inlineEmptyList = trimmed.match(/^(\w+):\s*\[\]$/);
-      if (inlineEmptyList && BASELINE_LIST_KEYS.has(inlineEmptyList[1])) {
-        result[inlineEmptyList[1]] = [];
-        continue;
-      }
-
-      const keyValue = trimmed.match(/^(\w+):\s*(.*)$/);
-      if (keyValue) {
-        const key = keyValue[1];
-        const rawValue = keyValue[2].trim();
-
-        if (BASELINE_LIST_KEYS.has(key) && rawValue === "") {
-          currentListKey = key;
-          result[key] = [];
-        } else if (BASELINE_SCALAR_KEYS.has(key)) {
-          result[key] = parseScalar(rawValue);
-        }
-      }
+      currentListKey = applyBaselineField(trimmed, result);
     } else if (indent >= BASELINE_LIST_ITEM_INDENT && currentListKey !== null) {
       const listItem = trimmed.match(/^-\s+(.+)$/);
       if (listItem) {

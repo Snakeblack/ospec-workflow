@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -61,13 +62,16 @@ func FindStructuredResolution(v any) string {
 				return s
 			}
 		}
-		// Collect and reverse-iterate values (mirrors JS Object.values().reverse()).
-		values := make([]any, 0, len(val))
-		for _, item := range val {
-			values = append(values, item)
+		// Iterate child values in a deterministic order. Go randomizes map
+		// iteration, so we sort keys and walk them in reverse to keep a stable
+		// "last sibling wins" result regardless of run-to-run map ordering.
+		keys := make([]string, 0, len(val))
+		for k := range val {
+			keys = append(keys, k)
 		}
-		for i := len(values) - 1; i >= 0; i-- {
-			if res := FindStructuredResolution(values[i]); res != "" {
+		sort.Strings(keys)
+		for i := len(keys) - 1; i >= 0; i-- {
+			if res := FindStructuredResolution(val[keys[i]]); res != "" {
 				return res
 			}
 		}
@@ -282,12 +286,8 @@ func runSubagentStop(input map[string]any) ([]byte, int) {
 		"action":           "refresh-registry-next-delegation",
 	}
 
-	workspace := resolveCwd(func() string {
-		if v, ok := input["cwd"].(string); ok {
-			return v
-		}
-		return ""
-	}())
+	cwd, _ := input["cwd"].(string)
+	workspace := resolveCwd(cwd)
 	s := store.NewStore(workspace)
 
 	eventBytes, _ := json.Marshal(event)

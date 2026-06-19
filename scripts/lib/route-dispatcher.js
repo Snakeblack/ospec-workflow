@@ -385,6 +385,39 @@ const SUBFIELD_INDENT = 6; // "      key: value" / "      - item"
  * @param {string} content - Full text of config.yaml
  * @returns {object[]} Parsed route entries (empty array when block absent/empty)
  */
+// Applies one SUBFIELD_INDENT line, mutating currentEntry in place: either a
+// "key: value" pair inside a conditions map, or a "- item" inside a block
+// sequence named by currentArrayKey.
+function applySubfieldLine(trimmed, { inConditions, currentArrayKey, currentEntry }) {
+  if (inConditions) {
+    const kvMatch = trimmed.match(/^([\w.\-]+):\s*(.*)$/);
+    if (!kvMatch) {
+      return;
+    }
+    const condKey = kvMatch[1];
+    const rawCondVal = kvMatch[2].trim();
+    // parseScalarOrInlineArray so inline arrays round-trip to JS arrays; then
+    // coerce scalar strings to booleans EXCEPT the 'match' meta-key ('any'/'all').
+    const parsedCondVal = parseScalarOrInlineArray(rawCondVal);
+    currentEntry.conditions[condKey] =
+      condKey !== "match" && typeof parsedCondVal === "string"
+        ? coerceBoolean(parsedCondVal)
+        : parsedCondVal;
+    return;
+  }
+
+  if (currentArrayKey !== null) {
+    const itemMatch = trimmed.match(/^-\s+(.+)$/);
+    if (!itemMatch) {
+      return;
+    }
+    if (!Array.isArray(currentEntry[currentArrayKey])) {
+      currentEntry[currentArrayKey] = [];
+    }
+    currentEntry[currentArrayKey].push(itemMatch[1].trim());
+  }
+}
+
 function parseRoutingTable(content) {
   const lines = String(content).split(/\r?\n/);
   let inRouting = false;
@@ -501,34 +534,7 @@ function parseRoutingTable(content) {
 
     // --- Sub-fields at SUBFIELD_INDENT ---
     if (indent >= SUBFIELD_INDENT) {
-      if (inConditions) {
-        // "      key: value" inside conditions:
-        const kvMatch = trimmed.match(/^([\w.\-]+):\s*(.*)$/);
-
-        if (kvMatch) {
-          const condKey = kvMatch[1];
-          const rawCondVal = kvMatch[2].trim();
-          // Use parseScalarOrInlineArray so inline arrays round-trip to JS arrays.
-          // Then apply boolean coercion to scalar strings — EXCEPT for the 'match'
-          // meta-key, which must remain a string ('any'/'all').
-          const parsedCondVal = parseScalarOrInlineArray(rawCondVal);
-          currentEntry.conditions[condKey] =
-            condKey !== "match" && typeof parsedCondVal === "string"
-              ? coerceBoolean(parsedCondVal)
-              : parsedCondVal;
-        }
-      } else if (currentArrayKey !== null) {
-        // "      - item" inside a block sequence
-        const itemMatch = trimmed.match(/^-\s+(.+)$/);
-
-        if (itemMatch) {
-          if (!Array.isArray(currentEntry[currentArrayKey])) {
-            currentEntry[currentArrayKey] = [];
-          }
-
-          currentEntry[currentArrayKey].push(itemMatch[1].trim());
-        }
-      }
+      applySubfieldLine(trimmed, { inConditions, currentArrayKey, currentEntry });
     }
   }
 

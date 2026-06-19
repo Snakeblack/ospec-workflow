@@ -4,6 +4,22 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { parseAtlas } = require("./workspace-atlas.js");
 
+// Records one dependency version under dependenciesMap[name][memberId].
+function recordDep(dependenciesMap, memberId, name, version) {
+  if (!dependenciesMap[name]) {
+    dependenciesMap[name] = {};
+  }
+  dependenciesMap[name][memberId] = version;
+}
+
+// Records every { name: version } entry from a package.json deps object.
+function recordDeps(dependenciesMap, memberId, deps) {
+  if (!deps) return;
+  for (const [name, version] of Object.entries(deps)) {
+    recordDep(dependenciesMap, memberId, name, version);
+  }
+}
+
 async function analyzeGeneralBaseline(workspaceYamlPath, coordinatorRoot) {
   // 1. Read workspace.yaml
   const workspaceContent = await fs.readFile(workspaceYamlPath, "utf8");
@@ -21,18 +37,8 @@ async function analyzeGeneralBaseline(workspaceYamlPath, coordinatorRoot) {
       const pkgContent = await fs.readFile(pkgJsonPath, "utf8");
       const pkg = JSON.parse(pkgContent);
 
-      const collectDeps = (deps) => {
-        if (!deps) return;
-        for (const [name, version] of Object.entries(deps)) {
-          if (!dependenciesMap[name]) {
-            dependenciesMap[name] = {};
-          }
-          dependenciesMap[name][member.id] = version;
-        }
-      };
-
-      collectDeps(pkg.dependencies);
-      collectDeps(pkg.devDependencies);
+      recordDeps(dependenciesMap, member.id, pkg.dependencies);
+      recordDeps(dependenciesMap, member.id, pkg.devDependencies);
     } catch (err) {
       // Ignore if package.json is missing or invalid
     }
@@ -43,13 +49,6 @@ async function analyzeGeneralBaseline(workspaceYamlPath, coordinatorRoot) {
       const goModContent = await fs.readFile(goModPath, "utf8");
       const lines = goModContent.split(/\r?\n/);
       let inRequire = false;
-
-      const collectGoDep = (depName, depVer) => {
-        if (!dependenciesMap[depName]) {
-          dependenciesMap[depName] = {};
-        }
-        dependenciesMap[depName][member.id] = depVer;
-      };
 
       for (let line of lines) {
         line = line.trim();
@@ -64,12 +63,12 @@ async function analyzeGeneralBaseline(workspaceYamlPath, coordinatorRoot) {
         if (line.startsWith("require ")) {
           const parts = line.substring(8).trim().split(/\s+/);
           if (parts.length >= 2) {
-            collectGoDep(parts[0], parts[1]);
+            recordDep(dependenciesMap, member.id, parts[0], parts[1]);
           }
         } else if (inRequire && line) {
           const parts = line.split(/\s+/);
           if (parts.length >= 2) {
-            collectGoDep(parts[0], parts[1]);
+            recordDep(dependenciesMap, member.id, parts[0], parts[1]);
           }
         }
       }

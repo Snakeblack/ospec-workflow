@@ -233,7 +233,6 @@ func parseFrontmatter(content string) (attrs map[string]string, body string) {
 	if m == nil {
 		return attrs, content
 	}
-	full := content[m[0]:m[1]]
 	// Extract the YAML block between the two --- lines.
 	inner := frontmatterRe.FindStringSubmatch(content)
 	if inner == nil {
@@ -259,7 +258,6 @@ func parseFrontmatter(content string) (attrs map[string]string, body string) {
 		}
 		attrs[key] = val
 	}
-	_ = full
 	return attrs, content[m[1]:]
 }
 

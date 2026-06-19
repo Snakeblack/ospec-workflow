@@ -287,49 +287,9 @@ func ReadBaselineState(configContent string) *BaselineState {
 			continue
 		}
 		if indent == fieldIndent {
-			currentListKey = ""
-			// Inline empty list: "key: []"
-			if strings.HasSuffix(trimmed, ": []") {
-				// nothing to append; list stays empty (already initialised)
-				continue
-			}
-			// Key-value or key-with-no-value
-			sep := strings.IndexByte(trimmed, ':')
-			if sep == -1 {
-				continue
-			}
-			key := trimmed[:sep]
-			val := strings.TrimSpace(trimmed[sep+1:])
-			switch key {
-			case "status":
-				result.Status = stripInlineComment(val)
-			case "last_checked":
-				result.LastChecked = stripInlineComment(stripQuotes(val))
-			case "domains_pending":
-				if val == "" {
-					currentListKey = key
-				}
-			case "domains_done":
-				if val == "" {
-					currentListKey = key
-				}
-			case "stale_domains":
-				if val == "" {
-					currentListKey = key
-				}
-			}
+			currentListKey = applyBaselineField(trimmed, result)
 		} else if indent >= listIndent && currentListKey != "" {
-			if m := strings.TrimPrefix(trimmed, "- "); m != trimmed {
-				item := strings.TrimSpace(m)
-				switch currentListKey {
-				case "domains_pending":
-					result.DomainsPending = append(result.DomainsPending, item)
-				case "domains_done":
-					result.DomainsDone = append(result.DomainsDone, item)
-				case "stale_domains":
-					result.StaleDomains = append(result.StaleDomains, item)
-				}
-			}
+			appendBaselineListItem(trimmed, currentListKey, result)
 		}
 	}
 
@@ -337,6 +297,51 @@ func ReadBaselineState(configContent string) *BaselineState {
 		return nil
 	}
 	return result
+}
+
+// applyBaselineField applies an indent-2 field line to result and returns the
+// list key that subsequent list items belong to ("" for scalar / non-list
+// fields or an inline empty list).
+func applyBaselineField(trimmed string, result *BaselineState) string {
+	// Inline empty list: "key: []" — list stays empty (already initialised).
+	if strings.HasSuffix(trimmed, ": []") {
+		return ""
+	}
+	sep := strings.IndexByte(trimmed, ':')
+	if sep == -1 {
+		return ""
+	}
+	key := trimmed[:sep]
+	val := strings.TrimSpace(trimmed[sep+1:])
+	switch key {
+	case "status":
+		result.Status = stripInlineComment(val)
+	case "last_checked":
+		result.LastChecked = stripInlineComment(stripQuotes(val))
+	case "domains_pending", "domains_done", "stale_domains":
+		if val == "" {
+			return key
+		}
+	}
+	return ""
+}
+
+// appendBaselineListItem appends an indent>=4 "- item" line to the list named
+// by currentListKey.
+func appendBaselineListItem(trimmed, currentListKey string, result *BaselineState) {
+	m := strings.TrimPrefix(trimmed, "- ")
+	if m == trimmed {
+		return
+	}
+	item := strings.TrimSpace(m)
+	switch currentListKey {
+	case "domains_pending":
+		result.DomainsPending = append(result.DomainsPending, item)
+	case "domains_done":
+		result.DomainsDone = append(result.DomainsDone, item)
+	case "stale_domains":
+		result.StaleDomains = append(result.StaleDomains, item)
+	}
 }
 
 // ── internal helpers ──────────────────────────────────────────────────────────

@@ -2,11 +2,35 @@ package jsonio_test
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/jsonio"
 )
+
+// errReader is an io.Reader whose Read always fails, used to exercise the
+// io.ReadAll error branch in ReadInput.
+type errReader struct{}
+
+func (errReader) Read([]byte) (int, error) {
+	return 0, errors.New("boom")
+}
+
+// TestReadInput_ReadError verifies that a failing reader surfaces a wrapped
+// error rather than the "{}" sentinel.
+func TestReadInput_ReadError(t *testing.T) {
+	got, err := jsonio.ReadInput(errReader{})
+	if err == nil {
+		t.Fatalf("ReadInput(errReader) err = nil, want non-nil")
+	}
+	if got != nil {
+		t.Errorf("ReadInput(errReader) bytes = %q, want nil on error", got)
+	}
+	if !strings.Contains(err.Error(), "jsonio: reading input") {
+		t.Errorf("ReadInput(errReader) err = %q, want it to contain %q", err, "jsonio: reading input")
+	}
+}
 
 // TestReadInput_EmptyAndWhitespace verifies that empty or whitespace-only input
 // returns the sentinel value []byte("{}") rather than an error.

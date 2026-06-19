@@ -179,10 +179,8 @@ func collectSpecArtifactsPC(changeDir string) ([]artifactCandidate, string) {
 			return nil // non-fatal: continue walking
 		}
 		if !info.IsDir() && info.Name() == "spec.md" {
-			rel := toPortablePathPC(path[len(changeDir)+1:]) // strip changeDir prefix + sep
-			if len(path) > len(changeDir) {
-				rel = toPortablePathPC(strings.TrimPrefix(path, changeDir+string(filepath.Separator)))
-			}
+			// path is always a descendant of changeDir inside filepath.Walk.
+			rel := toPortablePathPC(strings.TrimPrefix(path, changeDir+string(filepath.Separator)))
 			out = append(out, artifactCandidate{rel, 3})
 		}
 		return nil

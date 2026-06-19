@@ -26,10 +26,10 @@ const TARGETS = new Set(["opencode", "github-copilot"]);
 function hostBinarySuffix() {
   const p = process.platform;
   const a = process.arch;
-  const os2 = p === "win32" ? "windows" : p === "darwin" ? "darwin" : "linux";
+  const goos = p === "win32" ? "windows" : p === "darwin" ? "darwin" : "linux";
   const arch = a === "x64" ? "amd64" : a === "arm64" ? "arm64" : a;
   const ext = p === "win32" ? ".exe" : "";
-  return { os: os2, arch, ext };
+  return { os: goos, arch, ext };
 }
 
 // Copy the platform-appropriate ospec-hooks binary into the generated output
