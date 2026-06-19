@@ -398,6 +398,14 @@ function parseMarker(content) {
   return parseMarkerBlock(content.split(/\r?\n/), 0, 0).value;
 }
 
+/**
+ * Reads and parses the `openspec/federation.member.yaml` marker from a member
+ * directory. Returns `{ ok: true, marker }` on success, or
+ * `{ ok: false, warning }` on any read/parse/validation failure (fail-open).
+ *
+ * @param {string} memberRoot - Absolute path to the member repository root.
+ * @returns {Promise<{ok: boolean, marker?: object, warning?: string}>}
+ */
 async function loadMarkerFromMember(memberRoot) {
   const markerPath = path.join(memberRoot, MARKER_RELATIVE_PATH);
   let content;

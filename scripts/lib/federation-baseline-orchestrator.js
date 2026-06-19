@@ -48,11 +48,13 @@ function nextMember(state, options = {}) {
       continue;
     }
 
-    // A candidate is found
+    // Gate-block branch: a pending member exists but the unified gate has not
+    // been resolved yet — signal the caller to wait before processing it.
     if (state.unified_gate && state.unified_gate.status === "pending" && member.baseline_status === "pending") {
       return { blockedByGate: true };
     }
 
+    // Candidate found: gate is either absent or already resolved.
     return member;
   }
 
