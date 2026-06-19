@@ -275,11 +275,11 @@ test("claude drops the inert agent:/context: command routing keys", () => {
 // Requirement: Frontmatter Key Stripping
 // ---------------------------------------------------------------------------
 
-test("claude strips target, user-invocable from agent frontmatter", () => {
+test("claude strips target but preserves user-invocable in agent frontmatter", () => {
   const out = transform({ files: makeSource(), profile: claude, models: MODELS });
   const fm = parse(find(out, "agents/sdd-apply.md").content).frontmatter;
   assert.equal(getField(fm, "target"), null);
-  assert.equal(getField(fm, "user-invocable"), null);
+  assert.equal(getField(fm, "user-invocable").value, "false");
 });
 
 // ---------------------------------------------------------------------------

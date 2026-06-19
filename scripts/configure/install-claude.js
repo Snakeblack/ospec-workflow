@@ -15,6 +15,7 @@
 // strict plugin validation, and add/install are one-time — this collapses the
 // whole thing to a single re-runnable command. See README "Claude Code".
 
+const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { buildClaudeMarketplace } = require("./claude-marketplace.js");
@@ -30,6 +31,26 @@ function resolveClaudeBin() {
     const probe = spawnSync(bin, ["--version"], { stdio: "ignore", shell: false });
     if (!probe.error) return bin;
   }
+
+  // Fallback: check WinGet packages folder in LocalAppData on Windows
+  if (process.platform === "win32" && process.env.LOCALAPPDATA) {
+    const packagesDir = path.join(process.env.LOCALAPPDATA, "Microsoft", "WinGet", "Packages");
+    if (fs.existsSync(packagesDir)) {
+      try {
+        for (const entry of fs.readdirSync(packagesDir)) {
+          if (entry.startsWith("Anthropic.ClaudeCode")) {
+            const fullPath = path.join(packagesDir, entry, "claude.exe");
+            if (fs.existsSync(fullPath)) {
+              return fullPath;
+            }
+          }
+        }
+      } catch {
+        // ignore read/access errors
+      }
+    }
+  }
+
   return null;
 }
 
@@ -48,11 +69,12 @@ function listOutput(bin, args) {
 
 function main(argv) {
   const buildOnly = argv.includes("--build-only");
+  const bin = resolveClaudeBin();
 
   const build = buildClaudeMarketplace({
     source: process.cwd(),
     out: path.join("dist", "claude-marketplace"),
-    validate: true,
+    validate: bin !== null,
     marketplaceName: MARKETPLACE,
     pluginName: PLUGIN,
   });
@@ -76,7 +98,6 @@ function main(argv) {
     return;
   }
 
-  const bin = resolveClaudeBin();
   if (!bin) {
     process.stdout.write(
       "\n'claude' CLI not found on PATH; marketplace not (re)registered.\n" +

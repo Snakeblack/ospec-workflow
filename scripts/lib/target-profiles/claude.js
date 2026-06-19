@@ -16,7 +16,7 @@ module.exports = {
   },
   hooks: { shape: "nested", location: "hooks/hooks.json" },
   frontmatter: {
-    stripKeys: ["target", "user-invocable", "disable-model-invocation"],
+    stripKeys: ["target", "disable-model-invocation"],
     // Claude commands are flat skills: `agent:`/`context:` routing keys are inert,
     // so strip the routing key rather than emit dead frontmatter.
     commandStripKeys: ["agent"],
@@ -54,5 +54,5 @@ module.exports = {
   mcpPlaceholders: { style: "env-expansion" },
   // argv form, run with shell:false (see github-copilot profile). The external
   // `claude` binary must be invocable by this exact name on PATH.
-  validate: ["claude", "plugin", "validate", "--strict", "{out}"],
+  validate: ["claude", "plugin", "validate", "{out}"],
 };

@@ -228,6 +228,34 @@ function unquote(value) {
 
 // --- validation gate -------------------------------------------------------
 
+function resolveClaudeBin() {
+  for (const bin of ["claude", "claude.cmd", "claude.exe"]) {
+    const probe = spawnSync(bin, ["--version"], { stdio: "ignore", shell: false });
+    if (!probe.error) return bin;
+  }
+
+  // Fallback: check WinGet packages folder in LocalAppData on Windows
+  if (process.platform === "win32" && process.env.LOCALAPPDATA) {
+    const packagesDir = path.join(process.env.LOCALAPPDATA, "Microsoft", "WinGet", "Packages");
+    if (fs.existsSync(packagesDir)) {
+      try {
+        for (const entry of fs.readdirSync(packagesDir)) {
+          if (entry.startsWith("Anthropic.ClaudeCode")) {
+            const fullPath = path.join(packagesDir, entry, "claude.exe");
+            if (fs.existsSync(fullPath)) {
+              return fullPath;
+            }
+          }
+        }
+      } catch {
+        // ignore read/access errors
+      }
+    }
+  }
+
+  return null;
+}
+
 // Run a target's validator as a child process. profile.validate is an argv array
 // ([command, ...args]); the {out} placeholder is substituted per element and the
 // process is spawned WITHOUT a shell, so a hostile or mistyped output path is
@@ -236,7 +264,13 @@ function defaultRunValidator(profile, outDir) {
   const [command, ...rest] = profile.validate;
   const args = rest.map((part) => part.split("{out}").join(outDir));
   // "node" -> the running interpreter, avoiding PATH/PATHEXT resolution surprises.
-  const bin = command === "node" ? process.execPath : command;
+  let bin = command === "node" ? process.execPath : command;
+  if (command === "claude") {
+    const resolved = resolveClaudeBin();
+    if (resolved) {
+      bin = resolved;
+    }
+  }
   const result = spawnSync(bin, args, { shell: false, encoding: "utf8" });
   return { status: result.status, stdout: result.stdout || "", stderr: result.stderr || "" };
 }
