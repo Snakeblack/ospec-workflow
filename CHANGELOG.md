@@ -8,6 +8,13 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.4.3] - 2026-06-19
+
+### Fixed
+- Claude agent visibility in VS Code: preserved `user-invocable: false` in the generated Claude agent frontmatter (previously stripped), preventing duplicate agent entries in VS Code and direct user-invocation in Claude Code.
+- Setup tool resilience: updated `install-claude.js` and `cli.js` to fallback to Microsoft WinGet local package directories to find `claude.exe` when it is not present in the system PATH.
+- Validator CLI compatibility: removed the unsupported `--strict` flag from the `claude plugin validate` command execution in `claude.js` profile, avoiding validation failures on standard installations.
+
 ## [2.4.2] - 2026-06-19
 
 ### Added
@@ -137,7 +144,8 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 - Interactive workflow gates through `vscode/askQuestions`.
 - Strict TDD mode when the project exposes a compatible test runner.
 
-[Unreleased]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.4.2...HEAD
+[Unreleased]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.4.3...HEAD
+[2.4.3]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.4.2...v2.4.3
 [2.4.2]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.4.1...v2.4.2
 [2.4.1]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.3.0...v2.4.0
