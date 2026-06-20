@@ -464,7 +464,9 @@ function toInstructionFile(file, profile) {
     body = substituteProse(body, profile.toolMap);
   }
   body = substituteAgentNames(body, profile);
-  frontmatter = setScalar(frontmatter, "applyTo", `"${profile.rules.applyTo}"`);
+  // setScalar quotes the glob itself ("**" starts with a YAML indicator);
+  // passing the raw value avoids double-quoting it.
+  frontmatter = setScalar(frontmatter, "applyTo", profile.rules.applyTo);
   const base = file.path.slice("rules/".length);
   return { path: `${profile.rules.dir}/${base}`, content: serialize({ frontmatter, body }) };
 }

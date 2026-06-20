@@ -99,11 +99,37 @@ function upsert(frontmatter, key, field) {
   return next;
 }
 
+// A YAML plain scalar can't carry certain characters without changing meaning:
+// a colon-space splits it into a mapping, a leading indicator reassigns its
+// type, a trailing/leading space or comment marker get trimmed. When any of
+// those apply we emit a double-quoted scalar (JSON form is valid YAML), so a
+// description like "atlas: scaffold it" survives the target loader instead of
+// being silently dropped as malformed frontmatter.
+function needsQuoting(value) {
+  if (value === "") {
+    return true;
+  }
+
+  return (
+    /^[\s!&*?|>@`"'%#,\[\]{}:-]/.test(value) || // leading indicator/whitespace
+    /\s$/.test(value) || // trailing whitespace
+    /: /.test(value) || // colon-space starts a nested mapping
+    /:$/.test(value) || // trailing colon
+    / #/.test(value) || // begins an inline comment
+    /[\n"]/.test(value) // newline or embedded quote
+  );
+}
+
+function formatScalar(value) {
+  const text = String(value);
+  return needsQuoting(text) ? JSON.stringify(text) : text;
+}
+
 function setScalar(frontmatter, key, value) {
   return upsert(frontmatter, key, {
     key,
     value: String(value),
-    rawLines: [`${key}: ${value}`],
+    rawLines: [`${key}: ${formatScalar(value)}`],
   });
 }
 

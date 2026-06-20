@@ -80,6 +80,37 @@ test("setScalar replaces an existing key and appends a new one", () => {
   assert.ok(!out.includes("name: sdd-apply"));
 });
 
+test("setScalar quotes values that would break a plain scalar", () => {
+  let { frontmatter, body } = parse(SAMPLE);
+  frontmatter = setScalar(
+    frontmatter,
+    "description",
+    "Manage the atlas: scaffold it (init), report status.",
+  );
+  const out = serialize({ frontmatter, body });
+
+  assert.ok(
+    out.includes(
+      'description: "Manage the atlas: scaffold it (init), report status."',
+    ),
+  );
+  // Round-trips back to the original unquoted value.
+  assert.equal(
+    getField(parse(out).frontmatter, "description").value,
+    "Manage the atlas: scaffold it (init), report status.",
+  );
+});
+
+test("setScalar leaves safe plain scalars unquoted", () => {
+  let { frontmatter, body } = parse(SAMPLE);
+  frontmatter = setScalar(frontmatter, "description", "Run apply for a change.");
+  frontmatter = setScalar(frontmatter, "name", "renamed");
+  const out = serialize({ frontmatter, body });
+
+  assert.ok(out.includes("description: Run apply for a change."));
+  assert.ok(out.includes("name: renamed"));
+});
+
 test("setArray writes an inline list in repo style", () => {
   let { frontmatter, body } = parse(SAMPLE);
   frontmatter = setArray(frontmatter, "tools", ["Read", "Grep", "Glob"]);
