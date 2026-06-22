@@ -64,23 +64,57 @@ function loadTree(sourceDir, roots = SOURCE_ROOTS) {
   return files;
 }
 
-// The hooks invoke scripts/hooks/*.js, which require a subset of scripts/lib/*.js.
-// Walk the require graph from the hook entry points so the generated tree ships
-// exactly that runtime (self-contained dist) and nothing else — no test files and
-// no generator code (target-*, frontmatter, model-resolver, configure), which the
-// hooks never require. Static, dependency-free require resolution.
-function gatherRuntimeScripts(sourceDir) {
-  const hooksDir = path.join(sourceDir, "scripts", "hooks");
-  if (!fs.existsSync(hooksDir)) {
-    return [];
-  }
+// Skill entry-point scripts that must always be included in the runtime dist as
+// additional BFS roots alongside hooks/*.js. These four scripts are the runtime
+// half of the federation/explore/baseline skills and are unreachable from hooks.
+const SKILL_ENTRY_SCRIPTS = [
+  "scripts/lib/federation-marker.js",
+  "scripts/lib/federation-explore.js",
+  "scripts/lib/workspace-general-baseline.js",
+  "scripts/lib/federation-baseline-orchestrator.js",
+];
 
+// Returns true for modules that must never appear in the runtime dist:
+// test files, generator-only code under scripts/configure/, and generator-only
+// modules under scripts/lib/ (target-*, frontmatter, model-resolver). This guard
+// is applied both when seeding BFS roots and when enqueuing transitive deps, so
+// exclusion is unconditional regardless of reachability.
+function isExcludedRuntimeScript(rel) {
+  if (rel.endsWith(".test.js")) return true;
+  if (rel.startsWith("scripts/configure/")) return true;
+  if (rel.startsWith("scripts/lib/")) {
+    const base = rel.slice("scripts/lib/".length);
+    if (base.startsWith("target-")) return true;
+    if (base === "frontmatter.js" || base === "model-resolver.js") return true;
+  }
+  return false;
+}
+
+// The hooks invoke scripts/hooks/*.js, which require a subset of scripts/lib/*.js.
+// Walk the require graph from hook entry points AND skill entry-point scripts so the
+// generated tree ships exactly that runtime (self-contained dist) and nothing else —
+// no test files and no generator code (target-*, frontmatter, model-resolver,
+// configure). Static, dependency-free require resolution.
+function gatherRuntimeScripts(sourceDir) {
   const seen = new Set();
   const out = [];
   const queue = [];
-  for (const name of fs.readdirSync(hooksDir)) {
-    if (name.endsWith(".js") && !name.endsWith(".test.js")) {
-      queue.push("scripts/hooks/" + name);
+
+  // Scan hooks directory if it exists; skip silently if absent
+  const hooksDir = path.join(sourceDir, "scripts", "hooks");
+  if (fs.existsSync(hooksDir)) {
+    for (const name of fs.readdirSync(hooksDir)) {
+      const rel = "scripts/hooks/" + name;
+      if (name.endsWith(".js") && !isExcludedRuntimeScript(rel)) {
+        queue.push(rel);
+      }
+    }
+  }
+
+  // Seed skill entry-point scripts as additional BFS roots
+  for (const rel of SKILL_ENTRY_SCRIPTS) {
+    if (!isExcludedRuntimeScript(rel)) {
+      queue.push(rel);
     }
   }
 
@@ -104,7 +138,10 @@ function gatherRuntimeScripts(sourceDir) {
       if (!dep.endsWith(".js")) {
         dep += ".js";
       }
-      queue.push(path.posix.normalize(path.posix.join(path.posix.dirname(rel), dep)));
+      const depRel = path.posix.normalize(path.posix.join(path.posix.dirname(rel), dep));
+      if (!isExcludedRuntimeScript(depRel)) {
+        queue.push(depRel);
+      }
     }
   }
 

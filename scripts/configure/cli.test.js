@@ -252,3 +252,89 @@ test("parseModels reads the two-table shape with scalars and inline arrays", () 
   assert.deepEqual(models.tiers.default.vscode, ["A (copilot)", "B (copilot)"]);
   assert.equal(models.tiers.default["copilot-cli"], "inherit");
 });
+
+// ---------------------------------------------------------------------------
+// G1 — Skill entry-point scripts present in dist
+// ---------------------------------------------------------------------------
+
+test("G1: gatherRuntimeScripts includes all four skill entry-point scripts as additional BFS roots", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-g1-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  fs.mkdirSync(path.join(dir, "scripts/hooks"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "scripts/lib"), { recursive: true });
+
+  // Stub hook with no requires — should not interfere with entry script detection
+  fs.writeFileSync(path.join(dir, "scripts/hooks/stub.js"), '"use strict";\n');
+
+  // The four skill entry-point scripts that must always ship in dist
+  const entryScripts = [
+    "federation-marker.js",
+    "federation-explore.js",
+    "workspace-general-baseline.js",
+    "federation-baseline-orchestrator.js",
+  ];
+  for (const name of entryScripts) {
+    fs.writeFileSync(path.join(dir, "scripts/lib", name), `"use strict";\n`);
+  }
+
+  const paths = gatherRuntimeScripts(dir).map((f) => f.path);
+
+  assert.ok(paths.includes("scripts/lib/federation-marker.js"), "federation-marker.js must be in dist");
+  assert.ok(paths.includes("scripts/lib/federation-explore.js"), "federation-explore.js must be in dist");
+  assert.ok(paths.includes("scripts/lib/workspace-general-baseline.js"), "workspace-general-baseline.js must be in dist");
+  assert.ok(paths.includes("scripts/lib/federation-baseline-orchestrator.js"), "federation-baseline-orchestrator.js must be in dist");
+});
+
+// ---------------------------------------------------------------------------
+// G2 — Generator-only modules excluded from dist (guard on transitive deps)
+// ---------------------------------------------------------------------------
+
+test("G2: gatherRuntimeScripts excludes target-* modules even when required by an entry script", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-g2-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  fs.mkdirSync(path.join(dir, "scripts/hooks"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "scripts/lib"), { recursive: true });
+
+  // Hook that requires federation-marker — makes the entry script reachable from hooks BFS
+  fs.writeFileSync(
+    path.join(dir, "scripts/hooks/hook.js"),
+    '"use strict";\nrequire("../lib/federation-marker.js");\n',
+  );
+  // Entry script that requires a generator-only target-* module
+  fs.writeFileSync(
+    path.join(dir, "scripts/lib/federation-marker.js"),
+    '"use strict";\nrequire("./target-foo");\n',
+  );
+  // Generator-only module — must not appear in dist regardless of reachability
+  fs.writeFileSync(path.join(dir, "scripts/lib/target-foo.js"), '"use strict";\n');
+
+  const paths = gatherRuntimeScripts(dir).map((f) => f.path);
+
+  assert.ok(!paths.includes("scripts/lib/target-foo.js"), "target-* modules must be excluded from dist");
+});
+
+// ---------------------------------------------------------------------------
+// G3 — Transitive dependency of an entry script included
+// ---------------------------------------------------------------------------
+
+test("G3: gatherRuntimeScripts includes a non-excluded transitive dep of a skill entry script", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-g3-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  // Empty hooks dir — no hooks contribute deps; entry scripts are the only roots
+  fs.mkdirSync(path.join(dir, "scripts/hooks"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "scripts/lib"), { recursive: true });
+
+  // Entry script requires a non-excluded transitive dep
+  fs.writeFileSync(
+    path.join(dir, "scripts/lib/federation-marker.js"),
+    '"use strict";\nrequire("./some-dep");\n',
+  );
+  fs.writeFileSync(path.join(dir, "scripts/lib/some-dep.js"), '"use strict";\n');
+
+  const paths = gatherRuntimeScripts(dir).map((f) => f.path);
+
+  assert.ok(paths.includes("scripts/lib/some-dep.js"), "non-excluded transitive dep must be in dist");
+});
