@@ -798,11 +798,17 @@ function mergeMarkersIntoAtlas(markers) {
         continue;
       }
 
-      contracts.push({
+      const contract = {
         id: provided.id,
         provider: id,
         consumers: Array.isArray(provided.consumers) ? provided.consumers : [],
-      });
+      };
+      for (const [key, value] of Object.entries(provided)) {
+        if (key === "id" || key === "consumers" || key === "provider") continue;
+        if (value === undefined || value === null) continue;
+        contract[key] = value;
+      }
+      contracts.push(contract);
     }
   }
 

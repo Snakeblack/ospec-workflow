@@ -473,7 +473,7 @@ test("mergeMarkersIntoAtlas unions member entries from multiple markers", () => 
     ["svc-api", "svc-web"],
   );
   assert.deepEqual(atlas.contracts, [
-    { id: "api-public", provider: "svc-api", consumers: ["svc-web"] },
+    { id: "api-public", provider: "svc-api", consumers: ["svc-web"], surface: "openapi" },
   ]);
 });
 
@@ -568,6 +568,7 @@ test("mergeMarkersIntoAtlas maps provides to contracts with provider and consume
       id: "payments-api",
       provider: "svc-payments",
       consumers: ["svc-checkout", "svc-reporting"],
+      surface: "openapi",
     },
   ]);
   assert.deepEqual(
@@ -771,5 +772,71 @@ test("2.2.7 · Old consumer ignores origin field", () => {
   const parsed = parseAtlas(markerContent);
   // Old parseAtlas behavior should just work, it doesn't care about origin
   assert.ok(parsed);
+});
+
+// ---------------------------------------------------------------------------
+// F1 — surface preserved through merge into contract
+// ---------------------------------------------------------------------------
+
+test("F1: mergeMarkersIntoAtlas copies surface from provides[] entry into the derived contract", () => {
+  const { atlas } = mergeMarkersIntoAtlas([
+    buildMarker({
+      id: "svc-payments",
+      updatedAt: "2026-06-17T10:00:00Z",
+      provides: [{ id: "payments-api", consumers: ["svc-checkout"], surface: "openapi" }],
+    }),
+  ]);
+
+  assert.equal(atlas.contracts.length, 1);
+  assert.strictEqual(atlas.contracts[0].surface, "openapi");
+  assert.equal(atlas.contracts[0].id, "payments-api");
+  assert.equal(atlas.contracts[0].provider, "svc-payments");
+  assert.deepEqual(atlas.contracts[0].consumers, ["svc-checkout"]);
+});
+
+// ---------------------------------------------------------------------------
+// F2 — Merge→serialize round-trip is idempotent (with surface)
+// ---------------------------------------------------------------------------
+
+test("F2: mergeMarkersIntoAtlas + serializeAtlas round-trip is byte-identical and preserves surface", () => {
+  const markers = [
+    buildMarker({
+      id: "svc-payments",
+      updatedAt: "2026-06-17T10:00:00Z",
+      provides: [{ id: "payments-api", consumers: ["svc-checkout"], surface: "openapi" }],
+    }),
+  ];
+
+  const { atlas: atlas1 } = mergeMarkersIntoAtlas(markers);
+  const { atlas: atlas2 } = mergeMarkersIntoAtlas(markers);
+
+  const yaml1 = serializeAtlas(atlas1);
+  const yaml2 = serializeAtlas(atlas2);
+
+  assert.strictEqual(yaml1, yaml2, "two serialize runs from the same markers must be byte-identical");
+  assert.ok(yaml1.includes("surface: openapi"), "serialized output must contain the surface field");
+  assert.ok(yaml2.includes("surface: openapi"), "second serialized output must contain the surface field");
+});
+
+// ---------------------------------------------------------------------------
+// F3 — provides entry without surface does not inject surface key
+// ---------------------------------------------------------------------------
+
+test("F3: mergeMarkersIntoAtlas does not inject surface key when provides entry has none", () => {
+  const { atlas } = mergeMarkersIntoAtlas([
+    buildMarker({
+      id: "svc-noop",
+      updatedAt: "2026-06-17T10:00:00Z",
+      provides: [{ id: "svc-noop-api", consumers: [] }],
+    }),
+  ]);
+
+  assert.equal(atlas.contracts.length, 1);
+  const contract = atlas.contracts[0];
+
+  assert.ok(!Object.prototype.hasOwnProperty.call(contract, "surface"), "contract must NOT have a surface key when none was provided");
+  assert.equal(contract.id, "svc-noop-api");
+  assert.equal(contract.provider, "svc-noop");
+  assert.deepEqual(contract.consumers, []);
 });
 
