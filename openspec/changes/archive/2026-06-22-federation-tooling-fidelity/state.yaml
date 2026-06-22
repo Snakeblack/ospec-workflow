@@ -1,0 +1,126 @@
+change: federation-tooling-fidelity
+created_at: "2026-06-22T00:00:00Z"
+classification: normal
+status: archived
+last_updated: "2026-06-22T23:45:00Z"
+blocking_questions: []
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "First-match: project.status=active matched 'standard'; foundation/federated/debug/brownfield conditions all unmet (backend=openspec, baseline.status=done, no debug intent)."
+  validated: true
+  validation_errors: []
+
+execution:
+  mode: automatic
+  delivery_strategy: exception-ok
+
+phases:
+  propose:
+    status: done
+    artifact: "openspec/changes/federation-tooling-fidelity/proposal.md"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/federation-tooling-fidelity/specs/generator/spec.md"
+      - "openspec/changes/federation-tooling-fidelity/specs/federation-markers/spec.md"
+      - "openspec/changes/federation-tooling-fidelity/specs/unified-baseline-gate/spec.md"
+    remediation_note: "Delta unified-baseline-gate escrito: approver cambiado a orchestrator/askQuestions (target-agnostico). Resuelve el conflicto con los validadores /vscode\\//i de github-copilot y opencode."
+  clarify:
+    status: done
+  design:
+    status: done
+    artifact: "openspec/changes/federation-tooling-fidelity/design.md"
+  tasks:
+    status: done
+    artifact: "openspec/changes/federation-tooling-fidelity/tasks.md"
+  apply:
+    status: done
+    artifact: "openspec/changes/federation-tooling-fidelity/apply-progress.md"
+    remediation_note: "Batch 3 (4R): test F4 (surface:null), tests G4/G5 (isExcludedRuntimeScript branches), comentarios orchestrator.js:160 y cli.js SKILL_ENTRY_SCRIPTS guard. Suite 680/681 (1 flaky preexistente). Build copilot 0 errors."
+  verify:
+    status: done
+    artifact: "openspec/changes/federation-tooling-fidelity/verify-report.md"
+    outcome: PASS
+    reverify_note: "RE-VERIFY FINAL post-4R: suite completa 681/681 (exit 0, flaky 378 paso esta vez); F4/G4/G5 ejercen ramas reales y pasan en runtime; 4 builds exit 0; 0 residuo vscode/ en dist copilot/opencode; specs delta conformes (approver target-agnostico, Task 5.1, surface passthrough). 2 WARNING de resiliencia preexistentes aceptadas como follow-up (cli.js:132, federation-baseline-orchestrator.js:112)."
+  archive:
+    status: done
+    artifact: "openspec/changes/archive/2026-06-22-federation-tooling-fidelity/archive-report.md"
+
+gates:
+  4r-review-gate:
+    status: done
+    hook_point: after-sdd-verify-success
+    on_blocker: advisory
+    findings_summary: "0 BLOCKER, 0 CRITICAL, 5 WARNING, 1 SUGGESTION"
+    surfaced_to_user: false
+    findings:
+      - reviewer: review-risk
+        severity: none
+        note: "No findings. Patrones preexistentes de BFS/YAML no introducidos por el change ni explotables."
+      - reviewer: review-readability
+        severity: WARNING
+        ref: "scripts/lib/federation-baseline-orchestrator.js:160"
+        note: "Literal approver 'orchestrator/askQuestions' sin comentario que explique formato/consumidor."
+        scope: in-change
+      - reviewer: review-readability
+        severity: SUGGESTION
+        ref: "scripts/configure/cli.js (gatherRuntimeScripts, guard isExcludedRuntimeScript)"
+        note: "Guard de exclusion sobre lista de inclusion SKILL_ENTRY_SCRIPTS sin comentario aclaratorio."
+        scope: in-change
+      - reviewer: review-reliability
+        severity: WARNING
+        ref: "scripts/lib/workspace-atlas.js:808 / workspace-atlas.test.js"
+        note: "Rama 'surface === null' del passthrough sin test propio (F3 solo cubre clave ausente)."
+        scope: in-change
+      - reviewer: review-reliability
+        severity: WARNING
+        ref: "scripts/configure/cli.js (isExcludedRuntimeScript) / cli.test.js"
+        note: "Ramas scripts/configure/, frontmatter.js y model-resolver.js sin test (G2 solo cubre target-*)."
+        scope: in-change
+      - reviewer: review-resilience
+        severity: WARNING
+        ref: "scripts/configure/cli.js:132"
+        note: "readFileSync sin try/catch; errores no-ENOENT (EACCES/EPERM) propagan sin exit code claro. Patron preexistente; WU-1 añade mas ficheros al BFS."
+        scope: preexisting
+      - reviewer: review-resilience
+        severity: WARNING
+        ref: "scripts/lib/federation-baseline-orchestrator.js:112"
+        note: "catch(_){} vacio en resolveCoordinatorRoot absorbe EACCES/EPERM. Codigo preexistente, no tocado por este change."
+        scope: preexisting
+
+approvals:
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: automatic
+    source: AskUserQuestion
+    accepted_at: "2026-06-22T00:00:00Z"
+    applies_to:
+      - all-phases
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: AskUserQuestion
+    accepted_at: "2026-06-22T00:00:00Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: verify-remediation-001
+    gate: verification-routing
+    decision: neutralizar-literal
+    source: AskUserQuestion
+    accepted_at: "2026-06-22T19:45:00Z"
+    rationale: "Verify FAIL por regresion real (build copilot/opencode exit 1). Usuario elige hacer target-agnostico el approver 'vscode/askQuestions'. Implica delta normativo en unified-baseline-gate; WU-2 (passthrough surface) se preserva intacto."
+    applies_to:
+      - sdd-spec
+      - sdd-apply
+  - id: post-4r-001
+    gate: 4r-review-followup
+    decision: corregir-in-scope-y-archivar
+    source: AskUserQuestion
+    accepted_at: "2026-06-22T21:45:00Z"
+    rationale: "Tras 4R (0 BLOCKER/CRITICAL): aplicar los 4 hallazgos sobre codigo nuevo (test rama surface:null, tests ramas isExcludedRuntimeScript, comentarios approver y guard), re-verificar y archivar. Las 2 WARNING preexistentes (cli.js:132, federation-baseline-orchestrator.js:112) quedan como follow-up."
+    applies_to:
+      - sdd-apply
+      - sdd-archive

@@ -84,3 +84,20 @@ Chain strategy: size-exception
 ## Phase 5: Cleanup — Corrección del formato del encabezado de spec
 
 - [x] 5.1 En `openspec/changes/federation-tooling-fidelity/specs/generator/spec.md`: renombrar `### Requirement: Scenario 1 — Source tree loading` a `### Requirement: Source tree loading ampliado` (o equivalente sin "Scenario N") y promover el primer sub-escenario inline al nivel `#### Scenario:` estándar, para que el validador estricto de `sdd-archive` no rechace la estructura.
+
+## Remediación RWU-1: Neutralización del literal vscode/askQuestions (post-verify FAIL)
+
+- [x] RWU-1.1 Test 4.1.22 en `scripts/lib/federation-baseline-orchestrator.test.js`: actualizar aserción a `strictEqual("orchestrator/askQuestions")` y añadir `ok(!includes("vscode/"))` → RED confirmado (35/36)
+- [x] RWU-1.2 `scripts/lib/federation-baseline-orchestrator.js:160`: cambiar literal de `"vscode/askQuestions"` a `"orchestrator/askQuestions"` → GREEN confirmado (36/36)
+- [x] RWU-1.3 `openspec/specs/federated-baseline-orchestration/spec.md:85`: actualizar ejemplo ilustrativo a `"orchestrator/askQuestions"`
+- [x] RWU-1.4 Grep de SKILL_ENTRY_SCRIPTS — sin residuo de `vscode/` en strings de output emitido
+- [x] RWU-1.5 Suite completa 678/678 verde; cuatro builds exit 0
+
+## Remediación 4R: Quality remediation post-verify (hallazgos 4R)
+
+- [x] 4R-1 Test **F4** en `scripts/lib/workspace-atlas.test.js`: rama `value === null` del passthrough — `provides[].surface: null` no se copia al contrato derivado ni aparece en el YAML serializado; 38/38 verde
+- [x] 4R-2 Test **G4** en `scripts/configure/cli.test.js`: rama `rel.startsWith("scripts/configure/")` — módulo requerido transitivamente bajo `scripts/configure/` excluido del dist; 20/20 verde
+- [x] 4R-3 Test **G5** en `scripts/configure/cli.test.js`: rama `base === "frontmatter.js" || base === "model-resolver.js"` — ambos módulos excluidos del dist aunque sean requeridos transitivamente; 20/20 verde
+- [x] 4R-4 Comentario en `scripts/lib/federation-baseline-orchestrator.js:160` — explica formato del valor `approver` (target-agnostic, sin namespace prefix) y que se escribe en el YAML de estado consumido por el gate
+- [x] 4R-5 Comentario en `scripts/configure/cli.js` — en el call site de `isExcludedRuntimeScript` dentro del loop `SKILL_ENTRY_SCRIPTS`, clarifica por qué se aplica el guard incluso a la lista curada (defensivo: un módulo generator-only alcanzado transitivamente nunca debe filtrarse al dist)
+- [x] 4R-6 Suite completa 680/681 (1 fallo preexistente flaky: `appendRuntimeEvent serializes concurrent writers` — ospec-state.test.js:155, no relacionado); build:copilot 0 errors 0 warnings
