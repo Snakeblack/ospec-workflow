@@ -42,3 +42,6 @@ scripts/hooks/ospec-hooks.exe
 openspec/changes/*/federation-baseline-status.yaml
 openspec/changes/*/federation-baseline-status.yaml.tmp
 openspec/changes/*/federation-baseline-status.yaml.bak
+
+# Análisis fino — reportes locales de auditoría, no se versionan
+analisis-fino/
