@@ -171,19 +171,12 @@ func runSessionStart(input sessionStartInput) ([]byte, int) {
 		// Build skills slice for cache.
 		skillsSlice := make([]map[string]any, len(discovery.Skills))
 		for i, sk := range discovery.Skills {
-			triggers := make([]any, len(sk.Triggers))
-			for j, tr := range sk.Triggers {
-				triggers[j] = tr
-			}
-			rules := make([]any, len(sk.CompactRules))
-			for j, r := range sk.CompactRules {
-				rules[j] = r
-			}
 			skillsSlice[i] = map[string]any{
 				"id":            sk.ID,
 				"path":          sk.Path,
-				"triggers":      triggers,
-				"compact_rules": rules,
+				"triggers":      sk.Triggers,
+				"compact_rules": sk.CompactRules,
+				"capabilities":  sk.Capabilities,
 			}
 		}
 
@@ -226,6 +219,8 @@ func runSessionStart(input sessionStartInput) ([]byte, int) {
 					gitignoreLines = append(gitignoreLines, trimmed)
 				}
 			}
+		} else if !os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "Warning: failed to read .gitignore: %v\n", err)
 		}
 
 		for _, f := range envFiles {
@@ -233,7 +228,7 @@ func runSessionStart(input sessionStartInput) ([]byte, int) {
 				// Check if ignored in gitignore
 				ignored := false
 				for _, line := range gitignoreLines {
-					if line == f || strings.Contains(line, f) {
+					if isPathIgnored(line, f) {
 						ignored = true
 						break
 					}
@@ -260,6 +255,8 @@ func runSessionStart(input sessionStartInput) ([]byte, int) {
 						Reason: "El archivo contiene credenciales en texto plano",
 					})
 				}
+			} else if !os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "Warning: failed to read .git/config: %v\n", err)
 			}
 		}
 
@@ -288,4 +285,18 @@ func errorOutput(err error) []byte {
 	}
 	b, _ := json.Marshal(errOut{Status: "error", Message: err.Error()})
 	return b
+}
+
+func isPathIgnored(line string, f string) bool {
+	if line == f || line == "/"+f || line == f+"/" {
+		return true
+	}
+	// Check for glob matches (e.g. .env*)
+	if matched, err := filepath.Match(line, f); err == nil && matched {
+		return true
+	}
+	if matched, err := filepath.Match(strings.TrimPrefix(line, "/"), f); err == nil && matched {
+		return true
+	}
+	return false
 }

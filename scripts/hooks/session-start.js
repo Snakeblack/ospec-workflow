@@ -162,11 +162,28 @@ async function runSessionStart({
   return result;
 }
 
+function matchGitignorePattern(line, file) {
+  if (line === file || line === '/' + file || line === file + '/') {
+    return true;
+  }
+  if (line.includes('*')) {
+    const escaped = line.replace(/[-\/\\^$+?.()|[\]{}]/g, '\\$&').replace(/\*/g, '.*');
+    try {
+      if (new RegExp('^' + escaped + '$').test(file)) return true;
+    } catch {}
+    const escapedNoSlash = line.replace(/^\//, '').replace(/[-\/\\^$+?.()|[\]{}]/g, '\\$&').replace(/\*/g, '.*');
+    try {
+      if (new RegExp('^' + escapedNoSlash + '$').test(file)) return true;
+    } catch {}
+  }
+  return false;
+}
+
 function checkUnignoredEnvFiles(workspace, gitignoreLines, alerts) {
   const envFiles = [".env", ".env.local", ".env.development", ".env.production", ".npmrc"];
   for (const f of envFiles) {
     if (fs.existsSync(path.join(workspace, f))) {
-      const ignored = gitignoreLines.some(line => line === f || line.includes(f));
+      const ignored = gitignoreLines.some(line => matchGitignorePattern(line, f));
       if (!ignored) {
         alerts.push({
           type: "unignored-env-file",

@@ -399,6 +399,22 @@ test("agent-shield: scans for unignored env files in SessionStart", async (t) =>
   assert.match(result.systemMessage, /cuidado/i);
 });
 
+test("agent-shield: .env is NOT marked as ignored if only .env.local is in .gitignore", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t);
+  await fs.writeFile(path.join(workspace, ".env"), "API_KEY=123", "utf8");
+  await fs.writeFile(path.join(workspace, ".gitignore"), ".env.local\n", "utf8");
+
+  const result = await runSessionStart({
+    input: { cwd: workspace },
+    pluginRoot,
+  });
+
+  assert.ok(result.security);
+  assert.equal(result.security.status, "warning");
+  const alert = result.security.alerts.find(a => a.file === ".env");
+  assert.ok(alert, ".env should trigger warning because .env.local is NOT a match for .env");
+});
+
 test("agent-shield: scans for embedded credentials in .git/config in SessionStart", async (t) => {
   const { pluginRoot, workspace } = await createFixture(t);
   await fs.mkdir(path.join(workspace, ".git"), { recursive: true });
