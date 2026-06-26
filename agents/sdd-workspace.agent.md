@@ -1,6 +1,6 @@
 ---
 name: sdd-workspace
-description: 'Manage the workspace-federated atlas and surface cross-repo state (init, status, impact, general-baseline). Never writes into member repos.'
+description: 'Manage the workspace-federated atlas and surface cross-repo state (init, enroll, explore, status, impact, general-baseline). Read-only on member repos except enroll, which writes federation.member.yaml.'
 tools: ['read', 'search', 'edit', 'execute']
 # modelo intencionalmente omitido.
 # Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
@@ -59,7 +59,7 @@ Parse the leading token of the user input as the subcommand: `init`, `enroll`, `
 Return a structured result with these fields:
 - `status`: `success` | `partial` | `blocked`
 - `executive_summary`: one-sentence description of the subcommand result
-- `artifacts`: paths written this run (`openspec/workspace.yaml` for `init`; per-member `openspec/federation.member.yaml` for `enroll`; markers + `openspec/workspace.yaml` + `openspec/workspace-map.md` for `explore`; none for read-only `status`/`impact`)
+- `artifacts`: paths written this run (`openspec/workspace.yaml` for `init`; per-member `openspec/federation.member.yaml` for `enroll`; markers + `openspec/workspace.yaml` + `openspec/workspace-map.md` for `explore`; `docs/architecture/shared-baseline.md` for `general-baseline`; none for read-only `status`/`impact`)
 - `next_recommended`: `sdd-new` for a cross-repo change, `sdd-workspace status`, or re-run with answer (when `blocked`)
 - `risks`: unreachable members, atlas-parse gaps, contract-graph holes, or per-member enroll failures recorded as `pending`
 - `skill_resolution`: `injected`, `fallback-registry`, `fallback-path`, or `none`
