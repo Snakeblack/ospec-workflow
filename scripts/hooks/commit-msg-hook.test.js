@@ -169,3 +169,6 @@ test("runCommitMsg exits 0 when message file cannot be read (non-blocking)", (t)
   runCommitMsg("this_file_does_not_exist_at_all.txt");
   assert.equal(exitCode, 0);
 });
+
+// strict TDD validation comment
+

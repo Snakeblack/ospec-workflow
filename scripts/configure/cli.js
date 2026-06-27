@@ -39,7 +39,11 @@ function walk(absDir, relDir, acc) {
     if (entry.isDirectory()) {
       walk(abs, rel, acc);
     } else if (entry.isFile()) {
-      acc.push({ path: rel, content: fs.readFileSync(abs, "utf8") });
+      try {
+        acc.push({ path: rel, content: fs.readFileSync(abs, "utf8") });
+      } catch (e) {
+        console.warn(`Warning: failed to read file ${abs}: ${e.message}`);
+      }
     }
   }
 }
@@ -55,7 +59,11 @@ function loadTree(sourceDir, roots = SOURCE_ROOTS) {
     if (stat.isDirectory()) {
       walk(abs, root, files);
     } else {
-      files.push({ path: root, content: fs.readFileSync(abs, "utf8") });
+      try {
+        files.push({ path: root, content: fs.readFileSync(abs, "utf8") });
+      } catch (e) {
+        console.warn(`Warning: failed to read file ${abs}: ${e.message}`);
+      }
     }
   }
   for (const script of gatherRuntimeScripts(sourceDir)) {
@@ -134,7 +142,13 @@ function gatherRuntimeScripts(sourceDir) {
     if (!fs.existsSync(abs)) {
       continue;
     }
-    const content = fs.readFileSync(abs, "utf8");
+    let content;
+    try {
+      content = fs.readFileSync(abs, "utf8");
+    } catch (e) {
+      console.warn(`Warning: failed to read file ${abs}: ${e.message}`);
+      continue;
+    }
     out.push({ path: rel, content });
 
     let match;

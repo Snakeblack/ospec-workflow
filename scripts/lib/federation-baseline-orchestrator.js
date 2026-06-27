@@ -109,7 +109,11 @@ async function resolveCoordinatorRoot(targetDir, parentChange, options = {}) {
       if (stats.isDirectory()) {
         return current;
       }
-    } catch (_) {}
+    } catch (err) {
+      if (err.code !== "ENOENT") {
+        throw err;
+      }
+    }
 
     const parent = path.dirname(current);
     if (parent === current) {

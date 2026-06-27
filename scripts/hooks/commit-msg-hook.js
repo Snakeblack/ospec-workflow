@@ -63,7 +63,12 @@ function runCommitMsg(msgFilePath) {
     console.error("Solución:");
     console.error("  1. Edita el mensaje eliminando las líneas de atribución AI.");
     console.error("  2. Si es un falso positivo legítimo, omite esta verificación con:");
-    console.error('     DISABLE_OSPEC_ATTRIBUTION_CHECK=true git commit ...');
+    if (process.platform === "win32") {
+      console.error('     $env:DISABLE_OSPEC_ATTRIBUTION_CHECK="true"; git commit ...  (PowerShell)');
+      console.error('     o: set DISABLE_OSPEC_ATTRIBUTION_CHECK=true && git commit ... (CMD)');
+    } else {
+      console.error('     DISABLE_OSPEC_ATTRIBUTION_CHECK=true git commit ...');
+    }
     console.error("======================================================================\n");
     process.exit(1);
     return;
