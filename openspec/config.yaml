@@ -188,27 +188,8 @@ routing:
 #   tokens, or credentials inline. Use environment variables or secret-manager
 #   references resolved at runtime, and scrutinize gate commands in PR review.
 #
-# quality_gates:
-#   tests:
-#     required: false            # boolean; default false
-#     on_fail: advisory          # advisory (default) | halt
-#     command: "npm test"        # absent/empty => gate skipped-with-warning
-#     timeout_ms: 120000         # optional; positive integer; default 120000
-#     coverage:
-#       minimum: 80              # number 0-100; absent/invalid => no coverage check
-#       command: "npm run coverage:pct"  # stdout is the %; absent => coverage skipped+warn
-#   lint:
-#     required: true
-#     on_fail: halt
-#     command: "npm run lint"
-#   architecture:
-#     required: false
-#     on_fail: advisory
-#     command: "npm run arch:check"
-#   security:
-#     required: false
-#     on_fail: advisory
-#     command: "npm run audit"
+#
+# (Example configuration block omitted for cleanliness. Refer to sdd-verify documentation.)
 # ---------------------------------------------------------------------------
 #
 # ---------------------------------------------------------------------------
@@ -230,19 +211,7 @@ routing:
 # Action types: load-skill | load-rules | run-command
 # on_failure:   advisory (default, continue) | halt (block + ask user)
 #
-# hooks:
-#   before-change:
-#     - type: load-skill
-#       skill: skills/sec/SKILL.md   # path relative to repo root
-#       on_failure: advisory
-#   before-implementation:
-#     - type: run-command
-#       command: npm run preflight   # issued via orchestrator's execute tool
-#       on_failure: halt             # halt → Retry/Override/Abort gate
-#   before-verify:
-#     - type: load-rules
-#       rules: "Coverage must be >= 80% before sign-off."
-#       on_failure: advisory
+# (Example configuration block omitted for cleanliness. Refer to lifecycle-hooks documentation.)
 # ---------------------------------------------------------------------------
 #
 # ---------------------------------------------------------------------------
@@ -251,11 +220,5 @@ routing:
 # Declared list of project technologies and tools used for stack-skill selection.
 # The absent block is a strict no-op: no capability-aware stack skills will be injected.
 #
-# capabilities:
-#   - name: angular
-#     version: "17"
-#     source: declared
-#   - name: postgres
-#     version: "16"
-#     source: declared
+# (Example configuration block omitted for cleanliness. Refer to capability-registry documentation.)
 # ---------------------------------------------------------------------------

@@ -39,5 +39,23 @@ manualmente (los agentes nunca escriben aquí).
 <!-- FIN DEL EJEMPLO / END OF EXAMPLE -->
 <!-- ───────────────────────────────────────────────────────────────────── -->
 
-Ninguna convención real registrada aún. Las convenciones se agregan manualmente cuando
-emergen patrones recurrentes a través de múltiples cambios SDD.
+## Mensajes de commit convencionales en imperativo español
+
+- ámbito: `git/`
+- regla: los mensajes de commit siguen el formato de Conventional Commits, y la descripción breve de primer nivel DEBE estar redactada en imperativo español (por ejemplo, `feat(infra): añade ...`, `fix(skills): corrige ...`).
+- por qué: unifica el historial del repositorio bajo una semántica coherente y activa.
+- visto en: [skills/branch-pr/SKILL.md](../../skills/branch-pr/SKILL.md)
+
+## Estructura de nombres de rama `<tipo>/<descripción>`
+
+- ámbito: `git/`
+- regla: las ramas se nombran usando la estructura `<tipo>/<descripción>` en minúsculas sin espacios (por ejemplo, `refactor/elimina-duplicacion`, `fix/fs-stat-swallowing`).
+- por qué: permite clasificar y asociar de manera automatizada las intenciones de los cambios en integraciones CI/CD.
+- visto en: [skills/branch-pr/SKILL.md](../../skills/branch-pr/SKILL.md)
+
+## Modularización de habilidades pesadas (Límite de Tokens)
+
+- ámbito: `skills/`
+- regla: los archivos `SKILL.md` principales de cada tecnología deben mantenerse por debajo de 500 líneas / 1000 tokens. Los ejemplos detallados y guías estructurales se extraen a un archivo secundario en `references/patterns.md`.
+- por qué: reduce el consumo innecesario del presupuesto de tokens en llamadas LLM recurrentes.
+- visto en: [skills/stack-kotlin/](../../skills/stack-kotlin/), [skills/stack-go/](../../skills/stack-go/), [skills/stack-python/](../../skills/stack-python/), [skills/stack-vite/](../../skills/stack-vite/)
