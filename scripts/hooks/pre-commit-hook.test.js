@@ -38,13 +38,16 @@ test("blocks commit when check.js fails", (t) => {
     exitCode = code;
   });
 
-  // Mock spawnSync to return exit code 1 for check.js
+  // Mock spawnSync to return exit code 1 for check.js (pipe-mode shape)
   t.mock.method(child_process, "spawnSync", (cmd, args) => {
     if (cmd === "node" && args[0] === "scripts/check.js") {
-      return { status: 1 };
+      return { status: 1, stdout: "TAP output\n", stderr: "" };
     }
     return { status: 0, stdout: "" };
   });
+
+  // Silence console.error banner output in this test
+  t.mock.method(console, "error", () => {});
 
   runPreCommit();
   assert.equal(exitCode, 1);
@@ -192,4 +195,93 @@ test("allows commit when strict_tdd is active and production files are staged al
 
   runPreCommit();
   assert.equal(exitCode, 0);
+});
+
+// Task 3.1 — GREEN guard: on success, captured stdout must NOT reach process.stdout
+test("on check.js success, does not write captured stdout to process.stdout", (t) => {
+  let exitCode = null;
+  t.mock.method(process, "exit", (code) => {
+    exitCode = code;
+  });
+
+  const writeCalls = [];
+  t.mock.method(process.stdout, "write", (data) => {
+    writeCalls.push(data);
+    return true;
+  });
+
+  t.mock.method(child_process, "spawnSync", (cmd, args) => {
+    if (cmd === "node" && args[0] === "scripts/check.js") {
+      return { status: 0, stdout: "lots-of-tap-output\n", stderr: "" };
+    }
+    return { status: 0, stdout: "" };
+  });
+
+  // No config.yaml → strict_tdd stays false → exits 0 cleanly
+  t.mock.method(fs, "existsSync", () => false);
+
+  runPreCommit();
+
+  const leaked = writeCalls.some(
+    (data) => typeof data === "string" && data.includes("lots-of-tap-output")
+  );
+  assert.ok(!leaked, "Expected captured stdout NOT to be written to process.stdout on success");
+});
+
+// Task 1.1 — RED: on failure, banner with === must appear in console.error
+test("on check.js failure, emits === banner citing the reason", (t) => {
+  let exitCode = null;
+  t.mock.method(process, "exit", (code) => {
+    exitCode = code;
+  });
+
+  const errorCalls = [];
+  t.mock.method(console, "error", (...args) => {
+    errorCalls.push(args);
+  });
+
+  t.mock.method(child_process, "spawnSync", (cmd, args) => {
+    if (cmd === "node" && args[0] === "scripts/check.js") {
+      return { status: 1, stdout: "TAP output\n", stderr: "" };
+    }
+    return { status: 0, stdout: "" };
+  });
+
+  runPreCommit();
+
+  const hasBanner = errorCalls.some((args) =>
+    args.some((arg) => typeof arg === "string" && arg.includes("==="))
+  );
+  assert.ok(hasBanner, "Expected at least one console.error call containing '==='");
+});
+
+// Task 1.2 — RED: on failure, captured stdout must be written to process.stdout
+test("on check.js failure, writes captured stdout before exit", (t) => {
+  let exitCode = null;
+  t.mock.method(process, "exit", (code) => {
+    exitCode = code;
+  });
+
+  const writeCalls = [];
+  t.mock.method(process.stdout, "write", (data) => {
+    writeCalls.push(data);
+    return true;
+  });
+
+  // Silence console.error to avoid noise in test output
+  t.mock.method(console, "error", () => {});
+
+  t.mock.method(child_process, "spawnSync", (cmd, args) => {
+    if (cmd === "node" && args[0] === "scripts/check.js") {
+      return { status: 1, stdout: "captured-output-line\n", stderr: "" };
+    }
+    return { status: 0, stdout: "" };
+  });
+
+  runPreCommit();
+
+  const hasCapture = writeCalls.some(
+    (data) => typeof data === "string" && data.includes("captured-output-line")
+  );
+  assert.ok(hasCapture, "Expected process.stdout.write to include 'captured-output-line'");
 });

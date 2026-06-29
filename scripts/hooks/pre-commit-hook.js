@@ -16,9 +16,14 @@ function runPreCommit() {
 
   // 2. Ejecutar validación de OpenSpec
   try {
+    // Task 2.1: progress feedback while output is buffered
+    console.log("OSPEC-PRECOMMIT: Ejecutando validación de OpenSpec...");
+
+    // Task 2.2: capture stdout/stderr via pipe instead of inheriting
     const checkResult = child_process.spawnSync("node", ["scripts/check.js"], {
       cwd: repoRoot,
-      stdio: "inherit",
+      stdio: "pipe",
+      encoding: "utf8",
     });
 
     if (checkResult.error) {
@@ -26,10 +31,30 @@ function runPreCommit() {
     }
 
     if (checkResult.status !== 0) {
-      console.error("\nOSPEC-PRECOMMIT: Error de validación en el workspace. El commit fue rechazado.");
+      // Task 2.4a: emit captured stdout verbatim
+      if (checkResult.stdout) process.stdout.write(checkResult.stdout);
+      // Task 2.4b: emit captured stderr verbatim
+      if (checkResult.stderr) process.stderr.write(checkResult.stderr);
+      // Task 2.4c: === banner naming the failure origin and bypass options
+      console.error("\n======================================================================");
+      console.error("OSPEC-PRECOMMIT ERROR: La validación de OpenSpec falló. El commit fue rechazado.");
+      console.error("  Origen del fallo: scripts/check.js");
+      console.error("");
+      console.error("Para omitir esta verificación (emergencias):");
+      if (process.platform === "win32") {
+        console.error('  $env:DISABLE_OSPEC_PRECOMMIT="true"; git commit ...  (PowerShell)');
+        console.error('  o: set DISABLE_OSPEC_PRECOMMIT=true && git commit ... (CMD)');
+      } else {
+        console.error('  DISABLE_OSPEC_PRECOMMIT=true git commit ...');
+      }
+      console.error("  o: git commit --no-verify");
+      console.error("======================================================================\n");
       process.exit(1);
       return;
     }
+
+    // Task 2.3: success path — brief one-liner, captured output suppressed
+    console.log("OSPEC-PRECOMMIT: Validación completada. Commit permitido.");
   } catch (err) {
     // Opción 4: B - En fallos de entorno u otros errores externos, emitir warning pero continuar.
     console.warn(`\nOSPEC-PRECOMMIT [Warning]: No se pudo ejecutar el validador check.js por una falla externa: ${err.message}. Continuando validación...`);
