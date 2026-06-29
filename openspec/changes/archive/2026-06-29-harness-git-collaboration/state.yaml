@@ -1,0 +1,99 @@
+change: harness-git-collaboration
+created_at: "2026-06-28T13:33:20Z"
+last_updated: "2026-06-28T22:15:00Z"
+status: archived
+classification: normal
+blocking_questions: []
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "First matching route: project.status == active selects the standard route."
+  validated: true
+  validation_errors: []
+
+execution_mode: auto
+delivery_strategy: exception-ok
+scope: "Recommendations in agent/skill prompts plus enforcing guards (hooks) for git multi-developer collaboration."
+
+phases:
+  propose:
+    status: done
+    artifact: "openspec/changes/archive/2026-06-29-harness-git-collaboration/proposal.md"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/archive/2026-06-29-harness-git-collaboration/specs/git-collaboration-guard/spec.md"
+      - "openspec/changes/archive/2026-06-29-harness-git-collaboration/specs/hooks/spec.md"
+      - "openspec/changes/archive/2026-06-29-harness-git-collaboration/specs/skills/spec.md"
+      - "openspec/changes/archive/2026-06-29-harness-git-collaboration/specs/agents/spec.md"
+  clarify:
+    status: done
+    notes: "No material ambiguities detected. Write-tool name set is fully enumerated; Go/Node parity test structure follows runtime-native conventions. Fast-path to success."
+  design:
+    status: done
+    rework_resolved: "Dirty working-tree detection incorporated: third git command (git status --porcelain), gitCollaboration.dirtyTree schema field, combined-advisory rule, per-check fail-open, Spanish advisory language, all at Go/Node parity."
+    artifact: "openspec/changes/archive/2026-06-29-harness-git-collaboration/design.md"
+  tasks:
+    status: done
+    artifact: "openspec/changes/archive/2026-06-29-harness-git-collaboration/tasks.md"
+  apply:
+    status: done
+    notes: "All phases 1-8 implemented + 4R remediation pass. Node 743/743 (+3 new tests), Go 6 packages ok (+3 new tests). F1 shared timeout, F2 Go parity test, F3 branch sanitization, F4 rename, F5 ordering comment, F6 nesting flatten, F7 catch comment all resolved."
+    artifact: "openspec/changes/archive/2026-06-29-harness-git-collaboration/apply-progress.md"
+  verify:
+    status: done
+    verdict: "PASS"
+    notes: "RE-VERIFY after 4R remediation. Independent re-run: Node 743/743 (exit 0), Go ./internal/... 6 packages ok (hooks 81 top-level PASS / 0 FAIL). All 7 remediations confirmed: F1 shared 5s deadline (git-state.test.js:208 + session-start workspaceGitRunner timeoutMs), F2 TestPreToolUse_GitGuard_GitCommitOnDefaultBranch (isRiskyAction gap closed), F3 sanitizeBranchName parity + hostile/long tests both runtimes, F4 _gitRunner→injectedGitRunner (no dangling refs), F5 ordering comments both runtimes, F6 resolveExistingFile helper (path tests unchanged), F7 catch-block comments. Prior CRITICAL (Node per-probe timeout) and WARNING-1 (Go git-commit parity) both RESOLVED. No CRITICAL, no WARNING. Go/Node parity confirmed incl. git-commit + sanitization. Residual: cosmetic SUGGESTIONs only (interface{}→any/slices.ContainsFunc/CutPrefix lints, ctx5b naming, session-start bypass E2E assertion, JS C1 control-char comment vs regex)."
+    artifact: "openspec/changes/archive/2026-06-29-harness-git-collaboration/verify-report.md"
+  archive:
+    status: done
+    artifact: "openspec/changes/archive/2026-06-29-harness-git-collaboration/archive-report.md"
+
+gates:
+  4r-review-gate:
+    status: done
+    on_blocker: advisory
+    findings_summary: "0 BLOCKER, 1 CRITICAL, 6 WARNING, 3 SUGGESTION"
+    surfaced_to_user: true
+    critical:
+      - origin: code-bug
+        finding: "Node resolveGitState applies a 5s timeout per probe (3 probes => up to 15s) vs Go's single shared 5s context. Violates spec 5s budget and Go/Node parity. Files: scripts/hooks/lib/git-state.js:14,46-52; scripts/hooks/session-start.js:173-178; cf internal/hooks/gitstate.go:41."
+    warnings:
+      - "Prompt-injection surface: unsanitized branch name interpolated into AI-visible advisory (git-state.js / gitstate.go / session-start.js / pre-tool-use.js)."
+      - "_gitRunner underscore prefix misleads as unused though it is the test-injection path (pre-tool-use.js:274,394)."
+      - "Zero-commands early-return placement after Step 5b is structurally load-bearing but undocumented (pre-tool-use.js:411; pretooluse.go:421)."
+      - "extractPaths nesting reaches 4 levels in the relative-path else branch (pretooluse.go:163-176)."
+      - "Go git-commit risky-trigger branch lacks a dedicated runtime test that Node case (h) has (pretooluse_test.go; isRiskyAction 83.3%) — parity test-coverage gap."
+      - "Empty catch {} blocks in matchGitignorePattern swallow RegExp errors silently (session-start.js:219-224)."
+
+approvals:
+  - id: session-setup-001
+    gate: session-setup
+    decision: "execution_mode=auto; delivery_strategy=exception-ok; scope=recommendations+guards"
+    source: AskUserQuestion
+    accepted_at: "2026-06-28T13:33:20Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: scope-dirty-tree-001
+    gate: scope-decision
+    decision: "Include dirty working-tree detection in git-collaboration-guard scope (warn when working tree has uncommitted changes)."
+    source: AskUserQuestion
+    accepted_at: "2026-06-28T13:33:20Z"
+    applies_to:
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+  - id: review-workload-001
+    gate: review-workload
+    decision: "size:exception — proceed with oversized change (delivery_strategy=exception-ok). 400-line budget risk: High; suggested work-unit split: PR1 Node, PR2 Go, PR3 skills/agents/dist."
+    source: delivery_strategy (exception-ok)
+    accepted_at: "2026-06-28T13:33:20Z"
+    applies_to:
+      - sdd-apply
+
+implementation:
+  branch: feat/git-collaboration-guard
+  base: main
