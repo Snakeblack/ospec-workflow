@@ -4,9 +4,12 @@
 package hooks_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,6 +36,13 @@ type sessionStartResult struct {
 			Reason string `json:"reason"`
 		} `json:"alerts"`
 	} `json:"security"`
+	GitCollaboration *struct {
+		Status        string  `json:"status"`
+		CurrentBranch *string `json:"currentBranch"`
+		DefaultBranch *string `json:"defaultBranch"`
+		DirtyTree     *bool   `json:"dirtyTree"`
+		Message       string  `json:"message"`
+	} `json:"gitCollaboration"`
 	SystemMessage string `json:"systemMessage"`
 	Message       string `json:"message"`
 }
@@ -464,6 +474,175 @@ func TestSessionStart_AgentShield_GitConfig(t *testing.T) {
 	}
 	if !found {
 		t.Error("expected alert for .git/config")
+	}
+}
+
+// ── Phase 6: Git Collaboration Advisory in SessionStart ───────────────────────
+
+// makeSessionGitRunner builds a gitRunnerFn for session-start advisory tests.
+func makeSessionGitRunner(responses map[string]interface{}) func(ctx context.Context, args []string) (string, error) {
+	return func(ctx context.Context, args []string) (string, error) {
+		for key, val := range responses {
+			for _, arg := range args {
+				if arg == key {
+					switch v := val.(type) {
+					case error:
+						return "", v
+					case string:
+						return v, nil
+					}
+				}
+			}
+		}
+		return "", errors.New("unexpected git args: " + strings.Join(args, " "))
+	}
+}
+
+// makeSessionInputWithGitRunner is like makeSessionInput but also injects a git runner.
+// The session-start handler uses the package-level gitRunner, set via SetGitRunnerForTest.
+func runSessionStartWithGitRunner(t *testing.T, ws, pr string, runner func(ctx context.Context, args []string) (string, error)) (sessionStartResult, int) {
+	t.Helper()
+	restore := hooks.SetGitRunnerForTest(runner)
+	defer restore()
+	return runSessionStart(t, makeSessionInput(ws, pr, ""))
+}
+
+// (a) default branch + clean tree → GitCollaboration non-nil with DirtyTree: &false
+func TestSessionStart_GitCollab_DefaultBranchClean(t *testing.T) {
+	ws := createWorkspaceWithConfig(t, "strict_tdd: true\n")
+	pr := createMinimalPluginRoot(t)
+	runner := makeSessionGitRunner(map[string]interface{}{
+		"symbolic-ref":   "origin/main",
+		"--show-current": "main",
+		"--porcelain":    "",
+	})
+	got, _ := runSessionStartWithGitRunner(t, ws, pr, runner)
+	if got.GitCollaboration == nil {
+		t.Fatal("GitCollaboration must be non-nil for default-branch condition")
+	}
+	if got.GitCollaboration.Status != "warning" {
+		t.Errorf("expected status 'warning', got %q", got.GitCollaboration.Status)
+	}
+	if got.GitCollaboration.DirtyTree == nil || *got.GitCollaboration.DirtyTree {
+		t.Errorf("DirtyTree must be &false for clean tree, got %v", got.GitCollaboration.DirtyTree)
+	}
+	if !containsString(got.SystemMessage, "rama por defecto") {
+		t.Errorf("SystemMessage must contain 'rama por defecto': %q", got.SystemMessage)
+	}
+}
+
+// (b) feature branch + dirty tree → DirtyTree: &true
+func TestSessionStart_GitCollab_DirtyFeatureBranch(t *testing.T) {
+	ws := createWorkspaceWithConfig(t, "strict_tdd: true\n")
+	pr := createMinimalPluginRoot(t)
+	runner := makeSessionGitRunner(map[string]interface{}{
+		"symbolic-ref":   "origin/main",
+		"--show-current": "feat/x",
+		"--porcelain":    "M modified.js",
+	})
+	got, _ := runSessionStartWithGitRunner(t, ws, pr, runner)
+	if got.GitCollaboration == nil {
+		t.Fatal("GitCollaboration must be non-nil for dirty-tree condition")
+	}
+	if got.GitCollaboration.DirtyTree == nil || !*got.GitCollaboration.DirtyTree {
+		t.Errorf("DirtyTree must be &true, got %v", got.GitCollaboration.DirtyTree)
+	}
+	if !containsString(got.SystemMessage, "sin commitear") {
+		t.Errorf("SystemMessage must contain 'sin commitear': %q", got.SystemMessage)
+	}
+}
+
+// (c) combined: default branch AND dirty → single GitCollaboration, both conditions in message
+func TestSessionStart_GitCollab_Combined(t *testing.T) {
+	ws := createWorkspaceWithConfig(t, "strict_tdd: true\n")
+	pr := createMinimalPluginRoot(t)
+	runner := makeSessionGitRunner(map[string]interface{}{
+		"symbolic-ref":   "origin/main",
+		"--show-current": "main",
+		"--porcelain":    "M modified.js",
+	})
+	got, _ := runSessionStartWithGitRunner(t, ws, pr, runner)
+	if got.GitCollaboration == nil {
+		t.Fatal("GitCollaboration must be non-nil for combined condition")
+	}
+	if got.GitCollaboration.DirtyTree == nil || !*got.GitCollaboration.DirtyTree {
+		t.Errorf("DirtyTree must be &true for combined dirty+default, got %v", got.GitCollaboration.DirtyTree)
+	}
+	if !containsString(got.SystemMessage, "rama por defecto") {
+		t.Errorf("SystemMessage must contain 'rama por defecto': %q", got.SystemMessage)
+	}
+	if !containsString(got.SystemMessage, "sin commitear") {
+		t.Errorf("SystemMessage must contain 'sin commitear': %q", got.SystemMessage)
+	}
+}
+
+// (d) clean feature branch → GitCollaboration nil
+func TestSessionStart_GitCollab_CleanFeatureBranch(t *testing.T) {
+	ws := createWorkspaceWithConfig(t, "strict_tdd: true\n")
+	pr := createMinimalPluginRoot(t)
+	runner := makeSessionGitRunner(map[string]interface{}{
+		"symbolic-ref":   "origin/main",
+		"--show-current": "feat/clean",
+		"--porcelain":    "",
+	})
+	got, _ := runSessionStartWithGitRunner(t, ws, pr, runner)
+	if got.GitCollaboration != nil {
+		t.Errorf("GitCollaboration must be nil for clean feature branch, got %+v", got.GitCollaboration)
+	}
+}
+
+// (e) DISABLE_GIT_COLLABORATION_GUARD=true → GitCollaboration nil
+func TestSessionStart_GitCollab_EnvBypass(t *testing.T) {
+	os.Setenv("DISABLE_GIT_COLLABORATION_GUARD", "true")
+	defer os.Unsetenv("DISABLE_GIT_COLLABORATION_GUARD")
+
+	ws := createWorkspaceWithConfig(t, "strict_tdd: true\n")
+	pr := createMinimalPluginRoot(t)
+	runner := makeSessionGitRunner(map[string]interface{}{
+		"symbolic-ref":   "origin/main",
+		"--show-current": "main",
+		"--porcelain":    "M modified.js",
+	})
+	got, _ := runSessionStartWithGitRunner(t, ws, pr, runner)
+	if got.GitCollaboration != nil {
+		t.Errorf("GitCollaboration must be nil when guard is disabled, got %+v", got.GitCollaboration)
+	}
+}
+
+// (f) git binary absent → GitCollaboration nil, rest of output unaffected
+func TestSessionStart_GitCollab_GitAbsent(t *testing.T) {
+	ws := createWorkspaceWithConfig(t, "strict_tdd: true\n")
+	pr := createMinimalPluginRoot(t)
+	runner := func(ctx context.Context, args []string) (string, error) {
+		return "", errors.New("git: command not found")
+	}
+	got, _ := runSessionStartWithGitRunner(t, ws, pr, runner)
+	if got.GitCollaboration != nil {
+		t.Errorf("GitCollaboration must be nil when git is absent, got %+v", got.GitCollaboration)
+	}
+	if got.Status != "ok" {
+		t.Errorf("status must still be ok, got %q", got.Status)
+	}
+	if !got.OspecDetected {
+		t.Error("ospecDetected must still be true")
+	}
+}
+
+// (g) status probe fails + default branch resolves → GitCollaboration non-nil, DirtyTree nil
+func TestSessionStart_GitCollab_StatusProbeFails_DefaultBranch(t *testing.T) {
+	ws := createWorkspaceWithConfig(t, "strict_tdd: true\n")
+	pr := createMinimalPluginRoot(t)
+	runner := makeSessionGitRunner(map[string]interface{}{
+		"symbolic-ref":   "origin/main",
+		"--show-current": "main",
+		"--porcelain":    errors.New("git status failed"),
+	})
+	got, _ := runSessionStartWithGitRunner(t, ws, pr, runner)
+	if got.GitCollaboration == nil {
+		t.Fatal("GitCollaboration must be non-nil (default branch condition fires)")
+	}
+	if got.GitCollaboration.DirtyTree != nil {
+		t.Errorf("DirtyTree must be nil (omitted) when status probe fails, got %v", *got.GitCollaboration.DirtyTree)
 	}
 }
 

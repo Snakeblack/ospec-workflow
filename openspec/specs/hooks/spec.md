@@ -113,6 +113,46 @@ Then it MUST:
     ```
     (plus `"baseline": { "hint": "..." }` when a hint is present, and `"systemMessage": "..."` containing warnings when `security.status === "warning"`).
 
+### 2.1a Git Collaboration Advisory
+
+After the security check (Step 9 above), the hook MUST run a git collaboration check when openspec is detected. The check evaluates TWO independent conditions: (1) whether the current branch equals the default branch, and (2) whether the working tree is dirty (`git status --porcelain` returns non-empty output). When at least one condition holds, the hook MUST include a `gitCollaboration` entry in the response JSON.
+
+The check MUST be guarded by `DISABLE_GIT_COLLABORATION_GUARD !== "true"`; when the bypass is active, the entire check is skipped (no `gitCollaboration` key, no change to `systemMessage`).
+
+**Response schema** (`status: "warning"` when at least one condition holds, omitted entirely when both are absent):
+
+```json
+{
+  "gitCollaboration": {
+    "status": "warning",
+    "currentBranch": "<name>",
+    "defaultBranch": "<name>",
+    "dirtyTree": true,
+    "message": "<human-readable advisory>"
+  }
+}
+```
+
+Field rules:
+- `currentBranch`: always the resolved current branch name; `null` if unresolvable.
+- `defaultBranch`: always the resolved default branch name; `null` if unresolvable.
+- `dirtyTree`: `true` when `git status --porcelain` is non-empty; `false` when clean; **omitted if `git status` fails** (never falsely reported clean).
+- `message`: content follows the same rules as the PreToolUse advisory (single message, combined if both conditions).
+
+The advisory MUST also be appended to the existing `systemMessage` string (newline-separated) so the Claude host surfaces it to the user at session start.
+
+When git is unavailable or any git command fails, the affected condition MUST be silently skipped; the remaining check MUST still run. The rest of SessionStart behavior (registry cache, baseline hint, security) MUST be unaffected.
+
+#### Scenarios
+
+- **Session on default branch, clean tree — default-branch advisory**: Given `origin/HEAD → refs/remotes/origin/main`, current branch `main`, clean working tree, When SessionStart runs, Then the response MUST include `gitCollaboration.status: "warning"` with `dirtyTree: false` AND `systemMessage` MUST mention "default branch" and "feature branch".
+- **Session on feature branch, dirty tree — dirty-tree advisory**: Given current branch is `feat/my-feature` AND `git status --porcelain` returns non-empty output, When SessionStart runs, Then the response MUST include `gitCollaboration.status: "warning"` with `dirtyTree: true` AND `systemMessage` MUST mention "uncommitted changes".
+- **Session on default branch AND dirty tree — combined advisory**: Given current branch is `main` (default) AND working tree is dirty, When SessionStart runs, Then the response MUST include exactly one `gitCollaboration` entry with `dirtyTree: true` AND `message` MUST mention both "default branch" and "uncommitted changes".
+- **Session on feature branch, clean tree — no advisory**: Given current branch is `feat/my-feature` AND working tree is clean, When SessionStart runs, Then the response MUST NOT contain a `gitCollaboration` key AND `systemMessage` MUST NOT include any collaboration advisory text.
+- **Bypass active — advisory suppressed**: Given `DISABLE_GIT_COLLABORATION_GUARD=true`, When SessionStart runs regardless of branch or working tree state, Then no `gitCollaboration` key is present in the response AND `systemMessage` is unaffected by this guard.
+- **git unavailable — advisory silently omitted**: Given git is not installed or not on PATH, When SessionStart runs, Then the entire collaboration check is silently skipped AND registry cache, baseline hint, and security check behavior MUST be unaffected.
+- **git status fails, branch check succeeds — partial advisory**: Given `git branch --show-current` returns `main` (= default branch) AND `git status --porcelain` exits non-zero, When SessionStart runs, Then the `gitCollaboration` entry MUST reflect the default-branch condition AND the `dirtyTree` field MUST be omitted (not falsely reported as clean).
+
 ### 2.2 Baseline hint logic
 
 | `baseline.status` | `stale_domains` | Hint produced |
@@ -201,6 +241,7 @@ Evaluation MUST proceed in this order; the first match wins:
 **Step 1 — BYPASS (Bypasses de Advisors).**
 - Si la variable de entorno `DISABLE_TOKEN_ADVISOR=true` está activa: se omiten los Pasos 3 y 4 del Advisor de Tokens.
 - Si la variable de entorno `DISABLE_AGENT_SHIELD=true` está activa: se omiten las validaciones de AgentShield descritas en el Paso 2.
+- Si la variable de entorno `DISABLE_GIT_COLLABORATION_GUARD=true` está activa: se omite el Paso 5b (Git Collaboration Guard).
 
 **Step 2 — AGENT SHIELD SECURITY (Protección contra Fuga de Secretos).**
 Si el agente intenta leer un archivo (herramientas como `view_file` o lectura de URLs/recursos) y el archivo solicitado es sensible:
@@ -226,6 +267,28 @@ Si algún comando coincide con una regla de denegación: retornar `deny` con la 
 | Filesystem format | `mkfs.ext4 /dev/sda1` |
 | Raw write to block device | `dd if=image.iso of=/dev/sda` |
 | Format or clear a disk | `Clear-Disk -Number 0`, `format C:` |
+
+**Step 5b — GIT COLLABORATION GUARD.** Detecta estados git riesgosos durante el desarrollo y advierte al usuario antes de permitir operaciones potencialmente peligrosas. Full guard logic is specified in the `git-collaboration-guard` domain spec. The guard:
+- Resolves the current branch, default branch (via `origin/HEAD`), and working tree state (via `git status --porcelain`)
+- Evaluates whether the tool is a risky action: a file-write tool OR a command matching `\bgit\s+commit\b`
+- Fires when the risky action coincides with at least one of: (1) current branch = default branch, (2) working tree has uncommitted changes
+- Returns exactly one `ask` response when both conditions hold (combined advisory)
+- Returns `allow` if no conditions hold or the action is not risky
+- Per-check fail-open: failure to resolve one condition does not suppress evaluation of others
+- All three git commands share a single 5s timeout budget (shared deadline)
+- When `DISABLE_GIT_COLLABORATION_GUARD=true`, the entire guard is skipped before any git call
+
+Advisories are in Spanish with three variants: default-branch-only, dirty-tree-only, and combined. The `permissionDecisionReason` MUST contain the current branch name, "default branch", and/or "uncommitted changes" as applicable, plus recommendations to create a feature branch or commit/stash changes.
+
+#### Scenarios
+
+- **DENY fires — guard not evaluated**: Given a tool call matching a DENY rule (Step 5), When PreToolUse evaluates, Then the hook returns `deny` at Step 5, AND Step 5b is never invoked.
+- **DENY does not fire, guard fires on default branch**: Given no DENY match AND tool is file-write AND current branch = default branch, When PreToolUse evaluates, Then Step 5b returns `ask` with default-branch advisory.
+- **DENY does not fire, guard fires on dirty working tree**: Given no DENY match AND tool is file-write AND working tree is dirty (even on a feature branch), When PreToolUse evaluates, Then Step 5b returns `ask` with dirty-tree advisory.
+- **Guard silent on clean feature branch**: Given current branch ≠ default branch AND working tree is clean AND tool is file-write, When PreToolUse evaluates, Then Step 5b returns `allow` (no advisory).
+- **Bypass active — guard skipped**: Given `DISABLE_GIT_COLLABORATION_GUARD=true`, When PreToolUse evaluates, Then Step 5b is skipped and evaluation proceeds to Step 6.
+
+---
 
 **Step 6 — ASK (requires user confirmation).** Test cada comando extraído contra las reglas de consulta.
 Si algún comando coincide con una regla de consulta: retornar `ask` con la razón correspondiente.

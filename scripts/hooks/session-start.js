@@ -20,6 +20,7 @@ const {
   createArtifactStoreFromConfig,
 } = require("../lib/artifact-store.js");
 const { resolveWorkspaceCwd } = require("../lib/pathsafe.js");
+const { resolveGitState, composeAdvisory } = require("./lib/git-state.js");
 
 const CACHE_VERSION = 2;
 const CACHE_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.cache;
@@ -59,6 +60,7 @@ async function runSessionStart({
   pluginRoot = path.resolve(__dirname, "../.."),
   mode,
   now = () => new Date(),
+  gitRunner = undefined,
 } = {}) {
   const workspace = resolveWorkspace(input, fallbackCwd);
   const store = await createArtifactStoreFromConfig({ mode, workspace });
@@ -153,9 +155,55 @@ async function runSessionStart({
         status: "warning",
         alerts
       };
-      
+
       const fileAlerts = alerts.map(a => `${a.file} (${a.reason})`).join(", ");
       result.systemMessage = `Cuidado: Se detectaron riesgos de seguridad en la inicialización: ${fileAlerts}. Por favor asegúrate de corregirlos.`;
+    }
+  }
+
+  // Git collaboration advisory — checked after the security block.
+  // Omitted entirely when the bypass env var is set or when both conditions
+  // are absent (clean feature branch).
+  if (process.env.DISABLE_GIT_COLLABORATION_GUARD !== "true") {
+    // Use the injected runner (for tests) or build a workspace-scoped default
+    // runner so git commands run in the detected workspace directory instead of
+    // the process cwd (relevant when the test fixture is a temp dir).
+    //
+    // The workspace runner accepts the per-call `timeoutMs` passed by
+    // resolveGitState, which enforces a single shared 5 s deadline across all
+    // three probes (mirrors Go's context.WithTimeout approach in gitstate.go).
+    const { execFileSync } = require("node:child_process");
+    const resolvedGitRunner = gitRunner || function workspaceGitRunner(args, timeoutMs) {
+      return execFileSync("git", args, {
+        timeout: typeof timeoutMs === "number" && timeoutMs > 0 ? timeoutMs : 5000,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+        cwd: workspace,
+      });
+    };
+    const gitState = resolveGitState(resolvedGitRunner);
+    const onDefault =
+      gitState.defaultBranch !== null &&
+      gitState.currentBranch !== null &&
+      gitState.defaultBranch === gitState.currentBranch;
+    if (onDefault || gitState.dirty === true) {
+      const advisory = composeAdvisory(
+        onDefault,
+        gitState.dirty,
+        gitState.currentBranch
+      );
+      result.gitCollaboration = {
+        status: "warning",
+        currentBranch: gitState.currentBranch,
+        defaultBranch: gitState.defaultBranch,
+        // dirtyTree is OMITTED when the status probe failed (dirty === null)
+        // so we never falsely report "clean".
+        ...(gitState.dirty !== null && { dirtyTree: gitState.dirty }),
+        message: advisory,
+      };
+      result.systemMessage = result.systemMessage
+        ? result.systemMessage + "\n" + advisory
+        : advisory;
     }
   }
 
@@ -170,11 +218,20 @@ function matchGitignorePattern(line, file) {
     const escaped = line.replace(/[-\/\\^$+?.()|[\]{}]/g, '\\$&').replace(/\*/g, '.*');
     try {
       if (new RegExp('^' + escaped + '$').test(file)) return true;
-    } catch {}
+    } catch {
+      // An invalid .gitignore glob produces a malformed RegExp.
+      // Treat it as no-match so the caller sees the file as un-ignored
+      // (the safer direction: the user will be warned rather than silently
+      // skipped). No debug log is emitted here because matchGitignorePattern
+      // is called in a tight loop per file and the pattern source is always
+      // the .gitignore content the user wrote.
+    }
     const escapedNoSlash = line.replace(/^\//, '').replace(/[-\/\\^$+?.()|[\]{}]/g, '\\$&').replace(/\*/g, '.*');
     try {
       if (new RegExp('^' + escapedNoSlash + '$').test(file)) return true;
-    } catch {}
+    } catch {
+      // Same rationale as above: malformed pattern → no-match fallback.
+    }
   }
   return false;
 }

@@ -4,6 +4,7 @@
 package hooks
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -14,6 +15,44 @@ import (
 
 	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/rules"
 )
+
+// writeToolNamesSet is the normalized set of tool names that write/modify files.
+// Mirrors WRITE_TOOL_NAMES in scripts/hooks/lib/git-state.js.
+var writeToolNamesSet = map[string]bool{
+	"edit":             true,
+	"write":            true,
+	"createfile":       true,
+	"writefile":        true,
+	"editfile":         true,
+	"applyedits":       true,
+	"strreplaceeditor": true,
+}
+
+// gitCommitPatternRE matches "git commit" in any command string.
+var gitCommitPatternRE = regexp.MustCompile(`(?i)\bgit\s+commit\b`)
+
+// nonAlphanumRE strips non-alphanumeric characters used for tool-name normalization.
+var nonAlphanumRE = regexp.MustCompile(`[^a-z0-9]`)
+
+// normToolName lowercases and strips non-alphanumeric characters from a tool name,
+// mirroring normalizeToolName from scripts/hooks/pre-tool-use.js.
+func normToolName(name string) string {
+	return nonAlphanumRE.ReplaceAllString(strings.ToLower(name), "")
+}
+
+// isRiskyAction mirrors isRiskyAction from scripts/hooks/lib/git-state.js.
+// Returns true when the tool writes/modifies a file OR any command matches "git commit".
+func isRiskyAction(toolName string, cmds []string) bool {
+	if writeToolNamesSet[normToolName(toolName)] {
+		return true
+	}
+	for _, cmd := range cmds {
+		if gitCommitPatternRE.MatchString(cmd) {
+			return true
+		}
+	}
+	return false
+}
 
 func init() {
 	Register(&preToolUseHandler{})
@@ -107,6 +146,25 @@ func findWorkspaceRoot() string {
 	return cwd
 }
 
+// resolveExistingFile returns the absolute path of a file-system path if it
+// resolves to an existing regular file, trying first as-is and then relative
+// to the workspace root. Returns ("", false) when neither location exists.
+func resolveExistingFile(cleaned string) (string, bool) {
+	if info, err := os.Stat(cleaned); err == nil && !info.IsDir() {
+		if abs, err := filepath.Abs(cleaned); err == nil {
+			return abs, true
+		}
+	}
+	root := findWorkspaceRoot()
+	rel := filepath.Join(root, cleaned)
+	if info, err := os.Stat(rel); err == nil && !info.IsDir() {
+		if abs, err := filepath.Abs(rel); err == nil {
+			return abs, true
+		}
+	}
+	return "", false
+}
+
 func extractPaths(v interface{}) []string {
 	var paths []string
 	var traverse func(x interface{})
@@ -121,20 +179,8 @@ func extractPaths(v interface{}) []string {
 				cleaned = strings.TrimPrefix(cleaned, "file://")
 				cleaned = strings.TrimPrefix(cleaned, "/")
 			}
-			// Check if absolute path exists and is a file
-			if info, err := os.Stat(cleaned); err == nil && !info.IsDir() {
-				if abs, err := filepath.Abs(cleaned); err == nil {
-					paths = append(paths, abs)
-				}
-			} else {
-				// Check relative to workspace root
-				root := findWorkspaceRoot()
-				rel := filepath.Join(root, cleaned)
-				if info, err := os.Stat(rel); err == nil && !info.IsDir() {
-					if abs, err := filepath.Abs(rel); err == nil {
-						paths = append(paths, abs)
-					}
-				}
+			if abs, ok := resolveExistingFile(cleaned); ok {
+				paths = append(paths, abs)
 			}
 		case []interface{}:
 			for _, item := range val {
@@ -348,20 +394,46 @@ func (h *preToolUseHandler) Run(stdin []byte) ([]byte, int) {
 
 	cmds := extractCommands(&input)
 
-	if len(cmds) == 0 {
-		// No commands: allow regardless of tool type (matches JS evaluateToolUse).
-		return makeDecision("allow", "Tool did not include a command payload."), 0
-	}
-
-	// Pass 1: deny takes priority across all commands.
-	for _, cmd := range cmds {
-		action, reason := rules.Evaluate(cmd)
-		if action == "deny" {
-			return makeDecision("deny", reason), 0
+	// Step 5 — DENY rules take priority (only when commands are present).
+	if len(cmds) > 0 {
+		for _, cmd := range cmds {
+			action, reason := rules.Evaluate(cmd)
+			if action == "deny" {
+				return makeDecision("deny", reason), 0
+			}
 		}
 	}
 
-	// Pass 2: ask (only if no deny matched).
+	// Step 5b — Git collaboration guard: fires for file-write tools OR git
+	// commit commands, even when the tool carries no command payload.
+	if os.Getenv("DISABLE_GIT_COLLABORATION_GUARD") != "true" {
+		if isRiskyAction(input.ToolName, cmds) {
+			ctx5b, cancel5b := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel5b()
+			gs := resolveGitState(ctx5b)
+			onDefault := gs.DefaultBranch != nil && gs.CurrentBranch != nil &&
+				*gs.DefaultBranch == *gs.CurrentBranch
+			if onDefault || (gs.Dirty != nil && *gs.Dirty) {
+				branchName := ""
+				if gs.CurrentBranch != nil {
+					branchName = *gs.CurrentBranch
+				}
+				advisory := composeAdvisory(onDefault, gs.Dirty, branchName)
+				return makeDecision("ask", advisory), 0
+			}
+		}
+	}
+
+	// No commands present — allow without reaching the ASK/ALLOW pass.
+	// MUST remain after Step 5b: file-write tools (Edit, Write, etc.) carry no
+	// command payload, so an earlier placement would prevent Step 5b from ever
+	// evaluating them. Moving this guard before Step 5b disables the git guard
+	// for all file-write tools.
+	if len(cmds) == 0 {
+		return makeDecision("allow", "Tool did not include a command payload."), 0
+	}
+
+	// Step 6 — ASK rules (only if no deny or guard match).
 	for _, cmd := range cmds {
 		action, reason := rules.Evaluate(cmd)
 		if action == "ask" {

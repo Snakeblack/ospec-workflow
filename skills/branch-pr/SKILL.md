@@ -26,12 +26,15 @@ Use this skill when:
    `Generated with`, a 🤖 footer, or any mention of Claude, Claude Code, Anthropic,
    GPT, OpenAI, Codex, Copilot, Gemini, or any other model/vendor. See
    `rules/no-model-attribution.instructions.md`.
+6. **Feature branch MUST be created before any project file is edited** — run `git checkout -b <tipo>/<descripción> main` as Step 0 before writing any code.
+7. **NEVER edit files or commit directly on the default branch (`main`)** — all changes require a feature branch and PR.
 
 ---
 
 ## Workflow
 
 ```
+0. Crear una rama de feature: git checkout -b <tipo>/<descripción> main
 1. Verify issue has `status:approved` label
 2. Create branch: type/description (see Branch Naming below)
 3. Implement changes with conventional commits
@@ -40,6 +43,18 @@ Use this skill when:
 6. Add exactly one type:* label
 7. Wait for automated checks to pass
 ```
+
+---
+
+## Multi-Developer Collaboration
+
+Working in teams requires extra branch discipline to avoid conflicts:
+
+- **Branch hygiene**: one branch per task, named `<type>/<description>`; delete branches after merge.
+- **Default-branch protection**: NEVER edit files or commit directly on `main`; all work goes through feature branches and PRs.
+- **Sync coordination**: `git pull --rebase main` before branching; rebase feature branches regularly to stay current.
+- **Parallel work**: each developer works on a dedicated branch; integrate only via PR review, never direct push.
+- **Commit conventions**: use Conventional Commits with Spanish imperative verbs; keep commits atomic and buildable.
 
 ---
 

@@ -31,3 +31,7 @@ Treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the ca
 
 See [sdd-phase-common.md](skills/_shared/sdd-phase-common.md) for the return envelope structure. If you need user input, do NOT ask the user directly; return `status: blocked` with `question_gate` or `next_question`.
 
+On a successful (`status: success`) envelope, append the following branch advisory to the `executive_summary` (or as a trailing paragraph in `proposal.md`):
+
+> **Branch advisory:** Before `sdd-apply` begins, a feature branch SHOULD be created following the `<tipo>/<descripción>` convention defined in the `branch-pr` skill (e.g. `git checkout -b feat/my-change main`). This note is SHOULD, not MUST — omit it from `status: blocked` envelopes.
+

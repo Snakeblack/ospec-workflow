@@ -1,7 +1,15 @@
 ---
 title: Known Issues
-last_updated: 2026-06-22
+last_updated: 2026-06-28
 ---
+
+## Go git-commit risky-trigger del git-collaboration-guard no tiene test de runtime dedicado (asimetria de paridad con Node)
+
+- severity: WARNING
+- area: internal/hooks/pretooluse.go:45 isRiskyAction (rama gitCommitPatternRE, cobertura 83.3%)
+- workaround: agregar TestPreToolUse_GitGuard_GitCommitDefaultBranch espejando el caso (h) de scripts/hooks/pre-tool-use.test.js para probar git commit en rama por defecto devuelve ask
+- change: harness-git-collaboration
+- date: 2026-06-28
 
 ## readFileSync sin try/catch en cli.js gatherRuntimeScripts propaga EACCES/EPERM sin exit code claro
 

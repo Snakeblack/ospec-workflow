@@ -423,12 +423,162 @@ test("evaluateToolUse denies git commit with attribution via shell tool", () => 
 });
 
 test("evaluateToolUse allows clean git commit via shell tool", () => {
-  const decision = evaluateToolUse({
-    tool_name: "runTerminalCommand",
-    tool_input: {
-      command: 'git commit -m "feat: add token budget advisor"',
-    },
-  }).hookSpecificOutput;
+  // Disable the git guard so this test stays focused on attribution behavior
+  // (the guard is exercised in the "git-guard" test section below).
+  const oldEnv = process.env.DISABLE_GIT_COLLABORATION_GUARD;
+  process.env.DISABLE_GIT_COLLABORATION_GUARD = "true";
+  try {
+    const decision = evaluateToolUse({
+      tool_name: "runTerminalCommand",
+      tool_input: {
+        command: 'git commit -m "feat: add token budget advisor"',
+      },
+    }).hookSpecificOutput;
 
-  assert.equal(decision.permissionDecision, "allow");
+    assert.equal(decision.permissionDecision, "allow");
+  } finally {
+    if (oldEnv === undefined) {
+      delete process.env.DISABLE_GIT_COLLABORATION_GUARD;
+    } else {
+      process.env.DISABLE_GIT_COLLABORATION_GUARD = oldEnv;
+    }
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Phase 3: Step 5b Git Collaboration Guard integration
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates a stubbed git runner for pre-tool-use integration tests.
+ * Same key-matching convention as git-state.test.js.
+ */
+function makeGitStubRunner(responses) {
+  return (args) => {
+    for (const [key, value] of Object.entries(responses)) {
+      if (args.includes(key)) {
+        if (value instanceof Error) throw value;
+        return value;
+      }
+    }
+    throw new Error(`Unexpected git args: ${args.join(" ")}`);
+  };
+}
+
+/** Helper that calls evaluateToolUse with an optional gitRunner. */
+function gitGuardDecision(toolName, toolInputOrCommand, gitRunner) {
+  const toolInput =
+    typeof toolInputOrCommand === "string"
+      ? { command: toolInputOrCommand }
+      : toolInputOrCommand || {};
+  return evaluateToolUse(
+    { tool_name: toolName, tool_input: toolInput },
+    { gitRunner }
+  ).hookSpecificOutput;
+}
+
+// (a) file-write tool on default branch, clean tree → ask with "rama por defecto", not "sin commitear"
+test("git-guard: file-write tool on default branch (clean) → ask with default-branch advisory", () => {
+  const runner = makeGitStubRunner({
+    "symbolic-ref": "origin/main",
+    "--show-current": "main",
+    "--porcelain": "",
+  });
+  const d = gitGuardDecision("Edit", null, runner);
+  assert.equal(d.permissionDecision, "ask", "should ask on default branch");
+  assert.ok(d.permissionDecisionReason.includes("rama por defecto"), "reason must mention default branch");
+  assert.ok(!d.permissionDecisionReason.includes("sin commitear"), "reason must NOT mention uncommitted changes");
+});
+
+// (b) file-write tool on feat/x, dirty tree → ask with "sin commitear", not "rama por defecto"
+test("git-guard: file-write tool on feature branch with dirty tree → ask with dirty advisory", () => {
+  const runner = makeGitStubRunner({
+    "symbolic-ref": "origin/main",
+    "--show-current": "feat/x",
+    "--porcelain": "M modified.js",
+  });
+  const d = gitGuardDecision("write", null, runner);
+  assert.equal(d.permissionDecision, "ask");
+  assert.ok(d.permissionDecisionReason.includes("sin commitear"), "reason must mention uncommitted changes");
+  assert.ok(!d.permissionDecisionReason.includes("rama por defecto"), "reason must NOT mention default branch");
+});
+
+// (c) file-write tool on default branch AND dirty tree → single ask with both conditions
+test("git-guard: combined condition → single ask with both default-branch and dirty advisories", () => {
+  const runner = makeGitStubRunner({
+    "symbolic-ref": "origin/main",
+    "--show-current": "main",
+    "--porcelain": "M modified.js",
+  });
+  const d = gitGuardDecision("Edit", null, runner);
+  assert.equal(d.permissionDecision, "ask");
+  assert.ok(d.permissionDecisionReason.includes("rama por defecto"), "combined must mention default branch");
+  assert.ok(d.permissionDecisionReason.includes("sin commitear"), "combined must mention uncommitted changes");
+});
+
+// (d) clean feature branch, write tool → allow
+test("git-guard: clean feature branch with write tool → allow", () => {
+  const runner = makeGitStubRunner({
+    "symbolic-ref": "origin/main",
+    "--show-current": "feat/clean",
+    "--porcelain": "",
+  });
+  const d = gitGuardDecision("Edit", null, runner);
+  assert.equal(d.permissionDecision, "allow");
+});
+
+// (e) DISABLE_GIT_COLLABORATION_GUARD=true + dirty main → allow, git runner NOT invoked
+test("git-guard: DISABLE_GIT_COLLABORATION_GUARD=true suppresses advisory and skips git calls", () => {
+  const oldEnv = process.env.DISABLE_GIT_COLLABORATION_GUARD;
+  process.env.DISABLE_GIT_COLLABORATION_GUARD = "true";
+  let runnerInvoked = false;
+  const runner = () => {
+    runnerInvoked = true;
+    throw new Error("git runner should NOT be called when guard is disabled");
+  };
+  try {
+    const d = gitGuardDecision("Edit", null, runner);
+    assert.equal(d.permissionDecision, "allow");
+    assert.equal(runnerInvoked, false, "git runner must NOT be invoked when guard is disabled");
+  } finally {
+    if (oldEnv === undefined) {
+      delete process.env.DISABLE_GIT_COLLABORATION_GUARD;
+    } else {
+      process.env.DISABLE_GIT_COLLABORATION_GUARD = oldEnv;
+    }
+  }
+});
+
+// (f) git push --force command on dirty main → deny (DENY rule beats guard)
+test("git-guard: git push --force → deny (DENY rule wins before guard fires)", () => {
+  const runner = makeGitStubRunner({
+    "symbolic-ref": "origin/main",
+    "--show-current": "main",
+    "--porcelain": "M modified.js",
+  });
+  const d = gitGuardDecision("runTerminalCommand", "git push origin main --force", runner);
+  assert.equal(d.permissionDecision, "deny", "force push is always denied by DENY rule");
+});
+
+// (g) read-only tool (Grep) on dirty main → allow (not a risky action)
+test("git-guard: read-only tool on dirty main → allow (isRiskyAction=false)", () => {
+  const runner = makeGitStubRunner({
+    "symbolic-ref": "origin/main",
+    "--show-current": "main",
+    "--porcelain": "M modified.js",
+  });
+  const d = gitGuardDecision("Grep", null, runner);
+  assert.equal(d.permissionDecision, "allow", "read-only tools are never risky");
+});
+
+// (h) git commit -m "mensaje" on default branch → ask from guard
+test("git-guard: git commit on default branch → ask (guard catches git-commit commands)", () => {
+  const runner = makeGitStubRunner({
+    "symbolic-ref": "origin/main",
+    "--show-current": "main",
+    "--porcelain": "",
+  });
+  const d = gitGuardDecision("runTerminalCommand", 'git commit -m "mensaje"', runner);
+  assert.equal(d.permissionDecision, "ask", "git commit on default branch should be caught by guard");
+  assert.ok(d.permissionDecisionReason.includes("rama por defecto"), "reason must mention default branch");
 });
