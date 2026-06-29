@@ -31,3 +31,9 @@ Treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the ca
 
 See [sdd-phase-common.md](skills/_shared/sdd-phase-common.md) for the return envelope structure. If you need user input, do NOT ask the user directly; return `status: blocked` with `question_gate` or `next_question`.
 
+The `executive_summary` MUST include a non-blocking branch-status note:
+- When the current branch is resolvable: `"Working on branch \`<name>\`"`
+- When the branch cannot be determined: `"Branch status unknown — ensure a feature branch is active before merging"`
+
+`status` MUST NOT be `blocked` for branch-status reasons alone.
+

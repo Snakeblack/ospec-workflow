@@ -366,6 +366,8 @@ Review workload question shape:
 
 Automatic mode does not override this guard. Always pass the resolved delivery strategy to `sdd-apply`.
 
+> **Branch advisory (SHOULD, non-blocking):** Antes de despachar `sdd-apply`, se RECOMIENDA confirmar que hay una rama de feature activa — consulta el skill `branch-pr` para la convención `<tipo>/<descripción>`. Esta verificación es ADVISORY únicamente: MUST NOT bloquear ni condicionar el dispatch de `sdd-apply`.
+
 ### Verification Failure Routing (MANDATORY)
 
 When `sdd-verify` returns `FAIL`, do NOT route everything back to `sdd-apply` by default.
