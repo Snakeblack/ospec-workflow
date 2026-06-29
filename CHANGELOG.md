@@ -8,6 +8,11 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.8.1] - 2026-06-29
+
+### Fixed
+- **Legibilidad del fallo del hook `pre-commit`**: el motivo del rechazo ya no queda enterrado bajo miles de líneas de salida de éxito. `scripts/hooks/pre-commit-hook.js` ahora invoca `scripts/check.js` con `stdio: "pipe"` (en vez de `"inherit"`): en éxito suprime la salida TAP y muestra solo una línea breve de progreso; en fallo vuelca la salida capturada y la cierra con un **banner `===`** que identifica el origen del fallo y los bypass disponibles, dejando el motivo como lo último y más visible. Los bypass existentes (`DISABLE_OSPEC_PRECOMMIT`, `DISABLE_OSPEC_ATTRIBUTION_CHECK`, `git --no-verify`) se preservan. Cambio guiado por SDD (ruta lite) con TDD estricto.
+
 ## [2.8.0] - 2026-06-29
 
 ### Added
