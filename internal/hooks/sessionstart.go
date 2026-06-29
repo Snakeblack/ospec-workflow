@@ -4,6 +4,7 @@
 package hooks
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -33,12 +34,24 @@ type sessionStartInput struct {
 
 // sessionStartOutput is the JSON written to stdout on success.
 type sessionStartOutput struct {
-	Status        string            `json:"status"`
-	OspecDetected bool              `json:"ospecDetected"`
-	Registry      registryResult    `json:"registry"`
-	Baseline      *baselineResult   `json:"baseline,omitempty"`
-	Security      *securityResult   `json:"security,omitempty"`
-	SystemMessage string            `json:"systemMessage,omitempty"`
+	Status           string                    `json:"status"`
+	OspecDetected    bool                      `json:"ospecDetected"`
+	Registry         registryResult            `json:"registry"`
+	Baseline         *baselineResult           `json:"baseline,omitempty"`
+	Security         *securityResult           `json:"security,omitempty"`
+	GitCollaboration *gitCollaborationResult   `json:"gitCollaboration,omitempty"`
+	SystemMessage    string                    `json:"systemMessage,omitempty"`
+}
+
+// gitCollaborationResult holds the git collaboration advisory data.
+// DirtyTree is a pointer so it can be omitted (nil) when the status probe failed
+// (never falsely reports "clean").
+type gitCollaborationResult struct {
+	Status        string  `json:"status"`
+	CurrentBranch *string `json:"currentBranch"`
+	DefaultBranch *string `json:"defaultBranch"`
+	DirtyTree     *bool   `json:"dirtyTree,omitempty"`
+	Message       string  `json:"message"`
 }
 
 type registryResult struct {
@@ -270,6 +283,39 @@ func runSessionStart(input sessionStartInput) ([]byte, int) {
 				alertDetails = append(alertDetails, fmt.Sprintf("%s (%s)", a.File, a.Reason))
 			}
 			out.SystemMessage = fmt.Sprintf("Cuidado: Se detectaron riesgos de seguridad en la inicialización: %s. Por favor asegúrate de corregirlos.", strings.Join(alertDetails, ", "))
+		}
+	}
+
+	// Git collaboration advisory — checked after the security block.
+	// Omitted entirely when the bypass env var is set or when both conditions
+	// are absent (clean feature branch).
+	if os.Getenv("DISABLE_GIT_COLLABORATION_GUARD") != "true" {
+		gsCtx, gsCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer gsCancel()
+		gs := resolveGitState(gsCtx)
+		onDefault := gs.DefaultBranch != nil && gs.CurrentBranch != nil &&
+			*gs.DefaultBranch == *gs.CurrentBranch
+		if onDefault || (gs.Dirty != nil && *gs.Dirty) {
+			branchName := ""
+			if gs.CurrentBranch != nil {
+				branchName = *gs.CurrentBranch
+			}
+			advisory := composeAdvisory(onDefault, gs.Dirty, branchName)
+			collab := &gitCollaborationResult{
+				Status:        "warning",
+				CurrentBranch: gs.CurrentBranch,
+				DefaultBranch: gs.DefaultBranch,
+				// DirtyTree is omitted (nil) when the status probe failed —
+				// we never falsely report "clean".
+				DirtyTree: gs.Dirty,
+				Message:   advisory,
+			}
+			out.GitCollaboration = collab
+			if out.SystemMessage != "" {
+				out.SystemMessage += "\n" + advisory
+			} else {
+				out.SystemMessage = advisory
+			}
 		}
 	}
 

@@ -599,4 +599,122 @@ test("runSessionStart: config read failure (EISDIR/EPERM) does not break session
   assert.equal(result.capabilities, undefined);
 });
 
+// ---------------------------------------------------------------------------
+// Phase 4: Git Collaboration Advisory in SessionStart
+// ---------------------------------------------------------------------------
+
+/**
+ * Git stub runner for session-start advisory tests.
+ * Keys: "symbolic-ref", "--show-current", "--porcelain"
+ */
+function makeSessionGitRunner(responses) {
+  return (args) => {
+    for (const [key, value] of Object.entries(responses)) {
+      if (args.includes(key)) {
+        if (value instanceof Error) throw value;
+        return value;
+      }
+    }
+    throw new Error(`Unexpected git args: ${args.join(" ")}`);
+  };
+}
+
+// (a) default branch + clean tree → gitCollaboration warning with dirtyTree:false
+test("git-collab-session: default branch + clean tree → gitCollaboration.status warning, dirtyTree false, systemMessage mentions default branch", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t);
+  const gitRunner = makeSessionGitRunner({
+    "symbolic-ref": "origin/main",
+    "--show-current": "main",
+    "--porcelain": "",
+  });
+  const result = await runSessionStart({ input: { cwd: workspace }, pluginRoot, gitRunner });
+  assert.ok(result.gitCollaboration, "gitCollaboration must be present");
+  assert.equal(result.gitCollaboration.status, "warning");
+  assert.strictEqual(result.gitCollaboration.dirtyTree, false, "dirtyTree must be false for clean tree");
+  assert.ok(result.systemMessage && result.systemMessage.includes("rama por defecto"), "systemMessage must mention 'rama por defecto'");
+});
+
+// (b) feature branch + dirty tree → gitCollaboration with dirtyTree:true
+test("git-collab-session: feature branch + dirty tree → dirtyTree true, systemMessage mentions 'sin commitear'", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t);
+  const gitRunner = makeSessionGitRunner({
+    "symbolic-ref": "origin/main",
+    "--show-current": "feat/x",
+    "--porcelain": "M modified.js",
+  });
+  const result = await runSessionStart({ input: { cwd: workspace }, pluginRoot, gitRunner });
+  assert.ok(result.gitCollaboration, "gitCollaboration must be present");
+  assert.strictEqual(result.gitCollaboration.dirtyTree, true);
+  assert.ok(result.systemMessage && result.systemMessage.includes("sin commitear"), "systemMessage must mention 'sin commitear'");
+});
+
+// (c) default branch AND dirty tree → single gitCollaboration, message contains both
+test("git-collab-session: combined (default + dirty) → single gitCollaboration entry, message mentions both conditions", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t);
+  const gitRunner = makeSessionGitRunner({
+    "symbolic-ref": "origin/main",
+    "--show-current": "main",
+    "--porcelain": "M modified.js",
+  });
+  const result = await runSessionStart({ input: { cwd: workspace }, pluginRoot, gitRunner });
+  assert.ok(result.gitCollaboration, "gitCollaboration must be present");
+  assert.strictEqual(result.gitCollaboration.dirtyTree, true);
+  assert.ok(result.systemMessage && result.systemMessage.includes("rama por defecto"), "must mention default branch");
+  assert.ok(result.systemMessage && result.systemMessage.includes("sin commitear"), "must mention uncommitted changes");
+});
+
+// (d) clean feature branch → gitCollaboration key absent
+test("git-collab-session: clean feature branch → gitCollaboration key absent", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t);
+  const gitRunner = makeSessionGitRunner({
+    "symbolic-ref": "origin/main",
+    "--show-current": "feat/clean",
+    "--porcelain": "",
+  });
+  const result = await runSessionStart({ input: { cwd: workspace }, pluginRoot, gitRunner });
+  assert.equal(result.gitCollaboration, undefined, "gitCollaboration must be absent for clean feature branch");
+});
+
+// (e) DISABLE_GIT_COLLABORATION_GUARD=true → no gitCollaboration key
+test("git-collab-session: DISABLE_GIT_COLLABORATION_GUARD=true → gitCollaboration key absent", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t);
+  const oldEnv = process.env.DISABLE_GIT_COLLABORATION_GUARD;
+  process.env.DISABLE_GIT_COLLABORATION_GUARD = "true";
+  try {
+    const gitRunner = makeSessionGitRunner({
+      "symbolic-ref": "origin/main",
+      "--show-current": "main",
+      "--porcelain": "M modified.js",
+    });
+    const result = await runSessionStart({ input: { cwd: workspace }, pluginRoot, gitRunner });
+    assert.equal(result.gitCollaboration, undefined, "gitCollaboration must be absent when guard is disabled");
+  } finally {
+    if (oldEnv === undefined) delete process.env.DISABLE_GIT_COLLABORATION_GUARD;
+    else process.env.DISABLE_GIT_COLLABORATION_GUARD = oldEnv;
+  }
+});
+
+// (f) git binary absent → no gitCollaboration, other outputs unaffected
+test("git-collab-session: git binary absent → no gitCollaboration, registry/baseline/security unaffected", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t);
+  const gitRunner = () => { throw new Error("git: command not found"); };
+  const result = await runSessionStart({ input: { cwd: workspace }, pluginRoot, gitRunner });
+  assert.equal(result.gitCollaboration, undefined, "gitCollaboration must be absent when git fails");
+  assert.equal(result.status, "ok", "status must still be ok");
+  assert.equal(result.ospecDetected, true, "ospecDetected must still be true");
+});
+
+// (g) status probe fails + branch resolves to default → gitCollaboration present, dirtyTree NOT present
+test("git-collab-session: status probe fails + on default branch → gitCollaboration present, dirtyTree field absent", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t);
+  const gitRunner = makeSessionGitRunner({
+    "symbolic-ref": "origin/main",
+    "--show-current": "main",
+    "--porcelain": new Error("git status failed"),
+  });
+  const result = await runSessionStart({ input: { cwd: workspace }, pluginRoot, gitRunner });
+  assert.ok(result.gitCollaboration, "gitCollaboration must be present (default branch condition fires)");
+  assert.equal(result.gitCollaboration.dirtyTree, undefined, "dirtyTree must be absent (not false) when status probe fails");
+});
+
 

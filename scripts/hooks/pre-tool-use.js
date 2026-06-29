@@ -4,6 +4,11 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const {
+  resolveGitState,
+  isRiskyAction,
+  composeAdvisory,
+} = require("./lib/git-state.js");
 
 /**
  * Regex that matches forbidden AI/model attribution.
@@ -265,7 +270,9 @@ function recordTokensSync(changeName, tokens) {
   }
 }
 
-function evaluateToolUse(input) {
+function evaluateToolUse(input, opts) {
+  const injectedGitRunner = opts && opts.gitRunner ? opts.gitRunner : undefined;
+
   if (process.env.DISABLE_AGENT_SHIELD !== "true") {
     const paths = extractPaths(input?.tool_input);
     for (const filePath of paths) {
@@ -362,33 +369,59 @@ function evaluateToolUse(input) {
 
   const commands = extractCommands(input?.tool_input);
 
+  // Step 5 — DENY rules fire first (only when commands are present).
+  if (commands.length > 0) {
+    for (const command of commands) {
+      const denyRule = findMatchingRule(command, DENY_RULES);
+      if (denyRule) {
+        return makeDecision("deny", denyRule.reason);
+      }
+    }
+
+    // Deny git commit commands whose message contains AI/model attribution.
+    for (const command of commands) {
+      const attributionResult = checkCommitAttribution(command);
+      if (attributionResult) {
+        return makeDecision("deny", attributionResult);
+      }
+    }
+  }
+
+  // Step 5b — Git collaboration guard (fires for write tools OR git commit
+  // commands, even when the tool carries no explicit command payload).
+  if (process.env.DISABLE_GIT_COLLABORATION_GUARD !== "true") {
+    if (isRiskyAction(input?.tool_name, commands)) {
+      const gitState = resolveGitState(injectedGitRunner);
+      const onDefault =
+        gitState.defaultBranch !== null &&
+        gitState.currentBranch !== null &&
+        gitState.defaultBranch === gitState.currentBranch;
+      if (onDefault || gitState.dirty === true) {
+        const advisory = composeAdvisory(
+          onDefault,
+          gitState.dirty,
+          gitState.currentBranch
+        );
+        return makeDecision("ask", advisory);
+      }
+    }
+  }
+
+  // No commands present — allow without reaching the ASK/ALLOW pass.
+  // MUST remain after Step 5b: file-write tools (Edit, Write, etc.) carry no
+  // command payload, so an earlier placement would prevent Step 5b from ever
+  // evaluating them. Moving this guard before Step 5b disables the git guard
+  // for all file-write tools.
   if (commands.length === 0) {
     if (!isShellTool(input?.tool_name)) {
       return makeDecision("allow", "Tool did not include a command payload.");
     }
-
     return makeDecision("allow", "Shell tool did not include a command payload.");
   }
 
-  for (const command of commands) {
-    const denyRule = findMatchingRule(command, DENY_RULES);
-
-    if (denyRule) {
-      return makeDecision("deny", denyRule.reason);
-    }
-  }
-
-  // Deny git commit commands whose message contains AI/model attribution
-  for (const command of commands) {
-    const attributionResult = checkCommitAttribution(command);
-    if (attributionResult) {
-      return makeDecision("deny", attributionResult);
-    }
-  }
-
+  // Step 6 — ASK rules.
   for (const command of commands) {
     const askRule = findMatchingRule(command, ASK_RULES);
-
     if (askRule) {
       return makeDecision("ask", askRule.reason);
     }
@@ -458,6 +491,7 @@ module.exports = {
   evaluateToolUse,
   extractCommands,
   isShellTool,
+  isRiskyAction,
   normalizeToolName,
   findActiveChangeNameSync,
 };

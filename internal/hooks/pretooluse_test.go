@@ -3,9 +3,12 @@
 package hooks_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/hooks"
@@ -497,5 +500,212 @@ func findWorkspaceRoot() string {
 		dir = parent
 	}
 	return cwd
+}
+
+// ── Phase 5: Step 5b Git Collaboration Guard ──────────────────────────────────
+
+// makeGuardStubRunner builds a gitRunnerFn for Step 5b guard tests.
+// Keys: "symbolic-ref", "--show-current", "--porcelain"
+func makeGuardStubRunner(responses map[string]interface{}) func(ctx context.Context, args []string) (string, error) {
+	return func(ctx context.Context, args []string) (string, error) {
+		for key, val := range responses {
+			for _, arg := range args {
+				if arg == key {
+					switch v := val.(type) {
+					case error:
+						return "", v
+					case string:
+						return v, nil
+					}
+				}
+			}
+		}
+		return "", errors.New("unexpected git args: " + strings.Join(args, " "))
+	}
+}
+
+// preToolUseInputWithTool builds a full stdin JSON with a tool_name and optional command.
+func preToolUseInputWithTool(toolName, command string) []byte {
+	if command != "" {
+		type In struct {
+			ToolName  string `json:"tool_name"`
+			ToolInput struct {
+				Command string `json:"command"`
+			} `json:"tool_input"`
+		}
+		var in In
+		in.ToolName = toolName
+		in.ToolInput.Command = command
+		b, _ := json.Marshal(in)
+		return b
+	}
+	// Tool with no command payload (write tool with file operation)
+	type In struct {
+		ToolName  string `json:"tool_name"`
+		ToolInput struct{} `json:"tool_input"`
+	}
+	var in In
+	in.ToolName = toolName
+	b, _ := json.Marshal(in)
+	return b
+}
+
+// (a) write tool on default branch, clean tree → ask with "rama por defecto"
+func TestPreToolUse_GitGuard_DefaultBranchClean(t *testing.T) {
+	restore := hooks.SetGitRunnerForTest(makeGuardStubRunner(map[string]interface{}{
+		"symbolic-ref":   "origin/main",
+		"--show-current": "main",
+		"--porcelain":    "",
+	}))
+	defer restore()
+
+	got, _ := runPreToolUse(t, preToolUseInputWithTool("edit", ""))
+	if got.PermissionDecision != "ask" {
+		t.Errorf("expected ask, got %q", got.PermissionDecision)
+	}
+	if !containsStr(got.PermissionDecisionReason, "rama por defecto") {
+		t.Errorf("reason must contain 'rama por defecto': %q", got.PermissionDecisionReason)
+	}
+	if containsStr(got.PermissionDecisionReason, "sin commitear") {
+		t.Errorf("reason must NOT contain 'sin commitear': %q", got.PermissionDecisionReason)
+	}
+}
+
+// (b) write tool on feature branch, dirty tree → ask with "sin commitear"
+func TestPreToolUse_GitGuard_DirtyFeatureBranch(t *testing.T) {
+	restore := hooks.SetGitRunnerForTest(makeGuardStubRunner(map[string]interface{}{
+		"symbolic-ref":   "origin/main",
+		"--show-current": "feat/x",
+		"--porcelain":    "M modified.js",
+	}))
+	defer restore()
+
+	got, _ := runPreToolUse(t, preToolUseInputWithTool("write", ""))
+	if got.PermissionDecision != "ask" {
+		t.Errorf("expected ask, got %q", got.PermissionDecision)
+	}
+	if !containsStr(got.PermissionDecisionReason, "sin commitear") {
+		t.Errorf("reason must contain 'sin commitear': %q", got.PermissionDecisionReason)
+	}
+	if containsStr(got.PermissionDecisionReason, "rama por defecto") {
+		t.Errorf("reason must NOT contain 'rama por defecto': %q", got.PermissionDecisionReason)
+	}
+}
+
+// (c) combined: default branch AND dirty → single ask with both conditions
+func TestPreToolUse_GitGuard_Combined(t *testing.T) {
+	restore := hooks.SetGitRunnerForTest(makeGuardStubRunner(map[string]interface{}{
+		"symbolic-ref":   "origin/main",
+		"--show-current": "main",
+		"--porcelain":    "M modified.js",
+	}))
+	defer restore()
+
+	got, _ := runPreToolUse(t, preToolUseInputWithTool("edit", ""))
+	if got.PermissionDecision != "ask" {
+		t.Errorf("expected ask, got %q", got.PermissionDecision)
+	}
+	if !containsStr(got.PermissionDecisionReason, "rama por defecto") {
+		t.Errorf("combined: reason must contain 'rama por defecto': %q", got.PermissionDecisionReason)
+	}
+	if !containsStr(got.PermissionDecisionReason, "sin commitear") {
+		t.Errorf("combined: reason must contain 'sin commitear': %q", got.PermissionDecisionReason)
+	}
+}
+
+// (d) clean feature branch → allow
+func TestPreToolUse_GitGuard_CleanFeatureBranch(t *testing.T) {
+	restore := hooks.SetGitRunnerForTest(makeGuardStubRunner(map[string]interface{}{
+		"symbolic-ref":   "origin/main",
+		"--show-current": "feat/clean",
+		"--porcelain":    "",
+	}))
+	defer restore()
+
+	got, _ := runPreToolUse(t, preToolUseInputWithTool("edit", ""))
+	if got.PermissionDecision != "allow" {
+		t.Errorf("expected allow for clean feature branch, got %q", got.PermissionDecision)
+	}
+}
+
+// (e) DISABLE_GIT_COLLABORATION_GUARD=true → allow regardless
+func TestPreToolUse_GitGuard_EnvBypass(t *testing.T) {
+	os.Setenv("DISABLE_GIT_COLLABORATION_GUARD", "true")
+	defer os.Unsetenv("DISABLE_GIT_COLLABORATION_GUARD")
+
+	invoked := false
+	restore := hooks.SetGitRunnerForTest(func(ctx context.Context, args []string) (string, error) {
+		invoked = true
+		return "", errors.New("must not be called when guard is disabled")
+	})
+	defer restore()
+
+	got, _ := runPreToolUse(t, preToolUseInputWithTool("edit", ""))
+	if got.PermissionDecision != "allow" {
+		t.Errorf("expected allow when guard disabled, got %q", got.PermissionDecision)
+	}
+	if invoked {
+		t.Error("git runner must NOT be invoked when DISABLE_GIT_COLLABORATION_GUARD=true")
+	}
+}
+
+// (f) git push --force command → deny (DENY rule wins before guard fires)
+func TestPreToolUse_GitGuard_DenyWinsOverGuard(t *testing.T) {
+	restore := hooks.SetGitRunnerForTest(makeGuardStubRunner(map[string]interface{}{
+		"symbolic-ref":   "origin/main",
+		"--show-current": "main",
+		"--porcelain":    "M modified.js",
+	}))
+	defer restore()
+
+	got, _ := runPreToolUse(t, preToolUseInput("runTerminalCommand", "git push origin main --force"))
+	if got.PermissionDecision != "deny" {
+		t.Errorf("expected deny (force push denied by DENY rule), got %q", got.PermissionDecision)
+	}
+}
+
+// (g) read-only tool → allow (not a risky action)
+func TestPreToolUse_GitGuard_ReadOnlyTool(t *testing.T) {
+	restore := hooks.SetGitRunnerForTest(makeGuardStubRunner(map[string]interface{}{
+		"symbolic-ref":   "origin/main",
+		"--show-current": "main",
+		"--porcelain":    "M modified.js",
+	}))
+	defer restore()
+
+	got, _ := runPreToolUse(t, preToolUseInputWithTool("Grep", ""))
+	if got.PermissionDecision != "allow" {
+		t.Errorf("expected allow for read-only tool, got %q", got.PermissionDecision)
+	}
+}
+
+func containsStr(s, sub string) bool {
+	return len(s) >= len(sub) && (s == sub || len(sub) == 0 ||
+		func() bool {
+			for i := 0; i+len(sub) <= len(s); i++ {
+				if s[i:i+len(sub)] == sub {
+					return true
+				}
+			}
+			return false
+		}())
+}
+
+// (h) git commit -m "mensaje" on default branch → ask from guard (parity with Node case h)
+func TestPreToolUse_GitGuard_GitCommitOnDefaultBranch(t *testing.T) {
+	restore := hooks.SetGitRunnerForTest(makeGuardStubRunner(map[string]interface{}{
+		"symbolic-ref":   "origin/main",
+		"--show-current": "main",
+		"--porcelain":    "",
+	}))
+	defer restore()
+
+	got, _ := runPreToolUse(t, preToolUseInput("runTerminalCommand", `git commit -m "mensaje"`))
+	if got.PermissionDecision != "ask" {
+		t.Errorf("expected ask for git commit on default branch, got %q", got.PermissionDecision)
+	}
+	if !containsStr(got.PermissionDecisionReason, "rama por defecto") {
+		t.Errorf("reason must contain 'rama por defecto': %q", got.PermissionDecisionReason)
+	}
 }
 
