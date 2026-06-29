@@ -8,6 +8,19 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-06-29
+
+### Added
+- **`git-collaboration-guard` (advisory-first)**: nueva guarda en los hooks `PreToolUse` y `SessionStart` que prepara el harness para colaboración git multi-desarrollador. Detecta cuándo la sesión opera sobre la **rama por defecto** (resuelta vía `origin/HEAD`) y/o sobre un **árbol de trabajo sucio** (`git status --porcelain`), y al editar código o ejecutar `git commit` devuelve `ask` (nunca `deny` por defecto) con un aviso en español. `SessionStart` añade el aviso al iniciar en la rama por defecto.
+- **Detección de árbol sucio**: tercer probe `git status --porcelain`; los ficheros sin trackear cuentan como sucio. El campo `dirtyTree` se **omite** (no se fija a `false`) cuando el probe falla, distinguiendo "limpio" (`false`) de "no se pudo determinar" (`null`).
+- **Bypass por variable de entorno** `DISABLE_GIT_COLLABORATION_GUARD=true`: salta todas las llamadas a git y suprime los avisos.
+- **Sanitización de nombre de rama anti prompt-injection**: `sanitizeBranchName` (paridad Go/Node) elimina caracteres de control, colapsa espacios y trunca a 120 caracteres antes de interpolar el nombre en el aviso visible por el modelo.
+- **Recomendación "rama antes de código"**: el orquestador y las fases `sdd-propose`/`sdd-apply` recomiendan crear una rama antes de modificar código (advisory no bloqueante); la skill `branch-pr` documenta estrategias de colaboración multi-dev.
+
+### Changed
+- **Contratos de hooks `PreToolUse` y `SessionStart`**: se extienden para invocar la guarda de colaboración con *fail-open* por chequeo (si git no resuelve, cada campo falla abierto de forma independiente) y un **deadline compartido de 5 s** repartido entre los tres probes, con paridad estricta entre la implementación Go (`internal/hooks`) y el fallback Node (`scripts/hooks/*.js`). La regla DENY existente mantiene precedencia sobre la guarda (`ask`).
+- **Propagación a los 4 targets**: las recomendaciones de prompts se regeneran en `claude`, `vscode`, `github-copilot` y `opencode` por el pipeline de build.
+
 ## [2.7.0] - 2026-06-27
 
 ### Added
