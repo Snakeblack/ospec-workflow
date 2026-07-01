@@ -8,6 +8,21 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-07-02
+
+### Added
+- **`spec-reconciliation` (drift detection + reconcile opt-in)**: nueva capacidad de conciencia continua sobre el desvío entre `openspec/specs/**` y el código. `detectSpecDrift` en `scripts/lib/ospec-state.js` compara el hash de manifest por dominio baseline contra HEAD, filtrando por los `sources:` globs del Domain Map — sin nuevo campo de manifest.
+- **Resumen de drift en `SessionStart`**: nuevo campo aditivo `result.specDrift` (dominios desviados agregados), espejando los bloques existentes de seguridad/colaboración git. Se omite (no se fija a `undefined`) cuando no hay desvío.
+- **Aviso de drift pre-commit** en `PreToolUse` (Step 5c): en `git commit`, `ask` (nunca `deny`) cuando los ficheros staged solapan con un dominio desviado. La regla DENY existente mantiene precedencia.
+- **`/sdd-reconcile`** (comando + `skills/sdd-reconcile/SKILL.md` + `agents/sdd-reconcile.agent.md`): flujo opt-in que siembra deltas de spec retroactivos acotados a la ventana de diff desde el último hash de baseline registrado del dominio.
+- **Gate de conciencia ambiental SDD** en `agents/sdd-orchestrator.agent.md`: regla always-on que dispara `AskUserQuestion` cuando una tarea no trivial solapa el alcance de un cambio activo o un dominio especificado — sin depender de que el usuario mencione "SDD".
+- **Kill switch `DISABLE_SPEC_DRIFT_GUARD`**: neutraliza ambas rutas de hook nuevas sin efectos residuales.
+
+### Changed
+- **Contratos `hooks` y `agents`**: extendidos con los bloques aditivos de drift (`session-start`, `pre-tool-use`) y el gate de conciencia del orquestador, documentados en `openspec/specs/hooks/spec.md` y `openspec/specs/agents/spec.md`.
+
+Cambio guiado por SDD con TDD estricto. Verificación: **PASS WITH WARNINGS** (776/776 tests, sin CRITICAL). Rastro de auditoría en `openspec/changes/archive/2026-07-02-sdd-context-awareness-reconciliation/`.
+
 ## [2.8.1] - 2026-06-29
 
 ### Fixed
