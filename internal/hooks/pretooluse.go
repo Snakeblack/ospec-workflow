@@ -16,36 +16,14 @@ import (
 	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/rules"
 )
 
-// writeToolNamesSet is the normalized set of tool names that write/modify files.
-// Mirrors WRITE_TOOL_NAMES in scripts/hooks/lib/git-state.js.
-var writeToolNamesSet = map[string]bool{
-	"edit":             true,
-	"write":            true,
-	"createfile":       true,
-	"writefile":        true,
-	"editfile":         true,
-	"applyedits":       true,
-	"strreplaceeditor": true,
-}
-
 // gitCommitPatternRE matches "git commit" in any command string.
 var gitCommitPatternRE = regexp.MustCompile(`(?i)\bgit\s+commit\b`)
 
-// nonAlphanumRE strips non-alphanumeric characters used for tool-name normalization.
-var nonAlphanumRE = regexp.MustCompile(`[^a-z0-9]`)
-
-// normToolName lowercases and strips non-alphanumeric characters from a tool name,
-// mirroring normalizeToolName from scripts/hooks/pre-tool-use.js.
-func normToolName(name string) string {
-	return nonAlphanumRE.ReplaceAllString(strings.ToLower(name), "")
-}
-
 // isRiskyAction mirrors isRiskyAction from scripts/hooks/lib/git-state.js.
-// Returns true when the tool writes/modifies a file OR any command matches "git commit".
-func isRiskyAction(toolName string, cmds []string) bool {
-	if writeToolNamesSet[normToolName(toolName)] {
-		return true
-	}
+// Returns true only when a command matches "git commit". File-write tools
+// (Edit, Write, etc.) are no longer considered risky on their own: the guard
+// behaves like a pre-commit check rather than firing on every edit.
+func isRiskyAction(cmds []string) bool {
 	for _, cmd := range cmds {
 		if gitCommitPatternRE.MatchString(cmd) {
 			return true
@@ -375,15 +353,15 @@ func (h *preToolUseHandler) Run(stdin []byte) ([]byte, int) {
 			currentTokens += estimateTokens(p)
 		}
 
-		if currentTokens > 20000 {
-			reason := fmt.Sprintf("El archivo solicitado excede el límite de tokens sugerido de 20,000 (%d tokens estimados). ¿Desea continuar con su lectura?", currentTokens)
+		if currentTokens > 50000 {
+			reason := fmt.Sprintf("El archivo solicitado excede el límite de tokens sugerido de 50,000 (%d tokens estimados). ¿Desea continuar con su lectura?", currentTokens)
 			return makeDecision("ask", reason), 0
 		}
 
 		changeName := FindActiveChangeName()
 		cumulativeTokens := getCumulativeTokens(changeName)
-		if cumulativeTokens+currentTokens > 90000 {
-			reason := fmt.Sprintf("El consumo acumulado de tokens de la sesión (%d tokens) excede el umbral crítico de 90,000 tokens. Se recomienda forzar una compactación antes de continuar.", cumulativeTokens+currentTokens)
+		if cumulativeTokens+currentTokens > 150000 {
+			reason := fmt.Sprintf("El consumo acumulado de tokens de la sesión (%d tokens) excede el umbral crítico de 150,000 tokens. Se recomienda forzar una compactación antes de continuar.", cumulativeTokens+currentTokens)
 			return makeDecision("ask", reason), 0
 		}
 
@@ -404,10 +382,10 @@ func (h *preToolUseHandler) Run(stdin []byte) ([]byte, int) {
 		}
 	}
 
-	// Step 5b — Git collaboration guard: fires for file-write tools OR git
-	// commit commands, even when the tool carries no command payload.
+	// Step 5b — Git collaboration guard: fires only for git commit commands;
+	// file-write tools no longer trigger it on their own.
 	if os.Getenv("DISABLE_GIT_COLLABORATION_GUARD") != "true" {
-		if isRiskyAction(input.ToolName, cmds) {
+		if isRiskyAction(cmds) {
 			ctx5b, cancel5b := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel5b()
 			gs := resolveGitState(ctx5b)
@@ -425,10 +403,8 @@ func (h *preToolUseHandler) Run(stdin []byte) ([]byte, int) {
 	}
 
 	// No commands present — allow without reaching the ASK/ALLOW pass.
-	// MUST remain after Step 5b: file-write tools (Edit, Write, etc.) carry no
-	// command payload, so an earlier placement would prevent Step 5b from ever
-	// evaluating them. Moving this guard before Step 5b disables the git guard
-	// for all file-write tools.
+	// Step 5b only ever fires for commands matching `git commit`, so tools with
+	// no command payload (Edit, Write, etc.) always fall through to here.
 	if len(cmds) == 0 {
 		return makeDecision("allow", "Tool did not include a command payload."), 0
 	}

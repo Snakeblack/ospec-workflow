@@ -355,19 +355,19 @@ function evaluateToolUse(input, opts) {
       currentTokens += estimateTokens(filePath);
     }
 
-    if (currentTokens > 20000) {
+    if (currentTokens > 50000) {
       return makeDecision(
         "ask",
-        `El archivo solicitado excede el límite de tokens sugerido de 20,000 (${currentTokens.toLocaleString()} tokens estimados). ¿Desea continuar con su lectura?`
+        `El archivo solicitado excede el límite de tokens sugerido de 50,000 (${currentTokens.toLocaleString()} tokens estimados). ¿Desea continuar con su lectura?`
       );
     }
 
     const changeName = findActiveChangeNameSync();
     const cumulativeTokens = getCumulativeTokensSync(changeName);
-    if (cumulativeTokens + currentTokens > 90000) {
+    if (cumulativeTokens + currentTokens > 150000) {
       return makeDecision(
         "ask",
-        `El consumo acumulado de tokens de la sesión (${(cumulativeTokens + currentTokens).toLocaleString()} tokens) excede el umbral crítico de 90,000 tokens. Se recomienda forzar una compactación antes de continuar.`
+        `El consumo acumulado de tokens de la sesión (${(cumulativeTokens + currentTokens).toLocaleString()} tokens) excede el umbral crítico de 150,000 tokens. Se recomienda forzar una compactación antes de continuar.`
       );
     }
 
@@ -396,10 +396,10 @@ function evaluateToolUse(input, opts) {
     }
   }
 
-  // Step 5b — Git collaboration guard (fires for write tools OR git commit
-  // commands, even when the tool carries no explicit command payload).
+  // Step 5b — Git collaboration guard (fires only for git commit commands;
+  // file-write tools no longer trigger it on their own — see git-state.js).
   if (process.env.DISABLE_GIT_COLLABORATION_GUARD !== "true") {
-    if (isRiskyAction(input?.tool_name, commands)) {
+    if (isRiskyAction(commands)) {
       const gitState = resolveGitState(injectedGitRunner);
       const onDefault =
         gitState.defaultBranch !== null &&
@@ -417,10 +417,8 @@ function evaluateToolUse(input, opts) {
   }
 
   // No commands present — allow without reaching the ASK/ALLOW pass.
-  // MUST remain after Step 5b: file-write tools (Edit, Write, etc.) carry no
-  // command payload, so an earlier placement would prevent Step 5b from ever
-  // evaluating them. Moving this guard before Step 5b disables the git guard
-  // for all file-write tools.
+  // Step 5b only ever fires for commands matching `git commit`, so tools with
+  // no command payload (Edit, Write, etc.) always fall through to here.
   if (commands.length === 0) {
     if (!isShellTool(input?.tool_name)) {
       return makeDecision("allow", "Tool did not include a command payload.");

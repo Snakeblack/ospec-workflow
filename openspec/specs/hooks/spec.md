@@ -299,10 +299,10 @@ Si el agente intenta leer un archivo (herramientas como `view_file` o lectura de
 - Si es `.env`, `.env.*`, `secrets.json`, `credentials` o archivos que contienen secretos detectados heurísticamente (como contraseñas fuertes o tokens de API usando expresiones regulares) en archivos de texto de tamaño inferior a 1MB, retornar `ask` con la razón: *"Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura?"*
 
 **Step 3 — TOKEN BUDGET ADVISOR (Lectura Pesada).**
-Si la herramienta lee archivos (como `view_file` o lectura de recurso) y el archivo tiene un tamaño de caracteres estimado superior a **80,000 caracteres** (equivalente heurístico a 20,000 tokens): el hook MUST retornar `ask` advirtiendo sobre el costo de lectura del archivo y requiriendo confirmación.
+Si la herramienta lee archivos (como `view_file` o lectura de recurso) y el archivo tiene un tamaño de caracteres estimado superior a **200,000 caracteres** (equivalente heurístico a 50,000 tokens): el hook MUST retornar `ask` advirtiendo sobre el costo de lectura del archivo y requiriendo confirmación.
 
 **Step 4 — SESSION TOKENS (Contexto Saturado).**
-Si la sesión acumulada de tokens leídos (obtenida del histórico de eventos `.ospec/runtime/subagent-events.jsonl` o de la memoria de sesión) excede los **90,000 tokens** acumulados: el hook MUST retornar `ask` alertando al usuario de la inminente saturación de contexto y sugiriendo la compactación.
+Si la sesión acumulada de tokens leídos (obtenida del histórico de eventos `.ospec/runtime/subagent-events.jsonl` o de la memoria de sesión) excede los **150,000 tokens** acumulados: el hook MUST retornar `ask` alertando al usuario de la inminente saturación de contexto y sugiriendo la compactación.
 
 **Step 5 — DENY (no recovery).** Test cada comando extraído contra las reglas de denegación.
 Si algún comando coincide con una regla de denegación: retornar `deny` con la razón correspondiente.
@@ -320,7 +320,7 @@ Si algún comando coincide con una regla de denegación: retornar `deny` con la 
 
 **Step 5b — GIT COLLABORATION GUARD.** Detecta estados git riesgosos durante el desarrollo y advierte al usuario antes de permitir operaciones potencialmente peligrosas. Full guard logic is specified in the `git-collaboration-guard` domain spec. The guard:
 - Resolves the current branch, default branch (via `origin/HEAD`), and working tree state (via `git status --porcelain`)
-- Evaluates whether the tool is a risky action: a file-write tool OR a command matching `\bgit\s+commit\b`
+- Evaluates whether the tool is a risky action: a command matching `\bgit\s+commit\b` (file-write tools alone are never risky — the guard fires only at commit time, not on every edit)
 - Fires when the risky action coincides with at least one of: (1) current branch = default branch, (2) working tree has uncommitted changes
 - Returns exactly one `ask` response when both conditions hold (combined advisory)
 - Returns `allow` if no conditions hold or the action is not risky

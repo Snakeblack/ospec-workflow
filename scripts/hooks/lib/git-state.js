@@ -5,7 +5,7 @@
  *
  * Exports:
  *   resolveGitState(gitRunner?)  — three independent probes, per-field fail-open
- *   isRiskyAction(toolName, commands) — write-tool or git-commit detection
+ *   isRiskyAction(commands) — git-commit detection
  *   composeAdvisory(onDefault, dirty, branchName) — three Spanish message variants
  */
 
@@ -13,28 +13,7 @@ const { execFileSync } = require("node:child_process");
 
 const TIMEOUT_MS = 5000;
 
-/** Normalized names of tools whose intent is "write/modify a file". */
-const WRITE_TOOL_NAMES = new Set([
-  "edit",
-  "write",
-  "createfile",
-  "writefile",
-  "editfile",
-  "applyedits",
-  "strreplaceeditor",
-]);
-
 const GIT_COMMIT_RE = /\bgit\s+commit\b/i;
-
-/**
- * Normalize a tool name: lowercase, strip non-alphanumeric characters.
- * Matches the existing normalizeToolName function in pre-tool-use.js.
- */
-function normalizeToolName(name) {
-  return String(name || "")
-    .replace(/[^a-z0-9]/gi, "")
-    .toLowerCase();
-}
 
 /**
  * Default git runner: delegates to execFileSync("git", args, …).
@@ -121,15 +100,15 @@ function resolveGitState(gitRunner) {
 }
 
 /**
- * Returns true when the action is "risky" — i.e. the tool writes/modifies
- * a project file OR any command matches `git commit`.
+ * Returns true when the action is "risky" — i.e. any extracted command
+ * matches `git commit`. File-write tools (Edit, Write, etc.) are no longer
+ * considered risky on their own: the guard now behaves like a pre-commit
+ * check rather than firing on every edit.
  *
- * @param {string} toolName
  * @param {string[]} commands
  * @returns {boolean}
  */
-function isRiskyAction(toolName, commands) {
-  if (WRITE_TOOL_NAMES.has(normalizeToolName(toolName))) return true;
+function isRiskyAction(commands) {
   if (Array.isArray(commands)) {
     for (const cmd of commands) {
       if (typeof cmd === "string" && GIT_COMMIT_RE.test(cmd)) return true;

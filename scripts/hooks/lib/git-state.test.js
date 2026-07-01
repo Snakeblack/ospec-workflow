@@ -122,46 +122,28 @@ test("resolveGitState: empty show-current (detached HEAD) → currentBranch null
 // Task 1.2 — isRiskyAction
 // ---------------------------------------------------------------------------
 
-test("isRiskyAction: write-tool names resolve to true", () => {
-  const writeTools = [
-    "edit", "write", "createfile", "writefile",
-    "editfile", "applyedits", "strreplaceeditor",
-  ];
-  for (const toolName of writeTools) {
-    assert.strictEqual(isRiskyAction(toolName, []), true, `expected risky for toolName: ${toolName}`);
-  }
+test("isRiskyAction: git commit command returns true", () => {
+  assert.strictEqual(isRiskyAction(["git commit -m 'fix: test'"]), true, "git commit via -m");
+  assert.strictEqual(isRiskyAction(["git commit --amend"]), true, "git commit --amend");
+  assert.strictEqual(isRiskyAction(["git commit"]), true, "minimal git commit");
 });
 
-test("isRiskyAction: write-tool names are normalized (case/punct insensitive)", () => {
-  assert.strictEqual(isRiskyAction("Edit", []), true, "capital E normalized");
-  assert.strictEqual(isRiskyAction("str_replace_editor", []), true, "underscores stripped");
-  assert.strictEqual(isRiskyAction("STR-REPLACE-EDITOR", []), true, "hyphens stripped, lowercased");
+test("isRiskyAction: non-commit git commands return false", () => {
+  assert.strictEqual(isRiskyAction(["git status"]), false);
+  assert.strictEqual(isRiskyAction(["git log --oneline"]), false);
+  assert.strictEqual(isRiskyAction(["git push"]), false);
 });
 
-test("isRiskyAction: read-only tool names return false", () => {
-  for (const toolName of ["read", "grep", "glob", "search"]) {
-    assert.strictEqual(isRiskyAction(toolName, []), false, `expected NOT risky: ${toolName}`);
-  }
+test("isRiskyAction: empty or missing commands return false", () => {
+  assert.strictEqual(isRiskyAction([]), false);
+  assert.strictEqual(isRiskyAction(undefined), false);
 });
 
-test("isRiskyAction: git commit command returns true regardless of tool name", () => {
-  assert.strictEqual(isRiskyAction("bash", ["git commit -m 'fix: test'"]), true, "bash + git commit");
-  assert.strictEqual(isRiskyAction("read", ["git commit --amend"]), true, "read-tool + git commit → risky");
-  assert.strictEqual(isRiskyAction("grep", ["git commit"]), true, "minimal git commit");
-});
-
-test("isRiskyAction: non-commit command with read-only tool returns false", () => {
-  assert.strictEqual(isRiskyAction("read", ["git status"]), false);
-  assert.strictEqual(isRiskyAction("grep", ["git log --oneline"]), false);
-  assert.strictEqual(isRiskyAction("bash", ["git push"]), false);
-});
-
-test("isRiskyAction: empty commands array with write tool is true", () => {
-  assert.strictEqual(isRiskyAction("write", []), true);
-});
-
-test("isRiskyAction: empty commands array with read tool is false", () => {
-  assert.strictEqual(isRiskyAction("read", []), false);
+test("isRiskyAction: file-write tools alone are no longer risky (no command payload)", () => {
+  // The guard now behaves like a pre-commit check: file-write tools (Edit,
+  // Write, etc.) never carry a command payload, so isRiskyAction([]) is the
+  // only case that applies to them, and it must be false.
+  assert.strictEqual(isRiskyAction([]), false);
 });
 
 // ---------------------------------------------------------------------------
