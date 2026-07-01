@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `git-collaboration-guard` is an advisory-first safeguard that detects risky git states during active development and requests user confirmation before allowing potentially harmful operations. It targets three risky patterns: (1) writing or editing project files while on the default branch, (2) executing `git commit` while on the default branch, and (3) writing or editing files when the working tree already has uncommitted changes (even on a feature branch). The guard always returns `ask`—never `deny`—and degrades gracefully when git is unavailable.
+The `git-collaboration-guard` is an advisory-first safeguard that detects risky git states at the moment of committing and requests user confirmation before allowing potentially harmful operations. It targets two risky patterns: (1) executing `git commit` while on the default branch, and (2) executing `git commit` when the working tree already has uncommitted changes (even on a feature branch). File-write tools (Edit, Write, etc.) do NOT trigger the guard on their own — it behaves like a pre-commit check, evaluated only when a `git commit` command is about to run, rather than on every file edit. The guard always returns `ask`—never `deny`—and degrades gracefully when git is unavailable.
 
 ---
 
@@ -93,36 +93,27 @@ The guard MUST fire when a risky action is detected AND at least one of the foll
 | Default-branch risk | Current branch name equals the resolved default branch name (exact string match) |
 | Dirty-tree risk | `git status --porcelain` returns non-empty output |
 
-A risky action is: the tool's intent is "write/modify a project file" OR the extracted command matches `\bgit\s+commit\b`.
-
-A tool's intent is "write/modify a file" when its normalized name (lower-cased, non-alphanumeric chars stripped) matches any of: `edit`, `write`, `createfile`, `writefile`, `editfile`, `applyedits`, `strreplaceeditor`.
+A risky action is: the extracted command matches `\bgit\s+commit\b`. File-write tools (Edit, Write, etc.) are never risky on their own, regardless of their normalized tool name — only an actual `git commit` command triggers evaluation.
 
 **Combined advisory rule**: when BOTH risk conditions hold simultaneously (on default branch AND dirty tree), the guard MUST emit exactly one combined advisory — never two separate `ask` responses.
 
 If no risk condition holds, or if the action is not risky, the guard MUST NOT fire and MUST return `allow` for this evaluation step.
 
-#### Scenario: On default branch, file-write tool — default-branch advisory fires
+#### Scenario: File-write tool alone, any branch/tree state — guard silent
 
-- GIVEN the current branch is `main` AND the resolved default branch is `main`
-- AND the working tree is clean
-- WHEN the tool invoked is a file-write tool (e.g., `Edit`)
-- THEN the guard MUST return `ask`
-- AND `permissionDecisionReason` MUST mention "default branch" and "feature branch"
+- GIVEN any combination of branch and working tree state, including the default branch with a dirty tree
+- WHEN the tool invoked is a file-write tool (e.g., `Edit`, `Write`) with no `git commit` command in its payload
+- THEN the guard MUST NOT fire
+- AND the step returns `allow`, and evaluation continues to the next PreToolUse step
 
 #### Scenario: On default branch, git commit command — default-branch advisory fires
 
 - GIVEN the current branch is `main` AND the resolved default branch is `main`
+- AND the working tree is clean
 - WHEN a command matching `\bgit\s+commit\b` is extracted from the tool input
 - THEN the guard MUST return `ask`
-- AND `permissionDecisionReason` MUST mention direct-commit risk and recommend a feature branch
-
-#### Scenario: Dirty working tree on feature branch, file-write tool — dirty-tree advisory fires
-
-- GIVEN the current branch is `feat/my-feature` (not the default branch)
-- AND `git status --porcelain` returns non-empty output
-- WHEN the tool invoked is a file-write tool
-- THEN the guard MUST return `ask`
-- AND `permissionDecisionReason` MUST mention "uncommitted changes"
+- AND `permissionDecisionReason` MUST mention "default branch" and "feature branch"
+- AND MUST NOT mention "uncommitted changes"
 
 #### Scenario: Dirty working tree on feature branch, git commit — dirty-tree advisory fires
 
@@ -136,21 +127,21 @@ If no risk condition holds, or if the action is not risky, the guard MUST NOT fi
 
 - GIVEN the current branch is `main` AND the resolved default branch is `main`
 - AND `git status --porcelain` returns non-empty output
-- WHEN the tool invoked is a file-write tool
+- WHEN a command matching `\bgit\s+commit\b` is extracted
 - THEN the guard MUST return exactly one `ask` response
 - AND `permissionDecisionReason` MUST mention both "default branch" and "uncommitted changes"
 
-#### Scenario: Clean tree on feature branch, write tool — guard silent
+#### Scenario: Clean tree on feature branch, git commit — guard silent
 
 - GIVEN the current branch is `feat/my-feature` AND the working tree is clean
-- WHEN the tool is a file-write tool or issues a `git commit` command
+- WHEN the extracted command matches `\bgit\s+commit\b`
 - THEN the guard MUST NOT fire
 - AND evaluation continues to the next PreToolUse step
 
 #### Scenario: Read-only tool — guard silent regardless of conditions
 
 - GIVEN any combination of branch and working tree state
-- WHEN the tool invoked is a read-only tool (e.g., `Read`, `Grep`, `Glob`)
+- WHEN the tool invoked is a read-only tool (e.g., `Read`, `Grep`, `Glob`) and issues no `git commit` command
 - THEN the guard MUST NOT fire
 
 ---
@@ -172,7 +163,7 @@ When the risky state is detected, the guard MUST:
 
 #### Scenario: Default-branch-only advisory message
 
-- GIVEN the guard fires on a file-edit action with current branch `main` and clean working tree
+- GIVEN the guard fires on a `git commit` command with current branch `main` and clean working tree
 - WHEN the advisory is composed
 - THEN `permissionDecision` MUST be `"ask"`
 - AND `permissionDecisionReason` MUST contain the current branch name, "default branch", and "feature branch"
@@ -180,7 +171,7 @@ When the risky state is detected, the guard MUST:
 
 #### Scenario: Dirty-tree-only advisory message
 
-- GIVEN the guard fires on a file-edit action on `feat/my-feature` with a dirty working tree
+- GIVEN the guard fires on a `git commit` command on `feat/my-feature` with a dirty working tree
 - WHEN the advisory is composed
 - THEN `permissionDecision` MUST be `"ask"`
 - AND `permissionDecisionReason` MUST contain "uncommitted changes"
@@ -208,7 +199,7 @@ The bypass MUST be checked before any git command is issued.
 #### Scenario: Bypass active — guard skipped entirely (default-branch case)
 
 - GIVEN `DISABLE_GIT_COLLABORATION_GUARD=true` is set in the process environment
-- WHEN PreToolUse fires for a file-write action on the default branch
+- WHEN PreToolUse fires for a `git commit` command on the default branch
 - THEN the guard MUST NOT invoke any git command
 - AND the step returns `allow` (other steps continue normally)
 
@@ -216,14 +207,14 @@ The bypass MUST be checked before any git command is issued.
 
 - GIVEN `DISABLE_GIT_COLLABORATION_GUARD=true` is set in the process environment
 - AND the working tree is dirty (uncommitted changes present)
-- WHEN PreToolUse fires for a file-write action on any branch
+- WHEN PreToolUse fires for a `git commit` command on any branch
 - THEN the guard MUST NOT run `git status --porcelain`
 - AND no advisory is emitted for the dirty-tree condition
 
 #### Scenario: Bypass variable absent — guard runs both checks
 
 - GIVEN `DISABLE_GIT_COLLABORATION_GUARD` is not set
-- WHEN PreToolUse fires for a file-write action
+- WHEN PreToolUse fires for a `git commit` command
 - THEN the guard executes both the default-branch check and the dirty-tree check
 - AND fires advisories for whichever conditions are detected
 
@@ -242,21 +233,21 @@ Both implementations MUST produce identical `permissionDecision` values and equi
 
 #### Scenario: Go and Node agree on default-branch risky state
 
-- GIVEN identical inputs: current branch = default branch, clean working tree, tool = file-write
+- GIVEN identical inputs: current branch = default branch, clean working tree, command = `git commit`
 - WHEN both Go and Node implementations evaluate the guard
 - THEN both MUST return `permissionDecision: "ask"`
 - AND the `permissionDecisionReason` templates MUST match (modulo dynamic values such as branch name)
 
 #### Scenario: Go and Node agree on dirty-tree risky state
 
-- GIVEN identical inputs: feature branch, dirty working tree, tool = file-write
+- GIVEN identical inputs: feature branch, dirty working tree, command = `git commit`
 - WHEN both implementations evaluate the guard
 - THEN both MUST return `permissionDecision: "ask"`
 - AND the `permissionDecisionReason` templates MUST both mention "uncommitted changes"
 
 #### Scenario: Go and Node agree on combined advisory
 
-- GIVEN identical inputs: current branch = default branch, dirty working tree, tool = file-write
+- GIVEN identical inputs: current branch = default branch, dirty working tree, command = `git commit`
 - WHEN both implementations evaluate the guard
 - THEN both MUST return exactly one `permissionDecision: "ask"` response
 - AND both `permissionDecisionReason` strings MUST mention both "default branch" and "uncommitted changes"
@@ -276,6 +267,10 @@ Both implementations MUST produce identical `permissionDecision` values and equi
 ---
 
 ## Clarifications
+
+### Session 2026-07-02
+
+- Q: File-write tools (Edit, Write, etc.) triggered an `ask` advisory on every edit while on the default branch or with a dirty tree, which was too noisy for normal development. Should the guard keep firing on every file-write action, or only at commit time? → A: Only at commit time. The guard now fires exclusively when the extracted command matches `git commit` — file-write tools alone never trigger it. This turns the guard into a pre-commit check instead of a per-edit nag, while still catching the risky moment (committing directly to the default branch, or committing with other uncommitted changes already present). (Source: user request, 2026-07-02.)
 
 ### Session 2026-06-28
 

@@ -8,6 +8,14 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.9.1] - 2026-07-02
+
+### Changed
+- **`git-collaboration-guard` ahora dispara solo en `git commit`**: antes, cualquier `Edit`/`Write` en la rama por defecto o con árbol sucio devolvía `ask`, generando fricción constante durante la edición normal. Ahora `isRiskyAction` (Node: `scripts/hooks/lib/git-state.js`; Go: `internal/hooks/pretooluse.go`) solo evalúa comandos que matchean `\bgit\s+commit\b` — el guard se comporta como un pre-commit check en vez de interrumpir cada edición. Paridad Go/Node preservada y verificada por tests dedicados.
+- **Umbrales del Token Budget Advisor elevados**: límite por archivo individual `20,000 → 50,000` tokens y límite acumulado de sesión `90,000 → 150,000` tokens, en ambas implementaciones (`scripts/hooks/pre-tool-use.js`, `internal/hooks/pretooluse.go`), reduciendo falsos positivos en lecturas normales de archivos grandes.
+
+Specs actualizados: `openspec/specs/git-collaboration-guard/spec.md`, `openspec/specs/token-budget-advisor/spec.md`, `openspec/specs/hooks/spec.md`. Verificación: `npm test` 774/774, `go test ./...` sin fallos.
+
 ## [2.9.0] - 2026-07-02
 
 ### Added

@@ -86,8 +86,8 @@ El arnés incorpora políticas activas durante el ciclo de vida del agente para 
 
 ### 1. Token Budget Advisor (PreToolUse)
 Controla la lectura excesiva de archivos para proteger el contexto del modelo:
-- **Límite de archivo individual**: Bloquea con advertencia interactiva (`ask`) lecturas de un único archivo que estime más de **20,000 tokens** (~80 KB en código o ~120 KB en texto).
-- **Límite acumulado de sesión**: Si el total acumulado de la sesión excede los **90,000 tokens** (registrado en `.ospec/session/<changeName>/token-events.jsonl`), advierte interactivamente para aconsejar una compactación de contexto.
+- **Límite de archivo individual**: Bloquea con advertencia interactiva (`ask`) lecturas de un único archivo que estime más de **50,000 tokens** (~200 KB en código o ~300 KB en texto).
+- **Límite acumulado de sesión**: Si el total acumulado de la sesión excede los **150,000 tokens** (registrado en `.ospec/session/<changeName>/token-events.jsonl`), advierte interactivamente para aconsejar una compactación de contexto.
 - **Bypass**: Habilita la variable de entorno `DISABLE_TOKEN_ADVISOR=true` para omitir esta validación.
 
 ### 2. AgentShield Security (SessionStart y PreToolUse)

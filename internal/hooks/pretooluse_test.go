@@ -312,9 +312,11 @@ func TestPreToolUse_TokenBudgetAdvisor(t *testing.T) {
 		}
 	})
 
-	t.Run("asks on heavy file reads exceeding 20k tokens", func(t *testing.T) {
+	t.Run("asks on heavy file reads exceeding 50k tokens", func(t *testing.T) {
 		tempFile := filepath.Join(".", "temp_heavy_file_source.js")
-		content := make([]byte, 90000)
+		// .js is a code extension (tokens = bytes / 4), so 220,000 bytes
+		// estimates to 55,000 tokens — just over the 50,000 threshold.
+		content := make([]byte, 220000)
 		for i := range content {
 			content[i] = 'A'
 		}
@@ -333,7 +335,7 @@ func TestPreToolUse_TokenBudgetAdvisor(t *testing.T) {
 		}
 	})
 
-	t.Run("asks on cumulative session tokens exceeding 90k tokens", func(t *testing.T) {
+	t.Run("asks on cumulative session tokens exceeding 150k tokens", func(t *testing.T) {
 		activeChange := hooks.FindActiveChangeName()
 		targetChange := activeChange
 		root := findWorkspaceRoot()
@@ -359,7 +361,7 @@ func TestPreToolUse_TokenBudgetAdvisor(t *testing.T) {
 		}()
 
 		tempLog := filepath.Join(tempSessionDir, "token-events.jsonl")
-		os.WriteFile(tempLog, []byte(`{"t":95000,"ts":123456}
+		os.WriteFile(tempLog, []byte(`{"t":155000,"ts":123456}
 `), 0644)
 
 		stdin := []byte(`{
@@ -550,8 +552,10 @@ func preToolUseInputWithTool(toolName, command string) []byte {
 	return b
 }
 
-// (a) write tool on default branch, clean tree → ask with "rama por defecto"
-func TestPreToolUse_GitGuard_DefaultBranchClean(t *testing.T) {
+// (a) write tool alone (no command payload) on default branch → allow.
+// File-write tools no longer trigger the guard on their own — only an actual
+// `git commit` command does, so it behaves like a pre-commit check.
+func TestPreToolUse_GitGuard_WriteToolAloneOnDefaultBranch(t *testing.T) {
 	restore := hooks.SetGitRunnerForTest(makeGuardStubRunner(map[string]interface{}{
 		"symbolic-ref":   "origin/main",
 		"--show-current": "main",
@@ -560,6 +564,36 @@ func TestPreToolUse_GitGuard_DefaultBranchClean(t *testing.T) {
 	defer restore()
 
 	got, _ := runPreToolUse(t, preToolUseInputWithTool("edit", ""))
+	if got.PermissionDecision != "allow" {
+		t.Errorf("expected allow (write tools alone must not trigger the guard), got %q", got.PermissionDecision)
+	}
+}
+
+// (b) write tool alone on a dirty feature branch → allow (same reason as (a))
+func TestPreToolUse_GitGuard_WriteToolAloneOnDirtyFeatureBranch(t *testing.T) {
+	restore := hooks.SetGitRunnerForTest(makeGuardStubRunner(map[string]interface{}{
+		"symbolic-ref":   "origin/main",
+		"--show-current": "feat/x",
+		"--porcelain":    "M modified.js",
+	}))
+	defer restore()
+
+	got, _ := runPreToolUse(t, preToolUseInputWithTool("write", ""))
+	if got.PermissionDecision != "allow" {
+		t.Errorf("expected allow (write tools alone must not trigger the guard), got %q", got.PermissionDecision)
+	}
+}
+
+// (c) git commit on default branch, clean tree → ask with "rama por defecto"
+func TestPreToolUse_GitGuard_DefaultBranchClean(t *testing.T) {
+	restore := hooks.SetGitRunnerForTest(makeGuardStubRunner(map[string]interface{}{
+		"symbolic-ref":   "origin/main",
+		"--show-current": "main",
+		"--porcelain":    "",
+	}))
+	defer restore()
+
+	got, _ := runPreToolUse(t, preToolUseInput("runTerminalCommand", "git commit -m 'fix: x'"))
 	if got.PermissionDecision != "ask" {
 		t.Errorf("expected ask, got %q", got.PermissionDecision)
 	}
@@ -571,7 +605,7 @@ func TestPreToolUse_GitGuard_DefaultBranchClean(t *testing.T) {
 	}
 }
 
-// (b) write tool on feature branch, dirty tree → ask with "sin commitear"
+// (d) git commit on feature branch, dirty tree → ask with "sin commitear"
 func TestPreToolUse_GitGuard_DirtyFeatureBranch(t *testing.T) {
 	restore := hooks.SetGitRunnerForTest(makeGuardStubRunner(map[string]interface{}{
 		"symbolic-ref":   "origin/main",
@@ -580,7 +614,7 @@ func TestPreToolUse_GitGuard_DirtyFeatureBranch(t *testing.T) {
 	}))
 	defer restore()
 
-	got, _ := runPreToolUse(t, preToolUseInputWithTool("write", ""))
+	got, _ := runPreToolUse(t, preToolUseInput("runTerminalCommand", "git commit -m 'fix: x'"))
 	if got.PermissionDecision != "ask" {
 		t.Errorf("expected ask, got %q", got.PermissionDecision)
 	}
@@ -592,7 +626,7 @@ func TestPreToolUse_GitGuard_DirtyFeatureBranch(t *testing.T) {
 	}
 }
 
-// (c) combined: default branch AND dirty → single ask with both conditions
+// (e) combined: default branch AND dirty → single ask with both conditions
 func TestPreToolUse_GitGuard_Combined(t *testing.T) {
 	restore := hooks.SetGitRunnerForTest(makeGuardStubRunner(map[string]interface{}{
 		"symbolic-ref":   "origin/main",
@@ -601,7 +635,7 @@ func TestPreToolUse_GitGuard_Combined(t *testing.T) {
 	}))
 	defer restore()
 
-	got, _ := runPreToolUse(t, preToolUseInputWithTool("edit", ""))
+	got, _ := runPreToolUse(t, preToolUseInput("runTerminalCommand", "git commit -m 'fix: x'"))
 	if got.PermissionDecision != "ask" {
 		t.Errorf("expected ask, got %q", got.PermissionDecision)
 	}
@@ -613,7 +647,7 @@ func TestPreToolUse_GitGuard_Combined(t *testing.T) {
 	}
 }
 
-// (d) clean feature branch → allow
+// (f) git commit on clean feature branch → allow
 func TestPreToolUse_GitGuard_CleanFeatureBranch(t *testing.T) {
 	restore := hooks.SetGitRunnerForTest(makeGuardStubRunner(map[string]interface{}{
 		"symbolic-ref":   "origin/main",
@@ -622,13 +656,13 @@ func TestPreToolUse_GitGuard_CleanFeatureBranch(t *testing.T) {
 	}))
 	defer restore()
 
-	got, _ := runPreToolUse(t, preToolUseInputWithTool("edit", ""))
+	got, _ := runPreToolUse(t, preToolUseInput("runTerminalCommand", "git commit -m 'fix: x'"))
 	if got.PermissionDecision != "allow" {
 		t.Errorf("expected allow for clean feature branch, got %q", got.PermissionDecision)
 	}
 }
 
-// (e) DISABLE_GIT_COLLABORATION_GUARD=true → allow regardless
+// (g) DISABLE_GIT_COLLABORATION_GUARD=true + git commit on dirty main → allow regardless
 func TestPreToolUse_GitGuard_EnvBypass(t *testing.T) {
 	os.Setenv("DISABLE_GIT_COLLABORATION_GUARD", "true")
 	defer os.Unsetenv("DISABLE_GIT_COLLABORATION_GUARD")
@@ -640,7 +674,7 @@ func TestPreToolUse_GitGuard_EnvBypass(t *testing.T) {
 	})
 	defer restore()
 
-	got, _ := runPreToolUse(t, preToolUseInputWithTool("edit", ""))
+	got, _ := runPreToolUse(t, preToolUseInput("runTerminalCommand", "git commit -m 'fix: x'"))
 	if got.PermissionDecision != "allow" {
 		t.Errorf("expected allow when guard disabled, got %q", got.PermissionDecision)
 	}
@@ -689,23 +723,5 @@ func containsStr(s, sub string) bool {
 			}
 			return false
 		}())
-}
-
-// (h) git commit -m "mensaje" on default branch → ask from guard (parity with Node case h)
-func TestPreToolUse_GitGuard_GitCommitOnDefaultBranch(t *testing.T) {
-	restore := hooks.SetGitRunnerForTest(makeGuardStubRunner(map[string]interface{}{
-		"symbolic-ref":   "origin/main",
-		"--show-current": "main",
-		"--porcelain":    "",
-	}))
-	defer restore()
-
-	got, _ := runPreToolUse(t, preToolUseInput("runTerminalCommand", `git commit -m "mensaje"`))
-	if got.PermissionDecision != "ask" {
-		t.Errorf("expected ask for git commit on default branch, got %q", got.PermissionDecision)
-	}
-	if !containsStr(got.PermissionDecisionReason, "rama por defecto") {
-		t.Errorf("reason must contain 'rama por defecto': %q", got.PermissionDecisionReason)
-	}
 }
 
