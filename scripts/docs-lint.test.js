@@ -13,7 +13,18 @@ const ROOT = path.resolve(__dirname, "..");
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist"]);
 
 function markdownFiles(dir = ROOT, acc = []) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+  // Other test files create/remove real directories under openspec/changes/
+  // while suites run in parallel. A directory can vanish between the parent
+  // readdirSync and this recursive call; treat that race as "no files here"
+  // instead of failing the whole scan.
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch (err) {
+    if (err.code === "ENOENT") return acc;
+    throw err;
+  }
+  for (const entry of entries) {
     if (entry.isDirectory()) {
       if (!SKIP_DIRS.has(entry.name)) {
         markdownFiles(path.join(dir, entry.name), acc);
@@ -45,7 +56,14 @@ function yamlFenceTabLines(text) {
 test("no ```yaml fenced example uses tabs for indentation", () => {
   const problems = [];
   for (const file of markdownFiles()) {
-    const offenders = yamlFenceTabLines(fs.readFileSync(file, "utf8"));
+    let content;
+    try {
+      content = fs.readFileSync(file, "utf8");
+    } catch (err) {
+      if (err.code === "ENOENT") continue;
+      throw err;
+    }
+    const offenders = yamlFenceTabLines(content);
     if (offenders.length > 0) {
       problems.push(`${path.relative(ROOT, file)}: lines ${offenders.join(", ")}`);
     }
