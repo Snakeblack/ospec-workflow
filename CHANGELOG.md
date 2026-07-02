@@ -8,6 +8,16 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-07-02
+
+### Added
+- **Assumption Ledger (`openspec/specs/assumption-ledger/spec.md`)**: nueva capacidad que convierte las micro-decisiones silenciosas de los agentes de fase en un rastro auditable. Define el esquema `assumptions[]` (`id`, `phase`, `statement`, `reversibility`, `basis`), la regla de materialidad (solo impacto en comportamiento observable o contrato público bloquea con `question_gate`; una decisión interna nunca bloquea) y la persistencia en `state.yaml` bajo un nuevo bloque `assumptions:` que espeja el patrón existente de `approvals:`.
+- **Campo `assumptions` opcional en el Result Envelope** (`skills/_shared/sdd-phase-common.md` §D): los agentes de fase pueden devolver entradas de assumption sin que esto afecte a los agentes que no lo usan (campo aditivo, retrocompatible).
+- **Assumption Ledger Protocol en el orquestador** (`agents/sdd-orchestrator.agent.md`): el orquestador persiste cada `assumptions[]` recibido con semántica append/read-merge-update, y es la única autoridad que garantiza unicidad de `id` entre batches (renumera el `seq` local del phase agent al persistir si colisiona).
+- **Assumption Reconciliation Pre-flight en `sdd-verify`** (`skills/sdd-verify/SKILL.md` Step 2a, `skills/sdd-verify/references/report-format.md`): re-presenta cada entrada `unresolved` agrupada por `reversibility`, ofreciendo `confirm`, `correct` o `promote-to-clarification` (esta última solo señaliza `status: promoted`, sin auto-disparar `sdd-clarify`). Las entradas `reversibility: low` que quedan sin resolver escalan a `WARNING` en `verify-report.md`; las `reversibility: high` no escalan.
+
+Cambio guiado por SDD (ruta `standard`) con TDD estricto y gate 4R. Verificación: **PASS** (0 CRITICAL, 0 WARNING tras remediación de 2 hallazgos del gate 4R). Rastro de auditoría en `openspec/changes/archive/2026-07-02-add-assumption-ledger/`.
+
 ## [2.9.1] - 2026-07-02
 
 ### Changed
