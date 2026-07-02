@@ -101,6 +101,31 @@ runtime:
   compaction_safe: true
 ```
 
+## Assumption Ledger
+
+Ademas de `approvals:`, `state.yaml` puede tener un bloque `assumptions:` que registra las micro-decisiones
+que un agente de fase resuelve por su cuenta sin bloquear (ver `openspec/specs/assumption-ledger/spec.md`).
+Cada entrada trae `id` (formato `{phase}-{seq}`, unicidad garantizada por el orquestador al persistir),
+`phase`, `statement`, `reversibility` (`low` | `high`) y `basis`. Solo una decision con impacto en
+comportamiento observable o contrato publico bloquea con `question_gate`; una decision interna nunca
+bloquea la fase, sin importar su `reversibility`.
+
+```yaml
+assumptions:
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "Use camelCase for the internal cache key."
+    reversibility: high
+    basis: "Matches existing cache-key convention in scripts/lib/cache.js."
+    recorded_at: "2026-07-02T00:00:00Z"
+    status: unresolved        # unresolved | confirmed | corrected | promoted
+```
+
+`sdd-verify` re-presenta cada entrada `unresolved` como checklist (Step 2a, Assumption Reconciliation
+Pre-flight) ofreciendo `confirm`, `correct` o `promote-to-clarification` (esta ultima solo marca
+`status: promoted`; nunca auto-dispara `sdd-clarify`). Las entradas `reversibility: low` que quedan sin
+resolver escalan a `WARNING` en `verify-report.md`; las `reversibility: high` no escalan.
+
 ## Archivo
 
 Al cerrar un cambio:
