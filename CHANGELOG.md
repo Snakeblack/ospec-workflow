@@ -16,6 +16,9 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 - **Assumption Ledger Protocol en el orquestador** (`agents/sdd-orchestrator.agent.md`): el orquestador persiste cada `assumptions[]` recibido con semántica append/read-merge-update, y es la única autoridad que garantiza unicidad de `id` entre batches (renumera el `seq` local del phase agent al persistir si colisiona).
 - **Assumption Reconciliation Pre-flight en `sdd-verify`** (`skills/sdd-verify/SKILL.md` Step 2a, `skills/sdd-verify/references/report-format.md`): re-presenta cada entrada `unresolved` agrupada por `reversibility`, ofreciendo `confirm`, `correct` o `promote-to-clarification` (esta última solo señaliza `status: promoted`, sin auto-disparar `sdd-clarify`). Las entradas `reversibility: low` que quedan sin resolver escalan a `WARNING` en `verify-report.md`; las `reversibility: high` no escalan.
 
+### Fixed
+- **Condición de carrera en `docs-lint.test.js`**: el escaneo recursivo en vivo del árbol del repo podía lanzar `ENOENT` cuando otra suite (`validate-phase.test.js`) creaba/borraba en paralelo un directorio real bajo `openspec/changes/`. Detectado en CI (`ubuntu-latest`) por la concurrencia real de `node --test`. Ahora `ENOENT` durante el listado o la lectura se trata como "ya no está" en vez de propagar el error.
+
 Cambio guiado por SDD (ruta `standard`) con TDD estricto y gate 4R. Verificación: **PASS** (0 CRITICAL, 0 WARNING tras remediación de 2 hallazgos del gate 4R). Rastro de auditoría en `openspec/changes/archive/2026-07-02-add-assumption-ledger/`.
 
 ## [2.9.1] - 2026-07-02
