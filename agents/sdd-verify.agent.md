@@ -24,7 +24,7 @@ Also read shared conventions from the repository skills root:
 
 ## Required artifacts
 
-Use OpenSpec as the artifact store. Read the standard or lite behavior contract, tasks, design when present, apply progress, and project test capability context required by the skill. Write only `openspec/changes/{change-name}/verify-report.md`.
+Use OpenSpec as the artifact store. Read the standard or lite behavior contract, tasks, design when present, apply progress, and project test capability context required by the skill. Write `openspec/changes/{change-name}/verify-report.md`, and also permit `state.yaml` assumption-resolution updates (Step 2a of the skill) per the shared persistence contract (`skills/_shared/sdd-phase-common.md` Section C) — no other write targets.
 Treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the canonical workflow state for continuation and recovery; never rely on conversation history.
 
 Do NOT modify production code. Do NOT fix issues found. The orchestrator decides what to do next.

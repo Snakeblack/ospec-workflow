@@ -147,6 +147,30 @@ approvals:
 
 Never infer approval from conversation memory alone.
 
+### Assumption Ledger Protocol
+
+Whenever a phase envelope returns a non-empty `assumptions` field (per `skills/_shared/sdd-phase-common.md` §D — Assumption Entry Schema and Assumption Materiality Rule), read-merge-update a compact assumption entry under:
+
+`openspec/changes/{change-name}/state.yaml`
+
+```yaml
+assumptions:
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "Use camelCase for the internal cache key."
+    reversibility: high
+    basis: "Matches existing cache-key convention in scripts/lib/cache.js."
+    recorded_at: ISO-8601
+    status: unresolved        # unresolved | confirmed | corrected | promoted
+```
+
+Persistence rules:
+- Append each returned entry to the existing `assumptions:` list; never overwrite or reorder prior entries.
+- The orchestrator is the sole authority for `id` uniqueness across the change. Phase agents number `seq` only locally within their own envelope; if an incoming entry's `id` would collide with one already present in `state.yaml`, renumber/reassign its `seq` suffix to `max(existing seq for that phase) + 1`, zero-padded to 3 digits.
+- The orchestrator stamps `recorded_at` (current UTC timestamp) and `status: unresolved` on every persisted entry; phase agents do not set these fields.
+- This protocol MUST fire on every phase return that includes a non-empty `assumptions` field, independent of route or gate configuration — it is not a circumstantial handler.
+- The orchestrator MUST NOT infer assumption entries from conversation memory; only entries explicitly returned in a phase envelope are persisted. A phase envelope with no `assumptions` field, or an empty list, leaves `state.yaml assumptions:` untouched.
+
 ### SDD Init Guard (MANDATORY)
 
 Before executing ANY explicit persisted SDD command (`/sdd-foundation`, `/sdd-new`, `/sdd-ff`, `/sdd-continue`, `/sdd-lite`, `/sdd-explore`, `/sdd-apply`, `/sdd-verify`, `/sdd-archive`), check if `sdd-init` has been run for this project:

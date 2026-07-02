@@ -72,6 +72,13 @@
 **WARNING**: {list or None, tagged with origin `code-bug|tasks-gap|design-gap|spec-gap`}
 **SUGGESTION**: {list or None}
 
+### Assumption Reconciliation
+{Omit this section entirely when `state.yaml assumptions:` is absent or empty.}
+
+| id | statement | reversibility | outcome |
+|----|-----------|----------------|---------|
+| {sdd-design-001} | {statement} | {low\|high} | {confirmed / corrected / promoted / unresolved (WARNING raised) / unresolved (no escalation)} |
+
 ### Verdict
 {PASS / PASS WITH WARNINGS / FAIL}
 {one-line reason}

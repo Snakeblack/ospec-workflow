@@ -154,6 +154,12 @@ En Strict TDD valida tambien que la evidencia de ciclos exista y sea real.
 
 La evidencia ahora se clasifica por niveles: `runtime-test`, `static-proof`, `inspection-proof`, `manual-proof` y `no-proof`. El reporte puede cerrar en `PASS`, `PASS WITH WARNINGS` o `FAIL`, y cada issue debe salir con pista de origen (`code-bug`, `tasks-gap`, `design-gap`, `spec-gap`) para rutear el fix correcto.
 
+Antes de comparar contra specs/diseno/tareas, el Step 2a (Assumption Reconciliation Pre-flight) re-presenta
+cada entrada `unresolved` de `state.yaml.assumptions[]` como checklist agrupado por `reversibility`,
+ofreciendo `confirm`, `correct` o `promote-to-clarification` (ver `openspec/specs/assumption-ledger/spec.md`).
+Las entradas `reversibility: low` que quedan sin resolver escalan a `WARNING`; las `reversibility: high` no
+escalan. Si el cambio no tiene bloque `assumptions:`, el paso es no-op.
+
 Regla clave: un escenario sin test ejecutado y pasado no esta verificado.
 
 ## `sdd-archive`
