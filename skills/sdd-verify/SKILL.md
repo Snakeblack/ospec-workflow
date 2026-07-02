@@ -61,11 +61,26 @@ Compliance rule matrix:
 | SHOULD scenario proved only by `inspection-proof` or `manual-proof` | WARNING. |
 | MAY scenario proved only by `inspection-proof` or `manual-proof` | WARNING unless team accepted the limitation. |
 | Design deviation exists | WARNING unless it breaks a spec. |
+| Unresolved `reversibility: low` assumption entry after the Step 2a checklist | WARNING finding referencing that assumption's `id`. |
+| Unresolved `reversibility: high` assumption entry after the Step 2a checklist | No escalation — MUST NOT raise a finding. |
 
 ## Execution Steps
 
 1. Load relevant skills via shared SDD Section A.
 2. Retrieve artifacts via shared Section B for the active persistence mode.
+
+### Step 2a: Assumption Reconciliation Pre-flight
+
+Runs immediately after artifact retrieval (Step 2) and BEFORE testing/TDD mode resolution (Step 3).
+
+a. Read `openspec/changes/{change-name}/state.yaml` `assumptions:`. If the block is absent or empty, this step is a no-op — skip directly to Step 3; verify behavior is identical to the pre-assumption-ledger baseline.
+b. If unresolved entries exist (`status: unresolved`) and the launch prompt contains no `assumption_resolutions` block, STOP and return `status: blocked` with a checklist `question_gate` (per `skills/_shared/sdd-phase-common.md` §D):
+   - Group entries by `reversibility`. `reversibility: low` entries are presented **individually**, each offering exactly three resolution actions — `confirm` (assumption was correct), `correct` (assumption was wrong; a correction note is recorded), `promote-to-clarification` (flag the entry for a future `sdd-clarify` pass) — plus `leave-unresolved`.
+   - `reversibility: high` entries are grouped into a single `multiSelect` question: confirm all selected; unselected entries stay unresolved with no escalation.
+   - `promote-to-clarification` MUST only set `status: promoted` on the entry; `sdd-verify` MUST NOT auto-invoke `sdd-clarify` — the user alone decides when (or whether) to re-run it.
+c. On relaunch with an `assumption_resolutions` block (`{ id, action: confirm|correct|promote-to-clarification|leave-unresolved, note? }` per entry), apply each resolution to the matching `state.yaml assumptions:` entry — set `status` (`confirmed`/`corrected`/`promoted`) and `resolution: { action, note, resolved_at }` — then continue to Step 3.
+d. Any entry with `reversibility: low` that remains `unresolved` after this pass MUST produce a `WARNING` finding in `verify-report.md` (Decision Gates above), subject to the same `known-issues.md` write contract as other `WARNING` findings (Step 10b). Entries with `reversibility: high` that remain unresolved MUST NOT escalate.
+
 3. Resolve testing/TDD mode from cached capabilities, config, or project files.
 4. Count completed and incomplete tasks.
 5. In standard mode, map each spec requirement/scenario to implementation evidence and tests. In lite mode, map each `proposal-lite.md` acceptance check to evidence.
@@ -157,7 +172,7 @@ After the verify report is finalized, write qualifying findings to `openspec/mem
 
 ## Output Contract
 
-Return `## Verification Report` with change, mode, completeness table, build/tests/coverage evidence, spec compliance matrix including evidence levels, correctness table, design coherence table, issues grouped as CRITICAL/WARNING/SUGGESTION with origin tags, and final verdict `PASS`, `PASS WITH WARNINGS`, or `FAIL`.
+Return `## Verification Report` with change, mode, completeness table, build/tests/coverage evidence, spec compliance matrix including evidence levels, correctness table, design coherence table, a `## Assumption Reconciliation` section (see Step 2a; omitted when `assumptions:` is absent or empty), issues grouped as CRITICAL/WARNING/SUGGESTION with origin tags, and final verdict `PASS`, `PASS WITH WARNINGS`, or `FAIL`.
 
 ## References
 

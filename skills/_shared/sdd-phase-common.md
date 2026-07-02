@@ -148,8 +148,34 @@ Every phase MUST return a structured envelope to the orchestrator:
 - `next_recommended`: the next SDD phase to run, or "none"
 - `risks`: risks discovered, or "None"
 - `skill_resolution`: how skills were loaded — `injected` (received Project Standards in the launch prompt, including orchestrator cached rules), `fallback-registry` (loaded from `.ospec/cache/skill-registry.cache.json`), `fallback-path` (loaded exact `SKILL.md` fallback paths), or `none` (no skills loaded)
+- `assumptions`: OPTIONAL. A list of entries recorded under the Assumption Materiality Rule below, conforming to the Assumption Entry Schema. Omit the field, or return an empty list, when the phase made no assumptions this batch.
 
-Example:
+#### Assumption Entry Schema
+
+Every entry in `assumptions` MUST be an object with exactly these fields, all non-empty:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Unique within the change, format `{phase}-{seq}` (e.g. `sdd-design-001`). The phase agent numbers `seq` only locally within its own return envelope (starting fresh each batch); the orchestrator is the sole authority for cross-batch uniqueness — see the Assumption Ledger Protocol in `agents/sdd-orchestrator.agent.md`. |
+| `phase` | string | SDD phase name that authored the assumption (e.g. `sdd-design`) |
+| `statement` | string | One-sentence description of the decision taken |
+| `reversibility` | enum `low` \| `high` | `low` = costly/hard to undo later (material); `high` = cheap/easy to undo (non-material) |
+| `basis` | string | Rationale: the convention, existing pattern, or evidence that justified the decision |
+
+An entry MUST NOT be recorded with any field missing or empty.
+
+Example entry:
+
+```yaml
+assumptions:
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "Use camelCase for the internal cache key."
+    reversibility: high
+    basis: "Matches existing cache-key convention in scripts/lib/cache.js."
+```
+
+Example envelope:
 
 ```markdown
 **Status**: success
@@ -205,6 +231,17 @@ Use this shape when the question benefits from options, multi-select, or recomme
 If the phase skill has a legacy `next_question` field, it may return `next_question` as plain text. Prefer `question_gate` when structured options are useful.
 
 On `blocked`, update `openspec/changes/{change-name}/state.yaml` with `status: blocked` and record the question or blocker in `blocking_questions`.
+
+### Assumption Materiality Rule
+
+When a phase executor encounters an ambiguity not already resolved by the spec or design artifacts, it MUST apply this rule before proceeding:
+
+1. IF the decision affects observable behavior or a public contract (API shape, CLI flag, file format, envelope field) AND it is not addressed by the existing spec or design, THEN the executor MUST NOT assume; it MUST return `status: blocked` with a `question_gate` describing the decision, per the Blocking Question Envelope above.
+2. ELSE (the decision is internal-only — an implementation detail with no external observable effect, or is already covered by spec/design) the executor MUST proceed, recording one `assumptions` entry (per the Assumption Entry Schema above) with `reversibility` set honestly: `low` if reverting later would be costly, `high` if trivial to revert.
+
+This is the definitive policy: only observable-behavior or public-contract impact triggers `question_gate`. An internal decision NEVER blocks the executing phase, regardless of its `reversibility` value — `reversibility: low` solely determines whether the recorded entry escalates as a material WARNING candidate later, during the `sdd-verify` reconciliation pass (see `skills/sdd-verify/SKILL.md`), not whether the phase blocks today.
+
+Do NOT record an incomplete entry: if any Assumption Entry Schema field cannot be filled in honestly, either complete it before returning or omit the entry entirely.
 
 ## E. Review Workload Guard
 

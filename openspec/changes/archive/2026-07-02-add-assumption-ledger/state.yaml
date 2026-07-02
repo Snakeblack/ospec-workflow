@@ -1,0 +1,103 @@
+schema: sdd-state
+change: add-assumption-ledger
+created_at: "2026-07-02T00:00:00Z"
+classification: normal
+source_roadmap: "analisis-fino/analisis-evolucion-harness.md#a1"
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "classifyChange deterministic (classification: normal); first match in routing table: standard (project.status: active)"
+  validated: true
+  validation_errors: []
+
+approvals:
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: interactive
+    source: AskUserQuestion
+    accepted_at: "2026-07-02T00:00:00Z"
+    applies_to:
+      - session
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: AskUserQuestion
+    accepted_at: "2026-07-02T00:00:00Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: h1-granularity-001
+    gate: scope-granularity
+    decision: "group-related: H1 en 5 changes (A1 | A2+A3 | C1 | C4+E3 | E1)"
+    source: AskUserQuestion
+    accepted_at: "2026-07-02T00:00:00Z"
+    applies_to:
+      - horizon-1
+  - id: clarify-materiality-001
+    gate: clarify
+    decision: "interno + reversibility: low → asumir y registrar; solo contrato público/observable bloquea"
+    source: AskUserQuestion
+    accepted_at: "2026-07-02T02:30:00Z"
+    applies_to:
+      - sdd-clarify
+      - sdd-design
+  - id: clarify-promote-001
+    gate: clarify
+    decision: "promote-to-clarification = solo señalización (status: promoted), sin auto-disparo de sdd-clarify"
+    source: AskUserQuestion
+    accepted_at: "2026-07-02T02:30:00Z"
+    applies_to:
+      - sdd-clarify
+      - sdd-design
+  - id: clarify-id-uniqueness-001
+    gate: clarify
+    decision: "el orquestador asigna/renumera el seq final al persistir en state.yaml; el phase agent numera localmente"
+    source: AskUserQuestion
+    accepted_at: "2026-07-02T02:30:00Z"
+    applies_to:
+      - sdd-clarify
+      - sdd-design
+
+status: archived
+last_updated: "2026-07-02T08:00:00Z"
+
+gates:
+  4r-review-gate:
+    status: done
+    on_blocker: advisory
+    findings_summary: "0 BLOCKER, 0 CRITICAL, 0 WARNING (2 WARNING remediated in batch 2, confirmed by independent re-verify), 0 SUGGESTION"
+    surfaced_to_user: true
+
+phases:
+  propose:
+    status: done
+    artifact: "openspec/changes/add-assumption-ledger/proposal.md"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/add-assumption-ledger/specs/assumption-ledger/spec.md"
+      - "openspec/changes/add-assumption-ledger/specs/agents/spec.md"
+  clarify:
+    status: done
+    questions_asked: 3
+    artifacts:
+      - "openspec/changes/add-assumption-ledger/specs/assumption-ledger/spec.md"
+      - "openspec/changes/add-assumption-ledger/specs/agents/spec.md"
+  design:
+    status: done
+    artifact: "openspec/changes/add-assumption-ledger/design.md"
+  tasks:
+    status: done
+    artifact: "openspec/changes/add-assumption-ledger/tasks.md"
+  apply:
+    status: done
+    artifact: "openspec/changes/add-assumption-ledger/apply-progress.md"
+  verify:
+    status: done
+    artifact: "openspec/changes/add-assumption-ledger/verify-report.md"
+    verdict: PASS
+    reverified_after_batch: 2
+  archive:
+    status: done
+    artifact: "openspec/changes/add-assumption-ledger/archive-report.md"
