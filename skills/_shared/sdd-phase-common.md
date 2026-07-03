@@ -291,6 +291,16 @@ Sub-agents have no memory of the conversation and never see the user's messages,
 - If no `Reply language` line is present, mirror the language of the task and context you were given; if still ambiguous, use the repository's prevailing prose language.
 - This applies ONLY to conversational output returned to the user. Do NOT translate persisted OpenSpec artifacts (`spec.md`, `design.md`, `tasks.md`, `state.yaml`, reports), code, identifiers, file paths, YAML keys, status enum values, or Conventional-Commit types — keep those exactly as the phase skill defines them.
 
+### Mentorship Mode
+
+The orchestrator MAY pass a `Mentorship mode: {mode}` line next to `Reply language`. It calibrates how much reasoning your user-facing prose exposes; it never changes what you build or persist.
+
+- `mentor`: append a **"Por qué así"** section to your `executive_summary` — 2-4 bullets naming the discarded alternatives and the rationale for the chosen path — plus at most 1 teachable concept when one genuinely applies ("this is pattern X; we use it because Y"). In `question_gate` options, expand `description` with didactic context on top of the Recommended Option Description Contract.
+- `balanced` (default, also when the line is absent): include rationale only for architectural decisions and gate questions; skip the teachable concept.
+- `expert`: minimal executive summaries; rationale only when a decision is irreversible.
+
+Boundary (same as Reply Language): mentorship prose lives ONLY in `executive_summary`, `detailed_report`, and `question_gate` text. It MUST NOT alter persisted OpenSpec artifacts, code, identifiers, file paths, or evidence tables.
+
 ## Runtime continuation
 
 Every phase that writes artifacts must preserve resumability:
