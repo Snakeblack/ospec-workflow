@@ -1,0 +1,68 @@
+change: strict-result-envelope
+classification: normal
+status: ready-for-apply
+last_updated: 2026-07-03T20:35:00Z
+blocking_questions: []
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "First match: standard — classification normal + project.status: active; no earlier route conditions (empty project, federated backend, bugfix/refactor/hotfix intent, pending baseline) matched."
+  validated: true
+  validation_errors: []
+approvals:
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: automatic
+    source: AskUserQuestion
+    accepted_at: 2026-07-03T18:35:00Z
+    applies_to:
+      - all-phases
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: AskUserQuestion
+    accepted_at: 2026-07-03T18:35:00Z
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+phases:
+  propose:
+    status: done
+    artifact: "openspec/changes/strict-result-envelope/proposal.md"
+    summary: "Strict json:result-envelope fence; SubagentStop valida+persiste summary a state.yaml; paridad Go/JS con fixtures E1."
+    key_decisions:
+      - "Emisión aditiva (fence junto a prosa), hook fail-safe → rollback parcial seguro"
+      - "Validador de schema manual CommonJS sin deps, espejado en Go"
+      - "Segundo hook con contrato de paridad ejecutable (patrón E1)"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/strict-result-envelope/specs/hooks/spec.md"
+      - "openspec/changes/strict-result-envelope/specs/skills/spec.md"
+      - "openspec/changes/strict-result-envelope/specs/agents/spec.md"
+    summary: "Deltas: SubagentStop parsea/valida/persiste fence json:result-envelope (fail-safe); §D define formato estricto del fence; orquestador consume campos del fence con fallback a prosa."
+    key_decisions:
+      - "Estrategia de merge ante carrera de escritura (hook vs. agente) queda abierta, deferida a sdd-design"
+      - "Fixture floor subagent-stop-*.json = 2; §8a generalizado a tabla por hook (prefijo, script, floor)"
+  clarify:
+    status: done
+    questions_asked: 0
+    summary: "Fast-path 0 preguntas: sin gaps materiales; la decisión hook/agente sobre state.yaml quedó correctamente deferida a design con invariante fijado."
+  design:
+    status: done
+    artifact: "openspec/changes/strict-result-envelope/design.md"
+    summary: "Fence json:result-envelope + validador dep-free espejado en Go; SubagentStop hace fill-gap merge de summary a state.yaml (atomic+lock)."
+    key_decisions:
+      - "Carrera de escritura resuelta: fill-gap merge (no pisa summary no-vacío) + atomic write + advisory lock — ADR-002"
+      - "Validador standalone scripts/lib/result-envelope.js + internal/resultenvelope, schema §D canónico — ADR-003"
+      - "Writer YAML quirúrgico setPhaseSummary en ospec-state.js / yamllite.go; fixtures subagent-stop-* floor 2"
+  tasks:
+    status: done
+    artifact: "openspec/changes/strict-result-envelope/tasks.md"
+    summary: "6 fases, 20 tasks TDD (RED/GREEN); forecast High ~650-780 líneas, 4 work units, chain size-exception (pre-aprobado)."
+    key_decisions:
+      - "Split en 4 PRs: JS validator+docs, JS persistencia+hook, mirror Go, fixtures+parity contract — size-exception ya aceptado"
+baseline_fingerprints:
+  hooks: "sha256:306c09ad76ed5ae08c7c331d72e47b6cde6d3541c80a61eb63b6eb956e66e7c9"
+  skills: "sha256:a0e58f90a06252514861126a40d8cfef069fae7db0a4aa7d3d2e7927382ccf41"
+  agents: "sha256:bb4331706f9b0381e4cb032143bb21ac79366678abba0d17463ffbcffbe10b2f"

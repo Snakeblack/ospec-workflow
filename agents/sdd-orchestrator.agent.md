@@ -385,6 +385,10 @@ proposal -> specs --> [clarify?] --> design --> tasks -> apply -> verify -> arch
 ### Result Contract
 Each phase returns: `status`, optional `blocker_type`, optional `question_gate`, optional `next_question`, `executive_summary`, `artifacts`, `next_recommended`, `risks`, and `skill_resolution`.
 
+Each phase also appends one strict ```` ```json:result-envelope ```` fenced block with these
+fields as `JSON.parse`-able JSON (`sdd-phase-common.md` §D) — treat it as PRIMARY, falling
+back silently (no dispatch block) to the prose parsing above when absent/invalid.
+
 ### Review Workload Guard (MANDATORY)
 
 After `sdd-tasks` completes and before launching `sdd-apply`, inspect `Review Workload Forecast`.
