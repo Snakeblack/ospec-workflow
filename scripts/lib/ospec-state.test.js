@@ -65,6 +65,30 @@ test("reads state metadata from a change directory or state path", async (t) => 
   assert.equal(await readState(path.join(workspace, "missing")), null);
 });
 
+test("readState recovers an orphaned state.yaml.bak before reading (CRITICAL remediation)", async (t) => {
+  const workspace = await createWorkspace(t);
+  const changePath = path.join(workspace, "openspec", "changes", "orphan-bak-change");
+
+  await fs.mkdir(changePath, { recursive: true });
+  // Simulate a crash right after the rename-fallback's backup step: target is
+  // missing, only the .bak sibling survives.
+  await fs.writeFile(
+    path.join(changePath, "state.yaml.bak"),
+    "change: orphan-bak-change\nstatus: active\n",
+  );
+
+  const state = await readState(changePath);
+
+  assert.ok(state, "expected readState to recover the orphaned .bak and return state");
+  assert.equal(state.status, "active");
+  await assert.rejects(
+    fs.stat(path.join(changePath, "state.yaml.bak")),
+    { code: "ENOENT" },
+  );
+  const recovered = await fs.readFile(path.join(changePath, "state.yaml"), "utf8");
+  assert.match(recovered, /status: active/);
+});
+
 test("prefers change status over a top-level status", async (t) => {
   const workspace = await createWorkspace(t);
   const changePath = await createChange(
@@ -764,6 +788,51 @@ test("setPhaseSummary omits key_decisions entirely when the list is empty", () =
   });
 
   assert.doesNotMatch(updated, /key_decisions:/);
+});
+
+test("setPhaseSummary neutralizes an embedded newline in summary so it cannot forge a new YAML line", () => {
+  const updated = setPhaseSummary(STATE_WITH_EMPTY_SUMMARY, "design", {
+    summary: 'ok"\nstatus: done',
+    keyDecisions: [],
+  });
+
+  assert.equal(
+    updated.split("\n").length,
+    STATE_WITH_EMPTY_SUMMARY.split("\n").length,
+    "an embedded raw newline must not add a new physical line to state.yaml",
+  );
+  assert.match(updated, /summary: "ok\\"\\nstatus: done"/);
+});
+
+test("setPhaseSummary neutralizes an embedded CRLF in key_decisions so it cannot forge a new top-level key", () => {
+  const updated = setPhaseSummary(STATE_WITH_EMPTY_SUMMARY, "design", {
+    summary: "Multiple decisions.",
+    keyDecisions: ["a\r\nphases:"],
+  });
+
+  const phasesLines = updated.split("\n").filter((line) => line.trim() === "phases:");
+  assert.equal(
+    phasesLines.length,
+    1,
+    "an embedded CRLF must not fabricate a second top-level phases: line",
+  );
+  assert.match(updated, /- "a\\r\\nphases:"/);
+});
+
+test("setPhaseSummary escapes control characters using code-point-safe truncation", () => {
+  const surrogatePairEmoji = "\u{1F600}"; // 😀 — one code point, two UTF-16 code units
+  const summary = surrogatePairEmoji.repeat(159) + "AB";
+
+  const updated = setPhaseSummary(STATE_WITH_EMPTY_SUMMARY, "design", {
+    summary,
+    keyDecisions: [],
+  });
+
+  const match = updated.match(/summary: "([\s\S]*?)"\r?\n/);
+  assert.ok(match, "expected a summary line to be present");
+  const truncatedCodePoints = Array.from(match[1]);
+  assert.equal(truncatedCodePoints.length, 160);
+  assert.equal(truncatedCodePoints[159], "A");
 });
 
 // --- withFileLock / withAppendLock (generalized) -----------------------------

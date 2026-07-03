@@ -142,7 +142,7 @@ func TestSubagentStop_RecordsDegradedResolution(t *testing.T) {
 		"timestamp":  "2026-06-10T10:35:00+02:00",
 		"agent_type": "sdd-apply",
 		"result": map[string]any{
-			"status":          "success",
+			"status":           "success",
 			"skill_resolution": "fallback-registry",
 		},
 	})
@@ -687,6 +687,78 @@ func TestSubagentStop_NoActiveChangeIsSafeNoOp(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(workspace, "openspec")); err == nil {
 		t.Error("openspec dir must not be created as a side effect")
+	}
+}
+
+func TestSubagentStop_NonSddAgentTypeIsIgnored(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "Plan",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	})
+	runSubagentStop(t, stdin)
+
+	after, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != stateWithEmptyDesignSummary {
+		t.Errorf("state.yaml must be byte-for-byte untouched for a non-sdd-* agent_type, got:\n%s", after)
+	}
+}
+
+func TestSubagentStop_MixedKeyDecisionsOnlyPersistsStrings(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+	envelope := validSubagentEnvelope()
+	envelope["key_decisions"] = []any{"A real decision", float64(42), map[string]any{"nested": true}, "Another real decision", nil}
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"result":     buildFenceText(envelope),
+	})
+	runSubagentStop(t, stdin)
+
+	updated, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(updated), `- "A real decision"`) || !strings.Contains(string(updated), `- "Another real decision"`) {
+		t.Errorf("expected the string entries to be persisted, got:\n%s", updated)
+	}
+	if strings.Contains(string(updated), "42") || strings.Contains(string(updated), "nested") {
+		t.Errorf("expected non-string key_decisions entries to be dropped, not stringified, got:\n%s", updated)
+	}
+}
+
+func TestSubagentStop_SiblingFencesResolveLastSiblingWins(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+	firstEnvelope := validSubagentEnvelope()
+	firstEnvelope["executive_summary"] = "First sibling fence — must lose."
+	secondEnvelope := validSubagentEnvelope()
+	secondEnvelope["executive_summary"] = "Second sibling fence — must win."
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"result": map[string]any{
+			"a_first":  buildFenceText(firstEnvelope),
+			"b_second": buildFenceText(secondEnvelope),
+		},
+	})
+	runSubagentStop(t, stdin)
+
+	updated, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(updated), `summary: "Second sibling fence — must win."`) {
+		t.Errorf("expected last-sibling-wins semantics (matching FindStructuredResolution), got:\n%s", updated)
+	}
+	if strings.Contains(string(updated), "First sibling fence") {
+		t.Errorf("the losing sibling fence must not be persisted, got:\n%s", updated)
 	}
 }
 

@@ -87,3 +87,19 @@ Approval context: execution mode automatic, delivery strategy exception-ok — u
 - [x] 6.1 Run `npm test` / `node --test` for all new/modified JS suites; confirm no regression in existing `PreToolUse` parity or `ospec-state` tests
 - [x] 6.2 Run `go test ./...`; confirm `resultenvelope`, `yamllite`, `hooks` packages pass and parity suite matches JS byte-for-byte (except the documented fail-open fixture)
 - [x] 6.3 Manually trace one `sdd-design` sample return through fence → hook persistence → `state.yaml` diff, confirming fill-gap guard did not clobber an existing summary
+
+## Phase 7: 4R Gate Remediation (post-verify, approved batch `4r-remediation-001`)
+
+RED-first fixes for the 1 BLOCKER + 2 CRITICAL + 5 parity WARNING findings from the
+post-verify 4R review. Pre-existing infra WARNINGs (`recoverOrphanBak` empty catch,
+`findActiveChanges`/`FindActiveChanges` fail-fast, Go `atomicWriteFile` missing `.bak`
+fallback) are explicitly OUT of scope — tracked as follow-up, not fixed here.
+
+- [x] 7.1 BLOCKER: escape `\n`/`\r`/`\t`/C0 control chars in `escapeYamlDoubleQuoted` (both `scripts/lib/ospec-state.js` and `internal/yamllite/yamllite.go`), truncate by code point BEFORE escaping to avoid ever splitting an escape sequence — prevents YAML line-injection via LLM-controlled `executive_summary`/`key_decisions`
+- [x] 7.2 CRITICAL: add JS+Go tests covering the existing non-`sdd-*` `agent_type` guard in `persistResultEnvelope`/`subagentstop.go` (guard code was already correct, only untested)
+- [x] 7.3 CRITICAL: `scripts/lib/atomic-write.js` — surface a non-silent, `.bak`-path-carrying error when the rollback (`bak→target`) itself fails after a failed rename-fallback retry; wire `recoverOrphanBak` into `ospec-state.js#readState` and `subagent-stop.js#persistResultEnvelope`'s fresh re-read so an orphaned `.bak` self-heals on the next read
+- [x] 7.4 WARNING (parity): unify `findEnvelopeInValue` sibling-iteration order to last-sibling-wins/reversed in JS (`subagent-stop.js`), matching Go's existing sorted-reverse walk and `findStructuredResolution`'s semantics
+- [x] 7.5 WARNING (parity): fix Go `resultenvelope.go`'s `sortedKeys` (declared but not sorting) by replacing enum maps' message-joining with declaration-ordered slices, matching the JS `Set` insertion order byte-for-byte
+- [x] 7.6 WARNING (parity): filter non-string `key_decisions` entries in JS `persistResultEnvelope` (was `String()`-coercing), matching Go's existing string-only filter
+- [x] 7.7 WARNING (parity): truncate `summary`/`key_decisions` by Unicode code point (not UTF-16 code unit) in JS, matching Go's `[]rune` truncation (folded into 7.1's fix)
+- [x] 7.8 WARNING (readability): extract the `key_decisions` block-end scan in `setPhaseSummary`/`SetPhaseSummary` into a named helper (`findKeyDecisionsBlockEnd`) in both `ospec-state.js` and `yamllite.go`, reducing nesting depth

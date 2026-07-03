@@ -9,6 +9,7 @@ const {
   ARTIFACT_STORE_MODES,
   DEFAULT_ARTIFACT_STORE_MODE,
 } = require("./artifact-store-modes.js");
+const { recoverOrphanBak } = require("./atomic-write.js");
 
 const TERMINAL_STATUSES = new Set([
   "archived",
@@ -230,6 +231,14 @@ async function readState(changePath) {
       ? resolvedPath
       : path.join(resolvedPath, "state.yaml");
 
+  // CRITICAL remediation (strict-result-envelope 4R gate): a failed
+  // writeFileAtomic double-rename can leave state.yaml MISSING with its
+  // pre-write content orphaned at state.yaml.bak. Recover it before reading
+  // so a transient write failure never looks like "no state.yaml at all" to
+  // callers such as findActiveChanges/persistResultEnvelope.
+  // recoverOrphanBak never throws (it swallows its own recovery errors).
+  await recoverOrphanBak(statePath);
+
   try {
     const [content, stats] = await Promise.all([
       fs.readFile(statePath, "utf8"),
@@ -399,14 +408,71 @@ const PHASE_SUMMARY_MAX_LENGTH = 160;
 const PHASE_SUMMARY_FIELD_INDENT = "    ";
 const PHASE_SUMMARY_LIST_ITEM_INDENT = "      ";
 
-/** Escapes a string for inclusion in a double-quoted YAML scalar. */
+/**
+ * Escapes a string for inclusion in a double-quoted YAML scalar, including
+ * control characters (`\n`, `\r`, `\t`, and other C0 control bytes). Without
+ * this, an LLM-controlled value (executive_summary/key_decisions) containing a
+ * raw newline would become a real physical line break once written to
+ * `state.yaml`, forging arbitrary sibling keys (e.g. `status: done`) against a
+ * line-oriented reader that has no real YAML parser. See BLOCKER remediation,
+ * strict-result-envelope 4R gate.
+ */
 function escapeYamlDoubleQuoted(value) {
-  return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return String(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t")
+    .replace(
+      /[\x00-\x1f]/g,
+      (char) => `\\x${char.charCodeAt(0).toString(16).padStart(2, "0")}`,
+    );
+}
+
+/**
+ * Truncates by Unicode code point (not UTF-16 code unit), matching Go's
+ * `[]rune` truncation in `internal/yamllite`. Truncating raw text first (by
+ * code point) and only THEN escaping guarantees escaping never splits a
+ * multi-char escape sequence — an escape-after-truncate-of-the-escaped-string
+ * order could leave a dangling `\` right before the closing quote, which
+ * would itself be a new injection vector.
+ */
+function truncateToCodePoints(value, maxLength) {
+  return Array.from(String(value)).slice(0, maxLength).join("");
 }
 
 function toYamlDoubleQuoted(value) {
-  const truncated = String(value).slice(0, PHASE_SUMMARY_MAX_LENGTH);
+  const truncated = truncateToCodePoints(value, PHASE_SUMMARY_MAX_LENGTH);
   return `"${escapeYamlDoubleQuoted(truncated)}"`;
+}
+
+/**
+ * Scans forward from a `key_decisions:` header line to find where its nested
+ * list items end (the first line with indent < 6, or `phaseBlockEnd`).
+ * Extracted out of `setPhaseSummary`'s scan loop to keep nesting shallow.
+ */
+function findKeyDecisionsBlockEnd(lines, startIndex, phaseBlockEnd) {
+  let j = startIndex;
+
+  while (j < phaseBlockEnd) {
+    const nestedTrimmed = lines[j].trim();
+
+    if (!nestedTrimmed) {
+      j += 1;
+      continue;
+    }
+
+    const nestedIndent = lines[j].match(/^\s*/)[0].length;
+
+    if (nestedIndent < 6) {
+      break;
+    }
+
+    j += 1;
+  }
+
+  return j;
 }
 
 /** True when a `summary:` value line already carries non-empty content. */
@@ -520,26 +586,7 @@ function setPhaseSummary(content, phase, { summary, keyDecisions = [] } = {}) {
 
     if (/^key_decisions:/.test(trimmed)) {
       keyDecisionsLineIndex = i;
-      let j = i + 1;
-
-      while (j < phaseBlockEnd) {
-        const nestedTrimmed = lines[j].trim();
-
-        if (!nestedTrimmed) {
-          j += 1;
-          continue;
-        }
-
-        const nestedIndent = lines[j].match(/^\s*/)[0].length;
-
-        if (nestedIndent < 6) {
-          break;
-        }
-
-        j += 1;
-      }
-
-      keyDecisionsBlockEnd = j;
+      keyDecisionsBlockEnd = findKeyDecisionsBlockEnd(lines, i + 1, phaseBlockEnd);
     }
   }
 

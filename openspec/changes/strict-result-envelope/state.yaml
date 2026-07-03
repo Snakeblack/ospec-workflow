@@ -1,7 +1,7 @@
 change: strict-result-envelope
 classification: normal
 status: ready-for-verify
-last_updated: 2026-07-04T12:00:00Z
+last_updated: 2026-07-04T14:45:00Z
 blocking_questions: []
 route:
   intended_route: standard
@@ -17,6 +17,14 @@ approvals:
     accepted_at: 2026-07-03T18:35:00Z
     applies_to:
       - all-phases
+  - id: 4r-remediation-001
+    gate: 4r-review-gate
+    decision: fix-blocker-criticals-and-parity-warnings
+    source: AskUserQuestion
+    accepted_at: 2026-07-04T14:10:00Z
+    applies_to:
+      - sdd-apply
+      - sdd-verify
   - id: delivery-strategy-001
     gate: delivery-strategy
     decision: exception-ok
@@ -65,11 +73,50 @@ phases:
   apply:
     status: done
     artifact: "openspec/changes/strict-result-envelope/apply-progress.md"
-    summary: "20/20 tasks. Fence estricto §D + validador JS/Go + persistencia fill-gap en state.yaml vía SubagentStop + fixtures de paridad E1. npm test y go test 100% verdes."
+    summary: "20/20 + 8/8 remediación 4R (BLOCKER inyección YAML, 2 CRITICAL, 5 WARNING paridad). npm test y go test 100% verdes."
     key_decisions:
       - "Prosa del orchestrator recortada dos veces para mantener el body <700 líneas (guard preexistente de real-repo.test.js)"
       - "withLock de Go reutilizado desde internal/store (exportado) en vez de duplicarlo en internal/hooks"
       - "Fixtures subagent-stop-* usan un token placeholder de cwd sustituido por ambos harnesses, para nunca resolver al repo real"
+  verify:
+    status: done
+    artifact: "openspec/changes/strict-result-envelope/verify-report.md"
+    summary: "PASS. 14/14 escenarios; MUST ejecutables en runtime-test; npm test (exit 0) y go test (8 pkgs) verdes incl. contrato E1; assertions limpias; assumptions high auditadas correctas."
+    key_decisions:
+      - "Verdict PASS sin CRITICAL/WARNING; único blemish flaky ambiental EPERM (pasa aislado, runner oficial exit 0)"
+      - "assumptions sdd-apply-001/002 (ambas high) auditadas CORRECTAS con evidencia runtime; quedan unresolved sin escalación"
+gates:
+  4r-review-gate:
+    status: done
+    on_blocker: advisory
+    findings_summary: "1 BLOCKER, 2 CRITICAL, 9 WARNING, 0 SUGGESTION"
+    surfaced_to_user: true
+    remediation: "fix completo aprobado: BLOCKER + 2 CRITICAL + 5 WARNINGs de paridad; infra preexistente (recoverOrphanBak, findActiveChanges fail-fast) queda como follow-up"
+    remediation_status: done
+    remediation_summary: "8/8 tasks (7.1-7.8) TDD RED-first; npm test 914/914 y go test 8 pkgs verdes; gofmt limpio; scope de infra preexistente respetado (sin tocar)."
+    remediation_artifact: "openspec/changes/strict-result-envelope/apply-progress.md#work-unit-5"
+assumptions:
+  - id: sdd-apply-001
+    phase: sdd-apply
+    statement: "key_decisions is treated as an optional pass-through field on the result-envelope fence (not a required §D field), defaulting to [] when absent."
+    reversibility: high
+    basis: "Design's setPhaseSummary signature takes keyDecisions but does not specify its source field on the envelope; §D's required-field table correctly omits it."
+    recorded_at: 2026-07-03T23:59:00Z
+    status: unresolved
+  - id: sdd-apply-002
+    phase: sdd-apply
+    statement: "SubagentStop parity fixtures use a literal __SUBAGENT_STOP_FIXTURE_WORKSPACE__ placeholder token in stdin.cwd, substituted by both harnesses with a checked-in openspec-free workspace path before spawning/dispatching."
+    reversibility: high
+    basis: "Static JSON fixtures cannot embed a portable machine-specific absolute path, yet design requires cwd to resolve to a workspace with no active change so the parity run never mutates a real state.yaml."
+    recorded_at: 2026-07-03T23:59:00Z
+    status: unresolved
+  - id: sdd-apply-003
+    phase: sdd-apply
+    statement: "escapeYamlDoubleQuoted truncates the raw value by Unicode code point to 160 chars BEFORE escaping control characters, rather than escaping first and truncating the escaped string."
+    reversibility: high
+    basis: "Escaping-then-truncating-the-escaped-string can split a freshly-inserted 2-char escape sequence (e.g. \\n) in half, leaving a dangling backslash immediately before the closing quote — re-opening the exact YAML line-injection vector this fix closes. Truncate-raw-by-code-point-then-escape is provably safe and also satisfies the code-point-safe-truncation WARNING in the same fix."
+    recorded_at: 2026-07-04T14:45:00Z
+    status: unresolved
 baseline_fingerprints:
   hooks: "sha256:306c09ad76ed5ae08c7c331d72e47b6cde6d3541c80a61eb63b6eb956e66e7c9"
   skills: "sha256:a0e58f90a06252514861126a40d8cfef069fae7db0a4aa7d3d2e7927382ccf41"

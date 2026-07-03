@@ -275,6 +275,43 @@ func TestValidate_NeverPanicsOnGarbageInput(t *testing.T) {
 	}
 }
 
+// ── Deterministic error message parity (mirrored byte-for-byte from JS) ───────
+
+func TestValidate_BadStatusEnumMessageListsValuesInDeclarationOrder(t *testing.T) {
+	envelope := validEnvelope()
+	envelope["status"] = "nope"
+
+	_, errs := resultenvelope.Validate(envelope)
+	want := "status must be one of: success, partial, blocked"
+	if !containsSubstring(errs, want) {
+		t.Errorf("expected a deterministic, declaration-ordered message %q; got: %v", want, errs)
+	}
+}
+
+func TestValidate_BadReversibilityEnumMessageListsValuesInDeclarationOrder(t *testing.T) {
+	envelope := validEnvelope()
+	envelope["assumptions"] = []any{
+		map[string]any{"id": "a-1", "phase": "sdd-apply", "statement": "x", "reversibility": "nope", "basis": "y"},
+	}
+
+	_, errs := resultenvelope.Validate(envelope)
+	want := "assumptions[0].reversibility must be one of: low, high"
+	if !containsSubstring(errs, want) {
+		t.Errorf("expected a deterministic, declaration-ordered message %q; got: %v", want, errs)
+	}
+}
+
+func TestValidate_BadBlockerTypeEnumMessageListsValuesInDeclarationOrder(t *testing.T) {
+	envelope := validEnvelope()
+	envelope["blocker_type"] = "nope"
+
+	_, errs := resultenvelope.Validate(envelope)
+	want := "blocker_type must be one of: needs_user_decision, design-mismatch, spec-change-required, workload-escalation"
+	if !containsSubstring(errs, want) {
+		t.Errorf("expected a deterministic, declaration-ordered message %q; got: %v", want, errs)
+	}
+}
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 func containsSubstring(errs []string, substr string) bool {

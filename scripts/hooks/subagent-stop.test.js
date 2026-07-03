@@ -343,6 +343,104 @@ test("no active change resolvable — envelope persistence is a safe no-op", asy
   );
 });
 
+test("persistResultEnvelope recovers an orphaned state.yaml.bak before its fresh re-read (CRITICAL remediation)", async (t) => {
+  const workspace = await createWorkspace(t);
+  const changeDir = path.join(
+    workspace,
+    "openspec",
+    "changes",
+    "strict-result-envelope",
+  );
+  await fs.mkdir(changeDir, { recursive: true });
+  // Simulate a crash right after the rename-fallback's backup step: only the
+  // .bak sibling survives, state.yaml itself is missing.
+  const bakPath = path.join(changeDir, "state.yaml.bak");
+  const statePath = path.join(changeDir, "state.yaml");
+  await fs.writeFile(bakPath, STATE_WITH_EMPTY_DESIGN_SUMMARY, "utf8");
+
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: buildFenceText(VALID_ENVELOPE),
+    },
+  });
+
+  const recovered = await fs.readFile(statePath, "utf8");
+  assert.match(
+    recovered,
+    /summary: "Diseñó el flujo de persistencia del envelope\."/,
+  );
+  await assert.rejects(fs.stat(bakPath), { code: "ENOENT" });
+});
+
+test("non-sdd agent_type is ignored — state.yaml is left byte-for-byte intact", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "Plan",
+      result: buildFenceText(VALID_ENVELOPE),
+    },
+  });
+
+  const untouchedState = await fs.readFile(statePath, "utf8");
+  assert.equal(untouchedState, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+});
+
+test("key_decisions with mixed non-string entries only persists the strings (parity with Go, which filters non-strings)", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+  const envelopeWithMixedKeyDecisions = {
+    ...VALID_ENVELOPE,
+    key_decisions: ["A real decision", 42, { nested: true }, "Another real decision", null],
+  };
+
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: buildFenceText(envelopeWithMixedKeyDecisions),
+    },
+  });
+
+  const updatedState = await fs.readFile(statePath, "utf8");
+  assert.match(updatedState, /- "A real decision"/);
+  assert.match(updatedState, /- "Another real decision"/);
+  assert.doesNotMatch(updatedState, /42/);
+  assert.doesNotMatch(updatedState, /nested/);
+});
+
+test("findEnvelopeInValue resolves sibling fences last-sibling-wins, matching findStructuredResolution's semantics", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+  const firstEnvelope = { ...VALID_ENVELOPE, executive_summary: "First sibling fence — must lose." };
+  const secondEnvelope = { ...VALID_ENVELOPE, executive_summary: "Second sibling fence — must win." };
+
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: {
+        first: buildFenceText(firstEnvelope),
+        second: buildFenceText(secondEnvelope),
+      },
+    },
+  });
+
+  const updatedState = await fs.readFile(statePath, "utf8");
+  assert.match(updatedState, /summary: "Second sibling fence — must win\."/);
+  assert.doesNotMatch(updatedState, /First sibling fence/);
+});
+
 test("appends one valid JSON object per degraded event", async (t) => {
   const workspace = await createWorkspace(t);
 

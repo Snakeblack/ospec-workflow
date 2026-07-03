@@ -215,3 +215,41 @@ test("validateEnvelope: never throws on garbage input", () => {
   const result = validateEnvelope(null);
   assert.equal(result.valid, false);
 });
+
+// --- Deterministic error message parity (mirrored byte-for-byte in Go) -----
+
+test("validateEnvelope: bad status enum message lists values in declaration order", () => {
+  const result = validateEnvelope({ ...VALID_ENVELOPE, status: "nope" });
+
+  assert.ok(
+    result.errors.includes("status must be one of: success, partial, blocked"),
+    `expected a deterministic, declaration-ordered message; got: ${JSON.stringify(result.errors)}`,
+  );
+});
+
+test("validateEnvelope: bad reversibility enum message lists values in declaration order", () => {
+  const result = validateEnvelope({
+    ...VALID_ENVELOPE,
+    assumptions: [
+      { id: "a-1", phase: "sdd-apply", statement: "x", reversibility: "nope", basis: "y" },
+    ],
+  });
+
+  assert.ok(
+    result.errors.includes(
+      "assumptions[0].reversibility must be one of: low, high",
+    ),
+    `expected a deterministic, declaration-ordered message; got: ${JSON.stringify(result.errors)}`,
+  );
+});
+
+test("validateEnvelope: bad blocker_type enum message lists values in declaration order", () => {
+  const result = validateEnvelope({ ...VALID_ENVELOPE, blocker_type: "nope" });
+
+  assert.ok(
+    result.errors.includes(
+      "blocker_type must be one of: needs_user_decision, design-mismatch, spec-change-required, workload-escalation",
+    ),
+    `expected a deterministic, declaration-ordered message; got: ${JSON.stringify(result.errors)}`,
+  );
+});

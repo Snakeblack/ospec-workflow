@@ -203,11 +203,30 @@ const (
 )
 
 // escapeYamlDoubleQuoted escapes a string for inclusion in a double-quoted
-// YAML scalar. Mirrors escapeYamlDoubleQuoted in scripts/lib/ospec-state.js.
+// YAML scalar, including control characters (`\n`, `\r`, `\t`, and other C0
+// control bytes). Without this, an LLM-controlled value
+// (executive_summary/key_decisions) containing a raw newline would become a
+// real physical line break once written to state.yaml, forging arbitrary
+// sibling keys (e.g. `status: done`) against a line-oriented reader that has
+// no real YAML parser. Mirrors escapeYamlDoubleQuoted in
+// scripts/lib/ospec-state.js. See BLOCKER remediation, strict-result-envelope
+// 4R gate.
 func escapeYamlDoubleQuoted(value string) string {
 	value = strings.ReplaceAll(value, `\`, `\\`)
 	value = strings.ReplaceAll(value, `"`, `\"`)
-	return value
+	value = strings.ReplaceAll(value, "\n", `\n`)
+	value = strings.ReplaceAll(value, "\r", `\r`)
+	value = strings.ReplaceAll(value, "\t", `\t`)
+
+	var b strings.Builder
+	for _, r := range value {
+		if r < 0x20 {
+			fmt.Fprintf(&b, `\x%02x`, r)
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }
 
 func toYamlDoubleQuoted(value string) string {
@@ -234,6 +253,28 @@ func hasNonEmptySummaryValue(line string) bool {
 
 func lineIndent(line string) int {
 	return len(line) - len(strings.TrimLeft(line, " \t"))
+}
+
+// findKeyDecisionsBlockEnd scans forward from a `key_decisions:` header line
+// to find where its nested list items end (the first line with indent < 6, or
+// phaseBlockEnd). Extracted out of SetPhaseSummary's scan loop to keep
+// nesting shallow. Mirrors findKeyDecisionsBlockEnd in scripts/lib/ospec-state.js.
+func findKeyDecisionsBlockEnd(lines []string, startIndex, phaseBlockEnd int) int {
+	j := startIndex
+
+	for j < phaseBlockEnd {
+		nestedTrimmed := strings.TrimSpace(lines[j])
+		if nestedTrimmed == "" {
+			j++
+			continue
+		}
+		if lineIndent(lines[j]) < 6 {
+			break
+		}
+		j++
+	}
+
+	return j
 }
 
 // SetPhaseSummary is a surgical, line-oriented `state.yaml` writer for the
@@ -319,19 +360,7 @@ func SetPhaseSummary(content, phase, summary string, keyDecisions []string) stri
 		}
 		if strings.HasPrefix(trimmed, "key_decisions:") {
 			keyDecisionsLineIndex = i
-			j := i + 1
-			for j < phaseBlockEnd {
-				nestedTrimmed := strings.TrimSpace(lines[j])
-				if nestedTrimmed == "" {
-					j++
-					continue
-				}
-				if lineIndent(lines[j]) < 6 {
-					break
-				}
-				j++
-			}
-			keyDecisionsBlockEnd = j
+			keyDecisionsBlockEnd = findKeyDecisionsBlockEnd(lines, i+1, phaseBlockEnd)
 		}
 	}
 

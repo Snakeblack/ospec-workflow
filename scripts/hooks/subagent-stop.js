@@ -14,7 +14,7 @@ const {
   setPhaseSummary,
   withFileLock,
 } = require("../lib/ospec-state.js");
-const { writeFileAtomic } = require("../lib/atomic-write.js");
+const { writeFileAtomic, recoverOrphanBak } = require("../lib/atomic-write.js");
 const { extractEnvelope, validateEnvelope } = require("../lib/result-envelope.js");
 
 const EVENT_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.runtimeEvents;
@@ -212,7 +212,13 @@ function findEnvelopeInValue(value, seen = new Set()) {
 
   seen.add(value);
 
-  const nestedValues = Array.isArray(value) ? value : Object.values(value);
+  // Mirrors findStructuredResolution's "last-sibling-wins" semantics: walk
+  // sibling values in reverse so that when two sibling fields both carry a
+  // fence, the LAST one (in object-key insertion order, or array order) wins
+  // deterministically in both runtimes (parity with Go's sorted-reverse walk).
+  const nestedValues = Array.isArray(value)
+    ? [...value].reverse()
+    : Object.values(value).reverse();
 
   for (const nestedValue of nestedValues) {
     const result = findEnvelopeInValue(nestedValue, seen);
@@ -322,12 +328,23 @@ async function persistResultEnvelope({ input, workspace }) {
     }
 
     const envelope = envelopeResult.value;
-    const keyDecisions = Array.isArray(envelope.key_decisions) ? envelope.key_decisions : [];
+    // Filter out non-string entries (parity with internal/hooks/subagentstop.go,
+    // which only relays `item.(string)` values) rather than String()-coercing
+    // them — a stray non-string key_decisions entry should be dropped, not
+    // silently turned into a misleading "[object Object]"/"42"/"null" string.
+    const keyDecisions = Array.isArray(envelope.key_decisions)
+      ? envelope.key_decisions.filter((item) => typeof item === "string")
+      : [];
 
     await withFileLock(activeChange.statePath, async () => {
       let freshContent;
 
       try {
+        // CRITICAL remediation (strict-result-envelope 4R gate): recover an
+        // orphaned state.yaml.bak (left by a failed writeFileAtomic
+        // double-rename) before this re-read-under-lock, so a prior transient
+        // write failure never turns into a silent no-op here.
+        await recoverOrphanBak(activeChange.statePath);
         freshContent = await fs.readFile(activeChange.statePath, "utf8");
       } catch {
         return;

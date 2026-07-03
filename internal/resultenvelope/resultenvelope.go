@@ -12,22 +12,30 @@ import (
 	"strings"
 )
 
-var statusEnum = map[string]bool{
-	"success": true,
-	"partial": true,
-	"blocked": true,
+// Enum values are declared as ordered slices (not just membership maps) so
+// that "must be one of: ..." messages are byte-for-byte deterministic and
+// match the exact declaration order of the JS Set literals in
+// scripts/lib/result-envelope.js (Set iteration preserves insertion order; a
+// Go map does not). See WARNING remediation, strict-result-envelope 4R gate.
+var statusEnumOrder = []string{"success", "partial", "blocked"}
+var reversibilityEnumOrder = []string{"low", "high"}
+var blockerTypeEnumOrder = []string{
+	"needs_user_decision",
+	"design-mismatch",
+	"spec-change-required",
+	"workload-escalation",
 }
 
-var reversibilityEnum = map[string]bool{
-	"low":  true,
-	"high": true,
-}
+var statusEnum = toMembershipSet(statusEnumOrder)
+var reversibilityEnum = toMembershipSet(reversibilityEnumOrder)
+var blockerTypeEnum = toMembershipSet(blockerTypeEnumOrder)
 
-var blockerTypeEnum = map[string]bool{
-	"needs_user_decision":  true,
-	"design-mismatch":      true,
-	"spec-change-required": true,
-	"workload-escalation":  true,
+func toMembershipSet(values []string) map[string]bool {
+	set := make(map[string]bool, len(values))
+	for _, v := range values {
+		set[v] = true
+	}
+	return set
 }
 
 var requiredFields = []string{
@@ -44,18 +52,6 @@ var assumptionRequiredFields = []string{"id", "phase", "statement", "reversibili
 // fenceRe matches the strict json:result-envelope fence, mirroring
 // scripts/lib/result-envelope.js's FENCE_RE.
 var fenceRe = regexp.MustCompile("(?s)```json:result-envelope\r?\n(.*?)```")
-
-func sortedKeys(m map[string]bool) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
-func joinKeys(m map[string]bool) string {
-	return strings.Join(sortedKeys(m), ", ")
-}
 
 // Extract locates the strict json:result-envelope fenced block inside text and
 // attempts to json.Unmarshal its content. Never panics.
@@ -113,7 +109,7 @@ func validateAssumptionEntry(entry any, index int, errs *[]string) {
 
 	if rev, ok := m["reversibility"]; ok && isNonEmptyString(rev) && !reversibilityEnum[rev.(string)] {
 		*errs = append(*errs, fmt.Sprintf(
-			"assumptions[%d].reversibility must be one of: %s", index, joinKeys(reversibilityEnum),
+			"assumptions[%d].reversibility must be one of: %s", index, strings.Join(reversibilityEnumOrder, ", "),
 		))
 	}
 }
@@ -136,7 +132,7 @@ func Validate(obj map[string]any) (valid bool, errs []string) {
 	if status, ok := obj["status"]; ok {
 		s, isString := status.(string)
 		if !isString || !statusEnum[s] {
-			errs = append(errs, fmt.Sprintf("status must be one of: %s", joinKeys(statusEnum)))
+			errs = append(errs, fmt.Sprintf("status must be one of: %s", strings.Join(statusEnumOrder, ", ")))
 		}
 	}
 
@@ -163,7 +159,7 @@ func Validate(obj map[string]any) (valid bool, errs []string) {
 	if v, ok := obj["blocker_type"]; ok {
 		s, isString := v.(string)
 		if !isString || !blockerTypeEnum[s] {
-			errs = append(errs, fmt.Sprintf("blocker_type must be one of: %s", joinKeys(blockerTypeEnum)))
+			errs = append(errs, fmt.Sprintf("blocker_type must be one of: %s", strings.Join(blockerTypeEnumOrder, ", ")))
 		}
 	}
 

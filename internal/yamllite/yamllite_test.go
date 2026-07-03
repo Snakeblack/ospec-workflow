@@ -163,8 +163,8 @@ func TestExtractListSection(t *testing.T) {
 			},
 		},
 		{
-			name: "section not present returns empty slice",
-			content: "status: active\n",
+			name:        "section not present returns empty slice",
+			content:     "status: active\n",
 			sectionName: "approvals",
 			wantLen:     0,
 			check:       nil,
@@ -386,5 +386,61 @@ func TestSetPhaseSummary_OmitsKeyDecisionsWhenEmpty(t *testing.T) {
 
 	if strings.Contains(updated, "key_decisions:") {
 		t.Error("expected key_decisions: to be omitted for an empty list")
+	}
+}
+
+func TestSetPhaseSummary_NeutralizesEmbeddedNewlineInSummary(t *testing.T) {
+	updated := yamllite.SetPhaseSummary(stateWithEmptySummary, "design", "ok\"\nstatus: done", nil)
+
+	wantLines := strings.Count(stateWithEmptySummary, "\n")
+	gotLines := strings.Count(updated, "\n")
+	if gotLines != wantLines {
+		t.Errorf("expected an embedded raw newline to not add a new physical line: want %d lines, got %d\n%s", wantLines, gotLines, updated)
+	}
+	if !strings.Contains(updated, `summary: "ok\"\nstatus: done"`) {
+		t.Errorf("expected the newline to be escaped as a literal \\n sequence, got:\n%s", updated)
+	}
+}
+
+func TestSetPhaseSummary_NeutralizesEmbeddedCRLFInKeyDecisions(t *testing.T) {
+	updated := yamllite.SetPhaseSummary(stateWithEmptySummary, "design", "Multiple decisions.", []string{"a\r\nphases:"})
+
+	phasesLines := 0
+	for _, line := range strings.Split(updated, "\n") {
+		if strings.TrimSpace(line) == "phases:" {
+			phasesLines++
+		}
+	}
+	if phasesLines != 1 {
+		t.Errorf("expected an embedded CRLF to not fabricate a second top-level phases: line, got %d occurrences:\n%s", phasesLines, updated)
+	}
+	if !strings.Contains(updated, `- "a\r\nphases:"`) {
+		t.Errorf("expected the CRLF to be escaped as literal \\r\\n sequences, got:\n%s", updated)
+	}
+}
+
+func TestSetPhaseSummary_TruncatesByCodePointNotUTF16Unit(t *testing.T) {
+	emoji := "\U0001F600" // 😀 — one code point, two UTF-16 code units in JS
+	summary := strings.Repeat(emoji, 159) + "AB"
+
+	updated := yamllite.SetPhaseSummary(stateWithEmptySummary, "design", summary, nil)
+
+	idx := strings.Index(updated, `summary: "`)
+	if idx == -1 {
+		t.Fatal("expected a summary line to be present")
+	}
+	rest := updated[idx+len(`summary: "`):]
+	end := strings.Index(rest, `"`)
+	if end == -1 {
+		t.Fatal("expected a closing quote")
+	}
+	truncated := rest[:end]
+	runeCount := len([]rune(truncated))
+	if runeCount != 160 {
+		t.Errorf("expected 160 code points, got %d", runeCount)
+	}
+	runes := []rune(truncated)
+	if runes[159] != 'A' {
+		t.Errorf("expected the 160th code point to be 'A', got %q", runes[159])
 	}
 }

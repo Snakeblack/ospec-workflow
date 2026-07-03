@@ -264,3 +264,87 @@ Guard held: true
 checks passed"). `go build ./...`, `go vet ./...`, `go test ./...`: all 8 packages green, 0
 regressions. Manual end-to-end trace (6.3) confirms the fence → validate → fill-gap-persist →
 `state.yaml` flow behaves exactly as ADR-002/ADR-003 specify. Ready for `sdd-verify`.
+
+## Work Unit 5 — 4R Gate Remediation (Phase 7, post-verify batch `4r-remediation-001`)
+
+**Status**: done. Fixes 1 BLOCKER + 2 CRITICAL + 5 parity WARNINGs from the post-verify
+4R review, all RED-first. Pre-existing infra WARNINGs explicitly out of scope per the
+user-approved remediation batch: `recoverOrphanBak`'s empty `catch`, `findActiveChanges`/
+`FindActiveChanges` fail-fast behavior, and Go `atomicWriteFile`'s missing `.bak` fallback
+— left as follow-up.
+
+### TDD Cycle Evidence (appended)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR | Notes |
+|------|-----------|-------|-------------|-----|-------|--------------|----------|-------|
+| 7.1 | `scripts/lib/ospec-state.test.js` + `internal/yamllite/yamllite_test.go` | unit (JS+Go) | 49 JS / existing Go `SetPhaseSummary` cases (0 regressions) | Confirmed both RED: JS — injected `\n` produced a real physical `status: done` line and injected `\r\n` fabricated a second `phases:` line; Go — identical two failures | 49/49 JS, all Go `yamllite` green | Added a 4th JS-only case (emoji/surrogate-pair code-point-safe truncation at the 160 boundary) beyond the 2 injection cases, since Go's rune-based truncation already passed | Truncate-by-code-point BEFORE escape (not the literal "escape then truncate" reading of the finding) — chosen because escaping-then-truncating-the-escaped-string can split a 2-char escape sequence and leave a dangling `\` right before the closing quote, which is itself a new injection vector; documented as `sdd-apply-003` | `escapeYamlDoubleQuoted` now escapes `\n`,`\r`,`\t` as literal 2-char sequences and any other C0 control byte as `\xHH`, in both `ospec-state.js` and `yamllite.go`; JS truncation switched from UTF-16 `.slice()` to `Array.from(...).slice()` (code-point safe, matching Go's `[]rune`) |
+| 7.2 | `scripts/hooks/subagent-stop.test.js` + `internal/hooks/subagentstop_test.go` | integration (JS+Go) | 15 JS / 25 Go pre-existing `subagent-stop`/`subagentstop` cases (0 regressions) | Both new tests actually started GREEN (the `agent_type.startsWith("sdd-")` / `strings.HasPrefix(agentName, "sdd-")` guards were already correctly implemented, just uncovered) | 16/16 JS, 26/26 Go in-package | — | — | No production change needed; coverage-only fix. Confirms the CRITICAL finding was a test-coverage gap, not a live bug |
+| 7.3 | `scripts/lib/atomic-write.test.js`, `scripts/lib/ospec-state.test.js`, `scripts/hooks/subagent-stop.test.js` | unit + integration (JS) | 7 pre-existing `atomic-write` cases + 50 `ospec-state` + 15 `subagent-stop` (0 regressions) | Confirmed 3-way RED: (a) double-rename-failure test asserted `error.message` mentions `.bak` and `error.bakPath` is set — failed with the raw untouched `EPERM` message; (b) `readState` orphaned-`.bak` test — `readState` returned `null` because `state.yaml` never existed; (c) `persistResultEnvelope` orphaned-`.bak` integration test (turned out to already be satisfied end-to-end once (b) was fixed, since `findActiveChanges`→`readState` resolves the active change first — see Deviations) | 8/8 atomic-write, 50/50 ospec-state, 16/16 subagent-stop | — | — | `writeFileAtomic`'s rollback-failure branch now throws an aggregate `Error` carrying `.bakPath`/`.code`/`.cause` instead of silently swallowing the rollback error; `recoverOrphanBak` is now called at the top of `ospec-state.js#readState` (before every `fs.readFile`) AND defensively again inside `persistResultEnvelope`'s lock-held fresh-read (defense-in-depth for the narrower race window between `findActiveChanges` resolving the change and the write-lock being acquired) |
+| 7.4 | `scripts/hooks/subagent-stop.test.js` + `internal/hooks/subagentstop_test.go` | integration (JS+Go) | 16 JS / 26 Go (0 regressions) | JS sibling-fence test confirmed RED (picked the first/losing sibling); Go's equivalent test passed immediately (Go's `findEnvelopeInValue` already walked sorted-reverse) | 17/17 JS, 27/27 Go | — | — | JS `findEnvelopeInValue` now reverses sibling values before iterating (matching `findStructuredResolution`'s existing "last-sibling-wins" semantics and Go's sorted-reverse walk); Go test added purely for coverage parity |
+| 7.5 | `scripts/lib/result-envelope.test.js` + `internal/resultenvelope/resultenvelope_test.go` | unit (JS+Go) | 23 JS / 24 Go pre-existing (0 regressions) | JS tests passed immediately (`Set` iteration is insertion-order, already deterministic); Go test confirmed RED (`sortedKeys` never called `sort.Strings`, observed message order `blocked, success, partial` instead of declaration order `success, partial, blocked`) | 26/26 JS, 27/27 Go | Covered all 3 enums (`status`, `reversibility`, `blocker_type`) as 3 separate triangulated cases per runtime | — | Replaced Go's `sortedKeys`/`joinKeys(map[string]bool)` with 3 ordered `[]string` enum-declaration slices (`statusEnumOrder`, `reversibilityEnumOrder`, `blockerTypeEnumOrder`) used directly for `strings.Join` in error messages, keeping the membership maps (`toMembershipSet`) only for O(1) validity checks — now byte-for-byte identical to the JS `Set` insertion order |
+| 7.6 | `scripts/hooks/subagent-stop.test.js` + `internal/hooks/subagentstop_test.go` | integration (JS+Go) | 17 JS / 27 Go (0 regressions) | JS test confirmed RED (`String(42)`→`"42"`, `String({nested:true})`→`"[object Object]"`, `String(null)`→`"null"` were all persisted verbatim); Go test passed immediately (already filters via `item.(string)`) | 18/18 JS, 28/28 Go | — | — | `persistResultEnvelope` in `subagent-stop.js` now filters `key_decisions` to `typeof item === "string"` entries before persisting, dropping non-strings instead of `String()`-coercing them — matches Go's existing behavior exactly |
+| 7.7 | folded into 7.1 (`ospec-state.test.js` emoji/surrogate-pair case) | unit (JS) | same as 7.1 | Confirmed RED: `Array.from(match[1]).length` was 80 (UTF-16 code units halved by surrogate pairs), not 160 | 50/50 | — | — | See 7.1 — `truncateToCodePoints` fixes this jointly with the injection fix |
+| 7.8 | approval-test refactor (all pre-existing `setPhaseSummary`/`SetPhaseSummary` cases used as the safety net; no new test required per the strict-tdd "purely structural extraction" exception) | refactor (JS+Go) | 50/50 JS, all Go `yamllite` green before AND after | N/A — pure refactor, no behavior change | 50/50 JS, Go `yamllite` green after each edit | Triangulation skipped: extraction only moves an existing, already-tested code path into a named function; no new branching introduced | Extracted `findKeyDecisionsBlockEnd(lines, startIndex, phaseBlockEnd)` in both `ospec-state.js` and `yamllite.go`, reducing the `for` → `if` → `while` → `if` nesting in `setPhaseSummary`/`SetPhaseSummary` down to `for` → `if` → (function call) | Ran the full 50-case JS suite and the full Go `yamllite` package after the extraction in each language — 0 regressions |
+
+### Files Changed
+
+| File | Action | What Was Done |
+|------|--------|---------------|
+| `scripts/lib/ospec-state.js` | Modified | `escapeYamlDoubleQuoted` now escapes control chars (`\n`,`\r`,`\t`,C0 → `\xHH`); new `truncateToCodePoints` helper, used by `toYamlDoubleQuoted` before escaping; new `findKeyDecisionsBlockEnd` helper extracted out of `setPhaseSummary`; `readState` now calls `recoverOrphanBak(statePath)` before every read; now requires `./atomic-write.js` |
+| `internal/yamllite/yamllite.go` | Modified | `escapeYamlDoubleQuoted` mirrors the same control-char escaping; new `findKeyDecisionsBlockEnd` helper extracted out of `SetPhaseSummary` (its `toYamlDoubleQuoted` already truncated by rune first, so no truncation-order change was needed there) |
+| `scripts/lib/atomic-write.js` | Modified | The rollback-failure branch inside the Windows rename-fallback's `catch` now throws an aggregate `Error` (`.bakPath`, `.code`, `.cause` set) instead of silently swallowing the rollback error |
+| `scripts/hooks/subagent-stop.js` | Modified | `findEnvelopeInValue` now reverses sibling values before recursing (last-sibling-wins, matching `findStructuredResolution`); `persistResultEnvelope` filters `key_decisions` to string entries only and calls `recoverOrphanBak` before its lock-held fresh re-read; now requires `recoverOrphanBak` from `./atomic-write.js` |
+| `internal/resultenvelope/resultenvelope.go` | Modified | Replaced non-sorting `sortedKeys`/`joinKeys(map)` with 3 declaration-ordered `[]string` enum slices used directly in `strings.Join` for deterministic, JS-parity error messages; kept membership maps (via new `toMembershipSet` helper) for O(1) validity checks |
+| `scripts/lib/ospec-state.test.js` | Modified | +3 injection/truncation cases (`\n` line-forgery, `\r\n` key-forgery, emoji code-point truncation); +1 orphaned-`.bak` recovery case for `readState` |
+| `internal/yamllite/yamllite_test.go` | Modified | +3 cases mirroring the JS injection/truncation cases |
+| `scripts/lib/atomic-write.test.js` | Modified | +1 double-rename-failure case asserting the `.bak`-path-carrying error and that content remains recoverable at `.bak` |
+| `scripts/hooks/subagent-stop.test.js` | Modified | +5 cases: non-`sdd-*` agent guard, orphaned-`.bak` recovery, mixed-type `key_decisions` filtering, sibling-fence last-wins ordering |
+| `internal/hooks/subagentstop_test.go` | Modified | +3 cases mirroring the JS non-`sdd-*` guard, mixed-`key_decisions`, and sibling-fence-order cases (all passed immediately — Go was already correct; added for coverage parity) |
+| `internal/resultenvelope/resultenvelope_test.go` | Modified | +3 cases asserting the exact, declaration-ordered enum messages for `status`, `reversibility`, `blocker_type` |
+| `scripts/lib/result-envelope.test.js` | Modified | +3 cases mirroring the same 3 deterministic-message assertions (all passed immediately — JS `Set` iteration was already insertion-ordered; these now serve as the parity oracle for 7.5) |
+| `openspec/changes/strict-result-envelope/tasks.md` | Modified | Appended `## Phase 7: 4R Gate Remediation` with 8 new `[x]` tasks (7.1-7.8) mapping 1:1 to the approved findings |
+
+### Deviations from Design
+
+- **7.1 truncation-vs-escaping order deviates from the finding's literal wording**
+  (`"ANTES del truncado a 160"`, i.e. escape-then-truncate). Escaping first and then
+  truncating the *escaped* string by 160 chars can split a freshly-inserted 2-char
+  escape sequence (e.g. `\n`) in half, leaving a dangling `\` immediately before the
+  closing `"` — which would itself re-open the exact injection class this fix closes
+  (the dangling backslash would escape the closing quote). Implemented instead:
+  truncate the RAW value by Unicode code point to 160 first, THEN escape the
+  (already-160-code-point) result. This is provably safe (escaping a complete string
+  can never produce a half-sequence) and additionally satisfies WARNING 7.7
+  (code-point-safe truncation) in the same change. Recorded as assumption
+  `sdd-apply-003` (reversibility: high — purely an internal ordering detail inside a
+  single private helper, not part of any documented external contract).
+- **7.3's `persistResultEnvelope`-level `recoverOrphanBak` call could not be isolated
+  as its own RED test**: `findActiveChanges` (used to resolve the active change before
+  `persistResultEnvelope`'s own read) already routes through the newly-fixed
+  `readState`, so by the time `persistResultEnvelope`'s fresh-read-under-lock runs, an
+  orphaned `.bak` at the top level has already self-healed. The added integration test
+  therefore validates the end-to-end observable behavior (orphaned `.bak` → hook still
+  persists correctly) rather than isolating the second call site in a unit test — the
+  second `recoverOrphanBak` call remains defense-in-depth for the narrower race window
+  between `findActiveChanges` resolving the change and the write-lock being acquired,
+  and is exercised (as a no-op fast path) by the same test and by all pre-existing
+  `subagent-stop.test.js` persistence cases.
+- No spec delta changes were required: none of the 8 fixes alter any stdout-observable
+  hook contract already asserted by `specs/hooks/spec.md` §REQ-hooks-001 or the E1
+  parity fixtures (`internal/testdata/parity/subagent-stop-*.json`) — confirmed by the
+  full parity suite staying green byte-for-byte after every fix.
+
+### Issues Found
+
+None beyond what is already documented in Work Unit 4's "Issues Found" (pre-existing,
+environmental EPERM/token-advisor flakes, unrelated to this batch). This batch's full
+`npm test` and `go test ./...` runs were both clean on the first attempt, no retries
+needed.
+
+### Status
+**8/8 remediation tasks complete (7.1-7.8).** `npm test`: 914/914 passing, 0 errors/0
+warnings, "All checks passed". `go build ./...`, `go vet ./...`, `go test ./...`: all 8
+packages green, 0 regressions. `gofmt -l` clean on every modified Go file. Scope
+respected: no changes to `recoverOrphanBak`'s empty catch, `findActiveChanges`/
+`FindActiveChanges` fail-fast behavior, or Go `atomicWriteFile`'s missing `.bak`
+fallback (explicitly deferred follow-up). Ready for `sdd-verify` re-run on this batch.
