@@ -19,3 +19,7 @@
 | agents | done | 5 | 59fbfe8 | 2026-06-14T17:00:00Z |
 | skill-registry | done | 6 | 59fbfe8 | 2026-06-14T18:00:00Z |
 | install | done | 7 | 59fbfe8 | 2026-06-14T19:00:00Z |
+| agents | reconciled | - | 5beb80c | 2026-07-03T18:41:30Z |
+| skills | reconciled | - | 5beb80c | 2026-07-03T18:45:19Z |
+| hooks | reconciled | - | 5beb80c | 2026-07-03T18:49:43Z |
+| skills | reconciled | - | 5beb80c | 2026-07-03T18:53:55Z |

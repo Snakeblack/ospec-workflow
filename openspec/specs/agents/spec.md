@@ -1254,6 +1254,134 @@ no new runtime code is introduced by formalizing the field.
 
 ---
 
+## 16. Reconciled Capabilities (retroactive, PRs #32/#33)
+
+> Reconciled retroactively by `/sdd-reconcile agents` on 2026-07-03, folding
+> already-shipped orchestrator behavior (window `59fbfe8..HEAD`) into this
+> baseline spec. Only the portions of these capabilities that live in
+> `agents/sdd-orchestrator.agent.md` are documented here; the corresponding
+> `skills/` portions belong to the `skills` domain spec.
+
+### Requirement: Orchestrator Mentorship Mode Forwarding
+
+`openspec/config.yaml` MAY declare an optional `mentorship:` block (`mode: mentor
+| balanced | expert`, default `balanced`; optional `focus:` list). The
+orchestrator MUST resolve this block ONCE per session — together with the
+existing strict-TDD resolution read — and cache the result for the rest of the
+session.
+
+The orchestrator MUST inject one line into EVERY phase sub-agent launch
+prompt, placed next to the `Reply language` line: `Mentorship mode: {mode}`
+(appending `— focus: {list}` when `focus` is declared). When the `mentorship:`
+block is absent, the orchestrator MUST use `balanced` and MUST NOT ask the
+user for a mode.
+
+Per-mode prose semantics (the "Por qué así" section for `mentor`, rationale
+scoped to architectural decisions for `balanced`, minimal summaries for
+`expert`) are defined normatively in `skills/_shared/sdd-phase-common.md` §F
+and are not restated here. Mentorship mode governs ONLY user-facing prose
+(`executive_summary`, `detailed_report`, `question_gate` text) — it MUST NOT
+alter persisted OpenSpec artifacts, code, identifiers, or file paths, the same
+boundary already established for Reply Language Forwarding.
+
+#### Scenario: Mentorship block absent — balanced default, no question asked
+
+- GIVEN `openspec/config.yaml` has no `mentorship:` key
+- WHEN the orchestrator composes a phase sub-agent launch prompt
+- THEN it injects `Mentorship mode: balanced` next to `Reply language`
+- AND it does not ask the user to choose a mode
+
+#### Scenario: Mentorship block declared — mode and focus forwarded
+
+- GIVEN `openspec/config.yaml` declares `mentorship: { mode: mentor, focus: [architecture] }`
+- WHEN the orchestrator dispatches any phase sub-agent this session
+- THEN the launch prompt includes `Mentorship mode: mentor — focus: architecture`
+- AND the resolved mode is cached and reused for subsequent dispatches in the same session without re-reading the config
+
+#### Scenario: Mentorship prose scoped to user-facing fields only
+
+- GIVEN a phase sub-agent received `Mentorship mode: mentor` in its launch prompt
+- WHEN it composes its return envelope
+- THEN the expanded rationale appears only in `executive_summary`, `detailed_report`, or `question_gate` text
+- AND no persisted OpenSpec artifact, code file, identifier, or file path is altered as a result of the mode
+
+---
+
+### Requirement: SDD Init Guard Project Scale Preset
+
+Step 3 of the SDD Init Guard (Section titled "SDD Init Guard (MANDATORY)" in
+`agents/sdd-orchestrator.agent.md`) gains a preset question that MUST run
+before `sdd-init` is dispatched for a project with no existing
+`openspec/config.yaml`. When no config is found and the user explicitly
+invoked an SDD workflow command or clearly asked to start persisted SDD work,
+the orchestrator MUST first ask the **project scale** exactly once via
+`AskUserQuestion` (or the target-specific equivalent), offering three options:
+
+- `solo` — minimal process: lite-first, no 4R by default; trade-off is less
+  safety net, fully reversible via config.
+- `team` (recommended default) — current defaults plus the change-collision
+  gate and advisory trailers; reversible by editing `config.yaml`.
+- `enterprise` — strict TDD, 4R, required traceability, and `mentorship:
+  balanced`; trade-off is more per-change friction in exchange for maximum
+  auditability.
+
+After the user answers, the orchestrator MUST delegate to `sdd-init` with
+`scale: {answer}` included in the sub-agent's `## Parameters` launch-prompt
+block (the same injection pattern used for `target_dir`, Section 10), then
+proceed with the originally requested command. This question is asked only
+when `openspec/config.yaml` does not yet exist; it MUST NOT re-fire on
+subsequent commands once config exists.
+
+#### Scenario: No config yet — scale question fires once before sdd-init
+
+- GIVEN `openspec/config.yaml` does not exist
+- AND the user explicitly invokes an SDD workflow command
+- WHEN the orchestrator's Init Guard evaluates Step 3
+- THEN it asks the project-scale question via `AskUserQuestion` with the `solo` / `team` / `enterprise` options before delegating to `sdd-init`
+- AND it passes `scale: {answer}` in `sdd-init`'s `## Parameters` block
+
+#### Scenario: Config already exists — no scale question, Init Guard proceeds normally
+
+- GIVEN `openspec/config.yaml` already exists with project context and testing capabilities
+- WHEN the orchestrator's Init Guard evaluates Step 2
+- THEN it proceeds normally without asking the project-scale question, unchanged from the pre-existing baseline
+
+---
+
+### Requirement: Change Collision Gate Pointer Table Entry (agents-domain portion)
+
+The Circumstantial Handler Pointer Table (Section 15, "Orchestrator Body
+Partitioning and Lazy Loading") gains one additional row for the Change
+Collision Gate:
+
+| Handler | Trigger condition | `_shared/` file | Read at (hook point) |
+|---|---|---|---|
+| Change Collision Gate | before dispatching `sdd-apply` AND at least one OTHER active (non-terminal) change exists | `skills/_shared/gate-change-collision.md` | At the apply guard, after the Review Workload Guard resolves |
+
+This entry documents only the orchestrator-side dispatch trigger and pointer
+resolution, per the read-once-per-route caching rule already normative in
+Section 15 ("On-Demand Handler Read-Once Caching"). The gate's collision-
+detection algorithm, ownership map schema, and fingerprinting logic live in
+`skills/_shared/gate-change-collision.md` and are documented by the `skills`
+domain spec, not here.
+
+#### Scenario: Collision gate handler loaded via pointer table at the apply guard
+
+- GIVEN the orchestrator is about to dispatch `sdd-apply`
+- AND at least one other active (non-terminal) OpenSpec change exists
+- WHEN the orchestrator resolves the apply guard using the CORE pointer table
+- THEN it reads `skills/_shared/gate-change-collision.md` exactly once for this route
+- AND does not re-read it on later phase or gate boundaries within the same route
+
+#### Scenario: No other active change — gate handler not loaded
+
+- GIVEN the orchestrator is about to dispatch `sdd-apply`
+- AND no other active (non-terminal) OpenSpec change exists
+- WHEN the orchestrator resolves the apply guard
+- THEN it does not read `skills/_shared/gate-change-collision.md`
+
+---
+
 ## Clarifications
 
 ### Session 2026-07-02
