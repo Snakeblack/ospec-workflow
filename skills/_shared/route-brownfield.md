@@ -33,7 +33,7 @@ If the session flag is not set, use `vscode/askQuestions` to present the two-opt
       "options": [
         {
           "label": "Run /sdd-baseline now",
-          "description": "Capture the existing codebase as a baseline before continuing. Recommended for brownfield repos.",
+          "description": "Recommended for brownfield repos because it captures existing architecture and reduces spec drift before any change is planned. Trade-off vs. skipping: adds one baseline pass before the requested work starts. Reversible — the baseline can be re-run or extended later without invalidating this run.",
           "recommended": true
         },
         {

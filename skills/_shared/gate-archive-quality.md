@@ -36,7 +36,7 @@ user via `vscode/askQuestions`:
     "options": [
       {
         "label": "Fix and re-run verify",
-        "description": "Fix the failing gate(s), then re-run sdd-verify. Archive will be dispatched automatically on a passing verify.",
+        "description": "Recommended because it keeps the quality bar intact: fix the failing gate(s), then re-run sdd-verify, and archive dispatches automatically on a passing verify. Trade-off vs. override: costs another verify cycle instead of merging immediately. Reversible — re-running verify never destroys work.",
         "recommended": true
       },
       {
@@ -50,7 +50,7 @@ user via `vscode/askQuestions`:
 ```
 
 **Resolution — Fix and re-run**: route back to the appropriate upstream phase
-(see Verification Failure Routing above). Do NOT dispatch `sdd-archive`. If the
+(see `agents/sdd-orchestrator.agent.md` §Failure & Blocker Routing). Do NOT dispatch `sdd-archive`. If the
 block was BLOCKED on an anomaly (declared policy but absent/unparseable block,
 or non-success envelope), re-running `sdd-verify` re-builds the audit and is
 the correct path — never dispatch archive on the anomaly.
