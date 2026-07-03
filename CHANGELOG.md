@@ -8,6 +8,11 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+### Added
+- **Resúmenes de fase en `state.yaml` (C1)**: al completar cada fase, el agente extiende su entrada en `phases:` con `summary` (≤160 chars, factual, derivado del artefacto) y `key_decisions` (≤3). En continuaciones (`/sdd-continue`, post-compact, nueva sesión) el orquestador arma los prompts desde estos resúmenes en vez de releer artefactos completos — los sub-agentes siguen leyendo los artefactos que su fase exige como dependencia dura, y los changes pre-feature (sin bloque) caen al comportamiento anterior. Ahorro estimado: 60-80% del costo de contexto en resume.
+- **Enforcement del presupuesto de compact rules (C4/E3)**: nuevo lint en `scripts/docs-lint.test.js` (corre en pre-commit) que mide los tokens estimados de las `compact_rules` de cada skill descubierta y falla sobre el cap duro de 500 — un skill nuevo con compact rules gordas ya no puede degradar silenciosamente todos los dispatches. `token-budget.md` documenta el cap y la regla de ratchet (solo baja, nunca sube). Estado actual: peor ofensor `tdd-workflow` ≈ 471 tokens.
+- **Test de contrato `scripts/eje-c-contract.test.js`**: landmarks de C1/C4 + regeneración de targets en directorio temporal.
+
 ## [2.12.0] - 2026-07-03
 
 ### Added

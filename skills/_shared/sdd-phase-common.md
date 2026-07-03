@@ -122,6 +122,22 @@ phases:
     artifact: "openspec/changes/{change-name}/archive-report.md"
 ```
 
+### Phase Summary Block (resume without re-reading artifacts)
+
+On phase completion (`done` or `partial`), extend YOUR phase's entry in `state.yaml` with a compact summary so continuations can be briefed from state alone:
+
+```yaml
+phases:
+  design:
+    status: done
+    artifact: "openspec/changes/{change-name}/design.md"
+    summary: "JWT stateless con refresh rotativo; 3 archivos nuevos en src/auth."   # ≤ 160 chars, factual
+    key_decisions:                       # ≤ 3 entries; omit when none
+      - "RS256 sobre HS256 (multi-servicio)"
+```
+
+Rules: `summary` states WHAT the phase produced/decided (no process narration); `key_decisions` only for choices a later phase or a human would need; both are derived from the artifact you just wrote — never invent content not in it. The full artifact stays the source of truth; the summary is a cache for the orchestrator's continuation prompts.
+
 State update rules:
 - Preserve existing phase entries and artifact paths; update only the phase you just executed plus any top-level status that changes because of it.
 - Update `last_updated` with the current UTC timestamp every time you write a phase artifact or return `blocked`.

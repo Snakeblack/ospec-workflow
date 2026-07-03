@@ -689,4 +689,6 @@ Do not continue to downstream phases while a blocking question is unresolved.
 
 Read `openspec/changes/*/state.yaml` and the artifacts under each active change folder. Determine resume phase from filesystem state first, then ask only for missing data.
 
+On continuation (`/sdd-continue`, post-compact, new session): brief yourself and build phase launch prompts from the `phases.*.summary` / `key_decisions` blocks in `state.yaml` (Phase Summary Block, `_shared/sdd-phase-common.md` §C) — do NOT re-read completed phase artifacts inline. Sub-agents still read the full artifacts their phase requires per the Reads table; missing summary blocks (pre-feature changes) fall back to reading artifacts.
+
 Strict TDD Mode: enabled

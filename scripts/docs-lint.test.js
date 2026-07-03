@@ -70,3 +70,31 @@ test("no ```yaml fenced example uses tabs for indentation", () => {
   }
   assert.deepEqual(problems, [], `tabs in yaml fences:\n${problems.join("\n")}`);
 });
+
+// ---------------------------------------------------------------------------
+// C4 — Compact rules budget enforcement (skills/_shared/token-budget.md).
+// Target per skill is 50-150 estimated tokens; this lint enforces the hard cap
+// so a new skill with fat compact_rules cannot silently degrade every dispatch.
+// Current worst offender is ~471 (tdd-workflow) — the cap ratchets DOWN as
+// offenders shrink; never raise it to admit a new fat skill.
+// ---------------------------------------------------------------------------
+
+const COMPACT_RULES_HARD_CAP_TOKENS = 500;
+
+test("compact rules budget: no skill's compact_rules exceeds the hard cap", async () => {
+  const { discoverSkills } = require("./lib/skill-registry.js");
+  const { skills } = await discoverSkills(ROOT);
+  assert.ok(skills.length > 0, "discoverSkills must find skills");
+
+  const estimateTokens = (rules) => Math.round(rules.join(" ").length / 4);
+  const offenders = skills
+    .map((skill) => ({ id: skill.id, tokens: estimateTokens(skill.compact_rules) }))
+    .filter((entry) => entry.tokens > COMPACT_RULES_HARD_CAP_TOKENS);
+
+  assert.deepEqual(
+    offenders,
+    [],
+    `compact_rules over ${COMPACT_RULES_HARD_CAP_TOKENS} estimated tokens degrade every dispatch: ` +
+      offenders.map((o) => `${o.id}=${o.tokens}`).join(", ")
+  );
+});
