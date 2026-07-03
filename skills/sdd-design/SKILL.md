@@ -137,6 +137,36 @@ If not applicable, state "No migration required."}
 - [ ] {Any decision that needs team input}
 ```
 
+### Step 3b: Extract ADRs for Significant Decisions
+
+After writing `design.md`, promote each **significant** Architecture Decision to its own short ADR file under `openspec/changes/{change-name}/decisions/adr-NNN.md` (`NNN` = 001, 002, … in design order).
+
+A decision is **significant** when it meets AT LEAST ONE of: affects a public contract, changes a data model, introduces a new dependency, or establishes a cross-cutting pattern. Everything else stays only in `design.md` — do NOT create an ADR for it.
+
+ADR format (short — keep each under ~40 lines):
+
+```markdown
+# ADR-NNN: {Decision Title}
+
+- Status: proposed
+- Change: {change-name}
+- Date: {YYYY-MM-DD}
+
+## Context
+{1-3 sentences: the forces that made this decision necessary.}
+
+## Decision
+{What was chosen, stated as a decision.}
+
+## Alternatives
+{Each rejected option with the 1-line reason it lost.}
+
+## Consequences
+{What becomes easier, what becomes harder, reversibility.}
+```
+
+Each ADR mirrors — never replaces — its `### Decision:` entry in `design.md`. If no decision is significant, create no `decisions/` directory and note "No ADR-worthy decisions" in your summary. List created ADR paths in `artifacts`.
+
 ### Step 4: Persist Artifact
 
 **This step is MANDATORY — do NOT skip it.**

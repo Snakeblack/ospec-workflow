@@ -48,8 +48,9 @@ type toolInput struct {
 }
 
 type preToolUseInput struct {
-	ToolName  string    `json:"tool_name"`
-	ToolInput toolInput `json:"tool_input"`
+	ToolName       string    `json:"tool_name"`
+	PermissionMode string    `json:"permission_mode"`
+	ToolInput      toolInput `json:"tool_input"`
 }
 
 // extractCommands ports extractCommands from pre-tool-use.js:
@@ -270,12 +271,64 @@ func recordTokens(changeName string, tokens int) {
 	}
 }
 
+// applyPermissionMode degrades advisory `ask` decisions to `allow` plus a
+// top-level systemMessage when the session runs in bypassPermissions: a hook
+// `ask` overrides the user's chosen permission mode, so keeping it would
+// re-introduce the prompts the user explicitly opted out of. `deny` decisions
+// are the hard safety floor and are never degraded. Ports applyPermissionMode
+// from scripts/hooks/pre-tool-use.js.
+func applyPermissionMode(out []byte, permissionMode string) []byte {
+	if permissionMode != "bypassPermissions" {
+		return out
+	}
+	var decoded struct {
+		HookSpecificOutput struct {
+			HookEventName            string `json:"hookEventName"`
+			PermissionDecision       string `json:"permissionDecision"`
+			PermissionDecisionReason string `json:"permissionDecisionReason"`
+		} `json:"hookSpecificOutput"`
+	}
+	if err := json.Unmarshal(out, &decoded); err != nil {
+		return out
+	}
+	if decoded.HookSpecificOutput.PermissionDecision != "ask" {
+		return out
+	}
+	type hookOutput struct {
+		HookEventName            string `json:"hookEventName"`
+		PermissionDecision       string `json:"permissionDecision"`
+		PermissionDecisionReason string `json:"permissionDecisionReason"`
+	}
+	type output struct {
+		SystemMessage      string     `json:"systemMessage"`
+		HookSpecificOutput hookOutput `json:"hookSpecificOutput"`
+	}
+	degraded := output{
+		SystemMessage: "[ospec advisory] " + decoded.HookSpecificOutput.PermissionDecisionReason,
+		HookSpecificOutput: hookOutput{
+			HookEventName:            decoded.HookSpecificOutput.HookEventName,
+			PermissionDecision:       "allow",
+			PermissionDecisionReason: decoded.HookSpecificOutput.PermissionDecisionReason,
+		},
+	}
+	b, err := json.Marshal(degraded)
+	if err != nil {
+		return out
+	}
+	return b
+}
+
 func (h *preToolUseHandler) Run(stdin []byte) ([]byte, int) {
 	var input preToolUseInput
 	if err := json.Unmarshal(stdin, &input); err != nil {
 		return makeDecision("ask",
 			"The safety hook could not inspect this tool call: "+err.Error()), 0
 	}
+	out, code := h.run(&input, stdin)
+	return applyPermissionMode(out, input.PermissionMode), code
+}
+
+func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, int) {
 
 	if os.Getenv("DISABLE_AGENT_SHIELD") != "true" {
 		var rawInput struct {
@@ -370,7 +423,7 @@ func (h *preToolUseHandler) Run(stdin []byte) ([]byte, int) {
 		}
 	}
 
-	cmds := extractCommands(&input)
+	cmds := extractCommands(input)
 
 	// Step 5 — DENY rules take priority (only when commands are present).
 	if len(cmds) > 0 {

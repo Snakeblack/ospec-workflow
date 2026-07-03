@@ -130,6 +130,17 @@ After persisting the archive report — and while the change folder is still at 
 - `phase` (string) — phase where the decision was made
 - `applies_to` (string array) — phases affected
 
+### Step 4b: Promote ADRs to Project Memory
+
+**IF mode is `openspec`** and `openspec/changes/{change-name}/decisions/adr-*.md` exists:
+
+1. For each ADR whose decision was NOT invalidated during verify (default: all of them), copy it to `docs/adr/adr-{YYYYMMDD}-{NNN}-{kebab-title}.md` (date = archive date) and set its `Status:` line to `accepted`.
+2. Renumber on collision: if a target filename already exists in `docs/adr/`, keep the date and bump `NNN` past the highest existing suffix for that date.
+3. The change-local copies under `decisions/` stay in the change folder and travel to the archive with it (audit trail); `docs/adr/` is the living project memory that survives the archive.
+4. List promoted ADR paths in the archive report and in `artifacts`.
+
+If no `decisions/` directory exists, skip silently — ADRs are optional per change.
+
 ### Step 5: Move to Archive
 
 **IF mode is `none`:** Skip — no filesystem operations.
@@ -142,6 +153,8 @@ openspec/changes/{change-name}/
 ```
 
 Use today's date in ISO format (e.g., `2026-02-16`).
+
+A move is NOT a copy: after this step `openspec/changes/{change-name}/` MUST NOT exist. If your file tools can only copy, copy every artifact to the destination, verify the destination is complete, then delete the source folder — leaving both folders in place corrupts active-change discovery.
 
 ### Step 6: Verify Archive
 

@@ -50,7 +50,7 @@ test("B2.2 · orchestrator pointer table routes the collision gate before sdd-ap
 
 test("B2.3 · orchestrator stamps owner (author + branch) on new changes", async () => {
   const content = await readFile(ORCHESTRATOR_AGENT_PATH);
-  assert.match(content, /owner:\s*\n\s+author: \{git config user\.name\}/, "must stamp author from git");
+  assert.match(content, /author: \{git config user\.name\}/, "must stamp author from git");
   assert.match(content, /branch: \{git branch --show-current\}/, "must stamp branch");
 });
 

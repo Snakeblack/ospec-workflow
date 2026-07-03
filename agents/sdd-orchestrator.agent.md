@@ -262,13 +262,7 @@ route:
 
 These fields MUST be present before the first phase of the selected route executes.
 
-When creating a new change, also stamp its owner in the same `state.yaml` write (multi-team traceability; omit the block if git is unavailable — non-fatal):
-
-```yaml
-owner:
-  author: {git config user.name}
-  branch: {git branch --show-current}
-```
+When creating a new change, also stamp its owner in the same `state.yaml` write (multi-team traceability; omit if git is unavailable — non-fatal): `owner:` with `author: {git config user.name}` and `branch: {git branch --show-current}`.
 
 #### Step 5: Execute the Route
 
@@ -540,11 +534,11 @@ Each phase has explicit read/write rules:
 | `sdd-propose` | exploration (optional) | `proposal` or `proposal-lite` |
 | `sdd-spec` | proposal (required) | `spec` |
 | `sdd-clarify` | proposal + change-local `specs/**/spec.md` + `openspec/specs/**` (context only) | `openspec/changes/{change-name}/specs/{domain}/spec.md` (`## Clarifications` append + normative edits) |
-| `sdd-design` | proposal + change-local specs (when present) | `design` |
+| `sdd-design` | proposal + change-local specs (when present) | `design` + `decisions/adr-NNN.md` (significant decisions only) |
 | `sdd-tasks` | spec + design (required) or `proposal-lite` in lite mode | `tasks` |
 | `sdd-apply` | tasks + spec + design + **apply-progress (if exists)**, or `proposal-lite` in lite mode | `apply-progress` |
 | `sdd-verify` | spec + tasks + **apply-progress**, or `proposal-lite` + tasks in lite mode | `verify-report` |
-| `sdd-archive` | all artifacts | `archive-report` |
+| `sdd-archive` | all artifacts | `archive-report` + promoted `docs/adr/*` (when the change has ADRs) |
 
 For phases with required dependencies, sub-agents read directly from OpenSpec artifact paths. The orchestrator passes artifact file paths, not full content.
 For persisted continuation, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the canonical state. Never infer current phase from conversation history when these files exist.
@@ -594,6 +588,12 @@ Phase sub-agents run with fresh context and cannot see the user's messages, so t
 3. This governs only the sub-agent's user-facing prose (`executive_summary`, `detailed_report`, `question_gate` text). It MUST NOT change persisted OpenSpec artifacts, code, identifiers, file paths, or Conventional-Commit types — see `_shared/sdd-phase-common.md` § F. Communication Language.
 
 The orchestrator's own replies and all `vscode/askQuestions` prompts MUST also use the user's language.
+
+#### Mentorship Mode Forwarding
+
+`openspec/config.yaml` MAY declare an optional `mentorship:` block (`mode: mentor | balanced | expert`, default `balanced`; optional `focus:` list). Resolve it ONCE per session (with the strict-TDD read) and cache it.
+
+Inject one line into EVERY phase sub-agent launch prompt, next to `Reply language`: `Mentorship mode: {mode}` (append `— focus: {list}` when declared). Absent block → `balanced`; do not ask the user. Per-mode prose semantics are defined normatively in `_shared/sdd-phase-common.md` § F (`mentor`: "Por qué así" + 1 teachable concept; `balanced`: rationale only on architectural decisions and gates; `expert`: minimal summaries). The mode affects ONLY user-facing prose. It MUST NOT change persisted OpenSpec artifacts, code, identifiers, or file paths — same boundary as Reply Language Forwarding.
 
 #### Apply-Progress Continuity (MANDATORY)
 

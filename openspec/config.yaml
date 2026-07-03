@@ -248,6 +248,20 @@ routing:
 # ---------------------------------------------------------------------------
 #
 # ---------------------------------------------------------------------------
+# mentorship: (OPTIONAL — all lines below are commented out; uncomment to activate)
+#
+# Calibrates how much reasoning the phase summaries expose to the user.
+# Absence of this block is a strict no-op: behavior is identical to `balanced`.
+# The mode affects ONLY user-facing prose — never persisted OpenSpec artifacts.
+# Semantics: agents/sdd-orchestrator.agent.md (Mentorship Mode Forwarding) and
+# skills/_shared/sdd-phase-common.md §F (Mentorship Mode).
+#
+# mentorship:
+#   mode: balanced          # mentor | balanced | expert
+#   focus: []               # optional, e.g. [architecture, testing, security]
+# ---------------------------------------------------------------------------
+#
+# ---------------------------------------------------------------------------
 # hooks: (OPTIONAL — all lines below are commented out; uncomment to activate)
 #
 # Declarative lifecycle hooks fired by the orchestrator at SDD phase boundaries.

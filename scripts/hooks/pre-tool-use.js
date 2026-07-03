@@ -278,7 +278,39 @@ function recordTokensSync(changeName, tokens) {
   }
 }
 
+/**
+ * Degrades advisory `ask` decisions to `allow` + top-level systemMessage when
+ * the session runs in bypassPermissions: a hook `ask` overrides the user's
+ * chosen permission mode, so keeping it would re-introduce the prompts the
+ * user explicitly opted out of. `deny` decisions are the hard safety floor
+ * and are never degraded.
+ */
+function applyPermissionMode(result, permissionMode) {
+  if (permissionMode !== "bypassPermissions") {
+    return result;
+  }
+  const output = result && result.hookSpecificOutput;
+  if (!output || output.permissionDecision !== "ask") {
+    return result;
+  }
+  return {
+    systemMessage: `[ospec advisory] ${output.permissionDecisionReason}`,
+    hookSpecificOutput: {
+      hookEventName: output.hookEventName,
+      permissionDecision: "allow",
+      permissionDecisionReason: output.permissionDecisionReason,
+    },
+  };
+}
+
 function evaluateToolUse(input, opts) {
+  return applyPermissionMode(
+    evaluateToolUseCore(input, opts),
+    input && input.permission_mode
+  );
+}
+
+function evaluateToolUseCore(input, opts) {
   const injectedGitRunner = opts && opts.gitRunner ? opts.gitRunner : undefined;
   const workspace = (opts && opts.workspace) || process.cwd();
 
