@@ -649,6 +649,84 @@ On any unhandled error: output `{"continue":true,"systemMessage":"Stop hook coul
 
 ---
 
+## 6a. commit-msg — Traceability Trailers (git commit-msg hook, B3)
+
+**Trigger**: `git commit`, invoked as git's native `commit-msg` hook (installed by
+`scripts/setup-git-hooks.js`, outside this domain's sources).
+
+**Source**: `scripts/hooks/commit-msg-hook.js`
+
+This hook is distinct from the five Claude lifecycle hooks in §1–6: it is a git-native
+hook receiving the commit message file path as `argv[2]`, not a Claude host hook reading
+JSON from stdin.
+
+### 6a.1 No-model-attribution check
+
+Given a commit message,
+When the hook runs,
+Then it MUST scan every line against `FORBIDDEN_ATTRIBUTION_RE` (co-authored-by,
+"generated with/by", the 🤖 emoji, and known AI/model vendor or product names) and, on
+a match, MUST print the offending line and remediation guidance to stderr and exit
+non-zero — unless `DISABLE_OSPEC_ATTRIBUTION_CHECK=true` is set, in which case it MUST
+exit 0 without scanning.
+
+### 6a.2 Traceability trailer validation (B3)
+
+Given an active OpenSpec change exists (resolved by scanning `openspec/changes/*` for
+a `state.yaml` whose content includes `status: active`, excluding the `archive`
+directory),
+When the commit message does not match the exemption pattern for merge/revert/fixup/
+squash commits,
+Then `checkTraceabilityTrailers(message, activeChangeName)` MUST validate:
+1. An `Ospec-Change: {name}` trailer is present and its value equals the active change
+   name (else `status: "missing"` or `status: "mismatch"`).
+2. An `Ospec-Task: N.N[, N.N...]` trailer is present (else `status: "missing-task"`).
+3. Both present and matching → `status: "ok"`.
+
+Given no active change exists, OR the commit message is exempt (merge/revert/fixup/
+squash),
+When the hook evaluates trailers,
+Then `checkTraceabilityTrailers` MUST return `status: "ok"` without requiring any
+trailer.
+
+Given `trailerResult.status !== "ok"`,
+When the hook decides enforcement,
+Then it MUST read `openspec/config.yaml` for `traceability: { trailers: required }`:
+- If NOT declared (default, advisory): print an `[Advisory]`-labeled warning to stderr
+  and exit 0 (never blocks the commit).
+- If declared `required`: print an `[ERROR]`-labeled message to stderr and exit
+  non-zero, blocking the commit.
+
+The no-model-attribution check (§6a.1) always runs first and, on a match, exits
+non-zero before the trailer check is reached — attribution is a hard floor independent
+of the advisory/required traceability policy.
+
+#### Scenarios
+
+- **No active change — trailers not required**: GIVEN no directory under
+  `openspec/changes/` has `status: active` in its `state.yaml` WHEN the commit-msg hook
+  runs THEN `checkTraceabilityTrailers` returns `status: "ok"` AND the hook exits 0.
+- **Active change, missing trailer, advisory mode**: GIVEN an active change `add-x` AND
+  the commit message has no `Ospec-Change` trailer AND `openspec/config.yaml` does not
+  declare `traceability.trailers: required` WHEN the hook runs THEN it prints an
+  `[Advisory]` warning naming the missing trailer AND exits 0.
+- **Active change, missing trailer, required mode**: GIVEN the same missing-trailer
+  commit AND `traceability: { trailers: required }` is declared WHEN the hook runs THEN
+  it prints an `[ERROR]` message AND exits non-zero, blocking the commit.
+- **Trailer names the wrong change**: GIVEN an active change `add-x` AND the commit
+  message trailer reads `Ospec-Change: add-y` WHEN `checkTraceabilityTrailers` runs
+  THEN it returns `status: "mismatch"`.
+- **Exempt commit type — no trailer required regardless of mode**: GIVEN an active
+  change exists AND the commit message starts with `Merge `, `Revert `, `fixup!`, or
+  `squash!` WHEN the hook runs THEN `checkTraceabilityTrailers` returns `status: "ok"`
+  without requiring any trailer.
+- **Attribution match wins over trailer check**: GIVEN a commit message contains both a
+  forbidden attribution line AND a missing traceability trailer WHEN the hook runs THEN
+  it exits non-zero on the attribution check (§6a.1) AND the trailer check is never
+  reached.
+
+---
+
 ## 7. On-disk artifact layout
 
 All hooks resolve paths through `ArtifactStore`; no hook hardcodes `.ospec/` layout
@@ -676,6 +754,61 @@ an active change exists. If no active change is found, neither hook writes any f
 | `scripts/lib/artifact-store.js` | `createArtifactStoreFromConfig`, `ARTIFACT_STORE_RELATIVE_PATHS` (canonical path constants) |
 | `scripts/lib/skill-registry.js` | `discoverSkills`, `calculateFingerprint`, `readRegistryCache`, `writeRegistryCache` |
 | `scripts/lib/workspace-atlas.js` | `parseAtlas`, `resolveMembers` (federated backend only) |
+
+---
+
+## 8a. Go/JS Executable Parity Contract (E1)
+
+The Go port of the hooks (`internal/hooks/*.go`, `cmd/ospec-hooks/`) is an out-of-domain
+mirror consumer: its sources are not listed in this domain's manifest globs, so this
+spec documents the contract from the JS side only. The Go suite
+(`internal/hooks/pretooluse_test.go`, `TestPreToolUse_ParityFixtures`) is the mirror
+consumer of the same fixtures described below.
+
+### 8a.1 Shared golden fixtures
+
+Given `internal/testdata/parity/*.json` fixture files (each holding `description`,
+`stdin`, and `expectedStdout`),
+When either implementation's parity test suite runs,
+Then:
+- The JS suite (`scripts/hooks/parity-contract.test.js`) MUST spawn the real
+  `scripts/hooks/pre-tool-use.js` process (via `child_process.spawnSync`, with all
+  `DISABLE_*` bypass env vars stripped) against each fixture's `stdin` and assert the
+  process exits 0.
+- The JS suite MUST assert the fixture set contains at least 4 fixtures (the set MUST
+  NOT shrink).
+- For every fixture EXCEPT the fail-open parse-error fixture, the JS suite MUST assert
+  `actual === expectedStdout` byte-for-byte.
+- For the fail-open parse-error fixture (identified by `permissionDecisionReason`
+  starting with `"The safety hook could not inspect this tool call:"`), the JS suite
+  MUST compare `hookEventName` and `permissionDecision` exactly, and MUST assert only
+  that the actual reason starts with the same stable prefix — the JSON-parser error
+  suffix is implementation-specific (V8 vs. Go) and is excluded from the byte-for-byte
+  comparison.
+
+### 8a.2 Fixture set governance
+
+Adding a fixture under `internal/testdata/parity/` extends the contract for both
+runtimes simultaneously (both suites read the same directory). A parity mismatch MUST
+NOT be resolved by editing only the fixture: the canonical behavior MUST be decided
+first, the lagging implementation changed to match, and the fixture updated only if the
+contract itself changed.
+
+#### Scenarios
+
+- **Byte-for-byte match on a DENY fixture**: GIVEN `pre-tool-use-deny.json` fixture with
+  `stdin: {"tool_name":"Bash","tool_input":{"command":"rm -rf /"}}` WHEN the JS parity
+  suite runs THEN the spawned hook's stdout MUST equal the fixture's `expectedStdout`
+  exactly.
+- **Parse-error fixture — prefix-only comparison**: GIVEN a fixture whose
+  `expectedStdout` reason starts with `"The safety hook could not inspect this tool
+  call:"` WHEN the JS parity suite runs THEN it MUST assert `hookEventName` and
+  `permissionDecision` match exactly AND MUST assert only a shared prefix on the reason
+  string, tolerating a divergent parser-error suffix.
+- **Fixture set shrinks below floor — suite fails fast**: GIVEN fewer than 4 files
+  matching `pre-tool-use-*.json` exist under `internal/testdata/parity/` WHEN the JS
+  parity suite loads fixtures THEN it MUST fail the assertion `fixtureFiles.length >= 4`
+  before running any per-fixture test.
 
 ---
 

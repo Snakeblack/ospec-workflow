@@ -534,7 +534,306 @@ En modo federado, la documentación técnica del coordinador (`docs/architecture
 
 ---
 
-## 10. Cross-References
+## 11. ADR Integration in the SDD Flow
+
+> Reconciled from PR #32 (A5) on 2026-07-03.
+
+### Requirement: sdd-design ADR Extraction
+
+The `sdd-design` skill MUST, after writing `design.md` (Step 3b), promote each
+**significant** Architecture Decision to a standalone ADR file at
+`openspec/changes/{change-name}/decisions/adr-NNN.md` (`NNN` = 001, 002, … in
+design order). A decision is significant when it meets AT LEAST ONE of: affects
+a public contract, changes a data model, introduces a new dependency, or
+establishes a cross-cutting pattern. Non-significant decisions stay only in
+`design.md`; no ADR is created for them.
+
+#### Scenario: Significant decision promoted to ADR
+
+- GIVEN `design.md` documents a decision that introduces a new external dependency
+- WHEN `sdd-design` completes Step 3b
+- THEN `openspec/changes/{change-name}/decisions/adr-001.md` is created mirroring the design's `### Decision:` entry
+- AND the ADR path appears in the phase's `artifacts` list
+
+#### Scenario: No significant decision — no ADR directory
+
+- GIVEN none of the design's decisions meet the significance bar
+- WHEN `sdd-design` completes Step 3b
+- THEN no `decisions/` directory is created
+- AND the return summary notes "No ADR-worthy decisions"
+
+### Requirement: sdd-archive ADR Promotion
+
+The `sdd-archive` skill MUST, after persisting the archive report and writing
+resolved decisions to memory (Step 4b), promote every ADR from
+`openspec/changes/{change-name}/decisions/adr-*.md` whose decision was NOT
+invalidated during verify into `docs/adr/adr-{YYYYMMDD}-{NNN}-{kebab-title}.md`
+(date = archive date), setting its `Status:` line to `accepted`. On filename
+collision, the archive keeps the date and bumps `NNN` past the highest existing
+suffix for that date. The change-local `decisions/` copies stay in the change
+folder and travel unchanged to the archive as the audit trail; `docs/adr/` is
+the living project memory.
+
+#### Scenario: ADR promoted at archive time
+
+- GIVEN a change folder contains `decisions/adr-001.md` with `Status: proposed`
+- WHEN `sdd-archive` runs Step 4b
+- THEN a copy is written to `docs/adr/adr-{YYYYMMDD}-001-{title}.md` with `Status: accepted`
+- AND the promoted path is listed in the archive report and in `artifacts`
+
+#### Scenario: No decisions directory — promotion skipped silently
+
+- GIVEN a change folder has no `decisions/` directory
+- WHEN `sdd-archive` runs Step 4b
+- THEN the step is skipped without error, since ADRs are optional per change
+
+Cross-reference: `skills/architecture-decision-records/SKILL.md` defines the
+general-purpose ADR authoring skill (format, lifecycle, decision-detection
+signals, `docs/adr/README.md` index) that both phase-skill steps above build on
+for file structure and status vocabulary.
+
+---
+
+## 12. Phase Summary Block (State Cache for Resumability)
+
+> Reconciled from PR #34 (C1) on 2026-07-03.
+
+### Requirement: Compact Phase Summaries in state.yaml
+
+Per `skills/_shared/sdd-phase-common.md` §C, every SDD phase skill that persists
+an artifact MUST, on completion (`done` or `partial`), extend its own
+`phases.{phase}` entry in `state.yaml` with a `summary` (≤160 chars, factual,
+stating WHAT the phase produced/decided — no process narration) and, when
+applicable, up to 3 `key_decisions` entries. Both fields MUST be derived only
+from the artifact just written; the full artifact remains the source of truth
+and the summary is a cache for continuation prompts.
+
+#### Scenario: Continuation briefed from state alone
+
+- GIVEN a phase completes with `status: done` and writes its artifact
+- WHEN the phase extends its `state.yaml` entry
+- THEN the entry gains a `summary` line and, if applicable, `key_decisions`
+- AND a later continuation can be briefed without re-reading the full artifact
+
+#### Scenario: Summary never invents content
+
+- GIVEN a phase artifact contains no explicit rationale for a choice
+- WHEN the phase writes its `summary`/`key_decisions`
+- THEN it MUST NOT fabricate a decision not present in the artifact — it omits `key_decisions` instead
+
+---
+
+## 13. Mentorship Mode (Communication Calibration)
+
+> Reconciled from PR #32 (A4) on 2026-07-03.
+
+### Requirement: Per-Mode Mentorship Semantics
+
+Per `skills/_shared/sdd-phase-common.md` §F, every phase skill MUST calibrate
+its user-facing prose (`executive_summary`, `detailed_report`, `question_gate`
+text) according to an orchestrator-supplied `Mentorship mode: {mode}` line,
+without altering persisted artifacts, code, identifiers, file paths, or
+evidence tables:
+- `mentor`: append a "Por qué así" section (2-4 bullets naming discarded
+  alternatives and rationale) plus at most one teachable concept when one
+  genuinely applies; expand `question_gate` option `description` with didactic
+  context.
+- `balanced` (default, and when the line is absent): rationale only for
+  architectural decisions and gate questions; skip the teachable concept.
+- `expert`: minimal executive summaries; rationale only for irreversible
+  decisions.
+
+#### Scenario: Mentor mode expands rationale
+
+- GIVEN the orchestrator passes `Mentorship mode: mentor`
+- WHEN a phase skill returns its `executive_summary`
+- THEN the summary includes a "Por qué así" section naming discarded alternatives
+- AND persisted OpenSpec artifacts remain unaffected by the mode
+
+#### Scenario: Mode line absent defaults to balanced
+
+- GIVEN no `Mentorship mode` line is present in the launch prompt
+- WHEN a phase skill composes its summary
+- THEN it behaves as `balanced` — rationale only for architectural/gate decisions
+
+---
+
+## 14. Change Collision Gate (Skills Slice)
+
+> Reconciled from PR #33 (B2) on 2026-07-03. The multi-team overlap procedure
+> itself (`findActiveChanges`, the `AskUserQuestion` overlap gate, `collisions:`
+> audit entries, owner stamping) is fully specified in
+> `skills/_shared/gate-change-collision.md`; this section covers only the
+> phase-skill fingerprint contract that lives inside `sdd-spec` and
+> `sdd-archive`.
+
+### Requirement: Baseline Fingerprint Recording and Verification
+
+`sdd-spec` MUST record, for each delta domain it writes (Step 5b), the SHA-256
+fingerprint of the current baseline `openspec/specs/{domain}/spec.md` (or
+`null` if no baseline exists yet) under `state.yaml`'s `baseline_fingerprints:`.
+`sdd-archive` MUST, before merging each delta (Step 2), re-hash the current
+baseline and compare it against the recorded fingerprint; a mismatch means
+another change moved the baseline first, and `sdd-archive` MUST NOT blind-merge
+— it returns `status: blocked` with `blocker_type: stale-baseline` naming the
+domain instead. A missing `baseline_fingerprints` block (pre-feature changes)
+skips the check silently.
+
+#### Scenario: Fingerprint recorded at spec time
+
+- GIVEN `sdd-spec` writes a delta for domain `auth`
+- WHEN Step 5b runs
+- THEN `state.yaml.baseline_fingerprints.auth` holds the SHA-256 of the current baseline spec (or `null`)
+
+#### Scenario: Stale baseline detected at archive
+
+- GIVEN another change already merged into `openspec/specs/auth/spec.md` after this change's fingerprint was recorded
+- WHEN `sdd-archive` re-hashes the baseline before merging
+- THEN the hashes mismatch
+- AND `sdd-archive` returns `status: blocked` with `blocker_type: stale-baseline` naming the domain, without merging
+
+---
+
+## 15. Traceability Contract Across Phase Skills
+
+> Reconciled from PR #33 (B3) on 2026-07-03. The `commit-msg` hook's advisory
+> enforcement of `Ospec-Change`/`Ospec-Task` trailers belongs to the `hooks`
+> domain spec, not here.
+
+### Requirement: Stable REQ ids in Delta Specs
+
+`sdd-spec` MUST assign every `ADDED` requirement heading a stable id suffix
+`{#REQ-{domain}-{NNN}}`, continuing numbering from the highest existing id in
+the baseline spec. `MODIFIED` requirements keep their existing id unchanged;
+ids are never reused after removal.
+
+### Requirement: Task-Level REQ Coverage
+
+`sdd-tasks`, when the change's specs carry stable REQ ids, MUST tag each
+implementation task with the REQ id(s) it covers as a trailing
+`[REQ-{domain}-{NNN}]` tag, and every MUST requirement MUST appear in at least
+one task.
+
+### Requirement: Commit Trailers from sdd-apply
+
+`sdd-apply` MUST append `Ospec-Change: {change-name}` and
+`Ospec-Task: {task-number}` (comma-separated for multiple tasks) trailers to
+each commit message body for work units belonging to an active change, so
+commits can be joined to tasks and REQs downstream.
+
+### Requirement: Verify Traceability Matrix
+
+`sdd-verify` MUST emit a `### Traceability Matrix` section (columns: REQ,
+Tasks, Commits, Tests, Status) in its report whenever the change's specs carry
+stable REQ ids, sourced from task `[REQ-...]` tags, commit trailers, and test
+names/files citing the REQ id. This section MUST be omitted entirely when no
+stable REQ ids exist. A MUST requirement with no linked test is a WARNING
+(CRITICAL under Strict TDD); a REQ absent from every task is a `tasks-gap`
+finding.
+
+#### Scenario: REQ id assigned and carried through
+
+- GIVEN a delta spec adds a new MUST requirement
+- WHEN `sdd-spec` writes the heading
+- THEN it carries `{#REQ-{domain}-{NNN}}` continuing from the highest existing id
+
+#### Scenario: Task tags REQ coverage
+
+- GIVEN the spec assigns `REQ-auth-003` to a MUST requirement
+- WHEN `sdd-tasks` writes the implementation task for that requirement
+- THEN the task line ends with `[REQ-auth-003]`
+
+#### Scenario: Traceability matrix omitted when no REQ ids
+
+- GIVEN a change's specs carry no stable REQ ids
+- WHEN `sdd-verify` composes the report
+- THEN the `### Traceability Matrix` section is omitted entirely
+
+#### Scenario: REQ without linked test flagged
+
+- GIVEN `REQ-auth-004` is tagged on a task with a completed commit but no test references it
+- WHEN `sdd-verify` builds the traceability matrix
+- THEN the row for `REQ-auth-004` shows `WARNING — REQ without linked test`
+
+---
+
+## 16. Scale Presets (sdd-init)
+
+> Reconciled from PR #33 (B5) on 2026-07-03.
+
+### Requirement: Scale Preset Materialization at Init
+
+`sdd-init`, in `openspec` mode (Step 6b), MUST read a
+`scale: <solo|team|enterprise>` line from the `## Parameters` prompt block
+(the orchestrator asks the user once at first init; absent → default `team`,
+`sdd-init` asks nothing itself), persist `scale: {value}` into
+`openspec/config.yaml`, and materialize the corresponding preset. Presets only
+materialize other config blocks at init time — later manual edits to those
+blocks always take precedence over the preset. On re-init with an existing
+`scale:` key, the value MUST be preserved unchanged (same rule as the
+`baseline` block).
+
+| Preset | Materialized behavior |
+|---|---|
+| `solo` | No extra blocks; routing prefers `lite` for trivial/small; clarify fires only on `residual_ambiguity`; 4R excluded from default route gates |
+| `team` (default) | Unchanged defaults; the Change Collision Gate applies whenever other active changes exist; traceability trailers stay advisory |
+| `enterprise` | Writes `strict_tdd: true` (when a runner exists), `traceability: { trailers: required }`, `mentorship: { mode: balanced }`; keeps 4R in the standard route gates; recommends declaring `quality_gates:` with `on_fail: halt` |
+
+#### Scenario: First init writes solo preset
+
+- GIVEN a first-time `sdd-init` run receives `scale: solo` in `## Parameters`
+- WHEN Step 6b runs
+- THEN `openspec/config.yaml` gets `scale: solo`
+- AND no extra `quality_gates`/`traceability`/`mentorship` blocks are written
+
+#### Scenario: Re-init preserves existing scale
+
+- GIVEN `openspec/config.yaml` already has `scale: enterprise`
+- WHEN `sdd-init` re-runs Step 6b
+- THEN the existing `scale: enterprise` value is preserved unchanged
+
+---
+
+## 17. Compact-Rule Token Budget Cap
+
+> Reconciled from PR #34 (C4) on 2026-07-03. Enforcement lives outside this
+> domain's globs — this section normativizes the budget; it does not claim
+> ownership of the enforcing test files (same pattern the `hooks` domain uses
+> for its Go mirror of E1).
+
+### Requirement: Hard Cap on Compact Skill Block Size
+
+Per `skills/_shared/token-budget.md`, a compact skill block injected into a
+sub-agent's `## Project Standards` block MUST target 50-150 estimated tokens
+and MUST NOT exceed a **hard cap of 500 estimated tokens**. The cap applies to
+every compact-rule block regardless of source (registry cache extraction,
+`skill-registry.js`, or manual `SKILL: Load` fallback). The cap ratchets down
+as current offenders shrink — it MUST NOT be raised to accommodate a new block
+that would otherwise exceed it; the authoring skill must be trimmed instead.
+
+### Requirement: External Enforcement, Not Domain Ownership
+
+The 500-token hard cap is enforced by `scripts/docs-lint.test.js` (a pre-commit
+lint check) and covered by `scripts/eje-c-contract.test.js`. Both files live
+outside `skills/**/*.md` and belong to their own domain(s); this spec
+documents the normative budget and rationale only — it does not assert
+ownership over those test files or their location.
+
+#### Scenario: Oversized compact block rejected pre-commit
+
+- GIVEN a skill's extracted compact-rule block is estimated above 500 tokens
+- WHEN `scripts/docs-lint.test.js` runs in pre-commit
+- THEN the lint fails, blocking the commit until the skill body is trimmed
+
+#### Scenario: Cap never raised to admit a new fat skill
+
+- GIVEN a new skill would produce a compact-rule block exceeding the current cap
+- WHEN authors are tempted to raise the cap to admit it
+- THEN the cap MUST NOT be raised — the skill body must be trimmed to fit instead
+
+---
+
+## 18. Cross-References
 
 - `skill-registry` domain spec — registry cache schema, fingerprint algorithm,
   SessionStart refresh, and compact-rule injection protocol.
@@ -548,6 +847,8 @@ En modo federado, la documentación técnica del coordinador (`docs/architecture
 - `capability-registry` domain spec — schema and semantics of capability names
 - `skill-registry` domain spec — how `capabilities` is read from frontmatter and stored in the cache entry schema
 - `agents` domain spec — how capabilities gate stack-skill injection into sub-agents
+- `hooks` domain spec — `commit-msg` hook's advisory/required enforcement of `Ospec-Change`/`Ospec-Task` trailers (§15 above documents only the phase-skill side of traceability)
+- `agents` domain spec — the Phase Summary Block's Recovery Rule (orchestrator-side continuation behavior) and the `blocker_type` registry (§D of `sdd-phase-common.md`)
 
 ---
 
