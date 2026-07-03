@@ -8,6 +8,8 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-07-03
+
 ### Added
 - **Gate de colisión entre changes + ownership (B2)**: nuevo handler circunstancial `skills/_shared/gate-change-collision.md` (cableado en el pointer table del orquestador) que, antes de `sdd-apply` y cuando existe otro change activo, compara file scopes y dominios delta; en solape pregunta continuar / coordinar / re-scopear y persiste la decisión (`approvals` + bloque `collisions:`). Bloque opcional `ownership:` en config (dominios → team + globs, `codeowners_sync` advisory). El orquestador estampa `owner:` (autor + rama) en `state.yaml` al crear cada change. Guard de baseline: `sdd-spec` registra `baseline_fingerprints:` (SHA-256 por dominio) y `sdd-archive` bloquea con `blocker_type: stale-baseline` si el baseline se movió desde que se escribió el delta — nunca merge ciego.
 - **Trazabilidad REQ → task → commit → test (B3)**: IDs estables `{#REQ-domain-NNN}` en los headings de requirements (`sdd-spec`); las tasks listan los REQs que cubren con tags `[REQ-...]` y todo MUST aparece en al menos una task (`sdd-tasks`); `sdd-apply` añade trailers `Ospec-Change:` / `Ospec-Task:` a los work-unit commits; el hook `commit-msg` los valida de forma advisory con un change activo (o bloquea con `traceability: { trailers: required }` en config); `sdd-verify` emite la **Traceability Matrix** (REQ → tasks → commits → tests) marcando WARNING los REQs sin test vinculado y `tasks-gap` los REQs fuera de toda task.
