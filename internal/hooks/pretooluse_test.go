@@ -725,3 +725,80 @@ func containsStr(s, sub string) bool {
 		}())
 }
 
+
+// ── permission-mode degradation ───────────────────────────────────────────────
+// In bypassPermissions, advisory `ask` decisions degrade to `allow` plus a
+// top-level systemMessage; `deny` is never degraded. Mirrors
+// scripts/hooks/pre-tool-use.test.js "permission-mode:" cases.
+
+type preToolUseStdoutWithMessage struct {
+	SystemMessage      string     `json:"systemMessage"`
+	HookSpecificOutput hookOutput `json:"hookSpecificOutput"`
+}
+
+func preToolUseInputWithMode(toolName, command, mode string) []byte {
+	type Input struct {
+		ToolName       string `json:"tool_name"`
+		PermissionMode string `json:"permission_mode"`
+		ToolInput      struct {
+			Command string `json:"command"`
+		} `json:"tool_input"`
+	}
+	var in Input
+	in.ToolName = toolName
+	in.PermissionMode = mode
+	in.ToolInput.Command = command
+	b, _ := json.Marshal(in)
+	return b
+}
+
+func TestPreToolUse_PermissionMode_BypassDegradesAskToAllow(t *testing.T) {
+	out, code := hooks.Dispatch([]string{"pre-tool-use"},
+		preToolUseInputWithMode("runTerminalCommand", "npm install left-pad", "bypassPermissions"))
+	if code != 0 {
+		t.Fatalf("exitCode: got %d, want 0", code)
+	}
+	var result preToolUseStdoutWithMessage
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("parse stdout: %v; raw=%q", err, out)
+	}
+	if result.HookSpecificOutput.PermissionDecision != "allow" {
+		t.Errorf("expected allow, got %q", result.HookSpecificOutput.PermissionDecision)
+	}
+	if result.SystemMessage == "" {
+		t.Error("systemMessage must carry the advisory")
+	}
+	if !strings.Contains(result.SystemMessage, "Dependency installation") {
+		t.Errorf("systemMessage must contain the original reason, got %q", result.SystemMessage)
+	}
+}
+
+func TestPreToolUse_PermissionMode_DefaultKeepsAsk(t *testing.T) {
+	out, _ := hooks.Dispatch([]string{"pre-tool-use"},
+		preToolUseInputWithMode("runTerminalCommand", "npm install left-pad", "default"))
+	var result preToolUseStdoutWithMessage
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("parse stdout: %v; raw=%q", err, out)
+	}
+	if result.HookSpecificOutput.PermissionDecision != "ask" {
+		t.Errorf("expected ask, got %q", result.HookSpecificOutput.PermissionDecision)
+	}
+	if result.SystemMessage != "" {
+		t.Errorf("no systemMessage expected in default mode, got %q", result.SystemMessage)
+	}
+}
+
+func TestPreToolUse_PermissionMode_DenyNeverDegraded(t *testing.T) {
+	out, _ := hooks.Dispatch([]string{"pre-tool-use"},
+		preToolUseInputWithMode("runTerminalCommand", "git push origin main --force", "bypassPermissions"))
+	var result preToolUseStdoutWithMessage
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("parse stdout: %v; raw=%q", err, out)
+	}
+	if result.HookSpecificOutput.PermissionDecision != "deny" {
+		t.Errorf("expected deny, got %q", result.HookSpecificOutput.PermissionDecision)
+	}
+	if result.SystemMessage != "" {
+		t.Errorf("deny must never be degraded, got systemMessage %q", result.SystemMessage)
+	}
+}
