@@ -1,1 +1,12 @@
-Run npm test + go test ./... against these fixtures to assert identical behavior between the JS and Go implementations of the pre-tool-use hook.
+Golden parity fixtures for the pre-tool-use hook: ONE fixture set verified by
+BOTH implementations in pre-commit/CI.
+
+- Go: internal/hooks/pretooluse_test.go (TestPreToolUse_ParityFixtures) — byte-for-byte.
+- JS: scripts/hooks/parity-contract.test.js — spawns the real hook process; byte-for-byte,
+  except the fail-open parse-error fixture where the reason is prefix-matched
+  ("The safety hook could not inspect this tool call:") because JSON parser error
+  suffixes are implementation-specific.
+
+Adding a fixture here extends the contract for both runtimes at once. Never fix a
+parity mismatch by editing only the fixture: decide the canonical behavior first,
+change the lagging implementation, then (only if the contract itself changed) the fixture.
