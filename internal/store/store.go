@@ -373,6 +373,15 @@ func atomicWriteFile(dst, content string) error {
 	return nil
 }
 
+// WithLock serialises fn around an advisory lock file at path+".lock". Exported
+// so other packages (e.g. internal/hooks, for the C5 result-envelope
+// persistence path) can reuse the same cross-platform lock primitive that
+// AppendRuntimeEvent already relies on, instead of duplicating it. Mirrors
+// scripts/lib/ospec-state.js#withFileLock.
+func WithLock(path string, fn func() error) error {
+	return withLock(path, fn)
+}
+
 // withLock serialises fn around an advisory lock file.
 var errLockContended = errors.New("lock contended")
 

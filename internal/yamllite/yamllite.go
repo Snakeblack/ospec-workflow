@@ -196,6 +196,207 @@ func ExtractListSection(content, sectionName string) []ListItem {
 	return items
 }
 
+const (
+	phaseSummaryMaxLength      = 160
+	phaseSummaryFieldIndent    = "    "
+	phaseSummaryListItemIndent = "      "
+)
+
+// escapeYamlDoubleQuoted escapes a string for inclusion in a double-quoted
+// YAML scalar. Mirrors escapeYamlDoubleQuoted in scripts/lib/ospec-state.js.
+func escapeYamlDoubleQuoted(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, `"`, `\"`)
+	return value
+}
+
+func toYamlDoubleQuoted(value string) string {
+	runes := []rune(value)
+	if len(runes) > phaseSummaryMaxLength {
+		runes = runes[:phaseSummaryMaxLength]
+	}
+	return `"` + escapeYamlDoubleQuoted(string(runes)) + `"`
+}
+
+// hasNonEmptySummaryValue reports whether a `summary:` value line already
+// carries non-empty content.
+func hasNonEmptySummaryValue(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	value := strings.TrimSpace(strings.TrimPrefix(trimmed, "summary:"))
+	if n := len(value); n >= 2 {
+		q := value[0]
+		if (q == '"' || q == '\'') && value[n-1] == q {
+			value = value[1 : n-1]
+		}
+	}
+	return strings.TrimSpace(value) != ""
+}
+
+func lineIndent(line string) int {
+	return len(line) - len(strings.TrimLeft(line, " \t"))
+}
+
+// SetPhaseSummary is a surgical, line-oriented `state.yaml` writer for the
+// Phase Summary Block (skills domain §"Phase Summary Block" / C5 SubagentStop
+// persistence). Non-destructive fill-gap merge: writes
+// `phases.{phase}.summary`/`key_decisions` ONLY when the current `summary` is
+// empty or absent (ADR-002, strict-result-envelope change). Never touches an
+// already non-empty summary. Mirrors scripts/lib/ospec-state.js#setPhaseSummary
+// byte-for-byte in intent. Returns content unchanged when the phase is not
+// found or the guard blocks the write.
+func SetPhaseSummary(content, phase, summary string, keyDecisions []string) string {
+	eol := "\n"
+	if strings.Contains(content, "\r\n") {
+		eol = "\r\n"
+	}
+	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+
+	// 1. Locate the top-level `phases:` block.
+	phasesStart := -1
+	phasesEnd := len(lines)
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if lineIndent(line) != 0 || trimmed == "" {
+			continue
+		}
+		if trimmed == "phases:" {
+			phasesStart = i
+			continue
+		}
+		if phasesStart != -1 {
+			phasesEnd = i
+			break
+		}
+	}
+
+	if phasesStart == -1 {
+		return content
+	}
+
+	// 2. Locate the target phase's header line and its block end (next
+	//    indent-2 sibling, or the end of the `phases:` block).
+	phaseHeaderIndex := -1
+	phaseBlockEnd := phasesEnd
+
+	for i := phasesStart + 1; i < phasesEnd; i++ {
+		trimmed := strings.TrimSpace(lines[i])
+		if trimmed == "" {
+			continue
+		}
+		if lineIndent(lines[i]) != 2 {
+			continue
+		}
+		if phaseHeaderIndex != -1 {
+			phaseBlockEnd = i
+			break
+		}
+		if strings.HasSuffix(trimmed, ":") && trimmed[:len(trimmed)-1] == phase {
+			phaseHeaderIndex = i
+		}
+	}
+
+	if phaseHeaderIndex == -1 {
+		return content
+	}
+
+	// 3. Within the phase block, find the existing `summary:`/`key_decisions:`
+	//    lines (indent 4), if any.
+	summaryLineIndex := -1
+	keyDecisionsLineIndex := -1
+	keyDecisionsBlockEnd := -1
+
+	for i := phaseHeaderIndex + 1; i < phaseBlockEnd; i++ {
+		trimmed := strings.TrimSpace(lines[i])
+		if trimmed == "" {
+			continue
+		}
+		if lineIndent(lines[i]) != 4 {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "summary:") {
+			summaryLineIndex = i
+		}
+		if strings.HasPrefix(trimmed, "key_decisions:") {
+			keyDecisionsLineIndex = i
+			j := i + 1
+			for j < phaseBlockEnd {
+				nestedTrimmed := strings.TrimSpace(lines[j])
+				if nestedTrimmed == "" {
+					j++
+					continue
+				}
+				if lineIndent(lines[j]) < 6 {
+					break
+				}
+				j++
+			}
+			keyDecisionsBlockEnd = j
+		}
+	}
+
+	// 4. Fill-gap guard: never overwrite an already non-empty summary.
+	if summaryLineIndex != -1 && hasNonEmptySummaryValue(lines[summaryLineIndex]) {
+		return content
+	}
+
+	summaryLine := phaseSummaryFieldIndent + "summary: " + toYamlDoubleQuoted(summary)
+
+	var keyDecisionsLines []string
+	if len(keyDecisions) > 0 {
+		keyDecisionsLines = append(keyDecisionsLines, phaseSummaryFieldIndent+"key_decisions:")
+		for _, decision := range keyDecisions {
+			keyDecisionsLines = append(keyDecisionsLines, phaseSummaryListItemIndent+"- "+toYamlDoubleQuoted(decision))
+		}
+	}
+
+	nextLines := append([]string(nil), lines...)
+
+	if summaryLineIndex != -1 {
+		nextLines[summaryLineIndex] = summaryLine
+	} else {
+		nextLines = spliceInsert(nextLines, phaseHeaderIndex+1, summaryLine)
+		if keyDecisionsLineIndex != -1 {
+			keyDecisionsLineIndex++
+			keyDecisionsBlockEnd++
+		}
+	}
+
+	if len(keyDecisionsLines) > 0 {
+		if keyDecisionsLineIndex != -1 {
+			nextLines = spliceReplace(nextLines, keyDecisionsLineIndex, keyDecisionsBlockEnd, keyDecisionsLines)
+		} else {
+			insertAt := phaseHeaderIndex + 2
+			if summaryLineIndex != -1 {
+				insertAt = summaryLineIndex + 1
+			}
+			nextLines = spliceInsertMany(nextLines, insertAt, keyDecisionsLines)
+		}
+	}
+
+	return strings.Join(nextLines, eol)
+}
+
+func spliceInsert(lines []string, at int, value string) []string {
+	return spliceInsertMany(lines, at, []string{value})
+}
+
+func spliceInsertMany(lines []string, at int, values []string) []string {
+	result := make([]string, 0, len(lines)+len(values))
+	result = append(result, lines[:at]...)
+	result = append(result, values...)
+	result = append(result, lines[at:]...)
+	return result
+}
+
+func spliceReplace(lines []string, from, to int, values []string) []string {
+	result := make([]string, 0, len(lines)-(to-from)+len(values))
+	result = append(result, lines[:from]...)
+	result = append(result, values...)
+	result = append(result, lines[to:]...)
+	return result
+}
+
 // FormatNextAction formats the next recommended action text for a change.
 // Ports formatNextAction from scripts/hooks/pre-compact.js.
 func FormatNextAction(value, changeName string) string {

@@ -67,12 +67,12 @@ Approval context: execution mode automatic, delivery strategy exception-ok — u
 
 ## Phase 4: Go Mirror (parity)
 
-- [ ] 4.1 RED: write `internal/resultenvelope/resultenvelope_test.go` mirroring 2.1's cases byte-for-byte in intent [REQ-hooks-001]
-- [ ] 4.2 GREEN: create `internal/resultenvelope/resultenvelope.go` with `Extract(text) (map[string]any, bool)` and `Validate(v) (bool, []string)` [REQ-hooks-001]
-- [ ] 4.3 RED: extend `internal/yamllite/yamllite_test.go` with `SetPhaseSummary` cases mirroring 3.1 [REQ-hooks-001]
-- [ ] 4.4 GREEN: add `SetPhaseSummary(content, phase, summary string, keyDecisions []string) string` to `internal/yamllite/yamllite.go`, mirroring the JS fill-gap/escaping behavior [REQ-hooks-001]
-- [ ] 4.5 RED: extend `internal/hooks/subagentstop_test.go` with the persist-path cases mirroring 3.3 [REQ-hooks-001]
-- [ ] 4.6 GREEN: wire `internal/hooks/subagentstop.go` to extract/validate/persist before its existing resolution logic, using a Go `withLock` mirror of `withFileLock` [REQ-hooks-001]
+- [x] 4.1 RED: write `internal/resultenvelope/resultenvelope_test.go` mirroring 2.1's cases byte-for-byte in intent [REQ-hooks-001]
+- [x] 4.2 GREEN: create `internal/resultenvelope/resultenvelope.go` with `Extract(text) (map[string]any, bool)` and `Validate(v) (bool, []string)` [REQ-hooks-001]
+- [x] 4.3 RED: extend `internal/yamllite/yamllite_test.go` with `SetPhaseSummary` cases mirroring 3.1 [REQ-hooks-001]
+- [x] 4.4 GREEN: add `SetPhaseSummary(content, phase, summary string, keyDecisions []string) string` to `internal/yamllite/yamllite.go`, mirroring the JS fill-gap/escaping behavior [REQ-hooks-001]
+- [x] 4.5 RED: extend `internal/hooks/subagentstop_test.go` with the persist-path cases mirroring 3.3 [REQ-hooks-001]
+- [x] 4.6 GREEN: wire `internal/hooks/subagentstop.go` to extract/validate/persist before its existing resolution logic, using a Go `withLock` mirror of `withFileLock` [REQ-hooks-001]
 
 ## Phase 5: Parity Fixtures & Contract
 

@@ -89,3 +89,60 @@ batch's run.
 ### Status
 8/20 tasks complete (1.1, 1.2, 2.1, 2.2, 3.1, 3.2, 3.3, 3.4). Full `npm test` green (884
 tests incl. dist/config validators). Ready for Work Unit 3 (Go mirror: Phase 4).
+
+## Work Unit 3 — Go mirror: `internal/resultenvelope`, `internal/yamllite#SetPhaseSummary`, `internal/hooks/subagentstop.go` (PR 3 slice)
+
+**Status**: done, ready to commit.
+
+### TDD Cycle Evidence (appended)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR | Notes |
+|------|-----------|-------|-------------|-----|-------|--------------|----------|-------|
+| 4.1 | `internal/resultenvelope/resultenvelope_test.go` | unit (Go) | none pre-existing (new package) | Confirmed: `no non-test Go files in .../internal/resultenvelope` (build failed) | — | — | — | 24 cases mirroring 2.1: valid fence, absent fence, malformed JSON, bare-`json`-fence non-match, each missing required field, bad `status` enum, `artifacts`/`risks` shape, blocked+question_gate, blocker_type enum (bad + all 4 valid values), assumptions[] (missing field / bad reversibility / valid), nil-input no-panic |
+| 4.2 | `internal/resultenvelope/resultenvelope_test.go` | unit (Go) | same file | (see 4.1) | 24/24 pass | Enum + shape edge cases folded into the RED set above | — | `Extract(text) (map[string]any, bool)` + `Validate(v map[string]any) (bool, []string)`; same schema as `result-envelope.js`, never panics |
+| 4.3 | `internal/yamllite/yamllite_test.go` | unit (Go) | 0 regressions in package | Confirmed: `undefined: yamllite.SetPhaseSummary` (build failed, 8 call sites) | — | — | — | 8 cases mirroring 3.1: gap-fill (absent key + empty-string key), non-empty-guard no-op, quote/backslash escaping, 160-char truncation, multi-entry key_decisions, unknown-phase no-op, empty-key_decisions omission |
+| 4.4 | `internal/yamllite/yamllite_test.go` | unit (Go) | same file | (see 4.3) | 8/8 pass | — | Found and fixed a **test-authoring bug** introduced by a bash heredoc that silently collapsed `\\` (double backslash) literals to `\` inside the escaping-test's expected string — corrected via a targeted `Edit`, not a code change; the implementation was already correct | `SetPhaseSummary(content, phase, summary string, keyDecisions []string) string` in `internal/yamllite/yamllite.go`, line-oriented port of the JS surgical writer |
+| 4.5 | `internal/hooks/subagentstop_test.go` | integration (Go) | 17 pre-existing cases (0 regressions) | Confirmed: `TestSubagentStop_PersistsValidEnvelopeFence` red (no summary/key_decisions written; writer not wired yet) | — | — | — | 6 cases mirroring 3.3: valid fence persists summary+key_decisions, missing fence no-op, malformed-JSON fence no-op, missing-required-field fence no-op, non-empty summary never overwritten, no-active-change no-op |
+| 4.6 | `internal/hooks/subagentstop_test.go` | integration (Go) | same file + full `go test ./...` | (see 4.5) | 23/23 in package; `go build ./...`, `go vet ./...`, `go test ./...` all clean | — | — | `persistResultEnvelope` runs BEFORE the existing resolution logic in `runSubagentStop`, wrapped in `defer recover()` so it can never panic or affect the hook's stdout/exit code |
+
+### Files Changed
+
+| File | Action | What Was Done |
+|------|--------|---------------|
+| `internal/resultenvelope/resultenvelope.go` | Created | Go mirror of `extractEnvelope`/`validateEnvelope`: `Extract(text) (map[string]any, bool)`, `Validate(v map[string]any) (bool, []string)` |
+| `internal/resultenvelope/resultenvelope_test.go` | Created | 24 unit tests, all passing |
+| `internal/yamllite/yamllite.go` | Modified | Added `SetPhaseSummary(content, phase, summary string, keyDecisions []string) string` — line-oriented fill-gap writer mirroring `ospec-state.js#setPhaseSummary` |
+| `internal/yamllite/yamllite_test.go` | Modified | +8 `SetPhaseSummary` cases |
+| `internal/store/store.go` | Modified | Exported `WithLock(path string, fn func() error) error` — a thin wrapper over the package's existing private `withLock`, so `internal/hooks` can reuse the same advisory-lock primitive already exercised by `AppendRuntimeEvent` instead of duplicating it (this **is** the "Go `withLock` mirror of `withFileLock`" called for by task 4.6 — reused rather than re-implemented, since an equivalent, already-tested primitive existed) |
+| `internal/hooks/subagentstop.go` | Modified | New `findEnvelopeInValue`/`findEnvelopeInInput`/`findEnvelopeInTranscript` (mirror the existing `resultFields` search order for the envelope fence) and `persistResultEnvelope` (extract → `resultenvelope.Validate` → resolve active change via `store.FindActiveChanges` → phase key = agent name minus `sdd-` → `store.WithLock` + re-read-under-lock + `yamllite.SetPhaseSummary` + local `atomicWriteFile`). Wired to run before the existing skill_resolution block; `defer recover()` makes it fully panic-safe. |
+| `internal/hooks/subagentstop_test.go` | Modified | +6 integration cases against a scratch `openspec/changes/*/state.yaml` |
+
+### Deviations from Design
+
+- **`withLock` reuse instead of a new mirror**: design/tasks describe "a Go `withLock` mirror of
+  `withFileLock`". `internal/store/store.go` already had a private, already-tested `withLock`
+  function with the exact same cross-platform advisory-lock semantics (`.lock` sibling,
+  `O_EXCL` create, stale-lock reclamation after 10s). Rather than duplicating that logic inside
+  `internal/hooks`, it was exported as `store.WithLock` and reused. This is a **cosmetic
+  deviation** per the apply skill's own rule (an equivalent existing helper with the same
+  contract) — not a `design-mismatch`: behavior, retry/backoff, and reclaim semantics are
+  byte-for-byte identical to what a from-scratch mirror would have implemented, and the parity
+  contract (Phase 5) only asserts observable hook behavior, not internal call graphs.
+
+### Issues Found
+
+- **Test-authoring bug, not implementation bug** (task 4.4): a `bash <<'EOF'` heredoc used to
+  append the initial `SetPhaseSummary` Go test cases silently collapsed doubled backslash
+  literals (`\\` → `\`) inside one raw Go string literal, producing a RED failure that looked
+  like an escaping bug in `SetPhaseSummary` itself. Confirmed via a standalone `go run` probe
+  (`%q`-formatted byte comparison) that the implementation's output was already correct and the
+  *test's* expected string was wrong; fixed with a single targeted `Edit` to the test file only.
+  No production code was changed for this issue. Recorded here per the skill's "Issues Found"
+  requirement even though it was self-contained within this batch.
+
+### Status
+14/20 tasks complete (Phases 1-4 done). `go build ./...`, `go vet ./...`, `go test ./...` all
+green (0 regressions across `cmd/ospec-hooks`, `internal/hooks`, `internal/jsonio`,
+`internal/resultenvelope`, `internal/rules`, `internal/skillreg`, `internal/store`,
+`internal/yamllite`). Ready for Work Unit 4 (Phase 5: parity fixtures + `parity-contract.test.js`
+parameterization + Phase 6 verification).
