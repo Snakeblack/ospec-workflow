@@ -190,7 +190,7 @@ Before executing ANY explicit persisted SDD command (`/sdd-foundation`, `/sdd-ne
 
 1. Check for `openspec/config.yaml` with project context and testing capabilities.
 2. If found, init was done; proceed normally.
-3. If not found and the user explicitly invoked an SDD workflow command or clearly asked to start persisted SDD work, run `sdd-init` first by delegating to the `sdd-init` sub-agent, then proceed with the requested command.
+3. If not found and the user explicitly invoked an SDD workflow command or clearly asked to start persisted SDD work, first ask the **project scale** once via `AskUserQuestion` — options `solo` ("mínima burocracia: lite por defecto, sin 4R; trade-off: menos red de seguridad, todo reversible por config"), `team` (recommended: "defaults actuales + gate de colisión + trailers advisory; reversible editando config.yaml") and `enterprise` ("strict TDD + 4R + trazabilidad required + mentorship balanced; trade-off: más fricción por change, máxima auditabilidad") — then run `sdd-init` delegating to the `sdd-init` sub-agent with `scale: {answer}` in its `## Parameters` block, and proceed with the requested command.
 4. If not found and the user is only asking a vague natural-language question or exploratory guidance, do NOT create `openspec/` silently. Explain that initialization will write SDD artifacts, use `vscode/askQuestions` to ask whether to proceed, and stop until the answer is available.
 
 This ensures:
@@ -262,6 +262,14 @@ route:
 
 These fields MUST be present before the first phase of the selected route executes.
 
+When creating a new change, also stamp its owner in the same `state.yaml` write (multi-team traceability; omit the block if git is unavailable — non-fatal):
+
+```yaml
+owner:
+  author: {git config user.name}
+  branch: {git branch --show-current}
+```
+
 #### Step 5: Execute the Route
 
 Run the route's `phases` in declared order.
@@ -304,6 +312,7 @@ here.
 | Workspace Federation / Federation Baseline Loop | `artifact_store.backend == workspace-federated` | `skills/_shared/route-federation.md` | At route start when the backend is federated, before federated foundation / baseline loop |
 | Lifecycle Hook Dispatch | `hooks:` present and non-empty in `config.yaml` | `skills/_shared/dispatch-lifecycle-hooks.md` | At route start (setup/cache), before the first phase dispatch |
 | Archive Dispatch Guard (Quality Gates) | before dispatching `sdd-archive` | `skills/_shared/gate-archive-quality.md` | At the archive guard, before dispatching `sdd-archive` |
+| Change Collision Gate | before dispatching `sdd-apply` AND at least one OTHER active (non-terminal) change exists | `skills/_shared/gate-change-collision.md` | At the apply guard, after the Review Workload Guard resolves |
 
 ### Execution Mode
 

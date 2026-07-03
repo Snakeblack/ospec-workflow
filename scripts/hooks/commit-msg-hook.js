@@ -23,6 +23,77 @@ function findAttribution(message) {
   return null;
 }
 
+/** Matches the Ospec-Change / Ospec-Task traceability trailers (B3). */
+const OSPEC_CHANGE_TRAILER_RE = /^Ospec-Change:\s*(\S+)\s*$/m;
+const OSPEC_TASK_TRAILER_RE = /^Ospec-Task:\s*[0-9]+(?:\.[0-9]+)*(?:\s*,\s*[0-9]+(?:\.[0-9]+)*)*\s*$/m;
+
+/** Commits that never need traceability trailers. */
+const TRAILER_EXEMPT_RE = /^(?:Merge |Revert |fixup!|squash!)/;
+
+/**
+ * Validates the B3 traceability trailers against the active change.
+ * Pure function — the caller resolves the active change name (or null).
+ * Returns { status: "ok" | "missing" | "missing-task" | "mismatch", detail }.
+ */
+function checkTraceabilityTrailers(message, activeChangeName) {
+  if (!activeChangeName) {
+    return { status: "ok", detail: "no active change" };
+  }
+  if (TRAILER_EXEMPT_RE.test(message)) {
+    return { status: "ok", detail: "exempt commit type" };
+  }
+  const changeMatch = message.match(OSPEC_CHANGE_TRAILER_RE);
+  if (!changeMatch) {
+    return {
+      status: "missing",
+      detail: `Falta el trailer 'Ospec-Change: ${activeChangeName}' (y 'Ospec-Task: N.N') con un change activo.`,
+    };
+  }
+  if (changeMatch[1] !== activeChangeName) {
+    return {
+      status: "mismatch",
+      detail: `El trailer nombra '${changeMatch[1]}' pero el change activo es '${activeChangeName}'.`,
+    };
+  }
+  if (!OSPEC_TASK_TRAILER_RE.test(message)) {
+    return {
+      status: "missing-task",
+      detail: "Ospec-Change presente pero falta 'Ospec-Task: N.N' (números de task, separados por coma).",
+    };
+  }
+  return { status: "ok", detail: "trailers valid" };
+}
+
+/** Resolves the active (status: active) change name from openspec/changes, or null. */
+function findActiveChangeNameSync() {
+  const path = require("node:path");
+  const changesRoot = path.join(process.cwd(), "openspec", "changes");
+  try {
+    if (!fs.existsSync(changesRoot)) return null;
+    for (const entry of fs.readdirSync(changesRoot, { withFileTypes: true })) {
+      if (entry.isDirectory() && entry.name !== "archive") {
+        const statePath = path.join(changesRoot, entry.name, "state.yaml");
+        if (fs.existsSync(statePath) && fs.readFileSync(statePath, "utf8").includes("status: active")) {
+          return entry.name;
+        }
+      }
+    }
+  } catch (err) {
+    // fail-open: traceability must never break commits on I/O errors
+  }
+  return null;
+}
+
+/** Reads whether config declares trailers as required (default: advisory). */
+function trailersRequiredSync() {
+  try {
+    const content = fs.readFileSync("openspec/config.yaml", "utf8");
+    return /^traceability:\s*$[\s\S]*?^\s+trailers:\s*required\s*$/m.test(content);
+  } catch (err) {
+    return false;
+  }
+}
+
 function runCommitMsg(msgFilePath) {
   // 1. Bypass por variable de entorno
   if (process.env.DISABLE_OSPEC_ATTRIBUTION_CHECK === "true") {
@@ -74,6 +145,22 @@ function runCommitMsg(msgFilePath) {
     return;
   }
 
+  // B3 — Traceability trailers: advisory by default, required via config
+  // (`traceability:` → `trailers: required`). Never blocks unless required.
+  const activeChange = findActiveChangeNameSync();
+  const trailerResult = checkTraceabilityTrailers(message, activeChange);
+  if (trailerResult.status !== "ok") {
+    const required = trailersRequiredSync();
+    const label = required ? "ERROR" : "Advisory";
+    console.warn(`OSPEC-COMMIT-MSG [${label}]: trazabilidad — ${trailerResult.detail}`);
+    if (required) {
+      console.error("Config declara 'trailers: required'. Añade los trailers y reintenta,");
+      console.error("o cambia la política en openspec/config.yaml (traceability).");
+      process.exit(1);
+      return;
+    }
+  }
+
   process.exit(0);
 }
 
@@ -84,5 +171,6 @@ if (require.main === module) {
 module.exports = {
   FORBIDDEN_ATTRIBUTION_RE,
   findAttribution,
+  checkTraceabilityTrailers,
   runCommitMsg,
 };

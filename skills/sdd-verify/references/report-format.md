@@ -72,6 +72,16 @@
 **WARNING**: {list or None, tagged with origin `code-bug|tasks-gap|design-gap|spec-gap`}
 **SUGGESTION**: {list or None}
 
+### Traceability Matrix
+{Omit this section entirely when the change's specs carry no stable REQ ids (`{#REQ-domain-NNN}`).}
+
+| REQ | Tasks | Commits | Tests | Status |
+|-----|-------|---------|-------|--------|
+| {REQ-auth-003} | {1.2, 2.1} | {short-sha, short-sha} | {file > test name} | OK |
+| {REQ-auth-004} | {2.3} | {short-sha} | (none) | WARNING — REQ without linked test |
+
+Sources: task `[REQ-...]` tags in `tasks.md`; commit trailers `Ospec-Change` / `Ospec-Task` (join commits to REQs through the tasks they implement); test names or files citing the REQ id. A MUST requirement with no linked test is a WARNING (CRITICAL under Strict TDD). A REQ absent from every task is a `tasks-gap` finding.
+
 ### Assumption Reconciliation
 {Omit this section entirely when `state.yaml assumptions:` is absent or empty.}
 
