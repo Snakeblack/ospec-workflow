@@ -8,6 +8,16 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-07-03
+
+### Added
+- **Contrato de recomendación (`openspec/specs/recommendation-contract/spec.md`)**: toda opción `recommended: true` en un `question_gate` DEBE incluir en su `description` el racional (1 línea), el trade-off principal frente a las alternativas y la reversibilidad de la decisión; el `reason` del gate DEBE declarar el costo de equivocarse. Un senior no dice "elegí A": dice por qué, qué se paga por B y si la decisión es reversible. Los ejemplos embebidos en el orquestador y las fases fueron actualizados al nuevo shape.
+- **Detección de ambigüedad fuera de clarify (`openspec/specs/ambiguity-detection-boundaries/spec.md`)**: dos límites nuevos que adelantan y atrasan la detección respecto del gate de clarify. *Antes* — intent restatement en Change Classification: cuando la petición del usuario es vaga, el orquestador la reformula en 2-4 líneas y la valida vía `askQuestions` antes de clasificar, eliminando la clase de error más cara (construir lo que no se pidió). *Después* — `sdd-apply` devuelve `blocker_type: design-mismatch` cuando el código real contradice el design (API distinta, dependencia inexistente, patrón incompatible), ruteando de vuelta a `sdd-design` en vez de improvisar workarounds.
+- **Formalización del enum `blocker_type`** en el Result Envelope y specs de `agents` (§6.7–§6.10): compliance del contrato de recomendación, intent restatement, design-mismatch.
+- **Test de contrato `scripts/recommendation-ambiguity-contract.test.js`**: verifica que orquestador, fases y targets generados documentan el nuevo contrato (48/48 junto a los contratos existentes).
+
+Cambio guiado por SDD (ruta `standard`) con TDD estricto y gate 4R. Verificación: PASS WITH WARNINGS con los 5 hallazgos WARNING del gate 4R corregidos y re-verificados. Rastro de auditoría en `openspec/changes/archive/2026-07-03-recommendation-contract-and-early-ambiguity-detection/`.
+
 ## [2.10.0] - 2026-07-02
 
 ### Added
