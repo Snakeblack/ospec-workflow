@@ -103,7 +103,7 @@ Why copy-full-then-edit?
 
 ## ADDED Requirements
 
-### Requirement: {Requirement Name}
+### Requirement: {Requirement Name} {#REQ-{domain}-{NNN}}
 
 {Description using RFC 2119 keywords: MUST, SHALL, SHOULD, MAY}
 
@@ -180,6 +180,17 @@ Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
 - artifact: `spec`
 - path: `openspec/changes/{change-name}/specs/{domain}/spec.md`
 
+#### Step 5b: Record Baseline Fingerprints (stale-delta guard)
+
+For each delta domain written, record in `state.yaml` the SHA-256 of the current baseline `openspec/specs/{domain}/spec.md` (or `null` when no baseline exists yet):
+
+```yaml
+baseline_fingerprints:
+  {domain}: "sha256:..." | null
+```
+
+`sdd-archive` compares these at merge time to detect that another change moved the baseline first (see `skills/_shared/gate-change-collision.md`, Baseline fingerprint at archive).
+
 ### Step 6: Return Summary
 
 Return to the orchestrator:
@@ -211,6 +222,7 @@ Ready for design (sdd-design). If design already exists, ready for tasks (sdd-ta
 - If existing specs exist, write DELTA specs (ADDED/MODIFIED/REMOVED sections)
 - If NO existing specs exist for the domain, write a FULL spec
 - Every requirement MUST have at least ONE scenario
+- **Stable REQ ids**: every ADDED requirement heading carries a stable id suffix `{#REQ-{domain}-{NNN}}` (`NNN` = 001, 002, … unique within the domain, continuing from the highest existing id in the baseline spec). MODIFIED requirements keep their existing id unchanged; ids are never reused after removal. These ids anchor the traceability chain REQ → task → commit → test.
 - Include both happy path AND edge case scenarios
 - Keep scenarios TESTABLE — someone should be able to write an automated test from each one
 - DO NOT include implementation details in specs — specs describe WHAT, not HOW

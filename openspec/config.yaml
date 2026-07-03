@@ -211,6 +211,43 @@ routing:
 # ---------------------------------------------------------------------------
 #
 # ---------------------------------------------------------------------------
+# scale: (OPTIONAL — one key; sdd-init writes it from the first-init question)
+#
+# Project scale preset. Absence = `team`. Presets only materialize other config
+# blocks at init time — editing those blocks later always wins over the preset.
+#   solo        → lite-first, clarify only on residual_ambiguity, no 4R
+#   team        → current defaults + collision gate + advisory trailers
+#   enterprise  → strict TDD + 4R + traceability required + mentorship balanced
+#
+# scale: team
+# ---------------------------------------------------------------------------
+#
+# ---------------------------------------------------------------------------
+# traceability: (OPTIONAL — all lines below are commented out; uncomment to activate)
+#
+# Policy for the REQ → task → commit → test chain. Absence of this block is a
+# strict no-op: trailers stay advisory (commit-msg warns, never blocks) and the
+# verify Traceability Matrix appears only when specs carry stable REQ ids.
+#
+# traceability:
+#   trailers: required     # advisory (default) | required — commit-msg exit 1 on missing trailers
+# ---------------------------------------------------------------------------
+#
+# ---------------------------------------------------------------------------
+# ownership: (OPTIONAL — all lines below are commented out; uncomment to activate)
+#
+# Team ownership map for multi-team repos. Absence of this block is a strict
+# no-op: the Change Collision Gate still fires on file/domain overlap, just
+# without team context. Semantics: skills/_shared/gate-change-collision.md.
+#
+# ownership:
+#   domains:
+#     auth: { team: platform, globs: ["src/auth/**"] }
+#     billing: { team: payments, globs: ["src/billing/**"] }
+#   codeowners_sync: true    # advisory: contrast against .github/CODEOWNERS
+# ---------------------------------------------------------------------------
+#
+# ---------------------------------------------------------------------------
 # mentorship: (OPTIONAL — all lines below are commented out; uncomment to activate)
 #
 # Calibrates how much reasoning the phase summaries expose to the user.

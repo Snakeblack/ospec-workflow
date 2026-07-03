@@ -52,6 +52,8 @@ Before syncing anything, inspect `openspec/changes/{change-name}/verify-report.m
 
 If no delta specs exist (common in lite mode), skip spec sync and archive the change artifacts as-is.
 
+**Stale-baseline check (before merging each delta)**: if `state.yaml` carries a `baseline_fingerprints:` block, re-hash the current baseline `openspec/specs/{domain}/spec.md` (SHA-256) and compare with the recorded value for that domain. On mismatch, the baseline moved since this delta was written (typically another change archived first): do NOT blind-merge — return `status: blocked` with `blocker_type: stale-baseline` naming the domain, so the orchestrator routes a re-verify of the delta against the new baseline. A missing `baseline_fingerprints` block (pre-feature change) skips the check silently.
+
 #### If Main Spec Exists (`openspec/specs/{domain}/spec.md`)
 
 Read the existing main spec and apply the delta:

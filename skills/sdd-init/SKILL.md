@@ -84,6 +84,11 @@ After resolving a valid base path, scan its immediate children (depth-1 only, no
 4. Initialize persistence for the resolved mode.
 5. Build `.ospec/cache/skill-registry.cache.json` using the skill-registry scan rules.
 6. Persist testing capabilities and project context.
+6b. **Scale preset** (openspec mode only): read the `scale: <solo|team|enterprise>` line from the `## Parameters` prompt block (the orchestrator asks the user once at first init; absent → default `team`, ask nothing yourself). Write `scale: {value}` into `openspec/config.yaml` and materialize its preset:
+   - `solo`: keep everything advisory — no extra blocks; routing prefers `lite` for trivial/small; clarify fires only on `residual_ambiguity`; 4R stays out of default route gates.
+   - `team` (default): current defaults unchanged; the Change Collision Gate applies (it is always-on when other active changes exist); traceability trailers stay advisory.
+   - `enterprise`: uncomment/write `strict_tdd: true` (when a runner exists), `traceability: { trailers: required }`, and `mentorship: { mode: balanced }`; keep 4R in the standard route gates; recommend declaring `quality_gates:` with `on_fail: halt`.
+   On re-init with an existing `scale:` key, preserve it unchanged (same rule as the `baseline` block).
 7. **Brownfield branch** (openspec mode only): if existing application code is detected outside `openspec/`, `docs/`, and dotfiles AND `openspec/specs/` is empty AND `openspec/config.yaml` has no `baseline` block, write the `baseline` block with `status: pending`, empty `domains_pending`, `domains_done`, `stale_domains`, and `last_checked: ""`. On re-init, if a `baseline` block already exists, preserve it unchanged.
 8. Return the structured initialization envelope.
 

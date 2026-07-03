@@ -190,7 +190,7 @@ Before executing ANY explicit persisted SDD command (`/sdd-foundation`, `/sdd-ne
 
 1. Check for `openspec/config.yaml` with project context and testing capabilities.
 2. If found, init was done; proceed normally.
-3. If not found and the user explicitly invoked an SDD workflow command or clearly asked to start persisted SDD work, run `sdd-init` first by delegating to the `sdd-init` sub-agent, then proceed with the requested command.
+3. If not found and the user explicitly invoked an SDD workflow command or clearly asked to start persisted SDD work, first ask the **project scale** once via `AskUserQuestion` — options `solo` ("mínima burocracia: lite por defecto, sin 4R; trade-off: menos red de seguridad, todo reversible por config"), `team` (recommended: "defaults actuales + gate de colisión + trailers advisory; reversible editando config.yaml") and `enterprise` ("strict TDD + 4R + trazabilidad required + mentorship balanced; trade-off: más fricción por change, máxima auditabilidad") — then run `sdd-init` delegating to the `sdd-init` sub-agent with `scale: {answer}` in its `## Parameters` block, and proceed with the requested command.
 4. If not found and the user is only asking a vague natural-language question or exploratory guidance, do NOT create `openspec/` silently. Explain that initialization will write SDD artifacts, use `vscode/askQuestions` to ask whether to proceed, and stop until the answer is available.
 
 This ensures:
@@ -262,6 +262,8 @@ route:
 
 These fields MUST be present before the first phase of the selected route executes.
 
+When creating a new change, also stamp its owner in the same `state.yaml` write (multi-team traceability; omit if git is unavailable — non-fatal): `owner:` with `author: {git config user.name}` and `branch: {git branch --show-current}`.
+
 #### Step 5: Execute the Route
 
 Run the route's `phases` in declared order.
@@ -304,6 +306,7 @@ here.
 | Workspace Federation / Federation Baseline Loop | `artifact_store.backend == workspace-federated` | `skills/_shared/route-federation.md` | At route start when the backend is federated, before federated foundation / baseline loop |
 | Lifecycle Hook Dispatch | `hooks:` present and non-empty in `config.yaml` | `skills/_shared/dispatch-lifecycle-hooks.md` | At route start (setup/cache), before the first phase dispatch |
 | Archive Dispatch Guard (Quality Gates) | before dispatching `sdd-archive` | `skills/_shared/gate-archive-quality.md` | At the archive guard, before dispatching `sdd-archive` |
+| Change Collision Gate | before dispatching `sdd-apply` AND at least one OTHER active (non-terminal) change exists | `skills/_shared/gate-change-collision.md` | At the apply guard, after the Review Workload Guard resolves |
 
 ### Execution Mode
 
@@ -590,12 +593,7 @@ The orchestrator's own replies and all `vscode/askQuestions` prompts MUST also u
 
 `openspec/config.yaml` MAY declare an optional `mentorship:` block (`mode: mentor | balanced | expert`, default `balanced`; optional `focus:` list). Resolve it ONCE per session (with the strict-TDD read) and cache it.
 
-1. Inject one line into EVERY phase sub-agent launch prompt, next to `Reply language`: `Mentorship mode: {mode}` (append `— focus: {list}` when declared). Absent block → `balanced`; do not ask the user.
-2. Mode semantics (defined normatively in `_shared/sdd-phase-common.md` § F):
-   - `mentor`: phase summaries include a "Por qué así" section (2-4 bullets: discarded alternatives + rationale) and at most 1 teachable concept when applicable.
-   - `balanced`: rationale only on architectural decisions and gate questions.
-   - `expert`: minimal executive summaries (current behavior).
-3. The mode affects ONLY user-facing prose (`executive_summary`, `detailed_report`, option `description` didactic depth in `question_gate`). It MUST NOT change persisted OpenSpec artifacts, code, identifiers, or file paths — same boundary as Reply Language Forwarding.
+Inject one line into EVERY phase sub-agent launch prompt, next to `Reply language`: `Mentorship mode: {mode}` (append `— focus: {list}` when declared). Absent block → `balanced`; do not ask the user. Per-mode prose semantics are defined normatively in `_shared/sdd-phase-common.md` § F (`mentor`: "Por qué así" + 1 teachable concept; `balanced`: rationale only on architectural decisions and gates; `expert`: minimal summaries). The mode affects ONLY user-facing prose. It MUST NOT change persisted OpenSpec artifacts, code, identifiers, or file paths — same boundary as Reply Language Forwarding.
 
 #### Apply-Progress Continuity (MANDATORY)
 

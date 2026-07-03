@@ -172,3 +172,46 @@ test("runCommitMsg exits 0 when message file cannot be read (non-blocking)", (t)
 
 // strict TDD validation comment
 
+
+// ---------------------------------------------------------------------------
+// B3 — Traceability trailers (Ospec-Change / Ospec-Task), advisory by default
+// ---------------------------------------------------------------------------
+
+const { checkTraceabilityTrailers } = require("./commit-msg-hook.js");
+
+test("trailers: no active change → not-applicable (ok)", () => {
+  const r = checkTraceabilityTrailers("feat: x\n\nbody", null);
+  assert.equal(r.status, "ok");
+});
+
+test("trailers: active change + matching trailers → ok", () => {
+  const msg = "feat: x\n\nbody\n\nOspec-Change: my-change\nOspec-Task: 1.2, 2.1\n";
+  const r = checkTraceabilityTrailers(msg, "my-change");
+  assert.equal(r.status, "ok");
+});
+
+test("trailers: active change + missing trailer → missing", () => {
+  const r = checkTraceabilityTrailers("feat: x\n\nbody", "my-change");
+  assert.equal(r.status, "missing");
+});
+
+test("trailers: trailer names a different change → mismatch with both names in detail", () => {
+  const msg = "feat: x\n\nOspec-Change: other-change\nOspec-Task: 1.1\n";
+  const r = checkTraceabilityTrailers(msg, "my-change");
+  assert.equal(r.status, "mismatch");
+  assert.match(r.detail, /other-change/);
+  assert.match(r.detail, /my-change/);
+});
+
+test("trailers: Ospec-Change present without Ospec-Task → missing-task", () => {
+  const msg = "feat: x\n\nOspec-Change: my-change\n";
+  const r = checkTraceabilityTrailers(msg, "my-change");
+  assert.equal(r.status, "missing-task");
+});
+
+test("trailers: merge/revert/fixup commits are exempt", () => {
+  for (const subject of ["Merge branch 'x'", "Revert \"feat: x\"", "fixup! feat: x"]) {
+    const r = checkTraceabilityTrailers(subject, "my-change");
+    assert.equal(r.status, "ok", subject);
+  }
+});

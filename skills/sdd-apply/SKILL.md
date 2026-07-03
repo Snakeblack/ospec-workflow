@@ -234,6 +234,7 @@ If none, say "None."}
 - In lite mode, missing spec/design artifacts are expected. `proposal-lite.md` is the acceptance contract. If the work outgrows trivial/small scope, STOP and return `blocked` with `escalate-to-standard-sdd`.
 - When applying a chained/stacked PR slice, keep the batch autonomous: one deliverable scope, verification included, and clear rollback boundary
 - When applying `size:exception`, state it explicitly in apply-progress and the return summary
+- **Traceability trailers**: when committing work units for an active change, append the trailers `Ospec-Change: {change-name}` and `Ospec-Task: {task-number}` (comma-separate multiple task numbers) to each commit message body. The `commit-msg` git hook validates the format advisorily when a change is active; the verify traceability matrix joins commits to REQs through these trailers.
 - NEVER implement tasks that weren't assigned to you
 - Skill loading is handled in Step 1 — follow any loaded skills strictly when writing code
 - Apply any `rules.apply` from `openspec/config.yaml`

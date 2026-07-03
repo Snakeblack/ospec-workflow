@@ -137,8 +137,8 @@ Chain strategy: <stacked-to-main|feature-branch-chain|size-exception|pending>
 
 ## Phase 1: {Phase Name} (e.g., Infrastructure / Foundation)
 
-- [ ] 1.1 {Concrete action — what file, what change}
-- [ ] 1.2 {Concrete action}
+- [ ] 1.1 {Concrete action — what file, what change} [REQ-{domain}-{NNN}]
+- [ ] 1.2 {Concrete action} [REQ-{domain}-{NNN}, REQ-{domain}-{MMM}]
 - [ ] 1.3 {Concrete action}
 
 ## Phase 2: {Phase Name} (e.g., Core Implementation)
@@ -288,6 +288,7 @@ Return to the orchestrator:
 - Testing tasks should reference specific scenarios from the specs, or `proposal-lite.md` acceptance checks in lite mode
 - Each task should be completable in ONE session (if a task feels too big, split it)
 - Use hierarchical numbering: 1.1, 1.2, 2.1, 2.2, etc.
+- **REQ coverage**: when the change has specs with stable REQ ids (`{#REQ-domain-NNN}` headings), each implementation task lists the REQ ids it covers as a trailing `[REQ-...]` tag, and every MUST requirement appears in at least one task. `sdd-verify` validates this mapping in the traceability matrix.
 - NEVER include vague tasks like "implement feature" or "add tests"
 - In full mode, ALWAYS emit `## Spec/Design Reconciliation` before the backlog. If any MUST scenario is `missing-design`, return `blocked` instead of writing `tasks.md`.
 - In lite mode, emit `## Lite Change Contract` instead of the reconciliation matrix and use `proposal-lite.md` as the contract.
