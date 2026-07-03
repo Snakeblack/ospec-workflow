@@ -8,6 +8,8 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-07-03
+
 ### Added
 - **Suite de contrato Go/JS ejecutable (E1)**: las golden fixtures de `internal/testdata/parity/` ahora se verifican en AMBOS runtimes — Go vía `TestPreToolUse_ParityFixtures` (byte a byte) y JS vía el nuevo `scripts/hooks/parity-contract.test.js`, que ejecuta el proceso real del hook contra cada fixture (con prefix-match documentado solo para el sufijo impl-specific del error de parseo JSON). Fixture nueva `pre-tool-use-bypass.json` cubre la degradación por `permission_mode`. Regla operativa en `docs/harness-go-js-parity.md`: ante un mismatch se corrige la implementación rezagada, nunca la fixture sola.
 - **Matriz de capacidades y paridad por target (D1/D2)** — `docs/target-capabilities.md`: qué capacidad existe en cada host (preguntas estructuradas, sub-agentes paralelos, background tasks, lifecycle hooks, fallback de modelos), la degradación definida cuando falta (gates → pregunta de chat estructurada; 4R → secuencial), y la tabla de paridad de protecciones que deja explícito que los git hooks locales son la única capa universal — un usuario de vscode/copilot ya no puede asumir protecciones que su host no ejecuta.
