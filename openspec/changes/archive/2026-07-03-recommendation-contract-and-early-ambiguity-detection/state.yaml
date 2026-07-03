@@ -1,0 +1,97 @@
+schema: sdd-state
+change: recommendation-contract-and-early-ambiguity-detection
+created_at: "2026-07-02T21:30:00Z"
+classification: normal
+source_roadmap: "analisis-fino/analisis-evolucion-harness.md#a2-a3"
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "classifyChange deterministic (classification: normal); first match in routing table: standard (project.status: active)"
+  validated: true
+  validation_errors: []
+
+approvals:
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: interactive
+    source: AskUserQuestion
+    accepted_at: "2026-07-02T00:00:00Z"
+    applies_to:
+      - session
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: AskUserQuestion
+    accepted_at: "2026-07-02T00:00:00Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: h1-granularity-001
+    gate: scope-granularity
+    decision: "group-related: H1 en 5 changes (A1 | A2+A3 | C1 | C4+E3 | E1)"
+    source: AskUserQuestion
+    accepted_at: "2026-07-02T00:00:00Z"
+    applies_to:
+      - horizon-1
+
+status: archived
+last_updated: "2026-07-03T19:15:00Z"
+
+assumptions:
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "El test de contrato nuevo se nombra scripts/recommendation-ambiguity-contract.test.js siguiendo el sufijo *-contract.test.js."
+    reversibility: high
+    basis: "Patrón existente en scripts/assumption-ledger-contract.test.js y federation-baseline-contract.test.js."
+
+blocking_questions: []
+
+phases:
+  propose:
+    status: done
+    artifact: "openspec/changes/archive/2026-07-03-recommendation-contract-and-early-ambiguity-detection/proposal.md"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/archive/2026-07-03-recommendation-contract-and-early-ambiguity-detection/specs/recommendation-contract/spec.md"
+      - "openspec/changes/archive/2026-07-03-recommendation-contract-and-early-ambiguity-detection/specs/ambiguity-detection-boundaries/spec.md"
+      - "openspec/changes/archive/2026-07-03-recommendation-contract-and-early-ambiguity-detection/specs/agents/spec.md"
+  clarify:
+    status: done
+    questions_asked: 2
+  design:
+    status: done
+    artifact: "openspec/changes/archive/2026-07-03-recommendation-contract-and-early-ambiguity-detection/design.md"
+  tasks:
+    status: done
+    artifact: "openspec/changes/archive/2026-07-03-recommendation-contract-and-early-ambiguity-detection/tasks.md"
+  apply:
+    status: done
+    artifact: "openspec/changes/archive/2026-07-03-recommendation-contract-and-early-ambiguity-detection/apply-progress.md"
+  verify:
+    status: done
+    artifact: "openspec/changes/archive/2026-07-03-recommendation-contract-and-early-ambiguity-detection/verify-report.md"
+    verdict: "PASS WITH WARNINGS"
+  archive:
+    status: done
+    artifact: "openspec/changes/archive/2026-07-03-recommendation-contract-and-early-ambiguity-detection/archive-report.md"
+
+gates:
+  4r-review-gate:
+    status: done
+    on_blocker: advisory
+    findings_summary: "0 BLOCKER, 0 CRITICAL, 5 WARNING, 1 SUGGESTION"
+    surfaced_to_user: true
+    fix_batch:
+      status: done
+      findings_fixed: 5
+      suggestion_addressed: true
+      files_changed:
+        - "skills/_shared/sdd-phase-common.md"
+        - "openspec/specs/agents/spec.md"
+        - "agents/sdd-orchestrator.agent.md"
+        - "skills/sdd-apply/SKILL.md"
+        - "scripts/recommendation-ambiguity-contract.test.js"
+      verification: "node --test scripts/recommendation-ambiguity-contract.test.js scripts/docs-lint.test.js scripts/assumption-ledger-contract.test.js scripts/federation-baseline-contract.test.js -> 48/48 pass"
+      dist_regenerated: true

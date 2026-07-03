@@ -1,7 +1,15 @@
 ---
 title: Known Issues
-last_updated: 2026-07-02
+last_updated: 2026-07-03
 ---
+
+## Embedded question_gate reason example not conformant to the new Gate-Reason-Cost contract
+
+- severity: WARNING
+- area: agents/sdd-orchestrator.agent.md Sub-Agent Clarification Contract "Preferred shape" (reason placeholder "Why this decision blocks the phase.")
+- workaround: update the example reason to also name the cost of a wrong/guessed decision, matching the authoritative example in sdd-phase-common.md §D; the sibling description was already made conformant, leaving the block internally inconsistent
+- change: recommendation-contract-and-early-ambiguity-detection
+- date: 2026-07-03
 
 ## Escenario "skill discoverable via discoverSkills" es insatisfacible: shouldIncludeSkill excluye todos los dirs sdd-*
 

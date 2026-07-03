@@ -97,6 +97,19 @@ Meta-commands (type directly — orchestrator handles them, won't appear in auto
 
 `/sdd-new`, `/sdd-continue`, `/sdd-ff`, and `/sdd-lite` are meta-commands handled by YOU. Do NOT invoke them as skills.
 
+#### Intent Restatement (pre-classification)
+
+Before `/sdd-new`, `/sdd-ff`, `/sdd-lite` (or an equivalent natural-language request) reaches Change Classification, evaluate whether the original request is vague.
+
+A request is vague when it lacks at least ONE of:
+- an identifiable target module, file, or domain, OR
+- an identifiable acceptance criterion or desired outcome, OR
+- an unambiguous scope boundary (what is explicitly out of scope).
+
+When the request is vague, restate the interpreted intent in 2-4 lines and validate that restatement with the user via `AskUserQuestion` (or the target-specific equivalent) BEFORE proceeding to Change Classification or route selection. Do NOT create any OpenSpec artifact as a side effect of this restatement step alone. This is a single confirmation exchange — do NOT repeat it more than once per change request unless the user's answer itself introduces new ambiguity.
+
+When the request is NOT vague (all three elements are identifiable), skip this step and proceed directly to Change Classification.
+
 ### Change Classification
 
 Before `/sdd-new`, `/sdd-ff`, or `/sdd-lite` (or equivalent natural-language requests), classify the requested change:
@@ -339,7 +352,7 @@ Delivery strategy question shape:
          "options": [
          {
             "label": "ask-on-risk",
-            "description": "Preguntar solo si hay riesgo de PR grande o carga alta de revisión.",
+            "description": "Recomendado porque solo interrumpe cuando el riesgo de PR grande es real, evitando preguntas innecesarias en cambios chicos. Trade-off frente a auto-chain: no divide proactivamente, así que la primera vez que aparezca riesgo alto igual detendrá el flujo para preguntar. Reversible en cualquier momento cambiando la estrategia cacheada en una sesión posterior.",
             "recommended": true
          },
          {
@@ -391,7 +404,7 @@ Review workload question shape:
       "options": [
         {
           "label": "Chained PRs",
-          "description": "Dividir en slices revisables y autónomos.",
+          "description": "Recomendado porque mantiene cada PR dentro del presupuesto de revisión de 400 líneas, reduciendo el riesgo de revisiones superficiales. Trade-off frente a size:exception: agrega coordinación entre PRs encadenadas y retrasa el merge final. Reversible antes de la primera PR; una vez abiertas las PRs encadenadas, consolidar de nuevo en una sola requiere reescribir el historial.",
           "recommended": true
         },
         {
@@ -413,7 +426,7 @@ Automatic mode does not override this guard. Always pass the resolved delivery s
 
 > **Branch advisory (SHOULD, non-blocking):** Antes de despachar `sdd-apply`, se RECOMIENDA confirmar que hay una rama de feature activa — consulta el skill `branch-pr` para la convención `<tipo>/<descripción>`. Esta verificación es ADVISORY únicamente: MUST NOT bloquear ni condicionar el dispatch de `sdd-apply`.
 
-### Verification Failure Routing (MANDATORY)
+### Failure & Blocker Routing (MANDATORY)
 
 When `sdd-verify` returns `FAIL`, do NOT route everything back to `sdd-apply` by default.
 
@@ -430,6 +443,12 @@ Routing priority when multiple origins appear in one report:
 4. `code-bug`
 
 If verification returns mixed defects, route to the earliest upstream phase represented and summarize the downstream findings so they are not lost.
+
+Note the distinction between the two mechanisms above and below: `design-gap`/`spec-gap` are post-hoc origin tags that `sdd-verify` assigns after reviewing already-completed work, whereas the `blocker_type` values below (`design-mismatch`, `spec-change-required`) are live blockers that `sdd-apply` raises mid-implementation, before verify ever runs. Do not conflate a verify-time origin tag with an apply-time live blocker when routing.
+
+This routing table also covers `status: blocked` envelopes with a `blocker_type`, not only post-verify findings:
+- `blocker_type: design-mismatch` (fired from `sdd-apply` when existing code contradicts the design) → route to `sdd-design`, not `sdd-clarify`, and do NOT silently retry `sdd-apply`. Update `state.yaml` (top-level `status: blocked`, blocking question/reason recorded) and re-dispatch `sdd-apply` only once a revised design is produced.
+- `blocker_type: spec-change-required` → route to `sdd-spec`, same as the `spec-gap` origin above.
 
 ### Sub-Agent Launch Pattern
 
@@ -632,7 +651,7 @@ Preferred shape:
         "options": [
           {
             "label": "Option A",
-            "description": "Optional explanation.",
+            "description": "Why Option A is recommended; its trade-off vs. Option B; and whether the choice is reversible later.",
             "recommended": true
           },
           {

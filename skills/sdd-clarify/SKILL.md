@@ -89,13 +89,13 @@ Select the top **≤5** ambiguities by impact. Each question MUST be exactly one
   "header": "<short title>",
   "question": "<question text>",
   "options": [
-    { "label": "<option A>", "description": "<optional explanation>", "recommended": true },
+    { "label": "<option A>", "description": "<rationale + trade-off vs. option B + reversibility>", "recommended": true },
     { "label": "<option B>" }
   ],
   "multiSelect": false
 }
 ```
-Rules: 2–5 mutually exclusive `options`; `multiSelect: false`.
+Rules: 2–5 mutually exclusive `options`; `multiSelect: false`. Any option marked `recommended: true` MUST carry a `description` covering rationale, trade-off, and reversibility, per `skills/_shared/sdd-phase-common.md` §D Recommended Option Description Contract.
 
 **Short-answer**:
 ```json

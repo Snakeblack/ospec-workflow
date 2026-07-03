@@ -149,6 +149,16 @@ Every phase MUST return a structured envelope to the orchestrator:
 - `risks`: risks discovered, or "None"
 - `skill_resolution`: how skills were loaded — `injected` (received Project Standards in the launch prompt, including orchestrator cached rules), `fallback-registry` (loaded from `.ospec/cache/skill-registry.cache.json`), `fallback-path` (loaded exact `SKILL.md` fallback paths), or `none` (no skills loaded)
 - `assumptions`: OPTIONAL. A list of entries recorded under the Assumption Materiality Rule below, conforming to the Assumption Entry Schema. Omit the field, or return an empty list, when the phase made no assumptions this batch.
+- `blocker_type`: OPTIONAL. Present when `status: blocked`. Enum of known values (open — a new value MUST update this table AND `openspec/specs/agents/spec.md` §6.1 in the same change):
+
+  | Value | Meaning | Typical emitting phase |
+  |---|---|---|
+  | `needs_user_decision` | A phase is blocked on a clarify-style question with no dedicated blocker type | any phase, e.g. `sdd-clarify` |
+  | `design-mismatch` | Existing code contradicts the design during implementation | `sdd-apply` |
+  | `spec-change-required` | The spec itself is wrong, contradictory, or unverifiable | `sdd-apply` |
+  | `workload-escalation` | Live apply work overruns the tasks forecast beyond the safe threshold | `sdd-apply` |
+
+  Naming note: the existing values mix snake_case (`needs_user_decision`) and kebab-case (`design-mismatch`, `spec-change-required`, `workload-escalation`) for historical reasons that predate a naming convention — do not rename them. New values SHOULD use kebab-case going forward, matching the majority.
 
 #### Assumption Entry Schema
 
@@ -201,7 +211,7 @@ Use this shape when the question benefits from options, multi-select, or recomme
   "blocker_type": "needs_user_decision",
   "executive_summary": "Why the phase is blocked.",
   "question_gate": {
-    "reason": "Why this answer is required before continuing.",
+    "reason": "Why this answer is required before continuing, and the cost of guessing wrong: rework, wasted apply time, or a broken contract.",
     "questions": [
       {
         "header": "Short title",
@@ -209,7 +219,7 @@ Use this shape when the question benefits from options, multi-select, or recomme
         "options": [
           {
             "label": "Recommended option",
-            "description": "Why this is recommended.",
+            "description": "Rationale for recommending it; its trade-off vs. the alternative; and whether the choice is easily reversible, costly to reverse, or irreversible.",
             "recommended": true
           },
           {
@@ -231,6 +241,20 @@ Use this shape when the question benefits from options, multi-select, or recomme
 If the phase skill has a legacy `next_question` field, it may return `next_question` as plain text. Prefer `question_gate` when structured options are useful.
 
 On `blocked`, update `openspec/changes/{change-name}/state.yaml` with `status: blocked` and record the question or blocker in `blocking_questions`.
+
+#### Recommended Option Description Contract
+
+This contract is scoped exclusively to `question_gate.options[]`. The legacy `next_question` field is out of scope — it is plain text with no `options`/`recommended` substructure, so extending `next_question` with this structure is out of scope for this contract.
+
+Any option marked `recommended: true` MUST carry a non-empty `description` that identifies all three of:
+
+1. A 1-line rationale for why this option is recommended.
+2. The main trade-off versus the leading alternative option(s) in the same question.
+3. The decision's reversibility — easily reversible, costly to reverse, or effectively irreversible.
+
+If a single question exceptionally marks more than one option `recommended: true` (e.g. a `multiSelect` gate), each such option MUST independently satisfy this contract.
+
+Every `question_gate.reason` MUST also state, beyond why the answer is required, the cost of the user choosing incorrectly or of the decision being guessed instead of confirmed — what breaks, what has to be redone, or what risk is introduced. A `reason` that only restates "this decision is needed to continue" without naming that cost does not satisfy this contract.
 
 ### Assumption Materiality Rule
 

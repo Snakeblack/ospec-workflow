@@ -131,7 +131,8 @@ FOR EACH TASK:
 ├── Read relevant spec scenarios (these are your acceptance criteria)
 ├── Read the design decisions (these constrain your approach)
 ├── Read existing code patterns (match the project's style)
-├── If the spec is wrong, contradictory, or impossible to verify, STOP with `blocked: spec-change-required`
+├── If the spec is wrong, contradictory, or impossible to verify, persist partial progress on already-completed tasks in this batch, then STOP with `blocked: spec-change-required`
+├── If existing code contradicts the design (an assumed API, module, or dependency does not exist or differs, or the design's approach is incompatible with an established existing pattern) — and the deviation is NOT merely cosmetic (naming, or an equivalent existing helper with the same contract) — persist partial progress on already-completed tasks in this batch, then STOP with `blocked: design-mismatch`, citing the concrete contradiction and the affected `design.md` section
 ├── Write the code
 ├── Run the cheapest local verification available for that task slice
 ├── Mark task as `[~]` if code exists but verification is still pending
@@ -225,7 +226,8 @@ If none, say "None."}
 - ALWAYS match existing code patterns and conventions in the project
 - In `openspec` mode, update task status in `tasks.md` AS you go, not at the end
 - If you discover the design is wrong or incomplete, NOTE IT in your return summary — don't silently deviate
-- If the spec is wrong, incomplete, contradictory, or impossible to verify, STOP and return `blocked: spec-change-required`. Do not patch specs on the fly.
+- If the spec is wrong, incomplete, contradictory, or impossible to verify, persist partial progress on already-completed tasks in this batch, then STOP and return `blocked: spec-change-required`. Do not patch specs on the fly.
+- If existing code contradicts the design (an assumed API, module, or dependency that does not exist or differs, or a design approach incompatible with an established existing pattern), persist partial progress on already-completed tasks in this batch, then STOP and return `blocked: design-mismatch`, citing the concrete contradiction and the affected `design.md` section. A cosmetic deviation — a naming difference, or an equivalent existing helper that fulfills the same contract the design describes — is NOT a `design-mismatch`; proceed using the existing code without blocking.
 - If a task is blocked by something unexpected, STOP and report back
 - If workload forecast requires a decision and none was provided, STOP before writing code
 - If live workload drifts above forecast by more than 50% or overruns the 400-line budget, STOP after persisting partial progress and return `partial` with `workload-escalation`

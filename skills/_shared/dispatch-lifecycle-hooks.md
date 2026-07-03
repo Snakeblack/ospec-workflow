@@ -102,7 +102,7 @@ After each action completes (or is determined to be un-issuable):
     "header": "Lifecycle hook blocked",
     "question": "A halt hook failed at {event}: {message}. How do you want to proceed?",
     "options": [
-      { "label": "Retry", "description": "Re-run the failed action and continue if it passes.", "recommended": true },
+      { "label": "Retry", "description": "Recommended because it re-runs the failed hook action and continues only if it passes, keeping the halt boundary intact. Trade-off vs. override: costs one more attempt instead of crossing immediately. Reversible — retrying never discards state.", "recommended": true },
       { "label": "Override and continue", "description": "Cross the boundary anyway; recorded as overridden in the approvals ledger." },
       { "label": "Abort", "description": "Stop the route at this boundary." }
     ],
