@@ -29,6 +29,15 @@ corre **uno u otro**, nunca los dos.
 
 ## 2. Contrato de paridad (REGLA OPERATIVA)
 
+> **Contrato ejecutable (E1)**: las golden fixtures de `internal/testdata/parity/`
+> se verifican en AMBAS implementaciones en pre-commit/CI — Go vía
+> `TestPreToolUse_ParityFixtures` y JS vía `scripts/hooks/parity-contract.test.js`
+> (proceso real del hook). Un mismo set de fixtures, dos runtimes: añadir una fixture
+> extiende el contrato para los dos a la vez. Empezado por `pre-tool-use` (el camino
+> caliente); `session-start` es el siguiente candidato. Ante un mismatch, decidí el
+> comportamiento canónico y corregí la implementación rezagada — nunca "arregles" la fixture sola.
+
+
 `internal/store/store.go` es, por su propia cabecera (`store.go:1-3`), un **port parcial**
 de la *superficie single-repo* de `scripts/lib/artifact-store.js`:
 
