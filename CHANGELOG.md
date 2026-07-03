@@ -8,8 +8,14 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+### Added
+- **Mentorship mode (A4)**: bloque opcional `mentorship:` en `openspec/config.yaml` (`mode: mentor | balanced | expert`, default `balanced`; `focus:` opcional). El orquestador lo resuelve una vez por sesión y lo inyecta como una línea por dispatch (`Mentorship mode: {mode}`); la semántica por modo vive en `sdd-phase-common.md` §F — `mentor` añade la sección "Por qué así" (alternativas descartadas + racional) y hasta 1 concepto aprendible; `balanced` da racional solo en decisiones arquitectónicas y gates; `expert` mantiene los resúmenes mínimos actuales. Afecta SOLO prosa hacia el usuario, nunca artefactos OpenSpec (misma frontera que Reply Language Forwarding). Ausencia del bloque = no-op estricto.
+- **ADRs cableados al flujo (A5)**: `sdd-design` extrae las decisiones significativas (contrato público, modelo de datos, dependencia nueva o patrón transversal) a `openspec/changes/{name}/decisions/adr-NNN.md` en formato corto (Context / Decision / Alternatives / Consequences); `sdd-archive` promueve los ADRs aceptados a `docs/adr/adr-{YYYYMMDD}-{NNN}-{slug}.md` como memoria viva del proyecto antes del move, conservando las copias change-local en el archivo como rastro de auditoría.
+- **Test de contrato `scripts/mentor-adr-contract.test.js`**: landmarks de prosa en orquestador, phase-common, config, design y archive, más regeneración de targets en directorio temporal.
+
 ### Fixed
 - **Los advisories del hook PreToolUse ahora respetan `bypassPermissions`**: un `ask` devuelto por un hook tiene prioridad sobre el modo de permisos del host, así que AgentShield (contenido con pinta de credencial), el Token Budget Advisor (lecturas >50k y acumulado >150k), el Git Collaboration Guard (commit con árbol sucio o en rama default), el Spec Drift Advisory y las reglas ASK interrumpían al usuario incluso con permisos bypasseados — la razón por la que existían los kill-switches `DISABLE_*`. Ahora el hook lee `permission_mode` del input y, en `bypassPermissions`, degrada todo `ask` advisory a `allow` + `systemMessage` no bloqueante (prefijo `[ospec advisory]`); las reglas `deny` (rm -rf /, force push, atribución AI, claves SSH/.npmrc) nunca se degradan. Paridad Go/Node con tests espejo en ambos runtimes (`scripts/hooks/pre-tool-use.js`, `internal/hooks/pretooluse.go`). Spec: `openspec/specs/hooks/spec.md` §3.4.1.
+- **`sdd-archive` Step 5 endurecido — move no es copy**: se explicita que tras el move la carpeta original del change NO debe existir (con procedimiento copy-verify-delete para toolsets sin move), tras detectarse un archive real que dejó ambas carpetas y corrompía el descubrimiento de changes activos.
 
 ## [2.11.0] - 2026-07-03
 
