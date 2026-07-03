@@ -1,0 +1,5 @@
+{
+  "description": "Fail-open fixture: the json:result-envelope fence is present but its content is not valid JSON, and no skill_resolution signal is present anywhere in the payload. Persistence must skip (fail-safe) and the pre-existing skill_resolution path finds no resolution — stdout stays the plain {\"continue\":true}. No state.yaml write must occur.",
+  "stdin": "{\"cwd\":\"__SUBAGENT_STOP_FIXTURE_WORKSPACE__\",\"agent_type\":\"sdd-design\",\"result\":\"Prose before.\\n\\n```json:result-envelope\\n{ this is not valid json \\n```\\n\\nProse after.\"}",
+  "expectedStdout": "{\"continue\":true}"
+}

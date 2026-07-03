@@ -1,15 +1,16 @@
 "use strict";
 
-// E1 — Go/JS executable parity contract for the pre-tool-use hook.
+// E1 — Go/JS executable parity contract for the hook fixture family.
 // The golden fixtures under internal/testdata/parity/ were previously verified
-// ONLY by the Go suite (TestPreToolUse_ParityFixtures), so the JS hook could
-// drift silently. This runner executes the REAL JS hook process against the
-// same fixtures: one fixture set, two implementations, both in pre-commit/CI.
+// ONLY by the Go suite, so the JS hooks could drift silently. This runner
+// executes the REAL JS hook process against the same fixtures for EVERY hook
+// in the fixture family table below: one fixture set, two implementations,
+// both in pre-commit/CI.
 //
-// Defined divergence point: JSON parser error strings are implementation-
-// specific (Go: "invalid character ...", V8: "Expected property name ..."), so
-// for the fail-open error fixture the reason is compared by its stable prefix
-// and the decision fields exactly. Everything else is byte-for-byte.
+// Defined divergence point: implementation-specific message text (e.g. a JSON
+// parser error string) is never asserted byte-for-byte for a fail-open
+// fixture — only stable, implementation-independent fields are compared
+// exactly, and any divergent text is compared by shared prefix only.
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -19,7 +20,6 @@ const { spawnSync } = require("node:child_process");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 const FIXTURES_DIR = path.join(ROOT, "internal", "testdata", "parity");
-const HOOK_PATH = path.join(ROOT, "scripts", "hooks", "pre-tool-use.js");
 
 const PARSE_ERROR_PREFIX = "The safety hook could not inspect this tool call:";
 
@@ -31,8 +31,8 @@ function cleanEnv() {
   return env;
 }
 
-function runJsHook(stdin) {
-  const result = spawnSync(process.execPath, [HOOK_PATH], {
+function runHook(hookPath, stdin) {
+  const result = spawnSync(process.execPath, [hookPath], {
     input: stdin,
     encoding: "utf8",
     env: cleanEnv(),
@@ -43,31 +43,92 @@ function runJsHook(stdin) {
   return result.stdout.trim();
 }
 
-const fixtureFiles = fs
-  .readdirSync(FIXTURES_DIR)
-  .filter((name) => name.startsWith("pre-tool-use-") && name.endsWith(".json"));
-
-assert.ok(fixtureFiles.length >= 4, "parity fixture set must not shrink");
-
-for (const name of fixtureFiles) {
-  test(`parity(js) · ${name}`, () => {
-    const fixture = JSON.parse(fs.readFileSync(path.join(FIXTURES_DIR, name), "utf8"));
-    const actual = runJsHook(fixture.stdin);
-    const expected = fixture.expectedStdout;
-
-    const expectedReason = JSON.parse(expected).hookSpecificOutput.permissionDecisionReason;
-    if (expectedReason.startsWith(PARSE_ERROR_PREFIX)) {
+// Fixture-family table (hooks spec, MODIFIED Requirement: Go/JS Executable
+// Parity Contract E1, "Fixture family table"). Each entry knows how to spawn
+// its hook, its fixture prefix/floor, and how to compare actual vs. expected
+// for its documented fail-open fixture(s), if any.
+const FIXTURE_FAMILY = [
+  {
+    hook: "PreToolUse",
+    prefix: "pre-tool-use-",
+    hookPath: path.join(ROOT, "scripts", "hooks", "pre-tool-use.js"),
+    floor: 4,
+    // Identifies the fail-open fixture by its expectedStdout content, then
+    // compares only the stable fields exactly and the reason by prefix.
+    isFailOpen(expected) {
+      const parsed = JSON.parse(expected);
+      return parsed.hookSpecificOutput.permissionDecisionReason.startsWith(PARSE_ERROR_PREFIX);
+    },
+    assertFailOpen(actual, expected) {
       const actualParsed = JSON.parse(actual);
       const expectedParsed = JSON.parse(expected);
-      assert.equal(actualParsed.hookSpecificOutput.hookEventName, expectedParsed.hookSpecificOutput.hookEventName);
-      assert.equal(actualParsed.hookSpecificOutput.permissionDecision, expectedParsed.hookSpecificOutput.permissionDecision);
+      assert.equal(
+        actualParsed.hookSpecificOutput.hookEventName,
+        expectedParsed.hookSpecificOutput.hookEventName,
+      );
+      assert.equal(
+        actualParsed.hookSpecificOutput.permissionDecision,
+        expectedParsed.hookSpecificOutput.permissionDecision,
+      );
       assert.ok(
         actualParsed.hookSpecificOutput.permissionDecisionReason.startsWith(PARSE_ERROR_PREFIX),
-        "fail-open reason must keep the stable prefix (parser suffix is impl-specific)"
+        "fail-open reason must keep the stable prefix (parser suffix is impl-specific)",
       );
-      return;
-    }
+    },
+  },
+  {
+    hook: "SubagentStop",
+    prefix: "subagent-stop-",
+    hookPath: path.join(ROOT, "scripts", "hooks", "subagent-stop.js"),
+    floor: 2,
+    // A missing/malformed json:result-envelope fence is the documented
+    // fail-open case for SubagentStop (hooks spec §8a.1).
+    isFailOpen(_expected, fixtureName) {
+      return fixtureName.includes("malformed-envelope");
+    },
+    assertFailOpen(actual, expected) {
+      // No implementation-specific message text is surfaced for an envelope
+      // failure (stdout is just {"continue":true}), so the stable field
+      // (continue:true) is asserted exactly; nothing else is compared.
+      assert.equal(JSON.parse(actual).continue, true);
+      assert.equal(JSON.parse(expected).continue, true);
+    },
+    // SubagentStop fixtures reference a fixed placeholder for their `cwd`
+    // field so the same static JSON works on every machine/OS without ever
+    // resolving to a real repo (which could otherwise find and mutate this
+    // very change's state.yaml). Substitute it with the checked-in,
+    // openspec-free fixture workspace right before spawning.
+    prepareStdin(rawStdin) {
+      const workspace = path.join(FIXTURES_DIR, "subagent-stop-workspace");
+      const escapedWorkspace = JSON.stringify(workspace).slice(1, -1);
+      return rawStdin.split("__SUBAGENT_STOP_FIXTURE_WORKSPACE__").join(escapedWorkspace);
+    },
+  },
+];
 
-    assert.equal(actual, expected, `JS output must match the golden fixture byte-for-byte`);
-  });
+for (const family of FIXTURE_FAMILY) {
+  const fixtureFiles = fs
+    .readdirSync(FIXTURES_DIR)
+    .filter((name) => name.startsWith(family.prefix) && name.endsWith(".json"));
+
+  assert.ok(
+    fixtureFiles.length >= family.floor,
+    `${family.hook} parity fixture set must not shrink below ${family.floor}`,
+  );
+
+  for (const name of fixtureFiles) {
+    test(`parity(js) · ${family.hook} · ${name}`, () => {
+      const fixture = JSON.parse(fs.readFileSync(path.join(FIXTURES_DIR, name), "utf8"));
+      const stdin = family.prepareStdin ? family.prepareStdin(fixture.stdin) : fixture.stdin;
+      const actual = runHook(family.hookPath, stdin);
+      const expected = fixture.expectedStdout;
+
+      if (family.isFailOpen(expected, name)) {
+        family.assertFailOpen(actual, expected);
+        return;
+      }
+
+      assert.equal(actual, expected, `${family.hook} output must match the golden fixture byte-for-byte`);
+    });
+  }
 }

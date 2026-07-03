@@ -76,14 +76,14 @@ Approval context: execution mode automatic, delivery strategy exception-ok — u
 
 ## Phase 5: Parity Fixtures & Contract
 
-- [ ] 5.1 Create `internal/testdata/parity/subagent-stop-valid-envelope.json` — valid fence, byte-for-byte `expectedStdout` including any `systemMessage` [REQ-hooks-001 MODIFIED]
-- [ ] 5.2 Create `internal/testdata/parity/subagent-stop-malformed-envelope.json` — fail-open fixture, `continue:true`, documented prefix-only comparison rule [REQ-hooks-001 MODIFIED]
-- [ ] 5.3 Update `internal/testdata/parity/README` documenting the second hook, its fixture prefix/floor (2), and the fail-open comparison rule [REQ-hooks-001 MODIFIED]
-- [ ] 5.4 GREEN: parameterize `scripts/hooks/parity-contract.test.js` over the fixture-family table (add `SubagentStop` row, floor assertion ≥2, spawn `subagent-stop.js`, byte-for-byte except fail-open fixture) [REQ-hooks-001 MODIFIED]
-- [ ] 5.5 Add Go-side `TestSubagentStop_ParityFixtures` reading the same fixture directory, matching the floor and fail-open rule [REQ-hooks-001 MODIFIED]
+- [x] 5.1 Create `internal/testdata/parity/subagent-stop-valid-envelope.json` — valid fence, byte-for-byte `expectedStdout` including any `systemMessage` [REQ-hooks-001 MODIFIED]
+- [x] 5.2 Create `internal/testdata/parity/subagent-stop-malformed-envelope.json` — fail-open fixture, `continue:true`, documented prefix-only comparison rule [REQ-hooks-001 MODIFIED]
+- [x] 5.3 Update `internal/testdata/parity/README` documenting the second hook, its fixture prefix/floor (2), and the fail-open comparison rule [REQ-hooks-001 MODIFIED]
+- [x] 5.4 GREEN: parameterize `scripts/hooks/parity-contract.test.js` over the fixture-family table (add `SubagentStop` row, floor assertion ≥2, spawn `subagent-stop.js`, byte-for-byte except fail-open fixture) [REQ-hooks-001 MODIFIED]
+- [x] 5.5 Add Go-side `TestSubagentStop_ParityFixtures` reading the same fixture directory, matching the floor and fail-open rule [REQ-hooks-001 MODIFIED]
 
 ## Phase 6: Verification
 
-- [ ] 6.1 Run `npm test` / `node --test` for all new/modified JS suites; confirm no regression in existing `PreToolUse` parity or `ospec-state` tests
-- [ ] 6.2 Run `go test ./...`; confirm `resultenvelope`, `yamllite`, `hooks` packages pass and parity suite matches JS byte-for-byte (except the documented fail-open fixture)
-- [ ] 6.3 Manually trace one `sdd-design` sample return through fence → hook persistence → `state.yaml` diff, confirming fill-gap guard did not clobber an existing summary
+- [x] 6.1 Run `npm test` / `node --test` for all new/modified JS suites; confirm no regression in existing `PreToolUse` parity or `ospec-state` tests
+- [x] 6.2 Run `go test ./...`; confirm `resultenvelope`, `yamllite`, `hooks` packages pass and parity suite matches JS byte-for-byte (except the documented fail-open fixture)
+- [x] 6.3 Manually trace one `sdd-design` sample return through fence → hook persistence → `state.yaml` diff, confirming fill-gap guard did not clobber an existing summary

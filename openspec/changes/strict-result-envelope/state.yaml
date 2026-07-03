@@ -1,7 +1,7 @@
 change: strict-result-envelope
 classification: normal
-status: applying
-last_updated: 2026-07-04T09:00:00Z
+status: ready-for-verify
+last_updated: 2026-07-04T12:00:00Z
 blocking_questions: []
 route:
   intended_route: standard
@@ -63,11 +63,13 @@ phases:
     key_decisions:
       - "Split en 4 PRs: JS validator+docs, JS persistencia+hook, mirror Go, fixtures+parity contract — size-exception ya aceptado"
   apply:
-    status: partial
+    status: done
     artifact: "openspec/changes/strict-result-envelope/apply-progress.md"
-    summary: "Work Unit 1 hecha: fence estricto §D + Result Contract del orquestador + validador scripts/lib/result-envelope.js (23 tests). 4/20 tasks."
+    summary: "20/20 tasks. Fence estricto §D + validador JS/Go + persistencia fill-gap en state.yaml vía SubagentStop + fixtures de paridad E1. npm test y go test 100% verdes."
     key_decisions:
       - "Prosa del orchestrator recortada dos veces para mantener el body <700 líneas (guard preexistente de real-repo.test.js)"
+      - "withLock de Go reutilizado desde internal/store (exportado) en vez de duplicarlo en internal/hooks"
+      - "Fixtures subagent-stop-* usan un token placeholder de cwd sustituido por ambos harnesses, para nunca resolver al repo real"
 baseline_fingerprints:
   hooks: "sha256:306c09ad76ed5ae08c7c331d72e47b6cde6d3541c80a61eb63b6eb956e66e7c9"
   skills: "sha256:a0e58f90a06252514861126a40d8cfef069fae7db0a4aa7d3d2e7927382ccf41"

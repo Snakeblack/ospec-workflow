@@ -1,0 +1,5 @@
+{
+  "description": "Valid json:result-envelope fence with a healthy (injected) skill_resolution and no active change at cwd — persistence and the existing skill_resolution path both no-op; stdout stays the plain healthy {\"continue\":true}.",
+  "stdin": "{\"cwd\":\"__SUBAGENT_STOP_FIXTURE_WORKSPACE__\",\"agent_type\":\"sdd-design\",\"result\":\"Prose before.\\n\\n```json:result-envelope\\n{\\\"status\\\":\\\"success\\\",\\\"executive_summary\\\":\\\"Parity fixture: valid envelope, no active change to persist into.\\\",\\\"artifacts\\\":[\\\"openspec/changes/fixture/design.md\\\"],\\\"next_recommended\\\":\\\"sdd-tasks\\\",\\\"risks\\\":\\\"None\\\",\\\"skill_resolution\\\":\\\"injected\\\"}\\n```\\n\\nProse after.\"}",
+  "expectedStdout": "{\"continue\":true}"
+}

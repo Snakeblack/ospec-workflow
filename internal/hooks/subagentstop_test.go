@@ -690,6 +690,79 @@ func TestSubagentStop_NoActiveChangeIsSafeNoOp(t *testing.T) {
 	}
 }
 
+// ── parity fixtures (E1) ──────────────────────────────────────────────────────
+
+// TestSubagentStop_ParityFixtures loads the golden parity fixtures under
+// internal/testdata/parity/subagent-stop-*.json and verifies that the Go
+// handler produces byte-for-byte identical output to expectedStdout in each
+// fixture, mirroring TestPreToolUse_ParityFixtures. The fixtures reference a
+// placeholder cwd token (see internal/testdata/parity/README) that is
+// substituted here with the checked-in, openspec-free fixture workspace so
+// the run can never resolve to — and mutate — a real state.yaml.
+func TestSubagentStop_ParityFixtures(t *testing.T) {
+	pattern := filepath.Join("..", "testdata", "parity", "subagent-stop-*.json")
+	paths, err := filepath.Glob(pattern)
+	if err != nil {
+		t.Fatalf("glob pattern error: %v", err)
+	}
+	if len(paths) < 2 {
+		t.Fatalf("SubagentStop parity fixture set must not shrink below 2; found %d", len(paths))
+	}
+
+	workspaceAbs, err := filepath.Abs(filepath.Join("..", "testdata", "parity", "subagent-stop-workspace"))
+	if err != nil {
+		t.Fatalf("resolve fixture workspace: %v", err)
+	}
+	// JSON-escape backslashes (Windows paths) before splicing into the raw
+	// stdin JSON text, mirroring parity-contract.test.js's prepareStdin.
+	escapedWorkspace := strings.ReplaceAll(workspaceAbs, `\`, `\\`)
+
+	type fixture struct {
+		Description    string `json:"description"`
+		Stdin          string `json:"stdin"`
+		ExpectedStdout string `json:"expectedStdout"`
+	}
+
+	for _, p := range paths {
+		name := filepath.Base(p)
+		t.Run(name, func(t *testing.T) {
+			data, err := os.ReadFile(p)
+			if err != nil {
+				t.Fatalf("read fixture %s: %v", p, err)
+			}
+			var fix fixture
+			if err := json.Unmarshal(data, &fix); err != nil {
+				t.Fatalf("parse fixture %s: %v", p, err)
+			}
+
+			stdin := strings.ReplaceAll(fix.Stdin, "__SUBAGENT_STOP_FIXTURE_WORKSPACE__", escapedWorkspace)
+			stdout, _ := hooks.Dispatch([]string{"subagent-stop"}, []byte(stdin))
+
+			// SubagentStop's documented fail-open fixture (missing/malformed
+			// json:result-envelope fence) never surfaces implementation-specific
+			// message text in stdout, so only the stable continue:true field is
+			// asserted for it; everything else is byte-for-byte.
+			if strings.Contains(name, "malformed-envelope") {
+				var actual, expected map[string]any
+				if err := json.Unmarshal(stdout, &actual); err != nil {
+					t.Fatalf("parse actual stdout: %v; raw=%q", err, stdout)
+				}
+				if err := json.Unmarshal([]byte(fix.ExpectedStdout), &expected); err != nil {
+					t.Fatalf("parse expected stdout: %v", err)
+				}
+				if actual["continue"] != true || expected["continue"] != true {
+					t.Errorf("fail-open fixture %s: continue must be true on both sides; got=%v want=%v", name, actual, expected)
+				}
+				return
+			}
+
+			if string(stdout) != fix.ExpectedStdout {
+				t.Errorf("parity mismatch for %s\n  got:  %q\n  want: %q", name, stdout, fix.ExpectedStdout)
+			}
+		})
+	}
+}
+
 func TestSubagentStop_Triangulate(t *testing.T) {
 	t.Run("error path continues with message", func(t *testing.T) {
 		out, code := hooks.Dispatch([]string{"subagent-stop"}, []byte("{bad"))
