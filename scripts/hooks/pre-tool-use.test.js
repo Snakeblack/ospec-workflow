@@ -871,3 +871,119 @@ test("spec-drift-guard: commit command mixed with non-commit commands → still 
   assert.equal(d.permissionDecision, "ask");
   assert.match(d.permissionDecisionReason, /hooks/);
 });
+
+// ---------------------------------------------------------------------------
+// Permission-mode degradation: in bypassPermissions, advisory `ask` decisions
+// degrade to `allow` + top-level systemMessage; `deny` is never degraded.
+// ---------------------------------------------------------------------------
+
+/** Runs evaluateToolUse with guards enabled regardless of session env. */
+function withGuardsEnabled(fn) {
+  const saved = {};
+  for (const key of [
+    "DISABLE_AGENT_SHIELD",
+    "DISABLE_GIT_COLLABORATION_GUARD",
+    "DISABLE_TOKEN_ADVISOR",
+    "DISABLE_SPEC_DRIFT_GUARD",
+  ]) {
+    saved[key] = process.env[key];
+    delete process.env[key];
+  }
+  try {
+    return fn();
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
+test("permission-mode: ASK rule in bypassPermissions → allow + systemMessage with the original reason", () => {
+  withGuardsEnabled(() => {
+    const result = evaluateToolUse({
+      tool_name: "runTerminalCommand",
+      tool_input: { command: "npm install left-pad" },
+      permission_mode: "bypassPermissions",
+    });
+    assert.equal(result.hookSpecificOutput.permissionDecision, "allow");
+    assert.ok(result.systemMessage, "systemMessage must carry the advisory");
+    assert.match(result.systemMessage, /Dependency installation/);
+  });
+});
+
+test("permission-mode: ASK rule in default mode → still ask, no systemMessage", () => {
+  withGuardsEnabled(() => {
+    const result = evaluateToolUse({
+      tool_name: "runTerminalCommand",
+      tool_input: { command: "npm install left-pad" },
+      permission_mode: "default",
+    });
+    assert.equal(result.hookSpecificOutput.permissionDecision, "ask");
+    assert.equal(result.systemMessage, undefined);
+  });
+});
+
+test("permission-mode: absent permission_mode → ask preserved (backward compatible)", () => {
+  withGuardsEnabled(() => {
+    const result = evaluateToolUse({
+      tool_name: "runTerminalCommand",
+      tool_input: { command: "git reset --hard HEAD~1" },
+    });
+    assert.equal(result.hookSpecificOutput.permissionDecision, "ask");
+  });
+});
+
+test("permission-mode: DENY rule in bypassPermissions → still deny (never degraded)", () => {
+  withGuardsEnabled(() => {
+    const result = evaluateToolUse({
+      tool_name: "runTerminalCommand",
+      tool_input: { command: "git push origin main --force" },
+      permission_mode: "bypassPermissions",
+    });
+    assert.equal(result.hookSpecificOutput.permissionDecision, "deny");
+    assert.equal(result.systemMessage, undefined);
+  });
+});
+
+test("permission-mode: git-guard dirty-tree commit in bypassPermissions → allow + advisory systemMessage", () => {
+  withGuardsEnabled(() => {
+    const runner = makeGitStubRunner({
+      "symbolic-ref": "origin/main",
+      "--show-current": "feat/x",
+      "--porcelain": "M modified.js",
+    });
+    const result = evaluateToolUse(
+      {
+        tool_name: "runTerminalCommand",
+        tool_input: { command: "git commit -m 'fix: x'" },
+        permission_mode: "bypassPermissions",
+      },
+      { gitRunner: runner },
+    );
+    assert.equal(result.hookSpecificOutput.permissionDecision, "allow");
+    assert.ok(result.systemMessage, "systemMessage must carry the git advisory");
+    assert.match(result.systemMessage, /sin commitear/);
+  });
+});
+
+test("permission-mode: token advisor heavy read in bypassPermissions → allow + advisory systemMessage", (t) => {
+  withGuardsEnabled(() => {
+    const os = require("node:os");
+    const fsMod = require("node:fs");
+    const pathMod = require("node:path");
+    const dir = fsMod.mkdtempSync(pathMod.join(os.tmpdir(), "ospec-permmode-"));
+    t.after(() => fsMod.rmSync(dir, { recursive: true, force: true }));
+    const bigFile = pathMod.join(dir, "big.md");
+    fsMod.writeFileSync(bigFile, "x".repeat(250000));
+
+    const result = evaluateToolUse({
+      tool_name: "readFile",
+      tool_input: { path: bigFile },
+      permission_mode: "bypassPermissions",
+    });
+    assert.equal(result.hookSpecificOutput.permissionDecision, "allow");
+    assert.ok(result.systemMessage, "systemMessage must carry the token advisory");
+    assert.match(result.systemMessage, /50,000/);
+  });
+});
