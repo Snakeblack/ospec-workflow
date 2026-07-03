@@ -1,7 +1,7 @@
 change: strict-result-envelope
 classification: normal
-status: ready-for-apply
-last_updated: 2026-07-03T20:35:00Z
+status: applying
+last_updated: 2026-07-04T09:00:00Z
 blocking_questions: []
 route:
   intended_route: standard
@@ -62,6 +62,12 @@ phases:
     summary: "6 fases, 20 tasks TDD (RED/GREEN); forecast High ~650-780 líneas, 4 work units, chain size-exception (pre-aprobado)."
     key_decisions:
       - "Split en 4 PRs: JS validator+docs, JS persistencia+hook, mirror Go, fixtures+parity contract — size-exception ya aceptado"
+  apply:
+    status: partial
+    artifact: "openspec/changes/strict-result-envelope/apply-progress.md"
+    summary: "Work Unit 1 hecha: fence estricto §D + Result Contract del orquestador + validador scripts/lib/result-envelope.js (23 tests). 4/20 tasks."
+    key_decisions:
+      - "Prosa del orchestrator recortada dos veces para mantener el body <700 líneas (guard preexistente de real-repo.test.js)"
 baseline_fingerprints:
   hooks: "sha256:306c09ad76ed5ae08c7c331d72e47b6cde6d3541c80a61eb63b6eb956e66e7c9"
   skills: "sha256:a0e58f90a06252514861126a40d8cfef069fae7db0a4aa7d3d2e7927382ccf41"

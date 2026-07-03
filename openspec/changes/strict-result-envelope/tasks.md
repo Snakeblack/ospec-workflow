@@ -60,10 +60,10 @@ Approval context: execution mode automatic, delivery strategy exception-ok — u
 
 ## Phase 3: JS Persistence Path (RED → GREEN)
 
-- [ ] 3.1 RED: extend `scripts/lib/ospec-state.test.js` with `setPhaseSummary` cases — gap-fill write, non-empty-guard no-op, quote/backslash escaping, `key_decisions` list rendering [REQ-hooks-001]
-- [ ] 3.2 GREEN: add `setPhaseSummary(content, phase, {summary, keyDecisions})` to `scripts/lib/ospec-state.js`; generalize `withAppendLock` → `withFileLock`, export both, keep existing callers working [REQ-hooks-001]
-- [ ] 3.3 RED: add integration tests in `scripts/hooks/subagent-stop.test.js` (or equivalent) — valid fence persists to a scratch `state.yaml`, missing/malformed fence skips write and stdout unchanged, pre-existing non-empty summary is not overwritten [REQ-hooks-001]
-- [ ] 3.4 GREEN: wire `scripts/hooks/subagent-stop.js` — before existing `skill_resolution` logic, extract+validate fence (reuse §5.2 field order), resolve active change/phase via `findActiveChanges`, lock+atomic fill-gap write, fully fail-safe on any failure [REQ-hooks-001]
+- [x] 3.1 RED: extend `scripts/lib/ospec-state.test.js` with `setPhaseSummary` cases — gap-fill write, non-empty-guard no-op, quote/backslash escaping, `key_decisions` list rendering [REQ-hooks-001]
+- [x] 3.2 GREEN: add `setPhaseSummary(content, phase, {summary, keyDecisions})` to `scripts/lib/ospec-state.js`; generalize `withAppendLock` → `withFileLock`, export both, keep existing callers working [REQ-hooks-001]
+- [x] 3.3 RED: add integration tests in `scripts/hooks/subagent-stop.test.js` (or equivalent) — valid fence persists to a scratch `state.yaml`, missing/malformed fence skips write and stdout unchanged, pre-existing non-empty summary is not overwritten [REQ-hooks-001]
+- [x] 3.4 GREEN: wire `scripts/hooks/subagent-stop.js` — before existing `skill_resolution` logic, extract+validate fence (reuse §5.2 field order), resolve active change/phase via `findActiveChanges`, lock+atomic fill-gap write, fully fail-safe on any failure [REQ-hooks-001]
 
 ## Phase 4: Go Mirror (parity)
 

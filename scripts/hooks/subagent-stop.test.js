@@ -158,6 +158,191 @@ test("does not invent a warning when resolution is unavailable", async (t) => {
   });
 });
 
+// --- Result Envelope extraction/validation/persistence (C5) -----------------
+
+const STATE_WITH_EMPTY_DESIGN_SUMMARY = [
+  "change: strict-result-envelope",
+  "status: applying",
+  "phases:",
+  "  design:",
+  "    status: done",
+  '    artifact: "openspec/changes/strict-result-envelope/design.md"',
+  '    summary: ""',
+  "",
+].join("\n");
+
+const STATE_WITH_NON_EMPTY_DESIGN_SUMMARY = [
+  "change: strict-result-envelope",
+  "status: applying",
+  "phases:",
+  "  design:",
+  "    status: done",
+  '    artifact: "openspec/changes/strict-result-envelope/design.md"',
+  '    summary: "Already written by the agent."',
+  "",
+].join("\n");
+
+function buildFenceText(envelope) {
+  return [
+    "Some prose the agent wrote.",
+    "",
+    "```json:result-envelope",
+    JSON.stringify(envelope),
+    "```",
+    "",
+  ].join("\n");
+}
+
+async function createChangeWorkspace(t, stateContent) {
+  const workspace = await createWorkspace(t);
+  const changeDir = path.join(
+    workspace,
+    "openspec",
+    "changes",
+    "strict-result-envelope",
+  );
+
+  await fs.mkdir(changeDir, { recursive: true });
+  const statePath = path.join(changeDir, "state.yaml");
+  await fs.writeFile(statePath, stateContent, "utf8");
+
+  return { workspace, statePath };
+}
+
+const VALID_ENVELOPE = {
+  status: "success",
+  executive_summary: "Diseñó el flujo de persistencia del envelope.",
+  artifacts: ["openspec/changes/strict-result-envelope/design.md"],
+  next_recommended: "sdd-tasks",
+  risks: "None",
+  skill_resolution: "injected",
+  key_decisions: ["Fill-gap merge sobre last-writer-wins"],
+};
+
+test("valid envelope fence is persisted into the active change's state.yaml", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: buildFenceText(VALID_ENVELOPE),
+    },
+  });
+
+  const updatedState = await fs.readFile(statePath, "utf8");
+  assert.match(
+    updatedState,
+    /summary: "Diseñó el flujo de persistencia del envelope\."/,
+  );
+  assert.match(
+    updatedState,
+    /key_decisions:\s*\n\s*- "Fill-gap merge sobre last-writer-wins"/,
+  );
+});
+
+test("missing fence — no state.yaml write, stdout/return unaffected", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+
+  const result = await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: "Just prose, no fence at all. skill_resolution: injected.",
+    },
+  });
+
+  assert.deepEqual(result, {
+    status: "skipped",
+    reason: "healthy-resolution",
+  });
+  const untouchedState = await fs.readFile(statePath, "utf8");
+  assert.equal(untouchedState, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+});
+
+test("malformed fence (invalid JSON) — validation fails safely, no write", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: "```json:result-envelope\n{ not valid json\n```",
+    },
+  });
+
+  const untouchedState = await fs.readFile(statePath, "utf8");
+  assert.equal(untouchedState, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+});
+
+test("fence missing a required field — validation fails safely, no write", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+  const incomplete = { ...VALID_ENVELOPE };
+  delete incomplete.status;
+
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: buildFenceText(incomplete),
+    },
+  });
+
+  const untouchedState = await fs.readFile(statePath, "utf8");
+  assert.equal(untouchedState, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+});
+
+test("agent's own non-empty summary is not overwritten by the hook", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_NON_EMPTY_DESIGN_SUMMARY,
+  );
+
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: buildFenceText(VALID_ENVELOPE),
+    },
+  });
+
+  const untouchedState = await fs.readFile(statePath, "utf8");
+  assert.equal(untouchedState, STATE_WITH_NON_EMPTY_DESIGN_SUMMARY);
+});
+
+test("no active change resolvable — envelope persistence is a safe no-op", async (t) => {
+  const workspace = await createWorkspace(t);
+
+  const result = await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: buildFenceText(VALID_ENVELOPE),
+    },
+  });
+
+  assert.deepEqual(result, {
+    status: "skipped",
+    reason: "healthy-resolution",
+  });
+  await assert.rejects(
+    fs.stat(path.join(workspace, "openspec")),
+    (error) => error.code === "ENOENT",
+  );
+});
+
 test("appends one valid JSON object per degraded event", async (t) => {
   const workspace = await createWorkspace(t);
 

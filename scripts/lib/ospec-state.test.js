@@ -17,6 +17,9 @@ const {
   readBaselineState,
   readStagedFiles,
   readState,
+  setPhaseSummary,
+  withAppendLock,
+  withFileLock,
   writeSessionSummary,
 } = require("./ospec-state.js");
 
@@ -636,4 +639,158 @@ test("detectSpecDrift does not suppress an unrelated domain via a different acti
   const result = detectSpecDrift({ workspace, gitRunner });
 
   assert.deepEqual(result.domains.map((domain) => domain.domain), ["hooks"]);
+});
+
+// --- setPhaseSummary ---------------------------------------------------------
+
+const STATE_WITH_EMPTY_SUMMARY = [
+  "change: strict-result-envelope",
+  "status: applying",
+  "phases:",
+  "  design:",
+  "    status: done",
+  '    artifact: "openspec/changes/strict-result-envelope/design.md"',
+  '    summary: ""',
+  "  tasks:",
+  "    status: pending",
+  "",
+].join("\n");
+
+const STATE_WITHOUT_SUMMARY_KEY = [
+  "change: strict-result-envelope",
+  "status: applying",
+  "phases:",
+  "  design:",
+  "    status: done",
+  '    artifact: "openspec/changes/strict-result-envelope/design.md"',
+  "  tasks:",
+  "    status: pending",
+  "",
+].join("\n");
+
+const STATE_WITH_NON_EMPTY_SUMMARY = [
+  "change: strict-result-envelope",
+  "status: applying",
+  "phases:",
+  "  design:",
+  "    status: done",
+  '    artifact: "openspec/changes/strict-result-envelope/design.md"',
+  '    summary: "Already written by the agent itself."',
+  "  tasks:",
+  "    status: pending",
+  "",
+].join("\n");
+
+test("setPhaseSummary fills an empty summary gap and appends key_decisions", () => {
+  const updated = setPhaseSummary(STATE_WITH_EMPTY_SUMMARY, "design", {
+    summary: "JWT stateless con refresh rotativo.",
+    keyDecisions: ["RS256 sobre HS256"],
+  });
+
+  assert.match(updated, /summary: "JWT stateless con refresh rotativo\."/);
+  assert.match(updated, /key_decisions:\s*\n\s*- "RS256 sobre HS256"/);
+});
+
+test("setPhaseSummary fills the gap when the summary key is entirely absent", () => {
+  const updated = setPhaseSummary(STATE_WITHOUT_SUMMARY_KEY, "design", {
+    summary: "Filled by the hook safety net.",
+    keyDecisions: [],
+  });
+
+  assert.match(updated, /summary: "Filled by the hook safety net\."/);
+});
+
+test("setPhaseSummary is a no-op when the phase summary is already non-empty", () => {
+  const updated = setPhaseSummary(STATE_WITH_NON_EMPTY_SUMMARY, "design", {
+    summary: "This must never appear in the output.",
+    keyDecisions: ["Should also be ignored"],
+  });
+
+  assert.equal(updated, STATE_WITH_NON_EMPTY_SUMMARY);
+  assert.doesNotMatch(updated, /This must never appear/);
+});
+
+test("setPhaseSummary escapes double quotes and backslashes in the summary", () => {
+  const updated = setPhaseSummary(STATE_WITH_EMPTY_SUMMARY, "design", {
+    summary: 'Uses a "quoted" value and a C:\\path\\to\\file.',
+    keyDecisions: [],
+  });
+
+  assert.match(
+    updated,
+    /summary: "Uses a \\"quoted\\" value and a C:\\\\path\\\\to\\\\file\."/,
+  );
+});
+
+test("setPhaseSummary truncates the summary to 160 characters", () => {
+  const longSummary = "x".repeat(200);
+
+  const updated = setPhaseSummary(STATE_WITH_EMPTY_SUMMARY, "design", {
+    summary: longSummary,
+    keyDecisions: [],
+  });
+
+  const match = updated.match(/summary: "(x+)"/);
+  assert.ok(match, "expected a summary line to be present");
+  assert.equal(match[1].length, 160);
+});
+
+test("setPhaseSummary renders multiple key_decisions as a YAML list", () => {
+  const updated = setPhaseSummary(STATE_WITH_EMPTY_SUMMARY, "design", {
+    summary: "Multiple decisions.",
+    keyDecisions: ["First decision", "Second decision"],
+  });
+
+  const lines = updated.split("\n");
+  const keyDecisionsIndex = lines.findIndex((line) => line.trim() === "key_decisions:");
+  assert.ok(keyDecisionsIndex >= 0);
+  assert.match(lines[keyDecisionsIndex + 1], /^\s*- "First decision"$/);
+  assert.match(lines[keyDecisionsIndex + 2], /^\s*- "Second decision"$/);
+});
+
+test("setPhaseSummary is a no-op when the target phase does not exist in state.yaml", () => {
+  const updated = setPhaseSummary(STATE_WITH_EMPTY_SUMMARY, "verify", {
+    summary: "Should not be written anywhere.",
+    keyDecisions: [],
+  });
+
+  assert.equal(updated, STATE_WITH_EMPTY_SUMMARY);
+});
+
+test("setPhaseSummary omits key_decisions entirely when the list is empty", () => {
+  const updated = setPhaseSummary(STATE_WITH_EMPTY_SUMMARY, "design", {
+    summary: "No decisions this batch.",
+    keyDecisions: [],
+  });
+
+  assert.doesNotMatch(updated, /key_decisions:/);
+});
+
+// --- withFileLock / withAppendLock (generalized) -----------------------------
+
+test("withFileLock serializes concurrent callers around the same lock file", async (t) => {
+  const workspace = await createWorkspace(t);
+  const lockTarget = path.join(workspace, "state.yaml");
+  const order = [];
+
+  await Promise.all([
+    withFileLock(lockTarget, async () => {
+      order.push("start-1");
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      order.push("end-1");
+    }),
+    withFileLock(lockTarget, async () => {
+      order.push("start-2");
+      order.push("end-2");
+    }),
+  ]);
+
+  // Whichever ran first must fully finish before the second one starts.
+  const firstStart = order[0];
+  const firstEnd = firstStart === "start-1" ? "end-1" : "end-2";
+  assert.equal(order.indexOf(firstEnd), 1);
+});
+
+test("withAppendLock remains exported as an alias of withFileLock for existing callers", () => {
+  assert.equal(withAppendLock, withFileLock);
 });
