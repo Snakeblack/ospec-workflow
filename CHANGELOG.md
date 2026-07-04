@@ -8,6 +8,12 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.14.0] - 2026-07-04
+
+### Added
+- **Contrato estricto de result-envelope (C5)**: las fases SDD emiten su envelope de retorno como bloque fenced `json:result-envelope` con JSON estricto directamente parseable (aditivo a la prosa existente, nunca la reemplaza); el hook `SubagentStop` lo parsea, lo valida con un validador dep-free compartido y persiste `summary`/`key_decisions` en `state.yaml` con merge fill-gap y escritura atómica; el orquestador consume los campos estructurados como fuente autoritativa (agents §6.1a). Paridad Go/JS byte a byte generalizada a `SubagentStop` con familia de fixtures propia (patrón E1) y truncado code-point-first antes del escape para seguridad YAML. Ciclo SDD completo (dogfooding): specs delta de `agents`/`hooks`/`skills` sincronizadas al baseline, 3 ADRs promovidas a `docs/adr/` (adr-20260704-001..003) y change archivado en `openspec/changes/archive/2026-07-04-strict-result-envelope/`.
+- **Remediación del gate 4R sobre C5**: 8 tareas TDD RED-first cerrando 1 BLOCKER + 2 CRITICAL + 5 WARNINGs de paridad detectados por la revisión 4R post-verify; re-verificación PASS con `npm test` 914/914 y `go test` 8 paquetes en verde.
+
 ## [2.13.0] - 2026-07-03
 
 ### Added
