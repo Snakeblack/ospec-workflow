@@ -7,11 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/resultenvelope"
 	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/store"
+	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/yamllite"
 )
 
 func init() {
@@ -227,6 +230,177 @@ func readFilePermissive(path string) ([]byte, error) {
 	return data, nil
 }
 
+// ── Result Envelope extraction/validation/persistence (C5) ──────────────────
+// Ports findEnvelopeInInput/findEnvelopeInTranscript/persistResultEnvelope from
+// scripts/hooks/subagent-stop.js. Mirrors the same §5.2 field-search order
+// already used for skill_resolution (resultFields, then a transcript_path
+// fallback), but looks for the strict json:result-envelope fence instead.
+
+// findEnvelopeInValue searches v (string or nested structure) for the strict
+// json:result-envelope fence. JSON payloads are always acyclic.
+func findEnvelopeInValue(v any) (map[string]any, bool) {
+	switch val := v.(type) {
+	case string:
+		return resultenvelope.Extract(val)
+	case map[string]any:
+		keys := make([]string, 0, len(val))
+		for k := range val {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for i := len(keys) - 1; i >= 0; i-- {
+			if value, found := findEnvelopeInValue(val[keys[i]]); found {
+				return value, found
+			}
+		}
+	case []any:
+		for i := len(val) - 1; i >= 0; i-- {
+			if value, found := findEnvelopeInValue(val[i]); found {
+				return value, found
+			}
+		}
+	}
+	return nil, false
+}
+
+// findEnvelopeInInput searches the top-level input object's §5.2 result
+// fields, in order, for the strict result-envelope fence.
+func findEnvelopeInInput(input map[string]any) (map[string]any, bool) {
+	for _, field := range resultFields {
+		v, ok := input[field]
+		if !ok {
+			continue
+		}
+		if value, found := findEnvelopeInValue(v); found {
+			return value, found
+		}
+	}
+	return nil, false
+}
+
+// findEnvelopeInTranscript reads a transcript file (subject to the same
+// path-traversal hardening as findResolutionInTranscript) and searches it for
+// the strict result-envelope fence.
+func findEnvelopeInTranscript(transcriptPath string) (map[string]any, bool) {
+	path, ok := validatePath(transcriptPath)
+	if !ok {
+		return nil, false
+	}
+	data, err := readFilePermissive(path)
+	if err != nil || data == nil {
+		return nil, false
+	}
+	content := string(data)
+	if value, found := resultenvelope.Extract(content); found {
+		return value, found
+	}
+	lines := strings.Split(content, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+		parsed := parseJsonText(line)
+		if parsed == nil {
+			continue
+		}
+		if value, found := findEnvelopeInValue(parsed); found {
+			return value, found
+		}
+	}
+	return nil, false
+}
+
+// persistResultEnvelope extracts, validates, and (fill-gap) persists the
+// phase's Result Envelope summary into the active change's state.yaml, per
+// REQ-hooks-001. Strictly additive and fail-safe: any failure at any step (no
+// fence, malformed JSON, schema-invalid, no active change, non-"sdd-" agent,
+// lock/write failure) silently no-ops without panicking and without affecting
+// the hook's stdout.
+func persistResultEnvelope(input map[string]any, workspace string) {
+	defer func() {
+		// Fully fail-safe: envelope persistence must never crash SubagentStop
+		// or affect its existing skill_resolution behavior/exit status.
+		_ = recover()
+	}()
+
+	envelope, found := findEnvelopeInInput(input)
+	if !found {
+		if tp, ok := input["transcript_path"].(string); ok {
+			envelope, found = findEnvelopeInTranscript(tp)
+		}
+	}
+	if !found || envelope == nil {
+		return
+	}
+
+	valid, _ := resultenvelope.Validate(envelope)
+	if !valid {
+		return
+	}
+
+	agentName := resolveAgentName(input)
+	if !strings.HasPrefix(agentName, "sdd-") {
+		return
+	}
+	phase := strings.TrimPrefix(agentName, "sdd-")
+
+	s := store.NewStore(workspace)
+	activeChanges, err := s.FindActiveChanges()
+	if err != nil || len(activeChanges) == 0 {
+		return
+	}
+	statePath := filepath.Join(activeChanges[0].ChangeDirectory, "state.yaml")
+
+	summary, _ := envelope["executive_summary"].(string)
+	var keyDecisions []string
+	if raw, ok := envelope["key_decisions"].([]any); ok {
+		for _, item := range raw {
+			if s, ok := item.(string); ok {
+				keyDecisions = append(keyDecisions, s)
+			}
+		}
+	}
+
+	_ = store.WithLock(statePath, func() error {
+		fresh, readErr := os.ReadFile(statePath)
+		if readErr != nil {
+			return nil // fail-safe no-op
+		}
+		updated := yamllite.SetPhaseSummary(string(fresh), phase, summary, keyDecisions)
+		if updated == string(fresh) {
+			return nil
+		}
+		return atomicWriteFile(statePath, updated)
+	})
+}
+
+// atomicWriteFile writes content to dst using a temp-file + rename pattern,
+// mirroring store's private atomicWriteFile (kept local to avoid exporting an
+// internal store helper solely for this one caller).
+func atomicWriteFile(dst, content string) error {
+	tmp, err := os.CreateTemp(filepath.Dir(dst), ".write-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+
+	_, writeErr := tmp.WriteString(content)
+	closeErr := tmp.Close()
+	if writeErr != nil || closeErr != nil {
+		_ = os.Remove(tmpPath)
+		if writeErr != nil {
+			return writeErr
+		}
+		return closeErr
+	}
+	if err := os.Rename(tmpPath, dst); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return nil
+}
+
 // resolveAgentName picks the best agent name field from input.
 func resolveAgentName(input map[string]any) string {
 	for _, field := range []string{"agent_type", "agent_name", "agent", "agent_id"} {
@@ -260,6 +434,16 @@ func (h *subagentStopHandler) Run(stdin []byte) ([]byte, int) {
 }
 
 func runSubagentStop(input map[string]any) ([]byte, int) {
+	// REQ-hooks-001: attempt the strict result-envelope fence extract/validate/
+	// persist step BEFORE the existing skill_resolution evaluation below. This
+	// is a pure side effect (state.yaml write) and never alters this
+	// function's return value or the hook's stdout.
+	if cwd, ok := input["cwd"].(string); ok {
+		persistResultEnvelope(input, resolveCwd(cwd))
+	} else {
+		persistResultEnvelope(input, resolveCwd(""))
+	}
+
 	resolution := findResolutionInInput(input)
 	if resolution == "" {
 		if tp, ok := input["transcript_path"].(string); ok {

@@ -9,6 +9,7 @@ const {
   ARTIFACT_STORE_MODES,
   DEFAULT_ARTIFACT_STORE_MODE,
 } = require("./artifact-store-modes.js");
+const { recoverOrphanBak } = require("./atomic-write.js");
 
 const TERMINAL_STATUSES = new Set([
   "archived",
@@ -230,6 +231,14 @@ async function readState(changePath) {
       ? resolvedPath
       : path.join(resolvedPath, "state.yaml");
 
+  // CRITICAL remediation (strict-result-envelope 4R gate): a failed
+  // writeFileAtomic double-rename can leave state.yaml MISSING with its
+  // pre-write content orphaned at state.yaml.bak. Recover it before reading
+  // so a transient write failure never looks like "no state.yaml at all" to
+  // callers such as findActiveChanges/persistResultEnvelope.
+  // recoverOrphanBak never throws (it swallows its own recovery errors).
+  await recoverOrphanBak(statePath);
+
   try {
     const [content, stats] = await Promise.all([
       fs.readFile(statePath, "utf8"),
@@ -362,8 +371,8 @@ async function reclaimStaleLock(lockPath, staleMs) {
   }
 }
 
-async function withAppendLock(eventPath, run, { retries = 100, delayMs = 15, staleMs = 10000 } = {}) {
-  const lockPath = `${eventPath}.lock`;
+async function withFileLock(targetPath, run, { retries = 100, delayMs = 15, staleMs = 10000 } = {}) {
+  const lockPath = `${targetPath}.lock`;
   for (let attempt = 0; ; attempt += 1) {
     let handle;
     try {
@@ -390,6 +399,242 @@ async function withAppendLock(eventPath, run, { retries = 100, delayMs = 15, sta
   }
 }
 
+// Backward-compatible alias: withAppendLock predates the generalization to
+// withFileLock (C5 / strict-result-envelope) and is kept so existing callers
+// (and their tests) keep working unchanged.
+const withAppendLock = withFileLock;
+
+const PHASE_SUMMARY_MAX_LENGTH = 160;
+const PHASE_SUMMARY_FIELD_INDENT = "    ";
+const PHASE_SUMMARY_LIST_ITEM_INDENT = "      ";
+
+/**
+ * Escapes a string for inclusion in a double-quoted YAML scalar, including
+ * control characters (`\n`, `\r`, `\t`, and other C0 control bytes). Without
+ * this, an LLM-controlled value (executive_summary/key_decisions) containing a
+ * raw newline would become a real physical line break once written to
+ * `state.yaml`, forging arbitrary sibling keys (e.g. `status: done`) against a
+ * line-oriented reader that has no real YAML parser. See BLOCKER remediation,
+ * strict-result-envelope 4R gate.
+ */
+function escapeYamlDoubleQuoted(value) {
+  return String(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t")
+    .replace(
+      /[\x00-\x1f]/g,
+      (char) => `\\x${char.charCodeAt(0).toString(16).padStart(2, "0")}`,
+    );
+}
+
+/**
+ * Truncates by Unicode code point (not UTF-16 code unit), matching Go's
+ * `[]rune` truncation in `internal/yamllite`. Truncating raw text first (by
+ * code point) and only THEN escaping guarantees escaping never splits a
+ * multi-char escape sequence — an escape-after-truncate-of-the-escaped-string
+ * order could leave a dangling `\` right before the closing quote, which
+ * would itself be a new injection vector.
+ */
+function truncateToCodePoints(value, maxLength) {
+  return Array.from(String(value)).slice(0, maxLength).join("");
+}
+
+function toYamlDoubleQuoted(value) {
+  const truncated = truncateToCodePoints(value, PHASE_SUMMARY_MAX_LENGTH);
+  return `"${escapeYamlDoubleQuoted(truncated)}"`;
+}
+
+/**
+ * Scans forward from a `key_decisions:` header line to find where its nested
+ * list items end (the first line with indent < 6, or `phaseBlockEnd`).
+ * Extracted out of `setPhaseSummary`'s scan loop to keep nesting shallow.
+ */
+function findKeyDecisionsBlockEnd(lines, startIndex, phaseBlockEnd) {
+  let j = startIndex;
+
+  while (j < phaseBlockEnd) {
+    const nestedTrimmed = lines[j].trim();
+
+    if (!nestedTrimmed) {
+      j += 1;
+      continue;
+    }
+
+    const nestedIndent = lines[j].match(/^\s*/)[0].length;
+
+    if (nestedIndent < 6) {
+      break;
+    }
+
+    j += 1;
+  }
+
+  return j;
+}
+
+/** True when a `summary:` value line already carries non-empty content. */
+function hasNonEmptySummaryValue(line) {
+  const value = line.trim().replace(/^summary:\s*/, "");
+  const unquoted = value.replace(/^["']([\s\S]*)["']$/, "$1");
+  return unquoted.trim().length > 0;
+}
+
+/**
+ * Surgical, line-oriented `state.yaml` writer for the Phase Summary Block
+ * (skills domain §12 / C5 SubagentStop persistence). Non-destructive
+ * fill-gap merge: writes `phases.{phase}.summary`/`key_decisions` ONLY when
+ * the current `summary` is empty or absent (ADR-002). Never touches an
+ * already non-empty summary. Returns the content unchanged (same string
+ * reference is not guaranteed, but the same text) when the phase is not
+ * found or the guard blocks the write.
+ *
+ * @param {string} content - raw `state.yaml` text
+ * @param {string} phase - phase key (e.g. "design", stripped of the `sdd-` prefix)
+ * @param {{summary: string, keyDecisions?: string[]}} fields
+ * @returns {string}
+ */
+function setPhaseSummary(content, phase, { summary, keyDecisions = [] } = {}) {
+  const eol = content.includes("\r\n") ? "\r\n" : "\n";
+  const lines = content.split(/\r\n|\n/);
+
+  // 1. Locate the top-level `phases:` block.
+  let phasesStart = -1;
+  let phasesEnd = lines.length;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const trimmed = lines[i].trim();
+    const indent = lines[i].match(/^\s*/)[0].length;
+
+    if (indent !== 0 || !trimmed) {
+      continue;
+    }
+
+    if (trimmed === "phases:") {
+      phasesStart = i;
+      continue;
+    }
+
+    if (phasesStart !== -1) {
+      phasesEnd = i;
+      break;
+    }
+  }
+
+  if (phasesStart === -1) {
+    return content;
+  }
+
+  // 2. Locate the target phase's header line and its block end (next
+  //    indent-2 sibling, or the end of the `phases:` block).
+  let phaseHeaderIndex = -1;
+  let phaseBlockEnd = phasesEnd;
+
+  for (let i = phasesStart + 1; i < phasesEnd; i += 1) {
+    const trimmed = lines[i].trim();
+
+    if (!trimmed) {
+      continue;
+    }
+
+    const indent = lines[i].match(/^\s*/)[0].length;
+
+    if (indent !== 2) {
+      continue;
+    }
+
+    if (phaseHeaderIndex !== -1) {
+      phaseBlockEnd = i;
+      break;
+    }
+
+    const header = trimmed.match(/^([\w-]+):\s*$/);
+
+    if (header && header[1] === phase) {
+      phaseHeaderIndex = i;
+    }
+  }
+
+  if (phaseHeaderIndex === -1) {
+    return content;
+  }
+
+  // 3. Within the phase block, find the existing `summary:`/`key_decisions:`
+  //    lines (indent 4), if any.
+  let summaryLineIndex = -1;
+  let keyDecisionsLineIndex = -1;
+  let keyDecisionsBlockEnd = -1;
+
+  for (let i = phaseHeaderIndex + 1; i < phaseBlockEnd; i += 1) {
+    const trimmed = lines[i].trim();
+
+    if (!trimmed) {
+      continue;
+    }
+
+    const indent = lines[i].match(/^\s*/)[0].length;
+
+    if (indent !== 4) {
+      continue;
+    }
+
+    if (/^summary:/.test(trimmed)) {
+      summaryLineIndex = i;
+    }
+
+    if (/^key_decisions:/.test(trimmed)) {
+      keyDecisionsLineIndex = i;
+      keyDecisionsBlockEnd = findKeyDecisionsBlockEnd(lines, i + 1, phaseBlockEnd);
+    }
+  }
+
+  // 4. Fill-gap guard: never overwrite an already non-empty summary.
+  if (summaryLineIndex !== -1 && hasNonEmptySummaryValue(lines[summaryLineIndex])) {
+    return content;
+  }
+
+  const summaryLine = `${PHASE_SUMMARY_FIELD_INDENT}summary: ${toYamlDoubleQuoted(summary || "")}`;
+  const keyDecisionsLines =
+    Array.isArray(keyDecisions) && keyDecisions.length > 0
+      ? [
+          `${PHASE_SUMMARY_FIELD_INDENT}key_decisions:`,
+          ...keyDecisions.map(
+            (decision) => `${PHASE_SUMMARY_LIST_ITEM_INDENT}- ${toYamlDoubleQuoted(decision)}`,
+          ),
+        ]
+      : [];
+
+  const nextLines = [...lines];
+
+  if (summaryLineIndex !== -1) {
+    nextLines[summaryLineIndex] = summaryLine;
+  } else {
+    nextLines.splice(phaseHeaderIndex + 1, 0, summaryLine);
+
+    if (keyDecisionsLineIndex !== -1) {
+      keyDecisionsLineIndex += 1;
+      keyDecisionsBlockEnd += 1;
+    }
+  }
+
+  if (keyDecisionsLines.length > 0) {
+    if (keyDecisionsLineIndex !== -1) {
+      nextLines.splice(
+        keyDecisionsLineIndex,
+        keyDecisionsBlockEnd - keyDecisionsLineIndex,
+        ...keyDecisionsLines,
+      );
+    } else {
+      const insertAt = summaryLineIndex !== -1 ? summaryLineIndex + 1 : phaseHeaderIndex + 2;
+      nextLines.splice(insertAt, 0, ...keyDecisionsLines);
+    }
+  }
+
+  return nextLines.join(eol);
+}
+
 async function appendRuntimeEvent(event) {
   if (!event || typeof event !== "object" || Array.isArray(event)) {
     throw new TypeError("Runtime event must be an object.");
@@ -406,7 +651,7 @@ async function appendRuntimeEvent(event) {
   delete serializedEvent.cwd;
 
   await fs.mkdir(path.dirname(eventPath), { recursive: true });
-  await withAppendLock(eventPath, () =>
+  await withFileLock(eventPath, () =>
     fs.appendFile(eventPath, `${JSON.stringify(serializedEvent)}\n`, "utf8"),
   );
 
@@ -734,5 +979,8 @@ module.exports = {
   readBaselineState,
   readStagedFiles,
   readState,
+  setPhaseSummary,
+  withAppendLock,
+  withFileLock,
   writeSessionSummary,
 };

@@ -142,7 +142,7 @@ func TestSubagentStop_RecordsDegradedResolution(t *testing.T) {
 		"timestamp":  "2026-06-10T10:35:00+02:00",
 		"agent_type": "sdd-apply",
 		"result": map[string]any{
-			"status":          "success",
+			"status":           "success",
 			"skill_resolution": "fallback-registry",
 		},
 	})
@@ -513,6 +513,325 @@ func TestSubagentStop_TranscriptIOError(t *testing.T) {
 	}
 	if r.SystemMessage == "" {
 		t.Error("systemMessage: empty, want non-empty for transcript I/O error (silent-drop bug not fixed)")
+	}
+}
+
+// ── Result Envelope extraction/validation/persistence (C5) ──────────────────
+// Cases mirror scripts/hooks/subagent-stop.test.js in intent.
+
+const stateWithEmptyDesignSummary = "change: strict-result-envelope\n" +
+	"status: applying\n" +
+	"phases:\n" +
+	"  design:\n" +
+	"    status: done\n" +
+	"    artifact: \"openspec/changes/strict-result-envelope/design.md\"\n" +
+	"    summary: \"\"\n"
+
+const stateWithNonEmptyDesignSummary = "change: strict-result-envelope\n" +
+	"status: applying\n" +
+	"phases:\n" +
+	"  design:\n" +
+	"    status: done\n" +
+	"    artifact: \"openspec/changes/strict-result-envelope/design.md\"\n" +
+	"    summary: \"Already written by the agent.\"\n"
+
+func buildFenceText(envelope map[string]any) string {
+	b, _ := json.Marshal(envelope)
+	return "Some prose the agent wrote.\n\n```json:result-envelope\n" + string(b) + "\n```\n"
+}
+
+func validSubagentEnvelope() map[string]any {
+	return map[string]any{
+		"status":            "success",
+		"executive_summary": "Diseñó el flujo de persistencia del envelope.",
+		"artifacts":         []any{"openspec/changes/strict-result-envelope/design.md"},
+		"next_recommended":  "sdd-tasks",
+		"risks":             "None",
+		"skill_resolution":  "injected",
+		"key_decisions":     []any{"Fill-gap merge sobre last-writer-wins"},
+	}
+}
+
+func createChangeWorkspace(t *testing.T, stateContent string) (workspace, statePath string) {
+	t.Helper()
+	workspace = t.TempDir()
+	changeDir := filepath.Join(workspace, "openspec", "changes", "strict-result-envelope")
+	if err := os.MkdirAll(changeDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	statePath = filepath.Join(changeDir, "state.yaml")
+	if err := os.WriteFile(statePath, []byte(stateContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	return workspace, statePath
+}
+
+func TestSubagentStop_PersistsValidEnvelopeFence(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	})
+	runSubagentStop(t, stdin)
+
+	updated, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(updated), `summary: "Diseñó el flujo de persistencia del envelope."`) {
+		t.Errorf("expected summary to be persisted, got:\n%s", updated)
+	}
+	if !strings.Contains(string(updated), `- "Fill-gap merge sobre last-writer-wins"`) {
+		t.Errorf("expected key_decisions to be persisted, got:\n%s", updated)
+	}
+}
+
+func TestSubagentStop_MissingFenceDoesNotWriteState(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"result":     "Just prose, no fence at all. skill_resolution: injected.",
+	})
+	r, _ := runSubagentStop(t, stdin)
+
+	if !r.Continue {
+		t.Error("continue: got false, want true")
+	}
+	after, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != stateWithEmptyDesignSummary {
+		t.Errorf("state.yaml must be untouched, got:\n%s", after)
+	}
+}
+
+func TestSubagentStop_MalformedFenceDoesNotWriteState(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"result":     "```json:result-envelope\n{ not valid json\n```",
+	})
+	runSubagentStop(t, stdin)
+
+	after, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != stateWithEmptyDesignSummary {
+		t.Errorf("state.yaml must be untouched for a malformed fence, got:\n%s", after)
+	}
+}
+
+func TestSubagentStop_MissingRequiredFieldFenceDoesNotWriteState(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+	envelope := validSubagentEnvelope()
+	delete(envelope, "status")
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"result":     buildFenceText(envelope),
+	})
+	runSubagentStop(t, stdin)
+
+	after, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != stateWithEmptyDesignSummary {
+		t.Errorf("state.yaml must be untouched for a schema-invalid fence, got:\n%s", after)
+	}
+}
+
+func TestSubagentStop_DoesNotOverwriteNonEmptySummary(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithNonEmptyDesignSummary)
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	})
+	runSubagentStop(t, stdin)
+
+	after, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != stateWithNonEmptyDesignSummary {
+		t.Errorf("must not overwrite an already non-empty summary, got:\n%s", after)
+	}
+}
+
+func TestSubagentStop_NoActiveChangeIsSafeNoOp(t *testing.T) {
+	workspace := t.TempDir()
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	})
+	r, code := runSubagentStop(t, stdin)
+
+	if code != 0 {
+		t.Errorf("exitCode: got %d, want 0", code)
+	}
+	if !r.Continue {
+		t.Error("continue: got false, want true")
+	}
+	if _, err := os.Stat(filepath.Join(workspace, "openspec")); err == nil {
+		t.Error("openspec dir must not be created as a side effect")
+	}
+}
+
+func TestSubagentStop_NonSddAgentTypeIsIgnored(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "Plan",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	})
+	runSubagentStop(t, stdin)
+
+	after, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != stateWithEmptyDesignSummary {
+		t.Errorf("state.yaml must be byte-for-byte untouched for a non-sdd-* agent_type, got:\n%s", after)
+	}
+}
+
+func TestSubagentStop_MixedKeyDecisionsOnlyPersistsStrings(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+	envelope := validSubagentEnvelope()
+	envelope["key_decisions"] = []any{"A real decision", float64(42), map[string]any{"nested": true}, "Another real decision", nil}
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"result":     buildFenceText(envelope),
+	})
+	runSubagentStop(t, stdin)
+
+	updated, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(updated), `- "A real decision"`) || !strings.Contains(string(updated), `- "Another real decision"`) {
+		t.Errorf("expected the string entries to be persisted, got:\n%s", updated)
+	}
+	if strings.Contains(string(updated), "42") || strings.Contains(string(updated), "nested") {
+		t.Errorf("expected non-string key_decisions entries to be dropped, not stringified, got:\n%s", updated)
+	}
+}
+
+func TestSubagentStop_SiblingFencesResolveLastSiblingWins(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+	firstEnvelope := validSubagentEnvelope()
+	firstEnvelope["executive_summary"] = "First sibling fence — must lose."
+	secondEnvelope := validSubagentEnvelope()
+	secondEnvelope["executive_summary"] = "Second sibling fence — must win."
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"result": map[string]any{
+			"a_first":  buildFenceText(firstEnvelope),
+			"b_second": buildFenceText(secondEnvelope),
+		},
+	})
+	runSubagentStop(t, stdin)
+
+	updated, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(updated), `summary: "Second sibling fence — must win."`) {
+		t.Errorf("expected last-sibling-wins semantics (matching FindStructuredResolution), got:\n%s", updated)
+	}
+	if strings.Contains(string(updated), "First sibling fence") {
+		t.Errorf("the losing sibling fence must not be persisted, got:\n%s", updated)
+	}
+}
+
+// ── parity fixtures (E1) ──────────────────────────────────────────────────────
+
+// TestSubagentStop_ParityFixtures loads the golden parity fixtures under
+// internal/testdata/parity/subagent-stop-*.json and verifies that the Go
+// handler produces byte-for-byte identical output to expectedStdout in each
+// fixture, mirroring TestPreToolUse_ParityFixtures. The fixtures reference a
+// placeholder cwd token (see internal/testdata/parity/README) that is
+// substituted here with the checked-in, openspec-free fixture workspace so
+// the run can never resolve to — and mutate — a real state.yaml.
+func TestSubagentStop_ParityFixtures(t *testing.T) {
+	pattern := filepath.Join("..", "testdata", "parity", "subagent-stop-*.json")
+	paths, err := filepath.Glob(pattern)
+	if err != nil {
+		t.Fatalf("glob pattern error: %v", err)
+	}
+	if len(paths) < 2 {
+		t.Fatalf("SubagentStop parity fixture set must not shrink below 2; found %d", len(paths))
+	}
+
+	workspaceAbs, err := filepath.Abs(filepath.Join("..", "testdata", "parity", "subagent-stop-workspace"))
+	if err != nil {
+		t.Fatalf("resolve fixture workspace: %v", err)
+	}
+	// JSON-escape backslashes (Windows paths) before splicing into the raw
+	// stdin JSON text, mirroring parity-contract.test.js's prepareStdin.
+	escapedWorkspace := strings.ReplaceAll(workspaceAbs, `\`, `\\`)
+
+	type fixture struct {
+		Description    string `json:"description"`
+		Stdin          string `json:"stdin"`
+		ExpectedStdout string `json:"expectedStdout"`
+	}
+
+	for _, p := range paths {
+		name := filepath.Base(p)
+		t.Run(name, func(t *testing.T) {
+			data, err := os.ReadFile(p)
+			if err != nil {
+				t.Fatalf("read fixture %s: %v", p, err)
+			}
+			var fix fixture
+			if err := json.Unmarshal(data, &fix); err != nil {
+				t.Fatalf("parse fixture %s: %v", p, err)
+			}
+
+			stdin := strings.ReplaceAll(fix.Stdin, "__SUBAGENT_STOP_FIXTURE_WORKSPACE__", escapedWorkspace)
+			stdout, _ := hooks.Dispatch([]string{"subagent-stop"}, []byte(stdin))
+
+			// SubagentStop's documented fail-open fixture (missing/malformed
+			// json:result-envelope fence) never surfaces implementation-specific
+			// message text in stdout, so only the stable continue:true field is
+			// asserted for it; everything else is byte-for-byte.
+			if strings.Contains(name, "malformed-envelope") {
+				var actual, expected map[string]any
+				if err := json.Unmarshal(stdout, &actual); err != nil {
+					t.Fatalf("parse actual stdout: %v; raw=%q", err, stdout)
+				}
+				if err := json.Unmarshal([]byte(fix.ExpectedStdout), &expected); err != nil {
+					t.Fatalf("parse expected stdout: %v", err)
+				}
+				if actual["continue"] != true || expected["continue"] != true {
+					t.Errorf("fail-open fixture %s: continue must be true on both sides; got=%v want=%v", name, actual, expected)
+				}
+				return
+			}
+
+			if string(stdout) != fix.ExpectedStdout {
+				t.Errorf("parity mismatch for %s\n  got:  %q\n  want: %q", name, stdout, fix.ExpectedStdout)
+			}
+		})
 	}
 }
 

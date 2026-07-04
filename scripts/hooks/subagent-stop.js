@@ -8,6 +8,14 @@ const {
   createArtifactStoreFromConfig,
 } = require("../lib/artifact-store.js");
 const { validatePath, resolveWorkspaceCwd } = require("../lib/pathsafe.js");
+const {
+  findActiveChanges,
+  findOpenSpecRoot,
+  setPhaseSummary,
+  withFileLock,
+} = require("../lib/ospec-state.js");
+const { writeFileAtomic, recoverOrphanBak } = require("../lib/atomic-write.js");
+const { extractEnvelope, validateEnvelope } = require("../lib/result-envelope.js");
 
 const EVENT_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.runtimeEvents;
 const RESULT_FIELDS = [
@@ -185,6 +193,180 @@ async function findResolutionInTranscript(transcriptPath) {
   }
 }
 
+/**
+ * Result Envelope fence extraction (C5 / strict-result-envelope). Mirrors the
+ * §5.2 field-search order already used for skill_resolution (RESULT_FIELDS,
+ * then a transcript_path fallback), but looks for the strict
+ * ```json:result-envelope``` fence instead of a bare skill_resolution value.
+ * Every function here is fail-safe: it returns {found:false} rather than
+ * throwing on any unexpected shape.
+ */
+function findEnvelopeInValue(value, seen = new Set()) {
+  if (typeof value === "string") {
+    return extractEnvelope(value);
+  }
+
+  if (!value || typeof value !== "object" || seen.has(value)) {
+    return { found: false };
+  }
+
+  seen.add(value);
+
+  // Mirrors findStructuredResolution's "last-sibling-wins" semantics: walk
+  // sibling values in reverse so that when two sibling fields both carry a
+  // fence, the LAST one (in object-key insertion order, or array order) wins
+  // deterministically in both runtimes (parity with Go's sorted-reverse walk).
+  const nestedValues = Array.isArray(value)
+    ? [...value].reverse()
+    : Object.values(value).reverse();
+
+  for (const nestedValue of nestedValues) {
+    const result = findEnvelopeInValue(nestedValue, seen);
+
+    if (result.found) {
+      return result;
+    }
+  }
+
+  return { found: false };
+}
+
+function findEnvelopeInInput(input) {
+  for (const field of RESULT_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(input || {}, field)) {
+      continue;
+    }
+
+    const result = findEnvelopeInValue(input[field]);
+
+    if (result.found) {
+      return result;
+    }
+  }
+
+  return { found: false };
+}
+
+async function findEnvelopeInTranscript(transcriptPath) {
+  const { cleaned, ok } = validatePath(transcriptPath);
+
+  if (!ok) {
+    return { found: false };
+  }
+
+  try {
+    const content = await fs.readFile(cleaned, "utf8");
+    const direct = extractEnvelope(content);
+
+    if (direct.found) {
+      return direct;
+    }
+
+    const lines = content.split(/\r?\n/).filter((line) => line.trim());
+
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+      const parsed = parseJsonText(lines[index]);
+
+      if (!parsed) {
+        continue;
+      }
+
+      const result = findEnvelopeInValue(parsed);
+
+      if (result.found) {
+        return result;
+      }
+    }
+
+    return { found: false };
+  } catch (error) {
+    if (error.code === "ENOENT" || error.code === "EACCES") {
+      return { found: false };
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * Extracts, validates, and (fill-gap) persists the phase's Result Envelope
+ * summary into the active change's state.yaml, per REQ-hooks-001. Strictly
+ * additive and fail-safe: any failure at any step (no fence, malformed JSON,
+ * schema-invalid, no active change, non-"sdd-" agent, lock/write failure)
+ * silently no-ops without throwing and without affecting the hook's stdout.
+ */
+async function persistResultEnvelope({ input, workspace }) {
+  try {
+    let envelopeResult = findEnvelopeInInput(input);
+
+    if (!envelopeResult.found) {
+      envelopeResult = await findEnvelopeInTranscript(input.transcript_path);
+    }
+
+    if (!envelopeResult.found || !envelopeResult.value) {
+      return;
+    }
+
+    const validation = validateEnvelope(envelopeResult.value);
+
+    if (!validation.valid) {
+      return;
+    }
+
+    const agentName = resolveAgentName(input);
+
+    if (!agentName.startsWith("sdd-")) {
+      return;
+    }
+
+    const phase = agentName.slice("sdd-".length);
+    const openspecRoot = await findOpenSpecRoot(workspace);
+    const activeChange = (await findActiveChanges(openspecRoot))[0];
+
+    if (!activeChange) {
+      return;
+    }
+
+    const envelope = envelopeResult.value;
+    // Filter out non-string entries (parity with internal/hooks/subagentstop.go,
+    // which only relays `item.(string)` values) rather than String()-coercing
+    // them — a stray non-string key_decisions entry should be dropped, not
+    // silently turned into a misleading "[object Object]"/"42"/"null" string.
+    const keyDecisions = Array.isArray(envelope.key_decisions)
+      ? envelope.key_decisions.filter((item) => typeof item === "string")
+      : [];
+
+    await withFileLock(activeChange.statePath, async () => {
+      let freshContent;
+
+      try {
+        // CRITICAL remediation (strict-result-envelope 4R gate): recover an
+        // orphaned state.yaml.bak (left by a failed writeFileAtomic
+        // double-rename) before this re-read-under-lock, so a prior transient
+        // write failure never turns into a silent no-op here.
+        await recoverOrphanBak(activeChange.statePath);
+        freshContent = await fs.readFile(activeChange.statePath, "utf8");
+      } catch {
+        return;
+      }
+
+      const updated = setPhaseSummary(freshContent, phase, {
+        summary: envelope.executive_summary,
+        keyDecisions,
+      });
+
+      if (updated === freshContent) {
+        return;
+      }
+
+      await writeFileAtomic(activeChange.statePath, updated);
+    });
+  } catch {
+    // Fully fail-safe: envelope persistence must never affect SubagentStop's
+    // existing skill_resolution behavior or exit status.
+  }
+}
+
 function resolveAgentName(input) {
   return String(
     input?.agent_type ||
@@ -209,6 +391,13 @@ async function runSubagentStop({
   now = () => new Date(),
 } = {}) {
   const workspace = resolveWorkspaceCwd(input.cwd, fallbackCwd);
+
+  // REQ-hooks-001: attempt the strict result-envelope fence extract/validate/
+  // persist step BEFORE the existing skill_resolution evaluation below. This
+  // is a pure side effect (state.yaml write) and never alters this function's
+  // return value or the hook's stdout.
+  await persistResultEnvelope({ input, workspace });
+
   const resolution =
     findResolutionInInput(input) ||
     (await findResolutionInTranscript(input.transcript_path));
@@ -281,11 +470,14 @@ if (require.main === module) {
 
 module.exports = {
   EVENT_RELATIVE_PATH,
+  findEnvelopeInInput,
+  findEnvelopeInTranscript,
   findResolutionInInput,
   findResolutionInJsonLines,
   findResolutionInTranscript,
   findStructuredResolution,
   findTextResolution,
   isDegradedResolution,
+  persistResultEnvelope,
   runSubagentStop,
 };

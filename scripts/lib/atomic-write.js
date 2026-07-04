@@ -75,7 +75,27 @@ async function writeFileAtomic(targetPath, content) {
         if (backedUp) {
           try {
             await fs.rename(bakPath, targetPath);
-          } catch (_) {}
+          } catch (rollbackError) {
+            // Rollback itself failed: target is now MISSING and the only
+            // surviving copy of the pre-write content is at bakPath. Do not
+            // swallow this — surface the .bak path in the thrown error so a
+            // caller (or a recoverOrphanBak() call on the next read) can
+            // restore it, instead of the failure looking identical to a
+            // clean single-rename failure with the original file intact.
+            try {
+              await fs.unlink(tempPath);
+            } catch (_) {}
+            const aggregate = new Error(
+              `writeFileAtomic: rollback to "${bakPath}" also failed after the ` +
+                `rename fallback errored; the pre-write content is still recoverable ` +
+                `at "${bakPath}" (original error: ${fallbackError.message}; ` +
+                `rollback error: ${rollbackError.message})`,
+            );
+            aggregate.code = fallbackError.code;
+            aggregate.bakPath = bakPath;
+            aggregate.cause = fallbackError;
+            throw aggregate;
+          }
         }
         // Clean up temp file
         try {

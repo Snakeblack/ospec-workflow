@@ -3,6 +3,7 @@
 package yamllite_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/yamllite"
@@ -162,8 +163,8 @@ func TestExtractListSection(t *testing.T) {
 			},
 		},
 		{
-			name: "section not present returns empty slice",
-			content: "status: active\n",
+			name:        "section not present returns empty slice",
+			content:     "status: active\n",
 			sectionName: "approvals",
 			wantLen:     0,
 			check:       nil,
@@ -261,5 +262,185 @@ func TestFormatNextAction(t *testing.T) {
 				t.Errorf("FormatNextAction(%q, %q) = %q, want %q", tc.value, tc.changeName, got, tc.want)
 			}
 		})
+	}
+}
+
+// ── SetPhaseSummary ───────────────────────────────────────────────────────────
+// Cases mirror scripts/lib/ospec-state.test.js#setPhaseSummary in intent.
+
+const stateWithEmptySummary = "change: strict-result-envelope\n" +
+	"status: applying\n" +
+	"phases:\n" +
+	"  design:\n" +
+	"    status: done\n" +
+	"    artifact: \"openspec/changes/strict-result-envelope/design.md\"\n" +
+	"    summary: \"\"\n" +
+	"  tasks:\n" +
+	"    status: pending\n"
+
+const stateWithoutSummaryKey = "change: strict-result-envelope\n" +
+	"status: applying\n" +
+	"phases:\n" +
+	"  design:\n" +
+	"    status: done\n" +
+	"    artifact: \"openspec/changes/strict-result-envelope/design.md\"\n" +
+	"  tasks:\n" +
+	"    status: pending\n"
+
+const stateWithNonEmptySummary = "change: strict-result-envelope\n" +
+	"status: applying\n" +
+	"phases:\n" +
+	"  design:\n" +
+	"    status: done\n" +
+	"    artifact: \"openspec/changes/strict-result-envelope/design.md\"\n" +
+	"    summary: \"Already written by the agent itself.\"\n" +
+	"  tasks:\n" +
+	"    status: pending\n"
+
+func TestSetPhaseSummary_FillsEmptyGapAndAppendsKeyDecisions(t *testing.T) {
+	updated := yamllite.SetPhaseSummary(stateWithEmptySummary, "design", "JWT stateless con refresh rotativo.", []string{"RS256 sobre HS256"})
+
+	if !strings.Contains(updated, `summary: "JWT stateless con refresh rotativo."`) {
+		t.Errorf("expected summary to be filled, got:\n%s", updated)
+	}
+	if !strings.Contains(updated, "key_decisions:\n") || !strings.Contains(updated, `- "RS256 sobre HS256"`) {
+		t.Errorf("expected key_decisions to be rendered, got:\n%s", updated)
+	}
+}
+
+func TestSetPhaseSummary_FillsGapWhenSummaryKeyAbsent(t *testing.T) {
+	updated := yamllite.SetPhaseSummary(stateWithoutSummaryKey, "design", "Filled by the hook safety net.", nil)
+
+	if !strings.Contains(updated, `summary: "Filled by the hook safety net."`) {
+		t.Errorf("expected summary to be inserted, got:\n%s", updated)
+	}
+}
+
+func TestSetPhaseSummary_NoOpWhenSummaryAlreadyNonEmpty(t *testing.T) {
+	updated := yamllite.SetPhaseSummary(stateWithNonEmptySummary, "design", "This must never appear.", []string{"Should be ignored"})
+
+	if updated != stateWithNonEmptySummary {
+		t.Errorf("expected no-op, got:\n%s", updated)
+	}
+	if strings.Contains(updated, "This must never appear") {
+		t.Error("must not overwrite an already non-empty summary")
+	}
+}
+
+func TestSetPhaseSummary_EscapesQuotesAndBackslashes(t *testing.T) {
+	updated := yamllite.SetPhaseSummary(stateWithEmptySummary, "design", `Uses a "quoted" value and a C:\path\to\file.`, nil)
+
+	if !strings.Contains(updated, `summary: "Uses a \"quoted\" value and a C:\\path\\to\\file."`) {
+		t.Errorf("expected escaped summary, got:\n%s", updated)
+	}
+}
+
+func TestSetPhaseSummary_TruncatesTo160Chars(t *testing.T) {
+	longSummary := strings.Repeat("x", 200)
+
+	updated := yamllite.SetPhaseSummary(stateWithEmptySummary, "design", longSummary, nil)
+
+	idx := strings.Index(updated, `summary: "`)
+	if idx == -1 {
+		t.Fatal("expected a summary line to be present")
+	}
+	rest := updated[idx+len(`summary: "`):]
+	end := strings.Index(rest, `"`)
+	if end != 160 {
+		t.Errorf("expected truncated summary of 160 chars, got %d", end)
+	}
+}
+
+func TestSetPhaseSummary_RendersMultipleKeyDecisionsAsList(t *testing.T) {
+	updated := yamllite.SetPhaseSummary(stateWithEmptySummary, "design", "Multiple decisions.", []string{"First decision", "Second decision"})
+
+	lines := strings.Split(updated, "\n")
+	idx := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "key_decisions:" {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		t.Fatal("expected a key_decisions: line")
+	}
+	if strings.TrimSpace(lines[idx+1]) != `- "First decision"` {
+		t.Errorf("got %q", lines[idx+1])
+	}
+	if strings.TrimSpace(lines[idx+2]) != `- "Second decision"` {
+		t.Errorf("got %q", lines[idx+2])
+	}
+}
+
+func TestSetPhaseSummary_NoOpWhenPhaseDoesNotExist(t *testing.T) {
+	updated := yamllite.SetPhaseSummary(stateWithEmptySummary, "verify", "Should not be written anywhere.", nil)
+
+	if updated != stateWithEmptySummary {
+		t.Errorf("expected no-op for missing phase, got:\n%s", updated)
+	}
+}
+
+func TestSetPhaseSummary_OmitsKeyDecisionsWhenEmpty(t *testing.T) {
+	updated := yamllite.SetPhaseSummary(stateWithEmptySummary, "design", "No decisions this batch.", []string{})
+
+	if strings.Contains(updated, "key_decisions:") {
+		t.Error("expected key_decisions: to be omitted for an empty list")
+	}
+}
+
+func TestSetPhaseSummary_NeutralizesEmbeddedNewlineInSummary(t *testing.T) {
+	updated := yamllite.SetPhaseSummary(stateWithEmptySummary, "design", "ok\"\nstatus: done", nil)
+
+	wantLines := strings.Count(stateWithEmptySummary, "\n")
+	gotLines := strings.Count(updated, "\n")
+	if gotLines != wantLines {
+		t.Errorf("expected an embedded raw newline to not add a new physical line: want %d lines, got %d\n%s", wantLines, gotLines, updated)
+	}
+	if !strings.Contains(updated, `summary: "ok\"\nstatus: done"`) {
+		t.Errorf("expected the newline to be escaped as a literal \\n sequence, got:\n%s", updated)
+	}
+}
+
+func TestSetPhaseSummary_NeutralizesEmbeddedCRLFInKeyDecisions(t *testing.T) {
+	updated := yamllite.SetPhaseSummary(stateWithEmptySummary, "design", "Multiple decisions.", []string{"a\r\nphases:"})
+
+	phasesLines := 0
+	for _, line := range strings.Split(updated, "\n") {
+		if strings.TrimSpace(line) == "phases:" {
+			phasesLines++
+		}
+	}
+	if phasesLines != 1 {
+		t.Errorf("expected an embedded CRLF to not fabricate a second top-level phases: line, got %d occurrences:\n%s", phasesLines, updated)
+	}
+	if !strings.Contains(updated, `- "a\r\nphases:"`) {
+		t.Errorf("expected the CRLF to be escaped as literal \\r\\n sequences, got:\n%s", updated)
+	}
+}
+
+func TestSetPhaseSummary_TruncatesByCodePointNotUTF16Unit(t *testing.T) {
+	emoji := "\U0001F600" // 😀 — one code point, two UTF-16 code units in JS
+	summary := strings.Repeat(emoji, 159) + "AB"
+
+	updated := yamllite.SetPhaseSummary(stateWithEmptySummary, "design", summary, nil)
+
+	idx := strings.Index(updated, `summary: "`)
+	if idx == -1 {
+		t.Fatal("expected a summary line to be present")
+	}
+	rest := updated[idx+len(`summary: "`):]
+	end := strings.Index(rest, `"`)
+	if end == -1 {
+		t.Fatal("expected a closing quote")
+	}
+	truncated := rest[:end]
+	runeCount := len([]rune(truncated))
+	if runeCount != 160 {
+		t.Errorf("expected 160 code points, got %d", runeCount)
+	}
+	runes := []rune(truncated)
+	if runes[159] != 'A' {
+		t.Errorf("expected the 160th code point to be 'A', got %q", runes[159])
 	}
 }

@@ -164,6 +164,67 @@ test("1.1.6 · Crash post-tmp before rename — stale .tmp overwritten in re-run
   }
 });
 
+test("1.1.8 · Double-rename failure (fallback rename AND rollback both fail) surfaces the .bak path instead of silently losing data", async () => {
+  const tmpDir = await createTempDir();
+  try {
+    const targetPath = path.join(tmpDir, "workspace.yaml");
+    const bakPath = targetPath + ".bak";
+    const originalContent = "original content — must remain recoverable";
+    await fs.writeFile(targetPath, originalContent);
+
+    const originalRename = fs.rename;
+    let call = 0;
+
+    fs.rename = async (oldPath, newPath) => {
+      call += 1;
+      // 1st call: tmp -> target, fail EEXIST (forces the Windows fallback path)
+      if (call === 1 && oldPath === targetPath + ".tmp" && newPath === targetPath) {
+        const err = new Error("EEXIST: file already exists, rename");
+        err.code = "EEXIST";
+        throw err;
+      }
+      // 2nd call: target -> .bak (the fallback's own backup step) — let it succeed for real.
+      if (call === 2 && oldPath === targetPath && newPath === bakPath) {
+        return originalRename(oldPath, newPath);
+      }
+      // 3rd call: tmp -> target retry — fail again (simulates a still-locked target).
+      if (call === 3 && oldPath === targetPath + ".tmp" && newPath === targetPath) {
+        const err = new Error("EPERM: operation not permitted, rename");
+        err.code = "EPERM";
+        throw err;
+      }
+      // 4th call: rollback attempt .bak -> target — fail too (worst case).
+      if (call === 4 && oldPath === bakPath && newPath === targetPath) {
+        const err = new Error("EPERM: rollback rename blocked");
+        err.code = "EPERM";
+        throw err;
+      }
+      return originalRename(oldPath, newPath);
+    };
+
+    try {
+      await assert.rejects(
+        writeFileAtomic(targetPath, "new content"),
+        (error) => {
+          // The error must not be silent about where the content actually is.
+          assert.match(error.message, /\.bak/);
+          assert.strictEqual(error.bakPath, bakPath);
+          return true;
+        },
+      );
+
+      // The content must still be recoverable from the .bak sibling — this is
+      // the whole point of not swallowing the rollback failure.
+      const bakActual = await fs.readFile(bakPath, "utf8");
+      assert.strictEqual(bakActual, originalContent);
+    } finally {
+      fs.rename = originalRename;
+    }
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
 test("1.1.7 · writeFileAtomic on federation-baseline-status.yaml", async () => {
   const tmpDir = await createTempDir();
   try {

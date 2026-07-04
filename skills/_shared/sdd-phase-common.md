@@ -155,7 +155,25 @@ Return result inline only. Do not write project files.
 
 ## D. Return Envelope
 
-Every phase MUST return a structured envelope to the orchestrator:
+Every phase MUST return a structured envelope to the orchestrator. In addition to the
+prose fields below, every phase MUST append exactly one strict, directly
+`JSON.parse`-able fenced block with the info-string `json:result-envelope` carrying the
+same fields as JSON. This is additive — `executive_summary` stays human-readable prose;
+the fence is a machine-parseable anchor for the orchestrator and the `SubagentStop` hook.
+Optional fields not applicable to the current batch are omitted from the fence entirely
+(never emitted as `null`), matching the omission convention below.
+
+```json:result-envelope
+{ "status": "success", "executive_summary": "...", "artifacts": ["..."],
+  "next_recommended": "sdd-tasks", "risks": "None", "skill_resolution": "injected" }
+```
+
+The canonical schema for validating this fence is exactly the field table below plus the
+Assumption Entry Schema and the Blocking Question Envelope shape already defined in this
+section — this requirement does not redefine or introduce any new field, enum value, or
+meaning. The reference implementation (`scripts/lib/result-envelope.js`, mirrored by
+`internal/resultenvelope`) exports `extractEnvelope(text)` and
+`validateEnvelope(obj) → {valid, errors}` (never throws) against this same schema.
 
 - `status`: `success`, `partial`, or `blocked`
 - `executive_summary`: 1-3 sentence summary of what was done

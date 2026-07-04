@@ -1,0 +1,5 @@
+This directory is a fixture-only, intentionally openspec-free workspace used by
+the SubagentStop parity fixtures (subagent-stop-*.json). It MUST NOT contain an
+openspec/ directory: the fixtures rely on "no active change resolvable" so
+their JS/Go parity runs never touch a real state.yaml. See
+internal/testdata/parity/README.

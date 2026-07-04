@@ -1,12 +1,44 @@
-Golden parity fixtures for the pre-tool-use hook: ONE fixture set verified by
-BOTH implementations in pre-commit/CI.
+Golden parity fixtures verified by BOTH implementations (Go + JS) in pre-commit/CI,
+one fixture family per covered hook. Never fix a parity mismatch by editing only
+the fixture: decide the canonical behavior first, change the lagging
+implementation, then (only if the contract itself changed) the fixture.
 
-- Go: internal/hooks/pretooluse_test.go (TestPreToolUse_ParityFixtures) — byte-for-byte.
-- JS: scripts/hooks/parity-contract.test.js — spawns the real hook process; byte-for-byte,
-  except the fail-open parse-error fixture where the reason is prefix-matched
-  ("The safety hook could not inspect this tool call:") because JSON parser error
-  suffixes are implementation-specific.
+## Fixture family table
 
-Adding a fixture here extends the contract for both runtimes at once. Never fix a
-parity mismatch by editing only the fixture: decide the canonical behavior first,
-change the lagging implementation, then (only if the contract itself changed) the fixture.
+| Hook           | Fixture prefix     | Floor | Spawned/dispatched script         | Go mirror test                     |
+|----------------|---------------------|-------|------------------------------------|-------------------------------------|
+| PreToolUse     | `pre-tool-use-*`    | 4     | `scripts/hooks/pre-tool-use.js`    | `TestPreToolUse_ParityFixtures`     |
+| SubagentStop   | `subagent-stop-*`   | 2     | `scripts/hooks/subagent-stop.js`   | `TestSubagentStop_ParityFixtures`   |
+
+- Go: `internal/hooks/pretooluse_test.go` and `internal/hooks/subagentstop_test.go` — byte-for-byte via `hooks.Dispatch`.
+- JS: `scripts/hooks/parity-contract.test.js` — spawns the real hook process; byte-for-byte,
+  except each hook's documented fail-open fixture (see below), where only stable,
+  implementation-independent fields are compared exactly and any divergent message
+  text is compared by shared prefix only.
+
+## Fail-open fixtures per hook
+
+- **PreToolUse**: the parse-error fixture, identified by its
+  `permissionDecisionReason` starting with `"The safety hook could not inspect
+  this tool call:"`. JSON parser error suffixes are implementation-specific
+  (Go vs. V8), so only `hookEventName`/`permissionDecision` are compared
+  exactly and the reason is prefix-matched.
+- **SubagentStop**: `subagent-stop-malformed-envelope.json`, identified by a
+  missing/malformed `json:result-envelope` fence. No implementation-specific
+  message text is ever surfaced for an envelope failure (stdout is the plain
+  `{"continue":true}`), so the stable `continue:true` field is asserted
+  exactly.
+
+## SubagentStop fixture workspace
+
+The `subagent-stop-*.json` fixtures reference the literal token
+`__SUBAGENT_STOP_FIXTURE_WORKSPACE__` in their `stdin.cwd` field instead of a
+real path, because a static, checked-in JSON fixture cannot embed a
+machine-specific absolute path. Both parity harnesses substitute that token
+with the absolute path to `internal/testdata/parity/subagent-stop-workspace/`
+— a checked-in, deliberately `openspec/`-free directory — immediately before
+spawning/dispatching the hook. This guarantees "no active change resolvable"
+so the fence-persistence step is a safe no-op and the run can never mutate a
+real `state.yaml` (in particular, this very change's own state.yaml, since the
+JS harness's spawned process would otherwise inherit the repo root as its
+cwd). Do not add an `openspec/` directory under that fixture workspace.
