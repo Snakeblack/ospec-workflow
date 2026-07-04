@@ -137,7 +137,69 @@ Audited all six test files (JS + Go). No tautologies, no zero-assertion tests, n
 **SUGGESTION** (INFO — not written to known-issues):
 - `ospec-state.test.js > "appendRuntimeEvent serializes concurrent writers"` is a pre-existing Windows-EPERM flaky under full-suite lock contention (unrelated to this change). Consider hardening the test's lock cleanup / retry to remove the environmental flake. `origin: code-bug` (pre-existing test infra, not this change).
 
-## Verdict
+## Verdict (initial verification)
 **PASS**
 
 20/20 tasks complete; all executable MUST scenarios reach `runtime-test`; JS (`npm test` exit 0) and Go (`go test ./...` all 8 packages) suites green including the E1 parity contract byte-for-byte; TDD evidence complete and assertion quality clean; traceability REQ→commit→test solid; both high-reversibility assumptions audited correct with runtime backing. The only test blemish is a pre-existing environmental flaky that passes in isolation and under the official runner — not a defect of this change.
+
+> Post-verify, the 4R review gate surfaced 1 BLOCKER + 2 CRITICAL + 5 parity WARNINGs; the user approved a remediation batch. See the re-verification section below. Authoritative verdict is now the re-verification verdict.
+
+---
+
+# Re-Verification — 4R Gate Remediation (Work Unit 5 / Phase 7, commit `1f63855`)
+
+**Date**: 2026-07-04 · **Scope**: only the remediation batch (tasks 7.1–7.8), not the previously-verified 6 phases.
+
+## Completeness (batch)
+| Metric | Value |
+|--------|-------|
+| Remediation tasks total | 8 (7.1–7.8) |
+| Complete | 8 |
+| Incomplete | 0 |
+
+TDD Cycle Evidence for 7.1–7.8 present in `apply-progress.md` Work Unit 5; every task has a RED/GREEN row (7.2/7.4/7.5/7.6 note the finding was a Go-or-JS coverage gap where one side was already correct — added as coverage-parity tests; 7.8 is a pure structural refactor with the pre-existing suite as the safety net).
+
+## Build & Tests Execution (batch)
+
+**Tests (JS)**: PASS — `npm test` → `0 errors, 0 warnings. All checks passed.` (914 checks; exit 0). Change/remediation suites run explicitly = **107/107 pass** across `ospec-state.test.js`, `atomic-write.test.js`, `subagent-stop.test.js`, `parity-contract.test.js`, `result-envelope.test.js`. This run was clean on the first attempt — the known EPERM flaky did not trip this time.
+
+**Tests (Go)**: PASS — `go build ./...`, `go vet ./...`, `gofmt -l` (modified files) all clean; `go test ./...` all 8 packages `ok`. Remediation tests executed verbose and green: `TestSetPhaseSummary_NeutralizesEmbeddedNewlineInSummary`, `…NeutralizesEmbeddedCRLFInKeyDecisions`, `…TruncatesByCodePointNotUTF16Unit`, `TestValidate_Bad{Status,Reversibility,BlockerType}EnumMessageListsValuesInDeclarationOrder`, `TestSubagentStop_{NonSddAgentTypeIsIgnored,MixedKeyDecisionsOnlyPersistsStrings,SiblingFencesResolveLastSiblingWins,ParityFixtures}`.
+
+## Finding-Closure Matrix
+| Finding | Severity | Evidence Level | Closure Evidence | Result |
+|---------|----------|----------------|------------------|--------|
+| YAML line-injection via LLM-controlled `summary`/`key_decisions` | BLOCKER | `runtime-test` | JS `setPhaseSummary neutralizes an embedded newline…` + `…embedded CRLF…`; Go `…NeutralizesEmbeddedNewlineInSummary` + `…NeutralizesEmbeddedCRLFInKeyDecisions`. Payloads `ok"\nstatus: done` (line-forgery + quote break-out) and `a\r\nphases:` (top-level-key forgery) assert (a) no new physical line / no 2nd `phases:` line, (b) escaped as literal `\"`, `\n`, `\r\n`. Escape symmetric JS↔Go (backslash→`"`→`\n`→`\r`→`\t`→C0 `\xHH`, identical order). Truncation is code-point-first in both (`Array.from`/`[]rune`), so a 2-char escape sequence can never be split into a dangling `\` before the closing quote. | **CLOSED** |
+| non-`sdd-*` `agent_type` guard untested | CRITICAL | `runtime-test` | JS `subagent-stop.test.js` non-`sdd-*` guard case; Go `TestSubagentStop_NonSddAgentTypeIsIgnored`. Guard code was already correct; now covered both sides. | **CLOSED** |
+| Silent `state.yaml` loss on double-rename failure | CRITICAL | `runtime-test` | `atomic-write.test.js` "Double-rename failure … surfaces the `.bak` path" asserts an aggregate error carrying `.bakPath` and that content stays recoverable at `.bak`; `ospec-state.test.js` "readState recovers an orphaned `state.yaml.bak`" asserts self-heal (`.bak` consumed, `state.yaml` restored). `recoverOrphanBak` wired into `readState` + defensive re-call in `persistResultEnvelope`. | **CLOSED** |
+| Parity: sibling-fence iteration order (JS first-wins vs Go last-wins) | WARNING | `runtime-test` | JS `findEnvelopeInValue` reversed; `subagent-stop.test.js` sibling-fence last-wins case + Go `TestSubagentStop_SiblingFencesResolveLastSiblingWins`. | **CLOSED** |
+| Parity: Go enum error-message order non-deterministic (`sortedKeys` not sorting) | WARNING | `runtime-test` | Go declaration-ordered slices; `resultenvelope_test.go` 3 `…EnumMessageListsValuesInDeclarationOrder` cases + JS parity-oracle cases in `result-envelope.test.js`. | **CLOSED** |
+| Parity: JS `String()`-coerced non-string `key_decisions` vs Go string-only | WARNING | `runtime-test` | JS filters to `typeof === "string"`; `subagent-stop.test.js` mixed-type case + Go `TestSubagentStop_MixedKeyDecisionsOnlyPersistsStrings`. | **CLOSED** |
+| Parity: JS UTF-16 vs Go rune truncation | WARNING | `runtime-test` | `truncateToCodePoints` (`Array.from`); JS + Go emoji/surrogate 160-code-point cases. | **CLOSED** |
+| Readability: deep nesting in `setPhaseSummary`/`SetPhaseSummary` | WARNING | `static-proof` | `findKeyDecisionsBlockEnd` extracted both sides; pre-existing 50-case JS + Go `yamllite` suites 0-regression. | **CLOSED** |
+
+## Spec-Delta Consistency Check
+Confirmed no spec-delta change is required. The 8 fixes harden the **internal `state.yaml` serialization** (control-char escaping, code-point truncation, `.bak` recovery) and **JS↔Go parity** — none alter an observable §D fence-emission contract, the hook's stdout contract (`{"continue":true}` fixtures unchanged, byte-for-byte green), or any scenario asserted in `specs/{hooks,skills,agents}/spec.md`. The E1 parity `expectedStdout` is unaffected. Verified by the full parity suite staying green after the batch.
+
+## Assumption Reconciliation (batch delta)
+`sdd-apply-003` added, `reversibility: high`, `status: unresolved`. Per Decision Gates, high-reversibility unresolved entries do not escalate and raise no finding. Audited:
+
+| id | statement | reversibility | outcome | Audit |
+|----|-----------|----------------|---------|-------|
+| sdd-apply-003 | Truncate raw value by code point to 160 BEFORE escaping control chars (not escape-then-truncate) | high | unresolved (no escalation) | **CORRECT and safer than the finding's literal wording.** `toYamlDoubleQuoted` = `truncateToCodePoints(value,160)` → `escapeYamlDoubleQuoted(...)` in both runtimes. Escape-then-truncate could split a freshly-inserted `\n`/`\xHH` sequence and leave a dangling `\` before the closing quote — itself a re-injection vector; truncate-raw-first is provably safe and also satisfies the code-point WARNING. Internal ordering inside one private helper; no external contract. Not risky. |
+
+sdd-apply-001 and sdd-apply-002 remain as audited in the initial verification (both CORRECT, high, unresolved). No `assumption_resolutions` block was supplied this batch; all three high-reversibility entries left `unresolved` (no finding). The orchestrator MAY run an optional confirm gate.
+
+## Issues Found (batch)
+**CRITICAL**: None.
+
+**WARNING**: None. All 1 BLOCKER + 2 CRITICAL + 5 parity WARNINGs are runtime-closed. Pre-existing infra WARNINGs (`recoverOrphanBak` empty catch, `findActiveChanges`/`FindActiveChanges` fail-fast, Go `atomicWriteFile` missing `.bak` fallback) were explicitly deferred per the user-approved batch scope — tracked as follow-up, not regressions of this batch.
+
+**SUGGESTION** (INFO — not written to known-issues):
+- The generic C0 branch (`\x00–\x1f` other than `\n`/`\r`/`\t`, escaped as `\xHH`) is symmetric JS↔Go and correct by inspection, but has no dedicated runtime payload — the actual injection vectors (`\n`, `\r`, `"`) are runtime-covered. Consider adding a bare-`\x1b`/`\x00` payload to lock the `\xHH` branch. `origin: tasks-gap`.
+- `design.md` §Interfaces still describes escaping as `escape "/\` only; the implementation now also escapes `\n`/`\r`/`\t`/C0 and truncates by code point. Non-blocking (design.md is not a spec delta; behavior is correct), but the design note is now narrower than the code. `origin: design-gap`.
+- The pre-existing Windows-EPERM flaky (`appendRuntimeEvent serializes concurrent writers`) remains; did not trip this batch. `origin: code-bug` (pre-existing test infra).
+
+## Re-Verification Verdict
+**PASS** (authoritative)
+
+All 8 remediation tasks complete with RED-first TDD; the BLOCKER (YAML injection) and both CRITICALs are genuinely closed with runtime tests in **both** JS and Go — injection payloads cover `\n`, `\r`/CRLF and quote break-out, escape is symmetric across runtimes, and code-point-first truncation removes the dangling-backslash re-injection vector. All 5 parity WARNINGs runtime-closed. `npm test` (914, exit 0) and `go test ./...` (8 packages) green including the E1 parity contract byte-for-byte. No spec-delta change required (confirmed). `sdd-apply-003` audited correct; all three assumptions are high-reversibility and non-escalating. Only INFO-level SUGGESTIONs remain.

@@ -186,6 +186,24 @@ section heading:
 Phase executor bodies reference `skills/_shared/sdd-phase-common.md` sections by
 letter (§A, §B, §C, §D, §E) rather than duplicating their content.
 
+### 3.3 Strict Result Envelope Emission Format
+
+Every SDD phase skill MUST ensure its return envelope complies with the strict emission
+format specified in `sdd-phase-common.md` §D. Phase agents emit their return envelopes
+as both human-readable prose (for user consumption) and a strict, machine-parseable
+`json:result-envelope` fenced block (for programmatic consumption by the orchestrator
+and hooks).
+
+The fenced block uses the info-string `json:result-envelope` and contains valid JSON
+carrying at minimum the required §D fields: `status`, `executive_summary`, `artifacts`,
+`next_recommended`, `risks`, `skill_resolution`. Optional fields are omitted (never
+emitted as `null`) when not applicable to the current batch.
+
+This requirement ensures that downstream consumers (the `SubagentStop` hook, the
+orchestrator result contract, and automated envelope validators) can extract and parse
+field values directly from the fence without LLM-assisted prose parsing, while
+preserving the existing plain-prose envelope for human readability.
+
 ---
 
 ## 4. Registry Integration

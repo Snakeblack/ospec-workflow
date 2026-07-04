@@ -1,7 +1,7 @@
 change: strict-result-envelope
 classification: normal
-status: ready-for-verify
-last_updated: 2026-07-04T14:45:00Z
+status: archived
+last_updated: 2026-07-04T14:50:00Z
 blocking_questions: []
 route:
   intended_route: standard
@@ -81,10 +81,15 @@ phases:
   verify:
     status: done
     artifact: "openspec/changes/strict-result-envelope/verify-report.md"
-    summary: "PASS. 14/14 escenarios; MUST ejecutables en runtime-test; npm test (exit 0) y go test (8 pkgs) verdes incl. contrato E1; assertions limpias; assumptions high auditadas correctas."
+    summary: "PASS (re-verificado). Batch remediación 4R 8/8 cerrado con runtime: BLOCKER inyección YAML + 2 CRITICAL + 5 WARNING paridad. npm test 914 (exit 0) y go test 8 pkgs verdes incl. E1."
     key_decisions:
-      - "Verdict PASS sin CRITICAL/WARNING; único blemish flaky ambiental EPERM (pasa aislado, runner oficial exit 0)"
-      - "assumptions sdd-apply-001/002 (ambas high) auditadas CORRECTAS con evidencia runtime; quedan unresolved sin escalación"
+      - "BLOCKER cerrado: payloads \\n/CRLF/quote break-out neutralizados en JS y Go; escape simétrico; truncación code-point-first evita backslash colgante"
+      - "Sin cambio de spec-delta requerido (fixes internos de serialización/paridad; expectedStdout E1 intacto)"
+      - "assumptions sdd-apply-001/002/003 (todas high) auditadas CORRECTAS; quedan unresolved sin escalación; solo SUGGESTIONs INFO"
+  archive:
+    status: done
+    artifact: "openspec/changes/strict-result-envelope/archive-report.md"
+    summary: "Synced delta specs to baselines (hooks/skills/agents); promoted 3 ADRs to docs/adr/; moved to archive/2026-07-04-strict-result-envelope/."
 gates:
   4r-review-gate:
     status: done

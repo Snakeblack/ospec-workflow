@@ -1,0 +1,33 @@
+# ADR-002: Fill-gap merge for the hook's state.yaml summary write
+
+- Status: accepted
+- Change: strict-result-envelope
+- Date: 2026-07-03
+- Archived: 2026-07-04
+
+## Context
+
+`SubagentStop` persists `summary`/`key_decisions` into a change's `state.yaml`, but the phase
+agent (and occasionally the orchestrator) also writes that file. The fixed invariant is that no
+already-written summary is silently lost. This decision was deferred from spec to design.
+
+## Decision
+
+Non-destructive **fill-gap merge**: the hook writes `phases.{phase}.summary`/`key_decisions`
+ONLY when the current `summary` is empty/absent; a non-empty summary is left untouched. The
+read-modify-write is an atomic temp+rename replace wrapped in the existing advisory file-lock
+(`withAppendLock` → generalized `withFileLock`; Go `withLock`).
+
+## Alternatives
+
+- Atomic last-writer-wins — a stale hook snapshot could overwrite a richer agent summary,
+  violating the invariant.
+- Full three-way/CRDT merge — no YAML library (dep-free constraint); overkill for two
+  same-source writers.
+
+## Consequences
+
+Easier: the hook becomes a pure safety net; writes are idempotent since both summaries derive
+from the same envelope. Harder: a small lost-update window remains against unlocked agent writes,
+closed in practice because SubagentStop fires after the subagent turn ends (agent write already
+flushed). Reversible: disabling persistence leaves emission and resolution intact.
