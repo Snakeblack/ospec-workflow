@@ -22,6 +22,7 @@ const DERIVED_LAYOUT = {
   // Owned by the openspec backend; referenced here so there is one source.
   runtimeEvents: ospec.RUNTIME_EVENT_RELATIVE_PATH,
   sessionSummaryFile: "session-summary.md",
+  phaseCostFileName: ospec.PHASE_COST_FILE_NAME,
 };
 
 // Mode-independent derived relative paths. Hooks re-export these so the harness
@@ -75,8 +76,17 @@ function createDerivedSurface(workspace) {
         changeName,
         DERIVED_LAYOUT.sessionSummaryFile,
       ),
+    phaseCostPath: (changeName) =>
+      path.join(
+        workspace,
+        ...toRelativeSegments(DERIVED_LAYOUT.sessionDir),
+        changeName,
+        DERIVED_LAYOUT.phaseCostFileName,
+      ),
     appendRuntimeEvent: (event) =>
       ospec.appendRuntimeEvent({ workspace, ...event }),
+    appendPhaseCost: (changeName, record) =>
+      ospec.appendPhaseCost({ workspace, changeName, record }),
   };
 }
 

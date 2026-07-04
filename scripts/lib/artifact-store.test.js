@@ -89,6 +89,20 @@ test("resolves derived paths relative to the workspace", () => {
     store.sessionSummaryPath("add-export"),
     path.join(path.resolve("/tmp/ws"), ".ospec", "session", "add-export", "session-summary.md"),
   );
+  assert.equal(
+    store.phaseCostPath("add-export"),
+    path.join(path.resolve("/tmp/ws"), ".ospec", "session", "add-export", "phase-costs.jsonl"),
+  );
+  assert.equal(
+    store.phaseCostPath("add-change-cost-telemetry"),
+    path.join(
+      path.resolve("/tmp/ws"),
+      ".ospec",
+      "session",
+      "add-change-cost-telemetry",
+      "phase-costs.jsonl",
+    ),
+  );
 });
 
 test("openspec: detects initialization from openspec/config.yaml", async (t) => {

@@ -762,6 +762,143 @@ func TestSubagentStop_SiblingFencesResolveLastSiblingWins(t *testing.T) {
 	}
 }
 
+// ── persistPhaseCost (REQ-hooks-001, Phase 2) ─────────────────────────────────
+
+type phaseCostRecord struct {
+	Phase     string `json:"phase"`
+	Agent     string `json:"agent"`
+	EstTokens int    `json:"est_tokens"`
+	Status    string `json:"status"`
+	TS        string `json:"ts"`
+}
+
+func readPhaseCosts(t *testing.T, workspace, changeName string) []phaseCostRecord {
+	t.Helper()
+	costPath := filepath.Join(workspace, ".ospec", "session", changeName, "phase-costs.jsonl")
+	data, err := os.ReadFile(costPath)
+	if err != nil {
+		t.Fatalf("read phase-costs.jsonl: %v", err)
+	}
+	var records []phaseCostRecord
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		if line == "" {
+			continue
+		}
+		var r phaseCostRecord
+		if err := json.Unmarshal([]byte(line), &r); err != nil {
+			t.Fatalf("parse phase-cost line: %v; line=%q", err, line)
+		}
+		records = append(records, r)
+	}
+	return records
+}
+
+func TestSubagentStop_PersistPhaseCost_WritesRecordForActiveChange(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"status":     "success",
+		"result":     "A prose result with no envelope fence.",
+	})
+	runSubagentStop(t, stdin)
+
+	records := readPhaseCosts(t, workspace, "strict-result-envelope")
+	if len(records) != 1 {
+		t.Fatalf("records: got %d, want 1", len(records))
+	}
+	if records[0].Phase != "design" {
+		t.Errorf("phase: got %q, want %q", records[0].Phase, "design")
+	}
+	if records[0].Agent != "sdd-design" {
+		t.Errorf("agent: got %q, want %q", records[0].Agent, "sdd-design")
+	}
+	if records[0].Status != "success" {
+		t.Errorf("status: got %q, want %q", records[0].Status, "success")
+	}
+	if records[0].EstTokens <= 0 {
+		t.Errorf("est_tokens: got %d, want > 0", records[0].EstTokens)
+	}
+	if records[0].TS == "" {
+		t.Error("ts: empty, want a timestamp")
+	}
+}
+
+func TestSubagentStop_PersistPhaseCost_PrefersEnvelopeStatus(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+	envelope := validSubagentEnvelope()
+	envelope["status"] = "partial"
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-apply",
+		"status":     "top-level-status-must-lose",
+		"result":     buildFenceText(envelope),
+	})
+	runSubagentStop(t, stdin)
+
+	records := readPhaseCosts(t, workspace, "strict-result-envelope")
+	if len(records) != 1 {
+		t.Fatalf("records: got %d, want 1", len(records))
+	}
+	if records[0].Phase != "apply" {
+		t.Errorf("phase: got %q, want %q", records[0].Phase, "apply")
+	}
+	if records[0].Status != "partial" {
+		t.Errorf("status: got %q, want %q (envelope status must win over top-level input.status)", records[0].Status, "partial")
+	}
+}
+
+func TestSubagentStop_PersistPhaseCost_NoActiveChangeIsSafeNoOp(t *testing.T) {
+	workspace := t.TempDir()
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"result":     "Some result text.",
+	})
+	runSubagentStop(t, stdin)
+
+	if _, err := os.Stat(filepath.Join(workspace, ".ospec", "session")); err == nil {
+		t.Error(".ospec/session must NOT exist when no active change resolves")
+	}
+}
+
+func TestSubagentStop_PersistPhaseCost_IgnoresNonSddAgent(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "Plan",
+		"result":     "Some result text.",
+	})
+	runSubagentStop(t, stdin)
+
+	costPath := filepath.Join(workspace, ".ospec", "session", "strict-result-envelope", "phase-costs.jsonl")
+	if _, err := os.Stat(costPath); err == nil {
+		t.Error("phase-costs.jsonl must NOT be created for a non-sdd-* agent")
+	}
+}
+
+// TestSubagentStop_EstTokensMatchesJSFormula asserts the Go integer formula
+// (len(str)+2)/4 equals the JS Math.round(byteLength/4) on a known
+// non-ASCII payload, per the design's cross-runtime parity decision.
+func TestSubagentStop_EstTokensMatchesJSFormula(t *testing.T) {
+	// "café" is 5 UTF-8 bytes (é is 2 bytes) — Math.round(5/4) = round(1.25) = 1.
+	got := hooks.EstimateResultTokens("café")
+	want := 1
+	if got != want {
+		t.Errorf("EstimateResultTokens(%q): got %d, want %d (Go int formula must match JS Math.round(byteLength/4))", "café", got, want)
+	}
+
+	// "abcdefg" is 7 bytes — Math.round(7/4) = round(1.75) = 2.
+	got2 := hooks.EstimateResultTokens("abcdefg")
+	if got2 != 2 {
+		t.Errorf("EstimateResultTokens(abcdefg): got %d, want 2", got2)
+	}
+}
+
 // ── parity fixtures (E1) ──────────────────────────────────────────────────────
 
 // TestSubagentStop_ParityFixtures loads the golden parity fixtures under
@@ -777,17 +914,22 @@ func TestSubagentStop_ParityFixtures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("glob pattern error: %v", err)
 	}
-	if len(paths) < 2 {
-		t.Fatalf("SubagentStop parity fixture set must not shrink below 2; found %d", len(paths))
+	if len(paths) < 4 {
+		t.Fatalf("SubagentStop parity fixture set must not shrink below 4; found %d", len(paths))
 	}
 
 	workspaceAbs, err := filepath.Abs(filepath.Join("..", "testdata", "parity", "subagent-stop-workspace"))
 	if err != nil {
 		t.Fatalf("resolve fixture workspace: %v", err)
 	}
+	phaseCostWorkspaceAbs, err := filepath.Abs(filepath.Join("..", "testdata", "parity", "subagent-stop-phase-cost-workspace"))
+	if err != nil {
+		t.Fatalf("resolve phase-cost fixture workspace: %v", err)
+	}
 	// JSON-escape backslashes (Windows paths) before splicing into the raw
 	// stdin JSON text, mirroring parity-contract.test.js's prepareStdin.
 	escapedWorkspace := strings.ReplaceAll(workspaceAbs, `\`, `\\`)
+	escapedPhaseCostWorkspace := strings.ReplaceAll(phaseCostWorkspaceAbs, `\`, `\\`)
 
 	type fixture struct {
 		Description    string `json:"description"`
@@ -808,6 +950,7 @@ func TestSubagentStop_ParityFixtures(t *testing.T) {
 			}
 
 			stdin := strings.ReplaceAll(fix.Stdin, "__SUBAGENT_STOP_FIXTURE_WORKSPACE__", escapedWorkspace)
+			stdin = strings.ReplaceAll(stdin, "__SUBAGENT_STOP_PHASE_COST_WORKSPACE__", escapedPhaseCostWorkspace)
 			stdout, _ := hooks.Dispatch([]string{"subagent-stop"}, []byte(stdin))
 
 			// SubagentStop's documented fail-open fixture (missing/malformed

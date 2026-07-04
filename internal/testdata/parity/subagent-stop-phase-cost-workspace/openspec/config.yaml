@@ -1,0 +1,9 @@
+schema: spec-driven
+
+# Minimal checked-in config for the SubagentStop phase-cost parity fixture
+# workspace (see internal/testdata/parity/README). This workspace exists
+# solely so `findActiveChanges` resolves the single `demo` change below; it
+# is intentionally not a real project.
+artifact_store:
+  mode: openspec
+  backend: openspec

@@ -340,10 +340,10 @@ func persistResultEnvelope(input map[string]any, workspace string) {
 	}
 
 	agentName := resolveAgentName(input)
-	if !strings.HasPrefix(agentName, "sdd-") {
+	phase := derivePhaseKey(agentName)
+	if phase == "" {
 		return
 	}
-	phase := strings.TrimPrefix(agentName, "sdd-")
 
 	s := store.NewStore(workspace)
 	activeChanges, err := s.FindActiveChanges()
@@ -401,6 +401,125 @@ func atomicWriteFile(dst, content string) error {
 	return nil
 }
 
+// derivePhaseKey strips the "sdd-" prefix from an agent name to derive its
+// phase key. Returns "" when the agent name does not carry the prefix.
+// Shared between persistResultEnvelope and persistPhaseCost (REFACTOR, task
+// 2.5) so the phase-key derivation rule lives in exactly one place.
+func derivePhaseKey(agentName string) string {
+	if !strings.HasPrefix(agentName, "sdd-") {
+		return ""
+	}
+	return strings.TrimPrefix(agentName, "sdd-")
+}
+
+// resolveResultPayload picks the first present §5.2 resultFields value from
+// the dispatch input, unresolved/raw. Mirrors
+// findEnvelopeInInput/findResolutionInInput's field-search order.
+func resolveResultPayload(input map[string]any) any {
+	for _, field := range resultFields {
+		if v, ok := input[field]; ok {
+			return v
+		}
+	}
+	return nil
+}
+
+// EstimateResultTokens estimates a token count for a dispatch result payload
+// using the same ~4-bytes/token heuristic as the JS
+// estimateTokens/estimateResultTokens helpers (REQ-hooks-001). `payload` is
+// used as-is when it is already a string, else JSON-marshaled. The integer
+// formula (len(str)+2)/4 is the integer form of Math.round(len/4), keeping
+// est_tokens identical cross-runtime for any payload, including non-ASCII.
+// Exported for cross-runtime parity testing.
+func EstimateResultTokens(payload any) int {
+	var str string
+	switch v := payload.(type) {
+	case string:
+		str = v
+	case nil:
+		str = ""
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			// Unmarshalable payload (e.g. a value with no JSON representation)
+			// degrades to zero tokens rather than propagating an error — the
+			// caller (persistPhaseCost) still records a record with 0 tokens,
+			// matching the fail-safe posture: an estimation quirk never blocks
+			// the whole phase-cost append.
+			str = ""
+		} else {
+			str = string(b)
+		}
+	}
+	return (len(str) + 2) / 4
+}
+
+// resolveDispatchStatus resolves the dispatch's status for a phase-cost
+// record: a valid json:result-envelope fence's `status` field, else the
+// top-level input.status, else "unknown" (REQ-hooks-001 / design
+// "Payload/status resolution").
+func resolveDispatchStatus(input map[string]any) string {
+	envelope, found := findEnvelopeInInput(input)
+	if !found {
+		if tp, ok := input["transcript_path"].(string); ok {
+			envelope, found = findEnvelopeInTranscript(tp)
+		}
+	}
+	if found && envelope != nil {
+		if valid, _ := resultenvelope.Validate(envelope); valid {
+			if s, ok := envelope["status"].(string); ok && s != "" {
+				return s
+			}
+		}
+	}
+	if s, ok := input["status"].(string); ok && strings.TrimSpace(s) != "" {
+		return s
+	}
+	return "unknown"
+}
+
+// persistPhaseCost appends one estimated-cost JSONL record for this dispatch
+// to .ospec/session/{change}/phase-costs.jsonl (REQ-hooks-001), mirroring the
+// fail-safe boundary and active-change resolution already used by
+// persistResultEnvelope. Any failure (non-"sdd-" agent, no active change,
+// marshal error, write/lock error, or a panic) silently no-ops without
+// crashing and without affecting the hook's stdout.
+func persistPhaseCost(input map[string]any, workspace string) {
+	defer func() {
+		_ = recover()
+	}()
+
+	agentName := resolveAgentName(input)
+	phase := derivePhaseKey(agentName)
+	if phase == "" {
+		return
+	}
+
+	s := store.NewStore(workspace)
+	activeChanges, err := s.FindActiveChanges()
+	if err != nil || len(activeChanges) == 0 {
+		return
+	}
+	changeName := activeChanges[0].DirectoryName
+
+	payload := resolveResultPayload(input)
+	estTokens := EstimateResultTokens(payload)
+	status := resolveDispatchStatus(input)
+
+	record := map[string]any{
+		"phase":      phase,
+		"agent":      agentName,
+		"est_tokens": estTokens,
+		"status":     status,
+		"ts":         time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	line, marshalErr := json.Marshal(record)
+	if marshalErr != nil {
+		return
+	}
+	_ = s.AppendPhaseCost(changeName, line)
+}
+
 // resolveAgentName picks the best agent name field from input.
 func resolveAgentName(input map[string]any) string {
 	for _, field := range []string{"agent_type", "agent_name", "agent", "agent_id"} {
@@ -439,9 +558,16 @@ func runSubagentStop(input map[string]any) ([]byte, int) {
 	// is a pure side effect (state.yaml write) and never alters this
 	// function's return value or the hook's stdout.
 	if cwd, ok := input["cwd"].(string); ok {
-		persistResultEnvelope(input, resolveCwd(cwd))
+		workspace := resolveCwd(cwd)
+		persistResultEnvelope(input, workspace)
+		// REQ-hooks-001: per-dispatch phase-cost recording. Same fail-safe/
+		// ordering contract as persistResultEnvelope above — pure side effect,
+		// never alters this function's return value or the hook's stdout.
+		persistPhaseCost(input, workspace)
 	} else {
-		persistResultEnvelope(input, resolveCwd(""))
+		workspace := resolveCwd("")
+		persistResultEnvelope(input, workspace)
+		persistPhaseCost(input, workspace)
 	}
 
 	resolution := findResolutionInInput(input)

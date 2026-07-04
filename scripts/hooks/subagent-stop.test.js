@@ -8,11 +8,18 @@ const test = require("node:test");
 
 const {
   EVENT_RELATIVE_PATH,
+  estimateResultTokens,
   findResolutionInInput,
   findTextResolution,
   isDegradedResolution,
+  persistPhaseCost,
+  resolveDispatchStatus,
   runSubagentStop,
 } = require("./subagent-stop.js");
+const {
+  PHASE_COST_FILE_NAME,
+  appendPhaseCost,
+} = require("../lib/ospec-state.js");
 
 async function createWorkspace(t) {
   const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "subagent-stop-"));
@@ -466,4 +473,241 @@ test("appends one valid JSON object per degraded event", async (t) => {
   assert.equal(events.length, 2);
   assert.equal(events[0].skill_resolution, "none");
   assert.equal(events[1].skill_resolution, "fallback-path");
+});
+
+// ── appendPhaseCost (ospec-state.js) — Phase 1 store writer (REQ-hooks-001) ──
+
+test("appendPhaseCost writes a JSONL line under .ospec/session/{change}/phase-costs.jsonl", async (t) => {
+  const workspace = await createWorkspace(t);
+
+  await appendPhaseCost({
+    workspace,
+    changeName: "add-x",
+    record: {
+      phase: "design",
+      agent: "sdd-design",
+      est_tokens: 42,
+      status: "success",
+      ts: "2026-07-04T15:00:00.000Z",
+    },
+  });
+
+  const filePath = path.join(
+    workspace,
+    ".ospec",
+    "session",
+    "add-x",
+    PHASE_COST_FILE_NAME,
+  );
+  const content = await fs.readFile(filePath, "utf8");
+  const lines = content.trim().split(/\r?\n/).map((line) => JSON.parse(line));
+
+  assert.equal(lines.length, 1);
+  assert.deepEqual(lines[0], {
+    phase: "design",
+    agent: "sdd-design",
+    est_tokens: 42,
+    status: "success",
+    ts: "2026-07-04T15:00:00.000Z",
+  });
+});
+
+test("appendPhaseCost appends a second record as a second JSONL line (triangulation)", async (t) => {
+  const workspace = await createWorkspace(t);
+
+  await appendPhaseCost({
+    workspace,
+    changeName: "add-x",
+    record: { phase: "spec", agent: "sdd-spec", est_tokens: 10, status: "success", ts: "T1" },
+  });
+  await appendPhaseCost({
+    workspace,
+    changeName: "add-x",
+    record: { phase: "apply", agent: "sdd-apply", est_tokens: 20, status: "unknown", ts: "T2" },
+  });
+
+  const filePath = path.join(
+    workspace,
+    ".ospec",
+    "session",
+    "add-x",
+    PHASE_COST_FILE_NAME,
+  );
+  const content = await fs.readFile(filePath, "utf8");
+  const lines = content.trim().split(/\r?\n/).map((line) => JSON.parse(line));
+
+  assert.equal(lines.length, 2);
+  assert.equal(lines[0].phase, "spec");
+  assert.equal(lines[1].phase, "apply");
+});
+
+// ── persistPhaseCost — Phase 2 (REQ-hooks-001) ───────────────────────────────
+
+async function readPhaseCosts(workspace, changeName) {
+  const filePath = path.join(
+    workspace,
+    ".ospec",
+    "session",
+    changeName,
+    PHASE_COST_FILE_NAME,
+  );
+  const content = await fs.readFile(filePath, "utf8");
+
+  return content
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => JSON.parse(line));
+}
+
+test("persistPhaseCost writes a record for an active change (phase, agent, est_tokens, status, ts)", async (t) => {
+  const { workspace } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      status: "success",
+      result: "A prose result with no envelope fence.",
+    },
+  });
+
+  const records = await readPhaseCosts(workspace, "strict-result-envelope");
+
+  assert.equal(records.length, 1);
+  assert.equal(records[0].phase, "design");
+  assert.equal(records[0].agent, "sdd-design");
+  assert.equal(records[0].status, "success");
+  assert.equal(typeof records[0].est_tokens, "number");
+  assert.ok(records[0].est_tokens > 0);
+  assert.equal(typeof records[0].ts, "string");
+});
+
+test("persistPhaseCost prefers the valid envelope's status over top-level input.status (triangulation)", async (t) => {
+  const { workspace } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-apply",
+      status: "top-level-status-must-lose",
+      result: buildFenceText({ ...VALID_ENVELOPE, status: "partial" }),
+    },
+  });
+
+  const records = await readPhaseCosts(workspace, "strict-result-envelope");
+
+  assert.equal(records.length, 1);
+  assert.equal(records[0].phase, "apply");
+  assert.equal(records[0].status, "partial");
+});
+
+test("persistPhaseCost skips silently — no .ospec/session/ created — when no active change resolves", async (t) => {
+  const workspace = await createWorkspace(t);
+
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: "Some result text.",
+    },
+  });
+
+  await assert.rejects(
+    fs.stat(path.join(workspace, ".ospec", "session")),
+    (error) => error.code === "ENOENT",
+  );
+});
+
+test("persistPhaseCost ignores a non-sdd-* agent", async (t) => {
+  const { workspace } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "Plan",
+      result: "Some result text.",
+    },
+  });
+
+  await assert.rejects(
+    fs.stat(
+      path.join(
+        workspace,
+        ".ospec",
+        "session",
+        "strict-result-envelope",
+        PHASE_COST_FILE_NAME,
+      ),
+    ),
+    (error) => error.code === "ENOENT",
+  );
+});
+
+test("persistPhaseCost swallows estimation errors without affecting stdout/return value (fail-safe)", async (t) => {
+  const { workspace } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+  const circular = {};
+  circular.self = circular;
+
+  const result = await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: circular,
+    },
+  });
+
+  assert.deepEqual(result, {
+    status: "skipped",
+    reason: "resolution-unavailable",
+  });
+  await assert.rejects(
+    fs.stat(
+      path.join(
+        workspace,
+        ".ospec",
+        "session",
+        "strict-result-envelope",
+        PHASE_COST_FILE_NAME,
+      ),
+    ),
+    (error) => error.code === "ENOENT",
+  );
+});
+
+test("estimateResultTokens computes round(utf8ByteLength/4) for a string payload", () => {
+  assert.equal(estimateResultTokens("abcd"), 1);
+  assert.equal(estimateResultTokens("abcdefgh"), 2);
+});
+
+test("estimateResultTokens JSON-serializes a non-string payload (triangulation)", () => {
+  const objectTokens = estimateResultTokens({ a: 1 });
+  assert.equal(typeof objectTokens, "number");
+  assert.ok(objectTokens > 0);
+});
+
+test("resolveDispatchStatus resolves from a valid envelope's status field", async () => {
+  const status = await resolveDispatchStatus({
+    result: buildFenceText(VALID_ENVELOPE),
+  });
+  assert.equal(status, VALID_ENVELOPE.status);
+});
+
+test("resolveDispatchStatus falls back to top-level input.status, then 'unknown' (triangulation)", async () => {
+  assert.equal(
+    await resolveDispatchStatus({ status: "blocked", result: "no fence here" }),
+    "blocked",
+  );
+  assert.equal(await resolveDispatchStatus({ result: "no fence, no status" }), "unknown");
 });

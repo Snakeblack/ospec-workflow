@@ -150,6 +150,66 @@ func TestAppendRuntimeEvent(t *testing.T) {
 	})
 }
 
+// ── AppendPhaseCost ───────────────────────────────────────────────────────────
+
+func TestAppendPhaseCost(t *testing.T) {
+	t.Run("creates dir and appends JSONL line under the change's session dir", func(t *testing.T) {
+		ws := makeWorkspace(t)
+		s := store.NewStore(ws)
+
+		line1 := []byte(`{"phase":"design","agent":"sdd-design","est_tokens":42,"status":"success","ts":"T1"}`)
+		if err := s.AppendPhaseCost("add-x", line1); err != nil {
+			t.Fatalf("first append: %v", err)
+		}
+
+		costFile := filepath.Join(ws, ".ospec", "session", "add-x", "phase-costs.jsonl")
+		data, err := os.ReadFile(costFile)
+		if err != nil {
+			t.Fatalf("read phase-cost file: %v", err)
+		}
+		if !strings.Contains(string(data), `"design"`) {
+			t.Errorf("record not in file; got %q", string(data))
+		}
+	})
+
+	t.Run("two sequential appends produce two JSONL lines (triangulation)", func(t *testing.T) {
+		ws := makeWorkspace(t)
+		s := store.NewStore(ws)
+
+		_ = s.AppendPhaseCost("add-x", []byte(`{"phase":"spec","agent":"sdd-spec"}`))
+		_ = s.AppendPhaseCost("add-x", []byte(`{"phase":"apply","agent":"sdd-apply"}`))
+
+		costFile := filepath.Join(ws, ".ospec", "session", "add-x", "phase-costs.jsonl")
+		data, _ := os.ReadFile(costFile)
+		lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+		if len(lines) != 2 {
+			t.Fatalf("expected 2 lines, got %d: %q", len(lines), string(data))
+		}
+
+		var e1, e2 map[string]any
+		if err := json.Unmarshal([]byte(lines[0]), &e1); err != nil {
+			t.Fatalf("line 1 not valid JSON: %v", err)
+		}
+		if err := json.Unmarshal([]byte(lines[1]), &e2); err != nil {
+			t.Fatalf("line 2 not valid JSON: %v", err)
+		}
+		if e1["phase"] != "spec" || e2["phase"] != "apply" {
+			t.Errorf("wrong phases: %v %v", e1["phase"], e2["phase"])
+		}
+	})
+
+	t.Run("SessionPhaseCostPath resolves under the change's session dir", func(t *testing.T) {
+		ws := makeWorkspace(t)
+		s := store.NewStore(ws)
+
+		got := s.SessionPhaseCostPath("add-x")
+		want := filepath.Join(ws, ".ospec", "session", "add-x", "phase-costs.jsonl")
+		if got != want {
+			t.Errorf("SessionPhaseCostPath: got %q, want %q", got, want)
+		}
+	})
+}
+
 // ── WriteSessionSummary ───────────────────────────────────────────────────────
 
 func TestWriteSessionSummary(t *testing.T) {
