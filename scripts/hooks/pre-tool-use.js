@@ -14,6 +14,10 @@ const {
   readStagedFiles,
   matchesGlobs,
 } = require("../lib/ospec-state.js");
+const {
+  classifySensitiveFile,
+  scanFileForSecrets,
+} = require("./lib/secret-scan.js");
 
 /**
  * Regex that matches forbidden AI/model attribution.
@@ -317,65 +321,27 @@ function evaluateToolUseCore(input, opts) {
   if (process.env.DISABLE_AGENT_SHIELD !== "true") {
     const paths = extractPaths(input?.tool_input);
     for (const filePath of paths) {
-      const filename = path.basename(filePath).toLowerCase();
-      const ext = path.extname(filePath).toLowerCase();
-      
-      // Bloqueo estricto (deny)
-      const isSshKey = filename.startsWith("id_") && (ext === "" || ext === ".key" || ext === ".pem" || filename === "id_rsa" || filename === "id_ecdsa" || filename === "id_ed25519");
-      const isGitConfig = filename === "config" && filePath.includes(path.join(".git", "config"));
-      const isNpmrc = filename === ".npmrc";
-      
-      if (isSshKey || isGitConfig || isNpmrc) {
+      // Bloqueo/advertencia por nombre de archivo
+      const classification = classifySensitiveFile(filePath);
+      if (classification && classification.action === "deny") {
         return makeDecision(
           "deny",
           `Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente.`
         );
       }
-      
-      // Advertencia interactiva (ask) por nombre de archivo
-      const isEnv = filename.startsWith(".env");
-      const isSecrets = filename === "secrets.json" || filename === "credentials";
-      if (isEnv || isSecrets) {
+      if (classification && classification.action === "ask") {
         return makeDecision(
           "ask",
           `Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura?`
         );
       }
 
-      // Escaneo de contenido para archivos < 1MB
-      try {
-        const stats = fs.statSync(filePath);
-        if (stats.size < 1024 * 1024) { // < 1MB
-          const content = fs.readFileSync(filePath, "utf8");
-          
-          // Tokens conocidos
-          const patterns = [
-            /sk-[a-zA-Z0-9]{48}/, // OpenAI API Key
-            /AIzaSy[a-zA-Z0-9-_]{33}/, // Google Cloud API Key
-            /AKIA[A-Z0-9]{16}/, // AWS Access Key
-            /xox[baprs]-[0-9a-zA-Z]{10,48}/, // Slack Token
-            /eyJ[a-zA-Z0-9-_]+\.eyJ[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+/ // JWT
-          ];
-          
-          let hasSecret = false;
-          for (const pattern of patterns) {
-            if (pattern.test(content)) {
-              hasSecret = true;
-              break;
-            }
-          }
-          
-          // Contraseñas genéricas: password = "..." o similares
-          const genericPassRegex = /(?:password|passwd|pass|contrase[nñ]a|secret|key|token|private_key)\s*[:=]\s*["'][^"']{6,}["']/i;
-          if (hasSecret || genericPassRegex.test(content)) {
-            return makeDecision(
-              "ask",
-              `Advertencia de seguridad: El contenido de este archivo parece contener credenciales o tokens. ¿Está seguro de permitir su lectura?`
-            );
-          }
-        }
-      } catch (e) {
-        // ignore read/stat errors
+      // Escaneo de contenido (tokens conocidos + credenciales genéricas)
+      if (scanFileForSecrets(filePath).matched) {
+        return makeDecision(
+          "ask",
+          `Advertencia de seguridad: El contenido de este archivo parece contener credenciales o tokens. ¿Está seguro de permitir su lectura?`
+        );
       }
     }
   }
