@@ -8,6 +8,8 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.14.1] - 2026-07-04
+
 ### Changed
 - **Orquestador adelgazado a <500 líneas (C2)**: `sdd-orchestrator.agent.md` baja de 694 a 490 líneas. Extraídos vía pointer table on-demand: los shapes JSON de delivery-strategy, review-workload y blocked-envelope (`skills/_shared/question-shapes.md`), el manejo del gate de clarify — las condiciones RUNS/SKIP quedan inline (`skills/_shared/clarify-routing.md`) — y el handler de gaps resolution (`skills/_shared/gaps-resolution.md`). Secciones que duplicaban convenciones existentes ahora referencian `approval-ledger.md` y `skill-resolver.md` (Resolution Order y Stack-Skill Candidate Resolution) en vez de repetirlas. La Circumstantial Handler Pointer Table se movió al final del prompt (orden cache-aware: núcleo estable primero, material que crece entre versiones al final). El guard de `real-repo.test.js` ratchetea de 700 → 500 líneas y suma 5 sentinels de no-reinlining para los bloques extraídos.
 
