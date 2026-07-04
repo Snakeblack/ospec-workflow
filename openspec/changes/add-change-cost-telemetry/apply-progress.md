@@ -111,3 +111,35 @@
 ## Status
 
 23/23 tasks complete (all 5 phases done). Change is fully implemented, doc-updated, and both full test suites pass green. Ready for `sdd-verify`.
+
+## Batch 3 — Phase 6: Remediación post-verify (warnings-remediation-001)
+
+**Trigger**: user-approved remediation batch `warnings-remediation-001` closing the two `sdd-verify` WARNINGs (4R reliability + tasks-gap) without production-code changes — tests only.
+
+- [x] 6.1 Added `appendPhaseCost serializes concurrent writers without corrupting lines` (40 parallel `Promise.all` writers, asserts no line lost/merged, `est_tokens` sequence intact) and `appendPhaseCost reclaims a stale orphaned lock instead of stalling forever` (writes a 60s-old orphaned `.lock` sibling, asserts the write still lands and the stale lock is removed) to `scripts/lib/ospec-state.test.js`, placed immediately after the sibling `appendRuntimeEvent` concurrent-writer/stale-lock tests (same file, same pattern, same assertions shape) — closes the 4R reliability WARNING on `appendPhaseCost` (`scripts/lib/ospec-state.js:675-695`).
+- [x] 6.2 Added `scripts/cost-block-contract.test.js` — 6 doc-assertion tests pinning `skills/sdd-archive/SKILL.md`'s Cost Block prose: the `#### Cost Block (REQ-agents-001)` heading, the `.ospec/session/{change-name}/phase-costs.jsonl` source, the `count(records for that phase) - 1` re-launches formula (floored at 0), the `phases.*.questions_asked` questions source (and that it is never derived from `phase-costs.jsonl`), the empty/missing-data fallback text and its "never gate archive" clause, and the block's "purely additive" / close-gate-independence declaration — mirrors `scripts/operative-memory-contract.test.js`'s pattern (plain `content.includes(...)` assertions against the real on-disk file, no mocks) — closes the verify WARNING `[tasks-gap] REQ-agents-001 ... lacks a runtime doc-assertion test`.
+
+**RED demonstration** (strict TDD, tests-only task — production code for both targets already existed from Batch 1/2):
+- 6.1: temporarily removed the `withFileLock` wrapper from `appendPhaseCost` (plain `fs.appendFile`, no lock) — the stale-lock-reclaim test failed as expected (`Missing expected rejection` on the removed `.lock` file check), confirming the test exercises real lock behavior; reverted immediately, both tests green again. (The concurrent-writers test did not reproduce corruption without the lock in this run — same non-deterministic-timing caveat the sibling `appendRuntimeEvent` concurrent test already documents; the stale-lock test alone was sufficient to prove the guarded behavior is real.)
+- 6.2: first run of the new doc-assertion test file genuinely failed (`Cost incompleteness MUST NOT gate archive` — wrong literal string vs. the real line-wrapped prose `"...Cost\n   incompleteness MUST NOT gate archive."`), which is itself a real RED against the actual file; corrected the assertion to `incompleteness MUST NOT gate archive` (substring safe across the line wrap) — GREEN after the fix.
+
+**Local verification**:
+- `node --test --test-name-pattern="appendPhaseCost" scripts/lib/ospec-state.test.js` → 2/2 pass.
+- `node --test scripts/cost-block-contract.test.js` → 6/6 pass.
+- `node --test scripts/lib/ospec-state.test.js scripts/cost-block-contract.test.js scripts/operative-memory-contract.test.js scripts/mentor-adr-contract.test.js` → 84/84 pass (no regression in sibling contract suites).
+- Full `npm test` (env bypass `-u DISABLE_AGENT_SHIELD -u DISABLE_GIT_COLLABORATION_GUARD -u DISABLE_TOKEN_ADVISOR`) → exit 0, `tests 969 | pass 969 | fail 0` (961 pre-existing + 8 new: 2 `appendPhaseCost` + 6 Cost-Block doc-assertion). Neither documented Windows flake fired this run.
+- `go test ./...` intentionally NOT run — no Go files were touched in this batch (tests-only, JS-side remediation).
+
+### TDD Cycle Evidence — Batch 3
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR | Notes / Rationale |
+|------|-----------|-------|------------|-----|-------|-------------|----------|--------------------|
+| 6.1 | `scripts/lib/ospec-state.test.js` | Unit | ✅ 84/84 pre-existing (siblings + contract suites) | ✅ Demonstrated via temporary lock removal (stale-lock test failed as expected) | ✅ 2/2 pass after revert | ✅ 2 distinct cases (concurrent writers, stale-lock reclaim), mirroring the sibling pair exactly | ➖ None needed (no production change — mirrors existing `appendRuntimeEvent` tests 1:1) | No production code touched; `appendPhaseCost` already used `withFileLock` (Batch 1), so this batch only adds the missing test coverage the 4R gate flagged. |
+| 6.2 | `scripts/cost-block-contract.test.js` | Static/doc-assertion | ✅ 84/84 (siblings + this new file) | ✅ Real RED on first run (wrong literal string caught a genuine mismatch against the actual prose) | ✅ 6/6 after fixing the assertion string | ✅ 6 distinct pinned strings (heading, jsonl source, formula, questions source, fallback text, close-gate independence) | ➖ None needed | Doc-only source (`SKILL.md` prose, already written in Batch 2) — this batch adds the missing runtime test coverage the verify WARNING flagged; no prose changed. |
+
+## Workload / PR Boundary — Batch 3
+
+- **Delivery strategy**: `exception-ok` / `size:exception` (unchanged, `delivery-strategy-001`).
+- **Diff size this batch**: 2 files changed (`scripts/lib/ospec-state.test.js` +59 lines, `scripts/cost-block-contract.test.js` new file, 90 lines) — well under budget, tests-only, no production code touched.
+- **Current work unit**: Phase 6 (remediation) — both tasks complete, no further batches expected for this change.
+- **Boundary**: starts from the fully-implemented, `PASS WITH WARNINGS`-verified change (branch `feat/change-cost-telemetry`); ends with both post-verify WARNINGs closed by test coverage only. Rollback = revert the 2 changed/added test files (zero production-code risk).

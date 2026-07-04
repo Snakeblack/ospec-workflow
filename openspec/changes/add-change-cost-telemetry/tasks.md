@@ -83,3 +83,8 @@ Chain strategy: size-exception
 - [ ] 5.2 Run `go test ./...` — confirm `subagentstop_test.go` passes with the new floor, new unit tests, and the cross-runtime `est_tokens` equality test [REQ-hooks-001, E1]
 - [ ] 5.3 Manual/agent walkthrough: archive a change with `phase-costs.jsonl` populated (one phase dispatched twice) and one with no file, confirming both Cost-block scenarios from REQ-agents-001 render as specified and never fail the archive [REQ-agents-001]
 - [ ] 5.4 Confirm `agents/sdd-archive.agent.md` needs no edit (still delegates to the skill) — no action, verification only
+
+## Phase 6 — Remediación post-verify (warnings-remediation-001)
+
+- [x] 6.1 Add a concurrent-writer test AND a stale-lock-reclaim test for `appendPhaseCost` (`scripts/lib/ospec-state.js:675-695`) in `scripts/lib/ospec-state.test.js`, mirroring the sibling `appendRuntimeEvent` tests [4R reliability WARNING]
+- [x] 6.2 Add a doc-assertion contract test for the Cost Block in `skills/sdd-archive/SKILL.md` (heading, `phase-costs.jsonl` source, re-launches formula, `questions_asked` source, empty/missing-data fallback that never gates archive) [verify WARNING, tasks-gap]

@@ -1,5 +1,5 @@
 change: add-change-cost-telemetry
-status: ready-for-verify
+status: verified
 classification: normal
 route:
   intended_route: standard
@@ -38,7 +38,15 @@ approvals:
       - sdd-design
       - sdd-tasks
       - sdd-apply
-last_updated: 2026-07-04T19:30:00Z
+  - id: warnings-remediation-001
+    gate: post-verify-warnings
+    decision: "Fix ahora: test concurrente + stale-lock para appendPhaseCost y test doc-assertion para el bloque Cost de sdd-archive/SKILL.md, antes de archivar"
+    source: AskUserQuestion
+    accepted_at: 2026-07-04T17:30:00Z
+    applies_to:
+      - sdd-apply
+      - sdd-verify
+last_updated: 2026-07-04T21:00:00Z
 blocking_questions: []
 phases:
   proposal:
@@ -78,15 +86,23 @@ phases:
     summary: "5 fases: writers JS+Go (Phase 1), persistPhaseCost en ambos runtimes TDD (Phase 2), fixtures de paridad floor 2->4 (Phase 3), bloque Cost en sdd-archive Step 3 (Phase 4), verificacion npm+go test (Phase 5)."
     key_decisions:
       - "Single PR (size:exception aprobado por delivery-strategy-001); no se recomienda chained PRs pese al riesgo alto de linea-400"
+  verify:
+    status: done
+    artifact: "openspec/changes/add-change-cost-telemetry/verify-report.md"
+    summary: "PASS WITH WARNINGS. REQ-hooks-001 + E1 (floor 2->4) con runtime-test fuerte re-ejecutado (npm test verde, go test ./... ok, 107/107 targeted). REQ-agents-001 (bloque Cost en SKILL) solo inspection+manual -> WARNING."
+    key_decisions:
+      - "1 WARNING: REQ-agents-001 (prosa sdd-archive) sin test doc-assertion runtime"
+      - "est_tokens round(utf8/4) verificado: JS Math.round vs Go (len+2)/4 identicos para cafe->1, abcdefg->2"
   apply:
     status: done
     artifact: "openspec/changes/add-change-cost-telemetry/apply-progress.md"
-    summary: "BATCH 1 (Phases 1-3, TDD estricto): appendPhaseCost/AppendPhaseCost (JS+Go), persistPhaseCost en ambos runtimes, familia de fixtures de paridad floor 2->4. BATCH 2 (Phases 4-5, FINAL): bloque Cost en skills/sdd-archive/SKILL.md Step 3 (con fallback vacio/faltante) + verificacion completa (npm test 961/961, go test ./... ok todos los paquetes) + walkthrough manual confirmando ambos escenarios de REQ-agents-001."
+    summary: "BATCH 1 (Phases 1-3, TDD estricto): appendPhaseCost/AppendPhaseCost (JS+Go), persistPhaseCost en ambos runtimes, familia de fixtures de paridad floor 2->4. BATCH 2 (Phases 4-5, FINAL): bloque Cost en skills/sdd-archive/SKILL.md Step 3 (con fallback vacio/faltante) + verificacion completa (npm test 961/961, go test ./... ok todos los paquetes) + walkthrough manual confirmando ambos escenarios de REQ-agents-001. BATCH 3 (Phase 6, remediacion post-verify warnings-remediation-001): tests-only, cierra ambos WARNINGS de sdd-verify."
     key_decisions:
       - "derivePhaseKey extraido como helper compartido en ambos runtimes (REFACTOR 2.5), sin cambio de comportamiento"
       - "Diff de este batch (847 lineas tracked) excede la estimacion original de toda la change (~380-430); continuado por size:exception explicito, no por omision del guard"
       - "Phase 4 es prosa-only (SKILL.md); TDD estricto no aplica por falta de superficie ejecutable, documentado honestamente como N/A en vez de fabricar tests"
       - "agents/sdd-archive.agent.md confirmado sin cambios (thin pointer), per diseno"
+      - "Batch 3: test concurrente + stale-lock para appendPhaseCost (mirror de appendRuntimeEvent) y 6 doc-assertion tests para el Cost Block de sdd-archive/SKILL.md; npm test 969/969 verde (961+8), sin cambios de produccion"
 decisions:
   - adr: "openspec/changes/add-change-cost-telemetry/decisions/adr-001.md"
     title: "Aggregation source for re-launch and user-question counts"
@@ -108,11 +124,22 @@ assumptions:
     reversibility: high
     basis: "Reusa RESULT_FIELDS ya definido en subagent-stop.js; detalle interno, el JSONL está etiquetado como estimado y su contenido no se assertea byte-for-byte."
     recorded_at: 2026-07-04T16:05:00Z
-    status: unresolved
+    status: confirmed  # corroborada por evidencia runtime en sdd-verify (PASS)
   - id: sdd-design-002
     phase: sdd-design
     statement: "Fixture active-change usa workspace checked-in dedicado con openspec/ activo y stdin sin fence de envelope válido para no mutar el state.yaml trackeado; el write de phase-costs.jsonl cae en .ospec/ (gitignored)."
     reversibility: high
     basis: ".gitignore línea 4 ignora .ospec/; el patrón de token-substitution ya existe en parity-contract.test.js/subagentstop_test.go."
     recorded_at: 2026-07-04T16:05:00Z
-    status: unresolved
+    status: confirmed  # corroborada por evidencia runtime en sdd-verify (git check-ignore + fixtures en verde)
+gates:
+  4r-review-gate:
+    status: done
+    on_blocker: advisory
+    findings_summary: "0 BLOCKER, 0 CRITICAL, 1 WARNING, 1 SUGGESTION"
+    surfaced_to_user: true
+    detail:
+      risk: "0 findings (sin fuga de payload al JSONL; rutas validadas contra traversal)"
+      readability: "0 findings"
+      reliability: "1 WARNING (appendPhaseCost sin test de escritores concurrentes ni stale-lock, cf. appendRuntimeEvent) + 1 SUGGESTION (divergencia JS/Go en payloads no serializables, inalcanzable desde stdin real)"
+      resilience: "0 findings (fail-safe documentado; fallback del bloque Cost verificado)"

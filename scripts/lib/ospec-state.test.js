@@ -8,6 +8,8 @@ const test = require("node:test");
 
 const {
   RUNTIME_EVENT_RELATIVE_PATH,
+  PHASE_COST_FILE_NAME,
+  appendPhaseCost,
   appendRuntimeEvent,
   detectSpecDrift,
   findActiveChanges,
@@ -217,6 +219,65 @@ test("appendRuntimeEvent reclaims a stale orphaned lock instead of stalling fore
   const result = await appendRuntimeEvent({ workspace, seq: 1 });
 
   assert.match((await fs.readFile(result.absolutePath, "utf8")).trim(), /"seq":1/);
+  await assert.rejects(fs.stat(lockPath), (error) => error.code === "ENOENT");
+});
+
+test("appendPhaseCost serializes concurrent writers without corrupting lines", async (t) => {
+  const workspace = await createWorkspace(t);
+  const changeName = "add-change-cost-telemetry";
+  const count = 40;
+
+  // Parallel sub-agent dispatches each fire SubagentStop -> appendPhaseCost at
+  // once. Every line must remain whole JSON and every record must survive.
+  const results = await Promise.all(
+    Array.from({ length: count }, (_unused, i) =>
+      appendPhaseCost({
+        workspace,
+        changeName,
+        record: { phase: "apply", agent: "sdd-apply", est_tokens: i, status: "success", ts: i },
+      }),
+    ),
+  );
+
+  const lines = (await fs.readFile(results[0].absolutePath, "utf8"))
+    .trim()
+    .split(/\r?\n/);
+
+  assert.equal(lines.length, count, "no line may be lost or merged");
+  const estTokens = lines
+    .map((line) => JSON.parse(line).est_tokens)
+    .sort((a, b) => a - b);
+  assert.deepEqual(estTokens, Array.from({ length: count }, (_unused, i) => i));
+});
+
+test("appendPhaseCost reclaims a stale orphaned lock instead of stalling forever", async (t) => {
+  const workspace = await createWorkspace(t);
+  const changeName = "add-change-cost-telemetry";
+  const costPath = path.join(
+    workspace,
+    ".ospec",
+    "session",
+    changeName,
+    PHASE_COST_FILE_NAME,
+  );
+  await fs.mkdir(path.dirname(costPath), { recursive: true });
+
+  // Simulate a writer that crashed holding the lock: an old, never-released file.
+  const lockPath = `${costPath}.lock`;
+  await fs.writeFile(lockPath, "");
+  const past = new Date(Date.now() - 60000);
+  await fs.utimes(lockPath, past, past);
+
+  const result = await appendPhaseCost({
+    workspace,
+    changeName,
+    record: { phase: "apply", agent: "sdd-apply", est_tokens: 1, status: "success", ts: 1 },
+  });
+
+  assert.match(
+    (await fs.readFile(result.absolutePath, "utf8")).trim(),
+    /"est_tokens":1/,
+  );
   await assert.rejects(fs.stat(lockPath), (error) => error.code === "ENOENT");
 });
 
