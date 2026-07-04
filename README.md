@@ -1,6 +1,8 @@
 # ospec-workflow
 
-> **La inmediatez sin contrato es velocidad falsa.** `ospec-workflow` (v2.14.2) es un arnés de desarrollo Spec-Driven Development (SDD) llave en mano. Utiliza **OpenSpec** como única fuente de verdad y proporciona un orquestador inteligente que coordina agentes de fase, garantizando Strict TDD, control de tamaño de revisiones y gates de seguridad activos en cada commit.
+![ospec-banner.png](docs/banner-op/ospec-banner.png)
+
+> **La inmediatez sin contrato es velocidad falsa.** `ospec-workflow` es un arnés de desarrollo Spec-Driven Development (SDD) llave en mano. Utiliza **OpenSpec** como única fuente de verdad y proporciona un orquestador inteligente que coordina agentes de fase, garantizando Strict TDD, control de tamaño de revisiones y gates de seguridad activos en cada commit.
 
 Está basado en [Gentle-ai de Gentleman Programming](https://github.com/Gentleman-Programming/gentle-ai).
 
