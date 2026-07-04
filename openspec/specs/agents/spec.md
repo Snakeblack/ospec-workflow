@@ -1006,7 +1006,9 @@ inlined in the always-loaded body and MUST each reside in a dedicated
 | 4R review gate dispatch | 4r-review-gate in active gates |
 | Lifecycle hook dispatch | `hooks:` declared in `config.yaml` |
 | Archive / quality-gate guard | before archive phase |
-| Repeated `askQuestions` payload shapes | referenced when constructing gate payloads |
+| Repeated `askQuestions` payload shapes | referenced when constructing gate payloads — backed by `skills/_shared/question-shapes.md` (delivery-strategy, review-workload, and blocked-envelope payload shapes) |
+| Clarify gate handler | the clarify gate RUNS per the `sdd-clarify` routing rule — success/blocked/user-skip and `phases.clarify.status` bookkeeping, backed by `skills/_shared/clarify-routing.md` |
+| Gaps resolution handler | `sdd-foundation` returns `status: blocked` with unresolved functional/technical gaps, backed by `skills/_shared/gaps-resolution.md` |
 
 Each handler file MUST be loaded via the orchestrator's `read` tool ONLY when its
 designated trigger fires. The CORE MUST include a pointer table mapping every
@@ -1034,6 +1036,17 @@ MUST be resolved by a file path not declared in this pointer table.
 - WHEN the orchestrator selects a circumstantial handler
 - THEN the handler file path MUST be resolved exclusively from the CORE pointer table
 - AND no circumstantial handler is loaded by a path not listed in that table
+
+#### Scenario: Pointer table positioned last in the CORE body (cache-aware ordering)
+
+- GIVEN the CORE body of `agents/sdd-orchestrator.agent.md` contains normative sections
+  (Init Guard, Ambient Gate, Assumption Ledger, Intent Restatement, Failure & Blocker
+  Routing, forwarding rules, Recovery Rule) plus the circumstantial handler pointer table
+- WHEN the orchestrator body is laid out
+- THEN the pointer table MUST appear after all always-on normative CORE sections, not
+  interleaved with them
+- AND this ordering MUST NOT change which handlers are CORE-resolvable or alter any
+  handler's trigger condition
 
 ---
 
