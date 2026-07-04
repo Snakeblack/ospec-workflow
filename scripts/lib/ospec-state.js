@@ -20,6 +20,7 @@ const TERMINAL_STATUSES = new Set([
 ]);
 const RUNTIME_EVENT_RELATIVE_PATH =
   ".ospec/runtime/subagent-events.jsonl";
+const PHASE_COST_FILE_NAME = "phase-costs.jsonl";
 
 function compareStrings(left, right) {
   if (left < right) {
@@ -663,6 +664,37 @@ async function appendRuntimeEvent(event) {
 }
 
 /**
+ * Appends one estimated-cost JSONL record for a single dispatch to
+ * `.ospec/session/{changeName}/phase-costs.jsonl` (REQ-hooks-001), mirroring
+ * appendRuntimeEvent's mkdir + withFileLock + append pattern. `record` is
+ * serialized as-is (caller controls its shape: phase, agent, est_tokens,
+ * status, ts).
+ *
+ * @param {{workspace: string, changeName: string, record: object}} params
+ */
+async function appendPhaseCost({ workspace, changeName, record }) {
+  const resolvedWorkspace = path.resolve(workspace);
+  const filePath = path.join(
+    resolvedWorkspace,
+    ".ospec",
+    "session",
+    changeName,
+    PHASE_COST_FILE_NAME,
+  );
+
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await withFileLock(filePath, () =>
+    fs.appendFile(filePath, `${JSON.stringify(record)}\n`, "utf8"),
+  );
+
+  return {
+    path: toPortablePath(path.relative(resolvedWorkspace, filePath)),
+    absolutePath: filePath,
+    record,
+  };
+}
+
+/**
  * detectSpecDrift / readStagedFiles / matchesGlobs — domain-drift primitives.
  *
  * detectSpecDrift mirrors resolveGitState (scripts/hooks/lib/git-state.js):
@@ -970,6 +1002,8 @@ function detectSpecDrift(options = {}) {
 
 module.exports = {
   RUNTIME_EVENT_RELATIVE_PATH,
+  PHASE_COST_FILE_NAME,
+  appendPhaseCost,
   appendRuntimeEvent,
   detectSpecDrift,
   findActiveChanges,

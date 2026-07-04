@@ -8,7 +8,13 @@ implementation, then (only if the contract itself changed) the fixture.
 | Hook           | Fixture prefix     | Floor | Spawned/dispatched script         | Go mirror test                     |
 |----------------|---------------------|-------|------------------------------------|-------------------------------------|
 | PreToolUse     | `pre-tool-use-*`    | 4     | `scripts/hooks/pre-tool-use.js`    | `TestPreToolUse_ParityFixtures`     |
-| SubagentStop   | `subagent-stop-*`   | 2     | `scripts/hooks/subagent-stop.js`   | `TestSubagentStop_ParityFixtures`   |
+| SubagentStop   | `subagent-stop-*`   | 4     | `scripts/hooks/subagent-stop.js`   | `TestSubagentStop_ParityFixtures`   |
+
+(Previously: `SubagentStop`'s floor was 2, covering only the valid-envelope and
+malformed-envelope fixtures. The per-dispatch phase-cost recording step
+(`persistPhaseCost`, REQ-hooks-001) added two required fixtures — one for the
+active-change case and one for the no-active-change case — bringing the floor
+to 4. See "SubagentStop phase-cost fixtures" below.)
 
 - Go: `internal/hooks/pretooluse_test.go` and `internal/hooks/subagentstop_test.go` — byte-for-byte via `hooks.Dispatch`.
 - JS: `scripts/hooks/parity-contract.test.js` — spawns the real hook process; byte-for-byte,
@@ -42,3 +48,30 @@ so the fence-persistence step is a safe no-op and the run can never mutate a
 real `state.yaml` (in particular, this very change's own state.yaml, since the
 JS harness's spawned process would otherwise inherit the repo root as its
 cwd). Do not add an `openspec/` directory under that fixture workspace.
+
+## SubagentStop phase-cost fixtures
+
+`subagent-stop-phase-cost-active-change.json` and
+`subagent-stop-phase-cost-no-active-change.json` are the two required
+fixtures added for the `persistPhaseCost` per-dispatch phase-cost recording
+step (REQ-hooks-001). Both assert `continue:true` byte-for-byte, exactly like
+the other `SubagentStop` fixtures (they are NOT fail-open fixtures); the
+resulting `phase-costs.jsonl` content is never asserted here — it is a
+disposable session artifact, proven instead by the unit tests in
+`scripts/hooks/subagent-stop.test.js` and `internal/hooks/subagentstop_test.go`.
+
+- **Active-change case**: `subagent-stop-phase-cost-active-change.json`
+  references a second literal token, `__SUBAGENT_STOP_PHASE_COST_WORKSPACE__`,
+  substituted by both harnesses with the absolute path to
+  `internal/testdata/parity/subagent-stop-phase-cost-workspace/` — a
+  checked-in workspace that DOES contain an `openspec/` tree, with exactly one
+  active change (`openspec/changes/demo/state.yaml`, `status: active`). The
+  fixture's `stdin` carries no valid `json:result-envelope` fence, so
+  `persistResultEnvelope` no-ops and the tracked `state.yaml` stays
+  byte-for-byte pristine; `persistPhaseCost`'s write lands in
+  `.ospec/session/demo/phase-costs.jsonl`, which is git-ignored (`.gitignore`
+  line 4 `.ospec/`), so repeated test runs never pollute git.
+- **No-active-change case**: `subagent-stop-phase-cost-no-active-change.json`
+  reuses the existing `__SUBAGENT_STOP_FIXTURE_WORKSPACE__` token (the
+  openspec-free `subagent-stop-workspace/`), so `persistPhaseCost` must skip
+  silently without creating `.ospec/session/` at all.

@@ -80,7 +80,7 @@ const FIXTURE_FAMILY = [
     hook: "SubagentStop",
     prefix: "subagent-stop-",
     hookPath: path.join(ROOT, "scripts", "hooks", "subagent-stop.js"),
-    floor: 2,
+    floor: 4,
     // A missing/malformed json:result-envelope fence is the documented
     // fail-open case for SubagentStop (hooks spec §8a.1).
     isFailOpen(_expected, fixtureName) {
@@ -93,15 +93,26 @@ const FIXTURE_FAMILY = [
       assert.equal(JSON.parse(actual).continue, true);
       assert.equal(JSON.parse(expected).continue, true);
     },
-    // SubagentStop fixtures reference a fixed placeholder for their `cwd`
+    // SubagentStop fixtures reference fixed placeholders for their `cwd`
     // field so the same static JSON works on every machine/OS without ever
     // resolving to a real repo (which could otherwise find and mutate this
-    // very change's state.yaml). Substitute it with the checked-in,
-    // openspec-free fixture workspace right before spawning.
+    // very change's state.yaml). Substitute each token with its matching
+    // checked-in fixture workspace right before spawning: the openspec-free
+    // one (no active change) and the phase-cost one (one active change,
+    // `demo`, per REQ-hooks-001).
     prepareStdin(rawStdin) {
       const workspace = path.join(FIXTURES_DIR, "subagent-stop-workspace");
+      const phaseCostWorkspace = path.join(
+        FIXTURES_DIR,
+        "subagent-stop-phase-cost-workspace",
+      );
       const escapedWorkspace = JSON.stringify(workspace).slice(1, -1);
-      return rawStdin.split("__SUBAGENT_STOP_FIXTURE_WORKSPACE__").join(escapedWorkspace);
+      const escapedPhaseCostWorkspace = JSON.stringify(phaseCostWorkspace).slice(1, -1);
+      return rawStdin
+        .split("__SUBAGENT_STOP_FIXTURE_WORKSPACE__")
+        .join(escapedWorkspace)
+        .split("__SUBAGENT_STOP_PHASE_COST_WORKSPACE__")
+        .join(escapedPhaseCostWorkspace);
     },
   },
 ];

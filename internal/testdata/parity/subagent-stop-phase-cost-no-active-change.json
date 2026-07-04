@@ -1,0 +1,5 @@
+{
+  "description": "Phase-cost recording fixture (REQ-hooks-001): no active change resolves (reuses the checked-in, openspec-free subagent-stop-workspace/), so persistPhaseCost MUST skip silently without creating .ospec/session/ or any phase-costs.jsonl file. stdout stays the plain {\"continue\":true}, identical to the active-change fixture.",
+  "stdin": "{\"cwd\":\"__SUBAGENT_STOP_FIXTURE_WORKSPACE__\",\"agent_type\":\"sdd-design\",\"status\":\"success\",\"result\":\"Plain prose result, no envelope fence.\"}",
+  "expectedStdout": "{\"continue\":true}"
+}

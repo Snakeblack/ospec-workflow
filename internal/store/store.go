@@ -24,6 +24,8 @@ const (
 	LatestRelPath = ".ospec/session/latest.md"
 	// RuntimeEventsRelPath is the workspace-relative path to the JSONL events file.
 	RuntimeEventsRelPath = ".ospec/runtime/subagent-events.jsonl"
+	// PhaseCostFileName is the JSONL file name for per-change phase-cost records.
+	PhaseCostFileName = "phase-costs.jsonl"
 )
 
 // terminalStatuses matches ospec-state.js TERMINAL_STATUSES.
@@ -91,6 +93,12 @@ func (s *Store) LatestSessionPath() string {
 // SessionSummaryPath returns the absolute path to the session summary for a change.
 func (s *Store) SessionSummaryPath(changeName string) string {
 	return filepath.Join(s.Workspace, ".ospec", "session", changeName, "session-summary.md")
+}
+
+// SessionPhaseCostPath returns the absolute path to the per-change phase-cost
+// JSONL file (REQ-hooks-001).
+func (s *Store) SessionPhaseCostPath(changeName string) string {
+	return filepath.Join(s.Workspace, ".ospec", "session", changeName, PhaseCostFileName)
 }
 
 // runtimeEventsPath returns the absolute path to the runtime JSONL events file.
@@ -245,6 +253,33 @@ func (s *Store) AppendRuntimeEvent(line []byte) error {
 		}
 		if cerr := f.Close(); cerr != nil {
 			return fmt.Errorf("store.AppendRuntimeEvent: close: %w", cerr)
+		}
+		return nil
+	})
+}
+
+// ── AppendPhaseCost ───────────────────────────────────────────────────────────
+
+// AppendPhaseCost appends line + "\n" to the per-change phase-cost JSONL file
+// under .ospec/session/{changeName}/phase-costs.jsonl, using the same
+// advisory-lock convention as AppendRuntimeEvent.
+func (s *Store) AppendPhaseCost(changeName string, line []byte) error {
+	costPath := s.SessionPhaseCostPath(changeName)
+	if err := os.MkdirAll(filepath.Dir(costPath), 0755); err != nil {
+		return fmt.Errorf("store.AppendPhaseCost: mkdir: %w", err)
+	}
+	return withLock(costPath, func() error {
+		f, err := os.OpenFile(costPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			return fmt.Errorf("store.AppendPhaseCost: open: %w", err)
+		}
+		data := append(append([]byte(nil), line...), '\n')
+		if _, werr := f.Write(data); werr != nil {
+			f.Close()
+			return fmt.Errorf("store.AppendPhaseCost: write: %w", werr)
+		}
+		if cerr := f.Close(); cerr != nil {
+			return fmt.Errorf("store.AppendPhaseCost: close: %w", cerr)
 		}
 		return nil
 	})

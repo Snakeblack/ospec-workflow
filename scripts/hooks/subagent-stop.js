@@ -9,6 +9,7 @@ const {
 } = require("../lib/artifact-store.js");
 const { validatePath, resolveWorkspaceCwd } = require("../lib/pathsafe.js");
 const {
+  appendPhaseCost,
   findActiveChanges,
   findOpenSpecRoot,
   setPhaseSummary,
@@ -314,12 +315,12 @@ async function persistResultEnvelope({ input, workspace }) {
     }
 
     const agentName = resolveAgentName(input);
+    const phase = derivePhaseKey(agentName);
 
-    if (!agentName.startsWith("sdd-")) {
+    if (!phase) {
       return;
     }
 
-    const phase = agentName.slice("sdd-".length);
     const openspecRoot = await findOpenSpecRoot(workspace);
     const activeChange = (await findActiveChanges(openspecRoot))[0];
 
@@ -367,6 +368,120 @@ async function persistResultEnvelope({ input, workspace }) {
   }
 }
 
+/**
+ * Strips the `sdd-` prefix from an agent name to derive its phase key.
+ * Returns "" when the agent name does not carry the `sdd-` prefix. Shared
+ * between persistResultEnvelope and persistPhaseCost (REFACTOR, task 2.5) so
+ * the phase-key derivation rule lives in exactly one place.
+ */
+function derivePhaseKey(agentName) {
+  return agentName.startsWith("sdd-") ? agentName.slice("sdd-".length) : "";
+}
+
+/**
+ * Picks the first present §5.2 RESULT_FIELDS value from the dispatch input,
+ * unresolved/raw (no stringification here) — the caller decides how to turn
+ * it into an estimate string. Mirrors findEnvelopeInInput/findResolutionInInput's
+ * field-search order.
+ */
+function resolveResultPayload(input) {
+  for (const field of RESULT_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(input || {}, field)) {
+      return input[field];
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Estimates a token count for a dispatch result payload using the same
+ * ~4-bytes/token heuristic as `estimateTokens` in `pre-tool-use.js`
+ * (REQ-hooks-001 / design "Estimate over UTF-8 byte length"). `payload` is
+ * used as-is when it is already a string, else JSON-serialized. A payload
+ * that cannot be serialized (e.g. a circular structure) propagates its error
+ * to the caller, which is expected to be wrapped in persistPhaseCost's own
+ * fail-safe boundary.
+ */
+function estimateResultTokens(payload) {
+  const str = typeof payload === "string" ? payload : JSON.stringify(payload) ?? "";
+
+  return Math.round(Buffer.byteLength(str, "utf8") / 4);
+}
+
+/**
+ * Resolves the dispatch's status for a phase-cost record: a valid
+ * json:result-envelope fence's `status` field, else the top-level
+ * `input.status`, else `"unknown"` (REQ-hooks-001 / design "Payload/status
+ * resolution").
+ */
+async function resolveDispatchStatus(input) {
+  let envelopeResult = findEnvelopeInInput(input);
+
+  if (!envelopeResult.found) {
+    envelopeResult = await findEnvelopeInTranscript(input.transcript_path);
+  }
+
+  if (envelopeResult.found && envelopeResult.value) {
+    const validation = validateEnvelope(envelopeResult.value);
+
+    if (validation.valid && typeof envelopeResult.value.status === "string") {
+      return envelopeResult.value.status;
+    }
+  }
+
+  if (typeof input?.status === "string" && input.status.trim()) {
+    return input.status;
+  }
+
+  return "unknown";
+}
+
+/**
+ * Appends one estimated-cost JSONL record for this dispatch to
+ * `.ospec/session/{change}/phase-costs.jsonl` (REQ-hooks-001), mirroring the
+ * fail-safe boundary and active-change resolution already used by
+ * persistResultEnvelope. Any failure (non-"sdd-" agent, no active change,
+ * estimation error, write/lock error) silently no-ops without throwing and
+ * without affecting the hook's stdout.
+ */
+async function persistPhaseCost({ input, workspace }) {
+  try {
+    const agentName = resolveAgentName(input);
+    const phase = derivePhaseKey(agentName);
+
+    if (!phase) {
+      return;
+    }
+
+    const openspecRoot = await findOpenSpecRoot(workspace);
+    const activeChange = (await findActiveChanges(openspecRoot))[0];
+
+    if (!activeChange) {
+      return;
+    }
+
+    const payload = resolveResultPayload(input);
+    const estTokens = estimateResultTokens(payload);
+    const status = await resolveDispatchStatus(input);
+
+    await appendPhaseCost({
+      workspace,
+      changeName: activeChange.directoryName,
+      record: {
+        phase,
+        agent: agentName,
+        est_tokens: estTokens,
+        status,
+        ts: new Date().toISOString(),
+      },
+    });
+  } catch {
+    // Fully fail-safe: phase-cost recording must never affect SubagentStop's
+    // existing skill_resolution behavior or exit status.
+  }
+}
+
 function resolveAgentName(input) {
   return String(
     input?.agent_type ||
@@ -397,6 +512,11 @@ async function runSubagentStop({
   // is a pure side effect (state.yaml write) and never alters this function's
   // return value or the hook's stdout.
   await persistResultEnvelope({ input, workspace });
+
+  // REQ-hooks-001: per-dispatch phase-cost recording. Same fail-safe/ordering
+  // contract as persistResultEnvelope above — pure side effect, never alters
+  // this function's return value or the hook's stdout.
+  await persistPhaseCost({ input, workspace });
 
   const resolution =
     findResolutionInInput(input) ||
@@ -470,6 +590,7 @@ if (require.main === module) {
 
 module.exports = {
   EVENT_RELATIVE_PATH,
+  estimateResultTokens,
   findEnvelopeInInput,
   findEnvelopeInTranscript,
   findResolutionInInput,
@@ -478,6 +599,8 @@ module.exports = {
   findStructuredResolution,
   findTextResolution,
   isDegradedResolution,
+  persistPhaseCost,
   persistResultEnvelope,
+  resolveDispatchStatus,
   runSubagentStop,
 };
