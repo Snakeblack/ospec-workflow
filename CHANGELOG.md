@@ -8,6 +8,11 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.15.0] - 2026-07-04
+
+### Added
+- **Telemetría de costo por fase (C3)**: el hook `SubagentStop` (JS y Go, paridad byte a byte) persiste una fila JSONL por dispatch de fase en `.ospec/session/{change}/phase-costs.jsonl` vía `appendPhaseCost`/`AppendPhaseCost` — `phase`, `status`, `est_tokens` (heurística `round(utf8ByteLength/4)`, idéntica cross-runtime, etiquetada como estimada) y timestamp — con escritura atómica fail-safe (lock con reclamación de stale-lock, probado con 40 escritores concurrentes). Familia nueva de fixtures de paridad `subagent-stop-phase-cost-*` (floor de SubagentStop 2→4: escenarios active-change y no-active-change). `sdd-archive` agrega un bloque **Cost** al `archive-report.md` (fases despachadas, re-launches derivados de las filas del JSONL, preguntas al usuario desde `state.yaml`, tokens estimados totales) con fallback explícito cuando el JSONL falta o está vacío (ADR-001: fuente de agregación, promovida a `docs/adr/adr-20260704-001`). Contrato del bloque asegurado por `scripts/cost-block-contract.test.js`. Ciclo SDD completo (dogfooding): specs delta de `hooks`/`agents` sincronizadas al baseline y change archivado en `openspec/changes/archive/2026-07-04-add-change-cost-telemetry/`.
+
 ## [2.14.2] - 2026-07-04
 
 ### Fixed
