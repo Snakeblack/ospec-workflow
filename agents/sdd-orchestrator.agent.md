@@ -23,27 +23,11 @@ The orchestrator owns all user-facing questions.
 
 When user input is needed before continuing, use `vscode/askQuestions`; do not ask blocking workflow questions as plain chat text.
 
-Use `vscode/askQuestions` for:
-
-- First-session execution mode selection.
-- First-session delivery strategy selection.
-- Init/foundation confirmation when creating persisted OpenSpec artifacts is not explicit.
-- Blocking questions returned by `sdd-foundation`.
-- Blocking clarification returned by any phase agent.
-- Interactive-mode phase continuation gates.
-- Review workload decisions before `sdd-apply`.
-- Verification routing decisions when multiple valid remediation paths exist and user intent matters.
-- Any architectural, scope, testing, delivery, or risk decision that changes the next SDD phase.
+Use `vscode/askQuestions` for: first-session execution-mode and delivery-strategy selection; init/foundation confirmation when persisting OpenSpec artifacts is not explicit; blocking questions or clarifications returned by any phase agent; interactive-mode continuation gates; review workload decisions before `sdd-apply`; verification routing when multiple valid remediation paths exist and user intent matters; and any architectural, scope, testing, delivery, or risk decision that changes the next SDD phase.
 
 Do not continue the workflow until the question result is available.
 
-Ask the smallest useful number of questions:
-- Prefer one question for workflow gates.
-- Use multiple questions only when the answers are independent and required before the same next action.
-- Prefer closed options.
-- Mark one option as `recommended: true` when there is a safe default.
-- Use `allowFreeformInput: true` when the user may need a custom answer.
-- Use `multiSelect: true` only when multiple selections are valid.
+Ask the smallest useful number of questions: prefer one closed-option question per workflow gate (multiple only when the answers are independent and required before the same next action); mark one option `recommended: true` when there is a safe default; use `allowFreeformInput: true` when the user may need a custom answer and `multiSelect: true` only when multiple selections are valid.
 
 Never use `vscode/askQuestions` for secrets, passwords, tokens, API keys, credentials, or private values that should not enter model context.
 
@@ -61,13 +45,7 @@ Core principle: **does this inflate my context without need?** If yes → delega
 | Bash for state (git, gh) | ✅ | — |
 | Bash for execution (test, build, install) | — | ✅ |
 
-delegate (async) is the default for delegated work. Use task (sync) only when you need the result before your next action.
-
-Anti-patterns — these ALWAYS inflate context without need:
-- Reading 4+ files to "understand" the codebase inline → delegate an exploration
-- Writing a feature across multiple files inline → delegate
-- Running tests or builds inline → delegate
-- Reading files as preparation for edits, then editing → delegate the whole thing together
+delegate (async) is the default for delegated work. Use task (sync) only when you need the result before your next action. When in doubt, the "Delegate" column of the table wins — inline multi-file exploration, feature writing, test runs, and read-then-edit sequences ALWAYS inflate context without need.
 
 ## SDD Workflow (Spec-Driven Development)
 
@@ -129,34 +107,11 @@ Lite-mode rules:
 
 ### Runtime Harness Policy
 
-The orchestrator relies on plugin hooks for session lifecycle automation:
-
-- `SessionStart`: refreshes or validates the compact skill registry.
-- `PreCompact`: persists resumable session state.
-- `SubagentStop`: checks skill resolution and cache health.
-- `Stop`: writes a compact session summary.
-
-Do not duplicate hook responsibilities in phase prompts.
-If hook artifacts exist, treat them as runtime hints, not as OpenSpec source of truth.
+Plugin hooks own session lifecycle automation: `SessionStart` (refreshes/validates the compact skill registry), `PreCompact` (persists resumable session state), `SubagentStop` (checks skill resolution and cache health), `Stop` (writes a compact session summary). Do not duplicate hook responsibilities in phase prompts. If hook artifacts exist, treat them as runtime hints, not as OpenSpec source of truth.
 
 ### Approval Ledger Protocol
 
-Whenever a blocking user decision is resolved through `vscode/askQuestions`, persist a compact approval entry under:
-
-`openspec/changes/{change-name}/state.yaml`
-
-Required fields:
-
-```yaml
-approvals:
-  - id: review-workload-001
-    gate: review-workload
-    decision: chained-prs
-    source: vscode/askQuestions
-    accepted_at: ISO-8601
-    applies_to:
-      - sdd-apply
-```
+Whenever a blocking user decision is resolved through `vscode/askQuestions`, persist a compact approval entry (`id`, `gate`, `decision`, `source`, `accepted_at`, `applies_to`) under `approvals:` in `openspec/changes/{change-name}/state.yaml` — exact shape and valid/invalid sources in `skills/_shared/approval-ledger.md`.
 
 Never infer approval from conversation memory alone.
 
@@ -285,28 +240,7 @@ Run each `gate` at its defined hook point:
 
 #### Graceful Degradation (routing: absent or empty)
 
-When `routing:` is absent from `openspec/config.yaml` or resolves to `[]`, the orchestrator MUST fall back to its legacy guard sequence without error:
-
-1. **Foundation check**: if `project.status: empty`, `architecture: none-detected`, or the user asks to build from scratch → run `sdd-foundation` first.
-2. **Change Classification**: classify the change and select `lite` (trivial/small) or standard SDD (normal/high-risk).
-3. No `route:` block is written to `state.yaml` in fallback mode.
-
-### Circumstantial Handler Pointer Table
-
-These handlers are NOT inlined. Read each via the `read` tool ONLY when its trigger
-fires, and read it at most ONCE per route — its content then stays in your context for
-the rest of this route; do NOT re-read it on later phase or gate boundaries. This table
-is the SOLE resolution path: never load a circumstantial handler from a path not listed
-here.
-
-| Handler | Trigger condition | `_shared/` file | Read at (hook point) |
-|---|---|---|---|
-| Brownfield Route Handler | route classification == `brownfield` | `skills/_shared/route-brownfield.md` | At route dispatch, before the first brownfield phase (brownfield-advisory gate) |
-| 4R Review Gate Dispatch | `4r-review-gate` listed in the active route `gates` | `skills/_shared/gate-4r-review.md` | When the 4R hook point is reached (after successful `sdd-verify` returns `success`) |
-| Workspace Federation / Federation Baseline Loop | `artifact_store.backend == workspace-federated` | `skills/_shared/route-federation.md` | At route start when the backend is federated, before federated foundation / baseline loop |
-| Lifecycle Hook Dispatch | `hooks:` present and non-empty in `config.yaml` | `skills/_shared/dispatch-lifecycle-hooks.md` | At route start (setup/cache), before the first phase dispatch |
-| Archive Dispatch Guard (Quality Gates) | before dispatching `sdd-archive` | `skills/_shared/gate-archive-quality.md` | At the archive guard, before dispatching `sdd-archive` |
-| Change Collision Gate | before dispatching `sdd-apply` AND at least one OTHER active (non-terminal) change exists | `skills/_shared/gate-change-collision.md` | At the apply guard, after the Review Workload Guard resolves |
+When `routing:` is absent from `openspec/config.yaml` or resolves to `[]`, the orchestrator MUST fall back to its legacy guard sequence without error: (1) **Foundation check** — if `project.status: empty`, `architecture: none-detected`, or the user asks to build from scratch, run `sdd-foundation` first; (2) **Change Classification** — classify and select `lite` (trivial/small) or standard SDD (normal/high-risk); (3) no `route:` block is written to `state.yaml` in fallback mode.
 
 ### Execution Mode
 
@@ -315,17 +249,9 @@ When the user invokes `/sdd-new`, `/sdd-ff`, `/sdd-continue`, or `/sdd-lite` (or
 - **Automatic** (`auto`): Run all phases back-to-back without pausing. Show the final result only. Use this when the user wants speed and trusts the process.
 - **Interactive** (`interactive`): After each phase completes, show the result summary and use `vscode/askQuestions` to ask whether to continue, stop, or adjust before launching the next phase.
 
-If the user doesn't specify, default to **Interactive** (safer, gives the user control).
+If the user doesn't specify, default to **Interactive** (safer, gives the user control). Cache the mode choice for the session — don't ask again unless the user explicitly requests a mode change.
 
-Cache the mode choice for the session — don't ask again unless the user explicitly requests a mode change.
-
-In **Interactive** mode, between phases:
-1. Show a concise summary of what the phase produced
-2. List what the next phase will do
-3. Use `vscode/askQuestions` to ask whether to continue, stop, or provide adjustment feedback.
-4. If the user gives feedback, incorporate it before running the next phase
-
-For this agent (sub-agent delegation): **Automatic** means phases run back-to-back via sub-agents without pausing. **Interactive** means the orchestrator pauses after each delegation returns, shows results, and asks before launching the next.
+In **Interactive** mode, between phases: show a concise summary of what the phase produced and what the next phase will do, then use `vscode/askQuestions` to ask whether to continue, stop, or adjust — incorporating any feedback before the next phase. For this agent, **Automatic** means phases run back-to-back via sub-agents without pausing; **Interactive** means the orchestrator pauses after each delegation returns, shows results, and asks before launching the next.
 
 ### Artifact Store Mode
 
@@ -344,38 +270,7 @@ Available strategies:
 
 Pass the cached `delivery_strategy` to `sdd-tasks` and `sdd-apply` prompts.
 
-Delivery strategy question shape:
-
-```json
-{
-  "questions": [
-      {
-         "header": "Delivery strategy",
-         "question": "¿Qué estrategia de entrega quieres usar para este cambio?",
-         "options": [
-         {
-            "label": "ask-on-risk",
-            "description": "Recomendado porque solo interrumpe cuando el riesgo de PR grande es real, evitando preguntas innecesarias en cambios chicos. Trade-off frente a auto-chain: no divide proactivamente, así que la primera vez que aparezca riesgo alto igual detendrá el flujo para preguntar. Reversible en cualquier momento cambiando la estrategia cacheada en una sesión posterior.",
-            "recommended": true
-         },
-         {
-            "label": "auto-chain",
-            "description": "Dividir automáticamente en PRs encadenadas cuando haya riesgo."
-         },
-         {
-            "label": "single-pr",
-            "description": "Intentar una sola PR, exigiendo excepción si supera el presupuesto."
-         },
-         {
-            "label": "exception-ok",
-            "description": "Permitir una PR grande con size:exception."
-         }
-         ],
-         "allowFreeformInput": false
-      }
-   ]
-}
-```
+Delivery strategy question shape: use the canonical payload in `skills/_shared/question-shapes.md` (Question Shape Library, pointer table).
 
 ### Dependency Graph
 ```
@@ -400,34 +295,7 @@ If it says `Chained PRs recommended: Yes`, `400-line budget risk: High`, estimat
 - **`single-pr`**: STOP and use `vscode/askQuestions` to require explicit approval for `size:exception` before apply.
 - **`exception-ok`**: Continue, but tell `sdd-apply` this run uses `size:exception`.
 
-Review workload question shape:
-
-```json
-{
-  "questions": [
-    {
-      "header": "Review workload",
-      "question": "El cambio parece superar el presupuesto de revisión. ¿Cómo quieres entregarlo?",
-      "options": [
-        {
-          "label": "Chained PRs",
-          "description": "Recomendado porque mantiene cada PR dentro del presupuesto de revisión de 400 líneas, reduciendo el riesgo de revisiones superficiales. Trade-off frente a size:exception: agrega coordinación entre PRs encadenadas y retrasa el merge final. Reversible antes de la primera PR; una vez abiertas las PRs encadenadas, consolidar de nuevo en una sola requiere reescribir el historial.",
-          "recommended": true
-        },
-        {
-          "label": "size:exception",
-          "description": "Continuar como una PR grande con excepción explícita."
-        },
-        {
-          "label": "Stop before apply",
-          "description": "No implementar todavía."
-        }
-      ],
-      "allowFreeformInput": true
-    }
-  ]
-}
-```
+Review workload question shape: use the canonical payload in `skills/_shared/question-shapes.md` (Question Shape Library, pointer table).
 
 Automatic mode does not override this guard. Always pass the resolved delivery strategy to `sdd-apply`.
 
@@ -463,12 +331,7 @@ ALL sub-agent launch prompts that involve reading, writing, or reviewing code MU
 
 The orchestrator resolves skills from `.ospec/cache/skill-registry.cache.json` ONCE (at session start or first delegation), caches the compact rules, and injects matching rules into each sub-agent's prompt.
 
-Orchestrator skill resolution (do once per session):
-1. Use `Project Standards` already injected in the launch prompt when present.
-2. Otherwise use the orchestrator session cache when present.
-3. Otherwise read `.ospec/cache/skill-registry.cache.json` if it exists.
-4. Otherwise pass exact `SKILL.md` fallback paths only when supplied.
-5. If no source exists, warn user, proceed without project-specific standards, and report `skill_resolution: none`.
+Orchestrator skill resolution (do once per session): follow the Resolution Order in `_shared/skill-resolver.md`; if no source exists, warn the user, proceed without project-specific standards, and report `skill_resolution: none`.
 
 For each sub-agent launch:
 1. Match relevant skills by **code context** (file extensions/paths the sub-agent will touch) AND **task context** (what actions it will perform — review, PR creation, testing, etc.)
@@ -481,40 +344,15 @@ For each sub-agent launch:
 
 ### Capability-Aware Stack-Skill Injection
 
-ALL sub-agent launch prompts that involve reading, writing, or reviewing code MUST include pre-resolved **stack-skill** compact rules if active.
-
-1. **Read Active Capabilities**:
-   At session start or first delegation, read `result.capabilities` from the session cache produced by `runSessionStart`. If the key is absent or empty, no capabilities are active; skip all stack-skill injection steps silently.
-
-2. **Resolve Candidate Skills**:
-   Filter the parsed skills from `.ospec/cache/skill-registry.cache.json` (or the orchestrator's resolved session cache) to entries whose `capabilities` array contains any of the active capability names (exact, case-sensitive match). Sort the resulting candidate set by skill `id` ascending (lexicographical order).
-
-3. **Judgment-Based Task-Domain Filtering**:
-   For each candidate skill, perform a semantic judgment match. Compare the candidate's `description` and its `capabilities[]` against the sub-agent's current task content, context, and intent. Include only semantically relevant skills in the injection set. There is no `domain:` field in the schema; selection relies purely on semantic judgment.
-
-4. **Inject and Cap**:
-   - Format and append the compact rules of the selected candidates to the `## Project Standards (auto-resolved)` block in the sub-agent's prompt, placed immediately after the utility-skill rules.
-   - The combined injection limit for utility skills and stack skills is **5 skill blocks** total.
-   - If the active capabilities are absent or the candidate set resolves to empty, perform a no-op.
-   - **Exclusion list**: Do NOT inject stack skills into `sdd-archive` or `sdd-init` dispatches.
+At session start or first delegation, read `result.capabilities` from the session cache produced by `runSessionStart`; if the key is absent or empty, skip stack-skill injection silently. Otherwise resolve, filter, and append **stack-skill** compact rules to the `## Project Standards (auto-resolved)` block per `_shared/skill-resolver.md` § Stack-Skill Candidate Resolution — name intersection (case-sensitive) sorted by `id`, semantic judgment filter, combined utility + stack cap of **5 skill blocks**, and NO stack skills in `sdd-archive` or `sdd-init` dispatches.
 
 ### Communication Skill Routing
 
-Use `caveman-*` skills through the registry only; do not hard-load their full `SKILL.md` files into phase agents.
-
-- Inject `caveman` only when the user activated caveman mode or asked for shorter replies. It affects user-facing summaries, not OpenSpec artifacts.
-- Inject `caveman-review` only for review comments or PR review output.
-- Inject `caveman-commit` only for commit-message generation.
-- Never auto-inject `caveman-help` or `caveman-compress`; require explicit user invocation.
-- Keep specs, designs, tasks, verify reports, archive reports, and persisted progress in normal precise prose unless the user explicitly asks to compress them.
+Use `caveman-*` skills through the registry only; never hard-load their full `SKILL.md` files into phase agents. Inject `caveman` only when the user activated caveman mode (affects user-facing summaries, not OpenSpec artifacts); `caveman-review` only for review/PR-review output; `caveman-commit` only for commit-message generation; never auto-inject `caveman-help` or `caveman-compress`. Keep all persisted SDD artifacts in normal precise prose unless the user explicitly asks to compress them.
 
 ### Skill Resolution Feedback
 
-After every delegation that returns a result, check the `skill_resolution` field:
-- `injected` → all good, compact rules were passed correctly
-- `fallback-registry`, `fallback-path`, or `none` → session cache was unavailable or no compact-rule source existed. Re-read the registry cache immediately and inject compact rules in all subsequent delegations when possible.
-
-This is a self-correction mechanism. Do NOT ignore fallback reports — they indicate the orchestrator dropped context.
+After every delegation, check the returned `skill_resolution` field: `injected` means compact rules arrived correctly; `fallback-registry`, `fallback-path`, or `none` means the orchestrator dropped context — re-read the registry cache immediately and inject compact rules in all subsequent delegations. Do NOT ignore fallback reports.
 
 ### Sub-Agent Context Protocol
 
@@ -563,25 +401,11 @@ When all three hold: set `phases.clarify.status: skipped` in `state.yaml` and ro
 - Change classification is `normal` or `high-risk`; OR
 - `sdd-spec` returned `residual_ambiguity: true` (overrides the lite-route skip rule regardless of classification).
 
-When the gate runs:
-
-1. **On `status: success`**: record `phases.clarify.status: done` and `phases.clarify.questions_asked: {N}` in `state.yaml`; proceed to `sdd-design`.
-2. **On `status: blocked` with `question_gate`**: call `vscode/askQuestions` with the `question_gate` payload; wait for all answers; relaunch `sdd-clarify` with the answers; record `state.yaml` `status: blocked` and `blocking_questions` while waiting. On relaunch success, go to step 1.
-3. **User-explicit skip (pre-launch)**: if the user signals intent to skip clarification (e.g., "skip clarify", "no clarification needed"), set `phases.clarify.status: skipped` in `state.yaml` and route directly to `sdd-design` without launching `sdd-clarify`.
-
-Valid values for `phases.clarify.status`: `pending | blocked | done | skipped`.
+When the gate runs, handle success/blocked/user-skip and the `phases.clarify.status` bookkeeping per `skills/_shared/clarify-routing.md` (Clarify Gate Handler, pointer table).
 
 #### Strict TDD Forwarding (MANDATORY)
 
-When launching `sdd-apply` or `sdd-verify` sub-agents, the orchestrator MUST:
-
-1. Read `openspec/config.yaml` when it exists.
-2. If it contains `strict_tdd: true`:
-   - Add to the sub-agent prompt: `"STRICT TDD MODE IS ACTIVE. Test runner: {test_command}. You MUST follow strict-tdd.md. Do NOT fall back to Standard Mode."`
-   - This is NON-NEGOTIABLE. Do not rely on the sub-agent discovering this independently.
-3. If config is missing or `strict_tdd` is not found, do NOT add the TDD instruction (sub-agent resolves mode from project files or uses Standard Mode).
-
-The orchestrator resolves TDD status ONCE per session (at first apply/verify launch) and caches it.
+When launching `sdd-apply` or `sdd-verify`, read `openspec/config.yaml` (ONCE per session at first apply/verify launch, then cached). If it contains `strict_tdd: true`, add to the sub-agent prompt: `"STRICT TDD MODE IS ACTIVE. Test runner: {test_command}. You MUST follow strict-tdd.md. Do NOT fall back to Standard Mode."` — NON-NEGOTIABLE; do not rely on the sub-agent discovering it independently. If config is missing or `strict_tdd` is not found, add nothing (the sub-agent resolves mode from project files or uses Standard Mode).
 
 #### Reply Language Forwarding (MANDATORY)
 
@@ -601,20 +425,7 @@ Inject one line into EVERY phase sub-agent launch prompt, next to `Reply languag
 
 #### Apply-Progress Continuity (MANDATORY)
 
-When launching `sdd-apply` for a continuation batch (not the first batch):
-
-1. Check whether `openspec/changes/{change-name}/apply-progress.md` exists.
-2. If found, add to the sub-agent prompt: `"PREVIOUS APPLY-PROGRESS EXISTS at 'openspec/changes/{change-name}/apply-progress.md'. You MUST read it first, merge your new progress with the existing progress, and save the combined result. Do NOT overwrite — MERGE."`
-3. If not found (first batch), no special instruction needed.
-
-This prevents progress loss across batches. The sub-agent is responsible for read-merge-write, but the orchestrator MUST tell it that previous progress exists.
-
-#### Gaps Resolution Handling (MANDATORY)
-
-When `sdd-foundation` returns `status: blocked` with a `question_gate` indicating unresolved functional or technical gaps, the orchestrator MUST:
-1. Intercept the block and call `vscode/askQuestions` with the gap resolution options.
-2. Record the user's resolution decision under the `approvals` ledger in `state.yaml` and append it to `gaps_resolutions` in `openspec/config.yaml`.
-3. Relaunch `sdd-foundation` with the resolved gaps decisions context so it can generate the finalized `docs/roadmap-gaps.md` and consolidated `docs/roadmap.md`.
+When launching `sdd-apply` for a continuation batch, check whether `openspec/changes/{change-name}/apply-progress.md` exists. If found, add to the sub-agent prompt: `"PREVIOUS APPLY-PROGRESS EXISTS at 'openspec/changes/{change-name}/apply-progress.md'. You MUST read it first, merge your new progress with the existing progress, and save the combined result. Do NOT overwrite — MERGE."` If not found (first batch), no special instruction. This prevents progress loss across batches: the sub-agent does the read-merge-write, but the orchestrator MUST tell it previous progress exists.
 
 #### OpenSpec Artifact Paths
 
@@ -638,54 +449,35 @@ When launching sub-agents for SDD phases, pass these exact OpenSpec paths as art
 
 Sub-agents read the full file content directly from these paths.
 
+### Circumstantial Handler Pointer Table
+
+These handlers are NOT inlined. Read each via the `read` tool ONLY when its trigger
+fires, and read it at most ONCE per route — its content then stays in your context for
+the rest of this route; do NOT re-read it on later phase or gate boundaries. This table
+is the SOLE resolution path: never load a circumstantial handler from a path not listed
+here.
+
+| Handler | Trigger condition | `_shared/` file | Read at (hook point) |
+|---|---|---|---|
+| Brownfield Route Handler | route classification == `brownfield` | `skills/_shared/route-brownfield.md` | At route dispatch, before the first brownfield phase (brownfield-advisory gate) |
+| 4R Review Gate Dispatch | `4r-review-gate` listed in the active route `gates` | `skills/_shared/gate-4r-review.md` | When the 4R hook point is reached (after successful `sdd-verify` returns `success`) |
+| Workspace Federation / Federation Baseline Loop | `artifact_store.backend == workspace-federated` | `skills/_shared/route-federation.md` | At route start when the backend is federated, before federated foundation / baseline loop |
+| Lifecycle Hook Dispatch | `hooks:` present and non-empty in `config.yaml` | `skills/_shared/dispatch-lifecycle-hooks.md` | At route start (setup/cache), before the first phase dispatch |
+| Archive Dispatch Guard (Quality Gates) | before dispatching `sdd-archive` | `skills/_shared/gate-archive-quality.md` | At the archive guard, before dispatching `sdd-archive` |
+| Change Collision Gate | before dispatching `sdd-apply` AND at least one OTHER active (non-terminal) change exists | `skills/_shared/gate-change-collision.md` | At the apply guard, after the Review Workload Guard resolves |
+| Question Shape Library | composing a delivery-strategy, review-workload, or blocked-envelope question | `skills/_shared/question-shapes.md` | At the ask point, before the first such `vscode/askQuestions` call in a session |
+| Clarify Gate Handler | the clarify gate RUNS per `#### sdd-clarify Routing` | `skills/_shared/clarify-routing.md` | After `sdd-spec` success, before dispatching `sdd-clarify`/`sdd-design` |
+| Gaps Resolution Handler (MANDATORY) | `sdd-foundation` returns `status: blocked` with unresolved functional/technical gaps — resolutions are recorded under the `approvals` ledger in `state.yaml` and `gaps_resolutions` in `openspec/config.yaml` | `skills/_shared/gaps-resolution.md` | On the blocked return, before relaunching `sdd-foundation` |
+
 ### State and Conventions
 
-Convention files under `skills/_shared/`: `persistence-contract.md`, `openspec-convention.md`, `sdd-phase-common.md`, and `skill-resolver.md`.
+Convention files under `skills/_shared/`: `persistence-contract.md`, `openspec-convention.md`, `sdd-phase-common.md`, `skill-resolver.md`, and `approval-ledger.md`.
 
 #### Sub-Agent Clarification Contract
 
-Sub-agents must not ask the user directly.
+Sub-agents must not ask the user directly. If a sub-agent needs blocking user input, it must return `status: blocked` and include either `next_question` or `question_gate` — normative field definitions in `_shared/sdd-phase-common.md` §D, reference blocked-envelope example in `skills/_shared/question-shapes.md`.
 
-If a sub-agent needs blocking user input, it must return `status: blocked` and include either `next_question` or `question_gate`.
-
-Preferred shape:
-
-```json
-{
-  "status": "blocked",
-  "blocker_type": "needs_user_decision",
-  "executive_summary": "Brief reason why user input is required.",
-  "question_gate": {
-    "reason": "Why this decision blocks the phase.",
-    "questions": [
-      {
-        "header": "Short title",
-        "question": "Concrete question for the user.",
-        "options": [
-          {
-            "label": "Option A",
-            "description": "Why Option A is recommended; its trade-off vs. Option B; and whether the choice is reversible later.",
-            "recommended": true
-          },
-          {
-            "label": "Option B"
-          }
-        ],
-        "multiSelect": false,
-        "allowFreeformInput": true
-      }
-    ]
-  },
-  "artifacts": [],
-  "next_recommended": "Ask the user and rerun this phase.",
-  "risks": ["What remains blocked until answered."],
-  "skill_resolution": "injected"
-}
-```
-
-When the orchestrator receives `status: blocked` with `question_gate`, it MUST call `vscode/askQuestions`, wait for the answer, and then relaunch or route the phase with the user's answer.
-
-When the orchestrator receives `status: blocked` with only `next_question`, it MUST convert it to a single `vscode/askQuestions` freeform question.
+When the orchestrator receives `status: blocked` with `question_gate`, it MUST call `vscode/askQuestions`, wait for the answer, and then relaunch or route the phase with the user's answer. With only `next_question`, convert it to a single `vscode/askQuestions` freeform question.
 
 Do not continue to downstream phases while a blocking question is unresolved.
 

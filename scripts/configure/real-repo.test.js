@@ -404,10 +404,10 @@ test("real repo: orchestrator pointer-table refs resolve and handler sentinels a
   const text = fs.readFileSync(orchestratorPath, "utf8");
   const lines = text.split("\n");
 
-  // Guard: body must be below 700 lines after thinning (lenient guard against re-inlining)
+  // Guard: body must be below 500 lines after the C2 thinning (ratchet against re-inlining)
   assert.ok(
-    lines.length < 700,
-    `orchestrator body must be < 700 lines; got ${lines.length}`
+    lines.length < 500,
+    `orchestrator body must be < 500 lines; got ${lines.length}`
   );
 
   // Sentinel absence: these strings must NOT appear in the orchestrator body after extraction
@@ -418,6 +418,11 @@ test("real repo: orchestrator pointer-table refs resolve and handler sentinels a
   assert.doesNotMatch(text, /before-task\.occurrences/, "lifecycle sentinel before-task.occurrences must not be inline in orchestrator body");
   assert.doesNotMatch(text, /Two-place override/, "archive sentinel Two-place override must not be inline in orchestrator body");
   assert.doesNotMatch(text, /parseQualityGates/, "archive sentinel parseQualityGates must not be inline in orchestrator body");
+  assert.doesNotMatch(text, /"label": "ask-on-risk"/, "delivery-strategy question JSON must not be inline in orchestrator body");
+  assert.doesNotMatch(text, /"label": "Chained PRs"/, "review-workload question JSON must not be inline in orchestrator body");
+  assert.doesNotMatch(text, /"blocker_type": "needs_user_decision"/, "blocked-envelope JSON example must not be inline in orchestrator body");
+  assert.doesNotMatch(text, /Intercept the block/, "gaps-resolution handler steps must not be inline in orchestrator body");
+  assert.doesNotMatch(text, /questions_asked/, "clarify gate handling steps must not be inline in orchestrator body");
 
   // Pointer table: extract skills/_shared/*.md refs and verify each resolves to an existing file
   const refRegex = /`(skills\/_shared\/[^`]+\.md)`/g;
@@ -439,6 +444,11 @@ test("real repo: orchestrator pointer-table refs resolve and handler sentinels a
     { sentinel: "before-task.occurrences", file: "skills/_shared/dispatch-lifecycle-hooks.md" },
     { sentinel: "Two-place override", file: "skills/_shared/gate-archive-quality.md" },
     { sentinel: "parseQualityGates", file: "skills/_shared/gate-archive-quality.md" },
+    { sentinel: '"label": "ask-on-risk"', file: "skills/_shared/question-shapes.md" },
+    { sentinel: '"label": "Chained PRs"', file: "skills/_shared/question-shapes.md" },
+    { sentinel: '"blocker_type": "needs_user_decision"', file: "skills/_shared/question-shapes.md" },
+    { sentinel: "Intercept the block", file: "skills/_shared/gaps-resolution.md" },
+    { sentinel: "questions_asked", file: "skills/_shared/clarify-routing.md" },
   ];
   for (const { sentinel, file } of sentinelFiles) {
     const filePath = path.join(ROOT, file);
