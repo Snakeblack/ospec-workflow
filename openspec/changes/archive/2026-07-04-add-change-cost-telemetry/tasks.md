@@ -79,10 +79,10 @@ Chain strategy: size-exception
 
 ## Phase 5: Verification / Cleanup
 
-- [ ] 5.1 Run `npm test` — confirm `subagent-stop.test.js` and `parity-contract.test.js` pass with the new floor and new unit tests [REQ-hooks-001, E1]
-- [ ] 5.2 Run `go test ./...` — confirm `subagentstop_test.go` passes with the new floor, new unit tests, and the cross-runtime `est_tokens` equality test [REQ-hooks-001, E1]
-- [ ] 5.3 Manual/agent walkthrough: archive a change with `phase-costs.jsonl` populated (one phase dispatched twice) and one with no file, confirming both Cost-block scenarios from REQ-agents-001 render as specified and never fail the archive [REQ-agents-001]
-- [ ] 5.4 Confirm `agents/sdd-archive.agent.md` needs no edit (still delegates to the skill) — no action, verification only
+- [x] 5.1 Run `npm test` — confirm `subagent-stop.test.js` and `parity-contract.test.js` pass with the new floor and new unit tests [REQ-hooks-001, E1]
+- [x] 5.2 Run `go test ./...` — confirm `subagentstop_test.go` passes with the new floor, new unit tests, and the cross-runtime `est_tokens` equality test [REQ-hooks-001, E1]
+- [x] 5.3 Manual/agent walkthrough: archive a change with `phase-costs.jsonl` populated (one phase dispatched twice) and one with no file, confirming both Cost-block scenarios from REQ-agents-001 render as specified and never fail the archive [REQ-agents-001]
+- [x] 5.4 Confirm `agents/sdd-archive.agent.md` needs no edit (still delegates to the skill) — no action, verification only
 
 ## Phase 6 — Remediación post-verify (warnings-remediation-001)
 

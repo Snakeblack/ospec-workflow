@@ -1,5 +1,5 @@
 change: add-change-cost-telemetry
-status: verified
+status: archived
 classification: normal
 route:
   intended_route: standard
@@ -46,7 +46,7 @@ approvals:
     applies_to:
       - sdd-apply
       - sdd-verify
-last_updated: 2026-07-04T21:00:00Z
+last_updated: 2026-07-04T22:30:00Z
 blocking_questions: []
 phases:
   proposal:
@@ -89,10 +89,15 @@ phases:
   verify:
     status: done
     artifact: "openspec/changes/add-change-cost-telemetry/verify-report.md"
-    summary: "PASS WITH WARNINGS. REQ-hooks-001 + E1 (floor 2->4) con runtime-test fuerte re-ejecutado (npm test verde, go test ./... ok, 107/107 targeted). REQ-agents-001 (bloque Cost en SKILL) solo inspection+manual -> WARNING."
+    summary: "PASS final tras re-verificacion dirigida (approval warnings-remediation-001, commit 9b0e9e3 tests-only). REQ-hooks-001 + E1 + REQ-agents-001 todos en runtime-test. Ambos WARNING cerrados: doc-assertion 6/6 (cost-block-contract) y concurrencia/stale-lock de appendPhaseCost 52/52 aislado. Drift de tasks.md Phase 5 corregido."
     key_decisions:
-      - "1 WARNING: REQ-agents-001 (prosa sdd-archive) sin test doc-assertion runtime"
-      - "est_tokens round(utf8/4) verificado: JS Math.round vs Go (len+2)/4 identicos para cafe->1, abcdefg->2"
+      - "REQ-agents-001 elevado de inspection-proof a runtime-test via scripts/cost-block-contract.test.js (6 tests)"
+      - "appendPhaseCost reliability probado: 40 writers concurrentes + reclamacion de lock stale"
+      - "2 SUGGESTION cross-runtime est_tokens (design-gap) quedan informativas, no bloqueantes"
+  archive:
+    status: done
+    artifact: "openspec/changes/archive/2026-07-04-add-change-cost-telemetry/archive-report.md"
+    summary: "Archive synced delta specs (hooks REQ-hooks-001 + E1 floor 2→4; agents REQ-agents-001 Cost block); promoted ADR-001 to docs/adr/; moved change folder to archive/2026-07-04-add-change-cost-telemetry/"
   apply:
     status: done
     artifact: "openspec/changes/add-change-cost-telemetry/apply-progress.md"
