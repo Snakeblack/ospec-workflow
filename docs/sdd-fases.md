@@ -56,6 +56,12 @@ Pregunta una sola cosa bloqueante cada vez y persiste lo confirmado antes de par
 
 Regla clave: no crea codigo de aplicacion. Define cimientos. Primero planos, luego ladrillos.
 
+## `sdd-workspace`
+
+Gestiona la federación multi-repo para workspaces complejos. Se encarga de coordinar la inicialización del atlas (`init`), consultar el estado consolidado de los cambios activos cross-repo (`status`) y calcular el impacto que tienen las modificaciones de contratos públicos entre proveedores y consumidores (`impact`).
+
+Regla clave: el gate de impacto bloquea la fase de diseño/implementación si detecta inconsistencias o contratos rotos entre repositorios hasta que sean resueltos explícitamente.
+
 ## `sdd-explore`
 
 Investiga antes de comprometer. Lee el codigo real, busca patrones, zonas afectadas, tests existentes y dependencias. Cuando hace falta para entender el cambio, tambien lee specs y artefactos ya presentes; no trabaja en aislamiento ciego.
@@ -175,6 +181,12 @@ Regla clave: no archiva con issues CRITICAL. El archivo es auditoria, no papeler
 Guia al usuario por un ciclo real pequeno en su propio repo. No es una demo de juguete. Busca una mejora de bajo riesgo, crea artefactos, implementa, verifica y archiva.
 
 Regla clave: si el workspace esta vacio, debe recomendar `sdd-foundation` primero. No se inventa una mejora donde no hay sistema.
+
+## `sdd-baseline`
+
+Permite establecer una línea base de comportamiento documentado en repositorios brownfield (que ya tienen código pero carecen de especificaciones en `openspec/specs/`). Se ejecuta en tandas incrementales (batches) por dominio de capacidad técnica para no agotar el contexto del modelo.
+
+Regla clave: aplica la política de "skip rule", respetando y omitiendo cualquier especificación que ya exista en `openspec/specs/{domain}/spec.md`, sin sobrescribir el trabajo preexistente.
 
 ## Runtime harness transversal
 

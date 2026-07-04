@@ -24,7 +24,7 @@ SDD ataca esos puntos con artefactos persistidos, fases separadas y gates explic
 | --- | --- |
 | Humano | Decide el objetivo, valida tradeoffs y acepta riesgos. La IA no lidera el producto. |
 | `sdd-orchestrator` | Coordina fases, aplica guards y delega a agentes especializados. |
-| Agentes de fase | Ejecutan una fase concreta: init, foundation, explore, propose, spec, design, tasks, apply, verify o archive. |
+| Agentes de fase | Ejecutan una fase concreta del ciclo (init, foundation, workspace, explore, propose, spec, clarify, design, tasks, apply, verify, archive, baseline u onboard). |
 | OpenSpec | Guarda el estado compartible: config, cambios activos, specs principales y archivo. |
 | Skills | Inyectan reglas compactas segun contexto: PRs, testing, commits, documentacion, etc. |
 

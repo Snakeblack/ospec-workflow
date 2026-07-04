@@ -1,176 +1,106 @@
 # ospec-workflow
 
-Spec-Driven Development (SDD) llave en mano: OpenSpec como fuente de verdad, Strict TDD, un orquestador
-que coordina agentes de fase, y cambios revisables de principio a fin. Está basado en
-[Gentle-ai de Gentleman Programming](https://github.com/Gentleman-Programming/gentle-ai).
+> **La inmediatez sin contrato es velocidad falsa.** `ospec-workflow` (v2.14.2) es un arnés de desarrollo Spec-Driven Development (SDD) llave en mano. Utiliza **OpenSpec** como única fuente de verdad y proporciona un orquestador inteligente que coordina agentes de fase, garantizando Strict TDD, control de tamaño de revisiones y gates de seguridad activos en cada commit.
 
-El **formato canónico es un plugin de agentes para VS Code**: VS Code carga este repositorio tal cual,
-sin compilar nada. Para llevar el mismo workflow a **Claude Code** o **GitHub Copilot CLI**, un
-generador (`scripts/configure/cli.js`) produce un árbol nativo y validado de cada herramienta en
-`dist/<target>/` sin tocar el origen. Un solo source, tres destinos. Ver
-[Compatibilidad multi-target](#compatibilidad-multi-target).
+Está basado en [Gentle-ai de Gentleman Programming](https://github.com/Gentleman-Programming/gentle-ai).
 
-La versión actual es **2.14.2**. El usuario trabaja con `sdd-orchestrator`; el orquestador coordina, los
-agentes de fase ejecutan y OpenSpec conserva el estado versionable.
+---
 
-## Inicio rápido
+## Filosofía SDD: Diseñar antes de Construir
 
+En el desarrollo asistido por IA, programar antes de comprender el problema genera deuda técnica y código incoherente. `ospec-workflow` impone una barrera de disciplina:
+
+1. **El Contrato es lo Primero**: Definimos la intención (`proposal`), el comportamiento observable (`spec.md`) y la arquitectura (`design.md`) antes de tocar una sola línea de código.
+2. **Evidencia sobre Opinión**: La fase `/sdd-verify` requiere pruebas reales ejecutadas y niveles de evidencia verificables, nunca supuestos.
+3. **El Repositorio es la Memoria**: Todo el estado del cambio y los supuestos de diseño viven en archivos versionables (`openspec/`), no en el historial volátil del chat.
+4. **Protección del Revisor**: Limitamos los cambios a un presupuesto recomendado de **400 líneas**. Si el cambio es mayor, el orquestador propone estrategias de PRs encadenadas para evitar fatiga en la revisión.
+
+---
+
+## Inicio Rápido en 3 Pasos
+
+### 1. Preparar las Instrucciones de tu Proyecto
+Copia la plantilla de instrucciones adecuada en la raíz de tu repositorio de destino para fijar el contrato de que el agente debe **coordinar en vez de implementar a mano**:
+- [`CLAUDE.md`](CLAUDE.md) $\rightarrow$ Para **Claude Code** (copia a tu repo).
+- [`AGENTS.md`](AGENTS.md) $\rightarrow$ Variante **agnóstica** para VS Code, Copilot u otros editores.
+
+### 2. Instalar el Plugin en tu Herramienta
+Elige tu target y ejecuta su configurador automático:
+
+| Entorno / Target | Comando de Instalación Rápida | ¿Qué hace? |
+| :--- | :--- | :--- |
+| **VS Code** | `npm run setup:vscode` | Compila a `dist/vscode` y lo añade a `chat.pluginLocations`. |
+| **Claude Code** | `npm run setup:claude` | Compila, valida de forma estricta e instala como plugin persistente. |
+| **Copilot CLI** | `npm run setup:copilot` | Compila e instala globalmente en tu máquina (`~/.copilot/`). |
+| **opencode** | `npm run setup:opencode` | Compila e instala en la carpeta de OpenCode (`~/.config/opencode/`). |
+
+### 3. Iniciar un Ciclo SDD
+Una vez cargado el plugin en tu agente de chat:
+1. **Inicializa el proyecto**: Escribe `/sdd-init`. Esto detectará automáticamente tu stack y test runner.
+2. **Comienza un cambio**: Escribe `/sdd-new <nombre-del-cambio>` (ej. `/sdd-new login-session-timeout`).
+3. **Completa el flujo**: Sigue la secuencia recomendada por el orquestador (`/sdd-continue` $\rightarrow$ `/sdd-apply` $\rightarrow$ `/sdd-verify` $\rightarrow$ `/sdd-archive`).
+
+---
+
+## Configuración Detallada por Target
+
+### 🛠️ VS Code (Carga Directa del Source)
 - **Opción A (Uso directo del source - sin ruteo de modelos)**:
-  1. Agrega la raíz de este repositorio clonado a `chat.pluginLocations` en tu `settings.json` de VS Code.
-- **Opción B (Compilado con ruteo de modelos de `models.yaml` - Recomendado)**:
-  1. Ejecuta el script de configuración automática:
-     ```powershell
-     npm run setup:vscode
-     ```
-     *(Esto compila el target VS Code a `dist/vscode` y lo añade automáticamente a `chat.pluginLocations` de tus editores VS Code/Insiders).*
-  2. Si deseas realizar cambios futuros e inyectarlos de nuevo:
-     ```powershell
-     npm run reload:vscode
-     ```
+  Añade la raíz de este repositorio clonado a `chat.pluginLocations` en tu `settings.json`.
+- **Opción B (Compilado con ruteo de modelos - Recomendado)**:
+  ```powershell
+  npm run setup:vscode
+  ```
+  Para actualizar tras realizar cambios en el source:
+  ```powershell
+  npm run reload:vscode
+  ```
 
-En ambos casos:
-1. Revisa el manifiesto, los hooks y los servidores MCP antes de habilitarlo.
-2. Instala el hook pre-commit de Git para validar tus cambios locales automáticamente:
-   ```powershell
-   npm run setup:git-hooks
-   ```
-3. Inicia un cambio con `/sdd-new` (o `/sdd-ff`, `/sdd-lite`, `/sdd-baseline` según el caso).
-4. Continúa el flujo con `/sdd-continue` o ejecútalo por fases.
-5. Verifica con `/sdd-verify` y archiva con `/sdd-archive`.
+### 🤖 Claude Code (Plugin Persistente y Marketplace)
+- **Para usuarios finales** (sin clonar el repositorio):
+  ```powershell
+  claude plugin marketplace add https://github.com/mretamozo-hiberuscom/ospec-workflow.git#release
+  claude plugin install ospec-workflow@ospec-tools
+  ```
+- **Para desarrollo del plugin** (instalación idempotente local):
+  ```powershell
+  npm run setup:claude
+  ```
+  *(Dentro de la sesión de Claude Code, escribe `/reload-plugins` para aplicar cambios).*
+- **Reconstrucción rápida durante el desarrollo**:
+  ```powershell
+  npm run reload:claude
+  ```
 
-### Instrucciones del proyecto (recomendado)
+### 💻 GitHub Copilot CLI (Carga Global)
+- **Instalación Global (Recomendado)**:
+  ```powershell
+  npm run setup:copilot
+  ```
+  *(Esto copia agentes, instrucciones y comandos a `~/.copilot/` y fusiona el archivo `mcp-config.json` global).*
+- **Instalación Local (Solo para un proyecto específico)**:
+  ```powershell
+  npm run install:copilot -- ../mi-proyecto
+  ```
 
-El plugin rinde mejor cuando el agente sabe **coordinar en vez de ejecutar**: un solo
-hilo de conversación que delega en el orquestador SDD y sus agentes de fase. Para fijar
-ese contrato, este repo incluye dos plantillas listas para copiar a la raíz de tu
-proyecto:
+### 🧬 opencode
+- **Instalación Global (Recomendado)**:
+  ```powershell
+  npm run setup:opencode
+  ```
+  *(El agente principal se renombra automáticamente a `ospec-workflow` para facilitar su descubrimiento por autocompletado).*
+- **Instalación Local**:
+  ```powershell
+  npm run install:opencode -- ../mi-proyecto
+  ```
 
-- [`CLAUDE.md`](CLAUDE.md) — para **Claude Code** (sintaxis de skills y `AskUserQuestion`).
-- [`AGENT.md`](AGENT.md) — variante **agnóstica** para GitHub Copilot CLI, opencode u
-  otros agentes (renómbralo a `AGENTS.md` si tu harness usa ese nombre).
-
-Copia el archivo correspondiente y fusiónalo con tus instrucciones existentes. Sin él el
-flujo igual funciona, pero el agente tiende a implementar a mano en lugar de delegar.
-
-### Claude Code
-
-#### Para usuarios finales (sin clonar el repo ni Node)
-
-El repositorio no se instala directo: la fuente canónica está en formato VS Code y
-el target `claude` requiere una transformación obligatoria. El artefacto ya
-construido se publica en la branch `release` (vía CI), así que basta con:
-
-```powershell
-claude plugin marketplace add https://github.com/mretamozo-hiberuscom/ospec-workflow.git#release
-claude plugin install ospec-workflow@ospec-tools
-```
-
-La branch `release` es un canal "latest" continuo: CI la republica cada vez que
-publicas un GitHub Release. Si ya lo tienes instalado, Claude Code cachea el
-marketplace, así que para recibir la última versión actualiza explícitamente:
-
-```powershell
-claude plugin marketplace update ospec-tools
-claude plugin update ospec-workflow@ospec-tools
-```
-
-Para equipos, puedes versionar esto en `.claude/settings.json` y que a cada
-miembro se le ofrezca instalarlo al confiar la carpeta del proyecto:
-
-```json
-{
-  "extraKnownMarketplaces": {
-    "ospec-tools": {
-      "source": { "source": "github", "repo": "mretamozo-hiberuscom/ospec-workflow", "ref": "release" }
-    }
-  },
-  "enabledPlugins": ["ospec-workflow@ospec-tools"]
-}
-```
-
-#### Para desarrollo del plugin (un solo comando)
-
-Probar solo durante la sesión actual, sin instalar:
-
-```powershell
-node scripts/configure/cli.js --target claude --out dist/claude
-claude --plugin-dir dist/claude
-```
-
-Instalación persistente desde el marketplace local. El comando es **idempotente**:
-la primera vez registra e instala, y en cada cambio reconstruye y actualiza.
-
-```powershell
-npm run setup:claude
-```
-
-Después abrí Claude Code normalmente (`claude`) y, dentro de la sesión, `/reload-plugins`.
-
-Mientras iterás con una sesión abierta, lo más rápido es solo reconstruir y recargar:
-
-```powershell
-npm run reload:claude   # build (con validación strict) — luego /reload-plugins en la sesión
-```
-
-> `npm run setup:claude` reemplaza el flujo manual de cinco pasos. El build ya corre
-> `claude plugin validate --strict`, y el registro del marketplace + install solo
-> hacen falta una vez (después se hace `update`). Si preferís el flujo crudo, sigue
-> disponible en [docs/plugin-installation.md](docs/plugin-installation.md).
-
-### GitHub Copilot CLI
-
-El target `github-copilot` permite dos modalidades de uso.
-
-**Opción A: Local / Proyecto específico**
-
-Copia el árbol de agentes y configuración en la raíz del repositorio de destino (`.github/`, `.mcp.json`, `skills/`, `scripts/`):
-
-```powershell
-npm run install:copilot -- ../mi-proyecto   # build + copia el árbol
-npm run build:copilot                        # solo build a dist/github-copilot
-```
-
-Agregá `--dry-run` para ver qué copiaría sin escribir:
-`node scripts/configure/install-target.js github-copilot ../mi-proyecto --dry-run`.
-
-**Opción B: Global**
-
-Registra todos los agentes, comandos, instrucciones y plugins de manera global en el directorio de configuración del usuario (`~/.copilot/`) y fusiona la configuración MCP en `mcp-config.json` de forma automática. De esta forma, el agente `sdd-orchestrator` y sus comandos estarán disponibles en cualquier proyecto abierto:
-
-```powershell
-npm run setup:copilot              # build + copia global + merge config (idempotente)
-npm run reload:copilot             # reconstruye y actualiza la instalación global
-```
-
-### opencode
-
-El target `opencode` permite dos modalidades de uso. En ambas modalidades, el agente principal `sdd-orchestrator` se renombra automáticamente a `ospec-workflow` para integrarse de forma nativa con la interfaz de OpenCode.
-
-**Opción A: Local / Proyecto específico**
-
-Copia el árbol de agentes y configuración en la raíz del repositorio de destino (`.opencode/`, `opencode.json`, `skills/`, `scripts/`):
-
-```powershell
-npm run install:opencode -- ../mi-proyecto   # build + copia el árbol
-npm run build:opencode                        # solo build a dist/opencode
-```
-
-**Opción B: Global**
-
-Registra todos los agentes, comandos, instrucciones y plugins de manera global en el directorio de configuración del usuario (`~/.config/opencode/`) y fusiona el archivo `opencode.json` (MCP y configs) de forma automática. De esta forma, el agente `ospec-workflow` (accesible presionando Tab o escribiendo su nombre) estará disponible en cualquier proyecto abierto:
-
-```powershell
-npm run setup:opencode             # build + copia global + merge config (idempotente)
-npm run reload:opencode            # reconstruye y actualiza la instalación global
-```
-
-Consulta la [guía de instalación](docs/plugin-installation.md) para instalación remota, desarrollo local, marketplace local de Claude Code y requisitos de confianza.
+Consulta la [guía de instalación](docs/plugin-installation.md) para más detalles sobre instalación remota, desarrollo local, marketplace y confianza del plugin.
 
 ## Qué incluye
 
 | Ruta | Propósito |
 | --- | --- |
-| `CLAUDE.md` / `AGENT.md` | Plantillas de instrucciones de proyecto (Claude Code y agnóstica) que fijan el contrato coordinador-no-ejecutor. Copialas a tu repo. |
+| `CLAUDE.md` / `AGENTS.md` | Plantillas de instrucciones de proyecto (Claude Code y agnóstica) que fijan el contrato coordinador-no-ejecutor. Copialas a tu repo. |
 | `.plugin.json` | Manifiesto **canónico** (VS Code/direct-load). Editá este primero. |
 | `.claude-plugin/plugin.json` | Copia de compatibilidad para la distribución Claude; también es la fuente que lee el generador (`scripts/configure/cli.js`). Debe reflejar el canónico — `scripts/manifest-sync.test.js` lo verifica en CI. |
 | `agents/` | Orquestador y agentes especializados por fase. |
@@ -274,7 +204,7 @@ Los hooks descargan del prompt tareas repetitivas del ciclo de vida y aplican po
 | Evento | Responsabilidad |
 | --- | --- |
 | `SessionStart` | Valida OpenSpec, refresca la caché compacta de skills y ejecuta escaneos de seguridad de **AgentShield** (alertas por archivos `.env` expuestos o credenciales en `.git/config`). |
-| `PreToolUse` | Bloquea o solicita confirmación para comandos peligrosos, evalúa límites de **Token Budget Advisor** (límite de 20k tokens por archivo, 90k tokens acumulados por sesión) e implementa **AgentShield** (bloqueo de claves SSH, `.npmrc`, `.git/config`, y prompts interactivos ante secretos). |
+| `PreToolUse` | Bloquea o solicita confirmación para comandos peligrosos, evalúa límites de **Token Budget Advisor** (límite de 50k tokens por archivo, 220k tokens acumulados por sesión) e implementa **AgentShield** (bloqueo de claves SSH, `.npmrc`, `.git/config`, y prompts interactivos ante secretos). |
 | `PreCompact` | Persiste un resumen recuperable antes de compactar contexto. |
 | `SubagentStop` | Detecta degradación en la resolución de skills. |
 | `Stop` | Registra la continuidad mínima de la sesión. |
