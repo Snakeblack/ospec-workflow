@@ -84,11 +84,67 @@ openspec/changes/{change-name}/specs/{domain}/spec.md
 
 **This step is MANDATORY — do NOT skip it.**
 
-Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
+Before persisting, compose the report content, including the Cost block below. Then
+follow **Section C** from `skills/_shared/sdd-phase-common.md`.
 - artifact: `archive-report`
 - path: `openspec/changes/{change-name}/archive-report.md`
 
 Persist the report into the **active** change folder. The folder move (Step 5) is the LAST filesystem operation, so the move carries this report into the archive. Steps 3 and 4 MUST run while the change folder is still at its active path.
+
+#### Cost Block (REQ-agents-001)
+
+Compose this "Cost" block as part of the archive report content, after the report's other
+sections are composed and before the report is persisted. It never changes the close-gate
+enforcement (top of Step 2), the spec-sync order, or the archive-folder move (Step 5) —
+it is purely additive reporting.
+
+**IF mode is `none`:** Skip — no cost telemetry to read or report.
+
+**IF mode is `openspec`:**
+
+1. Read `.ospec/session/{change-name}/phase-costs.jsonl` (JSONL, one dispatch record per
+   line, per `REQ-hooks-001`: `{phase, agent, est_tokens, status, ts}`).
+2. **Empty/missing-data fallback**: if the file does not exist, is empty, or contains no
+   parseable JSON lines, still emit the Cost block below showing zero/"no data" per phase
+   — do NOT omit the block and do NOT fail or gate the archive on this condition. Cost
+   incompleteness MUST NOT gate archive.
+3. Otherwise, group the parsed records by `phase` and sum `est_tokens` per phase. Label
+   every token figure "estimated" — these are heuristic estimates (~4 bytes/token), never
+   exact metering (`REQ-hooks-001`).
+4. For each phase, compute re-launches as `count(records for that phase) - 1`, floored at
+   0 (one dispatch = 0 re-launches; two dispatches of the same phase = 1 re-launch, etc.)
+   — derived purely from `phase-costs.jsonl` row counts, per ADR-001.
+5. Read `state.yaml`'s `phases.*.questions_asked` integer fields (missing for a phase → 0)
+   and sum them across all phases to get the total user-questions-asked count for the
+   change — per ADR-001. The `SubagentStop` hook has no visibility into orchestrator-asked
+   questions, so this count is sourced from `state.yaml`, never from `phase-costs.jsonl`.
+6. Render the block into the archive report:
+
+   ```markdown
+   ## Cost
+
+   Estimated token cost per phase, aggregated from
+   `.ospec/session/{change-name}/phase-costs.jsonl`. Figures are heuristic estimates
+   (~4 bytes/token), not exact metering.
+
+   | Phase | Estimated tokens | Re-launches |
+   |-------|-------------------|-------------|
+   | {phase} | {sum of est_tokens} (estimated) | {count - 1, floored at 0} |
+
+   **Total user questions asked**: {sum of `phases.*.questions_asked` from `state.yaml`}
+   ```
+
+   When the empty/missing-data fallback (step 2) applies, render the block with a note
+   instead of a populated table, e.g.:
+
+   ```markdown
+   ## Cost
+
+   No per-phase cost data was recorded for this change
+   (`.ospec/session/{change-name}/phase-costs.jsonl` missing or empty).
+
+   **Total user questions asked**: {sum of `phases.*.questions_asked` from `state.yaml`, or 0}
+   ```
 
 ### Step 4: Write Resolved Decisions to Memory
 

@@ -1,0 +1,118 @@
+change: add-change-cost-telemetry
+status: ready-for-verify
+classification: normal
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "project.status: active matched the standard route; classification normal (new hook behavior in both runtimes, cross-module)."
+  validated: true
+  validation_errors: []
+owner:
+  author: Manuel Retamozo
+  branch: main
+execution_mode: auto
+delivery_strategy: exception-ok
+approvals:
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: AskUserQuestion
+    accepted_at: 2026-07-04T00:00:00Z
+    applies_to:
+      - all-phases
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: AskUserQuestion
+    accepted_at: 2026-07-04T00:00:00Z
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: clarify-fixture-floor-001
+    gate: clarify
+    decision: "Parity fixture floor for SubagentStop = 4 (2 existing + 2 new: active-change and no-active-change as separate fixture files); spec text 2->3 must be corrected to 2->4"
+    source: AskUserQuestion
+    accepted_at: 2026-07-04T15:50:00Z
+    applies_to:
+      - sdd-clarify
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+last_updated: 2026-07-04T19:30:00Z
+blocking_questions: []
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/add-change-cost-telemetry/proposal.md"
+    summary: "SubagentStop (JS+Go) escribe phase-costs.jsonl por dispatch; sdd-archive añade bloque de costos. Modifica hooks + agents."
+    key_decisions:
+      - "Reusar heurística estimateTokens (~4 chars/token) del Token Budget Advisor"
+      - "Nueva familia de fixtures de paridad; floor 2->3"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/add-change-cost-telemetry/specs/hooks/spec.md"
+      - "openspec/changes/add-change-cost-telemetry/specs/agents/spec.md"
+    summary: "Delta hooks: SubagentStop persiste phase-costs.jsonl (REQ-hooks-001) + fixture family subagent-stop-phase-cost-*, floor 2->3. Delta agents: bloque de costos en archive-report (REQ-agents-001)."
+    key_decisions:
+      - "Fuente exacta de re-launches/preguntas (state.yaml vs jsonl) queda deferida a sdd-design; el requisito solo fija el contenido observable del reporte"
+  clarify:
+    status: done
+    artifacts:
+      - "openspec/changes/add-change-cost-telemetry/specs/hooks/spec.md"
+    questions_asked: 1
+    summary: "1 ambigüedad material resuelta: floor de fixtures SubagentStop corregido de 2->3 a 2->4 (dos fixtures nuevos separados: active-change y no-active-change)."
+    key_decisions:
+      - "Floor SubagentStop = 4 (2 existentes + 2 nuevos: active-change y no-active-change en archivos separados)"
+  design:
+    status: done
+    artifact: "openspec/changes/add-change-cost-telemetry/design.md"
+    summary: "persistPhaseCost espeja el patron C5 en JS+Go; escribe .ospec/session/{change}/phase-costs.jsonl fail-safe. Fixtures phase-cost (floor 4). ADR-001 resuelve la fuente de agregacion diferida."
+    key_decisions:
+      - "est_tokens = round(utf8ByteLength/4) en ambos runtimes (identico cross-runtime)"
+      - "Re-launches derivados de phase-costs.jsonl (rows-1); preguntas de state.yaml questions_asked (ADR-001)"
+      - "Fixture active-change usa workspace dedicado con openspec (write cae en .ospec/ gitignored); state.yaml sin fence"
+  tasks:
+    status: done
+    artifact: "openspec/changes/add-change-cost-telemetry/tasks.md"
+    summary: "5 fases: writers JS+Go (Phase 1), persistPhaseCost en ambos runtimes TDD (Phase 2), fixtures de paridad floor 2->4 (Phase 3), bloque Cost en sdd-archive Step 3 (Phase 4), verificacion npm+go test (Phase 5)."
+    key_decisions:
+      - "Single PR (size:exception aprobado por delivery-strategy-001); no se recomienda chained PRs pese al riesgo alto de linea-400"
+  apply:
+    status: done
+    artifact: "openspec/changes/add-change-cost-telemetry/apply-progress.md"
+    summary: "BATCH 1 (Phases 1-3, TDD estricto): appendPhaseCost/AppendPhaseCost (JS+Go), persistPhaseCost en ambos runtimes, familia de fixtures de paridad floor 2->4. BATCH 2 (Phases 4-5, FINAL): bloque Cost en skills/sdd-archive/SKILL.md Step 3 (con fallback vacio/faltante) + verificacion completa (npm test 961/961, go test ./... ok todos los paquetes) + walkthrough manual confirmando ambos escenarios de REQ-agents-001."
+    key_decisions:
+      - "derivePhaseKey extraido como helper compartido en ambos runtimes (REFACTOR 2.5), sin cambio de comportamiento"
+      - "Diff de este batch (847 lineas tracked) excede la estimacion original de toda la change (~380-430); continuado por size:exception explicito, no por omision del guard"
+      - "Phase 4 es prosa-only (SKILL.md); TDD estricto no aplica por falta de superficie ejecutable, documentado honestamente como N/A en vez de fabricar tests"
+      - "agents/sdd-archive.agent.md confirmado sin cambios (thin pointer), per diseno"
+decisions:
+  - adr: "openspec/changes/add-change-cost-telemetry/decisions/adr-001.md"
+    title: "Aggregation source for re-launch and user-question counts"
+    status: proposed
+baseline_fingerprints:
+  hooks: "7ff5177d88e3e1bd524fbe636fa1e29189c4463b137ac6aa3fa540f8f90dfc90"
+  agents: "fda47430fadb33325941da9d8174f707a2f3d01667bc9a56821766c3c5a5d011"
+assumptions:
+  - id: sdd-spec-001
+    phase: sdd-spec
+    statement: "Recorded baseline_fingerprints as null for hooks/agents due to lack of a hashing tool this batch, rather than blocking the phase."
+    reversibility: low
+    basis: "No shell/bash tool was available to this executor; the spec skill's Step 5b requires the fingerprint but does not mandate blocking when unavailable, and the guard is fail-open by design elsewhere in this codebase."
+    recorded_at: 2026-07-04T15:40:00Z
+    status: corrected  # orchestrator backfilled real SHA-256 fingerprints immediately after the spec phase
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "Payload de estimación = primer campo presente de RESULT_FIELDS (string tal cual, o serializado JSON); status = envelope.status, luego input.status, luego 'unknown'."
+    reversibility: high
+    basis: "Reusa RESULT_FIELDS ya definido en subagent-stop.js; detalle interno, el JSONL está etiquetado como estimado y su contenido no se assertea byte-for-byte."
+    recorded_at: 2026-07-04T16:05:00Z
+    status: unresolved
+  - id: sdd-design-002
+    phase: sdd-design
+    statement: "Fixture active-change usa workspace checked-in dedicado con openspec/ activo y stdin sin fence de envelope válido para no mutar el state.yaml trackeado; el write de phase-costs.jsonl cae en .ospec/ (gitignored)."
+    reversibility: high
+    basis: ".gitignore línea 4 ignora .ospec/; el patrón de token-substitution ya existe en parity-contract.test.js/subagentstop_test.go."
+    recorded_at: 2026-07-04T16:05:00Z
+    status: unresolved
