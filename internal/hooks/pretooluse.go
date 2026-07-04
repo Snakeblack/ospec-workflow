@@ -338,58 +338,17 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 
 		paths := extractPaths(rawInput.ToolInput)
 		for _, filePath := range paths {
-			filename := strings.ToLower(filepath.Base(filePath))
-			ext := strings.ToLower(filepath.Ext(filePath))
-
-			// Bloqueo estricto (deny)
-			isSshKey := strings.HasPrefix(filename, "id_") && (ext == "" || ext == ".key" || ext == ".pem" || filename == "id_rsa" || filename == "id_ecdsa" || filename == "id_ed25519")
-			
-			// Check if .git/config inside workspace
-			root := findWorkspaceRoot()
-			isGitConfig := filename == "config" && strings.Contains(filepath.ToSlash(filePath), "/.git/config") && strings.HasPrefix(filepath.Clean(filePath), filepath.Clean(root))
-			isNpmrc := filename == ".npmrc"
-
-			if isSshKey || isGitConfig || isNpmrc {
-				return makeDecision("deny", "Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente."), 0
-			}
-
-			// Advertencia interactiva (ask) por nombre de archivo
-			isEnv := strings.HasPrefix(filename, ".env")
-			isSecrets := filename == "secrets.json" || filename == "credentials"
-			if isEnv || isSecrets {
+			// Bloqueo/advertencia por nombre de archivo (secretscan.go)
+			if class := classifySensitiveFile(filePath); class != nil {
+				if class.action == "deny" {
+					return makeDecision("deny", "Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente."), 0
+				}
 				return makeDecision("ask", "Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura?"), 0
 			}
 
-			// Escaneo de contenido para archivos < 1MB
-			if info, err := os.Stat(filePath); err == nil && info.Size() < 1024*1024 {
-				if contentBytes, err := os.ReadFile(filePath); err == nil {
-					content := string(contentBytes)
-
-					// Patterns
-					patterns := []string{
-						`sk-[a-zA-Z0-9]{48}`,
-						`AIzaSy[a-zA-Z0-9-_]{33}`,
-						`AKIA[A-Z0-9]{16}`,
-						`xox[baprs]-[0-9a-zA-Z]{10,48}`,
-						`eyJ[a-zA-Z0-9-_]+\.eyJ[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+`,
-					}
-
-					hasSecret := false
-					for _, pattern := range patterns {
-						if match, _ := regexp.MatchString(pattern, content); match {
-							hasSecret = true
-							break
-						}
-					}
-
-					// Generic passwords
-					genericRegex := `(?i)(?:password|passwd|pass|contrase[nñ]a|secret|key|token|private_key)\s*[:=]\s*["'][^"']{6,}["']`
-					passMatch, _ := regexp.MatchString(genericRegex, content)
-
-					if hasSecret || passMatch {
-						return makeDecision("ask", "Advertencia de seguridad: El contenido de este archivo parece contener credenciales o tokens. ¿Está seguro de permitir su lectura?"), 0
-					}
-				}
+			// Escaneo de contenido (tokens conocidos + credenciales genéricas)
+			if matched, _ := scanFileForSecrets(filePath); matched {
+				return makeDecision("ask", "Advertencia de seguridad: El contenido de este archivo parece contener credenciales o tokens. ¿Está seguro de permitir su lectura?"), 0
 			}
 		}
 	}

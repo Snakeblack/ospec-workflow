@@ -72,6 +72,7 @@ Lo mismo aplica a `internal/skillreg/skillreg.go` (espeja `skill-registry.js`),
 | `artifact-store.js` (**federado**) | — *(no portado)* | **brecha, §3** |
 | `skill-registry.js` | `skillreg/skillreg.go` | discovery + fingerprint + cache v2 |
 | `pre-tool-use.js` reglas | `rules/rules.go` | DENY/ASK |
+| `scripts/hooks/lib/secret-scan.js` | `hooks/secretscan.go` | agent-shield: clasificación de archivos sensibles + escaneo de credenciales |
 | parser YAML inline | `yamllite/yamllite.go` | solo lectura |
 
 ## 3. Brecha conocida: agregación federada en hooks

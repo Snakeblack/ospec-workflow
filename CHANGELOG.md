@@ -8,6 +8,14 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.14.2] - 2026-07-04
+
+### Fixed
+- **Falsos positivos del agent-shield en el escaneo de credenciales**: el regex genérico de `password/key/token = "..."` usaba `\s*`, que cruza saltos de línea, y matcheaba keywords como substring de otras palabras — un doc con "Key rule:" seguido párrafos después de un string entre comillas disparaba la advertencia de seguridad. El patrón endurecido exige que keyword y valor convivan en la misma línea (`[ \t]*` + `[^"'\n]`) y que la keyword no sea sufijo de otra palabra (`(?:^|[^a-z])`, compatible con RE2; se preservan prefijos legítimos como `db_password` y `api_key`).
+
+### Changed
+- **Escaneo de secretos desacoplado y espejado Go/JS**: la clasificación de archivos sensibles (deny/ask por nombre) y el escaneo de contenido salen de los handlers monolíticos hacia módulos dedicados — `scripts/hooks/lib/secret-scan.js` y `internal/hooks/secretscan.go` — con contrato de paridad documentado en `docs/harness-go-js-parity.md`, ids estables por patrón, límite de 1MB compartido y comportamiento fail-open ante errores de lectura. En Go los regexes ahora se precompilan a nivel de paquete (antes se recompilaban en cada invocación del hook) y el deny de `.git/config` se alinea al canon JS (cualquier path `.git/config`, sin scoping por workspace root). Suites table-driven espejadas: `secret-scan.test.js` (34 casos) y `secretscan_test.go`, incluyendo regresión de los falsos positivos multilínea y por substring.
+
 ## [2.14.1] - 2026-07-04
 
 ### Changed
