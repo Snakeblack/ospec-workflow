@@ -56,7 +56,7 @@ The agent MUST enforce a write sandbox: all file writes are strictly restricted 
 
 #### Scenario: Write sandbox violation
 
-- GIVEN the agent has an approved output directory
+- GIVEN the agent has approved output directory
 - WHEN a write operation targets a file outside the approved directory
 - THEN the agent MUST halt execution and return `status: blocked` with `blocker_type: design-mismatch`
 

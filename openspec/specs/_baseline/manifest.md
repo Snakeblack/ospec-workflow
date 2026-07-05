@@ -26,3 +26,5 @@
 | skills | reconciled | - | 5beb80c | 2026-07-03T18:53:55Z |
 | agents | reconciled | - | 37413bd | 2026-07-04T00:00:00Z |
 | sdd-document | done | 8 | 2573453 | 2026-07-05T07:30:00Z |
+| sdd-document | reconciled | - | 7160b0a | 2026-07-05T07:37:34Z |
+
