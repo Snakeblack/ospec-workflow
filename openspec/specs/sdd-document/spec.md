@@ -22,6 +22,12 @@ The system MUST define the `sdd-document` agent as a non-user-invocable agent in
 - WHEN the generator parses agent configuration
 - THEN the agent model mapping MUST resolve to the default tier defined in `models.yaml`
 
+#### Scenario: Agent tool configuration verification
+
+- GIVEN the `sdd-document` agent is loaded
+- WHEN the generator parses agent configuration
+- THEN the tools list MUST include 'read', 'search', 'edit', and 'execute'
+
 ---
 
 ### Requirement: Interactive Launch Gate and Scope Selection {#REQ-sdd-document-002}
@@ -240,9 +246,23 @@ The agent MUST load `skills/cognitive-doc-design/SKILL.md` as a quality referenc
 
 ### Requirement: Root Agent Instruction Files Mapping {#REQ-sdd-document-013}
 
-Unless the user explicitly asks not to, the `sdd-document` agent MUST verify whether the repository's top-level agent instruction files (`/AGENTS.md` and/or `/CLAUDE.md`) exist, and add or update the OpenWiki reference block there. If neither exists, it MUST create a top-level `/AGENTS.md` containing only the OpenWiki reference block.
+Unless the user explicitly asks not to, the `sdd-document` agent MUST verify whether the repository's top-level agent instruction files (`/AGENTS.md` and/or `/CLAUDE.md`) exist, and add or update the OpenWiki reference section there. If both exist, the same section MUST be added to both. If neither exists, it MUST create a top-level `/AGENTS.md` containing only the OpenWiki reference section.
 
-The reference block MUST point to `openwiki/quickstart.md` and provide a concise guidance note for future agents.
+The OpenWiki reference section MUST use the exact markdown structure:
+```markdown
+## OpenWiki
+
+This repository has documentation located in the /openwiki directory.
+
+Start here:
+- [OpenWiki quickstart](openwiki/quickstart.md)
+
+OpenWiki includes repository overview, architecture notes, workflows, domain concepts, operations, integrations, testing guidance, and source maps.
+
+When working in this repository, read the OpenWiki quickstart first, then follow its links to the relevant architecture, workflow, domain, operation, and testing notes.
+```
+
+During update runs, the agent MUST inspect the reference section and refresh it only if the section is missing or semantically stale. The agent MUST NOT edit `/AGENTS.md` or `/CLAUDE.md` only to normalize formatting, blank lines, wrapping, or punctuation if the existing OpenWiki section is already semantically correct.
 
 #### Scenario: Inject reference section into AGENTS.md
 
@@ -250,3 +270,28 @@ The reference block MUST point to `openwiki/quickstart.md` and provide a concise
 - WHEN the agent completes document generation
 - THEN it MUST append the OpenWiki reference section to `/AGENTS.md`
 - AND it MUST preserve all surrounding instructions in `/AGENTS.md`
+
+#### Scenario: Both AGENTS.md and CLAUDE.md exist
+
+- GIVEN both `/AGENTS.md` and `/CLAUDE.md` exist and do not contain the OpenWiki reference section
+- WHEN the agent completes document generation
+- THEN it MUST append the OpenWiki reference section to both `/AGENTS.md` and `/CLAUDE.md`
+- AND it MUST ensure the exact same reference section is duplicated in both files
+
+#### Scenario: Neither AGENTS.md nor CLAUDE.md exists
+
+- GIVEN neither `/AGENTS.md` nor `/CLAUDE.md` exists in the repository
+- WHEN the agent completes document generation
+- THEN it MUST create a top-level `/AGENTS.md` containing only the OpenWiki reference section
+
+#### Scenario: Reference section is semantically correct on update run
+
+- GIVEN `/AGENTS.md` exists and contains a semantically correct OpenWiki reference section
+- WHEN the agent runs in update mode
+- THEN it MUST NOT edit `/AGENTS.md` for formatting-only changes
+
+#### Scenario: Reference section is semantically stale on update run
+
+- GIVEN `/AGENTS.md` exists and contains a semantically stale OpenWiki reference section
+- WHEN the agent runs in update mode
+- THEN it MUST update `/AGENTS.md` with the exact correct OpenWiki reference section
