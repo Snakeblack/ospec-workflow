@@ -224,7 +224,9 @@ The root index file. Follow this structure:
 
 #### 6.3: Generate Domain Pages
 
-For each discovered domain, generate one file: `{output_dir}/{domain-slug}/{page-name}.md`
+For each discovered domain, generate one file inside a themed subdirectory: `{output_dir}/{domain-slug}/{page-name}.md`
+- The `{page-name}` should reflect the content of the domain (for example, `openwiki/architecture/overview.md`, `openwiki/workflows/agent-flows.md`, `openwiki/runtime-hooks/lifecycle-hooks.md`, `openwiki/state-management/persistence.md`, `openwiki/testing-quality/guidelines.md`).
+- Do NOT generate flat files in the root folder (e.g., `openwiki/core-architecture.md`).
 
 Each domain page MUST follow this structure:
 
@@ -253,6 +255,7 @@ Each domain page MUST follow this structure:
 - Existing accurate documentation should be linked and summarized, not duplicated wholesale
 - Heading format: use imperative verbs ("Install the CLI" not "Installation")
 - Modify `/AGENTS.md` and `/CLAUDE.md` strictly to add or update the OpenWiki reference block; do not modify any other parts of these files
+- All links to repository source files in tables, lists, and maps MUST use relative paths starting with a forward slash (e.g., `/package.json`, `/openspec/config.yaml`). Never use absolute host-level file URLs (e.g., `file:///c:/...`).
 
 ### Step 6.4: Generate `.last-update.json`
 

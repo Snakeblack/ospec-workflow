@@ -107,3 +107,19 @@ test("Target generation transforms sdd-document to opencode target", (t) => {
   assert.equal(result.exitCode, 0);
   assert.ok(fsSync.existsSync(path.join(out, ".opencode/agents/sdd-document.md")), "opencode output must contain .opencode/agents/sdd-document.md");
 });
+
+test("skills/sdd-document/SKILL.md details relative path formatting", async () => {
+  const content = await fs.readFile(SKILL_PATH, "utf8");
+  assert.ok(content.includes("relative paths starting with a forward slash"), "SKILL.md must enforce relative file paths");
+});
+
+test("skills/sdd-document/SKILL.md details themed subdirectory structures", async () => {
+  const content = await fs.readFile(SKILL_PATH, "utf8");
+  assert.ok(content.includes("themed subdirectory") && content.includes("{domain-slug}/{page-name}.md"), "SKILL.md must specify themed subdirectories for domains");
+});
+
+test("skills/sdd-document/SKILL.md defines the official metadata format", async () => {
+  const content = await fs.readFile(SKILL_PATH, "utf8");
+  assert.ok(content.includes("generator") && content.includes("stats") && content.includes("sections"), "SKILL.md must define full metadata schema");
+});
+
