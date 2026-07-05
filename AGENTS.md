@@ -29,3 +29,8 @@ OpenWiki includes repository overview, architecture notes, workflows, domain con
 
 When working in this repository, read the OpenWiki quickstart first, then follow its links to the relevant architecture, workflow, domain, operation, and testing notes.
 
+## Notas de release
+
+Cuando se te pida crear o actualizar notas de release, changelog o resúmenes de cambios, activa y sigue estrictamente la habilidad [gh-release-notes](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/skills/gh-release-notes/SKILL.md) para garantizar un formato homogéneo en español neutro.
+
+
