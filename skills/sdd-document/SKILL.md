@@ -146,8 +146,8 @@ You MUST immediately halt execution and return a launch-blocking `question_gate`
    - Option A -> `openwiki/`
    - Option B -> `docs/wiki/`
    - Option C -> `<validated custom path>`
-2. **Hard Gate**: You are strictly restricted from editing or writing to any files outside the approved output directory.
-3. If any task or write operation targets a file outside this path (e.g. attempting to write to `internal/`, `src/`, or root configuration files), you MUST halt execution, throw a warning/error in the logs, and return `status: blocked` with `blocker_type: design-mismatch` (or throw an execution boundary violation error).
+2. **Hard Gate**: You are strictly restricted from editing or writing to any files outside the approved output directory, with the sole exception of the repository's top-level `/AGENTS.md` and `/CLAUDE.md` files (and only to append or update the OpenWiki reference section).
+3. If any task or write operation targets a file outside this path (with the exception of `/AGENTS.md` and `/CLAUDE.md` under the rules of Step 6.6), you MUST halt execution, throw a warning/error in the logs, and return `status: blocked` with `blocker_type: design-mismatch` (or throw an execution boundary violation error).
 
 ### Step 5b: Planning (REQ-sdd-document-007)
 
@@ -252,6 +252,7 @@ Each domain page MUST follow this structure:
 - Do NOT create single-file directories unless the page is substantial (>50 lines) and the domain boundary is clear
 - Existing accurate documentation should be linked and summarized, not duplicated wholesale
 - Heading format: use imperative verbs ("Install the CLI" not "Installation")
+- Modify `/AGENTS.md` and `/CLAUDE.md` strictly to add or update the OpenWiki reference block; do not modify any other parts of these files
 
 ### Step 6.4: Generate `.last-update.json`
 
@@ -278,7 +279,31 @@ This file is used by future update runs to scope the git diff window.
 ### Step 6.5: Cleanup
 
 1. Delete `{output_dir}/_plan.md` if it still exists.
-2. Verify no files were written outside the approved output directory.
+2. Verify no files were written outside the approved output directory (except `/AGENTS.md` and `/CLAUDE.md` modified under Step 6.6).
+
+### Step 6.6: Update Root Agent Instruction Files (REQ-sdd-document-013)
+
+Unless the user explicitly asks you not to, always make sure the repository's top-level agent instruction files reference the OpenWiki quickstart:
+1. Only consider top-level `/AGENTS.md` and `/CLAUDE.md`. Do not edit nested AGENTS.md or CLAUDE.md files.
+2. If `/AGENTS.md` or `/CLAUDE.md` exists, add or update the OpenWiki reference section there. If both exist, ensure the same section is added to both (duplicated).
+3. If neither exists, create a top-level `/AGENTS.md` containing only the OpenWiki reference section.
+4. During update runs, inspect any existing OpenWiki reference section in `/AGENTS.md` and/or `/CLAUDE.md` and refresh it only if the section is missing or semantically stale.
+5. Preserve surrounding instructions in existing files. Replace/update an existing OpenWiki reference section instead of adding duplicates.
+6. Do not edit /AGENTS.md or /CLAUDE.md only to normalize formatting, blank lines, wrapping, or punctuation if the existing OpenWiki section is already semantically correct.
+7. Use this exact section structure every time:
+
+```markdown
+## OpenWiki
+
+This repository has documentation located in the /openwiki directory.
+
+Start here:
+- [OpenWiki quickstart](openwiki/quickstart.md)
+
+OpenWiki includes repository overview, architecture notes, workflows, domain concepts, operations, integrations, testing guidance, and source maps.
+
+When working in this repository, read the OpenWiki quickstart first, then follow its links to the relevant architecture, workflow, domain, operation, and testing notes.
+```
 
 ### Step 7: Return Summary
 

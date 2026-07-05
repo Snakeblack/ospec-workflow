@@ -32,7 +32,7 @@ test("sdd-document.agent.md has correct frontmatter and no model field", async (
   const content = await fs.readFile(AGENT_PATH, "utf8");
   assert.ok(content.includes("name: sdd-document"));
   assert.ok(content.includes("user-invocable: false"));
-  assert.ok(content.includes("tools: ['read', 'search', 'edit']"));
+  assert.ok(content.includes("tools: ['read', 'search', 'edit', 'execute']"));
   assert.ok(!content.includes("model:"));
 });
 

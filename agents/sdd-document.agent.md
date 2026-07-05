@@ -1,7 +1,7 @@
 ---
 name: sdd-document
 description: 'Generate repository wiki pages mapping architecture, specs, and status.'
-tools: ['read', 'search', 'edit']
+tools: ['read', 'search', 'edit', 'execute']
 # modelo intencionalmente omitido.
 # Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
 user-invocable: false

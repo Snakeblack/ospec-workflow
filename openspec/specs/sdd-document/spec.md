@@ -33,7 +33,7 @@ The `sdd-document` agent MUST block launch at startup by returning `status: bloc
 
 If Option C is selected, the agent MUST validate the user-provided custom output directory and block with a clarification request if the path is fuzzy, invalid, or missing.
 
-The agent MUST enforce a write sandbox: all file writes are strictly restricted to the approved output directory. Any write operation targeting a file outside the approved path MUST halt execution and return `status: blocked` with `blocker_type: design-mismatch`.
+The agent MUST enforce a write sandbox: all file writes are strictly restricted to the approved output directory, with the sole exception of the repository's top-level `/AGENTS.md` and `/CLAUDE.md` files (and only to append or update the OpenWiki reference section). Any write operation targeting a file outside the approved path (and not matching the `/AGENTS.md` or `/CLAUDE.md` exception) MUST halt execution and return `status: blocked` with `blocker_type: design-mismatch`.
 
 #### Scenario: Agent blocks on startup for option choice
 
@@ -57,7 +57,7 @@ The agent MUST enforce a write sandbox: all file writes are strictly restricted 
 #### Scenario: Write sandbox violation
 
 - GIVEN the agent has approved output directory
-- WHEN a write operation targets a file outside the approved directory
+- WHEN a write operation targets a file outside the approved directory (other than `/AGENTS.md` or `/CLAUDE.md` for the OpenWiki reference section)
 - THEN the agent MUST halt execution and return `status: blocked` with `blocker_type: design-mismatch`
 
 ---
@@ -235,3 +235,18 @@ The agent MUST load `skills/cognitive-doc-design/SKILL.md` as a quality referenc
 - WHEN the user reads the file
 - THEN the first section MUST be a one-paragraph summary answering "what is this project?"
 - AND it MUST include sections for "Start here", "Key source files", "Documentation map", and "Notes for future agents"
+
+---
+
+### Requirement: Root Agent Instruction Files Mapping {#REQ-sdd-document-013}
+
+Unless the user explicitly asks not to, the `sdd-document` agent MUST verify whether the repository's top-level agent instruction files (`/AGENTS.md` and/or `/CLAUDE.md`) exist, and add or update the OpenWiki reference block there. If neither exists, it MUST create a top-level `/AGENTS.md` containing only the OpenWiki reference block.
+
+The reference block MUST point to `openwiki/quickstart.md` and provide a concise guidance note for future agents.
+
+#### Scenario: Inject reference section into AGENTS.md
+
+- GIVEN `/AGENTS.md` exists and does not contain the OpenWiki reference section
+- WHEN the agent completes document generation
+- THEN it MUST append the OpenWiki reference section to `/AGENTS.md`
+- AND it MUST preserve all surrounding instructions in `/AGENTS.md`
