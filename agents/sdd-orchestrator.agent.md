@@ -140,6 +140,10 @@ Persistence rules:
 - This protocol MUST fire on every phase return that includes a non-empty `assumptions` field, independent of route or gate configuration — it is not a circumstantial handler.
 - The orchestrator MUST NOT infer assumption entries from conversation memory; only entries explicitly returned in a phase envelope are persisted. A phase envelope with no `assumptions` field, or an empty list, leaves `state.yaml assumptions:` untouched.
 
+### Baseline Fingerprint Computation Protocol
+
+Standing responsibility, independent of route/gate configuration: immediately after `sdd-spec` returns `status: success`, for each domain in its returned `touched_baseline_domains` list, compute the SHA-256 of the current `openspec/specs/{domain}/spec.md` (or write `null` if no baseline exists yet) and write it to `state.yaml.baseline_fingerprints.{domain}`. `sdd-spec` only declares domains — it never computes or writes these hashes. Do NOT record a per-change `assumptions:` entry for a "fingerprint not yet recorded" gap; this step closes that gap structurally.
+
 ### SDD Init Guard (MANDATORY)
 
 Before executing ANY explicit persisted SDD command (`/sdd-foundation`, `/sdd-new`, `/sdd-ff`, `/sdd-continue`, `/sdd-lite`, `/sdd-explore`, `/sdd-apply`, `/sdd-verify`, `/sdd-archive`), check if `sdd-init` has been run for this project:

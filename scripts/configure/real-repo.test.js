@@ -424,6 +424,8 @@ test("real repo: orchestrator pointer-table refs resolve and handler sentinels a
   assert.doesNotMatch(text, /Intercept the block/, "gaps-resolution handler steps must not be inline in orchestrator body");
   assert.doesNotMatch(text, /questions_asked/, "clarify gate handling steps must not be inline in orchestrator body");
   assert.doesNotMatch(text, /Acknowledge and close the route anyway/, "document-route J5 halt gate wording must not be inline in orchestrator body");
+  assert.doesNotMatch(text, /recursively diff the destination/, "archive move-completion sentinel 'recursively diff the destination' must not be inline in orchestrator body");
+  assert.doesNotMatch(text, /halt with the source directory left intact/, "archive move-completion sentinel 'halt with the source directory left intact' must not be inline in orchestrator body");
 
   // Pointer table: extract skills/_shared/*.md refs and verify each resolves to an existing file
   const refRegex = /`(skills\/_shared\/[^`]+\.md)`/g;
@@ -445,6 +447,8 @@ test("real repo: orchestrator pointer-table refs resolve and handler sentinels a
     { sentinel: "before-task.occurrences", file: "skills/_shared/dispatch-lifecycle-hooks.md" },
     { sentinel: "Two-place override", file: "skills/_shared/gate-archive-quality.md" },
     { sentinel: "parseQualityGates", file: "skills/_shared/gate-archive-quality.md" },
+    { sentinel: "recursively diff the destination", file: "skills/_shared/gate-archive-quality.md" },
+    { sentinel: "halt with the source directory left intact", file: "skills/_shared/gate-archive-quality.md" },
     { sentinel: '"label": "ask-on-risk"', file: "skills/_shared/question-shapes.md" },
     { sentinel: '"label": "Chained PRs"', file: "skills/_shared/question-shapes.md" },
     { sentinel: '"blocker_type": "needs_user_decision"', file: "skills/_shared/question-shapes.md" },

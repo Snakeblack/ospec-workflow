@@ -3,6 +3,13 @@ title: Known Issues
 last_updated: 2026-07-05
 ---
 
+## 4R advisory WARNINGs de harden-archive-move-fingerprints (6, sin remediar por decisión de gate advisory)
+- severity: WARNING
+- area: (a) duplicación de anclas de contrato entre archive-move-fingerprint-contract.test.js, eje-b-contract.test.js B2.4, mentor-adr-contract.test.js A5.3 y real-repo.test.js sin cross-referencias; (b) tres escenarios MUST edge-case (null fingerprint, no-assumption-entry, partial-copy-not-concealed) solo inspection-proof; (c) anclas negativas literales frágiles ante paráfrasis (executor-delete, sdd-spec hash-write); (d) sin rama definida para fallo de lectura/hash distinto de ausencia en el bloque de fingerprints del orquestador ni en el stale-baseline check de sdd-archive
+- workaround: el lint de contratos unificado (Bloque 1.4) debe consolidar las anclas duplicadas en un único mecanismo y distinguir static-lint de runtime-test (J2), lo que absorbe (a)-(c); (d) es candidato a una cláusula de política de fallo estilo sibling-handler en un follow-up menor
+- change: harden-archive-move-fingerprints
+- date: 2026-07-05
+
 ## REQ-agents-006 J5 scoping/silent-close scenarios rest on inspection-proof only (no string-presence test)
 - severity: WARNING
 - area: skills/_shared/route-document.md §6.2-6.3 (git-status scoping + silent close) vs scripts/configure/real-repo.test.js (only the halt-gate wording sentinel is asserted)

@@ -91,3 +91,26 @@ the correct path — never dispatch archive on the anomaly.
      audit destinations are confirmed — this preserves the
      `clarify-archive-override` two-place guarantee under partial-write conditions.
 
+## Post-Return Move Completion
+
+After `sdd-archive` returns `status: success`, the ORCHESTRATOR — never the
+executor — decides, verifies, and performs completion of the archive-folder
+move. The executor's reported copy-inventory list (see `sdd-archive/SKILL.md`
+Step 5) is only the STARTING manifest; the orchestrator re-verifies it against
+the actual filesystem before acting on it.
+
+1. The orchestrator MUST recursively diff the destination
+   (`openspec/changes/archive/{YYYY-MM-DD}-{change-name}/`) against the source
+   (`openspec/changes/{change-name}/`), file-by-file: both path presence and
+   content match (hash or byte comparison).
+2. **Full match** → delete the source directory — the only filesystem step
+   that makes this a true move — and only then consider the archive route
+   complete.
+3. **Any mismatch or copy failure** (missing destination file, content diff,
+   partial copy) → halt with the source directory left intact, surface the
+   mismatch to the user, and do NOT close the route silently. MUST NOT delete
+   the source under a mismatch condition.
+
+This is a re-runnable filesystem diff: if the diff halted, re-running it after
+a repaired copy is the correct recovery path, not re-dispatching `sdd-archive`.
+

@@ -86,11 +86,16 @@ absence of git is non-fatal (omit the block).
 
 ## Baseline fingerprint at archive (stale-delta guard)
 
-Companion rule enforced by `sdd-spec` and `sdd-archive`:
+Companion rule enforced by `sdd-spec`, the orchestrator, and `sdd-archive`:
 
-- `sdd-spec` records in `state.yaml`, per delta domain, the SHA-256 of the
-  baseline `openspec/specs/{domain}/spec.md` at spec-writing time (absent
-  baseline → `null`):
+- `sdd-spec` DECLARES, per delta domain, the domain name under
+  `touched_baseline_domains:` in its return envelope — it MUST NOT compute or
+  write the SHA-256 fingerprint itself (no execute tool capable of hashing
+  files).
+- Immediately after `sdd-spec` returns `status: success`, the ORCHESTRATOR
+  computes the SHA-256 of each declared domain's current baseline
+  `openspec/specs/{domain}/spec.md` at spec-writing time (absent baseline →
+  `null`) and writes it into `state.yaml`:
 
 ```yaml
 baseline_fingerprints:
