@@ -197,28 +197,42 @@ After persisting the archive report — and while the change folder is still at 
 
 If no `decisions/` directory exists, skip silently — ADRs are optional per change.
 
-### Step 5: Move to Archive
+### Step 5: Copy Artifacts to Archive (executor scope — copy and report ONLY)
 
 **IF mode is `none`:** Skip — no filesystem operations.
 
-**IF mode is `openspec`:** This is the LAST filesystem operation. Move the entire change folder (now containing the archive report) to archive with date prefix:
+**IF mode is `openspec`:** Copy every artifact from the active change folder (now
+containing the archive report, per Steps 2-4) to the destination archive path with
+today's date prefix (ISO format, e.g. `2026-02-16`):
 
 ```
 openspec/changes/{change-name}/
-  → openspec/changes/archive/YYYY-MM-DD-{change-name}/
+  → openspec/changes/archive/YYYY-MM-DD-{change-name}/  (copy, not move)
 ```
 
-Use today's date in ISO format (e.g., `2026-02-16`).
+Your responsibility ends at: baseline sync (Step 2), archive-report persistence
+(Step 3), ADR promotion (Step 4b), and copying artifacts to the destination path.
+Completion of the move — recursively verifying the destination inventory against
+the source and deleting the source directory — is the ORCHESTRATOR's responsibility
+(see `skills/_shared/gate-archive-quality.md`, Post-Return Move Completion), NOT
+yours.
 
-A move is NOT a copy: after this step `openspec/changes/{change-name}/` MUST NOT exist. If your file tools can only copy, copy every artifact to the destination, verify the destination is complete, then delete the source folder — leaving both folders in place corrupts active-change discovery.
+You MUST NOT delete the source directory `openspec/changes/{change-name}/`, and you
+MUST NOT claim in your return envelope or report that the move is "complete" or that
+the source no longer exists while it still exists on disk. Report a copy inventory —
+the list of files you actually copied to the destination — in your return envelope
+(Step 7), so the orchestrator can verify it against the real filesystem state before
+deciding whether to delete the source. If you copy fewer files than exist in the
+source (partial copy), the copy-inventory list MUST reflect only what was actually
+copied — never conceal a partial copy as if it were complete.
 
 ### Step 6: Verify Archive
 
 **IF mode is `openspec`:** Confirm:
 - [ ] Main specs updated correctly
-- [ ] Change folder moved to archive
-- [ ] Archive contains `archive-report.md` and all other expected artifacts for this mode (proposal or proposal-lite, tasks, and specs/design when present)
-- [ ] Active changes directory no longer has this change
+- [ ] Change folder artifacts copied to the destination archive path
+- [ ] Archive destination contains `archive-report.md` and all other expected artifacts for this mode (proposal or proposal-lite, tasks, and specs/design when present)
+- [ ] Source directory still exists (deletion is the orchestrator's responsibility, not yours — see Step 5)
 
 **IF mode is `none`:** Skip verification — no persisted artifacts.
 
@@ -227,15 +241,18 @@ A move is NOT a copy: after this step `openspec/changes/{change-name}/` MUST NOT
 Return to the orchestrator:
 
 ```markdown
-## Change Archived
+## Change Copied to Archive Destination
 
 **Change**: {change-name}
-**Archived to**: `openspec/changes/archive/{YYYY-MM-DD}-{change-name}/` (openspec) | inline (none)
+**Copied to**: `openspec/changes/archive/{YYYY-MM-DD}-{change-name}/` (openspec) | inline (none)
 
 ### Specs Synced
 | Domain | Action | Details |
 |--------|--------|---------|
 | {domain} | Created/Updated | {N added, M modified, K removed requirements} |
+
+### Copy Inventory
+- {list of every file path copied to the destination archive path}
 
 ### Archive Contents
 - proposal.md or proposal-lite.md ✅
@@ -247,9 +264,10 @@ Return to the orchestrator:
 The following specs now reflect the new behavior:
 - `openspec/specs/{domain}/spec.md`
 
-### SDD Cycle Complete
-The change has been fully planned, implemented, verified, and archived.
-Ready for the next change.
+### Move Completion Pending (orchestrator-owned)
+The source directory `openspec/changes/{change-name}/` still exists. The
+orchestrator verifies the copy inventory above against the destination and
+source filesystem state, then deletes the source once verified.
 ```
 
 ## Rules

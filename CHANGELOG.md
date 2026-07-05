@@ -8,6 +8,11 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.18.0] - 2026-07-06
+
+### Added
+- **Harden de archivado y baseline fingerprints (Bloque 1.2 / I1)**: formalización del contrato en el que la finalización y borrado del directorio de origen en `sdd-archive` es propiedad exclusiva del orquestador (REQ-agents-008). El executor de `sdd-archive` se limita a sincronizar specs, escribir el reporte de archivo y copiar los artefactos, retornando un inventario de copias detallado en su envelope. El orquestador realiza una verificación/diff recursivo de inventario (presencia y contenido por hash/bytes) contra el disco físico antes de proceder con el borrado. Asimismo, el cálculo y registro del SHA-256 de las especificaciones baseline touched (`touched_baseline_domains`) pasa a ser responsabilidad standing inline del orquestador inmediatamente después del éxito de `sdd-spec` (REQ-agents-009), eliminando el patrón manual de assumptions por fingerprints no registrados. Nuevo test de contrato `scripts/archive-move-fingerprint-contract.test.js` y extensión de sentinels de límites en `scripts/configure/real-repo.test.js` (manteniendo el guard del orquestador < 500 líneas en 497 líneas). Ciclo SDD completo: deltas de `agents` (2 ADDED) y `skills` (1 MODIFIED + 1 ADDED) sincronizados al baseline y change archivado en `openspec/changes/archive/2026-07-05-harden-archive-move-fingerprints/`.
+
 ## [2.17.0] - 2026-07-05
 
 ### Added

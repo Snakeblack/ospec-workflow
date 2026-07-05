@@ -54,10 +54,13 @@ test("B2.3 · orchestrator stamps owner (author + branch) on new changes", async
   assert.match(content, /branch: \{git branch --show-current\}/, "must stamp branch");
 });
 
-test("B2.4 · sdd-spec records baseline fingerprints and sdd-archive enforces the stale-baseline check", async () => {
+test("B2.4 · sdd-spec declares touched baseline domains (declare-only), orchestrator computes fingerprints, sdd-archive enforces the stale-baseline check", async () => {
   const spec = await readFile(SPEC_SKILL_PATH);
-  assert.match(spec, /baseline_fingerprints:/, "sdd-spec must record baseline_fingerprints");
-  assert.match(spec, /sha256/i, "fingerprint must be sha256");
+  assert.match(spec, /touched_baseline_domains/, "sdd-spec must declare touched_baseline_domains (declare-only)");
+  assert.doesNotMatch(spec, /sha256/i, "sdd-spec must NOT compute or write the SHA-256 fingerprint itself");
+  const orchestrator = await readFile(ORCHESTRATOR_AGENT_PATH);
+  assert.match(orchestrator, /baseline_fingerprints/, "orchestrator must own writing baseline_fingerprints");
+  assert.match(orchestrator, /touched_baseline_domains/, "orchestrator must source domains from touched_baseline_domains");
   const archive = await readFile(ARCHIVE_SKILL_PATH);
   assert.match(archive, /Stale-baseline check/i, "sdd-archive must carry the stale-baseline check");
   assert.match(archive, /blocker_type: stale-baseline/, "mismatch must block with stale-baseline");

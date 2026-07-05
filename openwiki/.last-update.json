@@ -1,0 +1,22 @@
+{
+  "updatedAt": "2026-07-05T08:06:50.000Z",
+  "command": "init",
+  "gitHead": "457f385",
+  "generator": "sdd-document",
+  "version": "2.0",
+  "sections": [
+    "quickstart.md",
+    "generator/overview.md",
+    "orchestration/routing.md",
+    "hooks-runtime/lifecycle.md",
+    "security/guardrails.md",
+    "state-management/persistence.md",
+    "testing-quality/verification.md",
+    "workspace-federation/multi-repo.md"
+  ],
+  "stats": {
+    "filesGenerated": 8,
+    "filesUpdated": 0,
+    "filesSkipped": 0
+  }
+}

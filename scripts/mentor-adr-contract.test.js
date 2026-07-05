@@ -78,21 +78,22 @@ test("A5.1 · sdd-design extracts significant decisions to change-local ADRs wit
   assert.match(content, /## Context[\s\S]*## Decision[\s\S]*## Alternatives[\s\S]*## Consequences/, "ADR template must carry the 4 sections");
 });
 
-test("A5.2 · sdd-archive promotes ADRs to docs/adr/ before the move and keeps change-local copies", async () => {
+test("A5.2 · sdd-archive promotes ADRs to docs/adr/ before copying to the archive destination and keeps change-local copies", async () => {
   const content = await readFile(ARCHIVE_SKILL_PATH);
   const promoteIdx = content.indexOf("Step 4b: Promote ADRs");
-  const moveIdx = content.indexOf("Step 5: Move to Archive");
+  const copyIdx = content.indexOf("Step 5: Copy Artifacts to Archive");
   assert.ok(promoteIdx !== -1, "must contain the ADR promotion step");
-  assert.ok(moveIdx !== -1 && promoteIdx < moveIdx, "promotion must happen before the archive move");
+  assert.ok(copyIdx !== -1 && promoteIdx < copyIdx, "promotion must happen before copying to the archive destination");
   assert.match(content, /docs\/adr\/adr-\{YYYYMMDD\}-\{NNN\}/, "must define the docs/adr naming scheme");
   assert.match(content, /accepted/, "promotion must flip Status to accepted");
   assert.match(content, /skip silently/i, "missing decisions/ must be a silent no-op");
 });
 
-test("A5.3 · sdd-archive Step 5 states that a move is not a copy (source folder must not remain)", async () => {
+test("A5.3 · sdd-archive Step 5 scopes the executor to copy-and-report (never deletes the source or claims the move is complete)", async () => {
   const content = await readFile(ARCHIVE_SKILL_PATH);
-  assert.match(content, /A move is NOT a copy/i, "must carry the move-not-copy guard");
-  assert.match(content, /MUST NOT exist/, "must require the source folder to be gone");
+  assert.match(content, /copy inventory/i, "must require reporting a copy inventory");
+  assert.match(content, /MUST NOT[\s\S]{0,120}delete the source/, "must forbid the executor from deleting the source directory");
+  assert.doesNotMatch(content, /then delete the source folder/i, "must NOT instruct the executor to delete the source folder itself");
 });
 
 test("A5.4 · orchestrator Reads/Writes table registers ADR artifacts for design and archive", async () => {

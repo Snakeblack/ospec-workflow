@@ -180,16 +180,11 @@ Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
 - artifact: `spec`
 - path: `openspec/changes/{change-name}/specs/{domain}/spec.md`
 
-#### Step 5b: Record Baseline Fingerprints (stale-delta guard)
+#### Step 5b: Declare Touched Baseline Domains (stale-delta guard — declare-only)
 
-For each delta domain written, record in `state.yaml` the SHA-256 of the current baseline `openspec/specs/{domain}/spec.md` (or `null` when no baseline exists yet):
+For each delta domain written, add the domain name to a `touched_baseline_domains:` list in your return envelope (Step 6). You MUST NOT compute or write any SHA-256 fingerprint yourself, and you MUST NOT touch `state.yaml`'s `baseline_fingerprints:` block — you have no execute tool capable of hashing files.
 
-```yaml
-baseline_fingerprints:
-  {domain}: "sha256:..." | null
-```
-
-`sdd-archive` compares these at merge time to detect that another change moved the baseline first (see `skills/_shared/gate-change-collision.md`, Baseline fingerprint at archive).
+Immediately after you return `status: success`, the ORCHESTRATOR computes the SHA-256 of each declared domain's current baseline `openspec/specs/{domain}/spec.md` (or writes `null` if no baseline exists yet) and writes it into `state.yaml`'s `baseline_fingerprints:` block. `sdd-archive` compares these orchestrator-written fingerprints at merge time to detect that another change moved the baseline first (see `skills/_shared/gate-change-collision.md`, Baseline fingerprint at archive).
 
 ### Step 6: Return Summary
 
@@ -209,6 +204,9 @@ Return to the orchestrator:
 - Happy paths: {covered/missing}
 - Edge cases: {covered/missing}
 - Error states: {covered/missing}
+
+### Touched Baseline Domains
+`touched_baseline_domains: [{domain}, ...]` — declare-only; the orchestrator computes and writes `state.yaml.baseline_fingerprints` for each of these after this return.
 
 ### Next Step
 Ready for design (sdd-design). If design already exists, ready for tasks (sdd-tasks).
