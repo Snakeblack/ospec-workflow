@@ -423,6 +423,7 @@ test("real repo: orchestrator pointer-table refs resolve and handler sentinels a
   assert.doesNotMatch(text, /"blocker_type": "needs_user_decision"/, "blocked-envelope JSON example must not be inline in orchestrator body");
   assert.doesNotMatch(text, /Intercept the block/, "gaps-resolution handler steps must not be inline in orchestrator body");
   assert.doesNotMatch(text, /questions_asked/, "clarify gate handling steps must not be inline in orchestrator body");
+  assert.doesNotMatch(text, /Acknowledge and close the route anyway/, "document-route J5 halt gate wording must not be inline in orchestrator body");
 
   // Pointer table: extract skills/_shared/*.md refs and verify each resolves to an existing file
   const refRegex = /`(skills\/_shared\/[^`]+\.md)`/g;
@@ -449,6 +450,7 @@ test("real repo: orchestrator pointer-table refs resolve and handler sentinels a
     { sentinel: '"blocker_type": "needs_user_decision"', file: "skills/_shared/question-shapes.md" },
     { sentinel: "Intercept the block", file: "skills/_shared/gaps-resolution.md" },
     { sentinel: "questions_asked", file: "skills/_shared/clarify-routing.md" },
+    { sentinel: "Acknowledge and close the route anyway", file: "skills/_shared/route-document.md" },
   ];
   for (const { sentinel, file } of sentinelFiles) {
     const filePath = path.join(ROOT, file);

@@ -66,74 +66,74 @@ Use git actively during discovery and analysis — not just to list files, but t
 - `.env.example` and sample config files may be read only if they contain placeholders, not live secrets.
 - If a secret-bearing file appears relevant, document only that such configuration exists and where non-sensitive setup instructions should live.
 
-### Step 3: Language Selection Gate (REQ-sdd-document-006)
+### Step 3: Batched Language and Scope Selection Gate (REQ-sdd-document-006)
 
-This MUST be the first gate presented to the user, before any other question.
+Language selection and scope selection MUST be presented as ONE batched
+`question_gate` — two independent questions delivered in a single
+`vscode/askQuestions` call — rather than as two separate blocking
+round-trips. This batched gate MUST run before any other question, in
+**init mode** (no persisted `.last-update.json`, or the persisted metadata
+lacks `doc_language`/`scope_choice`).
 
-#### 1. If `doc_language` is absent/not provided:
-You MUST immediately halt execution and return a launch-blocking `question_gate` payload:
+Update-mode gate-skip behavior (reusing persisted values, or re-asking only
+an overridden field via the orchestrator's keep/change pre-question) is owned
+by the orchestrator's route handler (`skills/_shared/route-document.md`) —
+by the time this agent is dispatched, `doc_language` and `scope_choice`
+launch parameters are either both already resolved (update mode, gate
+skipped) or absent (init mode, gate required below).
+
+#### 1. If `doc_language` and/or `scope_choice` are absent/not provided:
+You MUST immediately halt execution and return a launch-blocking `question_gate` payload containing BOTH questions in a single gate:
 - **status**: `blocked`
 - **blocker_type**: `needs_user_decision`
-- **executive_summary**: "Documentation language has not been selected for sdd-document."
-- **question_gate**: (conforming to the recommendation contract)
-  - **reason**: "The documentation language determines the language of all generated wiki content and all subsequent interaction prompts. Guessing incorrectly would require regenerating all documentation files and repeating the scope selection gate."
+- **executive_summary**: "Documentation language and scope have not been selected for sdd-document."
+- **question_gate**: (conforming to the recommendation contract; a single batched gate with two independent questions)
+  - **reason**: "The documentation language and scope determine the language of all generated wiki content, all subsequent interaction prompts, and the target output directory. Guessing incorrectly would require regenerating all documentation files."
   - **questions**:
     - **header**: "Documentation Language"
-    - **question**: "Select the language for the generated documentation and subsequent prompts:"
-    - **options**:
-      - **label**: "English"
-      - **description**: "Recommended. International standard for technical documentation. Maximizes reach and tooling compatibility. Easily reversible — documentation can be regenerated in another language."
-      - **recommended**: true
-      - **reversibility**: "High. Documentation can be regenerated in another language."
-      - **tradeoff**: "Maximum compatibility with tooling and international teams, but may not suit teams that work primarily in another language."
-      - **rationale**: "English is the default language for technical wikis and ensures consistency with code identifiers."
-      - **cost_of_guess**: "Regenerating all wiki pages in the correct language and repeating the scope selection."
-    - **options**:
-      - **label**: "Español"
-      - **description**: "Documentation in Spanish. Useful for Spanish-speaking teams. Easily reversible."
-      - **recommended**: false
-    - **allowFreeformInput**: true
+      - **question**: "Select the language for the generated documentation and subsequent prompts:"
+      - **options**: (ONE array holding both option items below — never repeat a sibling `options:` key per item)
+        - **label**: "English"
+          - **description**: "Recommended. International standard for technical documentation. Maximizes reach and tooling compatibility. Easily reversible — documentation can be regenerated in another language."
+          - **recommended**: true
+          - **reversibility**: "High. Documentation can be regenerated in another language."
+          - **tradeoff**: "Maximum compatibility with tooling and international teams, but may not suit teams that work primarily in another language."
+          - **rationale**: "English is the default language for technical wikis and ensures consistency with code identifiers."
+          - **cost_of_guess**: "Regenerating all wiki pages in the correct language."
+        - **label**: "Español"
+          - **description**: "Documentation in Spanish. Useful for Spanish-speaking teams. Easily reversible."
+          - **recommended**: false
+      - **allowFreeformInput**: true
+    - **header**: "Documentation Scope"
+      - **question**: "Select the target output structure and scope for the repository technical wiki:"
+      - **options**: (ONE array holding all three option items below — never repeat a sibling `options:` key per item)
+        - **label**: "Option A"
+          - **description**: "Recommended. Full Technical Wiki under openwiki/. Follows the OpenWiki standard layout with a quickstart index and domain-specific guides discovered from the repository structure. Easily reversible."
+          - **recommended**: true
+          - **reversibility**: "High. Files are generated strictly inside the new openwiki/ directory and can be removed."
+          - **tradeoff**: "Generates a complete multi-file wiki, which is comprehensive but requires maintaining several documentation files."
+          - **rationale**: "Standardizes documentation matching the OpenWiki format."
+          - **cost_of_guess**: "Overwriting existing wiki folders or placing files in incorrect layout structures."
+        - **label**: "Option B"
+          - **description**: "Lightweight wiki under docs/wiki/. Same discovery-based content as Option A but placed under an existing docs/ structure. Easily reversible."
+          - **recommended**: false
+        - **label**: "Option C"
+          - **description**: "Custom path. Prompts for a custom directory path and validates it. Easily reversible."
+          - **recommended**: false
 
-#### 2. Once `doc_language` is resolved:
-- Store the resolved language for this execution session.
-- All subsequent `question_gate` prompts — including the Scope Selection in Step 4 — MUST be written in the resolved `doc_language`.
+Both questions are delivered via a single `vscode/askQuestions` call — never as two sequential gates.
+
+#### 2. Once `doc_language` and `scope_choice` are resolved:
+- Store both resolved values for this execution session.
+- All subsequent `question_gate` prompts MUST be written in the resolved `doc_language`.
 - All generated wiki content (Step 6) MUST be written in the resolved `doc_language`.
 - Proceed to Step 4.
 
-### Step 4: Launch Gate and Scope Selection (REQ-sdd-document-002)
+### Step 4: Scope Follow-Up and Sandbox Resolution (REQ-sdd-document-002)
 
 > All `question_gate` text in this step MUST be presented in the resolved `doc_language`.
 
-Verify if the documentation scope has been selected.
-
-#### 1. If `scope_choice` is absent/not provided:
-You MUST immediately halt execution and return a launch-blocking `question_gate` payload:
-- **status**: `blocked`
-- **blocker_type**: `needs_user_decision`
-- **executive_summary**: "Documentation scope has not been selected for sdd-document."
-- **question_gate**: (conforming to the recommendation contract: reason must state the cost of an incorrect/guessed decision)
-  - **reason**: "Selecting the documentation scope is required to set the target directory and validate tool write boundaries, preventing unauthorized file writes or unintended overwrites of existing documentation."
-  - **questions**:
-    - **header**: "Documentation Scope"
-    - **question**: "Select the target output structure and scope for the repository technical wiki:"
-    - **options**:
-      - **label**: "Option A"
-      - **description**: "Recommended. Full Technical Wiki under openwiki/. Follows the OpenWiki standard layout with a quickstart index and domain-specific guides discovered from the repository structure. Easily reversible."
-      - **recommended**: true
-      - **reversibility**: "High. Files are generated strictly inside the new openwiki/ directory and can be removed."
-      - **tradeoff**: "Generates a complete multi-file wiki, which is comprehensive but requires maintaining several documentation files."
-      - **rationale**: "Standardizes documentation matching the OpenWiki format."
-      - **cost_of_guess**: "Overwriting existing wiki folders or placing files in incorrect layout structures."
-    - **options**:
-      - **label**: "Option B"
-      - **description**: "Lightweight wiki under docs/wiki/. Same discovery-based content as Option A but placed under an existing docs/ structure. Easily reversible."
-      - **recommended**: false
-    - **options**:
-      - **label**: "Option C"
-      - **description**: "Custom path. Prompts for a custom directory path and validates it. Easily reversible."
-      - **recommended**: false
-
-#### 2. If `scope_choice` is "Option C":
+#### 1. If `scope_choice` is "Option C":
 - Read `custom_path`.
 - If `custom_path` is missing, empty, fuzzy, or points to a non-existent/invalid path structure:
   - Return `status: blocked` with `blocker_type: needs_user_decision` and a `question_gate` (in `doc_language`) prompting the user to clarify or provide a valid absolute/relative path.
@@ -148,6 +148,7 @@ You MUST immediately halt execution and return a launch-blocking `question_gate`
    - Option C -> `<validated custom path>`
 2. **Hard Gate**: You are strictly restricted from editing or writing to any files outside the approved output directory, with the sole exception of the repository's top-level `/AGENTS.md` and `/CLAUDE.md` files (and only to append or update the OpenWiki reference section).
 3. If any task or write operation targets a file outside this path (with the exception of `/AGENTS.md` and `/CLAUDE.md` under the rules of Step 6.6), you MUST halt execution, throw a warning/error in the logs, and return `status: blocked` with `blocker_type: design-mismatch` (or throw an execution boundary violation error).
+4. **No self-certification**: this pre-write self-check is NOT sufficient evidence of overall sandbox compliance and MUST NOT be presented as such in the return envelope. The authoritative, independent verification that no write landed outside the approved sandbox is an orchestrator-owned post-run step (see `openspec/specs/agents/spec.md`, Orchestrator-Owned Post-Run Sandbox Inventory Verification, and `skills/_shared/route-document.md` §6 J5). Do NOT claim final sandbox compliance in the return envelope as a substitute for that check.
 
 ### Step 5b: Planning (REQ-sdd-document-007)
 
@@ -273,11 +274,26 @@ After all wiki files are written, generate (or update) a `.last-update.json` met
     "filesGenerated": 0,
     "filesUpdated": 0,
     "filesSkipped": 0
-  }
+  },
+  "doc_language": "resolved language code from the batched gate (e.g. en, es)",
+  "scope_choice": "resolved scope option: A | B | C"
 }
 ```
 
+`doc_language` and `scope_choice` exist so a subsequent update-mode run can
+skip the batched gate (Step 3) by reading these persisted values instead of
+re-asking.
+
 This file is used by future update runs to scope the git diff window.
+
+**Write-failure behavior**: if writing `.last-update.json` fails (e.g. a
+permissions or disk error), do NOT fail the whole run over it. Report the
+failure explicitly in the return envelope as a WARNING (in `risks` and
+`executive_summary`) — the route still closes as `success` for the wiki
+content generated in this batch. The documented degraded behavior is that
+the NEXT run will find no persisted `doc_language`/`scope_choice` and will
+fall back to init mode, re-asking the batched gate in Step 3, since those
+values live only in this file.
 
 ### Step 6.5: Cleanup
 

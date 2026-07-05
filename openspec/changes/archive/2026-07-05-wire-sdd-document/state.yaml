@@ -1,0 +1,172 @@
+change: wire-sdd-document
+status: archived
+classification: normal
+created_at: "2026-07-05T17:00:00Z"
+last_updated: "2026-07-05T23:45:00Z"
+owner:
+  author: Manuel Retamozo
+  branch: feat/wire-sdd-document
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "First match: route 'standard' — classification normal + project.status: active; no explicit bugfix/refactor/hotfix intent."
+  validated: true
+  validation_errors: []
+execution:
+  mode: auto
+  delivery_strategy: exception-ok
+  reply_language: es
+  mentorship_mode: balanced
+  skill_resolution: none
+approvals:
+  - id: appr-001
+    gate: block-scope
+    decision: "Run Bloque 1 as 4 chained SDD changes (1.1→1.4), automatic mode; this change covers only 1.1 (J1+J4+J5 + commands↔agents contract test)."
+    source: AskUserQuestion
+    accepted_at: "2026-07-05T16:55:00Z"
+    applies_to: wire-sdd-document
+  - id: appr-002
+    gate: delivery-strategy
+    decision: "exception-ok"
+    source: AskUserQuestion
+    accepted_at: "2026-07-05T16:50:00Z"
+    applies_to: session
+  - id: clarify-roster-source-001
+    gate: clarify
+    decision: "Contract test parses the '3.2 Command Roster' table (Routes to column) in openspec/specs/agents/spec.md as the command→sub-agent source of truth."
+    source: AskUserQuestion
+    accepted_at: "2026-07-05T18:15:00Z"
+    applies_to: [sdd-clarify, sdd-design, sdd-tasks, sdd-apply]
+  - id: clarify-j5-outputdir-001
+    gate: clarify
+    decision: "Orchestrator resolves the authoritative output dir itself (A→openwiki/, B→docs/wiki/, C→custom_path it passed) and rejects custom paths outside the repo at the gate, before delegating."
+    source: AskUserQuestion
+    accepted_at: "2026-07-05T18:15:00Z"
+    applies_to: [sdd-clarify, sdd-design, sdd-tasks, sdd-apply]
+  - id: clarify-update-override-001
+    gate: clarify
+    decision: "Update mode adds a short keep-or-change pre-question ('¿Mantener idioma/alcance previos o cambiarlos?'); choosing change activates the override for the chosen field only."
+    source: AskUserQuestion
+    accepted_at: "2026-07-05T18:15:00Z"
+    applies_to: [sdd-clarify, sdd-design, sdd-tasks, sdd-apply]
+  - id: appr-003
+    gate: 4r-review-gate
+    decision: "Remediate the CRITICAL (rel-1) plus all 6 WARNINGs (rel-2, rel-3, res-1, res-2, read-1, read-2) via sdd-apply with TDD RED-first tasks, then re-verify before archiving. SUGGESTIONs (res-3, read-3) recorded, remediated opportunistically if trivial."
+    source: AskUserQuestion
+    accepted_at: "2026-07-05T22:30:00Z"
+    applies_to: wire-sdd-document
+  - id: clarify-j5-halt-options-001
+    gate: clarify
+    decision: "J5 halt question_gate offers two options: abort route leaving unexpected files for manual review (default) vs acknowledge and close with accepted risk."
+    source: AskUserQuestion
+    accepted_at: "2026-07-05T18:15:00Z"
+    applies_to: [sdd-clarify, sdd-design, sdd-tasks, sdd-apply]
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/wire-sdd-document/proposal.md"
+    summary: "Wire sdd-document into orchestrator: allowlist+roster+pointer row (inline, <500 guard), full protocol in new _shared/route-document.md; J4 batched gate+persist; J5 orch-owned sandbox check; commands<->agents contract test."
+    key_decisions:
+      - "Protocol lives in skills/_shared/route-document.md (route-federation pattern) to respect the <500-line orchestrator guard"
+      - "No new capability domains; deltas to agents + sdd-document specs"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/wire-sdd-document/specs/agents/spec.md"
+      - "openspec/changes/wire-sdd-document/specs/sdd-document/spec.md"
+    summary: "agents gains 3 ADDED reqs (allowlist/pointer wiring, orchestrator-owned J5 sandbox check, commands<->agents contract test); sdd-document MODIFIED REQ-002/006/011 for batched J4 gate + no-self-certify J5 language."
+    key_decisions:
+      - "J5 verification behavior specced under agents domain (orchestrator-owned), while sdd-document REQ-002 only records the no-self-certify contract"
+      - "REQ-sdd-document-006 repurposed as the single batched language+scope gate; REQ-sdd-document-002's scope question folds into that same gate"
+  clarify:
+    status: done
+    questions_asked: 4
+    artifacts:
+      - "openspec/changes/wire-sdd-document/specs/agents/spec.md"
+      - "openspec/changes/wire-sdd-document/specs/sdd-document/spec.md"
+    summary: "4 material ambiguities resolved and encoded: contract-test roster source = spec §3.2 'Routes to' column; orchestrator resolves output dir (A/B/C) and rejects out-of-repo custom paths at gate; update-mode keep/change pre-question triggers the override; J5 halt gate = abort (default) vs acknowledge-with-risk."
+  design:
+    status: done
+    artifact: "openspec/changes/wire-sdd-document/design.md"
+    summary: "3 inline orchestrator rows (agents entry 0-net + command bullet + pointer row → 491→493, under 500); full protocol in new _shared/route-document.md; new commands<->agents contract test parses §3.2 'Routes to'; real-repo.test.js gains route-document sentinel; dist parity automatic via skills/ walk in cli.js."
+    key_decisions:
+      - "Minimal inline wiring; route protocol in skills/_shared/route-document.md (ADR-001)"
+      - "J5 orchestrator-owned, git-scoped verification with out-of-repo custom_path reject (ADR-002)"
+      - ".last-update.json gains doc_language/scope_choice; single batched question_gate (ADR-003)"
+  tasks:
+    status: done
+    artifact: "openspec/changes/wire-sdd-document/tasks.md"
+    summary: "5 phases, 18 tasks: RED tests first (contract test, real-repo sentinel, sdd-document.test.js), then GREEN orchestrator wiring (2.1-2.3), route-document.md + SKILL.md edits (3.1-3.7), GREEN verification (4.1-4.3), cleanup (5.1-5.2). Single PR, size:exception accepted."
+    key_decisions:
+      - "400-line budget risk: Medium (~300-360 est. changed lines); single PR under exception-ok, no chaining"
+  apply:
+    status: done
+    artifact: "openspec/changes/wire-sdd-document/apply-progress.md"
+    summary: "All 18 tasks implemented in one batch: RED tests (commands-agents-contract.test.js created; real-repo.test.js + sdd-document.test.js extended) confirmed failing, then GREEN wiring (3 inline orchestrator rows, 491->493 lines), route-document.md created (J4 batched gate + J5 orchestrator-owned sandbox check), SKILL.md Steps 3/4/6.4 rewritten. Full npm test: 986/986 native tests passing plus all 4 target generations/validators. 4R remediation (appr-003) completed as a follow-up batch: 1 CRITICAL + 6 WARNING + 2 SUGGESTION findings all addressed via TDD RED-first (rel-1/2/3) or direct markdown edit (res-1/2/3, read-1/2/3); full npm test 986/987 (1 pre-existing documented flake, isolated re-run 52/52 green)."
+    key_decisions:
+      - "Tightened the .last-update.json schema test to scope Step 6.4's fenced JSON block only, avoiding a false-pass from whole-file substring matches"
+      - "Reworded the batched-gate Step 3 heading to avoid colliding with the old standalone-first-gate negative-assertion wording while preserving the same normative meaning"
+      - "4R remediation: fixed approval-ledger gate id for language/scope decisions is gate: document-init (documented inline in route-document.md §4, since the ledger's enum has no dedicated value)"
+  verify:
+    status: done
+    artifact: "openspec/changes/wire-sdd-document/verify-report.md"
+    summary: "PASS WITH WARNINGS: 18/18 tasks, 37/37 relevant tests pass on runtime re-run; TDD evidence audited consistent with real files; 1 WARNING (J5 scoping scenarios inspection-proof only), 2 SUGGESTIONs."
+    key_decisions:
+      - "All MUST scenarios covered by runtime-test or accepted static-proof except two REQ-agents-006 J5 scenarios (inspection-proof) → PASS WITH WARNINGS"
+  archive:
+    status: done
+    artifact: "openspec/changes/archive/2026-07-05-wire-sdd-document/archive-report.md"
+    summary: "Delta specs synced to baseline (agents: 3 ADDED, sdd-document: 3 MODIFIED); cost block emitted (no phase-costs data); 4R findings remediation audit confirmed; change moved to archive."
+gates:
+  4r-review-gate:
+    status: done
+    remediation: "appr-003: CRITICAL + 6 WARNINGs + 2 SUGGESTIONs (opportunistic) remediated via sdd-apply TDD RED-first (rel-1/2/3) + direct markdown edit (res-1/2/3, read-1/2/3); see apply-progress.md '## 4R Remediation'. Re-verify PASS WITH WARNINGS (verify-report.md '## Re-verification (post-4R remediation)'); residual WARNING-1 in known-issues.md."
+    on_blocker: advisory
+    findings_summary: "0 BLOCKER, 1 CRITICAL, 6 WARNING, 2 SUGGESTION"
+    surfaced_to_user: true
+    findings:
+      - id: rel-1
+        severity: CRITICAL
+        reviewer: reliability
+        summary: "commands-agents-contract.test.js never asserts sdd-document.prompt.md appears in checked[]; roster-row drift makes the test silently skip the exact command it was written to protect."
+      - id: rel-2
+        severity: WARNING
+        reviewer: reliability
+        summary: "Roster arrow parsed only as Unicode '→' while comments say '->'; ASCII drift turns the contract test into a silent no-op."
+      - id: rel-3
+        severity: WARNING
+        reviewer: reliability
+        summary: "route-document.md §3 out-of-repo custom_path rejection has zero test coverage (distinct from accepted REQ-agents-006 known issue)."
+      - id: res-1
+        severity: WARNING
+        reviewer: resilience
+        summary: "route-document.md §6 J5: no defined behavior when git status itself fails (missing failure policy vs sibling handlers)."
+      - id: res-2
+        severity: WARNING
+        reviewer: resilience
+        summary: "SKILL.md Step 6.4: .last-update.json write failure undefined; partial state silently re-enters init mode next run."
+      - id: res-3
+        severity: SUGGESTION
+        reviewer: resilience
+        summary: "route-document.md §4: approval-ledger write failure has no error clause."
+      - id: read-1
+        severity: WARNING
+        reviewer: readability
+        summary: "SKILL.md Step 3 question_gate prose uses duplicated sibling **options** bullets instead of one array; executor could emit malformed payload."
+      - id: read-2
+        severity: WARNING
+        reviewer: readability
+        summary: "route-document.md §4 references approval-ledger gate enum that has no fitting value for language/scope decisions."
+      - id: read-3
+        severity: SUGGESTION
+        reviewer: readability
+        summary: "route-document.md §2: no precedence rule when multiple candidate dirs carry .last-update.json."
+baseline_fingerprints:
+  agents:
+    sha256: "a35661d2071a6d049cb84ee7823ec77a8ca2b13422b2db9d2c4661e1e20e3a04"
+    computed_by: "orchestrator backfill (sdd-spec session had no execute tool)"
+  sdd-document:
+    sha256: "eef7f631c193f4faca6b1b01f20f2fe4f340c4625c6f74dec9248c5e0a6f1a3a"
+    computed_by: "orchestrator backfill (sdd-spec session had no execute tool)"
+blocking_questions: []
+assumptions: []
