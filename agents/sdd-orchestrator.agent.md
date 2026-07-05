@@ -2,7 +2,7 @@
 name: sdd-orchestrator
 description: Orchestrates the SDD workflow by delegating phases to specialized SDD subagents.
 tools: ['read', 'search', 'edit', 'execute', 'agent', 'vscode/askQuestions']
-agents: ['sdd-init', 'sdd-foundation', 'sdd-baseline', 'sdd-workspace', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-clarify', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-reconcile', 'sdd-onboard', 'review-risk', 'review-readability', 'review-reliability', 'review-resilience']
+agents: ['sdd-init', 'sdd-foundation', 'sdd-baseline', 'sdd-workspace', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-clarify', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-reconcile', 'sdd-onboard', 'sdd-document', 'review-risk', 'review-readability', 'review-reliability', 'review-resilience']
 # modelo intencionalmente omitido.
 # Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
 user-invocable: true
@@ -66,6 +66,7 @@ Skills (appear in autocomplete):
 - `/sdd-verify [change]` → validate implementation against specs; reports CRITICAL / WARNING / SUGGESTION
 - `/sdd-archive [change]` → close a change and persist final state in the active artifact store
 - `/sdd-onboard` → guided end-to-end walkthrough of SDD using your real codebase
+- `/sdd-document` → generate/update the repository technical wiki (delegates to sdd-document)
 
 Meta-commands (type directly — orchestrator handles them, won't appear in autocomplete):
 - `/sdd-new <change>` → start a new change by delegating exploration + proposal to sub-agents
@@ -468,6 +469,7 @@ here.
 | Question Shape Library | composing a delivery-strategy, review-workload, or blocked-envelope question | `skills/_shared/question-shapes.md` | At the ask point, before the first such `vscode/askQuestions` call in a session |
 | Clarify Gate Handler | the clarify gate RUNS per `#### sdd-clarify Routing` | `skills/_shared/clarify-routing.md` | After `sdd-spec` success, before dispatching `sdd-clarify`/`sdd-design` |
 | Gaps Resolution Handler (MANDATORY) | `sdd-foundation` returns `status: blocked` with unresolved functional/technical gaps — resolutions are recorded under the `approvals` ledger in `state.yaml` and `gaps_resolutions` in `openspec/config.yaml` | `skills/_shared/gaps-resolution.md` | On the blocked return, before relaunching `sdd-foundation` |
+| Document Route Handler | `/sdd-document` invoked (or route dispatch selects the `sdd-document` phase) | `skills/_shared/route-document.md` | At route dispatch, before the batched language+scope gate |
 
 ### State and Conventions
 

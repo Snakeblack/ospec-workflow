@@ -3,6 +3,13 @@ title: Known Issues
 last_updated: 2026-07-05
 ---
 
+## REQ-agents-006 J5 scoping/silent-close scenarios rest on inspection-proof only (no string-presence test)
+- severity: WARNING
+- area: skills/_shared/route-document.md §6.2-6.3 (git-status scoping + silent close) vs scripts/configure/real-repo.test.js (only the halt-gate wording sentinel is asserted)
+- workaround: add a handler-content assertion in real-repo.test.js (or sdd-document.test.js) that route-document.md §6 documents the scoped git-status set {output dir, /AGENTS.md, /CLAUDE.md} and the silent-close-on-clean path, mirroring the existing "Acknowledge and close the route anyway" sentinel, to raise the two scenarios from inspection-proof to static-proof
+- change: wire-sdd-document
+- date: 2026-07-05
+
 ## Missing TDD Cycle Evidence table in apply-progress.md
 - severity: BLOCKER
 - area: openspec/changes/add-documenter-agent/apply-progress.md

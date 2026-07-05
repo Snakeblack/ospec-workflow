@@ -8,6 +8,11 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.17.0] - 2026-07-05
+
+### Added
+- **Cableado del orquestador para `sdd-document` (J1+J4+J5)**: el orquestador ahora enruta `/sdd-document` de punta a punta. Wiring mínimo inline (allowlist de `agents:`, bullet en el índice de comandos y fila en la Circumstantial Handler Pointer Table — bajo el guard de 500 líneas) con el protocolo completo en `skills/_shared/route-document.md`: gate único batcheado de idioma+alcance (J4) con persistencia en approval ledger (`gate: document-init`) y `.last-update.json` (incluye `doc_language`/`scope_choice`), pre-pregunta keep/change en modo update con regla de precedencia entre candidatos, resolución autoritativa del output dir por el orquestador (A→`openwiki/`, B→`docs/wiki/`, C→custom con rechazo de paths fuera del repo antes de delegar), y verificación de sandbox post-run propiedad del orquestador (J5) scoped por `git status`, con gate de halt abort/acknowledge y política de fallo inconcluso cuando `git status` falla. Nuevo test de contrato `scripts/commands-agents-contract.test.js` que parsea la tabla §3.2 Command Roster del spec de `agents` (flechas `→` y `->`), falla ante filas del roster faltantes o comandos sin fila, y asserta explícitamente la presencia de `sdd-document.prompt.md`. Gate 4R con remediación completa (1 CRITICAL + 6 WARNING + 2 SUGGESTION) y re-verificación PASS. Ciclo SDD completo: deltas de `agents` (3 ADDED) y `sdd-document` (3 MODIFIED) sincronizadas al baseline y change archivado en `openspec/changes/archive/2026-07-05-wire-sdd-document/`.
+
 ## [2.16.0] - 2026-07-05
 
 ### Added

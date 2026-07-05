@@ -19,6 +19,7 @@ const AGENT_PATH = path.join(ROOT_DIR, "agents", "sdd-document.agent.md");
 const COMMAND_PATH = path.join(ROOT_DIR, "commands", "sdd-document.prompt.md");
 const SKILL_PATH = path.join(ROOT_DIR, "skills", "sdd-document", "SKILL.md");
 const MODELS_PATH = path.join(ROOT_DIR, "models.yaml");
+const ROUTE_DOCUMENT_PATH = path.join(ROOT_DIR, "skills", "_shared", "route-document.md");
 
 function tmpOut(t) {
   const dir = fsSync.mkdtempSync(path.join(os.tmpdir(), "ospec-sdd-document-"));
@@ -121,5 +122,61 @@ test("skills/sdd-document/SKILL.md details themed subdirectory structures", asyn
 test("skills/sdd-document/SKILL.md defines the official metadata format", async () => {
   const content = await fs.readFile(SKILL_PATH, "utf8");
   assert.ok(content.includes("generator") && content.includes("stats") && content.includes("sections"), "SKILL.md must define full metadata schema");
+});
+
+// --- REQ-agents-005 / REQ-sdd-document-006 / REQ-sdd-document-011 (wire-sdd-document) ---
+
+test("skills/sdd-document/SKILL.md .last-update.json schema includes doc_language and scope_choice", async () => {
+  const content = await fs.readFile(SKILL_PATH, "utf8");
+  const stepMatch = content.match(/### Step 6\.4:[\s\S]*?```json([\s\S]*?)```/);
+  assert.ok(stepMatch, "SKILL.md must contain a fenced JSON block in Step 6.4 documenting .last-update.json");
+  const schemaBlock = stepMatch[1];
+  assert.ok(schemaBlock.includes("doc_language"), "SKILL.md .last-update.json schema block must document doc_language");
+  assert.ok(schemaBlock.includes("scope_choice"), "SKILL.md .last-update.json schema block must document scope_choice");
+});
+
+test("skills/sdd-document/SKILL.md describes ONE batched question_gate for language+scope, not two sequential gates", async () => {
+  const content = await fs.readFile(SKILL_PATH, "utf8");
+  assert.ok(
+    content.includes("batched") && content.includes("single") && content.includes("question_gate"),
+    "SKILL.md must describe a single batched question_gate for language+scope"
+  );
+  assert.ok(
+    !/first gate presented to the user, before any other question/.test(content),
+    "SKILL.md must not describe language as a standalone gate that must run first, independently of scope"
+  );
+});
+
+test("skills/_shared/route-document.md §3 rejects an out-of-repo custom_path at gate time (rel-3)", async () => {
+  const content = await fs.readFile(ROUTE_DOCUMENT_PATH, "utf8");
+  const sectionMatch = content.match(/#### 3\. Output-dir resolution([\s\S]*?)(?:\r?\n#### 4\.)/);
+  assert.ok(sectionMatch, "route-document.md must contain a '#### 3. Output-dir resolution' section");
+  const section = sectionMatch[1];
+  assert.ok(
+    section.includes("outside the repository working tree"),
+    "§3 must describe detecting a custom_path that resolves outside the repository working tree"
+  );
+  assert.ok(
+    /reject it at gate time/i.test(section) && /do not delegate/i.test(section),
+    "§3 must reject an out-of-repo custom_path at gate time instead of delegating"
+  );
+  assert.ok(
+    /re-prompt/i.test(section),
+    "§3 must re-prompt the user for a valid in-repo path instead of silently failing"
+  );
+});
+
+test("skills/_shared/route-document.md is present under all four dist targets", (t) => {
+  const { runConfigure } = require("./configure/cli.js");
+  const relPath = "skills/_shared/route-document.md";
+
+  for (const target of ["claude", "vscode", "github-copilot", "opencode"]) {
+    const out = tmpOut(t);
+    runConfigure({ sourceDir: ROOT_DIR, target, outDir: out, validate: false });
+    assert.ok(
+      fsSync.existsSync(path.join(out, relPath)),
+      `${relPath} missing from ${target} output`
+    );
+  }
 });
 
