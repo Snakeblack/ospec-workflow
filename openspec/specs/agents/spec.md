@@ -42,6 +42,7 @@ All files below have `user-invocable: false` and `tools: ['read', 'search', 'edi
 | `agents/sdd-apply.agent.md` | Implement assigned tasks in resumable batches |
 | `agents/sdd-verify.agent.md` | Validate implementation against specs; reports findings |
 | `agents/sdd-archive.agent.md` | Close a change and persist final state |
+| `agents/sdd-document.agent.md` | Generate repository wiki pages mapping architecture, specs, and status |
 
 ### 1.3 4R Reviewers
 
@@ -208,6 +209,40 @@ If the user declines to route through SDD, the orchestrator MUST proceed with th
 
 ---
 
+### 1.5 sdd-document Requirements
+
+#### Requirement: sdd-document Catalog Registration {#REQ-agents-002}
+
+The `sdd-document` agent MUST be registered in the SDD agent catalog. It is a utility executor agent configured with `user-invocable: false` and abstract tools `read`, `search`, `edit`, and `execute`.
+
+##### Scenario: sdd-document present in catalog
+
+- GIVEN the orchestrator loads the agent catalog from the `agents` spec
+- WHEN the generator processes the catalog
+- THEN it MUST find the `sdd-document` agent listed with the corresponding configuration
+
+#### Requirement: sdd-document Command Roster Registration {#REQ-agents-003}
+
+The `/sdd-document` slash command MUST be registered in the orchestrator command roster and mapped to the `sdd-orchestrator` agent, routing execution dynamically to the `sdd-document` agent.
+
+##### Scenario: sdd-document command in roster
+
+- GIVEN the orchestrator command parser loads command mappings
+- WHEN it evaluates `/sdd-document`
+- THEN it routes the command to the orchestrator which delegates to the `sdd-document` agent
+
+#### Requirement: sdd-document Launch Gate Mapping {#REQ-agents-004}
+
+The orchestrator MUST support launch-blocking logic when invoking the `sdd-document` agent, halting execution and prompting the user with a `question_gate` containing the documentation scope selection (Options A, B, and C).
+
+##### Scenario: Launch gate blocks orchestrator dispatch
+
+- GIVEN the orchestrator is dispatching the `sdd-document` agent
+- WHEN the agent returns `status: blocked` with a `question_gate`
+- THEN the orchestrator MUST present the questions to the user and await approved choices
+
+---
+
 ## 2. Agent Frontmatter Contract
 
 Every `*.agent.md` file MUST include a YAML frontmatter block. The canonical source format targets the vscode runtime.
@@ -286,6 +321,7 @@ Input placeholders in the body use VS Code syntax: `${input}` (bare, positional)
 | `commands/sdd-archive.prompt.md` | `/sdd-archive` | sdd-orchestrator |
 | `commands/sdd-onboard.prompt.md` | `/sdd-onboard` | sdd-orchestrator |
 | `commands/sdd-workspace.prompt.md` | `/sdd-workspace` | sdd-orchestrator |
+| `commands/sdd-document.prompt.md` | `/sdd-document` | sdd-orchestrator → sdd-document |
 
 ---
 

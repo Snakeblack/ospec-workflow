@@ -48,6 +48,7 @@ baseline:
     - agents
     - skill-registry
     - install
+    - sdd-document
   stale_domains: []
   last_checked: "2026-06-14T19:00:00Z"
 

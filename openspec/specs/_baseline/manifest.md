@@ -8,6 +8,7 @@
 - agents: Phase agent templates and slash-command prompt files for all SDD phases | sources: agents/*.agent.md, commands/*.prompt.md
 - skill-registry: Skill discovery, fingerprinting, and JSON cache management used at SessionStart | sources: scripts/lib/skill-registry.js, .ospec/cache/
 - install: Per-target installation commands (Claude marketplace, opencode, github-copilot) that build and sync the generated tree into a destination repo | sources: scripts/configure/install-claude.js, scripts/configure/install-target.js
+- sdd-document: Executor agent responsible for generating project technical wikis following cognitive documentation design | sources: skills/sdd-document/SKILL.md, agents/sdd-document.agent.md, commands/sdd-document.prompt.md, scripts/sdd-document.test.js
 
 ## Entries (append-only log; latest row per domain wins)
 | domain | status | batch | commit | timestamp (UTC) |
@@ -24,3 +25,4 @@
 | hooks | reconciled | - | 5beb80c | 2026-07-03T18:49:43Z |
 | skills | reconciled | - | 5beb80c | 2026-07-03T18:53:55Z |
 | agents | reconciled | - | 37413bd | 2026-07-04T00:00:00Z |
+| sdd-document | done | 8 | 2573453 | 2026-07-05T07:30:00Z |

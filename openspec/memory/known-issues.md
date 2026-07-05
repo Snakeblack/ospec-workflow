@@ -1,7 +1,14 @@
 ---
 title: Known Issues
-last_updated: 2026-07-03
+last_updated: 2026-07-05
 ---
+
+## Missing TDD Cycle Evidence table in apply-progress.md
+- severity: BLOCKER
+- area: openspec/changes/add-documenter-agent/apply-progress.md
+- workaround: Generate or write the TDD Cycle Evidence table manually in apply-progress.md
+- change: add-documenter-agent
+- date: 2026-07-05
 
 ## Embedded question_gate reason example not conformant to the new Gate-Reason-Cost contract
 
