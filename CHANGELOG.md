@@ -8,6 +8,11 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.16.0] - 2026-07-05
+
+### Added
+- **Agente documentador `sdd-document`**: nuevo executor (`agents/sdd-document.agent.md` + `skills/sdd-document/SKILL.md` + comando `/sdd-document`) que compila arquitectura, specs y estado del repo en un wiki Markdown local. Gate interactivo de alcance al lanzar: Opción A — wiki técnico completo estilo OpenWiki (`quickstart.md` + `openwiki/` con subdirectorios temáticos y source maps), Opción B — estado SDD y specs bajo `docs/wiki/`, Opción C — ruta custom validada. Reglas de sandbox de escritura (paths relativos al output dir, sin escapes; excepciones declaradas para `/AGENTS.md` y `/CLAUDE.md` como archivos de instrucción raíz), registro en `models.yaml` (tier default) y suite de contrato `scripts/sdd-document.test.js`. Ciclo SDD completo (dogfooding): baseline nuevo `openspec/specs/sdd-document/spec.md` (13 REQs), delta de `agents` sincronizada y change archivado en `openspec/changes/archive/2026-07-05-add-documenter-agent/`. Nota: el cableado del orquestador (roster/route) llega en el change siguiente (J1).
+
 ## [2.15.0] - 2026-07-04
 
 ### Added
