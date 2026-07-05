@@ -27,6 +27,7 @@ agents:
   sdd-baseline: default
   sdd-explore: cheap
   sdd-archive: cheap
+  sdd-document: default
   review-risk: default
   review-readability: default
   review-reliability: default
