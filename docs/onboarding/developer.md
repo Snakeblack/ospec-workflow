@@ -1,17 +1,17 @@
 # ospec-workflow en 10 minutos — para el dev que llega a un repo con ospec
 
-**La pregunta que respondés acá: ¿qué comandos me importan?**
+**La pregunta que respondes aquí: ¿qué comandos me importan?**
 
 ## Los 4 que vas a usar todos los días
 
 | Comando | Cuándo |
 |---|---|
 | `/sdd-new <cambio>` | Feature o cambio con entidad: ciclo completo con specs |
-| `/sdd-lite <cambio>` | Fix chico o trivial: ciclo reducido sin specs/design |
+| `/sdd-lite <cambio>` | Fix pequeño o trivial: ciclo reducido sin specs/design |
 | `/sdd-continue` | Retomar donde quedó (nueva sesión, post-compact, otro día) |
 | `/sdd-verify` | Validar la implementación contra specs antes de PR |
 
-También en lenguaje natural: "haceme un SDD para X" dispara lo mismo.
+También en lenguaje natural: "hazme un SDD para X" dispara lo mismo.
 
 ## Lo que el flujo te va a pedir (y por qué)
 
@@ -27,12 +27,12 @@ También en lenguaje natural: "haceme un SDD para X" dispara lo mismo.
 
 - Nada de atribución AI (`Co-Authored-By: Claude...`, 🤖, etc.) — el hook
   `commit-msg` lo rechaza.
-- Con un change activo, añadí los trailers `Ospec-Change: {nombre}` y
+- Con un change activo, añade los trailers `Ospec-Change: {nombre}` y
   `Ospec-Task: N.N` (advisory por defecto; el flujo de apply los pone solo).
 
 ## Dónde mirar cuando algo no cierra
 
-| Qué buscás | Dónde |
+| Qué buscas | Dónde |
 |---|---|
 | En qué fase está el change | `openspec/changes/{nombre}/state.yaml` |
 | Qué se decidió y por qué | `state.yaml` → `approvals`/`assumptions` + `docs/adr/` |

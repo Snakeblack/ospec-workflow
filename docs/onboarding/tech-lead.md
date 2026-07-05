@@ -1,6 +1,6 @@
 # ospec-workflow en 10 minutos — para el tech lead que evalúa
 
-**La pregunta que respondés acá: ¿qué me garantiza esto?**
+**La pregunta que respondes aquí: ¿qué me garantiza esto?**
 
 ## Qué es
 
@@ -33,6 +33,6 @@ versionado con el repo: sin DB, sin servicios, sin build.
 ## Cómo evaluarlo en tu repo (30 min)
 
 1. `/sdd-init` — detecta stack y pregunta la escala (`solo`/`team`/`enterprise`).
-2. `/sdd-lite <algo trivial>` — mirá el ciclo mínimo y sus artefactos.
-3. Abrí `openspec/changes/archive/` de este mismo repo: cada feature del harness
+2. `/sdd-lite <algo trivial>` — mira el ciclo mínimo y sus artefactos.
+3. Abre `openspec/changes/archive/` de este mismo repo: cada feature del harness
    se construyó con el harness; ese es el argumento de auditoría real.

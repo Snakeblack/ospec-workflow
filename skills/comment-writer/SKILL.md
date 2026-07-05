@@ -45,7 +45,7 @@ Use it for:
 ### Request change
 
 ```markdown
-Buenísimo el enfoque. Acá separaría este cambio en otro commit porque mezcla la validación con el wiring de UI.
+Buenísimo el enfoque. Aquí separaría este cambio en otro commit porque mezcla la validación con el wiring de UI.
 
 Eso le baja carga al reviewer y hace que el rollback sea más claro si falla la integración.
 ```
@@ -55,7 +55,7 @@ Eso le baja carga al reviewer y hace que el rollback sea más claro si falla la 
 ```markdown
 Está bien encaminado y el scope se entiende rápido.
 
-Dejo aprobado. Para el próximo PR, agregá el link al anterior y al siguiente así la cadena queda navegable.
+Dejo aprobado. Para el próximo PR, añade el link al anterior y al siguiente así la cadena queda navegable.
 ```
 
 ### Ask for split

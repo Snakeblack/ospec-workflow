@@ -19,7 +19,7 @@ and reversibility.
          "options": [
          {
             "label": "ask-on-risk",
-            "description": "Recomendado porque solo interrumpe cuando el riesgo de PR grande es real, evitando preguntas innecesarias en cambios chicos. Trade-off frente a auto-chain: no divide proactivamente, así que la primera vez que aparezca riesgo alto igual detendrá el flujo para preguntar. Reversible en cualquier momento cambiando la estrategia cacheada en una sesión posterior.",
+            "description": "Recomendado porque solo interrumpe cuando el riesgo de PR grande es real, evitando preguntas innecesarias en cambios pequeños. Trade-off frente a auto-chain: no divide proactivamente, así que la primera vez que aparezca riesgo alto igual detendrá el flujo para preguntar. Reversible en cualquier momento cambiando la estrategia cacheada en una sesión posterior.",
             "recommended": true
          },
          {

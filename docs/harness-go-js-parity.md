@@ -34,8 +34,8 @@ corre **uno u otro**, nunca los dos.
 > `TestPreToolUse_ParityFixtures` y JS vía `scripts/hooks/parity-contract.test.js`
 > (proceso real del hook). Un mismo set de fixtures, dos runtimes: añadir una fixture
 > extiende el contrato para los dos a la vez. Empezado por `pre-tool-use` (el camino
-> caliente); `session-start` es el siguiente candidato. Ante un mismatch, decidí el
-> comportamiento canónico y corregí la implementación rezagada — nunca "arregles" la fixture sola.
+> caliente); `session-start` es el siguiente candidato. Ante un mismatch, decide el
+> comportamiento canónico y corrige la implementación rezagada — nunca "arregles" la fixture sola.
 
 
 `internal/store/store.go` es, por su propia cabecera (`store.go:1-3`), un **port parcial**

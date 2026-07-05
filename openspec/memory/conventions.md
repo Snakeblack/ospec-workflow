@@ -27,7 +27,7 @@ manualmente (los agentes nunca escriben aquí).
 ## [EJEMPLO / EXAMPLE] Nombrar los tests de contrato como `*-contract.test.js`
 
 > **Ejemplo ilustrativo — NO es una convención real de este proyecto.** Muestra solo el
-> formato de una entrada. Reemplazalo o borralo al registrar tu primera convención real.
+> formato de una entrada. Reemplázalo o bórralo al registrar tu primera convención real.
 > (Illustrative example — NOT a real convention. Replace or delete it.)
 
 - ámbito: `scripts/`

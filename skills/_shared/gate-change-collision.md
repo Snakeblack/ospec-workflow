@@ -29,7 +29,7 @@ surfaces the overlap BEFORE apply, when coordinating is still cheap.
 {
   "questions": [{
     "header": "Change collision",
-    "question": "El change '{current}' solapa con '{other}' en {files/domains}. ¿Cómo querés proceder?",
+    "question": "El change '{current}' solapa con '{other}' en {files/domains}. ¿Cómo quieres proceder?",
     "options": [
       {
         "label": "Continue anyway",

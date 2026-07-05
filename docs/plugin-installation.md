@@ -130,7 +130,7 @@ En Claude Code hay dos salidas distintas:
 ## Instalar el arbol generado por herramienta
 
 - **VS Code**: usa el repositorio directamente (`chat.pluginLocations`), sin generar.
-- **Claude Code temporal**: genera `dist/claude/` y cargalo con `claude --plugin-dir dist/claude`. Esta via solo aplica a la sesion actual.
+- **Claude Code temporal**: genera `dist/claude/` y cárgalo con `claude --plugin-dir dist/claude`. Esta vía solo aplica a la sesión actual.
 - **Claude Code persistente**: genera `dist/claude-marketplace/`, registra ese marketplace local y despues instala `ospec-workflow@ospec-tools`.
 - **GitHub Copilot CLI (Local/Proyecto)**: genera `dist/github-copilot/` y copia su contenido (`.github/`, `.mcp.json` y `scripts/`) en la raiz del repo destino.
 - **GitHub Copilot CLI (Global)**: compila, copia y registra todos los agentes, prompts, instrucciones, hooks y skills en el directorio global del usuario (`~/.copilot/`), fusionando la configuración de MCP en `mcp-config.json` de manera automática y permanente para cualquier proyecto.

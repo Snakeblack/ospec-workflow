@@ -249,7 +249,7 @@ When `routing:` is absent from `openspec/config.yaml` or resolves to `[]`, the o
 
 ### Execution Mode
 
-When the user invokes `/sdd-new`, `/sdd-ff`, `/sdd-continue`, or `/sdd-lite` (or an equivalent natural-language request, e.g. "haceme un SDD para X" / "do SDD for X") for the first time in a session, use `vscode/askQuestions` to ask which execution mode they prefer:
+When the user invokes `/sdd-new`, `/sdd-ff`, `/sdd-continue`, or `/sdd-lite` (or an equivalent natural-language request, e.g. "hazme un SDD para X" / "do SDD for X") for the first time in a session, use `vscode/askQuestions` to ask which execution mode they prefer:
 
 - **Automatic** (`auto`): Run all phases back-to-back without pausing. Show the final result only. Use this when the user wants speed and trusts the process.
 - **Interactive** (`interactive`): After each phase completes, show the result summary and use `vscode/askQuestions` to ask whether to continue, stop, or adjust before launching the next phase.
