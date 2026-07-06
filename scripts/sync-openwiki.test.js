@@ -125,6 +125,63 @@ test("does not overwrite an existing title in source frontmatter", (t) => {
   assert.match(out, /title:\s*"Custom Preserved Title"/, "pre-existing title must be preserved, not overwritten");
 });
 
+test("strips the leading H1 from the transformed body (Starlight renders the title)", (t) => {
+  const { webDocDir } = setupProject(t, {
+    pages: { "architecture.md": "# Architecture Overview\n\nSome content.\n\n## Details\n" },
+  });
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  const out = readOut(webDocDir, "architecture.md");
+  assert.doesNotMatch(out, /^#\s+Architecture Overview$/m, "the leading H1 must be stripped from the body");
+  assert.match(out, /## Details/, "the rest of the body must remain intact");
+  assert.match(out, /title:\s*"?Architecture Overview"?/, "the stripped H1 still feeds the title");
+});
+
+test("strips the leading H1 even when the source already declares a frontmatter title", (t) => {
+  const { webDocDir } = setupProject(t, {
+    pages: {
+      "custom.md": '---\ntitle: "Custom Preserved Title"\n---\n\n# A different heading\n\nProse.\n',
+    },
+  });
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  const out = readOut(webDocDir, "custom.md");
+  assert.doesNotMatch(out, /^#\s+A different heading$/m, "the body H1 must be stripped");
+  assert.match(out, /Prose\./, "the body prose must remain");
+});
+
+test("emits a sidebar manifest with quickstart first and groups in quickstart link order", (t) => {
+  const { webDocDir } = setupProject(t, {
+    pages: {
+      "quickstart.md":
+        "# Inicio rápido\n\n- [Seguridad](/openwiki/security/guardrails.md)\n- [Orquestación](/openwiki/orchestration/routing.md)\n",
+      "orchestration/routing.md": "# Routing\n\nContent.\n",
+      "security/guardrails.md": "# Guardrails\n\nContent.\n",
+      "zeta-unmentioned/extra.md": "# Extra\n\nContent.\n",
+      "alpha-unmentioned/other.md": "# Other\n\nContent.\n",
+    },
+  });
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(webDocDir, "src", "sidebar.generated.json"), "utf8")
+  );
+  assert.equal(manifest.topLinks[0].link, "/quickstart", "quickstart must be the first top link");
+  assert.equal(manifest.topLinks[0].label, "Inicio rápido", "top link label comes from the page title");
+  assert.deepEqual(
+    manifest.groups.map((g) => g.directory),
+    ["security", "orchestration", "alpha-unmentioned", "zeta-unmentioned"],
+    "mentioned dirs follow quickstart link order; unmentioned ones go last alphabetically"
+  );
+  assert.equal(manifest.groups[0].label, "Security", "group labels are humanized directory names");
+});
+
 test("rewrites a source-file link to the remote repository on the default branch", (t) => {
   const { webDocDir } = setupProject(t, {
     pages: { "guide.md": "# Guide\n\nSee [the cache module](/scripts/lib/cache.js) for details.\n" },

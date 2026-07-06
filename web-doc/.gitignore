@@ -10,3 +10,6 @@ package-lock.json
 
 # Salida de Astro (además del dist/ global).
 .astro/
+
+# Manifiesto de sidebar generado por el sync.
+src/sidebar.generated.json

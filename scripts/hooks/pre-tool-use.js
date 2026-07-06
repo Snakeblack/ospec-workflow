@@ -22,9 +22,11 @@ const {
 /**
  * Regex that matches forbidden AI/model attribution.
  * Must stay in sync with rules/no-model-attribution.instructions.md.
+ * Vendor names are anchored at word boundaries so ordinary words that merely
+ * contain one (coherente/cohere, bombardeo/bard, llaman/llama) never fire.
  */
 const FORBIDDEN_ATTRIBUTION_RE =
-  /co-authored-by|generated (?:with|by)|🤖|claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere/i;
+  /\b(?:co-authored-by|generated (?:with|by)|claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere)\b|🤖/i;
 
 /** Matches `git commit` commands — used to scope Step 5c (spec drift advisory). */
 const GIT_COMMIT_RE = /\bgit\s+commit\b/i;

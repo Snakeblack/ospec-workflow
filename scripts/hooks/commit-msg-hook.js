@@ -5,9 +5,11 @@ const fs = require("node:fs");
 /**
  * Regex that matches any forbidden AI/model attribution in a commit message.
  * Mirrors the pattern from rules/no-model-attribution.instructions.md.
+ * Vendor names are anchored at word boundaries so ordinary words that merely
+ * contain one (coherente/cohere, bombardeo/bard, llaman/llama) never fire.
  */
 const FORBIDDEN_ATTRIBUTION_RE =
-  /co-authored-by|generated (?:with|by)|🤖|claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere/i;
+  /\b(?:co-authored-by|generated (?:with|by)|claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere)\b|🤖/i;
 
 /**
  * Scans a commit message for forbidden AI/model attribution patterns.
