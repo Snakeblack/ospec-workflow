@@ -233,11 +233,14 @@ test("skips re-transforming an unchanged page on a second incremental run", (t) 
   const second = runSync(webDocDir);
   assert.equal(second.status, 0, second.stderr);
 
+  // utimes/stat round-trips introduce sub-millisecond float noise on some
+  // filesystems (ext4 in CI: 1783357829282.999 vs ...283), so exact equality
+  // is fragile. The real signal is that the mtime stayed ~60s in the past
+  // instead of jumping to "now" because of a rewrite — assert with tolerance.
   const afterSecondMtime = fs.statSync(outPath).mtimeMs;
-  assert.equal(
-    afterSecondMtime,
-    oldTime.getTime(),
-    "unchanged page output must not be rewritten on the second incremental run"
+  assert.ok(
+    Math.abs(afterSecondMtime - oldTime.getTime()) < 1000,
+    `unchanged page output must not be rewritten on the second incremental run (mtime ${afterSecondMtime} vs planted ${oldTime.getTime()})`
   );
 });
 
