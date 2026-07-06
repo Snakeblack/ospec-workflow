@@ -55,6 +55,21 @@ wiring check: confirm `web-doc/package.json` still declares `predev` and
 `prebuild` scripts that invoke `node scripts/sync-openwiki.mjs`. Do not
 otherwise touch existing scaffold files.
 
+**Partial-materialization recovery**: if writing a scaffold file fails (e.g.
+a permissions or disk error) partway through the file set, retry that single
+file write once (same retry-once pattern as the approval-ledger write in
+`skills/_shared/route-document.md` §4 point 3); if it still fails, do NOT
+fail the whole run over it — report the failure explicitly in the return
+envelope as a WARNING (same non-fatal degraded-write reporting pattern as
+the `.last-update.json` write-failure behavior in `skills/sdd-document/SKILL.md`
+Step 6.4) and continue with the remaining scaffold files and `openwiki/`
+generation. A file's mere presence at a scaffold slot is never proof that it
+is complete or valid — the copy-if-missing rule above only checks presence
+to decide whether to WRITE it, and never re-validates content on an
+already-present file, so a partially-written file from an earlier
+interrupted run is treated the same as any other pre-existing file (left
+untouched, per the uniform copy-if-missing rule).
+
 ## 4. `.last-update.json` placement
 
 When the resolved scope is D, write `.last-update.json` under

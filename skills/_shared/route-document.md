@@ -82,7 +82,11 @@ Before dispatching:
 2. The resolved `doc_language` and `scope_choice` are written into
    `.last-update.json` in the resolved output directory by the `sdd-document`
    executor itself (Step 6.4 of its SKILL); the orchestrator does not write
-   that file directly.
+   that file directly. For scope D, "the resolved output directory" here
+   means `openwiki/` ONLY — `.last-update.json` is never written under
+   `web-doc/`, even though scope D's approved output is the dual-directory
+   SET (see §3 above and `skills/sdd-document/references/option-d-starlight.md`
+   §4).
 3. If writing the approval-ledger entry itself fails (e.g. a `state.yaml`
    write error), this is a non-fatal but reportable condition: retry the
    write once; if it still fails, proceed with the dispatch anyway rather
