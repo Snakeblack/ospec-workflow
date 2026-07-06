@@ -8,7 +8,8 @@
 //
 // Behavior (see openspec Option D requirements REQ-sdd-document-015..018):
 //   - Injects a `title` frontmatter field (first heading, else humanized
-//     filename); never overwrites an existing title.
+//     filename); never overwrites an existing title, and never re-serializes
+//     (and thereby loses) pre-existing nested/multiline frontmatter structure.
 //   - Rewrites links to repository source files into remote-repository URLs
 //     on the default branch; leaves wiki-internal links untouched.
 //   - Skips rewriting (with a warning, exit 0) when no `origin` remote is
@@ -17,6 +18,13 @@
 //     content hash are unchanged since the last run.
 //   - Maintains strict 1:1 parity: prunes output pages whose source was
 //     deleted.
+//
+// Failure policy: this script always degrades — it warns and continues
+// rather than crashing `predev`/`prebuild`. A per-page failure, a corrupt or
+// unwritable cache, or a missing/empty source never take down the whole
+// run; a missing/empty openwiki/ source aborts BEFORE touching the output
+// directory at all, so it can never be mistaken for "everything was deleted"
+// and prune the existing site down to nothing.
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -29,7 +37,11 @@ const OUT_DIR = join(CWD, "src", "content", "docs");
 const CACHE_PATH = join(CWD, ".sync-cache.json");
 const EXCLUDED_FILES = new Set([".last-update.json", "_plan.md"]);
 
-// --- git helpers -----------------------------------------------------------
+function warn(message) {
+  console.warn(`[sync-openwiki] WARN: ${message}`);
+}
+
+// --- git helpers -------------------------------------------------------------
 
 function runGit(args) {
   return execFileSync("git", args, { cwd: CWD, encoding: "utf8" }).trim();
@@ -46,6 +58,9 @@ function resolveOriginUrl() {
     }
     return url.replace(/\.git$/, "");
   } catch {
+    // No configured origin (or no git at all): rewriteLinks() itself already
+    // warns per-link when it needs to skip a rewrite for this reason, so no
+    // redundant warning here.
     return null;
   }
 }
@@ -57,31 +72,39 @@ function resolveDefaultBranch() {
     const parts = ref.split("/");
     return parts.length > 1 ? parts.slice(1).join("/") : "main";
   } catch {
+    warn(
+      `could not resolve the repository's default branch from 'origin/HEAD' ` +
+        `(no origin configured, no git repository, or its HEAD ref is not tracked locally); ` +
+        `falling back to "main". Any rewritten source-file links will use "main" as the ref.`
+    );
     return "main";
   }
 }
 
 // --- frontmatter -------------------------------------------------------------
 
-/** Splits `---\nYAML\n---\nBODY` into { frontmatter, body, hasFrontmatter }. */
-function parseFrontmatter(content) {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
+
+/** Splits `---\nYAML\n---\nBODY` into the RAW (unparsed) frontmatter block text and the body. */
+function splitFrontmatter(content) {
+  const match = content.match(FRONTMATTER_RE);
   if (!match) {
-    return { frontmatter: {}, body: content, hasFrontmatter: false };
+    return { hasFrontmatter: false, rawFrontmatter: "", body: content };
   }
-  const frontmatter = {};
-  for (const line of match[1].split(/\r?\n/)) {
-    const kv = line.match(/^([A-Za-z0-9_]+):\s*(.*)$/);
-    if (kv) {
-      frontmatter[kv[1]] = kv[2].trim().replace(/^["']|["']$/g, "");
-    }
-  }
-  return { frontmatter, body: match[2], hasFrontmatter: true };
+  return { hasFrontmatter: true, rawFrontmatter: match[1], body: match[2] };
 }
 
-function serializeFrontmatter(frontmatter) {
-  const lines = Object.entries(frontmatter).map(([key, value]) => `${key}: ${JSON.stringify(value)}`);
-  return `---\n${lines.join("\n")}\n---\n\n`;
+/**
+ * Reads a ROOT-LEVEL (non-indented) `key: value` line out of a raw
+ * frontmatter block, or null when absent. The pattern has no leading `\s*`,
+ * so it only matches a line that starts at column 0 with `key:` — a nested
+ * line such as `  order: 1` (under `sidebar:`) or a list item never matches.
+ * This lets us detect an existing top-level `title` without parsing (and
+ * therefore risking mangling) the rest of the YAML structure.
+ */
+function extractRootScalar(rawFrontmatter, key) {
+  const match = rawFrontmatter.match(new RegExp(`^${key}:[ \\t]*(.*)$`, "m"));
+  return match ? match[1].trim().replace(/^["']|["']$/g, "") : null;
 }
 
 function extractFirstHeading(text) {
@@ -98,16 +121,43 @@ function humanizeFilename(relPath) {
     .join(" ");
 }
 
-/** Resolves the frontmatter+body to write for a transformed page. */
-function buildFrontmatter(sourceContent, relPath) {
-  const { frontmatter, body, hasFrontmatter } = parseFrontmatter(sourceContent);
-  const searchText = hasFrontmatter ? body : sourceContent;
+// JSON.stringify on a plain string produces a double-quoted scalar with the
+// same escaping rules (quotes, backslashes, control characters) that YAML's
+// own double-quoted scalar syntax expects. That makes it a safe, minimal
+// quoter for a single string frontmatter value without pulling in a full
+// YAML serializer — it is NEVER used to re-serialize a whole frontmatter
+// block (see buildFrontmatterBlock below), only a single injected line.
+function quoteYamlString(value) {
+  return JSON.stringify(value);
+}
 
-  if (!frontmatter.title) {
-    frontmatter.title = extractFirstHeading(searchText) || humanizeFilename(relPath);
+/**
+ * Resolves the exact frontmatter block + body to write for a transformed
+ * page, WITHOUT ever re-serializing pre-existing frontmatter structure.
+ * A naive "parse into a flat object, then re-emit `key: value` lines" round
+ * trip silently drops nested keys, multiline scalars, and lists — this
+ * function never does that. Three cases:
+ *   1. No frontmatter at all -> synthesize a minimal new block with just `title`.
+ *   2. Frontmatter already has a root-level `title` -> byte-for-byte passthrough.
+ *   3. Frontmatter exists but has no `title` -> PREPEND a `title:` line onto
+ *      the ORIGINAL raw block text; every other line is left untouched.
+ */
+function buildFrontmatterBlock(sourceContent, relPath) {
+  const { hasFrontmatter, rawFrontmatter, body } = splitFrontmatter(sourceContent);
+
+  if (!hasFrontmatter) {
+    const title = extractFirstHeading(sourceContent) || humanizeFilename(relPath);
+    return { block: `---\ntitle: ${quoteYamlString(title)}\n---\n`, body: sourceContent };
   }
 
-  return { frontmatter, body: searchText };
+  const existingTitle = extractRootScalar(rawFrontmatter, "title");
+  if (existingTitle) {
+    return { block: `---\n${rawFrontmatter}\n---\n`, body };
+  }
+
+  const derivedTitle = extractFirstHeading(body) || humanizeFilename(relPath);
+  const injectedBlock = `title: ${quoteYamlString(derivedTitle)}\n${rawFrontmatter}`;
+  return { block: `---\n${injectedBlock}\n---\n`, body };
 }
 
 // --- link classification and rewriting --------------------------------------
@@ -122,22 +172,21 @@ function classifyLinkTarget(target) {
 }
 
 /** Rewrites source-file links to {originUrl}/blob/{branch}/{path}; leaves wiki-internal links as-is. */
-function rewriteLinks(body, { originUrl, defaultBranch, warn }) {
+function rewriteLinks(body, { originUrl, defaultBranch, warn: warnFn }) {
   let warnedMissingOrigin = false;
-  const result = body.replace(LINK_RE, (full, text, target) => {
+  return body.replace(LINK_RE, (full, text, target) => {
     if (classifyLinkTarget(target) !== "source-file") {
       return full;
     }
     if (!originUrl) {
       if (!warnedMissingOrigin) {
-        warn(`No 'origin' remote configured; skipping source-link rewrite for ${target} (and any further source links).`);
+        warnFn(`No 'origin' remote configured; skipping source-link rewrite for ${target} (and any further source links).`);
         warnedMissingOrigin = true;
       }
       return full;
     }
     return `[${text}](${originUrl}/blob/${defaultBranch}${target})`;
   });
-  return result;
 }
 
 // --- cache -------------------------------------------------------------------
@@ -146,13 +195,21 @@ function loadCache() {
   if (!existsSync(CACHE_PATH)) return {};
   try {
     return JSON.parse(readFileSync(CACHE_PATH, "utf8"));
-  } catch {
+  } catch (err) {
+    warn(`${CACHE_PATH} is unreadable or corrupt (${err.message}); ignoring it and performing a full re-sync.`);
     return {};
   }
 }
 
 function saveCache(cache) {
-  writeFileSync(CACHE_PATH, JSON.stringify(cache, null, 2));
+  try {
+    writeFileSync(CACHE_PATH, JSON.stringify(cache, null, 2));
+  } catch (err) {
+    warn(
+      `failed to write ${CACHE_PATH} (${err.message}); the incremental cache was not updated, so the ` +
+        `next run will re-transform every page. The sync itself still completed successfully.`
+    );
+  }
 }
 
 function hashContent(content) {
@@ -161,7 +218,14 @@ function hashContent(content) {
 
 // --- discovery -----------------------------------------------------------
 
-/** Recursively lists openwiki markdown source pages, relative to WIKI_SRC, excluding metadata files. */
+/**
+ * Recursively lists openwiki markdown source pages, relative to WIKI_SRC.
+ * Excludes metadata/scratch files (EXCLUDED_FILES) because those live
+ * alongside real content under openwiki/ and must never be treated as wiki
+ * pages. `listOutputPages` below needs no equivalent exclusion list: this
+ * script is the ONLY writer of `OUT_DIR`, and it only ever writes
+ * transformed `.md` pages there, so nothing extraneous can appear.
+ */
 function listSourcePages(dir, base = dir, acc = []) {
   if (!existsSync(dir)) return acc;
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -191,52 +255,72 @@ function listOutputPages(dir, base = dir, acc = []) {
 // --- main ----------------------------------------------------------------
 
 function main() {
+  const sourcePages = listSourcePages(WIKI_SRC);
+
+  // Guard: an absent or empty openwiki/ must never be interpreted as "every
+  // page was deleted". Abort BEFORE resolving git context, touching the
+  // cache, or reaching the prune step below — the existing web-doc output
+  // (if any) is left completely untouched.
+  if (sourcePages.length === 0) {
+    warn(
+      `no openwiki pages found under ${WIKI_SRC} (the directory is missing or empty); ` +
+        `skipping this sync entirely rather than pruning ${OUT_DIR} down to nothing.`
+    );
+    return;
+  }
+
   const originUrl = resolveOriginUrl();
   const defaultBranch = resolveDefaultBranch();
   const cache = loadCache();
   const nextCache = {};
-
-  const sourcePages = listSourcePages(WIKI_SRC);
+  const failures = [];
 
   for (const relPath of sourcePages) {
-    const srcAbs = join(WIKI_SRC, relPath);
-    const outAbs = join(OUT_DIR, relPath);
-    const stat = statSync(srcAbs);
-    const rawContent = readFileSync(srcAbs, "utf8");
-    const hash = hashContent(rawContent);
+    try {
+      const srcAbs = join(WIKI_SRC, relPath);
+      const outAbs = join(OUT_DIR, relPath);
+      const stat = statSync(srcAbs);
+      const rawContent = readFileSync(srcAbs, "utf8");
+      const hash = hashContent(rawContent);
 
-    const cached = cache[relPath];
-    const unchanged = cached && cached.mtimeMs === stat.mtimeMs && cached.hash === hash && existsSync(outAbs);
+      const cached = cache[relPath];
+      const unchanged = cached && cached.mtimeMs === stat.mtimeMs && cached.hash === hash && existsSync(outAbs);
 
-    if (unchanged) {
-      nextCache[relPath] = cached;
-      continue;
+      if (unchanged) {
+        nextCache[relPath] = cached;
+        continue;
+      }
+
+      const { block, body } = buildFrontmatterBlock(rawContent, relPath);
+      const rewrittenBody = rewriteLinks(body, { originUrl, defaultBranch, warn });
+
+      mkdirSync(dirname(outAbs), { recursive: true });
+      writeFileSync(outAbs, `${block}\n${rewrittenBody}`);
+
+      nextCache[relPath] = { mtimeMs: stat.mtimeMs, hash };
+    } catch (err) {
+      failures.push(relPath);
+      warn(`failed to sync page "${relPath}" (${err.message}); skipping it and continuing with the rest.`);
     }
-
-    const { frontmatter, body } = buildFrontmatter(rawContent, relPath);
-    const rewrittenBody = rewriteLinks(body, {
-      originUrl,
-      defaultBranch,
-      warn: (msg) => console.warn(`[sync-openwiki] WARN: ${msg}`),
-    });
-
-    const output = serializeFrontmatter(frontmatter) + rewrittenBody;
-
-    mkdirSync(dirname(outAbs), { recursive: true });
-    writeFileSync(outAbs, output);
-
-    nextCache[relPath] = { mtimeMs: stat.mtimeMs, hash };
   }
 
   // Prune: delete output pages with no corresponding source page (1:1 parity).
   const expected = new Set(sourcePages);
   for (const relPath of listOutputPages(OUT_DIR)) {
     if (!expected.has(relPath)) {
-      rmSync(join(OUT_DIR, relPath), { force: true });
+      try {
+        rmSync(join(OUT_DIR, relPath), { force: true });
+      } catch (err) {
+        warn(`failed to prune stale output page "${relPath}" (${err.message}); leaving it in place.`);
+      }
     }
   }
 
   saveCache(nextCache);
+
+  if (failures.length > 0) {
+    warn(`sync finished with ${failures.length} page(s) failed and skipped: ${failures.join(", ")}`);
+  }
 }
 
 main();
