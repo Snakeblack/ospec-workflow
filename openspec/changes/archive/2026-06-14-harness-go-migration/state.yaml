@@ -118,8 +118,8 @@ follow_ups:
   - id: fu-w2-yamllite-nesting
     severity: cleanup
     detail: "internal/yamllite/yamllite.go extractScalarAtPath nesting depth 4 (readability WARNING)."
-  # RESOLVED: module path github.com/mretamozo-hiberuscom/ospec-workflow MATCHES
-  # the real origin remote (github.com/mretamozo-hiberuscom/ospec-workflow.git).
+  # RESOLVED: module path github.com/snakeblack/ospec-workflow MATCHES
+  # the real origin remote (github.com/snakeblack/ospec-workflow.git).
   # It was never a placeholder; no rename needed.
 
 runtime:

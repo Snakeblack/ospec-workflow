@@ -3,7 +3,7 @@ package rules_test
 import (
 	"testing"
 
-	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/rules"
+	"github.com/snakeblack/ospec-workflow/internal/rules"
 )
 
 // TestEvaluate_Deny verifies that each of the 8 DENY patterns blocks commands

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/store"
-	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/yamllite"
+	"github.com/snakeblack/ospec-workflow/internal/store"
+	"github.com/snakeblack/ospec-workflow/internal/yamllite"
 )
 
 func init() {

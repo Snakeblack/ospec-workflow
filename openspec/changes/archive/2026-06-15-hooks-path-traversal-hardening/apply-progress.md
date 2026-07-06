@@ -178,13 +178,13 @@ FAIL  internal/hooks  0.270s
 **GREEN evidence (Batch 3)**:
 ```
 go test ./... -count=1
-ok  github.com/mretamozo-hiberuscom/ospec-workflow/cmd/ospec-hooks   4.314s
-ok  github.com/mretamozo-hiberuscom/ospec-workflow/internal/hooks    0.532s
-ok  github.com/mretamozo-hiberuscom/ospec-workflow/internal/jsonio   0.245s
-ok  github.com/mretamozo-hiberuscom/ospec-workflow/internal/rules    0.268s
-ok  github.com/mretamozo-hiberuscom/ospec-workflow/internal/skillreg 0.288s
-ok  github.com/mretamozo-hiberuscom/ospec-workflow/internal/store    0.305s
-ok  github.com/mretamozo-hiberuscom/ospec-workflow/internal/yamllite 0.253s
+ok  github.com/snakeblack/ospec-workflow/cmd/ospec-hooks   4.314s
+ok  github.com/snakeblack/ospec-workflow/internal/hooks    0.532s
+ok  github.com/snakeblack/ospec-workflow/internal/jsonio   0.245s
+ok  github.com/snakeblack/ospec-workflow/internal/rules    0.268s
+ok  github.com/snakeblack/ospec-workflow/internal/skillreg 0.288s
+ok  github.com/snakeblack/ospec-workflow/internal/store    0.305s
+ok  github.com/snakeblack/ospec-workflow/internal/yamllite 0.253s
 
 go vet ./internal/hooks/   → (no output — clean)
 ```

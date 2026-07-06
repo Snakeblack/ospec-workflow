@@ -178,7 +178,7 @@ None.
 ### SUGGESTION
 
 - **S1 — Go module path is a placeholder** `[tasks-gap]`
-  `github.com/mretamozo-hiberuscom/ospec-workflow` must be renamed before commit/archive.
+  `github.com/snakeblack/ospec-workflow` must be renamed before commit/archive.
   Known follow-up; not a spec defect.
 
 - **S2 — `TestIntegration_ShortSkips` asserts nothing** `[code-bug]` (cosmetic)

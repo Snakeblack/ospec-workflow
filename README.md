@@ -61,7 +61,7 @@ Una vez cargado el plugin en tu agente de chat:
 ### 🤖 Claude Code (Plugin Persistente y Marketplace)
 - **Para usuarios finales** (sin clonar el repositorio):
   ```powershell
-  claude plugin marketplace add https://github.com/mretamozo-hiberuscom/ospec-workflow.git#release
+  claude plugin marketplace add https://github.com/snakeblack/ospec-workflow.git#release
   claude plugin install ospec-workflow@ospec-tools
   ```
 - **Para desarrollo del plugin** (instalación idempotente local):

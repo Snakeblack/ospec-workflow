@@ -3,7 +3,7 @@ package main_test
 import (
 	"testing"
 
-	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/hooks"
+	"github.com/snakeblack/ospec-workflow/internal/hooks"
 )
 
 // TestDispatch_UnknownSubcommand verifies that an unregistered subcommand

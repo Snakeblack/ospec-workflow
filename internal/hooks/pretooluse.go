@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/rules"
+	"github.com/snakeblack/ospec-workflow/internal/rules"
 )
 
 // gitCommitPatternRE matches "git commit" in any command string.

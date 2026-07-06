@@ -415,14 +415,14 @@ Cambio guiado por SDD con TDD estricto. Verificación: **PASS WITH WARNINGS** (7
 - Interactive workflow gates through `vscode/askQuestions`.
 - Strict TDD mode when the project exposes a compatible test runner.
 
-[Unreleased]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.4.5...HEAD
-[2.4.5]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.4.4...v2.4.5
-[2.4.4]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.4.3...v2.4.4
-[2.4.3]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.4.2...v2.4.3
-[2.4.2]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.4.1...v2.4.2
-[2.4.1]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.4.0...v2.4.1
-[2.4.0]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.3.0...v2.4.0
-[2.3.0]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.2.0...v2.3.0
-[2.2.0]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.1.0...v2.2.0
-[2.1.0]: https://github.com/mretamozo-hiberuscom/ospec-workflow/compare/v2.0.0...v2.1.0
-[2.0.0]: https://github.com/mretamozo-hiberuscom/ospec-workflow/releases/tag/v2.0.0
+[Unreleased]: https://github.com/snakeblack/ospec-workflow/compare/v2.4.5...HEAD
+[2.4.5]: https://github.com/snakeblack/ospec-workflow/compare/v2.4.4...v2.4.5
+[2.4.4]: https://github.com/snakeblack/ospec-workflow/compare/v2.4.3...v2.4.4
+[2.4.3]: https://github.com/snakeblack/ospec-workflow/compare/v2.4.2...v2.4.3
+[2.4.2]: https://github.com/snakeblack/ospec-workflow/compare/v2.4.1...v2.4.2
+[2.4.1]: https://github.com/snakeblack/ospec-workflow/compare/v2.4.0...v2.4.1
+[2.4.0]: https://github.com/snakeblack/ospec-workflow/compare/v2.3.0...v2.4.0
+[2.3.0]: https://github.com/snakeblack/ospec-workflow/compare/v2.2.0...v2.3.0
+[2.2.0]: https://github.com/snakeblack/ospec-workflow/compare/v2.1.0...v2.2.0
+[2.1.0]: https://github.com/snakeblack/ospec-workflow/compare/v2.0.0...v2.1.0
+[2.0.0]: https://github.com/snakeblack/ospec-workflow/releases/tag/v2.0.0

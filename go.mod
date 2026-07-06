@@ -1,4 +1,4 @@
-module github.com/mretamozo-hiberuscom/ospec-workflow
+module github.com/snakeblack/ospec-workflow
 
 go 1.23
 

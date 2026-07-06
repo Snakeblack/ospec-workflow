@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/yamllite"
+	"github.com/snakeblack/ospec-workflow/internal/yamllite"
 )
 
 // ── layout constants ──────────────────────────────────────────────────────────

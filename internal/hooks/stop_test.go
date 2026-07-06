@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/hooks"
-	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/store"
+	"github.com/snakeblack/ospec-workflow/internal/hooks"
+	"github.com/snakeblack/ospec-workflow/internal/store"
 )
 
 // ── helpers ────────────────────────────────────────────────────────────────────

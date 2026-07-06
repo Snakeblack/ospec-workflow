@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/yamllite"
+	"github.com/snakeblack/ospec-workflow/internal/yamllite"
 )
 
 func TestExtractFirstScalar(t *testing.T) {

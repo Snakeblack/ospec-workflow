@@ -84,7 +84,7 @@ function buildClaudeMarketplace(options) {
     description: "OSpec Workflow Claude Code local marketplace",
     owner: {
       name: "Manuel Michael Retamozo García",
-      email: "mretamozo@hiberus.com",
+      email: "hello@mretamozo.com",
     },
     plugins: [
       {
@@ -93,7 +93,7 @@ function buildClaudeMarketplace(options) {
         description:
           "Spec-Driven Development workflow with OpenSpec, strict TDD, phase agents, skills, hooks, and verification contracts.",
         source: `./plugins/${options.pluginName}`,
-        repository: "https://github.com/mretamozo-hiberuscom/ospec-workflow",
+        repository: "https://github.com/snakeblack/ospec-workflow",
         license: "MIT",
         keywords: ["sdd", "openspec", "tdd", "agents", "workflow"],
         category: "development",

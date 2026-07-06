@@ -58,23 +58,23 @@
 
 ### After fu-pt1 fix (`go test ./internal/hooks/...`):
 ```
-ok  github.com/mretamozo-hiberuscom/ospec-workflow/internal/hooks  0.592s
+ok  github.com/snakeblack/ospec-workflow/internal/hooks  0.592s
 ```
 
 ### After fu-pt2 + fu-pt3 (`go test ./internal/hooks/...`):
 ```
-ok  github.com/mretamozo-hiberuscom/ospec-workflow/internal/hooks  0.497s
+ok  github.com/snakeblack/ospec-workflow/internal/hooks  0.497s
 ```
 
 ### After fu-pt4 — full suite (`go test ./...`):
 ```
-ok  github.com/mretamozo-hiberuscom/ospec-workflow/cmd/ospec-hooks    4.102s
-ok  github.com/mretamozo-hiberuscom/ospec-workflow/internal/hooks      0.535s
-ok  github.com/mretamozo-hiberuscom/ospec-workflow/internal/jsonio     0.244s
-ok  github.com/mretamozo-hiberuscom/ospec-workflow/internal/rules      0.275s
-ok  github.com/mretamozo-hiberuscom/ospec-workflow/internal/skillreg   0.292s
-ok  github.com/mretamozo-hiberuscom/ospec-workflow/internal/store      0.300s
-ok  github.com/mretamozo-hiberuscom/ospec-workflow/internal/yamllite   0.243s
+ok  github.com/snakeblack/ospec-workflow/cmd/ospec-hooks    4.102s
+ok  github.com/snakeblack/ospec-workflow/internal/hooks      0.535s
+ok  github.com/snakeblack/ospec-workflow/internal/jsonio     0.244s
+ok  github.com/snakeblack/ospec-workflow/internal/rules      0.275s
+ok  github.com/snakeblack/ospec-workflow/internal/skillreg   0.292s
+ok  github.com/snakeblack/ospec-workflow/internal/store      0.300s
+ok  github.com/snakeblack/ospec-workflow/internal/yamllite   0.243s
 ```
 
 ---
@@ -99,6 +99,6 @@ ok  github.com/mretamozo-hiberuscom/ospec-workflow/internal/yamllite   0.243s
 ### GREEN Evidence (go test output — Batch 2)
 
 ```
-ok  github.com/mretamozo-hiberuscom/ospec-workflow/cmd/ospec-hooks    4.099s
-ok  github.com/mretamozo-hiberuscom/ospec-workflow/internal/hooks      0.528s
+ok  github.com/snakeblack/ospec-workflow/cmd/ospec-hooks    4.099s
+ok  github.com/snakeblack/ospec-workflow/internal/hooks      0.528s
 ```

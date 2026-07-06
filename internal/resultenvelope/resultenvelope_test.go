@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/resultenvelope"
+	"github.com/snakeblack/ospec-workflow/internal/resultenvelope"
 )
 
 func validEnvelope() map[string]any {

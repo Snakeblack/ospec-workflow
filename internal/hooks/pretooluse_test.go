@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/hooks"
+	"github.com/snakeblack/ospec-workflow/internal/hooks"
 )
 
 // hookSpecificOutput mirrors the hookSpecificOutput shape for pre-tool-use.

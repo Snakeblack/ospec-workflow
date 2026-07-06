@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/skillreg"
-	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/store"
+	"github.com/snakeblack/ospec-workflow/internal/skillreg"
+	"github.com/snakeblack/ospec-workflow/internal/store"
 )
 
 func init() {

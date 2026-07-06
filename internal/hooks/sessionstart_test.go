@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/hooks"
+	"github.com/snakeblack/ospec-workflow/internal/hooks"
 )
 
 // ── helpers ────────────────────────────────────────────────────────────────────

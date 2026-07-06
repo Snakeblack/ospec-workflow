@@ -18,8 +18,8 @@ package main
 import (
 	"os"
 
-	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/hooks"
-	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/jsonio"
+	"github.com/snakeblack/ospec-workflow/internal/hooks"
+	"github.com/snakeblack/ospec-workflow/internal/jsonio"
 )
 
 func main() {

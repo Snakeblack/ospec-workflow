@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/jsonio"
+	"github.com/snakeblack/ospec-workflow/internal/jsonio"
 )
 
 // errReader is an io.Reader whose Read always fails, used to exercise the

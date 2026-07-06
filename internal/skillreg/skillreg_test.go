@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mretamozo-hiberuscom/ospec-workflow/internal/skillreg"
+	"github.com/snakeblack/ospec-workflow/internal/skillreg"
 )
 
 // ── helpers ───────────────────────────────────────────────────────────────────

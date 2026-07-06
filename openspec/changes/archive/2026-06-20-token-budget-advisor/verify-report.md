@@ -44,13 +44,13 @@ go build ./cmd/ospec-hooks
 
 - **Go hook test suite**: ok (all packages pass)
 ```text
-ok  	github.com/mretamozo-hiberuscom/ospec-workflow/cmd/ospec-hooks	4.627s
-ok  	github.com/mretamozo-hiberuscom/ospec-workflow/internal/hooks	0.594s
-ok  	github.com/mretamozo-hiberuscom/ospec-workflow/internal/jsonio	(cached)
-ok  	github.com/mretamozo-hiberuscom/ospec-workflow/internal/rules	(cached)
-ok  	github.com/mretamozo-hiberuscom/ospec-workflow/internal/skillreg	(cached)
-ok  	github.com/mretamozo-hiberuscom/ospec-workflow/internal/store	(cached)
-ok  	github.com/mretamozo-hiberuscom/ospec-workflow/internal/yamllite	(cached)
+ok  	github.com/snakeblack/ospec-workflow/cmd/ospec-hooks	4.627s
+ok  	github.com/snakeblack/ospec-workflow/internal/hooks	0.594s
+ok  	github.com/snakeblack/ospec-workflow/internal/jsonio	(cached)
+ok  	github.com/snakeblack/ospec-workflow/internal/rules	(cached)
+ok  	github.com/snakeblack/ospec-workflow/internal/skillreg	(cached)
+ok  	github.com/snakeblack/ospec-workflow/internal/store	(cached)
+ok  	github.com/snakeblack/ospec-workflow/internal/yamllite	(cached)
 ```
 
 **Manual verification**: performed

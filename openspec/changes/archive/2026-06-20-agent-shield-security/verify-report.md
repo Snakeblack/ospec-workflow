@@ -31,13 +31,13 @@ $ node --test scripts/hooks/session-start.test.js scripts/hooks/pre-tool-use.tes
 ℹ duration_ms 285.0941
 
 $ go test ./...
-ok  	github.com/mretamozo-hiberuscom/ospec-workflow/cmd/ospec-hooks	4.614s
-ok  	github.com/mretamozo-hiberuscom/ospec-workflow/internal/hooks	0.663s
-ok  	github.com/mretamozo-hiberuscom/ospec-workflow/internal/jsonio	(cached)
-ok  	github.com/mretamozo-hiberuscom/ospec-workflow/internal/rules	(cached)
-ok  	github.com/mretamozo-hiberuscom/ospec-workflow/internal/skillreg	(cached)
-ok  	github.com/mretamozo-hiberuscom/ospec-workflow/internal/store	(cached)
-ok  	github.com/mretamozo-hiberuscom/ospec-workflow/internal/yamllite	(cached)
+ok  	github.com/snakeblack/ospec-workflow/cmd/ospec-hooks	4.614s
+ok  	github.com/snakeblack/ospec-workflow/internal/hooks	0.663s
+ok  	github.com/snakeblack/ospec-workflow/internal/jsonio	(cached)
+ok  	github.com/snakeblack/ospec-workflow/internal/rules	(cached)
+ok  	github.com/snakeblack/ospec-workflow/internal/skillreg	(cached)
+ok  	github.com/snakeblack/ospec-workflow/internal/store	(cached)
+ok  	github.com/snakeblack/ospec-workflow/internal/yamllite	(cached)
 ```
 
 **Manual verification**: performed
