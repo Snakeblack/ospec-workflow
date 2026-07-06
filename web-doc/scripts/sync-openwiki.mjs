@@ -10,6 +10,13 @@
 //   - Injects a `title` frontmatter field (first heading, else humanized
 //     filename); never overwrites an existing title, and never re-serializes
 //     (and thereby loses) pre-existing nested/multiline frontmatter structure.
+//   - Strips the page's leading H1 from the transformed body: Starlight
+//     already renders the frontmatter `title` as the page H1, so keeping the
+//     source heading would duplicate the title on every page.
+//   - Emits `src/sidebar.generated.json` (top links + groups) so
+//     astro.config.mjs can render a coherent sidebar: the quickstart page
+//     first, then one group per wiki subdirectory ordered by first mention
+//     in the quickstart's own links (alphabetical for unmentioned ones).
 //   - Rewrites links to repository source files into remote-repository URLs
 //     on the default branch; leaves wiki-internal links untouched.
 //   - Skips rewriting (with a warning, exit 0) when no `origin` remote is
@@ -35,6 +42,8 @@ const CWD = process.cwd();
 const WIKI_SRC = join(CWD, "..", "openwiki");
 const OUT_DIR = join(CWD, "src", "content", "docs");
 const CACHE_PATH = join(CWD, ".sync-cache.json");
+const SIDEBAR_MANIFEST_PATH = join(CWD, "src", "sidebar.generated.json");
+const QUICKSTART_PAGE = "quickstart.md";
 const EXCLUDED_FILES = new Set([".last-update.json", "_plan.md"]);
 
 function warn(message) {
@@ -132,32 +141,56 @@ function quoteYamlString(value) {
 }
 
 /**
+ * Removes the body's leading H1 (its first non-blank line, when it is a
+ * `# heading`). Starlight renders the frontmatter `title` as the page H1,
+ * so a kept source heading would print the title twice on every page.
+ */
+function stripLeadingH1(body) {
+  return body.replace(/^\s*#[ \t]+[^\n]*\r?\n?/, "");
+}
+
+/**
  * Resolves the exact frontmatter block + body to write for a transformed
  * page, WITHOUT ever re-serializing pre-existing frontmatter structure.
  * A naive "parse into a flat object, then re-emit `key: value` lines" round
  * trip silently drops nested keys, multiline scalars, and lists — this
  * function never does that. Three cases:
  *   1. No frontmatter at all -> synthesize a minimal new block with just `title`.
- *   2. Frontmatter already has a root-level `title` -> byte-for-byte passthrough.
+ *   2. Frontmatter already has a root-level `title` -> byte-for-byte
+ *      passthrough of the frontmatter block.
  *   3. Frontmatter exists but has no `title` -> PREPEND a `title:` line onto
  *      the ORIGINAL raw block text; every other line is left untouched.
+ * In every case the resolved page `title` is also returned (the sidebar
+ * manifest needs it) and the body's leading H1 is stripped.
  */
 function buildFrontmatterBlock(sourceContent, relPath) {
   const { hasFrontmatter, rawFrontmatter, body } = splitFrontmatter(sourceContent);
 
   if (!hasFrontmatter) {
     const title = extractFirstHeading(sourceContent) || humanizeFilename(relPath);
-    return { block: `---\ntitle: ${quoteYamlString(title)}\n---\n`, body: sourceContent };
+    return {
+      block: `---\ntitle: ${quoteYamlString(title)}\n---\n`,
+      body: stripLeadingH1(sourceContent),
+      title,
+    };
   }
 
   const existingTitle = extractRootScalar(rawFrontmatter, "title");
   if (existingTitle) {
-    return { block: `---\n${rawFrontmatter}\n---\n`, body };
+    return {
+      block: `---\n${rawFrontmatter}\n---\n`,
+      body: stripLeadingH1(body),
+      title: existingTitle,
+    };
   }
 
   const derivedTitle = extractFirstHeading(body) || humanizeFilename(relPath);
   const injectedBlock = `title: ${quoteYamlString(derivedTitle)}\n${rawFrontmatter}`;
-  return { block: `---\n${injectedBlock}\n---\n`, body };
+  return {
+    block: `---\n${injectedBlock}\n---\n`,
+    body: stripLeadingH1(body),
+    title: derivedTitle,
+  };
 }
 
 // --- link classification and rewriting --------------------------------------
@@ -187,6 +220,87 @@ function rewriteLinks(body, { originUrl, defaultBranch, warn: warnFn }) {
     }
     return `[${text}](${originUrl}/blob/${defaultBranch}${target})`;
   });
+}
+
+// --- sidebar manifest ----------------------------------------------------
+
+/** Resolves a page's display title without transforming it (manifest use). */
+function resolvePageTitle(sourceContent, relPath) {
+  const { hasFrontmatter, rawFrontmatter, body } = splitFrontmatter(sourceContent);
+  const existing = hasFrontmatter ? extractRootScalar(rawFrontmatter, "title") : null;
+  return (
+    existing ||
+    extractFirstHeading(hasFrontmatter ? body : sourceContent) ||
+    humanizeFilename(relPath)
+  );
+}
+
+/** "hooks-runtime" -> "Hooks Runtime" (sidebar group label). */
+function humanizeDirName(dir) {
+  return dir
+    .split(/[-_]/g)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+/**
+ * Builds the sidebar manifest consumed by astro.config.mjs:
+ *   - topLinks: root-level wiki pages, quickstart always first, labelled with
+ *     each page's resolved title.
+ *   - groups: one per wiki subdirectory, ordered by the directory's first
+ *     mention among the quickstart page's own links (the quickstart is the
+ *     generator-maintained narrative index), alphabetical for directories
+ *     the quickstart never mentions.
+ */
+function buildSidebarManifest(sourcePages, titlesByPage, quickstartRaw) {
+  const rootPages = sourcePages.filter((p) => !p.includes(sep));
+  const dirs = [...new Set(sourcePages.filter((p) => p.includes(sep)).map((p) => p.split(sep)[0]))];
+
+  const mentionOrder = new Map();
+  if (quickstartRaw) {
+    let match;
+    let next = 0;
+    const linkRe = /\[[^\]]*\]\(([^)\s]+)\)/g;
+    while ((match = linkRe.exec(quickstartRaw))) {
+      for (const dir of dirs) {
+        if (!mentionOrder.has(dir) && match[1].includes(`${dir}/`)) {
+          mentionOrder.set(dir, next++);
+        }
+      }
+    }
+  }
+  dirs.sort((a, b) => {
+    const ia = mentionOrder.has(a) ? mentionOrder.get(a) : Infinity;
+    const ib = mentionOrder.has(b) ? mentionOrder.get(b) : Infinity;
+    return ia !== ib ? ia - ib : a.localeCompare(b);
+  });
+
+  const topLinks = rootPages
+    .sort((a, b) =>
+      a === QUICKSTART_PAGE ? -1 : b === QUICKSTART_PAGE ? 1 : a.localeCompare(b)
+    )
+    .map((page) => ({
+      label: titlesByPage.get(page) || humanizeFilename(page),
+      link: `/${page.replace(/\.md$/, "")}`,
+    }));
+
+  return {
+    topLinks,
+    groups: dirs.map((dir) => ({ label: humanizeDirName(dir), directory: dir })),
+  };
+}
+
+function saveSidebarManifest(manifest) {
+  try {
+    mkdirSync(dirname(SIDEBAR_MANIFEST_PATH), { recursive: true });
+    writeFileSync(SIDEBAR_MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`);
+  } catch (err) {
+    warn(
+      `failed to write ${SIDEBAR_MANIFEST_PATH} (${err.message}); astro.config.mjs will fall ` +
+        `back to Starlight's default autogenerated sidebar. The sync itself still completed.`
+    );
+  }
 }
 
 // --- cache -------------------------------------------------------------------
@@ -274,6 +388,8 @@ function main() {
   const cache = loadCache();
   const nextCache = {};
   const failures = [];
+  const titlesByPage = new Map();
+  let quickstartRaw = null;
 
   for (const relPath of sourcePages) {
     try {
@@ -282,6 +398,9 @@ function main() {
       const stat = statSync(srcAbs);
       const rawContent = readFileSync(srcAbs, "utf8");
       const hash = hashContent(rawContent);
+
+      titlesByPage.set(relPath, resolvePageTitle(rawContent, relPath));
+      if (relPath === QUICKSTART_PAGE) quickstartRaw = rawContent;
 
       const cached = cache[relPath];
       const unchanged = cached && cached.mtimeMs === stat.mtimeMs && cached.hash === hash && existsSync(outAbs);
@@ -316,6 +435,7 @@ function main() {
     }
   }
 
+  saveSidebarManifest(buildSidebarManifest(sourcePages, titlesByPage, quickstartRaw));
   saveCache(nextCache);
 
   if (failures.length > 0) {
