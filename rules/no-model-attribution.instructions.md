@@ -40,10 +40,12 @@ Forbidden in commits and PRs, in any form, casing, or language:
 
 ## Self-check before committing or opening/editing a PR
 
-Reject and rewrite if the text matches, case-insensitively:
+Reject and rewrite if the text matches, case-insensitively (vendor names at
+word boundaries, so ordinary words that merely contain one — coherente,
+bombardeo, llaman — never fire):
 
 ```
-co-authored-by|generated (with|by)|🤖|claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere
+\b(co-authored-by|generated (with|by)|claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere)\b|🤖
 ```
 
 When any match is a genuine attribution line, remove it before the commit or PR is created.

@@ -84,6 +84,33 @@ test("FORBIDDEN_ATTRIBUTION_RE matches case-insensitively", () => {
   assert.ok(FORBIDDEN_ATTRIBUTION_RE.test("Claude"));
 });
 
+test("FORBIDDEN_ATTRIBUTION_RE does not fire on ordinary words that merely contain a vendor name", () => {
+  const cleanLines = [
+    "feat: menú lateral coherente en el template", // "coherente" contains "cohere"
+    "docs: mejora la coherencia del wiki",
+    "fix: evita el bombardeo de warnings", // "bombardeo" contains "bard"
+    "feat: muestra cómo se llaman los grupos", // "llaman" contains "llama"
+  ];
+
+  for (const line of cleanLines) {
+    assert.ok(!FORBIDDEN_ATTRIBUTION_RE.test(line), line);
+  }
+});
+
+test("FORBIDDEN_ATTRIBUTION_RE still fires on standalone vendor names at word boundaries", () => {
+  const attributionLines = [
+    "Generated with Cohere",
+    "thanks to bard for the draft",
+    "Written by GPT-4",
+    "Used Llama for implementation",
+    "cohere",
+  ];
+
+  for (const line of attributionLines) {
+    assert.ok(FORBIDDEN_ATTRIBUTION_RE.test(line), line);
+  }
+});
+
 // --- Integration tests for runCommitMsg ---
 
 test("runCommitMsg exits 0 for a clean commit message", (t) => {
