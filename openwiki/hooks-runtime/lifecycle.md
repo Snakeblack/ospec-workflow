@@ -1,68 +1,109 @@
-# Runtime de Hooks de Ciclo de Vida
+# Runtime de hooks de ciclo de vida
 
-El sistema de hooks de ciclo de vida proporciona un runtime integrado que se activa ante eventos clave durante la interacción del agente con el entorno. A través de este mecanismo, `ospec-workflow` intercepta herramientas, escanea amenazas de seguridad en tiempo real, calcula el consumo de tokens y gestiona la continuidad del estado entre sesiones.
+Cinco eventos de ciclo de vida del host de chat (`SessionStart`, `PreToolUse`,
+`PreCompact`, `SubagentStop`, `Stop`) descargan del prompt tareas repetitivas
+del ciclo SDD y aplican políticas de seguridad y control. Este dominio cubre
+su registro, su doble implementación (Node.js y Go) y el launcher que decide
+cuál usar.
 
-## Cómo funciona
+## Registro y contrato stdin/stdout
 
-Los hooks se declaran en el manifiesto global de hooks (`/hooks/hooks.json`) y se enlazan a los eventos nativos del cliente de IA. Cuando un evento es disparado por la plataforma, el cliente ejecuta el comando asignado de forma síncrona:
+`hooks/hooks.json` es la única fuente de verdad para el binding de hooks:
+lista los cinco eventos, cada uno de tipo `"command"`, invocando
+`node "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/<name>.js"` a través del launcher.
 
+| Evento | Script Node | Timeout | Responsabilidad |
+| --- | --- | --- | --- |
+| `SessionStart` | `session-start.js` | (ninguno) | Valida OpenSpec, refresca la caché de skills, ejecuta escaneos AgentShield. |
+| `PreToolUse` | `pre-tool-use.js` | 5s | Bloquea/pregunta ante comandos peligrosos, evalúa Token Budget Advisor y AgentShield. |
+| `PreCompact` | `pre-compact.js` | 5s | Persiste un resumen recuperable antes de compactar contexto. |
+| `SubagentStop` | `subagent-stop.js` | 5s | Detecta degradación en la resolución de skills. |
+| `Stop` | `stop.js` | 5s | Registra la continuidad mínima de la sesión. |
+
+Todo hook DEBE leer su payload como JSON UTF-8 de stdin (stdin vacío resuelve a
+`{}`), escribir exactamente una línea JSON UTF-8 en stdout antes de salir, y
+nunca fallar silenciosamente — los errores deben producir una línea JSON
+válida igual.
+
+## Doble implementación: Node.js y Go
+
+Cada hook existe dos veces:
+
+- **Node.js** (`scripts/hooks/*.js`) — CommonJS, Node 22+, referencia original.
+- **Go** (`internal/hooks/*.go`, compilado como `cmd/ospec-hooks/main.go` →
+  `ospec-hooks.exe`) — versión nativa optimizada para arranque rápido.
+
+```mermaid
+flowchart TD
+    Host[Host de chat] --> Launch[ospec-hooks-launch.js]
+    Launch --> Cfg{backend en\nopenspec/config.yaml}
+    Cfg -->|openspec + binario disponible| Go[ospec-hooks.exe]
+    Cfg -->|workspace-federated\n+ evento federation-aware| Node[Fallback Node .js]
+    Cfg -->|binario ausente| Node
 ```
-[Evento del Cliente de IA]
-           │
-           ▼
-[Intercepción por Hooks] ──► (hooks.json)
-           │
-           ▼
-[Ejecutor Común] ────────► (ospec-hooks-launch.js)
-           │
-           ▼
-[Despacho de Script] ────► (session-start.js, pre-tool-use.js, etc.)
-```
 
-1. **Intercepción del Evento**: El cliente detecta un evento configurado (como antes de ejecutar una herramienta) y pausa la ejecución.
-2. **Carga del Lanzador**: Se ejecuta el script puente `/scripts/hooks/ospec-hooks-launch.js` pasando como argumento el identificador del evento.
-3. **Ejecución del Hook Específico**: El lanzador carga el módulo correspondiente (bajo `/scripts/hooks/`) y evalúa sus reglas.
-4. **Bypass o Bloqueo**: El hook retorna una señal de aprobación para continuar la operación o de bloqueo para denegarla (por ejemplo, cancelando un comando de consola no seguro).
+### Reglas de ruteo del launcher (`scripts/hooks/ospec-hooks-launch.js`)
 
-## Detalles técnicos
+1. El launcher prefiere el binario Go compilado cuando está disponible en la
+   plataforma.
+2. El binario Go **no soporta federación de workspaces**. Para mantener
+   paridad, el launcher debe rutear eventos federation-aware
+   (`session-start`, `pre-compact`, `stop`) al fallback Node.js cuando el
+   backend resuelto es `workspace-federated`.
+3. Si el backend es `openspec` (single-repo) o el subcomando no es
+   federation-aware (`pre-tool-use`, `subagent-stop`), usa el binario Go si
+   existe.
+4. **Protección del hot path**: para `pre-tool-use` y `subagent-stop` el
+   launcher NUNCA lee ni parsea `openspec/config.yaml` — evita I/O de disco
+   en el camino más frecuente y sensible a latencia.
+5. Si `openspec/config.yaml` falta, es ilegible, o no especifica `backend`,
+   el launcher asume `openspec` por defecto.
 
-### Eventos del Ciclo de Vida Soportados
+## Detección de drift de dominio
 
-- **SessionStart**: Se ejecuta una vez al iniciar la sesión del chat. Realiza un escaneo preliminar de seguridad del espacio de trabajo (AgentShield) y refresca la caché de metadatos de las herramientas.
-- **PreToolUse**: Intercepta toda llamada a herramientas (lectura de archivos, ejecución de comandos). Evalúa el presupuesto de tokens estimados (Token Budget Advisor) y bloquea operaciones de consola no autorizadas o lecturas de secretos.
-- **PreCompact**: Se activa antes de que el cliente de IA compacte su historial de conversación para liberar tokens. Genera un resumen compacto del estado actual y lo almacena para evitar pérdidas de contexto.
-- **SubagentStop**: Se ejecuta cuando finaliza o se cancela la ejecución de un subagente técnico, registrando el estado final y limpiando archivos temporales.
-- **Stop**: Se ejecuta al finalizar la sesión del agente para escribir métricas de rendimiento y asegurar la persistencia en el backend de OpenSpec.
+`scripts/lib/ospec-state.js` expone un helper de "domain drift": dado el
+commit de baseline registrado para un dominio
+(`openspec/specs/_baseline/manifest.md`) y sus globs de fuente, determina si
+el dominio cambió desde ese commit (`git diff --name-only <hash>..HEAD`,
+filtrado por esos globs). Es fail-safe ante cualquier fallo de git (hash
+inexistente, repo vacío, HEAD detached, git ausente): retorna "sin datos de
+drift" en vez de lanzar, y los llamadores (`SessionStart`, `PreToolUse`) nunca
+deben bloquearse por este fallo. Un dominio con cambios ya cubiertos por el
+scope de un cambio OpenSpec activo se excluye del resultado de drift.
 
-### Variables de Entorno para Bypass (Harness Gates)
+## Por qué la arquitectura está diseñada así
 
-Para propósitos de desarrollo o integraciones continuas (CI), es posible desactivar las comprobaciones automáticas configurando variables de entorno en la shell:
+Mantener Node.js como implementación de referencia y Go como optimización de
+arranque permite validar el binario nativo contra los mismos tests de
+comportamiento (`scripts/hooks/parity-contract.test.js`), sin bifurcar el
+contrato observable. La federación de workspaces es la única capacidad que el
+binario Go no replica todavía, así que el launcher hace ese ruteo explícito en
+vez de degradar silenciosamente.
 
-- `DISABLE_AGENT_SHIELD=true`: Desactiva por completo el escaneo de claves, credenciales y bloqueos de seguridad de archivos críticos.
-- `DISABLE_TOKEN_ADVISOR=true`: Desactiva la estimación y advertencias de consumo excesivo de tokens por archivos pesados.
-- `DISABLE_OSPEC_PRECOMMIT=true`: Desactiva la verificación local del espacio de trabajo en los hooks automáticos de Git pre-commit.
+## Principales puntos de extensión
 
-## Por qué la arquitectura tiene esta forma
+- Agregar un hook nuevo: registrar el evento en `hooks/hooks.json`,
+  implementar el script Node en `scripts/hooks/`, y — si aplica paridad Go —
+  el handler correspondiente en `internal/hooks/`.
+- Extender el ruteo del launcher: agregar el subcomando a la lista
+  federation-aware si el nuevo hook necesita fallback a Node en workspaces
+  federados.
 
-El uso de un único script lanzador (`ospec-hooks-launch.js`) reduce la latencia de arranque al compartir dependencias comunes precargadas y proporciona un punto único para el manejo de excepciones de los hooks, garantizando que un error inesperado en un script de hook no rompa la estabilidad del cliente de IA.
+## Cosas a vigilar al editar
 
-## Puntos de extensión principales
-
-- **Crear un nuevo Hook**: Declarar la clave del evento en `/hooks/hooks.json`, agregar el script de validación bajo `/scripts/hooks/` y exportar una función de control que el lanzador invocará automáticamente.
-- **Añadir validaciones personalizadas**: Modificar `/scripts/hooks/pre-tool-use.js` para interceptar comandos adicionales de shell específicos de tu plataforma de despliegue.
-
-## Aspectos a tener en cuenta al editar
-
-- **Presupuesto de Tiempo (Timeout)**: Muchos clientes de IA imponen un límite estricto de tiempo para la ejecución de hooks síncronos (declarado como `timeout: 5` segundos en `hooks.json`). Los scripts de hooks no deben realizar peticiones de red pesadas ni bucles de búsqueda profunda.
-- **Entorno de ejecución**: Los hooks se ejecutan bajo la ruta absoluta del plugin (`CLAUDE_PLUGIN_ROOT`). Nunca uses rutas relativas dependientes del directorio de trabajo actual (`process.cwd()`), ya que el usuario ejecutará comandos desde cualquier subdirectorio del repositorio.
+- Un cambio de contrato en el hook Node.js casi siempre exige el espejo en Go
+  — de lo contrario `parity-contract.test.js` debe actualizarse
+  deliberadamente, nunca omitirse.
+- No leer `openspec/config.yaml` dentro de los handlers de `pre-tool-use` o
+  `subagent-stop` — rompe la protección de hot path.
+- Los hooks nunca deben lanzar excepciones sin capturar: siempre deben
+  devolver JSON válido en stdout, incluso en el camino de error.
 
 ## Mapa de fuentes
 
-| Archivo / Directorio | Rol | Evidencia de Git |
-| :--- | :--- | :--- |
-| [/hooks/hooks.json](/hooks/hooks.json) | Manifiesto de mapeo de eventos de ciclo de vida a scripts de consola. | `422928f` |
-| [/scripts/hooks/ospec-hooks-launch.js](/scripts/hooks/ospec-hooks-launch.js) | Lanzador y puente síncrono común para la inicialización de hooks. | `ba82de1` |
-| [/scripts/hooks/pre-tool-use.js](/scripts/hooks/pre-tool-use.js) | Lógica de intercepción de herramientas (PreToolUse). | `422928f` |
-| [/scripts/hooks/session-start.js](/scripts/hooks/session-start.js) | Inicializador de sesión y escáner de AgentShield (SessionStart). | `422928f` |
-| [/scripts/hooks/pre-compact.js](/scripts/hooks/pre-compact.js) | Gestor de persistencia pre-compactación (PreCompact). | `ba82de1` |
-| [/scripts/lib/lifecycle-hooks.js](/scripts/lib/lifecycle-hooks.js) | Motor de ejecución interno y abstracción de plataforma para hooks. | `ba82de1` |
+- `/hooks/hooks.json` — `git log`: `26509c6` (launcher con fallback a Node), `8b5495b` (migración a binario Go)
+- `/scripts/hooks/session-start.js`, `/scripts/hooks/pre-tool-use.js`, `/scripts/hooks/pre-compact.js`, `/scripts/hooks/subagent-stop.js`, `/scripts/hooks/stop.js`
+- `/scripts/hooks/ospec-hooks-launch.js`, `/scripts/hooks/parity-contract.test.js`
+- `/internal/hooks/`, `/cmd/ospec-hooks/main.go`
+- `/scripts/lib/ospec-state.js`
+- `/openspec/specs/hooks/spec.md`, `/openspec/specs/launcher/spec.md`

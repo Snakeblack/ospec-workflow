@@ -1,69 +1,110 @@
-# Verificación y Puertas de Calidad
+# Testing y calidad
 
-El dominio de Verificación y Puertas de Calidad asegura que ningún código nuevo sea aprobado y archivado sin evidencia empírica de correcto funcionamiento. La fase `/sdd-verify` impone la barrera de control más estricta del flujo técnico, evaluando la ejecución de suites de pruebas unitarias, análisis estático, cobertura y conformidad de arquitectura con respecto al diseño original.
+`ospec-workflow` aplica Strict TDD a su propio desarrollo y ofrece una
+política declarativa de quality gates que `sdd-verify` evalúa en los cambios
+que gestiona. Este dominio cubre ambas capas: cómo se testea el propio
+harness y cómo un proyecto que lo adopta puede declarar sus propias puertas
+de calidad.
 
-## Cómo funciona
+## Cómo se testea el propio harness
 
-Cuando se invoca `/sdd-verify` (o como paso obligatorio previo a `/sdd-archive`), el sistema ejecuta la siguiente secuencia de validación:
+- **Runner**: Node.js native test runner (`node --test`), sin frameworks
+  externos.
+- **Comando único**: `npm test` → `node scripts/check.js`.
+- **Cobertura**: 20+ archivos `scripts/**/*.test.js` (unitarios e
+  integración) más los tests Go en `internal/hooks/*_test.go` y
+  `cmd/ospec-hooks/*_test.go`.
 
+`scripts/check.js` es el comando único de verificación local y CI: ejecuta la
+suite de tests, genera y valida los tres targets no-canónicos (`claude`,
+`github-copilot`, `opencode`) contra sus validadores, y sondea si el CLI
+externo `claude` está disponible — si no lo está, valida solo la generación
+(ejercita la transformación) sin el gate estricto de `claude plugin
+validate`.
+
+```mermaid
+flowchart TD
+    A[npm test] --> B[node scripts/check.js]
+    B --> C[Suite de tests\nnode --test scripts/**/*.test.js]
+    B --> D[Genera dist/claude, dist/github-copilot, dist/opencode]
+    D --> E{claude CLI disponible?}
+    E -->|sí| F[claude plugin validate --strict]
+    E -->|no| G[Solo validación de generación]
+    D --> H[validate-github-copilot.js]
+    D --> I[validate-opencode.js]
 ```
-[Inicio de Verificación]
-          │
-          ▼
- [Ejecución de Pruebas] ────► (node --test scripts/**/*.test.js)
-          │
-          ├──► FALLA: Detiene el flujo técnico y reporta errores.
-          ▼
- [Evaluación de Quality Gates]
-          ├── tests (Asegura ejecución exitosa y cobertura mínima)
-          ├── lint (Verificación estática opcional)
-          ├── architecture (Consistencia de dependencias)
-          └── security (Escaneo de vulnerabilidades)
-          │
-          ▼
- [Generación de Reporte] ───► (verify-report.md)
-```
 
-1. **Ejecución del Runner**: Invocación automática de la suite de pruebas mediante el comando de test del repositorio (en este caso, el Node.js Native Test Runner).
-2. **Auditoría de Quality Gates**: El motor de validación (`quality-gates.js`) evalúa cada una de las compuertas configuradas.
-3. **Traceability Matrix (Matriz de Trazabilidad)**: Asocia de forma cruzada cada requerimiento (`REQ-*`) con los escenarios de prueba escritos en el código, verificando cobertura total de la especificación.
-4. **Veredicto final**: Genera un archivo detallado de auditoría (`verify-report.md`). Si alguna compuerta crítica marcada con `on_fail: halt` falla, se bloquea la transición a `/sdd-archive`.
+## Strict TDD en el propio repositorio
 
-## Detalles técnicos
+El hook `pre-commit` (ver [Guardrails de seguridad](../security/guardrails.md))
+hace cumplir la paridad código/test localmente: si hay código de producción
+staged (`internal/**/*.go`, `scripts/hooks/*.js`, etc.) sin un test
+correspondiente (`*_test.go`, `*.test.js`) o sin `tasks.md` del cambio activo
+staged, el commit se bloquea.
 
-### Configuración de Pruebas en el Repositorio
+## Quality gates declarativos para proyectos adoptantes (`sdd-verify`)
 
-El runner nativo está configurado en `/openspec/config.yaml` bajo el bloque `testing`:
-- **Runner**: `node` (Node.js nativo para tests, sin librerías externas pesadas).
-- **Test Command**: `npm test` (que a su vez mapea a `node scripts/check.js`).
-- **Raw Command**: `node --test scripts/**/*.test.js`.
+`openspec/config.yaml` soporta una clave opcional `quality_gates:` con cuatro
+slots tipados: `tests`, `lint`, `architecture`, `security`. **La ausencia de
+este bloque es un no-op estricto** — el comportamiento de verify es idéntico
+al baseline previo a esta funcionalidad.
 
-### Strict TDD (Test-Driven Development Estricto)
+| Campo | Tipo | Default | Descripción |
+| --- | --- | --- | --- |
+| `{gate}.required` | boolean | `false` | Si el fallo del gate afecta el resultado de verificación |
+| `{gate}.command` | string | ausente | Comando shell a ejecutar; ausente = se salta con advertencia |
+| `{gate}.on_fail` | `advisory` \| `halt` | `advisory` | Enforcement cuando `required: true` y el gate falla |
+| `tests.coverage.minimum` | integer 0–100 | ausente | Piso de cobertura; ausente = sin chequeo de cobertura |
+| `tests.coverage.command` | string | ausente | Comando cuyo stdout es el % de cobertura |
 
-Cuando la directiva `strict_tdd: true` está activa en la configuración del proyecto, el arnés impone una disciplina férrea durante la implementación:
-1. **Red Phase (Fase Roja)**: Al agregar una tarea en `/sdd-apply`, primero debes crear o modificar los archivos de tests (`*.test.js`). El orquestador ejecuta las pruebas para asegurar que fallen (deben estar en "rojo").
-2. **Green Phase (Fase Verde)**: Posteriormente, se escribe el código de producción hasta que la suite pase a exitosa ("verde").
-3. **Refactor Phase (Refactorización)**: Se optimiza la estructura garantizando que el suite continúe en estado exitoso.
+Claves de gate desconocidas se ignoran silenciosamente (forward-compat).
 
-## Por qué la arquitectura tiene esta forma
+### Semántica de evaluación por gate
 
-En el desarrollo tradicional, las pruebas y las especificaciones a menudo se tratan como tareas secundarias que se realizan "si queda tiempo". Al integrar la ejecución de tests directamente dentro del flujo de transición de estados de la IA (fase de verificación síncrona), garantizamos que no sea posible declarar una iteración como "finalizada" sin antes contar con el respaldo de pruebas automatizadas funcionales y consistentes.
+1. Si `command` está ausente/vacío → estado **skipped**.
+2. Ejecuta el `command` configurado. Exit code 0 → **pass**; no-cero → **fail**.
+3. Para `tests`: si `coverage.minimum` está definido, corre
+   `tests.coverage.command` y parsea su stdout como porcentaje. Por debajo
+   del mínimo → **fail**, independientemente del exit code del comando
+   principal. Si `tests.coverage.command` está ausente → se salta con
+   advertencia, nunca hace fallar el gate.
+4. `sdd-verify` DEBE evaluar **todos** los gates declarados antes de aplicar
+   cualquier enforcement — fail-fast dentro del loop de gates está prohibido.
+5. `on_fail: advisory` (default) registra un hallazgo WARNING sin bloquear
+   archive; `on_fail: halt` registra un BLOCKER que bloquea archive hasta
+   resolverse o anularse explícitamente.
 
-## Puntos de extensión principales
+## Por qué la arquitectura está diseñada así
 
-- **Definir una nueva compuerta de calidad (Quality Gate)**: Agregar la clave del gate (por ejemplo, `security`) bajo `quality_gates` en `/openspec/config.yaml` especificando su comando (`command`) y comportamiento ante fallas (`on_fail: halt`).
-- **Adaptar a otro runner**: Cambiar los comandos de ejecución del bloque `testing` de `/openspec/config.yaml` si migras el repositorio a TypeScript/Jest o a otro lenguaje.
+Que `quality_gates:` sea estrictamente opt-in y no-op en ausencia evita
+romper proyectos que adoptan `ospec-workflow` sin configurar nada extra. Que
+`sdd-verify` evalúe todos los gates antes de aplicar enforcement da al
+usuario visibilidad completa del estado de calidad en un solo reporte, en vez
+de detenerse en el primer fallo y ocultar el resto.
 
-## Aspectos a tener en cuenta al editar
+## Principales puntos de extensión
 
-- **Evitar la alucinación de evidencia**: El subagente `/sdd-verify` debe verificar la salida real del comando de consola. Nunca completes la verificación asumiendo que las pruebas "debieron haber pasado" sin ejecutar la suite.
-- **Trazabilidad de REQ**: Asegúrate de incluir etiquetas `REQ-sdd-document-*` en los bloques descriptivos de tus archivos de tests para que la matriz de trazabilidad pueda vincular las especificaciones del diseño con tus casos de prueba reales de forma automatizada.
+- Declarar quality gates en un proyecto: descomentar y completar el bloque
+  `quality_gates:` en `openspec/config.yaml` (ver el bloque comentado de
+  referencia al final del archivo).
+- Agregar un nuevo slot de gate: requiere un cambio de spec explícito (los
+  cuatro slots actuales son el contrato reconocido; nuevas claves a nivel
+  `quality_gates:` se ignoran hasta que se documenten).
+
+## Cosas a vigilar al editar
+
+- No asumas que `on_fail` bloquea por defecto — el default es siempre
+  `advisory` incluso si `required: true`; hace falta declarar `on_fail: halt`
+  explícitamente.
+- Un stdout de cobertura fuera de rango (no 0–100) se trata como
+  skip-with-warning, **nunca se clampa**.
+- `scripts/check.js` no falla si el CLI `claude` no está instalado — solo
+  reduce el alcance de validación del target claude a generación pura.
 
 ## Mapa de fuentes
 
-| Archivo / Directorio | Rol | Evidencia de Git |
-| :--- | :--- | :--- |
-| [/scripts/check.js](/scripts/check.js) | Suite central e integrador de tests de todo el repositorio. | `457f385` |
-| [/scripts/lib/quality-gates.js](/scripts/lib/quality-gates.js) | Motor de validación declarativa de compuertas de calidad. | `457f385` |
-| [/agents/sdd-verify.agent.md](/agents/sdd-verify.agent.md) | Definición y prompt del agente validador técnico. | `1729` |
-| [/scripts/lib/quality-gates.test.js](/scripts/lib/quality-gates.test.js) | Tests de validación y comportamiento de los gates de calidad. | `457f385` |
+- `/openspec/specs/quality-gates/spec.md`
+- `/scripts/check.js`
+- `/package.json` (script `test`)
+- `/skills/sdd-verify/SKILL.md`
+- `/openspec/config.yaml` (bloque comentado `quality_gates:`)

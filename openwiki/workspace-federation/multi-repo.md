@@ -1,64 +1,119 @@
-# Federación de Espacios de Trabajo Multi-Repo
+# Federación de workspaces multi-repo
 
-El dominio de Federación de Espacios de Trabajo permite coordinar cambios complejos y analizar su impacto en arquitecturas de múltiples repositorios distribuidos. Cuando un proyecto se compone de varios microservicios o plugins dependientes, `ospec-workflow` proporciona un plano de comunicación y un registro de contratos cruzados para asegurar que los cambios en un repositorio no rompan la compatibilidad de sus dependientes.
+`sdd-workspace` extiende el ciclo SDD estándar a **workspaces contenedores**
+que agrupan varios repositorios miembro (microservicios, microfrontales,
+paquetes NuGet). Este dominio cubre el descubrimiento de miembros, el atlas
+derivado, los marcadores canónicos por repo, y el baseline federado resumible.
 
-## Cómo funciona
+## Detección del contenedor y descubrimiento de miembros
 
-La federación opera a través de un atlas de dependencias dinámico. Cuando el arnés funciona bajo la ruta `federated` (definida cuando el backend de persistencia se establece como `workspace-federated`), se ejecuta la siguiente lógica:
+`sdd-workspace` (fase `workspace-explore`) escanea los hijos inmediatos (solo
+profundidad 1) del directorio contenedor. Un hijo se reconoce como repo
+miembro cuando `.git` está presente, ya sea como directorio o como archivo
+(worktree/submódulo de git). Si existe `.gitmodules` en la raíz del
+contenedor, se trata como la lista autoritativa de rutas de submódulo; el
+escaneo por sistema de archivos es la fuente secundaria — ambas se unen sin
+duplicados. Un manifiesto secundario (`package.json`, `*.csproj`, `go.mod`)
+puede leerse dentro de cada miembro para inferir el stack tecnológico cuando
+no hay otra señal disponible.
 
-```
-[Cambio en Repositorio A]
-          │
-          ▼
- [Escaneo de Atlas] ────────► (workspace-atlas.js)
-          │
-          ▼
- [Análisis de Impacto] ─────► (federation-marker.js)
-          ├── Identifica marcas de contratos exportados
-          └── Evalúa compatibilidad en repositorios B y C
-          │
-          ▼
- [Gate de Impacto (Impact)] ──► Alerta al usuario ante incompatibilidades
-```
+## El marcador canónico por miembro
 
-1. **Escaneo del Atlas**: `workspace-atlas.js` mapea la jerarquía de directorios de los repositorios locales y detecta enlaces simbólicos o dependencias mutuas.
-2. **Extracción de Marcas (Markers)**: Analiza marcas especiales (`@contract` u otros comentarios de firma de API) en los puntos de integración.
-3. **Validación de Impacto**: Si un repositorio A realiza una modificación en la firma de un contrato técnico (por ejemplo, cambios de variables MCP o firma de funciones comunes), calcula si los repositorios B o C sufrirán roturas.
-4. **Alerta del Gate**: El gate bloquea la fase de desarrollo si detecta desalineaciones críticas de versión.
+Cada repo federado contiene `openspec/federation.member.yaml` como fuente de
+verdad versionada de su identidad de federación:
 
-## Detalles técnicos
+| Campo | Tipo | Restricción |
+| --- | --- | --- |
+| `federation.id` | string | Único en todo el roster |
+| `member.id` | string | Identifica este repo dentro de la federación |
+| `member.role` | string | `primary` \| `secondary` |
+| `member.type` | string | `microservicio` \| `microfrontal` \| `nuget` |
+| `member.layer` | string | `dominio` \| `common` |
+| `member.remote` | string | Debería estar presente; puede faltar en miembros locales |
+| `member.provides[]` | object[] | Contratos que expone este miembro (`id`, `consumers`, `surface`) |
+| `roster` | object[] | Cada entrada con `{id, remote}` |
+| `updated_at` | ISO 8601 | Timestamp de merge |
 
-### Registro de Capacidades (Capability Registry)
+## El atlas como caché derivada
 
-El módulo `/scripts/lib/capability-registry.js` mantiene un inventario de las capacidades, herramientas y runners disponibles en cada repositorio del espacio de trabajo. Esto permite:
-- Evitar suposiciones sobre si un comando de test (como `pytest` o `go test`) funcionará en el entorno local de un repositorio satélite.
-- Inyectar de forma inteligente las habilidades (`skills`) y reglas adecuadas dependiendo de las tecnologías que detecte en el subproyecto.
+El "atlas" (`workspace-atlas.js`) es una inversión deliberada: no es la fuente
+de verdad, sino una **caché derivada** reconstruible desde los marcadores
+canónicos de cada miembro. La operación `enroll` escribe/actualiza el
+marcador de un miembro; el atlas se recompone leyendo y fusionando esos
+marcadores. Marcadores originados en `workspace-explore` (fase de
+descubrimiento) son estructuralmente válidos pero intencionalmente
+incompletos (sin `member.remote` ni `roster` completo) — llevan un tag
+centinela de "marker hygiene" para suprimir advertencias ruidosas de "no
+reconstruible remotamente" que solo tienen sentido para marcadores curados de
+producción.
 
-### Abstracción de Contratos
+## Baseline federado: orquestación resumible
 
-La federación gestiona contratos de dos tipos principales:
-- **Contratos de Comportamiento**: Pruebas de integración compartidas que definen cómo deben reaccionar las APIs de los plugins de forma consistente.
-- **Contratos de Interface**: Estructuras JSON/YAML que definen la superficie de comandos, parámetros aceptados y esquemas de respuesta MCP del plugin.
+`federated-baseline-orchestration` cubre el loop que selecciona miembros
+brownfield-pendientes (según el atlas) y delega `sdd-baseline` a cada uno
+secuencialmente:
 
-## Por qué la arquitectura tiene esta forma
+- Selecciona miembros por criterio de estado (brownfield/init pendiente).
+- Persiste un archivo de estado agregado que permite **reanudar** la
+  orquestación entre sesiones sin reprocesar miembros ya completados.
+- Itera miembro por miembro, con una política de fallo por miembro que no
+  aborta el resto del lote.
+- El límite de delegación es de solo lectura + enlace: la orquestación no
+  reescribe contratos de otros miembros, solo lee marcadores y delega.
 
-En sistemas distribuidos, el mayor punto de falla son las integraciones. Un desarrollador puede validar localmente que su plugin compila y pasa todas las pruebas individuales, pero al desplegarse de forma conjunta con otros componentes del ecosistema, pueden surgir errores por incompatibilidades de API. La federación traslada estas comprobaciones de integración a la fase más temprana del desarrollo técnico (antes de la implementación), reduciendo drásticamente la latencia de feedback de errores.
+## Baseline general federado
 
-## Puntos de extensión principales
+Análisis cruzado de dependencias entre miembros: lee manifiestos de proyecto
+(`package.json`, `go.mod`, etc.) de todos los miembros mapeados localmente en
+el atlas, extrae nombres y versiones de dependencias, y clasifica el estado
+de alineación entre repos (`aligned` cuando todos los miembros que declaran
+una dependencia usan la misma versión; desviaciones se reportan como riesgo de
+compatibilidad).
 
-- **Agregar soporte para nuevas marcas**: Extender el analizador en `/scripts/lib/federation-marker.js` para dar soporte a anotaciones personalizadas de tu lenguaje de programación (como decoradores TypeScript o anotaciones Java).
-- **Ampliar el mapeo de dependencias**: Modificar la clase `WorkspaceAtlas` en `/scripts/lib/workspace-atlas.js` para soportar nuevos manejadores de paquetes y archivos de configuración (como Cargo en Rust o Maven en Java).
+## Ruteo del launcher en workspaces federados
 
-## Aspectos a tener en cuenta al editar
+El binario Go de hooks (`ospec-hooks.exe`) **no soporta federación**. Cuando
+`openspec/config.yaml` declara `backend: workspace-federated`, el launcher
+(`scripts/hooks/ospec-hooks-launch.js`) rutea los eventos federation-aware
+(`session-start`, `pre-compact`, `stop`) al fallback Node.js — ver
+[Runtime de hooks de ciclo de vida](../hooks-runtime/lifecycle.md) para el
+detalle completo del ruteo.
 
-- **Aislamiento en Red (Sandboxing)**: El análisis de impacto se realiza localmente escaneando las carpetas del sistema. Evita llamadas HTTP externas pesadas a repositorios de código remotos (como GitHub o GitLab) durante el análisis síncrono para mantener los tiempos de respuesta del gate por debajo de los límites lógicos de tolerancia del chat de IA.
-- **Evitar bucles infinitos de dependencias**: Al procesar la estructura jerárquica del atlas, asegúrate de utilizar mecanismos de control de visitas para evitar bucles infinitos en configuraciones con referencias circulares entre repositorios.
+## Por qué la arquitectura está diseñada así
+
+Modelar el atlas como caché derivada (nunca fuente de verdad) permite que
+cada miembro sea dueño único de su propia identidad de federación —
+reconstruir el atlas completo desde marcadores versionados es siempre
+posible, incluso si la caché se corrompe o se borra. La orquestación
+resumible con estado agregado evita reprocesar miembros ya completados
+cuando una sesión larga se interrumpe a mitad de un lote de baseline
+federado.
+
+## Principales puntos de extensión
+
+- Agregar un nuevo tipo de miembro: extender el enum `member.type` en la spec
+  de marcadores y el lector correspondiente.
+- Agregar un nuevo criterio de selección al orquestador de baseline federado:
+  extender la lógica de selección de miembros sin tocar el loop de iteración
+  secuencial ni la política de fallo.
+
+## Cosas a vigilar al editar
+
+- Nunca tratar el atlas como escribible directamente — toda escritura pasa
+  por `enroll` sobre el marcador canónico del miembro correspondiente.
+- Un marcador de `workspace-explore` incompleto (sin `remote`/`roster`) es
+  válido y esperado — no debe tratarse como error, solo como
+  "no reconstruible remotamente" con el tag centinela correspondiente.
+- Cambios al schema de `federation.member.yaml` son cross-cutting: afectan a
+  todos los repos miembro del workspace, no solo al contenedor.
 
 ## Mapa de fuentes
 
-| Archivo / Directorio | Rol | Evidencia de Git |
-| :--- | :--- | :--- |
-| [/scripts/lib/workspace-atlas.js](/scripts/lib/workspace-atlas.js) | Analizador de carpetas de proyectos y mapeador de dependencias locales. | `457f385` |
-| [/scripts/lib/federation-marker.js](/scripts/lib/federation-marker.js) | Detector y validador de marcas de contratos de integración en el código. | `457f385` |
-| [/scripts/lib/capability-registry.js](/scripts/lib/capability-registry.js) | Administrador de capacidades y herramientas locales de cada repositorio. | `457f385` |
-| [/scripts/lib/workspace-atlas.test.js](/scripts/lib/workspace-atlas.test.js) | Tests de validación del comportamiento de atlas y dependencias. | `457f385` |
+- `/openspec/specs/workspace-explore/spec.md`
+- `/openspec/specs/federation-markers/spec.md`
+- `/openspec/specs/federated-baseline-orchestration/spec.md`
+- `/openspec/specs/federated-general-baseline/spec.md`
+- `/openspec/specs/marker-hygiene/spec.md`
+- `/scripts/lib/workspace-atlas.js`, `/scripts/lib/workspace-general-baseline.js`
+- `/scripts/lib/federation-baseline-orchestrator.js`, `/scripts/lib/federation-explore.js`, `/scripts/lib/federation-marker.js`
+- `/skills/sdd-workspace/SKILL.md`, `/agents/sdd-workspace.agent.md`

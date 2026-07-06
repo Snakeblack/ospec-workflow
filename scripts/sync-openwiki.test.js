@@ -234,7 +234,7 @@ test("leaves the link untouched and warns (exit 0) when no origin remote is conf
   assert.match(result.stderr + result.stdout, /warn/i, "sync must emit a warning noting the skipped rewrite");
 });
 
-test("leaves a wiki-internal link untouched", (t) => {
+test("rewrites a wiki-internal link to a local extensionless slug URL, never a remote URL", (t) => {
   const { webDocDir } = setupProject(t, {
     pages: {
       "architecture.md": "# Architecture\n\nSee [testing](./testing.md) too.\n",
@@ -247,7 +247,116 @@ test("leaves a wiki-internal link untouched", (t) => {
   assert.equal(result.status, 0, result.stderr);
 
   const out = readOut(webDocDir, "architecture.md");
-  assert.match(out, /\[testing\]\(\.\/testing\.md\)/, "wiki-internal relative link must not be rewritten to a remote URL");
+  assert.match(out, /\[testing\]\(\/testing\/\)/, "wiki-internal .md link must become a local slug URL (Starlight serves pages extensionless)");
+  assert.doesNotMatch(out, /github\.com[^)]*testing/, "wiki-internal link must not be rewritten to a remote URL");
+});
+
+test("resolves a ../ wiki-internal link relative to the containing page's directory", (t) => {
+  const { webDocDir } = setupProject(t, {
+    pages: {
+      "orchestration/routing.md": "# Routing\n\nSee [overview](../architecture/overview.md).\n",
+      "architecture/overview.md": "# Overview\n\nContent.\n",
+    },
+  });
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  const out = readOut(webDocDir, path.join("orchestration", "routing.md"));
+  assert.match(
+    out,
+    /\[overview\]\(\/architecture\/overview\/\)/,
+    "../ link inside a subdirectory page must resolve against that page's directory, not the wiki root"
+  );
+});
+
+test("preserves the #anchor when rewriting a wiki-internal link", (t) => {
+  const { webDocDir } = setupProject(t, {
+    pages: {
+      "guide.md": "# Guide\n\nSee [section](./testing.md#setup).\n",
+      "testing.md": "# Testing\n\n## Setup\n",
+    },
+  });
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  const out = readOut(webDocDir, "guide.md");
+  assert.match(out, /\[section\]\(\/testing\/#setup\)/, "anchor fragment must survive the slug rewrite");
+});
+
+test("rewrites an /openwiki/-prefixed link to the site-root slug", (t) => {
+  const { webDocDir } = setupProject(t, {
+    pages: {
+      "guide.md": "# Guide\n\nSee [hooks](/openwiki/hooks-runtime/lifecycle.md).\n",
+      "hooks-runtime/lifecycle.md": "# Lifecycle\n\nContent.\n",
+    },
+  });
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  const out = readOut(webDocDir, "guide.md");
+  assert.match(
+    out,
+    /\[hooks\]\(\/hooks-runtime\/lifecycle\/\)/,
+    "/openwiki/ prefix must be stripped down to the site-root slug"
+  );
+});
+
+test("falls back to the wiki root when a bare relative link does not exist next to the page", (t) => {
+  const { webDocDir } = setupProject(t, {
+    pages: {
+      "security/guardrails.md": "# Guardrails\n\nSee [lifecycle](hooks-runtime/lifecycle.md).\n",
+      "hooks-runtime/lifecycle.md": "# Lifecycle\n\nContent.\n",
+    },
+  });
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  const out = readOut(webDocDir, path.join("security", "guardrails.md"));
+  assert.match(
+    out,
+    /\[lifecycle\]\(\/hooks-runtime\/lifecycle\/\)/,
+    "a bare link with no matching sibling page must resolve from the wiki root, not nest under the page's own directory"
+  );
+});
+
+test("prefers the page-relative target over the root fallback when both exist", (t) => {
+  const { webDocDir } = setupProject(t, {
+    pages: {
+      "security/guardrails.md": "# Guardrails\n\nSee [notes](notes.md).\n",
+      "security/notes.md": "# Security Notes\n\nContent.\n",
+      "notes.md": "# Root Notes\n\nContent.\n",
+    },
+  });
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  const out = readOut(webDocDir, path.join("security", "guardrails.md"));
+  assert.match(
+    out,
+    /\[notes\]\(\/security\/notes\/\)/,
+    "standard markdown relative semantics must win when the sibling page actually exists"
+  );
+});
+
+test("leaves external URLs and non-.md relative links untouched", (t) => {
+  const { webDocDir } = setupProject(t, {
+    pages: {
+      "guide.md":
+        "# Guide\n\nSee [docs](https://example.com/page.md) and [img](./diagram.png).\n",
+    },
+  });
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  const out = readOut(webDocDir, "guide.md");
+  assert.match(out, /\[docs\]\(https:\/\/example\.com\/page\.md\)/, "external URL must never be rewritten, even ending in .md");
+  assert.match(out, /\[img\]\(\.\/diagram\.png\)/, "non-.md relative asset link must be left untouched");
 });
 
 test("maintains 1:1 parity between openwiki pages and web-doc output pages", (t) => {

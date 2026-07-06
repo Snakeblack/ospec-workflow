@@ -1,73 +1,101 @@
-# Inicio rápido de ospec-workflow
+# ospec-workflow quickstart
 
-`ospec-workflow` es un arnés de desarrollo Spec-Driven Development (SDD) llave en mano diseñado para imponer rigor técnico y calidad en flujos de trabajo asistidos por IA. Utiliza OpenSpec como única fuente de verdad y proporciona un orquestador inteligente que coordina agentes de fase, garantizando Strict TDD, control de tamaño de revisiones y gates de seguridad activos en cada commit.
+`ospec-workflow` es un arnés de Spec-Driven Development (SDD) llave en mano. Usa
+**OpenSpec** como única fuente de verdad versionable y un orquestador que
+coordina agentes de fase (`propose → spec → design → tasks → apply → verify →
+archive`), aplicando Strict TDD, control de tamaño de revisión y gates de
+seguridad activos en cada commit. El mismo árbol fuente se distribuye a cuatro
+targets de chat/IDE (`claude`, `vscode`, `github-copilot`, `opencode`) mediante
+un generador puro.
 
 ## Qué hace este repositorio
 
-- **Orquestación de fases SDD**: Guía y ejecuta de forma secuencial las fases de propuesta, especificación, diseño, tareas, implementación, verificación y archivado.
-- **Strict TDD**: Fuerza la ejecución de pruebas antes de cualquier cambio de código y requiere evidencias válidas.
-- **Límites de revisión (400 líneas)**: Protege a los revisores humanos proponiendo estrategias de PRs encadenadas ante cambios extensos.
-- **Runtime de hooks de ciclo de vida**: Automatiza validaciones críticas en `SessionStart`, `PreToolUse`, `PreCompact`, y `Stop`.
-- **Compilación Multi-Target**: Compila de forma pura y aislada agentes y comandos para múltiples entornos como Claude Code, VS Code, GitHub Copilot y opencode.
-- **Federación de espacios de trabajo**: Gestiona el impacto de contratos y cambios coordinados en arquitecturas multi-repositorio.
-- **Generación de documentación (OpenWiki + Starlight)**: Compila la wiki técnica `openwiki/` y, opcionalmente, un sitio web estático de búsqueda (`web-doc/`) sincronizado automáticamente desde ella.
+- Define un **orquestador** (`agents/sdd-orchestrator.agent.md`) que clasifica
+  cada cambio, elige una ruta declarativa en `openspec/config.yaml` y delega en
+  sub-agentes de fase (`sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`,
+  `sdd-apply`, `sdd-verify`, `sdd-archive`, y fases especiales como
+  `sdd-baseline`, `sdd-workspace`, `sdd-foundation`, `sdd-document`).
+- Persiste todo el estado del cambio (propuesta, specs, diseño, tareas,
+  progreso, verificación) como archivos en `openspec/changes/{change}/`, nunca
+  en el historial de chat.
+- Ejecuta cinco **hooks de ciclo de vida** (`SessionStart`, `PreToolUse`,
+  `PreCompact`, `SubagentStop`, `Stop`) implementados dos veces — Node.js
+  (`scripts/hooks/`) y Go (`internal/hooks/`, `cmd/ospec-hooks/`) — con
+  paridad de comportamiento verificada por tests compartidos.
+- Aplica salvaguardas activas: **AgentShield** (secretos/credenciales),
+  **Token Budget Advisor** (presupuesto de contexto), **git-collaboration-guard**
+  (confirmaciones antes de commits riesgosos) y un hook `pre-commit` que valida
+  el estado de OpenSpec y Strict TDD.
+- Compila el árbol canónico (formato VS Code) a cuatro distribuciones nativas
+  en `dist/<target>/` mediante `scripts/configure/cli.js`, con validadores por
+  target y fixtures golden.
+- Soporta workspaces multi-repo federados (`sdd-workspace`) con un atlas de
+  miembros, baseline federado resumible y marcadores de metadatos por repo.
 
 ## Empieza aquí
 
-- [Generación de documentación: OpenWiki y web-doc](documentation-generator/openwiki-y-web-doc.md) — Cómo se genera esta misma wiki y su espejo web Starlight opcional, y el contrato de sandbox dual que los protege.
-- [Generador Multi-Target](generator/overview.md) — Detalles del compilador puro que transforma manifiestos y herramientas a perfiles nativos (`vscode`, `claude`, `github-copilot`, `opencode`).
-- [Orquestación y Ruteo](orchestration/routing.md) — Explicación de cómo el orquestador inteligente selecciona rutas (`standard`, `lite`, `bugfix`, etc.) y evalúa gates de decisión.
-- [Runtime de Hooks de Ciclo de Vida](hooks-runtime/lifecycle.md) — Funcionamiento del sistema de hooks local y los disparadores de eventos del ciclo de vida del agente.
-- [Seguridad y Límites](security/guardrails.md) — Reglas y comportamientos de AgentShield y Token Budget Advisor para proteger secretos y controlar el consumo de tokens.
-- [Estado OpenSpec y Persistencia](state-management/persistence.md) — El almacenamiento persistente de estados, tareas y progreso de implementación.
-- [Verificación y Puertas de Calidad](testing-quality/verification.md) — Reglas de ejecución de pruebas, TDD estricto y aserciones de calidad en la fase `/sdd-verify`.
-- [Federación de Workspace](workspace-federation/multi-repo.md) — Coordinación y análisis de impacto cruzado en espacios de trabajo multi-repositorio federados.
+- [Arquitectura y generador multi-target](architecture/overview.md) — cómo se construye `dist/<target>/` desde el árbol fuente único.
+- [Orquestación de fases SDD](orchestration/routing.md) — routing declarativo, agentes, skills y gates.
+- [Runtime de hooks de ciclo de vida](hooks-runtime/lifecycle.md) — los cinco eventos, implementación dual Node/Go, launcher.
+- [Guardrails de seguridad](security/guardrails.md) — AgentShield, Token Budget Advisor, git-collaboration-guard, pre-commit/commit-msg.
+- [Persistencia y estado](state-management/persistence.md) — OpenSpec como fuente de verdad, artifact-store, memoria operativa.
+- [Testing y calidad](testing-quality/verification.md) — Strict TDD, `sdd-verify`, quality gates declarativos.
+- [Federación de workspaces multi-repo](workspace-federation/multi-repo.md) — atlas, baseline federado, markers.
 
 ## Archivos fuente clave
 
-- [/package.json](/package.json) — Metadatos del proyecto, dependencias y comandos de configuración y compilación.
-- [/models.yaml](/models.yaml) — Tabla canónica de resolución de modelos por tier (default, cheap, premium) y target.
-- [/openspec/config.yaml](/openspec/config.yaml) — Configuración principal de las rutas de orquestación, gates activos, límites y políticas del proyecto.
-- [/agents/sdd-orchestrator.agent.md](/agents/sdd-orchestrator.agent.md) — El prompt y comportamiento del agente orquestador principal.
-- [/scripts/check.js](/scripts/check.js) — Validador y suite principal de tests del arnés.
-- [/scripts/configure/cli.js](/scripts/configure/cli.js) — Punto de entrada del compilador de targets del plugin.
-- [/scripts/hooks/pre-tool-use.js](/scripts/hooks/pre-tool-use.js) — Lógica de intercepción de comandos de shell para control de token y seguridad de secretos.
+| Archivo | Rol |
+| --- | --- |
+| `/openspec/config.yaml` | Tabla de routing, reglas por fase, políticas opcionales (quality gates, hooks declarativos, traceability). |
+| `/scripts/configure/cli.js` | CLI del generador multi-target; capa de IO sobre `target-transform.js`. |
+| `/scripts/lib/target-transform.js` | Transformación pura árbol-fuente → árbol-target. |
+| `/scripts/lib/route-dispatcher.js` | Resuelve qué ruta/fases ejecutar dado un cambio clasificado. |
+| `/hooks/hooks.json` | Registro de los cinco eventos de ciclo de vida del plugin. |
+| `/scripts/hooks/ospec-hooks-launch.js` | Launcher que prefiere el binario Go y cae a Node.js cuando corresponde. |
+| `/scripts/lib/artifact-store.js` | Abstracción de persistencia de artefactos (`openspec` / federado). |
+| `/scripts/check.js` | Comando único de verificación local/CI (`npm test`). |
+| `/agents/sdd-orchestrator.agent.md` | Definición del orquestador. |
+| `/skills/_shared/sdd-phase-common.md` | Protocolo compartido por todos los agentes de fase (envelope, memoria, gates). |
 
 ## Mapa de documentación
 
-A continuación se muestra el mapa simplificado de las secciones de la wiki técnica:
-
-- **Configuración y Core**
-  - [Generador Multi-Target](generator/overview.md)
-  - [Orquestación y Ruteo](orchestration/routing.md)
-- **Ciclo de vida y Seguridad**
-  - [Runtime de Hooks](hooks-runtime/lifecycle.md)
-  - [Seguridad y Límites](security/guardrails.md)
-- **Datos y Calidad**
-  - [Persistencia y OpenSpec](state-management/persistence.md)
-  - [Verificación y Calidad](testing-quality/verification.md)
-  - [Federación Multi-Repo](workspace-federation/multi-repo.md)
-- **Documentación**
-  - [OpenWiki y web-doc (Starlight)](documentation-generator/openwiki-y-web-doc.md)
+- [quickstart.md](quickstart.md) (este archivo)
+- [architecture/overview.md](architecture/overview.md)
+- [orchestration/routing.md](orchestration/routing.md)
+- [hooks-runtime/lifecycle.md](hooks-runtime/lifecycle.md)
+- [security/guardrails.md](security/guardrails.md)
+- [state-management/persistence.md](state-management/persistence.md)
+- [testing-quality/verification.md](testing-quality/verification.md)
+- [workspace-federation/multi-repo.md](workspace-federation/multi-repo.md)
 
 ## Notas para futuros agentes
 
-- **Contrato Coordinador-No-Ejecutor**: El agente principal siempre debe actuar como coordinador de fases, delegando tareas de exploración, escritura o testing a subagentes dedicados para evitar la inflación innecesaria del contexto.
-- **Strict TDD Obligatorio**: Si existe un suite de pruebas, antes de modificar código en `/sdd-apply`, primero debes escribir o adaptar las pruebas unitarias y asegurar que fallen antes de proceder con el código de producción.
-- **Validación de targets**: Cualquier cambio en manifiestos (`.plugin.json`) o comandos de agentes requiere ejecutar `npm test` para asegurar que el generador multi-target produce los artefactos `dist/` idénticos y sin errores de validación.
-- **`openwiki/` es la única fuente de verdad de esta wiki**: si el repositorio también tiene `web-doc/` (Opción D de `/sdd-document`), ese directorio se regenera desde `openwiki/` vía `node scripts/sync-openwiki.mjs` — nunca lo edites a mano. Ver [Generación de documentación](documentation-generator/openwiki-y-web-doc.md).
+- **OpenSpec es la fuente de verdad**, no el historial de chat. Antes de
+  continuar cualquier cambio, lee `openspec/changes/{change-name}/state.yaml`
+  y los artefactos de fase — nunca asumas contexto de la conversación.
+- El árbol **canónico** vive en formato VS Code en la raíz del repo. `dist/`
+  es generado y no se edita a mano; los cambios de comportamiento van en
+  `agents/`, `skills/`, `commands/`, `rules/`, `hooks/`, `scripts/lib/`,
+  `scripts/configure/` o `scripts/hooks/`.
+- Los hooks tienen **dos implementaciones** (Node.js y Go) que deben mantener
+  paridad de comportamiento; un cambio de contrato en uno normalmente exige el
+  espejo en el otro (ver `scripts/hooks/parity-contract.test.js`).
+- No documentes ni expongas secretos, `.env` reales, ni credenciales — ni en
+  código ni en wiki. AgentShield y este generador respetan ese límite.
+- Este wiki fue generado por el agente `sdd-document` bajo la Opción D
+  (OpenWiki + Starlight): el contenido canónico vive en `openwiki/`, y
+  `web-doc/` es un sitio estático Starlight que se sincroniza desde
+  `openwiki/` en tiempo de build (`scripts/sync-openwiki.mjs`), nunca al
+  revés. No escribas directamente en `web-doc/src/content/docs/`.
 
 ## Mapa de fuentes
 
-Lista plana de los archivos principales del repositorio con evidencia de Git:
+- `/README.md`, `/package.json`, `/openspec/config.yaml`
+- `/scripts/configure/cli.js`, `/scripts/lib/target-transform.js`, `/models.yaml`
+- `/scripts/lib/route-dispatcher.js`, `/agents/`, `/skills/`, `/commands/`, `/rules/`
+- `/hooks/hooks.json`, `/scripts/hooks/`, `/internal/hooks/`, `/cmd/ospec-hooks/`
+- `/scripts/lib/artifact-store.js`, `/scripts/lib/ospec-state.js`, `/openspec/memory/`
+- `/scripts/check.js`, `/openspec/specs/quality-gates/spec.md`
+- `/openspec/specs/workspace-explore/spec.md`, `/openspec/specs/federated-baseline-orchestration/spec.md`
 
-| Archivo | Rol en el Repositorio | Evidencia de Git (Último Commit) |
-| :--- | :--- | :--- |
-| [/package.json](/package.json) | Configuración de scripts y dependencias. | `457f385` |
-| [/openspec/config.yaml](/openspec/config.yaml) | Definición de rutas, gates y reglas SDD. | `ba82de1` |
-| [/models.yaml](/models.yaml) | Tabla de mapping de modelos por tier. | `457f385` |
-| [/agents/sdd-orchestrator.agent.md](/agents/sdd-orchestrator.agent.md) | Agente orquestador principal del flujo. | `4a12d4b` |
-| [/scripts/configure/cli.js](/scripts/configure/cli.js) | Compilador multi-target de plugins. | `2d703d6` |
-| [/scripts/hooks/pre-tool-use.js](/scripts/hooks/pre-tool-use.js) | Interceptor de comandos y Token Advisor. | `422928f` |
-| [/scripts/lib/ospec-state.js](/scripts/lib/ospec-state.js) | Lógica de persistencia de estado de cambios. | `457f385` |
-| [/skills/sdd-document/references/option-d-starlight.md](/skills/sdd-document/references/option-d-starlight.md) | Procedimiento de la Opción D (OpenWiki + Starlight web-doc). | `e822228` |
+Evidencia git: HEAD `797ba4d` (v2.20.0).

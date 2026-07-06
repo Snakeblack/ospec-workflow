@@ -62,6 +62,10 @@ export default defineConfig({
   integrations: [
     starlight({
       title: resolveSiteTitle(),
+      logo: {
+        src: "./src/assets/octopus-logo.svg",
+        alt: "Ospec-Workflow",
+      },
       sidebar: resolveSidebar(),
       customCss: ["./src/styles/custom.css"],
     }),
