@@ -1,7 +1,7 @@
 change: starlight-web-doc
-status: ready-for-verify
+status: verified
 created_at: 2026-07-06T11:36:49Z
-last_updated: 2026-07-06T14:35:00Z
+last_updated: 2026-07-06T14:55:00Z
 blocking_questions: []
 classification: normal
 route:
@@ -54,7 +54,7 @@ approvals:
     applies_to: starlight-web-doc
 gates:
   4r-review-gate:
-    status: remediation-done
+    status: done
     on_blocker: advisory
     findings_summary: "1 BLOCKER, 3 CRITICAL, 8 WARNING, 5 SUGGESTION"
     surfaced_to_user: true
@@ -123,6 +123,13 @@ assumptions:
     basis: "Ningún task de tasks.md especifica un caso de test para description; TDD estricto prohíbe código de producción no dirigido por un test que falle."
     recorded_at: 2026-07-06T12:55:00Z
     status: unresolved
+  - id: sdd-apply-003
+    phase: sdd-apply
+    statement: "Se difirió un test reproductor dedicado para el hallazgo 7.6 (try/catch en rmSync de poda); se envió el fix con el test de poda preexistente como approval/regression test."
+    reversibility: high
+    basis: "No se encontró una forma portable y determinista de forzar un error de filesystem en tiempo de borrado en Windows dentro del batch; el fix espeja un patrón ya testeado (7.3/7.4)."
+    recorded_at: 2026-07-06T14:35:00Z
+    status: unresolved
 baseline_fingerprints:
   sdd-document: d4c61f74bb660b2620ad43b6e75770a4e27376fcbcc0d59ac06541d6483834ef
   agents: 1f0c83f1dabeff3443008e460590ac4dc2a651148dbca1e4263b4e4b1f470e09
@@ -175,7 +182,8 @@ phases:
   verify:
     status: done
     artifact: "openspec/changes/starlight-web-doc/verify-report.md"
-    summary: "PASS WITH WARNINGS: motor sync cubierto por runtime-tests (17/17), contratos de prosa por static-lint; suite 1006/1007 (único fallo = flake Windows conocido, pasa aislado 52/52)."
+    summary: "Re-verify (Batch 2, 4R remediation): PASS WITH WARNINGS. BLOCKER + 3 CRITICAL remediados con RED->GREEN runtime verificado contra el .mjs pre-remediación (7 tests fallan en el viejo, pasan en el fijo); prosa 9/10 elevada a static-proof. Suite 1016/1017 (único fallo = flake conocido parity-contract, pasa aislado 9/9). Tests remediación 27/27."
     key_decisions:
-      - "2 WARNINGs advisory: escenarios conductuales de J5 (REQ-agents-006) solo inspection-proof; techo de evidencia inherente a contratos de conducta del agente"
-      - "9 assumptions unresolved todas high-reversibility -> sin escalación (no findings)"
+      - "RED cross-check anti-fabricación: restaurado 7b1ae2a:.mjs, 7 tests conductuales fallan genuinamente, confirman evidencia TDD real"
+      - "7.6 (try/catch poda) sin test dedicado = WARNING W3 aceptado (deviation disclosed, assumption sdd-apply-003 high-reversibility, patrón espeja 7.3/7.4)"
+      - "10 assumptions unresolved todas high-reversibility -> sin escalación; W1/W2 previos fuera de scope de remediación"

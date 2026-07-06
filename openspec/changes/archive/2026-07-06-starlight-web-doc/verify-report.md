@@ -170,3 +170,65 @@ Note: all nine assumptions were independently corroborated during verification (
 
 ### Verdict
 **PASS WITH WARNINGS** — All 36 tasks complete, full sync engine covered by passing runtime subprocess tests, agent-prose contracts anchored by static-lint, no regressions (sole full-suite failure is a pre-existing Windows flake passing in isolation). Two WARNINGs are advisory (J5 behavioral scenarios at inspection-proof; inherent agent-behavior evidence ceiling); no blocking defects.
+
+---
+
+## Re-verify (Batch 2 — 4R Remediation, approval-006)
+
+**Date**: 2026-07-06 | **Trigger**: `gates.4r-review-gate.status: remediation-done` (1 BLOCKER + 3 CRITICAL + 8 WARNING + 5 SUGGESTION found by the 4R gate; Batch 2 remediated the 4 severe + 4 WARNING + 2 prose + 1 readability). **Scope**: incremental — focused on the remediation delta, not a full re-run of Batch 1 evidence.
+
+### Re-verify — Tests Execution (clean env)
+
+- `node --test scripts/sync-openwiki.test.js scripts/starlight-web-doc-contract.test.js` → **27/27 pass** (`sync-openwiki.test.js` 10→18, `starlight-web-doc-contract.test.js` 7→9).
+- Full suite `node --test scripts/**/*.test.js` → **1016/1017 pass, 1 fail**. The single failure is the second documented flake from Project Standards: `scripts/hooks/parity-contract.test.js` → `parity(js) · PreToolUse · pre-tool-use-ask.json` (token-advisor cross-test contamination). Retried isolated: **9/9 pass**. Not a regression, not related to this change.
+
+### Re-verify — RED evidence cross-check (anti-fabrication)
+
+Per strict-TDD verify ("cross-reference reported test files against actual execution — don't trust the report blindly"), I restored the pre-remediation `sync-openwiki.mjs` (`git show 7b1ae2a:...`) and ran the current test file against it. **7 tests failed exactly as the remediation targeted** (then all pass against the fixed script — genuine RED→GREEN, not a fabricated trace). Working tree restored clean afterward.
+
+| 4R finding (severity) | Task | Reproducing test(s) | RED against old `.mjs` | GREEN against fixed | Result |
+|---|---|---|---|---|---|
+| Destructive prune on missing/empty `openwiki/` (BLOCKER) | 7.1 | `does not prune ... when openwiki/ is completely missing`; `... exists but is empty` | ✖✖ (prune wiped output) | ✅✅ | REMEDIATED (`runtime-test`) |
+| Lossy frontmatter re-serialization drops nested YAML (CRITICAL) | 7.2 | `preserves nested/multiline frontmatter ... when a title already exists`; `prepends a derived title ... preserving other keys` | ✖✖ (nested keys collapsed) | ✅✅ | REMEDIATED (`runtime-test`) |
+| Single page failure crashes whole predev/prebuild (CRITICAL) | 7.3 | `continues syncing other pages and warns ... when a single page's transform fails` | ✖ (whole run exited non-zero) | ✅ | REMEDIATED (`runtime-test`) |
+| Cache-write failure fails the sync (CRITICAL) | 7.4 | `does not fail the sync when writing the incremental cache file fails` | ✖ (EISDIR uncaught) | ✅ | REMEDIATED (`runtime-test`) |
+| Corrupt cache silently swallowed, no warning (WARNING 5) | 7.5 | `warns and performs a full re-sync when .sync-cache.json is corrupt` | ✖ (no warning emitted) | ✅ | REMEDIATED (`runtime-test`) |
+| Prune `rmSync` no error handling (WARNING 6) | 7.6 | — none dedicated — | N/A | N/A (approval test only) | ACCEPTED DEVIATION — see W3 |
+| `resolveDefaultBranch` silent fallback (WARNING 7) | 7.7 | covered incidentally by 7.8, not isolated | ➖ | ✅ | REMEDIATED (partial isolation, disclosed) |
+| No-git-at-all degradation (WARNING 8) | 7.8 | `degrades cleanly with a warning when there is no git repository at all` | (passes on old too — pre-existing `rewriteLinks` warning) | ✅ | REMEDIATED |
+| `.last-update.json` singular-vs-SET ambiguity (WARNING 9, prose) | 7.9 | `route-document.md §4 point 2 clarifies .last-update.json is openwiki/-only` | ✖ (wording absent) | ✅ | REMEDIATED (`static-proof`) |
+| Partial-scaffold recovery undocumented (WARNING 10, prose) | 7.10 | `option-d-starlight.md documents partial-scaffold-materialization recovery` | ✖ (section absent) | ✅ | REMEDIATED (`static-proof`) |
+| `searchText` dual-purpose readability (WARNING 11) | 7.11 | full-file approval test (18/18 before+after) | N/A | ✅ | REMEDIATED (refactor) |
+
+The BLOCKER + all 3 CRITICAL findings now have genuine, verified RED→GREEN runtime tests. Findings 9/10 were elevated from inspection-proof to `static-proof` (contract assertions on the normative prose).
+
+### Re-verify — TDD Compliance (Batch 2)
+
+The Batch 2 TDD Cycle Evidence table in `apply-progress.md` was validated against reality: every claimed RED was reproduced (7 tests genuinely fail against the pre-remediation script); every claimed GREEN passes on execution. The two disclosed exceptions (7.6 no dedicated test; 7.7 not independently isolated) are honestly documented in apply-progress Deviations #4/#5 and assumption `sdd-apply-003`, not silently claimed as covered. Assertion quality of the 10 new tests: clean — real subprocess execution, behavioral assertions on materialized output, portable deterministic fault injection (`ENOTDIR` via a same-named file; `EISDIR` via a directory at the cache path), no tautologies, no mocks, no ghost loops.
+
+### Re-verify — Finding 7.6 justification assessment
+
+**Acceptable.** Finding 7.6 (a `try/catch` around the prune-loop `rmSync`) is a WARNING-severity defensive hardening item, not one of the severe findings. Its fix (lines 311-316 of `sync-openwiki.mjs`) is structurally identical to the already-tested per-page (7.3) and cache-write (7.4) `try/catch` patterns, and the pre-existing prune test (`prunes the output page when the corresponding openwiki source page is deleted`) passes unchanged as an approval/regression test. The gap is honestly disclosed (Deviation #4, assumption `sdd-apply-003`, `reversibility: high`) rather than fabricated. A portable, deterministic delete-time filesystem fault could not be induced on the Windows execution platform without symlinks/chmod. This is a legitimate, low-risk exception recorded as WARNING W3 — not a blocker.
+
+### Re-verify — Issues Found
+
+**CRITICAL**: None. All prior 4R BLOCKER/CRITICAL findings remediated with verified RED→GREEN runtime tests.
+
+**WARNING**:
+- **W3 (tasks-gap)** — Finding 7.6 (prune `rmSync` try/catch) shipped without a dedicated reproducing test; covered only by the pre-existing prune approval test. Disclosed and accepted (assumption `sdd-apply-003`, high-reversibility). Add a portable fault-injection test in a future batch if a cross-platform harness becomes available.
+- W1/W2 from the initial verify (J5 behavioral scenarios at inspection-proof; agent-behavior evidence ceiling) remain unchanged — outside the Batch 2 remediation scope, already tracked in `known-issues.md`.
+
+**SUGGESTION**:
+- **S4** — Finding 7.7's default-branch fallback warning is not isolated by its own dedicated test (fires alongside the pre-existing `rewriteLinks` no-origin warning). Consider a dedicated assertion that isolates the `resolveDefaultBranch` message.
+- **S5** — Approved non-blocking follow-ups deferred by Batch 2: case-insensitive filename collisions, unicode/whitespace in filenames, and the literal `---` horizontal-rule vs. frontmatter-fence ambiguity in `splitFrontmatter`. Track for a future hardening batch.
+
+### Re-verify — Assumption Reconciliation (delta)
+
+Batch 2 added `sdd-apply-003` (`reversibility: high`). No `assumption_resolutions` block was supplied; per orchestrator direction the re-verify proceeds and documents it. Per Decision Gates, unresolved `reversibility: high` entries MUST NOT escalate — no WARNING is raised for the assumption itself (the underlying 7.6 test-gap is tracked separately as W3). All 10 assumptions remain `high` / `unresolved (no escalation)`.
+
+| id | statement | reversibility | outcome |
+|----|-----------|----------------|---------|
+| sdd-apply-003 | Deferred dedicated reproducing test for finding 7.6 (prune `rmSync` try/catch); shipped with pre-existing prune test as approval/regression | high | unresolved (no escalation) |
+
+### Re-verify — Verdict
+**PASS WITH WARNINGS** — The 4R BLOCKER and all 3 CRITICAL findings are cleanly remediated in strict TDD with genuine, cross-checked RED→GREEN runtime tests (verified against the pre-remediation script); the two prose WARNINGs are elevated to static-proof; no regressions (sole full-suite failure is a documented flake passing 9/9 in isolation). One residual WARNING (W3: finding 7.6 test-gap, disclosed and accepted) and approved non-blocking deferrals remain. Ready for `sdd-archive`.

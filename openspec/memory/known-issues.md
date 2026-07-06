@@ -3,6 +3,14 @@ title: Known Issues
 last_updated: 2026-07-06
 ---
 
+## Finding 7.6 (try/catch en rmSync de poda de sync-openwiki.mjs) enviado sin test reproductor dedicado
+
+- severity: WARNING
+- area: skills/sdd-document/assets/web-doc-template/scripts/sync-openwiki.mjs (bloque de poda, lineas ~311-316) vs scripts/sync-openwiki.test.js (solo test de poda preexistente como approval/regression)
+- workaround: aceptado como deviation disclosed (assumption sdd-apply-003, high-reversibility); el fix espeja el patron ya testeado de 7.3/7.4 y el test de poda pasa como regresion. Agregar un test de fault-injection portable de fallo en tiempo de borrado (rmSync) cuando exista un harness cross-platform (Windows no permite forzarlo de forma determinista sin symlinks/chmod)
+- change: starlight-web-doc
+- date: 2026-07-06
+
 ## REQ-agents-006 escenarios conductuales de J5 (clean-run silent close, pre-existing-untracked no-false-positive, out-of-sandbox halt) solo con inspection-proof
 
 - severity: WARNING

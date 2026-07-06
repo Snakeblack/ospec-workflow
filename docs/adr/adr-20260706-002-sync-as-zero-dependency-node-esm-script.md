@@ -1,0 +1,18 @@
+# ADR-002: Sync as a zero-dependency Node ESM script inside the generated project
+
+- Status: accepted
+- Change: starlight-web-doc
+- Date: 2026-07-06
+
+## Context
+`web-doc/src/content/docs/` must be generated from `openwiki/` at build/dev time (REQ-015/016/017/018) with `openwiki/` as the single source of truth, without adding runtime dependencies and without an install step of its own.
+
+## Decision
+Ship `web-doc/scripts/sync-openwiki.mjs`, a Node ESM script using only built-ins (`node:fs`, `node:path`, `node:child_process`), invoked by `web-doc/package.json` `predev`/`prebuild` as `node scripts/sync-openwiki.mjs`. It transforms incrementally (mtime/hash cache), injects frontmatter, rewrites source-file links via git `origin`+default branch, and prunes deleted pages for 1:1 parity.
+
+## Alternatives
+- Astro content loader / remark plugin — rejected: couples transform to Astro internals, needs deps at author time.
+- Shell script — rejected: not portable to the Windows target.
+
+## Consequences
+Runs before app deps are installed; matches the repo's Node.js standard and the npm lifecycle seam. It becomes a shipped public contract (the `predev`/`prebuild` command and file location). Reversible but user-visible once generated.
