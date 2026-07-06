@@ -35,7 +35,7 @@
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { dirname, join, relative, sep } from "node:path";
+import { dirname, join, posix, relative, sep } from "node:path";
 import { execFileSync } from "node:child_process";
 
 const CWD = process.cwd();
@@ -197,19 +197,70 @@ function buildFrontmatterBlock(sourceContent, relPath) {
 
 const LINK_RE = /\[([^\]]*)\]\(([^)\s]+)\)/g;
 
-/** "source-file" (repo path outside openwiki/) vs "wiki-internal" (relative, or under /openwiki/). */
+/**
+ * "external" (protocol URL or bare anchor) vs "source-file" (repo path
+ * outside openwiki/) vs "wiki-internal" (relative, or under /openwiki/).
+ */
 function classifyLinkTarget(target) {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith("#")) return "external";
   if (!target.startsWith("/")) return "wiki-internal";
   if (target.startsWith("/openwiki/")) return "wiki-internal";
   return "source-file";
 }
 
-/** Rewrites source-file links to {originUrl}/blob/{branch}/{path}; leaves wiki-internal links as-is. */
-function rewriteLinks(body, { originUrl, defaultBranch, warn: warnFn }) {
+/**
+ * Rewrites a wiki-internal `.md` link to the extensionless slug URL that
+ * Starlight actually serves (`architecture/overview.md` seen from the wiki
+ * root -> `/architecture/overview/`). Relative targets resolve against the
+ * CONTAINING page's directory, `/openwiki/`-prefixed ones against the site
+ * root; `#anchor` fragments survive. Non-.md targets (images, assets)
+ * return null and are left untouched.
+ *
+ * Wiki authors also write root-anchored bare links (`hooks-runtime/x.md`
+ * from a page under `security/`), which strict relative resolution would
+ * nest under the page's own directory. `sourcePageSet` (posix-relative
+ * source paths) disambiguates: when the page-relative candidate is not a
+ * real page but the root-anchored one is, the root interpretation wins.
+ */
+function toWikiSlugUrl(target, pageRelPath, sourcePageSet) {
+  const hashIdx = target.indexOf("#");
+  const pathPart = hashIdx === -1 ? target : target.slice(0, hashIdx);
+  const anchor = hashIdx === -1 ? "" : target.slice(hashIdx);
+  if (!pathPart.endsWith(".md")) return null;
+
+  let resolved;
+  if (pathPart.startsWith("/openwiki/")) {
+    resolved = pathPart.slice("/openwiki/".length);
+  } else {
+    const pageDir = dirname(pageRelPath.split(sep).join("/"));
+    resolved = posix.normalize(posix.join(pageDir === "." ? "" : pageDir, pathPart));
+    if (!sourcePageSet.has(resolved)) {
+      const rootCandidate = posix.normalize(pathPart);
+      if (!rootCandidate.startsWith("..") && sourcePageSet.has(rootCandidate)) {
+        resolved = rootCandidate;
+      }
+    }
+  }
+  if (resolved.startsWith("..")) return null; // escapes the wiki root: leave as-is
+
+  return `/${resolved.replace(/\.md$/, "")}/${anchor}`;
+}
+
+/**
+ * Rewrites source-file links to {originUrl}/blob/{branch}/{path} and
+ * wiki-internal .md links to local extensionless slug URLs; external links
+ * pass through untouched.
+ */
+function rewriteLinks(body, { originUrl, defaultBranch, pageRelPath, sourcePageSet, warn: warnFn }) {
   let warnedMissingOrigin = false;
   return body.replace(LINK_RE, (full, text, target) => {
-    if (classifyLinkTarget(target) !== "source-file") {
+    const kind = classifyLinkTarget(target);
+    if (kind === "external") {
       return full;
+    }
+    if (kind === "wiki-internal") {
+      const slugUrl = toWikiSlugUrl(target, pageRelPath, sourcePageSet);
+      return slugUrl ? `[${text}](${slugUrl})` : full;
     }
     if (!originUrl) {
       if (!warnedMissingOrigin) {
@@ -385,6 +436,7 @@ function main() {
 
   const originUrl = resolveOriginUrl();
   const defaultBranch = resolveDefaultBranch();
+  const sourcePageSet = new Set(sourcePages.map((p) => p.split(sep).join("/")));
   const cache = loadCache();
   const nextCache = {};
   const failures = [];
@@ -411,7 +463,7 @@ function main() {
       }
 
       const { block, body } = buildFrontmatterBlock(rawContent, relPath);
-      const rewrittenBody = rewriteLinks(body, { originUrl, defaultBranch, warn });
+      const rewrittenBody = rewriteLinks(body, { originUrl, defaultBranch, pageRelPath: relPath, sourcePageSet, warn });
 
       mkdirSync(dirname(outAbs), { recursive: true });
       writeFileSync(outAbs, `${block}\n${rewrittenBody}`);

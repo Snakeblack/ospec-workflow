@@ -1,24 +1,23 @@
 {
-  "updatedAt": "2026-07-06T19:53:39.000Z",
-  "command": "update",
-  "gitHead": "2411bc4",
+  "updatedAt": "2026-07-06T23:22:45Z",
+  "command": "init",
+  "gitHead": "797ba4d",
   "generator": "sdd-document",
   "version": "2.0",
   "sections": [
     "quickstart.md",
-    "generator/overview.md",
+    "architecture/overview.md",
     "orchestration/routing.md",
     "hooks-runtime/lifecycle.md",
     "security/guardrails.md",
     "state-management/persistence.md",
     "testing-quality/verification.md",
-    "workspace-federation/multi-repo.md",
-    "documentation-generator/openwiki-y-web-doc.md"
+    "workspace-federation/multi-repo.md"
   ],
   "stats": {
-    "filesGenerated": 1,
-    "filesUpdated": 3,
-    "filesSkipped": 5
+    "filesGenerated": 8,
+    "filesUpdated": 0,
+    "filesSkipped": 0
   },
   "doc_language": "es",
   "scope_choice": "D"

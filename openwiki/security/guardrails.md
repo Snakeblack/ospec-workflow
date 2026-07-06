@@ -1,73 +1,131 @@
-# Seguridad y Barreras de Protección
+# Guardrails de seguridad
 
-El sistema de seguridad de `ospec-workflow` implementa un modelo de confianza cero para los agentes de inteligencia artificial. A través de dos componentes clave, **AgentShield** y **Token Budget Advisor**, el arnés mitiga riesgos de fuga de secretos y protege los recursos de cómputo del usuario regulando el tamaño de las operaciones de lectura de archivos.
+`ospec-workflow` combina cuatro salvaguardas independientes que se disparan en
+distintos puntos del ciclo de vida — sesión, herramienta, commit y mensaje de
+commit — para reducir fuga de secretos, agotamiento de contexto y estados de
+git riesgosos, sin bloquear el flujo de forma agresiva.
 
-## Cómo funciona
+## Panorama general
 
-El hook `PreToolUse` actúa como una aduana síncrona. Toda llamada del agente a herramientas del sistema (como lectura de archivos o comandos de consola) es interceptada y analizada antes de ser enviada al sistema operativo o al cliente de IA.
+| Guardrail | Se dispara en | Decisión posible | Objetivo |
+| --- | --- | --- | --- |
+| **AgentShield** | `SessionStart`, `PreToolUse` | `ask` / alerta | Evitar fuga de secretos, credenciales, llaves SSH. |
+| **Token Budget Advisor** | `PreToolUse` (lecturas de archivo) | `allow` / `ask` | Evitar pérdida de contexto por lecturas excesivas. |
+| **git-collaboration-guard** | `PreToolUse` (antes de `git commit`) | `ask` (nunca `deny`) | Confirmar antes de commits riesgosos. |
+| **pre-commit / commit-msg hooks** | Git local (`.git/hooks/`) | Bloquea el commit | Validar OpenSpec, Strict TDD y atribución de commits. |
 
-```
-[Llamada a Herramienta]
-          │
-          ▼
-   [¿Es Shell?] ──(Sí)──► [Evaluación de Reglas de Consola]
-          │                     ├── DENY: Bloqueo Inmediato (ej. rm -rf /)
-          │                     └── ASK: Petición de Confirmación Humana (ej. npm install)
-          ▼
-   [¿Es Lectura?] ─(Sí)─► [Escaneo AgentShield]
-          │                     ├── Deniega lectura de secretos (.env, claves SSH)
-          │                     └── Valida tamaño del archivo (Token Budget Advisor)
-          ▼
-[Operación Aprobada]
-```
+Las tres primeras corren dentro del runtime de hooks del host de chat (ver
+[Runtime de hooks de ciclo de vida](../hooks-runtime/lifecycle.md)); la cuarta
+corre nativamente en Git, independiente del agente.
 
-## Detalles técnicos
+## AgentShield Security
 
-### AgentShield (Escaneo de Secretos y Comandos)
+Escanea automáticamente el workspace en `SessionStart` en busca de
+configuración insegura:
 
-AgentShield restringe acciones peligrosas mediante dos listas de reglas:
+- Verifica que archivos de entorno comunes (`.env`, `.env.local`,
+  `.env.development`, `.npmrc`) estén listados en `.gitignore`; si no lo
+  están, reporta una alerta de seguridad.
+- Inspecciona `.git/config` en busca de credenciales en texto plano (por
+  ejemplo, contraseñas o tokens embebidos en URLs de origen).
+- En `PreToolUse`, bloquea o pregunta ante accesos a llaves SSH, `.npmrc`,
+  `.git/config`, y otros archivos sensibles, incluso ante prompts
+  interactivos que intenten extraer secretos.
 
-- **Reglas de Denegación Estricta (DENY_RULES)**: Bloquean de inmediato comandos destructivos sin opción a bypass en el chat:
-  - Eliminación forzada recursiva de la raíz del sistema (`rm -rf /` o `Remove-Item C:\`).
-  - Push forzado en Git (`git push --force` o `git push -f`).
-  - Escritura de datos crudos sobre dispositivos de almacenamiento físico (`dd of=/dev/sdX`).
-  - Tareas de formateo de disco (`mkfs`, `format.com`, `clear-disk`).
-- **Reglas de Confirmación Interactiva (ASK_RULES)**: Pausan la herramienta y piden aprobación humana expresa:
-  - Instalación de nuevas dependencias (`npm install`, `pnpm add`).
-  - Reseteo completo del árbol de trabajo (`git reset --hard`).
-  - Eliminación recursiva local (`rm -rf` ordinario).
+Se puede desactivar temporalmente con `DISABLE_AGENT_SHIELD=true`.
 
-#### Restricciones de Archivos Sensibles
+## Token Budget Advisor
 
-AgentShield bloquea la lectura de archivos con alta probabilidad de contener credenciales en texto plano:
-- Archivos `.env`, `.env.local` y claves privadas SSH (`id_rsa`, etc.).
-- Ficheros de autenticación local como `.git/config` o `.npmrc`.
-*Nota: Si se descubre un archivo sensible, el arnés documentará únicamente su presencia y propósito sin revelar ni exponer su contenido en los prompts.*
+Calcula el costo de tokens de cada lectura de archivo con heurísticas
+estándar:
 
-### Token Budget Advisor (Límite de Consumo de Tokens)
+- Código/datos estructurados (`.js`, `.go`, `.json`, `.yaml`, `.yml`, `.md`,
+  `.txt`): `caracteres / 4`.
+- Prosa/texto plano: `palabras * 1.3`.
 
-Previene el desbordamiento de contexto bloqueando lecturas masivas no optimizadas:
-- **Límite por Archivo**: Bloquea lecturas de archivos individuales que excedan los **50,000 tokens** estimados (aproximadamente 200 KB de texto plano).
-- **Límite Acumulado**: Monitorea el consumo acumulado de la sesión de chat, emitiendo alertas cuando el total supera los **220,000 tokens**, recomendando al agente iniciar un proceso de compactación de contexto (`PreCompact`).
+Si el costo estimado de un archivo supera **50.000 tokens**, el advisor
+retorna `ask` con una advertencia explícita del costo antes de continuar.
+También rastrea el acumulado de la sesión contra un límite de **220.000
+tokens**. Se desactiva con `DISABLE_TOKEN_ADVISOR=true`.
 
-## Por qué la arquitectura tiene esta forma
+## git-collaboration-guard
 
-Los agentes autónomos pueden generar comandos accidentales debido a alucinaciones o interpretaciones erróneas del contexto. Interceptar las herramientas a nivel de runtime síncrono (en lugar de confiar en que el agente "se porte bien") garantiza que, incluso si el modelo intenta un comando dañino, la barrera del runtime impedirá que este sea ejecutado.
+Salvaguarda **advisory-first** — siempre retorna `ask`, nunca `deny`, y
+degrada de forma segura (fail open) cuando git no está disponible. Se evalúa
+solo cuando un comando `git commit` está a punto de ejecutarse (no en cada
+edición de archivo). Cubre dos patrones riesgosos:
 
-## Puntos de extensión principales
+1. Ejecutar `git commit` estando en la rama por defecto.
+2. Ejecutar `git commit` con el árbol de trabajo ya sucio (incluso en una
+   rama feature).
 
-- **Agregar reglas de comando**: Modificar las listas `DENY_RULES` y `ASK_RULES` en `/scripts/hooks/pre-tool-use.js` para añadir patrones específicos del stack del proyecto.
-- **Ajustar el presupuesto de tokens**: Modificar los límites numéricos definidos en `/openspec/config.yaml` si tu proyecto requiere trabajar habitualmente con archivos de datos pesados.
+Resolución de estado, en orden, con fail-open independiente por chequeo:
 
-## Aspectos a tener en cuenta al editar
+| Paso | Comando | Ante fallo |
+| --- | --- | --- |
+| Rama por defecto | `git symbolic-ref refs/remotes/origin/HEAD --short` | Fail open solo para este chequeo; el chequeo de árbol sucio sigue corriendo. |
+| Rama actual | `git branch --show-current` | Igual que arriba. |
+| Estado del árbol | `git status --porcelain` | Fail open: se omite la advertencia de árbol sucio, retorna `allow`. |
 
-- **Bypass de Emergencia**: En entornos controlados o servidores de integración continua, el escudo de seguridad y el advisor de tokens pueden ser desactivados exportando las variables `DISABLE_AGENT_SHIELD=true` y `DISABLE_TOKEN_ADVISOR=true`.
-- **Evasión de Regex**: Al añadir reglas, utiliza expresiones regulares insensibles a mayúsculas/minúsculas y contempla variaciones de espacios en blanco y alias de comandos (por ejemplo, `docker-compose` vs `docker compose`).
+Todos los comandos deben completar dentro del presupuesto de 5s de
+`PreToolUse`. Un HEAD detached, un remoto `origin` ausente, o un timeout se
+tratan como "resolución no disponible" solo para el chequeo afectado.
+
+## Hooks locales de Git: pre-commit y commit-msg
+
+Instalados de forma idempotente con `npm run setup:git-hooks`
+(`scripts/setup-git-hooks.js`), que escribe en `.git/hooks/pre-commit` un
+script de entrada hacia `scripts/hooks/pre-commit-hook.js`, sin destruir
+hooks preexistentes de otras herramientas.
+
+- **pre-commit** (`pre-commit-hook.js`): ejecuta las validaciones equivalentes
+  a `node scripts/check.js` (consistencia de OpenSpec). Si `strict_tdd: true`
+  está activo y hay código de producción staged (`internal/**/*.go`,
+  `scripts/hooks/*.js`, etc.) sin un test correspondiente (`*_test.go`,
+  `*.test.js`) o sin `tasks.md` del cambio activo también staged, el commit se
+  bloquea.
+- **commit-msg** (`commit-msg-hook.js`): rechaza mensajes con atribución de
+  IA/modelo (Co-Authored-By vendor, firmas de asistentes) — el proyecto exige
+  Conventional Commits sin atribución de IA.
+
+Ambos se pueden desactivar localmente con `DISABLE_OSPEC_PRECOMMIT=true`.
+
+## Por qué la arquitectura está diseñada así
+
+Cada guardrail resuelve un riesgo distinto con el punto de enganche más
+barato posible: AgentShield actúa donde hay I/O de archivos, Token Budget
+Advisor donde hay lecturas, git-collaboration-guard donde hay un commit a
+punto de ejecutarse, y los hooks nativos de Git donde el commit ya está
+confirmado localmente. Ninguno usa `deny` salvo los hooks nativos de Git — los
+guardrails del host de chat prefieren `ask` para no bloquear flujos legítimos
+por falsos positivos, delgando la decisión final al humano.
+
+## Principales puntos de extensión
+
+- Nuevas heurísticas de estimación de tokens: extender la tabla de
+  extensión→fórmula en el módulo del Token Budget Advisor.
+- Nuevos patrones de secretos: extender el escaneo de AgentShield
+  (`internal/hooks/secretscan.go` y su contraparte Node).
+- Nuevas reglas de pre-commit: agregar validaciones a
+  `scripts/hooks/pre-commit-hook.js`, manteniendo el patrón fail-safe.
+
+## Cosas a vigilar al editar
+
+- git-collaboration-guard NUNCA debe retornar `deny` — es un contrato
+  explícito de la spec.
+- Todo guardrail de `PreToolUse` debe respetar el presupuesto de 5s; un
+  guardrail que no falla de forma segura ante timeout puede bloquear
+  herramientas legítimas.
+- No agregues escaneo de contenido de secretos reales a esta documentación ni
+  a ningún artefacto versionado — solo se documenta la existencia del
+  mecanismo, nunca valores sensibles.
 
 ## Mapa de fuentes
 
-| Archivo / Directorio | Rol | Evidencia de Git |
-| :--- | :--- | :--- |
-| [/scripts/hooks/pre-tool-use.js](/scripts/hooks/pre-tool-use.js) | Evaluador síncrono de comandos, herramientas y Advisor de Tokens. | `422928f` |
-| [/scripts/hooks/lib/secret-scan.js](/scripts/hooks/lib/secret-scan.js) | Detector de firmas y patrones de credenciales en archivos. | `422928f` |
-| [/scripts/hooks/lib/git-state.js](/scripts/hooks/lib/git-state.js) | Proveedor del estado de Git y clasificación de comandos riesgosos. | `422928f` |
+- `/openspec/specs/agent-shield-security/spec.md`
+- `/openspec/specs/token-budget-advisor/spec.md`
+- `/openspec/specs/git-collaboration-guard/spec.md`
+- `/openspec/specs/git-precommit-hook/spec.md`
+- `/scripts/hooks/pre-commit-hook.js`, `/scripts/hooks/commit-msg-hook.js`
+- `/scripts/setup-git-hooks.js`
+- `/internal/hooks/secretscan.go`, `/internal/hooks/pretooluse.go`
