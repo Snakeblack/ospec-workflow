@@ -1,7 +1,7 @@
 change: starlight-web-doc
 status: ready-for-verify
 created_at: 2026-07-06T11:36:49Z
-last_updated: 2026-07-06T13:10:00Z
+last_updated: 2026-07-06T14:35:00Z
 blocking_questions: []
 classification: normal
 route:
@@ -46,6 +46,19 @@ approvals:
     source: AskUserQuestion
     accepted_at: 2026-07-06T11:52:00Z
     applies_to: starlight-web-doc
+  - id: approval-006
+    gate: 4r-review-gate
+    decision: "Remediar todo lo severo + warnings: 1 BLOCKER + 3 CRITICAL + WARNINGs baratos vía batch sdd-apply TDD, luego re-verify"
+    source: AskUserQuestion
+    accepted_at: 2026-07-06T14:05:00Z
+    applies_to: starlight-web-doc
+gates:
+  4r-review-gate:
+    status: remediation-done
+    on_blocker: advisory
+    findings_summary: "1 BLOCKER, 3 CRITICAL, 8 WARNING, 5 SUGGESTION"
+    surfaced_to_user: true
+    remediation_summary: "1 BLOCKER + 3 CRITICAL + 4 WARNING items (5,6,7,8) remediados en TDD estricto en sync-openwiki.mjs; 2 WARNING de prosa (9,10) remediados en route-document.md/option-d-starlight.md con nuevas aserciones static-proof; 1 WARNING (readability, 11) resuelto por refactor. Deferidos a follow-up (no bloqueantes): colisión case-insensitive, unicode/espacios en filenames, regla horizontal '---' inicial. Ver apply-progress.md Batch 2."
 assumptions:
   - id: sdd-propose-001
     phase: sdd-propose
@@ -96,6 +109,20 @@ assumptions:
     basis: "El presupuesto de cuerpo de SKILL (≤1000 tokens) obliga a mover detalle a references/; patrón ya usado por otros skills."
     recorded_at: 2026-07-06T12:10:00Z
     status: unresolved
+  - id: sdd-apply-001
+    phase: sdd-apply
+    statement: "Pinned astro: ^5.0.0 y @astrojs/starlight: ^0.34.0 en el web-doc/package.json generado."
+    reversibility: high
+    basis: "design.md deja el pin exacto como open question no bloqueante, resuelta en apply consistente con la API docsLoader/docsSchema referenciada en stack-starlight."
+    recorded_at: 2026-07-06T12:55:00Z
+    status: unresolved
+  - id: sdd-apply-002
+    phase: sdd-apply
+    statement: "Se difirió la inyección opcional de description en frontmatter (REQ-sdd-document-016, MAY)."
+    reversibility: high
+    basis: "Ningún task de tasks.md especifica un caso de test para description; TDD estricto prohíbe código de producción no dirigido por un test que falle."
+    recorded_at: 2026-07-06T12:55:00Z
+    status: unresolved
 baseline_fingerprints:
   sdd-document: d4c61f74bb660b2620ad43b6e75770a4e27376fcbcc0d59ac06541d6483834ef
   agents: 1f0c83f1dabeff3443008e460590ac4dc2a651148dbca1e4263b4e4b1f470e09
@@ -140,7 +167,15 @@ phases:
   apply:
     status: done
     artifact: "openspec/changes/starlight-web-doc/apply-progress.md"
-    summary: "36/36 tareas implementadas en un solo batch (size-exception): gate/prosa Option D, scaffold Starlight verbatim, sync-openwiki.mjs completo, wiring de route-document.md. Suite completa 1007/1007."
+    summary: "Batch 1: 36/36 tareas (size-exception). Batch 2 (4R remediation, approval-006): 12/12 tareas — guard contra poda destructiva, frontmatter passthrough/prepend sin pérdida de YAML anidado, try/catch por página + cache + poda, warnings de degradación, 2 aclaraciones de prosa. Suite completa 1017/1017."
     key_decisions:
       - "description frontmatter (REQ-016, MAY) diferido: sin test que lo exija, TDD estricto prohíbe código no dirigido por test"
       - "astro ^5.0.0 / @astrojs/starlight ^0.34.0 fijados como versiones razonables (open question de design resuelta en apply)"
+      - "7.6 (try/catch en poda) ship sin test reproductor dedicado: sin forma portable/determinista de forzar fallo de rmSync en Windows dentro de este batch; test de poda existente sirve de approval test"
+  verify:
+    status: done
+    artifact: "openspec/changes/starlight-web-doc/verify-report.md"
+    summary: "PASS WITH WARNINGS: motor sync cubierto por runtime-tests (17/17), contratos de prosa por static-lint; suite 1006/1007 (único fallo = flake Windows conocido, pasa aislado 52/52)."
+    key_decisions:
+      - "2 WARNINGs advisory: escenarios conductuales de J5 (REQ-agents-006) solo inspection-proof; techo de evidencia inherente a contratos de conducta del agente"
+      - "9 assumptions unresolved todas high-reversibility -> sin escalación (no findings)"

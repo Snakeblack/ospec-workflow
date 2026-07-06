@@ -1,7 +1,23 @@
 ---
 title: Known Issues
-last_updated: 2026-07-05
+last_updated: 2026-07-06
 ---
+
+## REQ-agents-006 escenarios conductuales de J5 (clean-run silent close, pre-existing-untracked no-false-positive, out-of-sandbox halt) solo con inspection-proof
+
+- severity: WARNING
+- area: skills/_shared/route-document.md §6 vs scripts/starlight-web-doc-contract.test.js (solo ancla el string web-doc/ en §6) y scripts/configure/real-repo.test.js (solo el sentinel del wording del halt-gate)
+- workaround: agregar una aserción de handler-content en real-repo.test.js/sdd-document.test.js que documente el set de git-status escopado {output dirs, /AGENTS.md, /CLAUDE.md} para scope D y el camino silent-close-on-clean, elevando los escenarios de inspection-proof a static-proof; solapa el known-issue previo de wire-sdd-document
+- change: starlight-web-doc
+- date: 2026-07-06
+
+## Escenarios MUST de conducta pura del agente (REQ-sdd-document-002/006/011) no son runtime-testables y descansan en inspection-proof/static-lint de prosa
+
+- severity: WARNING
+- area: skills/sdd-document/SKILL.md §3/§5/§6.4 + skills/_shared/route-document.md §1/§3 (gate blocking, third-directory halt, self-certify, update-mode reuse)
+- workaround: aceptable bajo el patrón establecido de contratos de prosa; techo de evidencia inherente a conductas definidas en prosa del agente — sin remediación de código, se registra para que orchestrator/usuario reconozcan el límite de evidencia
+- change: starlight-web-doc
+- date: 2026-07-06
 
 ## 4R advisory WARNINGs de harden-archive-move-fingerprints (6, sin remediar por decisión de gate advisory)
 - severity: WARNING
