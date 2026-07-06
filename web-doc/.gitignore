@@ -1,0 +1,12 @@
+# Cache incremental del sync (REQ-sdd-document-015): derivado local, nunca versionado.
+.sync-cache.json
+
+# Contenido generado por scripts/sync-openwiki.mjs en predev/prebuild;
+# la fuente de verdad es ../openwiki/.
+src/content/docs/
+
+# El repo no versiona lock files (convención del proyecto).
+package-lock.json
+
+# Salida de Astro (además del dist/ global).
+.astro/

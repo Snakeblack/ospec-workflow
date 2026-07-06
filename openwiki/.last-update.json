@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-07-05T08:06:50.000Z",
-  "command": "init",
-  "gitHead": "457f385",
+  "updatedAt": "2026-07-06T19:53:39.000Z",
+  "command": "update",
+  "gitHead": "2411bc4",
   "generator": "sdd-document",
   "version": "2.0",
   "sections": [
@@ -12,11 +12,14 @@
     "security/guardrails.md",
     "state-management/persistence.md",
     "testing-quality/verification.md",
-    "workspace-federation/multi-repo.md"
+    "workspace-federation/multi-repo.md",
+    "documentation-generator/openwiki-y-web-doc.md"
   ],
   "stats": {
-    "filesGenerated": 8,
-    "filesUpdated": 0,
-    "filesSkipped": 0
-  }
+    "filesGenerated": 1,
+    "filesUpdated": 3,
+    "filesSkipped": 5
+  },
+  "doc_language": "es",
+  "scope_choice": "D"
 }

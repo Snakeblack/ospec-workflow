@@ -25,6 +25,7 @@ Cuando un usuario inicia un cambio mediante `/sdd-new` o continúa un cambio exi
 1. **Resolución de Estado**: Lee el archivo de estado de la iteración (`state.yaml`). Si no existe, asume que es un cambio nuevo.
 2. **Despacho de Ruta**: El despachador de rutas (`route-dispatcher.js`) lee la lista de flujos configurados en `/openspec/config.yaml` y selecciona la primera ruta cuyas condiciones lógicas se cumplan.
 3. **Control de Gates**: Antes de delegar la fase al subagente correspondiente, comprueba los gates activos. Si algún gate está bloqueado (por ejemplo, requiere aclaración del usuario), detiene la ejecución y devuelve un `question_gate`.
+   - Algunas rutas tienen un **manejador circunstancial** dedicado en `skills/_shared/` que solo se lee cuando esa ruta específica se activa (por ejemplo, `route-document.md` para `/sdd-document`, que agrupa la pregunta de idioma+alcance de la wiki en un solo gate). Esto mantiene el prompt del orquestador liviano sin perder el protocolo detallado de rutas poco frecuentes.
 4. **Delegación de Subagentes**: Invoca al subagente de fase respectivo para realizar el trabajo técnico.
 
 ## Detalles técnicos
