@@ -49,6 +49,24 @@ Es el manifiesto estructurado de la iteración. Contiene campos clave:
 - `status`: Estado del flujo (`blocked` o `active`).
 - `metadata`: Estadísticas de la iteración (fechas de inicio, coste estimado de tokens, etc.).
 
+### Integridad del archivado: move verificado + fingerprints de baseline
+
+El paso final `/sdd-archive` mueve la carpeta del cambio de
+`openspec/changes/{nombre-cambio}/` a `openspec/changes/archive/{fecha}-{nombre-cambio}/`.
+El sub-agente `sdd-archive` **nunca borra el origen ni se auto-certifica como
+"movido"**: solo copia los artefactos y produce el `archive-report.md`. Es el
+**orquestador** quien, tras recibir `status: success`, hace un diff recursivo
+archivo por archivo entre origen y destino (presencia + contenido); solo si
+hay coincidencia total borra el directorio origen, completando el move real.
+Ante cualquier discrepancia o copia parcial, detiene el proceso con el origen
+intacto en vez de arriesgar pérdida de datos.
+
+De forma análoga, los `baseline_fingerprints` (SHA-256 de las specs base
+tocadas por un cambio) ya no los calcula ni asume `sdd-spec` — ese sub-agente
+solo **declara** qué dominios de baseline tocó; el orquestador computa y
+escribe los hashes inmediatamente después, eliminando la suposición repetida
+por cambio que existía antes.
+
 ## Por qué la arquitectura tiene esta forma
 
 El chat del modelo de lenguaje es inherentemente volátil: al iniciar un nuevo chat o realizar un "compactado" de contexto, la IA olvida todo el historial previo. Al escribir el estado estructurado y los artefactos de diseño en archivos del repositorio, garantizamos que cualquier agente (o desarrollador humano) pueda retomar el trabajo exactamente en el punto en el que se dejó ejecutando simplemente un comando (`/sdd-continue`).
@@ -71,3 +89,4 @@ El chat del modelo de lenguaje es inherentemente volátil: al iniciar un nuevo c
 | [/scripts/lib/artifact-store.js](/scripts/lib/artifact-store.js) | Adaptador común de backend de persistencia (Local vs Engram). | `457f385` |
 | [/scripts/lib/atomic-write.js](/scripts/lib/atomic-write.js) | Proveedor de utilidades de escritura a disco a prueba de fallas síncronas. | `457f385` |
 | [/scripts/lib/ospec-state.test.js](/scripts/lib/ospec-state.test.js) | Suite de pruebas unitarias para el gestor de estado OpenSpec. | `457f385` |
+| [/skills/_shared/gate-archive-quality.md](/skills/_shared/gate-archive-quality.md) | Protocolo de move verificado por el orquestador (diff antes de borrar el origen). | `15b7c67` |

@@ -96,7 +96,7 @@ test("skills/sdd-document/assets/web-doc-template/ ships the exact scaffold file
   const expectedFiles = [
     "package.json",
     "astro.config.mjs",
-    "content.config.ts",
+    path.join("src", "content.config.ts"),
     "tsconfig.json",
     path.join("src", "styles", "custom.css"),
     path.join("scripts", "sync-openwiki.mjs"),
@@ -106,6 +106,36 @@ test("skills/sdd-document/assets/web-doc-template/ ships the exact scaffold file
     const absFile = path.join(WEB_DOC_TEMPLATE_DIR, relFile);
     assert.ok(fs.existsSync(absFile), `scaffold asset must exist: ${relFile}`);
   }
+});
+
+test("skills/sdd-document/assets/web-doc-template/src/content.config.ts imports docsLoader from the plural @astrojs/starlight/loaders entry point", () => {
+  const contentConfigPath = path.join(WEB_DOC_TEMPLATE_DIR, "src", "content.config.ts");
+  assert.ok(
+    fs.existsSync(contentConfigPath),
+    "template must ship src/content.config.ts (Astro 5 only reads content config from src/, not the project root)"
+  );
+  const content = fs.readFileSync(contentConfigPath, "utf8");
+  assert.match(
+    content,
+    /import\s*\{\s*docsLoader\s*\}\s*from\s*["']@astrojs\/starlight\/loaders["']/,
+    "content.config.ts must import docsLoader from the plural '@astrojs/starlight/loaders' entry point, not the singular '/loader'"
+  );
+  assert.doesNotMatch(
+    content,
+    /@astrojs\/starlight\/loader["']/,
+    "content.config.ts must NOT import from the singular '@astrojs/starlight/loader' (package only exports the plural './loaders')"
+  );
+});
+
+test("skills/sdd-document/assets/web-doc-template/astro.config.mjs declares a root redirect so '/' does not 404", () => {
+  const astroConfigPath = path.join(WEB_DOC_TEMPLATE_DIR, "astro.config.mjs");
+  assert.ok(fs.existsSync(astroConfigPath), "template astro.config.mjs must exist");
+  const content = fs.readFileSync(astroConfigPath, "utf8");
+  assert.match(
+    content,
+    /redirects\s*:\s*\{[^}]*["']\/["']\s*:\s*["']\/quickstart["']/,
+    "astro.config.mjs must declare redirects mapping '/' to '/quickstart' so the generated site does not 404 at the root"
+  );
 });
 
 test("skills/sdd-document/assets/web-doc-template/package.json wires predev/prebuild to the sync script", () => {

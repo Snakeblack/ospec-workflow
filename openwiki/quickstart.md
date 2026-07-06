@@ -10,9 +10,11 @@
 - **Runtime de hooks de ciclo de vida**: Automatiza validaciones críticas en `SessionStart`, `PreToolUse`, `PreCompact`, y `Stop`.
 - **Compilación Multi-Target**: Compila de forma pura y aislada agentes y comandos para múltiples entornos como Claude Code, VS Code, GitHub Copilot y opencode.
 - **Federación de espacios de trabajo**: Gestiona el impacto de contratos y cambios coordinados en arquitecturas multi-repositorio.
+- **Generación de documentación (OpenWiki + Starlight)**: Compila la wiki técnica `openwiki/` y, opcionalmente, un sitio web estático de búsqueda (`web-doc/`) sincronizado automáticamente desde ella.
 
 ## Empieza aquí
 
+- [Generación de documentación: OpenWiki y web-doc](documentation-generator/openwiki-y-web-doc.md) — Cómo se genera esta misma wiki y su espejo web Starlight opcional, y el contrato de sandbox dual que los protege.
 - [Generador Multi-Target](generator/overview.md) — Detalles del compilador puro que transforma manifiestos y herramientas a perfiles nativos (`vscode`, `claude`, `github-copilot`, `opencode`).
 - [Orquestación y Ruteo](orchestration/routing.md) — Explicación de cómo el orquestador inteligente selecciona rutas (`standard`, `lite`, `bugfix`, etc.) y evalúa gates de decisión.
 - [Runtime de Hooks de Ciclo de Vida](hooks-runtime/lifecycle.md) — Funcionamiento del sistema de hooks local y los disparadores de eventos del ciclo de vida del agente.
@@ -45,12 +47,15 @@ A continuación se muestra el mapa simplificado de las secciones de la wiki téc
   - [Persistencia y OpenSpec](state-management/persistence.md)
   - [Verificación y Calidad](testing-quality/verification.md)
   - [Federación Multi-Repo](workspace-federation/multi-repo.md)
+- **Documentación**
+  - [OpenWiki y web-doc (Starlight)](documentation-generator/openwiki-y-web-doc.md)
 
 ## Notas para futuros agentes
 
 - **Contrato Coordinador-No-Ejecutor**: El agente principal siempre debe actuar como coordinador de fases, delegando tareas de exploración, escritura o testing a subagentes dedicados para evitar la inflación innecesaria del contexto.
 - **Strict TDD Obligatorio**: Si existe un suite de pruebas, antes de modificar código en `/sdd-apply`, primero debes escribir o adaptar las pruebas unitarias y asegurar que fallen antes de proceder con el código de producción.
 - **Validación de targets**: Cualquier cambio en manifiestos (`.plugin.json`) o comandos de agentes requiere ejecutar `npm test` para asegurar que el generador multi-target produce los artefactos `dist/` idénticos y sin errores de validación.
+- **`openwiki/` es la única fuente de verdad de esta wiki**: si el repositorio también tiene `web-doc/` (Opción D de `/sdd-document`), ese directorio se regenera desde `openwiki/` vía `node scripts/sync-openwiki.mjs` — nunca lo edites a mano. Ver [Generación de documentación](documentation-generator/openwiki-y-web-doc.md).
 
 ## Mapa de fuentes
 
@@ -65,3 +70,4 @@ Lista plana de los archivos principales del repositorio con evidencia de Git:
 | [/scripts/configure/cli.js](/scripts/configure/cli.js) | Compilador multi-target de plugins. | `2d703d6` |
 | [/scripts/hooks/pre-tool-use.js](/scripts/hooks/pre-tool-use.js) | Interceptor de comandos y Token Advisor. | `422928f` |
 | [/scripts/lib/ospec-state.js](/scripts/lib/ospec-state.js) | Lógica de persistencia de estado de cambios. | `457f385` |
+| [/skills/sdd-document/references/option-d-starlight.md](/skills/sdd-document/references/option-d-starlight.md) | Procedimiento de la Opción D (OpenWiki + Starlight web-doc). | `e822228` |

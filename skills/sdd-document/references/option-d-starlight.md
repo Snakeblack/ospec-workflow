@@ -25,7 +25,7 @@ into `web-doc/`, preserving their relative paths:
 
 - `package.json`
 - `astro.config.mjs`
-- `content.config.ts`
+- `src/content.config.ts`
 - `tsconfig.json`
 - `src/styles/custom.css`
 - `scripts/sync-openwiki.mjs`

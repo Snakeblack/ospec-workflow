@@ -8,6 +8,11 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.19.1] - 2026-07-07
+
+### Fixed
+- **Template Opción D (`web-doc/`): scaffold generado crasheaba en runtime** (change `fix-web-doc-scaffold-paths`, ruta lite con Strict TDD): `content.config.ts` vivía en la raíz del template pero Astro 5 solo lee la config de colecciones desde `src/content.config.ts`, con lo que la colección `docs` cargaba sin el schema de Starlight y toda petición reventaba con `Cannot read properties of undefined (reading 'hidden')` en `utils/navigation.ts` (incluida la ruta 404). Además el import `@astrojs/starlight/loader` (singular) no existe en el paquete publicado — solo exporta `./loaders`. Se mueve el archivo a `src/`, se corrige el import y se añade `redirects: { "/": "/quickstart" }` en `astro.config.mjs` para que la raíz del sitio no dé 404. Sincronizados `option-d-starlight.md` §3, el baseline REQ-sdd-document-014 (delta MODIFIED archivado en `openspec/changes/archive/2026-07-07-fix-web-doc-scaffold-paths/`) y el test de contrato `scripts/starlight-web-doc-contract.test.js` (11 anclas: ruta `src/`, import plural obligatorio/singular prohibido, redirect raíz), con ciclo RED→GREEN verificado en runtime.
+
 ## [2.19.0] - 2026-07-06
 
 ### Added
