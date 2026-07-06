@@ -155,3 +155,38 @@ test("skills/_shared/route-document.md documents Option D, dual-dir resolution, 
     "route-document.md §6 J5 must scope the sandbox inventory check to web-doc/ as well as openwiki/ for scope D"
   );
 });
+
+test("skills/_shared/route-document.md §4 point 2 clarifies .last-update.json is openwiki/-only for scope D (4R remediation #9)", () => {
+  const content = fs.readFileSync(ROUTE_DOCUMENT_PATH, "utf8");
+  const persistenceSection = content.match(/#### 4\. Persistence([\s\S]*?)(?:\r?\n#### 5\.)/);
+  assert.ok(persistenceSection, "route-document.md must contain a '#### 4. Persistence' section");
+  assert.match(
+    persistenceSection[1],
+    /openwiki\/[\s\S]{0,40}ONLY|ONLY[\s\S]{0,40}openwiki\//i,
+    "§4 point 2 must disambiguate that .last-update.json is written under openwiki/ ONLY for scope D"
+  );
+  assert.match(
+    persistenceSection[1],
+    /never written under\s*`?web-doc\/`?|never.{0,20}web-doc\//i,
+    "§4 point 2 must explicitly state .last-update.json is never written under web-doc/"
+  );
+});
+
+test("skills/sdd-document/references/option-d-starlight.md documents partial-scaffold-materialization recovery (4R remediation #10)", () => {
+  const content = fs.readFileSync(OPTION_D_PATH, "utf8");
+  assert.match(
+    content,
+    /Partial-materialization recovery/i,
+    "option-d-starlight.md §3 must document a partial-materialization recovery policy"
+  );
+  assert.match(
+    content,
+    /retry that single\s*file write once|retry.{0,30}once/i,
+    "the recovery policy must retry the failing scaffold file write once before giving up"
+  );
+  assert.match(
+    content,
+    /presence.{0,60}never proof|never proof.{0,60}(complete|valid)/i,
+    "the recovery policy must state that a file's mere presence is never proof it is complete or valid"
+  );
+});

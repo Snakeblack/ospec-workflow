@@ -241,6 +241,139 @@ test("skips re-transforming an unchanged page on a second incremental run", (t) 
   );
 });
 
+// --- 4R remediation batch (approval-006) ------------------------------------
+
+test("does not prune existing web-doc output when openwiki/ is completely missing", (t) => {
+  const { webDocDir, openwikiDir } = setupProject(t, {
+    pages: { "keep.md": "# Keep\n\nContent.\n" },
+  });
+
+  const first = runSync(webDocDir);
+  assert.equal(first.status, 0, first.stderr);
+  assert.ok(outExists(webDocDir, "keep.md"), "keep.md must exist after the first sync");
+
+  fs.rmSync(openwikiDir, { recursive: true, force: true });
+
+  const second = runSync(webDocDir);
+  assert.equal(second.status, 0, "a missing openwiki/ source must not fail the sync");
+  assert.ok(outExists(webDocDir, "keep.md"), "existing web-doc output must survive a missing openwiki/ source intact");
+  assert.match(second.stderr + second.stdout, /warn/i, "must warn that the source is missing/empty");
+});
+
+test("does not prune existing web-doc output when openwiki/ exists but is empty", (t) => {
+  const { webDocDir, openwikiDir } = setupProject(t, {
+    pages: { "keep.md": "# Keep\n\nContent.\n" },
+  });
+
+  const first = runSync(webDocDir);
+  assert.equal(first.status, 0, first.stderr);
+  assert.ok(outExists(webDocDir, "keep.md"), "keep.md must exist after the first sync");
+
+  fs.rmSync(path.join(openwikiDir, "keep.md"));
+
+  const second = runSync(webDocDir);
+  assert.equal(second.status, 0, "an empty openwiki/ source must not fail the sync");
+  assert.ok(outExists(webDocDir, "keep.md"), "existing web-doc output must survive an empty openwiki/ source intact");
+  assert.match(second.stderr + second.stdout, /warn/i, "must warn that the source is missing/empty");
+});
+
+test("preserves nested/multiline frontmatter structure byte-for-byte when a title already exists", (t) => {
+  const { webDocDir } = setupProject(t, {
+    pages: {
+      "structured.md":
+        '---\ntitle: "Custom Title"\nsidebar:\n  order: 1\n  badge:\n    text: New\n    variant: tip\ntags:\n  - alpha\n  - beta\n---\n\n# Ignored heading\n\nBody content.\n',
+    },
+  });
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  const out = readOut(webDocDir, "structured.md");
+  assert.match(out, /title:\s*"Custom Title"/, "existing title must be preserved");
+  assert.match(out, /sidebar:\r?\n {2}order: 1/, "nested sidebar.order must be preserved");
+  assert.match(out, /badge:\r?\n {4}text: New\r?\n {4}variant: tip/, "deeply nested badge keys must be preserved");
+  assert.match(out, /tags:\r?\n {2}- alpha\r?\n {2}- beta/, "nested list under tags must be preserved");
+});
+
+test("prepends a derived title onto existing frontmatter that lacks one, preserving other keys", (t) => {
+  const { webDocDir } = setupProject(t, {
+    pages: {
+      "partial.md": "---\nsidebar:\n  order: 2\n---\n\n# Partial Heading\n\nBody.\n",
+    },
+  });
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  const out = readOut(webDocDir, "partial.md");
+  assert.match(out, /title:\s*"Partial Heading"/, "title must be derived and injected");
+  assert.match(out, /sidebar:\r?\n {2}order: 2/, "pre-existing nested sidebar.order must be preserved");
+});
+
+test("continues syncing other pages and warns (exit 0) when a single page's transform fails", (t) => {
+  const { webDocDir } = setupProject(t, {
+    pages: {
+      "good.md": "# Good\n\nContent.\n",
+      "nested/bad.md": "# Bad\n\nContent.\n",
+    },
+  });
+
+  // Force materializing the "nested" output directory to fail: pre-create a
+  // FILE (not a directory) at that path so mkdirSync({recursive:true}) for
+  // nested/bad.md's output throws ENOTDIR instead of succeeding.
+  const outDocsDir = path.join(webDocDir, "src", "content", "docs");
+  fs.mkdirSync(outDocsDir, { recursive: true });
+  fs.writeFileSync(path.join(outDocsDir, "nested"), "");
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, "a single page failure must not crash the whole sync");
+  assert.ok(outExists(webDocDir, "good.md"), "unrelated pages must still be synced");
+  assert.match(result.stderr + result.stdout, /warn/i, "must warn about the failed page");
+  assert.match(result.stderr + result.stdout, /bad\.md/, "warning must name the failing page path");
+});
+
+test("does not fail the sync when writing the incremental cache file fails", (t) => {
+  const { webDocDir } = setupProject(t, {
+    pages: { "guide.md": "# Guide\n\nContent.\n" },
+  });
+
+  // Pre-create .sync-cache.json as a DIRECTORY so writeFileSync at that path
+  // throws EISDIR instead of succeeding.
+  fs.mkdirSync(path.join(webDocDir, ".sync-cache.json"));
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, "a cache-write failure must not fail an otherwise successful sync");
+  assert.ok(outExists(webDocDir, "guide.md"), "the page must still be transformed despite the cache write failure");
+  assert.match(result.stderr + result.stdout, /warn/i, "must warn about the failed cache write");
+});
+
+test("warns and performs a full re-sync when .sync-cache.json is corrupt", (t) => {
+  const { webDocDir } = setupProject(t, {
+    pages: { "guide.md": "# Guide\n\nContent.\n" },
+  });
+
+  fs.writeFileSync(path.join(webDocDir, ".sync-cache.json"), "{ not valid json !!!");
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, "a corrupt cache must not fail the sync");
+  assert.ok(outExists(webDocDir, "guide.md"), "the page must still be transformed via a full re-sync");
+  assert.match(result.stderr + result.stdout, /warn/i, "must warn that the cache was unreadable/corrupt");
+});
+
+test("degrades cleanly with a warning when there is no git repository at all", (t) => {
+  const { webDocDir } = setupProject(t, {
+    pages: { "guide.md": "# Guide\n\nSee [cache](/scripts/lib/cache.js).\n" },
+    withGit: false,
+  });
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, "sync must exit 0 even with no git repository at all");
+
+  const out = readOut(webDocDir, "guide.md");
+  assert.match(out, /\[cache\]\(\/scripts\/lib\/cache\.js\)/, "link must remain untouched with no git repo");
+  assert.match(result.stderr + result.stdout, /warn/i, "sync must warn about the missing git context (default branch / origin)");
+});
+
 test("prunes the output page when the corresponding openwiki source page is deleted", (t) => {
   const { webDocDir, openwikiDir } = setupProject(t, {
     pages: {
