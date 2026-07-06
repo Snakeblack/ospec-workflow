@@ -180,3 +180,19 @@ test("skills/_shared/route-document.md is present under all four dist targets", 
   }
 });
 
+// --- starlight-web-doc (Option D scaffold assets ship in dist) ---
+
+test("skills/sdd-document/assets/web-doc-template/scripts/sync-openwiki.mjs is present under all four dist targets", (t) => {
+  const { runConfigure } = require("./configure/cli.js");
+  const relPath = "skills/sdd-document/assets/web-doc-template/scripts/sync-openwiki.mjs";
+
+  for (const target of ["claude", "vscode", "github-copilot", "opencode"]) {
+    const out = tmpOut(t);
+    runConfigure({ sourceDir: ROOT_DIR, target, outDir: out, validate: false });
+    assert.ok(
+      fsSync.existsSync(path.join(out, relPath)),
+      `${relPath} missing from ${target} output`
+    );
+  }
+});
+

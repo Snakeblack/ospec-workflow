@@ -1,0 +1,189 @@
+change: starlight-web-doc
+status: verified
+created_at: 2026-07-06T11:36:49Z
+last_updated: 2026-07-06T14:55:00Z
+blocking_questions: []
+classification: normal
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "First match: 'standard' — classification normal + project.status: active. Deterministic (route-dispatcher classifyChange), no advisory confirmation needed."
+  validated: true
+  validation_errors: []
+owner:
+  author: Manuel Retamozo
+  branch: main
+execution_mode: auto
+delivery_strategy: exception-ok
+approvals:
+  - id: approval-001
+    gate: execution-mode
+    decision: auto
+    source: AskUserQuestion
+    accepted_at: 2026-07-06T11:36:49Z
+    applies_to: session
+  - id: approval-002
+    gate: delivery-strategy
+    decision: exception-ok
+    source: AskUserQuestion
+    accepted_at: 2026-07-06T11:36:49Z
+    applies_to: session
+  - id: approval-003
+    gate: clarify
+    decision: "Scaffold idempotente también en init mode: escribe solo archivos de scaffold faltantes, nunca sobrescribe web-doc/ preexistente"
+    source: AskUserQuestion
+    accepted_at: 2026-07-06T11:52:00Z
+    applies_to: starlight-web-doc
+  - id: approval-004
+    gate: clarify
+    decision: "Sin remote origin: el sync omite la reescritura de enlaces (los deja relativos/locales) y registra advertencia; nunca falla predev/prebuild por eso"
+    source: AskUserQuestion
+    accepted_at: 2026-07-06T11:52:00Z
+    applies_to: starlight-web-doc
+  - id: approval-005
+    gate: clarify
+    decision: "Enlaces remotos usan la rama por defecto (movible), no SHA fijo"
+    source: AskUserQuestion
+    accepted_at: 2026-07-06T11:52:00Z
+    applies_to: starlight-web-doc
+  - id: approval-006
+    gate: 4r-review-gate
+    decision: "Remediar todo lo severo + warnings: 1 BLOCKER + 3 CRITICAL + WARNINGs baratos vía batch sdd-apply TDD, luego re-verify"
+    source: AskUserQuestion
+    accepted_at: 2026-07-06T14:05:00Z
+    applies_to: starlight-web-doc
+gates:
+  4r-review-gate:
+    status: done
+    on_blocker: advisory
+    findings_summary: "1 BLOCKER, 3 CRITICAL, 8 WARNING, 5 SUGGESTION"
+    surfaced_to_user: true
+    remediation_summary: "1 BLOCKER + 3 CRITICAL + 4 WARNING items (5,6,7,8) remediados en TDD estricto en sync-openwiki.mjs; 2 WARNING de prosa (9,10) remediados en route-document.md/option-d-starlight.md con nuevas aserciones static-proof; 1 WARNING (readability, 11) resuelto por refactor. Deferidos a follow-up (no bloqueantes): colisión case-insensitive, unicode/espacios en filenames, regla horizontal '---' inicial. Ver apply-progress.md Batch 2."
+assumptions:
+  - id: sdd-propose-001
+    phase: sdd-propose
+    statement: "Modelar Opción D como deltas a la capacidad sdd-document existente en lugar de una capacidad nueva separada."
+    reversibility: high
+    basis: "Opción D es una extensión de las opciones de scope A/B/C ya definidas en REQ-sdd-document-002/006; mantenerla en la misma capacidad conserva la cohesión del contrato de gate."
+    recorded_at: 2026-07-06T11:40:00Z
+    status: unresolved
+  - id: sdd-propose-002
+    phase: sdd-propose
+    statement: "Incluir openspec/specs/agents/spec.md como capacidad modificada por el impacto del J5 sandbox inventory sobre dos directorios aprobados."
+    reversibility: high
+    basis: "El user-intent solo citó route-document.md, pero el post-run sandbox inventory está normado en el spec de agents y route-document §6 lo referencia; scope D introduce dos directorios donde hoy hay uno."
+    recorded_at: 2026-07-06T11:40:00Z
+    status: unresolved
+  - id: sdd-spec-001
+    phase: sdd-spec
+    statement: "Se dejó REQ-agents-004 (Launch Gate Mapping) sin modificar, ya que el Modified Capabilities de la propuesta acota el dominio agents solo al inventario post-run J5 (REQ-agents-006)."
+    reversibility: high
+    basis: "Sección Capabilities de la propuesta: 'agents: el post-run sandbox inventory (J5) debe cubrir ambos directorios' — no menciona REQ-agents-004."
+    recorded_at: 2026-07-06T11:44:00Z
+    status: unresolved
+  - id: sdd-spec-002
+    phase: sdd-spec
+    statement: "Se definió la regla de derivación del título de frontmatter (primer heading de la página, fallback a filename humanizado) como detalle interno de implementación, no fijado explícitamente por la propuesta."
+    reversibility: high
+    basis: "La propuesta solo exige 'inyección de frontmatter title (+ description opcional)' sin especificar el algoritmo de derivación; no es contrato público observable más allá de 'title siempre presente'."
+    recorded_at: 2026-07-06T11:44:00Z
+    status: unresolved
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "El scaffold de plantilla vive en skills/sdd-document/assets/web-doc-template/ y se copia verbatim (write-if-missing)."
+    reversibility: high
+    basis: "scripts/configure/cli.js walk() copia todo archivo bajo skills/ a los 4 targets; ubicar assets ahí es determinista y barato de mover."
+    recorded_at: 2026-07-06T12:10:00Z
+    status: unresolved
+  - id: sdd-design-002
+    phase: sdd-design
+    statement: "El sync usa un manifiesto de cache web-doc/.sync-cache.json (git-ignored) para la comparación mtime/hash incremental."
+    reversibility: high
+    basis: "REQ-015 exige incremental sin fijar el mecanismo; un manifiesto local es detalle interno sin contrato observable."
+    recorded_at: 2026-07-06T12:10:00Z
+    status: unresolved
+  - id: sdd-design-003
+    phase: sdd-design
+    statement: "El detalle procedimental de Opción D se ubica en un nuevo skills/sdd-document/references/option-d-starlight.md en lugar de inline en SKILL.md."
+    reversibility: high
+    basis: "El presupuesto de cuerpo de SKILL (≤1000 tokens) obliga a mover detalle a references/; patrón ya usado por otros skills."
+    recorded_at: 2026-07-06T12:10:00Z
+    status: unresolved
+  - id: sdd-apply-001
+    phase: sdd-apply
+    statement: "Pinned astro: ^5.0.0 y @astrojs/starlight: ^0.34.0 en el web-doc/package.json generado."
+    reversibility: high
+    basis: "design.md deja el pin exacto como open question no bloqueante, resuelta en apply consistente con la API docsLoader/docsSchema referenciada en stack-starlight."
+    recorded_at: 2026-07-06T12:55:00Z
+    status: unresolved
+  - id: sdd-apply-002
+    phase: sdd-apply
+    statement: "Se difirió la inyección opcional de description en frontmatter (REQ-sdd-document-016, MAY)."
+    reversibility: high
+    basis: "Ningún task de tasks.md especifica un caso de test para description; TDD estricto prohíbe código de producción no dirigido por un test que falle."
+    recorded_at: 2026-07-06T12:55:00Z
+    status: unresolved
+  - id: sdd-apply-003
+    phase: sdd-apply
+    statement: "Se difirió un test reproductor dedicado para el hallazgo 7.6 (try/catch en rmSync de poda); se envió el fix con el test de poda preexistente como approval/regression test."
+    reversibility: high
+    basis: "No se encontró una forma portable y determinista de forzar un error de filesystem en tiempo de borrado en Windows dentro del batch; el fix espeja un patrón ya testeado (7.3/7.4)."
+    recorded_at: 2026-07-06T14:35:00Z
+    status: unresolved
+baseline_fingerprints:
+  sdd-document: d4c61f74bb660b2620ad43b6e75770a4e27376fcbcc0d59ac06541d6483834ef
+  agents: 1f0c83f1dabeff3443008e460590ac4dc2a651148dbca1e4263b4e4b1f470e09
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/starlight-web-doc/proposal.md"
+    summary: "Opción D 'OpenWiki + Starlight web': scaffold cascarón web-doc/ + sync desde openwiki/, sandbox dual, scope_choice D."
+    key_decisions:
+      - "web-doc/ es cascarón estático: sin npm create astro ni instalación en generación"
+      - "openwiki/ única fuente de verdad; sync predev/prebuild transforma a web-doc/"
+      - "Paridad 1:1 wiki<->web; sin páginas web-only en esta iteración"
+  clarify:
+    status: done
+    questions_asked: 3
+    summary: "3 ambigüedades codificadas: scaffold idempotente uniforme init/update (REQ-014); sin remote origin el sync omite reescritura con warning y enlaces usan rama por defecto (REQ-017)."
+  spec:
+    status: done
+    artifact: "openspec/changes/starlight-web-doc/specs/"
+    summary: "Deltas: sdd-document 5 ADDED + 3 MODIFIED (scaffold, sync, frontmatter, enlaces, paridad, gate D, sandbox dual, scope_choice A|B|C|D) y agents 1 MODIFIED (J5 inventario multi-directorio)."
+    key_decisions:
+      - "REQ ids estables continuando numeración del baseline; agents acotado a REQ-agents-006 (J5)"
+  design:
+    status: done
+    artifact: "openspec/changes/starlight-web-doc/design.md"
+    summary: "D = A + scaffold verbatim desde skills/sdd-document/assets/web-doc-template/ + sync .mjs zero-dep en web-doc/; sandbox como SET {openwiki,web-doc}."
+    key_decisions:
+      - "Scaffold como assets verbatim (copy-if-missing), no prosa re-tipeada por LLM (ADR-001)"
+      - "Sync = Node ESM zero-dep en predev/prebuild, dentro del proyecto generado (ADR-002)"
+      - "Sandbox dual como SET aprobado; J5 cubre ambos dirs (ADR-003)"
+    adrs:
+      - "openspec/changes/starlight-web-doc/decisions/adr-001.md"
+      - "openspec/changes/starlight-web-doc/decisions/adr-002.md"
+      - "openspec/changes/starlight-web-doc/decisions/adr-003.md"
+  tasks:
+    status: done
+    artifact: "openspec/changes/starlight-web-doc/tasks.md"
+    summary: "6 fases RED/GREEN/TRIANGULATE/REFACTOR sobre 14 archivos; single PR size-exception (~910 líneas, exception-ok ya aprobado)."
+    key_decisions:
+      - "Delivery: size-exception single PR (delivery_strategy cacheada exception-ok, approval-002); sin gate de decisión adicional"
+      - "openspec/specs/*.md se pliegan automáticamente en sdd-archive, sin tarea de apply dedicada"
+  apply:
+    status: done
+    artifact: "openspec/changes/starlight-web-doc/apply-progress.md"
+    summary: "Batch 1: 36/36 tareas (size-exception). Batch 2 (4R remediation, approval-006): 12/12 tareas — guard contra poda destructiva, frontmatter passthrough/prepend sin pérdida de YAML anidado, try/catch por página + cache + poda, warnings de degradación, 2 aclaraciones de prosa. Suite completa 1017/1017."
+    key_decisions:
+      - "description frontmatter (REQ-016, MAY) diferido: sin test que lo exija, TDD estricto prohíbe código no dirigido por test"
+      - "astro ^5.0.0 / @astrojs/starlight ^0.34.0 fijados como versiones razonables (open question de design resuelta en apply)"
+      - "7.6 (try/catch en poda) ship sin test reproductor dedicado: sin forma portable/determinista de forzar fallo de rmSync en Windows dentro de este batch; test de poda existente sirve de approval test"
+  verify:
+    status: done
+    artifact: "openspec/changes/starlight-web-doc/verify-report.md"
+    summary: "Re-verify (Batch 2, 4R remediation): PASS WITH WARNINGS. BLOCKER + 3 CRITICAL remediados con RED->GREEN runtime verificado contra el .mjs pre-remediación (7 tests fallan en el viejo, pasan en el fijo); prosa 9/10 elevada a static-proof. Suite 1016/1017 (único fallo = flake conocido parity-contract, pasa aislado 9/9). Tests remediación 27/27."
+    key_decisions:
+      - "RED cross-check anti-fabricación: restaurado 7b1ae2a:.mjs, 7 tests conductuales fallan genuinamente, confirman evidencia TDD real"
+      - "7.6 (try/catch poda) sin test dedicado = WARNING W3 aceptado (deviation disclosed, assumption sdd-apply-003 high-reversibility, patrón espeja 7.3/7.4)"
+      - "10 assumptions unresolved todas high-reversibility -> sin escalación; W1/W2 previos fuera de scope de remediación"
