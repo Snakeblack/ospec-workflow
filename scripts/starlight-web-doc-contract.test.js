@@ -138,6 +138,56 @@ test("skills/sdd-document/assets/web-doc-template/astro.config.mjs declares a ro
   );
 });
 
+test("skills/sdd-document/assets/web-doc-template/astro.config.mjs derives the site title from the parent repo instead of hardcoding it", () => {
+  const astroConfigPath = path.join(WEB_DOC_TEMPLATE_DIR, "astro.config.mjs");
+  const content = fs.readFileSync(astroConfigPath, "utf8");
+  assert.doesNotMatch(
+    content,
+    /title\s*:\s*["']Project Documentation["']/,
+    "the starlight title must not be the hardcoded 'Project Documentation' placeholder"
+  );
+  assert.match(
+    content,
+    /package\.json/,
+    "the title must be derived from the parent repository's package.json name (with a fallback)"
+  );
+});
+
+test("skills/sdd-document/assets/web-doc-template/astro.config.mjs consumes the generated sidebar manifest with a safe fallback", () => {
+  const astroConfigPath = path.join(WEB_DOC_TEMPLATE_DIR, "astro.config.mjs");
+  const content = fs.readFileSync(astroConfigPath, "utf8");
+  assert.match(
+    content,
+    /sidebar\.generated\.json/,
+    "astro.config.mjs must read src/sidebar.generated.json emitted by the sync script"
+  );
+  assert.match(
+    content,
+    /return undefined/,
+    "a missing/unreadable manifest must fall back to Starlight's default sidebar (return undefined), never crash the build"
+  );
+});
+
+test("skills/sdd-document/assets/web-doc-template/scripts/sync-openwiki.mjs strips the leading H1 and emits the sidebar manifest", () => {
+  const syncPath = path.join(WEB_DOC_TEMPLATE_DIR, "scripts", "sync-openwiki.mjs");
+  const content = fs.readFileSync(syncPath, "utf8");
+  assert.match(
+    content,
+    /stripLeadingH1/,
+    "the sync script must strip the body's leading H1 so the frontmatter title is not rendered twice"
+  );
+  assert.match(
+    content,
+    /sidebar\.generated\.json/,
+    "the sync script must emit src/sidebar.generated.json for the astro.config sidebar"
+  );
+  assert.match(
+    content,
+    /buildSidebarManifest/,
+    "the sync script must build the sidebar manifest (quickstart first, quickstart-link group order)"
+  );
+});
+
 test("skills/sdd-document/assets/web-doc-template/package.json wires predev/prebuild to the sync script", () => {
   const pkgPath = path.join(WEB_DOC_TEMPLATE_DIR, "package.json");
   assert.ok(fs.existsSync(pkgPath), "template package.json must exist");
