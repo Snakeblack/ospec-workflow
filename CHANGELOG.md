@@ -8,6 +8,14 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.20.0] - 2026-07-07
+
+### Added
+- **Identidad del sitio y navegación ordenada en el template Opción D** (REQ-sdd-document-019, REQ-016 ampliado): `astro.config.mjs` deriva el título del sitio del `name` del `package.json` del repo padre (Title-Case por segmento, con fallback al nombre del directorio) en vez del placeholder "Project Documentation"; `sync-openwiki.mjs` recorta el H1 inicial del cuerpo transformado (Starlight ya renderiza el `title` del frontmatter como H1, que se veía duplicado en cada página) y emite `src/sidebar.generated.json` — quickstart siempre primero como enlace superior y un grupo por subdirectorio del wiki, ordenados por primera mención en los enlaces del propio quickstart (alfabético para los no mencionados) — que `astro.config.mjs` consume con fallback al sidebar autogenerado si falta. Tests: +3 casos runtime en `sync-openwiki.test.js` y +3 anclas en `starlight-web-doc-contract.test.js`.
+
+### Fixed
+- **Falsos positivos del chequeo de atribución AI con palabras en español**: el patrón de `commit-msg-hook.js` y `pre-tool-use.js` matcheaba nombres de vendor como subcadena, con lo que «coherente», «coherencia», «bombardeo» o «llaman» bloqueaban commits legítimos. Los nombres de vendor quedan anclados a límites de palabra (`\b`), con tests de regresión en ambos sentidos y el patrón documentado en `rules/no-model-attribution.instructions.md` actualizado.
+
 ## [2.19.1] - 2026-07-07
 
 ### Fixed
