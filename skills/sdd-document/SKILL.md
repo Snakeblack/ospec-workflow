@@ -25,7 +25,7 @@ You are a sub-agent responsible for DOCUMENTATION. You compile repository metada
 From the orchestrator:
 - Documentation language via parameter `doc_language`
 - Change name (or `none` if running in baseline mode)
-- Selected scope choice (Option A, Option B, or Option C) via parameter `scope_choice`
+- Selected scope choice (Option A, Option B, Option C, or Option D) via parameter `scope_choice`
 - Custom path (when Option C is selected) via parameter `custom_path`
 - Artifact store mode (`openspec | none`)
 
@@ -120,8 +120,16 @@ You MUST immediately halt execution and return a launch-blocking `question_gate`
         - **label**: "Option C"
           - **description**: "Custom path. Prompts for a custom directory path and validates it. Easily reversible."
           - **recommended**: false
+        - **label**: "Option D"
+          - **description**: "OpenWiki + Starlight web. Generates openwiki/ identically to Option A, plus a static web-doc/ Starlight scaffold synced from it. No installers run. Easily reversible — delete web-doc/ to revert."
+          - **recommended**: false
 
 Both questions are delivered via a single `vscode/askQuestions` call — never as two sequential gates.
+
+When `scope_choice` resolves to Option D, follow the full procedure in
+`references/option-d-starlight.md` for the scaffold, sync-script wiring, and
+`.last-update.json` placement rules instead of the single-directory steps
+below.
 
 #### 2. Once `doc_language` and `scope_choice` are resolved:
 - Store both resolved values for this execution session.
@@ -142,11 +150,12 @@ Both questions are delivered via a single `vscode/askQuestions` call — never a
 
 ### Step 5: Enforce Write Sandbox Boundaries (REQ-sdd-document-002)
 
-1. Determine the approved output directory:
+1. Determine the approved output directory (or, for scope D, the SET of directories):
    - Option A -> `openwiki/`
    - Option B -> `docs/wiki/`
    - Option C -> `<validated custom path>`
-2. **Hard Gate**: You are strictly restricted from editing or writing to any files outside the approved output directory, with the sole exception of the repository's top-level `/AGENTS.md` and `/CLAUDE.md` files (and only to append or update the OpenWiki reference section).
+   - Option D -> the SET `{openwiki/, web-doc/}` — you MAY write to either directory; see `references/option-d-starlight.md` for the full procedure.
+2. **Hard Gate**: You are strictly restricted from editing or writing to any files outside the approved output directory (or, for scope D, outside both directories of the SET), with the sole exception of the repository's top-level `/AGENTS.md` and `/CLAUDE.md` files (and only to append or update the OpenWiki reference section).
 3. If any task or write operation targets a file outside this path (with the exception of `/AGENTS.md` and `/CLAUDE.md` under the rules of Step 6.6), you MUST halt execution, throw a warning/error in the logs, and return `status: blocked` with `blocker_type: design-mismatch` (or throw an execution boundary violation error).
 4. **No self-certification**: this pre-write self-check is NOT sufficient evidence of overall sandbox compliance and MUST NOT be presented as such in the return envelope. The authoritative, independent verification that no write landed outside the approved sandbox is an orchestrator-owned post-run step (see `openspec/specs/agents/spec.md`, Orchestrator-Owned Post-Run Sandbox Inventory Verification, and `skills/_shared/route-document.md` §6 J5). Do NOT claim final sandbox compliance in the return envelope as a substitute for that check.
 
@@ -276,7 +285,7 @@ After all wiki files are written, generate (or update) a `.last-update.json` met
     "filesSkipped": 0
   },
   "doc_language": "resolved language code from the batched gate (e.g. en, es)",
-  "scope_choice": "resolved scope option: A | B | C"
+  "scope_choice": "resolved scope option: A | B | C | D"
 }
 ```
 
@@ -285,6 +294,10 @@ skip the batched gate (Step 3) by reading these persisted values instead of
 re-asking.
 
 This file is used by future update runs to scope the git diff window.
+
+When the resolved scope is D, write `.last-update.json` under `openwiki/`
+(the source-of-truth directory) — `web-doc/` does not carry its own separate
+metadata file. See `references/option-d-starlight.md`.
 
 **Write-failure behavior**: if writing `.last-update.json` fails (e.g. a
 permissions or disk error), do NOT fail the whole run over it. Report the
