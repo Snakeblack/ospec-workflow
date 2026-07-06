@@ -8,6 +8,12 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.19.0] - 2026-07-06
+
+### Added
+- **Opción D "OpenWiki + Starlight web" en `sdd-document`** (change `starlight-web-doc`, ciclo SDD completo con gate 4R remediado): nueva opción de scope en el gate batcheado de idioma+scope que genera `web-doc/` en la raíz del repo objetivo como proyecto Starlight cascarón — scaffold estático copiado verbatim desde `skills/sdd-document/assets/web-doc-template/` (package.json, astro.config.mjs, content.config.ts, tsconfig.json, CSS custom), nunca ejecuta `npm create astro` ni instala dependencias (REQ-sdd-document-014). `openwiki/` permanece como única fuente de verdad: el script `web-doc/scripts/sync-openwiki.mjs` (Node ESM zero-dependency, cableado en `predev`/`prebuild`) transforma el wiki a `src/content/docs/` con inyección de frontmatter `title` (REQ-016), reescritura de enlaces fuente a la URL del remote `origin` sobre la rama por defecto (REQ-017) y paridad estricta 1:1 con poda de huérfanos (REQ-018). Sync incremental por mtime/hash con cache local git-ignored (REQ-015). Sandbox de escritura dual modelado como SET `{openwiki/, web-doc/}` con inventario post-run J5 del orquestador extendido a multi-directorio (REQ-sdd-document-002/006/011, REQ-agents-006). Degradaciones seguras endurecidas por el gate 4R: guard anti-poda-destructiva cuando `openwiki/` falta o está vacío, passthrough de frontmatter YAML anidado sin pérdida, try/catch por página/cache/poda con warnings (nunca tumba el build del usuario final) y fallbacks logueados. Procedimiento del ejecutor en `skills/sdd-document/references/option-d-starlight.md`; 3 ADRs promovidos a `docs/adr/`. Tests: `scripts/sync-openwiki.test.js` (18 casos runtime sobre proyecto materializado en temp dir) y `scripts/starlight-web-doc-contract.test.js` (9 anclas estáticas de contrato).
+- **Skill `stack-starlight`**: base de conocimiento del framework Starlight (Astro) — setup, configuración, sidebar, frontmatter, componentes, theming e i18n — con 4 documentos de referencia; fuente técnica de la plantilla de la Opción D.
+
 ## [2.18.0] - 2026-07-06
 
 ### Added
