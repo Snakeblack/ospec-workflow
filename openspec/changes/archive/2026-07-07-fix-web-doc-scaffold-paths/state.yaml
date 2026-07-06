@@ -1,0 +1,77 @@
+schema: spec-driven
+change: fix-web-doc-scaffold-paths
+classification: small
+
+owner:
+  author: Manuel Retamozo
+  branch: main
+
+route:
+  intended_route: bugfix
+  actual_route: lite
+  route_rationale: "bugfix es el primer match de la tabla (explicit_bugfix_intent + small), pero el usuario eligió explícitamente 'SDD lite' vía AskUserQuestion — override registrado en approvals."
+  validated: true
+  validation_errors: []
+
+approvals:
+  - id: appr-001
+    gate: architecture
+    decision: "Enrutar el fix del harness por SDD lite (change persistido) en lugar de fix directo; override de la ruta bugfix matcheada por tabla."
+    source: AskUserQuestion
+    accepted_at: 2026-07-06T22:21:19Z
+    applies_to:
+      - route-selection
+  - id: appr-002
+    gate: execution-mode
+    decision: "Automático: fases corridas sin pausas."
+    source: AskUserQuestion
+    accepted_at: 2026-07-06T22:21:19Z
+    applies_to:
+      - sdd-propose
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: appr-003
+    gate: delivery-strategy
+    decision: "exception-ok: permitir trabajo sobredimensionado con size:exception explícito."
+    source: AskUserQuestion
+    accepted_at: 2026-07-06T22:21:19Z
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+
+last_updated: 2026-07-07T14:15:00Z
+blocking_questions: []
+status: archived
+
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/fix-web-doc-scaffold-paths/proposal-lite.md"
+    summary: "Fix template Opción D: mover content.config.ts a src/, import loaders (plural), redirect / -> /quickstart; sync docs+spec+test."
+    key_decisions:
+      - "Delta spec MODIFIED de REQ-014 en carpeta del change para que archive sincronice baseline"
+  tasks:
+    status: done
+    artifact: "openspec/changes/fix-web-doc-scaffold-paths/tasks.md"
+    summary: "4 fases RED->GREEN->docs/spec->cierre; single PR, size:exception (~90-120 líneas, riesgo Low)."
+    key_decisions:
+      - "No se recomiendan PRs encadenados: el diff cabe holgado bajo el presupuesto de 400 líneas"
+  apply:
+    status: done
+    artifact: "openspec/changes/fix-web-doc-scaffold-paths/apply-progress.md"
+    summary: "Batch único: RED->GREEN en scripts/starlight-web-doc-contract.test.js, template movido a src/content.config.ts con import loaders (plural), redirect / -> /quickstart, docs y delta spec sincronizados. Full npm test: exit 0, fail 0."
+    key_decisions:
+      - "Diff real ~36 líneas (4 archivos) — muy por debajo del presupuesto de 400; size:exception aprobado pero no necesario en la práctica"
+  verify:
+    status: done
+    artifact: "openspec/changes/fix-web-doc-scaffold-paths/verify-report.md"
+    summary: "PASS. 11/11 contract test + 767/767 full suite (exit 0). 3 MUST con runtime-test, delta REQ-014 correcto, baseline intacto. Sin CRITICAL/WARNING."
+    key_decisions:
+      - "Baseline spec sin editar — archive sincroniza desde el delta"
+      - "openwiki/ y web-doc/ sin commitear son de un run previo, fuera de scope"
+  archive:
+    status: done
+    artifact: "openspec/changes/fix-web-doc-scaffold-paths/archive-report.md"
+    summary: "Archive completed. Delta spec REQ-sdd-document-014 synced to baseline (content.config.ts → src/content.config.ts at L317/L328). All 7 change artifacts copied to openspec/changes/archive/2026-07-07-fix-web-doc-scaffold-paths/"
