@@ -6,6 +6,9 @@ import starlight from "@astrojs/starlight";
 // Content under src/content/docs/ is populated exclusively by
 // scripts/sync-openwiki.mjs from ../openwiki/ — do not author pages here.
 export default defineConfig({
+  redirects: {
+    "/": "/quickstart",
+  },
   integrations: [
     starlight({
       title: "Project Documentation",
