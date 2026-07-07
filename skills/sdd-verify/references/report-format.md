@@ -4,6 +4,7 @@
 
 - `runtime-test`: automated test executed and passed.
 - `static-proof`: build, type-check, schema validation, or equivalent static command proves the behavior.
+- `static-lint`: a check that inspects declared artifacts (skill manifests, frontmatter, config files, commit trailers) via grep/parse/string comparison — including a check that runs inside the automated test runner but exercises no real runtime code path — as distinct from `runtime-test`.
 - `inspection-proof`: code inspection ties the scenario to exact files/functions with a technical rationale.
 - `manual-proof`: manual verification was executed and recorded.
 - `no-proof`: no credible evidence found.
