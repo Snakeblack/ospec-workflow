@@ -8,6 +8,14 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.20.2] - 2026-07-07
+
+### Added
+- **Soporte de diagramas Mermaid en scaffold de Starlight (Opción D)**: Añadidas las dependencias `astro-mermaid` (v^2.1.0) y `mermaid` (v^11.16.0) al [package.json](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/skills/sdd-document/assets/web-doc-template/package.json) del scaffold y registrado el plugin `mermaid()` en su [astro.config.mjs](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/skills/sdd-document/assets/web-doc-template/astro.config.mjs) (posicionado antes de `starlight()`). Esto habilita el renderizado nativo client-side de diagramas en bloques de código ` ```mermaid ` para cualquier nueva inicialización de documentación con la Opción D, sincronizado con la instancia local de `web-doc/`. Tests: paso verde de la suite de contratos estáticos de `starlight-web-doc` y compilación local exitosa con empaquetado de chunks específicos de diagramas (stateDiagram, erDiagram, etc.).
+
+### Fixed
+- **Error de parseo got 'PS' en diagrama Mermaid**: Corregido error de sintaxis en el diagrama de arquitectura de [overview.md](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/openwiki/architecture/overview.md) envolviendo las etiquetas con caracteres especiales (paréntesis, comas, barras) entre comillas dobles, de modo que el motor de Mermaid no confunda la sintaxis del parser.
+
 ## [2.20.1] - 2026-07-07
 
 ### Fixed

@@ -4,6 +4,7 @@ import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
+import mermaid from "astro-mermaid";
 
 // This project is a generated Starlight shell (Option D of sdd-document).
 // Content under src/content/docs/ is populated exclusively by
@@ -60,6 +61,7 @@ export default defineConfig({
     "/": "/quickstart",
   },
   integrations: [
+    mermaid(),
     starlight({
       title: resolveSiteTitle(),
       sidebar: resolveSidebar(),

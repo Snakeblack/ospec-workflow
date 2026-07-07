@@ -23,16 +23,16 @@ lee el árbol fuente una sola vez y produce cada distribución en `dist/<target>
 
 ```mermaid
 flowchart LR
-    A[Árbol fuente canónico\nagents/, skills/, commands/, rules/, hooks/] --> B[target-transform.js\n(pura, sin IO)]
+    A["Árbol fuente canónico\nagents/, skills/, commands/, rules/, hooks/"] --> B["target-transform.js\n(pura, sin IO)"]
     B --> C{Perfil de target}
     C --> D[claude.js]
     C --> E[vscode.js]
     C --> F[github-copilot.js]
     C --> G[opencode.js]
-    D --> H[dist/claude/]
-    E --> I[identidad — sin dist/]
-    F --> J[dist/github-copilot/]
-    G --> K[dist/opencode/]
+    D --> H["dist/claude/"]
+    E --> I["identidad — sin dist/"]
+    F --> J["dist/github-copilot/"]
+    G --> K["dist/opencode/"]
     H --> L[Validador por target]
     J --> L
     K --> L
