@@ -64,7 +64,7 @@ export default defineConfig({
     mermaid(),
     starlight({
       title: resolveSiteTitle(),
-      favicon: "./src/assets/ospec-logo.png",
+      favicon: "/favicon.png",
       logo: {
         src: "./src/assets/ospec-logo.png",
         alt: "Ospec-Workflow",
