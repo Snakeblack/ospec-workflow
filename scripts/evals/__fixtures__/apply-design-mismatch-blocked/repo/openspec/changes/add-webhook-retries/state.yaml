@@ -1,0 +1,32 @@
+schema: spec-driven-state
+change: add-webhook-retries
+status: blocked
+last_updated: "2026-07-02T09:30:00Z"
+blocking_questions:
+  - "sdd-apply reported design-mismatch: delivery-worker.js has no pluggable retry seam; design.md assumed one exists. Revise the design before resuming sdd-apply."
+
+classification: normal
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "project.status: active matched the 'standard' route condition (classification: normal)."
+  validated: true
+  validation_errors: []
+
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/add-webhook-retries/proposal.md"
+  design:
+    status: done
+    artifact: "openspec/changes/add-webhook-retries/design.md"
+  tasks:
+    status: done
+    artifact: "openspec/changes/add-webhook-retries/tasks.md"
+  apply:
+    status: partial
+    artifact: "openspec/changes/add-webhook-retries/apply-progress.md"
+    blocker_type: design-mismatch
+    summary: "Blocked: design assumed a RetryQueue seam in delivery-worker.js that does not exist."
+approvals: []

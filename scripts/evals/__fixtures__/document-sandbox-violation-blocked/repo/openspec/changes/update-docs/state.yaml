@@ -1,0 +1,13 @@
+schema: spec-driven-state
+change: update-docs
+status: planning
+last_updated: "2025-01-01T00:00:00Z"
+blocking_questions: []
+approvals:
+  - gate: document-init
+    resolution: "doc_language=en, scope_choice=A, output_dir=openwiki/"
+    timestamp: "2025-01-01T00:00:00Z"
+phases:
+  document:
+    status: done
+    artifact: "openwiki/quickstart.md"

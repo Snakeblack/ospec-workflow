@@ -1,0 +1,110 @@
+schema: spec-driven-state
+change: prompt-evals-golden-scenarios
+status: archived
+last_updated: "2026-07-08T12:00:00Z"
+blocking_questions: []
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "project.status: active matched the 'standard' route condition (classification: normal); no earlier route (foundation/federated/bugfix/brownfield/refactor/hotfix) matched first."
+  validated: true
+  validation_errors: []
+
+owner:
+  author: Manuel Retamozo
+  branch: feat/prompt-evals-golden-scenarios
+
+execution_mode: auto
+delivery_strategy: exception-ok
+
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/archive/2026-07-08-prompt-evals-golden-scenarios/proposal.md"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/specs/orchestrator-evals/spec.md"
+  clarify:
+    status: done
+    questions_asked: 0
+  design:
+    status: done
+    artifact: "openspec/changes/archive/2026-07-08-prompt-evals-golden-scenarios/design.md"
+  tasks:
+    status: done
+    artifact: "openspec/changes/archive/2026-07-08-prompt-evals-golden-scenarios/tasks.md"
+  apply:
+    status: done
+    artifact: "openspec/changes/archive/2026-07-08-prompt-evals-golden-scenarios/apply-progress.md"
+  verify:
+    status: done
+    artifact: "openspec/changes/archive/2026-07-08-prompt-evals-golden-scenarios/verify-report.md"
+  archive:
+    status: done
+    artifact: "openspec/changes/archive/2026-07-08-prompt-evals-golden-scenarios/archive-report.md"
+
+gates:
+  4r-review-gate:
+    status: done
+    on_blocker: advisory
+    findings_summary: "0 BLOCKER, 1 CRITICAL (remediated), 7 WARNING (3 remediated, 4 deferred), 2 SUGGESTION (deferred)"
+    surfaced_to_user: true
+
+approvals:
+  - id: approval-001
+    gate: 4r-review-gate
+    decision: "Remediate CRITICAL (fixture corruption on partial materialization/git-baseline failure) and the most critical WARNINGs (document-update-noop weak proxy, GIT-BASELINE.json path traversal guard) via a follow-up sdd-apply batch before archive; remaining WARNINGs/SUGGESTIONs documented as follow-up debt at archive."
+    source: AskUserQuestion
+    accepted_at: "2026-07-08T00:00:00Z"
+    applies_to: prompt-evals-golden-scenarios
+    remediation_status: done
+    remediation_artifact: "openspec/changes/archive/2026-07-08-prompt-evals-golden-scenarios/apply-progress.md#remediation-batch-4r-review-gate-findings-post-verify-pre-archive"
+
+assumptions:
+  - id: sdd-clarify-001
+    phase: sdd-clarify
+    statement: "The eval harness executes live against a configured model rather than replaying a pre-recorded golden transcript."
+    reversibility: high
+    basis: "Proposal's Approach section already states the runner is 'ejecutable localmente/manual contra un modelo'; REQ-orchestrator-evals-004 requires the suite to run 'against a configured model'; REQ-orchestrator-evals-002's tolerance for model-to-model prose variance only has value under live execution."
+    recorded_at: "2026-07-07T00:00:00Z"
+    status: unresolved
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "Live eval scenarios and run.js are kept out of the check.js --test glob by not naming run.js *.test.js; only the pure-Node assertion library gets a *.test.js."
+    reversibility: high
+    basis: "check.js collects scripts/**/*.test.js and runs with no model available; e2e.test.js precedent self-skips, this goes further by excluding from the glob."
+    recorded_at: "2026-07-07T12:00:00Z"
+    status: unresolved
+  - id: sdd-apply-001
+    phase: sdd-apply
+    statement: "Introduced a GIT-BASELINE.json fixture marker convention (commit_all/gitHead_files/post_baseline_untracked) so git-dependent sdd-document fixtures can be seeded without committing a nested .git directory."
+    reversibility: high
+    basis: "Avoids the git-submodule-pointer footgun of a committed nested .git; keeps the mechanism entirely inside the gitignored ephemeral .runs/ workspace; fully documented in README.md."
+    recorded_at: "2026-07-07T21:48:58Z"
+    status: unresolved
+  - id: sdd-apply-002
+    phase: sdd-apply
+    statement: "Introduced a .eval-capture/done.json completion marker as the uniform signal run.js uses to distinguish awaiting-live-run from ready-to-score."
+    reversibility: high
+    basis: "Keeps run.js's control flow scenario-agnostic since scenarios differ in whether they expect a gate/envelope capture at all (e.g. vague-request-no-artifact expects neither)."
+    recorded_at: "2026-07-07T21:48:58Z"
+    status: unresolved
+  - id: sdd-design-002
+    phase: sdd-design
+    statement: "Routing/blocker scenarios pre-seed the trigger state (verify-report FAIL/spec-gap, blocked state.yaml) so the live model exercises only the orchestrator routing decision."
+    reversibility: high
+    basis: "REQ-orchestrator-evals-003 explicitly allows fixtures to capture reusable starting states; isolates orchestrator behavior from non-deterministic sub-agents."
+    recorded_at: "2026-07-07T12:00:00Z"
+    status: unresolved
+  - id: sdd-apply-003
+    phase: sdd-apply
+    statement: "applyGitBaseline writes and commits a .gitignore (.eval-capture/) into git-baselined fixture workspaces before git init, so the harness's own completion-marker directory never shows up as untracked inside the fixture's nested repo."
+    reversibility: high
+    basis: "Discovered mid-remediation: writing .eval-capture/materialized.json after the git baseline commit would otherwise be flagged as untracked by sdd-document's J5 sandbox check on the document-update-noop scenario, a false positive introduced by the CRITICAL fix itself; fixed within the same batch."
+    recorded_at: "2026-07-08T00:00:00Z"
+    status: unresolved
+
+archive_status: success
+archive_date: "2026-07-08"

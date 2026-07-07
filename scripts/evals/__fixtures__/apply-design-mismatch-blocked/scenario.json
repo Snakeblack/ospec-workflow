@@ -1,0 +1,16 @@
+{
+  "id": "apply-design-mismatch-blocked",
+  "group": "orchestrator-core",
+  "input": {
+    "command": "/sdd-continue",
+    "text": "Continue the add-webhook-retries change."
+  },
+  "capture": { "gate": false, "envelope": true },
+  "expect": {
+    "route": "sdd-design",
+    "blocker_type": "design-mismatch",
+    "state": { "status": "blocked", "blocking_questions_nonempty": true },
+    "artifacts_absent": [],
+    "question_gate": null
+  }
+}

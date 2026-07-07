@@ -1,0 +1,37 @@
+schema: spec-driven-state
+change: add-invoice-export
+status: blocked
+last_updated: "2026-07-01T10:00:00Z"
+blocking_questions: []
+
+classification: normal
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "project.status: active matched the 'standard' route condition (classification: normal)."
+  validated: true
+  validation_errors: []
+
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/add-invoice-export/proposal.md"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/add-invoice-export/specs/invoicing/spec.md"
+  design:
+    status: done
+    artifact: "openspec/changes/add-invoice-export/design.md"
+  tasks:
+    status: done
+    artifact: "openspec/changes/add-invoice-export/tasks.md"
+  apply:
+    status: done
+    artifact: "openspec/changes/add-invoice-export/apply-progress.md"
+  verify:
+    status: done
+    artifact: "openspec/changes/add-invoice-export/verify-report.md"
+    summary: "FAIL: CRITICAL finding tagged spec-gap — export row filter undefined by the spec."
+approvals: []

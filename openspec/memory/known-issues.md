@@ -3,6 +3,14 @@ title: Known Issues
 last_updated: 2026-07-07
 ---
 
+## capture.js/parseYamlLite del eval suite sin tests automatizados en CI
+
+- severity: WARNING
+- area: scripts/evals/lib/capture.js (parser YAML-lite por indentacion + captureWorkspace) vs coleccion npm test (solo assertions.test.js + fixtures.test.js; no existe capture.test.js)
+- workaround: design.md scopeo capture.js fuera de unit testing (se ejercita "end-to-end via manual eval runs" que requieren modelo live, fuera de npm test). Agregar capture.test.js cubriendo parseYamlLite contra las formas reales de state.yaml de los fixtures (maps route:/phases: anidados, listas blocking_questions, timestamps citados) y la deteccion de active-change de captureWorkspace. Un bug del parser mis-poblaria captured.state y produciria verdicts PASS/FAIL falsos
+- change: prompt-evals-golden-scenarios
+- date: 2026-07-07
+
 ## apply-progress/state afirman que openspec/config.yaml es gitignored pero en realidad esta trackeado en HEAD
 
 - severity: WARNING

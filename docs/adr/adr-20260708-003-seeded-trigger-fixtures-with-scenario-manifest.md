@@ -1,0 +1,31 @@
+# ADR-003: Seeded-trigger fixtures with a `scenario.json` manifest
+
+- Status: accepted
+- Change: prompt-evals-golden-scenarios
+- Date: 2026-07-08
+
+## Context
+
+Routing/blocker scenarios (verify FAIL `spec-gap` → sdd-spec; apply `design-mismatch` →
+blocked) are triggered by non-deterministic sub-agents. The behavior under test is the
+orchestrator's *routing decision*, not the sub-agent's judgment. REQ-003 allows fixtures
+to capture reusable starting states.
+
+## Decision
+
+Each scenario is a self-contained `scripts/evals/__fixtures__/<scenario>/` with a
+`scenario.json` manifest (input, capture flags, structural `expect`) plus a `repo/` seed
+tree. Routing/blocker fixtures pre-seed the trigger state (e.g. `verify-report.md` tagged
+`FAIL`/`spec-gap`, or a blocked `state.yaml`) so the live model exercises only the
+orchestrator's routing.
+
+## Alternatives
+
+- Full end-to-end with live sub-agents producing the trigger envelope — costly, flaky,
+  and tests the wrong component for 2.1.
+
+## Consequences
+
+Easier: isolates the assertion target; bounded cost/latency; deterministic triggers.
+Harder: fixtures must be kept in sync with the documented routes in the agent md.
+Reversible: manifest schema is additive; fixtures can graduate to fuller e2e later.

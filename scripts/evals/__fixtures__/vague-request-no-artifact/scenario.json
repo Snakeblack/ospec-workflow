@@ -1,0 +1,13 @@
+{
+  "id": "vague-request-no-artifact",
+  "group": "orchestrator-core",
+  "input": {
+    "command": null,
+    "text": "puedes mejorar el proyecto un poco"
+  },
+  "capture": { "gate": false, "envelope": false },
+  "expect": {
+    "artifacts_absent": ["openspec/changes"],
+    "question_gate": null
+  }
+}

@@ -1,0 +1,33 @@
+# ADR-002: `.eval-capture/` side-channel for interactive gate/envelope capture
+
+- Status: accepted
+- Change: prompt-evals-golden-scenarios
+- Date: 2026-07-08
+
+## Context
+
+Four of seven scenarios assert `question_gate` shape (question/option counts,
+`recommended` flags) or a sub-agent `blocker_type`. Those payloads are emitted through
+`vscode/askQuestions` / returned envelopes and never touch disk, so they are invisible
+to a Node assertion pass that only reads the workspace filesystem.
+
+## Decision
+
+Define a capture file contract: the live run serializes the emitted gate to
+`<workspace>/.eval-capture/gate.json` and the triggering sub-agent envelope to
+`.eval-capture/envelope.json` (as JSON), at the gate/blocker boundary, then stops.
+`state.yaml` and `openspec/changes/**` need no side-channel — the orchestrator already
+persists them.
+
+## Alternatives
+
+- Parse the chat transcript — prose-coupled, model-specific, violates REQ-002 intent.
+- Assert only on `state.yaml` — cannot observe gate question/option counts the spec
+  requires.
+
+## Consequences
+
+Easier: interactive gates become model-agnostic and structurally observable from Node.
+Harder: the driver protocol must instruct the write, so runs are not fully passive.
+Reversible: 2.2 may replace this with structured transcript capture without changing
+the assertion schema.
