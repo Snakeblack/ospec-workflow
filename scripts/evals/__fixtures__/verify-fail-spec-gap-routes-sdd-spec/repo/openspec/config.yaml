@@ -1,0 +1,129 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Node.js 20+, CommonJS JavaScript.
+  Architecture: small internal CLI tool with a handful of scripts.
+  Testing: Node.js native test runner.
+
+project:
+  name: acme-tool
+  version: 0.3.0
+  status: active
+
+artifact_store:
+  mode: openspec
+  backend: openspec
+
+strict_tdd: false
+
+testing:
+  runner: node
+  test_command: "npm test"
+  raw_command: "node --test scripts/**/*.test.js"
+  framework: "Node.js native test runner (--test flag)"
+
+baseline:
+  status: done
+  domains_pending: []
+  domains_done:
+    - cli
+  stale_domains: []
+  last_checked: "2026-06-01T00:00:00Z"
+
+rules:
+  foundation:
+    - Ask one blocking question at a time
+  proposal:
+    - Include rollback plan for risky changes
+  specs:
+    - Use Given/When/Then for scenarios
+  design: []
+  tasks:
+    - Group by phase, use hierarchical numbering
+  apply:
+    guidelines:
+      - Follow existing code patterns
+    tdd: false
+    test_command: "npm test"
+  verify:
+    test_command: "npm test"
+    build_command: ""
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas
+
+routing:
+  - name: foundation
+    classification: [normal, high-risk]
+    conditions:
+      project.status: empty
+    phases: [sdd-foundation]
+    gates: []
+    description: "Guided pre-SDD foundation phase for empty projects."
+    cost: medium
+
+  - name: federated
+    classification: [normal, high-risk]
+    conditions:
+      artifact_store.backend: workspace-federated
+    phases: [sdd-workspace, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]
+    gates: [impact, clarify]
+    description: "Full SDD for federated multi-repo workspaces."
+    cost: high
+
+  - name: bugfix
+    classification: [small, normal]
+    conditions:
+      explicit_bugfix_intent: true
+    phases: [sdd-explore, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]
+    gates: [4r-review-gate]
+    description: "Robust explore-fix flow with verification and archive."
+    cost: medium
+
+  - name: brownfield
+    classification: [normal, high-risk]
+    conditions:
+      match: any
+      baseline.status: [pending, partial]
+      specs_empty_with_code: true
+      code_without_specs: true
+    phases: [sdd-baseline]
+    gates: [brownfield-advisory]
+    description: "Advisory-first baseline pass for brownfield repos."
+    cost: medium
+
+  - name: refactor
+    classification: [small, normal]
+    conditions:
+      explicit_refactor_intent: true
+    phases: [sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]
+    gates: [4r-review-gate]
+    description: "Behavior-preserving code refactoring with design, verification, and archiving."
+    cost: medium
+
+  - name: hotfix
+    classification: [trivial, small]
+    conditions:
+      explicit_hotfix_intent: true
+    phases: [sdd-apply, sdd-verify, sdd-archive]
+    gates: []
+    description: "Emergency patch or trivial change directly applied, verified, and archived."
+    cost: low
+
+  - name: standard
+    classification: [normal, high-risk]
+    conditions:
+      project.status: active
+    phases: [sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]
+    gates: [clarify, 4r-review-gate]
+    description: "Full SDD for normal/high-risk changes on active projects."
+    cost: high
+
+  - name: lite
+    classification: [trivial, small]
+    conditions:
+      change.classification: small
+    phases: [sdd-propose, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]
+    gates: []
+    description: "Reduced SDD for trivial/small changes with archiving."
+    cost: low

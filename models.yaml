@@ -11,6 +11,10 @@
 # releases. The opencode column below uses the OpenAI provider (openai/gpt-*).
 # NOTE: to run these GPT models through a GitHub Copilot subscription, change the
 # prefix from "openai/" to "github-copilot/" (e.g. github-copilot/gpt-5.5).
+#
+# Before bumping any tier's model here, run the golden eval suite under
+# scripts/evals/ against the candidate model and attach its N/7-passed result
+# to the change proposing the bump — see scripts/evals/README.md.
 
 agents:
   sdd-design: premium

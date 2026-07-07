@@ -11,7 +11,7 @@ context: |
 
 project:
   name: ospec-workflow
-  version: 2.21.0
+  version: 2.22.0
   status: active
 
 artifact_store:
@@ -50,6 +50,7 @@ baseline:
     - install
     - sdd-document
     - contract-lint
+    - orchestrator-evals
   stale_domains: []
   last_checked: "2026-07-07T03:10:00Z"
 

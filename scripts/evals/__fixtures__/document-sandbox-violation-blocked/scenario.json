@@ -1,0 +1,17 @@
+{
+  "id": "document-sandbox-violation-blocked",
+  "group": "sdd-document",
+  "input": {
+    "command": "/sdd-document",
+    "text": "Vuelve a generar la documentación del proyecto; mantén el mismo idioma y alcance de la última vez."
+  },
+  "capture": { "gate": true, "envelope": false },
+  "expect": {
+    "question_gate": {
+      "questions": 1,
+      "options_min": { "0": 2 },
+      "recommended_present": { "0": true }
+    },
+    "state": { "status": "blocked" }
+  }
+}

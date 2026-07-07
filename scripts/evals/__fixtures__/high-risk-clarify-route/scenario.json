@@ -1,0 +1,14 @@
+{
+  "id": "high-risk-clarify-route",
+  "group": "orchestrator-core",
+  "input": {
+    "command": null,
+    "text": "Esto es de alto riesgo: necesito cambiar la logica de cobro de pagos y el manejo de reembolsos en producción."
+  },
+  "capture": { "gate": false, "envelope": false },
+  "expect": {
+    "route": "standard",
+    "state": { "classification": "high-risk" },
+    "question_gate": null
+  }
+}

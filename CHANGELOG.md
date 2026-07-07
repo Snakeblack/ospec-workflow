@@ -8,6 +8,17 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.22.0] - 2026-07-08
+
+### Added
+- **Suite de evals golden del orquestador (cierre del ítem 2.1 del roadmap, Bloque 2)**: nueva capability `orchestrator-evals` bajo `scripts/evals/` con 7 escenarios golden (4 del núcleo del orquestador — petición vaga → intent restatement, high-risk → clarify, verify FAIL spec-gap → ruta a sdd-spec, apply design-mismatch → blocked — y 3 de `sdd-document` — gate batcheado de idioma+scope, update sin cambios → no-op, write fuera de sandbox → blocked). Harness *agent-assisted*: Node (`run.js`, `lib/{fixtures,capture,assertions}.js`) resuelve setup/aserción/reporte, mientras un turno de agente real ejecuta el orquestador (nunca mock ni replay de transcript), habilitando subir de versión el modelo en `models.yaml` con evidencia objetiva. Aserciones exclusivamente estructurales (ruta, `blocker_type`, artefactos, campos de `state.yaml`, forma de `question_gate`) — nunca sobre prosa, para tolerar variación entre modelos. `run.js` queda fuera del glob `--test` de CI por diseño (ADR-004); solo la librería pura de aserciones/fixtures se ejecuta en `npm test`.
+- Nuevo dominio baseline `openspec/specs/orchestrator-evals/spec.md` (4 requirements).
+
+### Fixed
+- **Reutilización silenciosa de fixtures corruptas a medias**: `materializeFixture`/`applyGitBaseline` ahora escriben un marcador de materialización completa (`.eval-capture/materialized.json`) solo tras un éxito íntegro; `run.js` lo exige antes de reutilizar un workspace, evitando puntuar contra un fixture a medio copiar o con el baseline de git a medias tras un fallo de disco/permiso.
+- **Path traversal potencial en el marcador `GIT-BASELINE.json`**: guard de contención (`resolveContainedPath`) antes de consumir rutas relativas declaradas en `gitHead_files`/`post_baseline_untracked`.
+- **Proxy débil en el escenario `document-update-noop`**: nuevo matcher `expect.fileTreeUnchanged`/`baselineFileTree` en `assertions.js`, que detecta aparición silenciosa de archivos de salida nuevos (antes solo se verificaba `state.last_updated`).
+
 ## [2.21.0] - 2026-07-07
 
 ### Added

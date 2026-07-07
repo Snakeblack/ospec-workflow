@@ -1,0 +1,34 @@
+# ADR-001: Agent-assisted harness instead of a self-driving Node runner
+
+- Status: accepted
+- Change: prompt-evals-golden-scenarios
+- Date: 2026-07-08
+
+## Context
+
+REQ-orchestrator-evals-003 mandates LIVE invocation of the orchestrator against a
+configured model. The orchestrator is an LLM-plus-tools agent (routes, `askQuestions`
+gates, sub-agent delegation); no pure-Node entry point reproduces its prompt behavior,
+and the only non-interactive model driver (`claude -p`-style headless) is the CLI subset
+the proposal defers to roadmap 2.2/B4.
+
+## Decision
+
+`scripts/evals/run.js` owns deterministic bookends only — `setup` (materialize fixture
+workspace), `assert`, `report`. A live interactive agent session performs the run in
+between via a documented driver protocol. `run <scenario|all>` prints driver
+instructions and exits `awaiting-live-run` when no capture exists, then asserts on
+re-invocation once the capture is present.
+
+## Alternatives
+
+- `claude -p` headless drive from Node — it is the deferred 2.2 subset and cannot
+  answer/observe interactive gates that 4 of 7 scenarios assert on.
+- Transcript replay — forbidden by REQ-003 and redundant with REQ-002's prose tolerance.
+
+## Consequences
+
+Easier: CI-safe deterministic Node halves; honest to real invocability; composes forward
+to 2.2. Harder: the middle step is manual in 2.1 (not one-command automated).
+Reversible: the bookend contract is stable when 2.2 replaces the manual step with a
+programmatic driver.

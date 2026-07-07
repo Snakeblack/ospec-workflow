@@ -1,0 +1,23 @@
+{
+  "id": "document-update-noop",
+  "group": "sdd-document",
+  "input": {
+    "command": "/sdd-document",
+    "text": "Vuelve a generar la documentación del proyecto; mantén el mismo idioma y alcance de la última vez."
+  },
+  "capture": { "gate": false, "envelope": false },
+  "expect": {
+    "state": { "last_updated": "2025-01-01T00:00:00Z" },
+    "question_gate": null,
+    "fileTreeUnchanged": true,
+    "baselineFileTree": [
+      "README.md",
+      "openspec/changes/update-docs/state.yaml",
+      "openspec/config.yaml",
+      "openwiki/.last-update.json",
+      "openwiki/quickstart.md",
+      "package.json",
+      "src/hello.js"
+    ]
+  }
+}

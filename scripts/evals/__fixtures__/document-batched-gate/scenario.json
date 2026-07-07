@@ -1,0 +1,16 @@
+{
+  "id": "document-batched-gate",
+  "group": "sdd-document",
+  "input": {
+    "command": "/sdd-document",
+    "text": "Genera la documentación del proyecto."
+  },
+  "capture": { "gate": true, "envelope": false },
+  "expect": {
+    "question_gate": {
+      "questions": 2,
+      "options_min": { "0": 2, "1": 4 },
+      "recommended_present": { "0": true, "1": true }
+    }
+  }
+}

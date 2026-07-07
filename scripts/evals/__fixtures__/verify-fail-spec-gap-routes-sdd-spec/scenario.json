@@ -1,0 +1,14 @@
+{
+  "id": "verify-fail-spec-gap-routes-sdd-spec",
+  "group": "orchestrator-core",
+  "input": {
+    "command": "/sdd-continue",
+    "text": "Continue the add-invoice-export change."
+  },
+  "capture": { "gate": false, "envelope": false },
+  "expect": {
+    "route": "sdd-spec",
+    "state": { "status": "blocked" },
+    "question_gate": null
+  }
+}
