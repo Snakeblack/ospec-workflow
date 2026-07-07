@@ -8,6 +8,10 @@ metadata:
   author: manuel-retamozo-garcia
   version: "3.0"
   delegate_only: true
+runtime_capabilities:
+  execute: true
+  mcp: false
+  write: true
 ---
 
 > **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are
@@ -38,12 +42,14 @@ Run when the orchestrator launches verification for an SDD change. You are the q
 Classify each scenario with the strongest evidence you can prove:
 - `runtime-test`: automated test executed and passed successfully
 - `static-proof`: build, type-check, schema validation, or equivalent static command proves the behavior
+- `static-lint`: a check that inspects declared artifacts (skill manifests, frontmatter, config files, commit trailers) via grep/parse/string comparison — including a check that runs inside the automated test runner but exercises no real runtime code path — as distinct from `runtime-test`, which drives actual code execution and observes real output
 - `inspection-proof`: source inspection ties the scenario to concrete code paths with senior-level rationale
 - `manual-proof`: manual verification was performed and recorded in the environment
 - `no-proof`: no credible evidence was found
 
 Compliance rule matrix:
 - MUST scenarios require `runtime-test` or an accepted `static-proof`; anything lower is a CRITICAL defect.
+- A MUST scenario whose text describes real runtime behavior (e.g. "the function returns X when called with Y") MUST NOT be satisfied by `static-lint` evidence alone. A MUST scenario whose own text describes a structural/declarative contract (e.g. "file X MUST contain Y", "field A MUST equal field B") MAY be satisfied by `static-lint`.
 - SHOULD scenarios may pass with `inspection-proof`, but you MUST raise a WARNING.
 - MAY scenarios may pass with documented technical limitations and lower-tier evidence.
 - `no-proof` is always CRITICAL for MUST scenarios and a WARNING for SHOULD/MAY scenarios.

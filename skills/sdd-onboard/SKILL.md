@@ -8,6 +8,10 @@ metadata:
   author: manuel-retamozo-garcia
   version: "1.0"
   delegate_only: false
+runtime_capabilities:
+  execute: true
+  mcp: false
+  write: true
 ---
 
 > **ORCHESTRATOR NOTE**: This skill is designed to be executed INLINE by the
