@@ -14,7 +14,7 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 - **Enlaces wiki-internos rotos en el sitio Starlight (Opción D)**: `sync-openwiki.mjs` copiaba los enlaces `.md` tal cual, pero Starlight sirve las páginas como slugs sin extensión, así que cada enlace interno (`architecture/overview.md`) devolvía 404. Ahora `rewriteLinks` los reescribe a URLs de slug locales (`/architecture/overview/`), resolviendo los relativos contra el directorio de la página contenedora, preservando fragmentos `#ancla` y dejando intactos los enlaces externos y los assets no-`.md`. Además, un enlace "bare" anclado a la raíz del wiki (`hooks-runtime/lifecycle.md` escrito dentro de `security/guardrails.md`) ya no se anida bajo el directorio de la página: el set de páginas fuente reales desambigua — si el candidato relativo a la página no existe pero el anclado a raíz sí, gana la raíz; si ambos existen, se mantiene la semántica markdown estándar. Tests: +7 casos runtime en `sync-openwiki.test.js` (slug local, `../` relativo, ancla, prefijo `/openwiki/`, fallback a raíz, preferencia por hermano existente, externos/assets intactos).
 
 ### Changed
-- **Instancia local `web-doc/`**: sincronizada con el script corregido y con un logo SVG de pulpo (`src/assets/octopus-logo.svg`) enganchado como `logo` de Starlight a la izquierda del título del sitio. El wiki `openwiki/` se regeneró en español (modo init, Opción D).
+- **Instancia local `web-doc/`**: sincronizada con el script corregido y con un logo (`src/assets/ospec-logo.png`) enganchado como `logo` y `favicon` de Starlight a la izquierda del título del sitio. El wiki `openwiki/` se regeneró en español (modo init, Opción D).
 
 ## [2.20.0] - 2026-07-07
 
