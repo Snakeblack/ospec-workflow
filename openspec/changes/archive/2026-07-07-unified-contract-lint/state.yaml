@@ -1,0 +1,131 @@
+change: unified-contract-lint
+owner:
+  author: Manuel Retamozo
+  branch: feat/unified-contract-lint
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "project.status: active matches route 'standard' (classification normal, cross-module contract enforcement across skills/hooks/routing/verify); no explicit_refactor/bugfix/hotfix intent set, so earlier routes in the table did not match."
+  validated: true
+  validation_errors: []
+session:
+  execution_mode: auto
+  delivery_strategy: exception-ok
+status: archived
+last_updated: 2026-07-07T03:10:00Z
+blocking_questions: []
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/unified-contract-lint/proposal.md"
+    summary: "Lint de contratos unificado; I1 (tools-vs-skill) es lo nuevo, J1/I3 ya existen y se integran, J2 agrega categoria static-lint."
+    key_decisions:
+      - "I1 introduce manifiesto de capacidades por skill (nuevo)"
+      - "J1/I3 ya cubiertos: integrar, no reinventar"
+      - "J2 aditivo: static-lint distinto de runtime-test"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/unified-contract-lint/specs/skills/spec.md"
+      - "openspec/changes/unified-contract-lint/specs/contract-lint/spec.md"
+    summary: "skills: ADDED manifiesto runtime_capabilities (I1) + evidence static-lint (J2); contract-lint: spec nueva completa para registro unificado I1/J1/I3."
+    key_decisions:
+      - "J2 corregido a dominio skills (no agents): la taxonomia vive en skills/sdd-verify/SKILL.md y report-format.md, agents/spec.md no la contiene"
+      - "I1 usa campo nuevo runtime_capabilities: (no reutiliza capabilities: de stack skills, que ya tiene semantica distinta)"
+      - "J1/I3 quedan como requirements ADDED en contract-lint (dominio nuevo), sin tocar agents/spec.md ni el contenido de REQ-agents-007"
+  clarify:
+    status: done
+    questions_asked: 1
+    summary: "Retrofit runtime_capabilities: acotado a los 14 SDD-phase skills (MUST); utility/stack/_shared queda OPTIONAL sin fecha de vencimiento. Contradiccion MUST-universal-vs-fallback resuelta en REQ-skills-001 y REQ-contract-lint-002."
+  design:
+    status: done
+    artifact: "openspec/changes/unified-contract-lint/design.md"
+    summary: "Libreria pura contract-lint.js (registro + agregador sin cortocircuito) + arnes node:test recogido por check.js; I1 checker cruza runtime_capabilities: vs tools: del agente; J1/I3 extraidos a checkers compartidos reutilizados por los tests legacy; static-lint aditivo en sdd-verify."
+    key_decisions:
+      - "Via: libreria pura + arnes node:test (glob de check.js), no extender docs-lint (ADR-001)"
+      - "Manifiesto: block map anidado en frontmatter SKILL.md, parseado por el checker (ADR-002)"
+      - "Registro unificado con checkers puros; J1/I3 por extraccion+reuso, no reimplementacion (ADR-003)"
+    adrs:
+      - "openspec/changes/unified-contract-lint/decisions/adr-001.md"
+      - "openspec/changes/unified-contract-lint/decisions/adr-002.md"
+      - "openspec/changes/unified-contract-lint/decisions/adr-003.md"
+  tasks:
+    status: done
+    artifact: "openspec/changes/unified-contract-lint/tasks.md"
+    summary: "8 fases TDD: agregador, checker I1, retrofit 14 SKILL.md, extraccion J1, extraccion I3, wiring registry, J2 static-lint, aplicar delta a openspec/specs/skills/spec.md."
+    review_workload_forecast:
+      decision_needed_before_apply: "No"
+      chained_prs_recommended: "No"
+      chain_strategy: size-exception
+      budget_risk: High
+      estimated_changed_lines: "~660-700"
+  apply:
+    status: done
+    artifact: "openspec/changes/unified-contract-lint/apply-progress.md"
+    summary: "8 fases implementadas, 58/58 tareas. contract-lint.js (agregador puro) + i1-manifest.js (nuevo) + j1-commands-agents.js + i3-budget-constant.js (extraccion). 14 SKILL.md retrofitteados con runtime_capabilities:. static-lint agregado a sdd-verify. Delta aplicado a openspec/specs/skills/spec.md. Suite completa 1070/1070 passing; node scripts/check.js limpio."
+    key_decisions:
+      - "Descubrimiento de agentes consumidores para skills utility/stack (direccion a) via grep de referencia literal 'skills/{name}/SKILL.md' en agents/*.agent.md — convencion de prosa existente, no de frontmatter estructurado"
+      - "Sin CLI standalone nuevo: node scripts/check.js recoge scripts/contract-lint.test.js via glob existente"
+    risks:
+      - "Descubrimiento de agentes consumidores (direccion a, utility/stack) acoplado a convencion de texto, no a campo estructurado"
+      - "Fallo EPERM aislado (appendRuntimeEvent lock concurrency) confirmado flaky preexistente, no introducido por este change"
+  apply_remediation:
+    status: done
+    artifact: "openspec/changes/unified-contract-lint/apply-progress.md"
+    summary: "4 fixes post-4R (1 CRITICAL + 3 WARNING, todos reliability): i1-manifest.js ya no falso-pasa un phase skill sin agente vinculado; j1-commands-agents.js y i3-budget-constant.js con manejo de errores consistente (try/catch) en sus lecturas de artefactos declarados; 2 ramas de offender sin cobertura ahora testeadas. Suite completa 1078/1078 passing."
+  verify:
+    status: done
+    artifact: "openspec/changes/unified-contract-lint/verify-report.md"
+    summary: "RE-verify post-4R remediation: PASS. Los 4 findings (1 CRITICAL + 3 WARNING reliability) resueltos con 8 tests de regresion de assertions reales; guards legacy (rel-1/rel-2, ceiling/floor) preservados; suite 1078/1078 en ejecucion independiente."
+    key_decisions:
+      - "PASS confirmado: CRITICAL i1 (offender explicito cuando falta agente vinculado) + 3 WARNING (try/catch j1 spec-read + i3 require, 2 tests de cobertura) verificados por runtime-test"
+gates:
+  4r-review-gate:
+    status: done
+    on_blocker: advisory
+    findings_summary: "0 BLOCKER, 1 CRITICAL, 3 WARNING, 0 SUGGESTION (all in reliability; risk/readability/resilience clean)"
+    surfaced_to_user: true
+    remediation_decision: "Fix CRITICAL + 3 WARNING in same remediation batch before archive (approval-003)"
+approvals:
+  - id: approval-003
+    gate: 4r-review-gate
+    decision: "Remediar CRITICAL (i1-manifest.js falso-pass cuando falta el agente vinculado a un phase skill) y los 3 WARNING de manejo de errores inconsistente (j1-commands-agents.js, i3-budget-constant.js) en el mismo lote antes de archive"
+    source: AskUserQuestion
+    accepted_at: "2026-07-07T02:30:00Z"
+    applies_to: "4R findings reliability-001..004"
+  - id: approval-002
+    gate: verify-assumption-reconciliation
+    decision: "Confirmadas sdd-design-001 (formato block-map YAML del manifiesto) y sdd-design-002 (set canonico de 14 skills) en base a evidencia de verify (0 offenders, tests pasando)"
+    source: AskUserQuestion
+    accepted_at: "2026-07-07T02:00:00Z"
+    applies_to: "sdd-design-001, sdd-design-002"
+  - id: approval-001
+    gate: clarify
+    decision: "Retrofit runtime_capabilities: solo en los 14 SDD-phase skills (1:1 bound); utility/stack/_shared exentos, usan fallback ausente=false"
+    source: AskUserQuestion
+    accepted_at: "2026-07-07T00:20:00Z"
+    applies_to: "REQ-skills-001 scope"
+baseline_fingerprints:
+  skills: "sha256:9eb87b4b1f8c8f8096ed064d229afc566b494ae71893045e1f8e2ab6d102ccc2"
+assumptions:
+  - id: sdd-propose-001
+    phase: sdd-propose
+    statement: "El manifiesto de capacidades I1 se declara a nivel skill (modifica la capability skills) y la categoria static-lint J2 modifica la capability agents."
+    reversibility: high
+    basis: "La taxonomia de evidencia vive hoy en agents/spec.md y skills/sdd-verify; el frontmatter de skills es el lugar natural para declarar capacidades. La decision final de ubicacion la toma sdd-spec/sdd-design."
+    recorded_at: "2026-07-07T00:00:00Z"
+    status: corrected  # sdd-spec: J2 reubicado al dominio skills (no agents); confirmado que I1 tambien es dominio skills
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "El manifiesto runtime_capabilities: usa un block map YAML anidado en el frontmatter del SKILL.md, parseado por el checker via rawLines."
+    reversibility: low
+    basis: "El spec fijo el nombre del campo pero no el mecanismo; frontmatter.js no hace deep-parse de mapas, y un formato de archivo publico (14 skills lo declaran) es costoso de cambiar despues. ADR-002."
+    recorded_at: "2026-07-07T01:05:00Z"
+    status: confirmed  # sdd-verify: 14 skills parsean limpio (0 offenders), tests pasando; confirmado por AskUserQuestion
+  - id: sdd-design-002
+    phase: sdd-design
+    statement: "El set de phase skills sujeto a direccion (b) se deriva del set canonico de 14 nombres de skills/spec.md §1.1, excluyendo sdd-document/sdd-reconcile/review-*."
+    reversibility: high
+    basis: "§1.1 enumera explicitamente los 14; usarlo como autoridad evita un heuristico de prefijo fragil."
+    recorded_at: "2026-07-07T01:05:00Z"
+    status: confirmed  # sdd-verify: PHASE_SKILLS coincide con §1.1, test verifica exclusion; confirmado por AskUserQuestion

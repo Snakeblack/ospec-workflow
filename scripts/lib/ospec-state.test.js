@@ -926,32 +926,16 @@ test("withAppendLock remains exported as an alias of withFileLock for existing c
 });
 
 // --- Lock/hook budget coherence (I3) -----------------------------------------
+//
+// Adapted to call the extracted I3 checker (`scripts/lib/contract-checkers/
+// i3-budget-constant.js`, REQ-contract-lint-004) instead of re-implementing
+// the ceiling/floor relationship assertions here. Preserves the exact ceiling
+// (`<=` timeout) and floor (`>=` retry-window) semantics unchanged.
 
-const HOOKS_JSON_PATH = path.join(__dirname, "..", "..", "hooks", "hooks.json");
+const { check: checkBudgetConstant } = require("./contract-checkers/i3-budget-constant.js");
 
-test("lock stale window stays within the SessionStart hook timeout budget and above the retry floor", async () => {
-  const {
-    LOCK_RETRY_ATTEMPTS,
-    LOCK_RETRY_DELAY_MS,
-    LOCK_STALE_MS,
-  } = require("./ospec-state.js");
+const REPO_ROOT = path.join(__dirname, "..", "..");
 
-  const hooksConfig = JSON.parse(await fs.readFile(HOOKS_JSON_PATH, "utf8"));
-  const sessionStartTimeoutSec = hooksConfig.hooks.SessionStart[0].timeout;
-
-  assert.ok(
-    typeof sessionStartTimeoutSec === "number" && sessionStartTimeoutSec > 0,
-    "hooks/hooks.json SessionStart entry must declare a positive numeric timeout",
-  );
-
-  const sessionStartTimeoutMs = sessionStartTimeoutSec * 1000;
-
-  assert.ok(
-    LOCK_STALE_MS <= sessionStartTimeoutMs,
-    `LOCK_STALE_MS (${LOCK_STALE_MS}ms) must not exceed the SessionStart timeout budget (${sessionStartTimeoutMs}ms)`,
-  );
-  assert.ok(
-    LOCK_STALE_MS >= LOCK_RETRY_ATTEMPTS * LOCK_RETRY_DELAY_MS,
-    `LOCK_STALE_MS (${LOCK_STALE_MS}ms) must be >= the retry-window floor (${LOCK_RETRY_ATTEMPTS * LOCK_RETRY_DELAY_MS}ms)`,
-  );
+test("lock stale window stays within the SessionStart hook timeout budget and above the retry floor", () => {
+  assert.deepEqual(checkBudgetConstant({ root: REPO_ROOT }), []);
 });

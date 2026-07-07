@@ -8,6 +8,10 @@ metadata:
   author: manuel-retamozo-garcia
   version: "2.0"
   delegate_only: true
+runtime_capabilities:
+  execute: false
+  mcp: false
+  write: true
 ---
 
 > **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are
