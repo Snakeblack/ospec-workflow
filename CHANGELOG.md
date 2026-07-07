@@ -8,6 +8,14 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.21.0] - 2026-07-07
+
+### Added
+- **Lint de contratos unificado (cierre del Bloque 1 del roadmap)**: nuevo `scripts/lib/contract-lint.js` (registro puro de checkers, sin cortocircuito) con tres checkers — `i1-manifest` (nuevo: cruza el manifiesto `runtime_capabilities:` del frontmatter de los 14 SKILL.md de fase SDD contra las `tools:` reales del agente vinculado en `agents/{nombre}.agent.md`, emitiendo un offender explícito si el agente vinculado a un phase skill no existe en disco), `j1-commands-agents` (extracción de `scripts/commands-agents-contract.test.js` preservando sus guards rel-1/rel-2) e `i3-budget-constant` (extracción/generalización de la coherencia hooks.json↔constantes de lock JS+Go de `scripts/lib/ospec-state.test.js`). Sin vía de invocación nueva: el arnés `scripts/contract-lint.test.js` queda recogido por el glob existente de `scripts/check.js` (pre-commit + CI ya cableados).
+- **Manifiesto `runtime_capabilities:` en los 14 SKILL.md de fase SDD**: retrofit obligatorio para ese tier (1:1 vinculado a su agente), calibrado contra las tools reales (`REQ-skills-001`); utility/stack/`_shared` quedan `OPTIONAL` en este change (fallback ausente=false).
+- **Categoría de evidencia `static-lint`** en la taxonomía de `sdd-verify` (`REQ-skills-002`), distinta de `runtime-test`, para que un contract test estático no cuente como evidencia de comportamiento cuando el spec exige ejecución real.
+- Nuevo dominio baseline `openspec/specs/contract-lint/spec.md` (7 requirements).
+
 ## [2.20.3] - 2026-07-07
 
 ### Fixed
