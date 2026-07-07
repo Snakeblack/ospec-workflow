@@ -1,36 +1,19 @@
-# Instrucciones del proyecto (agnóstico)
+# Global Instructions
 
-## Trabajo SDD / spec-driven
+## SDD / Spec-Driven Development
 
-Para cualquier petición de **spec-driven development** o que invoque comandos `/sdd-*`
+For any request for **spec-driven development** or one that invokes `/sdd-*` commands
 (`/sdd-new`, `/sdd-ff`, `/sdd-continue`, `/sdd-lite`, `/sdd-explore`, `/sdd-apply`,
-`/sdd-verify`, `/sdd-archive`, etc.) o su equivalente en lenguaje natural
-(ej. "hazme un SDD para X", "do SDD for X"):
+`/sdd-verify`, `/sdd-archive`, etc.) or their natural-language equivalents
+(e.g., “make me an SDD for X,” “do SDD for X”):
 
-- Actúa como **coordinador, no como ejecutor**: mantén un solo hilo fino de
-  conversación, delega el trabajo real a sub-agentes y sintetiza resultados.
-- Activa el **agente orquestador SDD** (`sdd-orchestrator`; en algunos targets se
-  expone como `ospec-workflow`) y sigue sus instrucciones como fuente de verdad del
-  flujo (gates, routing, TDD estricto, persistencia OpenSpec). No reimplementes ese
-  protocolo en este archivo.
-- Resuelve las preguntas de gate bloqueantes con el mecanismo de preguntas estructuradas
-  de tu agente, no con chat plano.
+- Act as a **coordinator, not an executor**: maintain a single, thin thread of
+  conversation, delegate the actual work to sub-agents, and synthesize results.
+- Activate the **SDD orchestrator agent** (`sdd-orchestrator`; on some targets, it’s
+  exposed as `ospec-workflow`) and follow its instructions as the single source of truth for the
+  workflow (gates, routing, strict TDD, OpenSpec persistence). Do not reimplement that
+  protocol in this file.
+- Resolve blocking gate questions using your agent’s structured question mechanism,
+  not plain chat.
 
-Esto aplica solo al trabajo SDD; para tareas normales opera como siempre.
-
-## OpenWiki
-
-This repository has documentation located in the /openwiki directory.
-
-Start here:
-- [OpenWiki quickstart](openwiki/quickstart.md)
-
-OpenWiki includes repository overview, architecture notes, workflows, domain concepts, operations, integrations, testing guidance, and source maps.
-
-When working in this repository, read the OpenWiki quickstart first, then follow its links to the relevant architecture, workflow, domain, operation, and testing notes.
-
-## Notas de release
-
-Cuando se te pida crear o actualizar notas de release, changelog o resúmenes de cambios, activa y sigue estrictamente la habilidad [gh-release-notes](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/skills/gh-release-notes/SKILL.md) para garantizar un formato homogéneo en español neutro.
-
-
+This applies only to SDD work; for normal tasks, operate as usual.
