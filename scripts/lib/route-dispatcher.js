@@ -127,6 +127,16 @@ function coerceBoolean(val) {
  *   - Empty keys set: 'all' is vacuously true; 'any' is false.
  *   - Absent ctx key: undefined, which fails a strict-equality check (no-match).
  *
+ * Intentional strict-equality contract (I2): this function never coerces
+ * types. Coercion of the literal strings "true"/"false" to native booleans
+ * happens upstream, during YAML parsing, in `applySubfieldLine`/`coerceBoolean`
+ * (see route-dispatcher.js:401-405). A `conditions` map produced by
+ * `parseRoutingTable` is therefore already safe. A hand-built (non-parsed)
+ * conditions map that still carries the residual string "true"/"false" will
+ * silently fail to match here (strict `===` against a boolean ctx value never
+ * succeeds) — use `detectResidualBooleanStrings` as an advisory pre-check
+ * before calling this function on non-parsed input.
+ *
  * Pure: reads only its arguments; no I/O, no global mutation.
  * Derived signals (e.g. specs_empty_with_code) are pre-computed by the caller.
  *
@@ -171,6 +181,37 @@ function matchConditions(conditions, ctx) {
   // mode === "all" → every key matched → true
   // mode === "any" → no key matched → false
   return mode === "all";
+}
+
+// ---------------------------------------------------------------------------
+// detectResidualBooleanStrings(conditions) → string[]
+// ---------------------------------------------------------------------------
+
+/**
+ * Advisory pre-check (I2): scan a conditions map for keys whose value is
+ * still the literal residual string "true"/"false" instead of a native
+ * boolean. `parseRoutingTable`-produced conditions never trigger this (the
+ * parser coerces those strings during parsing — see `matchConditions`'
+ * JSDoc); this helper exists for hand-built/non-parsed conditions maps
+ * (e.g. constructed directly in a test or a future config source) where the
+ * coercion step may have been skipped.
+ *
+ * The `match` meta-key is always excluded, even though its legitimate values
+ * ('all'/'any') could coincidentally collide with a boolean-like string.
+ *
+ * Pure: reads only its argument; no I/O, no global mutation.
+ *
+ * @param {object} conditions - Conditions map (may include 'match' meta-key)
+ * @returns {string[]} keys whose value is the residual string "true"/"false"
+ */
+function detectResidualBooleanStrings(conditions) {
+  if (conditions === null || typeof conditions !== "object" || Array.isArray(conditions)) {
+    return [];
+  }
+
+  return Object.keys(conditions).filter(
+    (key) => key !== "match" && (conditions[key] === "true" || conditions[key] === "false"),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -322,6 +363,13 @@ function validateRoute(entry) {
 /**
  * Validate a full routing table: per-entry checks + duplicate-name detection.
  * Pure: no I/O, no global mutation.
+ *
+ * Does NOT lint for residual boolean-like strings in `conditions` (I2) — that
+ * check is intentionally kept out of this function's `{valid, errors}` return
+ * shape (a documented contract, see openspec/specs/routing/spec.md §8.1) to
+ * avoid an unreviewed public-contract change. Callers that want that advisory
+ * MUST call `detectResidualBooleanStrings(entry.conditions)` separately per
+ * entry.
  *
  * @param {object[]} routes - Array of route entry objects.
  * @returns {{ valid: boolean, errors: string[] }}
@@ -613,4 +661,5 @@ module.exports = {
   parseRoutingTable,
   classifyChange,
   matchConditions,
+  detectResidualBooleanStrings,
 };

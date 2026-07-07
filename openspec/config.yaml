@@ -101,7 +101,7 @@ routing:
   - name: bugfix
     classification: [small, normal]
     conditions:
-      explicit_bugfix_intent: "true"
+      explicit_bugfix_intent: true
     phases: [sdd-explore, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]
     gates: [4r-review-gate]
     description: "Robust explore-fix flow with verification and archive."
@@ -122,7 +122,7 @@ routing:
   - name: refactor
     classification: [small, normal]
     conditions:
-      explicit_refactor_intent: "true"
+      explicit_refactor_intent: true
     phases: [sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]
     gates: [4r-review-gate]
     description: "Behavior-preserving code refactoring with design, verification, and archiving."
@@ -131,7 +131,7 @@ routing:
   - name: hotfix
     classification: [trivial, small]
     conditions:
-      explicit_hotfix_intent: "true"
+      explicit_hotfix_intent: true
     phases: [sdd-apply, sdd-verify, sdd-archive]
     gates: []
     description: "Emergency patch or trivial change directly applied, verified, and archived."

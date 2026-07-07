@@ -420,17 +420,29 @@ func WithLock(path string, fn func() error) error {
 // withLock serialises fn around an advisory lock file.
 var errLockContended = errors.New("lock contended")
 
+// Lock retry/staleness budget — MUST stay coherent with SessionStart's
+// declared hook timeout in hooks/hooks.json (see openspec/specs/hooks/spec.md
+// §9 and openspec/specs/hooks-runtime/spec.md NFR). Mirrored in
+// scripts/lib/ospec-state.js (LOCK_RETRY_ATTEMPTS/LOCK_RETRY_DELAY_MS/
+// LOCK_STALE_MS) — keep both sides numerically identical; TestLockStaleAgeMatchesJSConstant
+// cross-checks this at test time.
+const (
+	lockRetryAttempts = 100
+	lockRetryDelay    = 15 * time.Millisecond
+	staleLockAge      = 5 * time.Second
+)
+
 func withLock(path string, fn func() error) error {
 	lockPath := path + ".lock"
 	for attempt := 0; ; attempt++ {
 		if err := tryLock(lockPath, fn); err != errLockContended {
 			return err
 		}
-		if attempt >= 100 {
+		if attempt >= lockRetryAttempts {
 			// Best-effort after exhausting retries.
 			return fn()
 		}
-		time.Sleep(15 * time.Millisecond)
+		time.Sleep(lockRetryDelay)
 	}
 }
 
@@ -438,9 +450,9 @@ func tryLock(lockPath string, fn func() error) error {
 	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
-			// Reclaim stale lock (>10 s).
+			// Reclaim stale lock.
 			if info, err2 := os.Stat(lockPath); err2 == nil {
-				if time.Since(info.ModTime()) > 10*time.Second {
+				if time.Since(info.ModTime()) > staleLockAge {
 					_ = os.Remove(lockPath)
 				}
 			}

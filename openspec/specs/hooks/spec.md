@@ -1072,8 +1072,8 @@ contract itself changed.
 ## 9. Non-functional requirements
 
 - All hooks MUST be pure Node.js 22+ CommonJS with no external npm dependencies.
-- All hooks MUST complete within 5 seconds (PreToolUse, PreCompact, SubagentStop,
-  Stop); SessionStart has no declared timeout.
+- All hooks MUST complete within 5 seconds. All five hooks (SessionStart,
+  PreToolUse, PreCompact, SubagentStop, Stop) share the same 5-second budget.
 - All hooks MUST be non-blocking to the Claude host: they output `{"continue":true}`
   or a permission decision and MUST NOT hang.
 - All hooks MUST tolerate a completely missing or malformed `openspec/` tree without

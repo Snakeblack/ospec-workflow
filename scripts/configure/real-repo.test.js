@@ -331,16 +331,16 @@ test("real repo: all four review-* skills propagate to opencode and github-copil
   }
 });
 
-// openspec/ is gitignored, so config.yaml ships only in a local working tree, not
-// in a fresh CI checkout. This guard self-skips the live-config assertion when the
-// file is absent (matching e2e.test.js); the matchConditions/parser behavior itself
-// is covered deterministically by the route-dispatcher unit tests.
+// config.yaml is tracked by git and normally present, but this guard self-skips the
+// live-config assertion defensively when the file is absent for any reason (matching
+// e2e.test.js); the matchConditions/parser behavior itself is covered deterministically
+// by the route-dispatcher unit tests.
 const LIVE_CONFIG_PATH = path.join(ROOT, "openspec", "config.yaml");
 const HAS_LIVE_CONFIG = fs.existsSync(LIVE_CONFIG_PATH);
 
 test(
   "real repo: live brownfield routing entry matches brownfield ctx and rejects baselined ctx",
-  { skip: HAS_LIVE_CONFIG ? false : "openspec/config.yaml not present (gitignored; local dev only)" },
+  { skip: HAS_LIVE_CONFIG ? false : "openspec/config.yaml not present (unexpected; local dev only)" },
   () => {
   // (a) read live config.yaml from repo root
   const content = fs.readFileSync(LIVE_CONFIG_PATH, "utf8");
@@ -396,6 +396,50 @@ test(
     `routing table must be valid after C1 update; errors: ${JSON.stringify(tableResult.errors)}`,
   );
 });
+
+test(
+  "real repo: live bugfix/refactor/hotfix routing entries match a native-boolean ctx (I2 regression lock)",
+  { skip: HAS_LIVE_CONFIG ? false : "openspec/config.yaml not present (unexpected; local dev only)" },
+  () => {
+    // (a) read live config.yaml from repo root
+    const content = fs.readFileSync(LIVE_CONFIG_PATH, "utf8");
+
+    // (b) parse and find the three explicit-intent routes
+    const parsed = parseRoutingTable(content);
+    const bugfix = parsed.find((r) => r.name === "bugfix");
+    const refactor = parsed.find((r) => r.name === "refactor");
+    const hotfix = parsed.find((r) => r.name === "hotfix");
+
+    assert.ok(bugfix, "bugfix route must exist in openspec/config.yaml");
+    assert.ok(refactor, "refactor route must exist in openspec/config.yaml");
+    assert.ok(hotfix, "hotfix route must exist in openspec/config.yaml");
+
+    // (c) parsing already coerces the residual "true" string to a native boolean
+    assert.equal(bugfix.conditions.explicit_bugfix_intent, true);
+    assert.equal(typeof bugfix.conditions.explicit_bugfix_intent, "boolean");
+    assert.equal(refactor.conditions.explicit_refactor_intent, true);
+    assert.equal(typeof refactor.conditions.explicit_refactor_intent, "boolean");
+    assert.equal(hotfix.conditions.explicit_hotfix_intent, true);
+    assert.equal(typeof hotfix.conditions.explicit_hotfix_intent, "boolean");
+
+    // (d) matchConditions returns true for a ctx carrying native booleans
+    assert.equal(
+      matchConditions(bugfix.conditions, { explicit_bugfix_intent: true }),
+      true,
+      "bugfix conditions must match a native-boolean explicit_bugfix_intent ctx",
+    );
+    assert.equal(
+      matchConditions(refactor.conditions, { explicit_refactor_intent: true }),
+      true,
+      "refactor conditions must match a native-boolean explicit_refactor_intent ctx",
+    );
+    assert.equal(
+      matchConditions(hotfix.conditions, { explicit_hotfix_intent: true }),
+      true,
+      "hotfix conditions must match a native-boolean explicit_hotfix_intent ctx",
+    );
+  },
+);
 
 test("real repo: orchestrator pointer-table refs resolve and handler sentinels absent from body", () => {
   // Read the orchestrator source file from ROOT (not a dist target)

@@ -30,7 +30,7 @@ Command template for the claude target:
 
 | Event | Subcommand | Timeout |
 |---|---|---|
-| `SessionStart` | `session-start` | none |
+| `SessionStart` | `session-start` | 5 s |
 | `PreToolUse` | `pre-tool-use` | 5 s |
 | `PreCompact` | `pre-compact` | 5 s |
 | `SubagentStop` | `subagent-stop` | 5 s |
@@ -70,8 +70,8 @@ tree — are unchanged.)
   runtime dependency.
 - The minimum Go toolchain version is **Go 1.23**. All CI pipelines and contributor environments MUST use Go 1.23 or later.
 - The binary MUST be cross-compiled for the full platform matrix: **Windows amd64, macOS arm64, macOS amd64, Linux amd64**. Binaries MUST NOT be committed to the repo; the CI build step compiles them and archives them under `release/dist/`.
-- The binary MUST complete within 5 seconds for PreToolUse, PreCompact, SubagentStop,
-  and Stop; SessionStart has no declared timeout.
+- The binary MUST complete within 5 seconds. All five hooks (SessionStart,
+  PreToolUse, PreCompact, SubagentStop, and Stop) share the same 5-second budget.
 - The binary MUST be non-blocking: it MUST write its response and exit within the
   timeout.
 - The binary MUST tolerate a completely missing or malformed `openspec/` tree without

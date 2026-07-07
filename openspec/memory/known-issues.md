@@ -1,7 +1,15 @@
 ---
 title: Known Issues
-last_updated: 2026-07-06
+last_updated: 2026-07-07
 ---
+
+## apply-progress/state afirman que openspec/config.yaml es gitignored pero en realidad esta trackeado en HEAD
+
+- severity: WARNING
+- area: openspec/changes/route-coercion-lock-budget/apply-progress.md (Deviations #2) + state.yaml apply.key_decisions + scripts/configure/real-repo.test.js comments (lineas 334-335, 343, 402)
+- workaround: config.yaml es un blob commiteado (git cat-file -t HEAD:openspec/config.yaml -> blob; ls-files -v -> H; check-ignore vacio), el unquote de explicit_*_intent SI aparece en el PR diff. Comportamiento correcto (unquote funcionalmente equivalente, regression test verde); corregir la afirmacion de "gitignored/untracked" en apply-progress, state y los comentarios del test, o revisar si config.yaml deberia estar untracked
+- change: route-coercion-lock-budget
+- date: 2026-07-07
 
 ## Finding 7.6 (try/catch en rmSync de poda de sync-openwiki.mjs) enviado sin test reproductor dedicado
 
