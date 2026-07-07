@@ -8,6 +8,15 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.20.3] - 2026-07-07
+
+### Fixed
+- **Coerción boolean-like residual en `matchConditions` (I2)**: nueva función pura exportada `detectResidualBooleanStrings(conditions)` en `route-dispatcher.js` para detectar valores `"true"`/`"false"` string que no pasaron por la coerción del parser (p.ej. tablas de routing construidas programáticamente en vez de parseadas desde YAML), evitando que condiciones `bugfix`/`refactor`/`hotfix` caigan silenciosamente al route `standard`. Test de regresión end-to-end contra la tabla real de `openspec/config.yaml`.
+- **Desalineación entre el presupuesto de timeout del hook `SessionStart` y el `staleMs` del lock (I3)**: `staleMs`/`staleLockAge` bajado de 10s a 5s en ambos runtimes (`ospec-state.js` y `internal/store/store.go`, con constantes nombradas), y `hooks/hooks.json` ahora declara `timeout: 5` explícito para `SessionStart` (antes era el único hook sin timeout declarado). Nuevo test de coherencia hooks.json↔constantes de lock en JS y Go.
+
+### Changed
+- Sincronizados `openspec/specs/routing/spec.md`, `openspec/specs/hooks/spec.md` y `openspec/specs/hooks-runtime/spec.md` con el comportamiento anterior.
+
 ## [2.20.2] - 2026-07-07
 
 ### Added
