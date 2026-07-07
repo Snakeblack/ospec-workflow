@@ -1,0 +1,41 @@
+change: "route-coercion-lock-budget"
+status: "verified"
+last_updated: 2026-07-07T12:00:00Z
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/route-coercion-lock-budget/proposal-lite.md"
+    summary: "Lite: I2 coerción boolean-like en routing conditions + I3 coherencia staleMs/timeout hook (JS+Go). Descubierto: parser ya coacciona (W2)."
+    key_decisions:
+      - "Un solo change lite cubre I2+I3 (ambos S, clase 'contrato sin enforcement')"
+      - "I2 ya mitigado en parser; foco en matchConditions/validateRouteTable + test con config real"
+      - "I3 toca hooks.json, ospec-state.js y store.go (paridad Go/JS)"
+  spec:
+    status: "pending"
+  design:
+    status: "pending"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/route-coercion-lock-budget/tasks.md"
+    summary: "6 fases TDD (RED/GREEN/TRIANGULATE-REFACTOR x I2,I3), 21 tasks. Estimado ~220-260 líneas, riesgo bajo, PR única (exception-ok)."
+    key_decisions:
+      - "I2: advisory vía función pura nueva detectResidualBooleanStrings, NO se toca el shape {valid,errors} de validateRouteTable (contrato documentado en routing spec §8.1)"
+      - "I3: staleMs/timeouts alineados a 5000ms=5s; constantes nombradas y export/parity JS-Go con test cruzado hooks.json↔constantes"
+      - "Chain strategy: pending (riesgo Low, no requiere chaining pese a exception-ok)"
+  apply:
+    status: "done"
+    artifact: "openspec/changes/route-coercion-lock-budget/apply-progress.md"
+    summary: "19/19 tasks done (I2 + I3, single batch). Todos los tests JS (1038) y Go verdes."
+    key_decisions:
+      - "I3 coherence test Go va en archivo nuevo lock_coherence_test.go (package store, white-box), no store_test.go, por acceso a const no exportadas"
+      - "config.yaml es gitignored; el unquote de 3.1 queda en el working tree local, no aparece en el diff/PR"
+  verify:
+    status: "done"
+    artifact: "openspec/changes/route-coercion-lock-budget/verify-report.md"
+    summary: "PASS WITH WARNINGS. 6/6 acceptance checks runtime-test; 1038/1038 JS + Go green; coherence tests mutation-verified. 1 WARNING: config.yaml IS tracked (apply claim of gitignored is wrong)."
+    key_decisions:
+      - "config.yaml es TRACKED en HEAD (blob, H); el unquote SÍ aparece en el PR diff — contradice apply-progress dev #2 y test comments"
+      - "Flake concurrent-writers EPERM confirmado pre-existente (commit 9b0e9e3), no regresión"
+  archive:
+    status: "pending"

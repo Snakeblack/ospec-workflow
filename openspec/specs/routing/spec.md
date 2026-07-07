@@ -106,10 +106,10 @@ The `routing:` block in `openspec/config.yaml` declares the ordered list of rout
 |---|------|---------------|---------------|--------|-------|------|
 | 1 | `foundation` | `[normal, high-risk]` | `project.status: empty` | `[sdd-foundation]` | `[]` | medium |
 | 2 | `federated` | `[normal, high-risk]` | `artifact_store.backend: workspace-federated` | `[sdd-workspace, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[impact, clarify]` | high |
-| 3 | `bugfix` | `[small, normal]` | `explicit_bugfix_intent: "true"` | `[sdd-explore, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[4r-review-gate]` | medium |
+| 3 | `bugfix` | `[small, normal]` | `explicit_bugfix_intent: true` | `[sdd-explore, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[4r-review-gate]` | medium |
 | 4 | `brownfield` | `[normal, high-risk]` | `baseline.status: pending` | `[sdd-baseline]` | `[brownfield-advisory]` | medium |
-| 5 | `refactor` | `[small, normal]` | `explicit_refactor_intent: "true"` | `[sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[4r-review-gate]` | medium |
-| 6 | `hotfix` | `[trivial, small]` | `explicit_hotfix_intent: "true"` | `[sdd-apply, sdd-verify, sdd-archive]` | `[]` | low |
+| 5 | `refactor` | `[small, normal]` | `explicit_refactor_intent: true` | `[sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[4r-review-gate]` | medium |
+| 6 | `hotfix` | `[trivial, small]` | `explicit_hotfix_intent: true` | `[sdd-apply, sdd-verify, sdd-archive]` | `[]` | low |
 | 7 | `standard` | `[normal, high-risk]` | `project.status: active` | `[sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[clarify, 4r-review-gate]` | high |
 | 8 | `lite` | `[trivial, small]` | `change.classification: small` | `[sdd-propose, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[]` | low |
 

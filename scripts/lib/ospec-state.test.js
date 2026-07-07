@@ -924,3 +924,34 @@ test("withFileLock serializes concurrent callers around the same lock file", asy
 test("withAppendLock remains exported as an alias of withFileLock for existing callers", () => {
   assert.equal(withAppendLock, withFileLock);
 });
+
+// --- Lock/hook budget coherence (I3) -----------------------------------------
+
+const HOOKS_JSON_PATH = path.join(__dirname, "..", "..", "hooks", "hooks.json");
+
+test("lock stale window stays within the SessionStart hook timeout budget and above the retry floor", async () => {
+  const {
+    LOCK_RETRY_ATTEMPTS,
+    LOCK_RETRY_DELAY_MS,
+    LOCK_STALE_MS,
+  } = require("./ospec-state.js");
+
+  const hooksConfig = JSON.parse(await fs.readFile(HOOKS_JSON_PATH, "utf8"));
+  const sessionStartTimeoutSec = hooksConfig.hooks.SessionStart[0].timeout;
+
+  assert.ok(
+    typeof sessionStartTimeoutSec === "number" && sessionStartTimeoutSec > 0,
+    "hooks/hooks.json SessionStart entry must declare a positive numeric timeout",
+  );
+
+  const sessionStartTimeoutMs = sessionStartTimeoutSec * 1000;
+
+  assert.ok(
+    LOCK_STALE_MS <= sessionStartTimeoutMs,
+    `LOCK_STALE_MS (${LOCK_STALE_MS}ms) must not exceed the SessionStart timeout budget (${sessionStartTimeoutMs}ms)`,
+  );
+  assert.ok(
+    LOCK_STALE_MS >= LOCK_RETRY_ATTEMPTS * LOCK_RETRY_DELAY_MS,
+    `LOCK_STALE_MS (${LOCK_STALE_MS}ms) must be >= the retry-window floor (${LOCK_RETRY_ATTEMPTS * LOCK_RETRY_DELAY_MS}ms)`,
+  );
+});

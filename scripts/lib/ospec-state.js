@@ -351,6 +351,17 @@ async function writeSessionSummary(changePath, summary) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Lock retry/staleness budget (I3) — MUST stay coherent with SessionStart's
+// declared hook timeout in hooks/hooks.json (see openspec/specs/hooks/spec.md
+// §9 and openspec/specs/hooks-runtime/spec.md NFR). Mirrored in
+// internal/store/store.go (lockRetryAttempts/lockRetryDelay/staleLockAge) —
+// keep both sides numerically identical; the coherence test in
+// ospec-state.test.js and the Go-side TestLockStaleAgeMatchesJSConstant
+// cross-check this.
+const LOCK_RETRY_ATTEMPTS = 100;
+const LOCK_RETRY_DELAY_MS = 15;
+const LOCK_STALE_MS = 5000;
+
 // Serialize appends across processes with an advisory lock. fs.appendFile is not
 // a guaranteed-atomic cross-process operation (notably on Windows), so parallel
 // sub-agents firing subagent-stop at once could interleave or drop JSONL lines.
@@ -372,7 +383,11 @@ async function reclaimStaleLock(lockPath, staleMs) {
   }
 }
 
-async function withFileLock(targetPath, run, { retries = 100, delayMs = 15, staleMs = 10000 } = {}) {
+async function withFileLock(
+  targetPath,
+  run,
+  { retries = LOCK_RETRY_ATTEMPTS, delayMs = LOCK_RETRY_DELAY_MS, staleMs = LOCK_STALE_MS } = {},
+) {
   const lockPath = `${targetPath}.lock`;
   for (let attempt = 0; ; attempt += 1) {
     let handle;
@@ -1003,6 +1018,9 @@ function detectSpecDrift(options = {}) {
 module.exports = {
   RUNTIME_EVENT_RELATIVE_PATH,
   PHASE_COST_FILE_NAME,
+  LOCK_RETRY_ATTEMPTS,
+  LOCK_RETRY_DELAY_MS,
+  LOCK_STALE_MS,
   appendPhaseCost,
   appendRuntimeEvent,
   detectSpecDrift,

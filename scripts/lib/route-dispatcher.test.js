@@ -13,6 +13,7 @@ const {
   parseRoutingTable,
   classifyChange,
   matchConditions,
+  detectResidualBooleanStrings,
 } = require("./route-dispatcher.js");
 
 // ---------------------------------------------------------------------------
@@ -980,4 +981,41 @@ test("parseRoutingTable coerces top-level experimental:false string to boolean f
   const routes = parseRoutingTable(content);
   assert.equal(routes[0].experimental, false);
   assert.equal(typeof routes[0].experimental, "boolean");
+});
+
+// ---------------------------------------------------------------------------
+// detectResidualBooleanStrings — advisory pre-check for residual string
+// "true"/"false" values in a hand-built (non-parsed) conditions map (I2)
+// ---------------------------------------------------------------------------
+
+test("detectResidualBooleanStrings returns the offending keys for residual string booleans", () => {
+  const conditions = {
+    "project.status": "active",
+    explicit_bugfix_intent: "true",
+    other_flag: "false",
+  };
+
+  assert.deepEqual(
+    detectResidualBooleanStrings(conditions).sort(),
+    ["explicit_bugfix_intent", "other_flag"],
+  );
+});
+
+test("detectResidualBooleanStrings returns an empty array for already-coerced native booleans", () => {
+  const conditions = {
+    "project.status": "active",
+    specs_empty_with_code: true,
+    code_without_specs: false,
+  };
+
+  assert.deepEqual(detectResidualBooleanStrings(conditions), []);
+});
+
+test("detectResidualBooleanStrings excludes the 'match' meta-key even though its value looks boolean-like", () => {
+  const conditions = {
+    match: "any",
+    "baseline.status": "true",
+  };
+
+  assert.deepEqual(detectResidualBooleanStrings(conditions), ["baseline.status"]);
 });

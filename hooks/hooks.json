@@ -3,7 +3,8 @@
     "SessionStart": [
       {
         "type": "command",
-        "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js session-start"
+        "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js session-start",
+        "timeout": 5
       }
     ],
     "PreToolUse": [
