@@ -49,8 +49,9 @@ baseline:
     - skill-registry
     - install
     - sdd-document
+    - contract-lint
   stale_domains: []
-  last_checked: "2026-06-14T19:00:00Z"
+  last_checked: "2026-07-07T03:10:00Z"
 
 rules:
   foundation:
