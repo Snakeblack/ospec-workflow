@@ -1,0 +1,76 @@
+change: "codex-hooks-bridge"
+status: "archived"
+classification: "normal"
+created_at: "2026-07-08T17:10:00Z"
+owner:
+  author: "Manuel Retamozo"
+  branch: "feat/codex-hooks-bridge"
+route:
+  intended_route: "standard"
+  actual_route: "standard"
+  route_rationale: "Cambio normal (feature: hooks de lifecycle para el target codex) sobre proyecto activo; primera condición que matchea en la tabla de routing es standard."
+  validated: true
+  validation_errors: []
+  execution_mode: "interactive"
+  delivery_strategy: "ask-on-risk"
+  source_intent: "Bloque 5.2 del roadmap analisis-fino/roadmap-codex-target.md — runtime de hooks de Codex."
+last_updated: "2026-07-09T00:45:00Z"
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/codex-hooks-bridge/proposal.md"
+    summary: "Propuesta para soporte de hooks en Codex: mapeo 1:1, variables $PLUGIN_ROOT, adaptador Go/Node para stdin/stdout, y lint de contratos I3."
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/codex-hooks-bridge/specs/hooks/spec.md"
+      - "openspec/changes/codex-hooks-bridge/specs/contract-lint/spec.md"
+    summary: "Created delta specs for hooks and contract-lint. Added REQ-hooks-003 and modified REQ-contract-lint-004."
+  design:
+    status: "done"
+    artifact: "openspec/changes/codex-hooks-bridge/design.md"
+    summary: "Hooks configuration added to Codex profile, command variables mapped, and I3 contract linter extended to validate Codex target timeout budgets."
+    key_decisions:
+      - "Codex hooks config resolution in contract-lint (load profile directly)"
+      - "Go/Node hooks runtime wrapper compatibility (reuse existing)"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/codex-hooks-bridge/tasks.md"
+    summary: "Plan de tareas TDD actualizado con una Fase 8 para cerrar la última advertencia final de reliability en validate-codex."
+  apply:
+    status: "done"
+    artifact: "openspec/changes/codex-hooks-bridge/apply-progress.md"
+    summary: "Phase 9 hardens validate-codex traversal failures and ospec-state lock cleanup to fail closed with direct regression coverage."
+    key_decisions:
+      - "Unreadable .codex/agents and skills directory walks now degrade into explicit validator errors instead of uncaught exceptions"
+      - "Persistent lock cleanup or reacquire failures now abort instead of falling back to unlocked execution"
+  verify:
+    status: "done"
+    artifact: "openspec/changes/codex-hooks-bridge/verify-report.md"
+    summary: "PASS: 39/39 tasks complete; directed validator traversal and lock fail-closed tests plus full npm test passed with zero findings."
+  archive:
+    status: "done"
+    artifact: "openspec/changes/codex-hooks-bridge/archive-report.md"
+    summary: "Archived the verified Codex hooks bridge; synced hooks and contract-lint deltas, and promoted one ADR to docs/adr/."
+
+gates:
+  4r-review-gate:
+    status: "done"
+    on_blocker: "advisory"
+    findings_summary: "0 BLOCKER, 0 CRITICAL, 0 WARNING, 0 SUGGESTION"
+    surfaced_to_user: true
+    reviewed_at: "2026-07-09T00:30:00Z"
+    closure_strategy: "directed resilience closure approved by user"
+
+baseline_fingerprints:
+  hooks: "3d233ad4c7683ad5987194aa9b27048cc3b9b432729df4317bb3843fb278ec17"
+  contract-lint: "c0a5d64f6a21352ca0474b07e4f0bd600af233f1697654153bd37fe868ffab14"
+
+approvals:
+  - id: "approval-4r-closure-001"
+    gate: "4r-review-gate"
+    decision: "Use directed closure: remediate only the two current resilience warnings, then run targeted verification/resilience review instead of reopening the full 4R matrix."
+    source: "user"
+    accepted_at: "2026-07-09T00:20:00Z"
+    applies_to: "codex-hooks-bridge"
