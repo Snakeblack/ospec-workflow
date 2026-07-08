@@ -8,6 +8,12 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+### Added
+- **Puente de hooks para el target Codex (Bloque 5.2)**: el perfil `codex` ahora transforma `hooks/hooks.json` al formato esperado por Codex, mapeando eventos a PascalCase y reescribiendo `${CLAUDE_PLUGIN_ROOT}` a rutas `$PLUGIN_ROOT` entrecomilladas. El arnés `scripts/check.js` genera y valida también este target, y el contract-lint I3 extiende la coherencia de presupuesto `SessionStart` al perfil Codex.
+
+### Fixed
+- **Cierre 4R del puente de hooks Codex**: endurecidos los caminos de error para evitar validaciones fail-open: `validate-codex` convierte archivos/directorios ilegibles y hooks malformados en errores de validación, el checker I3 reporta perfiles Codex inválidos o no cargables, `codexHooks()` valida entradas antes de transformar comandos, y `withFileLock()` falla en cerrado ante fallos persistentes de lock en Windows. Cobertura añadida para `scripts/check.js`, `validate-codex`, `i3-budget-constant`, `target-transform` y `ospec-state`.
+
 ## [2.22.0] - 2026-07-08
 
 ### Added
