@@ -152,3 +152,81 @@ pairs now produce two distinct, correctly-populated files with zero data loss.
   fixed here (out of scope for `codex-target-profile`); flagging for a future
   `commit-msg-hook.js` fix (e.g. exempt the active change's own name, or scope the bypass so it
   doesn't leak into nested test invocations).
+
+---
+
+## Batch 3 — Post-verify CRITICAL remediation (AskUserQuestion degradation)
+
+**Trigger**: 4R post-verify CRITICAL resilience finding. `codex` already degraded
+`vscode/askQuestions`, but some source artifacts still referenced the abstract
+`AskUserQuestion` alias directly, which Codex left without a manual fallback.
+
+### Files Changed (this batch)
+
+| File | Action | What Was Done |
+|------|--------|----------------|
+| `scripts/lib/target-transform.test.js` | Modified | RED first: expanded the codex degradation test so the fixture includes a plain `AskUserQuestion` occurrence and now asserts Codex removes both `vscode/askQuestions` and `AskUserQuestion`. |
+| `scripts/configure/real-repo.test.js` | Modified | Added a real-repo regression test that generates the full `codex` tree and scans all emitted `.md`/`.toml` files for `AskUserQuestion` residue. |
+| `scripts/lib/target-profiles/codex.js` | Modified | Added a second degradation-marker mapping for `AskUserQuestion` alongside `vscode/askQuestions`, and corrected the stale header comment to the current `skills/commands/<name>/SKILL.md` path. |
+| `scripts/lib/target-transform.js` | Modified | Generalized degrade-marker prose substitution so degraded aliases replace plain token occurrences too, not only backticked forms; this is what catches unformatted `AskUserQuestion` mentions in source prose. |
+| `openspec/changes/codex-target-profile/tasks.md` | Modified | Annotated task `1.12` with the remediation scope and refreshed task `5.2` evidence to the now-green full-suite numbers. |
+
+### TDD Cycle Evidence (Batch 3)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR | Notes / Rationale |
+|------|-----------|-------|------------|-----|-------|-------------|----------|--------------------|
+| 1.12 (remediation) | `scripts/lib/target-transform.test.js` | Unit | ✅ 71/71 `target-transform.test.js` green before edits | ✅ Written — existing codex degrade test expanded to assert plain `AskUserQuestion` is removed too; confirmed it failed with residue still present | ✅ Passed — added `AskUserQuestion` degrade marker to `codex.js` plus plain-token degradation in `substituteProse`; re-ran to green | ✅ Second path: the same test still asserts `vscode/askQuestions` degradation, so both abstract-name forms are covered in one focused behavior slice | ➖ None needed | This keeps the fix inside the profile + generic degrade helper instead of adding a codex-only branch elsewhere. |
+| 1.12 / 5.2 (regression proof) | `scripts/configure/real-repo.test.js` | Integration | ✅ focused codex integration suite green before RED edit | ✅ Written — added a full-tree scan asserting no generated codex `.md`/`.toml` file contains `AskUserQuestion`; confirmed it failed in `.codex/agents/sdd-orchestrator.toml` before the fix | ✅ Passed — focused run green after implementation | ✅ Real-repo run covers the orchestrator agent plus shared prose artifacts such as `skills/_shared/gate-change-collision.md`, matching the CRITICAL evidence source | ➖ None needed | This is the regression guard that proves the remediation works on live repo artifacts, not only the in-memory fixture. |
+
+### Test Summary (Batch 3)
+- **Total tests written this batch**: 2 focused regressions (1 unit expansion, 1 real-repo integration guard)
+- **Total tests passing**: 98/98 in the focused run; 1135/1136 in full `npm test` with 1 expected skip and 0 failures
+- **Layers used**: Unit (1), Integration (1)
+- **Approval tests** (refactoring): None — this batch is a behavior fix, not a refactor
+- **Pure functions created**: None
+
+### Verification Evidence (Batch 3)
+- `node --test scripts/lib/target-transform.test.js scripts/configure/real-repo.test.js` → **98 pass / 98 total / 0 fail**
+- `npm test` → **1135 pass / 1136 total / 1 skip / 0 fail**
+
+### Outcome
+- The Codex profile now degrades **both** `vscode/askQuestions` and `AskUserQuestion` to the same numbered plain-chat fallback.
+- Real generated Codex artifacts no longer retain `AskUserQuestion` residue, so source prose that used the abstract alias no longer points at a nonexistent tool.
+- Change state should return to **ready-for-verify** so `sdd-verify` can re-run against the remediated output.
+
+---
+
+## Batch 4 — 4R WARNING remediation (readability + reliability)
+
+**Trigger**: after `sdd-verify` PASS and the focused 4R rerun, two non-blocking WARNINGs remained:
+(1) the `codex.js` header comment still documented only `vscode/askQuestions`, not the also-live
+`AskUserQuestion` degradation path; (2) `validate-codex.js` still rejected `vscode/` and
+`${input:` residue but would not fail an already-generated codex tree containing residual
+`AskUserQuestion` text.
+
+### Files Changed (this batch)
+
+| File | Action | What Was Done |
+|------|--------|----------------|
+| `scripts/configure/real-repo.test.js` | Modified | **RED first**: added a negative validator test that builds a minimal codex tree containing `AskUserQuestion` residue and asserts `validateCodex()` reports an error mentioning it. |
+| `scripts/configure/validate-codex.js` | Modified | Added `AskUserQuestion` to the validator's forbidden-text rules so stale codex trees now fail the official validator, not only the generation-path integration tests. |
+| `scripts/lib/target-profiles/codex.js` | Modified | Corrected the header documentation so it explicitly names both degraded markers (`vscode/askQuestions` and `AskUserQuestion`) and explains that both target-specific and abstract source prose must degrade to the same manual chat protocol. |
+| `openspec/changes/codex-target-profile/tasks.md` | Modified | Annotated the already-complete task lines (`2.1`, `3.2`) with the warning-remediation scope for traceability. |
+
+### TDD Cycle Evidence (Batch 4)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR | Notes / Rationale |
+|------|-----------|-------|------------|-----|-------|-------------|----------|--------------------|
+| 3.2 (warning remediation) | `scripts/configure/real-repo.test.js` | Integration | ✅ 98/98 focused `target-transform` + `real-repo` suites green before edits | ✅ Written — added `validate-codex rejects AskUserQuestion residue in an existing codex tree`; confirmed it failed because the validator returned no error | ✅ Passed — added the forbidden-text rule in `validate-codex.js`; focused `real-repo.test.js` returned 28/28 pass | ✅ Existing positive codex-validator test plus the new negative residue test exercise the two opposite paths (clean tree passes; stale tree fails) | ➖ None needed | This closes the validator gap the WARNING identified: the official codex validator now enforces the same ask-tool degradation invariant that generation tests already proved on fresh output. |
+| 2.1 (documentation sync) | — | Static doc sync | ✅ Existing codex tests green before edit | N/A — comment-only remediation, no runtime behavior changed | N/A | ➖ Triangulation skipped: documentation-only header correction | ➖ None needed | The readability WARNING concerned stale inline documentation, so the fix is limited to aligning the comment with the already-tested implementation. |
+
+### Test Summary (Batch 4)
+- **Focused safety net before RED**: `node --test scripts/configure/real-repo.test.js scripts/lib/target-transform.test.js` → **98 pass / 98 total / 0 fail**
+- **RED proof**: `node --test scripts/configure/real-repo.test.js` → **27 pass / 28 total / 1 fail** (new negative validator test failed as expected before the fix)
+- **Focused GREEN**: `node --test scripts/configure/real-repo.test.js` → **28 pass / 28 total / 0 fail**
+- **Full suite**: `npm test` → **1136 pass / 1137 total / 1 skip / 0 fail**
+
+### Outcome
+- The readability WARNING is remediated: `scripts/lib/target-profiles/codex.js` now documents both degraded markers and the reason they coexist.
+- The reliability WARNING is remediated: `validate-codex.js` now rejects residual `AskUserQuestion` text even when the tree already exists on disk.
+- Apply is complete again, but **verify is now stale** and must be rerun before archive so the filesystem artifacts reflect this warning-remediation batch.

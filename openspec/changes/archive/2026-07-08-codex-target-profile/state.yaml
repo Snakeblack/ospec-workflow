@@ -1,5 +1,5 @@
 change: codex-target-profile
-status: ready-for-verify
+status: archived
 classification: normal
 created_at: "2026-07-08T14:01:30Z"
 
@@ -44,8 +44,47 @@ approvals:
       - sdd-spec
       - sdd-design
       - sdd-apply
+  - id: appr-004
+    gate: 4r-review-gate
+    decision: "Remediar ahora el CRITICAL de resiliencia antes de archivar: degradar AskUserQuestion en el target Codex donde aún queda sin fallback manual."
+    source: AskUserQuestion
+    accepted_at: "2026-07-08T15:40:17Z"
+    applies_to:
+      - sdd-apply
+      - sdd-verify
+  - id: appr-005
+    gate: interactive-continuation
+    decision: "Ejecutar sdd-verify otra vez inmediatamente después de la remediación del CRITICAL 4R."
+    source: AskUserQuestion
+    accepted_at: "2026-07-08T15:47:46Z"
+    applies_to:
+      - sdd-verify
+  - id: appr-006
+    gate: interactive-continuation
+    decision: "Remediar los 2 WARNING no bloqueantes del 4R re-run y después ejecutar revisión focalizada solo con los agentes que los reportaron (readability y reliability) por eficiencia; el gate 4R completo sigue aplicando si se vuelve a pasar por sdd-verify antes de archivar."
+    source: AskUserQuestion
+    accepted_at: "2026-07-08T15:57:43Z"
+    applies_to:
+      - sdd-apply
+      - review-readability
+      - review-reliability
+  - id: appr-007
+    gate: interactive-continuation
+    decision: "Ejecutar sdd-verify otra vez después de remediar y confirmar los 2 WARNINGs focalizados."
+    source: AskUserQuestion
+    accepted_at: "2026-07-08T16:05:11Z"
+    applies_to:
+      - sdd-verify
+  - id: appr-008
+    gate: 4r-review-gate
+    decision: "Remediar los 2 WARNING no bloqueantes del 4R final antes de archivar: test negativo para key fuera del allowlist de plugin.json y manejo explícito de errores de lectura en validate-codex."
+    source: AskUserQuestion
+    accepted_at: "2026-07-08T16:14:56Z"
+    applies_to:
+      - sdd-apply
+      - sdd-verify
 
-last_updated: "2026-07-08T20:15:00Z"
+last_updated: "2026-07-08T17:02:40Z"
 blocking_questions: []
 
 phases:
@@ -89,16 +128,33 @@ phases:
   apply:
     status: done
     artifact: "openspec/changes/codex-target-profile/apply-progress.md"
-    summary: "Phases 1-4 completas: transform engine branches, perfil declarativo, validate-codex.js, fixtures golden y cobertura real-repo, todo con namespace skills/commands/<name>/SKILL.md (appr-003). npm test 1133/1135 (1 skip auto, 1 flake preexistente ajeno). Phase 5.1 diferida a sdd-archive por diseño."
+    summary: "Apply completado + remediaciones 4R: comentario codex alineado con vscode/askQuestions y AskUserQuestion; validator codex ahora rechaza residue AskUserQuestion; npm test 1136/1137 (1 skip, 0 fail). Phase 5.1 sigue diferida a sdd-archive por diseño."
     key_decisions:
       - "reshapeManifest ganó rama allowlist (keepFields+outLocation+interface) separada del omit/drop existente, sin tocar el comportamiento de claude"
       - "degrade marker { degrade: '...' } en toolMap, detectado con isDegradeMarker en substituteProse y ambos mapToolsFrontmatter*"
-      - "to-agents-md reutiliza collectRules vía isAccumulateStrategy; synthesizeFiles ahora recibe rulesContent"
+      - "degrade-marker remediado post-verify: también cubre el alias abstracto AskUserQuestion y reemplaza ocurrencias plain-token, no solo backticked/namespaced"
       - "handleCommandSkill emite a skills/commands/<name>/SKILL.md (appr-003), resolviendo la colisión con skills/<name>/SKILL.md de contexto sin afectar la invocación $sdd-*"
+      - "warning remediation: validate-codex rechaza AskUserQuestion residual y el comentario de codex.js documenta ambos marcadores degradados"
   verify:
-    status: pending
+    status: done
+    artifact: "openspec/changes/codex-target-profile/verify-report.md"
+    summary: "PASS after Batch 4 warning remediation; focused Codex suites and full npm test pass (1136/1137, 1 skip, 0 fail)."
+    key_decisions:
+      - "No low-reversibility unresolved assumptions; high-reversibility unresolved assumptions do not escalate."
+      - "quality_gates absent in config.yaml, so no quality-gates state block required."
+      - "Task 5.1 remains intentionally deferred to sdd-archive."
   archive:
-    status: pending
+    status: done
+    artifact: "openspec/changes/codex-target-profile/archive-report.md"
+
+gates:
+  4r-review-gate:
+    status: done
+    on_blocker: advisory
+    findings_summary: "0 BLOCKER, 0 CRITICAL, 2 WARNING, 0 SUGGESTION"
+    surfaced_to_user: false
+    rerun_after_remediation: true
+    final_rerun_after_warning_fixes: true
 
 assumptions:
   - id: sdd-design-001
