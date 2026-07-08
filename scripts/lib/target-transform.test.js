@@ -913,6 +913,97 @@ test("codex does not mutate the input collection", () => {
   assert.equal(JSON.stringify(input), before);
 });
 
+test("codex target transforms hooks/hooks.json to map events and replace ${CLAUDE_PLUGIN_ROOT} with a quoted $PLUGIN_ROOT path", () => {
+  const files = [
+    {
+      path: ".claude-plugin/plugin.json",
+      content: JSON.stringify({
+        name: "ospec-workflow",
+        hooks: "hooks/hooks.json"
+      })
+    },
+    {
+      path: "hooks/hooks.json",
+      content: JSON.stringify({
+        hooks: {
+          SessionStart: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js session-start", timeout: 5 }],
+          PreToolUse: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-tool-use", timeout: 5 }],
+          PreCompact: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-compact", timeout: 5 }],
+          SubagentStop: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js subagent-stop", timeout: 5 }],
+          Stop: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js stop", timeout: 5 }]
+        }
+      })
+    }
+  ];
+
+  const out = transform({ files, profile: codex, models: MODELS });
+  const hooksFile = find(out, "hooks/hooks.json");
+  assert.ok(hooksFile, "hooks/hooks.json must be generated");
+  const parsed = JSON.parse(hooksFile.content);
+
+  assert.ok(parsed.hooks, "hooks object must exist");
+  assert.deepEqual(Object.keys(parsed.hooks).sort(), [
+    "PreCompact",
+    "PreToolUse",
+    "SessionStart",
+    "Stop",
+    "SubagentStop"
+  ]);
+
+  assert.equal(parsed.hooks.SessionStart[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" session-start');
+  assert.equal(parsed.hooks.PreToolUse[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" pre-tool-use');
+  assert.equal(parsed.hooks.PreCompact[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" pre-compact');
+  assert.equal(parsed.hooks.SubagentStop[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" subagent-stop');
+  assert.equal(parsed.hooks.Stop[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" stop');
+});
+
+test("codex hooks reject a non-object hooks map with a clean path-aware error", () => {
+  const files = [
+    {
+      path: "hooks/hooks.json",
+      content: JSON.stringify({ hooks: [] }),
+    },
+  ];
+
+  assert.throws(() => {
+    transform({ files, profile: codex, models: MODELS });
+  }, /hooks\/hooks\.json: hooks must be a non-null object/);
+});
+
+test("codex hooks reject a non-array event entry with event context", () => {
+  const files = [
+    {
+      path: "hooks/hooks.json",
+      content: JSON.stringify({
+        hooks: {
+          SessionStart: { type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js session-start" },
+        },
+      }),
+    },
+  ];
+
+  assert.throws(() => {
+    transform({ files, profile: codex, models: MODELS });
+  }, /hooks\/hooks\.json: hooks\.SessionStart must be an array/);
+});
+
+test("codex hooks reject a non-string command with event and index context", () => {
+  const files = [
+    {
+      path: "hooks/hooks.json",
+      content: JSON.stringify({
+        hooks: {
+          SessionStart: [{ type: "command", command: 42 }],
+        },
+      }),
+    },
+  ];
+
+  assert.throws(() => {
+    transform({ files, profile: codex, models: MODELS });
+  }, /hooks\/hooks\.json: hooks\.SessionStart\[0\]\.command must be a string/);
+});
+
 // ---------------------------------------------------------------------------
 // Requirement: serializeAgentToml escaping (unit, in-memory fixtures)
 // ---------------------------------------------------------------------------
@@ -948,4 +1039,17 @@ test("serializeAgentToml omits undefined fields (e.g. model when OMIT)", () => {
     developer_instructions: "b\n",
   });
   assert.doesNotMatch(toml, /^model\s*=/m);
+});
+
+test("parseJsonFile throws a clean error when parsing JSON content that is null or a non-object", () => {
+  const files = [
+    {
+      path: ".claude-plugin/plugin.json",
+      content: "null",
+    },
+  ];
+
+  assert.throws(() => {
+    transform({ files, profile: claude, models: MODELS });
+  }, /\.claude-plugin\/plugin\.json: JSON content must be a non-null object/);
 });

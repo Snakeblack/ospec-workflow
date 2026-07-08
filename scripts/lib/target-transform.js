@@ -56,6 +56,10 @@ function handleFile(file, profile, models, rulesContent) {
     return copilotHooks(file, profile);
   }
 
+  if (profile.hooks && profile.hooks.format === "codex" && path === (profile.hooks.source || "hooks/hooks.json")) {
+    return codexHooks(file, profile);
+  }
+
   if (isRulesFile(path)) {
     if (profile.rules && isInlineStrategy(profile.rules.strategy)) {
       return null; // content folded into the orchestrator agent/skill
@@ -163,11 +167,16 @@ function renameExtension(path, { from, to }) {
 // any syntax error so a malformed config names the offending file instead of
 // aborting the whole transform with an opaque SyntaxError.
 function parseJsonFile(file) {
+  let obj;
   try {
-    return JSON.parse(file.content);
+    obj = JSON.parse(file.content);
   } catch (err) {
     throw new Error(`${file.path}: invalid JSON: ${err.message}`);
   }
+  if (obj === null || typeof obj !== "object") {
+    throw new Error(`${file.path}: JSON content must be a non-null object`);
+  }
+  return obj;
 }
 
 // --- manifest --------------------------------------------------------------
@@ -246,6 +255,56 @@ function copilotHooks(file, profile) {
   }
 
   return { path: profile.hooks.location, content: JSON.stringify({ version: 1, hooks: out }, null, 2) };
+}
+
+function validateHooksObject(file, hooks) {
+  if (!hooks || typeof hooks !== "object" || Array.isArray(hooks)) {
+    throw new Error(`${file.path}: hooks must be a non-null object`);
+  }
+}
+
+function validateHookEntries(file, event, entries) {
+  if (!Array.isArray(entries)) {
+    throw new Error(`${file.path}: hooks.${event} must be an array`);
+  }
+}
+
+function quotePluginRootPath(command) {
+  return command.replace(/(?<!")\$PLUGIN_ROOT\/[^\s"]+/g, (match) => `"${match}"`);
+}
+
+function rewriteCodexCommand(file, event, index, entry) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    throw new Error(`${file.path}: hooks.${event}[${index}] must be an object`);
+  }
+  if (typeof entry.command !== "string") {
+    throw new Error(`${file.path}: hooks.${event}[${index}].command must be a string`);
+  }
+
+  const command = entry.command.split("${CLAUDE_PLUGIN_ROOT}").join("$PLUGIN_ROOT");
+  return quotePluginRootPath(command);
+}
+
+// Reshape the source hooks for Codex: mapping events 1:1 PascalCase
+// and substituting ${CLAUDE_PLUGIN_ROOT} with a quoted $PLUGIN_ROOT path.
+function codexHooks(file, profile) {
+  const obj = parseJsonFile(file);
+  const events = obj.hooks;
+  validateHooksObject(file, events);
+  const out = {};
+
+  for (const [event, entries] of Object.entries(events)) {
+    validateHookEntries(file, event, entries);
+    out[event] = entries.map((entry, index) => {
+      const command = rewriteCodexCommand(file, event, index, entry);
+      return {
+        ...entry,
+        command,
+      };
+    });
+  }
+
+  return { path: profile.hooks.location || file.path, content: JSON.stringify({ hooks: out }, null, 2) + "\n" };
 }
 
 // --- rules inlining --------------------------------------------------------
@@ -843,14 +902,13 @@ function substituteProse(body, toolMap) {
     const replacement = toolMap[key];
 
     if (isDegradeMarker(replacement)) {
-      // Degradation marker (e.g. codex's askQuestions -> chat protocol): every
-      // prose occurrence is replaced with the declared fallback instruction
-      // text, never with a bare tool-name substitution.
-      if (key.includes("/")) {
-        out = out.replace(tokenRegExp(key), replacement.degrade);
-      } else {
-        out = out.replace(new RegExp("`" + escapeRegExp(key) + "`", "g"), replacement.degrade);
-      }
+      // Degradation marker (e.g. codex's askQuestions / AskUserQuestion -> chat
+      // protocol): replace every distinct tool-token occurrence with the
+      // declared fallback instruction text, never with a bare tool-name
+      // substitution. This intentionally covers plain prose tokens too, not
+      // only backticked ones, because cross-target docs often mention the
+      // abstract AskUserQuestion alias without code formatting.
+      out = out.replace(tokenRegExp(key), replacement.degrade);
       continue;
     }
 

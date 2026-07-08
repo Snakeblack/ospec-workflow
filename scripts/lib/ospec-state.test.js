@@ -921,6 +921,180 @@ test("withFileLock serializes concurrent callers around the same lock file", asy
   assert.equal(order.indexOf(firstEnd), 1);
 });
 
+test("withFileLock retries transient Windows EPERM lock-open races", async (t) => {
+  const workspace = await createWorkspace(t);
+  const lockTarget = path.join(workspace, "state.yaml");
+  const originalOpen = fs.open;
+  let attempts = 0;
+
+  fs.open = async function patchedOpen(filePath, flags, ...rest) {
+    if (filePath === `${lockTarget}.lock` && flags === "wx" && attempts === 0) {
+      attempts += 1;
+      const error = new Error("operation not permitted");
+      error.code = "EPERM";
+      throw error;
+    }
+
+    attempts += 1;
+    return originalOpen.call(this, filePath, flags, ...rest);
+  };
+
+  t.after(() => {
+    fs.open = originalOpen;
+  });
+
+  const result = await withFileLock(lockTarget, async () => "ok");
+
+  assert.equal(result, "ok");
+  assert.equal(attempts >= 2, true);
+});
+
+test("withFileLock retries transient Windows EACCES lock-open races", async (t) => {
+  const workspace = await createWorkspace(t);
+  const lockTarget = path.join(workspace, "state.yaml");
+  const originalOpen = fs.open;
+  let attempts = 0;
+
+  fs.open = async function patchedOpen(filePath, flags, ...rest) {
+    if (filePath === `${lockTarget}.lock` && flags === "wx" && attempts === 0) {
+      attempts += 1;
+      const error = new Error("permission denied");
+      error.code = "EACCES";
+      throw error;
+    }
+
+    attempts += 1;
+    return originalOpen.call(this, filePath, flags, ...rest);
+  };
+
+  t.after(() => {
+    fs.open = originalOpen;
+  });
+
+  const result = await withFileLock(lockTarget, async () => "ok");
+
+  assert.equal(result, "ok");
+  assert.equal(attempts >= 2, true);
+});
+
+test("withFileLock survives a transient EPERM while reclaiming a stale lock", async (t) => {
+  const workspace = await createWorkspace(t);
+  const lockTarget = path.join(workspace, "state.yaml");
+  const lockPath = `${lockTarget}.lock`;
+  const originalRm = fs.rm;
+  let rmAttempts = 0;
+
+  await fs.writeFile(lockPath, "");
+  const past = new Date(Date.now() - 60000);
+  await fs.utimes(lockPath, past, past);
+
+  fs.rm = async function patchedRm(filePath, options) {
+    if (filePath === lockPath && rmAttempts === 0) {
+      rmAttempts += 1;
+      const error = new Error("operation not permitted");
+      error.code = "EPERM";
+      throw error;
+    }
+
+    rmAttempts += 1;
+    return originalRm.call(this, filePath, options);
+  };
+
+  t.after(() => {
+    fs.rm = originalRm;
+  });
+
+  const result = await withFileLock(lockTarget, async () => "ok", { retries: 3, delayMs: 0, staleMs: 0 });
+
+  assert.equal(result, "ok");
+  assert.equal(rmAttempts >= 2, true);
+});
+
+test("withFileLock does not fail after success when final lock cleanup hits transient EACCES", async (t) => {
+  const workspace = await createWorkspace(t);
+  const lockTarget = path.join(workspace, "state.yaml");
+  const lockPath = `${lockTarget}.lock`;
+  const originalRm = fs.rm;
+  let cleanupAttempted = false;
+
+  fs.rm = async function patchedRm(filePath, options) {
+    if (filePath === lockPath && !cleanupAttempted) {
+      cleanupAttempted = true;
+      const error = new Error("permission denied");
+      error.code = "EACCES";
+      throw error;
+    }
+
+    return originalRm.call(this, filePath, options);
+  };
+
+  t.after(() => {
+    fs.rm = originalRm;
+  });
+
+  const result = await withFileLock(lockTarget, async () => "ok");
+
+  assert.equal(result, "ok");
+  assert.equal(cleanupAttempted, true);
+});
+
+test("withFileLock rejects when final lock cleanup keeps failing with EACCES", async (t) => {
+  const workspace = await createWorkspace(t);
+  const lockTarget = path.join(workspace, "state.yaml");
+  const lockPath = `${lockTarget}.lock`;
+  const originalRm = fs.rm;
+
+  fs.rm = async function patchedRm(filePath) {
+    if (filePath === lockPath) {
+      const error = new Error("permission denied");
+      error.code = "EACCES";
+      throw error;
+    }
+
+    return originalRm.apply(this, arguments);
+  };
+
+  t.after(() => {
+    fs.rm = originalRm;
+  });
+
+  await assert.rejects(
+    withFileLock(lockTarget, async () => "ok", { delayMs: 0 }),
+    /Failed to remove lock file after retries: .*state\.yaml\.lock/,
+  );
+});
+
+test("withFileLock does not fall back to unlocked execution after persistent contention", async (t) => {
+  const workspace = await createWorkspace(t);
+  const lockTarget = path.join(workspace, "state.yaml");
+  const lockPath = `${lockTarget}.lock`;
+  const originalOpen = fs.open;
+  let runCalled = false;
+
+  fs.open = async function patchedOpen(filePath, flags) {
+    if (filePath === lockPath && flags === "wx") {
+      const error = new Error("already exists");
+      error.code = "EEXIST";
+      throw error;
+    }
+
+    return originalOpen.apply(this, arguments);
+  };
+
+  t.after(() => {
+    fs.open = originalOpen;
+  });
+
+  await assert.rejects(
+    withFileLock(lockTarget, async () => {
+      runCalled = true;
+      return "ok";
+    }, { retries: 1, delayMs: 0, staleMs: Number.MAX_SAFE_INTEGER }),
+    /Failed to acquire lock after retries: .*state\.yaml\.lock/,
+  );
+  assert.equal(runCalled, false);
+});
+
 test("withAppendLock remains exported as an alias of withFileLock for existing callers", () => {
   assert.equal(withAppendLock, withFileLock);
 });

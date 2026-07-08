@@ -59,6 +59,28 @@ test("real repo: codex output passes its own validator", (t) => {
   assert.deepEqual(result.errors, [], `validator errors:\n${result.errors.join("\n")}`);
 });
 
+test("validate-codex rejects AskUserQuestion residue in an existing codex tree", (t) => {
+  const out = tmpOut(t);
+
+  fs.mkdirSync(path.join(out, ".codex-plugin"), { recursive: true });
+  fs.mkdirSync(path.join(out, ".codex", "agents"), { recursive: true });
+  fs.mkdirSync(path.join(out, "skills", "foo"), { recursive: true });
+
+  fs.writeFileSync(
+    path.join(out, ".codex-plugin", "plugin.json"),
+    JSON.stringify({ skills: "skills/", mcpServers: ".mcp.json", apps: [], hooks: "hooks/hooks.json", interface: { displayName: "x", icon: "icon.png" } }, null, 2)
+  );
+  fs.writeFileSync(
+    path.join(out, ".codex", "agents", "sdd-apply.toml"),
+    'name = "sdd-apply"\ndescription = "d"\nsandbox_mode = "workspace-write"\ndeveloper_instructions = """clean"""\n'
+  );
+  fs.writeFileSync(path.join(out, "skills", "foo", "SKILL.md"), "AskUserQuestion must not survive here.\n");
+
+  const result = validateCodex(out);
+
+  assert.match(result.errors.join("\n"), /AskUserQuestion/i);
+});
+
 test("real repo: codex ships every source context-doc skill file unchanged, regardless of command-name overlap", (t) => {
   const out = tmpOut(t);
   runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
@@ -131,6 +153,19 @@ test("real repo: codex synthesizes a single AGENTS.md from the rules tree", (t) 
 
   assert.ok(fs.existsSync(path.join(out, "AGENTS.md")), "AGENTS.md must be synthesized");
   assert.ok(!fs.existsSync(path.join(out, "rules")), "rules/ must not survive in codex output");
+});
+
+test("real repo: no AskUserQuestion residue survives anywhere in the codex tree", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
+
+  for (const file of walk(out)) {
+    if (!file.endsWith(".md") && !file.endsWith(".toml")) {
+      continue;
+    }
+    const text = fs.readFileSync(path.join(out, file), "utf8");
+    assert.doesNotMatch(text, /AskUserQuestion/, `AskUserQuestion residue in ${file}`);
+  }
 });
 
 test("real repo: github-copilot output passes its own validator", (t) => {

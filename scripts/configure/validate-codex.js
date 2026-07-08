@@ -12,14 +12,10 @@ const ALLOWED_BUNDLE_KEYS = new Set(["skills", "mcpServers", "apps", "hooks", "i
 // (Codex custom prompts are deprecated in favor of skills).
 const FORBIDDEN_PATHS = [".github", ".opencode", "prompts", "rules"];
 
-// hooks/hooks.json is intentionally excluded: 5.1 passes it through unmodified
-// (the hooks bridge itself is finalized in 5.2/5.3), so its literal
-// ${CLAUDE_PLUGIN_ROOT} path variable is expected, not residue.
-const FORBIDDEN_TEXT_EXEMPT = new Set(["hooks/hooks.json"]);
-
 const FORBIDDEN_TEXT = [
   { pattern: /vscode\//i, label: "vscode namespace residue" },
   { pattern: /\$\{input:/, label: "unresolved ${input: placeholder" },
+  { pattern: /AskUserQuestion/, label: "AskUserQuestion residue" },
 ];
 
 const REQUIRED_TOML_KEYS = ["name", "description", "sandbox_mode", "developer_instructions"];
@@ -44,33 +40,49 @@ function pathType(root, rel) {
   return "other";
 }
 
-function walkFiles(root, relDir = "", acc = []) {
-  const absDir = path.join(root, relDir);
-  if (!fs.existsSync(absDir) || !fs.statSync(absDir).isDirectory()) {
-    return acc;
+function addTraversalError(errors, relDir, error) {
+  if (!errors) {
+    return;
   }
-  for (const entry of fs.readdirSync(absDir, { withFileTypes: true })) {
-    const rel = relDir ? `${relDir}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) {
-      walkFiles(root, rel, acc);
-    } else if (entry.isFile()) {
-      acc.push(rel);
+  const target = relDir || ".";
+  addError(errors, `${target} could not be enumerated: ${error.message}`);
+}
+
+function walkFiles(root, relDir = "", acc = [], errors) {
+  const absDir = path.join(root, relDir);
+  try {
+    if (!fs.existsSync(absDir) || !fs.statSync(absDir).isDirectory()) {
+      return acc;
     }
+    for (const entry of fs.readdirSync(absDir, { withFileTypes: true })) {
+      const rel = relDir ? `${relDir}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        walkFiles(root, rel, acc, errors);
+      } else if (entry.isFile()) {
+        acc.push(rel);
+      }
+    }
+  } catch (error) {
+    addTraversalError(errors, relDir, error);
   }
   return acc;
 }
 
-function walkPaths(root, relDir = "", acc = []) {
+function walkPaths(root, relDir = "", acc = [], errors) {
   const absDir = path.join(root, relDir);
-  if (!fs.existsSync(absDir) || !fs.statSync(absDir).isDirectory()) {
-    return acc;
-  }
-  for (const entry of fs.readdirSync(absDir, { withFileTypes: true })) {
-    const rel = relDir ? `${relDir}/${entry.name}` : entry.name;
-    acc.push(rel);
-    if (entry.isDirectory()) {
-      walkPaths(root, rel, acc);
+  try {
+    if (!fs.existsSync(absDir) || !fs.statSync(absDir).isDirectory()) {
+      return acc;
     }
+    for (const entry of fs.readdirSync(absDir, { withFileTypes: true })) {
+      const rel = relDir ? `${relDir}/${entry.name}` : entry.name;
+      acc.push(rel);
+      if (entry.isDirectory()) {
+        walkPaths(root, rel, acc, errors);
+      }
+    }
+  } catch (error) {
+    addTraversalError(errors, relDir, error);
   }
   return acc;
 }
@@ -79,8 +91,26 @@ function readUtf8(root, rel) {
   return fs.readFileSync(path.join(root, rel), "utf8");
 }
 
+function safeReadUtf8(root, rel, errors, readFile = readUtf8) {
+  try {
+    return readFile(root, rel);
+  } catch (error) {
+    addError(errors, `${rel} could not be read: ${error.message}`);
+    return null;
+  }
+}
+
 function addError(errors, message) {
   errors.push(message);
+}
+
+function parseJsonFile(root, rel, errors, readFile = readUtf8) {
+  try {
+    return JSON.parse(readFile(root, rel));
+  } catch (error) {
+    addError(errors, `${rel} is not valid JSON: ${error.message}`);
+    return null;
+  }
 }
 
 // Bundle allowlist: .codex-plugin/plugin.json MUST NOT contain any top-level
@@ -92,11 +122,8 @@ function validateBundle(root, errors) {
     addError(errors, `missing required file: ${rel}`);
     return;
   }
-  let parsed;
-  try {
-    parsed = JSON.parse(readUtf8(root, rel));
-  } catch (error) {
-    addError(errors, `${rel} is not valid JSON: ${error.message}`);
+  const parsed = parseJsonFile(root, rel, errors);
+  if (!parsed) {
     return;
   }
   for (const key of Object.keys(parsed)) {
@@ -112,22 +139,21 @@ function validateForbiddenPaths(root, errors) {
       addError(errors, `forbidden path present: ${rel}`);
     }
   }
-  for (const rel of walkPaths(root)) {
+  for (const rel of walkPaths(root, "", [], errors)) {
     if (rel.startsWith("prompts/") || rel === "prompts") {
       addError(errors, `forbidden prompts/ path present: ${rel}`);
     }
   }
 }
 
-function validateForbiddenText(root, errors) {
-  for (const file of walkFiles(root)) {
-    if (FORBIDDEN_TEXT_EXEMPT.has(file)) {
-      continue;
-    }
+function validateForbiddenText(root, errors, deps = {}) {
+  const readFile = deps.readUtf8 || readUtf8;
+  for (const file of walkFiles(root, "", [], errors)) {
     let text;
     try {
-      text = readUtf8(root, file);
-    } catch {
+      text = readFile(root, file);
+    } catch (error) {
+      addError(errors, `${file} could not be read: ${error.message}`);
       continue;
     }
     for (const rule of FORBIDDEN_TEXT) {
@@ -138,23 +164,61 @@ function validateForbiddenText(root, errors) {
   }
 }
 
+function validateHooks(root, errors, deps = {}) {
+  const rel = "hooks/hooks.json";
+  if (pathType(root, rel) !== "file") {
+    addError(errors, `missing required file: ${rel}`);
+    return;
+  }
+
+  const readFile = deps.readUtf8 || readUtf8;
+  const parsed = parseJsonFile(root, rel, errors, readFile);
+  if (!parsed || !parsed.hooks || typeof parsed.hooks !== "object" || Array.isArray(parsed.hooks)) {
+    addError(errors, `${rel} must declare hooks as a non-null object`);
+    return;
+  }
+
+  for (const [event, entries] of Object.entries(parsed.hooks)) {
+    if (!Array.isArray(entries)) {
+      addError(errors, `${rel} ${event} must be an array`);
+      continue;
+    }
+    entries.forEach((entry, index) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        addError(errors, `${rel} ${event}[${index}] must be an object`);
+        return;
+      }
+      if (typeof entry.command !== "string") {
+        addError(errors, `${rel} ${event}[${index}] command must be a string`);
+        return;
+      }
+      if (/\$PLUGIN_ROOT\/[^"]/.test(entry.command) && !entry.command.includes('"$PLUGIN_ROOT/')) {
+        addError(errors, `${rel} ${event}[${index}] command must quote the $PLUGIN_ROOT path`);
+      }
+    });
+  }
+}
+
 // Minimal shape check for .codex/agents/*.toml: every required key present as
 // a top-level `key = "…"`/`key = """…"""` assignment, sandbox_mode is one of
-// the two valid enum values, and no `prompts/` reference or CLAUDE_PLUGIN_ROOT
+// the two valid enum values, and no `prompts/` reference or stale hook-path
 // residue leaked into the TOML body (already covered by validateForbiddenText,
 // but re-checked here for a targeted message).
-function validateAgentToml(root, errors) {
+function validateAgentToml(root, errors, readFile = readUtf8) {
   const dir = ".codex/agents";
   if (pathType(root, dir) !== "directory") {
     addError(errors, `missing required directory: ${dir}`);
     return;
   }
-  for (const file of walkFiles(root, dir)) {
+  for (const file of walkFiles(root, dir, [], errors)) {
     if (!file.endsWith(".toml")) {
       addError(errors, `${file} must use a .toml suffix under ${dir}`);
       continue;
     }
-    const text = readUtf8(root, file);
+    const text = safeReadUtf8(root, file, errors, readFile);
+    if (text === null) {
+      continue;
+    }
     for (const key of REQUIRED_TOML_KEYS) {
       if (!new RegExp(`^${key}\\s*=`, "m").test(text)) {
         addError(errors, `${file} missing required TOML key: ${key}`);
@@ -169,24 +233,27 @@ function validateAgentToml(root, errors) {
 
 // Skills directory must exist and never contain a routing-key residue (agent:)
 // left over from the source command file — codex skills carry no routing key.
-function validateSkills(root, errors) {
+function validateSkills(root, errors, readFile = readUtf8) {
   const dir = "skills";
   if (pathType(root, dir) !== "directory") {
     addError(errors, `missing required directory: ${dir}`);
     return;
   }
-  for (const file of walkFiles(root, dir)) {
+  for (const file of walkFiles(root, dir, [], errors)) {
     if (!file.endsWith("SKILL.md")) {
       continue;
     }
-    const text = readUtf8(root, file);
+    const text = safeReadUtf8(root, file, errors, readFile);
+    if (text === null) {
+      continue;
+    }
     if (/^agent:/m.test(text)) {
       addError(errors, `${file} must not carry an agent: routing key (codex skills have no routing key)`);
     }
   }
 }
 
-function validate(root) {
+function validate(root, deps = {}) {
   const errors = [];
   const warnings = [];
   const absRoot = path.resolve(root);
@@ -198,9 +265,11 @@ function validate(root) {
 
   validateBundle(absRoot, errors);
   validateForbiddenPaths(absRoot, errors);
-  validateForbiddenText(absRoot, errors);
-  validateAgentToml(absRoot, errors);
-  validateSkills(absRoot, errors);
+  validateForbiddenText(absRoot, errors, deps);
+  validateHooks(absRoot, errors, deps);
+  const readFile = deps.readUtf8 || readUtf8;
+  validateAgentToml(absRoot, errors, readFile);
+  validateSkills(absRoot, errors, readFile);
 
   return { errors, warnings };
 }

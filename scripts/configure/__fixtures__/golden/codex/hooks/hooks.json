@@ -3,13 +3,13 @@
     "SessionStart": [
       {
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks session-start"
+        "command": "\"$PLUGIN_ROOT/scripts/hooks/ospec-hooks\" session-start"
       }
     ],
     "PreToolUse": [
       {
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks pre-tool-use",
+        "command": "\"$PLUGIN_ROOT/scripts/hooks/ospec-hooks\" pre-tool-use",
         "timeout": 5
       }
     ]

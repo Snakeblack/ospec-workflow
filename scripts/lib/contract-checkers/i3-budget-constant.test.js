@@ -132,3 +132,119 @@ test("checkBudgetRelationship: passing values yield []", () => {
 
   assert.deepEqual(offenders, []);
 });
+
+test("synthetic-offender: Codex target SessionStart timeout budget violation yields offender", (t) => {
+  const codexProfilePath = require.resolve("../target-profiles/codex.js");
+  const originalCodexProfile = require(codexProfilePath);
+
+  // Mock the hooks source path for codex
+  require.cache[codexProfilePath].exports = {
+    ...originalCodexProfile,
+    hooks: {
+      ...originalCodexProfile.hooks,
+      source: "hooks/codex-hooks.json"
+    }
+  };
+
+  t.after(() => {
+    // Restore original profile exports
+    require.cache[codexProfilePath].exports = originalCodexProfile;
+  });
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "i3-fixture-codex-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  // Valid default hooks
+  const hooksDir = path.join(root, "hooks");
+  fs.mkdirSync(hooksDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(hooksDir, "hooks.json"),
+    JSON.stringify({ hooks: { SessionStart: [{ type: "command", command: "noop", timeout: 30 }] } })
+  );
+
+  // Violated codex hooks
+  fs.writeFileSync(
+    path.join(hooksDir, "codex-hooks.json"),
+    JSON.stringify({ hooks: { SessionStart: [{ type: "command", command: "noop", timeout: 2 }] } })
+  );
+
+  const libDir = path.join(root, "scripts", "lib");
+  fs.mkdirSync(libDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(libDir, "ospec-state.js"),
+    'module.exports = { LOCK_RETRY_ATTEMPTS: 100, LOCK_RETRY_DELAY_MS: 15, LOCK_STALE_MS: 5000 };'
+  );
+
+  const offenders = check({ root });
+
+  // There should be exactly 1 offender pointing to scripts/lib/ospec-state.js because default hooks.json is valid (30s timeout)
+  assert.equal(offenders.length, 1);
+  assert.equal(offenders[0].path, "scripts/lib/ospec-state.js");
+  assert.match(offenders[0].message, /hooks\/codex-hooks\.json/);
+  assert.match(offenders[0].message, /LOCK_STALE_MS/);
+});
+
+test("codex profile loader failures yield an explicit offender instead of silently skipping the profile", (t) => {
+  const root = makeFixtureRoot(t, { timeoutSec: 30, staleMs: 5000, retryAttempts: 100, retryDelayMs: 15 });
+
+  const offenders = check({
+    root,
+    loadCodexProfile: () => {
+      throw new Error("Unexpected end of input");
+    },
+  });
+
+  assert.equal(offenders.length, 1);
+  assert.equal(offenders[0].checker, "i3-budget-constant");
+  assert.equal(offenders[0].path, "scripts/lib/target-profiles/codex.js");
+  assert.match(offenders[0].message, /could not be required\/loaded/);
+  assert.match(offenders[0].message, /Unexpected end of input/);
+});
+
+test("invalid codex hooks.source exports yield an explicit offender for empty and non-string values", (t) => {
+  const root = makeFixtureRoot(t, { timeoutSec: 30, staleMs: 5000, retryAttempts: 100, retryDelayMs: 15 });
+
+  const cases = [
+    { label: "empty string", source: "", actual: '""' },
+    { label: "number", source: 42, actual: "42" },
+  ];
+
+  for (const fixture of cases) {
+    const offenders = check({
+      root,
+      loadCodexProfile: () => ({ hooks: { source: fixture.source } }),
+    });
+
+    assert.equal(offenders.length, 1, `${fixture.label} should report exactly one offender`);
+    assert.equal(offenders[0].path, "scripts/lib/target-profiles/codex.js");
+    assert.match(offenders[0].message, /must export hooks\.source as a non-empty string/);
+    assert.equal(offenders[0].actual, fixture.actual);
+  }
+});
+
+test("handles null or non-object hooksConfig without throwing TypeError", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "i3-null-config-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  const hooksDir = path.join(root, "hooks");
+  fs.mkdirSync(hooksDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(hooksDir, "hooks.json"),
+    "null"
+  );
+
+  const libDir = path.join(root, "scripts", "lib");
+  fs.mkdirSync(libDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(libDir, "ospec-state.js"),
+    'module.exports = { LOCK_RETRY_ATTEMPTS: 100, LOCK_RETRY_DELAY_MS: 15, LOCK_STALE_MS: 5000 };'
+  );
+
+  let offenders;
+  assert.doesNotThrow(() => {
+    offenders = check({ root });
+  });
+
+  assert.equal(offenders.length, 1);
+  assert.match(offenders[0].message, /must be a non-null object/);
+});

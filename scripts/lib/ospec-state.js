@@ -361,6 +361,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const LOCK_RETRY_ATTEMPTS = 100;
 const LOCK_RETRY_DELAY_MS = 15;
 const LOCK_STALE_MS = 5000;
+const LOCK_RM_RETRY_ATTEMPTS = 3;
 
 // Serialize appends across processes with an advisory lock. fs.appendFile is not
 // a guaranteed-atomic cross-process operation (notably on Windows), so parallel
@@ -374,11 +375,46 @@ async function reclaimStaleLock(lockPath, staleMs) {
   try {
     const { mtimeMs } = await fs.stat(lockPath);
     if (Date.now() - mtimeMs > staleMs) {
-      await fs.rm(lockPath, { force: true });
+      await removeLockFile(lockPath);
     }
   } catch (error) {
     if (error.code !== "ENOENT") {
       throw error;
+    }
+  }
+}
+
+function isLockContentionError(error) {
+  if (!error || typeof error.code !== "string") {
+    return false;
+  }
+
+  return (
+    error.code === "EEXIST" ||
+    (process.platform === "win32" && (error.code === "EPERM" || error.code === "EACCES"))
+  );
+}
+
+function isWindowsLockRemovalError(error) {
+  return Boolean(error) && (error.code === "EPERM" || error.code === "EACCES");
+}
+
+async function removeLockFile(lockPath, { retries = LOCK_RM_RETRY_ATTEMPTS, delayMs = LOCK_RETRY_DELAY_MS } = {}) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await fs.rm(lockPath, { force: true });
+      return;
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        return;
+      }
+      if (!isWindowsLockRemovalError(error)) {
+        throw error;
+      }
+      if (attempt >= retries) {
+        throw new Error(`Failed to remove lock file after retries: ${lockPath}`, { cause: error });
+      }
+      await sleep(delayMs);
     }
   }
 }
@@ -394,14 +430,12 @@ async function withFileLock(
     try {
       handle = await fs.open(lockPath, "wx");
     } catch (error) {
-      if (error.code !== "EEXIST") {
+      if (!isLockContentionError(error)) {
         throw error;
       }
       await reclaimStaleLock(lockPath, staleMs);
       if (attempt >= retries) {
-        // Still contended after reclamation attempts: proceed best-effort rather
-        // than lose the event (still better than no lock at all).
-        return run();
+        throw new Error(`Failed to acquire lock after retries: ${lockPath}`, { cause: error });
       }
       await sleep(delayMs);
       continue;
@@ -410,7 +444,7 @@ async function withFileLock(
       return await run();
     } finally {
       await handle.close();
-      await fs.rm(lockPath, { force: true });
+      await removeLockFile(lockPath);
     }
   }
 }
