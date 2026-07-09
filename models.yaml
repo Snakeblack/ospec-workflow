@@ -45,11 +45,16 @@ tiers:
     claude: opus
     vscode: ["Claude Opus 4.8 (copilot)", "GPT-5.5 (copilot)"]
     opencode: openai/gpt-5.5
+    codex:
+      model: gpt-5.6-sol
+      model_reasoning_effort: high
   default:
     claude: sonnet
     vscode: ["Claude Sonnet 4.6 (copilot)", "GPT-5.3-Codex (copilot)"]
     opencode: openai/gpt-5.4
+    codex: gpt-5.6-terra
   cheap:
     claude: haiku
     vscode: ["Qwen 3.6 MSC1 (customendpoint)", "GPT-5.4-mini (copilot)"]
     opencode: openai/gpt-5.4-mini
+    codex: gpt-5.6-luna

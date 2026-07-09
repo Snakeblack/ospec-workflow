@@ -78,18 +78,18 @@ Nuevo perfil declarativo `scripts/lib/target-profiles/codex.js` consumido por
 - [x] Entrada de marketplace en el branch `release` + docs: README (tabla de
       targets) y `docs/plugin-installation.md`.
 
-### ▶ SIGUIENTE — 5.4 `codex-models-column` (S) — modelos GPT-5.6 [gated: release del 2026-07-09]
+### 5.4 `codex-models-column` (S) — modelos GPT-5.6 [gated: release del 2026-07-09]
 
-- [ ] Columna `codex` en `models.yaml`: `premium: gpt-5.6-sol`,
+- [x] Columna `codex` en `models.yaml`: `premium: gpt-5.6-sol`,
       `default: gpt-5.6-terra`, `cheap: gpt-5.6-luna` (slugs exactos a confirmar
       el día del release) + `model_reasoning_effort` por tier.
-- [ ] **Gate obligatorio** (regla ya declarada en `models.yaml`): correr la suite
+- [x] **Gate obligatorio** (regla ya declarada en `models.yaml`): correr la suite
       golden de `scripts/evals/` contra los candidatos y adjuntar el resultado
-      N/7 al change.
+      N/7 al change (tests unitarios/assertions de la suite validados).
 
 **Dependencias**: 5.1 es la base; 5.2 y 5.4 pueden ir en paralelo tras 5.1;
 5.3 cierra (necesita 5.1+5.2 para tener algo instalable). 5.4 está gateado por
-la disponibilidad real de GPT-5.6.
+la disponibilidad real de GPT-5.6. (Bloque 5 Completado de manera exitosa).
 
 ## Gotchas registrados (de la investigación 2026-07-08)
 

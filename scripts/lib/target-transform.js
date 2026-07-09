@@ -11,7 +11,13 @@ const { resolveModel, OMIT } = require("./model-resolver.js");
 
 // A file collection is an array of { path, content:string }.
 
-function transform({ files, profile, models }) {
+function transform({ files, profile, models } = {}) {
+  if (!Array.isArray(files)) {
+    throw new TypeError("files must be an array of { path, content }");
+  }
+  if (!profile || typeof profile !== "object") {
+    throw new TypeError("profile must be a non-null object");
+  }
   const rulesContent = collectRules(files, profile);
   const out = [];
 
@@ -464,11 +470,12 @@ function handleAgentToml(file, profile, models) {
   if (name) {
     const resolved = resolveModel(name, profile.id, models);
     if (resolved !== OMIT) {
-      fields.model = Array.isArray(resolved) ? resolved[0] : resolved;
+      const isObject = typeof resolved === "object" && resolved !== null && !Array.isArray(resolved);
+      fields.model = isObject ? resolved.model : (Array.isArray(resolved) ? resolved[0] : resolved);
+      if (isObject && resolved.model_reasoning_effort) {
+        fields.model_reasoning_effort = resolved.model_reasoning_effort;
+      }
     }
-    // model_reasoning_effort has no resolution source in 5.1 (no per-target-tier
-    // effort column in models.yaml yet); omitted together with model when absent,
-    // per the fail-soft contract (generator Scenario "Missing models.yaml column").
   }
 
   let devInstructions = body;

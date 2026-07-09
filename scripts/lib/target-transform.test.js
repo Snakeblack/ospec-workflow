@@ -831,6 +831,36 @@ test("codex omits model/model_reasoning_effort when models.yaml has no codex col
   assert.doesNotMatch(apply, /^model_reasoning_effort\s*=/m);
 });
 
+test("codex populates model and model_reasoning_effort when codex column is present", () => {
+  const customModels = {
+    agents: {
+      "sdd-apply": "default",
+      "sdd-orchestrator": "premium",
+      _default: "default",
+    },
+    tiers: {
+      premium: {
+        codex: {
+          model: "gpt-5.6-sol",
+          model_reasoning_effort: "high"
+        }
+      },
+      default: {
+        codex: "gpt-5.6-terra"
+      }
+    }
+  };
+
+  const out = transform({ files: makeSource(), profile: codex, models: customModels });
+  const apply = find(out, ".codex/agents/sdd-apply.toml").content;
+  assert.match(apply, /^model = "gpt-5.6-terra"/m);
+  assert.doesNotMatch(apply, /^model_reasoning_effort\s*=/m);
+
+  const orchestrator = find(out, ".codex/agents/sdd-orchestrator.toml").content;
+  assert.match(orchestrator, /^model = "gpt-5.6-sol"/m);
+  assert.match(orchestrator, /^model_reasoning_effort = "high"/m);
+});
+
 test("codex commands become invocable skills under skills/commands/, never a prompts/ path", () => {
   const out = transform({ files: makeSource(), profile: codex, models: MODELS });
   const skill = find(out, "skills/commands/sdd-apply/SKILL.md");
@@ -1052,4 +1082,55 @@ test("parseJsonFile throws a clean error when parsing JSON content that is null 
   assert.throws(() => {
     transform({ files, profile: claude, models: MODELS });
   }, /\.claude-plugin\/plugin\.json: JSON content must be a non-null object/);
+});
+
+test("parseJsonFile throws a clean error when JSON syntax is invalid", () => {
+  const files = [
+    {
+      path: ".claude-plugin/plugin.json",
+      content: "{ bad json }",
+    },
+  ];
+
+  assert.throws(() => {
+    transform({ files, profile: claude, models: MODELS });
+  }, /\.claude-plugin\/plugin\.json: invalid JSON/);
+});
+
+test("transform throws TypeError when files is not an array or profile is not an object", () => {
+  assert.throws(() => {
+    transform({ files: null, profile: claude });
+  }, TypeError);
+
+  assert.throws(() => {
+    transform({ files: [], profile: null });
+  }, TypeError);
+});
+
+test("codex transform throws when hook entry is not an object", () => {
+  const badSource = makeSource();
+  const hooksFile = badSource.find((f) => f.path === "hooks/hooks.json");
+  hooksFile.content = JSON.stringify({
+    hooks: {
+      PreToolUse: ["not-an-object"],
+    },
+  });
+
+  assert.throws(() => {
+    transform({ files: badSource, profile: codex, models: MODELS });
+  }, /hooks\.PreToolUse\[0\] must be an object/);
+});
+
+test("codex transform throws when hook entry command is not a string", () => {
+  const badSource = makeSource();
+  const hooksFile = badSource.find((f) => f.path === "hooks/hooks.json");
+  hooksFile.content = JSON.stringify({
+    hooks: {
+      PreToolUse: [{ command: 123 }],
+    },
+  });
+
+  assert.throws(() => {
+    transform({ files: badSource, profile: codex, models: MODELS });
+  }, /hooks\.PreToolUse\[0\]\.command must be a string/);
 });
