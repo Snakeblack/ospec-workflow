@@ -4,23 +4,30 @@
 #   agents: which TIER each agent needs (the only per-agent decision).
 #   tiers:  how each tier maps to a concrete model PER target.
 #
-# Claude uses aliases (auto-track the latest model). VS Code uses
-# "Name (vendor)" strings; an array is a fallback order. The github-copilot
-# target injects no model (agents inherit the session model), so it has no column.
-# opencode uses "provider/model" slugs; edit these as models.dev publishes newer
-# releases. The opencode column below uses the OpenAI provider (openai/gpt-*).
-# NOTE: to run these GPT models through a GitHub Copilot subscription, change the
-# prefix from "openai/" to "github-copilot/" (e.g. github-copilot/gpt-5.5).
+# Claude uses aliases (auto-track the latest model).
+# VS Code uses "Name (vendor)" strings; an array is a fallback order.
+# The github-copilot target injects no model; agents inherit the session model.
+# opencode uses "provider/model" slugs.
+# codex uses an object with model + reasoning/verbosity options.
+#
+# NOTE:
+# - opencode: use openai/ to call OpenAI directly.
+# - opencode via Copilot subscription: change openai/ to github-copilot/.
+# - codex: this assumes the generator has a codex target/profile able to emit
+#   model, model_reasoning_effort and model_verbosity into the target frontmatter/config.
 #
 # Before bumping any tier's model here, run the golden eval suite under
 # scripts/evals/ against the candidate model and attach its N/7-passed result
-# to the change proposing the bump — see scripts/evals/README.md.
+# to the change proposing the bump.
 
 agents:
+  # Premium: decisiones de alto impacto. Si fallan, el workflow entero queda mal orientado.
   sdd-design: premium
   sdd-verify: premium
-  sdd-propose: premium
   sdd-orchestrator: premium
+
+  # Default: trabajo fuerte y frecuente. Aquí Terra da el mejor equilibrio calidad/coste.
+  sdd-propose: default
   sdd-apply: default
   sdd-spec: default
   sdd-tasks: default
@@ -29,27 +36,46 @@ agents:
   sdd-onboard: default
   sdd-workspace: default
   sdd-baseline: default
+  sdd-document: default
+
+  # Cheap: tareas de bajo coste relativo. Luna en medium, no low, porque explore puede requerir comprensión real.
   sdd-explore: cheap
   sdd-archive: cheap
-  sdd-document: default
+
+  # Reviewers: default por equilibrio. Subirlos a premium solo en modo paranoid/security-critical.
   review-risk: default
   review-readability: default
   review-reliability: default
   review-resilience: default
+
   _default: default
 
 tiers:
   # opencode: prefix is openai/. Switch to github-copilot/ to use these GPT
-  # models via a GitHub Copilot subscription.
+
   premium:
     claude: opus
-    vscode: ["Claude Opus 4.8 (copilot)", "GPT-5.5 (copilot)"]
-    opencode: openai/gpt-5.5
+    vscode: ["GPT-5.6 Sol (copilot)", "Claude Opus 4.8 (copilot)", "GPT-5.5 (copilot)"]
+    opencode: openai/gpt-5.6-sol
+    codex:
+      model: gpt-5.6-sol
+      model_reasoning_effort: high
+      model_verbosity: medium
+
   default:
     claude: sonnet
-    vscode: ["Claude Sonnet 4.6 (copilot)", "GPT-5.3-Codex (copilot)"]
-    opencode: openai/gpt-5.4
+    vscode: ["GPT-5.6 Terra (copilot)", "Claude Sonnet 4.6 (copilot)", "GPT-5.3-Codex (copilot)", "GPT-5.4 (copilot)"]
+    opencode: openai/gpt-5.6-terra
+    codex:
+      model: gpt-5.6-terra
+      model_reasoning_effort: medium
+      model_verbosity: medium
+
   cheap:
     claude: haiku
-    vscode: ["Qwen 3.6 MSC1 (customendpoint)", "GPT-5.4-mini (copilot)"]
-    opencode: openai/gpt-5.4-mini
+    vscode: ["GPT-5.6 Luna (copilot)", "Qwen 3.6 MSC1 (customendpoint)", "GPT-5.4-mini (copilot)"]
+    opencode: openai/gpt-5.6-luna
+    codex:
+      model: gpt-5.6-luna
+      model_reasoning_effort: medium
+      model_verbosity: low

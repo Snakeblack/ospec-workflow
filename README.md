@@ -35,6 +35,7 @@ Elige tu target y ejecuta su configurador automático:
 | **Claude Code** | `npm run setup:claude` | Compila, valida de forma estricta e instala como plugin persistente. |
 | **Copilot CLI** | `npm run setup:copilot` | Compila e instala globalmente en tu máquina (`~/.copilot/`). |
 | **opencode** | `npm run setup:opencode` | Compila e instala en la carpeta de OpenCode (`~/.config/opencode/`). |
+| **Codex CLI** | `npm run setup:codex` | Compila `dist/codex`, registra el marketplace si `codex` está disponible y copia `.codex/agents/*.toml` + fusiona `.codex/config.toml` en `~/.codex/`. |
 
 ### 3. Iniciar un Ciclo SDD
 Una vez cargado el plugin en tu agente de chat:
@@ -95,6 +96,18 @@ Una vez cargado el plugin en tu agente de chat:
   ```powershell
   npm run install:opencode -- ../mi-proyecto
   ```
+
+### 🧠 Codex CLI
+- **Instalación Global (Recomendado)**:
+  ```powershell
+  npm run setup:codex
+  ```
+  *(Compila `dist/codex`, intenta registrar `dist/codex-marketplace/` con `codex plugin marketplace add`, copia `.codex/agents/*.toml` a `~/.codex/agents/` y fusiona de forma no destructiva `.codex/config.toml`.)*
+- **Instalación Local por repositorio**:
+  ```powershell
+  npm run install:codex -- ../mi-proyecto
+  ```
+  *(Copia solo `.codex/agents/*.toml` y `.codex/config.toml` al repo destino; no copia `.codex-plugin/plugin.json`.)*
 
 Consulta la [guía de instalación](docs/plugin-installation.md) para más detalles sobre instalación remota, desarrollo local, marketplace y confianza del plugin.
 
@@ -243,9 +256,11 @@ y validado en `dist/<target>/` sin tocar el origen:
 | `claude` | Árbol `.claude-plugin`: renombra archivos, reestructura manifiesto y hooks, sustituye herramientas (context-aware), reescribe variables de comando, incorpora `rules/` y emite el orquestador como **skill**. Gate: `claude plugin validate --strict` 0/0. |
 | `github-copilot` | Layout `.github/`: agentes a `.github/agents/*.agent.md` (`target: github-copilot`, `vscode/askQuestions`→`ask_user`), comandos a `.github/prompts/*.prompt.md`, reglas a `.github/instructions/*.instructions.md` (`applyTo: "**"`), hooks a `.github/hooks/hooks.json` (schema Copilot) y `.mcp.json` tal cual. Validado por `scripts/configure/validate-github-copilot.js` dentro del flujo de perfiles. |
 | `opencode` | Layout `.opencode/` + `opencode.json`: agentes a `.opencode/agents/*.md` (`mode: primary\|subagent`, `tools:` como **mapa**, modelo `provider/model`), comandos a `.opencode/commands/*.md` (conserva `agent:`, args `$1`/`$ARGUMENTS`), reglas a `.opencode/instructions/*.md` referenciadas por `instructions` en `opencode.json`, MCP plegado dentro de `opencode.json` (`mcp` con `type: local\|remote`) y, como opencode no tiene hooks de shell, el runtime se puentea con un plugin JS en `.opencode/plugins/ospec.js`. Validado por `scripts/configure/validate-opencode.js`. |
+| `codex` | Layout `.codex-plugin/` + `.codex/agents/*.toml`: el plugin se registra vía marketplace local, los agentes TOML se instalan por separado en `.codex/agents/`, y `.codex/config.toml` aporta solo `skills.config` + límites `[agents]` para una fusión no destructiva. Validado por `scripts/configure/validate-codex.js`. |
 
 ```powershell
 node scripts/configure/cli.js --target claude          --out dist/claude
+node scripts/configure/cli.js --target codex           --out dist/codex
 node scripts/configure/cli.js --target github-copilot  --out dist/github-copilot
 node scripts/configure/cli.js --target opencode        --out dist/opencode
 ```

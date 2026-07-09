@@ -1,0 +1,183 @@
+change: codex-target-profile
+status: archived
+classification: normal
+created_at: "2026-07-08T14:01:30Z"
+
+owner:
+  author: Manuel Retamozo
+  branch: main
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Cambio normal (feature cross-módulo: nuevo perfil de target codex en el generador) sobre proyecto activo; primera condición que matchea en la tabla de routing es `standard` (project.status: active). Señal determinista — bugfix/refactor/hotfix/brownfield/federated no aplican."
+  validated: true
+  validation_errors: []
+
+execution_mode: interactive
+delivery_strategy: exception-ok
+
+source_intent: "Bloque 5.1 del roadmap analisis-fino/roadmap-codex-target.md — perfil declarativo scripts/lib/target-profiles/codex.js como quinto target del generador."
+
+approvals:
+  - id: appr-001
+    gate: execution-mode
+    decision: interactive
+    source: AskUserQuestion
+    accepted_at: "2026-07-08T14:01:30Z"
+    applies_to:
+      - all-phases
+  - id: appr-002
+    gate: delivery-strategy
+    decision: exception-ok
+    source: AskUserQuestion
+    accepted_at: "2026-07-08T14:01:30Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: appr-003
+    gate: architecture
+    decision: "Colisión de paths commands->skills en codex: emitir los skills invocables derivados de comandos en un namespace separado de los context-docs skills/<name>/ existentes, manteniendo la invocación $sdd-* (el nombre del skill no cambia; solo el directorio de salida). Descartados: merge en el SKILL.md existente y rename repo-wide de la convención fuente."
+    source: AskUserQuestion
+    accepted_at: "2026-07-08T17:20:00Z"
+    applies_to:
+      - sdd-spec
+      - sdd-design
+      - sdd-apply
+  - id: appr-004
+    gate: 4r-review-gate
+    decision: "Remediar ahora el CRITICAL de resiliencia antes de archivar: degradar AskUserQuestion en el target Codex donde aún queda sin fallback manual."
+    source: AskUserQuestion
+    accepted_at: "2026-07-08T15:40:17Z"
+    applies_to:
+      - sdd-apply
+      - sdd-verify
+  - id: appr-005
+    gate: interactive-continuation
+    decision: "Ejecutar sdd-verify otra vez inmediatamente después de la remediación del CRITICAL 4R."
+    source: AskUserQuestion
+    accepted_at: "2026-07-08T15:47:46Z"
+    applies_to:
+      - sdd-verify
+  - id: appr-006
+    gate: interactive-continuation
+    decision: "Remediar los 2 WARNING no bloqueantes del 4R re-run y después ejecutar revisión focalizada solo con los agentes que los reportaron (readability y reliability) por eficiencia; el gate 4R completo sigue aplicando si se vuelve a pasar por sdd-verify antes de archivar."
+    source: AskUserQuestion
+    accepted_at: "2026-07-08T15:57:43Z"
+    applies_to:
+      - sdd-apply
+      - review-readability
+      - review-reliability
+  - id: appr-007
+    gate: interactive-continuation
+    decision: "Ejecutar sdd-verify otra vez después de remediar y confirmar los 2 WARNINGs focalizados."
+    source: AskUserQuestion
+    accepted_at: "2026-07-08T16:05:11Z"
+    applies_to:
+      - sdd-verify
+  - id: appr-008
+    gate: 4r-review-gate
+    decision: "Remediar los 2 WARNING no bloqueantes del 4R final antes de archivar: test negativo para key fuera del allowlist de plugin.json y manejo explícito de errores de lectura en validate-codex."
+    source: AskUserQuestion
+    accepted_at: "2026-07-08T16:14:56Z"
+    applies_to:
+      - sdd-apply
+      - sdd-verify
+
+last_updated: "2026-07-08T17:02:40Z"
+blocking_questions: []
+
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/codex-target-profile/proposal.md"
+    summary: "Quinto target codex: perfil declarativo + transforms nuevos (md->TOML agentes, commands->skills, bundle .codex-plugin). Nueva capability codex-target; generator modificado (4->5 targets)."
+    key_decisions:
+      - "codex-target nueva capability; generator modificado (4->5 targets)"
+      - "Rules AGENTS.md vs developer_instructions diferido a design (ADR)"
+      - "model-resolver fail-soft cubre ausencia de columna codex (5.4 fuera de alcance)"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/codex-target-profile/specs/codex-target/spec.md"
+      - "openspec/changes/codex-target-profile/specs/generator/spec.md"
+    summary: "codex-target (8 req nuevos: bundle, agentes TOML fuera del bundle, sandbox_mode por capacidad, commands->skills, question_gate degradado, rules diferido a ADR, front-loading descripciones, validador+fixtures). generator: 3 ADDED (TOML agentes, commands->skills, toolMap degradado) + 3 MODIFIED (source tree cinco targets, routing pasos 6/7, CLI --target). ENMENDADO (appr-003): REQ-codex-target-004 y REQ-generator-002 fijan el output path de commands->skills en skills/commands/<name>/SKILL.md (antes skills/<name>/SKILL.md), resolviendo la colision con los context-docs skills/<name>/SKILL.md preexistentes; invocacion $sdd-* intacta via frontmatter name:."
+    key_decisions:
+      - "Rules strategy NO se fija en spec (REQ-codex-target-006); queda como ADR de sdd-design"
+      - "Encabezados legacy 'Scenario N' del baseline generator preservados verbatim en el delta MODIFIED (el spec.md existente no usa wrapper 'Requirement:' para esos bloques)"
+      - "appr-003: namespace skills/commands/<name>/SKILL.md para el output commands->skills, separado de skills/<name>/SKILL.md (context-docs); descartados merge de contenidos y rename repo-wide"
+  clarify:
+    status: done
+    questions_asked: 0
+    summary: "0 ambiguedades materiales tras revisar los 3 gaps senalados (schema TOML/plugin.json, convencion legacy 'Scenario N' del baseline, mapeo ${input:x}->posicional): los tres ya estan resueltos inline en los specs del change (validador+fixtures golden como mitigacion de riesgo, encabezados legacy preservados verbatim con justificacion en key_decisions, mapeo posicional explicito en REQ-generator-002). Ninguno requiere decision del usuario; rules AGENTS.md vs developer_instructions permanece diferido a design por REQ-codex-target-006, tal como se indico."
+  design:
+    status: done
+    artifact: "openspec/changes/codex-target-profile/design.md"
+    summary: "codex layout codex-plugin: 2 ramas nuevas en transform (agents->TOML, commands->skills), manifest allowlist+rename+interface, degrade marker askQuestions, rules->AGENTS.md (ADR-001), TOML serializer inline. Todo gated por perfil."
+    key_decisions:
+      - "ADR-001: rules->AGENTS.md sintetizado (to-agents-md), no inyeccion per-agent"
+      - "sandbox_mode derivado de tools[] (edit->workspace-write, else read-only)"
+      - "manifest reshape por allowlist keepFields + outLocation rename (no omit/drop)"
+  tasks:
+    status: done
+    artifact: "openspec/changes/codex-target-profile/tasks.md"
+    summary: "5 fases, 24 tareas RED/GREEN/REFACTOR mapeadas a los 8 REQ codex-target + 3 REQ generator (ADDED) + regresion de los 4 targets existentes. Forecast: High risk (~750-950 lineas), size:exception via exception-ok ya aprobado, sin chaining por cohesion de una sola funcion transform()."
+    key_decisions:
+      - "Single PR bajo size:exception (delivery_strategy exception-ok ya aprobado en appr-002); no se fuerza chaining artificial sobre un cambio aditivo cohesivo en una funcion pura"
+      - "Aplicacion del delta de openspec/specs/generator/spec.md (4->5 targets) diferida a sdd-archive, no a sdd-apply"
+  apply:
+    status: done
+    artifact: "openspec/changes/codex-target-profile/apply-progress.md"
+    summary: "Apply completado + remediaciones 4R: comentario codex alineado con vscode/askQuestions y AskUserQuestion; validator codex ahora rechaza residue AskUserQuestion; npm test 1136/1137 (1 skip, 0 fail). Phase 5.1 sigue diferida a sdd-archive por diseño."
+    key_decisions:
+      - "reshapeManifest ganó rama allowlist (keepFields+outLocation+interface) separada del omit/drop existente, sin tocar el comportamiento de claude"
+      - "degrade marker { degrade: '...' } en toolMap, detectado con isDegradeMarker en substituteProse y ambos mapToolsFrontmatter*"
+      - "degrade-marker remediado post-verify: también cubre el alias abstracto AskUserQuestion y reemplaza ocurrencias plain-token, no solo backticked/namespaced"
+      - "handleCommandSkill emite a skills/commands/<name>/SKILL.md (appr-003), resolviendo la colisión con skills/<name>/SKILL.md de contexto sin afectar la invocación $sdd-*"
+      - "warning remediation: validate-codex rechaza AskUserQuestion residual y el comentario de codex.js documenta ambos marcadores degradados"
+  verify:
+    status: done
+    artifact: "openspec/changes/codex-target-profile/verify-report.md"
+    summary: "PASS after Batch 4 warning remediation; focused Codex suites and full npm test pass (1136/1137, 1 skip, 0 fail)."
+    key_decisions:
+      - "No low-reversibility unresolved assumptions; high-reversibility unresolved assumptions do not escalate."
+      - "quality_gates absent in config.yaml, so no quality-gates state block required."
+      - "Task 5.1 remains intentionally deferred to sdd-archive."
+  archive:
+    status: done
+    artifact: "openspec/changes/codex-target-profile/archive-report.md"
+
+gates:
+  4r-review-gate:
+    status: done
+    on_blocker: advisory
+    findings_summary: "0 BLOCKER, 0 CRITICAL, 2 WARNING, 0 SUGGESTION"
+    surfaced_to_user: false
+    rerun_after_remediation: true
+    final_rerun_after_warning_fixes: true
+
+assumptions:
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "model_reasoning_effort se omite junto con model en 5.1 (columna codex ausente en models.yaml), via el resolver fail-soft."
+    reversibility: high
+    basis: "model-resolver.js retorna OMIT sin columna codex; la columna y el effort por tier los agrega 5.4 (fuera de alcance)."
+    recorded_at: "2026-07-08T16:20:00Z"
+    status: unresolved
+  - id: sdd-apply-001
+    phase: sdd-apply
+    statement: "frontLoadDescription antepone `$<name>: ` solo cuando el nombre del comando aparece pasado el presupuesto de 80 chars; si no, deja la descripción intacta."
+    reversibility: high
+    basis: "REQ-codex-target-007 solo restringe el resultado (trigger en los primeros 80 chars), sin mandar un algoritmo exacto; espeja decisiones de formato internas ya tomadas en target-transform.js (toEnvExpansion, toOpencodeVars)."
+    recorded_at: "2026-07-08T17:05:00Z"
+    status: unresolved
+  - id: sdd-apply-002
+    phase: sdd-apply
+    statement: "La prosa exacta del fallback del degrade marker de askQuestions es texto autoral, no verbatim de spec."
+    reversibility: high
+    basis: "REQ-codex-target-005 solo exige protocolo de chat numerado sin referencia al nombre de la tool; el design muestra un ejemplo ilustrativo, no un string fijo."
+    recorded_at: "2026-07-08T17:05:00Z"
+    status: unresolved
+
+baseline_fingerprints:
+  generator: "e5a71d5201e09f87edb30b26c9b32ceeddc15aec5ffbafe6b8ed1ba3863c4911"

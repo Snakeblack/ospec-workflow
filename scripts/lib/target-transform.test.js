@@ -3,11 +3,12 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { transform } = require("./target-transform.js");
+const { transform, serializeAgentToml } = require("./target-transform.js");
 const claude = require("./target-profiles/claude.js");
 const vscode = require("./target-profiles/vscode.js");
 const githubCopilot = require("./target-profiles/github-copilot.js");
 const opencode = require("./target-profiles/opencode.js");
+const codex = require("./target-profiles/codex.js");
 const { parse, getField } = require("./frontmatter.js");
 
 // ---------------------------------------------------------------------------
@@ -104,6 +105,15 @@ function makeSource() {
     {
       path: "skills/foo/SKILL.md",
       content: "---\nname: foo\ndescription: d\n---\n\nbody. Ask via `vscode/askQuestions` when blocked.\n",
+    },
+    {
+      // Pre-existing context-doc skill that shares its base name with
+      // commands/sdd-apply.prompt.md above — reproduces the real-repo
+      // collision (15/18 commands share a base name with a context-doc
+      // skill) so the namespace separation (skills/commands/<name>/) is
+      // exercised even by the in-memory unit fixture.
+      path: "skills/sdd-apply/SKILL.md",
+      content: "---\nname: sdd-apply\ndescription: context doc\n---\n\nThis is the phase-agent context document, not a command.\n",
     },
     {
       path: ".mcp.json",
@@ -779,4 +789,348 @@ test("toEnvExpansion rewrites two placeholders in a single string value — both
   const out = transform({ files, profile: claude, models: MODELS });
   const obj = JSON.parse(find(out, ".mcp.json").content);
   assert.equal(obj.mcpServers.svc.env.COMBINED, "${A:-}-${B:-}", "both placeholders must be normalized in one pass");
+});
+
+// ---------------------------------------------------------------------------
+// Requirement: codex target (Bloque 5.1)
+// ---------------------------------------------------------------------------
+
+test("codex reshapes the manifest to an allowlist + interface at .codex-plugin/plugin.json", () => {
+  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
+  assert.equal(find(out, ".claude-plugin/plugin.json"), undefined, "source manifest path must not survive");
+  const bundle = find(out, ".codex-plugin/plugin.json");
+  assert.ok(bundle, "renamed bundle must exist");
+  const m = JSON.parse(bundle.content);
+  assert.deepEqual(Object.keys(m).sort(), ["hooks", "interface", "mcpServers", "skills"]);
+  assert.equal(m.interface.displayName, "ospec-workflow");
+});
+
+test("codex emits agents as TOML outside the plugin bundle", () => {
+  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
+  const toml = find(out, ".codex/agents/sdd-apply.toml");
+  assert.ok(toml, "agent must be emitted as .codex/agents/sdd-apply.toml");
+  assert.match(toml.content, /name = "sdd-apply"/);
+  assert.match(toml.content, /developer_instructions = """/);
+  assert.ok(!find(out, "agents/sdd-apply.agent.md"), "source-path residue must not survive");
+  const bundle = JSON.parse(find(out, ".codex-plugin/plugin.json").content);
+  assert.ok(!("agents" in bundle), "bundle must not reference agents");
+});
+
+test("codex derives workspace-write sandbox_mode for an edit-capable agent, read-only otherwise", () => {
+  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
+  const apply = find(out, ".codex/agents/sdd-apply.toml").content;
+  assert.match(apply, /sandbox_mode = "workspace-write"/);
+  const orchestrator = find(out, ".codex/agents/sdd-orchestrator.toml").content;
+  assert.match(orchestrator, /sandbox_mode = "read-only"/);
+});
+
+test("codex omits model/model_reasoning_effort when models.yaml has no codex column (fail-soft)", () => {
+  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
+  const apply = find(out, ".codex/agents/sdd-apply.toml").content;
+  assert.doesNotMatch(apply, /^model\s*=/m);
+  assert.doesNotMatch(apply, /^model_reasoning_effort\s*=/m);
+});
+
+test("codex populates model and model_reasoning_effort when codex column is present", () => {
+  const customModels = {
+    agents: {
+      "sdd-apply": "default",
+      "sdd-orchestrator": "premium",
+      _default: "default",
+    },
+    tiers: {
+      premium: {
+        codex: {
+          model: "gpt-5.6-sol",
+          model_reasoning_effort: "high"
+        }
+      },
+      default: {
+        codex: "gpt-5.6-terra"
+      }
+    }
+  };
+
+  const out = transform({ files: makeSource(), profile: codex, models: customModels });
+  const apply = find(out, ".codex/agents/sdd-apply.toml").content;
+  assert.match(apply, /^model = "gpt-5.6-terra"/m);
+  assert.doesNotMatch(apply, /^model_reasoning_effort\s*=/m);
+
+  const orchestrator = find(out, ".codex/agents/sdd-orchestrator.toml").content;
+  assert.match(orchestrator, /^model = "gpt-5.6-sol"/m);
+  assert.match(orchestrator, /^model_reasoning_effort = "high"/m);
+});
+
+test("codex commands become invocable skills under skills/commands/, never a prompts/ path", () => {
+  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
+  const skill = find(out, "skills/commands/sdd-apply/SKILL.md");
+  assert.ok(skill, "command must be emitted as skills/commands/sdd-apply/SKILL.md");
+  assert.ok(!out.files.some((f) => f.path.startsWith("prompts/")), "no prompts/ path must exist");
+});
+
+test("codex rewrites named ${input:x} to positional $1 and drops the agent: routing key with a prose spawn instruction", () => {
+  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
+  const skill = find(out, "skills/commands/sdd-apply/SKILL.md").content;
+  assert.match(skill, /\$1/);
+  assert.doesNotMatch(skill, /\$\{input:/);
+  const fm = parse(skill).frontmatter;
+  assert.equal(getField(fm, "agent"), null, "agent: routing key must not appear in emitted frontmatter");
+  assert.match(skill, /Spawn the `sdd-orchestrator` agent/);
+});
+
+test("codex does not collide the command-derived skill with a pre-existing context-doc skill of the same base name", () => {
+  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
+  const commandSkill = find(out, "skills/commands/sdd-apply/SKILL.md");
+  const contextDoc = find(out, "skills/sdd-apply/SKILL.md");
+  assert.ok(commandSkill, "command-derived skill must exist at skills/commands/sdd-apply/SKILL.md");
+  assert.ok(contextDoc, "pre-existing context-doc skill must survive at skills/sdd-apply/SKILL.md");
+  assert.match(commandSkill.content, /Spawn the `sdd-orchestrator` agent/, "command-derived skill must carry the spawn instruction");
+  assert.match(contextDoc.content, /phase-agent context document/, "context doc must be passed through unchanged");
+  const commandFm = parse(commandSkill.content).frontmatter;
+  assert.equal(getField(commandFm, "name").value, "sdd-apply", "invocation name must be the bare base name, unaffected by the commands/ prefix");
+});
+
+test("codex degrades vscode/askQuestions to a chat-protocol instruction, never a bare tool name", () => {
+  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
+  const apply = find(out, ".codex/agents/sdd-apply.toml").content;
+  assert.match(apply, /numbered plain-chat list/);
+  assert.doesNotMatch(apply, /vscode\//);
+});
+
+test("codex front-loads a skill description whose trigger phrase starts past the 80-char budget", () => {
+  const files = [
+    {
+      path: "commands/sdd-tasks.prompt.md",
+      content:
+        "---\n" +
+        "name: sdd-tasks\n" +
+        "description: \"For teams who want more context on how the review workload forecast for sdd-tasks actually behaves, this command builds it.\"\n" +
+        "---\n" +
+        "\n" +
+        "body\n",
+    },
+  ];
+  const out = transform({ files, profile: codex, models: MODELS });
+  const fm = parse(find(out, "skills/commands/sdd-tasks/SKILL.md").content).frontmatter;
+  const description = getField(fm, "description").value;
+  assert.ok(description.toLowerCase().indexOf("sdd-tasks") < 80, "trigger phrase must be reordered within the first 80 chars");
+});
+
+test("codex leaves an already front-loaded description unchanged", () => {
+  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
+  const fm = parse(find(out, "skills/commands/sdd-apply/SKILL.md").content).frontmatter;
+  assert.equal(getField(fm, "description").value, "desc");
+});
+
+test("codex rules fold into a single synthesized AGENTS.md", () => {
+  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
+  const agentsMd = find(out, "AGENTS.md");
+  assert.ok(agentsMd, "AGENTS.md must be synthesized");
+  assert.match(agentsMd.content, /ALWAYS use OpenSpec/);
+  assert.ok(!out.files.some((f) => f.path.startsWith("rules/")), "rules/ source files must not survive");
+});
+
+test("no vscode/ namespaced strings remain anywhere in a codex tree", () => {
+  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
+  const all = out.files.map((f) => f.content).join("\n");
+  assert.doesNotMatch(all, /vscode\//);
+});
+
+test("codex does not mutate the input collection", () => {
+  const input = makeSource();
+  const before = JSON.stringify(input);
+  transform({ files: input, profile: codex, models: MODELS });
+  assert.equal(JSON.stringify(input), before);
+});
+
+test("codex target transforms hooks/hooks.json to map events and replace ${CLAUDE_PLUGIN_ROOT} with a quoted $PLUGIN_ROOT path", () => {
+  const files = [
+    {
+      path: ".claude-plugin/plugin.json",
+      content: JSON.stringify({
+        name: "ospec-workflow",
+        hooks: "hooks/hooks.json"
+      })
+    },
+    {
+      path: "hooks/hooks.json",
+      content: JSON.stringify({
+        hooks: {
+          SessionStart: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js session-start", timeout: 5 }],
+          PreToolUse: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-tool-use", timeout: 5 }],
+          PreCompact: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-compact", timeout: 5 }],
+          SubagentStop: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js subagent-stop", timeout: 5 }],
+          Stop: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js stop", timeout: 5 }]
+        }
+      })
+    }
+  ];
+
+  const out = transform({ files, profile: codex, models: MODELS });
+  const hooksFile = find(out, "hooks/hooks.json");
+  assert.ok(hooksFile, "hooks/hooks.json must be generated");
+  const parsed = JSON.parse(hooksFile.content);
+
+  assert.ok(parsed.hooks, "hooks object must exist");
+  assert.deepEqual(Object.keys(parsed.hooks).sort(), [
+    "PreCompact",
+    "PreToolUse",
+    "SessionStart",
+    "Stop",
+    "SubagentStop"
+  ]);
+
+  assert.equal(parsed.hooks.SessionStart[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" session-start');
+  assert.equal(parsed.hooks.PreToolUse[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" pre-tool-use');
+  assert.equal(parsed.hooks.PreCompact[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" pre-compact');
+  assert.equal(parsed.hooks.SubagentStop[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" subagent-stop');
+  assert.equal(parsed.hooks.Stop[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" stop');
+});
+
+test("codex hooks reject a non-object hooks map with a clean path-aware error", () => {
+  const files = [
+    {
+      path: "hooks/hooks.json",
+      content: JSON.stringify({ hooks: [] }),
+    },
+  ];
+
+  assert.throws(() => {
+    transform({ files, profile: codex, models: MODELS });
+  }, /hooks\/hooks\.json: hooks must be a non-null object/);
+});
+
+test("codex hooks reject a non-array event entry with event context", () => {
+  const files = [
+    {
+      path: "hooks/hooks.json",
+      content: JSON.stringify({
+        hooks: {
+          SessionStart: { type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js session-start" },
+        },
+      }),
+    },
+  ];
+
+  assert.throws(() => {
+    transform({ files, profile: codex, models: MODELS });
+  }, /hooks\/hooks\.json: hooks\.SessionStart must be an array/);
+});
+
+test("codex hooks reject a non-string command with event and index context", () => {
+  const files = [
+    {
+      path: "hooks/hooks.json",
+      content: JSON.stringify({
+        hooks: {
+          SessionStart: [{ type: "command", command: 42 }],
+        },
+      }),
+    },
+  ];
+
+  assert.throws(() => {
+    transform({ files, profile: codex, models: MODELS });
+  }, /hooks\/hooks\.json: hooks\.SessionStart\[0\]\.command must be a string/);
+});
+
+// ---------------------------------------------------------------------------
+// Requirement: serializeAgentToml escaping (unit, in-memory fixtures)
+// ---------------------------------------------------------------------------
+
+test("serializeAgentToml escapes backslashes and triple-quote runs in developer_instructions", () => {
+  const toml = serializeAgentToml({
+    name: "x",
+    description: "d",
+    sandbox_mode: "read-only",
+    developer_instructions: 'a \\ b """ c\n',
+  });
+  const tripleQuoteCount = (toml.match(/"""/g) || []).length;
+  assert.equal(tripleQuoteCount, 2, "only the opening and closing delimiters may be a literal triple-quote run");
+  assert.ok(toml.includes("a \\\\ b"), "backslash must be doubled");
+});
+
+test("serializeAgentToml escapes a double quote inside a scalar field", () => {
+  const toml = serializeAgentToml({
+    name: 'agent "x"',
+    description: "d",
+    sandbox_mode: "read-only",
+    developer_instructions: "body\n",
+  });
+  assert.ok(toml.includes('name = "agent \\"x\\""'), "embedded double quote must be escaped");
+});
+
+test("serializeAgentToml omits undefined fields (e.g. model when OMIT)", () => {
+  const toml = serializeAgentToml({
+    name: "a",
+    description: "d",
+    sandbox_mode: "read-only",
+    model: undefined,
+    developer_instructions: "b\n",
+  });
+  assert.doesNotMatch(toml, /^model\s*=/m);
+});
+
+test("parseJsonFile throws a clean error when parsing JSON content that is null or a non-object", () => {
+  const files = [
+    {
+      path: ".claude-plugin/plugin.json",
+      content: "null",
+    },
+  ];
+
+  assert.throws(() => {
+    transform({ files, profile: claude, models: MODELS });
+  }, /\.claude-plugin\/plugin\.json: JSON content must be a non-null object/);
+});
+
+test("parseJsonFile throws a clean error when JSON syntax is invalid", () => {
+  const files = [
+    {
+      path: ".claude-plugin/plugin.json",
+      content: "{ bad json }",
+    },
+  ];
+
+  assert.throws(() => {
+    transform({ files, profile: claude, models: MODELS });
+  }, /\.claude-plugin\/plugin\.json: invalid JSON/);
+});
+
+test("transform throws TypeError when files is not an array or profile is not an object", () => {
+  assert.throws(() => {
+    transform({ files: null, profile: claude });
+  }, TypeError);
+
+  assert.throws(() => {
+    transform({ files: [], profile: null });
+  }, TypeError);
+});
+
+test("codex transform throws when hook entry is not an object", () => {
+  const badSource = makeSource();
+  const hooksFile = badSource.find((f) => f.path === "hooks/hooks.json");
+  hooksFile.content = JSON.stringify({
+    hooks: {
+      PreToolUse: ["not-an-object"],
+    },
+  });
+
+  assert.throws(() => {
+    transform({ files: badSource, profile: codex, models: MODELS });
+  }, /hooks\.PreToolUse\[0\] must be an object/);
+});
+
+test("codex transform throws when hook entry command is not a string", () => {
+  const badSource = makeSource();
+  const hooksFile = badSource.find((f) => f.path === "hooks/hooks.json");
+  hooksFile.content = JSON.stringify({
+    hooks: {
+      PreToolUse: [{ command: 123 }],
+    },
+  });
+
+  assert.throws(() => {
+    transform({ files: badSource, profile: codex, models: MODELS });
+  }, /hooks\.PreToolUse\[0\]\.command must be a string/);
 });

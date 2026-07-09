@@ -15,6 +15,7 @@ const test = require("node:test");
 const { runConfigure } = require("./cli.js");
 const { validate } = require("./validate-github-copilot.js");
 const { validate: validateOpencode } = require("./validate-opencode.js");
+const { validate: validateCodex } = require("./validate-codex.js");
 const { matchConditions, parseRoutingTable, validateRouteTable } = require("../lib/route-dispatcher.js");
 
 const ROOT = path.resolve(__dirname, "..", "..");
@@ -41,11 +42,130 @@ function walk(root, relDir = "", acc = []) {
   return acc;
 }
 
-test("real repo: all four targets generate non-empty trees", (t) => {
-  for (const target of ["claude", "vscode", "github-copilot", "opencode"]) {
+test("real repo: all five targets generate non-empty trees", (t) => {
+  for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex"]) {
     const out = tmpOut(t);
     const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
     assert.ok(result.files.length > 0, `${target} produced no files`);
+  }
+});
+
+test("real repo: codex output passes its own validator", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
+
+  const result = validateCodex(out);
+
+  assert.deepEqual(result.errors, [], `validator errors:\n${result.errors.join("\n")}`);
+  assert.ok(fs.existsSync(path.join(out, ".codex", "config.toml")), "codex output must emit .codex/config.toml");
+});
+
+test("validate-codex rejects AskUserQuestion residue in an existing codex tree", (t) => {
+  const out = tmpOut(t);
+
+  fs.mkdirSync(path.join(out, ".codex-plugin"), { recursive: true });
+  fs.mkdirSync(path.join(out, ".codex", "agents"), { recursive: true });
+  fs.mkdirSync(path.join(out, "skills", "foo"), { recursive: true });
+
+  fs.writeFileSync(
+    path.join(out, ".codex-plugin", "plugin.json"),
+    JSON.stringify({ skills: "skills/", mcpServers: ".mcp.json", apps: [], hooks: "hooks/hooks.json", interface: { displayName: "x", icon: "icon.png" } }, null, 2)
+  );
+  fs.writeFileSync(
+    path.join(out, ".codex", "agents", "sdd-apply.toml"),
+    'name = "sdd-apply"\ndescription = "d"\nsandbox_mode = "workspace-write"\ndeveloper_instructions = """clean"""\n'
+  );
+  fs.writeFileSync(path.join(out, "skills", "foo", "SKILL.md"), "AskUserQuestion must not survive here.\n");
+
+  const result = validateCodex(out);
+
+  assert.match(result.errors.join("\n"), /AskUserQuestion/i);
+});
+
+test("real repo: codex ships every source context-doc skill file unchanged, regardless of command-name overlap", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
+
+  const sourceSkills = walk(ROOT, "skills").filter((rel) => rel.endsWith(".md"));
+  assert.ok(sourceSkills.length > 0, "source must contain skills to test");
+  for (const rel of sourceSkills) {
+    // skills/commands/ is the reserved namespace for command-derived skills
+    // (REQ-codex-target-004); no real source skill lives there today, but the
+    // separation itself is what prevents the collision this test guards.
+    assert.ok(fs.existsSync(path.join(out, rel)), `context-doc skill dropped from codex output: ${rel}`);
+  }
+});
+
+// Resolved design-mismatch (see apply-progress.md / appr-003): commandFile.format:"skill"
+// now emits every commands/<name>.prompt.md to skills/commands/<name>/SKILL.md,
+// namespaced away from the repo's pre-existing skills/<name>/SKILL.md convention
+// (phase-agent-loaded context docs, referenced by literal path from agent prose
+// across ALL targets). 15 of the 18 SDD commands share their base name with an
+// existing skills/<name>/ folder; this test asserts BOTH files coexist at two
+// distinct paths with distinct content, per REQ-codex-target-004 Scenario
+// "Command-derived skill does not collide with existing context-doc skill".
+test("real repo: codex command-derived skill coexists with an existing context-doc skill of the same base name, without collision", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
+
+  const sourceSkillNames = new Set(walk(ROOT, "skills").map((rel) => rel.split("/")[1]));
+  const collidingCommands = walk(ROOT, "commands")
+    .filter((rel) => rel.endsWith(".prompt.md"))
+    .map((rel) => rel.slice("commands/".length, rel.length - ".prompt.md".length))
+    .filter((base) => sourceSkillNames.has(base));
+
+  assert.ok(collidingCommands.length > 0, "fixture assumption: at least one command must collide with an existing skill name");
+
+  for (const base of collidingCommands) {
+    const commandSkillPath = path.join(out, "skills", "commands", base, "SKILL.md");
+    const contextDocPath = path.join(out, "skills", base, "SKILL.md");
+    assert.ok(fs.existsSync(commandSkillPath), `command-derived skill missing: skills/commands/${base}/SKILL.md`);
+    assert.ok(fs.existsSync(contextDocPath), `context-doc skill missing: skills/${base}/SKILL.md`);
+    const commandSkill = fs.readFileSync(commandSkillPath, "utf8");
+    assert.match(
+      commandSkill,
+      /Spawn the `[^`]+` agent/,
+      `skills/commands/${base}/SKILL.md must carry the command-derived spawn instruction`
+    );
+  }
+});
+
+test("real repo: codex emits every source agent as TOML outside the plugin bundle", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
+
+  const sourceAgents = walk(ROOT, "agents").filter((rel) => rel.endsWith(".agent.md"));
+  assert.ok(sourceAgents.length > 0, "source must contain agents to test");
+  for (const rel of sourceAgents) {
+    const base = rel.slice("agents/".length, rel.length - ".agent.md".length);
+    assert.ok(
+      fs.existsSync(path.join(out, ".codex", "agents", `${base}.toml`)),
+      `agent not emitted as TOML: .codex/agents/${base}.toml`
+    );
+  }
+
+  const bundle = JSON.parse(fs.readFileSync(path.join(out, ".codex-plugin", "plugin.json"), "utf8"));
+  assert.ok(!("agents" in bundle), "codex plugin bundle must not reference agents");
+});
+
+test("real repo: codex synthesizes a single AGENTS.md from the rules tree", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
+
+  assert.ok(fs.existsSync(path.join(out, "AGENTS.md")), "AGENTS.md must be synthesized");
+  assert.ok(!fs.existsSync(path.join(out, "rules")), "rules/ must not survive in codex output");
+});
+
+test("real repo: no AskUserQuestion residue survives anywhere in the codex tree", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
+
+  for (const file of walk(out)) {
+    if (!file.endsWith(".md") && !file.endsWith(".toml")) {
+      continue;
+    }
+    const text = fs.readFileSync(path.join(out, file), "utf8");
+    assert.doesNotMatch(text, /AskUserQuestion/, `AskUserQuestion residue in ${file}`);
   }
 });
 

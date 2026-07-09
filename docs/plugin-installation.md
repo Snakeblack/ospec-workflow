@@ -90,6 +90,12 @@ node scripts/configure/cli.js --target claude --out dist/claude
 # Claude Code: instalacion persistente con marketplace local
 node scripts/configure/claude-marketplace.js
 
+# Codex CLI (construcción local)
+node scripts/configure/cli.js --target codex --out dist/codex
+
+# Codex CLI (instalación global)
+npm run setup:codex
+
 # GitHub Copilot CLI (construcción local)
 node scripts/configure/cli.js --target github-copilot --out dist/github-copilot
 
@@ -111,6 +117,7 @@ node scripts/configure/cli.js --target claude --out dist/claude --no-validate
 | `vscode` | Carga directa del repositorio fuente con `.plugin.json`; no genera salida. | `node scripts/check.js` |
 | `claude` | Renombra `*.agent.md`/`*.prompt.md` a `*.md`, reestructura el manifiesto y los hooks, sustituye nombres de herramientas, reescribe variables de comando (`${input}` -> `$ARGUMENTS`; `${input:name}` -> `$name` + `arguments:`), incorpora `rules/` y emite el orquestador como **skill** (`skills/sdd-orchestrator/SKILL.md`). Genera `dist/claude/`, pensado para carga temporal con `claude --plugin-dir`. | `claude plugin validate --strict dist/claude` |
 | `claude-marketplace` | Envuelve el arbol Claude en un marketplace local instalable. Genera `dist/claude-marketplace/.claude-plugin/marketplace.json` y coloca el plugin en `dist/claude-marketplace/plugins/ospec-workflow/`. | `claude plugin validate dist/claude-marketplace` y `claude plugin validate --strict dist/claude-marketplace/plugins/ospec-workflow` |
+| `codex` | Genera `.codex-plugin/plugin.json`, `.codex/agents/*.toml` y `.codex/config.toml`. La instalación usa `dist/codex-marketplace/` para registrar el plugin y copia por separado `.codex/agents/` junto con una fusión no destructiva de `.codex/config.toml`. | `scripts/configure/validate-codex.js`, ejecutado por la validacion de perfiles y por `node scripts/check.js`. |
 | `github-copilot` | Genera layout `.github/` con instrucciones, prompts, chatmodes, MCP y runtime de hooks para GitHub Copilot CLI / coding agent. | `scripts/configure/validate-github-copilot.js`, ejecutado por la validacion de perfiles y por `node scripts/check.js`. |
 | `opencode` | Genera layout `.opencode/` (`agents/`, `commands/`, `instructions/`, `plugins/ospec.js`) mas `opencode.json` (schema + `mcp` + `instructions`) para opencode. Renombra el agente principal `sdd-orchestrator` a `ospec-workflow` para su visualización nativa. Sin hooks de shell: el runtime se puentea con un plugin JS. | `scripts/configure/validate-opencode.js`, ejecutado por la validacion de perfiles y por `node scripts/check.js`. |
 
@@ -134,8 +141,45 @@ En Claude Code hay dos salidas distintas:
 - **Claude Code persistente**: genera `dist/claude-marketplace/`, registra ese marketplace local y despues instala `ospec-workflow@ospec-tools`.
 - **GitHub Copilot CLI (Local/Proyecto)**: genera `dist/github-copilot/` y copia su contenido (`.github/`, `.mcp.json` y `scripts/`) en la raiz del repo destino.
 - **GitHub Copilot CLI (Global)**: compila, copia y registra todos los agentes, prompts, instrucciones, hooks y skills en el directorio global del usuario (`~/.copilot/`), fusionando la configuración de MCP en `mcp-config.json` de manera automática y permanente para cualquier proyecto.
+- **Codex CLI (Global)**: compila `dist/codex/`, genera `dist/codex-marketplace/`, intenta registrar `codex plugin marketplace add <ruta>` y `codex plugin add ospec-workflow@ospec-tools`, copia `.codex/agents/*.toml` a `~/.codex/agents/` y fusiona `.codex/config.toml` sin destruir comentarios ni claves ajenas.
+- **Codex CLI (Local/Proyecto)**: `npm run install:codex -- ../mi-proyecto` copia únicamente `.codex/agents/*.toml` y `.codex/config.toml` a `<repo>/.codex/`; preserva archivos no gestionados y no copia `.codex-plugin/plugin.json` dentro del repo destino.
 - **opencode (Local/Proyecto)**: genera `dist/opencode/` y copia su contenido (`.opencode/`, `opencode.json`, `skills/` y `scripts/`) en la raiz del repo destino. opencode descubre agentes/comandos/instrucciones bajo `.opencode/` y lee `opencode.json` (MCP + instructions); el plugin `.opencode/plugins/ospec.js` puentea el runtime de hooks.
 - **opencode (Global)**: compila, copia y registra todos los agentes, comandos, instrucciones y plugins en el directorio global del usuario (`~/.config/opencode/`), fusionando la configuración de MCP en `opencode.json` de manera automática y permanente para cualquier proyecto. En ambos casos de opencode, el agente principal es renombrado a `ospec-workflow`.
+
+### Codex CLI
+
+#### Instalación global (marketplace + agentes + config)
+
+```powershell
+npm run setup:codex
+```
+
+Este instalador:
+1. Compila y valida `dist/codex/`.
+2. Construye `dist/codex-marketplace/` para el registro del plugin.
+3. Copia `.codex/agents/*.toml` a `~/.codex/agents/`.
+4. Fusiona `~/.codex/config.toml` actualizando solo `skills.config` y las claves del bloque `[agents]` definidas por este repositorio.
+5. Si `codex` no está disponible en `PATH`, mantiene el build y muestra los comandos manuales:
+
+```powershell
+codex plugin marketplace add <ruta-absoluta-a-dist/codex-marketplace>
+codex plugin add ospec-workflow@ospec-tools
+```
+
+#### Instalación local por repositorio
+
+```powershell
+npm run install:codex -- ../mi-proyecto
+```
+
+Esta variante escribe solo:
+
+```text
+<repo>/.codex/agents/*.toml
+<repo>/.codex/config.toml
+```
+
+La fusión de `.codex/config.toml` es no destructiva: preserva secciones, comentarios y claves ajenas al bloque gestionado.
 
 ### Claude Code: prueba temporal de una sesion
 
@@ -302,6 +346,40 @@ Este instalador idempotente realiza los siguientes pasos:
    - **Windows**: `C:\Users\<Usuario>\.copilot\`
    - **Linux/macOS**: `~/.copilot/`
 4. Fusiona dinámicamente las configuraciones de servidores MCP de `.mcp.json` con el archivo `mcp-config.json` global de Copilot.
+
+### Codex CLI
+
+El target `codex` permite dos modalidades de instalación: local (por proyecto) y global (para toda la máquina del usuario).
+
+#### Instalación local (por proyecto)
+
+Construye y sincroniza la carpeta del plugin y los agentes TOML directamente en la raíz de tu proyecto de destino:
+
+```powershell
+npm run install:codex -- ../mi-proyecto
+```
+
+Esto copiará el árbol `.codex-plugin/` con su plugin JSON, los agentes TOML en `.codex/agents/`, y fusionará dinámicamente tu archivo `.codex/config.toml` de manera no destructiva.
+
+#### Instalación global (para cualquier proyecto)
+
+Instala el plugin y los agentes de forma permanente a nivel de usuario:
+
+```powershell
+npm run setup:codex
+```
+
+*(Si realizas modificaciones y necesitas actualizar la instalación global, puedes re-ejecutar `npm run reload:codex` o `npm run setup:codex` indistintamente).*
+
+Este instalador idempotente realiza los siguientes pasos:
+1. Compila el target `codex` en `dist/codex/`.
+2. Copia todos los agentes TOML generados al directorio global de agentes de Codex:
+   - **Windows**: `C:\Users\<Usuario>\.codex\agents\`
+   - **Linux/macOS**: `~/.codex/agents/`
+3. Fusiona de forma no destructiva los límites de agentes y configuraciones de skills globales en:
+   - **Windows**: `C:\Users\<Usuario>\.codex\config.toml`
+   - **Linux/macOS**: `~/.codex/config.toml`
+4. Registra el plugin de Codex localmente mediante la base de datos de marketplace local.
 
 ### opencode
 

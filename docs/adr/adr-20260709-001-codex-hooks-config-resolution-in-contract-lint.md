@@ -1,0 +1,20 @@
+# ADR-001: Codex hooks config resolution in contract-lint
+
+- Status: accepted
+- Change: codex-hooks-bridge
+- Date: 2026-07-09
+
+## Context
+The I3 budget constant contract checker validates timeout budgets declared in target config files against lock module constants. The checker runs on source files before building target outputs, which are deleted immediately during target validation syncs.
+
+## Decision
+Load `scripts/lib/target-profiles/codex.js` directly in `i3-budget-constant.js` to dynamically resolve the source path of the hooks configuration file.
+
+## Alternatives
+- Hardcode "hooks/hooks.json" in the checker: rejected as it leaks target configuration details into contract logic.
+- Validate target outputs on disk: rejected because generated targets are cleaned up immediately.
+
+## Consequences
+- Easier: Clean separation of concerns; changes in Codex profile are automatically picked up by the contract linter.
+- Harder: Tight dependency of the checker on target profile file layout.
+- Reversibility: Highly reversible by modifying the loader logic in `i3-budget-constant.js`.

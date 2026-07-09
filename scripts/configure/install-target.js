@@ -24,11 +24,11 @@ const TARGETS = new Set(["opencode", "github-copilot"]);
 
 // Detect the host platform suffix used in CI-compiled binary names.
 function hostBinarySuffix() {
-  const p = process.platform;
-  const a = process.arch;
-  const goos = p === "win32" ? "windows" : p === "darwin" ? "darwin" : "linux";
-  const arch = a === "x64" ? "amd64" : a === "arm64" ? "arm64" : a;
-  const ext = p === "win32" ? ".exe" : "";
+  const platform = process.platform;
+  const archName = process.arch;
+  const goos = platform === "win32" ? "windows" : platform === "darwin" ? "darwin" : "linux";
+  const arch = archName === "x64" ? "amd64" : archName === "arm64" ? "arm64" : archName;
+  const ext = platform === "win32" ? ".exe" : "";
   return { os: goos, arch, ext };
 }
 
@@ -37,12 +37,15 @@ function hostBinarySuffix() {
 // for opencode it lands in release/dist/ (where the plugin's resolveBinary()
 // looks first). If the source binary is absent (pre-CI dev environment),
 // print a warning and skip without failing.
-function copyBinaryToTree(outDir, target, sourceDir) {
+function copyBinaryToTree(outDir, target, sourceDir, deps = {}) {
+  const fsImpl = deps.fs || fs;
+  const stdout = deps.stdout || process.stdout;
+  const stderr = deps.stderr || process.stderr;
   const { os: goos, arch, ext } = hostBinarySuffix();
   const srcBin = path.join(sourceDir, "release", "dist", `ospec-hooks-${goos}-${arch}${ext}`);
 
-  if (!fs.existsSync(srcBin)) {
-    process.stderr.write(
+  if (!fsImpl.existsSync(srcBin)) {
+    stderr.write(
       `[warn] ospec-hooks binary not found at ${srcBin}; skipping copy.\n` +
         `       Run the CI build (build-hooks.yml) or 'go build -o release/dist/ospec-hooks-${goos}-${arch}${ext} ./cmd/ospec-hooks' first.\n`,
     );
@@ -61,15 +64,15 @@ function copyBinaryToTree(outDir, target, sourceDir) {
 
   for (const dest of destinations) {
     try {
-      fs.mkdirSync(path.dirname(dest), { recursive: true });
-      fs.copyFileSync(srcBin, dest);
+      fsImpl.mkdirSync(path.dirname(dest), { recursive: true });
+      fsImpl.copyFileSync(srcBin, dest);
       // Set executable bit on POSIX systems so the shell can invoke the binary.
       if (process.platform !== "win32") {
-        fs.chmodSync(dest, 0o755);
+        fsImpl.chmodSync(dest, 0o755);
       }
-      process.stdout.write(`  + ospec-hooks${ext} -> ${path.relative(outDir, dest)}\n`);
+      stdout.write(`  + ospec-hooks${ext} -> ${path.relative(outDir, dest)}\n`);
     } catch (err) {
-      process.stderr.write(`[warn] failed to copy binary to ${dest}: ${err.message}. Continuing sync.\n`);
+      stderr.write(`[warn] failed to copy binary to ${dest}: ${err.message}. Continuing sync.\n`);
     }
   }
 }
@@ -151,62 +154,68 @@ function assertSafeDest(destDir, sourceDir) {
   }
 }
 
-function main(argv) {
+function main(argv, deps = {}) {
+  const fsImpl = deps.fs || fs;
+  const stdout = deps.stdout || process.stdout;
+  const stderr = deps.stderr || process.stderr;
+  const runConfigureImpl = deps.runConfigure || runConfigure;
+  const exitCodeTarget = deps.exitCodeTarget || process;
+
   const args = parseArgs(argv);
   const sourceDir = path.resolve(args.source || process.cwd());
 
   if (!TARGETS.has(args.target) || !args.dest) {
-    process.stderr.write(
+    stderr.write(
       "usage: install-target <opencode|github-copilot> <destRepo> [--dry-run] [--no-validate]\n" +
         "  e.g. npm run install:opencode -- ../my-project\n",
     );
-    process.exitCode = 2;
+    exitCodeTarget.exitCode = 2;
     return;
   }
 
   const destDir = path.resolve(args.dest);
   assertSafeDest(destDir, sourceDir);
-  if (!fs.existsSync(destDir) || !fs.statSync(destDir).isDirectory()) {
-    process.stderr.write(`destination is not an existing directory: ${destDir}\n`);
-    process.exitCode = 2;
+  if (!fsImpl.existsSync(destDir) || !fsImpl.statSync(destDir).isDirectory()) {
+    stderr.write(`destination is not an existing directory: ${destDir}\n`);
+    exitCodeTarget.exitCode = 2;
     return;
   }
 
   // Build into dist/<target>. The opencode/copilot validators are pure Node, so
   // validation is safe to run here (no external CLI needed, unlike claude).
   const outDir = path.join(sourceDir, "dist", args.target);
-  const result = runConfigure({ sourceDir, target: args.target, outDir, validate: args.validate });
+  const result = runConfigureImpl({ sourceDir, target: args.target, outDir, validate: args.validate });
 
-  if (result.validation?.stdout) process.stdout.write(result.validation.stdout);
-  if (result.validation?.stderr) process.stderr.write(result.validation.stderr);
+  if (result.validation?.stdout) stdout.write(result.validation.stdout);
+  if (result.validation?.stderr) stderr.write(result.validation.stderr);
   if (result.exitCode !== 0) {
-    process.stderr.write("\nbuild/validation failed; nothing synced\n");
-    process.exitCode = result.exitCode;
+    stderr.write("\nbuild/validation failed; nothing synced\n");
+    exitCodeTarget.exitCode = result.exitCode;
     return;
   }
 
   // Copy the platform binary into the generated tree before syncing. This is
   // best-effort: if the binary is absent (pre-CI dev), a warning is printed and
   // the rest of the sync proceeds normally.
-  copyBinaryToTree(outDir, args.target, sourceDir);
+  copyBinaryToTree(outDir, args.target, sourceDir, deps);
 
   // Copy each top-level generated entry (including dotfiles) into the dest root,
   // overwriting same-path files. force:true replaces; recursive walks dirs.
-  const entries = fs.readdirSync(outDir);
-  process.stdout.write(`\n${args.dryRun ? "[dry-run] would sync" : "sync"} ${outDir} -> ${destDir}\n`);
+  const entries = fsImpl.readdirSync(outDir);
+  stdout.write(`\n${args.dryRun ? "[dry-run] would sync" : "sync"} ${outDir} -> ${destDir}\n`);
   for (const entry of entries) {
     const src = path.join(outDir, entry);
     const dst = path.join(destDir, entry);
-    process.stdout.write(`  ${args.dryRun ? "·" : "+"} ${entry}\n`);
+    stdout.write(`  ${args.dryRun ? "·" : "+"} ${entry}\n`);
     if (!args.dryRun) {
-      fs.cpSync(src, dst, { recursive: true, force: true });
+      fsImpl.cpSync(src, dst, { recursive: true, force: true });
     }
   }
 
   if (args.dryRun) {
-    process.stdout.write("\n[dry-run] no files written.\n");
+    stdout.write("\n[dry-run] no files written.\n");
   } else {
-    process.stdout.write(`\nDone. ${args.target} workflow synced into ${destDir}.\n`);
+    stdout.write(`\nDone. ${args.target} workflow synced into ${destDir}.\n`);
   }
 }
 
@@ -219,4 +228,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { main, assertSafeDest, parseArgs, copyBinaryToTree };
+module.exports = { main, assertSafeDest, parseArgs, copyBinaryToTree, hostBinarySuffix };

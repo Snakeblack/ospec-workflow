@@ -1,0 +1,9 @@
+name = "sdd-apply"
+description = "Implement assigned SDD tasks under strict TDD."
+sandbox_mode = "workspace-write"
+developer_instructions = """
+
+# SDD Apply
+
+Use read and search to find the work. Ask via ask blocking gate questions as a numbered plain-chat list (e.g. "1) Option A  2) Option B") and wait for the user to reply with a number — do not invoke any tool to ask when blocked.
+"""

@@ -23,6 +23,37 @@ function toPosix(relativePath) {
   return relativePath.split(path.sep).join("/");
 }
 
+function loadCodexProfileSource(loadCodexProfile) {
+  const codexProfilePath = "scripts/lib/target-profiles/codex.js";
+  try {
+    const codexProfile = loadCodexProfile();
+    if (!codexProfile || !codexProfile.hooks || typeof codexProfile.hooks.source !== "string" || !codexProfile.hooks.source) {
+      return {
+        source: null,
+        offender: {
+          checker: "i3-budget-constant",
+          path: codexProfilePath,
+          expected: "a requireable profile exporting hooks.source as a non-empty string",
+          actual: JSON.stringify(codexProfile && codexProfile.hooks ? codexProfile.hooks.source : undefined),
+          message: `${codexProfilePath} must export hooks.source as a non-empty string`,
+        },
+      };
+    }
+    return { source: codexProfile.hooks.source };
+  } catch (err) {
+    return {
+      source: null,
+      offender: {
+        checker: "i3-budget-constant",
+        path: codexProfilePath,
+        expected: "a requireable profile exporting hooks.source as a non-empty string",
+        actual: err.message,
+        message: `${codexProfilePath} could not be required/loaded: ${err.message}`,
+      },
+    };
+  }
+}
+
 /**
  * Generalized declared-budget<->runtime-constant relationship check: the
  * runtime value MUST be `<= declaredCeilingMs` (does not exceed the declared
@@ -75,41 +106,9 @@ function checkBudgetRelationship({
  */
 function check(ctx) {
   const root = ctx.root;
-  const hooksJsonPath = path.join(root, "hooks", "hooks.json");
+  const loadCodexProfile = ctx.loadCodexProfile || (() => require("../target-profiles/codex.js"));
   const ospecStatePath = path.join(root, "scripts", "lib", "ospec-state.js");
-  const declaredPath = toPosix(path.relative(root, hooksJsonPath));
   const runtimePath = toPosix(path.relative(root, ospecStatePath));
-
-  let hooksConfig;
-  try {
-    hooksConfig = JSON.parse(fs.readFileSync(hooksJsonPath, "utf8"));
-  } catch (err) {
-    return [
-      {
-        checker: "i3-budget-constant",
-        path: declaredPath,
-        expected: "a valid JSON file declaring hooks.SessionStart[0].timeout",
-        actual: err.message,
-        message: `${declaredPath} could not be read/parsed as JSON: ${err.message}`,
-      },
-    ];
-  }
-
-  const sessionStartEntry =
-    hooksConfig.hooks && Array.isArray(hooksConfig.hooks.SessionStart) ? hooksConfig.hooks.SessionStart[0] : undefined;
-  const sessionStartTimeoutSec = sessionStartEntry && sessionStartEntry.timeout;
-
-  if (typeof sessionStartTimeoutSec !== "number" || sessionStartTimeoutSec <= 0) {
-    return [
-      {
-        checker: "i3-budget-constant",
-        path: declaredPath,
-        expected: "hooks.SessionStart[0].timeout to be a positive number",
-        actual: JSON.stringify(sessionStartTimeoutSec),
-        message: `${declaredPath} SessionStart entry must declare a positive numeric timeout`,
-      },
-    ];
-  }
 
   let lockModule;
   try {
@@ -128,14 +127,85 @@ function check(ctx) {
 
   const { LOCK_RETRY_ATTEMPTS, LOCK_RETRY_DELAY_MS, LOCK_STALE_MS } = lockModule;
 
-  return checkBudgetRelationship({
-    declaredCeilingMs: sessionStartTimeoutSec * 1000,
-    runtimeValueMs: LOCK_STALE_MS,
-    floorMs: LOCK_RETRY_ATTEMPTS * LOCK_RETRY_DELAY_MS,
-    declaredPath,
-    runtimePath,
-    runtimeConstantName: "LOCK_STALE_MS",
+  const seenPaths = new Set();
+  const configsToCheck = [];
+
+  const defaultSource = "hooks/hooks.json";
+  configsToCheck.push({
+    source: defaultSource,
+    label: "default"
   });
+  seenPaths.add(defaultSource);
+
+  const offenders = [];
+  const codexProfileResult = loadCodexProfileSource(loadCodexProfile);
+  if (codexProfileResult.offender) {
+    offenders.push(codexProfileResult.offender);
+  } else if (!seenPaths.has(codexProfileResult.source)) {
+    configsToCheck.push({
+      source: codexProfileResult.source,
+      label: "codex"
+    });
+    seenPaths.add(codexProfileResult.source);
+  }
+
+  for (const config of configsToCheck) {
+    const hooksJsonPath = path.join(root, config.source);
+    const declaredPath = toPosix(path.relative(root, hooksJsonPath));
+
+    let hooksConfig;
+    try {
+      hooksConfig = JSON.parse(fs.readFileSync(hooksJsonPath, "utf8"));
+    } catch (err) {
+      offenders.push({
+        checker: "i3-budget-constant",
+        path: declaredPath,
+        expected: "a valid JSON file declaring hooks.SessionStart[0].timeout",
+        actual: err.message,
+        message: `${declaredPath} could not be read/parsed as JSON: ${err.message}`,
+      });
+      continue;
+    }
+
+    if (hooksConfig === null || typeof hooksConfig !== "object") {
+      offenders.push({
+        checker: "i3-budget-constant",
+        path: declaredPath,
+        expected: "hooks config to be a non-null object",
+        actual: hooksConfig === null ? "null" : typeof hooksConfig,
+        message: `${declaredPath} hooks config must be a non-null object`,
+      });
+      continue;
+    }
+
+    const sessionStartEntry =
+      hooksConfig.hooks && Array.isArray(hooksConfig.hooks.SessionStart) ? hooksConfig.hooks.SessionStart[0] : undefined;
+    const sessionStartTimeoutSec = sessionStartEntry && sessionStartEntry.timeout;
+
+    if (typeof sessionStartTimeoutSec !== "number" || sessionStartTimeoutSec <= 0) {
+      offenders.push({
+        checker: "i3-budget-constant",
+        path: declaredPath,
+        expected: "hooks.SessionStart[0].timeout to be a positive number",
+        actual: JSON.stringify(sessionStartTimeoutSec),
+        message: `${declaredPath} SessionStart entry must declare a positive numeric timeout`,
+      });
+      continue;
+    }
+
+    const budgetOffenders = checkBudgetRelationship({
+      declaredCeilingMs: sessionStartTimeoutSec * 1000,
+      runtimeValueMs: LOCK_STALE_MS,
+      floorMs: LOCK_RETRY_ATTEMPTS * LOCK_RETRY_DELAY_MS,
+      declaredPath,
+      runtimePath,
+      runtimeConstantName: "LOCK_STALE_MS",
+    });
+
+    offenders.push(...budgetOffenders);
+  }
+
+  return offenders;
 }
 
 module.exports = { check, checkBudgetRelationship };

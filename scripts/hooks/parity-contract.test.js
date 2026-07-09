@@ -28,6 +28,11 @@ function cleanEnv() {
   for (const key of Object.keys(env)) {
     if (key.startsWith("DISABLE_")) delete env[key];
   }
+  // Enforce disabling advisory guards during parity tests to prevent actual
+  // session state (e.g. accumulated tokens, git status) from breaking assertions.
+  env.DISABLE_TOKEN_ADVISOR = "true";
+  env.DISABLE_GIT_COLLABORATION_GUARD = "true";
+  env.DISABLE_SPEC_DRIFT_GUARD = "true";
   return env;
 }
 

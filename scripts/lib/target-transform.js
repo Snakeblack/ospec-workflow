@@ -11,21 +11,28 @@ const { resolveModel, OMIT } = require("./model-resolver.js");
 
 // A file collection is an array of { path, content:string }.
 
-function transform({ files, profile, models }) {
+function transform({ files, profile, models } = {}) {
+  if (!Array.isArray(files)) {
+    throw new TypeError("files must be an array of { path, content }");
+  }
+  if (!profile || typeof profile !== "object") {
+    throw new TypeError("profile must be a non-null object");
+  }
   const rulesContent = collectRules(files, profile);
   const out = [];
 
   for (const file of files) {
     const handled = handleFile(file, profile, models, rulesContent);
     if (handled === null) {
-      continue; // dropped (e.g. rules inlined elsewhere)
+      continue; // dropped (e.g. rules inlined elsewhere, or folded into AGENTS.md)
     }
     out.push(handled);
   }
 
   // Files synthesized from collected source data (not 1:1 with any input): the
-  // opencode.json config (schema + mcp + instructions) and the plugin shim.
-  for (const synthesized of synthesizeFiles(files, profile)) {
+  // opencode.json config (schema + mcp + instructions), the plugin shim, and a
+  // synthesized AGENTS.md for the codex-style "to-agents-md" rules strategy.
+  for (const synthesized of synthesizeFiles(files, profile, rulesContent)) {
     out.push(synthesized);
   }
 
@@ -55,6 +62,10 @@ function handleFile(file, profile, models, rulesContent) {
     return copilotHooks(file, profile);
   }
 
+  if (profile.hooks && profile.hooks.format === "codex" && path === (profile.hooks.source || "hooks/hooks.json")) {
+    return codexHooks(file, profile);
+  }
+
   if (isRulesFile(path)) {
     if (profile.rules && isInlineStrategy(profile.rules.strategy)) {
       return null; // content folded into the orchestrator agent/skill
@@ -65,6 +76,9 @@ function handleFile(file, profile, models, rulesContent) {
     if (profile.rules && profile.rules.strategy === "to-instructions-config") {
       return toInstructionConfigFile(file, profile);
     }
+    if (profile.rules && profile.rules.strategy === "to-agents-md") {
+      return null; // folded into the synthesized AGENTS.md (ADR-001)
+    }
     return { path, content: file.content };
   }
 
@@ -72,10 +86,16 @@ function handleFile(file, profile, models, rulesContent) {
     if (profile.orchestrator && profile.orchestrator.emitAs === "skill" && agentBaseName(path, profile) === profile.orchestrator.agent) {
       return emitOrchestratorSkill(file, profile, rulesContent);
     }
+    if (profile.agentFile.format === "toml") {
+      return handleAgentToml(file, profile, models);
+    }
     return handleAgent(file, profile, models);
   }
 
   if (isCommand(path, profile)) {
+    if (profile.commandFile.format === "skill") {
+      return handleCommandSkill(file, profile);
+    }
     return handleCommand(file, profile);
   }
 
@@ -102,6 +122,20 @@ function handleFile(file, profile, models, rulesContent) {
 
 function isInlineStrategy(strategy) {
   return strategy === "inline-into-orchestrator";
+}
+
+// Strategies whose rules content is accumulated across all rules/*.md files
+// rather than emitted 1:1 per file: inlined into the orchestrator (claude) or
+// folded into a single synthesized AGENTS.md (codex, ADR-001).
+function isAccumulateStrategy(strategy) {
+  return isInlineStrategy(strategy) || strategy === "to-agents-md";
+}
+
+// A toolMap entry MAY be a degradation marker instead of a literal tool
+// name/array: { degrade: "<fallback prose>" }. Declared for abstract tool
+// names with no equivalent on a target (e.g. codex has no ask-tool).
+function isDegradeMarker(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value) && typeof value.degrade === "string";
 }
 
 function isDropped(path, profile) {
@@ -139,18 +173,40 @@ function renameExtension(path, { from, to }) {
 // any syntax error so a malformed config names the offending file instead of
 // aborting the whole transform with an opaque SyntaxError.
 function parseJsonFile(file) {
+  let obj;
   try {
-    return JSON.parse(file.content);
+    obj = JSON.parse(file.content);
   } catch (err) {
     throw new Error(`${file.path}: invalid JSON: ${err.message}`);
   }
+  if (obj === null || typeof obj !== "object") {
+    throw new Error(`${file.path}: JSON content must be a non-null object`);
+  }
+  return obj;
 }
 
 // --- manifest --------------------------------------------------------------
 
 function reshapeManifest(file, profile) {
   const obj = parseJsonFile(file);
-  const { omitFields = [], dropFields = [] } = profile.manifest;
+  const { omitFields = [], dropFields = [], keepFields, outLocation, interface: iface } = profile.manifest;
+
+  // Allowlist + rename branch (codex): keep only the declared keys, inject an
+  // optional `interface` metadata block, and write to a renamed output path.
+  // Preferred over an omit/drop deny-list because it is future-proof against
+  // new canonical manifest keys and satisfies "no other top-level keys".
+  if (Array.isArray(keepFields)) {
+    const kept = {};
+    for (const key of keepFields) {
+      if (key in obj) {
+        kept[key] = obj[key];
+      }
+    }
+    if (iface) {
+      kept.interface = iface;
+    }
+    return { path: outLocation || file.path, content: JSON.stringify(kept, null, 2) };
+  }
 
   for (const key of omitFields) {
     if (typeof obj[key] === "string") {
@@ -207,10 +263,60 @@ function copilotHooks(file, profile) {
   return { path: profile.hooks.location, content: JSON.stringify({ version: 1, hooks: out }, null, 2) };
 }
 
+function validateHooksObject(file, hooks) {
+  if (!hooks || typeof hooks !== "object" || Array.isArray(hooks)) {
+    throw new Error(`${file.path}: hooks must be a non-null object`);
+  }
+}
+
+function validateHookEntries(file, event, entries) {
+  if (!Array.isArray(entries)) {
+    throw new Error(`${file.path}: hooks.${event} must be an array`);
+  }
+}
+
+function quotePluginRootPath(command) {
+  return command.replace(/(?<!")\$PLUGIN_ROOT\/[^\s"]+/g, (match) => `"${match}"`);
+}
+
+function rewriteCodexCommand(file, event, index, entry) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    throw new Error(`${file.path}: hooks.${event}[${index}] must be an object`);
+  }
+  if (typeof entry.command !== "string") {
+    throw new Error(`${file.path}: hooks.${event}[${index}].command must be a string`);
+  }
+
+  const command = entry.command.split("${CLAUDE_PLUGIN_ROOT}").join("$PLUGIN_ROOT");
+  return quotePluginRootPath(command);
+}
+
+// Reshape the source hooks for Codex: mapping events 1:1 PascalCase
+// and substituting ${CLAUDE_PLUGIN_ROOT} with a quoted $PLUGIN_ROOT path.
+function codexHooks(file, profile) {
+  const obj = parseJsonFile(file);
+  const events = obj.hooks;
+  validateHooksObject(file, events);
+  const out = {};
+
+  for (const [event, entries] of Object.entries(events)) {
+    validateHookEntries(file, event, entries);
+    out[event] = entries.map((entry, index) => {
+      const command = rewriteCodexCommand(file, event, index, entry);
+      return {
+        ...entry,
+        command,
+      };
+    });
+  }
+
+  return { path: profile.hooks.location || file.path, content: JSON.stringify({ hooks: out }, null, 2) + "\n" };
+}
+
 // --- rules inlining --------------------------------------------------------
 
 function collectRules(files, profile) {
-  if (!profile.rules || !isInlineStrategy(profile.rules.strategy)) {
+  if (!profile.rules || !isAccumulateStrategy(profile.rules.strategy)) {
     return "";
   }
 
@@ -322,6 +428,102 @@ function handleAgent(file, profile, models) {
   return { path: newPath, content: serialize({ frontmatter, body }) };
 }
 
+// --- agents: TOML emission (codex-style profiles, agentFile.format:"toml") -
+
+// Derive sandbox_mode from the agent's existing `tools` capability declaration
+// (read pre-strip, like the `mode` derivation from user-invocable above): a
+// grant that includes the write-capable tool (default "edit") is
+// workspace-write; every other agent (the 4R reviewers, read-only workers) is
+// read-only. No new frontmatter field is introduced solely for this purpose
+// (REQ-codex-target-003).
+function deriveSandboxMode(tools, profile) {
+  const config = profile.sandboxByCapability || {};
+  const writeTool = config.writeTool || "edit";
+  const write = config.write || "workspace-write";
+  const read = config.read || "read-only";
+  return Array.isArray(tools) && tools.includes(writeTool) ? write : read;
+}
+
+// agents/<name>.agent.md -> profile.agentFile.to (e.g. .codex/agents/<name>.toml).
+// Frontmatter name/description become top-level TOML keys, the body folds into
+// `developer_instructions`, sandbox_mode derives from tools[], and model/
+// model_reasoning_effort resolve via the existing fail-soft resolveModel (OMIT
+// when models.yaml has no column for this target — 5.1 has none for codex, so
+// both keys are simply absent). The emitted file is excluded from the profile's
+// plugin manifest bundle: reshapeManifest's keepFields allowlist never
+// references agents, so this exclusion falls out of that allowlist naturally.
+function handleAgentToml(file, profile, models) {
+  const { frontmatter, body } = parse(file.content);
+  const nameField = getField(frontmatter, "name");
+  const name = nameField ? nameField.value : undefined;
+  const descField = getField(frontmatter, "description");
+  const description = descField ? descField.value : "";
+  const toolsField = getField(frontmatter, "tools");
+  const tools = toolsField && Array.isArray(toolsField.value) ? toolsField.value : [];
+
+  const fields = {
+    name,
+    description,
+    sandbox_mode: deriveSandboxMode(tools, profile),
+  };
+
+  if (name) {
+    const resolved = resolveModel(name, profile.id, models);
+    if (resolved !== OMIT) {
+      const isObject = typeof resolved === "object" && resolved !== null && !Array.isArray(resolved);
+      fields.model = isObject ? resolved.model : (Array.isArray(resolved) ? resolved[0] : resolved);
+      if (isObject && resolved.model_reasoning_effort) {
+        fields.model_reasoning_effort = resolved.model_reasoning_effort;
+      }
+    }
+  }
+
+  let devInstructions = body;
+  if (profile.toolMap) {
+    devInstructions = substituteProse(devInstructions, profile.toolMap);
+  }
+  devInstructions = substituteAgentNames(devInstructions, profile);
+  fields.developer_instructions = devInstructions.replace(/\s+$/, "") + "\n";
+
+  let newPath = renameExtension(file.path, profile.agentFile);
+  if (profile.agentDir) {
+    newPath = remapDir(newPath, "agents/", profile.agentDir);
+  }
+
+  return { path: newPath, content: serializeAgentToml(fields) };
+}
+
+// Escape a TOML basic string scalar: backslash then double quote.
+function tomlEscapeScalar(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+// Escape a TOML multi-line basic string body: backslash, then any `"""` run
+// (which would otherwise prematurely close the block) split with an escaped
+// quote so it can never be mistaken for the closing delimiter.
+function tomlEscapeMultiline(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/"""/g, '""\\"');
+}
+
+// Minimal, dependency-free TOML serializer for the flat agent shape: scalar
+// `key = "…"` lines plus a trailing `developer_instructions` multiline basic
+// string. Node 22 ships no core TOML writer and the project forbids runtime
+// dependencies (CommonJS pure), so this mirrors the constrained-subset
+// `parseModels` approach already used in cli.js.
+function serializeAgentToml(fields) {
+  const lines = [];
+  for (const [key, value] of Object.entries(fields)) {
+    if (key === "developer_instructions" || value === undefined || value === null) {
+      continue;
+    }
+    lines.push(`${key} = "${tomlEscapeScalar(value)}"`);
+  }
+  if (fields.developer_instructions !== undefined) {
+    lines.push(`developer_instructions = """\n${tomlEscapeMultiline(fields.developer_instructions)}"""`);
+  }
+  return lines.join("\n") + "\n";
+}
+
 // --- commands --------------------------------------------------------------
 
 function handleCommand(file, profile) {
@@ -400,6 +602,75 @@ function handleCommand(file, profile) {
   return { path: newPath, content: serialize({ frontmatter, body }) };
 }
 
+// --- commands: invocable skill emission (codex-style profiles) -------------
+
+// Front-load the trigger phrase within the first 80 characters of a skill
+// description. Codex truncates descriptions under progressive disclosure once
+// many skills are installed, so the invocable name must not be buried behind a
+// preamble. If the command's bare name does not appear in the description at
+// all, or already appears within the budget, the description is returned
+// unchanged (covers the common case where the description already opens with
+// an action verb, e.g. "Create implementation tasks…").
+function frontLoadDescription(description, name, limit = 80) {
+  const idx = description.toLowerCase().indexOf(name.toLowerCase());
+  if (idx === -1 || idx < limit) {
+    return description;
+  }
+  return `$${name}: ${description}`;
+}
+
+// commands/<name>.prompt.md -> skills/commands/<name>/SKILL.md, invocable as
+// $<name> via the frontmatter `name:` field (the invocation name is
+// unaffected by the `commands/` output directory prefix). The `commands/`
+// namespace is REQUIRED — never the bare skills/<name>/SKILL.md path — because
+// that bare path is already the established output for pre-existing
+// context-doc skills (phase-agent docs referenced by literal path from agent
+// prose); most SDD commands share a base name with one of those, so emitting
+// at the bare path would silently collide (REQ-codex-target-004,
+// REQ-generator-002). Named ${input:x} variables rewrite to positional
+// $1/$ARGUMENTS (the same substitution style already used by the opencode
+// profile), the `agent:` routing key becomes an explicit prose spawn
+// instruction (the key itself is dropped from the emitted frontmatter — Codex
+// skills have no routing key), and the description is front-loaded for
+// progressive disclosure.
+function handleCommandSkill(file, profile) {
+  const base = file.path.slice("commands/".length, file.path.length - profile.commandFile.from.length);
+  const newPath = `skills/commands/${base}/SKILL.md`;
+  let { frontmatter, body } = parse(file.content);
+
+  const agentField = getField(frontmatter, "agent");
+  frontmatter = stripKeys(frontmatter, ["agent", "target", "tools", "argument-hint"]);
+
+  if (agentField && agentField.value) {
+    body = `\nSpawn the \`${agentField.value}\` agent to carry out this skill.\n` + body;
+  }
+
+  const order = [];
+  body = body.replace(/\$\{input:([A-Za-z0-9_-]+)\}/g, (_match, name) => {
+    let index = order.indexOf(name);
+    if (index === -1) {
+      order.push(name);
+      index = order.length - 1;
+    }
+    return "$" + (index + 1);
+  });
+  body = body.replace(/\$\{input\}/g, "$ARGUMENTS");
+
+  if (profile.toolMap) {
+    body = substituteProse(body, profile.toolMap);
+  }
+  body = substituteAgentNames(body, profile);
+
+  frontmatter = setScalar(frontmatter, "name", base);
+  const descField = getField(frontmatter, "description");
+  if (descField && descField.value) {
+    const description = substituteAgentNames(descField.value, profile);
+    frontmatter = setScalar(frontmatter, "description", frontLoadDescription(description, base));
+  }
+
+  return { path: newPath, content: serialize({ frontmatter, body }) };
+}
+
 // --- tool-name substitution ------------------------------------------------
 
 function mapToolsFrontmatter(frontmatter, toolMap, dropTools) {
@@ -415,6 +686,9 @@ function mapToolsFrontmatter(frontmatter, toolMap, dropTools) {
       continue; // tool has no equivalent on this target; remove from the grant
     }
     const replacement = toolMap[tool];
+    if (isDegradeMarker(replacement)) {
+      continue; // degraded ask-tool: no tool name is emitted for it
+    }
     if (replacement === undefined) {
       mapped.push(tool);
     } else if (Array.isArray(replacement)) {
@@ -444,6 +718,9 @@ function mapToolsFrontmatterAsMap(frontmatter, toolMap, dropTools) {
       continue;
     }
     const replacement = toolMap[tool];
+    if (isDegradeMarker(replacement)) {
+      continue; // degraded ask-tool: no tool name is emitted for it
+    }
     const names = replacement === undefined ? [tool] : Array.isArray(replacement) ? replacement : [replacement];
     for (const name of names) {
       if (!seen.has(name)) {
@@ -489,7 +766,7 @@ function toInstructionConfigFile(file, profile) {
 // --- synthesized files (opencode.json + plugin) ----------------------------
 
 // Files built from collected source data rather than mapped 1:1 from an input.
-function synthesizeFiles(files, profile) {
+function synthesizeFiles(files, profile, rulesContent) {
   const out = [];
 
   if (profile.config) {
@@ -497,6 +774,10 @@ function synthesizeFiles(files, profile) {
   }
   if (profile.plugin) {
     out.push({ path: profile.plugin.location, content: profile.plugin.source });
+  }
+  if (profile.rules && profile.rules.strategy === "to-agents-md" && rulesContent) {
+    const location = profile.rules.outLocation || "AGENTS.md";
+    out.push({ path: location, content: rulesContent.replace(/\s+$/, "") + "\n" });
   }
 
   return out;
@@ -626,6 +907,18 @@ function substituteProse(body, toolMap) {
 
   for (const key of keys) {
     const replacement = toolMap[key];
+
+    if (isDegradeMarker(replacement)) {
+      // Degradation marker (e.g. codex's askQuestions / AskUserQuestion -> chat
+      // protocol): replace every distinct tool-token occurrence with the
+      // declared fallback instruction text, never with a bare tool-name
+      // substitution. This intentionally covers plain prose tokens too, not
+      // only backticked ones, because cross-target docs often mention the
+      // abstract AskUserQuestion alias without code formatting.
+      out = out.replace(tokenRegExp(key), replacement.degrade);
+      continue;
+    }
+
     const primary = Array.isArray(replacement) ? replacement[0] : replacement;
     if (key.includes("/")) {
       out = out.replace(tokenRegExp(key), primary);
@@ -646,4 +939,4 @@ function substituteAgentNames(body, profile) {
   return body;
 }
 
-module.exports = { transform };
+module.exports = { transform, serializeAgentToml };
