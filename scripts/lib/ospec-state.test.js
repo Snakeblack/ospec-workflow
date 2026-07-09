@@ -922,6 +922,10 @@ test("withFileLock serializes concurrent callers around the same lock file", asy
 });
 
 test("withFileLock retries transient Windows EPERM lock-open races", async (t) => {
+  if (process.platform !== "win32") {
+    t.skip("Windows-specific lock contention test");
+    return;
+  }
   const workspace = await createWorkspace(t);
   const lockTarget = path.join(workspace, "state.yaml");
   const originalOpen = fs.open;
@@ -950,6 +954,10 @@ test("withFileLock retries transient Windows EPERM lock-open races", async (t) =
 });
 
 test("withFileLock retries transient Windows EACCES lock-open races", async (t) => {
+  if (process.platform !== "win32") {
+    t.skip("Windows-specific lock contention test");
+    return;
+  }
   const workspace = await createWorkspace(t);
   const lockTarget = path.join(workspace, "state.yaml");
   const originalOpen = fs.open;
