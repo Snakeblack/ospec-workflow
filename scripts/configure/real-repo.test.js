@@ -57,7 +57,7 @@ test("real repo: codex output passes its own validator", (t) => {
   const result = validateCodex(out);
 
   assert.deepEqual(result.errors, [], `validator errors:\n${result.errors.join("\n")}`);
-  assert.ok(fs.existsSync(path.join(out, ".codex", "config.toml")), "codex output must emit .codex/config.toml");
+  assert.ok(!fs.existsSync(path.join(out, ".codex", "config.toml")), "codex output must not emit .codex/config.toml");
 });
 
 test("validate-codex rejects AskUserQuestion residue in an existing codex tree", (t) => {

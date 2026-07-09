@@ -51,12 +51,12 @@ test("runConfigure writes a claude tree to the out dir", (t) => {
   assert.ok(!fs.existsSync(path.join(out, "rules")));
 });
 
-test("runConfigure writes the generated codex config artifact", (t) => {
+test("runConfigure omits the unsupported codex config artifact", (t) => {
   const out = tmpOut(t);
 
   runConfigure({ sourceDir: SOURCE, target: "codex", outDir: out, validate: false });
 
-  assert.ok(fs.existsSync(path.join(out, ".codex", "config.toml")));
+  assert.ok(!fs.existsSync(path.join(out, ".codex", "config.toml")));
 });
 
 // ---------------------------------------------------------------------------

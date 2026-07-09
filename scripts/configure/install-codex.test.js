@@ -11,8 +11,6 @@ const {
   findCodexBin,
   buildCodexMarketplace,
   copyCodexAgents,
-  extractManagedCodexConfig,
-  mergeManagedCodexConfig,
   assertManagedPathSafe,
   main,
 } = require("./install-codex.js");
@@ -34,10 +32,6 @@ function writeGeneratedCodexTree(root) {
   fs.writeFileSync(path.join(root, ".codex", "agents", "apply.toml"), 'name = "apply"\n');
   fs.writeFileSync(path.join(root, ".codex", "agents", "verify.toml"), 'name = "verify"\n');
   fs.writeFileSync(path.join(root, ".codex", "agents", "README.md"), "ignore\n");
-  fs.writeFileSync(
-    path.join(root, ".codex", "config.toml"),
-    'skills.config = "skills/**/*.md"\n\n[agents]\nmax_output_tokens = 65536\nmax_tool_calls = 32\n',
-  );
   fs.writeFileSync(path.join(root, ".codex-plugin", "plugin.json"), JSON.stringify({ skills: "skills/" }, null, 2));
   fs.writeFileSync(path.join(root, "skills", "example", "SKILL.md"), "example\n");
 }
@@ -72,29 +66,6 @@ test("findCodexBin returns the first working codex executable", () => {
 
   assert.equal(bin, "C:\\path\\to\\safe\\bin\\codex.cmd");
   assert.deepEqual(calls, ["C:\\path\\to\\safe\\bin\\codex.cmd"]);
-});
-
-test("extractManagedCodexConfig reads only the managed [agents] block and skills.config line", () => {
-  const managed = extractManagedCodexConfig(
-    '# comment\n[agents]\nmax_output_tokens = 65536\nmax_tool_calls = 32\n\n[profile]\nname = "user"\nskills.config = "skills/**/*.md"\nother = true\n',
-  );
-
-  assert.deepEqual(managed, {
-    agentsLines: ["max_output_tokens = 65536", "max_tool_calls = 32"],
-    skillsConfigLine: 'skills.config = "skills/**/*.md"',
-  });
-});
-
-test("mergeManagedCodexConfig updates managed keys without touching unrelated config", () => {
-  const result = mergeManagedCodexConfig(
-    'skills.config = "skills/**/*.md"\n\n[agents]\nmax_output_tokens = 65536\nmax_tool_calls = 32\n',
-    '# user comment\n[profile]\nname = "user"\n\n[agents]\nmax_output_tokens = 10\n\nskills.config = "old/**/*.md"\n',
-  );
-
-  assert.match(result, /# user comment/);
-  assert.match(result, /\[profile\]\nname = "user"/);
-  assert.match(result, /\[agents\]\nmax_output_tokens = 65536\nmax_tool_calls = 32/);
-  assert.match(result, /skills\.config = "skills\/\*\*\/\*\.md"/);
 });
 
 test("copyCodexAgents copies only TOML agents and preserves unrelated files", (t) => {
@@ -146,12 +117,12 @@ test("main falls back to manual Codex commands when the CLI is unavailable", (t)
   assert.equal(exitCode, 0);
   assert.equal(stderr.join(""), "");
   assert.ok(fs.existsSync(path.join(homeDir, ".codex", "agents", "apply.toml")));
-  assert.ok(fs.existsSync(path.join(homeDir, ".codex", "config.toml")));
+  assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "config.toml")));
   assert.match(stdout.join(""), /codex plugin marketplace add/i);
-  assert.match(stdout.join(""), /codex plugin add ospec-workflow@ospec-tools/i);
+  assert.match(stdout.join(""), /use \/plugins to select and install ospec-workflow/i);
 });
 
-test("main registers the Codex marketplace and plugin when the CLI is available", (t) => {
+test("main registers the Codex marketplace without attempting a noninteractive plugin install", (t) => {
   const sourceDir = makeTempDir(t, "codex-main-cli-source-");
   const homeDir = makeTempDir(t, "codex-main-cli-home-");
   const stdout = [];
@@ -178,19 +149,20 @@ test("main registers the Codex marketplace and plugin when the CLI is available"
   assert.equal(exitCode, 0);
   assert.equal(stderr.join(""), "");
   assert.ok(fs.existsSync(path.join(homeDir, ".codex", "agents", "apply.toml")));
-  assert.ok(fs.existsSync(path.join(homeDir, ".codex", "config.toml")));
+  assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "config.toml")));
   assert.deepEqual(codexCalls, [
     ["codex", "plugin", "marketplace", "add", path.join(sourceDir, "dist", "codex-marketplace")],
-    ["codex", "plugin", "add", "ospec-workflow@ospec-tools"],
   ]);
-  assert.match(stdout.join(""), /Done\. Codex marketplace, plugin, agents, and config are installed\./);
+  assert.match(stdout.join(""), /Done\. Codex marketplace and agents are ready\./);
 });
 
-test("main installs repo-local agents and config without copying the plugin bundle", (t) => {
+test("main installs repo-local agents without changing an existing config or copying the plugin bundle", (t) => {
   const sourceDir = makeTempDir(t, "codex-repo-source-");
   const destRepo = makeTempDir(t, "codex-repo-dest-");
   const stdout = [];
   fs.writeFileSync(path.join(destRepo, "README.md"), "keep\n");
+  fs.mkdirSync(path.join(destRepo, ".codex"), { recursive: true });
+  fs.writeFileSync(path.join(destRepo, ".codex", "config.toml"), "model = \"user-choice\"\n");
 
   const exitCode = main([destRepo, "--no-validate"], {
     cwd: sourceDir,
@@ -209,7 +181,7 @@ test("main installs repo-local agents and config without copying the plugin bund
 
   assert.equal(exitCode, 0);
   assert.ok(fs.existsSync(path.join(destRepo, ".codex", "agents", "apply.toml")));
-  assert.ok(fs.existsSync(path.join(destRepo, ".codex", "config.toml")));
+  assert.equal(fs.readFileSync(path.join(destRepo, ".codex", "config.toml"), "utf8"), "model = \"user-choice\"\n");
   assert.ok(!fs.existsSync(path.join(destRepo, ".codex-plugin", "plugin.json")));
   assert.equal(fs.readFileSync(path.join(destRepo, "README.md"), "utf8"), "keep\n");
   assert.match(stdout.join(""), /Done\./);
@@ -239,62 +211,6 @@ test("main dry-run previews actions without writing files or invoking codex", (t
   assert.equal(exitCode, 0);
   assert.equal(codexInvocations, 0);
   assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "agents", "apply.toml")));
-});
-
-test("main fails before writes when generated .codex/config.toml is missing", (t) => {
-  const sourceDir = makeTempDir(t, "codex-missing-config-source-");
-  const homeDir = makeTempDir(t, "codex-missing-config-home-");
-  const stdout = [];
-  const stderr = [];
-  let codexInvocations = 0;
-
-  const exitCode = main([], {
-    cwd: sourceDir,
-    homedir: () => homeDir,
-    stdout: { write: (chunk) => stdout.push(chunk) },
-    stderr: { write: (chunk) => stderr.push(chunk) },
-    runConfigure({ outDir }) {
-      writeGeneratedCodexTree(outDir);
-      fs.rmSync(path.join(outDir, ".codex", "config.toml"));
-      return { exitCode: 0, validation: null };
-    },
-    findCodexBin: () => "codex",
-    runCodexCommand() {
-      codexInvocations += 1;
-      return { status: 0, stdout: "", stderr: "" };
-    },
-  });
-
-  assert.equal(exitCode, 1);
-  assert.equal(stdout.join(""), "");
-  assert.match(stderr.join(""), /ENOENT|config\.toml/i);
-  assert.equal(codexInvocations, 0);
-  assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "agents", "apply.toml")));
-  assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "config.toml")));
-});
-
-test("main fails before writes when generated .codex/config.toml is invalid", (t) => {
-  const sourceDir = makeTempDir(t, "codex-invalid-config-source-");
-  const homeDir = makeTempDir(t, "codex-invalid-config-home-");
-  const stderr = [];
-
-  const exitCode = main([], {
-    cwd: sourceDir,
-    homedir: () => homeDir,
-    stdout: { write() {} },
-    stderr: { write: (chunk) => stderr.push(chunk) },
-    runConfigure({ outDir }) {
-      writeGeneratedCodexTree(outDir);
-      fs.writeFileSync(path.join(outDir, ".codex", "config.toml"), "[agents]\nmax_output_tokens = 65536\n");
-      return { exitCode: 0, validation: null };
-    },
-    findCodexBin: () => "codex",
-  });
-
-  assert.equal(exitCode, 1);
-  assert.match(stderr.join(""), /missing skills\.config/i);
-  assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "agents", "apply.toml")));
-  assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "config.toml")));
 });
 
 test("main rejects incomplete --source usage before build side effects", () => {
@@ -361,39 +277,6 @@ test("main returns a recovery error when codex plugin marketplace add fails with
   assert.equal(exitCode, 9);
   assert.deepEqual(codexCalls, [["codex", "plugin", "marketplace", "add", path.join(sourceDir, "dist", "codex-marketplace")]]);
   assert.match(stderr.join(""), /marketplace boom/);
-  assert.match(stderr.join(""), /codex command failed/i);
-  assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "agents", "apply.toml")));
-  assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "config.toml")));
-});
-
-test("main returns a recovery error when codex plugin add fails without partial global writes", (t) => {
-  const sourceDir = makeTempDir(t, "codex-plugin-fail-source-");
-  const homeDir = makeTempDir(t, "codex-plugin-fail-home-");
-  const stderr = [];
-  const codexCalls = [];
-
-  const exitCode = main([], {
-    cwd: sourceDir,
-    homedir: () => homeDir,
-    stdout: { write() {} },
-    stderr: { write: (chunk) => stderr.push(chunk) },
-    runConfigure({ outDir }) {
-      writeGeneratedCodexTree(outDir);
-      return { exitCode: 0, validation: null };
-    },
-    findCodexBin: () => "codex",
-    runCodexCommand(bin, args) {
-      codexCalls.push([bin, ...args]);
-      return args[1] === "marketplace" ? { status: 0, stdout: "", stderr: "" } : { status: 7, stdout: "", stderr: "plugin boom\n" };
-    },
-  });
-
-  assert.equal(exitCode, 7);
-  assert.deepEqual(codexCalls, [
-    ["codex", "plugin", "marketplace", "add", path.join(sourceDir, "dist", "codex-marketplace")],
-    ["codex", "plugin", "add", "ospec-workflow@ospec-tools"],
-  ]);
-  assert.match(stderr.join(""), /plugin boom/);
   assert.match(stderr.join(""), /codex command failed/i);
   assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "agents", "apply.toml")));
   assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "config.toml")));
@@ -467,24 +350,36 @@ test("package.json exposes Codex build and install scripts", () => {
   assert.equal(pkg.scripts["install:codex"], "node scripts/configure/install-codex.js");
 });
 
-test("README documents Codex commands and managed agent/config behavior", () => {
+test("README documents Codex commands, agent-only installation, and manual stale-config cleanup", () => {
   const readme = readRepoFile("README.md");
 
   assert.match(readme, /`codex` \|/);
   assert.match(readme, /npm run setup:codex/);
   assert.match(readme, /npm run install:codex --/);
   assert.match(readme, /\.codex\/agents/);
-  assert.match(readme, /\.codex\/config\.toml/);
+  assert.doesNotMatch(readme, /fusiona `.codex\/config\.toml`/);
+  assert.match(readme, /claves no compatibles/i);
+  assert.match(readme, /manualmente/i);
 });
 
-test("plugin-installation guide documents Codex fallback, separate agent copy, and config merge", () => {
+test("plugin-installation guide documents Codex fallback, agent-only copy, and manual stale-config cleanup", () => {
   const doc = readRepoFile("docs", "plugin-installation.md");
 
   assert.match(doc, /codex plugin marketplace add/i);
-  assert.match(doc, /codex plugin add ospec-workflow@ospec-tools/i);
+  assert.match(doc, /\/plugins/);
+  assert.doesNotMatch(doc, /codex plugin add/i);
   assert.match(doc, /\.codex\/agents/);
-  assert.match(doc, /\.codex\/config\.toml/);
-  assert.match(doc, /preserv|no destructiv|sin destruir/i);
+  assert.doesNotMatch(doc, /fusiona.*\.codex\/config\.toml/i);
+  assert.match(doc, /claves no compatibles/i);
+  assert.match(doc, /manualmente/i);
+});
+
+test("install baseline specifies the Codex agent-only contract", () => {
+  const spec = readRepoFile("openspec", "specs", "install", "spec.md");
+
+  assert.match(spec, /\.codex\/agents\/\*\.toml/);
+  assert.match(spec, /MUST NOT create or modify.*\.codex\/config\.toml/i);
+  assert.match(spec, /manual cleanup/i);
 });
 
 test("assertManagedPathSafe: accepts valid paths inside the root", (t) => {

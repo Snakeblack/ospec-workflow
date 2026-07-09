@@ -1,0 +1,101 @@
+change: fix-codex-config-toml
+status: ready-for-apply
+last_updated: "2026-07-09T21:30:00Z"
+classification: normal
+owner:
+  author: Manuel Retamozo
+  branch: fix/codex-config-toml
+route:
+  intended_route: bugfix
+  actual_route: standard
+  route_rationale: "Initially matched bugfix; explicit user override changed to standard after verification identified a design gap that requires sdd-design."
+  validated: true
+  validation_errors: []
+approvals:
+  - id: approval-001
+    gate: ambient-sdd-awareness
+    decision: "Route the multi-file Codex configuration repair through SDD."
+    source: user-question
+    accepted_at: "2026-07-09T19:19:32Z"
+    applies_to: fix-codex-config-toml
+  - id: approval-002
+    gate: execution-mode
+    decision: auto
+    source: user-question
+    accepted_at: "2026-07-09T19:19:32Z"
+    applies_to: fix-codex-config-toml
+  - id: approval-003
+    gate: delivery-strategy
+    decision: exception-ok
+    source: user-question
+    accepted_at: "2026-07-09T19:19:32Z"
+    applies_to: fix-codex-config-toml
+  - id: approval-004
+    gate: execution-mode
+    decision: interactive
+    source: user-question
+    accepted_at: "2026-07-09T19:25:00Z"
+    applies_to: fix-codex-config-toml
+  - id: approval-005
+    gate: delivery-strategy
+    decision: exception-ok
+    source: user-question
+    accepted_at: "2026-07-09T19:25:00Z"
+    applies_to: fix-codex-config-toml
+  - id: approval-006
+    gate: ambient-sdd-awareness
+    decision: "Extend the active change to add the marketplace command to GitHub releases."
+    source: user-question
+    accepted_at: "2026-07-09T19:45:00Z"
+    applies_to: fix-codex-config-toml
+  - id: approval-007
+    gate: intent-restatement
+    decision: "Add the Codex marketplace installation command to GitHub release content, matching Claude and excluding unrelated targets/local installation."
+    source: user-question
+    accepted_at: "2026-07-09T19:46:00Z"
+    applies_to: fix-codex-config-toml
+  - id: approval-008
+    gate: review-workload
+    decision: "Proceed with the expanded implementation using the approved size exception."
+    source: user-question
+    accepted_at: "2026-07-09T19:57:00Z"
+    applies_to: fix-codex-config-toml
+  - id: approval-009
+    gate: route-recovery
+    decision: "Switch actual route to standard so the documented Codex compatibility design gap can be corrected."
+    source: user-question
+    accepted_at: "2026-07-09T20:05:00Z"
+    applies_to: fix-codex-config-toml
+phases:
+  sdd-explore:
+    status: success
+    summary: "Found unsupported Codex keys and, for the expanded scope, determined that a Codex marketplace must be published separately on the release branch before documenting its remote installation command."
+    artifacts:
+      - openspec/changes/fix-codex-config-toml/exploration.md
+    next_recommended: sdd-tasks
+  design:
+    status: done
+    artifact: openspec/changes/fix-codex-config-toml/design.md
+    summary: "Rediseña el marketplace Codex remoto con --ref, catálogo .agents/plugins y /plugins; conserva el retiro de config.toml."
+    key_decisions:
+      - "Usar --ref release y /plugins, no #release ni codex plugin add."
+      - "Publicar el catálogo Codex en .agents/plugins/marketplace.json con payload aislado."
+  tasks:
+    status: done
+    artifact: openspec/changes/fix-codex-config-toml/tasks.md
+    summary: "Plan fusionado: conserva el retiro verificado de config.toml y replantea catálogo, --ref/sparse y aceptación manual /plugins."
+    key_decisions:
+      - "Retirar configuración no soportada sin reemplazarla por límites de concurrencia."
+      - "No modificar configuraciones Codex ya existentes del usuario."
+      - "Usar catálogo .agents/plugins, --ref release, rutas sparse y /plugins; CI solo prueba registro."
+  apply:
+    status: partial
+    artifact: openspec/changes/fix-codex-config-toml/apply-progress.md
+    summary: "El catálogo, registro soportado y documentación están corregidos; falta evidencia publicada y aceptación manual /plugins."
+    key_decisions:
+      - "El validador rechaza config.toml generado para impedir la reintroducción de claves no soportadas."
+      - "El release preserva Claude y requiere un catálogo Codex aislado."
+      - "Sustituir #release y plugin add por --ref y /plugins documentados."
+  verify:
+    status: pending
+    artifact: openspec/changes/fix-codex-config-toml/verify-report.md
