@@ -347,6 +347,40 @@ Este instalador idempotente realiza los siguientes pasos:
    - **Linux/macOS**: `~/.copilot/`
 4. Fusiona dinámicamente las configuraciones de servidores MCP de `.mcp.json` con el archivo `mcp-config.json` global de Copilot.
 
+### Codex CLI
+
+El target `codex` permite dos modalidades de instalación: local (por proyecto) y global (para toda la máquina del usuario).
+
+#### Instalación local (por proyecto)
+
+Construye y sincroniza la carpeta del plugin y los agentes TOML directamente en la raíz de tu proyecto de destino:
+
+```powershell
+npm run install:codex -- ../mi-proyecto
+```
+
+Esto copiará el árbol `.codex-plugin/` con su plugin JSON, los agentes TOML en `.codex/agents/`, y fusionará dinámicamente tu archivo `.codex/config.toml` de manera no destructiva.
+
+#### Instalación global (para cualquier proyecto)
+
+Instala el plugin y los agentes de forma permanente a nivel de usuario:
+
+```powershell
+npm run setup:codex
+```
+
+*(Si realizas modificaciones y necesitas actualizar la instalación global, puedes re-ejecutar `npm run reload:codex` o `npm run setup:codex` indistintamente).*
+
+Este instalador idempotente realiza los siguientes pasos:
+1. Compila el target `codex` en `dist/codex/`.
+2. Copia todos los agentes TOML generados al directorio global de agentes de Codex:
+   - **Windows**: `C:\Users\<Usuario>\.codex\agents\`
+   - **Linux/macOS**: `~/.codex/agents/`
+3. Fusiona de forma no destructiva los límites de agentes y configuraciones de skills globales en:
+   - **Windows**: `C:\Users\<Usuario>\.codex\config.toml`
+   - **Linux/macOS**: `~/.codex/config.toml`
+4. Registra el plugin de Codex localmente mediante la base de datos de marketplace local.
+
 ### opencode
 
 El target `opencode` permite dos modalidades de instalación: local (por proyecto) y global (para toda la máquina del usuario). En ambas modalidades, el agente principal `sdd-orchestrator` se renombra automáticamente a `ospec-workflow` para integrarse con la interfaz de OpenCode y permitir el autocompletado con la tecla Tab.
