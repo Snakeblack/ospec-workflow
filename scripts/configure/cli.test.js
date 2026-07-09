@@ -51,6 +51,14 @@ test("runConfigure writes a claude tree to the out dir", (t) => {
   assert.ok(!fs.existsSync(path.join(out, "rules")));
 });
 
+test("runConfigure writes the generated codex config artifact", (t) => {
+  const out = tmpOut(t);
+
+  runConfigure({ sourceDir: SOURCE, target: "codex", outDir: out, validate: false });
+
+  assert.ok(fs.existsSync(path.join(out, ".codex", "config.toml")));
+});
+
 // ---------------------------------------------------------------------------
 // Requirement: Source Non-Regression
 // ---------------------------------------------------------------------------
@@ -404,4 +412,29 @@ test("G5: gatherRuntimeScripts excludes frontmatter.js and model-resolver.js req
     !paths.includes("scripts/lib/model-resolver.js"),
     "model-resolver.js must be excluded from dist even when required transitively",
   );
+});
+
+test("gatherRuntimeScripts handles fs permission errors gracefully", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-err-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  fs.mkdirSync(path.join(dir, "scripts/hooks"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "scripts/hooks/hook.js"), '"use strict";\n');
+
+  const realReaddirSync = fs.readdirSync;
+  fs.readdirSync = (p, options) => {
+    if (p === path.join(dir, "scripts/hooks") || p === dir) {
+      const err = new Error("EACCES: permission denied");
+      err.code = "EACCES";
+      throw err;
+    }
+    return realReaddirSync(p, options);
+  };
+
+  t.after(() => {
+    fs.readdirSync = realReaddirSync;
+  });
+
+  const paths = gatherRuntimeScripts(dir).map((f) => f.path);
+  assert.equal(paths.length, 0); // Should handle error and return empty array or ignore unreadable folders
 });

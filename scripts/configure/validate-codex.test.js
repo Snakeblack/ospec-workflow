@@ -25,6 +25,10 @@ function makeValidCodexTree(t, hooksCommand = 'node "$PLUGIN_ROOT/scripts/hooks/
     path.join(root, ".codex", "agents", "sdd-apply.toml"),
     'name = "sdd-apply"\ndescription = "d"\nsandbox_mode = "workspace-write"\ndeveloper_instructions = """clean"""\n'
   );
+  fs.writeFileSync(
+    path.join(root, ".codex", "config.toml"),
+    'skills.config = "skills/**/*.md"\n\n[agents]\nmax_output_tokens = 65536\nmax_tool_calls = 32\n'
+  );
   fs.writeFileSync(path.join(root, "skills", "foo", "SKILL.md"), "clean\n");
   fs.writeFileSync(
     path.join(root, "hooks", "hooks.json"),
@@ -193,4 +197,53 @@ test("validate-codex degrades unreadable skills traversal into validation errors
   const result = validate(root);
 
   assert.match(result.errors.join("\n"), /skills could not be enumerated: EPERM: locked by another process/);
+});
+
+test("validate-codex rejects invalid JSON in plugin.json", (t) => {
+  const root = makeValidCodexTree(t);
+  fs.writeFileSync(path.join(root, ".codex-plugin", "plugin.json"), "{ invalid json ");
+
+  const result = validate(root);
+  assert.match(result.errors.join("\n"), /\.codex-plugin\/plugin\.json is not valid JSON/);
+});
+
+test("validate-codex rejects plugin.json with out-of-schema keys", (t) => {
+  const root = makeValidCodexTree(t);
+  fs.writeFileSync(
+    path.join(root, ".codex-plugin", "plugin.json"),
+    JSON.stringify({ skills: "skills/", invalidKey: 123 }, null, 2)
+  );
+
+  const result = validate(root);
+  assert.match(result.errors.join("\n"), /\.codex-plugin\/plugin\.json contains out-of-schema key: invalidKey/);
+});
+
+test("validate-codex rejects agent TOML with missing required keys", (t) => {
+  const root = makeValidCodexTree(t);
+  fs.writeFileSync(
+    path.join(root, ".codex", "agents", "sdd-apply.toml"),
+    'description = "description missing name"\n'
+  );
+
+  const result = validate(root);
+  assert.match(result.errors.join("\n"), /\.codex\/agents\/sdd-apply\.toml missing required TOML key: name/);
+});
+
+test("validate-codex rejects agent TOML with invalid sandbox_mode", (t) => {
+  const root = makeValidCodexTree(t);
+  fs.writeFileSync(
+    path.join(root, ".codex", "agents", "sdd-apply.toml"),
+    'name = "sdd-apply"\ndescription = "d"\nsandbox_mode = "invalid-mode"\n'
+  );
+
+  const result = validate(root);
+  assert.match(result.errors.join("\n"), /\.codex\/agents\/sdd-apply\.toml has invalid sandbox_mode: invalid-mode/);
+});
+
+test("validate-codex rejects skill configurations carrying agent routing key", (t) => {
+  const root = makeValidCodexTree(t);
+  fs.writeFileSync(path.join(root, "skills", "foo", "SKILL.md"), "agent: sdd-apply\n");
+
+  const result = validate(root);
+  assert.match(result.errors.join("\n"), /skills\/foo\/SKILL\.md must not carry an agent: routing key/);
 });

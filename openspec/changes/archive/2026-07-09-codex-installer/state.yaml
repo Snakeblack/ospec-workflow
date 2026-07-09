@@ -1,0 +1,114 @@
+change: codex-installer
+status: archived
+last_updated: "2026-07-09T17:31:00Z"
+classification: normal
+created_at: "2026-07-08T23:42:53.8653745Z"
+owner:
+  author: "Manuel Retamozo"
+  branch: "feat/codex-target-profile"
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "change.classification=normal and project.status=active matched the standard route; 5.3 adds installer/distribution behavior across build, install, and docs."
+  validated: true
+  validation_errors: []
+approvals:
+  - id: approval-20260708-234253-sdd-routing
+    gate: ambient-sdd-awareness
+    decision: "Route codex-installer through persisted SDD."
+    source: question
+    accepted_at: "2026-07-08T23:42:53.8653745Z"
+    applies_to: codex-installer
+  - id: approval-20260708-234253-execution-mode
+    gate: execution-mode
+    decision: "Automatic mode."
+    source: question
+    accepted_at: "2026-07-08T23:42:53.8653745Z"
+    applies_to: codex-installer
+  - id: approval-20260708-234253-delivery-strategy
+    gate: delivery-strategy
+    decision: "exception-ok."
+    source: question
+    accepted_at: "2026-07-08T23:42:53.8653745Z"
+    applies_to: codex-installer
+  - id: approval-20260709-142900-assumption-sdd-apply-001
+    gate: assumption-reconciliation
+    decision: "Confirmed sdd-apply-001 managed Codex config defaults."
+    source: question
+    accepted_at: "2026-07-09T14:29:00Z"
+    applies_to: codex-installer
+  - id: approval-20260709-143000-4r-critical-remediation
+    gate: 4r-review-gate
+    decision: "Remediate 4R CRITICAL findings before archive."
+    source: question
+    accepted_at: "2026-07-09T14:30:00Z"
+    applies_to: codex-installer
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/codex-installer/proposal.md"
+    summary: "Defines Codex installer scope: setup/install scripts, agent TOML copy, config.toml merge, docs, and marketplace metadata."
+    key_decisions:
+      - "Modify install and codex-target capabilities; no new capability."
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/codex-installer/specs/install/spec.md"
+      - "openspec/changes/codex-installer/specs/codex-target/spec.md"
+    summary: "Adds Codex install deltas for setup/install commands, agent TOML copy, config merge, docs, and codex-target installer handoff."
+    key_decisions:
+      - "install delta adds Codex-specific install, merge, docs, and test requirements."
+      - "codex-target delta formalizes that TOML agents stay outside the plugin bundle and are installer-managed."
+  clarify:
+    status: done
+    summary: "No user-facing ambiguities remained; clarified that managed Codex config keys come only from the generated source-tree config."
+    key_decisions:
+      - "Managed `.codex/config.toml` merge payload is sourced only from the repo-generated `[agents]` and `skills.config` entries."
+  design:
+    status: done
+    artifact: "openspec/changes/codex-installer/design.md"
+    summary: "Designs Codex installer module with marketplace fallback, TOML agent copy, and constrained config merge."
+    key_decisions:
+      - "Wrap dist/codex as a local Codex marketplace for CLI registration."
+      - "Merge only generated `[agents]` and `skills.config` TOML entries."
+      - "Emit `.codex/config.toml` through the codex generator source roots."
+  tasks:
+    status: done
+    artifact: "openspec/changes/codex-installer/tasks.md"
+    summary: "Expanded tasks with a focused 4R remediation batch for safe failure ordering, input/path validation, and CLI error handling."
+    key_decisions:
+      - "Preserve completed task history and append a dedicated Phase 6 remediation batch instead of rewriting prior phases."
+      - "Use strict TDD for missing/invalid source config, plugin command failures, incomplete `--source`, invalid repo destinations, and symlink/canonical guards."
+      - "Plan minimal installer reordering so validation and registration failures occur before writes or leave no partial global state."
+  apply:
+    status: done
+    artifact: "openspec/changes/codex-installer/apply-progress.md"
+    summary: "Applied Phase 6 remediation for fail-fast config preflight, CLI failure ordering, arg validation, and redirected Codex destination guards."
+    key_decisions:
+      - "Repo-local destination validation now runs before `runConfigure()` so invalid installs fail without build/write side effects."
+      - "Global CLI registration now happens before managed writes, preventing partial global state on `codex plugin` failures."
+      - "Managed Codex roots and target files reject symlink/canonical redirection before copy/merge begins."
+  verify:
+    status: done
+    artifact: "openspec/changes/codex-installer/verify-report.md"
+    summary: "PASS after 4R remediation: npm test, focused configure suite, and 21/21 installer tests passed."
+baseline_fingerprints:
+  install: "1140b294d3b6a7ffd1cd67df959a4f72a9136efc1519bd5a0fa52bbae84e629f"
+  codex-target: "99280c6c3846827aed08a3fa2fb3d69d2491bc7185069a41d773a23b441b0c1a"
+assumptions:
+  - id: sdd-apply-001
+    phase: sdd-apply
+    statement: "Definí los valores iniciales gestionados de `.codex/config.toml` como `skills.config = \"skills/**/*.md\"`, `[agents].max_output_tokens = 65536` y `[agents].max_tool_calls = 32`."
+    reversibility: high
+    basis: "La spec/diseño exigen una fuente reviewable para el merge pero no fijan valores exactos; el archivo fuente queda como autoridad editable y el merge solo depende de su alcance, no de números concretos."
+    recorded_at: "2026-07-09T14:28:00Z"
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Confirmed from relaunch assumption_resolutions source=question."
+      resolved_at: "2026-07-09T15:50:00Z"
+blocking_questions: []
+gates:
+  clarify:
+    status: done
+    questions_asked: 0

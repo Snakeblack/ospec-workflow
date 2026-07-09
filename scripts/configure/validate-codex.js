@@ -192,6 +192,8 @@ function validateHooks(root, errors, deps = {}) {
         addError(errors, `${rel} ${event}[${index}] command must be a string`);
         return;
       }
+      // We enforce quoting the $PLUGIN_ROOT path (e.g. "$PLUGIN_ROOT/some-script") to prevent
+      // path parsing issues or word-splitting failures when the plugin path contains spaces.
       if (/\$PLUGIN_ROOT\/[^"]/.test(entry.command) && !entry.command.includes('"$PLUGIN_ROOT/')) {
         addError(errors, `${rel} ${event}[${index}] command must quote the $PLUGIN_ROOT path`);
       }
@@ -294,7 +296,12 @@ function main(argv) {
 }
 
 if (require.main === module) {
-  main(process.argv.slice(2));
+  try {
+    main(process.argv.slice(2));
+  } catch (error) {
+    process.stderr.write(`fatal: ${error.stack || error.message || error}\n`);
+    process.exit(1);
+  }
 }
 
 module.exports = { validate, main };

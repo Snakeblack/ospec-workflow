@@ -112,11 +112,15 @@ function gatherRuntimeScripts(sourceDir) {
   // Scan hooks directory if it exists; skip silently if absent
   const hooksDir = path.join(sourceDir, "scripts", "hooks");
   if (fs.existsSync(hooksDir)) {
-    for (const name of fs.readdirSync(hooksDir)) {
-      const rel = "scripts/hooks/" + name;
-      if (name.endsWith(".js") && !isExcludedRuntimeScript(rel)) {
-        queue.push(rel);
+    try {
+      for (const name of fs.readdirSync(hooksDir)) {
+        const rel = "scripts/hooks/" + name;
+        if (name.endsWith(".js") && !isExcludedRuntimeScript(rel)) {
+          queue.push(rel);
+        }
       }
+    } catch (err) {
+      // ignore read/access errors on hooks directory to degrade gracefully
     }
   }
 
@@ -229,7 +233,6 @@ function pruneEmptyDirs(absDir) {
     }
   }
 }
-
 // --- models.yaml (minimal, dependency-free) --------------------------------
 
 // Parses the two-table models.yaml shape (nested maps, scalar and inline-array
@@ -237,13 +240,18 @@ function pruneEmptyDirs(absDir) {
 // used elsewhere in scripts/lib.
 function parseModels(text) {
   const root = {};
+  // The parser uses a stack to keep track of nested objects and their indentation levels.
+  // This allows it to construct a tree structure by parsing line-by-line.
   const stack = [{ indent: -1, container: root }];
 
   for (const rawLine of String(text).split(/\r?\n/)) {
+    // Skip empty lines and lines that are comments (starting with '#')
     if (!rawLine.trim() || /^\s*#/.test(rawLine)) {
       continue;
     }
+    // Calculate the indentation level by counting the leading whitespace characters.
     const indent = rawLine.match(/^\s*/)[0].length;
+    // Extract the key-value pair from the line, matching "key: value" pattern.
     const match = rawLine.match(/^\s*([^:]+):\s*(.*)$/);
     if (!match) {
       continue;
@@ -251,16 +259,24 @@ function parseModels(text) {
     const key = match[1].trim();
     const valueRaw = match[2].trim();
 
+    // If the indentation of the current line is less than or equal to the current stack level's
+    // indentation, we pop items off the stack until we find the parent container at the correct
+    // outer scope level.
     while (stack.length > 1 && indent <= stack[stack.length - 1].indent) {
       stack.pop();
     }
     const parent = stack[stack.length - 1].container;
 
     if (valueRaw === "") {
+      // If the value is empty, it means this key marks the start of a nested object section.
+      // We initialize an empty object, assign it to the parent, and push it to the stack
+      // to capture any nested children on subsequent lines.
       const obj = {};
       parent[key] = obj;
       stack.push({ indent, container: obj });
     } else {
+      // Otherwise, it's a leaf node. We parse the scalar value or inline array
+      // and assign it directly to the current parent.
       parent[key] = parseScalarOrArray(valueRaw);
     }
   }
@@ -285,28 +301,55 @@ function unquote(value) {
 
 // --- validation gate -------------------------------------------------------
 
+function resolveWinGetClaudeBin(packagesDir) {
+  try {
+    for (const entry of fs.readdirSync(packagesDir)) {
+      if (entry.startsWith("Anthropic.ClaudeCode")) {
+        const fullPath = path.join(packagesDir, entry, "claude.exe");
+        if (fs.existsSync(fullPath)) {
+          return fullPath;
+        }
+      }
+    }
+  } catch {
+    // ignore read/access errors
+  }
+  return null;
+}
+
+function resolveBinFromPath(binName) {
+  const pathEnv = process.env.PATH || "";
+  const delimiter = process.platform === "win32" ? ";" : ":";
+  const extensions = process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
+
+  for (const dir of pathEnv.split(delimiter)) {
+    if (!dir) continue;
+    for (const ext of extensions) {
+      const fullPath = path.join(dir, binName + ext);
+      try {
+        const stat = fs.statSync(fullPath);
+        if (stat.isFile()) {
+          return fullPath;
+        }
+      } catch {
+        // ignore access/existence errors
+      }
+    }
+  }
+  return null;
+}
+
 function resolveClaudeBin() {
-  for (const bin of ["claude", "claude.cmd", "claude.exe"]) {
-    const probe = spawnSync(bin, ["--version"], { stdio: "ignore", shell: false });
-    if (!probe.error) return bin;
+  const resolved = resolveBinFromPath("claude");
+  if (resolved) {
+    return resolved;
   }
 
   // Fallback: check WinGet packages folder in LocalAppData on Windows
   if (process.platform === "win32" && process.env.LOCALAPPDATA) {
     const packagesDir = path.join(process.env.LOCALAPPDATA, "Microsoft", "WinGet", "Packages");
     if (fs.existsSync(packagesDir)) {
-      try {
-        for (const entry of fs.readdirSync(packagesDir)) {
-          if (entry.startsWith("Anthropic.ClaudeCode")) {
-            const fullPath = path.join(packagesDir, entry, "claude.exe");
-            if (fs.existsSync(fullPath)) {
-              return fullPath;
-            }
-          }
-        }
-      } catch {
-        // ignore read/access errors
-      }
+      return resolveWinGetClaudeBin(packagesDir);
     }
   }
 
@@ -329,6 +372,13 @@ function defaultRunValidator(profile, outDir) {
     }
   }
   const result = spawnSync(bin, args, { shell: false, encoding: "utf8" });
+  if (result.error) {
+    return {
+      status: 1,
+      stdout: "",
+      stderr: `failed to execute validator '${bin}': ${result.error.message || result.error}\n`
+    };
+  }
   return { status: result.status, stdout: result.stdout || "", stderr: result.stderr || "" };
 }
 
@@ -352,7 +402,11 @@ function runConfigure({ sourceDir, target, outDir, validate = true, runValidator
     throw new Error(`unknown target: ${target}`);
   }
 
-  const files = loadTree(sourceDir);
+  const roots = [...SOURCE_ROOTS];
+  if (target === "codex") {
+    roots.push(".codex");
+  }
+  const files = loadTree(sourceDir, roots);
   const modelsPath = path.join(sourceDir, "models.yaml");
   const models = fs.existsSync(modelsPath) ? parseModels(fs.readFileSync(modelsPath, "utf8")) : {};
 
@@ -418,7 +472,12 @@ function main(argv) {
 }
 
 if (require.main === module) {
-  main(process.argv.slice(2));
+  try {
+    main(process.argv.slice(2));
+  } catch (error) {
+    process.stderr.write(`fatal: ${error.stack || error.message || error}\n`);
+    process.exit(1);
+  }
 }
 
 module.exports = {
