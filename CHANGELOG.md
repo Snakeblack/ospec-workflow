@@ -8,6 +8,15 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.24.0] - 2026-07-09
+
+### Added
+- **Distribución de Marketplace para Codex (Marketplace)**: Nuevo flujo de empaquetado en `codex-marketplace.js` que aísla y ensambla el marketplace de Codex en `plugins/codex/ospec-workflow` de forma independiente a Claude. Verificación: tests unitarios en `codex-marketplace.test.js` y workflow de GitHub Actions actualizados.
+- **Tiers y Modelos para Codex (Models)**: Actualización de `models.yaml` para incorporar la familia OpenAI GPT-5.6 (`gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`) con inyección de `model_reasoning_effort` y `model_verbosity` según el tier. Verificación: test de contrato en `real-repo.test.js`.
+
+### Fixed
+- **Remoción de Configuración Automática de Codex (Configure)**: Eliminación de la creación y fusión destructiva de `.codex/config.toml` en `install-codex.js` para evitar colisiones con claves del usuario; el validador de Codex `validate-codex.js` ahora prohíbe explícitamente la presencia de este archivo. Ciclo SDD completo: change `fix-codex-config-toml` verificado con Strict TDD y suite de 106 tests integrados en verde.
+
 ## [2.23.0] - 2026-07-09
 
 ### Added
