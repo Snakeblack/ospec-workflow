@@ -8,10 +8,17 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.23.0] - 2026-07-09
+
 ### Added
-- **Puente de hooks para el target Codex (Bloque 5.2)**: el perfil `codex` ahora transforma `hooks/hooks.json` al formato esperado por Codex, mapeando eventos a PascalCase y reescribiendo `${CLAUDE_PLUGIN_ROOT}` a rutas `$PLUGIN_ROOT` entrecomilladas. El arnés `scripts/check.js` genera y valida también este target, y el contract-lint I3 extiende la coherencia de presupuesto `SessionStart` al perfil Codex.
+- **Soporte del target de Codex (Bloques 5.1 a 5.4)**: nuevo perfil de target `codex` en `target-profiles/codex.js` consumido por `target-transform.js`, que genera el bundle de plugin `.codex-plugin/plugin.json` y transforma los markdown de agentes a TOML en `.codex/agents/` con mapeos de tiers a modelos y sandbox_mode automático.
+- **Puente de hooks para el target Codex (Bloque 5.2)**: transforma `hooks/hooks.json` a PascalCase y reescribe `${CLAUDE_PLUGIN_ROOT}` a `$PLUGIN_ROOT` en la invocación de los hooks.
+- **Instalador y Distribución de Codex (Bloque 5.3)**: nuevos comandos de instalación local (`npm run install:codex`) e instalador global (`npm run setup:codex`), que compilan, copian los TOML de agentes a `~/.codex/agents/` y realizan la fusión no destructiva de la configuración en `.codex/config.toml`.
+- **Columna de modelos en models.yaml (Bloque 5.4)**: añadida la columna `codex` que mapea la familia OpenAI GPT-5.6 (`premium: { model: gpt-5.6-sol, model_reasoning_effort: high }`, `default: gpt-5.6-terra`, `cheap: gpt-5.6-luna`), con soporte para parsear e inyectar `model_reasoning_effort`.
+- **Robustez y legibilidad en transform**: validaciones explícitas de argumentos en `transform()`, aplanado de anidamientos condicionales a un nivel máximo de 3 en `handleAgentToml`, y ampliada la suite de pruebas unitarias cubriendo todos los flujos de error de formato y validaciones en `target-transform.test.js`.
 
 ### Fixed
+- **Seguridad en la ejecución y rutas de Codex**: resolución absoluta de binarios mediante variables `PATH` en Windows (previniendo binary planting en CWD) y validación defensiva contra TOCTOU e infiltración por symlinks en la instalación a nivel de archivo de agente individual.
 - **Cierre 4R del puente de hooks Codex**: endurecidos los caminos de error para evitar validaciones fail-open: `validate-codex` convierte archivos/directorios ilegibles y hooks malformados en errores de validación, el checker I3 reporta perfiles Codex inválidos o no cargables, `codexHooks()` valida entradas antes de transformar comandos, y `withFileLock()` falla en cerrado ante fallos persistentes de lock en Windows. Cobertura añadida para `scripts/check.js`, `validate-codex`, `i3-budget-constant`, `target-transform` y `ospec-state`.
 
 ## [2.22.0] - 2026-07-08
