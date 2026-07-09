@@ -10,7 +10,7 @@ const ALLOWED_BUNDLE_KEYS = new Set(["skills", "mcpServers", "apps", "hooks", "i
 // codex has no shell-hook/plugin bridge finalized until 5.2/5.3, and no other
 // target's layout may leak through; agents never live under a `prompts/` path
 // (Codex custom prompts are deprecated in favor of skills).
-const FORBIDDEN_PATHS = [".github", ".opencode", "prompts", "rules"];
+const FORBIDDEN_PATHS = [".github", ".opencode", "prompts", "rules", ".codex/config.toml"];
 
 const FORBIDDEN_TEXT = [
   { pattern: /vscode\//i, label: "vscode namespace residue" },

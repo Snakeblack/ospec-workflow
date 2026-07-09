@@ -25,10 +25,6 @@ function makeValidCodexTree(t, hooksCommand = 'node "$PLUGIN_ROOT/scripts/hooks/
     path.join(root, ".codex", "agents", "sdd-apply.toml"),
     'name = "sdd-apply"\ndescription = "d"\nsandbox_mode = "workspace-write"\ndeveloper_instructions = """clean"""\n'
   );
-  fs.writeFileSync(
-    path.join(root, ".codex", "config.toml"),
-    'skills.config = "skills/**/*.md"\n\n[agents]\nmax_output_tokens = 65536\nmax_tool_calls = 32\n'
-  );
   fs.writeFileSync(path.join(root, "skills", "foo", "SKILL.md"), "clean\n");
   fs.writeFileSync(
     path.join(root, "hooks", "hooks.json"),
@@ -246,4 +242,13 @@ test("validate-codex rejects skill configurations carrying agent routing key", (
 
   const result = validate(root);
   assert.match(result.errors.join("\n"), /skills\/foo\/SKILL\.md must not carry an agent: routing key/);
+});
+
+test("validate-codex rejects a generated config.toml", (t) => {
+  const root = makeValidCodexTree(t);
+  fs.writeFileSync(path.join(root, ".codex", "config.toml"), 'model = "unsupported"\n');
+
+  const result = validate(root);
+
+  assert.match(result.errors.join("\n"), /forbidden path present: \.codex\/config\.toml/);
 });

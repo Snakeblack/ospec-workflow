@@ -6,10 +6,10 @@ Per-target installation and distribution of the ospec-workflow plugin. Covers ho
 
 ## Scope
 
-- npm scripts: `build:claude`, `setup:claude`, `reload:claude`, `build:copilot`, `build:opencode`, `install:opencode`, `install:copilot`
-- Source modules: `scripts/configure/claude-marketplace.js`, `scripts/configure/install-claude.js`, `scripts/configure/install-target.js`
-- Generated distribution roots: `dist/claude-marketplace/`, `dist/github-copilot/`, `dist/opencode/`
-- Test files: `scripts/configure/claude-marketplace.test.js`, `scripts/configure/real-repo.test.js`, `scripts/configure/e2e.test.js`
+- npm scripts: `build:claude`, `setup:claude`, `reload:claude`, `build:copilot`, `build:opencode`, `install:opencode`, `install:copilot`, `build:codex`, `setup:codex`, `install:codex`
+- Source modules: `scripts/configure/claude-marketplace.js`, `scripts/configure/install-claude.js`, `scripts/configure/install-target.js`, `scripts/configure/install-codex.js`
+- Generated distribution roots: `dist/claude-marketplace/`, `dist/github-copilot/`, `dist/opencode/`, `dist/codex/`
+- Test files: `scripts/configure/claude-marketplace.test.js`, `scripts/configure/real-repo.test.js`, `scripts/configure/e2e.test.js`, `scripts/configure/install-codex.test.js`, `scripts/configure/validate-codex.test.js`
 
 Out of scope: the generator pipeline that produces the per-target file tree (covered by the `generator` domain), the in-process validators (`validate-github-copilot.js`, `validate-opencode.js`), and the vscode target (no public install command exists; generated only in tests).
 
@@ -48,7 +48,13 @@ These targets have no plugin marketplace. The workflow is consumed by copying th
 
 The `--` separator is required to pass `<destRepo>` through npm to the script.
 
-### 1.3 VSCode
+### 1.3 Codex — Marketplace Registration and Agent Copy
+
+Codex installs the generated plugin through a local marketplace and copies generated `.codex/agents/*.toml` files separately. `npm run setup:codex` targets the user's agent directory; `npm run install:codex -- <destRepo>` targets `<destRepo>/.codex/agents/`. Both variants MUST NOT create or modify destination `.codex/config.toml`; existing user-owned configuration is preserved unchanged.
+
+The generated Codex tree MUST contain `.codex-plugin/plugin.json` and `.codex/agents/*.toml`, and MUST NOT contain `.codex/config.toml`. The Codex validator MUST reject a generated config artifact. If an earlier installation left unsupported keys in a user configuration, manual cleanup is required; the installer MUST NOT destructively remove them.
+
+### 1.4 VSCode
 
 No public install command exists for the VSCode target. It is generated internally by `runConfigure({ target: "vscode" })` during `real-repo.test.js` regression tests but is not shipped via any npm dist command.
 

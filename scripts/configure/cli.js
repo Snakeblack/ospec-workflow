@@ -402,11 +402,7 @@ function runConfigure({ sourceDir, target, outDir, validate = true, runValidator
     throw new Error(`unknown target: ${target}`);
   }
 
-  const roots = [...SOURCE_ROOTS];
-  if (target === "codex") {
-    roots.push(".codex");
-  }
-  const files = loadTree(sourceDir, roots);
+  const files = loadTree(sourceDir);
   const modelsPath = path.join(sourceDir, "models.yaml");
   const models = fs.existsSync(modelsPath) ? parseModels(fs.readFileSync(modelsPath, "utf8")) : {};
 

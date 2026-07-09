@@ -126,101 +126,6 @@ function copyCodexAgents(outDir, destDir, deps = {}) {
   return copied;
 }
 
-function extractManagedCodexConfig(sourceText) {
-  const text = String(sourceText);
-  const lines = text.split(/\r?\n/);
-  const agentsHeaderIndex = lines.findIndex((line) => /^\[agents\]\s*$/.test(line));
-  if (agentsHeaderIndex === -1) {
-    throw new Error("source .codex/config.toml is missing [agents]");
-  }
-
-  const agentsLines = [];
-  for (let i = agentsHeaderIndex + 1; i < lines.length; i += 1) {
-    const line = lines[i];
-    if (/^\[.+\]\s*$/.test(line)) {
-      break;
-    }
-    if (line.trim()) {
-      agentsLines.push(line);
-    }
-  }
-  if (agentsLines.length === 0) {
-    throw new Error("source .codex/config.toml has no managed [agents] assignments");
-  }
-
-  const skillsConfigLine = lines.find((line) => /^skills\.config\s*=/.test(line));
-  if (!skillsConfigLine) {
-    throw new Error("source .codex/config.toml is missing skills.config");
-  }
-
-  return { agentsLines, skillsConfigLine };
-}
-
-function replaceAgentsBlock(lines, agentsLines) {
-  // Find the [agents] section header in the config file lines.
-  const headerIndex = lines.findIndex((line) => /^\[agents\]\s*$/.test(line));
-  if (headerIndex === -1) {
-    // If the section doesn't exist, append it at the end of the file
-    // with a leading blank line for proper separation.
-    if (lines.length > 0 && lines[lines.length - 1] !== "") {
-      lines.push("");
-    }
-    lines.push("[agents]", ...agentsLines);
-    return lines;
-  }
-
-  // If the section exists, find where it ends (next section starting with '[')
-  let endIndex = lines.length;
-  for (let i = headerIndex + 1; i < lines.length; i += 1) {
-    if (/^\[.+\]\s*$/.test(lines[i])) {
-      endIndex = i;
-      break;
-    }
-  }
-  // Replace only the lines inside the [agents] block. splice removes the old lines
-  // starting at headerIndex + 1 and inserts the new agentsLines.
-  lines.splice(headerIndex + 1, endIndex - (headerIndex + 1), ...agentsLines);
-  return lines;
-}
-
-function replaceSkillsConfig(lines, skillsConfigLine) {
-  // Search for an existing skills.config property assignment.
-  const skillsIndex = lines.findIndex((line) => /^skills\.config\s*=/.test(line));
-  if (skillsIndex === -1) {
-    // If not found, insert it right before the first section header (e.g. [agents])
-    // to keep top-level parameters grouped at the beginning.
-    const firstSectionIndex = lines.findIndex((line) => /^\[.+\]\s*$/.test(line));
-    const insertionIndex = firstSectionIndex === -1 ? 0 : firstSectionIndex;
-    const prefix = insertionIndex > 0 && lines[insertionIndex - 1] !== "" ? [""] : [];
-    lines.splice(insertionIndex, 0, skillsConfigLine, ...prefix);
-    return lines;
-  }
-  // If already present, replace the line content directly.
-  lines[skillsIndex] = skillsConfigLine;
-  return lines;
-}
-
-function mergeManagedCodexConfig(sourceText, destText) {
-  const managed = extractManagedCodexConfig(sourceText);
-  const destLines = String(destText || "").split(/\r?\n/);
-  replaceAgentsBlock(destLines, managed.agentsLines);
-  replaceSkillsConfig(destLines, managed.skillsConfigLine);
-  return destLines.join("\n").replace(/\n*$/, "\n");
-}
-
-function mergeCodexConfig(sourceConfigPath, destConfigPath, deps = {}) {
-  const fsImpl = deps.fs || fs;
-  const dryRun = deps.dryRun || false;
-  const sourceText = fsImpl.readFileSync(sourceConfigPath, "utf8");
-  const destText = fsImpl.existsSync(destConfigPath) ? fsImpl.readFileSync(destConfigPath, "utf8") : "";
-  const merged = mergeManagedCodexConfig(sourceText, destText);
-  if (!dryRun) {
-    fsImpl.mkdirSync(path.dirname(destConfigPath), { recursive: true });
-    fsImpl.writeFileSync(destConfigPath, merged);
-  }
-  return merged;
-}
-
 function defaultRunCodexCommand(bin, args, deps = {}) {
   const spawn = deps.spawnSync || spawnSync;
   const result = spawn(bin, args, { encoding: "utf8", shell: false });
@@ -275,15 +180,12 @@ function assertManagedPathSafe(rootPath, managedPath, label, fsImpl = fs) {
   }
 }
 
-function registerCodexPlugins(codexBin, marketplaceDir, pluginId, deps) {
+function registerCodexMarketplace(codexBin, marketplaceDir, deps) {
   const runCodexCommand = deps.runCodexCommand || defaultRunCodexCommand;
   const stdout = deps.stdout || process.stdout;
   const stderr = deps.stderr || process.stderr;
 
-  for (const commandArgs of [
-    ["plugin", "marketplace", "add", marketplaceDir],
-    ["plugin", "add", pluginId],
-  ]) {
+  for (const commandArgs of [["plugin", "marketplace", "add", marketplaceDir]]) {
     const command = runCodexCommand(codexBin, commandArgs, deps);
     if (command.stdout) stdout.write(command.stdout);
     if (command.stderr) stderr.write(command.stderr);
@@ -292,7 +194,7 @@ function registerCodexPlugins(codexBin, marketplaceDir, pluginId, deps) {
     if (exitCode !== 0) {
       stderr.write(
         `codex command failed: ${codexBin} ${commandArgs.join(" ")}\n` +
-          `manual recovery: codex plugin marketplace add \"${marketplaceDir}\" && codex plugin add ${pluginId}\n`,
+          `manual recovery: codex plugin marketplace add \"${marketplaceDir}\", then use /plugins to install ${PLUGIN_NAME}\n`,
       );
       return exitCode;
     }
@@ -342,14 +244,8 @@ function main(argv, deps = {}) {
     }
 
     const agentsDest = path.join(codexRoot, "agents");
-    const configDest = path.join(codexRoot, "config.toml");
-    const sourceConfigPath = path.join(outDir, ".codex", "config.toml");
-    const sourceConfigText = fsImpl.readFileSync(sourceConfigPath, "utf8");
-    extractManagedCodexConfig(sourceConfigText);
 
     const marketplaceDir = path.join(sourceDir, "dist", "codex-marketplace");
-    const pluginId = `${PLUGIN_NAME}@${MARKETPLACE_NAME}`;
-
     if (!args.dryRun && !isRepoInstall) {
       buildCodexMarketplace(outDir, marketplaceDir, { fs: fsImpl });
       const codexBin = findCodexBinImpl();
@@ -357,10 +253,10 @@ function main(argv, deps = {}) {
         stdout.write(
           "codex CLI not found on PATH; built artifacts are ready for manual installation.\n" +
             `codex plugin marketplace add \"${marketplaceDir}\"\n` +
-            `codex plugin add ${pluginId}\n`,
+            `use /plugins to select and install ${PLUGIN_NAME}\n`,
         );
       } else {
-        const exitCode = registerCodexPlugins(codexBin, marketplaceDir, pluginId, deps);
+        const exitCode = registerCodexMarketplace(codexBin, marketplaceDir, deps);
         if (exitCode !== 0) {
           return exitCode;
         }
@@ -369,22 +265,20 @@ function main(argv, deps = {}) {
 
     // Perform security checks immediately before writing to avoid TOCTOU window
     assertManagedPathSafe(codexRoot, agentsDest, "Codex agents destination", fsImpl);
-    assertManagedPathSafe(codexRoot, configDest, "Codex config destination", fsImpl);
 
     copyCodexAgents(outDir, agentsDest, { fs: fsImpl, dryRun: args.dryRun });
-    mergeCodexConfig(sourceConfigPath, configDest, { fs: fsImpl, dryRun: args.dryRun });
 
     if (args.dryRun) {
-      stdout.write("[dry-run] Codex agents/config prepared; no files were written.\n");
+      stdout.write("[dry-run] Codex agents prepared; no files were written.\n");
       return 0;
     }
 
     if (isRepoInstall) {
-      stdout.write(`Done. Codex agents/config synced into ${path.dirname(codexRoot)}.\n`);
+      stdout.write(`Done. Codex agents synced into ${path.dirname(codexRoot)}.\n`);
       return 0;
     }
 
-    stdout.write("Done. Codex marketplace, plugin, agents, and config are installed.\n");
+    stdout.write("Done. Codex marketplace and agents are ready. Use /plugins to install ospec-workflow.\n");
     return 0;
   } catch (error) {
     stderr.write(`${error.message}\n`);
@@ -406,8 +300,6 @@ module.exports = {
   findCodexBin,
   buildCodexMarketplace,
   copyCodexAgents,
-  extractManagedCodexConfig,
-  mergeManagedCodexConfig,
   assertManagedPathSafe,
   main,
 };

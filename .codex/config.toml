@@ -1,5 +1,0 @@
-skills.config = "skills/**/*.md"
-
-[agents]
-max_output_tokens = 65536
-max_tool_calls = 32
