@@ -1,6 +1,6 @@
 change: codex-target-phase-2
-status: verified
-last_updated: "2026-07-10T15:00:00Z"
+status: archived
+last_updated: "2026-07-10T16:00:00Z"
 classification: high-risk
 blocking_questions: []
 owner:
@@ -92,8 +92,9 @@ phases:
       - "WARNING-1: PLUGIN_DATA propagation sin test runtime (por diseño no hay capa wrapper)."
       - "10 asunciones high-reversibility confirmadas contra la implementación."
   archive:
-    status: pending
+    status: done
     artifact: openspec/changes/codex-target-phase-2/archive-report.md
+    summary: "Change copied to archive destination openspec/changes/archive/2026-07-10-codex-target-phase-2/. All 20 tasks, 10 MUST requirements, 3 ADRs, all specs/decisions/reports included."
 gates:
   4r-review-gate:
     status: done
