@@ -23,6 +23,7 @@ Esta carpeta contiene la documentación detallada del arnés de agentes y la met
 | [harness-runtime.md](harness-runtime.md) | **Capas del Arnés**: Hooks del ciclo de vida, caché v2, políticas activas de seguridad (**AgentShield**), límites (**Token Budget Advisor**) y enforzamiento de no atribución AI. |
 | [harness-go-js-parity.md](harness-go-js-parity.md) | **Frontera Go ↔ JS**: Relación entre el motor Go ultrarrápido del camino caliente (~30ms) y el fallback local de Node.js, contratos de paridad y agregación de federación. |
 | [plugin-installation.md](plugin-installation.md) | **Instalación y Compilación**: Cómo configurar y generar compilados nativos autocontenidos en `dist/` para VS Code, Claude Code, GitHub Copilot CLI y opencode. |
+| [codex/README.md](codex/README.md) | **Target Codex**: Punto de entrada, orden de lectura, diagnóstico en máquina real, contratos vigentes y smoke test para `codex-target-phase-2`. |
 | [model-routing.md](model-routing.md) | **Routing de Modelos**: Selección inteligente de modelos por tiers (`cheap` vs `premium`) según el costo y tipo de fase en `models.yaml`. |
 | [mcp-policy.md](mcp-policy.md) | **Política de Servidores MCP**: Activación de plugins adicionales externos (Context7 para documentación, MarkItDown para conversión). |
 | [comparacion-arneses.md](comparacion-arneses.md) | **Análisis Comparativo**: Evaluación técnica de `ospec-workflow` frente a otros arneses de referencia (Gentle AI, ECC, Spec Kit). |

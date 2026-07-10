@@ -148,6 +148,13 @@ En Claude Code hay dos salidas distintas:
 
 ### Codex CLI
 
+> **Evidencia de instalación real:** consulta
+> [Target Codex: punto de entrada para mantenimiento](codex/README.md) y su
+> [informe de campo](codex/field-report-2026-07-10.md)
+> para los fallos observados con Codex CLI 0.144.1, el contrato vigente de
+> manifiesto/hooks/MCP, la instalación separada de agentes y el smoke test que
+> debe superar `codex-target-phase-2`.
+
 #### Instalación remota desde la rama `release`
 
 Para instalar la distribución publicada sin clonar el repositorio:
