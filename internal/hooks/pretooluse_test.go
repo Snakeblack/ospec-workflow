@@ -788,6 +788,80 @@ func TestPreToolUse_PermissionMode_DefaultKeepsAsk(t *testing.T) {
 	}
 }
 
+// REQ-hooks-005 / review remediation (CRITICAL-1, 4R gate): on the codex
+// target, the wrapper signals bypass-equivalence via TWO env vars that must
+// BOTH be present — OSPEC_TARGET=codex (target selector) AND
+// OSPEC_CODEX_WRAPPER=1 (a per-invocation marker inlined directly into the
+// codex-generated command line by codexHooks in
+// scripts/lib/target-transform.js) — so a leftover shell export, CI env var,
+// or repo .env auto-loading OSPEC_TARGET alone into an unrelated session can
+// never silently degrade ASK decisions there.
+func TestPreToolUse_OspecTargetCodex_DegradesAskToAllow(t *testing.T) {
+	t.Setenv("OSPEC_TARGET", "codex")
+	t.Setenv("OSPEC_CODEX_WRAPPER", "1")
+	out, code := hooks.Dispatch([]string{"pre-tool-use"},
+		preToolUseInputWithMode("runTerminalCommand", "npm install left-pad", ""))
+	if code != 0 {
+		t.Fatalf("exitCode: got %d, want 0", code)
+	}
+	var result preToolUseStdoutWithMessage
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("parse stdout: %v; raw=%q", err, out)
+	}
+	if result.HookSpecificOutput.PermissionDecision != "allow" {
+		t.Errorf("expected allow, got %q", result.HookSpecificOutput.PermissionDecision)
+	}
+	if result.SystemMessage == "" {
+		t.Error("systemMessage must carry the advisory")
+	}
+}
+
+func TestPreToolUse_OspecTargetCodex_DenyNeverDegraded(t *testing.T) {
+	t.Setenv("OSPEC_TARGET", "codex")
+	t.Setenv("OSPEC_CODEX_WRAPPER", "1")
+	out, _ := hooks.Dispatch([]string{"pre-tool-use"},
+		preToolUseInputWithMode("runTerminalCommand", "git push origin main --force", ""))
+	var result preToolUseStdoutWithMessage
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("parse stdout: %v; raw=%q", err, out)
+	}
+	if result.HookSpecificOutput.PermissionDecision != "deny" {
+		t.Errorf("expected deny, got %q", result.HookSpecificOutput.PermissionDecision)
+	}
+	if result.SystemMessage != "" {
+		t.Errorf("deny must never be degraded, got systemMessage %q", result.SystemMessage)
+	}
+}
+
+func TestPreToolUse_OspecTargetCodexAlone_DoesNotDegradeAsk(t *testing.T) {
+	t.Setenv("OSPEC_TARGET", "codex")
+	out, _ := hooks.Dispatch([]string{"pre-tool-use"},
+		preToolUseInputWithMode("runTerminalCommand", "npm install left-pad", ""))
+	var result preToolUseStdoutWithMessage
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("parse stdout: %v; raw=%q", err, out)
+	}
+	if result.HookSpecificOutput.PermissionDecision != "ask" {
+		t.Errorf("a leftover/leaked OSPEC_TARGET env var alone must never degrade ASK to allow, got %q", result.HookSpecificOutput.PermissionDecision)
+	}
+	if result.SystemMessage != "" {
+		t.Errorf("no systemMessage expected, got %q", result.SystemMessage)
+	}
+}
+
+func TestPreToolUse_OspecCodexWrapperAlone_DoesNotDegradeAsk(t *testing.T) {
+	t.Setenv("OSPEC_CODEX_WRAPPER", "1")
+	out, _ := hooks.Dispatch([]string{"pre-tool-use"},
+		preToolUseInputWithMode("runTerminalCommand", "npm install left-pad", ""))
+	var result preToolUseStdoutWithMessage
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("parse stdout: %v; raw=%q", err, out)
+	}
+	if result.HookSpecificOutput.PermissionDecision != "ask" {
+		t.Errorf("expected ask, got %q", result.HookSpecificOutput.PermissionDecision)
+	}
+}
+
 func TestPreToolUse_PermissionMode_DenyNeverDegraded(t *testing.T) {
 	out, _ := hooks.Dispatch([]string{"pre-tool-use"},
 		preToolUseInputWithMode("runTerminalCommand", "git push origin main --force", "bypassPermissions"))
@@ -800,5 +874,89 @@ func TestPreToolUse_PermissionMode_DenyNeverDegraded(t *testing.T) {
 	}
 	if result.SystemMessage != "" {
 		t.Errorf("deny must never be degraded, got systemMessage %q", result.SystemMessage)
+	}
+}
+
+// ── AI/model attribution guard (review remediation, CRITICAL-2, 4R gate) ──────
+// Ports checkCommitAttribution / FORBIDDEN_ATTRIBUTION_RE from
+// scripts/hooks/pre-tool-use.js so the Go hook binary also denies
+// `git commit` commands whose message contains AI/model attribution
+// (defense-in-depth alongside scripts/hooks/commit-msg-hook.js).
+
+func TestPreToolUse_CommitAttribution_CleanMessagePasses(t *testing.T) {
+	commands := []string{
+		`git commit -m "feat: add new feature"`,
+		`git commit -m 'fix(core): correct parsing'`,
+		`git commit --message "docs: update README"`,
+		`git commit -am "chore: cleanup"`,
+	}
+	for _, cmd := range commands {
+		t.Run(cmd, func(t *testing.T) {
+			got, code := runPreToolUse(t, preToolUseInput("runTerminalCommand", cmd))
+			if got.PermissionDecision == "deny" {
+				t.Errorf("expected non-deny for clean message, got deny for %q", cmd)
+			}
+			if code != 0 {
+				t.Errorf("exitCode: got %d, want 0", code)
+			}
+		})
+	}
+}
+
+func TestPreToolUse_CommitAttribution_DeniesCoAuthoredBy(t *testing.T) {
+	cmd := `git commit -m "release: v2.4.6" -m "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"`
+	got, code := runPreToolUse(t, preToolUseInput("runTerminalCommand", cmd))
+	if got.PermissionDecision != "deny" {
+		t.Errorf("expected deny, got %q", got.PermissionDecision)
+	}
+	if code != 0 {
+		t.Errorf("exitCode: got %d, want 0", code)
+	}
+}
+
+func TestPreToolUse_CommitAttribution_DeniesModelNames(t *testing.T) {
+	commands := []string{
+		`git commit -m "feat: add feature generated with Claude"`,
+		`git commit -m "fix: fix bug using GPT-4"`,
+		`git commit -m "chore: bump deps via Gemini"`,
+	}
+	for _, cmd := range commands {
+		t.Run(cmd, func(t *testing.T) {
+			got, _ := runPreToolUse(t, preToolUseInput("runTerminalCommand", cmd))
+			if got.PermissionDecision != "deny" {
+				t.Errorf("expected deny for %q, got %q", cmd, got.PermissionDecision)
+			}
+		})
+	}
+}
+
+// Word-boundary false-positive avoidance: ordinary words that merely contain
+// a vendor substring (coherente/cohere, bombardeo/bard, llaman/llama) must
+// never fire.
+func TestPreToolUse_CommitAttribution_WordBoundaryFalsePositiveAvoidance(t *testing.T) {
+	commands := []string{
+		`git commit -m "fix: mensaje mas coherente en el reporte"`,
+		`git commit -m "fix: evitar el bombardeo de logs"`,
+		`git commit -m "fix: los usuarios llaman a esta funcion API"`,
+	}
+	for _, cmd := range commands {
+		t.Run(cmd, func(t *testing.T) {
+			got, _ := runPreToolUse(t, preToolUseInput("runTerminalCommand", cmd))
+			if got.PermissionDecision == "deny" {
+				t.Errorf("false positive: %q must not be denied for attribution", cmd)
+			}
+		})
+	}
+}
+
+func TestPreToolUse_CommitAttribution_NonCommitCommandsPass(t *testing.T) {
+	commands := []string{"git status", "git push origin main", "npm test", "git log -n 5"}
+	for _, cmd := range commands {
+		t.Run(cmd, func(t *testing.T) {
+			got, _ := runPreToolUse(t, preToolUseInput("runTerminalCommand", cmd))
+			if got.PermissionDecision == "deny" {
+				t.Errorf("non-commit command %q must not be denied by the attribution guard", cmd)
+			}
+		})
 	}
 }

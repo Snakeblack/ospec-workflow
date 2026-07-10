@@ -29,6 +29,16 @@ const RESULT_FIELDS = [
   "content",
 ];
 
+// REQ-hooks-006: on the codex target the host names the transcript-file field
+// `agent_transcript_path` rather than `transcript_path`. Every call site that
+// reads a transcript path resolves through this helper so both field names
+// work identically (transcript_path takes priority when both are present;
+// resolution priority and the §5.2 step-3 JSONL-parsing logic are otherwise
+// unchanged).
+function resolveTranscriptPath(input) {
+  return input?.transcript_path || input?.agent_transcript_path;
+}
+
 function normalizeResolution(value) {
   return String(value || "")
     .trim()
@@ -301,7 +311,7 @@ async function persistResultEnvelope({ input, workspace }) {
     let envelopeResult = findEnvelopeInInput(input);
 
     if (!envelopeResult.found) {
-      envelopeResult = await findEnvelopeInTranscript(input.transcript_path);
+      envelopeResult = await findEnvelopeInTranscript(resolveTranscriptPath(input));
     }
 
     if (!envelopeResult.found || !envelopeResult.value) {
@@ -419,7 +429,7 @@ async function resolveDispatchStatus(input) {
   let envelopeResult = findEnvelopeInInput(input);
 
   if (!envelopeResult.found) {
-    envelopeResult = await findEnvelopeInTranscript(input.transcript_path);
+    envelopeResult = await findEnvelopeInTranscript(resolveTranscriptPath(input));
   }
 
   if (envelopeResult.found && envelopeResult.value) {
@@ -520,7 +530,7 @@ async function runSubagentStop({
 
   const resolution =
     findResolutionInInput(input) ||
-    (await findResolutionInTranscript(input.transcript_path));
+    (await findResolutionInTranscript(resolveTranscriptPath(input)));
 
   if (!isDegradedResolution(resolution)) {
     return {

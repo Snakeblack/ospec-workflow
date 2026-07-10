@@ -187,9 +187,34 @@ function parseJsonFile(file) {
 
 // --- manifest --------------------------------------------------------------
 
+// ADR-001 / REQ-generator-004: rewrite a manifest component path (e.g.
+// "skills/", ".mcp.json", "hooks/hooks.json") into a safe "./"-relative form.
+// Rejects any ".." traversal segment or absolute filesystem path (POSIX
+// leading "/" or a Windows drive letter like "C:\").
+function toSafeRelativePath(file, key, value) {
+  if (value.startsWith("./")) {
+    return value;
+  }
+  const segments = value.split(/[\\/]/);
+  if (segments.includes("..")) {
+    throw new Error(`${file.path}: manifest field "${key}" must not contain a ".." traversal segment: ${value}`);
+  }
+  if (value.startsWith("/") || value.startsWith("\\") || /^[a-zA-Z]:[\\/]/.test(value)) {
+    throw new Error(`${file.path}: manifest field "${key}" must be a relative path, not absolute: ${value}`);
+  }
+  return `./${value}`;
+}
+
 function reshapeManifest(file, profile) {
   const obj = parseJsonFile(file);
-  const { omitFields = [], dropFields = [], keepFields, outLocation, interface: iface } = profile.manifest;
+  const {
+    omitFields = [],
+    dropFields = [],
+    keepFields,
+    relativePathFields = [],
+    outLocation,
+    interface: iface,
+  } = profile.manifest;
 
   // Allowlist + rename branch (codex): keep only the declared keys, inject an
   // optional `interface` metadata block, and write to a renamed output path.
@@ -200,6 +225,11 @@ function reshapeManifest(file, profile) {
     for (const key of keepFields) {
       if (key in obj) {
         kept[key] = obj[key];
+      }
+    }
+    for (const key of relativePathFields) {
+      if (typeof kept[key] === "string") {
+        kept[key] = toSafeRelativePath(file, key, kept[key]);
       }
     }
     if (iface) {
@@ -291,8 +321,41 @@ function rewriteCodexCommand(file, event, index, entry) {
   return quotePluginRootPath(command);
 }
 
-// Reshape the source hooks for Codex: mapping events 1:1 PascalCase
-// and substituting ${CLAUDE_PLUGIN_ROOT} with a quoted $PLUGIN_ROOT path.
+// REQ-hooks-004: the exactly-five Codex hook events the wrapper supports.
+// Any other event present in the source hooks.json (e.g. a future baseline
+// event with no Codex equivalent yet) is silently dropped — "No event beyond
+// the five listed MUST be added by this requirement."
+const CODEX_WRAPPER_EVENTS = ["SessionStart", "PreToolUse", "PreCompact", "SubagentStop", "Stop"];
+
+// Windows/cmd.exe-PowerShell adapter (REQ-hooks-004): swap the quoted POSIX
+// "$PLUGIN_ROOT/…" segment for a backslash-separated "%PLUGIN_ROOT%\…" form.
+// Runs on the already-quoted POSIX command so quoting is reused verbatim.
+function toCodexWindowsCommand(command) {
+  return command.replace(/\$PLUGIN_ROOT\/([^\s"]+)/g, (_match, rest) => `%PLUGIN_ROOT%\\${rest.split("/").join("\\")}`);
+}
+
+// Per-invocation Codex marker (review remediation, ADR-003 addendum):
+// OSPEC_TARGET alone is a process-wide env var that can leak into an
+// unrelated session (leftover shell export, CI var, repo .env), silently
+// degrading every ASK-class hook decision there too. OSPEC_CODEX_WRAPPER=1
+// is inlined directly into the codex-generated command line itself, so it is
+// set fresh for that single hook invocation by the wrapper's own command
+// string rather than inherited ambient state; pre-tool-use.js/pretooluse.go
+// require BOTH before degrading ask -> allow.
+function withCodexWrapperMarker(command) {
+  return `OSPEC_CODEX_WRAPPER=1 ${command}`;
+}
+
+function withCodexWrapperMarkerWindows(command) {
+  return `set OSPEC_CODEX_WRAPPER=1&& ${command}`;
+}
+
+// Reshape the source hooks for Codex (REQ-hooks-004 / ADR-003): per-event
+// wrapper group { matcher: ".*", hooks: [ { type, command, commandWindows,
+// timeout } ] } instead of the base target's flat 1:1 shape. `command` keeps
+// the POSIX $PLUGIN_ROOT/... form (quoted), `commandWindows` is the
+// backslash/%PLUGIN_ROOT% variant, and `timeout` is normalized to the fixed
+// Codex-side value (10s) regardless of the source event's declared timeout.
 function codexHooks(file, profile) {
   const obj = parseJsonFile(file);
   const events = obj.hooks;
@@ -300,14 +363,20 @@ function codexHooks(file, profile) {
   const out = {};
 
   for (const [event, entries] of Object.entries(events)) {
+    if (!CODEX_WRAPPER_EVENTS.includes(event)) {
+      continue;
+    }
     validateHookEntries(file, event, entries);
-    out[event] = entries.map((entry, index) => {
+    const wrappedHooks = entries.map((entry, index) => {
       const command = rewriteCodexCommand(file, event, index, entry);
       return {
-        ...entry,
-        command,
+        type: (entry && entry.type) || "command",
+        command: withCodexWrapperMarker(command),
+        commandWindows: withCodexWrapperMarkerWindows(toCodexWindowsCommand(command)),
+        timeout: 10,
       };
     });
+    out[event] = [{ matcher: ".*", hooks: wrappedHooks }];
   }
 
   return { path: profile.hooks.location || file.path, content: JSON.stringify({ hooks: out }, null, 2) + "\n" };

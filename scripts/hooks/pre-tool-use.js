@@ -292,7 +292,21 @@ function recordTokensSync(changeName, tokens) {
  * and are never degraded.
  */
 function applyPermissionMode(result, permissionMode) {
-  if (permissionMode !== "bypassPermissions") {
+  // REQ-hooks-005: on the codex target, ASK is unsupported by the host. The
+  // wrapper signals this via TWO env vars that must both be present:
+  // OSPEC_TARGET=codex (target selector) AND OSPEC_CODEX_WRAPPER=1 (a
+  // per-invocation marker the codex-generated hooks.json command inlines
+  // directly on the command line — see codexHooks in
+  // scripts/lib/target-transform.js). Requiring both closes the gap where a
+  // leftover shell export, CI env var, or repo .env auto-loaded OSPEC_TARGET
+  // alone into an unrelated session would silently degrade every ASK-class
+  // decision there too; OSPEC_CODEX_WRAPPER is set fresh by the wrapper's
+  // own command string for that single invocation, not inherited ambient
+  // state. DENY (Step 5) is untouched by this check either way.
+  const codexWrapper =
+    process.env.OSPEC_TARGET === "codex" && process.env.OSPEC_CODEX_WRAPPER === "1";
+  const bypassEquivalent = permissionMode === "bypassPermissions" || codexWrapper;
+  if (!bypassEquivalent) {
     return result;
   }
   const output = result && result.hookSpecificOutput;

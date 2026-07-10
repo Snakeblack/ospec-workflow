@@ -5,7 +5,24 @@ const path = require("node:path");
 
 // Fields the codex plugin bundle allowlist permits at .codex-plugin/plugin.json
 // (mirrors profile.manifest.keepFields plus the injected `interface` block).
-const ALLOWED_BUNDLE_KEYS = new Set(["skills", "mcpServers", "apps", "hooks", "interface"]);
+const ALLOWED_BUNDLE_KEYS = new Set([
+  "skills",
+  "mcpServers",
+  "apps",
+  "hooks",
+  "interface",
+  "name",
+  "version",
+  "description",
+]);
+
+// REQ-generator-004 (ADR-001): the bundle keys whose value must be a safe
+// "./"-relative path (no ".." traversal, no absolute filesystem path).
+const RELATIVE_PATH_KEYS = ["skills", "mcpServers", "hooks"];
+
+// REQ-generator-004 (ADR-002): every generated .mcp.json server id must match
+// this pattern; Codex rejects ids outside it (e.g. namespaced "org/name" ids).
+const MCP_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 // codex has no shell-hook/plugin bridge finalized until 5.2/5.3, and no other
 // target's layout may leak through; agents never live under a `prompts/` path
@@ -113,9 +130,24 @@ function parseJsonFile(root, rel, errors, readFile = readUtf8) {
   }
 }
 
+// REQ-generator-004 / ADR-001: true when `value` is a safe "./"-relative
+// path — no ".." traversal segment, and not resolvable to an absolute
+// filesystem path (POSIX leading "/" or a Windows drive letter).
+function isSafeRelativePath(value) {
+  if (typeof value !== "string" || !value.startsWith("./")) {
+    return false;
+  }
+  if (value.startsWith("/") || value.startsWith("\\") || /^[a-zA-Z]:[\\/]/.test(value)) {
+    return false;
+  }
+  const segments = value.split(/[\\/]/);
+  return !segments.includes("..");
+}
+
 // Bundle allowlist: .codex-plugin/plugin.json MUST NOT contain any top-level
-// key outside skills/mcpServers/apps/hooks/interface (REQ-codex-target-001,
-// REQ-codex-target-008 "Validator fails on out-of-schema bundle key").
+// key outside skills/mcpServers/apps/hooks/interface/name/version/description
+// (REQ-codex-target-001, REQ-codex-target-008 "Validator fails on
+// out-of-schema bundle key"; REQ-generator-004 for path safety, ADR-001).
 function validateBundle(root, errors) {
   const rel = ".codex-plugin/plugin.json";
   if (pathType(root, rel) !== "file") {
@@ -129,6 +161,31 @@ function validateBundle(root, errors) {
   for (const key of Object.keys(parsed)) {
     if (!ALLOWED_BUNDLE_KEYS.has(key)) {
       addError(errors, `${rel} contains out-of-schema key: ${key}`);
+    }
+  }
+  for (const key of RELATIVE_PATH_KEYS) {
+    if (key in parsed && !isSafeRelativePath(parsed[key])) {
+      addError(errors, `${rel} field "${key}" must be a safe ./-relative path: ${parsed[key]}`);
+    }
+  }
+}
+
+// REQ-generator-004 / ADR-002: every MCP server id declared in the generated
+// .mcp.json must match ^[a-zA-Z0-9_-]+$, or it is rejected at the host (a
+// hard validation failure, not a silent sanitization).
+function validateMcpIds(root, errors, deps = {}) {
+  const rel = ".mcp.json";
+  if (pathType(root, rel) !== "file") {
+    return; // .mcp.json is optional; nothing to validate.
+  }
+  const readFile = deps.readUtf8 || readUtf8;
+  const parsed = parseJsonFile(root, rel, errors, readFile);
+  if (!parsed || !parsed.mcpServers || typeof parsed.mcpServers !== "object") {
+    return;
+  }
+  for (const id of Object.keys(parsed.mcpServers)) {
+    if (!MCP_ID_PATTERN.test(id)) {
+      addError(errors, `${rel} declares an invalid MCP server id: ${id}`);
     }
   }
 }
@@ -178,25 +235,38 @@ function validateHooks(root, errors, deps = {}) {
     return;
   }
 
-  for (const [event, entries] of Object.entries(parsed.hooks)) {
-    if (!Array.isArray(entries)) {
+  // REQ-hooks-004: each event carries an array of wrapper groups
+  // { matcher, hooks: [ { type, command, commandWindows, timeout } ] }
+  // instead of the base target's flat 1:1 entry array.
+  for (const [event, groups] of Object.entries(parsed.hooks)) {
+    if (!Array.isArray(groups)) {
       addError(errors, `${rel} ${event} must be an array`);
       continue;
     }
-    entries.forEach((entry, index) => {
-      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-        addError(errors, `${rel} ${event}[${index}] must be an object`);
+    groups.forEach((group, groupIndex) => {
+      if (!group || typeof group !== "object" || Array.isArray(group)) {
+        addError(errors, `${rel} ${event}[${groupIndex}] must be an object`);
         return;
       }
-      if (typeof entry.command !== "string") {
-        addError(errors, `${rel} ${event}[${index}] command must be a string`);
+      if (!Array.isArray(group.hooks)) {
+        addError(errors, `${rel} ${event}[${groupIndex}].hooks must be an array`);
         return;
       }
-      // We enforce quoting the $PLUGIN_ROOT path (e.g. "$PLUGIN_ROOT/some-script") to prevent
-      // path parsing issues or word-splitting failures when the plugin path contains spaces.
-      if (/\$PLUGIN_ROOT\/[^"]/.test(entry.command) && !entry.command.includes('"$PLUGIN_ROOT/')) {
-        addError(errors, `${rel} ${event}[${index}] command must quote the $PLUGIN_ROOT path`);
-      }
+      group.hooks.forEach((entry, index) => {
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+          addError(errors, `${rel} ${event}[${groupIndex}].hooks[${index}] must be an object`);
+          return;
+        }
+        if (typeof entry.command !== "string") {
+          addError(errors, `${rel} ${event}[${groupIndex}].hooks[${index}] command must be a string`);
+          return;
+        }
+        // We enforce quoting the $PLUGIN_ROOT path (e.g. "$PLUGIN_ROOT/some-script") to prevent
+        // path parsing issues or word-splitting failures when the plugin path contains spaces.
+        if (/\$PLUGIN_ROOT\/[^"]/.test(entry.command) && !entry.command.includes('"$PLUGIN_ROOT/')) {
+          addError(errors, `${rel} ${event}[${groupIndex}].hooks[${index}] command must quote the $PLUGIN_ROOT path`);
+        }
+      });
     });
   }
 }
@@ -269,6 +339,7 @@ function validate(root, deps = {}) {
   validateForbiddenPaths(absRoot, errors);
   validateForbiddenText(absRoot, errors, deps);
   validateHooks(absRoot, errors, deps);
+  validateMcpIds(absRoot, errors, deps);
   const readFile = deps.readUtf8 || readUtf8;
   validateAgentToml(absRoot, errors, readFile);
   validateSkills(absRoot, errors, readFile);

@@ -19,16 +19,38 @@ function makeValidCodexTree(t, hooksCommand = 'node "$PLUGIN_ROOT/scripts/hooks/
 
   fs.writeFileSync(
     path.join(root, ".codex-plugin", "plugin.json"),
-    JSON.stringify({ skills: "skills/", mcpServers: ".mcp.json", apps: [], hooks: "hooks/hooks.json", interface: { displayName: "x", icon: "icon.png" } }, null, 2)
+    JSON.stringify(
+      {
+        skills: "./skills/",
+        mcpServers: "./.mcp.json",
+        apps: [],
+        hooks: "./hooks/hooks.json",
+        name: "ospec-workflow",
+        version: "1.0.0",
+        description: "fixture",
+        interface: { displayName: "x", icon: "icon.png" },
+      },
+      null,
+      2
+    )
+  );
+  fs.writeFileSync(
+    path.join(root, ".mcp.json"),
+    JSON.stringify({ mcpServers: { context7: { type: "stdio", command: "npx" } } }, null, 2)
   );
   fs.writeFileSync(
     path.join(root, ".codex", "agents", "sdd-apply.toml"),
     'name = "sdd-apply"\ndescription = "d"\nsandbox_mode = "workspace-write"\ndeveloper_instructions = """clean"""\n'
   );
   fs.writeFileSync(path.join(root, "skills", "foo", "SKILL.md"), "clean\n");
+  // REQ-hooks-004: wrapper shape { matcher, hooks:[{type,command,commandWindows,timeout}] }.
   fs.writeFileSync(
     path.join(root, "hooks", "hooks.json"),
-    JSON.stringify({ hooks: { SessionStart: [{ type: "command", command: hooksCommand, timeout: 5 }] } }, null, 2)
+    JSON.stringify(
+      { hooks: { SessionStart: [{ matcher: ".*", hooks: [{ type: "command", command: hooksCommand, commandWindows: hooksCommand, timeout: 10 }] }] } },
+      null,
+      2
+    )
   );
 
   return root;
@@ -56,7 +78,7 @@ test("validate-codex rejects unquoted $PLUGIN_ROOT hook commands", (t) => {
 
   const result = validate(root);
 
-  assert.match(result.errors.join("\n"), /hooks\/hooks\.json SessionStart\[0\] command must quote the \$PLUGIN_ROOT path/);
+  assert.match(result.errors.join("\n"), /hooks\/hooks\.json SessionStart\[0\]\.hooks\[0\] command must quote the \$PLUGIN_ROOT path/);
 });
 
 test("validate-codex accepts quoted $PLUGIN_ROOT hook commands", (t) => {
@@ -90,7 +112,7 @@ test("validate-codex reports hook events when an event entry is not an array", (
   assert.match(result.errors.join("\n"), /hooks\/hooks\.json SessionStart must be an array/);
 });
 
-test("validate-codex reports malformed hook entries", (t) => {
+test("validate-codex reports malformed wrapper group entries", (t) => {
   const root = makeValidCodexTree(t);
   fs.writeFileSync(path.join(root, "hooks", "hooks.json"), JSON.stringify({ hooks: { SessionStart: ["bad-entry"] } }, null, 2));
 
@@ -99,16 +121,40 @@ test("validate-codex reports malformed hook entries", (t) => {
   assert.match(result.errors.join("\n"), /hooks\/hooks\.json SessionStart\[0\] must be an object/);
 });
 
-test("validate-codex reports hook commands when command is not a string", (t) => {
+test("validate-codex reports when a wrapper group's hooks field is not an array", (t) => {
   const root = makeValidCodexTree(t);
   fs.writeFileSync(
     path.join(root, "hooks", "hooks.json"),
-    JSON.stringify({ hooks: { SessionStart: [{ type: "command", command: 5, timeout: 5 }] } }, null, 2)
+    JSON.stringify({ hooks: { SessionStart: [{ matcher: ".*", hooks: "not-an-array" }] } }, null, 2)
   );
 
   const result = validate(root);
 
-  assert.match(result.errors.join("\n"), /hooks\/hooks\.json SessionStart\[0\] command must be a string/);
+  assert.match(result.errors.join("\n"), /hooks\/hooks\.json SessionStart\[0\]\.hooks must be an array/);
+});
+
+test("validate-codex reports malformed inner hook entries", (t) => {
+  const root = makeValidCodexTree(t);
+  fs.writeFileSync(
+    path.join(root, "hooks", "hooks.json"),
+    JSON.stringify({ hooks: { SessionStart: [{ matcher: ".*", hooks: ["bad-entry"] }] } }, null, 2)
+  );
+
+  const result = validate(root);
+
+  assert.match(result.errors.join("\n"), /hooks\/hooks\.json SessionStart\[0\]\.hooks\[0\] must be an object/);
+});
+
+test("validate-codex reports hook commands when command is not a string", (t) => {
+  const root = makeValidCodexTree(t);
+  fs.writeFileSync(
+    path.join(root, "hooks", "hooks.json"),
+    JSON.stringify({ hooks: { SessionStart: [{ matcher: ".*", hooks: [{ type: "command", command: 5, timeout: 10 }] }] } }, null, 2)
+  );
+
+  const result = validate(root);
+
+  assert.match(result.errors.join("\n"), /hooks\/hooks\.json SessionStart\[0\]\.hooks\[0\] command must be a string/);
 });
 
 test("validate-codex reports unreadable agent TOML files as validation errors", (t) => {
@@ -242,6 +288,83 @@ test("validate-codex rejects skill configurations carrying agent routing key", (
 
   const result = validate(root);
   assert.match(result.errors.join("\n"), /skills\/foo\/SKILL\.md must not carry an agent: routing key/);
+});
+
+test("validate-codex accepts metadata keys (name/version/description) on plugin.json", (t) => {
+  const root = makeValidCodexTree(t);
+
+  const result = validate(root);
+
+  assert.deepEqual(result.errors, []);
+});
+
+test("validate-codex rejects a .mcp.json MCP id containing a slash", (t) => {
+  const root = makeValidCodexTree(t);
+  fs.writeFileSync(
+    path.join(root, ".mcp.json"),
+    JSON.stringify({ mcpServers: { "io.github.upstash/context7": { type: "stdio", command: "npx" } } }, null, 2)
+  );
+
+  const result = validate(root);
+
+  assert.match(result.errors.join("\n"), /\.mcp\.json declares an invalid MCP server id: io\.github\.upstash\/context7/);
+});
+
+test("validate-codex rejects a .mcp.json MCP id containing a space", (t) => {
+  const root = makeValidCodexTree(t);
+  fs.writeFileSync(
+    path.join(root, ".mcp.json"),
+    JSON.stringify({ mcpServers: { "bad id": { type: "stdio", command: "npx" } } }, null, 2)
+  );
+
+  const result = validate(root);
+
+  assert.match(result.errors.join("\n"), /\.mcp\.json declares an invalid MCP server id: bad id/);
+});
+
+test("validate-codex accepts conformant MCP ids matching ^[a-zA-Z0-9_-]+$", (t) => {
+  const root = makeValidCodexTree(t);
+  fs.writeFileSync(
+    path.join(root, ".mcp.json"),
+    JSON.stringify({ mcpServers: { context7: { type: "stdio", command: "npx" }, markitdown: { type: "stdio", command: "uvx" } } }, null, 2)
+  );
+
+  const result = validate(root);
+
+  assert.deepEqual(result.errors, []);
+});
+
+test("validate-codex rejects a plugin.json component path that is not ./-relative", (t) => {
+  const root = makeValidCodexTree(t);
+  const plugin = JSON.parse(fs.readFileSync(path.join(root, ".codex-plugin", "plugin.json"), "utf8"));
+  plugin.skills = "skills/";
+  fs.writeFileSync(path.join(root, ".codex-plugin", "plugin.json"), JSON.stringify(plugin, null, 2));
+
+  const result = validate(root);
+
+  assert.match(result.errors.join("\n"), /\.codex-plugin\/plugin\.json field "skills" must be a safe .\/-relative path: skills\//);
+});
+
+test("validate-codex rejects a plugin.json component path with a .. traversal segment", (t) => {
+  const root = makeValidCodexTree(t);
+  const plugin = JSON.parse(fs.readFileSync(path.join(root, ".codex-plugin", "plugin.json"), "utf8"));
+  plugin.mcpServers = "../.mcp.json";
+  fs.writeFileSync(path.join(root, ".codex-plugin", "plugin.json"), JSON.stringify(plugin, null, 2));
+
+  const result = validate(root);
+
+  assert.match(result.errors.join("\n"), /\.codex-plugin\/plugin\.json field "mcpServers" must be a safe .\/-relative path: \.\.\/\.mcp\.json/);
+});
+
+test("validate-codex rejects a plugin.json component path that is absolute", (t) => {
+  const root = makeValidCodexTree(t);
+  const plugin = JSON.parse(fs.readFileSync(path.join(root, ".codex-plugin", "plugin.json"), "utf8"));
+  plugin.hooks = "/hooks/hooks.json";
+  fs.writeFileSync(path.join(root, ".codex-plugin", "plugin.json"), JSON.stringify(plugin, null, 2));
+
+  const result = validate(root);
+
+  assert.match(result.errors.join("\n"), /\.codex-plugin\/plugin\.json field "hooks" must be a safe .\/-relative path: \/hooks\/hooks\.json/);
 });
 
 test("validate-codex rejects a generated config.toml", (t) => {

@@ -8,6 +8,19 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.25.0] - 2026-07-10
+
+### Added
+- **Contrato del payload publicado para Codex (change `codex-target-phase-2`)**: el manifiesto del target (`.codex-plugin/plugin.json`) retiene metadata (`name`/`version`/`description`) y emite todos los paths de componentes (`skills`, `mcpServers`, `hooks`) en forma segura relativa a `./`, rechazando traversal (`..`) y rutas absolutas en `target-transform.js`. `validate-codex.js` endurece el gate correspondiente y añade validación de ids de servidores MCP contra `^[a-zA-Z0-9_-]+$` como fallo duro de generación.
+- **Wrapper de hooks de 5 eventos con adaptador POSIX/Windows**: `codexHooks` envuelve cada uno de los cinco eventos soportados (`SessionStart`, `PreToolUse`, `PreCompact`, `SubagentStop`, `Stop`) en grupos `{matcher, hooks:[{command, commandWindows, timeout}]}`, con paridad Go/JS íntegra (`internal/hooks/pretooluse.go`, `internal/hooks/subagentstop.go`).
+- **Alias de transcript y contrato de PreToolUse sin `ask`**: `SubagentStop` acepta `input.agent_transcript_path` como alias del campo estándar; `PreToolUse` degrada decisiones `ask` a `allow` + mensaje advisory cuando el wrapper generado señaliza el target mediante dos variables de invocación combinadas (ver *Security* abajo).
+- **Instalación separada e idempotente de plugin y agentes TOML**, documentada en `docs/codex/README.md` (instalación/actualización, revisión y confianza de hooks vía `/hooks`, flujo de tarea nueva, rollback) y verificada con un smoke test end-to-end (`codex-smoke.test.js`) contra el payload generado e instalado en un directorio temporal.
+- 10 nuevos requisitos + 1 modificado sincronizados a los dominios baseline `generator`, `hooks`, `install` y `agents` (18 escenarios), y 3 ADRs promovidas a `docs/adr/`.
+
+### Security
+- **Degradación ASK→allow ya no depende únicamente de una variable de entorno de sesión**: tras un hallazgo CRITICAL del gate de revisión (riesgo de fuga por variables de entorno residuales de shell/CI), la degradación exige ahora DOS señales por invocación — el selector de target y un marcador inline (`OSPEC_CODEX_WRAPPER=1`) que el propio wrapper generado inyecta en cada comando — aplicado en paralelo en el hook JS y su espejo Go.
+- **Guard de atribución de IA en mensajes de commit portado al hook Go**: cerrado un hueco de paridad que permitía que un `git commit` con atribución de IA pasara sin bloqueo cuando se despachaba vía el binario Go (`internal/hooks/pretooluse.go`), en vez de solo vía el hook JS.
+
 ## [2.24.0] - 2026-07-09
 
 ### Added
