@@ -24,7 +24,7 @@ agents:
   # Premium: decisiones de alto impacto. Si fallan, el workflow entero queda mal orientado.
   sdd-design: premium
   sdd-verify: premium
-  sdd-orchestrator: premium
+  sdd-orchestrator: default
 
   # Default: trabajo fuerte y frecuente. Aquí Terra da el mejor equilibrio calidad/coste.
   sdd-propose: default

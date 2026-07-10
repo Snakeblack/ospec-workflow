@@ -32,7 +32,7 @@ function tmpDir(t, prefix) {
 
 function parseAgentToml(content) {
   const fields = {};
-  const multilineMatch = content.match(/developer_instructions = """\n([\s\S]*)"""\s*$/);
+  const multilineMatch = content.match(/developer_instructions = """\n([\s\S]*?)"""/);
   let head = content;
   if (multilineMatch) {
     fields.developer_instructions = multilineMatch[1];
@@ -88,6 +88,11 @@ test("codex smoke: skill entry dispatches through the orchestrator TOML agent to
   assert.ok(
     orchestratorFields.developer_instructions.includes("sdd-propose"),
     "orchestrator dispatch must retain the phase sub-agent it delegates proposal work to",
+  );
+  assert.match(
+    fs.readFileSync(orchestratorTomlPath, "utf8"),
+    /\[agents\]\nmax_depth = 1\n/,
+    "installed Codex agents must prevent recursive delegation",
   );
 
   // 4. Orchestrator → SessionStart: invoke the same Node hook entry point the
