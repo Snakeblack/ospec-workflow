@@ -69,13 +69,13 @@ Preguntar al usuario si tiene documentos del proyecto (PDF, especificación func
 
 Para cada documento suministrado:
 
-1. Comprobar si el servidor MCP `mcp__microsoft_markitdown__convert_to_markdown` está disponible en el cliente actual.
+1. Comprobar si existe una herramienta MCP MarkItDown `convert_to_markdown` en el cliente actual. La instalación Codex predeterminada la expone como `mcp__markitdown__convert_to_markdown`, pero una configuración preexistente puede usar otro prefijo de servidor; reutilizar la herramienta equivalente disponible en vez de registrar un duplicado.
 2. **Si el servidor MCP NO está disponible**:
    - Detener el flujo de ingesta y presentar un gate interactivo al usuario mediante `vscode/askQuestions` con las siguientes opciones de remediación:
      - **Configurar MarkItDown automáticamente**: Permitir que el agente intente realizar la instalación/configuración del servidor MCP localmente.
      - **Configurar manualmente con guía**: El agente suspenderá la ingesta, proveerá las instrucciones paso a paso para configurar el servidor (ej. registrar `markitdown-mcp` en `.mcp.json` usando `uvx` u otros medios) y guiará al usuario interactivamente.
      - **Saltar ingesta de documentos**: Omitir la ingesta y continuar al descubrimiento manual (Step 3).
-3. **Si el servidor MCP está disponible (o es configurado exitosamente)**, llamar a `mcp__microsoft_markitdown__convert_to_markdown` con la ruta o contenido del documento.
+3. **Si el servidor MCP está disponible (o es configurado exitosamente)**, llamar a su herramienta `convert_to_markdown` con la ruta o contenido del documento.
 4. En caso de éxito:
    - Preservar el original en `docs/references/raw/` (nombre sin modificar).
    - Guardar el markdown convertido en `docs/references/processed/` (mismo nombre base, extensión `.md`).

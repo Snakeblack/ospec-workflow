@@ -45,8 +45,11 @@ etc.). Foundation defines the project; standard SDD changes build features.
 
 Before launching the first discovery question, the skill offers to ingest project documents
 (PDF, functional spec, architecture doc) via `vscode/askQuestions`. When the user confirms
-documents are available, the skill calls `mcp__microsoft_markitdown__convert_to_markdown` for
-each document and passes the converted content as foundation context.
+documents are available, the skill calls the available MarkItDown MCP
+`convert_to_markdown` tool (the default Codex name is
+`mcp__markitdown__convert_to_markdown`) for each document and passes the
+converted content as foundation context. A pre-existing equivalent server may
+use another prefix and must be reused instead of duplicated.
 
 When the MCP tool is unavailable, the agent initiates an interactive fallback loop (asking the user via `vscode/askQuestions` whether they want to configure it automatically, configure it manually with guidance, or skip document ingestion). See `skills/sdd-foundation/SKILL.md` — `## Markitdown Document Ingestion (Optional)` for the full degradation rules.
 

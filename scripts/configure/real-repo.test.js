@@ -109,7 +109,7 @@ test("real repo: every generated .codex/agents/*.toml file is syntactically vali
   }
 });
 
-test("real repo: the orchestrator TOML agent dispatches through the published payload with no manifest/MCP/hooks warnings", (t) => {
+test("real repo: the orchestrator TOML agent dispatches through the published payload with no manifest or hooks warnings", (t) => {
   const out = tmpOut(t);
   runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
 
@@ -123,9 +123,9 @@ test("real repo: the orchestrator TOML agent dispatches through the published pa
     "orchestrator developer_instructions must retain delegation to phase sub-agents",
   );
 
-  // No manifest/MCP/hooks warnings: the codex validator is the payload's own
+  // No manifest/hooks warnings or duplicate plugin MCPs: the codex validator is the payload's own
   // conformance gate for the bundle the orchestrator agent's own
-  // delegation targets rely on (skills/mcpServers/hooks paths, MCP id shape).
+  // delegation targets rely on (skills/hooks paths; MCPs are installer-managed).
   const result = validateCodex(out);
   assert.deepEqual(result.errors, [], `codex payload must validate cleanly:\n${result.errors.join("\n")}`);
 });
@@ -395,8 +395,8 @@ test("real repo: sdd-foundation agent mentions markitdown degradation", (t) => {
     const text = fs.readFileSync(path.join(out, expectedPath), "utf8");
     assert.match(
       text,
-      /mcp__microsoft_markitdown__convert_to_markdown/,
-      `sdd-foundation agent (${target}) must reference mcp__microsoft_markitdown__convert_to_markdown`
+      /(?:mcp__markitdown__)?convert_to_markdown/,
+      `sdd-foundation agent (${target}) must reference the MarkItDown convert_to_markdown tool`
     );
     assert.match(
       text,

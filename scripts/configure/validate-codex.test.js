@@ -22,7 +22,6 @@ function makeValidCodexTree(t, hooksCommand = 'node "$PLUGIN_ROOT/scripts/hooks/
     JSON.stringify(
       {
         skills: "./skills/",
-        mcpServers: "./.mcp.json",
         apps: [],
         hooks: "./hooks/hooks.json",
         name: "ospec-workflow",
@@ -33,10 +32,6 @@ function makeValidCodexTree(t, hooksCommand = 'node "$PLUGIN_ROOT/scripts/hooks/
       null,
       2
     )
-  );
-  fs.writeFileSync(
-    path.join(root, ".mcp.json"),
-    JSON.stringify({ mcpServers: { context7: { type: "stdio", command: "npx" } } }, null, 2)
   );
   fs.writeFileSync(
     path.join(root, ".codex", "agents", "sdd-apply.toml"),
@@ -298,40 +293,28 @@ test("validate-codex accepts metadata keys (name/version/description) on plugin.
   assert.deepEqual(result.errors, []);
 });
 
-test("validate-codex rejects a .mcp.json MCP id containing a slash", (t) => {
+test("validate-codex rejects bundled MCP configuration to prevent duplicate Codex processes", (t) => {
   const root = makeValidCodexTree(t);
   fs.writeFileSync(
     path.join(root, ".mcp.json"),
-    JSON.stringify({ mcpServers: { "io.github.upstash/context7": { type: "stdio", command: "npx" } } }, null, 2)
+    JSON.stringify({ context7: { command: "npx" } }, null, 2)
   );
 
   const result = validate(root);
 
-  assert.match(result.errors.join("\n"), /\.mcp\.json declares an invalid MCP server id: io\.github\.upstash\/context7/);
+  assert.match(result.errors.join("\n"), /forbidden path present: \.mcp\.json/);
 });
 
-test("validate-codex rejects a .mcp.json MCP id containing a space", (t) => {
+test("validate-codex rejects an mcpServers manifest field even when the path is valid", (t) => {
   const root = makeValidCodexTree(t);
-  fs.writeFileSync(
-    path.join(root, ".mcp.json"),
-    JSON.stringify({ mcpServers: { "bad id": { type: "stdio", command: "npx" } } }, null, 2)
-  );
+  const pluginPath = path.join(root, ".codex-plugin", "plugin.json");
+  const plugin = JSON.parse(fs.readFileSync(pluginPath, "utf8"));
+  plugin.mcpServers = "./.mcp.json";
+  fs.writeFileSync(pluginPath, JSON.stringify(plugin, null, 2));
 
   const result = validate(root);
 
-  assert.match(result.errors.join("\n"), /\.mcp\.json declares an invalid MCP server id: bad id/);
-});
-
-test("validate-codex accepts conformant MCP ids matching ^[a-zA-Z0-9_-]+$", (t) => {
-  const root = makeValidCodexTree(t);
-  fs.writeFileSync(
-    path.join(root, ".mcp.json"),
-    JSON.stringify({ mcpServers: { context7: { type: "stdio", command: "npx" }, markitdown: { type: "stdio", command: "uvx" } } }, null, 2)
-  );
-
-  const result = validate(root);
-
-  assert.deepEqual(result.errors, []);
+  assert.match(result.errors.join("\n"), /out-of-schema key: mcpServers/);
 });
 
 test("validate-codex rejects a plugin.json component path that is not ./-relative", (t) => {
@@ -348,12 +331,12 @@ test("validate-codex rejects a plugin.json component path that is not ./-relativ
 test("validate-codex rejects a plugin.json component path with a .. traversal segment", (t) => {
   const root = makeValidCodexTree(t);
   const plugin = JSON.parse(fs.readFileSync(path.join(root, ".codex-plugin", "plugin.json"), "utf8"));
-  plugin.mcpServers = "../.mcp.json";
+  plugin.hooks = "../hooks/hooks.json";
   fs.writeFileSync(path.join(root, ".codex-plugin", "plugin.json"), JSON.stringify(plugin, null, 2));
 
   const result = validate(root);
 
-  assert.match(result.errors.join("\n"), /\.codex-plugin\/plugin\.json field "mcpServers" must be a safe .\/-relative path: \.\.\/\.mcp\.json/);
+  assert.match(result.errors.join("\n"), /\.codex-plugin\/plugin\.json field "hooks" must be a safe .\/-relative path: \.\.\/hooks\/hooks\.json/);
 });
 
 test("validate-codex rejects a plugin.json component path that is absolute", (t) => {

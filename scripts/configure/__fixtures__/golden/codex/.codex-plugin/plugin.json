@@ -1,6 +1,5 @@
 {
   "skills": "./skills/",
-  "mcpServers": "./.mcp.json",
   "hooks": "./hooks/hooks.json",
   "name": "ospec-fixture",
   "version": "1.0.0",

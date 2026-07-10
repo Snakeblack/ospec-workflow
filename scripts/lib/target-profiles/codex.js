@@ -43,11 +43,14 @@ module.exports = {
     outLocation: ".codex-plugin/plugin.json",
     // ADR-001: Codex requires name/version/description metadata on the bundle
     // manifest; retained alongside the existing component allowlist.
-    keepFields: ["skills", "mcpServers", "apps", "hooks", "name", "version", "description"],
+    // Codex scopes plugin MCPs separately from global MCPs and does not dedupe
+    // equivalent commands. setup:codex therefore manages MCPs globally through
+    // the native CLI instead of bundling a second process in the plugin.
+    keepFields: ["skills", "apps", "hooks", "name", "version", "description"],
     // ADR-001: Codex silently drops skills/mcpServers/hooks whose values are not
     // ./-relative; reshapeManifest rewrites these three string values to a safe
     // ./-relative form (rejecting any absolute path or ".." traversal segment).
-    relativePathFields: ["skills", "mcpServers", "hooks"],
+    relativePathFields: ["skills", "hooks"],
     interface: { displayName: "ospec-workflow", icon: "icon.png" },
   },
 
@@ -87,6 +90,11 @@ module.exports = {
   // Rewrite ${input:NAME} -> ${NAME:-} in .mcp.json env/args/url/headers, same
   // env-expansion convention as claude/github-copilot.
   mcpPlaceholders: { style: "env-expansion" },
+
+  // Other targets still consume the canonical file. For Codex it is installer
+  // input only and must not survive in the plugin payload.
+  drop: [".mcp.json"],
+  managedRoots: [".mcp.json"],
 
   // The Claude plugin manifest is NOT in `drop`: reshapeManifest intercepts it
   // by `profile.manifest.location` and renames it to `.codex-plugin/plugin.json`
