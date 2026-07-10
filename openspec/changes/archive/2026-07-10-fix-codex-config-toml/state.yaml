@@ -1,6 +1,6 @@
 change: fix-codex-config-toml
-status: ready-for-apply
-last_updated: "2026-07-09T21:30:00Z"
+status: archived
+last_updated: "2026-07-10T21:24:03Z"
 classification: normal
 owner:
   author: Manuel Retamozo
@@ -66,6 +66,12 @@ approvals:
     source: user-question
     accepted_at: "2026-07-09T20:05:00Z"
     applies_to: fix-codex-config-toml
+  - id: approval-010
+    gate: archive-exception
+    decision: "Archive this older change as a historical copy-only exception because later archived changes resolved it with a different source of truth."
+    source: user-question
+    accepted_at: "2026-07-10T21:24:03Z"
+    applies_to: fix-codex-config-toml
 phases:
   sdd-explore:
     status: success
@@ -97,5 +103,10 @@ phases:
       - "El release preserva Claude y requiere un catálogo Codex aislado."
       - "Sustituir #release y plugin add por --ref y /plugins documentados."
   verify:
-    status: pending
+    status: done
     artifact: openspec/changes/fix-codex-config-toml/verify-report.md
+    summary: "Historical FAIL retained; archive exception authorized because later archived Codex sources supersede its incomplete evidence."
+  archive:
+    status: done
+    artifact: openspec/changes/fix-codex-config-toml/archive-report.md
+    summary: "Copy-only historical archive; no baseline specs changed and proposed ADRs were not promoted."
