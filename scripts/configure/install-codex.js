@@ -333,7 +333,7 @@ function main(argv, deps = {}) {
     const agentsDest = path.join(codexRoot, "agents");
     const agentDestFile = isRepoInstall
       ? path.join(path.dirname(codexRoot), "agent.md")
-      : path.join(codexRoot, "agent.md");
+      : path.join(codexRoot, "AGENTS.md");
 
     if (!args.dryRun && !isRepoInstall) {
       const codexBin = findCodexBinImpl();
@@ -364,7 +364,7 @@ function main(argv, deps = {}) {
     }
 
     if (args.dryRun) {
-      stdout.write("[dry-run] Codex agents and agent.md prepared; no files were written.\n");
+      stdout.write(`[dry-run] Codex agents and ${isRepoInstall ? "agent.md" : "AGENTS.md"} prepared; no files were written.\n`);
       return 0;
     }
 
@@ -373,7 +373,7 @@ function main(argv, deps = {}) {
       return 0;
     }
 
-    stdout.write("Done. Codex agent.md and custom agents are ready.\n");
+    stdout.write("Done. Codex AGENTS.md and custom agents are ready.\n");
     return 0;
   } catch (error) {
     stderr.write(`${error.message}\n`);

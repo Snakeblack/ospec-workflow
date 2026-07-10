@@ -227,7 +227,7 @@ test("main falls back to manual Codex commands when the CLI is unavailable", (t)
   assert.equal(exitCode, 0);
   assert.equal(stderr.join(""), "");
   assert.ok(fs.existsSync(path.join(homeDir, ".codex", "agents", "apply.toml")));
-  assert.ok(fs.existsSync(path.join(homeDir, ".codex", "agent.md")));
+  assert.ok(fs.existsSync(path.join(homeDir, ".codex", "AGENTS.md")));
   assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "config.toml")));
   assert.match(stdout.join(""), /codex mcp add/i);
 });
@@ -581,11 +581,11 @@ test("main global install is idempotent across the plugin channel and the agent 
   const firstExit = runOnce();
   const agentsDir = path.join(homeDir, ".codex", "agents");
   const firstAgents = fs.readdirSync(agentsDir).sort();
-  const firstAgentMd = fs.readFileSync(path.join(homeDir, ".codex", "agent.md"), "utf8");
+  const firstAgentMd = fs.readFileSync(path.join(homeDir, ".codex", "AGENTS.md"), "utf8");
 
   const secondExit = runOnce();
   const secondAgents = fs.readdirSync(agentsDir).sort();
-  const secondAgentMd = fs.readFileSync(path.join(homeDir, ".codex", "agent.md"), "utf8");
+  const secondAgentMd = fs.readFileSync(path.join(homeDir, ".codex", "AGENTS.md"), "utf8");
 
   assert.equal(firstExit, 0);
   assert.equal(secondExit, 0);
