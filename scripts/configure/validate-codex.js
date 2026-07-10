@@ -7,7 +7,6 @@ const path = require("node:path");
 // (mirrors profile.manifest.keepFields plus the injected `interface` block).
 const ALLOWED_BUNDLE_KEYS = new Set([
   "skills",
-  "mcpServers",
   "apps",
   "hooks",
   "interface",
@@ -18,16 +17,19 @@ const ALLOWED_BUNDLE_KEYS = new Set([
 
 // REQ-generator-004 (ADR-001): the bundle keys whose value must be a safe
 // "./"-relative path (no ".." traversal, no absolute filesystem path).
-const RELATIVE_PATH_KEYS = ["skills", "mcpServers", "hooks"];
-
-// REQ-generator-004 (ADR-002): every generated .mcp.json server id must match
-// this pattern; Codex rejects ids outside it (e.g. namespaced "org/name" ids).
-const MCP_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+const RELATIVE_PATH_KEYS = ["skills", "hooks"];
 
 // codex has no shell-hook/plugin bridge finalized until 5.2/5.3, and no other
 // target's layout may leak through; agents never live under a `prompts/` path
 // (Codex custom prompts are deprecated in favor of skills).
-const FORBIDDEN_PATHS = [".github", ".opencode", "prompts", "rules", ".codex/config.toml"];
+const FORBIDDEN_PATHS = [
+  ".github",
+  ".opencode",
+  "prompts",
+  "rules",
+  ".codex/config.toml",
+  ".mcp.json",
+];
 
 const FORBIDDEN_TEXT = [
   { pattern: /vscode\//i, label: "vscode namespace residue" },
@@ -145,7 +147,9 @@ function isSafeRelativePath(value) {
 }
 
 // Bundle allowlist: .codex-plugin/plugin.json MUST NOT contain any top-level
-// key outside skills/mcpServers/apps/hooks/interface/name/version/description
+// key outside skills/apps/hooks/interface/name/version/description. MCP servers
+// are registered once at user scope by setup:codex; bundling them here would
+// start duplicate processes when equivalent user MCPs already exist.
 // (REQ-codex-target-001, REQ-codex-target-008 "Validator fails on
 // out-of-schema bundle key"; REQ-generator-004 for path safety, ADR-001).
 function validateBundle(root, errors) {
@@ -166,26 +170,6 @@ function validateBundle(root, errors) {
   for (const key of RELATIVE_PATH_KEYS) {
     if (key in parsed && !isSafeRelativePath(parsed[key])) {
       addError(errors, `${rel} field "${key}" must be a safe ./-relative path: ${parsed[key]}`);
-    }
-  }
-}
-
-// REQ-generator-004 / ADR-002: every MCP server id declared in the generated
-// .mcp.json must match ^[a-zA-Z0-9_-]+$, or it is rejected at the host (a
-// hard validation failure, not a silent sanitization).
-function validateMcpIds(root, errors, deps = {}) {
-  const rel = ".mcp.json";
-  if (pathType(root, rel) !== "file") {
-    return; // .mcp.json is optional; nothing to validate.
-  }
-  const readFile = deps.readUtf8 || readUtf8;
-  const parsed = parseJsonFile(root, rel, errors, readFile);
-  if (!parsed || !parsed.mcpServers || typeof parsed.mcpServers !== "object") {
-    return;
-  }
-  for (const id of Object.keys(parsed.mcpServers)) {
-    if (!MCP_ID_PATTERN.test(id)) {
-      addError(errors, `${rel} declares an invalid MCP server id: ${id}`);
     }
   }
 }
@@ -339,7 +323,6 @@ function validate(root, deps = {}) {
   validateForbiddenPaths(absRoot, errors);
   validateForbiddenText(absRoot, errors, deps);
   validateHooks(absRoot, errors, deps);
-  validateMcpIds(absRoot, errors, deps);
   const readFile = deps.readUtf8 || readUtf8;
   validateAgentToml(absRoot, errors, readFile);
   validateSkills(absRoot, errors, readFile);

@@ -382,14 +382,14 @@ MUST continue to receive plain tool-name substitution, unaffected by this requir
 
 When the generator produces the `codex` target's published payload (the tree consumed
 by `install-codex.js` / `codex-marketplace.js`), every file path referenced inside
-generated manifest/config artifacts (`.codex-plugin/plugin.json`, `.mcp.json`, TOML
+generated manifest/config artifacts (`.codex-plugin/plugin.json`, TOML
 agent files) MUST be emitted as a safe relative path rooted at `./` (e.g.
 `./scripts/hooks/session-start.js`), MUST NOT contain `..` path-traversal segments, and
-MUST NOT resolve to an absolute filesystem path. The generator MUST also validate that
-every MCP server id declared in the payload's `.mcp.json` matches
-`^[a-zA-Z0-9_-]+$`; a payload containing an id outside this pattern MUST fail
-generation-time validation (`--no-validate` bypasses this check like other validation
-gates, per generator Scenario 11).
+MUST NOT resolve to an absolute filesystem path. The Codex payload MUST NOT contain
+`.mcp.json` or a manifest `mcpServers` field: Codex scopes plugin MCPs independently
+from user MCPs, so bundling the canonical definitions would start duplicate processes.
+The canonical source `.mcp.json` remains installer input and is registered through the
+native `codex mcp` CLI with valid normalized names.
 
 #### Scenario: Safe relative paths emitted for codex payload
 
@@ -398,17 +398,17 @@ gates, per generator Scenario 11).
 - THEN the emitted path MUST be `./`-relative, contain no `..` segment, and MUST NOT be
   an absolute filesystem path
 
-#### Scenario: MCP id violating the safe pattern fails validation
+#### Scenario: Bundled MCP configuration fails validation
 
-- GIVEN the source `.mcp.json` declares an MCP server id containing a character outside
-  `^[a-zA-Z0-9_-]+$` (e.g. a space or `/`)
+- GIVEN a generated Codex payload contains `.mcp.json` or declares `mcpServers` in the
+  plugin manifest
 - WHEN the codex validator runs against the generated payload
 - THEN it MUST emit at least one error and MUST exit with non-zero status
 
 #### Scenario: Conformant payload passes validation
 
-- GIVEN all payload paths are `./`-relative with no traversal and every MCP id matches
-  `^[a-zA-Z0-9_-]+$`
+- GIVEN all payload paths are `./`-relative with no traversal and no bundled MCP
+  configuration is present
 - WHEN the codex validator runs
 - THEN it MUST NOT report an error from this check
 

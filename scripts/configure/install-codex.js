@@ -62,12 +62,34 @@ function resolveBinFromPath(binName) {
   return null;
 }
 
+function resolveCodexInvocation(bin, args, deps = {}) {
+  const platform = deps.platform || process.platform;
+  const execPath = deps.execPath || process.execPath;
+  const fsImpl = deps.fs || fs;
+  if (platform === "win32" && /\.(?:cmd|bat|ps1)$/i.test(bin)) {
+    const cliPath = path.join(
+      path.dirname(bin),
+      "node_modules",
+      "@openai",
+      "codex",
+      "bin",
+      "codex.js",
+    );
+    if (fsImpl.existsSync(cliPath)) {
+      return { command: execPath, args: [cliPath, ...args] };
+    }
+  }
+  return { command: bin, args };
+}
+
 function findCodexBin(deps = {}) {
   const spawn = deps.spawnSync || spawnSync;
   const resolveBin = deps.resolveBinFromPath || resolveBinFromPath;
+  const resolveInvocation = deps.resolveCodexInvocation || resolveCodexInvocation;
   const resolved = resolveBin("codex");
   if (resolved) {
-    const probe = spawn(resolved, ["--version"], { stdio: "ignore", shell: false });
+    const invocation = resolveInvocation(resolved, ["--version"], deps);
+    const probe = spawn(invocation.command, invocation.args, { stdio: "ignore", shell: false });
     if (!probe.error) {
       return resolved;
     }
@@ -83,18 +105,22 @@ function copyTree(sourceDir, destDir, fsImpl = fs) {
 function buildCodexMarketplace(sourceDir, outDir, deps = {}) {
   const fsImpl = deps.fs || fs;
   fsImpl.rmSync(outDir, { recursive: true, force: true });
-  const pluginDir = path.join(outDir, "plugins", PLUGIN_NAME);
+  const pluginDir = path.join(outDir, "plugins", "codex", PLUGIN_NAME);
   copyTree(sourceDir, pluginDir, fsImpl);
-  fsImpl.mkdirSync(outDir, { recursive: true });
+  const manifestPath = path.join(outDir, ".agents", "plugins", "marketplace.json");
+  fsImpl.mkdirSync(path.dirname(manifestPath), { recursive: true });
   fsImpl.writeFileSync(
-    path.join(outDir, "marketplace.json"),
+    manifestPath,
     JSON.stringify(
       {
         name: MARKETPLACE_NAME,
+        interface: { displayName: "OSpec Tools" },
         plugins: [
           {
             name: PLUGIN_NAME,
-            source: `./plugins/${PLUGIN_NAME}`,
+            source: { source: "local", path: `./plugins/codex/${PLUGIN_NAME}` },
+            policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" },
+            category: "Productivity",
           },
         ],
       },
@@ -103,6 +129,116 @@ function buildCodexMarketplace(sourceDir, outDir, deps = {}) {
     ) + "\n",
   );
   return { marketplaceDir: outDir, pluginDir };
+}
+
+function normalizeCodexMcpName(name) {
+  const leaf = String(name).split("/").filter(Boolean).pop() || "mcp";
+  const normalized = leaf.replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+  if (!normalized) {
+    throw new Error(`cannot derive a valid Codex MCP name from: ${name}`);
+  }
+  return normalized;
+}
+
+function readCodexMcpDefinitions(sourceDir, fsImpl = fs) {
+  const mcpPath = path.join(sourceDir, ".mcp.json");
+  if (!fsImpl.existsSync(mcpPath)) {
+    return [];
+  }
+  const parsed = JSON.parse(fsImpl.readFileSync(mcpPath, "utf8"));
+  const servers = parsed?.mcpServers || parsed?.mcp_servers || parsed;
+  if (!servers || typeof servers !== "object" || Array.isArray(servers)) {
+    throw new Error("source .mcp.json must contain an MCP server map");
+  }
+
+  const definitions = [];
+  const names = new Set();
+  for (const [sourceName, server] of Object.entries(servers)) {
+    if (!server || typeof server !== "object" || typeof server.command !== "string") {
+      continue;
+    }
+    const name = normalizeCodexMcpName(sourceName);
+    if (names.has(name)) {
+      throw new Error(`multiple MCP definitions normalize to the Codex name: ${name}`);
+    }
+    names.add(name);
+    definitions.push({
+      name,
+      command: server.command,
+      args: Array.isArray(server.args) ? server.args.map(String) : [],
+    });
+  }
+  return definitions;
+}
+
+function sameStringArray(left, right) {
+  return Array.isArray(left) && Array.isArray(right) &&
+    left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function sameMcpIdentity(existing, definition) {
+  const transport = existing?.transport || existing;
+  return transport?.type !== "http" &&
+    transport?.command === definition.command &&
+    sameStringArray(transport?.args || [], definition.args || []);
+}
+
+function ensureCodexMcps(codexBin, definitions, deps = {}) {
+  if (!Array.isArray(definitions) || definitions.length === 0) {
+    return 0;
+  }
+  const runCodexCommand = deps.runCodexCommand || defaultRunCodexCommand;
+  const stdout = deps.stdout || process.stdout;
+  const stderr = deps.stderr || process.stderr;
+  const listed = runCodexCommand(codexBin, ["mcp", "list", "--json"], deps);
+  if (listed.stderr) stderr.write(listed.stderr);
+  const listExitCode = listed.status === null || listed.status === undefined ? 1 : listed.status;
+  if (listExitCode !== 0) {
+    stderr.write("codex command failed while listing MCP servers; no MCP configuration was changed\n");
+    return listExitCode;
+  }
+
+  let existing;
+  try {
+    existing = JSON.parse(listed.stdout || "[]");
+  } catch (error) {
+    stderr.write(`codex mcp list returned invalid JSON: ${error.message}\n`);
+    return 1;
+  }
+  if (!Array.isArray(existing)) {
+    stderr.write("codex mcp list returned an unexpected JSON shape\n");
+    return 1;
+  }
+
+  for (const definition of definitions) {
+    const equivalent = existing.find((server) => sameMcpIdentity(server, definition));
+    if (equivalent) {
+      stdout.write(`reusing existing MCP '${equivalent.name}' for ${definition.name}; no duplicate added\n`);
+      continue;
+    }
+    const nameCollision = existing.find((server) => server?.name === definition.name);
+    if (nameCollision) {
+      stderr.write(
+        `MCP '${definition.name}' already exists with a different command; preserving the user-owned entry\n`,
+      );
+      continue;
+    }
+
+    const commandArgs = ["mcp", "add", definition.name, "--", definition.command, ...definition.args];
+    const added = runCodexCommand(codexBin, commandArgs, deps);
+    if (added.stdout) stdout.write(added.stdout);
+    if (added.stderr) stderr.write(added.stderr);
+    const addExitCode = added.status === null || added.status === undefined ? 1 : added.status;
+    if (addExitCode !== 0) {
+      stderr.write(`codex command failed: ${codexBin} ${commandArgs.join(" ")}\n`);
+      return addExitCode;
+    }
+    existing.push({
+      name: definition.name,
+      transport: { type: "stdio", command: definition.command, args: definition.args },
+    });
+  }
+  return 0;
 }
 
 function copyCodexAgents(outDir, destDir, deps = {}) {
@@ -128,7 +264,8 @@ function copyCodexAgents(outDir, destDir, deps = {}) {
 
 function defaultRunCodexCommand(bin, args, deps = {}) {
   const spawn = deps.spawnSync || spawnSync;
-  const result = spawn(bin, args, { encoding: "utf8", shell: false });
+  const invocation = resolveCodexInvocation(bin, args, deps);
+  const result = spawn(invocation.command, invocation.args, { encoding: "utf8", shell: false });
   if (result.error) {
     return {
       status: 1,
@@ -184,6 +321,33 @@ function registerCodexMarketplace(codexBin, marketplaceDir, deps) {
   const runCodexCommand = deps.runCodexCommand || defaultRunCodexCommand;
   const stdout = deps.stdout || process.stdout;
   const stderr = deps.stderr || process.stderr;
+
+  const listed = runCodexCommand(codexBin, ["plugin", "marketplace", "list", "--json"], deps);
+  if (listed.stderr) stderr.write(listed.stderr);
+  const listExitCode = listed.status === null || listed.status === undefined ? 1 : listed.status;
+  if (listExitCode !== 0) {
+    stderr.write("codex command failed while listing marketplaces; existing sources were preserved\n");
+    return listExitCode;
+  }
+  let marketplaces;
+  try {
+    const parsed = JSON.parse(listed.stdout || "{}");
+    marketplaces = parsed.marketplaces;
+  } catch (error) {
+    stderr.write(`codex marketplace list returned invalid JSON: ${error.message}\n`);
+    return 1;
+  }
+  if (!Array.isArray(marketplaces)) {
+    stderr.write("codex marketplace list returned an unexpected JSON shape\n");
+    return 1;
+  }
+  const existing = marketplaces.find((marketplace) => marketplace?.name === MARKETPLACE_NAME);
+  if (existing) {
+    stdout.write(
+      `preserving existing marketplace '${MARKETPLACE_NAME}' at ${existing.root || "its configured source"}; no duplicate added\n`,
+    );
+    return 0;
+  }
 
   for (const commandArgs of [["plugin", "marketplace", "add", marketplaceDir]]) {
     const command = runCodexCommand(codexBin, commandArgs, deps);
@@ -249,16 +413,24 @@ function main(argv, deps = {}) {
     if (!args.dryRun && !isRepoInstall) {
       buildCodexMarketplace(outDir, marketplaceDir, { fs: fsImpl });
       const codexBin = findCodexBinImpl();
+      const mcpDefinitions = readCodexMcpDefinitions(sourceDir, fsImpl);
       if (!codexBin) {
         stdout.write(
           "codex CLI not found on PATH; built artifacts are ready for manual installation.\n" +
             `codex plugin marketplace add \"${marketplaceDir}\"\n` +
-            `use /plugins to select and install ${PLUGIN_NAME}\n`,
+            `use /plugins to select and install ${PLUGIN_NAME}\n` +
+            mcpDefinitions.map((server) =>
+              `codex mcp add ${server.name} -- ${server.command} ${server.args.join(" ")}\n`,
+            ).join(""),
         );
       } else {
         const exitCode = registerCodexMarketplace(codexBin, marketplaceDir, deps);
         if (exitCode !== 0) {
           return exitCode;
+        }
+        const mcpExitCode = ensureCodexMcps(codexBin, mcpDefinitions, deps);
+        if (mcpExitCode !== 0) {
+          return mcpExitCode;
         }
       }
     }
@@ -298,8 +470,12 @@ if (require.main === module) {
 module.exports = {
   parseArgs,
   findCodexBin,
+  resolveCodexInvocation,
   buildCodexMarketplace,
+  registerCodexMarketplace,
   copyCodexAgents,
+  readCodexMcpDefinitions,
+  ensureCodexMcps,
   assertManagedPathSafe,
   main,
 };

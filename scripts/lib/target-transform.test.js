@@ -803,9 +803,10 @@ test("codex reshapes the manifest to an allowlist + interface at .codex-plugin/p
   const m = JSON.parse(bundle.content);
   assert.deepEqual(
     Object.keys(m).sort(),
-    ["description", "hooks", "interface", "mcpServers", "name", "skills", "version"],
+    ["description", "hooks", "interface", "name", "skills", "version"],
   );
   assert.equal(m.interface.displayName, "ospec-workflow");
+  assert.equal(find(out, ".mcp.json"), undefined, "Codex must use idempotent global MCP registration");
 });
 
 test("codex manifest keeps name/version/description metadata", () => {
@@ -820,7 +821,7 @@ test("codex manifest component paths are rewritten to a safe ./-relative form", 
   const out = transform({ files: makeSource(), profile: codex, models: MODELS });
   const bundle = JSON.parse(find(out, ".codex-plugin/plugin.json").content);
   assert.equal(bundle.skills, "./skills/");
-  assert.equal(bundle.mcpServers, "./.mcp.json");
+  assert.equal(bundle.mcpServers, undefined);
   assert.equal(bundle.hooks, "./hooks/hooks.json");
 });
 
@@ -846,7 +847,7 @@ test("codex manifest rejects an absolute component path", () => {
       ? {
           path: file.path,
           content: JSON.stringify(
-            { ...JSON.parse(file.content), mcpServers: "/etc/.mcp.json" },
+            { ...JSON.parse(file.content), hooks: "/etc/hooks.json" },
             null,
             2,
           ),

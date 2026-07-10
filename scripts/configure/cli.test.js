@@ -216,6 +216,16 @@ test("regenerating prunes stale generated files but keeps unrelated entries", (t
   assert.ok(fs.existsSync(keep), "unrelated top-level file must be kept");
 });
 
+test("regenerating codex removes the formerly managed bundled .mcp.json", (t) => {
+  const out = tmpOut(t);
+  fs.mkdirSync(out, { recursive: true });
+  fs.writeFileSync(path.join(out, ".mcp.json"), "{\"legacy\":true}\n");
+
+  runConfigure({ sourceDir: SOURCE, target: "codex", outDir: out, validate: false });
+
+  assert.ok(!fs.existsSync(path.join(out, ".mcp.json")));
+});
+
 // ---------------------------------------------------------------------------
 // loadTree + parseModels
 // ---------------------------------------------------------------------------

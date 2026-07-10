@@ -177,10 +177,13 @@ function gatherRuntimeScripts(sourceDir) {
 // .github/, skills/, .mcp.json). Files the generator never produces are left
 // untouched, so pointing --out at a populated directory cannot delete unrelated
 // data. No whole-directory rmSync, so there is no destructive blast radius.
-function writeTree(outDir, { files }) {
+function writeTree(outDir, { files }, additionalManagedRoots = []) {
   const sorted = [...files].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const desired = new Set(sorted.map((file) => file.path));
-  const managedRoots = new Set(sorted.map((file) => file.path.split("/")[0]));
+  const managedRoots = new Set([
+    ...sorted.map((file) => file.path.split("/")[0]),
+    ...additionalManagedRoots,
+  ]);
 
   pruneStale(outDir, managedRoots, desired);
 
@@ -197,7 +200,16 @@ function writeTree(outDir, { files }) {
 function pruneStale(outDir, managedRoots, desired) {
   for (const root of managedRoots) {
     const absRoot = path.join(outDir, ...root.split("/"));
-    if (!fs.existsSync(absRoot) || !fs.statSync(absRoot).isDirectory()) {
+    if (!fs.existsSync(absRoot)) {
+      continue;
+    }
+    if (fs.statSync(absRoot).isFile()) {
+      if (!desired.has(root)) {
+        fs.rmSync(absRoot, { force: true });
+      }
+      continue;
+    }
+    if (!fs.statSync(absRoot).isDirectory()) {
       continue;
     }
     for (const rel of walkRel(absRoot)) {
@@ -407,7 +419,7 @@ function runConfigure({ sourceDir, target, outDir, validate = true, runValidator
   const models = fs.existsSync(modelsPath) ? parseModels(fs.readFileSync(modelsPath, "utf8")) : {};
 
   const output = transform({ files, profile, models });
-  writeTree(outDir, output);
+  writeTree(outDir, output, profile.managedRoots || []);
 
   const summary = output.files.map((file) => file.path);
   let exitCode = 0;

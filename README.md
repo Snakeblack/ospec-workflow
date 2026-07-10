@@ -35,7 +35,7 @@ Elige tu target y ejecuta su configurador automático:
 | **Claude Code** | `npm run setup:claude` | Compila, valida de forma estricta e instala como plugin persistente. |
 | **Copilot CLI** | `npm run setup:copilot` | Compila e instala globalmente en tu máquina (`~/.copilot/`). |
 | **opencode** | `npm run setup:opencode` | Compila e instala en la carpeta de OpenCode (`~/.config/opencode/`). |
-| **Codex CLI** | `npm run setup:codex` | Compila `dist/codex`, registra el marketplace si `codex` está disponible y copia `.codex/agents/*.toml` a `~/.codex/agents/` sin modificar la configuración existente. |
+| **Codex CLI** | `npm run setup:codex` | Compila `dist/codex`, registra el marketplace, añade solo los MCP globales que falten (deduplicados por comando+args) y copia `.codex/agents/*.toml`. |
 
 ### 3. Iniciar un Ciclo SDD
 Una vez cargado el plugin en tu agente de chat:
@@ -104,11 +104,17 @@ Una vez cargado el plugin en tu agente de chat:
   codex
   ```
   En Codex, ejecuta `/plugins`, selecciona el marketplace `ospec-tools`, selecciona `ospec-workflow` y confirma la instalación. `--ref release` fija la rama publicada y las rutas `--sparse` descargan el catálogo y su payload. Esta vía remota es distinta de `npm run setup:codex`, que compila e instala desde un clon local.
+  El plugin Codex no empaqueta MCPs para no duplicar servidores globales. Si no
+  existen, regístralos una vez con:
+  ```powershell
+  codex mcp add context7 -- npx @upstash/context7-mcp@1.0.31
+  codex mcp add markitdown -- uvx markitdown-mcp@0.0.1a4
+  ```
 - **Instalación Global (Recomendado)**:
   ```powershell
   npm run setup:codex
   ```
-  *(Compila `dist/codex`, intenta registrar `dist/codex-marketplace/` con `codex plugin marketplace add` y copia `.codex/agents/*.toml` a `~/.codex/agents/` sin modificar `~/.codex/config.toml`.)*
+  *(Compila `dist/codex`, registra `dist/codex-marketplace/`, reutiliza MCPs globales equivalentes o añade los que falten mediante `codex mcp`, y copia `.codex/agents/*.toml`.)*
 - **Instalación Local por repositorio**:
   ```powershell
   npm run install:codex -- ../mi-proyecto
@@ -137,7 +143,7 @@ Consulta la [guía de instalación](docs/plugin-installation.md) para más detal
 | `models.yaml` | Tablas tier→modelo por target para el generador. |
 | `profiles/models/` | Perfiles opcionales de routing de modelos (uso directo en VS Code). |
 | `docs/` | Documentación detallada de arquitectura y uso. |
-| `.mcp.json` | Configuración MCP mínima del plugin. |
+| `.mcp.json` | Fuente MCP canónica. Codex no la empaqueta: `setup:codex` traduce sus entradas al CLI nativo y evita duplicados. |
 | `openspec/` | Fuente de verdad versionable de cada cambio SDD. |
 
 ## Comandos SDD
@@ -264,7 +270,7 @@ y validado en `dist/<target>/` sin tocar el origen:
 | `claude` | Árbol `.claude-plugin`: renombra archivos, reestructura manifiesto y hooks, sustituye herramientas (context-aware), reescribe variables de comando, incorpora `rules/` y emite el orquestador como **skill**. Gate: `claude plugin validate --strict` 0/0. |
 | `github-copilot` | Layout `.github/`: agentes a `.github/agents/*.agent.md` (`target: github-copilot`, `vscode/askQuestions`→`ask_user`), comandos a `.github/prompts/*.prompt.md`, reglas a `.github/instructions/*.instructions.md` (`applyTo: "**"`), hooks a `.github/hooks/hooks.json` (schema Copilot) y `.mcp.json` tal cual. Validado por `scripts/configure/validate-github-copilot.js` dentro del flujo de perfiles. |
 | `opencode` | Layout `.opencode/` + `opencode.json`: agentes a `.opencode/agents/*.md` (`mode: primary\|subagent`, `tools:` como **mapa**, modelo `provider/model`), comandos a `.opencode/commands/*.md` (conserva `agent:`, args `$1`/`$ARGUMENTS`), reglas a `.opencode/instructions/*.md` referenciadas por `instructions` en `opencode.json`, MCP plegado dentro de `opencode.json` (`mcp` con `type: local\|remote`) y, como opencode no tiene hooks de shell, el runtime se puentea con un plugin JS en `.opencode/plugins/ospec.js`. Validado por `scripts/configure/validate-opencode.js`. |
-| `codex` | Layout `.codex-plugin/` + `.codex/agents/*.toml`: el plugin se registra vía marketplace local y los agentes TOML se instalan por separado en `.codex/agents/`; el generador rechaza `.codex/config.toml` para no gestionar claves no soportadas. Validado por `scripts/configure/validate-codex.js`. |
+| `codex` | Layout `.codex-plugin/` + `.codex/agents/*.toml`, sin `.mcp.json` en el bundle: el plugin y los agentes se instalan por separado; `setup:codex` registra MCPs globales faltantes con IDs válidos y deduplicación por identidad. El generador rechaza `.codex/config.toml`, `.mcp.json` y `mcpServers` dentro del payload. Validado por `scripts/configure/validate-codex.js`. |
 
 ```powershell
 node scripts/configure/cli.js --target claude          --out dist/claude

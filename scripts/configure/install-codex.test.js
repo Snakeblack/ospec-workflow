@@ -9,8 +9,12 @@ const test = require("node:test");
 const {
   parseArgs,
   findCodexBin,
+  resolveCodexInvocation,
   buildCodexMarketplace,
+  registerCodexMarketplace,
   copyCodexAgents,
+  readCodexMcpDefinitions,
+  ensureCodexMcps,
   assertManagedPathSafe,
   main,
 } = require("./install-codex.js");
@@ -91,8 +95,155 @@ test("buildCodexMarketplace wraps dist/codex as a local marketplace", (t) => {
   const result = buildCodexMarketplace(sourceDir, outDir);
 
   assert.equal(result.marketplaceDir, outDir);
-  assert.ok(fs.existsSync(path.join(outDir, "plugins", "ospec-workflow", ".codex-plugin", "plugin.json")));
-  assert.ok(fs.existsSync(path.join(outDir, "marketplace.json")));
+  assert.ok(fs.existsSync(path.join(outDir, "plugins", "codex", "ospec-workflow", ".codex-plugin", "plugin.json")));
+  assert.ok(fs.existsSync(path.join(outDir, ".agents", "plugins", "marketplace.json")));
+  assert.ok(!fs.existsSync(path.join(outDir, "marketplace.json")));
+  const marketplace = JSON.parse(
+    fs.readFileSync(path.join(outDir, ".agents", "plugins", "marketplace.json"), "utf8"),
+  );
+  assert.deepEqual(marketplace.plugins, [
+    {
+      name: "ospec-workflow",
+      source: { source: "local", path: "./plugins/codex/ospec-workflow" },
+      policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" },
+      category: "Productivity",
+    },
+  ]);
+});
+
+test("resolveCodexInvocation runs the npm Windows shim through node without a shell", (t) => {
+  const root = makeTempDir(t, "codex-npm-shim-");
+  const shim = path.join(root, "codex.cmd");
+  const cli = path.join(root, "node_modules", "@openai", "codex", "bin", "codex.js");
+  fs.mkdirSync(path.dirname(cli), { recursive: true });
+  fs.writeFileSync(shim, "@echo off\n");
+  fs.writeFileSync(cli, "// fixture\n");
+
+  const invocation = resolveCodexInvocation(shim, ["mcp", "list", "--json"], {
+    platform: "win32",
+    execPath: "C:\\node\\node.exe",
+  });
+
+  assert.deepEqual(invocation, {
+    command: "C:\\node\\node.exe",
+    args: [cli, "mcp", "list", "--json"],
+  });
+});
+
+test("ensureCodexMcps skips equivalent pre-existing servers and adds only missing definitions", () => {
+  const calls = [];
+  const stdout = [];
+  const definitions = [
+    { name: "context7", command: "npx", args: ["@upstash/context7-mcp@1.0.31"] },
+    { name: "markitdown", command: "uvx", args: ["markitdown-mcp@0.0.1a4"] },
+  ];
+
+  const exitCode = ensureCodexMcps("codex", definitions, {
+    stdout: { write: (chunk) => stdout.push(chunk) },
+    stderr: { write() {} },
+    runCodexCommand(bin, args) {
+      calls.push([bin, ...args]);
+      if (args.join(" ") === "mcp list --json") {
+        return {
+          status: 0,
+          stdout: JSON.stringify([
+            {
+              name: "my-existing-doc-converter",
+              transport: {
+                type: "stdio",
+                command: "uvx",
+                args: ["markitdown-mcp@0.0.1a4"],
+              },
+            },
+          ]),
+          stderr: "",
+        };
+      }
+      return { status: 0, stdout: "", stderr: "" };
+    },
+  });
+
+  assert.equal(exitCode, 0);
+  assert.deepEqual(calls, [
+    ["codex", "mcp", "list", "--json"],
+    ["codex", "mcp", "add", "context7", "--", "npx", "@upstash/context7-mcp@1.0.31"],
+  ]);
+  assert.match(stdout.join(""), /reusing existing MCP.*my-existing-doc-converter/i);
+});
+
+test("readCodexMcpDefinitions normalizes legacy slash-qualified names for Codex", (t) => {
+  const sourceDir = makeTempDir(t, "codex-legacy-mcp-");
+  fs.writeFileSync(
+    path.join(sourceDir, ".mcp.json"),
+    JSON.stringify({
+      mcpServers: {
+        "io.github.upstash/context7": {
+          command: "npx",
+          args: ["@upstash/context7-mcp@1.0.31"],
+        },
+        "microsoft/markitdown": {
+          command: "uvx",
+          args: ["markitdown-mcp@0.0.1a4"],
+        },
+      },
+    }),
+  );
+
+  assert.deepEqual(readCodexMcpDefinitions(sourceDir), [
+    { name: "context7", command: "npx", args: ["@upstash/context7-mcp@1.0.31"] },
+    { name: "markitdown", command: "uvx", args: ["markitdown-mcp@0.0.1a4"] },
+  ]);
+});
+
+test("ensureCodexMcps is idempotent when all required identities already exist", () => {
+  const calls = [];
+  const definitions = [
+    { name: "markitdown", command: "uvx", args: ["markitdown-mcp@0.0.1a4"] },
+  ];
+
+  const exitCode = ensureCodexMcps("codex", definitions, {
+    stdout: { write() {} },
+    stderr: { write() {} },
+    runCodexCommand(bin, args) {
+      calls.push([bin, ...args]);
+      return {
+        status: 0,
+        stdout: JSON.stringify([
+          {
+            name: "markitdown",
+            transport: { type: "stdio", command: "uvx", args: ["markitdown-mcp@0.0.1a4"] },
+          },
+        ]),
+        stderr: "",
+      };
+    },
+  });
+
+  assert.equal(exitCode, 0);
+  assert.deepEqual(calls, [["codex", "mcp", "list", "--json"]]);
+});
+
+test("registerCodexMarketplace preserves an existing marketplace with the same name", () => {
+  const calls = [];
+  const stdout = [];
+  const exitCode = registerCodexMarketplace("codex", "C:\\local\\marketplace", {
+    stdout: { write: (chunk) => stdout.push(chunk) },
+    stderr: { write() {} },
+    runCodexCommand(bin, args) {
+      calls.push([bin, ...args]);
+      return {
+        status: 0,
+        stdout: JSON.stringify({
+          marketplaces: [{ name: "ospec-tools", root: "C:\\remote\\snapshot" }],
+        }),
+        stderr: "",
+      };
+    },
+  });
+
+  assert.equal(exitCode, 0);
+  assert.deepEqual(calls, [["codex", "plugin", "marketplace", "list", "--json"]]);
+  assert.match(stdout.join(""), /preserving existing marketplace.*ospec-tools/i);
 });
 
 test("main falls back to manual Codex commands when the CLI is unavailable", (t) => {
@@ -142,6 +293,9 @@ test("main registers the Codex marketplace without attempting a noninteractive p
     findCodexBin: () => "codex",
     runCodexCommand(bin, args) {
       codexCalls.push([bin, ...args]);
+      if (args.join(" ") === "plugin marketplace list --json") {
+        return { status: 0, stdout: JSON.stringify({ marketplaces: [] }), stderr: "" };
+      }
       return { status: 0, stdout: "", stderr: "" };
     },
   });
@@ -151,6 +305,7 @@ test("main registers the Codex marketplace without attempting a noninteractive p
   assert.ok(fs.existsSync(path.join(homeDir, ".codex", "agents", "apply.toml")));
   assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "config.toml")));
   assert.deepEqual(codexCalls, [
+    ["codex", "plugin", "marketplace", "list", "--json"],
     ["codex", "plugin", "marketplace", "add", path.join(sourceDir, "dist", "codex-marketplace")],
   ]);
   assert.match(stdout.join(""), /Done\. Codex marketplace and agents are ready\./);
@@ -270,12 +425,18 @@ test("main returns a recovery error when codex plugin marketplace add fails with
     findCodexBin: () => "codex",
     runCodexCommand(bin, args) {
       codexCalls.push([bin, ...args]);
+      if (args.join(" ") === "plugin marketplace list --json") {
+        return { status: 0, stdout: JSON.stringify({ marketplaces: [] }), stderr: "" };
+      }
       return { status: 9, stdout: "", stderr: "marketplace boom\n" };
     },
   });
 
   assert.equal(exitCode, 9);
-  assert.deepEqual(codexCalls, [["codex", "plugin", "marketplace", "add", path.join(sourceDir, "dist", "codex-marketplace")]]);
+  assert.deepEqual(codexCalls, [
+    ["codex", "plugin", "marketplace", "list", "--json"],
+    ["codex", "plugin", "marketplace", "add", path.join(sourceDir, "dist", "codex-marketplace")],
+  ]);
   assert.match(stderr.join(""), /marketplace boom/);
   assert.match(stderr.join(""), /codex command failed/i);
   assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "agents", "apply.toml")));
@@ -378,7 +539,9 @@ test("install baseline specifies the Codex agent-only contract", () => {
   const spec = readRepoFile("openspec", "specs", "install", "spec.md");
 
   assert.match(spec, /\.codex\/agents\/\*\.toml/);
-  assert.match(spec, /MUST NOT create or modify.*\.codex\/config\.toml/i);
+  assert.match(spec, /MUST NOT modify the destination project's `\.codex\/config\.toml`/i);
+  assert.match(spec, /codex mcp add/i);
+  assert.match(spec, /command plus ordered arguments/i);
   assert.match(spec, /manual cleanup/i);
 });
 
@@ -490,6 +653,15 @@ test("main global install is idempotent across the plugin channel and the agent 
   const sourceDir = makeTempDir(t, "codex-idempotent-global-source-");
   const homeDir = makeTempDir(t, "codex-idempotent-global-home-");
   const codexCalls = [];
+  const configuredMcps = [];
+  fs.writeFileSync(
+    path.join(sourceDir, ".mcp.json"),
+    JSON.stringify({
+      mcpServers: {
+        markitdown: { command: "uvx", args: ["markitdown-mcp@0.0.1a4"] },
+      },
+    }),
+  );
 
   const runOnce = () =>
     main([], {
@@ -505,6 +677,18 @@ test("main global install is idempotent across the plugin channel and the agent 
       findCodexBin: () => "codex",
       runCodexCommand(bin, args) {
         codexCalls.push([bin, ...args]);
+        if (args.join(" ") === "plugin marketplace list --json") {
+          return { status: 0, stdout: JSON.stringify({ marketplaces: [] }), stderr: "" };
+        }
+        if (args.join(" ") === "mcp list --json") {
+          return { status: 0, stdout: JSON.stringify(configuredMcps), stderr: "" };
+        }
+        if (args.slice(0, 3).join(" ") === "mcp add markitdown") {
+          configuredMcps.push({
+            name: "markitdown",
+            transport: { type: "stdio", command: "uvx", args: ["markitdown-mcp@0.0.1a4"] },
+          });
+        }
         return { status: 0, stdout: "", stderr: "" };
       },
     });
@@ -513,14 +697,14 @@ test("main global install is idempotent across the plugin channel and the agent 
   const agentsDir = path.join(homeDir, ".codex", "agents");
   const firstAgents = fs.readdirSync(agentsDir).sort();
   const marketplaceJson = fs.readFileSync(
-    path.join(sourceDir, "dist", "codex-marketplace", "marketplace.json"),
+    path.join(sourceDir, "dist", "codex-marketplace", ".agents", "plugins", "marketplace.json"),
     "utf8",
   );
 
   const secondExit = runOnce();
   const secondAgents = fs.readdirSync(agentsDir).sort();
   const secondMarketplaceJson = fs.readFileSync(
-    path.join(sourceDir, "dist", "codex-marketplace", "marketplace.json"),
+    path.join(sourceDir, "dist", "codex-marketplace", ".agents", "plugins", "marketplace.json"),
     "utf8",
   );
 
@@ -531,7 +715,8 @@ test("main global install is idempotent across the plugin channel and the agent 
   // The plugin (marketplace) channel writes only under dist/codex-marketplace and
   // registers via the codex CLI; it never touches the agents channel's destination.
   assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "config.toml")));
-  assert.equal(codexCalls.length, 2);
+  assert.equal(codexCalls.filter((call) => call.slice(1, 4).join(" ") === "mcp add markitdown").length, 1);
+  assert.equal(codexCalls.filter((call) => call.slice(1).join(" ") === "mcp list --json").length, 2);
 });
 
 test("copyCodexAgents: validates each target file individual paths with assertManagedPathSafe", (t) => {

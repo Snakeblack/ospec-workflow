@@ -50,9 +50,9 @@ The `--` separator is required to pass `<destRepo>` through npm to the script.
 
 ### 1.3 Codex — Marketplace Registration and Agent Copy
 
-Codex installs the generated plugin through a local marketplace and copies generated `.codex/agents/*.toml` files separately. `npm run setup:codex` targets the user's agent directory; `npm run install:codex -- <destRepo>` targets `<destRepo>/.codex/agents/`. Both variants MUST NOT create or modify destination `.codex/config.toml`; existing user-owned configuration is preserved unchanged.
+Codex installs the generated plugin through a local marketplace and copies generated `.codex/agents/*.toml` files separately. `npm run setup:codex` also registers only missing global MCP definitions through `codex mcp add`, deduplicating by command plus ordered arguments and preserving name collisions. `npm run install:codex -- <destRepo>` targets `<destRepo>/.codex/agents/` and MUST NOT modify the destination project's `.codex/config.toml`.
 
-The generated Codex tree MUST contain `.codex-plugin/plugin.json` and `.codex/agents/*.toml`, and MUST NOT contain `.codex/config.toml`. The Codex validator MUST reject a generated config artifact. If an earlier installation left unsupported keys in a user configuration, manual cleanup is required; the installer MUST NOT destructively remove them.
+The generated Codex tree MUST contain `.codex-plugin/plugin.json` and `.codex/agents/*.toml`, and MUST NOT contain `.codex/config.toml` or `.mcp.json`. The Codex validator MUST reject either generated config artifact and a manifest `mcpServers` field. If an earlier installation left unsupported keys in a user configuration, manual cleanup is required; the installer MUST NOT destructively remove unrelated entries.
 
 ### 1.4 VSCode
 
@@ -356,14 +356,15 @@ And the non-empty directory is left untouched
 
 ### Requirement: Codex Plugin and TOML Agent Installation Via Separate Idempotent Channels {#REQ-install-001}
 
-`install-codex.js` MUST install/update the generated plugin payload and the generated
-TOML agent files (`.codex/agents/*.toml`) through two separate channels — neither channel
+`install-codex.js` MUST install/update the generated plugin payload, required global MCP
+definitions, and generated TOML agent files (`.codex/agents/*.toml`) through separate channels — no channel
 MUST write to, merge into, or otherwise modify the other's target location — and BOTH
 channels MUST be idempotent: re-running the same install command a second time MUST
 converge to the same final state without duplicating entries or corrupting prior output.
-Neither channel MUST create or modify a destination `.codex/config.toml`; any existing
-user-owned configuration at that path MUST be left byte-for-byte unchanged (extends the
-existing constraint at install §1.3).
+The MCP channel MUST use the native Codex CLI, reuse an existing server with the same
+command and ordered arguments even when its name differs, and preserve an existing
+same-name server with a different identity. The repository-local install MUST leave the
+destination `.codex/config.toml` byte-for-byte unchanged.
 
 #### Scenario: First install writes plugin and agents via separate channels
 
@@ -379,11 +380,12 @@ existing constraint at install §1.3).
 - WHEN the same install command is re-run unchanged
 - THEN the resulting plugin and agent files are identical to the prior run (no
   duplicate TOML entries, no drift in unrelated files)
+- AND each required MCP command identity exists at most once
 
-#### Scenario: User config.toml never touched
+#### Scenario: Project config.toml never touched
 
-- GIVEN a destination `.codex/config.toml` exists with user-authored content
-- WHEN either the plugin channel or the agent-TOML channel installs or updates
+- GIVEN a destination repository `.codex/config.toml` exists with user-authored content
+- WHEN the repository-local agent-TOML channel installs or updates
 - THEN `.codex/config.toml` MUST remain byte-for-byte unchanged
 
 ### Requirement: Codex Installation and Operational Documentation {#REQ-install-002}

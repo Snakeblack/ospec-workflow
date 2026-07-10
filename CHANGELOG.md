@@ -8,6 +8,13 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.25.1] - 2026-07-10
+
+### Fixed
+- **Instalación Codex idempotente frente a MCPs y marketplaces preexistentes**: `setup:codex` reutiliza servidores con el mismo `command` + `args`, preserva colisiones de nombre y no intenta reemplazar un marketplace `ospec-tools` ya registrado desde otra fuente.
+- **Payload MCP nativo para Codex**: el plugin Codex deja de empaquetar el `.mcp.json` camelCase heredado; Context7 y MarkItDown se registran una sola vez mediante `codex mcp` con IDs compatibles (`context7`, `markitdown`). El validador bloquea `.mcp.json`/`mcpServers` residuales y el generador elimina artefactos stale.
+- **Setup local compatible con Codex 0.144.1 en Windows**: el catálogo se genera en `.agents/plugins/marketplace.json` con el schema documentado y los shims npm `.cmd` se ejecutan a través de Node sin habilitar shell.
+
 ## [2.25.0] - 2026-07-10
 
 ### Added

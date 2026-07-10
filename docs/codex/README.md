@@ -34,7 +34,7 @@ Validado el 2026-07-10 con Windows 11 y Codex CLI `0.144.1`:
 
 - El marketplace puede estar registrado aunque el plugin siga sin instalar.
 - Los paths de componentes en `.codex-plugin/plugin.json` deben empezar por
-  `./`; de lo contrario Codex ignora skills, MCP y hooks durante el arranque.
+  `./`; de lo contrario Codex ignora skills y hooks durante el arranque.
 - Los agentes personalizados no se activan desde el bundle del plugin. El
   instalador debe sincronizar los TOML a `~/.codex/agents/` o
   `<repo>/.codex/agents/`.
@@ -44,8 +44,9 @@ Validado el 2026-07-10 con Windows 11 y Codex CLI `0.144.1`:
   debe degradarse a advisory sin alterar el flujo normal de permisos.
 - `SubagentStop` entrega `agent_transcript_path`, no el antiguo
   `transcript_path`.
-- Los IDs MCP deben cumplir `^[a-zA-Z0-9_-]+$`; los nombres con `/` fallan al
-  inicializar.
+- Los IDs MCP globales deben cumplir `^[a-zA-Z0-9_-]+$`; `setup:codex`
+  normaliza nombres heredados y usa `codex mcp add`. El bundle no publica
+  `.mcp.json`, porque Codex no deduplica un servidor global y otro de plugin.
 - Plugins, skills, agentes y hooks se resuelven al crear la tarea. La prueba
   definitiva debe hacerse en una tarea nueva.
 
@@ -75,7 +76,7 @@ La solución permanente debe cubrir conjuntamente:
 
 1. Generador del manifiesto y metadata del plugin.
 2. Transformación y runtime de hooks Codex.
-3. IDs y shape del `.mcp.json` final.
+3. Registro MCP global nativo, con IDs válidos y deduplicación por identidad.
 4. Instalación separada e idempotente de agentes TOML.
 5. Payload publicado en la rama o canal de release.
 6. Validación del artefacto final y smoke test en una tarea nueva.
@@ -110,7 +111,7 @@ Después, ejecutar el smoke test efímero descrito en el informe de campo y
 comprobar:
 
 - plugin instalado y habilitado;
-- ausencia de warnings `ignoring skills|mcpServers|hooks`;
+- ausencia de warnings `ignoring skills|hooks`;
 - ausencia de errores `Invalid MCP server name`;
 - `sdd-propose` visible;
 - `sdd-orchestrator` invocable;
@@ -141,13 +142,13 @@ limpia, no otra reparación manual de la máquina de desarrollo.
 
 ## Instalación y actualización
 
-`install-codex.js` publica el payload generado a través de **dos canales
-separados e idempotentes** (REQ-install-001): el canal de plugin (marketplace
-local + `/plugins`) y el canal de agentes TOML (`.codex/agents/*.toml`).
-Ninguno de los dos canales escribe ni fusiona `~/.codex/config.toml` o
-`<repo>/.codex/config.toml`; cualquier configuración existente del usuario en
-esa ruta permanece byte a byte sin cambios en cada instalación o
-reinstalación.
+`install-codex.js` publica el payload generado a través de **tres canales
+separados e idempotentes** (REQ-install-001): plugin (marketplace local +
+`/plugins`), MCP global (`codex mcp`) y agentes TOML
+(`.codex/agents/*.toml`). El canal MCP consulta `codex mcp list --json`, compara
+`command` + `args`, reutiliza identidades equivalentes aunque tengan otro
+nombre y no sobrescribe colisiones de nombre. La instalación por repositorio
+no ejecuta este canal y preserva `<repo>/.codex/config.toml` byte a byte.
 
 ### Instalación global (marketplace + agentes en `~/.codex`)
 
@@ -165,14 +166,17 @@ npm run setup:codex        # === npm run install:codex
 3. Si el binario `codex` está en el `PATH`, registra el marketplace con
    `codex plugin marketplace add "<ruta>"`. Si no está disponible, imprime el
    comando manual equivalente para ejecutarlo desde la CLI.
-4. Sincroniza los archivos `.codex/agents/*.toml` generados a
+4. Consulta los MCP globales y registra solo Context7/MarkItDown ausentes con
+   nombres compatibles (`context7`, `markitdown`).
+5. Sincroniza los archivos `.codex/agents/*.toml` generados a
    `~/.codex/agents/` (canal de agentes, independiente del canal de plugin).
 
 Después de registrar el marketplace, usar `/plugins` dentro de Codex para
 instalar `ospec-workflow`. Re-ejecutar `npm run setup:codex` en cualquier
-momento es seguro: ambos canales convergen al mismo estado final (mismos
-archivos TOML, mismo `marketplace.json`) sin duplicar entradas ni tocar
-`~/.codex/config.toml`.
+momento es seguro: los tres canales convergen al mismo estado final (mismos
+archivos TOML, mismo catálogo y una sola instancia por identidad MCP). El CLI
+de Codex persiste únicamente las entradas MCP que faltan en su configuración
+global.
 
 ### Instalación local a un repositorio destino (solo canal de agentes)
 
