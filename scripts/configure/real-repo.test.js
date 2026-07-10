@@ -110,23 +110,21 @@ test("real repo: every generated .codex/agents/*.toml file is syntactically vali
   }
 });
 
-test("real repo: the orchestrator TOML agent dispatches through the published payload with no manifest or hooks warnings", (t) => {
+test("real repo: the orchestrator agent dispatches through the root agent.md with no manifest or hooks warnings", (t) => {
   const out = tmpOut(t);
   runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
 
+  const agentMdPath = path.join(out, "agent.md");
+  assert.ok(fs.existsSync(agentMdPath), "orchestrator agent.md must be generated");
   const orchestratorPath = path.join(out, ".codex", "agents", "sdd-orchestrator.toml");
-  assert.ok(fs.existsSync(orchestratorPath), "orchestrator TOML agent must be generated");
-  const fields = parseAgentToml(fs.readFileSync(orchestratorPath, "utf8"));
-  assert.equal(fields.name, "sdd-orchestrator");
-  assert.ok(fields.description, "orchestrator TOML agent must carry a description");
+  assert.ok(!fs.existsSync(orchestratorPath), "orchestrator TOML agent must not be generated");
+
+  const content = fs.readFileSync(agentMdPath, "utf8");
   assert.ok(
-    fields.developer_instructions.includes("sdd-propose") || fields.developer_instructions.includes("sdd-explore"),
-    "orchestrator developer_instructions must retain delegation to phase sub-agents",
+    content.includes("sdd-propose") || content.includes("sdd-explore") || content.includes("Propose") || content.includes("Explore"),
+    "orchestrator agent.md instructions must retain delegation to phase sub-agents",
   );
 
-  // No manifest/hooks warnings or duplicate plugin MCPs: the codex validator is the payload's own
-  // conformance gate for the bundle the orchestrator agent's own
-  // delegation targets rely on (skills/hooks paths; MCPs are installer-managed).
   const result = validateCodex(out);
   assert.deepEqual(result.errors, [], `codex payload must validate cleanly:\n${result.errors.join("\n")}`);
 });
@@ -134,13 +132,12 @@ test("real repo: the orchestrator TOML agent dispatches through the published pa
 test("validate-codex rejects AskUserQuestion residue in an existing codex tree", (t) => {
   const out = tmpOut(t);
 
-  fs.mkdirSync(path.join(out, ".codex-plugin"), { recursive: true });
   fs.mkdirSync(path.join(out, ".codex", "agents"), { recursive: true });
   fs.mkdirSync(path.join(out, "skills", "foo"), { recursive: true });
 
   fs.writeFileSync(
-    path.join(out, ".codex-plugin", "plugin.json"),
-    JSON.stringify({ skills: "skills/", mcpServers: ".mcp.json", apps: [], hooks: "hooks/hooks.json", interface: { displayName: "x", icon: "icon.png" } }, null, 2)
+    path.join(out, "agent.md"),
+    "# Orchestrator\n"
   );
   fs.writeFileSync(
     path.join(out, ".codex", "agents", "sdd-apply.toml"),
@@ -209,21 +206,26 @@ test("real repo: codex emits every source agent as TOML outside the plugin bundl
   assert.ok(sourceAgents.length > 0, "source must contain agents to test");
   for (const rel of sourceAgents) {
     const base = rel.slice("agents/".length, rel.length - ".agent.md".length);
+    if (base === "sdd-orchestrator") {
+      assert.ok(
+        fs.existsSync(path.join(out, "agent.md")),
+        `orchestrator agent must be emitted as agent.md`
+      );
+      continue;
+    }
     assert.ok(
       fs.existsSync(path.join(out, ".codex", "agents", `${base}.toml`)),
       `agent not emitted as TOML: .codex/agents/${base}.toml`
     );
   }
-
-  const bundle = JSON.parse(fs.readFileSync(path.join(out, ".codex-plugin", "plugin.json"), "utf8"));
-  assert.ok(!("agents" in bundle), "codex plugin bundle must not reference agents");
 });
 
-test("real repo: codex synthesizes a single AGENTS.md from the rules tree", (t) => {
+test("real repo: codex synthesizes a single agent.md from the rules tree and orchestrator", (t) => {
   const out = tmpOut(t);
   runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
 
-  assert.ok(fs.existsSync(path.join(out, "AGENTS.md")), "AGENTS.md must be synthesized");
+  assert.ok(fs.existsSync(path.join(out, "agent.md")), "agent.md must be synthesized");
+  assert.ok(!fs.existsSync(path.join(out, "AGENTS.md")), "AGENTS.md must not survive in codex output");
   assert.ok(!fs.existsSync(path.join(out, "rules")), "rules/ must not survive in codex output");
 });
 

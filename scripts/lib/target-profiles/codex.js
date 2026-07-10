@@ -25,7 +25,7 @@
 
 module.exports = {
   id: "codex",
-  layout: "codex-plugin",
+  layout: "dot-codex",
 
   agentFile: { from: ".agent.md", to: ".toml", format: "toml" },
   agentDir: ".codex/agents",
@@ -39,32 +39,13 @@ module.exports = {
 
   commandFile: { from: ".prompt.md", format: "skill" },
 
-  // ADR-001: all rules/*.instructions.md bodies (post tool/agent substitution)
-  // concatenate into one synthesized AGENTS.md at the output root, via the
-  // existing collectRules accumulation pattern — no codex-only rules branch
-  // outside the generator's rules.strategy dispatch (REQ-codex-target-006).
-  rules: { strategy: "to-agents-md", outLocation: "AGENTS.md" },
+  // All rules/*.instructions.md are folded into the root agent.md orchestrator
+  rules: { strategy: "inline-into-orchestrator" },
 
-  manifest: {
-    location: ".claude-plugin/plugin.json",
-    outLocation: ".codex-plugin/plugin.json",
-    // ADR-001: Codex requires name/version/description metadata on the bundle
-    // manifest; retained alongside the existing component allowlist.
-    // Codex scopes plugin MCPs separately from global MCPs and does not dedupe
-    // equivalent commands. setup:codex therefore manages MCPs globally through
-    // the native CLI instead of bundling a second process in the plugin.
-    keepFields: ["skills", "apps", "hooks", "name", "version", "description"],
-    // ADR-001: Codex silently drops skills/mcpServers/hooks whose values are not
-    // ./-relative; reshapeManifest rewrites these three string values to a safe
-    // ./-relative form (rejecting any absolute path or ".." traversal segment).
-    relativePathFields: ["skills", "hooks"],
-    interface: { displayName: "ospec-workflow", icon: "icon.png" },
-  },
-
-  hooks: {
-    format: "codex",
-    source: "hooks/hooks.json",
-    location: "hooks/hooks.json",
+  orchestrator: {
+    agent: "sdd-orchestrator",
+    emitAs: "root-agent-md",
+    agentPath: "agent.md"
   },
 
   // sandbox_mode derives from the tools[] capability declaration (edit ->
@@ -98,15 +79,9 @@ module.exports = {
   // env-expansion convention as claude/github-copilot.
   mcpPlaceholders: { style: "env-expansion" },
 
-  // Other targets still consume the canonical file. For Codex it is installer
-  // input only and must not survive in the plugin payload.
-  drop: [".mcp.json"],
+  // Drop the Claude/VS Code/plugin specific files since Codex is no longer a plugin
+  drop: [".claude-plugin/", "hooks/hooks.json", ".mcp.json"],
   managedRoots: [".mcp.json"],
-
-  // The Claude plugin manifest is NOT in `drop`: reshapeManifest intercepts it
-  // by `profile.manifest.location` and renames it to `.codex-plugin/plugin.json`
-  // before any drop check would run; hooks.json is transformed into Codex's
-  // bridged command format with quoted `$PLUGIN_ROOT/...` paths.
 
   validate: ["node", "scripts/configure/validate-codex.js", "{out}"],
 };

@@ -27,14 +27,17 @@ function loadCodexProfileSource(loadCodexProfile) {
   const codexProfilePath = "scripts/lib/target-profiles/codex.js";
   try {
     const codexProfile = loadCodexProfile();
-    if (!codexProfile || !codexProfile.hooks || typeof codexProfile.hooks.source !== "string" || !codexProfile.hooks.source) {
+    if (!codexProfile || !codexProfile.hooks) {
+      return { source: null };
+    }
+    if (typeof codexProfile.hooks.source !== "string" || !codexProfile.hooks.source) {
       return {
         source: null,
         offender: {
           checker: "i3-budget-constant",
           path: codexProfilePath,
           expected: "a requireable profile exporting hooks.source as a non-empty string",
-          actual: JSON.stringify(codexProfile && codexProfile.hooks ? codexProfile.hooks.source : undefined),
+          actual: JSON.stringify(codexProfile.hooks.source),
           message: `${codexProfilePath} must export hooks.source as a non-empty string`,
         },
       };
@@ -141,7 +144,7 @@ function check(ctx) {
   const codexProfileResult = loadCodexProfileSource(loadCodexProfile);
   if (codexProfileResult.offender) {
     offenders.push(codexProfileResult.offender);
-  } else if (!seenPaths.has(codexProfileResult.source)) {
+  } else if (codexProfileResult.source && !seenPaths.has(codexProfileResult.source)) {
     configsToCheck.push({
       source: codexProfileResult.source,
       label: "codex"

@@ -795,77 +795,18 @@ test("toEnvExpansion rewrites two placeholders in a single string value — both
 // Requirement: codex target (Bloque 5.1)
 // ---------------------------------------------------------------------------
 
-test("codex reshapes the manifest to an allowlist + interface at .codex-plugin/plugin.json", () => {
-  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
-  assert.equal(find(out, ".claude-plugin/plugin.json"), undefined, "source manifest path must not survive");
-  const bundle = find(out, ".codex-plugin/plugin.json");
-  assert.ok(bundle, "renamed bundle must exist");
-  const m = JSON.parse(bundle.content);
-  assert.deepEqual(
-    Object.keys(m).sort(),
-    ["description", "hooks", "interface", "name", "skills", "version"],
-  );
-  assert.equal(m.interface.displayName, "ospec-workflow");
-  assert.equal(find(out, ".mcp.json"), undefined, "Codex must use idempotent global MCP registration");
-});
-
-test("codex manifest keeps name/version/description metadata", () => {
-  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
-  const bundle = JSON.parse(find(out, ".codex-plugin/plugin.json").content);
-  assert.equal(bundle.name, "ospec-workflow");
-  assert.equal(bundle.version, "2.1.0");
-  assert.equal(bundle.description, "desc");
-});
-
-test("codex manifest component paths are rewritten to a safe ./-relative form", () => {
-  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
-  const bundle = JSON.parse(find(out, ".codex-plugin/plugin.json").content);
-  assert.equal(bundle.skills, "./skills/");
-  assert.equal(bundle.mcpServers, undefined);
-  assert.equal(bundle.hooks, "./hooks/hooks.json");
-});
-
-test("codex manifest rejects a component path containing a .. traversal segment", () => {
-  const files = makeSource().map((file) =>
-    file.path === ".claude-plugin/plugin.json"
-      ? {
-          path: file.path,
-          content: JSON.stringify(
-            { ...JSON.parse(file.content), skills: "../skills/" },
-            null,
-            2,
-          ),
-        }
-      : file,
-  );
-  assert.throws(() => transform({ files, profile: codex, models: MODELS }), /traversal/);
-});
-
-test("codex manifest rejects an absolute component path", () => {
-  const files = makeSource().map((file) =>
-    file.path === ".claude-plugin/plugin.json"
-      ? {
-          path: file.path,
-          content: JSON.stringify(
-            { ...JSON.parse(file.content), hooks: "/etc/hooks.json" },
-            null,
-            2,
-          ),
-        }
-      : file,
-  );
-  assert.throws(() => transform({ files, profile: codex, models: MODELS }), /absolute/);
-});
-
-test("codex emits agents as TOML outside the plugin bundle", () => {
+test("codex emits agents as TOML outside the plugin bundle, and orchestrator as agent.md", () => {
   const out = transform({ files: makeSource(), profile: codex, models: MODELS });
   const toml = find(out, ".codex/agents/sdd-apply.toml");
   assert.ok(toml, "agent must be emitted as .codex/agents/sdd-apply.toml");
   assert.match(toml.content, /name = "sdd-apply"/);
   assert.match(toml.content, /developer_instructions = """/);
   assert.ok(!find(out, "agents/sdd-apply.agent.md"), "source-path residue must not survive");
-  const bundle = JSON.parse(find(out, ".codex-plugin/plugin.json").content);
-  assert.ok(!("agents" in bundle), "bundle must not reference agents");
+
+  // Orchestrator should not be emitted as TOML agent but as agent.md
+  assert.equal(find(out, ".codex/agents/sdd-orchestrator.toml"), undefined);
+  const agentMd = find(out, "agent.md");
+  assert.ok(agentMd, "orchestrator must be emitted as agent.md");
 });
 
 test("codex TOML agent output path is ./-relative-safe (no leading slash, no .. segment)", () => {
@@ -876,19 +817,10 @@ test("codex TOML agent output path is ./-relative-safe (no leading slash, no .. 
   assert.ok(!toml.path.split("/").includes(".."), "TOML agent path must not contain a .. segment");
 });
 
-test("codex derives workspace-write sandbox_mode for an edit-capable agent, read-only otherwise", () => {
+test("codex derives workspace-write sandbox_mode for an edit-capable agent", () => {
   const out = transform({ files: makeSource(), profile: codex, models: MODELS });
   const apply = find(out, ".codex/agents/sdd-apply.toml").content;
   assert.match(apply, /sandbox_mode = "workspace-write"/);
-  const orchestrator = find(out, ".codex/agents/sdd-orchestrator.toml").content;
-  assert.match(orchestrator, /sandbox_mode = "read-only"/);
-});
-
-test("codex pins custom agents to one delegation level", () => {
-  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
-  const orchestrator = find(out, ".codex/agents/sdd-orchestrator.toml").content;
-
-  assert.match(orchestrator, /\[agents\]\nmax_depth = 1\n/);
 });
 
 test("codex omits model/model_reasoning_effort when models.yaml has no codex column (fail-soft)", () => {
@@ -922,10 +854,6 @@ test("codex populates model and model_reasoning_effort when codex column is pres
   const apply = find(out, ".codex/agents/sdd-apply.toml").content;
   assert.match(apply, /^model = "gpt-5.6-terra"/m);
   assert.doesNotMatch(apply, /^model_reasoning_effort\s*=/m);
-
-  const orchestrator = find(out, ".codex/agents/sdd-orchestrator.toml").content;
-  assert.match(orchestrator, /^model = "gpt-5.6-sol"/m);
-  assert.match(orchestrator, /^model_reasoning_effort = "high"/m);
 });
 
 test("codex commands become invocable skills under skills/commands/, never a prompts/ path", () => {
@@ -935,7 +863,7 @@ test("codex commands become invocable skills under skills/commands/, never a pro
   assert.ok(!out.files.some((f) => f.path.startsWith("prompts/")), "no prompts/ path must exist");
 });
 
-test("codex rewrites named ${input:x} to positional $1 and drops the agent: routing key with a prose spawn instruction", () => {
+test("codex rewrites named ${input:x} to positional $1 and drops the agent: routing key with a spawn instruction", () => {
   const out = transform({ files: makeSource(), profile: codex, models: MODELS });
   const skill = find(out, "skills/commands/sdd-apply/SKILL.md").content;
   assert.match(skill, /\$1/);
@@ -989,11 +917,12 @@ test("codex leaves an already front-loaded description unchanged", () => {
   assert.equal(getField(fm, "description").value, "desc");
 });
 
-test("codex rules fold into a single synthesized AGENTS.md", () => {
+test("codex rules fold into a single synthesized agent.md", () => {
   const out = transform({ files: makeSource(), profile: codex, models: MODELS });
-  const agentsMd = find(out, "AGENTS.md");
-  assert.ok(agentsMd, "AGENTS.md must be synthesized");
-  assert.match(agentsMd.content, /ALWAYS use OpenSpec/);
+  const agentMd = find(out, "agent.md");
+  assert.ok(agentMd, "agent.md must be synthesized");
+  assert.match(agentMd.content, /ALWAYS use OpenSpec/);
+  assert.ok(!find(out, "AGENTS.md"), "AGENTS.md must not be synthesized");
   assert.ok(!out.files.some((f) => f.path.startsWith("rules/")), "rules/ source files must not survive");
 });
 
@@ -1008,172 +937,6 @@ test("codex does not mutate the input collection", () => {
   const before = JSON.stringify(input);
   transform({ files: input, profile: codex, models: MODELS });
   assert.equal(JSON.stringify(input), before);
-});
-
-// REQ-hooks-004: the codex wrapper emits a matcher+hooks group per event
-// (exactly the five current events, no sixth), each hook entry carrying a
-// POSIX command, a backslash/%PLUGIN_ROOT% commandWindows variant, and a
-// fixed timeout.
-test("codex target wraps hooks/hooks.json events in matcher+hooks groups with POSIX+Windows commands, exactly five events", () => {
-  const files = [
-    {
-      path: ".claude-plugin/plugin.json",
-      content: JSON.stringify({
-        name: "ospec-workflow",
-        hooks: "hooks/hooks.json"
-      })
-    },
-    {
-      path: "hooks/hooks.json",
-      content: JSON.stringify({
-        hooks: {
-          SessionStart: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js session-start", timeout: 5 }],
-          PreToolUse: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-tool-use", timeout: 5 }],
-          PreCompact: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-compact", timeout: 5 }],
-          SubagentStop: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js subagent-stop", timeout: 5 }],
-          Stop: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js stop", timeout: 5 }]
-        }
-      })
-    }
-  ];
-
-  const out = transform({ files, profile: codex, models: MODELS });
-  const hooksFile = find(out, "hooks/hooks.json");
-  assert.ok(hooksFile, "hooks/hooks.json must be generated");
-  const parsed = JSON.parse(hooksFile.content);
-
-  assert.ok(parsed.hooks, "hooks object must exist");
-  assert.deepEqual(Object.keys(parsed.hooks).sort(), [
-    "PreCompact",
-    "PreToolUse",
-    "SessionStart",
-    "Stop",
-    "SubagentStop"
-  ], "exactly the five current Codex hook events, no sixth event");
-
-  for (const event of ["SessionStart", "PreToolUse", "PreCompact", "SubagentStop", "Stop"]) {
-    const group = parsed.hooks[event];
-    assert.equal(group.length, 1, `${event} must carry one matcher+hooks group`);
-    assert.equal(group[0].matcher, ".*", `${event} matcher must be ".*"`);
-    assert.ok(Array.isArray(group[0].hooks), `${event}.hooks must be an array`);
-  }
-
-  const sessionStartHook = parsed.hooks.SessionStart[0].hooks[0];
-  assert.equal(sessionStartHook.type, "command");
-  assert.equal(sessionStartHook.command, 'OSPEC_CODEX_WRAPPER=1 node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" session-start');
-  assert.equal(sessionStartHook.commandWindows, 'set OSPEC_CODEX_WRAPPER=1&& node "%PLUGIN_ROOT%\\scripts\\hooks\\ospec-hooks-launch.js" session-start');
-  assert.equal(sessionStartHook.timeout, 10);
-
-  assert.equal(parsed.hooks.PreToolUse[0].hooks[0].command, 'OSPEC_CODEX_WRAPPER=1 node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" pre-tool-use');
-  assert.equal(parsed.hooks.PreToolUse[0].hooks[0].commandWindows, 'set OSPEC_CODEX_WRAPPER=1&& node "%PLUGIN_ROOT%\\scripts\\hooks\\ospec-hooks-launch.js" pre-tool-use');
-  assert.equal(parsed.hooks.PreCompact[0].hooks[0].command, 'OSPEC_CODEX_WRAPPER=1 node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" pre-compact');
-  assert.equal(parsed.hooks.SubagentStop[0].hooks[0].command, 'OSPEC_CODEX_WRAPPER=1 node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" subagent-stop');
-  assert.equal(parsed.hooks.Stop[0].hooks[0].command, 'OSPEC_CODEX_WRAPPER=1 node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" stop');
-});
-
-// Review remediation (CRITICAL-1, 4R gate): OSPEC_TARGET alone must never be
-// sufficient to degrade ASK->allow. codexHooks must inline a second,
-// per-invocation marker (OSPEC_CODEX_WRAPPER=1) directly on the command line
-// for every wrapped hook entry, on both the POSIX and Windows command forms.
-test("codex wrapper inlines the OSPEC_CODEX_WRAPPER=1 marker on every event's POSIX and Windows command", () => {
-  const files = [
-    {
-      path: "hooks/hooks.json",
-      content: JSON.stringify({
-        hooks: {
-          SessionStart: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js session-start", timeout: 5 }],
-          PreToolUse: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-tool-use", timeout: 5 }],
-          PreCompact: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-compact", timeout: 5 }],
-          SubagentStop: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js subagent-stop", timeout: 5 }],
-          Stop: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js stop", timeout: 5 }]
-        },
-      }),
-    },
-  ];
-  const out = transform({ files, profile: codex, models: MODELS });
-  const parsed = JSON.parse(find(out, "hooks/hooks.json").content);
-  for (const event of ["SessionStart", "PreToolUse", "PreCompact", "SubagentStop", "Stop"]) {
-    const hook = parsed.hooks[event][0].hooks[0];
-    assert.match(hook.command, /^OSPEC_CODEX_WRAPPER=1 node /, `${event} POSIX command must inline the marker`);
-    assert.match(hook.commandWindows, /^set OSPEC_CODEX_WRAPPER=1&& node /, `${event} Windows command must inline the marker`);
-  }
-});
-
-// REQ-hooks-004 scenario: no sixth event is added even when the source
-// hooks.json declares an event beyond the five Codex supports.
-test("codex wrapper drops any event beyond the five supported (no sixth event)", () => {
-  const files = [
-    {
-      path: "hooks/hooks.json",
-      content: JSON.stringify({
-        hooks: {
-          SessionStart: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js session-start", timeout: 5 }],
-          PreToolUse: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-tool-use", timeout: 5 }],
-          PreCompact: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-compact", timeout: 5 }],
-          SubagentStop: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js subagent-stop", timeout: 5 }],
-          Stop: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js stop", timeout: 5 }],
-          SomeFutureEvent: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js some-future-event", timeout: 5 }],
-        }
-      })
-    }
-  ];
-
-  const out = transform({ files, profile: codex, models: MODELS });
-  const parsed = JSON.parse(find(out, "hooks/hooks.json").content);
-  assert.deepEqual(Object.keys(parsed.hooks).sort(), [
-    "PreCompact",
-    "PreToolUse",
-    "SessionStart",
-    "Stop",
-    "SubagentStop"
-  ]);
-});
-
-test("codex hooks reject a non-object hooks map with a clean path-aware error", () => {
-  const files = [
-    {
-      path: "hooks/hooks.json",
-      content: JSON.stringify({ hooks: [] }),
-    },
-  ];
-
-  assert.throws(() => {
-    transform({ files, profile: codex, models: MODELS });
-  }, /hooks\/hooks\.json: hooks must be a non-null object/);
-});
-
-test("codex hooks reject a non-array event entry with event context", () => {
-  const files = [
-    {
-      path: "hooks/hooks.json",
-      content: JSON.stringify({
-        hooks: {
-          SessionStart: { type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js session-start" },
-        },
-      }),
-    },
-  ];
-
-  assert.throws(() => {
-    transform({ files, profile: codex, models: MODELS });
-  }, /hooks\/hooks\.json: hooks\.SessionStart must be an array/);
-});
-
-test("codex hooks reject a non-string command with event and index context", () => {
-  const files = [
-    {
-      path: "hooks/hooks.json",
-      content: JSON.stringify({
-        hooks: {
-          SessionStart: [{ type: "command", command: 42 }],
-        },
-      }),
-    },
-  ];
-
-  assert.throws(() => {
-    transform({ files, profile: codex, models: MODELS });
-  }, /hooks\/hooks\.json: hooks\.SessionStart\[0\]\.command must be a string/);
 });
 
 // ---------------------------------------------------------------------------
@@ -1247,32 +1010,4 @@ test("transform throws TypeError when files is not an array or profile is not an
   assert.throws(() => {
     transform({ files: [], profile: null });
   }, TypeError);
-});
-
-test("codex transform throws when hook entry is not an object", () => {
-  const badSource = makeSource();
-  const hooksFile = badSource.find((f) => f.path === "hooks/hooks.json");
-  hooksFile.content = JSON.stringify({
-    hooks: {
-      PreToolUse: ["not-an-object"],
-    },
-  });
-
-  assert.throws(() => {
-    transform({ files: badSource, profile: codex, models: MODELS });
-  }, /hooks\.PreToolUse\[0\] must be an object/);
-});
-
-test("codex transform throws when hook entry command is not a string", () => {
-  const badSource = makeSource();
-  const hooksFile = badSource.find((f) => f.path === "hooks/hooks.json");
-  hooksFile.content = JSON.stringify({
-    hooks: {
-      PreToolUse: [{ command: 123 }],
-    },
-  });
-
-  assert.throws(() => {
-    transform({ files: badSource, profile: codex, models: MODELS });
-  }, /hooks\.PreToolUse\[0\]\.command must be a string/);
 });
