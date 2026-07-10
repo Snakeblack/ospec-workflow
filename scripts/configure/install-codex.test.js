@@ -10,8 +10,6 @@ const {
   parseArgs,
   findCodexBin,
   resolveCodexInvocation,
-  buildCodexMarketplace,
-  registerCodexMarketplace,
   copyCodexAgents,
   readCodexMcpDefinitions,
   ensureCodexMcps,
@@ -31,13 +29,10 @@ function readRepoFile(...segments) {
 
 function writeGeneratedCodexTree(root) {
   fs.mkdirSync(path.join(root, ".codex", "agents"), { recursive: true });
-  fs.mkdirSync(path.join(root, ".codex-plugin"), { recursive: true });
-  fs.mkdirSync(path.join(root, "skills", "example"), { recursive: true });
   fs.writeFileSync(path.join(root, ".codex", "agents", "apply.toml"), 'name = "apply"\n');
   fs.writeFileSync(path.join(root, ".codex", "agents", "verify.toml"), 'name = "verify"\n');
   fs.writeFileSync(path.join(root, ".codex", "agents", "README.md"), "ignore\n");
-  fs.writeFileSync(path.join(root, ".codex-plugin", "plugin.json"), JSON.stringify({ skills: "skills/" }, null, 2));
-  fs.writeFileSync(path.join(root, "skills", "example", "SKILL.md"), "example\n");
+  fs.writeFileSync(path.join(root, "agent.md"), "orchestrator instructions\n");
 }
 
 test("parseArgs parses global setup defaults and repo install flags", () => {
@@ -87,29 +82,7 @@ test("copyCodexAgents copies only TOML agents and preserves unrelated files", (t
   assert.equal(fs.readFileSync(path.join(destDir, "notes.txt"), "utf8"), "keep\n");
 });
 
-test("buildCodexMarketplace wraps dist/codex as a local marketplace", (t) => {
-  const sourceDir = makeTempDir(t, "codex-marketplace-source-");
-  const outDir = makeTempDir(t, "codex-marketplace-out-");
-  writeGeneratedCodexTree(sourceDir);
 
-  const result = buildCodexMarketplace(sourceDir, outDir);
-
-  assert.equal(result.marketplaceDir, outDir);
-  assert.ok(fs.existsSync(path.join(outDir, "plugins", "codex", "ospec-workflow", ".codex-plugin", "plugin.json")));
-  assert.ok(fs.existsSync(path.join(outDir, ".agents", "plugins", "marketplace.json")));
-  assert.ok(!fs.existsSync(path.join(outDir, "marketplace.json")));
-  const marketplace = JSON.parse(
-    fs.readFileSync(path.join(outDir, ".agents", "plugins", "marketplace.json"), "utf8"),
-  );
-  assert.deepEqual(marketplace.plugins, [
-    {
-      name: "ospec-workflow",
-      source: { source: "local", path: "./plugins/codex/ospec-workflow" },
-      policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" },
-      category: "Productivity",
-    },
-  ]);
-});
 
 test("resolveCodexInvocation runs the npm Windows shim through node without a shell", (t) => {
   const root = makeTempDir(t, "codex-npm-shim-");
@@ -223,34 +196,20 @@ test("ensureCodexMcps is idempotent when all required identities already exist",
   assert.deepEqual(calls, [["codex", "mcp", "list", "--json"]]);
 });
 
-test("registerCodexMarketplace preserves an existing marketplace with the same name", () => {
-  const calls = [];
-  const stdout = [];
-  const exitCode = registerCodexMarketplace("codex", "C:\\local\\marketplace", {
-    stdout: { write: (chunk) => stdout.push(chunk) },
-    stderr: { write() {} },
-    runCodexCommand(bin, args) {
-      calls.push([bin, ...args]);
-      return {
-        status: 0,
-        stdout: JSON.stringify({
-          marketplaces: [{ name: "ospec-tools", root: "C:\\remote\\snapshot" }],
-        }),
-        stderr: "",
-      };
-    },
-  });
-
-  assert.equal(exitCode, 0);
-  assert.deepEqual(calls, [["codex", "plugin", "marketplace", "list", "--json"]]);
-  assert.match(stdout.join(""), /preserving existing marketplace.*ospec-tools/i);
-});
-
 test("main falls back to manual Codex commands when the CLI is unavailable", (t) => {
   const sourceDir = makeTempDir(t, "codex-main-source-");
   const homeDir = makeTempDir(t, "codex-home-");
   const stdout = [];
   const stderr = [];
+
+  fs.writeFileSync(
+    path.join(sourceDir, ".mcp.json"),
+    JSON.stringify({
+      mcpServers: {
+        markitdown: { command: "uvx", args: ["markitdown-mcp@0.0.1a4"] },
+      },
+    }),
+  );
 
   const exitCode = main([], {
     cwd: sourceDir,
@@ -268,47 +227,9 @@ test("main falls back to manual Codex commands when the CLI is unavailable", (t)
   assert.equal(exitCode, 0);
   assert.equal(stderr.join(""), "");
   assert.ok(fs.existsSync(path.join(homeDir, ".codex", "agents", "apply.toml")));
+  assert.ok(fs.existsSync(path.join(homeDir, ".codex", "AGENTS.md")));
   assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "config.toml")));
-  assert.match(stdout.join(""), /codex plugin marketplace add/i);
-  assert.match(stdout.join(""), /use \/plugins to select and install ospec-workflow/i);
-});
-
-test("main registers the Codex marketplace without attempting a noninteractive plugin install", (t) => {
-  const sourceDir = makeTempDir(t, "codex-main-cli-source-");
-  const homeDir = makeTempDir(t, "codex-main-cli-home-");
-  const stdout = [];
-  const stderr = [];
-  const codexCalls = [];
-
-  const exitCode = main([], {
-    cwd: sourceDir,
-    homedir: () => homeDir,
-    stdout: { write: (chunk) => stdout.push(chunk) },
-    stderr: { write: (chunk) => stderr.push(chunk) },
-    runConfigure({ outDir, validate }) {
-      assert.equal(validate, true);
-      writeGeneratedCodexTree(outDir);
-      return { exitCode: 0, validation: null };
-    },
-    findCodexBin: () => "codex",
-    runCodexCommand(bin, args) {
-      codexCalls.push([bin, ...args]);
-      if (args.join(" ") === "plugin marketplace list --json") {
-        return { status: 0, stdout: JSON.stringify({ marketplaces: [] }), stderr: "" };
-      }
-      return { status: 0, stdout: "", stderr: "" };
-    },
-  });
-
-  assert.equal(exitCode, 0);
-  assert.equal(stderr.join(""), "");
-  assert.ok(fs.existsSync(path.join(homeDir, ".codex", "agents", "apply.toml")));
-  assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "config.toml")));
-  assert.deepEqual(codexCalls, [
-    ["codex", "plugin", "marketplace", "list", "--json"],
-    ["codex", "plugin", "marketplace", "add", path.join(sourceDir, "dist", "codex-marketplace")],
-  ]);
-  assert.match(stdout.join(""), /Done\. Codex marketplace and agents are ready\./);
+  assert.match(stdout.join(""), /codex mcp add/i);
 });
 
 test("main installs repo-local agents without changing an existing config or copying the plugin bundle", (t) => {
@@ -336,6 +257,7 @@ test("main installs repo-local agents without changing an existing config or cop
 
   assert.equal(exitCode, 0);
   assert.ok(fs.existsSync(path.join(destRepo, ".codex", "agents", "apply.toml")));
+  assert.ok(fs.existsSync(path.join(destRepo, "agent.md")));
   assert.equal(fs.readFileSync(path.join(destRepo, ".codex", "config.toml"), "utf8"), "model = \"user-choice\"\n");
   assert.ok(!fs.existsSync(path.join(destRepo, ".codex-plugin", "plugin.json")));
   assert.equal(fs.readFileSync(path.join(destRepo, "README.md"), "utf8"), "keep\n");
@@ -407,41 +329,7 @@ test("main rejects invalid repo destinations before build side effects", (t) => 
   assert.match(stderr.join(""), /destination is not an existing directory/i);
 });
 
-test("main returns a recovery error when codex plugin marketplace add fails without partial global writes", (t) => {
-  const sourceDir = makeTempDir(t, "codex-marketplace-fail-source-");
-  const homeDir = makeTempDir(t, "codex-marketplace-fail-home-");
-  const stderr = [];
-  const codexCalls = [];
 
-  const exitCode = main([], {
-    cwd: sourceDir,
-    homedir: () => homeDir,
-    stdout: { write() {} },
-    stderr: { write: (chunk) => stderr.push(chunk) },
-    runConfigure({ outDir }) {
-      writeGeneratedCodexTree(outDir);
-      return { exitCode: 0, validation: null };
-    },
-    findCodexBin: () => "codex",
-    runCodexCommand(bin, args) {
-      codexCalls.push([bin, ...args]);
-      if (args.join(" ") === "plugin marketplace list --json") {
-        return { status: 0, stdout: JSON.stringify({ marketplaces: [] }), stderr: "" };
-      }
-      return { status: 9, stdout: "", stderr: "marketplace boom\n" };
-    },
-  });
-
-  assert.equal(exitCode, 9);
-  assert.deepEqual(codexCalls, [
-    ["codex", "plugin", "marketplace", "list", "--json"],
-    ["codex", "plugin", "marketplace", "add", path.join(sourceDir, "dist", "codex-marketplace")],
-  ]);
-  assert.match(stderr.join(""), /marketplace boom/);
-  assert.match(stderr.join(""), /codex command failed/i);
-  assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "agents", "apply.toml")));
-  assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "config.toml")));
-});
 
 test("main rejects redirected global .codex roots before writing managed files", (t) => {
   const sourceDir = makeTempDir(t, "codex-global-link-source-");
@@ -677,9 +565,6 @@ test("main global install is idempotent across the plugin channel and the agent 
       findCodexBin: () => "codex",
       runCodexCommand(bin, args) {
         codexCalls.push([bin, ...args]);
-        if (args.join(" ") === "plugin marketplace list --json") {
-          return { status: 0, stdout: JSON.stringify({ marketplaces: [] }), stderr: "" };
-        }
         if (args.join(" ") === "mcp list --json") {
           return { status: 0, stdout: JSON.stringify(configuredMcps), stderr: "" };
         }
@@ -696,24 +581,16 @@ test("main global install is idempotent across the plugin channel and the agent 
   const firstExit = runOnce();
   const agentsDir = path.join(homeDir, ".codex", "agents");
   const firstAgents = fs.readdirSync(agentsDir).sort();
-  const marketplaceJson = fs.readFileSync(
-    path.join(sourceDir, "dist", "codex-marketplace", ".agents", "plugins", "marketplace.json"),
-    "utf8",
-  );
+  const firstAgentMd = fs.readFileSync(path.join(homeDir, ".codex", "AGENTS.md"), "utf8");
 
   const secondExit = runOnce();
   const secondAgents = fs.readdirSync(agentsDir).sort();
-  const secondMarketplaceJson = fs.readFileSync(
-    path.join(sourceDir, "dist", "codex-marketplace", ".agents", "plugins", "marketplace.json"),
-    "utf8",
-  );
+  const secondAgentMd = fs.readFileSync(path.join(homeDir, ".codex", "AGENTS.md"), "utf8");
 
   assert.equal(firstExit, 0);
   assert.equal(secondExit, 0);
   assert.deepEqual(secondAgents, firstAgents);
-  assert.equal(secondMarketplaceJson, marketplaceJson);
-  // The plugin (marketplace) channel writes only under dist/codex-marketplace and
-  // registers via the codex CLI; it never touches the agents channel's destination.
+  assert.equal(secondAgentMd, firstAgentMd);
   assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "config.toml")));
   assert.equal(codexCalls.filter((call) => call.slice(1, 4).join(" ") === "mcp add markitdown").length, 1);
   assert.equal(codexCalls.filter((call) => call.slice(1).join(" ") === "mcp list --json").length, 2);

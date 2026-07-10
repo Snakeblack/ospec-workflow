@@ -8,9 +8,6 @@ const { spawnSync } = require("node:child_process");
 const { runConfigure } = require("./cli.js");
 const { assertSafeDest } = require("./install-target.js");
 
-const MARKETPLACE_NAME = "ospec-tools";
-const PLUGIN_NAME = "ospec-workflow";
-
 function usage() {
   return (
     "usage: install-codex [<destRepo>] [--dry-run] [--no-validate] [--source <sourceRepo>]\n" +
@@ -102,34 +99,7 @@ function copyTree(sourceDir, destDir, fsImpl = fs) {
   fsImpl.cpSync(sourceDir, destDir, { recursive: true, force: true });
 }
 
-function buildCodexMarketplace(sourceDir, outDir, deps = {}) {
-  const fsImpl = deps.fs || fs;
-  fsImpl.rmSync(outDir, { recursive: true, force: true });
-  const pluginDir = path.join(outDir, "plugins", "codex", PLUGIN_NAME);
-  copyTree(sourceDir, pluginDir, fsImpl);
-  const manifestPath = path.join(outDir, ".agents", "plugins", "marketplace.json");
-  fsImpl.mkdirSync(path.dirname(manifestPath), { recursive: true });
-  fsImpl.writeFileSync(
-    manifestPath,
-    JSON.stringify(
-      {
-        name: MARKETPLACE_NAME,
-        interface: { displayName: "OSpec Tools" },
-        plugins: [
-          {
-            name: PLUGIN_NAME,
-            source: { source: "local", path: `./plugins/codex/${PLUGIN_NAME}` },
-            policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" },
-            category: "Productivity",
-          },
-        ],
-      },
-      null,
-      2,
-    ) + "\n",
-  );
-  return { marketplaceDir: outDir, pluginDir };
-}
+
 
 function normalizeCodexMcpName(name) {
   const leaf = String(name).split("/").filter(Boolean).pop() || "mcp";
@@ -317,54 +287,7 @@ function assertManagedPathSafe(rootPath, managedPath, label, fsImpl = fs) {
   }
 }
 
-function registerCodexMarketplace(codexBin, marketplaceDir, deps) {
-  const runCodexCommand = deps.runCodexCommand || defaultRunCodexCommand;
-  const stdout = deps.stdout || process.stdout;
-  const stderr = deps.stderr || process.stderr;
 
-  const listed = runCodexCommand(codexBin, ["plugin", "marketplace", "list", "--json"], deps);
-  if (listed.stderr) stderr.write(listed.stderr);
-  const listExitCode = listed.status === null || listed.status === undefined ? 1 : listed.status;
-  if (listExitCode !== 0) {
-    stderr.write("codex command failed while listing marketplaces; existing sources were preserved\n");
-    return listExitCode;
-  }
-  let marketplaces;
-  try {
-    const parsed = JSON.parse(listed.stdout || "{}");
-    marketplaces = parsed.marketplaces;
-  } catch (error) {
-    stderr.write(`codex marketplace list returned invalid JSON: ${error.message}\n`);
-    return 1;
-  }
-  if (!Array.isArray(marketplaces)) {
-    stderr.write("codex marketplace list returned an unexpected JSON shape\n");
-    return 1;
-  }
-  const existing = marketplaces.find((marketplace) => marketplace?.name === MARKETPLACE_NAME);
-  if (existing) {
-    stdout.write(
-      `preserving existing marketplace '${MARKETPLACE_NAME}' at ${existing.root || "its configured source"}; no duplicate added\n`,
-    );
-    return 0;
-  }
-
-  for (const commandArgs of [["plugin", "marketplace", "add", marketplaceDir]]) {
-    const command = runCodexCommand(codexBin, commandArgs, deps);
-    if (command.stdout) stdout.write(command.stdout);
-    if (command.stderr) stderr.write(command.stderr);
-    
-    const exitCode = command.status === null || command.status === undefined ? 1 : command.status;
-    if (exitCode !== 0) {
-      stderr.write(
-        `codex command failed: ${codexBin} ${commandArgs.join(" ")}\n` +
-          `manual recovery: codex plugin marketplace add \"${marketplaceDir}\", then use /plugins to install ${PLUGIN_NAME}\n`,
-      );
-      return exitCode;
-    }
-  }
-  return 0;
-}
 
 function main(argv, deps = {}) {
   const args = parseArgs(argv);
@@ -408,26 +331,21 @@ function main(argv, deps = {}) {
     }
 
     const agentsDest = path.join(codexRoot, "agents");
+    const agentDestFile = isRepoInstall
+      ? path.join(path.dirname(codexRoot), "agent.md")
+      : path.join(codexRoot, "AGENTS.md");
 
-    const marketplaceDir = path.join(sourceDir, "dist", "codex-marketplace");
     if (!args.dryRun && !isRepoInstall) {
-      buildCodexMarketplace(outDir, marketplaceDir, { fs: fsImpl });
       const codexBin = findCodexBinImpl();
       const mcpDefinitions = readCodexMcpDefinitions(sourceDir, fsImpl);
       if (!codexBin) {
         stdout.write(
-          "codex CLI not found on PATH; built artifacts are ready for manual installation.\n" +
-            `codex plugin marketplace add \"${marketplaceDir}\"\n` +
-            `use /plugins to select and install ${PLUGIN_NAME}\n` +
+          "codex CLI not found on PATH; built agent instructions and MCP command(s) are ready:\n" +
             mcpDefinitions.map((server) =>
               `codex mcp add ${server.name} -- ${server.command} ${server.args.join(" ")}\n`,
             ).join(""),
         );
       } else {
-        const exitCode = registerCodexMarketplace(codexBin, marketplaceDir, deps);
-        if (exitCode !== 0) {
-          return exitCode;
-        }
         const mcpExitCode = ensureCodexMcps(codexBin, mcpDefinitions, deps);
         if (mcpExitCode !== 0) {
           return mcpExitCode;
@@ -437,20 +355,25 @@ function main(argv, deps = {}) {
 
     // Perform security checks immediately before writing to avoid TOCTOU window
     assertManagedPathSafe(codexRoot, agentsDest, "Codex agents destination", fsImpl);
+    assertManagedPathSafe(isRepoInstall ? path.dirname(codexRoot) : codexRoot, agentDestFile, "Codex agent file destination", fsImpl);
 
     copyCodexAgents(outDir, agentsDest, { fs: fsImpl, dryRun: args.dryRun });
 
+    if (!args.dryRun) {
+      fsImpl.copyFileSync(path.join(outDir, "agent.md"), agentDestFile);
+    }
+
     if (args.dryRun) {
-      stdout.write("[dry-run] Codex agents prepared; no files were written.\n");
+      stdout.write(`[dry-run] Codex agents and ${isRepoInstall ? "agent.md" : "AGENTS.md"} prepared; no files were written.\n`);
       return 0;
     }
 
     if (isRepoInstall) {
-      stdout.write(`Done. Codex agents synced into ${path.dirname(codexRoot)}.\n`);
+      stdout.write(`Done. Codex agent.md and custom agents synced into ${path.dirname(codexRoot)}.\n`);
       return 0;
     }
 
-    stdout.write("Done. Codex marketplace and agents are ready. Use /plugins to install ospec-workflow.\n");
+    stdout.write("Done. Codex AGENTS.md and custom agents are ready.\n");
     return 0;
   } catch (error) {
     stderr.write(`${error.message}\n`);
@@ -471,8 +394,6 @@ module.exports = {
   parseArgs,
   findCodexBin,
   resolveCodexInvocation,
-  buildCodexMarketplace,
-  registerCodexMarketplace,
   copyCodexAgents,
   readCodexMcpDefinitions,
   ensureCodexMcps,

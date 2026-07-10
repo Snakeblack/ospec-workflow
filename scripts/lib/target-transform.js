@@ -86,6 +86,9 @@ function handleFile(file, profile, models, rulesContent) {
     if (profile.orchestrator && profile.orchestrator.emitAs === "skill" && agentBaseName(path, profile) === profile.orchestrator.agent) {
       return emitOrchestratorSkill(file, profile, rulesContent);
     }
+    if (profile.orchestrator && profile.orchestrator.emitAs === "root-agent-md" && agentBaseName(path, profile) === profile.orchestrator.agent) {
+      return emitOrchestratorRootAgentMd(file, profile, rulesContent);
+    }
     if (profile.agentFile.format === "toml") {
       return handleAgentToml(file, profile, models);
     }
@@ -430,6 +433,22 @@ function emitOrchestratorSkill(file, profile, rulesContent) {
   ];
 
   return { path: profile.orchestrator.skillPath, content: serialize({ frontmatter, body }) };
+}
+
+function emitOrchestratorRootAgentMd(file, profile, rulesContent) {
+  const parsed = parse(file.content);
+  let body = parsed.body;
+
+  if (profile.toolMap) {
+    body = substituteProse(body, profile.toolMap);
+  }
+  if (rulesContent) {
+    body = body.replace(/\s*$/, "") + "\n\n" + rulesContent + "\n";
+  }
+  body = substituteAgentNames(body, profile);
+
+  const outPath = profile.orchestrator.agentPath || "agent.md";
+  return { path: outPath, content: body };
 }
 
 // --- agents ----------------------------------------------------------------

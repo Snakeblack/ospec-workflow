@@ -29,6 +29,8 @@ const FORBIDDEN_PATHS = [
   "rules",
   ".codex/config.toml",
   ".mcp.json",
+  ".codex-plugin",
+  "hooks",
 ];
 
 const FORBIDDEN_TEXT = [
@@ -146,33 +148,7 @@ function isSafeRelativePath(value) {
   return !segments.includes("..");
 }
 
-// Bundle allowlist: .codex-plugin/plugin.json MUST NOT contain any top-level
-// key outside skills/apps/hooks/interface/name/version/description. MCP servers
-// are registered once at user scope by setup:codex; bundling them here would
-// start duplicate processes when equivalent user MCPs already exist.
-// (REQ-codex-target-001, REQ-codex-target-008 "Validator fails on
-// out-of-schema bundle key"; REQ-generator-004 for path safety, ADR-001).
-function validateBundle(root, errors) {
-  const rel = ".codex-plugin/plugin.json";
-  if (pathType(root, rel) !== "file") {
-    addError(errors, `missing required file: ${rel}`);
-    return;
-  }
-  const parsed = parseJsonFile(root, rel, errors);
-  if (!parsed) {
-    return;
-  }
-  for (const key of Object.keys(parsed)) {
-    if (!ALLOWED_BUNDLE_KEYS.has(key)) {
-      addError(errors, `${rel} contains out-of-schema key: ${key}`);
-    }
-  }
-  for (const key of RELATIVE_PATH_KEYS) {
-    if (key in parsed && !isSafeRelativePath(parsed[key])) {
-      addError(errors, `${rel} field "${key}" must be a safe ./-relative path: ${parsed[key]}`);
-    }
-  }
-}
+
 
 function validateForbiddenPaths(root, errors) {
   for (const rel of FORBIDDEN_PATHS) {
@@ -205,55 +181,7 @@ function validateForbiddenText(root, errors, deps = {}) {
   }
 }
 
-function validateHooks(root, errors, deps = {}) {
-  const rel = "hooks/hooks.json";
-  if (pathType(root, rel) !== "file") {
-    addError(errors, `missing required file: ${rel}`);
-    return;
-  }
 
-  const readFile = deps.readUtf8 || readUtf8;
-  const parsed = parseJsonFile(root, rel, errors, readFile);
-  if (!parsed || !parsed.hooks || typeof parsed.hooks !== "object" || Array.isArray(parsed.hooks)) {
-    addError(errors, `${rel} must declare hooks as a non-null object`);
-    return;
-  }
-
-  // REQ-hooks-004: each event carries an array of wrapper groups
-  // { matcher, hooks: [ { type, command, commandWindows, timeout } ] }
-  // instead of the base target's flat 1:1 entry array.
-  for (const [event, groups] of Object.entries(parsed.hooks)) {
-    if (!Array.isArray(groups)) {
-      addError(errors, `${rel} ${event} must be an array`);
-      continue;
-    }
-    groups.forEach((group, groupIndex) => {
-      if (!group || typeof group !== "object" || Array.isArray(group)) {
-        addError(errors, `${rel} ${event}[${groupIndex}] must be an object`);
-        return;
-      }
-      if (!Array.isArray(group.hooks)) {
-        addError(errors, `${rel} ${event}[${groupIndex}].hooks must be an array`);
-        return;
-      }
-      group.hooks.forEach((entry, index) => {
-        if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-          addError(errors, `${rel} ${event}[${groupIndex}].hooks[${index}] must be an object`);
-          return;
-        }
-        if (typeof entry.command !== "string") {
-          addError(errors, `${rel} ${event}[${groupIndex}].hooks[${index}] command must be a string`);
-          return;
-        }
-        // We enforce quoting the $PLUGIN_ROOT path (e.g. "$PLUGIN_ROOT/some-script") to prevent
-        // path parsing issues or word-splitting failures when the plugin path contains spaces.
-        if (/\$PLUGIN_ROOT\/[^"]/.test(entry.command) && !entry.command.includes('"$PLUGIN_ROOT/')) {
-          addError(errors, `${rel} ${event}[${groupIndex}].hooks[${index}] command must quote the $PLUGIN_ROOT path`);
-        }
-      });
-    });
-  }
-}
 
 // Minimal shape check for .codex/agents/*.toml: every required key present as
 // a top-level `key = "…"`/`key = """…"""` assignment, sandbox_mode is one of
@@ -309,6 +237,13 @@ function validateSkills(root, errors, readFile = readUtf8) {
   }
 }
 
+function validateRootAgent(root, errors) {
+  const rel = "agent.md";
+  if (pathType(root, rel) !== "file") {
+    addError(errors, `missing required file: ${rel}`);
+  }
+}
+
 function validate(root, deps = {}) {
   const errors = [];
   const warnings = [];
@@ -319,10 +254,9 @@ function validate(root, deps = {}) {
     return { errors, warnings };
   }
 
-  validateBundle(absRoot, errors);
+  validateRootAgent(absRoot, errors);
   validateForbiddenPaths(absRoot, errors);
   validateForbiddenText(absRoot, errors, deps);
-  validateHooks(absRoot, errors, deps);
   const readFile = deps.readUtf8 || readUtf8;
   validateAgentToml(absRoot, errors, readFile);
   validateSkills(absRoot, errors, readFile);

@@ -8,6 +8,11 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.25.3] - 2026-07-11
+
+### Fixed
+- **Instalación global de Codex adaptada a AGENTS.md**: corregida la ruta de destino global en el instalador para que apunte a `~/.codex/AGENTS.md` de acuerdo con la especificación oficial, manteniendo `agent.md` a nivel de proyecto local para el orquestador.
+
 ## [2.25.2] - 2026-07-11
 
 ### Fixed

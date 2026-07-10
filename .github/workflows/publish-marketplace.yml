@@ -39,7 +39,6 @@ jobs:
       - name: Build marketplaces
         run: |
           node scripts/configure/claude-marketplace.js --no-validate
-          node scripts/configure/codex-marketplace.js --out dist/claude-marketplace --no-validate
 
       # The hooks invoke scripts/hooks/ospec-hooks-launch.js, which prefers the
       # compiled Go binary and falls back to the Node hooks. Bundle every
@@ -78,11 +77,3 @@ jobs:
           git add -A
           git commit -q -m "publish marketplace from ${GITHUB_SHA}"
           git push -q --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" release
-
-      - name: Smoke test published Codex marketplace
-        env:
-          HOME: ${{ runner.temp }}/codex-home
-        run: |
-          npm install -g @openai/codex
-          codex plugin marketplace add ${GITHUB_REPOSITORY} --ref release --sparse .agents/plugins --sparse plugins/codex/ospec-workflow
-          codex plugin marketplace list | grep -F ospec-tools
