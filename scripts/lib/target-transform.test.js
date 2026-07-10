@@ -801,8 +801,59 @@ test("codex reshapes the manifest to an allowlist + interface at .codex-plugin/p
   const bundle = find(out, ".codex-plugin/plugin.json");
   assert.ok(bundle, "renamed bundle must exist");
   const m = JSON.parse(bundle.content);
-  assert.deepEqual(Object.keys(m).sort(), ["hooks", "interface", "mcpServers", "skills"]);
+  assert.deepEqual(
+    Object.keys(m).sort(),
+    ["description", "hooks", "interface", "mcpServers", "name", "skills", "version"],
+  );
   assert.equal(m.interface.displayName, "ospec-workflow");
+});
+
+test("codex manifest keeps name/version/description metadata", () => {
+  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
+  const bundle = JSON.parse(find(out, ".codex-plugin/plugin.json").content);
+  assert.equal(bundle.name, "ospec-workflow");
+  assert.equal(bundle.version, "2.1.0");
+  assert.equal(bundle.description, "desc");
+});
+
+test("codex manifest component paths are rewritten to a safe ./-relative form", () => {
+  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
+  const bundle = JSON.parse(find(out, ".codex-plugin/plugin.json").content);
+  assert.equal(bundle.skills, "./skills/");
+  assert.equal(bundle.mcpServers, "./.mcp.json");
+  assert.equal(bundle.hooks, "./hooks/hooks.json");
+});
+
+test("codex manifest rejects a component path containing a .. traversal segment", () => {
+  const files = makeSource().map((file) =>
+    file.path === ".claude-plugin/plugin.json"
+      ? {
+          path: file.path,
+          content: JSON.stringify(
+            { ...JSON.parse(file.content), skills: "../skills/" },
+            null,
+            2,
+          ),
+        }
+      : file,
+  );
+  assert.throws(() => transform({ files, profile: codex, models: MODELS }), /traversal/);
+});
+
+test("codex manifest rejects an absolute component path", () => {
+  const files = makeSource().map((file) =>
+    file.path === ".claude-plugin/plugin.json"
+      ? {
+          path: file.path,
+          content: JSON.stringify(
+            { ...JSON.parse(file.content), mcpServers: "/etc/.mcp.json" },
+            null,
+            2,
+          ),
+        }
+      : file,
+  );
+  assert.throws(() => transform({ files, profile: codex, models: MODELS }), /absolute/);
 });
 
 test("codex emits agents as TOML outside the plugin bundle", () => {
@@ -814,6 +865,14 @@ test("codex emits agents as TOML outside the plugin bundle", () => {
   assert.ok(!find(out, "agents/sdd-apply.agent.md"), "source-path residue must not survive");
   const bundle = JSON.parse(find(out, ".codex-plugin/plugin.json").content);
   assert.ok(!("agents" in bundle), "bundle must not reference agents");
+});
+
+test("codex TOML agent output path is ./-relative-safe (no leading slash, no .. segment)", () => {
+  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
+  const toml = find(out, ".codex/agents/sdd-apply.toml");
+  assert.ok(toml, "TOML agent file must be emitted");
+  assert.ok(!toml.path.startsWith("/"), "TOML agent path must not be absolute");
+  assert.ok(!toml.path.split("/").includes(".."), "TOML agent path must not contain a .. segment");
 });
 
 test("codex derives workspace-write sandbox_mode for an edit-capable agent, read-only otherwise", () => {
@@ -943,7 +1002,11 @@ test("codex does not mutate the input collection", () => {
   assert.equal(JSON.stringify(input), before);
 });
 
-test("codex target transforms hooks/hooks.json to map events and replace ${CLAUDE_PLUGIN_ROOT} with a quoted $PLUGIN_ROOT path", () => {
+// REQ-hooks-004: the codex wrapper emits a matcher+hooks group per event
+// (exactly the five current events, no sixth), each hook entry carrying a
+// POSIX command, a backslash/%PLUGIN_ROOT% commandWindows variant, and a
+// fixed timeout.
+test("codex target wraps hooks/hooks.json events in matcher+hooks groups with POSIX+Windows commands, exactly five events", () => {
   const files = [
     {
       path: ".claude-plugin/plugin.json",
@@ -978,13 +1041,56 @@ test("codex target transforms hooks/hooks.json to map events and replace ${CLAUD
     "SessionStart",
     "Stop",
     "SubagentStop"
-  ]);
+  ], "exactly the five current Codex hook events, no sixth event");
 
-  assert.equal(parsed.hooks.SessionStart[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" session-start');
-  assert.equal(parsed.hooks.PreToolUse[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" pre-tool-use');
-  assert.equal(parsed.hooks.PreCompact[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" pre-compact');
-  assert.equal(parsed.hooks.SubagentStop[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" subagent-stop');
-  assert.equal(parsed.hooks.Stop[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" stop');
+  for (const event of ["SessionStart", "PreToolUse", "PreCompact", "SubagentStop", "Stop"]) {
+    const group = parsed.hooks[event];
+    assert.equal(group.length, 1, `${event} must carry one matcher+hooks group`);
+    assert.equal(group[0].matcher, ".*", `${event} matcher must be ".*"`);
+    assert.ok(Array.isArray(group[0].hooks), `${event}.hooks must be an array`);
+  }
+
+  const sessionStartHook = parsed.hooks.SessionStart[0].hooks[0];
+  assert.equal(sessionStartHook.type, "command");
+  assert.equal(sessionStartHook.command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" session-start');
+  assert.equal(sessionStartHook.commandWindows, 'node "%PLUGIN_ROOT%\\scripts\\hooks\\ospec-hooks-launch.js" session-start');
+  assert.equal(sessionStartHook.timeout, 10);
+
+  assert.equal(parsed.hooks.PreToolUse[0].hooks[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" pre-tool-use');
+  assert.equal(parsed.hooks.PreToolUse[0].hooks[0].commandWindows, 'node "%PLUGIN_ROOT%\\scripts\\hooks\\ospec-hooks-launch.js" pre-tool-use');
+  assert.equal(parsed.hooks.PreCompact[0].hooks[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" pre-compact');
+  assert.equal(parsed.hooks.SubagentStop[0].hooks[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" subagent-stop');
+  assert.equal(parsed.hooks.Stop[0].hooks[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" stop');
+});
+
+// REQ-hooks-004 scenario: no sixth event is added even when the source
+// hooks.json declares an event beyond the five Codex supports.
+test("codex wrapper drops any event beyond the five supported (no sixth event)", () => {
+  const files = [
+    {
+      path: "hooks/hooks.json",
+      content: JSON.stringify({
+        hooks: {
+          SessionStart: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js session-start", timeout: 5 }],
+          PreToolUse: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-tool-use", timeout: 5 }],
+          PreCompact: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-compact", timeout: 5 }],
+          SubagentStop: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js subagent-stop", timeout: 5 }],
+          Stop: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js stop", timeout: 5 }],
+          SomeFutureEvent: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js some-future-event", timeout: 5 }],
+        }
+      })
+    }
+  ];
+
+  const out = transform({ files, profile: codex, models: MODELS });
+  const parsed = JSON.parse(find(out, "hooks/hooks.json").content);
+  assert.deepEqual(Object.keys(parsed.hooks).sort(), [
+    "PreCompact",
+    "PreToolUse",
+    "SessionStart",
+    "Stop",
+    "SubagentStop"
+  ]);
 });
 
 test("codex hooks reject a non-object hooks map with a clean path-aware error", () => {

@@ -1,0 +1,139 @@
+change: codex-target-phase-2
+status: applying
+last_updated: "2026-07-10T04:00:00Z"
+classification: high-risk
+blocking_questions: []
+owner:
+  author: Manuel Retamozo
+  branch: main
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "classification=high-risk and project.status=active matched the first applicable route: standard"
+  validated: true
+  validation_errors: []
+approvals:
+  - id: approval-001
+    gate: execution-mode
+    decision: automatic
+    source: vscode/askQuestions
+    accepted_at: "2026-07-10T00:15:25Z"
+    applies_to:
+      - codex-target-phase-2
+  - id: approval-002
+    gate: delivery-strategy
+    decision: exception-ok
+    source: vscode/askQuestions
+    accepted_at: "2026-07-10T00:15:25Z"
+    applies_to:
+      - codex-target-phase-2
+phases:
+  sdd-explore:
+    status: skipped
+    artifact: openspec/changes/codex-target-phase-2/exploration.md
+    summary: "Omitted because sdd-explore is not declared in the active standard route; sdd-propose is the first valid phase."
+  proposal:
+    status: done
+    artifact: openspec/changes/codex-target-phase-2/proposal.md
+    summary: "Contrato Codex cohesivo desde payload publicado hasta instalación separada, hooks/MCP y smoke en tarea nueva."
+    key_decisions:
+      - "Mantener un único change y dividir la entrega en work units/PRs, no por componentes."
+      - "Tratar el payload publicado y el smoke en una tarea nueva como fronteras de aceptación."
+      - "Consumir fix-codex-config-toml como baseline y resolver sus pendientes antes de apply."
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/codex-target-phase-2/specs/generator/spec.md
+      - openspec/changes/codex-target-phase-2/specs/hooks/spec.md
+      - openspec/changes/codex-target-phase-2/specs/install/spec.md
+      - openspec/changes/codex-target-phase-2/specs/agents/spec.md
+    summary: "Deltas ADDED/MODIFIED en generator (paths ./ y MCP id regex), hooks (wrapper matcher POSIX/Windows, PreToolUse sin ask, SubagentStop.agent_transcript_path, SessionStart), install (canales idempotentes plugin+TOML, docs/codex/README.md, smoke) y agents (TOML autodetectable)."
+    key_decisions:
+      - "Docs codex/README.md y smoke test se especifican bajo install (REQ-install-002/003), no como dominio nuevo."
+  clarify:
+    status: done
+    summary: "Sin ambigüedades materiales; 0 preguntas — decisiones ya ancladas a escenarios concretos o mecanismos baseline existentes (bypassPermissions §3.4.1)."
+  design:
+    status: done
+    artifact: openspec/changes/codex-target-phase-2/design.md
+    summary: "Payload publicado como frontera; manifest ./ + metadata, MCP ids fijados en fuente + validador, hooks matcher/commandWindows y reuso de bypassPermissions/agent_transcript_path. 3 ADRs."
+    key_decisions:
+      - "keepFields+metadata y prefijo ./ en paths de componentes (ADR-001)."
+      - "IDs MCP corregidos en .mcp.json fuente; regex enforced en validador (ADR-002)."
+      - "Hooks reusan applyPermissionMode via OSPEC_TARGET=codex; alias agent_transcript_path (ADR-003)."
+  tasks:
+    status: done
+    artifact: openspec/changes/codex-target-phase-2/tasks.md
+    summary: "6 fases / 20 tareas cubriendo los 10 REQ MUST. Forecast: ~700-950 líneas, riesgo alto, size-exception (delivery=exception-ok ya aprobado). 3 work units: generación+validación, hooks runtime, install+docs+smoke."
+    key_decisions:
+      - "Chain strategy: size-exception; Decision needed before apply: No (approval-002 ya cubre exception-ok)."
+      - "Split sugerido en 3 PRs por dependencia (PR2 depende del shape del wrapper de PR1; PR3 depende de PR1+PR2)."
+  apply:
+    status: partial
+    artifact: openspec/changes/codex-target-phase-2/apply-progress.md
+    summary: "Work units 1-2/3 completos: (PR1) manifest ./ + metadata (ADR-001), MCP ids fijados + regex validador (ADR-002); (PR2) hooks wrapper matcher/commandWindows para 5 eventos, PreToolUse via OSPEC_TARGET=codex reusando bypassPermissions, agent_transcript_path alias, paridad Go (ADR-003). npm test + go test en verde."
+    key_decisions:
+      - "Nombres internos (relativePathFields, toSafeRelativePath, isSafeRelativePath) siguen convención existente (keepFields, ALLOWED_BUNDLE_KEYS); detalle interno, no contrato público."
+      - "validateMcpIds trata .mcp.json ausente como no-fatal (no hay REQ que exija su presencia independiente del manifest)."
+      - "timeout de wrapper fijo en 10 (normalización codex-side), no pass-through del timeout de origen; validate-codex.js actualizado a la nueva forma anidada como mantenimiento load-bearing del mismo archivo (no REQ nuevo)."
+  verify:
+    status: pending
+    artifact: openspec/changes/codex-target-phase-2/verify-report.md
+  archive:
+    status: pending
+    artifact: openspec/changes/codex-target-phase-2/archive-report.md
+baseline_fingerprints:
+  generator: "sha256:a0662b42f2cc0bd3ee4d1e1f5f55b6e8c500918451738541bdd37ae3d11d8341"
+  hooks: "sha256:921ae472c3f06db5152b94a2350f58688ffed5b46faead5afeb27c781ea60b86"
+  install: "sha256:98e40b2d5a4723069ce0105954bfe48809848f09737790125fb8ea02ad5d0ed1"
+  agents: "sha256:18c3a68bc8e962361b403bdd374873a6af7ead10b4c2b6e3a35c4ca00d1e035b"
+assumptions:
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "Se usa el env flag OSPEC_TARGET=codex emitido por el wrapper para que los hooks reconozcan el target y activen la degradación bypassPermissions-equivalente."
+    reversibility: high
+    basis: "Reusa applyPermissionMode (§3.4.1) sin adapter nuevo; un env flag es trivial de renombrar o reemplazar."
+    recorded_at: "2026-07-10T02:35:00Z"
+    status: unresolved
+  - id: sdd-design-002
+    phase: sdd-design
+    statement: "El matcher del wrapper de hooks es \".*\" (comodín) para los cinco eventos."
+    reversibility: high
+    basis: "Coincide con el shape validado en docs/codex/field-report-2026-07-10.md §4."
+    recorded_at: "2026-07-10T02:35:00Z"
+    status: unresolved
+  - id: sdd-design-003
+    phase: sdd-design
+    statement: "El smoke de npm test corre contra el payload generado+instalado en temp usando el hook Node directamente, sin invocar el binario codex."
+    reversibility: high
+    basis: "REQ-install-003 exige payload real en npm test; el CLI no está disponible en CI, patrón 'dist tests self-generate'."
+    recorded_at: "2026-07-10T02:35:00Z"
+    status: unresolved
+  - id: sdd-design-004
+    phase: sdd-design
+    statement: "El timeout de cada hook wrapper se fija en 10s."
+    reversibility: high
+    basis: "Valor del ejemplo del field report §4; ajustable en el perfil."
+    recorded_at: "2026-07-10T02:35:00Z"
+    status: unresolved
+  - id: sdd-apply-001
+    phase: sdd-apply
+    statement: "Nombres de helpers/campos internos (relativePathFields, toSafeRelativePath, isSafeRelativePath, RELATIVE_PATH_KEYS) siguen la convención existente ya que ADR-001/ADR-002 especifican comportamiento, no identificadores exactos."
+    reversibility: high
+    basis: "Coincide con los patrones de nombres existentes (keepFields/ALLOWED_BUNDLE_KEYS/FORBIDDEN_PATHS)."
+    recorded_at: "2026-07-10T04:05:00Z"
+    status: unresolved
+  - id: sdd-apply-002
+    phase: sdd-apply
+    statement: "validateMcpIds() trata un .mcp.json ausente como no-fatal (omite el check) en vez de emitir un error de archivo faltante."
+    reversibility: high
+    basis: "Ningún REQ exige presencia independiente de .mcp.json fuera de la referencia mcpServers del manifiesto; se puede endurecer después sin romper llamadores."
+    recorded_at: "2026-07-10T04:05:00Z"
+    status: unresolved
+  - id: sdd-apply-003
+    phase: sdd-apply
+    statement: "codexHooks emite timeout: 10 fijo en cada entrada wrapeada, ignorando el timeout declarado en el evento fuente (fixtures usan 5) — normalización codex-side, no pass-through."
+    reversibility: high
+    basis: "Coincide con la muestra literal de design.md §Interfaces/Contracts; cambio de una línea si una futura clarificación pide pass-through del timeout de origen."
+    recorded_at: "2026-07-10T06:20:00Z"
+    status: unresolved

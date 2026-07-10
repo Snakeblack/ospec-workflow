@@ -41,7 +41,13 @@ module.exports = {
   manifest: {
     location: ".claude-plugin/plugin.json",
     outLocation: ".codex-plugin/plugin.json",
-    keepFields: ["skills", "mcpServers", "apps", "hooks"],
+    // ADR-001: Codex requires name/version/description metadata on the bundle
+    // manifest; retained alongside the existing component allowlist.
+    keepFields: ["skills", "mcpServers", "apps", "hooks", "name", "version", "description"],
+    // ADR-001: Codex silently drops skills/mcpServers/hooks whose values are not
+    // ./-relative; reshapeManifest rewrites these three string values to a safe
+    // ./-relative form (rejecting any absolute path or ".." traversal segment).
+    relativePathFields: ["skills", "mcpServers", "hooks"],
     interface: { displayName: "ospec-workflow", icon: "icon.png" },
   },
 
