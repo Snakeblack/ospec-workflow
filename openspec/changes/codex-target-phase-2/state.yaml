@@ -1,6 +1,6 @@
 change: codex-target-phase-2
 status: verified
-last_updated: "2026-07-10T14:20:00Z"
+last_updated: "2026-07-10T15:00:00Z"
 classification: high-risk
 blocking_questions: []
 owner:
@@ -113,7 +113,7 @@ gates:
           summary: "Go pretooluse.go lacked the AI-attribution commit-message DENY guard present in the JS hook."
           fix: "Ported FORBIDDEN_ATTRIBUTION_RE/checkCommitAttribution to internal/hooks/pretooluse.go, wired into run()'s DENY step."
           regression_tests: "internal/hooks/pretooluse_test.go (5 new attribution tests)"
-      verification_pending: "Orchestrator should re-run sdd-verify (or a targeted re-check) on this remediation before archive."
+      verification_confirmed: "Targeted sdd-verify re-check 2026-07-10T15:00:00Z: both CRITICAL remediations PASS clean (dual-signal gate + marker injection + Go attribution port), npm test + go test green, addendum appended to verify-report.md. No new findings."
 baseline_fingerprints:
   generator: "sha256:a0662b42f2cc0bd3ee4d1e1f5f55b6e8c500918451738541bdd37ae3d11d8341"
   hooks: "sha256:921ae472c3f06db5152b94a2350f58688ffed5b46faead5afeb27c781ea60b86"
@@ -236,11 +236,19 @@ assumptions:
     reversibility: high
     basis: "La confianza del marcador viene de ser fijado por la propia línea de comando generada del wrapper en cada invocación, no de ser impredecible; renombrarlo es un cambio mecánico sin impacto de contrato externo, y docs/codex/README.md ya indica revisar command/commandWindows en /hooks."
     recorded_at: "2026-07-10T14:20:00Z"
-    status: pending-verify
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Targeted 4R remediation re-verify: dual-signal gate + marker injection confirmed in code and via runtime JS/Go tests."
+      resolved_at: "2026-07-10T15:00:00Z"
   - id: sdd-apply-008
     phase: sdd-apply
     statement: "La sintaxis del marcador en Windows usa 'set OSPEC_CODEX_WRAPPER=1&& <command>' (estilo cmd.exe), consistente con la expansión %PLUGIN_ROOT% ya usada en commandWindows."
     reversibility: high
     basis: "No introduce una convención nueva; reutiliza el mismo estilo cmd.exe ya establecido para commandWindows."
     recorded_at: "2026-07-10T14:20:00Z"
-    status: pending-verify
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Targeted 4R remediation re-verify: Windows 'set OSPEC_CODEX_WRAPPER=1&&' syntax confirmed in target-transform.js and golden fixture."
+      resolved_at: "2026-07-10T15:00:00Z"

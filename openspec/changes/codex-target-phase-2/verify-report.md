@@ -123,3 +123,41 @@ None.
 ## Final Verdict
 
 **PASS WITH WARNINGS** — All 20 tasks complete, all 10 MUST requirements met with runtime-test evidence (one scenario on inspection-proof), both test suites green, implementation faithful to design.md and the three ADRs, Go/JS parity intact, assertion quality clean. One non-blocking WARNING and one suggestion recorded.
+
+---
+
+## Addendum — Targeted 4R Remediation Re-Verification (2026-07-10)
+
+Scope: confirm ONLY the two 4R CRITICAL remediations (approval-003). Phases 1-6 and the 10 original MUST requirements were verified PASS above and are out of scope here.
+
+### CRITICAL-1 — Dual-signal ASK→allow degradation (`OSPEC_TARGET=codex` + `OSPEC_CODEX_WRAPPER=1`)
+
+- **Gate condition (both JS and Go verified as equivalent):** degradation now requires BOTH signals.
+  - `scripts/hooks/pre-tool-use.js:306-308` — `process.env.OSPEC_TARGET === "codex" && process.env.OSPEC_CODEX_WRAPPER === "1"`.
+  - `internal/hooks/pretooluse.go:329-330` — `os.Getenv("OSPEC_TARGET") == "codex" && os.Getenv("OSPEC_CODEX_WRAPPER") == "1"`.
+  - `bypassPermissions` remains the independent legacy path; DENY is never degraded in either implementation.
+- **Marker injection into all five wrapped hooks:** `scripts/lib/target-transform.js:359-380` — `codexHooks` maps every entry through `withCodexWrapperMarker` (POSIX: `OSPEC_CODEX_WRAPPER=1 <cmd>`) and `withCodexWrapperMarkerWindows` (`set OSPEC_CODEX_WRAPPER=1&& <cmd>`) for all `CODEX_WRAPPER_EVENTS` (SessionStart, PreToolUse, PreCompact, SubagentStop, Stop), on both `command` and `commandWindows`. Golden fixture `scripts/configure/__fixtures__/golden/codex/hooks/hooks.json` reflects the marker on every event.
+- **Runtime evidence (executed, not just read):**
+  - JS `pre-tool-use.test.js`: env var alone (no marker) → ASK preserved; marker alone (no env) → ASK preserved; both present → allow+systemMessage; DENY under both → still deny. Passed via `npm test`.
+  - Go `pretooluse_test.go`: `TestPreToolUse_OspecTargetCodex_DegradesAskToAllow`, `..._DenyNeverDegraded`, `..._OspecTargetCodexAlone_DoesNotDegradeAsk`, `..._OspecCodexWrapperAlone_DoesNotDegradeAsk` — all PASS (verbose run confirmed).
+  - `target-transform.test.js` asserts the exact marker prefix on POSIX and Windows commands for every event. Passed via `npm test`.
+
+### CRITICAL-2 — AI-attribution DENY guard ported to Go
+
+- **Regex equivalence (compared literally, not trusted):** JS `FORBIDDEN_ATTRIBUTION_RE` (`pre-tool-use.js:28-29`) and Go `forbiddenAttributionRE` (`pretooluse.go:27-29`) are byte-for-byte identical in alternation and anchoring; the only difference is the flag form (`/i` vs inline `(?i)`), which is semantically equivalent. Both use ASCII `\b` word boundaries and the same `🤖` alternative. The `-m/--message` extraction pattern (`commitMessageArgRE`) also mirrors the JS `matchAll` pattern.
+- **Runtime evidence (Go tests executed):** `TestPreToolUse_CommitAttribution_DeniesCoAuthoredBy` (Co-Authored-By → deny), `..._DeniesModelNames` (plain model-name mentions → deny), `..._WordBoundaryFalsePositiveAvoidance` ("coherente"/"bombardeo"/"llaman" → NOT denied), `..._CleanMessagePasses` and `..._NonCommitCommandsPass` — all PASS.
+
+### Test-quality audit (both fixes)
+
+Tests are non-tautological and cover the negative case that the old behavior would have failed:
+- The "env var alone" / "marker alone" cases assert ASK is preserved — the pre-remediation single-signal gate would have wrongly degraded these to allow, so they directly guard the fix.
+- The attribution word-boundary test proves the DENY guard does not over-fire; the Co-Authored-By/model-name tests prove the Go port (which did not exist before) now enforces the deny that only JS enforced previously.
+
+### Build/test execution
+
+- `npm test` (`node scripts/check.js`) → **All checks passed. 0 errors, 0 warnings.**
+- `go build ./...` → clean; `go test ./...` → all packages **ok**.
+
+### Verdict (remediation scope)
+
+**PASS — clean.** Both CRITICAL remediations are correct, complete, backed by genuine runtime evidence, and introduce no regression. No new CRITICAL, WARNING, or SUGGESTION for the remediation scope. Assumptions `sdd-apply-007` and `sdd-apply-008` (`pending-verify`) are confirmed against the implementation. The prior WARNING-1 (PLUGIN_DATA inspection-proof) is unchanged and outside this pass.
