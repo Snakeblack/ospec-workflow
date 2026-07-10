@@ -946,6 +946,47 @@ test("permission-mode: DENY rule in bypassPermissions → still deny (never degr
   });
 });
 
+// REQ-hooks-005: on the codex target, ASK is unsupported by the host. The
+// wrapper signals this via OSPEC_TARGET=codex; pre-tool-use.js treats it as
+// bypass-equivalent, degrading every ask branch identically to
+// permission_mode:"bypassPermissions" (DENY stays untouched).
+test("permission-mode: ASK rule under OSPEC_TARGET=codex → allow + systemMessage (no permission_mode set)", () => {
+  withGuardsEnabled(() => {
+    const saved = process.env.OSPEC_TARGET;
+    process.env.OSPEC_TARGET = "codex";
+    try {
+      const result = evaluateToolUse({
+        tool_name: "runTerminalCommand",
+        tool_input: { command: "npm install left-pad" },
+      });
+      assert.equal(result.hookSpecificOutput.permissionDecision, "allow");
+      assert.ok(result.systemMessage, "systemMessage must carry the advisory");
+      assert.match(result.systemMessage, /Dependency installation/);
+    } finally {
+      if (saved === undefined) delete process.env.OSPEC_TARGET;
+      else process.env.OSPEC_TARGET = saved;
+    }
+  });
+});
+
+test("permission-mode: DENY rule under OSPEC_TARGET=codex → still deny (never degraded)", () => {
+  withGuardsEnabled(() => {
+    const saved = process.env.OSPEC_TARGET;
+    process.env.OSPEC_TARGET = "codex";
+    try {
+      const result = evaluateToolUse({
+        tool_name: "runTerminalCommand",
+        tool_input: { command: "git push origin main --force" },
+      });
+      assert.equal(result.hookSpecificOutput.permissionDecision, "deny");
+      assert.equal(result.systemMessage, undefined);
+    } finally {
+      if (saved === undefined) delete process.env.OSPEC_TARGET;
+      else process.env.OSPEC_TARGET = saved;
+    }
+  });
+});
+
 test("permission-mode: git-guard dirty-tree commit in bypassPermissions → allow + advisory systemMessage", () => {
   withGuardsEnabled(() => {
     const runner = makeGitStubRunner({

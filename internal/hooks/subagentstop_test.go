@@ -282,6 +282,39 @@ func TestSubagentStop_TranscriptPath(t *testing.T) {
 	}
 }
 
+// REQ-hooks-006: on the codex target, the host names the transcript field
+// agent_transcript_path instead of transcript_path. SubagentStop must accept
+// it as an alias for the same JSONL-resolution logic.
+func TestSubagentStop_AgentTranscriptPathAlias(t *testing.T) {
+	ws := createSubagentWorkspace(t)
+	transcriptPath := filepath.Join(ws, "transcript.jsonl")
+	lines := []string{
+		`{"role":"assistant","result":{"status":"success","skill_resolution":"fallback-path"}}`,
+	}
+	if err := os.WriteFile(transcriptPath, []byte(strings.Join(lines, "\n")+"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":                   ws,
+		"agent_type":            "sdd-verify",
+		"timestamp":             "2026-06-10T08:40:00.000Z",
+		"agent_transcript_path": transcriptPath,
+	})
+
+	r, _ := runSubagentStop(t, stdin)
+	if !r.Continue {
+		t.Error("continue: got false, want true")
+	}
+	events := readSubagentEvents(t, ws)
+	if len(events) != 1 {
+		t.Fatalf("events: got %d, want 1", len(events))
+	}
+	if events[0]["skill_resolution"] != "fallback-path" {
+		t.Errorf("skill_resolution: got %v", events[0]["skill_resolution"])
+	}
+}
+
 // ── transcript_path traversal hardening ──────────────────────────────────────
 
 func TestSubagentStop_TranscriptPathTraversal(t *testing.T) {

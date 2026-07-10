@@ -788,6 +788,43 @@ func TestPreToolUse_PermissionMode_DefaultKeepsAsk(t *testing.T) {
 	}
 }
 
+// REQ-hooks-005: on the codex target, the wrapper signals bypass-equivalence
+// via OSPEC_TARGET=codex (no permission_mode field exists on that host).
+func TestPreToolUse_OspecTargetCodex_DegradesAskToAllow(t *testing.T) {
+	t.Setenv("OSPEC_TARGET", "codex")
+	out, code := hooks.Dispatch([]string{"pre-tool-use"},
+		preToolUseInputWithMode("runTerminalCommand", "npm install left-pad", ""))
+	if code != 0 {
+		t.Fatalf("exitCode: got %d, want 0", code)
+	}
+	var result preToolUseStdoutWithMessage
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("parse stdout: %v; raw=%q", err, out)
+	}
+	if result.HookSpecificOutput.PermissionDecision != "allow" {
+		t.Errorf("expected allow, got %q", result.HookSpecificOutput.PermissionDecision)
+	}
+	if result.SystemMessage == "" {
+		t.Error("systemMessage must carry the advisory")
+	}
+}
+
+func TestPreToolUse_OspecTargetCodex_DenyNeverDegraded(t *testing.T) {
+	t.Setenv("OSPEC_TARGET", "codex")
+	out, _ := hooks.Dispatch([]string{"pre-tool-use"},
+		preToolUseInputWithMode("runTerminalCommand", "git push origin main --force", ""))
+	var result preToolUseStdoutWithMessage
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("parse stdout: %v; raw=%q", err, out)
+	}
+	if result.HookSpecificOutput.PermissionDecision != "deny" {
+		t.Errorf("expected deny, got %q", result.HookSpecificOutput.PermissionDecision)
+	}
+	if result.SystemMessage != "" {
+		t.Errorf("deny must never be degraded, got systemMessage %q", result.SystemMessage)
+	}
+}
+
 func TestPreToolUse_PermissionMode_DenyNeverDegraded(t *testing.T) {
 	out, _ := hooks.Dispatch([]string{"pre-tool-use"},
 		preToolUseInputWithMode("runTerminalCommand", "git push origin main --force", "bypassPermissions"))

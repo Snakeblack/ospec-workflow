@@ -127,6 +127,48 @@ test("uses the latest structured resolution from a transcript", async (t) => {
   ]);
 });
 
+// REQ-hooks-006: on the codex target, the host names the transcript field
+// `agent_transcript_path` instead of `transcript_path`. SubagentStop must
+// accept it as an alias/fallback source for the same §5.2 step-3 JSONL
+// resolution logic, with no other behavior change.
+test("resolves skill_resolution from input.agent_transcript_path (codex alias)", async (t) => {
+  const workspace = await createWorkspace(t);
+  const transcriptPath = path.join(workspace, "transcript.jsonl");
+
+  await fs.writeFile(
+    transcriptPath,
+    [
+      JSON.stringify({
+        role: "assistant",
+        result: {
+          status: "success",
+          skill_resolution: "fallback-path",
+        },
+      }),
+      "",
+    ].join("\n"),
+  );
+
+  const result = await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-verify",
+      agent_transcript_path: transcriptPath,
+    },
+    now: () => new Date("2026-06-10T08:40:00.000Z"),
+  });
+
+  assert.equal(result.status, "warning-recorded");
+  assert.deepEqual(await readEvents(workspace), [
+    {
+      timestamp: "2026-06-10T08:40:00.000Z",
+      agent: "sdd-verify",
+      skill_resolution: "fallback-path",
+      action: "refresh-registry-next-delegation",
+    },
+  ]);
+});
+
 test("does not write events for injected resolution", async (t) => {
   const workspace = await createWorkspace(t);
 

@@ -277,8 +277,13 @@ func recordTokens(changeName string, tokens int) {
 // re-introduce the prompts the user explicitly opted out of. `deny` decisions
 // are the hard safety floor and are never degraded. Ports applyPermissionMode
 // from scripts/hooks/pre-tool-use.js.
+// REQ-hooks-005: on the codex target, ASK is unsupported by the host. The
+// wrapper signals this via OSPEC_TARGET=codex (no permission_mode field
+// exists on that host), treated as bypass-equivalent so every ask branch
+// degrades identically to permission_mode:"bypassPermissions". DENY stays
+// undegraded, same as the existing bypass path.
 func applyPermissionMode(out []byte, permissionMode string) []byte {
-	if permissionMode != "bypassPermissions" {
+	if permissionMode != "bypassPermissions" && os.Getenv("OSPEC_TARGET") != "codex" {
 		return out
 	}
 	var decoded struct {

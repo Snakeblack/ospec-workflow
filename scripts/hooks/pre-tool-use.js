@@ -292,7 +292,13 @@ function recordTokensSync(changeName, tokens) {
  * and are never degraded.
  */
 function applyPermissionMode(result, permissionMode) {
-  if (permissionMode !== "bypassPermissions") {
+  // REQ-hooks-005: on the codex target, ASK is unsupported by the host. The
+  // wrapper signals this via OSPEC_TARGET=codex (no permission_mode field
+  // exists on that host), which is treated as bypass-equivalent so every ask
+  // branch degrades identically to permission_mode:"bypassPermissions". DENY
+  // (Step 5) is untouched by this check, same as the existing bypass path.
+  const bypassEquivalent = permissionMode === "bypassPermissions" || process.env.OSPEC_TARGET === "codex";
+  if (!bypassEquivalent) {
     return result;
   }
   const output = result && result.hookSpecificOutput;

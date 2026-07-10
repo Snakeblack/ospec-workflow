@@ -230,6 +230,21 @@ func readFilePermissive(path string) ([]byte, error) {
 	return data, nil
 }
 
+// resolveTranscriptPath resolves the transcript-file path from either
+// transcript_path (baseline hosts) or agent_transcript_path (REQ-hooks-006:
+// the name the Codex host uses), transcript_path taking priority when both
+// are present. Mirrors resolveTranscriptPath from
+// scripts/hooks/subagent-stop.js.
+func resolveTranscriptPath(input map[string]any) (string, bool) {
+	if tp, ok := input["transcript_path"].(string); ok && tp != "" {
+		return tp, true
+	}
+	if tp, ok := input["agent_transcript_path"].(string); ok && tp != "" {
+		return tp, true
+	}
+	return "", false
+}
+
 // ── Result Envelope extraction/validation/persistence (C5) ──────────────────
 // Ports findEnvelopeInInput/findEnvelopeInTranscript/persistResultEnvelope from
 // scripts/hooks/subagent-stop.js. Mirrors the same §5.2 field-search order
@@ -326,7 +341,7 @@ func persistResultEnvelope(input map[string]any, workspace string) {
 
 	envelope, found := findEnvelopeInInput(input)
 	if !found {
-		if tp, ok := input["transcript_path"].(string); ok {
+		if tp, ok := resolveTranscriptPath(input); ok {
 			envelope, found = findEnvelopeInTranscript(tp)
 		}
 	}
@@ -461,7 +476,7 @@ func EstimateResultTokens(payload any) int {
 func resolveDispatchStatus(input map[string]any) string {
 	envelope, found := findEnvelopeInInput(input)
 	if !found {
-		if tp, ok := input["transcript_path"].(string); ok {
+		if tp, ok := resolveTranscriptPath(input); ok {
 			envelope, found = findEnvelopeInTranscript(tp)
 		}
 	}
@@ -572,7 +587,7 @@ func runSubagentStop(input map[string]any) ([]byte, int) {
 
 	resolution := findResolutionInInput(input)
 	if resolution == "" {
-		if tp, ok := input["transcript_path"].(string); ok {
+		if tp, ok := resolveTranscriptPath(input); ok {
 			res, err := findResolutionInTranscript(tp)
 			if err != nil {
 				msg := fmt.Sprintf("SubagentStop observability failed: %s", err.Error())
