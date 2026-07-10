@@ -444,6 +444,96 @@ test("assertManagedPathSafe: rejects when path escapes the root via traversal", 
   );
 });
 
+test("main repo install is idempotent: re-running twice converges without duplicating TOML entries or touching config.toml", (t) => {
+  const sourceDir = makeTempDir(t, "codex-idempotent-source-");
+  const destRepo = makeTempDir(t, "codex-idempotent-dest-");
+  fs.mkdirSync(path.join(destRepo, ".codex"), { recursive: true });
+  fs.writeFileSync(path.join(destRepo, ".codex", "config.toml"), "model = \"user-choice\"\n");
+
+  const runOnce = () =>
+    main([destRepo, "--no-validate"], {
+      cwd: sourceDir,
+      stdout: { write() {} },
+      stderr: { write() {} },
+      runConfigure({ outDir, validate }) {
+        assert.equal(validate, false);
+        writeGeneratedCodexTree(outDir);
+        return { exitCode: 0, validation: null };
+      },
+      findCodexBin: () => "codex",
+      runCodexCommand() {
+        throw new Error("repo install must not register marketplace commands");
+      },
+    });
+
+  const firstExit = runOnce();
+  const agentsDir = path.join(destRepo, ".codex", "agents");
+  const firstListing = fs.readdirSync(agentsDir).sort();
+  const firstContent = fs.readFileSync(path.join(agentsDir, "apply.toml"), "utf8");
+
+  const secondExit = runOnce();
+  const secondListing = fs.readdirSync(agentsDir).sort();
+  const secondContent = fs.readFileSync(path.join(agentsDir, "apply.toml"), "utf8");
+
+  assert.equal(firstExit, 0);
+  assert.equal(secondExit, 0);
+  assert.deepEqual(secondListing, firstListing);
+  assert.equal(secondContent, firstContent);
+  assert.equal(
+    fs.readFileSync(path.join(destRepo, ".codex", "config.toml"), "utf8"),
+    "model = \"user-choice\"\n",
+  );
+  assert.ok(!fs.existsSync(path.join(destRepo, ".codex-plugin", "plugin.json")));
+});
+
+test("main global install is idempotent across the plugin channel and the agent channel independently", (t) => {
+  const sourceDir = makeTempDir(t, "codex-idempotent-global-source-");
+  const homeDir = makeTempDir(t, "codex-idempotent-global-home-");
+  const codexCalls = [];
+
+  const runOnce = () =>
+    main([], {
+      cwd: sourceDir,
+      homedir: () => homeDir,
+      stdout: { write() {} },
+      stderr: { write() {} },
+      runConfigure({ outDir, validate }) {
+        assert.equal(validate, true);
+        writeGeneratedCodexTree(outDir);
+        return { exitCode: 0, validation: null };
+      },
+      findCodexBin: () => "codex",
+      runCodexCommand(bin, args) {
+        codexCalls.push([bin, ...args]);
+        return { status: 0, stdout: "", stderr: "" };
+      },
+    });
+
+  const firstExit = runOnce();
+  const agentsDir = path.join(homeDir, ".codex", "agents");
+  const firstAgents = fs.readdirSync(agentsDir).sort();
+  const marketplaceJson = fs.readFileSync(
+    path.join(sourceDir, "dist", "codex-marketplace", "marketplace.json"),
+    "utf8",
+  );
+
+  const secondExit = runOnce();
+  const secondAgents = fs.readdirSync(agentsDir).sort();
+  const secondMarketplaceJson = fs.readFileSync(
+    path.join(sourceDir, "dist", "codex-marketplace", "marketplace.json"),
+    "utf8",
+  );
+
+  assert.equal(firstExit, 0);
+  assert.equal(secondExit, 0);
+  assert.deepEqual(secondAgents, firstAgents);
+  assert.equal(secondMarketplaceJson, marketplaceJson);
+  // The plugin (marketplace) channel writes only under dist/codex-marketplace and
+  // registers via the codex CLI; it never touches the agents channel's destination.
+  assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "config.toml")));
+  assert.equal(codexCalls.length, 2);
+});
+
 test("copyCodexAgents: validates each target file individual paths with assertManagedPathSafe", (t) => {
   const outDir = makeTempDir(t, "codex-agent-out-");
   const destDir = makeTempDir(t, "codex-agent-dest-");

@@ -69,9 +69,9 @@ phases:
       - "Chain strategy: size-exception; Decision needed before apply: No (approval-002 ya cubre exception-ok)."
       - "Split sugerido en 3 PRs por dependencia (PR2 depende del shape del wrapper de PR1; PR3 depende de PR1+PR2)."
   apply:
-    status: partial
+    status: done
     artifact: openspec/changes/codex-target-phase-2/apply-progress.md
-    summary: "Work units 1-2/3 completos: (PR1) manifest ./ + metadata (ADR-001), MCP ids fijados + regex validador (ADR-002); (PR2) hooks wrapper matcher/commandWindows para 5 eventos, PreToolUse via OSPEC_TARGET=codex reusando bypassPermissions, agent_transcript_path alias, paridad Go (ADR-003). npm test + go test en verde."
+    summary: "Work units 1-3/3 completos: (PR1) manifest ./ + metadata (ADR-001), MCP ids fijados + regex validador (ADR-002); (PR2) hooks wrapper matcher/commandWindows para 5 eventos, PreToolUse via OSPEC_TARGET=codex reusando bypassPermissions, agent_transcript_path alias, paridad Go (ADR-003); (PR3) install/agents ya satisfacían REQ-install-001/REQ-agents-010 (regresión-only), docs/codex/README.md completado, smoke test REQ-install-003 contra payload real vía runSessionStart(). npm test + go test en verde. Las 6 fases / todas las tareas de tasks.md completas."
     key_decisions:
       - "Nombres internos (relativePathFields, toSafeRelativePath, isSafeRelativePath) siguen convención existente (keepFields, ALLOWED_BUNDLE_KEYS); detalle interno, no contrato público."
       - "validateMcpIds trata .mcp.json ausente como no-fatal (no hay REQ que exija su presencia independiente del manifest)."
@@ -136,4 +136,25 @@ assumptions:
     reversibility: high
     basis: "Coincide con la muestra literal de design.md §Interfaces/Contracts; cambio de una línea si una futura clarificación pide pass-through del timeout de origen."
     recorded_at: "2026-07-10T06:20:00Z"
+    status: unresolved
+  - id: sdd-apply-004
+    phase: sdd-apply
+    statement: "La tarea 3.2 (confirmar que PLUGIN_DATA se hereda sin reescritura wrapper-side) se trata como verificación/documentación, no como código de producción nuevo — no existe capa de wrapper entre el host y el proceso Node lanzado."
+    reversibility: "n/a (sin código introducido que revertir)"
+    basis: "codexHooks solo reescribe los valores string command/commandWindows del JSON generado; nunca toca el entorno del proceso en generación ni en runtime."
+    recorded_at: "2026-07-10T08:10:00Z"
+    status: unresolved
+  - id: sdd-apply-005
+    phase: sdd-apply
+    statement: "Las tareas 4.1/4.2 (canales install) y 5.1/5.2 (autodetección agents) se tratan como cobertura de regresión confirmando comportamiento ya existente, no como código de producción nuevo."
+    reversibility: high
+    basis: "Mismo patrón ya aceptado en 1.4 y 3.2; el design/spec anticipaba explícitamente que podían estar ya satisfechas ('Verified via smoke test + TOML parse assertions' para REQ-agents-010; 'Tighten existing behavior' para install-codex.js). Si una auditoría futura encuentra un hueco real, los tests de regresión añadidos fallarán y lo señalarán directamente."
+    recorded_at: "2026-07-10T08:10:00Z"
+    status: unresolved
+  - id: sdd-apply-006
+    phase: sdd-apply
+    statement: "El smoke test (tarea 6.1) invoca runSessionStart() directamente contra el bundle del plugin generado, en vez de spawnear ospec-hooks-launch.js como subproceso."
+    reversibility: high
+    basis: "Instrucción explícita del orquestador (patrón 'dist tests self-generate', sin requerir el binario CLI real) y nota de Open Questions de design.md (el smoke con CLI real en vivo queda como verificación manual de campo)."
+    recorded_at: "2026-07-10T08:10:00Z"
     status: unresolved

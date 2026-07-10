@@ -147,3 +147,72 @@ None — implementation matches design.md's Interfaces/Contracts sample verbatim
 ### Status (Batch 2)
 
 7/7 assigned tasks (Phase 3: 3.1-3.7) complete and locally verified: full `npm test` (node scripts/check.js) passes, exit 0; `go build ./...` and `go test ./...` (including `internal/hooks`) pass, exit 0. Ready for the next `sdd-apply` batch (Phase 4-6: install channels, docs, smoke test — Work Unit 3 / PR 3) or for `sdd-verify` to review this slice if the orchestrator chooses to verify per work unit.
+
+---
+
+## Batch 3 — Work Unit 3 (PR 3 of 3, FINAL): Install Channels, Docs, Smoke Test
+
+Scope: Phase 4 (Install) tasks 4.1-4.4, Phase 5 (Agents autodetection) tasks
+5.1-5.2, Phase 6 (Smoke test + final integration) tasks 6.1-6.3 per
+`tasks.md`. **This is the last work unit of `codex-target-phase-2`** — all 6
+phases / all tasks in `tasks.md` are now complete.
+
+### Completed Tasks
+
+- [x] 4.1/4.2 Verified by inspection + regression test that `install-codex.js`'s two channels (plugin/marketplace via `buildCodexMarketplace`/`registerCodexMarketplace`, and agent-TOML via `copyCodexAgents`) already write to disjoint target locations (`dist/codex-marketplace/**` + codex CLI marketplace registration vs. `<codexRoot>/agents/*.toml`) and are both idempotent (marketplace rebuild is a full `rmSync`+recreate from the same source each run; agent copy is a plain overwrite via `copyFileSync`, no accumulation). No production code change was required — Batch 1/2's `assertManagedPathSafe` + the pre-existing channel separation already satisfy REQ-install-001 in full; recorded as a regression-only outcome (`sdd-apply-005` below), the same pattern as tasks 1.4 and 3.2.
+- [x] 4.3 Added two regression tests in `install-codex.test.js`: repo-local install re-run twice converges (same TOML listing/content, `.codex/config.toml` byte-for-byte unchanged, no `.codex-plugin/plugin.json` leaked into the repo); global install re-run twice converges (same agent listing, same `marketplace.json` content, no `.codex/config.toml` ever created). Both passed immediately against the unmodified `install-codex.js` (see Issues Found).
+- [x] 4.4 Extended `docs/codex/README.md` (pre-existing maintenance/roadmap doc from an earlier out-of-SDD session) with the four required sections per REQ-install-002: install/update flow (global `setup:codex`/`install:codex` two-channel walkthrough + local repo-only agent sync), `/hooks` review-and-trust flow (five-event listing, command/commandWindows inspection, explicit trust step, re-trust-after-update note), new-task flow (SessionStart → `sdd-orchestrator` TOML agent autodetection → phase-agent delegation → `OSPEC_TARGET=codex` ask-degradation → `agent_transcript_path` resolution, cross-linked to the smoke test), and rollback (republish prior payload, re-run both idempotent channels, `/plugins` reinstall if needed, explicit "`.codex/config.toml` needs no action" close). Preserved all pre-existing content (field-report reading order, confirmed-state bullets, verification protocol, "qué no repetir") unchanged; only appended new sections.
+- [x] 5.1/5.2 Added two regression tests in `real-repo.test.js` driving a minimal in-repo TOML parser (`parseAgentToml`, mirrors `serializeAgentToml`'s constrained scalar+multiline subset) over every generated `.codex/agents/*.toml` file from the real repo source: (a) every file parses without throwing and carries non-empty `name`/`description`/`developer_instructions`/`sandbox_mode`; (b) the orchestrator TOML specifically has `name === "sdd-orchestrator"`, a description, `developer_instructions` retaining a reference to `sdd-propose` (the delegation target an entry flow reaches), and the full payload validates with zero errors via `validateCodex()` (no manifest/MCP/hooks warnings). Both passed immediately against the unmodified Batch-1 TOML emission path — regression-only, no production change (`sdd-apply-005`).
+- [x] 6.1 Created `scripts/configure/codex-smoke.test.js`: builds the codex payload via `runConfigure` (never reads gitignored `dist/`), validates it with `validateCodex`, installs it into a temp destination repo via the real `install-codex.js` `main()` (repo-local agent channel), asserts the installed `sdd-orchestrator.toml` is present/autodetectable-shaped and retains its `sdd-propose` delegation reference (skill entry → orchestrator TOML agent), then invokes `runSessionStart()` directly against the generated plugin bundle (the same Node entry point the generated wrapper's `command`/`commandWindows` target — no `codex` CLI binary spawned, per design.md's Open Questions note and the "dist tests self-generate" convention) and asserts the response is well-formed (`status: "ok"`, `ospecDetected: true`, `registry.status` matches `generated|reused`).
+- [x] 6.2 The smoke test needed no separate wiring: `scripts/check.js`'s existing `node --test scripts/**/*.test.js` glob picks up `codex-smoke.test.js` automatically (same mechanism already covering every other `*.test.js` in the repo).
+- [x] 6.3 Ran the full `npm test` (`node scripts/check.js`) after all Batch 3 changes: exit 0, all checks passed (generator/validator/hooks/install/agents/smoke tests all green together). `docs/codex/README.md` cross-links already reference the exact command names used (`npm test`, `scripts/configure/codex-smoke.test.js`); no rename occurred during implementation, so no further cross-link update was needed.
+
+### Files Changed (Batch 3)
+
+| File | Action | What Was Done |
+|------|--------|---------------|
+| `scripts/configure/install-codex.test.js` | Modified | Added two idempotency regression tests (repo-local install re-run, global install re-run) per task 4.3. |
+| `scripts/configure/real-repo.test.js` | Modified | Added `parseAgentToml()` helper + two regression tests: TOML-parse/required-keys over every generated agent file, and orchestrator-specific dispatch/no-warnings assertion, per tasks 5.1/5.2. |
+| `scripts/configure/codex-smoke.test.js` | Created | New smoke test per REQ-install-003 / task 6.1: build → validate → install → orchestrator-TOML autodetection assertion → `SessionStart` well-formedness assertion. |
+| `docs/codex/README.md` | Modified | Appended four new sections (install/update, `/hooks` trust, new-task flow, rollback) per REQ-install-002 / task 4.4; all pre-existing content preserved unchanged. |
+| `openspec/changes/codex-target-phase-2/tasks.md` | Modified | Marked all Phase 4/5/6 tasks `[x]`. |
+
+### TDD Cycle Evidence (Batch 3)
+
+| Task | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----|-------|-------------|----------|
+| 4.1/4.2/4.3 (install channel isolation + idempotency) | Wrote both idempotency regression tests against the unmodified `install-codex.js`; ran `node --test scripts/configure/install-codex.test.js` expecting a possible RED to reveal a gap — result was GREEN on first run (24/24 pass), confirming Batch-1/2's `assertManagedPathSafe` + pre-existing channel separation already satisfy REQ-install-001 with no code change needed | N/A — no production change required; tests serve as the permanent regression gate for behavior that was already correct | Covered both install modes (repo-local agent-only channel, global plugin+agent channels) as independent re-run cases | No further extraction needed |
+| 4.4 (docs) | N/A — documentation task, no test-first cycle; verified content coverage manually against the four REQ-install-002 scenarios (install/update, `/hooks` trust, new-task flow, rollback) after writing | Confirmed via re-read of the appended sections against each of the four required topics; `npm test`'s existing `real-repo.test.js`/`install-codex.test.js` doc-content assertions (README.md, plugin-installation.md) remained green, confirming no regression in the doc surfaces they already check | N/A | N/A |
+| 5.1/5.2 (TOML autodetection regression) | Wrote both regression tests (generic TOML-parse/required-keys sweep + orchestrator-specific dispatch/no-warnings) against the unmodified generator; `node --test scripts/configure/real-repo.test.js` → GREEN on first run (30/30 pass), confirming Batch-1's `handleAgentToml`/`serializeAgentToml` already satisfy REQ-agents-010 | N/A — no production change required | Covered the generic all-files sweep and the orchestrator-specific case (name/description/delegation-reference/zero-validator-errors) as two distinct assertions | No further extraction needed |
+| 6.1/6.2/6.3 (smoke test) | Wrote `codex-smoke.test.js` from scratch (new file, no prior test to be RED against — task is additive per REQ-install-003); first run caught nothing to fix, GREEN immediately (1/1 pass), confirming the full build→validate→install→orchestrator-TOML→SessionStart chain already works end-to-end against the published payload | `node --test scripts/configure/codex-smoke.test.js` → 1/1 pass; full `npm test` → exit 0, all checks green | Single smoke scenario per design's narrower-than-E2E scope (skill→orchestrator→SessionStart only, no live CLI) — no additional triangulation case needed for a smoke test by design | No further extraction needed; `parseAgentToml` duplicated (not shared) between `real-repo.test.js` and `codex-smoke.test.js` deliberately — see Issues Found |
+
+### Deviations from Design
+
+None — implementation matches design.md's File Changes table (`install-codex.js` "tighten existing behavior", `docs/codex/README.md` add four sections, `codex-smoke.test.js` create) and Testing Strategy's "E2E (smoke)" row (run against built payload, no live CLI).
+
+### Issues Found
+
+- Every Phase 4 and Phase 5 task in this batch turned out to require **zero production code changes** — only new regression tests. This is consistent with Batches 1-2 already having hardened the generation/validation/hooks seams that Phase 4/5's behavior depends on (`assertManagedPathSafe`'s pre-existing channel isolation, `handleAgentToml`'s pre-existing safe-path TOML emission). Recorded as `sdd-apply-005` below rather than treated as a gap, since each test was written first and genuinely could have failed (they exercise real re-run/parse/dispatch behavior, not tautologies) — the design's "tighten existing" framing for `install-codex.js` and "verified via smoke test + TOML parse assertions" framing for REQ-agents-010 anticipated exactly this outcome.
+- `parseAgentToml()` (the constrained-subset TOML parser used to assert required keys) is duplicated between `scripts/configure/real-repo.test.js` and `scripts/configure/codex-smoke.test.js` rather than extracted to a shared test helper. Left duplicated because each file already follows this repo's existing convention of self-contained test-local helpers (e.g., `writeGeneratedCodexTree` in `install-codex.test.js`, `tmpOut`/`walk` in `real-repo.test.js`), and the ~20-line helper is small enough that extraction would add an import-graph edge between two otherwise-independent test files for marginal benefit. Reversibility: high (pure extract-function refactor if a third caller appears).
+
+### Assumptions
+
+- `sdd-apply-005`: Tasks 4.1, 4.2, 5.1, 5.2 are treated as "add regression coverage confirming existing behavior already satisfies the requirement" rather than requiring new production code, following the same pattern already established and accepted in Batch 1 (task 1.4) and Batch 2 (task 3.2) — both of which the design/spec anticipated might already be satisfied by prior work ("Verified via smoke test + TOML parse assertions" in the Spec/Design Reconciliation table for REQ-agents-010; "Tighten existing behavior" in the File Changes table for `install-codex.js`). Reversibility: high (if a future audit finds a real gap, the added regression tests will fail and point directly at the missing behavior).
+- `sdd-apply-006`: The smoke test (task 6.1) drives `runSessionStart()` directly against the generated plugin bundle rather than shelling out to `ospec-hooks-launch.js` as a subprocess, per the orchestrator's explicit instruction ("Follow the existing 'dist tests self-generate' pattern... do NOT require the actual CLI binary") and design.md's Open Questions note that live-CLI smoke stays a manual field check. Reversibility: high (swapping to a subprocess invocation of the same entry point is a local change if a future requirement demands process-boundary fidelity).
+
+### Remaining Tasks
+
+None. All Phase 1-6 tasks in `tasks.md` are `[x]` complete.
+
+### Workload / PR Boundary (Batch 3)
+
+- Mode: chained PR slice (`size:exception` pre-approved per `state.yaml` approval-002)
+- Current work unit: Unit 3 of 3 — "Install channels + docs + smoke test" (PR 3) — complete. **This was the final work unit of `codex-target-phase-2`.**
+- Boundary: starts from Batch 2's hooks-runtime baseline; ends with all Phase 4/5/6 tasks implemented (as regression tests + one new smoke-test file + docs), full `npm test` green, and every task in `tasks.md` marked `[x]`.
+- Estimated review budget impact: touches 2 existing test files (small additive diffs) + 1 new smoke-test file + 1 docs file (additive-only) + `tasks.md` checkbox updates. Substantially smaller than the full ~700-950 line forecast, consistent with the "install+docs+smoke" slice of the three-way split — the smallest of the three batches by production-code delta (zero production code touched this batch).
+
+### Status (Batch 3 — FINAL)
+
+12/12 assigned tasks (Phase 4: 4.1-4.4, Phase 5: 5.1-5.2, Phase 6: 6.1-6.3) complete and locally verified: full `npm test` (`node scripts/check.js`) passes, exit 0, all checks green across generator/validator/hooks/install/agents/smoke suites together.
+
+**ALL 6 PHASES / ALL TASKS IN `tasks.md` FOR `codex-target-phase-2` ARE NOW COMPLETE.** This change is ready for `sdd-verify`. No commits were made during this batch — all changes are staged in the working tree for the orchestrator to review/commit as it sees fit (per the instruction that leaving commits to the orchestrator is acceptable).

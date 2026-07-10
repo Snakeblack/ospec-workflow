@@ -60,6 +60,76 @@ test("real repo: codex output passes its own validator", (t) => {
   assert.ok(!fs.existsSync(path.join(out, ".codex", "config.toml")), "codex output must not emit .codex/config.toml");
 });
 
+// Minimal parser for the constrained TOML subset serializeAgentToml emits
+// (scalar `key = "…"` lines plus a trailing multiline `developer_instructions`
+// block) — enough to assert syntactic validity and required-key presence per
+// REQ-agents-010, without adding a runtime TOML dependency.
+function parseAgentToml(content) {
+  const fields = {};
+  const multilineMatch = content.match(/developer_instructions = """\n([\s\S]*)"""\s*$/);
+  let head = content;
+  if (multilineMatch) {
+    fields.developer_instructions = multilineMatch[1];
+    head = content.slice(0, multilineMatch.index);
+  }
+  for (const line of head.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const m = trimmed.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*"((?:[^"\\]|\\.)*)"\s*$/);
+    if (!m) {
+      throw new Error(`malformed TOML line: ${JSON.stringify(line)}`);
+    }
+    const [, key, rawValue] = m;
+    fields[key] = rawValue.replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  }
+  return fields;
+}
+
+test("real repo: every generated .codex/agents/*.toml file is syntactically valid and carries required autodetection keys", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
+
+  const agentsDir = path.join(out, ".codex", "agents");
+  const tomlFiles = fs.readdirSync(agentsDir).filter((name) => name.endsWith(".toml"));
+  assert.ok(tomlFiles.length > 0, "codex output must emit at least one TOML agent");
+
+  for (const name of tomlFiles) {
+    const content = fs.readFileSync(path.join(agentsDir, name), "utf8");
+    let fields;
+    assert.doesNotThrow(() => {
+      fields = parseAgentToml(content);
+    }, `${name} must be syntactically valid TOML`);
+    assert.ok(fields.name, `${name} missing required 'name' key`);
+    assert.ok(typeof fields.description === "string", `${name} missing required 'description' key`);
+    assert.ok(
+      typeof fields.developer_instructions === "string" && fields.developer_instructions.length > 0,
+      `${name} missing required 'developer_instructions' key`,
+    );
+    assert.ok(fields.sandbox_mode, `${name} missing 'sandbox_mode' key`);
+  }
+});
+
+test("real repo: the orchestrator TOML agent dispatches through the published payload with no manifest/MCP/hooks warnings", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
+
+  const orchestratorPath = path.join(out, ".codex", "agents", "sdd-orchestrator.toml");
+  assert.ok(fs.existsSync(orchestratorPath), "orchestrator TOML agent must be generated");
+  const fields = parseAgentToml(fs.readFileSync(orchestratorPath, "utf8"));
+  assert.equal(fields.name, "sdd-orchestrator");
+  assert.ok(fields.description, "orchestrator TOML agent must carry a description");
+  assert.ok(
+    fields.developer_instructions.includes("sdd-propose") || fields.developer_instructions.includes("sdd-explore"),
+    "orchestrator developer_instructions must retain delegation to phase sub-agents",
+  );
+
+  // No manifest/MCP/hooks warnings: the codex validator is the payload's own
+  // conformance gate for the bundle the orchestrator agent's own
+  // delegation targets rely on (skills/mcpServers/hooks paths, MCP id shape).
+  const result = validateCodex(out);
+  assert.deepEqual(result.errors, [], `codex payload must validate cleanly:\n${result.errors.join("\n")}`);
+});
+
 test("validate-codex rejects AskUserQuestion residue in an existing codex tree", (t) => {
   const out = tmpOut(t);
 

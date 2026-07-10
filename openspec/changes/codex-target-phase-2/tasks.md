@@ -81,18 +81,18 @@ question, but SHOULD still land as the three work units below to keep each diff 
 
 ## Phase 4: Install — Idempotent Channels and Documentation
 
-- [ ] 4.1 Modify `scripts/configure/install-codex.js` so the plugin-payload channel and the `.codex/agents/*.toml` channel never write to, merge into, or otherwise touch the other's target location [REQ-install-001]
-- [ ] 4.2 Ensure both channels are idempotent (re-run converges to identical state, no duplicate TOML entries or drift) and neither channel creates or modifies `.codex/config.toml` [REQ-install-001]
-- [ ] 4.3 Write unit tests: first install writes both channels correctly, re-run is idempotent, existing `.codex/config.toml` stays byte-for-byte unchanged across both channels [REQ-install-001]
-- [ ] 4.4 Write `docs/codex/README.md` sections: (a) install/update flow (`setup:codex`/`install:codex`), (b) reviewing/trusting `/hooks` cache entries, (c) new-task flow (skill → orchestrator TOML agent → `SessionStart`), (d) rollback procedure without touching `.codex/config.toml` [REQ-install-002]
+- [x] 4.1 Modify `scripts/configure/install-codex.js` so the plugin-payload channel and the `.codex/agents/*.toml` channel never write to, merge into, or otherwise touch the other's target location [REQ-install-001]
+- [x] 4.2 Ensure both channels are idempotent (re-run converges to identical state, no duplicate TOML entries or drift) and neither channel creates or modifies `.codex/config.toml` [REQ-install-001]
+- [x] 4.3 Write unit tests: first install writes both channels correctly, re-run is idempotent, existing `.codex/config.toml` stays byte-for-byte unchanged across both channels [REQ-install-001]
+- [x] 4.4 Write `docs/codex/README.md` sections: (a) install/update flow (`setup:codex`/`install:codex`), (b) reviewing/trusting `/hooks` cache entries, (c) new-task flow (skill → orchestrator TOML agent → `SessionStart`), (d) rollback procedure without touching `.codex/config.toml` [REQ-install-002]
 
 ## Phase 5: Agents — Autodetection Verification
 
-- [ ] 5.1 Add TOML-parse assertions for each generated `.codex/agents/*.toml` file: valid syntax, required `name`/`description`/`developer_instructions` keys present, `model`/`sandbox_mode` populated when resolvable [REQ-agents-010]
-- [ ] 5.2 Assert the orchestrator TOML agent specifically dispatches through to `SessionStart` with no manifest/MCP/hooks warnings when installed per REQ-install-001 [REQ-agents-010]
+- [x] 5.1 Add TOML-parse assertions for each generated `.codex/agents/*.toml` file: valid syntax, required `name`/`description`/`developer_instructions` keys present, `model`/`sandbox_mode` populated when resolvable [REQ-agents-010]
+- [x] 5.2 Assert the orchestrator TOML agent specifically dispatches through to `SessionStart` with no manifest/MCP/hooks warnings when installed per REQ-install-001 [REQ-agents-010]
 
 ## Phase 6: Smoke Test and Final Integration
 
-- [ ] 6.1 Create `scripts/configure/codex-smoke.test.js`: build the codex payload, install to a temp destination, invoke the entry skill, follow orchestrator dispatch via the TOML agent, assert the `SessionStart` response is well-formed per REQ-hooks-007, exit 0 [REQ-install-003]
-- [ ] 6.2 Wire the smoke test into the standard `npm test` suite (no separate invocation required) [REQ-install-003]
-- [ ] 6.3 Run full `npm test` locally, confirm generator/validator/hooks/install/smoke tests all pass together, and update `docs/codex/README.md` cross-links if the smoke command name changed during implementation
+- [x] 6.1 Create `scripts/configure/codex-smoke.test.js`: build the codex payload, install to a temp destination, invoke the entry skill, follow orchestrator dispatch via the TOML agent, assert the `SessionStart` response is well-formed per REQ-hooks-007, exit 0 [REQ-install-003]
+- [x] 6.2 Wire the smoke test into the standard `npm test` suite (no separate invocation required) [REQ-install-003]
+- [x] 6.3 Run full `npm test` locally, confirm generator/validator/hooks/install/smoke tests all pass together, and update `docs/codex/README.md` cross-links if the smoke command name changed during implementation
