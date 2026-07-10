@@ -1,4 +1,4 @@
-# Documentación Técnica de ospec-workflow (v2.22.0)
+# Documentación Técnica de ospec-workflow (v2.25.0)
 
 Esta carpeta contiene la documentación detallada del arnés de agentes y la metodología SDD. Mientras que el `README.md` de la raíz se enfoca en la filosofía y el inicio rápido, aquí se detalla el funcionamiento interno, diseño de sistemas y arquitectura de ejecución.
 
