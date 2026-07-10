@@ -553,6 +553,7 @@ function handleAgentToml(file, profile, models) {
   }
   devInstructions = substituteAgentNames(devInstructions, profile);
   fields.developer_instructions = devInstructions.replace(/\s+$/, "") + "\n";
+  fields.agent_settings = profile.agentSettings;
 
   let newPath = renameExtension(file.path, profile.agentFile);
   if (profile.agentDir) {
@@ -582,13 +583,22 @@ function tomlEscapeMultiline(value) {
 function serializeAgentToml(fields) {
   const lines = [];
   for (const [key, value] of Object.entries(fields)) {
-    if (key === "developer_instructions" || value === undefined || value === null) {
+    if (key === "developer_instructions" || key === "agent_settings" || value === undefined || value === null) {
       continue;
     }
     lines.push(`${key} = "${tomlEscapeScalar(value)}"`);
   }
   if (fields.developer_instructions !== undefined) {
     lines.push(`developer_instructions = """\n${tomlEscapeMultiline(fields.developer_instructions)}"""`);
+  }
+  if (fields.agent_settings && typeof fields.agent_settings === "object") {
+    lines.push("", "[agents]");
+    for (const [key, value] of Object.entries(fields.agent_settings)) {
+      if (!Number.isInteger(value) || value < 0) {
+        throw new TypeError(`agent_settings.${key} must be a non-negative integer`);
+      }
+      lines.push(`${key} = ${value}`);
+    }
   }
   return lines.join("\n") + "\n";
 }

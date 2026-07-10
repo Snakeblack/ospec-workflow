@@ -1,0 +1,54 @@
+change: codex-agent-delegation-depth
+status: ready-for-delivery
+last_updated: "2026-07-10T22:05:00Z"
+classification: normal
+owner:
+  author: Manuel Retamozo
+  branch: fix/codex-agent-delegation-depth
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "classification=normal and project.status=active select the standard route; the pre-existing scoped delivery diff needs full verification before commit."
+  validated: true
+  validation_errors: []
+approvals: []
+phases:
+  sdd-explore:
+    status: skipped
+    summary: "Existing diff, archived Codex target specifications, and retained TDD evidence provide sufficient context for this narrowly scoped delivery change."
+  proposal:
+    status: done
+    artifact: openspec/changes/codex-agent-delegation-depth/proposal.md
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/codex-agent-delegation-depth/specs/codex-target/spec.md
+  clarify:
+    status: done
+    summary: "No material ambiguity: max_depth=1 is uniform across Codex agents; MCP evidence is non-normative."
+  design:
+    status: done
+    artifact: openspec/changes/codex-agent-delegation-depth/design.md
+  tasks:
+    status: done
+    artifact: openspec/changes/codex-agent-delegation-depth/tasks.md
+  apply:
+    status: done
+    summary: "The scoped implementation, fixtures, model routing, and bundled evidence were present in the inspected worktree diff; full-suite verification remains pending."
+  verify:
+    status: done
+    artifact: openspec/changes/codex-agent-delegation-depth/verify-report.md
+    summary: "PASS: focused Codex tests (120/120), full npm test, and diff integrity passed; 4R review found no blockers."
+  archive:
+    status: pending
+gates:
+  clarify:
+    status: done
+    questions_asked: 0
+  4r-review-gate:
+    status: done
+    on_blocker: advisory
+    findings_summary: "0 BLOCKER, 0 WARNING"
+    surfaced_to_user: false
+baseline_fingerprints:
+  codex-target: null

@@ -884,6 +884,13 @@ test("codex derives workspace-write sandbox_mode for an edit-capable agent, read
   assert.match(orchestrator, /sandbox_mode = "read-only"/);
 });
 
+test("codex pins custom agents to one delegation level", () => {
+  const out = transform({ files: makeSource(), profile: codex, models: MODELS });
+  const orchestrator = find(out, ".codex/agents/sdd-orchestrator.toml").content;
+
+  assert.match(orchestrator, /\[agents\]\nmax_depth = 1\n/);
+});
+
 test("codex omits model/model_reasoning_effort when models.yaml has no codex column (fail-soft)", () => {
   const out = transform({ files: makeSource(), profile: codex, models: MODELS });
   const apply = find(out, ".codex/agents/sdd-apply.toml").content;

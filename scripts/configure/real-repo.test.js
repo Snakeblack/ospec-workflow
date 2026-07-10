@@ -61,12 +61,13 @@ test("real repo: codex output passes its own validator", (t) => {
 });
 
 // Minimal parser for the constrained TOML subset serializeAgentToml emits
-// (scalar `key = "…"` lines plus a trailing multiline `developer_instructions`
-// block) — enough to assert syntactic validity and required-key presence per
-// REQ-agents-010, without adding a runtime TOML dependency.
+// (scalar `key = "…"` lines, a multiline `developer_instructions` block, and
+// optional settings tables) — enough to assert syntactic validity and
+// required-key presence per REQ-agents-010, without adding a runtime TOML
+// dependency.
 function parseAgentToml(content) {
   const fields = {};
-  const multilineMatch = content.match(/developer_instructions = """\n([\s\S]*)"""\s*$/);
+  const multilineMatch = content.match(/developer_instructions = """\n([\s\S]*?)"""/);
   let head = content;
   if (multilineMatch) {
     fields.developer_instructions = multilineMatch[1];

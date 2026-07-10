@@ -30,6 +30,13 @@ module.exports = {
   agentFile: { from: ".agent.md", to: ".toml", format: "toml" },
   agentDir: ".codex/agents",
 
+  // Codex custom-agent TOML files are configuration layers. Pin the maximum
+  // depth in every generated agent so an SDD coordinator can dispatch a phase
+  // worker, but that worker cannot fan out another layer of agents. This keeps
+  // the coordinator/worker boundary enforceable even when a user's global
+  // config has raised the default for a different workflow.
+  agentSettings: { max_depth: 1 },
+
   commandFile: { from: ".prompt.md", format: "skill" },
 
   // ADR-001: all rules/*.instructions.md bodies (post tool/agent substitution)
