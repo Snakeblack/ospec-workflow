@@ -334,6 +334,22 @@ function toCodexWindowsCommand(command) {
   return command.replace(/\$PLUGIN_ROOT\/([^\s"]+)/g, (_match, rest) => `%PLUGIN_ROOT%\\${rest.split("/").join("\\")}`);
 }
 
+// Per-invocation Codex marker (review remediation, ADR-003 addendum):
+// OSPEC_TARGET alone is a process-wide env var that can leak into an
+// unrelated session (leftover shell export, CI var, repo .env), silently
+// degrading every ASK-class hook decision there too. OSPEC_CODEX_WRAPPER=1
+// is inlined directly into the codex-generated command line itself, so it is
+// set fresh for that single hook invocation by the wrapper's own command
+// string rather than inherited ambient state; pre-tool-use.js/pretooluse.go
+// require BOTH before degrading ask -> allow.
+function withCodexWrapperMarker(command) {
+  return `OSPEC_CODEX_WRAPPER=1 ${command}`;
+}
+
+function withCodexWrapperMarkerWindows(command) {
+  return `set OSPEC_CODEX_WRAPPER=1&& ${command}`;
+}
+
 // Reshape the source hooks for Codex (REQ-hooks-004 / ADR-003): per-event
 // wrapper group { matcher: ".*", hooks: [ { type, command, commandWindows,
 // timeout } ] } instead of the base target's flat 1:1 shape. `command` keeps
@@ -355,8 +371,8 @@ function codexHooks(file, profile) {
       const command = rewriteCodexCommand(file, event, index, entry);
       return {
         type: (entry && entry.type) || "command",
-        command,
-        commandWindows: toCodexWindowsCommand(command),
+        command: withCodexWrapperMarker(command),
+        commandWindows: withCodexWrapperMarkerWindows(toCodexWindowsCommand(command)),
         timeout: 10,
       };
     });

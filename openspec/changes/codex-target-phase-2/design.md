@@ -53,10 +53,13 @@ regression gate over the published payload.
 command, commandWindows, timeout } ] }`. `command` keeps the POSIX `"$PLUGIN_ROOT/…"`
 form; `commandWindows` is the backslash/`$env:PLUGIN_ROOT` variant. For behavior:
 - **PreToolUse ask-degradation** reuses the existing `applyPermissionMode` path (§3.4.1).
-  The codex wrapper signals bypass-equivalence via an env flag (`OSPEC_TARGET=codex`) that
-  the hook reads to treat the session as `bypassPermissions`, so every `ask` branch
-  (AgentShield Step 2, Token Budget 3-4, Git Guard 5b, Spec Drift 5c, ASK table Step 6)
-  collapses to `allow` + `systemMessage`. DENY (Step 5) is untouched.
+  The codex wrapper signals bypass-equivalence via TWO env vars that must both be present —
+  `OSPEC_TARGET=codex` (target selector) AND `OSPEC_CODEX_WRAPPER=1` (a per-invocation marker
+  inlined directly into the generated `command`/`commandWindows` string, so it cannot leak from
+  ambient shell/CI state the way a lone `OSPEC_TARGET=codex` export could — 4R review remediation,
+  ADR-003 addendum) — that the hook reads to treat the session as `bypassPermissions`, so every
+  `ask` branch (AgentShield Step 2, Token Budget 3-4, Git Guard 5b, Spec Drift 5c, ASK table
+  Step 6) collapses to `allow` + `systemMessage`. DENY (Step 5) is untouched.
 - **SubagentStop** accepts `input.agent_transcript_path` as an alias wherever
   `input.transcript_path` is read (§5.2 fallback + envelope fallback).
 - **SessionStart** logic is unchanged (REQ-hooks-007 fixes the contract as
@@ -80,7 +83,7 @@ Go/JS parity fixtures assertable against the published payload.
         ├─ plugin channel ── marketplace add / /plugins ──▶ ~/.codex/plugins/…
         └─ agent channel  ── copyCodexAgents ────────────▶ ~/.codex/agents/*.toml
                                                 (never writes .codex/config.toml)
-    new task ──▶ SessionStart (env OSPEC_TARGET=codex) ──▶ standard contract
+    new task ──▶ SessionStart (env OSPEC_TARGET=codex + OSPEC_CODEX_WRAPPER=1) ──▶ standard contract
 
 ## File Changes
 
@@ -90,7 +93,7 @@ Go/JS parity fixtures assertable against the published payload.
 | `scripts/lib/target-profiles/codex.js` | Modify | `keepFields` += name/version/description; declare `./`-prefix and `commandWindows` intent for hooks. |
 | `scripts/lib/target-transform.js` | Modify | `reshapeManifest` codex branch prefixes component paths with `./`; `codexHooks` emits `matcher`+`hooks`+`commandWindows`. |
 | `scripts/configure/validate-codex.js` | Modify | Allow metadata keys; add `./`-relative + no-`..` path check and MCP id regex check on generated `.mcp.json`/manifest. |
-| `scripts/hooks/pre-tool-use.js` | Modify | Treat `OSPEC_TARGET=codex` as bypass-equivalent for ask-degradation. |
+| `scripts/hooks/pre-tool-use.js` | Modify | Treat `OSPEC_TARGET=codex` + `OSPEC_CODEX_WRAPPER=1` (both required) as bypass-equivalent for ask-degradation; also deny `git commit` messages with AI/model attribution (ported to Go, 4R review remediation CRITICAL-2). |
 | `scripts/hooks/subagent-stop.js` | Modify | Read `input.agent_transcript_path` alias for transcript fallback. |
 | `scripts/configure/install-codex.js` | Modify | Ensure both channels idempotent; assert config.toml untouched (tighten existing behavior). |
 | `docs/codex/README.md` | Modify | Add install/update, `/hooks` trust, new-task flow, rollback sections. |

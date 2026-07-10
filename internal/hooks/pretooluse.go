@@ -19,6 +19,43 @@ import (
 // gitCommitPatternRE matches "git commit" in any command string.
 var gitCommitPatternRE = regexp.MustCompile(`(?i)\bgit\s+commit\b`)
 
+// forbiddenAttributionRE matches forbidden AI/model attribution. Must stay
+// byte-for-byte equivalent to FORBIDDEN_ATTRIBUTION_RE in
+// scripts/hooks/pre-tool-use.js (and rules/no-model-attribution.instructions.md).
+// Vendor names are anchored at word boundaries so ordinary words that merely
+// contain one (coherente/cohere, bombardeo/bard, llaman/llama) never fire.
+var forbiddenAttributionRE = regexp.MustCompile(
+	`(?i)\b(?:co-authored-by|generated (?:with|by)|claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere)\b|🤖`,
+)
+
+// commitMessageArgRE extracts -m/--message argument values (quoted or bare),
+// mirroring the JS matchAll pattern in checkCommitAttribution.
+var commitMessageArgRE = regexp.MustCompile(`(?:-m|--message)\s+(?:"([^"]*)"|'([^']*)'|([^\s;|&]+))`)
+
+// checkCommitAttribution ports checkCommitAttribution from
+// scripts/hooks/pre-tool-use.js: extracts the commit message(s) from a
+// `git commit -m/--message "..."` command and denies when forbidden
+// AI/model attribution is present. Returns "" when clean or not a commit.
+func checkCommitAttribution(command string) string {
+	if !gitCommitPatternRE.MatchString(command) {
+		return ""
+	}
+	matches := commitMessageArgRE.FindAllStringSubmatch(command, -1)
+	for _, m := range matches {
+		msg := m[1]
+		if msg == "" {
+			msg = m[2]
+		}
+		if msg == "" {
+			msg = m[3]
+		}
+		if forbiddenAttributionRE.MatchString(msg) {
+			return "Commit bloqueado: el mensaje contiene atribución AI/modelo prohibida. Elimina líneas como 'Co-Authored-By', nombres de modelo (Claude, GPT, Gemini, etc.) y usa Conventional Commits sin atribución. Consulta rules/no-model-attribution.instructions.md."
+		}
+	}
+	return ""
+}
+
 // isRiskyAction mirrors isRiskyAction from scripts/hooks/lib/git-state.js.
 // Returns true only when a command matches "git commit". File-write tools
 // (Edit, Write, etc.) are no longer considered risky on their own: the guard
@@ -278,12 +315,19 @@ func recordTokens(changeName string, tokens int) {
 // are the hard safety floor and are never degraded. Ports applyPermissionMode
 // from scripts/hooks/pre-tool-use.js.
 // REQ-hooks-005: on the codex target, ASK is unsupported by the host. The
-// wrapper signals this via OSPEC_TARGET=codex (no permission_mode field
-// exists on that host), treated as bypass-equivalent so every ask branch
-// degrades identically to permission_mode:"bypassPermissions". DENY stays
-// undegraded, same as the existing bypass path.
+// wrapper signals this via TWO env vars that must both be present:
+// OSPEC_TARGET=codex (target selector) AND OSPEC_CODEX_WRAPPER=1 (a
+// per-invocation marker the codex-generated hooks.json command inlines
+// directly on the command line — see codexHooks in
+// scripts/lib/target-transform.js). Requiring both closes the gap where a
+// leftover shell export, CI env var, or repo .env auto-loaded OSPEC_TARGET
+// alone into an unrelated session would silently degrade every ASK-class
+// decision there too; OSPEC_CODEX_WRAPPER is set fresh by the wrapper's own
+// command string for that single invocation, not inherited ambient state.
+// DENY stays undegraded, same as the existing bypass path.
 func applyPermissionMode(out []byte, permissionMode string) []byte {
-	if permissionMode != "bypassPermissions" && os.Getenv("OSPEC_TARGET") != "codex" {
+	codexWrapper := os.Getenv("OSPEC_TARGET") == "codex" && os.Getenv("OSPEC_CODEX_WRAPPER") == "1"
+	if permissionMode != "bypassPermissions" && !codexWrapper {
 		return out
 	}
 	var decoded struct {
@@ -394,6 +438,13 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 		for _, cmd := range cmds {
 			action, reason := rules.Evaluate(cmd)
 			if action == "deny" {
+				return makeDecision("deny", reason), 0
+			}
+		}
+
+		// Deny git commit commands whose message contains AI/model attribution.
+		for _, cmd := range cmds {
+			if reason := checkCommitAttribution(cmd); reason != "" {
 				return makeDecision("deny", reason), 0
 			}
 		}

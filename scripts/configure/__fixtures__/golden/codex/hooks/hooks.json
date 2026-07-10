@@ -6,8 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$PLUGIN_ROOT/scripts/hooks/ospec-hooks\" session-start",
-            "commandWindows": "\"%PLUGIN_ROOT%\\scripts\\hooks\\ospec-hooks\" session-start",
+            "command": "OSPEC_CODEX_WRAPPER=1 \"$PLUGIN_ROOT/scripts/hooks/ospec-hooks\" session-start",
+            "commandWindows": "set OSPEC_CODEX_WRAPPER=1&& \"%PLUGIN_ROOT%\\scripts\\hooks\\ospec-hooks\" session-start",
             "timeout": 10
           }
         ]
@@ -19,8 +19,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$PLUGIN_ROOT/scripts/hooks/ospec-hooks\" pre-tool-use",
-            "commandWindows": "\"%PLUGIN_ROOT%\\scripts\\hooks\\ospec-hooks\" pre-tool-use",
+            "command": "OSPEC_CODEX_WRAPPER=1 \"$PLUGIN_ROOT/scripts/hooks/ospec-hooks\" pre-tool-use",
+            "commandWindows": "set OSPEC_CODEX_WRAPPER=1&& \"%PLUGIN_ROOT%\\scripts\\hooks\\ospec-hooks\" pre-tool-use",
             "timeout": 10
           }
         ]

@@ -216,3 +216,146 @@ None. All Phase 1-6 tasks in `tasks.md` are `[x]` complete.
 12/12 assigned tasks (Phase 4: 4.1-4.4, Phase 5: 5.1-5.2, Phase 6: 6.1-6.3) complete and locally verified: full `npm test` (`node scripts/check.js`) passes, exit 0, all checks green across generator/validator/hooks/install/agents/smoke suites together.
 
 **ALL 6 PHASES / ALL TASKS IN `tasks.md` FOR `codex-target-phase-2` ARE NOW COMPLETE.** This change is ready for `sdd-verify`. No commits were made during this batch — all changes are staged in the working tree for the orchestrator to review/commit as it sees fit (per the instruction that leaving commits to the orchestrator is acceptable).
+
+---
+
+## Batch 4 — 4R Review Gate Remediation (approval-003: remediate-both-critical)
+
+Scope: remediate the 2 CRITICAL findings from the post-verify 4R review gate
+(0 BLOCKER, 2 CRITICAL, 5 WARNING, 1 SUGGESTION per `verify-report.md`). Not
+new scope — targeted fixes + regression tests over the already-verified
+implementation from Batches 1-3.
+
+### CRITICAL 1 — ASK→allow degradation was env-var-only, not host-verified
+
+Finding: `applyPermissionMode` in both `scripts/hooks/pre-tool-use.js` and
+`internal/hooks/pretooluse.go` gated the ASK→allow degradation purely on
+`process.env.OSPEC_TARGET === "codex"` — a process-wide env var that could
+leak into an unrelated (non-Codex) session via a leftover shell export, a CI
+env var, or a repo `.env` auto-load, silently degrading every ASK-class
+decision there too.
+
+Fix: added a second, per-invocation marker — `OSPEC_CODEX_WRAPPER=1` — that
+`codexHooks` (`scripts/lib/target-transform.js`) now inlines directly onto the
+generated `command`/`commandWindows` command line itself (`OSPEC_CODEX_WRAPPER=1
+node ...` / `set OSPEC_CODEX_WRAPPER=1&& node ...`), for every one of the five
+wrapped hook events. Because this marker is set fresh by the wrapper's own
+generated command string for that single invocation (not inherited ambient
+session state), it cannot accidentally leak the way a lone `OSPEC_TARGET`
+export can. Both `applyPermissionMode` (JS) and `applyPermissionMode` (Go)
+now require **both** `OSPEC_TARGET=codex` **and** `OSPEC_CODEX_WRAPPER=1`
+before degrading `ask` → `allow`; DENY stays untouched either way (unchanged
+from Batch 2). `ADR-003` and `design.md` were amended with a short addendum
+documenting the dual-signal gate; `docs/codex/README.md`'s "PreToolUse"
+paragraph in the new-task-flow section was updated to describe both signals.
+
+### CRITICAL 2 — Go hook omitted the AI-attribution commit-message guard entirely
+
+Finding: `scripts/hooks/pre-tool-use.js` runs `checkCommitAttribution()` as a
+DENY check on `git commit -m/--message` commands matching
+`FORBIDDEN_ATTRIBUTION_RE`; `internal/hooks/pretooluse.go` had no equivalent —
+a `git commit` with `Co-Authored-By:`/model-name attribution dispatched via
+the Go hook binary was not blocked, defeating the PreToolUse
+defense-in-depth layer (the `commit-msg` git hook still caught it, but only
+after the commit already ran).
+
+Fix: ported `FORBIDDEN_ATTRIBUTION_RE` and `checkCommitAttribution()` to
+`internal/hooks/pretooluse.go` byte-for-byte equivalent to the JS regex
+(vendor names word-boundary-anchored; `co-authored-by`/`generated
+with|by`/model names/`🤖`, case-insensitive), wired into `run()`'s Step 5 DENY
+path immediately after the existing `rules.Evaluate` DENY loop — same
+ordering as the JS `evaluateToolUseCore`.
+
+### Files Changed (Batch 4)
+
+| File | Action | What Was Done |
+|------|--------|---------------|
+| `scripts/hooks/pre-tool-use.js` | Modified | `applyPermissionMode` requires `OSPEC_TARGET=codex` AND `OSPEC_CODEX_WRAPPER=1` (both) before degrading `ask`→`allow`. |
+| `scripts/hooks/pre-tool-use.test.js` | Modified | Updated the two existing codex-degradation tests to set both env vars; added two new tests (env-alone / marker-alone → no degradation). |
+| `internal/hooks/pretooluse.go` | Modified | Mirrored the dual env-var gate; added `forbiddenAttributionRE`, `commitMessageArgRE`, `checkCommitAttribution()`; wired into `run()`'s DENY step. |
+| `internal/hooks/pretooluse_test.go` | Modified | Updated the two existing Go codex-degradation tests to set both env vars; added env-alone/marker-alone tests; added 5 new attribution tests (clean pass, Co-Authored-By deny, model-name deny, word-boundary false-positive avoidance, non-commit-command pass). |
+| `scripts/lib/target-transform.js` | Modified | Added `withCodexWrapperMarker()` / `withCodexWrapperMarkerWindows()`; `codexHooks` inlines `OSPEC_CODEX_WRAPPER=1` onto every wrapped hook's `command`/`commandWindows`. |
+| `scripts/lib/target-transform.test.js` | Modified | Updated the existing wrapper-shape assertions to expect the inlined marker; added a dedicated marker-presence test across all five events (POSIX + Windows). |
+| `scripts/configure/__fixtures__/golden/codex/hooks/hooks.json` | Modified | Regenerated golden snapshot to include the inlined marker (`cli.test.js` golden-tree comparison). |
+| `openspec/changes/codex-target-phase-2/decisions/adr-003.md` | Modified | Added an addendum documenting the dual env-var gate (4R remediation). |
+| `openspec/changes/codex-target-phase-2/design.md` | Modified | Updated the ADR-003 prose, flow diagram, and File Changes table row to reflect the dual-signal gate and the Go attribution port. |
+| `docs/codex/README.md` | Modified | Updated the "PreToolUse" paragraph in the new-task-flow section to describe both required env signals. |
+
+### TDD Cycle Evidence (Batch 4)
+
+| Task | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----|-------|-------------|----------|
+| CRITICAL-1 JS (dual env-var gate) | Updated `pre-tool-use.test.js`'s two existing codex tests to also require the marker (would fail against pre-change single-var check if reverted) and added an explicit "env alone does not degrade" test against the pre-change `applyPermissionMode`; `node --test scripts/hooks/pre-tool-use.test.js` → 1 new failure (env-alone test expected `ask`, got `allow`) | Widened `applyPermissionMode`'s `codexWrapper` check to require both vars; `node --test scripts/hooks/pre-tool-use.test.js` → 52/52 pass | Covered env-alone, marker-alone, both-present-ASK, both-present-DENY as four independent cases | No further extraction needed |
+| CRITICAL-1 Go (dual env-var gate parity) | Updated the two existing Go codex tests (`t.Setenv` both vars) and added `TestPreToolUse_OspecTargetCodexAlone_DoesNotDegradeAsk` against pre-change `applyPermissionMode`; `go test ./internal/hooks/...` → 1 failure (env-alone test expected `ask`, got `allow`) | Mirrored the JS dual-var check via `os.Getenv`; `go build ./...` clean, `go test ./internal/hooks/...` → pass | Env-alone, marker-alone, both-present-ASK, both-present-DENY covered identically to JS | No further extraction needed |
+| CRITICAL-1 generator (`codexHooks` marker injection) | Updated the existing wrapper-shape test's exact-string command assertions to expect the marker prefix (would fail against pre-change `codexHooks`) and added a dedicated marker-presence regex test across all 5 events × 2 command variants; `node --test scripts/lib/target-transform.test.js` → 11 assertion failures (marker missing) | Added `withCodexWrapperMarker`/`withCodexWrapperMarkerWindows`, wired into the `wrappedHooks.map()` construction; `node --test scripts/lib/target-transform.test.js` → 88/88 pass | Covered all five events' POSIX+Windows marker presence from one fixture, plus the exact-string session-start/pre-tool-use/pre-compact/subagent-stop/stop assertions in the pre-existing test as a second independent check | No further extraction needed |
+| CRITICAL-2 Go (`checkCommitAttribution` port) | Added `TestPreToolUse_CommitAttribution_*` (clean-pass, Co-Authored-By-deny, model-name-deny, word-boundary-avoidance, non-commit-pass) against pre-change `pretooluse.go` (no attribution check existed); `go test ./internal/hooks/...` → 2 failures (Co-Authored-By and model-name commands expected `deny`, got `allow`) | Ported `FORBIDDEN_ATTRIBUTION_RE`/`commitMessageArgRE`/`checkCommitAttribution()` byte-for-byte equivalent to the JS regex; wired into `run()`'s Step-5 DENY path; `go test ./internal/hooks/...` → pass | Clean-message, Co-Authored-By, 3 distinct model names, 3 word-boundary false-positive candidates (coherente/bombardeo/llaman), and 4 non-commit commands covered as independent cases | No further extraction needed; regex kept byte-identical to the JS source per the task's explicit instruction (verified via side-by-side comparison, not paraphrased) |
+
+### Test Summary (Batch 4)
+- **Total tests written**: 13 (4 JS: 2 updated + 2 new; 9 Go: 2 updated + 2 new dual-gate + 5 new attribution)
+- **Total tests passing**: 13/13 (plus the full pre-existing suite unaffected: `npm test` 1240/1240 pass excluding 1 pre-existing unrelated skip; `go test ./...` all packages pass)
+- **Layers used**: Unit (13)
+- **Approval tests**: None — no refactoring tasks
+- **Pure functions created**: `withCodexWrapperMarker`, `withCodexWrapperMarkerWindows` (JS); `checkCommitAttribution` (Go)
+
+### Deviations from Design
+
+`ADR-003` originally specified a single env flag (`OSPEC_TARGET=codex`) as the
+Codex signal. This batch amends that decision with a documented addendum
+(dual env-var gate) rather than a silent deviation — the amendment is the
+explicit, user-approved remediation for CRITICAL-1 (`approval-003:
+remediate-both-critical`), not a freelance design change. `ADR-003.md` and
+`design.md` were updated in the same batch so the design artifacts stay
+consistent with the implementation.
+
+### Issues Found
+
+None beyond the two CRITICAL findings themselves.
+
+### Assumptions
+
+- `sdd-apply-007`: `OSPEC_CODEX_WRAPPER=1` was chosen as the second marker's
+  name/value (rather than e.g. a random per-build token) because a fixed,
+  internal, unlikely-to-collide name inlined directly on the command line is
+  sufficient to close the "ambient env leak" gap described in the finding —
+  the marker's trust comes from being freshly set by the wrapper's own
+  generated command string per invocation, not from being unguessable.
+  Reversibility: high (the exact var name is an internal implementation
+  detail; renaming it is a mechanical find/replace across 5 files with no
+  external contract impact — `docs/codex/README.md`'s `/hooks` review step
+  already tells users to inspect the raw `command`/`commandWindows` strings,
+  so the marker's presence is visible/auditable there regardless of its name).
+- `sdd-apply-008`: The Windows marker syntax uses `set OSPEC_CODEX_WRAPPER=1&&
+  <command>` (cmd.exe sequential-command env assignment) rather than a
+  PowerShell-specific form, consistent with the pre-existing `%PLUGIN_ROOT%`
+  cmd.exe-style expansion already used by `commandWindows` (no change to that
+  established convention). Reversibility: high (isolated to
+  `withCodexWrapperMarkerWindows`).
+
+### Remaining Tasks
+
+None. Both CRITICAL findings from the 4R review gate are remediated,
+regression-tested (JS + Go), and the full `npm test` + `go test ./...` suites
+pass. Ready for the orchestrator to re-run `sdd-verify` (or a targeted
+re-check of just these two findings) before archive.
+
+### Workload / PR Boundary (Batch 4)
+
+- Mode: remediation batch under `exception-ok` (approval-002), scoped by
+  `approval-003` (remediate-both-critical) — not a new chained/stacked PR
+  slice of the original 3-unit split.
+- Current work unit: 4R remediation (post-verify), both CRITICALs.
+- Boundary: starts from Batch 3's fully-verified baseline; ends with both
+  CRITICAL findings fixed, regression-tested, docs/ADR/design updated to
+  match, and the full test suite green.
+- Estimated review budget impact: ~10 files touched, small/targeted diffs per
+  file (env-var gate widening + one ported Go function + doc/fixture
+  updates); well under the 400-line review budget on its own.
+
+### Status (Batch 4)
+
+2/2 assigned CRITICAL remediations complete and locally verified: `npm test`
+(`node scripts/check.js`) passes, exit 0 (1240 tests pass, 1 pre-existing
+unrelated skip, 0 fail); `go build ./...` and `go test ./...` pass, exit 0.
+No commits were made during this batch — all changes are left staged in the
+working tree for the orchestrator to review/commit, per the task's explicit
+instruction to state this clearly.

@@ -1,7 +1,15 @@
 ---
 title: Known Issues
-last_updated: 2026-07-07
+last_updated: 2026-07-10
 ---
+
+## REQ-hooks-004 escenario "PLUGIN_DATA propagated intact" solo con inspection-proof (sin runtime test)
+
+- severity: WARNING
+- area: scripts/lib/target-transform.js codexHooks (solo reescribe command/commandWindows) vs specs/hooks/spec.md REQ-hooks-004 scenario "PLUGIN_DATA propagated intact"
+- workaround: satisfecho por ausencia de capa wrapper (herencia de env garantizada por el runtime Node, no por codigo del proyecto); si un batch futuro agrega fidelidad de process-boundary, spawnear ospec-hooks-launch.js con PLUGIN_DATA seteado y afirmar que el hijo observa el valor sin modificar (alineado con el smoke live-CLI diferido)
+- change: codex-target-phase-2
+- date: 2026-07-10
 
 ## capture.js/parseYamlLite del eval suite sin tests automatizados en CI
 

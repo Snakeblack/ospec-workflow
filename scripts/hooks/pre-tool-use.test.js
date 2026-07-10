@@ -946,15 +946,34 @@ test("permission-mode: DENY rule in bypassPermissions → still deny (never degr
   });
 });
 
-// REQ-hooks-005: on the codex target, ASK is unsupported by the host. The
-// wrapper signals this via OSPEC_TARGET=codex; pre-tool-use.js treats it as
-// bypass-equivalent, degrading every ask branch identically to
-// permission_mode:"bypassPermissions" (DENY stays untouched).
-test("permission-mode: ASK rule under OSPEC_TARGET=codex → allow + systemMessage (no permission_mode set)", () => {
+// REQ-hooks-005 / review remediation (CRITICAL-1, 4R gate): on the codex
+// target, ASK is unsupported by the host. The wrapper signals this via TWO
+// env vars that must BOTH be present — OSPEC_TARGET=codex (target selector)
+// AND OSPEC_CODEX_WRAPPER=1 (a per-invocation marker inlined directly into
+// the codex-generated command line, see codexHooks in
+// scripts/lib/target-transform.js) — so a leftover shell export, CI env var,
+// or repo .env auto-loading OSPEC_TARGET alone into an unrelated session can
+// never silently degrade ASK decisions there. DENY stays untouched either way.
+function withEnvVars(vars, fn) {
+  const saved = {};
+  for (const key of Object.keys(vars)) {
+    saved[key] = process.env[key];
+    if (vars[key] === undefined) delete process.env[key];
+    else process.env[key] = vars[key];
+  }
+  try {
+    return fn();
+  } finally {
+    for (const key of Object.keys(saved)) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  }
+}
+
+test("permission-mode: ASK rule under OSPEC_TARGET=codex + OSPEC_CODEX_WRAPPER=1 → allow + systemMessage (no permission_mode set)", () => {
   withGuardsEnabled(() => {
-    const saved = process.env.OSPEC_TARGET;
-    process.env.OSPEC_TARGET = "codex";
-    try {
+    withEnvVars({ OSPEC_TARGET: "codex", OSPEC_CODEX_WRAPPER: "1" }, () => {
       const result = evaluateToolUse({
         tool_name: "runTerminalCommand",
         tool_input: { command: "npm install left-pad" },
@@ -962,28 +981,50 @@ test("permission-mode: ASK rule under OSPEC_TARGET=codex → allow + systemMessa
       assert.equal(result.hookSpecificOutput.permissionDecision, "allow");
       assert.ok(result.systemMessage, "systemMessage must carry the advisory");
       assert.match(result.systemMessage, /Dependency installation/);
-    } finally {
-      if (saved === undefined) delete process.env.OSPEC_TARGET;
-      else process.env.OSPEC_TARGET = saved;
-    }
+    });
   });
 });
 
-test("permission-mode: DENY rule under OSPEC_TARGET=codex → still deny (never degraded)", () => {
+test("permission-mode: DENY rule under OSPEC_TARGET=codex + OSPEC_CODEX_WRAPPER=1 → still deny (never degraded)", () => {
   withGuardsEnabled(() => {
-    const saved = process.env.OSPEC_TARGET;
-    process.env.OSPEC_TARGET = "codex";
-    try {
+    withEnvVars({ OSPEC_TARGET: "codex", OSPEC_CODEX_WRAPPER: "1" }, () => {
       const result = evaluateToolUse({
         tool_name: "runTerminalCommand",
         tool_input: { command: "git push origin main --force" },
       });
       assert.equal(result.hookSpecificOutput.permissionDecision, "deny");
       assert.equal(result.systemMessage, undefined);
-    } finally {
-      if (saved === undefined) delete process.env.OSPEC_TARGET;
-      else process.env.OSPEC_TARGET = saved;
-    }
+    });
+  });
+});
+
+test("permission-mode: OSPEC_TARGET=codex ALONE (no OSPEC_CODEX_WRAPPER marker) does NOT degrade ASK to allow", () => {
+  withGuardsEnabled(() => {
+    withEnvVars({ OSPEC_TARGET: "codex", OSPEC_CODEX_WRAPPER: undefined }, () => {
+      const result = evaluateToolUse({
+        tool_name: "runTerminalCommand",
+        tool_input: { command: "npm install left-pad" },
+      });
+      assert.equal(
+        result.hookSpecificOutput.permissionDecision,
+        "ask",
+        "a leftover/leaked OSPEC_TARGET env var alone must never degrade ASK to allow"
+      );
+      assert.equal(result.systemMessage, undefined);
+    });
+  });
+});
+
+test("permission-mode: OSPEC_CODEX_WRAPPER=1 ALONE (no OSPEC_TARGET=codex) does NOT degrade ASK to allow", () => {
+  withGuardsEnabled(() => {
+    withEnvVars({ OSPEC_TARGET: undefined, OSPEC_CODEX_WRAPPER: "1" }, () => {
+      const result = evaluateToolUse({
+        tool_name: "runTerminalCommand",
+        tool_input: { command: "npm install left-pad" },
+      });
+      assert.equal(result.hookSpecificOutput.permissionDecision, "ask");
+      assert.equal(result.systemMessage, undefined);
+    });
   });
 });
 

@@ -1052,15 +1052,43 @@ test("codex target wraps hooks/hooks.json events in matcher+hooks groups with PO
 
   const sessionStartHook = parsed.hooks.SessionStart[0].hooks[0];
   assert.equal(sessionStartHook.type, "command");
-  assert.equal(sessionStartHook.command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" session-start');
-  assert.equal(sessionStartHook.commandWindows, 'node "%PLUGIN_ROOT%\\scripts\\hooks\\ospec-hooks-launch.js" session-start');
+  assert.equal(sessionStartHook.command, 'OSPEC_CODEX_WRAPPER=1 node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" session-start');
+  assert.equal(sessionStartHook.commandWindows, 'set OSPEC_CODEX_WRAPPER=1&& node "%PLUGIN_ROOT%\\scripts\\hooks\\ospec-hooks-launch.js" session-start');
   assert.equal(sessionStartHook.timeout, 10);
 
-  assert.equal(parsed.hooks.PreToolUse[0].hooks[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" pre-tool-use');
-  assert.equal(parsed.hooks.PreToolUse[0].hooks[0].commandWindows, 'node "%PLUGIN_ROOT%\\scripts\\hooks\\ospec-hooks-launch.js" pre-tool-use');
-  assert.equal(parsed.hooks.PreCompact[0].hooks[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" pre-compact');
-  assert.equal(parsed.hooks.SubagentStop[0].hooks[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" subagent-stop');
-  assert.equal(parsed.hooks.Stop[0].hooks[0].command, 'node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" stop');
+  assert.equal(parsed.hooks.PreToolUse[0].hooks[0].command, 'OSPEC_CODEX_WRAPPER=1 node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" pre-tool-use');
+  assert.equal(parsed.hooks.PreToolUse[0].hooks[0].commandWindows, 'set OSPEC_CODEX_WRAPPER=1&& node "%PLUGIN_ROOT%\\scripts\\hooks\\ospec-hooks-launch.js" pre-tool-use');
+  assert.equal(parsed.hooks.PreCompact[0].hooks[0].command, 'OSPEC_CODEX_WRAPPER=1 node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" pre-compact');
+  assert.equal(parsed.hooks.SubagentStop[0].hooks[0].command, 'OSPEC_CODEX_WRAPPER=1 node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" subagent-stop');
+  assert.equal(parsed.hooks.Stop[0].hooks[0].command, 'OSPEC_CODEX_WRAPPER=1 node "$PLUGIN_ROOT/scripts/hooks/ospec-hooks-launch.js" stop');
+});
+
+// Review remediation (CRITICAL-1, 4R gate): OSPEC_TARGET alone must never be
+// sufficient to degrade ASK->allow. codexHooks must inline a second,
+// per-invocation marker (OSPEC_CODEX_WRAPPER=1) directly on the command line
+// for every wrapped hook entry, on both the POSIX and Windows command forms.
+test("codex wrapper inlines the OSPEC_CODEX_WRAPPER=1 marker on every event's POSIX and Windows command", () => {
+  const files = [
+    {
+      path: "hooks/hooks.json",
+      content: JSON.stringify({
+        hooks: {
+          SessionStart: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js session-start", timeout: 5 }],
+          PreToolUse: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-tool-use", timeout: 5 }],
+          PreCompact: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-compact", timeout: 5 }],
+          SubagentStop: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js subagent-stop", timeout: 5 }],
+          Stop: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js stop", timeout: 5 }]
+        },
+      }),
+    },
+  ];
+  const out = transform({ files, profile: codex, models: MODELS });
+  const parsed = JSON.parse(find(out, "hooks/hooks.json").content);
+  for (const event of ["SessionStart", "PreToolUse", "PreCompact", "SubagentStop", "Stop"]) {
+    const hook = parsed.hooks[event][0].hooks[0];
+    assert.match(hook.command, /^OSPEC_CODEX_WRAPPER=1 node /, `${event} POSIX command must inline the marker`);
+    assert.match(hook.commandWindows, /^set OSPEC_CODEX_WRAPPER=1&& node /, `${event} Windows command must inline the marker`);
+  }
 });
 
 // REQ-hooks-004 scenario: no sixth event is added even when the source

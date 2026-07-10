@@ -224,9 +224,15 @@ explícita antes de ejecutarlas. Después de instalar o actualizar
    igual que en el resto de targets; las instrucciones de delegación viajan
    embebidas en `developer_instructions` de cada TOML generado.
 4. Durante la ejecución, `PreToolUse` degrada automáticamente cualquier
-   decisión `ask` a `allow` + `systemMessage` cuando `OSPEC_TARGET=codex`
-   (Codex CLI aún no soporta la decisión `ask`); las decisiones `deny`
-   siguen bloqueando sin cambios.
+   decisión `ask` a `allow` + `systemMessage` cuando se detectan **ambas**
+   señales del wrapper de Codex: `OSPEC_TARGET=codex` (selector de target) y
+   `OSPEC_CODEX_WRAPPER=1` (marcador por invocación, inyectado en la propia
+   línea de `command`/`commandWindows` generada por `codexHooks`; ver
+   `command`/`commandWindows` en `/hooks`). Exigir ambas evita que un
+   `OSPEC_TARGET=codex` residual en el entorno (export de shell olvidado,
+   variable de CI, `.env` del repo) degrade decisiones `ask` fuera de una
+   invocación real del wrapper de Codex (Codex CLI aún no soporta la decisión
+   `ask`); las decisiones `deny` siguen bloqueando sin cambios.
 5. `SubagentStop` acepta tanto `agent_transcript_path` (el campo que emite
    Codex) como `transcript_path` (el campo histórico de otros targets) para
    resolver el resultado de cada sub-agente.

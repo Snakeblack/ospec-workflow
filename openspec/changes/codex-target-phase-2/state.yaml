@@ -1,6 +1,6 @@
 change: codex-target-phase-2
-status: applying
-last_updated: "2026-07-10T04:00:00Z"
+status: verified
+last_updated: "2026-07-10T14:20:00Z"
 classification: high-risk
 blocking_questions: []
 owner:
@@ -25,6 +25,13 @@ approvals:
     decision: exception-ok
     source: vscode/askQuestions
     accepted_at: "2026-07-10T00:15:25Z"
+    applies_to:
+      - codex-target-phase-2
+  - id: approval-003
+    gate: 4r-review-gate
+    decision: remediate-both-critical
+    source: AskUserQuestion
+    accepted_at: "2026-07-10T13:45:00Z"
     applies_to:
       - codex-target-phase-2
 phases:
@@ -71,17 +78,42 @@ phases:
   apply:
     status: done
     artifact: openspec/changes/codex-target-phase-2/apply-progress.md
-    summary: "Work units 1-3/3 completos: (PR1) manifest ./ + metadata (ADR-001), MCP ids fijados + regex validador (ADR-002); (PR2) hooks wrapper matcher/commandWindows para 5 eventos, PreToolUse via OSPEC_TARGET=codex reusando bypassPermissions, agent_transcript_path alias, paridad Go (ADR-003); (PR3) install/agents ya satisfacían REQ-install-001/REQ-agents-010 (regresión-only), docs/codex/README.md completado, smoke test REQ-install-003 contra payload real vía runSessionStart(). npm test + go test en verde. Las 6 fases / todas las tareas de tasks.md completas."
+    summary: "Work units 1-3/3 completos: (PR1) manifest ./ + metadata (ADR-001), MCP ids fijados + regex validador (ADR-002); (PR2) hooks wrapper matcher/commandWindows para 5 eventos, PreToolUse via OSPEC_TARGET=codex reusando bypassPermissions, agent_transcript_path alias, paridad Go (ADR-003); (PR3) install/agents ya satisfacían REQ-install-001/REQ-agents-010 (regresión-only), docs/codex/README.md completado, smoke test REQ-install-003 contra payload real vía runSessionStart(). npm test + go test en verde. Las 6 fases / todas las tareas de tasks.md completas. Batch 4 (remediación 4R, approval-003): degradación ask->allow ahora exige OSPEC_TARGET=codex + OSPEC_CODEX_WRAPPER=1 (marcador inline por invocación); checkCommitAttribution portado a Go (paridad). npm test + go test en verde."
     key_decisions:
       - "Nombres internos (relativePathFields, toSafeRelativePath, isSafeRelativePath) siguen convención existente (keepFields, ALLOWED_BUNDLE_KEYS); detalle interno, no contrato público."
       - "validateMcpIds trata .mcp.json ausente como no-fatal (no hay REQ que exija su presencia independiente del manifest)."
       - "timeout de wrapper fijo en 10 (normalización codex-side), no pass-through del timeout de origen; validate-codex.js actualizado a la nueva forma anidada como mantenimiento load-bearing del mismo archivo (no REQ nuevo)."
+      - "ADR-003 amendment (remediación CRITICAL-1): degradación ask->allow requiere DOS señales (OSPEC_TARGET=codex + OSPEC_CODEX_WRAPPER=1 inline en el command generado), no solo un env var de sesión."
   verify:
-    status: pending
+    status: done
     artifact: openspec/changes/codex-target-phase-2/verify-report.md
+    summary: "PASS WITH WARNINGS: 10/10 MUST con runtime-test (1 scenario PLUGIN_DATA en inspection-proof), npm test + go test verdes, fiel a ADR-001/002/003, paridad Go/JS, assertion quality limpia."
+    key_decisions:
+      - "WARNING-1: PLUGIN_DATA propagation sin test runtime (por diseño no hay capa wrapper)."
+      - "10 asunciones high-reversibility confirmadas contra la implementación."
   archive:
     status: pending
     artifact: openspec/changes/codex-target-phase-2/archive-report.md
+gates:
+  4r-review-gate:
+    status: done
+    on_blocker: advisory
+    findings_summary: "0 BLOCKER, 2 CRITICAL, 5 WARNING, 1 SUGGESTION"
+    surfaced_to_user: true
+    remediation:
+      status: applied
+      approval: approval-003
+      applied_at: "2026-07-10T14:20:00Z"
+      findings:
+        - id: critical-1
+          summary: "ASK->allow degradation gated only on OSPEC_TARGET env var, not host-verified."
+          fix: "Dual-signal gate: OSPEC_TARGET=codex + OSPEC_CODEX_WRAPPER=1 (inline per-invocation marker in codexHooks-generated command), enforced in pre-tool-use.js and pretooluse.go."
+          regression_tests: "scripts/hooks/pre-tool-use.test.js, internal/hooks/pretooluse_test.go, scripts/lib/target-transform.test.js"
+        - id: critical-2
+          summary: "Go pretooluse.go lacked the AI-attribution commit-message DENY guard present in the JS hook."
+          fix: "Ported FORBIDDEN_ATTRIBUTION_RE/checkCommitAttribution to internal/hooks/pretooluse.go, wired into run()'s DENY step."
+          regression_tests: "internal/hooks/pretooluse_test.go (5 new attribution tests)"
+      verification_pending: "Orchestrator should re-run sdd-verify (or a targeted re-check) on this remediation before archive."
 baseline_fingerprints:
   generator: "sha256:a0662b42f2cc0bd3ee4d1e1f5f55b6e8c500918451738541bdd37ae3d11d8341"
   hooks: "sha256:921ae472c3f06db5152b94a2350f58688ffed5b46faead5afeb27c781ea60b86"
@@ -94,67 +126,121 @@ assumptions:
     reversibility: high
     basis: "Reusa applyPermissionMode (§3.4.1) sin adapter nuevo; un env flag es trivial de renombrar o reemplazar."
     recorded_at: "2026-07-10T02:35:00Z"
-    status: unresolved
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Cross-checked against implementation during sdd-verify; matches actual code."
+      resolved_at: "2026-07-10T12:00:00Z"
   - id: sdd-design-002
     phase: sdd-design
     statement: "El matcher del wrapper de hooks es \".*\" (comodín) para los cinco eventos."
     reversibility: high
     basis: "Coincide con el shape validado en docs/codex/field-report-2026-07-10.md §4."
     recorded_at: "2026-07-10T02:35:00Z"
-    status: unresolved
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Cross-checked against implementation during sdd-verify; matches actual code."
+      resolved_at: "2026-07-10T12:00:00Z"
   - id: sdd-design-003
     phase: sdd-design
     statement: "El smoke de npm test corre contra el payload generado+instalado en temp usando el hook Node directamente, sin invocar el binario codex."
     reversibility: high
     basis: "REQ-install-003 exige payload real en npm test; el CLI no está disponible en CI, patrón 'dist tests self-generate'."
     recorded_at: "2026-07-10T02:35:00Z"
-    status: unresolved
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Cross-checked against implementation during sdd-verify; matches actual code."
+      resolved_at: "2026-07-10T12:00:00Z"
   - id: sdd-design-004
     phase: sdd-design
     statement: "El timeout de cada hook wrapper se fija en 10s."
     reversibility: high
     basis: "Valor del ejemplo del field report §4; ajustable en el perfil."
     recorded_at: "2026-07-10T02:35:00Z"
-    status: unresolved
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Cross-checked against implementation during sdd-verify; matches actual code."
+      resolved_at: "2026-07-10T12:00:00Z"
   - id: sdd-apply-001
     phase: sdd-apply
     statement: "Nombres de helpers/campos internos (relativePathFields, toSafeRelativePath, isSafeRelativePath, RELATIVE_PATH_KEYS) siguen la convención existente ya que ADR-001/ADR-002 especifican comportamiento, no identificadores exactos."
     reversibility: high
     basis: "Coincide con los patrones de nombres existentes (keepFields/ALLOWED_BUNDLE_KEYS/FORBIDDEN_PATHS)."
     recorded_at: "2026-07-10T04:05:00Z"
-    status: unresolved
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Cross-checked against implementation during sdd-verify; matches actual code."
+      resolved_at: "2026-07-10T12:00:00Z"
   - id: sdd-apply-002
     phase: sdd-apply
     statement: "validateMcpIds() trata un .mcp.json ausente como no-fatal (omite el check) en vez de emitir un error de archivo faltante."
     reversibility: high
     basis: "Ningún REQ exige presencia independiente de .mcp.json fuera de la referencia mcpServers del manifiesto; se puede endurecer después sin romper llamadores."
     recorded_at: "2026-07-10T04:05:00Z"
-    status: unresolved
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Cross-checked against implementation during sdd-verify; matches actual code."
+      resolved_at: "2026-07-10T12:00:00Z"
   - id: sdd-apply-003
     phase: sdd-apply
     statement: "codexHooks emite timeout: 10 fijo en cada entrada wrapeada, ignorando el timeout declarado en el evento fuente (fixtures usan 5) — normalización codex-side, no pass-through."
     reversibility: high
     basis: "Coincide con la muestra literal de design.md §Interfaces/Contracts; cambio de una línea si una futura clarificación pide pass-through del timeout de origen."
     recorded_at: "2026-07-10T06:20:00Z"
-    status: unresolved
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Cross-checked against implementation during sdd-verify; matches actual code."
+      resolved_at: "2026-07-10T12:00:00Z"
   - id: sdd-apply-004
     phase: sdd-apply
     statement: "La tarea 3.2 (confirmar que PLUGIN_DATA se hereda sin reescritura wrapper-side) se trata como verificación/documentación, no como código de producción nuevo — no existe capa de wrapper entre el host y el proceso Node lanzado."
     reversibility: "n/a (sin código introducido que revertir)"
     basis: "codexHooks solo reescribe los valores string command/commandWindows del JSON generado; nunca toca el entorno del proceso en generación ni en runtime."
     recorded_at: "2026-07-10T08:10:00Z"
-    status: unresolved
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Cross-checked against implementation during sdd-verify; matches actual code."
+      resolved_at: "2026-07-10T12:00:00Z"
   - id: sdd-apply-005
     phase: sdd-apply
     statement: "Las tareas 4.1/4.2 (canales install) y 5.1/5.2 (autodetección agents) se tratan como cobertura de regresión confirmando comportamiento ya existente, no como código de producción nuevo."
     reversibility: high
     basis: "Mismo patrón ya aceptado en 1.4 y 3.2; el design/spec anticipaba explícitamente que podían estar ya satisfechas ('Verified via smoke test + TOML parse assertions' para REQ-agents-010; 'Tighten existing behavior' para install-codex.js). Si una auditoría futura encuentra un hueco real, los tests de regresión añadidos fallarán y lo señalarán directamente."
     recorded_at: "2026-07-10T08:10:00Z"
-    status: unresolved
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Cross-checked against implementation during sdd-verify; matches actual code."
+      resolved_at: "2026-07-10T12:00:00Z"
   - id: sdd-apply-006
     phase: sdd-apply
     statement: "El smoke test (tarea 6.1) invoca runSessionStart() directamente contra el bundle del plugin generado, en vez de spawnear ospec-hooks-launch.js como subproceso."
     reversibility: high
     basis: "Instrucción explícita del orquestador (patrón 'dist tests self-generate', sin requerir el binario CLI real) y nota de Open Questions de design.md (el smoke con CLI real en vivo queda como verificación manual de campo)."
     recorded_at: "2026-07-10T08:10:00Z"
-    status: unresolved
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Cross-checked against implementation during sdd-verify; matches actual code."
+      resolved_at: "2026-07-10T12:00:00Z"
+  - id: sdd-apply-007
+    phase: sdd-apply
+    statement: "OSPEC_CODEX_WRAPPER=1 se eligió como nombre/valor del segundo marcador (en vez de un token aleatorio por build) para cerrar el hueco de fuga ambiental descrito en CRITICAL-1."
+    reversibility: high
+    basis: "La confianza del marcador viene de ser fijado por la propia línea de comando generada del wrapper en cada invocación, no de ser impredecible; renombrarlo es un cambio mecánico sin impacto de contrato externo, y docs/codex/README.md ya indica revisar command/commandWindows en /hooks."
+    recorded_at: "2026-07-10T14:20:00Z"
+    status: pending-verify
+  - id: sdd-apply-008
+    phase: sdd-apply
+    statement: "La sintaxis del marcador en Windows usa 'set OSPEC_CODEX_WRAPPER=1&& <command>' (estilo cmd.exe), consistente con la expansión %PLUGIN_ROOT% ya usada en commandWindows."
+    reversibility: high
+    basis: "No introduce una convención nueva; reutiliza el mismo estilo cmd.exe ya establecido para commandWindows."
+    recorded_at: "2026-07-10T14:20:00Z"
+    status: pending-verify
