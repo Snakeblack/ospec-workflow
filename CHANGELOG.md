@@ -8,6 +8,11 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.25.2] - 2026-07-11
+
+### Fixed
+- **[Límite de delegación generada] ([Agents])**: los perfiles de agentes generados emiten `[agents] max_depth = 1` desde `scripts/lib/target-profiles/codex.js` y `scripts/lib/target-transform.js`, evitando la delegación recursiva y preservando una capa coordinador-trabajador. Cambio guiado por SDD (ruta standard) con TDD estricto y gate 4R. Verificación: 120 pruebas enfocadas y `npm test` en PASS.
+
 ## [2.25.1] - 2026-07-10
 
 ### Fixed
