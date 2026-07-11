@@ -99,6 +99,120 @@ function copyTree(sourceDir, destDir, fsImpl = fs) {
   fsImpl.cpSync(sourceDir, destDir, { recursive: true, force: true });
 }
 
+function copyCodexRuntime(outDir, runtimeDir, deps = {}) {
+  const fsImpl = deps.fs || fs;
+  const source = path.join(outDir, "scripts");
+  if (fsImpl.existsSync(source)) {
+    copyTree(source, path.join(runtimeDir, "scripts"), fsImpl);
+  }
+}
+
+function filesMatch(source, destination, fsImpl = fs) {
+  try {
+    return fsImpl.readFileSync(source).equals(fsImpl.readFileSync(destination));
+  } catch {
+    return false;
+  }
+}
+
+function syncTreeByContent(sourceDir, destDir, fsImpl = fs, result = { updated: [], unchanged: [] }) {
+  fsImpl.mkdirSync(destDir, { recursive: true });
+  for (const entry of fsImpl.readdirSync(sourceDir, { withFileTypes: true })) {
+    const source = path.join(sourceDir, entry.name);
+    const destination = path.join(destDir, entry.name);
+    if (entry.isDirectory()) {
+      syncTreeByContent(source, destination, fsImpl, result);
+    } else if (entry.isFile()) {
+      if (filesMatch(source, destination, fsImpl)) {
+        result.unchanged.push(destination);
+      } else {
+        fsImpl.mkdirSync(path.dirname(destination), { recursive: true });
+        fsImpl.copyFileSync(source, destination);
+        result.updated.push(destination);
+      }
+    }
+  }
+  return result;
+}
+
+function syncCodexAgentSkills(outDir, skillsRoot, deps = {}) {
+  const fsImpl = deps.fs || fs;
+  const agentsDir = path.join(outDir, ".codex", "agents");
+  const skillNames = fsImpl.readdirSync(agentsDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".toml"))
+    .map((entry) => path.basename(entry.name, ".toml"));
+  // Shared contracts are referenced by the phase skills but are not an agent.
+  skillNames.push("_shared");
+  const result = { updated: [], unchanged: [] };
+  for (const name of skillNames) {
+    const source = path.join(outDir, "skills", name);
+    if (fsImpl.existsSync(source)) {
+      syncTreeByContent(source, path.join(skillsRoot, name), fsImpl, result);
+    }
+  }
+  return result;
+}
+
+function appendAgentSkillConfig(agentPath, skillPath, fsImpl = fs) {
+  const text = fsImpl.readFileSync(agentPath, "utf8");
+  const config = `\n[[skills.config]]\npath = ${JSON.stringify(skillPath)}\nenabled = true\n`;
+  fsImpl.writeFileSync(agentPath, text.replace(/\n?\[\[skills\.config\]\][\s\S]*$/m, "").replace(/\s*$/, "\n") + config);
+}
+
+function isManagedHookGroup(group) {
+  return JSON.stringify(group).includes("OSPEC_TARGET=codex") &&
+    JSON.stringify(group).includes("ospec-workflow");
+}
+
+function installCodexHooks(outDir, codexRoot, runtimeDir, deps = {}) {
+  const fsImpl = deps.fs || fs;
+  const sourcePath = path.join(outDir, "hooks.json");
+  const destPath = path.join(codexRoot, "hooks.json");
+  if (!fsImpl.existsSync(sourcePath)) {
+    return;
+  }
+
+  const generated = JSON.parse(fsImpl.readFileSync(sourcePath, "utf8"));
+  if (!generated.hooks || typeof generated.hooks !== "object" || Array.isArray(generated.hooks)) {
+    throw new Error("generated Codex hooks.json must contain a hooks object");
+  }
+
+  let existing = { hooks: {} };
+  if (fsImpl.existsSync(destPath)) {
+    existing = JSON.parse(fsImpl.readFileSync(destPath, "utf8"));
+    if (!existing.hooks || typeof existing.hooks !== "object" || Array.isArray(existing.hooks)) {
+      throw new Error("existing Codex hooks.json must contain a hooks object");
+    }
+  }
+
+  const runtimePosix = path.resolve(runtimeDir).split(path.sep).join("/");
+  const runtimeWindows = path.resolve(runtimeDir).split(path.sep).join("\\");
+  const renderValue = (value, key) => {
+    if (typeof value === "string") {
+      return value.replaceAll("__OSPEC_RUNTIME__", key === "commandWindows" ? runtimeWindows : runtimePosix);
+    }
+    if (Array.isArray(value)) {
+      return value.map((entry) => renderValue(entry));
+    }
+    if (value && typeof value === "object") {
+      return Object.fromEntries(Object.entries(value).map(([childKey, childValue]) => [
+        childKey,
+        renderValue(childValue, childKey),
+      ]));
+    }
+    return value;
+  };
+  for (const [event, groups] of Object.entries(generated.hooks)) {
+    const rendered = renderValue(groups);
+    const preserved = Array.isArray(existing.hooks[event])
+      ? existing.hooks[event].filter((group) => !isManagedHookGroup(group))
+      : [];
+    existing.hooks[event] = [...preserved, ...rendered];
+  }
+  fsImpl.mkdirSync(codexRoot, { recursive: true });
+  fsImpl.writeFileSync(destPath, JSON.stringify(existing, null, 2) + "\n");
+}
+
 
 
 function normalizeCodexMcpName(name) {
@@ -214,6 +328,7 @@ function ensureCodexMcps(codexBin, definitions, deps = {}) {
 function copyCodexAgents(outDir, destDir, deps = {}) {
   const fsImpl = deps.fs || fs;
   const dryRun = deps.dryRun || false;
+  const skillsRoot = deps.skillsRoot;
   const agentsDir = path.join(outDir, ".codex", "agents");
   const copied = [];
   fsImpl.mkdirSync(destDir, { recursive: true });
@@ -227,6 +342,9 @@ function copyCodexAgents(outDir, destDir, deps = {}) {
     copied.push(dest);
     if (!dryRun) {
       fsImpl.copyFileSync(src, dest);
+      if (skillsRoot) {
+        appendAgentSkillConfig(dest, path.join(skillsRoot, path.basename(entry.name, ".toml")), fsImpl);
+      }
     }
   }
   return copied;
@@ -357,10 +475,25 @@ function main(argv, deps = {}) {
     assertManagedPathSafe(codexRoot, agentsDest, "Codex agents destination", fsImpl);
     assertManagedPathSafe(isRepoInstall ? path.dirname(codexRoot) : codexRoot, agentDestFile, "Codex agent file destination", fsImpl);
 
-    copyCodexAgents(outDir, agentsDest, { fs: fsImpl, dryRun: args.dryRun });
+    const globalSkillsRoot = isRepoInstall ? undefined : path.join(homedir(), ".agents", "skills");
+    copyCodexAgents(outDir, agentsDest, { fs: fsImpl, dryRun: args.dryRun, skillsRoot: globalSkillsRoot });
 
     if (!args.dryRun) {
       fsImpl.copyFileSync(path.join(outDir, "agent.md"), agentDestFile);
+      if (!isRepoInstall) {
+        const runtimeDir = path.join(codexRoot, "ospec-workflow");
+        const hooksDest = path.join(codexRoot, "hooks.json");
+        assertManagedPathSafe(codexRoot, runtimeDir, "Codex runtime destination", fsImpl);
+        assertManagedPathSafe(codexRoot, hooksDest, "Codex hooks destination", fsImpl);
+        copyCodexRuntime(outDir, runtimeDir, { fs: fsImpl });
+        const legacyRuntimeSkills = path.join(runtimeDir, "skills");
+        if (fsImpl.existsSync(legacyRuntimeSkills)) {
+          fsImpl.rmSync(legacyRuntimeSkills, { recursive: true, force: true });
+        }
+        syncCodexAgentSkills(outDir, globalSkillsRoot, { fs: fsImpl });
+        fsImpl.rmSync(path.join(agentsDest, "sdd-orchestrator.toml"), { force: true });
+        installCodexHooks(outDir, codexRoot, runtimeDir, { fs: fsImpl });
+      }
     }
 
     if (args.dryRun) {
@@ -373,7 +506,7 @@ function main(argv, deps = {}) {
       return 0;
     }
 
-    stdout.write("Done. Codex AGENTS.md and custom agents are ready.\n");
+    stdout.write("Done. Codex AGENTS.md, custom agents, skills, and native hooks are ready.\n");
     return 0;
   } catch (error) {
     stderr.write(`${error.message}\n`);
@@ -395,6 +528,9 @@ module.exports = {
   findCodexBin,
   resolveCodexInvocation,
   copyCodexAgents,
+  copyCodexRuntime,
+  syncCodexAgentSkills,
+  installCodexHooks,
   readCodexMcpDefinitions,
   ensureCodexMcps,
   assertManagedPathSafe,

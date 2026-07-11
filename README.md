@@ -98,32 +98,20 @@ Una vez cargado el plugin en tu agente de chat:
   ```
 
 ### 🧠 Codex CLI
-- **Para usuarios finales** (sin clonar el repositorio):
-  ```powershell
-  codex plugin marketplace add snakeblack/ospec-workflow --ref release --sparse .agents/plugins --sparse plugins/codex/ospec-workflow
-  codex
-  ```
-  En Codex, ejecuta `/plugins`, selecciona el marketplace `ospec-tools`, selecciona `ospec-workflow` y confirma la instalación. `--ref release` fija la rama publicada y las rutas `--sparse` descargan el catálogo y su payload. Esta vía remota es distinta de `npm run setup:codex`, que compila e instala desde un clon local.
-  El plugin Codex no empaqueta MCPs para no duplicar servidores globales. Si no
-  existen, regístralos una vez con:
-  ```powershell
-  codex mcp add context7 -- npx @upstash/context7-mcp@1.0.31
-  codex mcp add markitdown -- uvx markitdown-mcp@0.0.1a4
-  ```
 - **Instalación Global (Recomendado)**:
   ```powershell
   npm run setup:codex
   ```
-  *(Compila `dist/codex`, registra `dist/codex-marketplace/`, reutiliza MCPs globales equivalentes o añade los que falten mediante `codex mcp`, y copia `.codex/agents/*.toml`.)*
+  *(Compila `dist/codex`, sincroniza `AGENTS.md`, agentes, skills y runtime en `~/.codex/`, fusiona hooks nativos en `~/.codex/hooks.json` y registra los MCP globales que falten.)*
 - **Instalación Local por repositorio**:
   ```powershell
   npm run install:codex -- ../mi-proyecto
   ```
-  *(Copia solo `.codex/agents/*.toml` al repo destino; no copia `.codex-plugin/plugin.json` ni modifica `.codex/config.toml`.)*
+  *(Copia solo `.codex/agents/*.toml` al repo destino y no modifica `.codex/config.toml`.)*
 
   Si una instalación previa dejó claves no compatibles en `.codex/config.toml`, elimínalas manualmente según el mensaje de Codex; este instalador no altera configuraciones propiedad del usuario.
 
-Consulta la [guía de instalación](docs/plugin-installation.md) para más detalles sobre instalación remota, desarrollo local, marketplace y confianza del plugin.
+Consulta la [guía de instalación](docs/plugin-installation.md) para más detalles sobre la instalación nativa global y el runtime de hooks.
 
 ## Qué incluye
 

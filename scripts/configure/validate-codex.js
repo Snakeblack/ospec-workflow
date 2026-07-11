@@ -244,6 +244,36 @@ function validateRootAgent(root, errors) {
   }
 }
 
+function validateNativeHooks(root, errors) {
+  const rel = "hooks.json";
+  if (pathType(root, rel) !== "file") {
+    addError(errors, "missing required file: hooks.json");
+    return;
+  }
+  const parsed = parseJsonFile(root, rel, errors);
+  if (!parsed || !parsed.hooks || typeof parsed.hooks !== "object" || Array.isArray(parsed.hooks)) {
+    addError(errors, "hooks.json must contain a hooks object");
+    return;
+  }
+  for (const [event, groups] of Object.entries(parsed.hooks)) {
+    if (!Array.isArray(groups) || groups.length === 0) {
+      addError(errors, `hooks.json hooks.${event} must be a non-empty array`);
+      continue;
+    }
+    for (const group of groups) {
+      if (!Array.isArray(group?.hooks) || group.hooks.length === 0) {
+        addError(errors, `hooks.json hooks.${event} must contain hook commands`);
+        continue;
+      }
+      for (const hook of group.hooks) {
+        if (typeof hook.command !== "string" || !hook.command.includes("__OSPEC_RUNTIME__")) {
+          addError(errors, `hooks.json hooks.${event} command must use the native runtime placeholder`);
+        }
+      }
+    }
+  }
+}
+
 function validate(root, deps = {}) {
   const errors = [];
   const warnings = [];
@@ -255,6 +285,7 @@ function validate(root, deps = {}) {
   }
 
   validateRootAgent(absRoot, errors);
+  validateNativeHooks(absRoot, errors);
   validateForbiddenPaths(absRoot, errors);
   validateForbiddenText(absRoot, errors, deps);
   const readFile = deps.readUtf8 || readUtf8;

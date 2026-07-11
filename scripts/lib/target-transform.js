@@ -320,8 +320,8 @@ function rewriteCodexCommand(file, event, index, entry) {
     throw new Error(`${file.path}: hooks.${event}[${index}].command must be a string`);
   }
 
-  const command = entry.command.split("${CLAUDE_PLUGIN_ROOT}").join("$PLUGIN_ROOT");
-  return quotePluginRootPath(command);
+  const command = entry.command.split("${CLAUDE_PLUGIN_ROOT}").join("__OSPEC_RUNTIME__");
+  return command.replace(/(?<!")__OSPEC_RUNTIME__\/[^^\s"]+/g, (match) => `"${match}"`);
 }
 
 // REQ-hooks-004: the exactly-five Codex hook events the wrapper supports.
@@ -334,7 +334,7 @@ const CODEX_WRAPPER_EVENTS = ["SessionStart", "PreToolUse", "PreCompact", "Subag
 // "$PLUGIN_ROOT/…" segment for a backslash-separated "%PLUGIN_ROOT%\…" form.
 // Runs on the already-quoted POSIX command so quoting is reused verbatim.
 function toCodexWindowsCommand(command) {
-  return command.replace(/\$PLUGIN_ROOT\/([^\s"]+)/g, (_match, rest) => `%PLUGIN_ROOT%\\${rest.split("/").join("\\")}`);
+  return command.replace(/__OSPEC_RUNTIME__\/([^\s"]+)/g, (_match, rest) => `__OSPEC_RUNTIME__\\${rest.split("/").join("\\")}`);
 }
 
 // Per-invocation Codex marker (review remediation, ADR-003 addendum):
@@ -346,11 +346,11 @@ function toCodexWindowsCommand(command) {
 // string rather than inherited ambient state; pre-tool-use.js/pretooluse.go
 // require BOTH before degrading ask -> allow.
 function withCodexWrapperMarker(command) {
-  return `OSPEC_CODEX_WRAPPER=1 ${command}`;
+  return `OSPEC_TARGET=codex OSPEC_CODEX_WRAPPER=1 ${command}`;
 }
 
 function withCodexWrapperMarkerWindows(command) {
-  return `set OSPEC_CODEX_WRAPPER=1&& ${command}`;
+  return `set OSPEC_TARGET=codex&& set OSPEC_CODEX_WRAPPER=1&& ${command}`;
 }
 
 // Reshape the source hooks for Codex (REQ-hooks-004 / ADR-003): per-event

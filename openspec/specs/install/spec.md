@@ -48,11 +48,11 @@ These targets have no plugin marketplace. The workflow is consumed by copying th
 
 The `--` separator is required to pass `<destRepo>` through npm to the script.
 
-### 1.3 Codex — Marketplace Registration and Agent Copy
+### 1.3 Codex — Native Global Installation
 
-Codex installs the generated plugin through a local marketplace and copies generated `.codex/agents/*.toml` files separately. `npm run setup:codex` also registers only missing global MCP definitions through `codex mcp add`, deduplicating by command plus ordered arguments and preserving name collisions. `npm run install:codex -- <destRepo>` targets `<destRepo>/.codex/agents/` and MUST NOT modify the destination project's `.codex/config.toml`.
+`npm run setup:codex` MUST install the generated `AGENTS.md`, `.codex/agents/*.toml`, skills, runtime scripts and native `hooks.json` under the user's `~/.codex/` without a plugin or marketplace. It MUST register only missing global MCP definitions through `codex mcp add`, deduplicating by command plus ordered arguments and preserving name collisions. It MUST merge its own hook groups while preserving user-owned groups. `npm run install:codex -- <destRepo>` targets `<destRepo>/.codex/agents/` and MUST NOT modify the destination project's `.codex/config.toml`.
 
-The generated Codex tree MUST contain `.codex-plugin/plugin.json` and `.codex/agents/*.toml`, and MUST NOT contain `.codex/config.toml` or `.mcp.json`. The Codex validator MUST reject either generated config artifact and a manifest `mcpServers` field. If an earlier installation left unsupported keys in a user configuration, manual cleanup is required; the installer MUST NOT destructively remove unrelated entries.
+The generated Codex tree MUST contain `agent.md`, `.codex/agents/*.toml`, `skills/`, runtime `scripts/` and `hooks.json`, and MUST NOT contain `.codex-plugin/`, `.codex/config.toml` or `.mcp.json`. The Codex validator MUST reject generated config and plugin artifacts, and require a valid native hooks payload with the runtime placeholder.
 
 ### 1.4 VSCode
 
@@ -354,32 +354,31 @@ And the non-empty directory is left untouched
 
 ## 8. Requirements for Codex Installation
 
-### Requirement: Codex Plugin and TOML Agent Installation Via Separate Idempotent Channels {#REQ-install-001}
+### Requirement: Native Codex Global Installation Is Idempotent {#REQ-install-001}
 
-`install-codex.js` MUST install/update the generated plugin payload, required global MCP
-definitions, and generated TOML agent files (`.codex/agents/*.toml`) through separate channels — no channel
-MUST write to, merge into, or otherwise modify the other's target location — and BOTH
-channels MUST be idempotent: re-running the same install command a second time MUST
-converge to the same final state without duplicating entries or corrupting prior output.
+`install-codex.js` MUST install the generated AGENTS guidance, TOML agents, skills, hook runtime,
+native hook configuration, and required global MCP definitions without using a plugin or marketplace.
+The native installation MUST be idempotent: re-running the same install command a second time MUST
+converge to the same final state without duplicating managed hook groups or corrupting prior output.
 The MCP channel MUST use the native Codex CLI, reuse an existing server with the same
 command and ordered arguments even when its name differs, and preserve an existing
 same-name server with a different identity. The repository-local install MUST leave the
 destination `.codex/config.toml` byte-for-byte unchanged.
 
-#### Scenario: First install writes plugin and agents via separate channels
+#### Scenario: First install writes the native global runtime
 
 - GIVEN no prior Codex install exists at the destination
 - WHEN `npm run setup:codex` (or `install:codex -- <destRepo>`) runs
-- THEN the plugin payload is installed via its channel and `.codex/agents/*.toml` files
-  are installed via a separate channel
-- AND neither channel's write touches the other channel's target path
+- THEN `AGENTS.md`, `.codex/agents/*.toml`, skills, runtime scripts and `hooks.json`
+  are installed under the global Codex home
+- AND the hook configuration contains no unresolved runtime placeholder
 
 #### Scenario: Re-running install is idempotent
 
 - GIVEN a prior successful Codex install exists at the destination
 - WHEN the same install command is re-run unchanged
-- THEN the resulting plugin and agent files are identical to the prior run (no
-  duplicate TOML entries, no drift in unrelated files)
+- THEN the resulting managed files are identical to the prior run (no duplicate
+  TOML entries, hook groups, or drift in unrelated hook groups)
 - AND each required MCP command identity exists at most once
 
 #### Scenario: Project config.toml never touched
