@@ -1,6 +1,6 @@
 {
   "name": "ospec-workflow",
-  "version": "2.25.3",
+  "version": "2.25.4",
   "private": true,
   "description": "Spec-Driven Development workflow with OpenSpec, strict TDD, phase agents, skills, hooks, and verification contracts.",
   "license": "MIT",
