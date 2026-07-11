@@ -38,6 +38,62 @@ const SUBCOMMANDS = new Set([
 // path, so emitting it here keeps the contract consistent.
 const CONTINUE = '{"continue":true}\n';
 
+function parseLastJson(stdout) {
+  const lines = String(stdout || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    try {
+      return JSON.parse(lines[index]);
+    } catch {
+      // Hook diagnostics may precede the result envelope.
+    }
+  }
+  return null;
+}
+
+// Codex's native hook protocol is narrower than OSpec's internal envelopes.
+// Keep this boundary in the launcher so the phase/runtime logic remains shared
+// with the other targets and no plugin-specific adapter is needed.
+function normalizeCodexHookOutput(subcommand, output) {
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
+    return {};
+  }
+
+  if (subcommand === "session-start") {
+    const context = typeof output.systemMessage === "string" && output.systemMessage.trim()
+      ? output.systemMessage.trim()
+      : JSON.stringify(Object.fromEntries(Object.entries(output).filter(([key]) => key !== "status")));
+    return context && context !== "{}"
+      ? { hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: context } }
+      : {};
+  }
+
+  if (subcommand === "pre-tool-use") {
+    const decision = output.hookSpecificOutput?.permissionDecision;
+    const reason = output.hookSpecificOutput?.permissionDecisionReason || output.systemMessage;
+    if (decision === "deny") {
+      return {
+        hookSpecificOutput: {
+          hookEventName: "PreToolUse",
+          permissionDecision: "deny",
+          permissionDecisionReason: reason || "Blocked by OSpec policy.",
+        },
+      };
+    }
+    if (decision === "ask") {
+      return reason
+        ? { hookSpecificOutput: { hookEventName: "PreToolUse", additionalContext: reason } }
+        : {};
+    }
+    // An allow decision without updatedInput is invalid in Codex. Empty output
+    // preserves the normal approval flow for safe OSpec decisions.
+    return {};
+  }
+
+  return typeof output.systemMessage === "string" && output.systemMessage.trim()
+    ? { systemMessage: output.systemMessage.trim() }
+    : {};
+}
+
 // node platform/arch -> Go GOOS/GOARCH + executable extension, matching the
 // names produced by build-hooks.yml and install-target.js (hostBinarySuffix).
 function hostBinarySuffix(platform = process.platform, arch = process.arch) {
@@ -136,13 +192,20 @@ function main(argv, scriptDir = __dirname) {
   }
 
   const { command, args } = resolveInvocation(sub, scriptDir);
-  // stdio:inherit hands the child the original hook payload on stdin and pipes
-  // its result straight back to Claude Code; the launcher reads nothing itself.
-  const result = spawnSync(command, args, { stdio: "inherit" });
+  const input = fs.readFileSync(0, "utf8");
+  const result = spawnSync(command, args, { input, encoding: "utf8" });
 
   if (result.error) {
     process.stdout.write(CONTINUE);
     return 0;
+  }
+  if (result.stderr) {
+    process.stderr.write(result.stderr);
+  }
+  if (process.env.OSPEC_TARGET === "codex") {
+    process.stdout.write(`${JSON.stringify(normalizeCodexHookOutput(sub, parseLastJson(result.stdout)))}\n`);
+  } else if (result.stdout) {
+    process.stdout.write(result.stdout);
   }
   return result.status == null ? 0 : result.status;
 }
@@ -157,5 +220,6 @@ module.exports = {
   binaryCandidates,
   resolveBinary,
   resolveInvocation,
+  normalizeCodexHookOutput,
   main,
 };

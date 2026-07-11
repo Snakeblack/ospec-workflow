@@ -79,8 +79,13 @@ module.exports = {
   // env-expansion convention as claude/github-copilot.
   mcpPlaceholders: { style: "env-expansion" },
 
-  // Drop the Claude/VS Code/plugin specific files since Codex is no longer a plugin
-  drop: [".claude-plugin/", "hooks/hooks.json", ".mcp.json"],
+  // Codex loads native lifecycle hooks from hooks.json.  The installer expands
+  // the runtime placeholder to ~/.codex/ospec-workflow, so this remains a
+  // plugin-free global installation.
+  hooks: { format: "codex", source: "hooks/hooks.json", location: "hooks.json" },
+
+  // Drop the Claude/VS Code/plugin specific files since Codex is no longer a plugin.
+  drop: [".claude-plugin/", ".mcp.json"],
   managedRoots: [".mcp.json"],
 
   validate: ["node", "scripts/configure/validate-codex.js", "{out}"],

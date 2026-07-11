@@ -187,6 +187,13 @@ test("validate-codex rejects missing agent.md", (t) => {
   assert.match(result.errors.join("\n"), /missing required file: agent.md/);
 });
 
+test("validate-codex rejects a missing native hooks payload", (t) => {
+  const out = makeValidCodexTree(t);
+
+  const result = validate(out);
+  assert.match(result.errors.join("\n"), /missing required file: hooks\.json/i);
+});
+
 test("validate-codex rejects forbidden plugin.json and hooks paths", (t) => {
   const root = makeValidCodexTree(t);
   fs.mkdirSync(path.join(root, ".codex-plugin"), { recursive: true });

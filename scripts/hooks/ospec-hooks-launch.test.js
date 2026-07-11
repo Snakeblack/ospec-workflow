@@ -10,6 +10,7 @@ const {
   binaryCandidates,
   resolveBinary,
   resolveInvocation,
+  normalizeCodexHookOutput,
 } = require("./ospec-hooks-launch.js");
 
 const HOOKS_DIR = path.join("plugins", "ospec-workflow", "scripts", "hooks");
@@ -128,6 +129,46 @@ test("resolveInvocation handles missing config file gracefully, defaulting to op
     command: platform,
     args: ["session-start"],
   });
+});
+
+test("normalizeCodexHookOutput wraps SessionStart context in the native hook shape", () => {
+  const output = normalizeCodexHookOutput("session-start", {
+    status: "ok",
+    ospecDetected: true,
+    systemMessage: "Read the workspace state.",
+  });
+
+  assert.deepEqual(output, {
+    hookSpecificOutput: {
+      hookEventName: "SessionStart",
+      additionalContext: "Read the workspace state.",
+    },
+  });
+});
+
+test("normalizeCodexHookOutput emits PreToolUse context for advisory decisions and no allow decision", () => {
+  const advisory = normalizeCodexHookOutput("pre-tool-use", {
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "ask",
+      permissionDecisionReason: "Review this command.",
+    },
+  });
+  const allow = normalizeCodexHookOutput("pre-tool-use", {
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "allow",
+      permissionDecisionReason: "Safe command.",
+    },
+  });
+
+  assert.deepEqual(advisory, {
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      additionalContext: "Review this command.",
+    },
+  });
+  assert.deepEqual(allow, {});
 });
 
 

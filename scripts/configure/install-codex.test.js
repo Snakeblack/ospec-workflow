@@ -11,6 +11,9 @@ const {
   findCodexBin,
   resolveCodexInvocation,
   copyCodexAgents,
+  installCodexHooks,
+  copyCodexRuntime,
+  syncCodexAgentSkills,
   readCodexMcpDefinitions,
   ensureCodexMcps,
   assertManagedPathSafe,
@@ -33,6 +36,22 @@ function writeGeneratedCodexTree(root) {
   fs.writeFileSync(path.join(root, ".codex", "agents", "verify.toml"), 'name = "verify"\n');
   fs.writeFileSync(path.join(root, ".codex", "agents", "README.md"), "ignore\n");
   fs.writeFileSync(path.join(root, "agent.md"), "orchestrator instructions\n");
+  fs.mkdirSync(path.join(root, "scripts", "hooks"), { recursive: true });
+  fs.mkdirSync(path.join(root, "skills", "apply"), { recursive: true });
+  fs.mkdirSync(path.join(root, "skills", "verify"), { recursive: true });
+  fs.mkdirSync(path.join(root, "skills", "_shared"), { recursive: true });
+  fs.writeFileSync(path.join(root, "scripts", "hooks", "session-start.js"), "// runtime\n");
+  fs.writeFileSync(path.join(root, "skills", "apply", "SKILL.md"), "# Apply\n");
+  fs.writeFileSync(path.join(root, "skills", "verify", "SKILL.md"), "# Verify\n");
+  fs.writeFileSync(path.join(root, "skills", "_shared", "shared.md"), "shared\n");
+  fs.writeFileSync(
+    path.join(root, "hooks.json"),
+    JSON.stringify({
+      hooks: {
+        SessionStart: [{ matcher: ".*", hooks: [{ type: "command", command: 'OSPEC_TARGET=codex OSPEC_CODEX_WRAPPER=1 node "__OSPEC_RUNTIME__/scripts/hooks/session-start.js"', commandWindows: 'set OSPEC_TARGET=codex&& set OSPEC_CODEX_WRAPPER=1&& node "__OSPEC_RUNTIME__\\scripts\\hooks\\session-start.js"', timeout: 10 }] }],
+      },
+    }, null, 2),
+  );
 }
 
 test("parseArgs parses global setup defaults and repo install flags", () => {
@@ -80,6 +99,47 @@ test("copyCodexAgents copies only TOML agents and preserves unrelated files", (t
   assert.ok(fs.existsSync(path.join(destDir, "verify.toml")));
   assert.ok(!fs.existsSync(path.join(destDir, "README.md")));
   assert.equal(fs.readFileSync(path.join(destDir, "notes.txt"), "utf8"), "keep\n");
+});
+
+test("global native runtime installs hooks and keeps skills outside the runtime", (t) => {
+  const outDir = makeTempDir(t, "codex-runtime-source-");
+  const codexRoot = makeTempDir(t, "codex-runtime-dest-");
+  writeGeneratedCodexTree(outDir);
+  fs.writeFileSync(
+    path.join(codexRoot, "hooks.json"),
+    JSON.stringify({ hooks: { Stop: [{ matcher: "^Bash$", hooks: [{ type: "command", command: "user-hook" }] }] } }),
+  );
+
+  const runtimeDir = path.join(codexRoot, "ospec-workflow");
+  const skillsRoot = path.join(codexRoot, "..", ".agents", "skills");
+  copyCodexRuntime(outDir, runtimeDir);
+  syncCodexAgentSkills(outDir, skillsRoot);
+  installCodexHooks(outDir, codexRoot, runtimeDir);
+
+  const installed = JSON.parse(fs.readFileSync(path.join(codexRoot, "hooks.json"), "utf8"));
+  assert.equal(installed.hooks.Stop[0].hooks[0].command, "user-hook");
+  assert.match(installed.hooks.SessionStart[0].hooks[0].command, /ospec-workflow[\\/]scripts[\\/]hooks/);
+  assert.doesNotMatch(installed.hooks.SessionStart[0].hooks[0].command, /__OSPEC_RUNTIME__/);
+  assert.ok(fs.existsSync(path.join(runtimeDir, "scripts", "hooks", "session-start.js")));
+  assert.ok(!fs.existsSync(path.join(runtimeDir, "skills")));
+  assert.equal(fs.readFileSync(path.join(skillsRoot, "apply", "SKILL.md"), "utf8"), "# Apply\n");
+  assert.equal(fs.readFileSync(path.join(skillsRoot, "verify", "SKILL.md"), "utf8"), "# Verify\n");
+  assert.ok(fs.existsSync(path.join(skillsRoot, "_shared", "shared.md")));
+});
+
+test("syncCodexAgentSkills updates differing content and skips byte-identical files", (t) => {
+  const outDir = makeTempDir(t, "codex-skills-source-");
+  const skillsRoot = makeTempDir(t, "codex-skills-dest-");
+  writeGeneratedCodexTree(outDir);
+  fs.mkdirSync(path.join(skillsRoot, "apply"), { recursive: true });
+  fs.writeFileSync(path.join(skillsRoot, "apply", "SKILL.md"), "old\n");
+
+  const first = syncCodexAgentSkills(outDir, skillsRoot);
+  const second = syncCodexAgentSkills(outDir, skillsRoot);
+
+  assert.equal(fs.readFileSync(path.join(skillsRoot, "apply", "SKILL.md"), "utf8"), "# Apply\n");
+  assert.ok(first.updated.some((file) => file.endsWith(path.join("apply", "SKILL.md"))));
+  assert.equal(second.updated.length, 0);
 });
 
 
@@ -399,38 +459,40 @@ test("package.json exposes Codex build and install scripts", () => {
   assert.equal(pkg.scripts["install:codex"], "node scripts/configure/install-codex.js");
 });
 
-test("README documents Codex commands, agent-only installation, and manual stale-config cleanup", () => {
+test("README documents the native global Codex installation", () => {
   const readme = readRepoFile("README.md");
 
   assert.match(readme, /`codex` \|/);
   assert.match(readme, /npm run setup:codex/);
   assert.match(readme, /npm run install:codex --/);
-  assert.match(readme, /\.codex\/agents/);
+  assert.match(readme, /hooks\.json/);
+  assert.match(readme, /ospec-workflow/);
+  assert.doesNotMatch(readme, /codex plugin marketplace add/i);
   assert.doesNotMatch(readme, /fusiona `.codex\/config\.toml`/);
   assert.match(readme, /claves no compatibles/i);
   assert.match(readme, /manualmente/i);
 });
 
-test("plugin-installation guide documents Codex fallback, agent-only copy, and manual stale-config cleanup", () => {
+test("plugin-installation guide documents native global Codex hooks and runtime", () => {
   const doc = readRepoFile("docs", "plugin-installation.md");
 
-  assert.match(doc, /codex plugin marketplace add/i);
-  assert.match(doc, /\/plugins/);
-  assert.doesNotMatch(doc, /codex plugin add/i);
-  assert.match(doc, /\.codex\/agents/);
+  assert.match(doc, /Instalación global nativa/i);
+  assert.match(doc, /hooks\.json/);
+  assert.match(doc, /ospec-workflow/);
   assert.doesNotMatch(doc, /fusiona.*\.codex\/config\.toml/i);
   assert.match(doc, /claves no compatibles/i);
   assert.match(doc, /manualmente/i);
 });
 
-test("install baseline specifies the Codex agent-only contract", () => {
+test("install baseline specifies the native global Codex contract", () => {
   const spec = readRepoFile("openspec", "specs", "install", "spec.md");
 
-  assert.match(spec, /\.codex\/agents\/\*\.toml/);
+  assert.match(spec, /hooks\.json/);
+  assert.match(spec, /without a plugin or marketplace/i);
   assert.match(spec, /MUST NOT modify the destination project's `\.codex\/config\.toml`/i);
   assert.match(spec, /codex mcp add/i);
   assert.match(spec, /command plus ordered arguments/i);
-  assert.match(spec, /manual cleanup/i);
+  assert.match(spec, /runtime placeholder/i);
 });
 
 test("assertManagedPathSafe: accepts valid paths inside the root", (t) => {

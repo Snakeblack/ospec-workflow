@@ -8,6 +8,12 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.25.4] - 2026-07-11
+
+### Fixed
+- **Target Codex nativo y global**: `setup:codex` instala agentes, skills y hooks directamente en la configuración global de Codex, sin marketplace ni plugin residual. Los hooks de `SessionStart` y `PreToolUse` emiten ahora el protocolo nativo válido de Codex.
+- **Sincronización idempotente de skills por agente**: cada agente instalado referencia exclusivamente su skill homónima; el instalador compara el contenido completo y solo actualiza las skills que difieren, conservando los recursos ajenos. El runtime ya no duplica skills y elimina el perfil TOML obsoleto del orquestador, cuya configuración pertenece a `AGENTS.md`.
+
 ## [2.25.3] - 2026-07-11
 
 ### Fixed
