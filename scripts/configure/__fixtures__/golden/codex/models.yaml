@@ -1,0 +1,17 @@
+agents:
+  sdd-orchestrator: premium
+  sdd-apply: default
+  _default: default
+
+tiers:
+  premium:
+    claude: opus
+    vscode: ["Claude Opus 4.8 (copilot)"]
+    opencode: anthropic/claude-opus-4-8
+  default:
+    claude: sonnet
+    vscode: ["Claude Sonnet 4.6 (copilot)"]
+    opencode: anthropic/claude-sonnet-4-6
+  cheap:
+    claude: haiku
+    opencode: anthropic/claude-haiku-4-6

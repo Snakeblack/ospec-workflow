@@ -171,4 +171,40 @@ test("normalizeCodexHookOutput emits PreToolUse context for advisory decisions a
   assert.deepEqual(allow, {});
 });
 
+test("main passes OSPEC_PLUGIN_ROOT env var when spawning", (t) => {
+  const cp = require("node:child_process");
+  const origSpawnSync = cp.spawnSync;
+  
+  let spawnedOptions = null;
+  cp.spawnSync = (command, args, options) => {
+    spawnedOptions = options;
+    return { status: 0, stdout: '{"continue":true}', stderr: "" };
+  };
+  
+  t.after(() => {
+    cp.spawnSync = origSpawnSync;
+  });
+
+  // Clear require cache so it re-reads the mocked spawnSync
+  delete require.cache[require.resolve("./ospec-hooks-launch.js")];
+  const { main } = require("./ospec-hooks-launch.js");
+  const fs = require("node:fs");
+  const origReadFileSync = fs.readFileSync;
+  fs.readFileSync = (fd, encoding) => {
+    if (fd === 0) return '{"cwd":"/workspace"}';
+    return origReadFileSync(fd, encoding);
+  };
+  t.after(() => {
+    fs.readFileSync = origReadFileSync;
+    delete require.cache[require.resolve("./ospec-hooks-launch.js")];
+  });
+
+  main(["stop"], __dirname);
+
+  assert.ok(spawnedOptions);
+  assert.ok(spawnedOptions.env);
+  assert.equal(spawnedOptions.env.OSPEC_PLUGIN_ROOT, path.resolve(__dirname, "../.."));
+});
+
+
 

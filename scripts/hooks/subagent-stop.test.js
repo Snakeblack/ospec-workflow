@@ -551,6 +551,7 @@ test("appendPhaseCost writes a JSONL line under .ospec/session/{change}/phase-co
     est_tokens: 42,
     status: "success",
     ts: "2026-07-04T15:00:00.000Z",
+    relaunch: false,
   });
 });
 
@@ -622,8 +623,8 @@ test("persistPhaseCost writes a record for an active change (phase, agent, est_t
   assert.equal(records[0].phase, "design");
   assert.equal(records[0].agent, "sdd-design");
   assert.equal(records[0].status, "success");
-  assert.equal(typeof records[0].est_tokens, "number");
-  assert.ok(records[0].est_tokens > 0);
+  assert.equal(typeof records[0].estimated_output_tokens, "number");
+  assert.ok(records[0].estimated_output_tokens > 0);
   assert.equal(typeof records[0].ts, "string");
 });
 
@@ -753,3 +754,155 @@ test("resolveDispatchStatus falls back to top-level input.status, then 'unknown'
   );
   assert.equal(await resolveDispatchStatus({ result: "no fence, no status" }), "unknown");
 });
+
+// Task 1.1 RED: resolveModelTier tests
+test("resolveModelTier resolves correct tiers and handles fallbacks/failures", async () => {
+  const { resolveModelTier } = require("./lib/model-tier.js");
+  const testYamlDir = path.resolve(__dirname, "../../"); // Has models.yaml in workspace root
+  
+  assert.equal(resolveModelTier("sdd-design", testYamlDir), "premium");
+  assert.equal(resolveModelTier("sdd-apply", testYamlDir), "default");
+  assert.equal(resolveModelTier("sdd-nonexistent", testYamlDir), "default"); // Fallback to _default
+  assert.equal(resolveModelTier("sdd-design", "/invalid-path"), "unknown"); // Missing file -> unknown
+});
+
+// Task 1.1 RED: normalizeDispatchCostContext tests
+test("normalizeDispatchCostContext handles alias precedence, integers, UTF-8 segments, status and duration", () => {
+  const { normalizeDispatchCostContext } = require("./subagent-stop.js");
+  
+  // 1. Alias precedence for integer values
+  const input1 = {
+    telemetry: {
+      estimated_prompt_tokens: 10,
+      estimated_artifact_tokens: 20,
+      estimated_tool_output_tokens: 30,
+      estimated_output_tokens: 40,
+      duration_ms: 1000
+    },
+    estimated_prompt_tokens: 100, // should be ignored as telemetry.estimated_prompt_tokens has priority
+    usage: {
+      prompt_tokens: 1000 // should be ignored
+    }
+  };
+  const ctx1 = normalizeDispatchCostContext(input1);
+  assert.equal(ctx1.prompt, 10);
+  assert.equal(ctx1.artifact, 20);
+  assert.equal(ctx1.tool_output, 30);
+  assert.equal(ctx1.output, 40);
+  assert.equal(ctx1.duration_ms, 1000);
+
+  // 2. Fallbacks for integers and alias precedence
+  const input2 = {
+    estimated_prompt_tokens: 100,
+    usage: {
+      prompt_tokens: 1000
+    },
+    usage: {
+      artifact_tokens: 200,
+      tool_output_tokens: 300,
+      output_tokens: 400
+    },
+    duration_ms: 2000
+  };
+  const ctx2 = normalizeDispatchCostContext(input2);
+  assert.equal(ctx2.prompt, 100);
+  assert.equal(ctx2.artifact, 200);
+  assert.equal(ctx2.tool_output, 300);
+  assert.equal(ctx2.output, 400);
+  assert.equal(ctx2.duration_ms, 2000);
+
+  // 3. UTF-8 segment heuristics when integers are missing/invalid
+  const input3 = {
+    telemetry: {
+      prompt: "café", // 5 UTF-8 bytes -> ceil(5/4) = 2
+      artifact: "abcd", // 4 bytes -> ceil(4/4) = 1
+      tool_output: "", // 0 bytes -> 0
+      output: "a" // 1 byte -> 1
+    },
+    telemetry_estimated_prompt_tokens: -5, // invalid integer
+  };
+  const ctx3 = normalizeDispatchCostContext(input3);
+  assert.equal(ctx3.prompt, 2);
+  assert.equal(ctx3.artifact, 1);
+  assert.equal(ctx3.tool_output, 0);
+  assert.equal(ctx3.output, 1);
+
+  // 4. Existing RESULT_FIELDS fallback for output segment
+  const input4 = {
+    response: "hello", // RESULT_FIELDS has "response" before "message", etc. 5 bytes -> 2
+    message: "longer message"
+  };
+  const ctx4 = normalizeDispatchCostContext(input4);
+  assert.equal(ctx4.output, 2);
+
+  // 5. Invalid segments produce 0
+  const input5 = {
+    prompt: 12345, // not a string
+    telemetry: {
+      artifact: { some: "object" } // not a string
+    }
+  };
+  const ctx5 = normalizeDispatchCostContext(input5);
+  assert.equal(ctx5.prompt, 0);
+  assert.equal(ctx5.artifact, 0);
+});
+
+test("persistPhaseCost writes a complete normalized O1 record with correct fields", async (t) => {
+  const { workspace } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+
+  const modelsContent = `
+agents:
+  sdd-design: premium
+  sdd-apply: default
+  _default: default
+tiers:
+  premium:
+    claude: opus
+  default:
+    claude: sonnet
+`;
+  await fs.writeFile(path.join(workspace, "models.yaml"), modelsContent);
+
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      status: "success",
+      estimated_prompt_tokens: 12,
+      telemetry: {
+        estimated_artifact_tokens: 34,
+        estimated_tool_output_tokens: 56,
+        output: "hello world"
+      },
+      duration_ms: 500,
+    },
+  });
+
+  const costFile = path.join(
+    workspace,
+    ".ospec",
+    "session",
+    "strict-result-envelope",
+    PHASE_COST_FILE_NAME,
+  );
+  const data = await fs.readFile(costFile, "utf8");
+  const record = JSON.parse(data.trim());
+
+  assert.equal(record.phase, "design");
+  assert.equal(record.agent, "sdd-design");
+  assert.equal(record.estimated_prompt_tokens, 12);
+  assert.equal(record.estimated_artifact_tokens, 34);
+  assert.equal(record.estimated_tool_output_tokens, 56);
+  assert.equal(record.estimated_output_tokens, 3);
+  assert.equal(record.duration_ms, 500);
+  assert.equal(record.model_tier, "premium");
+  assert.equal(record.status, "success");
+  assert.equal(record.relaunch, false);
+  assert.equal(typeof record.ts, "string");
+  assert.ok(record.ts.endsWith("Z")); // ISO 8601 UTC
+});
+
+

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snakeblack/ospec-workflow/internal/modelconfig"
 	"github.com/snakeblack/ospec-workflow/internal/resultenvelope"
 	"github.com/snakeblack/ospec-workflow/internal/store"
 	"github.com/snakeblack/ospec-workflow/internal/yamllite"
@@ -416,6 +417,157 @@ func atomicWriteFile(dst, content string) error {
 	return nil
 }
 
+// getValidInt checks if a value is a float64 (or int/int64) that represents a finite non-negative integer.
+func getValidInt(v any) (int, bool) {
+	if v == nil {
+		return 0, false
+	}
+	switch val := v.(type) {
+	case float64:
+		if val >= 0 && val == float64(int(val)) {
+			return int(val), true
+		}
+	case int:
+		if val >= 0 {
+			return val, true
+		}
+	case int64:
+		if val >= 0 {
+			return int(val), true
+		}
+	}
+	return 0, false
+}
+
+func getNestedValue(obj any, pathStr string) any {
+	parts := strings.Split(pathStr, ".")
+	var current any = obj
+	for _, part := range parts {
+		m, ok := current.(map[string]any)
+		if !ok {
+			return nil
+		}
+		current, ok = m[part]
+		if !ok {
+			return nil
+		}
+	}
+	return current
+}
+
+func resolveIntField(input map[string]any, paths []string) (int, bool) {
+	for _, p := range paths {
+		val := getNestedValue(input, p)
+		if num, ok := getValidInt(val); ok {
+			return num, true
+		}
+	}
+	return 0, false
+}
+
+func resolveSegmentField(input map[string]any, paths []string) (string, bool) {
+	for _, p := range paths {
+		val := getNestedValue(input, p)
+		if s, ok := val.(string); ok {
+			return s, true
+		}
+	}
+	return "", false
+}
+
+// NormalizeDispatchCostContext normalizes host input into standard cost fields.
+// Exported for testing.
+func NormalizeDispatchCostContext(input map[string]any) map[string]any {
+	// prompt
+	prompt, ok := resolveIntField(input, []string{
+		"telemetry.estimated_prompt_tokens",
+		"estimated_prompt_tokens",
+		"usage.prompt_tokens",
+	})
+	if !ok {
+		segment, ok := resolveSegmentField(input, []string{"telemetry.prompt", "prompt"})
+		if ok && len(segment) > 0 {
+			prompt = (len(segment) + 3) / 4
+		} else {
+			prompt = 0
+		}
+	}
+
+	// artifact
+	artifact, ok := resolveIntField(input, []string{
+		"telemetry.estimated_artifact_tokens",
+		"estimated_artifact_tokens",
+		"usage.artifact_tokens",
+	})
+	if !ok {
+		segment, ok := resolveSegmentField(input, []string{"telemetry.artifact", "artifact"})
+		if ok && len(segment) > 0 {
+			artifact = (len(segment) + 3) / 4
+		} else {
+			artifact = 0
+		}
+	}
+
+	// tool_output
+	toolOutput, ok := resolveIntField(input, []string{
+		"telemetry.estimated_tool_output_tokens",
+		"estimated_tool_output_tokens",
+		"usage.tool_output_tokens",
+	})
+	if !ok {
+		segment, ok := resolveSegmentField(input, []string{"telemetry.tool_output", "tool_output"})
+		if ok && len(segment) > 0 {
+			toolOutput = (len(segment) + 3) / 4
+		} else {
+			toolOutput = 0
+		}
+	}
+
+	// output
+	output, ok := resolveIntField(input, []string{
+		"telemetry.estimated_output_tokens",
+		"estimated_output_tokens",
+		"usage.output_tokens",
+	})
+	if !ok {
+		segment, ok := resolveSegmentField(input, []string{"telemetry.output"})
+		if !ok {
+			payload := resolveResultPayload(input)
+			if payload != nil {
+				if s, isStr := payload.(string); isStr {
+					segment = s
+					ok = true
+				} else {
+					b, err := json.Marshal(payload)
+					if err == nil {
+						segment = string(b)
+						ok = true
+					}
+				}
+			}
+		}
+		if ok && len(segment) > 0 {
+			output = (len(segment) + 3) / 4
+		} else {
+			output = 0
+		}
+	}
+
+	// duration_ms
+	duration, ok := resolveIntField(input, []string{"telemetry.duration_ms", "duration_ms"})
+	if !ok {
+		duration = 0
+	}
+
+	return map[string]any{
+		"prompt":      prompt,
+		"artifact":    artifact,
+		"tool_output": toolOutput,
+		"output":      output,
+		"duration_ms": duration,
+	}
+}
+
 // derivePhaseKey strips the "sdd-" prefix from an agent name to derive its
 // phase key. Returns "" when the agent name does not carry the prefix.
 // Shared between persistResultEnvelope and persistPhaseCost (REFACTOR, task
@@ -517,16 +669,29 @@ func persistPhaseCost(input map[string]any, workspace string) {
 	}
 	changeName := activeChanges[0].DirectoryName
 
-	payload := resolveResultPayload(input)
-	estTokens := EstimateResultTokens(payload)
+	ctx := NormalizeDispatchCostContext(input)
 	status := resolveDispatchStatus(input)
 
+	pluginRoot := os.Getenv("OSPEC_PLUGIN_ROOT")
+	if pluginRoot == "" {
+		exePath, err := os.Executable()
+		if err == nil {
+			pluginRoot = filepath.Dir(filepath.Dir(exePath))
+		}
+	}
+	modelTier := modelconfig.ResolveModelTier(agentName, pluginRoot)
+
 	record := map[string]any{
-		"phase":      phase,
-		"agent":      agentName,
-		"est_tokens": estTokens,
-		"status":     status,
-		"ts":         time.Now().UTC().Format(time.RFC3339Nano),
+		"phase":                        phase,
+		"agent":                        agentName,
+		"estimated_prompt_tokens":      ctx["prompt"],
+		"estimated_artifact_tokens":    ctx["artifact"],
+		"estimated_tool_output_tokens": ctx["tool_output"],
+		"estimated_output_tokens":      ctx["output"],
+		"duration_ms":                  ctx["duration_ms"],
+		"model_tier":                  modelTier,
+		"status":                       status,
+		"ts":                           time.Now().UTC().Format(time.RFC3339Nano),
 	}
 	line, marshalErr := json.Marshal(record)
 	if marshalErr != nil {

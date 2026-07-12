@@ -361,3 +361,54 @@ func TestReadBaselineState(t *testing.T) {
 		}
 	})
 }
+
+func TestAppendPhaseCost_Relaunch(t *testing.T) {
+	ws := makeWorkspace(t)
+	s := store.NewStore(ws)
+
+	// First append for apply phase: relaunch should be false
+	err := s.AppendPhaseCost("add-x", []byte(`{"phase":"apply","agent":"sdd-apply"}`))
+	if err != nil {
+		t.Fatalf("first append failed: %v", err)
+	}
+
+	// Second append for apply phase: relaunch should be true
+	err = s.AppendPhaseCost("add-x", []byte(`{"phase":"apply","agent":"sdd-apply"}`))
+	if err != nil {
+		t.Fatalf("second append failed: %v", err)
+	}
+
+	// Append for design phase: relaunch should be false
+	err = s.AppendPhaseCost("add-x", []byte(`{"phase":"design","agent":"sdd-design"}`))
+	if err != nil {
+		t.Fatalf("design append failed: %v", err)
+	}
+
+	// Read and verify records
+	costFile := filepath.Join(ws, ".ospec", "session", "add-x", "phase-costs.jsonl")
+	data, err := os.ReadFile(costFile)
+	if err != nil {
+		t.Fatalf("read failed: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 lines, got %d", len(lines))
+	}
+
+	var r1, r2, r3 map[string]any
+	json.Unmarshal([]byte(lines[0]), &r1)
+	json.Unmarshal([]byte(lines[1]), &r2)
+	json.Unmarshal([]byte(lines[2]), &r3)
+
+	if r1["relaunch"] != false {
+		t.Errorf("r1 relaunch: got %v, want false", r1["relaunch"])
+	}
+	if r2["relaunch"] != true {
+		t.Errorf("r2 relaunch: got %v, want true", r2["relaunch"])
+	}
+	if r3["relaunch"] != false {
+		t.Errorf("r3 relaunch: got %v, want false", r3["relaunch"])
+	}
+}
+

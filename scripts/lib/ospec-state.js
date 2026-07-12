@@ -732,9 +732,35 @@ async function appendPhaseCost({ workspace, changeName, record }) {
   );
 
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await withFileLock(filePath, () =>
-    fs.appendFile(filePath, `${JSON.stringify(record)}\n`, "utf8"),
-  );
+  await withFileLock(filePath, async () => {
+    let hasPrior = false;
+    try {
+      const content = await fs.readFile(filePath, "utf8");
+      const lines = content.split(/\r?\n/);
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          continue;
+        }
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (parsed && parsed.phase === record.phase) {
+            hasPrior = true;
+            break;
+          }
+        } catch {
+          // ignore malformed lines
+        }
+      }
+    } catch (err) {
+      if (err.code !== "ENOENT") {
+        throw err;
+      }
+    }
+
+    record.relaunch = hasPrior;
+    await fs.appendFile(filePath, `${JSON.stringify(record)}\n`, "utf8");
+  });
 
   return {
     path: toPortablePath(path.relative(resolvedWorkspace, filePath)),

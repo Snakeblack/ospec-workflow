@@ -29,6 +29,7 @@ const SOURCE_ROOTS = [
   "commands",
   "rules",
   "skills",
+  "models.yaml",
 ];
 
 // --- tree IO ---------------------------------------------------------------

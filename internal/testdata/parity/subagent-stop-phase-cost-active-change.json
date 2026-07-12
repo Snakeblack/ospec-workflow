@@ -1,5 +1,5 @@
 {
-  "description": "Phase-cost recording fixture (REQ-hooks-001): an active change resolves via a dedicated openspec-bearing workspace (subagent-stop-phase-cost-workspace/openspec/changes/demo). The stdin carries no valid json:result-envelope fence, so persistResultEnvelope no-ops and the tracked state.yaml stays byte-for-byte pristine, while persistPhaseCost exercises its active-change write path (writing into the gitignored .ospec/session/demo/phase-costs.jsonl). Only stdout is asserted here; the JSONL content is a disposable session artifact proven by unit tests, not by this fixture.",
-  "stdin": "{\"cwd\":\"__SUBAGENT_STOP_PHASE_COST_WORKSPACE__\",\"agent_type\":\"sdd-design\",\"status\":\"success\",\"result\":\"Plain prose result, no envelope fence.\"}",
+  "description": "Phase-cost recording fixture (REQ-hooks-001/E1): an active change resolves via a dedicated openspec-bearing workspace. Its UTF-8 telemetry segments exercise the shared ceil(byte-length/4) heuristic; both runtimes assert the complete persisted row semantically and validate ts independently as ISO 8601 UTC.",
+  "stdin": "{\"cwd\":\"__SUBAGENT_STOP_PHASE_COST_WORKSPACE__\",\"agent_type\":\"sdd-design\",\"status\":\"success\",\"telemetry\":{\"prompt\":\"café\",\"artifact\":\"diseño\",\"tool_output\":\"工具\",\"output\":\"résultat\",\"duration_ms\":18000},\"result\":\"Plain prose result, no envelope fence.\"}",
   "expectedStdout": "{\"continue\":true}"
 }

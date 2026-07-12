@@ -193,7 +193,9 @@ function main(argv, scriptDir = __dirname) {
 
   const { command, args } = resolveInvocation(sub, scriptDir);
   const input = fs.readFileSync(0, "utf8");
-  const result = spawnSync(command, args, { input, encoding: "utf8" });
+  const pluginRoot = path.resolve(scriptDir, "../..");
+  const env = { ...process.env, OSPEC_PLUGIN_ROOT: pluginRoot };
+  const result = spawnSync(command, args, { input, env, encoding: "utf8" });
 
   if (result.error) {
     process.stdout.write(CONTINUE);
