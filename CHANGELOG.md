@@ -8,6 +8,12 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.26.0] - 2026-07-12
+
+### Added
+- **Telemetría de coste por dispatch (fase O1)**: Registro de métricas detalladas de tokens (prompt, artefactos, salidas de herramientas y salida de modelos), duración en milisegundos, tier del modelo, estado de relanzamiento y timestamp en `phase-costs.jsonl`. Garantiza paridad entre las implementaciones de JS y Go y aislamiento frente a fallos de I/O.
+- **Visualización de costes en Archive**: Integración del bloque agregador `Cost` en `archive-report.md` para mostrar las invocaciones, relanzamientos, duración acumulada y consumo de tokens por categoría para cada fase del flujo SDD.
+
 ## [2.25.4] - 2026-07-11
 
 ### Fixed
