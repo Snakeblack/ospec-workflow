@@ -1,6 +1,6 @@
 change: codex-agent-delegation-depth
-status: ready-for-delivery
-last_updated: "2026-07-10T22:05:00Z"
+status: archived
+last_updated: "2026-07-11T13:45:00Z"
 classification: normal
 owner:
   author: Manuel Retamozo
@@ -40,7 +40,8 @@ phases:
     artifact: openspec/changes/codex-agent-delegation-depth/verify-report.md
     summary: "PASS: focused Codex tests (120/120), full npm test, and diff integrity passed; 4R review found no blockers."
   archive:
-    status: pending
+    status: done
+    artifact: openspec/changes/codex-agent-delegation-depth/archive-report.md
 gates:
   clarify:
     status: done

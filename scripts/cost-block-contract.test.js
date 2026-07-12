@@ -50,15 +50,43 @@ test("sdd-archive/SKILL.md documenta re-launches como count(records) - 1", () =>
   );
 });
 
-test("sdd-archive/SKILL.md documenta que las preguntas se leen de state.yaml phases.*.questions_asked", () => {
+test("sdd-archive/SKILL.md documenta que las preguntas se leen de state.yaml gates.*.questions_asked", () => {
   const content = readFileOrFail(ARCHIVE_SKILL_PATH, "skills/sdd-archive/SKILL.md");
   assert.ok(
-    content.includes("`phases.*.questions_asked`"),
-    "sdd-archive/SKILL.md debe referenciar el campo `phases.*.questions_asked` de state.yaml como fuente del conteo de preguntas",
+    content.includes("`gates.*.questions_asked`"),
+    "sdd-archive/SKILL.md debe referenciar el campo `gates.*.questions_asked` de state.yaml como fuente del conteo de preguntas",
   );
   assert.ok(
     content.includes("never from `phase-costs.jsonl`"),
     "sdd-archive/SKILL.md debe aclarar que el conteo de preguntas nunca proviene de phase-costs.jsonl",
+  );
+});
+
+test("sdd-archive/SKILL.md documenta agregación de invocaciones, duración, tiers, statuses y cuatro sumas de tokens", () => {
+  const content = readFileOrFail(ARCHIVE_SKILL_PATH, "skills/sdd-archive/SKILL.md");
+  assert.ok(
+    content.includes("invocations"),
+    "sdd-archive/SKILL.md debe documentar la columna de invocaciones (número de ejecuciones)"
+  );
+  assert.ok(
+    content.includes("duration"),
+    "sdd-archive/SKILL.md debe documentar la columna de duración total (en milisegundos)"
+  );
+  assert.ok(
+    content.includes("estimated prompt tokens"),
+    "sdd-archive/SKILL.md debe documentar la estimación de tokens de prompt"
+  );
+  assert.ok(
+    content.includes("estimated artifact tokens"),
+    "sdd-archive/SKILL.md debe documentar la estimación de tokens de artifact"
+  );
+  assert.ok(
+    content.includes("estimated tool output tokens"),
+    "sdd-archive/SKILL.md debe documentar la estimación de tokens de tool output"
+  );
+  assert.ok(
+    content.includes("estimated output tokens"),
+    "sdd-archive/SKILL.md debe documentar la estimación de tokens de output"
   );
 });
 

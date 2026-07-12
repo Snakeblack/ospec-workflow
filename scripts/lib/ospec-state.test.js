@@ -1121,3 +1121,20 @@ const REPO_ROOT = path.join(__dirname, "..", "..");
 test("lock stale window stays within the SessionStart hook timeout budget and above the retry floor", () => {
   assert.deepEqual(checkBudgetConstant({ root: REPO_ROOT }), []);
 });
+
+test("appendPhaseCost assigns relaunch: false on first append and relaunch: true on subsequent appends for the same phase", async (t) => {
+  const workspace = await createWorkspace(t);
+  
+  const record1 = { phase: "apply", agent: "sdd-apply", est_tokens: 100 };
+  const res1 = await appendPhaseCost({ workspace, changeName: "test-change", record: record1 });
+  assert.equal(res1.record.relaunch, false);
+
+  const record2 = { phase: "apply", agent: "sdd-apply", est_tokens: 200 };
+  const res2 = await appendPhaseCost({ workspace, changeName: "test-change", record: record2 });
+  assert.equal(res2.record.relaunch, true);
+
+  const record3 = { phase: "design", agent: "sdd-design", est_tokens: 300 };
+  const res3 = await appendPhaseCost({ workspace, changeName: "test-change", record: record3 });
+  assert.equal(res3.record.relaunch, false);
+});
+

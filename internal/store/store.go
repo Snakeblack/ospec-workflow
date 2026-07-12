@@ -4,6 +4,8 @@
 package store
 
 import (
+	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -262,18 +264,52 @@ func (s *Store) AppendRuntimeEvent(line []byte) error {
 
 // AppendPhaseCost appends line + "\n" to the per-change phase-cost JSONL file
 // under .ospec/session/{changeName}/phase-costs.jsonl, using the same
-// advisory-lock convention as AppendRuntimeEvent.
+// advisory-lock convention as AppendRuntimeEvent. It reads existing records
+// to determine and set the relaunch field on the record.
 func (s *Store) AppendPhaseCost(changeName string, line []byte) error {
 	costPath := s.SessionPhaseCostPath(changeName)
 	if err := os.MkdirAll(filepath.Dir(costPath), 0755); err != nil {
 		return fmt.Errorf("store.AppendPhaseCost: mkdir: %w", err)
 	}
 	return withLock(costPath, func() error {
+		var record map[string]any
+		if err := json.Unmarshal(line, &record); err != nil {
+			return fmt.Errorf("store.AppendPhaseCost: unmarshal: %w", err)
+		}
+
+		phase, _ := record["phase"].(string)
+		hasPrior := false
+
+		if f, err := os.Open(costPath); err == nil {
+			scanner := bufio.NewScanner(f)
+			for scanner.Scan() {
+				trimmed := strings.TrimSpace(scanner.Text())
+				if trimmed == "" {
+					continue
+				}
+				var prior map[string]any
+				if err := json.Unmarshal([]byte(trimmed), &prior); err == nil {
+					if priorPhase, ok := prior["phase"].(string); ok && priorPhase == phase {
+						hasPrior = true
+						break
+					}
+				}
+			}
+			f.Close()
+		}
+
+		record["relaunch"] = hasPrior
+
+		newLine, err := json.Marshal(record)
+		if err != nil {
+			return fmt.Errorf("store.AppendPhaseCost: marshal: %w", err)
+		}
+
 		f, err := os.OpenFile(costPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 		if err != nil {
 			return fmt.Errorf("store.AppendPhaseCost: open: %w", err)
 		}
-		data := append(append([]byte(nil), line...), '\n')
+		data := append(append([]byte(nil), newLine...), '\n')
 		if _, werr := f.Write(data); werr != nil {
 			f.Close()
 			return fmt.Errorf("store.AppendPhaseCost: write: %w", werr)

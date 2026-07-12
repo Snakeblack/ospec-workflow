@@ -1,0 +1,169 @@
+change: extend-phase-cost-telemetry
+status: archived
+classification: normal
+owner:
+  author: Manuel Retamozo
+  branch: feat/extend-phase-cost-telemetry
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "classification=normal and project.status=active select the standard route; O1 extends hooks and archive telemetry across JS/Go and requires full SDD."
+  validated: true
+  validation_errors: []
+execution_mode: auto
+delivery_strategy: exception-ok
+approvals:
+  - id: change-collision-001
+    gate: change-collision
+    decision: continue
+    detail: "El cambio en conflicto codex-agent-delegation-depth ha sido archivado."
+    source: vscode/askQuestions
+    accepted_at: 2026-07-11T13:45:00Z
+    applies_to:
+      - sdd-apply
+  - id: targeted-review-001
+    gate: testing
+    decision: "Ejecutar solo review-reliability y review-resilience; ante BLOCKER/CRITICAL corregir, repetir únicamente el reviewer afectado y volver a ejecutar sdd-verify antes de archivar."
+    source: vscode/askQuestions
+    accepted_at: 2026-07-11T14:06:37Z
+    applies_to:
+      - 4r-review-gate
+      - sdd-verify
+      - sdd-archive
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: vscode/askQuestions
+    accepted_at: 2026-07-11T12:47:13Z
+    applies_to:
+      - all-phases
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: vscode/askQuestions
+    accepted_at: 2026-07-11T12:47:13Z
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: clarify-001
+    gate: architecture
+    decision: "Contexto canónico JS/Go con precedencia explícita, enteros del host cuando existan y heurística UTF-8 por segmento como fallback."
+    source: vscode/askQuestions
+    accepted_at: 2026-07-11T13:12:43Z
+    applies_to:
+      - sdd-clarify
+      - sdd-design
+      - sdd-apply
+      - sdd-verify
+  - id: clarify-002
+    gate: architecture
+    decision: "Relaunch se decide bajo el advisory lock: primera fila persistida por change+phase=false; siguientes=true; un append fallido no cuenta."
+    source: vscode/askQuestions
+    accepted_at: 2026-07-11T13:12:43Z
+    applies_to:
+      - sdd-clarify
+      - sdd-design
+      - sdd-apply
+      - sdd-verify
+  - id: clarify-003
+    gate: testing
+    decision: "Paridad JS/Go semántica para todos los campos salvo ts, que solo debe cumplir ISO 8601 UTC; el orden JSON no es contrato."
+    source: vscode/askQuestions
+    accepted_at: 2026-07-11T13:12:43Z
+    applies_to:
+      - sdd-clarify
+      - sdd-design
+      - sdd-apply
+      - sdd-verify
+  - id: clarify-004
+    gate: architecture
+    decision: "Cost incluye fases con filas parseables, muestra no-data si no hay filas y suma preguntas desde gates.*.questions_asked, conservando fallbacks legacy."
+    source: vscode/askQuestions
+    accepted_at: 2026-07-11T13:12:43Z
+    applies_to:
+      - sdd-clarify
+      - sdd-design
+      - sdd-apply
+      - sdd-verify
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/extend-phase-cost-telemetry/proposal.md"
+    summary: "Amplía phase-costs por dispatch con tokens separados, duración, tier, estado y relaunch; archive agrega el coste por fase."
+    key_decisions:
+      - "Modificar las capacidades existentes hooks y agents; no crear una capability nueva."
+      - "Mantener fail-safe y tolerar filas C3 antiguas o incompletas sin migración."
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/extend-phase-cost-telemetry/specs/hooks/spec.md"
+      - "openspec/changes/extend-phase-cost-telemetry/specs/agents/spec.md"
+    summary: "Define shape normalizado por dispatch, paridad JS/Go y Cost agregado por fase con fallbacks y compatibilidad C3."
+    key_decisions:
+      - "Las nuevas filas usan cuatro campos de tokens estimados; est_tokens solo se interpreta como salida legacy."
+      - "Cost agrega invocaciones, relanzamientos, duración, tier/estado y tolera filas ausentes o incompletas."
+  clarify:
+    status: done
+    summary: "Cuatro ambigüedades resueltas: contexto canónico, relaunch por fila persistida, paridad semántica y Cost basado en filas observadas."
+    key_decisions:
+      - "Usar enteros host cuando existan y heurística UTF-8 por segmento como fallback."
+      - "Calcular relaunch bajo el mismo lock del append; un append fallido no cuenta."
+      - "Comparar JS/Go semánticamente salvo ts; Cost suma preguntas desde gates.*.questions_asked."
+  design:
+    status: done
+    artifact: "openspec/changes/extend-phase-cost-telemetry/design.md"
+    summary: "Define contexto canónico, relaunch atómico y Cost O1 con paridad JS/Go y compatibilidad C3."
+    key_decisions:
+      - "El writer decide relaunch dentro del mismo advisory lock que lee y append la fila."
+      - "models.yaml se distribuye en runtime y el launcher pasa el root al binario Go."
+  tasks:
+    status: done
+    artifact: "openspec/changes/extend-phase-cost-telemetry/tasks.md"
+    summary: "Descompone O1 en seis fases: contexto/tier, writers atómicos, espejo Go, paridad, Cost y verificación completa."
+    key_decisions:
+      - "Forecast alto: excepción size-exception ya aprobada; no se requiere otra decisión antes de apply."
+      - "Cada unidad agrupa código con pruebas y explicita RED, GREEN, TRIANGULATE y REFACTOR."
+      - "La entrega conserva límites internos U1→U4 aunque se implemente en un único PR aprobado."
+  apply:
+    status: done
+    artifact: "openspec/changes/extend-phase-cost-telemetry/apply-progress.md"
+    summary: "Implementación y remediación E1 completadas: paridad JS/Go afirma el registro completo, UTF-8, tier equivalente y ts UTC."
+  verify:
+    status: done
+    artifact: "openspec/changes/extend-phase-cost-telemetry/verify-report.md"
+    summary: "PASS tras remediación E1: paridad JS/Go de diez campos, UTF-8, tier y ts UTC; suites completas verdes."
+    key_decisions:
+      - "El gate 4R permanece in_progress hasta que el orquestador registre el cierre del reviewer dirigido."
+  archive:
+    status: done
+    artifact: "openspec/changes/extend-phase-cost-telemetry/archive-report.md"
+    summary: "Specs hooks/agents sincronizadas; ADR de models.yaml promovido; reporte Cost sin datos y copia preparada para cierre del orquestador."
+    key_decisions:
+      - "Cost no gatea archive cuando phase-costs.jsonl está ausente; se reportan 4 preguntas desde gates.*.questions_asked."
+gates:
+  clarify:
+    status: done
+    questions_asked: 4
+  4r-review-gate:
+    status: done
+    on_blocker: advisory
+    selected_reviewers:
+      - review-reliability
+      - review-resilience
+    selection_rationale: "Cambio de runtime centrado en concurrencia, locking, I/O fail-safe y recuperación; selección explícita del usuario."
+    remediation: "BLOCKER/CRITICAL -> sdd-apply -> rerun affected reviewer -> sdd-verify"
+    findings_summary: "0 BLOCKER, 0 CRITICAL, 3 WARNING, 0 SUGGESTION pendientes; 1 CRITICAL de reliability corregido y re-review limpio."
+    surfaced_to_user: true
+baseline_fingerprints:
+  hooks: 01E79ECE86B5BC34DD28E5A73D25BE18B1F627C2E4BB8DC0CFF0E021E9ED3D39
+  agents: 41E8A13251F750F8F3169AA256958A51285C687F7D7BC7EA1131EE6860850CB4
+assumptions: []
+blocking_questions: []
+collisions:
+  - with: codex-agent-delegation-depth
+    overlap:
+      - models.yaml
+      - scripts/configure/**
+    decision: continue
+    decided_at: 2026-07-11T13:45:00Z
+last_updated: 2026-07-11T23:02:52Z

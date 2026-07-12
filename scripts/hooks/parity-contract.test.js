@@ -22,6 +22,27 @@ const ROOT = path.resolve(__dirname, "..", "..");
 const FIXTURES_DIR = path.join(ROOT, "internal", "testdata", "parity");
 
 const PARSE_ERROR_PREFIX = "The safety hook could not inspect this tool call:";
+const ACTIVE_PHASE_COST_EXPECTED = {
+  phase: "design",
+  agent: "sdd-design",
+  estimated_prompt_tokens: 2,
+  estimated_artifact_tokens: 2,
+  estimated_tool_output_tokens: 2,
+  estimated_output_tokens: 3,
+  duration_ms: 18000,
+  model_tier: "premium",
+  status: "success",
+  relaunch: false,
+};
+
+function assertIso8601Utc(value) {
+  assert.match(
+    value,
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+    "phase-cost ts must use ISO 8601 UTC format",
+  );
+  assert.equal(new Date(value).toISOString(), value, "phase-cost ts must be a valid UTC instant");
+}
 
 function cleanEnv() {
   const env = { ...process.env };
@@ -134,6 +155,15 @@ for (const family of FIXTURE_FAMILY) {
 
   for (const name of fixtureFiles) {
     test(`parity(js) · ${family.hook} · ${name}`, () => {
+      const phaseCostWorkspace = path.join(FIXTURES_DIR, "subagent-stop-phase-cost-workspace");
+      const costFile = path.join(phaseCostWorkspace, ".ospec", "session", "demo", "phase-costs.jsonl");
+
+      if (name.includes("phase-cost-active-change")) {
+        try {
+          fs.rmSync(costFile, { force: true });
+        } catch {}
+      }
+
       const fixture = JSON.parse(fs.readFileSync(path.join(FIXTURES_DIR, name), "utf8"));
       const stdin = family.prepareStdin ? family.prepareStdin(fixture.stdin) : fixture.stdin;
       const actual = runHook(family.hookPath, stdin);
@@ -145,6 +175,20 @@ for (const family of FIXTURE_FAMILY) {
       }
 
       assert.equal(actual, expected, `${family.hook} output must match the golden fixture byte-for-byte`);
+
+      if (name.includes("phase-cost-active-change")) {
+        assert.ok(fs.existsSync(costFile), "phase-costs.jsonl must be written");
+        const lines = fs.readFileSync(costFile, "utf8").trim().split("\n");
+        assert.equal(lines.length, 1);
+        const record = JSON.parse(lines[0]);
+        for (const [field, expectedValue] of Object.entries(ACTIVE_PHASE_COST_EXPECTED)) {
+          assert.equal(record[field], expectedValue, `${field} must match the shared fixture contract`);
+        }
+        assertIso8601Utc(record.ts);
+        try {
+          fs.rmSync(costFile, { force: true });
+        } catch {}
+      }
     });
   }
 }

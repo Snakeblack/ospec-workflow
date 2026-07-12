@@ -107,21 +107,25 @@ it is purely additive reporting.
 **IF mode is `openspec`:**
 
 1. Read `.ospec/session/{change-name}/phase-costs.jsonl` (JSONL, one dispatch record per
-   line, per `REQ-hooks-001`: `{phase, agent, est_tokens, status, ts}`).
+   line, per `REQ-hooks-001`: `{phase, agent, estimated_prompt_tokens, estimated_artifact_tokens, estimated_tool_output_tokens, estimated_output_tokens, duration_ms, model_tier, status, relaunch, ts}`).
 2. **Empty/missing-data fallback**: if the file does not exist, is empty, or contains no
    parseable JSON lines, still emit the Cost block below showing zero/"no data" per phase
    — do NOT omit the block and do NOT fail or gate the archive on this condition. Cost
    incompleteness MUST NOT gate archive.
-3. Otherwise, group the parsed records by `phase` and sum `est_tokens` per phase. Label
-   every token figure "estimated" — these are heuristic estimates (~4 bytes/token), never
-   exact metering (`REQ-hooks-001`).
+3. Otherwise, group the parsed records by `phase`.
+   - Aggregate number of invocations (count of records for that phase).
+   - Sum `duration_ms` to get the total duration (in milliseconds).
+   - Collect distinct set/list of `model_tier` used during that phase.
+   - Collect distinct set/list of `status` returned during that phase.
+   - Sum independently `estimated_prompt_tokens`, `estimated_artifact_tokens`, `estimated_tool_output_tokens`, and `estimated_output_tokens`. Label every token sum "estimated" (e.g. "estimated prompt tokens", "estimated artifact tokens", "estimated tool output tokens", "estimated output tokens") — these are heuristic estimates (~4 bytes/token), never exact metering (`REQ-hooks-001`).
+     - **Legacy compatibility**: If a record has legacy C3 `est_tokens` but is missing the O1 token fields, treat `est_tokens` as `estimated_output_tokens`.
 4. For each phase, compute re-launches as `count(records for that phase) - 1`, floored at
    0 (one dispatch = 0 re-launches; two dispatches of the same phase = 1 re-launch, etc.)
    — derived purely from `phase-costs.jsonl` row counts, per ADR-001.
-5. Read `state.yaml`'s `phases.*.questions_asked` integer fields (missing for a phase → 0)
-   and sum them across all phases to get the total user-questions-asked count for the
+5. Read `state.yaml`'s `gates.*.questions_asked` integer fields (missing → 0)
+   and sum them across all gates to get the total user-questions-asked count for the
    change — per ADR-001. The `SubagentStop` hook has no visibility into orchestrator-asked
-   questions, so this count is sourced from `state.yaml`, never from `phase-costs.jsonl`.
+   questions, so this count is sourced from `state.yaml`'s `gates.*.questions_asked`, never from `phase-costs.jsonl`.
 6. Render the block into the archive report:
 
    ```markdown
@@ -131,11 +135,11 @@ it is purely additive reporting.
    `.ospec/session/{change-name}/phase-costs.jsonl`. Figures are heuristic estimates
    (~4 bytes/token), not exact metering.
 
-   | Phase | Estimated tokens | Re-launches |
-   |-------|-------------------|-------------|
-   | {phase} | {sum of est_tokens} (estimated) | {count - 1, floored at 0} |
+   | Phase | Invocations | Re-launches | Duration | Model Tiers | Statuses | Estimated Prompt Tokens | Estimated Artifact Tokens | Estimated Tool Output Tokens | Estimated Output Tokens |
+   |-------|-------------|-------------|----------|-------------|----------|-------------------------|---------------------------|------------------------------|-------------------------|
+   | {phase} | {invocations} | {count - 1, floored at 0} | {duration}ms | {model_tiers} | {statuses} | {sum of estimated prompt tokens} (estimated) | {sum of estimated artifact tokens} (estimated) | {sum of estimated tool output tokens} (estimated) | {sum of estimated output tokens} (estimated) |
 
-   **Total user questions asked**: {sum of `phases.*.questions_asked` from `state.yaml`}
+   **Total user questions asked**: {sum of `gates.*.questions_asked` from `state.yaml`}
    ```
 
    When the empty/missing-data fallback (step 2) applies, render the block with a note
@@ -147,7 +151,7 @@ it is purely additive reporting.
    No per-phase cost data was recorded for this change
    (`.ospec/session/{change-name}/phase-costs.jsonl` missing or empty).
 
-   **Total user questions asked**: {sum of `phases.*.questions_asked` from `state.yaml`, or 0}
+   **Total user questions asked**: {sum of `gates.*.questions_asked` from `state.yaml`, or 0}
    ```
 
 ### Step 4: Write Resolved Decisions to Memory

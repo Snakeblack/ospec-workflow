@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/snakeblack/ospec-workflow/internal/hooks"
 	"github.com/snakeblack/ospec-workflow/internal/store"
@@ -798,11 +799,16 @@ func TestSubagentStop_SiblingFencesResolveLastSiblingWins(t *testing.T) {
 // ── persistPhaseCost (REQ-hooks-001, Phase 2) ─────────────────────────────────
 
 type phaseCostRecord struct {
-	Phase     string `json:"phase"`
-	Agent     string `json:"agent"`
-	EstTokens int    `json:"est_tokens"`
-	Status    string `json:"status"`
-	TS        string `json:"ts"`
+	Phase                     string `json:"phase"`
+	Agent                     string `json:"agent"`
+	EstimatedPromptTokens     int    `json:"estimated_prompt_tokens"`
+	EstimatedArtifactTokens   int    `json:"estimated_artifact_tokens"`
+	EstimatedToolOutputTokens int    `json:"estimated_tool_output_tokens"`
+	EstimatedOutputTokens     int    `json:"estimated_output_tokens"`
+	DurationMs                int    `json:"duration_ms"`
+	ModelTier                 string `json:"model_tier"`
+	Status                    string `json:"status"`
+	TS                        string `json:"ts"`
 }
 
 func readPhaseCosts(t *testing.T, workspace, changeName string) []phaseCostRecord {
@@ -850,8 +856,8 @@ func TestSubagentStop_PersistPhaseCost_WritesRecordForActiveChange(t *testing.T)
 	if records[0].Status != "success" {
 		t.Errorf("status: got %q, want %q", records[0].Status, "success")
 	}
-	if records[0].EstTokens <= 0 {
-		t.Errorf("est_tokens: got %d, want > 0", records[0].EstTokens)
+	if records[0].EstimatedOutputTokens <= 0 {
+		t.Errorf("estimated_output_tokens: got %d, want > 0", records[0].EstimatedOutputTokens)
 	}
 	if records[0].TS == "" {
 		t.Error("ts: empty, want a timestamp")
@@ -959,6 +965,11 @@ func TestSubagentStop_ParityFixtures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve phase-cost fixture workspace: %v", err)
 	}
+	pluginRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatalf("resolve plugin root: %v", err)
+	}
+	t.Setenv("OSPEC_PLUGIN_ROOT", pluginRoot)
 	// JSON-escape backslashes (Windows paths) before splicing into the raw
 	// stdin JSON text, mirroring parity-contract.test.js's prepareStdin.
 	escapedWorkspace := strings.ReplaceAll(workspaceAbs, `\`, `\\`)
@@ -980,6 +991,12 @@ func TestSubagentStop_ParityFixtures(t *testing.T) {
 			var fix fixture
 			if err := json.Unmarshal(data, &fix); err != nil {
 				t.Fatalf("parse fixture %s: %v", p, err)
+			}
+
+			costFile := filepath.Join(phaseCostWorkspaceAbs, ".ospec", "session", "demo", "phase-costs.jsonl")
+			if strings.Contains(name, "phase-cost-active-change") {
+				os.Remove(costFile)
+				defer os.Remove(costFile)
 			}
 
 			stdin := strings.ReplaceAll(fix.Stdin, "__SUBAGENT_STOP_FIXTURE_WORKSPACE__", escapedWorkspace)
@@ -1006,6 +1023,49 @@ func TestSubagentStop_ParityFixtures(t *testing.T) {
 
 			if string(stdout) != fix.ExpectedStdout {
 				t.Errorf("parity mismatch for %s\n  got:  %q\n  want: %q", name, stdout, fix.ExpectedStdout)
+			}
+
+			if strings.Contains(name, "phase-cost-active-change") {
+				if _, err := os.Stat(costFile); os.IsNotExist(err) {
+					t.Errorf("expected phase-costs.jsonl to be written for active change fixture")
+				} else {
+					content, _ := os.ReadFile(costFile)
+					lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+					if len(lines) != 1 {
+						t.Errorf("expected exactly 1 line, got %d", len(lines))
+					} else {
+						var record map[string]any
+						if err := json.Unmarshal([]byte(lines[0]), &record); err != nil {
+							t.Errorf("failed to unmarshal record: %v", err)
+						} else {
+							expected := map[string]any{
+								"phase":                        "design",
+								"agent":                        "sdd-design",
+								"estimated_prompt_tokens":      float64(2),
+								"estimated_artifact_tokens":    float64(2),
+								"estimated_tool_output_tokens": float64(2),
+								"estimated_output_tokens":      float64(3),
+								"duration_ms":                  float64(18000),
+								"model_tier":                   "premium",
+								"status":                       "success",
+								"relaunch":                     false,
+							}
+							for field, want := range expected {
+								if got := record[field]; got != want {
+									t.Errorf("%s: got %v, want %v", field, got, want)
+								}
+							}
+							ts, ok := record["ts"].(string)
+							if !ok {
+								t.Errorf("ts: got %T, want string", record["ts"])
+							} else if parsed, err := time.Parse(time.RFC3339Nano, ts); err != nil {
+								t.Errorf("ts: got %q, want valid ISO 8601 UTC: %v", ts, err)
+							} else if parsed.Location() != time.UTC || !strings.HasSuffix(ts, "Z") {
+								t.Errorf("ts: got %q, want UTC timestamp ending in Z", ts)
+							}
+						}
+					}
+				}
 			}
 		})
 	}
@@ -1060,4 +1120,162 @@ func TestSubagentStop_Triangulate(t *testing.T) {
 			t.Error("no events recorded for text resolution 'none'")
 		}
 	})
+}
+
+func TestSubagentStop_NormalizeDispatchCostContext(t *testing.T) {
+	// 1. Alias precedence for integers
+	input1 := map[string]any{
+		"telemetry": map[string]any{
+			"estimated_prompt_tokens":      float64(10),
+			"estimated_artifact_tokens":    float64(20),
+			"estimated_tool_output_tokens": float64(30),
+			"estimated_output_tokens":      float64(40),
+			"duration_ms":                  float64(1000),
+		},
+		"estimated_prompt_tokens": float64(100),
+	}
+	ctx1 := hooks.NormalizeDispatchCostContext(input1)
+	if ctx1["prompt"] != 10 || ctx1["artifact"] != 20 || ctx1["tool_output"] != 30 || ctx1["output"] != 40 || ctx1["duration_ms"] != 1000 {
+		t.Errorf("ctx1 wrong: %+v", ctx1)
+	}
+
+	// 2. Fallbacks for integers and alias precedence
+	input2 := map[string]any{
+		"estimated_prompt_tokens": float64(100),
+		"usage": map[string]any{
+			"prompt_tokens":      float64(1000),
+			"artifact_tokens":    float64(200),
+			"tool_output_tokens": float64(300),
+			"output_tokens":      float64(400),
+		},
+		"duration_ms": float64(2000),
+	}
+	ctx2 := hooks.NormalizeDispatchCostContext(input2)
+	if ctx2["prompt"] != 100 || ctx2["artifact"] != 200 || ctx2["tool_output"] != 300 || ctx2["output"] != 400 || ctx2["duration_ms"] != 2000 {
+		t.Errorf("ctx2 wrong: %+v", ctx2)
+	}
+
+	// 3. UTF-8 segment heuristics
+	input3 := map[string]any{
+		"telemetry": map[string]any{
+			"prompt":      "café",
+			"artifact":    "abcd",
+			"tool_output": "",
+			"output":      "a",
+		},
+	}
+	ctx3 := hooks.NormalizeDispatchCostContext(input3)
+	if ctx3["prompt"] != 2 || ctx3["artifact"] != 1 || ctx3["tool_output"] != 0 || ctx3["output"] != 1 {
+		t.Errorf("ctx3 wrong: %+v", ctx3)
+	}
+
+	// 4. Invalid segments produce 0
+	input4 := map[string]any{
+		"prompt": float64(12345),
+		"telemetry": map[string]any{
+			"artifact": map[string]any{"some": "object"},
+		},
+	}
+	ctx4 := hooks.NormalizeDispatchCostContext(input4)
+	if ctx4["prompt"] != 0 || ctx4["artifact"] != 0 {
+		t.Errorf("ctx4 wrong: %+v", ctx4)
+	}
+}
+
+func TestSubagentStop_PersistPhaseCost_O1(t *testing.T) {
+	ws := createSubagentWorkspace(t)
+
+	// Write models.yaml to workspace (plugin root)
+	modelsContent := `
+agents:
+  sdd-design: premium
+  sdd-apply: default
+  _default: default
+tiers:
+  premium:
+    claude: opus
+  default:
+    claude: sonnet
+`
+	if err := os.WriteFile(filepath.Join(ws, "models.yaml"), []byte(modelsContent), 0644); err != nil {
+		t.Fatalf("write models.yaml: %v", err)
+	}
+
+	// Create active change state
+	changeDir := filepath.Join(ws, "openspec", "changes", "test-change")
+	if err := os.MkdirAll(changeDir, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	stateYAML := "change:\n  status: active\n"
+	if err := os.WriteFile(filepath.Join(changeDir, "state.yaml"), []byte(stateYAML), 0644); err != nil {
+		t.Fatalf("write state.yaml: %v", err)
+	}
+
+	// Set OSPEC_PLUGIN_ROOT env var so Go reader resolves the correct models.yaml
+	t.Setenv("OSPEC_PLUGIN_ROOT", ws)
+
+	stdinInput := map[string]any{
+		"cwd":                     ws,
+		"agent_type":              "sdd-design",
+		"status":                  "success",
+		"estimated_prompt_tokens": float64(12),
+		"telemetry": map[string]any{
+			"estimated_artifact_tokens":    float64(34),
+			"estimated_tool_output_tokens": float64(56),
+			"output":                       "hello world",
+		},
+		"duration_ms": float64(500),
+	}
+
+	stdin, _ := json.Marshal(stdinInput)
+	_, exitCode := runSubagentStop(t, stdin)
+	if exitCode != 0 {
+		t.Fatalf("runSubagentStop exit code: got %d, want 0", exitCode)
+	}
+
+	// Read recorded phase cost
+	costFile := filepath.Join(ws, ".ospec", "session", "test-change", "phase-costs.jsonl")
+	data, err := os.ReadFile(costFile)
+	if err != nil {
+		t.Fatalf("read phase-costs.jsonl: %v", err)
+	}
+
+	var record map[string]any
+	if err := json.Unmarshal(data, &record); err != nil {
+		t.Fatalf("unmarshal record: %v", err)
+	}
+
+	if record["phase"] != "design" {
+		t.Errorf("phase: got %v, want design", record["phase"])
+	}
+	if record["agent"] != "sdd-design" {
+		t.Errorf("agent: got %v, want sdd-design", record["agent"])
+	}
+	if record["estimated_prompt_tokens"] != float64(12) {
+		t.Errorf("estimated_prompt_tokens: got %v, want 12", record["estimated_prompt_tokens"])
+	}
+	if record["estimated_artifact_tokens"] != float64(34) {
+		t.Errorf("estimated_artifact_tokens: got %v, want 34", record["estimated_artifact_tokens"])
+	}
+	if record["estimated_tool_output_tokens"] != float64(56) {
+		t.Errorf("estimated_tool_output_tokens: got %v, want 56", record["estimated_tool_output_tokens"])
+	}
+	if record["estimated_output_tokens"] != float64(3) { // "hello world" -> 11 bytes -> ceil(11/4) = 3
+		t.Errorf("estimated_output_tokens: got %v, want 3", record["estimated_output_tokens"])
+	}
+	if record["duration_ms"] != float64(500) {
+		t.Errorf("duration_ms: got %v, want 500", record["duration_ms"])
+	}
+	if record["model_tier"] != "premium" {
+		t.Errorf("model_tier: got %v, want premium", record["model_tier"])
+	}
+	if record["status"] != "success" {
+		t.Errorf("status: got %v, want success", record["status"])
+	}
+	if record["relaunch"] != false {
+		t.Errorf("relaunch: got %v, want false", record["relaunch"])
+	}
+	if _, ok := record["ts"].(string); !ok {
+		t.Errorf("ts is missing or not a string")
+	}
 }

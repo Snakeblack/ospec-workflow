@@ -49,6 +49,7 @@ test("runConfigure writes a claude tree to the out dir", (t) => {
   assert.ok(fs.existsSync(path.join(out, "skills/sdd-orchestrator/SKILL.md")));
   assert.ok(!fs.existsSync(path.join(out, "agents/sdd-orchestrator.md")));
   assert.ok(!fs.existsSync(path.join(out, "rules")));
+  assert.ok(fs.existsSync(path.join(out, "models.yaml")));
 });
 
 test("runConfigure omits the unsupported codex config artifact", (t) => {

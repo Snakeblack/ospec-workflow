@@ -3,6 +3,7 @@
 "use strict";
 
 const fs = require("node:fs/promises");
+const path = require("node:path");
 const {
   ARTIFACT_STORE_RELATIVE_PATHS,
   createArtifactStoreFromConfig,
@@ -17,6 +18,7 @@ const {
 } = require("../lib/ospec-state.js");
 const { writeFileAtomic, recoverOrphanBak } = require("../lib/atomic-write.js");
 const { extractEnvelope, validateEnvelope } = require("../lib/result-envelope.js");
+const { resolveModelTier } = require("./lib/model-tier.js");
 
 const EVENT_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.runtimeEvents;
 const RESULT_FIELDS = [
@@ -447,6 +449,112 @@ async function resolveDispatchStatus(input) {
   return "unknown";
 }
 
+function getValidInt(val) {
+  if (typeof val === "number" && Number.isInteger(val) && val >= 0) {
+    return val;
+  }
+  return undefined;
+}
+
+function getNestedValue(obj, pathStr) {
+  const parts = pathStr.split(".");
+  let current = obj;
+  for (const part of parts) {
+    if (current === null || typeof current !== "object") {
+      return undefined;
+    }
+    current = current[part];
+  }
+  return current;
+}
+
+function resolveIntField(input, paths) {
+  for (const p of paths) {
+    const val = getNestedValue(input, p);
+    const num = getValidInt(val);
+    if (num !== undefined) {
+      return num;
+    }
+  }
+  return undefined;
+}
+
+function resolveSegmentField(input, paths) {
+  for (const p of paths) {
+    const val = getNestedValue(input, p);
+    if (typeof val === "string") {
+      return val;
+    }
+  }
+  return undefined;
+}
+
+function normalizeDispatchCostContext(input) {
+  // prompt
+  let prompt = resolveIntField(input, [
+    "telemetry.estimated_prompt_tokens",
+    "estimated_prompt_tokens",
+    "usage.prompt_tokens"
+  ]);
+  if (prompt === undefined) {
+    const segment = resolveSegmentField(input, ["telemetry.prompt", "prompt"]);
+    prompt = segment !== undefined ? Math.ceil(Buffer.byteLength(segment, "utf8") / 4) : 0;
+  }
+
+  // artifact
+  let artifact = resolveIntField(input, [
+    "telemetry.estimated_artifact_tokens",
+    "estimated_artifact_tokens",
+    "usage.artifact_tokens"
+  ]);
+  if (artifact === undefined) {
+    const segment = resolveSegmentField(input, ["telemetry.artifact", "artifact"]);
+    artifact = segment !== undefined ? Math.ceil(Buffer.byteLength(segment, "utf8") / 4) : 0;
+  }
+
+  // tool_output
+  let tool_output = resolveIntField(input, [
+    "telemetry.estimated_tool_output_tokens",
+    "estimated_tool_output_tokens",
+    "usage.tool_output_tokens"
+  ]);
+  if (tool_output === undefined) {
+    const segment = resolveSegmentField(input, ["telemetry.tool_output", "tool_output"]);
+    tool_output = segment !== undefined ? Math.ceil(Buffer.byteLength(segment, "utf8") / 4) : 0;
+  }
+
+  // output
+  let output = resolveIntField(input, [
+    "telemetry.estimated_output_tokens",
+    "estimated_output_tokens",
+    "usage.output_tokens"
+  ]);
+  if (output === undefined) {
+    let segment = resolveSegmentField(input, ["telemetry.output"]);
+    if (segment === undefined) {
+      const payload = resolveResultPayload(input);
+      if (payload !== undefined) {
+        segment = typeof payload === "string" ? payload : (JSON.stringify(payload) ?? "");
+      }
+    }
+    output = segment !== undefined ? Math.ceil(Buffer.byteLength(segment, "utf8") / 4) : 0;
+  }
+
+  // duration_ms
+  let duration_ms = resolveIntField(input, ["telemetry.duration_ms", "duration_ms"]);
+  if (duration_ms === undefined) {
+    duration_ms = 0;
+  }
+
+  return {
+    prompt,
+    artifact,
+    tool_output,
+    output,
+    duration_ms
+  };
+}
+
 /**
  * Appends one estimated-cost JSONL record for this dispatch to
  * `.ospec/session/{change}/phase-costs.jsonl` (REQ-hooks-001), mirroring the
@@ -471,9 +579,9 @@ async function persistPhaseCost({ input, workspace }) {
       return;
     }
 
-    const payload = resolveResultPayload(input);
-    const estTokens = estimateResultTokens(payload);
+    const ctx = normalizeDispatchCostContext(input);
     const status = await resolveDispatchStatus(input);
+    const model_tier = resolveModelTier(agentName, path.resolve(__dirname, "../.."));
 
     await appendPhaseCost({
       workspace,
@@ -481,12 +589,17 @@ async function persistPhaseCost({ input, workspace }) {
       record: {
         phase,
         agent: agentName,
-        est_tokens: estTokens,
+        estimated_prompt_tokens: ctx.prompt,
+        estimated_artifact_tokens: ctx.artifact,
+        estimated_tool_output_tokens: ctx.tool_output,
+        estimated_output_tokens: ctx.output,
+        duration_ms: ctx.duration_ms,
+        model_tier,
         status,
         ts: new Date().toISOString(),
       },
     });
-  } catch {
+  } catch (err) {
     // Fully fail-safe: phase-cost recording must never affect SubagentStop's
     // existing skill_resolution behavior or exit status.
   }
@@ -613,4 +726,5 @@ module.exports = {
   persistResultEnvelope,
   resolveDispatchStatus,
   runSubagentStop,
+  normalizeDispatchCostContext,
 };
