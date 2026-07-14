@@ -1146,6 +1146,11 @@ El agente `sdd-foundation` en modo federado aceptará y procesará `workspace_ya
 
 El agente `sdd-foundation` iniciará un bucle interactivo de remediación si el servidor MCP de MarkItDown no está configurado, deteniendo la ingesta y preguntando al usuario vía `vscode/askQuestions` antes de continuar con el descubrimiento manual.
 
+The agent calls the available MarkItDown MCP `convert_to_markdown` tool for document conversion:
+- The default name on Codex is `mcp__markitdown__convert_to_markdown`.
+- The default name on other targets is `mcp__microsoft_markitdown__convert_to_markdown`.
+- Any pre-existing equivalent server matching a different prefix MUST be reused instead of duplicating the MCP server process.
+
 #### Scenario: Interactive fallback loop executed
 - GIVEN the MarkItDown MCP server is not available during document ingestion
 - WHEN the agent executes the fallback check

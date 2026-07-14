@@ -28,3 +28,11 @@
 | sdd-document | done | 8 | 2573453 | 2026-07-05T07:30:00Z |
 | sdd-document | reconciled | - | 7160b0a | 2026-07-05T07:37:34Z |
 | sdd-document | reconciled | - | 2d703d6 | 2026-07-05T07:43:12Z |
+| routing | reconciled | - | c2ca072 | 2026-07-14T20:47:03Z |
+| skill-registry | reconciled | - | c2ca072 | 2026-07-14T20:47:03Z |
+| install | reconciled | - | c2ca072 | 2026-07-14T20:47:03Z |
+| generator | reconciled | - | c2ca072 | 2026-07-14T20:47:03Z |
+| hooks | reconciled | - | c2ca072 | 2026-07-14T20:47:03Z |
+| skills | reconciled | - | c2ca072 | 2026-07-14T20:47:03Z |
+| agents | reconciled | - | c2ca072 | 2026-07-14T20:47:03Z |
+

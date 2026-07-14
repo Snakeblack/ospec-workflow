@@ -22,7 +22,7 @@ five lifecycle events under the top-level `hooks` key.
 
 | Event | Script | Timeout |
 |---|---|---|
-| `SessionStart` | `scripts/hooks/session-start.js` | none |
+| `SessionStart` | `scripts/hooks/session-start.js` | 5 s |
 | `PreToolUse` | `scripts/hooks/pre-tool-use.js` | 5 s |
 | `PreCompact` | `scripts/hooks/pre-compact.js` | 5 s |
 | `SubagentStop` | `scripts/hooks/subagent-stop.js` | 5 s |
@@ -247,6 +247,14 @@ the original advisory text surfaced via `systemMessage` (mirroring the existing
 - GIVEN a command matches a DENY rule (Step 5)
 - WHEN `PreToolUse` evaluates the call on the codex target
 - THEN it MUST return `deny`, unaffected by the ASK-removal degradation
+
+#### Scenario: Codex target ASK degradation triggers on environment variable markers
+
+- GIVEN the tool call runs on the codex target
+- AND the environment variables `OSPEC_TARGET` is set to `"codex"` AND `OSPEC_CODEX_WRAPPER` is set to `"1"`
+- WHEN `PreToolUse` evaluates a call matching an ASK-class rule (e.g. `npm install`)
+- THEN it degrades the decision to `allow` and appends the warning to `systemMessage`
+- AND if either environment variable is missing or has a different value, the degradation is NOT active
 
 ### Requirement: Codex SubagentStop Reads agent_transcript_path {#REQ-hooks-006}
 
@@ -1043,10 +1051,15 @@ an active change exists. If no active change is found, neither hook writes any f
 
 | Library | Responsibilities used by hooks |
 |---|---|
-| `scripts/lib/ospec-state.js` | `readBaselineState`, `findActiveChanges`, `writeSessionSummary`, `appendRuntimeEvent`, `findOpenSpecRoot` |
+| `scripts/lib/ospec-state.js` | `readBaselineState`, `findActiveChanges`, `writeSessionSummary`, `appendRuntimeEvent`, `findOpenSpecRoot`, `appendPhaseCost`, `setPhaseSummary` |
 | `scripts/lib/artifact-store.js` | `createArtifactStoreFromConfig`, `ARTIFACT_STORE_RELATIVE_PATHS` (canonical path constants) |
 | `scripts/lib/skill-registry.js` | `discoverSkills`, `calculateFingerprint`, `readRegistryCache`, `writeRegistryCache` |
 | `scripts/lib/workspace-atlas.js` | `parseAtlas`, `resolveMembers` (federated backend only) |
+
+### 8.1 ospec-state.js Phase Cost and Summary Helpers
+
+- `appendPhaseCost`: Appends one phase-cost estimation JSONL row to `.ospec/session/{change}/phase-costs.jsonl` under file lock, computing a row attestation SHA-256 hash. It tracks prior dispatches for the same phase to set the `relaunch` boolean and `row_index` row counter.
+- `setPhaseSummary`: Surgical update helper that inserts or updates the `summary` and `key_decisions` fields under a given phase block in `state.yaml` without destructively overwriting an already non-empty summary value.
 
 ---
 

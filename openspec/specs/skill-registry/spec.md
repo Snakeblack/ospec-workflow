@@ -65,6 +65,7 @@ Entries are represented as `{ absolutePath, relativePath }` objects where `relat
 1. Sort `paths` by `relativePath` lexicographically (regardless of input order).
 2. For each path in sorted order, feed the SHA-256 hash with: `relativePath bytes`, then a NUL byte `\0`, then raw file bytes, then another NUL byte `\0`.
 3. Return the digest as the string `sha256:<64 lowercase hex chars>`.
+4. If reading a file's content fails with `ENOENT`, the hash algorithm treats the file as empty (i.e. appends no content bytes for the file contents block) rather than throwing an error.
 
 Given: two different call orderings of the same path set.
 When: `calculateFingerprint` is called with both orderings.
@@ -104,7 +105,7 @@ Each included SKILL.md is parsed and produces one entry in the `skills` array:
 }
 ```
 
-`skills` MUST be sorted by `id` alphabetically before being written to the cache.
+`skills` MUST be sorted by `id` alphabetically before being written to the cache. If reading an individual skill file fails during this discovery step, the error is logged as a warning and the file is skipped so the registry build continues.
 
 ### 5.1 `id`
 
@@ -185,7 +186,7 @@ Then: it MUST build a new cache object, write it atomically (see §6.4), and ret
 1. Create the parent directory recursively (`mkdir` with `recursive: true`).
 2. Write to a temporary file named `${cachePath}.${process.pid}.${crypto.randomUUID()}.tmp`.
 3. Atomically rename the temp file to `cachePath`.
-4. In a `finally` block, attempt to remove the temp file (`fs.rm` with `force: true`); ignore `ENOENT`.
+4. In a `finally` block, attempt to remove the temp file (`fs.rm` with `force: true`); ignore `ENOENT`. If the write or rename step fails, that initial write error MUST propagate, and any cleanup error in the `finally` block MUST NOT override the propagating write error (it is only logged as a warning).
 
 ### 6.5 Read Resilience
 

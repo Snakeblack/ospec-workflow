@@ -444,6 +444,7 @@ Validates an array of route entry objects. Applies `validateRoute` to each entry
 - Per-entry errors from `validateRoute` are aggregated into the returned `errors` array.
 - Duplicate `name` values (case-sensitive, trimmed) produce an error string naming the duplicate.
 - A table with any per-entry errors OR any duplicate-name errors returns `{ valid: false }`.
+- It does NOT lint for residual boolean-like strings in `conditions`. Callers seeking that check MUST invoke `detectResidualBooleanStrings(entry.conditions)` separately.
 
 ### Scenarios
 
@@ -760,6 +761,28 @@ actions complete.
 - GIVEN the active route is `foundation` (no `sdd-verify` phase) and `hooks.before-verify` is declared
 - WHEN the route completes
 - THEN `state.yaml` MUST contain `lifecycle_hooks.before-verify.status: skipped`
+
+---
+
+## 15. `detectResidualBooleanStrings(conditions)` — Residual Boolean Verification
+
+### 15.1 Purpose
+
+Advisory pre-check function that scans a conditions map for keys whose value is still the literal residual string `"true"` or `"false"` instead of a native boolean. It is pure: reads only its argument, no I/O, no global mutation.
+
+### 15.2 Rules
+
+- The function accepts a `conditions` object.
+- It returns an array of keys (strings) whose value is the residual string `"true"` or `"false"`.
+- If the input is null, not an object, or an array, it returns an empty array `[]`.
+- The `match` meta-key is always excluded from the returned list of keys.
+
+### Scenarios
+
+**Scenario: detect residual boolean strings**
+Given: a conditions map `{ "specs_empty_with_code": "true", "match": "any" }`
+When: detectResidualBooleanStrings is called
+Then: returns `["specs_empty_with_code"]`
 
 ---
 

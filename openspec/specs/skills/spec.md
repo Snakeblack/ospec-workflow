@@ -842,6 +842,28 @@ and source filesystem state before deciding whether to delete the source.
 - Evidence: static contract-test anchor on the `sdd-archive` SKILL.md source text
   (agent-instruction prose, not a runtime execution trace).
 
+### Requirement: sdd-archive Cost Summary Block
+
+The `sdd-archive` skill MUST parse the `.ospec/session/{change-name}/phase-costs.jsonl` file and append an aggregated Cost summary table to the archive report (`archive-report.md`).
+
+- **Aggregation Rules**: Group records by `phase`, summing `duration_ms` and each of the four estimated token categories (`estimated_prompt_tokens`, `estimated_artifact_tokens`, `estimated_tool_output_tokens`, and `estimated_output_tokens`), listing distinct `model_tier`s and return `status`es.
+- **Relaunches calculation**: Computed as `invocations - 1` (floored at 0) per phase.
+- **Total user questions asked**: Sourced by summing the `gates.*.questions_asked` fields from `state.yaml`.
+- **Fail-safe Fallback**: If the cost JSONL file does not exist or is empty, the archive operation MUST NOT fail; a fallback note stating that no cost data was recorded is rendered instead.
+
+#### Scenario: Cost data parsed and aggregated successfully
+
+- GIVEN the change has cost entries in `phase-costs.jsonl`
+- WHEN `sdd-archive` writes `archive-report.md`
+- THEN it MUST include a `## Cost` section with the aggregated table
+- AND all token column headers/values MUST be labeled "estimated"
+
+#### Scenario: Missing cost data renders fallback note
+
+- GIVEN `phase-costs.jsonl` is missing or empty
+- WHEN `sdd-archive` writes the report
+- THEN the `## Cost` section contains a fallback message stating no cost data was recorded
+
 ---
 
 ## 15. Traceability Contract Across Phase Skills
