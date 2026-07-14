@@ -8,7 +8,11 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
-## [2.27.0] - 2026-07-14
+## [2.28.0] - 2026-07-14
+
+### Added
+- **Configuración de agentes (Codex target)**: Soporte para la emisión del parámetro `model_verbosity` en los TOML de agentes de Codex, permitiendo el control fino de la verbosidad de salida de los modelos según la configuración de tiers en `models.yaml`.
+- **Reconciliación global de especificaciones (SDD Reconcile)**: Ejecución de la fase de reconciliación global (`sdd-reconcile`) sobre los 8 dominios con desviaciones detectadas (`routing`, `skill-registry`, `install`, `generator`, `hooks`, `skills`, `agents`, `sdd-document`), sincronizando de forma aditiva las especificaciones con los cambios de código y actualizando el registro en `manifest.md`.
 
 ### Added
 - **Benchmark de cambios de referencia (O2)**: catálogo canónico de nueve perfiles,

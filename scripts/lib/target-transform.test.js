@@ -856,6 +856,30 @@ test("codex populates model and model_reasoning_effort when codex column is pres
   assert.doesNotMatch(apply, /^model_reasoning_effort\s*=/m);
 });
 
+test("codex populates model, model_reasoning_effort, and model_verbosity when present in codex object", () => {
+  const customModels = {
+    agents: {
+      "sdd-apply": "premium",
+    },
+    tiers: {
+      premium: {
+        codex: {
+          model: "gpt-5.6-sol",
+          model_reasoning_effort: "high",
+          model_verbosity: "medium"
+        }
+      }
+    }
+  };
+
+  const out = transform({ files: makeSource(), profile: codex, models: customModels });
+  const apply = find(out, ".codex/agents/sdd-apply.toml").content;
+  assert.match(apply, /^model = "gpt-5.6-sol"/m);
+  assert.match(apply, /^model_reasoning_effort = "high"/m);
+  assert.match(apply, /^model_verbosity = "medium"/m);
+});
+
+
 test("codex commands become invocable skills under skills/commands/, never a prompts/ path", () => {
   const out = transform({ files: makeSource(), profile: codex, models: MODELS });
   const skill = find(out, "skills/commands/sdd-apply/SKILL.md");

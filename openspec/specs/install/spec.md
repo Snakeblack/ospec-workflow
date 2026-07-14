@@ -143,7 +143,9 @@ Passes `--build-only`. Steps 1-2 execute. On success, prints "Built. Run /reload
 
 ### 3.3 Claude Binary Resolution (`resolveClaudeBin`)
 
-Tries the candidates `["claude", "claude.cmd", "claude.exe"]` in order using `spawnSync(bin, ["--version"], { stdio: "ignore", shell: false })`. Returns the first candidate that does not produce a spawn error. Returns `null` if none are found.
+Tries the candidates `["claude", "claude.cmd", "claude.exe"]` in PATH using `spawnSync(bin, ["--version"], { stdio: "ignore", shell: false })`. Returns the first candidate that does not produce a spawn error.
+On Windows, if not found on PATH, it additionally checks the WinGet packages folder under `%LOCALAPPDATA%\Microsoft\WinGet\Packages\Anthropic.ClaudeCode*\claude.exe`.
+If no binary is found after these checks, it returns `null`.
 
 The `.cmd` variant is required on Windows because PowerShell does not resolve `.cmd` shims when `shell: false` is set.
 
@@ -173,13 +175,15 @@ Given `node scripts/configure/install-target.js <target> <destRepo>`:
 
 ### 4.2 Safe-Destination Guard (`assertSafeDest`)
 
-`assertSafeDest(destDir, sourceDir)` throws in these cases:
+`assertSafeDest(destDir, sourceDir)` resolves both directories to their canonical absolute paths (using `fs.realpathSync` to prevent symlink bypasses) and checks for safety. It throws in these cases:
 
 | Condition | Error text |
 |---|---|
 | `destDir` is the filesystem root | `"filesystem root"` |
-| `destDir` equals the user home directory | `"home directory"` |
-| `destDir` equals `sourceDir` (the source repo) | `"equals the source repo (would overwrite the harness)"` |
+| `destDir` equals the user home directory (case-insensitive on Windows/Darwin) | `"home directory"` |
+| `destDir` equals `sourceDir` (case-insensitive on Windows/Darwin) | `"equals the source repo (would overwrite the harness)"` |
+| `destDir` is inside `sourceDir` (descendant) | `"inside the source repository (nested target write)"` |
+| `destDir` contains `sourceDir` (ancestor) | `"contains the source repository (would overwrite the harness root)"` |
 
 The source-repo check prevents syncing a generated github-copilot tree (which contains `.github/` and `scripts/`) back into the workflow repo, which would overwrite the harness files.
 
@@ -199,6 +203,17 @@ npm aliases:
 - Overwrite: `force: true` — existing same-path files are replaced.
 - Preservation: files in `destDir` that have no counterpart in `dist/<target>/` are left untouched.
 - Idempotency: re-running replaces all generated files with fresh copies; nothing is deleted from `destDir`.
+
+### 4.5 Binary Integration (`copyBinaryToTree`)
+
+The installation process integrates the platform-appropriate pre-compiled Go binary (`ospec-hooks`) into the target distribution tree before syncing to the destination.
+
+- **Best-Effort Delivery**: If the source binary is absent under `release/dist/` (e.g. pre-CI development environment), a warning is written to stderr and installation proceeds without failure.
+- **Platform Detection**: Platform and architecture are resolved (`hostBinarySuffix()`) to locate the source binary `ospec-hooks-${goos}-${arch}${ext}`.
+- **Target-Specific Destination**:
+  - For target `opencode`, the binary is copied to `release/dist/ospec-hooks${ext}` in the output tree.
+  - For all other targets (including `claude`, `vscode`, `github-copilot`), the binary is copied to `scripts/hooks/ospec-hooks${ext}`.
+- **Permissions**: On POSIX (non-win32) platforms, the copied binary's permissions are updated to `0755` (executable) using `chmodSync`.
 
 ---
 

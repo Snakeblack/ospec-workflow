@@ -40,7 +40,8 @@ The generator is the build pipeline that transforms the canonical source plugin 
 | `scripts/lib/federation-baseline-orchestrator.js` | baseline-orchestrator runtime |
 
 All four scripts and their transitive `require()` dependencies MUST be present in the dist of ALL five targets (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`) under `scripts/lib/`.
-And it MUST NOT include test files (`.test.js`) or generator-only modules (`target-*`, `frontmatter`, `model-resolver`, `configure/`) in the runtime script bundle.
+And it MUST NOT include test files (`.test.js`) or generator-only modules (`target-*`, `frontmatter`, `model-resolver`, `configure/`) in the runtime script bundle. Transitive dependencies are subjected to the same exclusion check, preventing excluded files from being resolved or bundled.
+If reading an individual file fails during script gathering, the generator MUST log a warning to stderr and skip that file rather than failing the build.
 And it MUST silently skip any root that does not exist on disk.
 
 The canonical `SOURCE_ROOTS` are:
@@ -154,8 +155,8 @@ And `.mcp.json` itself MUST be dropped from the opencode output (consumed by the
 
 Given a prior generation run that produced files in `outDir`,
 When `writeTree` runs with a new set of desired files,
-Then it MUST identify every managed root (top-level directory/file owned by the generator),
-And MUST delete any file in those roots that is NOT in the desired output set,
+Then it MUST identify every managed root (top-level directories or files owned by the generator, including those automatically derived from desired file output paths and any additional roots explicitly declared via `profile.managedRoots`),
+And MUST delete any file in those roots that is NOT in the desired output set (if a managed root itself is a file, the generator prunes it when it is not in the desired set),
 And MUST then prune any directory left empty after deletion.
 And it MUST NOT delete or touch files or directories that the generator never produces (non-managed roots).
 And it MUST NOT use a whole-directory `rmSync` to avoid destructive blast radius.
@@ -166,6 +167,8 @@ Given a target profile with a `validate` field (argv array),
 When the generator finishes writing the output tree,
 Then it MUST spawn the validator as a child process with `shell: false` (no shell interpretation of arguments),
 And it MUST substitute the `{out}` placeholder in validator args with the actual output path.
+And if the command is `claude`, it resolves the binary path using the same PATH and WinGet LocalAppData fallbacks as the installation module.
+And if spawning the validator child process fails (e.g. spawn error / file not found), the validation MUST return status code 1 and write the execution error to stderr rather than throwing an uncaught exception.
 And if the validator exits with non-zero status OR its stdout matches `/(\d+)\s+errors?,\s*(\d+)\s+warnings?/i` with any error or warning count > 0, the validation MUST be considered failed.
 And it MUST be possible to skip validation via `--no-validate` flag.
 
@@ -180,6 +183,7 @@ Then:
 - If `--target` is missing or invalid, the CLI MUST write a usage hint to stderr and set `process.exitCode = 2`.
 - On success, the CLI MUST print a summary of generated file paths to stdout.
 - On validation failure, the validator's output MUST be forwarded to stdout/stderr and the CLI exit code MUST reflect the validator's exit code (non-zero).
+- If the CLI execution encounters an uncaught error, it MUST write the fatal error stack or message to stderr and terminate with exit code 1.
 
 (Previously: `--target` accepted four values; `codex` is registered as the fifth entry in the `scripts/configure/cli.js` registry, validated by `scripts/configure/validate-codex.js`.)
 
