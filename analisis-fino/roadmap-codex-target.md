@@ -167,7 +167,7 @@ la disponibilidad real de GPT-5.6. (Bloque 5 Completado de manera exitosa).
 
 **Dependencias**: 6.1 y 6.4 son independientes (solo generador). 6.2 requiere validación con CLI real (gotcha del schema). 6.3 depende de 6.2 solo si el gate CI usa hooks; si no, es independiente. 6.5 requiere decisión de producto previa. 6.6 y 6.7 son independientes; 6.8 cierra con docs.
 
-- [ ] **6.1 (S) ▶ SIGUIENTE — Emitir `model_verbosity` en el TOML de agentes.**
+- [x] **6.1 (S) — Emitir `model_verbosity` en el TOML de agentes.**
       QUÉ: `scripts/lib/target-transform.js` (`handleAgentToml`, junto a la rama
       `model_reasoning_effort` de las líneas ~475-477) + golden fixtures de
       `scripts/configure/__fixtures__/golden/codex/`. POR QUÉ: clave documentada
@@ -176,7 +176,8 @@ la disponibilidad real de GPT-5.6. (Bloque 5 Completado de manera exitosa).
       recorta coste de output en explore/archive. CÓMO SE VALIDA: caso nuevo en
       `target-transform.test.js` (presente cuando la columna lo trae, ausente
       fail-soft cuando no) + regenerar goldens + `validate-codex.js` verde.
-- [ ] **6.2 (M) — Hooks bridge fase 2: schema vigente + decision control.**
+      *Completado de forma anticipada con Gemini 3.5 Flash (High) por tratarse de una tarea sencilla sin dependencias.*
+- [ ] **6.2 (M) ▶ SIGUIENTE — Hooks bridge fase 2: schema vigente + decision control.**
       QUÉ: `scripts/lib/target-transform.js` (`codexHooks`) y
       `scripts/configure/validate-codex.js` (validateHooks): confirmar contra CLI
       real (≥0.144) si el shape plano sigue aceptado o si el bundle exige el
@@ -198,7 +199,7 @@ la disponibilidad real de GPT-5.6. (Bloque 5 Completado de manera exitosa).
       con un finding sembrado y pasa tras corregirlo; **antes** confirmar si el
       action carga plugin/skills o si el prompt debe ser autocontenido (a
       confirmar, la doc no lo dice).
-- [ ] **6.4 (S) — Sandbox de grano fino por capacidad de agente.**
+- [ ] **6.4 (S) ▶ SIGUIENTE — Sandbox de grano fino por capacidad de agente.**
       QUÉ: `scripts/lib/target-profiles/codex.js` (`sandboxByCapability` →
       extender el shape) + `handleAgentToml` para emitir en los 4R
       `approval_policy = "never"` (o granular con `request_permissions` denegado)
@@ -219,7 +220,7 @@ la disponibilidad real de GPT-5.6. (Bloque 5 Completado de manera exitosa).
       usuario" aplica a `~/.codex/config.toml`, no al del repo destino. CÓMO SE
       VALIDA: ADR nuevo que revise el de PR #52 + tests de merge idempotente +
       sesión Codex real confirmando que los 4 reviewers corren en paralelo.
-- [ ] **6.6 (S) — Distribución npm del plugin.**
+- [~~] **6.6 (S) — [OBSOLETO] Distribución npm del plugin.**
       QUÉ: `scripts/configure/codex-marketplace.js` + `publish-marketplace.yml`:
       entrada adicional (o alternativa) `"source": "npm"` con `package`/`version`
       publicando el payload como paquete; docs de instalación en una línea.
@@ -227,7 +228,8 @@ la disponibilidad real de GPT-5.6. (Bloque 5 Completado de manera exitosa).
       elimina el sparse-checkout frágil de `--ref release`. CÓMO SE VALIDA:
       `codex plugin marketplace add` contra el paquete publicado en un home
       aislado + `/plugins` mostrando la card.
-- [ ] **6.7 (S) — `interface` enriquecido + `defaultPrompt`.**
+      *Nota: Obsoleto al pasar a una instalación nativa/global y no requerir empaquetado de plugin.*
+- [~~] **6.7 (S) — [OBSOLETO] `interface` enriquecido + `defaultPrompt`.**
       QUÉ: bloque `manifest.interface` en `scripts/lib/target-profiles/codex.js`:
       `shortDescription`, `category`, `capabilities`, `defaultPrompt` (arranques
       `$sdd-onboard` / `$sdd-new`), `brandColor`, logo dark-mode. POR QUÉ: campos
@@ -236,6 +238,7 @@ la disponibilidad real de GPT-5.6. (Bloque 5 Completado de manera exitosa).
       onboarding gratis hacia el flujo SDD. CÓMO SE VALIDA: golden del
       plugin.json + allowlist del validador (interface ya permitido) + card
       visible en `/plugins`.
+      *Nota: Obsoleto ya que Codex no usa plugin.json ni manifiestos enriquecidos en instalaciones nativas.*
 - [ ] **6.8 (S) — Docs de operación: sesiones, review nativo y headless.**
       QUÉ: `docs/plugin-installation.md` (sección "Operar el target Codex"):
       `codex exec resume --last`/`<SESSION_ID>` para retomar fases largas,

@@ -1035,3 +1035,39 @@ test("transform throws TypeError when files is not an array or profile is not an
     transform({ files: [], profile: null });
   }, TypeError);
 });
+
+test("codex emits fine-grained sandbox and approval policy settings for specific agents", () => {
+  const files = [
+    {
+      path: ".claude-plugin/plugin.json",
+      content: JSON.stringify({ name: "ospec-workflow", version: "2.1.0", agents: "agents/", commands: "commands/", skills: "skills/", rules: "rules/", hooks: "hooks/hooks.json", mcpServers: ".mcp.json" })
+    },
+    {
+      path: "agents/review-readability.agent.md",
+      content: "---\nname: review-readability\ntools: ['read']\ntarget: vscode\n---\nbody\n"
+    },
+    {
+      path: "agents/sdd-apply.agent.md",
+      content: "---\nname: sdd-apply\ntools: ['read', 'edit']\ntarget: vscode\n---\nbody\n"
+    },
+    {
+      path: "agents/sdd-verify.agent.md",
+      content: "---\nname: sdd-verify\ntools: ['read', 'edit', 'execute']\ntarget: vscode\n---\nbody\n"
+    }
+  ];
+
+  const out = transform({ files, profile: codex, models: MODELS });
+  
+  const review = find(out, ".codex/agents/review-readability.toml");
+  assert.ok(review, "review-readability.toml must be emitted");
+  assert.match(review.content, /^approval_policy = "never"$/m, "4R agents must have approval_policy = never");
+  
+  const apply = find(out, ".codex/agents/sdd-apply.toml");
+  assert.ok(apply, "sdd-apply.toml must be emitted");
+  assert.match(apply.content, /^\[sandbox_workspace_write\]\nnetwork_access = false$/m, "apply agent must disable network access in sandbox");
+
+  const verify = find(out, ".codex/agents/sdd-verify.toml");
+  assert.ok(verify, "sdd-verify.toml must be emitted");
+  assert.match(verify.content, /^\[sandbox_workspace_write\]\nnetwork_access = false$/m, "verify agent must disable network access in sandbox");
+});
+
