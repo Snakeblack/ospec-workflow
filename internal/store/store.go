@@ -5,6 +5,7 @@ package store
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -279,6 +280,7 @@ func (s *Store) AppendPhaseCost(changeName string, line []byte) error {
 
 		phase, _ := record["phase"].(string)
 		hasPrior := false
+		rowIndex := 0
 
 		if f, err := os.Open(costPath); err == nil {
 			scanner := bufio.NewScanner(f)
@@ -287,6 +289,7 @@ func (s *Store) AppendPhaseCost(changeName string, line []byte) error {
 				if trimmed == "" {
 					continue
 				}
+				rowIndex++
 				var prior map[string]any
 				if err := json.Unmarshal([]byte(trimmed), &prior); err == nil {
 					if priorPhase, ok := prior["phase"].(string); ok && priorPhase == phase {
@@ -299,6 +302,18 @@ func (s *Store) AppendPhaseCost(changeName string, line []byte) error {
 		}
 
 		record["relaunch"] = hasPrior
+		record["row_index"] = rowIndex
+		binding, _ := record["host_binding"].(map[string]any)
+		var canonical []byte
+		_, hasEmitter := record["emitter"]
+		_, hasEstimateSource := record["estimate_source"]
+		if hasEmitter || hasEstimateSource || binding["binding_scope"] == "full" {
+			canonical, _ = json.Marshal([]any{"o1-row-v2", record["phase"], record["agent"], record["estimated_prompt_tokens"], record["estimated_artifact_tokens"], record["estimated_tool_output_tokens"], record["estimated_output_tokens"], record["duration_ms"], record["model_tier"], record["status"], record["relaunch"], record["row_index"], record["ts"], record["estimate_source"], record["emitter"], record["phase_evidence"], record["artifact_evidence_sha256"], record["benchmark_evidence_sha256"], binding["status"], binding["session_id"], binding["transcript_source"], binding["binding_scope"], binding["transcript_prefix_bytes"], binding["transcript_prefix_sha256"], binding["transcript_bytes"], binding["transcript_sha256"], binding["host_run_id"], binding["authentication"]})
+		} else {
+			canonical, _ = json.Marshal([]any{"o1-row-v1", record["phase"], record["agent"], record["estimated_prompt_tokens"], record["estimated_artifact_tokens"], record["estimated_tool_output_tokens"], record["estimated_output_tokens"], record["duration_ms"], record["model_tier"], record["status"], record["relaunch"], record["row_index"], record["ts"], binding["status"], binding["session_id"], binding["transcript_source"], binding["binding_scope"], binding["transcript_prefix_bytes"], binding["transcript_prefix_sha256"], binding["host_run_id"], binding["authentication"]})
+		}
+		attestation := sha256.Sum256(canonical)
+		record["row_attestation_sha256"] = fmt.Sprintf("%x", attestation)
 
 		newLine, err := json.Marshal(record)
 		if err != nil {
@@ -328,9 +343,9 @@ func (s *Store) AppendPhaseCost(changeName string, line []byte) error {
 // Ports readBaselineState from scripts/lib/ospec-state.js.
 func ReadBaselineState(configContent string) *BaselineState {
 	const (
-		topKey       = "baseline:"
-		fieldIndent  = 2
-		listIndent   = 4
+		topKey      = "baseline:"
+		fieldIndent = 2
+		listIndent  = 4
 	)
 	lines := strings.Split(strings.ReplaceAll(configContent, "\r\n", "\n"), "\n")
 	foundBaseline := false

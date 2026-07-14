@@ -8,6 +8,16 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.27.0] - 2026-07-14
+
+### Added
+- **Benchmark de cambios de referencia (O2)**: catálogo canónico de nueve perfiles,
+  runner con métricas run-level, identidad fuerte de cache, recuperación offline y
+  publicación atómica de la baseline solo cuando existe evidencia comparable 3/3.
+- **Evidencia diagnóstica y seguimiento operativo**: conserva observaciones no
+  comparables fuera de la baseline y documenta la separación entre infraestructura
+  verificable y ejecución live posterior.
+
 ## [2.26.0] - 2026-07-12
 
 ### Added

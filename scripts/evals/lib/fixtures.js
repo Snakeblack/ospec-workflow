@@ -68,7 +68,7 @@ function loadScenario(scenarioDir) {
  *   (e.g. `scripts/evals/.runs/`)
  * @returns {{ scenarioName: string, workspaceRoot: string }}
  */
-function materializeFixture(scenarioDir, runsRoot) {
+function materializeFixture(scenarioDir, runsRoot, descriptor = {}) {
   const resolvedScenarioDir = path.resolve(scenarioDir);
   const scenarioName = path.basename(resolvedScenarioDir);
   const sourceRepo = path.join(resolvedScenarioDir, "repo");
@@ -81,7 +81,14 @@ function materializeFixture(scenarioDir, runsRoot) {
     );
   }
 
-  const workspaceRoot = path.join(path.resolve(runsRoot), scenarioName);
+  const workspaceSegments = descriptor.suite
+    ? [descriptor.suite, descriptor.name || scenarioName]
+    : [scenarioName];
+  const resolvedRunsRoot = path.resolve(runsRoot);
+  const workspaceRoot = path.resolve(resolvedRunsRoot, ...workspaceSegments);
+  if (workspaceRoot === resolvedRunsRoot || !workspaceRoot.startsWith(resolvedRunsRoot + path.sep)) {
+    throw new Error("Fixture workspace must remain contained within the runs root.");
+  }
 
   fs.rmSync(workspaceRoot, { recursive: true, force: true });
   fs.mkdirSync(workspaceRoot, { recursive: true });

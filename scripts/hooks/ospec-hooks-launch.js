@@ -165,6 +165,12 @@ function resolveBinary(scriptDir, suffix = hostBinarySuffix(), exists = fs.exist
 // Resolve what to run and how. Pure so it can be unit-tested without spawning:
 // returns { command, args } for either the native binary or the Node fallback.
 function resolveInvocation(sub, scriptDir, suffix = hostBinarySuffix(), exists = fs.existsSync, readFileSync = fs.readFileSync) {
+  // Codex live O1 binding depends on the exact installed Node producer that
+  // consumes OSPEC_CODEX_EVENTS_PATH. Do not let a stale bundled binary shadow
+  // that audited producer for SubagentStop.
+  if (sub === "subagent-stop" && process.env.OSPEC_TARGET === "codex") {
+    return { command: process.execPath, args: [path.join(scriptDir, `${sub}.js`)] };
+  }
   if (FEDERATION_AWARE_HOOKS.has(sub)) {
     const configPath = path.join(process.cwd(), "openspec", "config.yaml");
     if (exists(configPath)) {

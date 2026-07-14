@@ -1,48 +1,51 @@
 # Per-agent model configuration for the multi-target generator.
 #
-# Two tables, both hand-editable:
-#   agents: which TIER each agent needs (the only per-agent decision).
-#   tiers:  how each tier maps to a concrete model PER target.
+# Two tables:
+#   agents: which tier each agent needs.
+#   tiers:  how each tier maps to a concrete model per target.
 #
-# Claude uses aliases (auto-track the latest model).
-# VS Code uses "Name (vendor)" strings; an array is a fallback order.
-# The github-copilot target injects no model; agents inherit the session model.
-# opencode uses "provider/model" slugs.
-# codex uses an object with model + reasoning/verbosity options.
+# Cost/intelligence policy:
+#   premium -> Sol high
+#   default -> Luna high
+#   cheap   -> Luna medium
 #
-# NOTE:
-# - opencode: use openai/ to call OpenAI directly.
-# - opencode via Copilot subscription: change openai/ to github-copilot/.
-# - codex: this assumes the generator has a codex target/profile able to emit
-#   model, model_reasoning_effort and model_verbosity into the target frontmatter/config.
+# Terra is intentionally not used as a primary model because its evaluated
+# effort points are Pareto-dominated by Luna or Sol.
 #
-# Before bumping any tier's model here, run the golden eval suite under
-# scripts/evals/ against the candidate model and attach its N/7-passed result
-# to the change proposing the bump.
+# Before changing a tier model, run the golden orchestrator eval suite and
+# attach the result to the corresponding OpenSpec change.
 
 agents:
-  # Premium: decisiones de alto impacto. Si fallan, el workflow entero queda mal orientado.
+  # Premium:
+  # Infrequent decisions with high blast radius.
+  # A weak result here can invalidate the complete implementation direction.
   sdd-design: premium
   sdd-verify: premium
-  sdd-orchestrator: default
+  sdd-foundation: premium
+  sdd-workspace: premium
 
-  # Default: trabajo fuerte y frecuente. Aquí Terra da el mejor equilibrio calidad/coste.
+  # Default:
+  # Frequent semantic work requiring solid reasoning, but not Sol-level spend.
+  sdd-orchestrator: default
   sdd-propose: default
-  sdd-apply: default
   sdd-spec: default
+  sdd-clarify: default
   sdd-tasks: default
+  sdd-apply: default
   sdd-init: default
-  sdd-foundation: default
-  sdd-onboard: default
-  sdd-workspace: default
   sdd-baseline: default
+  sdd-reconcile: default
+  sdd-onboard: default
   sdd-document: default
 
-  # Cheap: tareas de bajo coste relativo. Luna en medium, no low, porque explore puede requerir comprensión real.
+  # Cheap:
+  # Bounded or mostly mechanical work.
   sdd-explore: cheap
   sdd-archive: cheap
 
-  # Reviewers: default por equilibrio. Subirlos a premium solo en modo paranoid/security-critical.
+  # Reviewers:
+  # Keep them on default while 4R can still fan out to four agents.
+  # A future risk-aware route can promote review-risk selectively.
   review-risk: default
   review-readability: default
   review-reliability: default
@@ -51,29 +54,48 @@ agents:
   _default: default
 
 tiers:
-  # opencode: prefix is openai/. Switch to github-copilot/ to use these GPT
-
+  # Premium:
+  # Sol high replaces Terra max.
+  #
+  # According to the supplied benchmark, Sol high is slightly more intelligent
+  # than Terra max while also being less expensive.
   premium:
     claude: opus
-    vscode: ["GPT-5.6 Sol (copilot)", "Claude Opus 4.8 (copilot)", "GPT-5.5 (copilot)"]
+    vscode:
+      - "GPT-5.6 Sol (copilot)"
+      - "Claude Opus 4.8 (copilot)"
+      - "GPT-5.5 (copilot)"
     opencode: openai/gpt-5.6-sol
     codex:
-      model: gpt-5.6-terra
-      model_reasoning_effort: max
+      model: gpt-5.6-sol
+      model_reasoning_effort: high
       model_verbosity: medium
 
+  # Default:
+  # Luna high replaces Terra medium.
+  #
+  # This is the main cost optimization: frequent agents get approximately
+  # equivalent or slightly better intelligence at materially lower cost.
   default:
     claude: sonnet
-    vscode: ["GPT-5.6 Terra (copilot)", "Claude Sonnet 4.6 (copilot)", "GPT-5.3-Codex (copilot)", "GPT-5.4 (copilot)"]
-    opencode: openai/gpt-5.6-terra
+    vscode:
+      - "GPT-5.6 Luna (copilot)"
+      - "Claude Sonnet 4.6 (copilot)"
+      - "GPT-5.4 (copilot)"
+    opencode: openai/gpt-5.6-luna
     codex:
-      model: gpt-5.6-terra
-      model_reasoning_effort: medium
+      model: gpt-5.6-luna
+      model_reasoning_effort: high
       model_verbosity: medium
 
+  # Cheap:
+  # Luna medium remains the efficient option for exploration and archive.
   cheap:
     claude: haiku
-    vscode: ["GPT-5.6 Luna (copilot)", "Qwen 3.6 MSC1 (customendpoint)", "GPT-5.4-mini (copilot)"]
+    vscode:
+      - "GPT-5.6 Luna (copilot)"
+      - "Deepseek V4 Flash (customendpoint)"
+      - "GPT-5.4-mini (copilot)"
     opencode: openai/gpt-5.6-luna
     codex:
       model: gpt-5.6-luna

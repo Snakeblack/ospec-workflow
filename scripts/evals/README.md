@@ -235,10 +235,59 @@ field names) to the change proposing the bump. A model that cannot pass all
 7 structural scenarios has not earned the tier bump regardless of how good
 its prose looks in casual use.
 
+## Reference benchmark suite
+
+The benchmark namespace adds nine reference changes without changing the seven
+golden scenarios. The initial experimental set is `docs-one-file`,
+`small-bugfix`, and `security-sensitive-change`: `benchmark all` and
+`benchmark initial` select those three; `benchmark extended` selects the
+optional nine-profile suite.
+
+Each live turn must write both `.eval-capture/done.json` and
+`.eval-capture/benchmark.json`. The latter contains `questions_asked` plus
+non-negative integer severity counters under `defects.verify` (`critical`,
+`warning`, `suggestion`) and `defects.four_r` (`blocker`, `critical`, `warning`,
+`suggestion`). Tokens come from terminal `turn.completed.usage`; duration is
+measured around the complete host process. Both use `measurement_scope: run`
+and `phase_attribution: none`. Dispatch counts, relaunches, subagent coverage,
+and model tiers are not inferred. Native O1 is supplementary when present.
+
+For headless local execution, use `node scripts/evals/live-driver.js <profile>`.
+The driver invokes `codex exec --ephemeral -C <workspace> --json`, retains the
+JSONL transcript, binds `benchmark.json` to the real CLI version, session id and
+transcript SHA-256, validates state/observations, and writes `done.json` only
+after every other artifact passes. A live turn writes its observed counters;
+the host driver derives provenance from the actual process and transcript.
+
+After the three compatible core results pass, the command writes the
+experimental `reports/reference-baseline.md`. Rows expose route, terminal
+input/output/total tokens, host duration, questions, and verify/4R defects.
+This smoke baseline is not phase evidence or a decision gate; nine profiles are
+optional.
+
+Accepted results live under the gitignored
+`.runs/benchmark-results/<profile>/result.json`. Reuse requires exact profile,
+schema, git revision, CLI, runtime surface, working-tree, installed-runtime,
+remote-model, manifest, fixture and prompt identities. Unknown installation or
+model identity disables cache reuse.
+A late failure therefore preserves earlier compatible successes.
+
+Artifact publication is transactional: active state and
+`benchmark.json` must be complete first; `done.json` is the final marker. The
+suite baseline is written to a unique temporary file in `reports/` and then
+atomically renamed. Missing or partial evidence fails closed, and no simulated
+or manually synthesized evidence is an acceptable substitute for a live run.
+
+Threat model: **cooperative orchestrator**. Cache checksums and transcript
+replay detect accidental corruption and post-persistence tampering only. They
+do not provide cryptographic authenticity against a producer that fabricates
+internally consistent evidence. Manual evidence remains outside the productive
+flow by policy and API shape, not by an unforgeable trust root.
+
 ## Caveats
 
-This is a **manual, local** capability (roadmap 2.1) — there is no CI
-wiring and no headless driver yet (roadmap 2.2/B4). Scoring is
+This is a **local, host-authorized** capability (roadmap 2.1) with a headless
+driver, but no CI wiring yet (roadmap 2.2/B4). Scoring is
 structural-only and taken from a single post-run snapshot (not a
 before/after diff). `document-update-noop` uses `fileTreeUnchanged` +
 `baselineFileTree` (see the manifest shape table above) to assert the exact
@@ -252,3 +301,22 @@ per-file hashing, is a larger change deferred as follow-up debt); the
 `state.yaml` itself drifting. Refine a scenario's `expect` block after your
 first live run against your target model if you find a sharper, still-
 structural assertion.
+
+### Host-authorized benchmark scoring
+
+`run.js benchmark <profile|all>` only prints driver instructions from the same
+canonical safe-export catalog. It never scores an existing workspace or
+publishes a baseline.
+Productive scoring is internal to `live-driver.js` and consumes an opaque,
+in-memory, short-lived, single-use capability bound to the workspace, exact
+`codex-events.jsonl` bytes, session id, transcript SHA-256, and host-observed
+CLI version. Serialized objects and explicitly labelled test capabilities are
+rejected by productive authorization.
+
+`benchmark.pending.json` carries observation counters only; neither it nor
+`benchmark.json` establishes no authenticity for the session, CLI, or transcript. The driver
+owns final `benchmark.json` and writes `done.json` last.
+
+O1 is supplementary. Valid rows preserve their native binding; missing or
+invalid telemetry is reported as unavailable and does not block sealed
+run-level scoring. Totals are never distributed through phase weights.

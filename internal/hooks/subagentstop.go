@@ -4,8 +4,11 @@
 package hooks
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -129,7 +132,7 @@ func findTextResolution(text string) string {
 			break
 		}
 	}
-	return strings.ToLower(strings.TrimRight(rest[:end], `"'` + "`"))
+	return strings.ToLower(strings.TrimRight(rest[:end], `"'`+"`"))
 }
 
 // findResolutionInValue dispatches between string and object values.
@@ -244,6 +247,158 @@ func resolveTranscriptPath(input map[string]any) (string, bool) {
 		return tp, true
 	}
 	return "", false
+}
+
+// resolveHostBinding mirrors the Node fallback without claiming a stronger
+// provenance root than the hook payload exposes. The native host can bind a
+// row to session/thread plus exact agent-transcript bytes; callers that require
+// root codex-events bytes must continue to reject transcript_source below.
+func canonicalO1Payload(record map[string]any) []byte {
+	payload, _ := json.Marshal([]any{
+		record["phase"], record["agent"], record["estimated_prompt_tokens"],
+		record["estimated_artifact_tokens"], record["estimated_tool_output_tokens"],
+		record["estimated_output_tokens"], record["duration_ms"], record["model_tier"],
+		record["status"], record["ts"],
+	})
+	return payload
+}
+
+func readStableRootTranscript(filePath string) ([]byte, error) {
+	parentInfo, err := os.Lstat(filepath.Dir(filePath))
+	if err != nil || parentInfo.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("root transcript parent is unavailable or a symlink/reparse point")
+	}
+	before, err := os.Lstat(filePath)
+	if err != nil || before.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("root transcript is unavailable or a symlink/reparse point")
+	}
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	opened, err := file.Stat()
+	if err != nil || !os.SameFile(before, opened) {
+		return nil, fmt.Errorf("root transcript identity changed before read")
+	}
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+	afterHandle, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	afterPath, err := os.Lstat(filePath)
+	if err != nil || afterPath.Mode()&os.ModeSymlink != 0 || !os.SameFile(opened, afterHandle) || !os.SameFile(afterHandle, afterPath) || afterHandle.Size() != int64(len(data)) {
+		return nil, fmt.Errorf("root transcript identity changed during read")
+	}
+	return data, nil
+}
+
+func resolveHostBinding(input map[string]any, workspace string, canonicalRecord map[string]any) map[string]any {
+	binding := map[string]any{}
+	for _, key := range []string{"session_id", "thread_id"} {
+		if value, ok := input[key].(string); ok && strings.TrimSpace(value) != "" {
+			binding["session_id"] = strings.TrimSpace(value)
+			break
+		}
+	}
+	for _, key := range []string{"event_id", "hook_event_id"} {
+		if value, ok := input[key].(string); ok && strings.TrimSpace(value) != "" {
+			binding["event_id"] = strings.TrimSpace(value)
+			break
+		}
+	}
+
+	if rootTranscriptPath := os.Getenv("OSPEC_CODEX_EVENTS_PATH"); rootTranscriptPath != "" {
+		hostRunID := os.Getenv("OSPEC_BENCHMARK_RUN_ID")
+		expectedPath := filepath.Clean(filepath.Join(workspace, ".eval-capture", "codex-events.jsonl"))
+		cleaned, ok := validatePath(rootTranscriptPath)
+		if !ok || filepath.Clean(cleaned) != expectedPath || hostRunID == "" {
+			binding["status"] = "unsupported-host-binding"
+			return binding
+		}
+		data, err := readStableRootTranscript(cleaned)
+		if err != nil {
+			binding["status"] = "unsupported-host-binding"
+			return binding
+		}
+		newlineIndex := bytes.LastIndexByte(data, '\n')
+		if newlineIndex < 0 {
+			binding["status"] = "unsupported-host-binding"
+			return binding
+		}
+		prefix := data[:newlineIndex+1]
+		rootSessionIDs := []string{}
+		events := []map[string]any{}
+		for _, line := range bytes.Split(prefix, []byte{'\n'}) {
+			line = bytes.TrimSuffix(line, []byte{'\r'})
+			if len(line) == 0 {
+				continue
+			}
+			var event map[string]any
+			if err := json.Unmarshal(line, &event); err != nil {
+				binding["status"] = "unsupported-host-binding"
+				return binding
+			}
+			events = append(events, event)
+			if event["type"] == "thread.started" {
+				if threadID, ok := event["thread_id"].(string); ok && strings.TrimSpace(threadID) != "" {
+					rootSessionIDs = append(rootSessionIDs, strings.TrimSpace(threadID))
+				}
+			}
+		}
+		if len(rootSessionIDs) != 1 {
+			binding["status"] = "unsupported-host-binding"
+			return binding
+		}
+		rootSessionID := rootSessionIDs[0]
+		for _, event := range events {
+			for _, key := range []string{"thread_id", "session_id"} {
+				if value, ok := event[key].(string); ok && strings.TrimSpace(value) != "" && strings.TrimSpace(value) != rootSessionID {
+					binding["status"] = "unsupported-host-binding"
+					return binding
+				}
+			}
+		}
+		if sessionID, ok := binding["session_id"].(string); ok && sessionID != rootSessionID {
+			binding["status"] = "unsupported-host-binding"
+			return binding
+		}
+		sum := sha256.Sum256(prefix)
+		prefixHash := fmt.Sprintf("%x", sum)
+		return map[string]any{
+			"status":                   "supported-observable-binding",
+			"authentication":           "none",
+			"session_id":               rootSessionID,
+			"transcript_source":        "codex-events",
+			"binding_scope":            "prefix",
+			"transcript_prefix_bytes":  len(prefix),
+			"transcript_prefix_sha256": prefixHash,
+			"host_run_id":              hostRunID,
+		}
+	}
+
+	transcriptPath, hasTranscript := resolveTranscriptPath(input)
+	if _, hasSession := binding["session_id"]; !hasSession || !hasTranscript {
+		binding["status"] = "unsupported-host-binding"
+		return binding
+	}
+	cleaned, ok := validatePath(transcriptPath)
+	if !ok {
+		binding["status"] = "unsupported-host-binding"
+		return binding
+	}
+	bytes, err := os.ReadFile(cleaned)
+	if err != nil {
+		binding["status"] = "unsupported-host-binding"
+		return binding
+	}
+	sum := sha256.Sum256(bytes)
+	binding["transcript_sha256"] = fmt.Sprintf("%x", sum)
+	binding["transcript_source"] = "agent-transcript"
+	return binding
 }
 
 // ── Result Envelope extraction/validation/persistence (C5) ──────────────────
@@ -689,10 +844,11 @@ func persistPhaseCost(input map[string]any, workspace string) {
 		"estimated_tool_output_tokens": ctx["tool_output"],
 		"estimated_output_tokens":      ctx["output"],
 		"duration_ms":                  ctx["duration_ms"],
-		"model_tier":                  modelTier,
+		"model_tier":                   modelTier,
 		"status":                       status,
 		"ts":                           time.Now().UTC().Format(time.RFC3339Nano),
 	}
+	record["host_binding"] = resolveHostBinding(input, workspace, record)
 	line, marshalErr := json.Marshal(record)
 	if marshalErr != nil {
 		return

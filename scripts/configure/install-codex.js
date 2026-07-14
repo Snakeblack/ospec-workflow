@@ -525,6 +525,7 @@ if (require.main === module) {
 
 module.exports = {
   parseArgs,
+  resolveBinFromPath,
   findCodexBin,
   resolveCodexInvocation,
   copyCodexAgents,
