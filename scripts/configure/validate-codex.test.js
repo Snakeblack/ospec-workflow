@@ -206,3 +206,26 @@ test("validate-codex rejects forbidden plugin.json and hooks paths", (t) => {
   assert.match(errors, /forbidden path present: \.codex-plugin/);
   assert.match(errors, /forbidden path present: hooks/);
 });
+
+test("validate-codex rejects 4R reviewer agents without approval_policy = never", (t) => {
+  const root = makeValidCodexTree(t);
+  fs.writeFileSync(
+    path.join(root, ".codex", "agents", "review-readability.toml"),
+    'name = "review-readability"\ndescription = "d"\nsandbox_mode = "read-only"\ndeveloper_instructions = """clean"""\n'
+  );
+
+  const result = validate(root);
+  assert.match(result.errors.join("\n"), /\.codex\/agents\/review-readability\.toml must specify approval_policy = "never"/);
+});
+
+test("validate-codex rejects sdd-apply or sdd-verify without disabled network_access in sandbox", (t) => {
+  const root = makeValidCodexTree(t);
+  fs.writeFileSync(
+    path.join(root, ".codex", "agents", "sdd-apply.toml"),
+    'name = "sdd-apply"\ndescription = "d"\nsandbox_mode = "workspace-write"\ndeveloper_instructions = """clean"""\n'
+  );
+
+  const result = validate(root);
+  assert.match(result.errors.join("\n"), /\.codex\/agents\/sdd-apply\.toml must disable network access in sandbox/);
+});
+

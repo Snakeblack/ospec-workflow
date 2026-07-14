@@ -212,6 +212,21 @@ function validateAgentToml(root, errors, readFile = readUtf8) {
     if (sandboxMatch && !VALID_SANDBOX_MODES.has(sandboxMatch[1])) {
       addError(errors, `${file} has invalid sandbox_mode: ${sandboxMatch[1]}`);
     }
+
+    const baseName = path.basename(file);
+    if (baseName.startsWith("review-")) {
+      if (!/^\s*approval_policy\s*=\s*"never"/m.test(text)) {
+        addError(errors, `${file} must specify approval_policy = "never"`);
+      }
+    }
+    if (baseName === "sdd-apply.toml" || baseName === "sdd-verify.toml") {
+      if (!/^\s*\[sandbox_workspace_write\]/m.test(text)) {
+        addError(errors, `${file} missing [sandbox_workspace_write] table`);
+      }
+      if (!/^\s*network_access\s*=\s*false/m.test(text)) {
+        addError(errors, `${file} must disable network access in sandbox`);
+      }
+    }
   }
 }
 

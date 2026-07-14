@@ -569,6 +569,16 @@ function handleAgentToml(file, profile, models) {
         }
       }
     }
+
+    if (name.startsWith("review-")) {
+      fields.approval_policy = "never";
+    }
+
+    if (name === "sdd-apply" || name === "sdd-verify") {
+      fields.sandbox_workspace_write = {
+        network_access: false,
+      };
+    }
   }
 
   let devInstructions = body;
@@ -607,7 +617,13 @@ function tomlEscapeMultiline(value) {
 function serializeAgentToml(fields) {
   const lines = [];
   for (const [key, value] of Object.entries(fields)) {
-    if (key === "developer_instructions" || key === "agent_settings" || value === undefined || value === null) {
+    if (
+      key === "developer_instructions" ||
+      key === "agent_settings" ||
+      key === "sandbox_workspace_write" ||
+      value === undefined ||
+      value === null
+    ) {
       continue;
     }
     lines.push(`${key} = "${tomlEscapeScalar(value)}"`);
@@ -621,6 +637,12 @@ function serializeAgentToml(fields) {
       if (!Number.isInteger(value) || value < 0) {
         throw new TypeError(`agent_settings.${key} must be a non-negative integer`);
       }
+      lines.push(`${key} = ${value}`);
+    }
+  }
+  if (fields.sandbox_workspace_write && typeof fields.sandbox_workspace_write === "object") {
+    lines.push("", "[sandbox_workspace_write]");
+    for (const [key, value] of Object.entries(fields.sandbox_workspace_write)) {
       lines.push(`${key} = ${value}`);
     }
   }

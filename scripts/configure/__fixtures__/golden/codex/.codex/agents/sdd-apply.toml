@@ -10,3 +10,6 @@ Use read and search to find the work. Ask via ask blocking gate questions as a n
 
 [agents]
 max_depth = 1
+
+[sandbox_workspace_write]
+network_access = false
