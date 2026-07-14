@@ -450,16 +450,18 @@ async function persistResultEnvelope({ input, workspace }) {
       return;
     }
 
-    const validation = validateEnvelope(envelopeResult.value);
+    const canonicalAgentPhase = resolveAgentName(input);
+    const statePhaseKey = derivePhaseKey(canonicalAgentPhase);
 
-    if (!validation.valid) {
+    if (!statePhaseKey) {
       return;
     }
 
-    const agentName = resolveAgentName(input);
-    const phase = derivePhaseKey(agentName);
+    const validation = validateEnvelope(envelopeResult.value, {
+      phase: canonicalAgentPhase,
+    });
 
-    if (!phase) {
+    if (!validation.valid) {
       return;
     }
 
@@ -493,7 +495,7 @@ async function persistResultEnvelope({ input, workspace }) {
         return;
       }
 
-      const updated = setPhaseSummary(freshContent, phase, {
+      const updated = setPhaseSummary(freshContent, statePhaseKey, {
         summary: envelope.executive_summary,
         keyDecisions,
       });
@@ -565,10 +567,20 @@ async function resolveDispatchStatus(input) {
   }
 
   if (envelopeResult.found && envelopeResult.value) {
-    const validation = validateEnvelope(envelopeResult.value);
+    const canonicalAgentPhase = resolveAgentName(input);
+    const validation = validateEnvelope(envelopeResult.value, {
+      phase: canonicalAgentPhase,
+    });
 
     if (validation.valid && typeof envelopeResult.value.status === "string") {
       return envelopeResult.value.status;
+    }
+
+    if (
+      canonicalAgentPhase === "sdd-spec" &&
+      envelopeResult.value.status === "success"
+    ) {
+      return "blocked";
     }
   }
 
@@ -695,10 +707,10 @@ function normalizeDispatchCostContext(input) {
  */
 async function persistPhaseCost({ input, workspace }) {
   try {
-    const agentName = resolveAgentName(input);
-    const phase = derivePhaseKey(agentName);
+    const canonicalAgentPhase = resolveAgentName(input);
+    const statePhaseKey = derivePhaseKey(canonicalAgentPhase);
 
-    if (!phase) {
+    if (!statePhaseKey) {
       return;
     }
 
@@ -711,10 +723,10 @@ async function persistPhaseCost({ input, workspace }) {
 
     const ctx = normalizeDispatchCostContext(input);
     const status = await resolveDispatchStatus(input);
-    const model_tier = resolveModelTier(agentName, path.resolve(__dirname, "../.."));
+    const model_tier = resolveModelTier(canonicalAgentPhase, path.resolve(__dirname, "../.."));
     const record = {
-      phase,
-      agent: agentName,
+      phase: statePhaseKey,
+      agent: canonicalAgentPhase,
       estimated_prompt_tokens: ctx.prompt,
       estimated_artifact_tokens: ctx.artifact,
       estimated_tool_output_tokens: ctx.tool_output,
@@ -738,13 +750,21 @@ async function persistPhaseCost({ input, workspace }) {
 }
 
 function resolveAgentName(input) {
-  return String(
-    input?.agent_type ||
-      input?.agent_name ||
-      input?.agent ||
-      input?.agent_id ||
-      "unknown",
-  );
+  for (const candidate of [
+    input?.agent_type,
+    input?.agent_name,
+    input?.agent,
+    input?.agent_id,
+  ]) {
+    if (!candidate) {
+      continue;
+    }
+    const canonicalName = String(candidate).trim();
+    if (canonicalName) {
+      return canonicalName;
+    }
+  }
+  return "unknown";
 }
 
 function resolveTimestamp(input, now) {

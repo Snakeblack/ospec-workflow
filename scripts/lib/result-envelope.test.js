@@ -253,3 +253,94 @@ test("validateEnvelope: bad blocker_type enum message lists values in declaratio
     `expected a deterministic, declaration-ordered message; got: ${JSON.stringify(result.errors)}`,
   );
 });
+
+// --- Phase-aware sdd-spec ambiguity contract --------------------------------
+
+const AMBIGUITY_SIGNALS = {
+  residual_ambiguity: false,
+  public_contract_questions: [],
+  conflicting_requirements: [],
+  missing_acceptance_criteria: [],
+};
+
+function validSpecEnvelope(overrides = {}) {
+  return { ...VALID_ENVELOPE, ...AMBIGUITY_SIGNALS, ...overrides };
+}
+
+test("validateEnvelope: generic validation remains compatible without spec signals", () => {
+  assert.deepEqual(validateEnvelope(VALID_ENVELOPE), { valid: true, errors: [] });
+  assert.deepEqual(validateEnvelope(VALID_ENVELOPE, { phase: "sdd-design" }), {
+    valid: true,
+    errors: [],
+  });
+});
+
+test("validateEnvelope: successful sdd-spec requires signals in canonical order", () => {
+  const result = validateEnvelope(VALID_ENVELOPE, { phase: "sdd-spec" });
+
+  assert.deepEqual(result.errors, [
+    "missing required field: residual_ambiguity",
+    "missing required field: public_contract_questions",
+    "missing required field: conflicting_requirements",
+    "missing required field: missing_acceptance_criteria",
+  ]);
+});
+
+test("validateEnvelope: valid successful sdd-spec signals pass", () => {
+  assert.deepEqual(validateEnvelope(validSpecEnvelope(), { phase: "sdd-spec" }), {
+    valid: true,
+    errors: [],
+  });
+  assert.deepEqual(
+    validateEnvelope(
+      validSpecEnvelope({ residual_ambiguity: true, public_contract_questions: ["Public API?"] }),
+      { phase: "sdd-spec" },
+    ),
+    { valid: true, errors: [] },
+  );
+});
+
+test("validateEnvelope: spec signal types and elements fail deterministically", () => {
+  const result = validateEnvelope(
+    validSpecEnvelope({
+      residual_ambiguity: "false",
+      public_contract_questions: "none",
+      conflicting_requirements: ["valid", 42],
+      missing_acceptance_criteria: [null],
+    }),
+    { phase: "sdd-spec" },
+  );
+
+  assert.deepEqual(result.errors, [
+    "residual_ambiguity must be a boolean",
+    "public_contract_questions must be an array of strings",
+    "conflicting_requirements[1] must be a string",
+    "missing_acceptance_criteria[0] must be a string",
+  ]);
+});
+
+test("validateEnvelope: present spec signals are type-checked generically", () => {
+  const result = validateEnvelope(
+    { ...VALID_ENVELOPE, public_contract_questions: [false] },
+    { phase: "sdd-design" },
+  );
+  assert.deepEqual(result.errors, ["public_contract_questions[0] must be a string"]);
+});
+
+test("validateEnvelope: partial and blocked sdd-spec do not require signals", () => {
+  const partial = { ...VALID_ENVELOPE, status: "partial" };
+  const blocked = {
+    ...VALID_ENVELOPE,
+    status: "blocked",
+    question_gate: { reason: "Need input", questions: [] },
+  };
+
+  assert.deepEqual(validateEnvelope(partial, { phase: "sdd-spec" }), {
+    valid: true,
+    errors: [],
+  });
+  assert.deepEqual(validateEnvelope(blocked, { phase: "sdd-spec" }), {
+    valid: true,
+    errors: [],
+  });
+});

@@ -232,6 +232,17 @@ const STATE_WITH_NON_EMPTY_DESIGN_SUMMARY = [
   "",
 ].join("\n");
 
+const STATE_WITH_EMPTY_SPEC_SUMMARY = [
+  "change: strict-result-envelope",
+  "status: planning",
+  "phases:",
+  "  spec:",
+  "    status: done",
+  '    artifact: "openspec/changes/strict-result-envelope/specs/**/spec.md"',
+  '    summary: ""',
+  "",
+].join("\n");
+
 function buildFenceText(envelope) {
   return [
     "Some prose the agent wrote.",
@@ -267,6 +278,14 @@ const VALID_ENVELOPE = {
   risks: "None",
   skill_resolution: "injected",
   key_decisions: ["Fill-gap merge sobre last-writer-wins"],
+};
+
+const VALID_SPEC_ENVELOPE = {
+  ...VALID_ENVELOPE,
+  residual_ambiguity: false,
+  public_contract_questions: [],
+  conflicting_requirements: [],
+  missing_acceptance_criteria: [],
 };
 
 test("valid envelope fence is persisted into the active change's state.yaml", async (t) => {
@@ -370,6 +389,72 @@ test("agent's own non-empty summary is not overwritten by the hook", async (t) =
 
   const untouchedState = await fs.readFile(statePath, "utf8");
   assert.equal(untouchedState, STATE_WITH_NON_EMPTY_DESIGN_SUMMARY);
+});
+
+test("successful sdd-spec envelope without ambiguity signals is not persisted", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_SPEC_SUMMARY,
+  );
+
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-spec",
+      result: buildFenceText(VALID_ENVELOPE),
+    },
+  });
+
+  assert.equal(await fs.readFile(statePath, "utf8"), STATE_WITH_EMPTY_SPEC_SUMMARY);
+});
+
+test("spaced sdd-spec metadata canonicalizes before valid and invalid persistence", async (t) => {
+  const validWorkspace = await createChangeWorkspace(t, STATE_WITH_EMPTY_SPEC_SUMMARY);
+  await runSubagentStop({
+    input: {
+      cwd: validWorkspace.workspace,
+      agent_type: "sdd-spec ",
+      result: buildFenceText(VALID_SPEC_ENVELOPE),
+    },
+  });
+  assert.match(await fs.readFile(validWorkspace.statePath, "utf8"), /summary: "Diseñó/);
+
+  const invalidWorkspace = await createChangeWorkspace(t, STATE_WITH_EMPTY_SPEC_SUMMARY);
+  await runSubagentStop({
+    input: {
+      cwd: invalidWorkspace.workspace,
+      agent_type: "sdd-spec ",
+      result: buildFenceText(VALID_ENVELOPE),
+    },
+  });
+  assert.equal(
+    await fs.readFile(invalidWorkspace.statePath, "utf8"),
+    STATE_WITH_EMPTY_SPEC_SUMMARY,
+  );
+});
+
+test("whitespace-only agent_type falls back to agent_name for spec persistence", async (t) => {
+  const validWorkspace = await createChangeWorkspace(t, STATE_WITH_EMPTY_SPEC_SUMMARY);
+  await runSubagentStop({
+    input: {
+      cwd: validWorkspace.workspace,
+      agent_type: "   ",
+      agent_name: "sdd-spec",
+      result: buildFenceText(VALID_SPEC_ENVELOPE),
+    },
+  });
+  assert.match(await fs.readFile(validWorkspace.statePath, "utf8"), /summary: "Diseñó/);
+
+  const precedenceWorkspace = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+  await runSubagentStop({
+    input: {
+      cwd: precedenceWorkspace.workspace,
+      agent_type: " sdd-design ",
+      agent_name: "sdd-spec",
+      result: buildFenceText(VALID_ENVELOPE),
+    },
+  });
+  assert.match(await fs.readFile(precedenceWorkspace.statePath, "utf8"), /summary: "Diseñó/);
 });
 
 test("no active change resolvable — envelope persistence is a safe no-op", async (t) => {
@@ -750,6 +835,67 @@ test("resolveDispatchStatus resolves from a valid envelope's status field", asyn
     result: buildFenceText(VALID_ENVELOPE),
   });
   assert.equal(status, VALID_ENVELOPE.status);
+});
+
+test("resolveDispatchStatus rejects a successful sdd-spec envelope without ambiguity signals", async () => {
+  const status = await resolveDispatchStatus({
+    agent_type: "sdd-spec",
+    status: "blocked",
+    result: buildFenceText(VALID_ENVELOPE),
+  });
+
+  assert.equal(status, "blocked");
+});
+
+test("resolveDispatchStatus fails closed for invalid spaced sdd-spec even when input says success", async () => {
+  assert.equal(
+    await resolveDispatchStatus({
+      agent_type: "sdd-spec ",
+      status: "success",
+      result: buildFenceText(VALID_ENVELOPE),
+    }),
+    "blocked",
+  );
+  assert.equal(
+    await resolveDispatchStatus({
+      agent_type: "sdd-spec ",
+      status: "blocked",
+      result: buildFenceText(VALID_SPEC_ENVELOPE),
+    }),
+    "success",
+  );
+});
+
+test("resolveDispatchStatus uses agent_name when agent_type is whitespace-only", async () => {
+  assert.equal(
+    await resolveDispatchStatus({
+      agent_type: "   ",
+      agent_name: "sdd-spec",
+      status: "success",
+      result: buildFenceText(VALID_ENVELOPE),
+    }),
+    "blocked",
+  );
+  assert.equal(
+    await resolveDispatchStatus({
+      agent_type: " sdd-design ",
+      agent_name: "sdd-spec",
+      status: "blocked",
+      result: buildFenceText(VALID_ENVELOPE),
+    }),
+    "success",
+  );
+});
+
+test("resolveDispatchStatus preserves generic non-spec fallback", async () => {
+  assert.equal(
+    await resolveDispatchStatus({
+      agent_type: "sdd-design ",
+      status: "blocked",
+      result: buildFenceText(VALID_ENVELOPE),
+    }),
+    "success",
+  );
 });
 
 test("resolveDispatchStatus falls back to top-level input.status, then 'unknown' (triangulation)", async () => {

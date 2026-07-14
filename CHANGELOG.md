@@ -8,6 +8,28 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.29.0] - 2026-07-15
+
+### Added
+- **Clarify condicional (O3)**: `sdd-spec` emite señales estructuradas de ambigüedad y el
+  orquestador solo despacha `sdd-clarify` cuando alguna lo justifica; una spec estándar
+  bien definida continúa directamente a diseño.
+- **Envelopes fail-closed por fase**: la validación rechaza señales ausentes o mal tipadas
+  en resultados exitosos de `sdd-spec` antes de persistir estado o despachar fases
+  posteriores, sin romper el fallback de envelopes genéricos.
+
+### Changed
+- **Paridad del contrato en runtimes y targets**: JavaScript y Go aplican el mismo orden
+  determinista de validación, y los cinco targets generados preservan la decisión
+  condicional de clarify.
+- **Trazabilidad SDD y remediación 4R acotada**: el change
+  `make-clarify-conditional` cerró 20/20 tareas y 11/11 escenarios; los hallazgos de
+  Reliability se corrigieron y revalidaron sin reabrir reviewers sin hallazgos.
+
+### Tests
+- **Verificación final**: `npm test` pasó 1306/1308 pruebas con 2 skips esperados y
+  `go test -count=1 ./...` pasó los 9/9 paquetes.
+
 ## [2.28.0] - 2026-07-14
 
 ### Added

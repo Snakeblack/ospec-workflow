@@ -1,0 +1,24 @@
+# ADR-001: Phase-aware ambiguity validation fails closed
+
+- Status: accepted
+- Change: make-clarify-conditional
+- Date: 2026-07-15
+
+## Context
+
+Successful `sdd-spec` returns need explicit ambiguity signals to decide whether clarify runs. Generic result envelopes belong to every phase, so those fields cannot be globally required, and missing signals cannot safely mean either “no ambiguity” or “run clarify.”
+
+## Decision
+
+The canonical JavaScript and Go validators will accept phase context and require the four typed ambiguity signals only for successful `sdd-spec` returns. The generic validator entry points remain backward compatible. Invalid successful spec signals halt orchestration for spec-contract remediation before clarify or design; a valid envelope is evaluated by the pure predicate in the clarify handler.
+
+## Alternatives
+
+- Require signals on every phase: rejected because it breaks unrelated envelopes.
+- Default absent signals to empty: rejected because it silently skips unresolved ambiguity.
+- Run clarify on invalid signals: rejected because it hides a technical contract failure as a product question.
+- Add a phase field to every envelope: rejected as unnecessary public-contract expansion.
+
+## Consequences
+
+Dispatch becomes deterministic and JS/Go parity is testable, while callers with phase knowledge must pass that context. The change is reversible only as an atomic contract rollback; partially reverting validators, prompts, or generated-target expectations would reintroduce divergence.

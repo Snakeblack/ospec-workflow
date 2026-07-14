@@ -194,6 +194,30 @@ Immediately after you return `status: success`, the ORCHESTRATOR computes the SH
 
 Return to the orchestrator:
 
+Before returning, classify all unresolved specification work into the canonical
+ambiguity signals below. Every successful `sdd-spec` return MUST emit all four
+fields both beside the prose envelope and inside the strict
+`json:result-envelope` object:
+
+```yaml
+residual_ambiguity: false
+public_contract_questions: []
+conflicting_requirements: []
+missing_acceptance_criteria: []
+```
+
+The strict success fence follows this typed shape (replace summary, paths, next
+phase, risks, and touched domains with the actual result):
+
+```json:result-envelope
+{"status":"success","executive_summary":"Wrote testable delta specifications.","artifacts":["openspec/changes/example/specs/domain/spec.md"],"next_recommended":"sdd-design","risks":"None","skill_resolution":"injected","residual_ambiguity":false,"public_contract_questions":[],"conflicting_requirements":[],"missing_acceptance_criteria":[]}
+```
+
+Use `residual_ambiguity: false` plus three empty arrays only when the spec is
+ready for design without clarification. Set the boolean to `true` or place each
+unresolved item in its matching string array when clarification is required.
+Never omit, null, or substitute prose for these fields on `status: success`.
+
 ```markdown
 ## Specs Created
 
@@ -214,6 +238,11 @@ Return to the orchestrator:
 
 ### Next Step
 Ready for design (sdd-design). If design already exists, ready for tasks (sdd-tasks).
+
+residual_ambiguity: {true|false}
+public_contract_questions: [{string}, ...]
+conflicting_requirements: [{string}, ...]
+missing_acceptance_criteria: [{string}, ...]
 ```
 
 ## Rules
@@ -234,6 +263,8 @@ Ready for design (sdd-design). If design already exists, ready for tasks (sdd-ta
 - Apply any `rules.specs` from `openspec/config.yaml`
 - **Size budget**: Spec budget is elastic per domain. Target 650 words or less for each domain file; multi-domain changes may exceed 650 words in aggregate, but each domain still needs concise normative text. Prefer tables over narrative descriptions. Each scenario: 3-5 lines max.
 - Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.
+- For `status: success`, include all four ambiguity signals in the strict JSON
+  fence as typed JSON values as well as in the prose-adjacent envelope.
 
 ## RFC 2119 Keywords Quick Reference
 

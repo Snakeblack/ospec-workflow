@@ -392,21 +392,20 @@ For persisted continuation, treat `openspec/changes/{change-name}/state.yaml` pl
 
 #### sdd-clarify Routing (MANDATORY after sdd-spec success)
 
-After `sdd-spec` returns `status: success`, evaluate the clarify gate before `sdd-design`.
+After `sdd-spec` returns `status: success`, extract its authoritative structured
+envelope and call `validateEnvelope(envelope, { phase: "sdd-spec" })` before
+either downstream dispatch. The required signals include the anchored
+`residual_ambiguity` field plus all three ambiguity arrays.
 
-**Gate SKIP — all three conditions must hold simultaneously:**
-- Active route is `lite`; AND
-- Change classification is `trivial` or `small`; AND
-- `sdd-spec` did NOT return `residual_ambiguity: true`.
+If phase-aware validation fails, fail closed: set top-level `status: blocked`,
+record the validation errors as an `sdd-spec contract remediation` reason, and
+dispatch neither `sdd-clarify` nor `sdd-design`. Do not use generic prose fallback
+or clarification to conceal a broken successful-spec contract.
 
-When all three hold: set `phases.clarify.status: skipped` in `state.yaml` and route directly to `sdd-design` without launching `sdd-clarify`.
-
-**Gate RUNS when ANY of the following is true:**
-- The active route is `standard`, `brownfield`, `federated`, or `foundation`; OR
-- Change classification is `normal` or `high-risk`; OR
-- `sdd-spec` returned `residual_ambiguity: true` (overrides the lite-route skip rule regardless of classification).
-
-When the gate runs, handle success/blocked/user-skip and the `phases.clarify.status` bookkeeping per `skills/_shared/clarify-routing.md` (Clarify Gate Handler, pointer table).
+If validation succeeds, evaluate the skip/run predicate and preserve all
+success/blocked/user-skip bookkeeping through `skills/_shared/clarify-routing.md`
+(Clarify Gate Handler, pointer table). Clarify remains a gate outside declared
+route phases and MUST NOT be passed through `validate-phase.js`.
 
 #### Strict TDD Forwarding (MANDATORY)
 
@@ -471,7 +470,7 @@ here.
 | Archive Dispatch Guard (Quality Gates) | before dispatching `sdd-archive` | `skills/_shared/gate-archive-quality.md` | At the archive guard, before dispatching `sdd-archive` |
 | Change Collision Gate | before dispatching `sdd-apply` AND at least one OTHER active (non-terminal) change exists | `skills/_shared/gate-change-collision.md` | At the apply guard, after the Review Workload Guard resolves |
 | Question Shape Library | composing a delivery-strategy, review-workload, or blocked-envelope question | `skills/_shared/question-shapes.md` | At the ask point, before the first such `vscode/askQuestions` call in a session |
-| Clarify Gate Handler | the clarify gate RUNS per `#### sdd-clarify Routing` | `skills/_shared/clarify-routing.md` | After `sdd-spec` success, before dispatching `sdd-clarify`/`sdd-design` |
+| Clarify Gate Handler | a successful `sdd-spec` envelope passes phase-aware validation | `skills/_shared/clarify-routing.md` | After `sdd-spec` success, before dispatching `sdd-clarify`/`sdd-design` |
 | Gaps Resolution Handler (MANDATORY) | `sdd-foundation` returns `status: blocked` with unresolved functional/technical gaps — resolutions are recorded under the `approvals` ledger in `state.yaml` and `gaps_resolutions` in `openspec/config.yaml` | `skills/_shared/gaps-resolution.md` | On the blocked return, before relaunching `sdd-foundation` |
 | Document Route Handler | `/sdd-document` invoked (or route dispatch selects the `sdd-document` phase) | `skills/_shared/route-document.md` | At route dispatch, before the batched language+scope gate |
 

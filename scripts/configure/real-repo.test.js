@@ -360,22 +360,52 @@ test("real repo: sdd-clarify skill propagates to opencode and github-copilot", (
   }
 });
 
-test("real repo: orchestrator conditional clarify references residual_ambiguity", (t) => {
-  const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "vscode", outDir: out, validate: false });
+test("real repo: all five targets preserve the signal-driven clarify gate", (t) => {
+  const orchestratorPaths = {
+    claude: "skills/sdd-orchestrator/SKILL.md",
+    vscode: "agents/sdd-orchestrator.agent.md",
+    "github-copilot": ".github/agents/sdd-orchestrator.agent.md",
+    opencode: ".opencode/agents/ospec-workflow.md",
+    codex: "agent.md",
+  };
 
-  const orchestratorPath = path.join(out, "agents", "sdd-orchestrator.agent.md");
-  assert.ok(
-    fs.existsSync(orchestratorPath),
-    "sdd-orchestrator.agent.md missing from vscode output"
-  );
+  for (const [target, relativeOrchestratorPath] of Object.entries(orchestratorPaths)) {
+    const out = tmpOut(t);
+    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
 
-  const text = fs.readFileSync(orchestratorPath, "utf8");
-  assert.match(
-    text,
-    /residual_ambiguity/,
-    "sdd-orchestrator must reference residual_ambiguity for conditional clarify gate"
-  );
+    const orchestratorPath = path.join(out, relativeOrchestratorPath);
+    assert.ok(fs.existsSync(orchestratorPath), `${target} orchestrator missing`);
+    const orchestrator = fs.readFileSync(orchestratorPath, "utf8");
+    assert.match(orchestrator, /residual_ambiguity/, `${target}: signal anchor missing`);
+    assert.match(
+      orchestrator,
+      /validateEnvelope\(envelope, \{ phase: "sdd-spec" \}\)/,
+      `${target}: phase-aware validation missing`,
+    );
+    assert.match(orchestrator, /sdd-spec contract remediation/i, `${target}: fail-closed reason missing`);
+    assert.match(
+      orchestrator,
+      /dispatch neither `sdd-clarify` nor `sdd-design`/i,
+      `${target}: downstream halt missing`,
+    );
+    assert.doesNotMatch(orchestrator, /validate-phase\.js[^\n]*sdd-clarify/i);
+
+    const handler = fs.readFileSync(
+      path.join(out, "skills", "_shared", "clarify-routing.md"),
+      "utf8",
+    );
+    assert.match(handler, /function shouldRunClarify\(signals\)/, `${target}: predicate missing`);
+    assert.match(
+      handler,
+      /\| false \+ empty arrays \| skip \| skipped \| sdd-design \|/,
+      `${target}: deterministic skipped-state outcome missing`,
+    );
+    assert.match(
+      handler,
+      /\| true or any non-empty array \| run clarify \| done or blocked \| sdd-design or user gate \|/,
+      `${target}: deterministic run-state outcome missing`,
+    );
+  }
 });
 
 test("real repo: sdd-foundation agent mentions markitdown degradation", (t) => {

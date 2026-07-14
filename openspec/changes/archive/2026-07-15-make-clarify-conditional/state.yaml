@@ -1,0 +1,124 @@
+change: make-clarify-conditional
+status: archived
+classification: normal
+owner:
+  author: Manuel Retamozo
+  branch: feat/make-clarify-conditional
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "classification=normal and project.status=active select the standard route; O3 changes the sdd-spec result contract and the orchestrator clarify dispatch across multiple baseline domains."
+  validated: true
+  validation_errors: []
+execution_mode: auto
+delivery_strategy: exception-ok
+approvals:
+  - id: architecture-001
+    gate: architecture
+    decision: standard-route
+    source: vscode/askQuestions
+    accepted_at: 2026-07-14T22:07:30Z
+    applies_to:
+      - all-phases
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: vscode/askQuestions
+    accepted_at: 2026-07-14T22:07:30Z
+    applies_to:
+      - all-phases
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: vscode/askQuestions
+    accepted_at: 2026-07-14T22:07:30Z
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: architecture-002
+    gate: architecture
+    decision: halt-on-invalid-ambiguity-signals
+    source: vscode/askQuestions
+    accepted_at: 2026-07-14T22:13:54Z
+    applies_to:
+      - sdd-spec
+      - sdd-apply
+      - sdd-verify
+phases:
+  sdd-propose:
+    status: done
+    artifact: openspec/changes/make-clarify-conditional/proposal.md
+    summary: "Structured sdd-spec ambiguity signals govern conditional clarify dispatch."
+    key_decisions:
+      - "Clarify remains a gate and is never sent through validate-phase.js."
+      - "False and empty signals skip clarify; positive signals run the existing handler."
+  sdd-spec:
+    status: done
+    artifacts:
+      - openspec/changes/make-clarify-conditional/specs/skills/spec.md
+      - openspec/changes/make-clarify-conditional/specs/agents/spec.md
+    summary: "Typed sdd-spec ambiguity signals drive clarify; invalid signals halt remediation."
+    key_decisions:
+      - "False plus three empty arrays skips clarify; any positive signal runs it."
+      - "Missing or malformed signals halt before clarify or design."
+  sdd-clarify:
+    status: done
+    summary: "No material ambiguities remain after the fail-closed contract decision."
+  sdd-design:
+    status: done
+    artifact: openspec/changes/make-clarify-conditional/design.md
+    summary: "Phase-aware envelope validation drives a fail-closed, signal-only clarify gate."
+    key_decisions:
+      - "Successful sdd-spec requires four typed ambiguity signals; generic envelopes remain compatible."
+      - "The extracted clarify handler owns the pure skip/run predicate."
+      - "Invalid signals block before clarify or design."
+  sdd-tasks:
+    status: done
+    artifact: openspec/changes/make-clarify-conditional/tasks.md
+    summary: "TDD plan in 3 units for validators, conditional gate, and five-target parity."
+    key_decisions:
+      - "High 650-900-line risk; size:exception is already approved."
+      - "JS/Go parity precedes the orchestrator dispatch change."
+  sdd-apply:
+    status: done
+    artifact: openspec/changes/make-clarify-conditional/apply-progress.md
+    summary: "Implemented phase-aware ambiguity validation and signal-only clarify routing across JS, Go, hooks, and five targets."
+    key_decisions:
+      - "Generic envelope validation remains backward compatible; successful sdd-spec validation fails closed without four typed signals."
+      - "Clarify stays outside route phases and validate-phase.js."
+  sdd-verify:
+    status: done
+    artifact: openspec/changes/make-clarify-conditional/verify-report.md
+    summary: "PASS after R4: 11/11 scenarios, R1-R4, 1306/1308 Node tests and 9/9 Go packages verified."
+    key_decisions:
+      - "No CRITICAL, WARNING, or SUGGESTION findings."
+      - "R4 passed; exactly one final Reliability recheck on R4 remains next."
+  sdd-archive:
+    status: done
+    artifact: openspec/changes/make-clarify-conditional/archive-report.md
+    summary: "Synced skills and agents baselines, promoted ADR-001, and copied the full change audit trail to the archive destination."
+    key_decisions:
+      - "The active source remains until the orchestrator verifies and completes the move."
+gates:
+  clarify:
+    status: done
+    questions_asked: 0
+  4r-review-gate:
+    status: done
+    on_blocker: advisory
+    findings_summary: "0 BLOCKER, 0 CRITICAL, 2 WARNING, 1 SUGGESTION"
+    surfaced_to_user: false
+    artifact: openspec/changes/make-clarify-conditional/4r-review-report.md
+    remediation:
+      status: resolved
+      reviewers:
+        - review-reliability
+        - review-resilience
+      final_findings_summary: "0 BLOCKER, 0 CRITICAL, 0 WARNING, 0 SUGGESTION"
+      bounded_rerun_complete: true
+baseline_fingerprints:
+  skills: "757C17AF3CD33891F6AAFCA29725CFC03A6831C86DA19CBB08136063654CC3C5"
+  agents: "464A4C927C31D317AF97375E9519C71A8E40DD9B21CCB59594EE638D61E9079B"
+assumptions: []
+blocking_questions: []
+last_updated: 2026-07-14T23:20:23Z
