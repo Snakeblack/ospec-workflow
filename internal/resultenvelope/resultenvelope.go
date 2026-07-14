@@ -48,6 +48,13 @@ var requiredFields = []string{
 }
 
 var assumptionRequiredFields = []string{"id", "phase", "statement", "reversibility", "basis"}
+var specSignalFields = []string{
+	"residual_ambiguity",
+	"public_contract_questions",
+	"conflicting_requirements",
+	"missing_acceptance_criteria",
+}
+var specSignalArrayFields = specSignalFields[1:]
 
 // fenceRe matches the strict json:result-envelope fence, mirroring
 // scripts/lib/result-envelope.js's FENCE_RE.
@@ -114,9 +121,35 @@ func validateAssumptionEntry(entry any, index int, errs *[]string) {
 	}
 }
 
+func validateStringArrayField(obj map[string]any, field string, errs *[]string) {
+	v, ok := obj[field]
+	if !ok {
+		return
+	}
+
+	list, isSlice := v.([]any)
+	if !isSlice {
+		*errs = append(*errs, fmt.Sprintf("%s must be an array of strings", field))
+		return
+	}
+
+	for i, item := range list {
+		if _, isString := item.(string); !isString {
+			*errs = append(*errs, fmt.Sprintf("%s[%d] must be a string", field, i))
+		}
+	}
+}
+
 // Validate validates a parsed envelope object against the canonical §D schema.
 // Never panics.
 func Validate(obj map[string]any) (valid bool, errs []string) {
+	return ValidateForPhase(obj, "")
+}
+
+// ValidateForPhase validates a parsed envelope with phase-specific requirements.
+// Successful sdd-spec envelopes require all ambiguity signals; all other
+// phases and statuses retain the generic Validate contract. Never panics.
+func ValidateForPhase(obj map[string]any, phase string) (valid bool, errs []string) {
 	if obj == nil {
 		return false, []string{"envelope must be a JSON object"}
 	}
@@ -126,6 +159,14 @@ func Validate(obj map[string]any) (valid bool, errs []string) {
 	for _, field := range requiredFields {
 		if _, ok := obj[field]; !ok {
 			errs = append(errs, fmt.Sprintf("missing required field: %s", field))
+		}
+	}
+
+	if status, _ := obj["status"].(string); phase == "sdd-spec" && status == "success" {
+		for _, field := range specSignalFields {
+			if _, ok := obj[field]; !ok {
+				errs = append(errs, fmt.Sprintf("missing required field: %s", field))
+			}
 		}
 	}
 
@@ -178,6 +219,16 @@ func Validate(obj map[string]any) (valid bool, errs []string) {
 				validateAssumptionEntry(entry, i, &errs)
 			}
 		}
+	}
+
+	if v, ok := obj["residual_ambiguity"]; ok {
+		if _, isBool := v.(bool); !isBool {
+			errs = append(errs, "residual_ambiguity must be a boolean")
+		}
+	}
+
+	for _, field := range specSignalArrayFields {
+		validateStringArrayField(obj, field, &errs)
 	}
 
 	return len(errs) == 0, errs

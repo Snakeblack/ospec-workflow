@@ -571,6 +571,14 @@ const stateWithNonEmptyDesignSummary = "change: strict-result-envelope\n" +
 	"    artifact: \"openspec/changes/strict-result-envelope/design.md\"\n" +
 	"    summary: \"Already written by the agent.\"\n"
 
+const stateWithEmptySpecSummary = "change: strict-result-envelope\n" +
+	"status: planning\n" +
+	"phases:\n" +
+	"  spec:\n" +
+	"    status: done\n" +
+	"    artifact: \"openspec/changes/strict-result-envelope/specs/**/spec.md\"\n" +
+	"    summary: \"\"\n"
+
 func buildFenceText(envelope map[string]any) string {
 	b, _ := json.Marshal(envelope)
 	return "Some prose the agent wrote.\n\n```json:result-envelope\n" + string(b) + "\n```\n"
@@ -586,6 +594,15 @@ func validSubagentEnvelope() map[string]any {
 		"skill_resolution":  "injected",
 		"key_decisions":     []any{"Fill-gap merge sobre last-writer-wins"},
 	}
+}
+
+func validSpecSubagentEnvelope() map[string]any {
+	envelope := validSubagentEnvelope()
+	envelope["residual_ambiguity"] = false
+	envelope["public_contract_questions"] = []any{}
+	envelope["conflicting_requirements"] = []any{}
+	envelope["missing_acceptance_criteria"] = []any{}
+	return envelope
 }
 
 func createChangeWorkspace(t *testing.T, stateContent string) (workspace, statePath string) {
@@ -621,6 +638,75 @@ func TestSubagentStop_PersistsValidEnvelopeFence(t *testing.T) {
 	}
 	if !strings.Contains(string(updated), `- "Fill-gap merge sobre last-writer-wins"`) {
 		t.Errorf("expected key_decisions to be persisted, got:\n%s", updated)
+	}
+}
+
+func TestSubagentStop_SuccessfulSpecWithoutAmbiguitySignalsDoesNotPersist(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptySpecSummary)
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-spec",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	})
+	runSubagentStop(t, stdin)
+
+	after, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != stateWithEmptySpecSummary {
+		t.Errorf("invalid successful spec envelope must not be persisted, got:\n%s", after)
+	}
+}
+
+func TestSubagentStop_SpacedSpecMetadataCanonicalizesForValidAndInvalidPersistence(t *testing.T) {
+	validWorkspace, validStatePath := createChangeWorkspace(t, stateWithEmptySpecSummary)
+	validInput, _ := json.Marshal(map[string]any{
+		"cwd":        validWorkspace,
+		"agent_type": "sdd-spec ",
+		"result":     buildFenceText(validSpecSubagentEnvelope()),
+	})
+	runSubagentStop(t, validInput)
+	validState, err := os.ReadFile(validStatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(validState), `summary: "Diseñó`) {
+		t.Fatalf("valid spaced spec metadata must persist under spec: %s", validState)
+	}
+
+	invalidWorkspace, invalidStatePath := createChangeWorkspace(t, stateWithEmptySpecSummary)
+	invalidInput, _ := json.Marshal(map[string]any{
+		"cwd":        invalidWorkspace,
+		"agent_type": "sdd-spec ",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	})
+	runSubagentStop(t, invalidInput)
+	invalidState, err := os.ReadFile(invalidStatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(invalidState) != stateWithEmptySpecSummary {
+		t.Fatalf("invalid spaced spec envelope must not persist: %s", invalidState)
+	}
+}
+
+func TestSubagentStop_WhitespaceAgentTypeFallsBackToAgentNameForPersistence(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptySpecSummary)
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "   ",
+		"agent_name": "sdd-spec",
+		"result":     buildFenceText(validSpecSubagentEnvelope()),
+	})
+	runSubagentStop(t, stdin)
+	state, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(state), `summary: "Diseñó`) {
+		t.Fatalf("Go must fall back to agent_name: %s", state)
 	}
 }
 
@@ -889,6 +975,83 @@ func TestSubagentStop_PersistPhaseCost_PrefersEnvelopeStatus(t *testing.T) {
 	}
 	if records[0].Status != "partial" {
 		t.Errorf("status: got %q, want %q (envelope status must win over top-level input.status)", records[0].Status, "partial")
+	}
+}
+
+func TestSubagentStop_PersistPhaseCost_RejectsSpecStatusWithoutAmbiguitySignals(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptySpecSummary)
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-spec",
+		"status":     "blocked",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	})
+	runSubagentStop(t, stdin)
+
+	records := readPhaseCosts(t, workspace, "strict-result-envelope")
+	if len(records) != 1 || records[0].Status != "blocked" {
+		t.Fatalf("invalid spec envelope status must not win: %+v", records)
+	}
+}
+
+func TestSubagentStop_PersistPhaseCost_FailsClosedForInvalidSpacedSpec(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptySpecSummary)
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-spec ",
+		"status":     "success",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	})
+	runSubagentStop(t, stdin)
+
+	records := readPhaseCosts(t, workspace, "strict-result-envelope")
+	if len(records) != 1 || records[0].Phase != "spec" || records[0].Status != "blocked" {
+		t.Fatalf("invalid spaced spec telemetry must fail closed: %+v", records)
+	}
+}
+
+func TestSubagentStop_PersistPhaseCost_WhitespaceAgentTypeFallsBackToAgentName(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptySpecSummary)
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "   ",
+		"agent_name": "sdd-spec",
+		"status":     "success",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	})
+	runSubagentStop(t, stdin)
+	records := readPhaseCosts(t, workspace, "strict-result-envelope")
+	if len(records) != 1 || records[0].Phase != "spec" || records[0].Status != "blocked" {
+		t.Fatalf("Go whitespace fallback parity failed: %+v", records)
+	}
+}
+
+func TestSubagentStop_PersistPhaseCost_SpacedValidSpecAndGenericNonSpecRemainCompatible(t *testing.T) {
+	specWorkspace, _ := createChangeWorkspace(t, stateWithEmptySpecSummary)
+	specInput, _ := json.Marshal(map[string]any{
+		"cwd":        specWorkspace,
+		"agent_type": "sdd-spec ",
+		"status":     "blocked",
+		"result":     buildFenceText(validSpecSubagentEnvelope()),
+	})
+	runSubagentStop(t, specInput)
+	specRecords := readPhaseCosts(t, specWorkspace, "strict-result-envelope")
+	if len(specRecords) != 1 || specRecords[0].Status != "success" {
+		t.Fatalf("valid spaced spec envelope status must win: %+v", specRecords)
+	}
+
+	designWorkspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+	designInput, _ := json.Marshal(map[string]any{
+		"cwd":        designWorkspace,
+		"agent_type": "sdd-design ",
+		"status":     "blocked",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	})
+	runSubagentStop(t, designInput)
+	designRecords := readPhaseCosts(t, designWorkspace, "strict-result-envelope")
+	if len(designRecords) != 1 || designRecords[0].Status != "success" {
+		t.Fatalf("generic non-spec envelope status changed: %+v", designRecords)
 	}
 }
 

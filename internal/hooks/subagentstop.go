@@ -505,14 +505,14 @@ func persistResultEnvelope(input map[string]any, workspace string) {
 		return
 	}
 
-	valid, _ := resultenvelope.Validate(envelope)
-	if !valid {
+	canonicalAgentPhase := resolveAgentName(input)
+	statePhaseKey := derivePhaseKey(canonicalAgentPhase)
+	if statePhaseKey == "" {
 		return
 	}
 
-	agentName := resolveAgentName(input)
-	phase := derivePhaseKey(agentName)
-	if phase == "" {
+	valid, _ := resultenvelope.ValidateForPhase(envelope, canonicalAgentPhase)
+	if !valid {
 		return
 	}
 
@@ -538,7 +538,7 @@ func persistResultEnvelope(input map[string]any, workspace string) {
 		if readErr != nil {
 			return nil // fail-safe no-op
 		}
-		updated := yamllite.SetPhaseSummary(string(fresh), phase, summary, keyDecisions)
+		updated := yamllite.SetPhaseSummary(string(fresh), statePhaseKey, summary, keyDecisions)
 		if updated == string(fresh) {
 			return nil
 		}
@@ -788,10 +788,14 @@ func resolveDispatchStatus(input map[string]any) string {
 		}
 	}
 	if found && envelope != nil {
-		if valid, _ := resultenvelope.Validate(envelope); valid {
+		canonicalAgentPhase := resolveAgentName(input)
+		if valid, _ := resultenvelope.ValidateForPhase(envelope, canonicalAgentPhase); valid {
 			if s, ok := envelope["status"].(string); ok && s != "" {
 				return s
 			}
+		}
+		if status, _ := envelope["status"].(string); canonicalAgentPhase == "sdd-spec" && status == "success" {
+			return "blocked"
 		}
 	}
 	if s, ok := input["status"].(string); ok && strings.TrimSpace(s) != "" {
@@ -811,9 +815,9 @@ func persistPhaseCost(input map[string]any, workspace string) {
 		_ = recover()
 	}()
 
-	agentName := resolveAgentName(input)
-	phase := derivePhaseKey(agentName)
-	if phase == "" {
+	canonicalAgentPhase := resolveAgentName(input)
+	statePhaseKey := derivePhaseKey(canonicalAgentPhase)
+	if statePhaseKey == "" {
 		return
 	}
 
@@ -834,11 +838,11 @@ func persistPhaseCost(input map[string]any, workspace string) {
 			pluginRoot = filepath.Dir(filepath.Dir(exePath))
 		}
 	}
-	modelTier := modelconfig.ResolveModelTier(agentName, pluginRoot)
+	modelTier := modelconfig.ResolveModelTier(canonicalAgentPhase, pluginRoot)
 
 	record := map[string]any{
-		"phase":                        phase,
-		"agent":                        agentName,
+		"phase":                        statePhaseKey,
+		"agent":                        canonicalAgentPhase,
 		"estimated_prompt_tokens":      ctx["prompt"],
 		"estimated_artifact_tokens":    ctx["artifact"],
 		"estimated_tool_output_tokens": ctx["tool_output"],

@@ -312,6 +312,95 @@ func TestValidate_BadBlockerTypeEnumMessageListsValuesInDeclarationOrder(t *test
 	}
 }
 
+// ── Phase-aware sdd-spec ambiguity contract ─────────────────────────────────
+
+func validSpecEnvelope() map[string]any {
+	envelope := validEnvelope()
+	envelope["residual_ambiguity"] = false
+	envelope["public_contract_questions"] = []any{}
+	envelope["conflicting_requirements"] = []any{}
+	envelope["missing_acceptance_criteria"] = []any{}
+	return envelope
+}
+
+func TestValidateForPhase_GenericCompatibility(t *testing.T) {
+	if valid, errs := resultenvelope.Validate(validEnvelope()); !valid || len(errs) != 0 {
+		t.Fatalf("generic Validate changed: valid=%v errors=%v", valid, errs)
+	}
+	if valid, errs := resultenvelope.ValidateForPhase(validEnvelope(), "sdd-design"); !valid || len(errs) != 0 {
+		t.Fatalf("non-spec phase changed: valid=%v errors=%v", valid, errs)
+	}
+}
+
+func TestValidateForPhase_SuccessfulSpecRequiresSignalsInCanonicalOrder(t *testing.T) {
+	valid, errs := resultenvelope.ValidateForPhase(validEnvelope(), "sdd-spec")
+	want := []string{
+		"missing required field: residual_ambiguity",
+		"missing required field: public_contract_questions",
+		"missing required field: conflicting_requirements",
+		"missing required field: missing_acceptance_criteria",
+	}
+	if valid || strings.Join(errs, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("valid=%v errors=%v want=%v", valid, errs, want)
+	}
+}
+
+func TestValidateForPhase_ValidSuccessfulSpecSignalsPass(t *testing.T) {
+	for _, envelope := range []map[string]any{validSpecEnvelope(), func() map[string]any {
+		e := validSpecEnvelope()
+		e["residual_ambiguity"] = true
+		e["public_contract_questions"] = []any{"Public API?"}
+		return e
+	}()} {
+		if valid, errs := resultenvelope.ValidateForPhase(envelope, "sdd-spec"); !valid || len(errs) != 0 {
+			t.Fatalf("valid=%v errors=%v", valid, errs)
+		}
+	}
+}
+
+func TestValidateForPhase_SignalTypesAndElementsFailDeterministically(t *testing.T) {
+	envelope := validSpecEnvelope()
+	envelope["residual_ambiguity"] = "false"
+	envelope["public_contract_questions"] = "none"
+	envelope["conflicting_requirements"] = []any{"valid", float64(42)}
+	envelope["missing_acceptance_criteria"] = []any{nil}
+
+	valid, errs := resultenvelope.ValidateForPhase(envelope, "sdd-spec")
+	want := []string{
+		"residual_ambiguity must be a boolean",
+		"public_contract_questions must be an array of strings",
+		"conflicting_requirements[1] must be a string",
+		"missing_acceptance_criteria[0] must be a string",
+	}
+	if valid || strings.Join(errs, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("valid=%v errors=%v want=%v", valid, errs, want)
+	}
+}
+
+func TestValidateForPhase_PresentSignalsAreTypeCheckedGenerically(t *testing.T) {
+	envelope := validEnvelope()
+	envelope["public_contract_questions"] = []any{false}
+	valid, errs := resultenvelope.ValidateForPhase(envelope, "sdd-design")
+	want := []string{"public_contract_questions[0] must be a string"}
+	if valid || strings.Join(errs, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("valid=%v errors=%v want=%v", valid, errs, want)
+	}
+}
+
+func TestValidateForPhase_NonSuccessfulSpecDoesNotRequireSignals(t *testing.T) {
+	partial := validEnvelope()
+	partial["status"] = "partial"
+	blocked := validEnvelope()
+	blocked["status"] = "blocked"
+	blocked["question_gate"] = map[string]any{"reason": "Need input", "questions": []any{}}
+
+	for _, envelope := range []map[string]any{partial, blocked} {
+		if valid, errs := resultenvelope.ValidateForPhase(envelope, "sdd-spec"); !valid || len(errs) != 0 {
+			t.Fatalf("valid=%v errors=%v", valid, errs)
+		}
+	}
+}
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 func containsSubstring(errs []string, substr string) bool {

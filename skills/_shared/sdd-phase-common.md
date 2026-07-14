@@ -174,6 +174,10 @@ section — this requirement does not redefine or introduce any new field, enum 
 meaning. The reference implementation (`scripts/lib/result-envelope.js`, mirrored by
 `internal/resultenvelope`) exports `extractEnvelope(text)` and
 `validateEnvelope(obj) → {valid, errors}` (never throws) against this same schema.
+Callers that know the returning phase pass it explicitly with
+`validateEnvelope(obj, { phase: "sdd-spec" })`; the Go mirror uses
+`ValidateForPhase(obj, "sdd-spec")`. The generic entry points remain valid for
+callers without phase context.
 
 - `status`: `success`, `partial`, or `blocked`
 - `executive_summary`: 1-3 sentence summary of what was done
@@ -183,6 +187,12 @@ meaning. The reference implementation (`scripts/lib/result-envelope.js`, mirrore
 - `risks`: risks discovered, or "None"
 - `skill_resolution`: how skills were loaded — `injected` (received Project Standards in the launch prompt, including orchestrator cached rules), `fallback-registry` (loaded from `.ospec/cache/skill-registry.cache.json`), `fallback-path` (loaded exact `SKILL.md` fallback paths), or `none` (no skills loaded)
 - `assumptions`: OPTIONAL. A list of entries recorded under the Assumption Materiality Rule below, conforming to the Assumption Entry Schema. Omit the field, or return an empty list, when the phase made no assumptions this batch.
+- Successful `sdd-spec` ambiguity signals: `residual_ambiguity` (boolean),
+  `public_contract_questions` (array of strings), `conflicting_requirements`
+  (array of strings), and `missing_acceptance_criteria` (array of strings).
+  They are required only for `sdd-spec` + `success`; other phases and
+  non-successful spec returns keep the generic schema. When present on any
+  envelope, validators type-check them in this canonical order.
 - `blocker_type`: OPTIONAL. Present when `status: blocked`. Enum of known values (open — a new value MUST update this table AND `openspec/specs/agents/spec.md` §6.1 in the same change):
 
   | Value | Meaning | Typical emitting phase |

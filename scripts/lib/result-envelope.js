@@ -22,6 +22,13 @@ const REQUIRED_FIELDS = [
   "skill_resolution",
 ];
 const ASSUMPTION_REQUIRED_FIELDS = ["id", "phase", "statement", "reversibility", "basis"];
+const SPEC_SIGNAL_FIELDS = [
+  "residual_ambiguity",
+  "public_contract_questions",
+  "conflicting_requirements",
+  "missing_acceptance_criteria",
+];
+const SPEC_SIGNAL_ARRAY_FIELDS = SPEC_SIGNAL_FIELDS.slice(1);
 
 const FENCE_RE = /```json:result-envelope\r?\n([\s\S]*?)```/;
 
@@ -90,13 +97,32 @@ function validateAssumptionEntry(entry, index, errors) {
   }
 }
 
+function validateStringArrayField(obj, field, errors) {
+  if (!Object.prototype.hasOwnProperty.call(obj, field)) {
+    return;
+  }
+
+  const value = obj[field];
+  if (!Array.isArray(value)) {
+    errors.push(`${field} must be an array of strings`);
+    return;
+  }
+
+  value.forEach((item, index) => {
+    if (typeof item !== "string") {
+      errors.push(`${field}[${index}] must be a string`);
+    }
+  });
+}
+
 /**
  * Validates a parsed envelope object against the canonical §D schema. Never throws.
  *
  * @param {*} obj
+ * @param {{phase?: string}} [context]
  * @returns {{valid: boolean, errors: string[]}}
  */
-function validateEnvelope(obj) {
+function validateEnvelope(obj, context = {}) {
   const errors = [];
 
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
@@ -106,6 +132,14 @@ function validateEnvelope(obj) {
   for (const field of REQUIRED_FIELDS) {
     if (!Object.prototype.hasOwnProperty.call(obj, field)) {
       errors.push(`missing required field: ${field}`);
+    }
+  }
+
+  if (context?.phase === "sdd-spec" && obj.status === "success") {
+    for (const field of SPEC_SIGNAL_FIELDS) {
+      if (!Object.prototype.hasOwnProperty.call(obj, field)) {
+        errors.push(`missing required field: ${field}`);
+      }
     }
   }
 
@@ -164,6 +198,17 @@ function validateEnvelope(obj) {
     } else {
       obj.assumptions.forEach((entry, index) => validateAssumptionEntry(entry, index, errors));
     }
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(obj, "residual_ambiguity") &&
+    typeof obj.residual_ambiguity !== "boolean"
+  ) {
+    errors.push("residual_ambiguity must be a boolean");
+  }
+
+  for (const field of SPEC_SIGNAL_ARRAY_FIELDS) {
+    validateStringArrayField(obj, field, errors);
   }
 
   return { valid: errors.length === 0, errors };
