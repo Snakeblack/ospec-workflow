@@ -32,11 +32,8 @@ estos antecedentes únicamente cuando el componente afectado lo requiera:
 
 Validado el 2026-07-10 con Windows 11 y Codex CLI `0.144.1`:
 
-- El marketplace puede estar registrado aunque el plugin siga sin instalar.
-- Los paths de componentes en `.codex-plugin/plugin.json` deben empezar por
-  `./`; de lo contrario Codex ignora skills y hooks durante el arranque.
-- Los agentes personalizados no se activan desde el bundle del plugin. El
-  instalador debe sincronizar los TOML a `~/.codex/agents/` o
+- Los agentes personalizados no se activan desde bundles de plugins externos. El
+  instalador nativo sincroniza los TOML directamente a `~/.codex/agents/` o
   `<repo>/.codex/agents/`.
 - Los hooks requieren el wrapper `matcher` + `hooks: [...]`, adaptación del wire
   contract y confianza explícita mediante `/hooks`.
@@ -45,9 +42,8 @@ Validado el 2026-07-10 con Windows 11 y Codex CLI `0.144.1`:
 - `SubagentStop` entrega `agent_transcript_path`, no el antiguo
   `transcript_path`.
 - Los IDs MCP globales deben cumplir `^[a-zA-Z0-9_-]+$`; `setup:codex`
-  normaliza nombres heredados y usa `codex mcp add`. El bundle no publica
-  `.mcp.json`, porque Codex no deduplica un servidor global y otro de plugin.
-- Plugins, skills, agentes y hooks se resuelven al crear la tarea. La prueba
+  normaliza nombres heredados y usa `codex mcp add`.
+- Skills, agentes y hooks se resuelven al crear la tarea. La prueba
   definitiva debe hacerse en una tarea nueva.
 
 La reparación local consiguió simultáneamente:
@@ -67,20 +63,17 @@ Esto demuestra viabilidad, pero no sustituye la corrección del producto.
 Convertir la reparación de campo en una salida generada, instalable y validada
 que funcione en una máquina limpia sin editar manualmente:
 
-- `~/.codex/plugins/cache/...`
-- `~/.codex/.tmp/marketplaces/...`
 - `~/.codex/config.toml`
 - el payload instalado después de la generación
 
 La solución permanente debe cubrir conjuntamente:
 
-1. Generador del manifiesto y metadata del plugin.
-2. Transformación y runtime de hooks Codex.
-3. Registro MCP global nativo, con IDs válidos y deduplicación por identidad.
-4. Instalación separada e idempotente de agentes TOML.
-5. Payload publicado en la rama o canal de release.
-6. Validación del artefacto final y smoke test en una tarea nueva.
-7. Documentación de instalación, actualización, confianza y rollback.
+1. Transformación y runtime de hooks Codex.
+2. Registro MCP global nativo, con IDs válidos y deduplicación por identidad.
+3. Instalación separada e idempotente de agentes TOML y AGENTS.md.
+4. Payload publicado en la rama o canal de release.
+5. Validación del artefacto final y smoke test en una tarea nueva.
+6. Documentación de instalación, actualización, confianza y rollback.
 
 ## Fuente de verdad y reglas de decisión
 
@@ -99,38 +92,23 @@ Codex los cargue en una tarea nueva.
 
 ## Protocolo de verificación mínimo
 
-La implementación final debe demostrar, en este orden:
-
-```powershell
-codex plugin marketplace list --json
-codex plugin list --available --json
-codex plugin list --json
-```
+La implementación final debe demostrar que los agentes nativos están presentes en el directorio correspondiente de Codex.
 
 Después, ejecutar el smoke test efímero descrito en el informe de campo y
 comprobar:
 
-- plugin instalado y habilitado;
 - ausencia de warnings `ignoring skills|hooks`;
 - ausencia de errores `Invalid MCP server name`;
 - `sdd-propose` visible;
-- `sdd-orchestrator` invocable;
+- `sdd-orchestrator` (vía `AGENTS.md`) invocable;
 - `SessionStart` recibido;
 - hooks revisables y confiables desde `/hooks`.
 
-El warning de shell snapshots no soportados en PowerShell es ajeno al harness y
-no debe confundirse con un fallo de instalación.
-
 ## Qué no repetir
 
-- No diagnosticar `codex plugin list` dentro de un sandbox que remapee
-  `CODEX_HOME`; puede mostrar falsamente que no existen marketplaces.
-- No parchear la caché del usuario como solución entregable: una reinstalación
-  la sobrescribe.
-- No asumir que el marketplace instala los agentes TOML.
+- No parchear manualmente la configuración del usuario como solución entregable.
 - No validar únicamente los templates fuente; validar el payload publicado.
-- No probar en la conversación que existía antes de instalar o actualizar el
-  plugin.
+- No probar en la conversación que existía antes de instalar o actualizar.
 - No tocar config global del usuario si el instalador promete preservarla.
 
 ## Resultado esperado de la siguiente sesión
@@ -142,15 +120,9 @@ limpia, no otra reparación manual de la máquina de desarrollo.
 
 ## Instalación y actualización
 
-`install-codex.js` publica el payload generado a través de **tres canales
-separados e idempotentes** (REQ-install-001): plugin (marketplace local +
-`/plugins`), MCP global (`codex mcp`) y agentes TOML
-(`.codex/agents/*.toml`). El canal MCP consulta `codex mcp list --json`, compara
-`command` + `args`, reutiliza identidades equivalentes aunque tengan otro
-nombre y no sobrescribe colisiones de nombre. La instalación por repositorio
-no ejecuta este canal y preserva `<repo>/.codex/config.toml` byte a byte.
+`install-codex.js` publica el payload generado a través de **canales nativos separados e idempotentes** (REQ-install-001): MCP global (`codex mcp`), agentes TOML y hooks locales en `hooks.json`. El canal MCP consulta `codex mcp list --json`, compara `command` + `args`, reutiliza identidades equivalentes aunque tengan otro nombre y no sobrescribe colisiones de nombre. La instalación por repositorio no ejecuta este canal y preserva `<repo>/.codex/config.toml` byte a byte.
 
-### Instalación global (marketplace + agentes en `~/.codex`)
+### Instalación global (agentes y runtime en `~/.codex`)
 
 ```powershell
 npm run build:codex        # genera dist/codex/ (payload publicado)
@@ -161,22 +133,13 @@ npm run setup:codex        # === npm run install:codex
 
 1. Construye y valida `dist/codex/` (usa `--no-validate` para saltar la
    validación durante una iteración local).
-2. Empaqueta `dist/codex/` como marketplace local en
-   `dist/codex-marketplace/`.
-3. Si el binario `codex` está en el `PATH`, registra el marketplace con
-   `codex plugin marketplace add "<ruta>"`. Si no está disponible, imprime el
-   comando manual equivalente para ejecutarlo desde la CLI.
+2. Copia el runtime autocontenido a `~/.codex/ospec-workflow/` y sincroniza las skills de los agentes en `~/.agents/skills/` por contenido.
+3. Fusiona los cinco eventos de OSpec en `~/.codex/hooks.json`, conservando hooks ajenos.
 4. Consulta los MCP globales y registra solo Context7/MarkItDown ausentes con
    nombres compatibles (`context7`, `markitdown`).
-5. Sincroniza los archivos `.codex/agents/*.toml` generados a
-   `~/.codex/agents/` (canal de agentes, independiente del canal de plugin).
+5. Sincroniza los archivos `.codex/agents/*.toml` generados a `~/.codex/agents/` y el archivo `AGENTS.md` principal.
 
-Después de registrar el marketplace, usar `/plugins` dentro de Codex para
-instalar `ospec-workflow`. Re-ejecutar `npm run setup:codex` en cualquier
-momento es seguro: los tres canales convergen al mismo estado final (mismos
-archivos TOML, mismo catálogo y una sola instancia por identidad MCP). El CLI
-de Codex persiste únicamente las entradas MCP que faltan en su configuración
-global.
+Re-ejecutar `npm run setup:codex` en cualquier momento es seguro: todos los canales convergen al mismo estado final (mismos archivos TOML, hooks registrados y una sola instancia por identidad MCP).
 
 ### Instalación local a un repositorio destino (solo canal de agentes)
 
@@ -184,33 +147,27 @@ global.
 npm run install:codex -- ../mi-proyecto
 ```
 
-Copia únicamente `.codex/agents/*.toml` a `<repo-destino>/.codex/agents/`; no
-copia el bundle del plugin (`.codex-plugin/plugin.json`) dentro del repo
-destino y preserva cualquier `.codex/config.toml` existente sin modificarlo.
-Re-ejecutar el mismo comando es idempotente.
+Copia únicamente `.codex/agents/*.toml` y `agent.md` a `<repo-destino>/.codex/agents/` y al root del repo; preserva cualquier `.codex/config.toml` existente sin modificarlo. Re-ejecutar el mismo comando es idempotente.
 
 ## Revisar y confiar en los hooks desde `/hooks`
 
-Codex CLI cachea las entradas de hooks del plugin y requiere confirmación
+Codex CLI cachea las entradas de hooks y requiere confirmación
 explícita antes de ejecutarlas. Después de instalar o actualizar
 `ospec-workflow`:
 
 1. Abrir una tarea nueva de Codex (los hooks, agentes y skills se resuelven
    al crear la tarea, no en una conversación ya abierta).
-2. Ejecutar `/hooks` para listar las entradas detectadas del plugin. Deben
+2. Ejecutar `/hooks` para listar las entradas detectadas. Deben
    aparecer exactamente los cinco eventos publicados: `SessionStart`,
    `PreToolUse`, `PreCompact`, `SubagentStop`, `Stop` (ADR-003; ningún sexto
    evento se emite).
 3. Revisar el `command`/`commandWindows` de cada entrada — ambos apuntan al
-   mismo `scripts/hooks/ospec-hooks-launch.js` dentro de `$PLUGIN_ROOT` /
-   `%PLUGIN_ROOT%`, solo cambia la sintaxis de ruta según el sistema
-   operativo.
+   mismo `scripts/hooks/ospec-hooks-launch.js` dentro del runtime global instalado (`~/.codex/ospec-workflow/`).
 4. Marcar las entradas como confiables (`trust`/`allow` en el flujo
    interactivo de `/hooks`). Sin esta confirmación explícita, Codex no
-   ejecuta los hooks del plugin aunque el marketplace y el plugin estén
-   instalados.
-5. Repetir la revisión tras cada actualización del plugin si Codex invalida
-   la confianza al detectar un cambio de contenido en los hooks.
+   ejecuta los hooks.
+5. Repetir la revisión tras cada actualización de los hooks si Codex invalida
+   la confianza al detectar un cambio de contenido.
 
 ## Flujo de tarea nueva: skill → orquestador → `SessionStart`
 
@@ -218,11 +175,7 @@ explícita antes de ejecutarlas. Después de instalar o actualizar
    `SessionStart`, que responde con el contrato estándar
    (`status`, `ospecDetected`, `registry`) — igual que en cualquier otro
    target, sin ramas específicas de Codex (REQ-hooks-007).
-2. El usuario invoca el agente TOML `sdd-orchestrator`
-   (`.codex/agents/sdd-orchestrator.toml`, autodetectado por Codex sin
-   configuración manual adicional una vez instalado — REQ-agents-010). Este
-   agente es el punto de entrada equivalente al skill/agente orquestador en
-   los demás targets.
+2. El usuario interactúa directamente con el orquestador principal a través de las instrucciones cargadas automáticamente desde `~/.codex/AGENTS.md` (o `agent.md` en el repositorio local), sin necesidad de un archivo `sdd-orchestrator.toml` independiente (el instalador global limpia este TOML redundante).
 3. El orquestador delega cada fase a los sub-agentes correspondientes
    (`sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-apply`, `sdd-verify`, …),
    igual que en el resto de targets; las instrucciones de delegación viajan
@@ -260,11 +213,6 @@ usuario:
 2. Volver a ejecutar `npm run setup:codex` (instalación global) o
    `npm run install:codex -- <repo-destino>` (instalación local) apuntando al
    payload anterior. Ambos canales son idempotentes: la reinstalación
-   sobrescribe `~/.codex/agents/*.toml` (o `<repo-destino>/.codex/agents/`) y
-   `dist/codex-marketplace/` con el contenido anterior, sin dejar residuos de
-   la versión más nueva.
-3. Si el plugin más nuevo quedó instalado vía `/plugins`, usar `/plugins`
-   dentro de Codex para desinstalarlo y volver a instalarlo desde el
-   marketplace ya revertido en el paso 2.
-4. `.codex/config.toml` no requiere ninguna acción: nunca fue escrito por el
+   sobrescribe `~/.codex/agents/*.toml` (o `<repo-destino>/.codex/agents/`), `AGENTS.md` y el runtime, sin dejar residuos de la versión más nueva.
+3. `.codex/config.toml` no requiere ninguna acción: nunca fue escrito por el
    instalador en ninguna de las dos versiones.
