@@ -560,8 +560,13 @@ function handleAgentToml(file, profile, models) {
     if (resolved !== OMIT) {
       const isObject = typeof resolved === "object" && resolved !== null && !Array.isArray(resolved);
       fields.model = isObject ? resolved.model : (Array.isArray(resolved) ? resolved[0] : resolved);
-      if (isObject && resolved.model_reasoning_effort) {
-        fields.model_reasoning_effort = resolved.model_reasoning_effort;
+      if (isObject) {
+        if (resolved.model_reasoning_effort) {
+          fields.model_reasoning_effort = resolved.model_reasoning_effort;
+        }
+        if (resolved.model_verbosity) {
+          fields.model_verbosity = resolved.model_verbosity;
+        }
       }
     }
   }
