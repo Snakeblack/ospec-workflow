@@ -102,21 +102,23 @@ test("live preflight rejects a stale installed O1 producer before spawn", (t) =>
 });
 
 test("live invocation preserves arguments supplied by the safe launcher", () => {
-  const invocation = resolveLiveCodexInvocation("C:/safe-workspace", "fixed prompt", "gpt-5.6-luna", " low ", {
+  const workspaceRoot = path.join(os.tmpdir(), "safe-workspace");
+  const trustedPath = path.resolve(workspaceRoot).split(path.sep).join("/").replaceAll('"', '\\"');
+  const invocation = resolveLiveCodexInvocation(workspaceRoot, "fixed prompt", "gpt-5.6-luna", " low ", {
     resolveCodexLauncher: (args) => ({ command: "node.exe", args: ["codex.js", ...args] }),
   });
   assert.deepEqual(invocation, {
     command: "node.exe",
-    args: ["codex.js", "exec", "--ephemeral", "--skip-git-repo-check", "-c", 'projects."C:/safe-workspace".trust_level="trusted"', "-c", 'model_reasoning_effort="low"', "-C", "C:/safe-workspace", "--model", "gpt-5.6-luna", "--json", "fixed prompt"],
+    args: ["codex.js", "exec", "--ephemeral", "--skip-git-repo-check", "-c", `projects."${trustedPath}".trust_level="trusted"`, "-c", 'model_reasoning_effort="low"', "-C", workspaceRoot, "--model", "gpt-5.6-luna", "--json", "fixed prompt"],
   });
-  const other = resolveLiveCodexInvocation("C:/safe-workspace", "fixed prompt", "gpt-5.6-luna", "high", {
+  const other = resolveLiveCodexInvocation(workspaceRoot, "fixed prompt", "gpt-5.6-luna", "high", {
     resolveCodexLauncher: (args) => ({ command: "node.exe", args }),
   });
   assert.equal(other.args[other.args.indexOf("--model") + 1], "gpt-5.6-luna");
   assert.equal(other.args[other.args.lastIndexOf("-c") + 1], 'model_reasoning_effort="high"');
-  assert.throws(() => resolveLiveCodexInvocation("C:/safe-workspace", "fixed prompt", "  ", "low", { resolveCodexLauncher: () => ({}) }), /model.*required|blank/i);
-  assert.throws(() => resolveLiveCodexInvocation("C:/safe-workspace", "fixed prompt", "gpt-5.6-luna", "", { resolveCodexLauncher: () => ({}) }), /reasoning effort.*required|blank/i);
-  assert.throws(() => resolveLiveCodexInvocation("C:/safe-workspace", "fixed prompt", "gpt-5.6-luna", "max", { resolveCodexLauncher: () => ({}) }), /unsupported.*reasoning effort/i);
+  assert.throws(() => resolveLiveCodexInvocation(workspaceRoot, "fixed prompt", "  ", "low", { resolveCodexLauncher: () => ({}) }), /model.*required|blank/i);
+  assert.throws(() => resolveLiveCodexInvocation(workspaceRoot, "fixed prompt", "gpt-5.6-luna", "", { resolveCodexLauncher: () => ({}) }), /reasoning effort.*required|blank/i);
+  assert.throws(() => resolveLiveCodexInvocation(workspaceRoot, "fixed prompt", "gpt-5.6-luna", "max", { resolveCodexLauncher: () => ({}) }), /unsupported.*reasoning effort/i);
 });
 
 test("productive execution context derives installed identity and seals the causal model", (t) => {

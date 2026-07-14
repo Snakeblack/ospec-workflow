@@ -299,11 +299,13 @@ function transcriptEvents(bytes) {
 }
 
 function safeObservedFile(workspaceRoot, relative) {
-  const absolute = path.resolve(workspaceRoot, ...relative.split("/"));
-  if (!absolute.startsWith(path.resolve(workspaceRoot) + path.sep)) throw new Error(`Observed path escapes workspace: ${relative}`);
+  const root = path.resolve(workspaceRoot);
+  const canonicalRoot = path.resolve(fs.realpathSync(root));
+  const absolute = path.resolve(root, ...relative.split("/"));
+  if (!absolute.startsWith(root + path.sep)) throw new Error(`Observed path escapes workspace: ${relative}`);
   const stat = fs.lstatSync(absolute);
   const real = fs.realpathSync(absolute);
-  if (!stat.isFile() || stat.isSymbolicLink() || !path.resolve(real).startsWith(path.resolve(workspaceRoot) + path.sep)) throw new Error(`Observed path is redirected or not regular: ${relative}`);
+  if (!stat.isFile() || stat.isSymbolicLink() || !path.resolve(real).startsWith(canonicalRoot + path.sep)) throw new Error(`Observed path is redirected or not regular: ${relative}`);
   return { absolute, real: path.resolve(real), stat, bytes: fs.readFileSync(absolute) };
 }
 
@@ -725,10 +727,11 @@ function offlineCodexVersion() {
 function assertRecoveryWorkspaceRoot(profile, workspaceRoot) {
   if (typeof workspaceRoot !== "string" || !path.isAbsolute(workspaceRoot)) throw new Error("Recovery workspace path must be absolute.");
   const root = path.resolve(workspaceRoot);
-  const temp = path.resolve(os.tmpdir());
-  if (!root.startsWith(`${temp}${path.sep}`) || !path.basename(root).startsWith(`ospec-safe-${profile}-`)) throw new Error("Recovery workspace path must be the matching synthetic profile under the system temporary root.");
+  const temp = path.resolve(fs.realpathSync(os.tmpdir()));
+  const canonicalRoot = path.resolve(fs.realpathSync(root));
+  if (!canonicalRoot.startsWith(`${temp}${path.sep}`) || !path.basename(canonicalRoot).startsWith(`ospec-safe-${profile}-`)) throw new Error("Recovery workspace path must be the matching synthetic profile under the system temporary root.");
   const stat = fs.lstatSync(root);
-  if (!stat.isDirectory() || stat.isSymbolicLink() || path.resolve(fs.realpathSync(root)) !== root) throw new Error("Recovery workspace path is redirected or not a regular directory.");
+  if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("Recovery workspace path is redirected or not a regular directory.");
   return root;
 }
 

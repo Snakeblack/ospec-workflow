@@ -86,8 +86,9 @@ function sameFileIdentity(left, right) {
 async function readStableRootTranscript(filePath) {
   const beforePath = await fs.lstat(filePath);
   if (beforePath.isSymbolicLink()) throw new Error("root transcript path is a symlink/reparse point");
-  const parentReal = await fs.realpath(path.dirname(filePath));
-  if (path.resolve(parentReal).toLowerCase() !== path.resolve(path.dirname(filePath)).toLowerCase()) throw new Error("root transcript parent resolves through a symlink/reparse point");
+  const parentPath = path.dirname(filePath);
+  const parentStat = await fs.lstat(parentPath);
+  if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) throw new Error("root transcript parent is a symlink/reparse point or not a directory");
   const handle = await fs.open(filePath, "r");
   try {
     const opened = await handle.stat();

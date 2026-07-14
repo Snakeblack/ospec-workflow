@@ -107,6 +107,7 @@ test("materialized export is outside checkout and rejects extra files or symlink
   fs.rmSync(path.join(exported.workspaceRoot, ".eval-capture", "benchmark.pending.json"));
   const pristine = JSON.stringify({ schema: "ospec-benchmark-pending/v1", profile: "docs-one-file", owner: "live-driver", status: "awaiting-host-observation" }, null, 2) + "\n";
   fs.writeFileSync(path.join(exported.workspaceRoot, ".eval-capture", "benchmark.pending.json"), pristine);
+  fs.writeFileSync(path.join(exported.workspaceRoot, "README.md"), "# Fixture docs\n\nOld wording.\n");
   fs.writeFileSync(path.join(exported.workspaceRoot, "extra.txt"), "extra\n");
   assert.throws(() => validateExportWorkspace(exported.workspaceRoot, exported.manifest), /not allowlisted/i);
 

@@ -123,7 +123,7 @@ function sha256(content) {
 }
 
 function safeRelativePath(filePath) {
-  return typeof filePath === "string" && filePath.length > 0 && !path.isAbsolute(filePath) && !filePath.includes("\\") && !filePath.split("/").some((part) => part === ".." || part === "." || part === "") && !filePath.split("/").includes(".git");
+  return typeof filePath === "string" && filePath.length > 0 && !path.isAbsolute(filePath) && !path.win32.isAbsolute(filePath) && !filePath.includes("\\") && !filePath.split("/").some((part) => part === ".." || part === "." || part === "") && !filePath.split("/").includes(".git");
 }
 
 function validateSafePayload({ files, prompt }) {
