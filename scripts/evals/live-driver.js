@@ -424,11 +424,14 @@ function assertStructuredReports({ workspaceRoot, change, expectedReviews = 4 })
 }
 
 function sealEvalCaptureDirectory(workspaceRoot) {
-  const target = path.join(workspaceRoot, ".eval-capture");
+  const root = path.resolve(workspaceRoot);
+  const canonicalRoot = path.resolve(fs.realpathSync(root));
+  const target = path.join(root, ".eval-capture");
   const stat = fs.lstatSync(target);
   const real = fs.realpathSync(target);
-  if (!stat.isDirectory() || stat.isSymbolicLink() || path.resolve(real) !== path.resolve(target)) throw new Error("Host evidence directory is redirected.");
-  return { path: path.resolve(target), dev: stat.dev, ino: stat.ino, birthtimeMs: stat.birthtimeMs, real: path.resolve(real) };
+  const canonicalTarget = path.resolve(real);
+  if (!stat.isDirectory() || stat.isSymbolicLink() || !canonicalTarget.toLowerCase().startsWith(`${canonicalRoot}${path.sep}`.toLowerCase())) throw new Error("Host evidence directory is redirected.");
+  return { path: path.resolve(target), dev: stat.dev, ino: stat.ino, birthtimeMs: stat.birthtimeMs, real: canonicalTarget };
 }
 
 function buildHostBenchmarkEvidence({ manifest, state, observedEffects, reports }) {
@@ -456,12 +459,16 @@ function verifyHostBenchmarkEvidence(evidencePath, expectedSha256) {
 }
 
 function sealO1Directory(workspaceRoot, change) {
-  const targets = [workspaceRoot, path.join(workspaceRoot, ".ospec"), path.join(workspaceRoot, ".ospec", "session"), path.join(workspaceRoot, ".ospec", "session", change)];
+  const root = path.resolve(workspaceRoot);
+  const canonicalRoot = path.resolve(fs.realpathSync(root));
+  const targets = [root, path.join(root, ".ospec"), path.join(root, ".ospec", "session"), path.join(root, ".ospec", "session", change)];
   return targets.map((target) => {
     const stat = fs.lstatSync(target);
     const real = fs.realpathSync(target);
-    if (!stat.isDirectory() || stat.isSymbolicLink() || path.resolve(real).toLowerCase() !== path.resolve(target).toLowerCase()) throw new Error(`O1 host-owned directory is redirected: ${target}`);
-    return { path: path.resolve(target), dev: stat.dev, ino: stat.ino, birthtimeMs: stat.birthtimeMs, real: path.resolve(real) };
+    const canonicalTarget = path.resolve(real);
+    const insideRoot = canonicalTarget.toLowerCase() === canonicalRoot.toLowerCase() || canonicalTarget.toLowerCase().startsWith(`${canonicalRoot}${path.sep}`.toLowerCase());
+    if (!stat.isDirectory() || stat.isSymbolicLink() || !insideRoot) throw new Error(`O1 host-owned directory is redirected: ${target}`);
+    return { path: path.resolve(target), dev: stat.dev, ino: stat.ino, birthtimeMs: stat.birthtimeMs, real: canonicalTarget };
   });
 }
 
