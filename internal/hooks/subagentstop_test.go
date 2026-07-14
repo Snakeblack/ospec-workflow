@@ -3,7 +3,9 @@
 package hooks_test
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -799,16 +801,17 @@ func TestSubagentStop_SiblingFencesResolveLastSiblingWins(t *testing.T) {
 // ── persistPhaseCost (REQ-hooks-001, Phase 2) ─────────────────────────────────
 
 type phaseCostRecord struct {
-	Phase                     string `json:"phase"`
-	Agent                     string `json:"agent"`
-	EstimatedPromptTokens     int    `json:"estimated_prompt_tokens"`
-	EstimatedArtifactTokens   int    `json:"estimated_artifact_tokens"`
-	EstimatedToolOutputTokens int    `json:"estimated_tool_output_tokens"`
-	EstimatedOutputTokens     int    `json:"estimated_output_tokens"`
-	DurationMs                int    `json:"duration_ms"`
-	ModelTier                 string `json:"model_tier"`
-	Status                    string `json:"status"`
-	TS                        string `json:"ts"`
+	Phase                     string         `json:"phase"`
+	Agent                     string         `json:"agent"`
+	EstimatedPromptTokens     int            `json:"estimated_prompt_tokens"`
+	EstimatedArtifactTokens   int            `json:"estimated_artifact_tokens"`
+	EstimatedToolOutputTokens int            `json:"estimated_tool_output_tokens"`
+	EstimatedOutputTokens     int            `json:"estimated_output_tokens"`
+	DurationMs                int            `json:"duration_ms"`
+	ModelTier                 string         `json:"model_tier"`
+	Status                    string         `json:"status"`
+	TS                        string         `json:"ts"`
+	HostBinding               map[string]any `json:"host_binding"`
 }
 
 func readPhaseCosts(t *testing.T, workspace, changeName string) []phaseCostRecord {
@@ -886,6 +889,122 @@ func TestSubagentStop_PersistPhaseCost_PrefersEnvelopeStatus(t *testing.T) {
 	}
 	if records[0].Status != "partial" {
 		t.Errorf("status: got %q, want %q (envelope status must win over top-level input.status)", records[0].Status, "partial")
+	}
+}
+
+func TestSubagentStop_PersistPhaseCost_HostBindingAliases(t *testing.T) {
+	for _, tc := range []struct {
+		name, sessionKey, transcriptKey string
+	}{
+		{"session and agent transcript", "session_id", "agent_transcript_path"},
+		{"thread and transcript", "thread_id", "transcript_path"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+			transcript := filepath.Join(workspace, "agent.jsonl")
+			if err := os.WriteFile(transcript, []byte("host transcript bytes"), 0644); err != nil {
+				t.Fatal(err)
+			}
+			input := map[string]any{"cwd": workspace, "agent_type": "sdd-apply", "status": "success"}
+			input[tc.sessionKey] = "thread-live"
+			input[tc.transcriptKey] = transcript
+			stdin, _ := json.Marshal(input)
+			runSubagentStop(t, stdin)
+
+			record := readPhaseCosts(t, workspace, "strict-result-envelope")[0]
+			if record.HostBinding["session_id"] != "thread-live" {
+				t.Fatalf("session alias not normalized: %#v", record.HostBinding)
+			}
+			if record.HostBinding["transcript_source"] != "agent-transcript" {
+				t.Fatalf("unexpected transcript source: %#v", record.HostBinding)
+			}
+			if hash, _ := record.HostBinding["transcript_sha256"].(string); len(hash) != 64 {
+				t.Fatalf("missing transcript hash: %#v", record.HostBinding)
+			}
+		})
+	}
+}
+
+func TestSubagentStop_PersistPhaseCost_UnsupportedHostBindingIsExplicit(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd": workspace, "agent_type": "sdd-apply", "session_id": "session-only",
+	})
+	runSubagentStop(t, stdin)
+	record := readPhaseCosts(t, workspace, "strict-result-envelope")[0]
+	if record.HostBinding["status"] != "unsupported-host-binding" || record.HostBinding["session_id"] != "session-only" {
+		t.Fatalf("unsupported binding must remain attributable and fail-closed: %#v", record.HostBinding)
+	}
+}
+
+func TestSubagentStop_PersistPhaseCost_CodexEventsPrefixBinding(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+	captureDir := filepath.Join(workspace, ".eval-capture")
+	if err := os.MkdirAll(captureDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	transcript := filepath.Join(captureDir, "codex-events.jsonl")
+	complete := []byte("{\"type\":\"thread.started\",\"thread_id\":\"root-session\"}\n{\"type\":\"item.completed\"}\n")
+	if err := os.WriteFile(transcript, append(append([]byte{}, complete...), []byte("{\"type\":\"partial")...), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("OSPEC_CODEX_EVENTS_PATH", transcript)
+	t.Setenv("OSPEC_BENCHMARK_RUN_ID", "run-live")
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd": workspace, "agent_type": "sdd-apply", "session_id": "root-session", "status": "success",
+	})
+	runSubagentStop(t, stdin)
+	record := readPhaseCosts(t, workspace, "strict-result-envelope")[0]
+	binding := record.HostBinding
+	if binding["transcript_source"] != "codex-events" || binding["binding_scope"] != "prefix" || binding["session_id"] != "root-session" {
+		t.Fatalf("unexpected root binding: %#v", binding)
+	}
+	if got := int(binding["transcript_prefix_bytes"].(float64)); got != len(complete) {
+		t.Fatalf("prefix bytes: got %d want %d", got, len(complete))
+	}
+	wantHash := fmt.Sprintf("%x", sha256.Sum256(complete))
+	if binding["transcript_prefix_sha256"] != wantHash {
+		t.Fatalf("prefix hash mismatch: %#v", binding)
+	}
+	if binding["status"] != "supported-observable-binding" || binding["authentication"] != "none" {
+		t.Fatalf("observable binding metadata is incorrect: %#v", binding)
+	}
+}
+
+func TestSubagentStop_PersistPhaseCost_RejectsInjectedCodexEventsPath(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+	outside := filepath.Join(workspace, "outside.jsonl")
+	if err := os.WriteFile(outside, []byte("{\"type\":\"thread.started\",\"thread_id\":\"root-session\"}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("OSPEC_CODEX_EVENTS_PATH", outside)
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd": workspace, "agent_type": "sdd-apply", "session_id": "root-session", "status": "success",
+	})
+	runSubagentStop(t, stdin)
+	binding := readPhaseCosts(t, workspace, "strict-result-envelope")[0].HostBinding
+	if binding["status"] != "unsupported-host-binding" || binding["transcript_source"] != nil {
+		t.Fatalf("injected path must fail closed: %#v", binding)
+	}
+}
+
+func TestSubagentStop_PersistPhaseCost_RejectsAmbiguousCodexEvents(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+	captureDir := filepath.Join(workspace, ".eval-capture")
+	if err := os.MkdirAll(captureDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	transcript := filepath.Join(captureDir, "codex-events.jsonl")
+	if err := os.WriteFile(transcript, []byte("{\"type\":\"thread.started\",\"thread_id\":\"one\"}\n{\"type\":\"thread.started\",\"thread_id\":\"two\"}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("OSPEC_CODEX_EVENTS_PATH", transcript)
+	t.Setenv("OSPEC_BENCHMARK_RUN_ID", "run-live")
+	stdin, _ := json.Marshal(map[string]any{"cwd": workspace, "agent_type": "sdd-apply", "status": "success"})
+	runSubagentStop(t, stdin)
+	binding := readPhaseCosts(t, workspace, "strict-result-envelope")[0].HostBinding
+	if binding["status"] != "unsupported-host-binding" {
+		t.Fatalf("ambiguous stream must fail closed: %#v", binding)
 	}
 }
 

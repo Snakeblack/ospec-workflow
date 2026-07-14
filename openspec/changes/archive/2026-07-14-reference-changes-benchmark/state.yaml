@@ -1,0 +1,160 @@
+change: reference-changes-benchmark
+status: archived
+classification: normal
+owner:
+  author: Manuel Retamozo
+  branch: feat/reference-changes-benchmark
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "classification=normal and project.status=active select the standard route; O2 requires defining a benchmark suite and comparative reporting, involving multiple files and full SDD."
+  validated: true
+  validation_errors: []
+execution_mode: auto
+delivery_strategy: exception-ok
+approvals:
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: vscode/askQuestions
+    accepted_at: 2026-07-12T01:16:00Z
+    applies_to:
+      - all-phases
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: vscode/askQuestions
+    accepted_at: 2026-07-12T01:16:00Z
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: live-execution-authorization-001
+    gate: review-workload
+    decision: authorize-execution
+    source: vscode/askQuestions
+    accepted_at: 2026-07-12T15:48:15+02:00
+    applies_to:
+      - sdd-apply
+      - sdd-verify
+  - id: 4r-review-gate-remediation-001
+    gate: 4r-review-gate
+    decision: remediation
+    source: vscode/askQuestions
+    accepted_at: 2026-07-12T18:43:51Z
+    applies_to:
+      - remediation
+      - sdd-apply
+      - sdd-verify
+  - id: live-driver-data-export-001
+    gate: testing
+    decision: authorize-data-export-and-cost
+    source: vscode/askQuestions
+    accepted_at: 2026-07-12T19:12:44Z
+    applies_to:
+      - sdd-apply
+      - live-driver
+      - sdd-verify
+  - id: architecture-baseline-followup-001
+    gate: architecture
+    decision: archive-verified-infrastructure-and-defer-live-baseline
+    source: vscode/askQuestions
+    accepted_at: 2026-07-13T23:49:47Z
+    applies_to:
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-verify
+      - sdd-archive
+phases:
+  sdd-propose:
+    status: done
+    artifact: "openspec/changes/reference-changes-benchmark/proposal.md"
+    summary: "Establece benchmark de 8-12 cambios para medir coste/tiempo/defectos del flujo SDD antes de optimizaciones (O7/O8)."
+    key_decisions:
+      - "Extender orchestrator-evals en lugar de crear una capability nueva."
+      - "Capturar métricas de ejecución (tokens, tiempo, preguntas y defectos) e integrarlas en el runner."
+  sdd-spec:
+    status: done
+    artifacts:
+      - "openspec/changes/reference-changes-benchmark/specs/orchestrator-evals/spec.md"
+    summary: "Se extiende el corpus con un piloto core de tres perfiles, una suite ampliada opcional y métricas comparativas run-level."
+    key_decisions:
+      - "Integrar la ejecución de los benchmarks en el mismo runner de evals de scripts/evals/."
+      - "Formatear un reporte markdown comparativo en base a tokens, tiempo, preguntas y defectos capturados."
+  sdd-clarify:
+    status: done
+    summary: "No critical ambiguities detected"
+  sdd-design:
+    status: done
+    artifacts:
+      - "openspec/changes/reference-changes-benchmark/design.md"
+      - "openspec/changes/reference-changes-benchmark/decisions/adr-001.md"
+    summary: "Diseña un piloto core de tres perfiles, catálogo ampliado opcional, métricas run-level y O1 suplementario."
+    key_decisions:
+      - "Usar scripts/evals/safe-export.js como catálogo canónico sin alterar los siete golden scenarios."
+      - "Medir tokens y duración run-level; adjuntar O1 solo como evidencia suplementaria."
+      - "Persistir scripts/evals/reports/reference-baseline.md tras completar y aprobar los tres perfiles core."
+  sdd-tasks:
+    status: done
+    artifact: "openspec/changes/reference-changes-benchmark/tasks.md"
+    summary: "Las tareas de infraestructura local están completas; solo quedan el verify final y su revisión 4R. El piloto live y la baseline son seguimiento operativo post-archive no bloqueante."
+    key_decisions:
+      - "Preservar el historial marcando explícitamente inválida la evidencia simulada."
+      - "Aplicar primero fixes deterministas y detenerse sin baseline si el canary real falla."
+      - "Repetir únicamente review-risk y review-reliability tras apply."
+      - "Cerrar el entregable por infraestructura local verificada y diferir live/baseline conforme a architecture-baseline-followup-001."
+  sdd-apply:
+    status: done
+    artifact: "openspec/changes/reference-changes-benchmark/apply-progress.md"
+    summary: "Infraestructura local completada con evidencia Strict TDD ya registrada. Sol y Luna-low se preservan como diagnósticos fuera de baseline; live y baseline quedan diferidos como seguimiento post-archive no bloqueante."
+    key_decisions:
+      - "Pasar el modelo remoto obligatorio al mismo codex exec y sellarlo en el descriptor."
+      - "Derivar la identidad instalada de bytes auditados tras parity y preflight; ignorar etiquetas de entorno."
+      - "Rechazar inyección productiva de contexto en perfil y suite."
+      - "Cerrar apply por la infraestructura local verificada sin exigir 3/3 live ni reference-baseline.md."
+      - "Conservar íntegramente Sol y Luna-low como evidencia diagnóstica excluida del baseline."
+  sdd-verify:
+    status: done
+    artifact: "openspec/changes/reference-changes-benchmark/verify-report.md"
+    summary: "PASS: infraestructura local conforme en 19/19 escenarios; focal 59/59, npm 1284/1286 con 2 skips y Go 9/9, sin live ni red."
+    key_decisions:
+      - "La ausencia de live 3/3 y reference-baseline.md es el estado fail-closed correcto y no bloquea archive."
+      - "Sol y Luna-low permanecen como diagnósticos excluidos del baseline comparable."
+      - "La tarea 5.2 de 4R final permanece pendiente después de verify."
+  sdd-archive:
+    status: done
+    artifact: "openspec/changes/reference-changes-benchmark/archive-report.md"
+    summary: "Delta specs sincronizadas, ADR-001 promovido y todos los artefactos copiados al destino de archivo; la eliminación de origen queda pendiente del orquestador."
+gates:
+  clarify:
+    status: done
+    questions_asked: 0
+  4r-review-gate:
+    status: done
+    on_blocker: advisory
+    findings_summary: "Phase 8 selective re-review: 0 BLOCKER, 0 CRITICAL, 0 WARNING, 0 SUGGESTION"
+    surfaced_to_user: false
+    artifact: "openspec/changes/reference-changes-benchmark/4r-review-report.md"
+    selective_review:
+      reviewers:
+        - review-risk
+        - review-reliability
+      rationale: "User requested rerunning only the dimensions that owned the original blockers."
+      completed_at: 2026-07-12T19:43:21Z
+    phase7_selective_review:
+      reviewers:
+        - review-risk
+        - review-reliability
+      rationale: "User bounded post-fix review to risk and reliability, the provenance-blocker owners."
+      completed_at: 2026-07-12T20:05:07Z
+    phase8_selective_review:
+      reviewers:
+        - review-risk
+        - review-reliability
+      rationale: "User bounded Phase 8 post-fix review to risk and reliability."
+      completed_at: 2026-07-12T20:34:05Z
+baseline_fingerprints:
+  orchestrator-evals: "8CF7DF6FBA89F0D6A208E182E0ABEF4D2A1F4C6D4CFD4C585C7B053F49EF0000"
+assumptions: []
+blocking_questions: []
+last_updated: 2026-07-14T00:20:00Z

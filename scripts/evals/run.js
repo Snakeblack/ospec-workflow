@@ -18,10 +18,14 @@
 //                            completed live turn was already captured
 //   assert  <scenario|all>   capture the workspace and score it structurally
 //   report  <scenario|all>   assert + print a per-scenario and aggregate summary
+//
+//   benchmark <profile|all>  materialize and print live-driver instructions;
+//                            productive scoring is host-only in live-driver.js
 
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
+const { resolveBinFromPath, resolveCodexInvocation } = require("../configure/install-codex.js");
 
 const {
   loadScenario,
@@ -31,21 +35,27 @@ const {
   isMaterialized,
 } = require("./lib/fixtures.js");
 const { captureWorkspace } = require("./lib/capture.js");
-const { assertScenario } = require("./lib/assertions.js");
+const { assertScenario, resolveActualRoute } = require("./lib/assertions.js");
+const { readPhaseCosts } = require("./lib/benchmark.js");
+const { listSafeBenchmarkProfiles, scenarioFor } = require("./safe-export.js");
 
 const FIXTURES_ROOT = path.join(__dirname, "__fixtures__");
 const RUNS_ROOT = path.join(__dirname, ".runs");
+const BENCHMARK_RUNS_ROOT = path.join(RUNS_ROOT, "benchmark");
+const CORE_BENCHMARK_PROFILES = Object.freeze(["docs-one-file", "small-bugfix", "security-sensitive-change"]);
+const BASELINE_REPORT = path.join(__dirname, "reports", "reference-baseline.md");
 const GIT_BASELINE_MARKER = "GIT-BASELINE.json";
 const GIT_HEAD_PLACEHOLDER = "__GIT_HEAD__";
 
 function usageError(message) {
   process.stderr.write(
     `${message}\n\n` +
-      "Usage: node scripts/evals/run.js <setup|run|assert|report> <scenario-id|all>\n" +
+      "Usage: node scripts/evals/run.js <setup|run|assert|report|benchmark> <scenario-id|profile|all>\n" +
       "  setup   — materialize a fixture's repo/ into .runs/<scenario>/\n" +
       "  run     — setup, then print driver instructions or assert+report\n" +
       "  assert  — capture + score a workspace that has already been run live\n" +
       "  report  — assert every requested scenario and print a suite summary\n\n" +
+      "  benchmark — materialize reference profiles; scoring requires live-driver.js\n\n" +
       "Example: node scripts/evals/run.js run all\n" +
       "See scripts/evals/README.md for the full manual driver protocol.\n",
   );
@@ -58,9 +68,26 @@ function listScenarioNames() {
   }
   return fs
     .readdirSync(FIXTURES_ROOT, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
+    .filter((entry) => entry.isDirectory() && entry.name !== "benchmark")
     .map((entry) => entry.name)
     .sort();
+}
+
+function listBenchmarkNames() {
+  return listSafeBenchmarkProfiles();
+}
+
+function resolveBenchmarkNames(arg) {
+  const all = listBenchmarkNames();
+  if (arg === "all" || arg === "initial" || arg === undefined) {
+    if (all.length < 8 || all.length > 12) throw new Error(`Expected 8-12 benchmark profiles, found ${all.length}.`);
+    const missing = CORE_BENCHMARK_PROFILES.filter((name) => !all.includes(name));
+    if (missing.length) throw new Error(`Core benchmark profiles are missing: ${missing.join(", ")}.`);
+    return [...CORE_BENCHMARK_PROFILES];
+  }
+  if (arg === "extended") return all;
+  if (!all.includes(arg)) throw new Error(`Unknown benchmark profile "${arg}". Known profiles: ${all.join(", ")}.`);
+  return [arg];
 }
 
 function resolveScenarioNames(arg) {
@@ -108,7 +135,7 @@ function resolveContainedPath(workspaceRoot, relPath) {
   const resolvedTarget = path.resolve(resolvedRoot, relPath);
 
   if (
-    resolvedTarget !== resolvedRoot &&
+    resolvedTarget === resolvedRoot ||
     !resolvedTarget.startsWith(resolvedRoot + path.sep)
   ) {
     throw new Error(
@@ -273,8 +300,8 @@ function liveTurnCaptured(workspaceRoot) {
   return fs.existsSync(evalCaptureDonePath(workspaceRoot));
 }
 
-function printDriverInstructions(name, manifest, workspaceRoot) {
-  process.stdout.write(
+function printDriverInstructions(name, manifest, workspaceRoot, verb = "run", write = (chunk) => process.stdout.write(chunk)) {
+  write(
     `\n${name}: awaiting-live-run\n` +
       `  Workspace: ${workspaceRoot}\n` +
       `  Input command: ${manifest.input.command || "(none — plain chat)"}\n` +
@@ -292,9 +319,120 @@ function printDriverInstructions(name, manifest, workspaceRoot) {
       `       per scenario.json's capture.envelope = ${manifest.capture.envelope}.\n` +
       `    5. Always write ${evalCaptureDonePath(workspaceRoot)}\n` +
       '       (e.g. `{ "completed_at": "<ISO timestamp>" }`) once the turn is done,\n' +
-      "       whether or not a gate/envelope was captured.\n" +
-      "    6. Re-run: node scripts/evals/run.js run " + name + "\n",
+      "       only after every scenario-required artifact is complete, whether\n" +
+      "       or not a gate/envelope was captured.\n" +
+      `    6. Re-run: node scripts/evals/run.js ${verb} ` + name + "\n",
   );
+}
+
+function printBenchmarkInstructions(name, manifest, workspaceRoot, write = (chunk) => process.stdout.write(chunk)) {
+  printDriverInstructions(name, manifest, workspaceRoot, "benchmark", write);
+  write(
+    `  Benchmark change: ${manifest.benchmark.change}\n` +
+    `  Expected route: ${manifest.benchmark.expected_route}\n` +
+    `  Completion observations: ${path.join(workspaceRoot, ".eval-capture", "benchmark.json")}\n` +
+    "  Record questions_asked plus verify and four_r severity counters; do not infer missing evidence as zero.\n" +
+    "  Transaction: transcript/state/benchmark.pending.json first; live-driver.js alone may finalize benchmark.json and done.json after run-level validation.\n",
+  );
+}
+
+function benchmarkWorkspaceRoot(name) { return path.join(BENCHMARK_RUNS_ROOT, name); }
+
+function resolveBenchmarkEvidencePaths(workspaceRoot, change, declarations = {}) {
+  if (
+    typeof change !== "string" ||
+    change.length === 0 ||
+    change === "." ||
+    change === ".." ||
+    path.isAbsolute(change) ||
+    change.includes("/") ||
+    change.includes("\\")
+  ) {
+    throw new Error("benchmark.change must be one non-empty relative path segment.");
+  }
+  const changeRoot = resolveContainedPath(path.join(workspaceRoot, "openspec", "changes"), change);
+  const sessionRoot = resolveContainedPath(path.join(workspaceRoot, ".ospec", "session"), change);
+  const captureRoot = resolveContainedPath(workspaceRoot, ".eval-capture");
+  const transcriptPath = path.join(captureRoot, "codex-events.jsonl");
+  if (declarations.transcriptPath !== undefined && path.resolve(workspaceRoot, declarations.transcriptPath) !== transcriptPath) {
+    throw new Error("Benchmark transcript path must resolve exactly to .eval-capture/codex-events.jsonl inside the workspace.");
+  }
+  return {
+    changeRoot,
+    statePath: path.join(changeRoot, "state.yaml"),
+    costsPath: path.join(sessionRoot, "phase-costs.jsonl"),
+    observationPath: path.join(captureRoot, "benchmark.json"),
+    pendingObservationPath: path.join(captureRoot, "benchmark.pending.json"),
+    transcriptPath,
+  };
+}
+
+function preflightBenchmarkWorkspace({ manifest, workspaceRoot }) {
+  const evidence = resolveBenchmarkEvidencePaths(workspaceRoot, manifest.benchmark.change);
+  const costs = readPhaseCosts(evidence.costsPath);
+  const captured = captureWorkspace(workspaceRoot);
+  const result = assertScenario(manifest.expect, captured);
+  if (!result.pass) {
+    throw new Error(`Live benchmark structural evidence is incomplete: ${result.failures.join("; ")}`);
+  }
+  return { evidence, costs, captured, result };
+}
+
+function resolveCodexLauncher(args, deps = {}) {
+  const resolveBin = deps.resolveBinFromPath || resolveBinFromPath;
+  const resolveInvocation = deps.resolveCodexInvocation || resolveCodexInvocation;
+  const bin = resolveBin("codex");
+  if (!bin) throw new Error("codex executable was not found on PATH.");
+  return resolveInvocation(bin, args, deps);
+}
+
+function codexVersion(deps = {}) {
+  const invocation = resolveCodexLauncher(["--version"], deps);
+  const spawn = deps.spawnSync || spawnSync;
+  const result = spawn(invocation.command, invocation.args, { encoding: "utf8", shell: false });
+  if (result.error || result.status !== 0) throw new Error(`codex --version failed: ${result.error ? result.error.message : result.stderr.trim()}`);
+  const version = result.stdout.trim();
+  if (!/^codex-cli \d+\.\d+\.\d+$/.test(version)) throw new Error(`Unexpected codex version output: ${version}`);
+  return version;
+}
+
+function gitRevision() {
+  try { return runGit(["rev-parse", "--short", "HEAD"], __dirname); }
+  catch (error) {
+    process.stderr.write(`warning: git revision unavailable; baseline records unknown (${error.message})\n`);
+    return "unknown";
+  }
+}
+
+function publishBaselineAtomic(reportPath, markdown, overrides = {}) {
+  const mkdirSync = overrides.mkdirSync || fs.mkdirSync;
+  const writeFileSync = overrides.writeFileSync || fs.writeFileSync;
+  const renameSync = overrides.renameSync || fs.renameSync;
+  const rmSync = overrides.rmSync || fs.rmSync;
+  const tempPath = `${reportPath}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
+  mkdirSync(path.dirname(reportPath), { recursive: true });
+  try {
+    writeFileSync(tempPath, markdown, { encoding: "utf8", flag: "wx" });
+    renameSync(tempPath, reportPath);
+  } catch (error) {
+    rmSync(tempPath, { force: true });
+    throw error;
+  }
+}
+
+function benchmarkReportEligible(scored, expectedProfiles) {
+  if (scored.length !== expectedProfiles.length || !scored.every((entry) => entry.result.pass)) return false;
+  const names = new Set(scored.map((entry) => entry.name));
+  return expectedProfiles.every((name) => names.has(name));
+}
+
+function cmdBenchmark(names) {
+  for (const name of names) {
+    const workspaceRoot = benchmarkWorkspaceRoot(name);
+    printBenchmarkInstructions(name, scenarioFor(name), workspaceRoot);
+  }
+  process.stdout.write(`\n${names.length}/${names.length} benchmark(s) awaiting host-authorized live-driver execution: ${names.join(", ")}\n`);
+  process.exitCode = 2;
 }
 
 function scoreScenario(name) {
@@ -406,7 +544,7 @@ function main() {
 
   let names;
   try {
-    names = resolveScenarioNames(arg);
+    names = verb === "benchmark" ? resolveBenchmarkNames(arg) : resolveScenarioNames(arg);
   } catch (error) {
     usageError(error.message);
     return;
@@ -425,6 +563,9 @@ function main() {
         break;
       case "run":
         cmdRun(names);
+        break;
+      case "benchmark":
+        cmdBenchmark(names);
         break;
       case "teardown":
         teardown(RUNS_ROOT);
@@ -450,4 +591,17 @@ module.exports = {
   scoreScenario,
   applyGitBaseline,
   resolveContainedPath,
+  listScenarioNames,
+  listBenchmarkNames,
+  resolveBenchmarkNames,
+  benchmarkReportEligible,
+  printBenchmarkInstructions,
+  resolveBenchmarkEvidencePaths,
+  preflightBenchmarkWorkspace,
+  publishBaselineAtomic,
+  benchmarkWorkspaceRoot,
+  resolveCodexLauncher,
+  codexVersion,
+  gitRevision,
+  CORE_BENCHMARK_PROFILES,
 };

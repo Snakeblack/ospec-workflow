@@ -4,6 +4,7 @@
 
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const crypto = require("node:crypto");
 const {
   ARTIFACT_STORE_RELATIVE_PATHS,
   createArtifactStoreFromConfig,
@@ -39,6 +40,134 @@ const RESULT_FIELDS = [
 // unchanged).
 function resolveTranscriptPath(input) {
   return input?.transcript_path || input?.agent_transcript_path;
+}
+
+function unsupportedHostBinding(binding) {
+  return { status: "unsupported-host-binding", ...binding };
+}
+
+function parseRootSessionId(prefixBytes) {
+  const events = [];
+  for (const line of prefixBytes.toString("utf8").split(/\r?\n/)) {
+    if (!line) continue;
+    try { events.push(JSON.parse(line)); }
+    catch { return ""; }
+  }
+  const starts = events.filter((event) => event?.type === "thread.started" && typeof event.thread_id === "string" && event.thread_id.trim());
+  if (starts.length !== 1) return "";
+  const sessionId = starts[0].thread_id.trim();
+  for (const event of events) {
+    for (const key of ["thread_id", "session_id"]) {
+      if (typeof event?.[key] === "string" && event[key].trim() && event[key].trim() !== sessionId) return "";
+    }
+  }
+  return sessionId;
+}
+
+function canonicalO1Payload(record) {
+  return JSON.stringify([
+    record?.phase,
+    record?.agent,
+    record?.estimated_prompt_tokens,
+    record?.estimated_artifact_tokens,
+    record?.estimated_tool_output_tokens,
+    record?.estimated_output_tokens,
+    record?.duration_ms,
+    record?.model_tier,
+    record?.status,
+    record?.ts,
+  ]);
+}
+
+function sameFileIdentity(left, right) {
+  return left.dev === right.dev && left.ino === right.ino && left.size === right.size;
+}
+
+async function readStableRootTranscript(filePath) {
+  const beforePath = await fs.lstat(filePath);
+  if (beforePath.isSymbolicLink()) throw new Error("root transcript path is a symlink/reparse point");
+  const parentReal = await fs.realpath(path.dirname(filePath));
+  if (path.resolve(parentReal).toLowerCase() !== path.resolve(path.dirname(filePath)).toLowerCase()) throw new Error("root transcript parent resolves through a symlink/reparse point");
+  const handle = await fs.open(filePath, "r");
+  try {
+    const opened = await handle.stat();
+    if (!sameFileIdentity(beforePath, opened)) throw new Error("root transcript identity changed before read");
+    const bytes = await handle.readFile();
+    const afterHandle = await handle.stat();
+    const afterPath = await fs.lstat(filePath);
+    if (afterPath.isSymbolicLink() || !sameFileIdentity(opened, afterHandle) || !sameFileIdentity(afterHandle, afterPath)) throw new Error("root transcript identity changed during read");
+    return bytes;
+  } finally {
+    await handle.close();
+  }
+}
+
+async function resolveHostBinding(input, workspace = input?.cwd, env = process.env, canonicalRecord = {}) {
+  const sessionId = typeof input?.session_id === "string" && input.session_id.trim()
+    ? input.session_id.trim()
+    : typeof input?.thread_id === "string" && input.thread_id.trim()
+      ? input.thread_id.trim()
+      : "";
+  const transcriptPath = resolveTranscriptPath(input);
+  const binding = {};
+  if (sessionId) binding.session_id = sessionId;
+  const eventId = typeof input?.event_id === "string" && input.event_id.trim()
+    ? input.event_id.trim()
+    : typeof input?.hook_event_id === "string" && input.hook_event_id.trim()
+      ? input.hook_event_id.trim()
+      : "";
+  if (eventId) binding.event_id = eventId;
+
+  const rootTranscriptPath = env?.OSPEC_CODEX_EVENTS_PATH;
+  if (typeof rootTranscriptPath === "string" && rootTranscriptPath) {
+    const hostRunId = env?.OSPEC_BENCHMARK_RUN_ID;
+    const expectedPath = typeof workspace === "string" && workspace
+      ? path.resolve(workspace, ".eval-capture", "codex-events.jsonl")
+      : "";
+    const { cleaned, ok } = validatePath(rootTranscriptPath);
+    if (!ok || !expectedPath || path.resolve(cleaned) !== expectedPath || typeof hostRunId !== "string" || !hostRunId) {
+      return unsupportedHostBinding(binding);
+    }
+    try {
+      const bytes = await readStableRootTranscript(cleaned);
+      const newlineIndex = bytes.lastIndexOf(0x0a);
+      if (newlineIndex < 0) return unsupportedHostBinding(binding);
+      const prefix = bytes.subarray(0, newlineIndex + 1);
+      const rootSessionId = parseRootSessionId(prefix);
+      if (!rootSessionId || (sessionId && sessionId !== rootSessionId)) {
+        return unsupportedHostBinding(binding);
+      }
+      const prefixHash = crypto.createHash("sha256").update(prefix).digest("hex");
+      return {
+        status: "supported-observable-binding",
+        authentication: "none",
+        session_id: rootSessionId,
+        transcript_source: "codex-events",
+        binding_scope: "prefix",
+        transcript_prefix_bytes: prefix.length,
+        transcript_prefix_sha256: prefixHash,
+        host_run_id: hostRunId,
+      };
+    } catch {
+      return unsupportedHostBinding(binding);
+    }
+  }
+
+  if (!sessionId || typeof transcriptPath !== "string" || !transcriptPath) {
+    return unsupportedHostBinding(binding);
+  }
+  const { cleaned, ok } = validatePath(transcriptPath);
+  if (!ok) return unsupportedHostBinding(binding);
+  try {
+    const bytes = await fs.readFile(cleaned);
+    return {
+      ...binding,
+      transcript_sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
+      transcript_source: "agent-transcript",
+    };
+  } catch {
+    return unsupportedHostBinding(binding);
+  }
 }
 
 function normalizeResolution(value) {
@@ -582,22 +711,24 @@ async function persistPhaseCost({ input, workspace }) {
     const ctx = normalizeDispatchCostContext(input);
     const status = await resolveDispatchStatus(input);
     const model_tier = resolveModelTier(agentName, path.resolve(__dirname, "../.."));
+    const record = {
+      phase,
+      agent: agentName,
+      estimated_prompt_tokens: ctx.prompt,
+      estimated_artifact_tokens: ctx.artifact,
+      estimated_tool_output_tokens: ctx.tool_output,
+      estimated_output_tokens: ctx.output,
+      duration_ms: ctx.duration_ms,
+      model_tier,
+      status,
+      ts: new Date().toISOString(),
+    };
+    record.host_binding = await resolveHostBinding(input, workspace, process.env, record);
 
     await appendPhaseCost({
       workspace,
       changeName: activeChange.directoryName,
-      record: {
-        phase,
-        agent: agentName,
-        estimated_prompt_tokens: ctx.prompt,
-        estimated_artifact_tokens: ctx.artifact,
-        estimated_tool_output_tokens: ctx.tool_output,
-        estimated_output_tokens: ctx.output,
-        duration_ms: ctx.duration_ms,
-        model_tier,
-        status,
-        ts: new Date().toISOString(),
-      },
+      record,
     });
   } catch (err) {
     // Fully fail-safe: phase-cost recording must never affect SubagentStop's
@@ -725,6 +856,7 @@ module.exports = {
   persistPhaseCost,
   persistResultEnvelope,
   resolveDispatchStatus,
+  resolveHostBinding,
   runSubagentStop,
   normalizeDispatchCostContext,
 };

@@ -218,3 +218,14 @@ test("teardown: removes the entire runs root", (t) => {
 
   assert.ok(!fs.existsSync(runsRoot));
 });
+
+test("materializeFixture: nests benchmark workspaces without weakening isolation", (t) => {
+  const scenarioDir = makeStubScenario(t, { group: "benchmark", profile: "small-bugfix", benchmark: { change: "fix-null", expected_route: "bugfix" } });
+  const runsRoot = makeRunsRoot(t);
+  const first = materializeFixture(scenarioDir, runsRoot, { suite: "benchmark", name: "small-bugfix" });
+  assert.equal(first.workspaceRoot, path.join(path.resolve(runsRoot), "benchmark", "small-bugfix"));
+  fs.writeFileSync(path.join(first.workspaceRoot, "stray.txt"), "x");
+  const second = materializeFixture(scenarioDir, runsRoot, { suite: "benchmark", name: "small-bugfix" });
+  assert.equal(fs.existsSync(path.join(second.workspaceRoot, "stray.txt")), false);
+  assert.throws(() => materializeFixture(scenarioDir, runsRoot, { suite: "..", name: "escape" }), /contained/i);
+});

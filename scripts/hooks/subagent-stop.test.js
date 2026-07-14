@@ -15,6 +15,7 @@ const {
   persistPhaseCost,
   resolveDispatchStatus,
   runSubagentStop,
+  resolveHostBinding,
 } = require("./subagent-stop.js");
 const {
   PHASE_COST_FILE_NAME,
@@ -545,6 +546,10 @@ test("appendPhaseCost writes a JSONL line under .ospec/session/{change}/phase-co
   const lines = content.trim().split(/\r?\n/).map((line) => JSON.parse(line));
 
   assert.equal(lines.length, 1);
+  assert.equal(lines[0].row_index, 0);
+  assert.match(lines[0].row_attestation_sha256, /^[a-f0-9]{64}$/);
+  delete lines[0].row_index;
+  delete lines[0].row_attestation_sha256;
   assert.deepEqual(lines[0], {
     phase: "design",
     agent: "sdd-design",
@@ -845,6 +850,84 @@ test("normalizeDispatchCostContext handles alias precedence, integers, UTF-8 seg
   const ctx5 = normalizeDispatchCostContext(input5);
   assert.equal(ctx5.prompt, 0);
   assert.equal(ctx5.artifact, 0);
+});
+
+test("resolveHostBinding uses host aliases and hashes exact transcript bytes at emission time", async (t) => {
+  const workspace = await createWorkspace(t);
+  const transcriptPath = path.join(workspace, "agent-transcript.jsonl");
+  await fs.writeFile(transcriptPath, "exact transcript bytes\n", "utf8");
+  const bySession = await resolveHostBinding({ session_id: "session-a", agent_transcript_path: transcriptPath });
+  const byThread = await resolveHostBinding({ thread_id: "session-b", transcript_path: transcriptPath, event_id: "event-7" });
+  assert.equal(bySession.session_id, "session-a");
+  assert.match(bySession.transcript_sha256, /^[a-f0-9]{64}$/);
+  assert.equal(bySession.transcript_source, "agent-transcript");
+  assert.equal(byThread.session_id, "session-b");
+  assert.equal(byThread.event_id, "event-7");
+});
+
+test("resolveHostBinding reports unsupported host payload without inventing identifiers", async () => {
+  assert.deepEqual(await resolveHostBinding({}), { status: "unsupported-host-binding" });
+  assert.deepEqual(await resolveHostBinding({ session_id: "session-only" }), { status: "unsupported-host-binding", session_id: "session-only" });
+});
+
+test("resolveHostBinding binds O1 to the complete codex-events prefix available at emission", async (t) => {
+  const workspace = await createWorkspace(t);
+  const captureDir = path.join(workspace, ".eval-capture");
+  const transcriptPath = path.join(captureDir, "codex-events.jsonl");
+  await fs.mkdir(captureDir, { recursive: true });
+  const complete = [
+    JSON.stringify({ type: "thread.started", thread_id: "root-session" }),
+    JSON.stringify({ type: "item.completed", item: { id: "phase-1" } }),
+  ].join("\n") + "\n";
+  await fs.writeFile(transcriptPath, `${complete}{"type":"partial`, "utf8");
+
+  const binding = await resolveHostBinding(
+    { cwd: workspace, session_id: "root-session" },
+    workspace,
+    { OSPEC_CODEX_EVENTS_PATH: transcriptPath, OSPEC_BENCHMARK_RUN_ID: "run-live" },
+    { phase: "apply", agent: "sdd-apply", estimated_prompt_tokens: 1, estimated_artifact_tokens: 2, estimated_tool_output_tokens: 3, estimated_output_tokens: 4, duration_ms: 5, model_tier: "standard", status: "success", ts: "2026-07-13T00:00:00.000Z" },
+  );
+
+  assert.equal(binding.session_id, "root-session");
+  assert.equal(binding.transcript_source, "codex-events");
+  assert.equal(binding.binding_scope, "prefix");
+  assert.equal(binding.transcript_prefix_bytes, Buffer.byteLength(complete));
+  assert.equal(binding.status, "supported-observable-binding");
+  assert.equal(binding.authentication, "none");
+  assert.equal(Object.keys(binding).some((key) => key.startsWith("receipt_")), false);
+});
+
+test("resolveHostBinding rejects ambiguous root event streams", async (t) => {
+  const workspace = await createWorkspace(t);
+  const captureDir = path.join(workspace, ".eval-capture");
+  const transcriptPath = path.join(captureDir, "codex-events.jsonl");
+  await fs.mkdir(captureDir, { recursive: true });
+  await fs.writeFile(transcriptPath, [
+    JSON.stringify({ type: "thread.started", thread_id: "one" }),
+    JSON.stringify({ type: "thread.started", thread_id: "two" }),
+  ].join("\n") + "\n");
+  const binding = await resolveHostBinding({ cwd: workspace }, workspace, { OSPEC_CODEX_EVENTS_PATH: transcriptPath, OSPEC_BENCHMARK_RUN_ID: "run-live" }, { phase: "apply" });
+  assert.deepEqual(binding, { status: "unsupported-host-binding" });
+});
+
+test("resolveHostBinding rejects an injected root path or mismatched host session", async (t) => {
+  const workspace = await createWorkspace(t);
+  const outside = path.join(workspace, "outside.jsonl");
+  const captureDir = path.join(workspace, ".eval-capture");
+  const transcriptPath = path.join(captureDir, "codex-events.jsonl");
+  const rootEvent = `${JSON.stringify({ type: "thread.started", thread_id: "root-session" })}\n`;
+  await fs.mkdir(captureDir, { recursive: true });
+  await fs.writeFile(outside, rootEvent);
+  await fs.writeFile(transcriptPath, rootEvent);
+
+  assert.deepEqual(
+    await resolveHostBinding({ cwd: workspace, session_id: "root-session" }, workspace, { OSPEC_CODEX_EVENTS_PATH: outside }),
+    { status: "unsupported-host-binding", session_id: "root-session" },
+  );
+  assert.deepEqual(
+    await resolveHostBinding({ cwd: workspace, session_id: "other-session" }, workspace, { OSPEC_CODEX_EVENTS_PATH: transcriptPath }),
+    { status: "unsupported-host-binding", session_id: "other-session" },
+  );
 });
 
 test("persistPhaseCost writes a complete normalized O1 record with correct fields", async (t) => {

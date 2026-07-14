@@ -1,13 +1,6 @@
-# orchestrator-evals Specification
+# Delta for orchestrator-evals
 
-## Purpose
-
-Golden-scenario eval suite that validates the orchestrator's documented behavior
-(routing, gates, blockers) end-to-end against fixture repos, producing objective,
-model-agnostic evidence before a `models.yaml` version bump. Scenarios are versioned
-data; a runner executes them and asserts only structural outcomes, never prose.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Golden Scenario Corpus {#REQ-orchestrator-evals-001}
 
@@ -20,6 +13,7 @@ The reference benchmark MUST expose exactly nine canonical profiles from
 files, input request, expected route, expected artifacts and structural outcome. The
 catalog MUST materialize isolated synthetic repositories without requiring versioned
 `__fixtures__/benchmark/` directories.
+(Previously: The corpus contained only seven versioned golden scenarios.)
 
 #### Scenario: Vague request → intent restatement, no artifact
 
@@ -82,29 +76,7 @@ catalog MUST materialize isolated synthetic repositories without requiring versi
 - THEN it MUST produce an isolated synthetic repository and the declared live request
 - AND its expected route, artifacts and structural outcome MUST come from that catalog
 
-### Requirement: Structural-Only Assertion Contract {#REQ-orchestrator-evals-002}
-
-Every scenario assertion MUST target only structural fields: the route/phase taken,
-`blocker_type`, artifact existence/absence (file paths), specific `state.yaml` fields
-(`status`, `blocking_questions`, phase entries), and `question_gate` shape (question
-count, option count/labels present, `recommended` flags). Assertions MUST NOT inspect
-or compare free-text prose (`executive_summary`, question/option wording, rationale
-text), since prose varies between models and would make the suite non-portable.
-
-#### Scenario: Assertion targets a structural field
-
-- GIVEN a scenario's expected outcome names `state.yaml status: blocked`
-- WHEN the assertion library evaluates the captured run
-- THEN it MUST compare only the `status` field value, not any narrative text
-  produced alongside it
-
-#### Scenario: Prose difference does not fail a scenario
-
-- GIVEN two different models produce different wording for the same
-  `question_gate.reason`
-- WHEN the same golden scenario runs against both models
-- THEN both runs MUST pass, provided the structural fields (question/option
-  count, `blocker_type`, artifacts, route) match expectations
+---
 
 ### Requirement: Eval Runner and Report {#REQ-orchestrator-evals-003}
 
@@ -154,35 +126,20 @@ The threat model MUST be documented as a cooperative orchestrator. Transcript ha
 checksums and replay validation MUST be described as correlation and corruption or
 post-persistence tamper detection, not cryptographic authenticity against fabricated
 internally consistent evidence.
-
-The runner's execution model MUST be a **live invocation**: it dispatches the
-orchestrator against the fixture repo and a configured model (per the Approach
-section and REQ-orchestrator-evals-004's "manually runnable... against a configured
-model" scenario), then captures whatever artifacts/`state.yaml` that live run
-produces. It MUST NOT replay a pre-recorded golden transcript/envelope as a
-substitute for an actual model invocation. This follows directly from the
-non-determinism risk already named in the proposal's Risks table ("Modelo en el
-loop: no determinismo, costo, API keys") and from the Structural-Only Assertion
-Contract (REQ-orchestrator-evals-002), which is designed specifically to tolerate
-model-to-model prose variance — a guarantee that only has value if the suite is
-actually exercising a live model rather than asserting against a fixed transcript.
-Fixture repos MAY still capture reusable starting states (e.g., a pre-seeded
-`.last-update.json`), which is a fixture-authoring detail distinct from the
-runner's live-vs-replay execution model.
+(Previously: The runner produced structural pass/fail output for seven live golden scenarios.)
 
 #### Scenario: Runner produces per-scenario pass/fail
 
 - GIVEN all 7 golden scenarios are configured
 - WHEN the runner executes the suite
-- THEN it MUST emit a pass/fail verdict for each of the 7 scenarios individually
-- AND an aggregate summary (e.g., N/7 passed)
+- THEN it MUST emit a pass/fail verdict for each scenario
+- AND it MUST emit an aggregate summary
 
 #### Scenario: Runner failure is attributable
 
 - GIVEN one scenario's structural assertion fails
 - WHEN the runner reports results
-- THEN the failing scenario's report MUST name which structural field diverged
-  from the expected value
+- THEN the report MUST name the structural field that diverged
 
 #### Scenario: Locally verified infrastructure is archive-ready
 
@@ -248,22 +205,3 @@ runner's live-vs-replay execution model.
 - WHEN the runner describes its assurance
 - THEN it MUST claim correlation and tamper or corruption detection only
 - AND it MUST NOT claim cryptographic authenticity against a non-cooperative producer
-
-### Requirement: Pre-Version-Bump Gate Documentation {#REQ-orchestrator-evals-004}
-
-The suite MUST be documented: how to run it locally against a model, and its role as
-an evidence gate consulted before bumping a model tier in `models.yaml`. `models.yaml`
-MUST carry a comment referencing this gate.
-
-#### Scenario: Documentation present and discoverable
-
-- GIVEN a contributor wants to bump a model in `models.yaml`
-- WHEN they read `models.yaml`
-- THEN a comment MUST point them to the `scripts/evals/` suite as a pre-bump gate
-
-#### Scenario: Suite is manually runnable in this iteration
-
-- GIVEN this capability targets roadmap 2.1 (manual/local execution, no CI wiring)
-- WHEN a contributor runs the documented command
-- THEN the suite MUST execute locally against a configured model without requiring
-  CI or headless-mode infrastructure (deferred to a later change)

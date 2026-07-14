@@ -734,6 +734,7 @@ async function appendPhaseCost({ workspace, changeName, record }) {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await withFileLock(filePath, async () => {
     let hasPrior = false;
+    let rowIndex = 0;
     try {
       const content = await fs.readFile(filePath, "utf8");
       const lines = content.split(/\r?\n/);
@@ -742,6 +743,7 @@ async function appendPhaseCost({ workspace, changeName, record }) {
         if (!trimmed) {
           continue;
         }
+        rowIndex += 1;
         try {
           const parsed = JSON.parse(trimmed);
           if (parsed && parsed.phase === record.phase) {
@@ -759,6 +761,12 @@ async function appendPhaseCost({ workspace, changeName, record }) {
     }
 
     record.relaunch = hasPrior;
+    record.row_index = rowIndex;
+    const binding = record.host_binding || {};
+    const canonical = record.emitter !== undefined || record.estimate_source !== undefined || binding.binding_scope === "full"
+      ? JSON.stringify(["o1-row-v2", record.phase, record.agent, record.estimated_prompt_tokens, record.estimated_artifact_tokens, record.estimated_tool_output_tokens, record.estimated_output_tokens, record.duration_ms, record.model_tier, record.status, record.relaunch, record.row_index, record.ts, record.estimate_source, record.emitter, record.phase_evidence, record.artifact_evidence_sha256, record.benchmark_evidence_sha256, binding.status, binding.session_id, binding.transcript_source, binding.binding_scope, binding.transcript_prefix_bytes, binding.transcript_prefix_sha256, binding.transcript_bytes, binding.transcript_sha256, binding.host_run_id, binding.authentication])
+      : JSON.stringify(["o1-row-v1", record.phase, record.agent, record.estimated_prompt_tokens, record.estimated_artifact_tokens, record.estimated_tool_output_tokens, record.estimated_output_tokens, record.duration_ms, record.model_tier, record.status, record.relaunch, record.row_index, record.ts, binding.status, binding.session_id, binding.transcript_source, binding.binding_scope, binding.transcript_prefix_bytes, binding.transcript_prefix_sha256, binding.host_run_id, binding.authentication]);
+    record.row_attestation_sha256 = crypto.createHash("sha256").update(canonical).digest("hex");
     await fs.appendFile(filePath, `${JSON.stringify(record)}\n`, "utf8");
   });
 

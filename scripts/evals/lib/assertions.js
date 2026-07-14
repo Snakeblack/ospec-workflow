@@ -273,4 +273,4 @@ function assertScenario(expect, captured) {
   return { pass: failures.length === 0, failures };
 }
 
-module.exports = { assertScenario };
+module.exports = { assertScenario, resolveActualRoute };
