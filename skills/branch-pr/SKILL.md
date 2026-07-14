@@ -1,10 +1,10 @@
 ---
 name: branch-pr
-description: "Create pull requests with issue-first checks. Trigger: creating, opening, or preparing PRs for review."
+description: "Create pull requests with branch, validation, and publication checks. Trigger: creating, opening, or preparing PRs for review."
 license: Apache-2.0
 metadata:
   author: manuel-retamozo-garcia
-  version: "2.0"
+  version: "2.1"
 ---
 
 ## When to Use
@@ -18,10 +18,10 @@ Use this skill when:
 
 ## Critical Rules
 
-1. **Every PR MUST link an approved issue** — no exceptions
+1. **Issue linkage is optional**. If a PR links an issue, verify it is relevant and approved; never fabricate or self-approve an issue.
 2. **Every PR MUST have exactly one `type:*` label**
 3. **Automated checks must pass** before merge is possible
-4. **Blank PRs without issue linkage will be blocked** by GitHub Actions
+4. **PRs MUST describe scope and validation**, whether or not an issue is linked.
 5. **No model/tool attribution** in the PR title, body, or comments — never include
    `Generated with`, a 🤖 footer, or any mention of Claude, Claude Code, Anthropic,
    GPT, OpenAI, Codex, Copilot, Gemini, or any other model/vendor. See
@@ -35,7 +35,7 @@ Use this skill when:
 
 ```
 0. Crear una rama de feature: git checkout -b <tipo>/<descripción> main
-1. Verify issue has `status:approved` label
+1. If an issue is linked, verify it has the `status:approved` label; otherwise continue without issue linkage
 2. Create branch: type/description (see Branch Naming below)
 3. Implement changes with conventional commits
 4. Run shellcheck on modified scripts
@@ -88,14 +88,11 @@ Branch names MUST match this regex:
 
 The PR template is at `.github/PULL_REQUEST_TEMPLATE.md`. Every PR body MUST contain:
 
-### 1. Linked Issue (REQUIRED)
+### 1. Linked Issue (OPTIONAL)
 
-```markdown
-Closes #<issue-number>
-```
-
-Valid keywords: `Closes #N`, `Fixes #N`, `Resolves #N` (case insensitive).
-The linked issue MUST have the `status:approved` label.
+Include `Closes #<issue-number>`, `Fixes #<issue-number>`, or
+`Resolves #<issue-number>` only when a relevant approved issue exists.
+Otherwise omit issue linkage; do not invent an issue or approval.
 
 ### 2. PR Type (REQUIRED)
 
@@ -133,7 +130,7 @@ Check exactly ONE in the template and add the matching label:
 ### 6. Contributor Checklist
 
 All boxes must be checked:
-- Linked an approved issue
+- Linked an approved issue when one exists, or explicitly omitted issue linkage
 - Added exactly one `type:*` label
 - Ran shellcheck on modified scripts
 - Skills tested in at least one agent
@@ -148,8 +145,6 @@ All boxes must be checked:
 
 | Check | Job name | What it verifies |
 |-------|----------|-----------------|
-| PR Validation | `Check Issue Reference` | Body contains `Closes/Fixes/Resolves #N` |
-| PR Validation | `Check Issue Has status:approved` | Linked issue has `status:approved` |
 | PR Validation | `Check PR Has type:* Label` | PR has exactly one `type:*` label |
 | CI | `Shellcheck` | Shell scripts pass `shellcheck` |
 

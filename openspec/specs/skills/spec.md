@@ -389,7 +389,7 @@ The step MUST also be represented as a rule in the Critical Rules section so tha
 - GIVEN `skills/branch-pr/SKILL.md` is loaded by an agent
 - WHEN the agent reads the Workflow section
 - THEN the first actionable step MUST be a branch-creation instruction
-- AND it MUST precede the existing "Verify issue has `status:approved` label" step
+- AND it MUST precede the optional issue-validation step
 
 #### Scenario: Compact rules include branch-before-code
 
