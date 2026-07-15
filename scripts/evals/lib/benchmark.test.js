@@ -267,6 +267,58 @@ test("readPhaseCosts fails closed on malformed/noncanonical lines, missing final
   assert.throws(() => readPhaseCosts(file, { expectedPhases: ["verify"] }), /unexpected phase.*apply/i);
 });
 
+test("readPhaseCosts accepts redacted cost_observability metadata and verifies its attestation", (t) => {
+  const root = temp(t);
+  const file = path.join(root, "phase-costs.jsonl");
+  const row = {
+    phase: "apply",
+    agent: "sdd-apply",
+    estimated_prompt_tokens: 12,
+    estimated_artifact_tokens: 0,
+    estimated_tool_output_tokens: 0,
+    estimated_output_tokens: 3,
+    duration_ms: 0,
+    model_tier: "standard",
+    status: "success",
+    relaunch: false,
+    row_index: 0,
+    ts: "2026-07-15T00:00:00.000Z",
+    host_binding: { status: "unsupported-host-binding" },
+    cost_observability: {
+      reason: "codex-token-count-observed",
+      field_presence: { prompt: true, artifact: false, tool_output: false, output: true, duration_ms: false },
+      token_count_presence: { input_tokens: true, cached_input_tokens: true, output_tokens: true, reasoning_output_tokens: true, total_tokens: true },
+      host_binding_status: "unsupported-host-binding",
+    },
+  };
+  row.row_attestation_sha256 = crypto.createHash("sha256").update(JSON.stringify([
+    "o1-row-v3", row.phase, row.agent, row.estimated_prompt_tokens,
+    row.estimated_artifact_tokens, row.estimated_tool_output_tokens,
+    row.estimated_output_tokens, row.duration_ms, row.model_tier, row.status,
+    row.relaunch, row.row_index, row.ts, row.estimate_source, row.emitter,
+    row.phase_evidence, row.artifact_evidence_sha256, row.benchmark_evidence_sha256,
+    row.host_binding.status, row.host_binding.session_id, row.host_binding.transcript_source,
+    row.host_binding.binding_scope, row.host_binding.transcript_prefix_bytes,
+    row.host_binding.transcript_prefix_sha256, row.host_binding.transcript_bytes,
+    row.host_binding.transcript_sha256, row.host_binding.host_run_id,
+    row.host_binding.authentication, row.cost_observability.reason,
+    row.cost_observability.field_presence.prompt, row.cost_observability.field_presence.artifact,
+    row.cost_observability.field_presence.tool_output, row.cost_observability.field_presence.output,
+    row.cost_observability.field_presence.duration_ms,
+    row.cost_observability.token_count_presence.input_tokens,
+    row.cost_observability.token_count_presence.cached_input_tokens,
+    row.cost_observability.token_count_presence.output_tokens,
+    row.cost_observability.token_count_presence.reasoning_output_tokens,
+    row.cost_observability.token_count_presence.total_tokens,
+    row.cost_observability.host_binding_status,
+  ])).digest("hex");
+  fs.writeFileSync(file, `${JSON.stringify(row)}\n`);
+
+  const result = readPhaseCosts(file);
+  assert.equal(result.rows[0].cost_observability.reason, "codex-token-count-observed");
+  assert.equal(result.estimated_total_tokens, 15);
+});
+
 test("observable binding is accepted only with exhaustive ordered row attestation and authentication none", () => {
   const prefix = `${JSON.stringify({ type: "thread.started", thread_id: "session" })}\n`;
   const transcriptBytes = Buffer.from(`${prefix}${JSON.stringify({ type: "turn.completed", usage: { input_tokens: 1, output_tokens: 1 } })}\n`);

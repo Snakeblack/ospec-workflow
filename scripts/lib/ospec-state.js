@@ -748,7 +748,6 @@ async function appendPhaseCost({ workspace, changeName, record }) {
           const parsed = JSON.parse(trimmed);
           if (parsed && parsed.phase === record.phase) {
             hasPrior = true;
-            break;
           }
         } catch {
           // ignore malformed lines
@@ -763,9 +762,13 @@ async function appendPhaseCost({ workspace, changeName, record }) {
     record.relaunch = hasPrior;
     record.row_index = rowIndex;
     const binding = record.host_binding || {};
-    const canonical = record.emitter !== undefined || record.estimate_source !== undefined || binding.binding_scope === "full"
-      ? JSON.stringify(["o1-row-v2", record.phase, record.agent, record.estimated_prompt_tokens, record.estimated_artifact_tokens, record.estimated_tool_output_tokens, record.estimated_output_tokens, record.duration_ms, record.model_tier, record.status, record.relaunch, record.row_index, record.ts, record.estimate_source, record.emitter, record.phase_evidence, record.artifact_evidence_sha256, record.benchmark_evidence_sha256, binding.status, binding.session_id, binding.transcript_source, binding.binding_scope, binding.transcript_prefix_bytes, binding.transcript_prefix_sha256, binding.transcript_bytes, binding.transcript_sha256, binding.host_run_id, binding.authentication])
-      : JSON.stringify(["o1-row-v1", record.phase, record.agent, record.estimated_prompt_tokens, record.estimated_artifact_tokens, record.estimated_tool_output_tokens, record.estimated_output_tokens, record.duration_ms, record.model_tier, record.status, record.relaunch, record.row_index, record.ts, binding.status, binding.session_id, binding.transcript_source, binding.binding_scope, binding.transcript_prefix_bytes, binding.transcript_prefix_sha256, binding.host_run_id, binding.authentication]);
+    const canonicalV2 = record.emitter !== undefined || record.estimate_source !== undefined || binding.binding_scope === "full"
+      ? ["o1-row-v2", record.phase, record.agent, record.estimated_prompt_tokens, record.estimated_artifact_tokens, record.estimated_tool_output_tokens, record.estimated_output_tokens, record.duration_ms, record.model_tier, record.status, record.relaunch, record.row_index, record.ts, record.estimate_source, record.emitter, record.phase_evidence, record.artifact_evidence_sha256, record.benchmark_evidence_sha256, binding.status, binding.session_id, binding.transcript_source, binding.binding_scope, binding.transcript_prefix_bytes, binding.transcript_prefix_sha256, binding.transcript_bytes, binding.transcript_sha256, binding.host_run_id, binding.authentication]
+      : ["o1-row-v1", record.phase, record.agent, record.estimated_prompt_tokens, record.estimated_artifact_tokens, record.estimated_tool_output_tokens, record.estimated_output_tokens, record.duration_ms, record.model_tier, record.status, record.relaunch, record.row_index, record.ts, binding.status, binding.session_id, binding.transcript_source, binding.binding_scope, binding.transcript_prefix_bytes, binding.transcript_prefix_sha256, binding.host_run_id, binding.authentication];
+    const observability = record.cost_observability;
+    const canonical = observability
+      ? JSON.stringify(["o1-row-v3", ...canonicalV2.slice(1), observability.reason, observability.field_presence?.prompt, observability.field_presence?.artifact, observability.field_presence?.tool_output, observability.field_presence?.output, observability.field_presence?.duration_ms, observability.token_count_presence?.input_tokens, observability.token_count_presence?.cached_input_tokens, observability.token_count_presence?.output_tokens, observability.token_count_presence?.reasoning_output_tokens, observability.token_count_presence?.total_tokens, observability.host_binding_status])
+      : JSON.stringify(canonicalV2);
     record.row_attestation_sha256 = crypto.createHash("sha256").update(canonical).digest("hex");
     await fs.appendFile(filePath, `${JSON.stringify(record)}\n`, "utf8");
   });

@@ -410,5 +410,23 @@ func TestAppendPhaseCost_Relaunch(t *testing.T) {
 	if r3["relaunch"] != false {
 		t.Errorf("r3 relaunch: got %v, want false", r3["relaunch"])
 	}
-}
+	if r1["row_index"] != float64(0) || r2["row_index"] != float64(1) || r3["row_index"] != float64(2) {
+		t.Errorf("row indexes after apply relaunch and later phase: got %v, %v, %v", r1["row_index"], r2["row_index"], r3["row_index"])
+	}
 
+	if err := s.AppendPhaseCost("add-x", []byte(`{"phase":"apply","agent":"sdd-apply"}`)); err != nil {
+		t.Fatalf("third apply append failed: %v", err)
+	}
+	data, err = os.ReadFile(costFile)
+	if err != nil {
+		t.Fatalf("read after third apply failed: %v", err)
+	}
+	lines = strings.Split(strings.TrimSpace(string(data)), "\n")
+	var r4 map[string]any
+	if err := json.Unmarshal([]byte(lines[3]), &r4); err != nil {
+		t.Fatalf("parse fourth record: %v", err)
+	}
+	if r4["relaunch"] != true || r4["row_index"] != float64(3) {
+		t.Errorf("later apply relaunch/index: got relaunch=%v row_index=%v", r4["relaunch"], r4["row_index"])
+	}
+}

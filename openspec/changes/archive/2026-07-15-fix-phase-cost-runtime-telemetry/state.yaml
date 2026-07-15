@@ -1,0 +1,99 @@
+change: fix-phase-cost-runtime-telemetry
+status: archived
+classification: normal
+classification_confidence: deterministic
+explicit_bugfix_intent: true
+owner:
+  author: Manuel Retamozo
+  branch: fix/phase-cost-runtime-telemetry
+route:
+  intended_route: bugfix
+  actual_route: bugfix
+  route_rationale: "classification=normal and explicit_bugfix_intent=true select the first matching bugfix route."
+  validated: true
+  validation_errors: []
+execution_mode: auto
+delivery_strategy: exception-ok
+approvals:
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: plain-chat
+    accepted_at: 2026-07-14T23:59:21.4252685Z
+    applies_to:
+      - all-phases
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: plain-chat
+    accepted_at: 2026-07-14T23:59:21.4252685Z
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+phases:
+  sdd-explore:
+    status: done
+    artifact: openspec/changes/fix-phase-cost-runtime-telemetry/exploration.md
+    summary: "El hook instalado escribe phase-costs en un smoke sintético y en un SubagentStop real tras reiniciar Codex; quedan drift de instalación y campos de coste no observables."
+    key_decisions:
+      - "Conservar el requisito de agente sdd-* y change activo para evitar atribución cruzada."
+      - "Usar este change como prueba end-to-end y registrar evidencia durable del JSONL efímero."
+      - "Reparar sincronización/diagnóstico sin capturar contenido sensible del payload."
+  sdd-tasks:
+    status: done
+    artifact: openspec/changes/fix-phase-cost-runtime-telemetry/tasks.md
+    summary: "Plan compacto RED-GREEN-TRIANGULATE-REFACTOR para caracterizar Codex, corregir solo gaps evidenciados y probar instalación, host real y archive."
+    key_decisions:
+      - "Caracterizar primero el payload Codex sanitizado; no capturar transcript ni contenido sensible."
+      - "Mantener JS/Go en paridad y usar size-exception por el riesgo alto de revisión."
+  sdd-apply:
+    status: done
+    artifact: openspec/changes/fix-phase-cost-runtime-telemetry/apply-progress.md
+    summary: "Remediation complete: nested Codex token_count parsing, canonical consumer compatibility, JS and Go test cleanup isolation, append/idempotency, and parity are covered; npm test, go test ./..., and live artifact preservation pass."
+    key_decisions:
+      - "Expose only phase, reason, host-binding status, and boolean field presence; never persist payload or transcript content."
+      - "Use content-aware runtime synchronization so changed installed bytes refresh and identical reruns remain stable."
+      - "Defer full npm test, fresh post-return host row, and archive consumption to sdd-verify."
+  sdd-verify:
+    status: done
+    artifact: openspec/changes/fix-phase-cost-runtime-telemetry/verify-report.md
+    summary: "PASS WITH WARNINGS: npm test and go test ./... pass; installed SubagentStop creates and preserves an attested phase-cost row with observed token_count values. Warnings are unavailable duration/model tier and intentionally unresolved historical assumptions."
+    key_decisions:
+      - "Use the installed runtime after setup:codex for the live artifact proof."
+      - "Keep duration/model tier unavailable rather than fabricating values."
+  sdd-archive:
+    status: done
+    artifact: openspec/changes/fix-phase-cost-runtime-telemetry/archive-report.md
+    summary: "Archive report persisted; no delta specs or ADRs required; all active artifacts copied to the dated archive destination while source remains."
+gates:
+  4r-review-gate:
+    status: done
+    summary: "Revisión selectiva completada para resiliencia; los tres CRITICAL están remediados. El reviewer de fiabilidad no devolvió envelope tras tres intentos del host y queda registrado como limitación, no como PASS."
+    reviewers:
+      - review-resilience
+assumptions:
+  - id: sdd-explore-001
+    phase: sdd-explore
+    statement: "El run archivado utilizó la configuración instalada de hooks de Codex."
+    reversibility: high
+    basis: "hooks.json apunta a la copia instalada, pero no existe evidencia de que Codex cargara esa configuración durante el run."
+    recorded_at: 2026-07-15T00:09:30Z
+    status: unresolved
+    resolution:
+      action: leave-unresolved
+      note: "Causa histórica no probada."
+      resolved_at: 2026-07-15T01:40:44.7442785Z
+  - id: sdd-explore-002
+    phase: sdd-explore
+    statement: "El payload real pudo no incluir un nombre de agente sdd-* o un cwd resoluble."
+    reversibility: high
+    basis: "persistPhaseCost abandona silenciosamente esas condiciones y el payload histórico no está disponible."
+    recorded_at: 2026-07-15T00:09:30Z
+    status: unresolved
+    resolution:
+      action: leave-unresolved
+      note: "Payload histórico no disponible."
+      resolved_at: 2026-07-15T01:40:44.7442785Z
+blocking_questions: []
+created_at: 2026-07-14T23:59:21.4252685Z
+last_updated: 2026-07-15T02:00:00Z

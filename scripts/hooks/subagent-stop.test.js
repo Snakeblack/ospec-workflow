@@ -743,14 +743,28 @@ test("persistPhaseCost prefers the valid envelope's status over top-level input.
 test("persistPhaseCost skips silently — no .ospec/session/ created — when no active change resolves", async (t) => {
   const workspace = await createWorkspace(t);
 
-  await runSubagentStop({
+  const outcome = await persistPhaseCost({
     input: {
       cwd: workspace,
       agent_type: "sdd-design",
-      result: "Some result text.",
+      result: "sensitive transcript content must not appear in diagnostics",
     },
+    workspace,
   });
 
+  assert.deepEqual(outcome, {
+    status: "skipped",
+    reason: "no-active-change",
+    phase: "design",
+    field_presence: {
+      prompt: false,
+      artifact: false,
+      tool_output: false,
+      output: true,
+      duration_ms: false,
+    },
+  });
+  assert.doesNotMatch(JSON.stringify(outcome), /sensitive transcript content/);
   await assert.rejects(
     fs.stat(path.join(workspace, ".ospec", "session")),
     (error) => error.code === "ENOENT",
@@ -998,6 +1012,157 @@ test("normalizeDispatchCostContext handles alias precedence, integers, UTF-8 seg
   assert.equal(ctx5.artifact, 0);
 });
 
+test("normalizeDispatchCostContext maps the observed Codex token_count event with strict numeric fields", () => {
+  const { normalizeDispatchCostContext } = require("./subagent-stop.js");
+  const input = {
+    type: "event_msg",
+    payload: {
+      type: "token_count",
+      info: {
+        last_token_usage: {
+          input_tokens: 120,
+          cached_input_tokens: 48,
+          output_tokens: 30,
+          reasoning_output_tokens: 7,
+          total_tokens: 150,
+        },
+      },
+    },
+  };
+
+  assert.deepEqual(normalizeDispatchCostContext(input), {
+    prompt: 120,
+    artifact: 0,
+    tool_output: 0,
+    output: 30,
+    duration_ms: 0,
+  });
+});
+
+test("parseCodexTokenCountTranscript rejects non-integer Codex usage and falls back to total usage", () => {
+  const { parseCodexTokenCountTranscript } = require("./subagent-stop.js");
+  const totalUsage = {
+    type: "token_count",
+    info: {
+      total_token_usage: {
+        input_tokens: 90,
+        output_tokens: 11,
+        total_tokens: 101,
+      },
+    },
+  };
+  const invalid = {
+    type: "event_msg",
+    payload: {
+      type: "token_count",
+      info: { last_token_usage: { input_tokens: 1.5, output_tokens: 2 } },
+    },
+  };
+
+  const usage = parseCodexTokenCountTranscript(`${JSON.stringify(totalUsage)}\n`);
+  assert.equal(usage.input_tokens, 90);
+  assert.equal(usage.output_tokens, 11);
+  assert.equal(parseCodexTokenCountTranscript(`${JSON.stringify(invalid)}\n`), undefined);
+});
+
+test("persistPhaseCost reads token_count from the Codex transcript without persisting transcript content", async (t) => {
+  const { workspace } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+  const transcriptPath = path.join(workspace, "codex-events.jsonl");
+  await fs.writeFile(
+    transcriptPath,
+    [
+      JSON.stringify({ type: "thread.started", thread_id: "session-token-count" }),
+      JSON.stringify({
+        type: "event_msg",
+        payload: {
+          type: "token_count",
+          info: {
+            total_token_usage: {
+              input_tokens: 100,
+              cached_input_tokens: 40,
+              output_tokens: 20,
+              reasoning_output_tokens: 4,
+              total_tokens: 120,
+            },
+            last_token_usage: {
+              input_tokens: 12,
+              cached_input_tokens: 5,
+              output_tokens: 3,
+              reasoning_output_tokens: 1,
+              total_tokens: 15,
+            },
+          },
+        },
+      }),
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      session_id: "session-token-count",
+      agent_type: "sdd-design",
+      agent_transcript_path: transcriptPath,
+      status: "success",
+    },
+  });
+
+  const [record] = await readPhaseCosts(workspace, "strict-result-envelope");
+  assert.equal(record.estimated_prompt_tokens, 12);
+  assert.equal(record.estimated_output_tokens, 3);
+  assert.equal(record.estimated_artifact_tokens, 0);
+  assert.equal(record.estimated_tool_output_tokens, 0);
+  assert.equal(record.cost_observability.reason, "codex-token-count-observed");
+  assert.equal(record.cost_observability.field_presence.prompt, true);
+  assert.equal(record.cost_observability.field_presence.output, true);
+  assert.equal(record.cost_observability.field_presence.artifact, false);
+  assert.equal(record.cost_observability.field_presence.tool_output, false);
+  assert.equal(record.cost_observability.field_presence.duration_ms, false);
+  assert.equal(record.cost_observability.token_count_presence.cached_input_tokens, true);
+  assert.equal(record.cost_observability.token_count_presence.reasoning_output_tokens, true);
+  assert.doesNotMatch(JSON.stringify(record), /thread\.started|event_msg|last_token_usage|total_token_usage/);
+});
+
+test("repeated same-event handling appends and preserves prior phase rows", async (t) => {
+  const { workspace } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+  const input = {
+    cwd: workspace,
+    agent_type: "sdd-design",
+    estimated_prompt_tokens: 8,
+    estimated_output_tokens: 2,
+    status: "success",
+  };
+
+  await runSubagentStop({ input });
+  await runSubagentStop({ input });
+  await runSubagentStop({
+    input: {
+      ...input,
+      agent_type: "sdd-apply",
+      estimated_prompt_tokens: 13,
+      estimated_output_tokens: 4,
+    },
+  });
+
+  const records = await readPhaseCosts(workspace, "strict-result-envelope");
+  assert.equal(records.length, 3);
+  assert.deepEqual(records.map((record) => record.phase), ["design", "design", "apply"]);
+  assert.equal(records[0].estimated_prompt_tokens, 8);
+  assert.equal(records[1].estimated_prompt_tokens, 8);
+  assert.equal(records[1].relaunch, true);
+  assert.equal(records[2].estimated_prompt_tokens, 13);
+  assert.equal(records[2].relaunch, false);
+  assert.equal(records[2].row_index, 2);
+});
+
 test("resolveHostBinding uses host aliases and hashes exact transcript bytes at emission time", async (t) => {
   const workspace = await createWorkspace(t);
   const transcriptPath = path.join(workspace, "agent-transcript.jsonl");
@@ -1130,6 +1295,18 @@ tiers:
   assert.equal(record.model_tier, "premium");
   assert.equal(record.status, "success");
   assert.equal(record.relaunch, false);
+  assert.deepEqual(record.cost_observability, {
+    reason: "cost-fields-observed",
+    field_presence: {
+      prompt: true,
+      artifact: true,
+      tool_output: true,
+      output: true,
+      duration_ms: true,
+    },
+    host_binding_status: "unsupported-host-binding",
+  });
+  assert.doesNotMatch(data, /hello world/);
   assert.equal(typeof record.ts, "string");
   assert.ok(record.ts.endsWith("Z")); // ISO 8601 UTC
 });

@@ -241,19 +241,15 @@ test("token budget advisor: asks on heavy file reads exceeding 50k tokens", () =
   }
 });
 
-test("token budget advisor: asks on cumulative session tokens exceeding 150k tokens", () => {
-  const activeChange = findActiveChangeNameSync();
-  const targetChange = activeChange === "unknown" ? "token-budget-advisor" : activeChange;
-  
-  let createdTempChange = false;
-  const tempChangeDir = path.join(process.cwd(), "openspec", "changes", "token-budget-advisor");
-  if (activeChange === "unknown") {
-    fs.mkdirSync(tempChangeDir, { recursive: true });
-    fs.writeFileSync(path.join(tempChangeDir, "state.yaml"), "status: active\n", "utf8");
-    createdTempChange = true;
-  }
-
-  const tempSessionDir = path.join(process.cwd(), ".ospec", "session", targetChange);
+test("token budget advisor: asks on cumulative session tokens exceeding 150k tokens", (t) => {
+  const originalCwd = process.cwd();
+  const isolatedRoot = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "pre-tool-use-budget-"));
+  t.after(() => fs.rmSync(isolatedRoot, { recursive: true, force: true }));
+  process.chdir(isolatedRoot);
+  const tempChangeDir = path.join(isolatedRoot, "openspec", "changes", "token-budget-advisor");
+  fs.mkdirSync(tempChangeDir, { recursive: true });
+  fs.writeFileSync(path.join(tempChangeDir, "state.yaml"), "status: active\n", "utf8");
+  const tempSessionDir = path.join(isolatedRoot, ".ospec", "session", "token-budget-advisor");
   fs.mkdirSync(tempSessionDir, { recursive: true });
   const tempLog = path.join(tempSessionDir, "token-events.jsonl");
   fs.writeFileSync(tempLog, '{"t":155000,"ts":123456}\n', "utf8");
@@ -266,10 +262,7 @@ test("token budget advisor: asks on cumulative session tokens exceeding 150k tok
     assert.equal(decision.permissionDecision, "ask");
     assert.match(decision.permissionDecisionReason, /compacta/i);
   } finally {
-    fs.rmSync(path.join(process.cwd(), ".ospec"), { recursive: true, force: true });
-    if (createdTempChange) {
-      fs.rmSync(tempChangeDir, { recursive: true, force: true });
-    }
+    process.chdir(originalCwd);
   }
 });
 

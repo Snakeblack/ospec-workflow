@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -630,15 +631,152 @@ func resolveSegmentField(input map[string]any, paths []string) (string, bool) {
 	return "", false
 }
 
+const maxCodexTokenCount = 1_000_000_000_000
+
+var codexTokenFields = []string{
+	"input_tokens",
+	"cached_input_tokens",
+	"output_tokens",
+	"reasoning_output_tokens",
+	"total_tokens",
+}
+
+type codexTokenUsage struct {
+	values   map[string]int
+	presence map[string]bool
+}
+
+func getValidCodexTokenCount(value any) (int, bool) {
+	val, ok := value.(float64)
+	if !ok || math.IsNaN(val) || math.IsInf(val, 0) || val < 0 || val > maxCodexTokenCount || val != math.Trunc(val) {
+		return 0, false
+	}
+	return int(val), true
+}
+
+func resolveCodexTokenCountEvent(event map[string]any) *codexTokenUsage {
+	var tokenEvent map[string]any
+	if event["type"] == "event_msg" {
+		payload, _ := event["payload"].(map[string]any)
+		if payload == nil || payload["type"] != "token_count" {
+			return nil
+		}
+		tokenEvent = payload
+	} else if event["type"] == "token_count" {
+		tokenEvent = event
+	} else {
+		return nil
+	}
+
+	info, _ := tokenEvent["info"].(map[string]any)
+	if info == nil {
+		return nil
+	}
+	usage, _ := info["last_token_usage"].(map[string]any)
+	if usage == nil {
+		usage, _ = info["total_token_usage"].(map[string]any)
+	}
+	if usage == nil {
+		return nil
+	}
+
+	result := &codexTokenUsage{values: map[string]int{}, presence: map[string]bool{}}
+	for _, field := range codexTokenFields {
+		value, present := usage[field]
+		result.presence[field] = present
+		if !present {
+			continue
+		}
+		parsed, valid := getValidCodexTokenCount(value)
+		if !valid {
+			return nil
+		}
+		result.values[field] = parsed
+	}
+	if !result.presence["input_tokens"] || !result.presence["output_tokens"] {
+		return nil
+	}
+	return result
+}
+
+func resolveCodexTokenCountUsage(input map[string]any) *codexTokenUsage {
+	for _, candidate := range []any{input, input["event"], input["event_msg"]} {
+		if event, ok := candidate.(map[string]any); ok {
+			if usage := resolveCodexTokenCountEvent(event); usage != nil {
+				return usage
+			}
+		}
+	}
+	return nil
+}
+
+func parseCodexTokenCountTranscript(content []byte) *codexTokenUsage {
+	lines := strings.Split(string(content), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+		var event map[string]any
+		if json.Unmarshal([]byte(line), &event) != nil {
+			continue
+		}
+		if usage := resolveCodexTokenCountEvent(event); usage != nil {
+			return usage
+		}
+	}
+	return nil
+}
+
+func readCodexTokenCountTranscript(transcriptPath string) *codexTokenUsage {
+	cleaned, ok := validatePath(transcriptPath)
+	if !ok {
+		return nil
+	}
+	data, err := readFilePermissive(cleaned)
+	if err != nil || data == nil {
+		return nil
+	}
+	return parseCodexTokenCountTranscript(data)
+}
+
+func readCodexTokenCountFromRoot(workspace string) *codexTokenUsage {
+	rootTranscriptPath := os.Getenv("OSPEC_CODEX_EVENTS_PATH")
+	hostRunID := strings.TrimSpace(os.Getenv("OSPEC_BENCHMARK_RUN_ID"))
+	if rootTranscriptPath == "" || hostRunID == "" || workspace == "" {
+		return nil
+	}
+	expectedPath := filepath.Clean(filepath.Join(workspace, ".eval-capture", "codex-events.jsonl"))
+	cleaned, ok := validatePath(rootTranscriptPath)
+	if !ok || filepath.Clean(cleaned) != expectedPath {
+		return nil
+	}
+	data, err := readStableRootTranscript(cleaned)
+	if err != nil {
+		return nil
+	}
+	return parseCodexTokenCountTranscript(data)
+}
+
 // NormalizeDispatchCostContext normalizes host input into standard cost fields.
 // Exported for testing.
 func NormalizeDispatchCostContext(input map[string]any) map[string]any {
+	return normalizeDispatchCostContextWithUsage(input, resolveCodexTokenCountUsage(input))
+}
+
+func normalizeDispatchCostContextWithUsage(input map[string]any, tokenUsage *codexTokenUsage) map[string]any {
 	// prompt
 	prompt, ok := resolveIntField(input, []string{
 		"telemetry.estimated_prompt_tokens",
 		"estimated_prompt_tokens",
 		"usage.prompt_tokens",
 	})
+	if !ok {
+		if tokenUsage != nil {
+			prompt = tokenUsage.values["input_tokens"]
+			ok = tokenUsage.presence["input_tokens"]
+		}
+	}
 	if !ok {
 		segment, ok := resolveSegmentField(input, []string{"telemetry.prompt", "prompt"})
 		if ok && len(segment) > 0 {
@@ -685,6 +823,12 @@ func NormalizeDispatchCostContext(input map[string]any) map[string]any {
 		"usage.output_tokens",
 	})
 	if !ok {
+		if tokenUsage != nil {
+			output = tokenUsage.values["output_tokens"]
+			ok = tokenUsage.presence["output_tokens"]
+		}
+	}
+	if !ok {
 		segment, ok := resolveSegmentField(input, []string{"telemetry.output"})
 		if !ok {
 			payload := resolveResultPayload(input)
@@ -721,6 +865,64 @@ func NormalizeDispatchCostContext(input map[string]any) map[string]any {
 		"output":      output,
 		"duration_ms": duration,
 	}
+}
+
+// resolveCostFieldPresence reports only whether supported host fields were
+// present. It deliberately excludes values and payload content from runtime
+// diagnostics.
+func resolveCostFieldPresence(input map[string]any, usages ...*codexTokenUsage) map[string]bool {
+	var tokenUsage *codexTokenUsage
+	if len(usages) > 0 {
+		tokenUsage = usages[0]
+	} else {
+		tokenUsage = resolveCodexTokenCountUsage(input)
+	}
+	_, promptInt := resolveIntField(input, []string{
+		"telemetry.estimated_prompt_tokens", "estimated_prompt_tokens", "usage.prompt_tokens",
+	})
+	_, promptSegment := resolveSegmentField(input, []string{"telemetry.prompt", "prompt"})
+	_, artifactInt := resolveIntField(input, []string{
+		"telemetry.estimated_artifact_tokens", "estimated_artifact_tokens", "usage.artifact_tokens",
+	})
+	_, artifactSegment := resolveSegmentField(input, []string{"telemetry.artifact", "artifact"})
+	_, toolOutputInt := resolveIntField(input, []string{
+		"telemetry.estimated_tool_output_tokens", "estimated_tool_output_tokens", "usage.tool_output_tokens",
+	})
+	_, toolOutputSegment := resolveSegmentField(input, []string{"telemetry.tool_output", "tool_output"})
+	_, outputInt := resolveIntField(input, []string{
+		"telemetry.estimated_output_tokens", "estimated_output_tokens", "usage.output_tokens",
+	})
+	_, outputSegment := resolveSegmentField(input, []string{"telemetry.output"})
+	_, duration := resolveIntField(input, []string{"telemetry.duration_ms", "duration_ms"})
+	return map[string]bool{
+		"prompt":      promptInt || promptSegment || (tokenUsage != nil && tokenUsage.presence["input_tokens"]),
+		"artifact":    artifactInt || artifactSegment,
+		"tool_output": toolOutputInt || toolOutputSegment,
+		"output":      outputInt || outputSegment || resolveResultPayload(input) != nil || (tokenUsage != nil && tokenUsage.presence["output_tokens"]),
+		"duration_ms": duration,
+	}
+}
+
+// PhaseCostDiagnostic returns bounded metadata for a phase-cost no-op. It is
+// intentionally safe to expose to adapters: it never includes payload values.
+func PhaseCostDiagnostic(input map[string]any, workspace string) map[string]any {
+	phase := derivePhaseKey(resolveAgentName(input))
+	diagnostic := map[string]any{
+		"status":         "skipped",
+		"phase":          phase,
+		"field_presence": resolveCostFieldPresence(input),
+	}
+	if phase == "" {
+		diagnostic["reason"] = "unsupported-agent"
+		return diagnostic
+	}
+	activeChanges, err := store.NewStore(workspace).FindActiveChanges()
+	if err != nil || len(activeChanges) == 0 {
+		diagnostic["reason"] = "no-active-change"
+		return diagnostic
+	}
+	diagnostic["reason"] = "active-change-resolved"
+	return diagnostic
 }
 
 // derivePhaseKey strips the "sdd-" prefix from an agent name to derive its
@@ -828,7 +1030,16 @@ func persistPhaseCost(input map[string]any, workspace string) {
 	}
 	changeName := activeChanges[0].DirectoryName
 
-	ctx := NormalizeDispatchCostContext(input)
+	tokenUsage := resolveCodexTokenCountUsage(input)
+	if tokenUsage == nil {
+		if transcriptPath, ok := resolveTranscriptPath(input); ok {
+			tokenUsage = readCodexTokenCountTranscript(transcriptPath)
+		}
+	}
+	if tokenUsage == nil {
+		tokenUsage = readCodexTokenCountFromRoot(workspace)
+	}
+	ctx := normalizeDispatchCostContextWithUsage(input, tokenUsage)
 	status := resolveDispatchStatus(input)
 
 	pluginRoot := os.Getenv("OSPEC_PLUGIN_ROOT")
@@ -853,6 +1064,24 @@ func persistPhaseCost(input map[string]any, workspace string) {
 		"ts":                           time.Now().UTC().Format(time.RFC3339Nano),
 	}
 	record["host_binding"] = resolveHostBinding(input, workspace, record)
+	presence := resolveCostFieldPresence(input, tokenUsage)
+	reason := "cost-fields-observed"
+	for _, present := range presence {
+		if !present {
+			reason = "cost-fields-unavailable"
+			break
+		}
+	}
+	costObservability := map[string]any{
+		"reason":              reason,
+		"field_presence":      presence,
+		"host_binding_status": record["host_binding"].(map[string]any)["status"],
+	}
+	if tokenUsage != nil {
+		costObservability["reason"] = "codex-token-count-observed"
+		costObservability["token_count_presence"] = tokenUsage.presence
+	}
+	record["cost_observability"] = costObservability
 	line, marshalErr := json.Marshal(record)
 	if marshalErr != nil {
 		return

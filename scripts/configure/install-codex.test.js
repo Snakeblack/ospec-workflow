@@ -127,6 +127,26 @@ test("global native runtime installs hooks and keeps skills outside the runtime"
   assert.ok(fs.existsSync(path.join(skillsRoot, "_shared", "shared.md")));
 });
 
+test("copyCodexRuntime refreshes changed runtime bytes and is idempotent", (t) => {
+  const outDir = makeTempDir(t, "codex-runtime-sync-source-");
+  const runtimeDir = makeTempDir(t, "codex-runtime-sync-dest-");
+  const sourceHook = path.join(outDir, "scripts", "hooks", "subagent-stop.js");
+  const installedHook = path.join(runtimeDir, "scripts", "hooks", "subagent-stop.js");
+  fs.mkdirSync(path.dirname(sourceHook), { recursive: true });
+  fs.writeFileSync(sourceHook, "runtime-v1\n");
+
+  const first = copyCodexRuntime(outDir, runtimeDir);
+  fs.writeFileSync(sourceHook, "runtime-v2\n");
+  const second = copyCodexRuntime(outDir, runtimeDir);
+  const third = copyCodexRuntime(outDir, runtimeDir);
+
+  assert.equal(fs.readFileSync(installedHook, "utf8"), "runtime-v2\n");
+  assert.ok(first.updated.some((file) => file.endsWith(path.join("scripts", "hooks", "subagent-stop.js"))));
+  assert.ok(second.updated.some((file) => file.endsWith(path.join("scripts", "hooks", "subagent-stop.js"))));
+  assert.equal(third.updated.length, 0);
+  assert.ok(third.unchanged.some((file) => file.endsWith(path.join("scripts", "hooks", "subagent-stop.js"))));
+});
+
 test("syncCodexAgentSkills updates differing content and skips byte-identical files", (t) => {
   const outDir = makeTempDir(t, "codex-skills-source-");
   const skillsRoot = makeTempDir(t, "codex-skills-dest-");

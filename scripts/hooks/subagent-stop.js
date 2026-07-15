@@ -631,13 +631,147 @@ function resolveSegmentField(input, paths) {
   return undefined;
 }
 
-function normalizeDispatchCostContext(input) {
+const MAX_CODEX_TOKEN_COUNT = 1_000_000_000_000;
+const CODEX_TOKEN_FIELDS = [
+  "input_tokens",
+  "cached_input_tokens",
+  "output_tokens",
+  "reasoning_output_tokens",
+  "total_tokens",
+];
+
+function getValidCodexTokenCount(value) {
+  return Number.isSafeInteger(value) && value >= 0 && value <= MAX_CODEX_TOKEN_COUNT
+    ? value
+    : undefined;
+}
+
+function resolveCodexTokenCountEvent(event) {
+  const tokenEvent = event?.type === "event_msg" && event.payload?.type === "token_count"
+    ? event.payload
+    : event?.type === "token_count"
+      ? event
+      : undefined;
+  const info = tokenEvent?.info;
+
+  if (!info || typeof info !== "object" || Array.isArray(info)) {
+    return undefined;
+  }
+
+  const usage = info.last_token_usage || info.total_token_usage;
+  if (!usage || typeof usage !== "object" || Array.isArray(usage)) {
+    return undefined;
+  }
+
+  const normalized = {};
+  const presence = {};
+  for (const field of CODEX_TOKEN_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(usage, field)) {
+      presence[field] = false;
+      continue;
+    }
+    const value = getValidCodexTokenCount(usage[field]);
+    if (value === undefined) {
+      return undefined;
+    }
+    normalized[field] = value;
+    presence[field] = true;
+  }
+
+  if (!presence.input_tokens || !presence.output_tokens) {
+    return undefined;
+  }
+
+  return { ...normalized, presence, source: "codex-token-count" };
+}
+
+function resolveCodexTokenCountUsage(input) {
+  for (const candidate of [input, input?.event, input?.event_msg]) {
+    const usage = resolveCodexTokenCountEvent(candidate);
+    if (usage) {
+      return usage;
+    }
+  }
+  return undefined;
+}
+
+function parseCodexTokenCountTranscript(content) {
+  const lines = String(content).split(/\r?\n/);
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (!lines[index].trim()) {
+      continue;
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(lines[index]);
+    } catch {
+      continue;
+    }
+    const usage = resolveCodexTokenCountUsage(parsed);
+    if (usage) {
+      return usage;
+    }
+  }
+  return undefined;
+}
+
+async function readCodexTokenCountTranscript(transcriptPath) {
+  if (typeof transcriptPath !== "string" || !transcriptPath) {
+    return undefined;
+  }
+  const { cleaned, ok } = validatePath(transcriptPath);
+  if (!ok) {
+    return undefined;
+  }
+  try {
+    const content = await fs.readFile(cleaned, "utf8");
+    return parseCodexTokenCountTranscript(content);
+  } catch (error) {
+    if (error.code === "ENOENT" || error.code === "EACCES") {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+async function resolveCodexTokenCountUsageAsync(input, workspace) {
+  const direct = resolveCodexTokenCountUsage(input);
+  if (direct) {
+    return direct;
+  }
+
+  const paths = [];
+  const transcriptPath = resolveTranscriptPath(input);
+  if (transcriptPath) {
+    paths.push(transcriptPath);
+  }
+  const rootTranscriptPath = process.env.OSPEC_CODEX_EVENTS_PATH;
+  const expectedRoot = typeof workspace === "string" && workspace
+    ? path.resolve(workspace, ".eval-capture", "codex-events.jsonl")
+    : "";
+  if (rootTranscriptPath && process.env.OSPEC_BENCHMARK_RUN_ID && expectedRoot && path.resolve(rootTranscriptPath) === expectedRoot) {
+    paths.push(rootTranscriptPath);
+  }
+
+  for (const candidate of [...new Set(paths)]) {
+    const usage = await readCodexTokenCountTranscript(candidate);
+    if (usage) {
+      return usage;
+    }
+  }
+  return undefined;
+}
+
+function normalizeDispatchCostContext(input, tokenUsage = resolveCodexTokenCountUsage(input)) {
   // prompt
   let prompt = resolveIntField(input, [
     "telemetry.estimated_prompt_tokens",
     "estimated_prompt_tokens",
     "usage.prompt_tokens"
   ]);
+  if (prompt === undefined && tokenUsage?.input_tokens !== undefined) {
+    prompt = tokenUsage.input_tokens;
+  }
   if (prompt === undefined) {
     const segment = resolveSegmentField(input, ["telemetry.prompt", "prompt"]);
     prompt = segment !== undefined ? Math.ceil(Buffer.byteLength(segment, "utf8") / 4) : 0;
@@ -671,6 +805,9 @@ function normalizeDispatchCostContext(input) {
     "estimated_output_tokens",
     "usage.output_tokens"
   ]);
+  if (output === undefined && tokenUsage?.output_tokens !== undefined) {
+    output = tokenUsage.output_tokens;
+  }
   if (output === undefined) {
     let segment = resolveSegmentField(input, ["telemetry.output"]);
     if (segment === undefined) {
@@ -697,6 +834,42 @@ function normalizeDispatchCostContext(input) {
   };
 }
 
+function resolveCostFieldPresence(input, tokenUsage = resolveCodexTokenCountUsage(input)) {
+  const presence = {
+    prompt: resolveIntField(input, [
+      "telemetry.estimated_prompt_tokens",
+      "estimated_prompt_tokens",
+      "usage.prompt_tokens",
+    ]) !== undefined || resolveSegmentField(input, ["telemetry.prompt", "prompt"]) !== undefined || tokenUsage?.input_tokens !== undefined,
+    artifact: resolveIntField(input, [
+      "telemetry.estimated_artifact_tokens",
+      "estimated_artifact_tokens",
+      "usage.artifact_tokens",
+    ]) !== undefined || resolveSegmentField(input, ["telemetry.artifact", "artifact"]) !== undefined,
+    tool_output: resolveIntField(input, [
+      "telemetry.estimated_tool_output_tokens",
+      "estimated_tool_output_tokens",
+      "usage.tool_output_tokens",
+    ]) !== undefined || resolveSegmentField(input, ["telemetry.tool_output", "tool_output"]) !== undefined,
+    output: resolveIntField(input, [
+      "telemetry.estimated_output_tokens",
+      "estimated_output_tokens",
+      "usage.output_tokens",
+    ]) !== undefined || resolveSegmentField(input, ["telemetry.output"]) !== undefined || resolveResultPayload(input) !== undefined || tokenUsage?.output_tokens !== undefined,
+    duration_ms: resolveIntField(input, ["telemetry.duration_ms", "duration_ms"]) !== undefined,
+  };
+  return presence;
+}
+
+function phaseCostDiagnostic({ phase, reason, input }) {
+  return {
+    status: "skipped",
+    reason,
+    phase: phase || null,
+    field_presence: resolveCostFieldPresence(input),
+  };
+}
+
 /**
  * Appends one estimated-cost JSONL record for this dispatch to
  * `.ospec/session/{change}/phase-costs.jsonl` (REQ-hooks-001), mirroring the
@@ -706,24 +879,25 @@ function normalizeDispatchCostContext(input) {
  * without affecting the hook's stdout.
  */
 async function persistPhaseCost({ input, workspace }) {
+  const canonicalAgentPhase = resolveAgentName(input);
+  const statePhaseKey = derivePhaseKey(canonicalAgentPhase);
   try {
-    const canonicalAgentPhase = resolveAgentName(input);
-    const statePhaseKey = derivePhaseKey(canonicalAgentPhase);
-
     if (!statePhaseKey) {
-      return;
+      return phaseCostDiagnostic({ phase: null, reason: "unsupported-agent", input });
     }
 
     const openspecRoot = await findOpenSpecRoot(workspace);
     const activeChange = (await findActiveChanges(openspecRoot))[0];
 
     if (!activeChange) {
-      return;
+      return phaseCostDiagnostic({ phase: statePhaseKey, reason: "no-active-change", input });
     }
 
-    const ctx = normalizeDispatchCostContext(input);
+    const tokenUsage = await resolveCodexTokenCountUsageAsync(input, workspace);
+    const ctx = normalizeDispatchCostContext(input, tokenUsage);
     const status = await resolveDispatchStatus(input);
     const model_tier = resolveModelTier(canonicalAgentPhase, path.resolve(__dirname, "../.."));
+    const field_presence = resolveCostFieldPresence(input, tokenUsage);
     const record = {
       phase: statePhaseKey,
       agent: canonicalAgentPhase,
@@ -737,15 +911,34 @@ async function persistPhaseCost({ input, workspace }) {
       ts: new Date().toISOString(),
     };
     record.host_binding = await resolveHostBinding(input, workspace, process.env, record);
+    const fallback = Object.values(field_presence).some((present) => !present);
+    record.cost_observability = {
+      reason: tokenUsage
+        ? "codex-token-count-observed"
+        : fallback
+          ? "cost-fields-unavailable"
+          : "cost-fields-observed",
+      field_presence,
+      ...(tokenUsage ? { token_count_presence: tokenUsage.presence } : {}),
+      host_binding_status: record.host_binding.status,
+    };
 
     await appendPhaseCost({
       workspace,
       changeName: activeChange.directoryName,
       record,
     });
+    return {
+      status: "recorded",
+      reason: record.cost_observability.reason,
+      phase: statePhaseKey,
+      field_presence,
+      host_binding_status: record.host_binding.status,
+    };
   } catch (err) {
     // Fully fail-safe: phase-cost recording must never affect SubagentStop's
     // existing skill_resolution behavior or exit status.
+    return phaseCostDiagnostic({ phase: statePhaseKey, reason: "fail-safe-error", input });
   }
 }
 
@@ -875,9 +1068,12 @@ module.exports = {
   findTextResolution,
   isDegradedResolution,
   persistPhaseCost,
+  resolveCostFieldPresence,
   persistResultEnvelope,
   resolveDispatchStatus,
   resolveHostBinding,
   runSubagentStop,
   normalizeDispatchCostContext,
+  parseCodexTokenCountTranscript,
+  resolveCodexTokenCountUsage,
 };
