@@ -340,7 +340,18 @@ func TestPreToolUse_TokenBudgetAdvisor(t *testing.T) {
 		// root and removed its whole .ospec tree in cleanup, which could erase
 		// live phase-cost telemetry from an unrelated change.
 		root := t.TempDir()
-		t.Chdir(root)
+		previousDir, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("get working directory: %v", err)
+		}
+		if err := os.Chdir(root); err != nil {
+			t.Fatalf("change to hermetic workspace: %v", err)
+		}
+		t.Cleanup(func() {
+			if err := os.Chdir(previousDir); err != nil {
+				t.Errorf("restore working directory: %v", err)
+			}
+		})
 		targetChange := "token-budget-advisor"
 		tempChangeDir := filepath.Join(root, "openspec", "changes", targetChange)
 		os.MkdirAll(tempChangeDir, 0755)
@@ -452,7 +463,7 @@ func TestPreToolUse_TokenBudgetAdvisor(t *testing.T) {
 
 	t.Run("agent-shield scans file contents for API tokens and passwords", func(t *testing.T) {
 		tempFile := filepath.Join(".", "code_sample.js")
-		
+
 		// Test OpenAI API key pattern
 		os.WriteFile(tempFile, []byte("const openAIKey = 'sk-123456789012345678901234567890123456789012345678';"), 0644)
 		defer os.Remove(tempFile)
@@ -537,7 +548,7 @@ func preToolUseInputWithTool(toolName, command string) []byte {
 	}
 	// Tool with no command payload (write tool with file operation)
 	type In struct {
-		ToolName  string `json:"tool_name"`
+		ToolName  string   `json:"tool_name"`
 		ToolInput struct{} `json:"tool_input"`
 	}
 	var in In
@@ -718,7 +729,6 @@ func containsStr(s, sub string) bool {
 			return false
 		}())
 }
-
 
 // ── permission-mode degradation ───────────────────────────────────────────────
 // In bypassPermissions, advisory `ask` decisions degrade to `allow` plus a
