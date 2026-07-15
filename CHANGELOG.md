@@ -8,6 +8,15 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.29.1] - 2026-07-15
+
+### Fixed
+- **Telemetría de costes por fase**: el runtime Go normaliza los eventos
+  `token_count` del host, mantiene índices globales entre relanzamientos y
+  evita ejecutar callbacks sin adquirir el lock.
+- **Persistencia de artefactos**: la telemetría phase-cost se conserva durante
+  las pruebas y el change archivado incluye el bloque Cost agregado por fase.
+
 ## [2.29.0] - 2026-07-15
 
 ### Added

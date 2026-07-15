@@ -24,6 +24,29 @@ type subagentStopResult struct {
 	SystemMessage string `json:"systemMessage"`
 }
 
+func TestNormalizeDispatchCostContextCodexTokenCount(t *testing.T) {
+	input := map[string]any{
+		"type": "event_msg",
+		"payload": map[string]any{
+			"type": "token_count",
+			"info": map[string]any{
+				"last_token_usage": map[string]any{
+					"input_tokens":            float64(120),
+					"cached_input_tokens":     float64(48),
+					"output_tokens":           float64(30),
+					"reasoning_output_tokens": float64(7),
+					"total_tokens":            float64(150),
+				},
+			},
+		},
+	}
+
+	got := hooks.NormalizeDispatchCostContext(input)
+	if got["prompt"] != 120 || got["artifact"] != 0 || got["tool_output"] != 0 || got["output"] != 30 || got["duration_ms"] != 0 {
+		t.Fatalf("unexpected Codex token_count mapping: %#v", got)
+	}
+}
+
 func runSubagentStop(t *testing.T, stdin []byte) (subagentStopResult, int) {
 	t.Helper()
 	out, code := hooks.Dispatch([]string{"subagent-stop"}, stdin)
@@ -898,6 +921,7 @@ type phaseCostRecord struct {
 	Status                    string         `json:"status"`
 	TS                        string         `json:"ts"`
 	HostBinding               map[string]any `json:"host_binding"`
+	CostObservability         map[string]any `json:"cost_observability"`
 }
 
 func readPhaseCosts(t *testing.T, workspace, changeName string) []phaseCostRecord {
@@ -950,6 +974,75 @@ func TestSubagentStop_PersistPhaseCost_WritesRecordForActiveChange(t *testing.T)
 	}
 	if records[0].TS == "" {
 		t.Error("ts: empty, want a timestamp")
+	}
+	observability := records[0].CostObservability
+	if observability["reason"] != "cost-fields-unavailable" {
+		t.Fatalf("fallback reason: got %#v, want cost-fields-unavailable", observability)
+	}
+	presence, ok := observability["field_presence"].(map[string]any)
+	if !ok || presence["output"] != true || presence["prompt"] != false {
+		t.Fatalf("unexpected redacted field presence: %#v", observability)
+	}
+	if _, leaked := observability["result"]; leaked {
+		t.Fatal("cost observability must not include result payload")
+	}
+}
+
+func TestSubagentStop_PersistPhaseCost_ReadsCodexTokenCountFromRoot(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+	rootTranscript := filepath.Join(workspace, ".eval-capture", "codex-events.jsonl")
+	if err := os.MkdirAll(filepath.Dir(rootTranscript), 0755); err != nil {
+		t.Fatal(err)
+	}
+	content := strings.Join([]string{
+		`{"type":"thread.started","thread_id":"root-session"}`,
+		`{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":321,"cached_input_tokens":100,"output_tokens":27,"reasoning_output_tokens":4,"total_tokens":348}}}}`,
+		"",
+	}, "\n")
+	if err := os.WriteFile(rootTranscript, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("OSPEC_CODEX_EVENTS_PATH", rootTranscript)
+	t.Setenv("OSPEC_BENCHMARK_RUN_ID", "root-run")
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"session_id": "root-session",
+		"status":     "success",
+	})
+	runSubagentStop(t, stdin)
+
+	records := readPhaseCosts(t, workspace, "strict-result-envelope")
+	if len(records) != 1 {
+		t.Fatalf("records: got %d, want 1", len(records))
+	}
+	if records[0].EstimatedPromptTokens != 321 || records[0].EstimatedOutputTokens != 27 {
+		t.Fatalf("root token_count not normalized: prompt=%d output=%d", records[0].EstimatedPromptTokens, records[0].EstimatedOutputTokens)
+	}
+	if records[0].CostObservability["reason"] != "codex-token-count-observed" {
+		t.Fatalf("unexpected observability: %#v", records[0].CostObservability)
+	}
+}
+
+func TestSubagentStop_PhaseCostDiagnostic_NoActiveChangeIsRedacted(t *testing.T) {
+	workspace := t.TempDir()
+	input := map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"result":     "sensitive transcript content must not appear in diagnostics",
+	}
+
+	diagnostic := hooks.PhaseCostDiagnostic(input, workspace)
+	if diagnostic["reason"] != "no-active-change" || diagnostic["phase"] != "design" {
+		t.Fatalf("unexpected phase-cost diagnostic: %#v", diagnostic)
+	}
+	encoded, err := json.Marshal(diagnostic)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "sensitive transcript content") {
+		t.Fatalf("diagnostic leaked payload content: %s", encoded)
 	}
 }
 

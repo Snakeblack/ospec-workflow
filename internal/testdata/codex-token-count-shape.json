@@ -1,0 +1,33 @@
+{
+  "event_shape": {
+    "root_type": "object",
+    "event_type": "event_msg",
+    "payload_type": "token_count",
+    "usage_container": "info.last_token_usage"
+  },
+  "fields": {
+    "input_tokens": "number",
+    "cached_input_tokens": "number",
+    "output_tokens": "number",
+    "reasoning_output_tokens": "number",
+    "total_tokens": "number"
+  },
+  "presence": {
+    "prompt": true,
+    "artifact": false,
+    "tool_output": false,
+    "output": true,
+    "duration_ms": false
+  },
+  "expected": {
+    "estimated_prompt_tokens": 12,
+    "estimated_artifact_tokens": 0,
+    "estimated_tool_output_tokens": 0,
+    "estimated_output_tokens": 3,
+    "duration_ms": 0
+  },
+  "host_binding": {
+    "status": "supported-observable-binding or unsupported-host-binding",
+    "content_persisted": false
+  }
+}

@@ -336,29 +336,32 @@ func TestPreToolUse_TokenBudgetAdvisor(t *testing.T) {
 	})
 
 	t.Run("asks on cumulative session tokens exceeding 150k tokens", func(t *testing.T) {
-		activeChange := hooks.FindActiveChangeName()
-		targetChange := activeChange
-		root := findWorkspaceRoot()
-
-		// When no active change exists (e.g. CI), create a temporary one
-		// so FindActiveChangeName() inside the handler can resolve it.
-		createdTempChange := false
-		if targetChange == "unknown" {
-			targetChange = "token-budget-advisor"
-			tempChangeDir := filepath.Join(root, "openspec", "changes", targetChange)
-			os.MkdirAll(tempChangeDir, 0755)
-			os.WriteFile(filepath.Join(tempChangeDir, "state.yaml"), []byte("status: active\n"), 0644)
-			createdTempChange = true
+		// Use a hermetic workspace. The previous version resolved the repository
+		// root and removed its whole .ospec tree in cleanup, which could erase
+		// live phase-cost telemetry from an unrelated change.
+		root := t.TempDir()
+		previousDir, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("get working directory: %v", err)
 		}
+		if err := os.Chdir(root); err != nil {
+			t.Fatalf("change to hermetic workspace: %v", err)
+		}
+		t.Cleanup(func() {
+			if err := os.Chdir(previousDir); err != nil {
+				t.Errorf("restore working directory: %v", err)
+			}
+		})
+		targetChange := "token-budget-advisor"
+		tempChangeDir := filepath.Join(root, "openspec", "changes", targetChange)
+		os.MkdirAll(tempChangeDir, 0755)
+		os.WriteFile(filepath.Join(tempChangeDir, "state.yaml"), []byte("status: active\n"), 0644)
 
 		tempSessionDir := filepath.Join(root, ".ospec", "session", targetChange)
 		os.MkdirAll(tempSessionDir, 0755)
-		defer func() {
-			os.RemoveAll(filepath.Join(root, ".ospec"))
-			if createdTempChange {
-				os.RemoveAll(filepath.Join(root, "openspec", "changes", "token-budget-advisor"))
-			}
-		}()
+		keepPath := filepath.Join(root, ".ospec", "session", "keep", "phase-costs.jsonl")
+		os.MkdirAll(filepath.Dir(keepPath), 0755)
+		os.WriteFile(keepPath, []byte("sentinel\n"), 0644)
 
 		tempLog := filepath.Join(tempSessionDir, "token-events.jsonl")
 		os.WriteFile(tempLog, []byte(`{"t":155000,"ts":123456}
@@ -373,6 +376,9 @@ func TestPreToolUse_TokenBudgetAdvisor(t *testing.T) {
 		got, _ := runPreToolUse(t, stdin)
 		if got.PermissionDecision != "ask" {
 			t.Errorf("expected ask, got %q", got.PermissionDecision)
+		}
+		if _, err := os.Stat(keepPath); err != nil {
+			t.Fatalf("live phase-cost sentinel must survive the isolated test: %v", err)
 		}
 	})
 
@@ -457,7 +463,7 @@ func TestPreToolUse_TokenBudgetAdvisor(t *testing.T) {
 
 	t.Run("agent-shield scans file contents for API tokens and passwords", func(t *testing.T) {
 		tempFile := filepath.Join(".", "code_sample.js")
-		
+
 		// Test OpenAI API key pattern
 		os.WriteFile(tempFile, []byte("const openAIKey = 'sk-123456789012345678901234567890123456789012345678';"), 0644)
 		defer os.Remove(tempFile)
@@ -472,7 +478,6 @@ func TestPreToolUse_TokenBudgetAdvisor(t *testing.T) {
 		if got.PermissionDecision != "ask" {
 			t.Errorf("expected ask for OpenAI key, got %q", got.PermissionDecision)
 		}
-
 		// Test generic password assignment pattern
 		os.WriteFile(tempFile, []byte("db_password = \"superSecretAdmin123\""), 0644)
 		got, _ = runPreToolUse(t, stdin)
@@ -543,7 +548,7 @@ func preToolUseInputWithTool(toolName, command string) []byte {
 	}
 	// Tool with no command payload (write tool with file operation)
 	type In struct {
-		ToolName  string `json:"tool_name"`
+		ToolName  string   `json:"tool_name"`
 		ToolInput struct{} `json:"tool_input"`
 	}
 	var in In
@@ -724,7 +729,6 @@ func containsStr(s, sub string) bool {
 			return false
 		}())
 }
-
 
 // ── permission-mode degradation ───────────────────────────────────────────────
 // In bypassPermissions, advisory `ask` decisions degrade to `allow` plus a

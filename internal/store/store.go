@@ -294,7 +294,6 @@ func (s *Store) AppendPhaseCost(changeName string, line []byte) error {
 				if err := json.Unmarshal([]byte(trimmed), &prior); err == nil {
 					if priorPhase, ok := prior["phase"].(string); ok && priorPhase == phase {
 						hasPrior = true
-						break
 					}
 				}
 			}
@@ -307,10 +306,22 @@ func (s *Store) AppendPhaseCost(changeName string, line []byte) error {
 		var canonical []byte
 		_, hasEmitter := record["emitter"]
 		_, hasEstimateSource := record["estimate_source"]
+		var canonicalV2 []any
 		if hasEmitter || hasEstimateSource || binding["binding_scope"] == "full" {
-			canonical, _ = json.Marshal([]any{"o1-row-v2", record["phase"], record["agent"], record["estimated_prompt_tokens"], record["estimated_artifact_tokens"], record["estimated_tool_output_tokens"], record["estimated_output_tokens"], record["duration_ms"], record["model_tier"], record["status"], record["relaunch"], record["row_index"], record["ts"], record["estimate_source"], record["emitter"], record["phase_evidence"], record["artifact_evidence_sha256"], record["benchmark_evidence_sha256"], binding["status"], binding["session_id"], binding["transcript_source"], binding["binding_scope"], binding["transcript_prefix_bytes"], binding["transcript_prefix_sha256"], binding["transcript_bytes"], binding["transcript_sha256"], binding["host_run_id"], binding["authentication"]})
+			canonicalV2 = []any{"o1-row-v2", record["phase"], record["agent"], record["estimated_prompt_tokens"], record["estimated_artifact_tokens"], record["estimated_tool_output_tokens"], record["estimated_output_tokens"], record["duration_ms"], record["model_tier"], record["status"], record["relaunch"], record["row_index"], record["ts"], record["estimate_source"], record["emitter"], record["phase_evidence"], record["artifact_evidence_sha256"], record["benchmark_evidence_sha256"], binding["status"], binding["session_id"], binding["transcript_source"], binding["binding_scope"], binding["transcript_prefix_bytes"], binding["transcript_prefix_sha256"], binding["transcript_bytes"], binding["transcript_sha256"], binding["host_run_id"], binding["authentication"]}
 		} else {
-			canonical, _ = json.Marshal([]any{"o1-row-v1", record["phase"], record["agent"], record["estimated_prompt_tokens"], record["estimated_artifact_tokens"], record["estimated_tool_output_tokens"], record["estimated_output_tokens"], record["duration_ms"], record["model_tier"], record["status"], record["relaunch"], record["row_index"], record["ts"], binding["status"], binding["session_id"], binding["transcript_source"], binding["binding_scope"], binding["transcript_prefix_bytes"], binding["transcript_prefix_sha256"], binding["host_run_id"], binding["authentication"]})
+			canonicalV2 = []any{"o1-row-v1", record["phase"], record["agent"], record["estimated_prompt_tokens"], record["estimated_artifact_tokens"], record["estimated_tool_output_tokens"], record["estimated_output_tokens"], record["duration_ms"], record["model_tier"], record["status"], record["relaunch"], record["row_index"], record["ts"], binding["status"], binding["session_id"], binding["transcript_source"], binding["binding_scope"], binding["transcript_prefix_bytes"], binding["transcript_prefix_sha256"], binding["host_run_id"], binding["authentication"]}
+		}
+		if observability, ok := record["cost_observability"].(map[string]any); ok {
+			fieldPresence, _ := observability["field_presence"].(map[string]any)
+			tokenPresence, _ := observability["token_count_presence"].(map[string]any)
+			canonicalV3 := append([]any{"o1-row-v3"}, canonicalV2[1:]...)
+			canonicalV3 = append(canonicalV3,
+				observability["reason"], fieldPresence["prompt"], fieldPresence["artifact"], fieldPresence["tool_output"], fieldPresence["output"], fieldPresence["duration_ms"],
+				tokenPresence["input_tokens"], tokenPresence["cached_input_tokens"], tokenPresence["output_tokens"], tokenPresence["reasoning_output_tokens"], tokenPresence["total_tokens"], observability["host_binding_status"])
+			canonical, _ = json.Marshal(canonicalV3)
+		} else {
+			canonical, _ = json.Marshal(canonicalV2)
 		}
 		attestation := sha256.Sum256(canonical)
 		record["row_attestation_sha256"] = fmt.Sprintf("%x", attestation)
@@ -490,8 +501,9 @@ func withLock(path string, fn func() error) error {
 			return err
 		}
 		if attempt >= lockRetryAttempts {
-			// Best-effort after exhausting retries.
-			return fn()
+			// Fail closed after exhausting retries; never run the callback without
+			// owning the lock.
+			return errLockContended
 		}
 		time.Sleep(lockRetryDelay)
 	}

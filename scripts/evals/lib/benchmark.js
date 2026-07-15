@@ -104,7 +104,7 @@ function verifyBenchmarkProvenance({ provenance, transcriptPath, transcriptBytes
 }
 
 function validCostRow(row) {
-  const allowed = new Set(["phase", "agent", ...TOKEN_FIELDS, "duration_ms", "model_tier", "status", "relaunch", "row_index", "ts", "host_binding", "row_attestation_sha256", "estimate_source", "emitter", "phase_evidence", "artifact_evidence_sha256", "benchmark_evidence_sha256"]);
+  const allowed = new Set(["phase", "agent", ...TOKEN_FIELDS, "duration_ms", "model_tier", "status", "relaunch", "row_index", "ts", "host_binding", "cost_observability", "row_attestation_sha256", "estimate_source", "emitter", "phase_evidence", "artifact_evidence_sha256", "benchmark_evidence_sha256"]);
   return row && typeof row === "object" && !Array.isArray(row) && Object.keys(row).every((key) => allowed.has(key)) && typeof row.phase === "string" && row.phase.length > 0 &&
     row.agent === `sdd-${row.phase}` &&
     TOKEN_FIELDS.every((key) => Number.isSafeInteger(row[key]) && row[key] >= 0 && row[key] <= 1_000_000_000_000) &&
@@ -116,20 +116,42 @@ function validCostRow(row) {
     (row.phase_evidence === undefined || typeof row.phase_evidence === "string") &&
     (row.artifact_evidence_sha256 === undefined || /^[a-f0-9]{64}$/.test(row.artifact_evidence_sha256)) &&
     (row.benchmark_evidence_sha256 === undefined || /^[a-f0-9]{64}$/.test(row.benchmark_evidence_sha256)) &&
+    (row.cost_observability === undefined || validCostObservability(row.cost_observability)) &&
     typeof row.relaunch === "boolean" &&
     typeof row.ts === "string" && !Number.isNaN(Date.parse(row.ts));
 }
 
+function validCostObservability(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const fieldPresence = value.field_presence;
+  if (!fieldPresence || typeof fieldPresence !== "object" || Array.isArray(fieldPresence)) return false;
+  const requiredPresence = ["prompt", "artifact", "tool_output", "output", "duration_ms"];
+  if (!requiredPresence.every((field) => typeof fieldPresence[field] === "boolean")) return false;
+  if (typeof value.reason !== "string" || value.reason.length === 0 || typeof value.host_binding_status !== "string" || value.host_binding_status.length === 0) return false;
+  if (value.token_count_presence !== undefined) {
+    const tokenPresence = value.token_count_presence;
+    if (!tokenPresence || typeof tokenPresence !== "object" || Array.isArray(tokenPresence)) return false;
+    if (!Object.keys(tokenPresence).every((field) => CODEX_TOKEN_FIELDS.includes(field) && typeof tokenPresence[field] === "boolean")) return false;
+  }
+  return true;
+}
+
+const CODEX_TOKEN_FIELDS = ["input_tokens", "cached_input_tokens", "output_tokens", "reasoning_output_tokens", "total_tokens"];
+
 function canonicalPersistedO1Row(row) {
   const binding = row.host_binding || {};
-  if (row.emitter !== undefined || row.estimate_source !== undefined || binding.binding_scope === "full") {
-    return JSON.stringify(["o1-row-v2", row.phase, row.agent, row.estimated_prompt_tokens, row.estimated_artifact_tokens, row.estimated_tool_output_tokens, row.estimated_output_tokens, row.duration_ms, row.model_tier, row.status, row.relaunch, row.row_index, row.ts, row.estimate_source, row.emitter, row.phase_evidence, row.artifact_evidence_sha256, row.benchmark_evidence_sha256, binding.status, binding.session_id, binding.transcript_source, binding.binding_scope, binding.transcript_prefix_bytes, binding.transcript_prefix_sha256, binding.transcript_bytes, binding.transcript_sha256, binding.host_run_id, binding.authentication]);
+  const canonicalV2 = row.emitter !== undefined || row.estimate_source !== undefined || binding.binding_scope === "full"
+    ? ["o1-row-v2", row.phase, row.agent, row.estimated_prompt_tokens, row.estimated_artifact_tokens, row.estimated_tool_output_tokens, row.estimated_output_tokens, row.duration_ms, row.model_tier, row.status, row.relaunch, row.row_index, row.ts, row.estimate_source, row.emitter, row.phase_evidence, row.artifact_evidence_sha256, row.benchmark_evidence_sha256, binding.status, binding.session_id, binding.transcript_source, binding.binding_scope, binding.transcript_prefix_bytes, binding.transcript_prefix_sha256, binding.transcript_bytes, binding.transcript_sha256, binding.host_run_id, binding.authentication]
+    : ["o1-row-v1", row.phase, row.agent, row.estimated_prompt_tokens, row.estimated_artifact_tokens, row.estimated_tool_output_tokens, row.estimated_output_tokens, row.duration_ms, row.model_tier, row.status, row.relaunch, row.row_index, row.ts, binding.status, binding.session_id, binding.transcript_source, binding.binding_scope, binding.transcript_prefix_bytes, binding.transcript_prefix_sha256, binding.host_run_id, binding.authentication];
+  if (row.cost_observability !== undefined) {
+    const observability = row.cost_observability;
+    return JSON.stringify(["o1-row-v3", ...canonicalV2.slice(1), observability.reason, observability.field_presence?.prompt, observability.field_presence?.artifact, observability.field_presence?.tool_output, observability.field_presence?.output, observability.field_presence?.duration_ms, observability.token_count_presence?.input_tokens, observability.token_count_presence?.cached_input_tokens, observability.token_count_presence?.output_tokens, observability.token_count_presence?.reasoning_output_tokens, observability.token_count_presence?.total_tokens, observability.host_binding_status]);
   }
-  return JSON.stringify(["o1-row-v1", row.phase, row.agent, row.estimated_prompt_tokens, row.estimated_artifact_tokens, row.estimated_tool_output_tokens, row.estimated_output_tokens, row.duration_ms, row.model_tier, row.status, row.relaunch, row.row_index, row.ts, binding.status, binding.session_id, binding.transcript_source, binding.binding_scope, binding.transcript_prefix_bytes, binding.transcript_prefix_sha256, binding.host_run_id, binding.authentication]);
+  return JSON.stringify(canonicalV2);
 }
 
 function verifyRowAttestation(row) {
-  const allowed = new Set(["phase", "agent", ...TOKEN_FIELDS, "duration_ms", "model_tier", "status", "relaunch", "row_index", "ts", "host_binding", "row_attestation_sha256", "estimate_source", "emitter", "phase_evidence", "artifact_evidence_sha256", "benchmark_evidence_sha256"]);
+  const allowed = new Set(["phase", "agent", ...TOKEN_FIELDS, "duration_ms", "model_tier", "status", "relaunch", "row_index", "ts", "host_binding", "cost_observability", "row_attestation_sha256", "estimate_source", "emitter", "phase_evidence", "artifact_evidence_sha256", "benchmark_evidence_sha256"]);
   const unexpected = Object.keys(row || {}).find((key) => !allowed.has(key));
   if (unexpected) throw new Error(`Noncanonical O1 field: ${unexpected}.`);
   const expected = crypto.createHash("sha256").update(canonicalPersistedO1Row(row)).digest("hex");

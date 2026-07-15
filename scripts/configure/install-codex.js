@@ -103,8 +103,9 @@ function copyCodexRuntime(outDir, runtimeDir, deps = {}) {
   const fsImpl = deps.fs || fs;
   const source = path.join(outDir, "scripts");
   if (fsImpl.existsSync(source)) {
-    copyTree(source, path.join(runtimeDir, "scripts"), fsImpl);
+    return syncTreeByContent(source, path.join(runtimeDir, "scripts"), fsImpl);
   }
+  return { updated: [], unchanged: [] };
 }
 
 function filesMatch(source, destination, fsImpl = fs) {

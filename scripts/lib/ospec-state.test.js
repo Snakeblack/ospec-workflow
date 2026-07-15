@@ -1136,5 +1136,13 @@ test("appendPhaseCost assigns relaunch: false on first append and relaunch: true
   const record3 = { phase: "design", agent: "sdd-design", est_tokens: 300 };
   const res3 = await appendPhaseCost({ workspace, changeName: "test-change", record: record3 });
   assert.equal(res3.record.relaunch, false);
+
+  const record4 = { phase: "apply", agent: "sdd-apply", est_tokens: 400 };
+  const res4 = await appendPhaseCost({ workspace, changeName: "test-change", record: record4 });
+  assert.equal(res4.record.relaunch, true);
+  assert.equal(res1.record.row_index, 0);
+  assert.equal(res2.record.row_index, 1);
+  assert.equal(res3.record.row_index, 2);
+  assert.equal(res4.record.row_index, 3);
 });
 
