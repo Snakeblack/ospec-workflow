@@ -267,6 +267,25 @@ function parseModels(text) {
     }
     // Calculate the indentation level by counting the leading whitespace characters.
     const indent = rawLine.match(/^\s*/)[0].length;
+    const listMatch = rawLine.match(/^\s*-\s*(.*)$/);
+
+    if (listMatch) {
+      while (stack.length > 1 && indent <= stack[stack.length - 1].indent) {
+        stack.pop();
+      }
+
+      const frame = stack[stack.length - 1];
+      if (frame.key && !Array.isArray(frame.container) && Object.keys(frame.container).length === 0) {
+        const list = [];
+        frame.parent[frame.key] = list;
+        frame.container = list;
+      }
+      if (Array.isArray(frame.container)) {
+        frame.container.push(parseScalarOrArray(listMatch[1].trim()));
+      }
+      continue;
+    }
+
     // Extract the key-value pair from the line, matching "key: value" pattern.
     const match = rawLine.match(/^\s*([^:]+):\s*(.*)$/);
     if (!match) {
@@ -289,7 +308,7 @@ function parseModels(text) {
       // to capture any nested children on subsequent lines.
       const obj = {};
       parent[key] = obj;
-      stack.push({ indent, container: obj });
+      stack.push({ indent, container: obj, parent, key });
     } else {
       // Otherwise, it's a leaf node. We parse the scalar value or inline array
       // and assign it directly to the current parent.

@@ -507,9 +507,12 @@ function handleAgent(file, profile, models) {
   if (profile.model && originalAgentName) {
     const resolved = resolveModel(originalAgentName, profile.id, models);
     if (resolved !== OMIT) {
-      frontmatter = Array.isArray(resolved)
-        ? setArray(frontmatter, "model", resolved)
-        : setScalar(frontmatter, "model", resolved);
+      const model = resolved && typeof resolved === "object" && !Array.isArray(resolved) ? resolved.model : resolved;
+      if (model !== undefined && model !== null) {
+        frontmatter = Array.isArray(model)
+          ? setArray(frontmatter, "model", model)
+          : setScalar(frontmatter, "model", model);
+      }
     }
   }
 

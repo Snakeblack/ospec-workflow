@@ -8,6 +8,13 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+### Fixed
+- **Target VS Code**: el generador interpreta listas YAML multilínea y entradas estructuradas de `models.yaml`, incrustando los modelos configurados sin producir `[object Object]`.
+- **Binding O1 en Windows**: las comprobaciones de identidad de archivos toleran la diferencia de `dev` entre `lstat` y `fstat`, manteniendo la validación del inode y del contenido del transcript `codex-events`.
+
+### Tests
+- **Verificación del hotfix**: `npm test` completó todos los checks con 0 errores y 0 warnings.
+
 ## [2.29.1] - 2026-07-15
 
 ### Fixed
