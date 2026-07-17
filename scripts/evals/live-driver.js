@@ -650,7 +650,8 @@ function finalizeLiveObservation(observationPath, transcriptPath, cliVersion, co
 }
 
 function sameIdentity(left, right) {
-  return left.dev === right.dev && left.ino === right.ino && left.birthtimeMs === right.birthtimeMs;
+  const sameDevice = left.dev === right.dev || left.dev === 0 || right.dev === 0;
+  return sameDevice && left.ino === right.ino && left.birthtimeMs === right.birthtimeMs;
 }
 
 function readDescriptorBytes(fd, size) {

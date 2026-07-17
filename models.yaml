@@ -62,9 +62,7 @@ tiers:
   premium:
     claude: opus
     vscode:
-      - "GPT-5.6 Sol (copilot)"
-      - "Claude Opus 4.8 (copilot)"
-      - "GPT-5.5 (copilot)"
+      - "GPT-5.6 Luna (copilot)"
     opencode: openai/gpt-5.6-sol
     codex:
       model: gpt-5.6-sol
@@ -80,8 +78,6 @@ tiers:
     claude: sonnet
     vscode:
       - "GPT-5.6 Luna (copilot)"
-      - "Claude Sonnet 4.6 (copilot)"
-      - "GPT-5.4 (copilot)"
     opencode: openai/gpt-5.6-luna
     codex:
       model: gpt-5.6-luna
@@ -94,8 +90,6 @@ tiers:
     claude: haiku
     vscode:
       - "GPT-5.6 Luna (copilot)"
-      - "Deepseek V4 Flash (customendpoint)"
-      - "GPT-5.4-mini (copilot)"
     opencode: openai/gpt-5.6-luna
     codex:
       model: gpt-5.6-luna

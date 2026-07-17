@@ -80,7 +80,8 @@ function canonicalO1Payload(record) {
 }
 
 function sameFileIdentity(left, right) {
-  return left.dev === right.dev && left.ino === right.ino && left.size === right.size;
+  const sameDevice = left.dev === right.dev || left.dev === 0 || right.dev === 0;
+  return sameDevice && left.ino === right.ino && left.size === right.size;
 }
 
 async function readStableRootTranscript(filePath) {

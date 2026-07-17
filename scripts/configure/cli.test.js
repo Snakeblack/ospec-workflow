@@ -272,6 +272,14 @@ test("parseModels reads the two-table shape with scalars and inline arrays", () 
   assert.equal(models.tiers.default["copilot-cli"], "inherit");
 });
 
+test("parseModels reads block-sequence target models", () => {
+  const models = parseModels(
+    ["tiers:", "  default:", "    vscode:", '      - "A (copilot)"', '      - "B (copilot)"'].join("\n"),
+  );
+
+  assert.deepEqual(models.tiers.default.vscode, ["A (copilot)", "B (copilot)"]);
+});
+
 // ---------------------------------------------------------------------------
 // G1 — Skill entry-point scripts present in dist
 // ---------------------------------------------------------------------------

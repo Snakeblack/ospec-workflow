@@ -345,6 +345,25 @@ test("vscode injects resolved model keys from models.yaml", () => {
   assert.deepEqual(getField(fm, "model").value, ["Claude Sonnet 4.6 (copilot)"]);
 });
 
+test("vscode unwraps structured model entries without stringifying the object", () => {
+  const models = {
+    ...MODELS,
+    tiers: {
+      ...MODELS.tiers,
+      default: {
+        ...MODELS.tiers.default,
+        vscode: { model: "GPT-5.6 Luna (copilot)" },
+      },
+    },
+  };
+  const out = transform({ files: makeSource(), profile: vscode, models });
+  const content = find(out, "agents/sdd-apply.agent.md").content;
+  const fm = parse(content).frontmatter;
+
+  assert.equal(getField(fm, "model").value, "GPT-5.6 Luna (copilot)");
+  assert.doesNotMatch(content, /\[object Object\]/);
+});
+
 // ---------------------------------------------------------------------------
 // Target: github-copilot (.github/ layout)
 // ---------------------------------------------------------------------------
