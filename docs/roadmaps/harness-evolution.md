@@ -1,16 +1,16 @@
 # Roadmap general — evolución del harness
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.29.1, 2026-07-17.
+> **Versión de referencia:** v2.30.0, 2026-07-18.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
-> **Estado local conocido:** O4+O5 en curso; no marcar como entregado hasta verify + archive.
+> **Estado local conocido:** O4+O5 entregado y archivado.
 > **Regla:** una decisión arquitectónica nueva se incorpora primero al análisis; este archivo solo deriva trabajo ejecutable.
 
 ## 1. Estado ejecutivo
 
 | Estado | Iniciativa | Resultado esperado |
 | --- | --- | --- |
-| En curso local | O4+O5 — review adaptativo | `review_plan` selectivo, generalista y escalado a especialistas |
+| Completado | O4+O5 — review adaptativo | `review_plan` selectivo, generalista y de linaje acotado |
 | ▶ Siguiente | O6 — archive determinista | Cierre transaccional sin depender del modelo para operaciones mecánicas |
 | Ruta crítica | Perfil adaptativo + validadores + `sdd-plan` | Un flujo canónico con profundidad por dimensiones |
 | Posterior | Evidencia + CI + adapters | Runtime estructurado, headless y optimizado por target |
@@ -46,7 +46,7 @@ pending · in-progress · blocked · done · superseded · rejected
 
 ### Ola 0 — cerrar trabajo activo y gobernanza
 
-#### O4+O5. Review adaptativo — **in-progress**
+#### O4+O5. Review adaptativo — **done**
 
 Objetivo:
 
@@ -286,7 +286,8 @@ Se considera cerrado y se mantiene solo como baseline histórica:
 - suite experimental O2, sin atribuir ahorros incompatibles;
 - clarify condicional O3;
 - target Codex bloque inicial;
-- G0 gobernanza documental: estructura `docs/architecture/` + `docs/roadmaps/` instalada.
+- G0 gobernanza documental: estructura `docs/architecture/` + `docs/roadmaps/` instalada;
+- O4+O5 review adaptativo: compuerta generalista O5, despacho selectivo 4R O4, linajes acotados y máquinas de estados reductoras en js.
 
 Los documentos que describían estos trabajos viven en `analisis-fino/archive/` y no generan backlog nuevo.
 
@@ -330,3 +331,4 @@ Para promover adaptive como default:
 - 2026-07-14/15: O2 cerrado experimentalmente y O3 entregado.
 - 2026-07-16: reconciliación arquitectónica: rutas pasan a presets, perfil adaptativo precede a `sdd-plan`, documentos activos salen de `analisis-fino/`.
 - 2026-07-17: G0 completado manualmente; estructura `docs/architecture/` y `docs/roadmaps/` instalada. ▶ SIGUIENTE pasa a O6.
+- 2026-07-18: O4+O5 entregado y archivado. Release v2.30.0 publicada. Pruebas de CI de parity corregidas.
