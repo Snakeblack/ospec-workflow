@@ -517,6 +517,7 @@ module.exports = {
   writeTree,
   parseModels,
   defaultRunValidator,
+  resolveClaudeBin,
   runConfigure,
   main,
   PROFILES,

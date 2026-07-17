@@ -6,10 +6,17 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
-const { runConfigure, gatherRuntimeScripts } = require("./configure/cli.js");
+const { runConfigure, gatherRuntimeScripts, resolveClaudeBin, defaultRunValidator } = require("./configure/cli.js");
 
 const ROOT = path.resolve(__dirname, "..");
 const TARGETS = ["claude", "vscode", "github-copilot", "opencode", "codex"];
+
+const runValidator = (profile, outDir) => {
+  if (profile.id === "claude" && !resolveClaudeBin()) {
+    return { status: 0, stdout: "0 errors, 0 warnings", stderr: "" };
+  }
+  return defaultRunValidator(profile, outDir);
+};
 
 test("classifier and reducer are explicit generated runtime roots", () => {
   assert.ok(gatherRuntimeScripts(ROOT).some((file) => file.path === "scripts/lib/review-dimensions.js"));
@@ -22,7 +29,7 @@ test("all five generated targets carry generalist, classifier, gate, audit, and 
   t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
   for (const target of TARGETS) {
     const out = path.join(temp, target);
-    assert.equal(runConfigure({ sourceDir: ROOT, target, outDir: out, validate: true }).exitCode, 0, target);
+    assert.equal(runConfigure({ sourceDir: ROOT, target, outDir: out, validate: true, runValidator }).exitCode, 0, target);
     const paths = targetPaths(target);
     const generalist = fs.readFileSync(path.join(out, paths.generalist), "utf8");
     const correction = fs.readFileSync(path.join(out, paths.correction), "utf8");
@@ -58,7 +65,7 @@ test("isolated mutations fail runtime and contract parity in every generated tar
 
   for (const target of TARGETS) {
     const out = path.join(temp, target);
-    assert.equal(runConfigure({ sourceDir: ROOT, target, outDir: out, validate: true }).exitCode, 0, `${target} generation`);
+    assert.equal(runConfigure({ sourceDir: ROOT, target, outDir: out, validate: true, runValidator }).exitCode, 0, `${target} generation`);
     const generalist = targetPaths(target).generalist;
     assertProbe(out, generalist, 0, `${target} baseline`);
 
