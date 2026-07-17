@@ -50,6 +50,15 @@ Chain strategy: stacked-to-main|feature-branch-chain|size-exception|pending
 
 `sdd-apply` must not start oversized work unless the orchestrator provides a resolved delivery path: chained/stacked slice or accepted `size:exception`.
 
+## Selective 4R gate
+
+- When a declared `4r-review-gate` follows successful verify, launch the read-only `review-change` generalist once, normalize real evidence with `scripts/lib/review-dimensions.js`, validate it, freeze a lineage with `scripts/lib/review-lineage.js`, and consume only the executable `next_action` adapted by `scripts/lib/review-gate-state.js`.
+- Normal changes dispatch zero to two selected specialists; high-risk changes dispatch all four. Persist deterministic reasons for selected and skipped dimensions.
+- Contract-invalid input fails closed with `blocker_reason: contract-remediation`; dispatch neither specialists nor archive and never synthesize clean reviewer envelopes.
+- Preserve existing severity and initial parallel-preferred/serial-fallback behavior. Every selected lens runs once. After findings freeze, corrections are validated only by `review-correction`; unrelated observations are non-blocking follow-ups.
+- Freeze candidate identity, genesis paths, selected dimensions, finding IDs, and `min(200, ceil(original_changed_lines / 2))` line budget. Three failed validations exhaust the lineage, including zero-delta attempts.
+- Unknown mutation outcomes allow only exact reconciliation. Downstream gates are read-only identity checks. A new review requires an explicitly approved successor; no implicit reset or reviewer relaunch is allowed.
+
 ## Return envelope
 
 Every phase returns:

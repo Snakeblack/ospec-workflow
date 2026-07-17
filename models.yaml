@@ -46,6 +46,8 @@ agents:
   # Reviewers:
   # Keep them on default while 4R can still fan out to four agents.
   # A future risk-aware route can promote review-risk selectively.
+  review-change: default
+  review-correction: default
   review-risk: default
   review-readability: default
   review-reliability: default

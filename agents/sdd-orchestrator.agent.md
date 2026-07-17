@@ -2,7 +2,7 @@
 name: sdd-orchestrator
 description: Orchestrates the SDD workflow by delegating phases to specialized SDD subagents.
 tools: ['read', 'search', 'edit', 'execute', 'agent', 'vscode/askQuestions']
-agents: ['sdd-init', 'sdd-foundation', 'sdd-baseline', 'sdd-workspace', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-clarify', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-reconcile', 'sdd-onboard', 'sdd-document', 'review-risk', 'review-readability', 'review-reliability', 'review-resilience']
+agents: ['sdd-init', 'sdd-foundation', 'sdd-baseline', 'sdd-workspace', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-clarify', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-reconcile', 'sdd-onboard', 'sdd-document', 'review-change', 'review-correction', 'review-risk', 'review-readability', 'review-reliability', 'review-resilience']
 # modelo intencionalmente omitido.
 # Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
 user-invocable: true
@@ -243,6 +243,8 @@ Run each `gate` at its defined hook point:
 | `review-workload` | After `sdd-tasks` |
 | `4r-review-gate` | After successful `sdd-verify` returns `success` |
 
+For `4r-review-gate`, `scripts/lib/review-lineage.js` owns identity, one-shot lenses, frozen findings, fixed budgets, targeted validation, reconciliation, and terminal outcomes; `review-gate-state.js` adapts only its `next_action`. Persist pending mutations before dispatch. The generalist and selected specialists run once; after freeze use only `review-correction`, with late observations as non-blocking follow-ups and exhaustion after three failed validations. Unknown outcomes require exact reconciliation; downstream gates are read-only; new blocking discovery requires an approved successor linked to a terminal predecessor. Never reset attempts, budget, paths, findings, or executions.
+
 #### Graceful Degradation (routing: absent or empty)
 
 When `routing:` is absent from `openspec/config.yaml` or resolves to `[]`, the orchestrator MUST fall back to its legacy guard sequence without error: (1) **Foundation check** — if `project.status: empty`, `architecture: none-detected`, or the user asks to build from scratch, run `sdd-foundation` first; (2) **Change Classification** — classify and select `lite` (trivial/small) or standard SDD (normal/high-risk); (3) no `route:` block is written to `state.yaml` in fallback mode.
@@ -416,7 +418,7 @@ When launching `sdd-apply` or `sdd-verify`, read `openspec/config.yaml` (ONCE pe
 Phase sub-agents run with fresh context and cannot see the user's messages, so their summaries default to English even when the user is writing in another language.
 
 1. Detect the language the user is communicating in this session (from their requests and feedback). Resolve it ONCE per session and cache it.
-2. Inject a `Reply language: {language}` line into EVERY sub-agent launch prompt — all phase agents and all four reviewers — next to the `## Project Standards (auto-resolved)` block.
+2. Inject a `Reply language: {language}` line into EVERY sub-agent launch prompt — all phase agents, the review generalist, and every selected specialist reviewer — next to the `## Project Standards (auto-resolved)` block.
 3. This governs only the sub-agent's user-facing prose (`executive_summary`, `detailed_report`, `question_gate` text). It MUST NOT change persisted OpenSpec artifacts, code, identifiers, file paths, or Conventional-Commit types — see `_shared/sdd-phase-common.md` § F. Communication Language.
 
 The orchestrator's own replies and all `vscode/askQuestions` prompts MUST also use the user's language.

@@ -78,6 +78,9 @@ function loadTree(sourceDir, roots = SOURCE_ROOTS) {
 // additional BFS roots alongside hooks/*.js. These four scripts are the runtime
 // half of the federation/explore/baseline skills and are unreachable from hooks.
 const SKILL_ENTRY_SCRIPTS = [
+  "scripts/lib/review-dimensions.js",
+  "scripts/lib/review-gate-state.js",
+  "scripts/lib/review-lineage.js",
   "scripts/lib/federation-marker.js",
   "scripts/lib/federation-explore.js",
   "scripts/lib/workspace-general-baseline.js",

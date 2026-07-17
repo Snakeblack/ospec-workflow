@@ -224,6 +224,21 @@ gates:
     on_blocker: advisory   # advisory (default) | halt
     findings_summary: "0 BLOCKER, 1 WARNING"
     surfaced_to_user: true
+    schema_version: 1      # optional; absent on legacy/pre-change state
+    classification: normal # normal | high-risk
+    evidence:
+      schema_version: 1
+      fingerprint: "sha256:..."
+      sources: {}          # normalized facts/references; never raw diff
+    generalist:
+      status: clear
+      specialists: []
+      reason: "No specialist signal."
+    dimensions:            # exactly risk, reliability, resilience, readability
+      risk: { selected: false, reasons: [{ code: no-risk-signal, source: classifier, detail: "No positive signal", precedence: 5 }] }
+      reliability: { selected: false, reasons: [{ code: no-reliability-signal, source: classifier, detail: "No positive signal", precedence: 5 }] }
+      resilience: { selected: false, reasons: [{ code: no-resilience-signal, source: classifier, detail: "No positive signal", precedence: 5 }] }
+      readability: { selected: false, reasons: [{ code: no-readability-signal, source: classifier, detail: "No positive signal", precedence: 5 }] }
 ```
 
 Gate `status` values:
@@ -243,6 +258,11 @@ Gate-specific fields (optional, vary by gate):
 | `4r-review-gate` | `on_blocker` | Policy applied to BLOCKER findings (`advisory` default) |
 | `4r-review-gate` | `findings_summary` | Human-readable count of findings by severity |
 | `4r-review-gate` | `surfaced_to_user` | `true` when BLOCKER/CRITICAL findings were shown via `vscode/askQuestions` |
+| `4r-review-gate` | `schema_version`, `classification`, `evidence`, `generalist`, `dimensions` | Optional schema-v1 selective-review audit; absence is valid legacy state |
+
+New gate runs read-merge-write these optional audit fields and preserve unrelated historical fields. Contract-invalid input records `status: blocked`, `blocker_reason: contract-remediation`, and allowlisted `validation_error_codes`, then dispatches neither specialists nor archive. Readers MUST accept legacy gate objects without audit fields and MUST NOT invent reasons or rewrite archived state.
+
+An active bounded review MAY add `lineage` beneath the gate. The pure reducer owns immutable genesis and IDs, one-shot lens records, frozen findings, fixed line/attempt budget, pending operation, correction/validation history, non-blocking follow-ups, and terminal reason. Adapters MUST persist a pending mutation before dispatch and MUST NOT reconstruct or reset reducer-owned fields. `unknown` moves the lineage to `reconciliation-required`, where only exact status reconciliation is legal. Verify, delivery, and archive are read-only identity checks. A new review requires a distinct successor lineage with terminal predecessor link and approval reference; a legacy gate cannot gain bounded authority retroactively.
 
 ### `gates.quality-gates:` block
 
