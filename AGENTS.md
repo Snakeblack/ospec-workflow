@@ -28,3 +28,11 @@ Immediately after successfully completing the `sdd-archive` phase of any change,
 
 6. **GitHub Release Creation:**
    - Create a new Release on GitHub with the corresponding tag (e.g., `vX.Y.Z`) and the content of the changelog section.
+
+## Bounded Review Lifecycle
+
+- A selective 4R run freezes one review lineage before specialist dispatch: candidate identity, genesis paths, classification, selected dimensions, immutable finding IDs, and correction budget.
+- The generalist and each selected specialist run at most once. After findings freeze, use only the read-only `review-correction` validator for the frozen unresolved IDs; never relaunch a discovery reviewer.
+- Unrelated late observations are non-blocking follow-ups. Three failed targeted validations, including zero-delta attempts, exhaust the lineage.
+- Unknown mutation outcomes require exact reconciliation before any further action. Verify, delivery, and archive are read-only identity checks.
+- A new review requires an explicitly approved successor linked to a terminal predecessor. Retries and gates never reset attempts, budget, paths, findings, or reviewer executions.

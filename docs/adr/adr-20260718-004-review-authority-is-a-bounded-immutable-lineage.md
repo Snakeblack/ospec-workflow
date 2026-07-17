@@ -1,0 +1,19 @@
+# ADR-004: Review authority is a bounded immutable lineage
+
+- Status: accepted
+- Change: selective-4r-generalist-review
+- Date: 2026-07-16
+
+## Context
+Repeated owner rereviews discovered new issues after every correction and turned a nominally bounded gate into an open-ended loop.
+
+## Decision
+Ordinary start freezes one candidate, genesis paths, classification, selected dimensions, finding set, and correction budget `min(200, ceil(original_changed_lines / 2))`. Each lens runs once. Corrections are limited to genesis paths and three failed targeted validations, including zero-delta failures. Late observations are non-blocking follow-ups; new blocking authority requires an explicit successor lineage.
+
+## Alternatives
+- Full owner rereview after each fix: repeatedly expands discovery and has no termination proof.
+- Time/token timeout only: bounds infrastructure use but not semantic review authority.
+- Immediate full receipt system: exceeds O4+O5 and overlaps later roadmap milestones.
+
+## Consequences
+Termination and correction cost become deterministic and auditable, while validators lose general-discovery authority. Some late concerns move to follow-up work instead of blocking the current lineage. The pattern is reversible by removing the lineage reducer, but doing so reintroduces open-ended review risk.

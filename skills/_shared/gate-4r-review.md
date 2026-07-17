@@ -1,24 +1,23 @@
-### 4R Review Gate Dispatch
+### Selective 4R Review Gate Dispatch
 
-The 4R review gate dispatches four read-only reviewer sub-agents (`review-risk`, `review-readability`, `review-reliability`, `review-resilience`). Route configuration determines when it runs (see Route Selection & Dispatch, Step 5).
+The post-verify gate runs only when the active `bugfix`, `refactor`, or `standard` route lists `4r-review-gate` and `sdd-verify` returned `status: success`. A route without the gate dispatches neither the generalist nor specialists.
 
-#### 4R Review Gate Execution (After sdd-verify Success)
+`scripts/lib/review-lineage.js` is the executable authority for review identity, budgets, attempts, and legal transitions. `scripts/lib/review-gate-state.js` adapts only its authorized `next_action`. The orchestrator MUST persist the returned state and MUST NOT reinterpret dispatch or archive decisions. Both reducers are pure; the orchestrator remains the only I/O and agent-dispatch adapter.
 
-When the active route (`bugfix`, `refactor`, or `standard`) lists `4r-review-gate` in `gates`, AND `sdd-verify` returns `status: success`:
+#### Contract pipeline
 
-1. **Dispatch**: Dispatch all four reviewer sub-agents. Use the target's async delegation primitive (parallel preferred); degrade to serial when only synchronous delegation is available.
-2. **Collect**: Collect all four return envelopes before proceeding. Do NOT evaluate findings until all four have returned.
-3. **Escalate**: If any finding has severity `BLOCKER` or `CRITICAL`, surface it to the user via `vscode/askQuestions` before closing the route. This is MANDATORY — findings at these severities MUST NOT be silently dropped. The route does NOT auto-halt; the user decides remediation.
-4. **Record**: Advisory findings (`WARNING`, `SUGGESTION`) are recorded but do NOT interrupt the route.
-5. **Outcome**: Record the outcome in `state.yaml` under `gates['4r-review-gate']`:
+1. Collect classification, verified artifact references, affected paths, capabilities, operation types, dependencies, design risks, verify findings, and the real unified diff. Call `normalizeReviewEvidence` from `scripts/lib/review-dimensions.js`. The diff MUST contain at least one valid `diff --git` file section and a count-consistent `@@ ... @@` hunk; malformed, truncated, or non-diff input fails closed. For an untracked file, construct a valid synthetic unified section only from the local file content using `diff --git a/<path> b/<path>`, `new file mode`, `--- /dev/null`, `+++ b/<path>`, and `@@ -0,0 +1,<line-count> @@` followed by `+` lines. Never synthesize evidence claims and never persist raw diff hunks.
+2. Dispatch the read-only `review-change` generalist first with verified artifacts and the real diff. Require its `reason` to use only the allowlisted `signals=<codes>;dimensions=<ids>` reference grammar; free-form prose and arbitrary diff text are invalid. Validate the generic envelope, require `artifacts: []`, then call `validateGeneralistDecision(envelope.decision)`.
+3. Call `deriveReviewDimensions(normalizedEvidence, decision)`, then `validateReviewDecision(result)`. The pure classifier is the sole authority for ranking, canonical tie-breaking, `normal` cap (0-2), `normal-cap-excluded`, negative reasons, and the `high-risk` full-4R override. Prompts MUST NOT reinterpret ranking.
+4. Pass any normalization, envelope, generalist, derivation, or final-validation errors to `planReviewGate` as runtime-only diagnostics. Persist its merged `status: blocked`, `blocker_reason: contract-remediation`, and allowlisted `validation_error_codes` gate; never persist arbitrary diagnostic text or rejected values. Dispatch neither specialists nor archive; never fall back to an arbitrary subset or unconditional 4R.
+5. On success, freeze candidate identity, canonical genesis paths, classification, selected dimensions, initial evidence fingerprint, original changed lines, and the correction allowance `min(200, ceil(original_changed_lines / 2))` with `startReviewLineage`. Persist the lineage by read-merge-write before any specialist dispatch. Preserve historical gate fields until their owning step intentionally updates them.
 
-```yaml
-gates:
-  4r-review-gate:
-    status: done
-    on_blocker: advisory
-    findings_summary: "{N} BLOCKER, {N} CRITICAL, {N} WARNING, {N} SUGGESTION"
-    surfaced_to_user: true|false
-```
+#### Selective dispatch and outcome
 
-6. When the routing table entry does NOT list `4r-review-gate` in `gates`, skip this dispatch entirely — the route closes normally after verification.
+Call `planLineageGate` and dispatch only its `next_action`. Map a pending selected dimension to `review-risk`, `review-reliability`, `review-resilience`, or `review-readability`; each selected lens executes exactly once. Initial selected lenses are parallel preferred; degrade to serial when unsupported (`parallel-preferred/serial-fallback`), but persist every launch as pending first. Collect immutable initial results, then freeze stable owner-bound finding IDs. A skipped dimension is an audit decision, never a synthetic clean envelope. Zero selected specialists completes with `findings_summary: "0 BLOCKER, 0 CRITICAL, 0 WARNING, 0 SUGGESTION"`.
+
+Keep the existing specialist contracts and `BLOCKER|CRITICAL|WARNING|SUGGESTION` taxonomy unchanged. Surface BLOCKER/CRITICAL through the target's existing user question gate; the policy remains advisory and does not auto-halt. Record WARNING/SUGGESTION without interruption.
+
+When remediation is approved, corrections may reference only frozen unresolved IDs and a subset of genesis paths. Persist the pending correction before dispatch and charge actual changed lines against the immutable budget. After the fix, dispatch only `review-correction`. It must return `resolved|unresolved` for every frozen unresolved ID exactly once, correction-regression evidence, and optional non-blocking follow-ups. It cannot add blockers, IDs, owners, paths, lenses, or budget. Every failed targeted validation, including zero-delta, increments the attempt counter; the third failure terminates the lineage as `exhausted`.
+
+Never relaunch `review-change` or any specialist after findings freeze. Status, verify, delivery, and archive calls are read-only identity checks. An unknown mutation outcome requires exact reconciliation and forbids all other dispatch. A new review requires an explicit successor linked to a terminal predecessor and an approval reference; no retry, gate, or interruption may reset the lineage implicitly.

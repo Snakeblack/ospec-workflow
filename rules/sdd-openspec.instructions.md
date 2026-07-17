@@ -45,6 +45,12 @@ Default to `openspec` only when the orchestrator/user selected persisted artifac
 - `proposal-lite.md` is valid only for lite-mode changes. If the change escalates, keep it and create `proposal.md` for the full workflow.
 - Archive only after verification has no CRITICAL issues and any `PASS WITH WARNINGS` risks are explicitly accepted or converted into follow-up work.
 - The archive is an audit trail. Never delete archived changes.
+- New selective-review runs may add schema-v1 `classification`, normalized `evidence`, `generalist`, and four `dimensions` under `gates.4r-review-gate`. Update this object by read-merge-write and preserve historical fields.
+- Legacy gate objects without selective-review audit fields remain valid and must not be rewritten or assigned invented reasons.
+- Invalid review contracts record `status: blocked`, `blocker_reason: contract-remediation`, and allowlisted `validation_error_codes`; arbitrary diagnostic text, rejected values, and raw diff hunks are never persisted.
+- Active bounded reviews persist a `lineage` object under `gates.4r-review-gate`: immutable genesis and IDs, per-lens one-shot execution, frozen findings, fixed line/attempt budget, pending operation, correction/validation history, non-blocking follow-ups, and terminal reason.
+- Persist a pending mutation before dispatch. An unknown outcome is `reconciliation-required` and cannot be replayed or replaced while unresolved.
+- Verify, delivery, and archive revalidate the same terminal candidate identity without allocating reviewers, findings, attempts, paths, or budget. A successor is a distinct, explicitly approved lineage linked to a terminal predecessor.
 
 ## Runtime hooks
 

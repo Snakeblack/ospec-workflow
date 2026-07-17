@@ -1,0 +1,342 @@
+{
+  "schema_version": 1,
+  "lineage_id": "sha256:0efad15565f18ec50c832fa83813514ed9f07f5163d49d9201014f412f946e1e",
+  "generation": 1,
+  "predecessor_lineage_id": null,
+  "recovery": null,
+  "revision": 8,
+  "status": "approved",
+  "genesis": {
+    "candidate": {
+      "projection": "workspace",
+      "base_tree": "d742588ffb7d2e70ece9d150cf00a60a9844f3c4",
+      "candidate_tree": "sha256:eb2b4cc9ed70a43726235d22483debdcc6e1169b6f9aff2daed4ed834cae5ae9",
+      "paths": [
+        "AGENTS.md",
+        "agents/review-change.agent.md",
+        "agents/review-correction.agent.md",
+        "agents/sdd-orchestrator.agent.md",
+        "models.yaml",
+        "openspec/changes/selective-4r-generalist-review/4r-review-report.md",
+        "openspec/changes/selective-4r-generalist-review/apply-progress.md",
+        "openspec/changes/selective-4r-generalist-review/decisions/adr-001.md",
+        "openspec/changes/selective-4r-generalist-review/decisions/adr-002.md",
+        "openspec/changes/selective-4r-generalist-review/decisions/adr-003.md",
+        "openspec/changes/selective-4r-generalist-review/decisions/adr-004.md",
+        "openspec/changes/selective-4r-generalist-review/design.md",
+        "openspec/changes/selective-4r-generalist-review/proposal.md",
+        "openspec/changes/selective-4r-generalist-review/specs/agents/spec.md",
+        "openspec/changes/selective-4r-generalist-review/specs/routing/spec.md",
+        "openspec/changes/selective-4r-generalist-review/specs/skills/spec.md",
+        "openspec/changes/selective-4r-generalist-review/state.yaml",
+        "openspec/changes/selective-4r-generalist-review/tasks.md",
+        "openspec/changes/selective-4r-generalist-review/verify-report.md",
+        "rules/sdd-common.instructions.md",
+        "rules/sdd-openspec.instructions.md",
+        "scripts/configure/cli.js",
+        "scripts/lib/review-dimensions.js",
+        "scripts/lib/review-gate-state.js",
+        "scripts/lib/review-lineage.js",
+        "scripts/review-change-contract.test.js",
+        "scripts/review-correction-contract.test.js",
+        "scripts/review-dimensions.test.js",
+        "scripts/review-gate-state.test.js",
+        "scripts/review-lineage.test.js",
+        "scripts/selective-4r-parity.test.js",
+        "skills/_shared/gate-4r-review.md",
+        "skills/_shared/openspec-convention.md",
+        "skills/review-change/SKILL.md",
+        "skills/review-correction/SKILL.md"
+      ],
+      "diff_hash": "sha256:ace2e09f0aa5faad5260de08af17dd6e4e8e87613b93f62908e30c10bd8ec971",
+      "paths_digest": "sha256:d2fd0f5b46fb7ec8454c3c1a280d7f534bc2b4f9c8e262b7dbae55a4cb2e0406",
+      "authored_lines": 3892,
+      "original_changed_lines": 3913
+    },
+    "candidate_id": "sha256:9cfb170d7a6bd7be6e583bb1127934db16b8e74b64cef191fc4724b9c048a420",
+    "paths": [
+      "AGENTS.md",
+      "agents/review-change.agent.md",
+      "agents/review-correction.agent.md",
+      "agents/sdd-orchestrator.agent.md",
+      "models.yaml",
+      "openspec/changes/selective-4r-generalist-review/4r-review-report.md",
+      "openspec/changes/selective-4r-generalist-review/apply-progress.md",
+      "openspec/changes/selective-4r-generalist-review/decisions/adr-001.md",
+      "openspec/changes/selective-4r-generalist-review/decisions/adr-002.md",
+      "openspec/changes/selective-4r-generalist-review/decisions/adr-003.md",
+      "openspec/changes/selective-4r-generalist-review/decisions/adr-004.md",
+      "openspec/changes/selective-4r-generalist-review/design.md",
+      "openspec/changes/selective-4r-generalist-review/proposal.md",
+      "openspec/changes/selective-4r-generalist-review/specs/agents/spec.md",
+      "openspec/changes/selective-4r-generalist-review/specs/routing/spec.md",
+      "openspec/changes/selective-4r-generalist-review/specs/skills/spec.md",
+      "openspec/changes/selective-4r-generalist-review/state.yaml",
+      "openspec/changes/selective-4r-generalist-review/tasks.md",
+      "openspec/changes/selective-4r-generalist-review/verify-report.md",
+      "rules/sdd-common.instructions.md",
+      "rules/sdd-openspec.instructions.md",
+      "scripts/configure/cli.js",
+      "scripts/lib/review-dimensions.js",
+      "scripts/lib/review-gate-state.js",
+      "scripts/lib/review-lineage.js",
+      "scripts/review-change-contract.test.js",
+      "scripts/review-correction-contract.test.js",
+      "scripts/review-dimensions.test.js",
+      "scripts/review-gate-state.test.js",
+      "scripts/review-lineage.test.js",
+      "scripts/selective-4r-parity.test.js",
+      "skills/_shared/gate-4r-review.md",
+      "skills/_shared/openspec-convention.md",
+      "skills/review-change/SKILL.md",
+      "skills/review-correction/SKILL.md"
+    ],
+    "classification": "normal",
+    "selected_dimensions": [
+      "risk",
+      "reliability"
+    ],
+    "evidence_fingerprint": "sha256:7a6fb118b62c0e349fd62a54c520e830fba4bfff3ca9c3c6941d6f10492930f9",
+    "original_changed_lines": 3913,
+    "authored_lines": 3892
+  },
+  "current_candidate_id": "sha256:9cfb170d7a6bd7be6e583bb1127934db16b8e74b64cef191fc4724b9c048a420",
+  "current_candidate": {
+    "projection": "workspace",
+    "base_tree": "d742588ffb7d2e70ece9d150cf00a60a9844f3c4",
+    "candidate_tree": "sha256:eb2b4cc9ed70a43726235d22483debdcc6e1169b6f9aff2daed4ed834cae5ae9",
+    "paths": [
+      "AGENTS.md",
+      "agents/review-change.agent.md",
+      "agents/review-correction.agent.md",
+      "agents/sdd-orchestrator.agent.md",
+      "models.yaml",
+      "openspec/changes/selective-4r-generalist-review/4r-review-report.md",
+      "openspec/changes/selective-4r-generalist-review/apply-progress.md",
+      "openspec/changes/selective-4r-generalist-review/decisions/adr-001.md",
+      "openspec/changes/selective-4r-generalist-review/decisions/adr-002.md",
+      "openspec/changes/selective-4r-generalist-review/decisions/adr-003.md",
+      "openspec/changes/selective-4r-generalist-review/decisions/adr-004.md",
+      "openspec/changes/selective-4r-generalist-review/design.md",
+      "openspec/changes/selective-4r-generalist-review/proposal.md",
+      "openspec/changes/selective-4r-generalist-review/specs/agents/spec.md",
+      "openspec/changes/selective-4r-generalist-review/specs/routing/spec.md",
+      "openspec/changes/selective-4r-generalist-review/specs/skills/spec.md",
+      "openspec/changes/selective-4r-generalist-review/state.yaml",
+      "openspec/changes/selective-4r-generalist-review/tasks.md",
+      "openspec/changes/selective-4r-generalist-review/verify-report.md",
+      "rules/sdd-common.instructions.md",
+      "rules/sdd-openspec.instructions.md",
+      "scripts/configure/cli.js",
+      "scripts/lib/review-dimensions.js",
+      "scripts/lib/review-gate-state.js",
+      "scripts/lib/review-lineage.js",
+      "scripts/review-change-contract.test.js",
+      "scripts/review-correction-contract.test.js",
+      "scripts/review-dimensions.test.js",
+      "scripts/review-gate-state.test.js",
+      "scripts/review-lineage.test.js",
+      "scripts/selective-4r-parity.test.js",
+      "skills/_shared/gate-4r-review.md",
+      "skills/_shared/openspec-convention.md",
+      "skills/review-change/SKILL.md",
+      "skills/review-correction/SKILL.md"
+    ],
+    "diff_hash": "sha256:ace2e09f0aa5faad5260de08af17dd6e4e8e87613b93f62908e30c10bd8ec971",
+    "paths_digest": "sha256:d2fd0f5b46fb7ec8454c3c1a280d7f534bc2b4f9c8e262b7dbae55a4cb2e0406",
+    "authored_lines": 3892,
+    "original_changed_lines": 3913
+  },
+  "lenses": {
+    "risk": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "lens-risk-generation-1",
+      "result_digest": "sha256:a255df3d2949d2766741f1feab3bbbf2dae7104f0b34c9d9cfe9cd18f4548737",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "Reconciliation accepts a fabricated committed_state and can authorize archive because assertLineage validates only schema_version, lineage_id and revision.",
+            "acceptance_criteria": "Committed reconciliation must validate the exact expected transition and every frozen identity/invariant; fabricated approved state or candidate identity must fail closed."
+          },
+          {
+            "severity": "CRITICAL",
+            "summary": "createSuccessor accepts any non-empty approval_reference, allowing arbitrary reviewer and budget reset without a persisted applicable approval.",
+            "acceptance_criteria": "Successor creation must require a structured approval reference that resolves to an applicable persisted ledger entry for the terminal predecessor; arbitrary, missing, reused or out-of-scope references must fail closed."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "lens-risk-generation-1-result"
+    },
+    "reliability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "lens-reliability-generation-1",
+      "result_digest": "sha256:100e04ba979339b14bca74e36118ecd503c2e179348b77d112e6f1a6ae9408cd",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "Downstream gates accept a structurally incomplete or manipulated approved lineage because assertLineage checks only three superficial fields.",
+            "acceptance_criteria": "Validate all structural and cross-field lineage invariants before any gate; incomplete approved state must fail closed while reducer-produced approved state remains valid."
+          },
+          {
+            "severity": "CRITICAL",
+            "summary": "All findings resolved plus regression detected produces correction-required with zero finding IDs, an impossible next action.",
+            "acceptance_criteria": "The all-resolved plus regression case must retain an applicable frozen unresolved ID or terminate/escalate explicitly; nextLineageAction must never request correction with zero IDs."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Lens-result and targeted-validation retry digests depend on caller-controlled finding/outcome order.",
+            "acceptance_criteria": "Canonicalize findings by stable content and outcomes by frozen ID before digest and retry comparison; equivalent permutations must be idempotent."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "The unified-diff parser rejects valid pure renames without hunks although rename is a supported operation type.",
+            "acceptance_criteria": "Accept valid pure rename/copy metadata without hunks as zero executable additions while continuing to reject truncated or invalid sections."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "lens-reliability-generation-1-result"
+    },
+    "resilience": {
+      "selected": false,
+      "status": "skipped",
+      "request_id": null,
+      "result_digest": null,
+      "result": null,
+      "operation": null
+    },
+    "readability": {
+      "selected": false,
+      "status": "skipped",
+      "request_id": null,
+      "result_digest": null,
+      "result": null,
+      "operation": null
+    }
+  },
+  "findings": [
+    {
+      "id": "F-6f5e393a8b157764",
+      "owner": "risk",
+      "severity": "CRITICAL",
+      "summary": "Reconciliation accepts a fabricated committed_state and can authorize archive because assertLineage validates only schema_version, lineage_id and revision.",
+      "acceptance_criteria": "Committed reconciliation must validate the exact expected transition and every frozen identity/invariant; fabricated approved state or candidate identity must fail closed.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-2b96d08ed32d339f",
+      "owner": "risk",
+      "severity": "CRITICAL",
+      "summary": "createSuccessor accepts any non-empty approval_reference, allowing arbitrary reviewer and budget reset without a persisted applicable approval.",
+      "acceptance_criteria": "Successor creation must require a structured approval reference that resolves to an applicable persisted ledger entry for the terminal predecessor; arbitrary, missing, reused or out-of-scope references must fail closed.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-2c1cace471637df9",
+      "owner": "reliability",
+      "severity": "CRITICAL",
+      "summary": "Downstream gates accept a structurally incomplete or manipulated approved lineage because assertLineage checks only three superficial fields.",
+      "acceptance_criteria": "Validate all structural and cross-field lineage invariants before any gate; incomplete approved state must fail closed while reducer-produced approved state remains valid.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-26073e7cfcdc63d2",
+      "owner": "reliability",
+      "severity": "CRITICAL",
+      "summary": "All findings resolved plus regression detected produces correction-required with zero finding IDs, an impossible next action.",
+      "acceptance_criteria": "The all-resolved plus regression case must retain an applicable frozen unresolved ID or terminate/escalate explicitly; nextLineageAction must never request correction with zero IDs.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-5044f0f796dc8817",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "Lens-result and targeted-validation retry digests depend on caller-controlled finding/outcome order.",
+      "acceptance_criteria": "Canonicalize findings by stable content and outcomes by frozen ID before digest and retry comparison; equivalent permutations must be idempotent.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-1a0422c9724ac90d",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "The unified-diff parser rejects valid pure renames without hunks although rename is a supported operation type.",
+      "acceptance_criteria": "Accept valid pure rename/copy metadata without hunks as zero executable additions while continuing to reject truncated or invalid sections.",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ],
+  "findings_digest": "sha256:6059a0a8b6ee2ee14ee30392f8caf9f3c732d4981aa98da7a134c443cea15d30",
+  "correction_budget": {
+    "limit_lines": 200,
+    "used_lines": 50,
+    "failed_attempts": 0,
+    "max_failed_attempts": 3
+  },
+  "correction_history": [
+    {
+      "attempt": 1,
+      "request_id": "req-fix-criticals",
+      "finding_ids": [
+        "F-26073e7cfcdc63d2",
+        "F-2b96d08ed32d339f",
+        "F-2c1cace471637df9",
+        "F-6f5e393a8b157764"
+      ],
+      "paths": [
+        "scripts/lib/review-lineage.js"
+      ],
+      "base_candidate_id": "sha256:9cfb170d7a6bd7be6e583bb1127934db16b8e74b64cef191fc4724b9c048a420",
+      "forecast_lines": 50,
+      "record_request_id": "req-record-criticals",
+      "actual_changed_lines": 50,
+      "corrected_candidate_id": "sha256:9cfb170d7a6bd7be6e583bb1127934db16b8e74b64cef191fc4724b9c048a420",
+      "status": "passed"
+    }
+  ],
+  "validation_history": [
+    {
+      "request_id": "req-validate-criticals",
+      "request_digest": "sha256:61dc611135dec7b8d135e0075b184fdc324eb979ff53a23defada38796b69872",
+      "outcomes": [
+        {
+          "id": "F-6f5e393a8b157764",
+          "status": "resolved"
+        },
+        {
+          "id": "F-2b96d08ed32d339f",
+          "status": "resolved"
+        },
+        {
+          "id": "F-2c1cace471637df9",
+          "status": "resolved"
+        },
+        {
+          "id": "F-26073e7cfcdc63d2",
+          "status": "resolved"
+        }
+      ],
+      "regression": {
+        "detected": false,
+        "evidence": [
+          "node --test scripts/review-lineage.test.js passed"
+        ]
+      },
+      "follow_up_count": 0,
+      "result": "passed"
+    }
+  ],
+  "follow_ups": [],
+  "pending_operation": null,
+  "pending_correction": null,
+  "terminal_reason": "all-frozen-findings-resolved"
+}

@@ -1,7 +1,10 @@
 # Roadmap — target Codex (OpenAI Codex CLI)
 
+> **Autoridad:** subroadmap específico de target. La prioridad transversal y las dependencias viven en [`../harness-evolution.md`](../harness-evolution.md).
+> **Revalidación obligatoria:** antes de implementar un ítem, comprobar de nuevo la documentación oficial y la versión real del host; los hallazgos son snapshots fechados.
+
 > **Punto de entrada operativo:** antes de continuar este roadmap, leer
-> [`docs/codex/README.md`](../docs/codex/README.md). Allí se separan los hechos
+> `docs/codex/README.md`. Allí se separan los hechos
 > confirmados en Codex CLI real, el orden mínimo de lectura y los criterios de
 > aceptación de `codex-target-phase-2`. Este archivo conserva planificación,
 > gaps e hipótesis; no es por sí solo el contrato de implementación.
@@ -12,7 +15,7 @@
 > https://developers.openai.com/codex (config-reference, skills, subagents,
 > plugins/build, custom-prompts).
 >
-> **Protocolo de actualización**: igual que `roadmap-evolucion-harness.md`
+> **Protocolo de actualización**: igual que `../harness-evolution.md`
 > (checkboxes, puntero ▶ SIGUIENTE, gotchas acá y no en archivos aparte).
 
 ## Por qué Codex es un target natural (hallazgos clave)
@@ -199,7 +202,7 @@ la disponibilidad real de GPT-5.6. (Bloque 5 Completado de manera exitosa).
       con un finding sembrado y pasa tras corregirlo; **antes** confirmar si el
       action carga plugin/skills o si el prompt debe ser autocontenido (a
       confirmar, la doc no lo dice).
-- [ ] **6.4 (S) ▶ SIGUIENTE — Sandbox de grano fino por capacidad de agente.**
+- [ ] **6.4 (S) — Sandbox de grano fino por capacidad de agente.**
       QUÉ: `scripts/lib/target-profiles/codex.js` (`sandboxByCapability` →
       extender el shape) + `handleAgentToml` para emitir en los 4R
       `approval_policy = "never"` (o granular con `request_permissions` denegado)
