@@ -8,12 +8,20 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.30.0] - 2026-07-18
+
+### Added
+- **Compuerta de revisión generalista (O5)**: Ejecuta una compuerta generalista de lectura exclusiva (`review-change`) antes de invocar a los especialistas, derivando la necesidad de despacho de forma estructurada.
+- **Despacho selectivo de especialistas (O4)**: Limita la ejecución a un subconjunto de 0 a 2 dimensiones especialistas para cambios normales basándose en prioridades de evidencia deterministas, y los 4 especialistas para cambios de alto riesgo.
+- **Máquinas de estado y linaje de revisión acotado (O4)**: Implementa reducciones puras en `review-gate-state.js` y `review-lineage.js` que congelan la génesis, el presupuesto de líneas y limitan las correcciones dirigidas a 3 intentos, previniendo bucles infinitos de revisión.
+- **Paridad de targets en revisión**: Integra la compuerta generalista y validación de linaje en claude, vscode, github-copilot, opencode y codex.
+
 ### Fixed
 - **Target VS Code**: el generador interpreta listas YAML multilínea y entradas estructuradas de `models.yaml`, incrustando los modelos configurados sin producir `[object Object]`.
 - **Binding O1 en Windows**: las comprobaciones de identidad de archivos toleran la diferencia de `dev` entre `lstat` y `fstat`, manteniendo la validación del inode y del contenido del transcript `codex-events`.
 
 ### Tests
-- **Verificación del hotfix**: `npm test` completó todos los checks con 0 errores y 0 warnings.
+- **Verificación del hotfix y linaje**: `npm test` completó todos los checks con 0 errores y 0 warnings.
 
 ## [2.29.1] - 2026-07-15
 
