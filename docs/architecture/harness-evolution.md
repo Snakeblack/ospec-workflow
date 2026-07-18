@@ -517,7 +517,13 @@ Shape canónico:
 review_decision:
   schema_version: 1
   classification: normal
-  selected_specialists: [risk, reliability]
+  depth:
+    review: strict
+  escalation_reason:
+    code: normal-signal-overflow
+    positive_dimensions: 3
+    detail: "Normal review has 3 positive dimensions; strict full 4R required"
+  selected_specialists: [risk, reliability, resilience, readability]
   dimensions:
     risk:
       selected: true

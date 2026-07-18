@@ -63,6 +63,8 @@ function planReviewGate({ routeGates = [], existingGate = {}, decision, validati
     classification: decision.classification,
     evidence: decision.evidence,
     generalist: decision.generalist,
+    depth: decision.depth,
+    escalation_reason: decision.escalation_reason,
     dimensions: decision.dimensions,
   });
   delete gate.blocker_reason;

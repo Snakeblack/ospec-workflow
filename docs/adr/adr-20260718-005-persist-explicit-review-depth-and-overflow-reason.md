@@ -1,0 +1,23 @@
+# ADR-001: Persist explicit review depth and overflow reason
+
+- Status: accepted
+- Change: review-signal-overflow-escalation
+- Date: 2026-07-18
+
+## Context
+
+A four-specialist dispatch can mean either a high-risk classification or a normal change whose positive dimensions overflow targeted review. Selection alone cannot reproduce why strict full 4R was chosen.
+
+## Decision
+
+New schema-v1 review decisions and gate audits carry `depth.review` and a nullable structured `escalation_reason`. Normal three/four-dimension overflow uses strict depth plus the deterministic `normal-signal-overflow` reason; normal zero-to-two uses targeted depth, and high-risk remains strict through its existing classification override. Legacy audits remain readable and are never rewritten.
+
+## Alternatives
+
+- Infer depth from specialist count: loses the high-risk versus overflow distinction.
+- Store free-form prose only: is not deterministic or safely contract-validatable.
+- Introduce schema v2 and migrate archives: unnecessary for additive fields and violates the no-migration scope.
+
+## Consequences
+
+Audit consumers can distinguish and validate overflow deterministically, including signal count and fingerprint continuity. Producers and parity probes must emit the new fields together; rollback is a coordinated code/contract revert, while existing lineage data remains unaffected.

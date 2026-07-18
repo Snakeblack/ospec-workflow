@@ -1,0 +1,111 @@
+schema_version: 1
+change: review-signal-overflow-escalation
+classification: high-risk
+status: archived
+last_updated: "2026-07-18T07:40:00Z"
+
+owner:
+  author: Manuel Retamozo
+  branch: feat/review-signal-overflow-escalation
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Deterministic high-risk classification; first matching declared route is standard because project.status is active."
+  validated: true
+  validation_errors: []
+
+approvals:
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: vscode/askQuestions
+    accepted_at: "2026-07-18T06:38:21.4934152Z"
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: ask-on-risk
+    source: vscode/askQuestions
+    accepted_at: "2026-07-18T06:38:21.4934152Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: review-workload-001
+    gate: review-workload
+    decision: size:exception
+    source: vscode/askQuestions
+    accepted_at: "2026-07-18T06:56:12.2286288Z"
+    applies_to:
+      - sdd-apply
+
+assumptions: []
+baseline_fingerprints:
+  routing: "943f7aa3a2357d36562c84f77a0b9791295b895a9980e5a9065e9a0c72b74497"
+phases:
+  proposal:
+    status: done
+    artifact: openspec/changes/review-signal-overflow-escalation/proposal.md
+    summary: "O4.1 policy: 0 signals none, 1-2 targeted, 3-4 strict full 4R; preserves order, fingerprint, generalist-first, and bounded lineage."
+    key_decisions:
+      - "Modify routing capability; no new capability is introduced."
+      - "Keep preflight metadata/link cleanup and unrelated adaptive/archive work out of scope."
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/review-signal-overflow-escalation/specs/routing/spec.md
+    summary: "Routing delta defines normal signal thresholds, strict full-4R escalation, auditable depth/reason, fail-closed validation, and identity preservation."
+    key_decisions:
+      - "Normal changes dispatch 0, targeted 1-2, or strict full 4R for 3-4 positive signals."
+      - "High-risk override and bounded lineage behavior remain unchanged."
+  clarify:
+    status: skipped
+    summary: "Spec contract validated with residual_ambiguity=false and all ambiguity arrays empty."
+  design:
+    status: done
+    artifact: openspec/changes/review-signal-overflow-escalation/design.md
+    summary: "Classifier-owned 3+ signal escalation adds strict depth/audit while gate adapter and bounded lineage retain existing responsibilities."
+    key_decisions:
+      - "Count unique positive dimensions in review-dimensions.js; normal 3-4 selects canonical full 4R."
+      - "Persist additive depth.review and structured normal-signal-overflow reason under the gate audit."
+      - "Keep review-lineage.js unchanged; freeze the escalated selection and existing evidence fingerprint at genesis."
+  tasks:
+    status: done
+    artifact: openspec/changes/review-signal-overflow-escalation/tasks.md
+    summary: "Five phases define O4.1 implementation tasks plus a bounded post-verify Strict-TDD evidence-marker correction."
+    key_decisions:
+      - "Estimated 450–550 changed lines; chained PRs recommended and strategy remains pending under ask-on-risk."
+      - "Review-lineage.js remains untouched; routing baseline promotion is deferred to archive."
+      - "Evidence correction preserves historical rationale, records exact RED/GREEN markers from auditable sources, and changes no feature behavior."
+  apply:
+    status: done
+    artifact: openspec/changes/review-signal-overflow-escalation/apply-progress.md
+    summary: "Implemented O4.1 and corrected Strict-TDD evidence markers; focused suites and npm test pass with observed runtime counts."
+    key_decisions:
+      - "Classifier emits strict normal-signal-overflow with signal-overflow-override reasons for 3-4 positive dimensions."
+      - "Gate adapter read-merge-writes depth and escalation_reason while preserving historical fields and fail-closed validation."
+      - "Archive-only baseline promotion remains deferred to sdd-archive."
+  verify:
+    status: done
+    artifact: openspec/changes/review-signal-overflow-escalation/verify-report.md
+    summary: "O4.1 passes specs, focused/parity suites, full regression, assertion audit, and corrected Strict-TDD evidence verification."
+    key_decisions:
+      - "Focused 25/25, 12/12, and 3/3 plus full 1375/1377 (2 environmental skips) pass."
+      - "All three coding rows now use exact RED Written and admitted GREEN Passed markers with preserved historical rationale."
+      - "Verified candidate evidence is ready for the declared post-verify 4R gate."
+  archive:
+    status: done
+    artifact: openspec/changes/review-signal-overflow-escalation/archive-report.md
+    summary: "Routing baseline delta synced, ADR promoted as accepted, and complete change folder copied to the dated archive destination."
+    key_decisions:
+      - "REQ-routing-002 and REQ-routing-003 now include signal-overflow escalation depth and auditable reason requirements."
+      - "ADR-001 promoted to docs/adr/adr-20260718-005-persist-explicit-review-depth-and-overflow-reason.md."
+blocking_questions: []
+gates:
+  4r-review-gate: {"status":"approved","schema_version":1,"classification":"high-risk","evidence":{"schema_version":1,"fingerprint":"sha256:dc84e6471fe767f2db35a7991240c6485b9edccee84c25f1396dc86523f7c2aa","sources":{"paths":["docs/architecture/harness-evolution.md","docs/roadmaps/harness-evolution.md","scripts/lib/review-dimensions.js","scripts/lib/review-gate-state.js","scripts/review-dimensions.test.js","scripts/review-gate-state.test.js","scripts/selective-4r-parity.test.js","skills/_shared/gate-4r-review.md"],"capabilities":["five-target-parity","review-gate","routing","strict-tdd"],"operation_types":["modify"],"dependencies":["scripts/lib/review-lineage.js"],"facts":[{"code":"dependency-change","source":"dependency","detail":"scripts/lib/review-lineage.js"},{"code":"design-risk","source":"design","detail":"Review depth and audit contract must remain identity-stable while overflow escalates to full 4R."}]}},"generalist":{"status":"needs-specialist","specialists":["risk","reliability","resilience","readability"],"reason":"signals=design-risk,diff-error-flow,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability"},"depth":{"review":"strict"},"escalation_reason":null,"dimensions":{"risk":{"selected":true,"reasons":[{"code":"high-risk-override","source":"override","detail":"Classification requires full 4R","precedence":0},{"code":"generalist-escalation","source":"generalist","detail":"signals=design-risk,diff-error-flow,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability","precedence":3},{"code":"dependency-change","source":"dependency","detail":"scripts/lib/review-lineage.js","precedence":4},{"code":"design-risk","source":"design","detail":"Review depth and audit contract must remain identity-stable while overflow escalates to full 4R.","precedence":4}]},"reliability":{"selected":true,"reasons":[{"code":"high-risk-override","source":"override","detail":"Classification requires full 4R","precedence":0},{"code":"generalist-escalation","source":"generalist","detail":"signals=design-risk,diff-error-flow,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability","precedence":3},{"code":"dependency-change","source":"dependency","detail":"scripts/lib/review-lineage.js","precedence":4}]},"resilience":{"selected":true,"reasons":[{"code":"high-risk-override","source":"override","detail":"Classification requires full 4R","precedence":0},{"code":"generalist-escalation","source":"generalist","detail":"signals=design-risk,diff-error-flow,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability","precedence":3}]},"readability":{"selected":true,"reasons":[{"code":"high-risk-override","source":"override","detail":"Classification requires full 4R","precedence":0},{"code":"generalist-escalation","source":"generalist","detail":"signals=design-risk,diff-error-flow,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability","precedence":3}]}},"generalist_execution":"completed","dispatch_mode":"parallel-preferred/serial-fallback","findings_summary":"0 BLOCKER, 0 CRITICAL, 1 WARNING, 0 SUGGESTION","lineage":{"schema_version":1,"lineage_id":"sha256:6b4b172034a3c9ad5024c09b7c4608e38439960d3e40d4d29e413b4613915723","generation":1,"predecessor_lineage_id":null,"recovery":null,"revision":9,"status":"approved","genesis":{"candidate":{"projection":"workspace-eight-paths","base_tree":"6ec8dadb3913351f4600aa92c05aa8d04d5da3bc","candidate_tree":"sha256:45a332b9fd7ef5853af19b28056a4b18cba1b194beecccc48a2d674b751119d8","paths":["docs/architecture/harness-evolution.md","docs/roadmaps/harness-evolution.md","scripts/lib/review-dimensions.js","scripts/lib/review-gate-state.js","scripts/review-dimensions.test.js","scripts/review-gate-state.test.js","scripts/selective-4r-parity.test.js","skills/_shared/gate-4r-review.md"],"diff_hash":"sha256:1f41ad2076539b688616d8e36a9160182e25a9c9c07116f75029cf4ef47800b9","paths_digest":"sha256:707bcefcaa53697c2f8df60df64a2dc526c999ac21a7ffc11f7cc176d491d4a4","authored_lines":163,"original_changed_lines":210},"candidate_id":"sha256:f471e04c90ddc72c8bae7860ca320fd759ea32f8131bc33d7e59b6400d4d8df6","paths":["docs/architecture/harness-evolution.md","docs/roadmaps/harness-evolution.md","scripts/lib/review-dimensions.js","scripts/lib/review-gate-state.js","scripts/review-dimensions.test.js","scripts/review-gate-state.test.js","scripts/selective-4r-parity.test.js","skills/_shared/gate-4r-review.md"],"classification":"high-risk","selected_dimensions":["risk","reliability","resilience","readability"],"evidence_fingerprint":"sha256:dc84e6471fe767f2db35a7991240c6485b9edccee84c25f1396dc86523f7c2aa","original_changed_lines":210,"authored_lines":163},"current_candidate_id":"sha256:f471e04c90ddc72c8bae7860ca320fd759ea32f8131bc33d7e59b6400d4d8df6","current_candidate":{"projection":"workspace-eight-paths","base_tree":"6ec8dadb3913351f4600aa92c05aa8d04d5da3bc","candidate_tree":"sha256:45a332b9fd7ef5853af19b28056a4b18cba1b194beecccc48a2d674b751119d8","paths":["docs/architecture/harness-evolution.md","docs/roadmaps/harness-evolution.md","scripts/lib/review-dimensions.js","scripts/lib/review-gate-state.js","scripts/review-dimensions.test.js","scripts/review-gate-state.test.js","scripts/selective-4r-parity.test.js","skills/_shared/gate-4r-review.md"],"diff_hash":"sha256:1f41ad2076539b688616d8e36a9160182e25a9c9c07116f75029cf4ef47800b9","paths_digest":"sha256:707bcefcaa53697c2f8df60df64a2dc526c999ac21a7ffc11f7cc176d491d4a4","authored_lines":163,"original_changed_lines":210},"lenses":{"risk":{"selected":true,"status":"completed","request_id":"o4.1-risk-001","result_digest":"sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc","result":{"findings":[]},"operation":null,"result_request_id":"o4.1-risk-001"},"reliability":{"selected":true,"status":"completed","request_id":"o4.1-reliability-001","result_digest":"sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc","result":{"findings":[]},"operation":null,"result_request_id":"o4.1-reliability-001"},"resilience":{"selected":true,"status":"completed","request_id":"o4.1-resilience-001","result_digest":"sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc","result":{"findings":[]},"operation":null,"result_request_id":"o4.1-resilience-001"},"readability":{"selected":true,"status":"completed","request_id":"o4.1-readability-001","result_digest":"sha256:93b9721723aa37385e7cf15fb051e3cf1272431a3c9fa7d443163f68db77db80","result":{"findings":[{"severity":"WARNING","summary":"scripts/lib/review-dimensions.js:144 concentra toda la validación de escalation_reason en una condición de aproximadamente 390 caracteres con varias cláusulas anidadas, sin separar las reglas que aplica.","acceptance_criteria":"Descomponer la validación en un helper o constantes/condiciones multilinea con nombres explícitos para nulabilidad, código, rango 3-4 y detalle; mantener la cobertura existente de las pruebas de decisión manipulada."}]},"operation":null,"result_request_id":"o4.1-readability-001"}},"findings":[{"id":"F-7333f0e3d9879188","owner":"readability","severity":"WARNING","summary":"scripts/lib/review-dimensions.js:144 concentra toda la validación de escalation_reason en una condición de aproximadamente 390 caracteres con varias cláusulas anidadas, sin separar las reglas que aplica.","acceptance_criteria":"Descomponer la validación en un helper o constantes/condiciones multilinea con nombres explícitos para nulabilidad, código, rango 3-4 y detalle; mantener la cobertura existente de las pruebas de decisión manipulada.","blocking":false,"resolution":"advisory"}],"findings_digest":"sha256:016056c28af51edaa8a3b7dc6bc0434230ee11138a717e250dff07fc008476be","correction_budget":{"limit_lines":105,"used_lines":0,"failed_attempts":0,"max_failed_attempts":3},"correction_history":[],"validation_history":[],"follow_ups":[],"pending_operation":null,"pending_correction":null,"terminal_reason":"no-unresolved-blocking-findings"}}

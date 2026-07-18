@@ -67,6 +67,36 @@ test("valid decisions plan exact 0, 2, and 4 specialist dispatch", () => {
 
   const four = planReviewGate({ routeGates: ["4r-review-gate"], decision: decision("high-risk", ["risk", "reliability", "resilience", "readability"]) });
   assert.deepEqual(four.dispatch, ["review-risk", "review-reliability", "review-resilience", "review-readability"]);
+  assert.deepEqual(four.gate.depth, { review: "strict" });
+  assert.equal(four.gate.escalation_reason, null);
+});
+
+test("normal overflow audit persists strict depth and structured reason additively", () => {
+  const overflowDecision = deriveReviewDimensions(normalizeReviewEvidence({
+    classification: "normal", verify: { status: "success", findings: [] },
+    diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1,3 @@\n+spawnSync(command)\n+fetch(url)\n+switch(mode)",
+    paths: ["scripts/run.js"], capabilities: ["runtime"], dependencies: [], operationTypes: ["modify"], designRisks: [],
+  }), { status: "clear", specialists: [], reason: "signals=none;dimensions=none" });
+  const plan = planReviewGate({ routeGates: ["4r-review-gate"], existingGate: { status: "old", findings_summary: "keep", escalation_reason: { code: "stale" } }, decision: overflowDecision });
+  assert.equal(plan.status, "ready");
+  assert.deepEqual(plan.dispatch, ["review-risk", "review-reliability", "review-resilience", "review-readability"]);
+  assert.deepEqual(plan.gate.depth, { review: "strict" });
+  assert.deepEqual(plan.gate.escalation_reason, { code: "normal-signal-overflow", positive_dimensions: 4, detail: "Normal review has 4 positive dimensions; strict full 4R required" });
+  assert.equal(plan.gate.findings_summary, "keep");
+});
+
+test("targeted recovery clears stale overflow audit fields", () => {
+  const targeted = planReviewGate({
+    routeGates: ["4r-review-gate"],
+    existingGate: {
+      status: "ready",
+      depth: { review: "strict" },
+      escalation_reason: { code: "normal-signal-overflow", positive_dimensions: 3, detail: "stale" },
+    },
+    decision: decision("normal", ["risk", "reliability"]),
+  });
+  assert.deepEqual(targeted.gate.depth, { review: "targeted" });
+  assert.equal(targeted.gate.escalation_reason, null);
 });
 
 test("invalid contracts fail closed before specialist or archive dispatch", () => {
