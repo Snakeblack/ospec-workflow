@@ -1,0 +1,17 @@
+/*
+ * Custom Starlight theme overrides for the generated web-doc/ site.
+ * Adjust the --sl-* custom properties below to match project branding.
+ * See skills/stack-starlight/references/sidebar-and-customization.md.
+ */
+:root {
+  --sl-color-accent-low: #1b1a1f;
+  --sl-color-accent: #8b5cf6;
+  --sl-color-accent-high: #c4b5fd;
+  --sl-font: system-ui, sans-serif;
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: #ede9fe;
+  --sl-color-accent: #7c3aed;
+  --sl-color-accent-high: #4c1d95;
+}

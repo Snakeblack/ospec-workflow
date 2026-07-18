@@ -1,0 +1,99 @@
+# Per-agent model configuration for the multi-target generator.
+#
+# Two tables:
+#   agents: which tier each agent needs.
+#   tiers:  how each tier maps to a concrete model per target.
+#
+# Cost/intelligence policy:
+#   premium -> Sol high
+#   default -> Luna high
+#   cheap   -> Luna medium
+#
+# Terra is intentionally not used as a primary model because its evaluated
+# effort points are Pareto-dominated by Luna or Sol.
+#
+# Before changing a tier model, run the golden orchestrator eval suite and
+# attach the result to the corresponding OpenSpec change.
+
+agents:
+  # Premium:
+  # Infrequent decisions with high blast radius.
+  # A weak result here can invalidate the complete implementation direction.
+  sdd-design: premium
+  sdd-verify: premium
+  sdd-foundation: premium
+  sdd-workspace: premium
+
+  # Default:
+  # Frequent semantic work requiring solid reasoning, but not Sol-level spend.
+  sdd-orchestrator: default
+  sdd-propose: default
+  sdd-spec: default
+  sdd-clarify: default
+  sdd-tasks: default
+  sdd-apply: default
+  sdd-init: default
+  sdd-baseline: default
+  sdd-reconcile: default
+  sdd-onboard: default
+  sdd-document: default
+
+  # Cheap:
+  # Bounded or mostly mechanical work.
+  sdd-explore: cheap
+  sdd-archive: cheap
+
+  # Reviewers:
+  # Keep them on default while 4R can still fan out to four agents.
+  # A future risk-aware route can promote review-risk selectively.
+  review-change: default
+  review-correction: default
+  review-risk: default
+  review-readability: default
+  review-reliability: default
+  review-resilience: default
+
+  _default: default
+
+tiers:
+  # Premium:
+  # Sol high replaces Terra max.
+  #
+  # According to the supplied benchmark, Sol high is slightly more intelligent
+  # than Terra max while also being less expensive.
+  premium:
+    claude: opus
+    vscode:
+      - "GPT-5.6 Luna (copilot)"
+    opencode: openai/gpt-5.6-sol
+    codex:
+      model: gpt-5.6-sol
+      model_reasoning_effort: high
+      model_verbosity: medium
+
+  # Default:
+  # Luna high replaces Terra medium.
+  #
+  # This is the main cost optimization: frequent agents get approximately
+  # equivalent or slightly better intelligence at materially lower cost.
+  default:
+    claude: sonnet
+    vscode:
+      - "GPT-5.6 Luna (copilot)"
+    opencode: openai/gpt-5.6-luna
+    codex:
+      model: gpt-5.6-luna
+      model_reasoning_effort: high
+      model_verbosity: medium
+
+  # Cheap:
+  # Luna medium remains the efficient option for exploration and archive.
+  cheap:
+    claude: haiku
+    vscode:
+      - "GPT-5.6 Luna (copilot)"
+    opencode: openai/gpt-5.6-luna
+    codex:
+      model: gpt-5.6-luna
+      model_reasoning_effort: medium
+      model_verbosity: low
