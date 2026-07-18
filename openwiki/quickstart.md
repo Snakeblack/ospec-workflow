@@ -47,7 +47,14 @@ mediante un generador puro.
 
 - [Arquitectura y generador multi-target](architecture/overview.md) — cómo se construye `dist/<target>/` desde el árbol fuente único.
 - [Orquestación de fases SDD](orchestration/routing.md) — routing declarativo, agentes, skills y gates.
-- [Runtime de hooks de ciclo de vida](hooks-runtime/lifecycle.md) — los cinco eventos, implementación dual Node/Go, launcher.
+- [Agentes y Habilidades (Skills)](agents-skills/agents-and-skills.md) — prompts de fase, reglas compactas y resolución de skills.
+- [Generador Multi-Target](generator/multi-target-generator.md) — compilación y perfiles nativos por asistente de IA.
+- [Model Routing (Ruteo de Modelos)](model-routing/routing-profiles.md) — asignación de modelos de lenguaje por fase o perfil.
+- [Instalación de Objetivos (Target Installation)](installation/target-installation.md) — instaladores, sincronización e idempotencia en cada asistente de IA.
+- [Lint de Contratos y Reglas de Validación](contract-lint/validation-rules.md) — TDD estricto, 4R selectivo y compuertas del repositorio.
+- [Runtime de hooks de ciclo de vida](hooks-runtime/lifecycle.md) — los cinco eventos, la arquitectura y el despachador.
+- [Hooks en Go (Implementación nativa)](hooks-runtime/go-implementation.md) — despachador de eventos ultrarrápido y paridad con Node.
+- [Sistema de Reglas de Agentes](rules-system/agent-rules.md) — restricciones e instrucciones inyectables de TDD y atribución de IA.
 - [Guardrails de seguridad](security/guardrails.md) — AgentShield, Token Budget Advisor, git-collaboration-guard, pre-commit/commit-msg.
 - [Persistencia y estado](state-management/persistence.md) — OpenSpec como fuente de verdad, artifact-store, memoria operativa.
 - [Testing y calidad](testing-quality/verification.md) — Strict TDD, `sdd-verify`, quality gates declarativos.
@@ -71,14 +78,21 @@ mediante un generador puro.
 | `/scripts/check.js` | Comando único de verificación local/CI (`npm test`). |
 | `/agents/sdd-orchestrator.agent.md` | Definición del orquestador. |
 | `/skills/_shared/sdd-phase-common.md` | Protocolo compartido por todos los agentes de fase (envelope, memoria, gates). |
-| `/scripts/evals/` | Suite de evals golden del orquestador y benchmark O2. |
+| `/scripts/evals/` | Suite de evals golden del orquestador and benchmark O2. |
 
 ## Mapa de documentación
 
 - [quickstart.md](quickstart.md) (este archivo)
 - [architecture/overview.md](architecture/overview.md)
 - [orchestration/routing.md](orchestration/routing.md)
+- [agents-skills/agents-and-skills.md](agents-skills/agents-and-skills.md)
+- [generator/multi-target-generator.md](generator/multi-target-generator.md)
+- [model-routing/routing-profiles.md](model-routing/routing-profiles.md)
+- [installation/target-installation.md](installation/target-installation.md)
+- [contract-lint/validation-rules.md](contract-lint/validation-rules.md)
 - [hooks-runtime/lifecycle.md](hooks-runtime/lifecycle.md)
+- [hooks-runtime/go-implementation.md](hooks-runtime/go-implementation.md)
+- [rules-system/agent-rules.md](rules-system/agent-rules.md)
 - [security/guardrails.md](security/guardrails.md)
 - [state-management/persistence.md](state-management/persistence.md)
 - [testing-quality/verification.md](testing-quality/verification.md)

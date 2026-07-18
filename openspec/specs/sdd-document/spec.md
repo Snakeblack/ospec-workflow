@@ -205,7 +205,7 @@ The plan file MUST be deleted after all wiki files are written. It MUST NOT appe
 
 The agent MUST detect whether the approved output directory already contains wiki content (`quickstart.md` and/or `.last-update.json`) and operate in the appropriate mode:
 
-- **init mode**: Output directory is empty or does not exist. Generate all pages from scratch. Maximum 8 wiki pages (quickstart + up to 7 domain pages).
+- **init mode**: Output directory is empty or does not exist. Generate all pages from scratch. Maximum 16 wiki pages (quickstart + up to 15 domain pages).
 - **update mode**: Output directory already contains wiki files. Use the `gitHead` from `.last-update.json` to scope the diff window. Apply surgical edits only — preserve accurate existing content, replace stale sentences rather than rewriting entire sections. Do not make formatting-only edits.
 
 #### Scenario: Init mode on empty directory
@@ -213,7 +213,7 @@ The agent MUST detect whether the approved output directory already contains wik
 - GIVEN the approved output directory does not contain `quickstart.md`
 - WHEN the agent detects mode
 - THEN it MUST operate in init mode
-- AND it MUST NOT generate more than 8 wiki pages
+- AND it MUST NOT generate more than 16 wiki pages
 
 #### Scenario: Update mode with no changes
 

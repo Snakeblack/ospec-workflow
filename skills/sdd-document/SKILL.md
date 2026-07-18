@@ -183,7 +183,7 @@ Generate all files strictly inside the approved output directory (resolved in St
 
 #### Max-Pages Guard
 
-- **init mode**: generate at most **8 wiki pages** (quickstart + up to 7 domain pages). If the repository has more domains, consolidate related domains into broader pages.
+- **init mode**: generate at most **16 wiki pages** (quickstart + up to 15 domain pages). If the repository has more domains, consolidate related domains into broader pages.
 - **update mode**: touch only pages whose source evidence changed since the last run. Use the `gitHead` from `.last-update.json` to scope the diff window.
 
 #### Update Mode Behavior
