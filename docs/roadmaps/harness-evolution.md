@@ -16,6 +16,7 @@
 | ▶ SIGUIENTE | O4.2 — remediación rápida de evidencia Strict TDD | Reparar drift mecánico de formato sin redispatch funcional completo |
 | Después | O6A — archive híbrido transaccional | Bloqueado por O4.2; semántica en agente y transacción mecánica en runtime |
 | Gate previo a adaptive | O2B — baseline fixed-policy | Nueve perfiles comparables y reproducibles |
+| Experimento con gate | O20A — proof-carrying verify kernel | Vertical shadow para decidir si un kernel común merece promoción |
 | Ruta crítica adaptive | O13A–D + O19A | Perfil, policy resolver, kernel, variantes y validadores |
 | Planificación | O7+O10 + O9+O11 | `sdd-plan` parametrizado y reevaluación continua |
 | Promoción | O8 | Shadow mode y A/B antes de cambiar defaults |
@@ -71,33 +72,34 @@ G0.1
   ↓
 O4.1
   ↓
-O6A
 O4.2
   ↓
+O6A
   ↓
 O2B
-  ↓
-O13A ───────────────┐
-  ↓                 │
-O13B                │
-  ↓                 │
-O13C                │
-  ↓                 │
-O13D                │
-  ↓                 │
-O19A ───────────────┘
-  ↓
-O7+O10
-  ↓
-O9+O11
-  ↓
-O8
-  ├── O12
-  ├── O14
-  ├── O15 → O16+O17 → O18
-  └── O19B
+  ├── O20A (experimental, shadow)
+  │     └── gate: rebase o continuidad de O13C/O15/O18/O19B/R1
+  └── O13A ───────────────┐
+        ↓                 │
+      O13B                │
+        ↓                 │
+      O13C                │
+        ↓                 │
+      O13D                │
+        ↓                 │
+      O19A ───────────────┘
         ↓
-       R1
+      O7+O10
+        ↓
+      O9+O11
+        ↓
+      O8
+        ├── O12
+        ├── O14
+        ├── O15 → O16+O17 → O18
+        └── O19B
+              ↓
+             R1
 ```
 
 Lanes R2 y targets pueden avanzar en paralelo cuando no cambien el control plane ni invaliden la baseline.
@@ -213,8 +215,6 @@ Evitar que una señal material sea descartada por el máximo de dos especialista
 - tests focales, `npm test` y paridad pasan;
 - roadmap, arquitectura y specs coinciden.
 
-### O6A. Archive híbrido transaccional — **pending**
-
 ### O4.2. Fast path de remediación de evidencia Strict TDD — **▶ SIGUIENTE**
 
 **Change sugerido:** `strict-tdd-evidence-remediation-fast-path`.
@@ -257,11 +257,13 @@ Un gap sintáctico en un marcador de evidencia Strict TDD provocó un reroute co
 - un guard de regresión mide y limita coste de fases y tokens frente al reroute completo;
 - O6A permanece pendiente y bloqueado hasta completar O4.2.
 
+### O6A. Archive híbrido transaccional — **pending**
+
 **Change sugerido:** `hybrid-archive-transaction-runtime`.
 
-#### Objetivo
-
 **Dependencia:** O4.2.
+
+#### Objetivo
 
 Separar interpretación semántica de operaciones mecánicas y garantizar cierre transaccional, verificable y recuperable.
 
@@ -348,6 +350,53 @@ Congelar el control contra el que se comparará adaptive.
 - resultados incompatibles se rechazan;
 - métricas de calidad, coste, duración, preguntas y defectos disponibles;
 - baseline no se modifica silenciosamente al cambiar fixtures.
+
+### O20A. Proof-carrying verify kernel — **pending**
+
+**Change sugerido:** `proof-carrying-verify-kernel`.
+
+**Dependencia:** O2B.
+
+**Carácter:** investigación ejecutable y decision-gated; no cambia el flujo por defecto.
+
+#### Objetivo
+
+Comprobar si una vertical proof-carrying sobre `verify` mejora trazabilidad y reproducibilidad sin sustituir el control plane vigente ni convertir hipótesis arquitectónicas en decisiones.
+
+#### Alcance mínimo
+
+- `Change IR` reducido a obligaciones, escenarios, gates y referencias de evidencia necesarias para `verify`;
+- contratos versionados `Work Order`/`Work Result` v1;
+- journal observacional append-only con replay determinista;
+- evidencia normalizada y findings SARIF;
+- shadow comparison contra `sdd-verify` sobre los mismos inputs;
+- protocol conformance, scenario replay y mutation/semantic eval.
+
+#### Fuera de alcance
+
+- sustituir OpenSpec, Git o `state.yaml` como autoridad canónica;
+- introducir un broker de escrituras o controlar efectos de apply;
+- seleccionar Go como runtime único;
+- requerir SQLite, OTLP, firmas o servicios enterprise;
+- retirar, degradar o redirigir el flujo actual antes del gate.
+
+#### Evidencia para el gate
+
+- schemas, journal, replay, idempotencia y fallos parciales cubiertos por protocol conformance;
+- historiales sanitizados reproducibles sin perder eventos ni obligaciones;
+- mutaciones y defectos sembrados detectados por la evaluación semántica;
+- comparación de verdict, findings, cobertura, evidencia, comandos y coste contra `sdd-verify`;
+- degradaciones y capacidades por target declaradas;
+- calidad no inferior y ninguna obligación requerida perdida.
+
+#### Gate de decisión
+
+Al cerrar O20A se decidirá explícitamente una de estas rutas:
+
+1. rebasar O13C, O15, O18, O19B y R1 sobre el kernel probado, ajustando sus contratos y dependencias;
+2. mantener esas iniciativas en su rumbo actual y conservar o retirar O20A como experimento acotado.
+
+El gate debe impedir que el kernel experimental y las iniciativas existentes evolucionen como implementaciones paralelas permanentes. Cualquier promoción requiere un change OpenSpec y actualización previa de la arquitectura; un resultado positivo no establece prioridad por sí solo.
 
 ## 7. Ola 2 — control plane adaptativo
 
@@ -870,4 +919,5 @@ Baseline histórica cerrada:
 - 2026-07-17: G0.
 - 2026-07-18: O4+O5 y release v2.30.0.
 - 2026-07-18: G0.1 redefine la ruta crítica: O4.1 → O6A → O2B → O13A–D/O19A → `sdd-plan` → reevaluación → A/B.
+- 2026-07-18: se incorpora O20A como vertical experimental de `verify`, con gate previo a cualquier rebase de O13C/O15/O18/O19B/R1.
 - 2026-07-18: O4.2 se inserta como reparación inmediata entre O4.1 y O6A; O4.1 se publica primero y O4.2 comienza después en una sesión separada.

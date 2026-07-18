@@ -403,6 +403,12 @@ El orquestador no debe:
 - duplicar handlers circunstanciales;
 - convertirse en una segunda fuente de verdad.
 
+### 6.3 Hipótesis experimental: proof-carrying change kernel
+
+Como investigación no normativa, se propone probar un kernel reducido que compile obligaciones de `verify` desde los artefactos existentes, emita `Work Order`/`Work Result` tipados y produzca un journal observacional con evidencia normalizada. Las fases semánticas siguen siendo la interfaz de razonamiento y gobierno; el kernel solo intentaría hacer reproducibles contratos, transiciones y hechos mecánicos en una vertical shadow contra `sdd-verify`.
+
+Esta hipótesis no sustituye OpenSpec, Git ni `state.yaml`, no autoriza escrituras de apply y no selecciona Go, event sourcing, un Effect Broker ni attestations como arquitectura aceptada. Su alcance, riesgos y criterios de promoción se describen en la [investigación condensada](research/proof-carrying-change-compiler.md); el experimento y su gate viven en [O20A](../roadmaps/harness-evolution.md#o20a-proof-carrying-verify-kernel--pending).
+
 ## 7. Agentes, skills y variantes
 
 ### 7.1 Un único concepto por fase
@@ -790,3 +796,8 @@ Cada hijo recibe su propio perfil. No existe una ruta rígida `epic`.
 6. Establecer clamps por target para modelo, effort, permisos y paralelismo.
 7. Determinar cuándo una reevaluación puede reducir profundidad de presentación sin cambiar garantías.
 8. Definir compatibilidad y deprecación de aliases tras promover adaptive.
+9. Definir el grafo mínimo de obligaciones, sus IDs estables y reglas de invalidación sin convertir el IR en una representación total de OpenSpec.
+10. Resolver la autoridad y semántica de replay de un journal futuro; durante O20A será observacional y `state.yaml` seguirá siendo canónico.
+11. Determinar el enforcement de efectos posible por target antes de considerar un broker; apply queda fuera de O20A.
+12. Elegir el lenguaje y distribución de un kernel solo tras medir portabilidad y coste; Go no es una decisión aceptada como runtime único.
+13. Definir el alcance y threat model de una attestation, distinguiendo cadena de custodia de corrección; O20A no requiere firmas.

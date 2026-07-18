@@ -7,6 +7,7 @@ Esta carpeta contiene las únicas fuentes activas para la evolución del harness
 | Archivo | Autoridad |
 | --- | --- |
 | [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md) | Arquitectura, principios, decisiones y problemas abiertos |
+| [`../architecture/research/`](../architecture/research/) | Evidencia e hipótesis no normativas; pueden justificar una decisión, pero no establecer estado, prioridad ni arquitectura aceptada |
 | [`harness-evolution.md`](harness-evolution.md) | Backlog transversal, estado, orden y done criteria |
 | [`targets/`](targets/) | Implementación específica de cada host |
 | `../../analisis-fino/archive/` | Historia y evidencia; nunca estado vigente |
@@ -20,6 +21,8 @@ Esta carpeta contiene las únicas fuentes activas para la evolución del harness
 5. Documentos archivados.
 
 Cuando dos documentos discrepan, no se corrige únicamente el roadmap: se verifica el código y se actualiza primero la autoridad superior correspondiente.
+
+La investigación no forma parte de esta cadena de precedencia. Solo adquiere efecto normativo cuando sus conclusiones se aceptan mediante OpenSpec o se incorporan explícitamente a la arquitectura; solo adquiere estado y prioridad cuando se reflejan en el roadmap general.
 
 ## Flujo de mantenimiento
 
