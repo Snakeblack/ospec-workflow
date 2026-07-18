@@ -1,9 +1,9 @@
 # Roadmap general — evolución del harness
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.30.0, 2026-07-18.
+> **Versión de referencia:** v2.31.0, 2026-07-18.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
-> **Estado verificado:** O4+O5 entregado y archivado; infraestructura O2A entregada; baseline fija O2B pendiente.
+> **Estado verificado:** O4+O5 entregado y archivado; O4.1 entregado; O4.2 es la reparación inmediata; infraestructura O2A entregada; baseline fija O2B pendiente.
 > **Regla:** una decisión arquitectónica nueva se incorpora primero al análisis. Este archivo solo deriva trabajo ejecutable.
 
 ## 1. Estado ejecutivo
@@ -12,8 +12,9 @@
 | --- | --- | --- |
 | Completado | G0/G0.1 — gobernanza y reconciliación documental | Arquitectura y roadmap activos, sin estado O4+O5 obsoleto |
 | Completado | O4+O5 — review selectivo y linaje acotado | Generalist-first, selección determinista y corrección dirigida |
-| ▶ Siguiente | O4.1 — overflow de señales de review | Ninguna dimensión positiva descartada por el cap normal |
-| Después | O6A — archive híbrido transaccional | Semántica en agente; transacción mecánica en runtime |
+| ✅ Entregado | O4.1 — overflow de señales de review | Ninguna dimensión positiva descartada por el cap normal |
+| ▶ SIGUIENTE | O4.2 — remediación rápida de evidencia Strict TDD | Reparar drift mecánico de formato sin redispatch funcional completo |
+| Después | O6A — archive híbrido transaccional | Bloqueado por O4.2; semántica en agente y transacción mecánica en runtime |
 | Gate previo a adaptive | O2B — baseline fixed-policy | Nueve perfiles comparables y reproducibles |
 | Ruta crítica adaptive | O13A–D + O19A | Perfil, policy resolver, kernel, variantes y validadores |
 | Planificación | O7+O10 + O9+O11 | `sdd-plan` parametrizado y reevaluación continua |
@@ -21,9 +22,11 @@
 | Posterior | O14–O19B + R1 | Routing dinámico, evidencia, capsules y CI |
 | Largo plazo | R2 + R4 | Conocimiento vivo y federación write |
 
-### Preflight inmediato
+### Publicación inmediata de O4.1
 
-Antes o dentro de O4.1:
+El bump de versión y la release correspondientes a O4.1 se completan antes de iniciar O4.2. O4.2 permanece como el siguiente change de reparación y se ejecutará en una sesión separada.
+
+Preflight independiente antes de O6A — no forma parte de O4.2:
 
 - corregir metadata que todavía describa cuatro targets cuando existen cinco;
 - comprobar enlaces de `docs/architecture/` y `docs/roadmaps/`;
@@ -69,6 +72,8 @@ G0.1
 O4.1
   ↓
 O6A
+O4.2
+  ↓
   ↓
 O2B
   ↓
@@ -152,7 +157,8 @@ Contrato entregado:
 - generalista read-only ejecutado primero;
 - decisión estructurada validada;
 - evidencia determinista + generalista;
-- cero a dos especialistas para normal;
+- cero a dos especialistas targeted para normal;
+- tres o cuatro señales positivas escalan a strict full 4R;
 - full 4R para `high-risk`;
 - paridad de targets;
 - findings congelados;
@@ -162,11 +168,11 @@ Contrato entregado:
 
 Limitación aceptada:
 
-- el cap normal puede excluir una tercera dimensión positiva; O4.1 la corrige.
+- O4.1 elimina el cap normal que excluía una tercera dimensión positiva.
 
 ## 6. Ola 1 — corrección de review, archive y baseline
 
-### O4.1. Overflow de señales de review — **pending** ▶ SIGUIENTE
+### O4.1. Overflow de señales de review — **delivered**
 
 **Change sugerido:** `review-signal-overflow-escalation`.
 
@@ -200,7 +206,7 @@ Evitar que una señal material sea descartada por el máximo de dos especialista
 
 #### Done criteria
 
-- ningún reason positivo termina como `normal-cap-excluded`;
+- ningún reason positivo termina como `normal-cap-excluded`; el overflow usa `normal-signal-overflow`;
 - 3+ dimensiones producen full 4R;
 - 0-2 conservan targeted review;
 - malformed evidence sigue fallando cerrado;
@@ -209,9 +215,53 @@ Evitar que una señal material sea descartada por el máximo de dos especialista
 
 ### O6A. Archive híbrido transaccional — **pending**
 
+### O4.2. Fast path de remediación de evidencia Strict TDD — **▶ SIGUIENTE**
+
+**Change sugerido:** `strict-tdd-evidence-remediation-fast-path`.
+
+**Dependencia:** O4.1.
+
+**Bloquea:** O6A.
+
+#### Problema
+
+Un gap sintáctico en un marcador de evidencia Strict TDD provocó un reroute completo `tasks → apply → verify` aunque el comportamiento y los tests ya eran correctos. El fallo de representación se trató como si fuera un defecto funcional o un gap de tasks, con coste de fases y tokens desproporcionado.
+
+#### Fix semántico
+
+- introducir evidencia estructurada o validación determinista en el boundary de `apply`;
+- clasificar de forma diferenciada `evidence-format-gap`;
+- habilitar una remediación acotada y exclusiva de evidencia;
+- demostrar invariancia del candidato funcional antes y después de la reparación;
+- evitar redispatch completo de fases cuando solo cambia una representación equivalente o mecánica.
+
+#### Severidad y routing
+
+- evidencia ausente o fabricada sigue siendo **CRITICAL** y falla cerrado;
+- drift de formato equivalente o puramente mecánico no se enruta como fallo funcional ni como `tasks-gap`;
+- cualquier cambio material en producción, specs o tests invalida el fast path y vuelve al routing ordinario.
+
+#### Fuera de alcance
+
+- debilitar Strict TDD, sus pruebas de ejecución o su severidad ante evidencia ausente/fabricada;
+- absorber trabajo del finalizador de archive O6A;
+- cambiar comportamiento de producto, specs o tests mediante el fast path.
+
+#### Done criteria
+
+- existe un validador determinista para reconocer y reparar `evidence-format-gap` equivalente;
+- el fast path no modifica producción, specs ni tests;
+- la identidad del candidato permanece inmutable y se verifica antes de continuar;
+- verify ejecuta un recheck focal de la evidencia reparada, sin redispatch completo de `tasks`, `apply` y `verify`;
+- tests de routing distinguen evidencia ausente/fabricada, drift mecánico y fallo funcional;
+- un guard de regresión mide y limita coste de fases y tokens frente al reroute completo;
+- O6A permanece pendiente y bloqueado hasta completar O4.2.
+
 **Change sugerido:** `hybrid-archive-transaction-runtime`.
 
 #### Objetivo
+
+**Dependencia:** O4.2.
 
 Separar interpretación semántica de operaciones mecánicas y garantizar cierre transaccional, verificable y recuperable.
 
@@ -820,3 +870,4 @@ Baseline histórica cerrada:
 - 2026-07-17: G0.
 - 2026-07-18: O4+O5 y release v2.30.0.
 - 2026-07-18: G0.1 redefine la ruta crítica: O4.1 → O6A → O2B → O13A–D/O19A → `sdd-plan` → reevaluación → A/B.
+- 2026-07-18: O4.2 se inserta como reparación inmediata entre O4.1 y O6A; O4.1 se publica primero y O4.2 comienza después en una sesión separada.

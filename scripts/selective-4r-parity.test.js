@@ -49,7 +49,7 @@ test("all five generated targets carry generalist, classifier, gate, audit, and 
     assert.match(orchestrator + gate, /review-change/, `${target} generalist dispatch`);
     assert.match(correction + correctionSkill, /every frozen unresolved finding ID exactly once/i, `${target} targeted validator`);
     assert.match(correction + correctionSkill, /non-blocking follow-up/i, `${target} late follow-up boundary`);
-    for (const marker of ["normal-cap-excluded", "contract-remediation", "parallel-preferred/serial-fallback", "review-correction", "reconciliation-required"]) {
+    for (const marker of ["signal-overflow-override", "contract-remediation", "parallel-preferred/serial-fallback", "review-correction", "reconciliation-required"]) {
       assert.ok((orchestrator + classifier + reducer + lineage + gate + correctionSkill).includes(marker), `${target} missing ${marker}`);
     }
     assert.match(orchestrator + gate, /review-lineage\.js/);
@@ -77,9 +77,9 @@ test("isolated mutations fail runtime and contract parity in every generated tar
       { name: "correction-agent", file: targetPaths(target).correction, remove: true, diagnostic: "CORRECTION" },
       { name: "correction-skill", file: "skills/review-correction/SKILL.md", from: /MUST NOT/g, to: "MAY", diagnostic: "CORRECTION" },
       { name: "competence-boundary", file: "skills/review-change/SKILL.md", from: /MUST NOT/g, to: "MAY", diagnostic: "BOUNDARY" },
-      { name: "normal-cap", file: "scripts/lib/review-dimensions.js", from: ".slice(0, 2)", to: ".slice(0, 3)", diagnostic: "SELECTION" },
+      { name: "normal-cap", file: "scripts/lib/review-dimensions.js", from: "if (candidates.length >= 3)", to: "if (candidates.length >= 5)", diagnostic: "REASONS" },
       { name: "canonical-order", file: "scripts/lib/review-dimensions.js", from: '["risk", "reliability", "resilience", "readability"]', to: '["reliability", "risk", "resilience", "readability"]', diagnostic: "SELECTION" },
-      { name: "reason", file: "scripts/lib/review-dimensions.js", from: /normal-cap-excluded/g, to: "mutated-cap-reason", diagnostic: "REASONS" },
+      { name: "reason", file: "scripts/lib/review-dimensions.js", from: /signal-overflow-override/g, to: "mutated-cap-reason", diagnostic: "REASONS" },
       { name: "reason-grammar", file: "scripts/lib/review-dimensions.js", from: 'if (!match) return { valid: false, errors: ["reason must use signals=<allowlisted-codes>;dimensions=<canonical-dimensions>"] };', to: 'if (!match) return { valid: true, errors: [], signals: ["diff-auth-permission"], dimensions: ["risk"] };', diagnostic: "BOUNDARY" },
       { name: "diff-scope", file: "scripts/lib/review-dimensions.js", from: "!isRuntimeProductionPath(file)", to: "false", diagnostic: "EVIDENCE" },
       { name: "executable-lines", file: "scripts/lib/review-dimensions.js", from: "const executable = stripNonExecutableText(line.text, lexicalState);", to: "const executable = line.text;", diagnostic: "EVIDENCE" },
@@ -160,8 +160,10 @@ const input = {
 let normal;
 try { normal = classifier.deriveReviewDimensions(classifier.normalizeReviewEvidence(input), clear); }
 catch (error) { fail("RUNTIME", error.message); }
-if (normal.selected_specialists.join(",") !== "risk,reliability") fail("SELECTION", normal.selected_specialists.join(","));
-if (!normal.dimensions.resilience.reasons.some((entry) => entry.code === "normal-cap-excluded")) fail("REASONS", "cap exclusion missing");
+if (normal.selected_specialists.join(",") !== "risk,reliability,resilience,readability") fail("SELECTION", normal.selected_specialists.join(","));
+if (normal.depth.review !== "strict" || normal.escalation_reason.code !== "normal-signal-overflow") fail("REASONS", "overflow escalation missing");
+if (!normal.dimensions.readability.reasons.some((entry) => entry.code === "signal-overflow-override")) fail("REASONS", "overflow override reason missing");
+if (normal.evidence.fingerprint !== classifier.normalizeReviewEvidence(input).fingerprint) fail("EVIDENCE", "fingerprint changed");
 for (const reason of ["Authorization: Bearer synthetic-value", "eyJhbGciOiJIUzI1NiJ9.synthetic.value", "AKIAIOSFODNN7EXAMPLE", "signals=invented-signal;dimensions=risk"]) {
   if (classifier.validateGeneralistDecision({ status: "needs-specialist", specialists: ["risk"], reason }).valid) fail("BOUNDARY", "reason grammar drift");
 }

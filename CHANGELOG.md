@@ -8,6 +8,13 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.31.0] - 2026-07-18
+
+### Changed
+- **[Escalado adaptativo de revisión] (Routing)**: Los cambios `normal` con 0 señales no despachan especialistas, con 1 o 2 ejecutan revisión dirigida y con 3 o 4 escalan a profundidad `strict` con cobertura 4R completa, sin descartar dimensiones positivas.
+- **[Auditoría de profundidad y escalado] (Review gate)**: `scripts/lib/review-dimensions.js`, `scripts/lib/review-gate-state.js` y la baseline `openspec/specs/routing/spec.md` persisten la profundidad y el motivo determinista de escalado, conservando el generalista inicial, el fingerprint de evidencia y el linaje acotado.
+- **[Trazabilidad SDD y verificación] (OpenSpec)**: El change archivado `review-signal-overflow-escalation`, ejecutado por la ruta `standard` con Strict TDD y compuerta 4R, sincroniza la baseline de routing y el ADR `adr-20260718-005-persist-explicit-review-depth-and-overflow-reason.md`; la verificación focal pasó 40/40 y la suite completa 1375/1377, con 2 skips ambientales y 0 fallos.
+
 ## [2.30.0] - 2026-07-18
 
 ### Added

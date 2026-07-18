@@ -35,14 +35,16 @@ test("normalization is deterministic, deduplicated, and excludes raw diff", () =
   assert.equal(JSON.stringify(a).includes("documentation only"), false);
 });
 
-test("real diff signals outrank metadata and normal selection is capped deterministically", () => {
+test("real diff signals escalate normal overflow to strict full 4R", () => {
   const normalized = evidence({
     diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1,3 @@\n+spawnSync(command)\n+writeFileSync(globalConfig)\n+fetch(url) retry timeout",
   });
   const decision = deriveReviewDimensions(normalized, clear);
-  assert.deepEqual(decision.selected_specialists, ["risk", "reliability"]);
-  assert.equal(decision.dimensions.resilience.selected, false);
-  assert.ok(decision.dimensions.resilience.reasons.some((r) => r.code === "normal-cap-excluded"));
+  assert.deepEqual(decision.selected_specialists, ["risk", "reliability", "resilience", "readability"]);
+  assert.deepEqual(decision.depth, { review: "strict" });
+  assert.deepEqual(decision.escalation_reason, { code: "normal-signal-overflow", positive_dimensions: 3, detail: "Normal review has 3 positive dimensions; strict full 4R required" });
+  assert.ok(decision.dimensions.readability.reasons.some((r) => r.code === "signal-overflow-override"));
+  assert.equal(decision.dimensions.resilience.reasons.some((r) => r.code === "normal-cap-excluded"), false);
   assert.equal(validateReviewDecision(decision).valid, true);
 });
 
@@ -51,9 +53,8 @@ test("equal-precedence candidates use canonical dimension order before reason de
     diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1,2 @@\n+spawnSync(command)\n+fetch(url)",
   });
   const decision = deriveReviewDimensions(normalized, clear);
-  assert.deepEqual(decision.selected_specialists, ["risk", "reliability"]);
-  assert.equal(decision.dimensions.resilience.selected, false);
-  assert.ok(decision.dimensions.resilience.reasons.some((entry) => entry.code === "normal-cap-excluded"));
+  assert.deepEqual(decision.selected_specialists, ["risk", "reliability", "resilience", "readability"]);
+  assert.deepEqual(decision.depth, { review: "strict" });
 });
 
 test("candidate ranking is stable across fact permutations and honors stronger precedence first", () => {
@@ -61,15 +62,33 @@ test("candidate ranking is stable across fact permutations and honors stronger p
   const diffB = "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1,3 @@\n+switch (mode)\n+fetch(url)\n+spawnSync(command)";
   const first = deriveReviewDimensions(evidence({ diff: diffA }), clear);
   const permuted = deriveReviewDimensions(evidence({ diff: diffB }), clear);
-  assert.deepEqual(first.selected_specialists, ["risk", "reliability"]);
+  assert.deepEqual(first.selected_specialists, ["risk", "reliability", "resilience", "readability"]);
   assert.deepEqual(permuted.selected_specialists, first.selected_specialists);
+  assert.equal(permuted.evidence.fingerprint, first.evidence.fingerprint);
 
   const verifyWins = deriveReviewDimensions(evidence({
     verify: { status: "success", findings: [{ code: "verify-readability", detail: "verified complexity" }] },
     diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1,2 @@\n+spawnSync(command)\n+fetch(url)",
   }), clear);
-  assert.deepEqual(verifyWins.selected_specialists, ["risk", "readability"]);
+  assert.deepEqual(verifyWins.selected_specialists, ["risk", "reliability", "resilience", "readability"]);
   assert.equal(validateReviewDecision(verifyWins).valid, true);
+});
+
+test("normal thresholds select zero, one, or two dimensions without overflow", () => {
+  const one = deriveReviewDimensions(evidence(), { status: "needs-specialist", specialists: ["risk"], reason: "signals=diff-auth-permission;dimensions=risk" });
+  assert.deepEqual(one.selected_specialists, ["risk"]);
+  assert.deepEqual(one.depth, { review: "targeted" });
+  assert.equal(one.escalation_reason, null);
+  const two = deriveReviewDimensions(evidence(), { status: "needs-specialist", specialists: ["risk", "reliability"], reason: "signals=diff-process-execution;dimensions=risk,reliability" });
+  assert.deepEqual(two.selected_specialists, ["risk", "reliability"]);
+  assert.deepEqual(two.depth, { review: "targeted" });
+  assert.equal(two.escalation_reason, null);
+});
+
+test("decision validation rejects tampered overflow depth and reason", () => {
+  const valid = deriveReviewDimensions(evidence({ diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1,3 @@\n+spawnSync(command)\n+writeFileSync(globalConfig)\n+fetch(url)" }), clear);
+  assert.equal(validateReviewDecision({ ...valid, depth: { review: "targeted" } }).valid, false);
+  assert.equal(validateReviewDecision({ ...valid, escalation_reason: null }).valid, false);
 });
 
 test("zero normal specialists and high-risk full 4R are both explicit", () => {
@@ -176,7 +195,7 @@ test("real diff facts use only per-file production additions and exact attributi
   assert.deepEqual(realDiffFacts, [{ code: "diff-structural-complexity", source: "real-diff", detail: "scripts/runtime.js" }]);
 
   const generalist = { status: "needs-specialist", specialists: ["risk"], reason: "signals=diff-auth-permission;dimensions=risk" };
-  assert.deepEqual(deriveReviewDimensions(normalized, generalist).selected_specialists, ["risk", "readability"]);
+  assert.deepEqual(deriveReviewDimensions(normalized, generalist).selected_specialists, ["risk", "reliability", "resilience", "readability"]);
 });
 
 test("real diff parser ignores comments, block comments, shebangs, and documentation strings", () => {
@@ -201,7 +220,7 @@ test("real diff parser ignores comments, block comments, shebangs, and documenta
     { code: "diff-network-flow", source: "real-diff", detail: "scripts/runtime.js" },
   ]);
   const generalist = { status: "needs-specialist", specialists: ["risk"], reason: "signals=diff-auth-permission;dimensions=risk" };
-  assert.deepEqual(deriveReviewDimensions(normalized, generalist).selected_specialists, ["risk", "reliability"]);
+  assert.deepEqual(deriveReviewDimensions(normalized, generalist).selected_specialists, ["risk", "reliability", "resilience", "readability"]);
 });
 
 test("real diff parser ignores multiline documentation strings", () => {

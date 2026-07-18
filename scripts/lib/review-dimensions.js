@@ -12,7 +12,7 @@ const SIGNALS = Object.freeze({
   "dependency-change": ["risk", "reliability"], "design-risk": ["risk"],
   "metadata-runtime": ["reliability"], "metadata-docs-only": [],
 });
-const DERIVED_REASON_CODES = new Set(["high-risk-override", "generalist-escalation", "normal-cap-excluded", ...DIMENSIONS.map((id) => `no-${id}-signal`)]);
+const DERIVED_REASON_CODES = new Set(["high-risk-override", "generalist-escalation", "normal-cap-excluded", "signal-overflow-override", ...DIMENSIONS.map((id) => `no-${id}-signal`)]);
 const FACT_SOURCES = Object.freeze({
   "verify-risk": "verify", "verify-reliability": "verify", "verify-resilience": "verify", "verify-readability": "verify",
   "diff-process-execution": "real-diff", "diff-auth-permission": "real-diff", "diff-global-config-write": "real-diff",
@@ -88,26 +88,40 @@ function deriveReviewDimensions(evidence, generalist) {
   }
   for (const id of generalist.specialists) reasons[id].push(reason("generalist-escalation", "generalist", generalist.reason));
   let selected;
+  let depth;
+  let escalation_reason = null;
   if (evidence.classification === "high-risk") {
     selected = [...DIMENSIONS];
+    depth = { review: "strict" };
     for (const id of DIMENSIONS) reasons[id].unshift(reason("high-risk-override", "override", "Classification requires full 4R"));
   } else {
     const candidates = DIMENSIONS.filter((id) => reasons[id].length).sort((a, b) => bestPrecedence(reasons[a]) - bestPrecedence(reasons[b]) || DIMENSIONS.indexOf(a) - DIMENSIONS.indexOf(b));
-    selected = candidates.slice(0, 2);
-    for (const id of candidates.slice(2)) reasons[id].push(reason("normal-cap-excluded", "classifier", "Normal classification permits at most two specialists"));
+    if (candidates.length >= 3) {
+      selected = [...DIMENSIONS];
+      depth = { review: "strict" };
+      escalation_reason = {
+        code: "normal-signal-overflow",
+        positive_dimensions: candidates.length,
+        detail: `Normal review has ${candidates.length} positive dimensions; strict full 4R required`,
+      };
+      for (const id of DIMENSIONS) reasons[id].unshift(reason("signal-overflow-override", "override", escalation_reason.detail));
+    } else {
+      selected = candidates;
+      depth = { review: "targeted" };
+    }
   }
   const dimensions = {};
   for (const id of DIMENSIONS) {
     if (!reasons[id].length) reasons[id].push(reason(`no-${id}-signal`, "classifier", "No positive signal"));
     dimensions[id] = { selected: selected.includes(id), reasons: dedupeReasons(reasons[id]) };
   }
-  return { schema_version: 1, classification: evidence.classification, evidence: { schema_version: evidence.schema_version, fingerprint: evidence.fingerprint, sources: evidence.sources }, generalist: { ...generalist, specialists: [...generalist.specialists] }, dimensions, selected_specialists: DIMENSIONS.filter((id) => selected.includes(id)) };
+  return { schema_version: 1, classification: evidence.classification, evidence: { schema_version: evidence.schema_version, fingerprint: evidence.fingerprint, sources: evidence.sources }, generalist: { ...generalist, specialists: [...generalist.specialists] }, depth, escalation_reason, dimensions, selected_specialists: DIMENSIONS.filter((id) => selected.includes(id)) };
 }
 
 function validateReviewDecision(value) {
   const errors = [];
   try {
-    if (!value || Object.keys(value).sort().join(",") !== "classification,dimensions,evidence,generalist,schema_version,selected_specialists") errors.push("review decision has missing or extra keys");
+    if (!value || Object.keys(value).sort().join(",") !== "classification,depth,dimensions,escalation_reason,evidence,generalist,schema_version,selected_specialists") errors.push("review decision has missing or extra keys");
     if (value.schema_version !== 1 || !["normal", "high-risk"].includes(value.classification)) errors.push("invalid schema or classification");
     const gv = validateGeneralistDecision(value.generalist); errors.push(...gv.errors);
     if (!value.dimensions || Object.keys(value.dimensions).join(",") !== DIMENSIONS.join(",")) errors.push("dimensions must contain exactly four canonical keys");
@@ -126,7 +140,8 @@ function validateReviewDecision(value) {
     }
     const expected = DIMENSIONS.filter((id) => value.dimensions && value.dimensions[id] && value.dimensions[id].selected);
     if (!Array.isArray(value.selected_specialists) || value.selected_specialists.join(",") !== expected.join(",")) errors.push("selected_specialists mismatch");
-    if (value.classification === "normal" && expected.length > 2) errors.push("normal cap exceeded");
+    if (!value.depth || !["targeted", "strict"].includes(value.depth.review)) errors.push("invalid review depth");
+    if (!(value.escalation_reason === null || (value.escalation_reason && value.escalation_reason.code === "normal-signal-overflow" && [3, 4].includes(value.escalation_reason.positive_dimensions) && value.escalation_reason.detail === `Normal review has ${value.escalation_reason.positive_dimensions} positive dimensions; strict full 4R required`))) errors.push("invalid escalation reason");
     if (value.classification === "high-risk" && expected.length !== 4) errors.push("high-risk requires full 4R");
     const normalizedEvidence = value && value.evidence ? { ...value.evidence, classification: value.classification } : value && value.evidence;
     validateEvidence(normalizedEvidence);
