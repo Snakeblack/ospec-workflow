@@ -3,29 +3,45 @@
 > **Autoridad:** única fuente operativa del backlog transversal.
 > **Versión de referencia:** v2.30.0, 2026-07-18.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
-> **Estado local conocido:** O4+O5 entregado y archivado.
-> **Regla:** una decisión arquitectónica nueva se incorpora primero al análisis; este archivo solo deriva trabajo ejecutable.
+> **Estado verificado:** O4+O5 entregado y archivado; infraestructura O2A entregada; baseline fija O2B pendiente.
+> **Regla:** una decisión arquitectónica nueva se incorpora primero al análisis. Este archivo solo deriva trabajo ejecutable.
 
 ## 1. Estado ejecutivo
 
 | Estado | Iniciativa | Resultado esperado |
 | --- | --- | --- |
-| Completado | O4+O5 — review adaptativo | `review_plan` selectivo, generalista y de linaje acotado |
-| ▶ Siguiente | O6 — archive determinista | Cierre transaccional sin depender del modelo para operaciones mecánicas |
-| Ruta crítica | Perfil adaptativo + validadores + `sdd-plan` | Un flujo canónico con profundidad por dimensiones |
-| Posterior | Evidencia + CI + adapters | Runtime estructurado, headless y optimizado por target |
-| Largo plazo | Conocimiento + federación | Memoria viva y coordinación multi-repo |
+| Completado | G0/G0.1 — gobernanza y reconciliación documental | Arquitectura y roadmap activos, sin estado O4+O5 obsoleto |
+| Completado | O4+O5 — review selectivo y linaje acotado | Generalist-first, selección determinista y corrección dirigida |
+| ▶ Siguiente | O4.1 — overflow de señales de review | Ninguna dimensión positiva descartada por el cap normal |
+| Después | O6A — archive híbrido transaccional | Semántica en agente; transacción mecánica en runtime |
+| Gate previo a adaptive | O2B — baseline fixed-policy | Nueve perfiles comparables y reproducibles |
+| Ruta crítica adaptive | O13A–D + O19A | Perfil, policy resolver, kernel, variantes y validadores |
+| Planificación | O7+O10 + O9+O11 | `sdd-plan` parametrizado y reevaluación continua |
+| Promoción | O8 | Shadow mode y A/B antes de cambiar defaults |
+| Posterior | O14–O19B + R1 | Routing dinámico, evidencia, capsules y CI |
+| Largo plazo | R2 + R4 | Conocimiento vivo y federación write |
+
+### Preflight inmediato
+
+Antes o dentro de O4.1:
+
+- corregir metadata que todavía describa cuatro targets cuando existen cinco;
+- comprobar enlaces de `docs/architecture/` y `docs/roadmaps/`;
+- ejecutar contract lint, paridad de targets y `npm test`;
+- no mezclar esta limpieza con cambios no relacionados.
 
 ## 2. Protocolo de actualización
 
 Al cerrar cada change:
 
-1. Marcar el ítem y sus done criteria.
-2. Registrar change, release y evidencia en una línea.
+1. Marcar estado y done criteria.
+2. Registrar change, release y evidencia.
 3. Mover `▶ SIGUIENTE` al primer ítem ejecutable de la ruta crítica.
-4. Actualizar el análisis solo si cambió arquitectura, principio o alcance.
-5. Actualizar un roadmap de target solo cuando cambió ese adapter.
-6. No crear planes paralelos ni `plan-siguiente-sesion.md`.
+4. Actualizar la arquitectura solo si cambió un principio, contrato o alcance.
+5. Actualizar un roadmap de target solo si cambió ese adapter.
+6. Actualizar OpenSpec baseline cuando cambie comportamiento.
+7. Registrar divergencias detectadas; no corregir solo la narrativa.
+8. No crear planes paralelos ni `plan-siguiente-sesion.md`.
 
 Estados permitidos:
 
@@ -33,145 +49,564 @@ Estados permitidos:
 pending · in-progress · blocked · done · superseded · rejected
 ```
 
-## 3. Dogfooding: cómo ejecutar este roadmap
+## 3. Reglas de ejecución del programa
 
-- Cada iniciativa se implementa como un change OpenSpec con alcance cohesivo.
-- No mezclar reorganización documental con cambios de runtime.
-- Los cambios de comportamiento usan el flujo SDD completo disponible en ese momento.
-- Refactors puramente editoriales pueden usar direct + reconcile, salvo que cambien autoridad o contrato.
-- Cada change actualiza specs baseline, ADRs y este roadmap al archivar.
-- Las métricas de O1/O2 se capturan, pero una baseline incompleta no bloquea mejoras cuya corrección pueda demostrarse con tests y evals.
+- Cada iniciativa se implementa como un change OpenSpec cohesivo.
+- Un change no mezcla reorganización documental, refactor de runtime y optimización de target salvo dependencia inseparable.
+- Los cambios de comportamiento usan el flujo SDD completo disponible.
+- Los refactors editoriales pueden usar direct + reconcile cuando no cambian autoridad ni contrato.
+- Cada change actualiza specs, ADRs, roadmap y capability matrix cuando corresponda.
+- Toda policy nueva empieza en shadow o sin alterar defaults.
+- Ninguna optimización de coste puede descartar una señal material.
+- Los cambios de target revalidan la documentación y versión real del host.
+- La baseline incompleta no bloquea fixes demostrables, pero sí bloquea promover adaptive como default.
 
-## 4. Ruta crítica por olas
+## 4. Grafo de dependencias
 
-### Ola 0 — cerrar trabajo activo y gobernanza
+```text
+G0.1
+  ↓
+O4.1
+  ↓
+O6A
+  ↓
+O2B
+  ↓
+O13A ───────────────┐
+  ↓                 │
+O13B                │
+  ↓                 │
+O13C                │
+  ↓                 │
+O13D                │
+  ↓                 │
+O19A ───────────────┘
+  ↓
+O7+O10
+  ↓
+O9+O11
+  ↓
+O8
+  ├── O12
+  ├── O14
+  ├── O15 → O16+O17 → O18
+  └── O19B
+        ↓
+       R1
+```
 
-#### O4+O5. Review adaptativo — **done**
+Lanes R2 y targets pueden avanzar en paralelo cuando no cambien el control plane ni invaliden la baseline.
 
-Objetivo:
+## 5. Ola 0 — baseline histórica y gobernanza
 
-- `review_dimensions` evoluciona a `review_plan` con `required|candidate|skip`;
-- triggers duros + generalista + diff + verify producen el plan final;
-- motivos y fuentes persisten en `state.yaml`;
-- high-risk evita pagar un generalista redundante cuando 4R ya es obligatorio;
-- cambios normales ejecutan cero o un generalista y solo los especialistas justificados.
+### G0. Gobernanza documental unificada — **done**
 
-Done criteria:
+Entregado:
 
-- fixtures de docs, estilos, instalador privilegiado y cambio high-risk;
-- paridad entre targets y runtime donde aplique;
-- review omitido o activado siempre con razón registrada;
-- verify y archive completados.
+- `docs/architecture/harness-evolution.md`;
+- `docs/roadmaps/harness-evolution.md`;
+- `docs/roadmaps/README.md`;
+- roadmaps de target;
+- archivos históricos fuera de la autoridad activa.
 
-#### G0. Gobernanza documental unificada — **done**
+### G0.1. Reconciliación de arquitectura y roadmap — **done**
 
-Estructura instalada manualmente: `docs/architecture/harness-evolution.md` (análisis), `docs/roadmaps/harness-evolution.md` (roadmap), `docs/roadmaps/README.md` (autoridad) y roadmaps de target en `docs/roadmaps/targets/`. Limpieza de `analisis-fino/` y `docs/roadmap.md` finalizada; enlaces verificados.
+Este reemplazo:
 
-### Ola 1 — seguridad determinista y perfil adaptativo
+- actualiza el corte a v2.30.0;
+- mueve O4+O5 a capacidades entregadas;
+- documenta el contrato generalist-first real;
+- retira la afirmación incorrecta de que `high-risk` omite el generalista;
+- sustituye `review_plan required|candidate|skip` por la `review_decision` implementada;
+- redefine O6 como arquitectura híbrida;
+- separa O2A de O2B;
+- añade policy resolver, invocation kernel y variantes como iniciativas explícitas;
+- fija el orden previo al shadow mode.
 
-#### O6. Archive como runtime determinista — **pending** ▶ SIGUIENTE
+### O2A. Infraestructura de benchmark — **done**
 
-Change sugerido: `deterministic-archive-runtime`.
+Entregado:
 
-Responsabilidades:
+- catálogo canónico de nueve perfiles;
+- smoke set de tres perfiles;
+- runner headless local;
+- cache con identidad fuerte;
+- publicación fail-closed;
+- scoring estructural run-level;
+- O1 suplementario.
 
-- validar verdict y warnings aceptados;
-- comprobar fingerprints;
-- aplicar deltas y promover ADRs;
-- generar coste e inventario;
-- copiar, verificar y borrar de forma atómica;
-- rollback comprobable.
+No entregado por O2A:
 
-Done criteria: el agente decide readiness; el runtime ejecuta la transacción completa.
+- baseline fija comparable de los nueve perfiles;
+- gate de promoción de adaptive;
+- CI obligatorio.
 
-#### O13A. Perfil de señales y riesgo — **pending**
+### O3. Clarify condicional — **done**
 
-Change sugerido: `adaptive-change-profile`.
+`clarify` es un gate posterior a `sdd-spec`, gobernado por envelope validado. No es una fase declarada en las rutas.
 
-Sustituye el enfoque de etiqueta única por:
+### O4+O5. Review selectivo y linaje acotado — **done**
 
-- `intent`;
-- `topology`;
-- `preset`;
-- `risk` con scores y sources;
-- `depth` por dimensión.
+Contrato entregado:
 
-Debe alimentar review, planning, verify, modelo y quality gates. No selecciona todavía una nueva ruta de producto.
+- generalista read-only ejecutado primero;
+- decisión estructurada validada;
+- evidencia determinista + generalista;
+- cero a dos especialistas para normal;
+- full 4R para `high-risk`;
+- paridad de targets;
+- findings congelados;
+- corrección dirigida;
+- máximo de tres validaciones fallidas;
+- successor explícito para nuevo discovery.
 
-#### O19A. Validadores contractuales mínimos — **pending**
+Limitación aceptada:
 
-Change sugerido: `planning-contract-validators-core`.
+- el cap normal puede excluir una tercera dimensión positiva; O4.1 la corrige.
 
-Incluye validadores deterministas para:
+## 6. Ola 1 — corrección de review, archive y baseline
 
-- proposal/intención;
+### O4.1. Overflow de señales de review — **pending** ▶ SIGUIENTE
+
+**Change sugerido:** `review-signal-overflow-escalation`.
+
+#### Objetivo
+
+Evitar que una señal material sea descartada por el máximo de dos especialistas de un change normal.
+
+#### Política
+
+```text
+0 señales positivas
+  → 0 especialistas
+
+1-2 señales positivas
+  → targeted review
+
+3-4 señales positivas
+  → escalar depth.review=strict
+  → full 4R
+```
+
+#### Alcance
+
+- modificar el clasificador/reducer;
+- persistir razón de escalado;
+- conservar orden canónico y evidence fingerprint;
+- ajustar fixtures y paridad de cinco targets;
+- actualizar OpenSpec baseline;
+- mantener generalist-first;
+- no cambiar el linaje acotado.
+
+#### Done criteria
+
+- ningún reason positivo termina como `normal-cap-excluded`;
+- 3+ dimensiones producen full 4R;
+- 0-2 conservan targeted review;
+- malformed evidence sigue fallando cerrado;
+- tests focales, `npm test` y paridad pasan;
+- roadmap, arquitectura y specs coinciden.
+
+### O6A. Archive híbrido transaccional — **pending**
+
+**Change sugerido:** `hybrid-archive-transaction-runtime`.
+
+#### Objetivo
+
+Separar interpretación semántica de operaciones mecánicas y garantizar cierre transaccional, verificable y recuperable.
+
+#### Plano semántico
+
+`sdd-archive`:
+
+- interpreta deltas;
+- prepara specs resultantes;
+- detecta conflictos;
+- propone ADRs;
+- produce `archive-plan.json`;
+- no borra el origen.
+
+#### Plano determinista
+
+Runtime:
+
+- valida verdict, gates, approvals y fingerprints;
+- valida el plan y hashes de inputs;
+- escribe staging;
+- copia e inventaría;
+- compara bytes;
+- realiza commit/rename;
+- elimina origen solo tras match completo;
+- genera receipt, coste y rollback;
+- recupera transacciones interrumpidas.
+
+#### Fuera de alcance
+
+- parser semántico determinista de Markdown libre;
+- migrar toda la evidencia a JSON;
+- CI headless;
+- cambiar formato de specs.
+
+#### Done criteria
+
+- fallo antes del commit deja origen intacto;
+- fallo posterior al staging es reanudable;
+- una referencia/hash incorrecto bloquea;
+- ningún borrado ocurre antes del full match;
+- rollback probado en fixtures;
+- archive agent no declara move completo;
+- paridad JS/Go donde corresponda;
+- `npm test` y tests de filesystem pasan en Windows/Linux.
+
+### O2B. Baseline fija fixed-policy — **pending**
+
+**Change sugerido:** `fixed-policy-reference-baseline`.
+
+**Dependencia:** O6A.
+
+#### Objetivo
+
+Congelar el control contra el que se comparará adaptive.
+
+#### Perfiles obligatorios
+
+1. docs-one-file;
+2. small-bugfix;
+3. small-feature;
+4. cross-module-feature;
+5. behavior-preserving-refactor;
+6. public-api-change;
+7. filesystem-sensitive-change;
+8. security-sensitive-change;
+9. migration-change.
+
+#### Requisitos
+
+- policy `fixed`;
+- misma versión de harness y target;
+- identidad de modelo/effort conocida;
+- provenance completa;
+- resultados comparables;
+- baseline publicada solo con 9/9 válidos;
+- smoke 3/3 conservado para ciclos rápidos;
+- cero filas inventadas o sintetizadas.
+
+#### Done criteria
+
+- baseline 9/9 versionada;
+- comando reproducible documentado;
+- resultados incompatibles se rechazan;
+- métricas de calidad, coste, duración, preguntas y defectos disponibles;
+- baseline no se modifica silenciosamente al cambiar fixtures.
+
+## 7. Ola 2 — control plane adaptativo
+
+### O13A. Perfil adaptativo revisionado — **pending**
+
+**Change sugerido:** `adaptive-change-profile`.
+
+**Dependencia:** O2B.
+
+#### Entregables
+
+- schema `execution-profile.json`;
+- `intent`, `topology`, `preset`, `risk`, `depth`, `sources`;
+- revision y fingerprint;
+- referencia compacta desde `state.yaml`;
+- normalización de señales;
+- historial de reevaluaciones;
+- fixtures por riesgo y topología.
+
+#### Restricciones
+
+- no cambia todavía el flujo por defecto;
+- no selecciona modelo efectivo;
+- no elimina rutas ni aliases;
+- no aumenta el prompt del orquestador con parsers.
+
+#### Done criteria
+
+- mismo input produce mismo fingerprint;
+- sources justifican cada score;
+- señales desconocidas fallan o degradan según schema;
+- state conserva referencia, no payload completo;
+- recuperación desde filesystem probada.
+
+### O13B. Resolver de policy de ejecución — **pending**
+
+**Change sugerido:** `adaptive-execution-policy-resolver`.
+
+**Dependencia:** O13A.
+
+#### Entregables
+
+Función pura:
+
+```js
+resolveExecutionPolicy({
+  phase,
+  profile,
+  projectPolicy,
+  targetCapabilities,
+  previousDecision
+});
+```
+
+Produce:
+
+- variante;
+- garantías mínimas;
+- gates;
+- validators;
+- materialización;
+- intención de modelo/effort;
+- reasons;
+- clamps.
+
+#### Restricciones
+
+- modo default sigue siendo `fixed`;
+- decisiones adaptive se calculan en shadow;
+- el resolver no toca filesystem ni ejecuta agentes;
+- el modelo no puede reinterpretar el resultado.
+
+#### Done criteria
+
+- matriz de decisiones cubierta;
+- monotonicidad de garantías probada;
+- clamps por target probados;
+- razones canónicas y fingerprinted;
+- fallback fixed/strict probado.
+
+### O13C. Kernel de invocación y orquestador fino — **pending**
+
+**Change sugerido:** `phase-invocation-kernel`.
+
+**Dependencia:** O13B.
+
+#### Objetivo
+
+Extraer del prompt del orquestador la lógica repetible de dispatch.
+
+#### Entregables
+
+- `invokePhase()`;
+- registro pre-dispatch;
+- compilación de contexto mínimo;
+- aplicación de capabilities;
+- validación de envelope;
+- persistencia de decisión/telemetría;
+- reducer de next action;
+- guard que mantiene el orquestador por debajo del límite.
+
+#### Done criteria
+
+- el orquestador coordina, no implementa policy;
+- no hay lógica duplicada por target;
+- dispatches son reproducibles desde state/profile;
+- errores contractuales producen reparación dirigida;
+- tamaño y sentinels del orquestador pasan.
+
+### O13D. Variantes generadas de agentes — **pending**
+
+**Change sugerido:** `generated-agent-variants`.
+
+**Dependencias:** O13B + O13C.
+
+#### Objetivo
+
+Generar wrappers `lite|standard|strict` desde una fuente y una skill canónicas.
+
+#### Entregables
+
+- expansión one-to-many;
+- manifest de variantes;
+- fingerprint fuente+policy;
+- mapping por target;
+- validadores que detectan drift;
+- compatibilidad con nombres actuales.
+
+#### Reglas
+
+- una skill por fase;
+- no copiar metodología;
+- wrappers solo expresan depth, límites, modelo/effort intent y capabilities;
+- target sin capacidad degrada explícitamente;
+- no inflar el contexto always-on.
+
+#### Done criteria
+
+- editar la fuente actualiza todas las variantes;
+- drift manual falla validación;
+- paridad semántica en cinco targets;
+- ninguna variante duplica una skill completa;
+- build e instaladores siguen siendo idempotentes.
+
+### O19A. Validadores contractuales mínimos — **pending**
+
+**Change sugerido:** `planning-contract-validators-core`.
+
+**Dependencias:** O13A.
+
+#### Incluye
+
+- intención/proposal;
 - requirements y escenarios;
 - asignación de diseño;
-- trazabilidad de tasks;
-- planning envelope.
+- cobertura de tasks;
+- planning envelope;
+- referencias al perfil;
+- repair codes.
 
-Done criteria: errores concretos y reparación dirigida, no regeneración completa.
+#### Done criteria
 
-### Ola 2 — planificación adaptativa en paralelo seguro
+- errores concretos;
+- reparación dirigida;
+- ninguna regeneración completa como fallback por defecto;
+- schemas versionados;
+- fixtures adversariales;
+- integration con invocation kernel.
 
-#### O7+O10. `sdd-plan` parametrizado por profundidad — **pending**
+## 8. Ola 3 — planificación adaptativa y A/B
 
-Change sugerido: `adaptive-sdd-plan`.
+### O7+O10. `sdd-plan` parametrizado por profundidad — **pending**
 
-Dependencias: O13A + O19A.
+**Change sugerido:** `adaptive-sdd-plan`.
 
-Requisitos:
+**Dependencias:** O13A–D + O19A.
 
-- una invocación puede producir varias responsabilidades semánticas;
-- checkpoints internos Scope → Behavior → Architecture → Reconciliation → Tasks;
-- `planning_request` deriva del perfil;
+#### Requisitos
+
+- una única fase compuesta;
+- una única skill canónica;
+- checkpoints Scope → Behavior → Architecture → Reconciliation → Tasks;
+- `planning_request` derivado del perfil;
+- una invocación puede producir varias responsabilidades;
 - formatos actuales siguen soportados;
-- materialización compacta permitida solo por policy explícita;
-- envelope y validadores pasan antes de persistir.
+- materialización compacta solo por policy;
+- validadores antes de persistir;
+- reparación por checkpoint.
 
-#### O9+O11. Reevaluación y escalado continuo — **pending**
+#### Done criteria
 
-Change sugerido: `adaptive-depth-controller`.
+- lite no pierde responsabilidad semántica;
+- strict no reduce mínimos;
+- outputs actuales siguen consumibles;
+- tests de cobertura cruzada;
+- coste e invocaciones medibles;
+- no aparece un segundo orquestador.
 
-Dependencias: O13A + O7/O10.
+### O9+O11. Reevaluación y escalado continuo — **pending**
 
-Recalcula el perfil después de contrato, diseño, apply y verify. Puede escalar a más profundidad o bloquear; conserva borradores y revalida antes de reutilizarlos.
+**Change sugerido:** `adaptive-depth-controller`.
 
-#### O8. Shadow mode y A/B — **pending**
+**Dependencia:** O7+O10.
 
-Change sugerido: `adaptive-flow-shadow-mode`.
+#### Checkpoints
 
-No crear una ruta pública permanente `standard-optimized`. Introducir una policy experimental:
+- post-contract;
+- post-design;
+- post-apply;
+- post-verify;
+- pre-review;
+- pre-archive.
+
+#### Requisitos
+
+- revisión monotónica;
+- profile revision history;
+- borradores reutilizables solo tras revalidación;
+- escalado de review, verify, modelo intent y gates;
+- desescalada limitada a presentación/coste no material.
+
+#### Done criteria
+
+- señales nuevas cambian revision/fingerprint;
+- no se pierde evidencia previa;
+- 3+ señales de review mantienen full 4R;
+- cambios inesperados de diff escalan;
+- recuperación post-compact reproduce la decisión.
+
+### O8. Shadow mode y A/B — **pending**
+
+**Change sugerido:** `adaptive-flow-shadow-mode`.
+
+**Dependencias:** O9+O11 + O2B.
+
+#### Policies
 
 ```text
 --execution-policy=fixed
+--execution-policy=adaptive-shadow
 --execution-policy=adaptive
 ```
 
-El modo adaptive se compara contra el flujo actual con changes de referencia. No sustituye defaults hasta demostrar calidad no inferior.
+`adaptive-shadow` calcula decisiones sin ejecutarlas.
 
-#### O12. Limpieza final de aliases — **pending, al final de la ola**
+#### Comparación
 
-Reemplaza el antiguo “renombrado de rutas”. Solo después del A/B:
+- mismos nueve perfiles;
+- misma versión;
+- modelos y effort controlados;
+- calidad y defectos;
+- requisitos/evidencia;
+- invocaciones;
+- tokens;
+- duración;
+- preguntas;
+- escaladas;
+- divergencias de policy.
+
+#### Done criteria para activar adaptive
+
+- calidad no inferior;
+- cero pérdida de requisitos/evidencia/aprobaciones;
+- cero señales materiales descartadas;
+- fallback fixed/strict probado;
+- ahorro o latencia mejorada demostrable;
+- audit trail reproducible;
+- paridad aceptable por target.
+
+### O12. Limpieza de aliases — **pending**
+
+**Change sugerido:** `execution-alias-compatibility-cleanup`.
+
+**Dependencia:** O8 aprobado.
 
 - documentar presets por garantías;
-- conservar aliases de compatibilidad con deprecation explícita;
-- separar intención/topología/preset en CLI y config;
-- retirar nombres transicionales.
+- separar intención/topología/preset en config;
+- conservar aliases con deprecation;
+- retirar nombres transicionales solo con migración;
+- no crear ruta pública `standard-optimized`.
 
-### Ola 3 — coste, evidencia y presentación
+## 9. Ola 4 — routing, evidencia y presentación
 
-#### O14. Routing de modelos por decisión — **pending**
+### O14. Routing de modelos por decisión — **pending**
 
-Change sugerido: `decision-aware-model-routing`.
+**Change sugerido:** `decision-aware-model-routing`.
 
-Dependencias: O13A.
+**Dependencias:** O8 aprobado + O13B.
 
-El tier se decide por dimensión, riesgo y operación; `state.yaml` registra modelo, effort y razón. Debe respetar clamps y capacidades del host.
+#### Alcance
 
-#### O15. Evidencia estructurada — **pending**
+- activar `modelTierIntent` y `effortIntent`;
+- resolver modelo efectivo por target;
+- registrar solicitado, clamp, efectivo y razón;
+- respetar configuración local;
+- fallar/degradar cuando el modelo no está disponible;
+- ejecutar golden evals antes de cambiar tiers.
 
-Change sugerido: `structured-change-evidence`.
+#### Done criteria
+
+- ningún cambio de modelo sin evidencia;
+- fallback documentado;
+- model/effort efectivos auditables;
+- targets sin selección nativa se marcan `inherited|unavailable`;
+- no usar hooks de tool para seleccionar modelo de fase.
+
+### O15. Evidencia estructurada — **pending**
+
+**Change sugerido:** `structured-change-evidence`.
 
 Canon:
 
@@ -179,156 +614,209 @@ Canon:
 .ospec/evidence/<change>/tasks.jsonl
 .ospec/evidence/<change>/tests.jsonl
 .ospec/evidence/<change>/reviews.jsonl
+.ospec/evidence/<change>/decisions.jsonl
 .ospec/evidence/<change>/traceability.json
 ```
 
-El runtime captura lo mecánico. Markdown se renderiza.
+#### Done criteria
 
-#### O16+O17. Vistas compactas y perfiles de informe — **pending**
+- runtime captura hechos;
+- IDs y schemas versionados;
+- Markdown no es autoridad mecánica;
+- append concurrente seguro;
+- archive incluye receipts y hashes;
+- migración compatible con changes antiguos.
 
-Change sugerido: `evidence-report-views`.
+### O16+O17. Vistas compactas e informes — **pending**
 
-- `apply-progress.md` pasa a índice breve;
-- verify report: summary, behavioral o full-audit;
-- el nivel deriva de `depth.verification`, no del nombre de una route;
-- el verdict y los errores nunca cambian por presentación.
+**Change sugerido:** `evidence-report-views`.
 
-#### O18. Phase capsules compiladas — **pending**
+- `apply-progress.md` como índice;
+- verify `summary|behavioral|full-audit`;
+- review report renderizado;
+- nivel derivado de `depth`;
+- verdict invariable;
+- enlaces a evidencia canónica.
 
-Change sugerido: `compiled-phase-capsules`.
+### O18. Phase capsules compiladas — **pending**
 
-Dependencias: perfil adaptativo estable + adapters de capabilities.
+**Change sugerido:** `compiled-phase-capsules`.
 
-Prompt mínimo por dispatch, fingerprinted y regenerado solo ante cambios relevantes.
+**Dependencias:** O13D + O15.
 
-#### O19B. Validadores completos — **pending**
+- contexto mínimo por dispatch;
+- fingerprint;
+- regeneración por cambios relevantes;
+- límites por target;
+- no inlining de artefactos completos;
+- medición de tokens always-on/on-invoke.
 
-Change sugerido: `complete-contract-evidence-validators`.
+### O19B. Validadores completos — **pending**
 
-Amplía O19A a envelopes de resultado, workload, verify evidence, reviews y trazabilidad completa.
+**Change sugerido:** `complete-contract-evidence-validators`.
 
-### Ola 4 — headless y CI
+Amplía O19A a:
 
-#### R1. Verify estructural no interactivo — **pending**
+- result envelopes;
+- workload;
+- verify evidence;
+- review decisions y lineage;
+- archive plan/receipt;
+- trazabilidad completa;
+- evidence renderers.
 
-Change sugerido: `headless-sdd-verification`.
+## 10. Ola 5 — headless y CI
 
-Dependencias: O6 + O15 + O19B.
+### R1. Verificación estructural no interactiva — **pending**
+
+**Change sugerido:** `headless-sdd-verification`.
+
+**Dependencias:** O6A + O15 + O19B.
+
+#### Entregables
 
 - CLI con exit codes;
-- validación de state, specs, deltas, trailers y evidencia;
-- GitHub Action/plantillas;
-- gates interactivos siempre `halt`, nunca auto-approve.
+- validación de state, profile, specs, deltas, trailers y evidencia;
+- verify headless;
+- archive readiness sin auto-aprobación;
+- plantillas GitHub Actions;
+- reports machine-readable;
+- capabilities por target.
 
-## 5. Lane de targets
+#### Reglas
 
-Los subroadmaps no deciden prioridad global. Se ejecutan en paralelo solo cuando no interrumpen la ruta crítica y sus dependencias están disponibles.
+- gate interactivo pendiente → `halt`;
+- nunca auto-approve;
+- CI no reinterpreta semántica;
+- secretos fuera de artefactos;
+- outputs reproducibles.
 
-| Target | Estado agregado | Próximo change | Dependencia transversal |
+## 11. Lane de targets
+
+Los subroadmaps no deciden prioridad global. Pueden avanzar cuando no cambien el control plane ni invaliden la baseline.
+
+| Target | Estado agregado | Próximo trabajo permitido | Dependencia transversal |
 | --- | --- | --- | --- |
-| Claude Code | Fase nativa pendiente | 6.1 hooks exec + matchers | Puede comenzar tras G0; O15/O18 para hooks/evidence/preload avanzados |
-| VS Code | Fase nativa pendiente | 6.1 hooks enable; 6.2 validator puede ir en paralelo | G0; O4/O5 para paralelo selectivo |
-| Codex | Bloque inicial completo; fase 2 parcial | 6.2 hooks decision control | Revalidar plataforma; O15/R1 para CI y evidencia |
-| GitHub Copilot CLI | Sin roadmap vigente | Investigación + roadmap | Después de G0, sin bloquear core |
-| OpenCode | Sin roadmap vigente | Investigación + roadmap | Después de G0, sin bloquear core |
+| Claude Code | Fase nativa pendiente | hooks exec/matchers, validación strict | Independiente; preload/capsules dependen O13D/O18 |
+| VS Code | Fase nativa pendiente | hooks enable y validator | Independiente; variantes dependen O13D |
+| Codex | Bloque inicial completo; fase 2 parcial | revalidar hooks/decision control | O15/R1 para evidencia y CI |
+| GitHub Copilot | Target funcional; roadmap específico pendiente | investigar modelo/permisos/hooks vigentes | O13D/O14 para variantes y modelo |
+| OpenCode | Target funcional; roadmap específico pendiente | migrar capabilities deprecadas y revalidar permisos | O13D/O14 |
 
 Reglas:
 
-- revalidar documentación oficial al abrir cada change;
-- implementar primero capacidades transversales en el adapter común cuando sea posible;
-- registrar `enforced|partial|instructional` por garantía;
-- no duplicar en este archivo el checklist detallado del target.
+- revalidación oficial al abrir cada change;
+- adapter común primero;
+- capabilities `enforced|partial|instructional|unavailable`;
+- no duplicar backlog transversal;
+- pruebas de paridad con el mismo input;
+- metadata del repositorio debe reconocer los cinco targets.
 
-## 6. Lane de conocimiento
-
-Se ejecuta después de la Ola 2 o en paralelo sin tocar control plane.
+## 12. Lane de conocimiento
 
 ### R2. Foundation + OpenWiki — **pending**
 
+Puede avanzar después de O8 o en paralelo si no toca el control plane.
+
 Orden:
 
-1. reparto normativo foundation vs wiki;
-2. consumo aguas abajo de brief, scope, baseline y glossary;
+1. reparto normativo;
+2. consumo aguas abajo;
 3. ingesta resiliente;
 4. foundation por etapas y gates batcheados;
-5. modo adopt para brownfield;
-6. lifecycle, staleness y refresh;
-7. Starlight como vista sincronizada opcional.
+5. adopt para brownfield;
+6. staleness y refresh;
+7. Starlight opcional como vista.
 
-No mezclar este bloque con O15–O17: conocimiento del producto y evidencia de ejecución son capas diferentes.
+No mezclar conocimiento de producto con evidencia de ejecución.
 
-## 7. Lane de escala
+## 13. Lane de escala
 
 ### R4. Epic intra-repo y federación write — **pending**
 
-Dependencias: perfil adaptativo + archive determinista + validadores + CI base.
+**Dependencias:** O13A–C + O6A + O19B + R1 base.
 
 Orden:
 
-1. `epic: true` + `sub_changes[]` y DAG intra-repo;
+1. `sub_changes[]` y DAG intra-repo;
 2. change coordinador multi-repo;
-3. contratos compartidos;
+3. contratos compartidos versionados;
 4. apply provider → consumers;
-5. verify federado.
+5. verify federado;
+6. archive coordinado.
 
-Cada hijo recibe su propio `change_profile`; no una ruta sugerida rígida.
+Cada hijo recibe perfil independiente. No se crea una ruta rígida `epic`.
 
-## 8. Completado consolidado
+## 14. Métricas y gates del programa
 
-Se considera cerrado y se mantiene solo como baseline histórica:
-
-- auditoría inicial de agentes, skills, infraestructura y 4R;
-- fixes de seguridad, rutas y portabilidad del roadmap inicial;
-- A1–A5, B2, B3, B5, C1–C5;
-- paridad Go/JavaScript fase 1, evals y contract lint;
-- sdd-document wiring e integridad de archive/fingerprints;
-- telemetría O1;
-- suite experimental O2, sin atribuir ahorros incompatibles;
-- clarify condicional O3;
-- target Codex bloque inicial;
-- G0 gobernanza documental: estructura `docs/architecture/` + `docs/roadmaps/` instalada;
-- O4+O5 review adaptativo: compuerta generalista O5, despacho selectivo 4R O4, linajes acotados y máquinas de estados reductoras en js.
-
-Los documentos que describían estos trabajos viven en `analisis-fino/archive/` y no generan backlog nuevo.
-
-## 9. Métricas y gates de programa
-
-Cada ola debe publicar:
+Cada ola publica:
 
 - coste total e invocaciones;
+- tokens y duración;
 - defectos antes/después de verify;
-- escaladas y reviewers seleccionados con motivo;
-- porcentaje de trazabilidad completa;
+- escaladas y reviewers con motivo;
+- señales descartadas: objetivo 0;
+- trazabilidad completa;
 - reparaciones dirigidas frente a relanzamientos;
 - paridad por target;
-- deuda documental o de specs introducida: objetivo 0.
+- degradaciones activadas;
+- deuda documental o de specs: objetivo 0.
 
-Para promover adaptive como default:
+Para promover adaptive:
 
-1. calidad no inferior al flujo fijo en fixtures comparables;
-2. ninguna pérdida de requisitos, evidencia o aprobación;
-3. reducción demostrable de invocaciones/relecturas o latencia;
-4. fallback a strict probado;
-5. audit trail suficiente para explicar cada decisión del control plane.
+1. calidad no inferior;
+2. cero pérdida de requisitos, evidencia o aprobación;
+3. cero señales materiales descartadas;
+4. fallback probado;
+5. ahorro o latencia mejorada;
+6. audit trail reproducible;
+7. paridad aceptable;
+8. baseline fija e identidades compatibles.
 
-## 10. Gotchas operativos vigentes
+## 15. Gotchas operativos vigentes
 
-- `analisis-fino/` estaba gitignoreado: no dejar fuentes activas allí.
-- Guard del orquestador `< 500` líneas y sentinels de no-reinlining.
-- Clarify es gate, no fase.
+- `analisis-fino/` no es autoridad activa.
+- Mantener el guard de tamaño del orquestador y sentinels de no-reinlining.
+- Clarify es gate, no fase declarada.
 - Mantener paridad JavaScript/Go en contratos compartidos.
-- Verificar inventario antes de cualquier borrado en archive/migraciones.
-- Reintentar flakies conocidos solo después de confirmar que pasan aislados; no ocultar fallos reales.
-- Los roadmaps de targets contienen snapshots fechados: revalidar antes de implementar.
-- Sin atribución de IA en commits, según hooks del proyecto.
+- Inventariar y comparar antes de cualquier borrado.
+- No tratar Markdown libre como input determinista sin plan/schema.
+- No relanzar reviewers tras congelar findings.
+- No resetear linajes por retry o interrupción.
+- No promover adaptive con baseline 3/3 smoke.
+- No activar routing dinámico de modelos antes del A/B.
+- Revalidar roadmaps de target antes de implementar.
+- No atribuir IA en commits o PRs.
+- Confirmar flakies aislados antes de reintentar; no ocultar fallos reales.
+- Corregir cualquier metadata que todavía indique cuatro targets.
 
-## 11. Historial resumido
+## 16. Completado consolidado
 
-- 2026-07-02/04: núcleos A–F y telemetría inicial entregados.
-- 2026-07-05/07: integridad contractual, documentador, archive/fingerprints y contract lint entregados.
+Baseline histórica cerrada:
+
+- auditoría inicial de agentes, skills, infraestructura y 4R;
+- fixes de seguridad, routing y portabilidad;
+- A1–A5, B2, B3, B5, C1–C5;
+- paridad Go/JavaScript fase 1;
+- prompt evals y contract lint;
+- sdd-document;
+- fingerprints y endurecimiento de archive;
+- telemetría O1;
+- O2A benchmark infrastructure;
+- O3 clarify condicional;
+- target Codex bloque inicial;
+- G0 gobernanza;
+- G0.1 reconciliación;
+- O4+O5 review selectivo y linaje acotado.
+
+## 17. Historial resumido
+
+- 2026-07-02/04: núcleos iniciales y telemetría.
+- 2026-07-05/07: integridad contractual, documentación, archive/fingerprints y lints.
 - 2026-07-07/10: evals, exploración epic y roadmaps por target.
-- 2026-07-10: optimización del flujo adoptada como dirección.
-- 2026-07-14/15: O2 cerrado experimentalmente y O3 entregado.
-- 2026-07-16: reconciliación arquitectónica: rutas pasan a presets, perfil adaptativo precede a `sdd-plan`, documentos activos salen de `analisis-fino/`.
-- 2026-07-17: G0 completado manualmente; estructura `docs/architecture/` y `docs/roadmaps/` instalada. ▶ SIGUIENTE pasa a O6.
-- 2026-07-18: O4+O5 entregado y archivado. Release v2.30.0 publicada. Pruebas de CI de parity corregidas.
+- 2026-07-10: dirección de optimización adaptativa.
+- 2026-07-14/15: O2A y O3.
+- 2026-07-16: reconciliación conceptual de rutas, presets y perfil.
+- 2026-07-17: G0.
+- 2026-07-18: O4+O5 y release v2.30.0.
+- 2026-07-18: G0.1 redefine la ruta crítica: O4.1 → O6A → O2B → O13A–D/O19A → `sdd-plan` → reevaluación → A/B.
