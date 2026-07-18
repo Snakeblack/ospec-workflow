@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-07-06T23:22:45Z",
-  "command": "init",
-  "gitHead": "797ba4d",
+  "updatedAt": "2026-07-18T00:37:00Z",
+  "command": "update",
+  "gitHead": "2dc830a",
   "generator": "sdd-document",
   "version": "2.0",
   "sections": [
@@ -15,9 +15,9 @@
     "workspace-federation/multi-repo.md"
   ],
   "stats": {
-    "filesGenerated": 8,
-    "filesUpdated": 0,
-    "filesSkipped": 0
+    "filesGenerated": 0,
+    "filesUpdated": 5,
+    "filesSkipped": 3
   },
   "doc_language": "es",
   "scope_choice": "D"

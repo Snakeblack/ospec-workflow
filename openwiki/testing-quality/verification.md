@@ -14,6 +14,11 @@ de calidad.
 - **Cobertura**: 20+ archivos `scripts/**/*.test.js` (unitarios e
   integración) más los tests Go en `internal/hooks/*_test.go` y
   `cmd/ospec-hooks/*_test.go`.
+- **Suite de evals golden**: `scripts/evals/` contiene escenarios reproducibles
+  del orquestador (JSON de input/output esperado) y un benchmark O2 para
+  regresión continua. Los fixtures cubren rutas como `high-risk-clarify-route`,
+  `vague-request-no-artifact`, `apply-design-mismatch-blocked`,
+  `document-batched-gate` y `verify-fail-spec-gap-routes-sdd-spec`.
 
 `scripts/check.js` es el comando único de verificación local y CI: ejecuta la
 suite de tests, genera y valida los tres targets no-canónicos (`claude`,
@@ -74,6 +79,18 @@ Claves de gate desconocidas se ignoran silenciosamente (forward-compat).
    archive; `on_fail: halt` registra un BLOCKER que bloquea archive hasta
    resolverse o anularse explícitamente.
 
+## Módulos de revisión 4R selectiva
+
+El sistema de revisión introduce tres módulos puros (sin IO) testeados bajo Strict TDD:
+
+| Módulo | Responsabilidad |
+| --- | --- |
+| `review-dimensions.js` | Normaliza la evidencia del diff (facts, signals, capabilities), calcula un fingerprint SHA-256 y deriva qué dimensiones 4R (`risk`, `reliability`, `resilience`, `readability`) aplican para el cambio. |
+| `review-gate-state.js` | Gestiona el estado de la compuerta: consume la decisión del generalista, produce el resultado ejecutable (`next_action`) y adapta la selección de especialistas. |
+| `review-lineage.js` | Congela el linaje de revisión: candidato inmutable, genesis paths, IDs de findings, presupuesto de líneas (`min(200, ceil(changed_lines/2))`). Cada lente se ejecuta una sola vez; tres validaciones fallidas agotan el linaje. |
+
+Tres tests suite contratos en: `scripts/review-dimensions.test.js`, `scripts/review-gate-state.test.js`, `scripts/review-lineage.test.js`, `scripts/selective-4r-parity.test.js`.
+
 ## Por qué la arquitectura está diseñada así
 
 Que `quality_gates:` sea estrictamente opt-in y no-op en ausencia evita
@@ -108,3 +125,7 @@ de detenerse en el primer fallo y ocultar el resto.
 - `/package.json` (script `test`)
 - `/skills/sdd-verify/SKILL.md`
 - `/openspec/config.yaml` (bloque comentado `quality_gates:`)
+- `/scripts/evals/` — `git log`: `ddf50ae` (benchmark O2), `2bba33f` (golden suite bloque 2.1)
+- `/scripts/lib/review-dimensions.js`, `/scripts/lib/review-gate-state.js`, `/scripts/lib/review-lineage.js`
+- `/scripts/review-dimensions.test.js`, `/scripts/review-gate-state.test.js`, `/scripts/review-lineage.test.js`
+- `/scripts/selective-4r-parity.test.js`

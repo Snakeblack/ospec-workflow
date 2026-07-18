@@ -48,8 +48,11 @@ para eso existen los gates o las opciones de fase.
 
 ### Gates
 
-- **clarify** — el orquestador detecta ambigüedad y pide aclaraciones antes de continuar.
-- **4r-review-gate** — tras un `sdd-verify` exitoso, cuatro sub-agentes revisores (`review-risk`, `review-readability`, `review-reliability`, `review-resilience`) evalúan si el cambio requiere revisión humana.
+- **clarify** — el orquestador detecta ambigüedad **con señales estructuradas** (preguntas abiertas, falta de scope, cambios contraditorios) antes de continuar. Solo activa cuando hay evidencia real de ambigüedad; no a la primera duda.
+- **4r-review-gate** — tras un `sdd-verify` exitoso, el flujo selectivo 4R:
+  1. La **compuerta generalista** (`review-change`) normaliza la evidencia del cambio (diff, paths, capabilities, findings) mediante `review-dimensions.js`.
+  2. Despacha solo los sub-agentes revisores justificados: cambios *normales* activan **máximo dos** (`review-risk`, `review-readability`, `review-reliability`, `review-resilience`); cambios *high-risk* activan los **cuatro**.
+  3. `review-gate-state.js` gestiona el estado de la compuerta; `review-lineage.js` congela linaje, findings inmutables y presupuesto de correcciones.
 - **impact** — en rutas federadas, evalúa impacto cross-repo antes de implementar.
 - **brownfield-advisory** — informa sobre el estado de baseline antes de ejecutar `sdd-baseline`.
 - **review-workload** — guarda el presupuesto de revisión de ~400 líneas por PR.
@@ -120,12 +123,17 @@ forma impredecible en producción.
   `scripts/lib/result-envelope.js` y su espejo Go (`internal/resultenvelope`).
 - Los agentes de fase son ejecutores, no orquestadores: no deben delegar en
   más sub-agentes salvo instrucción explícita del skill.
+- Cambiar el esquema de evidencia de `review-dimensions.js` invalida el
+  fingerprint de evidencias previas — requiere versionado del schema.
 
 ## Mapa de fuentes
 
-- `/scripts/lib/route-dispatcher.js` — `git log`: `952d7de`, `cc0f79d` (routing intent-based + gate 4R)
+- `/scripts/lib/route-dispatcher.js` — `git log`: `1814f01` (4R selectivo + generalista), `f902f13` (clarify condicionado)
 - `/openspec/config.yaml` (bloque `routing`)
 - `/agents/sdd-orchestrator.agent.md`, `/agents/*.agent.md`
 - `/skills/_shared/sdd-phase-common.md`, `/skills/sdd-*/SKILL.md`
+- `/scripts/lib/review-dimensions.js` — normaliza evidencia y deriva especialistas 4R
+- `/scripts/lib/review-gate-state.js` — estado de la compuerta de revisión
+- `/scripts/lib/review-lineage.js` — linaje, findings inmutables, presupuesto correcciones
 - `/scripts/lib/skill-registry.js`, `/scripts/hooks/session-start.js`
 - `/openspec/specs/routing/spec.md`, `/openspec/specs/agents/spec.md`, `/openspec/specs/skills/spec.md`, `/openspec/specs/skill-registry/spec.md`

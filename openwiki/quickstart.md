@@ -4,9 +4,9 @@
 **OpenSpec** como única fuente de verdad versionable y un orquestador que
 coordina agentes de fase (`propose → spec → design → tasks → apply → verify →
 archive`), aplicando Strict TDD, control de tamaño de revisión y gates de
-seguridad activos en cada commit. El mismo árbol fuente se distribuye a cuatro
-targets de chat/IDE (`claude`, `vscode`, `github-copilot`, `opencode`) mediante
-un generador puro.
+seguridad activos en cada commit. El mismo árbol fuente se distribuye a **cinco**
+targets de chat/IDE (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`)
+mediante un generador puro.
 
 ## Qué hace este repositorio
 
@@ -26,9 +26,20 @@ un generador puro.
   **Token Budget Advisor** (presupuesto de contexto), **git-collaboration-guard**
   (confirmaciones antes de commits riesgosos) y un hook `pre-commit` que valida
   el estado de OpenSpec y Strict TDD.
-- Compila el árbol canónico (formato VS Code) a cuatro distribuciones nativas
+- Compila el árbol canónico (formato VS Code) a **cinco** distribuciones nativas
   en `dist/<target>/` mediante `scripts/configure/cli.js`, con validadores por
-  target y fixtures golden.
+  target y fixtures golden. El quinto target `codex` tiene sandbox de grano fino
+  y políticas de aprobación configurables.
+- Aplica un **sistema de revisión 4R selectivo**: tras `sdd-verify`, una
+  compuerta generalista clasifica el cambio y despacha solo los sub-agentes
+  revisores necesarios (`review-risk`, `review-readability`, `review-reliability`,
+  `review-resilience`) — cambios normales activan máximo dos; alto riesgo activa
+  los cuatro. Los módulos `review-dimensions`, `review-gate-state` y
+  `review-lineage` gestionan evidencia, decisiones y trazabilidad.
+- Incluye una **suite de evals golden** (`scripts/evals/`) con escenarios
+  reproducibles para el orquestador y benchmark O2 para regresión continua.
+- Registra **telemetría detallada de costes de fase** por cada dispatch SDD,
+  preservando el artefacto de progreso entre sesiones.
 - Soporta workspaces multi-repo federados (`sdd-workspace`) con un atlas de
   miembros, baseline federado resumible y marcadores de metadatos por repo.
 
@@ -49,13 +60,18 @@ un generador puro.
 | `/openspec/config.yaml` | Tabla de routing, reglas por fase, políticas opcionales (quality gates, hooks declarativos, traceability). |
 | `/scripts/configure/cli.js` | CLI del generador multi-target; capa de IO sobre `target-transform.js`. |
 | `/scripts/lib/target-transform.js` | Transformación pura árbol-fuente → árbol-target. |
+| `/scripts/lib/target-profiles/codex.js` | Perfil del quinto target (Codex/OpenAI); sandbox, políticas de aprobación. |
 | `/scripts/lib/route-dispatcher.js` | Resuelve qué ruta/fases ejecutar dado un cambio clasificado. |
+| `/scripts/lib/review-dimensions.js` | Normaliza evidencia de review y despacha selectivamente dimensiones 4R. |
+| `/scripts/lib/review-gate-state.js` | Gestiona el estado de la compuerta de revisión 4R. |
+| `/scripts/lib/review-lineage.js` | Congela y valida la linaje de revisión (candidato, findings, presupuesto). |
 | `/hooks/hooks.json` | Registro de los cinco eventos de ciclo de vida del plugin. |
 | `/scripts/hooks/ospec-hooks-launch.js` | Launcher que prefiere el binario Go y cae a Node.js cuando corresponde. |
 | `/scripts/lib/artifact-store.js` | Abstracción de persistencia de artefactos (`openspec` / federado). |
 | `/scripts/check.js` | Comando único de verificación local/CI (`npm test`). |
 | `/agents/sdd-orchestrator.agent.md` | Definición del orquestador. |
 | `/skills/_shared/sdd-phase-common.md` | Protocolo compartido por todos los agentes de fase (envelope, memoria, gates). |
+| `/scripts/evals/` | Suite de evals golden del orquestador y benchmark O2. |
 
 ## Mapa de documentación
 
@@ -98,4 +114,4 @@ un generador puro.
 - `/scripts/check.js`, `/openspec/specs/quality-gates/spec.md`
 - `/openspec/specs/workspace-explore/spec.md`, `/openspec/specs/federated-baseline-orchestration/spec.md`
 
-Evidencia git: HEAD `797ba4d` (v2.20.0).
+Evidencia git: HEAD `2dc830a` (v2.30.0).

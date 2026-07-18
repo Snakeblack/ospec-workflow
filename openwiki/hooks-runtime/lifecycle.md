@@ -58,6 +58,10 @@ flowchart TD
    en el camino más frecuente y sensible a latencia.
 5. Si `openspec/config.yaml` falta, es ilegible, o no especifica `backend`,
    el launcher asume `openspec` por defecto.
+6. El **wrapper de degradación ASK** garantiza que ningún hook Node.js se
+   queda callado ante un error: ante excepción no capturada, siempre retorna
+   una línea JSON válida con `behavior: ask` y el motivo de error. El binario
+   Go aplica la misma política desde `74ce1cb`.
 
 ## Detección de drift de dominio
 
@@ -98,12 +102,15 @@ vez de degradar silenciosamente.
   `subagent-stop` — rompe la protección de hot path.
 - Los hooks nunca deben lanzar excepciones sin capturar: siempre deben
   devolver JSON válido en stdout, incluso en el camino de error.
+- El wrapper de degradación ASK es el último cinturón de seguridad: no
+  eliminar ni debilitar su captura de errores.
 
 ## Mapa de fuentes
 
-- `/hooks/hooks.json` — `git log`: `26509c6` (launcher con fallback a Node), `8b5495b` (migración a binario Go)
+- `/hooks/hooks.json` — `git log`: `b817438` (binding vscode/O1), `efa7c60` (wrapper 5 eventos + ASK)
 - `/scripts/hooks/session-start.js`, `/scripts/hooks/pre-tool-use.js`, `/scripts/hooks/pre-compact.js`, `/scripts/hooks/subagent-stop.js`, `/scripts/hooks/stop.js`
 - `/scripts/hooks/ospec-hooks-launch.js`, `/scripts/hooks/parity-contract.test.js`
-- `/internal/hooks/`, `/cmd/ospec-hooks/main.go`
+- `/scripts/hooks/lib/model-tier.js` — clasifica tier de modelo (`cheap`, `default`, `premium`) para routing de hooks
+- `/internal/hooks/`, `/cmd/ospec-hooks/main.go` — `git log`: `74ce1cb` (degradación ASK + guard atribución Go)
 - `/scripts/lib/ospec-state.js`
 - `/openspec/specs/hooks/spec.md`, `/openspec/specs/launcher/spec.md`
