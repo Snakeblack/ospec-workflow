@@ -1,0 +1,937 @@
+{
+  "status": "approved",
+  "schema_version": 1,
+  "classification": "high-risk",
+  "evidence": {
+    "schema_version": 1,
+    "fingerprint": "sha256:9694bf896838702816ea6407133203cb6c6d230bb229e8d83ae27808a26a36db",
+    "sources": {
+      "paths": [
+        "agents/review-correction.agent.md",
+        "agents/sdd-orchestrator.agent.md",
+        "internal/hooks/subagentstop.go",
+        "internal/hooks/subagentstop_test.go",
+        "internal/store/store.go",
+        "internal/store/store_test.go",
+        "internal/testdata/parity/subagent-stop-phase-cost-review-correction.json",
+        "models.yaml",
+        "openspec/changes/review-remediation-slices/apply-progress.md",
+        "openspec/changes/review-remediation-slices/design.md",
+        "openspec/changes/review-remediation-slices/proposal.md",
+        "openspec/changes/review-remediation-slices/specs/agents/spec.md",
+        "openspec/changes/review-remediation-slices/specs/hooks/spec.md",
+        "openspec/changes/review-remediation-slices/specs/routing/spec.md",
+        "openspec/changes/review-remediation-slices/specs/skills/spec.md",
+        "openspec/changes/review-remediation-slices/tasks.md",
+        "openspec/changes/review-remediation-slices/verify-report.md",
+        "rules/sdd-common.instructions.md",
+        "rules/sdd-openspec.instructions.md",
+        "scripts/fixtures/review-lineage/o4-2-gen4-v1.json",
+        "scripts/hooks/subagent-stop.js",
+        "scripts/hooks/subagent-stop.test.js",
+        "scripts/lib/ospec-state.js",
+        "scripts/lib/review-gate-state.js",
+        "scripts/lib/review-lineage.js",
+        "scripts/review-correction-contract.test.js",
+        "scripts/review-gate-state.test.js",
+        "scripts/review-lineage-o4-migration.test.js",
+        "scripts/review-lineage.test.js",
+        "skills/_shared/gate-4r-review.md",
+        "skills/review-correction/SKILL.md"
+      ],
+      "capabilities": [
+        "runtime"
+      ],
+      "operation_types": [
+        "add",
+        "modify"
+      ],
+      "dependencies": [],
+      "facts": [
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "remediation-v2-slice-lifecycle-authority"
+        },
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime"
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/review-lineage.js"
+        }
+      ]
+    }
+  },
+  "generalist": {
+    "status": "needs-specialist",
+    "specialists": [
+      "risk",
+      "reliability",
+      "resilience"
+    ],
+    "reason": "signals=design-risk,diff-error-flow,metadata-runtime;dimensions=risk,reliability,resilience"
+  },
+  "dimensions": {
+    "risk": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-error-flow,metadata-runtime;dimensions=risk,reliability,resilience",
+          "precedence": 3
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "remediation-v2-slice-lifecycle-authority",
+          "precedence": 4
+        }
+      ]
+    },
+    "reliability": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/review-lineage.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-error-flow,metadata-runtime;dimensions=risk,reliability,resilience",
+          "precedence": 3
+        },
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime",
+          "precedence": 5
+        }
+      ]
+    },
+    "resilience": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/review-lineage.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-error-flow,metadata-runtime;dimensions=risk,reliability,resilience",
+          "precedence": 3
+        }
+      ]
+    },
+    "readability": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        }
+      ]
+    }
+  },
+  "selected_specialists": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "depth": {
+    "review": "strict"
+  },
+  "escalation_reason": null,
+  "lineage": {
+    "schema_version": 1,
+    "lineage_id": "sha256:02f648717710ce1e579fe5b4b4b11a03682168daaaa3b29740c593086c2e2683",
+    "generation": 1,
+    "predecessor_lineage_id": null,
+    "recovery": null,
+    "revision": 27,
+    "status": "approved",
+    "genesis": {
+      "candidate": {
+        "projection": "workspace",
+        "base_tree": "HEAD",
+        "candidate_tree": "working-tree-review-remediation-slices-post-crit5",
+        "paths": [
+          "agents/review-correction.agent.md",
+          "agents/sdd-orchestrator.agent.md",
+          "internal/hooks/subagentstop.go",
+          "internal/hooks/subagentstop_test.go",
+          "internal/store/store.go",
+          "internal/store/store_test.go",
+          "internal/testdata/parity/subagent-stop-phase-cost-review-correction.json",
+          "models.yaml",
+          "openspec/changes/review-remediation-slices/apply-progress.md",
+          "openspec/changes/review-remediation-slices/design.md",
+          "openspec/changes/review-remediation-slices/proposal.md",
+          "openspec/changes/review-remediation-slices/specs/agents/spec.md",
+          "openspec/changes/review-remediation-slices/specs/hooks/spec.md",
+          "openspec/changes/review-remediation-slices/specs/routing/spec.md",
+          "openspec/changes/review-remediation-slices/specs/skills/spec.md",
+          "openspec/changes/review-remediation-slices/tasks.md",
+          "openspec/changes/review-remediation-slices/verify-report.md",
+          "rules/sdd-common.instructions.md",
+          "rules/sdd-openspec.instructions.md",
+          "scripts/fixtures/review-lineage/o4-2-gen4-v1.json",
+          "scripts/hooks/subagent-stop.js",
+          "scripts/hooks/subagent-stop.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/review-gate-state.js",
+          "scripts/lib/review-lineage.js",
+          "scripts/review-correction-contract.test.js",
+          "scripts/review-gate-state.test.js",
+          "scripts/review-lineage-o4-migration.test.js",
+          "scripts/review-lineage.test.js",
+          "skills/_shared/gate-4r-review.md",
+          "skills/review-correction/SKILL.md"
+        ],
+        "diff_hash": "sha256:2d4b8f8dda2447b9be664336c0906c6f20d2128e58980dbbaac33c4dcc4dd9cd",
+        "paths_digest": "sha256:5e9b2233289d27478df8f1987600b6a5ff37e98d54ae8e6c3b45db775ff97b68",
+        "authored_lines": 1720,
+        "original_changed_lines": 1720
+      },
+      "candidate_id": "sha256:d5783ee7dff533fe3a6d08d4e93a4ebb704c1c31e9af865ef1a232c107f13a3d",
+      "paths": [
+        "agents/review-correction.agent.md",
+        "agents/sdd-orchestrator.agent.md",
+        "internal/hooks/subagentstop.go",
+        "internal/hooks/subagentstop_test.go",
+        "internal/store/store.go",
+        "internal/store/store_test.go",
+        "internal/testdata/parity/subagent-stop-phase-cost-review-correction.json",
+        "models.yaml",
+        "openspec/changes/review-remediation-slices/apply-progress.md",
+        "openspec/changes/review-remediation-slices/design.md",
+        "openspec/changes/review-remediation-slices/proposal.md",
+        "openspec/changes/review-remediation-slices/specs/agents/spec.md",
+        "openspec/changes/review-remediation-slices/specs/hooks/spec.md",
+        "openspec/changes/review-remediation-slices/specs/routing/spec.md",
+        "openspec/changes/review-remediation-slices/specs/skills/spec.md",
+        "openspec/changes/review-remediation-slices/tasks.md",
+        "openspec/changes/review-remediation-slices/verify-report.md",
+        "rules/sdd-common.instructions.md",
+        "rules/sdd-openspec.instructions.md",
+        "scripts/fixtures/review-lineage/o4-2-gen4-v1.json",
+        "scripts/hooks/subagent-stop.js",
+        "scripts/hooks/subagent-stop.test.js",
+        "scripts/lib/ospec-state.js",
+        "scripts/lib/review-gate-state.js",
+        "scripts/lib/review-lineage.js",
+        "scripts/review-correction-contract.test.js",
+        "scripts/review-gate-state.test.js",
+        "scripts/review-lineage-o4-migration.test.js",
+        "scripts/review-lineage.test.js",
+        "skills/_shared/gate-4r-review.md",
+        "skills/review-correction/SKILL.md"
+      ],
+      "classification": "high-risk",
+      "selected_dimensions": [
+        "risk",
+        "reliability",
+        "resilience",
+        "readability"
+      ],
+      "evidence_fingerprint": "sha256:9694bf896838702816ea6407133203cb6c6d230bb229e8d83ae27808a26a36db",
+      "original_changed_lines": 1720,
+      "authored_lines": 1720
+    },
+    "current_candidate_id": "sha256:960546816b40f2dd6d7924a6b9e87e0a89f1a1c81b1fac3682a4a49e803f3645",
+    "current_candidate": {
+      "projection": "workspace",
+      "base_tree": "HEAD",
+      "candidate_tree": "working-tree-review-remediation-slices-slice4-expand-state-machine",
+      "paths": [
+        "agents/review-correction.agent.md",
+        "agents/sdd-orchestrator.agent.md",
+        "internal/hooks/subagentstop.go",
+        "internal/hooks/subagentstop_test.go",
+        "internal/store/store.go",
+        "internal/store/store_test.go",
+        "internal/testdata/parity/subagent-stop-phase-cost-review-correction.json",
+        "models.yaml",
+        "openspec/changes/review-remediation-slices/apply-progress.md",
+        "openspec/changes/review-remediation-slices/design.md",
+        "openspec/changes/review-remediation-slices/proposal.md",
+        "openspec/changes/review-remediation-slices/specs/agents/spec.md",
+        "openspec/changes/review-remediation-slices/specs/hooks/spec.md",
+        "openspec/changes/review-remediation-slices/specs/routing/spec.md",
+        "openspec/changes/review-remediation-slices/specs/skills/spec.md",
+        "openspec/changes/review-remediation-slices/tasks.md",
+        "openspec/changes/review-remediation-slices/verify-report.md",
+        "rules/sdd-common.instructions.md",
+        "rules/sdd-openspec.instructions.md",
+        "scripts/fixtures/review-lineage/o4-2-gen4-v1.json",
+        "scripts/hooks/subagent-stop.js",
+        "scripts/hooks/subagent-stop.test.js",
+        "scripts/lib/ospec-state.js",
+        "scripts/lib/review-gate-state.js",
+        "scripts/lib/review-lineage.js",
+        "scripts/review-correction-contract.test.js",
+        "scripts/review-gate-state.test.js",
+        "scripts/review-lineage-o4-migration.test.js",
+        "scripts/review-lineage.test.js",
+        "skills/_shared/gate-4r-review.md",
+        "skills/review-correction/SKILL.md"
+      ],
+      "diff_hash": "sha256:4b2db047d131a2fd2c24394470f5ea4f5c40f7429e5cd8fe8763366e2c3d4689",
+      "paths_digest": "sha256:5e9b2233289d27478df8f1987600b6a5ff37e98d54ae8e6c3b45db775ff97b68",
+      "authored_lines": 1720,
+      "original_changed_lines": 1720
+    },
+    "lenses": {
+      "risk": {
+        "selected": true,
+        "status": "completed",
+        "request_id": "dispatch-risk-2026-07-25",
+        "result_digest": "sha256:edcc7ff1651cec47714ad0dac991bd3fd2bb17349b6e9f3cdce294d9c3a8ae62",
+        "result": {
+          "findings": [
+            {
+              "severity": "CRITICAL",
+              "summary": "validateSliceCorrection/activeSlice unbound slice_id allows validating a non-active ready slice",
+              "acceptance_criteria": "Validation MUST bind exclusively to active_slice_id and pending_correction.slice_id; diverting to another ready slice MUST throw; covered by multi-slice regression test."
+            },
+            {
+              "severity": "CRITICAL",
+              "summary": "createSuccessor authority_kind only enforced for remediation-v2 predecessors",
+              "acceptance_criteria": "createSuccessor MUST require allowlisted authority_kind for all post-rollout successors or reject non-v2 predecessors; terminate-v1 then untyped successor MUST fail closed in tests."
+            },
+            {
+              "severity": "WARNING",
+              "summary": "beginSliceCorrection accepts any ready slice_id, not only reducer-selected",
+              "acceptance_criteria": "beginSliceCorrection MUST accept only the reducer-selected ready slice_id; out-of-order ready slices MUST be rejected with a test."
+            }
+          ]
+        },
+        "operation": null,
+        "result_request_id": "result-risk-2026-07-25"
+      },
+      "reliability": {
+        "selected": true,
+        "status": "completed",
+        "request_id": "dispatch-reliability-2026-07-25",
+        "result_digest": "sha256:ad677cdfca5bca3cfe20f8edef3272b6c441c74d0cc036e9360847f14ededcca",
+        "result": {
+          "findings": [
+            {
+              "severity": "CRITICAL",
+              "summary": "v2 applyTargetedValidation/validateSliceCorrection weaker than v1 on outcomes and regression.evidence",
+              "acceptance_criteria": "Parity fail-closed with v1/design for outcomes and regression; reject detected:true without impacts; explicit tests for each unhappy path"
+            },
+            {
+              "severity": "CRITICAL",
+              "summary": "migrateReviewLineage does not fail closed on legacy regression.detected without attributable impacts",
+              "acceptance_criteria": "Fail-closed on migration + negative fixture; O4.2 with detected:false remains valid"
+            },
+            {
+              "severity": "WARNING",
+              "summary": "slice.resolutions can diverge from status after validation",
+              "acceptance_criteria": "Sync resolutions on pass/fail/reopen; invariant in assertRemediationV2; named test"
+            },
+            {
+              "severity": "WARNING",
+              "summary": "freezeFindings does not attach remediation-v2 by default",
+              "acceptance_criteria": "Auto-attach v2 on freeze or tested explicit migration-required deferral contract"
+            }
+          ]
+        },
+        "operation": null,
+        "result_request_id": "result-reliability-2026-07-25"
+      },
+      "resilience": {
+        "selected": true,
+        "status": "completed",
+        "request_id": "dispatch-resilience-2026-07-25",
+        "result_digest": "sha256:5e1000580f92efcb3f349efab8d56309c2b830b5fba44b5042f4e8f32eaefd76",
+        "result": {
+          "findings": [
+            {
+              "severity": "CRITICAL",
+              "summary": "validateSliceCorrection fail-open on omitted regression or detected:true without attributable impacted_slices",
+              "acceptance_criteria": "Require regression with detected and non-empty evidence; detected:true without attributable impacted_slices must throw; no passed/approved with unattributed regression"
+            },
+            {
+              "severity": "WARNING",
+              "summary": "beginSliceCorrection lacks exact-retry idempotency",
+              "acceptance_criteria": "Same request_id and exact pending state while correcting returns clone(state); divergence throws"
+            },
+            {
+              "severity": "WARNING",
+              "summary": "slice.resolutions stale after validate/reopen",
+              "acceptance_criteria": "Sync slice.resolutions with findings; integrity fails on divergence"
+            },
+            {
+              "severity": "WARNING",
+              "summary": "Go persistResultEnvelope missing orphan .bak recovery vs JS",
+              "acceptance_criteria": "Parity with JS orphan bak recovery under lock before read"
+            }
+          ]
+        },
+        "operation": null,
+        "result_request_id": "result-resilience-2026-07-25"
+      },
+      "readability": {
+        "selected": true,
+        "status": "completed",
+        "request_id": "dispatch-readability-2026-07-25",
+        "result_digest": "sha256:b2714b93ac05df7e1dfc44accd2a605d5eaab8deec4eeadb5d0a6ebd6d32182a",
+        "result": {
+          "findings": [
+            {
+              "severity": "CRITICAL",
+              "summary": "remediation-v2 slice state-machine packed into unauditable single-line transitions",
+              "acceptance_criteria": "Expand four functions to one statement per line with named helpers for active-slice load, impacted reopen, and terminal transition"
+            },
+            {
+              "severity": "WARNING",
+              "summary": "committed v2 reconciliation authority is a monolithic unnamed predicate",
+              "acceptance_criteria": "Named asserts/predicates documenting immutable vs advanceable fields"
+            },
+            {
+              "severity": "WARNING",
+              "summary": "design.md slice budget/status shape diverges from reducer",
+              "acceptance_criteria": "Single canonical shape/enum in design and reducer, or explicit conceptual disclaimer"
+            },
+            {
+              "severity": "WARNING",
+              "summary": "attachRemediationV2 legacy seeding nesting/priority opaque",
+              "acceptance_criteria": "Extract seedSliceFromLegacyValidations with authority-order comment; nesting <= 3"
+            },
+            {
+              "severity": "SUGGESTION",
+              "summary": "migrated_at: \"deterministic\" unexplained",
+              "acceptance_criteria": "Named constant or one-line comment fixing intentional deterministic value"
+            }
+          ]
+        },
+        "operation": null,
+        "result_request_id": "result-readability-2026-07-25"
+      }
+    },
+    "findings": [
+      {
+        "id": "F-19db00cad371b25b",
+        "owner": "risk",
+        "severity": "CRITICAL",
+        "summary": "validateSliceCorrection/activeSlice unbound slice_id allows validating a non-active ready slice",
+        "acceptance_criteria": "Validation MUST bind exclusively to active_slice_id and pending_correction.slice_id; diverting to another ready slice MUST throw; covered by multi-slice regression test.",
+        "blocking": true,
+        "resolution": "resolved"
+      },
+      {
+        "id": "F-40505069c7227bb4",
+        "owner": "risk",
+        "severity": "CRITICAL",
+        "summary": "createSuccessor authority_kind only enforced for remediation-v2 predecessors",
+        "acceptance_criteria": "createSuccessor MUST require allowlisted authority_kind for all post-rollout successors or reject non-v2 predecessors; terminate-v1 then untyped successor MUST fail closed in tests.",
+        "blocking": true,
+        "resolution": "resolved"
+      },
+      {
+        "id": "F-9e605ab7794ee6e2",
+        "owner": "risk",
+        "severity": "WARNING",
+        "summary": "beginSliceCorrection accepts any ready slice_id, not only reducer-selected",
+        "acceptance_criteria": "beginSliceCorrection MUST accept only the reducer-selected ready slice_id; out-of-order ready slices MUST be rejected with a test.",
+        "blocking": false,
+        "resolution": "advisory"
+      },
+      {
+        "id": "F-e75f5425620b6d15",
+        "owner": "reliability",
+        "severity": "CRITICAL",
+        "summary": "v2 applyTargetedValidation/validateSliceCorrection weaker than v1 on outcomes and regression.evidence",
+        "acceptance_criteria": "Parity fail-closed with v1/design for outcomes and regression; reject detected:true without impacts; explicit tests for each unhappy path",
+        "blocking": true,
+        "resolution": "resolved"
+      },
+      {
+        "id": "F-1779348a80b55d76",
+        "owner": "reliability",
+        "severity": "CRITICAL",
+        "summary": "migrateReviewLineage does not fail closed on legacy regression.detected without attributable impacts",
+        "acceptance_criteria": "Fail-closed on migration + negative fixture; O4.2 with detected:false remains valid",
+        "blocking": true,
+        "resolution": "resolved"
+      },
+      {
+        "id": "F-cd47ee364bebcdac",
+        "owner": "reliability",
+        "severity": "WARNING",
+        "summary": "slice.resolutions can diverge from status after validation",
+        "acceptance_criteria": "Sync resolutions on pass/fail/reopen; invariant in assertRemediationV2; named test",
+        "blocking": false,
+        "resolution": "advisory"
+      },
+      {
+        "id": "F-cb3acc5d4cbed504",
+        "owner": "reliability",
+        "severity": "WARNING",
+        "summary": "freezeFindings does not attach remediation-v2 by default",
+        "acceptance_criteria": "Auto-attach v2 on freeze or tested explicit migration-required deferral contract",
+        "blocking": false,
+        "resolution": "advisory"
+      },
+      {
+        "id": "F-77bf041927205443",
+        "owner": "resilience",
+        "severity": "CRITICAL",
+        "summary": "validateSliceCorrection fail-open on omitted regression or detected:true without attributable impacted_slices",
+        "acceptance_criteria": "Require regression with detected and non-empty evidence; detected:true without attributable impacted_slices must throw; no passed/approved with unattributed regression",
+        "blocking": true,
+        "resolution": "resolved"
+      },
+      {
+        "id": "F-2ad608bb03f65373",
+        "owner": "resilience",
+        "severity": "WARNING",
+        "summary": "beginSliceCorrection lacks exact-retry idempotency",
+        "acceptance_criteria": "Same request_id and exact pending state while correcting returns clone(state); divergence throws",
+        "blocking": false,
+        "resolution": "advisory"
+      },
+      {
+        "id": "F-edd52be3f14e6bb8",
+        "owner": "resilience",
+        "severity": "WARNING",
+        "summary": "slice.resolutions stale after validate/reopen",
+        "acceptance_criteria": "Sync slice.resolutions with findings; integrity fails on divergence",
+        "blocking": false,
+        "resolution": "advisory"
+      },
+      {
+        "id": "F-c5286053ab86f9e6",
+        "owner": "resilience",
+        "severity": "WARNING",
+        "summary": "Go persistResultEnvelope missing orphan .bak recovery vs JS",
+        "acceptance_criteria": "Parity with JS orphan bak recovery under lock before read",
+        "blocking": false,
+        "resolution": "advisory"
+      },
+      {
+        "id": "F-a0937378a623ff36",
+        "owner": "readability",
+        "severity": "CRITICAL",
+        "summary": "remediation-v2 slice state-machine packed into unauditable single-line transitions",
+        "acceptance_criteria": "Expand four functions to one statement per line with named helpers for active-slice load, impacted reopen, and terminal transition",
+        "blocking": true,
+        "resolution": "resolved"
+      },
+      {
+        "id": "F-aec5a6010cb6238c",
+        "owner": "readability",
+        "severity": "WARNING",
+        "summary": "committed v2 reconciliation authority is a monolithic unnamed predicate",
+        "acceptance_criteria": "Named asserts/predicates documenting immutable vs advanceable fields",
+        "blocking": false,
+        "resolution": "advisory"
+      },
+      {
+        "id": "F-215847ac5a351de5",
+        "owner": "readability",
+        "severity": "WARNING",
+        "summary": "design.md slice budget/status shape diverges from reducer",
+        "acceptance_criteria": "Single canonical shape/enum in design and reducer, or explicit conceptual disclaimer",
+        "blocking": false,
+        "resolution": "advisory"
+      },
+      {
+        "id": "F-eaa111a912eb287d",
+        "owner": "readability",
+        "severity": "WARNING",
+        "summary": "attachRemediationV2 legacy seeding nesting/priority opaque",
+        "acceptance_criteria": "Extract seedSliceFromLegacyValidations with authority-order comment; nesting <= 3",
+        "blocking": false,
+        "resolution": "advisory"
+      },
+      {
+        "id": "F-a80f64de33890053",
+        "owner": "readability",
+        "severity": "SUGGESTION",
+        "summary": "migrated_at: \"deterministic\" unexplained",
+        "acceptance_criteria": "Named constant or one-line comment fixing intentional deterministic value",
+        "blocking": false,
+        "resolution": "advisory"
+      }
+    ],
+    "findings_digest": "sha256:5dd6e1b4c1c411f2fd69c1ce17952053ee94dc4e90c32fbea66522a378e6853b",
+    "correction_budget": {
+      "limit_lines": 200,
+      "used_lines": 0,
+      "failed_attempts": 0,
+      "max_failed_attempts": 3
+    },
+    "correction_history": [],
+    "validation_history": [],
+    "follow_ups": [
+      {
+        "owner": "reliability",
+        "summary": "Retried slice record after undercounted actual_changed_lines=0",
+        "blocking": false
+      }
+    ],
+    "pending_operation": null,
+    "pending_correction": null,
+    "terminal_reason": "all-remediation-slices-passed",
+    "remediation_schema_version": 2,
+    "remediation_migration": {
+      "source_digest": "sha256:689bdaeb905cf3de184d8f1af2c595be9919b0dd7f83f210896f28224a1fbf6b",
+      "manifest_digest": "sha256:a78d61668c0e7f2172a745325f28030d79e0718b9fc49b654923ad719bbbc256",
+      "legacy_used_lines": 0,
+      "legacy_failed_attempts": 0,
+      "migrated_at": "deterministic"
+    },
+    "slice_order": [
+      "S-64f0712ad15fc7aa",
+      "S-86c71096a807a755",
+      "S-1c649aff4e450731",
+      "S-07c670caace1e94a"
+    ],
+    "active_slice_id": null,
+    "correction_slices": {
+      "S-64f0712ad15fc7aa": {
+        "slice_id": "S-64f0712ad15fc7aa",
+        "root_cause_key": "validate-slice-correction-fail-closed",
+        "finding_ids": [
+          "F-19db00cad371b25b",
+          "F-77bf041927205443",
+          "F-e75f5425620b6d15"
+        ],
+        "evidence_digests": [
+          "sha256:12a094e298b29b4ce4c1085baaccf8cdd578a5008d769c7a132086f6d5e744d9",
+          "sha256:b75360061b3e8870943586320fe2c57dd0b8371fb5dd7140850cf6ca6bb772c3",
+          "sha256:c9a38302594d7335b7188f3f72ddb4a3dd8e27aa372e18c1eb79113685752b99"
+        ],
+        "permitted_paths": [
+          "scripts/lib/review-lineage.js",
+          "scripts/review-lineage.test.js"
+        ],
+        "resolutions": {
+          "F-19db00cad371b25b": "unresolved",
+          "F-77bf041927205443": "unresolved",
+          "F-e75f5425620b6d15": "unresolved"
+        },
+        "status": "passed",
+        "used_lines": 103,
+        "failed_attempts": 1,
+        "limit_lines": 200,
+        "max_failed_attempts": 3,
+        "correction_history": [
+          {
+            "slice_id": "S-64f0712ad15fc7aa",
+            "request_id": "correct-slice1-validate-fail-closed-2026-07-25b",
+            "finding_ids": [
+              "F-19db00cad371b25b",
+              "F-77bf041927205443",
+              "F-e75f5425620b6d15"
+            ],
+            "paths": [
+              "scripts/lib/review-lineage.js",
+              "scripts/review-lineage.test.js"
+            ],
+            "base_candidate_id": "sha256:d5783ee7dff533fe3a6d08d4e93a4ebb704c1c31e9af865ef1a232c107f13a3d",
+            "forecast_lines": 120,
+            "actual_changed_lines": 0,
+            "record_request_id": "record-slice1-validate-fail-closed-2026-07-25b",
+            "corrected_candidate_id": "sha256:d7b72888f6b07b1772e924ca9cebbab80678102435f1f4fed82b502891e9091d"
+          },
+          {
+            "slice_id": "S-64f0712ad15fc7aa",
+            "request_id": "correct-slice1-validate-fail-closed-2026-07-25c",
+            "finding_ids": [
+              "F-19db00cad371b25b",
+              "F-77bf041927205443",
+              "F-e75f5425620b6d15"
+            ],
+            "paths": [
+              "scripts/lib/review-lineage.js",
+              "scripts/review-lineage.test.js"
+            ],
+            "base_candidate_id": "sha256:d7b72888f6b07b1772e924ca9cebbab80678102435f1f4fed82b502891e9091d",
+            "forecast_lines": 120,
+            "actual_changed_lines": 103,
+            "record_request_id": "record-slice1-validate-fail-closed-2026-07-25c",
+            "corrected_candidate_id": "sha256:c0b4b013ab9c8ad9242bb233122ebd0b9aa1d23cbc140a128facedfdd9683842"
+          }
+        ],
+        "validation_history": [
+          {
+            "request_id": "recount-fail-slice1-2026-07-25",
+            "outcomes": [
+              {
+                "id": "F-19db00cad371b25b",
+                "status": "unresolved"
+              },
+              {
+                "id": "F-77bf041927205443",
+                "status": "unresolved"
+              },
+              {
+                "id": "F-e75f5425620b6d15",
+                "status": "unresolved"
+              }
+            ],
+            "regression": {
+              "detected": false,
+              "evidence": [
+                "budget-recount-required: prior record charged 0"
+              ],
+              "impacted_slices": []
+            },
+            "result": "failed"
+          },
+          {
+            "request_id": "validate-slice1-validate-fail-closed-2026-07-25",
+            "outcomes": [
+              {
+                "id": "F-19db00cad371b25b",
+                "status": "resolved"
+              },
+              {
+                "id": "F-77bf041927205443",
+                "status": "resolved"
+              },
+              {
+                "id": "F-e75f5425620b6d15",
+                "status": "resolved"
+              }
+            ],
+            "regression": {
+              "detected": false,
+              "evidence": [
+                "node --test scripts/review-lineage.test.js → 22/22 pass, incluido validateSliceCorrection binds the active slice and fail-closes incomplete regression/outcomes contracts",
+                "Cambio acotado a scripts/lib/review-lineage.js y scripts/review-lineage.test.js sin reabrir otros slices passed"
+              ],
+              "impacted_slices": []
+            },
+            "result": "passed"
+          }
+        ],
+        "regression_history": [],
+        "legacy_correction_refs": [],
+        "legacy_validation_refs": []
+      },
+      "S-86c71096a807a755": {
+        "slice_id": "S-86c71096a807a755",
+        "root_cause_key": "migrate-legacy-regression-attribution",
+        "finding_ids": [
+          "F-1779348a80b55d76"
+        ],
+        "evidence_digests": [
+          "sha256:ae97403b6a691f7842025a914da94512df972a4415dfc6e0e6341b8a462b4ea5"
+        ],
+        "permitted_paths": [
+          "scripts/lib/review-lineage.js",
+          "scripts/review-lineage.test.js"
+        ],
+        "resolutions": {
+          "F-1779348a80b55d76": "unresolved"
+        },
+        "status": "passed",
+        "used_lines": 42,
+        "failed_attempts": 0,
+        "limit_lines": 200,
+        "max_failed_attempts": 3,
+        "correction_history": [
+          {
+            "slice_id": "S-86c71096a807a755",
+            "request_id": "correct-slice2-migrate-legacy-regression-2026-07-25",
+            "finding_ids": [
+              "F-1779348a80b55d76"
+            ],
+            "paths": [
+              "scripts/lib/review-lineage.js",
+              "scripts/review-lineage.test.js"
+            ],
+            "base_candidate_id": "sha256:c0b4b013ab9c8ad9242bb233122ebd0b9aa1d23cbc140a128facedfdd9683842",
+            "forecast_lines": 80,
+            "actual_changed_lines": 42,
+            "record_request_id": "record-slice2-migrate-legacy-regression-2026-07-25",
+            "corrected_candidate_id": "sha256:45f53e348499ab8cc8288a893ce906a0a0ab6036b3351b71ae5d2abf54270529"
+          }
+        ],
+        "validation_history": [
+          {
+            "request_id": "validate-slice2-migrate-legacy-regression-2026-07-25",
+            "outcomes": [
+              {
+                "id": "F-1779348a80b55d76",
+                "status": "resolved"
+              }
+            ],
+            "regression": {
+              "detected": false,
+              "evidence": [
+                "node --test scripts/review-lineage.test.js scripts/review-lineage-o4-migration.test.js => 24 pass / 0 fail",
+                "assertLegacyValidationsMigratable fails closed on unattributed detected:true; O4.2 detected:false remains valid"
+              ],
+              "impacted_slices": []
+            },
+            "result": "passed"
+          }
+        ],
+        "regression_history": [],
+        "legacy_correction_refs": [],
+        "legacy_validation_refs": []
+      },
+      "S-1c649aff4e450731": {
+        "slice_id": "S-1c649aff4e450731",
+        "root_cause_key": "successor-authority-post-rollout",
+        "finding_ids": [
+          "F-40505069c7227bb4"
+        ],
+        "evidence_digests": [
+          "sha256:fd26a7fcef09c3b5dd69c55af9d7ff5751ad4af175332ea1496cdfb0a02df9a0"
+        ],
+        "permitted_paths": [
+          "scripts/lib/review-gate-state.js",
+          "scripts/lib/review-lineage.js"
+        ],
+        "resolutions": {
+          "F-40505069c7227bb4": "unresolved"
+        },
+        "status": "passed",
+        "used_lines": 2,
+        "failed_attempts": 0,
+        "limit_lines": 200,
+        "max_failed_attempts": 3,
+        "correction_history": [
+          {
+            "slice_id": "S-1c649aff4e450731",
+            "request_id": "correct-slice3-successor-authority-2026-07-25",
+            "finding_ids": [
+              "F-40505069c7227bb4"
+            ],
+            "paths": [
+              "scripts/lib/review-lineage.js"
+            ],
+            "base_candidate_id": "sha256:45f53e348499ab8cc8288a893ce906a0a0ab6036b3351b71ae5d2abf54270529",
+            "forecast_lines": 40,
+            "actual_changed_lines": 2,
+            "record_request_id": "record-slice3-successor-authority-2026-07-25",
+            "corrected_candidate_id": "sha256:a7f571de23211bc5f34bc6015261b06f792ee5a14ec00c9e0c3c668a65aa514c"
+          }
+        ],
+        "validation_history": [
+          {
+            "request_id": "validate-slice3-successor-authority-2026-07-25",
+            "outcomes": [
+              {
+                "id": "F-40505069c7227bb4",
+                "status": "resolved"
+              }
+            ],
+            "regression": {
+              "detected": false,
+              "evidence": [
+                "node --test scripts/review-lineage.test.js scripts/review-gate-state.test.js => 35/35 pass",
+                "createSuccessor requires allowlisted authority_kind unconditionally; terminate-v1 untyped successor fails closed"
+              ],
+              "impacted_slices": []
+            },
+            "result": "passed"
+          }
+        ],
+        "regression_history": [],
+        "legacy_correction_refs": [],
+        "legacy_validation_refs": []
+      },
+      "S-07c670caace1e94a": {
+        "slice_id": "S-07c670caace1e94a",
+        "root_cause_key": "expand-slice-state-machine",
+        "finding_ids": [
+          "F-a0937378a623ff36"
+        ],
+        "evidence_digests": [
+          "sha256:7b3b901a1cb63a898a75d806d2bd24a0994e11cfd8ae364d16bd6beca4373172"
+        ],
+        "permitted_paths": [
+          "scripts/lib/review-lineage.js"
+        ],
+        "resolutions": {
+          "F-a0937378a623ff36": "unresolved"
+        },
+        "status": "passed",
+        "used_lines": 138,
+        "failed_attempts": 0,
+        "limit_lines": 200,
+        "max_failed_attempts": 3,
+        "correction_history": [
+          {
+            "slice_id": "S-07c670caace1e94a",
+            "request_id": "correct-slice4-expand-state-machine-2026-07-25",
+            "finding_ids": [
+              "F-a0937378a623ff36"
+            ],
+            "paths": [
+              "scripts/lib/review-lineage.js"
+            ],
+            "base_candidate_id": "sha256:a7f571de23211bc5f34bc6015261b06f792ee5a14ec00c9e0c3c668a65aa514c",
+            "forecast_lines": 160,
+            "actual_changed_lines": 138,
+            "record_request_id": "record-slice4-expand-state-machine-2026-07-25",
+            "corrected_candidate_id": "sha256:960546816b40f2dd6d7924a6b9e87e0a89f1a1c81b1fac3682a4a49e803f3645"
+          }
+        ],
+        "validation_history": [
+          {
+            "request_id": "validate-slice4-expand-state-machine-2026-07-25",
+            "outcomes": [
+              {
+                "id": "F-a0937378a623ff36",
+                "status": "resolved"
+              }
+            ],
+            "regression": {
+              "detected": false,
+              "evidence": [
+                "Four functions expanded with loadReadySlice/reopenImpactedSlices/terminalAfterSliceValidation/activeSlice helpers",
+                "node --test scripts/review-lineage.test.js scripts/review-lineage-o4-migration.test.js scripts/review-gate-state.test.js => 37/37 pass"
+              ],
+              "impacted_slices": []
+            },
+            "result": "passed"
+          }
+        ],
+        "regression_history": [],
+        "legacy_correction_refs": [],
+        "legacy_validation_refs": []
+      }
+    }
+  },
+  "pending_dispatch": []
+}

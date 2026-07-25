@@ -1,52 +1,48 @@
 {
   "counts": {
     "BLOCKER": 0,
-    "CRITICAL": 6,
+    "CRITICAL": 0,
     "WARNING": 9,
     "SUGGESTION": 1
   },
-  "summary": "0 BLOCKER, 6 CRITICAL, 9 WARNING, 1 SUGGESTION",
+  "summary": "all remediation slices passed; 10 non-blocking advisory findings remain",
   "next_action": {
-    "type": "correct",
-    "finding_ids": [
-      "F-19db00cad371b25b",
-      "F-40505069c7227bb4",
-      "F-e75f5425620b6d15",
-      "F-1779348a80b55d76",
-      "F-77bf041927205443",
-      "F-a0937378a623ff36"
-    ]
+    "type": "stop",
+    "reason": "all-remediation-slices-passed"
   },
-  "finding_ids": [
-    {
-      "id": "F-19db00cad371b25b",
-      "severity": "CRITICAL",
-      "owner": "risk",
-      "summary": "validateSliceCorrection/activeSlice unbound slice_id allows validating a non-active ready slice"
+  "archive_allowed": true,
+  "slices": {
+    "S-64f0712ad15fc7aa": {
+      "root": "validate-slice-correction-fail-closed",
+      "status": "passed",
+      "used": 103,
+      "failed": 1
     },
-    {
-      "id": "F-40505069c7227bb4",
-      "severity": "CRITICAL",
-      "owner": "risk",
-      "summary": "createSuccessor authority_kind only enforced for remediation-v2 predecessors"
+    "S-86c71096a807a755": {
+      "root": "migrate-legacy-regression-attribution",
+      "status": "passed",
+      "used": 42,
+      "failed": 0
     },
+    "S-1c649aff4e450731": {
+      "root": "successor-authority-post-rollout",
+      "status": "passed",
+      "used": 2,
+      "failed": 0
+    },
+    "S-07c670caace1e94a": {
+      "root": "expand-slice-state-machine",
+      "status": "passed",
+      "used": 138,
+      "failed": 0
+    }
+  },
+  "advisory_follow_ups": [
     {
       "id": "F-9e605ab7794ee6e2",
       "severity": "WARNING",
       "owner": "risk",
       "summary": "beginSliceCorrection accepts any ready slice_id, not only reducer-selected"
-    },
-    {
-      "id": "F-e75f5425620b6d15",
-      "severity": "CRITICAL",
-      "owner": "reliability",
-      "summary": "v2 applyTargetedValidation/validateSliceCorrection weaker than v1 on outcomes and regression.evidence"
-    },
-    {
-      "id": "F-1779348a80b55d76",
-      "severity": "CRITICAL",
-      "owner": "reliability",
-      "summary": "migrateReviewLineage does not fail closed on legacy regression.detected without attributable impacts"
     },
     {
       "id": "F-cd47ee364bebcdac",
@@ -59,12 +55,6 @@
       "severity": "WARNING",
       "owner": "reliability",
       "summary": "freezeFindings does not attach remediation-v2 by default"
-    },
-    {
-      "id": "F-77bf041927205443",
-      "severity": "CRITICAL",
-      "owner": "resilience",
-      "summary": "validateSliceCorrection fail-open on omitted regression or detected:true without attributable impacted_slices"
     },
     {
       "id": "F-2ad608bb03f65373",
@@ -83,12 +73,6 @@
       "severity": "WARNING",
       "owner": "resilience",
       "summary": "Go persistResultEnvelope missing orphan .bak recovery vs JS"
-    },
-    {
-      "id": "F-a0937378a623ff36",
-      "severity": "CRITICAL",
-      "owner": "readability",
-      "summary": "remediation-v2 slice state-machine packed into unauditable single-line transitions"
     },
     {
       "id": "F-aec5a6010cb6238c",

@@ -216,6 +216,7 @@ test("downstream gate validation is read-only and explicit successor never reset
     selected_dimensions: ["risk"],
     evidence_fingerprint: `sha256:${"d".repeat(64)}`,
     reason: "approved late follow-up",
+    authority_kind: "new-discovery-authority",
     approval_reference: "architecture-bounded-review-001",
     approvals,
   });
@@ -224,6 +225,9 @@ test("downstream gate validation is read-only and explicit successor never reset
   assert.equal(successor.generation, approved.generation + 1);
   assert.equal(approved.status, "approved");
   assert.throws(() => createSuccessor(startReviewLineage(genesis()), { ...genesis(), reason: "implicit", approval_reference: "x", approvals }), /terminal/i);
+  const v1 = startReviewLineage(genesis());
+  const terminatedV1 = terminateLineage(v1, { expected_revision: v1.revision, request_id: "term-v1", status: "escalated", reason: "explicit escalate" });
+  assert.throws(() => createSuccessor(terminatedV1, { ...genesis(), reason: "retry without authority", approval_reference: "architecture-bounded-review-001", approvals }), /authority/i);
 });
 
 test("explicit invalidation and escalation are terminal and cannot reset authority", () => {
@@ -276,22 +280,22 @@ test("createSuccessor requires structured format, resolution, scope, and reuse c
   approved.approvals = approvals;
   
   // Rejects arbitrary non-empty string
-  assert.throws(() => createSuccessor(approved, { ...genesis(), reason: "test", approval_reference: "arbitrary-string", approvals }), /format|approval_reference/i);
+  assert.throws(() => createSuccessor(approved, { ...genesis(), reason: "test", authority_kind: "new-candidate", approval_reference: "arbitrary-string", approvals }), /format|approval_reference/i);
   
   // Rejects non-persisted reference
-  assert.throws(() => createSuccessor(approved, { ...genesis(), reason: "test", approval_reference: "architecture-bounded-review-999", approvals }), /resolve/i);
+  assert.throws(() => createSuccessor(approved, { ...genesis(), reason: "test", authority_kind: "new-scope", approval_reference: "architecture-bounded-review-999", approvals }), /resolve/i);
   
   // Rejects out of scope reference (e.g. applies_to has no SDD phases)
   const outOfScopeApprovals = [{ id: "architecture-bounded-review-002", applies_to: ["some-other-phase"] }];
-  assert.throws(() => createSuccessor(approved, { ...genesis(), reason: "test", approval_reference: "architecture-bounded-review-002", approvals: outOfScopeApprovals }), /scope/i);
+  assert.throws(() => createSuccessor(approved, { ...genesis(), reason: "test", authority_kind: "new-candidate", approval_reference: "architecture-bounded-review-002", approvals: outOfScopeApprovals }), /scope/i);
   
   // Rejects reuse of the same predecessor reference
   const predecessorWithRecovery = {
     ...approved,
     recovery: { reason: "prior", approval_reference: "architecture-bounded-review-001" }
   };
-  assert.throws(() => createSuccessor(predecessorWithRecovery, { ...genesis(), reason: "test", approval_reference: "architecture-bounded-review-001", approvals }), /already been used/i);
-  
+  assert.throws(() => createSuccessor(predecessorWithRecovery, { ...genesis(), reason: "test", authority_kind: "new-discovery-authority", approval_reference: "architecture-bounded-review-001", approvals }), /already been used/i);
+   
   // Accepts valid reference
   const successor = createSuccessor(approved, {
     candidate: candidate(11),
@@ -299,6 +303,7 @@ test("createSuccessor requires structured format, resolution, scope, and reuse c
     selected_dimensions: ["risk"],
     evidence_fingerprint: `sha256:${"d".repeat(64)}`,
     reason: "approved late follow-up",
+    authority_kind: "new-candidate",
     approval_reference: "architecture-bounded-review-001",
     approvals,
   });
@@ -357,6 +362,21 @@ test("remediation-v2 migrates a frozen v1 lineage idempotently and fails closed 
   assert.deepEqual(migrateReviewLineage(migrated, manifest), migrated, "migration is idempotent");
   assert.throws(() => migrateReviewLineage({ ...state, pending_operation: { status: "unknown", request_id: "interrupted" } }, manifest), /reconciliation|pending|unknown/i);
   assert.throws(() => migrateReviewLineage(state, { slices: [{ root_cause_key: "bad", finding_ids: [state.findings[0].id], permitted_paths: ["scripts/a.js"] }] }), /partition|every blocking/i);
+
+  const unattributed = structuredClone(state);
+  unattributed.validation_history = [{
+    request_id: "legacy-reg",
+    request_digest: "sha256:legacy",
+    outcomes: state.findings.map((finding) => ({ id: finding.id, status: "resolved" })),
+    regression: { detected: true, evidence: ["unattributed regression"] },
+    follow_up_count: 0,
+    result: "failed",
+  }];
+  assert.throws(() => migrateReviewLineage(unattributed, manifest), /attributable impacts/i);
+  const attributed = structuredClone(unattributed);
+  attributed.validation_history[0].regression.impacted_finding_ids = [state.findings[0].id];
+  const seeded = migrateReviewLineage(attributed, manifest);
+  assert.equal(seeded.correction_slices[seeded.slice_order[0]].failed_attempts, 1);
 });
 
 test("slice validation is monotonic, isolates exhaustion, and reopens a passed slice only with explicit bounded regression", () => {
@@ -368,11 +388,20 @@ test("slice validation is monotonic, isolates exhaustion, and reopens a passed s
   state = freezeFindings(state, { expected_revision: state.revision, request_id: "freeze-slices" });
   state = migrateReviewLineage(state, { slices: state.findings.map((finding) => ({ root_cause_key: finding.owner, finding_ids: [finding.id], permitted_paths: ["scripts/a.js"] })) });
   const [policyId, provenanceId] = state.slice_order;
-  const resolve = (sliceId, requestId, outcome, regression = { detected: false, impacted_slices: [] }) => {
+  const resolve = (sliceId, requestId, outcome, regression = { detected: false, evidence: ["no-regression"], impacted_slices: [] }) => {
     const slice = state.correction_slices[sliceId];
     state = beginCorrection(state, { slice_id: sliceId, expected_revision: state.revision, request_id: `${requestId}-begin`, finding_ids: slice.finding_ids, paths: ["scripts/a.js"], base_candidate_id: state.current_candidate_id, forecast_lines: 0 });
     state = recordCorrection(state, { expected_revision: state.revision, request_id: `${requestId}-record`, base_candidate_id: state.current_candidate_id, paths: slice.permitted_paths, actual_changed_lines: 0, corrected_candidate: correctedCandidate(`${requestId}-candidate`) });
-    const verifiedRegression = regression.detected ? { ...regression, impacted_slices: regression.impacted_slices.map((impact) => ({ ...impact, evidence_digests: state.correction_slices[impact.slice_id].evidence_digests })) } : regression;
+    const verifiedRegression = regression.detected
+      ? {
+          detected: true,
+          evidence: regression.evidence || ["cross-slice-regression"],
+          impacted_slices: regression.impacted_slices.map((impact) => ({
+            ...impact,
+            evidence_digests: state.correction_slices[impact.slice_id].evidence_digests,
+          })),
+        }
+      : { detected: false, evidence: regression.evidence || ["no-regression"], impacted_slices: [] };
     state = applyTargetedValidation(state, { slice_id: sliceId, expected_revision: state.revision, request_id: `${requestId}-validate`, outcomes: slice.finding_ids.map((id) => ({ id, status: outcome })), regression: verifiedRegression, follow_ups: [] });
   };
   resolve(policyId, "policy-pass", "resolved");
@@ -406,7 +435,7 @@ test("remediation-v2 rejects invented authority, reconciles exact unknown work, 
   state = reconcilePendingOperation(state, { expected_revision: state.revision, request_id: "real-base", outcome: "committed", committed_state: restored });
   assert.throws(() => recordCorrection(state, { expected_revision: state.revision, request_id: "wrong-path", base_candidate_id: state.current_candidate_id, paths: ["skills/a/SKILL.md"], actual_changed_lines: 0, corrected_candidate: correctedCandidate("wrong") }), /path/i);
   state = recordCorrection(state, { expected_revision: state.revision, request_id: "record", base_candidate_id: state.current_candidate_id, paths: slice.permitted_paths, actual_changed_lines: 0, corrected_candidate: correctedCandidate("real") });
-  state = applyTargetedValidation(state, { slice_id: sliceId, expected_revision: state.revision, request_id: "pass", outcomes: slice.finding_ids.map((id) => ({ id, status: "resolved" })), regression: { detected: false, impacted_slices: [] }, follow_ups: [{ owner: "reliability", summary: "unrelated concern" }] });
+  state = applyTargetedValidation(state, { slice_id: sliceId, expected_revision: state.revision, request_id: "pass", outcomes: slice.finding_ids.map((id) => ({ id, status: "resolved" })), regression: { detected: false, evidence: ["no-regression"], impacted_slices: [] }, follow_ups: [{ owner: "reliability", summary: "unrelated concern" }] });
   assert.equal(state.correction_slices[sliceId].status, "passed");
   assert.equal(state.follow_ups.length, 1);
 
@@ -457,4 +486,28 @@ test("slice unknown reconciliation accepts only the exact pending state and rest
   assert.equal(restored.pending_operation, null);
   assert.equal(restored.pending_correction, null);
   assert.equal(nextLineageAction(restored).type, "correct");
+});
+
+test("validateSliceCorrection binds the active slice and fail-closes incomplete regression/outcomes contracts", () => {
+  let state = startReviewLineage({ ...genesis(), selected_dimensions: ["risk", "reliability"] });
+  for (const [dimension, summary] of [["risk", "policy boundary"], ["reliability", "provenance boundary"]]) {
+    state = beginLens(state, { dimension, expected_revision: state.revision, request_id: `${dimension}-start` });
+    state = recordLensResult(state, { dimension, expected_revision: state.revision, request_id: `${dimension}-result`, result: { findings: [{ severity: "CRITICAL", summary, acceptance_criteria: `repair ${dimension}` }] } });
+  }
+  state = freezeFindings(state, { expected_revision: state.revision, request_id: "freeze-validate-contract" });
+  state = migrateReviewLineage(state, { slices: state.findings.map((finding) => ({ root_cause_key: finding.owner, finding_ids: [finding.id], permitted_paths: ["scripts/a.js"] })) });
+  const [firstId, secondId] = state.slice_order;
+  const first = state.correction_slices[firstId];
+  const none = { detected: false, evidence: ["no-regression"], impacted_slices: [] };
+  const okOutcomes = first.finding_ids.map((id) => ({ id, status: "resolved" }));
+  state = beginCorrection(state, { slice_id: firstId, expected_revision: state.revision, request_id: "first-begin", finding_ids: first.finding_ids, paths: first.permitted_paths, base_candidate_id: state.current_candidate_id, forecast_lines: 0 });
+  state = recordCorrection(state, { expected_revision: state.revision, request_id: "first-record", base_candidate_id: state.current_candidate_id, paths: first.permitted_paths, actual_changed_lines: 0, corrected_candidate: correctedCandidate("first-candidate") });
+  const attempt = (request_id, patch, pattern) => assert.throws(() => applyTargetedValidation(state, { slice_id: firstId, expected_revision: state.revision, request_id, outcomes: okOutcomes, regression: none, follow_ups: [], ...patch }), pattern);
+  attempt("divert", { slice_id: secondId }, /active slice|exclusively/i);
+  attempt("omit-regression", { regression: undefined }, /regression evidence/i);
+  attempt("detected-without-impacts", { regression: { detected: true, evidence: ["regressed"], impacted_slices: [] } }, /attributable impacted_slices/i);
+  attempt("bad-outcome-shape", { outcomes: first.finding_ids.map((id) => ({ id, status: "resolved", extra: true })) }, /outcome must contain exactly/i);
+  state = applyTargetedValidation(state, { slice_id: firstId, expected_revision: state.revision, request_id: "first-pass", outcomes: okOutcomes, regression: none, follow_ups: [] });
+  assert.equal(state.correction_slices[firstId].status, "passed");
+  assert.equal(state.correction_slices[secondId].status, "ready");
 });

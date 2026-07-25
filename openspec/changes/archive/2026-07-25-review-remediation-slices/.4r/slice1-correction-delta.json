@@ -1,0 +1,26 @@
+{
+  "slice_id": "S-64f0712ad15fc7aa",
+  "finding_ids": [
+    "F-19db00cad371b25b",
+    "F-77bf041927205443",
+    "F-e75f5425620b6d15"
+  ],
+  "root_cause_key": "validate-slice-correction-fail-closed",
+  "paths": [
+    "scripts/lib/review-lineage.js",
+    "scripts/review-lineage.test.js"
+  ],
+  "actual_changed_lines": 103,
+  "forecast_lines": 120,
+  "used_lines": 103,
+  "failed_attempts": 1,
+  "candidate_id": "sha256:c0b4b013ab9c8ad9242bb233122ebd0b9aa1d23cbc140a128facedfdd9683842",
+  "diff_hash": "sha256:05c20a09bf227423b429507e1f2caca0dc268e84bb447acd34f46e52d74825d5",
+  "prior_zero_charge_retried": true,
+  "test_evidence": "node --test scripts/review-lineage.test.js => 22/22 pass",
+  "acceptance": {
+    "F-19db00cad371b25b": "activeSlice binds active_slice_id===pending_correction.slice_id; diverting slice_id throws",
+    "F-e75f5425620b6d15": "normalizeValidationOutcomes + assertCorrectionRegression parity with v1 outcomes/evidence",
+    "F-77bf041927205443": "omitted regression throws; detected:true without impacted_slices throws; failed includes regression.detected"
+  }
+}

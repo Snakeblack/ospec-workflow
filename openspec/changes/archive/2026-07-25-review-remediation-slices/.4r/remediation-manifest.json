@@ -1,0 +1,77 @@
+{
+  "migrated_at": "2026-07-25T11:33:39.243Z",
+  "lineage_id": "sha256:02f648717710ce1e579fe5b4b4b11a03682168daaaa3b29740c593086c2e2683",
+  "candidate_id": "sha256:d5783ee7dff533fe3a6d08d4e93a4ebb704c1c31e9af865ef1a232c107f13a3d",
+  "manifest": {
+    "slices": [
+      {
+        "root_cause_key": "validate-slice-correction-fail-closed",
+        "finding_ids": [
+          "F-19db00cad371b25b",
+          "F-e75f5425620b6d15",
+          "F-77bf041927205443"
+        ],
+        "permitted_paths": [
+          "scripts/lib/review-lineage.js",
+          "scripts/review-lineage.test.js"
+        ]
+      },
+      {
+        "root_cause_key": "migrate-legacy-regression-attribution",
+        "finding_ids": [
+          "F-1779348a80b55d76"
+        ],
+        "permitted_paths": [
+          "scripts/lib/review-lineage.js",
+          "scripts/review-lineage.test.js"
+        ]
+      },
+      {
+        "root_cause_key": "successor-authority-post-rollout",
+        "finding_ids": [
+          "F-40505069c7227bb4"
+        ],
+        "permitted_paths": [
+          "scripts/lib/review-lineage.js",
+          "scripts/lib/review-gate-state.js"
+        ]
+      },
+      {
+        "root_cause_key": "expand-slice-state-machine",
+        "finding_ids": [
+          "F-a0937378a623ff36"
+        ],
+        "permitted_paths": [
+          "scripts/lib/review-lineage.js"
+        ]
+      }
+    ]
+  },
+  "slice_order": [
+    "S-64f0712ad15fc7aa",
+    "S-86c71096a807a755",
+    "S-1c649aff4e450731",
+    "S-07c670caace1e94a"
+  ],
+  "active_slice_id": "S-64f0712ad15fc7aa",
+  "pending_correction": {
+    "slice_id": "S-64f0712ad15fc7aa",
+    "request_id": "correct-slice1-validate-fail-closed-2026-07-25",
+    "finding_ids": [
+      "F-19db00cad371b25b",
+      "F-77bf041927205443",
+      "F-e75f5425620b6d15"
+    ],
+    "paths": [
+      "scripts/lib/review-lineage.js",
+      "scripts/review-lineage.test.js"
+    ],
+    "base_candidate_id": "sha256:d5783ee7dff533fe3a6d08d4e93a4ebb704c1c31e9af865ef1a232c107f13a3d",
+    "forecast_lines": 120
+  },
+  "next_action": {
+    "type": "record-correction",
+    "slice_id": "S-64f0712ad15fc7aa",
+    "request_id": "correct-slice1-validate-fail-closed-2026-07-25"
+  }
+}

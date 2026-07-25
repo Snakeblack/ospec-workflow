@@ -1,0 +1,11 @@
+{
+  "request_id": "validate-slice4-expand-state-machine-2026-07-25",
+  "slice_id": "S-07c670caace1e94a",
+  "result": "passed",
+  "outcomes": [
+    {
+      "id": "F-a0937378a623ff36",
+      "status": "resolved"
+    }
+  ]
+}

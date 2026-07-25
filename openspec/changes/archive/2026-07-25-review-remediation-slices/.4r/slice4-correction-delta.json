@@ -1,0 +1,25 @@
+{
+  "slice_id": "S-07c670caace1e94a",
+  "finding_ids": [
+    "F-a0937378a623ff36"
+  ],
+  "root_cause_key": "expand-slice-state-machine",
+  "paths": [
+    "scripts/lib/review-lineage.js"
+  ],
+  "actual_changed_lines": 138,
+  "used_lines": 138,
+  "helpers": [
+    "loadReadySlice",
+    "reopenImpactedSlices",
+    "terminalAfterSliceValidation",
+    "activeSlice"
+  ],
+  "expanded": [
+    "beginSliceCorrection",
+    "recordSliceCorrection",
+    "validateSliceCorrection",
+    "nextSliceAction"
+  ],
+  "test_evidence": "node --test scripts/review-lineage.test.js scripts/review-lineage-o4-migration.test.js scripts/review-gate-state.test.js => 37/37 pass"
+}

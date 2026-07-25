@@ -452,7 +452,7 @@ function createSuccessor(predecessor, input) {
   if (!TERMINAL.has(predecessor.status)) throw new Error("successor requires a terminal predecessor lineage");
   if (predecessor.status === "reconciliation-required" || predecessor.pending_operation) throw new Error("successor is forbidden while reconciliation is pending");
   if (!input || typeof input.reason !== "string" || input.reason.trim().length === 0 || typeof input.approval_reference !== "string" || input.approval_reference.trim().length === 0) throw new TypeError("successor reason and approval reference are required");
-  if (isRemediationV2(predecessor) && !["new-candidate", "new-scope", "new-discovery-authority"].includes(input.authority_kind)) {
+  if (!["new-candidate", "new-scope", "new-discovery-authority"].includes(input.authority_kind)) {
     throw new TypeError("slice exhaustion or retry is not successor authority");
   }
   
@@ -549,8 +549,31 @@ function canonicalManifest(state, manifest) {
   return slices;
 }
 
+function legacyRegressionImpactIds(regression) {
+  if (!regression || typeof regression !== "object") return [];
+  const direct = [
+    ...(Array.isArray(regression.impacted_finding_ids) ? regression.impacted_finding_ids : []),
+    ...(Array.isArray(regression.impacted_ids) ? regression.impacted_ids : []),
+  ];
+  const nested = (Array.isArray(regression.impacted_slices) ? regression.impacted_slices : [])
+    .flatMap((impact) => (Array.isArray(impact && impact.finding_ids) ? impact.finding_ids : []));
+  return [...new Set([...direct, ...nested].filter((id) => typeof id === "string" && id.length > 0))].sort();
+}
+
+function assertLegacyValidationsMigratable(validationHistory) {
+  for (const validation of validationHistory || []) {
+    const regression = validation.regression;
+    if (!regression || regression.detected !== true) continue;
+    if (legacyRegressionImpactIds(regression).length === 0) {
+      throw new Error("legacy regression.detected without attributable impacts cannot be migrated");
+    }
+  }
+}
+
 function attachRemediationV2(state, manifest) {
   if (isRemediationV2(state)) return state;
+  const legacyValidations = state.validation_history || [];
+  assertLegacyValidationsMigratable(legacyValidations);
   const slices = canonicalManifest(state, manifest);
   const limit = Math.min(MAX_BUDGET_LINES, Math.ceil(state.genesis.original_changed_lines / 2));
   const manifestSnapshot = slices.map((slice) => ({ id: slice.slice_id, root_cause_key: slice.root_cause_key, finding_ids: slice.finding_ids, evidence_digests: slice.evidence_digests, permitted_paths: slice.permitted_paths }));
@@ -558,7 +581,6 @@ function attachRemediationV2(state, manifest) {
   state.remediation_migration = { source_digest: digest("review-lineage-v1-source", migrationSourceAuthority(state, manifestSnapshot)), manifest_digest: null, legacy_used_lines: state.correction_budget.used_lines, legacy_failed_attempts: state.correction_budget.failed_attempts, migrated_at: "deterministic" };
   state.slice_order = slices.map((slice) => slice.slice_id);
   state.active_slice_id = null;
-  const legacyValidations = state.validation_history || [];
   state.correction_slices = Object.fromEntries(slices.map((slice) => {
     const latest = new Map();
     const failedRefs = [];
@@ -566,7 +588,8 @@ function attachRemediationV2(state, manifest) {
       const outcomes = Array.isArray(validation.outcomes) ? validation.outcomes : [];
       const relevant = outcomes.filter((outcome) => slice.finding_ids.includes(outcome.id));
       relevant.forEach((outcome) => latest.set(outcome.id, outcome.status));
-      if (relevant.some((outcome) => outcome.status === "unresolved")) failedRefs.push({ index, request_id: validation.request_id });
+      const namedByRegression = legacyRegressionImpactIds(validation.regression).some((id) => slice.finding_ids.includes(id));
+      if (relevant.some((outcome) => outcome.status === "unresolved") || namedByRegression) failedRefs.push({ index, request_id: validation.request_id });
     });
     const resolutions = Object.fromEntries(slice.finding_ids.map((id) => [id, latest.has(id) ? latest.get(id) : (state.findings.find((finding) => finding.id === id).resolution === "resolved" ? "resolved" : "unresolved")]));
     const failed_attempts = failedRefs.length;
@@ -604,10 +627,32 @@ function migrateReviewLineage(v1, manifest) {
 }
 
 function activeSlice(state, input) {
-  const id = input && input.slice_id || state.active_slice_id;
-  const slice = id && state.correction_slices[id];
+  const activeId = state.active_slice_id;
+  const pendingId = state.pending_correction && state.pending_correction.slice_id;
+  if (!activeId || !pendingId || activeId !== pendingId) throw new Error("exact active slice is required");
+  if (input && input.slice_id && input.slice_id !== activeId) throw new Error("validation must bind exclusively to the active slice");
+  const slice = state.correction_slices[activeId];
   if (!slice) throw new Error("exact active slice is required");
-  return [id, slice];
+  return [activeId, slice];
+}
+
+function normalizeValidationOutcomes(outcomes, expectedIds) {
+  if (!Array.isArray(outcomes)) throw new TypeError("validation outcomes are required");
+  const normalized = outcomes.map((outcome) => {
+    if (!outcome || Object.keys(outcome).sort().join(",") !== "id,status" || typeof outcome.id !== "string" || !OUTCOMES.has(outcome.status)) throw new TypeError("validation outcome must contain exactly frozen id and resolved|unresolved status");
+    return { id: outcome.id, status: outcome.status };
+  });
+  const actual = normalized.map((outcome) => outcome.id).sort();
+  if (new Set(actual).size !== actual.length || stableSerialize(actual) !== stableSerialize(expectedIds)) throw new Error("validation must cover exactly the active slice IDs");
+  return normalized;
+}
+
+function assertCorrectionRegression(regression) {
+  if (!regression || typeof regression.detected !== "boolean" || !Array.isArray(regression.evidence) || regression.evidence.length === 0 || regression.evidence.some((item) => typeof item !== "string" || item.length === 0 || item.length > 500)) throw new TypeError("correction regression evidence is required");
+  const impacted = Array.isArray(regression.impacted_slices) ? regression.impacted_slices : [];
+  if (!regression.detected && impacted.length) throw new Error("non-regression cannot impact slices");
+  if (regression.detected && impacted.length === 0) throw new Error("detected regression requires attributable impacted_slices");
+  return { detected: regression.detected, evidence: regression.evidence.slice(), impacted_slices: impacted };
 }
 
 function remediationManifestDigest(state) {
@@ -617,46 +662,174 @@ function remediationManifestDigest(state) {
   }));
 }
 
+function loadReadySlice(state, sliceId) {
+  const id = sliceId || nextSliceAction(state).slice_id;
+  const slice = state.correction_slices[id];
+  if (!slice || slice.status !== "ready") throw new Error("selected slice is not actionable");
+  return [id, slice];
+}
+
+function reopenImpactedSlices(next, requestId, impactedSlices) {
+  for (const impact of impactedSlices) {
+    const target = next.correction_slices[impact.slice_id];
+    if (!target || target.status !== "passed") throw new Error("regression must name a passed slice");
+    const ids = canonicalStringList(impact.finding_ids, "impacted finding_ids", target.finding_ids);
+    const paths = canonicalStringList(impact.paths, "impacted paths").map(canonicalPath);
+    const evidence = canonicalStringList(impact.evidence_digests, "impacted evidence_digests", target.evidence_digests);
+    if (!evidence.length || ids.some((x) => !target.finding_ids.includes(x)) || paths.some((p) => !target.permitted_paths.includes(p))) {
+      throw new Error("regression evidence escapes impacted slice");
+    }
+    target.status = "ready";
+    target.regression_history.push({ request_id: requestId, finding_ids: ids, paths, evidence_digests: evidence });
+    next.findings = next.findings.map((finding) => (ids.includes(finding.id) ? { ...finding, resolution: "unresolved" } : finding));
+  }
+}
+
+function terminalAfterSliceValidation(next) {
+  next.active_slice_id = null;
+  next.pending_correction = null;
+  next.status = "correction-required";
+  const action = nextSliceAction(next);
+  if (action.type === "stop") {
+    const allPassed = Object.values(next.correction_slices).every((entry) => entry.status === "passed");
+    next.status = allPassed ? "approved" : "exhausted";
+    if (allPassed) next.terminal_reason = "all-remediation-slices-passed";
+    return next;
+  }
+  next.status = "correction-required";
+  return next;
+}
+
 function beginSliceCorrection(state, input) {
-  assertLineage(state); assertExpectedRevision(state, input && input.expected_revision); assertRequestId(input && input.request_id);
+  assertLineage(state);
+  assertExpectedRevision(state, input && input.expected_revision);
+  assertRequestId(input && input.request_id);
   if (state.status === "reconciliation-required") throw new Error("lineage requires reconciliation before any mutation");
   if (state.status !== "correction-required") throw new Error("slice correction is not actionable");
-  const id = input.slice_id || nextSliceAction(state).slice_id; const slice = state.correction_slices[id];
-  if (!slice || slice.status !== "ready") throw new Error("selected slice is not actionable");
+  const [id, slice] = loadReadySlice(state, input.slice_id);
   const ids = canonicalStringList(input.finding_ids, "finding_ids", slice.finding_ids);
   const paths = canonicalStringList(input.paths, "correction paths").map(canonicalPath).sort();
   if (!paths.length || paths.some((p) => !slice.permitted_paths.includes(p))) throw new Error("correction path escapes frozen genesis paths");
   if (stableSerialize(ids) !== stableSerialize(slice.finding_ids)) throw new Error("correction must target only the exact active slice");
   if (input.base_candidate_id !== state.current_candidate_id) throw new Error("correction base candidate mismatch");
-  assertCount(input.forecast_lines, "forecast_lines"); if (input.forecast_lines > slice.limit_lines - slice.used_lines) throw new Error("slice correction forecast exceeds fixed budget");
-  const next = clone(state); next.active_slice_id = id; next.correction_slices[id].status = "correcting"; next.pending_correction = { slice_id: id, request_id: input.request_id, finding_ids: ids, paths, base_candidate_id: input.base_candidate_id, forecast_lines: input.forecast_lines }; next.pending_operation = operationRecord(input, "slice-correction-start", next.pending_correction, { status: "correction-required", slice_id: id }); next.status = "correcting"; return commit(next);
+  assertCount(input.forecast_lines, "forecast_lines");
+  if (input.forecast_lines > slice.limit_lines - slice.used_lines) throw new Error("slice correction forecast exceeds fixed budget");
+  const next = clone(state);
+  next.active_slice_id = id;
+  next.correction_slices[id].status = "correcting";
+  next.pending_correction = {
+    slice_id: id,
+    request_id: input.request_id,
+    finding_ids: ids,
+    paths,
+    base_candidate_id: input.base_candidate_id,
+    forecast_lines: input.forecast_lines,
+  };
+  next.pending_operation = operationRecord(input, "slice-correction-start", next.pending_correction, { status: "correction-required", slice_id: id });
+  next.status = "correcting";
+  return commit(next);
 }
 
 function recordSliceCorrection(state, input) {
-  assertLineage(state); assertExpectedRevision(state, input && input.expected_revision); assertRequestId(input && input.request_id); if (state.status !== "correcting" || !state.pending_correction || !state.pending_operation) throw new Error("pending slice correction is required");
-  const next = clone(state); const pending = next.pending_correction; const slice = next.correction_slices[pending.slice_id]; if (input.base_candidate_id !== pending.base_candidate_id || input.base_candidate_id !== next.current_candidate_id) throw new Error("correction base candidate mismatch"); assertCount(input.actual_changed_lines, "actual_changed_lines"); if (input.actual_changed_lines > pending.forecast_lines || slice.used_lines + input.actual_changed_lines > slice.limit_lines) throw new Error("slice correction budget exceeded");
-  const paths = canonicalStringList(input.paths, "correction paths").map(canonicalPath).sort(); if (stableSerialize(paths) !== stableSerialize(pending.paths)) throw new Error("actual correction paths must equal persisted pending paths");
-  const corrected = normalizeCandidate(input.corrected_candidate); if (stableSerialize(corrected.paths) !== stableSerialize(next.genesis.paths)) throw new Error("corrected candidate paths must equal frozen genesis paths");
-  const corrected_candidate_id = digest("review-candidate-v1", corrected); slice.used_lines += input.actual_changed_lines; slice.correction_history.push({ ...pending, actual_changed_lines: input.actual_changed_lines, record_request_id: input.request_id, corrected_candidate_id }); next.current_candidate = corrected; next.current_candidate_id = corrected_candidate_id; next.pending_operation = null; next.status = "validating"; return commit(next);
+  assertLineage(state);
+  assertExpectedRevision(state, input && input.expected_revision);
+  assertRequestId(input && input.request_id);
+  if (state.status !== "correcting" || !state.pending_correction || !state.pending_operation) {
+    throw new Error("pending slice correction is required");
+  }
+  const next = clone(state);
+  const pending = next.pending_correction;
+  const slice = next.correction_slices[pending.slice_id];
+  if (input.base_candidate_id !== pending.base_candidate_id || input.base_candidate_id !== next.current_candidate_id) {
+    throw new Error("correction base candidate mismatch");
+  }
+  assertCount(input.actual_changed_lines, "actual_changed_lines");
+  if (input.actual_changed_lines > pending.forecast_lines || slice.used_lines + input.actual_changed_lines > slice.limit_lines) {
+    throw new Error("slice correction budget exceeded");
+  }
+  const paths = canonicalStringList(input.paths, "correction paths").map(canonicalPath).sort();
+  if (stableSerialize(paths) !== stableSerialize(pending.paths)) throw new Error("actual correction paths must equal persisted pending paths");
+  const corrected = normalizeCandidate(input.corrected_candidate);
+  if (stableSerialize(corrected.paths) !== stableSerialize(next.genesis.paths)) throw new Error("corrected candidate paths must equal frozen genesis paths");
+  const corrected_candidate_id = digest("review-candidate-v1", corrected);
+  slice.used_lines += input.actual_changed_lines;
+  slice.correction_history.push({
+    ...pending,
+    actual_changed_lines: input.actual_changed_lines,
+    record_request_id: input.request_id,
+    corrected_candidate_id,
+  });
+  next.current_candidate = corrected;
+  next.current_candidate_id = corrected_candidate_id;
+  next.pending_operation = null;
+  next.status = "validating";
+  return commit(next);
 }
 
 function validateSliceCorrection(state, input) {
-  assertLineage(state); assertExpectedRevision(state, input && input.expected_revision); assertRequestId(input && input.request_id); if (state.status !== "validating") throw new Error("slice validation is not actionable");
-  const next = clone(state); const [id, slice] = activeSlice(next, input); const outcomes = input.outcomes || []; const actual = outcomes.map((o) => o.id).sort(); if (stableSerialize(actual) !== stableSerialize(slice.finding_ids)) throw new Error("validation must cover exactly the active slice IDs");
-  const failed = outcomes.some((o) => o.status !== "resolved"); const followUps = normalizeFollowUps(input.follow_ups || []); slice.validation_history.push({ request_id: input.request_id, outcomes: clone(outcomes), result: failed ? "failed" : "passed" }); next.follow_ups.push(...followUps);
-  next.findings = next.findings.map((f) => slice.finding_ids.includes(f.id) ? { ...f, resolution: failed ? "unresolved" : "resolved" } : f); slice.status = failed ? (slice.failed_attempts + 1 >= slice.max_failed_attempts ? "exhausted" : "ready") : "passed"; if (failed) slice.failed_attempts += 1;
-  const regression = input.regression || { detected: false, impacted_slices: [] }; if (!regression.detected && (regression.impacted_slices || []).length) throw new Error("non-regression cannot impact slices");
-  for (const impact of regression.impacted_slices || []) { const target = next.correction_slices[impact.slice_id]; if (!target || target.status !== "passed") throw new Error("regression must name a passed slice"); const ids = canonicalStringList(impact.finding_ids, "impacted finding_ids", target.finding_ids); const paths = canonicalStringList(impact.paths, "impacted paths").map(canonicalPath); const evidence = canonicalStringList(impact.evidence_digests, "impacted evidence_digests", target.evidence_digests); if (!evidence.length || ids.some((x) => !target.finding_ids.includes(x)) || paths.some((p) => !target.permitted_paths.includes(p))) throw new Error("regression evidence escapes impacted slice"); target.status = "ready"; target.regression_history.push({ request_id: input.request_id, finding_ids: ids, paths, evidence_digests: evidence }); next.findings = next.findings.map((f) => ids.includes(f.id) ? { ...f, resolution: "unresolved" } : f); }
-  next.active_slice_id = null; next.pending_correction = null; next.status = "correction-required"; const action = nextSliceAction(next); next.status = action.type === "stop" ? (Object.values(next.correction_slices).every((s) => s.status === "passed") ? "approved" : "exhausted") : "correction-required"; if (next.status === "approved") next.terminal_reason = "all-remediation-slices-passed"; return commit(next);
+  assertLineage(state);
+  assertExpectedRevision(state, input && input.expected_revision);
+  assertRequestId(input && input.request_id);
+  if (state.status !== "validating") throw new Error("slice validation is not actionable");
+  const next = clone(state);
+  const [, slice] = activeSlice(next, input);
+  const outcomes = normalizeValidationOutcomes(input.outcomes, slice.finding_ids);
+  const regression = assertCorrectionRegression(input.regression);
+  const followUps = normalizeFollowUps(input.follow_ups || []);
+  const failed = regression.detected || outcomes.some((outcome) => outcome.status !== "resolved");
+  slice.validation_history.push({
+    request_id: input.request_id,
+    outcomes: clone(outcomes),
+    regression: clone(regression),
+    result: failed ? "failed" : "passed",
+  });
+  next.follow_ups.push(...followUps);
+  next.findings = next.findings.map((finding) => (
+    slice.finding_ids.includes(finding.id)
+      ? { ...finding, resolution: failed ? "unresolved" : "resolved" }
+      : finding
+  ));
+  slice.status = failed
+    ? (slice.failed_attempts + 1 >= slice.max_failed_attempts ? "exhausted" : "ready")
+    : "passed";
+  if (failed) slice.failed_attempts += 1;
+  reopenImpactedSlices(next, input.request_id, regression.impacted_slices);
+  return commit(terminalAfterSliceValidation(next));
 }
 
 function nextSliceAction(state) {
-  if (state.status === "reconciliation-required") return { type: "reconcile", request_id: state.pending_operation && state.pending_operation.request_id || null };
-  if (state.status === "reviewing") { const pending = state.genesis.selected_dimensions.filter((d) => state.lenses[d].status === "pending"); return pending.length ? { type: "run-lenses", dimensions: pending } : { type: "freeze-findings" }; }
-  if (state.status === "correcting") return { type: "record-correction", slice_id: state.active_slice_id, request_id: state.pending_correction && state.pending_correction.request_id };
-  if (state.status === "validating") return { type: "targeted-validation", slice_id: state.active_slice_id, finding_ids: state.correction_slices[state.active_slice_id].finding_ids };
-  const id = state.slice_order.find((key) => state.correction_slices[key].status === "ready"); if (id) return { type: "correct", slice_id: id, finding_ids: state.correction_slices[id].finding_ids, paths: state.correction_slices[id].permitted_paths };
-  return { type: "stop", reason: Object.values(state.correction_slices).every((s) => s.status === "passed") ? "all-remediation-slices-passed" : "no-actionable-remediation-slice" };
+  if (state.status === "reconciliation-required") {
+    return { type: "reconcile", request_id: state.pending_operation && state.pending_operation.request_id || null };
+  }
+  if (state.status === "reviewing") {
+    const pending = state.genesis.selected_dimensions.filter((d) => state.lenses[d].status === "pending");
+    return pending.length ? { type: "run-lenses", dimensions: pending } : { type: "freeze-findings" };
+  }
+  if (state.status === "correcting") {
+    return {
+      type: "record-correction",
+      slice_id: state.active_slice_id,
+      request_id: state.pending_correction && state.pending_correction.request_id,
+    };
+  }
+  if (state.status === "validating") {
+    return {
+      type: "targeted-validation",
+      slice_id: state.active_slice_id,
+      finding_ids: state.correction_slices[state.active_slice_id].finding_ids,
+    };
+  }
+  const id = state.slice_order.find((key) => state.correction_slices[key].status === "ready");
+  if (id) {
+    return {
+      type: "correct",
+      slice_id: id,
+      finding_ids: state.correction_slices[id].finding_ids,
+      paths: state.correction_slices[id].permitted_paths,
+    };
+  }
+  const allPassed = Object.values(state.correction_slices).every((s) => s.status === "passed");
+  return { type: "stop", reason: allPassed ? "all-remediation-slices-passed" : "no-actionable-remediation-slice" };
 }
 
 function prepareMutation(state, input, operation, allowedStatuses) {

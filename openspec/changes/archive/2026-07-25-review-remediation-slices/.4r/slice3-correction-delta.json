@@ -1,0 +1,17 @@
+{
+  "slice_id": "S-1c649aff4e450731",
+  "finding_ids": [
+    "F-40505069c7227bb4"
+  ],
+  "root_cause_key": "successor-authority-post-rollout",
+  "paths": [
+    "scripts/lib/review-lineage.js"
+  ],
+  "actual_changed_lines": 2,
+  "used_lines": 2,
+  "candidate_id": "sha256:a7f571de23211bc5f34bc6015261b06f792ee5a14ec00c9e0c3c668a65aa514c",
+  "test_evidence": "node --test scripts/review-lineage.test.js scripts/review-gate-state.test.js => 35/35 pass; terminate-v1 untyped successor throws /authority/",
+  "acceptance": {
+    "F-40505069c7227bb4": "createSuccessor always requires allowlisted authority_kind; terminate-v1 then untyped successor fails closed"
+  }
+}
