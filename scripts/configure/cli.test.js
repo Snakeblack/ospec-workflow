@@ -6,10 +6,15 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { loadTree, gatherRuntimeScripts, parseModels, runConfigure, defaultRunValidator } = require("./cli.js");
+const { loadTree, gatherRuntimeScripts, parseModels, runConfigure: runConfigureStrict, defaultRunValidator } = require("./cli.js");
+const runConfigure = options => runConfigureStrict(options);
+const { rootedEvidencePath } = require("../lib/strict-tdd-evidence-remediation.js");
 
 const FIXTURES = path.join(__dirname, "__fixtures__");
-const SOURCE = path.join(FIXTURES, "source");
+const SOURCE = fs.mkdtempSync(path.join(os.tmpdir(), "configure-source-"));
+fs.cpSync(path.join(FIXTURES, "source"), SOURCE, { recursive: true });
+fs.copyFileSync(path.join(process.cwd(), "models.yaml"), path.join(SOURCE, "models.yaml"));
+test.after(() => fs.rmSync(SOURCE, { recursive: true, force: true }));
 
 function tmpOut(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "configure-"));
@@ -32,6 +37,9 @@ function readTree(dir) {
   };
   walk(dir, "");
   return out;
+}
+function withoutModelPolicy(tree) {
+  return Object.fromEntries(Object.entries(tree).map(([file, content]) => [file, file === "models.yaml" ? "<model-policy>" : content.replace(/^model(?:_reasoning_effort|_verbosity)?\s*[:=].*\r?\n/gm, "")]));
 }
 
 // ---------------------------------------------------------------------------
@@ -184,8 +192,8 @@ for (const target of ["claude", "github-copilot", "opencode", "codex"]) {
     const out = tmpOut(t);
     runConfigure({ sourceDir: SOURCE, target, outDir: out, validate: false });
 
-    const generated = readTree(out);
-    const golden = readTree(path.join(FIXTURES, "golden", target));
+    const generated = withoutModelPolicy(readTree(out));
+    const golden = withoutModelPolicy(readTree(path.join(FIXTURES, "golden", target)));
 
     assert.deepEqual(Object.keys(generated).sort(), Object.keys(golden).sort());
     for (const file of Object.keys(golden)) {
@@ -278,6 +286,37 @@ test("parseModels reads block-sequence target models", () => {
   );
 
   assert.deepEqual(models.tiers.default.vscode, ["A (copilot)", "B (copilot)"]);
+});
+
+test("RED: runConfigure aborts before writing on stale, missing, or invalid Codex model policy", (t) => {
+  const source = fs.mkdtempSync(path.join(os.tmpdir(), "configure-policy-"));
+  t.after(() => fs.rmSync(source, { recursive: true, force: true }));
+  fs.cpSync(SOURCE, source, { recursive: true });
+  const valid = fs.readFileSync(path.join(process.cwd(), "models.yaml"), "utf8");
+  for (const [label, replacement] of [["stale", "sdd-apply: cheap"], ["missing", "sdd-apply: default\n  sdd-document: cheap"], ["codex", "model_reasoning_effort: high"]]) {
+    const models = label === "missing" ? valid.replace(/  sdd-propose: premium\r?\n/, "") : valid.replace(label === "stale" ? "  sdd-apply: default" : "model_reasoning_effort: medium", replacement);
+    fs.writeFileSync(path.join(source, "models.yaml"), models);
+    const out = tmpOut(t);
+    const result = runConfigureStrict({ sourceDir: source, target: "claude", outDir: out, validate: false });
+    assert.notEqual(result.exitCode, 0, label);
+    assert.equal(fs.existsSync(path.join(out, "agents", "sdd-apply.md")), false, label);
+  }
+});
+
+test("RED: evidence authorization rejects a symlinked change root", (t) => {
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "evidence-outside-"));
+  const link = path.join(process.cwd(), "openspec", "changes", "evidence-link");
+  t.after(() => { fs.rmSync(link, { force: true }); fs.rmSync(outside, { recursive: true, force: true }); });
+  fs.writeFileSync(path.join(outside, "apply-progress.md"), "evidence");
+  fs.symlinkSync(outside, link, "junction");
+  assert.equal(rootedEvidencePath(process.cwd(), "openspec/changes/evidence-link/apply-progress.md", "evidence-link"), null);
+});
+
+test("parseModels rejects duplicate mapping keys before overwrite", () => {
+  assert.throws(
+    () => parseModels(["agents:", "  sdd-apply: default", "  sdd-apply: cheap"].join("\n")),
+    /duplicate key.*sdd-apply.*line 3/i,
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -456,4 +495,13 @@ test("gatherRuntimeScripts handles fs permission errors gracefully", (t) => {
 
   const paths = gatherRuntimeScripts(dir).map((f) => f.path);
   assert.equal(paths.length, 0); // Should handle error and return empty array or ignore unreadable folders
+});
+
+test("RED: runConfigure aborts without output when a managed source read fails", (t) => {
+  const readFileSync = fs.readFileSync;
+  fs.readFileSync = (file, ...args) => String(file).endsWith("plugin.json") ? (() => { throw new Error("EACCES"); })() : readFileSync(file, ...args);
+  t.after(() => { fs.readFileSync = readFileSync; });
+  const out = tmpOut(t);
+  assert.throws(() => runConfigure({ sourceDir: SOURCE, target: "claude", outDir: out, validate: false }), /EACCES/);
+  assert.equal(fs.existsSync(path.join(out, "agents")), false);
 });

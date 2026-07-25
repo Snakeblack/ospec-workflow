@@ -1,0 +1,23 @@
+{
+  "request_id": "validate-slice1-validate-fail-closed-2026-07-25",
+  "slice_id": "S-64f0712ad15fc7aa",
+  "result": "passed",
+  "outcomes": [
+    {
+      "id": "F-19db00cad371b25b",
+      "status": "resolved"
+    },
+    {
+      "id": "F-77bf041927205443",
+      "status": "resolved"
+    },
+    {
+      "id": "F-e75f5425620b6d15",
+      "status": "resolved"
+    }
+  ],
+  "regression": {
+    "detected": false
+  },
+  "validator": "review-correction"
+}

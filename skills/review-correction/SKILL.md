@@ -15,7 +15,7 @@ metadata:
 
 This validator is read-only. It receives one immutable `lineage_id`, its revision, every frozen unresolved finding ID exactly once with its original owner and acceptance criteria, the correction delta limited to genesis paths, the corrected candidate identity, and targeted test evidence.
 
-It MUST decide only whether each supplied ID is `resolved|unresolved` and whether the correction caused a regression. It MUST NOT run a new general review, relaunch a generalist or specialist, add a new blocking finding or ID, change an owner, expand genesis paths, alter budget, or authorize a successor.
+It MUST decide only whether each supplied active-slice ID is `resolved|unresolved` and whether the correction caused an explicitly evidenced regression against a named passed slice. It MUST NOT run a new general review, relaunch a generalist or specialist, add a new blocking finding or ID, change an owner, expand permitted paths, alter any slice budget, or authorize a successor.
 
 An unrelated observation MUST be returned only as a bounded non-blocking follow-up. Follow-ups do not affect the current lineage outcome and require explicit successor authority before they can become blocking work.
 

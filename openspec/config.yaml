@@ -11,7 +11,7 @@ context: |
 
 project:
   name: ospec-workflow
-  version: 2.31.0
+  version: 2.32.0
   status: active
 
 artifact_store:
@@ -78,6 +78,7 @@ rules:
     test_command: "npm test"
     build_command: ""
     coverage_threshold: 0
+    strict_tdd_evidence_remediation_max_changed_lines: 40
   archive:
     - Warn before merging destructive deltas
 

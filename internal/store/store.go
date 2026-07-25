@@ -292,7 +292,7 @@ func (s *Store) AppendPhaseCost(changeName string, line []byte) error {
 				rowIndex++
 				var prior map[string]any
 				if err := json.Unmarshal([]byte(trimmed), &prior); err == nil {
-					if priorPhase, ok := prior["phase"].(string); ok && priorPhase == phase {
+					if priorPhase, ok := prior["phase"].(string); ok && priorPhase == phase && prior["status"] == "success" {
 						hasPrior = true
 					}
 				}

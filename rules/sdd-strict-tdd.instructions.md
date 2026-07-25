@@ -31,3 +31,9 @@ Required evidence columns:
 - If Strict TDD evidence is missing or cannot be proven (without valid `STATIC_VALIDATED`/`DEFERRED` status and rationale), report a CRITICAL issue.
 
 Detailed rules live in `skills/sdd-apply/strict-tdd.md` and `skills/sdd-verify/strict-tdd-verify.md`.
+
+Evidence remediation is fail-closed. A valid schema-v1 `json:strict-tdd-evidence`
+record may repair only its evidence section, preserving candidate identity and
+genesis paths, within a configured cap no greater than 40 changed lines and one
+focal recheck. Missing provenance, unauthorized writes, identity drift, or
+material changes remain CRITICAL and use ordinary routing.

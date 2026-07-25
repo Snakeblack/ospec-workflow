@@ -89,11 +89,22 @@ function planLineageGate({ lineage, observed_candidate_id, downstream_gate = "st
   const downstream = ["verify", "delivery", "archive"].includes(downstream_gate)
     ? validateLineageForGate(lineage, { candidate_id: observed_candidate_id, gate: downstream_gate })
     : null;
+  const mutableAction = ["correct", "record-correction", "targeted-validation"].includes(nextAction.type);
+  const migrationRequired = mutableAction && lineage && lineage.remediation_schema_version !== 2;
+  if (migrationRequired) {
+    return {
+      status: "migration-required",
+      next_action: { type: "migrate-remediation-v2" },
+      dispatch: [],
+      archive_allowed: false,
+    };
+  }
   return {
     status: downstream && !downstream.valid ? downstream.code : lineage.status,
     next_action: nextAction,
     dispatch: downstream && !downstream.valid ? [] : dispatch,
     archive_allowed: downstream_gate === "archive" && Boolean(downstream && downstream.valid),
+    ...(nextAction.slice_id ? { active_slice: { slice_id: nextAction.slice_id, finding_ids: nextAction.finding_ids || [], paths: nextAction.paths || [] } } : {}),
   };
 }
 

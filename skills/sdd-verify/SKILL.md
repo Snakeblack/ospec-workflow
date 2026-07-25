@@ -184,4 +184,19 @@ Return `## Verification Report` with change, mode, completeness table, build/tes
 
 - [references/report-format.md](references/report-format.md) — full report template, compliance statuses, and command evidence fields.
 - [strict-tdd-verify.md](strict-tdd-verify.md) — load only when Strict TDD is active.
+
+### Focal evidence recheck
+
+For a persisted evidence-format-gap state, `run-focal-recheck` is the only
+continuation. Revalidate the frozen candidate id/genesis paths, original
+finding, evidence section digest, and referenced tests once. A pass resolves
+only the representation finding; any failed or material check preserves the
+CRITICAL finding and routes by the existing origin-priority workflow. Never
+redispatch the complete route or synthesize evidence.
+Focal consumers MUST require the persisted typed `next_action`, a real rootDir,
+candidate/finding/origin/evidence digests, and referenced-test execution before
+resolving; missing or stale proof is ordinary CRITICAL routing.
+They MUST also rehash the persisted functional manifest and validate that the
+before/after snapshots changed only the exact evidence region while preserving
+candidate identity; live source/spec/test drift fails closed.
 - `../_shared/sdd-phase-common.md` — skill loading, retrieval, persistence, and return envelope.

@@ -29,7 +29,16 @@ Treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the ca
 
 Do NOT modify production code. Do NOT fix issues found. The orchestrator decides what to do next.
 
+When state requests `run-focal-recheck`, validate the frozen candidate and
+authoritative evidence block, execute referenced tests once, and merge the
+result. Never retry or redispatch the full route; failed or material checks keep
+the original CRITICAL finding and use ordinary origin routing.
+Consume the persisted `next_action` once and reject candidate, finding, origin,
+evidence-digest, or referenced-test mismatches before reporting a pass.
+Rehash the persisted functional manifest from disk and compare exact before/after
+evidence-region snapshots; any source/spec/test drift or outside-region write
+returns ordinary CRITICAL routing.
+
 ## Result Contract
 
 See [sdd-phase-common.md](skills/_shared/sdd-phase-common.md) for the return envelope structure. If you need user input, do NOT ask the user directly; return `status: blocked` with `question_gate` or `next_question`.
-

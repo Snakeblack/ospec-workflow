@@ -1,0 +1,20 @@
+{
+  "slice_id": "S-86c71096a807a755",
+  "finding_ids": [
+    "F-1779348a80b55d76"
+  ],
+  "root_cause_key": "migrate-legacy-regression-attribution",
+  "paths": [
+    "scripts/lib/review-lineage.js",
+    "scripts/review-lineage.test.js"
+  ],
+  "actual_changed_lines": 42,
+  "forecast_lines": 80,
+  "used_lines": 42,
+  "candidate_id": "sha256:45f53e348499ab8cc8288a893ce906a0a0ab6036b3351b71ae5d2abf54270529",
+  "diff_hash": "sha256:525b7a8241e528e0cc1fde393681ff9fcc272fdac0046ccda29dbabf96d2580d",
+  "test_evidence": "node --test scripts/review-lineage.test.js scripts/review-lineage-o4-migration.test.js => 24+2 pass",
+  "acceptance": {
+    "F-1779348a80b55d76": "assertLegacyValidationsMigratable fails closed on detected:true without impacted IDs; attributed impacts seed failed_attempts; O4.2 detected:false remains valid"
+  }
+}

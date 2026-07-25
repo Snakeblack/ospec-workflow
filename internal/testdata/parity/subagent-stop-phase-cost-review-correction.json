@@ -1,0 +1,5 @@
+{
+  "description": "Active review-correction dispatch keeps the hook response byte-identical while recording an allowlisted review phase cost.",
+  "stdin": "{\"cwd\":\"__SUBAGENT_STOP_PHASE_COST_WORKSPACE__\",\"agent_type\":\"review-correction\",\"status\":\"success\",\"telemetry\":{\"prompt\":\"café\",\"artifact\":\"文\",\"tool_output\":\"abc\",\"output\":\"z\"}}",
+  "expectedStdout": "{\"continue\":true}"
+}

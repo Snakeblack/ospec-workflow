@@ -367,19 +367,19 @@ func TestAppendPhaseCost_Relaunch(t *testing.T) {
 	s := store.NewStore(ws)
 
 	// First append for apply phase: relaunch should be false
-	err := s.AppendPhaseCost("add-x", []byte(`{"phase":"apply","agent":"sdd-apply"}`))
+	err := s.AppendPhaseCost("add-x", []byte(`{"phase":"apply","agent":"sdd-apply","status":"success"}`))
 	if err != nil {
 		t.Fatalf("first append failed: %v", err)
 	}
 
 	// Second append for apply phase: relaunch should be true
-	err = s.AppendPhaseCost("add-x", []byte(`{"phase":"apply","agent":"sdd-apply"}`))
+	err = s.AppendPhaseCost("add-x", []byte(`{"phase":"apply","agent":"sdd-apply","status":"success"}`))
 	if err != nil {
 		t.Fatalf("second append failed: %v", err)
 	}
 
 	// Append for design phase: relaunch should be false
-	err = s.AppendPhaseCost("add-x", []byte(`{"phase":"design","agent":"sdd-design"}`))
+	err = s.AppendPhaseCost("add-x", []byte(`{"phase":"design","agent":"sdd-design","status":"success"}`))
 	if err != nil {
 		t.Fatalf("design append failed: %v", err)
 	}
@@ -414,7 +414,7 @@ func TestAppendPhaseCost_Relaunch(t *testing.T) {
 		t.Errorf("row indexes after apply relaunch and later phase: got %v, %v, %v", r1["row_index"], r2["row_index"], r3["row_index"])
 	}
 
-	if err := s.AppendPhaseCost("add-x", []byte(`{"phase":"apply","agent":"sdd-apply"}`)); err != nil {
+	if err := s.AppendPhaseCost("add-x", []byte(`{"phase":"apply","agent":"sdd-apply","status":"success"}`)); err != nil {
 		t.Fatalf("third apply append failed: %v", err)
 	}
 	data, err = os.ReadFile(costFile)

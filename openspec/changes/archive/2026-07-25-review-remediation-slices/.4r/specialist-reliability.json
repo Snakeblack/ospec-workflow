@@ -1,0 +1,39 @@
+{
+  "dimension": "reliability",
+  "request_id": "dispatch-reliability-2026-07-25",
+  "status": "success",
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "summary": "v2 applyTargetedValidation/validateSliceCorrection weaker than v1 on outcomes and regression.evidence",
+      "affected_files": ["scripts/lib/review-lineage.js", "scripts/review-lineage.test.js"],
+      "evidence": "validateSliceCorrection omits OUTCOMES/regression.evidence checks, defaults missing regression to no-regression, accepts detected:true with empty impacted_slices; no v2 rejection tests",
+      "why_it_matters": "A validator can approve the active slice with an incomplete regression/outcomes contract",
+      "acceptance_criteria": "Parity fail-closed with v1/design for outcomes and regression; reject detected:true without impacts; explicit tests for each unhappy path"
+    },
+    {
+      "severity": "CRITICAL",
+      "summary": "migrateReviewLineage does not fail closed on legacy regression.detected without attributable impacts",
+      "affected_files": ["scripts/lib/review-lineage.js", "scripts/review-lineage.test.js"],
+      "evidence": "attachRemediationV2/migrateReviewLineage ignore regression.detected attribution; missing negative fixture test",
+      "why_it_matters": "Migration can seed slice authority from unattributable legacy regression history",
+      "acceptance_criteria": "Fail-closed on migration + negative fixture; O4.2 with detected:false remains valid"
+    },
+    {
+      "severity": "WARNING",
+      "summary": "slice.resolutions can diverge from status after validation",
+      "affected_files": ["scripts/lib/review-lineage.js", "scripts/review-lineage.test.js"],
+      "evidence": "validateSliceCorrection does not update slice.resolutions; assertRemediationV2 does not require status↔resolutions consistency",
+      "why_it_matters": "Consumers reading resolutions may disagree with authoritative status",
+      "acceptance_criteria": "Sync resolutions on pass/fail/reopen; invariant in assertRemediationV2; named test"
+    },
+    {
+      "severity": "WARNING",
+      "summary": "freezeFindings does not attach remediation-v2 by default",
+      "affected_files": ["scripts/lib/review-lineage.js", "scripts/lib/review-gate-state.js"],
+      "evidence": "freezeFindings attaches v2 only with manifest/remediation_v2 flag; new lineages stay v1 until migration-required",
+      "why_it_matters": "Operational risk of forgetting audited manifest on new freezes",
+      "acceptance_criteria": "Auto-attach v2 on freeze or tested explicit migration-required deferral contract"
+    }
+  ]
+}

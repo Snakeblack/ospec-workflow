@@ -65,99 +65,56 @@ The helper MUST:
 
 ### Requirement: SubagentStop Per-Dispatch Phase Cost Recording {#REQ-hooks-001}
 
-`SubagentStop` (JS and Go, with semantic parity across normalized fields) MUST append one normalized
-estimated-cost record per `sdd-*` dispatch to
-`.ospec/session/{change}/phase-costs.jsonl`, a sibling artifact of the existing
-`.ospec/session/{change}/token-events.jsonl`. This step MUST run after the existing
-Result Envelope Parse/Validate/Persist step (baseline §5.0) and MUST NOT alter its
-outcome.
+`SubagentStop` (JS and Go, with semantic and byte-parity across normalized fields) MUST append one normalized estimated-cost record per supported dispatch to `.ospec/session/{change}/phase-costs.jsonl`, after the existing Result Envelope Parse/Validate/Persist step and without altering its outcome. Supported dispatches are every `sdd-*` agent and exactly these review lifecycle agents: `review-change`, `review-risk`, `review-readability`, `review-reliability`, `review-resilience`, and `review-correction`. Arbitrary `review-*` names MUST be unsupported and MUST NOT write a phase-cost record.
 
-Each new record MUST contain `phase`, `agent`,
-`estimated_prompt_tokens`, `estimated_artifact_tokens`,
-`estimated_tool_output_tokens`, `estimated_output_tokens`, `duration_ms`,
-`model_tier`, `status`, `relaunch`, and `ts`. `phase` MUST be the phase key obtained
-by stripping the `sdd-` prefix from `agent`; `agent` MUST retain the resolved agent
-name. The four token fields and `duration_ms` MUST be non-negative integer estimates.
-`model_tier` MUST identify the observed tier from `models.yaml` or be `"unknown"`;
-`status` MUST use the valid envelope status, the dispatch status fallback, or
-`"unknown"`; `relaunch` MUST be boolean; and `ts` MUST be an ISO 8601 UTC
-timestamp. New records MUST use `estimated_output_tokens`; `est_tokens` is a C3
-legacy field accepted only when reading old records.
+Each new record MUST contain `phase`, `agent`, `estimated_prompt_tokens`, `estimated_artifact_tokens`, `estimated_tool_output_tokens`, `estimated_output_tokens`, `duration_ms`, `model_tier`, `status`, `relaunch`, and `ts`. For `sdd-*`, `phase` MUST remain the key obtained by stripping `sdd-`; for an allowlisted review agent, `phase` MUST be the exact allowlisted agent name. `agent` MUST retain the resolved agent name. The four token fields and `duration_ms` MUST be non-negative integer estimates; `model_tier`, `status`, `relaunch`, and `ts` MUST retain their existing normalization and fallback semantics. New records MUST use `estimated_output_tokens`; `est_tokens` is accepted only when reading old records.
 
-JS and Go MUST first normalize host-specific payloads into the same canonical
-dispatch context. For each token category, a valid non-negative integer supplied by
-the host MUST take precedence; when it is absent or invalid, the writer MUST apply
-the shared UTF-8 per-segment heuristic `ceil(UTF-8 byte length / 4)` to the
-corresponding canonical prompt, artifact, tool-output, or output segment. A missing
-or invalid segment MUST produce `0`. `duration_ms` MUST come from the normalized
-context and use `0` when absent or invalid. `model_tier` MUST be resolved from the
-observed model through `models.yaml`, otherwise it MUST be `"unknown"`. `status`
-MUST resolve in this order: valid envelope status, dispatch status fallback, then
-`"unknown"`.
+JS and Go MUST first normalize host-specific payloads into the same canonical dispatch context. For each token category, a valid non-negative integer supplied by the host MUST take precedence; when absent or invalid, the writer MUST apply the shared UTF-8 per-segment heuristic `ceil(UTF-8 byte length / 4)` to the corresponding canonical prompt, artifact, tool-output, or output segment. A missing or invalid segment MUST produce `0`. `duration_ms` MUST come from the normalized context and use `0` when absent or invalid. `model_tier` MUST be resolved from the observed model through `models.yaml`, otherwise it MUST be `"unknown"`. `status` MUST resolve in this order: valid envelope status, dispatch status fallback, then `"unknown"`.
 
-When an optional input is absent or invalid, the writer MUST preserve the complete
-shape using `0` for each unavailable token category and `duration_ms`,
-`"unknown"` for unavailable tier or status, and `false` for a relaunch that cannot
-be confirmed. A token estimate MUST remain explicitly heuristic; it MUST NOT be
-presented as exact tokenization or billing.
+When optional input is absent or invalid, the writer MUST preserve the complete shape using `0`, `"unknown"`, and `false` fallbacks. The hook MUST resolve the active change with its existing selection logic; append under its existing advisory lock; calculate relaunch only from prior successful records for the same `{change, phase}`; and include the artifact in the on-disk layout. This addition MUST be strictly additive and fail-safe: an error in review-agent classification, normalization, estimation, relaunch detection, or append MUST be caught, MUST NOT affect stdout or `continue: true`, and MUST NOT throw or exit non-zero.
 
-The hook MUST:
-1. Resolve the active change using the same `findActiveChanges` selection logic
-   already used elsewhere in this hook (baseline §5.0, §4.2). If no active change
-   resolves, it MUST skip this step entirely and MUST NOT create `.ospec/session/`
-   paths.
-2. While holding the same advisory lock used for the append, mark the first
-   successfully persisted dispatch for a `{change, phase}` pair with
-   `relaunch: false` and every later successfully persisted dispatch for that pair
-   with `relaunch: true`. A failed append MUST NOT consume the first position or
-   change the relaunch value of a later successful append.
-3. Append the record under the same advisory file-lock convention already used for
-   `.ospec/runtime/subagent-events.jsonl` (baseline §5.3).
-4. Include `.ospec/session/{change}/phase-costs.jsonl` in the on-disk artifact layout
-   (baseline §7) as an additional `SubagentStop` row with append/advisory-lock mode.
+(Previously: only `sdd-*` dispatches were eligible and the phase key always stripped the `sdd-` prefix.)
 
-This step MUST be strictly additive and fail-safe, mirroring the existing envelope-
-persistence step (baseline §5.0): any error in change resolution, context
-normalization, token estimation, relaunch detection, or file append MUST be caught,
-MUST NOT affect `stdout` or the hook's `continue: true` output, and MUST NOT throw or
-exit non-zero.
+#### Scenario: Allowlisted review dispatch is recorded identically
 
-(Previously: C3 persisted one aggregate `est_tokens` estimate for the result payload,
-without separate token categories, duration, model tier, or relaunch metadata.)
-
-#### Scenario: Dispatch cost recorded with the complete shape
-
-- GIVEN a subagent result resolves to `sdd-design` with `status: success` and an active change `add-x` exists
-- AND the dispatch context supplies prompt 120, artifact 80, tool-output 30, output 240 estimated tokens, duration 18000 ms, and tier `premium`
-- WHEN `SubagentStop` runs after envelope persistence
-- THEN it appends one JSON line with `phase: "design"`, `agent: "sdd-design"`, all four token fields, `duration_ms: 18000`, `model_tier: "premium"`, `status: "success"`, `relaunch: false`, and an ISO 8601 UTC `ts`
-- AND the hook's existing `skill_resolution` behavior and stdout output are unaffected
+- GIVEN an active change and a `review-correction` dispatch with valid normalized context
+- WHEN JS and Go persist phase cost
+- THEN both MUST append byte-identical records with `phase` and `agent` equal to `review-correction`
+- AND existing `sdd-design` phase-key behavior MUST remain `design`
 
 #### Scenario: Missing optional context uses explicit fallbacks
 
-- GIVEN an active change resolves for an `sdd-*` dispatch whose token, duration, tier, status, and relaunch context is absent or invalid
+- GIVEN an active change resolves for an allowlisted review or `sdd-*` dispatch whose token, duration, tier, status, and relaunch context is absent or invalid
 - WHEN `SubagentStop` persists the phase-cost record
-- THEN it still writes every required field with zero token/duration values, `model_tier: "unknown"`, `status: "unknown"`, and boolean `relaunch: false`
-- AND the record remains parseable JSON without changing the hook result
+- THEN it MUST still write every required field with zero token/duration values, `model_tier: "unknown"`, `status: "unknown"`, and boolean `relaunch: false`
+- AND the record MUST remain parseable JSON without changing the hook result
 
 #### Scenario: A repeated dispatch is marked as a relaunch
 
-- GIVEN `.ospec/session/add-x/phase-costs.jsonl` already contains one recorded dispatch for phase `apply`
-- WHEN `SubagentStop` records another `sdd-apply` dispatch for the same active change
-- THEN the new row contains `relaunch: true` while retaining the complete normalized shape
+- GIVEN `.ospec/session/add-x/phase-costs.jsonl` already contains one recorded dispatch for phase `review-correction`
+- WHEN `SubagentStop` records another `review-correction` dispatch for the same active change
+- THEN the new row MUST contain `relaunch: true` while retaining the complete normalized shape
 
 #### Scenario: No active change — skip, no file created
 
 - GIVEN no active OpenSpec change resolves in the workspace
 - WHEN `SubagentStop` runs
 - THEN it MUST NOT create `.ospec/session/` or write any `phase-costs.jsonl` file
-- AND processing continues unchanged to the existing `skill_resolution` behavior
+- AND processing MUST continue unchanged to the existing `skill_resolution` behavior
+
+#### Scenario: Arbitrary review name is ignored fail-safely
+
+- GIVEN an active change and an agent named `review-invented`
+- WHEN `SubagentStop` classifies the dispatch
+- THEN it MUST NOT append a phase-cost record
+- AND it MUST continue existing envelope and skill-resolution behavior without error
 
 #### Scenario: Estimation or write failure — fail-safe, no crash
 
-- GIVEN context normalization, estimation, relaunch detection, or the JSONL append throws (for example, a filesystem error)
+- GIVEN context normalization, review-agent classification, estimation, relaunch detection, or the JSONL append throws
 - WHEN `SubagentStop` attempts to persist the phase-cost record
-- THEN the hook MUST catch the error, MUST NOT propagate it, MUST NOT set a non-zero exit code, and MUST still output `{"continue":true}` or the existing degraded `systemMessage`
+- THEN the hook MUST catch the error, MUST NOT propagate it, MUST NOT set a non-zero exit code
+- AND it MUST still output `{\"continue\":true}` or the existing degraded `systemMessage`
 
 ---
 

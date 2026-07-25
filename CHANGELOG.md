@@ -8,6 +8,27 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.32.0] - 2026-07-25
+
+### Added
+- **Remediación 4R por slices (remediation-v2)**: presupuestos y validación independientes por causa raíz; slices passed solo se reabren con evidencia de regresión atribuible (`impacted_slices`).
+- **Migración determinista O4.2 / schema-v1**: partición aditiva e idempotente a slices; falla cerrada si `regression.detected: true` no trae impactos atribuibles.
+- **Telemetría de phase-cost para 6 agentes review**: allowlist JS/Go alineada para el ciclo de revisión selectiva.
+
+### Changed
+- **`createSuccessor`**: exige `authority_kind` allowlisted (`new-candidate` | `new-scope` | `new-discovery-authority`) también sobre predecesores no migrados a v2.
+- **`validateSliceCorrection`**: binding exclusivo al `active_slice_id` / `pending_correction.slice_id`; paridad fail-closed con v1 en outcomes y `regression.evidence`.
+- **Baseline OpenSpec**: sincroniza deltas en `routing`, `agents`, `skills` y `hooks` tras archivar `review-remediation-slices`.
+
+### Fixed
+- Binding no acotado de `activeSlice` que permitía validar un slice ready no activo.
+- Fail-open de validación v2 ante regression omitida o `detected:true` sin `impacted_slices`.
+
+### Docs
+- ADR `adr-20260725-001-independently-version-slice-remediation`
+- ADR `adr-20260725-002-correction-authority-root-cause-slice-scoped`
+- Change archivado: `openspec/changes/archive/2026-07-25-review-remediation-slices/`
+
 ## [2.31.0] - 2026-07-18
 
 ### Changed

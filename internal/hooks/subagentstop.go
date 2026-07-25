@@ -930,10 +930,15 @@ func PhaseCostDiagnostic(input map[string]any, workspace string) map[string]any 
 // Shared between persistResultEnvelope and persistPhaseCost (REFACTOR, task
 // 2.5) so the phase-key derivation rule lives in exactly one place.
 func derivePhaseKey(agentName string) string {
-	if !strings.HasPrefix(agentName, "sdd-") {
+	if strings.HasPrefix(agentName, "sdd-") {
+		return strings.TrimPrefix(agentName, "sdd-")
+	}
+	switch agentName {
+	case "review-change", "review-risk", "review-reliability", "review-resilience", "review-readability", "review-correction":
+		return agentName
+	default:
 		return ""
 	}
-	return strings.TrimPrefix(agentName, "sdd-")
 }
 
 // resolveResultPayload picks the first present §5.2 resultFields value from

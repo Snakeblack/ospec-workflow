@@ -10,6 +10,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const { transform } = require("../lib/target-transform.js");
+const { validateSddModelPolicy } = require("../lib/model-resolver.js");
 
 const PROFILES = {
   claude: require("../lib/target-profiles/claude.js"),
@@ -40,13 +41,7 @@ function walk(absDir, relDir, acc) {
     const rel = relDir ? `${relDir}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
       walk(abs, rel, acc);
-    } else if (entry.isFile()) {
-      try {
-        acc.push({ path: rel, content: fs.readFileSync(abs, "utf8") });
-      } catch (e) {
-        console.warn(`Warning: failed to read file ${abs}: ${e.message}`);
-      }
-    }
+    } else if (entry.isFile()) acc.push({ path: rel, content: fs.readFileSync(abs, "utf8") });
   }
 }
 
@@ -60,13 +55,7 @@ function loadTree(sourceDir, roots = SOURCE_ROOTS) {
     const stat = fs.statSync(abs);
     if (stat.isDirectory()) {
       walk(abs, root, files);
-    } else {
-      try {
-        files.push({ path: root, content: fs.readFileSync(abs, "utf8") });
-      } catch (e) {
-        console.warn(`Warning: failed to read file ${abs}: ${e.message}`);
-      }
-    }
+    } else files.push({ path: root, content: fs.readFileSync(abs, "utf8") });
   }
   for (const script of gatherRuntimeScripts(sourceDir)) {
     files.push(script);
@@ -85,6 +74,7 @@ const SKILL_ENTRY_SCRIPTS = [
   "scripts/lib/federation-explore.js",
   "scripts/lib/workspace-general-baseline.js",
   "scripts/lib/federation-baseline-orchestrator.js",
+  "scripts/lib/strict-tdd-evidence-remediation.js",
 ];
 
 // Returns true for modules that must never appear in the runtime dist:
@@ -260,7 +250,7 @@ function parseModels(text) {
   // This allows it to construct a tree structure by parsing line-by-line.
   const stack = [{ indent: -1, container: root }];
 
-  for (const rawLine of String(text).split(/\r?\n/)) {
+  for (const [lineIndex, rawLine] of String(text).split(/\r?\n/).entries()) {
     // Skip empty lines and lines that are comments (starting with '#')
     if (!rawLine.trim() || /^\s*#/.test(rawLine)) {
       continue;
@@ -301,6 +291,10 @@ function parseModels(text) {
       stack.pop();
     }
     const parent = stack[stack.length - 1].container;
+
+    if (Object.prototype.hasOwnProperty.call(parent, key)) {
+      throw new Error(`models.yaml duplicate key "${key}" at line ${lineIndex + 1}`);
+    }
 
     if (valueRaw === "") {
       // If the value is empty, it means this key marks the start of a nested object section.
@@ -440,6 +434,8 @@ function runConfigure({ sourceDir, target, outDir, validate = true, runValidator
   const files = loadTree(sourceDir);
   const modelsPath = path.join(sourceDir, "models.yaml");
   const models = fs.existsSync(modelsPath) ? parseModels(fs.readFileSync(modelsPath, "utf8")) : {};
+  const policy = validateSddModelPolicy(models);
+  if (!policy.valid) return { files: [], summary: [], exitCode: 1, validation: { status: 1, stdout: "", stderr: `invalid SDD model policy: ${JSON.stringify(policy.errors)}\n` } };
 
   const output = transform({ files, profile, models });
   writeTree(outDir, output, profile.managedRoots || []);

@@ -5,12 +5,9 @@
 #   tiers:  how each tier maps to a concrete model per target.
 #
 # Cost/intelligence policy:
-#   premium -> Sol high
-#   default -> Luna high
-#   cheap   -> Luna medium
-#
-# Terra is intentionally not used as a primary model because its evaluated
-# effort points are Pareto-dominated by Luna or Sol.
+#   premium -> Sol medium
+#   default -> Terra medium
+#   cheap   -> Luna low
 #
 # Before changing a tier model, run the golden orchestrator eval suite and
 # attach the result to the corresponding OpenSpec change.
@@ -19,6 +16,7 @@ agents:
   # Premium:
   # Infrequent decisions with high blast radius.
   # A weak result here can invalidate the complete implementation direction.
+  sdd-propose: premium
   sdd-design: premium
   sdd-verify: premium
   sdd-foundation: premium
@@ -27,21 +25,20 @@ agents:
   # Default:
   # Frequent semantic work requiring solid reasoning, but not Sol-level spend.
   sdd-orchestrator: default
-  sdd-propose: default
   sdd-spec: default
   sdd-clarify: default
-  sdd-tasks: default
   sdd-apply: default
-  sdd-init: default
-  sdd-baseline: default
   sdd-reconcile: default
-  sdd-onboard: default
-  sdd-document: default
+  sdd-baseline: default
 
   # Cheap:
   # Bounded or mostly mechanical work.
+  sdd-init: cheap
   sdd-explore: cheap
+  sdd-tasks: cheap
   sdd-archive: cheap
+  sdd-onboard: cheap
+  sdd-document: cheap
 
   # Reviewers:
   # Keep them on default while 4R can still fan out to four agents.
@@ -57,10 +54,7 @@ agents:
 
 tiers:
   # Premium:
-  # Sol high replaces Terra max.
-  #
-  # According to the supplied benchmark, Sol high is slightly more intelligent
-  # than Terra max while also being less expensive.
+  # Sol medium is reserved for infrequent, high-blast-radius decisions.
   premium:
     claude: opus
     vscode:
@@ -68,26 +62,25 @@ tiers:
     opencode: openai/gpt-5.6-sol
     codex:
       model: gpt-5.6-sol
-      model_reasoning_effort: high
+      model_reasoning_effort: medium
       model_verbosity: medium
+    cursor: claude-opus-5[effort=high]
 
   # Default:
-  # Luna high replaces Terra medium.
-  #
-  # This is the main cost optimization: frequent agents get approximately
-  # equivalent or slightly better intelligence at materially lower cost.
+  # Terra medium is the balanced default for frequent semantic work.
   default:
     claude: sonnet
     vscode:
       - "GPT-5.6 Luna (copilot)"
     opencode: openai/gpt-5.6-luna
     codex:
-      model: gpt-5.6-luna
-      model_reasoning_effort: high
+      model: gpt-5.6-terra
+      model_reasoning_effort: medium
       model_verbosity: medium
+    cursor: grok-4.5[fast=false]
 
   # Cheap:
-  # Luna medium remains the efficient option for exploration and archive.
+  # Luna low is the efficient option for bounded or mechanical work.
   cheap:
     claude: haiku
     vscode:
@@ -95,5 +88,6 @@ tiers:
     opencode: openai/gpt-5.6-luna
     codex:
       model: gpt-5.6-luna
-      model_reasoning_effort: medium
+      model_reasoning_effort: low
       model_verbosity: low
+    cursor: composer-2.5[fast=false]

@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { resolveModel, OMIT } = require("./model-resolver.js");
+const { resolveModel, validateSddModelPolicy, OMIT } = require("./model-resolver.js");
 
 const MODELS = {
   agents: {
@@ -51,4 +51,15 @@ test("absent or malformed config yields OMIT", () => {
   assert.equal(resolveModel("x", "claude", null), OMIT);
   assert.equal(resolveModel("x", "claude", {}), OMIT);
   assert.equal(resolveModel("x", "claude", "nope"), OMIT);
+});
+
+test("canonical validator reports stable agent-specific errors", () => {
+  const result = validateSddModelPolicy({
+    agents: { "sdd-propose": "default", _default: "cheap" },
+    tiers: { premium: {}, default: {}, cheap: {} },
+  });
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some(error => error.code === "tier-mismatch" && error.agent === "sdd-propose" && error.expected === "premium"));
+  assert.ok(result.errors.some(error => error.code === "tier-mismatch" && error.agent === "_default" && error.expected === "default"));
+  assert.ok(result.errors.some(error => error.code === "missing-agent" && error.agent === "sdd-design"));
 });

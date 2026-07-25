@@ -236,6 +236,27 @@ If none, say "None."}
 - If workload forecast requires a decision and none was provided, STOP before writing code
 - If live workload drifts above forecast by more than 50% or overruns the 400-line budget, STOP after persisting partial progress and return `partial` with `workload-escalation`
 - In lite mode, missing spec/design artifacts are expected. `proposal-lite.md` is the acceptance contract. If the work outgrows trivial/small scope, STOP and return `blocked` with `escalate-to-standard-sdd`.
+
+### Strict TDD evidence remediation fast path
+
+When the persisted `apply-progress.md` includes one authoritative
+`json:strict-tdd-evidence` block, validate schema v1, cycle markers, test-file
+references, provenance, and the frozen functional snapshot before considering a
+representation-only repair. Repairs may write only that evidence section in
+`apply-progress.md`; production, specification, and test paths are never
+allowlisted. Preserve the original CRITICAL finding, candidate id, and sorted
+genesis paths, persist state before the write, and route ordinary remediation
+on missing/fabricated evidence, identity drift, unknown writes, invalid caps,
+or any material delta. The focal recheck is one-shot and cannot be retried.
+Classification and every write require a real `rootDir`, candidate/finding
+digests, and an evidence-file digest; omitted or unverifiable event proofs fail
+closed. The reducer emits a typed `next_action` for focal verification only
+after persisting the pending state.
+The classifier MUST observe a real rendering gap, require before/after evidence
+snapshots, and accept only an original CRITICAL finding with a non-empty origin.
+Persist the functional file/genesis manifest, rehash it at write and focal
+boundaries, and compare exact evidence-region snapshots so any outside-region
+change or candidate drift falls back to ordinary routing.
 - When applying a chained/stacked PR slice, keep the batch autonomous: one deliverable scope, verification included, and clear rollback boundary
 - When applying `size:exception`, state it explicitly in apply-progress and the return summary
 - **Traceability trailers**: when committing work units for an active change, append the trailers `Ospec-Change: {change-name}` and `Ospec-Task: {task-number}` (comma-separate multiple task numbers) to each commit message body. The `commit-msg` git hook validates the format advisorily when a change is active; the verify traceability matrix joins commits to REQs through these trailers.

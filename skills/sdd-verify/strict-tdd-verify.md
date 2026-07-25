@@ -276,3 +276,13 @@ If zero issues found, report: "**Assertion quality**: ✅ All assertions verify 
 - Test layer distribution is informational — SUGGESTION level only
 - DO NOT fix issues — only report. The orchestrator decides.
 - If coverage/quality tools are not available, say so cleanly and move on — never flag missing tools as failures
+
+## Evidence remediation focal mode
+
+`run-focal-recheck` consumes the single persisted recheck budget. Revalidate the
+frozen candidate identity and sorted genesis paths, validate the authoritative
+`json:strict-tdd-evidence` section, and execute its referenced tests. Only an
+unchanged evidence-only repair can pass; failed, repeated, over-cap, or
+material checks fail closed and return to ordinary origin routing.
+The focal consumer must require the persisted typed action and root-aware
+candidate, finding, origin, evidence, and referenced-test digests.

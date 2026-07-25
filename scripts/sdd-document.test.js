@@ -13,6 +13,8 @@ const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { parse, getField } = require("./lib/frontmatter.js");
+const { parseModels } = require("./configure/cli.js");
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 const AGENT_PATH = path.join(ROOT_DIR, "agents", "sdd-document.agent.md");
@@ -43,9 +45,9 @@ test("sdd-document.prompt.md is mapped to sdd-orchestrator", async () => {
   assert.ok(content.includes("agent: sdd-orchestrator"));
 });
 
-test("models.yaml maps sdd-document to default model tier", async () => {
+test("models.yaml maps sdd-document to cheap model tier", async () => {
   const content = await fs.readFile(MODELS_PATH, "utf8");
-  assert.ok(content.includes("sdd-document: default"), "models.yaml must map sdd-document to default");
+  assert.equal(parseModels(content).agents["sdd-document"], "cheap");
 });
 
 test("skills/sdd-document/SKILL.md defines the question_gate with options A, B, C", async () => {
@@ -107,6 +109,31 @@ test("Target generation transforms sdd-document to opencode target", (t) => {
 
   assert.equal(result.exitCode, 0);
   assert.ok(fsSync.existsSync(path.join(out, ".opencode/agents/sdd-document.md")), "opencode output must contain .opencode/agents/sdd-document.md");
+});
+
+test("sdd-document generated outputs use cheap models or fail-soft omission", (t) => {
+  const { runConfigure } = require("./configure/cli.js");
+  const cases = [
+    ["claude", "agents/sdd-document.md", "haiku"],
+    ["vscode", "agents/sdd-document.agent.md", ["GPT-5.6 Luna (copilot)"]],
+    ["opencode", ".opencode/agents/sdd-document.md", "openai/gpt-5.6-luna"],
+  ];
+  for (const [target, relative, expected] of cases) {
+    const out = tmpOut(t);
+    runConfigure({ sourceDir: ROOT_DIR, target, outDir: out, validate: false });
+    const content = fsSync.readFileSync(path.join(out, relative), "utf8");
+    assert.deepEqual(getField(parse(content).frontmatter, "model").value, expected, target);
+  }
+  const githubOut = tmpOut(t);
+  runConfigure({ sourceDir: ROOT_DIR, target: "github-copilot", outDir: githubOut, validate: false });
+  const github = fsSync.readFileSync(path.join(githubOut, ".github/agents/sdd-document.agent.md"), "utf8");
+  assert.equal(getField(parse(github).frontmatter, "model"), null);
+
+  const codexOut = tmpOut(t);
+  runConfigure({ sourceDir: ROOT_DIR, target: "codex", outDir: codexOut, validate: false });
+  const codex = fsSync.readFileSync(path.join(codexOut, ".codex/agents/sdd-document.toml"), "utf8");
+  assert.match(codex, /^model = "gpt-5\.6-luna"$/m);
+  assert.match(codex, /^model_reasoning_effort = "low"$/m);
 });
 
 test("skills/sdd-document/SKILL.md details relative path formatting", async () => {

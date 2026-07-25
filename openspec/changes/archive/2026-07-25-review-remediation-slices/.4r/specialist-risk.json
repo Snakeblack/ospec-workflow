@@ -1,0 +1,31 @@
+{
+  "dimension": "risk",
+  "request_id": "dispatch-risk-2026-07-25",
+  "status": "success",
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "summary": "validateSliceCorrection/activeSlice unbound slice_id allows validating a non-active ready slice",
+      "affected_files": ["scripts/lib/review-lineage.js"],
+      "evidence": "activeSlice L606-610 and validateSliceCorrection L643-650 allow input.slice_id to target a non-active ready slice while lineage status is validating, then clear pending/active state",
+      "why_it_matters": "Allows marking an uncorrected slice passed and abandoning validation of the slice that actually received the correction delta.",
+      "acceptance_criteria": "Validation MUST bind exclusively to active_slice_id and pending_correction.slice_id; diverting to another ready slice MUST throw; covered by multi-slice regression test."
+    },
+    {
+      "severity": "CRITICAL",
+      "summary": "createSuccessor authority_kind only enforced for remediation-v2 predecessors",
+      "affected_files": ["scripts/lib/review-lineage.js", "scripts/lib/review-gate-state.js"],
+      "evidence": "createSuccessor L455-457 gates authority_kind only when isRemediationV2; freezeFindings attaches v2 only on opt-in; planLineageGate requires migration only for correct/record-correction/targeted-validation",
+      "why_it_matters": "Typed successor authority claimed by remediation-v2 can be skipped via terminal non-migrated predecessors.",
+      "acceptance_criteria": "createSuccessor MUST require allowlisted authority_kind for all post-rollout successors or reject non-v2 predecessors; terminate-v1 then untyped successor MUST fail closed in tests."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "beginSliceCorrection accepts any ready slice_id, not only reducer-selected",
+      "affected_files": ["scripts/lib/review-lineage.js"],
+      "evidence": "beginSliceCorrection L624-625 accepts any ready input.slice_id without equality to nextSliceAction(state).slice_id",
+      "why_it_matters": "Pure reducer authority does not enforce deterministic reducer-selected slice dispatch, enabling out-of-order remediation.",
+      "acceptance_criteria": "beginSliceCorrection MUST accept only the reducer-selected ready slice_id; out-of-order ready slices MUST be rejected with a test."
+    }
+  ]
+}

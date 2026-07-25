@@ -2,3 +2,8 @@
 # platforms: the pure transform emits LF, so the committed goldens must be LF
 # regardless of the host's core.autocrlf setting or the snapshot tests break.
 scripts/configure/__fixtures__/** text eol=lf
+
+# Digest-pinned OpenSpec / review fixtures must stay LF on Windows CI checkouts.
+scripts/fixtures/** text eol=lf
+openspec/changes/**/state.yaml text eol=lf
+openspec/changes/archive/**/state.yaml text eol=lf

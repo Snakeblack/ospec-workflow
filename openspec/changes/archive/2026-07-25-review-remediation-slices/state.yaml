@@ -1,0 +1,205 @@
+change: review-remediation-slices
+status: archived
+last_updated: 2026-07-25T11:55:00Z
+blocking_questions: []
+classification: high-risk
+remediation:
+  source: verify-fail
+  origin: code-bug
+  resume_of: verify
+  critical_count: 5
+  must_scenarios: "19/19"
+  critical_fixes_applied:
+    - id: R-CRIT-1
+      finding: "exact v2 reconciliation incomplete"
+      status: fixed
+      reverify: confirmed
+    - id: R-CRIT-2
+      finding: "O4.2 migration did not seed legacy outcomes/attempts in canonical persisted state"
+      status: fixed
+      reverify: confirmed
+    - id: R-CRIT-3
+      finding: "downstream remediation-v2 integrity was self-asserted / forgeable"
+      status: fixed
+      reverify: confirmed
+    - id: R-CRIT-4
+      finding: "Strict TDD RED provenance not authoritative"
+      status: fixed
+      reverify: confirmed
+    - id: R-CRIT-5
+      finding: "models.yaml duplicated agents: key breaking parseModels / npm test (69 failures); false baseline narrative"
+      status: fixed
+      reverify: confirmed
+  reverify_required: false
+reverify_2026_07_25:
+  verdict: PASS
+  must_scenarios: "19/19"
+  new_critical:
+    id: CRIT-5
+    origin: code-bug
+    finding: "models.yaml (repo root) has a duplicated agents: mapping block, introduced during the 2026-07-25 remediation session, breaking parseModels and causing all 69 npm test failures"
+    misrepresentation: "apply-progress.md 2026-07-25 section claimed these 69 failures are pre-existing/baseline-reproducible; disproven via git diff HEAD -- models.yaml and file mtimes (models.yaml modified 2026-07-25T11:52, prior verify recorded npm test 1420/0 clean)"
+    status: fixed
+    fix_summary: "Removed the accidental second agents: block and its duplicated trailing comment header; kept the single intentional tier-policy remapping and the untouched tiers: table. npm test now 1424/1426 pass, 0 fail (2 pre-existing, unrelated skips); node --test scripts/selective-4r-parity.test.js 3/3 pass. False 'pre-existing baseline' narrative retracted and corrected in apply-progress.md."
+    reverify: confirmed
+    independent_proof:
+      agents_key_count: 1
+      parseModels: "24 agents / 3 tiers"
+      npm_test: "1426/1424 pass / 0 fail / 2 skipped"
+      selective_4r_parity: "3/3"
+      go_test: "ok ./... including internal/modelconfig"
+      focused_suite: "36/36"
+      live_o4_validateLineageForGate: "no-throw lineage-not-terminal; legacy_failed_attempts=2"
+  next_action: "4r-review-gate complete: lineage approved (all-remediation-slices-passed); archive_allowed=true; 10 advisory WARNING/SUGGESTION remain non-blocking"
+  four_r_2026_07_25:
+    lineage_id: "sha256:02f648717710ce1e579fe5b4b4b11a03682168daaaa3b29740c593086c2e2683"
+    status: approved
+    terminal_reason: all-remediation-slices-passed
+    critical_resolved: 6
+    slices_passed: 4
+    budget_used:
+      validate-slice-correction-fail-closed: 103
+      migrate-legacy-regression-attribution: 42
+      successor-authority-post-rollout: 2
+      expand-slice-state-machine: 138
+    archive_allowed: true
+    advisory_remaining: 10
+artifact_store:
+  mode: openspec
+  backend: openspec
+owner:
+  author: Manuel Retamozo
+  branch: feat/strict-tdd-evidence-remediation-fast-path
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "High-risk review-lifecycle contract change on an active project; project.status=active matched the standard route."
+  validated: true
+  validation_errors: []
+approvals:
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: vscode/askQuestions
+    accepted_at: 2026-07-18T09:16:59.3254495Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: vscode/askQuestions
+    accepted_at: 2026-07-18T09:17:15Z
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: review-lifecycle-redesign-001
+    gate: architecture
+    decision: "Redesign review remediation now, then resume O4.2: use per-slice reviewer budgets and preserve independently resolved root-cause groups instead of atomic reopening and successor churn."
+    source: vscode/askQuestions
+    accepted_at: 2026-07-22T00:04:00Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+  - id: change-collision-001
+    gate: change-collision
+    decision: "Continue applying review-remediation-slices despite the intentional overlap with the paused strict-tdd-evidence-remediation-fast-path change."
+    source: vscode/askQuestions
+    accepted_at: 2026-07-22T06:46:04.3705860Z
+    applies_to:
+      - sdd-apply
+collisions:
+  - with: strict-tdd-evidence-remediation-fast-path
+    overlap:
+      - openspec/changes/strict-tdd-evidence-remediation-fast-path/state.yaml
+      - scripts/lib/review-lineage.js
+      - scripts/lib/review-gate-state.js
+      - scripts/lib/ospec-state.js
+      - scripts/**/*.test.js
+      - agents/sdd-orchestrator.agent.md
+      - rules/sdd-common.instructions.md
+      - rules/sdd-openspec.instructions.md
+      - domain:agents
+      - domain:routing
+      - domain:skills
+    decision: continue
+    decided_at: 2026-07-22T06:46:04.3705860Z
+phases:
+  proposal:
+    status: done
+    artifact: openspec/changes/review-remediation-slices/proposal.md
+    summary: "Slice-scoped 4R remediation, legacy migration, and allowlisted JS/Go review phase-cost telemetry."
+    key_decisions:
+      - "Budget and validate each root-cause correction slice independently."
+      - "Preserve lineage identity, one-shot lenses, findings, and fail-closed reconciliation."
+      - "Migrate active schema-v1 lineages and record phase costs only for allowlisted review agents."
+  specs:
+    status: done
+    artifacts:
+      - openspec/changes/review-remediation-slices/specs/routing/spec.md
+      - openspec/changes/review-remediation-slices/specs/agents/spec.md
+      - openspec/changes/review-remediation-slices/specs/skills/spec.md
+      - openspec/changes/review-remediation-slices/specs/hooks/spec.md
+    summary: "Deltas define independent root-cause remediation slices, deterministic legacy migration, and allowlisted review phase-cost telemetry."
+    key_decisions:
+      - "Passed slices stay resolved unless an evidenced regression explicitly impacts them."
+      - "Successors require new approved authority, candidate lineage, or scope; exhausted slices do not create one."
+      - "Only exact review lifecycle agents add phase costs; arbitrary review-* names are ignored fail-safely."
+  clarify:
+    status: skipped
+  design:
+    status: done
+    artifact: openspec/changes/review-remediation-slices/design.md
+    summary: "Additive remediation v2 adds evidence-bound root-cause slices, monotonic validation, O4.2 migration, and exact review telemetry."
+    key_decisions:
+      - "Keep schema-v1 identity/history and add independently versioned slice remediation."
+      - "Budget and validate only the active root-cause slice; reopen passed slices only with exact regression evidence."
+      - "Instrument exactly six review agents in JS/Go while preserving every sdd-* phase key."
+  tasks:
+    status: done
+    artifact: openspec/changes/review-remediation-slices/tasks.md
+    summary: "Desglose full de 15 tareas en cinco unidades: slices/migración O4.2, decisiones y dispatch monotónico, contratos/mirrors, telemetría JS/Go y verificación/generados. Los 19 escenarios MUST están reconciliados; forecast high con size-exception aceptado."
+    key_decisions:
+      - "Migración v1/O4.2 aditiva, idempotente y auditable; no reescribe historia ni crea sucesores ordinarios."
+      - "La ejecución puede completarse en una sola corrida size-exception, manteniendo work units como fronteras cognitivas."
+      - "Strict TDD RED→GREEN→TRIANGULATE→REFACTOR y pruebas JS/Go/paridad preceden la escritura de estado O4.2."
+  apply:
+    status: done
+    artifact: openspec/changes/review-remediation-slices/apply-progress.md
+    summary: "Verify-FAIL remediation (2026-07-25) fixed all four CRITICAL findings: unified migration-source-authority digest (closes the writer/validator mismatch and the forgeable root_cause_key relabel), pinned top-level correction_budget counters on committed reconciliation, re-migrated the live O4.2 persisted lineage to seed legacy_failed_attempts, and corrected the Strict TDD evidence table to authoritative ✅ Written/✅ Passed markers with immutable digests. Re-verify (2026-07-25) confirmed all four fixes hold and found a fifth CRITICAL: models.yaml had a duplicated agents: key breaking npm test (69 failures), and the prior apply-progress.md batch had falsely called those failures pre-existing baseline noise. This apply batch fixed CRIT-5 (de-duplicated models.yaml, preserving the intentional tier-policy remapping), retracted and corrected the false narrative in apply-progress.md with real RED/GREEN evidence and digests, and confirmed npm test (1424/1426 pass, 0 fail) and selective-4r-parity.test.js (3/3 pass) are green. Verify must re-run to confirm before archive."
+    key_decisions:
+      - "Keep schema-v1 behavior compatible and require explicit idempotent migration for existing frozen lineages."
+      - "Treat only prior successful rows of the exact same phase as telemetry relaunches."
+      - "O4.2 migration partitions the frozen blocking findings into four deterministic root-cause slices without creating a successor."
+      - "source_digest now binds the frozen migration-time slice manifest, not only genesis/findings, closing the self-certified forgery gap."
+      - "CRIT-5: models.yaml deduplication is a pure config-data fix; no application logic changed, so no new unit test was added — RED/GREEN evidence comes from a direct parseModels probe plus the full npm test and selective-4r-parity suites."
+  verify:
+    status: done
+    artifact: openspec/changes/review-remediation-slices/verify-report.md
+    summary: "Post-CRIT-5 re-verify PASS: CRIT-1..5 closed; 19/19 MUST; npm 1424/1426; go test ./... ok; live O4.2 validateLineageForGate no-throw. Next: selective 4R (do not archive)."
+    key_decisions:
+      - "Verdict PASS — CRIT-5 closed independently (one agents: key, npm green, false baseline narrative retracted, go suite green)."
+      - "CRIT-1..4 remain closed under focused 36/36, adversarial probes, live O4.2 state, and digest recomputation."
+      - "Standard active-project route declares 4r-review-gate; next_recommended is selective 4R, not archive."
+  archive:
+    status: done
+    artifact: openspec/changes/review-remediation-slices/archive-report.md
+    summary: "Specs synced (routing, agents, skills, hooks); ADRs promoted; copied to archive/2026-07-25-review-remediation-slices/."
+baseline_fingerprints:
+  routing: sha256:b23f694f89e3817dfe3c3780af51e3a66b30c10e920a0bc8a7bdc9bf809c2973
+  agents: sha256:fe44209dd783e84f52e4693988b3847e639b10e660bcdada69bb85459f55403c
+  skills: sha256:38dda7122a0219019585c9828c34801da680916fac21d661d8730b59cfe9f8b7
+  hooks: sha256:cfb54fed850322395bacaab4cd4fa92b05906d2f1f399f79fc4d700225924603
+assumptions: []
+dependencies:
+  resumes:
+    - strict-tdd-evidence-remediation-fast-path

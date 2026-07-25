@@ -1,0 +1,11 @@
+{
+  "request_id": "validate-slice2-migrate-legacy-regression-2026-07-25",
+  "slice_id": "S-86c71096a807a755",
+  "result": "passed",
+  "outcomes": [
+    {
+      "id": "F-1779348a80b55d76",
+      "status": "resolved"
+    }
+  ]
+}

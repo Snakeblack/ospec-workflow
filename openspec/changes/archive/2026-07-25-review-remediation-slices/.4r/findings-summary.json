@@ -1,0 +1,102 @@
+{
+  "counts": {
+    "BLOCKER": 0,
+    "CRITICAL": 0,
+    "WARNING": 9,
+    "SUGGESTION": 1
+  },
+  "summary": "all remediation slices passed; 10 non-blocking advisory findings remain",
+  "next_action": {
+    "type": "stop",
+    "reason": "all-remediation-slices-passed"
+  },
+  "archive_allowed": true,
+  "slices": {
+    "S-64f0712ad15fc7aa": {
+      "root": "validate-slice-correction-fail-closed",
+      "status": "passed",
+      "used": 103,
+      "failed": 1
+    },
+    "S-86c71096a807a755": {
+      "root": "migrate-legacy-regression-attribution",
+      "status": "passed",
+      "used": 42,
+      "failed": 0
+    },
+    "S-1c649aff4e450731": {
+      "root": "successor-authority-post-rollout",
+      "status": "passed",
+      "used": 2,
+      "failed": 0
+    },
+    "S-07c670caace1e94a": {
+      "root": "expand-slice-state-machine",
+      "status": "passed",
+      "used": 138,
+      "failed": 0
+    }
+  },
+  "advisory_follow_ups": [
+    {
+      "id": "F-9e605ab7794ee6e2",
+      "severity": "WARNING",
+      "owner": "risk",
+      "summary": "beginSliceCorrection accepts any ready slice_id, not only reducer-selected"
+    },
+    {
+      "id": "F-cd47ee364bebcdac",
+      "severity": "WARNING",
+      "owner": "reliability",
+      "summary": "slice.resolutions can diverge from status after validation"
+    },
+    {
+      "id": "F-cb3acc5d4cbed504",
+      "severity": "WARNING",
+      "owner": "reliability",
+      "summary": "freezeFindings does not attach remediation-v2 by default"
+    },
+    {
+      "id": "F-2ad608bb03f65373",
+      "severity": "WARNING",
+      "owner": "resilience",
+      "summary": "beginSliceCorrection lacks exact-retry idempotency"
+    },
+    {
+      "id": "F-edd52be3f14e6bb8",
+      "severity": "WARNING",
+      "owner": "resilience",
+      "summary": "slice.resolutions stale after validate/reopen"
+    },
+    {
+      "id": "F-c5286053ab86f9e6",
+      "severity": "WARNING",
+      "owner": "resilience",
+      "summary": "Go persistResultEnvelope missing orphan .bak recovery vs JS"
+    },
+    {
+      "id": "F-aec5a6010cb6238c",
+      "severity": "WARNING",
+      "owner": "readability",
+      "summary": "committed v2 reconciliation authority is a monolithic unnamed predicate"
+    },
+    {
+      "id": "F-215847ac5a351de5",
+      "severity": "WARNING",
+      "owner": "readability",
+      "summary": "design.md slice budget/status shape diverges from reducer"
+    },
+    {
+      "id": "F-eaa111a912eb287d",
+      "severity": "WARNING",
+      "owner": "readability",
+      "summary": "attachRemediationV2 legacy seeding nesting/priority opaque"
+    },
+    {
+      "id": "F-a80f64de33890053",
+      "severity": "SUGGESTION",
+      "owner": "readability",
+      "summary": "migrated_at: \"deterministic\" unexplained"
+    }
+  ]
+}

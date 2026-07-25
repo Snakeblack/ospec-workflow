@@ -1,0 +1,39 @@
+{
+  "dimension": "resilience",
+  "request_id": "dispatch-resilience-2026-07-25",
+  "status": "success",
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "summary": "validateSliceCorrection fail-open on omitted regression or detected:true without attributable impacted_slices",
+      "affected_files": ["scripts/lib/review-lineage.js"],
+      "evidence": "L648 defaults missing regression to detected:false; detected:true with empty impacted_slices does not throw; failed ignores regression.detected unlike v1; can set passed then approved",
+      "why_it_matters": "Breaks fail-closed cross-slice regression and can approve without attributable impact evidence",
+      "acceptance_criteria": "Require regression with detected and non-empty evidence; detected:true without attributable impacted_slices must throw; no passed/approved with unattributed regression"
+    },
+    {
+      "severity": "WARNING",
+      "summary": "beginSliceCorrection lacks exact-retry idempotency",
+      "affected_files": ["scripts/lib/review-lineage.js"],
+      "evidence": "Requires correction-required with no idempotent branch; v1 beginCorrection returns clone(state) on exact retry",
+      "why_it_matters": "After interrupted persisted start, exact retry fails instead of safe ack",
+      "acceptance_criteria": "Same request_id and exact pending state while correcting returns clone(state); divergence throws"
+    },
+    {
+      "severity": "WARNING",
+      "summary": "slice.resolutions stale after validate/reopen",
+      "affected_files": ["scripts/lib/review-lineage.js"],
+      "evidence": "resolutions only seeded at attachRemediationV2; validateSliceCorrection updates findings/status/regression_history but never slice.resolutions",
+      "why_it_matters": "Partial inconsistent bookkeeping after validation",
+      "acceptance_criteria": "Sync slice.resolutions with findings; integrity fails on divergence"
+    },
+    {
+      "severity": "WARNING",
+      "summary": "Go persistResultEnvelope missing orphan .bak recovery vs JS",
+      "affected_files": ["internal/hooks/subagentstop.go", "scripts/hooks/subagent-stop.js"],
+      "evidence": "JS recoverOrphanBak before re-read; Go ReadFile error returns nil with no bak recovery",
+      "why_it_matters": "Partial rename can leave state.yaml unreadable; Go silently no-ops",
+      "acceptance_criteria": "Parity with JS orphan bak recovery under lock before read"
+    }
+  ]
+}

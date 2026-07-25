@@ -746,7 +746,7 @@ async function appendPhaseCost({ workspace, changeName, record }) {
         rowIndex += 1;
         try {
           const parsed = JSON.parse(trimmed);
-          if (parsed && parsed.phase === record.phase) {
+          if (parsed && parsed.phase === record.phase && parsed.status === "success") {
             hasPrior = true;
           }
         } catch {

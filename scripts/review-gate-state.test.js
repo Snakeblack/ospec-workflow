@@ -8,7 +8,7 @@ const {
   mergeReviewGateAudit,
   planLineageGate,
 } = require("./lib/review-gate-state.js");
-const { startReviewLineage, freezeFindings } = require("./lib/review-lineage.js");
+const { startReviewLineage, freezeFindings, migrateReviewLineage, beginLens, recordLensResult } = require("./lib/review-lineage.js");
 const { normalizeReviewEvidence, deriveReviewDimensions } = require("./lib/review-dimensions.js");
 
 const dimensions = (selected) => Object.fromEntries(
@@ -208,4 +208,25 @@ test("specialist policy and concurrency remain outside the reducer", () => {
   assert.match(source, /parallel-preferred\/serial-fallback/);
   assert.match(source, /review-correction/);
   assert.doesNotMatch(source, /owner[- ]rereview|owning dimension/i);
+});
+
+test("lineage adapter requires migration before mutable work and exposes only the active slice to correction", () => {
+  const candidate = {
+    projection: "workspace", base_tree: "b", candidate_tree: "c", paths: ["scripts/a.js"],
+    diff_hash: `sha256:${"a".repeat(64)}`, paths_digest: `sha256:${"b".repeat(64)}`,
+    authored_lines: 4, original_changed_lines: 4,
+  };
+  let legacy = startReviewLineage({ candidate, classification: "normal", selected_dimensions: ["risk"], evidence_fingerprint: `sha256:${"c".repeat(64)}` });
+  legacy = beginLens(legacy, { dimension: "risk", expected_revision: legacy.revision, request_id: "risk-start" });
+  legacy = recordLensResult(legacy, { dimension: "risk", expected_revision: legacy.revision, request_id: "risk-result", result: { findings: [{ severity: "CRITICAL", summary: "slice me", acceptance_criteria: "isolate" }] } });
+  legacy = freezeFindings(legacy, { expected_revision: legacy.revision, request_id: "freeze" });
+  assert.deepEqual(planLineageGate({ lineage: legacy, observed_candidate_id: legacy.current_candidate_id }), {
+    status: "migration-required", next_action: { type: "migrate-remediation-v2" }, dispatch: [], archive_allowed: false,
+  });
+  const lineage = migrateReviewLineage(legacy, { slices: [{ root_cause_key: "risk", finding_ids: [legacy.findings[0].id], permitted_paths: ["scripts/a.js"] }] });
+  const plan = planLineageGate({ lineage, observed_candidate_id: lineage.current_candidate_id });
+  assert.equal(plan.next_action.type, "correct");
+  assert.deepEqual(plan.dispatch, [], "correction implementation stays orchestrator-owned; only validation dispatches review-correction");
+  assert.deepEqual(plan.active_slice, { slice_id: lineage.slice_order[0], finding_ids: lineage.findings.map((finding) => finding.id), paths: ["scripts/a.js"] });
+  assert.equal(planLineageGate({ lineage, observed_candidate_id: "sha256:drift", downstream_gate: "archive" }).archive_allowed, false);
 });
