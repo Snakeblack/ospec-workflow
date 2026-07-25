@@ -37,3 +37,13 @@ The `executive_summary` MUST include a non-blocking branch-status note:
 
 `status` MUST NOT be `blocked` for branch-status reasons alone.
 
+For Strict TDD evidence remediation, preserve the original CRITICAL finding and
+frozen candidate/genesis identity. Use the evidence-only allowlist and one focal
+recheck; unknown writes, identity drift, fabricated provenance, or material
+changes must return ordinary origin-priority routing.
+Eligibility requires an observed `format_gap: true`, before/after evidence
+snapshots, and a CRITICAL finding with its original origin. Persist the live
+functional manifest at classification, rehash it at write/recheck boundaries,
+and prove that only the exact evidence region changed.
+The reducer's `next_action` is authoritative; persist `repair-pending` before
+the evidence write and never synthesize provenance, candidate, or finding data.

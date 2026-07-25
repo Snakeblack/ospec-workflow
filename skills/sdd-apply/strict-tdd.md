@@ -360,3 +360,15 @@ expect(screen.getByRole("button")).toBeDisabled();
 - Prefer pure functions — but don't force it where it doesn't fit (e.g., React components with state)
 - For refactoring tasks, ALWAYS write approval tests before touching code
 - Run ONLY the relevant test file during the cycle, not the full suite
+
+### Authoritative evidence record
+
+Persist exactly one fenced `json:strict-tdd-evidence` schema-v1 block in
+`apply-progress.md`. It is the machine source of truth for task/test references,
+cycle markers, provenance, and the functional snapshot; the Markdown table is
+derived. Never synthesize absent provenance or tests. An evidence-format-gap
+repair is evidence-only, preserves candidate/genesis identity, is bounded by
+the configured cap (hard maximum 40 lines), and may dispatch at most one focal
+verify recheck; otherwise preserve CRITICAL and use ordinary routing.
+The structured record and each remediation event MUST be validated with a real
+rootDir and current candidate, finding, provenance, and evidence digests.

@@ -81,6 +81,10 @@ openspec/
 
 `config.yaml` should include concise context, `strict_tdd`, testing capabilities, and phase rules for proposal/spec/design/tasks/apply/verify/archive. Keep `context:` under 10 lines.
 
+Projects may optionally set `rules.verify.strict_tdd_evidence_remediation_max_changed_lines`.
+Values must be positive integers no greater than 40; absent or invalid values
+disable the evidence fast path and preserve ordinary CRITICAL remediation.
+
 ## Testing Capabilities Format
 
 ```markdown
