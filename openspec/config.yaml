@@ -2,7 +2,7 @@ schema: spec-driven
 
 context: |
   Tech stack: Node.js 22+, CommonJS JavaScript (no TypeScript, no external runtime frameworks)
-  Architecture: Multi-target plugin/workflow generator producing four targets: claude, vscode, github-copilot, opencode
+  Architecture: Multi-target plugin/workflow generator producing six targets: claude, vscode, github-copilot, opencode, codex, cursor
   Key dirs: scripts/ (build+test+hook logic), skills/ (SDD+utility skills), agents/ (phase prompt templates), hooks/, dist/ (generated output), rules/, commands/, profiles/
   Testing: Node.js native test runner (--test flag), 20 unit/integration test files in scripts/**/*.test.js
   Package manager: npm (no lock file; package.json at root, Node >=22 required)
@@ -11,7 +11,7 @@ context: |
 
 project:
   name: ospec-workflow
-  version: 2.33.0
+  version: 2.34.0
   status: active
 
 artifact_store:

@@ -8,6 +8,24 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.34.0] - 2026-07-25
+
+### Added
+- **Target nativo Cursor (sexto host)**: perfil `scripts/lib/target-profiles/cursor.js`, transform `to-mdc` / hooks camelCase / `readonly` en review-*, `toolMap` Cursor (`Read`, `Write`+`StrReplace`, `Grep`+`Glob`, `Shell`, `Task`) con degradación del ask-tool a chat estructurado.
+- **Instalación generator-first**: `npm run build:cursor` → `dist/cursor`; `npm run setup:cursor` / `reload:cursor` → `scripts/configure/install-cursor.js` sincroniza `~/.cursor` expandiendo `__OSPEC_CURSOR_ROOT__`.
+- **Validador y golden Cursor**: `validate-cursor.js`, fixtures `scripts/configure/__fixtures__/golden/cursor/`, matriz de seis targets en `check.js` / real-repo / parity.
+
+### Changed
+- **Baseline OpenSpec**: sincroniza deltas en `generator` (`REQ-generator-006`–`009`), `install` (`REQ-install-004`–`007`), `agents` (`REQ-agents-017`) y `hooks-runtime` (`REQ-hooks-runtime-001`).
+- **Seguridad del instalador**: assert por destino (anti-symlink anidado), re-check pre-write, quote siempre en hooks, fail-closed si falta `hooks.json`, abort no-cero ante fallo parcial.
+
+### Removed
+- **`scripts/sync-cursor.js`**: retirado; `setup:cursor` ya no usa sync ad-hoc.
+
+### Docs
+- ADR `adr-20260725-006` … `adr-20260725-009` (to-mdc, sourceRoots AGENTS.md, frontmatter Cursor, instalador dedicado)
+- Change archivado: `openspec/changes/archive/2026-07-25-cursor-native-target/`
+
 ## [2.33.0] - 2026-07-25
 
 ### Added

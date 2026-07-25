@@ -6,7 +6,7 @@ const { transform } = require("./lib/target-transform.js");
 const remediation = require("./lib/strict-tdd-evidence-remediation.js");
 const fs = require("node:fs");
 const helperPath = "scripts/lib/strict-tdd-evidence-remediation.js";
-const targets = ["claude", "vscode", "github-copilot", "opencode", "codex"];
+const targets = ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor"];
 
 test("REQ-agents-012 generated in-memory parity ships helper to every target", () => {
   const source = loadTree(process.cwd());

@@ -1116,3 +1116,242 @@ test("codex emits fine-grained sandbox and approval policy settings for specific
   assert.match(verify.content, /^\[sandbox_workspace_write\]\nnetwork_access = false$/m, "verify agent must disable network access in sandbox");
 });
 
+// ---------------------------------------------------------------------------
+// Cursor target (REQ-generator-006..009)
+// ---------------------------------------------------------------------------
+
+const cursor = require("./target-profiles/cursor.js");
+
+const CURSOR_MODELS = {
+  agents: {
+    "sdd-apply": "default",
+    "sdd-orchestrator": "premium",
+    "review-change": "default",
+    _default: "default",
+  },
+  tiers: {
+    premium: { cursor: "claude-opus-5[effort=high]" },
+    default: { cursor: "composer-2.5[fast=false]" },
+  },
+};
+
+const CURSOR_ASK_GATE =
+  'present blocking gate questions as a structured numbered markdown list in chat (e.g. "1) Option A  2) Option B"), then STOP and wait for the user\'s reply — do not invoke any tool to ask — and persist the accepted decision in `state.yaml`';
+
+function makeCursorHooksSource() {
+  return {
+    path: "hooks/hooks.json",
+    content: JSON.stringify(
+      {
+        hooks: {
+          SessionStart: [
+            {
+              type: "command",
+              command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js session-start",
+              timeout: 5,
+            },
+          ],
+          PreToolUse: [
+            {
+              type: "command",
+              command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-tool-use",
+              timeout: 5,
+            },
+          ],
+          PreCompact: [
+            {
+              type: "command",
+              command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-compact",
+              timeout: 5,
+            },
+          ],
+          SubagentStop: [
+            {
+              type: "command",
+              command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js subagent-stop",
+              timeout: 5,
+            },
+          ],
+          Stop: [
+            {
+              type: "command",
+              command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js stop",
+              timeout: 5,
+            },
+          ],
+        },
+      },
+      null,
+      2,
+    ),
+  };
+}
+
+test("cursor to-mdc emits .mdc with description/globs/alwaysApply and drops applyTo", () => {
+  const files = [
+    {
+      path: "rules/sdd-common.instructions.md",
+      content:
+        "---\n" +
+        "description: 'Shared SDD protocol for Copilot orchestrator and phase agents.'\n" +
+        "applyTo: 'agents/**/*.agent.md'\n" +
+        "---\n" +
+        "\n" +
+        "ALWAYS use OpenSpec.\n",
+    },
+  ];
+  const out = transform({ files, profile: cursor, models: CURSOR_MODELS });
+  const rule = find(out, "rules/sdd-common.mdc");
+  assert.ok(rule, "rules/sdd-common.mdc must be emitted");
+  const fm = parse(rule.content).frontmatter;
+  assert.equal(getField(fm, "description").value, "Shared SDD protocol for Copilot orchestrator and phase agents.");
+  assert.deepEqual(getField(fm, "globs").value, ["*"]);
+  assert.equal(getField(fm, "alwaysApply").value, "true");
+  assert.equal(getField(fm, "applyTo"), null, "applyTo must be dropped");
+  assert.match(rule.content, /ALWAYS use OpenSpec/);
+});
+
+test("cursor to-mdc falls back to base name when source has no description", () => {
+  const files = [
+    {
+      path: "rules/orphan.instructions.md",
+      content: "---\nname: orphan\n---\n\nbody\n",
+    },
+  ];
+  const out = transform({ files, profile: cursor, models: CURSOR_MODELS });
+  const rule = find(out, "rules/orphan.mdc");
+  assert.ok(rule);
+  assert.equal(getField(parse(rule.content).frontmatter, "description").value, "orphan");
+});
+
+test("cursor synthesizes AGENTS.md into rules/agents-protocol.mdc with profile description", () => {
+  const files = [
+    {
+      path: "AGENTS.md",
+      content: "# Protocol\n\nPost-archive release flow.\n",
+    },
+  ];
+  const out = transform({ files, profile: cursor, models: CURSOR_MODELS });
+  const rule = find(out, "rules/agents-protocol.mdc");
+  assert.ok(rule, "agents-protocol.mdc must be synthesized from AGENTS.md");
+  assert.equal(
+    getField(parse(rule.content).frontmatter, "description").value,
+    "Post-archive release flow and bounded review lifecycle rules.",
+  );
+  assert.match(rule.content, /Post-archive release flow/);
+  assert.ok(!find(out, "AGENTS.md"), "raw AGENTS.md must not pass through");
+});
+
+test("cursor hooks emit version 1, camelCase fan-out, drop SubagentStop, use __OSPEC_CURSOR_ROOT__", () => {
+  const out = transform({ files: [makeCursorHooksSource()], profile: cursor, models: CURSOR_MODELS });
+  const hooksFile = find(out, "hooks.json");
+  assert.ok(hooksFile, "hooks.json must be emitted at root");
+  const hooks = JSON.parse(hooksFile.content);
+  assert.equal(hooks.version, 1);
+  assert.ok(hooks.hooks.beforeSubmitPrompt, "SessionStart → beforeSubmitPrompt");
+  assert.ok(hooks.hooks.beforeShellExecution, "PreToolUse → beforeShellExecution");
+  assert.ok(hooks.hooks.beforeReadFile, "PreToolUse → beforeReadFile");
+  assert.ok(hooks.hooks.afterFileEdit, "PreCompact → afterFileEdit");
+  assert.ok(hooks.hooks.stop, "Stop → stop");
+  assert.equal(hooks.hooks.SubagentStop, undefined, "SubagentStop must be absent");
+  assert.equal(hooks.hooks.subagentStop, undefined);
+  const cmd = hooks.hooks.beforeShellExecution[0].command;
+  assert.match(cmd, /__OSPEC_CURSOR_ROOT__/);
+  assert.doesNotMatch(cmd, /CLAUDE_PLUGIN_ROOT/);
+  assert.equal(hooks.hooks.beforeShellExecution[0].type, undefined, "type must be dropped");
+  assert.equal(hooks.hooks.beforeShellExecution[0].timeout, undefined, "timeout must be dropped");
+  assert.equal(
+    hooks.hooks.beforeShellExecution[0].command,
+    hooks.hooks.beforeReadFile[0].command,
+    "fan-out events share the same command",
+  );
+});
+
+test("cursor drops unmapped source hook events", () => {
+  const files = [
+    {
+      path: "hooks/hooks.json",
+      content: JSON.stringify({
+        hooks: {
+          FutureEvent: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/x.js", timeout: 1 }],
+          Stop: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js stop", timeout: 5 }],
+        },
+      }),
+    },
+  ];
+  const out = transform({ files, profile: cursor, models: CURSOR_MODELS });
+  const hooks = JSON.parse(find(out, "hooks.json").content);
+  assert.equal(hooks.hooks.FutureEvent, undefined);
+  assert.ok(hooks.hooks.stop);
+});
+
+test("cursor emits readonly:true only for listed review-* agents", () => {
+  const files = [
+    {
+      path: "agents/review-change.agent.md",
+      content: "---\nname: review-change\ndescription: d\ntools: ['read']\n---\n\nbody\n",
+    },
+    {
+      path: "agents/sdd-apply.agent.md",
+      content: "---\nname: sdd-apply\ndescription: d\ntools: ['read', 'edit']\n---\n\nbody\n",
+    },
+  ];
+  const out = transform({ files, profile: cursor, models: CURSOR_MODELS });
+  const review = parse(find(out, "agents/review-change.md").content).frontmatter;
+  const apply = parse(find(out, "agents/sdd-apply.md").content).frontmatter;
+  assert.equal(getField(review, "readonly").value, "true");
+  assert.equal(getField(apply, "readonly"), null, "non-reviewer must omit readonly key");
+  assert.equal(getField(apply, "tools"), null, "tools must be stripped");
+});
+
+test("cursor toolMap substitutes native primary names in prose", () => {
+  const files = [
+    {
+      path: "agents/sdd-apply.agent.md",
+      content:
+        "---\nname: sdd-apply\ndescription: d\ntools: ['read', 'edit', 'search', 'execute', 'agent']\n---\n\n" +
+        "Use `edit` then `search`, run via `execute`, and spawn via `agent`.\n",
+    },
+  ];
+  const out = transform({ files, profile: cursor, models: CURSOR_MODELS });
+  const body = find(out, "agents/sdd-apply.md").content;
+  assert.match(body, /`Write`/);
+  assert.match(body, /`Grep`/);
+  assert.match(body, /`Shell`/);
+  assert.match(body, /`Task`/);
+  assert.doesNotMatch(body, /`edit`/);
+  assert.doesNotMatch(body, /`search`/);
+  assert.doesNotMatch(body, /`execute`/);
+  assert.doesNotMatch(body, /`agent`/);
+});
+
+test("cursor degrades both ask tools to chat gate without literal names", () => {
+  const files = [
+    {
+      path: "agents/sdd-orchestrator.agent.md",
+      content:
+        "---\nname: sdd-orchestrator\ndescription: d\ntools: ['read', 'vscode/askQuestions']\n---\n\n" +
+        "Ask via `vscode/askQuestions` or AskUserQuestion and wait.\n",
+    },
+  ];
+  const out = transform({ files, profile: cursor, models: CURSOR_MODELS });
+  const content = find(out, "agents/sdd-orchestrator.md").content;
+  assert.match(content, /structured numbered markdown list/);
+  assert.match(content, /state\.yaml/);
+  assert.doesNotMatch(content, /vscode\//);
+  assert.doesNotMatch(content, /AskUserQuestion/);
+  assert.ok(content.includes(CURSOR_ASK_GATE) || content.includes("STOP and wait"));
+});
+
+test("cursor injects model from models.yaml cursor column", () => {
+  const files = [
+    {
+      path: "agents/sdd-apply.agent.md",
+      content: "---\nname: sdd-apply\ndescription: d\ntools: ['read']\n---\n\nbody\n",
+    },
+  ];
+  const out = transform({ files, profile: cursor, models: CURSOR_MODELS });
+  const fm = parse(find(out, "agents/sdd-apply.md").content).frontmatter;
+  assert.equal(getField(fm, "model").value, "composer-2.5[fast=false]");
+});
+

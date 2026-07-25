@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeSubmitPrompt": [
+      {
+        "command": "__OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks session-start"
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "__OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks pre-tool-use"
+      }
+    ],
+    "beforeReadFile": [
+      {
+        "command": "__OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks pre-tool-use"
+      }
+    ]
+  }
+}

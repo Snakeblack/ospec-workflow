@@ -83,11 +83,13 @@ Because the orchestrator body is divided into CORE and on-demand handlers (§15,
 - THEN it MUST dispatch `sdd-apply` without requiring branch confirmation
 - AND the recommendation MUST NOT be treated as a gate or approval-ledger entry
 
-##### Scenario: Recommendation propagates across all four targets
+##### Scenario: Recommendation propagates across all supported targets
 
 - GIVEN the orchestrator source file is regenerated via `scripts/configure`
-- WHEN the build produces `dist/` outputs for claude, vscode, github-copilot, and opencode targets
-- THEN the branch-before-code recommendation text MUST appear in the generated orchestrator for all four targets
+- WHEN the build produces `dist/` outputs for claude, vscode, github-copilot, opencode, codex, and cursor targets
+- THEN the branch-before-code recommendation text MUST appear in the generated orchestrator for all six targets
+
+(Previously: scenario covered four targets only — claude, vscode, github-copilot, opencode.)
 
 #### sdd-propose Branch Advisory in Output
 
@@ -1094,7 +1096,7 @@ Pending mutations MUST be persisted before dispatch. Unknown outcomes MUST be re
 
 ### 7.4 Review Agent Target Parity {#REQ-agents-014}
 
-The source generalist agent, its allowlist/model registration, selective dispatch instructions, validation contract, and audit semantics MUST be generated equivalently for every supported target, including claude, vscode, github-copilot, opencode, and codex. Target-native syntax MAY differ, but identical evidence MUST yield the same selected dimensions, reasons, cap, failure behavior, and severity/remediation outcome.
+The source generalist agent, its allowlist/model registration, selective dispatch instructions, validation contract, and audit semantics MUST be generated equivalently for every supported target, including claude, vscode, github-copilot, opencode, codex, and cursor. Target-native syntax MAY differ, but identical evidence MUST yield the same selected dimensions, reasons, cap, failure behavior, and severity/remediation outcome.
 
 #### Scenario: Generated targets select identically
 
@@ -1175,6 +1177,28 @@ execution-test requirements, or existing CRITICAL handling.
 - WHEN the contract suite evaluates each case
 - THEN only the equivalent evidence case MAY use the fast path
 - AND the suite MUST assert that rechecks and evidence writes stay within the configured bounded cost
+
+### 7.7 Cursor Generated Agents Use Chat Question Gate Prose {#REQ-agents-017}
+
+Generated Cursor agents and the Cursor orchestrator MUST instruct blocking user
+decisions via a structured chat `question_gate` protocol (numbered options, STOP and
+wait for reply, persist approvals in `state.yaml`) rather than invoking
+`vscode/askQuestions` or `AskUserQuestion`. This aligns with generator
+REQ-generator-003 / REQ-generator-009 degrade markers and MUST NOT weaken envelope
+`question_gate` field shape required by Section 6.1.
+
+#### Scenario: Cursor orchestrator prose omits vscode ask tool
+
+- GIVEN `scripts/configure` generates the `cursor` target
+- WHEN the emitted orchestrator / phase agent bodies are inspected
+- THEN they MUST NOT reference `vscode/askQuestions` or `AskUserQuestion` as callable tools
+- AND blocking-gate prose MUST describe the structured chat STOP-and-wait protocol
+
+#### Scenario: Envelope question_gate shape unchanged
+
+- GIVEN a Cursor-session phase returns `status: blocked` with `question_gate`
+- WHEN the envelope is validated against Section 6.1
+- THEN field names and nesting MUST remain unchanged
 
 ---
 
@@ -1755,7 +1779,7 @@ The orchestrator generated into `dist/` by `scripts/configure` MUST resolve
 `skills/_shared/` handler references and produce observable behavior identical to
 the agent source form. All `skills/_shared/` handler files registered in the CORE
 pointer table MUST be included in the generated output tree for every supported target
-(claude, github-copilot, opencode, vscode). On the claude target the orchestrator MUST
+(claude, github-copilot, opencode, vscode, codex, cursor). On the claude target the orchestrator MUST
 be emitted as `skills/sdd-orchestrator/SKILL.md` per Section 8.3; the `_shared/`
 handler files MUST be co-located in the same generated tree so the generated skill
 can read them at runtime.

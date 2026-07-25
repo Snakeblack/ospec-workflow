@@ -60,7 +60,7 @@ test("generateTarget removes its temp directory when generation fails", () => {
   assert.deepEqual(removed, [{ dir: "C:/tmp/ospec-codex-123", options: { recursive: true, force: true } }]);
 });
 
-test("main includes codex and skips claude validation when the claude CLI is unavailable", () => {
+test("main includes cursor and skips claude validation when the claude CLI is unavailable", () => {
   const generated = [];
   const stdout = [];
   let exitCode;
@@ -85,6 +85,7 @@ test("main includes codex and skips claude validation when the claude CLI is una
     { target: "github-copilot", validate: true },
     { target: "opencode", validate: true },
     { target: "codex", validate: true },
+    { target: "cursor", validate: true },
   ]);
   assert.match(stdout.join(""), /claude CLI not found/);
 });

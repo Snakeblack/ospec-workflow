@@ -66,6 +66,19 @@ function handleFile(file, profile, models, rulesContent) {
     return codexHooks(file, profile);
   }
 
+  if (profile.hooks && profile.hooks.format === "cursor" && path === (profile.hooks.source || "hooks/hooks.json")) {
+    return cursorHooks(file, profile);
+  }
+
+  // Profile-scoped synthesize sources (e.g. AGENTS.md → agents-protocol.mdc)
+  // must run before the generic .md passthrough (ADR-002).
+  if (profile.rules && Array.isArray(profile.rules.synthesize)) {
+    const synth = profile.rules.synthesize.find((entry) => entry.source === path);
+    if (synth) {
+      return toMdcSynthesize(file, profile, synth);
+    }
+  }
+
   if (isRulesFile(path)) {
     if (profile.rules && isInlineStrategy(profile.rules.strategy)) {
       return null; // content folded into the orchestrator agent/skill
@@ -78,6 +91,9 @@ function handleFile(file, profile, models, rulesContent) {
     }
     if (profile.rules && profile.rules.strategy === "to-agents-md") {
       return null; // folded into the synthesized AGENTS.md (ADR-001)
+    }
+    if (profile.rules && profile.rules.strategy === "to-mdc") {
+      return toMdcFile(file, profile);
     }
     return { path, content: file.content };
   }
@@ -385,6 +401,45 @@ function codexHooks(file, profile) {
   return { path: profile.hooks.location || file.path, content: JSON.stringify({ hooks: out }, null, 2) + "\n" };
 }
 
+// Reshape source hooks into Cursor's { version: 1, hooks: { <camelCase>: [{ command }] } }
+// schema. eventMap values MAY be arrays (PreToolUse fans out to two events).
+// Unmapped events (including SubagentStop) are dropped; type/timeout are omitted.
+function cursorHooks(file, profile) {
+  const obj = parseJsonFile(file);
+  const events = obj.hooks || {};
+  const eventMap = profile.hooks.eventMap || {};
+  const placeholder = profile.hooks.runtimePlaceholder || "__OSPEC_CURSOR_ROOT__";
+  const out = {};
+
+  for (const [event, entries] of Object.entries(events)) {
+    const mapped = eventMap[event];
+    if (!mapped) {
+      continue;
+    }
+    validateHookEntries(file, event, entries);
+    const targets = Array.isArray(mapped) ? mapped : [mapped];
+    const hooks = entries.map((entry, index) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        throw new Error(`${file.path}: hooks.${event}[${index}] must be an object`);
+      }
+      if (typeof entry.command !== "string") {
+        throw new Error(`${file.path}: hooks.${event}[${index}].command must be a string`);
+      }
+      return {
+        command: entry.command.split("${CLAUDE_PLUGIN_ROOT}").join(placeholder),
+      };
+    });
+    for (const target of targets) {
+      out[target] = hooks;
+    }
+  }
+
+  return {
+    path: profile.hooks.location || "hooks.json",
+    content: JSON.stringify({ version: 1, hooks: out }, null, 2) + "\n",
+  };
+}
+
 // --- rules inlining --------------------------------------------------------
 
 function collectRules(files, profile) {
@@ -513,6 +568,15 @@ function handleAgent(file, profile, models) {
           ? setArray(frontmatter, "model", model)
           : setScalar(frontmatter, "model", model);
       }
+    }
+  }
+
+  // ADR-003 / REQ-generator-008: emit readonly:true only for explicitly listed
+  // reviewer ids; omit the key entirely for every other agent.
+  if (profile.agentReadonly && Array.isArray(profile.agentReadonly.agents)) {
+    const readonlyName = agentName || originalAgentName;
+    if (readonlyName && profile.agentReadonly.agents.includes(readonlyName)) {
+      frontmatter = setScalar(frontmatter, "readonly", "true");
     }
   }
 
@@ -859,6 +923,85 @@ function mapToolsFrontmatterAsMap(frontmatter, toolMap, dropTools) {
   }
 
   return setBlockMap(frontmatter, "tools", entries);
+}
+
+// rules/<name>.instructions.md -> <profile.rules.dir>/<base>.mdc with Cursor
+// rule frontmatter (description/globs/alwaysApply). applyTo is dropped.
+function toMdcFile(file, profile) {
+  const { frontmatter: srcFm, body: rawBody } = parse(file.content);
+  let body = rawBody;
+  if (profile.toolMap) {
+    body = substituteProse(body, profile.toolMap);
+  }
+  body = substituteAgentNames(body, profile);
+
+  const base = file.path
+    .slice("rules/".length)
+    .replace(/\.instructions\.md$/, "")
+    .replace(/\.md$/, "");
+  const descField = getField(srcFm, "description");
+  const description = (descField && descField.value) || base;
+  const globs = Array.isArray(profile.rules.globs) ? profile.rules.globs : ["*"];
+  const alwaysApply = profile.rules.alwaysApply !== false;
+
+  const frontmatter = [
+    {
+      key: "description",
+      value: description,
+      rawLines: [`description: ${JSON.stringify(description)}`],
+    },
+    {
+      key: "globs",
+      value: globs.slice(),
+      rawLines: [`globs: ${JSON.stringify(globs)}`],
+    },
+    {
+      key: "alwaysApply",
+      value: String(alwaysApply),
+      rawLines: [`alwaysApply: ${alwaysApply ? "true" : "false"}`],
+    },
+  ];
+
+  const dir = profile.rules.dir || "rules";
+  return { path: `${dir}/${base}.mdc`, content: serialize({ frontmatter, body }) };
+}
+
+// Synthesize a .mdc rule from a non-rules source (e.g. AGENTS.md) using the
+// profile.rules.synthesize entry's base name and description.
+function toMdcSynthesize(file, profile, synth) {
+  let body = file.content;
+  // AGENTS.md has no frontmatter; treat the whole file as the body.
+  if (file.content.startsWith("---")) {
+    body = parse(file.content).body;
+  }
+  if (profile.toolMap) {
+    body = substituteProse(body, profile.toolMap);
+  }
+  body = substituteAgentNames(body, profile);
+
+  const description = synth.description || synth.base;
+  const globs = Array.isArray(profile.rules.globs) ? profile.rules.globs : ["*"];
+  const alwaysApply = profile.rules.alwaysApply !== false;
+  const frontmatter = [
+    {
+      key: "description",
+      value: description,
+      rawLines: [`description: ${JSON.stringify(description)}`],
+    },
+    {
+      key: "globs",
+      value: globs.slice(),
+      rawLines: [`globs: ${JSON.stringify(globs)}`],
+    },
+    {
+      key: "alwaysApply",
+      value: String(alwaysApply),
+      rawLines: [`alwaysApply: ${alwaysApply ? "true" : "false"}`],
+    },
+  ];
+
+  const dir = profile.rules.dir || "rules";
+  return { path: `${dir}/${synth.base}.mdc`, content: serialize({ frontmatter, body }) };
 }
 
 // rules/<name>.instructions.md -> <profile.rules.dir>/<name>.instructions.md, made

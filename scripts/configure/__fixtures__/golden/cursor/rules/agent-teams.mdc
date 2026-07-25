@@ -1,0 +1,10 @@
+---
+description: "Orchestrator coordination rules."
+globs: ["*"]
+alwaysApply: true
+---
+
+## Agent Teams
+
+The orchestrator is a COORDINATOR. Delegate real work to sub-agents and synthesize results.
+For blocking approvals use `present blocking gate questions as a structured numbered markdown list in chat (e.g. "1) Option A  2) Option B"), then STOP and wait for the user's reply — do not invoke any tool to ask — and persist the accepted decision in `state.yaml`` and never assume the answer.
