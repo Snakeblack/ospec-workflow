@@ -898,6 +898,32 @@ test("codex populates model, model_reasoning_effort, and model_verbosity when pr
   assert.match(apply, /^model_verbosity = "medium"/m);
 });
 
+test("codex applies canonical Sol/Terra/Luna model and effort pairs by tier", () => {
+  const files = makeSource().concat([
+    { path: "agents/sdd-propose.agent.md", content: "---\nname: sdd-propose\ntools: ['read']\n---\nproposal\n" },
+    { path: "agents/sdd-document.agent.md", content: "---\nname: sdd-document\ntools: ['read']\n---\ndocument\n" },
+  ]);
+  const models = {
+    agents: { "sdd-propose": "premium", "sdd-apply": "default", "sdd-document": "cheap", _default: "default" },
+    tiers: {
+      premium: { codex: { model: "gpt-5.6-sol", model_reasoning_effort: "medium" } },
+      default: { codex: { model: "gpt-5.6-terra", model_reasoning_effort: "medium" } },
+      cheap: { codex: { model: "gpt-5.6-luna", model_reasoning_effort: "low" } },
+    },
+  };
+  const out = transform({ files, profile: codex, models });
+  const expected = [
+    ["sdd-propose", "gpt-5.6-sol", "medium"],
+    ["sdd-apply", "gpt-5.6-terra", "medium"],
+    ["sdd-document", "gpt-5.6-luna", "low"],
+  ];
+  for (const [agent, model, effort] of expected) {
+    const content = find(out, `.codex/agents/${agent}.toml`).content;
+    assert.match(content, new RegExp(`^model = "${model}"$`, "m"), agent);
+    assert.match(content, new RegExp(`^model_reasoning_effort = "${effort}"$`, "m"), agent);
+  }
+});
+
 
 test("codex commands become invocable skills under skills/commands/, never a prompts/ path", () => {
   const out = transform({ files: makeSource(), profile: codex, models: MODELS });
