@@ -48,7 +48,7 @@ Default to `openspec` only when the orchestrator/user selected persisted artifac
 - New selective-review runs may add schema-v1 `classification`, normalized `evidence`, `generalist`, and four `dimensions` under `gates.4r-review-gate`. Update this object by read-merge-write and preserve historical fields.
 - Legacy gate objects without selective-review audit fields remain valid and must not be rewritten or assigned invented reasons.
 - Invalid review contracts record `status: blocked`, `blocker_reason: contract-remediation`, and allowlisted `validation_error_codes`; arbitrary diagnostic text, rejected values, and raw diff hunks are never persisted.
-- Active bounded reviews persist a `lineage` object under `gates.4r-review-gate`: immutable genesis and IDs, per-lens one-shot execution, frozen findings, fixed line/attempt budget, pending operation, correction/validation history, non-blocking follow-ups, and terminal reason.
+- Active bounded reviews persist a `lineage` object under `gates.4r-review-gate`: immutable genesis and IDs, per-lens one-shot execution, frozen findings, and additive remediation-v2 manifest/slices with immutable per-slice line/attempt budgets, pending operation, correction/validation history, non-blocking follow-ups, and terminal reason. Schema-v1 migration preserves all historical fields and is idempotent; a correction dispatch carries only the reducer-selected active slice IDs and permitted paths.
 - Persist a pending mutation before dispatch. An unknown outcome is `reconciliation-required` and cannot be replayed or replaced while unresolved.
 - Verify, delivery, and archive revalidate the same terminal candidate identity without allocating reviewers, findings, attempts, paths, or budget. A successor is a distinct, explicitly approved lineage linked to a terminal predecessor.
 
@@ -78,3 +78,7 @@ Blocking workflow decisions are valid only when they come from:
 2. an explicit approval entry persisted in `openspec/changes/{change-name}/state.yaml`.
 
 Do not infer approvals from plain chat summaries.
+
+Evidence remediation state is namespaced under the change and is fail-closed:
+the structured record is authoritative, writes are limited to the evidence
+section, and one focal recheck is the maximum continuation.

@@ -520,7 +520,12 @@ async function persistResultEnvelope({ input, workspace }) {
  * the phase-key derivation rule lives in exactly one place.
  */
 function derivePhaseKey(agentName) {
-  return agentName.startsWith("sdd-") ? agentName.slice("sdd-".length) : "";
+  if (agentName.startsWith("sdd-")) return agentName.slice("sdd-".length);
+  // Review telemetry is deliberately closed-world: arbitrary review-* names
+  // must never create cost rows or influence relaunch accounting.
+  return new Set(["review-change", "review-risk", "review-reliability", "review-resilience", "review-readability", "review-correction"]).has(agentName)
+    ? agentName
+    : "";
 }
 
 /**

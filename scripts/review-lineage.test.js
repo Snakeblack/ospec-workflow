@@ -2,8 +2,10 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const {
   stableSerialize,
+  migrateReviewLineage,
   startReviewLineage,
   beginLens,
   recordLensResult,
@@ -42,6 +44,10 @@ const correctedCandidate = (tree = "corrected-tree") => ({
   candidate_tree: tree,
   diff_hash: `sha256:${"d".repeat(64)}`,
 });
+
+function testDigest(domain, value) {
+  return `sha256:${crypto.createHash("sha256").update(`${domain}\0${stableSerialize(value)}`).digest("hex")}`;
+}
 
 function reviewedLineage() {
   let state = startReviewLineage(genesis());
@@ -320,4 +326,135 @@ test("applyTargetedValidation does not produce a dead state with zero unresolved
   const action = nextLineageAction(state);
   assert.equal(action.type, "correct");
   assert.deepEqual(action.finding_ids, [finding]);
+});
+
+test("remediation-v2 migrates a frozen v1 lineage idempotently and fails closed for pending work or malformed partitions", () => {
+  let state = startReviewLineage({ ...genesis(), selected_dimensions: ["risk", "reliability"] });
+  for (const [dimension, summary] of [["risk", "policy boundary"], ["reliability", "provenance boundary"]]) {
+    state = beginLens(state, { dimension, expected_revision: state.revision, request_id: `${dimension}-start` });
+    state = recordLensResult(state, {
+      dimension,
+      expected_revision: state.revision,
+      request_id: `${dimension}-result`,
+      result: { findings: [{ severity: "CRITICAL", summary, acceptance_criteria: `repair ${dimension}` }] },
+    });
+  }
+  state = freezeFindings(state, { expected_revision: state.revision, request_id: "freeze-two" });
+  const original = structuredClone(state);
+  const manifest = {
+    slices: state.findings.map((finding) => ({
+      root_cause_key: finding.owner,
+      finding_ids: [finding.id],
+      permitted_paths: ["scripts/a.js"],
+    })),
+  };
+
+  const migrated = migrateReviewLineage(state, manifest);
+  assert.equal(migrated.remediation_schema_version, 2);
+  assert.equal(migrated.slice_order.length, 2);
+  assert.equal(migrated.remediation_migration.legacy_used_lines, original.correction_budget.used_lines);
+  assert.deepEqual(migrated.findings, original.findings, "frozen legacy findings remain byte-equivalent objects");
+  assert.deepEqual(migrateReviewLineage(migrated, manifest), migrated, "migration is idempotent");
+  assert.throws(() => migrateReviewLineage({ ...state, pending_operation: { status: "unknown", request_id: "interrupted" } }, manifest), /reconciliation|pending|unknown/i);
+  assert.throws(() => migrateReviewLineage(state, { slices: [{ root_cause_key: "bad", finding_ids: [state.findings[0].id], permitted_paths: ["scripts/a.js"] }] }), /partition|every blocking/i);
+});
+
+test("slice validation is monotonic, isolates exhaustion, and reopens a passed slice only with explicit bounded regression", () => {
+  let state = startReviewLineage({ ...genesis(), selected_dimensions: ["risk", "reliability"] });
+  for (const [dimension, summary] of [["risk", "policy boundary"], ["reliability", "provenance boundary"]]) {
+    state = beginLens(state, { dimension, expected_revision: state.revision, request_id: `${dimension}-start` });
+    state = recordLensResult(state, { dimension, expected_revision: state.revision, request_id: `${dimension}-result`, result: { findings: [{ severity: "CRITICAL", summary, acceptance_criteria: `repair ${dimension}` }] } });
+  }
+  state = freezeFindings(state, { expected_revision: state.revision, request_id: "freeze-slices" });
+  state = migrateReviewLineage(state, { slices: state.findings.map((finding) => ({ root_cause_key: finding.owner, finding_ids: [finding.id], permitted_paths: ["scripts/a.js"] })) });
+  const [policyId, provenanceId] = state.slice_order;
+  const resolve = (sliceId, requestId, outcome, regression = { detected: false, impacted_slices: [] }) => {
+    const slice = state.correction_slices[sliceId];
+    state = beginCorrection(state, { slice_id: sliceId, expected_revision: state.revision, request_id: `${requestId}-begin`, finding_ids: slice.finding_ids, paths: ["scripts/a.js"], base_candidate_id: state.current_candidate_id, forecast_lines: 0 });
+    state = recordCorrection(state, { expected_revision: state.revision, request_id: `${requestId}-record`, base_candidate_id: state.current_candidate_id, paths: slice.permitted_paths, actual_changed_lines: 0, corrected_candidate: correctedCandidate(`${requestId}-candidate`) });
+    const verifiedRegression = regression.detected ? { ...regression, impacted_slices: regression.impacted_slices.map((impact) => ({ ...impact, evidence_digests: state.correction_slices[impact.slice_id].evidence_digests })) } : regression;
+    state = applyTargetedValidation(state, { slice_id: sliceId, expected_revision: state.revision, request_id: `${requestId}-validate`, outcomes: slice.finding_ids.map((id) => ({ id, status: outcome })), regression: verifiedRegression, follow_ups: [] });
+  };
+  resolve(policyId, "policy-pass", "resolved");
+  assert.equal(state.correction_slices[policyId].status, "passed");
+  resolve(provenanceId, "provenance-fail", "unresolved");
+  assert.equal(state.correction_slices[policyId].status, "passed", "unrelated failure cannot reopen passed slice");
+  assert.equal(state.correction_slices[provenanceId].failed_attempts, 1);
+  resolve(provenanceId, "provenance-regression", "unresolved", { detected: true, impacted_slices: [{ slice_id: policyId, finding_ids: state.correction_slices[policyId].finding_ids, paths: ["scripts/a.js"] }] });
+  assert.equal(state.correction_slices[policyId].status, "ready", "only explicit evidenced regression reopens passed slice");
+  assert.throws(() => createSuccessor(terminateLineage(state, { expected_revision: state.revision, request_id: "terminate", status: "escalated", reason: "slice exhausted" }), { ...genesis(), reason: "retry exhausted slice", authority_kind: "retry", approval_reference: "architecture-bounded-review-001", approvals: [{ id: "architecture-bounded-review-001", applies_to: ["sdd-apply"] }] }), /authority/i);
+});
+
+test("remediation-v2 rejects invented authority, reconciles exact unknown work, and binds regressions to frozen evidence", () => {
+  let state = reviewedLineage();
+  const manifest = { slices: [{ root_cause_key: "boundary", finding_ids: [state.findings[0].id], permitted_paths: ["scripts/a.js"] }] };
+  state = migrateReviewLineage(state, manifest);
+  const sliceId = state.slice_order[0];
+  const slice = state.correction_slices[sliceId];
+
+  assert.throws(() => beginCorrection(state, { slice_id: sliceId, expected_revision: state.revision, request_id: "false-base", finding_ids: slice.finding_ids, paths: slice.permitted_paths, base_candidate_id: "sha256:invented", forecast_lines: 0 }), /base candidate/i);
+  state = beginCorrection(state, { slice_id: sliceId, expected_revision: state.revision, request_id: "real-base", finding_ids: slice.finding_ids, paths: slice.permitted_paths, base_candidate_id: state.current_candidate_id, forecast_lines: 0 });
+  assert.equal(state.pending_operation.operation, "slice-correction-start");
+  state = markOperationUnknown(state, { expected_revision: state.revision, request_id: "real-base" });
+  assert.equal(state.status, "reconciliation-required");
+  assert.throws(() => beginCorrection(state, { slice_id: sliceId, expected_revision: state.revision, request_id: "blocked", finding_ids: slice.finding_ids, paths: slice.permitted_paths, base_candidate_id: state.current_candidate_id, forecast_lines: 0 }), /reconciliation/i);
+
+  const restored = structuredClone(state);
+  restored.status = "correcting";
+  restored.pending_operation.status = "pending";
+  restored.revision += 1;
+  state = reconcilePendingOperation(state, { expected_revision: state.revision, request_id: "real-base", outcome: "committed", committed_state: restored });
+  assert.throws(() => recordCorrection(state, { expected_revision: state.revision, request_id: "wrong-path", base_candidate_id: state.current_candidate_id, paths: ["skills/a/SKILL.md"], actual_changed_lines: 0, corrected_candidate: correctedCandidate("wrong") }), /path/i);
+  state = recordCorrection(state, { expected_revision: state.revision, request_id: "record", base_candidate_id: state.current_candidate_id, paths: slice.permitted_paths, actual_changed_lines: 0, corrected_candidate: correctedCandidate("real") });
+  state = applyTargetedValidation(state, { slice_id: sliceId, expected_revision: state.revision, request_id: "pass", outcomes: slice.finding_ids.map((id) => ({ id, status: "resolved" })), regression: { detected: false, impacted_slices: [] }, follow_ups: [{ owner: "reliability", summary: "unrelated concern" }] });
+  assert.equal(state.correction_slices[sliceId].status, "passed");
+  assert.equal(state.follow_ups.length, 1);
+
+  const forged = structuredClone(state);
+  forged.correction_slices[sliceId].limit_lines = 999999;
+  assert.throws(() => validateLineageForGate(forged, { candidate_id: forged.current_candidate_id, gate: "archive" }), /integrity|slice|budget/i);
+});
+
+test("reconcilePendingOperation rejects a committed lineage whose frozen correction_budget counters were altered", () => {
+  let state = reviewedLineage();
+  const findingId = state.findings[0].id;
+  state = beginCorrection(state, { expected_revision: state.revision, request_id: "fix", finding_ids: [findingId], paths: ["scripts/a.js"], base_candidate_id: state.current_candidate_id, forecast_lines: 1 });
+  const running = structuredClone(state);
+  state = markOperationUnknown(state, { expected_revision: state.revision, request_id: "fix" });
+  const forged = structuredClone(running);
+  forged.correction_budget.used_lines = 5;
+  forged.correction_budget.failed_attempts = 1;
+  forged.revision += 1;
+  assert.throws(() => reconcilePendingOperation(state, { expected_revision: state.revision, request_id: "fix", outcome: "committed", committed_state: forged }), /correction_budget/i);
+});
+
+test("remediation-v2 source authority binds the frozen manifest so a relabeled root cause cannot be self-certified", () => {
+  const state = reviewedLineage();
+  const manifest = { slices: [{ root_cause_key: "boundary", finding_ids: [state.findings[0].id], permitted_paths: ["scripts/a.js"] }] };
+  const migrated = migrateReviewLineage(state, manifest);
+  const sliceId = migrated.slice_order[0];
+  assert.deepEqual(validateLineageForGate(migrated, { candidate_id: migrated.current_candidate_id, gate: "archive" }), { valid: false, code: "lineage-not-terminal" }, "honest migrated lineage passes integrity checks before terminal status");
+
+  const tampered = structuredClone(migrated);
+  tampered.correction_slices[sliceId].root_cause_key = "renamed-root-cause";
+  tampered.remediation_migration.manifest_digest = testDigest("review-remediation-manifest-v2", tampered.slice_order.map((id) => {
+    const slice = tampered.correction_slices[id];
+    return { id, root_cause_key: slice.root_cause_key, finding_ids: slice.finding_ids, evidence_digests: slice.evidence_digests, permitted_paths: slice.permitted_paths };
+  }));
+  assert.throws(() => validateLineageForGate(tampered, { candidate_id: tampered.current_candidate_id, gate: "archive" }), /source authority/i);
+});
+
+test("slice unknown reconciliation accepts only the exact pending state and restores not-started work", () => {
+  let state = migrateReviewLineage(reviewedLineage(), { slices: [{ root_cause_key: "boundary", finding_ids: [reviewedLineage().findings[0].id], permitted_paths: ["scripts/a.js"] }] });
+  const slice = state.correction_slices[state.slice_order[0]];
+  state = beginCorrection(state, { slice_id: slice.slice_id, expected_revision: state.revision, request_id: "pending", finding_ids: slice.finding_ids, paths: slice.permitted_paths, base_candidate_id: state.current_candidate_id, forecast_lines: 0 });
+  state = markOperationUnknown(state, { expected_revision: state.revision, request_id: "pending" });
+  const forged = structuredClone(state); forged.status = "correcting"; forged.pending_operation.status = "pending"; forged.correction_slices[slice.slice_id].used_lines = 1; forged.revision += 1;
+  assert.throws(() => reconcilePendingOperation(state, { expected_revision: state.revision, request_id: "pending", outcome: "committed", committed_state: forged }), /exact pending/i);
+  const restored = reconcilePendingOperation(state, { expected_revision: state.revision, request_id: "pending", outcome: "not_started" });
+  assert.equal(restored.status, "correction-required");
+  assert.equal(restored.correction_slices[slice.slice_id].status, "ready");
+  assert.equal(restored.pending_operation, null);
+  assert.equal(restored.pending_correction, null);
+  assert.equal(nextLineageAction(restored).type, "correct");
 });

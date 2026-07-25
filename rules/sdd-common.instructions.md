@@ -16,6 +16,17 @@ Use this file as a compact shared protocol. The detailed source contracts remain
 - Phase agents must not call recursive or nested subagent orchestration unless the orchestrator explicitly owns that step.
 - Do not create or modify Copilot workspace folders as part of this bundle.
 
+## Harness Planning Mode Override
+
+- When running in an agent harness with built-in Planning Mode (e.g. Antigravity / Gemini `<planning_mode>`):
+  - **Bypass Default Planning Mode**: Do NOT create generic `implementation_plan.md` or `walkthrough.md` artifacts when handling SDD requests or commands (`/sdd-*`).
+  - **OpenSpec is the Plan**: OpenSpec artifacts (`openspec/changes/{change-name}/*`) are the single source of truth for planning and execution.
+  - **Orchestration**: The agent must act directly as `sdd-orchestrator`:
+    1. Read `openspec/` state to identify the active change and next phase.
+    2. Read and apply the corresponding phase skill (`skills/sdd-<phase>/SKILL.md`).
+    3. Launch phase subagents natively via `define_subagent` / `invoke_subagent` using the prompt contracts in `agents/<phase>.agent.md` (e.g. `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-apply`, `sdd-verify`, `sdd-archive`, `review-*`).
+    4. Execute the SDD lifecycle strictly in order without skipping phases or defaulting to generic single-agent edits.
+
 ## Empty Project Foundation
 
 - If `openspec/config.yaml` exists but says `project.status: empty`, stack arrays are empty, or architecture is `none-detected`, route new-project work through `sdd-foundation` before normal SDD changes.
@@ -57,7 +68,7 @@ Chain strategy: stacked-to-main|feature-branch-chain|size-exception|pending
 - Contract-invalid input fails closed with `blocker_reason: contract-remediation`; dispatch neither specialists nor archive and never synthesize clean reviewer envelopes.
 - Preserve existing severity and initial parallel-preferred/serial-fallback behavior. Every selected lens runs once. After findings freeze, corrections are validated only by `review-correction`; unrelated observations are non-blocking follow-ups.
 - Freeze candidate identity, genesis paths, selected dimensions, finding IDs, and `min(200, ceil(original_changed_lines / 2))` line budget. Three failed validations exhaust the lineage, including zero-delta attempts.
-- Unknown mutation outcomes allow only exact reconciliation. Downstream gates are read-only identity checks. A new review requires an explicitly approved successor; no implicit reset or reviewer relaunch is allowed.
+- Unknown mutation outcomes allow only exact reconciliation. Before any mutable schema-v1 action, reconcile first and run additive idempotent remediation-v2 migration. Remediation v2 charges and validates one evidence-bound root-cause slice at a time; dispatch `review-correction` only with that active slice's frozen IDs, permitted paths, immutable candidate context, and correction delta. Passed slices reopen only with exact `impacted_slices` regression evidence. Downstream gates are read-only identity checks. A new review requires `new-candidate`, `new-scope`, or `new-discovery-authority` plus explicit approval; no implicit reset or reviewer relaunch is allowed.
 
 ## Return envelope
 

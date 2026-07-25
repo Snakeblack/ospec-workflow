@@ -718,6 +718,19 @@ test("persistPhaseCost writes a record for an active change (phase, agent, est_t
   assert.equal(typeof records[0].ts, "string");
 });
 
+test("persistPhaseCost uses canonical moved tiers for proposal and document telemetry", async (t) => {
+  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+  for (const agent_type of ["sdd-propose", "sdd-document"]) {
+    await runSubagentStop({
+      input: { cwd: workspace, agent_type, status: "success", result: "tier telemetry" },
+    });
+  }
+  const records = await readPhaseCosts(workspace, "strict-result-envelope");
+  const tiers = Object.fromEntries(records.map(record => [record.agent, record.model_tier]));
+  assert.equal(tiers["sdd-propose"], "premium");
+  assert.equal(tiers["sdd-document"], "cheap");
+});
+
 test("persistPhaseCost prefers the valid envelope's status over top-level input.status (triangulation)", async (t) => {
   const { workspace } = await createChangeWorkspace(
     t,
@@ -797,6 +810,26 @@ test("persistPhaseCost ignores a non-sdd-* agent", async (t) => {
     ),
     (error) => error.code === "ENOENT",
   );
+});
+
+test("persistPhaseCost records only exact review lifecycle agents with UTF-8 fallbacks and successful-phase relaunches", async (t) => {
+  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+  for (const agent_type of ["review-change", "review-risk", "review-readability", "review-reliability", "review-resilience", "review-correction"]) {
+    await runSubagentStop({ input: {
+      cwd: workspace, agent_type, status: "success",
+      telemetry: { prompt: "café", artifact: "文", tool_output: "abc", output: "z" },
+    } });
+  }
+  await runSubagentStop({ input: { cwd: workspace, agent_type: "review-invented", status: "success", result: "must be ignored" } });
+  await runSubagentStop({ input: { cwd: workspace, agent_type: "review-correction", status: "success", telemetry: { prompt: "café" } } });
+  const records = await readPhaseCosts(workspace, "strict-result-envelope");
+  assert.equal(records.length, 7);
+  assert.deepEqual(records.slice(0, 6).map((record) => record.phase), ["review-change", "review-risk", "review-readability", "review-reliability", "review-resilience", "review-correction"]);
+  assert.deepEqual(records.slice(0, 6).map((record) => [record.estimated_prompt_tokens, record.estimated_artifact_tokens, record.estimated_tool_output_tokens, record.estimated_output_tokens, record.duration_ms]), Array(6).fill([2, 1, 1, 1, 0]));
+  assert.equal(records.at(-1).phase, "review-correction");
+  assert.equal(records.at(-1).relaunch, true, "only a prior successful row for the same review phase relaunches");
+  assert.equal(records.at(-1).estimated_artifact_tokens, 0);
+  assert.equal(records.at(-1).model_tier, "default", "configured review agent tier is retained while absent numeric fields fall back to zero");
 });
 
 test("persistPhaseCost swallows estimation errors without affecting stdout/return value (fail-safe)", async (t) => {
@@ -926,7 +959,9 @@ test("resolveModelTier resolves correct tiers and handles fallbacks/failures", a
   const testYamlDir = path.resolve(__dirname, "../../"); // Has models.yaml in workspace root
   
   assert.equal(resolveModelTier("sdd-design", testYamlDir), "premium");
+  assert.equal(resolveModelTier("sdd-propose", testYamlDir), "premium");
   assert.equal(resolveModelTier("sdd-apply", testYamlDir), "default");
+  assert.equal(resolveModelTier("sdd-document", testYamlDir), "cheap");
   assert.equal(resolveModelTier("sdd-nonexistent", testYamlDir), "default"); // Fallback to _default
   assert.equal(resolveModelTier("sdd-design", "/invalid-path"), "unknown"); // Missing file -> unknown
 });

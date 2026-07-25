@@ -1,0 +1,40 @@
+{
+  "change": "strict-tdd-evidence-remediation-fast-path",
+  "gate": "4r-review-gate",
+  "schema_version": 1,
+  "pre_migration_sha256": "0877373f68cba09a4516cd13d168e3efad876b5a217c9dd474e46f5c2868524d",
+  "post_migration_sha256": "6e88ae7c3fe4e7fe0a85587b8b99e34b33247e13229cdfaab15f549d835c2b57",
+  "legacy_lineage_stable_sha256": "44ab5edcd7ba4e6e82b5858a198716bb1eb52edec9a7ffdf25c37bb6c0915381",
+  "expected": {
+    "slice_count": 4,
+    "passed_root_causes": ["trusted-authorized-change", "model-policy-enforcement", "resilience-integrity"],
+    "ready_root_cause": "historical-provenance",
+    "ready_failed_attempts": 2,
+    "legacy_used_lines": 171,
+    "successor_created": false
+  },
+  "manifest": {
+    "slices": [
+      {
+        "root_cause_key": "historical-provenance",
+        "finding_ids": ["F-02d225c20b46cc71", "F-ebc3fc16bf900b85", "F-f64b5bbb1c944cfc"],
+        "permitted_paths": ["agents/sdd-apply.agent.md", "agents/sdd-orchestrator.agent.md", "agents/sdd-verify.agent.md", "models.yaml", "openspec/config.yaml", "scripts/configure/cli.js", "scripts/lib/strict-tdd-evidence-remediation.js"]
+      },
+      {
+        "root_cause_key": "trusted-authorized-change",
+        "finding_ids": ["F-512c89cf2a942bd1", "F-9087e91a985d6383", "F-cb39eff24db85ae4"],
+        "permitted_paths": ["agents/sdd-apply.agent.md", "agents/sdd-orchestrator.agent.md", "agents/sdd-verify.agent.md", "openspec/config.yaml", "scripts/lib/strict-tdd-evidence-remediation.js"]
+      },
+      {
+        "root_cause_key": "model-policy-enforcement",
+        "finding_ids": ["F-374988f7f258a0c9", "F-58755e7a115ee5a1", "F-5b9a77519f167394"],
+        "permitted_paths": ["models.yaml", "scripts/configure/cli.js", "scripts/configure/cli.test.js"]
+      },
+      {
+        "root_cause_key": "resilience-integrity",
+        "finding_ids": ["F-c662d82931a03698"],
+        "permitted_paths": ["scripts/lib/strict-tdd-evidence-remediation.js"]
+      }
+    ]
+  }
+}

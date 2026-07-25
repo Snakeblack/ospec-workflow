@@ -19,3 +19,21 @@ test("review-correction source defines targeted-only exact outcome contract", ()
   assert.match(contract, /regression.*evidence/i);
   assert.match(models, /^\s*review-correction: default$/m);
 });
+
+test("slice remediation contracts preserve active-slice, migration, regression, and read-only boundaries in source mirrors", () => {
+  const sources = [
+    "skills/_shared/gate-4r-review.md",
+    "agents/sdd-orchestrator.agent.md",
+    "skills/review-correction/SKILL.md",
+    "agents/review-correction.agent.md",
+    "rules/sdd-common.instructions.md",
+    "rules/sdd-openspec.instructions.md",
+  ].map((relative) => fs.readFileSync(path.join(ROOT, relative), "utf8"));
+  const contract = sources.join("\n");
+  for (const marker of ["active slice", "Persist the pending", "read-only", "reconciliation-required", "new-candidate", "new-scope", "new-discovery-authority"]) {
+    assert.match(contract, new RegExp(marker, "i"), marker);
+  }
+  assert.match(contract, /impacted[_ -]slice.*regression|regression.*impacted[_ -]slice/i);
+  assert.match(sources[4], /Remediation v2 charges and validates one evidence-bound root-cause slice at a time/);
+  assert.match(sources[5], /additive remediation-v2 manifest\/slices with immutable per-slice line\/attempt budgets/);
+});

@@ -1497,6 +1497,57 @@ func TestSubagentStop_Triangulate(t *testing.T) {
 	})
 }
 
+func TestSubagentStop_ReviewPhaseCostAllowlistAndRelaunch(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+	agents := []string{"review-change", "review-risk", "review-readability", "review-reliability", "review-resilience", "review-correction"}
+	for _, agent := range agents {
+		stdin, _ := json.Marshal(map[string]any{
+			"cwd": workspace, "agent_type": agent, "status": "success",
+			"telemetry": map[string]any{"prompt": "café", "artifact": "文", "tool_output": "abc", "output": "z"},
+		})
+		runSubagentStop(t, stdin)
+	}
+	ignored, _ := json.Marshal(map[string]any{"cwd": workspace, "agent_type": "review-invented", "status": "success"})
+	runSubagentStop(t, ignored)
+	retry, _ := json.Marshal(map[string]any{"cwd": workspace, "agent_type": "review-correction", "status": "success", "telemetry": map[string]any{"prompt": "café"}})
+	runSubagentStop(t, retry)
+
+	records := readPhaseCosts(t, workspace, "strict-result-envelope")
+	if len(records) != 7 {
+		t.Fatalf("record count: got %d, want 7 (invented review agent must be ignored)", len(records))
+	}
+	for i, agent := range agents {
+		got := records[i]
+		if got.Phase != agent || got.Agent != agent {
+			t.Errorf("record %d: got phase/agent %q/%q, want %q/%q", i, got.Phase, got.Agent, agent, agent)
+		}
+		if got.EstimatedPromptTokens != 2 || got.EstimatedArtifactTokens != 1 || got.EstimatedToolOutputTokens != 1 || got.EstimatedOutputTokens != 1 || got.DurationMs != 0 {
+			t.Errorf("record %d UTF-8/default fallbacks: %+v", i, got)
+		}
+	}
+	if records[6].Phase != "review-correction" {
+		t.Errorf("retry phase: got %q", records[6].Phase)
+	}
+	if records[6].EstimatedArtifactTokens != 0 || records[6].EstimatedToolOutputTokens != 0 || records[6].EstimatedOutputTokens != 0 || records[6].DurationMs != 0 {
+		t.Errorf("missing optional fields must be zero: %+v", records[6])
+	}
+	data, err := os.ReadFile(filepath.Join(workspace, ".ospec", "session", "strict-result-envelope", "phase-costs.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		row := map[string]any{}
+		if err := json.Unmarshal([]byte(line), &row); err != nil {
+			t.Fatal(err)
+		}
+		rows = append(rows, row)
+	}
+	if rows[6]["relaunch"] != true {
+		t.Errorf("same successful phase retry must relaunch: %#v", rows[6])
+	}
+}
+
 func TestSubagentStop_NormalizeDispatchCostContext(t *testing.T) {
 	// 1. Alias precedence for integers
 	input1 := map[string]any{

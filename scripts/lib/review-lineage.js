@@ -210,11 +210,20 @@ function freezeFindings(state, input) {
   next.findings_digest = digest("review-findings-v1", findings);
   next.status = findings.some((finding) => finding.blocking) ? "correction-required" : "approved";
   next.terminal_reason = next.status === "approved" ? "no-unresolved-blocking-findings" : null;
+  // New lineages carry the additive remediation authority from the moment
+  // findings freeze.  A caller may provide an audited grouping; the safe
+  // default is one immutable slice per blocking finding.
+  if (input && (input.manifest || input.remediation_v2)) attachRemediationV2(next, input.manifest);
   return commit(next);
+}
+
+function frozenFindingEvidence(finding) {
+  return digest("review-finding-evidence-v1", { ...finding, resolution: finding.blocking ? "unresolved" : "advisory" });
 }
 
 function beginCorrection(state, input) {
   assertLineage(state);
+  if (isRemediationV2(state)) return beginSliceCorrection(state, input);
   assertExpectedRevision(state, input && input.expected_revision);
   assertRequestId(input && input.request_id);
   if (state.status === "correcting" && state.pending_correction && state.pending_correction.request_id === input.request_id) {
@@ -256,6 +265,7 @@ function beginCorrection(state, input) {
 
 function recordCorrection(state, input) {
   assertLineage(state);
+  if (isRemediationV2(state)) return recordSliceCorrection(state, input);
   assertExpectedRevision(state, input && input.expected_revision);
   assertRequestId(input && input.request_id);
   if (state.status === "validating") {
@@ -308,6 +318,7 @@ function recordCorrection(state, input) {
 
 function applyTargetedValidation(state, input) {
   assertLineage(state);
+  if (isRemediationV2(state)) return validateSliceCorrection(state, input);
   assertExpectedRevision(state, input && input.expected_revision);
   assertRequestId(input && input.request_id);
   if (!Array.isArray(input.outcomes)) throw new TypeError("validation outcomes are required");
@@ -409,6 +420,11 @@ function reconcilePendingOperation(state, input) {
       next.lenses[operation.before.dimension].request_id = null;
       next.lenses[operation.before.dimension].operation = null;
     } else {
+      if (operation.operation === "slice-correction-start" && operation.before.slice_id) {
+        next.correction_slices[operation.before.slice_id].status = "ready";
+        next.active_slice_id = null;
+        next.pending_correction = null;
+      }
       next.pending_operation = null;
     }
     return commit(next);
@@ -416,6 +432,9 @@ function reconcilePendingOperation(state, input) {
   if (!input.committed_state || input.committed_state.lineage_id !== state.lineage_id || input.committed_state.revision < operation.expected_revision || !stateContainsRequest(input.committed_state, input.request_id)) throw new Error("exact committed lineage state and request are required");
   assertLineage(input.committed_state);
   verifyLineageInvariants(state, input.committed_state);
+  if (isRemediationV2(state)) {
+    if (operation.operation !== "slice-correction-start" || stableSerialize(input.committed_state.correction_slices) !== stableSerialize(state.correction_slices) || stableSerialize(input.committed_state.pending_correction) !== stableSerialize(state.pending_correction) || input.committed_state.status !== "correcting" || !input.committed_state.pending_operation || input.committed_state.pending_operation.status !== "pending") throw new Error("committed remediation-v2 state must match the exact pending operation authority");
+  }
   return clone(input.committed_state);
 }
 
@@ -433,6 +452,9 @@ function createSuccessor(predecessor, input) {
   if (!TERMINAL.has(predecessor.status)) throw new Error("successor requires a terminal predecessor lineage");
   if (predecessor.status === "reconciliation-required" || predecessor.pending_operation) throw new Error("successor is forbidden while reconciliation is pending");
   if (!input || typeof input.reason !== "string" || input.reason.trim().length === 0 || typeof input.approval_reference !== "string" || input.approval_reference.trim().length === 0) throw new TypeError("successor reason and approval reference are required");
+  if (isRemediationV2(predecessor) && !["new-candidate", "new-scope", "new-discovery-authority"].includes(input.authority_kind)) {
+    throw new TypeError("slice exhaustion or retry is not successor authority");
+  }
   
   const ref = input.approval_reference.trim();
   const refRegex = /^[a-z0-9-]+-bounded-review-[0-9]{3,}$/;
@@ -481,6 +503,7 @@ function terminateLineage(state, input) {
 
 function nextLineageAction(state) {
   assertLineage(state);
+  if (isRemediationV2(state)) return nextSliceAction(state);
   if (state.status === "reconciliation-required") {
     const lensOperation = Object.values(state.lenses).map((lens) => lens.operation).find((operation) => operation && operation.status === "unknown");
     return { type: "reconcile", request_id: (state.pending_operation && state.pending_operation.request_id) || (lensOperation && lensOperation.request_id) || null };
@@ -496,6 +519,144 @@ function nextLineageAction(state) {
   if (state.status === "correcting") return { type: "record-correction", request_id: state.pending_correction.request_id };
   if (state.status === "validating") return { type: "targeted-validation", finding_ids: state.findings.filter((finding) => finding.blocking && finding.resolution === "unresolved").map((finding) => finding.id) };
   return { type: "stop", reason: "invalid-lineage-state" };
+}
+
+function isRemediationV2(state) {
+  return state && state.remediation_schema_version === 2;
+}
+
+function canonicalManifest(state, manifest) {
+  const blocking = state.findings.filter((finding) => finding.blocking).map((finding) => finding.id).sort();
+  const raw = manifest && (manifest.slices || manifest);
+  const groups = Array.isArray(raw) ? raw : blocking.map((id) => ({ root_cause_key: id, finding_ids: [id], evidence_digests: [digest("review-finding-evidence-v1", state.findings.find((f) => f.id === id))], permitted_paths: state.genesis.paths }));
+  if (blocking.length === 0) return [];
+  if (!Array.isArray(groups) || groups.length === 0) throw new TypeError("slice manifest is required for blocking findings");
+  const seen = new Set();
+  const slices = groups.map((group) => {
+    if (!group || typeof group.root_cause_key !== "string" || !group.root_cause_key.trim()) throw new TypeError("slice root_cause_key is required");
+    const finding_ids = canonicalStringList(group.finding_ids, "slice finding_ids", blocking);
+    if (!finding_ids.length || finding_ids.some((id) => seen.has(id))) throw new TypeError("slice manifest must partition blocking finding IDs exactly once");
+    finding_ids.forEach((id) => seen.add(id));
+    const permitted_paths = canonicalStringList(group.permitted_paths || group.paths || state.genesis.paths, "slice permitted_paths").map(canonicalPath).sort();
+    if (!permitted_paths.length || permitted_paths.some((p) => !state.genesis.paths.includes(p))) throw new TypeError("slice path escapes frozen genesis paths");
+    const expectedEvidence = finding_ids.map((id) => frozenFindingEvidence(state.findings.find((f) => f.id === id))).sort();
+    const evidence_digests = canonicalStringList(group.evidence_digests || expectedEvidence, "slice evidence_digests");
+    if (stableSerialize(evidence_digests) !== stableSerialize(expectedEvidence)) throw new TypeError("slice evidence digests must match frozen findings exactly");
+    const slice_id = `S-${digest("review-remediation-slice-v2", { lineage_id: state.lineage_id, root_cause_key: group.root_cause_key.trim(), finding_ids, evidence_digests, permitted_paths }).slice(7, 23)}`;
+    return { slice_id, root_cause_key: group.root_cause_key.trim(), finding_ids, evidence_digests, permitted_paths };
+  });
+  if (seen.size !== blocking.length) throw new TypeError("slice manifest must include every blocking finding ID");
+  return slices;
+}
+
+function attachRemediationV2(state, manifest) {
+  if (isRemediationV2(state)) return state;
+  const slices = canonicalManifest(state, manifest);
+  const limit = Math.min(MAX_BUDGET_LINES, Math.ceil(state.genesis.original_changed_lines / 2));
+  const manifestSnapshot = slices.map((slice) => ({ id: slice.slice_id, root_cause_key: slice.root_cause_key, finding_ids: slice.finding_ids, evidence_digests: slice.evidence_digests, permitted_paths: slice.permitted_paths }));
+  state.remediation_schema_version = 2;
+  state.remediation_migration = { source_digest: digest("review-lineage-v1-source", migrationSourceAuthority(state, manifestSnapshot)), manifest_digest: null, legacy_used_lines: state.correction_budget.used_lines, legacy_failed_attempts: state.correction_budget.failed_attempts, migrated_at: "deterministic" };
+  state.slice_order = slices.map((slice) => slice.slice_id);
+  state.active_slice_id = null;
+  const legacyValidations = state.validation_history || [];
+  state.correction_slices = Object.fromEntries(slices.map((slice) => {
+    const latest = new Map();
+    const failedRefs = [];
+    legacyValidations.forEach((validation, index) => {
+      const outcomes = Array.isArray(validation.outcomes) ? validation.outcomes : [];
+      const relevant = outcomes.filter((outcome) => slice.finding_ids.includes(outcome.id));
+      relevant.forEach((outcome) => latest.set(outcome.id, outcome.status));
+      if (relevant.some((outcome) => outcome.status === "unresolved")) failedRefs.push({ index, request_id: validation.request_id });
+    });
+    const resolutions = Object.fromEntries(slice.finding_ids.map((id) => [id, latest.has(id) ? latest.get(id) : (state.findings.find((finding) => finding.id === id).resolution === "resolved" ? "resolved" : "unresolved")]));
+    const failed_attempts = failedRefs.length;
+    return [slice.slice_id, { ...slice, resolutions, status: Object.values(resolutions).every((resolution) => resolution === "resolved") ? "passed" : (failed_attempts >= MAX_FAILED_ATTEMPTS ? "exhausted" : "ready"), used_lines: 0, failed_attempts, limit_lines: limit, max_failed_attempts: MAX_FAILED_ATTEMPTS, correction_history: [], validation_history: [], regression_history: [], legacy_correction_refs: [], legacy_validation_refs: failedRefs }];
+  }));
+  state.remediation_migration.manifest_digest = remediationManifestDigest(state);
+  return state;
+}
+
+function migrationSourceAuthority(state, manifestSnapshot) {
+  const manifest = manifestSnapshot || state.slice_order.map((id) => {
+    const slice = state.correction_slices[id];
+    return { id, root_cause_key: slice.root_cause_key, finding_ids: slice.finding_ids, evidence_digests: slice.evidence_digests, permitted_paths: slice.permitted_paths };
+  });
+  return {
+    schema_version: state.schema_version,
+    lineage_id: state.lineage_id,
+    generation: state.generation,
+    predecessor_lineage_id: state.predecessor_lineage_id,
+    genesis: state.genesis,
+    lenses: state.lenses,
+    findings: state.findings.map((finding) => ({ ...finding, resolution: finding.blocking ? "unresolved" : "advisory" })),
+    findings_digest: state.findings_digest,
+    manifest,
+  };
+}
+
+function migrateReviewLineage(v1, manifest) {
+  assertLineage(v1);
+  if (isRemediationV2(v1)) return clone(v1);
+  if (v1.pending_operation || v1.pending_correction || v1.status === "reconciliation-required") throw new Error("migration requires reconciliation of pending or unknown operation");
+  const next = clone(v1);
+  attachRemediationV2(next, manifest);
+  return next;
+}
+
+function activeSlice(state, input) {
+  const id = input && input.slice_id || state.active_slice_id;
+  const slice = id && state.correction_slices[id];
+  if (!slice) throw new Error("exact active slice is required");
+  return [id, slice];
+}
+
+function remediationManifestDigest(state) {
+  return digest("review-remediation-manifest-v2", state.slice_order.map((id) => {
+    const slice = state.correction_slices[id];
+    return { id, root_cause_key: slice.root_cause_key, finding_ids: slice.finding_ids, evidence_digests: slice.evidence_digests, permitted_paths: slice.permitted_paths };
+  }));
+}
+
+function beginSliceCorrection(state, input) {
+  assertLineage(state); assertExpectedRevision(state, input && input.expected_revision); assertRequestId(input && input.request_id);
+  if (state.status === "reconciliation-required") throw new Error("lineage requires reconciliation before any mutation");
+  if (state.status !== "correction-required") throw new Error("slice correction is not actionable");
+  const id = input.slice_id || nextSliceAction(state).slice_id; const slice = state.correction_slices[id];
+  if (!slice || slice.status !== "ready") throw new Error("selected slice is not actionable");
+  const ids = canonicalStringList(input.finding_ids, "finding_ids", slice.finding_ids);
+  const paths = canonicalStringList(input.paths, "correction paths").map(canonicalPath).sort();
+  if (!paths.length || paths.some((p) => !slice.permitted_paths.includes(p))) throw new Error("correction path escapes frozen genesis paths");
+  if (stableSerialize(ids) !== stableSerialize(slice.finding_ids)) throw new Error("correction must target only the exact active slice");
+  if (input.base_candidate_id !== state.current_candidate_id) throw new Error("correction base candidate mismatch");
+  assertCount(input.forecast_lines, "forecast_lines"); if (input.forecast_lines > slice.limit_lines - slice.used_lines) throw new Error("slice correction forecast exceeds fixed budget");
+  const next = clone(state); next.active_slice_id = id; next.correction_slices[id].status = "correcting"; next.pending_correction = { slice_id: id, request_id: input.request_id, finding_ids: ids, paths, base_candidate_id: input.base_candidate_id, forecast_lines: input.forecast_lines }; next.pending_operation = operationRecord(input, "slice-correction-start", next.pending_correction, { status: "correction-required", slice_id: id }); next.status = "correcting"; return commit(next);
+}
+
+function recordSliceCorrection(state, input) {
+  assertLineage(state); assertExpectedRevision(state, input && input.expected_revision); assertRequestId(input && input.request_id); if (state.status !== "correcting" || !state.pending_correction || !state.pending_operation) throw new Error("pending slice correction is required");
+  const next = clone(state); const pending = next.pending_correction; const slice = next.correction_slices[pending.slice_id]; if (input.base_candidate_id !== pending.base_candidate_id || input.base_candidate_id !== next.current_candidate_id) throw new Error("correction base candidate mismatch"); assertCount(input.actual_changed_lines, "actual_changed_lines"); if (input.actual_changed_lines > pending.forecast_lines || slice.used_lines + input.actual_changed_lines > slice.limit_lines) throw new Error("slice correction budget exceeded");
+  const paths = canonicalStringList(input.paths, "correction paths").map(canonicalPath).sort(); if (stableSerialize(paths) !== stableSerialize(pending.paths)) throw new Error("actual correction paths must equal persisted pending paths");
+  const corrected = normalizeCandidate(input.corrected_candidate); if (stableSerialize(corrected.paths) !== stableSerialize(next.genesis.paths)) throw new Error("corrected candidate paths must equal frozen genesis paths");
+  const corrected_candidate_id = digest("review-candidate-v1", corrected); slice.used_lines += input.actual_changed_lines; slice.correction_history.push({ ...pending, actual_changed_lines: input.actual_changed_lines, record_request_id: input.request_id, corrected_candidate_id }); next.current_candidate = corrected; next.current_candidate_id = corrected_candidate_id; next.pending_operation = null; next.status = "validating"; return commit(next);
+}
+
+function validateSliceCorrection(state, input) {
+  assertLineage(state); assertExpectedRevision(state, input && input.expected_revision); assertRequestId(input && input.request_id); if (state.status !== "validating") throw new Error("slice validation is not actionable");
+  const next = clone(state); const [id, slice] = activeSlice(next, input); const outcomes = input.outcomes || []; const actual = outcomes.map((o) => o.id).sort(); if (stableSerialize(actual) !== stableSerialize(slice.finding_ids)) throw new Error("validation must cover exactly the active slice IDs");
+  const failed = outcomes.some((o) => o.status !== "resolved"); const followUps = normalizeFollowUps(input.follow_ups || []); slice.validation_history.push({ request_id: input.request_id, outcomes: clone(outcomes), result: failed ? "failed" : "passed" }); next.follow_ups.push(...followUps);
+  next.findings = next.findings.map((f) => slice.finding_ids.includes(f.id) ? { ...f, resolution: failed ? "unresolved" : "resolved" } : f); slice.status = failed ? (slice.failed_attempts + 1 >= slice.max_failed_attempts ? "exhausted" : "ready") : "passed"; if (failed) slice.failed_attempts += 1;
+  const regression = input.regression || { detected: false, impacted_slices: [] }; if (!regression.detected && (regression.impacted_slices || []).length) throw new Error("non-regression cannot impact slices");
+  for (const impact of regression.impacted_slices || []) { const target = next.correction_slices[impact.slice_id]; if (!target || target.status !== "passed") throw new Error("regression must name a passed slice"); const ids = canonicalStringList(impact.finding_ids, "impacted finding_ids", target.finding_ids); const paths = canonicalStringList(impact.paths, "impacted paths").map(canonicalPath); const evidence = canonicalStringList(impact.evidence_digests, "impacted evidence_digests", target.evidence_digests); if (!evidence.length || ids.some((x) => !target.finding_ids.includes(x)) || paths.some((p) => !target.permitted_paths.includes(p))) throw new Error("regression evidence escapes impacted slice"); target.status = "ready"; target.regression_history.push({ request_id: input.request_id, finding_ids: ids, paths, evidence_digests: evidence }); next.findings = next.findings.map((f) => ids.includes(f.id) ? { ...f, resolution: "unresolved" } : f); }
+  next.active_slice_id = null; next.pending_correction = null; next.status = "correction-required"; const action = nextSliceAction(next); next.status = action.type === "stop" ? (Object.values(next.correction_slices).every((s) => s.status === "passed") ? "approved" : "exhausted") : "correction-required"; if (next.status === "approved") next.terminal_reason = "all-remediation-slices-passed"; return commit(next);
+}
+
+function nextSliceAction(state) {
+  if (state.status === "reconciliation-required") return { type: "reconcile", request_id: state.pending_operation && state.pending_operation.request_id || null };
+  if (state.status === "reviewing") { const pending = state.genesis.selected_dimensions.filter((d) => state.lenses[d].status === "pending"); return pending.length ? { type: "run-lenses", dimensions: pending } : { type: "freeze-findings" }; }
+  if (state.status === "correcting") return { type: "record-correction", slice_id: state.active_slice_id, request_id: state.pending_correction && state.pending_correction.request_id };
+  if (state.status === "validating") return { type: "targeted-validation", slice_id: state.active_slice_id, finding_ids: state.correction_slices[state.active_slice_id].finding_ids };
+  const id = state.slice_order.find((key) => state.correction_slices[key].status === "ready"); if (id) return { type: "correct", slice_id: id, finding_ids: state.correction_slices[id].finding_ids, paths: state.correction_slices[id].permitted_paths };
+  return { type: "stop", reason: Object.values(state.correction_slices).every((s) => s.status === "passed") ? "all-remediation-slices-passed" : "no-actionable-remediation-slice" };
 }
 
 function prepareMutation(state, input, operation, allowedStatuses) {
@@ -613,6 +774,7 @@ function assertLineage(state) {
   if (typeof state.status !== "string" || !["reviewing", "correction-required", "correcting", "validating", "approved", "exhausted", "escalated", "invalidated", "reconciliation-required"].includes(state.status)) {
     throw new TypeError(`invalid lineage status: ${state.status}`);
   }
+  if (isRemediationV2(state)) assertRemediationV2(state);
   
   const expectedLineageId = digest("review-lineage-v1", {
     candidate_id: state.genesis.candidate_id,
@@ -627,6 +789,35 @@ function assertLineage(state) {
   }
 }
 
+function assertRemediationV2(state) {
+  if (state.remediation_schema_version !== 2 || !state.remediation_migration || typeof state.remediation_migration !== "object") throw new TypeError("remediation-v2 integrity check failed");
+  for (const key of ["source_digest", "manifest_digest"]) if (typeof state.remediation_migration[key] !== "string" || !state.remediation_migration[key].startsWith("sha256:")) throw new TypeError("remediation migration digest integrity check failed");
+  for (const key of ["legacy_used_lines", "legacy_failed_attempts"]) assertCount(state.remediation_migration[key], `remediation_migration.${key}`);
+  if (state.remediation_migration.source_digest !== digest("review-lineage-v1-source", migrationSourceAuthority(state))) throw new TypeError("remediation source authority integrity check failed");
+  if (!Array.isArray(state.slice_order) || !state.correction_slices || typeof state.correction_slices !== "object" || state.slice_order.length !== Object.keys(state.correction_slices).length) throw new TypeError("remediation slice partition integrity check failed");
+  const blocking = state.findings.filter((finding) => finding.blocking).map((finding) => finding.id).sort();
+  const seen = [];
+  const manifest = [];
+  for (const id of state.slice_order) {
+    const slice = state.correction_slices[id];
+    if (!slice || slice.slice_id !== id || !["ready", "correcting", "validating", "passed", "exhausted", "escalated"].includes(slice.status)) throw new TypeError("remediation slice integrity check failed");
+    const finding_ids = canonicalStringList(slice.finding_ids, "slice finding_ids");
+    const permitted_paths = canonicalStringList(slice.permitted_paths, "slice permitted_paths").map(canonicalPath).sort();
+    const expectedEvidence = finding_ids.map((findingId) => frozenFindingEvidence(state.findings.find((finding) => finding.id === findingId))).sort();
+    const evidence_digests = canonicalStringList(slice.evidence_digests, "slice evidence_digests");
+    if (!finding_ids.length || finding_ids.some((findingId) => !blocking.includes(findingId)) || stableSerialize(evidence_digests) !== stableSerialize(expectedEvidence) || permitted_paths.some((path) => !state.genesis.paths.includes(path))) throw new TypeError("remediation frozen manifest integrity check failed");
+    for (const field of ["used_lines", "failed_attempts", "limit_lines", "max_failed_attempts"]) assertCount(slice[field], `slice.${field}`);
+    if (slice.limit_lines !== Math.min(MAX_BUDGET_LINES, Math.ceil(state.genesis.original_changed_lines / 2)) || slice.max_failed_attempts !== MAX_FAILED_ATTEMPTS || slice.used_lines > slice.limit_lines || slice.failed_attempts > slice.max_failed_attempts) throw new TypeError("remediation slice budget integrity check failed");
+    if (!slice.resolutions || typeof slice.resolutions !== "object" || stableSerialize(Object.keys(slice.resolutions).sort()) !== stableSerialize(finding_ids) || Object.values(slice.resolutions).some((value) => !["resolved", "unresolved"].includes(value))) throw new TypeError("remediation slice resolution integrity check failed");
+    for (const field of ["correction_history", "validation_history", "regression_history", "legacy_correction_refs", "legacy_validation_refs"]) if (!Array.isArray(slice[field])) throw new TypeError(`remediation slice ${field} integrity check failed`);
+    seen.push(...finding_ids);
+    manifest.push({ id, root_cause_key: slice.root_cause_key, finding_ids, evidence_digests, permitted_paths });
+  }
+  if (stableSerialize(seen.sort()) !== stableSerialize(blocking)) throw new TypeError("remediation slice finding partition integrity check failed");
+  if (state.remediation_migration.manifest_digest !== remediationManifestDigest(state)) throw new TypeError("remediation manifest digest integrity check failed");
+  if (state.active_slice_id !== null && (!state.correction_slices[state.active_slice_id] || !["correcting", "validating"].includes(state.correction_slices[state.active_slice_id].status))) throw new TypeError("remediation active slice integrity check failed");
+}
+
 function verifyLineageInvariants(pre, post) {
   assertLineage(pre);
   assertLineage(post);
@@ -636,6 +827,8 @@ function verifyLineageInvariants(pre, post) {
   if (stableSerialize(post.genesis) !== stableSerialize(pre.genesis)) throw new Error("genesis mismatch");
   if (post.correction_budget.limit_lines !== pre.correction_budget.limit_lines) throw new Error("correction_budget.limit_lines mismatch");
   if (post.correction_budget.max_failed_attempts !== pre.correction_budget.max_failed_attempts) throw new Error("correction_budget.max_failed_attempts mismatch");
+  if (post.correction_budget.used_lines !== pre.correction_budget.used_lines) throw new Error("correction_budget.used_lines mismatch");
+  if (post.correction_budget.failed_attempts !== pre.correction_budget.failed_attempts) throw new Error("correction_budget.failed_attempts mismatch");
   
   if (pre.findings_digest !== null) {
     if (post.findings_digest !== pre.findings_digest) throw new Error("findings_digest mismatch");
@@ -681,6 +874,7 @@ function clone(value) {
 
 module.exports = {
   stableSerialize,
+  migrateReviewLineage,
   startReviewLineage,
   beginLens,
   recordLensResult,
