@@ -3,7 +3,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const r = require("./lib/strict-tdd-evidence-remediation.js");
-const evidencePath = "openspec/changes/strict-tdd-evidence-remediation-fast-path/apply-progress.md";
+const evidencePath = "openspec/changes/archive/2026-07-25-strict-tdd-evidence-remediation-fast-path/apply-progress.md";
 const evidenceProof = () => ({ evidencePath, evidenceDigest: r.sha256(fs.readFileSync(evidencePath)) });
 const stateProof = state => ({ candidate_digest: r.sha256(JSON.stringify(r.canonical(state.candidate))), finding_digest: state.original_finding.digest });
 const makeFinding = (id, origin, extra = {}) => { const body = { id, origin, ...extra }; return { ...body, digest: r.sha256(JSON.stringify(r.canonical(body))) }; };
@@ -227,17 +227,81 @@ test("REQ-routing-006 reconciles unknown writes only by exact digest", () => {
   assert.equal(r.reduce(retry, { type: "reconcile-unknown-write", artifact_digest: retry.evidence.repaired_digest }).status, "recheck-pending");
 });
 test("REQ-skills-008 apply-progress snapshot carries current coding-file digests and per-task cycles", () => {
-  const text = fs.readFileSync("openspec/changes/strict-tdd-evidence-remediation-fast-path/apply-progress.md", "utf8");
+  const text = fs.readFileSync("openspec/changes/archive/2026-07-25-strict-tdd-evidence-remediation-fast-path/apply-progress.md", "utf8");
   const parsed = r.parseEvidenceBlock(text); assert.equal(parsed.valid, true);
   const validated = r.validateEvidenceRecord(parsed.record, { rootDir: process.cwd(), requireProvenanceDigest: true }); assert.equal(validated.valid, true);
+  assert.equal(validated.authenticity, "legacy-unverifiable");
   assert.equal(validated.record.evidence_mode, "historical");
-  const tasks = fs.readFileSync("openspec/changes/strict-tdd-evidence-remediation-fast-path/tasks.md", "utf8");
+  const tasks = fs.readFileSync("openspec/changes/archive/2026-07-25-strict-tdd-evidence-remediation-fast-path/tasks.md", "utf8");
   const taskIds = [...tasks.matchAll(/^- \[[ x~]\] (\d+\.\d+) /gm)].map(match => match[1]).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   const cycleIds = validated.record.cycles.map(cycle => String(cycle.task)).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   assert.equal(taskIds.length, 54);
   assert.deepEqual(cycleIds, taskIds);
   assert.equal(r.compareEvidenceRendering(validated.record, text).equivalent, true);
   assert.ok(validated.record.cycles.every(c => c.red === "✅ Written" && c.green === "✅ Passed"));
+});
+
+test("RED O4.2: historical provenance authenticates content-addressed refs and detects digest tampering", () => {
+  const snapRoot = fs.mkdtempSync(require("node:path").join(require("node:os").tmpdir(), "hist-prov-"));
+  try {
+    const sealedDigest = "sha256:" + "c".repeat(64);
+    const body = { test_file: "scripts/strict-tdd-evidence-remediation.test.js", test_digest: sealedDigest };
+    const snap = r.writeHistoricalSnapshot(snapRoot, body);
+    assert.equal(snap.valid, true);
+    assert.match(snap.digest, /^sha256:[a-f0-9]{64}$/i);
+    const authentic = record({
+      cycles: [{
+        ...record().cycles[0],
+        provenance: {
+          test_file: "scripts/strict-tdd-evidence-remediation.test.js",
+          test_digest: sealedDigest,
+          source: "content-addressed-snapshot",
+          snapshot_digest: snap.digest
+        }
+      }]
+    });
+    const ok = r.validateEvidenceRecord(authentic, { rootDir: snapRoot, requireProvenanceDigest: true, historicalSnapshotDir: ".ospec/strict-tdd-historical" });
+    assert.equal(ok.valid, true, "authenticated historical must accept sealed digests");
+    assert.equal(ok.authenticity, "content-addressed");
+
+    const tampered = JSON.parse(JSON.stringify(authentic));
+    tampered.cycles[0].provenance.test_digest = "sha256:" + "d".repeat(64);
+    const bad = r.validateEvidenceRecord(tampered, { rootDir: snapRoot, requireProvenanceDigest: true, historicalSnapshotDir: ".ospec/strict-tdd-historical" });
+    assert.equal(bad.valid, false);
+    assert.equal(bad.reason_code, "provenance-digest-mismatch");
+
+    const missing = JSON.parse(JSON.stringify(authentic));
+    missing.cycles[0].provenance.snapshot_digest = "sha256:" + "e".repeat(64);
+    assert.equal(r.validateEvidenceRecord(missing, { rootDir: snapRoot, requireProvenanceDigest: true, historicalSnapshotDir: ".ospec/strict-tdd-historical" }).reason_code, "historical-ref-missing");
+
+    const corruptPath = require("node:path").join(snapRoot, ".ospec", "strict-tdd-historical", snap.digest.slice(7) + ".json");
+    fs.writeFileSync(corruptPath, "{\"tampered\":true}\n");
+    assert.equal(r.validateEvidenceRecord(authentic, { rootDir: snapRoot, requireProvenanceDigest: true, historicalSnapshotDir: ".ospec/strict-tdd-historical" }).reason_code, "historical-ref-corrupt");
+    fs.unlinkSync(corruptPath);
+    assert.equal(r.writeHistoricalSnapshot(snapRoot, body).valid, true);
+
+    const livePath = require("node:path").join(snapRoot, "scripts", "strict-tdd-evidence-remediation.test.js");
+    fs.mkdirSync(require("node:path").dirname(livePath), { recursive: true });
+    fs.writeFileSync(livePath, "module.exports = 'mutated-live-bytes';\n");
+    const afterLiveEdit = r.validateEvidenceRecord(authentic, { rootDir: snapRoot, requireProvenanceDigest: true, historicalSnapshotDir: ".ospec/strict-tdd-historical" });
+    assert.equal(afterLiveEdit.valid, true, "historical must ignore live mutable bytes");
+
+    const legacy = r.validateEvidenceRecord(record(), { rootDir: process.cwd(), requireProvenanceDigest: true });
+    assert.equal(legacy.valid, true);
+    assert.equal(legacy.authenticity, "legacy-unverifiable");
+    assert.equal(r.validateEvidenceRecord(record(), { rootDir: process.cwd(), requireHistoricalAuth: true }).reason_code, "provenance-unauthenticated");
+
+    const noRef = record({
+      cycles: [{
+        ...record().cycles[0],
+        provenance: { test_file: "scripts/strict-tdd-evidence-remediation.test.js", test_digest: sealedDigest, source: "content-addressed-snapshot" }
+      }]
+    });
+    assert.equal(r.validateEvidenceRecord(noRef, { rootDir: snapRoot, requireProvenanceDigest: true }).reason_code, "provenance-unauthenticated");
+    assert.equal(r.historicalRefPath(snapRoot, "sha256:" + "f".repeat(64), "../outside"), null);
+  } finally {
+    fs.rmSync(snapRoot, { recursive: true, force: true });
+  }
 });
 
 test("REQ-skills-008 finalization freezes current digests and rejects stale evidence", () => {

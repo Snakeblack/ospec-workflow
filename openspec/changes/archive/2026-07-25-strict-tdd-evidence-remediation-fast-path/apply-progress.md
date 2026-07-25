@@ -1181,3 +1181,29 @@ bindings, corrupt records, path drift, and policy bypasses. The 54 legacy cycles
 and their 34 digests remain byte-for-byte unchanged; the compact live cycle stays
 pending external reconciliation.
 G4 attempt 2 makes `evidence_mode` mandatory and freezes reconciled candidate plus real authorization paths.
+
+## O4.2 Slice Correction — historical-provenance (S-d68066ed6d3a2052) — 2026-07-25
+
+Request: `o4.2-gen4-slice-historical-provenance-003` (last attempt before slice exhaustion).
+Base candidate: `sha256:547e5a6486d07c57bbd3f489d7d6ca270e42fd05bf2dd390c6ef07c9e91893b6`.
+Budgeted paths touched: only `scripts/lib/strict-tdd-evidence-remediation.js` (~52 changed lines / forecast 80).
+Genesis test edits (out of budget): `scripts/strict-tdd-evidence-remediation.test.js`.
+Authoritative `json:strict-tdd-evidence` cycles/digests were NOT rewritten.
+
+### Finding targets
+- `F-02d225c20b46cc71` (reliability): historical vs live discriminator; historical authenticates sealed snapshot refs; live alone compares mutable bytes; `working-tree` + `requireHistoricalAuth` fails CRITICAL as `provenance-unauthenticated`.
+- `F-ebc3fc16bf900b85` (risk): append-only content-addressed snapshots under `.ospec/strict-tdd-historical/{digest}.json`; digests authenticated against sealed body, not rewritten against the live tree.
+- `F-f64b5bbb1c944cfc` (resilience): historical never revalidates live test/file bytes; missing/corrupt refs fail closed (`historical-ref-missing` / `historical-ref-corrupt`); live edits do not break sealed historical verification.
+
+### Safety net
+`node --test scripts/strict-tdd-evidence-remediation.test.js scripts/strict-tdd-evidence-parity.test.js` → 24/24 before change.
+
+### Focused verification
+`node --test scripts/strict-tdd-evidence-remediation.test.js scripts/strict-tdd-evidence-parity.test.js` → **25/25 pass** after GREEN/TRIANGULATE.
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR | Notes / Rationale |
+| ---- | --- | ----- | ---- | --- | ----- | ----- | ----- | ----- |
+| O4.2-S-hist-prov | scripts/strict-tdd-evidence-remediation.test.js | unit | ✅ 24/24 | ✅ Written — probe proved `writeHistoricalSnapshot` absent and tampering undetected | ✅ Passed — sha256:100955453ebf6d64b09c12a2874c196b3cfff6cc6caa32216a16841d080fb5d1 (lib) / sha256:454d08006b0cf1ea69c02feb6abf4d98b3d152f608143d40c2ad15c00b4890db (test) | ✅ Written — missing ref, path-traversal null, legacy-unverifiable authenticity, requireHistoricalAuth CRITICAL | ✅ Passed — kept helpers pure; no further extract needed under 80-line cap | Sealed snapshot auth; live comparison gated to `evidence_mode: "live"` only |
+
