@@ -1,0 +1,118 @@
+{
+  "counts": {
+    "BLOCKER": 0,
+    "CRITICAL": 6,
+    "WARNING": 9,
+    "SUGGESTION": 1
+  },
+  "summary": "0 BLOCKER, 6 CRITICAL, 9 WARNING, 1 SUGGESTION",
+  "next_action": {
+    "type": "correct",
+    "finding_ids": [
+      "F-19db00cad371b25b",
+      "F-40505069c7227bb4",
+      "F-e75f5425620b6d15",
+      "F-1779348a80b55d76",
+      "F-77bf041927205443",
+      "F-a0937378a623ff36"
+    ]
+  },
+  "finding_ids": [
+    {
+      "id": "F-19db00cad371b25b",
+      "severity": "CRITICAL",
+      "owner": "risk",
+      "summary": "validateSliceCorrection/activeSlice unbound slice_id allows validating a non-active ready slice"
+    },
+    {
+      "id": "F-40505069c7227bb4",
+      "severity": "CRITICAL",
+      "owner": "risk",
+      "summary": "createSuccessor authority_kind only enforced for remediation-v2 predecessors"
+    },
+    {
+      "id": "F-9e605ab7794ee6e2",
+      "severity": "WARNING",
+      "owner": "risk",
+      "summary": "beginSliceCorrection accepts any ready slice_id, not only reducer-selected"
+    },
+    {
+      "id": "F-e75f5425620b6d15",
+      "severity": "CRITICAL",
+      "owner": "reliability",
+      "summary": "v2 applyTargetedValidation/validateSliceCorrection weaker than v1 on outcomes and regression.evidence"
+    },
+    {
+      "id": "F-1779348a80b55d76",
+      "severity": "CRITICAL",
+      "owner": "reliability",
+      "summary": "migrateReviewLineage does not fail closed on legacy regression.detected without attributable impacts"
+    },
+    {
+      "id": "F-cd47ee364bebcdac",
+      "severity": "WARNING",
+      "owner": "reliability",
+      "summary": "slice.resolutions can diverge from status after validation"
+    },
+    {
+      "id": "F-cb3acc5d4cbed504",
+      "severity": "WARNING",
+      "owner": "reliability",
+      "summary": "freezeFindings does not attach remediation-v2 by default"
+    },
+    {
+      "id": "F-77bf041927205443",
+      "severity": "CRITICAL",
+      "owner": "resilience",
+      "summary": "validateSliceCorrection fail-open on omitted regression or detected:true without attributable impacted_slices"
+    },
+    {
+      "id": "F-2ad608bb03f65373",
+      "severity": "WARNING",
+      "owner": "resilience",
+      "summary": "beginSliceCorrection lacks exact-retry idempotency"
+    },
+    {
+      "id": "F-edd52be3f14e6bb8",
+      "severity": "WARNING",
+      "owner": "resilience",
+      "summary": "slice.resolutions stale after validate/reopen"
+    },
+    {
+      "id": "F-c5286053ab86f9e6",
+      "severity": "WARNING",
+      "owner": "resilience",
+      "summary": "Go persistResultEnvelope missing orphan .bak recovery vs JS"
+    },
+    {
+      "id": "F-a0937378a623ff36",
+      "severity": "CRITICAL",
+      "owner": "readability",
+      "summary": "remediation-v2 slice state-machine packed into unauditable single-line transitions"
+    },
+    {
+      "id": "F-aec5a6010cb6238c",
+      "severity": "WARNING",
+      "owner": "readability",
+      "summary": "committed v2 reconciliation authority is a monolithic unnamed predicate"
+    },
+    {
+      "id": "F-215847ac5a351de5",
+      "severity": "WARNING",
+      "owner": "readability",
+      "summary": "design.md slice budget/status shape diverges from reducer"
+    },
+    {
+      "id": "F-eaa111a912eb287d",
+      "severity": "WARNING",
+      "owner": "readability",
+      "summary": "attachRemediationV2 legacy seeding nesting/priority opaque"
+    },
+    {
+      "id": "F-a80f64de33890053",
+      "severity": "SUGGESTION",
+      "owner": "readability",
+      "summary": "migrated_at: \"deterministic\" unexplained"
+    }
+  ]
+}

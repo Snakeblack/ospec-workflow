@@ -1,0 +1,429 @@
+{
+  "schema_version": 1,
+  "lineage_id": "sha256:02f648717710ce1e579fe5b4b4b11a03682168daaaa3b29740c593086c2e2683",
+  "generation": 1,
+  "predecessor_lineage_id": null,
+  "recovery": null,
+  "revision": 9,
+  "status": "correction-required",
+  "genesis": {
+    "candidate": {
+      "projection": "workspace",
+      "base_tree": "HEAD",
+      "candidate_tree": "working-tree-review-remediation-slices-post-crit5",
+      "paths": [
+        "agents/review-correction.agent.md",
+        "agents/sdd-orchestrator.agent.md",
+        "internal/hooks/subagentstop.go",
+        "internal/hooks/subagentstop_test.go",
+        "internal/store/store.go",
+        "internal/store/store_test.go",
+        "internal/testdata/parity/subagent-stop-phase-cost-review-correction.json",
+        "models.yaml",
+        "openspec/changes/review-remediation-slices/apply-progress.md",
+        "openspec/changes/review-remediation-slices/design.md",
+        "openspec/changes/review-remediation-slices/proposal.md",
+        "openspec/changes/review-remediation-slices/specs/agents/spec.md",
+        "openspec/changes/review-remediation-slices/specs/hooks/spec.md",
+        "openspec/changes/review-remediation-slices/specs/routing/spec.md",
+        "openspec/changes/review-remediation-slices/specs/skills/spec.md",
+        "openspec/changes/review-remediation-slices/tasks.md",
+        "openspec/changes/review-remediation-slices/verify-report.md",
+        "rules/sdd-common.instructions.md",
+        "rules/sdd-openspec.instructions.md",
+        "scripts/fixtures/review-lineage/o4-2-gen4-v1.json",
+        "scripts/hooks/subagent-stop.js",
+        "scripts/hooks/subagent-stop.test.js",
+        "scripts/lib/ospec-state.js",
+        "scripts/lib/review-gate-state.js",
+        "scripts/lib/review-lineage.js",
+        "scripts/review-correction-contract.test.js",
+        "scripts/review-gate-state.test.js",
+        "scripts/review-lineage-o4-migration.test.js",
+        "scripts/review-lineage.test.js",
+        "skills/_shared/gate-4r-review.md",
+        "skills/review-correction/SKILL.md"
+      ],
+      "diff_hash": "sha256:2d4b8f8dda2447b9be664336c0906c6f20d2128e58980dbbaac33c4dcc4dd9cd",
+      "paths_digest": "sha256:5e9b2233289d27478df8f1987600b6a5ff37e98d54ae8e6c3b45db775ff97b68",
+      "authored_lines": 1720,
+      "original_changed_lines": 1720
+    },
+    "candidate_id": "sha256:d5783ee7dff533fe3a6d08d4e93a4ebb704c1c31e9af865ef1a232c107f13a3d",
+    "paths": [
+      "agents/review-correction.agent.md",
+      "agents/sdd-orchestrator.agent.md",
+      "internal/hooks/subagentstop.go",
+      "internal/hooks/subagentstop_test.go",
+      "internal/store/store.go",
+      "internal/store/store_test.go",
+      "internal/testdata/parity/subagent-stop-phase-cost-review-correction.json",
+      "models.yaml",
+      "openspec/changes/review-remediation-slices/apply-progress.md",
+      "openspec/changes/review-remediation-slices/design.md",
+      "openspec/changes/review-remediation-slices/proposal.md",
+      "openspec/changes/review-remediation-slices/specs/agents/spec.md",
+      "openspec/changes/review-remediation-slices/specs/hooks/spec.md",
+      "openspec/changes/review-remediation-slices/specs/routing/spec.md",
+      "openspec/changes/review-remediation-slices/specs/skills/spec.md",
+      "openspec/changes/review-remediation-slices/tasks.md",
+      "openspec/changes/review-remediation-slices/verify-report.md",
+      "rules/sdd-common.instructions.md",
+      "rules/sdd-openspec.instructions.md",
+      "scripts/fixtures/review-lineage/o4-2-gen4-v1.json",
+      "scripts/hooks/subagent-stop.js",
+      "scripts/hooks/subagent-stop.test.js",
+      "scripts/lib/ospec-state.js",
+      "scripts/lib/review-gate-state.js",
+      "scripts/lib/review-lineage.js",
+      "scripts/review-correction-contract.test.js",
+      "scripts/review-gate-state.test.js",
+      "scripts/review-lineage-o4-migration.test.js",
+      "scripts/review-lineage.test.js",
+      "skills/_shared/gate-4r-review.md",
+      "skills/review-correction/SKILL.md"
+    ],
+    "classification": "high-risk",
+    "selected_dimensions": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "evidence_fingerprint": "sha256:9694bf896838702816ea6407133203cb6c6d230bb229e8d83ae27808a26a36db",
+    "original_changed_lines": 1720,
+    "authored_lines": 1720
+  },
+  "current_candidate_id": "sha256:d5783ee7dff533fe3a6d08d4e93a4ebb704c1c31e9af865ef1a232c107f13a3d",
+  "current_candidate": {
+    "projection": "workspace",
+    "base_tree": "HEAD",
+    "candidate_tree": "working-tree-review-remediation-slices-post-crit5",
+    "paths": [
+      "agents/review-correction.agent.md",
+      "agents/sdd-orchestrator.agent.md",
+      "internal/hooks/subagentstop.go",
+      "internal/hooks/subagentstop_test.go",
+      "internal/store/store.go",
+      "internal/store/store_test.go",
+      "internal/testdata/parity/subagent-stop-phase-cost-review-correction.json",
+      "models.yaml",
+      "openspec/changes/review-remediation-slices/apply-progress.md",
+      "openspec/changes/review-remediation-slices/design.md",
+      "openspec/changes/review-remediation-slices/proposal.md",
+      "openspec/changes/review-remediation-slices/specs/agents/spec.md",
+      "openspec/changes/review-remediation-slices/specs/hooks/spec.md",
+      "openspec/changes/review-remediation-slices/specs/routing/spec.md",
+      "openspec/changes/review-remediation-slices/specs/skills/spec.md",
+      "openspec/changes/review-remediation-slices/tasks.md",
+      "openspec/changes/review-remediation-slices/verify-report.md",
+      "rules/sdd-common.instructions.md",
+      "rules/sdd-openspec.instructions.md",
+      "scripts/fixtures/review-lineage/o4-2-gen4-v1.json",
+      "scripts/hooks/subagent-stop.js",
+      "scripts/hooks/subagent-stop.test.js",
+      "scripts/lib/ospec-state.js",
+      "scripts/lib/review-gate-state.js",
+      "scripts/lib/review-lineage.js",
+      "scripts/review-correction-contract.test.js",
+      "scripts/review-gate-state.test.js",
+      "scripts/review-lineage-o4-migration.test.js",
+      "scripts/review-lineage.test.js",
+      "skills/_shared/gate-4r-review.md",
+      "skills/review-correction/SKILL.md"
+    ],
+    "diff_hash": "sha256:2d4b8f8dda2447b9be664336c0906c6f20d2128e58980dbbaac33c4dcc4dd9cd",
+    "paths_digest": "sha256:5e9b2233289d27478df8f1987600b6a5ff37e98d54ae8e6c3b45db775ff97b68",
+    "authored_lines": 1720,
+    "original_changed_lines": 1720
+  },
+  "lenses": {
+    "risk": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "dispatch-risk-2026-07-25",
+      "result_digest": "sha256:edcc7ff1651cec47714ad0dac991bd3fd2bb17349b6e9f3cdce294d9c3a8ae62",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "validateSliceCorrection/activeSlice unbound slice_id allows validating a non-active ready slice",
+            "acceptance_criteria": "Validation MUST bind exclusively to active_slice_id and pending_correction.slice_id; diverting to another ready slice MUST throw; covered by multi-slice regression test."
+          },
+          {
+            "severity": "CRITICAL",
+            "summary": "createSuccessor authority_kind only enforced for remediation-v2 predecessors",
+            "acceptance_criteria": "createSuccessor MUST require allowlisted authority_kind for all post-rollout successors or reject non-v2 predecessors; terminate-v1 then untyped successor MUST fail closed in tests."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "beginSliceCorrection accepts any ready slice_id, not only reducer-selected",
+            "acceptance_criteria": "beginSliceCorrection MUST accept only the reducer-selected ready slice_id; out-of-order ready slices MUST be rejected with a test."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "result-risk-2026-07-25"
+    },
+    "reliability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "dispatch-reliability-2026-07-25",
+      "result_digest": "sha256:ad677cdfca5bca3cfe20f8edef3272b6c441c74d0cc036e9360847f14ededcca",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "v2 applyTargetedValidation/validateSliceCorrection weaker than v1 on outcomes and regression.evidence",
+            "acceptance_criteria": "Parity fail-closed with v1/design for outcomes and regression; reject detected:true without impacts; explicit tests for each unhappy path"
+          },
+          {
+            "severity": "CRITICAL",
+            "summary": "migrateReviewLineage does not fail closed on legacy regression.detected without attributable impacts",
+            "acceptance_criteria": "Fail-closed on migration + negative fixture; O4.2 with detected:false remains valid"
+          },
+          {
+            "severity": "WARNING",
+            "summary": "slice.resolutions can diverge from status after validation",
+            "acceptance_criteria": "Sync resolutions on pass/fail/reopen; invariant in assertRemediationV2; named test"
+          },
+          {
+            "severity": "WARNING",
+            "summary": "freezeFindings does not attach remediation-v2 by default",
+            "acceptance_criteria": "Auto-attach v2 on freeze or tested explicit migration-required deferral contract"
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "result-reliability-2026-07-25"
+    },
+    "resilience": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "dispatch-resilience-2026-07-25",
+      "result_digest": "sha256:5e1000580f92efcb3f349efab8d56309c2b830b5fba44b5042f4e8f32eaefd76",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "validateSliceCorrection fail-open on omitted regression or detected:true without attributable impacted_slices",
+            "acceptance_criteria": "Require regression with detected and non-empty evidence; detected:true without attributable impacted_slices must throw; no passed/approved with unattributed regression"
+          },
+          {
+            "severity": "WARNING",
+            "summary": "beginSliceCorrection lacks exact-retry idempotency",
+            "acceptance_criteria": "Same request_id and exact pending state while correcting returns clone(state); divergence throws"
+          },
+          {
+            "severity": "WARNING",
+            "summary": "slice.resolutions stale after validate/reopen",
+            "acceptance_criteria": "Sync slice.resolutions with findings; integrity fails on divergence"
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Go persistResultEnvelope missing orphan .bak recovery vs JS",
+            "acceptance_criteria": "Parity with JS orphan bak recovery under lock before read"
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "result-resilience-2026-07-25"
+    },
+    "readability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "dispatch-readability-2026-07-25",
+      "result_digest": "sha256:b2714b93ac05df7e1dfc44accd2a605d5eaab8deec4eeadb5d0a6ebd6d32182a",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "remediation-v2 slice state-machine packed into unauditable single-line transitions",
+            "acceptance_criteria": "Expand four functions to one statement per line with named helpers for active-slice load, impacted reopen, and terminal transition"
+          },
+          {
+            "severity": "WARNING",
+            "summary": "committed v2 reconciliation authority is a monolithic unnamed predicate",
+            "acceptance_criteria": "Named asserts/predicates documenting immutable vs advanceable fields"
+          },
+          {
+            "severity": "WARNING",
+            "summary": "design.md slice budget/status shape diverges from reducer",
+            "acceptance_criteria": "Single canonical shape/enum in design and reducer, or explicit conceptual disclaimer"
+          },
+          {
+            "severity": "WARNING",
+            "summary": "attachRemediationV2 legacy seeding nesting/priority opaque",
+            "acceptance_criteria": "Extract seedSliceFromLegacyValidations with authority-order comment; nesting <= 3"
+          },
+          {
+            "severity": "SUGGESTION",
+            "summary": "migrated_at: \"deterministic\" unexplained",
+            "acceptance_criteria": "Named constant or one-line comment fixing intentional deterministic value"
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "result-readability-2026-07-25"
+    }
+  },
+  "findings": [
+    {
+      "id": "F-19db00cad371b25b",
+      "owner": "risk",
+      "severity": "CRITICAL",
+      "summary": "validateSliceCorrection/activeSlice unbound slice_id allows validating a non-active ready slice",
+      "acceptance_criteria": "Validation MUST bind exclusively to active_slice_id and pending_correction.slice_id; diverting to another ready slice MUST throw; covered by multi-slice regression test.",
+      "blocking": true,
+      "resolution": "unresolved"
+    },
+    {
+      "id": "F-40505069c7227bb4",
+      "owner": "risk",
+      "severity": "CRITICAL",
+      "summary": "createSuccessor authority_kind only enforced for remediation-v2 predecessors",
+      "acceptance_criteria": "createSuccessor MUST require allowlisted authority_kind for all post-rollout successors or reject non-v2 predecessors; terminate-v1 then untyped successor MUST fail closed in tests.",
+      "blocking": true,
+      "resolution": "unresolved"
+    },
+    {
+      "id": "F-9e605ab7794ee6e2",
+      "owner": "risk",
+      "severity": "WARNING",
+      "summary": "beginSliceCorrection accepts any ready slice_id, not only reducer-selected",
+      "acceptance_criteria": "beginSliceCorrection MUST accept only the reducer-selected ready slice_id; out-of-order ready slices MUST be rejected with a test.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-e75f5425620b6d15",
+      "owner": "reliability",
+      "severity": "CRITICAL",
+      "summary": "v2 applyTargetedValidation/validateSliceCorrection weaker than v1 on outcomes and regression.evidence",
+      "acceptance_criteria": "Parity fail-closed with v1/design for outcomes and regression; reject detected:true without impacts; explicit tests for each unhappy path",
+      "blocking": true,
+      "resolution": "unresolved"
+    },
+    {
+      "id": "F-1779348a80b55d76",
+      "owner": "reliability",
+      "severity": "CRITICAL",
+      "summary": "migrateReviewLineage does not fail closed on legacy regression.detected without attributable impacts",
+      "acceptance_criteria": "Fail-closed on migration + negative fixture; O4.2 with detected:false remains valid",
+      "blocking": true,
+      "resolution": "unresolved"
+    },
+    {
+      "id": "F-cd47ee364bebcdac",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "slice.resolutions can diverge from status after validation",
+      "acceptance_criteria": "Sync resolutions on pass/fail/reopen; invariant in assertRemediationV2; named test",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-cb3acc5d4cbed504",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "freezeFindings does not attach remediation-v2 by default",
+      "acceptance_criteria": "Auto-attach v2 on freeze or tested explicit migration-required deferral contract",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-77bf041927205443",
+      "owner": "resilience",
+      "severity": "CRITICAL",
+      "summary": "validateSliceCorrection fail-open on omitted regression or detected:true without attributable impacted_slices",
+      "acceptance_criteria": "Require regression with detected and non-empty evidence; detected:true without attributable impacted_slices must throw; no passed/approved with unattributed regression",
+      "blocking": true,
+      "resolution": "unresolved"
+    },
+    {
+      "id": "F-2ad608bb03f65373",
+      "owner": "resilience",
+      "severity": "WARNING",
+      "summary": "beginSliceCorrection lacks exact-retry idempotency",
+      "acceptance_criteria": "Same request_id and exact pending state while correcting returns clone(state); divergence throws",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-edd52be3f14e6bb8",
+      "owner": "resilience",
+      "severity": "WARNING",
+      "summary": "slice.resolutions stale after validate/reopen",
+      "acceptance_criteria": "Sync slice.resolutions with findings; integrity fails on divergence",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-c5286053ab86f9e6",
+      "owner": "resilience",
+      "severity": "WARNING",
+      "summary": "Go persistResultEnvelope missing orphan .bak recovery vs JS",
+      "acceptance_criteria": "Parity with JS orphan bak recovery under lock before read",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-a0937378a623ff36",
+      "owner": "readability",
+      "severity": "CRITICAL",
+      "summary": "remediation-v2 slice state-machine packed into unauditable single-line transitions",
+      "acceptance_criteria": "Expand four functions to one statement per line with named helpers for active-slice load, impacted reopen, and terminal transition",
+      "blocking": true,
+      "resolution": "unresolved"
+    },
+    {
+      "id": "F-aec5a6010cb6238c",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "committed v2 reconciliation authority is a monolithic unnamed predicate",
+      "acceptance_criteria": "Named asserts/predicates documenting immutable vs advanceable fields",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-215847ac5a351de5",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "design.md slice budget/status shape diverges from reducer",
+      "acceptance_criteria": "Single canonical shape/enum in design and reducer, or explicit conceptual disclaimer",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-eaa111a912eb287d",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "attachRemediationV2 legacy seeding nesting/priority opaque",
+      "acceptance_criteria": "Extract seedSliceFromLegacyValidations with authority-order comment; nesting <= 3",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-a80f64de33890053",
+      "owner": "readability",
+      "severity": "SUGGESTION",
+      "summary": "migrated_at: \"deterministic\" unexplained",
+      "acceptance_criteria": "Named constant or one-line comment fixing intentional deterministic value",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ],
+  "findings_digest": "sha256:5dd6e1b4c1c411f2fd69c1ce17952053ee94dc4e90c32fbea66522a378e6853b",
+  "correction_budget": {
+    "limit_lines": 200,
+    "used_lines": 0,
+    "failed_attempts": 0,
+    "max_failed_attempts": 3
+  },
+  "correction_history": [],
+  "validation_history": [],
+  "follow_ups": [],
+  "pending_operation": null,
+  "pending_correction": null,
+  "terminal_reason": null
+}

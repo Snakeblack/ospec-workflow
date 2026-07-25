@@ -1,0 +1,11 @@
+command: node -e "validateLineageForGate(gate.lineage, ...)" against the LIVE persisted openspec/changes/strict-tdd-evidence-remediation-fast-path/state.yaml (no in-memory re-migration)
+exit_code: 0 (script), thrown exception captured
+captured_before_fix: true
+
+THROWN: remediation_migration.legacy_failed_attempts must be a non-negative safe integer
+
+Follow-up formal test RED (scripts/review-lineage-o4-migration.test.js):
+test: O4.2 live persisted lineage (not just the in-memory fixture clone) satisfies the hardened remediation-v2 gate validator
+  AssertionError [ERR_ASSERTION]: live persisted remediation_migration must seed legacy_failed_attempts, not only legacy_used_lines
+  actual: undefined
+  expected: 'number'

@@ -1,0 +1,22 @@
+command: node --test scripts/review-lineage-o4-migration.test.js scripts/review-lineage.test.js scripts/review-gate-state.test.js
+exit_code: 0
+captured_after_fix: true
+
+ℹ tests 36
+ℹ suites 0
+ℹ pass 36
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+
+Includes (new/changed assertions relevant to this remediation batch):
+✔ O4.2 v1 lineage migrates atomically in memory to four idempotent slices without rewriting history
+✔ O4.2 live persisted lineage (not just the in-memory fixture clone) satisfies the hardened remediation-v2 gate validator
+✔ remediation-v2 migrates a frozen v1 lineage idempotently and fails closed for pending work or malformed partitions
+✔ slice validation is monotonic, isolates exhaustion, and reopens a passed slice only with explicit bounded regression
+✔ remediation-v2 rejects invented authority, reconciles exact unknown work, and binds regressions to frozen evidence
+✔ reconcilePendingOperation rejects a committed lineage whose frozen correction_budget counters were altered
+✔ remediation-v2 source authority binds the frozen manifest so a relabeled root cause cannot be self-certified
+✔ slice unknown reconciliation accepts only the exact pending state and restores not-started work
+✔ lineage adapter requires migration before mutable work and exposes only the active slice to correction

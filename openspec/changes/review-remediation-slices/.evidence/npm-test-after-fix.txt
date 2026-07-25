@@ -1,0 +1,2769 @@
+npm warn Unknown env config "devdir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> ospec-workflow@2.31.0 test
+> node scripts/check.js
+
+
+==> Native Node tests
+Ô£ö archive-move contract: orchestrator verifies inventory before delete; executor never deletes/claims moved (1.3714ms)
+Ô£ö fingerprint-ownership contract: sdd-spec declares touched domains only; orchestrator computes and writes baseline_fingerprints (1.268ms)
+Ô£ö 1.1 ┬À sdd-phase-common.md ┬ºD lists assumptions as an OPTIONAL envelope field (11.102ms)
+Ô£ö 1.1 ┬À sdd-phase-common.md contains the 5-column Assumption Entry Schema table (7.118ms)
+Ô£ö 1.1 ┬À sdd-phase-common.md documents the Materiality Rule keywords (5.5239ms)
+Ô£ö 2.1 ┬À sdd-orchestrator.agent.md contains the Assumption Ledger Protocol heading (6.3264ms)
+Ô£ö 2.1 ┬À sdd-orchestrator.agent.md documents the assumptions: YAML shape (12.3257ms)
+Ô£ö 2.1 ┬À sdd-orchestrator.agent.md documents the renumber-on-collision rule and no-fabrication rule (4.3117ms)
+Ô£ö 3.1 ┬À sdd-verify SKILL.md contains the Step 2a pre-flight heading (5.1044ms)
+Ô£ö 3.1 ┬À sdd-verify SKILL.md documents the three resolution actions plus leave-unresolved (3.9378ms)
+Ô£ö 3.1 ┬À sdd-verify SKILL.md documents WARNING-for-low and no-escalation-for-high rules (2.6721ms)
+Ô£ö 3.1 ┬À sdd-verify SKILL.md documents it MUST NOT auto-invoke sdd-clarify (7.4486ms)
+Ô£ö 3.5 ┬À report-format.md contains the Assumption Reconciliation section with the required table columns (9.2821ms)
+Ô£ö 3.7 ┬À sdd-verify.agent.md permits state.yaml assumption-resolution writes (7.1495ms)
+Ô£ö 4.1 ┬À generated vscode target carries the Assumption Ledger Protocol and Step 2a text (1008.7798ms)
+Ô£ö 4.2 ┬À generated claude orchestrator/verify wrapper carries the pointer to sdd-phase-common.md ┬ºD unchanged (1101.0131ms)
+Ô£ö runStep throws a clear error when spawnSync cannot start (1.1592ms)
+Ô£ö runStep throws a clear error when the child exits non-zero (0.2209ms)
+Ô£ö generateTarget removes its temp directory when generation fails (0.8996ms)
+Ô£ö main includes codex and skips claude validation when the claude CLI is unavailable (0.3344ms)
+Ô£ö main reports generation failures and exits with status 1 (0.2101ms)
+Ô£ö sdd-spec and common envelope contract require all ambiguity signals on success (1.426ms)
+Ô£ö sdd-spec strict success example carries typed ambiguity signals (1.045ms)
+Ô£ö documented clarify predicate skips only false plus three empty arrays (1.3995ms)
+Ô£ö orchestrator fails closed before clarify or design on an invalid successful spec (0.6447ms)
+Ô£ö clarify handler owns skipped state and phase-validation bypass (0.5078ms)
+Ô£ö commands<->agents contract: every routed sub-agent exists in its router's allowlist (6.9646ms)
+Ô£ö commands<->agents contract: rel-1/rel-2 guards and the sdd-document anchor are preserved (5.8682ms)
+Ô£ö dist/claude: branch-pr Critical Rule 6 (branch-before-code) present (13.0577ms)
+Ô£ö dist/claude: orchestrator branch advisory present (41.1565ms)
+Ô£ö dist/vscode: branch-pr Critical Rule 6 (branch-before-code) present (12.5511ms)
+Ô£ö dist/vscode: orchestrator branch advisory present (3.4194ms)
+Ô£ö dist/github-copilot: branch-pr Critical Rule 6 (branch-before-code) present (14.0531ms)
+Ô£ö dist/github-copilot: orchestrator branch advisory present (4.4359ms)
+Ô£ö dist/opencode: branch-pr Critical Rule 6 (branch-before-code) present (12.7222ms)
+Ô£ö dist/opencode: orchestrator branch advisory present (2.066ms)
+Ô£ö assertSafeOutDir refuses the filesystem root (1.2607ms)
+Ô£ö assertSafeOutDir refuses an ancestor of the source tree (0.2197ms)
+Ô£ö assertSafeOutDir refuses --out equal to --source (0.1776ms)
+Ô£ö assertSafeOutDir refuses a non-empty dir that is not a prior marketplace build (4.017ms)
+Ô£ö assertSafeOutDir allows a fresh/empty dir (1.2845ms)
+Ô£ö assertSafeOutDir allows clobbering a prior marketplace build (4.6591ms)
+Ô£ö buildClaudeMarketplace builds into a fresh dir and writes the marketplace manifest (55.9935ms)
+Ô£ö buildClaudeMarketplace refuses a destructive --out and leaves it untouched (1.9578ms)
+Ô£ö runConfigure writes a claude tree to the out dir (704.9715ms)
+Ô£ö runConfigure omits the unsupported codex config artifact (102.7521ms)
+Ô£ö the source fixture is left byte-for-byte unchanged (130.1902ms)
+Ô£ö --no-validate skips the gate (validator not invoked) (53.4467ms)
+Ô£ö a validator failure yields a non-zero exit without throwing (56.262ms)
+Ô£ö reported warnings also fail the strict gate even on a zero status (50.2908ms)
+Ô£ö a clean validator run keeps a zero exit (42.9427ms)
+Ô£ö github-copilot validation uses the profile-level validator command (163.5389ms)
+Ô£ö defaultRunValidator runs the validator without a shell, passing {out} as one literal argv element (180.9639ms)
+Ô£ö generated claude tree matches the committed golden (108.1244ms)
+Ô£ö generated github-copilot tree matches the committed golden (140.9434ms)
+Ô£ö generated opencode tree matches the committed golden (60.7724ms)
+Ô£ö generated codex tree matches the committed golden (66.9594ms)
+Ô£ö regenerating prunes stale generated files but keeps unrelated entries (130.1035ms)
+Ô£ö regenerating codex removes the formerly managed bundled .mcp.json (34.0505ms)
+Ô£ö gatherRuntimeScripts walks hook requires, excluding tests and generator code (28.8806ms)
+Ô£ö loadTree reads the plugin source roots into {path, content} (40.4399ms)
+Ô£ö parseModels reads the two-table shape with scalars and inline arrays (0.2702ms)
+Ô£ö parseModels reads block-sequence target models (0.1247ms)
+Ô£ö RED: runConfigure aborts before writing on stale, missing, or invalid Codex model policy (213.4618ms)
+Ô£ö RED: evidence authorization rejects a symlinked change root (8.7024ms)
+Ô£ö parseModels rejects duplicate mapping keys before overwrite (0.4039ms)
+Ô£ö G1: gatherRuntimeScripts includes all four skill entry-point scripts as additional BFS roots (17.789ms)
+Ô£ö G2: gatherRuntimeScripts excludes target-* modules even when required by an entry script (20.0299ms)
+Ô£ö G3: gatherRuntimeScripts includes a non-excluded transitive dep of a skill entry script (7.7696ms)
+Ô£ö G4: gatherRuntimeScripts excludes modules under scripts/configure/ required transitively (12.6469ms)
+Ô£ö G5: gatherRuntimeScripts excludes frontmatter.js and model-resolver.js required transitively (9.8331ms)
+Ô£ö gatherRuntimeScripts handles fs permission errors gracefully (5.1767ms)
+Ô£ö RED: runConfigure aborts without output when a managed source read fails (2.1034ms)
+Ô£ö codex smoke: output is generated and installed as a root agent.md and custom TOML agents (2302.3015ms)
+´╣ú E2E: the real claude CLI validates the generated claude plugin tree (0.6255ms) # claude CLI not installed
+´╣ú E2E: the real codex CLI is present and the generated codex tree is non-empty (deep validation deferred to 5.2/5.3) (0.1031ms) # codex CLI not installed
+Ô£ö parseArgs parses global setup defaults and repo install flags (3.4989ms)
+Ô£ö findCodexBin returns the first working codex executable (0.4476ms)
+Ô£ö copyCodexAgents copies only TOML agents and preserves unrelated files (21.3589ms)
+Ô£ö global native runtime installs hooks and keeps skills outside the runtime (40.2441ms)
+Ô£ö copyCodexRuntime refreshes changed runtime bytes and is idempotent (34.6581ms)
+Ô£ö syncCodexAgentSkills updates differing content and skips byte-identical files (297.2629ms)
+Ô£ö resolveCodexInvocation runs the npm Windows shim through node without a shell (19.8229ms)
+Ô£ö ensureCodexMcps skips equivalent pre-existing servers and adds only missing definitions (0.5173ms)
+Ô£ö readCodexMcpDefinitions normalizes legacy slash-qualified names for Codex (16.5866ms)
+Ô£ö ensureCodexMcps is idempotent when all required identities already exist (0.2346ms)
+Ô£ö main falls back to manual Codex commands when the CLI is unavailable (82.6469ms)
+Ô£ö main installs repo-local agents without changing an existing config or copying the plugin bundle (72.1322ms)
+Ô£ö main dry-run previews actions without writing files or invoking codex (112.8363ms)
+Ô£ö main rejects incomplete --source usage before build side effects (0.2163ms)
+Ô£ö main rejects invalid repo destinations before build side effects (2.4829ms)
+Ô£ö main rejects redirected global .codex roots before writing managed files (43.4563ms)
+Ô£ö main rejects redirected repo-local .codex roots before writing managed files (37.7975ms)
+Ô£ö package.json exposes Codex build and install scripts (0.3058ms)
+Ô£ö README documents the native global Codex installation (0.4347ms)
+Ô£ö plugin-installation guide documents native global Codex hooks and runtime (0.3906ms)
+Ô£ö install baseline specifies the native global Codex contract (0.3862ms)
+Ô£ö assertManagedPathSafe: accepts valid paths inside the root (26.7092ms)
+Ô£ö assertManagedPathSafe: rejects when managedPath itself is a symlink (17.1723ms)
+Ô£ö assertManagedPathSafe: rejects when rootPath is a symlink (9.0204ms)
+Ô£ö assertManagedPathSafe: rejects when path escapes the root via traversal (3.0379ms)
+Ô£ö main repo install is idempotent: re-running twice converges without duplicating TOML entries or touching config.toml (110.1982ms)
+Ô£ö main global install is idempotent across the plugin channel and the agent channel independently (627.864ms)
+Ô£ö copyCodexAgents: validates each target file individual paths with assertManagedPathSafe (27.1926ms)
+Ô£ö assertSafeDest: refuses filesystem root (1.6406ms)
+Ô£ö assertSafeDest: refuses home directory (0.7398ms)
+Ô£ö assertSafeDest: refuses exact source repository (0.902ms)
+Ô£ö assertSafeDest: refuses source repository with different drive letter casing on Windows (8.3659ms)
+Ô£ö assertSafeDest: refuses descendant directories (nested targets) (1.7177ms)
+Ô£ö assertSafeDest: refuses ancestor directories that contain the source (0.8735ms)
+Ô£ö assertSafeDest: resolves and blocks symlinked source repositories (3.8955ms)
+Ô£ö assertSafeDest: allows safe unrelated directories (0.8386ms)
+Ô£ö hostBinarySuffix: returns valid object with os, arch, and ext (0.2567ms)
+Ô£ö parseArgs: parses commands and flags correctly (0.2149ms)
+Ô£ö copyBinaryToTree: skips copy if source binary does not exist (0.3689ms)
+Ô£ö copyBinaryToTree: copies binary to correct destination directory (0.2665ms)
+Ô£ö main: aborts with error if arguments are invalid (0.3058ms)
+Ô£ö main: aborts if destination directory does not exist (0.7655ms)
+Ô£ö real repo: all five targets generate non-empty trees (3987.2108ms)
+Ô£ö real repo: codex output passes its own validator (931.3981ms)
+Ô£ö real repo: every generated .codex/agents/*.toml file is syntactically valid and carries required autodetection keys (830.1941ms)
+Ô£ö real repo: the orchestrator agent dispatches through the root agent.md with no manifest or hooks warnings (697.6539ms)
+Ô£ö validate-codex rejects AskUserQuestion residue in an existing codex tree (12.5906ms)
+Ô£ö real repo: codex ships every source context-doc skill file unchanged, regardless of command-name overlap (622.6602ms)
+Ô£ö real repo: codex command-derived skill coexists with an existing context-doc skill of the same base name, without collision (698.2803ms)
+Ô£ö real repo: codex emits every source agent as TOML outside the plugin bundle (545.2055ms)
+Ô£ö real repo: codex synthesizes a single agent.md from the rules tree and orchestrator (646.3909ms)
+Ô£ö real repo: no AskUserQuestion residue survives anywhere in the codex tree (715.5601ms)
+Ô£ö real repo: github-copilot output passes its own validator (726.7553ms)
+Ô£ö real repo: opencode output passes its own validator (721.7918ms)
+Ô£ö real repo: opencode ships every source skill file the agents read by path (612.2817ms)
+Ô£ö real repo: opencode plugin bridges ospec-hooks binary with correct subcommands (521.0463ms)
+Ô£ö real repo: github-copilot ships every source skill file (740.2086ms)
+Ô£ö real repo: every skill a phase agent says to load exists in github-copilot output (502.8636ms)
+Ô£ö real repo: no foreign vscode/ namespace survives in the claude tree (563.4432ms)
+Ô£ö real repo: sdd-clarify agent propagates to all four targets (1784.6636ms)
+Ô£ö real repo: sdd-clarify skill propagates to opencode and github-copilot (966.6478ms)
+Ô£ö real repo: all five targets preserve the signal-driven clarify gate (2109.4795ms)
+Ô£ö real repo: sdd-foundation agent mentions markitdown degradation (1627.529ms)
+Ô£ö real repo: orchestrator brownfield route replaces standalone Baseline Advisory (365.6472ms)
+Ô£ö real repo: review-risk agent propagates to all four targets (1555.4497ms)
+Ô£ö real repo: review-readability agent propagates to all four targets (1577.6112ms)
+Ô£ö real repo: review-reliability agent propagates to all four targets (1493.2228ms)
+Ô£ö real repo: review-resilience agent propagates to all four targets (1583.2932ms)
+Ô£ö real repo: all four review-* skills propagate to opencode and github-copilot (730.9057ms)
+Ô£ö real repo: live brownfield routing entry matches brownfield ctx and rejects baselined ctx (1.8475ms)
+Ô£ö real repo: live bugfix/refactor/hotfix routing entries match a native-boolean ctx (I2 regression lock) (0.5098ms)
+Ô£ö real repo: orchestrator pointer-table refs resolve and handler sentinels absent from body (5.882ms)
+Ô£ö validate-codex reports unreadable files during forbidden-text scanning instead of skipping them (162.0612ms)
+Ô£ö validate-codex reports unreadable agent TOML files as validation errors (16.9331ms)
+Ô£ö validate-codex reports unreadable skill markdown files as validation errors (126.3771ms)
+Ô£ö validate-codex degrades unreadable .codex/agents traversal into validation errors (21.051ms)
+Ô£ö validate-codex degrades unreadable skills traversal into validation errors (30.0391ms)
+Ô£ö validate-codex rejects agent TOML with missing required keys (60.0156ms)
+Ô£ö validate-codex rejects agent TOML with invalid sandbox_mode (27.5ms)
+Ô£ö validate-codex rejects skill configurations carrying agent routing key (33.1053ms)
+Ô£ö validate-codex rejects bundled MCP configuration to prevent duplicate Codex processes (109.3132ms)
+Ô£ö validate-codex rejects a generated config.toml (16.1634ms)
+Ô£ö validate-codex rejects missing agent.md (34.1617ms)
+Ô£ö validate-codex rejects a missing native hooks payload (20.2205ms)
+Ô£ö validate-codex rejects forbidden plugin.json and hooks paths (32.9779ms)
+Ô£ö validate-codex rejects 4R reviewer agents without approval_policy = never (22.5677ms)
+Ô£ö validate-codex rejects sdd-apply or sdd-verify without disabled network_access in sandbox (47.1052ms)
+Ô£ö validate accepts generated github-copilot output (138.9528ms)
+Ô£ö validate rejects prompt target residue and forbidden paths (76.0794ms)
+Ô£ö validate requires the skills tree so agent skill references resolve (82.6374ms)
+Ô£ö validate rejects malformed Copilot hooks (58.4029ms)
+Ô£ö validate reports required path type mismatches without throwing (60.0411ms)
+Ô£ö validate rejects an agent that references a skill the tree does not ship (177.9627ms)
+Ô£ö validate rejects a hook that invokes a missing script (143.4208ms)
+Ô£ö validate rejects a malformed .mcp.json (missing servers and missing transport) (69.6076ms)
+Ô£ö validate rejects residual ${input: placeholder in .mcp.json (41.5935ms)
+Ô£ö validate rejects case-insensitive vscode residue and unexpected Copilot markdown suffixes (143.6426ms)
+Ô£ö validate accepts generated opencode output (276.5942ms)
+Ô£ö validate rejects Claude/Copilot layout residue and the standalone .mcp.json (238.5678ms)
+Ô£ö validate requires a mode on every agent and rejects VS Code-only keys (72.8547ms)
+Ô£ö validate rejects VS Code-only command frontmatter (113.4124ms)
+Ô£ö validate rejects a malformed opencode.json (bad mcp server, non-array instructions) (71.4675ms)
+Ô£ö validate rejects opencode.json without a $schema (88.3459ms)
+Ô£ö validate fails when the plugin is missing spawnSync invocation (194.7549ms)
+Ô£ö validate requires the skills tree so agent skill references resolve (175.3262ms)
+Ô£ö validate rejects residual ${input: placeholder in opencode.json (56.2325ms)
+Ô£ö validate rejects an agent that references a skill the tree does not ship (103.6077ms)
+Ô£ö validate-phase CLI: exits with 0 for freeform or undefined route (917.636ms)
+Ô£ö validate-phase CLI: fails validation when required file is missing (757.7405ms)
+Ô£ö validate-phase CLI: passes validation when required file is present (474.4495ms)
+Ô£ö unified contract lint: every registered checker reports zero offenders against the real repo (403.5111ms)
+Ô£ö unified contract lint: one checker failing does not prevent the others from running (no short-circuit) (1.058ms)
+Ô£ö sdd-archive/SKILL.md contiene el heading del Cost Block (REQ-agents-001) (1.3518ms)
+Ô£ö sdd-archive/SKILL.md documenta phase-costs.jsonl como fuente del Cost Block (0.3396ms)
+Ô£ö sdd-archive/SKILL.md documenta re-launches como count(records) - 1 (1.1498ms)
+Ô£ö sdd-archive/SKILL.md documenta que las preguntas se leen de state.yaml gates.*.questions_asked (5.3486ms)
+Ô£ö sdd-archive/SKILL.md documenta agregaci├│n de invocaciones, duraci├│n, tiers, statuses y cuatro sumas de tokens (0.463ms)
+Ô£ö sdd-archive/SKILL.md documenta el fallback de datos vac├¡os/faltantes sin gatear el archive (0.3956ms)
+Ô£ö sdd-archive/SKILL.md declara que el Cost Block es puramente aditivo (no toca el close-gate) (0.4014ms)
+Ô£ö no ```yaml fenced example uses tabs for indentation (347.3179ms)
+Ô£ö compact rules budget: no skill's compact_rules exceeds the hard cap (2115.0379ms)
+Ô£ö B2.1 ┬À collision gate handler exists with the 3-option question and collision audit shape (70.5053ms)
+Ô£ö B2.2 ┬À orchestrator pointer table routes the collision gate before sdd-apply (3.0707ms)
+Ô£ö B2.3 ┬À orchestrator stamps owner (author + branch) on new changes (2.8385ms)
+Ô£ö B2.4 ┬À sdd-spec declares touched baseline domains (declare-only), orchestrator computes fingerprints, sdd-archive enforces the stale-baseline check (4.27ms)
+Ô£ö B2.5 ┬À config documents the optional ownership block as a strict no-op when absent (1.1184ms)
+Ô£ö B3.1 ┬À sdd-spec defines stable REQ ids on ADDED requirements (0.6257ms)
+Ô£ö B3.2 ┬À sdd-tasks maps tasks to REQ ids with MUST coverage (0.6911ms)
+Ô£ö B3.3 ┬À sdd-apply appends Ospec-Change / Ospec-Task trailers to work-unit commits (2.6402ms)
+Ô£ö B3.4 ┬À verify report format includes the Traceability Matrix with WARNING for REQs without tests (0.816ms)
+Ô£ö B3.5 ┬À config documents the traceability policy (advisory default, required opt-in) (1.1258ms)
+Ô£ö B5.1 ┬À orchestrator asks the scale question once at first init with team recommended (0.7075ms)
+Ô£ö B5.2 ┬À sdd-init materializes the preset and preserves an existing scale key (0.6718ms)
+Ô£ö B5.3 ┬À config documents the scale key with the 3 presets (1.3121ms)
+Ô£ö G.1 ┬À generated claude target carries the collision gate handler and the traceability landmarks (1095.6892ms)
+Ô£ö C1.1 ┬À sdd-phase-common.md ┬ºC defines the Phase Summary Block with summary and key_decisions (57.3774ms)
+Ô£ö C1.2 ┬À orchestrator builds continuation prompts from state summaries instead of re-reading artifacts (1.7401ms)
+Ô£ö C4.1 ┬À token-budget.md documents the enforced hard cap with ratchet-down rule (1.5295ms)
+Ô£ö C4.2 ┬À docs-lint enforces the compact rules budget against discoverSkills output (0.8267ms)
+Ô£ö G.1 ┬À generated claude target carries the Phase Summary Block and the continuation rule (1285.2301ms)
+Ô£ö D1 ┬À target-capabilities.md declares the capability matrix for the 4 targets (57.352ms)
+Ô£ö D2 ┬À target-capabilities.md declares hook parity and the git-hooks-cover-all rule (2.3156ms)
+Ô£ö D1 ┬À 4R gate prefers parallel dispatch with serial degradation (1.1783ms)
+Ô£ö E1 ┬À parity fixtures are executed by BOTH runtimes (5.8571ms)
+Ô£ö E1 ┬À parity doc declares the executable contract rule (1.8928ms)
+Ô£ö F2 ┬À the three role guides exist and answer their question (5.2908ms)
+Ô£ö F1 ┬À English entry README exists with install and guarantees (1.1877ms)
+Ô£ö assertScenario: route match via state.next_recommended passes (2.4571ms)
+Ô£ö assertScenario: route mismatch names the diverged field (0.2787ms)
+Ô£ö assertScenario: route matches via state.route.actual_route fallback (0.1417ms)
+Ô£ö assertScenario: blocker_type match against captured envelope (0.3463ms)
+Ô£ö assertScenario: blocker_type divergence is named in failures (0.3747ms)
+Ô£ö assertScenario: state.status field match (0.1664ms)
+Ô£ö assertScenario: state.status divergence fails and names state.status (0.1911ms)
+Ô£ö assertScenario: state.blocking_questions_nonempty derives from the blocking_questions list (0.9516ms)
+Ô£ö assertScenario: state.blocking_questions_nonempty fails against an empty list (80.9048ms)
+Ô£ö assertScenario: artifacts_present fails when an expected path is missing (0.5311ms)
+Ô£ö assertScenario: artifacts_absent fails when a forbidden path is present (0.4547ms)
+Ô£ö assertScenario: artifacts_absent passes when the forbidden path never appears (0.1106ms)
+Ô£ö assertScenario: question_gate shape ÔÇö question count, option count, recommended flags (0.1335ms)
+Ô£ö assertScenario: question_gate fails and names the diverged sub-field on option-count shortfall (0.222ms)
+Ô£ö assertScenario: question_gate expected null fails when a gate was captured anyway (3.3469ms)
+Ô£ö assertScenario: fileTreeUnchanged passes when the captured tree matches the recorded baseline exactly (0.2111ms)
+Ô£ö assertScenario: fileTreeUnchanged fails and names an unexpected new file (0.1261ms)
+Ô£ö assertScenario: fileTreeUnchanged fails and names a missing expected file (6.6138ms)
+Ô£ö assertScenario: fileTreeUnchanged ignores harness-only .eval-capture/ paths (0.1221ms)
+Ô£ö assertScenario: fileTreeUnchanged ignores the harness-injected .gitignore (git-baselined fixtures) (0.0866ms)
+Ô£ö assertScenario: fileTreeUnchanged is a no-op when the expect block doesn't set it (0.1178ms)
+Ô£ö assertScenario: differing prose in state/envelope/gate never fails a scenario (0.1385ms)
+Ô£ö loadBenchmarkObservation validates non-negative integer counters (16.1199ms)
+Ô£ö loadBenchmarkObservation preserves separate verify and 4R totals (90.8104ms)
+Ô£ö loadBenchmarkObservation rejects unverifiable live provenance (18.5621ms)
+Ô£ö readPhaseCosts aggregates canonical O1 evidence (6.3513ms)
+Ô£ö readPhaseCosts rejects plausible but non-canonical synthetic rows (11.8485ms)
+Ô£ö verifyBenchmarkProvenance binds declared provenance to transcript bytes and trusted CLI (11.4817ms)
+Ô£ö parseCodexTranscript and provenance verification reject replay identity gaps (7.0694ms)
+Ô£ö parseCodexTranscript rejects duplicate starts, mixed sessions and ambiguous terminal events (0.4373ms)
+Ô£ö run benchmark rows use terminal usage without phase attribution or invented dispatch data (0.5866ms)
+Ô£ö verifyPhaseCostBindings rejects prefix-only rows without full persisted-row attestation (0.6497ms)
+Ô£ö benchmark observation cannot post-declare an O1 host binding (13.9152ms)
+Ô£ö readPhaseCosts fails closed on malformed/noncanonical lines, missing final newline and phase drift (22.1763ms)
+Ô£ö readPhaseCosts accepts redacted cost_observability metadata and verifies its attestation (12.2103ms)
+Ô£ö observable binding is accepted only with exhaustive ordered row attestation and authentication none (0.742ms)
+Ô£ö loadScenario: parses a valid scenario.json manifest (29.4062ms)
+Ô£ö loadScenario: throws a descriptive error when scenario.json is missing (8.3095ms)
+Ô£ö loadScenario: throws a descriptive error when a required field is missing (17.6225ms)
+Ô£ö materializeFixture: copies repo/ into an isolated <runsRoot>/<scenario>/ workspace (41.5382ms)
+Ô£ö materializeFixture: repeated setup calls discard prior workspace contents (41.2525ms)
+Ô£ö materializeFixture: throws a descriptive error when repo/ is missing (10.7908ms)
+Ô£ö isMaterialized: a freshly materialized workspace is NOT marked materialized yet (48.7704ms)
+Ô£ö markMaterialized + isMaterialized: a workspace is materialized only after explicitly marked (26.0698ms)
+Ô£ö isMaterialized: a half-copied/corrupted workspace (dir exists, marker absent) is detected as NOT materialized (28.5507ms)
+Ô£ö isMaterialized: rebuilding a corrupted workspace via materializeFixture + markMaterialized recovers it (40.2546ms)
+Ô£ö isMaterialized: a nonexistent workspace root is safely reported as not materialized (4.2807ms)
+Ô£ö teardown: removes the entire runs root (29.03ms)
+Ô£ö materializeFixture: nests benchmark workspaces without weakening isolation (77.5371ms)
+Ô£ö live preflight rejects a stale installed O1 producer before spawn (66.0195ms)
+Ô£ö live invocation preserves arguments supplied by the safe launcher (1.311ms)
+Ô£ö productive execution context derives installed identity and seals the causal model (75.208ms)
+Ô£ö execution context rejects blank model, forged installed env, stale runtime and preflight failure (608.4515ms)
+Ô£ö installed SubagentStop preflight persists one bound canonical O1 row and cleans up (488.9086ms)
+Ô£ö buildLivePrompt carries the manifest intent and transaction boundary (0.2926ms)
+Ô£ö scoring capability is opaque, workspace-bound, single-use and expiring (4.011ms)
+Ô£ö productive authorization rejects explicitly labelled test capabilities (2.1238ms)
+Ô£ö host-binding preflight fails closed when O1 is tied only to agent transcripts (0.3476ms)
+Ô£ö runCommandWithTranscript exposes the exact root stream path while the child is running (243.2461ms)
+Ô£ö runCommandWithTranscript rejects replacement of the authenticated path while fd remains open (206.9946ms)
+Ô£ö production module exposes no writable synthetic publisher (1.6754ms)
+Ô£ö productive runLiveSuite rejects callback injection and does not publish synthetic rows (1.3522ms)
+Ô£ö accepted profile cache resumes only an exact compatible sealed result (412.858ms)
+Ô£ö suite selection supports productive core and extended sets (0.3315ms)
+Ô£ö cache refuses unknown identity and preserves valid supplementary O1 on known identity (23.9678ms)
+Ô£ö invalid supplementary O1 degrades without blocking run-level scoring (10.7217ms)
+Ô£ö verify report accepts one canonical block followed only by the anchored verdict grammar (6.5327ms)
+Ô£ö verify report verdict suffix rejects mismatch, extra structures, controls, second paragraph and duplicate block (87.1888ms)
+Ô£ö post-run git allowlist accepts only regular runtime-owned evidence and still rejects arbitrary untracked or symlink paths (2779.7223ms)
+Ô£ö offline recovery replays completed host post-exit validation and persists only a compatible cache result (2496.5802ms)
+Ô£ö offline recovery fails closed for unsafe roots, profile mismatch, missing identity and incomplete or tampered transcript (5241.1654ms)
+Ô£ö weighted post-exit O1 fallback is not importable or present in production source (0.8021ms)
+Ô£ö deriveHostObservation consumes deterministic structured evidence and rejects missing/mismatched sets (14.4154ms)
+Ô£ö parseCodexTranscript requires real JSONL session and usage evidence (0.279ms)
+Ô£ö finalizeLiveObservation derives provenance from the transcript and preserves observed counters (20.367ms)
+Ô£ö Windows Codex npm shim resolves to node without shell execution (406.8965ms)
+Ô£ö suite discovery keeps exactly seven golden scenarios separate from nine benchmarks (0.6309ms)
+Ô£ö benchmark selection defaults all to the three-profile core and keeps nine optional as extended (0.4475ms)
+Ô£ö all benchmark manifests expose a live change and expected route (1.3233ms)
+Ô£ö baseline eligibility requires the complete suite and every structural PASS (0.2836ms)
+Ô£ö benchmark instructions force the pending branch without shared .runs state (1.5709ms)
+Ô£ö benchmark change paths reject traversal and absolute or nested changes (1.6439ms)
+Ô£ö benchmark transcript evidence is fixed inside .eval-capture (1.5475ms)
+Ô£ö public benchmark CLI never scores a preconstructed workspace or publishes a baseline (485.2885ms)
+Ô£ö live-driver preflight validates state and canonical O1 before observation publication (15.3076ms)
+Ô£ö atomic baseline publication preserves old content on rename failure and replaces it on success (6.5838ms)
+Ô£ö resolveContainedPath constrains resolved target to be strictly inside workspace root (0.2746ms)
+Ô£ö applyGitBaseline handles empty baseline gracefully (1.1612ms)
+Ô£ö safe prompt treats native O1 as supplementary and lite does not force 4R (1.3346ms)
+Ô£ö fixture contracts match route artifacts and product files (2.8358ms)
+Ô£ö route artifacts are derived exactly from declared phases (0.9181ms)
+Ô£ö safe export manifest contains only synthetic allowlisted files and deterministic hashes (0.7881ms)
+Ô£ö materialized export is outside checkout and rejects extra files or symlinks (2324.6292ms)
+Ô£ö safe payload scanner rejects absolute paths and sensitive content (0.4151ms)
+Ô£ö dry-run export manifest performs no live spawn and prints complete JSON (200.5939ms)
+Ô£ö analyzeGeneralBaseline parses aligned and misaligned dependencies from package.json (111.0062ms)
+Ô£ö analyzeGeneralBaseline parses dependencies from go.mod (32.3337ms)
+Ô£ö 5.1.1 ┬À sdd-orchestrator.agent.md contains section for federation baseline loop (33.9701ms)
+Ô£ö 5.1.2 ┬À sdd-orchestrator.agent.md contains vscode/askQuestions in gate context (1.8301ms)
+Ô£ö 5.1.3 ┬À sdd-orchestrator.agent.md contains continue-log-retry logic description (3.1724ms)
+Ô£ö 5.1.4 ┬À sdd-orchestrator.agent.md contains retry-failed mechanism (6.2248ms)
+Ô£ö 5.1.5 ┬À sdd-orchestrator.agent.md references federation-baseline-orchestrator (6.4796ms)
+Ô£ö 5.1.6 ┬À sdd-baseline.agent.md contains ## Parameters with four federated fields (2.5536ms)
+Ô£ö 5.1.7 ┬À sdd-baseline.agent.md indicates write target is target_dir (2.3687ms)
+Ô£ö 5.1.8 ┬À sdd-baseline.agent.md documents batch-0 skip conditions (0.9607ms)
+Ô£ö 5.1.9 ┬À sdd-baseline.agent.md describes aggregated state updates (0.8281ms)
+Ô£ö 5.1.10 ┬À SKILL.md contains four federated parameters (0.971ms)
+Ô£ö 5.1.11 ┬À SKILL.md documents coordinator_root resolution order (2.6749ms)
+Ô£ö 5.1.12 ┬À SKILL.md mentions member-local write target (1.6497ms)
+Ô£ö 5.1.13 ┬À sdd-orchestrator.agent.md mentions read-and-link boundary D10 (1.6767ms)
+Ô£ö 5.1.14 ┬À sdd-baseline.agent.md documents error path for partial parameters (0.5357ms)
+Ô£ö .gitignore lists openspec/workspace.yaml as a derived cache (0.9533ms)
+Ô£ö persistence-contract.md documents the atlas-as-derived-cache inversion (0.2873ms)
+Ô£ö persistence-contract.md names markers as the sole source of truth (0.3216ms)
+Ô£ö persistence-contract.md states workspace.yaml is a regenerable cache trusted when valid (1.9898ms)
+Ô£ö persistence-contract.md states absent or corrupt cache triggers regeneration from markers (0.5754ms)
+Ô£ö persistence-contract.md documents git ls-files warn-on-detect when the cache is tracked (0.4104ms)
+Ô£ö persistence-contract.md states C1 never runs a destructive git op automatically (0.3738ms)
+Ô£ö scripts\fixtures\strict-tdd-fast-path\functional.test.js (290.7417ms)
+
+======================================================================
+OSPEC-COMMIT-MSG ERROR: Atribuci├│n AI/modelo detectada en el mensaje de commit.
+  L├¡nea ofensiva: "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
+
+Regla: Nunca a├▒adir 'Co-Authored-By', nombres de modelo, ni cr├®ditos a
+herramientas AI en commits. Usa Conventional Commits sin atribuci├│n.
+
+Soluci├│n:
+  1. Edita el mensaje eliminando las l├¡neas de atribuci├│n AI.
+  2. Si es un falso positivo leg├¡timo, omite esta verificaci├│n con:
+     $env:DISABLE_OSPEC_ATTRIBUTION_CHECK="true"; git commit ...  (PowerShell)
+     o: set DISABLE_OSPEC_ATTRIBUTION_CHECK=true && git commit ... (CMD)
+======================================================================
+
+
+======================================================================
+OSPEC-COMMIT-MSG ERROR: Atribuci├│n AI/modelo detectada en el mensaje de commit.
+  L├¡nea ofensiva: "Generated with Claude Code"
+
+Regla: Nunca a├▒adir 'Co-Authored-By', nombres de modelo, ni cr├®ditos a
+herramientas AI en commits. Usa Conventional Commits sin atribuci├│n.
+
+Soluci├│n:
+  1. Edita el mensaje eliminando las l├¡neas de atribuci├│n AI.
+  2. Si es un falso positivo leg├¡timo, omite esta verificaci├│n con:
+     $env:DISABLE_OSPEC_ATTRIBUTION_CHECK="true"; git commit ...  (PowerShell)
+     o: set DISABLE_OSPEC_ATTRIBUTION_CHECK=true && git commit ... (CMD)
+======================================================================
+
+OSPEC-COMMIT-MSG [Warning]: No se pudo leer el archivo de mensaje: ENOENT: no such file or directory, open 'C:\Users\sn4ke\dev\activos\ospec-workflow\this_file_does_not_exist_at_all.txt'
+Ô£ö findAttribution returns null for clean conventional commits (1.9651ms)
+Ô£ö findAttribution detects Co-Authored-By trailers (0.1775ms)
+Ô£ö findAttribution detects model names in any line (0.2908ms)
+Ô£ö findAttribution ignores model names in legitimate code context when they are not attribution (0.1302ms)
+Ô£ö FORBIDDEN_ATTRIBUTION_RE matches case-insensitively (0.1919ms)
+Ô£ö FORBIDDEN_ATTRIBUTION_RE does not fire on ordinary words that merely contain a vendor name (0.1476ms)
+Ô£ö FORBIDDEN_ATTRIBUTION_RE still fires on standalone vendor names at word boundaries (0.1709ms)
+Ô£ö runCommitMsg exits 0 for a clean commit message (10.8296ms)
+Ô£ö runCommitMsg exits 1 for a commit message with Co-Authored-By (18.9729ms)
+Ô£ö runCommitMsg exits 1 for a commit message with model name (10.308ms)
+Ô£ö runCommitMsg respects DISABLE_OSPEC_ATTRIBUTION_CHECK bypass (0.2605ms)
+Ô£ö runCommitMsg exits 0 when message file cannot be read (non-blocking) (0.3244ms)
+Ô£ö trailers: no active change ÔåÆ not-applicable (ok) (0.0862ms)
+Ô£ö trailers: active change + matching trailers ÔåÆ ok (0.2027ms)
+Ô£ö trailers: active change + missing trailer ÔåÆ missing (0.1623ms)
+Ô£ö trailers: trailer names a different change ÔåÆ mismatch with both names in detail (0.2038ms)
+Ô£ö trailers: Ospec-Change present without Ospec-Task ÔåÆ missing-task (0.2643ms)
+Ô£ö trailers: merge/revert/fixup commits are exempt (1.1823ms)
+Ô£ö resolveGitState: default-branch probe fails ÔÇô dirty probe still runs (1.5753ms)
+Ô£ö resolveGitState: dirty probe fails ÔÇô dirty field is null, not false (0.207ms)
+Ô£ö resolveGitState: empty porcelain output ÔÇô dirty is false (0.1663ms)
+Ô£ö resolveGitState: untracked-only output ÔÇô dirty is true (0.1343ms)
+Ô£ö resolveGitState: git binary absent ÔÇô all fields null (0.1341ms)
+Ô£ö resolveGitState: current-branch probe fails ÔÇô currentBranch null, others unaffected (0.1522ms)
+Ô£ö resolveGitState: strips remote prefix from symbolic-ref output (0.1235ms)
+Ô£ö resolveGitState: empty show-current (detached HEAD) ÔåÆ currentBranch null (0.1054ms)
+Ô£ö isRiskyAction: git commit command returns true (0.2086ms)
+Ô£ö isRiskyAction: non-commit git commands return false (0.177ms)
+Ô£ö isRiskyAction: empty or missing commands return false (0.1355ms)
+Ô£ö isRiskyAction: file-write tools alone are no longer risky (no command payload) (0.1087ms)
+Ô£ö composeAdvisory: default-only case contains branch name and 'rama por defecto' (0.214ms)
+Ô£ö composeAdvisory: default-only with null dirty also returns default advisory (0.1062ms)
+Ô£ö composeAdvisory: dirty-only case contains 'sin commitear' and not 'rama por defecto' (0.1024ms)
+Ô£ö composeAdvisory: combined case contains both 'rama por defecto' and 'sin commitear' (0.0923ms)
+Ô£ö composeAdvisory: combined is a single string (not two separate strings) (0.1055ms)
+Ô£ö resolveGitState: shared deadline ÔÇö each probe receives a positive numeric timeoutMs as 2nd arg (0.2073ms)
+Ô£ö composeAdvisory: hostile branch name ÔÇö control chars stripped, whitespace collapsed, truncated at 120 chars (0.1282ms)
+Ô£ö composeAdvisory: long branch name is truncated to at most 120 chars + ellipsis (0.1115ms)
+Ô£ö classifySensitiveFile: claves SSH privadas ÔåÆ deny private-key (9.8709ms)
+Ô£ö classifySensitiveFile: .git/config del workspace ÔåÆ deny git-config (0.3567ms)
+Ô£ö classifySensitiveFile: .npmrc ÔåÆ deny npmrc (0.1951ms)
+Ô£ö classifySensitiveFile: archivos .env* ÔåÆ ask env-file (0.2931ms)
+Ô£ö classifySensitiveFile: secrets.json y credentials ÔåÆ ask secrets-file (0.3961ms)
+Ô£ö classifySensitiveFile: archivos comunes ÔåÆ null (0.2625ms)
+Ô£ö classifySensitiveFile: config fuera de .git no es git-config (0.1652ms)
+Ô£ö scanContentForSecrets: detecta openai-api-key (0.2505ms)
+Ô£ö scanContentForSecrets: detecta google-api-key (0.1897ms)
+Ô£ö scanContentForSecrets: detecta aws-access-key (0.2698ms)
+Ô£ö scanContentForSecrets: detecta slack-token (0.1657ms)
+Ô£ö scanContentForSecrets: detecta jwt (0.1349ms)
+Ô£ö KNOWN_TOKEN_PATTERNS: cada patr├│n tiene id y regex (0.1561ms)
+Ô£ö scanContentForSecrets: credencial gen├®rica ÔåÆ matched: password: "superSecretAdmin123" (0.9828ms)
+Ô£ö scanContentForSecrets: credencial gen├®rica ÔåÆ matched: db_password = "superSecretAdmin123" (0.1696ms)
+Ô£ö scanContentForSecrets: credencial gen├®rica ÔåÆ matched: api_key = 'abcdef123456' (0.0804ms)
+Ô£ö scanContentForSecrets: credencial gen├®rica ÔåÆ matched: token: "abcdef123456" (0.0627ms)
+Ô£ö scanContentForSecrets: credencial gen├®rica ÔåÆ matched: contrase├▒a = "miClaveSegura" (0.054ms)
+Ô£ö scanContentForSecrets: credencial gen├®rica ÔåÆ matched: private_key: "-----BEGIN" (0.0589ms)
+Ô£ö scanContentForSecrets: credencial gen├®rica ÔåÆ matched: SECRET="deploy-secret-value" (0.0531ms)
+Ô£ö scanContentForSecrets: no dispara falso positivo: "monkey: \"bananabanana\"" (0.0843ms)
+Ô£ö scanContentForSecrets: no dispara falso positivo: "turkey = \"deliciosa comida\"" (0.0542ms)
+Ô£ö scanContentForSecrets: no dispara falso positivo: "compass: \"north-north-west\"" (0.0481ms)
+Ô£ö scanContentForSecrets: no dispara falso positivo: "Key rule: inject compact rules text when available.\n\nSee  (0.04ms)
+Ô£ö scanContentForSecrets: no dispara falso positivo: "The token budget advisor\nuses \"150k-token\" thresholds." (0.0537ms)
+Ô£ö scanContentForSecrets: no dispara falso positivo: "secret = \"short\"" (0.1271ms)
+Ô£ö scanContentForSecrets: no dispara falso positivo: "password = superSecretAdmin123" (0.055ms)
+Ô£ö scanContentForSecrets: contenido vac├¡o o no-string ÔåÆ no match (0.0657ms)
+Ô£ö GENERIC_CREDENTIAL_REGEX: keyword al inicio de l├¡nea posterior s├¡ dispara (0.0564ms)
+Ô£ö scanFileForSecrets: archivo con credencial ÔåÆ matched (6.6698ms)
+Ô£ö scanFileForSecrets: archivo limpio ÔåÆ no matched (2.6149ms)
+Ô£ö scanFileForSecrets: archivo inexistente ÔåÆ skipped unreadable, no throw (0.2302ms)
+Ô£ö scanFileForSecrets: archivo mayor al l├¡mite ÔåÆ skipped too-large (2.6319ms)
+Ô£ö MAX_SCAN_SIZE_BYTES: es 1MB (contrato de paridad con Go) (0.1171ms)
+{"continue":true}Ô£ö SUBCOMMANDS covers exactly the five hook events (1.1888ms)
+Ô£ö hostBinarySuffix maps node platform/arch to Go tuples (0.2068ms)
+Ô£ö binaryCandidates lists per-platform then release/dist then generic (1.1136ms)
+Ô£ö resolveBinary returns the first existing candidate (0.2647ms)
+Ô£ö resolveBinary returns null when no candidate exists (0.2781ms)
+Ô£ö resolveInvocation runs the native binary when present (0.2627ms)
+Ô£ö resolveInvocation falls back to node <sub>.js when no binary ships (0.1758ms)
+Ô£ö resolveInvocation bypasses binary and returns node fallback for session-start when backend is workspace-federated (0.4311ms)
+Ô£ö resolveInvocation does not read config and uses binary for pre-tool-use even under federated backend (hot path optimization) (0.2024ms)
+Ô£ö resolveInvocation handles missing config file gracefully, defaulting to openspec backend and using Go binary (0.2869ms)
+Ô£ö normalizeCodexHookOutput wraps SessionStart context in the native hook shape (0.2105ms)
+Ô£ö normalizeCodexHookOutput emits PreToolUse context for advisory decisions and no allow decision (0.1247ms)
+Ô£ö main passes OSPEC_PLUGIN_ROOT env var when spawning (3.6589ms)
+Ô£ö parity(js) ┬À PreToolUse ┬À pre-tool-use-allow.json (325.5921ms)
+Ô£ö parity(js) ┬À PreToolUse ┬À pre-tool-use-ask.json (230.9439ms)
+Ô£ö parity(js) ┬À PreToolUse ┬À pre-tool-use-bypass.json (197.3363ms)
+Ô£ö parity(js) ┬À PreToolUse ┬À pre-tool-use-deny.json (232.1638ms)
+Ô£ö parity(js) ┬À PreToolUse ┬À pre-tool-use-error.json (210.2315ms)
+Ô£ö parity(js) ┬À SubagentStop ┬À subagent-stop-malformed-envelope.json (127.4223ms)
+Ô£ö parity(js) ┬À SubagentStop ┬À subagent-stop-phase-cost-active-change.json (118.3716ms)
+Ô£ö parity(js) ┬À SubagentStop ┬À subagent-stop-phase-cost-no-active-change.json (122.995ms)
+Ô£ö parity(js) ┬À SubagentStop ┬À subagent-stop-phase-cost-review-correction.json (210.7909ms)
+Ô£ö parity(js) ┬À SubagentStop ┬À subagent-stop-valid-envelope.json (234.9241ms)
+OSPEC-PRECOMMIT: Bypass activo via env var. Omitiendo validaci├│n.
+OSPEC-PRECOMMIT: Ejecutando validaci├│n de OpenSpec...
+TAP output
+OSPEC-PRECOMMIT: Ejecutando validaci├│n de OpenSpec...
+
+OSPEC-PRECOMMIT [Warning]: No se pudo ejecutar el validador check.js por una falla externa: external command failure. Continuando validaci├│n...
+OSPEC-PRECOMMIT: Ejecutando validaci├│n de OpenSpec...
+OSPEC-PRECOMMIT: Validaci├│n completada. Commit permitido.
+OSPEC-PRECOMMIT: Ejecutando validaci├│n de OpenSpec...
+OSPEC-PRECOMMIT: Validaci├│n completada. Commit permitido.
+OSPEC-PRECOMMIT: Ejecutando validaci├│n de OpenSpec...
+OSPEC-PRECOMMIT: Validaci├│n completada. Commit permitido.
+
+======================================================================
+OSPEC-PRECOMMIT ERROR: Violaci├│n del ciclo de Strict TDD.
+Se detectaron cambios de producci├│n staged sin archivos de prueba correspondientes.
+Archivos de producci├│n afectados:
+  - internal/hooks/sessionstart.go
+  - scripts/hooks/session-start.js
+
+Soluci├│n:
+  1. Agrega y prepara para commit (*_test.go o *.test.js) con las pruebas de estos cambios.
+  2. O prepara el archivo de tareas (tasks.md) si est├ís en etapa de planificaci├│n.
+  3. Si es un commit de emergencia, puedes omitir la verificaci├│n usando 'git commit --no-verify'.
+======================================================================
+
+OSPEC-PRECOMMIT: Ejecutando validaci├│n de OpenSpec...
+OSPEC-PRECOMMIT: Validaci├│n completada. Commit permitido.
+OSPEC-PRECOMMIT: Ejecutando validaci├│n de OpenSpec...
+OSPEC-PRECOMMIT: Validaci├│n completada. Commit permitido.
+OSPEC-PRECOMMIT: Ejecutando validaci├│n de OpenSpec...
+TAP output
+Ô£ö respects DISABLE_OSPEC_PRECOMMIT env bypass (2.4261ms)
+Ô£ö blocks commit when check.js fails (11.2597ms)
+Ô£ö warns but continues when check.js throws external error (0.6542ms)
+Ô£ö allows commit when strict_tdd is inactive, even if no tests staged (0.7089ms)
+Ô£ö allows commit when strict_tdd is active and no production files are staged (7.0173ms)
+Ô£ö blocks commit when strict_tdd is active and production files have no tests or tasks staged (0.7517ms)
+Ô£ö allows commit when strict_tdd is active and production files are staged alongside a test file (0.7382ms)
+Ô£ö allows commit when strict_tdd is active and production files are staged alongside tasks.md (30.3665ms)
+Ô£ö on check.js success, does not write captured stdout to process.stdout (0.764ms)
+Ô£ö on check.js failure, emits === banner citing the reason (2.4168ms)
+Ô£ö on check.js failure, writes captured stdout before exit (0.3742ms)
+Ô£ö selects the federated backend and summarizes a member change (412.8979ms)
+Ô£ö writes the minimal session summary for the active change (46.5587ms)
+Ô£ö records blockers, approvals, explicit artifact, and next action (29.7273ms)
+Ô£ö selects the most recently updated non-terminal change (19.0519ms)
+Ô£ö does not rewrite an unchanged summary (29.4277ms)
+Ô£ö skips cleanly when no active change exists (7.5916ms)
+Ô£ö allows normal tools without command payloads (42.4537ms)
+Ô£ö inspects command payloads even for unknown tools (6.8746ms)
+Ô£ö recognizes common shell tool aliases (0.1453ms)
+Ô£ö denies commands with unacceptable destructive impact (18.2298ms)
+Ô£ö asks before risky or destructive shell operations (22.2439ms)
+Ô£ö inspects PowerShell commands (2.2906ms)
+Ô£ö deny wins when a command matches deny and ask policies (1.2257ms)
+Ô£ö deny wins over ask and allow across command arrays (1.4333ms)
+Ô£ö allows ordinary shell commands (6.7253ms)
+Ô£ö supports command arrays (2.502ms)
+Ô£ö allows shell tools without a command payload (0.9302ms)
+Ô£ö allows malformed command input without crashing (69.9626ms)
+Ô£ö token budget advisor: respects DISABLE_TOKEN_ADVISOR env bypass (16.7363ms)
+Ô£ö token budget advisor: asks on heavy file reads exceeding 50k tokens (36.5861ms)
+Ô£ö token budget advisor: asks on cumulative session tokens exceeding 150k tokens (23.718ms)
+Ô£ö agent-shield: respects DISABLE_AGENT_SHIELD env bypass in PreToolUse (3.5354ms)
+Ô£ö agent-shield: denies SSH private keys, workspace .git/config, and .npmrc (12.5692ms)
+Ô£ö agent-shield: asks before reading .env, secrets.json, and credentials (7.6767ms)
+Ô£ö agent-shield: scans file contents for API tokens and passwords (17.6039ms)
+Ô£ö checkCommitAttribution returns null for commands that are not git commit (0.1247ms)
+Ô£ö checkCommitAttribution returns null for clean git commit messages (0.4574ms)
+Ô£ö checkCommitAttribution denies git commit with Co-Authored-By trailer (0.1414ms)
+Ô£ö checkCommitAttribution denies git commit with model names in message (0.114ms)
+Ô£ö evaluateToolUse denies git commit with attribution via shell tool (1.3318ms)
+Ô£ö evaluateToolUse allows clean git commit via shell tool (1.1849ms)
+Ô£ö git-guard: file-write tool alone on default branch ÔåÆ allow (write tools no longer risky) (1.567ms)
+Ô£ö git-guard: file-write tool alone on dirty feature branch ÔåÆ allow (1.5482ms)
+Ô£ö git-guard: git commit on default branch (clean) ÔåÆ ask with default-branch advisory (1.3936ms)
+Ô£ö git-guard: git commit on feature branch with dirty tree ÔåÆ ask with dirty advisory (1.0871ms)
+Ô£ö git-guard: combined condition ÔåÆ single ask with both default-branch and dirty advisories (0.9929ms)
+Ô£ö git-guard: git commit on clean feature branch ÔåÆ allow (6.0233ms)
+Ô£ö git-guard: DISABLE_GIT_COLLABORATION_GUARD=true suppresses advisory and skips git calls (1.3807ms)
+Ô£ö git-guard: git push --force ÔåÆ deny (DENY rule wins before guard fires) (2.1938ms)
+Ô£ö git-guard: read-only tool on dirty main ÔåÆ allow (isRiskyAction=false) (1.7613ms)
+Ô£ö spec-drift-guard: staged file overlaps drifted domain ÔåÆ ask naming the domain (18.7389ms)
+Ô£ö spec-drift-guard: no overlap between staged files and drifted domains ÔåÆ no fire, falls through (12.5353ms)
+Ô£ö spec-drift-guard: DENY rule wins ÔÇö drift probes never invoked (5.8863ms)
+Ô£ö spec-drift-guard: DISABLE_SPEC_DRIFT_GUARD=true ÔåÆ skipped, no drift git probes invoked (6.3388ms)
+Ô£ö spec-drift-guard: staged-file resolution fails ÔåÆ best-effort empty array, no false fire (8.5649ms)
+Ô£ö spec-drift-guard: Step 5b ask wins over Step 5c ÔÇö no double prompt (8.4684ms)
+Ô£ö spec-drift-guard: two drifted domains, only one overlaps staged files ÔåÆ reason names only that one (10.845ms)
+Ô£ö spec-drift-guard: commit command mixed with non-commit commands ÔåÆ still fires on the commit match (13.9443ms)
+Ô£ö permission-mode: ASK rule in bypassPermissions ÔåÆ allow + systemMessage with the original reason (1.4244ms)
+Ô£ö permission-mode: ASK rule in default mode ÔåÆ still ask, no systemMessage (2.8697ms)
+Ô£ö permission-mode: absent permission_mode ÔåÆ ask preserved (backward compatible) (1.4386ms)
+Ô£ö permission-mode: DENY rule in bypassPermissions ÔåÆ still deny (never degraded) (1.3069ms)
+Ô£ö permission-mode: ASK rule under OSPEC_TARGET=codex + OSPEC_CODEX_WRAPPER=1 ÔåÆ allow + systemMessage (no permission_mode set) (1.9216ms)
+Ô£ö permission-mode: DENY rule under OSPEC_TARGET=codex + OSPEC_CODEX_WRAPPER=1 ÔåÆ still deny (never degraded) (1.3373ms)
+Ô£ö permission-mode: OSPEC_TARGET=codex ALONE (no OSPEC_CODEX_WRAPPER marker) does NOT degrade ASK to allow (1.8107ms)
+Ô£ö permission-mode: OSPEC_CODEX_WRAPPER=1 ALONE (no OSPEC_TARGET=codex) does NOT degrade ASK to allow (3.3974ms)
+Ô£ö permission-mode: git-guard dirty-tree commit in bypassPermissions ÔåÆ allow + advisory systemMessage (1.2842ms)
+Ô£ö permission-mode: token advisor heavy read in bypassPermissions ÔåÆ allow + advisory systemMessage (12.9641ms)
+Ô£ö creates the registry cache when OpenSpec is detected (727.4128ms)
+Ô£ö does not rewrite a cache whose fingerprint is unchanged (652.5533ms)
+Ô£ö regenerates the cache after a fingerprint input changes (620.6746ms)
+Ô£ö does not create auxiliary files without OpenSpec (11.9578ms)
+Ô£ö emits baseline hint when baseline.status is pending (406.0151ms)
+Ô£ö emits hint naming pending count when baseline is partial with 2 pending domains (680.0399ms)
+Ô£ö emits hint listing stale domain when baseline is done with a stale entry (421.3329ms)
+Ô£ö omits baseline key when baseline.status is done with no stale domains (280.4628ms)
+Ô£ö omits baseline key when config has no baseline block (243.918ms)
+Ô£ö federated backend without an atlas is treated as uninitialized (72.6951ms)
+Ô£ö federated backend with an atlas refreshes the registry (455.6087ms)
+Ô£ö agent-shield: respects DISABLE_AGENT_SHIELD env bypass in SessionStart (366.4013ms)
+Ô£ö agent-shield: scans for unignored env files in SessionStart (363.4653ms)
+Ô£ö agent-shield: .env is NOT marked as ignored if only .env.local is in .gitignore (257.4614ms)
+Ô£ö agent-shield: scans for embedded credentials in .git/config in SessionStart (290.3687ms)
+Ô£ö capabilities surfaced in result when config has block-sequence capabilities (309.6111ms)
+Ô£ö capabilities key absent from result when config has no capabilities block (322.8862ms)
+Ô£ö adding stack skills triggers cache regeneration with capabilities populated (568.9033ms)
+Ô£ö runSessionStart: input is null handles fallbackCwd resolving correctly (293.0817ms)
+Ô£ö runSessionStart: config read failure (EISDIR/EPERM) does not break session start (299.6853ms)
+Ô£ö git-collab-session: default branch + clean tree ÔåÆ gitCollaboration.status warning, dirtyTree false, systemMessage mentions default branch (36.2242ms)
+Ô£ö git-collab-session: feature branch + dirty tree ÔåÆ dirtyTree true, systemMessage mentions 'sin commitear' (39.9551ms)
+Ô£ö git-collab-session: combined (default + dirty) ÔåÆ single gitCollaboration entry, message mentions both conditions (23.9566ms)
+Ô£ö git-collab-session: clean feature branch ÔåÆ gitCollaboration key absent (38.4451ms)
+Ô£ö git-collab-session: DISABLE_GIT_COLLABORATION_GUARD=true ÔåÆ gitCollaboration key absent (62.135ms)
+Ô£ö git-collab-session: git binary absent ÔåÆ no gitCollaboration, registry/baseline/security unaffected (387.1015ms)
+Ô£ö git-collab-session: status probe fails + on default branch ÔåÆ gitCollaboration present, dirtyTree field absent (233.4528ms)
+Ô£ö spec-drift-session: drifted domain ÔåÆ specDrift.status warning naming the domain, systemMessage mentions it (562.6132ms)
+Ô£ö spec-drift-session: no drifted domain ÔåÆ specDrift key absent (195.2101ms)
+Ô£ö spec-drift-session: DISABLE_SPEC_DRIFT_GUARD=true ÔåÆ specDrift absent, no drift git probes invoked (99.2185ms)
+Ô£ö spec-drift-session: openspec not initialized ÔåÆ drift check never runs (16.4571ms)
+Ô£ö spec-drift-session: gitCollaboration and specDrift firing together ÔåÆ both systemMessage lines present, in order (203.8232ms)
+Ô£ö spec-drift-session: drift git probe throws ÔåÆ status ok, no specDrift key, no crash (201.8811ms)
+Ô£ö selects the federated backend and traces a member change (234.4958ms)
+Ô£ö writes a short trace for the active change (50.2319ms)
+Ô£ö writes a trace even when no active change exists (25.8788ms)
+Ô£ö replaces the latest trace on each session end (27.5003ms)
+Ô£ö ignores terminal changes when creating the latest trace (24.7638ms)
+Ô£ö records fallback-registry resolution from a structured result (64.5517ms)
+Ô£ö extracts degraded or none resolution from textual and JSON results (0.4973ms)
+Ô£ö uses the latest structured resolution from a transcript (24.9845ms)
+Ô£ö resolves skill_resolution from input.agent_transcript_path (codex alias) (54.5131ms)
+Ô£ö does not write events for injected resolution (2.7772ms)
+Ô£ö does not invent a warning when resolution is unavailable (1.3006ms)
+Ô£ö valid envelope fence is persisted into the active change's state.yaml (463.1448ms)
+Ô£ö missing fence ÔÇö no state.yaml write, stdout/return unaffected (302.9537ms)
+Ô£ö malformed fence (invalid JSON) ÔÇö validation fails safely, no write (17.9077ms)
+Ô£ö fence missing a required field ÔÇö validation fails safely, no write (21.281ms)
+Ô£ö agent's own non-empty summary is not overwritten by the hook (29.8222ms)
+Ô£ö successful sdd-spec envelope without ambiguity signals is not persisted (15.6042ms)
+Ô£ö spaced sdd-spec metadata canonicalizes before valid and invalid persistence (709.9553ms)
+Ô£ö whitespace-only agent_type falls back to agent_name for spec persistence (1606.1389ms)
+Ô£ö no active change resolvable ÔÇö envelope persistence is a safe no-op (41.5613ms)
+Ô£ö persistResultEnvelope recovers an orphaned state.yaml.bak before its fresh re-read (CRITICAL remediation) (209.4598ms)
+Ô£ö non-sdd agent_type is ignored ÔÇö state.yaml is left byte-for-byte intact (74.1479ms)
+Ô£ö key_decisions with mixed non-string entries only persists the strings (parity with Go, which filters non-strings) (163.4406ms)
+Ô£ö findEnvelopeInValue resolves sibling fences last-sibling-wins, matching findStructuredResolution's semantics (41.5144ms)
+Ô£ö appends one valid JSON object per degraded event (33.0755ms)
+Ô£ö appendPhaseCost writes a JSONL line under .ospec/session/{change}/phase-costs.jsonl (47.7479ms)
+Ô£ö appendPhaseCost appends a second record as a second JSONL line (triangulation) (173.6666ms)
+Ô£ö persistPhaseCost writes a record for an active change (phase, agent, est_tokens, status, ts) (223.4991ms)
+Ô£ö persistPhaseCost uses canonical moved tiers for proposal and document telemetry (34.1314ms)
+Ô£ö persistPhaseCost prefers the valid envelope's status over top-level input.status (triangulation) (49.1257ms)
+Ô£ö persistPhaseCost skips silently ÔÇö no .ospec/session/ created ÔÇö when no active change resolves (13.2805ms)
+Ô£ö persistPhaseCost ignores a non-sdd-* agent (209.1102ms)
+Ô£ö persistPhaseCost records only exact review lifecycle agents with UTF-8 fallbacks and successful-phase relaunches (618.0822ms)
+Ô£ö persistPhaseCost swallows estimation errors without affecting stdout/return value (fail-safe) (13.49ms)
+Ô£ö estimateResultTokens computes round(utf8ByteLength/4) for a string payload (0.195ms)
+Ô£ö estimateResultTokens JSON-serializes a non-string payload (triangulation) (0.9459ms)
+Ô£ö resolveDispatchStatus resolves from a valid envelope's status field (0.146ms)
+Ô£ö resolveDispatchStatus rejects a successful sdd-spec envelope without ambiguity signals (0.1154ms)
+Ô£ö resolveDispatchStatus fails closed for invalid spaced sdd-spec even when input says success (0.116ms)
+Ô£ö resolveDispatchStatus uses agent_name when agent_type is whitespace-only (0.1242ms)
+Ô£ö resolveDispatchStatus preserves generic non-spec fallback (0.0992ms)
+Ô£ö resolveDispatchStatus falls back to top-level input.status, then 'unknown' (triangulation) (0.1226ms)
+Ô£ö resolveModelTier resolves correct tiers and handles fallbacks/failures (1.525ms)
+Ô£ö normalizeDispatchCostContext handles alias precedence, integers, UTF-8 segments, status and duration (0.2943ms)
+Ô£ö normalizeDispatchCostContext maps the observed Codex token_count event with strict numeric fields (0.1705ms)
+Ô£ö parseCodexTokenCountTranscript rejects non-integer Codex usage and falls back to total usage (0.2001ms)
+Ô£ö persistPhaseCost reads token_count from the Codex transcript without persisting transcript content (371.2248ms)
+Ô£ö repeated same-event handling appends and preserves prior phase rows (315.7191ms)
+Ô£ö resolveHostBinding uses host aliases and hashes exact transcript bytes at emission time (90.7375ms)
+Ô£ö resolveHostBinding reports unsupported host payload without inventing identifiers (0.4441ms)
+Ô£ö resolveHostBinding binds O1 to the complete codex-events prefix available at emission (161.0987ms)
+Ô£ö resolveHostBinding rejects ambiguous root event streams (44.1737ms)
+Ô£ö resolveHostBinding rejects an injected root path or mismatched host session (92.6962ms)
+Ô£ö persistPhaseCost writes a complete normalized O1 record with correct fields (310.8104ms)
+Ô£ö exposes the supported modes and a default (2.4515ms)
+Ô£ö defaults to the openspec mode when none is provided (0.2931ms)
+Ô£ö rejects an unknown artifact store mode (1.936ms)
+Ô£ö resolves derived paths relative to the workspace (0.8238ms)
+Ô£ö openspec: detects initialization from openspec/config.yaml (42.5785ms)
+Ô£ö openspec: delegates active change discovery (15.1579ms)
+Ô£ö openspec: writes a change-scoped session summary (569.4859ms)
+Ô£ö openspec: appends runtime events and injects the workspace (20.9288ms)
+Ô£ö workspace-federated: keeps the derived layout workspace-local (11.3521ms)
+Ô£ö workspace-federated: isInitialized reflects atlas presence (227.0166ms)
+Ô£ö workspace-federated: keeps changeDirectory and config coordinator-local (5.6517ms)
+Ô£ö workspace-federated: unions coordinator and member changes with source tags (91.0258ms)
+Ô£ö workspace-federated: orders aggregated changes by recency across members (74.5038ms)
+Ô£ö workspace-federated: skips an unreachable member without throwing (84.5026ms)
+Ô£ö workspace-federated: regenerates the atlas from markers when it is absent (101.6406ms)
+Ô£ö workspace-federated: regenerates and warns when the cache is corrupt (152.6519ms)
+Ô£ö workspace-federated: empty-but-valid workspace.yaml is NOT corrupt (133.0388ms)
+Ô£ö workspace-federated: members-only header is structurally valid (102.0578ms)
+Ô£ö workspace-federated: warns when workspace.yaml is git-tracked (mock) (7.1338ms)
+Ô£ö workspace-federated: no warning when workspace.yaml is NOT git-tracked (mock) (7.0203ms)
+Ô£ö workspace-federated: git-tracked warning (integration smoke) (1234.7792ms)
+Ô£ö 1.1.1 ┬À Normal write ÔÇö temp file created then renamed (45.1844ms)
+Ô£ö 1.1.2 ┬À Stale .tmp file overwritten unconditionally (90.6386ms)
+Ô£ö 1.1.3 ┬À Write failure of temp ÔÇö original preserved, tmp cleaned up (269.9783ms)
+Ô£ö 1.1.4 ┬À Windows rename fallback ÔÇö target.bak created, tmp renamed, .bak deleted (332.328ms)
+Ô£ö 1.1.5 ┬À Orphaned .bak recovery when target is absent (73.8638ms)
+Ô£ö 1.1.6 ┬À Crash post-tmp before rename ÔÇö stale .tmp overwritten in re-run (85.793ms)
+Ô£ö 1.1.8 ┬À Double-rename failure (fallback rename AND rollback both fail) surfaces the .bak path instead of silently losing data (13.5688ms)
+Ô£ö 1.1.7 ┬À writeFileAtomic on federation-baseline-status.yaml (6.1736ms)
+Ô£ö parseCapabilities: full block-sequence entry returns name/version/source (5.4206ms)
+Ô£ö parseCapabilities: name-only entry defaults source to declared and version to null (0.3412ms)
+Ô£ö parseCapabilities: config with no capabilities key returns empty array (0.1775ms)
+Ô£ö parseCapabilities: inline empty list form capabilities: [] returns empty array (23.1607ms)
+Ô£ö parseCapabilities: two entries returned in declaration order (0.2441ms)
+Ô£ö capabilityNames: returns names in declaration order (0.1967ms)
+Ô£ö capabilityNames: empty array returns empty array (0.2454ms)
+Ô£ö matchStackSkills: single name match returns that entry (0.3401ms)
+Ô£ö matchStackSkills: two capability names return union of matched entries (3.9019ms)
+Ô£ö matchStackSkills: name matches no entry returns empty array (0.3556ms)
+Ô£ö matchStackSkills: case-sensitive ÔÇö Angular does not match angular capability (0.1373ms)
+Ô£ö matchStackSkills: two matched entries returned sorted by id ascending (0.5437ms)
+Ô£ö parseRuntimeCapabilities reads a runtime_capabilities: block map from rawLines (4.063ms)
+Ô£ö parseRuntimeCapabilities returns all-false when the field is absent (missing manifest = all-false) (0.3106ms)
+Ô£ö parseRuntimeCapabilities tolerates reordered keys and extra indentation/whitespace (0.2356ms)
+Ô£ö PHASE_SKILLS is exactly the 14 canonical names and excludes sdd-document/sdd-reconcile (1.125ms)
+Ô£ö direction (a): declared execute:true without agent 'execute' tool yields exactly one offender (26.0131ms)
+Ô£ö direction (a): declared write:true without agent 'edit' tool yields one offender for write->edit (15.9012ms)
+Ô£ö direction (a): both execute and write declared true and both unbacked yields two offenders (18.2708ms)
+Ô£ö direction (b): agent grants 'edit' but bound phase skill declares write:false (or omits) -> one offender (15.2134ms)
+Ô£ö direction (b): agent grants both execute and edit unjustified yields two offenders, not one (13.5336ms)
+Ô£ö direction (b) is never evaluated for skills outside the phase-skill tier (13.6196ms)
+Ô£ö utility/stack skill with no runtime_capabilities block passes without an offender (8.0502ms)
+Ô£ö utility skill loaded by two agents: direction (a) evaluated per consumer, direction (b) never fires (10.7556ms)
+Ô£ö mutation-verified round-trip: fixing the orphan execute declaration makes the checker pass again (19.059ms)
+Ô£ö phase skill exists but its bound agent file is missing -> emits an explicit offender, not [] (58.6437ms)
+Ô£ö phase skill with missing bound agent does not suppress checks for a sibling phase skill that has one (10.4679ms)
+Ô£ö check returns [] when the target root has no skills/ directory at all (0.9446ms)
+Ô£ö check({root: ROOT}) reports zero offenders against the real skills/ and agents/ trees (219.34ms)
+Ô£ö check({root: ROOT}) returns [] against the real hooks.json + ospec-state.js (mirrors the legacy assertion) (7.3089ms)
+Ô£ö synthetic-offender: LOCK_STALE_MS exceeding the declared timeout budget yields one offender naming the mismatch (42.1993ms)
+Ô£ö synthetic-offender: LOCK_STALE_MS below the retry-window floor yields one offender for the floor breach (13.107ms)
+Ô£ö checkBudgetRelationship: runtime value both above the ceiling and below its own floor yields two offenders (0.1418ms)
+Ô£ö WARNING 3 fix: missing scripts/lib/ospec-state.js yields an explicit offender instead of throwing MODULE_NOT_FOUND (4.9429ms)
+Ô£ö WARNING 3 fix: syntactically-corrupt ospec-state.js yields an explicit offender instead of crashing (19.5784ms)
+Ô£ö checkBudgetRelationship: passing values yield [] (0.1652ms)
+Ô£ö synthetic-offender: Codex target SessionStart timeout budget violation yields offender (10.228ms)
+Ô£ö codex profile loader failures yield an explicit offender instead of silently skipping the profile (41.5347ms)
+Ô£ö invalid codex hooks.source exports yield an explicit offender for empty and non-string values (10.4813ms)
+Ô£ö handles null or non-object hooksConfig without throwing TypeError (16.7546ms)
+Ô£ö check({root: ROOT}) returns [] against the real repo (mirrors the legacy test's happy path) (24.4754ms)
+Ô£ö checkDetailed({root: ROOT}) exercises sdd-document.prompt.md's routing (anchor preserved) (5.429ms)
+Ô£ö synthetic-offender case: roster/allowlist mismatch returns one offender, not a thrown assert (17.3799ms)
+Ô£ö rel-1 guard preserved: a command file missing from the roster is a hard offender, not a silent skip (8.5079ms)
+Ô£ö WARNING 1 fix: missing agentsSpecPath yields an explicit offender instead of throwing ENOENT (1.4694ms)
+Ô£ö WARNING 1 fix: agentsSpecPath being a directory (not a file) also yields an offender, not a thrown error (6.6685ms)
+Ô£ö WARNING 2 coverage: command file with an absent 'agent:' frontmatter field yields an offender (14.364ms)
+Ô£ö WARNING 2 coverage: command file whose declared router agent file does not exist yields an offender (17.5047ms)
+Ô£ö rel-2 guard preserved: zero arrow rows is reported as an offender (35.3544ms)
+Ô£ö runAllCheckers calls every registered checker and concatenates their offenders (3.9948ms)
+Ô£ö runAllCheckers returns [] when every registered checker passes (0.1659ms)
+Ô£ö runAllCheckers does not short-circuit ÔÇö a checker that fails does not prevent others from running (0.1675ms)
+Ô£ö runAllCheckers lets a throwing checker propagate instead of swallowing it as an offender (0.4635ms)
+Ô£ö 4.1.1 ┬À selectCandidates: brownfield-pending member is selected (1.7384ms)
+Ô£ö 4.1.2 ┬À selectCandidates: greenfield member is excluded (0.2392ms)
+Ô£ö 4.1.3 ┬À selectCandidates: already-initialized member is excluded (0.1961ms)
+Ô£ö 4.1.4 ┬À selectCandidates: brownfield and initDone never read from marker (0.1578ms)
+Ô£ö 4.1.5 ┬À nextMember: multi-member sequential order preserved (0.2161ms)
+Ô£ö 4.1.6 ┬À nextMember: member with baseline_status: done is skipped (0.1334ms)
+Ô£ö 4.1.7 ┬À nextMember: member with baseline_status: partial is returned for delegation (16.9966ms)
+Ô£ö 4.1.8 ┬À nextMember: pending member with approved gate returned for delegation (0.256ms)
+Ô£ö 4.1.9 ┬À nextMember: pending member with pending gate returns blockedByGate (77.8602ms)
+Ô£ö 4.1.10 ┬À nextMember: failed member without retryFailed is skipped (1.0527ms)
+Ô£ö 4.1.11 ┬À nextMember: failed member with retryFailed is re-included (0.1445ms)
+Ô£ö 4.1.12 ┬À hasForwardProgress returns true if pending count decreased (0.1187ms)
+Ô£ö 4.1.13 ┬À hasForwardProgress returns false if pending count remained same (0.0965ms)
+Ô£ö 4.1.14 ┬À shouldSkipBatch0 returns true if manifest and config exist (1.8159ms)
+Ô£ö 4.1.15 ┬À shouldSkipBatch0 returns false if config is absent (0.1375ms)
+Ô£ö 4.1.16 ┬À shouldSkipBatch0 returns false if both absent (0.1111ms)
+Ô£ö 4.1.17 ┬À resolveCoordinatorRoot uses explicit parameter directly (0.1338ms)
+Ô£ö 4.1.18 ┬À resolveCoordinatorRoot falls back to upward traversal (49.5199ms)
+Ô£ö 4.1.19 ┬À resolveCoordinatorRoot returns blocked when root indeterminate (1.1344ms)
+Ô£ö 4.1.20 ┬À applyFailurePolicy marks failed, appends warning verbatim, keeps gate (1.0631ms)
+Ô£ö 4.1.21 ┬À applyFailurePolicy: one member failure doesn't block others (0.1308ms)
+Ô£ö 4.1.22 ┬À recordGateApproval updates status atomically (16.6295ms)
+Ô£ö 4.1.23 ┬À recordGateApproval approved status skips gate on re-launch (0.1499ms)
+Ô£ö 4.1.24 ┬À parseStatus: empty content populates all candidates as pending (0.3526ms)
+Ô£ö 4.1.25 ┬À parseStatus: corrupt content is recovered safely (0.1771ms)
+Ô£ö 4.1.26 ┬À loadStatus recovers .bak file if target is absent (7.3232ms)
+Ô£ö 4.1.27 ┬À parseStatus/serializeStatus round-trip (0.4471ms)
+Ô£ö 4.1.28 ┬À parseStatus: missing unified_gate treated as pending (0.1279ms)
+Ô£ö 4.1.29 ┬À transition to success completes member atomically (15.9797ms)
+Ô£ö 4.1.30 ┬À transition to partial with progress updates pending and done domains (6.425ms)
+Ô£ö 4.1.31 ┬À transition to partial without progress (stuck-guard) fails member (6.1632ms)
+Ô£ö 4.1.32 ┬À transition: already done member is skipped idempotently (4.9422ms)
+Ô£ö 4.1.33 ┬À Integration: multi-member loop in sibling layout (46.532ms)
+Ô£ö 4.1.34 ┬À Integration: resume mid-loop (142.3208ms)
+Ô£ö 4.1.35 ┬À Integration: one member fails, others continue (318.8947ms)
+Ô£ö 4.1.36 ┬À Integration: coordinator never writes under member/openspec/specs/ (365.7338ms)
+Ô£ö explore writes a marker per member plus the atlas cache and the map (200.4102ms)
+Ô£ö explore classifies a node service as microservicio/dominio/brownfield (188.7968ms)
+Ô£ö explore classifies a csproj-only package as nuget/common/greenfield (339.1405ms)
+Ô£ö explore sets type null with a warning when the stack cannot be inferred (564.9224ms)
+Ô£ö explore counts a member whose .git is a plain file (worktree) (804.5723ms)
+Ô£ö explore writes no artifacts and warns when no member repos are found (314.924ms)
+Ô£ö explore records a failed enroll as pending and builds the atlas from the survivors (623.9325ms)
+Ô£ö re-running explore on unchanged members leaves markers byte-stable (256.4534ms)
+Ô£ö classifyMember derives the common layer from a shared directory name (10.7704ms)
+Ô£ö explore never enrolls or writes outside the container on a traversal path (57.7124ms)
+Ô£ö explore writes no artifacts when the only member escapes the container (33.7627ms)
+Ô£ö explore never enrolls or writes through a symlinked member that escapes the container (322.144ms)
+Ô£ö 3.1.1 ┬À workspace.yaml written via temp+rename (120.5594ms)
+Ô£ö 3.1.2 ┬À workspace-map.md written via temp+rename (268.2322ms)
+Ô£ö 3.1.3 ┬À workspace-map.md write fails after workspace.yaml succeeds (507.0948ms)
+Ô£ö 3.1.4 ┬À Stale workspace-map.md.tmp detected and overwritten (322.0451ms)
+Ô£ö 3.1.5 ┬À explore integration S1 + S3: brownfield member marker has origin: explore and files are atomic (202.2877ms)
+Ô£ö 3.1.6 ┬À explore marker includes explicit roster: [] (S1 hardening) (307.8096ms)
+Ô£ö serializeMarker/parseMarker round-trip preserves every field (4.0065ms)
+Ô£ö round-trip preserves provides sub-fields including empty consumers (0.2843ms)
+Ô£ö serializeMarker emits updated_at as the last field (0.2657ms)
+Ô£ö enroll writes the marker on first call and stamps updated_at (65.0939ms)
+Ô£ö enroll is idempotent on identical data and keeps updated_at stable (21.3454ms)
+Ô£ö enroll ignores member key ordering when deciding idempotency (17.7208ms)
+Ô£ö enroll rewrites and refreshes updated_at when content changes (18.5461ms)
+Ô£ö enroll creates the openspec directory when absent (9.7564ms)
+Ô£ö enroll leaves no temporary file behind after an atomic write (10.8706ms)
+Ô£ö enroll rethrows a transient I/O read error and does NOT overwrite a healthy marker (8.6573ms)
+Ô£ö enroll rethrows EISDIR when the marker path is a directory (no silent overwrite) (6.9128ms)
+Ô£ö enroll rewrites a present-but-unparseable marker (corrupt self-heal stays green) (23.0969ms)
+Ô£ö 2.1.1 ┬À Explore enroll sets origin: explore on new marker (29.8855ms)
+Ô£ö 2.1.2 ┬À Explore enroll does not downgrade origin: init (127.4826ms)
+Ô£ö 2.1.3 ┬À Explore enroll does not downgrade origin: manual (155.3346ms)
+Ô£ö 2.1.4 ┬À sdd-init enroll upgrades origin: explore to init (43.5049ms)
+Ô£ö 2.1.5 ┬À serializeMarker/parseMarker round-trip with origin field present (0.2534ms)
+Ô£ö flow-validator: allows everything if routePhases is empty or absent (0.8545ms)
+Ô£ö flow-validator: fails if targetPhase is not declared in routePhases (0.2225ms)
+Ô£ö flow-validator: standard route transitions (0.1802ms)
+Ô£ö flow-validator: lite route transitions (sdd-tasks doesn't require design.md) (0.1552ms)
+Ô£ö parse splits frontmatter fields from the body (2.0453ms)
+Ô£ö serialize round-trips unmodified content byte-for-byte (0.2198ms)
+Ô£ö parse returns empty frontmatter when no block is present (0.1177ms)
+Ô£ö parse is tolerant of non-string input (0.8285ms)
+Ô£ö stripKeys removes only the named top-level keys (0.2528ms)
+Ô£ö setScalar replaces an existing key and appends a new one (0.3423ms)
+Ô£ö setScalar quotes values that would break a plain scalar (0.163ms)
+Ô£ö setScalar leaves safe plain scalars unquoted (0.1478ms)
+Ô£ö setArray writes an inline list in repo style (0.2011ms)
+Ô£ö parse preserves nested block fields untouched on serialize (0.2427ms)
+Ô£ö parseHooksBlock: absent/null content returns empty object (2.1064ms)
+Ô£ö parseHooksBlock: undefined content returns empty object (0.1294ms)
+Ô£ö parseHooksBlock: valid object with two known events returns parsed map (0.207ms)
+Ô£ö parseHooksBlock: unknown event key is absent from result (0.1469ms)
+Ô£ö parseHooksBlock: action object fields are preserved (type, skill, on_failure) (0.163ms)
+Ô£ö parseHooksBlock: rules and command fields are preserved (0.156ms)
+Ô£ö validateHooksBlock: action missing type field produces error (0.4507ms)
+Ô£ö validateHooksBlock: load-skill action missing skill field produces error (0.1974ms)
+Ô£ö validateHooksBlock: load-rules action missing rules field produces error (0.4835ms)
+Ô£ö validateHooksBlock: run-command action missing command field produces error (1.0464ms)
+Ô£ö validateHooksBlock: invalid on_failure value produces error (0.54ms)
+Ô£ö validateHooksBlock: well-formed block returns {valid: true, errors: []} (0.3886ms)
+Ô£ö validateHooksBlock: action without on_failure field (optional) is valid (0.1075ms)
+Ô£ö eventAppliesToRoute: event present in routePhases mapping returns true (0.131ms)
+Ô£ö eventAppliesToRoute: before-verify when route is [sdd-apply] returns false (0.1014ms)
+Ô£ö eventAppliesToRoute: before-implementation when sdd-apply is in phases returns true (0.0822ms)
+Ô£ö eventAppliesToRoute: before-task requires sdd-apply in phases (0.1809ms)
+Ô£ö eventAppliesToRoute: before-commit requires sdd-apply in phases (0.0706ms)
+Ô£ö eventAppliesToRoute: after-verify requires sdd-verify in phases (0.0498ms)
+Ô£ö eventAppliesToRoute: after-archive requires sdd-archive in phases (0.0984ms)
+Ô£ö eventAppliesToRoute: before-change applies to any route (always-true) (0.1413ms)
+Ô£ö planExecution: three actions returned in original order A, B, C (0.2076ms)
+Ô£ö planExecution: halt action with outcome failed marks subsequent entries as skipped (0.217ms)
+Ô£ö planExecution: advisory failure on B does not cause C to be skipped (0.1914ms)
+Ô£ö planExecution: does not mutate original actions (input-immutability proof) (0.1695ms)
+Ô£ö computeEventStatus: all success outcomes returns 'done' (0.1018ms)
+Ô£ö computeEventStatus: one halt action failed returns 'failed' (0.066ms)
+Ô£ö computeEventStatus: one advisory action failed, rest success returns 'done' (0.0892ms)
+Ô£ö computeEventStatus: all skipped outcomes returns 'skipped' (0.2663ms)
+Ô£ö computeEventStatus: empty action outcomes returns 'skipped' (vacuous) (0.1958ms)
+Ô£ö computeEventStatus: halt failure takes precedence over all-skipped check (1.1421ms)
+Ô£ö buildAuditEntry: before-change with one success action has correct shape (0.3711ms)
+Ô£ö buildAuditEntry: skipped event (null results) returns {status: skipped, actions: []} (0.0885ms)
+Ô£ö buildAuditEntry: single-fire event includes action type and type-specific fields (0.1114ms)
+Ô£ö buildAuditEntry: run-command result includes command field and message when present (0.1352ms)
+Ô£ö buildAuditEntry: maps on_failure to policy in single-fire output (0.0743ms)
+Ô£ö buildAuditEntry before-task: first invocation index:0 batch:1 ÔåÆ occurrences[0] present (0.1385ms)
+Ô£ö buildAuditEntry before-task: second invocation appended ÔåÆ occurrences has two entries (0.1858ms)
+Ô£ö buildAuditEntry before-task: top-level status reflects worst outcome across occurrences (0.1508ms)
+Ô£ö buildAuditEntry before-task: occurrences do not include on_failure field (policy mapped) (0.1338ms)
+Ô£ö KNOWN_EVENTS contains all 7 lifecycle event names (0.3978ms)
+Ô£ö KNOWN_ACTION_TYPES contains the three action types (1.0318ms)
+Ô£ö KNOWN_POLICIES contains advisory and halt (4.1204ms)
+Ô£ö validateHooksBlock: null action element does not throw and produces error (0.3449ms)
+Ô£ö validateHooksBlock: undefined action element does not throw and produces error (1.1612ms)
+Ô£ö validateHooksBlock: primitive string action element does not throw and produces error (0.1671ms)
+Ô£ö validateHooksBlock: non-array event value produces error (not silently skipped) (0.3832ms)
+Ô£ö validateHooksBlock: load-skill with path traversal (..) is rejected (0.2512ms)
+Ô£ö validateHooksBlock: load-skill with absolute path is rejected (0.1931ms)
+Ô£ö validateHooksBlock: load-skill with Windows drive letter is rejected (0.6464ms)
+Ô£ö validateHooksBlock: load-skill with valid skills/ path is accepted (0.1568ms)
+Ô£ö validateHooksBlock: load-rules text exceeding 4000 chars is rejected (0.2049ms)
+Ô£ö validateHooksBlock: load-rules text at exactly 4000 chars is accepted (0.2325ms)
+Ô£ö validateHooksBlock: skill: 42 (integer) does not throw and produces error (0.3475ms)
+Ô£ö validateHooksBlock: skill: true (boolean) does not throw and produces error (0.1701ms)
+Ô£ö validateHooksBlock: skill: {} (object) does not throw and produces error (0.1674ms)
+Ô£ö validateHooksBlock: skill: [1] (array) does not throw and produces error (0.153ms)
+Ô£ö validateHooksBlock: rules: 42 (number) produces error and is rejected (0.2533ms)
+Ô£ö validateHooksBlock: rules: {} (object) produces error and is rejected (0.1272ms)
+Ô£ö validateHooksBlock: null argument does not throw and is valid (no hooks) (0.2594ms)
+Ô£ö validateHooksBlock: undefined argument does not throw and is valid (no hooks) (0.1198ms)
+Ô£ö validateHooksBlock: array argument does not throw and is valid (no hooks) (0.1941ms)
+Ô£ö validateHooksBlock: primitive argument does not throw and is valid (no hooks) (0.1955ms)
+Ô£ö listed agent resolves its tier model per target (1.4082ms)
+Ô£ö unlisted agent falls back to the _default tier (0.1286ms)
+Ô£ö inherit yields the OMIT sentinel (0.1226ms)
+Ô£ö missing tier/target entry yields OMIT without throwing (0.1362ms)
+Ô£ö absent or malformed config yields OMIT (0.1797ms)
+Ô£ö canonical validator reports stable agent-specific errors (0.5015ms)
+Ô£ö finds the OpenSpec root when present (19.3829ms)
+Ô£ö reads state metadata from a change directory or state path (18.7371ms)
+Ô£ö readState recovers an orphaned state.yaml.bak before reading (CRITICAL remediation) (16.0946ms)
+Ô£ö prefers change status over a top-level status (119.5716ms)
+Ô£ö returns active changes newest first and excludes archive and terminal states (162.9561ms)
+Ô£ö writes a change-scoped session summary and skips unchanged content (27.1967ms)
+Ô£ö appends runtime events without serializing workspace metadata (12.423ms)
+Ô£ö appendRuntimeEvent serializes concurrent writers without corrupting lines (2463.675ms)
+Ô£ö appendRuntimeEvent reclaims a stale orphaned lock instead of stalling forever (52.6724ms)
+Ô£ö appendPhaseCost serializes concurrent writers without corrupting lines (3285.3425ms)
+Ô£ö appendPhaseCost reclaims a stale orphaned lock instead of stalling forever (61.2931ms)
+Ô£ö readBaselineState returns null when baseline block is absent (0.3419ms)
+Ô£ö readBaselineState returns null for empty content (0.2101ms)
+Ô£ö readBaselineState parses status: pending with all inline empty lists (0.4037ms)
+Ô£ö readBaselineState parses status: partial with indented list items (0.3229ms)
+Ô£ö readBaselineState parses status: done with stale_domains list (0.1555ms)
+Ô£ö readBaselineState normalizes CRLF line endings (0.1209ms)
+Ô£ö readBaselineState skips comment lines inside and outside the block (0.1146ms)
+Ô£ö readBackendMode defaults to openspec when the artifact_store block is absent (0.1432ms)
+Ô£ö readBackendMode reads a configured federated backend (0.1182ms)
+Ô£ö readBackendMode falls back to openspec for an unknown backend (0.1242ms)
+Ô£ö readBackendMode tolerates CRLF and trailing comments (0.087ms)
+Ô£ö readBaselineState does not bleed into subsequent top-level blocks (0.0813ms)
+Ô£ö matchesGlobs matches ** across any directory depth (2.4151ms)
+Ô£ö matchesGlobs matches * only within a single path segment (0.1354ms)
+Ô£ö matchesGlobs matches a literal path exactly (0.1814ms)
+Ô£ö matchesGlobs returns false when no glob matches (0.1089ms)
+Ô£ö readStagedFiles parses `git diff --name-only --cached` output (0.4942ms)
+Ô£ö readStagedFiles returns null on git failure without throwing (0.1899ms)
+Ô£ö detectSpecDrift reports a domain as drifted when changed files match its source globs (31.8981ms)
+Ô£ö detectSpecDrift returns null when changed files do not overlap the domain's globs (23.1664ms)
+Ô£ö detectSpecDrift suppresses a domain already covered by an active change's specs scope (44.7538ms)
+Ô£ö detectSpecDrift fails safe when the git probe throws (bad hash / no git / detached HEAD) (215.2805ms)
+Ô£ö detectSpecDrift derives source globs from the manifest's Domain Map sources: list (225.293ms)
+Ô£ö detectSpecDrift uses the latest Entries row per domain (append-only log, latest wins) (217.8252ms)
+Ô£ö detectSpecDrift returns null when zero domains drift (157.7473ms)
+Ô£ö detectSpecDrift reports two domains drifted simultaneously (99.4572ms)
+Ô£ö detectSpecDrift tolerates irregular whitespace and a trailing comma in sources: (127.9786ms)
+Ô£ö detectSpecDrift does not suppress an unrelated domain via a different active change's specs scope (398.5751ms)
+Ô£ö setPhaseSummary fills an empty summary gap and appends key_decisions (1.1402ms)
+Ô£ö setPhaseSummary fills the gap when the summary key is entirely absent (0.2136ms)
+Ô£ö setPhaseSummary is a no-op when the phase summary is already non-empty (0.3958ms)
+Ô£ö setPhaseSummary escapes double quotes and backslashes in the summary (0.8433ms)
+Ô£ö setPhaseSummary truncates the summary to 160 characters (0.5261ms)
+Ô£ö setPhaseSummary renders multiple key_decisions as a YAML list (0.2464ms)
+Ô£ö setPhaseSummary is a no-op when the target phase does not exist in state.yaml (0.0878ms)
+Ô£ö setPhaseSummary omits key_decisions entirely when the list is empty (0.0922ms)
+Ô£ö setPhaseSummary neutralizes an embedded newline in summary so it cannot forge a new YAML line (0.0958ms)
+Ô£ö setPhaseSummary neutralizes an embedded CRLF in key_decisions so it cannot forge a new top-level key (0.1433ms)
+Ô£ö setPhaseSummary escapes control characters using code-point-safe truncation (2.7064ms)
+Ô£ö withFileLock serializes concurrent callers around the same lock file (65.9038ms)
+Ô£ö withFileLock retries transient Windows EPERM lock-open races (126.1587ms)
+Ô£ö withFileLock retries transient Windows EACCES lock-open races (69.4745ms)
+Ô£ö withFileLock survives a transient EPERM while reclaiming a stale lock (74.7619ms)
+Ô£ö withFileLock does not fail after success when final lock cleanup hits transient EACCES (27.044ms)
+Ô£ö withFileLock rejects when final lock cleanup keeps failing with EACCES (60.6467ms)
+Ô£ö withFileLock does not fall back to unlocked execution after persistent contention (24.7949ms)
+Ô£ö withAppendLock remains exported as an alias of withFileLock for existing callers (0.2462ms)
+Ô£ö lock stale window stays within the SessionStart hook timeout budget and above the retry floor (1.8526ms)
+Ô£ö appendPhaseCost assigns relaunch: false on first append and relaunch: true on subsequent appends for the same phase (221.2319ms)
+Ô£ö parseQualityGates: null input returns null (2.423ms)
+Ô£ö parseQualityGates: undefined input returns null (0.1011ms)
+Ô£ö parseQualityGates: all four known gates recognized with defaults applied (0.3196ms)
+Ô£ö parseQualityGates: unknown gate key dropped silently (0.2554ms)
+Ô£ö parseQualityGates: explicit on_fail: halt preserved (0.1528ms)
+Ô£ö parseQualityGates: tests.coverage sub-object normalized (0.1757ms)
+Ô£ö validateQualityGates: valid policy returns { valid: true, errors: [] } (0.7341ms)
+Ô£ö validateQualityGates: unknown on_fail value produces { valid: false, errors non-empty } (0.2042ms)
+Ô£ö validateQualityGates: calling with null MUST NOT throw (0.2201ms)
+Ô£ö validateQualityGates: calling with undefined MUST NOT throw (0.1753ms)
+Ô£ö validateQualityGates: calling with primitive 42 MUST NOT throw (0.1144ms)
+Ô£ö validateQualityGates: calling with string MUST NOT throw (0.1161ms)
+Ô£ö parseCoverage: '85' ÔåÆ 85 (0.1091ms)
+Ô£ö parseCoverage: '72.4' ÔåÆ 72.4 (0.0751ms)
+Ô£ö parseCoverage: empty string ÔåÆ null (0.0668ms)
+Ô£ö parseCoverage: 'not a number' ÔåÆ null (0.0646ms)
+Ô£ö parseCoverage: null input ÔåÆ null (0.0675ms)
+Ô£ö classifyGate: absent command ÔåÆ { status: 'skipped', detail: 'command not configured' } (0.2538ms)
+Ô£ö classifyGate: empty command string ÔåÆ { status: 'skipped', ... } (0.0941ms)
+Ô£ö classifyGate: exitCode 0 ÔåÆ { status: 'pass' } (0.0882ms)
+Ô£ö classifyGate: exitCode 1 ÔåÆ { status: 'fail' } (0.0826ms)
+Ô£ö classifyGate: tests gate coverage below minimum ÔåÆ { status: 'fail', detail mentioning coverage pct and minimum } (0.1532ms)
+Ô£ö classifyGate: tests gate with absent coverage.command ÔåÆ status pass with coverage-skipped warning detail (0.1389ms)
+Ô£ö classifyGate: tests gate, un-parseable coverageStdout ÔåÆ coverage skipped-with-warning, not fail (0.171ms)
+Ô£ö enforceGate: required:true, on_fail:'halt', status:'fail' ÔåÆ { finding: 'BLOCKER', blocksArchive: true } (0.1193ms)
+Ô£ö enforceGate: required:true, on_fail:'advisory', status:'fail' ÔåÆ { finding: 'WARNING', blocksArchive: false } (0.1102ms)
+Ô£ö enforceGate: required:false, status:'fail' ÔåÆ { finding: null, blocksArchive: false } (0.1015ms)
+Ô£ö enforceGate: status:'pass' ÔåÆ { finding: null, blocksArchive: false } (0.0865ms)
+Ô£ö enforceGate: status:'skipped' ÔåÆ { finding: null, blocksArchive: false } (0.0845ms)
+Ô£ö aggregateStatus: one gate fail with required:true, on_fail:'halt' ÔåÆ 'fail' (0.1404ms)
+Ô£ö aggregateStatus: one fail advisory, one pass ÔåÆ 'pass' (0.1138ms)
+Ô£ö aggregateStatus: all gates skipped ÔåÆ 'skipped' (0.0855ms)
+Ô£ö aggregateStatus: mix of pass and skipped, no fail ÔåÆ 'pass' (0.0774ms)
+Ô£ö buildAuditBlock: output has top-level status, evaluated_at, gates keys (0.1489ms)
+Ô£ö buildAuditBlock: each gate entry has status, required, on_fail (0.0916ms)
+Ô£ö buildAuditBlock: detail key present only when informative (0.0916ms)
+Ô£ö buildAuditBlock: top-level status matches aggregateStatus result for halt-fail (0.1892ms)
+Ô£ö buildAuditBlock: top-level status is 'pass' when no halt-required fail present (0.1142ms)
+Ô£ö KNOWN_GATES contains all four gate names (0.1373ms)
+Ô£ö KNOWN_ON_FAIL contains advisory and halt (0.1877ms)
+Ô£ö H5: DEFAULT_GATE_TIMEOUT_MS is a positive integer (120000) (0.1123ms)
+Ô£ö H5: parseQualityGates applies default timeout_ms when absent (0.0915ms)
+Ô£ö H5: parseQualityGates preserves a valid positive integer timeout_ms (0.1343ms)
+Ô£ö H5: parseQualityGates falls back to default for non-positive timeout_ms (0.1096ms)
+Ô£ö H5: parseQualityGates falls back to default for non-integer/non-numeric timeout_ms (0.0881ms)
+Ô£ö H5: validateQualityGates flags a present but non-positive timeout_ms (0.1358ms)
+Ô£ö H6: parseQualityGates coerces a numeric-string minimum to a number (0.0926ms)
+Ô£ö H6: parseQualityGates omits an invalid (non-numeric) minimum (0.097ms)
+Ô£ö H6: parseQualityGates omits an out-of-range minimum (<0 or >100) (0.0788ms)
+Ô£ö H6: validateQualityGates flags a present but invalid coverage.minimum (0.1116ms)
+Ô£ö H6: parseCoverage returns null for out-of-range values (no clamp) (0.0823ms)
+Ô£ö H6: parseCoverage accepts boundary values 0 and 100 and fractional in-range (0.0925ms)
+Ô£ö H6: parseCoverage(undefined) ÔåÆ null (0.0814ms)
+Ô£ö parseQualityGates: malformed top-level inputs return null (0.0672ms)
+Ô£ö parseQualityGates: a non-object gate value normalizes to safe defaults (0.0601ms)
+Ô£ö H4: classifyGate with execResult.timedOut ÔåÆ status 'error' with timeout detail (0.0837ms)
+Ô£ö H4: classifyGate with execResult.error ÔåÆ status 'error' (0.1365ms)
+Ô£ö H4: classifyGate with non-finite exitCode (undefined/NaN) ÔåÆ status 'error' (0.0988ms)
+Ô£ö H4: classifyGate timedOut takes precedence over an exit code (0.0777ms)
+Ô£ö H4: enforceGate treats required-halt 'error' as BLOCKER + blocksArchive (0.1034ms)
+Ô£ö H4: enforceGate treats required-advisory 'error' as WARNING (0.0921ms)
+Ô£ö H4: aggregateStatus treats a required-halt 'error' as top-level 'fail' (0.0944ms)
+Ô£ö H4: buildAuditBlock preserves a per-gate 'error' status distinctly (0.0958ms)
+Ô£ö classifyCoverage: below minimum ÔåÆ { override: 'fail', detail } (0.1582ms)
+Ô£ö classifyCoverage: no coverage.command ÔåÆ skipped with warning, no override (0.1273ms)
+Ô£ö classifyCoverage: un-parseable / out-of-range stdout ÔåÆ skipped warning, no override (0.1465ms)
+Ô£ö classifyCoverage: omitted minimum ÔåÆ no override, no detail (0.0821ms)
+Ô£ö aggregateStatus([]) ÔåÆ 'skipped' (0.0752ms)
+Ô£ö buildAuditBlock([], ts) ÔåÆ { status: 'skipped', evaluated_at: ts, gates: {} } (0.1004ms)
+Ô£ö extractEnvelope: finds and parses a valid fence (1.827ms)
+Ô£ö extractEnvelope: absent fence returns found:false (0.1888ms)
+Ô£ö extractEnvelope: malformed JSON inside fence returns found:true, value:null (0.2629ms)
+Ô£ö extractEnvelope: does not match a bare json fence (no info-string suffix) (0.1384ms)
+Ô£ö extractEnvelope: never throws on non-string input (0.2495ms)
+Ô£ö validateEnvelope: valid envelope passes with no errors (0.3603ms)
+Ô£ö validateEnvelope: missing required field "status" is invalid (0.2308ms)
+Ô£ö validateEnvelope: missing required field "executive_summary" is invalid (0.1259ms)
+Ô£ö validateEnvelope: missing required field "artifacts" is invalid (0.1367ms)
+Ô£ö validateEnvelope: missing required field "next_recommended" is invalid (0.2001ms)
+Ô£ö validateEnvelope: missing required field "risks" is invalid (0.2184ms)
+Ô£ö validateEnvelope: missing required field "skill_resolution" is invalid (0.1042ms)
+Ô£ö validateEnvelope: bad status enum value is invalid (0.178ms)
+Ô£ö validateEnvelope: artifacts accepts the literal string "inline" (0.1045ms)
+Ô£ö validateEnvelope: risks accepts a list as well as a string (0.0978ms)
+Ô£ö validateEnvelope: status:blocked requires question_gate (0.1583ms)
+Ô£ö validateEnvelope: status:blocked with question_gate is valid (0.1135ms)
+Ô£ö validateEnvelope: bad blocker_type enum value is invalid (0.1285ms)
+Ô£ö validateEnvelope: known blocker_type enum values are valid (0.1204ms)
+Ô£ö validateEnvelope: invalid assumptions[] entry (missing field) is invalid (0.1681ms)
+Ô£ö validateEnvelope: invalid assumptions[] entry (bad reversibility enum) is invalid (0.1004ms)
+Ô£ö validateEnvelope: well-formed assumptions[] entry is valid (0.0765ms)
+Ô£ö validateEnvelope: never throws on garbage input (0.9653ms)
+Ô£ö validateEnvelope: bad status enum message lists values in declaration order (0.1529ms)
+Ô£ö validateEnvelope: bad reversibility enum message lists values in declaration order (0.1883ms)
+Ô£ö validateEnvelope: bad blocker_type enum message lists values in declaration order (0.1231ms)
+Ô£ö validateEnvelope: generic validation remains compatible without spec signals (0.1141ms)
+Ô£ö validateEnvelope: successful sdd-spec requires signals in canonical order (0.0995ms)
+Ô£ö validateEnvelope: valid successful sdd-spec signals pass (0.1734ms)
+Ô£ö validateEnvelope: spec signal types and elements fail deterministically (0.0998ms)
+Ô£ö validateEnvelope: present spec signals are type-checked generically (0.0932ms)
+Ô£ö validateEnvelope: partial and blocked sdd-spec do not require signals (0.1124ms)
+Ô£ö KNOWN_PHASES includes all expected phase names (2.3958ms)
+Ô£ö KNOWN_GATES includes all expected gate names (0.3743ms)
+Ô£ö KNOWN_CLASSES includes all four classification values (2.3521ms)
+Ô£ö KNOWN_COSTS includes the three cost tiers (0.1189ms)
+Ô£ö validateRoute accepts the foundation route (0.4835ms)
+Ô£ö validateRoute accepts the federated route (0.132ms)
+Ô£ö validateRoute accepts the bugfix route (0.1365ms)
+Ô£ö validateRoute accepts the brownfield route (0.1095ms)
+Ô£ö validateRoute accepts the standard route (0.3398ms)
+Ô£ö validateRoute accepts the lite route (0.2998ms)
+Ô£ö validateRoute accepts optional tags, experimental, and cost fields (0.1477ms)
+Ô£ö validateRoute tolerates unknown fields for forward compatibility (0.1828ms)
+Ô£ö validateRoute rejects entry missing the name field (0.1617ms)
+Ô£ö validateRoute rejects entry missing the classification field (0.2059ms)
+Ô£ö validateRoute rejects entry missing the conditions field (0.2283ms)
+Ô£ö validateRoute rejects entry missing the phases field (0.1732ms)
+Ô£ö validateRoute rejects entry missing the gates field (0.1372ms)
+Ô£ö validateRoute rejects entry missing the description field (0.1509ms)
+Ô£ö validateRoute rejects empty phases array (0.1774ms)
+Ô£ö validateRoute rejects unknown phase name (0.1475ms)
+Ô£ö validateRoute rejects unknown gate name (0.1311ms)
+Ô£ö validateRoute rejects classification value not in KNOWN_CLASSES (0.1383ms)
+Ô£ö validateRoute rejects an array classification with an unknown value (0.132ms)
+Ô£ö validateRoute rejects cost value not in KNOWN_COSTS (0.1516ms)
+Ô£ö validateRoute rejects non-boolean experimental value (0.1577ms)
+Ô£ö validateRoute rejects non-string name (number) (0.1447ms)
+Ô£ö validateRouteTable accepts a table of unique-named valid routes (0.17ms)
+Ô£ö validateRouteTable rejects table with duplicate route names (0.1586ms)
+Ô£ö validateRouteTable reports per-entry errors alongside duplicate errors (0.13ms)
+Ô£ö parseRoutingTable round-trips scalar fields (0.8246ms)
+Ô£ö parseRoutingTable parses inline array phases (0.2622ms)
+Ô£ö parseRoutingTable parses block sequence phases (0.2379ms)
+Ô£ö parseRoutingTable parses nested conditions map (0.1759ms)
+Ô£ö parseRoutingTable ignores comment lines and blank lines (0.8647ms)
+Ô£ö parseRoutingTable parses multiple route entries (0.3151ms)
+Ô£ö parseRoutingTable returns empty array when routing block is absent (0.203ms)
+Ô£ö parseRoutingTable returns empty array for routing: [] (0.1271ms)
+Ô£ö parseRoutingTable parses inline array classification (0.2573ms)
+Ô£ö classifyChange returns deterministic confidence for explicit classification signal (1.7473ms)
+Ô£ö classifyChange returns deterministic confidence for project.status signal (0.1274ms)
+Ô£ö classifyChange returns deterministic confidence for baseline.status signal (0.1585ms)
+Ô£ö classifyChange returns deterministic confidence for artifact_store.backend signal (0.0882ms)
+Ô£ö classifyChange returns advisory confidence when no deterministic signal is present (0.0767ms)
+Ô£ö classifyChange returns advisory confidence for empty context (0.0695ms)
+Ô£ö validateRoute does not mutate frozen input (input-immutability proof) (0.2711ms)
+Ô£ö parseRoutingTable is deterministic and returns independent arrays on repeated calls (no global mutation) (0.1514ms)
+Ô£ö classifyChange does not mutate frozen context and is deterministic (purity proof) (0.1074ms)
+Ô£ö matchConditions AND mode ÔÇö both keys match returns true (0.1533ms)
+Ô£ö matchConditions AND mode ÔÇö one key fails returns false (0.0707ms)
+Ô£ö matchConditions OR mode ÔÇö only one key matches returns true (0.0646ms)
+Ô£ö matchConditions OR mode ÔÇö no key matches returns false (0.0516ms)
+Ô£ö matchConditions array value ÔÇö ctx value equals first element returns true (0.0629ms)
+Ô£ö matchConditions array value ÔÇö ctx value equals second element returns true (0.0788ms)
+Ô£ö matchConditions array value ÔÇö ctx value not in array returns false (0.0882ms)
+Ô£ö matchConditions derived boolean ÔÇö true in conditions matches true in ctx (0.078ms)
+Ô£ö matchConditions derived boolean ÔÇö true in conditions fails false in ctx (0.0612ms)
+Ô£ö matchConditions brownfield any ÔÇö pending baseline matches (0.061ms)
+Ô£ö matchConditions brownfield any ÔÇö specs_empty_with_code true matches (0.0553ms)
+Ô£ö matchConditions brownfield any ÔÇö code_without_specs true matches (0.0523ms)
+Ô£ö matchConditions brownfield any ÔÇö done baseline with all signals false returns false (0.0505ms)
+Ô£ö matchConditions empty conditions match:all returns true (vacuously true) (0.0535ms)
+Ô£ö matchConditions empty conditions match:any returns false (0.0528ms)
+Ô£ö matchConditions absent derived signal in ctx fails boolean check (0.0574ms)
+Ô£ö validateRoute accepts conditions with match:any meta-key alongside real keys (0.1351ms)
+Ô£ö validateRoute accepts array-valued condition key in conditions (0.2796ms)
+Ô£ö validateRoute accepts KNOWN_DERIVED_SIGNALS key with boolean true value (0.1508ms)
+Ô£ö validateRoute rejects match value not in {all, any} (0.1519ms)
+Ô£ö validateRoute rejects KNOWN_DERIVED_SIGNALS key with non-boolean value (0.1932ms)
+Ô£ö parseRoutingTable coerces conditions inline-array to JS array (0.164ms)
+Ô£ö parseRoutingTable coerces condition 'true' string to boolean true (0.1242ms)
+Ô£ö parseRoutingTable coerces condition 'false' string to boolean false (0.145ms)
+Ô£ö parseRoutingTable parses match:any as string 'any' (not boolean) (0.1075ms)
+Ô£ö parseRoutingTable coerces top-level experimental:true string to boolean true (0.1397ms)
+Ô£ö parseRoutingTable coerces top-level experimental:false string to boolean false (0.1736ms)
+Ô£ö detectResidualBooleanStrings returns the offending keys for residual string booleans (0.2201ms)
+Ô£ö detectResidualBooleanStrings returns an empty array for already-coerced native booleans (1.2443ms)
+Ô£ö detectResidualBooleanStrings excludes the 'match' meta-key even though its value looks boolean-like (0.0811ms)
+Ô£ö calculates a deterministic content and path fingerprint (39.3604ms)
+Ô£ö discovers cacheable skills and all fingerprint inputs (19.7548ms)
+Ô£ö extracts compact rules from complete skill markdown (0.4459ms)
+Ô£ö writes and reads registry cache JSON (23.5754ms)
+Ô£ö extractCapabilities: [angular] returns [angular] (0.1883ms)
+Ô£ö extractCapabilities: [angular, tailwind] returns both items (0.1342ms)
+Ô£ö extractCapabilities: semicolon-separated returns both items (0.1569ms)
+Ô£ö extractCapabilities: empty string returns empty array (0.1303ms)
+Ô£ö extractCapabilities: bracket-strip trims whitespace inside brackets (0.1257ms)
+Ô£ö discoverSkills: stack entries have capabilities populated, example has empty array (24.533ms)
+Ô£ö calculateFingerprint: invalid input throws TypeError (0.5197ms)
+Ô£ö collectFiles: passing a file path instead of directory throws ENOTDIR and is propagated (75.0834ms)
+Ô£ö readRegistryCache: reading a directory path throws EISDIR/EPERM and is propagated (13.3213ms)
+Ô£ö writeRegistryCache: rename error is propagated and not masked by finally block (162.9184ms)
+Ô£ö transform is idempotent: same inputs yield equal outputs (7.5975ms)
+Ô£ö transform output is sorted by path and independent of input order (0.7561ms)
+Ô£ö transform does not mutate the input files collection (0.47ms)
+Ô£ö transform returns a new collection object (0.4014ms)
+Ô£ö claude manifest omits string component paths and drops rules (0.4778ms)
+Ô£ö vscode (identity) leaves the manifest untouched (0.24ms)
+Ô£ö claude nests flat event entries preserving type/command/timeout (0.402ms)
+Ô£ö vscode leaves hooks flat (identity) (0.2355ms)
+Ô£ö claude renames agent and command files to .md (0.4182ms)
+Ô£ö vscode preserves the agent and command suffixes (identity) (0.2605ms)
+Ô£ö claude substitutes tool names in the frontmatter grant, expanding one-to-many (0.3214ms)
+Ô£ö claude substitutes backticked tool references in prose, primary for one-to-many (0.3525ms)
+Ô£ö claude does NOT corrupt the generic word 'agent' in bare prose (0.3105ms)
+Ô£ö no vscode/ namespaced strings remain anywhere in a claude tree (agents, commands, skills, inlined rules) (0.3197ms)
+Ô£ö skills passthrough content is tool-substituted (CRITICAL-1 guard) (0.2539ms)
+Ô£ö claude rewrites ${input} to $ARGUMENTS (0.3925ms)
+Ô£ö claude rewrites ${input:name} to $name and declares it in the arguments frontmatter (0.2621ms)
+Ô£ö claude drops the inert agent:/context: command routing keys (0.2266ms)
+Ô£ö claude strips target but preserves user-invocable in agent frontmatter (0.915ms)
+Ô£ö claude emits the orchestrator as a skill, not a sub-agent (0.2463ms)
+Ô£ö the orchestrator skill carries name + description and the inlined rules, with no model/tools/target (0.3758ms)
+Ô£ö claude drops the rules dir (content inlined into the orchestrator skill) (0.2836ms)
+Ô£ö vscode keeps the rules directory (identity transform) (0.1585ms)
+Ô£ö claude adds the resolved model alias to phase agents (0.2702ms)
+Ô£ö vscode injects resolved model keys from models.yaml (0.1759ms)
+Ô£ö vscode unwraps structured model entries without stringifying the object (0.1869ms)
+Ô£ö github-copilot emits agents under .github/agents with target: github-copilot (0.4567ms)
+Ô£ö github-copilot keeps valid tool aliases and maps vscode/askQuestions to ask_user (0.2673ms)
+Ô£ö github-copilot orchestrator stays a normal agent (not a skill) (0.2218ms)
+Ô£ö github-copilot emits prompts under .github/prompts, keeping ${input:..} and agent routing (0.2323ms)
+Ô£ö github-copilot turns rules into .github/instructions/*.instructions.md with applyTo (0.2848ms)
+Ô£ö github-copilot drops the plugin manifest but preserves skills (agents read them as files) (0.2145ms)
+Ô£ö github-copilot keeps .mcp.json unchanged (project-level MCP) (0.237ms)
+Ô£ö github-copilot reshapes hooks into .github/hooks/hooks.json with the Copilot schema (0.2539ms)
+Ô£ö no vscode/ namespaced strings remain anywhere in a github-copilot tree (0.248ms)
+Ô£ö github-copilot does not mutate the input collection (0.2519ms)
+Ô£ö opencode remaps agents/commands under .opencode/ as flat .md (0.775ms)
+Ô£ö opencode emits the tools grant as a YAML map and expands abstract tools (0.5381ms)
+Ô£ö opencode derives mode from user-invocable (subagent worker vs primary entry) (0.3974ms)
+Ô£ö opencode injects provider/model slugs by tier (0.3296ms)
+Ô£ö opencode commands keep agent routing, drop name, and use positional/$ARGUMENTS (0.3245ms)
+Ô£ö opencode renames orchestrator agent and substitutes its name in prose/frontmatter (0.3143ms)
+Ô£ö opencode synthesizes opencode.json with mcp (from .mcp.json) and instructions glob (0.296ms)
+Ô£ö opencode rules become plain instruction files (frontmatter dropped) (0.32ms)
+Ô£ö opencode emits the plugin shim and drops the shell hooks.json (0.7322ms)
+Ô£ö opencode drops the Claude plugin manifest (0.2651ms)
+Ô£ö no vscode/ namespaced strings remain anywhere in an opencode tree (0.2525ms)
+Ô£ö opencode does not mutate the input collection (0.2307ms)
+Ô£ö claude rewrites ${input:NAME} in .mcp.json env to ${NAME:-} (no ${input: residual) (0.2441ms)
+Ô£ö github-copilot rewrites ${input:NAME} in .mcp.json env to ${NAME:-} (no ${input: residual) (0.123ms)
+Ô£ö claude normalizes ${input:KEY} across env, args, url, and headers ÔÇö no ${input: in any field (0.1563ms)
+Ô£ö vscode preserves ${input:NAME} in .mcp.json verbatim ÔÇö no normalization opt-in (0.1099ms)
+Ô£ö opencode rewrites MCP env/header placeholders to {env:NAME} (0.3034ms)
+Ô£ö normalizeMcpPlaceholders does not mutate original input file or server objects (mutation guard) (0.2325ms)
+Ô£ö normalization is idempotent: running transform twice on .mcp.json yields byte-identical output (0.1886ms)
+Ô£ö toEnvExpansion rewrites two placeholders in a single string value ÔÇö both normalized (triangulation) (0.1345ms)
+Ô£ö codex emits agents as TOML outside the plugin bundle, and orchestrator as agent.md (1.3133ms)
+Ô£ö codex TOML agent output path is ./-relative-safe (no leading slash, no .. segment) (0.353ms)
+Ô£ö codex derives workspace-write sandbox_mode for an edit-capable agent (0.3351ms)
+Ô£ö codex omits model/model_reasoning_effort when models.yaml has no codex column (fail-soft) (0.3604ms)
+Ô£ö codex populates model and model_reasoning_effort when codex column is present (0.4112ms)
+Ô£ö codex populates model, model_reasoning_effort, and model_verbosity when present in codex object (0.3719ms)
+Ô£ö codex applies canonical Sol/Terra/Luna model and effort pairs by tier (0.7067ms)
+Ô£ö codex commands become invocable skills under skills/commands/, never a prompts/ path (0.3899ms)
+Ô£ö codex rewrites named ${input:x} to positional $1 and drops the agent: routing key with a spawn instruction (0.3158ms)
+Ô£ö codex does not collide the command-derived skill with a pre-existing context-doc skill of the same base name (0.3773ms)
+Ô£ö codex degrades vscode/askQuestions to a chat-protocol instruction, never a bare tool name (0.317ms)
+Ô£ö codex front-loads a skill description whose trigger phrase starts past the 80-char budget (0.1535ms)
+Ô£ö codex leaves an already front-loaded description unchanged (0.2535ms)
+Ô£ö codex rules fold into a single synthesized agent.md (0.2837ms)
+Ô£ö no vscode/ namespaced strings remain anywhere in a codex tree (0.2997ms)
+Ô£ö codex does not mutate the input collection (0.2219ms)
+Ô£ö serializeAgentToml escapes backslashes and triple-quote runs in developer_instructions (0.1006ms)
+Ô£ö serializeAgentToml escapes a double quote inside a scalar field (0.0781ms)
+Ô£ö serializeAgentToml omits undefined fields (e.g. model when OMIT) (0.1046ms)
+Ô£ö parseJsonFile throws a clean error when parsing JSON content that is null or a non-object (0.3415ms)
+Ô£ö parseJsonFile throws a clean error when JSON syntax is invalid (0.1271ms)
+Ô£ö transform throws TypeError when files is not an array or profile is not an object (0.1136ms)
+Ô£ö codex emits fine-grained sandbox and approval policy settings for specific agents (0.3064ms)
+Ô£ö parseAtlas returns empty collections for empty or non-string content (1.9183ms)
+Ô£ö parseAtlas reads members and contracts from the supported subset (0.6712ms)
+Ô£ö parseAtlas parses an empty inline consumers list (0.1642ms)
+Ô£ö parseAtlas ignores unsupported nested shapes without throwing (0.1796ms)
+Ô£ö resolveMembers resolves relative and absolute roots with default openspec_root (70.1494ms)
+Ô£ö resolveMembers marks members reachable only when an openspec/changes dir exists (213.9091ms)
+Ô£ö computeImpact returns the provider and all its consumers (0.7393ms)
+Ô£ö computeImpact returns only itself for a leaf member (0.73ms)
+Ô£ö loadMarkerFromMember parses a valid marker (318.679ms)
+Ô£ö loadMarkerFromMember warns but succeeds when remote is absent (264.4464ms)
+Ô£ö loadMarkerFromMember fails open when the marker is missing (32.0286ms)
+Ô£ö loadMarkerFromMember fails open on a malformed marker (406.4711ms)
+Ô£ö scanMemberMarkers detects a member whose .git is a directory (381.7747ms)
+Ô£ö scanMemberMarkers detects a member whose .git is a plain file (292.2461ms)
+Ô£ö scanMemberMarkers unions .gitmodules paths without duplicates (194.2881ms)
+Ô£ö scanMemberMarkers returns empty with a warning for a container with no members (7.7519ms)
+Ô£ö isWithinRoot accepts nested members and rejects traversal/absolute escapes (0.2741ms)
+Ô£ö scanMemberMarkers rejects a .gitmodules path that escapes the container root (read path) (27.5923ms)
+Ô£ö scanMemberMarkers rejects a symlinked member that escapes the container (read path) (32.6266ms)
+Ô£ö mergeMarkersIntoAtlas unions member entries from multiple markers (1.4034ms)
+Ô£ö mergeMarkersIntoAtlas keeps the later updated_at on duplicate member.id (0.2119ms)
+Ô£ö mergeMarkersIntoAtlas breaks an updated_at tie by greater source member.id (0.2592ms)
+Ô£ö mergeMarkersIntoAtlas is deterministic across re-runs (0.1597ms)
+Ô£ö mergeMarkersIntoAtlas skips a malformed marker without aborting (0.1686ms)
+Ô£ö mergeMarkersIntoAtlas maps provides to contracts with provider and consumers (0.1346ms)
+Ô£ö mergeMarkersIntoAtlas yields a provider-only impact set when consumers are empty (0.1206ms)
+Ô£ö serializeAtlas round-trips through parseAtlas (0.2862ms)
+Ô£ö 2.2.1 ┬À loadMarkerFromMember suppresses warning on origin: explore marker without remote (15.0335ms)
+Ô£ö 2.2.2 ┬À loadMarkerFromMember emits warning on origin: init marker without remote (23.6934ms)
+Ô£ö 2.2.3 ┬À loadMarkerFromMember emits warning on legacy marker (origin absent) without remote (19.2738ms)
+Ô£ö 2.2.4 ┬À scanMemberMarkers/mergeMarkersIntoAtlas with 2 explore + 1 init markers without remote (94.8428ms)
+Ô£ö 2.2.5 ┬À mergeMarkersIntoAtlas suppresses roster warning for origin: explore source (0.314ms)
+Ô£ö 2.2.6 ┬À mergeMarkersIntoAtlas emits roster warning for origin: init source (0.1258ms)
+Ô£ö 2.2.7 ┬À Old consumer ignores origin field (0.1864ms)
+Ô£ö F1: mergeMarkersIntoAtlas copies surface from provides[] entry into the derived contract (0.1578ms)
+Ô£ö F2: mergeMarkersIntoAtlas + serializeAtlas round-trip is byte-identical and preserves surface (0.2007ms)
+Ô£ö F3: mergeMarkersIntoAtlas does not inject surface key when provides entry has none (0.1498ms)
+Ô£ö F4: mergeMarkersIntoAtlas does not inject surface key when provides entry has surface: null (0.2768ms)
+Ô£ö the canonical and Claude manifests stay in sync (4.4895ms)
+Ô£ö package.json version matches the plugin manifest version (8.0387ms)
+Ô£ö openspec/config.yaml version matches the plugin manifest version (0.7434ms)
+Ô£ö A4.1 ┬À orchestrator documents Mentorship Mode Forwarding with the 3-mode enum and balanced default (33.0741ms)
+Ô£ö A4.2 ┬À orchestrator bounds mentorship to user-facing prose only (1.7589ms)
+Ô£ö A4.3 ┬À sdd-phase-common.md ┬ºF defines the per-mode prose semantics (1.1599ms)
+Ô£ö A4.4 ┬À openspec/config.yaml documents the optional mentorship block as a strict no-op when absent (0.8666ms)
+Ô£ö A5.1 ┬À sdd-design extracts significant decisions to change-local ADRs with the 4-criteria significance rule (2.1948ms)
+Ô£ö A5.2 ┬À sdd-archive promotes ADRs to docs/adr/ before copying to the archive destination and keeps change-local copies (1.5374ms)
+Ô£ö A5.3 ┬À sdd-archive Step 5 scopes the executor to copy-and-report (never deletes the source or claims the move is complete) (1.185ms)
+Ô£ö A5.4 ┬À orchestrator Reads/Writes table registers ADR artifacts for design and archive (0.8852ms)
+Ô£ö G.1 ┬À generated claude target carries Mentorship Mode Forwarding and the ADR steps (580.3421ms)
+Ô£ö G.2 ┬À generated vscode target carries the mentorship semantics in sdd-phase-common (714.2825ms)
+Ô£ö REQ-generator-005 canonical policy is the exact 5/6/6 partition with unchanged reviewers (3.0027ms)
+Ô£ö REQ-generator-005 stale, missing, unknown and wrong Codex policy mutations fail deterministically (0.7625ms)
+Ô£ö REQ-generator-005 duplicate YAML agent keys are rejected before overwrite (0.3982ms)
+Ô£ö REQ-generator-005 all five temporary targets honor tier models and fail-soft omission (13686.5202ms)
+Ô£ö conventions.md existe con frontmatter requerido (2.3813ms)
+Ô£ö conventions.md contiene el aviso de curaci├│n humana (1.0549ms)
+Ô£ö conventions.md incluye un ejemplo ilustrativo marcado como no-convenci├│n (0.3957ms)
+Ô£ö sdd-phase-common.md contiene el paso de lectura de memoria (0.7172ms)
+Ô£ö sdd-phase-common.md pina las cl├íusulas de seguridad de lectura de memoria (4.1541ms)
+Ô£ö sdd-phase-common.md contiene la tabla de ownership (0.6532ms)
+Ô£ö sdd-phase-common.md contiene la tabla de lectura por fase (0.6812ms)
+Ô£ö sdd-archive/SKILL.md contiene el paso de escritura a decisions.md (0.3993ms)
+Ô£ö sdd-archive/SKILL.md documenta el filtro status: resolved (2.5716ms)
+Ô£ö sdd-archive/SKILL.md documenta el shape de entrada de decisions.md (1.1369ms)
+Ô£ö sdd-archive/SKILL.md documenta prepend newest-first y creaci├│n lazy (0.42ms)
+Ô£ö sdd-verify/SKILL.md documenta la taxonom├¡a INFO < WARNING < BLOCKER (0.3281ms)
+Ô£ö sdd-verify/SKILL.md documenta el mapping de severidades (0.3728ms)
+Ô£ö sdd-verify/SKILL.md documenta el paso de escritura a known-issues.md (0.3521ms)
+Ô£ö sdd-verify/SKILL.md documenta el shape de entrada de known-issues.md (0.4179ms)
+Ô£ö sdd-verify/SKILL.md documenta prepend newest-first y creaci├│n lazy (0.4914ms)
+Ô£ö 1.2 ┬À sdd-phase-common.md ┬ºD documents blocker_type as a field with the 4-value enum (51.3435ms)
+Ô£ö 1.3 ┬À sdd-phase-common.md documents the recommended-option description contract (0.899ms)
+Ô£ö 1.3 ┬À sdd-phase-common.md documents that reason MUST name the cost of a wrong/guessed decision (1.1994ms)
+Ô£ö 1.3 ┬À sdd-phase-common.md scopes the description contract to question_gate.options[] only, excluding next_question (1.9407ms)
+Ô£ö 1.4 ┬À sdd-orchestrator.agent.md has an Intent Restatement subsection before Change Classification (1.1015ms)
+Ô£ö 1.4 ┬À sdd-orchestrator.agent.md routes design-mismatch to sdd-design (1.0761ms)
+Ô£ö 1.4 ┬À sdd-orchestrator.agent.md distinguishes verify-time origin tags from apply-time live blockers (0.6699ms)
+Ô£ö 1.7 ┬À sdd-phase-common.md ┬ºD blocker_type table has a naming-convention note (2.4122ms)
+Ô£ö 1.7 ┬À agents/spec.md ┬º6.1 blocker_type row has a naming-convention note (1.026ms)
+Ô£ö 1.5 ┬À sdd-apply/SKILL.md Step 4 contains the design-mismatch blocker line (0.8842ms)
+Ô£ö 1.5 ┬À sdd-apply/SKILL.md Rules section contains the design-mismatch blocker line (0.7922ms)
+Ô£ö 1.5 ┬À sdd-apply/SKILL.md Step 4 requires persisting partial progress before spec-change-required and design-mismatch STOPs (0.7912ms)
+Ô£ö 1.5 ┬À sdd-apply/SKILL.md Rules section requires persisting partial progress before spec-change-required and design-mismatch STOPs (1.5786ms)
+Ô£ö 1.5 ┬À sdd-apply/SKILL.md documents the cosmetic-deviation exclusion (1.0135ms)
+Ô£ö 1.6 ┬À openspec/specs/agents/spec.md ┬º6.1 lists the blocker_type row with the 4-value enum (2.0183ms)
+Ô£ö 1.4b ┬À dispatch-lifecycle-hooks.md 'Retry' recommended option keeps its fixed rationale/trade-off/reversibility description (2.2721ms)
+Ô£ö 1.4b ┬À gate-archive-quality.md 'Fix and re-run verify' recommended option keeps its fixed rationale/trade-off/reversibility description (2.8375ms)
+Ô£ö 1.4b ┬À route-brownfield.md 'Run /sdd-baseline now' recommended option keeps its fixed rationale/trade-off/reversibility description (1.141ms)
+Ô£ö 1.4b ┬À sdd-clarify/SKILL.md keeps the pointer to the Recommended Option Description Contract (1.3324ms)
+Ô£ö review-change source is read-only and defines the exact bounded decision contract (2.5559ms)
+Ô£ö generalist payload accepts clear and canonical escalation, rejects malformed boundaries (0.6667ms)
+Ô£ö generalist contract structurally excludes arbitrary persisted reason material (2.8329ms)
+Ô£ö generalist contract requires structural classifier references instead of prose (1.2702ms)
+Ô£ö registration and specialist sources remain distinct (1.3375ms)
+Ô£ö review-correction source defines targeted-only exact outcome contract (1.3144ms)
+Ô£ö slice remediation contracts preserve active-slice, migration, regression, and read-only boundaries in source mirrors (2.3258ms)
+Ô£ö normalization is deterministic, deduplicated, and excludes raw diff (3.7897ms)
+Ô£ö real diff signals escalate normal overflow to strict full 4R (96.8284ms)
+Ô£ö equal-precedence candidates use canonical dimension order before reason details (11.494ms)
+Ô£ö candidate ranking is stable across fact permutations and honors stronger precedence first (1.3903ms)
+Ô£ö normal thresholds select zero, one, or two dimensions without overflow (14.4708ms)
+Ô£ö decision validation rejects tampered overflow depth and reason (25.1141ms)
+Ô£ö zero normal specialists and high-risk full 4R are both explicit (0.9027ms)
+Ô£ö generalist validation rejects extra keys, mismatches, duplicates, and unknown dimensions (0.1962ms)
+Ô£ö generalist reason rejects arbitrary material before persistence (0.4962ms)
+Ô£ö generalist reason accepts only canonical classifier references (0.3383ms)
+Ô£ö normalization requires every declared evidence array before fingerprinting (1.1632ms)
+Ô£ö normalization rejects non-string entries at every string-list boundary (0.3563ms)
+Ô£ö real diff facts use only per-file production additions and exact attribution (0.4299ms)
+Ô£ö real diff parser ignores comments, block comments, shebangs, and documentation strings (0.3961ms)
+Ô£ö real diff parser ignores multiline documentation strings (0.3329ms)
+Ô£ö language-aware lexer preserves executable interpolation and JavaScript decrement (1.5823ms)
+Ô£ö multiline JavaScript template literal text remains documentary (0.2157ms)
+Ô£ö Ruby multiline comments suppress facts across context and added lines (0.258ms)
+Ô£ö hash-comment languages preserve executable prefixes and ignore inline comment suffixes (0.3357ms)
+Ô£ö shell keeps embedded unquoted hashes executable while stripping token-boundary comments (0.2288ms)
+Ô£ö shell hash comments start at lexer word boundaries without swallowing executable prefixes (1.0688ms)
+Ô£ö real diff parser excludes nested test, spec, fixture, and documentation paths (0.2315ms)
+Ô£ö malformed evidence and final decisions fail closed (1.4308ms)
+Ô£ö normalization rejects non-real diff input, unsafe paths, and unknown fact sources (0.5904ms)
+Ô£ö final validation recomputes evidence identity and enforces dimension applicability (1.1736ms)
+Ô£ö route without the gate is a strict no-op (1.3756ms)
+Ô£ö valid decisions plan exact 0, 2, and 4 specialist dispatch (6.341ms)
+Ô£ö normal overflow audit persists strict depth and structured reason additively (13.7628ms)
+Ô£ö targeted recovery clears stale overflow audit fields (0.578ms)
+Ô£ö invalid contracts fail closed before specialist or archive dispatch (0.2939ms)
+Ô£ö blocked audit persists only deterministic validation codes (0.5167ms)
+Ô£ö reducer fully validates decisions even when adapter reports no errors (0.3798ms)
+Ô£ö successful blocked recovery clears stale blocker state for ready and done (1.3366ms)
+Ô£ö audit merge preserves owned and unknown historical state (0.3611ms)
+Ô£ö legacy gate reads without rewrite or invented audit reasons (0.3185ms)
+Ô£ö lineage adapter dispatches only the reducer-authorized next action (2.147ms)
+Ô£ö specialist policy and concurrency remain outside the reducer (0.4681ms)
+Ô£ö lineage adapter requires migration before mutable work and exposes only the active slice to correction (2.4947ms)
+Ô£ö O4.2 v1 lineage migrates atomically in memory to four idempotent slices without rewriting history (10.7003ms)
+Ô£ö O4.2 live persisted lineage (not just the in-memory fixture clone) satisfies the hardened remediation-v2 gate validator (1.8959ms)
+Ô£ö start freezes canonical genesis, stable identity, and is idempotent (54.2856ms)
+Ô£ö budget is fixed as min(200, ceil(original lines / 2)) and invalid counts fail (1.6134ms)
+Ô£ö each selected lens executes once and frozen findings have stable owner-bound IDs (5.0418ms)
+Ô£ö selected lenses can be persisted independently before parallel dispatch (1.6351ms)
+Ô£ö exact retries are idempotent while stale or divergent operations fail closed (18.7429ms)
+Ô£ö correction is restricted to unresolved IDs, genesis paths, snapshot, and fixed line budget (3.233ms)
+Ô£ö three failed validations exhaust lineage even when correction delta is zero (3.7507ms)
+Ô£ö targeted validation cannot add blockers and late observations are append-only follow-ups (3.4962ms)
+Ô£ö unknown mutation outcome allows only exact reconciliation (1.4128ms)
+Ô£ö downstream gate validation is read-only and explicit successor never resets predecessor (0.9612ms)
+Ô£ö explicit invalidation and escalation are terminal and cannot reset authority (1.6117ms)
+Ô£ö assertLineage rejects modified or incomplete lineage structures and forged lineage IDs (0.9592ms)
+Ô£ö reconcilePendingOperation validates committed state invariants deeply (0.6365ms)
+Ô£ö createSuccessor requires structured format, resolution, scope, and reuse check on approval_reference (0.7943ms)
+Ô£ö applyTargetedValidation does not produce a dead state with zero unresolved IDs when regression is detected (1.4229ms)
+Ô£ö remediation-v2 migrates a frozen v1 lineage idempotently and fails closed for pending work or malformed partitions (2.3782ms)
+Ô£ö slice validation is monotonic, isolates exhaustion, and reopens a passed slice only with explicit bounded regression (16.9293ms)
+Ô£ö remediation-v2 rejects invented authority, reconciles exact unknown work, and binds regressions to frozen evidence (4.1609ms)
+Ô£ö reconcilePendingOperation rejects a committed lineage whose frozen correction_budget counters were altered (1.0066ms)
+Ô£ö remediation-v2 source authority binds the frozen manifest so a relabeled root cause cannot be self-certified (1.9342ms)
+Ô£ö slice unknown reconciliation accepts only the exact pending state and restores not-started work (2.8525ms)
+Ô£ö sdd-document.agent.md has correct frontmatter and no model field (29.4789ms)
+Ô£ö sdd-document.prompt.md is mapped to sdd-orchestrator (0.6577ms)
+Ô£ö models.yaml maps sdd-document to cheap model tier (1.7334ms)
+Ô£ö skills/sdd-document/SKILL.md defines the question_gate with options A, B, C (1.6175ms)
+Ô£ö skills/sdd-document/SKILL.md details Option C path validation (1.541ms)
+Ô£ö skills/sdd-document/SKILL.md enforces dynamic write sandbox boundaries (1.3093ms)
+Ô£ö Target generation transforms sdd-document to vscode target (747.2658ms)
+Ô£ö Target generation transforms sdd-document to claude target (495.4608ms)
+Ô£ö Target generation transforms sdd-document to github-copilot target (463.4219ms)
+Ô£ö Target generation transforms sdd-document to opencode target (503.9657ms)
+Ô£ö sdd-document generated outputs use cheap models or fail-soft omission (2878.9614ms)
+Ô£ö skills/sdd-document/SKILL.md details relative path formatting (3.3814ms)
+Ô£ö skills/sdd-document/SKILL.md details themed subdirectory structures (1.7123ms)
+Ô£ö skills/sdd-document/SKILL.md defines the official metadata format (0.8331ms)
+Ô£ö skills/sdd-document/SKILL.md .last-update.json schema includes doc_language and scope_choice (1.6829ms)
+Ô£ö skills/sdd-document/SKILL.md describes ONE batched question_gate for language+scope, not two sequential gates (1.0985ms)
+Ô£ö skills/_shared/route-document.md ┬º3 rejects an out-of-repo custom_path at gate time (rel-3) (0.8904ms)
+Ô£ö skills/_shared/route-document.md is present under all four dist targets (2328.9899ms)
+Ô£ö skills/sdd-document/assets/web-doc-template/scripts/sync-openwiki.mjs is present under all four dist targets (2099.5683ms)
+Ô£ö SKILL.md documents reading workspace.yaml under Parameters in federated mode (1.0214ms)
+Ô£ö SKILL.md documents raw-to-processed conversion via MarkItDown (0.2919ms)
+Ô£ö SKILL.md documents the interactive fallback loop when MarkItDown is not available (1.0346ms)
+Ô£ö SKILL.md documents synthesizing the 'Mapa de Contratos e Interacciones' section (0.3306ms)
+Ô£ö SKILL.md documents consolidating member roadmaps (0.3466ms)
+Ô£ö SKILL.md documents mapping gaps and writing docs/roadmap-gaps.md (0.2915ms)
+Ô£ö SKILL.md documents gaps resolution Q&A gate (0.3417ms)
+Ô£ö agent.md documents accepting federated parameters and scanning member specs (0.2901ms)
+Ô£ö agent.md documents gaps mapping and roadmap consolidation (0.3313ms)
+Ô£ö orchestrator.agent.md documents routing to sdd-foundation with federated parameters (0.893ms)
+Ô£ö orchestrator.agent.md documents handling gaps Q&A resolutions (0.9445ms)
+Ô£ö SKILL.md documents reading target_dir from the ## Parameters prompt block (1.2101ms)
+Ô£ö SKILL.md documents the cwd fallback when target_dir is absent (0.5269ms)
+Ô£ö SKILL.md documents non-existent target_dir ÔåÆ blocked + question_gate, no writes (0.3657ms)
+Ô£ö SKILL.md documents depth-1 container detection: no own .git AND >=2 children with .git (0.9556ms)
+Ô£ö SKILL.md documents the federated-vs-normal question_gate with exactly those two options (0.4497ms)
+Ô£ö SKILL.md states the detection gate fires before any artifact write (0.5034ms)
+Ô£ö SKILL.md states single-repo and <2-children cases fall through to normal init (0.6569ms)
+Ô£ö agent.md adds a ## Parameters section documenting the target_dir contract (0.3405ms)
+Ô£ö agent.md documents the three target_dir states: absentÔåÆcwd, validÔåÆscoped, missingÔåÆblocked (0.5984ms)
+Ô£ö agent.md notes the orchestrator injects the block, not env vars or dynamic frontmatter (0.4841ms)
+Ô£ö classifier and reducer are explicit generated runtime roots (90.127ms)
+Ô£ö all five generated targets carry generalist, classifier, gate, audit, and competence boundary (7284.0693ms)
+Ô£ö isolated mutations fail runtime and contract parity in every generated target (24855.9824ms)
+Ô£ö skills/sdd-document/SKILL.md offers Option D at the gate and accepts scope_choice A|B|C|D (1.4002ms)
+Ô£ö skills/sdd-document/SKILL.md points to the Option D procedure reference (0.4062ms)
+Ô£ö skills/sdd-document/SKILL.md sandbox section states the dual-directory SET for scope D (0.3388ms)
+Ô£ö skills/sdd-document/references/option-d-starlight.md exists and documents the copy-if-missing scaffold rule (0.5768ms)
+Ô£ö skills/sdd-document/assets/web-doc-template/ ships the exact scaffold file set (1.0754ms)
+Ô£ö skills/sdd-document/assets/web-doc-template/src/content.config.ts imports docsLoader from the plural @astrojs/starlight/loaders entry point (0.6123ms)
+Ô£ö skills/sdd-document/assets/web-doc-template/astro.config.mjs declares a root redirect so '/' does not 404 (6.9142ms)
+Ô£ö skills/sdd-document/assets/web-doc-template/astro.config.mjs derives the site title from the parent repo instead of hardcoding it (0.4693ms)
+Ô£ö skills/sdd-document/assets/web-doc-template/astro.config.mjs consumes the generated sidebar manifest with a safe fallback (1.1127ms)
+Ô£ö skills/sdd-document/assets/web-doc-template/scripts/sync-openwiki.mjs strips the leading H1 and emits the sidebar manifest (2.1517ms)
+Ô£ö skills/sdd-document/assets/web-doc-template/package.json wires predev/prebuild to the sync script (0.9102ms)
+Ô£ö skills/_shared/route-document.md documents Option D, dual-dir resolution, and J5 over the SET (1.0033ms)
+Ô£ö skills/_shared/route-document.md ┬º4 point 2 clarifies .last-update.json is openwiki/-only for scope D (4R remediation #9) (1.3311ms)
+Ô£ö skills/sdd-document/references/option-d-starlight.md documents partial-scaffold-materialization recovery (4R remediation #10) (0.3097ms)
+Ô£ö REQ-agents-012 generated in-memory parity ships helper to every target (178.3711ms)
+Ô£ö REQ-routing-006 generated parity mutants keep the same guard contract (142.6248ms)
+Ô£ö REQ-agents-012 executable isolated mutations all fail closed (175.448ms)
+Ô£ö G4 rejects unbound changes and normalizes corrupt evidence without throwing (16.8523ms)
+Ô£ö valid evidence normalizes and hashes deterministically (1.3468ms)
+Ô£ö missing provenance is critical ordinary routing (0.5737ms)
+Ô£ö reducer permits one bounded repair and focal recheck (25.7639ms)
+Ô£ö allowlist, identity and cap reject unsafe writes (0.179ms)
+Ô£ö RED: allowlist requires the exact rooted change artifact and fails closed on I/O races (9.839ms)
+Ô£ö REQ-routing-006 rejects absent cap and empty write-set while preserving origin (64.189ms)
+Ô£ö REQ-agents-012 requires root-aware evidence proof at classify, write, and focal boundaries (24.7094ms)
+Ô£ö REQ-skills-008 rejects fabricated cycle enums and paths with real root (0.8359ms)
+Ô£ö REQ-agents-012 rejects tampered frozen state and focal failure is one-shot (17.6412ms)
+Ô£ö REQ-agents-012 orchestrator contract persists focal next_action and ordinary fallback (0.4029ms)
+Ô£ö REQ-skills-008 JSON authority detects derived Markdown representation drift (0.5083ms)
+Ô£ö RED: fast path requires a real deterministic format gap (2.7242ms)
+Ô£ö RED: fast path requires before and after evidence snapshots (1.0368ms)
+Ô£ö RED: fast path requires a CRITICAL finding with an original origin (2.7662ms)
+Ô£ö RED: fast path rejects undeclared origins and accepts exactly the routing taxonomy (177.9802ms)
+Ô£ö RED: write and focal reject live functional changes between boundaries (82.8806ms)
+Ô£ö RED: write rejects a claimed diff outside the exact evidence region (22.2529ms)
+Ô£ö REQ-routing-006 reconciles unknown writes only by exact digest (28.8338ms)
+Ô£ö REQ-skills-008 apply-progress snapshot carries current coding-file digests and per-task cycles (32.3802ms)
+Ô£ö REQ-skills-008 finalization freezes current digests and rejects stale evidence (3.2528ms)
+Ô£ö injects title frontmatter from the page's first heading (1268.2613ms)
+Ô£ö falls back to a humanized filename when the page has no heading (985.674ms)
+Ô£ö does not overwrite an existing title in source frontmatter (1045.6519ms)
+Ô£ö strips the leading H1 from the transformed body (Starlight renders the title) (989.6436ms)
+Ô£ö strips the leading H1 even when the source already declares a frontmatter title (1012.3448ms)
+Ô£ö emits a sidebar manifest with quickstart first and groups in quickstart link order (1239.7852ms)
+Ô£ö rewrites a source-file link to the remote repository on the default branch (900.2628ms)
+Ô£ö normalizes a git@ SSH-form origin to an https URL before rewriting links (966.2917ms)
+Ô£ö leaves the link untouched and warns (exit 0) when no origin remote is configured (812.7149ms)
+Ô£ö rewrites a wiki-internal link to a local extensionless slug URL, never a remote URL (809.3353ms)
+Ô£ö resolves a ../ wiki-internal link relative to the containing page's directory (806.9457ms)
+Ô£ö preserves the #anchor when rewriting a wiki-internal link (858.3988ms)
+Ô£ö rewrites an /openwiki/-prefixed link to the site-root slug (758.5822ms)
+Ô£ö falls back to the wiki root when a bare relative link does not exist next to the page (686.2126ms)
+Ô£ö prefers the page-relative target over the root fallback when both exist (584.2268ms)
+Ô£ö leaves external URLs and non-.md relative links untouched (679.3649ms)
+Ô£ö maintains 1:1 parity between openwiki pages and web-doc output pages (669.2298ms)
+Ô£ö skips re-transforming an unchanged page on a second incremental run (907.3472ms)
+Ô£ö does not prune existing web-doc output when openwiki/ is completely missing (743.7966ms)
+Ô£ö does not prune existing web-doc output when openwiki/ exists but is empty (653.3042ms)
+Ô£ö preserves nested/multiline frontmatter structure byte-for-byte when a title already exists (644.5752ms)
+Ô£ö prepends a derived title onto existing frontmatter that lacks one, preserving other keys (640.0136ms)
+Ô£ö continues syncing other pages and warns (exit 0) when a single page's transform fails (578.6804ms)
+Ô£ö does not fail the sync when writing the incremental cache file fails (609.5888ms)
+Ô£ö warns and performs a full re-sync when .sync-cache.json is corrupt (558.9028ms)
+Ô£ö degrades cleanly with a warning when there is no git repository at all (262.5926ms)
+Ô£ö prunes the output page when the corresponding openwiki source page is deleted (1012.1873ms)
+Ôä╣ tests 1426
+Ôä╣ suites 0
+Ôä╣ pass 1424
+Ôä╣ fail 0
+Ôä╣ cancelled 0
+Ôä╣ skipped 2
+Ôä╣ todo 0
+Ôä╣ duration_ms 37784.7392
+
+(note) claude CLI not found ÔÇö generating the claude target without its validator.
+
+==> Generate claude (validation skipped)
+configure --target claude -> C:\WINDOWS\TEMP\ospec-claude-tEWALr
+  + .claude-plugin/plugin.json
+  + .mcp.json
+  + agents/review-change.md
+  + agents/review-correction.md
+  + agents/review-readability.md
+  + agents/review-reliability.md
+  + agents/review-resilience.md
+  + agents/review-risk.md
+  + agents/sdd-apply.md
+  + agents/sdd-archive.md
+  + agents/sdd-baseline.md
+  + agents/sdd-clarify.md
+  + agents/sdd-design.md
+  + agents/sdd-document.md
+  + agents/sdd-explore.md
+  + agents/sdd-foundation.md
+  + agents/sdd-init.md
+  + agents/sdd-onboard.md
+  + agents/sdd-propose.md
+  + agents/sdd-reconcile.md
+  + agents/sdd-spec.md
+  + agents/sdd-tasks.md
+  + agents/sdd-verify.md
+  + agents/sdd-workspace.md
+  + commands/sdd-apply.md
+  + commands/sdd-archive.md
+  + commands/sdd-baseline.md
+  + commands/sdd-clarify.md
+  + commands/sdd-continue.md
+  + commands/sdd-design.md
+  + commands/sdd-document.md
+  + commands/sdd-explore.md
+  + commands/sdd-ff.md
+  + commands/sdd-init.md
+  + commands/sdd-lite.md
+  + commands/sdd-new.md
+  + commands/sdd-onboard.md
+  + commands/sdd-propose.md
+  + commands/sdd-reconcile.md
+  + commands/sdd-spec.md
+  + commands/sdd-tasks.md
+  + commands/sdd-verify.md
+  + commands/sdd-workspace.md
+  + hooks/hooks.json
+  + models.yaml
+  + scripts/hooks/commit-msg-hook.js
+  + scripts/hooks/lib/git-state.js
+  + scripts/hooks/lib/model-tier.js
+  + scripts/hooks/lib/secret-scan.js
+  + scripts/hooks/ospec-hooks-launch.js
+  + scripts/hooks/pre-commit-hook.js
+  + scripts/hooks/pre-compact.js
+  + scripts/hooks/pre-tool-use.js
+  + scripts/hooks/session-start.js
+  + scripts/hooks/stop.js
+  + scripts/hooks/subagent-stop.js
+  + scripts/lib/artifact-store-modes.js
+  + scripts/lib/artifact-store.js
+  + scripts/lib/atomic-write.js
+  + scripts/lib/capability-registry.js
+  + scripts/lib/federation-baseline-orchestrator.js
+  + scripts/lib/federation-explore.js
+  + scripts/lib/federation-marker.js
+  + scripts/lib/ospec-state.js
+  + scripts/lib/pathsafe.js
+  + scripts/lib/result-envelope.js
+  + scripts/lib/review-dimensions.js
+  + scripts/lib/review-gate-state.js
+  + scripts/lib/review-lineage.js
+  + scripts/lib/skill-registry.js
+  + scripts/lib/strict-tdd-evidence-remediation.js
+  + scripts/lib/workspace-atlas.js
+  + scripts/lib/workspace-general-baseline.js
+  + skills/_shared/SKILL.md
+  + skills/_shared/approval-ledger.md
+  + skills/_shared/clarify-routing.md
+  + skills/_shared/dispatch-lifecycle-hooks.md
+  + skills/_shared/gaps-resolution.md
+  + skills/_shared/gate-4r-review.md
+  + skills/_shared/gate-archive-quality.md
+  + skills/_shared/gate-change-collision.md
+  + skills/_shared/openspec-convention.md
+  + skills/_shared/persistence-contract.md
+  + skills/_shared/prompt-boundaries.md
+  + skills/_shared/question-shapes.md
+  + skills/_shared/route-brownfield.md
+  + skills/_shared/route-document.md
+  + skills/_shared/route-federation.md
+  + skills/_shared/sdd-phase-common.md
+  + skills/_shared/skill-resolver.md
+  + skills/_shared/token-budget.md
+  + skills/accessibility/SKILL.md
+  + skills/agent-harness-construction/SKILL.md
+  + skills/agent-introspection/SKILL.md
+  + skills/agent-self-evaluation/SKILL.md
+  + skills/agent-self-evaluation/examples/high-score-example.md
+  + skills/agent-self-evaluation/examples/low-score-example.md
+  + skills/agent-self-evaluation/references/evaluation-criteria.md
+  + skills/agent-self-evaluation/references/hook-integration.md
+  + skills/agent-self-evaluation/scripts/evaluate.py
+  + skills/agent-self-evaluation/templates/evaluation-report.md
+  + skills/ai-first-engineering/SKILL.md
+  + skills/ai-regression-testing/SKILL.md
+  + skills/api-design/SKILL.md
+  + skills/architecture-decision-records/SKILL.md
+  + skills/backend-patterns/SKILL.md
+  + skills/branch-pr/SKILL.md
+  + skills/caveman-commit/SKILL.md
+  + skills/caveman-compress/README.md
+  + skills/caveman-compress/SECURITY.md
+  + skills/caveman-compress/SKILL.md
+  + skills/caveman-compress/scripts/__init__.py
+  + skills/caveman-compress/scripts/__main__.py
+  + skills/caveman-compress/scripts/benchmark.py
+  + skills/caveman-compress/scripts/cli.py
+  + skills/caveman-compress/scripts/compress.py
+  + skills/caveman-compress/scripts/detect.py
+  + skills/caveman-compress/scripts/test_caveman.py
+  + skills/caveman-compress/scripts/validate.py
+  + skills/caveman-help/SKILL.md
+  + skills/caveman-review/SKILL.md
+  + skills/caveman/SKILL.md
+  + skills/chained-pr/SKILL.md
+  + skills/chained-pr/references/chaining-details.md
+  + skills/cognitive-doc-design/SKILL.md
+  + skills/comment-writer/SKILL.md
+  + skills/context7-mcp/SKILL.md
+  + skills/design-system/SKILL.md
+  + skills/frontend-patterns/SKILL.md
+  + skills/gh-release-notes/SKILL.md
+  + skills/harness-audit/SKILL.md
+  + skills/hexagonal-architecture/SKILL.md
+  + skills/issue-creation/SKILL.md
+  + skills/judgment-day/SKILL.md
+  + skills/judgment-day/references/prompts-and-formats.md
+  + skills/review-change/SKILL.md
+  + skills/review-correction/SKILL.md
+  + skills/review-readability/SKILL.md
+  + skills/review-reliability/SKILL.md
+  + skills/review-resilience/SKILL.md
+  + skills/review-risk/SKILL.md
+  + skills/sdd-apply/SKILL.md
+  + skills/sdd-apply/strict-tdd.md
+  + skills/sdd-archive/SKILL.md
+  + skills/sdd-baseline/SKILL.md
+  + skills/sdd-clarify/SKILL.md
+  + skills/sdd-design/SKILL.md
+  + skills/sdd-document/SKILL.md
+  + skills/sdd-document/assets/web-doc-template/astro.config.mjs
+  + skills/sdd-document/assets/web-doc-template/package.json
+  + skills/sdd-document/assets/web-doc-template/scripts/sync-openwiki.mjs
+  + skills/sdd-document/assets/web-doc-template/src/content.config.ts
+  + skills/sdd-document/assets/web-doc-template/src/styles/custom.css
+  + skills/sdd-document/assets/web-doc-template/tsconfig.json
+  + skills/sdd-document/references/option-d-starlight.md
+  + skills/sdd-explore/SKILL.md
+  + skills/sdd-foundation/SKILL.md
+  + skills/sdd-foundation/references/foundation-details.md
+  + skills/sdd-init/SKILL.md
+  + skills/sdd-init/references/init-details.md
+  + skills/sdd-onboard/SKILL.md
+  + skills/sdd-orchestrator/SKILL.md
+  + skills/sdd-propose/SKILL.md
+  + skills/sdd-reconcile/SKILL.md
+  + skills/sdd-spec/SKILL.md
+  + skills/sdd-tasks/SKILL.md
+  + skills/sdd-verify/SKILL.md
+  + skills/sdd-verify/references/report-format.md
+  + skills/sdd-verify/strict-tdd-verify.md
+  + skills/sdd-workspace/SKILL.md
+  + skills/skill-creator/SKILL.md
+  + skills/skill-creator/references/skill-style-guide.md
+  + skills/skill-registry/SKILL.md
+  + skills/stack-angular/SKILL.md
+  + skills/stack-angular/references/angular-animations.md
+  + skills/stack-angular/references/angular-aria.md
+  + skills/stack-angular/references/cli.md
+  + skills/stack-angular/references/component-harnesses.md
+  + skills/stack-angular/references/component-styling.md
+  + skills/stack-angular/references/components.md
+  + skills/stack-angular/references/creating-services.md
+  + skills/stack-angular/references/data-resolvers.md
+  + skills/stack-angular/references/define-routes.md
+  + skills/stack-angular/references/defining-providers.md
+  + skills/stack-angular/references/di-fundamentals.md
+  + skills/stack-angular/references/e2e-testing.md
+  + skills/stack-angular/references/effects.md
+  + skills/stack-angular/references/hierarchical-injectors.md
+  + skills/stack-angular/references/host-elements.md
+  + skills/stack-angular/references/injection-context.md
+  + skills/stack-angular/references/inputs.md
+  + skills/stack-angular/references/linked-signal.md
+  + skills/stack-angular/references/loading-strategies.md
+  + skills/stack-angular/references/mcp.md
+  + skills/stack-angular/references/navigate-to-routes.md
+  + skills/stack-angular/references/outputs.md
+  + skills/stack-angular/references/reactive-forms.md
+  + skills/stack-angular/references/rendering-strategies.md
+  + skills/stack-angular/references/resource.md
+  + skills/stack-angular/references/route-animations.md
+  + skills/stack-angular/references/route-guards.md
+  + skills/stack-angular/references/router-lifecycle.md
+  + skills/stack-angular/references/router-testing.md
+  + skills/stack-angular/references/show-routes-with-outlets.md
+  + skills/stack-angular/references/signal-forms.md
+  + skills/stack-angular/references/signals-overview.md
+  + skills/stack-angular/references/tailwind-css.md
+  + skills/stack-angular/references/template-driven-forms.md
+  + skills/stack-angular/references/testing-fundamentals.md
+  + skills/stack-dotnet/SKILL.md
+  + skills/stack-go-testing/SKILL.md
+  + skills/stack-go-testing/references/examples.md
+  + skills/stack-go/SKILL.md
+  + skills/stack-go/references/patterns.md
+  + skills/stack-java/SKILL.md
+  + skills/stack-kafka/SKILL.md
+  + skills/stack-kotlin-coroutines-flows/SKILL.md
+  + skills/stack-kotlin-exposed-patterns/SKILL.md
+  + skills/stack-kotlin-exposed-patterns/references/patterns.md
+  + skills/stack-kotlin-ktor-patterns/SKILL.md
+  + skills/stack-kotlin-ktor-patterns/references/patterns.md
+  + skills/stack-kotlin-testing/SKILL.md
+  + skills/stack-kotlin-testing/references/patterns.md
+  + skills/stack-kotlin/SKILL.md
+  + skills/stack-kotlin/references/patterns.md
+  + skills/stack-postgres/SKILL.md
+  + skills/stack-python-testing/SKILL.md
+  + skills/stack-python/SKILL.md
+  + skills/stack-python/references/patterns.md
+  + skills/stack-react-performance/SKILL.md
+  + skills/stack-react-testing/SKILL.md
+  + skills/stack-react/SKILL.md
+  + skills/stack-springboot-security/SKILL.md
+  + skills/stack-springboot-tdd/SKILL.md
+  + skills/stack-springboot-verification/SKILL.md
+  + skills/stack-springboot/SKILL.md
+  + skills/stack-sqlserver/SKILL.md
+  + skills/stack-starlight/SKILL.md
+  + skills/stack-starlight/references/components-and-authoring.md
+  + skills/stack-starlight/references/frontmatter.md
+  + skills/stack-starlight/references/setup-and-config.md
+  + skills/stack-starlight/references/sidebar-and-customization.md
+  + skills/stack-vite/SKILL.md
+  + skills/stack-vite/references/patterns.md
+  + skills/tdd-workflow/SKILL.md
+  + skills/token-budget-advisor/SKILL.md
+  + skills/work-unit-commits/SKILL.md
+
+==> Generate vscode (validation skipped)
+configure --target vscode -> C:\WINDOWS\TEMP\ospec-vscode-9C5CfC
+  + .claude-plugin/plugin.json
+  + .mcp.json
+  + agents/review-change.agent.md
+  + agents/review-correction.agent.md
+  + agents/review-readability.agent.md
+  + agents/review-reliability.agent.md
+  + agents/review-resilience.agent.md
+  + agents/review-risk.agent.md
+  + agents/sdd-apply.agent.md
+  + agents/sdd-archive.agent.md
+  + agents/sdd-baseline.agent.md
+  + agents/sdd-clarify.agent.md
+  + agents/sdd-design.agent.md
+  + agents/sdd-document.agent.md
+  + agents/sdd-explore.agent.md
+  + agents/sdd-foundation.agent.md
+  + agents/sdd-init.agent.md
+  + agents/sdd-onboard.agent.md
+  + agents/sdd-orchestrator.agent.md
+  + agents/sdd-propose.agent.md
+  + agents/sdd-reconcile.agent.md
+  + agents/sdd-spec.agent.md
+  + agents/sdd-tasks.agent.md
+  + agents/sdd-verify.agent.md
+  + agents/sdd-workspace.agent.md
+  + commands/sdd-apply.prompt.md
+  + commands/sdd-archive.prompt.md
+  + commands/sdd-baseline.prompt.md
+  + commands/sdd-clarify.prompt.md
+  + commands/sdd-continue.prompt.md
+  + commands/sdd-design.prompt.md
+  + commands/sdd-document.prompt.md
+  + commands/sdd-explore.prompt.md
+  + commands/sdd-ff.prompt.md
+  + commands/sdd-init.prompt.md
+  + commands/sdd-lite.prompt.md
+  + commands/sdd-new.prompt.md
+  + commands/sdd-onboard.prompt.md
+  + commands/sdd-propose.prompt.md
+  + commands/sdd-reconcile.prompt.md
+  + commands/sdd-spec.prompt.md
+  + commands/sdd-tasks.prompt.md
+  + commands/sdd-verify.prompt.md
+  + commands/sdd-workspace.prompt.md
+  + hooks/hooks.json
+  + models.yaml
+  + rules/no-model-attribution.instructions.md
+  + rules/sdd-common.instructions.md
+  + rules/sdd-openspec.instructions.md
+  + rules/sdd-strict-tdd.instructions.md
+  + scripts/hooks/commit-msg-hook.js
+  + scripts/hooks/lib/git-state.js
+  + scripts/hooks/lib/model-tier.js
+  + scripts/hooks/lib/secret-scan.js
+  + scripts/hooks/ospec-hooks-launch.js
+  + scripts/hooks/pre-commit-hook.js
+  + scripts/hooks/pre-compact.js
+  + scripts/hooks/pre-tool-use.js
+  + scripts/hooks/session-start.js
+  + scripts/hooks/stop.js
+  + scripts/hooks/subagent-stop.js
+  + scripts/lib/artifact-store-modes.js
+  + scripts/lib/artifact-store.js
+  + scripts/lib/atomic-write.js
+  + scripts/lib/capability-registry.js
+  + scripts/lib/federation-baseline-orchestrator.js
+  + scripts/lib/federation-explore.js
+  + scripts/lib/federation-marker.js
+  + scripts/lib/ospec-state.js
+  + scripts/lib/pathsafe.js
+  + scripts/lib/result-envelope.js
+  + scripts/lib/review-dimensions.js
+  + scripts/lib/review-gate-state.js
+  + scripts/lib/review-lineage.js
+  + scripts/lib/skill-registry.js
+  + scripts/lib/strict-tdd-evidence-remediation.js
+  + scripts/lib/workspace-atlas.js
+  + scripts/lib/workspace-general-baseline.js
+  + skills/_shared/SKILL.md
+  + skills/_shared/approval-ledger.md
+  + skills/_shared/clarify-routing.md
+  + skills/_shared/dispatch-lifecycle-hooks.md
+  + skills/_shared/gaps-resolution.md
+  + skills/_shared/gate-4r-review.md
+  + skills/_shared/gate-archive-quality.md
+  + skills/_shared/gate-change-collision.md
+  + skills/_shared/openspec-convention.md
+  + skills/_shared/persistence-contract.md
+  + skills/_shared/prompt-boundaries.md
+  + skills/_shared/question-shapes.md
+  + skills/_shared/route-brownfield.md
+  + skills/_shared/route-document.md
+  + skills/_shared/route-federation.md
+  + skills/_shared/sdd-phase-common.md
+  + skills/_shared/skill-resolver.md
+  + skills/_shared/token-budget.md
+  + skills/accessibility/SKILL.md
+  + skills/agent-harness-construction/SKILL.md
+  + skills/agent-introspection/SKILL.md
+  + skills/agent-self-evaluation/SKILL.md
+  + skills/agent-self-evaluation/examples/high-score-example.md
+  + skills/agent-self-evaluation/examples/low-score-example.md
+  + skills/agent-self-evaluation/references/evaluation-criteria.md
+  + skills/agent-self-evaluation/references/hook-integration.md
+  + skills/agent-self-evaluation/scripts/evaluate.py
+  + skills/agent-self-evaluation/templates/evaluation-report.md
+  + skills/ai-first-engineering/SKILL.md
+  + skills/ai-regression-testing/SKILL.md
+  + skills/api-design/SKILL.md
+  + skills/architecture-decision-records/SKILL.md
+  + skills/backend-patterns/SKILL.md
+  + skills/branch-pr/SKILL.md
+  + skills/caveman-commit/SKILL.md
+  + skills/caveman-compress/README.md
+  + skills/caveman-compress/SECURITY.md
+  + skills/caveman-compress/SKILL.md
+  + skills/caveman-compress/scripts/__init__.py
+  + skills/caveman-compress/scripts/__main__.py
+  + skills/caveman-compress/scripts/benchmark.py
+  + skills/caveman-compress/scripts/cli.py
+  + skills/caveman-compress/scripts/compress.py
+  + skills/caveman-compress/scripts/detect.py
+  + skills/caveman-compress/scripts/test_caveman.py
+  + skills/caveman-compress/scripts/validate.py
+  + skills/caveman-help/SKILL.md
+  + skills/caveman-review/SKILL.md
+  + skills/caveman/SKILL.md
+  + skills/chained-pr/SKILL.md
+  + skills/chained-pr/references/chaining-details.md
+  + skills/cognitive-doc-design/SKILL.md
+  + skills/comment-writer/SKILL.md
+  + skills/context7-mcp/SKILL.md
+  + skills/design-system/SKILL.md
+  + skills/frontend-patterns/SKILL.md
+  + skills/gh-release-notes/SKILL.md
+  + skills/harness-audit/SKILL.md
+  + skills/hexagonal-architecture/SKILL.md
+  + skills/issue-creation/SKILL.md
+  + skills/judgment-day/SKILL.md
+  + skills/judgment-day/references/prompts-and-formats.md
+  + skills/review-change/SKILL.md
+  + skills/review-correction/SKILL.md
+  + skills/review-readability/SKILL.md
+  + skills/review-reliability/SKILL.md
+  + skills/review-resilience/SKILL.md
+  + skills/review-risk/SKILL.md
+  + skills/sdd-apply/SKILL.md
+  + skills/sdd-apply/strict-tdd.md
+  + skills/sdd-archive/SKILL.md
+  + skills/sdd-baseline/SKILL.md
+  + skills/sdd-clarify/SKILL.md
+  + skills/sdd-design/SKILL.md
+  + skills/sdd-document/SKILL.md
+  + skills/sdd-document/assets/web-doc-template/astro.config.mjs
+  + skills/sdd-document/assets/web-doc-template/package.json
+  + skills/sdd-document/assets/web-doc-template/scripts/sync-openwiki.mjs
+  + skills/sdd-document/assets/web-doc-template/src/content.config.ts
+  + skills/sdd-document/assets/web-doc-template/src/styles/custom.css
+  + skills/sdd-document/assets/web-doc-template/tsconfig.json
+  + skills/sdd-document/references/option-d-starlight.md
+  + skills/sdd-explore/SKILL.md
+  + skills/sdd-foundation/SKILL.md
+  + skills/sdd-foundation/references/foundation-details.md
+  + skills/sdd-init/SKILL.md
+  + skills/sdd-init/references/init-details.md
+  + skills/sdd-onboard/SKILL.md
+  + skills/sdd-propose/SKILL.md
+  + skills/sdd-reconcile/SKILL.md
+  + skills/sdd-spec/SKILL.md
+  + skills/sdd-tasks/SKILL.md
+  + skills/sdd-verify/SKILL.md
+  + skills/sdd-verify/references/report-format.md
+  + skills/sdd-verify/strict-tdd-verify.md
+  + skills/sdd-workspace/SKILL.md
+  + skills/skill-creator/SKILL.md
+  + skills/skill-creator/references/skill-style-guide.md
+  + skills/skill-registry/SKILL.md
+  + skills/stack-angular/SKILL.md
+  + skills/stack-angular/references/angular-animations.md
+  + skills/stack-angular/references/angular-aria.md
+  + skills/stack-angular/references/cli.md
+  + skills/stack-angular/references/component-harnesses.md
+  + skills/stack-angular/references/component-styling.md
+  + skills/stack-angular/references/components.md
+  + skills/stack-angular/references/creating-services.md
+  + skills/stack-angular/references/data-resolvers.md
+  + skills/stack-angular/references/define-routes.md
+  + skills/stack-angular/references/defining-providers.md
+  + skills/stack-angular/references/di-fundamentals.md
+  + skills/stack-angular/references/e2e-testing.md
+  + skills/stack-angular/references/effects.md
+  + skills/stack-angular/references/hierarchical-injectors.md
+  + skills/stack-angular/references/host-elements.md
+  + skills/stack-angular/references/injection-context.md
+  + skills/stack-angular/references/inputs.md
+  + skills/stack-angular/references/linked-signal.md
+  + skills/stack-angular/references/loading-strategies.md
+  + skills/stack-angular/references/mcp.md
+  + skills/stack-angular/references/navigate-to-routes.md
+  + skills/stack-angular/references/outputs.md
+  + skills/stack-angular/references/reactive-forms.md
+  + skills/stack-angular/references/rendering-strategies.md
+  + skills/stack-angular/references/resource.md
+  + skills/stack-angular/references/route-animations.md
+  + skills/stack-angular/references/route-guards.md
+  + skills/stack-angular/references/router-lifecycle.md
+  + skills/stack-angular/references/router-testing.md
+  + skills/stack-angular/references/show-routes-with-outlets.md
+  + skills/stack-angular/references/signal-forms.md
+  + skills/stack-angular/references/signals-overview.md
+  + skills/stack-angular/references/tailwind-css.md
+  + skills/stack-angular/references/template-driven-forms.md
+  + skills/stack-angular/references/testing-fundamentals.md
+  + skills/stack-dotnet/SKILL.md
+  + skills/stack-go-testing/SKILL.md
+  + skills/stack-go-testing/references/examples.md
+  + skills/stack-go/SKILL.md
+  + skills/stack-go/references/patterns.md
+  + skills/stack-java/SKILL.md
+  + skills/stack-kafka/SKILL.md
+  + skills/stack-kotlin-coroutines-flows/SKILL.md
+  + skills/stack-kotlin-exposed-patterns/SKILL.md
+  + skills/stack-kotlin-exposed-patterns/references/patterns.md
+  + skills/stack-kotlin-ktor-patterns/SKILL.md
+  + skills/stack-kotlin-ktor-patterns/references/patterns.md
+  + skills/stack-kotlin-testing/SKILL.md
+  + skills/stack-kotlin-testing/references/patterns.md
+  + skills/stack-kotlin/SKILL.md
+  + skills/stack-kotlin/references/patterns.md
+  + skills/stack-postgres/SKILL.md
+  + skills/stack-python-testing/SKILL.md
+  + skills/stack-python/SKILL.md
+  + skills/stack-python/references/patterns.md
+  + skills/stack-react-performance/SKILL.md
+  + skills/stack-react-testing/SKILL.md
+  + skills/stack-react/SKILL.md
+  + skills/stack-springboot-security/SKILL.md
+  + skills/stack-springboot-tdd/SKILL.md
+  + skills/stack-springboot-verification/SKILL.md
+  + skills/stack-springboot/SKILL.md
+  + skills/stack-sqlserver/SKILL.md
+  + skills/stack-starlight/SKILL.md
+  + skills/stack-starlight/references/components-and-authoring.md
+  + skills/stack-starlight/references/frontmatter.md
+  + skills/stack-starlight/references/setup-and-config.md
+  + skills/stack-starlight/references/sidebar-and-customization.md
+  + skills/stack-vite/SKILL.md
+  + skills/stack-vite/references/patterns.md
+  + skills/tdd-workflow/SKILL.md
+  + skills/token-budget-advisor/SKILL.md
+  + skills/work-unit-commits/SKILL.md
+
+==> Generate + validate github-copilot
+configure --target github-copilot -> C:\WINDOWS\TEMP\ospec-github-copilot-ZHFWPN
+  + .github/agents/review-change.agent.md
+  + .github/agents/review-correction.agent.md
+  + .github/agents/review-readability.agent.md
+  + .github/agents/review-reliability.agent.md
+  + .github/agents/review-resilience.agent.md
+  + .github/agents/review-risk.agent.md
+  + .github/agents/sdd-apply.agent.md
+  + .github/agents/sdd-archive.agent.md
+  + .github/agents/sdd-baseline.agent.md
+  + .github/agents/sdd-clarify.agent.md
+  + .github/agents/sdd-design.agent.md
+  + .github/agents/sdd-document.agent.md
+  + .github/agents/sdd-explore.agent.md
+  + .github/agents/sdd-foundation.agent.md
+  + .github/agents/sdd-init.agent.md
+  + .github/agents/sdd-onboard.agent.md
+  + .github/agents/sdd-orchestrator.agent.md
+  + .github/agents/sdd-propose.agent.md
+  + .github/agents/sdd-reconcile.agent.md
+  + .github/agents/sdd-spec.agent.md
+  + .github/agents/sdd-tasks.agent.md
+  + .github/agents/sdd-verify.agent.md
+  + .github/agents/sdd-workspace.agent.md
+  + .github/hooks/hooks.json
+  + .github/instructions/no-model-attribution.instructions.md
+  + .github/instructions/sdd-common.instructions.md
+  + .github/instructions/sdd-openspec.instructions.md
+  + .github/instructions/sdd-strict-tdd.instructions.md
+  + .github/prompts/sdd-apply.prompt.md
+  + .github/prompts/sdd-archive.prompt.md
+  + .github/prompts/sdd-baseline.prompt.md
+  + .github/prompts/sdd-clarify.prompt.md
+  + .github/prompts/sdd-continue.prompt.md
+  + .github/prompts/sdd-design.prompt.md
+  + .github/prompts/sdd-document.prompt.md
+  + .github/prompts/sdd-explore.prompt.md
+  + .github/prompts/sdd-ff.prompt.md
+  + .github/prompts/sdd-init.prompt.md
+  + .github/prompts/sdd-lite.prompt.md
+  + .github/prompts/sdd-new.prompt.md
+  + .github/prompts/sdd-onboard.prompt.md
+  + .github/prompts/sdd-propose.prompt.md
+  + .github/prompts/sdd-reconcile.prompt.md
+  + .github/prompts/sdd-spec.prompt.md
+  + .github/prompts/sdd-tasks.prompt.md
+  + .github/prompts/sdd-verify.prompt.md
+  + .github/prompts/sdd-workspace.prompt.md
+  + .mcp.json
+  + models.yaml
+  + scripts/hooks/commit-msg-hook.js
+  + scripts/hooks/lib/git-state.js
+  + scripts/hooks/lib/model-tier.js
+  + scripts/hooks/lib/secret-scan.js
+  + scripts/hooks/ospec-hooks-launch.js
+  + scripts/hooks/pre-commit-hook.js
+  + scripts/hooks/pre-compact.js
+  + scripts/hooks/pre-tool-use.js
+  + scripts/hooks/session-start.js
+  + scripts/hooks/stop.js
+  + scripts/hooks/subagent-stop.js
+  + scripts/lib/artifact-store-modes.js
+  + scripts/lib/artifact-store.js
+  + scripts/lib/atomic-write.js
+  + scripts/lib/capability-registry.js
+  + scripts/lib/federation-baseline-orchestrator.js
+  + scripts/lib/federation-explore.js
+  + scripts/lib/federation-marker.js
+  + scripts/lib/ospec-state.js
+  + scripts/lib/pathsafe.js
+  + scripts/lib/result-envelope.js
+  + scripts/lib/review-dimensions.js
+  + scripts/lib/review-gate-state.js
+  + scripts/lib/review-lineage.js
+  + scripts/lib/skill-registry.js
+  + scripts/lib/strict-tdd-evidence-remediation.js
+  + scripts/lib/workspace-atlas.js
+  + scripts/lib/workspace-general-baseline.js
+  + skills/_shared/SKILL.md
+  + skills/_shared/approval-ledger.md
+  + skills/_shared/clarify-routing.md
+  + skills/_shared/dispatch-lifecycle-hooks.md
+  + skills/_shared/gaps-resolution.md
+  + skills/_shared/gate-4r-review.md
+  + skills/_shared/gate-archive-quality.md
+  + skills/_shared/gate-change-collision.md
+  + skills/_shared/openspec-convention.md
+  + skills/_shared/persistence-contract.md
+  + skills/_shared/prompt-boundaries.md
+  + skills/_shared/question-shapes.md
+  + skills/_shared/route-brownfield.md
+  + skills/_shared/route-document.md
+  + skills/_shared/route-federation.md
+  + skills/_shared/sdd-phase-common.md
+  + skills/_shared/skill-resolver.md
+  + skills/_shared/token-budget.md
+  + skills/accessibility/SKILL.md
+  + skills/agent-harness-construction/SKILL.md
+  + skills/agent-introspection/SKILL.md
+  + skills/agent-self-evaluation/SKILL.md
+  + skills/agent-self-evaluation/examples/high-score-example.md
+  + skills/agent-self-evaluation/examples/low-score-example.md
+  + skills/agent-self-evaluation/references/evaluation-criteria.md
+  + skills/agent-self-evaluation/references/hook-integration.md
+  + skills/agent-self-evaluation/scripts/evaluate.py
+  + skills/agent-self-evaluation/templates/evaluation-report.md
+  + skills/ai-first-engineering/SKILL.md
+  + skills/ai-regression-testing/SKILL.md
+  + skills/api-design/SKILL.md
+  + skills/architecture-decision-records/SKILL.md
+  + skills/backend-patterns/SKILL.md
+  + skills/branch-pr/SKILL.md
+  + skills/caveman-commit/SKILL.md
+  + skills/caveman-compress/README.md
+  + skills/caveman-compress/SECURITY.md
+  + skills/caveman-compress/SKILL.md
+  + skills/caveman-compress/scripts/__init__.py
+  + skills/caveman-compress/scripts/__main__.py
+  + skills/caveman-compress/scripts/benchmark.py
+  + skills/caveman-compress/scripts/cli.py
+  + skills/caveman-compress/scripts/compress.py
+  + skills/caveman-compress/scripts/detect.py
+  + skills/caveman-compress/scripts/test_caveman.py
+  + skills/caveman-compress/scripts/validate.py
+  + skills/caveman-help/SKILL.md
+  + skills/caveman-review/SKILL.md
+  + skills/caveman/SKILL.md
+  + skills/chained-pr/SKILL.md
+  + skills/chained-pr/references/chaining-details.md
+  + skills/cognitive-doc-design/SKILL.md
+  + skills/comment-writer/SKILL.md
+  + skills/context7-mcp/SKILL.md
+  + skills/design-system/SKILL.md
+  + skills/frontend-patterns/SKILL.md
+  + skills/gh-release-notes/SKILL.md
+  + skills/harness-audit/SKILL.md
+  + skills/hexagonal-architecture/SKILL.md
+  + skills/issue-creation/SKILL.md
+  + skills/judgment-day/SKILL.md
+  + skills/judgment-day/references/prompts-and-formats.md
+  + skills/review-change/SKILL.md
+  + skills/review-correction/SKILL.md
+  + skills/review-readability/SKILL.md
+  + skills/review-reliability/SKILL.md
+  + skills/review-resilience/SKILL.md
+  + skills/review-risk/SKILL.md
+  + skills/sdd-apply/SKILL.md
+  + skills/sdd-apply/strict-tdd.md
+  + skills/sdd-archive/SKILL.md
+  + skills/sdd-baseline/SKILL.md
+  + skills/sdd-clarify/SKILL.md
+  + skills/sdd-design/SKILL.md
+  + skills/sdd-document/SKILL.md
+  + skills/sdd-document/assets/web-doc-template/astro.config.mjs
+  + skills/sdd-document/assets/web-doc-template/package.json
+  + skills/sdd-document/assets/web-doc-template/scripts/sync-openwiki.mjs
+  + skills/sdd-document/assets/web-doc-template/src/content.config.ts
+  + skills/sdd-document/assets/web-doc-template/src/styles/custom.css
+  + skills/sdd-document/assets/web-doc-template/tsconfig.json
+  + skills/sdd-document/references/option-d-starlight.md
+  + skills/sdd-explore/SKILL.md
+  + skills/sdd-foundation/SKILL.md
+  + skills/sdd-foundation/references/foundation-details.md
+  + skills/sdd-init/SKILL.md
+  + skills/sdd-init/references/init-details.md
+  + skills/sdd-onboard/SKILL.md
+  + skills/sdd-propose/SKILL.md
+  + skills/sdd-reconcile/SKILL.md
+  + skills/sdd-spec/SKILL.md
+  + skills/sdd-tasks/SKILL.md
+  + skills/sdd-verify/SKILL.md
+  + skills/sdd-verify/references/report-format.md
+  + skills/sdd-verify/strict-tdd-verify.md
+  + skills/sdd-workspace/SKILL.md
+  + skills/skill-creator/SKILL.md
+  + skills/skill-creator/references/skill-style-guide.md
+  + skills/skill-registry/SKILL.md
+  + skills/stack-angular/SKILL.md
+  + skills/stack-angular/references/angular-animations.md
+  + skills/stack-angular/references/angular-aria.md
+  + skills/stack-angular/references/cli.md
+  + skills/stack-angular/references/component-harnesses.md
+  + skills/stack-angular/references/component-styling.md
+  + skills/stack-angular/references/components.md
+  + skills/stack-angular/references/creating-services.md
+  + skills/stack-angular/references/data-resolvers.md
+  + skills/stack-angular/references/define-routes.md
+  + skills/stack-angular/references/defining-providers.md
+  + skills/stack-angular/references/di-fundamentals.md
+  + skills/stack-angular/references/e2e-testing.md
+  + skills/stack-angular/references/effects.md
+  + skills/stack-angular/references/hierarchical-injectors.md
+  + skills/stack-angular/references/host-elements.md
+  + skills/stack-angular/references/injection-context.md
+  + skills/stack-angular/references/inputs.md
+  + skills/stack-angular/references/linked-signal.md
+  + skills/stack-angular/references/loading-strategies.md
+  + skills/stack-angular/references/mcp.md
+  + skills/stack-angular/references/navigate-to-routes.md
+  + skills/stack-angular/references/outputs.md
+  + skills/stack-angular/references/reactive-forms.md
+  + skills/stack-angular/references/rendering-strategies.md
+  + skills/stack-angular/references/resource.md
+  + skills/stack-angular/references/route-animations.md
+  + skills/stack-angular/references/route-guards.md
+  + skills/stack-angular/references/router-lifecycle.md
+  + skills/stack-angular/references/router-testing.md
+  + skills/stack-angular/references/show-routes-with-outlets.md
+  + skills/stack-angular/references/signal-forms.md
+  + skills/stack-angular/references/signals-overview.md
+  + skills/stack-angular/references/tailwind-css.md
+  + skills/stack-angular/references/template-driven-forms.md
+  + skills/stack-angular/references/testing-fundamentals.md
+  + skills/stack-dotnet/SKILL.md
+  + skills/stack-go-testing/SKILL.md
+  + skills/stack-go-testing/references/examples.md
+  + skills/stack-go/SKILL.md
+  + skills/stack-go/references/patterns.md
+  + skills/stack-java/SKILL.md
+  + skills/stack-kafka/SKILL.md
+  + skills/stack-kotlin-coroutines-flows/SKILL.md
+  + skills/stack-kotlin-exposed-patterns/SKILL.md
+  + skills/stack-kotlin-exposed-patterns/references/patterns.md
+  + skills/stack-kotlin-ktor-patterns/SKILL.md
+  + skills/stack-kotlin-ktor-patterns/references/patterns.md
+  + skills/stack-kotlin-testing/SKILL.md
+  + skills/stack-kotlin-testing/references/patterns.md
+  + skills/stack-kotlin/SKILL.md
+  + skills/stack-kotlin/references/patterns.md
+  + skills/stack-postgres/SKILL.md
+  + skills/stack-python-testing/SKILL.md
+  + skills/stack-python/SKILL.md
+  + skills/stack-python/references/patterns.md
+  + skills/stack-react-performance/SKILL.md
+  + skills/stack-react-testing/SKILL.md
+  + skills/stack-react/SKILL.md
+  + skills/stack-springboot-security/SKILL.md
+  + skills/stack-springboot-tdd/SKILL.md
+  + skills/stack-springboot-verification/SKILL.md
+  + skills/stack-springboot/SKILL.md
+  + skills/stack-sqlserver/SKILL.md
+  + skills/stack-starlight/SKILL.md
+  + skills/stack-starlight/references/components-and-authoring.md
+  + skills/stack-starlight/references/frontmatter.md
+  + skills/stack-starlight/references/setup-and-config.md
+  + skills/stack-starlight/references/sidebar-and-customization.md
+  + skills/stack-vite/SKILL.md
+  + skills/stack-vite/references/patterns.md
+  + skills/tdd-workflow/SKILL.md
+  + skills/token-budget-advisor/SKILL.md
+  + skills/work-unit-commits/SKILL.md
+0 errors, 0 warnings
+
+==> Generate + validate opencode
+configure --target opencode -> C:\WINDOWS\TEMP\ospec-opencode-T5mW7h
+  + .opencode/agents/ospec-workflow.md
+  + .opencode/agents/review-change.md
+  + .opencode/agents/review-correction.md
+  + .opencode/agents/review-readability.md
+  + .opencode/agents/review-reliability.md
+  + .opencode/agents/review-resilience.md
+  + .opencode/agents/review-risk.md
+  + .opencode/agents/sdd-apply.md
+  + .opencode/agents/sdd-archive.md
+  + .opencode/agents/sdd-baseline.md
+  + .opencode/agents/sdd-clarify.md
+  + .opencode/agents/sdd-design.md
+  + .opencode/agents/sdd-document.md
+  + .opencode/agents/sdd-explore.md
+  + .opencode/agents/sdd-foundation.md
+  + .opencode/agents/sdd-init.md
+  + .opencode/agents/sdd-onboard.md
+  + .opencode/agents/sdd-propose.md
+  + .opencode/agents/sdd-reconcile.md
+  + .opencode/agents/sdd-spec.md
+  + .opencode/agents/sdd-tasks.md
+  + .opencode/agents/sdd-verify.md
+  + .opencode/agents/sdd-workspace.md
+  + .opencode/commands/sdd-apply.md
+  + .opencode/commands/sdd-archive.md
+  + .opencode/commands/sdd-baseline.md
+  + .opencode/commands/sdd-clarify.md
+  + .opencode/commands/sdd-continue.md
+  + .opencode/commands/sdd-design.md
+  + .opencode/commands/sdd-document.md
+  + .opencode/commands/sdd-explore.md
+  + .opencode/commands/sdd-ff.md
+  + .opencode/commands/sdd-init.md
+  + .opencode/commands/sdd-lite.md
+  + .opencode/commands/sdd-new.md
+  + .opencode/commands/sdd-onboard.md
+  + .opencode/commands/sdd-propose.md
+  + .opencode/commands/sdd-reconcile.md
+  + .opencode/commands/sdd-spec.md
+  + .opencode/commands/sdd-tasks.md
+  + .opencode/commands/sdd-verify.md
+  + .opencode/commands/sdd-workspace.md
+  + .opencode/instructions/no-model-attribution.instructions.md
+  + .opencode/instructions/sdd-common.instructions.md
+  + .opencode/instructions/sdd-openspec.instructions.md
+  + .opencode/instructions/sdd-strict-tdd.instructions.md
+  + .opencode/plugins/ospec.js
+  + models.yaml
+  + opencode.json
+  + scripts/hooks/commit-msg-hook.js
+  + scripts/hooks/lib/git-state.js
+  + scripts/hooks/lib/model-tier.js
+  + scripts/hooks/lib/secret-scan.js
+  + scripts/hooks/ospec-hooks-launch.js
+  + scripts/hooks/pre-commit-hook.js
+  + scripts/hooks/pre-compact.js
+  + scripts/hooks/pre-tool-use.js
+  + scripts/hooks/session-start.js
+  + scripts/hooks/stop.js
+  + scripts/hooks/subagent-stop.js
+  + scripts/lib/artifact-store-modes.js
+  + scripts/lib/artifact-store.js
+  + scripts/lib/atomic-write.js
+  + scripts/lib/capability-registry.js
+  + scripts/lib/federation-baseline-orchestrator.js
+  + scripts/lib/federation-explore.js
+  + scripts/lib/federation-marker.js
+  + scripts/lib/ospec-state.js
+  + scripts/lib/pathsafe.js
+  + scripts/lib/result-envelope.js
+  + scripts/lib/review-dimensions.js
+  + scripts/lib/review-gate-state.js
+  + scripts/lib/review-lineage.js
+  + scripts/lib/skill-registry.js
+  + scripts/lib/strict-tdd-evidence-remediation.js
+  + scripts/lib/workspace-atlas.js
+  + scripts/lib/workspace-general-baseline.js
+  + skills/_shared/SKILL.md
+  + skills/_shared/approval-ledger.md
+  + skills/_shared/clarify-routing.md
+  + skills/_shared/dispatch-lifecycle-hooks.md
+  + skills/_shared/gaps-resolution.md
+  + skills/_shared/gate-4r-review.md
+  + skills/_shared/gate-archive-quality.md
+  + skills/_shared/gate-change-collision.md
+  + skills/_shared/openspec-convention.md
+  + skills/_shared/persistence-contract.md
+  + skills/_shared/prompt-boundaries.md
+  + skills/_shared/question-shapes.md
+  + skills/_shared/route-brownfield.md
+  + skills/_shared/route-document.md
+  + skills/_shared/route-federation.md
+  + skills/_shared/sdd-phase-common.md
+  + skills/_shared/skill-resolver.md
+  + skills/_shared/token-budget.md
+  + skills/accessibility/SKILL.md
+  + skills/agent-harness-construction/SKILL.md
+  + skills/agent-introspection/SKILL.md
+  + skills/agent-self-evaluation/SKILL.md
+  + skills/agent-self-evaluation/examples/high-score-example.md
+  + skills/agent-self-evaluation/examples/low-score-example.md
+  + skills/agent-self-evaluation/references/evaluation-criteria.md
+  + skills/agent-self-evaluation/references/hook-integration.md
+  + skills/agent-self-evaluation/scripts/evaluate.py
+  + skills/agent-self-evaluation/templates/evaluation-report.md
+  + skills/ai-first-engineering/SKILL.md
+  + skills/ai-regression-testing/SKILL.md
+  + skills/api-design/SKILL.md
+  + skills/architecture-decision-records/SKILL.md
+  + skills/backend-patterns/SKILL.md
+  + skills/branch-pr/SKILL.md
+  + skills/caveman-commit/SKILL.md
+  + skills/caveman-compress/README.md
+  + skills/caveman-compress/SECURITY.md
+  + skills/caveman-compress/SKILL.md
+  + skills/caveman-compress/scripts/__init__.py
+  + skills/caveman-compress/scripts/__main__.py
+  + skills/caveman-compress/scripts/benchmark.py
+  + skills/caveman-compress/scripts/cli.py
+  + skills/caveman-compress/scripts/compress.py
+  + skills/caveman-compress/scripts/detect.py
+  + skills/caveman-compress/scripts/test_caveman.py
+  + skills/caveman-compress/scripts/validate.py
+  + skills/caveman-help/SKILL.md
+  + skills/caveman-review/SKILL.md
+  + skills/caveman/SKILL.md
+  + skills/chained-pr/SKILL.md
+  + skills/chained-pr/references/chaining-details.md
+  + skills/cognitive-doc-design/SKILL.md
+  + skills/comment-writer/SKILL.md
+  + skills/context7-mcp/SKILL.md
+  + skills/design-system/SKILL.md
+  + skills/frontend-patterns/SKILL.md
+  + skills/gh-release-notes/SKILL.md
+  + skills/harness-audit/SKILL.md
+  + skills/hexagonal-architecture/SKILL.md
+  + skills/issue-creation/SKILL.md
+  + skills/judgment-day/SKILL.md
+  + skills/judgment-day/references/prompts-and-formats.md
+  + skills/review-change/SKILL.md
+  + skills/review-correction/SKILL.md
+  + skills/review-readability/SKILL.md
+  + skills/review-reliability/SKILL.md
+  + skills/review-resilience/SKILL.md
+  + skills/review-risk/SKILL.md
+  + skills/sdd-apply/SKILL.md
+  + skills/sdd-apply/strict-tdd.md
+  + skills/sdd-archive/SKILL.md
+  + skills/sdd-baseline/SKILL.md
+  + skills/sdd-clarify/SKILL.md
+  + skills/sdd-design/SKILL.md
+  + skills/sdd-document/SKILL.md
+  + skills/sdd-document/assets/web-doc-template/astro.config.mjs
+  + skills/sdd-document/assets/web-doc-template/package.json
+  + skills/sdd-document/assets/web-doc-template/scripts/sync-openwiki.mjs
+  + skills/sdd-document/assets/web-doc-template/src/content.config.ts
+  + skills/sdd-document/assets/web-doc-template/src/styles/custom.css
+  + skills/sdd-document/assets/web-doc-template/tsconfig.json
+  + skills/sdd-document/references/option-d-starlight.md
+  + skills/sdd-explore/SKILL.md
+  + skills/sdd-foundation/SKILL.md
+  + skills/sdd-foundation/references/foundation-details.md
+  + skills/sdd-init/SKILL.md
+  + skills/sdd-init/references/init-details.md
+  + skills/sdd-onboard/SKILL.md
+  + skills/sdd-propose/SKILL.md
+  + skills/sdd-reconcile/SKILL.md
+  + skills/sdd-spec/SKILL.md
+  + skills/sdd-tasks/SKILL.md
+  + skills/sdd-verify/SKILL.md
+  + skills/sdd-verify/references/report-format.md
+  + skills/sdd-verify/strict-tdd-verify.md
+  + skills/sdd-workspace/SKILL.md
+  + skills/skill-creator/SKILL.md
+  + skills/skill-creator/references/skill-style-guide.md
+  + skills/skill-registry/SKILL.md
+  + skills/stack-angular/SKILL.md
+  + skills/stack-angular/references/angular-animations.md
+  + skills/stack-angular/references/angular-aria.md
+  + skills/stack-angular/references/cli.md
+  + skills/stack-angular/references/component-harnesses.md
+  + skills/stack-angular/references/component-styling.md
+  + skills/stack-angular/references/components.md
+  + skills/stack-angular/references/creating-services.md
+  + skills/stack-angular/references/data-resolvers.md
+  + skills/stack-angular/references/define-routes.md
+  + skills/stack-angular/references/defining-providers.md
+  + skills/stack-angular/references/di-fundamentals.md
+  + skills/stack-angular/references/e2e-testing.md
+  + skills/stack-angular/references/effects.md
+  + skills/stack-angular/references/hierarchical-injectors.md
+  + skills/stack-angular/references/host-elements.md
+  + skills/stack-angular/references/injection-context.md
+  + skills/stack-angular/references/inputs.md
+  + skills/stack-angular/references/linked-signal.md
+  + skills/stack-angular/references/loading-strategies.md
+  + skills/stack-angular/references/mcp.md
+  + skills/stack-angular/references/navigate-to-routes.md
+  + skills/stack-angular/references/outputs.md
+  + skills/stack-angular/references/reactive-forms.md
+  + skills/stack-angular/references/rendering-strategies.md
+  + skills/stack-angular/references/resource.md
+  + skills/stack-angular/references/route-animations.md
+  + skills/stack-angular/references/route-guards.md
+  + skills/stack-angular/references/router-lifecycle.md
+  + skills/stack-angular/references/router-testing.md
+  + skills/stack-angular/references/show-routes-with-outlets.md
+  + skills/stack-angular/references/signal-forms.md
+  + skills/stack-angular/references/signals-overview.md
+  + skills/stack-angular/references/tailwind-css.md
+  + skills/stack-angular/references/template-driven-forms.md
+  + skills/stack-angular/references/testing-fundamentals.md
+  + skills/stack-dotnet/SKILL.md
+  + skills/stack-go-testing/SKILL.md
+  + skills/stack-go-testing/references/examples.md
+  + skills/stack-go/SKILL.md
+  + skills/stack-go/references/patterns.md
+  + skills/stack-java/SKILL.md
+  + skills/stack-kafka/SKILL.md
+  + skills/stack-kotlin-coroutines-flows/SKILL.md
+  + skills/stack-kotlin-exposed-patterns/SKILL.md
+  + skills/stack-kotlin-exposed-patterns/references/patterns.md
+  + skills/stack-kotlin-ktor-patterns/SKILL.md
+  + skills/stack-kotlin-ktor-patterns/references/patterns.md
+  + skills/stack-kotlin-testing/SKILL.md
+  + skills/stack-kotlin-testing/references/patterns.md
+  + skills/stack-kotlin/SKILL.md
+  + skills/stack-kotlin/references/patterns.md
+  + skills/stack-postgres/SKILL.md
+  + skills/stack-python-testing/SKILL.md
+  + skills/stack-python/SKILL.md
+  + skills/stack-python/references/patterns.md
+  + skills/stack-react-performance/SKILL.md
+  + skills/stack-react-testing/SKILL.md
+  + skills/stack-react/SKILL.md
+  + skills/stack-springboot-security/SKILL.md
+  + skills/stack-springboot-tdd/SKILL.md
+  + skills/stack-springboot-verification/SKILL.md
+  + skills/stack-springboot/SKILL.md
+  + skills/stack-sqlserver/SKILL.md
+  + skills/stack-starlight/SKILL.md
+  + skills/stack-starlight/references/components-and-authoring.md
+  + skills/stack-starlight/references/frontmatter.md
+  + skills/stack-starlight/references/setup-and-config.md
+  + skills/stack-starlight/references/sidebar-and-customization.md
+  + skills/stack-vite/SKILL.md
+  + skills/stack-vite/references/patterns.md
+  + skills/tdd-workflow/SKILL.md
+  + skills/token-budget-advisor/SKILL.md
+  + skills/work-unit-commits/SKILL.md
+0 errors, 0 warnings
+
+==> Generate + validate codex
+configure --target codex -> C:\WINDOWS\TEMP\ospec-codex-SJUmRC
+  + .codex/agents/review-change.toml
+  + .codex/agents/review-correction.toml
+  + .codex/agents/review-readability.toml
+  + .codex/agents/review-reliability.toml
+  + .codex/agents/review-resilience.toml
+  + .codex/agents/review-risk.toml
+  + .codex/agents/sdd-apply.toml
+  + .codex/agents/sdd-archive.toml
+  + .codex/agents/sdd-baseline.toml
+  + .codex/agents/sdd-clarify.toml
+  + .codex/agents/sdd-design.toml
+  + .codex/agents/sdd-document.toml
+  + .codex/agents/sdd-explore.toml
+  + .codex/agents/sdd-foundation.toml
+  + .codex/agents/sdd-init.toml
+  + .codex/agents/sdd-onboard.toml
+  + .codex/agents/sdd-propose.toml
+  + .codex/agents/sdd-reconcile.toml
+  + .codex/agents/sdd-spec.toml
+  + .codex/agents/sdd-tasks.toml
+  + .codex/agents/sdd-verify.toml
+  + .codex/agents/sdd-workspace.toml
+  + agent.md
+  + hooks.json
+  + models.yaml
+  + scripts/hooks/commit-msg-hook.js
+  + scripts/hooks/lib/git-state.js
+  + scripts/hooks/lib/model-tier.js
+  + scripts/hooks/lib/secret-scan.js
+  + scripts/hooks/ospec-hooks-launch.js
+  + scripts/hooks/pre-commit-hook.js
+  + scripts/hooks/pre-compact.js
+  + scripts/hooks/pre-tool-use.js
+  + scripts/hooks/session-start.js
+  + scripts/hooks/stop.js
+  + scripts/hooks/subagent-stop.js
+  + scripts/lib/artifact-store-modes.js
+  + scripts/lib/artifact-store.js
+  + scripts/lib/atomic-write.js
+  + scripts/lib/capability-registry.js
+  + scripts/lib/federation-baseline-orchestrator.js
+  + scripts/lib/federation-explore.js
+  + scripts/lib/federation-marker.js
+  + scripts/lib/ospec-state.js
+  + scripts/lib/pathsafe.js
+  + scripts/lib/result-envelope.js
+  + scripts/lib/review-dimensions.js
+  + scripts/lib/review-gate-state.js
+  + scripts/lib/review-lineage.js
+  + scripts/lib/skill-registry.js
+  + scripts/lib/strict-tdd-evidence-remediation.js
+  + scripts/lib/workspace-atlas.js
+  + scripts/lib/workspace-general-baseline.js
+  + skills/_shared/SKILL.md
+  + skills/_shared/approval-ledger.md
+  + skills/_shared/clarify-routing.md
+  + skills/_shared/dispatch-lifecycle-hooks.md
+  + skills/_shared/gaps-resolution.md
+  + skills/_shared/gate-4r-review.md
+  + skills/_shared/gate-archive-quality.md
+  + skills/_shared/gate-change-collision.md
+  + skills/_shared/openspec-convention.md
+  + skills/_shared/persistence-contract.md
+  + skills/_shared/prompt-boundaries.md
+  + skills/_shared/question-shapes.md
+  + skills/_shared/route-brownfield.md
+  + skills/_shared/route-document.md
+  + skills/_shared/route-federation.md
+  + skills/_shared/sdd-phase-common.md
+  + skills/_shared/skill-resolver.md
+  + skills/_shared/token-budget.md
+  + skills/accessibility/SKILL.md
+  + skills/agent-harness-construction/SKILL.md
+  + skills/agent-introspection/SKILL.md
+  + skills/agent-self-evaluation/SKILL.md
+  + skills/agent-self-evaluation/examples/high-score-example.md
+  + skills/agent-self-evaluation/examples/low-score-example.md
+  + skills/agent-self-evaluation/references/evaluation-criteria.md
+  + skills/agent-self-evaluation/references/hook-integration.md
+  + skills/agent-self-evaluation/scripts/evaluate.py
+  + skills/agent-self-evaluation/templates/evaluation-report.md
+  + skills/ai-first-engineering/SKILL.md
+  + skills/ai-regression-testing/SKILL.md
+  + skills/api-design/SKILL.md
+  + skills/architecture-decision-records/SKILL.md
+  + skills/backend-patterns/SKILL.md
+  + skills/branch-pr/SKILL.md
+  + skills/caveman-commit/SKILL.md
+  + skills/caveman-compress/README.md
+  + skills/caveman-compress/SECURITY.md
+  + skills/caveman-compress/SKILL.md
+  + skills/caveman-compress/scripts/__init__.py
+  + skills/caveman-compress/scripts/__main__.py
+  + skills/caveman-compress/scripts/benchmark.py
+  + skills/caveman-compress/scripts/cli.py
+  + skills/caveman-compress/scripts/compress.py
+  + skills/caveman-compress/scripts/detect.py
+  + skills/caveman-compress/scripts/test_caveman.py
+  + skills/caveman-compress/scripts/validate.py
+  + skills/caveman-help/SKILL.md
+  + skills/caveman-review/SKILL.md
+  + skills/caveman/SKILL.md
+  + skills/chained-pr/SKILL.md
+  + skills/chained-pr/references/chaining-details.md
+  + skills/cognitive-doc-design/SKILL.md
+  + skills/commands/sdd-apply/SKILL.md
+  + skills/commands/sdd-archive/SKILL.md
+  + skills/commands/sdd-baseline/SKILL.md
+  + skills/commands/sdd-clarify/SKILL.md
+  + skills/commands/sdd-continue/SKILL.md
+  + skills/commands/sdd-design/SKILL.md
+  + skills/commands/sdd-document/SKILL.md
+  + skills/commands/sdd-explore/SKILL.md
+  + skills/commands/sdd-ff/SKILL.md
+  + skills/commands/sdd-init/SKILL.md
+  + skills/commands/sdd-lite/SKILL.md
+  + skills/commands/sdd-new/SKILL.md
+  + skills/commands/sdd-onboard/SKILL.md
+  + skills/commands/sdd-propose/SKILL.md
+  + skills/commands/sdd-reconcile/SKILL.md
+  + skills/commands/sdd-spec/SKILL.md
+  + skills/commands/sdd-tasks/SKILL.md
+  + skills/commands/sdd-verify/SKILL.md
+  + skills/commands/sdd-workspace/SKILL.md
+  + skills/comment-writer/SKILL.md
+  + skills/context7-mcp/SKILL.md
+  + skills/design-system/SKILL.md
+  + skills/frontend-patterns/SKILL.md
+  + skills/gh-release-notes/SKILL.md
+  + skills/harness-audit/SKILL.md
+  + skills/hexagonal-architecture/SKILL.md
+  + skills/issue-creation/SKILL.md
+  + skills/judgment-day/SKILL.md
+  + skills/judgment-day/references/prompts-and-formats.md
+  + skills/review-change/SKILL.md
+  + skills/review-correction/SKILL.md
+  + skills/review-readability/SKILL.md
+  + skills/review-reliability/SKILL.md
+  + skills/review-resilience/SKILL.md
+  + skills/review-risk/SKILL.md
+  + skills/sdd-apply/SKILL.md
+  + skills/sdd-apply/strict-tdd.md
+  + skills/sdd-archive/SKILL.md
+  + skills/sdd-baseline/SKILL.md
+  + skills/sdd-clarify/SKILL.md
+  + skills/sdd-design/SKILL.md
+  + skills/sdd-document/SKILL.md
+  + skills/sdd-document/assets/web-doc-template/astro.config.mjs
+  + skills/sdd-document/assets/web-doc-template/package.json
+  + skills/sdd-document/assets/web-doc-template/scripts/sync-openwiki.mjs
+  + skills/sdd-document/assets/web-doc-template/src/content.config.ts
+  + skills/sdd-document/assets/web-doc-template/src/styles/custom.css
+  + skills/sdd-document/assets/web-doc-template/tsconfig.json
+  + skills/sdd-document/references/option-d-starlight.md
+  + skills/sdd-explore/SKILL.md
+  + skills/sdd-foundation/SKILL.md
+  + skills/sdd-foundation/references/foundation-details.md
+  + skills/sdd-init/SKILL.md
+  + skills/sdd-init/references/init-details.md
+  + skills/sdd-onboard/SKILL.md
+  + skills/sdd-propose/SKILL.md
+  + skills/sdd-reconcile/SKILL.md
+  + skills/sdd-spec/SKILL.md
+  + skills/sdd-tasks/SKILL.md
+  + skills/sdd-verify/SKILL.md
+  + skills/sdd-verify/references/report-format.md
+  + skills/sdd-verify/strict-tdd-verify.md
+  + skills/sdd-workspace/SKILL.md
+  + skills/skill-creator/SKILL.md
+  + skills/skill-creator/references/skill-style-guide.md
+  + skills/skill-registry/SKILL.md
+  + skills/stack-angular/SKILL.md
+  + skills/stack-angular/references/angular-animations.md
+  + skills/stack-angular/references/angular-aria.md
+  + skills/stack-angular/references/cli.md
+  + skills/stack-angular/references/component-harnesses.md
+  + skills/stack-angular/references/component-styling.md
+  + skills/stack-angular/references/components.md
+  + skills/stack-angular/references/creating-services.md
+  + skills/stack-angular/references/data-resolvers.md
+  + skills/stack-angular/references/define-routes.md
+  + skills/stack-angular/references/defining-providers.md
+  + skills/stack-angular/references/di-fundamentals.md
+  + skills/stack-angular/references/e2e-testing.md
+  + skills/stack-angular/references/effects.md
+  + skills/stack-angular/references/hierarchical-injectors.md
+  + skills/stack-angular/references/host-elements.md
+  + skills/stack-angular/references/injection-context.md
+  + skills/stack-angular/references/inputs.md
+  + skills/stack-angular/references/linked-signal.md
+  + skills/stack-angular/references/loading-strategies.md
+  + skills/stack-angular/references/mcp.md
+  + skills/stack-angular/references/navigate-to-routes.md
+  + skills/stack-angular/references/outputs.md
+  + skills/stack-angular/references/reactive-forms.md
+  + skills/stack-angular/references/rendering-strategies.md
+  + skills/stack-angular/references/resource.md
+  + skills/stack-angular/references/route-animations.md
+  + skills/stack-angular/references/route-guards.md
+  + skills/stack-angular/references/router-lifecycle.md
+  + skills/stack-angular/references/router-testing.md
+  + skills/stack-angular/references/show-routes-with-outlets.md
+  + skills/stack-angular/references/signal-forms.md
+  + skills/stack-angular/references/signals-overview.md
+  + skills/stack-angular/references/tailwind-css.md
+  + skills/stack-angular/references/template-driven-forms.md
+  + skills/stack-angular/references/testing-fundamentals.md
+  + skills/stack-dotnet/SKILL.md
+  + skills/stack-go-testing/SKILL.md
+  + skills/stack-go-testing/references/examples.md
+  + skills/stack-go/SKILL.md
+  + skills/stack-go/references/patterns.md
+  + skills/stack-java/SKILL.md
+  + skills/stack-kafka/SKILL.md
+  + skills/stack-kotlin-coroutines-flows/SKILL.md
+  + skills/stack-kotlin-exposed-patterns/SKILL.md
+  + skills/stack-kotlin-exposed-patterns/references/patterns.md
+  + skills/stack-kotlin-ktor-patterns/SKILL.md
+  + skills/stack-kotlin-ktor-patterns/references/patterns.md
+  + skills/stack-kotlin-testing/SKILL.md
+  + skills/stack-kotlin-testing/references/patterns.md
+  + skills/stack-kotlin/SKILL.md
+  + skills/stack-kotlin/references/patterns.md
+  + skills/stack-postgres/SKILL.md
+  + skills/stack-python-testing/SKILL.md
+  + skills/stack-python/SKILL.md
+  + skills/stack-python/references/patterns.md
+  + skills/stack-react-performance/SKILL.md
+  + skills/stack-react-testing/SKILL.md
+  + skills/stack-react/SKILL.md
+  + skills/stack-springboot-security/SKILL.md
+  + skills/stack-springboot-tdd/SKILL.md
+  + skills/stack-springboot-verification/SKILL.md
+  + skills/stack-springboot/SKILL.md
+  + skills/stack-sqlserver/SKILL.md
+  + skills/stack-starlight/SKILL.md
+  + skills/stack-starlight/references/components-and-authoring.md
+  + skills/stack-starlight/references/frontmatter.md
+  + skills/stack-starlight/references/setup-and-config.md
+  + skills/stack-starlight/references/sidebar-and-customization.md
+  + skills/stack-vite/SKILL.md
+  + skills/stack-vite/references/patterns.md
+  + skills/tdd-workflow/SKILL.md
+  + skills/token-budget-advisor/SKILL.md
+  + skills/work-unit-commits/SKILL.md
+0 errors, 0 warnings
+
+All checks passed.

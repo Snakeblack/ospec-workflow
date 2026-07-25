@@ -1,0 +1,46 @@
+command: node --test scripts/review-lineage.test.js scripts/review-lineage-o4-migration.test.js scripts/review-gate-state.test.js
+exit_code: 1
+captured_before_fix: true
+
+test at scripts\review-gate-state.test.js:213:1
+lineage adapter requires migration before mutable work and exposes only the active slice to correction (1.5155ms)
+  TypeError: remediation source authority integrity check failed
+      at assertRemediationV2 (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-lineage.js:786:128)
+      at assertLineage (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-lineage.js:767:31)
+      at nextLineageAction (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-lineage.js:505:3)
+      at planLineageGate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-gate-state.js:83:22)
+
+test at scripts\review-lineage-o4-migration.test.js:21:1
+O4.2 v1 lineage migrates atomically in memory to four idempotent slices without rewriting history (5.9136ms)
+  TypeError: remediation source authority integrity check failed
+      at assertRemediationV2 (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-lineage.js:786:128)
+      at assertLineage (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-lineage.js:767:31)
+      at migrateReviewLineage (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-lineage.js:587:3)
+
+test at scripts\review-lineage.test.js:327:1
+remediation-v2 migrates a frozen v1 lineage idempotently and fails closed for pending work or malformed partitions (1.1605ms)
+  TypeError: remediation source authority integrity check failed
+      at assertRemediationV2 (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-lineage.js:786:128)
+      at assertLineage (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-lineage.js:767:31)
+      at migrateReviewLineage (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-lineage.js:587:3)
+
+test at scripts\review-lineage.test.js:358:1
+slice validation is monotonic, isolates exhaustion, and reopens a passed slice only with explicit bounded regression (0.9479ms)
+  TypeError: remediation source authority integrity check failed
+      at assertRemediationV2 (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-lineage.js:786:128)
+      at assertLineage (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-lineage.js:767:31)
+      at beginCorrection (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-lineage.js:225:3)
+
+test at scripts\review-lineage.test.js:384:1
+remediation-v2 rejects invented authority, reconciles exact unknown work, and binds regressions to frozen evidence (0.8694ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /base candidate/i. Input:
+  'TypeError: remediation source authority integrity check failed'
+
+test at scripts\review-lineage.test.js:414:1
+slice unknown reconciliation accepts only the exact pending state and restores not-started work (0.7334ms)
+  TypeError: remediation source authority integrity check failed
+      at assertRemediationV2 (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-lineage.js:786:128)
+      at assertLineage (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-lineage.js:767:31)
+      at beginCorrection (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-lineage.js:225:3)
+
+summary: tests 33, pass 27, fail 6

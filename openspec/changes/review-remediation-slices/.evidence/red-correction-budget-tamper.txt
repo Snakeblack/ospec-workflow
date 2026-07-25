@@ -1,0 +1,22 @@
+command: node --test --test-name-pattern="correction_budget counters were altered|relabeled root cause cannot be self-certified" scripts/review-lineage.test.js
+exit_code: 1
+captured_before_fix: true
+
+test at scripts\review-lineage.test.js:418:1
+reconcilePendingOperation rejects a committed lineage whose frozen correction_budget counters were altered (4.3019ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\review-lineage.test.js:428:10)
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /correction_budget/i,
+    operator: 'throws',
+
+test at scripts\review-lineage.test.js:431:1
+remediation-v2 source authority binds the frozen manifest so a relabeled root cause cannot be self-certified (1.2474ms)
+  TypeError: remediation source authority integrity check failed
+      at assertRemediationV2 (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-lineage.js:786:128)
+      at assertLineage (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-lineage.js:767:31)
+      at validateLineageForGate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\review-lineage.js:442:3)
+
+summary: tests 2, pass 0, fail 2

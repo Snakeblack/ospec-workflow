@@ -1,0 +1,11 @@
+THREW: models.yaml duplicate key "agents" at line 56
+Error: models.yaml duplicate key "agents" at line 56
+    at parseModels (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\configure\cli.js:296:13)
+    at [eval]:7:13
+    at runScriptInThisContext (node:internal/vm:219:10)
+    at node:internal/process/execution:451:12
+    at [eval]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:449:60)
+    at evalFunction (node:internal/process/execution:283:30)
+    at evalTypeScript (node:internal/process/execution:295:3)
+    at node:internal/main/eval_string:71:3

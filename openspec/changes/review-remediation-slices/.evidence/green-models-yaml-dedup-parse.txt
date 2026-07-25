@@ -1,0 +1,70 @@
+PARSE_OK agents=24 tiers=premium,default,cheap
+{
+  "agents": {
+    "sdd-propose": "premium",
+    "sdd-design": "premium",
+    "sdd-verify": "premium",
+    "sdd-foundation": "premium",
+    "sdd-workspace": "premium",
+    "sdd-orchestrator": "default",
+    "sdd-spec": "default",
+    "sdd-clarify": "default",
+    "sdd-apply": "default",
+    "sdd-reconcile": "default",
+    "sdd-baseline": "default",
+    "sdd-init": "cheap",
+    "sdd-explore": "cheap",
+    "sdd-tasks": "cheap",
+    "sdd-archive": "cheap",
+    "sdd-onboard": "cheap",
+    "sdd-document": "cheap",
+    "review-change": "default",
+    "review-correction": "default",
+    "review-risk": "default",
+    "review-readability": "default",
+    "review-reliability": "default",
+    "review-resilience": "default",
+    "_default": "default"
+  },
+  "tiers": {
+    "premium": {
+      "claude": "opus",
+      "vscode": [
+        "GPT-5.6 Luna (copilot)"
+      ],
+      "opencode": "openai/gpt-5.6-sol",
+      "codex": {
+        "model": "gpt-5.6-sol",
+        "model_reasoning_effort": "medium",
+        "model_verbosity": "medium"
+      },
+      "cursor": "claude-opus-5[effort=high]"
+    },
+    "default": {
+      "claude": "sonnet",
+      "vscode": [
+        "GPT-5.6 Luna (copilot)"
+      ],
+      "opencode": "openai/gpt-5.6-luna",
+      "codex": {
+        "model": "gpt-5.6-terra",
+        "model_reasoning_effort": "medium",
+        "model_verbosity": "medium"
+      },
+      "cursor": "grok-4.5[fast=false]"
+    },
+    "cheap": {
+      "claude": "haiku",
+      "vscode": [
+        "GPT-5.6 Luna (copilot)"
+      ],
+      "opencode": "openai/gpt-5.6-luna",
+      "codex": {
+        "model": "gpt-5.6-luna",
+        "model_reasoning_effort": "low",
+        "model_verbosity": "low"
+      },
+      "cursor": "composer-2.5[fast=false]"
+    }
+  }
+}

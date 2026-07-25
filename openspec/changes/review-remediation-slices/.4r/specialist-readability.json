@@ -1,0 +1,47 @@
+{
+  "dimension": "readability",
+  "request_id": "dispatch-readability-2026-07-25",
+  "status": "success",
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "summary": "remediation-v2 slice state-machine packed into unauditable single-line transitions",
+      "affected_files": ["scripts/lib/review-lineage.js"],
+      "evidence": "beginSliceCorrection/recordSliceCorrection/validateSliceCorrection/nextSliceAction (~L621-L660) pack multi-statement transitions unlike expanded v1 paths",
+      "why_it_matters": "Critical control flow not visually auditable for budget/reopen/terminality",
+      "acceptance_criteria": "Expand four functions to one statement per line with named helpers for active-slice load, impacted reopen, and terminal transition"
+    },
+    {
+      "severity": "WARNING",
+      "summary": "committed v2 reconciliation authority is a monolithic unnamed predicate",
+      "affected_files": ["scripts/lib/review-lineage.js"],
+      "evidence": "reconcilePendingOperation L436 committed-v2 predicate without named invariants",
+      "why_it_matters": "Post-interruption fail-closed path is easy to break with local edits",
+      "acceptance_criteria": "Named asserts/predicates documenting immutable vs advanceable fields"
+    },
+    {
+      "severity": "WARNING",
+      "summary": "design.md slice budget/status shape diverges from reducer",
+      "affected_files": ["openspec/changes/review-remediation-slices/design.md", "scripts/lib/review-lineage.js"],
+      "evidence": "design documents nested budget and validating|escalated; code uses flat fields and ready|correcting|passed|exhausted",
+      "why_it_matters": "Incorrect mental model of legal slice states and budget location",
+      "acceptance_criteria": "Single canonical shape/enum in design and reducer, or explicit conceptual disclaimer"
+    },
+    {
+      "severity": "WARNING",
+      "summary": "attachRemediationV2 legacy seeding nesting/priority opaque",
+      "affected_files": ["scripts/lib/review-lineage.js"],
+      "evidence": "L562-L573 nested map/forEach seeding; L571 ternary prioritizes last validation outcome without local comment",
+      "why_it_matters": "Silent O4.2 seed corruption risk on refactor",
+      "acceptance_criteria": "Extract seedSliceFromLegacyValidations with authority-order comment; nesting <= 3"
+    },
+    {
+      "severity": "SUGGESTION",
+      "summary": "migrated_at: \"deterministic\" unexplained",
+      "affected_files": ["scripts/lib/review-lineage.js"],
+      "evidence": "attachRemediationV2 L558 literal without intent note",
+      "why_it_matters": "Maintainer may replace with Date.now() and break idempotence/digests",
+      "acceptance_criteria": "Named constant or one-line comment fixing intentional deterministic value"
+    }
+  ]
+}
