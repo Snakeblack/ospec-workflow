@@ -1,0 +1,7 @@
+# Cursor Indexing Exclusions
+dist/
+release/
+.ospec/cache/
+node_modules/
+*.exe
+tmp/
