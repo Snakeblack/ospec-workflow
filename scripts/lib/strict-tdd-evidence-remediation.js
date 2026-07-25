@@ -6,7 +6,12 @@ const MAX_HARD_CAP = 40;
 const EVIDENCE_SECTION = "json:strict-tdd-evidence";
 const ALLOWED_ORIGINS = Object.freeze(["spec-gap", "design-gap", "tasks-gap", "code-bug"]);
 const CYCLE_MARKERS = new Set(["✅ Written", "✅ Passed", "PASS", "pass", "written", "passed"]);
-const sha256 = value => `sha256:${crypto.createHash("sha256").update(Buffer.isBuffer(value) ? value : String(value)).digest("hex")}`;
+/** Hash text/file payloads with CRLF normalized to LF so Windows checkouts match pinned digests. */
+function digestPayload(value) {
+  if (Buffer.isBuffer(value)) return Buffer.from(value.toString("utf8").replace(/\r\n/g, "\n"), "utf8");
+  return String(value).replace(/\r\n/g, "\n");
+}
+const sha256 = value => `sha256:${crypto.createHash("sha256").update(digestPayload(value)).digest("hex")}`;
 function safeFile(absolute) { try { return fs.statSync(absolute).isFile(); } catch { return false; } }
 function safeRead(absolute, encoding) { try { return fs.readFileSync(absolute, encoding); } catch { return null; } }
 function rootedEvidencePath(rootDir, evidencePath, authorizedChange) {

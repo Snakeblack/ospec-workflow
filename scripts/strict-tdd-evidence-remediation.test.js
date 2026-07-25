@@ -65,6 +65,8 @@ test("valid evidence normalizes and hashes deterministically", () => {
   const a = r.validateEvidenceRecord(record(), { rootDir: process.cwd() });
   const b = r.validateEvidenceRecord(record(), { rootDir: process.cwd() });
   assert.equal(a.valid, true); assert.equal(a.candidate.id, b.candidate.id);
+  assert.equal(r.sha256("line\n"), r.sha256("line\r\n"));
+  assert.equal(r.sha256(Buffer.from("line\n")), r.sha256(Buffer.from("line\r\n")));
 });
 test("missing provenance is critical ordinary routing", () => {
   const x = r.classifyRemediation({ rootDir: process.cwd(), finding: { id: "f", severity: "CRITICAL", origin: "code-bug" }, record: record({ cycles: [{ task: "1", test_file: "x", red: "pass", green: "pass", triangulate: "pass", refactor: "pass" }] }) });

@@ -20,7 +20,8 @@ function readGate(content) {
 
 test("O4.2 v1 lineage migrates atomically in memory to four idempotent slices without rewriting history", () => {
   const before = fs.readFileSync(STATE, "utf8");
-  const beforeHash = crypto.createHash("sha256").update(before).digest("hex");
+  // Pin against LF bytes: Windows CI checkout may expand CRLF without changing YAML meaning.
+  const beforeHash = crypto.createHash("sha256").update(before.replace(/\r\n/g, "\n")).digest("hex");
   const fixture = JSON.parse(fs.readFileSync(FIXTURE, "utf8"));
   const gate = readGate(before);
   const lineage = structuredClone(gate.lineage);
