@@ -8,6 +8,23 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.33.0] - 2026-07-25
+
+### Added
+- **Fast path Strict TDD de evidencia (O4.2)**: reparación fail-closed limitada a gaps de formato con identidad de candidato congelada, allowlist de evidencia y un solo focal recheck.
+- **Provenance histórica content-addressed**: modo `historical` autentica snapshots append-only bajo `.ospec/strict-tdd-historical/`; tampering, refs ausentes o corruptas fallan cerrado sin comparar bytes del working tree.
+- **Política canónica de tiers en `models.yaml`**: partición SDD 5/6/6 y paridad de generación en los cinco targets; `enforceModelPolicy` deja de ser bypass público.
+
+### Changed
+- **Baseline OpenSpec**: sincroniza deltas en `agents` (`REQ-agents-016`), `routing` (`REQ-routing-006`), `skills` (`REQ-skills-008`), `generator` (`REQ-generator-005`) y `sdd-document` (`REQ-sdd-document-001`, tier `cheap`).
+- **Cierre 4R remediation-v2**: el último slice `historical-provenance` de O4.2 pasa validación dirigida; lineage `approved` con `all-remediation-slices-passed`.
+
+### Docs
+- ADR `adr-20260725-003-structured-strict-tdd-evidence-is-authoritative`
+- ADR `adr-20260725-004-freeze-evidence-remediation-in-independent-pure-reducer`
+- ADR `adr-20260725-005-treat-models-yaml-as-canonical-model-tier-policy`
+- Change archivado: `openspec/changes/archive/2026-07-25-strict-tdd-evidence-remediation-fast-path/`
+
 ## [2.32.0] - 2026-07-25
 
 ### Added

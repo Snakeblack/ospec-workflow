@@ -6,6 +6,7 @@ const MAX_HARD_CAP = 40;
 const EVIDENCE_SECTION = "json:strict-tdd-evidence";
 const ALLOWED_ORIGINS = Object.freeze(["spec-gap", "design-gap", "tasks-gap", "code-bug"]);
 const CYCLE_MARKERS = new Set(["✅ Written", "✅ Passed", "PASS", "pass", "written", "passed"]);
+const DEFAULT_HISTORICAL_SNAPSHOT_DIR = ".ospec/strict-tdd-historical";
 /** Hash text/file payloads with CRLF normalized to LF so Windows checkouts match pinned digests. */
 function digestPayload(value) {
   if (Buffer.isBuffer(value)) return Buffer.from(value.toString("utf8").replace(/\r\n/g, "\n"), "utf8");
@@ -99,6 +100,36 @@ function normalizeEvidenceRecord(input) {
   out.cycles = Array.isArray(out.cycles) ? out.cycles.map(canonical).sort((a, b) => String(a.task).localeCompare(String(b.task))) : null;
   return out;
 }
+function historicalRefPath(rootDir, digest, snapshotDir = DEFAULT_HISTORICAL_SNAPSHOT_DIR) {
+  if (!rootDir || !digest) return null;
+  const hex = String(digest).replace(/^sha256:/i, "").toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(hex)) return null;
+  const root = path.resolve(rootDir), absolute = path.resolve(root, snapshotDir || DEFAULT_HISTORICAL_SNAPSHOT_DIR, `${hex}.json`);
+  return absolute.startsWith(root + path.sep) ? absolute : null;
+}
+function writeHistoricalSnapshot(rootDir, body, options = {}) {
+  if (!rootDir || !body || typeof body !== "object") return { valid: false, reason_code: "historical-ref-missing" };
+  const payload = JSON.stringify(canonical({ test_file: String(body.test_file || ""), test_digest: String(body.test_digest || "").toLowerCase() }));
+  const digest = sha256(payload), absolute = historicalRefPath(rootDir, digest, options.historicalSnapshotDir);
+  if (!absolute) return { valid: false, reason_code: "historical-ref-missing" };
+  fs.mkdirSync(path.dirname(absolute), { recursive: true });
+  const existing = safeRead(absolute, "utf8");
+  if (existing == null) fs.writeFileSync(absolute, payload);
+  else if (sha256(existing) !== digest) return { valid: false, reason_code: "historical-ref-corrupt" };
+  return { valid: true, digest, path: absolute };
+}
+function authenticateHistoricalProvenance(rootDir, provenance, options = {}) {
+  const snapDigest = provenance && provenance.snapshot_digest;
+  const absolute = historicalRefPath(rootDir, snapDigest, options.historicalSnapshotDir);
+  if (!absolute) return { ok: false, reason_code: "historical-ref-missing" };
+  const content = safeRead(absolute, "utf8");
+  if (content == null) return { ok: false, reason_code: "historical-ref-missing" };
+  if (sha256(content).toLowerCase() !== String(snapDigest).toLowerCase()) return { ok: false, reason_code: "historical-ref-corrupt" };
+  let body; try { body = JSON.parse(content); } catch { return { ok: false, reason_code: "historical-ref-corrupt" }; }
+  if (!body || String(body.test_file || "") !== String(provenance.test_file || "")) return { ok: false, reason_code: "provenance-missing-or-mismatch" };
+  if (String(body.test_digest || "").toLowerCase() !== String(provenance.test_digest || "").toLowerCase()) return { ok: false, reason_code: "provenance-digest-mismatch" };
+  return { ok: true };
+}
 function validateEvidenceRecord(input, options = {}) {
   if (!options.rootDir) return { valid: false, reason_code: "root-dir-required", severity: "CRITICAL" };
   const parsed = typeof input === "string" ? parseEvidenceBlock(input) : { valid: true, record: input };
@@ -112,8 +143,8 @@ function validateEvidenceRecord(input, options = {}) {
   if (!snap || !Array.isArray(snap.genesis_paths) || !snap.genesis_paths.length) errors.push("genesis-paths-missing");
   if (!snap || !Array.isArray(snap.files) || !snap.files.length || snap.files.some(f => !f.path || !/^sha256:[a-f0-9]{64}$/i.test(f.digest))) errors.push("snapshot-files-invalid");
   const root = options.rootDir;
+  // Live mode alone revalidates mutable working-tree bytes; historical never does.
   if (root && snap && !historical) {
-    const fs = require("node:fs"); const path = require("node:path");
     for (const file of snap.files) {
       const absolute = path.resolve(root, file.path);
       const content = safeFile(absolute) && safeRead(absolute);
@@ -124,24 +155,33 @@ function validateEvidenceRecord(input, options = {}) {
   }
   const cycles = record && record.cycles;
   if (!Array.isArray(cycles) || !cycles.length) errors.push("cycles-missing");
+  let authenticity = historical ? "legacy-unverifiable" : "live";
   for (const c of cycles || []) {
     for (const key of ["task", "test_file", "red", "green", "triangulate", "refactor"]) if (!c[key]) errors.push(`cycle-${key}-missing`);
     for (const key of ["red", "green", "triangulate", "refactor"]) if (c[key] && !CYCLE_MARKERS.has(c[key])) errors.push(`cycle-${key}-enum-invalid`);
     if (!c.provenance || !c.provenance.test_file || c.provenance.test_file !== c.test_file || (!c.provenance.commit && !c.provenance.digest && !c.provenance.test_digest && !c.provenance.source)) errors.push("provenance-missing-or-mismatch");
     if (c.provenance && c.provenance.commit && c.provenance.commit !== "working-tree" && !/^[a-f0-9]{7,64}$/i.test(String(c.provenance.commit))) errors.push("provenance-commit-invalid");
     const legacy = c.provenance && c.provenance.source === "working-tree";
-    if ((historical && !legacy) || (!historical && legacy)) errors.push("evidence-mode-cycle-mismatch");
+    const hasHistoricalRef = !!(c.provenance && /^sha256:[a-f0-9]{64}$/i.test(String(c.provenance.snapshot_digest || "")));
+    if (historical) {
+      if (legacy) { if (options.requireHistoricalAuth) errors.push("provenance-unauthenticated"); }
+      else if (!hasHistoricalRef) errors.push("provenance-unauthenticated");
+      else {
+        authenticity = "content-addressed";
+        if (root) { const auth = authenticateHistoricalProvenance(root, c.provenance, options); if (!auth.ok) errors.push(auth.reason_code); }
+      }
+    } else if (legacy) errors.push("evidence-mode-cycle-mismatch");
     if (options.requireProvenanceDigest && !legacy && (!c.provenance || !c.provenance.test_digest)) errors.push("provenance-digest-missing");
     if (options.testFiles && !options.testFiles.includes(c.test_file)) errors.push("test-file-unverifiable");
-    if (root) {
-      const fs = require("node:fs"); const path = require("node:path");
+    // Live-only digest/file checks — historical authenticates sealed refs above.
+    if (root && !historical) {
       const testPath = path.resolve(root, c.test_file);
       const content = safeFile(testPath) && safeRead(testPath);
       if (content == null) errors.push("test-file-unverifiable");
       if (options.requireProvenanceDigest && !legacy && c.provenance && c.provenance.test_digest && content != null && sha256(content) !== String(c.provenance.test_digest).toLowerCase()) errors.push("provenance-digest-mismatch");
     }
   }
-  return errors.length ? { valid: false, reason_code: errors[0], errors, severity: "CRITICAL" } : { valid: true, record, candidate: candidateIdentity(snap), severity: "CRITICAL" };
+  return errors.length ? { valid: false, reason_code: errors[0], errors, severity: "CRITICAL" } : { valid: true, record, candidate: candidateIdentity(snap), authenticity, severity: "CRITICAL" };
 }
 function isEvidenceOnlyPath(filePath) { const p = String(filePath || "").replace(/\\/g, "/"); return /(^|\/)apply-progress\.md$/.test(p); }
 const isAllowlistedWrite = paths => (paths || []).every(isEvidenceOnlyPath);
@@ -287,4 +327,4 @@ function reduce(state, event = {}) {
   }
   return next;
 }
-module.exports = { MAX_HARD_CAP, EVIDENCE_SECTION, ALLOWED_ORIGINS, sha256, canonical, sortedPaths, parseEvidenceBlock, extractEvidenceRecord: parseEvidenceBlock, digestEvidenceSection, renderEvidenceTable, compareEvidenceRendering, extractEvidenceRegion, captureEvidenceSnapshot, finalizeEvidence, assertFinalized, normalizeEvidenceRecord, normalize: normalizeEvidenceRecord, validateEvidenceRecord, validate: validateEvidenceRecord, candidateIdentity, computeCandidateIdentity: candidateIdentity, functionalSnapshotHash: candidateIdentity, sameIdentity, rootedEvidencePath, isEvidenceOnlyPath, isAllowlistedPath: isEvidenceOnlyPath, isAllowlistedWrite, withinChangedLineCap, resolveChangedLineCap, liveReceiptValid, classifyRemediation, classify: classifyRemediation, reduce, reducer: reduce, transition: reduce };
+module.exports = { MAX_HARD_CAP, EVIDENCE_SECTION, ALLOWED_ORIGINS, sha256, canonical, sortedPaths, parseEvidenceBlock, extractEvidenceRecord: parseEvidenceBlock, digestEvidenceSection, renderEvidenceTable, compareEvidenceRendering, extractEvidenceRegion, captureEvidenceSnapshot, finalizeEvidence, assertFinalized, normalizeEvidenceRecord, normalize: normalizeEvidenceRecord, validateEvidenceRecord, validate: validateEvidenceRecord, candidateIdentity, computeCandidateIdentity: candidateIdentity, functionalSnapshotHash: candidateIdentity, sameIdentity, rootedEvidencePath, isEvidenceOnlyPath, isAllowlistedPath: isEvidenceOnlyPath, isAllowlistedWrite, withinChangedLineCap, resolveChangedLineCap, liveReceiptValid, historicalRefPath, writeHistoricalSnapshot, authenticateHistoricalProvenance, classifyRemediation, classify: classifyRemediation, reduce, reducer: reduce, transition: reduce };
