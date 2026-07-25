@@ -9,7 +9,7 @@ const { spawnSync } = require("node:child_process");
 const { runConfigure, gatherRuntimeScripts, resolveClaudeBin, defaultRunValidator } = require("./configure/cli.js");
 
 const ROOT = path.resolve(__dirname, "..");
-const TARGETS = ["claude", "vscode", "github-copilot", "opencode", "codex"];
+const TARGETS = ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor"];
 
 const runValidator = (profile, outDir) => {
   if (profile.id === "claude" && !resolveClaudeBin()) {
@@ -24,7 +24,7 @@ test("classifier and reducer are explicit generated runtime roots", () => {
   assert.ok(gatherRuntimeScripts(ROOT).some((file) => file.path === "scripts/lib/review-lineage.js"));
 });
 
-test("all five generated targets carry generalist, classifier, gate, audit, and competence boundary", (t) => {
+test("all six generated targets carry generalist, classifier, gate, audit, and competence boundary", (t) => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "selective-4r-"));
   t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
   for (const target of TARGETS) {
@@ -135,7 +135,7 @@ const generalist = process.argv[2];
 function fail(code, message) { console.error(code + ": " + message); process.exit(1); }
 if (!fs.existsSync(path.join(root, generalist))) fail("GENERALIST", "missing generated generalist");
 const target = generalist.includes(".toml") ? "codex" : generalist.includes(".agent.md") ? (generalist.startsWith(".github") ? "github-copilot" : "vscode") : generalist.startsWith(".opencode") ? "opencode" : "claude";
-const correctionPath = { claude: "agents/review-correction.md", vscode: "agents/review-correction.agent.md", "github-copilot": ".github/agents/review-correction.agent.md", opencode: ".opencode/agents/review-correction.md", codex: ".codex/agents/review-correction.toml" }[target];
+const correctionPath = { claude: "agents/review-correction.md", vscode: "agents/review-correction.agent.md", "github-copilot": ".github/agents/review-correction.agent.md", opencode: ".opencode/agents/review-correction.md", codex: ".codex/agents/review-correction.toml", cursor: "agents/review-correction.md" }[target];
 if (!fs.existsSync(path.join(root, correctionPath))) fail("CORRECTION", "missing targeted correction agent");
 const skill = fs.readFileSync(path.join(root, "skills/review-change/SKILL.md"), "utf8");
 const correctionSkill = fs.readFileSync(path.join(root, "skills/review-correction/SKILL.md"), "utf8");
@@ -224,5 +224,6 @@ function targetPaths(target) {
     "github-copilot": { generalist: ".github/agents/review-change.agent.md", correction: ".github/agents/review-correction.agent.md", orchestrator: ".github/agents/sdd-orchestrator.agent.md" },
     opencode: { generalist: ".opencode/agents/review-change.md", correction: ".opencode/agents/review-correction.md", orchestrator: ".opencode/agents/ospec-workflow.md" },
     codex: { generalist: ".codex/agents/review-change.toml", correction: ".codex/agents/review-correction.toml", orchestrator: "agent.md" },
+    cursor: { generalist: "agents/review-change.md", correction: "agents/review-correction.md", orchestrator: "agents/sdd-orchestrator.md" },
   }[target];
 }

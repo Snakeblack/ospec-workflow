@@ -187,7 +187,7 @@ test("defaultRunValidator runs the validator without a shell, passing {out} as o
 // Golden snapshots
 // ---------------------------------------------------------------------------
 
-for (const target of ["claude", "github-copilot", "opencode", "codex"]) {
+for (const target of ["claude", "github-copilot", "opencode", "codex", "cursor"]) {
   test(`generated ${target} tree matches the committed golden`, (t) => {
     const out = tmpOut(t);
     runConfigure({ sourceDir: SOURCE, target, outDir: out, validate: false });

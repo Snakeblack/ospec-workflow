@@ -1,0 +1,33 @@
+# ADR-001: to-mdc derives rule metadata from source frontmatter
+
+- Status: accepted
+- Change: cursor-native-target
+- Date: 2026-07-25
+
+## Context
+
+Cursor loads rules as `rules/*.mdc` with `description` / `globs` / `alwaysApply`
+frontmatter. The reference `sync-cursor.js` carried a hardcoded five-entry
+`RULE_FRONTMATTER` table, while the canonical `rules/*.instructions.md` sources already
+declare a curated `description`.
+
+## Decision
+
+`rules.strategy: "to-mdc"` (REQ-generator-006) emits `rules/<base>.mdc` with `description`
+read from the source frontmatter (fallback: the base name), `globs` and `alwaysApply` from
+profile constants (`["*"]`, `true`), and the VS Code-only `applyTo` key dropped. `AGENTS.md`
+is remapped to `rules/agents-protocol.mdc` through a single `rules.synthesize` entry that
+supplies its own `description`.
+
+## Alternatives
+
+- Port the five-entry `RULE_FRONTMATTER` map into the profile — duplicated state that rots
+  silently the moment a rule file is added.
+- Translate `applyTo` globs into Cursor `globs` — would make rules conditional, contradicting
+  the verified live install where all five load unconditionally.
+
+## Consequences
+
+Adding a rule needs no generator change. Cursor loses per-rule glob scoping (all rules are
+always-on), matching current live behavior. Reversible: the strategy is one branch in
+`target-transform.js`, and re-introducing a profile metadata table is additive.

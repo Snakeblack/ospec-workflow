@@ -108,6 +108,13 @@ node scripts/configure/cli.js --target opencode --out dist/opencode
 # opencode (instalación global)
 npm run setup:opencode
 
+# Cursor IDE (construcción local)
+npm run build:cursor
+# equivalente: node scripts/configure/cli.js --target cursor --out dist/cursor
+
+# Cursor IDE (instalación global en ~/.cursor)
+npm run setup:cursor
+
 # Omitir validacion para inspeccion rapida
 node scripts/configure/cli.js --target claude --out dist/claude --no-validate
 ```
@@ -120,6 +127,7 @@ node scripts/configure/cli.js --target claude --out dist/claude --no-validate
 | `codex` | Genera `agent.md`, `.codex/agents/*.toml`, `skills/`, runtime `scripts/` y `hooks.json` nativo. `setup:codex` los instala globalmente sin usar plugins ni marketplace. | `scripts/configure/validate-codex.js`, ejecutado por la validacion de perfiles y por `node scripts/check.js`. |
 | `github-copilot` | Genera layout `.github/` con instrucciones, prompts, chatmodes, MCP y runtime de hooks para GitHub Copilot CLI / coding agent. | `scripts/configure/validate-github-copilot.js`, ejecutado por la validacion de perfiles y por `node scripts/check.js`. |
 | `opencode` | Genera layout `.opencode/` (`agents/`, `commands/`, `instructions/`, `plugins/ospec.js`) mas `opencode.json` (schema + `mcp` + `instructions`) para opencode. Renombra el agente principal `sdd-orchestrator` a `ospec-workflow` para su visualización nativa. Sin hooks de shell: el runtime se puentea con un plugin JS. | `scripts/configure/validate-opencode.js`, ejecutado por la validacion de perfiles y por `node scripts/check.js`. |
+| `cursor` | Genera `agents/*.md`, `commands/*.md`, `rules/*.mdc` (incl. `agents-protocol.mdc` desde `AGENTS.md`), `hooks.json` camelCase y runtime. `build:cursor` / `setup:cursor` son el flujo soportado: genera `dist/cursor/` y lo sincroniza en `~/.cursor` expandiendo `__OSPEC_CURSOR_ROOT__`. | `scripts/configure/validate-cursor.js`, ejecutado por la validacion de perfiles y por `node scripts/check.js`. |
 
 Cada arbol generado es **autocontenido**: el generador sigue los `require` desde los hooks e incluye su runtime (`scripts/hooks/` + sus dependencias de `scripts/lib/`), sin tests ni el propio generador.
 
@@ -145,6 +153,7 @@ En Claude Code hay dos salidas distintas:
 - **Codex CLI (Local/Proyecto)**: `npm run install:codex -- ../mi-proyecto` copia únicamente `.codex/agents/*.toml` a `<repo>/.codex/agents/`; preserva cualquier `config.toml` existente y no copia `.codex-plugin/plugin.json` dentro del repo destino.
 - **opencode (Local/Proyecto)**: genera `dist/opencode/` y copia su contenido (`.opencode/`, `opencode.json`, `skills/` y `scripts/`) en la raiz del repo destino. opencode descubre agentes/comandos/instrucciones bajo `.opencode/` y lee `opencode.json` (MCP + instructions); el plugin `.opencode/plugins/ospec.js` puentea el runtime de hooks.
 - **opencode (Global)**: compila, copia y registra todos los agentes, comandos, instrucciones y plugins en el directorio global del usuario (`~/.config/opencode/`), fusionando la configuración de MCP en `opencode.json` de manera automática y permanente para cualquier proyecto. En ambos casos de opencode, el agente principal es renombrado a `ospec-workflow`.
+- **Cursor IDE (Global)**: `npm run build:cursor` genera `dist/cursor/`; `npm run setup:cursor` valida y sincroniza ese árbol en `~/.cursor`, expandiendo `__OSPEC_CURSOR_ROOT__` en `hooks.json` a la ruta absoluta (con comillas solo si el `$HOME` tiene espacios) y copiando el binario `ospec-hooks` al runtime gestionado.
 
 ### Codex CLI
 
@@ -415,6 +424,25 @@ Este instalador idempotente realiza los siguientes pasos:
 
 Esto permite que `ospec-workflow` y todos sus comandos/skills estén disponibles al presionar **Tab** en cualquier repositorio abierto en OpenCode.
 
+### Cursor IDE
+
+El target `cursor` instala de forma nativa en el home global de Cursor (`~/.cursor`). No hay instalación repo-local `.cursor/` en este cambio.
+
+```powershell
+npm run build:cursor
+npm run setup:cursor
+```
+
+*(Para actualizar, vuelve a ejecutar `npm run setup:cursor` o `npm run reload:cursor`.)*
+
+Este instalador idempotente:
+1. Compila y valida `dist/cursor/` con `runConfigure({ target: "cursor", validate: true })`.
+2. Aplica `assertCursorPathSafe` sobre `~/.cursor` (permite `$HOME/.cursor`; rechaza raíz del FS, symlinks y escapes canónicos).
+3. Sincroniza el árbol generado por comparación de contenido (preserva archivos de usuario ajenos).
+4. Escribe `hooks.json` con `__OSPEC_CURSOR_ROOT__` ya expandido a la ruta absoluta en slashes POSIX (comillas solo si el path tiene espacios).
+5. Copia el binario `ospec-hooks` a `~/.cursor/scripts/hooks/` cuando existe en `release/dist/`.
+6. `--dry-run` valida y no escribe nada bajo `~/.cursor`.
+
 ## Como verificar que cargaron los agentes y los skills
 
 Empieza por los puntos de entrada visibles y luego inspecciona mas detalle solo si falta algo.
@@ -428,6 +456,7 @@ Empieza por los puntos de entrada visibles y luego inspecciona mas detalle solo 
 | GitHub Copilot CLI (Global) | La carpeta global (`~/.copilot/`) contiene `agents/`, `prompts/`, `instructions/`, `hooks/`, `skills/` y `scripts/` copiados, y `mcp-config.json` tiene la configuración fusionada. |
 | opencode (Local) | El repo destino contiene `.opencode/`, `opencode.json`, `skills/` y `scripts/`. Al presionar Tab o escribir su nombre, el agente `ospec-workflow` aparece en la interfaz. |
 | opencode (Global) | La carpeta global (`~/.config/opencode/`) contiene `agents/`, `commands/`, `instructions/`, `plugins/`, `skills/` y `scripts/`, y `opencode.json` tiene la configuración fusionada. En cualquier repo, al presionar Tab, el agente `ospec-workflow` aparece en la interfaz. |
+| Cursor IDE (Global) | `~/.cursor/` contiene `agents/`, `commands/`, `rules/*.mdc`, `hooks.json` (sin `__OSPEC_CURSOR_ROOT__` sin expandir), `skills/` y `scripts/`. |
 
 En Claude Code, si algo no aparece despues de instalar el plugin persistente, ejecuta:
 

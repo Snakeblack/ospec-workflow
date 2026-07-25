@@ -1,0 +1,1990 @@
+diff --git a/docs/en/README.md b/docs/en/README.md
+index 7339f40..ac2bfe5 100644
+--- a/docs/en/README.md
++++ b/docs/en/README.md
+@@ -4,8 +4,8 @@
+ > point for evaluation and onboarding; when in doubt, the Spanish docs win.
+ 
+ **ospec-workflow** is a spec-driven development (SDD) harness for AI coding
+-agents, generated for four targets — **Claude Code, VS Code (Copilot Chat),
+-GitHub Copilot CLI, and opencode** — from a single source tree. The AI acts as
++agents, generated for six targets — **Claude Code, VS Code (Copilot Chat),
++GitHub Copilot CLI, opencode, Codex CLI, and Cursor** — from a single source tree. The AI acts as
+ a senior engineer who accompanies you: it removes ambiguity, asks for decisions
+ (with rationale, trade-off, and reversibility), and never builds "whatever it
+ thinks is best". All workflow state lives in `openspec/` — versioned with your
+@@ -45,7 +45,7 @@ claude plugin install ospec-workflow
+ /sdd-new my-feature
+ ```
+ 
+-For VS Code / Copilot CLI / opencode targets, generate and install the
++For VS Code / Copilot CLI / opencode / Codex / Cursor targets, generate and install the
+ corresponding tree with `node scripts/configure/cli.js` — see
+ `docs/plugin-installation.md` (Spanish). Capability differences per host are
+ declared in `docs/target-capabilities.md`.
+diff --git a/docs/plugin-installation.md b/docs/plugin-installation.md
+index bf3de02..3743456 100644
+--- a/docs/plugin-installation.md
++++ b/docs/plugin-installation.md
+@@ -108,6 +108,13 @@ node scripts/configure/cli.js --target opencode --out dist/opencode
+ # opencode (instalación global)
+ npm run setup:opencode
+ 
++# Cursor IDE (construcción local)
++npm run build:cursor
++# equivalente: node scripts/configure/cli.js --target cursor --out dist/cursor
++
++# Cursor IDE (instalación global en ~/.cursor)
++npm run setup:cursor
++
+ # Omitir validacion para inspeccion rapida
+ node scripts/configure/cli.js --target claude --out dist/claude --no-validate
+ ```
+@@ -120,6 +127,7 @@ node scripts/configure/cli.js --target claude --out dist/claude --no-validate
+ | `codex` | Genera `agent.md`, `.codex/agents/*.toml`, `skills/`, runtime `scripts/` y `hooks.json` nativo. `setup:codex` los instala globalmente sin usar plugins ni marketplace. | `scripts/configure/validate-codex.js`, ejecutado por la validacion de perfiles y por `node scripts/check.js`. |
+ | `github-copilot` | Genera layout `.github/` con instrucciones, prompts, chatmodes, MCP y runtime de hooks para GitHub Copilot CLI / coding agent. | `scripts/configure/validate-github-copilot.js`, ejecutado por la validacion de perfiles y por `node scripts/check.js`. |
+ | `opencode` | Genera layout `.opencode/` (`agents/`, `commands/`, `instructions/`, `plugins/ospec.js`) mas `opencode.json` (schema + `mcp` + `instructions`) para opencode. Renombra el agente principal `sdd-orchestrator` a `ospec-workflow` para su visualización nativa. Sin hooks de shell: el runtime se puentea con un plugin JS. | `scripts/configure/validate-opencode.js`, ejecutado por la validacion de perfiles y por `node scripts/check.js`. |
++| `cursor` | Genera `agents/*.md`, `commands/*.md`, `rules/*.mdc` (incl. `agents-protocol.mdc` desde `AGENTS.md`), `hooks.json` camelCase y runtime. `build:cursor` / `setup:cursor` son el flujo soportado: genera `dist/cursor/` y lo sincroniza en `~/.cursor` expandiendo `__OSPEC_CURSOR_ROOT__`. | `scripts/configure/validate-cursor.js`, ejecutado por la validacion de perfiles y por `node scripts/check.js`. |
+ 
+ Cada arbol generado es **autocontenido**: el generador sigue los `require` desde los hooks e incluye su runtime (`scripts/hooks/` + sus dependencias de `scripts/lib/`), sin tests ni el propio generador.
+ 
+@@ -145,6 +153,7 @@ En Claude Code hay dos salidas distintas:
+ - **Codex CLI (Local/Proyecto)**: `npm run install:codex -- ../mi-proyecto` copia únicamente `.codex/agents/*.toml` a `<repo>/.codex/agents/`; preserva cualquier `config.toml` existente y no copia `.codex-plugin/plugin.json` dentro del repo destino.
+ - **opencode (Local/Proyecto)**: genera `dist/opencode/` y copia su contenido (`.opencode/`, `opencode.json`, `skills/` y `scripts/`) en la raiz del repo destino. opencode descubre agentes/comandos/instrucciones bajo `.opencode/` y lee `opencode.json` (MCP + instructions); el plugin `.opencode/plugins/ospec.js` puentea el runtime de hooks.
+ - **opencode (Global)**: compila, copia y registra todos los agentes, comandos, instrucciones y plugins en el directorio global del usuario (`~/.config/opencode/`), fusionando la configuración de MCP en `opencode.json` de manera automática y permanente para cualquier proyecto. En ambos casos de opencode, el agente principal es renombrado a `ospec-workflow`.
++- **Cursor IDE (Global)**: `npm run build:cursor` genera `dist/cursor/`; `npm run setup:cursor` valida y sincroniza ese árbol en `~/.cursor`, expandiendo `__OSPEC_CURSOR_ROOT__` en `hooks.json` a la ruta absoluta (con comillas solo si el `$HOME` tiene espacios) y copiando el binario `ospec-hooks` al runtime gestionado.
+ 
+ ### Codex CLI
+ 
+@@ -415,6 +424,25 @@ Este instalador idempotente realiza los siguientes pasos:
+ 
+ Esto permite que `ospec-workflow` y todos sus comandos/skills estén disponibles al presionar **Tab** en cualquier repositorio abierto en OpenCode.
+ 
++### Cursor IDE
++
++El target `cursor` instala de forma nativa en el home global de Cursor (`~/.cursor`). No hay instalación repo-local `.cursor/` en este cambio.
++
++```powershell
++npm run build:cursor
++npm run setup:cursor
++```
++
++*(Para actualizar, vuelve a ejecutar `npm run setup:cursor` o `npm run reload:cursor`.)*
++
++Este instalador idempotente:
++1. Compila y valida `dist/cursor/` con `runConfigure({ target: "cursor", validate: true })`.
++2. Aplica `assertCursorPathSafe` sobre `~/.cursor` (permite `$HOME/.cursor`; rechaza raíz del FS, symlinks y escapes canónicos).
++3. Sincroniza el árbol generado por comparación de contenido (preserva archivos de usuario ajenos).
++4. Escribe `hooks.json` con `__OSPEC_CURSOR_ROOT__` ya expandido a la ruta absoluta en slashes POSIX (comillas solo si el path tiene espacios).
++5. Copia el binario `ospec-hooks` a `~/.cursor/scripts/hooks/` cuando existe en `release/dist/`.
++6. `--dry-run` valida y no escribe nada bajo `~/.cursor`.
++
+ ## Como verificar que cargaron los agentes y los skills
+ 
+ Empieza por los puntos de entrada visibles y luego inspecciona mas detalle solo si falta algo.
+@@ -428,6 +456,7 @@ Empieza por los puntos de entrada visibles y luego inspecciona mas detalle solo
+ | GitHub Copilot CLI (Global) | La carpeta global (`~/.copilot/`) contiene `agents/`, `prompts/`, `instructions/`, `hooks/`, `skills/` y `scripts/` copiados, y `mcp-config.json` tiene la configuración fusionada. |
+ | opencode (Local) | El repo destino contiene `.opencode/`, `opencode.json`, `skills/` y `scripts/`. Al presionar Tab o escribir su nombre, el agente `ospec-workflow` aparece en la interfaz. |
+ | opencode (Global) | La carpeta global (`~/.config/opencode/`) contiene `agents/`, `commands/`, `instructions/`, `plugins/`, `skills/` y `scripts/`, y `opencode.json` tiene la configuración fusionada. En cualquier repo, al presionar Tab, el agente `ospec-workflow` aparece en la interfaz. |
++| Cursor IDE (Global) | `~/.cursor/` contiene `agents/`, `commands/`, `rules/*.mdc`, `hooks.json` (sin `__OSPEC_CURSOR_ROOT__` sin expandir), `skills/` y `scripts/`. |
+ 
+ En Claude Code, si algo no aparece despues de instalar el plugin persistente, ejecuta:
+ 
+diff --git a/docs/target-capabilities.md b/docs/target-capabilities.md
+index 1c9ae9e..385be0b 100644
+--- a/docs/target-capabilities.md
++++ b/docs/target-capabilities.md
+@@ -1,6 +1,6 @@
+ # Matriz de capacidades y paridad por target (D1/D2)
+ 
+-Los cuatro targets generados NO son equivalentes: cada host expone tools y
++Los seis targets generados NO son equivalentes: cada host expone tools y
+ lifecycle hooks distintos. Esta matriz declara qué capacidad existe dónde, qué
+ degradación aplica cuando falta, y qué protecciones corren en cada target —
+ para que nadie asuma garantías que su host no ejecuta.
+@@ -9,14 +9,14 @@ Fuente de mapeo de tools: `scripts/lib/target-profiles/*.js` (`toolMap`).
+ 
+ ## 1. Capacidades diferenciales por target
+ 
+-| Capacidad | claude (Claude Code) | vscode (Copilot Chat) | github-copilot (CLI) | opencode |
+-|---|---|---|---|---|
+-| Preguntas estructuradas | `AskUserQuestion` | `vscode/askQuestions` | `ask_user` | `question` |
+-| Sub-agentes delegados | ✅ (`Task`/agents) | ✅ (`agent`) | parcial (sesión única) | ✅ (`task`) |
+-| Sub-agentes en paralelo | ✅ | ❌ (secuencial) | ❌ | ❌ |
+-| Background tasks | ✅ (`run_in_background`) | ❌ | ❌ | ❌ |
+-| Lifecycle hooks del plugin | ✅ (los 5) | ❌ | ❌ | parcial (plugin JS propio) |
+-| Fallback de modelos por tier | vía `models.yaml` | ✅ (orden declarado) | ❌ | ✅ |
++| Capacidad | claude (Claude Code) | vscode (Copilot Chat) | github-copilot (CLI) | opencode | cursor |
++|---|---|---|---|---|---|
++| Preguntas estructuradas | `AskUserQuestion` | `vscode/askQuestions` | `ask_user` | `question` | chat gate (degrade) |
++| Sub-agentes delegados | ✅ (`Task`/agents) | ✅ (`agent`) | parcial (sesión única) | ✅ (`task`) | ✅ (`Task`) |
++| Sub-agentes en paralelo | ✅ | ❌ (secuencial) | ❌ | ❌ | parcial |
++| Background tasks | ✅ (`run_in_background`) | ❌ | ❌ | ❌ | ❌ |
++| Lifecycle hooks del plugin | ✅ (los 5) | ❌ | ❌ | parcial (plugin JS propio) | ✅ (camelCase map) |
++| Fallback de modelos por tier | vía `models.yaml` | ✅ (orden declarado) | ❌ | ✅ | vía `models.yaml` `cursor:` |
+ 
+ Regla de generación: los prompts de un target NO deben instruir tools o
+ capacidades que su host no tiene — instruir una tool inexistente hace que el
+diff --git a/openspec/config.yaml b/openspec/config.yaml
+index e31eeb7..2b26874 100644
+--- a/openspec/config.yaml
++++ b/openspec/config.yaml
+@@ -2,7 +2,7 @@ schema: spec-driven
+ 
+ context: |
+   Tech stack: Node.js 22+, CommonJS JavaScript (no TypeScript, no external runtime frameworks)
+-  Architecture: Multi-target plugin/workflow generator producing four targets: claude, vscode, github-copilot, opencode
++  Architecture: Multi-target plugin/workflow generator producing six targets: claude, vscode, github-copilot, opencode, codex, cursor
+   Key dirs: scripts/ (build+test+hook logic), skills/ (SDD+utility skills), agents/ (phase prompt templates), hooks/, dist/ (generated output), rules/, commands/, profiles/
+   Testing: Node.js native test runner (--test flag), 20 unit/integration test files in scripts/**/*.test.js
+   Package manager: npm (no lock file; package.json at root, Node >=22 required)
+diff --git a/openspec/memory/known-issues.md b/openspec/memory/known-issues.md
+index 0bad6f5..c8b9a4f 100644
+--- a/openspec/memory/known-issues.md
++++ b/openspec/memory/known-issues.md
+@@ -3,6 +3,48 @@ title: Known Issues
+ last_updated: 2026-07-25
+ ---
+ 
++## Strict TDD evidence record fails schema-v1 validation (evidence_mode working-tree, legacy provenance source, invalid refactor marker)
++- severity: BLOCKER
++- area: openspec/changes/cursor-native-target/apply-progress.md (json:strict-tdd-evidence)
++- workaround: evidence-section-only repair — set evidence_mode to "live", replace cycle provenance.source "working-tree" with commit "working-tree", and use an allowed refactor marker for cycle 5.2-5.5 (mirror it in the Final Derived Markdown Table); all 16 file digests already match
++- change: cursor-native-target
++- date: 2026-07-25
++
++## Six-target branch-advisory scenario has no automated coverage for cursor or codex
++- severity: WARNING
++- area: scripts/configure.test.js (TARGETS array)
++- workaround: extend TARGETS with "codex" and "cursor"; behavior itself already verified by build and grep of dist/cursor
++- change: cursor-native-target
++- date: 2026-07-25
++
++## install-cursor main() non-dry-run path is never exercised by a test
++- severity: WARNING
++- area: scripts/configure/install-cursor.js, scripts/configure/install-cursor.test.js
++- workaround: mirror the dry-run injected-deps test with dryRun false and assert syncTreeByContent, installHooksJson and copyBinaryToTree are called with the expected arguments
++- change: cursor-native-target
++- date: 2026-07-25
++
++## tasks.md 5.1 is ticked complete although the baseline spec deltas are deferred to sdd-archive
++- severity: WARNING
++- area: openspec/changes/cursor-native-target/tasks.md
++- workaround: sdd-archive must still apply the four delta specs to openspec/specs/{generator,install,agents,hooks-runtime}/spec.md; do not read the tick as done
++- change: cursor-native-target
++- date: 2026-07-25
++
++## Mock-heavy install-cursor dry-run test (7 stubs vs 3 assertions)
++- severity: WARNING
++- area: scripts/configure/install-cursor.test.js
++- workaround: add the positive non-dry-run case so the suite verifies behavior rather than only wiring absence
++- change: cursor-native-target
++- date: 2026-07-25
++
++## docs/target-capabilities.md claims six targets but its capability table only tabulates five
++- severity: WARNING
++- area: docs/target-capabilities.md
++- workaround: add the missing codex column to the capability table, or scope the lead sentence to the targets actually tabulated
++- change: cursor-native-target
++- date: 2026-07-25
++
+ ## models.yaml has a duplicated agents: mapping block, breaking parseModels and npm test
+ - severity: BLOCKER
+ - area: models.yaml, scripts/configure/cli.js (parseModels)
+diff --git a/package.json b/package.json
+index 7c154ef..dda44d4 100644
+--- a/package.json
++++ b/package.json
+@@ -31,6 +31,9 @@
+     "build:vscode": "node scripts/configure/cli.js --target vscode --out dist/vscode",
+     "setup:vscode": "node scripts/configure/install-vscode.js",
+     "reload:vscode": "npm run build:vscode",
++    "build:cursor": "node scripts/configure/cli.js --target cursor --out dist/cursor",
++    "setup:cursor": "node scripts/configure/install-cursor.js",
++    "reload:cursor": "node scripts/configure/install-cursor.js",
+     "install:opencode": "node scripts/configure/install-target.js opencode",
+     "install:global:opencode": "node scripts/configure/install-global-opencode.js",
+     "install:global:copilot": "node scripts/configure/install-global-copilot.js",
+diff --git a/scripts/check.js b/scripts/check.js
+index c8beb35..d9263f7 100644
+--- a/scripts/check.js
++++ b/scripts/check.js
+@@ -85,6 +85,7 @@ function main(deps = {}) {
+       { target: "github-copilot", validate: true },
+       { target: "opencode", validate: true },
+       { target: "codex", validate: true },
++      { target: "cursor", validate: true },
+     ];
+ 
+     for (const { target, validate } of targets) {
+diff --git a/scripts/check.test.js b/scripts/check.test.js
+index 9798f25..1eac257 100644
+--- a/scripts/check.test.js
++++ b/scripts/check.test.js
+@@ -60,7 +60,7 @@ test("generateTarget removes its temp directory when generation fails", () => {
+   assert.deepEqual(removed, [{ dir: "C:/tmp/ospec-codex-123", options: { recursive: true, force: true } }]);
+ });
+ 
+-test("main includes codex and skips claude validation when the claude CLI is unavailable", () => {
++test("main includes cursor and skips claude validation when the claude CLI is unavailable", () => {
+   const generated = [];
+   const stdout = [];
+   let exitCode;
+@@ -85,6 +85,7 @@ test("main includes codex and skips claude validation when the claude CLI is una
+     { target: "github-copilot", validate: true },
+     { target: "opencode", validate: true },
+     { target: "codex", validate: true },
++    { target: "cursor", validate: true },
+   ]);
+   assert.match(stdout.join(""), /claude CLI not found/);
+ });
+diff --git a/scripts/configure/cli.js b/scripts/configure/cli.js
+index 34f5415..6d57713 100644
+--- a/scripts/configure/cli.js
++++ b/scripts/configure/cli.js
+@@ -18,6 +18,7 @@ const PROFILES = {
+   "github-copilot": require("../lib/target-profiles/github-copilot.js"),
+   opencode: require("../lib/target-profiles/opencode.js"),
+   codex: require("../lib/target-profiles/codex.js"),
++  cursor: require("../lib/target-profiles/cursor.js"),
+ };
+ 
+ // Source roots that make up a plugin tree. Files are read into the
+@@ -431,7 +432,8 @@ function runConfigure({ sourceDir, target, outDir, validate = true, runValidator
+     throw new Error(`unknown target: ${target}`);
+   }
+ 
+-  const files = loadTree(sourceDir);
++  const roots = [...SOURCE_ROOTS, ...(profile.sourceRoots || [])];
++  const files = loadTree(sourceDir, roots);
+   const modelsPath = path.join(sourceDir, "models.yaml");
+   const models = fs.existsSync(modelsPath) ? parseModels(fs.readFileSync(modelsPath, "utf8")) : {};
+   const policy = validateSddModelPolicy(models);
+diff --git a/scripts/configure/cli.test.js b/scripts/configure/cli.test.js
+index d3de4f9..f44eff4 100644
+--- a/scripts/configure/cli.test.js
++++ b/scripts/configure/cli.test.js
+@@ -187,7 +187,7 @@ test("defaultRunValidator runs the validator without a shell, passing {out} as o
+ // Golden snapshots
+ // ---------------------------------------------------------------------------
+ 
+-for (const target of ["claude", "github-copilot", "opencode", "codex"]) {
++for (const target of ["claude", "github-copilot", "opencode", "codex", "cursor"]) {
+   test(`generated ${target} tree matches the committed golden`, (t) => {
+     const out = tmpOut(t);
+     runConfigure({ sourceDir: SOURCE, target, outDir: out, validate: false });
+diff --git a/scripts/configure/real-repo.test.js b/scripts/configure/real-repo.test.js
+index 3273d4e..0b70b83 100644
+--- a/scripts/configure/real-repo.test.js
++++ b/scripts/configure/real-repo.test.js
+@@ -16,8 +16,9 @@ const { runConfigure } = require("./cli.js");
+ const { validate } = require("./validate-github-copilot.js");
+ const { validate: validateOpencode } = require("./validate-opencode.js");
+ const { validate: validateCodex } = require("./validate-codex.js");
++const { validate: validateCursor } = require("./validate-cursor.js");
+ const { matchConditions, parseRoutingTable, validateRouteTable } = require("../lib/route-dispatcher.js");
+-
++const { parse, getField } = require("../lib/frontmatter.js");
+ const ROOT = path.resolve(__dirname, "..", "..");
+ 
+ function tmpOut(t) {
+@@ -42,8 +43,8 @@ function walk(root, relDir = "", acc = []) {
+   return acc;
+ }
+ 
+-test("real repo: all five targets generate non-empty trees", (t) => {
+-  for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex"]) {
++test("real repo: all six targets generate non-empty trees", (t) => {
++  for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor"]) {
+     const out = tmpOut(t);
+     const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+     assert.ok(result.files.length > 0, `${target} produced no files`);
+@@ -251,6 +252,37 @@ test("real repo: github-copilot output passes its own validator", (t) => {
+   assert.deepEqual(result.errors, [], `validator errors:\n${result.errors.join("\n")}`);
+ });
+ 
++test("real repo: cursor output passes its own validator with no agent ask/abstract residue", (t) => {
++  const out = tmpOut(t);
++  runConfigure({ sourceDir: ROOT, target: "cursor", outDir: out, validate: false });
++
++  const result = validateCursor(out);
++  assert.deepEqual(result.errors, [], `validator errors:\n${result.errors.join("\n")}`);
++
++  const agentsDir = path.join(out, "agents");
++  const agentFiles = fs.readdirSync(agentsDir).filter((name) => name.endsWith(".md"));
++  assert.ok(agentFiles.length > 0, "cursor must emit agents");
++  for (const name of agentFiles) {
++    const text = fs.readFileSync(path.join(agentsDir, name), "utf8");
++    assert.doesNotMatch(text, /vscode\//i, `vscode residue in ${name}`);
++    assert.doesNotMatch(text, /\bAskUserQuestion\b/, `AskUserQuestion residue in ${name}`);
++    assert.doesNotMatch(text, /`(read|edit|search|execute|agent)`/, `abstract tool residue in ${name}`);
++    const fm = parse(text).frontmatter;
++    const model = getField(fm, "model");
++    assert.ok(model && String(model.value).trim(), `${name} must have model:`);
++  }
++  assert.ok(fs.existsSync(path.join(out, "rules", "agents-protocol.mdc")), "agents-protocol.mdc required");
++});
++
++test("real repo: cursor commands may retain ${input:} without failing the validator", (t) => {
++  const out = tmpOut(t);
++  runConfigure({ sourceDir: ROOT, target: "cursor", outDir: out, validate: false });
++  const commandsDir = path.join(out, "commands");
++  const commandFiles = fs.readdirSync(commandsDir).filter((name) => name.endsWith(".md"));
++  assert.ok(commandFiles.some((name) => /\$\{input:/.test(fs.readFileSync(path.join(commandsDir, name), "utf8"))), "fixture expects ${input:} in at least one command");
++  assert.deepEqual(validateCursor(out).errors, []);
++});
++
+ test("real repo: opencode output passes its own validator", (t) => {
+   const out = tmpOut(t);
+   runConfigure({ sourceDir: ROOT, target: "opencode", outDir: out, validate: false });
+@@ -360,13 +392,14 @@ test("real repo: sdd-clarify skill propagates to opencode and github-copilot", (
+   }
+ });
+ 
+-test("real repo: all five targets preserve the signal-driven clarify gate", (t) => {
++test("real repo: all six targets preserve the signal-driven clarify gate", (t) => {
+   const orchestratorPaths = {
+     claude: "skills/sdd-orchestrator/SKILL.md",
+     vscode: "agents/sdd-orchestrator.agent.md",
+     "github-copilot": ".github/agents/sdd-orchestrator.agent.md",
+     opencode: ".opencode/agents/ospec-workflow.md",
+     codex: "agent.md",
++    cursor: "agents/sdd-orchestrator.md",
+   };
+ 
+   for (const [target, relativeOrchestratorPath] of Object.entries(orchestratorPaths)) {
+diff --git a/scripts/lib/target-transform.js b/scripts/lib/target-transform.js
+index 55a56c8..de935ff 100644
+--- a/scripts/lib/target-transform.js
++++ b/scripts/lib/target-transform.js
+@@ -66,6 +66,19 @@ function handleFile(file, profile, models, rulesContent) {
+     return codexHooks(file, profile);
+   }
+ 
++  if (profile.hooks && profile.hooks.format === "cursor" && path === (profile.hooks.source || "hooks/hooks.json")) {
++    return cursorHooks(file, profile);
++  }
++
++  // Profile-scoped synthesize sources (e.g. AGENTS.md → agents-protocol.mdc)
++  // must run before the generic .md passthrough (ADR-002).
++  if (profile.rules && Array.isArray(profile.rules.synthesize)) {
++    const synth = profile.rules.synthesize.find((entry) => entry.source === path);
++    if (synth) {
++      return toMdcSynthesize(file, profile, synth);
++    }
++  }
++
+   if (isRulesFile(path)) {
+     if (profile.rules && isInlineStrategy(profile.rules.strategy)) {
+       return null; // content folded into the orchestrator agent/skill
+@@ -79,6 +92,9 @@ function handleFile(file, profile, models, rulesContent) {
+     if (profile.rules && profile.rules.strategy === "to-agents-md") {
+       return null; // folded into the synthesized AGENTS.md (ADR-001)
+     }
++    if (profile.rules && profile.rules.strategy === "to-mdc") {
++      return toMdcFile(file, profile);
++    }
+     return { path, content: file.content };
+   }
+ 
+@@ -385,6 +401,45 @@ function codexHooks(file, profile) {
+   return { path: profile.hooks.location || file.path, content: JSON.stringify({ hooks: out }, null, 2) + "\n" };
+ }
+ 
++// Reshape source hooks into Cursor's { version: 1, hooks: { <camelCase>: [{ command }] } }
++// schema. eventMap values MAY be arrays (PreToolUse fans out to two events).
++// Unmapped events (including SubagentStop) are dropped; type/timeout are omitted.
++function cursorHooks(file, profile) {
++  const obj = parseJsonFile(file);
++  const events = obj.hooks || {};
++  const eventMap = profile.hooks.eventMap || {};
++  const placeholder = profile.hooks.runtimePlaceholder || "__OSPEC_CURSOR_ROOT__";
++  const out = {};
++
++  for (const [event, entries] of Object.entries(events)) {
++    const mapped = eventMap[event];
++    if (!mapped) {
++      continue;
++    }
++    validateHookEntries(file, event, entries);
++    const targets = Array.isArray(mapped) ? mapped : [mapped];
++    const hooks = entries.map((entry, index) => {
++      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
++        throw new Error(`${file.path}: hooks.${event}[${index}] must be an object`);
++      }
++      if (typeof entry.command !== "string") {
++        throw new Error(`${file.path}: hooks.${event}[${index}].command must be a string`);
++      }
++      return {
++        command: entry.command.split("${CLAUDE_PLUGIN_ROOT}").join(placeholder),
++      };
++    });
++    for (const target of targets) {
++      out[target] = hooks;
++    }
++  }
++
++  return {
++    path: profile.hooks.location || "hooks.json",
++    content: JSON.stringify({ version: 1, hooks: out }, null, 2) + "\n",
++  };
++}
++
+ // --- rules inlining --------------------------------------------------------
+ 
+ function collectRules(files, profile) {
+@@ -516,6 +571,15 @@ function handleAgent(file, profile, models) {
+     }
+   }
+ 
++  // ADR-003 / REQ-generator-008: emit readonly:true only for explicitly listed
++  // reviewer ids; omit the key entirely for every other agent.
++  if (profile.agentReadonly && Array.isArray(profile.agentReadonly.agents)) {
++    const readonlyName = agentName || originalAgentName;
++    if (readonlyName && profile.agentReadonly.agents.includes(readonlyName)) {
++      frontmatter = setScalar(frontmatter, "readonly", "true");
++    }
++  }
++
+   return { path: newPath, content: serialize({ frontmatter, body }) };
+ }
+ 
+@@ -861,6 +925,85 @@ function mapToolsFrontmatterAsMap(frontmatter, toolMap, dropTools) {
+   return setBlockMap(frontmatter, "tools", entries);
+ }
+ 
++// rules/<name>.instructions.md -> <profile.rules.dir>/<base>.mdc with Cursor
++// rule frontmatter (description/globs/alwaysApply). applyTo is dropped.
++function toMdcFile(file, profile) {
++  const { frontmatter: srcFm, body: rawBody } = parse(file.content);
++  let body = rawBody;
++  if (profile.toolMap) {
++    body = substituteProse(body, profile.toolMap);
++  }
++  body = substituteAgentNames(body, profile);
++
++  const base = file.path
++    .slice("rules/".length)
++    .replace(/\.instructions\.md$/, "")
++    .replace(/\.md$/, "");
++  const descField = getField(srcFm, "description");
++  const description = (descField && descField.value) || base;
++  const globs = Array.isArray(profile.rules.globs) ? profile.rules.globs : ["*"];
++  const alwaysApply = profile.rules.alwaysApply !== false;
++
++  const frontmatter = [
++    {
++      key: "description",
++      value: description,
++      rawLines: [`description: ${JSON.stringify(description)}`],
++    },
++    {
++      key: "globs",
++      value: globs.slice(),
++      rawLines: [`globs: ${JSON.stringify(globs)}`],
++    },
++    {
++      key: "alwaysApply",
++      value: String(alwaysApply),
++      rawLines: [`alwaysApply: ${alwaysApply ? "true" : "false"}`],
++    },
++  ];
++
++  const dir = profile.rules.dir || "rules";
++  return { path: `${dir}/${base}.mdc`, content: serialize({ frontmatter, body }) };
++}
++
++// Synthesize a .mdc rule from a non-rules source (e.g. AGENTS.md) using the
++// profile.rules.synthesize entry's base name and description.
++function toMdcSynthesize(file, profile, synth) {
++  let body = file.content;
++  // AGENTS.md has no frontmatter; treat the whole file as the body.
++  if (file.content.startsWith("---")) {
++    body = parse(file.content).body;
++  }
++  if (profile.toolMap) {
++    body = substituteProse(body, profile.toolMap);
++  }
++  body = substituteAgentNames(body, profile);
++
++  const description = synth.description || synth.base;
++  const globs = Array.isArray(profile.rules.globs) ? profile.rules.globs : ["*"];
++  const alwaysApply = profile.rules.alwaysApply !== false;
++  const frontmatter = [
++    {
++      key: "description",
++      value: description,
++      rawLines: [`description: ${JSON.stringify(description)}`],
++    },
++    {
++      key: "globs",
++      value: globs.slice(),
++      rawLines: [`globs: ${JSON.stringify(globs)}`],
++    },
++    {
++      key: "alwaysApply",
++      value: String(alwaysApply),
++      rawLines: [`alwaysApply: ${alwaysApply ? "true" : "false"}`],
++    },
++  ];
++
++  const dir = profile.rules.dir || "rules";
++  return { path: `${dir}/${synth.base}.mdc`, content: serialize({ frontmatter, body }) };
++}
++
+ // rules/<name>.instructions.md -> <profile.rules.dir>/<name>.instructions.md, made
+ // always-on with an applyTo glob (the .github/instructions/ format).
+ function toInstructionFile(file, profile) {
+diff --git a/scripts/lib/target-transform.test.js b/scripts/lib/target-transform.test.js
+index dcbe9c1..620c670 100644
+--- a/scripts/lib/target-transform.test.js
++++ b/scripts/lib/target-transform.test.js
+@@ -1116,3 +1116,242 @@ test("codex emits fine-grained sandbox and approval policy settings for specific
+   assert.match(verify.content, /^\[sandbox_workspace_write\]\nnetwork_access = false$/m, "verify agent must disable network access in sandbox");
+ });
+ 
++// ---------------------------------------------------------------------------
++// Cursor target (REQ-generator-006..009)
++// ---------------------------------------------------------------------------
++
++const cursor = require("./target-profiles/cursor.js");
++
++const CURSOR_MODELS = {
++  agents: {
++    "sdd-apply": "default",
++    "sdd-orchestrator": "premium",
++    "review-change": "default",
++    _default: "default",
++  },
++  tiers: {
++    premium: { cursor: "claude-opus-5[effort=high]" },
++    default: { cursor: "composer-2.5[fast=false]" },
++  },
++};
++
++const CURSOR_ASK_GATE =
++  'present blocking gate questions as a structured numbered markdown list in chat (e.g. "1) Option A  2) Option B"), then STOP and wait for the user\'s reply — do not invoke any tool to ask — and persist the accepted decision in `state.yaml`';
++
++function makeCursorHooksSource() {
++  return {
++    path: "hooks/hooks.json",
++    content: JSON.stringify(
++      {
++        hooks: {
++          SessionStart: [
++            {
++              type: "command",
++              command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js session-start",
++              timeout: 5,
++            },
++          ],
++          PreToolUse: [
++            {
++              type: "command",
++              command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-tool-use",
++              timeout: 5,
++            },
++          ],
++          PreCompact: [
++            {
++              type: "command",
++              command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-compact",
++              timeout: 5,
++            },
++          ],
++          SubagentStop: [
++            {
++              type: "command",
++              command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js subagent-stop",
++              timeout: 5,
++            },
++          ],
++          Stop: [
++            {
++              type: "command",
++              command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js stop",
++              timeout: 5,
++            },
++          ],
++        },
++      },
++      null,
++      2,
++    ),
++  };
++}
++
++test("cursor to-mdc emits .mdc with description/globs/alwaysApply and drops applyTo", () => {
++  const files = [
++    {
++      path: "rules/sdd-common.instructions.md",
++      content:
++        "---\n" +
++        "description: 'Shared SDD protocol for Copilot orchestrator and phase agents.'\n" +
++        "applyTo: 'agents/**/*.agent.md'\n" +
++        "---\n" +
++        "\n" +
++        "ALWAYS use OpenSpec.\n",
++    },
++  ];
++  const out = transform({ files, profile: cursor, models: CURSOR_MODELS });
++  const rule = find(out, "rules/sdd-common.mdc");
++  assert.ok(rule, "rules/sdd-common.mdc must be emitted");
++  const fm = parse(rule.content).frontmatter;
++  assert.equal(getField(fm, "description").value, "Shared SDD protocol for Copilot orchestrator and phase agents.");
++  assert.deepEqual(getField(fm, "globs").value, ["*"]);
++  assert.equal(getField(fm, "alwaysApply").value, "true");
++  assert.equal(getField(fm, "applyTo"), null, "applyTo must be dropped");
++  assert.match(rule.content, /ALWAYS use OpenSpec/);
++});
++
++test("cursor to-mdc falls back to base name when source has no description", () => {
++  const files = [
++    {
++      path: "rules/orphan.instructions.md",
++      content: "---\nname: orphan\n---\n\nbody\n",
++    },
++  ];
++  const out = transform({ files, profile: cursor, models: CURSOR_MODELS });
++  const rule = find(out, "rules/orphan.mdc");
++  assert.ok(rule);
++  assert.equal(getField(parse(rule.content).frontmatter, "description").value, "orphan");
++});
++
++test("cursor synthesizes AGENTS.md into rules/agents-protocol.mdc with profile description", () => {
++  const files = [
++    {
++      path: "AGENTS.md",
++      content: "# Protocol\n\nPost-archive release flow.\n",
++    },
++  ];
++  const out = transform({ files, profile: cursor, models: CURSOR_MODELS });
++  const rule = find(out, "rules/agents-protocol.mdc");
++  assert.ok(rule, "agents-protocol.mdc must be synthesized from AGENTS.md");
++  assert.equal(
++    getField(parse(rule.content).frontmatter, "description").value,
++    "Post-archive release flow and bounded review lifecycle rules.",
++  );
++  assert.match(rule.content, /Post-archive release flow/);
++  assert.ok(!find(out, "AGENTS.md"), "raw AGENTS.md must not pass through");
++});
++
++test("cursor hooks emit version 1, camelCase fan-out, drop SubagentStop, use __OSPEC_CURSOR_ROOT__", () => {
++  const out = transform({ files: [makeCursorHooksSource()], profile: cursor, models: CURSOR_MODELS });
++  const hooksFile = find(out, "hooks.json");
++  assert.ok(hooksFile, "hooks.json must be emitted at root");
++  const hooks = JSON.parse(hooksFile.content);
++  assert.equal(hooks.version, 1);
++  assert.ok(hooks.hooks.beforeSubmitPrompt, "SessionStart → beforeSubmitPrompt");
++  assert.ok(hooks.hooks.beforeShellExecution, "PreToolUse → beforeShellExecution");
++  assert.ok(hooks.hooks.beforeReadFile, "PreToolUse → beforeReadFile");
++  assert.ok(hooks.hooks.afterFileEdit, "PreCompact → afterFileEdit");
++  assert.ok(hooks.hooks.stop, "Stop → stop");
++  assert.equal(hooks.hooks.SubagentStop, undefined, "SubagentStop must be absent");
++  assert.equal(hooks.hooks.subagentStop, undefined);
++  const cmd = hooks.hooks.beforeShellExecution[0].command;
++  assert.match(cmd, /__OSPEC_CURSOR_ROOT__/);
++  assert.doesNotMatch(cmd, /CLAUDE_PLUGIN_ROOT/);
++  assert.equal(hooks.hooks.beforeShellExecution[0].type, undefined, "type must be dropped");
++  assert.equal(hooks.hooks.beforeShellExecution[0].timeout, undefined, "timeout must be dropped");
++  assert.equal(
++    hooks.hooks.beforeShellExecution[0].command,
++    hooks.hooks.beforeReadFile[0].command,
++    "fan-out events share the same command",
++  );
++});
++
++test("cursor drops unmapped source hook events", () => {
++  const files = [
++    {
++      path: "hooks/hooks.json",
++      content: JSON.stringify({
++        hooks: {
++          FutureEvent: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/x.js", timeout: 1 }],
++          Stop: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js stop", timeout: 5 }],
++        },
++      }),
++    },
++  ];
++  const out = transform({ files, profile: cursor, models: CURSOR_MODELS });
++  const hooks = JSON.parse(find(out, "hooks.json").content);
++  assert.equal(hooks.hooks.FutureEvent, undefined);
++  assert.ok(hooks.hooks.stop);
++});
++
++test("cursor emits readonly:true only for listed review-* agents", () => {
++  const files = [
++    {
++      path: "agents/review-change.agent.md",
++      content: "---\nname: review-change\ndescription: d\ntools: ['read']\n---\n\nbody\n",
++    },
++    {
++      path: "agents/sdd-apply.agent.md",
++      content: "---\nname: sdd-apply\ndescription: d\ntools: ['read', 'edit']\n---\n\nbody\n",
++    },
++  ];
++  const out = transform({ files, profile: cursor, models: CURSOR_MODELS });
++  const review = parse(find(out, "agents/review-change.md").content).frontmatter;
++  const apply = parse(find(out, "agents/sdd-apply.md").content).frontmatter;
++  assert.equal(getField(review, "readonly").value, "true");
++  assert.equal(getField(apply, "readonly"), null, "non-reviewer must omit readonly key");
++  assert.equal(getField(apply, "tools"), null, "tools must be stripped");
++});
++
++test("cursor toolMap substitutes native primary names in prose", () => {
++  const files = [
++    {
++      path: "agents/sdd-apply.agent.md",
++      content:
++        "---\nname: sdd-apply\ndescription: d\ntools: ['read', 'edit', 'search', 'execute', 'agent']\n---\n\n" +
++        "Use `edit` then `search`, run via `execute`, and spawn via `agent`.\n",
++    },
++  ];
++  const out = transform({ files, profile: cursor, models: CURSOR_MODELS });
++  const body = find(out, "agents/sdd-apply.md").content;
++  assert.match(body, /`Write`/);
++  assert.match(body, /`Grep`/);
++  assert.match(body, /`Shell`/);
++  assert.match(body, /`Task`/);
++  assert.doesNotMatch(body, /`edit`/);
++  assert.doesNotMatch(body, /`search`/);
++  assert.doesNotMatch(body, /`execute`/);
++  assert.doesNotMatch(body, /`agent`/);
++});
++
++test("cursor degrades both ask tools to chat gate without literal names", () => {
++  const files = [
++    {
++      path: "agents/sdd-orchestrator.agent.md",
++      content:
++        "---\nname: sdd-orchestrator\ndescription: d\ntools: ['read', 'vscode/askQuestions']\n---\n\n" +
++        "Ask via `vscode/askQuestions` or AskUserQuestion and wait.\n",
++    },
++  ];
++  const out = transform({ files, profile: cursor, models: CURSOR_MODELS });
++  const content = find(out, "agents/sdd-orchestrator.md").content;
++  assert.match(content, /structured numbered markdown list/);
++  assert.match(content, /state\.yaml/);
++  assert.doesNotMatch(content, /vscode\//);
++  assert.doesNotMatch(content, /AskUserQuestion/);
++  assert.ok(content.includes(CURSOR_ASK_GATE) || content.includes("STOP and wait"));
++});
++
++test("cursor injects model from models.yaml cursor column", () => {
++  const files = [
++    {
++      path: "agents/sdd-apply.agent.md",
++      content: "---\nname: sdd-apply\ndescription: d\ntools: ['read']\n---\n\nbody\n",
++    },
++  ];
++  const out = transform({ files, profile: cursor, models: CURSOR_MODELS });
++  const fm = parse(find(out, "agents/sdd-apply.md").content).frontmatter;
++  assert.equal(getField(fm, "model").value, "composer-2.5[fast=false]");
++});
++
+diff --git a/scripts/model-tier-contract.test.js b/scripts/model-tier-contract.test.js
+index 29b6ac0..e5330a5 100644
+--- a/scripts/model-tier-contract.test.js
++++ b/scripts/model-tier-contract.test.js
+@@ -39,6 +39,7 @@ function outputPath(out, target, agent) {
+   if (target === "vscode") return path.join(out, "agents", `${agent}.agent.md`);
+   if (target === "github-copilot") return path.join(out, ".github", "agents", `${agent}.agent.md`);
+   if (target === "opencode") return path.join(out, ".opencode", "agents", `${agent === "sdd-orchestrator" ? "ospec-workflow" : agent}.md`);
++  if (target === "cursor") return path.join(out, "agents", `${agent}.md`);
+   return agent === "sdd-orchestrator" ? path.join(out, "agent.md") : path.join(out, ".codex", "agents", `${agent}.toml`);
+ }
+ 
+@@ -97,14 +98,14 @@ test("REQ-generator-005 duplicate YAML agent keys are rejected before overwrite"
+   );
+ });
+ 
+-test("REQ-generator-005 all five temporary targets honor tier models and fail-soft omission", t => {
++test("REQ-generator-005 all six temporary targets honor tier models and fail-soft omission", t => {
+   const models = parseModels(MODELS_TEXT);
+   const allAgents = Object.values(EXPECTED_TIERS).flat();
+   const beforeDist = treeDigest(path.join(ROOT, "dist"));
+   const base = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-tier-contract-"));
+   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
+ 
+-  for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex"]) {
++  for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor"]) {
+     const out = path.join(base, target);
+     assert.equal(runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false }).exitCode, 0);
+     for (const [tier, agents] of Object.entries(EXPECTED_TIERS)) {
+diff --git a/scripts/selective-4r-parity.test.js b/scripts/selective-4r-parity.test.js
+index 08519f6..86d3fbe 100644
+--- a/scripts/selective-4r-parity.test.js
++++ b/scripts/selective-4r-parity.test.js
+@@ -9,7 +9,7 @@ const { spawnSync } = require("node:child_process");
+ const { runConfigure, gatherRuntimeScripts, resolveClaudeBin, defaultRunValidator } = require("./configure/cli.js");
+ 
+ const ROOT = path.resolve(__dirname, "..");
+-const TARGETS = ["claude", "vscode", "github-copilot", "opencode", "codex"];
++const TARGETS = ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor"];
+ 
+ const runValidator = (profile, outDir) => {
+   if (profile.id === "claude" && !resolveClaudeBin()) {
+@@ -24,7 +24,7 @@ test("classifier and reducer are explicit generated runtime roots", () => {
+   assert.ok(gatherRuntimeScripts(ROOT).some((file) => file.path === "scripts/lib/review-lineage.js"));
+ });
+ 
+-test("all five generated targets carry generalist, classifier, gate, audit, and competence boundary", (t) => {
++test("all six generated targets carry generalist, classifier, gate, audit, and competence boundary", (t) => {
+   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "selective-4r-"));
+   t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+   for (const target of TARGETS) {
+@@ -135,7 +135,7 @@ const generalist = process.argv[2];
+ function fail(code, message) { console.error(code + ": " + message); process.exit(1); }
+ if (!fs.existsSync(path.join(root, generalist))) fail("GENERALIST", "missing generated generalist");
+ const target = generalist.includes(".toml") ? "codex" : generalist.includes(".agent.md") ? (generalist.startsWith(".github") ? "github-copilot" : "vscode") : generalist.startsWith(".opencode") ? "opencode" : "claude";
+-const correctionPath = { claude: "agents/review-correction.md", vscode: "agents/review-correction.agent.md", "github-copilot": ".github/agents/review-correction.agent.md", opencode: ".opencode/agents/review-correction.md", codex: ".codex/agents/review-correction.toml" }[target];
++const correctionPath = { claude: "agents/review-correction.md", vscode: "agents/review-correction.agent.md", "github-copilot": ".github/agents/review-correction.agent.md", opencode: ".opencode/agents/review-correction.md", codex: ".codex/agents/review-correction.toml", cursor: "agents/review-correction.md" }[target];
+ if (!fs.existsSync(path.join(root, correctionPath))) fail("CORRECTION", "missing targeted correction agent");
+ const skill = fs.readFileSync(path.join(root, "skills/review-change/SKILL.md"), "utf8");
+ const correctionSkill = fs.readFileSync(path.join(root, "skills/review-correction/SKILL.md"), "utf8");
+@@ -224,5 +224,6 @@ function targetPaths(target) {
+     "github-copilot": { generalist: ".github/agents/review-change.agent.md", correction: ".github/agents/review-correction.agent.md", orchestrator: ".github/agents/sdd-orchestrator.agent.md" },
+     opencode: { generalist: ".opencode/agents/review-change.md", correction: ".opencode/agents/review-correction.md", orchestrator: ".opencode/agents/ospec-workflow.md" },
+     codex: { generalist: ".codex/agents/review-change.toml", correction: ".codex/agents/review-correction.toml", orchestrator: "agent.md" },
++    cursor: { generalist: "agents/review-change.md", correction: "agents/review-correction.md", orchestrator: "agents/sdd-orchestrator.md" },
+   }[target];
+ }
+diff --git a/scripts/strict-tdd-evidence-parity.test.js b/scripts/strict-tdd-evidence-parity.test.js
+index 656ac7d..27dc831 100644
+--- a/scripts/strict-tdd-evidence-parity.test.js
++++ b/scripts/strict-tdd-evidence-parity.test.js
+@@ -6,7 +6,7 @@ const { transform } = require("./lib/target-transform.js");
+ const remediation = require("./lib/strict-tdd-evidence-remediation.js");
+ const fs = require("node:fs");
+ const helperPath = "scripts/lib/strict-tdd-evidence-remediation.js";
+-const targets = ["claude", "vscode", "github-copilot", "opencode", "codex"];
++const targets = ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor"];
+ 
+ test("REQ-agents-012 generated in-memory parity ships helper to every target", () => {
+   const source = loadTree(process.cwd());
+diff --git a/scripts/configure/__fixtures__/golden/cursor/hooks.json b/scripts/configure/__fixtures__/golden/cursor/hooks.json
+new file mode 100644
+index 0000000..9ef5ae1
+--- /dev/null
++++ b/scripts/configure/__fixtures__/golden/cursor/hooks.json
+@@ -0,0 +1,20 @@
++{
++  "version": 1,
++  "hooks": {
++    "beforeSubmitPrompt": [
++      {
++        "command": "__OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks session-start"
++      }
++    ],
++    "beforeShellExecution": [
++      {
++        "command": "__OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks pre-tool-use"
++      }
++    ],
++    "beforeReadFile": [
++      {
++        "command": "__OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks pre-tool-use"
++      }
++    ]
++  }
++}
+diff --git a/scripts/configure/__fixtures__/golden/cursor/models.yaml b/scripts/configure/__fixtures__/golden/cursor/models.yaml
+new file mode 100644
+index 0000000..010787e
+--- /dev/null
++++ b/scripts/configure/__fixtures__/golden/cursor/models.yaml
+@@ -0,0 +1,48 @@
++agents:
++  sdd-propose: premium
++  sdd-design: premium
++  sdd-verify: premium
++  sdd-foundation: premium
++  sdd-workspace: premium
++  sdd-orchestrator: default
++  sdd-spec: default
++  sdd-clarify: default
++  sdd-apply: default
++  sdd-reconcile: default
++  sdd-baseline: default
++  sdd-init: cheap
++  sdd-explore: cheap
++  sdd-tasks: cheap
++  sdd-archive: cheap
++  sdd-onboard: cheap
++  sdd-document: cheap
++  review-change: default
++  review-correction: default
++  review-risk: default
++  review-readability: default
++  review-reliability: default
++  review-resilience: default
++  _default: default
++
++tiers:
++  premium:
++    claude: opus
++    vscode: ["GPT-5.6 Luna (copilot)"]
++    opencode: openai/gpt-5.6-sol
++    codex:
++      model: gpt-5.6-sol
++      model_reasoning_effort: medium
++  default:
++    claude: sonnet
++    vscode: ["GPT-5.6 Luna (copilot)"]
++    opencode: openai/gpt-5.6-luna
++    codex:
++      model: gpt-5.6-terra
++      model_reasoning_effort: medium
++  cheap:
++    claude: haiku
++    vscode: ["GPT-5.6 Luna (copilot)"]
++    opencode: openai/gpt-5.6-luna
++    codex:
++      model: gpt-5.6-luna
++      model_reasoning_effort: low
+diff --git a/scripts/configure/__fixtures__/golden/cursor/agents/sdd-apply.md b/scripts/configure/__fixtures__/golden/cursor/agents/sdd-apply.md
+new file mode 100644
+index 0000000..4f65c4c
+--- /dev/null
++++ b/scripts/configure/__fixtures__/golden/cursor/agents/sdd-apply.md
+@@ -0,0 +1,8 @@
++---
++name: sdd-apply
++description: Implement assigned SDD tasks under strict TDD.
++---
++
++# SDD Apply
++
++Use read and search to find the work. Ask via present blocking gate questions as a structured numbered markdown list in chat (e.g. "1) Option A  2) Option B"), then STOP and wait for the user's reply ÔÇö do not invoke any tool to ask ÔÇö and persist the accepted decision in `state.yaml` when blocked.
+diff --git a/scripts/configure/__fixtures__/golden/cursor/agents/sdd-orchestrator.md b/scripts/configure/__fixtures__/golden/cursor/agents/sdd-orchestrator.md
+new file mode 100644
+index 0000000..cc63de5
+--- /dev/null
++++ b/scripts/configure/__fixtures__/golden/cursor/agents/sdd-orchestrator.md
+@@ -0,0 +1,8 @@
++---
++name: sdd-orchestrator
++description: Coordinates the SDD workflow and delegates phase work.
++---
++
++# SDD Orchestrator
++
++Coordinate phases. Use read and search to inspect state before delegating.
+diff --git a/scripts/configure/__fixtures__/golden/cursor/commands/sdd-apply.md b/scripts/configure/__fixtures__/golden/cursor/commands/sdd-apply.md
+new file mode 100644
+index 0000000..d631ad1
+--- /dev/null
++++ b/scripts/configure/__fixtures__/golden/cursor/commands/sdd-apply.md
+@@ -0,0 +1,9 @@
++---
++name: sdd-apply
++description: Run or continue apply for an OpenSpec change.
++agent: sdd-orchestrator
++---
++
++Route this command to the orchestrator.
++
++Run or continue apply for ${input:changeName} using existing tasks. Also handle ${input}.
+diff --git a/scripts/configure/__fixtures__/golden/cursor/rules/agent-teams.mdc b/scripts/configure/__fixtures__/golden/cursor/rules/agent-teams.mdc
+new file mode 100644
+index 0000000..6188fe8
+--- /dev/null
++++ b/scripts/configure/__fixtures__/golden/cursor/rules/agent-teams.mdc
+@@ -0,0 +1,10 @@
++---
++description: "Orchestrator coordination rules."
++globs: ["*"]
++alwaysApply: true
++---
++
++## Agent Teams
++
++The orchestrator is a COORDINATOR. Delegate real work to sub-agents and synthesize results.
++For blocking approvals use `present blocking gate questions as a structured numbered markdown list in chat (e.g. "1) Option A  2) Option B"), then STOP and wait for the user's reply ÔÇö do not invoke any tool to ask ÔÇö and persist the accepted decision in `state.yaml`` and never assume the answer.
+diff --git a/scripts/configure/__fixtures__/golden/cursor/scripts/hooks/pre-tool-use.js b/scripts/configure/__fixtures__/golden/cursor/scripts/hooks/pre-tool-use.js
+new file mode 100644
+index 0000000..e44c83a
+--- /dev/null
++++ b/scripts/configure/__fixtures__/golden/cursor/scripts/hooks/pre-tool-use.js
+@@ -0,0 +1,4 @@
++"use strict";
++
++// Leaf runtime hook (no local deps).
++process.exit(0);
+diff --git a/scripts/configure/__fixtures__/golden/cursor/scripts/hooks/session-start.js b/scripts/configure/__fixtures__/golden/cursor/scripts/hooks/session-start.js
+new file mode 100644
+index 0000000..d044fa4
+--- /dev/null
++++ b/scripts/configure/__fixtures__/golden/cursor/scripts/hooks/session-start.js
+@@ -0,0 +1,5 @@
++"use strict";
++
++const { noop } = require("../lib/ospec-state.js");
++
++noop();
+diff --git a/scripts/configure/__fixtures__/golden/cursor/scripts/lib/ospec-state.js b/scripts/configure/__fixtures__/golden/cursor/scripts/lib/ospec-state.js
+new file mode 100644
+index 0000000..b3bcd31
+--- /dev/null
++++ b/scripts/configure/__fixtures__/golden/cursor/scripts/lib/ospec-state.js
+@@ -0,0 +1,5 @@
++"use strict";
++
++function noop() {}
++
++module.exports = { noop };
+diff --git a/scripts/configure/__fixtures__/golden/cursor/skills/sdd-apply/SKILL.md b/scripts/configure/__fixtures__/golden/cursor/skills/sdd-apply/SKILL.md
+new file mode 100644
+index 0000000..4404968
+--- /dev/null
++++ b/scripts/configure/__fixtures__/golden/cursor/skills/sdd-apply/SKILL.md
+@@ -0,0 +1,8 @@
++---
++name: sdd-apply
++description: Run or continue apply for an OpenSpec change.
++---
++
++# Apply Skill
++
++Implement the assigned tasks and keep TDD evidence. When blocked, ask via `present blocking gate questions as a structured numbered markdown list in chat (e.g. "1) Option A  2) Option B"), then STOP and wait for the user's reply ÔÇö do not invoke any tool to ask ÔÇö and persist the accepted decision in `state.yaml``.
+diff --git a/scripts/configure/install-cursor.js b/scripts/configure/install-cursor.js
+new file mode 100644
+index 0000000..cc3cea8
+--- /dev/null
++++ b/scripts/configure/install-cursor.js
+@@ -0,0 +1,241 @@
++"use strict";
++
++const fs = require("node:fs");
++const os = require("node:os");
++const path = require("node:path");
++
++const { runConfigure } = require("./cli.js");
++const { copyBinaryToTree } = require("./install-target.js");
++
++function usage() {
++  return "usage: install-cursor [--dry-run] [--no-validate] [--source <sourceRepo>]\n";
++}
++
++function parseArgs(argv) {
++  const args = { dryRun: false, validate: true, source: undefined };
++  for (let i = 0; i < argv.length; i += 1) {
++    const arg = argv[i];
++    if (arg === "--dry-run") args.dryRun = true;
++    else if (arg === "--no-validate") args.validate = false;
++    else if (arg === "--source") {
++      const next = argv[i + 1];
++      if (!next || next.startsWith("--")) {
++        args.error = "missing value for --source";
++        return args;
++      }
++      args.source = next;
++      i += 1;
++    } else {
++      args.error = `unknown argument: ${arg}`;
++      return args;
++    }
++  }
++  return args;
++}
++
++function lstatIfExists(targetPath, fsImpl = fs) {
++  try {
++    return fsImpl.lstatSync(targetPath);
++  } catch (error) {
++    if (error.code === "ENOENT") {
++      return null;
++    }
++    throw error;
++  }
++}
++
++function realpathIfExists(targetPath, fsImpl = fs) {
++  try {
++    return fsImpl.realpathSync(targetPath);
++  } catch (error) {
++    if (error.code === "ENOENT") {
++      return path.resolve(targetPath);
++    }
++    throw error;
++  }
++}
++
++// ADR-004 / REQ-install-005: allow ~/.cursor (unlike assertSafeDest which refuses
++// $HOME). Refuse filesystem roots, symlinked root/dest, and canonical escape.
++function assertCursorPathSafe(cursorRoot, managedPath = cursorRoot, fsImpl = fs) {
++  const resolvedRoot = path.resolve(cursorRoot);
++  if (resolvedRoot === path.parse(resolvedRoot).root) {
++    throw new Error(`refusing to sync into filesystem root: ${resolvedRoot}`);
++  }
++
++  const rootStat = lstatIfExists(resolvedRoot, fsImpl);
++  if (rootStat && rootStat.isSymbolicLink()) {
++    throw new Error(`refusing symlinked Cursor root: ${resolvedRoot}`);
++  }
++
++  const resolvedManaged = path.resolve(managedPath);
++  const managedStat = lstatIfExists(resolvedManaged, fsImpl);
++  if (managedStat && managedStat.isSymbolicLink()) {
++    throw new Error(`refusing symlinked Cursor destination: ${resolvedManaged}`);
++  }
++
++  const canonicalRoot = realpathIfExists(resolvedRoot, fsImpl);
++  const parentOfManaged = path.dirname(resolvedManaged);
++  const canonicalManagedParent = realpathIfExists(parentOfManaged, fsImpl);
++  // When checking the root itself, managed == root; otherwise ensure managed
++  // stays under the approved cursor root.
++  if (path.resolve(managedPath) !== resolvedRoot) {
++    const relative = path.relative(canonicalRoot, path.join(canonicalManagedParent, path.basename(resolvedManaged)));
++    if (relative.startsWith("..") || path.isAbsolute(relative)) {
++      throw new Error(`refusing path that escapes the approved Cursor root: ${resolvedManaged}`);
++    }
++  }
++}
++
++function filesMatch(source, destination, fsImpl = fs) {
++  try {
++    return fsImpl.readFileSync(source).equals(fsImpl.readFileSync(destination));
++  } catch {
++    return false;
++  }
++}
++
++function syncTreeByContent(sourceDir, destDir, fsImpl = fs, result = { updated: [], unchanged: [] }, skipNames = new Set()) {
++  fsImpl.mkdirSync(destDir, { recursive: true });
++  for (const entry of fsImpl.readdirSync(sourceDir, { withFileTypes: true })) {
++    if (skipNames.has(entry.name)) {
++      continue;
++    }
++    const source = path.join(sourceDir, entry.name);
++    const destination = path.join(destDir, entry.name);
++    if (entry.isDirectory()) {
++      syncTreeByContent(source, destination, fsImpl, result, skipNames);
++    } else if (entry.isFile()) {
++      if (filesMatch(source, destination, fsImpl)) {
++        result.unchanged.push(destination);
++      } else {
++        fsImpl.mkdirSync(path.dirname(destination), { recursive: true });
++        fsImpl.copyFileSync(source, destination);
++        result.updated.push(destination);
++      }
++    }
++  }
++  return result;
++}
++
++// Expand __OSPEC_CURSOR_ROOT__ to an absolute POSIX-slashed cursor home.
++// Quote the expanded path segment only when the home path contains whitespace.
++function expandCursorHooksPlaceholder(command, cursorRootPosix) {
++  if (typeof command !== "string" || !command.includes("__OSPEC_CURSOR_ROOT__")) {
++    return command;
++  }
++  const needsQuote = /\s/.test(cursorRootPosix);
++  return command.replace(/__OSPEC_CURSOR_ROOT__(\/[^\s"]*)?/g, (_match, rest = "") => {
++    const full = cursorRootPosix + (rest || "");
++    return needsQuote ? `"${full}"` : full;
++  });
++}
++
++function renderHooksValue(value, cursorRootPosix) {
++  if (typeof value === "string") {
++    return expandCursorHooksPlaceholder(value, cursorRootPosix);
++  }
++  if (Array.isArray(value)) {
++    return value.map((entry) => renderHooksValue(entry, cursorRootPosix));
++  }
++  if (value && typeof value === "object") {
++    return Object.fromEntries(
++      Object.entries(value).map(([key, child]) => [key, renderHooksValue(child, cursorRootPosix)]),
++    );
++  }
++  return value;
++}
++
++function installHooksJson(outDir, cursorRoot, deps = {}) {
++  const fsImpl = deps.fs || fs;
++  const dryRun = Boolean(deps.dryRun);
++  const cursorRootPosix =
++    deps.cursorRootPosix || path.resolve(cursorRoot).split(path.sep).join("/");
++  const sourcePath = path.join(outDir, "hooks.json");
++  if (!fsImpl.existsSync(sourcePath)) {
++    return;
++  }
++  const generated = JSON.parse(fsImpl.readFileSync(sourcePath, "utf8"));
++  const rendered = renderHooksValue(generated, cursorRootPosix);
++  const destPath = path.join(cursorRoot, "hooks.json");
++  if (dryRun) {
++    return;
++  }
++  assertCursorPathSafe(cursorRoot, destPath, fsImpl);
++  fsImpl.mkdirSync(cursorRoot, { recursive: true });
++  fsImpl.writeFileSync(destPath, JSON.stringify(rendered, null, 2) + "\n");
++}
++
++function main(argv, deps = {}) {
++  const args = parseArgs(argv);
++  const cwd = deps.cwd || process.cwd();
++  const fsImpl = deps.fs || fs;
++  const stdout = deps.stdout || process.stdout;
++  const stderr = deps.stderr || process.stderr;
++  const homedir = deps.homedir || os.homedir;
++  const runConfigureImpl = deps.runConfigure || runConfigure;
++  const copyBinary = deps.copyBinaryToTree || copyBinaryToTree;
++  const syncTree = deps.syncTreeByContent || syncTreeByContent;
++  const installHooks = deps.installHooksJson || installHooksJson;
++
++  if (args.error) {
++    stderr.write(`${usage()}${args.error}\n`);
++    return 2;
++  }
++
++  const sourceDir = path.resolve(args.source || cwd);
++  const cursorRoot = path.join(homedir(), ".cursor");
++  const outDir = path.join(sourceDir, "dist", "cursor");
++
++  try {
++    assertCursorPathSafe(cursorRoot, cursorRoot, fsImpl);
++  } catch (error) {
++    stderr.write(`${error.message}\n`);
++    return 1;
++  }
++
++  const result = runConfigureImpl({
++    sourceDir,
++    target: "cursor",
++    outDir,
++    validate: args.validate,
++  });
++  if (result.validation?.stdout) stdout.write(result.validation.stdout);
++  if (result.validation?.stderr) stderr.write(result.validation.stderr);
++  if (result.exitCode !== 0) {
++    stderr.write("\nbuild/validation failed; nothing installed\n");
++    return result.exitCode || 1;
++  }
++
++  stdout.write(`install-cursor -> ${cursorRoot}${args.dryRun ? " (dry-run)" : ""}\n`);
++
++  if (args.dryRun) {
++    stdout.write("dry-run: no files written\n");
++    return 0;
++  }
++
++  const syncResult = syncTree(outDir, cursorRoot, fsImpl, { updated: [], unchanged: [] }, new Set(["hooks.json"]));
++  installHooks(outDir, cursorRoot, { fs: fsImpl, dryRun: false });
++  copyBinary(cursorRoot, "cursor", sourceDir, { fs: fsImpl, stdout, stderr });
++
++  stdout.write(`  updated ${syncResult.updated.length}, unchanged ${syncResult.unchanged.length}\n`);
++  return 0;
++}
++
++if (require.main === module) {
++  try {
++    process.exitCode = main(process.argv.slice(2));
++  } catch (error) {
++    process.stderr.write(`fatal: ${error.stack || error.message || error}\n`);
++    process.exitCode = 1;
++  }
++}
++
++module.exports = {
++  parseArgs,
++  assertCursorPathSafe,
++  expandCursorHooksPlaceholder,
++  syncTreeByContent,
++  installHooksJson,
++  main,
++};
+diff --git a/scripts/configure/install-cursor.test.js b/scripts/configure/install-cursor.test.js
+new file mode 100644
+index 0000000..4847de3
+--- /dev/null
++++ b/scripts/configure/install-cursor.test.js
+@@ -0,0 +1,162 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const fs = require("node:fs");
++const os = require("node:os");
++const path = require("node:path");
++const test = require("node:test");
++
++const {
++  assertCursorPathSafe,
++  expandCursorHooksPlaceholder,
++  syncTreeByContent,
++  installHooksJson,
++  parseArgs,
++  main,
++} = require("./install-cursor.js");
++
++function makeTempDir(t, prefix) {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
++  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  return dir;
++}
++
++test("assertCursorPathSafe refuses filesystem root", () => {
++  const root = path.parse(process.cwd()).root;
++  assert.throws(() => assertCursorPathSafe(root), /filesystem root|refusing/i);
++});
++
++test("assertCursorPathSafe allows a normal ~/.cursor path", (t) => {
++  const home = makeTempDir(t, "cursor-home-");
++  const cursorRoot = path.join(home, ".cursor");
++  assert.doesNotThrow(() => assertCursorPathSafe(cursorRoot));
++});
++
++test("assertCursorPathSafe refuses path that escapes the managed root", (t) => {
++  const home = makeTempDir(t, "cursor-escape-");
++  const cursorRoot = path.join(home, ".cursor");
++  fs.mkdirSync(cursorRoot, { recursive: true });
++  assert.throws(
++    () => assertCursorPathSafe(cursorRoot, path.join(home, "outside.txt")),
++    /escape|refusing/i,
++  );
++});
++
++test("assertCursorPathSafe refuses a symlinked managed root", (t) => {
++  const base = makeTempDir(t, "cursor-symlink-");
++  const real = path.join(base, "real-cursor");
++  const link = path.join(base, "link-cursor");
++  fs.mkdirSync(real, { recursive: true });
++  try {
++    fs.symlinkSync(real, link, "junction");
++  } catch (error) {
++    t.skip(`symlink unavailable: ${error.message}`);
++    return;
++  }
++  assert.throws(() => assertCursorPathSafe(link), /symlink/i);
++});
++
++test("expandCursorHooksPlaceholder uses POSIX slashes and quotes only when path has space", () => {
++  const plain = expandCursorHooksPlaceholder(
++    "node __OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks-launch.js session-start",
++    "C:/Users/sn4ke/.cursor",
++  );
++  assert.equal(plain, "node C:/Users/sn4ke/.cursor/scripts/hooks/ospec-hooks-launch.js session-start");
++
++  const spaced = expandCursorHooksPlaceholder(
++    "node __OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks-launch.js stop",
++    "C:/Users/Name Surname/.cursor",
++  );
++  assert.equal(
++    spaced,
++    'node "C:/Users/Name Surname/.cursor/scripts/hooks/ospec-hooks-launch.js" stop',
++  );
++});
++
++test("expandCursorHooksPlaceholder is a no-op without the marker", () => {
++  assert.equal(expandCursorHooksPlaceholder("node ./x.js", "C:/Users/a/.cursor"), "node ./x.js");
++});
++
++test("installHooksJson expands placeholder and dry-run writes nothing", (t) => {
++  const outDir = makeTempDir(t, "cursor-hooks-src-");
++  const destRoot = makeTempDir(t, "cursor-hooks-dest-");
++  fs.writeFileSync(
++    path.join(outDir, "hooks.json"),
++    JSON.stringify({
++      version: 1,
++      hooks: {
++        stop: [{ command: "node __OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks-launch.js stop" }],
++      },
++    }),
++  );
++
++  installHooksJson(outDir, destRoot, { dryRun: true, cursorRootPosix: "C:/Users/x/.cursor" });
++  assert.ok(!fs.existsSync(path.join(destRoot, "hooks.json")));
++
++  installHooksJson(outDir, destRoot, { dryRun: false, cursorRootPosix: "C:/Users/x/.cursor" });
++  const installed = JSON.parse(fs.readFileSync(path.join(destRoot, "hooks.json"), "utf8"));
++  assert.match(installed.hooks.stop[0].command, /C:\/Users\/x\/\.cursor/);
++  assert.doesNotMatch(installed.hooks.stop[0].command, /__OSPEC_CURSOR_ROOT__/);
++});
++
++test("syncTreeByContent is idempotent on second run", (t) => {
++  const src = makeTempDir(t, "cursor-sync-src-");
++  const dest = makeTempDir(t, "cursor-sync-dest-");
++  fs.mkdirSync(path.join(src, "agents"), { recursive: true });
++  fs.writeFileSync(path.join(src, "agents", "a.md"), "v1\n");
++  fs.writeFileSync(path.join(src, "notes.txt"), "keep-me\n");
++
++  const first = syncTreeByContent(src, dest);
++  assert.ok(first.updated.length >= 1);
++  fs.writeFileSync(path.join(dest, "user-file.txt"), "user\n");
++
++  const second = syncTreeByContent(src, dest);
++  assert.equal(second.updated.length, 0);
++  assert.ok(second.unchanged.length >= 1);
++  assert.equal(fs.readFileSync(path.join(dest, "user-file.txt"), "utf8"), "user\n");
++});
++
++test("parseArgs understands dry-run and no-validate", () => {
++  assert.deepEqual(parseArgs([]), { dryRun: false, validate: true, source: undefined });
++  assert.deepEqual(parseArgs(["--dry-run", "--no-validate", "--source", "../src"]), {
++    dryRun: true,
++    validate: false,
++    source: "../src",
++  });
++});
++
++test("main --dry-run with injected deps writes nothing under cursor home", (t) => {
++  const sourceDir = makeTempDir(t, "cursor-main-src-");
++  const homeDir = makeTempDir(t, "cursor-main-home-");
++  const cursorRoot = path.join(homeDir, ".cursor");
++  const writes = [];
++
++  // Minimal source so runConfigure can succeed when injected.
++  const fakeRunConfigure = () => ({
++    files: [{ path: "agents/x.md", content: "x" }],
++    summary: ["agents/x.md"],
++    exitCode: 0,
++    validation: { status: 0, stdout: "0 errors, 0 warnings\n", stderr: "" },
++  });
++
++  const code = main(["--dry-run", "--source", sourceDir], {
++    homedir: () => homeDir,
++    runConfigure: fakeRunConfigure,
++    copyBinaryToTree() {
++      writes.push("binary");
++    },
++    syncTreeByContent() {
++      writes.push("sync");
++      return { updated: [], unchanged: [] };
++    },
++    installHooksJson() {
++      writes.push("hooks");
++    },
++    stdout: { write() {} },
++    stderr: { write() {} },
++  });
++
++  assert.equal(code, 0);
++  assert.deepEqual(writes, []);
++  assert.ok(!fs.existsSync(cursorRoot) || fs.readdirSync(cursorRoot).length === 0);
++});
+diff --git a/scripts/configure/validate-cursor.js b/scripts/configure/validate-cursor.js
+new file mode 100644
+index 0000000..612b056
+--- /dev/null
++++ b/scripts/configure/validate-cursor.js
+@@ -0,0 +1,247 @@
++"use strict";
++
++const fs = require("node:fs");
++const path = require("node:path");
++
++const { parse, getField } = require("../lib/frontmatter.js");
++
++const REQUIRED_PATHS = [
++  { rel: "agents", type: "directory" },
++  { rel: "commands", type: "directory" },
++  { rel: "rules", type: "directory" },
++  { rel: "skills", type: "directory" },
++  { rel: "scripts/hooks", type: "directory" },
++  { rel: "hooks.json", type: "file" },
++];
++
++const ALLOWED_HOOK_EVENTS = new Set([
++  "beforeSubmitPrompt",
++  "beforeShellExecution",
++  "beforeReadFile",
++  "afterFileEdit",
++  "stop",
++]);
++
++const REVIEW_AGENTS = new Set([
++  "review-change",
++  "review-correction",
++  "review-risk",
++  "review-readability",
++  "review-reliability",
++  "review-resilience",
++]);
++
++const ABSTRACT_TOOL_RE = /`(read|edit|search|execute|agent)`/g;
++
++function exists(root, rel) {
++  return fs.existsSync(path.join(root, rel));
++}
++
++function pathType(root, rel) {
++  const abs = path.join(root, rel);
++  if (!fs.existsSync(abs)) {
++    return "missing";
++  }
++  const stat = fs.statSync(abs);
++  if (stat.isDirectory()) {
++    return "directory";
++  }
++  if (stat.isFile()) {
++    return "file";
++  }
++  return "other";
++}
++
++function walkFiles(root, relDir = "", acc = []) {
++  const absDir = path.join(root, relDir);
++  if (!fs.existsSync(absDir) || !fs.statSync(absDir).isDirectory()) {
++    return acc;
++  }
++  for (const entry of fs.readdirSync(absDir, { withFileTypes: true })) {
++    const rel = relDir ? `${relDir}/${entry.name}` : entry.name;
++    if (entry.isDirectory()) {
++      walkFiles(root, rel, acc);
++    } else if (entry.isFile()) {
++      acc.push(rel);
++    }
++  }
++  return acc;
++}
++
++function readUtf8(root, rel) {
++  return fs.readFileSync(path.join(root, rel), "utf8");
++}
++
++function addError(errors, message) {
++  errors.push(message);
++}
++
++function validateRequiredPaths(root, errors) {
++  for (const { rel, type } of REQUIRED_PATHS) {
++    const actual = pathType(root, rel);
++    if (actual === "missing") {
++      addError(errors, `missing required path: ${rel}`);
++    } else if (actual !== type) {
++      addError(errors, `required ${type} is not a ${type}: ${rel}`);
++    }
++  }
++}
++
++function validateAgents(root, errors) {
++  for (const file of walkFiles(root, "agents")) {
++    if (!file.endsWith(".md")) {
++      continue;
++    }
++    let text;
++    try {
++      text = readUtf8(root, file);
++    } catch (error) {
++      addError(errors, `${file} could not be read: ${error.message}`);
++      continue;
++    }
++    const fm = parse(text).frontmatter;
++    for (const key of ["name", "description", "model"]) {
++      const field = getField(fm, key);
++      if (!field || !String(field.value || "").trim()) {
++        addError(errors, `${file} must include ${key}`);
++      }
++    }
++    const nameField = getField(fm, "name");
++    const name = nameField ? nameField.value : path.basename(file, ".md");
++    if (REVIEW_AGENTS.has(name) || name.startsWith("review-")) {
++      const readonly = getField(fm, "readonly");
++      if (!readonly || readonly.value !== "true") {
++        addError(errors, `${file} must include readonly: true`);
++      }
++    }
++
++    if (/vscode\//i.test(text)) {
++      addError(errors, `vscode/ namespace residue in ${file}`);
++    }
++    if (/\bAskUserQuestion\b/.test(text)) {
++      addError(errors, `AskUserQuestion residue in ${file}`);
++    }
++    ABSTRACT_TOOL_RE.lastIndex = 0;
++    const abstractHits = text.match(ABSTRACT_TOOL_RE);
++    if (abstractHits) {
++      for (const hit of new Set(abstractHits)) {
++        addError(errors, `unmapped abstract tool ${hit} in ${file}`);
++      }
++    }
++  }
++}
++
++function validateRules(root, errors) {
++  if (!exists(root, "rules/agents-protocol.mdc")) {
++    addError(errors, "missing required path: rules/agents-protocol.mdc");
++  }
++
++  for (const file of walkFiles(root, "rules")) {
++    if (!file.endsWith(".mdc")) {
++      continue;
++    }
++    let text;
++    try {
++      text = readUtf8(root, file);
++    } catch (error) {
++      addError(errors, `${file} could not be read: ${error.message}`);
++      continue;
++    }
++    const fm = parse(text).frontmatter;
++    for (const key of ["description", "globs", "alwaysApply"]) {
++      const field = getField(fm, key);
++      if (!field) {
++        addError(errors, `${file} must include ${key}`);
++      }
++    }
++  }
++}
++
++function validateHooks(root, errors) {
++  const rel = "hooks.json";
++  if (pathType(root, rel) !== "file") {
++    return;
++  }
++
++  let parsed;
++  try {
++    parsed = JSON.parse(readUtf8(root, rel));
++  } catch (error) {
++    addError(errors, `${rel} is not valid JSON: ${error.message}`);
++    return;
++  }
++
++  if (parsed.version !== 1) {
++    addError(errors, `${rel} must have version: 1`);
++  }
++  if (!parsed.hooks || typeof parsed.hooks !== "object" || Array.isArray(parsed.hooks)) {
++    addError(errors, `${rel} must have a hooks object`);
++    return;
++  }
++
++  for (const [eventName, actions] of Object.entries(parsed.hooks)) {
++    if (eventName === "SubagentStop" || eventName === "subagentStop") {
++      addError(errors, `${rel} must not include SubagentStop`);
++    }
++    if (!ALLOWED_HOOK_EVENTS.has(eventName)) {
++      addError(errors, `${rel} has unmapped event: ${eventName}`);
++    }
++    if (!Array.isArray(actions)) {
++      addError(errors, `${rel} event ${eventName} must map to an array`);
++      continue;
++    }
++    for (const [index, action] of actions.entries()) {
++      const prefix = `${rel} event ${eventName}[${index}]`;
++      if (!action || typeof action !== "object" || Array.isArray(action)) {
++        addError(errors, `${prefix} must be an action object`);
++        continue;
++      }
++      if (typeof action.command !== "string" || !action.command.includes("__OSPEC_CURSOR_ROOT__")) {
++        addError(errors, `${prefix} command must include __OSPEC_CURSOR_ROOT__`);
++      }
++    }
++  }
++}
++
++function validate(root, _deps = {}) {
++  const errors = [];
++  const warnings = [];
++  const absRoot = path.resolve(root);
++
++  if (!fs.existsSync(absRoot) || !fs.statSync(absRoot).isDirectory()) {
++    addError(errors, `output root is not a directory: ${root}`);
++    return { errors, warnings };
++  }
++
++  validateRequiredPaths(absRoot, errors);
++  validateAgents(absRoot, errors);
++  validateRules(absRoot, errors);
++  validateHooks(absRoot, errors);
++
++  return { errors, warnings };
++}
++
++function main(argv) {
++  const root = argv[0];
++  if (!root) {
++    process.stderr.write("usage: node scripts/configure/validate-cursor.js <output-root>\n");
++    process.exitCode = 2;
++    return;
++  }
++
++  const result = validate(root);
++  for (const error of result.errors) {
++    process.stderr.write(`error: ${error}\n`);
++  }
++  for (const warning of result.warnings) {
++    process.stderr.write(`warning: ${warning}\n`);
++  }
++  process.stdout.write(`${result.errors.length} errors, ${result.warnings.length} warnings\n`);
++  process.exitCode = result.errors.length > 0 ? 1 : 0;
++}
++
++if (require.main === module) {
++  main(process.argv.slice(2));
++}
++
++module.exports = { validate, main };
+diff --git a/scripts/configure/validate-cursor.test.js b/scripts/configure/validate-cursor.test.js
+new file mode 100644
+index 0000000..4d92d20
+--- /dev/null
++++ b/scripts/configure/validate-cursor.test.js
+@@ -0,0 +1,183 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const fs = require("node:fs");
++const os = require("node:os");
++const path = require("node:path");
++const test = require("node:test");
++
++const { validate } = require("./validate-cursor.js");
++
++function tmpRoot(t) {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "validate-cursor-"));
++  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  return dir;
++}
++
++function write(root, rel, content) {
++  const abs = path.join(root, rel);
++  fs.mkdirSync(path.dirname(abs), { recursive: true });
++  fs.writeFileSync(abs, content, "utf8");
++}
++
++function cleanTree(root) {
++  write(
++    root,
++    "agents/sdd-apply.md",
++    "---\nname: sdd-apply\ndescription: Apply phase\nmodel: composer-2.5[fast=false]\n---\n\nUse `Write` and `Grep`.\n",
++  );
++  write(
++    root,
++    "agents/review-change.md",
++    "---\nname: review-change\ndescription: Review\nmodel: composer-2.5[fast=false]\nreadonly: true\n---\n\nRead-only review.\n",
++  );
++  write(
++    root,
++    "commands/sdd-apply.md",
++    "---\nname: sdd-apply\ndescription: Run apply\nagent: sdd-orchestrator\n---\n\nRun apply for ${input:changeName}.\n",
++  );
++  write(
++    root,
++    "rules/sdd-common.mdc",
++    '---\ndescription: "Shared protocol"\nglobs: ["*"]\nalwaysApply: true\n---\n\nbody\n',
++  );
++  write(
++    root,
++    "rules/agents-protocol.mdc",
++    '---\ndescription: "Post-archive release flow and bounded review lifecycle rules."\nglobs: ["*"]\nalwaysApply: true\n---\n\nprotocol\n',
++  );
++  write(root, "skills/sdd-apply/SKILL.md", "---\nname: sdd-apply\n---\n\nskill\n");
++  write(root, "scripts/hooks/ospec-hooks-launch.js", "module.exports = {};\n");
++  write(
++    root,
++    "hooks.json",
++    JSON.stringify(
++      {
++        version: 1,
++        hooks: {
++          beforeSubmitPrompt: [
++            { command: "node __OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks-launch.js session-start" },
++          ],
++          beforeShellExecution: [
++            { command: "node __OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks-launch.js pre-tool-use" },
++          ],
++          stop: [{ command: "node __OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks-launch.js stop" }],
++        },
++      },
++      null,
++      2,
++    ),
++  );
++}
++
++test("validate-cursor accepts a clean tree with zero errors", (t) => {
++  const root = tmpRoot(t);
++  cleanTree(root);
++  const result = validate(root);
++  assert.deepEqual(result.errors, []);
++});
++
++test("validate-cursor reports missing required structure paths", (t) => {
++  const root = tmpRoot(t);
++  cleanTree(root);
++  fs.rmSync(path.join(root, "agents"), { recursive: true, force: true });
++  const result = validate(root);
++  assert.ok(result.errors.some((e) => e.includes("missing required path: agents")));
++});
++
++test("validate-cursor requires agent frontmatter name/description/model and review readonly", (t) => {
++  const root = tmpRoot(t);
++  cleanTree(root);
++  write(root, "agents/sdd-apply.md", "---\nname: sdd-apply\n---\n\nbody\n");
++  write(root, "agents/review-change.md", "---\nname: review-change\ndescription: d\nmodel: x\n---\n\nbody\n");
++  const result = validate(root);
++  assert.ok(result.errors.some((e) => e.includes("agents/sdd-apply.md") && e.includes("description")));
++  assert.ok(result.errors.some((e) => e.includes("agents/sdd-apply.md") && e.includes("model")));
++  assert.ok(result.errors.some((e) => e.includes("agents/review-change.md") && e.includes("readonly")));
++});
++
++test("validate-cursor requires mdc frontmatter and agents-protocol.mdc", (t) => {
++  const root = tmpRoot(t);
++  cleanTree(root);
++  write(root, "rules/sdd-common.mdc", "---\ndescription: only\n---\n\nbody\n");
++  fs.rmSync(path.join(root, "rules/agents-protocol.mdc"), { force: true });
++  const result = validate(root);
++  assert.ok(result.errors.some((e) => e.includes("rules/sdd-common.mdc") && (e.includes("globs") || e.includes("alwaysApply"))));
++  assert.ok(result.errors.some((e) => e.includes("agents-protocol.mdc")));
++});
++
++test("validate-cursor rejects bad hooks shape, SubagentStop, and missing placeholder", (t) => {
++  const root = tmpRoot(t);
++  cleanTree(root);
++  write(
++    root,
++    "hooks.json",
++    JSON.stringify({
++      version: 2,
++      hooks: {
++        SubagentStop: [{ command: "node x.js" }],
++        beforeSubmitPrompt: [{ command: "node /tmp/x.js session-start" }],
++      },
++    }),
++  );
++  const result = validate(root);
++  assert.ok(result.errors.some((e) => e.includes("version")));
++  assert.ok(result.errors.some((e) => /SubagentStop/i.test(e)));
++  assert.ok(result.errors.some((e) => e.includes("__OSPEC_CURSOR_ROOT__")));
++});
++
++test("validate-cursor fails on agent vscode/AskUserQuestion/abstract residue", (t) => {
++  const root = tmpRoot(t);
++  cleanTree(root);
++  write(
++    root,
++    "agents/sdd-apply.md",
++    "---\nname: sdd-apply\ndescription: d\nmodel: x\n---\n\nAsk via vscode/askQuestions or AskUserQuestion. Use `edit`.\n",
++  );
++  const result = validate(root);
++  assert.ok(result.errors.some((e) => /vscode\//i.test(e)));
++  assert.ok(result.errors.some((e) => e.includes("AskUserQuestion")));
++  assert.ok(result.errors.some((e) => e.includes("`edit`") || e.includes("abstract tool")));
++});
++
++test("validate-cursor does NOT fail solely because commands retain ${input:} or agent:", (t) => {
++  const root = tmpRoot(t);
++  cleanTree(root);
++  write(
++    root,
++    "commands/sdd-apply.md",
++    "---\nname: sdd-apply\ndescription: d\nagent: sdd-orchestrator\n---\n\nRun for ${input:changeName} and ${input}.\n",
++  );
++  const result = validate(root);
++  assert.deepEqual(result.errors, [], `unexpected errors: ${result.errors.join("; ")}`);
++});
++
++test("validate-cursor triangulation: stray vscode/ in agent body fails; commands with input do not", (t) => {
++  const root = tmpRoot(t);
++  cleanTree(root);
++  write(
++    root,
++    "agents/sdd-propose.md",
++    "---\nname: sdd-propose\ndescription: d\nmodel: x\n---\n\nCall vscode/askQuestions.\n",
++  );
++  write(
++    root,
++    "commands/sdd-propose.md",
++    "---\nname: sdd-propose\nagent: sdd-orchestrator\n---\n\n${input:name}\n",
++  );
++  const result = validate(root);
++  assert.ok(result.errors.some((e) => e.includes("agents/sdd-propose.md")));
++  assert.ok(!result.errors.some((e) => e.includes("commands/sdd-propose.md")));
++});
++
++test("validate-cursor triangulation: unmapped abstract tool token in agent fails", (t) => {
++  const root = tmpRoot(t);
++  cleanTree(root);
++  write(
++    root,
++    "agents/sdd-apply.md",
++    "---\nname: sdd-apply\ndescription: d\nmodel: x\n---\n\nPrefer `search` over Glob.\n",
++  );
++  const result = validate(root);
++  assert.ok(result.errors.some((e) => e.includes("agents/sdd-apply.md") && (e.includes("`search`") || e.includes("abstract"))));
++});
+diff --git a/scripts/lib/target-profiles/cursor.js b/scripts/lib/target-profiles/cursor.js
+new file mode 100644
+index 0000000..4d25cbf
+--- /dev/null
++++ b/scripts/lib/target-profiles/cursor.js
+@@ -0,0 +1,78 @@
++"use strict";
++
++// Declarative Cursor IDE target profile. Hybrid of Claude-style agent/model
++// handling and Codex-style global $HOME install. Layout matches the verified
++// live ~/.cursor tree. See openspec/changes/cursor-native-target/design.md.
++
++const ASK_GATE =
++  'present blocking gate questions as a structured numbered markdown list in chat (e.g. "1) Option A  2) Option B"), then STOP and wait for the user\'s reply ÔÇö do not invoke any tool to ask ÔÇö and persist the accepted decision in `state.yaml`';
++
++module.exports = {
++  id: "cursor",
++  layout: "dot-cursor",
++
++  // AGENTS.md is only needed by cursor (ÔåÆ agents-protocol.mdc). Scoped here so
++  // other targets never see it (ADR-002).
++  sourceRoots: ["AGENTS.md"],
++
++  agentFile: { from: ".agent.md", to: ".md" },
++  commandFile: { from: ".prompt.md", to: ".md" },
++
++  model: { format: "alias" },
++
++  agentReadonly: {
++    agents: [
++      "review-change",
++      "review-correction",
++      "review-risk",
++      "review-readability",
++      "review-reliability",
++      "review-resilience",
++    ],
++  },
++
++  frontmatter: {
++    stripKeys: ["target", "user-invocable", "disable-model-invocation", "tools"],
++  },
++
++  rules: {
++    strategy: "to-mdc",
++    dir: "rules",
++    globs: ["*"],
++    alwaysApply: true,
++    synthesize: [
++      {
++        source: "AGENTS.md",
++        base: "agents-protocol",
++        description: "Post-archive release flow and bounded review lifecycle rules.",
++      },
++    ],
++  },
++
++  hooks: {
++    format: "cursor",
++    source: "hooks/hooks.json",
++    location: "hooks.json",
++    runtimePlaceholder: "__OSPEC_CURSOR_ROOT__",
++    eventMap: {
++      SessionStart: ["beforeSubmitPrompt"],
++      PreToolUse: ["beforeShellExecution", "beforeReadFile"],
++      PreCompact: ["afterFileEdit"],
++      Stop: ["stop"],
++    },
++  },
++
++  toolMap: {
++    read: "Read",
++    edit: ["Write", "StrReplace"],
++    search: ["Grep", "Glob"],
++    execute: "Shell",
++    agent: "Task",
++    "vscode/askQuestions": { degrade: ASK_GATE },
++    AskUserQuestion: { degrade: ASK_GATE },
++  },
++
++  drop: [".claude-plugin/", ".mcp.json"],
++
++  validate: ["node", "scripts/configure/validate-cursor.js", "{out}"],
++};

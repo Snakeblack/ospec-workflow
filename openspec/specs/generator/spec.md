@@ -2,7 +2,7 @@
 
 ## Overview
 
-The generator is the build pipeline that transforms the canonical source plugin tree into target-native file distributions for five supported targets: `claude`, `vscode`, `github-copilot`, `opencode`, and `codex`. It is composed of a pure transform layer (`scripts/lib/target-transform.js`) and an IO shell (`scripts/configure/cli.js`) that handles filesystem reads, writes, and validation.
+The generator is the build pipeline that transforms the canonical source plugin tree into target-native file distributions for six supported targets: `claude`, `vscode`, `github-copilot`, `opencode`, `codex`, and `cursor`. It is composed of a pure transform layer (`scripts/lib/target-transform.js`) and an IO shell (`scripts/configure/cli.js`) that handles filesystem reads, writes, and validation.
 
 ## Source files
 
@@ -17,6 +17,8 @@ The generator is the build pipeline that transforms the canonical source plugin 
 - `scripts/lib/model-resolver.js` — model resolution from models.yaml data
 - `scripts/configure/validate-github-copilot.js` — GitHub Copilot output validator
 - `scripts/configure/validate-opencode.js` — opencode output validator
+- `scripts/configure/validate-cursor.js` — Cursor output validator
+- `scripts/lib/target-profiles/cursor.js` — Cursor target profile
 - `scripts/configure/claude-marketplace.js` — Claude marketplace build helper
 
 ## Scenarios
@@ -39,7 +41,7 @@ The generator is the build pipeline that transforms the canonical source plugin 
 | `scripts/lib/workspace-general-baseline.js` | general-baseline runtime |
 | `scripts/lib/federation-baseline-orchestrator.js` | baseline-orchestrator runtime |
 
-All four scripts and their transitive `require()` dependencies MUST be present in the dist of ALL five targets (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`) under `scripts/lib/`.
+All four scripts and their transitive `require()` dependencies MUST be present in the dist of ALL six targets (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`) under `scripts/lib/`.
 And it MUST NOT include test files (`.test.js`) or generator-only modules (`target-*`, `frontmatter`, `model-resolver`, `configure/`) in the runtime script bundle. Transitive dependencies are subjected to the same exclusion check, preventing excluded files from being resolved or bundled.
 If reading an individual file fails during script gathering, the generator MUST log a warning to stderr and skip that file rather than failing the build.
 And it MUST silently skip any root that does not exist on disk.
@@ -47,12 +49,12 @@ And it MUST silently skip any root that does not exist on disk.
 The canonical `SOURCE_ROOTS` are:
 `.claude-plugin/plugin.json`, `hooks/hooks.json`, `.mcp.json`, `agents/`, `commands/`, `rules/`, `skills/`.
 
-(Previously: applied to four targets only; `codex` is now a fifth target whose dist must also carry the full runtime script bundle.)
+(Previously: applied to five targets; `cursor` is now a sixth target whose dist must also carry the full runtime script bundle.)
 
 #### Scenario: Skill entry-point scripts present in dist
 
 - GIVEN the source tree contains the four skill entry-point scripts under `scripts/lib/`
-- WHEN `gatherRuntimeScripts` runs during generation for any of the five targets (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`)
+- WHEN `gatherRuntimeScripts` runs during generation for any of the six targets (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`)
 - THEN `federation-marker.js`, `federation-explore.js`, `workspace-general-baseline.js`, and `federation-baseline-orchestrator.js` MUST each appear in the collected runtime file set
 - AND they MUST be emitted under `scripts/lib/` in the output dist
 
@@ -79,16 +81,18 @@ Then each file MUST be routed through exactly one handler in this priority order
 2. Plugin manifest (`profile.manifest.location`) — field-stripped via `reshapeManifest`.
 3. Hooks file with `shape: "nested"` — wrapped in an outer group array via `nestHooks`.
 4. Hooks file with `format: "copilot"` — reshaped to Copilot schema via `copilotHooks`.
-5. Rules files (`rules/` prefix) — either inlined into the orchestrator agent, emitted as instruction files, or passed through, depending on `profile.rules.strategy`.
-6. Agent files (matching `profile.agentFile.from`) — handled via `handleAgent` (frontmatter strip, model injection, tool name substitution); or emitted as an orchestrator skill when the profile sets `orchestrator.emitAs: "skill"`; or emitted as a TOML file per `agentFile.format: "toml"` (generator Requirement: Agent Files May Emit TOML For Codex-Style Profiles), excluded from the plugin manifest bundle in that case.
-7. Command files (matching `profile.commandFile.from`) — handled via `handleCommand` (frontmatter strip, variable substitution); or emitted as an invocable skill per `commandFile.format: "skill"` (generator Requirement: Command Files May Emit Invocable Skills For Codex-Style Profiles).
-8. **`.mcp.json` for profiles with MCP placeholder normalization enabled** (`profile.mcpPlaceholders` truthy) — every `${input:NAME}` occurrence in `env`, `args`, `url`, and `headers` string values MUST be rewritten to `${NAME:-}` before the file is added to the output tree; intercepted here and MUST NOT reach step 9.
-9. Passthrough (skills, shared docs with `.md` extension) — tool name substitution in prose applied; binary/other files copied as-is.
+5. Hooks file with `format: "codex"` — reshaped via `codexHooks`.
+6. Hooks file with `format: "cursor"` — reshaped via cursor hooks (REQ-generator-007).
+7. Rules files (`rules/` prefix) — inlined, instruction files, config-referenced, or `.mdc` per `profile.rules.strategy` (including `to-mdc` per REQ-generator-006).
+8. Agent files (matching `profile.agentFile.from`) — handled via `handleAgent` (frontmatter strip, model injection, optional `readonly`, tool name substitution); or emitted as an orchestrator skill when the profile sets `orchestrator.emitAs: "skill"`; or emitted as a TOML file per `agentFile.format: "toml"` (REQ-generator-001), excluded from the plugin manifest bundle in that case.
+9. Command files (matching `profile.commandFile.from`) — handled via `handleCommand` (frontmatter strip, variable substitution); or emitted as an invocable skill per `commandFile.format: "skill"` (REQ-generator-002).
+10. **`.mcp.json` for profiles with MCP placeholder normalization enabled** (`profile.mcpPlaceholders` truthy) — every `${input:NAME}` occurrence in `env`, `args`, `url`, and `headers` string values MUST be rewritten to `${NAME:-}` before the file is added to the output tree; intercepted here and MUST NOT reach step 11.
+11. Passthrough (skills, shared docs with `.md` extension) — tool name substitution in prose applied; binary/other files copied as-is.
 
 And synthesized files (e.g. `opencode.json`, the opencode JS plugin shim) MUST be appended after the per-file pass.
 And the output file array MUST be sorted deterministically by path (lexicographic ascending) regardless of OS filesystem read order.
 
-(Previously: `.mcp.json` fell through to step 8 (passthrough) for all profiles including claude and github-copilot, leaving `${input:NAME}` placeholders unresolved in those outputs. Step count was 8; it is now 9. Steps 6 and 7 additionally now support alternate TOML/skill output formats per profile declaration, in addition to their prior markdown-only behavior.)
+(Previously: routing listed nested + copilot hooks only and three rules strategies; now includes explicit `codex`/`cursor` hooks formats and `to-mdc` rules, with step renumbering.)
 
 ### Scenario 3: Rules strategy dispatch
 
@@ -98,6 +102,9 @@ Then:
 - If `strategy` is `"inline-into-orchestrator"`: the file MUST be dropped from output (content is folded into the orchestrator agent/skill by a separate collector).
 - If `strategy` is `"to-instructions"`: the file MUST be emitted under `profile.rules.dir/` with the target extension and an `applyTo` frontmatter key added.
 - If `strategy` is `"to-instructions-config"`: the file MUST be emitted under `profile.rules.dir/` and referenced from the synthesized config file (e.g. `opencode.json`); no `applyTo` key is added.
+- If `strategy` is `"to-mdc"`: the file MUST be emitted as `.mdc` per REQ-generator-006.
+
+(Previously: three strategies only; `to-mdc` added for Cursor.)
 
 ### Scenario 4: Orchestrator skill emission (Claude target)
 
@@ -177,7 +184,7 @@ And it MUST be possible to skip validation via `--no-validate` flag.
 Given the CLI is invoked as `node scripts/configure/cli.js --target <target> [--out dir] [--source dir] [--no-validate]`,
 When arguments are parsed,
 Then:
-- `--target` MUST be one of `claude`, `vscode`, `github-copilot`, `opencode`, `codex`; an unknown target causes exit code 2.
+- `--target` MUST be one of `claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`; an unknown target causes exit code 2.
 - `--out` defaults to `dist/<target>` relative to cwd.
 - `--source` defaults to cwd.
 - If `--target` is missing or invalid, the CLI MUST write a usage hint to stderr and set `process.exitCode = 2`.
@@ -185,7 +192,7 @@ Then:
 - On validation failure, the validator's output MUST be forwarded to stdout/stderr and the CLI exit code MUST reflect the validator's exit code (non-zero).
 - If the CLI execution encounters an uncaught error, it MUST write the fatal error stack or message to stderr and terminate with exit code 1.
 
-(Previously: `--target` accepted four values; `codex` is registered as the fifth entry in the `scripts/configure/cli.js` registry, validated by `scripts/configure/validate-codex.js`.)
+(Previously: five accepted targets; `cursor` is the sixth, validated by `scripts/configure/validate-cursor.js`.)
 
 ### Scenario 13: MCP Placeholder Normalization (Per-Profile Opt-In)
 
@@ -490,6 +497,123 @@ that moved tiers.
 - WHEN it generates an agent from the approved roster
 - THEN it MUST preserve the baseline omission behavior rather than inventing a model
 - AND the tier-parity contract MUST NOT treat that omission as a mismatch
+
+### Requirement: Rules May Emit Cursor MDC Files {#REQ-generator-006}
+
+A target profile MAY declare `rules.strategy: "to-mdc"`. When declared, each
+`rules/*.instructions.md` (or profile-equivalent rules source) MUST be emitted under
+`profile.rules.dir/` as a `.mdc` file with Cursor rule frontmatter containing
+`description`, `globs`, and `alwaysApply`. The transform MUST also synthesize
+`agents-protocol.mdc` from repository `AGENTS.md` when the profile declares a
+`rules.synthesize` entry for that source. Other strategies
+(`inline-into-orchestrator`, `to-instructions`, `to-instructions-config`) MUST remain
+unchanged.
+
+#### Scenario: Instruction rule emitted as mdc
+
+- GIVEN a profile with `rules.strategy: "to-mdc"` and a source rules file
+- WHEN the transform processes that rules file
+- THEN the output MUST be a `.mdc` under `profile.rules.dir/` with `description`,
+  `globs`, and `alwaysApply` frontmatter keys
+
+#### Scenario: AGENTS.md synthesized as agents-protocol.mdc
+
+- GIVEN the profile declares `rules.synthesize` from `AGENTS.md` to base
+  `agents-protocol`
+- WHEN the transform completes
+- THEN `agents-protocol.mdc` MUST exist in the rules output directory
+
+### Requirement: Hooks May Emit Cursor CamelCase Event Map {#REQ-generator-007}
+
+A target profile MAY declare `hooks.format: "cursor"`. When declared, the transform
+MUST reshape `hooks/hooks.json` into Cursor schema: top-level `version: 1`, camelCase
+event keys via `profile.hooks.eventMap`, and command strings that invoke
+`ospec-hooks-launch.js` with the mapped phase under the runtime placeholder
+`__OSPEC_CURSOR_ROOT__`. Source events absent from the event map (including
+`SubagentStop`) MUST be dropped. Nested/copilot/codex hook formats MUST remain
+unaffected.
+
+#### Scenario: Cursor hooks emit mapped camelCase events
+
+- GIVEN the cursor profile with `hooks.format: "cursor"` and a verified eventMap
+- WHEN `hooks/hooks.json` is transformed
+- THEN output MUST use camelCase events from the map, retain `version: 1`, and embed
+  `__OSPEC_CURSOR_ROOT__` in launcher commands
+- AND `SubagentStop` MUST NOT appear when unmapped
+
+#### Scenario: Unmapped source events are dropped
+
+- GIVEN a source hooks file contains an event with no eventMap entry
+- WHEN cursor hooks reshape runs
+- THEN that event MUST be absent from the emitted `hooks.json`
+
+### Requirement: Review Agents May Emit Readonly Frontmatter {#REQ-generator-008}
+
+A target profile MAY declare an agent-readonly policy (explicit reviewer id list or
+equivalent). When declared, each listed review agent MUST emit `readonly: true` in
+output frontmatter. Non-listed agents MUST NOT gain `readonly` solely from this
+policy. For the `cursor` profile the six `review-*` agents MUST be covered.
+
+#### Scenario: Cursor review agents are readonly
+
+- GIVEN the cursor profile's readonly policy lists the six `review-*` agents
+- WHEN those agents are transformed
+- THEN each emitted agent file MUST include `readonly: true`
+
+#### Scenario: Non-review agents omit readonly
+
+- GIVEN an SDD phase agent not listed in the readonly policy
+- WHEN the cursor profile transforms it
+- THEN the emitted frontmatter MUST NOT include `readonly: true`
+
+### Requirement: Cursor Target Profile And Tool Map {#REQ-generator-009}
+
+The generator MUST register `cursor` as a sixth supported target in the CLI profile
+registry. The cursor profile MUST declare a Cursor-native `toolMap`: `read→Read`,
+`edit→Write`+`StrReplace` (primary `Write`), `search→Grep`+`Glob` (primary `Grep`),
+`execute→Shell`, `agent→Task`, and degradation markers for `vscode/askQuestions` and
+`AskUserQuestion` per REQ-generator-003 describing a structured numbered chat
+question_gate, STOP-and-wait, and `state.yaml` approval persistence. Cursor output
+MUST inject `model:` from the `models.yaml` `cursor:` column for every SDD agent that
+resolves a model. The cursor validator MUST fail on leftover `vscode/` ask-tool
+residue, bare `AskUserQuestion`, or unmapped abstract tool names in emitted **agent**
+bodies and agent frontmatter. Command files MAY retain `${input:…}` and `agent:`
+frontmatter in this change; `validate-cursor` MUST NOT fail solely because commands
+still contain `${input:…}`. Command `${input:}` / `agent:` strip is out of scope.
+
+#### Scenario: Cursor is accepted as CLI target
+
+- GIVEN `node scripts/configure/cli.js --target cursor`
+- WHEN arguments are parsed
+- THEN the CLI MUST accept `cursor` and default `--out` to `dist/cursor`
+
+#### Scenario: Cursor toolMap substitutes native names
+
+- GIVEN an agent prose reference to an abstract edit/search/execute/agent tool
+- WHEN the cursor profile transforms the file
+- THEN prose MUST use Cursor-native primary names (`Write`, `Grep`, `Shell`, `Task`)
+
+#### Scenario: Ask tools degrade on cursor
+
+- GIVEN agent prose references `vscode/askQuestions` or `AskUserQuestion`
+- WHEN the cursor profile transforms the file
+- THEN output MUST contain the degrade chat-gate instruction and MUST NOT retain those
+  literal tool names
+
+#### Scenario: Cursor model column injected
+
+- GIVEN `models.yaml` defines a `cursor:` value for an SDD agent tier
+- WHEN cursor generation runs
+- THEN each resolved SDD agent frontmatter MUST include `model:` from that column
+
+#### Scenario: Validator rejects vscode ask residue
+
+- GIVEN a generated cursor **agent** still contains `vscode/askQuestions`, bare
+  `AskUserQuestion`, or an unmapped abstract tool name in its body or frontmatter
+- WHEN `validate-cursor.js` runs
+- THEN it MUST emit an error and exit non-zero
+- AND leftover `${input:…}` or `agent:` keys in **command** files alone MUST NOT
+  cause validation failure
 
 ## Invariants
 

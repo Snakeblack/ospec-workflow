@@ -18,6 +18,7 @@ const PROFILES = {
   "github-copilot": require("../lib/target-profiles/github-copilot.js"),
   opencode: require("../lib/target-profiles/opencode.js"),
   codex: require("../lib/target-profiles/codex.js"),
+  cursor: require("../lib/target-profiles/cursor.js"),
 };
 
 // Source roots that make up a plugin tree. Files are read into the
@@ -431,7 +432,8 @@ function runConfigure({ sourceDir, target, outDir, validate = true, runValidator
     throw new Error(`unknown target: ${target}`);
   }
 
-  const files = loadTree(sourceDir);
+  const roots = [...SOURCE_ROOTS, ...(profile.sourceRoots || [])];
+  const files = loadTree(sourceDir, roots);
   const modelsPath = path.join(sourceDir, "models.yaml");
   const models = fs.existsSync(modelsPath) ? parseModels(fs.readFileSync(modelsPath, "utf8")) : {};
   const policy = validateSddModelPolicy(models);

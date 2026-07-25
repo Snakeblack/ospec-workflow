@@ -85,6 +85,7 @@ function main(deps = {}) {
       { target: "github-copilot", validate: true },
       { target: "opencode", validate: true },
       { target: "codex", validate: true },
+      { target: "cursor", validate: true },
     ];
 
     for (const { target, validate } of targets) {

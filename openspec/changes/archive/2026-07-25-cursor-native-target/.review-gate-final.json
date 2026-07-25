@@ -1,0 +1,434 @@
+{
+  "evidence_fingerprint": "sha256:2cd13a89ca512ac92fcdf87511b49fee2dff6c3cc407ac8682ce94ba972c5ff4",
+  "generalist": {
+    "status": "needs-specialist",
+    "specialists": [
+      "risk",
+      "reliability",
+      "resilience"
+    ],
+    "reason": "signals=design-risk,diff-error-flow,diff-global-config-write,metadata-runtime,verify-reliability,verify-resilience,verify-risk;dimensions=risk,reliability,resilience"
+  },
+  "derived": {
+    "selected_specialists": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "depth": {
+      "review": "strict"
+    },
+    "escalation_reason": null
+  },
+  "lineage": {
+    "schema_version": 1,
+    "lineage_id": "sha256:2feb8b234112476a1c072753cdfc4f2586f839820100aed19b215b1b980a1463",
+    "generation": 1,
+    "predecessor_lineage_id": null,
+    "recovery": null,
+    "revision": 12,
+    "status": "approved",
+    "genesis": {
+      "candidate": {
+        "projection": "workspace",
+        "base_tree": "main",
+        "candidate_tree": "feat/cursor-native-target",
+        "paths": [
+          "docs/en/README.md",
+          "docs/plugin-installation.md",
+          "docs/target-capabilities.md",
+          "openspec/config.yaml",
+          "openspec/memory/known-issues.md",
+          "package.json",
+          "scripts/check.js",
+          "scripts/check.test.js",
+          "scripts/configure/__fixtures__/golden/cursor/agents/sdd-apply.md",
+          "scripts/configure/__fixtures__/golden/cursor/agents/sdd-orchestrator.md",
+          "scripts/configure/__fixtures__/golden/cursor/commands/sdd-apply.md",
+          "scripts/configure/__fixtures__/golden/cursor/hooks.json",
+          "scripts/configure/__fixtures__/golden/cursor/models.yaml",
+          "scripts/configure/__fixtures__/golden/cursor/rules/agent-teams.mdc",
+          "scripts/configure/__fixtures__/golden/cursor/scripts/hooks/pre-tool-use.js",
+          "scripts/configure/__fixtures__/golden/cursor/scripts/hooks/session-start.js",
+          "scripts/configure/__fixtures__/golden/cursor/scripts/lib/ospec-state.js",
+          "scripts/configure/__fixtures__/golden/cursor/skills/sdd-apply/SKILL.md",
+          "scripts/configure/cli.js",
+          "scripts/configure/cli.test.js",
+          "scripts/configure/install-cursor.js",
+          "scripts/configure/install-cursor.test.js",
+          "scripts/configure/real-repo.test.js",
+          "scripts/configure/validate-cursor.js",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/lib/target-profiles/cursor.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js",
+          "scripts/model-tier-contract.test.js",
+          "scripts/selective-4r-parity.test.js",
+          "scripts/strict-tdd-evidence-parity.test.js"
+        ],
+        "diff_hash": "sha256:abfa9a4ca2d40cf8e4caa920b907348d8ac1a72ffaca3caa8b6c02e6a0c16f05",
+        "paths_digest": "sha256:498dad4064de38d5f6f35cf0f5145c42a15182aed1c57a79c5c389e257aa83cd",
+        "authored_lines": 1583,
+        "original_changed_lines": 1583
+      },
+      "candidate_id": "sha256:9fefc69eee4d89913bdb96281970226bcb2323b299a909f1fdd439ba8826463e",
+      "paths": [
+        "docs/en/README.md",
+        "docs/plugin-installation.md",
+        "docs/target-capabilities.md",
+        "openspec/config.yaml",
+        "openspec/memory/known-issues.md",
+        "package.json",
+        "scripts/check.js",
+        "scripts/check.test.js",
+        "scripts/configure/__fixtures__/golden/cursor/agents/sdd-apply.md",
+        "scripts/configure/__fixtures__/golden/cursor/agents/sdd-orchestrator.md",
+        "scripts/configure/__fixtures__/golden/cursor/commands/sdd-apply.md",
+        "scripts/configure/__fixtures__/golden/cursor/hooks.json",
+        "scripts/configure/__fixtures__/golden/cursor/models.yaml",
+        "scripts/configure/__fixtures__/golden/cursor/rules/agent-teams.mdc",
+        "scripts/configure/__fixtures__/golden/cursor/scripts/hooks/pre-tool-use.js",
+        "scripts/configure/__fixtures__/golden/cursor/scripts/hooks/session-start.js",
+        "scripts/configure/__fixtures__/golden/cursor/scripts/lib/ospec-state.js",
+        "scripts/configure/__fixtures__/golden/cursor/skills/sdd-apply/SKILL.md",
+        "scripts/configure/cli.js",
+        "scripts/configure/cli.test.js",
+        "scripts/configure/install-cursor.js",
+        "scripts/configure/install-cursor.test.js",
+        "scripts/configure/real-repo.test.js",
+        "scripts/configure/validate-cursor.js",
+        "scripts/configure/validate-cursor.test.js",
+        "scripts/lib/target-profiles/cursor.js",
+        "scripts/lib/target-transform.js",
+        "scripts/lib/target-transform.test.js",
+        "scripts/model-tier-contract.test.js",
+        "scripts/selective-4r-parity.test.js",
+        "scripts/strict-tdd-evidence-parity.test.js"
+      ],
+      "classification": "high-risk",
+      "selected_dimensions": [
+        "risk",
+        "reliability",
+        "resilience",
+        "readability"
+      ],
+      "evidence_fingerprint": "sha256:2cd13a89ca512ac92fcdf87511b49fee2dff6c3cc407ac8682ce94ba972c5ff4",
+      "original_changed_lines": 1583,
+      "authored_lines": 1583
+    },
+    "current_candidate_id": "sha256:cd22c896911c807ca5995dc0c10d74da99d9652ded2a780a498a4ae4f7b6c54f",
+    "current_candidate": {
+      "projection": "workspace",
+      "base_tree": "main",
+      "candidate_tree": "feat/cursor-native-target-corrected",
+      "paths": [
+        "docs/en/README.md",
+        "docs/plugin-installation.md",
+        "docs/target-capabilities.md",
+        "openspec/config.yaml",
+        "openspec/memory/known-issues.md",
+        "package.json",
+        "scripts/check.js",
+        "scripts/check.test.js",
+        "scripts/configure/__fixtures__/golden/cursor/agents/sdd-apply.md",
+        "scripts/configure/__fixtures__/golden/cursor/agents/sdd-orchestrator.md",
+        "scripts/configure/__fixtures__/golden/cursor/commands/sdd-apply.md",
+        "scripts/configure/__fixtures__/golden/cursor/hooks.json",
+        "scripts/configure/__fixtures__/golden/cursor/models.yaml",
+        "scripts/configure/__fixtures__/golden/cursor/rules/agent-teams.mdc",
+        "scripts/configure/__fixtures__/golden/cursor/scripts/hooks/pre-tool-use.js",
+        "scripts/configure/__fixtures__/golden/cursor/scripts/hooks/session-start.js",
+        "scripts/configure/__fixtures__/golden/cursor/scripts/lib/ospec-state.js",
+        "scripts/configure/__fixtures__/golden/cursor/skills/sdd-apply/SKILL.md",
+        "scripts/configure/cli.js",
+        "scripts/configure/cli.test.js",
+        "scripts/configure/install-cursor.js",
+        "scripts/configure/install-cursor.test.js",
+        "scripts/configure/real-repo.test.js",
+        "scripts/configure/validate-cursor.js",
+        "scripts/configure/validate-cursor.test.js",
+        "scripts/lib/target-profiles/cursor.js",
+        "scripts/lib/target-transform.js",
+        "scripts/lib/target-transform.test.js",
+        "scripts/model-tier-contract.test.js",
+        "scripts/selective-4r-parity.test.js",
+        "scripts/strict-tdd-evidence-parity.test.js"
+      ],
+      "diff_hash": "sha256:67f394427c53995ac3749e30e95f3ba1bfacb6d2450c16b8b3de96eb7a1c2d39",
+      "paths_digest": "sha256:498dad4064de38d5f6f35cf0f5145c42a15182aed1c57a79c5c389e257aa83cd",
+      "authored_lines": 1583,
+      "original_changed_lines": 1583
+    },
+    "lenses": {
+      "risk": {
+        "selected": true,
+        "status": "completed",
+        "request_id": "start-risk",
+        "result_digest": "sha256:ed0eaa544fc5ec094aebe60c80f4a7a3180c94e90317cc64c951be54a8f61bc2",
+        "result": {
+          "findings": [
+            {
+              "severity": "CRITICAL",
+              "summary": "syncTreeByContent copied without per-destination assertCursorPathSafe allowing nested symlink write-escape under ~/.cursor",
+              "acceptance_criteria": "Every mkdir/copy destination under syncTreeByContent and binary dest must call assertCursorPathSafe against the Cursor root; nested symlink destinations refuse."
+            },
+            {
+              "severity": "WARNING",
+              "summary": "Root safety check ran before runConfigure creating a TOCTOU window before writes",
+              "acceptance_criteria": "Re-assert Cursor root safety immediately before the first write after configure."
+            },
+            {
+              "severity": "WARNING",
+              "summary": "Hook path expansion quoted only when whitespace present",
+              "acceptance_criteria": "Always quote expanded __OSPEC_CURSOR_ROOT__ paths."
+            }
+          ]
+        },
+        "operation": null,
+        "result_request_id": "result-risk"
+      },
+      "reliability": {
+        "selected": true,
+        "status": "completed",
+        "request_id": "start-reliability",
+        "result_digest": "sha256:f9eec45dcc85b39d3ad974b8e59b8497b5a4b400c86d85b701a80b9beffdaedd",
+        "result": {
+          "findings": [
+            {
+              "severity": "WARNING",
+              "summary": "install-cursor.main non-dry-run composition path lacked tests",
+              "acceptance_criteria": "Add tests covering abort-on-hooks-failure and fail-closed missing hooks.json."
+            },
+            {
+              "severity": "WARNING",
+              "summary": "configure.test.js TARGETS matrix still omits cursor/codex for branch-advisory",
+              "acceptance_criteria": "Extend configure.test.js TARGETS or accept as follow-up before archive."
+            }
+          ]
+        },
+        "operation": null,
+        "result_request_id": "result-reliability"
+      },
+      "resilience": {
+        "selected": true,
+        "status": "completed",
+        "request_id": "start-resilience",
+        "result_digest": "sha256:81e3b9aa2f35c099f4e62c16271c13cd984740e83c1be3b74c69a0b1e35cba2f",
+        "result": {
+          "findings": [
+            {
+              "severity": "CRITICAL",
+              "summary": "sync→hooks→binary sequence had no fail-closed abort; partial ~/.cursor state could report success",
+              "acceptance_criteria": "Wrap write sequence in try/catch returning non-zero; missing generated hooks.json must throw."
+            },
+            {
+              "severity": "WARNING",
+              "summary": "copyBinaryToTree warns and continues on copy failure",
+              "acceptance_criteria": "Document or fail closed on binary copy failure (follow-up acceptable)."
+            }
+          ]
+        },
+        "operation": null,
+        "result_request_id": "result-resilience"
+      },
+      "readability": {
+        "selected": true,
+        "status": "completed",
+        "request_id": "start-readability",
+        "result_digest": "sha256:8a3dc2bfffb7dc7d7e9e528b68ae7642e667c65c73fa81eed6d1fb3babfe8268",
+        "result": {
+          "findings": [
+            {
+              "severity": "WARNING",
+              "summary": "docs/target-capabilities.md target-count/table drift (six vs five/four)",
+              "acceptance_criteria": "Align docs tables with six targets including cursor (follow-up ok)."
+            }
+          ]
+        },
+        "operation": null,
+        "result_request_id": "result-readability"
+      }
+    },
+    "findings": [
+      {
+        "id": "F-8f180bc3b35153e5",
+        "owner": "risk",
+        "severity": "CRITICAL",
+        "summary": "syncTreeByContent copied without per-destination assertCursorPathSafe allowing nested symlink write-escape under ~/.cursor",
+        "acceptance_criteria": "Every mkdir/copy destination under syncTreeByContent and binary dest must call assertCursorPathSafe against the Cursor root; nested symlink destinations refuse.",
+        "blocking": true,
+        "resolution": "resolved"
+      },
+      {
+        "id": "F-768392c24a0afa71",
+        "owner": "risk",
+        "severity": "WARNING",
+        "summary": "Root safety check ran before runConfigure creating a TOCTOU window before writes",
+        "acceptance_criteria": "Re-assert Cursor root safety immediately before the first write after configure.",
+        "blocking": false,
+        "resolution": "advisory"
+      },
+      {
+        "id": "F-acf12ec8719a86ce",
+        "owner": "risk",
+        "severity": "WARNING",
+        "summary": "Hook path expansion quoted only when whitespace present",
+        "acceptance_criteria": "Always quote expanded __OSPEC_CURSOR_ROOT__ paths.",
+        "blocking": false,
+        "resolution": "advisory"
+      },
+      {
+        "id": "F-5dc539974ae48be2",
+        "owner": "reliability",
+        "severity": "WARNING",
+        "summary": "install-cursor.main non-dry-run composition path lacked tests",
+        "acceptance_criteria": "Add tests covering abort-on-hooks-failure and fail-closed missing hooks.json.",
+        "blocking": false,
+        "resolution": "advisory"
+      },
+      {
+        "id": "F-bc45c946cb847771",
+        "owner": "reliability",
+        "severity": "WARNING",
+        "summary": "configure.test.js TARGETS matrix still omits cursor/codex for branch-advisory",
+        "acceptance_criteria": "Extend configure.test.js TARGETS or accept as follow-up before archive.",
+        "blocking": false,
+        "resolution": "advisory"
+      },
+      {
+        "id": "F-0d88cda2809ca27a",
+        "owner": "resilience",
+        "severity": "CRITICAL",
+        "summary": "sync→hooks→binary sequence had no fail-closed abort; partial ~/.cursor state could report success",
+        "acceptance_criteria": "Wrap write sequence in try/catch returning non-zero; missing generated hooks.json must throw.",
+        "blocking": true,
+        "resolution": "resolved"
+      },
+      {
+        "id": "F-f32f76d6cad20244",
+        "owner": "resilience",
+        "severity": "WARNING",
+        "summary": "copyBinaryToTree warns and continues on copy failure",
+        "acceptance_criteria": "Document or fail closed on binary copy failure (follow-up acceptable).",
+        "blocking": false,
+        "resolution": "advisory"
+      },
+      {
+        "id": "F-38736689afa49acb",
+        "owner": "readability",
+        "severity": "WARNING",
+        "summary": "docs/target-capabilities.md target-count/table drift (six vs five/four)",
+        "acceptance_criteria": "Align docs tables with six targets including cursor (follow-up ok).",
+        "blocking": false,
+        "resolution": "advisory"
+      }
+    ],
+    "findings_digest": "sha256:119d3ee32007e9caaa1950761f635a6017762f4d5008b4d65cce795657eddee6",
+    "correction_budget": {
+      "limit_lines": 200,
+      "used_lines": 72,
+      "failed_attempts": 0,
+      "max_failed_attempts": 3
+    },
+    "correction_history": [
+      {
+        "attempt": 1,
+        "request_id": "fix-installer-criticals",
+        "finding_ids": [
+          "F-0d88cda2809ca27a",
+          "F-8f180bc3b35153e5"
+        ],
+        "paths": [
+          "scripts/configure/install-cursor.js",
+          "scripts/configure/install-cursor.test.js"
+        ],
+        "base_candidate_id": "sha256:9fefc69eee4d89913bdb96281970226bcb2323b299a909f1fdd439ba8826463e",
+        "forecast_lines": 80,
+        "record_request_id": "record-installer-criticals",
+        "actual_changed_lines": 72,
+        "corrected_candidate_id": "sha256:cd22c896911c807ca5995dc0c10d74da99d9652ded2a780a498a4ae4f7b6c54f",
+        "status": "passed"
+      }
+    ],
+    "validation_history": [
+      {
+        "request_id": "validate-installer-criticals",
+        "request_digest": "sha256:b0a0ae06609820dcac864cb66487793607ef983181061e002c207fa8e1fc0d97",
+        "outcomes": [
+          {
+            "id": "F-8f180bc3b35153e5",
+            "status": "resolved"
+          },
+          {
+            "id": "F-0d88cda2809ca27a",
+            "status": "resolved"
+          }
+        ],
+        "regression": {
+          "detected": false,
+          "evidence": [
+            "node --test scripts/configure/install-cursor.test.js → 13/13 pass",
+            "per-destination assertCursorPathSafe + nested symlink refusal test",
+            "always-quote hooks expansion + missing hooks.json fail-closed",
+            "main write sequence try/catch abort exit 1"
+          ]
+        },
+        "follow_up_count": 6,
+        "result": "passed"
+      }
+    ],
+    "follow_ups": [
+      {
+        "owner": "risk",
+        "summary": "Root safety check ran before runConfigure creating a TOCTOU window before writes",
+        "blocking": false
+      },
+      {
+        "owner": "risk",
+        "summary": "Hook path expansion quoted only when whitespace present",
+        "blocking": false
+      },
+      {
+        "owner": "reliability",
+        "summary": "install-cursor.main non-dry-run composition path lacked tests",
+        "blocking": false
+      },
+      {
+        "owner": "reliability",
+        "summary": "configure.test.js TARGETS matrix still omits cursor/codex for branch-advisory",
+        "blocking": false
+      },
+      {
+        "owner": "resilience",
+        "summary": "copyBinaryToTree warns and continues on copy failure",
+        "blocking": false
+      },
+      {
+        "owner": "readability",
+        "summary": "docs/target-capabilities.md target-count/table drift (six vs five/four)",
+        "blocking": false
+      }
+    ],
+    "pending_operation": null,
+    "pending_correction": null,
+    "terminal_reason": "all-frozen-findings-resolved"
+  },
+  "archive_gate": {
+    "valid": true,
+    "code": "lineage-approved"
+  },
+  "next_action": {
+    "type": "stop",
+    "reason": "all-frozen-findings-resolved"
+  },
+  "findings_summary": {
+    "blocking_resolved": [
+      "F-8f180bc3b35153e5",
+      "F-0d88cda2809ca27a"
+    ],
+    "advisory_follow_ups": 6,
+    "status": "approved",
+    "terminal_reason": "all-frozen-findings-resolved"
+  }
+}

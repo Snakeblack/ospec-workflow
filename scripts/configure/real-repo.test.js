@@ -16,8 +16,9 @@ const { runConfigure } = require("./cli.js");
 const { validate } = require("./validate-github-copilot.js");
 const { validate: validateOpencode } = require("./validate-opencode.js");
 const { validate: validateCodex } = require("./validate-codex.js");
+const { validate: validateCursor } = require("./validate-cursor.js");
 const { matchConditions, parseRoutingTable, validateRouteTable } = require("../lib/route-dispatcher.js");
-
+const { parse, getField } = require("../lib/frontmatter.js");
 const ROOT = path.resolve(__dirname, "..", "..");
 
 function tmpOut(t) {
@@ -42,8 +43,8 @@ function walk(root, relDir = "", acc = []) {
   return acc;
 }
 
-test("real repo: all five targets generate non-empty trees", (t) => {
-  for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex"]) {
+test("real repo: all six targets generate non-empty trees", (t) => {
+  for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor"]) {
     const out = tmpOut(t);
     const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
     assert.ok(result.files.length > 0, `${target} produced no files`);
@@ -251,6 +252,37 @@ test("real repo: github-copilot output passes its own validator", (t) => {
   assert.deepEqual(result.errors, [], `validator errors:\n${result.errors.join("\n")}`);
 });
 
+test("real repo: cursor output passes its own validator with no agent ask/abstract residue", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "cursor", outDir: out, validate: false });
+
+  const result = validateCursor(out);
+  assert.deepEqual(result.errors, [], `validator errors:\n${result.errors.join("\n")}`);
+
+  const agentsDir = path.join(out, "agents");
+  const agentFiles = fs.readdirSync(agentsDir).filter((name) => name.endsWith(".md"));
+  assert.ok(agentFiles.length > 0, "cursor must emit agents");
+  for (const name of agentFiles) {
+    const text = fs.readFileSync(path.join(agentsDir, name), "utf8");
+    assert.doesNotMatch(text, /vscode\//i, `vscode residue in ${name}`);
+    assert.doesNotMatch(text, /\bAskUserQuestion\b/, `AskUserQuestion residue in ${name}`);
+    assert.doesNotMatch(text, /`(read|edit|search|execute|agent)`/, `abstract tool residue in ${name}`);
+    const fm = parse(text).frontmatter;
+    const model = getField(fm, "model");
+    assert.ok(model && String(model.value).trim(), `${name} must have model:`);
+  }
+  assert.ok(fs.existsSync(path.join(out, "rules", "agents-protocol.mdc")), "agents-protocol.mdc required");
+});
+
+test("real repo: cursor commands may retain ${input:} without failing the validator", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "cursor", outDir: out, validate: false });
+  const commandsDir = path.join(out, "commands");
+  const commandFiles = fs.readdirSync(commandsDir).filter((name) => name.endsWith(".md"));
+  assert.ok(commandFiles.some((name) => /\$\{input:/.test(fs.readFileSync(path.join(commandsDir, name), "utf8"))), "fixture expects ${input:} in at least one command");
+  assert.deepEqual(validateCursor(out).errors, []);
+});
+
 test("real repo: opencode output passes its own validator", (t) => {
   const out = tmpOut(t);
   runConfigure({ sourceDir: ROOT, target: "opencode", outDir: out, validate: false });
@@ -360,13 +392,14 @@ test("real repo: sdd-clarify skill propagates to opencode and github-copilot", (
   }
 });
 
-test("real repo: all five targets preserve the signal-driven clarify gate", (t) => {
+test("real repo: all six targets preserve the signal-driven clarify gate", (t) => {
   const orchestratorPaths = {
     claude: "skills/sdd-orchestrator/SKILL.md",
     vscode: "agents/sdd-orchestrator.agent.md",
     "github-copilot": ".github/agents/sdd-orchestrator.agent.md",
     opencode: ".opencode/agents/ospec-workflow.md",
     codex: "agent.md",
+    cursor: "agents/sdd-orchestrator.md",
   };
 
   for (const [target, relativeOrchestratorPath] of Object.entries(orchestratorPaths)) {

@@ -4,8 +4,8 @@
 > point for evaluation and onboarding; when in doubt, the Spanish docs win.
 
 **ospec-workflow** is a spec-driven development (SDD) harness for AI coding
-agents, generated for four targets — **Claude Code, VS Code (Copilot Chat),
-GitHub Copilot CLI, and opencode** — from a single source tree. The AI acts as
+agents, generated for six targets — **Claude Code, VS Code (Copilot Chat),
+GitHub Copilot CLI, opencode, Codex CLI, and Cursor** — from a single source tree. The AI acts as
 a senior engineer who accompanies you: it removes ambiguity, asks for decisions
 (with rationale, trade-off, and reversibility), and never builds "whatever it
 thinks is best". All workflow state lives in `openspec/` — versioned with your
@@ -45,7 +45,7 @@ claude plugin install ospec-workflow
 /sdd-new my-feature
 ```
 
-For VS Code / Copilot CLI / opencode targets, generate and install the
+For VS Code / Copilot CLI / opencode / Codex / Cursor targets, generate and install the
 corresponding tree with `node scripts/configure/cli.js` — see
 `docs/plugin-installation.md` (Spanish). Capability differences per host are
 declared in `docs/target-capabilities.md`.

@@ -1,0 +1,367 @@
+change: cursor-native-target
+
+status: archived
+
+last_updated: 2026-07-25T17:00:00Z
+
+blocking_questions: []
+
+blocking_reason: ""
+
+classification: high-risk
+
+artifact_store:
+
+  mode: openspec
+
+  backend: openspec
+
+owner:
+
+  author: Manuel Retamozo
+
+  branch: feat/cursor-native-target
+
+route:
+
+  intended_route: standard
+
+  actual_route: standard
+
+  route_rationale: "High-risk public generator/install contract change on active project; project.status=active matched standard. Pre-route sdd-explore approved explicitly before propose."
+
+  validated: true
+
+  validation_errors: []
+
+phases:
+
+  sdd-explore:
+
+    status: done
+
+    artifact: openspec/changes/cursor-native-target/exploration.md
+
+    summary: "Cursor como sexto target: perfil tipo Claude + install global tipo Codex; toolMap nativo; ask-tool degrade; sync-cursor → install-cursor."
+
+    key_decisions:
+
+      - "Un solo change: perfil+transform+validate+install+specs (presupuesto Medium-High)"
+
+      - "hooks.format cursor en transform; placeholder __OSPEC_CURSOR_ROOT__ en install"
+
+      - "question_gate degrada a chat estructurado (sin tool Ask nativa en harness)"
+
+  sdd-propose:
+
+    status: done
+
+    artifact: openspec/changes/cursor-native-target/proposal.md
+
+    summary: "Cursor = sexto target del generador: perfil nuevo, to-mdc/hooks cursor/readonly, toolMap nativo, install-cursor.js desde dist/cursor; sync-cursor eliminado."
+
+    key_decisions:
+
+      - "Sin capabilities nuevas: deltas en generator, install, agents y hooks-runtime"
+
+      - "Ask-tool degrada a gate de chat estructurado (REQ-generator-003)"
+
+      - "Riesgo presupuesto 400 líneas Medium-High: sdd-tasks decide chained PRs o size:exception"
+
+  sdd-spec:
+
+    status: done
+
+    artifacts:
+
+      - openspec/changes/cursor-native-target/specs/generator/spec.md
+
+      - openspec/changes/cursor-native-target/specs/install/spec.md
+
+      - openspec/changes/cursor-native-target/specs/agents/spec.md
+
+      - openspec/changes/cursor-native-target/specs/hooks-runtime/spec.md
+
+    summary: "Deltas generator/install/agents/hooks-runtime: sexto target cursor, to-mdc, hooks cursor, readonly, toolMap+degrade, install-cursor, sync-cursor retired."
+
+    key_decisions:
+
+      - "REQ-generator-006..009: to-mdc, hooks.format cursor, readonly, cursor toolMap+model"
+
+      - "REQ-install-004..007: build/setup:cursor, ~/.cursor safety, sync-cursor retired"
+
+      - "Ambiguity señalada: zero `${input:…}` en success criteria vs defer de command frontmatter"
+
+  sdd-clarify:
+
+    status: done
+
+    artifacts:
+
+      - openspec/changes/cursor-native-target/specs/generator/spec.md
+
+      - openspec/changes/cursor-native-target/specs/install/spec.md
+
+      - openspec/changes/cursor-native-target/specs/agents/spec.md
+
+      - openspec/changes/cursor-native-target/proposal.md
+
+    summary: "validate-cursor falla solo por residuo ask/abstract en agents; `${input:}`/`agent:` en commands diferido y no falla el validador."
+
+    key_decisions:
+
+      - "Agent bodies/frontmatter: fail on vscode/, AskUserQuestion, unmapped abstract tools"
+
+      - "Commands MAY retain ${input:…}/agent:; strip out of scope this change"
+
+      - "Proposal success criteria aligned: zero ask/abstract residue in agents only"
+
+  sdd-design:
+
+    status: done
+
+    artifact: openspec/changes/cursor-native-target/design.md
+
+    artifacts:
+
+      - openspec/changes/cursor-native-target/design.md
+
+      - openspec/changes/cursor-native-target/decisions/adr-001.md
+
+      - openspec/changes/cursor-native-target/decisions/adr-002.md
+
+      - openspec/changes/cursor-native-target/decisions/adr-003.md
+
+      - openspec/changes/cursor-native-target/decisions/adr-004.md
+
+    summary: "Perfil cursor declarativo + 4 ramas de transform (to-mdc, cursorHooks, readonly, toolMap), validate-cursor, install-cursor a ~/.cursor; sync-cursor eliminado."
+
+    key_decisions:
+
+      - "to-mdc toma description del frontmatter fuente; AGENTS.md via profile.sourceRoots"
+
+      - "Frontmatter cursor: name/description/model + readonly solo en los seis review-*"
+
+      - "install-cursor propio con assertCursorPathSafe; expansión de placeholder al escribir"
+
+  sdd-tasks:
+
+    status: done
+
+    artifact: openspec/changes/cursor-native-target/tasks.md
+
+    summary: "5 slices TDD: profile+transform, validator, golden+matrix, install-cursor, specs+docs; size-exception single PR (~1100-1300 LOC)."
+
+    key_decisions:
+
+      - "Delivery: size-exception (no chained PRs); Decision needed before apply: No"
+
+      - "Checkpoints internos por slice; setup:cursor sigue sync hasta slice 4"
+
+      - "Spec deltas baseline en sdd-archive, no en apply"
+
+  sdd-apply:
+    status: done
+    artifact: openspec/changes/cursor-native-target/apply-progress.md
+    summary: "Sexto target cursor: perfil+transform+validate-cursor+golden+install-cursor; sync-cursor eliminado; npm test verde."
+    key_decisions:
+      - "size:exception single PR; 5 slice checkpoints TDD"
+      - "validate-cursor residue solo en agents; commands ${input:} diferidos"
+      - "assertCursorPathSafe propio; placeholder con quoting condicional"
+    evidence_remediation:
+      status: done
+      kind: format-only
+      completed_at: 2026-07-25T15:55:00Z
+      note: "json:strict-tdd-evidence schema-v1 repair: evidence_mode=live; removed provenance.source working-tree; cycle 5.2-5.5 refactor=✅ Passed; validateEvidenceRecord focal pass."
+
+  sdd-verify:
+    status: done
+    artifact: openspec/changes/cursor-native-target/verify-report.md
+    outcome: PASS WITH WARNINGS
+    passes: 2
+    findings:
+      critical: 0
+      warning: 5
+      suggestion: 8
+    summary: "Re-verify tras remediación format-only: C1 resuelto (json:strict-tdd-evidence valid, authenticity live), 38/38 escenarios y npm test verde."
+    key_decisions:
+      - "C1 cerrado: repair de representación sin drift de candidate ni de los 16 digests funcionales"
+      - "4r-review-gate desbloqueado; high-risk ⇒ generalista + 4 dimensiones"
+      - "Step 2a cerrado: sdd-propose-001/002 confirmed (reversibility high, sin escalación)"
+      - "5 WARNING re-confirmados (cobertura/docs), ninguno bloqueante"
+    history:
+      - pass: 1
+        at: 2026-07-25T15:40:00Z
+        outcome: FAIL
+        reason: "json:strict-tdd-evidence inválido (evidence-mode-invalid, evidence-mode-cycle-mismatch, cycle-refactor-enum-invalid)"
+      - pass: 2
+        at: 2026-07-25T16:10:00Z
+        outcome: PASS WITH WARNINGS
+        reason: "Registro schema-v1 válido; evidencia runtime re-ejecutada; sin hallazgos nuevos"
+    evidence:
+      test_command: "npm test"
+      test_result: "exit 0 — All checks passed (47.5s, re-ejecutado en pass 2)"
+      focused_suites: "142/142 pass, 0 fail, 0 skipped (duration_ms 501)"
+      build_cursor: "exit 0 — 0 errors, 0 warnings"
+      install_cursor_dry_run: "exit 0 — dry-run: no files written"
+      evidence_record: "validateEvidenceRecord(requireProvenanceDigest) valid=true, authenticity=live, candidate=sha256:e1424ef719ef04c1779a940d9b017d810a4ca2a9629696a5042da9b5151fa054"
+      derived_rendering: "compareEvidenceRendering equivalent=true, format_gap=false"
+      provenance_digests: "16/16 files + 16/16 genesis paths + 5/5 cycle test_digest match (SHA-256 con CRLF normalizado)"
+      coverage: "skipped — no coverage tool"
+      quality_gates: "no-op — quality_gates ausente en openspec/config.yaml"
+
+  sdd-archive:
+    status: done
+    artifact: openspec/changes/cursor-native-target/archive-report.md
+    summary: "Deltas generator/install/agents/hooks-runtime sincronizados; 4 ADRs promovidos; copiado a archive/2026-07-25-cursor-native-target."
+    key_decisions:
+      - "Task 5.1 baseline sync completada en archive (fingerprints OK)"
+      - "6 WARNING aceptados como follow-up no bloqueante para release minor 2.34.0"
+
+approvals:
+
+  - id: change-name-001
+
+    gate: architecture
+
+    decision: cursor-native-target
+
+    source: vscode/askQuestions
+
+    accepted_at: 2026-07-25T14:49:00Z
+
+    applies_to:
+
+      - sdd-explore
+
+      - sdd-propose
+
+      - sdd-spec
+
+      - sdd-design
+
+      - sdd-tasks
+
+      - sdd-apply
+
+      - sdd-verify
+
+      - sdd-archive
+
+  - id: execution-mode-001
+
+    gate: execution-mode
+
+    decision: auto-until-verify
+
+    source: vscode/askQuestions
+
+    accepted_at: 2026-07-25T14:49:00Z
+
+    applies_to:
+
+      - sdd-explore
+
+      - sdd-propose
+
+      - sdd-spec
+
+      - sdd-design
+
+      - sdd-tasks
+
+      - sdd-apply
+
+      - sdd-verify
+
+  - id: include-explore-001
+
+    gate: architecture
+
+    decision: include-sdd-explore-before-propose
+
+    source: vscode/askQuestions
+
+    accepted_at: 2026-07-25T14:49:00Z
+
+    applies_to:
+
+      - sdd-explore
+
+      - sdd-propose
+
+  - id: validate-cursor-residue-001
+
+    gate: architecture
+
+    decision: agent-residue-fail-command-input-deferred
+
+    source: orchestrator-approved
+
+    accepted_at: 2026-07-25T14:58:51Z
+
+    rationale: "validate-cursor MUST fail on vscode/, AskUserQuestion, or unmapped abstract tools in agent bodies/frontmatter; command ${input:…}/agent: MAY remain; strip deferred; proposal success criteria tightened accordingly."
+
+    applies_to:
+
+      - sdd-clarify
+
+      - sdd-design
+
+      - sdd-tasks
+
+      - sdd-apply
+
+      - sdd-verify
+
+  - id: delivery-strategy-001
+
+    gate: delivery-strategy
+
+    decision: exception-ok
+
+    source: vscode/askQuestions
+
+    accepted_at: 2026-07-25T15:20:00Z
+
+    rationale: "size-exception for single-change autopilot; High LOC with 5 internal slice checkpoints; user locked single change + auto-until-verify."
+
+    applies_to:
+
+      - sdd-tasks
+
+      - sdd-apply
+
+baseline_fingerprints:
+  generator: 8d9d473e59f1ef0abc6598aa88d7a5876614789ed1321444c99c9493e018b3ea
+  install: 823865268fa75b58a05e29895d685c7f692ac84ab201e82c1f92910b65b37f69
+  agents: 4622d9d6bfffd28bfd2ee570414cc2a3e8b04f6c54fa1319755e63358d7b4bf1
+  hooks-runtime: 57c76bf997d99463e8640b9c384c17ae607778c9c3c9253b5b53c6e7cf6b5745
+
+assumptions:
+  - id: sdd-propose-001
+    phase: sdd-propose
+    statement: "El change no introduce capabilities nuevas; Cursor se absorbe como delta de generator, install, agents y hooks-runtime."
+    reversibility: high
+    basis: "exploration.md Affected Areas solo enumera specs de dominios existentes."
+    recorded_at: 2026-07-25T14:58:00Z
+    status: confirmed
+    confirmed_at: 2026-07-25T15:55:00Z
+    confirmed_by: orchestrator-autopilot
+    resolution:
+      action: confirm
+      note: "Verificado en sdd-verify pass 2: el change solo escribe deltas en generator/install/agents/hooks-runtime; no se creó ningún directorio de capability nuevo."
+      resolved_at: 2026-07-25T16:10:00Z
+  - id: sdd-propose-002
+    phase: sdd-propose
+    statement: "Incluir agents y hooks-runtime como capabilities modificadas además de generator e install."
+    reversibility: high
+    basis: "Grep confirma escenarios 'four targets' en agents/spec.md y hooks-runtime/spec.md."
+    recorded_at: 2026-07-25T14:58:00Z
+    status: confirmed
+    confirmed_at: 2026-07-25T15:55:00Z
+    confirmed_by: orchestrator-autopilot
+    resolution:
+      action: confirm
+      note: "Verificado en sdd-verify pass 2: los deltas de agents y hooks-runtime son necesarios y están cubiertos por escenarios (parity six targets, hooks.json cursor)."
+      resolved_at: 2026-07-25T16:10:00Z

@@ -3,6 +3,48 @@ title: Known Issues
 last_updated: 2026-07-25
 ---
 
+## Strict TDD evidence record fails schema-v1 validation (evidence_mode working-tree, legacy provenance source, invalid refactor marker)
+- severity: BLOCKER
+- area: openspec/changes/cursor-native-target/apply-progress.md (json:strict-tdd-evidence)
+- workaround: evidence-section-only repair — set evidence_mode to "live", replace cycle provenance.source "working-tree" with commit "working-tree", and use an allowed refactor marker for cycle 5.2-5.5 (mirror it in the Final Derived Markdown Table); all 16 file digests already match
+- change: cursor-native-target
+- date: 2026-07-25
+
+## Six-target branch-advisory scenario has no automated coverage for cursor or codex
+- severity: WARNING
+- area: scripts/configure.test.js (TARGETS array)
+- workaround: extend TARGETS with "codex" and "cursor"; behavior itself already verified by build and grep of dist/cursor
+- change: cursor-native-target
+- date: 2026-07-25
+
+## install-cursor main() non-dry-run path is never exercised by a test
+- severity: WARNING
+- area: scripts/configure/install-cursor.js, scripts/configure/install-cursor.test.js
+- workaround: mirror the dry-run injected-deps test with dryRun false and assert syncTreeByContent, installHooksJson and copyBinaryToTree are called with the expected arguments
+- change: cursor-native-target
+- date: 2026-07-25
+
+## tasks.md 5.1 is ticked complete although the baseline spec deltas are deferred to sdd-archive
+- severity: WARNING
+- area: openspec/changes/cursor-native-target/tasks.md
+- workaround: sdd-archive must still apply the four delta specs to openspec/specs/{generator,install,agents,hooks-runtime}/spec.md; do not read the tick as done
+- change: cursor-native-target
+- date: 2026-07-25
+
+## Mock-heavy install-cursor dry-run test (7 stubs vs 3 assertions)
+- severity: WARNING
+- area: scripts/configure/install-cursor.test.js
+- workaround: add the positive non-dry-run case so the suite verifies behavior rather than only wiring absence
+- change: cursor-native-target
+- date: 2026-07-25
+
+## docs/target-capabilities.md claims six targets but its capability table only tabulates five
+- severity: WARNING
+- area: docs/target-capabilities.md
+- workaround: add the missing codex column to the capability table, or scope the lead sentence to the targets actually tabulated
+- change: cursor-native-target
+- date: 2026-07-25
+
 ## models.yaml has a duplicated agents: mapping block, breaking parseModels and npm test
 - severity: BLOCKER
 - area: models.yaml, scripts/configure/cli.js (parseModels)

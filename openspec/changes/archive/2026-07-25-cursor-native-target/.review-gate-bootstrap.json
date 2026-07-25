@@ -1,0 +1,586 @@
+{
+  "evidence": {
+    "schema_version": 1,
+    "classification": "high-risk",
+    "fingerprint": "sha256:987225015a38bb09656831bcdc566d8d8412960dbe57c96622ab5050e135b2ef",
+    "sources": {
+      "paths": [
+        "docs/en/README.md",
+        "docs/plugin-installation.md",
+        "docs/target-capabilities.md",
+        "openspec/config.yaml",
+        "openspec/memory/known-issues.md",
+        "package.json",
+        "scripts/check.js",
+        "scripts/check.test.js",
+        "scripts/configure/__fixtures__/golden/cursor/agents/sdd-apply.md",
+        "scripts/configure/__fixtures__/golden/cursor/agents/sdd-orchestrator.md",
+        "scripts/configure/__fixtures__/golden/cursor/commands/sdd-apply.md",
+        "scripts/configure/__fixtures__/golden/cursor/hooks.json",
+        "scripts/configure/__fixtures__/golden/cursor/models.yaml",
+        "scripts/configure/__fixtures__/golden/cursor/rules/agent-teams.mdc",
+        "scripts/configure/__fixtures__/golden/cursor/scripts/hooks/pre-tool-use.js",
+        "scripts/configure/__fixtures__/golden/cursor/scripts/hooks/session-start.js",
+        "scripts/configure/__fixtures__/golden/cursor/scripts/lib/ospec-state.js",
+        "scripts/configure/__fixtures__/golden/cursor/skills/sdd-apply/SKILL.md",
+        "scripts/configure/cli.js",
+        "scripts/configure/cli.test.js",
+        "scripts/configure/install-cursor.js",
+        "scripts/configure/install-cursor.test.js",
+        "scripts/configure/real-repo.test.js",
+        "scripts/configure/validate-cursor.js",
+        "scripts/configure/validate-cursor.test.js",
+        "scripts/lib/target-profiles/cursor.js",
+        "scripts/lib/target-transform.js",
+        "scripts/lib/target-transform.test.js",
+        "scripts/model-tier-contract.test.js",
+        "scripts/selective-4r-parity.test.js",
+        "scripts/strict-tdd-evidence-parity.test.js"
+      ],
+      "capabilities": [
+        "agents",
+        "generator",
+        "hooks-runtime",
+        "install"
+      ],
+      "operation_types": [
+        "add",
+        "delete",
+        "modify"
+      ],
+      "dependencies": [
+        "models.yaml"
+      ],
+      "facts": [
+        {
+          "code": "dependency-change",
+          "source": "dependency",
+          "detail": "models.yaml"
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "global-home-install"
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/configure/install-cursor.js,scripts/configure/validate-cursor.js,scripts/lib/target-transform.js"
+        },
+        {
+          "code": "diff-global-config-write",
+          "source": "real-diff",
+          "detail": "scripts/configure/install-cursor.js"
+        },
+        {
+          "code": "verify-readability",
+          "source": "verify",
+          "detail": "W5 docs table misaligned"
+        },
+        {
+          "code": "verify-reliability",
+          "source": "verify",
+          "detail": "W1 missing cursor regression guard"
+        },
+        {
+          "code": "verify-resilience",
+          "source": "verify",
+          "detail": "W2 installer error paths unexercised"
+        },
+        {
+          "code": "verify-risk",
+          "source": "verify",
+          "detail": "W2 install main non-dry-run untested"
+        }
+      ]
+    }
+  },
+  "generalist": {
+    "status": "needs-specialist",
+    "specialists": [
+      "risk",
+      "reliability",
+      "resilience"
+    ],
+    "reason": "signals=design-risk,diff-error-flow,diff-global-config-write,metadata-runtime,verify-reliability,verify-resilience,verify-risk;dimensions=risk,reliability,resilience"
+  },
+  "derived": {
+    "schema_version": 1,
+    "classification": "high-risk",
+    "evidence": {
+      "schema_version": 1,
+      "fingerprint": "sha256:987225015a38bb09656831bcdc566d8d8412960dbe57c96622ab5050e135b2ef",
+      "sources": {
+        "paths": [
+          "docs/en/README.md",
+          "docs/plugin-installation.md",
+          "docs/target-capabilities.md",
+          "openspec/config.yaml",
+          "openspec/memory/known-issues.md",
+          "package.json",
+          "scripts/check.js",
+          "scripts/check.test.js",
+          "scripts/configure/__fixtures__/golden/cursor/agents/sdd-apply.md",
+          "scripts/configure/__fixtures__/golden/cursor/agents/sdd-orchestrator.md",
+          "scripts/configure/__fixtures__/golden/cursor/commands/sdd-apply.md",
+          "scripts/configure/__fixtures__/golden/cursor/hooks.json",
+          "scripts/configure/__fixtures__/golden/cursor/models.yaml",
+          "scripts/configure/__fixtures__/golden/cursor/rules/agent-teams.mdc",
+          "scripts/configure/__fixtures__/golden/cursor/scripts/hooks/pre-tool-use.js",
+          "scripts/configure/__fixtures__/golden/cursor/scripts/hooks/session-start.js",
+          "scripts/configure/__fixtures__/golden/cursor/scripts/lib/ospec-state.js",
+          "scripts/configure/__fixtures__/golden/cursor/skills/sdd-apply/SKILL.md",
+          "scripts/configure/cli.js",
+          "scripts/configure/cli.test.js",
+          "scripts/configure/install-cursor.js",
+          "scripts/configure/install-cursor.test.js",
+          "scripts/configure/real-repo.test.js",
+          "scripts/configure/validate-cursor.js",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/lib/target-profiles/cursor.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js",
+          "scripts/model-tier-contract.test.js",
+          "scripts/selective-4r-parity.test.js",
+          "scripts/strict-tdd-evidence-parity.test.js"
+        ],
+        "capabilities": [
+          "agents",
+          "generator",
+          "hooks-runtime",
+          "install"
+        ],
+        "operation_types": [
+          "add",
+          "delete",
+          "modify"
+        ],
+        "dependencies": [
+          "models.yaml"
+        ],
+        "facts": [
+          {
+            "code": "dependency-change",
+            "source": "dependency",
+            "detail": "models.yaml"
+          },
+          {
+            "code": "design-risk",
+            "source": "design",
+            "detail": "global-home-install"
+          },
+          {
+            "code": "diff-error-flow",
+            "source": "real-diff",
+            "detail": "scripts/configure/install-cursor.js,scripts/configure/validate-cursor.js,scripts/lib/target-transform.js"
+          },
+          {
+            "code": "diff-global-config-write",
+            "source": "real-diff",
+            "detail": "scripts/configure/install-cursor.js"
+          },
+          {
+            "code": "verify-readability",
+            "source": "verify",
+            "detail": "W5 docs table misaligned"
+          },
+          {
+            "code": "verify-reliability",
+            "source": "verify",
+            "detail": "W1 missing cursor regression guard"
+          },
+          {
+            "code": "verify-resilience",
+            "source": "verify",
+            "detail": "W2 installer error paths unexercised"
+          },
+          {
+            "code": "verify-risk",
+            "source": "verify",
+            "detail": "W2 install main non-dry-run untested"
+          }
+        ]
+      }
+    },
+    "generalist": {
+      "status": "needs-specialist",
+      "specialists": [
+        "risk",
+        "reliability",
+        "resilience"
+      ],
+      "reason": "signals=design-risk,diff-error-flow,diff-global-config-write,metadata-runtime,verify-reliability,verify-resilience,verify-risk;dimensions=risk,reliability,resilience"
+    },
+    "depth": {
+      "review": "strict"
+    },
+    "escalation_reason": null,
+    "dimensions": {
+      "risk": {
+        "selected": true,
+        "reasons": [
+          {
+            "code": "high-risk-override",
+            "source": "override",
+            "detail": "Classification requires full 4R",
+            "precedence": 0
+          },
+          {
+            "code": "verify-risk",
+            "source": "verify",
+            "detail": "W2 install main non-dry-run untested",
+            "precedence": 1
+          },
+          {
+            "code": "diff-global-config-write",
+            "source": "real-diff",
+            "detail": "scripts/configure/install-cursor.js",
+            "precedence": 2
+          },
+          {
+            "code": "generalist-escalation",
+            "source": "generalist",
+            "detail": "signals=design-risk,diff-error-flow,diff-global-config-write,metadata-runtime,verify-reliability,verify-resilience,verify-risk;dimensions=risk,reliability,resilience",
+            "precedence": 3
+          },
+          {
+            "code": "dependency-change",
+            "source": "dependency",
+            "detail": "models.yaml",
+            "precedence": 4
+          },
+          {
+            "code": "design-risk",
+            "source": "design",
+            "detail": "global-home-install",
+            "precedence": 4
+          }
+        ]
+      },
+      "reliability": {
+        "selected": true,
+        "reasons": [
+          {
+            "code": "high-risk-override",
+            "source": "override",
+            "detail": "Classification requires full 4R",
+            "precedence": 0
+          },
+          {
+            "code": "verify-reliability",
+            "source": "verify",
+            "detail": "W1 missing cursor regression guard",
+            "precedence": 1
+          },
+          {
+            "code": "diff-error-flow",
+            "source": "real-diff",
+            "detail": "scripts/configure/install-cursor.js,scripts/configure/validate-cursor.js,scripts/lib/target-transform.js",
+            "precedence": 2
+          },
+          {
+            "code": "diff-global-config-write",
+            "source": "real-diff",
+            "detail": "scripts/configure/install-cursor.js",
+            "precedence": 2
+          },
+          {
+            "code": "generalist-escalation",
+            "source": "generalist",
+            "detail": "signals=design-risk,diff-error-flow,diff-global-config-write,metadata-runtime,verify-reliability,verify-resilience,verify-risk;dimensions=risk,reliability,resilience",
+            "precedence": 3
+          },
+          {
+            "code": "dependency-change",
+            "source": "dependency",
+            "detail": "models.yaml",
+            "precedence": 4
+          }
+        ]
+      },
+      "resilience": {
+        "selected": true,
+        "reasons": [
+          {
+            "code": "high-risk-override",
+            "source": "override",
+            "detail": "Classification requires full 4R",
+            "precedence": 0
+          },
+          {
+            "code": "verify-resilience",
+            "source": "verify",
+            "detail": "W2 installer error paths unexercised",
+            "precedence": 1
+          },
+          {
+            "code": "diff-error-flow",
+            "source": "real-diff",
+            "detail": "scripts/configure/install-cursor.js,scripts/configure/validate-cursor.js,scripts/lib/target-transform.js",
+            "precedence": 2
+          },
+          {
+            "code": "generalist-escalation",
+            "source": "generalist",
+            "detail": "signals=design-risk,diff-error-flow,diff-global-config-write,metadata-runtime,verify-reliability,verify-resilience,verify-risk;dimensions=risk,reliability,resilience",
+            "precedence": 3
+          }
+        ]
+      },
+      "readability": {
+        "selected": true,
+        "reasons": [
+          {
+            "code": "high-risk-override",
+            "source": "override",
+            "detail": "Classification requires full 4R",
+            "precedence": 0
+          },
+          {
+            "code": "verify-readability",
+            "source": "verify",
+            "detail": "W5 docs table misaligned",
+            "precedence": 1
+          }
+        ]
+      }
+    },
+    "selected_specialists": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ]
+  },
+  "lineage": {
+    "schema_version": 1,
+    "lineage_id": "sha256:1475dbd94599d763e989654cbad7e8716aab736a8047801b6b6af3cfdd4a261e",
+    "generation": 1,
+    "predecessor_lineage_id": null,
+    "recovery": null,
+    "revision": 0,
+    "status": "reviewing",
+    "genesis": {
+      "candidate": {
+        "projection": "workspace",
+        "base_tree": "main",
+        "candidate_tree": "feat/cursor-native-target",
+        "paths": [
+          "docs/en/README.md",
+          "docs/plugin-installation.md",
+          "docs/target-capabilities.md",
+          "openspec/config.yaml",
+          "openspec/memory/known-issues.md",
+          "package.json",
+          "scripts/check.js",
+          "scripts/check.test.js",
+          "scripts/configure/__fixtures__/golden/cursor/agents/sdd-apply.md",
+          "scripts/configure/__fixtures__/golden/cursor/agents/sdd-orchestrator.md",
+          "scripts/configure/__fixtures__/golden/cursor/commands/sdd-apply.md",
+          "scripts/configure/__fixtures__/golden/cursor/hooks.json",
+          "scripts/configure/__fixtures__/golden/cursor/models.yaml",
+          "scripts/configure/__fixtures__/golden/cursor/rules/agent-teams.mdc",
+          "scripts/configure/__fixtures__/golden/cursor/scripts/hooks/pre-tool-use.js",
+          "scripts/configure/__fixtures__/golden/cursor/scripts/hooks/session-start.js",
+          "scripts/configure/__fixtures__/golden/cursor/scripts/lib/ospec-state.js",
+          "scripts/configure/__fixtures__/golden/cursor/skills/sdd-apply/SKILL.md",
+          "scripts/configure/cli.js",
+          "scripts/configure/cli.test.js",
+          "scripts/configure/install-cursor.js",
+          "scripts/configure/install-cursor.test.js",
+          "scripts/configure/real-repo.test.js",
+          "scripts/configure/validate-cursor.js",
+          "scripts/configure/validate-cursor.test.js",
+          "scripts/lib/target-profiles/cursor.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js",
+          "scripts/model-tier-contract.test.js",
+          "scripts/selective-4r-parity.test.js",
+          "scripts/strict-tdd-evidence-parity.test.js"
+        ],
+        "diff_hash": "sha256:abfa9a4ca2d40cf8e4caa920b907348d8ac1a72ffaca3caa8b6c02e6a0c16f05",
+        "paths_digest": "sha256:498dad4064de38d5f6f35cf0f5145c42a15182aed1c57a79c5c389e257aa83cd",
+        "authored_lines": 1583,
+        "original_changed_lines": 1583
+      },
+      "candidate_id": "sha256:9fefc69eee4d89913bdb96281970226bcb2323b299a909f1fdd439ba8826463e",
+      "paths": [
+        "docs/en/README.md",
+        "docs/plugin-installation.md",
+        "docs/target-capabilities.md",
+        "openspec/config.yaml",
+        "openspec/memory/known-issues.md",
+        "package.json",
+        "scripts/check.js",
+        "scripts/check.test.js",
+        "scripts/configure/__fixtures__/golden/cursor/agents/sdd-apply.md",
+        "scripts/configure/__fixtures__/golden/cursor/agents/sdd-orchestrator.md",
+        "scripts/configure/__fixtures__/golden/cursor/commands/sdd-apply.md",
+        "scripts/configure/__fixtures__/golden/cursor/hooks.json",
+        "scripts/configure/__fixtures__/golden/cursor/models.yaml",
+        "scripts/configure/__fixtures__/golden/cursor/rules/agent-teams.mdc",
+        "scripts/configure/__fixtures__/golden/cursor/scripts/hooks/pre-tool-use.js",
+        "scripts/configure/__fixtures__/golden/cursor/scripts/hooks/session-start.js",
+        "scripts/configure/__fixtures__/golden/cursor/scripts/lib/ospec-state.js",
+        "scripts/configure/__fixtures__/golden/cursor/skills/sdd-apply/SKILL.md",
+        "scripts/configure/cli.js",
+        "scripts/configure/cli.test.js",
+        "scripts/configure/install-cursor.js",
+        "scripts/configure/install-cursor.test.js",
+        "scripts/configure/real-repo.test.js",
+        "scripts/configure/validate-cursor.js",
+        "scripts/configure/validate-cursor.test.js",
+        "scripts/lib/target-profiles/cursor.js",
+        "scripts/lib/target-transform.js",
+        "scripts/lib/target-transform.test.js",
+        "scripts/model-tier-contract.test.js",
+        "scripts/selective-4r-parity.test.js",
+        "scripts/strict-tdd-evidence-parity.test.js"
+      ],
+      "classification": "high-risk",
+      "selected_dimensions": [
+        "risk",
+        "reliability",
+        "resilience",
+        "readability"
+      ],
+      "evidence_fingerprint": "sha256:987225015a38bb09656831bcdc566d8d8412960dbe57c96622ab5050e135b2ef",
+      "original_changed_lines": 1583,
+      "authored_lines": 1583
+    },
+    "current_candidate_id": "sha256:9fefc69eee4d89913bdb96281970226bcb2323b299a909f1fdd439ba8826463e",
+    "current_candidate": {
+      "projection": "workspace",
+      "base_tree": "main",
+      "candidate_tree": "feat/cursor-native-target",
+      "paths": [
+        "docs/en/README.md",
+        "docs/plugin-installation.md",
+        "docs/target-capabilities.md",
+        "openspec/config.yaml",
+        "openspec/memory/known-issues.md",
+        "package.json",
+        "scripts/check.js",
+        "scripts/check.test.js",
+        "scripts/configure/__fixtures__/golden/cursor/agents/sdd-apply.md",
+        "scripts/configure/__fixtures__/golden/cursor/agents/sdd-orchestrator.md",
+        "scripts/configure/__fixtures__/golden/cursor/commands/sdd-apply.md",
+        "scripts/configure/__fixtures__/golden/cursor/hooks.json",
+        "scripts/configure/__fixtures__/golden/cursor/models.yaml",
+        "scripts/configure/__fixtures__/golden/cursor/rules/agent-teams.mdc",
+        "scripts/configure/__fixtures__/golden/cursor/scripts/hooks/pre-tool-use.js",
+        "scripts/configure/__fixtures__/golden/cursor/scripts/hooks/session-start.js",
+        "scripts/configure/__fixtures__/golden/cursor/scripts/lib/ospec-state.js",
+        "scripts/configure/__fixtures__/golden/cursor/skills/sdd-apply/SKILL.md",
+        "scripts/configure/cli.js",
+        "scripts/configure/cli.test.js",
+        "scripts/configure/install-cursor.js",
+        "scripts/configure/install-cursor.test.js",
+        "scripts/configure/real-repo.test.js",
+        "scripts/configure/validate-cursor.js",
+        "scripts/configure/validate-cursor.test.js",
+        "scripts/lib/target-profiles/cursor.js",
+        "scripts/lib/target-transform.js",
+        "scripts/lib/target-transform.test.js",
+        "scripts/model-tier-contract.test.js",
+        "scripts/selective-4r-parity.test.js",
+        "scripts/strict-tdd-evidence-parity.test.js"
+      ],
+      "diff_hash": "sha256:abfa9a4ca2d40cf8e4caa920b907348d8ac1a72ffaca3caa8b6c02e6a0c16f05",
+      "paths_digest": "sha256:498dad4064de38d5f6f35cf0f5145c42a15182aed1c57a79c5c389e257aa83cd",
+      "authored_lines": 1583,
+      "original_changed_lines": 1583
+    },
+    "lenses": {
+      "risk": {
+        "selected": true,
+        "status": "pending",
+        "request_id": null,
+        "result_digest": null,
+        "result": null,
+        "operation": null
+      },
+      "reliability": {
+        "selected": true,
+        "status": "pending",
+        "request_id": null,
+        "result_digest": null,
+        "result": null,
+        "operation": null
+      },
+      "resilience": {
+        "selected": true,
+        "status": "pending",
+        "request_id": null,
+        "result_digest": null,
+        "result": null,
+        "operation": null
+      },
+      "readability": {
+        "selected": true,
+        "status": "pending",
+        "request_id": null,
+        "result_digest": null,
+        "result": null,
+        "operation": null
+      }
+    },
+    "findings": [],
+    "findings_digest": null,
+    "correction_budget": {
+      "limit_lines": 200,
+      "used_lines": 0,
+      "failed_attempts": 0,
+      "max_failed_attempts": 3
+    },
+    "correction_history": [],
+    "validation_history": [],
+    "follow_ups": [],
+    "pending_operation": null,
+    "pending_correction": null,
+    "terminal_reason": null,
+    "remediation_schema_version": 2,
+    "remediation_migration": {
+      "source_digest": "sha256:2a553f3509f8c581908c2812cef3be97c3f2c63d2a9e843ad89361bf75299e4e",
+      "manifest_digest": "sha256:615b1dba0b3f81efc1aee7eae581635ec7da42d176744ffba996f9b9b4f28bdc",
+      "legacy_used_lines": 0,
+      "legacy_failed_attempts": 0,
+      "migrated_at": "deterministic"
+    },
+    "slice_order": [],
+    "active_slice_id": null,
+    "correction_slices": {}
+  },
+  "changed_lines": 1583,
+  "summary": {
+    "changed_lines": 1583,
+    "path_count": 31,
+    "selected": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "depth": {
+      "review": "strict"
+    },
+    "escalation_reason": null,
+    "lineage_id": "sha256:1475dbd94599d763e989654cbad7e8716aab736a8047801b6b6af3cfdd4a261e",
+    "candidate_id": "sha256:9fefc69eee4d89913bdb96281970226bcb2323b299a909f1fdd439ba8826463e",
+    "budget": {
+      "limit_lines": 200,
+      "used_lines": 0,
+      "failed_attempts": 0,
+      "max_failed_attempts": 3
+    },
+    "next_action": {
+      "type": "run-lenses",
+      "dimensions": [
+        "risk",
+        "reliability",
+        "resilience",
+        "readability"
+      ]
+    }
+  }
+}

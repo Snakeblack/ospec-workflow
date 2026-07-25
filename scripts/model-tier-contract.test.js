@@ -39,6 +39,7 @@ function outputPath(out, target, agent) {
   if (target === "vscode") return path.join(out, "agents", `${agent}.agent.md`);
   if (target === "github-copilot") return path.join(out, ".github", "agents", `${agent}.agent.md`);
   if (target === "opencode") return path.join(out, ".opencode", "agents", `${agent === "sdd-orchestrator" ? "ospec-workflow" : agent}.md`);
+  if (target === "cursor") return path.join(out, "agents", `${agent}.md`);
   return agent === "sdd-orchestrator" ? path.join(out, "agent.md") : path.join(out, ".codex", "agents", `${agent}.toml`);
 }
 
@@ -97,14 +98,14 @@ test("REQ-generator-005 duplicate YAML agent keys are rejected before overwrite"
   );
 });
 
-test("REQ-generator-005 all five temporary targets honor tier models and fail-soft omission", t => {
+test("REQ-generator-005 all six temporary targets honor tier models and fail-soft omission", t => {
   const models = parseModels(MODELS_TEXT);
   const allAgents = Object.values(EXPECTED_TIERS).flat();
   const beforeDist = treeDigest(path.join(ROOT, "dist"));
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-tier-contract-"));
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
 
-  for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex"]) {
+  for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor"]) {
     const out = path.join(base, target);
     assert.equal(runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false }).exitCode, 0);
     for (const [tier, agents] of Object.entries(EXPECTED_TIERS)) {
