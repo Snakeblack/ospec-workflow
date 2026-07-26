@@ -7,7 +7,7 @@ const path = require("node:path");
 const os = require("node:os");
 
 // Load the module that does not exist or has no implementation yet
-const { writeFileAtomic, recoverOrphanBak } = require("./atomic-write.js");
+const { writeFileAtomic, recoverOrphanBak, renameWithFallback } = require("./atomic-write.js");
 
 async function createTempDir() {
   return await fs.mkdtemp(path.join(os.tmpdir(), "atomic-write-test-"));
@@ -235,6 +235,99 @@ test("1.1.7 · writeFileAtomic on federation-baseline-status.yaml", async () => 
 
     const actual = await fs.readFile(targetPath, "utf8");
     assert.strictEqual(actual, content);
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("renameWithFallback · file success path", async () => {
+  const tmpDir = await createTempDir();
+  try {
+    const src = path.join(tmpDir, "src.txt");
+    const dest = path.join(tmpDir, "dest.txt");
+    await fs.writeFile(src, "payload");
+    await renameWithFallback(src, dest);
+    assert.strictEqual(await fs.readFile(dest, "utf8"), "payload");
+    await assert.rejects(fs.stat(src), { code: "ENOENT" });
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("renameWithFallback · directory success path", async () => {
+  const tmpDir = await createTempDir();
+  try {
+    const src = path.join(tmpDir, "src-dir");
+    const dest = path.join(tmpDir, "dest-dir");
+    await fs.mkdir(src);
+    await fs.writeFile(path.join(src, "nested.txt"), "dir-payload");
+    await renameWithFallback(src, dest);
+    assert.strictEqual(await fs.readFile(path.join(dest, "nested.txt"), "utf8"), "dir-payload");
+    await assert.rejects(fs.stat(src), { code: "ENOENT" });
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("renameWithFallback · simulated EPERM then success (file)", async () => {
+  const tmpDir = await createTempDir();
+  try {
+    const src = path.join(tmpDir, "src.txt");
+    const dest = path.join(tmpDir, "dest.txt");
+    await fs.writeFile(src, "new-bytes");
+    await fs.writeFile(dest, "old-bytes");
+
+    const realRename = fs.rename;
+    let firstDestAttempt = true;
+    const renameSpy = async (oldPath, newPath) => {
+      if (firstDestAttempt && oldPath === src && newPath === dest) {
+        firstDestAttempt = false;
+        const err = new Error("EPERM: operation not permitted, rename");
+        err.code = "EPERM";
+        throw err;
+      }
+      return realRename(oldPath, newPath);
+    };
+
+    await renameWithFallback(src, dest, {
+      fsImpl: { rename: renameSpy, unlink: fs.unlink, rm: fs.rm, stat: fs.stat },
+    });
+    assert.strictEqual(await fs.readFile(dest, "utf8"), "new-bytes");
+    await assert.rejects(fs.stat(src), { code: "ENOENT" });
+    await assert.rejects(fs.stat(dest + ".bak"), { code: "ENOENT" });
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("renameWithFallback · simulated EEXIST then success (directory)", async () => {
+  const tmpDir = await createTempDir();
+  try {
+    const src = path.join(tmpDir, "src-dir");
+    const dest = path.join(tmpDir, "dest-dir");
+    await fs.mkdir(src);
+    await fs.writeFile(path.join(src, "a.txt"), "new");
+    await fs.mkdir(dest);
+    await fs.writeFile(path.join(dest, "a.txt"), "old");
+
+    const realRename = fs.rename;
+    let firstDestAttempt = true;
+    const renameSpy = async (oldPath, newPath) => {
+      if (firstDestAttempt && oldPath === src && newPath === dest) {
+        firstDestAttempt = false;
+        const err = new Error("EEXIST: file already exists, rename");
+        err.code = "EEXIST";
+        throw err;
+      }
+      return realRename(oldPath, newPath);
+    };
+
+    await renameWithFallback(src, dest, {
+      fsImpl: { rename: renameSpy, unlink: fs.unlink, rm: fs.rm, stat: fs.stat },
+    });
+    assert.strictEqual(await fs.readFile(path.join(dest, "a.txt"), "utf8"), "new");
+    await assert.rejects(fs.stat(src), { code: "ENOENT" });
+    await assert.rejects(fs.stat(dest + ".bak"), { code: "ENOENT" });
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true });
   }

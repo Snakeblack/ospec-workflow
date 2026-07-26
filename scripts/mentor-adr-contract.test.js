@@ -78,20 +78,22 @@ test("A5.1 · sdd-design extracts significant decisions to change-local ADRs wit
   assert.match(content, /## Context[\s\S]*## Decision[\s\S]*## Alternatives[\s\S]*## Consequences/, "ADR template must carry the 4 sections");
 });
 
-test("A5.2 · sdd-archive promotes ADRs to docs/adr/ before copying to the archive destination and keeps change-local copies", async () => {
+test("A5.2 · sdd-archive proposes ADRs in archive-plan.json before plan emission and keeps change-local copies", async () => {
   const content = await readFile(ARCHIVE_SKILL_PATH);
-  const promoteIdx = content.indexOf("Step 4b: Promote ADRs");
-  const copyIdx = content.indexOf("Step 5: Copy Artifacts to Archive");
-  assert.ok(promoteIdx !== -1, "must contain the ADR promotion step");
-  assert.ok(copyIdx !== -1 && promoteIdx < copyIdx, "promotion must happen before copying to the archive destination");
+  const promoteIdx = content.indexOf("Step 4b: Propose ADR Promotions");
+  const planIdx = content.indexOf("Step 5: Emit archive-plan.json");
+  assert.ok(promoteIdx !== -1, "must contain the ADR promotion proposal step");
+  assert.ok(planIdx !== -1 && promoteIdx < planIdx, "ADR proposals must happen before plan emission");
   assert.match(content, /docs\/adr\/adr-\{YYYYMMDD\}-\{NNN\}/, "must define the docs/adr naming scheme");
-  assert.match(content, /accepted/, "promotion must flip Status to accepted");
+  assert.match(content, /adr_promotions/, "must list ADRs in adr_promotions for the runtime");
+  assert.match(content, /MUST NOT write live `docs\/adr\/\*\*`|Do NOT write live `docs\/adr\/\*\*`/, "must not write live docs/adr itself");
   assert.match(content, /skip silently/i, "missing decisions/ must be a silent no-op");
 });
 
-test("A5.3 · sdd-archive Step 5 scopes the executor to copy-and-report (never deletes the source or claims the move is complete)", async () => {
+test("A5.3 · sdd-archive Step 5 scopes the executor to Plan-and-Report (never deletes the source or claims the move is complete)", async () => {
   const content = await readFile(ARCHIVE_SKILL_PATH);
-  assert.match(content, /copy inventory/i, "must require reporting a copy inventory");
+  assert.match(content, /Plan-and-Report/, "must declare Plan-and-Report");
+  assert.match(content, /archive-plan\.json/, "must require emitting archive-plan.json");
   assert.match(content, /MUST NOT[\s\S]{0,120}delete the source/, "must forbid the executor from deleting the source directory");
   assert.doesNotMatch(content, /then delete the source folder/i, "must NOT instruct the executor to delete the source folder itself");
 });
@@ -99,7 +101,7 @@ test("A5.3 · sdd-archive Step 5 scopes the executor to copy-and-report (never d
 test("A5.4 · orchestrator Reads/Writes table registers ADR artifacts for design and archive", async () => {
   const content = await readFile(ORCHESTRATOR_AGENT_PATH);
   assert.match(content, /`sdd-design`[^\n]*decisions\/adr-NNN\.md/, "design row must list decisions/adr-NNN.md");
-  assert.match(content, /`sdd-archive`[^\n]*docs\/adr/, "archive row must list promoted docs/adr");
+  assert.match(content, /`sdd-archive`[^\n]*archive-plan\.json/, "archive row must list archive-plan.json");
 });
 
 // ---------------------------------------------------------------------------
@@ -127,7 +129,7 @@ test("G.1 · generated claude target carries Mentorship Mode Forwarding and the 
 
   const archive = result.files.find((f) => f.path === "skills/sdd-archive/SKILL.md");
   assert.ok(archive, "claude target must emit skills/sdd-archive/SKILL.md");
-  assert.match(archive.content, /Step 4b: Promote ADRs/);
+  assert.match(archive.content, /Step 4b: Propose ADR Promotions/);
 });
 
 test("G.2 · generated vscode target carries the mentorship semantics in sdd-phase-common", (t) => {

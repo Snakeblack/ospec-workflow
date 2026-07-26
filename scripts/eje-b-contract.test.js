@@ -54,7 +54,7 @@ test("B2.3 · orchestrator stamps owner (author + branch) on new changes", async
   assert.match(content, /branch: \{git branch --show-current\}/, "must stamp branch");
 });
 
-test("B2.4 · sdd-spec declares touched baseline domains (declare-only), orchestrator computes fingerprints, sdd-archive enforces the stale-baseline check", async () => {
+test("B2.4 · sdd-spec declares touched baseline domains (declare-only), orchestrator computes fingerprints, runtime enforces stale-baseline via plan", async () => {
   const spec = await readFile(SPEC_SKILL_PATH);
   assert.match(spec, /touched_baseline_domains/, "sdd-spec must declare touched_baseline_domains (declare-only)");
   assert.doesNotMatch(spec, /sha256/i, "sdd-spec must NOT compute or write the SHA-256 fingerprint itself");
@@ -62,8 +62,9 @@ test("B2.4 · sdd-spec declares touched baseline domains (declare-only), orchest
   assert.match(orchestrator, /baseline_fingerprints/, "orchestrator must own writing baseline_fingerprints");
   assert.match(orchestrator, /touched_baseline_domains/, "orchestrator must source domains from touched_baseline_domains");
   const archive = await readFile(ARCHIVE_SKILL_PATH);
-  assert.match(archive, /Stale-baseline check/i, "sdd-archive must carry the stale-baseline check");
-  assert.match(archive, /blocker_type: stale-baseline/, "mismatch must block with stale-baseline");
+  assert.match(archive, /Stale-baseline check/i, "sdd-archive must document the stale-baseline check");
+  assert.match(archive, /baseline-stale|target_before_sha256/, "plan/runtime must carry before-hash / baseline-stale failure identity");
+  assert.match(archive, /do NOT blind-merge|MUST NOT blind-merge/i, "sdd-archive must not blind-merge on stale baseline");
 });
 
 test("B2.5 · config documents the optional ownership block as a strict no-op when absent", async () => {

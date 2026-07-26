@@ -1,0 +1,76 @@
+{
+  "status": "validating",
+  "next": {
+    "type": "targeted-validation",
+    "slice_id": "S-93cc4124a5b55f2d",
+    "finding_ids": [
+      "F-1f49700d57dd853e"
+    ]
+  },
+  "candidate_id": "sha256:3425b567b4de875089ec6ac242821a964a9232abbc9c5b31e433e995d40b99ca",
+  "actual": 117,
+  "slice": {
+    "slice_id": "S-93cc4124a5b55f2d",
+    "root_cause_key": "F-1f49700d57dd853e",
+    "finding_ids": [
+      "F-1f49700d57dd853e"
+    ],
+    "evidence_digests": [
+      "sha256:67c0874db0723be1beecbe5e724f7f770d9359b6ac0ce6fea37132dbc0b51ca3"
+    ],
+    "permitted_paths": [
+      "agents/sdd-archive.agent.md",
+      "agents/sdd-orchestrator.agent.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/memory/known-issues.md",
+      "scripts/archive-move-fingerprint-contract.test.js",
+      "scripts/archive-transaction-run.js",
+      "scripts/archive-transaction-run.test.js",
+      "scripts/configure/real-repo.test.js",
+      "scripts/eje-b-contract.test.js",
+      "scripts/lib/archive-plan.js",
+      "scripts/lib/archive-plan.test.js",
+      "scripts/lib/archive-transaction.js",
+      "scripts/lib/archive-transaction.test.js",
+      "scripts/lib/atomic-write.js",
+      "scripts/lib/atomic-write.test.js",
+      "scripts/mentor-adr-contract.test.js",
+      "skills/_shared/gate-archive-quality.md",
+      "skills/sdd-archive/SKILL.md"
+    ],
+    "resolutions": {
+      "F-1f49700d57dd853e": "unresolved"
+    },
+    "status": "correcting",
+    "used_lines": 117,
+    "failed_attempts": 0,
+    "limit_lines": 200,
+    "max_failed_attempts": 3,
+    "correction_history": [
+      {
+        "slice_id": "S-93cc4124a5b55f2d",
+        "request_id": "slice-corr-S-93cc4124a5b55f2d-001",
+        "finding_ids": [
+          "F-1f49700d57dd853e"
+        ],
+        "paths": [
+          "scripts/archive-transaction-run.js",
+          "scripts/archive-transaction-run.test.js",
+          "scripts/lib/archive-plan.js",
+          "scripts/lib/archive-plan.test.js",
+          "scripts/lib/archive-transaction.js",
+          "scripts/lib/archive-transaction.test.js"
+        ],
+        "base_candidate_id": "sha256:47d3a173db0e8bdaed7396bad84eba443bc530b8f59b9e3f8081cc649157e95c",
+        "forecast_lines": 120,
+        "actual_changed_lines": 117,
+        "record_request_id": "slice1-record-001",
+        "corrected_candidate_id": "sha256:3425b567b4de875089ec6ac242821a964a9232abbc9c5b31e433e995d40b99ca"
+      }
+    ],
+    "validation_history": [],
+    "regression_history": [],
+    "legacy_correction_refs": [],
+    "legacy_validation_refs": []
+  }
+}

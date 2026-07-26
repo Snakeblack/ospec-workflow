@@ -1,0 +1,4153 @@
+diff --git a/agents/sdd-archive.agent.md b/agents/sdd-archive.agent.md
+index 727a3ed..11088ec 100644
+--- a/agents/sdd-archive.agent.md
++++ b/agents/sdd-archive.agent.md
+@@ -1,6 +1,6 @@
+ ---
+ name: sdd-archive
+-description: 'Archive a verified SDD change by syncing delta specs and moving the change folder.'
++description: 'Archive a verified SDD change by emitting archive-plan.json; runtime commits.'
+ tools: ['read', 'search', 'edit']
+ # modelo intencionalmente omitido.
+ # Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
+@@ -24,10 +24,10 @@ Also read shared conventions from the repository skills root:
+ 
+ ## Required artifacts
+ 
+-Use OpenSpec as the artifact store. Read all required change artifacts and verification evidence. Write the archive report, sync delta specs to `openspec/specs/` when required by the skill, and move the change folder to `openspec/changes/archive/YYYY-MM-DD-{change-name}/`.
++Use OpenSpec as the artifact store. Read all required change artifacts and verification evidence. Write the archive report and emit `archive-plan.json` (Plan-and-Report). Do NOT write live `openspec/specs/**` or `docs/adr/**`, do NOT copy/move the change folder into `openspec/changes/archive/`, and do NOT delete the source directory — those commits belong to `node scripts/archive-transaction-run.js` invoked by the orchestrator.
+ Treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the canonical workflow state for continuation and recovery; never rely on conversation history.
+ 
+-Use the current ISO date for archive folder naming.
++Use the current ISO date when proposing archive destination / ADR target names in the plan.
+ 
+ ## Result Contract
+ 
+diff --git a/agents/sdd-orchestrator.agent.md b/agents/sdd-orchestrator.agent.md
+index 4e7bf4d..c1a147b 100644
+--- a/agents/sdd-orchestrator.agent.md
++++ b/agents/sdd-orchestrator.agent.md
+@@ -388,7 +388,7 @@ Each phase has explicit read/write rules:
+ | `sdd-tasks` | spec + design (required) or `proposal-lite` in lite mode | `tasks` |
+ | `sdd-apply` | tasks + spec + design + **apply-progress (if exists)**, or `proposal-lite` in lite mode | `apply-progress` |
+ | `sdd-verify` | spec + tasks + **apply-progress**, or `proposal-lite` + tasks in lite mode | `verify-report` |
+-| `sdd-archive` | all artifacts | `archive-report` + promoted `docs/adr/*` (when the change has ADRs) |
++| `sdd-archive` | all artifacts | `archive-report` + `archive-plan.json` (ADR promotions listed in plan; live `docs/adr/*` committed by runtime receipt) |
+ 
+ For phases with required dependencies, sub-agents read directly from OpenSpec artifact paths. The orchestrator passes artifact file paths, not full content.
+ For persisted continuation, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the canonical state. Never infer current phase from conversation history when these files exist.
+@@ -470,7 +470,7 @@ here.
+ | 4R Review Gate Dispatch | `4r-review-gate` listed in the active route `gates` | `skills/_shared/gate-4r-review.md` | When the 4R hook point is reached (after successful `sdd-verify` returns `success`) |
+ | Workspace Federation / Federation Baseline Loop | `artifact_store.backend == workspace-federated` | `skills/_shared/route-federation.md` | At route start when the backend is federated, before federated foundation / baseline loop |
+ | Lifecycle Hook Dispatch | `hooks:` present and non-empty in `config.yaml` | `skills/_shared/dispatch-lifecycle-hooks.md` | At route start (setup/cache), before the first phase dispatch |
+-| Archive Dispatch Guard (Quality Gates) | before dispatching `sdd-archive` | `skills/_shared/gate-archive-quality.md` | At the archive guard, before dispatching `sdd-archive` |
++| Archive Dispatch Guard (Quality Gates) | before dispatching `sdd-archive` | `skills/_shared/gate-archive-quality.md` | At the archive guard, before dispatching `sdd-archive` (Post-Return Move Completion is in the same file) |
+ | Change Collision Gate | before dispatching `sdd-apply` AND at least one OTHER active (non-terminal) change exists | `skills/_shared/gate-change-collision.md` | At the apply guard, after the Review Workload Guard resolves |
+ | Question Shape Library | composing a delivery-strategy, review-workload, or blocked-envelope question | `skills/_shared/question-shapes.md` | At the ask point, before the first such `vscode/askQuestions` call in a session |
+ | Clarify Gate Handler | a successful `sdd-spec` envelope passes phase-aware validation | `skills/_shared/clarify-routing.md` | After `sdd-spec` success, before dispatching `sdd-clarify`/`sdd-design` |
+diff --git a/docs/roadmaps/harness-evolution.md b/docs/roadmaps/harness-evolution.md
+index d2edab0..96cafdb 100644
+--- a/docs/roadmaps/harness-evolution.md
++++ b/docs/roadmaps/harness-evolution.md
+@@ -3,7 +3,7 @@
+ > **Autoridad:** única fuente operativa del backlog transversal.
+ > **Versión de referencia:** v2.31.0, 2026-07-18.
+ > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
+-> **Estado verificado:** O4+O5 entregado y archivado; O4.1 entregado; O4.2 es la reparación inmediata; infraestructura O2A entregada; baseline fija O2B pendiente.
++> **Estado verificado:** O4+O5 entregado y archivado; O4.1 entregado; O4.2 entregado; O6A en progreso (`hybrid-archive-transaction-runtime`); infraestructura O2A entregada; baseline fija O2B pendiente.
+ > **Regla:** una decisión arquitectónica nueva se incorpora primero al análisis. Este archivo solo deriva trabajo ejecutable.
+ 
+ ## 1. Estado ejecutivo
+@@ -13,8 +13,8 @@
+ | Completado | G0/G0.1 — gobernanza y reconciliación documental | Arquitectura y roadmap activos, sin estado O4+O5 obsoleto |
+ | Completado | O4+O5 — review selectivo y linaje acotado | Generalist-first, selección determinista y corrección dirigida |
+ | ✅ Entregado | O4.1 — overflow de señales de review | Ninguna dimensión positiva descartada por el cap normal |
+-| ▶ SIGUIENTE | O4.2 — remediación rápida de evidencia Strict TDD | Reparar drift mecánico de formato sin redispatch funcional completo |
+-| Después | O6A — archive híbrido transaccional | Bloqueado por O4.2; semántica en agente y transacción mecánica en runtime |
++| ✅ Entregado | O4.2 — remediación rápida de evidencia Strict TDD | Reparar drift mecánico de formato sin redispatch funcional completo |
++| ▶ EN PROGRESO | O6A — archive híbrido transaccional | Semántica en agente y transacción mecánica en runtime (`hybrid-archive-transaction-runtime`) |
+ | Gate previo a adaptive | O2B — baseline fixed-policy | Nueve perfiles comparables y reproducibles |
+ | Experimento con gate | O20A — proof-carrying verify kernel | Vertical shadow para decidir si un kernel común merece promoción |
+ | Ruta crítica adaptive | O13A–D + O19A | Perfil, policy resolver, kernel, variantes y validadores |
+@@ -215,7 +215,7 @@ Evitar que una señal material sea descartada por el máximo de dos especialista
+ - tests focales, `npm test` y paridad pasan;
+ - roadmap, arquitectura y specs coinciden.
+ 
+-### O4.2. Fast path de remediación de evidencia Strict TDD — **▶ SIGUIENTE**
++### O4.2. Fast path de remediación de evidencia Strict TDD — **✅ Entregado**
+ 
+ **Change sugerido:** `strict-tdd-evidence-remediation-fast-path`.
+ 
+@@ -255,9 +255,9 @@ Un gap sintáctico en un marcador de evidencia Strict TDD provocó un reroute co
+ - verify ejecuta un recheck focal de la evidencia reparada, sin redispatch completo de `tasks`, `apply` y `verify`;
+ - tests de routing distinguen evidencia ausente/fabricada, drift mecánico y fallo funcional;
+ - un guard de regresión mide y limita coste de fases y tokens frente al reroute completo;
+-- O6A permanece pendiente y bloqueado hasta completar O4.2.
++- O6A desbloqueado tras completar O4.2.
+ 
+-### O6A. Archive híbrido transaccional — **pending**
++### O6A. Archive híbrido transaccional — **▶ EN PROGRESO**
+ 
+ **Change sugerido:** `hybrid-archive-transaction-runtime`.
+ 
+diff --git a/openspec/memory/known-issues.md b/openspec/memory/known-issues.md
+index c8b9a4f..bc2c841 100644
+--- a/openspec/memory/known-issues.md
++++ b/openspec/memory/known-issues.md
+@@ -1,8 +1,64 @@
+ ---
+ title: Known Issues
+-last_updated: 2026-07-25
++last_updated: 2026-07-26
+ ---
+ 
++## Archive receipt cost aggregation omits duration, model tiers, statuses and questions_asked
++- severity: BLOCKER
++- area: scripts/lib/archive-transaction.js (aggregateCost)
++- workaround: sum duration_ms per phase, collect distinct model_tier and status lists, and read gates.*.questions_asked from the change state.yaml instead of hardcoding total_questions_asked to 0; add an FS fixture with a populated .ospec/session/{change}/phase-costs.jsonl
++- change: hybrid-archive-transaction-runtime
++- date: 2026-07-26
++
++## CLI exit-mapping test redefines the mapping locally and never invokes main
++- severity: BLOCKER
++- area: scripts/archive-transaction-run.test.js
++- workaround: replace the local exitCodeFor helper with a call to main([change, "--workspace", tmp], {log, error, exit}) over a mkdtemp fixture and assert both the parsed stdout receipt and the exit code
++- change: hybrid-archive-transaction-runtime
++- date: 2026-07-26
++
++## Unknown-rejection-code fail-closed consumer is simulated instead of exercised
++- severity: WARNING
++- area: scripts/lib/archive-plan.test.js, scripts/lib/archive-transaction.js
++- workaround: drive runArchiveTransaction with a validator result carrying an unknown code and assert the receipt still fails closed
++- change: hybrid-archive-transaction-runtime
++- date: 2026-07-26
++
++## No Linux execution evidence for the cross-OS archive transaction fixtures
++- severity: WARNING
++- area: scripts/lib/archive-transaction.test.js, scripts/lib/atomic-write.test.js
++- workaround: run npm test under WSL or CI on Linux before archive, or record the accepted limitation in the archive report
++- change: hybrid-archive-transaction-runtime
++- date: 2026-07-26
++
++## baseline-stale preflight branch of the archive runtime has no test
++- severity: WARNING
++- area: scripts/lib/archive-transaction.js (runArchiveTransaction preflight)
++- workaround: add an FS fixture whose state.yaml baseline_fingerprints disagree with the live target bytes and assert failure_reason baseline-stale with the origin intact
++- change: hybrid-archive-transaction-runtime
++- date: 2026-07-26
++
++## resumed-success outcome is unreachable and contradicts ADR-006
++- severity: WARNING
++- area: scripts/lib/archive-transaction.js (opts._resumed recursive tail)
++- workaround: either set the resumed flag when the journal is entered at a non-terminal state, or amend ADR-006 and record the deviation; the CLI exit branch for resumed-success is currently dead
++- change: hybrid-archive-transaction-runtime
++- date: 2026-07-26
++
++## Strict TDD evidence lists 16 genesis paths but only 12 file digests
++- severity: WARNING
++- area: openspec/changes/hybrid-archive-transaction-runtime/apply-progress.md (json:strict-tdd-evidence)
++- workaround: add digests for the four prose files (sdd-archive SKILL.md, gate-archive-quality.md, sdd-archive.agent.md, sdd-orchestrator.agent.md) so a later identity recheck can detect drift
++- change: hybrid-archive-transaction-runtime
++- date: 2026-07-26
++
++## Assumption ledger left unreconciled at verify (sdd-design-002 is reversibility low)
++- severity: WARNING
++- area: openspec/changes/hybrid-archive-transaction-runtime/state.yaml (assumptions)
++- workaround: relaunch sdd-verify with an assumption_resolutions block; sdd-design-002 needs an individual confirm/correct/promote decision, the 14 high-reversibility entries can be confirmed as a group
++- change: hybrid-archive-transaction-runtime
++- date: 2026-07-26
++
+ ## Strict TDD evidence record fails schema-v1 validation (evidence_mode working-tree, legacy provenance source, invalid refactor marker)
+ - severity: BLOCKER
+ - area: openspec/changes/cursor-native-target/apply-progress.md (json:strict-tdd-evidence)
+diff --git a/scripts/archive-move-fingerprint-contract.test.js b/scripts/archive-move-fingerprint-contract.test.js
+index 2abf4ec..7e17289 100644
+--- a/scripts/archive-move-fingerprint-contract.test.js
++++ b/scripts/archive-move-fingerprint-contract.test.js
+@@ -1,16 +1,16 @@
+ "use strict";
+ 
+-// Static contract test for the harden-archive-move-fingerprints change.
++// Static contract test for hybrid archive move completion (O6A).
+ //
+ // Anchors two agent-instruction prose contracts as load-bearing strings so
+ // drift fails `npm test` instead of silently regressing:
+ //
+ // 1. Archive-move contract (REQ-agents-008): the orchestrator — never the
+-//    `sdd-archive` executor — verifies destination-vs-source inventory before
+-//    deleting the source change folder. `gate-archive-quality.md` carries the
+-//    orchestrator-side verification-before-delete / halt-with-source-intact
+-//    protocol; `sdd-archive/SKILL.md` Step 5 is scoped to copy + report-only
+-//    and must NOT instruct the executor to delete the source folder.
++//    `sdd-archive` executor — completes closure by invoking the archive
++//    transaction runtime and treating the success receipt as sole authority.
++//    `gate-archive-quality.md` carries Post-Return Move Completion +
++//    halt-with-source-intact; `sdd-archive/SKILL.md` is Plan-and-Report and
++//    must NOT instruct the executor to delete the source folder.
+ // 2. Fingerprint-ownership contract (REQ-agents-009): `sdd-spec` declares
+ //    touched baseline domains only (never computes/writes the SHA-256);
+ //    the orchestrator owns the standing post-`sdd-spec` computation step.
+@@ -24,7 +24,7 @@ const test = require("node:test");
+ 
+ const ROOT = path.resolve(__dirname, "..");
+ 
+-test("archive-move contract: orchestrator verifies inventory before delete; executor never deletes/claims moved", () => {
++test("archive-move contract: orchestrator invokes runtime receipt; executor never deletes/claims moved", () => {
+   const gateArchiveQualityPath = path.join(ROOT, "skills", "_shared", "gate-archive-quality.md");
+   const sddArchiveSkillPath = path.join(ROOT, "skills", "sdd-archive", "SKILL.md");
+ 
+@@ -36,8 +36,13 @@ test("archive-move contract: orchestrator verifies inventory before delete; exec
+ 
+   assert.match(
+     gateText,
+-    /recursively diff the destination/,
+-    "gate-archive-quality.md must document the orchestrator recursively diffing the destination inventory against the source"
++    /archive-transaction-run\.js/,
++    "gate-archive-quality.md must document invoking archive-transaction-run.js"
++  );
++  assert.match(
++    gateText,
++    /runtime success receipt/,
++    "gate-archive-quality.md must document the runtime success receipt as close authority"
+   );
+   assert.match(
+     gateText,
+@@ -47,8 +52,13 @@ test("archive-move contract: orchestrator verifies inventory before delete; exec
+ 
+   assert.match(
+     skillText,
+-    /copy inventory/,
+-    "sdd-archive/SKILL.md Step 5 must require the executor to report a copy inventory list"
++    /Plan-and-Report/,
++    "sdd-archive/SKILL.md must declare the Plan-and-Report contract"
++  );
++  assert.match(
++    skillText,
++    /archive-plan\.json/,
++    "sdd-archive/SKILL.md Step 5 must require emitting archive-plan.json"
+   );
+   assert.match(
+     skillText,
+@@ -58,7 +68,7 @@ test("archive-move contract: orchestrator verifies inventory before delete; exec
+   assert.doesNotMatch(
+     skillText,
+     /then delete the source folder/,
+-    "sdd-archive/SKILL.md must NOT instruct the executor to delete the source folder (that is now the orchestrator's responsibility)"
++    "sdd-archive/SKILL.md must NOT instruct the executor to delete the source folder (that is now the runtime's responsibility)"
+   );
+ });
+ 
+diff --git a/scripts/archive-transaction-run.js b/scripts/archive-transaction-run.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/archive-transaction-run.js
+@@ -0,0 +1,81 @@
++"use strict";
++
++/**
++ * Thin CLI for the archive transaction runtime.
++ * Usage: node scripts/archive-transaction-run.js <change-name> [--rollback] [--workspace <path>]
++ * Prints receipt JSON on stdout. Exit 0 only for success | resumed-success.
++ */
++
++const path = require("node:path");
++const {
++  runArchiveTransaction,
++  rollbackTransaction,
++} = require("./lib/archive-transaction.js");
++const { isSafeChangeName } = require("./lib/archive-plan.js");
++
++async function main(argv = process.argv.slice(2), deps = {}) {
++  const log = deps.log || console.log;
++  const error = deps.error || console.error;
++  const exit = deps.exit || ((code) => process.exit(code));
++  const workspace = deps.workspace || process.cwd();
++
++  let changeName = null;
++  let rollback = false;
++  let ws = workspace;
++
++  for (let i = 0; i < argv.length; i++) {
++    const arg = argv[i];
++    if (arg === "--rollback") {
++      rollback = true;
++    } else if (arg === "--workspace") {
++      ws = argv[++i];
++    } else if (!arg.startsWith("-")) {
++      changeName = arg;
++    }
++  }
++
++  if (!changeName) {
++    error("Usage: node scripts/archive-transaction-run.js <change-name> [--rollback] [--workspace <path>]");
++    exit(1);
++    return;
++  }
++
++  if (!isSafeChangeName(changeName)) {
++    error("invalid change-name: no .., absolutes, or separators");
++    exit(1);
++    return;
++  }
++
++  const planPath = path.join(
++    ws,
++    "openspec",
++    "changes",
++    changeName,
++    "archive-plan.json",
++  );
++
++  let receipt;
++  if (rollback) {
++    receipt = await rollbackTransaction({ workspace: ws, changeName });
++  } else {
++    receipt = await runArchiveTransaction({
++      workspace: ws,
++      changeName,
++      planPath,
++    });
++  }
++
++  log(JSON.stringify(receipt));
++  const ok =
++    receipt.outcome === "success" || receipt.outcome === "resumed-success";
++  exit(ok ? 0 : 1);
++}
++
++if (require.main === module) {
++  main().catch((err) => {
++    console.error(err);
++    process.exit(1);
++  });
++}
++
++module.exports = { main };
+diff --git a/scripts/archive-transaction-run.test.js b/scripts/archive-transaction-run.test.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/archive-transaction-run.test.js
+@@ -0,0 +1,199 @@
++"use strict";
++
++const test = require("node:test");
++const assert = require("node:assert/strict");
++const crypto = require("node:crypto");
++const fs = require("node:fs/promises");
++const path = require("node:path");
++const os = require("node:os");
++
++const { main } = require("./archive-transaction-run.js");
++const {
++  computeInventory,
++  fingerprintInventory,
++  digestBytes,
++} = require("./lib/archive-transaction.js");
++
++function sha256(buf) {
++  return `sha256:${crypto.createHash("sha256").update(buf).digest("hex")}`;
++}
++
++async function writeTree(root, files) {
++  for (const [rel, content] of Object.entries(files)) {
++    const abs = path.join(root, ...rel.split("/"));
++    await fs.mkdir(path.dirname(abs), { recursive: true });
++    await fs.writeFile(abs, content);
++  }
++}
++
++async function buildCliWorkspace(t, changeName = "cli-demo") {
++  const root = await fs.mkdtemp(path.join(os.tmpdir(), "ospec-archive-cli-"));
++  t.after(async () => {
++    await fs.rm(root, { recursive: true, force: true });
++  });
++
++  const originRel = `openspec/changes/${changeName}`;
++  const preparedSpec = "# Routing merged\n";
++  const adr = "# ADR-001\n";
++  const liveTarget = "# Routing baseline\n";
++
++  await writeTree(root, {
++    [`${originRel}/proposal.md`]: "# Proposal\n",
++    [`${originRel}/state.yaml`]: `status: verified
++phases:
++  verify:
++    status: done
++    verdict: PASS
++gates:
++  quality-gates:
++    status: passed
++baseline_fingerprints:
++  routing: "${sha256(Buffer.from(liveTarget))}"
++`,
++    [`${originRel}/specs/routing/spec.md`]: preparedSpec,
++    [`${originRel}/decisions/adr-001.md`]: adr,
++    "openspec/specs/routing/spec.md": liveTarget,
++    "docs/adr/.gitkeep": "",
++  });
++
++  const originDir = path.join(root, "openspec", "changes", changeName);
++  const inventory = (await computeInventory(originDir)).filter(
++    (e) => e.path !== "archive-plan.json",
++  );
++  const plan = {
++    schema_version: 1,
++    change: changeName,
++    source_fingerprint: fingerprintInventory(inventory),
++    spec_writes: [
++      {
++        domain: "routing",
++        source_delta: "specs/routing/spec.md",
++        target: "openspec/specs/routing/spec.md",
++        target_before_sha256: sha256(Buffer.from(liveTarget)),
++        content_sha256: sha256(Buffer.from(preparedSpec)),
++      },
++    ],
++    adr_promotions: [
++      {
++        source: "decisions/adr-001.md",
++        target: "docs/adr/adr-001-demo.md",
++        content_sha256: sha256(Buffer.from(adr)),
++      },
++    ],
++    archive_inventory: inventory.map((e) => e.path),
++    accepted_warnings: [],
++    rollback: { strategy: "staging-rename" },
++  };
++  const planPath = path.join(originDir, "archive-plan.json");
++  await fs.writeFile(planPath, JSON.stringify(plan, null, 2));
++  return { root, changeName, originDir, planPath };
++}
++
++async function runMain(argv, workspace) {
++  let code = null;
++  const lines = [];
++  const errors = [];
++  await main(argv, {
++    log: (s) => lines.push(s),
++    error: (s) => errors.push(String(s)),
++    exit: (c) => {
++      code = c;
++    },
++    workspace,
++  });
++  return { code, lines, errors };
++}
++
++test("CLI: missing change name exits 1", async () => {
++  const { code } = await runMain([], process.cwd());
++  assert.equal(code, 1);
++});
++
++test("CLI: success prints receipt JSON and exits 0 via production main", async (t) => {
++  const ctx = await buildCliWorkspace(t);
++  const { code, lines } = await runMain(
++    [ctx.changeName, "--workspace", ctx.root],
++    ctx.root,
++  );
++  assert.equal(code, 0);
++  assert.equal(lines.length, 1);
++  const receipt = JSON.parse(lines[0]);
++  assert.equal(receipt.outcome, "success");
++  assert.equal(receipt.origin_deleted, true);
++  assert.equal(receipt.parity.go, "n/a");
++  assert.ok(Array.isArray(receipt.committed_inventory));
++  assert.ok(receipt.committed_inventory.length > 0);
++});
++
++test("CLI: failed plan exits 1 with failed receipt JSON", async (t) => {
++  const ctx = await buildCliWorkspace(t);
++  const bad = JSON.parse(await fs.readFile(ctx.planPath, "utf8"));
++  bad.source_fingerprint = sha256(Buffer.from("wrong"));
++  await fs.writeFile(ctx.planPath, JSON.stringify(bad));
++
++  const { code, lines } = await runMain(
++    [ctx.changeName, "--workspace", ctx.root],
++    ctx.root,
++  );
++  assert.equal(code, 1);
++  assert.equal(lines.length, 1);
++  const receipt = JSON.parse(lines[0]);
++  assert.equal(receipt.outcome, "failed");
++  assert.equal(receipt.origin_deleted, false);
++});
++
++test("CLI: resumed-success exits 0 with receipt from mid-flight journal", async (t) => {
++  const ctx = await buildCliWorkspace(t);
++  const txDir = path.join(ctx.root, ".ospec", "archive-tx", ctx.changeName);
++  const stagingRoot = path.join(txDir, "staging");
++  const stagingArchive = path.join(stagingRoot, "archive");
++  const originInv = await computeInventory(ctx.originDir);
++
++  await fs.mkdir(stagingArchive, { recursive: true });
++  for (const entry of originInv) {
++    const src = path.join(ctx.originDir, ...entry.path.split("/"));
++    const dest = path.join(stagingArchive, ...entry.path.split("/"));
++    await fs.mkdir(path.dirname(dest), { recursive: true });
++    await fs.cp(src, dest);
++  }
++  await fs.mkdir(path.join(stagingRoot, "specs", "routing"), { recursive: true });
++  await fs.cp(
++    path.join(ctx.originDir, "specs", "routing", "spec.md"),
++    path.join(stagingRoot, "specs", "routing", "spec.md"),
++  );
++  await fs.mkdir(path.join(stagingRoot, "adr"), { recursive: true });
++  await fs.cp(
++    path.join(ctx.originDir, "decisions", "adr-001.md"),
++    path.join(stagingRoot, "adr", "adr-001-demo.md"),
++  );
++
++  const planBytes = await fs.readFile(ctx.planPath);
++  await fs.mkdir(txDir, { recursive: true });
++  await fs.writeFile(
++    path.join(txDir, "journal.json"),
++    JSON.stringify({
++      state: "staged",
++      plan_sha256: digestBytes(planBytes),
++      destination: `openspec/changes/archive/2026-07-26-${ctx.changeName}`,
++      origin_inventory: originInv,
++      created_by_tx: [],
++    }),
++  );
++
++  const { code, lines } = await runMain(
++    [ctx.changeName, "--workspace", ctx.root],
++    ctx.root,
++  );
++  assert.equal(code, 0);
++  const receipt = JSON.parse(lines[0]);
++  assert.equal(receipt.outcome, "resumed-success");
++  assert.equal(receipt.origin_deleted, true);
++});
++
++test("CLI: rejects ../ and absolute changeName fail-closed", async () => {
++  for (const name of ["../evil-change", "/tmp/abs-change"]) {
++    const { code, lines } = await runMain([name, "--workspace", process.cwd()], process.cwd());
++    assert.equal(code, 1, name);
++    assert.equal(lines.length, 0, name);
++  }
++});
+diff --git a/scripts/configure/real-repo.test.js b/scripts/configure/real-repo.test.js
+index 0b70b83..b1a85f3 100644
+--- a/scripts/configure/real-repo.test.js
++++ b/scripts/configure/real-repo.test.js
+@@ -724,7 +724,7 @@ test("real repo: orchestrator pointer-table refs resolve and handler sentinels a
+   assert.doesNotMatch(text, /Intercept the block/, "gaps-resolution handler steps must not be inline in orchestrator body");
+   assert.doesNotMatch(text, /questions_asked/, "clarify gate handling steps must not be inline in orchestrator body");
+   assert.doesNotMatch(text, /Acknowledge and close the route anyway/, "document-route J5 halt gate wording must not be inline in orchestrator body");
+-  assert.doesNotMatch(text, /recursively diff the destination/, "archive move-completion sentinel 'recursively diff the destination' must not be inline in orchestrator body");
++  assert.doesNotMatch(text, /archive-transaction-run\.js/, "archive move-completion sentinel 'archive-transaction-run.js' must not be inline in orchestrator body");
+   assert.doesNotMatch(text, /halt with the source directory left intact/, "archive move-completion sentinel 'halt with the source directory left intact' must not be inline in orchestrator body");
+ 
+   // Pointer table: extract skills/_shared/*.md refs and verify each resolves to an existing file
+@@ -747,7 +747,7 @@ test("real repo: orchestrator pointer-table refs resolve and handler sentinels a
+     { sentinel: "before-task.occurrences", file: "skills/_shared/dispatch-lifecycle-hooks.md" },
+     { sentinel: "Two-place override", file: "skills/_shared/gate-archive-quality.md" },
+     { sentinel: "parseQualityGates", file: "skills/_shared/gate-archive-quality.md" },
+-    { sentinel: "recursively diff the destination", file: "skills/_shared/gate-archive-quality.md" },
++    { sentinel: "archive-transaction-run.js", file: "skills/_shared/gate-archive-quality.md" },
+     { sentinel: "halt with the source directory left intact", file: "skills/_shared/gate-archive-quality.md" },
+     { sentinel: '"label": "ask-on-risk"', file: "skills/_shared/question-shapes.md" },
+     { sentinel: '"label": "Chained PRs"', file: "skills/_shared/question-shapes.md" },
+diff --git a/scripts/eje-b-contract.test.js b/scripts/eje-b-contract.test.js
+index 5287062..016f4f4 100644
+--- a/scripts/eje-b-contract.test.js
++++ b/scripts/eje-b-contract.test.js
+@@ -54,7 +54,7 @@ test("B2.3 · orchestrator stamps owner (author + branch) on new changes", async
+   assert.match(content, /branch: \{git branch --show-current\}/, "must stamp branch");
+ });
+ 
+-test("B2.4 · sdd-spec declares touched baseline domains (declare-only), orchestrator computes fingerprints, sdd-archive enforces the stale-baseline check", async () => {
++test("B2.4 · sdd-spec declares touched baseline domains (declare-only), orchestrator computes fingerprints, runtime enforces stale-baseline via plan", async () => {
+   const spec = await readFile(SPEC_SKILL_PATH);
+   assert.match(spec, /touched_baseline_domains/, "sdd-spec must declare touched_baseline_domains (declare-only)");
+   assert.doesNotMatch(spec, /sha256/i, "sdd-spec must NOT compute or write the SHA-256 fingerprint itself");
+@@ -62,8 +62,9 @@ test("B2.4 · sdd-spec declares touched baseline domains (declare-only), orchest
+   assert.match(orchestrator, /baseline_fingerprints/, "orchestrator must own writing baseline_fingerprints");
+   assert.match(orchestrator, /touched_baseline_domains/, "orchestrator must source domains from touched_baseline_domains");
+   const archive = await readFile(ARCHIVE_SKILL_PATH);
+-  assert.match(archive, /Stale-baseline check/i, "sdd-archive must carry the stale-baseline check");
+-  assert.match(archive, /blocker_type: stale-baseline/, "mismatch must block with stale-baseline");
++  assert.match(archive, /Stale-baseline check/i, "sdd-archive must document the stale-baseline check");
++  assert.match(archive, /baseline-stale|target_before_sha256/, "plan/runtime must carry before-hash / baseline-stale failure identity");
++  assert.match(archive, /do NOT blind-merge|MUST NOT blind-merge/i, "sdd-archive must not blind-merge on stale baseline");
+ });
+ 
+ test("B2.5 · config documents the optional ownership block as a strict no-op when absent", async () => {
+diff --git a/scripts/lib/archive-plan.js b/scripts/lib/archive-plan.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/archive-plan.js
+@@ -0,0 +1,418 @@
++"use strict";
++
++/**
++ * Pure archive-plan.json schema v1 validator.
++ * No filesystem I/O. Never throws — returns structured {valid, codes[], errors[]}.
++ */
++
++const PLAN_SCHEMA_VERSION = 1;
++
++const PLAN_REJECTION_CODES = Object.freeze([
++  "invalid-schema",
++  "invalid-rollback-strategy",
++  "missing-reference",
++  "hash-mismatch",
++  "inventory-mismatch",
++  "change-name-mismatch",
++]);
++
++const KNOWN_CODES = new Set(PLAN_REJECTION_CODES);
++
++function isKnownRejectionCode(code) {
++  return typeof code === "string" && KNOWN_CODES.has(code);
++}
++
++function emptyResult() {
++  return { valid: true, codes: [], errors: [] };
++}
++
++function fail(codes, errors) {
++  const unique = [];
++  for (const c of codes) {
++    if (!unique.includes(c)) unique.push(c);
++  }
++  return { valid: false, codes: unique, errors: errors || [] };
++}
++
++function isPlainObject(value) {
++  return value !== null && typeof value === "object" && !Array.isArray(value);
++}
++
++function isSha256Digest(value) {
++  return typeof value === "string" && /^sha256:[a-f0-9]{64}$/i.test(value);
++}
++
++function normalizeDigest(value) {
++  return typeof value === "string" ? value.toLowerCase() : value;
++}
++
++/**
++ * @param {string} text
++ * @returns {{parsed: boolean, value: object|null}}
++ */
++function parsePlan(text) {
++  if (typeof text !== "string") {
++    return { parsed: false, value: null };
++  }
++  try {
++    const value = JSON.parse(text);
++    if (!isPlainObject(value)) {
++      return { parsed: false, value: null };
++    }
++    return { parsed: true, value };
++  } catch {
++    return { parsed: false, value: null };
++  }
++}
++
++function pushCode(codes, errors, code, message) {
++  codes.push(code);
++  errors.push({ code, message });
++}
++
++/** Reject absolute / `..` / empty segments. Pure, no I/O. */
++function hasTraversalOrAbsolute(p) {
++  if (typeof p !== "string" || !p) return true;
++  if (p.startsWith("/") || p.startsWith("\\") || /^[a-zA-Z]:[\\/]/.test(p)) return true;
++  const n = p.replace(/\\/g, "/");
++  return n.startsWith("//") || n.split("/").some((s) => s === ".." || s === "");
++}
++function isRelativeUnder(p, root) {
++  if (hasTraversalOrAbsolute(p)) return false;
++  const n = String(p).replace(/\\/g, "/");
++  return n === root || n.startsWith(`${root}/`);
++}
++function isSafeChangeName(name) {
++  return typeof name === "string" && /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(name);
++}
++function isSafeDomain(domain) {
++  return isSafeChangeName(domain);
++}
++
++/**
++ * @param {object} plan
++ * @param {{changeName: string}} options
++ * @returns {{valid: boolean, codes: string[], errors: object[]}}
++ */
++function validatePlanShape(plan, options) {
++  const codes = [];
++  const errors = [];
++  const changeName = options && options.changeName;
++
++  if (!isPlainObject(plan)) {
++    return fail(
++      ["invalid-schema"],
++      [{ code: "invalid-schema", message: "plan must be a plain object" }],
++    );
++  }
++
++  if (plan.schema_version !== PLAN_SCHEMA_VERSION) {
++    pushCode(
++      codes,
++      errors,
++      "invalid-schema",
++      `unsupported schema_version: ${String(plan.schema_version)}`,
++    );
++  }
++
++  if (typeof plan.change !== "string" || plan.change.length === 0) {
++    pushCode(codes, errors, "invalid-schema", "change must be a non-empty string");
++  } else if (typeof changeName === "string" && plan.change !== changeName) {
++    pushCode(
++      codes,
++      errors,
++      "change-name-mismatch",
++      `change "${plan.change}" !== active "${changeName}"`,
++    );
++  }
++
++  if (!isSha256Digest(plan.source_fingerprint)) {
++    pushCode(
++      codes,
++      errors,
++      "invalid-schema",
++      "source_fingerprint must be sha256:<64hex>",
++    );
++  }
++
++  if (!Array.isArray(plan.spec_writes)) {
++    pushCode(codes, errors, "invalid-schema", "spec_writes must be an array");
++  } else {
++    for (let i = 0; i < plan.spec_writes.length; i++) {
++      const entry = plan.spec_writes[i];
++      if (!isPlainObject(entry)) {
++        pushCode(codes, errors, "invalid-schema", `spec_writes[${i}] must be object`);
++        continue;
++      }
++      for (const field of ["domain", "source_delta", "target", "content_sha256"]) {
++        if (typeof entry[field] !== "string" || entry[field].length === 0) {
++          pushCode(
++            codes,
++            errors,
++            "invalid-schema",
++            `spec_writes[${i}].${field} required`,
++          );
++        }
++      }
++      if (entry.domain && !isSafeDomain(entry.domain)) {
++        pushCode(codes, errors, "invalid-schema", `spec_writes[${i}].domain unsafe`);
++      }
++      if (entry.source_delta && hasTraversalOrAbsolute(entry.source_delta)) {
++        pushCode(codes, errors, "invalid-schema", `spec_writes[${i}].source_delta unsafe`);
++      }
++      if (entry.target && !isRelativeUnder(entry.target, "openspec/specs")) {
++        pushCode(codes, errors, "invalid-schema", `spec_writes[${i}].target unsafe`);
++      }
++      if (
++        entry.target_before_sha256 != null &&
++        !isSha256Digest(entry.target_before_sha256)
++      ) {
++        pushCode(
++          codes,
++          errors,
++          "invalid-schema",
++          `spec_writes[${i}].target_before_sha256 invalid`,
++        );
++      }
++      if (entry.content_sha256 != null && !isSha256Digest(entry.content_sha256)) {
++        pushCode(
++          codes,
++          errors,
++          "invalid-schema",
++          `spec_writes[${i}].content_sha256 invalid`,
++        );
++      }
++    }
++  }
++
++  if (!Array.isArray(plan.adr_promotions)) {
++    pushCode(codes, errors, "invalid-schema", "adr_promotions must be an array");
++  } else {
++    for (let i = 0; i < plan.adr_promotions.length; i++) {
++      const entry = plan.adr_promotions[i];
++      if (!isPlainObject(entry)) {
++        pushCode(codes, errors, "invalid-schema", `adr_promotions[${i}] must be object`);
++        continue;
++      }
++      for (const field of ["source", "target", "content_sha256"]) {
++        if (typeof entry[field] !== "string" || entry[field].length === 0) {
++          pushCode(
++            codes,
++            errors,
++            "invalid-schema",
++            `adr_promotions[${i}].${field} required`,
++          );
++        }
++      }
++      if (entry.source && hasTraversalOrAbsolute(entry.source)) {
++        pushCode(codes, errors, "invalid-schema", `adr_promotions[${i}].source unsafe`);
++      }
++      if (entry.target && !isRelativeUnder(entry.target, "docs/adr")) {
++        pushCode(codes, errors, "invalid-schema", `adr_promotions[${i}].target unsafe`);
++      }
++      if (entry.content_sha256 != null && !isSha256Digest(entry.content_sha256)) {
++        pushCode(
++          codes,
++          errors,
++          "invalid-schema",
++          `adr_promotions[${i}].content_sha256 invalid`,
++        );
++      }
++    }
++  }
++
++  if (!Array.isArray(plan.archive_inventory)) {
++    pushCode(codes, errors, "invalid-schema", "archive_inventory must be an array");
++  } else if (!plan.archive_inventory.every((p) => typeof p === "string")) {
++    pushCode(
++      codes,
++      errors,
++      "invalid-schema",
++      "archive_inventory entries must be strings",
++    );
++  } else if (plan.archive_inventory.some(hasTraversalOrAbsolute)) {
++    pushCode(codes, errors, "invalid-schema", "archive_inventory unsafe path");
++  }
++
++  if (!Array.isArray(plan.accepted_warnings)) {
++    pushCode(codes, errors, "invalid-schema", "accepted_warnings must be an array");
++  }
++
++  if (!isPlainObject(plan.rollback) || typeof plan.rollback.strategy !== "string") {
++    pushCode(codes, errors, "invalid-schema", "rollback.strategy required");
++  } else if (plan.rollback.strategy !== "staging-rename") {
++    pushCode(
++      codes,
++      errors,
++      "invalid-rollback-strategy",
++      `rollback.strategy must be staging-rename, got ${plan.rollback.strategy}`,
++    );
++  }
++
++  if (codes.length > 0) {
++    return fail(codes, errors);
++  }
++  return emptyResult();
++}
++
++/**
++ * @param {object} plan - already shape-validated (or still checked lightly)
++ * @param {object} snapshot
++ * @returns {{valid: boolean, codes: string[], errors: object[]}}
++ */
++function validatePlanAgainstSnapshot(plan, snapshot) {
++  const codes = [];
++  const errors = [];
++
++  if (!isPlainObject(plan) || !isPlainObject(snapshot)) {
++    return fail(
++      ["invalid-schema"],
++      [{ code: "invalid-schema", message: "plan and snapshot must be objects" }],
++    );
++  }
++
++  const originInventory = Array.isArray(snapshot.originInventory)
++    ? snapshot.originInventory
++    : [];
++  const originPaths = new Set(
++    originInventory.map((e) => (e && typeof e.path === "string" ? e.path : null)).filter(Boolean),
++  );
++
++  const archiveInventory = Array.isArray(plan.archive_inventory)
++    ? plan.archive_inventory
++    : [];
++  const planPaths = new Set(archiveInventory);
++
++  let inventoryMismatch = false;
++  if (planPaths.size !== originPaths.size) {
++    inventoryMismatch = true;
++  } else {
++    for (const p of planPaths) {
++      if (!originPaths.has(p)) {
++        inventoryMismatch = true;
++        break;
++      }
++    }
++  }
++
++  const planFp = normalizeDigest(plan.source_fingerprint);
++  const snapFp = normalizeDigest(snapshot.sourceFingerprint);
++  if (planFp !== snapFp) {
++    inventoryMismatch = true;
++  }
++
++  if (inventoryMismatch) {
++    pushCode(
++      codes,
++      errors,
++      "inventory-mismatch",
++      "archive_inventory or source_fingerprint disagree with origin",
++    );
++  }
++
++  const preparedContent = isPlainObject(snapshot.preparedContent)
++    ? snapshot.preparedContent
++    : {};
++  const targets = isPlainObject(snapshot.targets) ? snapshot.targets : {};
++  const adrSources = isPlainObject(snapshot.adrSources) ? snapshot.adrSources : {};
++
++  const specWrites = Array.isArray(plan.spec_writes) ? plan.spec_writes : [];
++  for (let i = 0; i < specWrites.length; i++) {
++    const entry = specWrites[i];
++    if (!isPlainObject(entry)) continue;
++
++    const preparedKey = entry.source_delta;
++    const preparedHash = preparedContent[preparedKey];
++    if (preparedHash == null) {
++      pushCode(
++        codes,
++        errors,
++        "missing-reference",
++        `prepared content missing for ${preparedKey}`,
++      );
++    } else if (
++      normalizeDigest(preparedHash) !== normalizeDigest(entry.content_sha256)
++    ) {
++      pushCode(
++        codes,
++        errors,
++        "hash-mismatch",
++        `content_sha256 mismatch for ${preparedKey}`,
++      );
++    }
++
++    const targetHash = Object.prototype.hasOwnProperty.call(targets, entry.target)
++      ? targets[entry.target]
++      : undefined;
++
++    // null target_before means new file expected (target absent / null)
++    if (entry.target_before_sha256 == null) {
++      if (targetHash != null) {
++        pushCode(
++          codes,
++          errors,
++          "hash-mismatch",
++          `target ${entry.target} exists but plan expected absent`,
++        );
++      }
++    } else {
++      if (targetHash == null) {
++        pushCode(
++          codes,
++          errors,
++          "missing-reference",
++          `live target missing for ${entry.target}`,
++        );
++      } else if (
++        normalizeDigest(targetHash) !== normalizeDigest(entry.target_before_sha256)
++      ) {
++        pushCode(
++          codes,
++          errors,
++          "hash-mismatch",
++          `target_before_sha256 mismatch for ${entry.target}`,
++        );
++      }
++    }
++  }
++
++  const adrPromotions = Array.isArray(plan.adr_promotions) ? plan.adr_promotions : [];
++  for (let i = 0; i < adrPromotions.length; i++) {
++    const entry = adrPromotions[i];
++    if (!isPlainObject(entry)) continue;
++    const srcHash = adrSources[entry.source];
++    if (srcHash == null) {
++      pushCode(
++        codes,
++        errors,
++        "missing-reference",
++        `ADR source missing for ${entry.source}`,
++      );
++    } else if (normalizeDigest(srcHash) !== normalizeDigest(entry.content_sha256)) {
++      pushCode(
++        codes,
++        errors,
++        "hash-mismatch",
++        `ADR content_sha256 mismatch for ${entry.source}`,
++      );
++    }
++  }
++
++  if (codes.length > 0) {
++    return fail(codes, errors);
++  }
++  return emptyResult();
++}
++
++module.exports = {
++  PLAN_SCHEMA_VERSION,
++  PLAN_REJECTION_CODES,
++  parsePlan,
++  validatePlanShape,
++  validatePlanAgainstSnapshot,
++  isKnownRejectionCode,
++  hasTraversalOrAbsolute,
++  isRelativeUnder,
++  isSafeChangeName,
++  isSafeDomain,
++};
+diff --git a/scripts/lib/archive-plan.test.js b/scripts/lib/archive-plan.test.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/archive-plan.test.js
+@@ -0,0 +1,324 @@
++"use strict";
++
++const test = require("node:test");
++const assert = require("node:assert/strict");
++const crypto = require("node:crypto");
++
++const {
++  PLAN_SCHEMA_VERSION,
++  PLAN_REJECTION_CODES,
++  parsePlan,
++  validatePlanShape,
++  validatePlanAgainstSnapshot,
++  isKnownRejectionCode,
++} = require("./archive-plan.js");
++
++function sha256Hex(bytes) {
++  return `sha256:${crypto.createHash("sha256").update(bytes).digest("hex")}`;
++}
++
++function minimalPlan(overrides = {}) {
++  return {
++    schema_version: 1,
++    change: "hybrid-archive-transaction-runtime",
++    source_fingerprint: sha256Hex(Buffer.from("inventory-v1")),
++    spec_writes: [],
++    adr_promotions: [],
++    archive_inventory: ["proposal.md", "state.yaml"],
++    accepted_warnings: [],
++    rollback: { strategy: "staging-rename" },
++    ...overrides,
++  };
++}
++
++// --- parsePlan ---------------------------------------------------------------
++
++test("parsePlan: valid JSON object parses", () => {
++  const plan = minimalPlan();
++  const result = parsePlan(JSON.stringify(plan));
++  assert.equal(result.parsed, true);
++  assert.deepEqual(result.value, plan);
++});
++
++test("parsePlan: malformed JSON fails closed", () => {
++  const result = parsePlan("{not-json");
++  assert.equal(result.parsed, false);
++  assert.equal(result.value, null);
++});
++
++test("parsePlan: non-object JSON fails closed", () => {
++  const result = parsePlan('"just-a-string"');
++  assert.equal(result.parsed, false);
++  assert.equal(result.value, null);
++});
++
++// --- validatePlanShape -------------------------------------------------------
++
++test("validatePlanShape: minimal v1 plan succeeds", () => {
++  const result = validatePlanShape(minimalPlan(), {
++    changeName: "hybrid-archive-transaction-runtime",
++  });
++  assert.equal(result.valid, true);
++  assert.deepEqual(result.codes, []);
++});
++
++test("validatePlanShape: unknown schema_version → invalid-schema", () => {
++  const result = validatePlanShape(minimalPlan({ schema_version: 99 }), {
++    changeName: "hybrid-archive-transaction-runtime",
++  });
++  assert.equal(result.valid, false);
++  assert.ok(result.codes.includes("invalid-schema"));
++});
++
++test("validatePlanShape: bad rollback.strategy → invalid-rollback-strategy", () => {
++  const result = validatePlanShape(
++    minimalPlan({ rollback: { strategy: "delete-origin" } }),
++    { changeName: "hybrid-archive-transaction-runtime" },
++  );
++  assert.equal(result.valid, false);
++  assert.ok(result.codes.includes("invalid-rollback-strategy"));
++});
++
++test("validatePlanShape: change-name-mismatch", () => {
++  const result = validatePlanShape(minimalPlan({ change: "other-change" }), {
++    changeName: "hybrid-archive-transaction-runtime",
++  });
++  assert.equal(result.valid, false);
++  assert.ok(result.codes.includes("change-name-mismatch"));
++});
++
++test("validatePlanShape: missing source_fingerprint → invalid-schema", () => {
++  const plan = minimalPlan();
++  delete plan.source_fingerprint;
++  const result = validatePlanShape(plan, {
++    changeName: "hybrid-archive-transaction-runtime",
++  });
++  assert.equal(result.valid, false);
++  assert.ok(result.codes.includes("invalid-schema"));
++  assert.ok(result.codes.every((c) => isKnownRejectionCode(c)));
++});
++
++// --- constants / allowlist ---------------------------------------------------
++
++test("PLAN_SCHEMA_VERSION is 1 and PLAN_REJECTION_CODES is frozen allowlist", () => {
++  assert.equal(PLAN_SCHEMA_VERSION, 1);
++  const expected = [
++    "invalid-schema",
++    "invalid-rollback-strategy",
++    "missing-reference",
++    "hash-mismatch",
++    "inventory-mismatch",
++    "change-name-mismatch",
++  ];
++  for (const code of expected) {
++    assert.ok(PLAN_REJECTION_CODES.includes(code), `missing ${code}`);
++  }
++  assert.equal(PLAN_REJECTION_CODES.length, expected.length);
++});
++
++test("isKnownRejectionCode: unknown future code fails closed", () => {
++  assert.equal(isKnownRejectionCode("hash-mismatch"), true);
++  assert.equal(isKnownRejectionCode("future-exotic-code"), false);
++});
++
++test("consumer path: unknown code in validator result is treated fail-closed", () => {
++  // Simulates a consumer that only trusts allowlisted codes.
++  const synthetic = { valid: false, codes: ["future-exotic-code"], errors: [] };
++  const trusted = synthetic.codes.filter(isKnownRejectionCode);
++  const accepted =
++    synthetic.valid === true &&
++    trusted.length === synthetic.codes.length &&
++    synthetic.codes.length === 0;
++  // Any unknown code ⇒ reject (fail-closed), even if somehow valid:true.
++  const reject =
++    !synthetic.valid ||
++    synthetic.codes.some((c) => !isKnownRejectionCode(c)) ||
++    trusted.length === 0;
++  assert.equal(accepted, false);
++  assert.equal(reject, true);
++});
++
++// --- validatePlanAgainstSnapshot ---------------------------------------------
++
++test("validatePlanAgainstSnapshot: wrong content_sha256 → hash-mismatch", () => {
++  const contentKey = "specs/routing/spec.md";
++  const plan = minimalPlan({
++    spec_writes: [
++      {
++        domain: "routing",
++        source_delta: "specs/routing/spec.md",
++        target: "openspec/specs/routing/spec.md",
++        target_before_sha256: sha256Hex(Buffer.from("old-target")),
++        content_sha256: sha256Hex(Buffer.from("prepared-A")),
++      },
++    ],
++  });
++  const snapshot = {
++    changeName: "hybrid-archive-transaction-runtime",
++    sourceFingerprint: plan.source_fingerprint,
++    originInventory: [
++      { path: "proposal.md", sha256: sha256Hex(Buffer.from("p")) },
++      { path: "state.yaml", sha256: sha256Hex(Buffer.from("s")) },
++    ],
++    targets: {
++      "openspec/specs/routing/spec.md": sha256Hex(Buffer.from("old-target")),
++    },
++    preparedContent: {
++      [contentKey]: sha256Hex(Buffer.from("prepared-B")),
++    },
++    adrSources: {},
++  };
++  const result = validatePlanAgainstSnapshot(plan, snapshot);
++  assert.equal(result.valid, false);
++  assert.ok(result.codes.includes("hash-mismatch"));
++});
++
++test("validatePlanAgainstSnapshot: stale target_before_sha256 → hash-mismatch", () => {
++  const contentKey = "specs/routing/spec.md";
++  const prepared = sha256Hex(Buffer.from("prepared-A"));
++  const plan = minimalPlan({
++    spec_writes: [
++      {
++        domain: "routing",
++        source_delta: "specs/routing/spec.md",
++        target: "openspec/specs/routing/spec.md",
++        target_before_sha256: sha256Hex(Buffer.from("stale-expected")),
++        content_sha256: prepared,
++      },
++    ],
++  });
++  const snapshot = {
++    changeName: "hybrid-archive-transaction-runtime",
++    sourceFingerprint: plan.source_fingerprint,
++    originInventory: [
++      { path: "proposal.md", sha256: sha256Hex(Buffer.from("p")) },
++      { path: "state.yaml", sha256: sha256Hex(Buffer.from("s")) },
++    ],
++    targets: {
++      "openspec/specs/routing/spec.md": sha256Hex(Buffer.from("actual-live")),
++    },
++    preparedContent: { [contentKey]: prepared },
++    adrSources: {},
++  };
++  const result = validatePlanAgainstSnapshot(plan, snapshot);
++  assert.equal(result.valid, false);
++  assert.ok(result.codes.includes("hash-mismatch"));
++});
++
++test("validatePlanAgainstSnapshot: missing prepared path → missing-reference", () => {
++  const plan = minimalPlan({
++    spec_writes: [
++      {
++        domain: "routing",
++        source_delta: "specs/routing/spec.md",
++        target: "openspec/specs/routing/spec.md",
++        target_before_sha256: null,
++        content_sha256: sha256Hex(Buffer.from("prepared-A")),
++      },
++    ],
++  });
++  const snapshot = {
++    changeName: "hybrid-archive-transaction-runtime",
++    sourceFingerprint: plan.source_fingerprint,
++    originInventory: [
++      { path: "proposal.md", sha256: sha256Hex(Buffer.from("p")) },
++      { path: "state.yaml", sha256: sha256Hex(Buffer.from("s")) },
++    ],
++    targets: { "openspec/specs/routing/spec.md": null },
++    preparedContent: {},
++    adrSources: {},
++  };
++  const result = validatePlanAgainstSnapshot(plan, snapshot);
++  assert.equal(result.valid, false);
++  assert.ok(result.codes.includes("missing-reference"));
++});
++
++test("validatePlanAgainstSnapshot: inventory/fingerprint drift → inventory-mismatch", () => {
++  const plan = minimalPlan({
++    archive_inventory: ["proposal.md", "state.yaml", "extra.md"],
++    source_fingerprint: sha256Hex(Buffer.from("wrong-fp")),
++  });
++  const snapshot = {
++    changeName: "hybrid-archive-transaction-runtime",
++    sourceFingerprint: sha256Hex(Buffer.from("actual-fp")),
++    originInventory: [
++      { path: "proposal.md", sha256: sha256Hex(Buffer.from("p")) },
++      { path: "state.yaml", sha256: sha256Hex(Buffer.from("s")) },
++    ],
++    targets: {},
++    preparedContent: {},
++    adrSources: {},
++  };
++  const result = validatePlanAgainstSnapshot(plan, snapshot);
++  assert.equal(result.valid, false);
++  assert.ok(result.codes.includes("inventory-mismatch"));
++});
++
++test("validatePlanAgainstSnapshot: matching snapshot succeeds", () => {
++  const prepared = sha256Hex(Buffer.from("prepared-A"));
++  const before = sha256Hex(Buffer.from("old-target"));
++  const originInventory = [
++    { path: "proposal.md", sha256: sha256Hex(Buffer.from("p")) },
++    { path: "state.yaml", sha256: sha256Hex(Buffer.from("s")) },
++  ];
++  // fingerprint = SHA-256 over "{sha256}  {posixPath}\n" sorted by path
++  const lines = originInventory
++    .slice()
++    .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
++    .map((e) => `${e.sha256}  ${e.path}\n`)
++    .join("");
++  const fingerprint = sha256Hex(Buffer.from(lines, "utf8"));
++  const plan = minimalPlan({
++    source_fingerprint: fingerprint,
++    archive_inventory: ["proposal.md", "state.yaml"],
++    spec_writes: [
++      {
++        domain: "routing",
++        source_delta: "specs/routing/spec.md",
++        target: "openspec/specs/routing/spec.md",
++        target_before_sha256: before,
++        content_sha256: prepared,
++      },
++    ],
++    adr_promotions: [
++      {
++        source: "decisions/adr-001.md",
++        target: "docs/adr/adr-001-archive.md",
++        content_sha256: sha256Hex(Buffer.from("adr-bytes")),
++      },
++    ],
++  });
++  const snapshot = {
++    changeName: "hybrid-archive-transaction-runtime",
++    sourceFingerprint: fingerprint,
++    originInventory,
++    targets: { "openspec/specs/routing/spec.md": before },
++    preparedContent: { "specs/routing/spec.md": prepared },
++    adrSources: {
++      "decisions/adr-001.md": sha256Hex(Buffer.from("adr-bytes")),
++    },
++  };
++  const result = validatePlanAgainstSnapshot(plan, snapshot);
++  assert.equal(result.valid, true);
++  assert.deepEqual(result.codes, []);
++});
++
++test("validatePlanShape: path confinement rejects ../, absolute, domain ..", () => {
++  const { isSafeChangeName } = require("./archive-plan.js");
++  const digest = sha256Hex(Buffer.from("x"));
++  const bad = [
++    { spec_writes: [{ domain: "r", source_delta: "../x", target: "openspec/specs/r/spec.md", content_sha256: digest }] },
++    { spec_writes: [{ domain: "r", source_delta: "s.md", target: "/etc/passwd", content_sha256: digest }] },
++    { spec_writes: [{ domain: "..", source_delta: "s.md", target: "openspec/specs/r/spec.md", content_sha256: digest }] },
++    { adr_promotions: [{ source: "a.md", target: "docs/../evil.md", content_sha256: digest }] },
++    { archive_inventory: ["C:/Windows/System32/config"] },
++  ];
++  for (const overrides of bad) {
++    const r = validatePlanShape(minimalPlan(overrides), { changeName: "hybrid-archive-transaction-runtime" });
++    assert.equal(r.valid, false);
++    assert.ok(r.codes.includes("invalid-schema"));
++  }
++  assert.equal(isSafeChangeName("demo-change"), true);
++  assert.equal(isSafeChangeName("../evil"), false);
++  assert.equal(isSafeChangeName("/tmp/x"), false);
++});
+diff --git a/scripts/lib/archive-transaction.js b/scripts/lib/archive-transaction.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/archive-transaction.js
+@@ -0,0 +1,1177 @@
++"use strict";
++
++/**
++ * Archive transaction runtime: pure reducer + I/O shell.
++ * Staging/journal/receipt live under .ospec/archive-tx/{change}/.
++ */
++
++const crypto = require("node:crypto");
++const path = require("node:path");
++const fsp = require("node:fs/promises");
++const {
++  parsePlan,
++  validatePlanShape,
++  validatePlanAgainstSnapshot,
++  isKnownRejectionCode,
++  isSafeChangeName,
++  isRelativeUnder,
++} = require("./archive-plan.js");
++const { renameWithFallback } = require("./atomic-write.js");
++
++const TERMINAL_STATES = new Set(["done", "failed", "rolled-back"]);
++const NON_TERMINAL = new Set([
++  "init",
++  "preflighted",
++  "staged",
++  "compared",
++  "committing",
++  "committed",
++  "confirmed",
++]);
++
++function digestBytes(buf) {
++  return `sha256:${crypto.createHash("sha256").update(buf).digest("hex")}`;
++}
++
++function fingerprintInventory(inventory) {
++  const lines = inventory
++    .slice()
++    .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
++    .map((e) => `${e.sha256}  ${e.path}\n`)
++    .join("");
++  return digestBytes(Buffer.from(lines, "utf8"));
++}
++
++/**
++ * Pure reducer: decide the next transaction action from journal + facts.
++ * @param {{state: string, plan_sha256?: string}} journal
++ * @param {object} facts
++ */
++function nextTransactionAction(journal, facts) {
++  const state = journal && journal.state ? journal.state : "init";
++  const planSha = facts && facts.planSha256;
++  const journalSha = journal && journal.plan_sha256;
++
++  if (
++    journalSha &&
++    planSha &&
++    journalSha !== planSha &&
++    state !== "init" &&
++    !TERMINAL_STATES.has(state)
++  ) {
++    return { action: "fail", failure_reason: "journal-plan-conflict" };
++  }
++
++  if (state === "failed" || state === "rolled-back") {
++    return { action: "noop-terminal" };
++  }
++  if (state === "done") {
++    return { action: "already-complete" };
++  }
++
++  if (facts && facts.requestRollback) {
++    return { action: "rollback" };
++  }
++
++  switch (state) {
++    case "init":
++      return { action: "preflight" };
++    case "preflighted":
++      return { action: "stage" };
++    case "staged":
++      return { action: "compare-a" };
++    case "compared":
++      if (facts && facts.compareAOk === false) {
++        return { action: "fail", failure_reason: "compare-mismatch" };
++      }
++      return { action: "commit" };
++    case "committing":
++      return { action: "commit" };
++    case "committed":
++      return { action: "compare-b" };
++    case "confirmed":
++      if (facts && facts.compareBOk === false) {
++        return { action: "fail", failure_reason: "compare-mismatch" };
++      }
++      return { action: "delete-origin" };
++    default:
++      return { action: "fail", failure_reason: "io-error" };
++  }
++}
++
++/**
++ * Line-oriented reader for archive-relevant gate facts from state.yaml text.
++ * Never throws.
++ */
++function yamlScalar(raw) {
++  return String(raw || "")
++    .trim()
++    .replace(/^["']|["']$/g, "");
++}
++
++function readArchiveGateFacts(stateYamlText) {
++  const text = typeof stateYamlText === "string" ? stateYamlText : "";
++  const lines = text.split(/\r?\n/);
++
++  let verdict = null;
++  let inVerify = false;
++  let inPhases = false;
++  let qualityGatesPresent = false;
++  let qualityGatesStatus = null;
++  let overridePresent = false;
++  let inQualityGates = false;
++  let inBaseline = false;
++  let baselineFingerprints = null;
++  let inGates = false;
++  let inApprovals = false;
++  let approvalGate = null;
++  let approvalDecision = null;
++
++  function noteApprovalField(key, value) {
++    if (key === "gate") approvalGate = yamlScalar(value);
++    if (key === "decision") approvalDecision = yamlScalar(value);
++    if (approvalGate === "quality-gates" && approvalDecision === "override") {
++      overridePresent = true;
++    }
++  }
++
++  for (let i = 0; i < lines.length; i++) {
++    const line = lines[i];
++    const trimmed = line.trimEnd();
++    if (!trimmed || trimmed.trimStart().startsWith("#")) continue;
++
++    const indent = line.match(/^ */)[0].length;
++    const content = trimmed.trim();
++
++    if (indent === 0 && content === "phases:") {
++      inPhases = true;
++      inVerify = false;
++      inGates = false;
++      inBaseline = false;
++      inApprovals = false;
++      continue;
++    }
++    if (indent === 0 && content === "gates:") {
++      inGates = true;
++      inPhases = false;
++      inVerify = false;
++      inBaseline = false;
++      inQualityGates = false;
++      inApprovals = false;
++      continue;
++    }
++    if (indent === 0 && content === "approvals:") {
++      inApprovals = true;
++      inPhases = false;
++      inGates = false;
++      inVerify = false;
++      inBaseline = false;
++      inQualityGates = false;
++      approvalGate = null;
++      approvalDecision = null;
++      continue;
++    }
++    if (indent === 0 && content.startsWith("baseline_fingerprints:")) {
++      inBaseline = true;
++      inPhases = false;
++      inGates = false;
++      inVerify = false;
++      inQualityGates = false;
++      inApprovals = false;
++      baselineFingerprints = {};
++      continue;
++    }
++    if (indent === 0 && !content.startsWith(" ")) {
++      // other top-level key
++      if (
++        content !== "phases:" &&
++        content !== "gates:" &&
++        content !== "approvals:" &&
++        !content.startsWith("baseline_fingerprints:")
++      ) {
++        inPhases = false;
++        inGates = false;
++        inVerify = false;
++        inQualityGates = false;
++        inBaseline = false;
++        inApprovals = false;
++      }
++    }
++
++    if (inPhases && indent === 2 && (content === "verify:" || content === "sdd-verify:")) {
++      inVerify = true;
++      continue;
++    }
++    if (inPhases && indent === 2 && content.endsWith(":") && content !== "verify:" && content !== "sdd-verify:") {
++      inVerify = false;
++    }
++    if (inVerify && content.startsWith("verdict:")) {
++      verdict = yamlScalar(content.slice("verdict:".length));
++    }
++
++    if (inGates && indent === 2 && content === "quality-gates:") {
++      qualityGatesPresent = true;
++      inQualityGates = true;
++      continue;
++    }
++    if (inGates && indent === 2 && content.endsWith(":") && content !== "quality-gates:") {
++      inQualityGates = false;
++    }
++    if (inQualityGates) {
++      if (indent === 4 && content.startsWith("status:")) {
++        qualityGatesStatus = yamlScalar(content.slice("status:".length));
++      }
++      if (indent === 4 && content === "override:") {
++        overridePresent = true;
++      }
++    }
++
++    if (inApprovals) {
++      if (indent === 2 && content.startsWith("- ")) {
++        approvalGate = null;
++        approvalDecision = null;
++        const rest = content.slice(2).trim();
++        const idx = rest.indexOf(":");
++        if (idx > 0) {
++          noteApprovalField(rest.slice(0, idx).trim(), rest.slice(idx + 1));
++        }
++      } else if (indent >= 4 && content.includes(":")) {
++        const idx = content.indexOf(":");
++        noteApprovalField(content.slice(0, idx).trim(), content.slice(idx + 1));
++      }
++    }
++
++    if (inBaseline && indent >= 2 && content.includes(":")) {
++      const idx = content.indexOf(":");
++      const key = content.slice(0, idx).trim();
++      let val = yamlScalar(content.slice(idx + 1));
++      if (key && val) {
++        if (!baselineFingerprints) baselineFingerprints = {};
++        baselineFingerprints[key] = val;
++      }
++    }
++  }
++
++  const verdictOk =
++    verdict === "PASS" || verdict === "PASS WITH WARNINGS";
++  let qgOk = true;
++  if (qualityGatesPresent) {
++    qgOk =
++      qualityGatesStatus === "passed" ||
++      qualityGatesStatus === "done" ||
++      qualityGatesStatus === "approved" ||
++      overridePresent;
++  }
++
++  const gatesSatisfied = verdictOk && qgOk;
++
++  return {
++    verdict,
++    qualityGatesPresent,
++    qualityGatesStatus,
++    overridePresent,
++    baselineFingerprints,
++    gatesSatisfied,
++  };
++}
++
++function defaultFs() {
++  return {
++    rename: fsp.rename,
++    unlink: fsp.unlink,
++    rm: fsp.rm,
++    stat: fsp.stat,
++    mkdir: fsp.mkdir,
++    readFile: fsp.readFile,
++    writeFile: fsp.writeFile,
++    readdir: fsp.readdir,
++    lstat: fsp.lstat,
++    cp: fsp.cp,
++  };
++}
++
++/**
++ * Walk directory; reject symlinks/junctions fail-closed.
++ * @returns {Promise<Array<{path: string, sha256: string}>>}
++ */
++async function computeInventory(rootDir, fsImpl) {
++  const fsx = fsImpl || defaultFs();
++  const root = path.resolve(rootDir);
++  const results = [];
++
++  async function walk(dir, relBase) {
++    let entries;
++    try {
++      entries = await fsx.readdir(dir, { withFileTypes: true });
++    } catch (err) {
++      const e = new Error(`computeInventory readdir failed: ${err.message}`);
++      e.code = "io-error";
++      throw e;
++    }
++    for (const entry of entries) {
++      const abs = path.join(dir, entry.name);
++      const rel = relBase ? `${relBase}/${entry.name}` : entry.name;
++      const posixRel = rel.split(path.sep).join("/");
++
++      let lst;
++      try {
++        lst = await fsx.lstat(abs);
++      } catch (err) {
++        const e = new Error(`computeInventory lstat failed: ${err.message}`);
++        e.code = "io-error";
++        throw e;
++      }
++
++      if (lst.isSymbolicLink()) {
++        const e = new Error(`symlink/junction rejected: ${posixRel}`);
++        e.code = "io-error";
++        throw e;
++      }
++      if (lst.isDirectory()) {
++        await walk(abs, posixRel);
++      } else if (lst.isFile()) {
++        const buf = await fsx.readFile(abs);
++        results.push({ path: posixRel, sha256: digestBytes(buf) });
++      }
++    }
++  }
++
++  await walk(root, "");
++  results.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
++  return results;
++}
++
++function txRoot(workspace, changeName) {
++  return path.join(workspace, ".ospec", "archive-tx", changeName);
++}
++
++function originPath(workspace, changeName) {
++  return path.join(workspace, "openspec", "changes", changeName);
++}
++
++async function readJournal(txDir, fsx) {
++  const p = path.join(txDir, "journal.json");
++  try {
++    const raw = await fsx.readFile(p, "utf8");
++    return JSON.parse(raw);
++  } catch (err) {
++    if (err.code === "ENOENT") {
++      return { state: "init", plan_sha256: null, created_by_tx: [] };
++    }
++    throw err;
++  }
++}
++
++async function writeJournal(txDir, journal, fsx) {
++  await fsx.mkdir(txDir, { recursive: true });
++  const p = path.join(txDir, "journal.json");
++  await fsx.writeFile(p, JSON.stringify(journal, null, 2), "utf8");
++}
++
++async function writeReceipt(txDir, receipt, fsx) {
++  await fsx.mkdir(txDir, { recursive: true });
++  const p = path.join(txDir, "receipt.json");
++  await fsx.writeFile(p, JSON.stringify(receipt, null, 2), "utf8");
++}
++
++function emptyReceipt(changeName, planSha, outcome, extra = {}) {
++  return {
++    schema_version: 1,
++    change: changeName,
++    plan_sha256: planSha,
++    outcome,
++    already_complete: false,
++    destination: null,
++    committed_inventory: [],
++    origin_deleted: false,
++    cost: { available: false },
++    rejection_codes: [],
++    failure_reason: null,
++    parity: { go: "n/a" },
++    ...extra,
++  };
++}
++
++async function aggregateCost(workspace, changeName, fsx) {
++  const costPath = path.join(
++    workspace,
++    ".ospec",
++    "session",
++    changeName,
++    "phase-costs.jsonl",
++  );
++  let text;
++  try {
++    text = await fsx.readFile(costPath, "utf8");
++  } catch (err) {
++    if (err.code === "ENOENT") return { available: false };
++    return { available: false };
++  }
++  const lines = text.split(/\r?\n/).filter((l) => l.trim());
++  if (lines.length === 0) return { available: false };
++
++  const byPhase = new Map();
++  for (const line of lines) {
++    let row;
++    try {
++      row = JSON.parse(line);
++    } catch {
++      continue;
++    }
++    const phase = row.phase || "unknown";
++    if (!byPhase.has(phase)) {
++      byPhase.set(phase, {
++        phase,
++        estimated_prompt_tokens: 0,
++        estimated_artifact_tokens: 0,
++        estimated_tool_output_tokens: 0,
++        estimated_output_tokens: 0,
++        duration_ms: 0,
++        invocations: 0,
++        model_tiers: new Set(),
++        statuses: new Set(),
++      });
++    }
++    const agg = byPhase.get(phase);
++    agg.estimated_prompt_tokens += Number(row.estimated_prompt_tokens) || 0;
++    agg.estimated_artifact_tokens += Number(row.estimated_artifact_tokens) || 0;
++    agg.estimated_tool_output_tokens += Number(row.estimated_tool_output_tokens) || 0;
++    agg.estimated_output_tokens += Number(row.estimated_output_tokens) || 0;
++    agg.duration_ms += Number(row.duration_ms) || 0;
++    agg.invocations += 1;
++    if (typeof row.model_tier === "string" && row.model_tier) {
++      agg.model_tiers.add(row.model_tier);
++    }
++    if (typeof row.status === "string" && row.status) {
++      agg.statuses.add(row.status);
++    }
++  }
++
++  const phases = [...byPhase.values()].map((p) => ({
++    phase: p.phase,
++    estimated_prompt_tokens: p.estimated_prompt_tokens,
++    estimated_artifact_tokens: p.estimated_artifact_tokens,
++    estimated_tool_output_tokens: p.estimated_tool_output_tokens,
++    estimated_output_tokens: p.estimated_output_tokens,
++    duration_ms: p.duration_ms,
++    invocations: p.invocations,
++    relaunches: Math.max(0, p.invocations - 1),
++    model_tiers: [...p.model_tiers].sort(),
++    statuses: [...p.statuses].sort(),
++  }));
++
++  let total_questions_asked = 0;
++  try {
++    const statePath = path.join(
++      workspace,
++      "openspec",
++      "changes",
++      changeName,
++      "state.yaml",
++    );
++    const stateText = await fsx.readFile(statePath, "utf8");
++    total_questions_asked = sumQuestionsAsked(stateText);
++  } catch {
++    total_questions_asked = 0;
++  }
++
++  return {
++    available: true,
++    phases,
++    total_questions_asked,
++  };
++}
++
++/**
++ * Sum gates.*.questions_asked from state.yaml text. Missing → 0. Never throws.
++ */
++function sumQuestionsAsked(stateYamlText) {
++  const text = typeof stateYamlText === "string" ? stateYamlText : "";
++  const lines = text.split(/\r?\n/);
++  let inGates = false;
++  let sum = 0;
++  for (const line of lines) {
++    const trimmed = line.trimEnd();
++    if (!trimmed || trimmed.trimStart().startsWith("#")) continue;
++    const indent = line.match(/^ */)[0].length;
++    const content = trimmed.trim();
++    if (indent === 0 && content === "gates:") {
++      inGates = true;
++      continue;
++    }
++    if (indent === 0 && content !== "gates:") {
++      inGates = false;
++    }
++    if (!inGates) continue;
++    if (content.startsWith("questions_asked:")) {
++      const raw = content
++        .slice("questions_asked:".length)
++        .trim()
++        .replace(/^["']|["']$/g, "");
++      const n = Number(raw);
++      if (Number.isFinite(n) && n >= 0) sum += n;
++    }
++  }
++  return sum;
++}
++
++async function buildSnapshot(workspace, changeName, plan, fsx) {
++  const origin = originPath(workspace, changeName);
++  const fullInventory = await computeInventory(origin, fsx);
++  // archive-plan.json is the plan document itself; including it in the
++  // fingerprint creates a self-referential hash. Exclude it from inventory
++  // identity checks while still copying it during staging.
++  const originInventory = fullInventory.filter(
++    (e) => e.path !== "archive-plan.json",
++  );
++  const sourceFingerprint = fingerprintInventory(originInventory);
++
++  const targets = {};
++  const preparedContent = {};
++  const adrSources = {};
++
++  for (const sw of plan.spec_writes || []) {
++    const targetAbs = path.join(workspace, ...sw.target.split("/"));
++    try {
++      const buf = await fsx.readFile(targetAbs);
++      targets[sw.target] = digestBytes(buf);
++    } catch (err) {
++      if (err.code === "ENOENT") targets[sw.target] = null;
++      else throw err;
++    }
++    const prepAbs = path.join(origin, ...sw.source_delta.split("/"));
++    try {
++      const buf = await fsx.readFile(prepAbs);
++      preparedContent[sw.source_delta] = digestBytes(buf);
++    } catch (err) {
++      if (err.code === "ENOENT") {
++        // leave missing — validator will emit missing-reference
++      } else throw err;
++    }
++  }
++
++  for (const adr of plan.adr_promotions || []) {
++    const srcAbs = path.join(origin, ...adr.source.split("/"));
++    try {
++      const buf = await fsx.readFile(srcAbs);
++      adrSources[adr.source] = digestBytes(buf);
++    } catch (err) {
++      if (err.code !== "ENOENT") throw err;
++    }
++  }
++
++  return {
++    changeName,
++    sourceFingerprint,
++    originInventory,
++    targets,
++    preparedContent,
++    adrSources,
++  };
++}
++
++async function copyInventoryToStaging(origin, stagingArchive, inventory, fsx) {
++  await fsx.mkdir(stagingArchive, { recursive: true });
++  for (const entry of inventory) {
++    const src = path.join(origin, ...entry.path.split("/"));
++    const dest = path.join(stagingArchive, ...entry.path.split("/"));
++    await fsx.mkdir(path.dirname(dest), { recursive: true });
++    await fsx.cp(src, dest);
++  }
++}
++
++async function stagePreparedWrites(workspace, changeName, plan, stagingRoot, fsx) {
++  const origin = originPath(workspace, changeName);
++  const specsStaging = path.join(stagingRoot, "specs");
++  const adrStaging = path.join(stagingRoot, "adr");
++
++  for (const sw of plan.spec_writes || []) {
++    const src = path.join(origin, ...sw.source_delta.split("/"));
++    const dest = path.join(specsStaging, sw.domain, "spec.md");
++    await fsx.mkdir(path.dirname(dest), { recursive: true });
++    await fsx.cp(src, dest);
++  }
++  for (const adr of plan.adr_promotions || []) {
++    const src = path.join(origin, ...adr.source.split("/"));
++    const destName = path.posix.basename(adr.target);
++    const dest = path.join(adrStaging, destName);
++    await fsx.mkdir(path.dirname(dest), { recursive: true });
++    await fsx.cp(src, dest);
++  }
++}
++
++function inventoriesEqual(a, b) {
++  if (a.length !== b.length) return false;
++  for (let i = 0; i < a.length; i++) {
++    if (a[i].path !== b[i].path || a[i].sha256.toLowerCase() !== b[i].sha256.toLowerCase()) {
++      return false;
++    }
++  }
++  return true;
++}
++
++async function compareOriginToDir(originInv, otherDir, fsx) {
++  const otherInv = await computeInventory(otherDir, fsx);
++  return inventoriesEqual(originInv, otherInv);
++}
++
++/**
++ * @param {{workspace, changeName, planPath, now?, fsImpl?}} opts
++ */
++async function runArchiveTransaction(opts) {
++  const workspace = path.resolve(opts.workspace);
++  const changeName = opts.changeName;
++  const planPath = opts.planPath || path.join(originPath(workspace, changeName), "archive-plan.json");
++  const now = opts.now instanceof Date ? opts.now : new Date();
++  const fsx = opts.fsImpl || defaultFs();
++  const txDir = txRoot(workspace, changeName);
++  const origin = originPath(workspace, changeName);
++
++  if (!isSafeChangeName(changeName)) {
++    const receipt = emptyReceipt(changeName, null, "failed", {
++      failure_reason: "gate-not-satisfied",
++      rejection_codes: ["invalid-schema"],
++    });
++    await writeReceipt(txDir, receipt, fsx).catch(() => {});
++    return receipt;
++  }
++
++  let journal = await readJournal(txDir, fsx);
++  // Mid-flight resume: journal already past init on a non-terminal state.
++  // Fresh runs (init) emit "success"; post-done re-runs emit success+already_complete.
++  const wasResume =
++    Boolean(opts._resumed) ||
++    (NON_TERMINAL.has(journal.state) && journal.state !== "init");
++
++  // Idempotent done — origin (and plan) may already be gone
++  if (journal.state === "done") {
++    const receipt = emptyReceipt(changeName, journal.plan_sha256, "success", {
++      already_complete: true,
++      origin_deleted: true,
++      destination: journal.destination || null,
++      committed_inventory: journal.committed_inventory || [],
++      cost: await aggregateCost(workspace, changeName, fsx),
++    });
++    await writeReceipt(txDir, receipt, fsx);
++    return receipt;
++  }
++  if (journal.state === "failed" || journal.state === "rolled-back") {
++    const receipt = emptyReceipt(
++      changeName,
++      journal.plan_sha256,
++      journal.state === "rolled-back" ? "rolled-back" : "failed",
++      { failure_reason: journal.failure_reason || null },
++    );
++    await writeReceipt(txDir, receipt, fsx);
++    return receipt;
++  }
++
++  let planText;
++  try {
++    planText = await fsx.readFile(planPath, "utf8");
++  } catch (err) {
++    const receipt = emptyReceipt(changeName, journal.plan_sha256, "failed", {
++      failure_reason: "io-error",
++    });
++    await writeReceipt(txDir, receipt, fsx).catch(() => {});
++    return receipt;
++  }
++
++  const planSha = digestBytes(Buffer.from(planText, "utf8"));
++  const parsed = parsePlan(planText);
++  if (!parsed.parsed) {
++    const receipt = emptyReceipt(changeName, planSha, "failed", {
++      failure_reason: "io-error",
++      rejection_codes: ["invalid-schema"],
++    });
++    await writeReceipt(txDir, receipt, fsx);
++    return receipt;
++  }
++  const plan = parsed.value;
++
++  if (!journal.plan_sha256 && journal.state === "init") {
++    journal.plan_sha256 = planSha;
++  }
++
++  let decision = nextTransactionAction(journal, { planSha256: planSha });
++  if (decision.action === "already-complete") {
++    const receipt = emptyReceipt(changeName, planSha, "success", {
++      already_complete: true,
++      origin_deleted: true,
++      destination: journal.destination || null,
++      committed_inventory: journal.committed_inventory || [],
++      cost: await aggregateCost(workspace, changeName, fsx),
++    });
++    await writeReceipt(txDir, receipt, fsx);
++    return receipt;
++  }
++  if (decision.action === "noop-terminal") {
++    const receipt = emptyReceipt(changeName, planSha, journal.state === "rolled-back" ? "rolled-back" : "failed", {
++      failure_reason: journal.failure_reason || null,
++    });
++    await writeReceipt(txDir, receipt, fsx);
++    return receipt;
++  }
++  if (decision.action === "fail" && decision.failure_reason === "journal-plan-conflict") {
++    const receipt = emptyReceipt(changeName, planSha, "failed", {
++      failure_reason: "journal-plan-conflict",
++    });
++    journal.state = "failed";
++    journal.failure_reason = "journal-plan-conflict";
++    await writeJournal(txDir, journal, fsx);
++    await writeReceipt(txDir, receipt, fsx);
++    return receipt;
++  }
++
++  const datePrefix = now.toISOString().slice(0, 10);
++  const destinationRel =
++    journal.destination || `openspec/changes/archive/${datePrefix}-${changeName}`;
++  if (!isRelativeUnder(destinationRel, "openspec/changes/archive")) {
++    const receipt = emptyReceipt(changeName, planSha, "failed", {
++      failure_reason: "gate-not-satisfied",
++      rejection_codes: ["invalid-schema"],
++    });
++    journal.state = "failed";
++    journal.failure_reason = "gate-not-satisfied";
++    await writeJournal(txDir, journal, fsx);
++    await writeReceipt(txDir, receipt, fsx);
++    return receipt;
++  }
++  journal.destination = destinationRel;
++
++  // ---- PREFLIGHT ----
++  if (journal.state === "init" || journal.state === "preflighted") {
++    const shape = validatePlanShape(plan, { changeName });
++    if (!shape.valid) {
++      const codes = shape.codes.filter(isKnownRejectionCode);
++      const receipt = emptyReceipt(changeName, planSha, "failed", {
++        rejection_codes: codes,
++        failure_reason: "gate-not-satisfied",
++      });
++      journal.state = "failed";
++      journal.failure_reason = "gate-not-satisfied";
++      await writeJournal(txDir, journal, fsx);
++      await writeReceipt(txDir, receipt, fsx);
++      return receipt;
++    }
++
++    let stateText = "";
++    try {
++      stateText = await fsx.readFile(path.join(origin, "state.yaml"), "utf8");
++    } catch (err) {
++      if (err.code !== "ENOENT") throw err;
++    }
++    const gateFacts = readArchiveGateFacts(stateText);
++    if (!gateFacts.gatesSatisfied) {
++      const receipt = emptyReceipt(changeName, planSha, "failed", {
++        failure_reason: "gate-not-satisfied",
++      });
++      journal.state = "failed";
++      journal.failure_reason = "gate-not-satisfied";
++      await writeJournal(txDir, journal, fsx);
++      await writeReceipt(txDir, receipt, fsx);
++      return receipt;
++    }
++
++    // baseline stale: compare target_before against live AND recorded fingerprints
++    if (gateFacts.baselineFingerprints) {
++      for (const sw of plan.spec_writes || []) {
++        const recorded = gateFacts.baselineFingerprints[sw.domain];
++        if (recorded && sw.target_before_sha256) {
++          if (recorded.toLowerCase() !== String(sw.target_before_sha256).toLowerCase()) {
++            // Fingerprint in state may be domain-level baseline; also check live bytes via snapshot
++          }
++        }
++      }
++    }
++
++    let snapshot;
++    try {
++      snapshot = await buildSnapshot(workspace, changeName, plan, fsx);
++    } catch (err) {
++      const receipt = emptyReceipt(changeName, planSha, "failed", {
++        failure_reason: err.code === "io-error" ? "io-error" : "io-error",
++      });
++      journal.state = "failed";
++      journal.failure_reason = "io-error";
++      await writeJournal(txDir, journal, fsx);
++      await writeReceipt(txDir, receipt, fsx);
++      return receipt;
++    }
++
++    // Stale baseline: if state has fingerprint for domain and live target differs from recorded
++    if (gateFacts.baselineFingerprints) {
++      for (const [domain, recorded] of Object.entries(gateFacts.baselineFingerprints)) {
++        const sw = (plan.spec_writes || []).find((s) => s.domain === domain);
++        if (!sw) continue;
++        const live = snapshot.targets[sw.target];
++        if (live && recorded.toLowerCase() !== live.toLowerCase()) {
++          const receipt = emptyReceipt(changeName, planSha, "failed", {
++            failure_reason: "baseline-stale",
++          });
++          journal.state = "failed";
++          journal.failure_reason = "baseline-stale";
++          await writeJournal(txDir, journal, fsx);
++          await writeReceipt(txDir, receipt, fsx);
++          return receipt;
++        }
++      }
++    }
++
++    const snapResult = validatePlanAgainstSnapshot(plan, snapshot);
++    if (!snapResult.valid) {
++      const codes = snapResult.codes.filter(isKnownRejectionCode);
++      const receipt = emptyReceipt(changeName, planSha, "failed", {
++        rejection_codes: codes,
++        failure_reason: codes.includes("hash-mismatch")
++          ? "compare-mismatch"
++          : "gate-not-satisfied",
++      });
++      journal.state = "failed";
++      journal.failure_reason = receipt.failure_reason;
++      await writeJournal(txDir, journal, fsx);
++      await writeReceipt(txDir, receipt, fsx);
++      return receipt;
++    }
++
++    journal.state = "preflighted";
++    journal.plan_sha256 = planSha;
++    await writeJournal(txDir, journal, fsx);
++  }
++
++  // ---- STAGE ----
++  if (journal.state === "preflighted") {
++    try {
++      const stagingRoot = path.join(txDir, "staging");
++      await fsx.rm(stagingRoot, { recursive: true, force: true }).catch(() => {});
++      const stagingArchive = path.join(stagingRoot, "archive");
++      const originInv = await computeInventory(origin, fsx);
++      await copyInventoryToStaging(origin, stagingArchive, originInv, fsx);
++      await stagePreparedWrites(workspace, changeName, plan, stagingRoot, fsx);
++      journal.state = "staged";
++      journal.origin_inventory = originInv;
++      await writeJournal(txDir, journal, fsx);
++    } catch (err) {
++      const receipt = emptyReceipt(changeName, planSha, "failed", {
++        failure_reason: "io-error",
++      });
++      journal.state = "failed";
++      journal.failure_reason = "io-error";
++      await writeJournal(txDir, journal, fsx);
++      await writeReceipt(txDir, receipt, fsx);
++      return receipt;
++    }
++  }
++
++  // ---- COMPARE A ----
++  if (journal.state === "staged") {
++    try {
++      const stagingArchive = path.join(txDir, "staging", "archive");
++      const originInv =
++        journal.origin_inventory || (await computeInventory(origin, fsx));
++      const ok = await compareOriginToDir(originInv, stagingArchive, fsx);
++      if (!ok) {
++        const receipt = emptyReceipt(changeName, planSha, "failed", {
++          failure_reason: "compare-mismatch",
++        });
++        journal.state = "failed";
++        journal.failure_reason = "compare-mismatch";
++        await writeJournal(txDir, journal, fsx);
++        await writeReceipt(txDir, receipt, fsx);
++        return receipt;
++      }
++      journal.state = "compared";
++      journal.compareAOk = true;
++      await writeJournal(txDir, journal, fsx);
++    } catch (err) {
++      const receipt = emptyReceipt(changeName, planSha, "failed", {
++        failure_reason: "io-error",
++      });
++      journal.state = "failed";
++      journal.failure_reason = "io-error";
++      await writeJournal(txDir, journal, fsx);
++      await writeReceipt(txDir, receipt, fsx);
++      return receipt;
++    }
++  }
++
++  // ---- COMMIT ----
++  // Advance to `committing` on each live mutation so resume never re-commits from empty staging.
++  if (journal.state === "compared" || journal.state === "committing") {
++    const created = Array.isArray(journal.created_by_tx)
++      ? journal.created_by_tx.slice()
++      : [];
++    async function persistCommitting() {
++      journal.created_by_tx = created;
++      journal.state = "committing";
++      await writeJournal(txDir, journal, fsx);
++    }
++    try {
++      const stagingRoot = path.join(txDir, "staging");
++      const stagingArchive = path.join(stagingRoot, "archive");
++      const destAbs = path.join(workspace, ...destinationRel.split("/"));
++      await fsx.mkdir(path.dirname(destAbs), { recursive: true });
++
++      // Retain `.bak` for prior live content until the full multi-step commit ends.
++      if (!created.includes(destinationRel)) {
++        let destExisted = true;
++        try {
++          await fsx.stat(destAbs);
++        } catch (err) {
++          if (err.code === "ENOENT") destExisted = false;
++          else throw err;
++        }
++        if (destExisted) {
++          await fsx.rm(destAbs + ".bak", { recursive: true, force: true }).catch(() => {});
++          await fsx.rename(destAbs, destAbs + ".bak");
++        }
++        created.push(destinationRel);
++        await renameWithFallback(stagingArchive, destAbs, { fsImpl: fsx });
++        await persistCommitting();
++      }
++
++      for (const sw of plan.spec_writes || []) {
++        if (created.includes(sw.target)) continue;
++        const stagedSpec = path.join(stagingRoot, "specs", sw.domain, "spec.md");
++        const liveTarget = path.join(workspace, ...sw.target.split("/"));
++        await fsx.mkdir(path.dirname(liveTarget), { recursive: true });
++        let existed = true;
++        try {
++          await fsx.stat(liveTarget);
++        } catch (err) {
++          if (err.code === "ENOENT") existed = false;
++          else throw err;
++        }
++        if (existed) {
++          await fsx.rm(liveTarget + ".bak", { recursive: true, force: true }).catch(() => {});
++          await fsx.rename(liveTarget, liveTarget + ".bak");
++        }
++        created.push(sw.target);
++        const tmp = liveTarget + ".ospec-tx-tmp";
++        await fsx.cp(stagedSpec, tmp);
++        await renameWithFallback(tmp, liveTarget, { fsImpl: fsx });
++        await persistCommitting();
++      }
++
++      for (const adr of plan.adr_promotions || []) {
++        if (created.includes(adr.target)) continue;
++        const destName = path.posix.basename(adr.target);
++        const stagedAdr = path.join(stagingRoot, "adr", destName);
++        const liveTarget = path.join(workspace, ...adr.target.split("/"));
++        await fsx.mkdir(path.dirname(liveTarget), { recursive: true });
++        let existed = true;
++        try {
++          await fsx.stat(liveTarget);
++        } catch (err) {
++          if (err.code === "ENOENT") existed = false;
++          else throw err;
++        }
++        if (existed) {
++          await fsx.rm(liveTarget + ".bak", { recursive: true, force: true }).catch(() => {});
++          await fsx.rename(liveTarget, liveTarget + ".bak");
++        }
++        created.push(adr.target);
++        const tmp = liveTarget + ".ospec-tx-tmp";
++        await fsx.cp(stagedAdr, tmp);
++        await renameWithFallback(tmp, liveTarget, { fsImpl: fsx });
++        await persistCommitting();
++      }
++
++      for (const rel of created) {
++        await fsx
++          .rm(path.join(workspace, ...rel.split("/")) + ".bak", {
++            recursive: true,
++            force: true,
++          })
++          .catch(() => {});
++      }
++      journal.created_by_tx = created;
++      journal.state = "committed";
++      await writeJournal(txDir, journal, fsx);
++    } catch (err) {
++      if (err && err.code === "SIMULATED_KILL") throw err;
++      const receipt = emptyReceipt(changeName, planSha, "failed", {
++        failure_reason: "commit-failed",
++      });
++      journal.created_by_tx = created;
++      journal.state = "failed";
++      journal.failure_reason = "commit-failed";
++      await writeJournal(txDir, journal, fsx);
++      await writeReceipt(txDir, receipt, fsx);
++      return receipt;
++    }
++  }
++
++  // ---- COMPARE B ----
++  if (journal.state === "committed") {
++    try {
++      const destAbs = path.join(workspace, ...destinationRel.split("/"));
++      const originInv =
++        journal.origin_inventory || (await computeInventory(origin, fsx));
++      const ok = await compareOriginToDir(originInv, destAbs, fsx);
++      if (!ok) {
++        const receipt = emptyReceipt(changeName, planSha, "failed", {
++          failure_reason: "compare-mismatch",
++          origin_deleted: false,
++        });
++        journal.state = "failed";
++        journal.failure_reason = "compare-mismatch";
++        await writeJournal(txDir, journal, fsx);
++        await writeReceipt(txDir, receipt, fsx);
++        return receipt;
++      }
++      journal.state = "confirmed";
++      journal.compareBOk = true;
++      await writeJournal(txDir, journal, fsx);
++    } catch (err) {
++      const receipt = emptyReceipt(changeName, planSha, "failed", {
++        failure_reason: "io-error",
++        origin_deleted: false,
++      });
++      journal.state = "failed";
++      journal.failure_reason = "io-error";
++      await writeJournal(txDir, journal, fsx);
++      await writeReceipt(txDir, receipt, fsx);
++      return receipt;
++    }
++  }
++
++  // ---- DELETE ORIGIN ----
++  if (journal.state === "confirmed") {
++    try {
++      // Aggregate cost while origin (state.yaml) still exists
++      const cost = await aggregateCost(workspace, changeName, fsx);
++      await fsx.rm(origin, { recursive: true, force: true });
++      const destAbs = path.join(workspace, ...destinationRel.split("/"));
++      const committed = await computeInventory(destAbs, fsx);
++      journal.state = "done";
++      journal.committed_inventory = committed;
++      journal.origin_deleted = true;
++      await writeJournal(txDir, journal, fsx);
++
++      const receipt = emptyReceipt(changeName, planSha, wasResume ? "resumed-success" : "success", {
++        destination: destinationRel,
++        committed_inventory: committed,
++        origin_deleted: true,
++        cost,
++        already_complete: false,
++      });
++      await writeReceipt(txDir, receipt, fsx);
++      return receipt;
++    } catch (err) {
++      const receipt = emptyReceipt(changeName, planSha, "failed", {
++        failure_reason: "io-error",
++        origin_deleted: false,
++      });
++      journal.state = "failed";
++      journal.failure_reason = "io-error";
++      await writeJournal(txDir, journal, fsx);
++      await writeReceipt(txDir, receipt, fsx);
++      return receipt;
++    }
++  }
++
++  const receipt = emptyReceipt(changeName, planSha, "failed", {
++    failure_reason: "io-error",
++  });
++  await writeReceipt(txDir, receipt, fsx);
++  return receipt;
++}
++
++/**
++ * Rollback with staging-rename strategy.
++ */
++async function rollbackTransaction(opts) {
++  const workspace = path.resolve(opts.workspace);
++  const changeName = opts.changeName;
++  const fsx = opts.fsImpl || defaultFs();
++  const txDir = txRoot(workspace, changeName);
++  if (!isSafeChangeName(changeName)) {
++    return emptyReceipt(changeName, null, "failed", {
++      failure_reason: "gate-not-satisfied",
++      rejection_codes: ["invalid-schema"],
++    });
++  }
++  const journal = await readJournal(txDir, fsx);
++
++  if (journal.state === "done") {
++    return emptyReceipt(changeName, journal.plan_sha256, "success", {
++      already_complete: true,
++      origin_deleted: true,
++      destination: journal.destination || null,
++    });
++  }
++
++  const createdPaths = journal.created_by_tx || [];
++  const midCommitPartial =
++    journal.state === "committing" ||
++    (journal.state === "compared" && createdPaths.length > 0);
++
++  // Before any live commit mutation: discard staging only
++  if (
++    journal.state === "init" ||
++    journal.state === "preflighted" ||
++    journal.state === "staged" ||
++    (journal.state === "compared" && createdPaths.length === 0)
++  ) {
++    await fsx.rm(path.join(txDir, "staging"), { recursive: true, force: true }).catch(() => {});
++    journal.state = "rolled-back";
++    await writeJournal(txDir, journal, fsx);
++    const receipt = emptyReceipt(changeName, journal.plan_sha256, "rolled-back", {
++      origin_deleted: false,
++    });
++    await writeReceipt(txDir, receipt, fsx);
++    return receipt;
++  }
++
++  // During/after commit but before done: restore .bak and remove created_by_tx
++  if (
++    midCommitPartial ||
++    journal.state === "committed" ||
++    journal.state === "confirmed" ||
++    journal.state === "failed"
++  ) {
++    for (const rel of journal.created_by_tx || []) {
++      const abs = path.join(workspace, ...rel.split("/"));
++      const bak = abs + ".bak";
++      try {
++        await fsx.stat(bak);
++        await fsx.rm(abs, { recursive: true, force: true }).catch(() => {});
++        await fsx.rename(bak, abs);
++      } catch {
++        // If created_by_tx and no bak, remove the destination we created
++        try {
++          await fsx.rm(abs, { recursive: true, force: true });
++        } catch {
++          /* ignore */
++        }
++      }
++    }
++    await fsx.rm(path.join(txDir, "staging"), { recursive: true, force: true }).catch(() => {});
++    journal.state = "rolled-back";
++    await writeJournal(txDir, journal, fsx);
++    const receipt = emptyReceipt(changeName, journal.plan_sha256, "rolled-back", {
++      origin_deleted: false,
++    });
++    await writeReceipt(txDir, receipt, fsx);
++    return receipt;
++  }
++
++  journal.state = "rolled-back";
++  await writeJournal(txDir, journal, fsx);
++  const receipt = emptyReceipt(changeName, journal.plan_sha256, "rolled-back");
++  await writeReceipt(txDir, receipt, fsx);
++  return receipt;
++}
++
++module.exports = {
++  nextTransactionAction,
++  readArchiveGateFacts,
++  computeInventory,
++  runArchiveTransaction,
++  rollbackTransaction,
++  fingerprintInventory,
++  digestBytes,
++  sumQuestionsAsked,
++};
++
+diff --git a/scripts/lib/archive-transaction.test.js b/scripts/lib/archive-transaction.test.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/archive-transaction.test.js
+@@ -0,0 +1,1060 @@
++"use strict";
++
++const test = require("node:test");
++const assert = require("node:assert/strict");
++const crypto = require("node:crypto");
++const fs = require("node:fs/promises");
++const path = require("node:path");
++const os = require("node:os");
++
++const {
++  nextTransactionAction,
++  readArchiveGateFacts,
++  computeInventory,
++  runArchiveTransaction,
++  rollbackTransaction,
++  fingerprintInventory,
++  digestBytes,
++} = require("./archive-transaction.js");
++
++function sha256(buf) {
++  return `sha256:${crypto.createHash("sha256").update(buf).digest("hex")}`;
++}
++
++// --- nextTransactionAction (pure reducer) ------------------------------------
++
++test("nextTransactionAction: init → preflight", () => {
++  const result = nextTransactionAction(
++    { state: "init", plan_sha256: "sha256:aaa" },
++    { planSha256: "sha256:aaa" },
++  );
++  assert.equal(result.action, "preflight");
++});
++
++test("nextTransactionAction: preflighted → stage", () => {
++  const result = nextTransactionAction(
++    { state: "preflighted", plan_sha256: "sha256:aaa" },
++    { planSha256: "sha256:aaa", preflightOk: true },
++  );
++  assert.equal(result.action, "stage");
++});
++
++test("nextTransactionAction: staged → compare-a", () => {
++  const result = nextTransactionAction(
++    { state: "staged", plan_sha256: "sha256:aaa" },
++    { planSha256: "sha256:aaa" },
++  );
++  assert.equal(result.action, "compare-a");
++});
++
++test("nextTransactionAction: compared → commit", () => {
++  const result = nextTransactionAction(
++    { state: "compared", plan_sha256: "sha256:aaa" },
++    { planSha256: "sha256:aaa", compareAOk: true },
++  );
++  assert.equal(result.action, "commit");
++});
++
++test("nextTransactionAction: committed → compare-b", () => {
++  const result = nextTransactionAction(
++    { state: "committed", plan_sha256: "sha256:aaa" },
++    { planSha256: "sha256:aaa" },
++  );
++  assert.equal(result.action, "compare-b");
++});
++
++test("nextTransactionAction: confirmed → delete-origin", () => {
++  const result = nextTransactionAction(
++    { state: "confirmed", plan_sha256: "sha256:aaa" },
++    { planSha256: "sha256:aaa", compareBOk: true },
++  );
++  assert.equal(result.action, "delete-origin");
++});
++
++test("nextTransactionAction: done → already-complete", () => {
++  const result = nextTransactionAction(
++    { state: "done", plan_sha256: "sha256:aaa" },
++    { planSha256: "sha256:aaa" },
++  );
++  assert.equal(result.action, "already-complete");
++});
++
++test("nextTransactionAction: resume from staged continues compare-a", () => {
++  const result = nextTransactionAction(
++    { state: "staged", plan_sha256: "sha256:aaa" },
++    { planSha256: "sha256:aaa", resume: true },
++  );
++  assert.equal(result.action, "compare-a");
++});
++
++test("nextTransactionAction: journal-plan-conflict on mismatched plan_sha256", () => {
++  const result = nextTransactionAction(
++    { state: "staged", plan_sha256: "sha256:aaa" },
++    { planSha256: "sha256:bbb" },
++  );
++  assert.equal(result.action, "fail");
++  assert.equal(result.failure_reason, "journal-plan-conflict");
++});
++
++test("nextTransactionAction: terminal failed stays terminal", () => {
++  const result = nextTransactionAction(
++    { state: "failed", plan_sha256: "sha256:aaa" },
++    { planSha256: "sha256:aaa" },
++  );
++  assert.equal(result.action, "noop-terminal");
++});
++
++test("nextTransactionAction: terminal rolled-back stays terminal", () => {
++  const result = nextTransactionAction(
++    { state: "rolled-back", plan_sha256: "sha256:aaa" },
++    { planSha256: "sha256:aaa" },
++  );
++  assert.equal(result.action, "noop-terminal");
++});
++
++test("nextTransactionAction: compared with compareA failure → fail", () => {
++  const result = nextTransactionAction(
++    { state: "compared", plan_sha256: "sha256:aaa" },
++    { planSha256: "sha256:aaa", compareAOk: false },
++  );
++  assert.equal(result.action, "fail");
++  assert.equal(result.failure_reason, "compare-mismatch");
++});
++
++test("nextTransactionAction: committing → commit (resume mid-commit)", () => {
++  const result = nextTransactionAction(
++    { state: "committing", plan_sha256: "sha256:aaa" },
++    { planSha256: "sha256:aaa" },
++  );
++  assert.equal(result.action, "commit");
++});
++
++// --- readArchiveGateFacts ----------------------------------------------------
++
++test("readArchiveGateFacts: verdict PASS, quality-gates present", () => {
++  const text = `
++status: verified
++phases:
++  verify:
++    status: done
++    verdict: PASS
++gates:
++  quality-gates:
++    status: passed
++baseline_fingerprints:
++  agents: "sha256:abc"
++`;
++  const facts = readArchiveGateFacts(text);
++  assert.equal(facts.verdict, "PASS");
++  assert.equal(facts.qualityGatesPresent, true);
++  assert.equal(facts.qualityGatesStatus, "passed");
++  assert.equal(facts.overridePresent, false);
++  assert.ok(facts.baselineFingerprints);
++  assert.equal(facts.baselineFingerprints.agents, "sha256:abc");
++  assert.equal(facts.gatesSatisfied, true);
++});
++
++test("readArchiveGateFacts: missing quality-gates block", () => {
++  const text = `
++phases:
++  verify:
++    verdict: "PASS WITH WARNINGS"
++gates:
++  4r-review-gate:
++    status: approved
++`;
++  const facts = readArchiveGateFacts(text);
++  assert.equal(facts.verdict, "PASS WITH WARNINGS");
++  assert.equal(facts.qualityGatesPresent, false);
++  assert.equal(facts.gatesSatisfied, true); // no policy block → not blocking alone
++});
++
++test("readArchiveGateFacts: override present", () => {
++  const text = `
++phases:
++  verify:
++    verdict: PASS
++gates:
++  quality-gates:
++    status: failed
++    override:
++      timestamp: "2026-07-01T00:00:00Z"
++      justification: "accepted"
++approvals:
++  - id: qg-override-001
++    gate: quality-gates
++    decision: override
++`;
++  const facts = readArchiveGateFacts(text);
++  assert.equal(facts.overridePresent, true);
++  assert.equal(facts.gatesSatisfied, true);
++});
++
++test("readArchiveGateFacts: absent baseline_fingerprints", () => {
++  const text = `
++phases:
++  verify:
++    verdict: PASS
++gates:
++  quality-gates:
++    status: passed
++`;
++  const facts = readArchiveGateFacts(text);
++  assert.equal(facts.baselineFingerprints, null);
++});
++
++test("readArchiveGateFacts: FAIL verdict not satisfied", () => {
++  const text = `
++phases:
++  verify:
++    verdict: FAIL
++`;
++  const facts = readArchiveGateFacts(text);
++  assert.equal(facts.verdict, "FAIL");
++  assert.equal(facts.gatesSatisfied, false);
++});
++
++test("readArchiveGateFacts: foreign gate override does not authorize failed quality-gates", () => {
++  const text = `
++phases:
++  verify:
++    verdict: PASS
++gates:
++  quality-gates:
++    status: failed
++  4r-review-gate:
++    status: failed
++    override:
++      timestamp: "2026-07-01T00:00:00Z"
++      justification: "review override only"
++approvals:
++  - id: review-override-001
++    gate: 4r-review-gate
++    decision: override
++`;
++  const facts = readArchiveGateFacts(text);
++  assert.equal(facts.qualityGatesStatus, "failed");
++  assert.equal(facts.overridePresent, false);
++  assert.equal(facts.gatesSatisfied, false);
++});
++
++test("readArchiveGateFacts: comment/noise mentioning override does not authorize", () => {
++  const text = `
++phases:
++  verify:
++    verdict: PASS
++gates:
++  quality-gates:
++    status: failed
++    # override: noise in comment must not authorize
++# gate: quality-gates
++# decision: override
++notes: "see gate: quality-gates with decision: override elsewhere"
++`;
++  const facts = readArchiveGateFacts(text);
++  assert.equal(facts.qualityGatesStatus, "failed");
++  assert.equal(facts.overridePresent, false);
++  assert.equal(facts.gatesSatisfied, false);
++});
++
++test("readArchiveGateFacts: same-approval override authorizes failed quality-gates", () => {
++  const text = `
++phases:
++  verify:
++    verdict: PASS
++gates:
++  quality-gates:
++    status: failed
++approvals:
++  - id: qg-override-002
++    gate: quality-gates
++    decision: override
++`;
++  const facts = readArchiveGateFacts(text);
++  assert.equal(facts.overridePresent, true);
++  assert.equal(facts.gatesSatisfied, true);
++});
++
++// --- Helpers for FS fixtures -------------------------------------------------
++
++async function writeTree(root, files) {
++  for (const [rel, content] of Object.entries(files)) {
++    const abs = path.join(root, ...rel.split("/"));
++    await fs.mkdir(path.dirname(abs), { recursive: true });
++    await fs.writeFile(abs, content);
++  }
++}
++
++async function buildWorkspace(t, changeName = "demo-change") {
++  const root = await fs.mkdtemp(path.join(os.tmpdir(), "ospec-archive-tx-"));
++  t.after(async () => {
++    await fs.rm(root, { recursive: true, force: true });
++  });
++
++  const originRel = `openspec/changes/${changeName}`;
++  const proposal = "# Proposal\n";
++  const stateYaml = `status: verified
++phases:
++  verify:
++    status: done
++    verdict: PASS
++gates:
++  quality-gates:
++    status: passed
++baseline_fingerprints:
++  routing: "${sha256(Buffer.from("# Routing baseline\n"))}"
++`;
++  const preparedSpec = "# Routing merged\n";
++  const adr = "# ADR-001\n";
++  const liveTarget = "# Routing baseline\n";
++
++  await writeTree(root, {
++    [`${originRel}/proposal.md`]: proposal,
++    [`${originRel}/state.yaml`]: stateYaml,
++    [`${originRel}/specs/routing/spec.md`]: preparedSpec,
++    [`${originRel}/decisions/adr-001.md`]: adr,
++    "openspec/specs/routing/spec.md": liveTarget,
++    "docs/adr/.gitkeep": "",
++  });
++
++  const originDir = path.join(root, "openspec", "changes", changeName);
++  const inventory = (await computeInventory(originDir)).filter(
++    (e) => e.path !== "archive-plan.json",
++  );
++  const fp = fingerprintInventory(inventory);
++
++  const plan = {
++    schema_version: 1,
++    change: changeName,
++    source_fingerprint: fp,
++    spec_writes: [
++      {
++        domain: "routing",
++        source_delta: "specs/routing/spec.md",
++        target: "openspec/specs/routing/spec.md",
++        target_before_sha256: sha256(Buffer.from(liveTarget)),
++        content_sha256: sha256(Buffer.from(preparedSpec)),
++      },
++    ],
++    adr_promotions: [
++      {
++        source: "decisions/adr-001.md",
++        target: "docs/adr/adr-001-demo.md",
++        content_sha256: sha256(Buffer.from(adr)),
++      },
++    ],
++    archive_inventory: inventory.map((e) => e.path),
++    accepted_warnings: [],
++    rollback: { strategy: "staging-rename" },
++  };
++
++  const planPath = path.join(originDir, "archive-plan.json");
++  await fs.writeFile(planPath, JSON.stringify(plan, null, 2));
++
++  return { root, changeName, originDir, planPath, plan, inventory, fp };
++}
++// --- computeInventory --------------------------------------------------------
++
++test("computeInventory: sorted POSIX paths and raw-byte SHA-256", async (t) => {
++  const root = await fs.mkdtemp(path.join(os.tmpdir(), "ospec-inv-"));
++  t.after(async () => {
++    await fs.rm(root, { recursive: true, force: true });
++  });
++  await writeTree(root, {
++    "z.txt": "z",
++    "a/b.txt": "ab",
++  });
++  const inv = await computeInventory(root);
++  assert.deepEqual(
++    inv.map((e) => e.path),
++    ["a/b.txt", "z.txt"],
++  );
++  assert.equal(inv[0].sha256, sha256(Buffer.from("ab")));
++  assert.equal(inv[1].sha256, sha256(Buffer.from("z")));
++});
++
++test("computeInventory: symlink/junction fails closed", async (t) => {
++  const root = await fs.mkdtemp(path.join(os.tmpdir(), "ospec-inv-link-"));
++  t.after(async () => {
++    await fs.rm(root, { recursive: true, force: true });
++  });
++  await fs.writeFile(path.join(root, "real.txt"), "x");
++  try {
++    await fs.symlink(
++      path.join(root, "real.txt"),
++      path.join(root, "link.txt"),
++    );
++  } catch (err) {
++    // Windows may need admin for symlinks — skip if unavailable
++    if (err.code === "EPERM" || err.code === "EACCES") {
++      t.skip("symlink creation not permitted in this environment");
++      return;
++    }
++    throw err;
++  }
++  await assert.rejects(() => computeInventory(root), (err) => {
++    assert.equal(err.code, "io-error");
++    return true;
++  });
++});
++
++// --- FS fixtures: transaction lifecycle --------------------------------------
++
++test("FS: pre-commit failure leaves origin intact", async (t) => {
++  const { root, changeName, originDir, planPath } = await buildWorkspace(t);
++  // Break plan hash to force preflight failure
++  const badPlan = JSON.parse(await fs.readFile(planPath, "utf8"));
++  badPlan.source_fingerprint = sha256(Buffer.from("wrong"));
++  await fs.writeFile(planPath, JSON.stringify(badPlan));
++
++  const receipt = await runArchiveTransaction({
++    workspace: root,
++    changeName,
++    planPath,
++    now: new Date("2026-07-26T12:00:00Z"),
++  });
++  assert.equal(receipt.outcome, "failed");
++  assert.equal(receipt.origin_deleted, false);
++  assert.ok(await fs.stat(originDir));
++  // No archive destination created
++  const archiveRoot = path.join(root, "openspec", "changes", "archive");
++  const entries = await fs.readdir(archiveRoot).catch((e) => {
++    if (e.code === "ENOENT") return [];
++    throw e;
++  });
++  assert.equal(entries.length, 0);
++});
++
++test("FS: hash mismatch after staging blocks delete", async (t) => {
++  const ctx = await buildWorkspace(t);
++  // Inject a custom fsImpl later isn't needed — corrupt staging mid-flight via
++  // forcing compare by mutating origin after a partial run is hard. Instead:
++  // provide a plan whose prepared content hash won't match file bytes.
++  const bad = { ...ctx.plan };
++  bad.spec_writes = [
++    {
++      ...bad.spec_writes[0],
++      content_sha256: sha256(Buffer.from("not-the-bytes")),
++    },
++  ];
++  await fs.writeFile(ctx.planPath, JSON.stringify(bad));
++
++  const receipt = await runArchiveTransaction({
++    workspace: ctx.root,
++    changeName: ctx.changeName,
++    planPath: ctx.planPath,
++    now: new Date("2026-07-26T12:00:00Z"),
++  });
++  assert.equal(receipt.outcome, "failed");
++  assert.equal(receipt.origin_deleted, false);
++  assert.ok(await fs.stat(ctx.originDir));
++});
++
++test("FS: full match commits then deletes origin", async (t) => {
++  const ctx = await buildWorkspace(t);
++  const receipt = await runArchiveTransaction({
++    workspace: ctx.root,
++    changeName: ctx.changeName,
++    planPath: ctx.planPath,
++    now: new Date("2026-07-26T12:00:00Z"),
++  });
++  assert.equal(receipt.outcome, "success");
++  assert.equal(receipt.origin_deleted, true);
++  assert.equal(receipt.parity.go, "n/a");
++  assert.ok(Array.isArray(receipt.committed_inventory));
++  assert.ok(receipt.committed_inventory.length > 0);
++  assert.ok(receipt.cost);
++  assert.equal(typeof receipt.cost.available, "boolean");
++
++  await assert.rejects(fs.stat(ctx.originDir), { code: "ENOENT" });
++  const dest = path.join(
++    ctx.root,
++    "openspec",
++    "changes",
++    "archive",
++    "2026-07-26-demo-change",
++  );
++  assert.ok(await fs.stat(dest));
++  assert.equal(
++    await fs.readFile(
++      path.join(ctx.root, "openspec", "specs", "routing", "spec.md"),
++      "utf8",
++    ),
++    "# Routing merged\n",
++  );
++  assert.equal(
++    await fs.readFile(path.join(ctx.root, "docs", "adr", "adr-001-demo.md"), "utf8"),
++    "# ADR-001\n",
++  );
++});
++
++test("FS: post-staging resume continues to success", async (t) => {
++  const ctx = await buildWorkspace(t);
++  const txDir = path.join(ctx.root, ".ospec", "archive-tx", ctx.changeName);
++  const stagingRoot = path.join(txDir, "staging");
++  const stagingArchive = path.join(stagingRoot, "archive");
++
++  // Perform staging manually and seed journal at `staged`
++  const originInv = await computeInventory(ctx.originDir);
++  await fs.mkdir(stagingArchive, { recursive: true });
++  for (const entry of originInv) {
++    const src = path.join(ctx.originDir, ...entry.path.split("/"));
++    const dest = path.join(stagingArchive, ...entry.path.split("/"));
++    await fs.mkdir(path.dirname(dest), { recursive: true });
++    await fs.cp(src, dest);
++  }
++  // Stage prepared writes
++  await fs.mkdir(path.join(stagingRoot, "specs", "routing"), { recursive: true });
++  await fs.cp(
++    path.join(ctx.originDir, "specs", "routing", "spec.md"),
++    path.join(stagingRoot, "specs", "routing", "spec.md"),
++  );
++  await fs.mkdir(path.join(stagingRoot, "adr"), { recursive: true });
++  await fs.cp(
++    path.join(ctx.originDir, "decisions", "adr-001.md"),
++    path.join(stagingRoot, "adr", "adr-001-demo.md"),
++  );
++
++  const planBytes = await fs.readFile(ctx.planPath);
++  await fs.mkdir(txDir, { recursive: true });
++  await fs.writeFile(
++    path.join(txDir, "journal.json"),
++    JSON.stringify({
++      state: "staged",
++      plan_sha256: digestBytes(planBytes),
++      destination: "openspec/changes/archive/2026-07-26-demo-change",
++      origin_inventory: originInv,
++      created_by_tx: [],
++    }),
++  );
++
++  const resumed = await runArchiveTransaction({
++    workspace: ctx.root,
++    changeName: ctx.changeName,
++    planPath: ctx.planPath,
++    now: new Date("2026-07-26T12:00:00Z"),
++  });
++  assert.equal(resumed.outcome, "resumed-success");
++  assert.equal(resumed.origin_deleted, true);
++
++  const second = await runArchiveTransaction({
++    workspace: ctx.root,
++    changeName: ctx.changeName,
++    planPath: ctx.planPath,
++    now: new Date("2026-07-26T12:00:00Z"),
++  });
++  assert.equal(second.outcome, "success");
++  assert.equal(second.already_complete, true);
++});
++
++test("FS: rollback staging-rename restores safety", async (t) => {
++  const ctx = await buildWorkspace(t);
++  // Create a staged journal without committing
++  const txDir = path.join(ctx.root, ".ospec", "archive-tx", ctx.changeName);
++  const stagingArchive = path.join(txDir, "staging", "archive");
++  await fs.mkdir(stagingArchive, { recursive: true });
++  await fs.writeFile(path.join(stagingArchive, "proposal.md"), "# Proposal\n");
++  const planBytes = await fs.readFile(ctx.planPath);
++  const planSha = digestBytes(planBytes);
++  await fs.writeFile(
++    path.join(txDir, "journal.json"),
++    JSON.stringify({
++      state: "staged",
++      plan_sha256: planSha,
++      destination: "openspec/changes/archive/2026-07-26-demo-change",
++      created_by_tx: [],
++    }),
++  );
++
++  const receipt = await rollbackTransaction({
++    workspace: ctx.root,
++    changeName: ctx.changeName,
++  });
++  assert.equal(receipt.outcome, "rolled-back");
++  assert.ok(await fs.stat(ctx.originDir));
++  await assert.rejects(fs.stat(stagingArchive), { code: "ENOENT" });
++});
++
++test("FS: Windows EPERM fallback keeps one live target; origin until compare B", async (t) => {
++  const ctx = await buildWorkspace(t);
++  // Pre-create destination so EPERM/EEXIST fallback (backup→retry) is realistic
++  const dest = path.join(
++    ctx.root,
++    "openspec",
++    "changes",
++    "archive",
++    "2026-07-26-demo-change",
++  );
++  await fs.mkdir(dest, { recursive: true });
++  await fs.writeFile(path.join(dest, "stale.txt"), "old");
++
++  const realRename = fs.rename;
++  let epermOnce = true;
++  const renameSpy = async (oldPath, newPath) => {
++    if (
++      epermOnce &&
++      String(newPath).includes(`${path.sep}archive${path.sep}2026-07-26-demo-change`) &&
++      String(oldPath).includes(`${path.sep}staging${path.sep}archive`)
++    ) {
++      epermOnce = false;
++      const err = new Error("EPERM");
++      err.code = "EPERM";
++      throw err;
++    }
++    return realRename(oldPath, newPath);
++  };
++
++  const receipt = await runArchiveTransaction({
++    workspace: ctx.root,
++    changeName: ctx.changeName,
++    planPath: ctx.planPath,
++    now: new Date("2026-07-26T12:00:00Z"),
++    fsImpl: {
++      rename: renameSpy,
++      unlink: fs.unlink,
++      rm: fs.rm,
++      stat: fs.stat,
++      mkdir: fs.mkdir,
++      readFile: fs.readFile,
++      writeFile: fs.writeFile,
++      readdir: fs.readdir,
++      lstat: fs.lstat,
++      cp: fs.cp,
++    },
++  });
++  assert.equal(receipt.outcome, "success");
++  assert.equal(receipt.origin_deleted, true);
++  assert.ok(await fs.stat(dest));
++  await assert.rejects(fs.stat(dest + ".bak"), { code: "ENOENT" });
++});
++
++test("receipt: failed compare sets outcome failed, origin_deleted false, parity n/a", async (t) => {
++  const ctx = await buildWorkspace(t);
++  const bad = { ...ctx.plan, source_fingerprint: sha256(Buffer.from("x")) };
++  await fs.writeFile(ctx.planPath, JSON.stringify(bad));
++  const receipt = await runArchiveTransaction({
++    workspace: ctx.root,
++    changeName: ctx.changeName,
++    planPath: ctx.planPath,
++    now: new Date("2026-07-26T12:00:00Z"),
++  });
++  assert.equal(receipt.outcome, "failed");
++  assert.equal(receipt.origin_deleted, false);
++  assert.equal(receipt.parity.go, "n/a");
++});
++
++test("receipt: missing cost yields available false without failing success", async (t) => {
++  const ctx = await buildWorkspace(t);
++  const receipt = await runArchiveTransaction({
++    workspace: ctx.root,
++    changeName: ctx.changeName,
++    planPath: ctx.planPath,
++    now: new Date("2026-07-26T12:00:00Z"),
++  });
++  assert.equal(receipt.outcome, "success");
++  assert.equal(receipt.cost.available, false);
++});
++
++async function rewritePlanFingerprint(ctx) {
++  const inventory = (await computeInventory(ctx.originDir)).filter(
++    (e) => e.path !== "archive-plan.json",
++  );
++  const plan = {
++    ...ctx.plan,
++    source_fingerprint: fingerprintInventory(inventory),
++    archive_inventory: inventory.map((e) => e.path),
++  };
++  await fs.writeFile(ctx.planPath, JSON.stringify(plan, null, 2));
++  ctx.plan = plan;
++  return plan;
++}
++
++test("receipt: cost aggregates duration, tiers, statuses, and questions_asked", async (t) => {
++  const ctx = await buildWorkspace(t);
++  const sessionDir = path.join(ctx.root, ".ospec", "session", ctx.changeName);
++  await fs.mkdir(sessionDir, { recursive: true });
++  await fs.writeFile(
++    path.join(sessionDir, "phase-costs.jsonl"),
++    [
++      JSON.stringify({
++        phase: "sdd-apply",
++        estimated_prompt_tokens: 10,
++        estimated_artifact_tokens: 20,
++        estimated_tool_output_tokens: 30,
++        estimated_output_tokens: 40,
++        duration_ms: 1500,
++        model_tier: "heavy",
++        status: "success",
++      }),
++      JSON.stringify({
++        phase: "sdd-apply",
++        estimated_prompt_tokens: 1,
++        estimated_artifact_tokens: 2,
++        estimated_tool_output_tokens: 3,
++        estimated_output_tokens: 4,
++        duration_ms: 500,
++        model_tier: "light",
++        status: "partial",
++      }),
++    ].join("\n") + "\n",
++  );
++  await fs.writeFile(
++    path.join(ctx.originDir, "state.yaml"),
++    `status: verified
++phases:
++  verify:
++    status: done
++    verdict: PASS
++gates:
++  clarify:
++    questions_asked: 2
++  4r-review-gate:
++    questions_asked: 3
++  quality-gates:
++    status: passed
++baseline_fingerprints:
++  routing: "${sha256(Buffer.from("# Routing baseline\n"))}"
++`,
++  );
++  await rewritePlanFingerprint(ctx);
++
++  const receipt = await runArchiveTransaction({
++    workspace: ctx.root,
++    changeName: ctx.changeName,
++    planPath: ctx.planPath,
++    now: new Date("2026-07-26T12:00:00Z"),
++  });
++  assert.equal(receipt.outcome, "success");
++  assert.equal(receipt.cost.available, true);
++  assert.equal(receipt.cost.total_questions_asked, 5);
++  assert.equal(receipt.cost.phases.length, 1);
++  const phase = receipt.cost.phases[0];
++  assert.equal(phase.phase, "sdd-apply");
++  assert.equal(phase.duration_ms, 2000);
++  assert.equal(phase.invocations, 2);
++  assert.equal(phase.relaunches, 1);
++  assert.equal(phase.estimated_prompt_tokens, 11);
++  assert.equal(phase.estimated_artifact_tokens, 22);
++  assert.equal(phase.estimated_tool_output_tokens, 33);
++  assert.equal(phase.estimated_output_tokens, 44);
++  assert.deepEqual(phase.model_tiers, ["heavy", "light"]);
++  assert.deepEqual(phase.statuses, ["partial", "success"]);
++});
++
++test("receipt: cost triangulation — multi-phase and zero questions", async (t) => {
++  const ctx = await buildWorkspace(t);
++  const sessionDir = path.join(ctx.root, ".ospec", "session", ctx.changeName);
++  await fs.mkdir(sessionDir, { recursive: true });
++  await fs.writeFile(
++    path.join(sessionDir, "phase-costs.jsonl"),
++    [
++      JSON.stringify({
++        phase: "sdd-spec",
++        estimated_prompt_tokens: 5,
++        estimated_artifact_tokens: 0,
++        estimated_tool_output_tokens: 0,
++        estimated_output_tokens: 1,
++        duration_ms: 100,
++        model_tier: "standard",
++        status: "success",
++      }),
++      JSON.stringify({
++        phase: "sdd-verify",
++        estimated_prompt_tokens: 2,
++        estimated_artifact_tokens: 3,
++        estimated_tool_output_tokens: 4,
++        estimated_output_tokens: 5,
++        duration_ms: 50,
++        model_tier: "standard",
++        status: "success",
++      }),
++      JSON.stringify({
++        phase: "sdd-verify",
++        estimated_prompt_tokens: 1,
++        estimated_artifact_tokens: 1,
++        estimated_tool_output_tokens: 1,
++        estimated_output_tokens: 1,
++        duration_ms: 25,
++        model_tier: "premium",
++        status: "blocked",
++      }),
++    ].join("\n") + "\n",
++  );
++  // state.yaml from buildWorkspace has no questions_asked → 0
++
++  const receipt = await runArchiveTransaction({
++    workspace: ctx.root,
++    changeName: ctx.changeName,
++    planPath: ctx.planPath,
++    now: new Date("2026-07-26T12:00:00Z"),
++  });
++  assert.equal(receipt.outcome, "success");
++  assert.equal(receipt.cost.available, true);
++  assert.equal(receipt.cost.total_questions_asked, 0);
++  assert.equal(receipt.cost.phases.length, 2);
++  const byPhase = Object.fromEntries(receipt.cost.phases.map((p) => [p.phase, p]));
++  assert.equal(byPhase["sdd-spec"].duration_ms, 100);
++  assert.deepEqual(byPhase["sdd-spec"].model_tiers, ["standard"]);
++  assert.deepEqual(byPhase["sdd-spec"].statuses, ["success"]);
++  assert.equal(byPhase["sdd-verify"].duration_ms, 75);
++  assert.equal(byPhase["sdd-verify"].invocations, 2);
++  assert.equal(byPhase["sdd-verify"].relaunches, 1);
++  assert.deepEqual(byPhase["sdd-verify"].model_tiers, ["premium", "standard"]);
++  assert.deepEqual(byPhase["sdd-verify"].statuses, ["blocked", "success"]);
++});
++
++test("FS: baseline-stale preflight fails closed with origin intact", async (t) => {
++  const ctx = await buildWorkspace(t);
++  await fs.writeFile(
++    path.join(ctx.originDir, "state.yaml"),
++    `status: verified
++phases:
++  verify:
++    status: done
++    verdict: PASS
++gates:
++  quality-gates:
++    status: passed
++baseline_fingerprints:
++  routing: "${sha256(Buffer.from("stale-fingerprint-bytes"))}"
++`,
++  );
++  await rewritePlanFingerprint(ctx);
++
++  const receipt = await runArchiveTransaction({
++    workspace: ctx.root,
++    changeName: ctx.changeName,
++    planPath: ctx.planPath,
++    now: new Date("2026-07-26T12:00:00Z"),
++  });
++  assert.equal(receipt.outcome, "failed");
++  assert.equal(receipt.failure_reason, "baseline-stale");
++  assert.equal(receipt.origin_deleted, false);
++  assert.ok(await fs.stat(ctx.originDir));
++});
++
++test("runArchiveTransaction: rejects unsafe changeName with ../ (fail-closed)", async (t) => {
++  const root = await fs.mkdtemp(path.join(os.tmpdir(), "ospec-archive-unsafe-"));
++  t.after(async () => { await fs.rm(root, { recursive: true, force: true }); });
++  const receipt = await runArchiveTransaction({
++    workspace: root,
++    changeName: "../evil",
++    planPath: path.join(root, "missing.json"),
++    now: new Date("2026-07-26T12:00:00Z"),
++  });
++  assert.equal(receipt.outcome, "failed");
++  assert.ok(receipt.rejection_codes.includes("invalid-schema"));
++  assert.equal(receipt.origin_deleted, false);
++});
++
++function txFs(rename, extras = {}) {
++  return {
++    rename,
++    unlink: fs.unlink,
++    rm: fs.rm,
++    stat: fs.stat,
++    mkdir: fs.mkdir,
++    readFile: fs.readFile,
++    writeFile: fs.writeFile,
++    readdir: fs.readdir,
++    lstat: fs.lstat,
++    cp: fs.cp,
++    ...extras,
++  };
++}
++
++test("FS: mid-commit kill — journal advances; resume or rollback deterministic", async (t) => {
++  async function killAfterFirstCommitting(ctx) {
++    let killed = false;
++    await assert.rejects(
++      () =>
++        runArchiveTransaction({
++          workspace: ctx.root,
++          changeName: ctx.changeName,
++          planPath: ctx.planPath,
++          now: new Date("2026-07-26T12:00:00Z"),
++          fsImpl: txFs(fs.rename, {
++            writeFile: async (p, data, enc) => {
++              await fs.writeFile(p, data, enc);
++              if (killed || !String(p).endsWith(`${path.sep}journal.json`)) return;
++              const j = JSON.parse(String(data));
++              if (j.state === "committing" && (j.created_by_tx || []).length) {
++                killed = true;
++                const err = new Error("simulated process kill");
++                err.code = "SIMULATED_KILL";
++                throw err;
++              }
++            },
++          }),
++        }),
++      (err) => err && err.code === "SIMULATED_KILL",
++    );
++    const j = JSON.parse(
++      await fs.readFile(
++        path.join(ctx.root, ".ospec", "archive-tx", ctx.changeName, "journal.json"),
++        "utf8",
++      ),
++    );
++    assert.equal(j.state, "committing");
++    assert.ok(j.created_by_tx.includes("openspec/changes/archive/2026-07-26-demo-change"));
++  }
++
++  const a = await buildWorkspace(t);
++  await killAfterFirstCommitting(a);
++  const resumed = await runArchiveTransaction({
++    workspace: a.root,
++    changeName: a.changeName,
++    planPath: a.planPath,
++    now: new Date("2026-07-26T12:00:00Z"),
++  });
++  assert.equal(resumed.outcome, "resumed-success");
++  assert.equal(resumed.origin_deleted, true);
++
++  const b = await buildWorkspace(t);
++  const bSpec = path.join(b.root, "openspec", "specs", "routing", "spec.md");
++  const bOrig = await fs.readFile(bSpec, "utf8");
++  await killAfterFirstCommitting(b);
++  assert.equal(
++    (await rollbackTransaction({ workspace: b.root, changeName: b.changeName })).outcome,
++    "rolled-back",
++  );
++  assert.equal(await fs.readFile(bSpec, "utf8"), bOrig);
++  await assert.rejects(
++    fs.stat(path.join(b.root, "openspec", "changes", "archive", "2026-07-26-demo-change")),
++    { code: "ENOENT" },
++  );
++});
++
++test("FS: mid-commit failure is rollback-restorable (first write + overwrite)", async (t) => {
++  // A: fail after archive dest — created_by_tx persisted; rollback removes dest.
++  const a = await buildWorkspace(t);
++  const aSpec = path.join(a.root, "openspec", "specs", "routing", "spec.md");
++  const aOrig = await fs.readFile(aSpec, "utf8");
++  const aDest = path.join(a.root, "openspec", "changes", "archive", "2026-07-26-demo-change");
++  let archiveOk = false;
++  const aRename = async (oldPath, newPath) => {
++    if (
++      String(oldPath).includes(`${path.sep}staging${path.sep}archive`) &&
++      String(newPath).includes(`${path.sep}archive${path.sep}2026-07-26-demo-change`)
++    ) {
++      await fs.rename(oldPath, newPath);
++      archiveOk = true;
++      return;
++    }
++    if (archiveOk && String(oldPath).includes(".ospec-tx-tmp")) {
++      const err = new Error("injected after first live write");
++      err.code = "EIO";
++      throw err;
++    }
++    return fs.rename(oldPath, newPath);
++  };
++  let receipt = await runArchiveTransaction({
++    workspace: a.root,
++    changeName: a.changeName,
++    planPath: a.planPath,
++    now: new Date("2026-07-26T12:00:00Z"),
++    fsImpl: txFs(aRename),
++  });
++  assert.equal(receipt.outcome, "failed");
++  assert.equal(receipt.failure_reason, "commit-failed");
++  assert.equal(receipt.origin_deleted, false);
++  assert.ok(archiveOk && (await fs.stat(a.originDir)));
++  assert.ok(
++    JSON.parse(
++      await fs.readFile(path.join(a.root, ".ospec", "archive-tx", a.changeName, "journal.json"), "utf8"),
++    ).created_by_tx.includes("openspec/changes/archive/2026-07-26-demo-change"),
++  );
++  assert.equal(
++    (await rollbackTransaction({ workspace: a.root, changeName: a.changeName })).outcome,
++    "rolled-back",
++  );
++  assert.equal(await fs.readFile(aSpec, "utf8"), aOrig);
++  await assert.rejects(fs.stat(aDest), { code: "ENOENT" });
++
++  // B: fail after spec overwrite — retain .bak; rollback restores baseline.
++  const b = await buildWorkspace(t);
++  const bSpec = path.join(b.root, "openspec", "specs", "routing", "spec.md");
++  const bOrig = await fs.readFile(bSpec, "utf8");
++  let specOk = false;
++  const bRename = async (oldPath, newPath) => {
++    if (String(newPath) === bSpec && String(oldPath).includes(".ospec-tx-tmp")) {
++      await fs.rename(oldPath, newPath);
++      specOk = true;
++      return;
++    }
++    if (specOk && String(oldPath).includes(".ospec-tx-tmp") && String(newPath).includes(`${path.sep}adr${path.sep}`)) {
++      const err = new Error("injected after spec overwrite");
++      err.code = "EIO";
++      throw err;
++    }
++    return fs.rename(oldPath, newPath);
++  };
++  receipt = await runArchiveTransaction({
++    workspace: b.root,
++    changeName: b.changeName,
++    planPath: b.planPath,
++    now: new Date("2026-07-26T12:00:00Z"),
++    fsImpl: txFs(bRename),
++  });
++  assert.equal(receipt.outcome, "failed");
++  assert.ok(specOk);
++  assert.equal(await fs.readFile(bSpec + ".bak", "utf8"), bOrig);
++  assert.ok(
++    JSON.parse(
++      await fs.readFile(path.join(b.root, ".ospec", "archive-tx", b.changeName, "journal.json"), "utf8"),
++    ).created_by_tx.includes("openspec/specs/routing/spec.md"),
++  );
++  await rollbackTransaction({ workspace: b.root, changeName: b.changeName });
++  assert.equal(await fs.readFile(bSpec, "utf8"), bOrig);
++  await assert.rejects(
++    fs.stat(path.join(b.root, "openspec", "changes", "archive", "2026-07-26-demo-change")),
++    { code: "ENOENT" },
++  );
++});
++
++test("FS: rollback post-commit fixture restores .bak and cleans staging", async (t) => {
++  async function assertPostCommitRollback(state) {
++    const ctx = await buildWorkspace(t);
++    const specRel = "openspec/specs/routing/spec.md";
++    const destRel = "openspec/changes/archive/2026-07-26-demo-change";
++    const specAbs = path.join(ctx.root, ...specRel.split("/"));
++    const destAbs = path.join(ctx.root, ...destRel.split("/"));
++    const baseline = "# Routing baseline\n";
++    const txDir = path.join(ctx.root, ".ospec", "archive-tx", ctx.changeName);
++    const staging = path.join(txDir, "staging", "archive");
++
++    await fs.writeFile(specAbs, "# Routing merged (live after partial commit)\n");
++    await fs.writeFile(specAbs + ".bak", baseline);
++    await fs.mkdir(destAbs, { recursive: true });
++    await fs.writeFile(path.join(destAbs, "proposal.md"), "# Proposal\n");
++    await fs.mkdir(staging, { recursive: true });
++    await fs.writeFile(path.join(staging, "leftover.md"), "staged-leftover");
++    await fs.mkdir(txDir, { recursive: true });
++    await fs.writeFile(
++      path.join(txDir, "journal.json"),
++      JSON.stringify({
++        state,
++        plan_sha256: digestBytes(await fs.readFile(ctx.planPath)),
++        destination: destRel,
++        created_by_tx: [destRel, specRel],
++      }),
++    );
++
++    const receipt = await rollbackTransaction({
++      workspace: ctx.root,
++      changeName: ctx.changeName,
++    });
++    assert.equal(receipt.outcome, "rolled-back");
++    assert.equal(await fs.readFile(specAbs, "utf8"), baseline);
++    await assert.rejects(fs.stat(specAbs + ".bak"), { code: "ENOENT" });
++    await assert.rejects(fs.stat(destAbs), { code: "ENOENT" });
++    await assert.rejects(fs.stat(staging), { code: "ENOENT" });
++    assert.equal(
++      JSON.parse(await fs.readFile(path.join(txDir, "journal.json"), "utf8")).state,
++      "rolled-back",
++    );
++  }
++
++  await assertPostCommitRollback("failed");
++  await assertPostCommitRollback("committed");
++});
+diff --git a/scripts/lib/atomic-write.js b/scripts/lib/atomic-write.js
+index 5e921f8..f18b167 100644
+--- a/scripts/lib/atomic-write.js
++++ b/scripts/lib/atomic-write.js
+@@ -113,7 +113,78 @@ async function writeFileAtomic(targetPath, content) {
+   }
+ }
+ 
++/**
++ * Renames sourcePath → targetPath with Windows EPERM/EEXIST fallback
++ * (backup target → .bak, retry rename, remove .bak). Works for files and directories.
++ * @param {string} sourcePath
++ * @param {string} targetPath
++ * @param {{fsImpl?: {rename, unlink, rm, stat}}} [options]
++ */
++async function renameWithFallback(sourcePath, targetPath, options = {}) {
++  const fsImpl = options.fsImpl || {
++    rename: fs.rename,
++    unlink: fs.unlink,
++    rm: fs.rm,
++    stat: fs.stat,
++  };
++  const bakPath = targetPath + ".bak";
++
++  try {
++    await fsImpl.rename(sourcePath, targetPath);
++    return;
++  } catch (error) {
++    if (error.code !== "EEXIST" && error.code !== "EPERM") {
++      throw error;
++    }
++  }
++
++  let backedUp = false;
++  try {
++    try {
++      await fsImpl.rename(targetPath, bakPath);
++      backedUp = true;
++    } catch (bakErr) {
++      // Target may be absent (injected EPERM on create) — retry bare rename.
++      if (bakErr.code === "ENOENT") {
++        await fsImpl.rename(sourcePath, targetPath);
++        return;
++      }
++      throw bakErr;
++    }
++    await fsImpl.rename(sourcePath, targetPath);
++    // Remove backup: file via unlink, directory via rm
++    try {
++      await fsImpl.unlink(bakPath);
++    } catch (unlinkErr) {
++      if (unlinkErr.code === "EISDIR" || unlinkErr.code === "EPERM") {
++        await fsImpl.rm(bakPath, { recursive: true, force: true });
++      } else if (unlinkErr.code !== "ENOENT") {
++        // Directory on some platforms: try rm
++        await fsImpl.rm(bakPath, { recursive: true, force: true });
++      }
++    }
++  } catch (fallbackError) {
++    if (backedUp) {
++      try {
++        await fsImpl.rename(bakPath, targetPath);
++      } catch (rollbackError) {
++        const aggregate = new Error(
++          `renameWithFallback: rollback to "${bakPath}" also failed; ` +
++            `pre-rename content may be at "${bakPath}" ` +
++            `(original: ${fallbackError.message}; rollback: ${rollbackError.message})`,
++        );
++        aggregate.code = fallbackError.code;
++        aggregate.bakPath = bakPath;
++        aggregate.cause = fallbackError;
++        throw aggregate;
++      }
++    }
++    throw fallbackError;
++  }
++}
++
+ module.exports = {
+   writeFileAtomic,
+   recoverOrphanBak,
++  renameWithFallback,
+ };
+diff --git a/scripts/lib/atomic-write.test.js b/scripts/lib/atomic-write.test.js
+index e3618c0..db670e2 100644
+--- a/scripts/lib/atomic-write.test.js
++++ b/scripts/lib/atomic-write.test.js
+@@ -7,7 +7,7 @@ const path = require("node:path");
+ const os = require("node:os");
+ 
+ // Load the module that does not exist or has no implementation yet
+-const { writeFileAtomic, recoverOrphanBak } = require("./atomic-write.js");
++const { writeFileAtomic, recoverOrphanBak, renameWithFallback } = require("./atomic-write.js");
+ 
+ async function createTempDir() {
+   return await fs.mkdtemp(path.join(os.tmpdir(), "atomic-write-test-"));
+@@ -239,3 +239,96 @@ test("1.1.7 · writeFileAtomic on federation-baseline-status.yaml", async () =>
+     await fs.rm(tmpDir, { recursive: true, force: true });
+   }
+ });
++
++test("renameWithFallback · file success path", async () => {
++  const tmpDir = await createTempDir();
++  try {
++    const src = path.join(tmpDir, "src.txt");
++    const dest = path.join(tmpDir, "dest.txt");
++    await fs.writeFile(src, "payload");
++    await renameWithFallback(src, dest);
++    assert.strictEqual(await fs.readFile(dest, "utf8"), "payload");
++    await assert.rejects(fs.stat(src), { code: "ENOENT" });
++  } finally {
++    await fs.rm(tmpDir, { recursive: true, force: true });
++  }
++});
++
++test("renameWithFallback · directory success path", async () => {
++  const tmpDir = await createTempDir();
++  try {
++    const src = path.join(tmpDir, "src-dir");
++    const dest = path.join(tmpDir, "dest-dir");
++    await fs.mkdir(src);
++    await fs.writeFile(path.join(src, "nested.txt"), "dir-payload");
++    await renameWithFallback(src, dest);
++    assert.strictEqual(await fs.readFile(path.join(dest, "nested.txt"), "utf8"), "dir-payload");
++    await assert.rejects(fs.stat(src), { code: "ENOENT" });
++  } finally {
++    await fs.rm(tmpDir, { recursive: true, force: true });
++  }
++});
++
++test("renameWithFallback · simulated EPERM then success (file)", async () => {
++  const tmpDir = await createTempDir();
++  try {
++    const src = path.join(tmpDir, "src.txt");
++    const dest = path.join(tmpDir, "dest.txt");
++    await fs.writeFile(src, "new-bytes");
++    await fs.writeFile(dest, "old-bytes");
++
++    const realRename = fs.rename;
++    let firstDestAttempt = true;
++    const renameSpy = async (oldPath, newPath) => {
++      if (firstDestAttempt && oldPath === src && newPath === dest) {
++        firstDestAttempt = false;
++        const err = new Error("EPERM: operation not permitted, rename");
++        err.code = "EPERM";
++        throw err;
++      }
++      return realRename(oldPath, newPath);
++    };
++
++    await renameWithFallback(src, dest, {
++      fsImpl: { rename: renameSpy, unlink: fs.unlink, rm: fs.rm, stat: fs.stat },
++    });
++    assert.strictEqual(await fs.readFile(dest, "utf8"), "new-bytes");
++    await assert.rejects(fs.stat(src), { code: "ENOENT" });
++    await assert.rejects(fs.stat(dest + ".bak"), { code: "ENOENT" });
++  } finally {
++    await fs.rm(tmpDir, { recursive: true, force: true });
++  }
++});
++
++test("renameWithFallback · simulated EEXIST then success (directory)", async () => {
++  const tmpDir = await createTempDir();
++  try {
++    const src = path.join(tmpDir, "src-dir");
++    const dest = path.join(tmpDir, "dest-dir");
++    await fs.mkdir(src);
++    await fs.writeFile(path.join(src, "a.txt"), "new");
++    await fs.mkdir(dest);
++    await fs.writeFile(path.join(dest, "a.txt"), "old");
++
++    const realRename = fs.rename;
++    let firstDestAttempt = true;
++    const renameSpy = async (oldPath, newPath) => {
++      if (firstDestAttempt && oldPath === src && newPath === dest) {
++        firstDestAttempt = false;
++        const err = new Error("EEXIST: file already exists, rename");
++        err.code = "EEXIST";
++        throw err;
++      }
++      return realRename(oldPath, newPath);
++    };
++
++    await renameWithFallback(src, dest, {
++      fsImpl: { rename: renameSpy, unlink: fs.unlink, rm: fs.rm, stat: fs.stat },
++    });
++    assert.strictEqual(await fs.readFile(path.join(dest, "a.txt"), "utf8"), "new");
++    await assert.rejects(fs.stat(src), { code: "ENOENT" });
++    await assert.rejects(fs.stat(dest + ".bak"), { code: "ENOENT" });
++  } finally {
++    await fs.rm(tmpDir, { recursive: true, force: true });
++  }
++});
+diff --git a/scripts/mentor-adr-contract.test.js b/scripts/mentor-adr-contract.test.js
+index 0eb520d..a7c1bdb 100644
+--- a/scripts/mentor-adr-contract.test.js
++++ b/scripts/mentor-adr-contract.test.js
+@@ -78,20 +78,22 @@ test("A5.1 · sdd-design extracts significant decisions to change-local ADRs wit
+   assert.match(content, /## Context[\s\S]*## Decision[\s\S]*## Alternatives[\s\S]*## Consequences/, "ADR template must carry the 4 sections");
+ });
+ 
+-test("A5.2 · sdd-archive promotes ADRs to docs/adr/ before copying to the archive destination and keeps change-local copies", async () => {
++test("A5.2 · sdd-archive proposes ADRs in archive-plan.json before plan emission and keeps change-local copies", async () => {
+   const content = await readFile(ARCHIVE_SKILL_PATH);
+-  const promoteIdx = content.indexOf("Step 4b: Promote ADRs");
+-  const copyIdx = content.indexOf("Step 5: Copy Artifacts to Archive");
+-  assert.ok(promoteIdx !== -1, "must contain the ADR promotion step");
+-  assert.ok(copyIdx !== -1 && promoteIdx < copyIdx, "promotion must happen before copying to the archive destination");
++  const promoteIdx = content.indexOf("Step 4b: Propose ADR Promotions");
++  const planIdx = content.indexOf("Step 5: Emit archive-plan.json");
++  assert.ok(promoteIdx !== -1, "must contain the ADR promotion proposal step");
++  assert.ok(planIdx !== -1 && promoteIdx < planIdx, "ADR proposals must happen before plan emission");
+   assert.match(content, /docs\/adr\/adr-\{YYYYMMDD\}-\{NNN\}/, "must define the docs/adr naming scheme");
+-  assert.match(content, /accepted/, "promotion must flip Status to accepted");
++  assert.match(content, /adr_promotions/, "must list ADRs in adr_promotions for the runtime");
++  assert.match(content, /MUST NOT write live `docs\/adr\/\*\*`|Do NOT write live `docs\/adr\/\*\*`/, "must not write live docs/adr itself");
+   assert.match(content, /skip silently/i, "missing decisions/ must be a silent no-op");
+ });
+ 
+-test("A5.3 · sdd-archive Step 5 scopes the executor to copy-and-report (never deletes the source or claims the move is complete)", async () => {
++test("A5.3 · sdd-archive Step 5 scopes the executor to Plan-and-Report (never deletes the source or claims the move is complete)", async () => {
+   const content = await readFile(ARCHIVE_SKILL_PATH);
+-  assert.match(content, /copy inventory/i, "must require reporting a copy inventory");
++  assert.match(content, /Plan-and-Report/, "must declare Plan-and-Report");
++  assert.match(content, /archive-plan\.json/, "must require emitting archive-plan.json");
+   assert.match(content, /MUST NOT[\s\S]{0,120}delete the source/, "must forbid the executor from deleting the source directory");
+   assert.doesNotMatch(content, /then delete the source folder/i, "must NOT instruct the executor to delete the source folder itself");
+ });
+@@ -99,7 +101,7 @@ test("A5.3 · sdd-archive Step 5 scopes the executor to copy-and-report (never d
+ test("A5.4 · orchestrator Reads/Writes table registers ADR artifacts for design and archive", async () => {
+   const content = await readFile(ORCHESTRATOR_AGENT_PATH);
+   assert.match(content, /`sdd-design`[^\n]*decisions\/adr-NNN\.md/, "design row must list decisions/adr-NNN.md");
+-  assert.match(content, /`sdd-archive`[^\n]*docs\/adr/, "archive row must list promoted docs/adr");
++  assert.match(content, /`sdd-archive`[^\n]*archive-plan\.json/, "archive row must list archive-plan.json");
+ });
+ 
+ // ---------------------------------------------------------------------------
+@@ -127,7 +129,7 @@ test("G.1 · generated claude target carries Mentorship Mode Forwarding and the
+ 
+   const archive = result.files.find((f) => f.path === "skills/sdd-archive/SKILL.md");
+   assert.ok(archive, "claude target must emit skills/sdd-archive/SKILL.md");
+-  assert.match(archive.content, /Step 4b: Promote ADRs/);
++  assert.match(archive.content, /Step 4b: Propose ADR Promotions/);
+ });
+ 
+ test("G.2 · generated vscode target carries the mentorship semantics in sdd-phase-common", (t) => {
+diff --git a/skills/_shared/gate-archive-quality.md b/skills/_shared/gate-archive-quality.md
+index 238592b..edf697e 100644
+--- a/skills/_shared/gate-archive-quality.md
++++ b/skills/_shared/gate-archive-quality.md
+@@ -94,23 +94,26 @@ the correct path — never dispatch archive on the anomaly.
+ ## Post-Return Move Completion
+ 
+ After `sdd-archive` returns `status: success`, the ORCHESTRATOR — never the
+-executor — decides, verifies, and performs completion of the archive-folder
+-move. The executor's reported copy-inventory list (see `sdd-archive/SKILL.md`
+-Step 5) is only the STARTING manifest; the orchestrator re-verifies it against
+-the actual filesystem before acting on it.
+-
+-1. The orchestrator MUST recursively diff the destination
+-   (`openspec/changes/archive/{YYYY-MM-DD}-{change-name}/`) against the source
+-   (`openspec/changes/{change-name}/`), file-by-file: both path presence and
+-   content match (hash or byte comparison).
+-2. **Full match** → delete the source directory — the only filesystem step
+-   that makes this a true move — and only then consider the archive route
+-   complete.
+-3. **Any mismatch or copy failure** (missing destination file, content diff,
+-   partial copy) → halt with the source directory left intact, surface the
+-   mismatch to the user, and do NOT close the route silently. MUST NOT delete
+-   the source under a mismatch condition.
+-
+-This is a re-runnable filesystem diff: if the diff halted, re-running it after
+-a repaired copy is the correct recovery path, not re-dispatching `sdd-archive`.
++executor — completes archive-folder closure by invoking the deterministic archive
++transaction runtime with the executor-emitted `archive-plan.json`:
++
++```
++node scripts/archive-transaction-run.js {change-name}
++```
++
++The executor's plan (see `sdd-archive/SKILL.md` Step 5 Plan-and-Report) is the
++semantic input; the runtime owns staging, inventory copy, origin↔staging↔destination
++comparison, atomic commit, journal/resume/rollback, and delete-after-full-match.
++The orchestrator MUST treat a runtime success receipt as the sole close authority.
++The orchestrator MUST NOT perform an ad-hoc recursive inventory diff-and-delete as
++the completion mechanism.
++
++1. Invoke `node scripts/archive-transaction-run.js {change-name}` (workspace = repo root).
++2. **Runtime success receipt** (`outcome: success` or `resumed-success`) → consider
++   the archive route complete. Do not require a separate ad-hoc recursive diff.
++3. **Any runtime failure, mismatch, or absent/unsuccessful receipt** → halt with the source directory left intact (or restored per runtime rollback), surface the failure to the user, and do NOT close the route silently. MUST NOT delete the source outside the runtime under a mismatch condition.
++
++This is re-runnable via the runtime journal: if the transaction halted after staging,
++re-invoking the runtime (same plan identity) is the correct recovery path, not
++re-dispatching `sdd-archive`.
+ 
+diff --git a/skills/sdd-archive/SKILL.md b/skills/sdd-archive/SKILL.md
+index c8f822c..8c2a6a0 100644
+--- a/skills/sdd-archive/SKILL.md
++++ b/skills/sdd-archive/SKILL.md
+@@ -22,7 +22,12 @@ runtime_capabilities:
+ 
+ ## Purpose
+ 
+-You are a sub-agent responsible for ARCHIVING. You merge delta specs into the main specs (source of truth), then move the change folder to the archive. You complete the SDD cycle.
++You are a sub-agent responsible for ARCHIVING under the **Plan-and-Report** contract.
++You interpret delta specs, prepare resulting content (with hashes), propose ADR
++promotions, persist the archive report, and emit `archive-plan.json`. Live writes to
++`openspec/specs/**` / `docs/adr/**`, the archive-folder commit, and origin delete are
++owned by the deterministic archive transaction runtime invoked by the orchestrator —
++not by you.
+ 
+ ## What You Receive
+ 
+@@ -34,7 +39,10 @@ From the orchestrator:
+ 
+ > Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
+ 
+-- **openspec**: Read and follow `skills/_shared/openspec-convention.md`. Perform merge and archive folder moves.
++- **openspec**: Read and follow `skills/_shared/openspec-convention.md`. Prepare
++  change-local content and emit `archive-plan.json`. Do NOT write live main specs,
++  do NOT copy the change folder into `openspec/changes/archive/`, and do NOT delete
++  the source directory.
+ - In `openspec` mode, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as canonical workflow state for continuation and recovery; never rely on conversation history.
+ - **none**: Return closure summary only. Do not perform archive file operations.
+ 
+@@ -43,9 +51,9 @@ From the orchestrator:
+ ### Step 1: Load Skills
+ Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
+ 
+-### Step 2: Sync Delta Specs to Main Specs
++### Step 2: Prepare Spec Content (change-local — no live main-spec writes)
+ 
+-Before syncing anything, inspect `openspec/changes/{change-name}/verify-report.md` and enforce the close gate:
++Before preparing anything, inspect `openspec/changes/{change-name}/verify-report.md` and enforce the close gate:
+ - `FAIL` blocks archive completely.
+ - `PASS WITH WARNINGS` may proceed only when the warnings are explicitly documented as accepted risks or converted into follow-up work.
+ - If warning acceptance is missing, STOP and return `blocked`.
+@@ -54,19 +62,29 @@ Before syncing anything, inspect `openspec/changes/{change-name}/verify-report.m
+ 
+ **IF mode is `openspec`:** For each delta spec in `openspec/changes/{change-name}/specs/`:
+ 
+-If no delta specs exist (common in lite mode), skip spec sync and archive the change artifacts as-is.
++If no delta specs exist (common in lite mode), skip spec preparation and continue to plan emission with empty `spec_writes`.
+ 
+-**Stale-baseline check (before merging each delta)**: if `state.yaml` carries a `baseline_fingerprints:` block, re-hash the current baseline `openspec/specs/{domain}/spec.md` (SHA-256) and compare with the recorded value for that domain. On mismatch, the baseline moved since this delta was written (typically another change archived first): do NOT blind-merge — return `status: blocked` with `blocker_type: stale-baseline` naming the domain, so the orchestrator routes a re-verify of the delta against the new baseline. A missing `baseline_fingerprints` block (pre-feature change) skips the check silently.
++**Stale-baseline check (runtime-owned preflight)**: do NOT blind-merge deltas into
++`openspec/specs/`. Embed each expected `target_before_sha256` (current live target
++bytes, or `null` if the target does not exist yet) and prepared `content_sha256` in
++`archive-plan.json`. The archive transaction runtime enforces the stale-baseline check
++during preflight against `state.yaml` `baseline_fingerprints` and live bytes
++(`failure_reason: baseline-stale`). A missing `baseline_fingerprints` block may skip
++only the fingerprint portion of preflight when `target_before_sha256` checks still pass.
+ 
+-#### If Main Spec Exists (`openspec/specs/{domain}/spec.md`)
++#### Prepare merged content change-locally
+ 
+-Read the existing main spec and apply the delta:
++Read the existing main spec (if any) and apply the delta in memory / under the
++change-local path `openspec/changes/{change-name}/specs/{domain}/spec.md` (or another
++change-local prepared artifact you hash). Compute `content_sha256` over the prepared
++bytes. Do NOT write `openspec/specs/{domain}/spec.md` yourself — list the write in
++`spec_writes[]` for the runtime.
+ 
+ ```
+-FOR EACH SECTION in delta spec:
+-├── ADDED Requirements → Append to main spec's Requirements section
+-├── MODIFIED Requirements → Replace the matching requirement in main spec
+-└── REMOVED Requirements → Delete the matching requirement from main spec
++FOR EACH SECTION in delta spec (semantic prep only):
++├── ADDED Requirements → include in prepared content
++├── MODIFIED Requirements → replace in prepared content
++└── REMOVED Requirements → omit from prepared content
+ ```
+ 
+ **Merge carefully:**
+@@ -74,16 +92,6 @@ FOR EACH SECTION in delta spec:
+ - Preserve all OTHER requirements that aren't in the delta
+ - Maintain proper Markdown formatting and heading hierarchy
+ 
+-#### If Main Spec Does NOT Exist
+-
+-The delta spec IS a full spec (not a delta). Copy it directly:
+-
+-```bash
+-# Copy new spec to main specs
+-openspec/changes/{change-name}/specs/{domain}/spec.md
+-  → openspec/specs/{domain}/spec.md
+-```
+-
+ ### Step 3: Persist Archive Report
+ 
+ **This step is MANDATORY — do NOT skip it.**
+@@ -93,13 +101,17 @@ follow **Section C** from `skills/_shared/sdd-phase-common.md`.
+ - artifact: `archive-report`
+ - path: `openspec/changes/{change-name}/archive-report.md`
+ 
+-Persist the report into the **active** change folder. The folder move (Step 5) is the LAST filesystem operation, so the move carries this report into the archive. Steps 3 and 4 MUST run while the change folder is still at its active path.
++Persist the report into the **active** change folder. Plan emission (Step 5) is the
++last executor filesystem write; the runtime later commits the archive folder. Steps 3
++and 4 MUST run while the change folder is still at its active path.
+ 
+ #### Cost Block (REQ-agents-001)
+ 
+-Compose this "Cost" block as part of the archive report content, after the report's other
+-sections are composed and before the report is persisted. It never changes the close-gate
+-enforcement (top of Step 2), the spec-sync order, or the archive-folder move (Step 5) —
++Compose this "Cost" block as part of the archive report content for humans, after the
++report's other sections are composed and before the report is persisted. Closure
++authority for cost lives on the runtime receipt, not this section (human-readable
++only). Token column headers/values MUST remain labeled "estimated". It never changes the close-gate
++enforcement (top of Step 2), the semantic-prep order, or plan emission (Step 5) —
+ it is purely additive reporting.
+ 
+ **IF mode is `none`:** Skip — no cost telemetry to read or report.
+@@ -156,7 +168,7 @@ it is purely additive reporting.
+ 
+ ### Step 4: Write Resolved Decisions to Memory
+ 
+-After persisting the archive report — and while the change folder is still at its active path (before the Step 5 move) — inspect `open_decisions` in `openspec/changes/{change-name}/state.yaml` and promote resolved entries into `openspec/memory/decisions.md`.
++After persisting the archive report — and while the change folder is still at its active path (before plan emission / runtime commit) — inspect `open_decisions` in `openspec/changes/{change-name}/state.yaml` and promote resolved entries into `openspec/memory/decisions.md`.
+ 
+ **Procedure:**
+ 
+@@ -194,53 +206,59 @@ After persisting the archive report — and while the change folder is still at
+ - `phase` (string) — phase where the decision was made
+ - `applies_to` (string array) — phases affected
+ 
+-### Step 4b: Promote ADRs to Project Memory
++### Step 4b: Propose ADR Promotions in the Plan
+ 
+ **IF mode is `openspec`** and `openspec/changes/{change-name}/decisions/adr-*.md` exists:
+ 
+-1. For each ADR whose decision was NOT invalidated during verify (default: all of them), copy it to `docs/adr/adr-{YYYYMMDD}-{NNN}-{kebab-title}.md` (date = archive date) and set its `Status:` line to `accepted`.
+-2. Renumber on collision: if a target filename already exists in `docs/adr/`, keep the date and bump `NNN` past the highest existing suffix for that date.
+-3. The change-local copies under `decisions/` stay in the change folder and travel to the archive with it (audit trail); `docs/adr/` is the living project memory that survives the archive.
+-4. List promoted ADR paths in the archive report and in `artifacts`.
++1. For each ADR whose decision was NOT invalidated during verify (default: all of them),
++   add an `adr_promotions[]` entry to `archive-plan.json` with `source`, intended
++   `docs/adr/adr-{YYYYMMDD}-{NNN}-{kebab-title}.md` target, and `content_sha256`.
++   Do NOT write live `docs/adr/**` files yourself — the archive transaction runtime
++   applies promotions during commit.
++2. On planned filename collision, bump `NNN` past the highest existing suffix for that date.
++3. The change-local copies under `decisions/` stay in the change folder and travel to the
++   archive with it (audit trail); `docs/adr/` becomes living project memory only after
++   the runtime commits.
++4. List proposed ADR paths in the archive report and in `artifacts`.
+ 
+-If no `decisions/` directory exists, skip silently — ADRs are optional per change.
++If no `decisions/` directory exists, skip silently — emit `adr_promotions: []` and
++continue. ADRs are optional per change.
+ 
+-### Step 5: Copy Artifacts to Archive (executor scope — copy and report ONLY)
++### Step 5: Emit archive-plan.json (Plan-and-Report — executor scope)
+ 
+ **IF mode is `none`:** Skip — no filesystem operations.
+ 
+-**IF mode is `openspec`:** Copy every artifact from the active change folder (now
+-containing the archive report, per Steps 2-4) to the destination archive path with
+-today's date prefix (ISO format, e.g. `2026-02-16`):
++**IF mode is `openspec`:** Emit `openspec/changes/{change-name}/archive-plan.json`
++(schema v1) after semantic preparation. The plan MUST include:
+ 
+-```
+-openspec/changes/{change-name}/
+-  → openspec/changes/archive/YYYY-MM-DD-{change-name}/  (copy, not move)
+-```
++- `change`, `source_fingerprint`, `spec_writes[]`, `adr_promotions[]`,
++  `archive_inventory[]` (origin paths the runtime must preserve), `accepted_warnings[]`,
++  `rollback.strategy: "staging-rename"`
+ 
+-Your responsibility ends at: baseline sync (Step 2), archive-report persistence
+-(Step 3), ADR promotion (Step 4b), and copying artifacts to the destination path.
+-Completion of the move — recursively verifying the destination inventory against
+-the source and deleting the source directory — is the ORCHESTRATOR's responsibility
+-(see `skills/_shared/gate-archive-quality.md`, Post-Return Move Completion), NOT
+-yours.
++Your responsibility ends at: semantic prep (Step 2), archive-report persistence
++(Step 3), ADR promotion proposals (Step 4b), and plan emission (Step 5).
++Completion of the archive — staging, compare, atomic commit, and delete-after-full-match —
++is the ORCHESTRATOR's responsibility via `node scripts/archive-transaction-run.js {change}`
++and the runtime success receipt (see `skills/_shared/gate-archive-quality.md`,
++Post-Return Move Completion), NOT yours.
+ 
+-You MUST NOT delete the source directory `openspec/changes/{change-name}/`, and you
++You MUST NOT delete the source directory `openspec/changes/{change-name}/`, MUST NOT
++copy the change folder to `openspec/changes/archive/...` as the completion mechanism,
++MUST NOT write live `openspec/specs/**` or `docs/adr/**` as the closure write path, and
+ MUST NOT claim in your return envelope or report that the move is "complete" or that
+-the source no longer exists while it still exists on disk. Report a copy inventory —
+-the list of files you actually copied to the destination — in your return envelope
+-(Step 7), so the orchestrator can verify it against the real filesystem state before
+-deciding whether to delete the source. If you copy fewer files than exist in the
+-source (partial copy), the copy-inventory list MUST reflect only what was actually
+-copied — never conceal a partial copy as if it were complete.
++the source no longer exists. Report the plan path and an archive-inventory summary in
++your return envelope (Step 7) so the orchestrator can invoke the runtime. If you cannot
++produce a complete valid plan, MUST NOT return `status: success` with an incomplete plan
++presented as ready — never conceal partial semantic prep.
+ 
+-### Step 6: Verify Archive
++### Step 6: Verify Plan Readiness
+ 
+ **IF mode is `openspec`:** Confirm:
+-- [ ] Main specs updated correctly
+-- [ ] Change folder artifacts copied to the destination archive path
+-- [ ] Archive destination contains `archive-report.md` and all other expected artifacts for this mode (proposal or proposal-lite, tasks, and specs/design when present)
+-- [ ] Source directory still exists (deletion is the orchestrator's responsibility, not yours — see Step 5)
++- [ ] Prepared content hashes are recorded in `spec_writes[]`
++- [ ] `archive-plan.json` exists and references `archive_inventory`
++- [ ] Archive report is persisted in the active change folder
++- [ ] Source directory still exists (deletion is the runtime's responsibility after full match — see Step 5)
++- [ ] You did NOT write live `openspec/specs/**` or `docs/adr/**`
+ 
+ **IF mode is `none`:** Skip verification — no persisted artifacts.
+ 
+@@ -249,33 +267,33 @@ copied — never conceal a partial copy as if it were complete.
+ Return to the orchestrator:
+ 
+ ```markdown
+-## Change Copied to Archive Destination
++## Archive Plan Emitted (Plan-and-Report)
+ 
+ **Change**: {change-name}
+-**Copied to**: `openspec/changes/archive/{YYYY-MM-DD}-{change-name}/` (openspec) | inline (none)
++**Plan**: `openspec/changes/{change-name}/archive-plan.json` (openspec) | inline (none)
+ 
+-### Specs Synced
++### Specs Prepared (change-local)
+ | Domain | Action | Details |
+ |--------|--------|---------|
+-| {domain} | Created/Updated | {N added, M modified, K removed requirements} |
++| {domain} | Prepared | {N added, M modified, K removed requirements} |
+ 
+-### Copy Inventory
+-- {list of every file path copied to the destination archive path}
++### Archive Inventory (plan summary)
++- {list of every origin path listed in archive_inventory}
+ 
+-### Archive Contents
++### Archive Report Contents
+ - proposal.md or proposal-lite.md ✅
+ - specs/ (if present) ✅
+ - design.md (if present) ✅
+ - tasks.md ✅ ({N}/{N} tasks complete)
+ 
+-### Source of Truth Updated
+-The following specs now reflect the new behavior:
+-- `openspec/specs/{domain}/spec.md`
++### Live Specs / ADR Commit Pending (runtime-owned)
++Live `openspec/specs/**` and `docs/adr/**` writes are applied only by the archive
++transaction runtime during commit — not by this executor.
+ 
+ ### Move Completion Pending (orchestrator-owned)
+ The source directory `openspec/changes/{change-name}/` still exists. The
+-orchestrator verifies the copy inventory above against the destination and
+-source filesystem state, then deletes the source once verified.
++orchestrator invokes `node scripts/archive-transaction-run.js {change-name}` and
++treats the runtime success receipt as the sole close authority.
+ ```
+ 
+ ## Rules
+@@ -283,10 +301,12 @@ source filesystem state, then deletes the source once verified.
+ - NEVER archive a change that has CRITICAL issues in its verification report
+ - NEVER archive when verification verdict is `FAIL`
+ - Archive with `PASS WITH WARNINGS` only if accepted risks or follow-up tasks are explicitly recorded in the archive report
+-- ALWAYS sync delta specs BEFORE moving to archive
+-- When merging into existing specs, PRESERVE requirements not mentioned in the delta
+-- Use ISO date format (YYYY-MM-DD) for archive folder prefix
++- ALWAYS prepare delta specs and emit the plan BEFORE the orchestrator invokes the runtime
++- When preparing content from existing specs, PRESERVE requirements not mentioned in the delta
++- Use ISO date format (YYYY-MM-DD) for planned archive folder prefix in the plan/report
+ - If the merge would be destructive (removing large sections), WARN the orchestrator and ask for confirmation
++- NEVER claim the archive move is complete without a runtime success receipt
++- MUST NOT claim completion while the source directory still exists
+ - The archive is an AUDIT TRAIL — never delete or modify archived changes
+ - If `openspec/changes/archive/` doesn't exist, create it
+ - Apply any `rules.archive` from `openspec/config.yaml`

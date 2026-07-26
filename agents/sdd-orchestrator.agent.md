@@ -388,7 +388,7 @@ Each phase has explicit read/write rules:
 | `sdd-tasks` | spec + design (required) or `proposal-lite` in lite mode | `tasks` |
 | `sdd-apply` | tasks + spec + design + **apply-progress (if exists)**, or `proposal-lite` in lite mode | `apply-progress` |
 | `sdd-verify` | spec + tasks + **apply-progress**, or `proposal-lite` + tasks in lite mode | `verify-report` |
-| `sdd-archive` | all artifacts | `archive-report` + promoted `docs/adr/*` (when the change has ADRs) |
+| `sdd-archive` | all artifacts | `archive-report` + `archive-plan.json` (ADR promotions listed in plan; live `docs/adr/*` committed by runtime receipt) |
 
 For phases with required dependencies, sub-agents read directly from OpenSpec artifact paths. The orchestrator passes artifact file paths, not full content.
 For persisted continuation, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the canonical state. Never infer current phase from conversation history when these files exist.
@@ -470,7 +470,7 @@ here.
 | 4R Review Gate Dispatch | `4r-review-gate` listed in the active route `gates` | `skills/_shared/gate-4r-review.md` | When the 4R hook point is reached (after successful `sdd-verify` returns `success`) |
 | Workspace Federation / Federation Baseline Loop | `artifact_store.backend == workspace-federated` | `skills/_shared/route-federation.md` | At route start when the backend is federated, before federated foundation / baseline loop |
 | Lifecycle Hook Dispatch | `hooks:` present and non-empty in `config.yaml` | `skills/_shared/dispatch-lifecycle-hooks.md` | At route start (setup/cache), before the first phase dispatch |
-| Archive Dispatch Guard (Quality Gates) | before dispatching `sdd-archive` | `skills/_shared/gate-archive-quality.md` | At the archive guard, before dispatching `sdd-archive` |
+| Archive Dispatch Guard (Quality Gates) | before dispatching `sdd-archive` | `skills/_shared/gate-archive-quality.md` | At the archive guard, before dispatching `sdd-archive` (Post-Return Move Completion is in the same file) |
 | Change Collision Gate | before dispatching `sdd-apply` AND at least one OTHER active (non-terminal) change exists | `skills/_shared/gate-change-collision.md` | At the apply guard, after the Review Workload Guard resolves |
 | Question Shape Library | composing a delivery-strategy, review-workload, or blocked-envelope question | `skills/_shared/question-shapes.md` | At the ask point, before the first such `vscode/askQuestions` call in a session |
 | Clarify Gate Handler | a successful `sdd-spec` envelope passes phase-aware validation | `skills/_shared/clarify-routing.md` | After `sdd-spec` success, before dispatching `sdd-clarify`/`sdd-design` |

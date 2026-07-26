@@ -1,0 +1,232 @@
+{
+  "status": "correction-required",
+  "findings": [
+    {
+      "id": "F-1f49700d57dd853e",
+      "owner": "risk",
+      "severity": "CRITICAL",
+      "summary": "Confinement de rutas ausente: plan/CLI permiten path traversal hacia lectura, escritura y rm recursivo fuera de los roots de archive.",
+      "acceptance_criteria": "Fail-closed si cualquier path resuelto no queda bajo roots allowlisted; tests con ../, absolutos y domain traversal.",
+      "blocking": true,
+      "resolution": "unresolved"
+    },
+    {
+      "id": "F-74b9fee607b8ca52",
+      "owner": "risk",
+      "severity": "CRITICAL",
+      "summary": "Override de quality-gates fail-open: regex de documento completo puede marcar overridePresent sin override del gate fallido.",
+      "acceptance_criteria": "Override solo si el mismo approval o el subárbol gates.quality-gates.override lo declara; tests con override ajeno y status failed.",
+      "blocking": true,
+      "resolution": "unresolved"
+    },
+    {
+      "id": "F-f2b5024549c51c84",
+      "owner": "reliability",
+      "severity": "CRITICAL",
+      "summary": "Ramas Compare A/B (origin↔staging / origin↔destination) sin fixture FS; los tests de compare fallan en preflight.",
+      "acceptance_criteria": "Fixtures con journal staged/committed y inventarios divergentes; assert compare-mismatch, origin_deleted:false, origin intacto.",
+      "blocking": true,
+      "resolution": "unresolved"
+    },
+    {
+      "id": "F-cb2a4ba8861cd37c",
+      "owner": "reliability",
+      "severity": "CRITICAL",
+      "summary": "Rollback post-commit con created_by_tx/.bak sin fixture FS; solo se prueba discard de staging.",
+      "acceptance_criteria": "Fixture committed/failed + created_by_tx/.bak; tras rollback, live targets restaurados y staging limpio.",
+      "blocking": true,
+      "resolution": "unresolved"
+    },
+    {
+      "id": "F-cfd6fa1664facd64",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "Catch commit-failed del rename/cp nunca ejercitado.",
+      "acceptance_criteria": "fsImpl que falle en commit; receipt failed + failure_reason commit-failed + origin_deleted false.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-930ed5ed60938573",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "journal.json corrupto propaga throw; no hay receipt fail-closed ni test.",
+      "acceptance_criteria": "JSON inválido → receipt failed sin throw; test dedicado + CLI imprime receipt.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-894ba7f22f42f325",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "Flag público CLI --rollback sin cobertura e2e.",
+      "acceptance_criteria": "main([change,'--rollback',...]) con journal staged (y post-commit) → rolled-back + asserts de seguridad.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-3633127d1a47ca22",
+      "owner": "resilience",
+      "severity": "CRITICAL",
+      "summary": "Commit multi-paso no atómico; rollback no restaura fallo parcial (created_by_tx no persistido; .bak borrado por rename exitoso).",
+      "acceptance_criteria": "Fallo inyectado tras el primer live write debe dejar FS intacto o plenamente restaurable vía rollbackTransaction; fixture FS obligatoria.",
+      "blocking": true,
+      "resolution": "unresolved"
+    },
+    {
+      "id": "F-6638fee19ed94ee4",
+      "owner": "resilience",
+      "severity": "CRITICAL",
+      "summary": "Interrupción mid-commit: journal permanece en compared tras mutar destino/live; resume reintenta commit sin staging.",
+      "acceptance_criteria": "Journal actualizado por cada mutación de commit; kill entre rename de staging y writeJournal committed debe reanudar o hacer rollback determinista con fixture.",
+      "blocking": true,
+      "resolution": "unresolved"
+    },
+    {
+      "id": "F-e09d46a1085edec5",
+      "owner": "resilience",
+      "severity": "CRITICAL",
+      "summary": "rm(origin) antes de journal done: fallo posterior marca failed/origin_deleted:false con origin ya ausente (terminal).",
+      "acceptance_criteria": "Origin solo se borra tras poder persistir done, o reconciliar origin ausente+destino OK a success/already_complete; nunca origin_deleted:false tras rm exitoso.",
+      "blocking": true,
+      "resolution": "unresolved"
+    },
+    {
+      "id": "F-31dd61f189beb738",
+      "owner": "resilience",
+      "severity": "WARNING",
+      "summary": "writeJournal no atómico; journal corrupto provoca throw sin receipt estructurado.",
+      "acceptance_criteria": "Persistir journal con writeFileAtomic; JSON corrupto debe emitir receipt failed/io-error.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-1323269b1977f818",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "Nombres compare-a/compare-b y compareAOk/compareBOk no comunican qué se compara (staging vs destino).",
+      "acceptance_criteria": "Renombrar a compare-origin-staging / compare-origin-destination (y journal) o documentar A vs B junto al reducer.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-37e58e4b6463b1d3",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "Bucle baseline preflight anidado con cuerpo vacío coexiste con la comprobación real baseline-stale.",
+      "acceptance_criteria": "Eliminar el bucle no-op o unificarlo en un solo camino documentado.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-5035da4758064993",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "readArchiveGateFacts: if vacío, gateIndent sin uso y tres detecciones de override sin explicación.",
+      "acceptance_criteria": "Quitar muertos; comentar las fuentes de override.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-ce7a460c211d01b6",
+      "owner": "readability",
+      "severity": "SUGGESTION",
+      "summary": "inventoryMismatch se enciende también cuando falla source_fingerprint, no solo el set de paths.",
+      "acceptance_criteria": "Separar fingerprint vs inventory o renombrar el flag/mensaje.",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ],
+  "findings_digest": "sha256:bfdd6b3a33ab28e815309c67319d4aff3e518589d047c9a0abc0c181bcc77253",
+  "next_action": {
+    "type": "correct",
+    "slice_id": "S-93cc4124a5b55f2d",
+    "finding_ids": [
+      "F-1f49700d57dd853e"
+    ],
+    "paths": [
+      "agents/sdd-archive.agent.md",
+      "agents/sdd-orchestrator.agent.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/memory/known-issues.md",
+      "scripts/archive-move-fingerprint-contract.test.js",
+      "scripts/archive-transaction-run.js",
+      "scripts/archive-transaction-run.test.js",
+      "scripts/configure/real-repo.test.js",
+      "scripts/eje-b-contract.test.js",
+      "scripts/lib/archive-plan.js",
+      "scripts/lib/archive-plan.test.js",
+      "scripts/lib/archive-transaction.js",
+      "scripts/lib/archive-transaction.test.js",
+      "scripts/lib/atomic-write.js",
+      "scripts/lib/atomic-write.test.js",
+      "scripts/mentor-adr-contract.test.js",
+      "skills/_shared/gate-archive-quality.md",
+      "skills/sdd-archive/SKILL.md"
+    ]
+  },
+  "planned": {
+    "status": "correction-required",
+    "next_action": {
+      "type": "correct",
+      "slice_id": "S-93cc4124a5b55f2d",
+      "finding_ids": [
+        "F-1f49700d57dd853e"
+      ],
+      "paths": [
+        "agents/sdd-archive.agent.md",
+        "agents/sdd-orchestrator.agent.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/memory/known-issues.md",
+        "scripts/archive-move-fingerprint-contract.test.js",
+        "scripts/archive-transaction-run.js",
+        "scripts/archive-transaction-run.test.js",
+        "scripts/configure/real-repo.test.js",
+        "scripts/eje-b-contract.test.js",
+        "scripts/lib/archive-plan.js",
+        "scripts/lib/archive-plan.test.js",
+        "scripts/lib/archive-transaction.js",
+        "scripts/lib/archive-transaction.test.js",
+        "scripts/lib/atomic-write.js",
+        "scripts/lib/atomic-write.test.js",
+        "scripts/mentor-adr-contract.test.js",
+        "skills/_shared/gate-archive-quality.md",
+        "skills/sdd-archive/SKILL.md"
+      ]
+    },
+    "dispatch": [],
+    "archive_allowed": false,
+    "active_slice": {
+      "slice_id": "S-93cc4124a5b55f2d",
+      "finding_ids": [
+        "F-1f49700d57dd853e"
+      ],
+      "paths": [
+        "agents/sdd-archive.agent.md",
+        "agents/sdd-orchestrator.agent.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/memory/known-issues.md",
+        "scripts/archive-move-fingerprint-contract.test.js",
+        "scripts/archive-transaction-run.js",
+        "scripts/archive-transaction-run.test.js",
+        "scripts/configure/real-repo.test.js",
+        "scripts/eje-b-contract.test.js",
+        "scripts/lib/archive-plan.js",
+        "scripts/lib/archive-plan.test.js",
+        "scripts/lib/archive-transaction.js",
+        "scripts/lib/archive-transaction.test.js",
+        "scripts/lib/atomic-write.js",
+        "scripts/lib/atomic-write.test.js",
+        "scripts/mentor-adr-contract.test.js",
+        "skills/_shared/gate-archive-quality.md",
+        "skills/sdd-archive/SKILL.md"
+      ]
+    }
+  },
+  "correction_budget": {
+    "limit_lines": 200,
+    "used_lines": 0,
+    "failed_attempts": 0,
+    "max_failed_attempts": 3
+  }
+}

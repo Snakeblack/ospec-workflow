@@ -1,0 +1,20 @@
+[
+  "scripts/lib/archive-plan.js",
+  "scripts/lib/archive-plan.test.js",
+  "scripts/lib/archive-transaction.js",
+  "scripts/lib/archive-transaction.test.js",
+  "scripts/archive-transaction-run.js",
+  "scripts/archive-transaction-run.test.js",
+  "scripts/lib/atomic-write.js",
+  "scripts/lib/atomic-write.test.js",
+  "scripts/archive-move-fingerprint-contract.test.js",
+  "scripts/mentor-adr-contract.test.js",
+  "scripts/configure/real-repo.test.js",
+  "scripts/eje-b-contract.test.js",
+  "agents/sdd-archive.agent.md",
+  "agents/sdd-orchestrator.agent.md",
+  "skills/sdd-archive/SKILL.md",
+  "skills/_shared/gate-archive-quality.md",
+  "docs/roadmaps/harness-evolution.md",
+  "openspec/memory/known-issues.md"
+]

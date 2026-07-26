@@ -1,16 +1,16 @@
 "use strict";
 
-// Static contract test for the harden-archive-move-fingerprints change.
+// Static contract test for hybrid archive move completion (O6A).
 //
 // Anchors two agent-instruction prose contracts as load-bearing strings so
 // drift fails `npm test` instead of silently regressing:
 //
 // 1. Archive-move contract (REQ-agents-008): the orchestrator — never the
-//    `sdd-archive` executor — verifies destination-vs-source inventory before
-//    deleting the source change folder. `gate-archive-quality.md` carries the
-//    orchestrator-side verification-before-delete / halt-with-source-intact
-//    protocol; `sdd-archive/SKILL.md` Step 5 is scoped to copy + report-only
-//    and must NOT instruct the executor to delete the source folder.
+//    `sdd-archive` executor — completes closure by invoking the archive
+//    transaction runtime and treating the success receipt as sole authority.
+//    `gate-archive-quality.md` carries Post-Return Move Completion +
+//    halt-with-source-intact; `sdd-archive/SKILL.md` is Plan-and-Report and
+//    must NOT instruct the executor to delete the source folder.
 // 2. Fingerprint-ownership contract (REQ-agents-009): `sdd-spec` declares
 //    touched baseline domains only (never computes/writes the SHA-256);
 //    the orchestrator owns the standing post-`sdd-spec` computation step.
@@ -24,7 +24,7 @@ const test = require("node:test");
 
 const ROOT = path.resolve(__dirname, "..");
 
-test("archive-move contract: orchestrator verifies inventory before delete; executor never deletes/claims moved", () => {
+test("archive-move contract: orchestrator invokes runtime receipt; executor never deletes/claims moved", () => {
   const gateArchiveQualityPath = path.join(ROOT, "skills", "_shared", "gate-archive-quality.md");
   const sddArchiveSkillPath = path.join(ROOT, "skills", "sdd-archive", "SKILL.md");
 
@@ -36,8 +36,13 @@ test("archive-move contract: orchestrator verifies inventory before delete; exec
 
   assert.match(
     gateText,
-    /recursively diff the destination/,
-    "gate-archive-quality.md must document the orchestrator recursively diffing the destination inventory against the source"
+    /archive-transaction-run\.js/,
+    "gate-archive-quality.md must document invoking archive-transaction-run.js"
+  );
+  assert.match(
+    gateText,
+    /runtime success receipt/,
+    "gate-archive-quality.md must document the runtime success receipt as close authority"
   );
   assert.match(
     gateText,
@@ -47,8 +52,13 @@ test("archive-move contract: orchestrator verifies inventory before delete; exec
 
   assert.match(
     skillText,
-    /copy inventory/,
-    "sdd-archive/SKILL.md Step 5 must require the executor to report a copy inventory list"
+    /Plan-and-Report/,
+    "sdd-archive/SKILL.md must declare the Plan-and-Report contract"
+  );
+  assert.match(
+    skillText,
+    /archive-plan\.json/,
+    "sdd-archive/SKILL.md Step 5 must require emitting archive-plan.json"
   );
   assert.match(
     skillText,
@@ -58,7 +68,7 @@ test("archive-move contract: orchestrator verifies inventory before delete; exec
   assert.doesNotMatch(
     skillText,
     /then delete the source folder/,
-    "sdd-archive/SKILL.md must NOT instruct the executor to delete the source folder (that is now the orchestrator's responsibility)"
+    "sdd-archive/SKILL.md must NOT instruct the executor to delete the source folder (that is now the runtime's responsibility)"
   );
 });
 

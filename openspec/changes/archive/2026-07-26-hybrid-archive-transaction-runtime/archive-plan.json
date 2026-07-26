@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "change": "hybrid-archive-transaction-runtime",
+  "source_fingerprint": "sha256:086aba67e29a4e6aa21a306d60a81ff8135ab1312eb3ef0aa7ac1e91c9843878",
+  "spec_writes": [
+    {
+      "domain": "archive-plan-contract",
+      "source_delta": "specs/archive-plan-contract/spec.md",
+      "target": "openspec/specs/archive-plan-contract/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:e5da33258561c74640f61b7f566d06eb16246ad42257717ca106104fde1d3672"
+    },
+    {
+      "domain": "archive-transaction-runtime",
+      "source_delta": "specs/archive-transaction-runtime/spec.md",
+      "target": "openspec/specs/archive-transaction-runtime/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:360a7de94d17d30bd9adc731337092206705fd1a1feb0c5a255c777f6f78c3ab"
+    },
+    {
+      "domain": "agents",
+      "source_delta": "prepared-specs/agents/spec.md",
+      "target": "openspec/specs/agents/spec.md",
+      "target_before_sha256": "sha256:7610a6042531df78be64299bf3910c07fc07f3a2b61c85c0c9a808e7d69ea7b9",
+      "content_sha256": "sha256:072c2935f4d1a0d7c11708831babbb66831047887eef6414365cdea44f1581b3"
+    },
+    {
+      "domain": "skills",
+      "source_delta": "prepared-specs/skills/spec.md",
+      "target": "openspec/specs/skills/spec.md",
+      "target_before_sha256": "sha256:f34c4bef85c94be3ed17bec8de79894c61aaf3044705b6c5debda5498afacad8",
+      "content_sha256": "sha256:c65d827f8e073d91499766433d72a1032cda4478b4c9ac5ff68ba4deb548c9e2"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260726-001-staging-root-journal-under-ospec-archive-tx-change.md",
+      "content_sha256": "sha256:8b7b9a4c6df62030385a39a38ed12676bf1b65082023db3ec7ad15d1a72d9281"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260726-002-pure-plan-validator-with-injected-filesystem-snapshot.md",
+      "content_sha256": "sha256:bf87284edb3939a0f8fa5341f9b383095d6c0b7f5f980051847c29203e3bf61e"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260726-003-windows-commit-fallback-via-additive-renamewithfallback-export.md",
+      "content_sha256": "sha256:a85004d7852abd754174f593c36f5c5e9feeed98d5ad98c125945b5f1f2aa440"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260726-004-runtime-failure-reasons-separate-from-plan-rejection-codes.md",
+      "content_sha256": "sha256:95350855cc6a85452a2a657ea35d79363a8cf0e7d0f34d6cd80f33234565a809"
+    },
+    {
+      "source": "decisions/adr-005.md",
+      "target": "docs/adr/adr-20260726-005-gate-approval-and-baseline-fingerprint-preflight-runtime-owned.md",
+      "content_sha256": "sha256:7e87bfc3334a753e7bd85073ab6e14b0b282da974f3b9d5241bd62b6e1de6cb2"
+    },
+    {
+      "source": "decisions/adr-006.md",
+      "target": "docs/adr/adr-20260726-006-no-go-mirror-js-go-parity-n-a-for-archive-runtime.md",
+      "content_sha256": "sha256:8c19d835df83fcbd0617fb8699f8bffe75650e8e6d93f78e08f5b6f115895075"
+    }
+  ],
+  "archive_inventory": [
+    ".review/active-correction.json",
+    ".review/derived-decision.json",
+    ".review/diff.after-S-3b63ea7578.patch",
+    ".review/diff.after-S-4fad12f892.patch",
+    ".review/diff.after-S-5992ca3894.patch",
+    ".review/diff.after-S-68e26a299c.patch",
+    ".review/diff.after-S-7e31be990d.patch",
+    ".review/diff.after-S-a807aedec4.patch",
+    ".review/diff.after-slice1.patch",
+    ".review/diff.unified.patch",
+    ".review/findings-frozen.json",
+    ".review/lineage.json",
+    ".review/normalized-evidence.json",
+    ".review/paths.json",
+    ".review/plan-next.json",
+    ".review/slice1-recorded.json",
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "decisions/adr-005.md",
+    "decisions/adr-006.md",
+    "design.md",
+    "prepared-specs/agents/spec.md",
+    "prepared-specs/skills/spec.md",
+    "proposal.md",
+    "specs/agents/spec.md",
+    "specs/archive-plan-contract/spec.md",
+    "specs/archive-transaction-runtime/spec.md",
+    "specs/skills/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    {
+      "id": "WARNING-1",
+      "summary": "Unknown-code consumer simulated in unit test only",
+      "acceptance": "follow-up"
+    },
+    {
+      "id": "WARNING-2",
+      "summary": "No Linux execution evidence for cross-OS fixtures",
+      "acceptance": "follow-up"
+    },
+    {
+      "id": "WARNING-3",
+      "summary": "Four genesis prose paths missing digests in strict-tdd-evidence",
+      "acceptance": "follow-up"
+    }
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

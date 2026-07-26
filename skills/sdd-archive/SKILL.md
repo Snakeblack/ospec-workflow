@@ -22,7 +22,12 @@ runtime_capabilities:
 
 ## Purpose
 
-You are a sub-agent responsible for ARCHIVING. You merge delta specs into the main specs (source of truth), then move the change folder to the archive. You complete the SDD cycle.
+You are a sub-agent responsible for ARCHIVING under the **Plan-and-Report** contract.
+You interpret delta specs, prepare resulting content (with hashes), propose ADR
+promotions, persist the archive report, and emit `archive-plan.json`. Live writes to
+`openspec/specs/**` / `docs/adr/**`, the archive-folder commit, and origin delete are
+owned by the deterministic archive transaction runtime invoked by the orchestrator —
+not by you.
 
 ## What You Receive
 
@@ -34,7 +39,10 @@ From the orchestrator:
 
 > Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
 
-- **openspec**: Read and follow `skills/_shared/openspec-convention.md`. Perform merge and archive folder moves.
+- **openspec**: Read and follow `skills/_shared/openspec-convention.md`. Prepare
+  change-local content and emit `archive-plan.json`. Do NOT write live main specs,
+  do NOT copy the change folder into `openspec/changes/archive/`, and do NOT delete
+  the source directory.
 - In `openspec` mode, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as canonical workflow state for continuation and recovery; never rely on conversation history.
 - **none**: Return closure summary only. Do not perform archive file operations.
 
@@ -43,9 +51,9 @@ From the orchestrator:
 ### Step 1: Load Skills
 Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
 
-### Step 2: Sync Delta Specs to Main Specs
+### Step 2: Prepare Spec Content (change-local — no live main-spec writes)
 
-Before syncing anything, inspect `openspec/changes/{change-name}/verify-report.md` and enforce the close gate:
+Before preparing anything, inspect `openspec/changes/{change-name}/verify-report.md` and enforce the close gate:
 - `FAIL` blocks archive completely.
 - `PASS WITH WARNINGS` may proceed only when the warnings are explicitly documented as accepted risks or converted into follow-up work.
 - If warning acceptance is missing, STOP and return `blocked`.
@@ -54,35 +62,35 @@ Before syncing anything, inspect `openspec/changes/{change-name}/verify-report.m
 
 **IF mode is `openspec`:** For each delta spec in `openspec/changes/{change-name}/specs/`:
 
-If no delta specs exist (common in lite mode), skip spec sync and archive the change artifacts as-is.
+If no delta specs exist (common in lite mode), skip spec preparation and continue to plan emission with empty `spec_writes`.
 
-**Stale-baseline check (before merging each delta)**: if `state.yaml` carries a `baseline_fingerprints:` block, re-hash the current baseline `openspec/specs/{domain}/spec.md` (SHA-256) and compare with the recorded value for that domain. On mismatch, the baseline moved since this delta was written (typically another change archived first): do NOT blind-merge — return `status: blocked` with `blocker_type: stale-baseline` naming the domain, so the orchestrator routes a re-verify of the delta against the new baseline. A missing `baseline_fingerprints` block (pre-feature change) skips the check silently.
+**Stale-baseline check (runtime-owned preflight)**: do NOT blind-merge deltas into
+`openspec/specs/`. Embed each expected `target_before_sha256` (current live target
+bytes, or `null` if the target does not exist yet) and prepared `content_sha256` in
+`archive-plan.json`. The archive transaction runtime enforces the stale-baseline check
+during preflight against `state.yaml` `baseline_fingerprints` and live bytes
+(`failure_reason: baseline-stale`). A missing `baseline_fingerprints` block may skip
+only the fingerprint portion of preflight when `target_before_sha256` checks still pass.
 
-#### If Main Spec Exists (`openspec/specs/{domain}/spec.md`)
+#### Prepare merged content change-locally
 
-Read the existing main spec and apply the delta:
+Read the existing main spec (if any) and apply the delta in memory / under the
+change-local path `openspec/changes/{change-name}/specs/{domain}/spec.md` (or another
+change-local prepared artifact you hash). Compute `content_sha256` over the prepared
+bytes. Do NOT write `openspec/specs/{domain}/spec.md` yourself — list the write in
+`spec_writes[]` for the runtime.
 
 ```
-FOR EACH SECTION in delta spec:
-├── ADDED Requirements → Append to main spec's Requirements section
-├── MODIFIED Requirements → Replace the matching requirement in main spec
-└── REMOVED Requirements → Delete the matching requirement from main spec
+FOR EACH SECTION in delta spec (semantic prep only):
+├── ADDED Requirements → include in prepared content
+├── MODIFIED Requirements → replace in prepared content
+└── REMOVED Requirements → omit from prepared content
 ```
 
 **Merge carefully:**
 - Match requirements by name (e.g., "### Requirement: Session Expiration")
 - Preserve all OTHER requirements that aren't in the delta
 - Maintain proper Markdown formatting and heading hierarchy
-
-#### If Main Spec Does NOT Exist
-
-The delta spec IS a full spec (not a delta). Copy it directly:
-
-```bash
-# Copy new spec to main specs
-openspec/changes/{change-name}/specs/{domain}/spec.md
-  → openspec/specs/{domain}/spec.md
-```
 
 ### Step 3: Persist Archive Report
 
@@ -93,13 +101,17 @@ follow **Section C** from `skills/_shared/sdd-phase-common.md`.
 - artifact: `archive-report`
 - path: `openspec/changes/{change-name}/archive-report.md`
 
-Persist the report into the **active** change folder. The folder move (Step 5) is the LAST filesystem operation, so the move carries this report into the archive. Steps 3 and 4 MUST run while the change folder is still at its active path.
+Persist the report into the **active** change folder. Plan emission (Step 5) is the
+last executor filesystem write; the runtime later commits the archive folder. Steps 3
+and 4 MUST run while the change folder is still at its active path.
 
 #### Cost Block (REQ-agents-001)
 
-Compose this "Cost" block as part of the archive report content, after the report's other
-sections are composed and before the report is persisted. It never changes the close-gate
-enforcement (top of Step 2), the spec-sync order, or the archive-folder move (Step 5) —
+Compose this "Cost" block as part of the archive report content for humans, after the
+report's other sections are composed and before the report is persisted. Closure
+authority for cost lives on the runtime receipt, not this section (human-readable
+only). Token column headers/values MUST remain labeled "estimated". It never changes the close-gate
+enforcement (top of Step 2), the semantic-prep order, or plan emission (Step 5) —
 it is purely additive reporting.
 
 **IF mode is `none`:** Skip — no cost telemetry to read or report.
@@ -156,7 +168,7 @@ it is purely additive reporting.
 
 ### Step 4: Write Resolved Decisions to Memory
 
-After persisting the archive report — and while the change folder is still at its active path (before the Step 5 move) — inspect `open_decisions` in `openspec/changes/{change-name}/state.yaml` and promote resolved entries into `openspec/memory/decisions.md`.
+After persisting the archive report — and while the change folder is still at its active path (before plan emission / runtime commit) — inspect `open_decisions` in `openspec/changes/{change-name}/state.yaml` and promote resolved entries into `openspec/memory/decisions.md`.
 
 **Procedure:**
 
@@ -194,53 +206,59 @@ After persisting the archive report — and while the change folder is still at 
 - `phase` (string) — phase where the decision was made
 - `applies_to` (string array) — phases affected
 
-### Step 4b: Promote ADRs to Project Memory
+### Step 4b: Propose ADR Promotions in the Plan
 
 **IF mode is `openspec`** and `openspec/changes/{change-name}/decisions/adr-*.md` exists:
 
-1. For each ADR whose decision was NOT invalidated during verify (default: all of them), copy it to `docs/adr/adr-{YYYYMMDD}-{NNN}-{kebab-title}.md` (date = archive date) and set its `Status:` line to `accepted`.
-2. Renumber on collision: if a target filename already exists in `docs/adr/`, keep the date and bump `NNN` past the highest existing suffix for that date.
-3. The change-local copies under `decisions/` stay in the change folder and travel to the archive with it (audit trail); `docs/adr/` is the living project memory that survives the archive.
-4. List promoted ADR paths in the archive report and in `artifacts`.
+1. For each ADR whose decision was NOT invalidated during verify (default: all of them),
+   add an `adr_promotions[]` entry to `archive-plan.json` with `source`, intended
+   `docs/adr/adr-{YYYYMMDD}-{NNN}-{kebab-title}.md` target, and `content_sha256`.
+   Do NOT write live `docs/adr/**` files yourself — the archive transaction runtime
+   applies promotions during commit.
+2. On planned filename collision, bump `NNN` past the highest existing suffix for that date.
+3. The change-local copies under `decisions/` stay in the change folder and travel to the
+   archive with it (audit trail); `docs/adr/` becomes living project memory only after
+   the runtime commits.
+4. List proposed ADR paths in the archive report and in `artifacts`.
 
-If no `decisions/` directory exists, skip silently — ADRs are optional per change.
+If no `decisions/` directory exists, skip silently — emit `adr_promotions: []` and
+continue. ADRs are optional per change.
 
-### Step 5: Copy Artifacts to Archive (executor scope — copy and report ONLY)
+### Step 5: Emit archive-plan.json (Plan-and-Report — executor scope)
 
 **IF mode is `none`:** Skip — no filesystem operations.
 
-**IF mode is `openspec`:** Copy every artifact from the active change folder (now
-containing the archive report, per Steps 2-4) to the destination archive path with
-today's date prefix (ISO format, e.g. `2026-02-16`):
+**IF mode is `openspec`:** Emit `openspec/changes/{change-name}/archive-plan.json`
+(schema v1) after semantic preparation. The plan MUST include:
 
-```
-openspec/changes/{change-name}/
-  → openspec/changes/archive/YYYY-MM-DD-{change-name}/  (copy, not move)
-```
+- `change`, `source_fingerprint`, `spec_writes[]`, `adr_promotions[]`,
+  `archive_inventory[]` (origin paths the runtime must preserve), `accepted_warnings[]`,
+  `rollback.strategy: "staging-rename"`
 
-Your responsibility ends at: baseline sync (Step 2), archive-report persistence
-(Step 3), ADR promotion (Step 4b), and copying artifacts to the destination path.
-Completion of the move — recursively verifying the destination inventory against
-the source and deleting the source directory — is the ORCHESTRATOR's responsibility
-(see `skills/_shared/gate-archive-quality.md`, Post-Return Move Completion), NOT
-yours.
+Your responsibility ends at: semantic prep (Step 2), archive-report persistence
+(Step 3), ADR promotion proposals (Step 4b), and plan emission (Step 5).
+Completion of the archive — staging, compare, atomic commit, and delete-after-full-match —
+is the ORCHESTRATOR's responsibility via `node scripts/archive-transaction-run.js {change}`
+and the runtime success receipt (see `skills/_shared/gate-archive-quality.md`,
+Post-Return Move Completion), NOT yours.
 
-You MUST NOT delete the source directory `openspec/changes/{change-name}/`, and you
+You MUST NOT delete the source directory `openspec/changes/{change-name}/`, MUST NOT
+copy the change folder to `openspec/changes/archive/...` as the completion mechanism,
+MUST NOT write live `openspec/specs/**` or `docs/adr/**` as the closure write path, and
 MUST NOT claim in your return envelope or report that the move is "complete" or that
-the source no longer exists while it still exists on disk. Report a copy inventory —
-the list of files you actually copied to the destination — in your return envelope
-(Step 7), so the orchestrator can verify it against the real filesystem state before
-deciding whether to delete the source. If you copy fewer files than exist in the
-source (partial copy), the copy-inventory list MUST reflect only what was actually
-copied — never conceal a partial copy as if it were complete.
+the source no longer exists. Report the plan path and an archive-inventory summary in
+your return envelope (Step 7) so the orchestrator can invoke the runtime. If you cannot
+produce a complete valid plan, MUST NOT return `status: success` with an incomplete plan
+presented as ready — never conceal partial semantic prep.
 
-### Step 6: Verify Archive
+### Step 6: Verify Plan Readiness
 
 **IF mode is `openspec`:** Confirm:
-- [ ] Main specs updated correctly
-- [ ] Change folder artifacts copied to the destination archive path
-- [ ] Archive destination contains `archive-report.md` and all other expected artifacts for this mode (proposal or proposal-lite, tasks, and specs/design when present)
-- [ ] Source directory still exists (deletion is the orchestrator's responsibility, not yours — see Step 5)
+- [ ] Prepared content hashes are recorded in `spec_writes[]`
+- [ ] `archive-plan.json` exists and references `archive_inventory`
+- [ ] Archive report is persisted in the active change folder
+- [ ] Source directory still exists (deletion is the runtime's responsibility after full match — see Step 5)
+- [ ] You did NOT write live `openspec/specs/**` or `docs/adr/**`
 
 **IF mode is `none`:** Skip verification — no persisted artifacts.
 
@@ -249,33 +267,33 @@ copied — never conceal a partial copy as if it were complete.
 Return to the orchestrator:
 
 ```markdown
-## Change Copied to Archive Destination
+## Archive Plan Emitted (Plan-and-Report)
 
 **Change**: {change-name}
-**Copied to**: `openspec/changes/archive/{YYYY-MM-DD}-{change-name}/` (openspec) | inline (none)
+**Plan**: `openspec/changes/{change-name}/archive-plan.json` (openspec) | inline (none)
 
-### Specs Synced
+### Specs Prepared (change-local)
 | Domain | Action | Details |
 |--------|--------|---------|
-| {domain} | Created/Updated | {N added, M modified, K removed requirements} |
+| {domain} | Prepared | {N added, M modified, K removed requirements} |
 
-### Copy Inventory
-- {list of every file path copied to the destination archive path}
+### Archive Inventory (plan summary)
+- {list of every origin path listed in archive_inventory}
 
-### Archive Contents
+### Archive Report Contents
 - proposal.md or proposal-lite.md ✅
 - specs/ (if present) ✅
 - design.md (if present) ✅
 - tasks.md ✅ ({N}/{N} tasks complete)
 
-### Source of Truth Updated
-The following specs now reflect the new behavior:
-- `openspec/specs/{domain}/spec.md`
+### Live Specs / ADR Commit Pending (runtime-owned)
+Live `openspec/specs/**` and `docs/adr/**` writes are applied only by the archive
+transaction runtime during commit — not by this executor.
 
 ### Move Completion Pending (orchestrator-owned)
 The source directory `openspec/changes/{change-name}/` still exists. The
-orchestrator verifies the copy inventory above against the destination and
-source filesystem state, then deletes the source once verified.
+orchestrator invokes `node scripts/archive-transaction-run.js {change-name}` and
+treats the runtime success receipt as the sole close authority.
 ```
 
 ## Rules
@@ -283,10 +301,12 @@ source filesystem state, then deletes the source once verified.
 - NEVER archive a change that has CRITICAL issues in its verification report
 - NEVER archive when verification verdict is `FAIL`
 - Archive with `PASS WITH WARNINGS` only if accepted risks or follow-up tasks are explicitly recorded in the archive report
-- ALWAYS sync delta specs BEFORE moving to archive
-- When merging into existing specs, PRESERVE requirements not mentioned in the delta
-- Use ISO date format (YYYY-MM-DD) for archive folder prefix
+- ALWAYS prepare delta specs and emit the plan BEFORE the orchestrator invokes the runtime
+- When preparing content from existing specs, PRESERVE requirements not mentioned in the delta
+- Use ISO date format (YYYY-MM-DD) for planned archive folder prefix in the plan/report
 - If the merge would be destructive (removing large sections), WARN the orchestrator and ask for confirmation
+- NEVER claim the archive move is complete without a runtime success receipt
+- MUST NOT claim completion while the source directory still exists
 - The archive is an AUDIT TRAIL — never delete or modify archived changes
 - If `openspec/changes/archive/` doesn't exist, create it
 - Apply any `rules.archive` from `openspec/config.yaml`
