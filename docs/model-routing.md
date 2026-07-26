@@ -24,11 +24,12 @@ no escribe la clave `model:` y el host usa el modelo de la sesión.
 
 ### Tabla `agents` → tier
 
-| Tier | Agentes | Motivo |
-| --- | --- | --- |
-| `premium` | `sdd-design`, `sdd-verify`, `sdd-propose`, `sdd-orchestrator` | Decisiones arquitectónicas y de validación. |
-| `default` | `sdd-apply`, `sdd-spec`, `sdd-tasks`, `sdd-init`, `sdd-foundation`, `sdd-onboard`, `sdd-workspace`, `sdd-baseline`, y cualquier agente no listado (`_default`) | Implementación y escritura estructurada. |
-| `cheap` | `sdd-explore`, `sdd-archive` | Lectura estructural y cierre mecánico. |
+`models.yaml` es la única fuente de verdad del mapeo agente→tier. El validador
+solo exige el roster SDD completo, tiers conocidos (`premium`/`default`/`cheap`),
+reviewers y `_default` en `default`, y los pins Codex. La partición vigente se
+lee del YAML (hoy: premium = design/verify/foundation/workspace; default incluye
+orchestrator/propose/spec/clarify/apply/reconcile/baseline; cheap =
+init/explore/tasks/archive/onboard/document).
 
 ### Tabla `tiers` → modelo por target
 

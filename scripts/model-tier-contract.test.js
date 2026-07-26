@@ -11,17 +11,13 @@ const { parseModels, runConfigure } = require("./configure/cli.js");
 const { parse, getField } = require("./lib/frontmatter.js");
 const {
   CODEX_TIER_POLICY,
-  SDD_AGENT_TIERS,
+  REQUIRED_SDD_AGENTS,
+  sddAgentsByTier,
   validateSddModelPolicy,
 } = require("./lib/model-resolver.js");
 
 const ROOT = path.resolve(__dirname, "..");
 const MODELS_TEXT = fs.readFileSync(path.join(ROOT, "models.yaml"), "utf8");
-const EXPECTED_TIERS = {
-  premium: ["sdd-propose", "sdd-design", "sdd-verify", "sdd-foundation", "sdd-workspace"],
-  default: ["sdd-orchestrator", "sdd-spec", "sdd-clarify", "sdd-apply", "sdd-reconcile", "sdd-baseline"],
-  cheap: ["sdd-init", "sdd-explore", "sdd-tasks", "sdd-archive", "sdd-onboard", "sdd-document"],
-};
 const REVIEWERS = ["review-change", "review-correction", "review-risk", "review-readability", "review-reliability", "review-resilience"];
 
 function clone(value) {
@@ -57,9 +53,14 @@ function treeDigest(root) {
   return crypto.createHash("sha256").update(rows.join("\n")).digest("hex");
 }
 
-test("REQ-generator-005 canonical policy is the exact 5/6/6 partition with unchanged reviewers", () => {
+test("REQ-generator-005 models.yaml is the agent-tier source of truth with structural guards", () => {
   const models = parseModels(MODELS_TEXT);
-  assert.deepEqual(SDD_AGENT_TIERS, EXPECTED_TIERS);
+  const partition = sddAgentsByTier(models.agents);
+  assert.deepEqual(REQUIRED_SDD_AGENTS.length, 17);
+  assert.deepEqual(
+    [...partition.premium, ...partition.default, ...partition.cheap].sort(),
+    [...REQUIRED_SDD_AGENTS].sort(),
+  );
   assert.deepEqual(CODEX_TIER_POLICY, {
     premium: { model: "gpt-5.6-sol", model_reasoning_effort: "medium" },
     default: { model: "gpt-5.6-terra", model_reasoning_effort: "medium" },
@@ -68,15 +69,15 @@ test("REQ-generator-005 canonical policy is the exact 5/6/6 partition with uncha
   assert.deepEqual(validateSddModelPolicy(models), { valid: true, errors: [] });
   for (const reviewer of REVIEWERS) assert.equal(models.agents[reviewer], "default", reviewer);
   assert.equal(models.agents._default, "default");
+  assert.equal(models.agents["sdd-propose"], "default");
 });
 
-test("REQ-generator-005 stale, missing, unknown and wrong Codex policy mutations fail deterministically", () => {
+test("REQ-generator-005 missing, unknown, unexpected and wrong Codex policy mutations fail deterministically", () => {
   const base = parseModels(MODELS_TEXT);
   const cases = [
-    ["stale proposal", models => { models.agents["sdd-propose"] = "default"; }, "tier-mismatch", "sdd-propose"],
-    ["stale document", models => { models.agents["sdd-document"] = "default"; }, "tier-mismatch", "sdd-document"],
     ["missing agent", models => { delete models.agents["sdd-tasks"]; }, "missing-agent", "sdd-tasks"],
     ["unknown tier", models => { models.agents["sdd-apply"] = "mystery"; }, "unknown-tier", "sdd-apply"],
+    ["unexpected agent", models => { models.agents["sdd-extra"] = "default"; }, "unexpected-agent", "sdd-extra"],
     ["wrong premium model", models => { models.tiers.premium.codex.model = "gpt-5.6-terra"; }, "codex-model-mismatch", "premium"],
     ["wrong cheap effort", models => { models.tiers.cheap.codex.model_reasoning_effort = "medium"; }, "codex-reasoning-effort-mismatch", "cheap"],
     ["missing default mapping", models => { delete models.tiers.default.codex; }, "codex-model-mismatch", "default"],
@@ -91,6 +92,13 @@ test("REQ-generator-005 stale, missing, unknown and wrong Codex policy mutations
   }
 });
 
+test("REQ-generator-005 agent tier reassignment in models.yaml is accepted", () => {
+  const models = clone(parseModels(MODELS_TEXT));
+  models.agents["sdd-propose"] = "premium";
+  models.agents["sdd-document"] = "default";
+  assert.deepEqual(validateSddModelPolicy(models), { valid: true, errors: [] });
+});
+
 test("REQ-generator-005 duplicate YAML agent keys are rejected before overwrite", () => {
   assert.throws(
     () => parseModels("agents:\n  sdd-apply: default\n  sdd-apply: cheap\ntiers:\n  default:\n    claude: sonnet\n"),
@@ -98,9 +106,10 @@ test("REQ-generator-005 duplicate YAML agent keys are rejected before overwrite"
   );
 });
 
-test("REQ-generator-005 all six temporary targets honor tier models and fail-soft omission", t => {
+test("REQ-generator-005 all six temporary targets honor models.yaml tiers and fail-soft omission", t => {
   const models = parseModels(MODELS_TEXT);
-  const allAgents = Object.values(EXPECTED_TIERS).flat();
+  const partition = sddAgentsByTier(models.agents);
+  const allAgents = Object.values(partition).flat();
   const beforeDist = treeDigest(path.join(ROOT, "dist"));
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-tier-contract-"));
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
@@ -108,7 +117,7 @@ test("REQ-generator-005 all six temporary targets honor tier models and fail-sof
   for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor"]) {
     const out = path.join(base, target);
     assert.equal(runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false }).exitCode, 0);
-    for (const [tier, agents] of Object.entries(EXPECTED_TIERS)) {
+    for (const [tier, agents] of Object.entries(partition)) {
       for (const agent of agents) {
         const generated = outputPath(out, target, agent);
         if (generated === null) continue;

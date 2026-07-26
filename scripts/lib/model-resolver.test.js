@@ -53,13 +53,14 @@ test("absent or malformed config yields OMIT", () => {
   assert.equal(resolveModel("x", "claude", "nope"), OMIT);
 });
 
-test("canonical validator reports stable agent-specific errors", () => {
+test("canonical validator reports structural errors without pinning agent tiers", () => {
   const result = validateSddModelPolicy({
-    agents: { "sdd-propose": "default", _default: "cheap" },
+    agents: { "sdd-propose": "default", "sdd-apply": "mystery", _default: "cheap" },
     tiers: { premium: {}, default: {}, cheap: {} },
   });
   assert.equal(result.valid, false);
-  assert.ok(result.errors.some(error => error.code === "tier-mismatch" && error.agent === "sdd-propose" && error.expected === "premium"));
+  assert.ok(!result.errors.some(error => error.code === "tier-mismatch" && error.agent === "sdd-propose"));
+  assert.ok(result.errors.some(error => error.code === "unknown-tier" && error.agent === "sdd-apply" && error.actual === "mystery"));
   assert.ok(result.errors.some(error => error.code === "tier-mismatch" && error.agent === "_default" && error.expected === "default"));
   assert.ok(result.errors.some(error => error.code === "missing-agent" && error.agent === "sdd-design"));
 });

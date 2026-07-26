@@ -1,10 +1,10 @@
 agents:
-  sdd-propose: premium
   sdd-design: premium
   sdd-verify: premium
   sdd-foundation: premium
   sdd-workspace: premium
   sdd-orchestrator: default
+  sdd-propose: default
   sdd-spec: default
   sdd-clarify: default
   sdd-apply: default
