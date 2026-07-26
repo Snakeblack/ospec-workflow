@@ -425,76 +425,68 @@ native `codex mcp` CLI with valid normalized names.
 
 ### Requirement: Intentional SDD Agent Model-Tier Migration {#REQ-generator-005}
 
-`models.yaml` MUST define the complete SDD-agent tier policy below. Entries not
-listed as SDD phase agents, including review agents and `_default`, MUST retain
-their existing tier unless another approved requirement changes them.
+`models.yaml` MUST be the single source of truth for which SDD agent maps to
+which cost tier (`premium`, `default`, or `cheap`). The validator MUST NOT
+hardcode or restore a prior agent→tier partition. It MUST only enforce
+structural invariants: the complete 17-agent SDD roster is present, each SDD
+agent uses a known tier, no unexpected `sdd-*` agents appear, review agents and
+`_default` stay on `default`, duplicate YAML keys are rejected, and Codex tier
+pins remain Sol/medium, Terra/medium, and Luna/low.
 
-| Tier | SDD agents |
-|------|------------|
-| `premium` | `sdd-propose`, `sdd-design`, `sdd-verify`, `sdd-foundation`, `sdd-workspace` |
-| `default` | `sdd-orchestrator`, `sdd-spec`, `sdd-clarify`, `sdd-apply`, `sdd-reconcile`, `sdd-baseline` |
-| `cheap` | `sdd-init`, `sdd-explore`, `sdd-tasks`, `sdd-archive`, `sdd-onboard`, `sdd-document` |
+The generator MUST apply the tier declared in `models.yaml` consistently for
+every supported generated target that defines a model value for the selected
+tier. Targets without a model column MUST preserve the existing fail-soft
+omission behavior. Codex output MUST contain the exact model and
+reasoning-effort pair pinned for that tier. Contract tests MUST derive the
+agent→tier partition from `models.yaml`, reject incomplete or structurally
+invalid policies, and verify generated model parity against that YAML mapping.
 
-The Codex tier definitions MUST resolve `premium` to `gpt-5.6-sol` with
-`model_reasoning_effort: medium`, `default` to `gpt-5.6-terra` with
-`model_reasoning_effort: medium`, and `cheap` to `gpt-5.6-luna` with
-`model_reasoning_effort: low`. This migration MUST be treated as an intentional
-policy contract, not as incidental fixture drift.
+#### Scenario: Complete SDD agent roster is accepted from models.yaml
 
-The generator MUST apply the declared agent tier consistently for every
-supported generated target that defines a model value for the selected tier.
-Targets without a model column MUST preserve the existing fail-soft omission
-behavior. Codex output MUST contain the exact model and reasoning-effort pair above.
-Contract tests MUST validate the complete SDD-agent tier partition, reject
-missing or duplicate assignments, and verify generated model parity for agents
-that moved tiers.
-
-#### Scenario: Complete SDD agent partition is accepted
-
-- GIVEN `models.yaml` contains the approved premium, default, and cheap SDD-agent sets
+- GIVEN `models.yaml` assigns every required SDD agent to a known tier
 - WHEN the model-tier contract is validated
-- THEN every listed SDD agent MUST occur in exactly one approved tier
-- AND the validator MUST accept the mapping without restoring a prior tier
+- THEN every listed SDD agent MUST occur in exactly one known tier
+- AND the validator MUST accept the mapping without comparing it to a hardcoded prior partition
 
-#### Scenario: Promoted proposal agent resolves through premium
+#### Scenario: Agent tier reassignment in models.yaml is honored
 
-- GIVEN `sdd-propose` is assigned to `premium`
+- GIVEN `sdd-propose` is reassigned from one known tier to another in `models.yaml`
 - WHEN model-capable target outputs are generated
-- THEN each output MUST resolve `sdd-propose` from that target's premium model definition
-- AND Codex MUST emit `gpt-5.6-sol` with reasoning effort `medium`
+- THEN each output MUST resolve `sdd-propose` from that target's model definition for the newly declared tier
+- AND validation MUST NOT fail solely because the assignment differs from a previous policy
 
 #### Scenario: Default tier resolves to Terra medium on Codex
 
-- GIVEN any approved default SDD agent is generated for Codex
+- GIVEN any SDD agent assigned to `default` in `models.yaml` is generated for Codex
 - WHEN model policy is injected
 - THEN its model MUST be `gpt-5.6-terra`
 - AND its reasoning effort MUST be `medium`
 
-#### Scenario: Cheap tier migration resolves to Luna low on Codex
+#### Scenario: Cheap tier resolves to Luna low on Codex
 
-- GIVEN `sdd-init`, `sdd-tasks`, `sdd-onboard`, or `sdd-document` is generated for Codex
+- GIVEN any SDD agent assigned to `cheap` in `models.yaml` is generated for Codex
 - WHEN model policy is injected
 - THEN its model MUST be `gpt-5.6-luna`
 - AND its reasoning effort MUST be `low`
 
-#### Scenario: Stale prior assignment fails the contract
+#### Scenario: Structural policy defects fail the contract
 
-- GIVEN a contract fixture keeps `sdd-propose` in default or keeps `sdd-document` in default
+- GIVEN a policy is missing a required SDD agent, uses an unknown tier, adds an unexpected `sdd-*` agent, drifts a reviewer off `default`, or breaks a Codex pin
 - WHEN the complete mapping contract runs
-- THEN validation MUST fail with the mismatched agent and expected tier
+- THEN validation MUST fail with the matching structural error code
 - AND generation parity MUST NOT be reported as passing
 
 #### Scenario: Model-capable targets preserve tier parity
 
-- GIVEN the approved mapping and tier definitions
+- GIVEN the `models.yaml` mapping and tier definitions
 - WHEN all model-capable target generators process the same agent roster
-- THEN each generated agent MUST use the model belonging to its declared tier for that target
+- THEN each generated agent MUST use the model belonging to its YAML-declared tier for that target
 - AND contract tests MUST fail if any target resolves an agent from a different tier
 
 #### Scenario: Target without a model column remains fail-soft
 
 - GIVEN a supported target declares no model column for the selected tier
-- WHEN it generates an agent from the approved roster
+- WHEN it generates an agent from the required roster
 - THEN it MUST preserve the baseline omission behavior rather than inventing a model
 - AND the tier-parity contract MUST NOT treat that omission as a mismatch
 

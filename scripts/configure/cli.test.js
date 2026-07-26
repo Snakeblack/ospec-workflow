@@ -288,13 +288,17 @@ test("parseModels reads block-sequence target models", () => {
   assert.deepEqual(models.tiers.default.vscode, ["A (copilot)", "B (copilot)"]);
 });
 
-test("RED: runConfigure aborts before writing on stale, missing, or invalid Codex model policy", (t) => {
+test("RED: runConfigure aborts before writing on reviewer, missing, or invalid Codex model policy", (t) => {
   const source = fs.mkdtempSync(path.join(os.tmpdir(), "configure-policy-"));
   t.after(() => fs.rmSync(source, { recursive: true, force: true }));
   fs.cpSync(SOURCE, source, { recursive: true });
   const valid = fs.readFileSync(path.join(process.cwd(), "models.yaml"), "utf8");
-  for (const [label, replacement] of [["stale", "sdd-apply: cheap"], ["missing", "sdd-apply: default\n  sdd-document: cheap"], ["codex", "model_reasoning_effort: high"]]) {
-    const models = label === "missing" ? valid.replace(/  sdd-propose: premium\r?\n/, "") : valid.replace(label === "stale" ? "  sdd-apply: default" : "model_reasoning_effort: medium", replacement);
+  for (const [label, find, replacement] of [
+    ["reviewer", "  review-risk: default", "  review-risk: premium"],
+    ["missing", "  sdd-propose: default\r?\n", ""],
+    ["codex", "model_reasoning_effort: medium", "model_reasoning_effort: high"],
+  ]) {
+    const models = label === "missing" ? valid.replace(new RegExp(find), replacement) : valid.replace(find, replacement);
     fs.writeFileSync(path.join(source, "models.yaml"), models);
     const out = tmpOut(t);
     const result = runConfigureStrict({ sourceDir: source, target: "claude", outDir: out, validate: false });

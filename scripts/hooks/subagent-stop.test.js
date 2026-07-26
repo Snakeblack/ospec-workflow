@@ -727,7 +727,7 @@ test("persistPhaseCost uses canonical moved tiers for proposal and document tele
   }
   const records = await readPhaseCosts(workspace, "strict-result-envelope");
   const tiers = Object.fromEntries(records.map(record => [record.agent, record.model_tier]));
-  assert.equal(tiers["sdd-propose"], "premium");
+  assert.equal(tiers["sdd-propose"], "default");
   assert.equal(tiers["sdd-document"], "cheap");
 });
 
@@ -959,7 +959,7 @@ test("resolveModelTier resolves correct tiers and handles fallbacks/failures", a
   const testYamlDir = path.resolve(__dirname, "../../"); // Has models.yaml in workspace root
   
   assert.equal(resolveModelTier("sdd-design", testYamlDir), "premium");
-  assert.equal(resolveModelTier("sdd-propose", testYamlDir), "premium");
+  assert.equal(resolveModelTier("sdd-propose", testYamlDir), "default");
   assert.equal(resolveModelTier("sdd-apply", testYamlDir), "default");
   assert.equal(resolveModelTier("sdd-document", testYamlDir), "cheap");
   assert.equal(resolveModelTier("sdd-nonexistent", testYamlDir), "default"); // Fallback to _default

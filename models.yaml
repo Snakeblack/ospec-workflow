@@ -1,22 +1,22 @@
 # Per-agent model configuration for the multi-target generator.
 #
 # Two tables:
-#   agents: which tier each agent needs.
+#   agents: which tier each agent needs. THIS is the only agent→tier policy.
 #   tiers:  how each tier maps to a concrete model per target.
 #
-# Cost/intelligence policy:
+# Cost/intelligence policy (Codex pins):
 #   premium -> Sol medium
 #   default -> Terra medium
 #   cheap   -> Luna low
 #
-# Before changing a tier model, run the golden orchestrator eval suite and
-# attach the result to the corresponding OpenSpec change.
+# Reassign agents freely among known tiers here; the validator only checks
+# roster completeness and structural invariants. Before changing a tier's
+# concrete model mapping, run the golden orchestrator eval suite.
 
 agents:
   # Premium:
   # Infrequent decisions with high blast radius.
   # A weak result here can invalidate the complete implementation direction.
-  sdd-propose: premium
   sdd-design: premium
   sdd-verify: premium
   sdd-foundation: premium
@@ -25,6 +25,7 @@ agents:
   # Default:
   # Frequent semantic work requiring solid reasoning, but not Sol-level spend.
   sdd-orchestrator: default
+  sdd-propose: default
   sdd-spec: default
   sdd-clarify: default
   sdd-apply: default
@@ -64,7 +65,7 @@ tiers:
       model: gpt-5.6-sol
       model_reasoning_effort: medium
       model_verbosity: medium
-    cursor: claude-opus-5[effort=high]
+    cursor: grok-4.5[fast=false]
 
   # Default:
   # Terra medium is the balanced default for frequent semantic work.
