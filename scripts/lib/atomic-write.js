@@ -113,7 +113,78 @@ async function writeFileAtomic(targetPath, content) {
   }
 }
 
+/**
+ * Renames sourcePath → targetPath with Windows EPERM/EEXIST fallback
+ * (backup target → .bak, retry rename, remove .bak). Works for files and directories.
+ * @param {string} sourcePath
+ * @param {string} targetPath
+ * @param {{fsImpl?: {rename, unlink, rm, stat}}} [options]
+ */
+async function renameWithFallback(sourcePath, targetPath, options = {}) {
+  const fsImpl = options.fsImpl || {
+    rename: fs.rename,
+    unlink: fs.unlink,
+    rm: fs.rm,
+    stat: fs.stat,
+  };
+  const bakPath = targetPath + ".bak";
+
+  try {
+    await fsImpl.rename(sourcePath, targetPath);
+    return;
+  } catch (error) {
+    if (error.code !== "EEXIST" && error.code !== "EPERM") {
+      throw error;
+    }
+  }
+
+  let backedUp = false;
+  try {
+    try {
+      await fsImpl.rename(targetPath, bakPath);
+      backedUp = true;
+    } catch (bakErr) {
+      // Target may be absent (injected EPERM on create) — retry bare rename.
+      if (bakErr.code === "ENOENT") {
+        await fsImpl.rename(sourcePath, targetPath);
+        return;
+      }
+      throw bakErr;
+    }
+    await fsImpl.rename(sourcePath, targetPath);
+    // Remove backup: file via unlink, directory via rm
+    try {
+      await fsImpl.unlink(bakPath);
+    } catch (unlinkErr) {
+      if (unlinkErr.code === "EISDIR" || unlinkErr.code === "EPERM") {
+        await fsImpl.rm(bakPath, { recursive: true, force: true });
+      } else if (unlinkErr.code !== "ENOENT") {
+        // Directory on some platforms: try rm
+        await fsImpl.rm(bakPath, { recursive: true, force: true });
+      }
+    }
+  } catch (fallbackError) {
+    if (backedUp) {
+      try {
+        await fsImpl.rename(bakPath, targetPath);
+      } catch (rollbackError) {
+        const aggregate = new Error(
+          `renameWithFallback: rollback to "${bakPath}" also failed; ` +
+            `pre-rename content may be at "${bakPath}" ` +
+            `(original: ${fallbackError.message}; rollback: ${rollbackError.message})`,
+        );
+        aggregate.code = fallbackError.code;
+        aggregate.bakPath = bakPath;
+        aggregate.cause = fallbackError;
+        throw aggregate;
+      }
+    }
+    throw fallbackError;
+  }
+}
+
 module.exports = {
   writeFileAtomic,
   recoverOrphanBak,
+  renameWithFallback,
 };

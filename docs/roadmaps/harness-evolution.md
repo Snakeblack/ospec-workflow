@@ -1,9 +1,9 @@
 # Roadmap general — evolución del harness
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.31.0, 2026-07-18.
+> **Versión de referencia:** v2.35.0, 2026-07-26.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
-> **Estado verificado:** O4+O5 entregado y archivado; O4.1 entregado; O4.2 es la reparación inmediata; infraestructura O2A entregada; baseline fija O2B pendiente.
+> **Estado verificado:** O4+O5 entregado; O4.1/O4.2 entregados; O6A entregado y archivado (`hybrid-archive-transaction-runtime`); infraestructura O2A entregada; baseline fija O2B pendiente (siguiente).
 > **Regla:** una decisión arquitectónica nueva se incorpora primero al análisis. Este archivo solo deriva trabajo ejecutable.
 
 ## 1. Estado ejecutivo
@@ -13,9 +13,9 @@
 | Completado | G0/G0.1 — gobernanza y reconciliación documental | Arquitectura y roadmap activos, sin estado O4+O5 obsoleto |
 | Completado | O4+O5 — review selectivo y linaje acotado | Generalist-first, selección determinista y corrección dirigida |
 | ✅ Entregado | O4.1 — overflow de señales de review | Ninguna dimensión positiva descartada por el cap normal |
-| ▶ SIGUIENTE | O4.2 — remediación rápida de evidencia Strict TDD | Reparar drift mecánico de formato sin redispatch funcional completo |
-| Después | O6A — archive híbrido transaccional | Bloqueado por O4.2; semántica en agente y transacción mecánica en runtime |
-| Gate previo a adaptive | O2B — baseline fixed-policy | Nueve perfiles comparables y reproducibles |
+| ✅ Entregado | O4.2 — remediación rápida de evidencia Strict TDD | Reparar drift mecánico de formato sin redispatch funcional completo |
+| ✅ Entregado | O6A — archive híbrido transaccional | Semántica en agente y transacción mecánica en runtime |
+| ▶ SIGUIENTE | O2B — baseline fixed-policy | Nueve perfiles comparables y reproducibles |
 | Experimento con gate | O20A — proof-carrying verify kernel | Vertical shadow para decidir si un kernel común merece promoción |
 | Ruta crítica adaptive | O13A–D + O19A | Perfil, policy resolver, kernel, variantes y validadores |
 | Planificación | O7+O10 + O9+O11 | `sdd-plan` parametrizado y reevaluación continua |
@@ -215,7 +215,7 @@ Evitar que una señal material sea descartada por el máximo de dos especialista
 - tests focales, `npm test` y paridad pasan;
 - roadmap, arquitectura y specs coinciden.
 
-### O4.2. Fast path de remediación de evidencia Strict TDD — **▶ SIGUIENTE**
+### O4.2. Fast path de remediación de evidencia Strict TDD — **✅ Entregado**
 
 **Change sugerido:** `strict-tdd-evidence-remediation-fast-path`.
 
@@ -255,11 +255,11 @@ Un gap sintáctico en un marcador de evidencia Strict TDD provocó un reroute co
 - verify ejecuta un recheck focal de la evidencia reparada, sin redispatch completo de `tasks`, `apply` y `verify`;
 - tests de routing distinguen evidencia ausente/fabricada, drift mecánico y fallo funcional;
 - un guard de regresión mide y limita coste de fases y tokens frente al reroute completo;
-- O6A permanece pendiente y bloqueado hasta completar O4.2.
+- O6A desbloqueado tras completar O4.2.
 
-### O6A. Archive híbrido transaccional — **pending**
+### O6A. Archive híbrido transaccional — **✅ Entregado**
 
-**Change sugerido:** `hybrid-archive-transaction-runtime`.
+**Change:** `hybrid-archive-transaction-runtime` (archivado `2026-07-26`).
 
 **Dependencia:** O4.2.
 

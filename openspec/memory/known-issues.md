@@ -1,7 +1,63 @@
 ---
 title: Known Issues
-last_updated: 2026-07-25
+last_updated: 2026-07-26
 ---
+
+## Archive receipt cost aggregation omits duration, model tiers, statuses and questions_asked
+- severity: BLOCKER
+- area: scripts/lib/archive-transaction.js (aggregateCost)
+- workaround: sum duration_ms per phase, collect distinct model_tier and status lists, and read gates.*.questions_asked from the change state.yaml instead of hardcoding total_questions_asked to 0; add an FS fixture with a populated .ospec/session/{change}/phase-costs.jsonl
+- change: hybrid-archive-transaction-runtime
+- date: 2026-07-26
+
+## CLI exit-mapping test redefines the mapping locally and never invokes main
+- severity: BLOCKER
+- area: scripts/archive-transaction-run.test.js
+- workaround: replace the local exitCodeFor helper with a call to main([change, "--workspace", tmp], {log, error, exit}) over a mkdtemp fixture and assert both the parsed stdout receipt and the exit code
+- change: hybrid-archive-transaction-runtime
+- date: 2026-07-26
+
+## Unknown-rejection-code fail-closed consumer is simulated instead of exercised
+- severity: WARNING
+- area: scripts/lib/archive-plan.test.js, scripts/lib/archive-transaction.js
+- workaround: drive runArchiveTransaction with a validator result carrying an unknown code and assert the receipt still fails closed
+- change: hybrid-archive-transaction-runtime
+- date: 2026-07-26
+
+## No Linux execution evidence for the cross-OS archive transaction fixtures
+- severity: WARNING
+- area: scripts/lib/archive-transaction.test.js, scripts/lib/atomic-write.test.js
+- workaround: run npm test under WSL or CI on Linux before archive, or record the accepted limitation in the archive report
+- change: hybrid-archive-transaction-runtime
+- date: 2026-07-26
+
+## baseline-stale preflight branch of the archive runtime has no test
+- severity: WARNING
+- area: scripts/lib/archive-transaction.js (runArchiveTransaction preflight)
+- workaround: add an FS fixture whose state.yaml baseline_fingerprints disagree with the live target bytes and assert failure_reason baseline-stale with the origin intact
+- change: hybrid-archive-transaction-runtime
+- date: 2026-07-26
+
+## resumed-success outcome is unreachable and contradicts ADR-006
+- severity: WARNING
+- area: scripts/lib/archive-transaction.js (opts._resumed recursive tail)
+- workaround: either set the resumed flag when the journal is entered at a non-terminal state, or amend ADR-006 and record the deviation; the CLI exit branch for resumed-success is currently dead
+- change: hybrid-archive-transaction-runtime
+- date: 2026-07-26
+
+## Strict TDD evidence lists 16 genesis paths but only 12 file digests
+- severity: WARNING
+- area: openspec/changes/hybrid-archive-transaction-runtime/apply-progress.md (json:strict-tdd-evidence)
+- workaround: add digests for the four prose files (sdd-archive SKILL.md, gate-archive-quality.md, sdd-archive.agent.md, sdd-orchestrator.agent.md) so a later identity recheck can detect drift
+- change: hybrid-archive-transaction-runtime
+- date: 2026-07-26
+
+## Assumption ledger left unreconciled at verify (sdd-design-002 is reversibility low)
+- severity: WARNING
+- area: openspec/changes/hybrid-archive-transaction-runtime/state.yaml (assumptions)
+- workaround: relaunch sdd-verify with an assumption_resolutions block; sdd-design-002 needs an individual confirm/correct/promote decision, the 14 high-reversibility entries can be confirmed as a group
+- change: hybrid-archive-transaction-runtime
+- date: 2026-07-26
 
 ## Strict TDD evidence record fails schema-v1 validation (evidence_mode working-tree, legacy provenance source, invalid refactor marker)
 - severity: BLOCKER

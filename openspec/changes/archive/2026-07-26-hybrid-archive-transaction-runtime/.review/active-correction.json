@@ -1,0 +1,38 @@
+{
+  "slice_id": "S-5992ca3894374a92",
+  "finding_ids": [
+    "F-f2b5024549c51c84"
+  ],
+  "summary": "Ramas Compare A/B (origin↔staging / origin↔destination) sin fixture FS; los tests de compare fallan en preflight.",
+  "acceptance_criteria": "Fixtures con journal staged/committed y inventarios divergentes; assert compare-mismatch, origin_deleted:false, origin intacto.",
+  "paths": [
+    "scripts/lib/archive-transaction.js",
+    "scripts/lib/archive-transaction.test.js",
+    "scripts/lib/atomic-write.js",
+    "scripts/lib/atomic-write.test.js",
+    "scripts/archive-transaction-run.js",
+    "scripts/archive-transaction-run.test.js",
+    "scripts/lib/archive-plan.js",
+    "scripts/lib/archive-plan.test.js"
+  ],
+  "forecast": 180,
+  "pending_correction": {
+    "slice_id": "S-5992ca3894374a92",
+    "request_id": "slice-corr-S-5992ca3894374a92-001",
+    "finding_ids": [
+      "F-f2b5024549c51c84"
+    ],
+    "paths": [
+      "scripts/archive-transaction-run.js",
+      "scripts/archive-transaction-run.test.js",
+      "scripts/lib/archive-plan.js",
+      "scripts/lib/archive-plan.test.js",
+      "scripts/lib/archive-transaction.js",
+      "scripts/lib/archive-transaction.test.js",
+      "scripts/lib/atomic-write.js",
+      "scripts/lib/atomic-write.test.js"
+    ],
+    "base_candidate_id": "sha256:6856f29ea0d563ed13d31430c5d14e00a4a1f3ea71f6c5fefb1f8ad8f93be0f7",
+    "forecast_lines": 180
+  }
+}

@@ -1,0 +1,295 @@
+{
+  "gatePlan": {
+    "status": "ready",
+    "run_generalist": true,
+    "dispatch": [
+      "review-risk",
+      "review-reliability",
+      "review-resilience",
+      "review-readability"
+    ],
+    "archive_allowed": false,
+    "gate": {
+      "status": "ready",
+      "schema_version": 1,
+      "classification": "high-risk",
+      "evidence": {
+        "schema_version": 1,
+        "fingerprint": "sha256:395e507aa5672dc3996194e7c83533c5dcd3e277a5fc2cffaf27856f1dedeed7",
+        "sources": {
+          "paths": [
+            "agents/sdd-archive.agent.md",
+            "agents/sdd-orchestrator.agent.md",
+            "docs/roadmaps/harness-evolution.md",
+            "openspec/memory/known-issues.md",
+            "scripts/archive-move-fingerprint-contract.test.js",
+            "scripts/archive-transaction-run.js",
+            "scripts/archive-transaction-run.test.js",
+            "scripts/configure/real-repo.test.js",
+            "scripts/eje-b-contract.test.js",
+            "scripts/lib/archive-plan.js",
+            "scripts/lib/archive-plan.test.js",
+            "scripts/lib/archive-transaction.js",
+            "scripts/lib/archive-transaction.test.js",
+            "scripts/lib/atomic-write.js",
+            "scripts/lib/atomic-write.test.js",
+            "scripts/mentor-adr-contract.test.js",
+            "skills/_shared/gate-archive-quality.md",
+            "skills/sdd-archive/SKILL.md"
+          ],
+          "capabilities": [
+            "agents",
+            "routing",
+            "runtime",
+            "skills",
+            "strict-tdd"
+          ],
+          "operation_types": [
+            "add",
+            "modify"
+          ],
+          "dependencies": [
+            "scripts/lib/atomic-write.js"
+          ],
+          "facts": [
+            {
+              "code": "dependency-change",
+              "source": "dependency",
+              "detail": "scripts/lib/atomic-write.js"
+            },
+            {
+              "code": "design-risk",
+              "source": "design",
+              "detail": "Transactional archive delete-after-full-match on Windows/Linux filesystems"
+            },
+            {
+              "code": "metadata-runtime",
+              "source": "metadata",
+              "detail": "runtime"
+            },
+            {
+              "code": "diff-error-flow",
+              "source": "real-diff",
+              "detail": "scripts/archive-transaction-run.js,scripts/lib/archive-plan.js,scripts/lib/archive-transaction.js,scripts/lib/atomic-write.js"
+            },
+            {
+              "code": "diff-global-config-write",
+              "source": "real-diff",
+              "detail": "scripts/lib/archive-transaction.js"
+            },
+            {
+              "code": "diff-structural-complexity",
+              "source": "real-diff",
+              "detail": "scripts/lib/archive-transaction.js"
+            },
+            {
+              "code": "verify-reliability",
+              "source": "verify",
+              "detail": "WARNING-1 unknown-code consumer simulated in unit test only"
+            },
+            {
+              "code": "verify-reliability",
+              "source": "verify",
+              "detail": "WARNING-3 four genesis prose paths missing digests in strict-tdd-evidence"
+            },
+            {
+              "code": "verify-resilience",
+              "source": "verify",
+              "detail": "WARNING-2 no Linux execution evidence for cross-OS fixtures"
+            }
+          ]
+        }
+      },
+      "generalist": {
+        "status": "needs-specialist",
+        "specialists": [
+          "risk",
+          "reliability",
+          "resilience",
+          "readability"
+        ],
+        "reason": "signals=dependency-change,design-risk,diff-error-flow,diff-global-config-write,diff-structural-complexity,metadata-runtime,verify-reliability,verify-resilience;dimensions=risk,reliability,resilience,readability"
+      },
+      "depth": {
+        "review": "strict"
+      },
+      "escalation_reason": null,
+      "dimensions": {
+        "risk": {
+          "selected": true,
+          "reasons": [
+            {
+              "code": "high-risk-override",
+              "source": "override",
+              "detail": "Classification requires full 4R",
+              "precedence": 0
+            },
+            {
+              "code": "diff-global-config-write",
+              "source": "real-diff",
+              "detail": "scripts/lib/archive-transaction.js",
+              "precedence": 2
+            },
+            {
+              "code": "generalist-escalation",
+              "source": "generalist",
+              "detail": "signals=dependency-change,design-risk,diff-error-flow,diff-global-config-write,diff-structural-complexity,metadata-runtime,verify-reliability,verify-resilience;dimensions=risk,reliability,resilience,readability",
+              "precedence": 3
+            },
+            {
+              "code": "dependency-change",
+              "source": "dependency",
+              "detail": "scripts/lib/atomic-write.js",
+              "precedence": 4
+            },
+            {
+              "code": "design-risk",
+              "source": "design",
+              "detail": "Transactional archive delete-after-full-match on Windows/Linux filesystems",
+              "precedence": 4
+            }
+          ]
+        },
+        "reliability": {
+          "selected": true,
+          "reasons": [
+            {
+              "code": "high-risk-override",
+              "source": "override",
+              "detail": "Classification requires full 4R",
+              "precedence": 0
+            },
+            {
+              "code": "verify-reliability",
+              "source": "verify",
+              "detail": "WARNING-1 unknown-code consumer simulated in unit test only",
+              "precedence": 1
+            },
+            {
+              "code": "verify-reliability",
+              "source": "verify",
+              "detail": "WARNING-3 four genesis prose paths missing digests in strict-tdd-evidence",
+              "precedence": 1
+            },
+            {
+              "code": "diff-error-flow",
+              "source": "real-diff",
+              "detail": "scripts/archive-transaction-run.js,scripts/lib/archive-plan.js,scripts/lib/archive-transaction.js,scripts/lib/atomic-write.js",
+              "precedence": 2
+            },
+            {
+              "code": "diff-global-config-write",
+              "source": "real-diff",
+              "detail": "scripts/lib/archive-transaction.js",
+              "precedence": 2
+            },
+            {
+              "code": "generalist-escalation",
+              "source": "generalist",
+              "detail": "signals=dependency-change,design-risk,diff-error-flow,diff-global-config-write,diff-structural-complexity,metadata-runtime,verify-reliability,verify-resilience;dimensions=risk,reliability,resilience,readability",
+              "precedence": 3
+            },
+            {
+              "code": "dependency-change",
+              "source": "dependency",
+              "detail": "scripts/lib/atomic-write.js",
+              "precedence": 4
+            },
+            {
+              "code": "metadata-runtime",
+              "source": "metadata",
+              "detail": "runtime",
+              "precedence": 5
+            }
+          ]
+        },
+        "resilience": {
+          "selected": true,
+          "reasons": [
+            {
+              "code": "high-risk-override",
+              "source": "override",
+              "detail": "Classification requires full 4R",
+              "precedence": 0
+            },
+            {
+              "code": "verify-resilience",
+              "source": "verify",
+              "detail": "WARNING-2 no Linux execution evidence for cross-OS fixtures",
+              "precedence": 1
+            },
+            {
+              "code": "diff-error-flow",
+              "source": "real-diff",
+              "detail": "scripts/archive-transaction-run.js,scripts/lib/archive-plan.js,scripts/lib/archive-transaction.js,scripts/lib/atomic-write.js",
+              "precedence": 2
+            },
+            {
+              "code": "generalist-escalation",
+              "source": "generalist",
+              "detail": "signals=dependency-change,design-risk,diff-error-flow,diff-global-config-write,diff-structural-complexity,metadata-runtime,verify-reliability,verify-resilience;dimensions=risk,reliability,resilience,readability",
+              "precedence": 3
+            }
+          ]
+        },
+        "readability": {
+          "selected": true,
+          "reasons": [
+            {
+              "code": "high-risk-override",
+              "source": "override",
+              "detail": "Classification requires full 4R",
+              "precedence": 0
+            },
+            {
+              "code": "diff-structural-complexity",
+              "source": "real-diff",
+              "detail": "scripts/lib/archive-transaction.js",
+              "precedence": 2
+            },
+            {
+              "code": "generalist-escalation",
+              "source": "generalist",
+              "detail": "signals=dependency-change,design-risk,diff-error-flow,diff-global-config-write,diff-structural-complexity,metadata-runtime,verify-reliability,verify-resilience;dimensions=risk,reliability,resilience,readability",
+              "precedence": 3
+            }
+          ]
+        }
+      }
+    }
+  },
+  "next": {
+    "type": "run-lenses",
+    "dimensions": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ]
+  },
+  "planned": {
+    "status": "reviewing",
+    "next_action": {
+      "type": "run-lenses",
+      "dimensions": [
+        "risk",
+        "reliability",
+        "resilience",
+        "readability"
+      ]
+    },
+    "dispatch": [
+      "review-risk",
+      "review-reliability",
+      "review-resilience",
+      "review-readability"
+    ],
+    "archive_allowed": false
+  },
+  "requestIds": {
+    "risk": "risk-start-001",
+    "reliability": "reliability-start-001",
+    "resilience": "resilience-start-001",
+    "readability": "readability-start-001"
+  }
+}

@@ -8,6 +8,25 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.35.0] - 2026-07-26
+
+### Added
+- **Archive híbrido transaccional (O6A)**: `sdd-archive` emite `archive-plan.json` (Plan-and-Report); runtime determinista (`scripts/lib/archive-plan.js`, `scripts/lib/archive-transaction.js`, CLI `scripts/archive-transaction-run.js`) valida gates/fingerprints/hashes, stagea bajo `.ospec/archive-tx/{change}/`, compara bytes, hace commit atómico y borra el origen solo tras full match, con journal, rollback, recovery y receipt.
+- **Baseline OpenSpec**: dominios nuevos `archive-plan-contract` y `archive-transaction-runtime`; deltas en `agents` (REQ-agents-008 → invocación de runtime con receipt) y `skills` (Plan-and-Report, Cost en receipt, fingerprints en preflight).
+- **`renameWithFallback`**: export aditivo en `atomic-write.js` para rename de directorio con fallback Windows `EPERM`/`EEXIST`.
+
+### Security
+- **Path confinement fail-closed** en plan/CLI/runtime (`../`, absolutos, domain traversal).
+- **Override de quality-gates** ligado al mismo approval o al subárbol `gates.quality-gates.override` (sin regex fail-open de documento completo).
+
+### Changed
+- Commit mid-flight con journal `committing`, retención de `.bak`/`created_by_tx` para rollback, `done` antes de `rm(origin)`, y fixtures FS de Compare A/B, kill/resume y rollback post-commit.
+- Roadmap: O6A entregado; siguiente en ruta crítica **O2B** (baseline fixed-policy).
+
+### Docs
+- ADR `adr-20260726-001` … `adr-20260726-006` (staging/journal, validador puro, renameWithFallback, failure_reason vs plan codes, preflight runtime-owned, paridad Go N/A).
+- Change archivado: `openspec/changes/archive/2026-07-26-hybrid-archive-transaction-runtime/`.
+
 ## [2.34.0] - 2026-07-25
 
 ### Added

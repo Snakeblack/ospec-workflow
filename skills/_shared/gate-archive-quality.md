@@ -94,23 +94,26 @@ the correct path — never dispatch archive on the anomaly.
 ## Post-Return Move Completion
 
 After `sdd-archive` returns `status: success`, the ORCHESTRATOR — never the
-executor — decides, verifies, and performs completion of the archive-folder
-move. The executor's reported copy-inventory list (see `sdd-archive/SKILL.md`
-Step 5) is only the STARTING manifest; the orchestrator re-verifies it against
-the actual filesystem before acting on it.
+executor — completes archive-folder closure by invoking the deterministic archive
+transaction runtime with the executor-emitted `archive-plan.json`:
 
-1. The orchestrator MUST recursively diff the destination
-   (`openspec/changes/archive/{YYYY-MM-DD}-{change-name}/`) against the source
-   (`openspec/changes/{change-name}/`), file-by-file: both path presence and
-   content match (hash or byte comparison).
-2. **Full match** → delete the source directory — the only filesystem step
-   that makes this a true move — and only then consider the archive route
-   complete.
-3. **Any mismatch or copy failure** (missing destination file, content diff,
-   partial copy) → halt with the source directory left intact, surface the
-   mismatch to the user, and do NOT close the route silently. MUST NOT delete
-   the source under a mismatch condition.
+```
+node scripts/archive-transaction-run.js {change-name}
+```
 
-This is a re-runnable filesystem diff: if the diff halted, re-running it after
-a repaired copy is the correct recovery path, not re-dispatching `sdd-archive`.
+The executor's plan (see `sdd-archive/SKILL.md` Step 5 Plan-and-Report) is the
+semantic input; the runtime owns staging, inventory copy, origin↔staging↔destination
+comparison, atomic commit, journal/resume/rollback, and delete-after-full-match.
+The orchestrator MUST treat a runtime success receipt as the sole close authority.
+The orchestrator MUST NOT perform an ad-hoc recursive inventory diff-and-delete as
+the completion mechanism.
+
+1. Invoke `node scripts/archive-transaction-run.js {change-name}` (workspace = repo root).
+2. **Runtime success receipt** (`outcome: success` or `resumed-success`) → consider
+   the archive route complete. Do not require a separate ad-hoc recursive diff.
+3. **Any runtime failure, mismatch, or absent/unsuccessful receipt** → halt with the source directory left intact (or restored per runtime rollback), surface the failure to the user, and do NOT close the route silently. MUST NOT delete the source outside the runtime under a mismatch condition.
+
+This is re-runnable via the runtime journal: if the transaction halted after staging,
+re-invoking the runtime (same plan identity) is the correct recovery path, not
+re-dispatching `sdd-archive`.
 

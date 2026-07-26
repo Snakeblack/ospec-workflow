@@ -1,0 +1,989 @@
+{
+  "schema_version": 1,
+  "lineage_id": "sha256:5d85e60e3b2bd389093c713d4c72427d6e0921c33ef1c5451a170d458348763f",
+  "generation": 1,
+  "predecessor_lineage_id": null,
+  "recovery": null,
+  "revision": 30,
+  "status": "approved",
+  "genesis": {
+    "candidate": {
+      "projection": "working-tree",
+      "base_tree": "main",
+      "candidate_tree": "feat/hybrid-archive-transaction-runtime",
+      "paths": [
+        "agents/sdd-archive.agent.md",
+        "agents/sdd-orchestrator.agent.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/memory/known-issues.md",
+        "scripts/archive-move-fingerprint-contract.test.js",
+        "scripts/archive-transaction-run.js",
+        "scripts/archive-transaction-run.test.js",
+        "scripts/configure/real-repo.test.js",
+        "scripts/eje-b-contract.test.js",
+        "scripts/lib/archive-plan.js",
+        "scripts/lib/archive-plan.test.js",
+        "scripts/lib/archive-transaction.js",
+        "scripts/lib/archive-transaction.test.js",
+        "scripts/lib/atomic-write.js",
+        "scripts/lib/atomic-write.test.js",
+        "scripts/mentor-adr-contract.test.js",
+        "skills/_shared/gate-archive-quality.md",
+        "skills/sdd-archive/SKILL.md"
+      ],
+      "diff_hash": "sha256:3f28ca87541ed4fcb6ccfc3f6af59dc36d135c0c65126510b4c54ba0b9754410",
+      "paths_digest": "sha256:34ccac91b517ad399aa20f9906d6bd8f624991dc12074834d5eeecfdef026802",
+      "authored_lines": 3304,
+      "original_changed_lines": 3304
+    },
+    "candidate_id": "sha256:47d3a173db0e8bdaed7396bad84eba443bc530b8f59b9e3f8081cc649157e95c",
+    "paths": [
+      "agents/sdd-archive.agent.md",
+      "agents/sdd-orchestrator.agent.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/memory/known-issues.md",
+      "scripts/archive-move-fingerprint-contract.test.js",
+      "scripts/archive-transaction-run.js",
+      "scripts/archive-transaction-run.test.js",
+      "scripts/configure/real-repo.test.js",
+      "scripts/eje-b-contract.test.js",
+      "scripts/lib/archive-plan.js",
+      "scripts/lib/archive-plan.test.js",
+      "scripts/lib/archive-transaction.js",
+      "scripts/lib/archive-transaction.test.js",
+      "scripts/lib/atomic-write.js",
+      "scripts/lib/atomic-write.test.js",
+      "scripts/mentor-adr-contract.test.js",
+      "skills/_shared/gate-archive-quality.md",
+      "skills/sdd-archive/SKILL.md"
+    ],
+    "classification": "high-risk",
+    "selected_dimensions": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "evidence_fingerprint": "sha256:395e507aa5672dc3996194e7c83533c5dcd3e277a5fc2cffaf27856f1dedeed7",
+    "original_changed_lines": 3304,
+    "authored_lines": 3304
+  },
+  "current_candidate_id": "sha256:c0b131a14ae7f527b417ab70b70b22b41d92e5ac6aa6e03ff1c90630c3b97402",
+  "current_candidate": {
+    "projection": "working-tree",
+    "base_tree": "main",
+    "candidate_tree": "feat/hybrid-archive-transaction-runtime@S-5992ca3894",
+    "paths": [
+      "agents/sdd-archive.agent.md",
+      "agents/sdd-orchestrator.agent.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/memory/known-issues.md",
+      "scripts/archive-move-fingerprint-contract.test.js",
+      "scripts/archive-transaction-run.js",
+      "scripts/archive-transaction-run.test.js",
+      "scripts/configure/real-repo.test.js",
+      "scripts/eje-b-contract.test.js",
+      "scripts/lib/archive-plan.js",
+      "scripts/lib/archive-plan.test.js",
+      "scripts/lib/archive-transaction.js",
+      "scripts/lib/archive-transaction.test.js",
+      "scripts/lib/atomic-write.js",
+      "scripts/lib/atomic-write.test.js",
+      "scripts/mentor-adr-contract.test.js",
+      "skills/_shared/gate-archive-quality.md",
+      "skills/sdd-archive/SKILL.md"
+    ],
+    "diff_hash": "sha256:b3a3e8e2ca94ba6a38d586f81505384bccbdf94e54e14fc260108b8e1f74072c",
+    "paths_digest": "sha256:34ccac91b517ad399aa20f9906d6bd8f624991dc12074834d5eeecfdef026802",
+    "authored_lines": 4001,
+    "original_changed_lines": 3304
+  },
+  "lenses": {
+    "risk": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "risk-start-001",
+      "result_digest": "sha256:f5a8faf2d773a902ff5e5ff385ad1dc976ce43ff84026612682339e07866652a",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "Confinement de rutas ausente: plan/CLI permiten path traversal hacia lectura, escritura y rm recursivo fuera de los roots de archive.",
+            "acceptance_criteria": "Fail-closed si cualquier path resuelto no queda bajo roots allowlisted; tests con ../, absolutos y domain traversal."
+          },
+          {
+            "severity": "CRITICAL",
+            "summary": "Override de quality-gates fail-open: regex de documento completo puede marcar overridePresent sin override del gate fallido.",
+            "acceptance_criteria": "Override solo si el mismo approval o el subárbol gates.quality-gates.override lo declara; tests con override ajeno y status failed."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "risk-start-001"
+    },
+    "reliability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "reliability-start-001",
+      "result_digest": "sha256:0b883c7c7d8b4b9474a9bc9af4e6947d7fb354cbaed3ac19f43b96d8793194f9",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "Ramas Compare A/B (origin↔staging / origin↔destination) sin fixture FS; los tests de compare fallan en preflight.",
+            "acceptance_criteria": "Fixtures con journal staged/committed y inventarios divergentes; assert compare-mismatch, origin_deleted:false, origin intacto."
+          },
+          {
+            "severity": "CRITICAL",
+            "summary": "Rollback post-commit con created_by_tx/.bak sin fixture FS; solo se prueba discard de staging.",
+            "acceptance_criteria": "Fixture committed/failed + created_by_tx/.bak; tras rollback, live targets restaurados y staging limpio."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Catch commit-failed del rename/cp nunca ejercitado.",
+            "acceptance_criteria": "fsImpl que falle en commit; receipt failed + failure_reason commit-failed + origin_deleted false."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "journal.json corrupto propaga throw; no hay receipt fail-closed ni test.",
+            "acceptance_criteria": "JSON inválido → receipt failed sin throw; test dedicado + CLI imprime receipt."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Flag público CLI --rollback sin cobertura e2e.",
+            "acceptance_criteria": "main([change,'--rollback',...]) con journal staged (y post-commit) → rolled-back + asserts de seguridad."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "reliability-start-001"
+    },
+    "resilience": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "resilience-start-001",
+      "result_digest": "sha256:7e24f2fb7fa2ed58e98b215e9bff80eaf94b5575b21fa320cc1fc716eb0ec824",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "Commit multi-paso no atómico; rollback no restaura fallo parcial (created_by_tx no persistido; .bak borrado por rename exitoso).",
+            "acceptance_criteria": "Fallo inyectado tras el primer live write debe dejar FS intacto o plenamente restaurable vía rollbackTransaction; fixture FS obligatoria."
+          },
+          {
+            "severity": "CRITICAL",
+            "summary": "Interrupción mid-commit: journal permanece en compared tras mutar destino/live; resume reintenta commit sin staging.",
+            "acceptance_criteria": "Journal actualizado por cada mutación de commit; kill entre rename de staging y writeJournal committed debe reanudar o hacer rollback determinista con fixture."
+          },
+          {
+            "severity": "CRITICAL",
+            "summary": "rm(origin) antes de journal done: fallo posterior marca failed/origin_deleted:false con origin ya ausente (terminal).",
+            "acceptance_criteria": "Origin solo se borra tras poder persistir done, o reconciliar origin ausente+destino OK a success/already_complete; nunca origin_deleted:false tras rm exitoso."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "writeJournal no atómico; journal corrupto provoca throw sin receipt estructurado.",
+            "acceptance_criteria": "Persistir journal con writeFileAtomic; JSON corrupto debe emitir receipt failed/io-error."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "resilience-start-001"
+    },
+    "readability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "readability-start-001",
+      "result_digest": "sha256:9e64fe48725b0ee1cea05ee7399c8b40a91386a83a912c56e5b80fba52a055eb",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "Nombres compare-a/compare-b y compareAOk/compareBOk no comunican qué se compara (staging vs destino).",
+            "acceptance_criteria": "Renombrar a compare-origin-staging / compare-origin-destination (y journal) o documentar A vs B junto al reducer."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Bucle baseline preflight anidado con cuerpo vacío coexiste con la comprobación real baseline-stale.",
+            "acceptance_criteria": "Eliminar el bucle no-op o unificarlo en un solo camino documentado."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "readArchiveGateFacts: if vacío, gateIndent sin uso y tres detecciones de override sin explicación.",
+            "acceptance_criteria": "Quitar muertos; comentar las fuentes de override."
+          },
+          {
+            "severity": "SUGGESTION",
+            "summary": "inventoryMismatch se enciende también cuando falla source_fingerprint, no solo el set de paths.",
+            "acceptance_criteria": "Separar fingerprint vs inventory o renombrar el flag/mensaje."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "readability-start-001"
+    }
+  },
+  "findings": [
+    {
+      "id": "F-1f49700d57dd853e",
+      "owner": "risk",
+      "severity": "CRITICAL",
+      "summary": "Confinement de rutas ausente: plan/CLI permiten path traversal hacia lectura, escritura y rm recursivo fuera de los roots de archive.",
+      "acceptance_criteria": "Fail-closed si cualquier path resuelto no queda bajo roots allowlisted; tests con ../, absolutos y domain traversal.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-74b9fee607b8ca52",
+      "owner": "risk",
+      "severity": "CRITICAL",
+      "summary": "Override de quality-gates fail-open: regex de documento completo puede marcar overridePresent sin override del gate fallido.",
+      "acceptance_criteria": "Override solo si el mismo approval o el subárbol gates.quality-gates.override lo declara; tests con override ajeno y status failed.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-f2b5024549c51c84",
+      "owner": "reliability",
+      "severity": "CRITICAL",
+      "summary": "Ramas Compare A/B (origin↔staging / origin↔destination) sin fixture FS; los tests de compare fallan en preflight.",
+      "acceptance_criteria": "Fixtures con journal staged/committed y inventarios divergentes; assert compare-mismatch, origin_deleted:false, origin intacto.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-cb2a4ba8861cd37c",
+      "owner": "reliability",
+      "severity": "CRITICAL",
+      "summary": "Rollback post-commit con created_by_tx/.bak sin fixture FS; solo se prueba discard de staging.",
+      "acceptance_criteria": "Fixture committed/failed + created_by_tx/.bak; tras rollback, live targets restaurados y staging limpio.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-cfd6fa1664facd64",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "Catch commit-failed del rename/cp nunca ejercitado.",
+      "acceptance_criteria": "fsImpl que falle en commit; receipt failed + failure_reason commit-failed + origin_deleted false.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-930ed5ed60938573",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "journal.json corrupto propaga throw; no hay receipt fail-closed ni test.",
+      "acceptance_criteria": "JSON inválido → receipt failed sin throw; test dedicado + CLI imprime receipt.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-894ba7f22f42f325",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "Flag público CLI --rollback sin cobertura e2e.",
+      "acceptance_criteria": "main([change,'--rollback',...]) con journal staged (y post-commit) → rolled-back + asserts de seguridad.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-3633127d1a47ca22",
+      "owner": "resilience",
+      "severity": "CRITICAL",
+      "summary": "Commit multi-paso no atómico; rollback no restaura fallo parcial (created_by_tx no persistido; .bak borrado por rename exitoso).",
+      "acceptance_criteria": "Fallo inyectado tras el primer live write debe dejar FS intacto o plenamente restaurable vía rollbackTransaction; fixture FS obligatoria.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-6638fee19ed94ee4",
+      "owner": "resilience",
+      "severity": "CRITICAL",
+      "summary": "Interrupción mid-commit: journal permanece en compared tras mutar destino/live; resume reintenta commit sin staging.",
+      "acceptance_criteria": "Journal actualizado por cada mutación de commit; kill entre rename de staging y writeJournal committed debe reanudar o hacer rollback determinista con fixture.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-e09d46a1085edec5",
+      "owner": "resilience",
+      "severity": "CRITICAL",
+      "summary": "rm(origin) antes de journal done: fallo posterior marca failed/origin_deleted:false con origin ya ausente (terminal).",
+      "acceptance_criteria": "Origin solo se borra tras poder persistir done, o reconciliar origin ausente+destino OK a success/already_complete; nunca origin_deleted:false tras rm exitoso.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-31dd61f189beb738",
+      "owner": "resilience",
+      "severity": "WARNING",
+      "summary": "writeJournal no atómico; journal corrupto provoca throw sin receipt estructurado.",
+      "acceptance_criteria": "Persistir journal con writeFileAtomic; JSON corrupto debe emitir receipt failed/io-error.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-1323269b1977f818",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "Nombres compare-a/compare-b y compareAOk/compareBOk no comunican qué se compara (staging vs destino).",
+      "acceptance_criteria": "Renombrar a compare-origin-staging / compare-origin-destination (y journal) o documentar A vs B junto al reducer.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-37e58e4b6463b1d3",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "Bucle baseline preflight anidado con cuerpo vacío coexiste con la comprobación real baseline-stale.",
+      "acceptance_criteria": "Eliminar el bucle no-op o unificarlo en un solo camino documentado.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-5035da4758064993",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "readArchiveGateFacts: if vacío, gateIndent sin uso y tres detecciones de override sin explicación.",
+      "acceptance_criteria": "Quitar muertos; comentar las fuentes de override.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-ce7a460c211d01b6",
+      "owner": "readability",
+      "severity": "SUGGESTION",
+      "summary": "inventoryMismatch se enciende también cuando falla source_fingerprint, no solo el set de paths.",
+      "acceptance_criteria": "Separar fingerprint vs inventory o renombrar el flag/mensaje.",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ],
+  "findings_digest": "sha256:bfdd6b3a33ab28e815309c67319d4aff3e518589d047c9a0abc0c181bcc77253",
+  "correction_budget": {
+    "limit_lines": 200,
+    "used_lines": 0,
+    "failed_attempts": 0,
+    "max_failed_attempts": 3
+  },
+  "correction_history": [],
+  "validation_history": [],
+  "follow_ups": [],
+  "pending_operation": null,
+  "pending_correction": null,
+  "terminal_reason": "all-remediation-slices-passed",
+  "remediation_schema_version": 2,
+  "remediation_migration": {
+    "source_digest": "sha256:7756f18cc7f7adc228a9fec7358a95a6e0daa526d3157a43398f7027ad13b6c2",
+    "manifest_digest": "sha256:627e1e7e9f151804bdd3fa97c0d453fff77fa6aeaa4d30b158c5116f4417e5ed",
+    "legacy_used_lines": 0,
+    "legacy_failed_attempts": 0,
+    "migrated_at": "deterministic"
+  },
+  "slice_order": [
+    "S-93cc4124a5b55f2d",
+    "S-4fad12f892ba2c9f",
+    "S-a807aedec4379c53",
+    "S-3b63ea7578c949cb",
+    "S-7e31be990da61176",
+    "S-68e26a299c2e7bd0",
+    "S-5992ca3894374a92"
+  ],
+  "active_slice_id": null,
+  "correction_slices": {
+    "S-93cc4124a5b55f2d": {
+      "slice_id": "S-93cc4124a5b55f2d",
+      "root_cause_key": "F-1f49700d57dd853e",
+      "finding_ids": [
+        "F-1f49700d57dd853e"
+      ],
+      "evidence_digests": [
+        "sha256:67c0874db0723be1beecbe5e724f7f770d9359b6ac0ce6fea37132dbc0b51ca3"
+      ],
+      "permitted_paths": [
+        "agents/sdd-archive.agent.md",
+        "agents/sdd-orchestrator.agent.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/memory/known-issues.md",
+        "scripts/archive-move-fingerprint-contract.test.js",
+        "scripts/archive-transaction-run.js",
+        "scripts/archive-transaction-run.test.js",
+        "scripts/configure/real-repo.test.js",
+        "scripts/eje-b-contract.test.js",
+        "scripts/lib/archive-plan.js",
+        "scripts/lib/archive-plan.test.js",
+        "scripts/lib/archive-transaction.js",
+        "scripts/lib/archive-transaction.test.js",
+        "scripts/lib/atomic-write.js",
+        "scripts/lib/atomic-write.test.js",
+        "scripts/mentor-adr-contract.test.js",
+        "skills/_shared/gate-archive-quality.md",
+        "skills/sdd-archive/SKILL.md"
+      ],
+      "resolutions": {
+        "F-1f49700d57dd853e": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 117,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-93cc4124a5b55f2d",
+          "request_id": "slice-corr-S-93cc4124a5b55f2d-001",
+          "finding_ids": [
+            "F-1f49700d57dd853e"
+          ],
+          "paths": [
+            "scripts/archive-transaction-run.js",
+            "scripts/archive-transaction-run.test.js",
+            "scripts/lib/archive-plan.js",
+            "scripts/lib/archive-plan.test.js",
+            "scripts/lib/archive-transaction.js",
+            "scripts/lib/archive-transaction.test.js"
+          ],
+          "base_candidate_id": "sha256:47d3a173db0e8bdaed7396bad84eba443bc530b8f59b9e3f8081cc649157e95c",
+          "forecast_lines": 120,
+          "actual_changed_lines": 117,
+          "record_request_id": "slice1-record-001",
+          "corrected_candidate_id": "sha256:3425b567b4de875089ec6ac242821a964a9232abbc9c5b31e433e995d40b99ca"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "slice1-validate-001",
+          "outcomes": [
+            {
+              "id": "F-1f49700d57dd853e",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "Ningun slice previo en status passed; no hay baseline de slice aprobado contra el que detectar regresion.",
+              "El delta del slice S-93cc4124a5b55f2d se limita a guards de confinement y tests en los 6 paths permitidos."
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-4fad12f892ba2c9f": {
+      "slice_id": "S-4fad12f892ba2c9f",
+      "root_cause_key": "F-3633127d1a47ca22",
+      "finding_ids": [
+        "F-3633127d1a47ca22"
+      ],
+      "evidence_digests": [
+        "sha256:8f1b8a87205183bfc487bf34aebe2487afd159f26b6465403e9df5f061cb6b8e"
+      ],
+      "permitted_paths": [
+        "agents/sdd-archive.agent.md",
+        "agents/sdd-orchestrator.agent.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/memory/known-issues.md",
+        "scripts/archive-move-fingerprint-contract.test.js",
+        "scripts/archive-transaction-run.js",
+        "scripts/archive-transaction-run.test.js",
+        "scripts/configure/real-repo.test.js",
+        "scripts/eje-b-contract.test.js",
+        "scripts/lib/archive-plan.js",
+        "scripts/lib/archive-plan.test.js",
+        "scripts/lib/archive-transaction.js",
+        "scripts/lib/archive-transaction.test.js",
+        "scripts/lib/atomic-write.js",
+        "scripts/lib/atomic-write.test.js",
+        "scripts/mentor-adr-contract.test.js",
+        "skills/_shared/gate-archive-quality.md",
+        "skills/sdd-archive/SKILL.md"
+      ],
+      "resolutions": {
+        "F-3633127d1a47ca22": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 128,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-4fad12f892ba2c9f",
+          "request_id": "slice-corr-S-4fad12f892ba2c9f-001",
+          "finding_ids": [
+            "F-3633127d1a47ca22"
+          ],
+          "paths": [
+            "scripts/archive-transaction-run.js",
+            "scripts/archive-transaction-run.test.js",
+            "scripts/lib/archive-plan.js",
+            "scripts/lib/archive-plan.test.js",
+            "scripts/lib/archive-transaction.js",
+            "scripts/lib/archive-transaction.test.js",
+            "scripts/lib/atomic-write.js",
+            "scripts/lib/atomic-write.test.js"
+          ],
+          "base_candidate_id": "sha256:3425b567b4de875089ec6ac242821a964a9232abbc9c5b31e433e995d40b99ca",
+          "forecast_lines": 180,
+          "actual_changed_lines": 128,
+          "record_request_id": "S-4fad12f892-record-001",
+          "corrected_candidate_id": "sha256:bbc0e6e3d5b189fc10ea94cb84a54ca3219fdb7957bf30ae255242d3b7711e18"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-F-3633127d1a47ca22-001",
+          "outcomes": [
+            {
+              "id": "F-3633127d1a47ca22",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "mid-commit rollback fixture FS passed; created_by_tx and .bak retained",
+              "no regression: confinement tests still pass (49/49 archive-plan+transaction)"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-a807aedec4379c53": {
+      "slice_id": "S-a807aedec4379c53",
+      "root_cause_key": "F-6638fee19ed94ee4",
+      "finding_ids": [
+        "F-6638fee19ed94ee4"
+      ],
+      "evidence_digests": [
+        "sha256:c87a3cbb2f593711ac416c88ce325c50a291bab87a11fe4a0e90bb710b26f464"
+      ],
+      "permitted_paths": [
+        "agents/sdd-archive.agent.md",
+        "agents/sdd-orchestrator.agent.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/memory/known-issues.md",
+        "scripts/archive-move-fingerprint-contract.test.js",
+        "scripts/archive-transaction-run.js",
+        "scripts/archive-transaction-run.test.js",
+        "scripts/configure/real-repo.test.js",
+        "scripts/eje-b-contract.test.js",
+        "scripts/lib/archive-plan.js",
+        "scripts/lib/archive-plan.test.js",
+        "scripts/lib/archive-transaction.js",
+        "scripts/lib/archive-transaction.test.js",
+        "scripts/lib/atomic-write.js",
+        "scripts/lib/atomic-write.test.js",
+        "scripts/mentor-adr-contract.test.js",
+        "skills/_shared/gate-archive-quality.md",
+        "skills/sdd-archive/SKILL.md"
+      ],
+      "resolutions": {
+        "F-6638fee19ed94ee4": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 143,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-a807aedec4379c53",
+          "request_id": "slice-corr-S-a807aedec4379c53-001",
+          "finding_ids": [
+            "F-6638fee19ed94ee4"
+          ],
+          "paths": [
+            "scripts/archive-transaction-run.js",
+            "scripts/archive-transaction-run.test.js",
+            "scripts/lib/archive-plan.js",
+            "scripts/lib/archive-plan.test.js",
+            "scripts/lib/archive-transaction.js",
+            "scripts/lib/archive-transaction.test.js",
+            "scripts/lib/atomic-write.js",
+            "scripts/lib/atomic-write.test.js"
+          ],
+          "base_candidate_id": "sha256:bbc0e6e3d5b189fc10ea94cb84a54ca3219fdb7957bf30ae255242d3b7711e18",
+          "forecast_lines": 180,
+          "actual_changed_lines": 143,
+          "record_request_id": "S-a807aedec4-record-001",
+          "corrected_candidate_id": "sha256:c950502412efcafca2ddb7c4b05c3607d415f97fddf2dbd13c9af0a6c1c31fd8"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-F-6638fee19ed94ee4-001",
+          "outcomes": [
+            {
+              "id": "F-6638fee19ed94ee4",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "journal advances to committing per live mutation; kill fixture resume/rollback deterministic",
+              "no regression on confinement or mid-commit rollback slices; 51/51 tests"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-3b63ea7578c949cb": {
+      "slice_id": "S-3b63ea7578c949cb",
+      "root_cause_key": "F-74b9fee607b8ca52",
+      "finding_ids": [
+        "F-74b9fee607b8ca52"
+      ],
+      "evidence_digests": [
+        "sha256:066eef5bc8e1318ed6708a3d83fe54d4e6cc63acf06d65ff8b95d9e531e3f15c"
+      ],
+      "permitted_paths": [
+        "agents/sdd-archive.agent.md",
+        "agents/sdd-orchestrator.agent.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/memory/known-issues.md",
+        "scripts/archive-move-fingerprint-contract.test.js",
+        "scripts/archive-transaction-run.js",
+        "scripts/archive-transaction-run.test.js",
+        "scripts/configure/real-repo.test.js",
+        "scripts/eje-b-contract.test.js",
+        "scripts/lib/archive-plan.js",
+        "scripts/lib/archive-plan.test.js",
+        "scripts/lib/archive-transaction.js",
+        "scripts/lib/archive-transaction.test.js",
+        "scripts/lib/atomic-write.js",
+        "scripts/lib/atomic-write.test.js",
+        "scripts/mentor-adr-contract.test.js",
+        "skills/_shared/gate-archive-quality.md",
+        "skills/sdd-archive/SKILL.md"
+      ],
+      "resolutions": {
+        "F-74b9fee607b8ca52": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 135,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-3b63ea7578c949cb",
+          "request_id": "slice-corr-S-3b63ea7578c949cb-001",
+          "finding_ids": [
+            "F-74b9fee607b8ca52"
+          ],
+          "paths": [
+            "scripts/archive-transaction-run.js",
+            "scripts/archive-transaction-run.test.js",
+            "scripts/lib/archive-plan.js",
+            "scripts/lib/archive-plan.test.js",
+            "scripts/lib/archive-transaction.js",
+            "scripts/lib/archive-transaction.test.js",
+            "scripts/lib/atomic-write.js",
+            "scripts/lib/atomic-write.test.js"
+          ],
+          "base_candidate_id": "sha256:c950502412efcafca2ddb7c4b05c3607d415f97fddf2dbd13c9af0a6c1c31fd8",
+          "forecast_lines": 180,
+          "actual_changed_lines": 135,
+          "record_request_id": "S-3b63ea7578-record-001",
+          "corrected_candidate_id": "sha256:5f0a419a53ec46b777cd0ce6eb5e9f9c31268e0d027afce01f0b115bcca156ad"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-F-74b9fee607b8ca52-001",
+          "outcomes": [
+            {
+              "id": "F-74b9fee607b8ca52",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "quality-gates override fail-closed bound to same approval or subtree",
+              "no regression on confinement/mid-commit slices; 59/59 tests"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-7e31be990da61176": {
+      "slice_id": "S-7e31be990da61176",
+      "root_cause_key": "F-cb2a4ba8861cd37c",
+      "finding_ids": [
+        "F-cb2a4ba8861cd37c"
+      ],
+      "evidence_digests": [
+        "sha256:036748117fb6927caa777969890eee2b89ffcaa4c453d27d17d8c1176318d03f"
+      ],
+      "permitted_paths": [
+        "agents/sdd-archive.agent.md",
+        "agents/sdd-orchestrator.agent.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/memory/known-issues.md",
+        "scripts/archive-move-fingerprint-contract.test.js",
+        "scripts/archive-transaction-run.js",
+        "scripts/archive-transaction-run.test.js",
+        "scripts/configure/real-repo.test.js",
+        "scripts/eje-b-contract.test.js",
+        "scripts/lib/archive-plan.js",
+        "scripts/lib/archive-plan.test.js",
+        "scripts/lib/archive-transaction.js",
+        "scripts/lib/archive-transaction.test.js",
+        "scripts/lib/atomic-write.js",
+        "scripts/lib/atomic-write.test.js",
+        "scripts/mentor-adr-contract.test.js",
+        "skills/_shared/gate-archive-quality.md",
+        "skills/sdd-archive/SKILL.md"
+      ],
+      "resolutions": {
+        "F-cb2a4ba8861cd37c": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 46,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-7e31be990da61176",
+          "request_id": "slice-corr-S-7e31be990da61176-001",
+          "finding_ids": [
+            "F-cb2a4ba8861cd37c"
+          ],
+          "paths": [
+            "scripts/archive-transaction-run.js",
+            "scripts/archive-transaction-run.test.js",
+            "scripts/lib/archive-plan.js",
+            "scripts/lib/archive-plan.test.js",
+            "scripts/lib/archive-transaction.js",
+            "scripts/lib/archive-transaction.test.js",
+            "scripts/lib/atomic-write.js",
+            "scripts/lib/atomic-write.test.js"
+          ],
+          "base_candidate_id": "sha256:5f0a419a53ec46b777cd0ce6eb5e9f9c31268e0d027afce01f0b115bcca156ad",
+          "forecast_lines": 180,
+          "actual_changed_lines": 46,
+          "record_request_id": "S-7e31be990d-record-001",
+          "corrected_candidate_id": "sha256:772f82ea8ab4159df5529a5052942f50b84a6b1f58d4f213a62e180ff8675989"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-F-cb2a4ba8861cd37c-001",
+          "outcomes": [
+            {
+              "id": "F-cb2a4ba8861cd37c",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "post-commit rollback fixture restores .bak and cleans staging",
+              "no regression on 4 passed slices; 55/55 tests"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-68e26a299c2e7bd0": {
+      "slice_id": "S-68e26a299c2e7bd0",
+      "root_cause_key": "F-e09d46a1085edec5",
+      "finding_ids": [
+        "F-e09d46a1085edec5"
+      ],
+      "evidence_digests": [
+        "sha256:ca684a82bedfa1350c3b5f8ec4a49bc890f61b9d0df48eed663ea94a3e362457"
+      ],
+      "permitted_paths": [
+        "agents/sdd-archive.agent.md",
+        "agents/sdd-orchestrator.agent.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/memory/known-issues.md",
+        "scripts/archive-move-fingerprint-contract.test.js",
+        "scripts/archive-transaction-run.js",
+        "scripts/archive-transaction-run.test.js",
+        "scripts/configure/real-repo.test.js",
+        "scripts/eje-b-contract.test.js",
+        "scripts/lib/archive-plan.js",
+        "scripts/lib/archive-plan.test.js",
+        "scripts/lib/archive-transaction.js",
+        "scripts/lib/archive-transaction.test.js",
+        "scripts/lib/atomic-write.js",
+        "scripts/lib/atomic-write.test.js",
+        "scripts/mentor-adr-contract.test.js",
+        "skills/_shared/gate-archive-quality.md",
+        "skills/sdd-archive/SKILL.md"
+      ],
+      "resolutions": {
+        "F-e09d46a1085edec5": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 159,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-68e26a299c2e7bd0",
+          "request_id": "slice-corr-S-68e26a299c2e7bd0-001",
+          "finding_ids": [
+            "F-e09d46a1085edec5"
+          ],
+          "paths": [
+            "scripts/archive-transaction-run.js",
+            "scripts/archive-transaction-run.test.js",
+            "scripts/lib/archive-plan.js",
+            "scripts/lib/archive-plan.test.js",
+            "scripts/lib/archive-transaction.js",
+            "scripts/lib/archive-transaction.test.js",
+            "scripts/lib/atomic-write.js",
+            "scripts/lib/atomic-write.test.js"
+          ],
+          "base_candidate_id": "sha256:772f82ea8ab4159df5529a5052942f50b84a6b1f58d4f213a62e180ff8675989",
+          "forecast_lines": 180,
+          "actual_changed_lines": 159,
+          "record_request_id": "S-68e26a299c-record-001",
+          "corrected_candidate_id": "sha256:6856f29ea0d563ed13d31430c5d14e00a4a1f3ea71f6c5fefb1f8ad8f93be0f7"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-F-e09d46a1085edec5-001",
+          "outcomes": [
+            {
+              "id": "F-e09d46a1085edec5",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "done journal persists before rm(origin); post-rm failure reconciles to success with origin_deleted:true",
+              "no regression on 5 passed slices; 40/40 archive-transaction tests"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-5992ca3894374a92": {
+      "slice_id": "S-5992ca3894374a92",
+      "root_cause_key": "F-f2b5024549c51c84",
+      "finding_ids": [
+        "F-f2b5024549c51c84"
+      ],
+      "evidence_digests": [
+        "sha256:5be7147bece1a00f2e8cf50739e1b911005feb07e5f1f008be391033f7db80b7"
+      ],
+      "permitted_paths": [
+        "agents/sdd-archive.agent.md",
+        "agents/sdd-orchestrator.agent.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/memory/known-issues.md",
+        "scripts/archive-move-fingerprint-contract.test.js",
+        "scripts/archive-transaction-run.js",
+        "scripts/archive-transaction-run.test.js",
+        "scripts/configure/real-repo.test.js",
+        "scripts/eje-b-contract.test.js",
+        "scripts/lib/archive-plan.js",
+        "scripts/lib/archive-plan.test.js",
+        "scripts/lib/archive-transaction.js",
+        "scripts/lib/archive-transaction.test.js",
+        "scripts/lib/atomic-write.js",
+        "scripts/lib/atomic-write.test.js",
+        "scripts/mentor-adr-contract.test.js",
+        "skills/_shared/gate-archive-quality.md",
+        "skills/sdd-archive/SKILL.md"
+      ],
+      "resolutions": {
+        "F-f2b5024549c51c84": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 88,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-5992ca3894374a92",
+          "request_id": "slice-corr-S-5992ca3894374a92-001",
+          "finding_ids": [
+            "F-f2b5024549c51c84"
+          ],
+          "paths": [
+            "scripts/archive-transaction-run.js",
+            "scripts/archive-transaction-run.test.js",
+            "scripts/lib/archive-plan.js",
+            "scripts/lib/archive-plan.test.js",
+            "scripts/lib/archive-transaction.js",
+            "scripts/lib/archive-transaction.test.js",
+            "scripts/lib/atomic-write.js",
+            "scripts/lib/atomic-write.test.js"
+          ],
+          "base_candidate_id": "sha256:6856f29ea0d563ed13d31430c5d14e00a4a1f3ea71f6c5fefb1f8ad8f93be0f7",
+          "forecast_lines": 180,
+          "actual_changed_lines": 88,
+          "record_request_id": "S-5992ca3894-record-001",
+          "corrected_candidate_id": "sha256:c0b131a14ae7f527b417ab70b70b22b41d92e5ac6aa6e03ff1c90630c3b97402"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-F-f2b5024549c51c84-001",
+          "outcomes": [
+            {
+              "id": "F-f2b5024549c51c84",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "Compare A/B FS fixtures assert compare-mismatch with origin intact",
+              "no regression on 6 passed slices; 42/42 archive-transaction tests"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    }
+  }
+}
