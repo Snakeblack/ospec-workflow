@@ -1,51 +1,89 @@
-# Roadmap general — evolución del harness
+# Roadmap general — kernel, grafo y evidencia
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.35.0, 2026-07-26.
+> **Versión de referencia:** v2.35.0, 2026-07-29.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
-> **Estado verificado:** O4+O5 entregado; O4.1/O4.2 entregados; O6A entregado y archivado (`hybrid-archive-transaction-runtime`); infraestructura O2A entregada; baseline fija O2B pendiente (siguiente).
-> **Regla:** una decisión arquitectónica nueva se incorpora primero al análisis. Este archivo solo deriva trabajo ejecutable.
+> **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md).
+> **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
 
-## 1. Estado ejecutivo
+## Decisión y ruta crítica
 
-| Estado | Iniciativa | Resultado esperado |
+La nueva ruta crítica es:
+
+```text
+O2B fixed baseline
+  → K1 contracts/invariants
+  → K2 lifecycle kernel
+  → K3 candidate freeze
+  → K4 Graph IR + Repair shadow
+  → K5 budgets/failure/recovery
+  → K6a isolation/capsule
+  → K6b verifier/evidence
+  → K6c adversarial challenges
+  → K6d complexity delta
+  → K7 reuse review lineage
+  → K8 delivery receipt
+  → K9 shadow/replay/A-B
+  → K10-delivery productive enforcement
+  → K10 routes/capabilities
+  → K11a adapters
+  → K11b model routing
+  → K11c ownership/worktrees
+  → K11d roles/parity
+  → K12 headless/longitudinal
+```
+
+O2B permanece el gate inmediato. El change `fixed-policy-reference-baseline` está `blocked`: `sdd-apply` terminó `partial`; `sdd-verify` terminó `done` con verdict `FAIL` y `next_recommended: none`. La funcionalidad cumple 16/16 MUST y recovery ya preserva `quality_evidence`; el único CRITICAL es un `tasks-gap` de proveniencia Strict TDD RED histórica no autenticada. No se inicia K1 ni se cambia un default hasta que evidencia externa o una decisión humana explícita sobre policy/spec resuelva el bloqueo.
+
+Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R1 se rebasan sobre un kernel común; O7+O10 se convierte en capacidades; O9+O11 en invalidación/recompilación; O14 en routing por nodo; R4 consume el mismo Graph IR. O8 y O12 conservan shadow, compatibilidad y deprecación. Targets y R2 siguen subordinados a la estabilidad del core.
+
+## Ruta rápida para ejecución
+
+| Orden | Acción | Gate de salida |
+| ---: | --- | --- |
+| 1 | Completar O2B sin mezclar kernel nuevo | Verify no `FAIL`; baseline fixed reproducible según su spec |
+| 2 | Ejecutar K1–K3 | Contracts, transitions y Candidate ID conformes |
+| 3 | Ejecutar K4–K8 sobre Repair shadow, respetando K6a→K6d | Vertical end-to-end con receipt de evaluación |
+| 4 | Ejecutar K9 | Calidad no inferior, replay y fallback fixed |
+| 5 | Ejecutar K10-delivery | Pre-commit/pre-push/pre-PR validan receipts productivos |
+| 6 | Expandir K10, K11a→K11d y K12 | Rutas/targets de uno en uno, luego headless/longitudinal |
+
+## Estado ejecutivo
+
+| Estado | ID | Resultado |
 | --- | --- | --- |
-| Completado | G0/G0.1 — gobernanza y reconciliación documental | Arquitectura y roadmap activos, sin estado O4+O5 obsoleto |
-| Completado | O4+O5 — review selectivo y linaje acotado | Generalist-first, selección determinista y corrección dirigida |
-| ✅ Entregado | O4.1 — overflow de señales de review | Ninguna dimensión positiva descartada por el cap normal |
-| ✅ Entregado | O4.2 — remediación rápida de evidencia Strict TDD | Reparar drift mecánico de formato sin redispatch funcional completo |
-| ✅ Entregado | O6A — archive híbrido transaccional | Semántica en agente y transacción mecánica en runtime |
-| ▶ SIGUIENTE | O2B — baseline fixed-policy | Nueve perfiles comparables y reproducibles |
-| Experimento con gate | O20A — proof-carrying verify kernel | Vertical shadow para decidir si un kernel común merece promoción |
-| Ruta crítica adaptive | O13A–D + O19A | Perfil, policy resolver, kernel, variantes y validadores |
-| Planificación | O7+O10 + O9+O11 | `sdd-plan` parametrizado y reevaluación continua |
-| Promoción | O8 | Shadow mode y A/B antes de cambiar defaults |
-| Posterior | O14–O19B + R1 | Routing dinámico, evidencia, capsules y CI |
-| Largo plazo | R2 + R4 | Conocimiento vivo y federación write |
+| `done` | G0/G0.1 | Gobernanza y reconciliación documental |
+| `done` | O2A | Infraestructura de benchmark y catálogo de nueve perfiles |
+| `done` | O3 | Clarify condicional |
+| `done` | O4+O5/O4.1 | Review selectivo/full 4R y linaje acotado |
+| `done` | O4.2 | Recovery focal de evidencia Strict TDD |
+| `done` | O6A | Archive híbrido transaccional |
+| `blocked` | **O2B** | Funcionalmente conforme; verify `FAIL` por un único tasks-gap de proveniencia Strict TDD |
+| `pending` | K1–K3 | Fundamentos del kernel y Candidate ID |
+| `pending` | K4–K8 | MVP Repair proof-carrying; K6 se entrega en cuatro slices terminales |
+| `pending` | K9 | Gate de promoción shadow/replay/A-B |
+| `pending` | K10-delivery | Enforcement productivo de receipts |
+| `pending` | K10–K12 | Expansión adaptativa, plataforma en cuatro slices y evaluación longitudinal |
 
-### Publicación inmediata de O4.1
+No se modifica el estado de OpenSpec desde este documento. `blocked` refleja el top-level autoritativo; las fases y el bloqueo exacto se toman de `openspec/changes/fixed-policy-reference-baseline/state.yaml`.
 
-El bump de versión y la release correspondientes a O4.1 se completan antes de iniciar O4.2. O4.2 permanece como el siguiente change de reparación y se ejecutará en una sesión separada.
+## Reglas del programa
 
-Preflight independiente antes de O6A — no forma parte de O4.2:
-
-- corregir metadata que todavía describa cuatro targets cuando existen cinco;
-- comprobar enlaces de `docs/architecture/` y `docs/roadmaps/`;
-- ejecutar contract lint, paridad de targets y `npm test`;
-- no mezclar esta limpieza con cambios no relacionados.
-
-## 2. Protocolo de actualización
-
-Al cerrar cada change:
-
-1. Marcar estado y done criteria.
-2. Registrar change, release y evidencia.
-3. Mover `▶ SIGUIENTE` al primer ítem ejecutable de la ruta crítica.
-4. Actualizar la arquitectura solo si cambió un principio, contrato o alcance.
-5. Actualizar un roadmap de target solo si cambió ese adapter.
-6. Actualizar OpenSpec baseline cuando cambie comportamiento.
-7. Registrar divergencias detectadas; no corregir solo la narrativa.
-8. No crear planes paralelos ni `plan-siguiente-sesion.md`.
+1. Cada iniciativa se implementa como change OpenSpec cohesivo.
+2. O2B es gate antes de cambiar defaults o fixtures del control.
+3. Cada slice introduce una sola autoridad; no se mantienen dos kernels equivalentes.
+4. Toda policy nueva empieza en shadow.
+5. Candidate freeze precede verify, review y receipts.
+6. Ningún receipt se emite para un working tree mutable.
+7. O4/O5, O4.2 y O6A se adaptan; no se reescriben.
+8. Strict TDD no se retira antes de probar una estrategia equivalente por tipo de cambio.
+9. Primero un target, una ruta y un fixture; la paridad se expande después.
+10. Un change no mezcla core, cinco targets, roles y worktrees.
+11. Ninguna optimización descarta señal, obligación, aprobación o evidencia material.
+12. Target roadmaps no alteran prioridad transversal.
+13. Cada failure tiene `execute`, `collect`, `decide` o `stop`.
+14. Todo budget agotado termina; no reinicia un agente idéntico.
+15. El roadmap registra propuesta y estado por separado; no inventa resultados.
 
 Estados permitidos:
 
@@ -53,871 +91,944 @@ Estados permitidos:
 pending · in-progress · blocked · done · superseded · rejected
 ```
 
-## 3. Reglas de ejecución del programa
-
-- Cada iniciativa se implementa como un change OpenSpec cohesivo.
-- Un change no mezcla reorganización documental, refactor de runtime y optimización de target salvo dependencia inseparable.
-- Los cambios de comportamiento usan el flujo SDD completo disponible.
-- Los refactors editoriales pueden usar direct + reconcile cuando no cambian autoridad ni contrato.
-- Cada change actualiza specs, ADRs, roadmap y capability matrix cuando corresponda.
-- Toda policy nueva empieza en shadow o sin alterar defaults.
-- Ninguna optimización de coste puede descartar una señal material.
-- Los cambios de target revalidan la documentación y versión real del host.
-- La baseline incompleta no bloquea fixes demostrables, pero sí bloquea promover adaptive como default.
-
-## 4. Grafo de dependencias
+## Dependencias
 
 ```text
-G0.1
-  ↓
-O4.1
-  ↓
-O4.2
-  ↓
-O6A
-  ↓
-O2B
-  ├── O20A (experimental, shadow)
-  │     └── gate: rebase o continuidad de O13C/O15/O18/O19B/R1
-  └── O13A ───────────────┐
-        ↓                 │
-      O13B                │
-        ↓                 │
-      O13C                │
-        ↓                 │
-      O13D                │
-        ↓                 │
-      O19A ───────────────┘
-        ↓
-      O7+O10
-        ↓
-      O9+O11
-        ↓
-      O8
-        ├── O12
-        ├── O14
-        ├── O15 → O16+O17 → O18
-        └── O19B
-              ↓
-             R1
+Entregado:
+G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A
+                                                  ↓
+Activo:                                         O2B
+                                                  ↓
+Core:           K1 → K2 → K3 → K4 → K5
+                                    ↓
+              K6a → K6b → K6c → K6d → K7 → K8
+                                                  ↓
+Promoción:                                       K9
+                                                  ↓
+Delivery:                                  K10-delivery
+                                                  ↓
+Expansión:             K10 → K11a → K11b → K11c → K11d → K12
 ```
 
-Lanes R2 y targets pueden avanzar en paralelo cuando no cambien el control plane ni invaliden la baseline.
+Lanes R2 y targets solo avanzan en paralelo si no cambian control plane, contract suite, Graph IR ni baseline.
 
-## 5. Ola 0 — baseline histórica y gobernanza
+## Bloque 0 — cerrar el control y preservar lo entregado
 
-### G0. Gobernanza documental unificada — **done**
+### G0/G0.1 — gobernanza documental — **done**
 
 Entregado:
 
-- `docs/architecture/harness-evolution.md`;
-- `docs/roadmaps/harness-evolution.md`;
-- `docs/roadmaps/README.md`;
-- roadmaps de target;
-- archivos históricos fuera de la autoridad activa.
+- arquitectura y roadmap activos;
+- separación entre autoridad, targets y análisis;
+- historial no normativo fuera de la ruta operativa.
 
-### G0.1. Reconciliación de arquitectura y roadmap — **done**
+La reconciliación de esta edición actualiza el corte a v2.35.0 y fusiona la dirección kernel/Graph/evidence. No reabre los changes entregados.
 
-Este reemplazo:
-
-- actualiza el corte a v2.30.0;
-- mueve O4+O5 a capacidades entregadas;
-- documenta el contrato generalist-first real;
-- retira la afirmación incorrecta de que `high-risk` omite el generalista;
-- sustituye `review_plan required|candidate|skip` por la `review_decision` implementada;
-- redefine O6 como arquitectura híbrida;
-- separa O2A de O2B;
-- añade policy resolver, invocation kernel y variantes como iniciativas explícitas;
-- fija el orden previo al shadow mode.
-
-### O2A. Infraestructura de benchmark — **done**
+### O2A — infraestructura de benchmark — **done**
 
 Entregado:
 
 - catálogo canónico de nueve perfiles;
-- smoke set de tres perfiles;
+- smoke de tres perfiles;
 - runner headless local;
-- cache con identidad fuerte;
-- publicación fail-closed;
-- scoring estructural run-level;
-- O1 suplementario.
+- cache con identidad;
+- scoring estructural y publicación fail-closed.
 
-No entregado por O2A:
+O2A no entregó baseline fixed 9/9 ni promoción adaptive.
 
-- baseline fija comparable de los nueve perfiles;
-- gate de promoción de adaptive;
-- CI obligatorio.
+### O3 — clarify condicional — **done**
 
-### O3. Clarify condicional — **done**
+Clarify es gate condicional posterior a spec. K4/K10 lo generalizarán como evento tipado con invalidación parcial; no se reimplementa como fase universal.
 
-`clarify` es un gate posterior a `sdd-spec`, gobernado por envelope validado. No es una fase declarada en las rutas.
+### O4+O5/O4.1 — review selectivo y linaje acotado — **done**
 
-### O4+O5. Review selectivo y linaje acotado — **done**
+Entregado:
 
-Contrato entregado:
+- generalista read-only primero;
+- selección determinista;
+- cero a dos especialistas en normal;
+- full 4R para high-risk y overflow de tres o más dimensiones;
+- findings y candidate/paths de génesis congelados;
+- lenses one-shot;
+- correction focal y límite de intentos;
+- successor explícito.
 
-- generalista read-only ejecutado primero;
-- decisión estructurada validada;
-- evidencia determinista + generalista;
-- cero a dos especialistas targeted para normal;
-- tres o cuatro señales positivas escalan a strict full 4R;
-- full 4R para `high-risk`;
-- paridad de targets;
-- findings congelados;
-- corrección dirigida;
-- máximo de tres validaciones fallidas;
-- successor explícito para nuevo discovery.
+K7 solo cambia su integración con Candidate ID/Graph/evidence universales.
 
-Limitación aceptada:
+### O4.2 — recovery focal de evidencia — **done**
 
-- O4.1 elimina el cap normal que excluía una tercera dimensión positiva.
+Entregado:
 
-## 6. Ola 1 — corrección de review, archive y baseline
+- clasificación diferenciada de drift mecánico;
+- identidad funcional estable;
+- evidence-region repair acotado;
+- recheck focal;
+- fallback al routing ordinario ante delta material.
 
-### O4.1. Overflow de señales de review — **delivered**
+K5/K6b reutilizarán este patrón.
 
-**Change sugerido:** `review-signal-overflow-escalation`.
+### O6A — archive híbrido transaccional — **done**
 
-#### Objetivo
+Entregado:
 
-Evitar que una señal material sea descartada por el máximo de dos especialistas de un change normal.
+- plan semántico separado de la transacción;
+- hashes, staging, inventario y comparación de bytes;
+- commit/rename, rollback y recovery;
+- receipt de archive.
 
-#### Política
+K2/K8 compartirán primitives, sin sustituir este kernel.
 
-```text
-0 señales positivas
-  → 0 especialistas
+<a id="o2b-baseline-fija-fixed-policy--pending"></a>
 
-1-2 señales positivas
-  → targeted review
+### O2B — baseline fixed-policy — **in-progress**
 
-3-4 señales positivas
-  → escalar depth.review=strict
-  → full 4R
-```
+**Change activo:** `fixed-policy-reference-baseline`.
+
+**Estado factual al corte:**
+
+- top-level `status: blocked`;
+- `sdd-apply: partial`;
+- `sdd-verify: done`, verdict `FAIL`, `next_recommended: none`;
+- 16/16 MUST, 67/67 tests focales y `npm test` pasan;
+- recovery offline preserva `quality_evidence`;
+- queda un único CRITICAL `tasks-gap`: no existe proveniencia autenticada de la cronología RED-before-GREEN histórica;
+- la baseline live 9/9 sigue ausente como estaba previsto y esa ausencia no causa el `FAIL`.
+
+#### Próxima acción
+
+Resolver el gate bloqueante según `blocking_questions`: aportar snapshots/receipts autenticados o aprobar por separado un cambio de policy/spec que haga explícitamente no bloqueante la limitación histórica. No existe reroute automático ni se incorpora K1–K12 dentro de O2B.
+
+#### Done criteria heredados
+
+- baseline 9/9 versionada y reproducible;
+- policy fixed, identidad/model/effort/provenance conocidos;
+- publicación solo con 9/9 válidos;
+- smoke 3/3 preservado;
+- cero filas inventadas;
+- recovery compatible;
+- verify sin CRITICAL;
+- lifecycle/review/archive completado conforme a su ruta.
+
+#### Gate
+
+Hasta `done`:
+
+- fixed sigue siendo default;
+- no se cambian fixtures de comparación;
+- no se promueve O20A/kernel;
+- no se retira Strict TDD;
+- no se activa model routing dinámico.
+
+## Bloque 1 — invariantes y contratos
+
+### K1 — contract suite, vocabulario y clasificación — **pending**
+
+**Absorbe/rebasa:** P0, P4, P19; O13A; O19A; foundations de O20A.
 
 #### Alcance
 
-- modificar el clasificador/reducer;
-- persistir razón de escalado;
-- conservar orden canónico y evidence fingerprint;
-- ajustar fixtures y paridad de cinco targets;
-- actualizar OpenSpec baseline;
-- mantener generalist-first;
-- no cambiar el linaje acotado.
-
-#### Done criteria
-
-- ningún reason positivo termina como `normal-cap-excluded`; el overflow usa `normal-signal-overflow`;
-- 3+ dimensiones producen full 4R;
-- 0-2 conservan targeted review;
-- malformed evidence sigue fallando cerrado;
-- tests focales, `npm test` y paridad pasan;
-- roadmap, arquitectura y specs coinciden.
-
-### O4.2. Fast path de remediación de evidencia Strict TDD — **✅ Entregado**
-
-**Change sugerido:** `strict-tdd-evidence-remediation-fast-path`.
-
-**Dependencia:** O4.1.
-
-**Bloquea:** O6A.
-
-#### Problema
-
-Un gap sintáctico en un marcador de evidencia Strict TDD provocó un reroute completo `tasks → apply → verify` aunque el comportamiento y los tests ya eran correctos. El fallo de representación se trató como si fuera un defecto funcional o un gap de tasks, con coste de fases y tokens desproporcionado.
-
-#### Fix semántico
-
-- introducir evidencia estructurada o validación determinista en el boundary de `apply`;
-- clasificar de forma diferenciada `evidence-format-gap`;
-- habilitar una remediación acotada y exclusiva de evidencia;
-- demostrar invariancia del candidato funcional antes y después de la reparación;
-- evitar redispatch completo de fases cuando solo cambia una representación equivalente o mecánica.
-
-#### Severidad y routing
-
-- evidencia ausente o fabricada sigue siendo **CRITICAL** y falla cerrado;
-- drift de formato equivalente o puramente mecánico no se enruta como fallo funcional ni como `tasks-gap`;
-- cualquier cambio material en producción, specs o tests invalida el fast path y vuelve al routing ordinario.
+- canon de autoridad y lifecycle;
+- schemas versionados para state/transition, classification, contract, graph/node, work order/result, candidate, evidence, verification, finding/review, failure/recovery, receipt y event;
+- clasificación por riesgo, incertidumbre y ejecución;
+- hard floors explicables;
+- aliases versionados para códigos actuales;
+- ejemplos generados/validados.
 
 #### Fuera de alcance
 
-- debilitar Strict TDD, sus pruebas de ejecución o su severidad ante evidencia ausente/fabricada;
-- absorber trabajo del finalizador de archive O6A;
-- cambiar comportamiento de producto, specs o tests mediante el fast path.
+- ejecutar rutas adaptativas;
+- cambiar fixed;
+- elegir runtime nuevo;
+- convertir Graph IR en autoridad independiente.
 
 #### Done criteria
 
-- existe un validador determinista para reconocer y reparar `evidence-format-gap` equivalente;
-- el fast path no modifica producción, specs ni tests;
-- la identidad del candidato permanece inmutable y se verifica antes de continuar;
-- verify ejecuta un recheck focal de la evidencia reparada, sin redispatch completo de `tasks`, `apply` y `verify`;
-- tests de routing distinguen evidencia ausente/fabricada, drift mecánico y fallo funcional;
-- un guard de regresión mide y limita coste de fases y tokens frente al reroute completo;
-- O6A desbloqueado tras completar O4.2.
+- todos los schemas tienen `$id`/versión y fixtures válidos/inválidos;
+- CI rechaza incompatibilidades y fallback de autoridad a prosa;
+- la misma clasificación produce fingerprint y reasons estables;
+- migration rules preservan tags existentes;
+- hard floors cubren migración, auth, API pública, Repair y Direct;
+- documentos distinguen implemented/target/experimental.
 
-### O6A. Archive híbrido transaccional — **✅ Entregado**
+#### Review path
 
-**Change:** `hybrid-archive-transaction-runtime` (archivado `2026-07-26`).
+Revisar primero autoridad/migración, después shapes, por último ejemplos y clasificación. Bloquea K2.
 
-**Dependencia:** O4.2.
+## Bloque 2 — kernel de lifecycle
 
-#### Objetivo
+### K2 — state machine, transitions, recovery y eventos — **pending**
 
-Separar interpretación semántica de operaciones mecánicas y garantizar cierre transaccional, verificable y recuperable.
+**Absorbe/rebasa:** P1, P18, P25; O13B/O13C; parte de O19B; patrones O4.2/O6A.
 
-#### Plano semántico
+#### Alcance
 
-`sdd-archive`:
-
-- interpreta deltas;
-- prepara specs resultantes;
-- detecta conflictos;
-- propone ADRs;
-- produce `archive-plan.json`;
-- no borra el origen.
-
-#### Plano determinista
-
-Runtime:
-
-- valida verdict, gates, approvals y fingerprints;
-- valida el plan y hashes de inputs;
-- escribe staging;
-- copia e inventaría;
-- compara bytes;
-- realiza commit/rename;
-- elimina origen solo tras match completo;
-- genera receipt, coste y rollback;
-- recupera transacciones interrumpidas.
-
-#### Fuera de alcance
-
-- parser semántico determinista de Markdown libre;
-- migrar toda la evidencia a JSON;
-- CI headless;
-- cambiar formato de specs.
+- operaciones `status`, `start/complete/fail/invalidate-node`, `recover`;
+- `status → next_transition` determinista;
+- `execute|collect|decide|stop`;
+- reducer puro, idempotencia y reconciliación;
+- event emission derivada;
+- adapters hacia routing/review/archive existentes.
 
 #### Done criteria
 
-- fallo antes del commit deja origen intacto;
-- fallo posterior al staging es reanudable;
-- una referencia/hash incorrecto bloquea;
-- ningún borrado ocurre antes del full match;
-- rollback probado en fixtures;
-- archive agent no declara move completo;
-- paridad JS/Go donde corresponda;
-- `npm test` y tests de filesystem pasan en Windows/Linux.
+- mismo state digest → mismas transitions ordenadas;
+- transición inválida falla cerrada con reason code;
+- interruption/replay no duplica efectos;
+- cada recovery anunciada tiene E2E de avance o terminal;
+- eventos pueden reconstruirse desde state y no alteran decisiones;
+- review/archive existentes pasan pruebas de no regresión;
+- el orquestador deja de interpretar prosa para elegir una operación cubierta.
 
-### O2B. Baseline fija fixed-policy — **pending**
+#### Gate
 
-**Change sugerido:** `fixed-policy-reference-baseline`.
+No compilar Graph IR hasta que state/recovery contracts sean estables.
 
-**Dependencia:** O6A.
+## Bloque 3 — identidad universal
 
-#### Objetivo
+### K3 — Candidate ID y successor semantics — **pending**
 
-Congelar el control contra el que se comparará adaptive.
+**Absorbe/rebasa:** P9; identidad existente de O4/O5 y fingerprints de O6A.
 
-#### Perfiles obligatorios
+#### Alcance
 
-1. docs-one-file;
-2. small-bugfix;
-3. small-feature;
-4. cross-module-feature;
-5. behavior-preserving-refactor;
-6. public-api-change;
-7. filesystem-sensitive-change;
-8. security-sensitive-change;
-9. migration-change.
-
-#### Requisitos
-
-- policy `fixed`;
-- misma versión de harness y target;
-- identidad de modelo/effort conocida;
-- provenance completa;
-- resultados comparables;
-- baseline publicada solo con 9/9 válidos;
-- smoke 3/3 conservado para ciclos rápidos;
-- cero filas inventadas o sintetizadas.
+- canonicalización de paths;
+- base tree, candidate tree, diff hash, paths digest;
+- freeze antes de verify;
+- successor ante cualquier byte distinto;
+- adapters para lineage/archive.
 
 #### Done criteria
 
-- baseline 9/9 versionada;
-- comando reproducible documentado;
-- resultados incompatibles se rechazan;
-- métricas de calidad, coste, duración, preguntas y defectos disponibles;
-- baseline no se modifica silenciosamente al cambiar fixtures.
+- mismo tree produce mismo Candidate ID en plataformas soportadas;
+- cambio de un byte produce ID distinto;
+- dirty/untracked/symlink/case edge cases están cubiertos;
+- verify/review/delivery rechazan identidad distinta;
+- legacy review/archive conserva histories y no resetea lineage;
+- ningún receipt puede apuntar solo a branch o working tree.
 
-### O20A. Proof-carrying verify kernel — **pending**
+#### Gate
 
-**Change sugerido:** `proof-carrying-verify-kernel`.
+K3 bloquea receipts y la vertical Repair.
 
-**Dependencia:** O2B.
+## Bloque 4 — MVP Repair proof-carrying
 
-**Carácter:** investigación ejecutable y decision-gated; no cambia el flujo por defecto.
+<a id="o20a-proof-carrying-verify-kernel--pending"></a>
 
-#### Objetivo
+### K4 — Graph IR y compiler Repair en shadow — **pending**
 
-Comprobar si una vertical proof-carrying sobre `verify` mejora trazabilidad y reproducibilidad sin sustituir el control plane vigente ni convertir hipótesis arquitectónicas en decisiones.
+**Absorbe/rebasa:** P2, P6; O20A; O9+O11; bases de O7+O10 y R4.
 
-#### Alcance mínimo
+#### Alcance
 
-- `Change IR` reducido a obligaciones, escenarios, gates y referencias de evidencia necesarias para `verify`;
-- contratos versionados `Work Order`/`Work Result` v1;
-- journal observacional append-only con replay determinista;
-- evidencia normalizada y findings SARIF;
-- shadow comparison contra `sdd-verify` sobre los mismos inputs;
-- protocol conformance, scenario replay y mutation/semantic eval.
+- Graph IR con nodos semánticos, dependencias, invariantes, ownership y evidence refs;
+- compile de bug reproducible/localizado;
+- work orders tipadas;
+- clarify como evento;
+- invalidación/recompilación de subgrafo;
+- shadow contra el flujo fixed;
+- un target inicial.
 
-#### Fuera de alcance
+#### MVP
 
-- sustituir OpenSpec, Git o `state.yaml` como autoridad canónica;
-- introducir un broker de escrituras o controlar efectos de apply;
-- seleccionar Go como runtime único;
-- requerir SQLite, OTLP, firmas o servicios enterprise;
-- retirar, degradar o redirigir el flujo actual antes del gate.
-
-#### Evidencia para el gate
-
-- schemas, journal, replay, idempotencia y fallos parciales cubiertos por protocol conformance;
-- historiales sanitizados reproducibles sin perder eventos ni obligaciones;
-- mutaciones y defectos sembrados detectados por la evaluación semántica;
-- comparación de verdict, findings, cobertura, evidencia, comandos y coste contra `sdd-verify`;
-- degradaciones y capacidades por target declaradas;
-- calidad no inferior y ninguna obligación requerida perdida.
-
-#### Gate de decisión
-
-Al cerrar O20A se decidirá explícitamente una de estas rutas:
-
-1. rebasar O13C, O15, O18, O19B y R1 sobre el kernel probado, ajustando sus contratos y dependencias;
-2. mantener esas iniciativas en su rumbo actual y conservar o retirar O20A como experimento acotado.
-
-El gate debe impedir que el kernel experimental y las iniciativas existentes evolucionen como implementaciones paralelas permanentes. Cualquier promoción requiere un change OpenSpec y actualización previa de la arquitectura; un resultado positivo no establece prioridad por sí solo.
-
-## 7. Ola 2 — control plane adaptativo
-
-### O13A. Perfil adaptativo revisionado — **pending**
-
-**Change sugerido:** `adaptive-change-profile`.
-
-**Dependencia:** O2B.
-
-#### Entregables
-
-- schema `execution-profile.json`;
-- `intent`, `topology`, `preset`, `risk`, `depth`, `sources`;
-- revision y fingerprint;
-- referencia compacta desde `state.yaml`;
-- normalización de señales;
-- historial de reevaluaciones;
-- fixtures por riesgo y topología.
-
-#### Restricciones
-
-- no cambia todavía el flujo por defecto;
-- no selecciona modelo efectivo;
-- no elimina rutas ni aliases;
-- no aumenta el prompt del orquestador con parsers.
-
-#### Done criteria
-
-- mismo input produce mismo fingerprint;
-- sources justifican cada score;
-- señales desconocidas fallan o degradan según schema;
-- state conserva referencia, no payload completo;
-- recuperación desde filesystem probada.
-
-### O13B. Resolver de policy de ejecución — **pending**
-
-**Change sugerido:** `adaptive-execution-policy-resolver`.
-
-**Dependencia:** O13A.
-
-#### Entregables
-
-Función pura:
-
-```js
-resolveExecutionPolicy({
-  phase,
-  profile,
-  projectPolicy,
-  targetCapabilities,
-  previousDecision
-});
+```text
+compact contract
+  → classify Repair
+  → compile semantic graph
+  → bounded worker
+  → raw evidence
+  → freeze Candidate ID
+  → independent verify
+  → finalize evidence/findings
+  → bounded review if signaled
+  → evaluation receipt
 ```
 
-Produce:
+#### Fuera de alcance
 
-- variante;
-- garantías mínimas;
-- gates;
-- validators;
-- materialización;
-- intención de modelo/effort;
-- reasons;
-- clamps.
-
-#### Restricciones
-
-- modo default sigue siendo `fixed`;
-- decisiones adaptive se calculan en shadow;
-- el resolver no toca filesystem ni ejecuta agentes;
-- el modelo no puede reinterpretar el resultado.
+- gobernar delivery real;
+- cinco rutas;
+- multi-worker;
+- simplificar agentes;
+- journal autoritativo;
+- cambiar defaults.
 
 #### Done criteria
 
-- matriz de decisiones cubierta;
-- monotonicidad de garantías probada;
-- clamps por target probados;
-- razones canónicas y fingerprinted;
-- fallback fixed/strict probado.
+- nodos microscópicos `read/edit/test` son rechazados por contract/lint;
+- Graph ID es estable y está ligado al contract digest;
+- clarify invalida solo descendants declarados;
+- dependency desconocida impide reutilizar output;
+- Work Order/Result v1 valida en conformance;
+- fixed y shadow reciben inputs comparables;
+- ninguna transición shadow muta el flujo vigente;
+- replay no pierde obligaciones ni resucita nodos.
 
-### O13C. Kernel de invocación y orquestador fino — **pending**
+#### Gate
 
-**Change sugerido:** `phase-invocation-kernel`.
+El resultado de O20A ya no decide entre dos stacks permanentes: decide **promover, revisar o rechazar** el kernel común. Rechazo conserva fixed; promoción sigue a K5, no cambia default.
 
-**Dependencia:** O13B.
+## Bloque 5 — ejecución acotada y causal
 
-#### Objetivo
+### K5 — budgets, failures y recovery común — **pending**
 
-Extraer del prompt del orquestador la lógica repetible de dispatch.
+**Absorbe/rebasa:** P7, P8, P18; O4.2; routing de verify.
 
-#### Entregables
+#### Alcance
 
-- `invokePhase()`;
-- registro pre-dispatch;
-- compilación de contexto mínimo;
-- aplicación de capabilities;
-- validación de envelope;
-- persistencia de decisión/telemetría;
-- reducer de next action;
-- guard que mantiene el orquestador por debajo del límite.
-
-#### Done criteria
-
-- el orquestador coordina, no implementa policy;
-- no hay lógica duplicada por target;
-- dispatches son reproducibles desde state/profile;
-- errores contractuales producen reparación dirigida;
-- tamaño y sentinels del orquestador pasan.
-
-### O13D. Variantes generadas de agentes — **pending**
-
-**Change sugerido:** `generated-agent-variants`.
-
-**Dependencias:** O13B + O13C.
-
-#### Objetivo
-
-Generar wrappers `lite|standard|strict` desde una fuente y una skill canónicas.
-
-#### Entregables
-
-- expansión one-to-many;
-- manifest de variantes;
-- fingerprint fuente+policy;
-- mapping por target;
-- validadores que detectan drift;
-- compatibilidad con nombres actuales.
-
-#### Reglas
-
-- una skill por fase;
-- no copiar metodología;
-- wrappers solo expresan depth, límites, modelo/effort intent y capabilities;
-- target sin capacidad degrada explícitamente;
-- no inflar el contexto always-on.
+- budgets por node: turns, patches, commands, wall time, changed lines, paths;
+- taxonomy causal;
+- mapping de tags existentes;
+- repair/replan/escalate/stop;
+- no automatic reset.
 
 #### Done criteria
 
-- editar la fuente actualiza todas las variantes;
-- drift manual falla validación;
-- paridad semántica en cinco targets;
-- ninguna variante duplica una skill completa;
-- build e instaladores siguen siendo idempotentes.
+- budget agotado nunca relanza worker idéntico;
+- cada failure code tiene transition allowlisted;
+- mixed failures respetan prioridad causal;
+- repair limita node/paths/findings;
+- zero-delta consume attempt cuando corresponde;
+- environment/tool/external failures no se etiquetan como code defect;
+- recovery E2E prueba avance o stop;
+- métricas de consumo quedan fuera del state semántico.
 
-### O19A. Validadores contractuales mínimos — **pending**
+## Bloque 6 — independencia y evidencia por slices
 
-**Change sugerido:** `planning-contract-validators-core`.
+K6 no se ejecuta como un change transversal. Cada slice tiene output terminal y bloquea al siguiente.
 
-**Dependencias:** O13A.
+<a id="k6--isolated-worker-independent-verifier-y-evidence-strategies--pending"></a>
 
-#### Incluye
+### K6a — worker isolation y work-order capsule — **pending**
 
-- intención/proposal;
-- requirements y escenarios;
-- asignación de diseño;
-- cobertura de tasks;
-- planning envelope;
-- referencias al perfil;
-- repair codes.
+**Dependencias:** K4 + K5.
 
-#### Done criteria
+**Absorbe/rebasa:** P16 parcial; O18.
 
-- errores concretos;
-- reparación dirigida;
-- ninguna regeneración completa como fallback por defecto;
-- schemas versionados;
-- fixtures adversariales;
-- integration con invocation kernel.
+#### Alcance
 
-## 8. Ola 3 — planificación adaptativa y A/B
-
-### O7+O10. `sdd-plan` parametrizado por profundidad — **pending**
-
-**Change sugerido:** `adaptive-sdd-plan`.
-
-**Dependencias:** O13A–D + O19A.
-
-#### Requisitos
-
-- una única fase compuesta;
-- una única skill canónica;
-- checkpoints Scope → Behavior → Architecture → Reconciliation → Tasks;
-- `planning_request` derivado del perfil;
-- una invocación puede producir varias responsabilidades;
-- formatos actuales siguen soportados;
-- materialización compacta solo por policy;
-- validadores antes de persistir;
-- reparación por checkpoint.
+- capsule mínima derivada de Graph dependencies;
+- worker contract con objetivo, paths, budgets y raw evidence;
+- workspace aislado para el target inicial;
+- captura de base, diff, comandos, logs y exit codes.
 
 #### Done criteria
 
-- lite no pierde responsabilidad semántica;
-- strict no reduce mínimos;
-- outputs actuales siguen consumibles;
-- tests de cobertura cruzada;
-- coste e invocaciones medibles;
-- no aparece un segundo orquestador.
+- capsule fingerprint estable y sin artefactos no dependientes;
+- worker no puede escribir fuera de `allowed_paths`;
+- interruption conserva raw evidence y recovery ejecutable;
+- integración usa patch/commit identificado, no conversación;
+- fixture Repair completa ejecución aislada sin verificar ni aprobar;
+- fallback explícito si el target no puede aislar.
 
-### O9+O11. Reevaluación y escalado continuo — **pending**
+**Gate terminal:** work result y workspace inventory conformes; K6b no empieza antes.
 
-**Change sugerido:** `adaptive-depth-controller`.
+### K6b — verifier independiente y evidence strategies — **pending**
 
-**Dependencia:** O7+O10.
+**Dependencias:** K6a + K3.
 
-#### Checkpoints
+**Absorbe/rebasa:** P12/P16; O15; separación apply/verify vigente.
 
-- post-contract;
-- post-design;
-- post-apply;
-- post-verify;
-- pre-review;
-- pre-archive.
+#### Alcance
 
-#### Requisitos
-
-- revisión monotónica;
-- profile revision history;
-- borradores reutilizables solo tras revalidación;
-- escalado de review, verify, modelo intent y gates;
-- desescalada limitada a presentación/coste no material.
+- verifier consume contract, Graph IR, Candidate ID, repo y raw evidence;
+- strategies bug/feature/refactor/migration/config-docs;
+- evidence refs con origin, hash y node binding;
+- fallback Strict TDD.
 
 #### Done criteria
 
-- señales nuevas cambian revision/fingerprint;
-- no se pierde evidencia previa;
-- 3+ señales de review mantienen full 4R;
-- cambios inesperados de diff escalan;
-- recuperación post-compact reproduce la decisión.
+- narrativa del worker no es input de autoridad;
+- cada strategy declara evidencia mínima y negative cases;
+- evidencia fabricada/stale/foreign falla cerrada;
+- cambio post-freeze crea successor;
+- Strict TDD sigue disponible y por defecto;
+- equivalence manifest queda listo para K9.
 
-### O8. Shadow mode y A/B — **pending**
+**Gate terminal:** verifier y strategy selector conformes; K6c no empieza antes.
 
-**Change sugerido:** `adaptive-flow-shadow-mode`.
+### K6c — adversarial challenges — **pending**
 
-**Dependencias:** O9+O11 + O2B.
+**Dependencias:** K6b.
+
+**Absorbe/rebasa:** P13.
+
+#### Alcance
+
+- revert challenge;
+- mutation challenge focal;
+- independent acceptance;
+- test inspection.
+
+#### Done criteria
+
+- defects sembrados aplicables son detectados;
+- test complaciente/tautológico se rechaza;
+- challenges están ligados a Candidate ID/node/strategy;
+- mutation budget es acotado y exhaustion produce transition;
+- challenge no muta el candidato aprobado;
+- fallos se clasifican causalmente.
+
+**Gate terminal:** suite adversarial verde; K6d no empieza antes.
+
+### K6d — complexity y architecture delta — **pending**
+
+**Dependencias:** K6b; K6c para promotion evidence.
+
+**Absorbe/rebasa:** P14/P15.
+
+#### Alcance
+
+- `architecture_delta` candidate-bound;
+- contrato de alternativas `no-op|local|extend-pattern|new-abstraction`;
+- preguntas/gate anti-overengineering.
+
+#### Done criteria
+
+- delta incluye módulos, interfaces, dependencies, config, states, compatibility, duplication y dead code;
+- nueva abstracción justifica consumidor, variabilidad, opción simple y retirada;
+- métricas son advisory y no sustituyen impacto/riesgo;
+- fixtures de sobreingeniería disparan pregunta o finding;
+- output queda disponible para review y K9;
+- no se crean límites rígidos por líneas/archivos.
+
+**Gate terminal:** complexity report reproducible; K7 puede integrar el conjunto K6.
+
+### Gate de equivalencia de evidencia
+
+No retirar universalidad de Strict TDD hasta que K6b/K6c/K9 demuestren que cada strategy:
+
+- detecta defects equivalentes o adicionales;
+- preserva RED/GREEN cuando es semánticamente requerido;
+- rechaza evidencia fabricada;
+- conserva fallback strict;
+- supera A/B.
+
+## Bloque 7 — review reusable
+
+### K7 — integrar Candidate/Graph/evidence con lineage — **pending**
+
+**Absorbe/rebasa:** P10/P11; O4+O5/O4.1.
+
+#### Alcance
+
+- Nivel 0: sin review de modelo solo para candidatos Direct mecánicos cuya validación determinista sea suficiente y sin señales materiales;
+- Nivel 1: generalista read-only para cumplimiento, correctness, scope, evidencia, complejidad, regresiones y coherencia;
+- Nivel 2: especialistas selectivos activados por riesgo/evidencia;
+- adaptar inputs del selector y lineage;
+- mapear especialistas a signals del classifier/Graph;
+- incorporar `performance` y `compatibility-migration` como señales/lenses condicionadas, no reviewers permanentes;
+- conservar one-shot/frozen findings/correction budgets;
+- impedir rediscovery y reset.
+
+#### Done criteria
+
+- no se relanza generalist o lens ya ejecutada;
+- Nivel 0 solo se selecciona cuando classifier y runtime prueban que no existe comportamiento/riesgo material y la validación determinista cubre el contrato;
+- cualquier señal material escala al menos a Nivel 1;
+- positive dimensions siguen sin descartarse;
+- high-risk/overflow conserva full 4R;
+- fixtures de performance y migration/compatibility activan sus lenses; ausencia de señal persiste razón de skip;
+- esas dos lenses tienen contract, budget y evals antes de poder bloquear;
+- finding IDs y attempts históricos sobreviven migración;
+- correction solo toca paths/IDs autorizados;
+- Candidate successor invalida receipt/review anterior sin reusar findings como aprobados;
+- late observations quedan follow-up;
+- tests de compatibilidad cubren lineages v1.
+
+## Bloque 8 — entrega ligada a prueba
+
+### K8 — delivery receipt de evaluación — **pending**
+
+**Absorbe/rebasa:** P17, slice de evaluación; O15/O19B; primitives de O6A; R1 como consumidor futuro.
+
+#### Alcance
+
+- finalizar evidence/findings digests;
+- receipt ligado a contract, graph, candidate, evidence y findings;
+- outcome y `valid_for`;
+- stale/foreign receipt checks;
+- scope inicial `evaluation`.
+
+#### Done criteria
+
+- receipt de otro candidato, contrato o grafo se rechaza;
+- mutar evidencia/findings invalida receipt;
+- emisión solo ocurre tras verify/review requeridos;
+- receipt no ejecuta reviewers;
+- recovery de emisión es idempotente/reconciliable;
+- archive receipt y delivery receipt mantienen scopes distintos;
+- schema y conformance cubren tampering/corruption;
+- no se habilita commit/push/PR todavía.
+
+#### Gate
+
+Extender `valid_for` requiere un change posterior con threat model y evidencia K9.
+
+## Bloque 9 — promoción controlada
+
+### K9 — shadow, replay, revert y A/B — **pending**
+
+**Conserva/rebasa:** P13/P26 parcial; O8; O2B como control.
 
 #### Policies
 
 ```text
---execution-policy=fixed
---execution-policy=adaptive-shadow
---execution-policy=adaptive
+fixed
+kernel-shadow
+kernel
 ```
 
-`adaptive-shadow` calcula decisiones sin ejecutarlas.
+`kernel-shadow` calcula decisiones y receipts de evaluación sin gobernar delivery.
 
 #### Comparación
 
-- mismos nueve perfiles;
-- misma versión;
-- modelos y effort controlados;
-- calidad y defectos;
-- requisitos/evidencia;
-- invocaciones;
-- tokens;
-- duración;
-- preguntas;
-- escaladas;
-- divergencias de policy.
+- mismos fixtures, harness, target, modelo/effort y budgets;
+- obligaciones/verdict/findings;
+- evidence/challenges;
+- invocaciones/tokens/duración;
+- preguntas, retries y recovery;
+- complexity delta;
+- divergencias y fallback.
 
-#### Done criteria para activar adaptive
+#### Done criteria
 
 - calidad no inferior;
-- cero pérdida de requisitos/evidencia/aprobaciones;
-- cero señales materiales descartadas;
+- requisitos/evidencia/aprobaciones perdidos: 0;
+- señales materiales descartadas: 0;
+- replay determinista;
+- stale receipts y invalid recoveries bloqueados;
+- defectos sembrados detectados;
 - fallback fixed/strict probado;
-- ahorro o latencia mejorada demostrable;
-- audit trail reproducible;
-- paridad aceptable por target.
+- coste y complejidad neta publicados;
+- ninguna segunda fuente de verdad;
+- decisión explícita: promote, revise o reject.
 
-### O12. Limpieza de aliases — **pending**
+Promoción no activa cinco rutas ni targets; autoriza primero K10-delivery y después K10.
 
-**Change sugerido:** `execution-alias-compatibility-cleanup`.
+## Bloque 10 — enforcement productivo y rutas
 
-**Dependencia:** O8 aprobado.
+### K10-delivery — validadores productivos de receipt — **pending**
 
-- documentar presets por garantías;
-- separar intención/topología/preset en config;
-- conservar aliases con deprecation;
-- retirar nombres transicionales solo con migración;
-- no crear ruta pública `standard-optimized`.
+**Dependencias:** K9 aprobado + K8 + K3.
 
-## 9. Ola 4 — routing, evidencia y presentación
+**Absorbe/rebasa:** P17 productivo; O19B/R1.
 
-### O14. Routing de modelos por decisión — **pending**
+#### Scope inicial
 
-**Change sugerido:** `decision-aware-model-routing`.
-
-**Dependencias:** O8 aprobado + O13B.
+- `pre-commit`;
+- `pre-push`;
+- `pre-pr`.
 
 #### Alcance
 
-- activar `modelTierIntent` y `effortIntent`;
-- resolver modelo efectivo por target;
-- registrar solicitado, clamp, efectivo y razón;
-- respetar configuración local;
-- fallar/degradar cuando el modelo no está disponible;
-- ejecutar golden evals antes de cambiar tiers.
+- threat model por hook/superficie;
+- binding exacto a contract/graph/candidate/evidence/findings;
+- expiry e invalidación por successor, cambios de policy/schema o evidence;
+- replay protection y reconciliation;
+- validadores headless fail-closed;
+- degradación declarada por target.
 
 #### Done criteria
 
-- ningún cambio de modelo sin evidencia;
-- fallback documentado;
-- model/effort efectivos auditables;
-- targets sin selección nativa se marcan `inherited|unavailable`;
-- no usar hooks de tool para seleccionar modelo de fase.
+- receipt de evaluación nunca autoriza delivery;
+- stale, expired, replayed, foreign o byte-mismatched receipt bloquea;
+- cada superficie valida `valid_for` exacto y no amplía scope;
+- validator no relanza modelos/reviewers ni auto-aprueba;
+- interruption/retry no duplica entrega;
+- bypass requiere decisión humana persistida y auditable, nunca fallback silencioso;
+- threat fixtures cubren tampering, rollback, rebase y successor;
+- un target inicial demuestra pre-commit/pre-push/pre-PR antes de paridad.
 
-### O15. Evidencia estructurada — **pending**
+**Gate terminal:** enforcement productivo aprobado; K10 puede expandir rutas sin dejar P17 en estado experimental.
 
-**Change sugerido:** `structured-change-evidence`.
+### K10 — Direct/Repair/Bounded/Planned/Critical — **pending**
 
-Canon:
+**Absorbe/rebasa:** P3–P6/P12; O7+O10; O9+O11; O12.
 
-```text
-.ospec/evidence/<change>/tasks.jsonl
-.ospec/evidence/<change>/tests.jsonl
-.ospec/evidence/<change>/reviews.jsonl
-.ospec/evidence/<change>/decisions.jsonl
-.ospec/evidence/<change>/traceability.json
-```
+#### Alcance
+
+- recetas de cinco rutas;
+- capabilities semánticas;
+- selector de evidence strategy;
+- hard floors y clamps;
+- compatibilidad con proposal/spec/design/tasks y aliases;
+- materialización proporcional.
 
 #### Done criteria
 
-- runtime captura hechos;
-- IDs y schemas versionados;
-- Markdown no es autoridad mecánica;
-- append concurrente seguro;
-- archive incluye receipts y hashes;
-- migración compatible con changes antiguos.
+- Direct no persiste artifacts innecesarios;
+- Repair conserva reproducción y Candidate-bound verify;
+- Bounded conserva contract/decomposition/review;
+- Planned cubre dependencies cross-module;
+- Critical exige irreversible decision, failure/threat model, rollback, adversarial verify y specialists;
+- capacidades omitidas tienen reason verificable;
+- responsabilidades semánticas no desaparecen al combinar invocaciones;
+- clarify recompila subgrafo, no workflow completo;
+- aliases tienen deprecation y fallback;
+- cada ruta supera fixtures propios y cross-route floors.
 
-### O16+O17. Vistas compactas e informes — **pending**
+#### Gate de rollout
 
-**Change sugerido:** `evidence-report-views`.
+Activar una ruta cada vez, empezando Repair. Direct solo después de demostrar que el coste reducido no omite garantías.
 
-- `apply-progress.md` como índice;
-- verify `summary|behavioral|full-audit`;
-- review report renderizado;
-- nivel derivado de `depth`;
-- verdict invariable;
-- enlaces a evidencia canónica.
+## Bloque 11 — plataforma por slices
 
-### O18. Phase capsules compiladas — **pending**
+<a id="k11--adapters-roles-models-ownership-y-worktrees--pending"></a>
 
-**Change sugerido:** `compiled-phase-capsules`.
+### K11a — capability manifests y adapters mínimos — **pending**
 
-**Dependencias:** O13D + O15.
+**Dependencias:** K10-delivery + K10.
 
-- contexto mínimo por dispatch;
-- fingerprint;
-- regeneración por cambios relevantes;
-- límites por target;
-- no inlining de artefactos completos;
-- medición de tokens always-on/on-invoke.
+**Absorbe/rebasa:** P20; O13D parcial.
 
-### O19B. Validadores completos — **pending**
+#### Done criteria
 
-**Change sugerido:** `complete-contract-evidence-validators`.
+- lifecycle no está duplicado por target;
+- capabilities usan `enforced|partial|instructional|unavailable`;
+- schema y conformance cubren degradaciones;
+- un target nuevo no cambia Graph semantics;
+- adapter inicial y fallback pasan fixtures;
+- metadata reconoce cinco targets sin activarlos a la vez.
 
-Amplía O19A a:
+**Gate terminal:** un adapter consume el core sin policy propia; desbloquea K11b.
 
-- result envelopes;
-- workload;
-- verify evidence;
-- review decisions y lineage;
-- archive plan/receipt;
-- trazabilidad completa;
-- evidence renderers.
+### K11b — model routing por work order — **pending**
 
-## 10. Ola 5 — headless y CI
+**Dependencias:** K11a.
 
-### R1. Verificación estructural no interactiva — **pending**
+**Absorbe/rebasa:** P22; O14.
 
-**Change sugerido:** `headless-sdd-verification`.
+#### Done criteria
 
-**Dependencias:** O6A + O15 + O19B.
+- requested/clamped/effective model y cause code son auditables;
+- persistencia, hashes y routing no invocan modelos;
+- failure history solo escala por causa tipada;
+- unavailable model degrada o bloquea según policy;
+- golden evals comparan tiers antes de cambiar defaults;
+- configuración local sigue siendo respetada.
 
-#### Entregables
+**Gate terminal:** routing estable en un target; desbloquea K11c.
 
-- CLI con exit codes;
-- validación de state, profile, specs, deltas, trailers y evidencia;
-- verify headless;
-- archive readiness sin auto-aprobación;
-- plantillas GitHub Actions;
-- reports machine-readable;
-- capabilities por target.
+### K11c — ownership, worktree scheduler e integración — **pending**
 
-#### Reglas
+**Dependencias:** K11a + K6a; K11b solo si el scheduler selecciona modelo.
 
-- gate interactivo pendiente → `halt`;
-- nunca auto-approve;
-- CI no reinterpreta semántica;
-- secretos fuera de artefactos;
-- outputs reproducibles.
+**Absorbe/rebasa:** P23/P24.
 
-## 11. Lane de targets
+#### Done criteria
 
-Los subroadmaps no deciden prioridad global. Pueden avanzar cuando no cambien el control plane ni invaliden la baseline.
+- overlap de paths/contract/state serializa o crea integration node;
+- scheduler nunca asigna dos writers al mismo mutable state;
+- worktree captura base/diff/commands/logs/exit codes/resources;
+- integración usa patch/commit identificado;
+- conflicto produce failure/recovery tipada;
+- parallel fixture y conflict fixture son reproducibles.
 
-| Target | Estado agregado | Próximo trabajo permitido | Dependencia transversal |
+**Gate terminal:** aislamiento e integración deterministas en un target; desbloquea K11d.
+
+### K11d — consolidación de roles y paridad multi-target — **pending**
+
+**Dependencias:** K11a–K11c.
+
+**Absorbe/rebasa:** P21; O13D; lanes de targets.
+
+#### Done criteria
+
+- consolidar roles demuestra menor prompt drift y mantenimiento;
+- ningún contrato de fase/work order se pierde;
+- judge permanece condicional;
+- paridad se valida target por target, no en un rollout conjunto;
+- cada degradación tiene reason y fixture;
+- aliases/agentes anteriores tienen deprecation y rollback.
+
+**Gate terminal:** decisión explícita consolidate/revise/reject. Ocho roles no son una migración obligatoria sin evidencia.
+
+## Bloque 12 — evaluación estructural y longitudinal
+
+### K12 — headless, events y calidad longitudinal — **pending**
+
+**Absorbe/rebasa:** P25–P27; R1; O16+O17 como vistas.
+
+#### Headless fixtures obligatorios
+
+1. bug pequeño;
+2. feature contenida;
+3. cross-module;
+4. migración;
+5. refactor;
+6. security fix;
+7. test complaciente;
+8. sobreingeniería;
+9. scope drift;
+10. worker interrumpido;
+11. receipt obsoleto;
+12. recovery inválida;
+13. conflicto entre agentes;
+14. reanudación.
+
+#### Longitudinal
+
+Fixtures reciben 10–30 cambios consecutivos y miden:
+
+- duplicación;
+- interfaces/config/compatibilidad acumuladas;
+- dead code y acoplamiento;
+- tests frágiles;
+- tiempo de modificación;
+- regresiones;
+- coste por candidato aprobado.
+
+#### Done criteria
+
+- driver ejecuta kernel real sin intervención;
+- decisión humana pendiente devuelve `halt`, nunca auto-approve;
+- assertions validan outputs estructurales;
+- event schema cubre lifecycle y coste sin persistir razonamiento;
+- replay/recovery/interruption tienen fixtures;
+- dos repos longitudinales completan al menos 10 cambios cada uno;
+- informes comparan fixed/kernel y versión del contract suite;
+- vistas Markdown se derivan de evidencia y no cambian verdict;
+- CI templates no requieren secretos en artifacts.
+
+## Mapa completo: iniciativas antiguas → línea nueva
+
+| Iniciativa | Estado heredado | Destino | Tratamiento |
 | --- | --- | --- | --- |
-| Claude Code | Fase nativa pendiente | hooks exec/matchers, validación strict | Independiente; preload/capsules dependen O13D/O18 |
-| VS Code | Fase nativa pendiente | hooks enable y validator | Independiente; variantes dependen O13D |
-| Codex | Bloque inicial completo; fase 2 parcial | revalidar hooks/decision control | O15/R1 para evidencia y CI |
-| GitHub Copilot | Target funcional; roadmap específico pendiente | investigar modelo/permisos/hooks vigentes | O13D/O14 para variantes y modelo |
-| OpenCode | Target funcional; roadmap específico pendiente | migrar capabilities deprecadas y revalidar permisos | O13D/O14 |
+| G0/G0.1 | done | Bloque 0 | Conservar gobernanza; actualizar corte |
+| O2A | done | O2B/K9/K12 | Conservar runner y catálogo |
+| O2B | in-progress | Gate inicial | Terminar antes del kernel |
+| O3 | done | K4/K10 | Generalizar como evento |
+| O4+O5/O4.1 | done | K7 | Reutilizar selector/lineage y extender niveles/lenses con gates |
+| O4.2 | done | K5/K6b | Reutilizar recovery focal |
+| O6A | done | K2/K8 | Reutilizar transacción/receipt primitives |
+| O20A | pending | K1–K4 | Rebasar como vertical Repair shadow |
+| O13A | pending | K1 | Clasificación multidimensional |
+| O13B | pending | K2/K4 | Policy/compiler determinista |
+| O13C | pending | K2 | Lifecycle kernel |
+| O13D | pending | K10/K11a/K11d | Bridge de compatibilidad; no fin en sí |
+| O19A | pending | K1 | Contract suite core |
+| O7+O10 | pending | K10 | Fases → capacidades |
+| O9+O11 | pending | K4/K10 | Invalidación y recompilación |
+| O8 | pending | K9 | Conservar shadow/A-B |
+| O12 | pending | K10 | Conservar compatibilidad/deprecación |
+| O14 | pending | K11b | Model routing por nodo |
+| O15 | pending | K6b/K8/K10-delivery | Evidence manifest, receipt y enforcement |
+| O16+O17 | pending | K12 | Vistas derivadas |
+| O18 | pending | K4/K6a | Work-order capsules |
+| O19B | pending | K2/K8/K10-delivery/K12 | Validators completos |
+| R1 | pending | K8/K10-delivery/K12 | Consumidor headless/receipt |
+| R2 | pending | R2.1–R2.7 | Siete slices subordinados; no mezclar conocimiento y evidencia |
+| R4 | pending | K4, después federación | Mismo Graph IR |
+| Target roadmaps | activos/pending según host | K11a–K11d | Subordinados a core estable |
+
+No queda ninguna iniciativa transversal anterior sin destino explícito.
+
+## Cobertura operativa P0–P27
+
+| Propuesta | Trabajo que la entrega | Gate principal |
+| --- | --- | --- |
+| P0 invariantes | K1 | conformance |
+| P1 kernel | K2 | deterministic transitions |
+| P2 Graph IR | K4 | Repair shadow/replay |
+| P3 cinco rutas | K10 | rollout una a una |
+| P4 clasificación | K1/K4 | hard floors |
+| P5 capacidades | K10 | semantic responsibility coverage |
+| P6 clarify evento | K4/K10 | partial invalidation |
+| P7 budgets | K5 | no implicit reset |
+| P8 failure routing | K5 | causal recovery |
+| P9 candidate freeze | K3 | byte-level successor |
+| P10 review niveles | K7 | Nivel 0 determinista; Nivel 1 generalista; Nivel 2 specialists con performance/compatibility conditional |
+| P11 loops review | K7 | frozen lineage |
+| P12 evidence strategies | K6b/K10 | Strict TDD equivalence |
+| P13 challenges | K6c/K9 | seeded defects |
+| P14 anti-overengineering | K6d | alternatives contract |
+| P15 architecture delta | K6d/K12 | candidate-bound metrics |
+| P16 independencia | K6a/K6b | worker/verifier boundary |
+| P17 delivery receipt | K8 + K10-delivery | evaluation binding + productivo pre-commit/pre-push/pre-PR |
+| P18 recovery | K2/K5 | E2E transition |
+| P19 schemas | K1 | CI/version pinning |
+| P20 adapters | K11a | core-owned lifecycle |
+| P21 roles | K11d | measured equivalence |
+| P22 model routing | K11b | node cause + target clamp |
+| P23 ownership | K11c | overlap guard |
+| P24 worktrees | K11c | isolated integration |
+| P25 events | K2/K12 | non-authoritative telemetry |
+| P26 headless | K12 | real harness, no auto-approve |
+| P27 longitudinal | K12 | 10–30 sequential changes |
+
+Cobertura del adjunto: 28/28 prioridades explícitamente programadas.
+
+## Gates de promoción
+
+### Gate A — O2B
+
+- baseline fixed reproducible;
+- verify sin CRITICAL;
+- no synthetic rows;
+- state/archive terminales.
+
+### Gate B — kernel core
+
+- schemas y migrations conformes;
+- same state → same transition;
+- Candidate ID universal;
+- no segunda autoridad.
+
+### Gate C — Repair MVP
+
+- Graph/replay estable;
+- independent verify;
+- challenges detectan defects;
+- receipt stale/foreign bloqueado;
+- lineage/archive sin regresión.
+
+### Gate D — adaptive
+
+- calidad no inferior;
+- cero obligaciones/evidencia/aprobaciones perdidas;
+- cero señales materiales descartadas;
+- fixed/strict fallback;
+- coste/latencia/complexity publicados;
+- target capability honesta.
+
+### Gate E — delivery real
+
+- threat model;
+- `valid_for` explícito;
+- no reviewer relaunch;
+- Candidate/evidence/findings binding;
+- invalidación, expiry y replay protection;
+- recovery/reconciliation;
+- pre-commit/pre-push/pre-PR fail-closed en el target inicial.
+
+### Gate F — expansión multi-target
+
+- un target estable;
+- adapter mínimo;
+- degradation semantics;
+- fixtures de paridad;
+- rollout secuencial.
+
+## Review path del programa
+
+Para cada change:
+
+1. **Autoridad:** ¿crea una segunda verdad o concede lifecycle al modelo?
+2. **Identidad:** ¿qué digest/candidate gobierna el output?
+3. **Recovery:** ¿qué ocurre ante interrupción, stale state o budget agotado?
+4. **Compatibilidad:** ¿qué artefacto/alias/lineage antiguo consume?
+5. **Evidencia:** ¿cómo se prueba sin usar la narrativa del implementador?
+6. **Costo:** ¿qué invocaciones, tokens, tiempo y complejidad añade?
+7. **Portabilidad:** ¿qué target enforcea o degrada?
+8. **Retirada:** ¿qué implementación anterior queda deprecada y cuándo?
+
+Un reviewer no debe reconstruir estas respuestas desde el diff; cada change las expone en proposal/design/tasks y reports.
+
+## Lanes subordinadas
+
+### Targets
+
+| Target | Trabajo permitido antes de K11a | Trabajo bloqueado |
+| --- | --- | --- |
+| Claude Code | Revalidación oficial y fixes independientes | Lifecycle/Graph variants propias |
+| VS Code | Hooks/validators independientes | Kernel duplicado |
+| Codex | Revalidar hooks/decision control | Evidence/receipt alternativo |
+| GitHub Copilot | Investigar capacidades vigentes | Model routing propio |
+| OpenCode | Migrar capabilities deprecadas | Worktree semantics propias |
 
 Reglas:
 
-- revalidación oficial al abrir cada change;
+- metadata reconoce cinco targets;
+- revalidación oficial al abrir change;
+- capability real, no aspiracional;
 - adapter común primero;
-- capabilities `enforced|partial|instructional|unavailable`;
-- no duplicar backlog transversal;
-- pruebas de paridad con el mismo input;
-- metadata del repositorio debe reconocer los cinco targets.
+- paridad con mismo input;
+- ningún target cambia defaults globales.
 
-## 12. Lane de conocimiento
+### R2 — Foundation + OpenWiki
 
-### R2. Foundation + OpenWiki — **pending**
+R2 sigue subordinado al core. Puede avanzar por slice solo si no toca lifecycle, Graph IR, Candidate/evidence authority ni defaults adaptive.
 
-Puede avanzar después de O8 o en paralelo si no toca el control plane.
+| Slice | Destino | Dependencia/gate | Done criteria |
+| --- | --- | --- | --- |
+| R2.1 | Reparto normativo | Puede iniciar tras K1 si solo referencia contracts | Autoridad de foundation/wiki/change delimitada; ninguna duplicación normativa |
+| R2.2 | Consumo aguas abajo | R2.1 | Planner/verifier/documentación consumen referencias con staleness visible y sin convertir wiki en authority |
+| R2.3 | Ingesta resiliente | R2.1 | Inputs corruptos/parciales fallan o degradan explícitamente; provenance y retry acotados |
+| R2.4 | Foundation por etapas | R2.1 + gates humanos vigentes | Etapas reanudables, preguntas batcheadas y ningún scaffold/apply implícito |
+| R2.5 | Adopción brownfield | R2.2–R2.4 | Reconcile/adopt preserva baseline y produce gaps trazables sin sobrescritura silenciosa |
+| R2.6 | Staleness y refresh | R2.2/R2.3 | Fingerprint, owner y refresh policy; stale content nunca se presenta como actual |
+| R2.7 | Starlight opcional | R2.2 + R2.6 | Vista reproducible y descartable; build web no modifica fuentes ni se vuelve requisito del core |
 
-Orden:
+**Gate de promoción R2:** los siete slices conservan separación producto/conocimiento/evidencia, recovery comprobable y compatibilidad con repos sin OpenWiki. Un slice puede cerrarse individualmente; ninguno desbloquea defaults del kernel.
 
-1. reparto normativo;
-2. consumo aguas abajo;
-3. ingesta resiliente;
-4. foundation por etapas y gates batcheados;
-5. adopt para brownfield;
-6. staleness y refresh;
-7. Starlight opcional como vista.
+### R4 — epic/federation
 
-No mezclar conocimiento de producto con evidencia de ejecución.
+Es posterior a K4/K8/K12 base:
 
-## 13. Lane de escala
+1. subgraphs intra-repo;
+2. contratos compartidos;
+3. provider → consumers;
+4. verify federado;
+5. archive coordinado.
 
-### R4. Epic intra-repo y federación write — **pending**
+Cada child conserva clasificación, Candidate ID y receipt propios.
 
-**Dependencias:** O13A–C + O6A + O19B + R1 base.
+## Métricas por bloque
 
-Orden:
-
-1. `sub_changes[]` y DAG intra-repo;
-2. change coordinador multi-repo;
-3. contratos compartidos versionados;
-4. apply provider → consumers;
-5. verify federado;
-6. archive coordinado.
-
-Cada hijo recibe perfil independiente. No se crea una ruta rígida `epic`.
-
-## 14. Métricas y gates del programa
-
-Cada ola publica:
-
-- coste total e invocaciones;
-- tokens y duración;
+- transitions deterministas y contract failures;
+- obligaciones/requisitos perdidos;
+- Candidate/receipt mismatches;
+- recoveries ejecutadas, fallidas y terminales;
+- budgets agotados;
+- invocaciones, tokens, tools, tiempo y coste;
 - defectos antes/después de verify;
-- escaladas y reviewers con motivo;
+- challenges y mutantes detectados;
+- findings/correcciones/retries;
+- complexity delta;
 - señales descartadas: objetivo 0;
-- trazabilidad completa;
-- reparaciones dirigidas frente a relanzamientos;
-- paridad por target;
-- degradaciones activadas;
-- deuda documental o de specs: objetivo 0.
+- deprecations/compatibility paths activos;
+- guarantees por target;
+- deuda longitudinal.
 
-Para promover adaptive:
+## Riesgos y guardas
 
-1. calidad no inferior;
-2. cero pérdida de requisitos, evidencia o aprobación;
-3. cero señales materiales descartadas;
-4. fallback probado;
-5. ahorro o latencia mejorada;
-6. audit trail reproducible;
-7. paridad aceptable;
-8. baseline fija e identidades compatibles.
+| Riesgo | Guarda |
+| --- | --- |
+| Segunda fuente de verdad | Reducer único, reconciliation y fail-closed |
+| Perder O2B | Gate inicial y fixed intacto |
+| Reescribir lineage/archive | Compat adapters y regression fixtures |
+| Receipt sin freeze | K3 bloquea K8 |
+| Agentes simplificados prematuramente | P21 queda en K11d tras work orders, scheduler y adapters estables |
+| Cinco targets/rutas/worktrees simultáneos | Rollout uno a uno |
+| Retirar Strict TDD sin equivalencia | Gates K6b/K6c/K9 |
+| Dos sistemas permanentes | Gate de rebase O20/O13/O15/O18/O19/R1 |
+| Graph IR burocrático | Nodos semánticos, lint y coste medido |
+| Eventos como autoridad | Store separado y state-derived |
+| Model escalation arbitraria | Cause code + clamp |
+| Métricas como límites ciegos | Architecture delta advisory, riesgo por impacto |
 
-## 15. Gotchas operativos vigentes
+## Gotchas vigentes
 
-- `analisis-fino/` no es autoridad activa.
-- Mantener el guard de tamaño del orquestador y sentinels de no-reinlining.
-- Clarify es gate, no fase declarada.
-- Mantener paridad JavaScript/Go en contratos compartidos.
-- Inventariar y comparar antes de cualquier borrado.
-- No tratar Markdown libre como input determinista sin plan/schema.
+- `analisis-fino/` no es autoridad.
+- O2B está `blocked`; `sdd-verify` terminó `done` con `FAIL` y no existe reroute automático.
+- Clarify es condicional y evolucionará a evento, no fase universal.
 - No relanzar reviewers tras congelar findings.
-- No resetear linajes por retry o interrupción.
-- No promover adaptive con baseline 3/3 smoke.
-- No activar routing dinámico de modelos antes del A/B.
-- Revalidar roadmaps de target antes de implementar.
-- No atribuir IA en commits o PRs.
-- Confirmar flakies aislados antes de reintentar; no ocultar fallos reales.
-- Corregir cualquier metadata que todavía indique cuatro targets.
+- No resetear lineages, budgets o attempts por retry/interrupción.
+- No emitir receipt para working tree mutable.
+- No finalizar evidencia antes de identificar qué Candidate ID fue verificado.
+- No tratar Markdown libre como contract de autoridad.
+- No activar routing dinámico de modelos antes de K9.
+- No retirar fixed/aliases sin deprecación.
+- No duplicar lifecycle en adapters.
+- No mezclar R2 con evidence authority.
+- No crear ruta rígida `epic`; R4 consume Graph IR.
+- No atribuir modelos/herramientas en commits o PRs.
 
-## 16. Completado consolidado
+## Historial consolidado
 
-Baseline histórica cerrada:
-
-- auditoría inicial de agentes, skills, infraestructura y 4R;
-- fixes de seguridad, routing y portabilidad;
-- A1–A5, B2, B3, B5, C1–C5;
-- paridad Go/JavaScript fase 1;
-- prompt evals y contract lint;
-- sdd-document;
-- fingerprints y endurecimiento de archive;
-- telemetría O1;
-- O2A benchmark infrastructure;
-- O3 clarify condicional;
-- target Codex bloque inicial;
-- G0 gobernanza;
-- G0.1 reconciliación;
-- O4+O5 review selectivo y linaje acotado.
-
-## 17. Historial resumido
-
-- 2026-07-02/04: núcleos iniciales y telemetría.
-- 2026-07-05/07: integridad contractual, documentación, archive/fingerprints y lints.
-- 2026-07-07/10: evals, exploración epic y roadmaps por target.
-- 2026-07-10: dirección de optimización adaptativa.
+- 2026-07-02/10: kernels iniciales, telemetría, integridad contractual, evals y target roadmaps.
 - 2026-07-14/15: O2A y O3.
-- 2026-07-16: reconciliación conceptual de rutas, presets y perfil.
-- 2026-07-17: G0.
-- 2026-07-18: O4+O5 y release v2.30.0.
-- 2026-07-18: G0.1 redefine la ruta crítica: O4.1 → O6A → O2B → O13A–D/O19A → `sdd-plan` → reevaluación → A/B.
-- 2026-07-18: se incorpora O20A como vertical experimental de `verify`, con gate previo a cualquier rebase de O13C/O15/O18/O19B/R1.
-- 2026-07-18: O4.2 se inserta como reparación inmediata entre O4.1 y O6A; O4.1 se publica primero y O4.2 comienza después en una sesión separada.
+- 2026-07-17/18: G0/G0.1 y O4+O5.
+- 2026-07-18/26: O4.1, O4.2 y O6A entregados; se formula O20A.
+- 2026-07-28/29: O2B termina funcionalmente conforme, pero queda `blocked` por un único CRITICAL de proveniencia Strict TDD histórica.
+- 2026-07-29: la visión P0–P27 se fusiona con el programa: O2B → K1–K12, preservando kernels entregados y fixed como control.
