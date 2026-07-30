@@ -139,6 +139,14 @@ test("public benchmark CLI never scores a preconstructed workspace or publishes 
   assert.deepEqual(fs.existsSync(reportPath) ? fs.readFileSync(reportPath) : null, priorReport);
 });
 
+test("public benchmark remains capability-free while only the live driver coordinates publication", () => {
+  const publicSurface = require("./run.js");
+  const liveSurface = require("./live-driver.js");
+  assert.equal(publicSurface.runLiveSuite, undefined);
+  assert.equal(publicSurface.buildReferenceCandidate, undefined);
+  assert.equal(typeof liveSurface.testing.runLiveSuite, "function");
+});
+
 test("live-driver preflight validates state and canonical O1 before observation publication", (t) => {
   const workspaceRoot = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "ospec-benchmark-preflight-"));
   t.after(() => fs.rmSync(workspaceRoot, { recursive: true, force: true }));

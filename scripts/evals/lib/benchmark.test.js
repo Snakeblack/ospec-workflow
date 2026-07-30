@@ -16,6 +16,10 @@ const {
   verifyPhaseCostBindings,
   verifyRowAttestation,
   buildRunBenchmarkRow,
+  buildReferenceCandidate,
+  validateReferenceCandidate,
+  renderReferenceBaseline,
+  deriveReferenceQuality,
 } = require("./benchmark.js");
 
 function temp(t) {
@@ -23,6 +27,65 @@ function temp(t) {
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   return root;
 }
+
+function referenceRow(profile, overrides = {}) {
+  const digest = "a".repeat(64);
+  return {
+    profile,
+    quality_verdict: "PASS",
+    quality_evidence: { state_status: "verified", verify: { outcome: "PASS" }, four_r: { outcome: "PASS" } },
+    compatibility: {
+      harness_version: "o2b-v1", git_revision: "revision", runtime_sha256: digest,
+      working_tree_identity: "tree", installed_runtime_identity: "runtime",
+      target_identity: "codex", target_version: "1.2.3", model_identity: "model",
+      effort_identity: "low", policy: "fixed", catalog_sha256: digest,
+    },
+    provenance: {
+      execution_origin: "fresh-live", driver: "codex-exec", cli_version: "codex-cli 1.2.3",
+      session_id: `session-${profile}`, transcript_sha256: digest, completed_at: "2026-07-29T00:00:00.000Z",
+      artifact_evidence_sha256: digest, benchmark_evidence_sha256: digest,
+    },
+    fixture: { source: "embedded-synthetic-catalog", synthetic_payload: true, manifest_sha256: digest, prompt_sha256: digest, fixture_sha256: digest },
+    metrics: { input_tokens: 10, output_tokens: 5, total_tokens: 15, duration_ms: 4, questions_asked: 1, verify_defects: 0, four_r_defects: 0, defects_total: 0 },
+    ...overrides,
+  };
+}
+
+test("reference candidate requires the exact fixed live set and renders canonical JSON", () => {
+  const profiles = ["alpha", "beta"];
+  const candidate = buildReferenceCandidate(profiles.map(referenceRow), { profiles, generatedAt: "2026-07-29T00:00:00.000Z" });
+  assert.equal(candidate.schema, "ospec-fixed-policy-reference-baseline/v1");
+  assert.match(candidate.baseline_id, /^[a-f0-9]{64}$/);
+  assert.deepEqual(validateReferenceCandidate(candidate, { profiles }), []);
+  const markdown = renderReferenceBaseline(candidate, { profiles });
+  assert.match(markdown, /```json/);
+  assert.match(markdown, /\| alpha \| PASS \|/);
+  assert.deepEqual(validateReferenceCandidate({ ...candidate, baseline_id: "b".repeat(64) }, { profiles }), ["baseline-id-mismatch"]);
+  assert.deepEqual(validateReferenceCandidate({ ...candidate, rows: [candidate.rows[0]] }, { profiles }), ["missing-profile:beta"]);
+  assert.deepEqual(validateReferenceCandidate({ ...candidate, rows: [candidate.rows[0], candidate.rows[0]] }, { profiles }), ["duplicate-profile:alpha", "missing-profile:beta"]);
+  assert.deepEqual(validateReferenceCandidate({ ...candidate, rows: candidate.rows.map((row) => ({ ...row, provenance: { ...row.provenance, execution_origin: "manual" } })) }, { profiles }), ["unattributable-origin:alpha", "unattributable-origin:beta"]);
+});
+
+test("reference quality is derived only from verified canonical verify and 4R outcomes", () => {
+  assert.equal(deriveReferenceQuality({ state_status: "verified", verify: { outcome: "PASS" }, four_r: { outcome: "PASS" } }), "PASS");
+  assert.equal(deriveReferenceQuality({ state_status: "verified", verify: { outcome: "PASS WITH WARNINGS" }, four_r: { outcome: "PASS" } }), "PASS_WITH_WARNINGS");
+  assert.equal(deriveReferenceQuality({ state_status: "blocked", verify: { outcome: "PASS" }, four_r: { outcome: "PASS" } }), null);
+  assert.equal(deriveReferenceQuality({ state_status: "verified", verify: { outcome: "PASS" }, four_r: { outcome: "FAIL" } }), null);
+  const candidate = buildReferenceCandidate([referenceRow("alpha")], { profiles: ["alpha"] });
+  assert.ok(validateReferenceCandidate({ ...candidate, rows: [{ ...candidate.rows[0], quality_evidence: { ...candidate.rows[0].quality_evidence, state_status: "blocked" }, metrics: { ...candidate.rows[0].metrics, verify_defects: 0 } }] }, { profiles: ["alpha"] }).includes("invalid-quality:alpha"));
+});
+
+test("reference candidate validation fails closed for required identity, expected fixtures and duplicate builder input", () => {
+  const profiles = ["alpha", "beta"];
+  const rows = profiles.map(referenceRow);
+  const expectedDescriptors = Object.fromEntries(rows.map((row) => [row.profile, { ...row.compatibility, ...row.fixture }]));
+  const candidate = buildReferenceCandidate(rows, { profiles, generatedAt: "2026-07-29T00:00:00.000Z", expectedDescriptors });
+  assert.ok(validateReferenceCandidate({ ...candidate, baseline_id: undefined }, { profiles, expectedDescriptors }).includes("missing-baseline-id"));
+  assert.ok(validateReferenceCandidate({ ...candidate, shared_identity: { ...candidate.shared_identity, model_identity: "other" } }, { profiles, expectedDescriptors }).includes("shared-identity-mismatch"));
+  assert.ok(validateReferenceCandidate({ ...candidate, profile_catalog_sha256: "b".repeat(64) }, { profiles, expectedDescriptors }).includes("catalog-drift"));
+  assert.ok(validateReferenceCandidate({ ...candidate, rows: candidate.rows.map((row) => row.profile === "alpha" ? { ...row, fixture: { ...row.fixture, fixture_sha256: "b".repeat(64) } } : row) }, { profiles, expectedDescriptors }).includes("fixture-drift:alpha"));
+  assert.throws(() => buildReferenceCandidate([rows[0], rows[0], rows[1]], { profiles, expectedDescriptors }), /duplicate-profile:alpha/);
+});
 
 test("loadBenchmarkObservation validates non-negative integer counters", (t) => {
   const root = temp(t);

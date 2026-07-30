@@ -265,6 +265,103 @@ function renderBaseline(rows, options = {}) {
   return `${lines.join("\n")}\n`;
 }
 
+const REFERENCE_SCHEMA = "ospec-fixed-policy-reference-baseline/v1";
+const REFERENCE_ORIGINS = new Set(["fresh-live", "recovered-live", "compatible-live-cache"]);
+const REFERENCE_IDENTITY_FIELDS = ["harness_version", "git_revision", "runtime_sha256", "working_tree_identity", "installed_runtime_identity", "target_identity", "target_version", "model_identity", "effort_identity"];
+const REFERENCE_METRIC_FIELDS = ["input_tokens", "output_tokens", "total_tokens", "duration_ms", "questions_asked", "verify_defects", "four_r_defects", "defects_total"];
+
+function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+  return JSON.stringify(value);
+}
+
+function referenceDigest(value) { return crypto.createHash("sha256").update(canonicalJson(value)).digest("hex"); }
+function validDigest(value) { return typeof value === "string" && /^[a-f0-9]{64}$/.test(value); }
+
+function deriveReferenceQuality(evidence) {
+  if (evidence?.state_status !== "verified") return null;
+  const verify = evidence.verify?.outcome;
+  const fourR = evidence.four_r?.outcome;
+  if (!["PASS", "PASS WITH WARNINGS"].includes(verify) || !["PASS", "PASS WITH WARNINGS", "NOT_RUN"].includes(fourR)) return null;
+  return verify === "PASS" && fourR === "PASS" ? "PASS" : "PASS_WITH_WARNINGS";
+}
+
+function validateReferenceCandidate(candidate, options = {}) {
+  const errors = [];
+  const profiles = options.profiles || [];
+  if (!candidate || candidate.schema !== REFERENCE_SCHEMA) return ["invalid-schema"];
+  if (candidate.policy !== "fixed") errors.push("invalid-policy");
+  if (!Array.isArray(candidate.rows)) return [...errors, "invalid-rows"];
+  const rows = candidate.rows;
+  const seen = new Set();
+  for (const row of rows) {
+    const profile = row?.profile;
+    if (!profiles.includes(profile)) { errors.push(`unknown-profile:${profile || "unknown"}`); continue; }
+    if (seen.has(profile)) { errors.push(`duplicate-profile:${profile}`); continue; }
+    seen.add(profile);
+    const compatibility = row.compatibility || {};
+    if (compatibility.policy !== "fixed" || !REFERENCE_IDENTITY_FIELDS.every((key) => typeof compatibility[key] === "string" && compatibility[key] !== "unknown")) errors.push(`unknown-identity:${profile}`);
+    if (!validDigest(compatibility.catalog_sha256) || !row.fixture || row.fixture.source !== "embedded-synthetic-catalog" || row.fixture.synthetic_payload !== true || !["manifest_sha256", "prompt_sha256", "fixture_sha256"].every((key) => validDigest(row.fixture[key]))) errors.push(`fixture-drift:${profile}`);
+    const expectedDescriptor = options.expectedDescriptors?.[profile];
+    if (expectedDescriptor && (compatibility.catalog_sha256 !== expectedDescriptor.catalog_sha256 || ["manifest_sha256", "prompt_sha256", "fixture_sha256"].some((key) => row.fixture?.[key] !== expectedDescriptor[key]))) errors.push(`fixture-drift:${profile}`);
+    const provenance = row.provenance || {};
+    if (!REFERENCE_ORIGINS.has(provenance.execution_origin) || provenance.driver !== "codex-exec" || !/^codex-cli \d+\.\d+\.\d+$/.test(provenance.cli_version || "") || typeof provenance.session_id !== "string" || !["transcript_sha256", "artifact_evidence_sha256", "benchmark_evidence_sha256"].every((key) => validDigest(provenance[key])) || Number.isNaN(Date.parse(provenance.completed_at))) errors.push(`unattributable-origin:${profile}`);
+    if (deriveReferenceQuality(row.quality_evidence) !== row.quality_verdict) errors.push(`invalid-quality:${profile}`);
+    const metrics = row.metrics || {};
+    if (!REFERENCE_METRIC_FIELDS.every((key) => Number.isSafeInteger(metrics[key]) && metrics[key] >= 0) || metrics.total_tokens !== metrics.input_tokens + metrics.output_tokens || metrics.duration_ms <= 0) errors.push(`invalid-metrics:${profile}`);
+  }
+  for (const profile of profiles) if (!seen.has(profile)) errors.push(`missing-profile:${profile}`);
+  if (rows.length !== profiles.length && !errors.some((error) => error.startsWith("missing-profile") || error.startsWith("duplicate-profile"))) errors.push("invalid-set-size");
+  const validRows = rows.filter((row) => row && profiles.includes(row.profile) && !errors.some((error) => error.endsWith(`:${row.profile}`)));
+  if (validRows.length > 1) {
+    for (const field of REFERENCE_IDENTITY_FIELDS) if (new Set(validRows.map((row) => row.compatibility?.[field])).size !== 1) { errors.push("shared-identity-mismatch"); break; }
+    if (new Set(validRows.map((row) => row.compatibility?.catalog_sha256)).size !== 1) errors.push("catalog-drift");
+  }
+  if (validRows.length === profiles.length) {
+    const catalogDigest = validRows[0]?.compatibility?.catalog_sha256;
+    if (!validDigest(candidate.profile_catalog_sha256) || candidate.profile_catalog_sha256 !== catalogDigest) errors.push("catalog-drift");
+    if (!candidate.shared_identity || REFERENCE_IDENTITY_FIELDS.some((field) => candidate.shared_identity[field] !== validRows[0]?.compatibility?.[field])) errors.push("shared-identity-mismatch");
+    if (options.expectedCatalogSha256 && candidate.profile_catalog_sha256 !== options.expectedCatalogSha256) errors.push("catalog-drift");
+  }
+  if (candidate.baseline_id === undefined && !options.allowMissingBaselineId) errors.push("missing-baseline-id");
+  if (!errors.length && candidate.baseline_id !== undefined) {
+    const { baseline_id, ...withoutId } = candidate;
+    if (!validDigest(baseline_id) || baseline_id !== referenceDigest(withoutId)) errors.push("baseline-id-mismatch");
+  }
+  return [...new Set(errors)];
+}
+
+function buildReferenceCandidate(rows, options = {}) {
+  const profiles = options.profiles || [];
+  const duplicate = rows.find((row, index) => row?.profile && rows.findIndex((candidate) => candidate?.profile === row.profile) !== index);
+  if (duplicate) throw new Error(`Reference candidate rejected: duplicate-profile:${duplicate.profile}`);
+  const orderedRows = profiles.map((profile) => rows.find((row) => row?.profile === profile)).filter(Boolean);
+  const shared = orderedRows[0]?.compatibility || {};
+  const candidate = {
+    schema: REFERENCE_SCHEMA,
+    generated_at: options.generatedAt || new Date().toISOString(),
+    policy: "fixed",
+    profile_catalog_sha256: shared.catalog_sha256,
+    shared_identity: Object.fromEntries(REFERENCE_IDENTITY_FIELDS.map((key) => [key, shared[key]])),
+    rows: orderedRows,
+  };
+  const errors = validateReferenceCandidate(candidate, { ...options, profiles, allowMissingBaselineId: true });
+  if (errors.length) throw new Error(`Reference candidate rejected: ${errors.join(", ")}`);
+  candidate.baseline_id = referenceDigest(candidate);
+  return candidate;
+}
+
+function renderReferenceBaseline(candidate, options = {}) {
+  const errors = validateReferenceCandidate(candidate, options);
+  if (errors.length) throw new Error(`Reference candidate rejected: ${errors.join(", ")}`);
+  const payload = canonicalJson(candidate);
+  const lines = ["# Fixed-policy reference baseline", "", `Baseline ID: \`${candidate.baseline_id}\``, `Generated: ${candidate.generated_at}`, "Policy: `fixed`.", "", "```json", payload, "```", "", "| Profile | Quality | Input tokens | Output tokens | Total tokens | Duration ms | Questions | Verify defects | 4R defects | Total defects |", "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|"];
+  for (const row of candidate.rows) { const m = row.metrics; lines.push(`| ${row.profile} | ${row.quality_verdict} | ${m.input_tokens} | ${m.output_tokens} | ${m.total_tokens} | ${m.duration_ms} | ${m.questions_asked} | ${m.verify_defects} | ${m.four_r_defects} | ${m.defects_total} |`); }
+  lines.push("", "Threat model: cooperative correlation and tamper detection; this artifact is not cryptographic proof of execution.", "");
+  return lines.join("\n");
+}
+
 module.exports = {
   loadBenchmarkObservation,
   parseCodexTranscript,
@@ -274,6 +371,11 @@ module.exports = {
   readPhaseCosts,
   buildRunBenchmarkRow,
   renderBaseline,
+  buildReferenceCandidate,
+  validateReferenceCandidate,
+  renderReferenceBaseline,
+  deriveReferenceQuality,
+  canonicalJson,
   verifyRowAttestation,
   canonicalPersistedO1Row,
 };

@@ -8,7 +8,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const crypto = require("node:crypto");
 const { buildRunBenchmarkRow, verifyRowAttestation } = require("./lib/benchmark.js");
-const { materializeSafeExport } = require("./safe-export.js");
+const { materializeSafeExport, REFERENCE_BENCHMARK_PROFILES } = require("./safe-export.js");
 
 const {
   buildLivePrompt,
@@ -32,6 +32,7 @@ const {
   persistProfileResult,
   loadCompatibleProfileResult,
   resolveSuiteSelection,
+  resolveSuiteSelectionDetails,
   readSupplementaryO1,
 } = require("./live-driver.js");
 
@@ -285,6 +286,73 @@ test("productive runLiveSuite rejects callback injection and does not publish sy
   assert.equal(fs.existsSync(reportPath), false);
 });
 
+test("runtime suite coordination preserves sealed non-enumerable evidence for fresh smoke and compatible cache", () => {
+  const evidence = Object.create(null);
+  const makeResult = (profile) => {
+    const result = { profile, row: { profile } };
+    Object.defineProperty(result, "evidence", { value: evidence, enumerable: false });
+    return result;
+  };
+  const fresh = makeResult("docs-one-file");
+  let published = false;
+  const result = testing.runLiveSuite({
+    selection: "all",
+    profiles: ["docs-one-file"],
+    executionContext: {},
+    loadCached: () => ({ hit: false }),
+    runFresh: () => fresh,
+    sealFresh: (value) => value === fresh,
+    descriptorFor: () => ({ policy: "fixed" }),
+    persist: () => {},
+    publish: () => { published = true; },
+  });
+  assert.equal(result.diagnostic, true);
+  assert.equal(published, false);
+  assert.equal(result.results[0].evidence, evidence);
+  assert.equal(Object.prototype.propertyIsEnumerable.call(result.results[0], "evidence"), false);
+
+  const cached = makeResult("docs-one-file");
+  const resumed = testing.runLiveSuite({
+    selection: "all",
+    profiles: ["docs-one-file"],
+    executionContext: {},
+    loadCached: () => ({ hit: true, result: cached }),
+    runFresh: () => { throw new Error("cache must avoid fresh invocation"); },
+    descriptorFor: () => ({ policy: "fixed" }),
+    persist: () => {},
+  });
+  assert.equal(resumed.results[0].reference_origin, "compatible-live-cache");
+  assert.equal(resumed.results[0].evidence, evidence);
+});
+
+test("runtime suite coordination publishes only the extended reference candidate", () => {
+  const digest = "a".repeat(64);
+  const executionContext = { installedRuntimeIdentity: "runtime", remoteModelIdentity: "model", remoteReasoningEffort: "low" };
+  const descriptorFor = (profile) => buildCompatibilityDescriptor(profile, { cliVersion: "codex-cli 1.2.3", gitRevision: "revision", runtimeHashes: { driver: digest }, workingTreeIdentity: "tree", ...executionContext });
+  const resultFor = (profile) => ({
+    profile,
+    row: { profile, input_tokens: 1, output_tokens: 1, total_tokens: 2, duration_ms: 1, questions_asked: 0, verify_defects: 0, four_r_defects: 0, defects_total: 0 },
+    observation: { verify_defects: 0, provenance: { driver: "codex-exec", cli_version: "codex-cli 1.2.3", session_id: `session-${profile}`, transcript_sha256: digest, completed_at: "2026-07-29T00:00:00.000Z", artifact_evidence_sha256: digest, benchmark_evidence_sha256: digest } },
+    quality_evidence: { state_status: "verified", verify: { outcome: "PASS" }, four_r: { outcome: "PASS" } },
+  });
+  const published = [];
+  const suite = testing.runLiveSuite({
+    selection: "extended",
+    profiles: REFERENCE_BENCHMARK_PROFILES,
+    executionContext,
+    loadCached: () => ({ hit: false }),
+    runFresh: resultFor,
+    sealFresh: () => true,
+    descriptorFor,
+    persist: () => {},
+    publish: (markdown) => published.push(markdown),
+  });
+  assert.match(suite.baseline_id, /^[a-f0-9]{64}$/);
+  assert.equal(published.length, 1);
+  assert.match(published[0], /Fixed-policy reference baseline/);
+  assert.match(published[0], /"rows":\[/);
+});
+
 test("accepted profile cache resumes only an exact compatible sealed result", (t) => {
   const cacheRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-profile-cache-"));
   t.after(() => fs.rmSync(cacheRoot, { recursive: true, force: true }));
@@ -306,6 +374,11 @@ test("suite selection supports productive core and extended sets", () => {
   assert.deepEqual(resolveSuiteSelection("initial"), ["docs-one-file", "small-bugfix", "security-sensitive-change"]);
   assert.equal(resolveSuiteSelection("extended").length, 9);
   assert.throws(() => resolveSuiteSelection({}), /selection/i);
+});
+
+test("extended selection is explicitly fixed while smoke stays diagnostic", () => {
+  assert.deepEqual(resolveSuiteSelectionDetails("extended"), { profiles: resolveSuiteSelection("extended"), policy: "fixed", reference: true });
+  assert.deepEqual(resolveSuiteSelectionDetails("all"), { profiles: resolveSuiteSelection("all"), policy: "fixed", reference: false });
 });
 
 test("cache refuses unknown identity and preserves valid supplementary O1 on known identity", (t) => {
@@ -412,6 +485,13 @@ test("offline recovery replays completed host post-exit validation and persists 
   assert.equal(fs.existsSync(path.join(cacheRoot, "docs-one-file", "result.json")), true);
   assert.equal(fs.existsSync(path.join(exported.workspaceRoot, ".eval-capture", "benchmark.json")), true);
   assert.equal(fs.existsSync(path.join(exported.workspaceRoot, ".eval-capture", "done.json")), true);
+  const descriptor = buildCompatibilityDescriptor("docs-one-file", {
+    cliVersion: "codex-cli 0.144.1", gitRevision: "recovery-git", runtimeHashes: { driver: "a".repeat(64) }, workingTreeIdentity: "recovery-tree",
+    installedRuntimeIdentity: context.installedRuntimeIdentity, remoteModelIdentity: context.remoteModelIdentity, remoteReasoningEffort: context.remoteReasoningEffort,
+  });
+  const cached = loadCompatibleProfileResult(cacheRoot, descriptor);
+  assert.equal(cached.hit, true);
+  assert.deepEqual(cached.result.quality_evidence, { state_status: "verified", verify: { outcome: "PASS" }, four_r: { outcome: "NOT_RUN" } });
 });
 
 test("offline recovery fails closed for unsafe roots, profile mismatch, missing identity and incomplete or tampered transcript", (t) => {

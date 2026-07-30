@@ -9,8 +9,8 @@ const { spawnSync } = require("node:child_process");
 
 const { captureWorkspace } = require("./lib/capture.js");
 const { assertScenario, resolveActualRoute } = require("./lib/assertions.js");
-const { loadBenchmarkObservation, parseCodexTranscript, verifyBenchmarkProvenance, verifyPhaseCostBindings, readPhaseCosts, buildRunBenchmarkRow, renderBaseline } = require("./lib/benchmark.js");
-const { buildSafeExportManifest, materializeSafeExport, scenarioFor, validateExportWorkspace, verifySafeExportFile, assertSyntheticGitOutcome } = require("./safe-export.js");
+const { loadBenchmarkObservation, parseCodexTranscript, verifyBenchmarkProvenance, verifyPhaseCostBindings, readPhaseCosts, buildRunBenchmarkRow, renderBaseline, buildReferenceCandidate, renderReferenceBaseline, deriveReferenceQuality } = require("./lib/benchmark.js");
+const { buildSafeExportManifest, materializeSafeExport, scenarioFor, validateExportWorkspace, verifySafeExportFile, assertSyntheticGitOutcome, REFERENCE_BENCHMARK_PROFILES, SMOKE_BENCHMARK_PROFILES } = require("./safe-export.js");
 const {
   resolveBenchmarkNames,
   resolveBenchmarkEvidencePaths,
@@ -133,6 +133,10 @@ function resolveProductiveExecutionContext(options = {}, deps = {}) {
 function buildCompatibilityDescriptor(profile, options = {}) {
   const exported = buildSafeExportManifest(profile);
   const runtimeHashes = options.runtimeHashes || defaultRuntimeHashes();
+  const catalogSha256 = sha256(canonicalJson(REFERENCE_BENCHMARK_PROFILES.map((name) => {
+    const manifest = buildSafeExportManifest(name);
+    return { profile: name, manifest_sha256: sha256(JSON.stringify(manifest)), prompt_sha256: manifest.prompt.sha256, fixture_sha256: sha256(JSON.stringify(manifest.files)) };
+  })));
   return {
     schema: EXPERIMENT_RESULT_SCHEMA,
     profile,
@@ -143,10 +147,40 @@ function buildCompatibilityDescriptor(profile, options = {}) {
     installed_runtime_identity: options.installedRuntimeIdentity || "unknown",
     remote_model_identity: options.remoteModelIdentity || "unknown",
     remote_reasoning_effort: options.remoteReasoningEffort || "unknown",
+    harness_version: "ospec-fixed-policy-reference-baseline/v1",
+    target_identity: "codex-cli",
+    target_version: (options.cliVersion || codexVersion()).replace(/^codex-cli\s+/, ""),
+    model_identity: options.remoteModelIdentity || "unknown",
+    effort_identity: options.remoteReasoningEffort || "unknown",
+    policy: "fixed",
+    catalog_sha256: catalogSha256,
     compatibility_strength: options.remoteModelIdentity && options.remoteReasoningEffort && options.installedRuntimeIdentity ? "strong" : "limited",
     manifest_sha256: sha256(JSON.stringify(exported)),
     prompt_sha256: exported.prompt.sha256,
     fixture_sha256: sha256(JSON.stringify(exported.files)),
+  };
+}
+
+function referenceRowFromResult(result, descriptor, origin) {
+  const observation = result.observation;
+  const row = result.row;
+  return {
+    profile: result.profile,
+    quality_verdict: deriveReferenceQuality(result.quality_evidence),
+    quality_evidence: result.quality_evidence,
+    compatibility: descriptor,
+    provenance: {
+      execution_origin: origin,
+      driver: observation.provenance.driver,
+      cli_version: observation.provenance.cli_version,
+      session_id: observation.provenance.session_id,
+      transcript_sha256: observation.provenance.transcript_sha256,
+      completed_at: observation.provenance.completed_at,
+      artifact_evidence_sha256: observation.provenance.artifact_evidence_sha256,
+      benchmark_evidence_sha256: observation.provenance.benchmark_evidence_sha256,
+    },
+    fixture: { source: "embedded-synthetic-catalog", synthetic_payload: true, manifest_sha256: descriptor.manifest_sha256, prompt_sha256: descriptor.prompt_sha256, fixture_sha256: descriptor.fixture_sha256 },
+    metrics: { input_tokens: row.input_tokens, output_tokens: row.output_tokens, total_tokens: row.total_tokens, duration_ms: row.duration_ms, questions_asked: row.questions_asked, verify_defects: row.verify_defects, four_r_defects: row.four_r_defects, defects_total: row.defects_total },
   };
 }
 
@@ -165,7 +199,9 @@ function persistProfileResult(cacheRoot, descriptor, result) {
   if (transcript.sha256 !== result?.transcript?.sha256) throw new Error("Refusing to cache transcript hash mismatch.");
   const recomputed = buildRunBenchmarkRow({ profile: descriptor.profile, route: result.route, transcript, durationMs: result.durationMs, observation: result.observation, nativeO1: result.row?.native_o1?.status ? result.row.native_o1 : null });
   if (!validRunRow(result.row, descriptor.profile) || canonicalJson(recomputed) !== canonicalJson(result.row)) throw new Error("Refusing to cache an invalid or unreproducible run row.");
-  const payload = { schema: EXPERIMENT_RESULT_SCHEMA, compatibility: descriptor, transcript_base64: result.transcriptBytes.toString("base64"), evidence: { route: result.route, duration_ms: result.durationMs, observation: result.observation, native_o1: result.row.native_o1 }, row: result.row };
+  const evidence = { route: result.route, duration_ms: result.durationMs, observation: result.observation, native_o1: result.row.native_o1 };
+  if (result.quality_evidence !== undefined) evidence.quality_evidence = result.quality_evidence;
+  const payload = { schema: EXPERIMENT_RESULT_SCHEMA, compatibility: descriptor, transcript_base64: result.transcriptBytes.toString("base64"), evidence, row: result.row };
   payload.attestation_sha256 = sha256(canonicalJson(payload));
   const target = profileResultPath(cacheRoot, descriptor.profile);
   publishBaselineAtomic(target, `${JSON.stringify(payload, null, 2)}\n`);
@@ -188,7 +224,14 @@ function loadCompatibleProfileResult(cacheRoot, descriptor) {
     const nativeO1 = payload.evidence?.native_o1?.status ? payload.evidence.native_o1 : null;
     const recomputed = buildRunBenchmarkRow({ profile: descriptor.profile, route: payload.evidence.route, transcript, durationMs: payload.evidence.duration_ms, observation: payload.evidence.observation, nativeO1 });
     if (!validRunRow(payload.row, descriptor.profile) || canonicalJson(recomputed) !== canonicalJson(payload.row)) return miss("unreproducible-evidence");
-    return { hit: true, result: { profile: descriptor.profile, row: payload.row, transcript, transcriptBytes, reused: true } };
+    const result = { profile: descriptor.profile, row: payload.row, transcript, transcriptBytes, reused: true };
+    Object.defineProperties(result, {
+      observation: { value: payload.evidence.observation, enumerable: false },
+      durationMs: { value: payload.evidence.duration_ms, enumerable: false },
+      route: { value: payload.evidence.route, enumerable: false },
+      ...(payload.evidence.quality_evidence === undefined ? {} : { quality_evidence: { value: payload.evidence.quality_evidence, enumerable: false } }),
+    });
+    return { hit: true, result };
   } catch { return miss("unreproducible-evidence"); }
 }
 
@@ -841,7 +884,7 @@ function recoverWorkspaceWithContext(profile, workspaceRoot, executionContext, o
   const scored = scoreAuthorizedBenchmarkWorkspace({ capability, name: profile, manifest, workspaceRoot: root, trustedCliVersion: version, transcriptBytes, supplementaryO1, durationMs });
   if (!scored.result.pass) throw new Error(`Recovered benchmark ${profile} failed structural scoring: ${scored.result.failures.join("; ")}`);
   publishBaselineAtomic(path.join(root, ".eval-capture", "done.json"), `${JSON.stringify({ completed_at: new Date().toISOString(), session_id: transcript.session_id, recovered_offline: true }, null, 2)}\n`);
-  const sealedResult = { profile, workspaceRoot: root, version, transcript, transcriptBytes, observation: loadBenchmarkObservation(evidence.observationPath), durationMs, route: scored.row.route, row: scored.row };
+  const sealedResult = { profile, workspaceRoot: root, version, transcript, transcriptBytes, observation: loadBenchmarkObservation(evidence.observationPath), durationMs, route: scored.row.route, row: scored.row, quality_evidence: { state_status: captured.state.status, verify: { outcome: reports.verify.outcome }, four_r: { outcome: reports.four_r.outcome } } };
   SEALED_PROFILE_RESULTS.add(sealedResult);
   const descriptor = buildCompatibilityDescriptor(profile, {
     cliVersion: version,
@@ -917,7 +960,7 @@ function runLiveProfileWithContext(profile, executionContext) {
   const scored = scoreAuthorizedBenchmarkWorkspace({ capability, name: profile, manifest, workspaceRoot, trustedCliVersion: version, transcriptBytes, supplementaryO1, durationMs: hostDurationMs });
   if (!scored.result.pass) throw new Error(`Live benchmark ${profile} failed structural scoring: ${scored.result.failures.join("; ")}`);
   publishBaselineAtomic(donePath, `${JSON.stringify({ completed_at: new Date().toISOString(), session_id: transcript.session_id }, null, 2)}\n`);
-  const sealedResult = { profile, workspaceRoot, version, transcript, transcriptBytes, observation: loadBenchmarkObservation(evidence.observationPath), durationMs: hostDurationMs, route: scored.row.route, row: scored.row };
+  const sealedResult = { profile, workspaceRoot, version, transcript, transcriptBytes, observation: loadBenchmarkObservation(evidence.observationPath), durationMs: hostDurationMs, route: scored.row.route, row: scored.row, quality_evidence: { state_status: captured.state.status, verify: { outcome: reports.verify.outcome }, four_r: { outcome: reports.four_r.outcome } } };
   SEALED_PROFILE_RESULTS.add(sealedResult);
   return sealedResult;
 }
@@ -932,28 +975,57 @@ function resolveSuiteSelection(selection = "all") {
   return resolveBenchmarkNames(selection);
 }
 
-function runLiveSuite(selection = "all") {
-  if (arguments.length > 1) throw new Error("runLiveSuite does not accept dependency or execution-context injection.");
-  const names = resolveSuiteSelection(selection);
-  const executionContext = resolveProductiveExecutionContext();
-  const reportPath = path.join(__dirname, "reports", "reference-baseline.md");
+function resolveSuiteSelectionDetails(selection = "all") {
+  return Object.freeze({ profiles: resolveSuiteSelection(selection), policy: "fixed", reference: selection === "extended" });
+}
+
+function retainSealedSuiteResult(result, metadata, sealFresh) {
+  const retained = Object.defineProperties({}, Object.getOwnPropertyDescriptors(result));
+  for (const [key, value] of Object.entries(metadata)) Object.defineProperty(retained, key, { value, enumerable: true, configurable: false, writable: false });
+  if (!metadata.reused && sealFresh(result)) SEALED_PROFILE_RESULTS.add(retained);
+  return retained;
+}
+
+function runLiveSuiteWithDependencies({ selection = "all", profiles, executionContext, loadCached, runFresh, descriptorFor, persist, buildCandidate, renderCandidate, publish, reportPath, sealFresh, exposeResults = false }) {
+  const names = profiles || resolveSuiteSelection(selection);
+  const context = executionContext || resolveProductiveExecutionContext();
+  const referenceRun = selection === "extended";
+  const destination = reportPath || path.join(__dirname, "reports", "reference-baseline.md");
+  const cacheLoader = loadCached || ((descriptor) => loadCompatibleProfileResult(DEFAULT_RESULT_CACHE, descriptor));
+  const freshRunner = runFresh || ((name) => runLiveProfileWithContext(name, context));
+  const descriptorBuilder = descriptorFor || ((name) => buildCompatibilityDescriptor(name, { cliVersion: codexVersion(), gitRevision: resolveGitRevision(), installedRuntimeIdentity: context.installedRuntimeIdentity, remoteModelIdentity: context.remoteModelIdentity, remoteReasoningEffort: context.remoteReasoningEffort }));
+  const cacheWriter = persist || ((descriptor, result) => persistProfileResult(DEFAULT_RESULT_CACHE, descriptor, result));
+  const candidateBuilder = buildCandidate || buildReferenceCandidate;
+  const candidateRenderer = renderCandidate || ((candidate) => renderReferenceBaseline(candidate, { profiles: REFERENCE_BENCHMARK_PROFILES }));
+  const publisher = publish || ((markdown) => publishBaselineAtomic(destination, markdown));
+  const freshSeal = sealFresh || ((result) => SEALED_PROFILE_RESULTS.has(result));
   if (!names.includes("docs-one-file")) throw new Error("Benchmark suite must include docs-one-file as its canary.");
   const ordered = ["docs-one-file", ...names.filter((name) => name !== "docs-one-file")];
-  const cliVersion = codexVersion();
-  const gitRevision = resolveGitRevision();
   const sealedResults = ordered.map((name) => {
-    const descriptor = buildCompatibilityDescriptor(name, { cliVersion, gitRevision, installedRuntimeIdentity: executionContext.installedRuntimeIdentity, remoteModelIdentity: executionContext.remoteModelIdentity, remoteReasoningEffort: executionContext.remoteReasoningEffort });
-    const cached = loadCompatibleProfileResult(DEFAULT_RESULT_CACHE, descriptor);
-    if (cached.hit) return cached.result;
-    const fresh = runLiveProfileWithContext(name, executionContext);
-    persistProfileResult(DEFAULT_RESULT_CACHE, descriptor, fresh);
-    return fresh;
+    const descriptor = descriptorBuilder(name);
+    const cached = cacheLoader(descriptor);
+    if (cached.hit) return retainSealedSuiteResult(cached.result, { reused: true, reference_origin: "compatible-live-cache", descriptor }, freshSeal);
+    const fresh = freshRunner(name);
+    cacheWriter(descriptor, fresh);
+    return retainSealedSuiteResult(fresh, { reused: false, reference_origin: "fresh-live", descriptor }, freshSeal);
   });
   if (sealedResults.some((result, index) => (!result.reused && !SEALED_PROFILE_RESULTS.has(result)) || result.profile !== ordered[index])) throw new Error("Productive benchmark result is not sealed by a live capability or compatible resume record.");
   const rows = sealedResults.map((result) => result.row);
-  const markdown = renderBaseline(rows, { expectedProfiles: names, generatedAt: new Date().toISOString(), gitRevision });
-  publishBaselineAtomic(reportPath, markdown);
-  return { profiles: ordered, rows, reportPath };
+  if (!referenceRun) return exposeResults ? { profiles: ordered, rows, diagnostic: true, results: sealedResults } : { profiles: ordered, rows, diagnostic: true };
+  const referenceRows = sealedResults.map((result) => referenceRowFromResult(result, result.descriptor, result.reference_origin));
+  const candidate = candidateBuilder(referenceRows, {
+    profiles: REFERENCE_BENCHMARK_PROFILES,
+    generatedAt: new Date().toISOString(),
+    expectedDescriptors: Object.fromEntries(sealedResults.map((result) => [result.profile, result.descriptor])),
+  });
+  publisher(candidateRenderer(candidate));
+  const completed = { profiles: ordered, rows, reportPath: destination, baseline_id: candidate.baseline_id };
+  return exposeResults ? { ...completed, results: sealedResults } : completed;
+}
+
+function runLiveSuite(selection = "all") {
+  if (arguments.length > 1) throw new Error("runLiveSuite does not accept dependency or execution-context injection.");
+  return runLiveSuiteWithDependencies({ selection });
 }
 
 function main() {
@@ -1014,9 +1086,11 @@ module.exports = {
   persistProfileResult,
   loadCompatibleProfileResult,
   resolveSuiteSelection,
+  resolveSuiteSelectionDetails,
   readSupplementaryO1,
   hashRuntimeSurface,
   workingTreeIdentity,
+  referenceRowFromResult,
   testing: {
     resolveExecutionContext(options, deps) {
       return resolveProductiveExecutionContext(options, deps);
@@ -1035,6 +1109,9 @@ module.exports = {
     },
     recoverWorkspace(profile, workspaceRoot, options) {
       return recoverWorkspaceWithContext(profile, workspaceRoot, options.executionContext, options);
+    },
+    runLiveSuite(options) {
+      return runLiveSuiteWithDependencies({ ...options, exposeResults: true });
     },
   },
 };

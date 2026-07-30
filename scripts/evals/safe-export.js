@@ -86,6 +86,8 @@ const PROFILES = Object.freeze({
   "small-bugfix": { change: "fix-null-title", route: "bugfix", command: "/sdd-new fix-null-title", request: "Corrige el fallo cuando title es null; limita el cambio a src/title.js y sus tests.", file: ["src/title.js", "exports.formatTitle = (value) => value.trim();\n"] },
   "small-feature": { change: "add-slug-helper", route: "lite", command: "/sdd-new add-slug-helper", request: "Añade un helper de slug en src/slug.js con tests; no cambies otras APIs.", file: ["src/slug.js", "exports.slug = undefined;\n"] },
 });
+const REFERENCE_BENCHMARK_PROFILES = Object.freeze(Object.keys(PROFILES).sort());
+const SMOKE_BENCHMARK_PROFILES = Object.freeze(["docs-one-file", "small-bugfix", "security-sensitive-change"]);
 
 const ROUTE_PHASES = Object.freeze({
   lite: ["propose", "tasks", "apply", "verify"],
@@ -153,7 +155,7 @@ function scenarioFor(profile) {
 }
 
 function listSafeBenchmarkProfiles() {
-  return Object.keys(PROFILES).sort();
+  return [...REFERENCE_BENCHMARK_PROFILES];
 }
 
 function buildSafePrompt(profile) {
@@ -202,7 +204,7 @@ function buildSafeExportManifest(profile) {
     schema: "ospec-safe-export/v1",
     profile,
     safety: { source: "embedded-synthetic-catalog", git_metadata: true, synthetic_git: true, checkout_files_copied: false, credentials_embedded: false, absolute_paths: false },
-    benchmark_contract: { ...scenarioFor(profile).benchmark, phase_evidence: "host-observed-artifacts-and-waits", threat_model: "cooperative-orchestrator", dispatch_identity_available: false },
+    benchmark_contract: { ...scenarioFor(profile).benchmark, policy: "fixed", fixture_source: "embedded-synthetic-catalog", synthetic_payload: true, fixed_policy: { policy: "fixed", fixture_source: "embedded-synthetic-catalog", synthetic_payload: true }, phase_evidence: "host-observed-artifacts-and-waits", threat_model: "cooperative-orchestrator", dispatch_identity_available: false },
     directories: [`.ospec/session/${scenarioFor(profile).benchmark.change}`],
     git: { synthetic_git: true, initialized: false, deterministic_timestamp: "2000-01-01T00:00:00Z", expected_initial_diff: [] },
     files: Object.entries(files)
@@ -313,4 +315,4 @@ function materializeSafeExport(profile, options = {}) {
   return { workspaceRoot, manifest, scenario, prompt: manifest.prompt.text };
 }
 
-module.exports = { buildSafeExportManifest, buildSafePrompt, listSafeBenchmarkProfiles, materializeSafeExport, scenarioFor, validateExportWorkspace, validateSafePayload, verifySafeExportFile, assertSyntheticGitOutcome };
+module.exports = { buildSafeExportManifest, buildSafePrompt, listSafeBenchmarkProfiles, materializeSafeExport, scenarioFor, validateExportWorkspace, validateSafePayload, verifySafeExportFile, assertSyntheticGitOutcome, REFERENCE_BENCHMARK_PROFILES, SMOKE_BENCHMARK_PROFILES };

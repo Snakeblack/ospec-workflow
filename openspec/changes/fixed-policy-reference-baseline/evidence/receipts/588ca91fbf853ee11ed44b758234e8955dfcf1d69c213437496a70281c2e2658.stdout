@@ -1,0 +1,25 @@
+✔ reference candidate requires the exact fixed live set and renders canonical JSON (2.6663ms)
+✔ reference quality is derived only from verified canonical verify and 4R outcomes (0.8321ms)
+✔ reference candidate validation fails closed for required identity, expected fixtures and duplicate builder input (0.4859ms)
+✔ loadBenchmarkObservation validates non-negative integer counters (2.7522ms)
+✔ loadBenchmarkObservation preserves separate verify and 4R totals (1.6873ms)
+✔ loadBenchmarkObservation rejects unverifiable live provenance (2.5455ms)
+✔ readPhaseCosts aggregates canonical O1 evidence (2.1827ms)
+✔ readPhaseCosts rejects plausible but non-canonical synthetic rows (1.7062ms)
+✔ verifyBenchmarkProvenance binds declared provenance to transcript bytes and trusted CLI (2.977ms)
+✔ parseCodexTranscript and provenance verification reject replay identity gaps (2.0467ms)
+✔ parseCodexTranscript rejects duplicate starts, mixed sessions and ambiguous terminal events (0.2943ms)
+✔ run benchmark rows use terminal usage without phase attribution or invented dispatch data (0.3129ms)
+✔ verifyPhaseCostBindings rejects prefix-only rows without full persisted-row attestation (0.3939ms)
+✔ benchmark observation cannot post-declare an O1 host binding (1.8142ms)
+✔ readPhaseCosts fails closed on malformed/noncanonical lines, missing final newline and phase drift (3.7494ms)
+✔ readPhaseCosts accepts redacted cost_observability metadata and verifies its attestation (1.8643ms)
+✔ observable binding is accepted only with exhaustive ordered row attestation and authentication none (0.3401ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 87.7949

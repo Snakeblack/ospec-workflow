@@ -1,0 +1,58 @@
+✖ reference candidate requires the exact fixed live set and renders canonical JSON (0.8727ms)
+✖ reference quality is derived only from verified canonical verify and 4R outcomes (0.1266ms)
+✖ reference candidate validation fails closed for required identity, expected fixtures and duplicate builder input (0.1614ms)
+✔ loadBenchmarkObservation validates non-negative integer counters (3.53ms)
+✔ loadBenchmarkObservation preserves separate verify and 4R totals (2.0693ms)
+✔ loadBenchmarkObservation rejects unverifiable live provenance (8.2159ms)
+✔ readPhaseCosts aggregates canonical O1 evidence (2.654ms)
+✔ readPhaseCosts rejects plausible but non-canonical synthetic rows (6.5847ms)
+✔ verifyBenchmarkProvenance binds declared provenance to transcript bytes and trusted CLI (2.961ms)
+✔ parseCodexTranscript and provenance verification reject replay identity gaps (6.447ms)
+✔ parseCodexTranscript rejects duplicate starts, mixed sessions and ambiguous terminal events (0.2863ms)
+✔ run benchmark rows use terminal usage without phase attribution or invented dispatch data (0.436ms)
+✔ verifyPhaseCostBindings rejects prefix-only rows without full persisted-row attestation (0.3747ms)
+✔ benchmark observation cannot post-declare an O1 host binding (6.0598ms)
+✔ readPhaseCosts fails closed on malformed/noncanonical lines, missing final newline and phase drift (3.8023ms)
+✔ readPhaseCosts accepts redacted cost_observability metadata and verifies its attestation (6.7332ms)
+✔ observable binding is accepted only with exhaustive ordered row attestation and authentication none (0.3403ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 14
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 112.2737
+
+✖ failing tests:
+
+test at scripts\evals\lib\benchmark.test.js:54:1
+✖ reference candidate requires the exact fixed live set and renders canonical JSON (0.8727ms)
+  TypeError: buildReferenceCandidate is not a function
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\replay-fixed-policy-final-3cf33f91\scripts\evals\lib\benchmark.test.js:56:21)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.start (node:internal/test_runner/test:1177:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17)
+
+test at scripts\evals\lib\benchmark.test.js:69:1
+✖ reference quality is derived only from verified canonical verify and 4R outcomes (0.1266ms)
+  TypeError: deriveReferenceQuality is not a function
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\replay-fixed-policy-final-3cf33f91\scripts\evals\lib\benchmark.test.js:70:16)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3)
+
+test at scripts\evals\lib\benchmark.test.js:78:1
+✖ reference candidate validation fails closed for required identity, expected fixtures and duplicate builder input (0.1614ms)
+  TypeError: buildReferenceCandidate is not a function
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\replay-fixed-policy-final-3cf33f91\scripts\evals\lib\benchmark.test.js:82:21)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)

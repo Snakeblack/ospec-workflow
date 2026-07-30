@@ -1,0 +1,27 @@
+✖ fixed catalog freezes nine reference identities and preserves the three-profile smoke set (0.5444ms)
+✔ safe prompt treats native O1 as supplementary and lite does not force 4R (0.4011ms)
+✔ fixture contracts match route artifacts and product files (2.0729ms)
+✔ route artifacts are derived exactly from declared phases (0.5683ms)
+✔ safe export manifest contains only synthetic allowlisted files and deterministic hashes (0.5606ms)
+✔ materialized export is outside checkout and rejects extra files or symlinks (603.6304ms)
+✔ safe payload scanner rejects absolute paths and sensitive content (0.2117ms)
+✔ dry-run export manifest performs no live spawn and prints complete JSON (186.8581ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 7
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 876.1894
+
+✖ failing tests:
+
+test at scripts\evals\safe-export.test.js:22:1
+✖ fixed catalog freezes nine reference identities and preserves the three-profile smoke set (0.5444ms)
+  TypeError: Cannot read properties of undefined (reading 'length')
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\replay-fixed-policy-final-3cf33f91\scripts\evals\safe-export.test.js:23:45)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.start (node:internal/test_runner/test:1177:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17)

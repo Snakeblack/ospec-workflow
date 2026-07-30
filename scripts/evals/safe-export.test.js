@@ -15,7 +15,23 @@ const {
   validateSafePayload,
   verifySafeExportFile,
   assertSyntheticGitOutcome,
+  REFERENCE_BENCHMARK_PROFILES,
+  SMOKE_BENCHMARK_PROFILES,
 } = require("./safe-export.js");
+
+test("fixed catalog freezes nine reference identities and preserves the three-profile smoke set", () => {
+  assert.equal(REFERENCE_BENCHMARK_PROFILES.length, 9);
+  assert.equal(new Set(REFERENCE_BENCHMARK_PROFILES).size, 9);
+  assert.deepEqual(SMOKE_BENCHMARK_PROFILES, ["docs-one-file", "small-bugfix", "security-sensitive-change"]);
+  for (const profile of REFERENCE_BENCHMARK_PROFILES) {
+    const manifest = buildSafeExportManifest(profile);
+    assert.deepEqual(manifest.benchmark_contract.fixed_policy, { policy: "fixed", fixture_source: "embedded-synthetic-catalog", synthetic_payload: true });
+    assert.deepEqual(
+      { policy: manifest.benchmark_contract.policy, fixture_source: manifest.benchmark_contract.fixture_source, synthetic_payload: manifest.benchmark_contract.synthetic_payload },
+      { policy: "fixed", fixture_source: "embedded-synthetic-catalog", synthetic_payload: true },
+    );
+  }
+});
 
 test("safe prompt treats native O1 as supplementary and lite does not force 4R", () => {
   const prompt = buildSafePrompt("docs-one-file");
