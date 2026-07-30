@@ -7,14 +7,53 @@ const EVIDENCE_SECTION = "json:strict-tdd-evidence";
 const ALLOWED_ORIGINS = Object.freeze(["spec-gap", "design-gap", "tasks-gap", "code-bug"]);
 const CYCLE_MARKERS = new Set(["✅ Written", "✅ Passed", "PASS", "pass", "written", "passed"]);
 const DEFAULT_HISTORICAL_SNAPSHOT_DIR = ".ospec/strict-tdd-historical";
+const RUNTIME_RECEIPT_AUTHORITY = "runtime-test";
+const RAW_DIGEST_POLICY = "sha256-raw-v1";
+const LF_DIGEST_POLICY = "sha256-lf-v1";
 /** Hash text/file payloads with CRLF normalized to LF so Windows checkouts match pinned digests. */
 function digestPayload(value) {
   if (Buffer.isBuffer(value)) return Buffer.from(value.toString("utf8").replace(/\r\n/g, "\n"), "utf8");
   return String(value).replace(/\r\n/g, "\n");
 }
 const sha256 = value => `sha256:${crypto.createHash("sha256").update(digestPayload(value)).digest("hex")}`;
+const rawSha256 = value => `sha256:${crypto.createHash("sha256").update(value).digest("hex")}`;
 function safeFile(absolute) { try { return fs.statSync(absolute).isFile(); } catch { return false; } }
 function safeRead(absolute, encoding) { try { return fs.readFileSync(absolute, encoding); } catch { return null; } }
+function safeRelativePath(value) {
+  if (typeof value !== "string" || !value || value.includes("\0") || path.isAbsolute(value) || path.win32.isAbsolute(value)) return null;
+  const normalized = value.replace(/\\/g, "/");
+  if (normalized.split("/").some(part => !part || part === "." || part === "..")) return null;
+  return normalized;
+}
+function confinedExistingPath(rootDir, relativePath, options = {}) {
+  const relative = safeRelativePath(relativePath);
+  if (!rootDir || !relative) return null;
+  const root = path.resolve(rootDir);
+  const absolute = path.resolve(root, relative);
+  if (!absolute.startsWith(root + path.sep)) return null;
+  try {
+    const realRoot = fs.realpathSync(root);
+    const realTarget = fs.realpathSync(absolute);
+    if (!realTarget.startsWith(realRoot + path.sep)) return null;
+    if (options.file && !fs.statSync(realTarget).isFile()) return null;
+    return { relative, absolute, real: realTarget };
+  } catch {
+    return null;
+  }
+}
+function runtimeReceiptPrefix(change) {
+  return /^[a-z0-9][a-z0-9_-]*$/.test(String(change || ""))
+    ? `openspec/changes/${change}/evidence/receipts/`
+    : null;
+}
+function resolveRuntimeArtifact(rootDir, change, relativePath, extension) {
+  const prefix = runtimeReceiptPrefix(change);
+  const relative = safeRelativePath(relativePath);
+  if (!prefix || !relative || !relative.startsWith(prefix)) return null;
+  const name = relative.slice(prefix.length);
+  if (!new RegExp(`^[a-f0-9]{64}\\.${extension}$`, "i").test(name)) return null;
+  return confinedExistingPath(rootDir, relative, { file: true });
+}
 function rootedEvidencePath(rootDir, evidencePath, authorizedChange) {
   if (!rootDir || !/^[a-z0-9][a-z0-9_-]*$/.test(String(authorizedChange)) || typeof evidencePath !== "string" || path.isAbsolute(evidencePath) || path.win32.isAbsolute(evidencePath) || evidencePath.replace(/\\/g, "/").split("/").includes("..")) return null;
   const root = path.resolve(rootDir), change = path.join(root, "openspec", "changes", authorizedChange), absolute = path.resolve(root, evidencePath);
@@ -130,6 +169,60 @@ function authenticateHistoricalProvenance(rootDir, provenance, options = {}) {
   if (String(body.test_digest || "").toLowerCase() !== String(provenance.test_digest || "").toLowerCase()) return { ok: false, reason_code: "provenance-digest-mismatch" };
   return { ok: true };
 }
+function authenticateRuntimeOutput(rootDir, change, output, extension) {
+  if (!output || output.digest_policy !== RAW_DIGEST_POLICY || !/^sha256:[a-f0-9]{64}$/i.test(String(output.digest || ""))) return { ok: false, reason_code: "runtime-output-reference-invalid" };
+  const resolved = resolveRuntimeArtifact(rootDir, change, output.path, extension);
+  if (!resolved) return { ok: false, reason_code: "runtime-output-path-invalid" };
+  const bytes = safeRead(resolved.absolute);
+  if (bytes == null) return { ok: false, reason_code: "runtime-output-missing" };
+  if (rawSha256(bytes).toLowerCase() !== String(output.digest).toLowerCase()) return { ok: false, reason_code: "runtime-output-digest-mismatch" };
+  return { ok: true };
+}
+function authenticateRuntimeReceipt(rootDir, record, cycle, phase) {
+  const provenance = cycle && cycle.provenance;
+  if (!provenance || provenance.source !== "runtime-receipt") return { ok: false, reason_code: "runtime-receipt-source-invalid" };
+  const red = phase === "RED";
+  const command = red ? provenance.red_command : provenance.command;
+  const receiptId = red ? provenance.red_receipt_id : provenance.receipt_id;
+  const receiptPath = red ? provenance.red_receipt_path : provenance.receipt_path;
+  const testDigest = red ? provenance.red_test_digest : provenance.test_digest;
+  if (!command) return { ok: false, reason_code: "runtime-receipt-command-missing" };
+  if (!receiptId || !receiptPath || !testDigest) return { ok: false, reason_code: "runtime-receipt-reference-missing" };
+  if (!/^sha256:[a-f0-9]{64}$/i.test(String(receiptId)) || !/^sha256:[a-f0-9]{64}$/i.test(String(testDigest))) return { ok: false, reason_code: "runtime-receipt-reference-invalid" };
+  const resolved = resolveRuntimeArtifact(rootDir, record.change, receiptPath, "json");
+  if (!resolved) {
+    const safe = safeRelativePath(receiptPath);
+    const prefix = runtimeReceiptPrefix(record.change);
+    return { ok: false, reason_code: !safe || !prefix || !safe.startsWith(prefix) ? "runtime-receipt-path-invalid" : "runtime-receipt-missing" };
+  }
+  const bytes = safeRead(resolved.absolute);
+  if (bytes == null) return { ok: false, reason_code: "runtime-receipt-missing" };
+  const contentDigest = rawSha256(bytes);
+  if (contentDigest.toLowerCase() !== String(receiptId).toLowerCase() || path.basename(resolved.relative, ".json").toLowerCase() !== String(receiptId).slice(7).toLowerCase()) return { ok: false, reason_code: "runtime-receipt-digest-mismatch" };
+  let receipt;
+  try { receipt = JSON.parse(bytes.toString("utf8")); } catch { return { ok: false, reason_code: "runtime-receipt-malformed" }; }
+  const candidate = candidateIdentity(record.functional_snapshot);
+  const expected = {
+    authority: RUNTIME_RECEIPT_AUTHORITY,
+    digest_policy: RAW_DIGEST_POLICY,
+    test_digest_policy: LF_DIGEST_POLICY,
+    change: record.change,
+    phase,
+    base_tree: record.functional_snapshot.base_tree,
+    candidate_id: candidate.id,
+    test_file: cycle.test_file,
+    test_digest: String(testDigest).toLowerCase(),
+    command,
+    outcome: red ? "fail" : "pass"
+  };
+  for (const [key, value] of Object.entries(expected)) if (receipt[key] !== value) return { ok: false, reason_code: "runtime-receipt-binding-mismatch" };
+  if (!Number.isInteger(receipt.exit_code) || (red ? receipt.exit_code === 0 : receipt.exit_code !== 0)) return { ok: false, reason_code: "runtime-receipt-outcome-invalid" };
+  const stdout = authenticateRuntimeOutput(rootDir, record.change, receipt.stdout, "stdout");
+  if (!stdout.ok) return stdout;
+  const stderr = authenticateRuntimeOutput(rootDir, record.change, receipt.stderr, "stderr");
+  if (!stderr.ok) return stderr;
+  return { ok: true, phase, receipt_id: receiptId, receipt_path: resolved.relative, receipt_digest: contentDigest, receipt };
+}
 function validateEvidenceRecord(input, options = {}) {
   if (!options.rootDir) return { valid: false, reason_code: "root-dir-required", severity: "CRITICAL" };
   const parsed = typeof input === "string" ? parseEvidenceBlock(input) : { valid: true, record: input };
@@ -146,16 +239,22 @@ function validateEvidenceRecord(input, options = {}) {
   // Live mode alone revalidates mutable working-tree bytes; historical never does.
   if (root && snap && !historical) {
     for (const file of snap.files) {
-      const absolute = path.resolve(root, file.path);
-      const content = safeFile(absolute) && safeRead(absolute);
-      if (content == null) errors.push("snapshot-file-unverifiable");
+      const resolved = confinedExistingPath(root, file.path, { file: true });
+      if (!safeRelativePath(file.path) || (!resolved && fs.existsSync(path.resolve(root, file.path)))) errors.push("unsafe-evidence-path");
+      const content = resolved && safeRead(resolved.absolute);
+      if (!resolved && !errors.includes("unsafe-evidence-path")) errors.push("snapshot-file-unverifiable");
       else if (sha256(content) !== String(file.digest).toLowerCase()) errors.push("snapshot-digest-mismatch");
     }
-    for (const genesis of snap.genesis_paths) if (!fs.existsSync(path.resolve(root, genesis))) errors.push("genesis-path-unverifiable");
+    for (const genesis of snap.genesis_paths) {
+      const resolved = confinedExistingPath(root, genesis);
+      if (!safeRelativePath(genesis) || (!resolved && fs.existsSync(path.resolve(root, genesis)))) errors.push("unsafe-evidence-path");
+      else if (!resolved) errors.push("genesis-path-unverifiable");
+    }
   }
   const cycles = record && record.cycles;
   if (!Array.isArray(cycles) || !cycles.length) errors.push("cycles-missing");
-  let authenticity = historical ? "legacy-unverifiable" : "live";
+  let authenticity = historical ? "legacy-unverifiable" : "live-unverified";
+  const runtime_receipts = [];
   for (const c of cycles || []) {
     for (const key of ["task", "test_file", "red", "green", "triangulate", "refactor"]) if (!c[key]) errors.push(`cycle-${key}-missing`);
     for (const key of ["red", "green", "triangulate", "refactor"]) if (c[key] && !CYCLE_MARKERS.has(c[key])) errors.push(`cycle-${key}-enum-invalid`);
@@ -171,17 +270,31 @@ function validateEvidenceRecord(input, options = {}) {
         if (root) { const auth = authenticateHistoricalProvenance(root, c.provenance, options); if (!auth.ok) errors.push(auth.reason_code); }
       }
     } else if (legacy) errors.push("evidence-mode-cycle-mismatch");
+    else {
+      const sourceValid = c.provenance && c.provenance.source === "runtime-receipt";
+      if (!sourceValid) errors.push("runtime-receipt-source-invalid");
+      if (root && sourceValid) {
+        for (const phase of ["GREEN", "RED"]) {
+          const authenticated = authenticateRuntimeReceipt(root, record, c, phase);
+          if (!authenticated.ok) errors.push(authenticated.reason_code);
+          else runtime_receipts.push(authenticated);
+        }
+      }
+    }
     if (options.requireProvenanceDigest && !legacy && (!c.provenance || !c.provenance.test_digest)) errors.push("provenance-digest-missing");
     if (options.testFiles && !options.testFiles.includes(c.test_file)) errors.push("test-file-unverifiable");
     // Live-only digest/file checks — historical authenticates sealed refs above.
     if (root && !historical) {
-      const testPath = path.resolve(root, c.test_file);
-      const content = safeFile(testPath) && safeRead(testPath);
-      if (content == null) errors.push("test-file-unverifiable");
+      const resolved = confinedExistingPath(root, c.test_file, { file: true });
+      const content = resolved && safeRead(resolved.absolute);
+      if (!safeRelativePath(c.test_file) || (!resolved && fs.existsSync(path.resolve(root, c.test_file)))) errors.push("unsafe-evidence-path");
+      else if (content == null) errors.push("test-file-unverifiable");
       if (options.requireProvenanceDigest && !legacy && c.provenance && c.provenance.test_digest && content != null && sha256(content) !== String(c.provenance.test_digest).toLowerCase()) errors.push("provenance-digest-mismatch");
     }
   }
-  return errors.length ? { valid: false, reason_code: errors[0], errors, severity: "CRITICAL" } : { valid: true, record, candidate: candidateIdentity(snap), authenticity, severity: "CRITICAL" };
+  if (!historical && runtime_receipts.length === (cycles || []).length * 2) authenticity = "runtime-authenticated";
+  if (!historical && authenticity !== "runtime-authenticated" && options.allowLiveUnverified !== true) errors.push("runtime-receipt-unverified");
+  return errors.length ? { valid: false, reason_code: errors[0], errors, severity: "CRITICAL" } : { valid: true, record, candidate: candidateIdentity(snap), authenticity, runtime_receipts, severity: "CRITICAL" };
 }
 function isEvidenceOnlyPath(filePath) { const p = String(filePath || "").replace(/\\/g, "/"); return /(^|\/)apply-progress\.md$/.test(p); }
 const isAllowlistedWrite = paths => (paths || []).every(isEvidenceOnlyPath);
@@ -327,4 +440,60 @@ function reduce(state, event = {}) {
   }
   return next;
 }
-module.exports = { MAX_HARD_CAP, EVIDENCE_SECTION, ALLOWED_ORIGINS, sha256, canonical, sortedPaths, parseEvidenceBlock, extractEvidenceRecord: parseEvidenceBlock, digestEvidenceSection, renderEvidenceTable, compareEvidenceRendering, extractEvidenceRegion, captureEvidenceSnapshot, finalizeEvidence, assertFinalized, normalizeEvidenceRecord, normalize: normalizeEvidenceRecord, validateEvidenceRecord, validate: validateEvidenceRecord, candidateIdentity, computeCandidateIdentity: candidateIdentity, functionalSnapshotHash: candidateIdentity, sameIdentity, rootedEvidencePath, isEvidenceOnlyPath, isAllowlistedPath: isEvidenceOnlyPath, isAllowlistedWrite, withinChangedLineCap, resolveChangedLineCap, liveReceiptValid, historicalRefPath, writeHistoricalSnapshot, authenticateHistoricalProvenance, classifyRemediation, classify: classifyRemediation, reduce, reducer: reduce, transition: reduce };
+function writeContentAddressedFile(rootDir, change, extension, bytes) {
+  const prefix = runtimeReceiptPrefix(change);
+  if (!rootDir || !prefix) return { valid: false, reason_code: "runtime-receipt-change-invalid" };
+  const root = path.resolve(rootDir);
+  const changeDir = path.join(root, "openspec", "changes", change);
+  if (!confinedExistingPath(root, `openspec/changes/${change}`)) return { valid: false, reason_code: "runtime-receipt-change-invalid" };
+  const receiptDir = path.join(changeDir, "evidence", "receipts");
+  try {
+    fs.mkdirSync(receiptDir, { recursive: true });
+    const realRoot = fs.realpathSync(root);
+    const realReceiptDir = fs.realpathSync(receiptDir);
+    if (!realReceiptDir.startsWith(realRoot + path.sep)) return { valid: false, reason_code: "runtime-receipt-path-invalid" };
+    const digest = rawSha256(bytes);
+    const relative = `${prefix}${digest.slice(7)}.${extension}`;
+    const absolute = path.join(root, ...relative.split("/"));
+    const existing = safeRead(absolute);
+    if (existing == null) fs.writeFileSync(absolute, bytes, { flag: "wx" });
+    else if (rawSha256(existing) !== digest) return { valid: false, reason_code: "runtime-receipt-digest-mismatch" };
+    return { valid: true, digest, path: relative };
+  } catch {
+    return { valid: false, reason_code: "runtime-receipt-write-failed" };
+  }
+}
+function persistRuntimeReceipt(rootDir, input = {}) {
+  const required = ["change", "phase", "base_tree", "candidate_id", "test_file", "test_digest", "command", "outcome"];
+  if (required.some(key => !input[key]) || !["GREEN", "RED"].includes(input.phase)) return { valid: false, reason_code: "runtime-receipt-body-invalid" };
+  const exitCode = Number(input.exit_code);
+  if (!Number.isInteger(exitCode) || (input.phase === "GREEN" ? exitCode !== 0 || input.outcome !== "pass" : exitCode === 0 || input.outcome !== "fail")) return { valid: false, reason_code: "runtime-receipt-outcome-invalid" };
+  const stdout = writeContentAddressedFile(rootDir, input.change, "stdout", Buffer.isBuffer(input.stdout) ? input.stdout : Buffer.from(input.stdout || ""));
+  if (!stdout.valid) return stdout;
+  const stderr = writeContentAddressedFile(rootDir, input.change, "stderr", Buffer.isBuffer(input.stderr) ? input.stderr : Buffer.from(input.stderr || ""));
+  if (!stderr.valid) return stderr;
+  const receipt = {
+    schema_version: 1,
+    authority: RUNTIME_RECEIPT_AUTHORITY,
+    digest_policy: RAW_DIGEST_POLICY,
+    test_digest_policy: LF_DIGEST_POLICY,
+    change: input.change,
+    phase: input.phase,
+    base_tree: input.base_tree,
+    candidate_id: input.candidate_id,
+    test_file: input.test_file,
+    test_digest: String(input.test_digest).toLowerCase(),
+    command: input.command,
+    exit_code: exitCode,
+    outcome: input.outcome,
+    stdout: { path: stdout.path, digest: stdout.digest, digest_policy: RAW_DIGEST_POLICY },
+    stderr: { path: stderr.path, digest: stderr.digest, digest_policy: RAW_DIGEST_POLICY }
+  };
+  if (input.source_receipt_id) receipt.source_receipt_id = input.source_receipt_id;
+  const bytes = Buffer.from(`${JSON.stringify(canonical(receipt))}\n`);
+  const persisted = writeContentAddressedFile(rootDir, input.change, "json", bytes);
+  return persisted.valid
+    ? { valid: true, receipt, receipt_id: persisted.digest, receipt_path: persisted.path }
+    : persisted;
+}
+module.exports = { MAX_HARD_CAP, EVIDENCE_SECTION, ALLOWED_ORIGINS, RUNTIME_RECEIPT_AUTHORITY, RAW_DIGEST_POLICY, LF_DIGEST_POLICY, sha256, rawSha256, canonical, sortedPaths, safeRelativePath, confinedExistingPath, parseEvidenceBlock, extractEvidenceRecord: parseEvidenceBlock, digestEvidenceSection, renderEvidenceTable, compareEvidenceRendering, extractEvidenceRegion, captureEvidenceSnapshot, finalizeEvidence, assertFinalized, normalizeEvidenceRecord, normalize: normalizeEvidenceRecord, persistRuntimeReceipt, authenticateRuntimeReceipt, validateEvidenceRecord, validate: validateEvidenceRecord, candidateIdentity, computeCandidateIdentity: candidateIdentity, functionalSnapshotHash: candidateIdentity, sameIdentity, rootedEvidencePath, isEvidenceOnlyPath, isAllowlistedPath: isEvidenceOnlyPath, isAllowlistedWrite, withinChangedLineCap, resolveChangedLineCap, liveReceiptValid, historicalRefPath, writeHistoricalSnapshot, authenticateHistoricalProvenance, classifyRemediation, classify: classifyRemediation, reduce, reducer: reduce, transition: reduce };

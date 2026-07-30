@@ -1,8 +1,156 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const r = require("./lib/strict-tdd-evidence-remediation.js");
+const rawDigest = value => `sha256:${crypto.createHash("sha256").update(value).digest("hex")}`;
+const canonicalJson = value => JSON.stringify((function sort(input) {
+  if (Array.isArray(input)) return input.map(sort);
+  if (input && typeof input === "object" && !Buffer.isBuffer(input)) return Object.fromEntries(Object.keys(input).sort().map(key => [key, sort(input[key])]));
+  return input;
+})(value));
+const clone = value => JSON.parse(JSON.stringify(value));
+
+test("legacy exception retirement keeps only generic runtime evidence APIs", t => {
+  const forbidden = [
+    "evaluateLegacyEvidenceException",
+    "finalizeLegacyEvidenceException",
+    "runLegacyEvidenceExceptionFlow"
+  ];
+  const forbiddenExports = Object.keys(r).filter(name =>
+    forbidden.includes(name) || name.startsWith("LEGACY_EXCEPTION_")
+  );
+  assert.deepEqual(forbiddenExports, [], `legacy exception exports remain: ${forbiddenExports.join(", ")}`);
+  assert.equal(
+    fs.existsSync(path.join(__dirname, "lib", "legacy-evidence-exception-flow.js")),
+    false,
+    "legacy exception flow module must be removed"
+  );
+  for (const name of ["persistRuntimeReceipt", "authenticateRuntimeReceipt", "validateEvidenceRecord"]) {
+    assert.equal(typeof r[name], "function", `${name} must remain exported`);
+  }
+
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "strict-tdd-confinement-"));
+  t.after(() => fs.rmSync(rootDir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(rootDir, "safe"), { recursive: true });
+  fs.writeFileSync(path.join(rootDir, "safe", "receipt.json"), "{}\n");
+  assert.equal(r.confinedExistingPath(rootDir, "safe/receipt.json", { file: true }).relative, "safe/receipt.json");
+  assert.equal(r.confinedExistingPath(rootDir, "../receipt.json", { file: true }), null);
+  assert.equal(r.confinedExistingPath(rootDir, path.join(rootDir, "safe", "receipt.json"), { file: true }), null);
+});
+
+function writeIndependentRuntimeReceipt(rootDir, body, streams = {}) {
+  const receiptDir = path.join(rootDir, "openspec", "changes", body.change, "evidence", "receipts");
+  fs.mkdirSync(receiptDir, { recursive: true });
+  const streamRef = (name, value) => {
+    const bytes = Buffer.from(value || "");
+    const digest = rawDigest(bytes);
+    const relative = `openspec/changes/${body.change}/evidence/receipts/${digest.slice(7)}.${name}`;
+    fs.writeFileSync(path.join(rootDir, relative), bytes);
+    return { path: relative, digest, digest_policy: "sha256-raw-v1" };
+  };
+  const receipt = {
+    schema_version: 1,
+    authority: "runtime-test",
+    digest_policy: "sha256-raw-v1",
+    test_digest_policy: "sha256-lf-v1",
+    ...body,
+    stdout: streamRef("stdout", streams.stdout),
+    stderr: streamRef("stderr", streams.stderr)
+  };
+  const bytes = Buffer.from(`${canonicalJson(receipt)}\n`);
+  const digest = rawDigest(bytes);
+  const relative = `openspec/changes/${body.change}/evidence/receipts/${digest.slice(7)}.json`;
+  fs.writeFileSync(path.join(rootDir, relative), bytes);
+  return { receipt, receipt_id: digest, receipt_path: relative };
+}
+function runtimeFixture(t, change = "runtime-auth-fixture", providedRootDir = null) {
+  const rootDir = providedRootDir || fs.mkdtempSync(path.join(os.tmpdir(), "strict-tdd-runtime-"));
+  if (t && !providedRootDir) t.after(() => fs.rmSync(rootDir, { recursive: true, force: true }));
+  const functionalPath = "src/feature.js";
+  const testFile = "test/feature.test.js";
+  const verificationTestFile = "test/evidence.test.js";
+  fs.mkdirSync(path.join(rootDir, "src"), { recursive: true });
+  fs.mkdirSync(path.join(rootDir, "test"), { recursive: true });
+  fs.writeFileSync(path.join(rootDir, functionalPath), "module.exports = 1;\n");
+  fs.writeFileSync(path.join(rootDir, testFile), "test('feature', () => {});\n");
+  fs.writeFileSync(path.join(rootDir, verificationTestFile), "test('evidence', () => {});\n");
+  const testDigest = r.sha256(fs.readFileSync(path.join(rootDir, testFile)));
+  const verificationTestDigest = r.sha256(fs.readFileSync(path.join(rootDir, verificationTestFile)));
+  const functional_snapshot = {
+    projection: "strict-tdd-functional-v1",
+    base_tree: "base-tree",
+    genesis_paths: [functionalPath, testFile],
+    files: [{ path: functionalPath, digest: r.sha256(fs.readFileSync(path.join(rootDir, functionalPath))) }]
+  };
+  const candidate = r.candidateIdentity(functional_snapshot);
+  const common = {
+    change,
+    base_tree: functional_snapshot.base_tree,
+    candidate_id: candidate.id,
+    test_file: testFile,
+    test_digest: testDigest,
+    command: `node --test ${testFile}`
+  };
+  const green = writeIndependentRuntimeReceipt(rootDir, { ...common, phase: "GREEN", exit_code: 0, outcome: "pass" }, { stdout: "1..1\n# pass 1\n" });
+  const red = writeIndependentRuntimeReceipt(rootDir, { ...common, phase: "RED", exit_code: 1, outcome: "fail" }, { stderr: "AssertionError\n" });
+  const verificationCommon = { ...common, test_file: verificationTestFile, test_digest: verificationTestDigest, command: `node --test ${verificationTestFile}` };
+  const verificationGreen = writeIndependentRuntimeReceipt(rootDir, { ...verificationCommon, phase: "GREEN", exit_code: 0, outcome: "pass" }, { stdout: "1..1\n# pass 1\n" });
+  const verificationRed = writeIndependentRuntimeReceipt(rootDir, { ...verificationCommon, phase: "RED", exit_code: 1, outcome: "fail" }, { stderr: "AssertionError\n" });
+  const record = {
+    schema_version: 1,
+    change,
+    evidence_mode: "live",
+    functional_snapshot,
+    cycles: [{
+      task: "1.1",
+      test_file: testFile,
+      layer: "unit",
+      safety_net: "✅ Passed",
+      red: "✅ Written",
+      green: "✅ Passed",
+      triangulate: "✅ Written",
+      refactor: "✅ Passed",
+      provenance: {
+        source: "runtime-receipt",
+        test_file: testFile,
+        test_digest: testDigest,
+        command: common.command,
+        receipt_id: green.receipt_id,
+        receipt_path: green.receipt_path,
+        red_command: common.command,
+        red_test_digest: testDigest,
+        red_receipt_id: red.receipt_id,
+        red_receipt_path: red.receipt_path
+      }
+    }, {
+      task: "1.2",
+      test_file: verificationTestFile,
+      layer: "integration",
+      safety_net: "✅ Passed",
+      red: "✅ Written",
+      green: "✅ Passed",
+      triangulate: "✅ Written",
+      refactor: "✅ Passed",
+      provenance: {
+        source: "runtime-receipt",
+        test_file: verificationTestFile,
+        test_digest: verificationTestDigest,
+        command: verificationCommon.command,
+        receipt_id: verificationGreen.receipt_id,
+        receipt_path: verificationGreen.receipt_path,
+        red_command: verificationCommon.command,
+        red_test_digest: verificationTestDigest,
+        red_receipt_id: verificationRed.receipt_id,
+        red_receipt_path: verificationRed.receipt_path
+      }
+    }]
+  };
+  return { rootDir, record, candidate, green, red, verificationGreen, verificationRed, functionalPath, testFile, verificationTestFile };
+}
 const evidencePath = "openspec/changes/archive/2026-07-25-strict-tdd-evidence-remediation-fast-path/apply-progress.md";
 const evidenceProof = () => ({ evidencePath, evidenceDigest: r.sha256(fs.readFileSync(evidencePath)) });
 const stateProof = state => ({ candidate_digest: r.sha256(JSON.stringify(r.canonical(state.candidate))), finding_digest: state.original_finding.digest });
@@ -14,8 +162,30 @@ const gapFixtureRecord = r.parseEvidenceBlock(gapFixtureSource).record;
 gapFixtureRecord.change = "strict-tdd-test-fixture";
 gapFixtureRecord.evidence_mode = "live";
 gapFixtureRecord.functional_snapshot.genesis_paths.push(gapEvidencePath);
-Object.assign(gapFixtureRecord.cycles[0].provenance, { source: "runtime-receipt", command: "node --test scripts/fixtures/strict-tdd-fast-path/functional.test.js", receipt_id: "sha256:" + "a".repeat(64) });
 fs.mkdirSync("openspec/changes/strict-tdd-test-fixture", { recursive: true });
+const gapCycle = gapFixtureRecord.cycles[0];
+const gapCandidate = r.candidateIdentity(gapFixtureRecord.functional_snapshot);
+const gapCommand = "node --test scripts/fixtures/strict-tdd-fast-path/functional.test.js";
+const gapReceiptBody = {
+  change: gapFixtureRecord.change,
+  base_tree: gapFixtureRecord.functional_snapshot.base_tree,
+  candidate_id: gapCandidate.id,
+  test_file: gapCycle.test_file,
+  test_digest: gapCycle.provenance.test_digest,
+  command: gapCommand
+};
+const gapGreen = writeIndependentRuntimeReceipt(process.cwd(), { ...gapReceiptBody, phase: "GREEN", exit_code: 0, outcome: "pass" }, { stdout: "1..1\n# pass 1\n" });
+const gapRed = writeIndependentRuntimeReceipt(process.cwd(), { ...gapReceiptBody, phase: "RED", exit_code: 1, outcome: "fail" }, { stderr: "AssertionError\n" });
+Object.assign(gapCycle.provenance, {
+  source: "runtime-receipt",
+  command: gapCommand,
+  receipt_id: gapGreen.receipt_id,
+  receipt_path: gapGreen.receipt_path,
+  red_command: gapCommand,
+  red_test_digest: gapCycle.provenance.test_digest,
+  red_receipt_id: gapRed.receipt_id,
+  red_receipt_path: gapRed.receipt_path
+});
 fs.writeFileSync(gapEvidencePath, gapFixtureSource.replace(/```json:strict-tdd-evidence\s*[\s\S]*?```/, `\`\`\`json:strict-tdd-evidence\n${JSON.stringify(gapFixtureRecord)}\n\`\`\``));
 test.after(() => fs.rmSync("openspec/changes/strict-tdd-test-fixture", { recursive: true, force: true }));
 
@@ -67,6 +237,109 @@ test("valid evidence normalizes and hashes deterministically", () => {
   assert.equal(a.valid, true); assert.equal(a.candidate.id, b.candidate.id);
   assert.equal(r.sha256("line\n"), r.sha256("line\r\n"));
   assert.equal(r.sha256(Buffer.from("line\n")), r.sha256(Buffer.from("line\r\n")));
+});
+test("RED runtime evidence authenticates content-addressed GREEN and RED receipts", t => {
+  const fixture = runtimeFixture(t);
+  const validated = r.validateEvidenceRecord(fixture.record, { rootDir: fixture.rootDir, requireProvenanceDigest: true });
+  assert.equal(validated.valid, true);
+  assert.equal(validated.authenticity, "runtime-authenticated");
+  assert.equal(validated.runtime_receipts.length, 4);
+});
+test("RED runtime evidence rejects forged sources and loose or incomplete receipt references", t => {
+  const fixture = runtimeFixture(t);
+  const mutations = [
+    ["missing source", provenance => { delete provenance.source; }, "runtime-receipt-source-invalid"],
+    ["forged source", provenance => { provenance.source = "trusted-runtime"; }, "runtime-receipt-source-invalid"],
+    ["missing command", provenance => { delete provenance.command; }, "runtime-receipt-command-missing"],
+    ["tampered command", provenance => { provenance.command += " --forged"; }, "runtime-receipt-binding-mismatch"],
+    ["loose receipt id", provenance => { delete provenance.receipt_path; }, "runtime-receipt-reference-missing"],
+    ["missing RED receipt", provenance => { delete provenance.red_receipt_path; }, "runtime-receipt-reference-missing"]
+  ];
+  for (const [name, mutate, reason] of mutations) {
+    const candidate = clone(fixture.record);
+    mutate(candidate.cycles[0].provenance);
+    const outcome = r.validateEvidenceRecord(candidate, { rootDir: fixture.rootDir, requireProvenanceDigest: true });
+    assert.equal(outcome.valid, false, name);
+    assert.equal(outcome.reason_code, reason, name);
+  }
+});
+test("RED runtime evidence rejects missing, tampered, or differently bound receipt bytes", t => {
+  const cases = [
+    ["missing receipt", ({ rootDir, record }) => fs.rmSync(path.join(rootDir, record.cycles[0].provenance.receipt_path)), "runtime-receipt-missing"],
+    ["receipt content", ({ rootDir, record }) => fs.appendFileSync(path.join(rootDir, record.cycles[0].provenance.receipt_path), " "), "runtime-receipt-digest-mismatch"],
+    ["receipt binding", ({ rootDir, record }) => {
+      const provenance = record.cycles[0].provenance;
+      const absolute = path.join(rootDir, provenance.receipt_path);
+      const receipt = JSON.parse(fs.readFileSync(absolute, "utf8"));
+      receipt.candidate_id = "sha256:" + "0".repeat(64);
+      const bytes = Buffer.from(`${canonicalJson(receipt)}\n`);
+      const digest = rawDigest(bytes);
+      const relative = `openspec/changes/${record.change}/evidence/receipts/${digest.slice(7)}.json`;
+      fs.writeFileSync(path.join(rootDir, relative), bytes);
+      provenance.receipt_id = digest;
+      provenance.receipt_path = relative;
+    }, "runtime-receipt-binding-mismatch"],
+    ["output content", ({ rootDir, green }) => fs.appendFileSync(path.join(rootDir, green.receipt.stdout.path), "forged"), "runtime-output-digest-mismatch"]
+  ];
+  for (const [name, mutate, reason] of cases) {
+    const fixture = runtimeFixture(null, `runtime-${name.replace(/\s+/g, "-")}`);
+    try {
+      mutate(fixture);
+      const outcome = r.validateEvidenceRecord(fixture.record, { rootDir: fixture.rootDir, requireProvenanceDigest: true });
+      assert.equal(outcome.valid, false, name);
+      assert.equal(outcome.reason_code, reason, name);
+    } finally {
+      fs.rmSync(fixture.rootDir, { recursive: true, force: true });
+    }
+  }
+});
+test("RED runtime and snapshot paths reject traversal, absolute paths, and realpath escapes", t => {
+  const fixture = runtimeFixture(t);
+  const outside = path.join(path.dirname(fixture.rootDir), `outside-${process.pid}.js`);
+  fs.writeFileSync(outside, "outside\n");
+  t.after(() => fs.rmSync(outside, { force: true }));
+  const mutations = [
+    ["snapshot traversal", value => { value.functional_snapshot.files[0].path = "../outside.js"; }, "unsafe-evidence-path"],
+    ["snapshot absolute", value => { value.functional_snapshot.files[0].path = outside; }, "unsafe-evidence-path"],
+    ["genesis traversal", value => { value.functional_snapshot.genesis_paths[0] = "../outside.js"; }, "unsafe-evidence-path"],
+    ["receipt traversal", value => { value.cycles[0].provenance.receipt_path = "../receipt.json"; }, "runtime-receipt-path-invalid"],
+    ["receipt absolute", value => { value.cycles[0].provenance.receipt_path = path.join(fixture.rootDir, value.cycles[0].provenance.receipt_path); }, "runtime-receipt-path-invalid"]
+  ];
+  for (const [name, mutate, reason] of mutations) {
+    const value = clone(fixture.record);
+    mutate(value);
+    const outcome = r.validateEvidenceRecord(value, { rootDir: fixture.rootDir, requireProvenanceDigest: true });
+    assert.equal(outcome.valid, false, name);
+    assert.equal(outcome.reason_code, reason, name);
+  }
+  const link = path.join(fixture.rootDir, "src", "escaped.js");
+  try {
+    fs.symlinkSync(outside, link, "file");
+    const value = clone(fixture.record);
+    value.functional_snapshot.files[0] = { path: "src/escaped.js", digest: r.sha256(fs.readFileSync(outside)) };
+    assert.equal(r.validateEvidenceRecord(value, { rootDir: fixture.rootDir }).reason_code, "unsafe-evidence-path");
+  } catch (error) {
+    if (!["EPERM", "EACCES", "UNKNOWN"].includes(error.code)) throw error;
+  }
+});
+test("RED persistRuntimeReceipt writes rehashable confined content-addressed evidence", t => {
+  const fixture = runtimeFixture(t, "persist-runtime");
+  const result = r.persistRuntimeReceipt(fixture.rootDir, {
+    change: fixture.record.change,
+    phase: "GREEN",
+    base_tree: fixture.record.functional_snapshot.base_tree,
+    candidate_id: fixture.candidate.id,
+    test_file: fixture.testFile,
+    test_digest: fixture.record.cycles[0].provenance.test_digest,
+    command: `node --test ${fixture.testFile}`,
+    exit_code: 0,
+    outcome: "pass",
+    stdout: Buffer.from("ok\n"),
+    stderr: Buffer.alloc(0)
+  });
+  assert.equal(result.valid, true);
+  assert.equal(rawDigest(fs.readFileSync(path.join(fixture.rootDir, result.receipt_path))), result.receipt_id);
+  assert.match(result.receipt_path, /^openspec\/changes\/persist-runtime\/evidence\/receipts\/[a-f0-9]{64}\.json$/);
 });
 test("missing provenance is critical ordinary routing", () => {
   const x = r.classifyRemediation({ rootDir: process.cwd(), finding: { id: "f", severity: "CRITICAL", origin: "code-bug" }, record: record({ cycles: [{ task: "1", test_file: "x", red: "pass", green: "pass", triangulate: "pass", refactor: "pass" }] }) });
