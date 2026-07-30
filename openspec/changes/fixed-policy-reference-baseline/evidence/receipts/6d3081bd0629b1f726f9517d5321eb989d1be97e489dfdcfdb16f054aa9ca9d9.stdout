@@ -1,0 +1,103 @@
+✔ live preflight rejects a stale installed O1 producer before spawn (15.9223ms)
+✔ live invocation preserves arguments supplied by the safe launcher (0.7239ms)
+✔ productive execution context derives installed identity and seals the causal model (12.1542ms)
+✔ execution context rejects blank model, forged installed env, stale runtime and preflight failure (134.4293ms)
+✔ installed SubagentStop preflight persists one bound canonical O1 row and cleans up (189.9684ms)
+✔ buildLivePrompt carries the manifest intent and transaction boundary (0.1984ms)
+✔ scoring capability is opaque, workspace-bound, single-use and expiring (1.8102ms)
+✔ productive authorization rejects explicitly labelled test capabilities (1.5473ms)
+✔ host-binding preflight fails closed when O1 is tied only to agent transcripts (0.2226ms)
+✔ runCommandWithTranscript exposes the exact root stream path while the child is running (58.9356ms)
+✔ runCommandWithTranscript rejects replacement of the authenticated path while fd remains open (49.0441ms)
+✔ production module exposes no writable synthetic publisher (0.6558ms)
+✔ productive runLiveSuite rejects callback injection and does not publish synthetic rows (0.8413ms)
+✖ runtime suite coordination preserves sealed non-enumerable evidence for fresh smoke and compatible cache (0.255ms)
+✖ runtime suite coordination publishes only the extended reference candidate (0.1604ms)
+✔ accepted profile cache resumes only an exact compatible sealed result (145.8228ms)
+✔ suite selection supports productive core and extended sets (0.1941ms)
+✖ extended selection is explicitly fixed while smoke stays diagnostic (0.0835ms)
+✔ cache refuses unknown identity and preserves valid supplementary O1 on known identity (16.08ms)
+✔ invalid supplementary O1 degrades without blocking run-level scoring (6.6655ms)
+✔ verify report accepts one canonical block followed only by the anchored verdict grammar (3.2409ms)
+✔ verify report verdict suffix rejects mismatch, extra structures, controls, second paragraph and duplicate block (34.5984ms)
+✔ post-run git allowlist accepts only regular runtime-owned evidence and still rejects arbitrary untracked or symlink paths (621.2732ms)
+✖ offline recovery replays completed host post-exit validation and persists only a compatible cache result (681.0157ms)
+✔ offline recovery fails closed for unsafe roots, profile mismatch, missing identity and incomplete or tampered transcript (1703.6882ms)
+✔ weighted post-exit O1 fallback is not importable or present in production source (0.4976ms)
+✔ deriveHostObservation consumes deterministic structured evidence and rejects missing/mismatched sets (10.0524ms)
+✔ parseCodexTranscript requires real JSONL session and usage evidence (0.2193ms)
+✔ finalizeLiveObservation derives provenance from the transcript and preserves observed counters (8.3705ms)
+ℹ tests 29
+ℹ suites 0
+ℹ pass 25
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3775.3571
+
+✖ failing tests:
+
+test at scripts\evals\live-driver.test.js:289:1
+✖ runtime suite coordination preserves sealed non-enumerable evidence for fresh smoke and compatible cache (0.255ms)
+  TypeError: testing.runLiveSuite is not a function
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\replay-fixed-policy-final-3cf33f91\scripts\evals\live-driver.test.js:298:26)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\evals\live-driver.test.js:328:1
+✖ runtime suite coordination publishes only the extended reference candidate (0.1604ms)
+  TypeError: testing.runLiveSuite is not a function
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\replay-fixed-policy-final-3cf33f91\scripts\evals\live-driver.test.js:339:25)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\evals\live-driver.test.js:379:1
+✖ extended selection is explicitly fixed while smoke stays diagnostic (0.0835ms)
+  TypeError: resolveSuiteSelectionDetails is not a function
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\replay-fixed-policy-final-3cf33f91\scripts\evals\live-driver.test.js:380:20)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\evals\live-driver.test.js:463:1
+✖ offline recovery replays completed host post-exit validation and persists only a compatible cache result (681.0157ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + undefined
+  - {
+  -   four_r: {
+  -     outcome: 'NOT_RUN'
+  -   },
+  -   state_status: 'verified',
+  -   verify: {
+  -     outcome: 'PASS'
+  -   }
+  - }
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\replay-fixed-policy-final-3cf33f91\scripts\evals\live-driver.test.js:494:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: { state_status: 'verified', verify: { outcome: 'PASS' }, four_r: { outcome: 'NOT_RUN' } },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

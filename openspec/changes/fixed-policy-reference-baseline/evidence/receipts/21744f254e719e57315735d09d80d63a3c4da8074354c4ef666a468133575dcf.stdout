@@ -1,0 +1,37 @@
+✔ live preflight rejects a stale installed O1 producer before spawn (9.2023ms)
+✔ live invocation preserves arguments supplied by the safe launcher (0.7317ms)
+✔ productive execution context derives installed identity and seals the causal model (6.2993ms)
+✔ execution context rejects blank model, forged installed env, stale runtime and preflight failure (139.067ms)
+✔ installed SubagentStop preflight persists one bound canonical O1 row and cleans up (111.2846ms)
+✔ buildLivePrompt carries the manifest intent and transaction boundary (0.1955ms)
+✔ scoring capability is opaque, workspace-bound, single-use and expiring (1.7529ms)
+✔ productive authorization rejects explicitly labelled test capabilities (1.3509ms)
+✔ host-binding preflight fails closed when O1 is tied only to agent transcripts (0.2257ms)
+✔ runCommandWithTranscript exposes the exact root stream path while the child is running (40.7741ms)
+✔ runCommandWithTranscript rejects replacement of the authenticated path while fd remains open (41.8472ms)
+✔ production module exposes no writable synthetic publisher (0.7181ms)
+✔ productive runLiveSuite rejects callback injection and does not publish synthetic rows (1.0815ms)
+✔ runtime suite coordination preserves sealed non-enumerable evidence for fresh smoke and compatible cache (0.3948ms)
+✔ runtime suite coordination publishes only the extended reference candidate (9.8377ms)
+✔ accepted profile cache resumes only an exact compatible sealed result (149.7921ms)
+✔ suite selection supports productive core and extended sets (0.2283ms)
+✔ extended selection is explicitly fixed while smoke stays diagnostic (0.1165ms)
+✔ cache refuses unknown identity and preserves valid supplementary O1 on known identity (11.0493ms)
+✔ invalid supplementary O1 degrades without blocking run-level scoring (2.7094ms)
+✔ verify report accepts one canonical block followed only by the anchored verdict grammar (3.025ms)
+✔ verify report verdict suffix rejects mismatch, extra structures, controls, second paragraph and duplicate block (20.7214ms)
+✔ post-run git allowlist accepts only regular runtime-owned evidence and still rejects arbitrary untracked or symlink paths (662.6069ms)
+✔ offline recovery replays completed host post-exit validation and persists only a compatible cache result (735.4455ms)
+✔ offline recovery fails closed for unsafe roots, profile mismatch, missing identity and incomplete or tampered transcript (1651.908ms)
+✔ weighted post-exit O1 fallback is not importable or present in production source (0.5021ms)
+✔ deriveHostObservation consumes deterministic structured evidence and rejects missing/mismatched sets (3.9695ms)
+✔ parseCodexTranscript requires real JSONL session and usage evidence (0.2777ms)
+✔ finalizeLiveObservation derives provenance from the transcript and preserves observed counters (3.5144ms)
+ℹ tests 29
+ℹ suites 0
+ℹ pass 29
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3689.7667

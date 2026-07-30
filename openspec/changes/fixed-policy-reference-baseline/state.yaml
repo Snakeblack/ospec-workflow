@@ -1,0 +1,103 @@
+schema: spec-driven-state
+change: fixed-policy-reference-baseline
+status: verified
+last_updated: 2026-07-30T23:11:56Z
+classification: normal
+artifact_store:
+  mode: openspec
+  backend: openspec
+owner:
+  author: Manuel Retamozo
+  branch: feat/fixed-policy-reference-baseline
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "classification=normal is deterministic; first match for an active openspec project is standard because foundation, federated, bugfix, brownfield, refactor, and hotfix conditions do not apply."
+  validated: true
+  validation_errors: []
+approvals:
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: 'ask blocking gate questions as a numbered plain-chat list (e.g. "1) Option A  2) Option B") and wait for the user to reply with a number — do not invoke any tool to ask'
+    accepted_at: 2026-07-28T23:50:00Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: 'ask blocking gate questions as a numbered plain-chat list (e.g. "1) Option A  2) Option B") and wait for the user to reply with a number — do not invoke any tool to ask'
+    accepted_at: 2026-07-28T23:52:12Z
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+execution_mode: auto
+delivery_strategy: exception-ok
+phases:
+  sdd-propose:
+    status: done
+    artifact: openspec/changes/fixed-policy-reference-baseline/proposal.md
+    summary: "Propuesta O2B: baseline fixed-policy 9/9 con smoke 3/3, identidades conocidas y publicación fail-closed."
+    key_decisions:
+      - "Extender orchestrator-evals; no crear una capacidad nueva."
+      - "La baseline 9/9 se publica solo desde extended; el smoke 3/3 se conserva."
+  sdd-spec:
+    status: done
+    artifacts:
+      - openspec/changes/fixed-policy-reference-baseline/specs/orchestrator-evals/spec.md
+    summary: "Contrato O2B: fixed-policy 9/9 con identidad, provenance, métricas y publicación fail-closed; smoke 3/3 conservado."
+    key_decisions:
+      - "Se modifica REQ-orchestrator-evals-003 para sustituir la publicación experimental 3/3 contradictoria."
+      - "REQ-orchestrator-evals-005 añade el contrato de referencia fija 9/9 sin activar adaptive ni CI."
+  clarify:
+    status: skipped
+    reason: "residual_ambiguity=false and ambiguity arrays empty after validated sdd-spec envelope"
+  sdd-design:
+    status: done
+    artifact: openspec/changes/fixed-policy-reference-baseline/design.md
+    summary: "Diseño O2B: candidato fixed 9/9 versionado, provenance live, comparabilidad de suite y publicación atómica fail-closed."
+    key_decisions:
+      - "Smoke 3/3 queda diagnóstico y no invoca el publisher de referencia."
+      - "El baseline v1 combina tabla Markdown y payload JSON canónico en un único replace atómico."
+      - "La comparabilidad exige identidad compartida y hashes de payload específicos por perfil."
+  sdd-tasks:
+    status: done
+    artifact: openspec/changes/fixed-policy-reference-baseline/tasks.md
+    summary: "Backlog histórico preservado y ampliado con 5.1–5.6 y nueva tanda 6.1–6.4 tras segunda verificación FAIL; cubre recovery offline, evidencia TDD autenticable, seam runtime real y límites honestos."
+    key_decisions:
+      - "Todos los MUST del delta spec tienen asignación explícita en design; no hay bloqueos de reconciliación."
+      - "La baseline real no se crea durante apply; solo una ejecución live autorizada puede producirla."
+      - "La segunda verificación exige 6.1–6.4; no se autentica retrospectivamente source working-tree ni se inventa RED histórico."
+    next_recommended: sdd-apply
+  sdd-apply:
+    status: done
+    artifact: openspec/changes/fixed-policy-reference-baseline/apply-progress.md
+    summary: "Reproducción TDD limpia desde 90c387a: RED real con tests finales, GREEN 67/67, npm test 1537/1537 y registro live schema-v1 con 17/17 tareas de código."
+    key_decisions:
+      - "Solo extended puede construir y publicar el candidato fixed 9/9; all/initial siguen diagnósticos."
+      - "Las filas requieren provenance live sellada y comparabilidad exacta; no se aceptan datos manuales o sintéticos."
+      - "La reproducción live sustituye la evidencia legacy anterior; no autentica retrospectivamente el histórico ni usa la excepción legacy."
+    next_recommended: sdd-verify
+  sdd-verify:
+    status: done
+    artifact: openspec/changes/fixed-policy-reference-baseline/verify-report.md
+    verdict: PASS
+    summary: "Reverificación de fiabilidad: 17/17 ciclos live enlazan GREEN y RED content-addressed, 34/34 recibos rehasheados, focales y npm test verdes; el CRITICAL histórico queda resuelto por nueva cronología, no por excepción."
+    critical_findings: []
+    warning_findings: []
+    next_recommended: 4r-review-gate
+  sdd-archive:
+    status: pending
+gates:
+  4r-review-gate:
+    status: pending
+roadmap_ref: O2B
+baseline_fingerprints:
+  orchestrator-evals: "sha256:1f19f2d7df76052fca96ee12b63610b7f0ebff62129b311efb4dbbc488858e6d"
+assumptions: []

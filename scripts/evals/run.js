@@ -37,12 +37,12 @@ const {
 const { captureWorkspace } = require("./lib/capture.js");
 const { assertScenario, resolveActualRoute } = require("./lib/assertions.js");
 const { readPhaseCosts } = require("./lib/benchmark.js");
-const { listSafeBenchmarkProfiles, scenarioFor } = require("./safe-export.js");
+const { listSafeBenchmarkProfiles, scenarioFor, REFERENCE_BENCHMARK_PROFILES, SMOKE_BENCHMARK_PROFILES } = require("./safe-export.js");
 
 const FIXTURES_ROOT = path.join(__dirname, "__fixtures__");
 const RUNS_ROOT = path.join(__dirname, ".runs");
 const BENCHMARK_RUNS_ROOT = path.join(RUNS_ROOT, "benchmark");
-const CORE_BENCHMARK_PROFILES = Object.freeze(["docs-one-file", "small-bugfix", "security-sensitive-change"]);
+const CORE_BENCHMARK_PROFILES = SMOKE_BENCHMARK_PROFILES;
 const BASELINE_REPORT = path.join(__dirname, "reports", "reference-baseline.md");
 const GIT_BASELINE_MARKER = "GIT-BASELINE.json";
 const GIT_HEAD_PLACEHOLDER = "__GIT_HEAD__";
@@ -85,7 +85,7 @@ function resolveBenchmarkNames(arg) {
     if (missing.length) throw new Error(`Core benchmark profiles are missing: ${missing.join(", ")}.`);
     return [...CORE_BENCHMARK_PROFILES];
   }
-  if (arg === "extended") return all;
+  if (arg === "extended") return [...REFERENCE_BENCHMARK_PROFILES];
   if (!all.includes(arg)) throw new Error(`Unknown benchmark profile "${arg}". Known profiles: ${all.join(", ")}.`);
   return [arg];
 }

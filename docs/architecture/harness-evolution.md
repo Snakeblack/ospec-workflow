@@ -1,803 +1,808 @@
-# Arquitectura y evolución del harness — ospec-workflow
+# Arquitectura objetivo — harness gobernado por kernel, grafo y evidencia
 
-> **Autoridad:** fuente de verdad conceptual y estratégica del harness.
-> **Corte documental:** v2.30.0, 2026-07-18.
-> **Estado verificado:** O4+O5 entregado y archivado; el review selectivo actual es generalist-first y conserva linajes acotados.
-> **Alcance:** describe el estado implementado, la arquitectura objetivo y las restricciones de transición. El orden, estado y criterios de terminado viven exclusivamente en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
-> **Precedencia:** código y OpenSpec baseline probados → este documento → roadmap general → roadmaps de target → documentos archivados.
+> **Autoridad:** fuente conceptual y estratégica del harness.
+> **Corte documental:** v2.35.0, 2026-07-29.
+> **Estado verificado:** O3, O4+O5/O4.1, O4.2 y O6A están entregados; O2B está `blocked` y `sdd-verify` terminó `done` con verdict `FAIL`.
+> **Roadmap:** el estado operativo, orden y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
+> **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md).
 
-## 1. Propósito del producto
+## Decisión
 
-`ospec-workflow` es un harness Spec-Driven Development, multi-target y LLM-first para ejecutar cambios de software con el grado correcto de especificación, diseño, implementación, verificación y revisión.
+El harness evoluciona hacia un **kernel determinista que compila intención y contratos semánticos en un Graph IR**, autoriza transiciones tipadas y liga verificación, review y entrega a evidencia y a una identidad inmutable de candidato.
 
-El harness debe comportarse como un senior técnico que acompaña:
+Esta dirección no es una reescritura. Se construye generalizando los kernels ya entregados de clarify, review/linaje, recovery focal y archive transaccional. OpenSpec y Git siguen siendo la autoridad del change; el runtime gobierna lifecycle y efectos mecánicos; los modelos conservan el trabajo semántico.
 
-- comprende intención, restricciones, contexto y riesgo;
-- explicita decisiones materiales y solicita aprobación humana cuando corresponde;
-- conserva trazabilidad desde requisitos hasta implementación y evidencia;
-- adapta profundidad, coste y controles al cambio real;
-- utiliza modelos para trabajo semántico y runtime determinista para estructura, políticas y operaciones mecánicas;
-- explota capacidades nativas de cada host sin romper el canon común;
-- puede explicar por qué ejecutó, omitió, escaló o degradó cada paso.
+El cambio de defaults está bloqueado hasta resolver O2B y superar shadow/A-B. La arquitectura objetivo es aceptada como dirección, pero sus contratos concretos se implementarán por slices y conservarán compatibilidad con el flujo fixed.
 
-La promesa del producto no es «generar más documentación». Es **aplicar garantías proporcionales al riesgo sin perder auditabilidad ni convertir el proceso en una secuencia rígida**.
+## Ruta rápida
 
-## 2. Autoridad documental
+1. [Modelo de autoridad](#modelo-de-autoridad).
+2. [Cadena canónica](#cadena-canónica-del-change).
+3. [Kernel y Graph IR](#kernel-determinista-y-graph-ir).
+4. [Rutas y capacidades](#clasificación-rutas-y-capacidades).
+5. [Migración sin big bang](#estrategia-de-migración).
+6. [Qué es hecho, target o hipótesis](#registro-de-madurez).
 
-| Documento | Autoridad | No debe contener |
+## Propósito del producto
+
+`ospec-workflow` es un harness Spec-Driven Development multi-target para ejecutar cambios con garantías proporcionales a impacto e incertidumbre.
+
+Debe:
+
+- comprender intención, restricciones, contexto y riesgo;
+- conservar trazabilidad entre contrato, grafo, diff, evidencia, findings y entrega;
+- pedir decisiones humanas solo cuando sean materiales;
+- mantener cambios simples pequeños;
+- adaptar profundidad sin omitir garantías necesarias;
+- recuperar fallos mediante transiciones ejecutables;
+- declarar qué garantiza cada target;
+- explicar por qué ejecutó, omitió, escaló o detuvo cada unidad.
+
+La promesa no es producir más fases o documentos. Es **compilar el mínimo trabajo que demuestre el cambio correcto y gobernarlo con contratos verificables**.
+
+## Modelo de autoridad
+
+### Precedencia
+
+```text
+código + OpenSpec baseline/changes + Git
+  → arquitectura activa
+  → roadmap general
+  → roadmaps de target
+  → análisis e investigación
+```
+
+| Superficie | Autoridad | Restricción |
 | --- | --- | --- |
-| Este análisis | Arquitectura, principios, contratos objetivo, restricciones y problemas abiertos | Checkboxes operativos, puntero de siguiente tarea, crónica detallada de sesiones |
-| `docs/roadmaps/harness-evolution.md` | Backlog transversal, dependencias, orden, estado y done criteria | Decisiones arquitectónicas nuevas no reflejadas aquí |
-| `docs/roadmaps/targets/*.md` | Especialización y optimización de un host concreto | Prioridad transversal independiente del roadmap general |
-| OpenSpec baseline y changes archivados | Contratos ejecutables, evidencia y decisiones de implementación | Visión de producto no reconciliada |
-| `analisis-fino/archive/**` | Historia y origen de decisiones | Estado vigente o trabajo nuevo |
+| OpenSpec + Git | Estado semántico y bytes del change | Ninguna proyección puede contradecirlos. |
+| Kernel runtime | Transiciones, budgets, permisos, digests y efectos mecánicos | No interpreta semántica libre. |
+| Modelos | Descubrimiento, contrato, diseño, implementación, diagnóstico y review | No se conceden aprobación ni siguiente transición. |
+| Graph IR | Plan ejecutable fingerprinted del change | Debe derivarse o reconciliarse con la autoridad canónica. |
+| Evidence/event stores | Hechos y telemetría | No sustituyen estado ni verdict. |
+| Markdown | Vista humana y semántica revisable | No concede autoridad mecánica mediante parsing ambiguo. |
+| Adapters | Traducción al host | No duplican lifecycle ni relajan garantías silenciosamente. |
 
-Cuando dos fuentes discrepan, se inspeccionan código y OpenSpec antes de actualizar la autoridad superior. No se corrige solo el roadmap para ocultar una divergencia.
+<a id="3-principios-invariantes"></a>
 
-## 3. Principios invariantes
+### Invariantes
 
-1. **Aprobación humana para decisiones materiales.** Ningún modo, incluido CI, auto-aprueba un gate. En ejecución no interactiva, una decisión material pendiente degrada a `halt` con reporte.
-2. **OpenSpec y Git son el estado canónico.** No se introduce una base de datos o servicio externo como autoridad paralela del change.
-3. **Separación semántica, no burocracia física.** Intención, comportamiento, diseño y tareas conservan responsabilidades distintas, aunque puedan materializarse de forma compacta o producirse en una misma invocación.
-4. **El modelo produce semántica; el runtime aplica estructura.** Interpretación, trade-offs y diseño pertenecen al modelo. Schemas, fingerprints, políticas, transacciones, inventarios, límites y estados pertenecen a código determinista.
-5. **Fail-closed selectivo.** Seguridad, integridad contractual, pérdida de evidencia y operaciones destructivas fallan cerradas. Telemetría y ayudas puramente advisory pueden degradar de forma explícita.
-6. **Adaptación continua.** La clasificación inicial es una hipótesis. El perfil se reevalúa cuando aparecen contrato, diseño, diff real y evidencia de verify.
-7. **Garantías monotónicas.** Una señal material puede aumentar garantías. Una desescalada puede reducir coste, prosa o trabajo no justificado, pero no retirar evidencia o controles ya exigidos.
-8. **Ninguna señal material se descarta por presupuesto.** Los límites de coste pueden provocar escalado, batching o intervención humana; nunca silencian un riesgo positivo.
-9. **Degradación por target declarada.** Una garantía solo se anuncia como `enforced` cuando el host puede ejecutarla. En otro caso se registra como `partial`, `instructional` o `unavailable`.
-10. **Runtime ligero y portable.** Se mantiene CommonJS/Node 22+ y Go donde aporta valor, sin frameworks ni una cadena de build obligatoria para consumir el target.
-11. **Un concepto, una autoridad.** No se crean rutas, agentes o documentos paralelos para representar la misma decisión.
-12. **Compatibilidad antes de retirada.** Los aliases y formatos actuales se conservan hasta que la política adaptativa demuestre calidad no inferior y exista una migración explícita.
+1. **Runtime-owned lifecycle.** El mismo estado y contratos producen las mismas transiciones válidas, con independencia del modelo o target.
+2. **Modelos sin auto-autoridad.** Un modelo puede proponer y ejecutar trabajo autorizado; no aprueba su candidato ni crea permisos.
+3. **Estado persistido sobre conversación.** Reanudar parte de filesystem, no de memoria conversacional.
+4. **DAG por defecto.** Un ciclo requiere allowlist, causa, presupuesto e interruptor terminal.
+5. **Proporcionalidad.** Las garantías responden a impacto e incertidumbre; líneas y archivos son contexto, no señal primaria.
+6. **Cambio pequeño, proceso pequeño.** Una capacidad solo se activa por una obligación o riesgo demostrable.
+7. **Independencia.** Implementación, verificación y aprobación consumen contratos distintos y una identidad común.
+8. **Evidencia no equivale a verdict.** Tests verdes son una entrada; contrato, invariantes y challenges determinan suficiencia.
+9. **Complejidad justificada.** Toda abstracción nueva compara no hacer nada, cambio local, patrón existente y nueva abstracción.
+10. **Recovery ejecutable.** Todo bloqueo termina en `execute`, `collect`, `decide` o `stop`.
+11. **Fail-closed selectivo.** Identidad, permisos, evidencia requerida, seguridad y efectos destructivos fallan cerrados.
+12. **Compatibilidad antes de retirada.** Fixed, aliases y artefactos actuales se mantienen hasta que una migración probada los sustituya.
+13. **Una responsabilidad, un kernel.** Review, archive, evidence y routing no tendrán implementaciones paralelas permanentes.
+14. **Observabilidad separada.** Los eventos registran hechos y coste; no son razonamiento interno ni estado canónico.
 
-## 4. Estado actual verificado
+Estas invariantes deberán tener schemas y tests de conformance. Su redacción no basta como enforcement.
 
-### 4.1 Capacidades entregadas
+## Estado implementado reconocido
 
-A fecha del corte, el harness dispone de:
+### Capacidades fuertes reutilizables
 
-- un orquestador coordinador y agentes de fase con contratos de resultado, bloqueos y `question_gate`;
-- persistencia por change en OpenSpec, recuperación desde filesystem y resúmenes de fase;
-- routing declarativo por tabla, clasificación inicial y aliases de flujo;
-- approval ledger, assumption ledger, intent restatement, mentorship mode, ADRs y memoria de decisiones;
-- strict TDD, verificación, quality gates, trazabilidad REQ → task → commit → test y detección de colisiones;
-- reglas compactas, resolución de skills, envelopes JSON validables y telemetría de costes por fase;
-- generación multi-target para Claude Code, VS Code, GitHub Copilot, OpenCode y Codex;
-- resolución estática de modelos por `agent → tier → target`;
-- foundation, baseline brownfield, reconcile, documentación técnica y federación de lectura;
-- evals estructurales, benchmark local, lints contractuales y paridad de contratos;
-- O3: clarify condicional como gate posterior a `sdd-spec`;
-- O4+O5: review selectivo, generalista read-only, clasificación determinista, selección de especialistas y linaje acotado;
-- runtime de review con reducers puros, findings congelados, validación dirigida y límite de intentos;
-- archive endurecido con fingerprint de baseline, copia, inventario y verificación antes del borrado.
-
-### 4.2 Contrato real de O4+O5
-
-El comportamiento implementado y normativo es:
-
-1. El gate 4R se ejecuta solo cuando la ruta activa lo declara y `sdd-verify` termina con `status: success`.
-2. `review-change` se ejecuta primero para cambios normales y `high-risk`.
-3. Su decisión estructurada se valida y se combina con evidencia determinista del diseño, diff y verify.
-4. Un cambio normal selecciona actualmente de cero a dos especialistas.
-5. Un cambio `high-risk` ejecuta los cuatro especialistas por override determinista.
-6. Cada especialista seleccionado se ejecuta una sola vez dentro de un linaje.
-7. Tras congelar findings, solo `review-correction` puede validar los IDs pendientes.
-8. Los retries no reinician presupuesto, paths, reviewers ni findings.
-
-El contrato persistido es una `review_decision` final con selección y razones. `required|candidate|skip` puede existir como lenguaje de diseño, pero no es el shape canónico implementado.
-
-### 4.3 Limitación conocida del review actual
-
-El límite de dos especialistas para un cambio normal puede excluir una tercera dimensión con señal positiva. Esto contradice el principio de no descartar riesgos por presupuesto.
-
-La arquitectura objetivo corrige esta situación:
-
-```text
-0-2 dimensiones positivas
-  → review targeted
-
-3-4 dimensiones positivas
-  → escalar depth.review a strict
-  → recalcular perfil
-  → full 4R
-```
-
-Hasta que se implemente esa regla, el comportamiento actual se considera una limitación conocida, no el estado objetivo.
-
-### 4.4 Deuda estructural abierta
-
-1. Las rutas mezclan intención, topología y rigor.
-2. La selección de modelo es estática por nombre de agente, no por decisión de ejecución.
-3. No existe un resolver único `perfil → policy → variante → target → invocación`.
-4. El orquestador contiene demasiada política en prompt y está cerca de su guard de tamaño.
-5. El generador transforma principalmente una fuente en un artefacto por target; no tiene expansión canónica one-to-many para variantes.
-6. `state.yaml` acumula payloads grandes y no es una base adecuada para todo el perfil adaptativo.
-7. Archive todavía delega al modelo interpretación de deltas Markdown y promoción de ADRs.
-8. La infraestructura de benchmark está entregada, pero falta una baseline fija de control con los nueve perfiles.
-9. La evidencia sigue demasiado ligada a Markdown producido por agentes.
-10. Las capacidades reales difieren entre targets y algunos adapters no aprovechan campos nativos.
-11. Foundation/OpenWiki tienen consumo y lifecycle incompletos.
-12. La escritura coordinada multi-repo sigue pendiente.
-
-## 5. Arquitectura objetivo
-
-### 5.1 Flujo canónico
-
-```text
-Petición
-  ↓
-Comprender intención y contexto
-  ↓
-Construir perfil adaptativo
-  ↓
-Resolver policy de ejecución
-  ↓
-Planificar con profundidad necesaria
-  ↓
-Aplicar
-  ↓
-Verificar
-  ↓
-Reevaluar perfil y garantías
-  ↓
-Revisar selectivamente
-  ↓
-Preparar plan semántico de archive
-  ↓
-Ejecutar transacción determinista de archive
-```
-
-No existen programas conceptualmente separados para `lite`, `standard`, `strict`, bugfix, refactor o federated. Existe un flujo canónico con ejes independientes y distintas profundidades.
-
-### 5.2 Ejes independientes
-
-La decisión deja de comprimirse en una etiqueta única:
-
-```yaml
-execution_profile:
-  schema_version: 1
-  revision: 4
-
-  intent: bugfix
-  topology: single-repo
-  preset: standard
-
-  risk:
-    public_contract: 0
-    security: 0
-    persistent_data: 0
-    privileged_io: 1
-    cross_module: 1
-    ambiguity: 0
-    rollback_cost: 0
-    test_gap: 0
-
-  depth:
-    intent: compact
-    behavior: full
-    design: compact
-    decomposition: standard
-    implementation: standard
-    verification: behavioral
-    review: targeted
-    memory: change
-
-  sources:
-    - code: diff-global-config-write
-      origin: real-diff
-      evidence_ref: evidence.json#facts/3
-```
-
-- **Intent**: qué clase de trabajo se realiza.
-- **Topología**: dónde y con qué coordinación se realiza.
-- **Preset**: suelo de garantías y presupuesto inicial.
-- **Risk**: señales cuantificadas y justificadas.
-- **Depth**: profundidad requerida por responsabilidad.
-- **Sources**: procedencia auditable de cada señal.
-- **Revision**: versión monotónica del perfil durante el change.
-
-### 5.3 Presets como suelos de garantía
-
-| Preset | Significado | Regla principal |
+| Capacidad | Estado implementado | Papel en la arquitectura objetivo |
 | --- | --- | --- |
-| `micro` | Operación mecánica, reversible y sin comportamiento nuevo | Cualquier señal material escala |
-| `lite` | Cambio pequeño con contratos compactos | No omite responsabilidades semánticas; reduce materialización y coste |
-| `standard` | Perfil habitual | Profundidad gobernada por señales y evidencia |
-| `strict` | Máximo control | Define mínimos no reducibles para comportamiento, diseño, verify y review |
+| OpenSpec state/recovery | Persistencia por change, resúmenes de fase, ledgers y recuperación desde filesystem. | Autoridad semántica que el kernel consume y reconcilia. |
+| O3 clarify | Gate condicional después de spec, gobernado por envelope validado. | Semilla de `clarification.required/resolved` con invalidación parcial. |
+| O4+O5/O4.1 | Generalist-first, selección determinista, full 4R por high-risk/overflow y reasons persistidos. | Selector/reviewer reusable; no se reescribe. |
+| Review lineage | Candidate/paths/findings congelados, lenses one-shot, correction focal y límites de intentos. | Kernel de adjudicación acotada ligado al Candidate ID universal. |
+| O4.2 | Recovery focal para drift de evidencia, con invariancia funcional y recheck. | Patrón de remediation tipada y bounded recovery. |
+| O6A archive | Plan semántico + transacción runtime, staging, hashes, inventario, rollback/recovery y receipt. | Kernel reusable de efectos recuperables y receipts mecánicos. |
+| Multi-target | Generación y adapters para Claude Code, VS Code, GitHub Copilot, OpenCode y Codex. | Adapters mínimos consumidores de capability manifests. |
+| Model resolver | Catálogo y resolución estática agent → tier → target. | Base para routing por work order/nodo con clamps. |
+| O2A evals | Catálogo de nueve perfiles, smoke, runner local y scoring estructural. | Base de shadow/headless; O2B debe fijar el control. |
+| Apply/verify | Roles y contratos separados. | Se endurece su independencia por Candidate ID y evidence manifest. |
+| Telemetría/hooks | Costes, lifecycle hints y resultados parciales. | Productores de eventos normalizados, no nueva autoridad. |
 
-Los presets no son rutas. `bugfix`, `refactor`, `foundation`, `brownfield`, `epic` y `federated` pertenecen a intención o topología.
+### Estado inmediato
 
-### 5.4 Persistencia del perfil
+O2B no está cerrado. Su estado autoritativo actual:
 
-`state.yaml` conserva una referencia compacta:
+- top-level `status: blocked`;
+- `sdd-apply: partial`;
+- `sdd-verify: done`, verdict `FAIL` y `next_recommended: none`;
+- 16/16 MUST, 67/67 tests focales y `npm test` verdes;
+- recovery offline ya preserva `quality_evidence`;
+- un único CRITICAL `tasks-gap`: la cronología RED histórica de Strict TDD no está autenticada ni puede reconstruirse honestamente;
+- baseline live 9/9 todavía ausente, de forma esperada y no causante del `FAIL`.
+
+Por tanto, el programa conserva fixed como default. O2B no tiene una transición automática: requiere evidencia externa autenticada o una decisión humana explícita sobre policy/spec antes de continuar.
+
+### Deuda real
+
+- No existe un kernel global `status → next_transition`.
+- No existe Graph IR semántico común a Repair, planificación, invalidación y federación.
+- La clasificación no separa completamente impacto, incertidumbre y ejecución.
+- Los budgets no son uniformes por nodo.
+- Failure/recovery no comparten taxonomy y shape universales.
+- Candidate freeze no gobierna todavía apply → verify → review → delivery.
+- No hay delivery receipt ligado a contract/graph/candidate/evidence/findings.
+- No hay selector de estrategia de evidencia por tipo de cambio.
+- Revert/mutation challenges y `complexity_delta` no son gates reutilizables.
+- Worker isolation y ownership son parciales.
+- Falta la suite completa de schemas, event contracts y evals longitudinales.
+
+## Cadena canónica del change
+
+```text
+petición
+  → intención y contexto
+  → clasificación explicable
+  → contrato semántico versionado
+  → compilación de Graph IR
+  → ejecución de work orders acotadas
+  → captura de evidencia bruta
+  → freeze del candidate tree
+  → verify independiente sobre Candidate ID
+  → finalización de evidencia y findings
+  → review acotado cuando aplique
+  → delivery receipt
+  → entrega o recovery tipada
+```
+
+### Orden de freeze
+
+El árbol de código se congela antes de verify:
+
+1. El worker entrega diff, comandos, resultados, supuestos y riesgos como evidencia bruta.
+2. El runtime canonicaliza paths y calcula base tree, candidate tree, diff y digests.
+3. El verifier recibe contrato, Graph IR, `candidate_id`, repositorio y evidencia bruta.
+4. Tras verify se finalizan evidence/findings digests.
+5. Review consume la misma identidad y findings congelados.
+6. El receipt liga todos los digests.
+
+Cualquier byte distinto crea un candidato sucesor. Verify, review y delivery anteriores dejan de aplicar; no se “actualiza” un receipt existente.
+
+### Candidate identity
 
 ```yaml
-execution_profile:
-  revision: 4
-  ref: execution-profile.json
-  fingerprint: sha256:...
-  evaluated_at: 2026-07-18T12:00:00Z
-  reason: post-verify
-```
-
-El documento completo vive en:
-
-```text
-openspec/changes/<change>/execution-profile.json
-```
-
-La separación permite:
-
-- validación por schema;
-- fingerprints estables;
-- historial de revisiones;
-- diffs estructurados;
-- evitar parsers YAML ad hoc para objetos crecientes;
-- mantener OpenSpec/Git como autoridad.
-
-### 5.5 Puntos de reevaluación
-
-El perfil se recalcula en puntos explícitos:
-
-1. **Entrada:** intención, alcance, proyecto, baseline, topología y señales iniciales.
-2. **Después del contrato:** ambigüedad residual, API pública, datos, compatibilidad y reversibilidad.
-3. **Después del diseño:** dependencias, privilegios, migraciones, blast radius y rollback.
-4. **Después de apply:** diff real, archivos inesperados, operaciones, dependencias y desviaciones.
-5. **Después de verify:** fallos, warnings, gaps de tests y evidencia insuficiente.
-6. **Antes de review:** selección de dimensiones y clamps.
-7. **Antes de archive:** readiness, riesgos aceptados e integridad de evidencia.
-
-Cada reevaluación puede:
-
-- aumentar `depth`;
-- activar un gate;
-- escalar preset;
-- seleccionar especialistas;
-- solicitar una decisión humana;
-- recomendar un tier mayor;
-- reducir prosa o trabajo no justificado;
-- detener el flujo.
-
-Una reducción de profundidad nunca invalida garantías ya materializadas.
-
-## 6. Control plane adaptativo
-
-### 6.1 Capas
-
-```text
-Signal Collector
-  ↓
-Profile Normalizer
-  ↓
-Execution Policy Resolver
-  ↓
-Variant Resolver
-  ↓
-Target Capability Adapter
-  ↓
-Invocation Kernel
-  ↓
-Result Validator
-  ↓
-State / Evidence Writer
-```
-
-#### Signal Collector
-
-Recoge hechos, no decisiones:
-
-- intención declarada;
-- topología del workspace;
-- baseline y ownership;
-- contrato y diseño;
-- diff real;
-- verify findings;
-- operaciones privilegiadas;
-- dependencias y migraciones;
-- capacidades del target.
-
-#### Profile Normalizer
-
-Normaliza señales, elimina duplicados, asigna fuentes y produce el `execution_profile` fingerprinted.
-
-#### Execution Policy Resolver
-
-Es una función determinista:
-
-```js
-resolveExecutionPolicy({
-  phase,
-  profile,
-  projectPolicy,
-  targetCapabilities,
-  previousDecision
-}) -> {
-  variant,
-  minimumGuarantees,
-  modelTierIntent,
-  effortIntent,
-  gates,
-  validators,
-  materialization,
-  reasons
-}
-```
-
-El resolver no ejecuta modelos ni filesystem. Sus decisiones son auditables y testeables.
-
-#### Variant Resolver
-
-Traduce la policy a una variante canónica de fase:
-
-```text
-sdd-apply + depth.implementation=compact
-  → sdd-apply-lite
-
-sdd-verify + depth.verification=full-audit
-  → sdd-verify-strict
-```
-
-Las variantes son wrappers generados, no skills independientes mantenidas a mano.
-
-#### Target Capability Adapter
-
-Aplica clamps y degradaciones del host:
-
-```yaml
-target_capabilities:
-  structured_questions: native | chat-fallback
-  subagents: parallel | sequential | unavailable
-  hooks: enforced | partial | instructional
-  model_selection: enforced | inherited | unavailable
-  effort_selection: enforced | inherited | unavailable
-  skills_preload: enforced | instructional | unavailable
-  test_evidence: structured | process-output
-  tool_permissions: structural | instructional
-  plan_mode: native | emulated
-```
-
-#### Invocation Kernel
-
-Centraliza la preparación y validación del dispatch:
-
-```js
-invokePhase({
-  phase,
-  change,
-  profileRef,
-  policy,
-  target,
-  artifactRefs
-});
-```
-
-Responsabilidades:
-
-- resolver variante;
-- compilar contexto mínimo;
-- aplicar capabilities y clamps;
-- registrar decisión antes del dispatch;
-- lanzar el agente;
-- validar envelope;
-- persistir resultado y telemetría;
-- devolver la siguiente acción autorizada.
-
-El kernel evita que la política adaptativa siga creciendo dentro del prompt del orquestador.
-
-### 6.2 Orquestador fino
-
-El orquestador conserva:
-
-- conversación y comprensión inicial;
-- ownership de preguntas al usuario;
-- coordinación entre fases;
-- aplicación de decisiones humanas;
-- selección de la siguiente transición autorizada;
-- síntesis de resultados.
-
-El orquestador no debe:
-
-- implementar parsers o reducers en prosa;
-- decidir variantes por heurísticas libres;
-- reinterpretar una policy determinista;
-- reimplementar validadores;
-- duplicar handlers circunstanciales;
-- convertirse en una segunda fuente de verdad.
-
-### 6.3 Hipótesis experimental: proof-carrying change kernel
-
-Como investigación no normativa, se propone probar un kernel reducido que compile obligaciones de `verify` desde los artefactos existentes, emita `Work Order`/`Work Result` tipados y produzca un journal observacional con evidencia normalizada. Las fases semánticas siguen siendo la interfaz de razonamiento y gobierno; el kernel solo intentaría hacer reproducibles contratos, transiciones y hechos mecánicos en una vertical shadow contra `sdd-verify`.
-
-Esta hipótesis no sustituye OpenSpec, Git ni `state.yaml`, no autoriza escrituras de apply y no selecciona Go, event sourcing, un Effect Broker ni attestations como arquitectura aceptada. Su alcance, riesgos y criterios de promoción se describen en la [investigación condensada](research/proof-carrying-change-compiler.md); el experimento y su gate viven en [O20A](../roadmaps/harness-evolution.md#o20a-proof-carrying-verify-kernel--pending).
-
-## 7. Agentes, skills y variantes
-
-### 7.1 Un único concepto por fase
-
-Para cada fase existe:
-
-- una definición semántica canónica;
-- una skill canónica;
-- una familia de wrappers generados;
-- adapters de target.
-
-Ejemplo:
-
-```text
-skills/sdd-apply/SKILL.md
-agents/sdd-apply.agent.md
-
-generated:
-  sdd-apply-lite
-  sdd-apply-standard
-  sdd-apply-strict
-```
-
-Las variantes solo cambian:
-
-- profundidad;
-- límites;
-- materialización;
-- modelo/effort solicitado;
-- validators y gates;
-- presupuesto de contexto.
-
-No duplican la metodología.
-
-### 7.2 Expansión del generador
-
-El transform multi-target debe soportar salida one-to-many:
-
-```js
-handleFile(...) -> File | File[] | null
-```
-
-o una etapa explícita:
-
-```text
-canonical source
-  → variant expansion
-  → target transformation
-  → validation
-  → output
-```
-
-Toda variante debe conservar:
-
-- nombre y propósito de fase;
-- contrato de resultado;
-- límites de herramientas;
-- paridad semántica;
-- fingerprint de fuente y policy.
-
-### 7.3 `sdd-plan`
-
-`sdd-plan` no es un segundo orquestador. Es una fase compuesta parametrizada por profundidad.
-
-Contrato objetivo:
-
-```yaml
-planning_request:
-  profile_ref: execution-profile.json
-  required_outputs:
-    proposal: compact
-    behavior: full
-    design: compact
-    tasks: standard
-```
-
-Checkpoints internos:
-
-1. Scope.
-2. Behavioral contract.
-3. Architecture.
-4. Reconciliation.
-5. Decomposition.
-
-Una invocación puede cubrir varias responsabilidades, pero cada checkpoint conserva:
-
-- contrato;
-- validación;
-- cobertura cruzada;
-- reparación dirigida;
-- evidencia de materialización.
-
-## 8. Review adaptativo
-
-### 8.1 Decisión final
-
-La autoridad combina:
-
-```text
-evidencia determinista
-+ generalist decision
-+ riesgos del diseño
-+ diff real
-+ verify findings
-+ clamps de policy
-= review_decision final
-```
-
-Shape canónico:
-
-```yaml
-review_decision:
+candidate:
   schema_version: 1
-  classification: normal
-  depth:
-    review: strict
-  escalation_reason:
-    code: normal-signal-overflow
-    positive_dimensions: 3
-    detail: "Normal review has 3 positive dimensions; strict full 4R required"
-  selected_specialists: [risk, reliability, resilience, readability]
-  dimensions:
-    risk:
-      selected: true
-      reasons:
-        - code: diff-auth-permission
-          source: real-diff
-    reliability:
-      selected: true
-      reasons:
-        - code: generalist-escalation
-          source: generalist
-    resilience:
-      selected: false
-      reasons:
-        - code: no-resilience-signal
-          source: classifier
-    readability:
-      selected: false
-      reasons:
-        - code: no-readability-signal
-          source: classifier
+  id: sha256:...
+  base_tree: ...
+  candidate_tree: ...
+  diff_hash: ...
+  paths_digest: ...
+  changed_paths: []
+  predecessor_id: null
 ```
 
-### 8.2 Política objetivo
+La identidad es universal, pero no sustituye Git. Es una representación canónica y verificable de sus bytes y relaciones.
 
-- El generalista sigue siendo read-only y no reemplaza especialistas.
-- `high-risk` conserva generalist-first mientras ese contrato siga aportando cobertura transversal.
-- `high-risk` ejecuta full 4R.
-- Cero a dos dimensiones positivas ejecutan review targeted.
-- Tres o más dimensiones positivas escalan a full 4R; ninguna señal material se excluye por cap.
-- Selección, exclusión, escalado y degradación registran razón y fuente.
-- Los prompts no reinterpretan el ranking determinista.
+### Delivery receipt
 
-### 8.3 Linaje acotado
+```yaml
+receipt:
+  schema_version: 1
+  candidate_id: sha256:...
+  contract_digest: sha256:...
+  graph_digest: sha256:...
+  evidence_digest: sha256:...
+  findings_digest: sha256:...
+  outcome: approved
+  valid_for: [evaluation]
+```
 
-Se mantiene el contrato entregado:
+El primer receipt será de evaluación. Tras superar shadow/A-B, una iniciativa productiva separada implementará validadores `pre-commit`, `pre-push` y `pre-pr`.
 
-- identidad de candidato y paths de génesis congelados;
-- cada lens se ejecuta una vez;
-- findings reciben IDs estables;
-- correcciones solo cubren IDs congelados;
-- presupuesto de corrección inmutable;
-- máximo de tres validaciones fallidas;
-- observaciones tardías son follow-ups no bloqueantes;
-- un nuevo discovery requiere un successor explícito;
-- verify, delivery y archive son comprobaciones read-only del linaje.
+#### Enforcement productivo
 
-## 9. Archive híbrido y transaccional
+Cada superficie:
 
-### 9.1 Límite semántico
+- valida `valid_for` exacto;
+- exige binding de contract, graph, candidate, evidence y findings;
+- aplica expiry e invalidación por successor, cambios de schema/policy o evidencia;
+- rechaza replay, receipt foreign/stale y byte mismatch;
+- falla cerrada;
+- no relanza modelos/reviewers ni infiere aprobación desde prosa;
+- declara degradación por target.
 
-Aplicar deltas Markdown y decidir la promoción de ADRs no es una operación puramente mecánica. El runtime no debe fingir determinismo mediante parsing heurístico de prosa.
+El rollout requiere threat model, recovery/reconciliation y fixtures de tampering, rebase, rollback y successor. Un receipt `evaluation` nunca autoriza delivery.
 
-La arquitectura separa:
+## Kernel determinista y Graph IR
 
-#### Plano semántico
+### Superficie del kernel
 
-El agente `sdd-archive`:
+```text
+status
+classify
+compile
+start-node
+complete-node
+fail-node
+invalidate-node
+freeze-candidate
+record-evidence
+start-review
+capture-review
+finalize-review
+validate-delivery
+recover
+```
 
-- interpreta deltas;
-- detecta conflictos semánticos;
-- prepara contenido de specs resultantes;
-- propone ADRs a promover;
-- justifica warnings aceptados;
-- produce un `archive-plan.json`;
-- no borra el change activo.
-
-#### Plano determinista
-
-El runtime:
-
-- valida verdict, gates, approvals y fingerprints;
-- valida schema e integridad del plan;
-- verifica que cada input referenciado coincide por hash;
-- escribe resultados en staging;
-- copia inventario completo;
-- compara origen, staging y destino;
-- realiza commit/rename atómico cuando el filesystem lo permite;
-- borra el origen solo después de una verificación completa;
-- conserva rollback y recovery;
-- genera inventario, coste y receipt;
-- deja el estado cerrado únicamente tras completar la transacción.
-
-### 9.2 Contrato del plan
+Cada operación devuelve estado estructurado y siguiente transición:
 
 ```json
 {
-  "schema_version": 1,
-  "change": "example",
-  "source_fingerprint": "sha256:...",
-  "spec_writes": [
-    {
-      "domain": "routing",
-      "source_delta": "specs/routing/spec.md",
-      "target": "openspec/specs/routing/spec.md",
-      "target_before_sha256": "sha256:...",
-      "content_sha256": "sha256:..."
+  "status": "blocked",
+  "reason_code": "verification_failed",
+  "next_transition": {
+    "kind": "execute",
+    "operation": "repair-node",
+    "arguments": {
+      "node_id": "repair-auth-session"
     }
-  ],
-  "adr_promotions": [],
-  "archive_inventory": [],
-  "accepted_warnings": [],
-  "rollback": {
-    "strategy": "staging-rename"
   }
 }
 ```
 
-El runtime valida bytes y referencias; no decide el significado del contenido.
+Los cuatro tipos de continuación son:
 
-## 10. Benchmark y promoción de adaptive
+- `execute`: el runtime puede ejecutar una operación autorizada;
+- `collect`: falta un resultado externo o de un modelo;
+- `decide`: se necesita una decisión humana;
+- `stop`: no existe continuación segura.
 
-### 10.1 Estado
+### Kernel compuesto, no reemplazo
 
-- **O2A, infraestructura:** entregada.
-- **O2B, baseline fija de control:** pendiente.
+El kernel global reutiliza:
 
-La baseline de control debe usar policy fija y ejecutar los nueve perfiles canónicos:
+- reducers y lineages de review;
+- invariance/recheck de O4.2;
+- staging/receipt/recovery de O6A;
+- route/envelope validators existentes;
+- model resolver y target profiles;
+- runners y scoring de O2A.
 
-1. docs de un archivo;
-2. bugfix pequeño;
-3. feature pequeña;
-4. feature cross-module;
-5. refactor behavior-preserving;
-6. cambio de API pública;
-7. cambio filesystem/config privilegiado;
-8. cambio security-sensitive;
-9. migración.
+La integración se hace con adapters y schemas compartidos. No se vuelve a implementar review ni archive bajo nombres nuevos.
 
-Los tres perfiles iniciales se conservan como smoke suite, no como evidencia suficiente para promover adaptive.
+### Graph IR
 
-### 10.2 Gate de promoción
+El Graph IR representa unidades semánticas:
 
-Adaptive puede convertirse en default solo cuando demuestre:
-
-1. calidad no inferior frente a fixed en fixtures comparables;
-2. ninguna pérdida de requisitos, evidencia o aprobación;
-3. ninguna señal material descartada;
-4. fallback a fixed/strict probado;
-5. reducción demostrable de invocaciones, relecturas, latencia o coste;
-6. audit trail suficiente para reproducir cada decisión;
-7. paridad aceptable entre targets;
-8. ausencia de deuda documental o de specs introducida.
-
-## 11. Evidencia estructurada
-
-Dirección objetivo:
-
-```text
-.ospec/evidence/<change>/tasks.jsonl
-.ospec/evidence/<change>/tests.jsonl
-.ospec/evidence/<change>/reviews.jsonl
-.ospec/evidence/<change>/traceability.json
-.ospec/evidence/<change>/decisions.jsonl
+```yaml
+graph:
+  schema_version: 1
+  graph_id: sha256:...
+  contract_digest: sha256:...
+  route: repair
+  nodes:
+    - id: repair-auth-session
+      objective: Admitir tokens rotados sin romper sesiones existentes
+      dependencies: [localize-auth-flow]
+      allowed_paths: [src/auth/**, tests/auth/**]
+      invariants:
+        - Existing valid sessions remain valid
+        - Expired tokens remain rejected
+      required_evidence:
+        - regression-reproduction
+        - auth-contract-tests
+      budget_ref: repair-default
 ```
 
-El runtime captura hechos mecánicos:
+`read`, `search`, `edit` y `test` no son nodos; son acciones internas de un worker. Un nodo existe porque tiene objetivo, invariantes, dependencias, ownership y evidencia.
 
-- dispatches;
-- modelos y effort efectivos;
-- exit codes;
-- tests;
-- hashes;
-- findings;
-- approvals;
-- relaciones REQ/task/commit/test;
-- transacciones de archive.
+### Compilación e invalidación
 
-Markdown se convierte en una vista renderizada para humanos. El verdict y la evidencia canónica nunca dependen del nivel de presentación.
+```text
+intención + clasificación + contrato + capabilities
+  → receta de ruta
+  → selección de capacidades
+  → Graph IR
+  → work orders
+```
 
-## 12. Multi-target
+Cuando una aclaración o fallo cambia una premisa:
 
-El canon común define semántica, garantías y contratos. Cada target implementa un adapter.
+1. se persiste la decisión o failure;
+2. se identifican dependencias afectadas;
+3. se invalidan solo nodos descendientes;
+4. se recompila el subgrafo;
+5. se preservan outputs todavía válidos por digest.
+
+No se reinicia el workflow completo ni se reutiliza evidencia cuya dependencia sea desconocida.
+
+### Schemas versionados
+
+La suite objetivo cubre:
+
+- state y transition;
+- classification;
+- change contract;
+- graph y node;
+- work order/result;
+- candidate;
+- evidence y challenge;
+- verification;
+- finding/review/lineage;
+- failure/recovery;
+- receipt;
+- event.
 
 Reglas:
 
-- revalidar documentación oficial antes de abrir un change específico de target;
-- registrar capabilities efectivas, no aspiracionales;
-- generar variantes desde la misma fuente;
-- aplicar clamps explícitos;
-- no emular silenciosamente una capacidad inexistente;
-- ejecutar paridad estructural donde el host lo permita;
-- mantener compatibilidad con la configuración local del usuario.
+- validación en CI;
+- ejemplos generados o validados;
+- consumidores pinnean versión;
+- migraciones explícitas;
+- ninguna operación de autoridad tiene fallback silencioso a prosa.
 
-La existencia de cinco targets es parte del estado actual. Cualquier metadata que todavía indique cuatro es deuda documental/configurable y debe corregirse sin reinterpretar el producto.
+## Clasificación, rutas y capacidades
 
-## 13. Conocimiento y escala
+### Clasificación multidimensional
 
-### 13.1 Foundation + OpenWiki
+```yaml
+classification:
+  schema_version: 1
+  risk:
+    security: 0
+    data_integrity: 0
+    public_contract: 1
+    concurrency: 0
+    irreversibility: 0
+    blast_radius: 2
+  uncertainty:
+    requirements: 0
+    architecture: 1
+    repository_knowledge: 0
+    external_dependencies: 0
+  execution:
+    dependency_depth: 2
+    ownership_domains: 2
+    expected_work_units: 3
+    parallelizable: false
+  route: planned
+  reasons: []
+```
 
-- Foundation: intención del producto, alcance, principios y baseline prevista.
-- OpenWiki: estado real y funcionamiento del repositorio.
-- Ambas capas se referencian y se consumen aguas abajo.
-- Staleness y refresh son explícitos.
-- Archive puede sugerir actualización; nunca reescribe decisiones de producto automáticamente.
+Hard floors iniciales:
 
-### 13.2 Epic y federación
+- migración de datos o autenticación → `critical`;
+- API pública → al menos `planned`;
+- bug reproducible localizado → `repair`;
+- cambio mecánico sin comportamiento → `direct`.
 
-Orden objetivo:
+Los conteos de líneas/archivos pueden informar reviewability y delivery, pero no degradar un hard floor de riesgo.
 
-1. epic intra-repo con `sub_changes[]` y DAG;
-2. change coordinador multi-repo;
-3. contratos compartidos versionados;
-4. apply provider → consumers;
-5. verify federado y compatibilidad contractual.
+### Cinco rutas como recetas
 
-Cada hijo recibe su propio perfil. No existe una ruta rígida `epic`.
+| Ruta | Uso | Receta mínima |
+| --- | --- | --- |
+| Direct | Mecánico, reversible, sin comportamiento | inspect → edit → deterministic validate |
+| Repair | Defecto reproducible y localizado | localize → reproduce → repair → freeze → verify |
+| Bounded | Feature/refactor contenido | compact contract → work units → freeze → verify → review |
+| Planned | Dependencias cross-module | discover → contract → decisions → graph → execute → freeze → verify/review |
+| Critical | Seguridad, auth, datos, concurrencia, contratos públicos, destrucción | planned + irreversible-decision gates + failure/threat model + rollback + adversarial verify + specialist review |
 
-## 14. Métricas de éxito
+Las rutas no son nuevos orquestadores. Son recetas de compilación con hard floors, capabilities y evidence strategies.
 
-### Adaptación
+### Capacidades, no fases obligatorias
 
-- fases y reviewers ejecutados con razón registrada;
-- escaladas y desescaladas por checkpoint;
-- señales positivas descartadas: objetivo 0;
-- decisiones materiales asumidas sin aprobación: objetivo 0;
-- preguntas evitables frente a preguntas justificadas.
+- `clarify-intent`
+- `discover-system`
+- `define-contract`
+- `analyze-impact`
+- `evaluate-design-options`
+- `record-decision`
+- `decompose-work`
+- `estimate-reviewability`
+- `freeze-candidate`
+- `verify-independently`
+- `review-selectively`
+- `validate-delivery`
 
-### Eficiencia
+Proposal, spec, design y tasks conservan responsabilidades y formatos compatibles. El compiler decide si requieren agente propio, invocación combinada o materialización compacta.
 
-- tokens y duración por fase y change;
-- invocaciones y relecturas;
-- tiempo hasta primera implementación y verdict;
-- relanzamientos completos frente a reparaciones dirigidas;
-- coste de adapters y variantes.
+### Clarify como evento
+
+O3 se generaliza:
+
+```yaml
+ambiguity:
+  decision: Session migration strategy
+  why_blocking: Determines whether existing users are logged out
+  options: [migrate-existing-sessions, invalidate-existing-sessions]
+  recommended: migrate-existing-sessions
+  affected_nodes: [design-session-transition, implement-session-migration]
+```
+
+Resolver la pregunta persiste aprobación, invalida `affected_nodes` y recompila descendientes. Clarify sigue siendo condicional y no se convierte otra vez en fase universal.
+
+## Ejecución acotada y recovery causal
+
+### Budgets por nodo
+
+```yaml
+budget:
+  model_turns: 12
+  patches: 2
+  commands: 20
+  wall_time_minutes: 15
+  changed_lines: 150
+```
+
+También se aplican `allowed_paths`, objetivo, finding y permisos. Agotar presupuesto no reinicia el mismo agente: produce failure tipada y transition de escalado, replanning, decisión o stop.
+
+### Failure taxonomy
+
+```text
+implementation-defect
+test-defect
+specification-gap
+design-gap
+task-decomposition-gap
+environment-failure
+tool-failure
+scope-drift
+external-dependency
+evidence-gap
+unknown
+```
+
+Los tags actuales `code-bug`, `tasks-gap`, `design-gap` y `spec-gap` se migran con aliases/versionado; no se descartan histories existentes.
+
+### Recovery
+
+Cada recovery:
+
+- declara causa, operación, argumentos y precondiciones;
+- limita nodos y paths;
+- consume budget;
+- es idempotente o tiene reconciliación;
+- tiene test E2E que demuestra avance, resolución o terminal honesto.
+
+O4.2 es el patrón para remediación focal; O6A es el patrón para efectos interrumpidos.
+
+## Evidencia, challenges e independencia
+
+### Evidence strategies
+
+| Cambio | Evidencia mínima candidata |
+| --- | --- |
+| Bug | reproducción roja → patch → reproducción verde |
+| Feature | acceptance examples, negativos, invariantes, contract/integration tests |
+| Refactor | characterization y comparación antes/después sin cambio observable |
+| Migración | dry run, rollback, incompatibles, idempotencia y reejecución |
+| Config/docs | schema/parser real, smoke e instalación/consumo |
+
+Strict TDD permanece activo mientras no exista equivalencia demostrada. La arquitectura objetivo sustituye universalidad por selección explícita, no por menos evidencia.
+
+### Challenges
+
+- **Revert:** al revertir producción, la prueba relevante falla.
+- **Mutation:** mutaciones focalizadas invalidan evidencia complaciente.
+- **Independent acceptance:** el verifier deriva checks de contrato e invariantes.
+- **Test inspection:** rechaza tautologías, mocks del comportamiento objetivo y snapshots autocreados.
+
+Cada challenge se liga a candidate, node y evidence strategy.
+
+### Complexity delta
+
+```yaml
+architecture_delta:
+  files_added: 0
+  files_deleted: 0
+  modules_added: 0
+  interfaces_added: 0
+  dependencies_added: 0
+  config_keys_added: 0
+  states_added: 0
+  compatibility_paths_added: 0
+  duplicated_blocks: 0
+  dead_code: 0
+  public_api_delta: none
+```
+
+Es una señal para formular preguntas, no un límite rígido. Una abstracción nueva documenta problema, consumidores actuales, variabilidad, boundary, alternativa simple rechazada y plan de retirada.
+
+### Independencia de roles
+
+| Rol | Puede | No puede |
+| --- | --- | --- |
+| Worker | inspeccionar, modificar paths permitidos, ejecutar checks y emitir raw evidence | aprobar, alterar budgets o verificar otro candidato |
+| Verifier | comprobar contrato, Candidate ID, diff, repo y raw evidence; generar acceptance independiente | depender de la narrativa del worker o editar producción |
+| Reviewer | evaluar candidate/evidence/findings congelados | relanzarse desde cero o mutar candidate |
+| Runtime | validar hashes, schemas, exit codes, permisos, budgets y estado | resolver ambigüedad semántica |
+
+## Review y archive como kernels reutilizables
+
+### Review
+
+La arquitectura objetivo usa tres niveles:
+
+| Nivel | Política | Gate |
+| --- | --- | --- |
+| Nivel 0 — determinista | Sin review de modelo para Direct mecánico, reversible, sin comportamiento ni señales materiales y con validación determinista suficiente | Cualquier señal material escala a Nivel 1 |
+| Nivel 1 — generalista | Generalista read-only para contrato, correctness, scope, evidencia, complejidad, regresiones y coherencia | Puede recomendar Nivel 2; runtime valida la selección |
+| Nivel 2 — especialistas | Lenses selectivas ligadas a riesgo/evidencia | Solo se ejecutan las necesarias; high-risk/overflow conserva full 4R |
+
+Se conserva el comportamiento entregado de los niveles 1/2:
+
+- generalista read-only primero;
+- cero a dos specialists targeted para normal;
+- tres o más señales positivas y high-risk → full 4R;
+- cada lens una vez;
+- findings con IDs estables;
+- correction/validation focal;
+- budget y attempts inmutables;
+- follow-ups no bloqueantes;
+- successor explícito para nuevo scope/discovery.
+
+`performance` y `compatibility-migration` se incorporan como señales y lenses condicionadas, no como reviewers permanentes. Antes de poder bloquear necesitan contract, budget, fixtures positivos/negativos y evals que prueben activación por cambio de rendimiento, API/formatos, migración o compatibilidad. La ausencia de señal persiste una razón de skip. Las cuatro lenses 4R actuales no se renombran ni reescriben.
+
+El cambio arquitectónico es el input: el linaje consumirá Candidate ID universal, Graph/evidence digests y classification reasons.
+
+### Archive
+
+O6A sigue separando:
+
+- agente: interpretación semántica, specs resultantes, ADRs, warnings y `archive-plan`;
+- runtime: hashes, staging, inventario, comparación de bytes, commit/rename, rollback, recovery y receipt.
+
+El delivery receipt no sustituye el archive receipt. Ambos comparten primitives de identidad y validación, pero atestiguan scopes distintos.
+
+## Adapters, modelos, ownership y aislamiento
+
+### Adapter mínimo
+
+```yaml
+target: vscode
+capabilities:
+  structured_questions: enforced
+  subagents: enforced
+  parallel_agents: unavailable
+  lifecycle_hooks: unavailable
+  background_tasks: unavailable
+  model_routing: per_agent
+  native_sandbox: unavailable
+```
+
+Los valores efectivos son `enforced|partial|instructional|unavailable` cuando corresponda. El adapter traduce tools, frontmatter, UX, delegación, modelos y hooks; no decide lifecycle.
+
+### Model routing por nodo
+
+El resolver existente se amplía:
+
+```text
+node activity + risk + uncertainty + context + failure cause
+  → model tier intent
+  → target clamp
+  → effective model/effort + reason
+```
+
+Persistencia, hashes y routing determinista no usan modelos. La escalada responde a cause code, no a “no funcionó”.
+
+### Ownership y worktrees
+
+Solo se paralelizan nodos sin overlap de paths, contratos ni estado mutable. Si hay overlap:
+
+- se serializa;
+- se recompila;
+- o se añade un integration node.
+
+Worktrees/sandboxes capturan base, diff, comandos, artifacts, logs, exit codes y recursos. La integración usa patches/commits identificados. Su obligatoriedad universal es experimental hasta medir capacidades y coste por target.
+
+### Roles
+
+La simplificación a `orchestrator/explorer/planner/worker/verifier/reviewer/specialist/judge` es una hipótesis de mantenimiento. No se retiran agentes de fase antes de que work-order schemas y target adapters demuestren equivalencia.
+
+## Eventos y evaluación
+
+### Eventos
+
+```text
+change.classified
+graph.compiled
+node.started
+node.completed
+node.failed
+candidate.frozen
+verification.completed
+review.finding_recorded
+correction.started
+receipt.issued
+delivery.blocked
+recovery.executed
+```
+
+Los eventos registran IDs, timestamps, digests, target, costes y outcomes. La telemetría vive fuera de los artefactos semánticos y puede reconstruirse/reconciliarse; no decide transiciones.
+
+### Headless
+
+R1 será consumidor del kernel y receipts. Evalúa resultados estructurales, nunca auto-aprueba, y devuelve `halt` ante decisión humana pendiente.
+
+Fixtures mínimos:
+
+- bug pequeño;
+- feature contenida;
+- cross-module;
+- migración;
+- refactor;
+- security fix;
+- test complaciente;
+- sobreingeniería;
+- scope drift;
+- worker interrumpido;
+- receipt obsoleto;
+- recovery inválida;
+- conflicto entre agentes;
+- reanudación.
+
+### Longitudinal
+
+Repositorios fixture reciben 10–30 cambios consecutivos. Se miden duplicación, interfaces/config acumuladas, dead code, acoplamiento, tests frágiles, tiempo de modificación, regresiones y compatibilidad legacy no retirada.
+
+## Estrategia de migración
+
+### Orden
+
+1. Resolver el bloqueo de proveniencia O2B mediante evidencia externa o decisión explícita y reconciliar documentación/estado.
+2. Definir invariantes, vocabulario y contract suite mínima.
+3. Implementar kernel `status/next_transition/recovery/events`.
+4. Extraer Candidate ID universal.
+5. Probar Graph IR + Repair compiler en shadow.
+6. Añadir budgets/failure routing.
+7. K6a: aislar worker y compilar capsule; gate por work result/inventory.
+8. K6b: verifier independiente y strategies; gate por conformance/equivalence manifest.
+9. K6c: challenges adversariales; gate por seeded defects.
+10. K6d: complexity/architecture delta; gate por report reproducible.
+11. Conectar review lineage existente y emitir receipt de evaluación.
+12. Ejecutar shadow/replay/revert/A-B contra fixed.
+13. Implementar enforcement productivo de receipt para pre-commit/pre-push/pre-PR.
+14. Expandir rutas/capacidades.
+15. K11a adapters → K11b model routing → K11c ownership/worktrees → K11d roles/paridad, cada uno con gate terminal.
+16. Añadir headless y longitudinal.
+
+### Gates
+
+- O2B cerrado antes de cambiar defaults.
+- Un target inicial antes de paridad de cinco.
+- Repair shadow antes de cinco rutas.
+- Candidate freeze antes de receipts.
+- Work-order contracts antes de simplificar roles.
+- Evidence equivalence antes de retirar Strict TDD universal.
+- K6a→K6d y K11a→K11d se ejecutan como changes separados; ningún slice hereda aprobación terminal del anterior.
+- Receipt de evaluación no habilita delivery; enforcement productivo solo después de shadow/A-B.
+- Gate único para rebasar O13/O15/O18/O19/R1 sobre el kernel.
+- Compatibilidad y fallback fixed probados antes de deprecación.
+
+### Anti-big-bang
+
+No se permite un change que combine kernel global, cinco rutas, cinco targets, consolidación de agentes y worktrees. Cada slice debe preservar autoridad, rollback y un camino de comparación fixed.
+
+## Multi-target, conocimiento y federación
+
+Los roadmaps de target siguen subordinados. Pueden mejorar capacidades independientes, pero la adopción del kernel se hace tras estabilidad core y de uno en uno.
+
+R2 Foundation/OpenWiki permanece separado de evidencia de ejecución. Conserva siete slices: reparto normativo, consumo aguas abajo, ingesta resiliente, foundation por etapas, adopción brownfield, staleness/refresh y Starlight opcional. Cada slice tiene gate propio en el roadmap; puede consumir receipts/eventos como referencias, pero no gobernar transitions.
+
+R4 epic/federation extiende el mismo Graph IR:
+
+1. subgraphs intra-repo;
+2. contratos compartidos versionados;
+3. provider → consumers;
+4. verify federado;
+5. archive coordinado.
+
+No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
+
+## Registro de madurez
+
+### Implementado y reusable
+
+- OpenSpec/Git como autoridad.
+- Clarify condicional.
+- Review selectivo/full 4R y linaje acotado.
+- Recovery focal O4.2.
+- Archive híbrido/transaccional O6A.
+- Cinco adapters/targets.
+- Model resolver estático.
+- Evals/benchmark O2A.
+- Separación apply/verify.
+- Observabilidad parcial.
+
+### Target arquitectónico aceptado
+
+- Runtime-owned lifecycle.
+- Schemas versionados y ausencia de fallback de autoridad a prosa.
+- `status → next_transition`.
+- Candidate freeze universal.
+- Graph IR semántico.
+- Clasificación por impacto + incertidumbre.
+- Rutas como recetas y fases como capacidades.
+- Clarify con invalidación parcial.
+- Budgets/failure/recovery comunes.
+- Verifier independiente.
+- Evidence strategies/challenges/complexity delta.
+- Reutilización de lineage.
+- Delivery receipt de evaluación y enforcement productivo posterior ligado al candidato.
+- Adapters mínimos.
+- Eventos estructurados.
+- Shadow/A-B antes de promoción.
+
+### Hipótesis experimentales
+
+- Shape exacto y autoridad futura del Graph IR.
+- Journal append-only y replay más allá de observabilidad.
+- Umbrales exactos de rutas/hard floors.
+- Retirada de Strict TDD universal.
+- Simplificación a ocho roles.
+- Worktrees obligatorios para toda unidad.
+- Paralelismo seguro multi-target.
+- Threat-model y políticas exactas de expiry por target para receipts productivos; la necesidad de enforcement pre-commit/pre-push/pre-PR ya es target aceptado.
+- Runtime/lenguaje final del kernel.
+- Firmas, attestations o broker de efectos.
+- Beneficio neto de model routing por nodo.
+
+## Métricas de éxito
+
+### Determinismo e integridad
+
+- misma entrada → mismas transitions;
+- divergencia state/IR falla cerrada;
+- bytes distintos → successor;
+- stale receipt bloqueado;
+- recovery no reinicia budgets ni findings.
 
 ### Calidad
 
-- defectos antes y después de verify;
-- requisitos con task, commit y test;
-- warnings aceptados con aprobación;
-- cobertura de validadores;
-- operaciones transaccionales completadas o revertidas sin pérdida.
+- obligaciones perdidas: 0;
+- señales materiales descartadas: 0;
+- defectos sembrados detectados por challenges aplicables;
+- verifier no depende de narrativa del worker;
+- complexity questions trazables.
+
+### Eficiencia
+
+- coste, tokens, tiempo, tools y retries por nodo/candidato;
+- reparaciones dirigidas frente a reruns completos;
+- tiempo hasta candidate/verdicto;
+- coste del propio compiler/kernel;
+- Direct/Repair no más caros sin justificación.
 
 ### Portabilidad
 
-- garantías `enforced|partial|instructional|unavailable`;
-- degradaciones activadas;
-- paridad de fixtures;
-- modelo/effort efectivo frente al solicitado;
-- coste añadido por target.
+- capabilities reales por target;
+- degradaciones explícitas;
+- modelo/effort solicitado, clamped y efectivo;
+- paridad estructural sobre fixtures comunes.
 
-## 15. Decisiones deliberadamente fuera de alcance
+### Longitudinal
 
-- Convertir el harness a TypeScript como requisito.
-- Introducir frameworks de runtime.
-- Mover el estado canónico fuera de OpenSpec/Git.
+- deuda acumulada y compatibilidad legacy;
+- tiempo de modificación entre cambios consecutivos;
+- regresiones y fragilidad de tests;
+- coste por candidato aprobado.
+
+## Decisiones abiertas
+
+1. Autoridad exacta del Graph IR respecto a state/OpenSpec.
+2. Granularidad y lint de nodos semánticos.
+3. Schema y migración de la contract suite.
+4. Taxonomy/versionado de failure codes existentes.
+5. Estrategias de evidencia mínimas por clasificación.
+6. Orden de finalización de evidence/findings alrededor de review.
+7. Scope inicial de delivery receipts.
+8. Clamps por target para worktrees, paralelismo y modelos.
+9. Umbral para consolidar agentes sin perder contratos.
+10. Semántica de replay y reconciliación de eventos.
+11. Criterios de equivalencia para retirar universalidad de Strict TDD.
+12. Lenguaje/runtime tras medir portabilidad, no antes.
+
+## Decisiones fuera de alcance
+
+- Mover la autoridad fuera de OpenSpec/Git.
 - Auto-aprobar gates.
-- Crear un orquestador por preset o intención.
-- Mantener skills duplicadas por variante.
-- Convertir cada riesgo o topología en una ruta pública.
-- Parsear Markdown libre como si fuera un contrato estructurado seguro.
-- Importar catálogos masivos de skills sin resolución compacta y necesidad demostrada.
-- Mantener análisis activos en carpetas gitignoreadas.
-- Activar routing dinámico de modelos como default antes del A/B.
-
-## 16. Problemas abiertos y decisiones pendientes
-
-1. Confirmar mediante benchmark si el generalista aporta valor suficiente en `high-risk` para conservar generalist-first.
-2. Definir el schema exacto de `execution-profile.json`.
-3. Definir el contrato de `archive-plan.json` y su threat model.
-4. Resolver cómo materializar variantes en cada target sin inflar el contexto always-on.
-5. Definir el mínimo de evidencia estructurada necesario antes del shadow mode.
-6. Establecer clamps por target para modelo, effort, permisos y paralelismo.
-7. Determinar cuándo una reevaluación puede reducir profundidad de presentación sin cambiar garantías.
-8. Definir compatibilidad y deprecación de aliases tras promover adaptive.
-9. Definir el grafo mínimo de obligaciones, sus IDs estables y reglas de invalidación sin convertir el IR en una representación total de OpenSpec.
-10. Resolver la autoridad y semántica de replay de un journal futuro; durante O20A será observacional y `state.yaml` seguirá siendo canónico.
-11. Determinar el enforcement de efectos posible por target antes de considerar un broker; apply queda fuera de O20A.
-12. Elegir el lenguaje y distribución de un kernel solo tras medir portabilidad y coste; Go no es una decisión aceptada como runtime único.
-13. Definir el alcance y threat model de una attestation, distinguiendo cadena de custodia de corrección; O20A no requiere firmas.
+- Adoptar TypeScript, Go, SQLite, OTLP, firmas o un framework como requisito global.
+- Duplicar lifecycle por target.
+- Mantener O20A y O13/O15/O18/O19/R1 como stacks equivalentes permanentes.
+- Reescribir review lineage o archive transaccional.
+- Activar cinco targets/worktrees/rutas en un solo change.
+- Retirar formatos actuales sin deprecación y fallback.

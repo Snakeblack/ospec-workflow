@@ -32,6 +32,39 @@ as the structural shape matches.
 - **Not a transcript replay.** Nothing here asserts against a pre-recorded
   golden transcript. Every scenario run is a genuine live model invocation.
 
+## Fixed-policy reference baseline
+
+The reference baseline is deliberately separate from the local test suite. It
+can only be produced by a host-authorized live invocation:
+
+```sh
+node scripts/evals/live-driver.js extended
+```
+
+`extended` resolves the frozen nine-profile catalog with `policy: fixed`.
+It requires a known CLI, target, installed runtime, model identity, effort,
+git/runtime/working-tree identities, and replay-verifiable live provenance for
+every profile. The driver accepts only `fresh-live`, `recovered-live`, or an
+exact `compatible-live-cache` result; a manual row, test capability, arbitrary
+workspace, incomplete run, or identity mismatch is rejected before the report
+is touched.
+
+The aliases `all` and `initial` remain the three-profile smoke suite. They
+collect run-level token, duration, question, verify and 4R-defect metrics, but
+are diagnostic only: they never call the reference-baseline publisher. Existing
+Sol/Luna observations are likewise diagnostic and are not catalog rows.
+
+When all nine rows validate, the driver atomically replaces
+`scripts/evals/reports/reference-baseline.md`. That one Markdown file embeds a
+canonical JSON candidate and table, so a failed validation or filesystem rename
+leaves an earlier report byte-identical. It is safe for `npm test` to exercise
+the validators and atomicity with temporary candidates; tests must not create
+or fill a live baseline.
+
+The hashes in this flow provide cooperative correlation and tamper detection,
+not cryptographic proof that a remote model executed. This command does not
+enable adaptive policy, promotion gates, or CI publication.
+
 ## Architecture
 
 ```
