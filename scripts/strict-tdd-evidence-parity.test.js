@@ -16,6 +16,9 @@ test("REQ-agents-012 generated in-memory parity ships helper to every target", (
     assert.ok(helper, `missing ${helperPath}`);
     assert.ok(helper.content.length > 1000, "helper content must be non-empty");
     assert.match(helper.content, /validateEvidenceRecord/);
+    assert.match(helper.content, /persistRuntimeReceipt/);
+    assert.match(helper.content, /authenticateRuntimeReceipt/);
+    assert.doesNotMatch(helper.content, /LegacyEvidenceException|LEGACY_EXCEPTION_/);
   }
   assert.equal(new Set(outputs.map(files => files.find(file => file.path === helperPath).content)).size, 1);
 });
@@ -35,9 +38,16 @@ test("REQ-agents-012 executable isolated mutations all fail closed", () => {
   const fixture = fs.readFileSync("scripts/fixtures/strict-tdd-fast-path/apply-progress.md", "utf8"), baseRecord = remediation.parseEvidenceBlock(fixture).record;
   const functionalPath = `openspec/changes/${authorizedChange}/functional.js`, functional = "module.exports = 1;\n";
   baseRecord.change = authorizedChange; baseRecord.evidence_mode = "live"; baseRecord.functional_snapshot.genesis_paths.push(evidencePath, functionalPath); baseRecord.functional_snapshot.files = [{ path: functionalPath, digest: remediation.sha256(functional) }];
-  Object.assign(baseRecord.cycles[0].provenance, { source: "runtime-receipt", command: "node --test scripts/fixtures/strict-tdd-fast-path/functional.test.js", receipt_id: "sha256:" + "b".repeat(64) });
+  fs.mkdirSync(`openspec/changes/${authorizedChange}`, { recursive: true }); fs.writeFileSync(functionalPath, functional);
+  const command = "node --test scripts/fixtures/strict-tdd-fast-path/functional.test.js";
+  const candidate = remediation.candidateIdentity(baseRecord.functional_snapshot);
+  const receiptBody = { change: authorizedChange, base_tree: baseRecord.functional_snapshot.base_tree, candidate_id: candidate.id, test_file: baseRecord.cycles[0].test_file, test_digest: baseRecord.cycles[0].provenance.test_digest, command };
+  const green = remediation.persistRuntimeReceipt(rootDir, { ...receiptBody, phase: "GREEN", exit_code: 0, outcome: "pass", stdout: "1..1\n# pass 1\n", stderr: "" });
+  const red = remediation.persistRuntimeReceipt(rootDir, { ...receiptBody, phase: "RED", exit_code: 1, outcome: "fail", stdout: "", stderr: "AssertionError\n" });
+  assert.equal(green.valid, true); assert.equal(red.valid, true);
+  Object.assign(baseRecord.cycles[0].provenance, { source: "runtime-receipt", command, receipt_id: green.receipt_id, receipt_path: green.receipt_path, red_command: command, red_test_digest: baseRecord.cycles[0].provenance.test_digest, red_receipt_id: red.receipt_id, red_receipt_path: red.receipt_path });
   const evidenceText = fixture.replace(/```json:strict-tdd-evidence\s*[\s\S]*?```/, `\`\`\`json:strict-tdd-evidence\n${JSON.stringify(baseRecord)}\n\`\`\``);
-  fs.mkdirSync(`openspec/changes/${authorizedChange}`, { recursive: true }); fs.writeFileSync(functionalPath, functional); fs.writeFileSync(evidencePath, evidenceText); test.after(() => fs.rmSync(`openspec/changes/${authorizedChange}`, { recursive: true, force: true }));
+  fs.writeFileSync(evidencePath, evidenceText); test.after(() => fs.rmSync(`openspec/changes/${authorizedChange}`, { recursive: true, force: true }));
   const evidenceDigest = remediation.sha256(evidenceText);
   const findingBody = { id: "mutation-finding", origin: "code-bug", severity: "CRITICAL" };
   const finding = { ...findingBody, digest: remediation.sha256(JSON.stringify(remediation.canonical(findingBody))) };
