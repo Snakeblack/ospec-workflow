@@ -84,14 +84,15 @@ test("reference candidate rejects a non-string generated_at before baseline iden
   assert.throws(() => buildReferenceCandidate(profiles.map(referenceRow), { profiles, generatedAt: 123 }), /Reference candidate rejected: invalid-generated-at/);
 });
 
-test("reference candidate rejects noncanonical or impossible ISO-8601 generated_at values", () => {
+test("reference candidate rejects malformed or impossible ISO-8601 generated_at values", () => {
   const profiles = ["alpha"];
   const candidate = buildReferenceCandidate(profiles.map(referenceRow), { profiles, generatedAt: "2026-07-29T00:00:00.000Z" });
   const invalidValues = [
     "not-a-timestamp",
     "2026-02-30T00:00:00.000Z",
-    "2026-07-29T02:00:00.000+02:00",
-    "2026-07-29T00:00:00Z",
+    "2026-07-29",
+    "2026-07-29T00:00:00",
+    " 2026-07-29T00:00:00Z",
   ];
 
   for (const generated_at of invalidValues) {
@@ -100,13 +101,19 @@ test("reference candidate rejects noncanonical or impossible ISO-8601 generated_
   assert.throws(() => buildReferenceCandidate(profiles.map(referenceRow), { profiles, generatedAt: invalidValues[1] }), /Reference candidate rejected: invalid-generated-at/);
 });
 
-test("reference candidate accepts the canonical UTC timestamp emitted by Date.toISOString", () => {
+test("reference candidate accepts parseable ISO-8601 timestamps with an explicit timezone", () => {
   const profiles = ["alpha"];
-  const generatedAt = new Date("2026-07-29T00:00:00.000Z").toISOString();
-  const candidate = buildReferenceCandidate(profiles.map(referenceRow), { profiles, generatedAt });
+  const validValues = [
+    new Date("2026-07-29T00:00:00.000Z").toISOString(),
+    "2026-07-29T00:00:00Z",
+    "2026-07-29T02:00:00.000+02:00",
+  ];
 
-  assert.equal(candidate.generated_at, "2026-07-29T00:00:00.000Z");
-  assert.deepEqual(validateReferenceCandidate(candidate, { profiles }), []);
+  for (const generatedAt of validValues) {
+    const candidate = buildReferenceCandidate(profiles.map(referenceRow), { profiles, generatedAt });
+    assert.equal(candidate.generated_at, generatedAt);
+    assert.deepEqual(validateReferenceCandidate(candidate, { profiles }), [], generatedAt);
+  }
 });
 
 test("reference quality is derived only from verified canonical verify and 4R outcomes", () => {
