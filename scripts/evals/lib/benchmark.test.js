@@ -66,6 +66,56 @@ test("reference candidate requires the exact fixed live set and renders canonica
   assert.deepEqual(validateReferenceCandidate({ ...candidate, rows: candidate.rows.map((row) => ({ ...row, provenance: { ...row.provenance, execution_origin: "manual" } })) }, { profiles }), ["unattributable-origin:alpha", "unattributable-origin:beta"]);
 });
 
+test("reference candidate rejects a missing generated_at before baseline identity or rendering", () => {
+  const profiles = ["alpha"];
+  const candidate = buildReferenceCandidate(profiles.map(referenceRow), { profiles, generatedAt: "2026-07-29T00:00:00.000Z" });
+  const { generated_at, ...withoutGeneratedAt } = candidate;
+
+  assert.equal(generated_at, "2026-07-29T00:00:00.000Z");
+  assert.deepEqual(validateReferenceCandidate(withoutGeneratedAt, { profiles }), ["invalid-generated-at"]);
+  assert.throws(() => renderReferenceBaseline(withoutGeneratedAt, { profiles }), /Reference candidate rejected: invalid-generated-at/);
+});
+
+test("reference candidate rejects a non-string generated_at before baseline identity", () => {
+  const profiles = ["alpha"];
+  const candidate = buildReferenceCandidate(profiles.map(referenceRow), { profiles, generatedAt: "2026-07-29T00:00:00.000Z" });
+
+  assert.deepEqual(validateReferenceCandidate({ ...candidate, generated_at: 123 }, { profiles }), ["invalid-generated-at"]);
+  assert.throws(() => buildReferenceCandidate(profiles.map(referenceRow), { profiles, generatedAt: 123 }), /Reference candidate rejected: invalid-generated-at/);
+});
+
+test("reference candidate rejects malformed or impossible ISO-8601 generated_at values", () => {
+  const profiles = ["alpha"];
+  const candidate = buildReferenceCandidate(profiles.map(referenceRow), { profiles, generatedAt: "2026-07-29T00:00:00.000Z" });
+  const invalidValues = [
+    "not-a-timestamp",
+    "2026-02-30T00:00:00.000Z",
+    "2026-07-29",
+    "2026-07-29T00:00:00",
+    " 2026-07-29T00:00:00Z",
+  ];
+
+  for (const generated_at of invalidValues) {
+    assert.deepEqual(validateReferenceCandidate({ ...candidate, generated_at }, { profiles }), ["invalid-generated-at"], generated_at);
+  }
+  assert.throws(() => buildReferenceCandidate(profiles.map(referenceRow), { profiles, generatedAt: invalidValues[1] }), /Reference candidate rejected: invalid-generated-at/);
+});
+
+test("reference candidate accepts parseable ISO-8601 timestamps with an explicit timezone", () => {
+  const profiles = ["alpha"];
+  const validValues = [
+    new Date("2026-07-29T00:00:00.000Z").toISOString(),
+    "2026-07-29T00:00:00Z",
+    "2026-07-29T02:00:00.000+02:00",
+  ];
+
+  for (const generatedAt of validValues) {
+    const candidate = buildReferenceCandidate(profiles.map(referenceRow), { profiles, generatedAt });
+    assert.equal(candidate.generated_at, generatedAt);
+    assert.deepEqual(validateReferenceCandidate(candidate, { profiles }), [], generatedAt);
+  }
+});
+
 test("reference quality is derived only from verified canonical verify and 4R outcomes", () => {
   assert.equal(deriveReferenceQuality({ state_status: "verified", verify: { outcome: "PASS" }, four_r: { outcome: "PASS" } }), "PASS");
   assert.equal(deriveReferenceQuality({ state_status: "verified", verify: { outcome: "PASS WITH WARNINGS" }, four_r: { outcome: "PASS" } }), "PASS_WITH_WARNINGS");

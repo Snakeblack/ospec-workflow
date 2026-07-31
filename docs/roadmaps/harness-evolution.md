@@ -1,7 +1,7 @@
 # Roadmap general — kernel, grafo y evidencia
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.35.0, 2026-07-29.
+> **Versión de referencia:** v2.36.0, 2026-07-31.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
 > **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md).
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
@@ -33,7 +33,7 @@ O2B fixed baseline
   → K12 headless/longitudinal
 ```
 
-O2B permanece el gate inmediato. El change `fixed-policy-reference-baseline` está `blocked`: `sdd-apply` terminó `partial`; `sdd-verify` terminó `done` con verdict `FAIL` y `next_recommended: none`. La funcionalidad cumple 16/16 MUST y recovery ya preserva `quality_evidence`; el único CRITICAL es un `tasks-gap` de proveniencia Strict TDD RED histórica no autenticada. No se inicia K1 ni se cambia un default hasta que evidencia externa o una decisión humana explícita sobre policy/spec resuelva el bloqueo.
+O2B cerró el gate inicial. El change `fixed-policy-reference-baseline` obtuvo verify `PASS` para 16/16 MUST y evidencia Strict TDD autenticada, superó el gate 4R con estado `approved` y quedó archivado en `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`. La versión v2.36.0 que lo contiene ya está publicada. K1 es la siguiente iniciativa activa y bloquea K2; K2 y el resto de iniciativas posteriores siguen `pending`. Fixed continúa como control/default hasta que los gates posteriores autoricen otro cambio.
 
 Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R1 se rebasan sobre un kernel común; O7+O10 se convierte en capacidades; O9+O11 en invalidación/recompilación; O14 en routing por nodo; R4 consume el mismo Graph IR. O8 y O12 conservan shadow, compatibilidad y deprecación. Targets y R2 siguen subordinados a la estabilidad del core.
 
@@ -41,8 +41,8 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 
 | Orden | Acción | Gate de salida |
 | ---: | --- | --- |
-| 1 | Completar O2B sin mezclar kernel nuevo | Verify no `FAIL`; baseline fixed reproducible según su spec |
-| 2 | Ejecutar K1–K3 | Contracts, transitions y Candidate ID conformes |
+| 1 | Ejecutar K1 | Contracts, invariantes, vocabulario y clasificación conformes; desbloquea K2 |
+| 2 | Ejecutar K2–K3 | Transitions, recovery y Candidate ID conformes |
 | 3 | Ejecutar K4–K8 sobre Repair shadow, respetando K6a→K6d | Vertical end-to-end con receipt de evaluación |
 | 4 | Ejecutar K9 | Calidad no inferior, replay y fallback fixed |
 | 5 | Ejecutar K10-delivery | Pre-commit/pre-push/pre-PR validan receipts productivos |
@@ -58,19 +58,20 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | O4+O5/O4.1 | Review selectivo/full 4R y linaje acotado |
 | `done` | O4.2 | Recovery focal de evidencia Strict TDD |
 | `done` | O6A | Archive híbrido transaccional |
-| `blocked` | **O2B** | Funcionalmente conforme; verify `FAIL` por un único tasks-gap de proveniencia Strict TDD |
-| `pending` | K1–K3 | Fundamentos del kernel y Candidate ID |
+| `done` | **O2B** | Verify `PASS`, gate 4R `approved`, archivado y publicado en v2.36.0 |
+| `in-progress` | **K1** | Siguiente iniciativa activa; contract suite, vocabulario y clasificación |
+| `pending` | K2–K3 | Lifecycle kernel y Candidate ID; K2 bloqueado por K1 |
 | `pending` | K4–K8 | MVP Repair proof-carrying; K6 se entrega en cuatro slices terminales |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B |
 | `pending` | K10-delivery | Enforcement productivo de receipts |
 | `pending` | K10–K12 | Expansión adaptativa, plataforma en cuatro slices y evaluación longitudinal |
 
-No se modifica el estado de OpenSpec desde este documento. `blocked` refleja el top-level autoritativo; las fases y el bloqueo exacto se toman de `openspec/changes/fixed-policy-reference-baseline/state.yaml`.
+No se modifica el estado de OpenSpec desde este documento. El cierre de O2B se toma de `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`; K1 figura aquí como iniciativa de roadmap activa, sin crear por ello un change OpenSpec.
 
 ## Reglas del programa
 
 1. Cada iniciativa se implementa como change OpenSpec cohesivo.
-2. O2B es gate antes de cambiar defaults o fixtures del control.
+2. O2B es la baseline de control entregada; cualquier cambio de defaults o fixtures requiere los gates posteriores aplicables.
 3. Cada slice introduce una sola autoridad; no se mantienen dos kernels equivalentes.
 4. Toda policy nueva empieza en shadow.
 5. Candidate freeze precede verify, review y receipts.
@@ -95,19 +96,17 @@ pending · in-progress · blocked · done · superseded · rejected
 
 ```text
 Entregado:
-G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A
-                                                  ↓
-Activo:                                         O2B
-                                                  ↓
-Core:           K1 → K2 → K3 → K4 → K5
-                                    ↓
-              K6a → K6b → K6c → K6d → K7 → K8
-                                                  ↓
-Promoción:                                       K9
-                                                  ↓
-Delivery:                                  K10-delivery
-                                                  ↓
-Expansión:             K10 → K11a → K11b → K11c → K11d → K12
+G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B
+                                                        ↓
+Activo:                                                K1
+                                                        ↓ bloquea
+Pendiente:   K2 → K3 → K4 → K5 → K6a → K6b → K6c → K6d → K7 → K8
+                                                                  ↓
+Promoción:                                                       K9
+                                                                  ↓
+Delivery:                                                   K10-delivery
+                                                                  ↓
+Expansión:                          K10 → K11a → K11b → K11c → K11d → K12
 ```
 
 Lanes R2 y targets solo avanzan en paralelo si no cambian control plane, contract suite, Graph IR ni baseline.
@@ -122,7 +121,7 @@ Entregado:
 - separación entre autoridad, targets y análisis;
 - historial no normativo fuera de la ruta operativa.
 
-La reconciliación de esta edición actualiza el corte a v2.35.0 y fusiona la dirección kernel/Graph/evidence. No reabre los changes entregados.
+La reconciliación de esta edición actualiza el corte a v2.36.0 y fusiona la dirección kernel/Graph/evidence. No reabre los changes entregados.
 
 ### O2A — infraestructura de benchmark — **done**
 
@@ -179,26 +178,23 @@ Entregado:
 K2/K8 compartirán primitives, sin sustituir este kernel.
 
 <a id="o2b-baseline-fija-fixed-policy--pending"></a>
+<a id="o2b-baseline-fija-fixed-policy--done"></a>
 
-### O2B — baseline fixed-policy — **in-progress**
+### O2B — baseline fixed-policy — **done**
 
-**Change activo:** `fixed-policy-reference-baseline`.
+**Change archivado:** `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`.
 
 **Estado factual al corte:**
 
-- top-level `status: blocked`;
-- `sdd-apply: partial`;
-- `sdd-verify: done`, verdict `FAIL`, `next_recommended: none`;
-- 16/16 MUST, 67/67 tests focales y `npm test` pasan;
-- recovery offline preserva `quality_evidence`;
-- queda un único CRITICAL `tasks-gap`: no existe proveniencia autenticada de la cronología RED-before-GREEN histórica;
-- la baseline live 9/9 sigue ausente como estaba previsto y esa ausencia no causa el `FAIL`.
+- verify `PASS` para 16/16 escenarios MUST;
+- replay limpio Strict TDD con 17/17 ciclos live y receipts RED/GREEN autenticados;
+- 67/67 tests focales y 1537/1537 en `npm test`;
+- gate 4R `approved`, con lineage terminal aprobado;
+- archive completado el 2026-07-31;
+- entrega publicada en v2.36.0;
+- fixed permanece como baseline de control y default.
 
-#### Próxima acción
-
-Resolver el gate bloqueante según `blocking_questions`: aportar snapshots/receipts autenticados o aprobar por separado un cambio de policy/spec que haga explícitamente no bloqueante la limitación histórica. No existe reroute automático ni se incorpora K1–K12 dentro de O2B.
-
-#### Done criteria heredados
+#### Resultado entregado
 
 - baseline 9/9 versionada y reproducible;
 - policy fixed, identidad/model/effort/provenance conocidos;
@@ -211,19 +207,15 @@ Resolver el gate bloqueante según `blocking_questions`: aportar snapshots/recei
 
 #### Gate
 
-Hasta `done`:
-
-- fixed sigue siendo default;
-- no se cambian fixtures de comparación;
-- no se promueve O20A/kernel;
-- no se retira Strict TDD;
-- no se activa model routing dinámico.
+Gate cerrado: K1 puede iniciar. El cierre de O2B no cambia por sí mismo defaults, fixtures de comparación, Strict TDD ni model routing; esas decisiones siguen sujetas a K1–K12 y a sus gates.
 
 ## Bloque 1 — invariantes y contratos
 
-### K1 — contract suite, vocabulario y clasificación — **pending**
+### K1 — contract suite, vocabulario y clasificación — **in-progress**
 
 **Absorbe/rebasa:** P0, P4, P19; O13A; O19A; foundations de O20A.
+
+**Dependencia:** O2B completado. **Bloquea:** K2.
 
 #### Alcance
 
@@ -796,7 +788,7 @@ Fixtures reciben 10–30 cambios consecutivos y miden:
 | --- | --- | --- | --- |
 | G0/G0.1 | done | Bloque 0 | Conservar gobernanza; actualizar corte |
 | O2A | done | O2B/K9/K12 | Conservar runner y catálogo |
-| O2B | in-progress | Gate inicial | Terminar antes del kernel |
+| O2B | done | Baseline/control | Gate inicial cerrado; conservar fixed como control para K1–K12 |
 | O3 | done | K4/K10 | Generalizar como evento |
 | O4+O5/O4.1 | done | K7 | Reutilizar selector/lineage y extender niveles/lenses con gates |
 | O4.2 | done | K5/K6b | Reutilizar recovery focal |
@@ -860,12 +852,14 @@ Cobertura del adjunto: 28/28 prioridades explícitamente programadas.
 
 ## Gates de promoción
 
-### Gate A — O2B
+### Gate A — O2B — **passed**
 
 - baseline fixed reproducible;
 - verify sin CRITICAL;
 - no synthetic rows;
 - state/archive terminales.
+
+Evidencia: verify `PASS`, gate 4R `approved` y archive `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`.
 
 ### Gate B — kernel core
 
@@ -995,7 +989,7 @@ Cada child conserva clasificación, Candidate ID y receipt propios.
 | Riesgo | Guarda |
 | --- | --- |
 | Segunda fuente de verdad | Reducer único, reconciliation y fail-closed |
-| Perder O2B | Gate inicial y fixed intacto |
+| Perder la baseline O2B | Fixed publicado como control y protegido por gates posteriores |
 | Reescribir lineage/archive | Compat adapters y regression fixtures |
 | Receipt sin freeze | K3 bloquea K8 |
 | Agentes simplificados prematuramente | P21 queda en K11d tras work orders, scheduler y adapters estables |
@@ -1010,7 +1004,7 @@ Cada child conserva clasificación, Candidate ID y receipt propios.
 ## Gotchas vigentes
 
 - `analisis-fino/` no es autoridad.
-- O2B está `blocked`; `sdd-verify` terminó `done` con `FAIL` y no existe reroute automático.
+- O2B está archivado con verify `PASS` y gate 4R `approved`; no reabrir el antecedente de proveniencia ya resuelto.
 - Clarify es condicional y evolucionará a evento, no fase universal.
 - No relanzar reviewers tras congelar findings.
 - No resetear lineages, budgets o attempts por retry/interrupción.
@@ -1030,5 +1024,6 @@ Cada child conserva clasificación, Candidate ID y receipt propios.
 - 2026-07-14/15: O2A y O3.
 - 2026-07-17/18: G0/G0.1 y O4+O5.
 - 2026-07-18/26: O4.1, O4.2 y O6A entregados; se formula O20A.
-- 2026-07-28/29: O2B termina funcionalmente conforme, pero queda `blocked` por un único CRITICAL de proveniencia Strict TDD histórica.
+- 2026-07-28/29: O2B alcanza conformidad funcional y queda temporalmente `blocked` por un único CRITICAL de proveniencia Strict TDD histórica.
 - 2026-07-29: la visión P0–P27 se fusiona con el programa: O2B → K1–K12, preservando kernels entregados y fixed como control.
+- 2026-07-31: un replay limpio resuelve la proveniencia Strict TDD; O2B obtiene verify `PASS`, supera el gate 4R, se archiva y se publica en v2.36.0. K1 pasa a ser la iniciativa activa y bloquea K2.
