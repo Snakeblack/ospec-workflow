@@ -19,6 +19,27 @@ test("review-change source is read-only and defines the exact bounded decision c
   assert.match(skill, /permission|process/i);
 });
 
+test("review-change defines the complete successful outer result envelope", () => {
+  const skill = fs.readFileSync(path.join(ROOT, "skills/review-change/SKILL.md"), "utf8");
+  const contract = skill.split("## Exact decision contract")[1] || "";
+  const requiredOuterFields = [
+    "executive_summary",
+    "artifacts",
+    "next_recommended",
+    "risks",
+    "skill_resolution",
+  ];
+  const missingFields = requiredOuterFields.filter(
+    (field) => !new RegExp(`^\\s*${field}:`, "m").test(contract),
+  );
+
+  assert.deepEqual(
+    missingFields,
+    [],
+    `review-change outer result envelope omits: ${missingFields.join(", ")}`,
+  );
+});
+
 test("generalist payload accepts clear and canonical escalation, rejects malformed boundaries", () => {
   assert.equal(validateGeneralistDecision({ status: "clear", specialists: [], reason: "signals=none;dimensions=none" }).valid, true);
   assert.equal(validateGeneralistDecision({ status: "needs-specialist", specialists: ["risk", "reliability"], reason: "signals=diff-auth-permission,diff-process-execution;dimensions=risk,reliability" }).valid, true);

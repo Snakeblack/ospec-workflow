@@ -100,7 +100,6 @@ gates:
     blocker_reason: contract-remediation
     validation_error_codes:
       - adapter-contract-invalid
-      - decision-contract-invalid
 roadmap_ref: O2B
 baseline_fingerprints:
   orchestrator-evals: "sha256:1f19f2d7df76052fca96ee12b63610b7f0ebff62129b311efb4dbbc488858e6d"
