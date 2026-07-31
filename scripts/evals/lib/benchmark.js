@@ -278,6 +278,11 @@ function canonicalJson(value) {
 
 function referenceDigest(value) { return crypto.createHash("sha256").update(canonicalJson(value)).digest("hex"); }
 function validDigest(value) { return typeof value === "string" && /^[a-f0-9]{64}$/.test(value); }
+function validReferenceGeneratedAt(value) {
+  if (typeof value !== "string") return false;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) && new Date(timestamp).toISOString() === value;
+}
 
 function deriveReferenceQuality(evidence) {
   if (evidence?.state_status !== "verified") return null;
@@ -291,6 +296,7 @@ function validateReferenceCandidate(candidate, options = {}) {
   const errors = [];
   const profiles = options.profiles || [];
   if (!candidate || candidate.schema !== REFERENCE_SCHEMA) return ["invalid-schema"];
+  if (!validReferenceGeneratedAt(candidate.generated_at)) errors.push("invalid-generated-at");
   if (candidate.policy !== "fixed") errors.push("invalid-policy");
   if (!Array.isArray(candidate.rows)) return [...errors, "invalid-rows"];
   const rows = candidate.rows;
@@ -340,7 +346,7 @@ function buildReferenceCandidate(rows, options = {}) {
   const shared = orderedRows[0]?.compatibility || {};
   const candidate = {
     schema: REFERENCE_SCHEMA,
-    generated_at: options.generatedAt || new Date().toISOString(),
+    generated_at: options.generatedAt === undefined ? new Date().toISOString() : options.generatedAt,
     policy: "fixed",
     profile_catalog_sha256: shared.catalog_sha256,
     shared_identity: Object.fromEntries(REFERENCE_IDENTITY_FIELDS.map((key) => [key, shared[key]])),
