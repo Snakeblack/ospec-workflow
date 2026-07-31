@@ -427,6 +427,71 @@ test("normalization rejects non-real diff input, unsafe paths, and unknown fact 
   }), /source/i);
 });
 
+test("normalization preserves a valid empty-file creation beside a normal hunk", () => {
+  const normalized = evidence({
+    paths: ["scripts/run.js", "fixtures/empty.txt"],
+    operationTypes: ["modify", "add"],
+    diff: [
+      "diff --git a/scripts/run.js b/scripts/run.js",
+      "index 22f842a..2fe5c16 100644",
+      "--- a/scripts/run.js",
+      "+++ b/scripts/run.js",
+      "@@ -1 +1 @@",
+      "-const enabled = false;",
+      "+const enabled = true;",
+      "diff --git a/fixtures/empty.txt b/fixtures/empty.txt",
+      "new file mode 100644",
+      "index 0000000..e69de29",
+    ].join("\n"),
+  });
+
+  assert.deepEqual(normalized.sources.paths, ["fixtures/empty.txt", "scripts/run.js"]);
+});
+
+test("normalization preserves a valid empty-file deletion beside a normal hunk", () => {
+  const normalized = evidence({
+    paths: ["scripts/run.js", "fixtures/empty.txt"],
+    operationTypes: ["modify", "delete"],
+    diff: [
+      "diff --git a/scripts/run.js b/scripts/run.js",
+      "index 22f842a..2fe5c16 100644",
+      "--- a/scripts/run.js",
+      "+++ b/scripts/run.js",
+      "@@ -1 +1 @@",
+      "-const enabled = false;",
+      "+const enabled = true;",
+      "diff --git a/fixtures/empty.txt b/fixtures/empty.txt",
+      "deleted file mode 100644",
+      "index e69de29..0000000",
+    ].join("\n"),
+  });
+
+  assert.deepEqual(normalized.sources.paths, ["fixtures/empty.txt", "scripts/run.js"]);
+});
+
+test("normalization keeps rejecting unauthenticated metadata-only sections", () => {
+  for (const metadata of [
+    ["new file mode 100644", "index 0000000..deadbee"],
+    ["synthetic metadata without an empty-blob identity"],
+  ]) {
+    assert.throws(() => evidence({
+      paths: ["scripts/run.js", "fixtures/empty.txt"],
+      operationTypes: ["modify", "add"],
+      diff: [
+        "diff --git a/scripts/run.js b/scripts/run.js",
+        "index 22f842a..2fe5c16 100644",
+        "--- a/scripts/run.js",
+        "+++ b/scripts/run.js",
+        "@@ -1 +1 @@",
+        "-const enabled = false;",
+        "+const enabled = true;",
+        "diff --git a/fixtures/empty.txt b/fixtures/empty.txt",
+        ...metadata,
+      ].join("\n"),
+    }), /hunk|diff/i);
+  }
+});
+
 test("final validation recomputes evidence identity and enforces dimension applicability", () => {
   const valid = deriveReviewDimensions(evidence({
     diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1 @@\n+spawnSync(command)",
