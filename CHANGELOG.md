@@ -8,6 +8,27 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.36.0] - 2026-07-31
+
+### Added
+- **Baseline fixed-policy canónica (PR #74)**: Publica la política de referencia 9/9 con identidad, provenance y métricas comparables; la publicación es atómica y fail-closed, mientras el smoke 3/3 se mantiene como diagnóstico. Verificación: 68/68 focales, 17/17 ciclos y 34/34 bindings.
+
+### Security
+- **Receipts Strict TDD runtime autenticados por contenido (PR #73)**: Rechaza de forma fail-closed tampering, traversal y symlinks, y preserva los bytes raw en Windows. Verificación: 33/33 pruebas focales y suite global verde.
+
+### Fixed
+- **Cierre del gate 4R (Harness)**: Corrige los contratos de diffs Git canónicos para archivos vacíos y del envelope completo del generalista. Las pruebas focales y relacionadas, además de la suite global, quedaron verdes tras ambos fixes.
+
+### Changed
+- **Política agente→tier canónica (PR #72)**: Establece `models.yaml` como única fuente de política, conserva las invariantes estructurales del resolver, reasigna `sdd-propose` al tier `default` y alinea documentación, specs, fixtures y contratos.
+- **Roadmap del harness**: Reorienta las prioridades hacia el kernel determinista y Graph IR.
+
+### Docs
+- **Trazabilidad SDD de fixed-policy**: El cambio, ejecutado con TDD estricto y gate 4R, cerró con PASS de 16/16 escenarios MUST; quedó archivado transaccionalmente en `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`, sincronizó `openspec/specs/orchestrator-evals/spec.md` y promovió `docs/adr/adr-20260731-001-publish-a-self-describing-fixed-policy-baseline.md`.
+
+### Known limitations
+- **Validación temporal del candidato**: Se conserva como advisory no bloqueante la falta de validación ISO-8601 de `candidate.generated_at`.
+
 ## [2.35.0] - 2026-07-26
 
 ### Added
