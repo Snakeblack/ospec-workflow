@@ -280,6 +280,7 @@ function referenceDigest(value) { return crypto.createHash("sha256").update(cano
 function validDigest(value) { return typeof value === "string" && /^[a-f0-9]{64}$/.test(value); }
 function validReferenceGeneratedAt(value) {
   if (typeof value !== "string") return false;
+  // Date.parse normalizes some impossible dates, so enforce the ISO shape and calendar before using it as a final parse check.
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-](\d{2}):(\d{2}))$/.exec(value);
   if (!match) return false;
   const [, yearText, monthText, dayText, hourText, minuteText, secondText, fraction = "", timezone, offsetHourText, offsetMinuteText] = match;
