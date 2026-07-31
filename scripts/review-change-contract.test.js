@@ -23,14 +23,21 @@ test("review-change defines the complete successful outer result envelope", () =
   const skill = fs.readFileSync(path.join(ROOT, "skills/review-change/SKILL.md"), "utf8");
   const contract = skill.split("## Exact decision contract")[1] || "";
   const requiredOuterFields = [
+    "status",
     "executive_summary",
     "artifacts",
     "next_recommended",
     "risks",
     "skill_resolution",
   ];
+  const example = /```yaml\r?\n([\s\S]*?)\r?\n```/.exec(contract)?.[1] || "";
+  const outerFields = new Set(
+    example.split(/\r?\n/)
+      .map((line) => /^([a-z_]+):/.exec(line)?.[1])
+      .filter(Boolean),
+  );
   const missingFields = requiredOuterFields.filter(
-    (field) => !new RegExp(`^\\s*${field}:`, "m").test(contract),
+    (field) => !outerFields.has(field),
   );
 
   assert.deepEqual(
