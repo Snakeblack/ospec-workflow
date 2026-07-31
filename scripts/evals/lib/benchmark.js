@@ -280,8 +280,16 @@ function referenceDigest(value) { return crypto.createHash("sha256").update(cano
 function validDigest(value) { return typeof value === "string" && /^[a-f0-9]{64}$/.test(value); }
 function validReferenceGeneratedAt(value) {
   if (typeof value !== "string") return false;
-  const timestamp = Date.parse(value);
-  return Number.isFinite(timestamp) && new Date(timestamp).toISOString() === value;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-](\d{2}):(\d{2}))$/.exec(value);
+  if (!match) return false;
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText, fraction = "", timezone, offsetHourText, offsetMinuteText] = match;
+  const [year, month, day, hour, minute, second] = [yearText, monthText, dayText, hourText, minuteText, secondText].map(Number);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (month < 1 || month > 12 || day < 1 || day > daysInMonth[month - 1]) return false;
+  if (hour > 24 || minute > 59 || second > 59 || (hour === 24 && (minute !== 0 || second !== 0 || /[1-9]/.test(fraction)))) return false;
+  if (timezone !== "Z" && (Number(offsetHourText) > 23 || Number(offsetMinuteText) > 59)) return false;
+  return Number.isFinite(Date.parse(value));
 }
 
 function deriveReferenceQuality(evidence) {
