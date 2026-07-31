@@ -36,10 +36,15 @@ Allowed signal codes are `verify-risk`, `verify-reliability`, `verify-resilience
 
 ## Exact decision contract
 
-The standard successful result envelope MUST contain exactly one nested `decision` payload with exactly `status`, `specialists`, and `reason`:
+The standard successful result envelope MUST contain the required outer fields `status`, `executive_summary`, `artifacts`, `next_recommended`, `risks`, and `skill_resolution`, plus exactly one nested `decision` payload. The outer `status` MUST be `success`, `artifacts` MUST be `[]`, and the remaining generic fields MUST satisfy `scripts/lib/result-envelope.js`. The nested `decision` MUST contain exactly `status`, `specialists`, and `reason`:
 
 ```yaml
+status: success
+executive_summary: "Generalist screening completed."
 artifacts: []
+next_recommended: none
+risks: None
+skill_resolution: injected
 decision:
   status: clear | needs-specialist
   specialists: [] # canonical subset of risk, reliability, resilience, readability

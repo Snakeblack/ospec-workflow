@@ -206,6 +206,7 @@ function parseUnifiedDiff(diff) {
     const file = normalizeRelativePath(section[2]);
     index += 1;
     const newLines = [];
+    const metadata = [];
     let hunks = 0;
     let oldMarker = false;
     let newMarker = false;
@@ -225,6 +226,8 @@ function parseUnifiedDiff(diff) {
           newMarker = true;
         } else if (!/^(?:index [0-9a-f]+\.\.[0-9a-f]+(?: \d+)?|(?:new|deleted) file mode \d+|(?:old|new) mode \d+|(?:dis)?similarity index \d+%|(?:rename|copy) (?:from|to) .+)$/.test(lines[index])) {
           throw new TypeError(`invalid unified diff metadata at line ${index + 1}`);
+        } else {
+          metadata.push(lines[index]);
         }
         index += 1;
         continue;
@@ -249,11 +252,23 @@ function parseUnifiedDiff(diff) {
       }
       if (oldCount !== expectedOld || newCount !== expectedNew) throw new TypeError(`truncated unified diff hunk for ${file}`);
     }
-    if (!hunks) throw new TypeError(`diff section for ${file} must contain a hunk header`);
+    if (!hunks && !isCanonicalEmptyBlobSection({ oldPath, file, oldMarker, newMarker, metadata })) {
+      throw new TypeError(`diff section for ${file} must contain a hunk header`);
+    }
     files.push({ oldPath, file, lines: newLines });
   }
   if (!files.length) throw new TypeError("diff must contain at least one unified diff file section");
   return files;
+}
+function isCanonicalEmptyBlobSection({ oldPath, file, oldMarker, newMarker, metadata }) {
+  if (oldPath !== file || oldMarker || newMarker || metadata.length !== 2) return false;
+  return (
+    metadata[0] === "new file mode 100644" &&
+    metadata[1] === "index 0000000..e69de29"
+  ) || (
+    metadata[0] === "deleted file mode 100644" &&
+    metadata[1] === "index e69de29..0000000"
+  );
 }
 function stripNonExecutableText(line, state) {
   if (state.language === "ruby") {
