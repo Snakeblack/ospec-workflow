@@ -472,6 +472,7 @@ test("normalization preserves a valid empty-file deletion beside a normal hunk",
 test("normalization keeps rejecting unauthenticated metadata-only sections", () => {
   for (const metadata of [
     ["new file mode 100644", "index 0000000..deadbee"],
+    ["new file mode 999999", "index 0000000..e69de29"],
     ["synthetic metadata without an empty-blob identity"],
   ]) {
     assert.throws(() => evidence({
