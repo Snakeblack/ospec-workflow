@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "change": "fixed-policy-reference-baseline",
+  "source_fingerprint": "sha256:6659d1e98698a4d555b1e23fbcd8f6ca885dd6a035ab56389404535f8a076e69",
+  "spec_writes": [
+    {
+      "domain": "orchestrator-evals",
+      "source_delta": "specs/orchestrator-evals/prepared-spec.md",
+      "target": "openspec/specs/orchestrator-evals/spec.md",
+      "target_before_sha256": "sha256:1f19f2d7df76052fca96ee12b63610b7f0ebff62129b311efb4dbbc488858e6d",
+      "content_sha256": "sha256:3fedae8a21d2c8df683d1d1943af1b1627dfb5595f3196e294680464f3c1e632"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260731-001-publish-a-self-describing-fixed-policy-baseline.md",
+      "content_sha256": "sha256:47ded1bf3fcd418eb59c168d040651f233a75bf01d7286c94262f9a4c35c3fff"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "design.md",
+    "evidence/receipts/032a04d9639f28f4b53b99bef19b4c14b0cbf171c33e0ab75272462cdcb78269.json",
+    "evidence/receipts/1ac5cd06470598e8ad6d2de94cbe8b91f8fa8c2ca8d1b3c9482401395b7e389d.stdout",
+    "evidence/receipts/21744f254e719e57315735d09d80d63a3c4da8074354c4ef666a468133575dcf.stdout",
+    "evidence/receipts/3403330b32dff1bed9bc0309e99da969db5f2a596e542656eabf72fa970c0905.json",
+    "evidence/receipts/4451868f3908aee777d570529c0d78805d0ed498867967a6b4617ca318720217.json",
+    "evidence/receipts/51e0c22013fb3afe2070d60e6111b5d8d37f7826f1a3b2816f4c3aecf56659d4.stdout",
+    "evidence/receipts/588ca91fbf853ee11ed44b758234e8955dfcf1d69c213437496a70281c2e2658.stdout",
+    "evidence/receipts/635cd8fc27a09b27fecec11a38b3dbc63fc4d67416ab8f32f9c090121f2f325b.json",
+    "evidence/receipts/6d3081bd0629b1f726f9517d5321eb989d1be97e489dfdcfdb16f054aa9ca9d9.stdout",
+    "evidence/receipts/79af6971134d063ae28aabcbc400f457f244cf569d8c74de42cd44ceddc7fd23.stdout",
+    "evidence/receipts/92f6f6f85673991148b8d3a05527538ead88b1c18def56f1070fa2c762802f51.json",
+    "evidence/receipts/93cabcabe78d17061583aa2c2751bec58aa0cc8ba818eb80f9779c624875a8de.stdout",
+    "evidence/receipts/d0015416f6212d78340c7627d70c747ebb0942350859267426faaa840d1ef1f2.stdout",
+    "evidence/receipts/d9bf27822c55cce9cdfa719addd16ef59ebacd7309666a1055b22b65d5290146.json",
+    "evidence/receipts/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.stderr",
+    "evidence/receipts/fd64746ed0f31ff7a7686cea25f548a8a223648a4182e64961c714b75494fe52.json",
+    "evidence/receipts/fe1ac5844a42aeef4a3e5b7da580e0e672c6dd3eb93c3c9c7af28d3808beff72.json",
+    "proposal.md",
+    "specs/orchestrator-evals/prepared-spec.md",
+    "specs/orchestrator-evals/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    "F-d188c3936972981c WARNING: candidate.generated_at ISO-8601 validation remains a non-blocking advisory."
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}
