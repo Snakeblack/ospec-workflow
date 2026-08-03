@@ -793,6 +793,34 @@ test("assertManagedPathSafe: accepts valid paths inside the root", (t) => {
   assert.doesNotThrow(() => assertManagedPathSafe(root, managed));
 });
 
+test("assertManagedPathSafe: accepts a legitimate destination when an existing ancestor canonicalizes through an OS alias", () => {
+  const lexicalParent = path.resolve("virtual-volume", "tmp");
+  const canonicalParent = path.resolve("canonical-volume", "tmp");
+  const root = path.join(lexicalParent, "codex-root");
+  const managedParent = path.join(root, "skills", "apply");
+  const managed = path.join(managedParent, "SKILL.md");
+  const missing = () => {
+    const error = new Error("missing fixture path");
+    error.code = "ENOENT";
+    throw error;
+  };
+  const fsWithAncestorAlias = {
+    lstatSync: missing,
+    realpathSync(target) {
+      if (target === root) return missing();
+      if (target === lexicalParent) return canonicalParent;
+      if (target === managedParent) {
+        return path.join(canonicalParent, "codex-root", "skills", "apply");
+      }
+      throw new Error(`unexpected fixture path: ${target}`);
+    },
+  };
+
+  assert.doesNotThrow(() =>
+    assertManagedPathSafe(root, managed, "Codex skill destination", fsWithAncestorAlias),
+  );
+});
+
 test("assertManagedPathSafe: rejects when managedPath itself is a symlink", (t) => {
   const root = makeTempDir(t, "codex-symlink-root-");
   const managed = path.join(root, "config.toml");

@@ -472,13 +472,22 @@ function lstatIfExists(targetPath, fsImpl = fs) {
 }
 
 function realpathIfExists(targetPath, fsImpl = fs) {
-  try {
-    return fsImpl.realpathSync(targetPath);
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      return path.resolve(targetPath);
+  const missingSegments = [];
+  let candidate = path.resolve(targetPath);
+  while (true) {
+    try {
+      return path.resolve(fsImpl.realpathSync(candidate), ...missingSegments.reverse());
+    } catch (error) {
+      if (error.code !== "ENOENT") {
+        throw error;
+      }
+      const parent = path.dirname(candidate);
+      if (parent === candidate) {
+        throw error;
+      }
+      missingSegments.push(path.basename(candidate));
+      candidate = parent;
     }
-    throw error;
   }
 }
 
