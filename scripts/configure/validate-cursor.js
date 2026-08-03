@@ -20,6 +20,9 @@ const ALLOWED_HOOK_EVENTS = new Set([
   "beforeShellExecution",
   "beforeReadFile",
   "afterFileEdit",
+  "preToolUse",
+  "subagentStart",
+  "preCompact",
   "stop",
 ]);
 

@@ -94,6 +94,161 @@ function normalizeCodexHookOutput(subcommand, output) {
     : {};
 }
 
+// Cursor installs live under ~/.cursor (or a path segment named ".cursor").
+// Env markers are intentionally not required — REQ-hooks-runtime-001 left them
+// out of scope — so install-path detection is the durable signal. Cursor also
+// loads Claude-plugin hooks as third-party PreToolUse; detect that host via
+// Cursor-native stdin fields / event names so we never emit unsupported `ask`.
+function isCursorInstall(scriptDir = __dirname, env = process.env) {
+  if (env && env.OSPEC_TARGET === "cursor") {
+    return true;
+  }
+  const parts = String(scriptDir || "")
+    .split(/[\\/]+/)
+    .map((part) => part.toLowerCase());
+  return parts.includes(".cursor");
+}
+
+function isCursorHost(scriptDir = __dirname, env = process.env, rawInput = "") {
+  if (isCursorInstall(scriptDir, env)) {
+    return true;
+  }
+  if (env && (env.CURSOR_AGENT || env.CURSOR_SESSION_ID || env.CURSOR_HOOK || env.VSCODE_PID || env.VSCODE_CWD)) {
+    return true;
+  }
+  try {
+    const parsed = JSON.parse(String(rawInput || "") || "{}");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return false;
+    }
+    const eventName = parsed.hook_event_name || parsed.hookEventName;
+    if (typeof eventName === "string") {
+      const cursorEvents = new Set([
+        "preToolUse",
+        "postToolUse",
+        "beforeShellExecution",
+        "beforeReadFile",
+        "beforeMCPExecution",
+        "beforeSubmitPrompt",
+        "subagentStart",
+        "subagentStop",
+        "afterFileEdit",
+        "preCompact",
+        "stop",
+      ]);
+      if (cursorEvents.has(eventName)) {
+        return true;
+      }
+    }
+    // Cursor beforeShellExecution / beforeReadFile native shapes (no Claude nesting).
+    if (typeof parsed.command === "string" && parsed.sandbox !== undefined && !parsed.tool_input) {
+      return true;
+    }
+    if (typeof parsed.file_path === "string" && Object.prototype.hasOwnProperty.call(parsed, "content")) {
+      return true;
+    }
+    if (parsed.subagent_type || parsed.subagent_id) {
+      return true;
+    }
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
+// Cursor hosts speak a different stdin shape than Claude:
+//   beforeShellExecution → { command, cwd, sandbox }
+//   beforeReadFile       → { file_path, content, ... }
+//   preToolUse           → { tool_name, tool_input, ... } (already Claude-like)
+// Map those into the shared PreToolUse contract so Go/Node policy stays shared.
+function adaptCursorHookInput(subcommand, rawInput) {
+  let parsed;
+  try {
+    parsed = JSON.parse(String(rawInput || "") || "{}");
+  } catch {
+    return rawInput;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return rawInput;
+  }
+
+  if (subcommand === "pre-tool-use") {
+    if (typeof parsed.command === "string" && !parsed.tool_input) {
+      return JSON.stringify({
+        ...parsed,
+        tool_name: parsed.tool_name || "Shell",
+        tool_input: { command: parsed.command },
+      });
+    }
+    if (typeof parsed.file_path === "string" && !parsed.tool_input) {
+      return JSON.stringify({
+        ...parsed,
+        tool_name: parsed.tool_name || "Read",
+        tool_input: {
+          path: parsed.file_path,
+          file_path: parsed.file_path,
+          filePath: parsed.file_path,
+        },
+      });
+    }
+  }
+
+  return rawInput;
+}
+
+// Cursor's preToolUse / beforeReadFile / subagentStart contracts only accept
+// allow|deny. Emitting Claude-style permissionDecision:"ask" is mapped by
+// Cursor to permission:"ask" and fails closed with:
+//   "The 'ask' permission for preToolUse hooks is not yet implemented."
+// Degrade advisory ask → allow and keep the reason visible to user/agent.
+function normalizeCursorHookOutput(subcommand, output) {
+  if (subcommand === "pre-tool-use") {
+    const decision = output && output.hookSpecificOutput
+      ? output.hookSpecificOutput.permissionDecision
+      : output && output.permission;
+    const reason =
+      (output && output.hookSpecificOutput && output.hookSpecificOutput.permissionDecisionReason) ||
+      (output && output.systemMessage) ||
+      (output && output.user_message) ||
+      (output && output.agent_message) ||
+      "";
+
+    if (decision === "deny") {
+      return {
+        permission: "deny",
+        user_message: reason || "Blocked by OSpec policy.",
+        agent_message: reason || "Blocked by OSpec policy.",
+      };
+    }
+
+    if (decision === "ask") {
+      const advisory = reason ? `[ospec advisory] ${reason}` : "[ospec advisory] Review this action.";
+      return {
+        permission: "allow",
+        user_message: advisory,
+        agent_message: advisory,
+      };
+    }
+
+    return { permission: "allow" };
+  }
+
+  if (subcommand === "session-start") {
+    const message =
+      (output && typeof output.systemMessage === "string" && output.systemMessage.trim()) ||
+      (output &&
+        output.hookSpecificOutput &&
+        typeof output.hookSpecificOutput.additionalContext === "string" &&
+        output.hookSpecificOutput.additionalContext.trim()) ||
+      "";
+    return message
+      ? { continue: true, user_message: message }
+      : { continue: true };
+  }
+
+  return { continue: true };
+}
+
 // node platform/arch -> Go GOOS/GOARCH + executable extension, matching the
 // names produced by build-hooks.yml and install-target.js (hostBinarySuffix).
 function hostBinarySuffix(platform = process.platform, arch = process.arch) {
@@ -197,10 +352,16 @@ function main(argv, scriptDir = __dirname) {
     return 0;
   }
 
+  const rawInput = fs.readFileSync(0, "utf8");
+  const cursorHost = isCursorHost(scriptDir, process.env, rawInput);
   const { command, args } = resolveInvocation(sub, scriptDir);
-  const input = fs.readFileSync(0, "utf8");
+  const input = cursorHost ? adaptCursorHookInput(sub, rawInput) : rawInput;
   const pluginRoot = path.resolve(scriptDir, "../..");
-  const env = { ...process.env, OSPEC_PLUGIN_ROOT: pluginRoot };
+  const env = {
+    ...process.env,
+    OSPEC_PLUGIN_ROOT: pluginRoot,
+    ...(cursorHost ? { OSPEC_TARGET: process.env.OSPEC_TARGET || "cursor" } : {}),
+  };
   const result = spawnSync(command, args, { input, env, encoding: "utf8" });
 
   if (result.error) {
@@ -212,6 +373,8 @@ function main(argv, scriptDir = __dirname) {
   }
   if (process.env.OSPEC_TARGET === "codex") {
     process.stdout.write(`${JSON.stringify(normalizeCodexHookOutput(sub, parseLastJson(result.stdout)))}\n`);
+  } else if (cursorHost) {
+    process.stdout.write(`${JSON.stringify(normalizeCursorHookOutput(sub, parseLastJson(result.stdout)))}\n`);
   } else if (result.stdout) {
     process.stdout.write(result.stdout);
   }
@@ -229,5 +392,9 @@ module.exports = {
   resolveBinary,
   resolveInvocation,
   normalizeCodexHookOutput,
+  isCursorInstall,
+  isCursorHost,
+  adaptCursorHookInput,
+  normalizeCursorHookOutput,
   main,
 };

@@ -11,6 +11,10 @@ const {
   resolveBinary,
   resolveInvocation,
   normalizeCodexHookOutput,
+  isCursorInstall,
+  adaptCursorHookInput,
+  normalizeCursorHookOutput,
+  isCursorHost,
 } = require("./ospec-hooks-launch.js");
 
 const HOOKS_DIR = path.join("plugins", "ospec-workflow", "scripts", "hooks");
@@ -169,6 +173,92 @@ test("normalizeCodexHookOutput emits PreToolUse context for advisory decisions a
     },
   });
   assert.deepEqual(allow, {});
+});
+
+test("isCursorInstall detects .cursor path segments and OSPEC_TARGET=cursor", () => {
+  assert.equal(isCursorInstall(path.join("C:", "Users", "me", ".cursor", "scripts", "hooks")), true);
+  assert.equal(isCursorInstall(path.join("/home", "me", ".cursor", "scripts", "hooks")), true);
+  assert.equal(isCursorInstall(path.join("/repo", "scripts", "hooks"), {}), false);
+  assert.equal(isCursorInstall(path.join("/repo", "scripts", "hooks"), { OSPEC_TARGET: "cursor" }), true);
+  assert.equal(isCursorInstall(path.join("/repo", "scripts", "hooks"), { OSPEC_TARGET: "codex" }), false);
+});
+
+test("isCursorHost detects Cursor-native stdin even from Claude plugin paths", () => {
+  const claudePluginDir = path.join("/home", "me", ".claude", "plugins", "cache", "ospec", "scripts", "hooks");
+  assert.equal(isCursorHost(claudePluginDir, {}, JSON.stringify({ hook_event_name: "preToolUse", tool_name: "Task" })), true);
+  assert.equal(isCursorHost(claudePluginDir, {}, JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "Bash" })), false);
+  assert.equal(isCursorHost(claudePluginDir, { CURSOR_AGENT: "1" }, "{}"), true);
+  assert.equal(
+    isCursorHost(
+      claudePluginDir,
+      {},
+      JSON.stringify({ command: "npm install", cwd: "/repo", sandbox: true }),
+    ),
+    true,
+  );
+});
+
+test("adaptCursorHookInput maps beforeShellExecution and beforeReadFile shapes", () => {
+  const shell = JSON.parse(
+    adaptCursorHookInput(
+      "pre-tool-use",
+      JSON.stringify({ command: "npm install", cwd: "/repo", sandbox: true }),
+    ),
+  );
+  assert.equal(shell.tool_name, "Shell");
+  assert.equal(shell.tool_input.command, "npm install");
+
+  const read = JSON.parse(
+    adaptCursorHookInput(
+      "pre-tool-use",
+      JSON.stringify({ file_path: "/repo/.env", content: "SECRET=1" }),
+    ),
+  );
+  assert.equal(read.tool_name, "Read");
+  assert.equal(read.tool_input.file_path, "/repo/.env");
+});
+
+test("normalizeCursorHookOutput degrades ask to allow and maps deny", () => {
+  const ask = normalizeCursorHookOutput("pre-tool-use", {
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "ask",
+      permissionDecisionReason: "Vas a commitear con dominios derivados.",
+    },
+  });
+  assert.equal(ask.permission, "allow");
+  assert.match(ask.user_message, /ospec advisory/);
+  assert.match(ask.agent_message, /dominios derivados/);
+
+  const deny = normalizeCursorHookOutput("pre-tool-use", {
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: "Blocked.",
+    },
+  });
+  assert.deepEqual(deny, {
+    permission: "deny",
+    user_message: "Blocked.",
+    agent_message: "Blocked.",
+  });
+
+  const allow = normalizeCursorHookOutput("pre-tool-use", {
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "allow",
+      permissionDecisionReason: "ok",
+    },
+  });
+  assert.deepEqual(allow, { permission: "allow" });
+});
+
+test("normalizeCursorHookOutput maps session-start to beforeSubmitPrompt continue", () => {
+  assert.deepEqual(
+    normalizeCursorHookOutput("session-start", { systemMessage: "Drift warning" }),
+    { continue: true, user_message: "Drift warning" },
+  );
+  assert.deepEqual(normalizeCursorHookOutput("stop", { continue: true }), { continue: true });
 });
 
 test("main passes OSPEC_PLUGIN_ROOT env var when spawning", (t) => {

@@ -10,6 +10,7 @@ const {
   assertCursorPathSafe,
   createRollbackJournal,
   expandCursorHooksPlaceholder,
+  ensureCursorGenericHookEvents,
   syncTreeByContent,
   installHooksJson,
   parseArgs,
@@ -159,6 +160,23 @@ test("expandCursorHooksPlaceholder always quotes the expanded path", () => {
 
 test("expandCursorHooksPlaceholder is a no-op without the marker", () => {
   assert.equal(expandCursorHooksPlaceholder("node ./x.js", "C:/Users/a/.cursor"), "node ./x.js");
+});
+
+test("ensureCursorGenericHookEvents mirrors shell hooks onto preToolUse and subagentStart", () => {
+  const shell = [{ command: "node __OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks-launch.js pre-tool-use" }];
+  const edit = [{ command: "node __OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks-launch.js pre-compact" }];
+  const ensured = ensureCursorGenericHookEvents({
+    version: 1,
+    hooks: {
+      beforeShellExecution: shell,
+      beforeReadFile: shell,
+      afterFileEdit: edit,
+    },
+  });
+  assert.deepEqual(ensured.hooks.preToolUse, shell);
+  assert.deepEqual(ensured.hooks.subagentStart, shell);
+  assert.deepEqual(ensured.hooks.preCompact, edit);
+  assert.deepEqual(ensured.hooks.beforeShellExecution, shell);
 });
 
 test("expandCursorHooksPlaceholder shell-quotes quotes, backslashes, dollars, and backticks exactly", () => {
