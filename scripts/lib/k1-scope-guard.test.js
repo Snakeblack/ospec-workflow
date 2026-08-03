@@ -7,7 +7,7 @@ const { spawnSync } = require("node:child_process");
 const test = require("node:test");
 
 const ROOT = path.resolve(__dirname, "..", "..");
-const K1_BASELINE = "9aa6c453681f46941b8b34b89496b9aae89fa20c";
+const K1_BASELINE_PIN = "9aa6c453681f46941b8b34b89496b9aae89fa20c";
 const FROZEN_CANDIDATE_INVENTORY =
   "openspec/changes/archive/2026-08-03-k1-contract-suite/.4r/paths.json";
 const REMEDIATION_IMPLEMENTATION_PATHS = [
@@ -71,6 +71,28 @@ function git(args, options = {}) {
   if (result.error) throw result.error;
   return result;
 }
+
+function resolveK1Baseline() {
+  const candidates = [
+    K1_BASELINE_PIN,
+    "origin/main",
+    "main",
+    "refs/remotes/origin/main",
+  ];
+  for (const candidate of candidates) {
+    const probe = git(["cat-file", "-e", `${candidate}^{commit}`]);
+    if (probe.status === 0) return candidate;
+  }
+  const mergeBase = git(["merge-base", "HEAD", "origin/main"]);
+  if (mergeBase.status === 0 && mergeBase.stdout.trim()) {
+    return mergeBase.stdout.trim();
+  }
+  throw new Error(
+    `K1 baseline commit is unavailable (tried ${candidates.join(", ")}): ${mergeBase.stderr}`
+  );
+}
+
+const K1_BASELINE = resolveK1Baseline();
 
 function toPosix(relativePath) {
   return relativePath.replace(/\\/g, "/");
@@ -155,7 +177,7 @@ test("K1 scope guard classifies representative in-scope and out-of-scope paths",
 
 test("K1 scope guard: the frozen candidate implementation inventory is confined to design", () => {
   const baseline = git(["cat-file", "-e", `${K1_BASELINE}^{commit}`]);
-  assert.equal(baseline.status, 0, `K1 baseline commit is unavailable: ${baseline.stderr}`);
+  assert.equal(baseline.status, 0, `K1 baseline commit is unavailable (${K1_BASELINE}): ${baseline.stderr}`);
 
   const candidatePaths = [...loadCandidateImplementationPaths()].sort();
   assert.ok(candidatePaths.length > 0, "K1 candidate inventory must contain implementation paths");
