@@ -116,6 +116,57 @@ When optional input is absent or invalid, the writer MUST preserve the complete 
 - THEN the hook MUST catch the error, MUST NOT propagate it, MUST NOT set a non-zero exit code
 - AND it MUST still output `{\"continue\":true}` or the existing degraded `systemMessage`
 
+### Requirement: Cursor Host Adaptation In Hook Launcher {#REQ-hooks-014}
+
+`scripts/hooks/ospec-hooks-launch.js` MUST detect a Cursor host via install-path (`.cursor` path segment), `OSPEC_TARGET=cursor`, Cursor/VS Code env markers, Cursor-native stdin event names, or Cursor-native shapes (`command`+`sandbox` without `tool_input`, `file_path`+`content`, `subagent_type`/`subagent_id`). On Cursor hosts it MUST adapt `beforeShellExecution`/`beforeReadFile` stdin into the shared PreToolUse contract (`tool_name` + `tool_input`), set `OSPEC_TARGET` to `cursor` when unset, and normalize stdout through `normalizeCursorHookOutput`. For `pre-tool-use`, Claude `permissionDecision: "ask"` MUST degrade to Cursor `permission: "allow"` with an `[ospec advisory]` user/agent message; `deny` MUST map to Cursor `permission: "deny"` with reason text; other decisions MUST allow. Session-start Cursor output MUST use `{ continue: true, user_message? }`.
+
+#### Scenario: Cursor shell stdin is adapted for shared PreToolUse policy
+
+- GIVEN the launcher receives Cursor `beforeShellExecution` stdin `{ command, cwd, sandbox }` without `tool_input`
+- WHEN `adaptCursorHookInput("pre-tool-use", …)` runs
+- THEN the forwarded payload MUST include `tool_name: "Shell"` and `tool_input.command` equal to the original command
+
+#### Scenario: Cursor ask degrades to allow with advisory text
+
+- GIVEN the underlying hook returns Claude-shaped `permissionDecision: "ask"` with a reason
+- WHEN `normalizeCursorHookOutput("pre-tool-use", …)` runs on a Cursor host
+- THEN stdout MUST be `{ permission: "allow", user_message, agent_message }` with both messages prefixed `[ospec advisory]`
+- AND it MUST NOT emit Claude `hookSpecificOutput` or unsupported `permission: "ask"`
+
+### Requirement: SubagentStop Phase-Aware Envelope And Spec Contract Fail-Closed {#REQ-hooks-015}
+
+When persisting a result envelope or resolving dispatch status, `subagent-stop.js` MUST pass the canonical agent name as `{ phase }` to `validateEnvelope`. Envelope persistence MUST derive the state phase key first and skip when unsupported; only then validate. For an `sdd-spec` dispatch whose envelope claims `status: "success"` but fails phase-aware validation, `resolveDispatchStatus` MUST return `"blocked"` rather than accepting the success string. Root-transcript identity comparison (`sameFileIdentity`) MUST treat either side's `dev === 0` as a matching device when inode and size match.
+
+#### Scenario: Invalid successful sdd-spec envelope becomes blocked status
+
+- GIVEN SubagentStop receives an `sdd-spec` result with `status: "success"` that fails phase-aware envelope validation
+- WHEN dispatch status is resolved
+- THEN the resolved status MUST be `"blocked"`
+- AND the hook MUST NOT treat the invalid success as a successful phase outcome
+
+#### Scenario: Zero device id still matches transcript identity
+
+- GIVEN two file identity snapshots share `ino` and `size` and at least one reports `dev === 0`
+- WHEN `sameFileIdentity` compares them
+- THEN it MUST return true
+
+### Requirement: Codex Token-Count Cost Observability {#REQ-hooks-016}
+
+`SubagentStop` MUST prefer Codex `token_count` usage (`input_tokens` / `output_tokens` and related fields, validated as safe non-negative integers within a hard upper bound) from the dispatch payload or a readable Codex events transcript when normalizing phase-cost token fields. Each recorded row MAY include `cost_observability` with `reason` (`codex-token-count-observed` | `cost-fields-observed` | `cost-fields-unavailable`), `field_presence`, optional `token_count_presence`, and `host_binding_status`. When `cost_observability` is present, `appendPhaseCost` MUST attest the row with the `o1-row-v3` canonical form; otherwise existing v1/v2 attestation MUST remain. Relaunch detection MUST count only prior rows for the same phase whose `status` is `"success"`. Unsupported agents or missing active changes MUST return a fail-safe diagnostic (`status: "skipped"`) without writing a cost row.
+
+#### Scenario: Codex token_count supplies prompt and output estimates
+
+- GIVEN a Codex dispatch payload or transcript contains a valid `token_count` usage with `input_tokens` and `output_tokens`
+- WHEN phase cost is normalized
+- THEN `estimated_prompt_tokens` and `estimated_output_tokens` MUST use those values
+- AND `cost_observability.reason` MUST be `codex-token-count-observed`
+
+#### Scenario: Relaunch ignores non-success prior rows
+
+- GIVEN `.ospec/session/{change}/phase-costs.jsonl` already has a row for the same phase with `status` other than `"success"`
+- WHEN another allowlisted dispatch is recorded
+- THEN `relaunch` MUST remain `false` until a prior success row exists for that phase
+
 ---
 
 ### Requirement: Codex hooks registration format and command translation {#REQ-hooks-003}

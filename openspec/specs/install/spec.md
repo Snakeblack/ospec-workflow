@@ -163,15 +163,17 @@ The `.cmd` variant is required on Windows because PowerShell does not resolve `.
 
 Given `node scripts/configure/install-target.js <target> <destRepo>`:
 
-1. Parse arguments: positional `target` and `dest`, plus `--dry-run`, `--no-validate`, `--source <dir>`.
+1. Parse arguments: positional `target` and `dest`, plus `--dry-run`, `--no-validate`, `--source <dir>`. `--source` without a following non-flag value MUST exit with code 2.
 2. Reject unsupported targets (only `"opencode"` and `"github-copilot"` are accepted).
 3. Resolve `destDir = path.resolve(dest)` and call `assertSafeDest(destDir, sourceDir)`.
 4. Verify `destDir` exists and is a directory; exit with code 2 otherwise.
 5. Build into `dist/<target>/` via `runConfigure({ target, outDir, validate })`. Validation is enabled by default (pure-Node validators require no external CLI).
 6. If `exitCode !== 0`, write to stderr and return; nothing is synced.
 7. `fs.readdirSync(outDir)` — enumerate top-level entries.
-8. For each entry, `fs.cpSync(src, dst, { recursive: true, force: true })` — copies directory trees or files, overwriting same-path destinations; unrelated files in `destDir` are left untouched.
+8. Unless `--dry-run`, sync those entries through `syncEntriesTransactional`: snapshot each destination entry into a temp backup, copy all entries, and on any failure roll back every mutated entry (restore backups or remove newly created paths) before exiting with code 2. Unrelated destination entries MUST NOT be included in the snapshot/rollback set.
 9. If `--dry-run`, print preview lines but write nothing.
+
+(Previously: step 8 used a best-effort per-entry `fs.cpSync` without transactional rollback.)
 
 ### 4.2 Safe-Destination Guard (`assertSafeDest`)
 
@@ -199,21 +201,38 @@ npm aliases:
 
 ### 4.4 Copy Semantics
 
-- Granularity: top-level entries of `dist/<target>/` are enumerated; each is recursively copied.
-- Overwrite: `force: true` — existing same-path files are replaced.
-- Preservation: files in `destDir` that have no counterpart in `dist/<target>/` are left untouched.
-- Idempotency: re-running replaces all generated files with fresh copies; nothing is deleted from `destDir`.
+- Granularity: top-level entries of `dist/<target>/` are enumerated; each is recursively copied inside one transactional batch.
+- Overwrite: existing same-path files are replaced after a pre-copy snapshot.
+- Preservation: files in `destDir` that have no counterpart in `dist/<target>/` are left untouched and are outside the rollback set.
+- Atomicity: a mid-sync failure MUST restore snapshotted destinations and remove newly created synced entries; a rollback failure MUST surface both the primary and rollback errors.
+- Idempotency: re-running replaces all generated files with fresh copies; nothing is deleted from `destDir` on success.
 
 ### 4.5 Binary Integration (`copyBinaryToTree`)
 
 The installation process integrates the platform-appropriate pre-compiled Go binary (`ospec-hooks`) into the target distribution tree before syncing to the destination.
 
-- **Best-Effort Delivery**: If the source binary is absent under `release/dist/` (e.g. pre-CI development environment), a warning is written to stderr and installation proceeds without failure.
+- **Best-Effort Delivery (default)**: If the source binary is absent under `release/dist/` (e.g. pre-CI development environment), a warning is written to stderr and installation proceeds without failure unless callers set `required: true`.
+- **Required Delivery**: When `deps.required` is true, a missing source binary or copy failure MUST throw and abort the install path.
 - **Platform Detection**: Platform and architecture are resolved (`hostBinarySuffix()`) to locate the source binary `ospec-hooks-${goos}-${arch}${ext}`.
 - **Target-Specific Destination**:
   - For target `opencode`, the binary is copied to `release/dist/ospec-hooks${ext}` in the output tree.
   - For all other targets (including `claude`, `vscode`, `github-copilot`), the binary is copied to `scripts/hooks/ospec-hooks${ext}`.
 - **Permissions**: On POSIX (non-win32) platforms, the copied binary's permissions are updated to `0755` (executable) using `chmodSync`.
+
+#### Scenario: Transactional sync rolls back on mid-copy failure
+
+- GIVEN `destDir` already contains one of the top-level generated entries
+- AND copying a later entry throws
+- WHEN `syncEntriesTransactional` runs
+- THEN previously overwritten entries MUST be restored from the backup snapshot
+- AND newly created synced entries from this attempt MUST be removed
+- AND the installer MUST exit non-zero without leaving a partial sync
+
+#### Scenario: Missing --source value fails closed
+
+- GIVEN argv ends with `--source` and no following path value
+- WHEN `parseArgs` runs
+- THEN it MUST throw / the CLI MUST exit with code 2 before any configure or sync work
 
 ---
 

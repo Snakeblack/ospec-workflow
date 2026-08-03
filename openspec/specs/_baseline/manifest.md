@@ -35,4 +35,10 @@
 | hooks | reconciled | - | c2ca072 | 2026-07-14T20:47:03Z |
 | skills | reconciled | - | c2ca072 | 2026-07-14T20:47:03Z |
 | agents | reconciled | - | c2ca072 | 2026-07-14T20:47:03Z |
+| generator | reconciled | - | 359deff | 2026-08-03T22:09:11Z |
+| hooks | reconciled | - | 359deff | 2026-08-03T22:09:11Z |
+| skills | reconciled | - | 359deff | 2026-08-03T22:09:11Z |
+| agents | reconciled | - | 359deff | 2026-08-03T22:09:11Z |
+| install | reconciled | - | 359deff | 2026-08-03T22:09:11Z |
+| sdd-document | reconciled | - | 359deff | 2026-08-03T22:09:11Z |
 

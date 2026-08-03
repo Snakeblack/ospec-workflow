@@ -1133,20 +1133,23 @@ The clarify predicate MUST evaluate to `false` only when
 
 ### 19.1 `review-change` Decision Contract {#REQ-skills-004}
 
-The `review-change` skill MUST be read-only and MUST return exactly one decision payload with `status`, `specialists`, and `reason`. `status` MUST be `clear` or `needs-specialist`; `specialists` MUST be a deduplicated array containing only `risk`, `reliability`, `resilience`, or `readability` in canonical order; `reason` MUST be non-empty and evidence-based. `clear` MUST have an empty list, while `needs-specialist` MUST have at least one specialist. The enclosing reviewer result MUST have `artifacts: []`.
+The `review-change` skill MUST be read-only and MUST return exactly one decision payload with `status`, `specialists`, and `reason`. `status` MUST be `clear` or `needs-specialist`; `specialists` MUST be a deduplicated array containing only `risk`, `reliability`, `resilience`, or `readability` in canonical order. `reason` MUST use only the allowlisted classifier-reference grammar `signals=<canonical-comma-separated-signal-codes>;dimensions=<canonical-comma-separated-dimensions>` (clearance MUST use `signals=none;dimensions=none`); free-form prose, paths, diff text, secrets, and extra suffixes MUST be rejected. Allowed signal codes are exactly those listed in `skills/review-change/SKILL.md`. `dimensions` MUST exactly equal `specialists`. `clear` MUST have an empty list, while `needs-specialist` MUST have at least one specialist. The enclosing reviewer result MUST have `artifacts: []`.
+
+(Previously: `reason` was described only as non-empty and evidence-based without the structural grammar.)
 
 #### Scenario: Valid escalation
 
 - GIVEN the generalist observes privileged process execution without enough evidence for a deep security conclusion
 - WHEN it returns its decision
 - THEN status MUST be `needs-specialist`
-- AND specialists MUST contain `risk` with a reason naming the observed signal
+- AND specialists MUST contain `risk`
+- AND `reason` MUST match `signals=…;dimensions=risk` using only allowlisted signal codes
 
 #### Scenario: Clear decision is explicit
 
 - GIVEN the generalist finds no specialist signal after basic correctness and 4R screening
 - WHEN it returns its decision
-- THEN status MUST be `clear`, specialists MUST be empty, and reason MUST explain the clearance evidence
+- THEN status MUST be `clear`, specialists MUST be empty, and reason MUST be exactly `signals=none;dimensions=none`
 
 #### Scenario: Invalid status/list combination is rejected
 
@@ -1281,6 +1284,28 @@ routing.
 - GIVEN tests exercise equivalent drift, functional failure, missing evidence, identity drift, and over-budget requests
 - WHEN the Strict TDD contract tests run
 - THEN they MUST assert distinct classifications, fail-closed CRITICAL outcomes, allowlist enforcement, and the one-recheck/cost bound
+
+### Requirement: Named `review-correction` Skill Contract {#REQ-skills-009}
+
+The catalog MUST include `skills/review-correction/SKILL.md` as a read-only targeted validator. It MUST receive one immutable lineage id/revision, the active slice's frozen unresolved finding IDs with owners and acceptance criteria, a genesis-path-limited correction delta, corrected candidate identity, and targeted test evidence. Its result MUST return `resolved|unresolved` for every supplied ID exactly once, non-empty `regression.evidence`, and only non-blocking follow-ups. It MUST NOT relaunch discovery reviewers, add blocking finding IDs, expand paths, alter slice budgets, or authorize a successor.
+
+#### Scenario: Correction validator returns only slice outcomes
+
+- GIVEN an active remediation slice with three frozen unresolved finding IDs
+- WHEN `review-correction` validates the correction
+- THEN `outcomes` MUST contain those three IDs exactly once with `resolved` or `unresolved`
+- AND unrelated observations MUST appear only under non-blocking `follow_ups`
+
+### Requirement: Evidence Remediation Cap Config Key {#REQ-skills-010}
+
+`sdd-init` guidance and project config MAY document `rules.verify.strict_tdd_evidence_remediation_max_changed_lines`. The value MUST be a positive integer no greater than 40. Absent or invalid values MUST disable the evidence fast path and preserve ordinary CRITICAL remediation.
+
+#### Scenario: Over-cap config disables the fast path
+
+- GIVEN `strict_tdd_evidence_remediation_max_changed_lines` is missing, non-positive, or greater than 40
+- WHEN Strict TDD evidence remediation classification runs
+- THEN the evidence-format-gap fast path MUST be unavailable
+- AND ordinary CRITICAL routing MUST remain in force
 
 ---
 

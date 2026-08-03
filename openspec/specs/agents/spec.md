@@ -10,7 +10,7 @@ All agent files are source artifacts for the generator. The generator transforms
 
 ## 1. Agent Catalog
 
-The catalog contains 19 agent definitions in three structural roles.
+The catalog contains 21 agent definitions in three structural roles.
 
 ### 1.1 Orchestrator
 
@@ -44,16 +44,27 @@ All files below have `user-invocable: false` and `tools: ['read', 'search', 'edi
 | `agents/sdd-archive.agent.md` | Close a change and persist final state |
 | `agents/sdd-document.agent.md` | Generate repository wiki pages mapping architecture, specs, and status |
 
-### 1.3 4R Reviewers
+### 1.3 Selective 4R Review Agents
 
-All four files have `user-invocable: false` and `tools: ['read', 'search']` (read-only).
+All review agents have `user-invocable: false` and `tools: ['read', 'search']` (read-only). The catalog includes the generalist, the correction validator, and the four specialists.
 
 | File | Reviewer purpose |
 |------|----------------|
+| `agents/review-change.agent.md` | Read-only generalist: screens verified changes and returns a structured specialist-request decision only |
+| `agents/review-correction.agent.md` | Read-only targeted validator for one bounded review lineage's active remediation slice |
 | `agents/review-risk.agent.md` | Security and risk: privilege scope, PII exposure, injection, auth bypass |
 | `agents/review-readability.agent.md` | Readability: ambiguous names, deep nesting, unexplained decisions |
 | `agents/review-reliability.agent.md` | Reliability: missing error-path tests, non-determinism, absent validation |
 | `agents/review-resilience.agent.md` | Resilience: missing I/O error handling, incomplete recovery, swallowed exceptions |
+
+(Previously: catalog listed only the four specialists; `review-change` and `review-correction` are now first-class agent files.)
+
+#### Scenario: Orchestrator may delegate to generalist and correction validator
+
+- GIVEN the orchestrator `agents` allowlist is read from `agents/sdd-orchestrator.agent.md`
+- WHEN selective 4R review runs after successful verify
+- THEN the allowlist MUST include `review-change` and `review-correction` alongside the four specialists
+- AND both new agents MUST remain read-only (`tools: ['read', 'search']`)
 
 ### 1.4 Specific Agent Requirements: Branch-Before-Code Recommendations
 

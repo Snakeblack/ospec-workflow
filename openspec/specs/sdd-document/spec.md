@@ -24,6 +24,14 @@ The system MUST define the `sdd-document` agent as a non-user-invocable agent in
 - WHEN the generator parses agent configuration
 - THEN the agent model mapping MUST resolve to the cheap tier defined in `models.yaml`
 
+#### Scenario: Generated targets honor cheap-tier models or fail-soft omission
+
+- GIVEN `models.yaml` maps `sdd-document` to `cheap`
+- WHEN configure runs for claude, vscode, opencode, github-copilot, and codex
+- THEN model-capable targets MUST emit the cheap-tier model for `sdd-document`
+- AND targets without a cheap model column MUST omit `model` fail-soft rather than inventing a value
+- AND Codex MUST pin the cheap model with `model_reasoning_effort = "low"`
+
 #### Scenario: Agent tool configuration verification
 
 - GIVEN the `sdd-document` agent is loaded

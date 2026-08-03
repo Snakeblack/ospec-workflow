@@ -36,26 +36,31 @@ The generator is the build pipeline that transforms the canonical source plugin 
 
 | Script | Role |
 |--------|------|
+| `scripts/lib/review-dimensions.js` | selective 4R evidence normalization |
+| `scripts/lib/review-gate-state.js` | 4R gate `next_action` adapter |
+| `scripts/lib/review-lineage.js` | bounded review lineage reducer |
 | `scripts/lib/federation-marker.js` | enroll runtime |
 | `scripts/lib/federation-explore.js` | explore runtime |
 | `scripts/lib/workspace-general-baseline.js` | general-baseline runtime |
 | `scripts/lib/federation-baseline-orchestrator.js` | baseline-orchestrator runtime |
+| `scripts/lib/strict-tdd-evidence-remediation.js` | Strict TDD evidence remediation reducer |
 
-All four scripts and their transitive `require()` dependencies MUST be present in the dist of ALL six targets (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`) under `scripts/lib/`.
+All eight scripts and their transitive `require()` dependencies MUST be present in the dist of ALL six targets (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`) under `scripts/lib/`.
 And it MUST NOT include test files (`.test.js`) or generator-only modules (`target-*`, `frontmatter`, `model-resolver`, `configure/`) in the runtime script bundle. Transitive dependencies are subjected to the same exclusion check, preventing excluded files from being resolved or bundled.
-If reading an individual file fails during script gathering, the generator MUST log a warning to stderr and skip that file rather than failing the build.
+When `loadTree` reads files under `SOURCE_ROOTS` or a profile's optional `sourceRoots`, I/O failures MUST propagate and fail the configure run (no warn-and-skip).
 And it MUST silently skip any root that does not exist on disk.
+When a target profile declares `sourceRoots`, `runConfigure` MUST load those roots in addition to the canonical `SOURCE_ROOTS`.
 
 The canonical `SOURCE_ROOTS` are:
 `.claude-plugin/plugin.json`, `hooks/hooks.json`, `.mcp.json`, `agents/`, `commands/`, `rules/`, `skills/`.
 
-(Previously: applied to five targets; `cursor` is now a sixth target whose dist must also carry the full runtime script bundle.)
+(Previously: four federation entry scripts and five targets; entry allowlist now includes review-lineage and Strict TDD remediation modules, and `cursor` remains a sixth target.)
 
 #### Scenario: Skill entry-point scripts present in dist
 
-- GIVEN the source tree contains the four skill entry-point scripts under `scripts/lib/`
+- GIVEN the source tree contains the eight skill entry-point scripts under `scripts/lib/`
 - WHEN `gatherRuntimeScripts` runs during generation for any of the six targets (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`)
-- THEN `federation-marker.js`, `federation-explore.js`, `workspace-general-baseline.js`, and `federation-baseline-orchestrator.js` MUST each appear in the collected runtime file set
+- THEN `review-dimensions.js`, `review-gate-state.js`, `review-lineage.js`, `federation-marker.js`, `federation-explore.js`, `workspace-general-baseline.js`, `federation-baseline-orchestrator.js`, and `strict-tdd-evidence-remediation.js` MUST each appear in the collected runtime file set
 - AND they MUST be emitted under `scripts/lib/` in the output dist
 
 #### Scenario: Generator-only modules excluded from dist
@@ -606,6 +611,73 @@ still contain `${input:…}`. Command `${input:}` / `agent:` strip is out of sco
 - THEN it MUST emit an error and exit non-zero
 - AND leftover `${input:…}` or `agent:` keys in **command** files alone MUST NOT
   cause validation failure
+
+### Requirement: models.yaml List Parsing And Pre-Transform Policy Gate {#REQ-generator-010}
+
+`parseModels` MUST accept YAML list items (`- value`) under the current mapping parent, converting an empty nested object into an array when the first list item appears. Duplicate mapping keys MUST throw with a line-numbered error. Before invoking `transform`, `runConfigure` MUST call `validateSddModelPolicy(models)` and, when `valid` is false, MUST return `exitCode: 1` with empty `files` and a stderr message containing the structured policy errors — it MUST NOT write an output tree for an invalid policy.
+
+#### Scenario: YAML list items are parsed under a parent key
+
+- GIVEN `models.yaml` contains a mapping key whose children are `- item` list entries
+- WHEN `parseModels` runs
+- THEN that key's value MUST be an array of the parsed list scalars
+- AND subsequent non-list siblings MUST continue to parse under the correct parent
+
+#### Scenario: Duplicate key fails closed
+
+- GIVEN `models.yaml` repeats the same mapping key at one indent level
+- WHEN `parseModels` runs
+- THEN it MUST throw an error naming the duplicate key and 1-based line number
+
+#### Scenario: Invalid SDD model policy aborts configure
+
+- GIVEN `validateSddModelPolicy` returns `{ valid: false, errors: [...] }`
+- WHEN `runConfigure` proceeds past model load
+- THEN it MUST return `exitCode: 1` without writing transformed files
+- AND `validation.stderr` MUST include the serialized policy errors
+
+### Requirement: Codex Review And Apply/Verify Sandbox Validator Rules {#REQ-generator-011}
+
+For the Codex target, `validate-codex.js` MUST require every generated agent TOML whose basename starts with `review-` to declare `approval_policy = "never"`. For `sdd-apply.toml` and `sdd-verify.toml` it MUST require a `[sandbox_workspace_write]` table and `network_access = false`.
+
+#### Scenario: Review agent TOML missing approval_policy fails
+
+- GIVEN a Codex agent file `review-risk.toml` lacks `approval_policy = "never"`
+- WHEN the Codex validator runs
+- THEN it MUST emit an error naming that file and the missing policy
+
+#### Scenario: Apply/verify sandbox network must be disabled
+
+- GIVEN `sdd-apply.toml` or `sdd-verify.toml` omits `[sandbox_workspace_write]` or leaves network access enabled
+- WHEN the Codex validator runs
+- THEN it MUST emit an error for the missing table and/or disabled-network requirement
+
+### Requirement: Copilot Validator Skips Binary Content And Accepts Injectable FS {#REQ-generator-012}
+
+`validate-github-copilot.js` MUST accept an optional filesystem injection for tests. When scanning for forbidden text, it MUST skip buffers that match known binary magic prefixes, contain a NUL byte, or fail fatal UTF-8 decode, rather than treating them as text. Each validation check MUST be wrapped so an unexpected throw becomes a labeled error instead of aborting the whole validate call.
+
+#### Scenario: Binary file is not scanned as forbidden text
+
+- GIVEN the output tree contains a PE/ELF/Mach-O binary or a file with embedded NUL bytes
+- WHEN forbidden-text validation runs
+- THEN that file MUST be skipped without a decode error
+- AND text files MUST still be scanned for forbidden residues
+
+### Requirement: Cursor Installed-Tree Validator {#REQ-generator-013}
+
+In addition to generated-tree validation, `validate-cursor.js` MUST export `validateInstalled` that re-checks required paths, agents, and rules; rejects unresolved `__OSPEC_CURSOR_ROOT__` placeholders in installed `hooks.json`; requires each hook command to point inside the installed Cursor root's `scripts/hooks/`; forbids `SubagentStop` events; and requires the platform `ospec-hooks` binary to exist (and be executable on non-Windows). Generated-tree `validate` MUST still require version `1`, allowlisted Cursor hook events, and `__OSPEC_CURSOR_ROOT__` in generated commands.
+
+#### Scenario: Installed hooks retain unresolved placeholder
+
+- GIVEN an installed Cursor `hooks.json` still contains `__OSPEC_CURSOR_ROOT__`
+- WHEN `validateInstalled` runs
+- THEN it MUST emit an error for the unresolved placeholder
+
+#### Scenario: Required binary missing under installed root
+
+- GIVEN the installed Cursor tree lacks `scripts/hooks/ospec-hooks` (with host extension)
+- WHEN `validateInstalled` runs
+- THEN it MUST emit a required-binary-missing error
 
 ## Invariants
 
