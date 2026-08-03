@@ -1,0 +1,14 @@
+✔ assertOpenSpecAuthoritative rejects Graph IR override of OpenSpec status (0.5073ms)
+✔ assertOpenSpecAuthoritative accepts when Graph IR agrees with OpenSpec (0.0884ms)
+✔ reconcileGraphIr fails closed when Graph IR cannot reconcile to OpenSpec/Git (0.1077ms)
+✔ reconcileGraphIr accepts Graph IR derived from matching OpenSpec/Git candidate (0.0787ms)
+✔ rejectProseFallback fails closed when structured field is absent (0.1093ms)
+✔ rejectProseFallback accepts when structured authority field is present (0.0683ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 53.8206

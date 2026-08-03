@@ -1,0 +1,25 @@
+{
+  "slices": [
+    {
+      "root_cause_key": "execute-token-semantic-guard-tests",
+      "finding_ids": [
+        "F-5020b831f843d093"
+      ],
+      "permitted_paths": [
+        "scripts/lib/next-transition.js",
+        "scripts/lib/next-transition.test.js",
+        "schemas/kernel/state-transition/v1.schema.json"
+      ]
+    },
+    {
+      "root_cause_key": "validator-invalid-schema-false-valid",
+      "finding_ids": [
+        "F-f86e724876d63e11"
+      ],
+      "permitted_paths": [
+        "scripts/lib/kernel-schema-validator.js",
+        "scripts/lib/kernel-schema-validator.test.js"
+      ]
+    }
+  ]
+}

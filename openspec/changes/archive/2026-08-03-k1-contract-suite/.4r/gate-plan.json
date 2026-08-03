@@ -1,0 +1,19 @@
+{
+  "status": "reviewing",
+  "next_action": {
+    "type": "run-lenses",
+    "dimensions": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ]
+  },
+  "dispatch": [
+    "review-risk",
+    "review-reliability",
+    "review-resilience",
+    "review-readability"
+  ],
+  "archive_allowed": false
+}

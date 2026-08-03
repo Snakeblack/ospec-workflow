@@ -1,0 +1,132 @@
+{
+  "summary": {
+    "BLOCKER": 0,
+    "CRITICAL": 2,
+    "WARNING": 8,
+    "SUGGESTION": 3
+  },
+  "findings": [
+    {
+      "id": "F-5020b831f843d093",
+      "owner": "reliability",
+      "severity": "CRITICAL",
+      "summary": "execute argument.token is enforced only in validateNextTransition semantics, with no test for missing/empty/whitespace token; JSON Schema items require only name.",
+      "acceptance_criteria": "Add RED→GREEN tests for execute args missing token and whitespace-only token that fail until the semantic guard rejects them; keep REQ-transition-surface-parity-002 covered by runtime tests.",
+      "blocking": true,
+      "resolution": "unresolved"
+    },
+    {
+      "id": "F-f86e724876d63e11",
+      "owner": "reliability",
+      "severity": "CRITICAL",
+      "summary": "validate()/validateInstance treats non-object schemas (null, undefined, false, non-object) as valid:true; boolean false should reject-all per Draft 2020-12.",
+      "acceptance_criteria": "Reject invalid/non-object schemas and treat schema===false as reject-all; add unit tests proving validateInstance(false|null|undefined|string, instance) is not falsely valid.",
+      "blocking": true,
+      "resolution": "unresolved"
+    },
+    {
+      "id": "F-2f35d2a56c20a71b",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "Unresolved local $ref error path in kernel-schema-validator has no unit test.",
+      "acceptance_criteria": "Add a test with $ref '#/$defs/missing' that asserts the unresolved $ref error rule.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-4d474209e086e9be",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "k1-schema-compat parses doc-field-claims.json without try/catch; malformed claims crash the whole lint run.",
+      "acceptance_criteria": "Wrap claims read/parse in try/catch and emit a structured offender; add a corrupt-claims fixture test.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-e764094d26150dc3",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "change-classification hard floors gate on truthy impact keys without requiring booleans.",
+      "acceptance_criteria": "Require boolean true for floor evidence keys (or explicitly document coercion) and add tests for non-boolean truthy values that must not raise floors incorrectly.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-31cfcbdad47216c0",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "resolveAlias input TypeError for non-string/empty tag is untested.",
+      "acceptance_criteria": "Add tests for '', null, and non-string tags asserting fail-closed TypeError.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-1d362bde60e3673c",
+      "owner": "reliability",
+      "severity": "SUGGESTION",
+      "summary": "Module-level caches in kernel-aliases and next-transition never invalidate after first disk load.",
+      "acceptance_criteria": "Document process-lifetime cache assumption or add explicit invalidation/reload for long-lived harnesses.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-5ef6539ed559b9a0",
+      "owner": "resilience",
+      "severity": "WARNING",
+      "summary": "k1-schema-compat parses doc-field-claims.json without try/catch, so corrupt/unreadable claims abort runAllCheckers mid-flatMap and discard already-collected offenders.",
+      "acceptance_criteria": "Wrap claimsPath read/parse in try/catch and emit an offender (same pattern as manifest/schema loads) so check() never throws and remaining checkers still run.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-58e0b11236acdbfd",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "kernel-schema-validator.validate nests 4–6 levels in additionalProperties and if/then/else paths, making the schema interpreter hard to change safely.",
+      "acceptance_criteria": "Extract helper functions so validate keyword branches stay at nesting depth ≤3 without changing validation semantics.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-6689440be7210629",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "Then-branch annotation loop in kernel-schema-validator is a no-op identity on rule despite a comment claiming annotation.",
+      "acceptance_criteria": "Either implement real then-branch rule annotation or remove/replace the misleading comment so intent matches code.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-913523800cd2c0fc",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "transition-parity.normalize surface discrimination is opaque: the 'already a surface' branch often falls through without a documented shape matrix.",
+      "acceptance_criteria": "Document or explicitly branch each input shape (human projection vs envelope vs raw next_transition) so normalization paths are unambiguous.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-4c0c5da2c1abeae8",
+      "owner": "readability",
+      "severity": "SUGGESTION",
+      "summary": "k1-maturity extractMaturityEntries uses opaque lineNo +1/−1 arithmetic without explaining 1-based offender paths.",
+      "acceptance_criteria": "Clarify line indexing with a short comment or simplify to a single obvious 1-based counter.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-f5b3c1c360925a85",
+      "owner": "readability",
+      "severity": "SUGGESTION",
+      "summary": "TAG_RE is exported from k1-maturity but check() uses a duplicated inline regex.",
+      "acceptance_criteria": "Use TAG_RE (or a shared constant) on the hot path so maturity tags have one source of truth.",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ],
+  "status": "correction-required",
+  "next_action": {
+    "type": "migrate-remediation-v2"
+  },
+  "dispatch": []
+}

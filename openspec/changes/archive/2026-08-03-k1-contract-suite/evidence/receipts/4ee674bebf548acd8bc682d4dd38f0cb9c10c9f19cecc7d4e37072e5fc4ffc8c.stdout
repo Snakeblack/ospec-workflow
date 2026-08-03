@@ -1,0 +1,10 @@
+✔ k1-maturity passes when every scoped entry is well-tagged (1.7045ms)
+✔ missing maturity tag is an offender (3.3726ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 60.1135

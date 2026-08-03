@@ -1,0 +1,18 @@
+✔ auth/security evidence floors to critical despite tiny LOC (0.9666ms)
+✔ data migration evidence floors to critical (0.1435ms)
+✔ public API evidence floors to at least planned (0.1098ms)
+✔ repair evidence selects repair floor when no higher floor (0.1146ms)
+✔ direct evidence selects direct floor when no higher floor (0.1146ms)
+✔ large docs-only change does not invent critical floor (0.1393ms)
+✔ LOC never lowers an established hard floor (0.1021ms)
+✔ identical normalized inputs produce identical fingerprint and reasons (0.4781ms)
+✔ material field change alters fingerprint (0.1536ms)
+✔ classifyChange has no routing side effects on input object (0.1492ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 60.4119

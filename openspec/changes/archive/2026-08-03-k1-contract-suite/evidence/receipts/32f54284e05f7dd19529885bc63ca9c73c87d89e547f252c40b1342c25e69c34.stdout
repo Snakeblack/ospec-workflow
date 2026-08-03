@@ -1,0 +1,11 @@
+✔ parity fixture recovers shared discriminants including execute command (0.8407ms)
+✔ divergent next action fails parity (0.3082ms)
+✔ compareParity matches code/cause/next_action directly (0.1222ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 58.2015

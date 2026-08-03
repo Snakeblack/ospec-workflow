@@ -1,0 +1,14 @@
+✔ validateInstance accepts matching type/properties/required (1.1373ms)
+✔ validateInstance rejects missing required and wrong type (0.2993ms)
+✔ validateInstance enforces enum, const, and additionalProperties:false (0.1485ms)
+✔ validateInstance supports oneOf and local $ref (0.5627ms)
+✔ validateInstance supports if/then discrimination (0.2789ms)
+✔ loadSchemaById resolves from manifest and refuses silent version substitution (0.3683ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 58.725

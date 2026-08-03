@@ -8,6 +8,22 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.37.0] - 2026-08-03
+
+### Added
+- **K1 contract suite**: Árbol `schemas/kernel/` versionado (`$id` `ospec://…/v1`) con 12 familias, fixtures válidos/inválidos, aliases de migración y emission claims.
+- **Canon de autoridad y clasificación**: `authority-canon`, clasificador con hard floors por evidencia (migration/auth/API pública/Repair/Direct), fingerprint `stableSerialize`+SHA-256 y reasons estables; sin cablear routing fixed.
+- **Transición y paridad de superficies**: `next_transition` (`execute|collect|decide|stop`) con tokens/`command` cuando aplica, y paridad material entre proyección humana y envelope negociado.
+- **Checkers CI K1**: cuatro checkers en `contract-lint` (schema-compat, emission, prose-authority, maturity) registrados en `DEFAULT_REGISTRY`.
+- **Baselines OpenSpec**: dominios `harness-authority-canon`, `kernel-contract-schemas`, `change-classification`, `transition-surface-parity` y delta `contract-lint` (REQ-008…011); ADRs 20260803-001…004.
+
+### Fixed
+- **Validador JSON Schema dep-free**: `schema===false` rechaza toda instancia; schemas no-objeto fallan cerrado (no false-valid).
+- **Cobertura execute-token**: tests RED para argumentos `execute` sin `token` o solo whitespace.
+
+### Docs
+- Madurez `{implemented|target|experimental}` en arquitectura del harness; change archivado en `openspec/changes/archive/2026-08-03-k1-contract-suite/`.
+
 ## [2.36.0] - 2026-07-31
 
 ### Added

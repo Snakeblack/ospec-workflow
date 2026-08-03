@@ -1,0 +1,76 @@
+✖ parity fixture recovers shared discriminants including execute command (1.0703ms)
+✖ divergent next action fails parity (0.268ms)
+✖ compareParity matches code/cause/next_action directly (0.134ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 0
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 56.3019
+
+✖ failing tests:
+
+test at scripts\lib\transition-parity.test.js:20:1
+✖ parity fixture recovers shared discriminants including execute command (1.0703ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + undefined
+  - 'execute'
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\transition-parity.test.js:30:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.start (node:internal/test_runner/test:1177:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 'execute',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\lib\transition-parity.test.js:34:1
+✖ divergent next action fails parity (0.268ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\transition-parity.test.js:41:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\lib\transition-parity.test.js:45:1
+✖ compareParity matches code/cause/next_action directly (0.134ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\transition-parity.test.js:59:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

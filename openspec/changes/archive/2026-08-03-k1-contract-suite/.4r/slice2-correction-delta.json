@@ -1,0 +1,12 @@
+{
+  "slice_id": "S-69543702e1267117",
+  "finding_ids": [
+    "F-f86e724876d63e11"
+  ],
+  "paths": [
+    "scripts/lib/kernel-schema-validator.js",
+    "scripts/lib/kernel-schema-validator.test.js"
+  ],
+  "actual_changed_lines": 58,
+  "summary": "Boolean false reject-all; invalid non-object schemas error; tests for false/true/non-object/unresolved $ref"
+}

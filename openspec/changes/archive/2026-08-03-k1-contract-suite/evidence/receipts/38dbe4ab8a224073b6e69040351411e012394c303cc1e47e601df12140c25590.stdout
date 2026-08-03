@@ -1,0 +1,98 @@
+✖ resolveAlias maps legacy tag to canonical code (0.9432ms)
+✔ resolveAlias non-strict returns tag unchanged when unmapped (0.1194ms)
+✖ resolveAlias strict fails closed on known consumer tag without mapping (0.1757ms)
+✖ resolveAlias never silently drops a mapped tag (3.2109ms)
+✖ strict coverage matrix resolves every seeded consumer-facing tag (0.2215ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 1
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 61.9926
+
+✖ failing tests:
+
+test at scripts\lib\kernel-aliases.test.js:8:1
+✖ resolveAlias maps legacy tag to canonical code (0.9432ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'auth-security'
+  - 'hard_floor.auth_security'
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\kernel-aliases.test.js:9:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.start (node:internal/test_runner/test:1177:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'auth-security',
+    expected: 'hard_floor.auth_security',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\lib\kernel-aliases.test.js:18:1
+✖ resolveAlias strict fails closed on known consumer tag without mapping (0.1757ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\kernel-aliases.test.js:19:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /unmapped|fail.?closed|no alias/i,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at scripts\lib\kernel-aliases.test.js:25:1
+✖ resolveAlias never silently drops a mapped tag (3.2109ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(tags.length >= 5)
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\kernel-aliases.test.js:27:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at scripts\lib\kernel-aliases.test.js:35:1
+✖ strict coverage matrix resolves every seeded consumer-facing tag (0.2215ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'direct'
+  - 'route.direct'
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\kernel-aliases.test.js:50:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'direct',
+    expected: 'route.direct',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

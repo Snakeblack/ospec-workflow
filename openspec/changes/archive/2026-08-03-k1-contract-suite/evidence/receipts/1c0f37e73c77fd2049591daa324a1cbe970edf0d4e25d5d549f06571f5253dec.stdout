@@ -1,0 +1,10 @@
+✔ k1-emission passes when claims only name allowlisted emissions (1.0803ms)
+✔ named command not emitted by code is an offender (4.9171ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 59.8399

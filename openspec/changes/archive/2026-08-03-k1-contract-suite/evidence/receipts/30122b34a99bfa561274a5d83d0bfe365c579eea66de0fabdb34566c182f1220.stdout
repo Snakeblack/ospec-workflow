@@ -1,0 +1,172 @@
+✖ auth/security evidence floors to critical despite tiny LOC (0.9858ms)
+✖ data migration evidence floors to critical (0.1453ms)
+✖ public API evidence floors to at least planned (0.1177ms)
+✖ repair evidence selects repair floor when no higher floor (0.1015ms)
+✖ direct evidence selects direct floor when no higher floor (2.5388ms)
+✔ large docs-only change does not invent critical floor (0.1497ms)
+✖ LOC never lowers an established hard floor (0.1147ms)
+✔ identical normalized inputs produce identical fingerprint and reasons (0.3883ms)
+✖ material field change alters fingerprint (0.1634ms)
+✔ classifyChange has no routing side effects on input object (0.1399ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 3
+ℹ fail 7
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 60.0253
+
+✖ failing tests:
+
+test at scripts\lib\change-classification.test.js:8:1
+✖ auth/security evidence floors to critical despite tiny LOC (0.9858ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'direct'
+  - 'critical'
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\change-classification.test.js:13:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.start (node:internal/test_runner/test:1177:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'direct',
+    expected: 'critical',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\lib\change-classification.test.js:19:1
+✖ data migration evidence floors to critical (0.1453ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'direct'
+  - 'critical'
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\change-classification.test.js:24:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'direct',
+    expected: 'critical',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\lib\change-classification.test.js:28:1
+✖ public API evidence floors to at least planned (0.1177ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'direct'
+  - 'planned'
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\change-classification.test.js:33:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'direct',
+    expected: 'planned',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\lib\change-classification.test.js:37:1
+✖ repair evidence selects repair floor when no higher floor (0.1015ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'direct' !== 'repair'
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\change-classification.test.js:42:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'direct',
+    expected: 'repair',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\lib\change-classification.test.js:46:1
+✖ direct evidence selects direct floor when no higher floor (2.5388ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(profile.reasons.includes("hard_floor.direct"))
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\change-classification.test.js:52:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at scripts\lib\change-classification.test.js:64:1
+✖ LOC never lowers an established hard floor (0.1147ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'direct'
+  - 'critical'
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\change-classification.test.js:70:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'direct',
+    expected: 'critical',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\lib\change-classification.test.js:86:1
+✖ material field change alters fingerprint (0.1634ms)
+  AssertionError [ERR_ASSERTION]: Expected "actual" to be strictly unequal to:
+  
+  'sha256:00'
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\change-classification.test.js:95:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'sha256:00',
+    expected: 'sha256:00',
+    operator: 'notStrictEqual',
+    diff: 'simple'
+  }

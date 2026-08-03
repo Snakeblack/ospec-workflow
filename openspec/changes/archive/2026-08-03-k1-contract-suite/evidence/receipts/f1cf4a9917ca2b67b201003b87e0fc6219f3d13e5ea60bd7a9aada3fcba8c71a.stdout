@@ -1,0 +1,13 @@
+✔ stableSerialize sorts object keys deterministically (0.5141ms)
+✔ stableSerialize is recursive over nested objects and arrays (0.1144ms)
+✔ sha256Fingerprint uses domain-prefixed change-classification\0 bytes (0.4287ms)
+✔ sha256Fingerprint is order-independent for equal normalized payloads (0.174ms)
+✔ different domains produce different fingerprints for the same value (0.1502ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 57.1514

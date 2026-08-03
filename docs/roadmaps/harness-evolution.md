@@ -33,7 +33,7 @@ O2B fixed baseline
   → K12 headless/longitudinal
 ```
 
-O2B cerró el gate inicial. El change `fixed-policy-reference-baseline` obtuvo verify `PASS` para 16/16 MUST y evidencia Strict TDD autenticada, superó el gate 4R con estado `approved` y quedó archivado en `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`. La versión v2.36.0 que lo contiene ya está publicada. K1 es la siguiente iniciativa activa y bloquea K2; K2 y el resto de iniciativas posteriores siguen `pending`. Fixed continúa como control/default hasta que los gates posteriores autoricen otro cambio.
+O2B cerró el gate inicial. El change `fixed-policy-reference-baseline` obtuvo verify `PASS` para 16/16 MUST y evidencia Strict TDD autenticada, superó el gate 4R con estado `approved` y quedó archivado en `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`. La versión v2.36.0 que lo contiene ya está publicada. K1 (`k1-contract-suite`) cerró con verify `PASS`, gate 4R `approved` (2 CRITICAL remediados), archive transaccional en `openspec/changes/archive/2026-08-03-k1-contract-suite/` y publicación en v2.37.0. K2 es la siguiente iniciativa activa; el resto de iniciativas posteriores permanece `pending`. Fixed continúa como control/default hasta que los gates posteriores autoricen otro cambio.
 
 Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R1 se rebasan sobre un kernel común; O7+O10 se convierte en capacidades; O9+O11 en invalidación/recompilación; O14 en routing por nodo; R4 consume el mismo Graph IR. O8 y O12 conservan shadow, compatibilidad y deprecación. Targets y R2 siguen subordinados a la estabilidad del core.
 
@@ -41,12 +41,11 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 
 | Orden | Acción | Gate de salida |
 | ---: | --- | --- |
-| 1 | Ejecutar K1 | Contracts, invariantes, vocabulario, hard floors por evidencia, transición ejecutable y paridad de superficies; desbloquea K2 |
-| 2 | Ejecutar K2–K3 | Transitions, recovery y Candidate ID conformes |
-| 3 | Ejecutar K4–K8 sobre Repair shadow, respetando K6a→K6d | Vertical end-to-end con receipt de evaluación |
-| 4 | Ejecutar K9 | Calidad no inferior, replay y fallback fixed |
-| 5 | Ejecutar K10-delivery | Pre-commit/pre-push/pre-PR validan receipts productivos |
-| 6 | Expandir K10, K11a→K11d y K12 | Rutas/targets de uno en uno, luego headless/longitudinal |
+| 1 | Ejecutar K2–K3 | Transitions, recovery y Candidate ID conformes |
+| 2 | Ejecutar K4–K8 sobre Repair shadow, respetando K6a→K6d | Vertical end-to-end con receipt de evaluación |
+| 3 | Ejecutar K9 | Calidad no inferior, replay y fallback fixed |
+| 4 | Ejecutar K10-delivery | Pre-commit/pre-push/pre-PR validan receipts productivos |
+| 5 | Expandir K10, K11a→K11d y K12 | Rutas/targets de uno en uno, luego headless/longitudinal |
 
 ## Estado ejecutivo
 
@@ -59,14 +58,14 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | O4.2 | Recovery focal de evidencia Strict TDD |
 | `done` | O6A | Archive híbrido transaccional |
 | `done` | **O2B** | Verify `PASS`, gate 4R `approved`, archivado y publicado en v2.36.0 |
-| `in-progress` | **K1** | Contract suite, vocabulario, clasificación por evidencia, shapes de transición ejecutable y paridad de superficies |
-| `pending` | K2–K3 | Lifecycle kernel y Candidate ID; K2 bloqueado por K1 |
+| `done` | **K1** | Contract suite, vocabulario, clasificación, paridad; archivado y publicado en v2.37.0 |
+| `pending` | K2–K3 | Lifecycle kernel y Candidate ID; K2 desbloqueado por K1 |
 | `pending` | K4–K8 | MVP Repair proof-carrying; K6 se entrega en cuatro slices terminales |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B |
 | `pending` | K10-delivery | Enforcement productivo de receipts |
 | `pending` | K10–K12 | Expansión adaptativa, plataforma en cuatro slices y evaluación longitudinal |
 
-No se modifica el estado de OpenSpec desde este documento. El cierre de O2B se toma de `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`; K1 figura aquí como iniciativa de roadmap activa, sin crear por ello un change OpenSpec.
+No se modifica el estado de OpenSpec desde este documento. El cierre de O2B se toma de `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`; el de K1, de `openspec/changes/archive/2026-08-03-k1-contract-suite/` y v2.37.0.
 
 ## Reglas del programa
 
@@ -211,11 +210,15 @@ Gate cerrado: K1 puede iniciar. El cierre de O2B no cambia por sí mismo default
 
 ## Bloque 1 — invariantes y contratos
 
-### K1 — contract suite, vocabulario y clasificación — **in-progress**
+### K1 — contract suite, vocabulario y clasificación — **done**
 
 **Absorbe/rebasa:** P0, P4, P19; O13A; O19A; foundations de O20A.
 
-**Dependencia:** O2B completado. **Bloquea:** K2.
+**Dependencia:** O2B completado. **Desbloquea:** K2.
+
+**Cierre:** change `k1-contract-suite` con verify `PASS`, 4R `approved` (CRITICAL remediados), archive `2026-08-03-k1-contract-suite`, publicado en v2.37.0.
+
+**Estado real del corte:** el change histórico de K1 completó su archive transaccional; una auditoría independiente posterior abrió correcciones directas todavía no committeadas ni publicadas. El vocabulario canónico de Graph IR/Work Order/Receipt y toda su conformance deben quedar verdes antes de marcar la iniciativa K1 terminal. K2 permanece bloqueado mientras falle cualquiera de esos contratos o checks.
 
 #### Alcance
 
@@ -239,6 +242,9 @@ Gate cerrado: K1 puede iniciar. El cierre de O2B no cambia por sí mismo default
 #### Done criteria
 
 - todos los schemas tienen `$id`/versión y fixtures válidos/inválidos;
+- `graph-node/v1` expresa objetivo/operation, dependencias, ownership, invariantes, paths, evidence refs y budget ref sin activar Graph IR;
+- `work-order/v1` expresa la capsule declarativa (operation/objetivo, dependencias, ownership, invariantes, paths, evidencia requerida y budget) sin ejecutar workers;
+- `receipt/v1` liga cualquier outcome canónico a contract, graph, candidate, evidence y findings, preservando una ruta v1 legacy explícita;
 - CI rechaza incompatibilidades y fallback de autoridad a prosa;
 - la misma clasificación produce fingerprint y reasons estables;
 - hard floors no se degradan por LOC/archivo; cubren migración, auth, API pública, Repair y Direct;
@@ -246,6 +252,13 @@ Gate cerrado: K1 puede iniciar. El cierre de O2B no cambia por sí mismo default
 - fixtures de paridad prueban que la proyección humana y el envelope negociado recuperan los mismos discriminantes;
 - migration rules preservan tags existentes;
 - documentos distinguen implemented/target/experimental.
+- el test focal de fixtures y la conformance K1 completa están verdes; hasta entonces K1 no desbloquea K2.
+
+#### Alcance P0 sin reducción silenciosa
+
+K1 entrega la **materialización declarativa** de las 15 invariantes P0: `state-transition`/`failure-recovery` (continuaciones y recovery), `classification` (proporcionalidad/hard floors), `contract` + canon (autoridad persistida), `graph-node` (DAG semántico), `work-order` + `candidate` (independencia e identidad), `evidence` + `verification` + `finding-review` + `receipt` (evidence ≠ verdict y binding), `event` (observabilidad no autoritativa), aliases/pinning (compatibilidad) y fixtures de paridad/fail-closed.
+
+No entrega todavía el enforcement runtime correspondiente: reducer/replay/paridad E2E (K2), freeze universal (K3), compiler e invalidación Graph IR (K4), consumo y terminalidad de budgets/recovery (K5), aislamiento/verificación/challenges/complexity (K6a–K6d), adjudicación y lineage universal (K7), emisión/validación de receipt de evaluación (K8), promoción/fallback (K9), delivery productivo/rutas (K10), adapters/model routing/ownership/worktrees/roles (K11) ni headless/longitudinal (K12). Esos slices siguen siendo obligatorios; los schemas K1 no los sustituyen.
 
 #### Review path
 
@@ -870,7 +883,7 @@ No queda ninguna iniciativa transversal anterior sin destino explícito.
 
 | Propuesta | Trabajo que la entrega | Gate principal |
 | --- | --- | --- |
-| P0 invariantes | K1 | conformance |
+| P0 invariantes | K1 materializa contratos; K2–K12 consumen y hacen enforcement por slice | conformance K1 sin confundir schema materializado con runtime terminado |
 | P1 kernel | K2 | deterministic transitions |
 | P2 Graph IR | K4 | Repair shadow/replay |
 | P3 cinco rutas | K10 | rollout una a una |
@@ -1083,3 +1096,4 @@ Cada child conserva clasificación, Candidate ID y receipt propios.
 - 2026-07-31: un replay limpio resuelve la proveniencia Strict TDD; O2B obtiene verify `PASS`, supera el gate 4R, se archiva y se publica en v2.36.0. K1 pasa a ser la iniciativa activa y bloquea K2.
 - 2026-08-03: reconciliación documental post-O2B: se afilan K1–K3/K12 y la arquitectura (transición ejecutable, paridad de superficies, proyección de candidato, fricción de bloqueos) sin cambiar la ruta crítica.
 - 2026-08-03: comparativo Gentle AI reviewers → ventajas absorbidas solo donde refuerzan la dirección existente: K7 (precision gate, criterios de lente, refutación acotada), K6c (límite de scope vs K7), K8/K10-delivery (threat/bypass/live re-derive propios). Sin iniciativas paralelas ni CLI/RDD ajeno.
+- 2026-08-03: K1 (`k1-contract-suite`) cierra con verify PASS, 4R approved, archive transaccional y v2.37.0; K2 queda desbloqueado.

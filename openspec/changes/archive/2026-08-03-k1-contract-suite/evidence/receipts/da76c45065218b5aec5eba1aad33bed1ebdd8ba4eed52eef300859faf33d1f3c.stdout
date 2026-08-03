@@ -1,0 +1,123 @@
+✖ assertOpenSpecAuthoritative rejects Graph IR override of OpenSpec status (0.9846ms)
+✖ assertOpenSpecAuthoritative accepts when Graph IR agrees with OpenSpec (0.3608ms)
+✖ reconcileGraphIr fails closed when Graph IR cannot reconcile to OpenSpec/Git (0.1375ms)
+✔ reconcileGraphIr accepts Graph IR derived from matching OpenSpec/Git candidate (0.1759ms)
+✖ rejectProseFallback fails closed when structured field is absent (0.305ms)
+✖ rejectProseFallback accepts when structured authority field is present (0.2189ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 1
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 60.454
+
+✖ failing tests:
+
+test at scripts\lib\authority-canon.test.js:12:1
+✖ assertOpenSpecAuthoritative rejects Graph IR override of OpenSpec status (0.9846ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\authority-canon.test.js:17:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.start (node:internal/test_runner/test:1177:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\lib\authority-canon.test.js:22:1
+✖ assertOpenSpecAuthoritative accepts when Graph IR agrees with OpenSpec (0.3608ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + undefined
+  - 'openspec'
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\authority-canon.test.js:28:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 'openspec',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\lib\authority-canon.test.js:31:1
+✖ reconcileGraphIr fails closed when Graph IR cannot reconcile to OpenSpec/Git (0.1375ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\authority-canon.test.js:37:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\lib\authority-canon.test.js:54:1
+✖ rejectProseFallback fails closed when structured field is absent (0.305ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\authority-canon.test.js:60:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\lib\authority-canon.test.js:64:1
+✖ rejectProseFallback accepts when structured authority field is present (0.2189ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + undefined
+  - 'contract-remediation'
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\authority-canon.test.js:71:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 'contract-remediation',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

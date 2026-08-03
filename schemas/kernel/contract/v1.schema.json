@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/contract/v1",
+  "schema_version": 1,
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "contract_id": {
+      "type": "string"
+    },
+    "family": {
+      "type": "string"
+    },
+    "version": {
+      "type": "integer"
+    },
+    "surface": {
+      "type": "string",
+      "enum": [
+        "emit",
+        "consume",
+        "both"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "contract_id",
+    "family",
+    "version"
+  ],
+  "additionalProperties": false
+}

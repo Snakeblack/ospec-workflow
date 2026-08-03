@@ -1,0 +1,13 @@
+{
+  "slice_id": "S-591b22949c4fbd45",
+  "finding_ids": [
+    "F-5020b831f843d093"
+  ],
+  "paths": [
+    "schemas/kernel/state-transition/v1.schema.json",
+    "scripts/lib/next-transition.js",
+    "scripts/lib/next-transition.test.js"
+  ],
+  "actual_changed_lines": 34,
+  "summary": "Added unit tests for execute missing/whitespace token semantic guard"
+}
