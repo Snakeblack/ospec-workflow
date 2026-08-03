@@ -6,6 +6,7 @@ const path = require("node:path");
 
 const { runConfigure } = require("./cli.js");
 const { copyBinaryToTree } = require("./install-target.js");
+const { validateInstalled: validateInstalledCursor } = require("./validate-cursor.js");
 
 function usage() {
   return "usage: install-cursor [--dry-run] [--no-validate] [--source <sourceRepo>]\n";
@@ -102,9 +103,11 @@ function syncTreeByContent(
   result = { updated: [], unchanged: [] },
   skipNames = new Set(),
   cursorRoot = destDir,
+  journal = null,
 ) {
   // Per-destination safety (Codex parity): refuse nested symlinks that escape root.
   assertCursorPathSafe(cursorRoot, destDir, fsImpl);
+  if (journal) journal.captureDirectory(destDir);
   fsImpl.mkdirSync(destDir, { recursive: true });
   for (const entry of fsImpl.readdirSync(sourceDir, { withFileTypes: true })) {
     if (skipNames.has(entry.name)) {
@@ -113,12 +116,13 @@ function syncTreeByContent(
     const source = path.join(sourceDir, entry.name);
     const destination = path.join(destDir, entry.name);
     if (entry.isDirectory()) {
-      syncTreeByContent(source, destination, fsImpl, result, skipNames, cursorRoot);
+      syncTreeByContent(source, destination, fsImpl, result, skipNames, cursorRoot, journal);
     } else if (entry.isFile()) {
       assertCursorPathSafe(cursorRoot, destination, fsImpl);
       if (filesMatch(source, destination, fsImpl)) {
         result.unchanged.push(destination);
       } else {
+        if (journal) journal.capture(destination);
         fsImpl.mkdirSync(path.dirname(destination), { recursive: true });
         fsImpl.copyFileSync(source, destination);
         result.updated.push(destination);
@@ -126,6 +130,15 @@ function syncTreeByContent(
     }
   }
   return result;
+}
+
+function quoteCursorHookPath(value) {
+  const escaped = String(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\$/g, "\\$")
+    .replace(/`/g, "\\`");
+  return `"${escaped}"`;
 }
 
 // Expand __OSPEC_CURSOR_ROOT__ to an absolute POSIX-slashed cursor home.
@@ -136,8 +149,77 @@ function expandCursorHooksPlaceholder(command, cursorRootPosix) {
   }
   return command.replace(/__OSPEC_CURSOR_ROOT__(\/[^\s"]*)?/g, (_match, rest = "") => {
     const full = cursorRootPosix + (rest || "");
-    return `"${full}"`;
+    return quoteCursorHookPath(full);
   });
+}
+
+function createRollbackJournal(cursorRoot, fsImpl = fs) {
+  const entries = [];
+  const captured = new Set();
+  const newDirectories = new Set();
+
+  return {
+    captureDirectory(targetPath) {
+      const absolute = path.resolve(targetPath);
+      assertCursorPathSafe(cursorRoot, absolute, fsImpl);
+      const stat = lstatIfExists(absolute, fsImpl);
+      if (!stat) {
+        newDirectories.add(absolute);
+      } else if (!stat.isDirectory()) {
+        throw new Error(`refusing non-directory managed path: ${absolute}`);
+      }
+    },
+    capture(targetPath) {
+      const absolute = path.resolve(targetPath);
+      if (captured.has(absolute)) return;
+      assertCursorPathSafe(cursorRoot, absolute, fsImpl);
+      const stat = lstatIfExists(absolute, fsImpl);
+      if (stat && !stat.isFile()) {
+        throw new Error(`refusing to replace non-file managed path: ${absolute}`);
+      }
+      entries.push({
+        path: absolute,
+        existed: Boolean(stat),
+        bytes: stat ? fsImpl.readFileSync(absolute) : null,
+        mode: stat ? stat.mode : null,
+      });
+      captured.add(absolute);
+    },
+    rollback() {
+      const failures = [];
+      for (const entry of [...entries].reverse()) {
+        try {
+          if (entry.existed) {
+            fsImpl.mkdirSync(path.dirname(entry.path), { recursive: true });
+            fsImpl.writeFileSync(entry.path, entry.bytes);
+            fsImpl.chmodSync(entry.path, entry.mode);
+          } else {
+            fsImpl.rmSync(entry.path, { force: true });
+          }
+        } catch (error) {
+          failures.push(`${entry.path}: ${error.message || error}`);
+        }
+      }
+
+      const candidateDirs = [...newDirectories].sort((left, right) => right.length - left.length);
+      for (const dir of candidateDirs) {
+        try {
+          const stat = lstatIfExists(dir, fsImpl);
+          if (stat && stat.isSymbolicLink()) {
+            throw new Error("refusing to follow symlink during rollback");
+          }
+          if (stat && stat.isDirectory() && fsImpl.readdirSync(dir).length === 0) {
+            fsImpl.rmdirSync(dir);
+          }
+        } catch (error) {
+          failures.push(`${dir}: ${error.message || error}`);
+        }
+      }
+      if (failures.length > 0) {
+        throw new Error(`rollback incomplete: ${failures.join("; ")}`);
+      }
+    },
+  };
 }
 
 function renderHooksValue(value, cursorRootPosix) {
@@ -171,6 +253,8 @@ function installHooksJson(outDir, cursorRoot, deps = {}) {
     return;
   }
   assertCursorPathSafe(cursorRoot, destPath, fsImpl);
+  if (deps.journal) deps.journal.capture(destPath);
+  if (deps.journal) deps.journal.captureDirectory(cursorRoot);
   fsImpl.mkdirSync(cursorRoot, { recursive: true });
   fsImpl.writeFileSync(destPath, JSON.stringify(rendered, null, 2) + "\n");
 }
@@ -186,6 +270,7 @@ function main(argv, deps = {}) {
   const copyBinary = deps.copyBinaryToTree || copyBinaryToTree;
   const syncTree = deps.syncTreeByContent || syncTreeByContent;
   const installHooks = deps.installHooksJson || installHooksJson;
+  const validateInstalled = deps.validateInstalled || validateInstalledCursor;
 
   if (args.error) {
     stderr.write(`${usage()}${args.error}\n`);
@@ -231,7 +316,16 @@ function main(argv, deps = {}) {
     return 1;
   }
 
+  let journal = null;
   try {
+    // Cursor requires its native hook binary. Stage it in the generated tree
+    // before touching the home directory so absence/copy failure is fail-closed.
+    copyBinary(outDir, "cursor", sourceDir, {
+      fs: fsImpl,
+      stdout,
+      stderr,
+      required: true,
+    });
     const syncResult = syncTree(
       outDir,
       cursorRoot,
@@ -239,17 +333,29 @@ function main(argv, deps = {}) {
       { updated: [], unchanged: [] },
       new Set(["hooks.json"]),
       cursorRoot,
+      (journal = createRollbackJournal(cursorRoot, fsImpl)),
     );
-    installHooks(outDir, cursorRoot, { fs: fsImpl, dryRun: false });
-    const binaryDest = path.join(cursorRoot, "scripts", "hooks");
-    assertCursorPathSafe(cursorRoot, binaryDest, fsImpl);
-    copyBinary(cursorRoot, "cursor", sourceDir, { fs: fsImpl, stdout, stderr });
+    installHooks(outDir, cursorRoot, { fs: fsImpl, dryRun: false, journal });
+    const installedValidation = validateInstalled(cursorRoot, { fs: fsImpl });
+    if (installedValidation.errors.length > 0) {
+      throw new Error(`installed Cursor validation failed: ${installedValidation.errors.join("; ")}`);
+    }
     stdout.write(`  updated ${syncResult.updated.length}, unchanged ${syncResult.unchanged.length}\n`);
     return 0;
   } catch (error) {
+    let rollbackError = null;
+    if (journal) {
+      try {
+        journal.rollback();
+      } catch (failure) {
+        rollbackError = failure;
+      }
+    }
     stderr.write(
-      `install-cursor aborted after partial work: ${error.message || error}\n` +
-        "re-run setup:cursor after fixing the error; no automatic rollback is performed\n",
+      `install-cursor aborted: ${error.message || error}\n` +
+        (rollbackError
+          ? `${rollbackError.message || rollbackError}\nmanual recovery may be required\n`
+          : "managed Cursor changes were rolled back\n"),
     );
     return 1;
   }
@@ -267,7 +373,9 @@ if (require.main === module) {
 module.exports = {
   parseArgs,
   assertCursorPathSafe,
+  quoteCursorHookPath,
   expandCursorHooksPlaceholder,
+  createRollbackJournal,
   syncTreeByContent,
   installHooksJson,
   main,

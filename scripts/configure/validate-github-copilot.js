@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { TextDecoder } = require("node:util");
 
 const { parse, getField } = require("../lib/frontmatter.js");
 
@@ -28,17 +29,17 @@ const FORBIDDEN_TEXT = [
   { pattern: /\/Users\//, label: "absolute macOS user path residue" },
 ];
 
-function exists(root, rel) {
-  return fs.existsSync(path.join(root, rel));
+function exists(root, rel, fsImpl = fs) {
+  return fsImpl.existsSync(path.join(root, rel));
 }
 
-function pathType(root, rel) {
+function pathType(root, rel, fsImpl = fs) {
   const abs = path.join(root, rel);
-  if (!fs.existsSync(abs)) {
+  if (!fsImpl.existsSync(abs)) {
     return "missing";
   }
 
-  const stat = fs.statSync(abs);
+  const stat = fsImpl.statSync(abs);
   if (stat.isDirectory()) {
     return "directory";
   }
@@ -48,16 +49,16 @@ function pathType(root, rel) {
   return "other";
 }
 
-function walkFiles(root, relDir = "", acc = []) {
+function walkFiles(root, relDir = "", acc = [], fsImpl = fs) {
   const absDir = path.join(root, relDir);
-  if (!fs.existsSync(absDir) || !fs.statSync(absDir).isDirectory()) {
+  if (!fsImpl.existsSync(absDir) || !fsImpl.statSync(absDir).isDirectory()) {
     return acc;
   }
 
-  for (const entry of fs.readdirSync(absDir, { withFileTypes: true })) {
+  for (const entry of fsImpl.readdirSync(absDir, { withFileTypes: true })) {
     const rel = relDir ? `${relDir}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
-      walkFiles(root, rel, acc);
+      walkFiles(root, rel, acc, fsImpl);
     } else if (entry.isFile()) {
       acc.push(rel);
     }
@@ -65,33 +66,74 @@ function walkFiles(root, relDir = "", acc = []) {
   return acc;
 }
 
-function walkPaths(root, relDir = "", acc = []) {
+function walkPaths(root, relDir = "", acc = [], fsImpl = fs) {
   const absDir = path.join(root, relDir);
-  if (!fs.existsSync(absDir) || !fs.statSync(absDir).isDirectory()) {
+  if (!fsImpl.existsSync(absDir) || !fsImpl.statSync(absDir).isDirectory()) {
     return acc;
   }
 
-  for (const entry of fs.readdirSync(absDir, { withFileTypes: true })) {
+  for (const entry of fsImpl.readdirSync(absDir, { withFileTypes: true })) {
     const rel = relDir ? `${relDir}/${entry.name}` : entry.name;
     acc.push(rel);
     if (entry.isDirectory()) {
-      walkPaths(root, rel, acc);
+      walkPaths(root, rel, acc, fsImpl);
     }
   }
   return acc;
 }
 
-function readUtf8(root, rel) {
-  return fs.readFileSync(path.join(root, rel), "utf8");
+function readUtf8(root, rel, fsImpl = fs) {
+  return fsImpl.readFileSync(path.join(root, rel), "utf8");
+}
+
+const BINARY_MAGIC = [
+  Buffer.from([0x4d, 0x5a]), // PE/COFF
+  Buffer.from([0x7f, 0x45, 0x4c, 0x46]), // ELF
+  Buffer.from([0xfe, 0xed, 0xfa, 0xce]), // Mach-O 32-bit
+  Buffer.from([0xfe, 0xed, 0xfa, 0xcf]), // Mach-O 64-bit
+  Buffer.from([0xce, 0xfa, 0xed, 0xfe]), // Mach-O 32-bit, reversed
+  Buffer.from([0xcf, 0xfa, 0xed, 0xfe]), // Mach-O 64-bit, reversed
+  Buffer.from([0xca, 0xfe, 0xba, 0xbe]), // Mach-O universal
+  Buffer.from([0xbe, 0xba, 0xfe, 0xca]), // Mach-O universal, reversed
+];
+
+function startsWith(buffer, prefix) {
+  return buffer.length >= prefix.length && buffer.subarray(0, prefix.length).equals(prefix);
+}
+
+function decodeTextContent(buffer) {
+  if (BINARY_MAGIC.some((magic) => startsWith(buffer, magic)) || buffer.includes(0x00)) {
+    return null;
+  }
+
+  for (const byte of buffer) {
+    if ((byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d) || byte === 0x7f) {
+      return null;
+    }
+  }
+
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+  } catch {
+    return null;
+  }
 }
 
 function addError(errors, message) {
   errors.push(message);
 }
 
-function validateRequiredPaths(root, errors) {
+function runValidation(errors, label, check) {
+  try {
+    check();
+  } catch (error) {
+    addError(errors, `unable to validate ${label}: ${error.message}`);
+  }
+}
+
+function validateRequiredPaths(root, errors, fsImpl) {
   for (const { rel, type } of REQUIRED_PATHS) {
-    const actual = pathType(root, rel);
+    const actual = pathType(root, rel, fsImpl);
     if (actual === "missing") {
       addError(errors, `missing required path: ${rel}`);
     } else if (actual !== type) {
@@ -100,26 +142,32 @@ function validateRequiredPaths(root, errors) {
   }
 }
 
-function validateForbiddenPaths(root, errors) {
+function validateForbiddenPaths(root, errors, fsImpl) {
   for (const rel of FORBIDDEN_PATHS) {
-    if (exists(root, rel)) {
+    if (exists(root, rel, fsImpl)) {
       addError(errors, `forbidden path present: ${rel}`);
     }
   }
 
-  for (const rel of walkPaths(root)) {
+  for (const rel of walkPaths(root, "", [], fsImpl)) {
     if (rel.toLowerCase().includes("vscode")) {
       addError(errors, `vscode path residue: ${rel}`);
     }
   }
 }
 
-function validateForbiddenText(root, errors) {
-  for (const file of walkFiles(root)) {
-    let text;
+function validateForbiddenText(root, errors, fsImpl) {
+  for (const file of walkFiles(root, "", [], fsImpl)) {
+    let content;
     try {
-      text = readUtf8(root, file);
-    } catch {
+      content = fsImpl.readFileSync(path.join(root, file));
+    } catch (error) {
+      addError(errors, `unable to inspect forbidden text in ${file}: ${error.message}`);
+      continue;
+    }
+
+    const text = decodeTextContent(Buffer.isBuffer(content) ? content : Buffer.from(content));
+    if (text === null) {
       continue;
     }
 
@@ -131,46 +179,46 @@ function validateForbiddenText(root, errors) {
   }
 }
 
-function listMarkdown(root, relDir, suffix) {
-  return walkFiles(root, relDir).filter((file) => file.endsWith(suffix));
+function listMarkdown(root, relDir, suffix, fsImpl) {
+  return walkFiles(root, relDir, [], fsImpl).filter((file) => file.endsWith(suffix));
 }
 
-function validateMarkdown(root, errors) {
-  for (const file of walkFiles(root, ".github/agents")) {
+function validateMarkdown(root, errors, fsImpl) {
+  for (const file of walkFiles(root, ".github/agents", [], fsImpl)) {
     if (file.endsWith(".md") && !file.endsWith(".agent.md")) {
       addError(errors, `${file} must use .agent.md suffix`);
     }
   }
 
-  for (const file of listMarkdown(root, ".github/agents", ".agent.md")) {
-    const fm = parse(readUtf8(root, file)).frontmatter;
+  for (const file of listMarkdown(root, ".github/agents", ".agent.md", fsImpl)) {
+    const fm = parse(readUtf8(root, file, fsImpl)).frontmatter;
     const target = getField(fm, "target");
     if (!target || target.value !== "github-copilot") {
       addError(errors, `${file} must include target: github-copilot`);
     }
   }
 
-  for (const file of walkFiles(root, ".github/prompts")) {
+  for (const file of walkFiles(root, ".github/prompts", [], fsImpl)) {
     if (file.endsWith(".md") && !file.endsWith(".prompt.md")) {
       addError(errors, `${file} must use .prompt.md suffix`);
     }
   }
 
-  for (const file of listMarkdown(root, ".github/prompts", ".prompt.md")) {
-    const fm = parse(readUtf8(root, file)).frontmatter;
+  for (const file of listMarkdown(root, ".github/prompts", ".prompt.md", fsImpl)) {
+    const fm = parse(readUtf8(root, file, fsImpl)).frontmatter;
     if (getField(fm, "target")) {
       addError(errors, `${file} must not include target frontmatter`);
     }
   }
 
-  for (const file of walkFiles(root, ".github/instructions")) {
+  for (const file of walkFiles(root, ".github/instructions", [], fsImpl)) {
     if (file.endsWith(".md") && !file.endsWith(".instructions.md")) {
       addError(errors, `${file} must use .instructions.md suffix`);
     }
   }
 
-  for (const file of listMarkdown(root, ".github/instructions", ".instructions.md")) {
-    const fm = parse(readUtf8(root, file)).frontmatter;
+  for (const file of listMarkdown(root, ".github/instructions", ".instructions.md", fsImpl)) {
+    const fm = parse(readUtf8(root, file, fsImpl)).frontmatter;
     const applyTo = getField(fm, "applyTo");
     if (!applyTo || applyTo.value !== "**") {
       addError(errors, `${file} must include applyTo: "**"`);
@@ -178,15 +226,15 @@ function validateMarkdown(root, errors) {
   }
 }
 
-function validateHooks(root, errors) {
+function validateHooks(root, errors, fsImpl) {
   const rel = ".github/hooks/hooks.json";
-  if (pathType(root, rel) !== "file") {
+  if (pathType(root, rel, fsImpl) !== "file") {
     return;
   }
 
   let parsed;
   try {
-    parsed = JSON.parse(readUtf8(root, rel));
+    parsed = JSON.parse(readUtf8(root, rel, fsImpl));
   } catch (error) {
     addError(errors, `${rel} is not valid JSON: ${error.message}`);
     return;
@@ -228,12 +276,12 @@ function validateHooks(root, errors) {
 // Each phase agent's "Skills to load before work" section names skills/<...>.md
 // files it will read. If the generator drops one, the reference dangles, so every
 // referenced skill must ship in the output.
-function validateSkillReferences(root, errors) {
+function validateSkillReferences(root, errors, fsImpl) {
   const refRe = /`(skills\/[^`]+\.md)`/g;
-  for (const file of listMarkdown(root, ".github/agents", ".agent.md")) {
-    const text = readUtf8(root, file);
+  for (const file of listMarkdown(root, ".github/agents", ".agent.md", fsImpl)) {
+    const text = readUtf8(root, file, fsImpl);
     for (const match of text.matchAll(refRe)) {
-      if (!exists(root, match[1])) {
+      if (!exists(root, match[1], fsImpl)) {
         addError(errors, `${file} references missing skill: ${match[1]}`);
       }
     }
@@ -243,14 +291,14 @@ function validateSkillReferences(root, errors) {
 // Copilot hook commands invoke repo-relative node scripts (the ${CLAUDE_PLUGIN_ROOT}
 // prefix is stripped at generation). Every referenced script must be present, or
 // the hook fails at runtime.
-function validateHookScripts(root, errors) {
+function validateHookScripts(root, errors, fsImpl) {
   const rel = ".github/hooks/hooks.json";
-  if (pathType(root, rel) !== "file") {
+  if (pathType(root, rel, fsImpl) !== "file") {
     return;
   }
   let parsed;
   try {
-    parsed = JSON.parse(readUtf8(root, rel));
+    parsed = JSON.parse(readUtf8(root, rel, fsImpl));
   } catch {
     return; // JSON shape already reported by validateHooks
   }
@@ -266,7 +314,7 @@ function validateHookScripts(root, errors) {
           continue;
         }
         for (const match of command.matchAll(scriptRe)) {
-          if (!exists(root, match[1])) {
+          if (!exists(root, match[1], fsImpl)) {
             addError(errors, `${rel} references missing script: ${match[1]}`);
           }
         }
@@ -278,16 +326,17 @@ function validateHookScripts(root, errors) {
 // Scan .mcp.json for unresolved ${input:NAME} placeholders. These residuals
 // indicate the profile forgot to opt in to mcpPlaceholders normalization.
 // Mirrors the FORBIDDEN_TEXT walk but scoped to a single file.
-function validateMcpResidualPlaceholders(root, errors) {
+function validateMcpResidualPlaceholders(root, errors, fsImpl) {
   const rel = ".mcp.json";
-  if (pathType(root, rel) !== "file") {
+  if (pathType(root, rel, fsImpl) !== "file") {
     return;
   }
   let text;
   try {
-    text = readUtf8(root, rel);
-  } catch {
-    return; // read failure already covered by validateRequiredPaths
+    text = readUtf8(root, rel, fsImpl);
+  } catch (error) {
+    addError(errors, `unable to inspect residual placeholders in ${rel}: ${error.message}`);
+    return;
   }
   if (/\$\{input:/.test(text)) {
     addError(errors, `residual \${input: placeholder found in ${rel} — profile must opt in to mcpPlaceholders normalization`);
@@ -296,14 +345,14 @@ function validateMcpResidualPlaceholders(root, errors) {
 
 // .mcp.json passes through unchanged; confirm it is a usable Copilot MCP config:
 // an mcpServers object whose entries each define a command (stdio) or url (http/sse).
-function validateMcp(root, errors) {
+function validateMcp(root, errors, fsImpl) {
   const rel = ".mcp.json";
-  if (pathType(root, rel) !== "file") {
+  if (pathType(root, rel, fsImpl) !== "file") {
     return;
   }
   let parsed;
   try {
-    parsed = JSON.parse(readUtf8(root, rel));
+    parsed = JSON.parse(readUtf8(root, rel, fsImpl));
   } catch (error) {
     addError(errors, `${rel} is not valid JSON: ${error.message}`);
     return;
@@ -328,25 +377,42 @@ function validateMcp(root, errors) {
   }
 }
 
-function validate(root) {
+function validate(root, deps = {}) {
   const errors = [];
   const warnings = [];
   const absRoot = path.resolve(root);
+  let fsImpl = deps.fs || fs;
+  if (!deps.fs && deps.readFileSync) {
+    fsImpl = Object.create(fs);
+    fsImpl.readFileSync = deps.readFileSync;
+  }
 
-  if (!fs.existsSync(absRoot) || !fs.statSync(absRoot).isDirectory()) {
+  let rootIsDirectory;
+  try {
+    rootIsDirectory = fsImpl.existsSync(absRoot) && fsImpl.statSync(absRoot).isDirectory();
+  } catch (error) {
+    addError(errors, `unable to inspect output root ${root}: ${error.message}`);
+    return { errors, warnings };
+  }
+  if (!rootIsDirectory) {
     addError(errors, `output root is not a directory: ${root}`);
     return { errors, warnings };
   }
 
-  validateRequiredPaths(absRoot, errors);
-  validateForbiddenPaths(absRoot, errors);
-  validateForbiddenText(absRoot, errors);
-  validateMarkdown(absRoot, errors);
-  validateHooks(absRoot, errors);
-  validateSkillReferences(absRoot, errors);
-  validateHookScripts(absRoot, errors);
-  validateMcp(absRoot, errors);
-  validateMcpResidualPlaceholders(absRoot, errors);
+  const checks = [
+    ["required paths", () => validateRequiredPaths(absRoot, errors, fsImpl)],
+    ["forbidden paths", () => validateForbiddenPaths(absRoot, errors, fsImpl)],
+    ["forbidden text", () => validateForbiddenText(absRoot, errors, fsImpl)],
+    ["markdown", () => validateMarkdown(absRoot, errors, fsImpl)],
+    ["hooks", () => validateHooks(absRoot, errors, fsImpl)],
+    ["skill references", () => validateSkillReferences(absRoot, errors, fsImpl)],
+    ["hook scripts", () => validateHookScripts(absRoot, errors, fsImpl)],
+    ["MCP", () => validateMcp(absRoot, errors, fsImpl)],
+    ["MCP residual placeholders", () => validateMcpResidualPlaceholders(absRoot, errors, fsImpl)],
+  ];
+  for (const [label, check] of checks) {
+    runValidation(errors, label, check);
+  }
 
   return { errors, warnings };
 }

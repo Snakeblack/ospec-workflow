@@ -8,6 +8,11 @@ const { spawnSync } = require("node:child_process");
 const { runConfigure } = require("./cli.js");
 const { assertSafeDest } = require("./install-target.js");
 
+const SUPPORTED_CODEX_MCPS = Object.freeze({
+  context7: Object.freeze({ command: "npx", args: Object.freeze(["@upstash/context7-mcp@1.0.31"]) }),
+  markitdown: Object.freeze({ command: "uvx", args: Object.freeze(["markitdown-mcp@0.0.1a4"]) }),
+});
+
 function usage() {
   return (
     "usage: install-codex [<destRepo>] [--dry-run] [--no-validate] [--source <sourceRepo>]\n" +
@@ -136,22 +141,30 @@ function syncTreeByContent(sourceDir, destDir, fsImpl = fs, result = { updated: 
   return result;
 }
 
-function syncCodexAgentSkills(outDir, skillsRoot, deps = {}) {
-  const fsImpl = deps.fs || fs;
-  const agentsDir = path.join(outDir, ".codex", "agents");
-  const skillNames = fsImpl.readdirSync(agentsDir, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".toml"))
-    .map((entry) => path.basename(entry.name, ".toml"));
-  // Shared contracts are referenced by the phase skills but are not an agent.
-  skillNames.push("_shared");
-  const result = { updated: [], unchanged: [] };
-  for (const name of skillNames) {
-    const source = path.join(outDir, "skills", name);
-    if (fsImpl.existsSync(source)) {
-      syncTreeByContent(source, path.join(skillsRoot, name), fsImpl, result);
+function preflightManagedTree(sourceDir, destDir, approvedRoot, fsImpl = fs) {
+  const sourceStat = lstatIfExists(sourceDir, fsImpl);
+  if (!sourceStat?.isDirectory() || sourceStat.isSymbolicLink()) {
+    throw new Error(`generated Codex skills root must be a real directory: ${sourceDir}`);
+  }
+
+  for (const entry of fsImpl.readdirSync(sourceDir, { withFileTypes: true })) {
+    const source = path.join(sourceDir, entry.name);
+    const destination = path.join(destDir, entry.name);
+    assertManagedPathSafe(approvedRoot, destination, "Codex skill destination", fsImpl);
+    if (entry.isDirectory()) {
+      preflightManagedTree(source, destination, approvedRoot, fsImpl);
+    } else if (!entry.isFile()) {
+      throw new Error(`generated Codex skill entry must be a regular file or directory: ${source}`);
     }
   }
-  return result;
+}
+
+function syncCodexSkills(outDir, skillsRoot, deps = {}) {
+  const fsImpl = deps.fs || fs;
+  const source = path.join(outDir, "skills");
+  const approvedRoot = deps.approvedRoot || path.dirname(path.dirname(skillsRoot));
+  preflightManagedTree(source, skillsRoot, approvedRoot, fsImpl);
+  return syncTreeByContent(source, skillsRoot, fsImpl);
 }
 
 function appendAgentSkillConfig(agentPath, skillPath, fsImpl = fs) {
@@ -220,9 +233,15 @@ function normalizeCodexMcpName(name) {
   const leaf = String(name).split("/").filter(Boolean).pop() || "mcp";
   const normalized = leaf.replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
   if (!normalized) {
-    throw new Error(`cannot derive a valid Codex MCP name from: ${name}`);
+    throw new Error("source .mcp.json contains an unsupported Codex MCP definition");
   }
   return normalized;
+}
+
+function isSupportedCodexMcpDefinition(definition) {
+  const supported = definition && SUPPORTED_CODEX_MCPS[definition.name];
+  return Boolean(supported) && definition.command === supported.command &&
+    sameStringArray(definition.args, supported.args);
 }
 
 function readCodexMcpDefinitions(sourceDir, fsImpl = fs) {
@@ -240,18 +259,19 @@ function readCodexMcpDefinitions(sourceDir, fsImpl = fs) {
   const names = new Set();
   for (const [sourceName, server] of Object.entries(servers)) {
     if (!server || typeof server !== "object" || typeof server.command !== "string") {
-      continue;
+      throw new Error("source .mcp.json contains an unsupported Codex MCP definition");
     }
     const name = normalizeCodexMcpName(sourceName);
+    const args = Array.isArray(server.args) ? server.args.map(String) : [];
+    const definition = { name, command: server.command, args };
+    if (!isSupportedCodexMcpDefinition(definition)) {
+      throw new Error("source .mcp.json contains an unsupported Codex MCP definition");
+    }
     if (names.has(name)) {
       throw new Error(`multiple MCP definitions normalize to the Codex name: ${name}`);
     }
     names.add(name);
-    definitions.push({
-      name,
-      command: server.command,
-      args: Array.isArray(server.args) ? server.args.map(String) : [],
-    });
+    definitions.push(definition);
   }
   return definitions;
 }
@@ -268,6 +288,43 @@ function sameMcpIdentity(existing, definition) {
     sameStringArray(transport?.args || [], definition.args || []);
 }
 
+function createMcpMutationJournal(codexBin, deps, stderr) {
+  const addedNames = [];
+  let active = true;
+  return {
+    record(name) {
+      if (active && !addedNames.includes(name)) addedNames.push(name);
+    },
+    forget(name) {
+      const index = addedNames.indexOf(name);
+      if (index >= 0) addedNames.splice(index, 1);
+    },
+    commit() {
+      active = false;
+      addedNames.length = 0;
+    },
+    rollback() {
+      if (!active) return;
+      active = false;
+      const names = addedNames.splice(0).reverse();
+      const runCodexCommand = deps.runCodexCommand || defaultRunCodexCommand;
+      for (const name of names) {
+        let removed;
+        try {
+          removed = runCodexCommand(codexBin, ["mcp", "remove", name], deps);
+        } catch {
+          stderr.write("failed to roll back a newly added Codex MCP server; pre-existing servers were preserved\n");
+          continue;
+        }
+        const exitCode = removed.status === null || removed.status === undefined ? 1 : removed.status;
+        if (exitCode !== 0) {
+          stderr.write("failed to roll back a newly added Codex MCP server; pre-existing servers were preserved\n");
+        }
+      }
+    },
+  };
+}
+
 function ensureCodexMcps(codexBin, definitions, deps = {}) {
   if (!Array.isArray(definitions) || definitions.length === 0) {
     return 0;
@@ -275,7 +332,17 @@ function ensureCodexMcps(codexBin, definitions, deps = {}) {
   const runCodexCommand = deps.runCodexCommand || defaultRunCodexCommand;
   const stdout = deps.stdout || process.stdout;
   const stderr = deps.stderr || process.stderr;
-  const listed = runCodexCommand(codexBin, ["mcp", "list", "--json"], deps);
+  if (definitions.some((definition) => !isSupportedCodexMcpDefinition(definition))) {
+    stderr.write("unsupported Codex MCP definition; no MCP configuration was changed\n");
+    return 1;
+  }
+  let listed;
+  try {
+    listed = runCodexCommand(codexBin, ["mcp", "list", "--json"], deps);
+  } catch {
+    stderr.write("codex command failed while listing MCP servers; no MCP configuration was changed\n");
+    return 1;
+  }
   if (listed.stderr) stderr.write(listed.stderr);
   const listExitCode = listed.status === null || listed.status === undefined ? 1 : listed.status;
   if (listExitCode !== 0) {
@@ -295,6 +362,24 @@ function ensureCodexMcps(codexBin, definitions, deps = {}) {
     return 1;
   }
 
+  const addedNames = [];
+  const rollbackAdditions = () => {
+    for (const name of [...addedNames].reverse()) {
+      deps.mcpMutationJournal?.forget(name);
+      let removed;
+      try {
+        removed = runCodexCommand(codexBin, ["mcp", "remove", name], deps);
+      } catch {
+        stderr.write("failed to roll back a newly added Codex MCP server; pre-existing servers were preserved\n");
+        continue;
+      }
+      const removeExitCode = removed.status === null || removed.status === undefined ? 1 : removed.status;
+      if (removeExitCode !== 0) {
+        stderr.write("failed to roll back a newly added Codex MCP server; pre-existing servers were preserved\n");
+      }
+    }
+  };
+
   for (const definition of definitions) {
     const equivalent = existing.find((server) => sameMcpIdentity(server, definition));
     if (equivalent) {
@@ -310,14 +395,24 @@ function ensureCodexMcps(codexBin, definitions, deps = {}) {
     }
 
     const commandArgs = ["mcp", "add", definition.name, "--", definition.command, ...definition.args];
-    const added = runCodexCommand(codexBin, commandArgs, deps);
+    let added;
+    try {
+      added = runCodexCommand(codexBin, commandArgs, deps);
+    } catch {
+      stderr.write("codex command failed while adding a supported MCP server\n");
+      rollbackAdditions();
+      return 1;
+    }
     if (added.stdout) stdout.write(added.stdout);
     if (added.stderr) stderr.write(added.stderr);
     const addExitCode = added.status === null || added.status === undefined ? 1 : added.status;
     if (addExitCode !== 0) {
       stderr.write(`codex command failed: ${codexBin} ${commandArgs.join(" ")}\n`);
+      rollbackAdditions();
       return addExitCode;
     }
+    addedNames.push(definition.name);
+    deps.mcpMutationJournal?.record(definition.name);
     existing.push({
       name: definition.name,
       transport: { type: "stdio", command: definition.command, args: definition.args },
@@ -332,7 +427,7 @@ function copyCodexAgents(outDir, destDir, deps = {}) {
   const skillsRoot = deps.skillsRoot;
   const agentsDir = path.join(outDir, ".codex", "agents");
   const copied = [];
-  fsImpl.mkdirSync(destDir, { recursive: true });
+  if (!dryRun) fsImpl.mkdirSync(destDir, { recursive: true });
   for (const entry of fsImpl.readdirSync(agentsDir, { withFileTypes: true })) {
     if (!entry.isFile() || !entry.name.endsWith(".toml")) {
       continue;
@@ -406,6 +501,142 @@ function assertManagedPathSafe(rootPath, managedPath, label, fsImpl = fs) {
   }
 }
 
+function snapshotPath(targetPath, fsImpl) {
+  const stat = lstatIfExists(targetPath, fsImpl);
+  if (!stat) return { type: "missing" };
+  if (stat.isFile()) {
+    return { type: "file", bytes: fsImpl.readFileSync(targetPath), mode: stat.mode };
+  }
+  if (stat.isSymbolicLink()) {
+    return { type: "symlink", link: fsImpl.readlinkSync(targetPath) };
+  }
+  if (stat.isDirectory()) {
+    return {
+      type: "directory",
+      mode: stat.mode,
+      entries: fsImpl.readdirSync(targetPath).map((name) => [name, snapshotPath(path.join(targetPath, name), fsImpl)]),
+    };
+  }
+  throw new Error(`cannot transact unsupported filesystem entry: ${targetPath}`);
+}
+
+function removePathIfPresent(targetPath, fsImpl) {
+  if (lstatIfExists(targetPath, fsImpl)) {
+    fsImpl.rmSync(targetPath, { recursive: true, force: true });
+  }
+}
+
+function restorePath(targetPath, snapshot, fsImpl) {
+  if (snapshot.type === "missing") {
+    const stat = lstatIfExists(targetPath, fsImpl);
+    if (!stat) return;
+    if (stat.isDirectory()) {
+      try {
+        fsImpl.rmdirSync(targetPath);
+      } catch (error) {
+        if (error.code !== "ENOTEMPTY" && error.code !== "EEXIST") throw error;
+      }
+    } else {
+      fsImpl.rmSync(targetPath, { force: true });
+    }
+    return;
+  }
+
+  removePathIfPresent(targetPath, fsImpl);
+  fsImpl.mkdirSync(path.dirname(targetPath), { recursive: true });
+  if (snapshot.type === "file") {
+    fsImpl.writeFileSync(targetPath, snapshot.bytes);
+    fsImpl.chmodSync(targetPath, snapshot.mode);
+  } else if (snapshot.type === "symlink") {
+    fsImpl.symlinkSync(snapshot.link, targetPath);
+  } else if (snapshot.type === "directory") {
+    fsImpl.mkdirSync(targetPath, { recursive: true });
+    for (const [name, child] of snapshot.entries) {
+      restorePath(path.join(targetPath, name), child, fsImpl);
+    }
+    fsImpl.chmodSync(targetPath, snapshot.mode);
+  }
+}
+
+function createFilesystemTransaction(fsImpl = fs) {
+  const snapshots = new Map();
+  let active = true;
+  const capture = (targetPath) => {
+    const absolute = path.resolve(targetPath);
+    if (!snapshots.has(absolute)) snapshots.set(absolute, snapshotPath(absolute, fsImpl));
+  };
+  const captureMissingDirectories = (targetPath) => {
+    const missing = [];
+    let current = path.resolve(targetPath);
+    while (!lstatIfExists(current, fsImpl)) {
+      missing.push(current);
+      const parent = path.dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+    for (const directory of missing.reverse()) capture(directory);
+  };
+  const transactionalFs = new Proxy(fsImpl, {
+    get(target, property) {
+      if (property === "mkdirSync") {
+        return (targetPath, options) => {
+          captureMissingDirectories(targetPath);
+          return target.mkdirSync(targetPath, options);
+        };
+      }
+      if (property === "copyFileSync") {
+        return (source, destination, ...args) => {
+          capture(destination);
+          return target.copyFileSync(source, destination, ...args);
+        };
+      }
+      if (property === "writeFileSync") {
+        return (targetPath, ...args) => {
+          capture(targetPath);
+          return target.writeFileSync(targetPath, ...args);
+        };
+      }
+      if (property === "rmSync") {
+        return (targetPath, options) => {
+          capture(targetPath);
+          return target.rmSync(targetPath, options);
+        };
+      }
+      return target[property];
+    },
+  });
+  return {
+    fs: transactionalFs,
+    commit() {
+      active = false;
+      snapshots.clear();
+    },
+    rollback() {
+      if (!active) return [];
+      const errors = [];
+      for (const [targetPath, snapshot] of [...snapshots.entries()].reverse()) {
+        try {
+          restorePath(targetPath, snapshot, fsImpl);
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+      active = false;
+      snapshots.clear();
+      return errors;
+    },
+  };
+}
+
+function preflightCodexAgents(outDir, destDir, approvedRoot, fsImpl = fs) {
+  const agentsDir = path.join(outDir, ".codex", "agents");
+  for (const entry of fsImpl.readdirSync(agentsDir, { withFileTypes: true })) {
+    if (entry.isFile() && entry.name.endsWith(".toml")) {
+      assertManagedPathSafe(approvedRoot, path.join(destDir, entry.name), "Codex agent file destination", fsImpl);
+    }
+  }
+}
+
 
 
 function main(argv, deps = {}) {
@@ -418,6 +649,8 @@ function main(argv, deps = {}) {
   const findCodexBinImpl = deps.findCodexBin || findCodexBin;
   const homedir = deps.homedir || os.homedir;
   const assertSafeDestImpl = deps.assertSafeDest || assertSafeDest;
+  let fileTransaction;
+  let mcpMutationJournal;
 
   if (args.error) {
     stderr.write(`${usage()}${args.error}\n`);
@@ -465,7 +698,8 @@ function main(argv, deps = {}) {
             ).join(""),
         );
       } else {
-        const mcpExitCode = ensureCodexMcps(codexBin, mcpDefinitions, deps);
+        mcpMutationJournal = createMcpMutationJournal(codexBin, deps, stderr);
+        const mcpExitCode = ensureCodexMcps(codexBin, mcpDefinitions, { ...deps, mcpMutationJournal });
         if (mcpExitCode !== 0) {
           return mcpExitCode;
         }
@@ -476,25 +710,44 @@ function main(argv, deps = {}) {
     assertManagedPathSafe(codexRoot, agentsDest, "Codex agents destination", fsImpl);
     assertManagedPathSafe(isRepoInstall ? path.dirname(codexRoot) : codexRoot, agentDestFile, "Codex agent file destination", fsImpl);
 
-    const globalSkillsRoot = isRepoInstall ? undefined : path.join(homedir(), ".agents", "skills");
-    copyCodexAgents(outDir, agentsDest, { fs: fsImpl, dryRun: args.dryRun, skillsRoot: globalSkillsRoot });
+    const userHome = isRepoInstall ? undefined : path.resolve(homedir());
+    const globalSkillsRoot = isRepoInstall ? undefined : path.join(userHome, ".agents", "skills");
+    preflightCodexAgents(outDir, agentsDest, codexRoot, fsImpl);
+    if (!isRepoInstall) {
+      const runtimeDir = path.join(codexRoot, "ospec-workflow");
+      const hooksDest = path.join(codexRoot, "hooks.json");
+      const runtimeSource = path.join(outDir, "scripts");
+      const legacyRuntimeSkills = path.join(runtimeDir, "skills");
+      const orchestratorAgent = path.join(agentsDest, "sdd-orchestrator.toml");
+      assertManagedPathSafe(codexRoot, runtimeDir, "Codex runtime destination", fsImpl);
+      assertManagedPathSafe(codexRoot, hooksDest, "Codex hooks destination", fsImpl);
+      assertManagedPathSafe(codexRoot, legacyRuntimeSkills, "Codex legacy skills destination", fsImpl);
+      assertManagedPathSafe(codexRoot, orchestratorAgent, "Codex orchestrator agent destination", fsImpl);
+      if (fsImpl.existsSync(runtimeSource)) {
+        preflightManagedTree(runtimeSource, path.join(runtimeDir, "scripts"), codexRoot, fsImpl);
+      }
+      preflightManagedTree(path.join(outDir, "skills"), globalSkillsRoot, userHome, fsImpl);
+    }
+
+    const writeFs = args.dryRun ? fsImpl : (fileTransaction = createFilesystemTransaction(fsImpl)).fs;
+    copyCodexAgents(outDir, agentsDest, { fs: writeFs, dryRun: args.dryRun, skillsRoot: globalSkillsRoot });
 
     if (!args.dryRun) {
-      fsImpl.copyFileSync(path.join(outDir, "agent.md"), agentDestFile);
+      writeFs.copyFileSync(path.join(outDir, "agent.md"), agentDestFile);
       if (!isRepoInstall) {
         const runtimeDir = path.join(codexRoot, "ospec-workflow");
         const hooksDest = path.join(codexRoot, "hooks.json");
-        assertManagedPathSafe(codexRoot, runtimeDir, "Codex runtime destination", fsImpl);
-        assertManagedPathSafe(codexRoot, hooksDest, "Codex hooks destination", fsImpl);
-        copyCodexRuntime(outDir, runtimeDir, { fs: fsImpl });
+        copyCodexRuntime(outDir, runtimeDir, { fs: writeFs });
         const legacyRuntimeSkills = path.join(runtimeDir, "skills");
-        if (fsImpl.existsSync(legacyRuntimeSkills)) {
-          fsImpl.rmSync(legacyRuntimeSkills, { recursive: true, force: true });
+        if (writeFs.existsSync(legacyRuntimeSkills)) {
+          writeFs.rmSync(legacyRuntimeSkills, { recursive: true, force: true });
         }
-        syncCodexAgentSkills(outDir, globalSkillsRoot, { fs: fsImpl });
-        fsImpl.rmSync(path.join(agentsDest, "sdd-orchestrator.toml"), { force: true });
-        installCodexHooks(outDir, codexRoot, runtimeDir, { fs: fsImpl });
+        syncCodexSkills(outDir, globalSkillsRoot, { fs: writeFs, approvedRoot: userHome });
+        writeFs.rmSync(path.join(agentsDest, "sdd-orchestrator.toml"), { force: true });
+        installCodexHooks(outDir, codexRoot, runtimeDir, { fs: writeFs });
       }
+      fileTransaction.commit();
+      mcpMutationJournal?.commit();
     }
 
     if (args.dryRun) {
@@ -510,7 +763,12 @@ function main(argv, deps = {}) {
     stdout.write("Done. Codex AGENTS.md, custom agents, skills, and native hooks are ready.\n");
     return 0;
   } catch (error) {
+    const rollbackErrors = fileTransaction?.rollback() || [];
+    mcpMutationJournal?.rollback();
     stderr.write(`${error.message}\n`);
+    if (rollbackErrors.length > 0) {
+      stderr.write(`filesystem rollback was incomplete (${rollbackErrors.length} managed path(s)); user config and auth were not targeted\n`);
+    }
     return 1;
   }
 }
@@ -531,7 +789,7 @@ module.exports = {
   resolveCodexInvocation,
   copyCodexAgents,
   copyCodexRuntime,
-  syncCodexAgentSkills,
+  syncCodexSkills,
   installCodexHooks,
   readCodexMcpDefinitions,
   ensureCodexMcps,
