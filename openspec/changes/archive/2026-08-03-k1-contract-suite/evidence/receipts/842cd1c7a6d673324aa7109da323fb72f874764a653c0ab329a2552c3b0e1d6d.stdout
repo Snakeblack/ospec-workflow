@@ -1,0 +1,10 @@
+✔ K1 scope guard: no global lifecycle reducer module status→next_transition (1.5596ms)
+✔ K1 scope guard: fixed/default routing baselines in openspec/config.yaml unchanged by K1 modules (0.959ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 53.085

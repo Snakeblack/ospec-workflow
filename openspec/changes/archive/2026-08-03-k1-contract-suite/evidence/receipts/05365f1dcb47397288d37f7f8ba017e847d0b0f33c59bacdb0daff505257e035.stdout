@@ -1,0 +1,11 @@
+✔ manifest indexes every required family with $id and schema_version (2.791ms)
+✔ loadSchemaById pins by $id without silent substitution (1.0031ms)
+✔ every family valid fixtures pass and invalid fixtures fail with path/rule (6.2918ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 67.0417

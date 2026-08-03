@@ -1,0 +1,13 @@
+✔ resolveAlias maps legacy tag to canonical code (0.6804ms)
+✔ resolveAlias non-strict returns tag unchanged when unmapped (0.0858ms)
+✔ resolveAlias strict fails closed on known consumer tag without mapping (0.2739ms)
+✔ resolveAlias never silently drops a mapped tag (0.1666ms)
+✔ strict coverage matrix resolves every seeded consumer-facing tag (0.1172ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 53.3452

@@ -1,0 +1,11 @@
+✔ k1-schema-compat passes against the real kernel manifest (2.4165ms)
+✔ schema family missing $id is an offender (4.1979ms)
+✔ doc field not allowed by schema is an offender (4.0041ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 65.1323

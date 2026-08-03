@@ -1,0 +1,692 @@
+{
+  "schema_version": 1,
+  "lineage_id": "sha256:5b546caab82442fd0cab0aed932da0dfa021e595b3c908327582eab2a20545ff",
+  "generation": 1,
+  "predecessor_lineage_id": null,
+  "recovery": null,
+  "revision": 15,
+  "status": "approved",
+  "genesis": {
+    "candidate": {
+      "projection": "workspace",
+      "base_tree": "main",
+      "candidate_tree": "working-tree-k1-contract-suite",
+      "paths": [
+        "docs/architecture/harness-evolution.md",
+        "openspec/changes/k1-contract-suite/apply-progress.md",
+        "openspec/changes/k1-contract-suite/decisions/adr-001.md",
+        "openspec/changes/k1-contract-suite/decisions/adr-002.md",
+        "openspec/changes/k1-contract-suite/decisions/adr-003.md",
+        "openspec/changes/k1-contract-suite/decisions/adr-004.md",
+        "openspec/changes/k1-contract-suite/design.md",
+        "openspec/changes/k1-contract-suite/evidence/evidence-record.json",
+        "openspec/changes/k1-contract-suite/proposal.md",
+        "openspec/changes/k1-contract-suite/specs/change-classification/spec.md",
+        "openspec/changes/k1-contract-suite/specs/contract-lint/spec.md",
+        "openspec/changes/k1-contract-suite/specs/harness-authority-canon/spec.md",
+        "openspec/changes/k1-contract-suite/specs/kernel-contract-schemas/spec.md",
+        "openspec/changes/k1-contract-suite/specs/transition-surface-parity/spec.md",
+        "openspec/changes/k1-contract-suite/state.yaml",
+        "openspec/changes/k1-contract-suite/tasks.md",
+        "openspec/changes/k1-contract-suite/verify-report.md",
+        "schemas/kernel/aliases/v1.json",
+        "schemas/kernel/candidate/fixtures/invalid/minimal.json",
+        "schemas/kernel/candidate/fixtures/valid/minimal.json",
+        "schemas/kernel/candidate/v1.schema.json",
+        "schemas/kernel/classification/fixtures/invalid/minimal.json",
+        "schemas/kernel/classification/fixtures/valid/minimal.json",
+        "schemas/kernel/classification/v1.schema.json",
+        "schemas/kernel/contract/fixtures/invalid/minimal.json",
+        "schemas/kernel/contract/fixtures/valid/minimal.json",
+        "schemas/kernel/contract/v1.schema.json",
+        "schemas/kernel/emission-claims.json",
+        "schemas/kernel/event/fixtures/invalid/minimal.json",
+        "schemas/kernel/event/fixtures/valid/minimal.json",
+        "schemas/kernel/event/v1.schema.json",
+        "schemas/kernel/evidence/fixtures/invalid/minimal.json",
+        "schemas/kernel/evidence/fixtures/valid/minimal.json",
+        "schemas/kernel/evidence/v1.schema.json",
+        "schemas/kernel/failure-recovery/fixtures/invalid/minimal.json",
+        "schemas/kernel/failure-recovery/fixtures/valid/minimal.json",
+        "schemas/kernel/failure-recovery/v1.schema.json",
+        "schemas/kernel/finding-review/fixtures/invalid/minimal.json",
+        "schemas/kernel/finding-review/fixtures/valid/minimal.json",
+        "schemas/kernel/finding-review/v1.schema.json",
+        "schemas/kernel/graph-node/fixtures/invalid/minimal.json",
+        "schemas/kernel/graph-node/fixtures/valid/minimal.json",
+        "schemas/kernel/graph-node/v1.schema.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/parity/fixtures/diverge-next-action.json",
+        "schemas/kernel/parity/fixtures/match-execute.json",
+        "schemas/kernel/receipt/fixtures/invalid/minimal.json",
+        "schemas/kernel/receipt/fixtures/valid/minimal.json",
+        "schemas/kernel/receipt/v1.schema.json",
+        "schemas/kernel/state-transition/fixtures/invalid/minimal.json",
+        "schemas/kernel/state-transition/fixtures/valid/minimal.json",
+        "schemas/kernel/state-transition/v1.schema.json",
+        "schemas/kernel/verification/fixtures/invalid/minimal.json",
+        "schemas/kernel/verification/fixtures/valid/minimal.json",
+        "schemas/kernel/verification/v1.schema.json",
+        "schemas/kernel/work-order/fixtures/invalid/minimal.json",
+        "schemas/kernel/work-order/fixtures/valid/minimal.json",
+        "schemas/kernel/work-order/v1.schema.json",
+        "scripts/contract-lint.test.js",
+        "scripts/lib/authority-canon.js",
+        "scripts/lib/authority-canon.test.js",
+        "scripts/lib/canonical-json.js",
+        "scripts/lib/canonical-json.test.js",
+        "scripts/lib/change-classification.js",
+        "scripts/lib/change-classification.test.js",
+        "scripts/lib/contract-checkers/k1-emission.js",
+        "scripts/lib/contract-checkers/k1-emission.test.js",
+        "scripts/lib/contract-checkers/k1-maturity.js",
+        "scripts/lib/contract-checkers/k1-maturity.test.js",
+        "scripts/lib/contract-checkers/k1-prose-authority.js",
+        "scripts/lib/contract-checkers/k1-prose-authority.test.js",
+        "scripts/lib/contract-checkers/k1-schema-compat.js",
+        "scripts/lib/contract-checkers/k1-schema-compat.test.js",
+        "scripts/lib/contract-lint.js",
+        "scripts/lib/emission-catalogs/k1-emitted.json",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/kernel-aliases.js",
+        "scripts/lib/kernel-aliases.test.js",
+        "scripts/lib/kernel-schema-fixtures.test.js",
+        "scripts/lib/kernel-schema-validator.js",
+        "scripts/lib/kernel-schema-validator.test.js",
+        "scripts/lib/next-transition.js",
+        "scripts/lib/next-transition.test.js",
+        "scripts/lib/transition-parity.js",
+        "scripts/lib/transition-parity.test.js"
+      ],
+      "diff_hash": "sha256:6ad3166f5581280ed88e5dcdbdb0f7e919bb2f043103c627ade828387e02172b",
+      "paths_digest": "sha256:d047bd3804693c5db4cab84b97b70f48c94ca775b036959e654d246ff7fd9a90",
+      "authored_lines": 6532,
+      "original_changed_lines": 6532
+    },
+    "candidate_id": "sha256:757b1b74086c4132db011ab7afd3e724a775fb46960953fd39bbc9dec197a9a3",
+    "paths": [
+      "docs/architecture/harness-evolution.md",
+      "openspec/changes/k1-contract-suite/apply-progress.md",
+      "openspec/changes/k1-contract-suite/decisions/adr-001.md",
+      "openspec/changes/k1-contract-suite/decisions/adr-002.md",
+      "openspec/changes/k1-contract-suite/decisions/adr-003.md",
+      "openspec/changes/k1-contract-suite/decisions/adr-004.md",
+      "openspec/changes/k1-contract-suite/design.md",
+      "openspec/changes/k1-contract-suite/evidence/evidence-record.json",
+      "openspec/changes/k1-contract-suite/proposal.md",
+      "openspec/changes/k1-contract-suite/specs/change-classification/spec.md",
+      "openspec/changes/k1-contract-suite/specs/contract-lint/spec.md",
+      "openspec/changes/k1-contract-suite/specs/harness-authority-canon/spec.md",
+      "openspec/changes/k1-contract-suite/specs/kernel-contract-schemas/spec.md",
+      "openspec/changes/k1-contract-suite/specs/transition-surface-parity/spec.md",
+      "openspec/changes/k1-contract-suite/state.yaml",
+      "openspec/changes/k1-contract-suite/tasks.md",
+      "openspec/changes/k1-contract-suite/verify-report.md",
+      "schemas/kernel/aliases/v1.json",
+      "schemas/kernel/candidate/fixtures/invalid/minimal.json",
+      "schemas/kernel/candidate/fixtures/valid/minimal.json",
+      "schemas/kernel/candidate/v1.schema.json",
+      "schemas/kernel/classification/fixtures/invalid/minimal.json",
+      "schemas/kernel/classification/fixtures/valid/minimal.json",
+      "schemas/kernel/classification/v1.schema.json",
+      "schemas/kernel/contract/fixtures/invalid/minimal.json",
+      "schemas/kernel/contract/fixtures/valid/minimal.json",
+      "schemas/kernel/contract/v1.schema.json",
+      "schemas/kernel/emission-claims.json",
+      "schemas/kernel/event/fixtures/invalid/minimal.json",
+      "schemas/kernel/event/fixtures/valid/minimal.json",
+      "schemas/kernel/event/v1.schema.json",
+      "schemas/kernel/evidence/fixtures/invalid/minimal.json",
+      "schemas/kernel/evidence/fixtures/valid/minimal.json",
+      "schemas/kernel/evidence/v1.schema.json",
+      "schemas/kernel/failure-recovery/fixtures/invalid/minimal.json",
+      "schemas/kernel/failure-recovery/fixtures/valid/minimal.json",
+      "schemas/kernel/failure-recovery/v1.schema.json",
+      "schemas/kernel/finding-review/fixtures/invalid/minimal.json",
+      "schemas/kernel/finding-review/fixtures/valid/minimal.json",
+      "schemas/kernel/finding-review/v1.schema.json",
+      "schemas/kernel/graph-node/fixtures/invalid/minimal.json",
+      "schemas/kernel/graph-node/fixtures/valid/minimal.json",
+      "schemas/kernel/graph-node/v1.schema.json",
+      "schemas/kernel/manifest.json",
+      "schemas/kernel/parity/fixtures/diverge-next-action.json",
+      "schemas/kernel/parity/fixtures/match-execute.json",
+      "schemas/kernel/receipt/fixtures/invalid/minimal.json",
+      "schemas/kernel/receipt/fixtures/valid/minimal.json",
+      "schemas/kernel/receipt/v1.schema.json",
+      "schemas/kernel/state-transition/fixtures/invalid/minimal.json",
+      "schemas/kernel/state-transition/fixtures/valid/minimal.json",
+      "schemas/kernel/state-transition/v1.schema.json",
+      "schemas/kernel/verification/fixtures/invalid/minimal.json",
+      "schemas/kernel/verification/fixtures/valid/minimal.json",
+      "schemas/kernel/verification/v1.schema.json",
+      "schemas/kernel/work-order/fixtures/invalid/minimal.json",
+      "schemas/kernel/work-order/fixtures/valid/minimal.json",
+      "schemas/kernel/work-order/v1.schema.json",
+      "scripts/contract-lint.test.js",
+      "scripts/lib/authority-canon.js",
+      "scripts/lib/authority-canon.test.js",
+      "scripts/lib/canonical-json.js",
+      "scripts/lib/canonical-json.test.js",
+      "scripts/lib/change-classification.js",
+      "scripts/lib/change-classification.test.js",
+      "scripts/lib/contract-checkers/k1-emission.js",
+      "scripts/lib/contract-checkers/k1-emission.test.js",
+      "scripts/lib/contract-checkers/k1-maturity.js",
+      "scripts/lib/contract-checkers/k1-maturity.test.js",
+      "scripts/lib/contract-checkers/k1-prose-authority.js",
+      "scripts/lib/contract-checkers/k1-prose-authority.test.js",
+      "scripts/lib/contract-checkers/k1-schema-compat.js",
+      "scripts/lib/contract-checkers/k1-schema-compat.test.js",
+      "scripts/lib/contract-lint.js",
+      "scripts/lib/emission-catalogs/k1-emitted.json",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/kernel-aliases.js",
+      "scripts/lib/kernel-aliases.test.js",
+      "scripts/lib/kernel-schema-fixtures.test.js",
+      "scripts/lib/kernel-schema-validator.js",
+      "scripts/lib/kernel-schema-validator.test.js",
+      "scripts/lib/next-transition.js",
+      "scripts/lib/next-transition.test.js",
+      "scripts/lib/transition-parity.js",
+      "scripts/lib/transition-parity.test.js"
+    ],
+    "classification": "high-risk",
+    "selected_dimensions": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "evidence_fingerprint": "sha256:5770ed393cd3117061501f0d21fb396e7d7be3599aaf161f2a5ae3ed8245b365",
+    "original_changed_lines": 6532,
+    "authored_lines": 6532
+  },
+  "current_candidate_id": "sha256:d3ab79bcb37e5c6b0b3482cbd3174c1dfad0a3c07a014cce197d69ba88afaf3c",
+  "current_candidate": {
+    "projection": "workspace",
+    "base_tree": "main",
+    "candidate_tree": "working-tree-k1-slice2-validator",
+    "paths": [
+      "docs/architecture/harness-evolution.md",
+      "openspec/changes/k1-contract-suite/apply-progress.md",
+      "openspec/changes/k1-contract-suite/decisions/adr-001.md",
+      "openspec/changes/k1-contract-suite/decisions/adr-002.md",
+      "openspec/changes/k1-contract-suite/decisions/adr-003.md",
+      "openspec/changes/k1-contract-suite/decisions/adr-004.md",
+      "openspec/changes/k1-contract-suite/design.md",
+      "openspec/changes/k1-contract-suite/evidence/evidence-record.json",
+      "openspec/changes/k1-contract-suite/proposal.md",
+      "openspec/changes/k1-contract-suite/specs/change-classification/spec.md",
+      "openspec/changes/k1-contract-suite/specs/contract-lint/spec.md",
+      "openspec/changes/k1-contract-suite/specs/harness-authority-canon/spec.md",
+      "openspec/changes/k1-contract-suite/specs/kernel-contract-schemas/spec.md",
+      "openspec/changes/k1-contract-suite/specs/transition-surface-parity/spec.md",
+      "openspec/changes/k1-contract-suite/state.yaml",
+      "openspec/changes/k1-contract-suite/tasks.md",
+      "openspec/changes/k1-contract-suite/verify-report.md",
+      "schemas/kernel/aliases/v1.json",
+      "schemas/kernel/candidate/fixtures/invalid/minimal.json",
+      "schemas/kernel/candidate/fixtures/valid/minimal.json",
+      "schemas/kernel/candidate/v1.schema.json",
+      "schemas/kernel/classification/fixtures/invalid/minimal.json",
+      "schemas/kernel/classification/fixtures/valid/minimal.json",
+      "schemas/kernel/classification/v1.schema.json",
+      "schemas/kernel/contract/fixtures/invalid/minimal.json",
+      "schemas/kernel/contract/fixtures/valid/minimal.json",
+      "schemas/kernel/contract/v1.schema.json",
+      "schemas/kernel/emission-claims.json",
+      "schemas/kernel/event/fixtures/invalid/minimal.json",
+      "schemas/kernel/event/fixtures/valid/minimal.json",
+      "schemas/kernel/event/v1.schema.json",
+      "schemas/kernel/evidence/fixtures/invalid/minimal.json",
+      "schemas/kernel/evidence/fixtures/valid/minimal.json",
+      "schemas/kernel/evidence/v1.schema.json",
+      "schemas/kernel/failure-recovery/fixtures/invalid/minimal.json",
+      "schemas/kernel/failure-recovery/fixtures/valid/minimal.json",
+      "schemas/kernel/failure-recovery/v1.schema.json",
+      "schemas/kernel/finding-review/fixtures/invalid/minimal.json",
+      "schemas/kernel/finding-review/fixtures/valid/minimal.json",
+      "schemas/kernel/finding-review/v1.schema.json",
+      "schemas/kernel/graph-node/fixtures/invalid/minimal.json",
+      "schemas/kernel/graph-node/fixtures/valid/minimal.json",
+      "schemas/kernel/graph-node/v1.schema.json",
+      "schemas/kernel/manifest.json",
+      "schemas/kernel/parity/fixtures/diverge-next-action.json",
+      "schemas/kernel/parity/fixtures/match-execute.json",
+      "schemas/kernel/receipt/fixtures/invalid/minimal.json",
+      "schemas/kernel/receipt/fixtures/valid/minimal.json",
+      "schemas/kernel/receipt/v1.schema.json",
+      "schemas/kernel/state-transition/fixtures/invalid/minimal.json",
+      "schemas/kernel/state-transition/fixtures/valid/minimal.json",
+      "schemas/kernel/state-transition/v1.schema.json",
+      "schemas/kernel/verification/fixtures/invalid/minimal.json",
+      "schemas/kernel/verification/fixtures/valid/minimal.json",
+      "schemas/kernel/verification/v1.schema.json",
+      "schemas/kernel/work-order/fixtures/invalid/minimal.json",
+      "schemas/kernel/work-order/fixtures/valid/minimal.json",
+      "schemas/kernel/work-order/v1.schema.json",
+      "scripts/contract-lint.test.js",
+      "scripts/lib/authority-canon.js",
+      "scripts/lib/authority-canon.test.js",
+      "scripts/lib/canonical-json.js",
+      "scripts/lib/canonical-json.test.js",
+      "scripts/lib/change-classification.js",
+      "scripts/lib/change-classification.test.js",
+      "scripts/lib/contract-checkers/k1-emission.js",
+      "scripts/lib/contract-checkers/k1-emission.test.js",
+      "scripts/lib/contract-checkers/k1-maturity.js",
+      "scripts/lib/contract-checkers/k1-maturity.test.js",
+      "scripts/lib/contract-checkers/k1-prose-authority.js",
+      "scripts/lib/contract-checkers/k1-prose-authority.test.js",
+      "scripts/lib/contract-checkers/k1-schema-compat.js",
+      "scripts/lib/contract-checkers/k1-schema-compat.test.js",
+      "scripts/lib/contract-lint.js",
+      "scripts/lib/emission-catalogs/k1-emitted.json",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/kernel-aliases.js",
+      "scripts/lib/kernel-aliases.test.js",
+      "scripts/lib/kernel-schema-fixtures.test.js",
+      "scripts/lib/kernel-schema-validator.js",
+      "scripts/lib/kernel-schema-validator.test.js",
+      "scripts/lib/next-transition.js",
+      "scripts/lib/next-transition.test.js",
+      "scripts/lib/transition-parity.js",
+      "scripts/lib/transition-parity.test.js"
+    ],
+    "diff_hash": "sha256:0a767dbeba8e0ce301822cb63322b87290095666bbfa5b427ae022dfef285232",
+    "paths_digest": "sha256:d047bd3804693c5db4cab84b97b70f48c94ca775b036959e654d246ff7fd9a90",
+    "authored_lines": 6532,
+    "original_changed_lines": 6532
+  },
+  "lenses": {
+    "risk": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "k1-risk-start",
+      "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+      "result": {
+        "findings": []
+      },
+      "operation": null,
+      "result_request_id": "k1-risk-result"
+    },
+    "reliability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "k1-reliability-start",
+      "result_digest": "sha256:9f491624fcd75275884ea509cb5e0b58226ea75d60a546d61f274874ef738f0b",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "execute argument.token is enforced only in validateNextTransition semantics, with no test for missing/empty/whitespace token; JSON Schema items require only name.",
+            "acceptance_criteria": "Add RED→GREEN tests for execute args missing token and whitespace-only token that fail until the semantic guard rejects them; keep REQ-transition-surface-parity-002 covered by runtime tests."
+          },
+          {
+            "severity": "CRITICAL",
+            "summary": "validate()/validateInstance treats non-object schemas (null, undefined, false, non-object) as valid:true; boolean false should reject-all per Draft 2020-12.",
+            "acceptance_criteria": "Reject invalid/non-object schemas and treat schema===false as reject-all; add unit tests proving validateInstance(false|null|undefined|string, instance) is not falsely valid."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Unresolved local $ref error path in kernel-schema-validator has no unit test.",
+            "acceptance_criteria": "Add a test with $ref '#/$defs/missing' that asserts the unresolved $ref error rule."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "k1-schema-compat parses doc-field-claims.json without try/catch; malformed claims crash the whole lint run.",
+            "acceptance_criteria": "Wrap claims read/parse in try/catch and emit a structured offender; add a corrupt-claims fixture test."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "change-classification hard floors gate on truthy impact keys without requiring booleans.",
+            "acceptance_criteria": "Require boolean true for floor evidence keys (or explicitly document coercion) and add tests for non-boolean truthy values that must not raise floors incorrectly."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "resolveAlias input TypeError for non-string/empty tag is untested.",
+            "acceptance_criteria": "Add tests for '', null, and non-string tags asserting fail-closed TypeError."
+          },
+          {
+            "severity": "SUGGESTION",
+            "summary": "Module-level caches in kernel-aliases and next-transition never invalidate after first disk load.",
+            "acceptance_criteria": "Document process-lifetime cache assumption or add explicit invalidation/reload for long-lived harnesses."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "k1-reliability-result"
+    },
+    "resilience": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "k1-resilience-start",
+      "result_digest": "sha256:0d28bbb1a1e5e9f5c81a3308d61e14d1454cfc9a33d0772ed8bce07b5b3bc412",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "k1-schema-compat parses doc-field-claims.json without try/catch, so corrupt/unreadable claims abort runAllCheckers mid-flatMap and discard already-collected offenders.",
+            "acceptance_criteria": "Wrap claimsPath read/parse in try/catch and emit an offender (same pattern as manifest/schema loads) so check() never throws and remaining checkers still run."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "k1-resilience-result"
+    },
+    "readability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "k1-readability-start",
+      "result_digest": "sha256:d0037085d63ac0911f29265fb2100729661ddfd67b195db93ee3e7ae0fdb34d9",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "kernel-schema-validator.validate nests 4–6 levels in additionalProperties and if/then/else paths, making the schema interpreter hard to change safely.",
+            "acceptance_criteria": "Extract helper functions so validate keyword branches stay at nesting depth ≤3 without changing validation semantics."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Then-branch annotation loop in kernel-schema-validator is a no-op identity on rule despite a comment claiming annotation.",
+            "acceptance_criteria": "Either implement real then-branch rule annotation or remove/replace the misleading comment so intent matches code."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "transition-parity.normalize surface discrimination is opaque: the 'already a surface' branch often falls through without a documented shape matrix.",
+            "acceptance_criteria": "Document or explicitly branch each input shape (human projection vs envelope vs raw next_transition) so normalization paths are unambiguous."
+          },
+          {
+            "severity": "SUGGESTION",
+            "summary": "k1-maturity extractMaturityEntries uses opaque lineNo +1/−1 arithmetic without explaining 1-based offender paths.",
+            "acceptance_criteria": "Clarify line indexing with a short comment or simplify to a single obvious 1-based counter."
+          },
+          {
+            "severity": "SUGGESTION",
+            "summary": "TAG_RE is exported from k1-maturity but check() uses a duplicated inline regex.",
+            "acceptance_criteria": "Use TAG_RE (or a shared constant) on the hot path so maturity tags have one source of truth."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "k1-readability-result"
+    }
+  },
+  "findings": [
+    {
+      "id": "F-5020b831f843d093",
+      "owner": "reliability",
+      "severity": "CRITICAL",
+      "summary": "execute argument.token is enforced only in validateNextTransition semantics, with no test for missing/empty/whitespace token; JSON Schema items require only name.",
+      "acceptance_criteria": "Add RED→GREEN tests for execute args missing token and whitespace-only token that fail until the semantic guard rejects them; keep REQ-transition-surface-parity-002 covered by runtime tests.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-f86e724876d63e11",
+      "owner": "reliability",
+      "severity": "CRITICAL",
+      "summary": "validate()/validateInstance treats non-object schemas (null, undefined, false, non-object) as valid:true; boolean false should reject-all per Draft 2020-12.",
+      "acceptance_criteria": "Reject invalid/non-object schemas and treat schema===false as reject-all; add unit tests proving validateInstance(false|null|undefined|string, instance) is not falsely valid.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-2f35d2a56c20a71b",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "Unresolved local $ref error path in kernel-schema-validator has no unit test.",
+      "acceptance_criteria": "Add a test with $ref '#/$defs/missing' that asserts the unresolved $ref error rule.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-4d474209e086e9be",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "k1-schema-compat parses doc-field-claims.json without try/catch; malformed claims crash the whole lint run.",
+      "acceptance_criteria": "Wrap claims read/parse in try/catch and emit a structured offender; add a corrupt-claims fixture test.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-e764094d26150dc3",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "change-classification hard floors gate on truthy impact keys without requiring booleans.",
+      "acceptance_criteria": "Require boolean true for floor evidence keys (or explicitly document coercion) and add tests for non-boolean truthy values that must not raise floors incorrectly.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-31cfcbdad47216c0",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "resolveAlias input TypeError for non-string/empty tag is untested.",
+      "acceptance_criteria": "Add tests for '', null, and non-string tags asserting fail-closed TypeError.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-1d362bde60e3673c",
+      "owner": "reliability",
+      "severity": "SUGGESTION",
+      "summary": "Module-level caches in kernel-aliases and next-transition never invalidate after first disk load.",
+      "acceptance_criteria": "Document process-lifetime cache assumption or add explicit invalidation/reload for long-lived harnesses.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-5ef6539ed559b9a0",
+      "owner": "resilience",
+      "severity": "WARNING",
+      "summary": "k1-schema-compat parses doc-field-claims.json without try/catch, so corrupt/unreadable claims abort runAllCheckers mid-flatMap and discard already-collected offenders.",
+      "acceptance_criteria": "Wrap claimsPath read/parse in try/catch and emit an offender (same pattern as manifest/schema loads) so check() never throws and remaining checkers still run.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-58e0b11236acdbfd",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "kernel-schema-validator.validate nests 4–6 levels in additionalProperties and if/then/else paths, making the schema interpreter hard to change safely.",
+      "acceptance_criteria": "Extract helper functions so validate keyword branches stay at nesting depth ≤3 without changing validation semantics.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-6689440be7210629",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "Then-branch annotation loop in kernel-schema-validator is a no-op identity on rule despite a comment claiming annotation.",
+      "acceptance_criteria": "Either implement real then-branch rule annotation or remove/replace the misleading comment so intent matches code.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-913523800cd2c0fc",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "transition-parity.normalize surface discrimination is opaque: the 'already a surface' branch often falls through without a documented shape matrix.",
+      "acceptance_criteria": "Document or explicitly branch each input shape (human projection vs envelope vs raw next_transition) so normalization paths are unambiguous.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-4c0c5da2c1abeae8",
+      "owner": "readability",
+      "severity": "SUGGESTION",
+      "summary": "k1-maturity extractMaturityEntries uses opaque lineNo +1/−1 arithmetic without explaining 1-based offender paths.",
+      "acceptance_criteria": "Clarify line indexing with a short comment or simplify to a single obvious 1-based counter.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-f5b3c1c360925a85",
+      "owner": "readability",
+      "severity": "SUGGESTION",
+      "summary": "TAG_RE is exported from k1-maturity but check() uses a duplicated inline regex.",
+      "acceptance_criteria": "Use TAG_RE (or a shared constant) on the hot path so maturity tags have one source of truth.",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ],
+  "findings_digest": "sha256:a2dd1e5836742e6ff6af19c8f325babe71834c37577b867406f3083ebf8f0061",
+  "correction_budget": {
+    "limit_lines": 200,
+    "used_lines": 0,
+    "failed_attempts": 0,
+    "max_failed_attempts": 3
+  },
+  "correction_history": [],
+  "validation_history": [],
+  "follow_ups": [],
+  "pending_operation": null,
+  "pending_correction": null,
+  "terminal_reason": "all-remediation-slices-passed",
+  "remediation_schema_version": 2,
+  "remediation_migration": {
+    "source_digest": "sha256:3522dcee4bfc133471a2f522b843664bbdcd40c3fdbcd0c4d8772985b512d552",
+    "manifest_digest": "sha256:e0699003cdd3746af656053ff8ec0585bf6d4b411a4e00c810d1543571b56c56",
+    "legacy_used_lines": 0,
+    "legacy_failed_attempts": 0,
+    "migrated_at": "deterministic"
+  },
+  "slice_order": [
+    "S-591b22949c4fbd45",
+    "S-69543702e1267117"
+  ],
+  "active_slice_id": null,
+  "correction_slices": {
+    "S-591b22949c4fbd45": {
+      "slice_id": "S-591b22949c4fbd45",
+      "root_cause_key": "execute-token-semantic-guard-tests",
+      "finding_ids": [
+        "F-5020b831f843d093"
+      ],
+      "evidence_digests": [
+        "sha256:4a59f418c741add9d9c35b707b2692cf935dd6f6040df7bbb12ed6a0432b30a8"
+      ],
+      "permitted_paths": [
+        "schemas/kernel/state-transition/v1.schema.json",
+        "scripts/lib/next-transition.js",
+        "scripts/lib/next-transition.test.js"
+      ],
+      "resolutions": {
+        "F-5020b831f843d093": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 34,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-591b22949c4fbd45",
+          "request_id": "k1-slice1-begin",
+          "finding_ids": [
+            "F-5020b831f843d093"
+          ],
+          "paths": [
+            "schemas/kernel/state-transition/v1.schema.json",
+            "scripts/lib/next-transition.js",
+            "scripts/lib/next-transition.test.js"
+          ],
+          "base_candidate_id": "sha256:757b1b74086c4132db011ab7afd3e724a775fb46960953fd39bbc9dec197a9a3",
+          "forecast_lines": 80,
+          "actual_changed_lines": 34,
+          "record_request_id": "k1-slice1-record",
+          "corrected_candidate_id": "sha256:6a7edfb213d2157e50008d0d9aa6de061d48ff5f54fd3998bc333f08b5c91c9f"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "k1-slice1-validate",
+          "outcomes": [
+            {
+              "id": "F-5020b831f843d093",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "Delta limited to next-transition.test.js; semantic guard intact; 11/11 tests pass",
+              "No edits under slice2 validator paths; no passed-slice regression"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-69543702e1267117": {
+      "slice_id": "S-69543702e1267117",
+      "root_cause_key": "validator-invalid-schema-false-valid",
+      "finding_ids": [
+        "F-f86e724876d63e11"
+      ],
+      "evidence_digests": [
+        "sha256:bdd47bb11045601892be545bbd3486c2230a6a979de88d4d26de08b34eda8e2c"
+      ],
+      "permitted_paths": [
+        "scripts/lib/kernel-schema-validator.js",
+        "scripts/lib/kernel-schema-validator.test.js"
+      ],
+      "resolutions": {
+        "F-f86e724876d63e11": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 58,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-69543702e1267117",
+          "request_id": "k1-slice2-begin",
+          "finding_ids": [
+            "F-f86e724876d63e11"
+          ],
+          "paths": [
+            "scripts/lib/kernel-schema-validator.js",
+            "scripts/lib/kernel-schema-validator.test.js"
+          ],
+          "base_candidate_id": "sha256:6a7edfb213d2157e50008d0d9aa6de061d48ff5f54fd3998bc333f08b5c91c9f",
+          "forecast_lines": 60,
+          "actual_changed_lines": 58,
+          "record_request_id": "k1-slice2-record",
+          "corrected_candidate_id": "sha256:d3ab79bcb37e5c6b0b3482cbd3174c1dfad0a3c07a014cce197d69ba88afaf3c"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "k1-slice2-validate",
+          "outcomes": [
+            {
+              "id": "F-f86e724876d63e11",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "kernel-schema-validator.test.js 10/10 pass",
+              "false reject-all and non-object schema errors implemented",
+              "S-591b22949c4fbd45 paths disjoint; no reopen evidence"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    }
+  }
+}

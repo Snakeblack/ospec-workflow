@@ -12,6 +12,10 @@
 const { check: checkI1Manifest } = require("./contract-checkers/i1-manifest.js");
 const { check: checkCommandsAgents } = require("./contract-checkers/j1-commands-agents.js");
 const { check: checkBudgetConstant } = require("./contract-checkers/i3-budget-constant.js");
+const { check: checkK1SchemaCompat } = require("./contract-checkers/k1-schema-compat.js");
+const { check: checkK1Emission } = require("./contract-checkers/k1-emission.js");
+const { check: checkK1ProseAuthority } = require("./contract-checkers/k1-prose-authority.js");
+const { check: checkK1Maturity } = require("./contract-checkers/k1-maturity.js");
 
 /**
  * @typedef {Object} Offender
@@ -40,7 +44,15 @@ const { check: checkBudgetConstant } = require("./contract-checkers/i3-budget-co
  */
 
 /** @type {Checker[]} */
-const DEFAULT_REGISTRY = [checkI1Manifest, checkCommandsAgents, checkBudgetConstant];
+const DEFAULT_REGISTRY = [
+  checkI1Manifest,
+  checkCommandsAgents,
+  checkBudgetConstant,
+  checkK1SchemaCompat,
+  checkK1Emission,
+  checkK1ProseAuthority,
+  checkK1Maturity,
+];
 
 /**
  * Runs every checker in `registry` against `ctx` and returns the

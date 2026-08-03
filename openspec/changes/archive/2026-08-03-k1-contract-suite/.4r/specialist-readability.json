@@ -1,0 +1,29 @@
+{
+  "findings": [
+    {
+      "severity": "WARNING",
+      "summary": "kernel-schema-validator.validate nests 4–6 levels in additionalProperties and if/then/else paths, making the schema interpreter hard to change safely.",
+      "acceptance_criteria": "Extract helper functions so validate keyword branches stay at nesting depth ≤3 without changing validation semantics."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "Then-branch annotation loop in kernel-schema-validator is a no-op identity on rule despite a comment claiming annotation.",
+      "acceptance_criteria": "Either implement real then-branch rule annotation or remove/replace the misleading comment so intent matches code."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "transition-parity.normalize surface discrimination is opaque: the 'already a surface' branch often falls through without a documented shape matrix.",
+      "acceptance_criteria": "Document or explicitly branch each input shape (human projection vs envelope vs raw next_transition) so normalization paths are unambiguous."
+    },
+    {
+      "severity": "SUGGESTION",
+      "summary": "k1-maturity extractMaturityEntries uses opaque lineNo +1/−1 arithmetic without explaining 1-based offender paths.",
+      "acceptance_criteria": "Clarify line indexing with a short comment or simplify to a single obvious 1-based counter."
+    },
+    {
+      "severity": "SUGGESTION",
+      "summary": "TAG_RE is exported from k1-maturity but check() uses a duplicated inline regex.",
+      "acceptance_criteria": "Use TAG_RE (or a shared constant) on the hot path so maturity tags have one source of truth."
+    }
+  ]
+}

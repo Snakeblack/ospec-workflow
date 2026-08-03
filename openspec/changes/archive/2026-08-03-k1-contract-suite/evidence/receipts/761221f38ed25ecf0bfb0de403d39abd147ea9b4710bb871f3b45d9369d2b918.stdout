@@ -1,0 +1,11 @@
+✔ unified contract lint: every registered checker reports zero offenders against the real repo (109.2339ms)
+✔ unified contract lint: DEFAULT_REGISTRY includes the four K1 checkers (95.5574ms)
+✔ unified contract lint: one checker failing does not prevent the others from running (no short-circuit) (0.5078ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 268.1882

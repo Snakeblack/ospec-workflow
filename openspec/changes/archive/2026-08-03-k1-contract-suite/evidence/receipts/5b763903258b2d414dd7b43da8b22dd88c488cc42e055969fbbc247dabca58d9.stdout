@@ -1,0 +1,17 @@
+✔ valid execute transition with command and tokens passes (0.9603ms)
+✔ unknown kind is rejected (0.1218ms)
+✔ execute without command fails (0.5698ms)
+✔ execute with empty command fails (0.0985ms)
+✔ collect without invented command passes (0.1073ms)
+✔ collect inventing command for missing artifact fails (0.0939ms)
+✔ decide does not require command (0.0722ms)
+✔ stop forbids recovery command (0.0837ms)
+✔ stop without command passes (0.0803ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 54.8625

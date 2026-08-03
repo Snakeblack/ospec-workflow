@@ -1,0 +1,185 @@
+change: k1-contract-suite
+status: verified
+created_at: "2026-08-03T13:16:40Z"
+last_updated: "2026-08-03T14:24:00Z"
+blocking_questions: []
+classification: high-risk
+owner:
+  author: Manuel Retamozo
+  branch: feat/k1-contract-suite
+workload:
+  decision_needed_before_apply: No
+  chained_prs_recommended: No
+  chain_strategy: size-exception
+  budget_risk: High
+  delivery_path: size:exception
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "First-match on project.status: active with classification high-risk; standard full SDD with clarify + 4r-review-gate."
+  validated: true
+  validation_errors: []
+execution_mode: auto
+delivery_strategy: exception-ok
+approvals:
+  - id: approval-execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: user-explicit
+    accepted_at: "2026-08-03T13:16:40Z"
+    applies_to: session
+  - id: approval-delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: user-explicit
+    accepted_at: "2026-08-03T13:30:00Z"
+    applies_to: change
+  - id: approval-assumption-reconciliation-001
+    gate: assumption-reconciliation
+    decision: "confirm sdd-design-001; confirm sdd-design-002; confirm sdd-apply-001"
+    source: user-explicit
+    accepted_at: "2026-08-03T13:57:00Z"
+    applies_to: change
+  - id: approval-4r-remediation-001
+    gate: review-workload
+    decision: "remediate both CRITICAL slices S-591b22949c4fbd45 and S-69543702e1267117"
+    source: user-explicit
+    accepted_at: "2026-08-03T14:11:00Z"
+    applies_to: change
+assumptions:
+  - id: sdd-propose-001
+    phase: sdd-propose
+    statement: "Partir K1 en cuatro capacidades nuevas más un delta de contract-lint, en lugar de un único dominio monolítico."
+    reversibility: high
+    basis: "Review path del roadmap (autoridad → shapes → clasificación/ejemplos) y contrato proposal→spec; reversible antes de escribir specs."
+    recorded_at: "2026-08-03T13:20:00Z"
+    status: resolved
+    resolved_at: "2026-08-03T13:25:00Z"
+    resolution: "Confirmed by change-local specs across five domains."
+  - id: sdd-spec-001
+    phase: sdd-spec
+    statement: "La ruta concreta del árbol de schemas (schemas/ u equivalente) se decide en design."
+    reversibility: high
+    basis: "Proposal Affected Areas permite schemas/ u árbol equivalente."
+    recorded_at: "2026-08-03T13:25:00Z"
+    status: resolved
+    resolved_at: "2026-08-03T13:30:00Z"
+    resolution: "schemas/kernel/{family}/v1.schema.json with $id ospec://schemas/kernel/{family}/v1 (ADR-001)."
+  - id: sdd-spec-002
+    phase: sdd-spec
+    statement: "El algoritmo de fingerprint se especifica en design; el contrato exige solo determinismo e igualdad ante inputs idénticos."
+    reversibility: high
+    basis: "Proposal y roadmap exigen fingerprint estable sin fijar hash algorithm."
+    recorded_at: "2026-08-03T13:25:00Z"
+    status: resolved
+    resolved_at: "2026-08-03T13:30:00Z"
+    resolution: "Domain-prefixed stableSerialize + SHA-256 as sha256:<hex> (ADR-002)."
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "Validate published JSON Schemas with a dep-free constrained Draft 2020-12 subset interpreter instead of ajv."
+    reversibility: low
+    basis: "Zero-deps Node-22 policy; mirrors strict-result-envelope ADR rejecting ajv."
+    recorded_at: "2026-08-03T13:30:00Z"
+    status: confirmed
+    resolved_at: "2026-08-03T13:57:00Z"
+    resolution: "User confirmed dep-free constrained Draft 2020-12 interpreter (ADR-003)."
+  - id: sdd-design-002
+    phase: sdd-design
+    statement: "Classifier publishes hard floors and fingerprints but is not wired into fixed/default routing in K1."
+    reversibility: high
+    basis: "Proposal/spec out-of-scope: no adaptive route execution; fixed baseline intact."
+    recorded_at: "2026-08-03T13:30:00Z"
+    status: confirmed
+    resolved_at: "2026-08-03T13:57:00Z"
+    resolution: "User confirmed classifier unwired from fixed/default routing."
+  - id: sdd-apply-001
+    phase: sdd-apply
+    statement: "Per-family required properties and initial alias rows filled from design examples and existing stable tags (route labels, hard-floor codes, envelope/authority codes)."
+    reversibility: high
+    basis: "design.md Open Questions: apply-time fill-ins constrained by architecture examples and existing emitters."
+    recorded_at: "2026-08-03T14:00:00Z"
+    status: confirmed
+    resolved_at: "2026-08-03T13:57:00Z"
+    resolution: "User confirmed apply-time fill-ins for required props and alias rows."
+gates:
+  clarify:
+    status: skipped
+    residual_ambiguity: false
+    public_contract_questions: []
+    conflicting_requirements: []
+    missing_acceptance_criteria: []
+    rationale: "sdd-spec envelope validated; residual_ambiguity false — clarify gate skipped per clarify-routing."
+    decided_at: "2026-08-03T13:25:00Z"
+  4r-review-gate:
+    status: approved
+    schema_version: 1
+    classification: high-risk
+    findings_summary: "0 BLOCKER, 2 CRITICAL (resolved), 8 WARNING, 3 SUGGESTION"
+    lineage_id: "sha256:5b546caab82442fd0cab0aed932da0dfa021e595b3c908327582eab2a20545ff"
+    current_candidate_id: "sha256:d3ab79bcb37e5c6b0b3482cbd3174c1dfad0a3c07a014cce197d69ba88afaf3c"
+    remediation_schema_version: 2
+baseline_fingerprints:
+  contract-lint: "sha256:318c18edb235db5a7097d6a096c3f048ecb5947eb1974b063d3d0e302ac854fc"
+  harness-authority-canon: null
+  kernel-contract-schemas: null
+  change-classification: null
+  transition-surface-parity: null
+phases:
+  clarify:
+    status: skipped
+  sdd-propose:
+    status: success
+    summary: "Propuesta K1: canon autoridad, schemas, clasificación hard floors, next_transition y paridad superficies; fixed/reducer fuera."
+    key_decisions:
+      - "Cuatro capacidades nuevas + delta contract-lint"
+      - "Hard floors por evidencia, no LOC"
+    completed_at: "2026-08-03T13:20:00Z"
+  sdd-spec:
+    status: success
+    summary: "Specs en 5 dominios: authority-canon, kernel-contract-schemas, change-classification, transition-surface-parity, contract-lint delta. residual_ambiguity false."
+    key_decisions:
+      - "Hard floors por evidencia cubren migration/auth/public API/Repair/Direct"
+      - "Fingerprint determinista sin fijar algoritmo en spec"
+    completed_at: "2026-08-03T13:25:00Z"
+  design:
+    status: done
+    artifact: "openspec/changes/k1-contract-suite/design.md"
+    summary: "schemas/kernel + stableSerialize/SHA-256 fingerprint; dep-free schema validator; classifier/parity/lint; no reducer."
+    key_decisions:
+      - "Schema tree schemas/kernel/ with ospec:// $id (ADR-001)"
+      - "Fingerprint domain-prefixed stableSerialize+SHA-256 (ADR-002)"
+      - "No ajv; constrained in-repo Draft 2020-12 subset (ADR-003)"
+    completed_at: "2026-08-03T13:30:00Z"
+  tasks:
+    status: done
+    artifact: "openspec/changes/k1-contract-suite/tasks.md"
+    summary: "9 phases, 35 tasks; size-exception single PR; review path authority→shapes→classification→lint; Strict TDD RED→GREEN."
+    key_decisions:
+      - "Decision needed before apply: No (exception-ok pre-approved)"
+      - "400-line budget risk: High (~2800–3500 LOC)"
+    completed_at: "2026-08-03T13:45:00Z"
+  apply:
+    status: done
+    artifact: "openspec/changes/k1-contract-suite/apply-progress.md"
+    summary: "All 36 tasks done under size:exception; schemas/kernel + validators/classifier/parity + 4 K1 checkers; npm test green."
+    key_decisions:
+      - "size:exception single oversized PR"
+      - "Classifier published but not wired into fixed routing"
+    completed_at: "2026-08-03T14:00:00Z"
+  verify:
+    status: done
+    verdict: PASS
+    artifact: "openspec/changes/k1-contract-suite/verify-report.md"
+    summary: "PASS Strict TDD: npm test 1614/1616 pass; 44/44 MUST runtime-test; out-of-scope intact; assumptions confirmed."
+    key_decisions:
+      - "Verdict PASS — proceed to 4r-review-gate (high-risk)"
+      - "quality_gates absent — Step 9a no-op"
+    completed_at: "2026-08-03T14:20:00Z"
+  archive:
+    status: pending
+    artifact: "openspec/changes/k1-contract-suite/archive-report.md"
+    summary: "Replan emitted after 4R remediation drift: 5 spec domains, 4 ADR promotions, 101-path inventory; runtime pending."
+    key_decisions:
+      - "Planned archive destination 2026-08-03-k1-contract-suite"
+      - "source_fingerprint refreshed post inventory-mismatch rejection"
+    completed_at: "2026-08-03T14:24:00Z"

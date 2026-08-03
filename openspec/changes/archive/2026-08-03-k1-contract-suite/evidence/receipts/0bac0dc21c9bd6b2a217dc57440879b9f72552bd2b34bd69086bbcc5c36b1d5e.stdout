@@ -1,0 +1,121 @@
+✖ stableSerialize sorts object keys deterministically (1.2794ms)
+✖ stableSerialize is recursive over nested objects and arrays (0.1429ms)
+✖ sha256Fingerprint uses domain-prefixed change-classification\0 bytes (0.1787ms)
+✖ sha256Fingerprint is order-independent for equal normalized payloads (0.1247ms)
+✖ different domains produce different fingerprints for the same value (0.1259ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 0
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 59.8195
+
+✖ failing tests:
+
+test at scripts\lib\canonical-json.test.js:8:1
+✖ stableSerialize sorts object keys deterministically (1.2794ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + ''
+  - '{"a":2,"b":1}'
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\canonical-json.test.js:9:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.start (node:internal/test_runner/test:1177:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '',
+    expected: '{"a":2,"b":1}',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\lib\canonical-json.test.js:13:1
+✖ stableSerialize is recursive over nested objects and arrays (0.1429ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + ''
+  - '{"y":null,"z":[{"a":1,"b":2}]}'
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\canonical-json.test.js:17:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '',
+    expected: '{"y":null,"z":[{"a":1,"b":2}]}',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\lib\canonical-json.test.js:20:1
+✖ sha256Fingerprint uses domain-prefixed change-classification\0 bytes (0.1787ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /^sha256:[a-f0-9]{64}$/. Input:
+  
+  'bad'
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\canonical-json.test.js:22:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'bad',
+    expected: /^sha256:[a-f0-9]{64}$/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at scripts\lib\canonical-json.test.js:29:1
+✖ sha256Fingerprint is order-independent for equal normalized payloads (0.1247ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'bad'
+  - 'sha256:18dddd59a34d760ca1b31af051a402f0c8d40a3908c1725901fdde8c77ea222f'
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\canonical-json.test.js:33:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'bad',
+    expected: 'sha256:18dddd59a34d760ca1b31af051a402f0c8d40a3908c1725901fdde8c77ea222f',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\lib\canonical-json.test.js:39:1
+✖ different domains produce different fingerprints for the same value (0.1259ms)
+  AssertionError [ERR_ASSERTION]: Expected "actual" to be strictly unequal to: 'bad'
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\canonical-json.test.js:43:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'bad',
+    expected: 'bad',
+    operator: 'notStrictEqual',
+    diff: 'simple'
+  }

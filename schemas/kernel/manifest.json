@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "families": {
+    "state-transition": {
+      "path": "schemas/kernel/state-transition/v1.schema.json",
+      "$id": "ospec://schemas/kernel/state-transition/v1",
+      "schema_version": 1
+    },
+    "classification": {
+      "path": "schemas/kernel/classification/v1.schema.json",
+      "$id": "ospec://schemas/kernel/classification/v1",
+      "schema_version": 1
+    },
+    "contract": {
+      "path": "schemas/kernel/contract/v1.schema.json",
+      "$id": "ospec://schemas/kernel/contract/v1",
+      "schema_version": 1
+    },
+    "graph-node": {
+      "path": "schemas/kernel/graph-node/v1.schema.json",
+      "$id": "ospec://schemas/kernel/graph-node/v1",
+      "schema_version": 1
+    },
+    "work-order": {
+      "path": "schemas/kernel/work-order/v1.schema.json",
+      "$id": "ospec://schemas/kernel/work-order/v1",
+      "schema_version": 1
+    },
+    "candidate": {
+      "path": "schemas/kernel/candidate/v1.schema.json",
+      "$id": "ospec://schemas/kernel/candidate/v1",
+      "schema_version": 1
+    },
+    "evidence": {
+      "path": "schemas/kernel/evidence/v1.schema.json",
+      "$id": "ospec://schemas/kernel/evidence/v1",
+      "schema_version": 1
+    },
+    "verification": {
+      "path": "schemas/kernel/verification/v1.schema.json",
+      "$id": "ospec://schemas/kernel/verification/v1",
+      "schema_version": 1
+    },
+    "finding-review": {
+      "path": "schemas/kernel/finding-review/v1.schema.json",
+      "$id": "ospec://schemas/kernel/finding-review/v1",
+      "schema_version": 1
+    },
+    "failure-recovery": {
+      "path": "schemas/kernel/failure-recovery/v1.schema.json",
+      "$id": "ospec://schemas/kernel/failure-recovery/v1",
+      "schema_version": 1
+    },
+    "receipt": {
+      "path": "schemas/kernel/receipt/v1.schema.json",
+      "$id": "ospec://schemas/kernel/receipt/v1",
+      "schema_version": 1
+    },
+    "event": {
+      "path": "schemas/kernel/event/v1.schema.json",
+      "$id": "ospec://schemas/kernel/event/v1",
+      "schema_version": 1
+    }
+  }
+}

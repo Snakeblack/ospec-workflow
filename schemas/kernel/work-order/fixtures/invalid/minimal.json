@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "work_order_id": "wo-1",
+  "node_id": "n1",
+  "role": "worker",
+  "status": "unknown"
+}

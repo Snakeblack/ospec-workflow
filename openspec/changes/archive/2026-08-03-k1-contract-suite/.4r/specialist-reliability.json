@@ -1,0 +1,39 @@
+{
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "summary": "execute argument.token is enforced only in validateNextTransition semantics, with no test for missing/empty/whitespace token; JSON Schema items require only name.",
+      "acceptance_criteria": "Add RED→GREEN tests for execute args missing token and whitespace-only token that fail until the semantic guard rejects them; keep REQ-transition-surface-parity-002 covered by runtime tests."
+    },
+    {
+      "severity": "CRITICAL",
+      "summary": "validate()/validateInstance treats non-object schemas (null, undefined, false, non-object) as valid:true; boolean false should reject-all per Draft 2020-12.",
+      "acceptance_criteria": "Reject invalid/non-object schemas and treat schema===false as reject-all; add unit tests proving validateInstance(false|null|undefined|string, instance) is not falsely valid."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "Unresolved local $ref error path in kernel-schema-validator has no unit test.",
+      "acceptance_criteria": "Add a test with $ref '#/$defs/missing' that asserts the unresolved $ref error rule."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "k1-schema-compat parses doc-field-claims.json without try/catch; malformed claims crash the whole lint run.",
+      "acceptance_criteria": "Wrap claims read/parse in try/catch and emit a structured offender; add a corrupt-claims fixture test."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "change-classification hard floors gate on truthy impact keys without requiring booleans.",
+      "acceptance_criteria": "Require boolean true for floor evidence keys (or explicitly document coercion) and add tests for non-boolean truthy values that must not raise floors incorrectly."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "resolveAlias input TypeError for non-string/empty tag is untested.",
+      "acceptance_criteria": "Add tests for '', null, and non-string tags asserting fail-closed TypeError."
+    },
+    {
+      "severity": "SUGGESTION",
+      "summary": "Module-level caches in kernel-aliases and next-transition never invalidate after first disk load.",
+      "acceptance_criteria": "Document process-lifetime cache assumption or add explicit invalidation/reload for long-lived harnesses."
+    }
+  ]
+}

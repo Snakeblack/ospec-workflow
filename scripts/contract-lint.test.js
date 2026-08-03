@@ -7,10 +7,11 @@
 // `node --test scripts/contract-lint.test.js`.
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-const { runAllCheckers } = require("./lib/contract-lint.js");
+const { runAllCheckers, DEFAULT_REGISTRY } = require("./lib/contract-lint.js");
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -28,6 +29,18 @@ test("unified contract lint: every registered checker reports zero offenders aga
   }
 });
 
+test("unified contract lint: DEFAULT_REGISTRY includes the four K1 checkers", () => {
+  const lintSource = fs.readFileSync(path.join(__dirname, "lib", "contract-lint.js"), "utf8");
+  assert.match(lintSource, /k1-schema-compat/);
+  assert.match(lintSource, /k1-emission/);
+  assert.match(lintSource, /k1-prose-authority/);
+  assert.match(lintSource, /k1-maturity/);
+  assert.ok(DEFAULT_REGISTRY.length >= 7);
+  for (const checker of DEFAULT_REGISTRY) {
+    assert.ok(Array.isArray(checker({ root: ROOT })));
+  }
+});
+
 test("unified contract lint: one checker failing does not prevent the others from running (no short-circuit)", () => {
   const offenderFromFirst = {
     checker: "fake-failing-checker",
@@ -38,11 +51,11 @@ test("unified contract lint: one checker failing does not prevent the others fro
   };
 
   const calls = [];
-  const failingChecker = (ctx) => {
+  const failingChecker = () => {
     calls.push("failingChecker");
     return [offenderFromFirst];
   };
-  const passingChecker = (ctx) => {
+  const passingChecker = () => {
     calls.push("passingChecker");
     return [];
   };

@@ -1,0 +1,9 @@
+{
+  "findings": [
+    {
+      "severity": "WARNING",
+      "summary": "k1-schema-compat parses doc-field-claims.json without try/catch, so corrupt/unreadable claims abort runAllCheckers mid-flatMap and discard already-collected offenders.",
+      "acceptance_criteria": "Wrap claimsPath read/parse in try/catch and emit an offender (same pattern as manifest/schema loads) so check() never throws and remaining checkers still run."
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "event_id": "e-1",
+  "type": "phase.completed"
+}

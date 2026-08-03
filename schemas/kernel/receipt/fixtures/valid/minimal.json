@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "receipt_id": "rc-1",
+  "candidate_id": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "kind": "delivery",
+  "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "issued_at": "2026-08-03T00:00:00Z"
+}

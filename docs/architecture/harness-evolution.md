@@ -1,8 +1,8 @@
 # Arquitectura objetivo — harness gobernado por kernel, grafo y evidencia
 
 > **Autoridad:** fuente conceptual y estratégica del harness.
-> **Corte documental:** v2.36.0, 2026-08-03.
-> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A y O2B están entregados; K1 es la siguiente iniciativa activa del roadmap.
+> **Corte documental:** v2.37.0, 2026-08-03.
+> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A y O2B están entregados; el change histórico de K1 completó su archive transaccional, pero una auditoría posterior abrió correcciones directas aún no committeadas ni publicadas. K1 sigue `in-progress` y bloquea K2.
 > **Roadmap:** el estado operativo, orden y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
 > **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md).
 
@@ -84,6 +84,30 @@ código + OpenSpec baseline/changes + Git
 
 Estas invariantes deberán tener schemas y tests de conformance. Su redacción no basta como enforcement.
 
+#### Materialización P0: contrato ahora, enforcement después
+
+P0 no termina en una lista de principios ni queda íntegramente ejecutado por K1. K1 materializa el vocabulario y las restricciones declarativas que pueden verificarse sin activar lifecycle; los slices posteriores deben consumir esos contratos y demostrar el comportamiento runtime indicado en la última columna.
+
+| # | Invariante P0 | Materialización contractual en K1 | Enforcement que permanece en K2+ |
+| ---: | --- | --- | --- |
+| 1 | Runtime-owned lifecycle | `state-transition/v1` fija `execute\|collect\|decide\|stop`, `operation`, tokens y condiciones de `command`. | K2 implementa el reducer determinista, replay e idempotencia. |
+| 2 | Modelos sin auto-autoridad | El canon de autoridad y los contratos `verification`, `finding-review` y `receipt` separan propuesta, verdict y binding. | K2/K7/K8 impiden auto-aprobación y mutación de permisos/candidato en runtime. |
+| 3 | Estado persistido sobre conversación | `contract` y el canon declaran OpenSpec/Git como autoridad; Graph IR no puede sobrescribirlos. | K2 reconcilia state y recuperación desde filesystem; K12 lo prueba headless. |
+| 4 | DAG por defecto | `graph-node/v1` publica `dependencies`, objetivo, invariantes, ownership, paths, evidence refs y `budget_ref`. | K4 compila/invalida el DAG; K5 aplica budgets y terminalidad de ciclos. |
+| 5 | Proporcionalidad por evidencia | `classification/v1` fija ejes, `reasons`, fingerprint y hard floors no degradables por tamaño. | K4/K9 prueban selección y no-regresión en shadow/replay. |
+| 6 | Cambio pequeño, proceso pequeño | Clasificación y contratos permiten expresar Direct/Repair sin convertirlos en rutas activas. | K10 activa recetas/capacidades una a una y mide que no omitan garantías. |
+| 7 | Independencia | Las familias `work-order`, `candidate`, `evidence`, `verification`, `finding-review` y `receipt` separan identidades e inputs. | K3/K6/K7/K8 hacen cumplir worker/verifier/reviewer/delivery sobre el mismo candidato. |
+| 8 | Evidencia no equivale a verdict | `evidence/v1` y `verification/v1` son contratos distintos; receipt enlaza evidence y findings además del candidato. | K6b/K6c seleccionan evidencia y challenges; K7 adjudica findings. |
+| 9 | Complejidad justificada | K1 conserva la obligación en el canon, pero no inventa un schema de `complexity_delta` fuera de su slice. | K6d materializa alternatives/complexity delta; K12 mide evolución longitudinal. |
+| 10 | Recovery ejecutable | `state-transition/v1`, `failure-recovery/v1` y fixtures de paridad fijan continuación y causa estructuradas. | K2/K5 prueban que cada transición avanza o termina y que un budget no se reinicia. |
+| 11 | Fail-closed selectivo | Schemas cerrados, fixtures negativos, pinning y ausencia de fallback a prosa rechazan shapes incompletos. | K2+ aplican los rechazos a identidad, permisos, seguridad y efectos reales. |
+| 12 | Compatibilidad antes de retirada | Aliases/version pinning y perfiles v1 compatibles preservan tags y receipts/nodos legacy mientras el perfil canónico es completo. | K9–K11 gobiernan deprecación, fallback y rollout por target. |
+| 13 | Una responsabilidad, un kernel | El canon separa familias y prohíbe que K1 introduzca reducer, routing o segunda autoridad. | K2/K7/K8 reutilizan y consolidan lifecycle, lineage y receipts existentes. |
+| 14 | Observabilidad separada | `event/v1` es un contrato no autoritativo separado de state/verdict. | K2 deriva emisiones; K12 valida replay y coste sin convertir eventos en autoridad. |
+| 15 | Paridad de superficies | `state-transition/v1` y fixtures human/envelope conservan código, causa y siguiente acción. | K2 ejecuta y prueba paridad E2E; adapters se validan en K11. |
+
+Por tanto, “P0 → K1” significa **contrato/conformance declarativa de todas las invariantes**, no que K1 implemente por adelantado los reducers, compilers, budgets, aislamiento, review o delivery de K2–K12.
+
 ## Estado implementado reconocido
 
 ### Capacidades fuertes reutilizables
@@ -110,7 +134,8 @@ O2B está cerrado y archivado (`openspec/changes/archive/2026-07-31-fixed-policy
 - verify `PASS` para 16/16 escenarios MUST;
 - gate 4R `approved` con lineage terminal;
 - fixed permanece como baseline de control y default;
-- K1 (contract suite, vocabulario y clasificación) es la siguiente iniciativa activa y bloquea K2.
+- el change histórico `k1-contract-suite` completó su archive transaccional con receipt/journal externos;
+- una auditoría independiente posterior detectó defectos de contracts/conformance; las correcciones directas actuales todavía no están committeadas ni publicadas, por lo que K1 sigue `in-progress` y K2 bloqueado.
 
 El programa no cambia defaults por el solo hecho de cerrar O2B: cualquier promoción de policy, fixtures o routing exige los gates K1–K12 aplicables.
 
@@ -126,7 +151,7 @@ El programa no cambia defaults por el solo hecho de cerrar O2B: cualquier promoc
 - No hay selector de estrategia de evidencia por tipo de cambio.
 - Revert/mutation challenges y `complexity_delta` no son gates reutilizables.
 - Worker isolation y ownership son parciales.
-- Falta la suite completa de schemas, event contracts, paridad de superficies y evals longitudinales/fricción.
+- La suite K1 está materializada de forma declarativa, pero sus correcciones de contracts/conformance aún no están committeadas ni publicadas; evals longitudinales y fricción permanecen pendientes.
 
 ## Cadena canónica del change
 
@@ -713,51 +738,51 @@ No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
 
 ### Implementado y reusable
 
-- OpenSpec/Git como autoridad.
-- Clarify condicional.
-- Review selectivo/full 4R y linaje acotado.
-- Recovery focal O4.2.
-- Archive híbrido/transaccional O6A.
-- Seis adapters/targets (incluye Cursor).
-- Model resolver estático (`models.yaml` canónico).
-- Evals/benchmark O2A y baseline fixed O2B.
-- Separación apply/verify.
-- Observabilidad parcial.
+- {implemented} OpenSpec/Git como autoridad.
+- {implemented} Clarify condicional.
+- {implemented} Review selectivo/full 4R y linaje acotado.
+- {implemented} Recovery focal O4.2.
+- {implemented} Archive híbrido/transaccional O6A.
+- {implemented} Seis adapters/targets (incluye Cursor).
+- {implemented} Model resolver estático (`models.yaml` canónico).
+- {implemented} Evals/benchmark O2A y baseline fixed O2B.
+- {implemented} Separación apply/verify.
+- {implemented} Observabilidad parcial.
 
 ### Target arquitectónico aceptado
 
-- Runtime-owned lifecycle.
-- Schemas versionados y ausencia de fallback de autoridad a prosa.
-- `status → next_transition` ejecutable (`execute|collect|decide|stop` con tokens/`command`).
-- Paridad material entre proyección humana y envelope negociado.
-- Candidate freeze universal con proyección `workspace|staged`.
-- Graph IR semántico.
-- Clasificación por impacto + incertidumbre; hard floors no degradables por tamaño.
-- Rutas como recetas y fases como capacidades.
-- Clarify con invalidación parcial.
-- Budgets/failure/recovery comunes.
-- Verifier independiente.
-- Evidence strategies/challenges/complexity delta.
-- Reutilización de lineage.
-- Delivery receipt de evaluación y enforcement productivo posterior ligado al candidato.
-- Adapters mínimos.
-- Eventos estructurados.
-- Medición de fricción de bloqueos (`in_band`/`out_of_band`/`dead_end`/…).
-- Shadow/A-B antes de promoción.
+- {target} Runtime-owned lifecycle.
+- {target} Schemas versionados y ausencia de fallback de autoridad a prosa.
+- {target} `status → next_transition` ejecutable (`execute|collect|decide|stop` con tokens/`command`).
+- {target} Paridad material entre proyección humana y envelope negociado.
+- {target} Candidate freeze universal con proyección `workspace|staged`.
+- {target} Graph IR semántico (derived plan; not independent authority).
+- {target} Clasificación por impacto + incertidumbre; hard floors no degradables por tamaño.
+- {target} Rutas como recetas y fases como capacidades.
+- {target} Clarify con invalidación parcial.
+- {target} Budgets/failure/recovery comunes.
+- {target} Verifier independiente.
+- {target} Evidence strategies/challenges/complexity delta.
+- {target} Reutilización de lineage.
+- {target} Delivery receipt de evaluación y enforcement productivo posterior ligado al candidato.
+- {target} Adapters mínimos.
+- {target} Eventos estructurados.
+- {target} Medición de fricción de bloqueos (`in_band`/`out_of_band`/`dead_end`/…).
+- {target} Shadow/A-B antes de promoción.
 
 ### Hipótesis experimentales
 
-- Shape exacto y autoridad futura del Graph IR.
-- Journal append-only y replay más allá de observabilidad.
-- Umbrales exactos de rutas/hard floors.
-- Retirada de Strict TDD universal.
-- Simplificación a ocho roles.
-- Worktrees obligatorios para toda unidad.
-- Paralelismo seguro multi-target.
-- Threat-model y políticas exactas de expiry por target para receipts productivos; la necesidad de enforcement pre-commit/pre-push/pre-PR ya es target aceptado.
-- Runtime/lenguaje final del kernel.
-- Firmas, attestations o broker de efectos.
-- Beneficio neto de model routing por nodo.
+- {experimental} Shape exacto y autoridad futura del Graph IR.
+- {experimental} Journal append-only y replay más allá de observabilidad.
+- {experimental} Umbrales exactos de rutas/hard floors.
+- {experimental} Retirada de Strict TDD universal.
+- {experimental} Simplificación a ocho roles.
+- {experimental} Worktrees obligatorios para toda unidad.
+- {experimental} Paralelismo seguro multi-target.
+- {experimental} Threat-model y políticas exactas de expiry por target para receipts productivos; la necesidad de enforcement pre-commit/pre-push/pre-PR ya es target aceptado.
+- {experimental} Runtime/lenguaje final del kernel.
+- {experimental} Firmas, attestations o broker de efectos.
+- {experimental} Beneficio neto de model routing por nodo.
 
 ## Métricas de éxito
 
