@@ -41,7 +41,7 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 
 | Orden | Acción | Gate de salida |
 | ---: | --- | --- |
-| 1 | Ejecutar K1 | Contracts, invariantes, vocabulario y clasificación conformes; desbloquea K2 |
+| 1 | Ejecutar K1 | Contracts, invariantes, vocabulario, hard floors por evidencia, transición ejecutable y paridad de superficies; desbloquea K2 |
 | 2 | Ejecutar K2–K3 | Transitions, recovery y Candidate ID conformes |
 | 3 | Ejecutar K4–K8 sobre Repair shadow, respetando K6a→K6d | Vertical end-to-end con receipt de evaluación |
 | 4 | Ejecutar K9 | Calidad no inferior, replay y fallback fixed |
@@ -59,7 +59,7 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | O4.2 | Recovery focal de evidencia Strict TDD |
 | `done` | O6A | Archive híbrido transaccional |
 | `done` | **O2B** | Verify `PASS`, gate 4R `approved`, archivado y publicado en v2.36.0 |
-| `in-progress` | **K1** | Siguiente iniciativa activa; contract suite, vocabulario y clasificación |
+| `in-progress` | **K1** | Contract suite, vocabulario, clasificación por evidencia, shapes de transición ejecutable y paridad de superficies |
 | `pending` | K2–K3 | Lifecycle kernel y Candidate ID; K2 bloqueado por K1 |
 | `pending` | K4–K8 | MVP Repair proof-carrying; K6 se entrega en cuatro slices terminales |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B |
@@ -221,25 +221,30 @@ Gate cerrado: K1 puede iniciar. El cierre de O2B no cambia por sí mismo default
 
 - canon de autoridad y lifecycle;
 - schemas versionados para state/transition, classification, contract, graph/node, work order/result, candidate, evidence, verification, finding/review, failure/recovery, receipt y event;
-- clasificación por riesgo, incertidumbre y ejecución;
-- hard floors explicables;
+- clasificación por riesgo, incertidumbre y ejecución con fingerprint y `reasons` estables;
+- hard floors explicables por evidencia de impacto (no por tamaño de diff);
+- shape de `next_transition` con `kind`, `operation`, `arguments[].token` y `command` cuando `kind=execute`;
+- paridad material entre proyección humana y envelope negociado (código, causa, siguiente acción);
 - aliases versionados para códigos actuales;
-- ejemplos generados/validados.
+- ejemplos generados/validados; CI rechaza docs/contratos que nombren campo o comando no emitido por código.
 
 #### Fuera de alcance
 
 - ejecutar rutas adaptativas;
 - cambiar fixed;
 - elegir runtime nuevo;
-- convertir Graph IR en autoridad independiente.
+- convertir Graph IR en autoridad independiente;
+- implementar el reducer/runtime de lifecycle (K2).
 
 #### Done criteria
 
 - todos los schemas tienen `$id`/versión y fixtures válidos/inválidos;
 - CI rechaza incompatibilidades y fallback de autoridad a prosa;
 - la misma clasificación produce fingerprint y reasons estables;
+- hard floors no se degradan por LOC/archivo; cubren migración, auth, API pública, Repair y Direct;
+- `execute` exige `command` + tokens; `collect` no inventa comando sobre artefacto inexistente;
+- fixtures de paridad prueban que la proyección humana y el envelope negociado recuperan los mismos discriminantes;
 - migration rules preservan tags existentes;
-- hard floors cubren migración, auth, API pública, Repair y Direct;
 - documentos distinguen implemented/target/experimental.
 
 #### Review path
@@ -256,7 +261,8 @@ Revisar primero autoridad/migración, después shapes, por último ejemplos y cl
 
 - operaciones `status`, `start/complete/fail/invalidate-node`, `recover`;
 - `status → next_transition` determinista;
-- `execute|collect|decide|stop`;
+- `execute|collect|decide|stop` con tokens/argv y `command` cuando aplique;
+- invariante: un mensaje solo nombra un comando si ejecutarlo resuelve el bloqueo;
 - reducer puro, idempotencia y reconciliación;
 - event emission derivada;
 - adapters hacia routing/review/archive existentes.
@@ -266,7 +272,8 @@ Revisar primero autoridad/migración, después shapes, por último ejemplos y cl
 - mismo state digest → mismas transitions ordenadas;
 - transición inválida falla cerrada con reason code;
 - interruption/replay no duplica efectos;
-- cada recovery anunciada tiene E2E de avance o terminal;
+- cada recovery anunciada tiene E2E de avance o terminal (el comando nombrado se ejecuta en el test);
+- proyección humana y envelope negociado no divergen en discriminantes materiales;
 - eventos pueden reconstruirse desde state y no alteran decisiones;
 - review/archive existentes pasan pruebas de no regresión;
 - el orquestador deja de interpretar prosa para elegir una operación cubierta.
@@ -284,9 +291,11 @@ No compilar Graph IR hasta que state/recovery contracts sean estables.
 #### Alcance
 
 - canonicalización de paths;
+- proyección de candidato `workspace|staged` (working tree vs índice Git exacto);
 - base tree, candidate tree, diff hash, paths digest;
 - freeze antes de verify;
 - successor ante cualquier byte distinto;
+- recovery hereda proyección del predecesor salvo successor explícito autorizado;
 - adapters para lineage/archive.
 
 #### Done criteria
@@ -294,6 +303,7 @@ No compilar Graph IR hasta que state/recovery contracts sean estables.
 - mismo tree produce mismo Candidate ID en plataformas soportadas;
 - cambio de un byte produce ID distinto;
 - dirty/untracked/symlink/case edge cases están cubiertos;
+- `workspace` y `staged` con el mismo contenido índice/árbol no se confunden cuando el worktree diverge;
 - verify/review/delivery rechazan identidad distinta;
 - legacy review/archive conserva histories y no resetea lineage;
 - ningún receipt puede apuntar solo a branch o working tree.
@@ -770,6 +780,20 @@ Fixtures reciben 10–30 cambios consecutivos y miden:
 - regresiones;
 - coste por candidato aprobado.
 
+#### Fricción de bloqueos
+
+Además de fixtures headless, K12 mide cómo se atasca el operador, no solo si el kernel avanza:
+
+| Clase | Significado |
+| --- | --- |
+| `in_band` | La negativa nombra una continuación ejecutable que desbloquea |
+| `out_of_band` | Detiene sin nombrarla |
+| `by_design` | Negativa correcta sin comando posible; exige vocabulario cerrado y texto verificable |
+| `dead_end` | Nada la resuelve |
+| `self_recovered` | El flujo continúa sin comando extra |
+
+La evidencia mecánica (comando nombrado y ejecutable) prevalece sobre anotaciones del corpus. El objetivo es cero `dead_end` y minimizar `out_of_band`, no reducir el número bruto de bloqueos correctos.
+
 #### Done criteria
 
 - driver ejecuta kernel real sin intervención;
@@ -777,6 +801,7 @@ Fixtures reciben 10–30 cambios consecutivos y miden:
 - assertions validan outputs estructurales;
 - event schema cubre lifecycle y coste sin persistir razonamiento;
 - replay/recovery/interruption tienen fixtures;
+- journeys de fricción clasifican cada bloqueo y fallan ante `dead_end` nuevo;
 - dos repos longitudinales completan al menos 10 cambios cada uno;
 - informes comparan fixed/kernel y versión del contract suite;
 - vistas Markdown se derivan de evidencia y no cambian verdict;
@@ -1027,3 +1052,4 @@ Cada child conserva clasificación, Candidate ID y receipt propios.
 - 2026-07-28/29: O2B alcanza conformidad funcional y queda temporalmente `blocked` por un único CRITICAL de proveniencia Strict TDD histórica.
 - 2026-07-29: la visión P0–P27 se fusiona con el programa: O2B → K1–K12, preservando kernels entregados y fixed como control.
 - 2026-07-31: un replay limpio resuelve la proveniencia Strict TDD; O2B obtiene verify `PASS`, supera el gate 4R, se archiva y se publica en v2.36.0. K1 pasa a ser la iniciativa activa y bloquea K2.
+- 2026-08-03: reconciliación documental post-O2B: se afilan K1–K3/K12 y la arquitectura (transición ejecutable, paridad de superficies, proyección de candidato, fricción de bloqueos) sin cambiar la ruta crítica.

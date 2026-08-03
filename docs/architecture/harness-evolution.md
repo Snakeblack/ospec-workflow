@@ -1,8 +1,8 @@
 # Arquitectura objetivo — harness gobernado por kernel, grafo y evidencia
 
 > **Autoridad:** fuente conceptual y estratégica del harness.
-> **Corte documental:** v2.35.0, 2026-07-29.
-> **Estado verificado:** O3, O4+O5/O4.1, O4.2 y O6A están entregados; O2B está `blocked` y `sdd-verify` terminó `done` con verdict `FAIL`.
+> **Corte documental:** v2.36.0, 2026-08-03.
+> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A y O2B están entregados; K1 es la siguiente iniciativa activa del roadmap.
 > **Roadmap:** el estado operativo, orden y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
 > **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md).
 
@@ -12,7 +12,7 @@ El harness evoluciona hacia un **kernel determinista que compila intención y co
 
 Esta dirección no es una reescritura. Se construye generalizando los kernels ya entregados de clarify, review/linaje, recovery focal y archive transaccional. OpenSpec y Git siguen siendo la autoridad del change; el runtime gobierna lifecycle y efectos mecánicos; los modelos conservan el trabajo semántico.
 
-El cambio de defaults está bloqueado hasta resolver O2B y superar shadow/A-B. La arquitectura objetivo es aceptada como dirección, pero sus contratos concretos se implementarán por slices y conservarán compatibilidad con el flujo fixed.
+O2B cerró la baseline fixed-policy de control. El cambio de defaults sigue bloqueado hasta superar shadow/A-B (K9) y los gates posteriores. La arquitectura objetivo es aceptada como dirección; sus contratos concretos se implementan por slices (K1 en adelante) y conservan compatibilidad con el flujo fixed.
 
 ## Ruta rápida
 
@@ -70,16 +70,17 @@ código + OpenSpec baseline/changes + Git
 2. **Modelos sin auto-autoridad.** Un modelo puede proponer y ejecutar trabajo autorizado; no aprueba su candidato ni crea permisos.
 3. **Estado persistido sobre conversación.** Reanudar parte de filesystem, no de memoria conversacional.
 4. **DAG por defecto.** Un ciclo requiere allowlist, causa, presupuesto e interruptor terminal.
-5. **Proporcionalidad.** Las garantías responden a impacto e incertidumbre; líneas y archivos son contexto, no señal primaria.
+5. **Proporcionalidad por evidencia.** Las garantías responden a impacto e incertidumbre demostrables; líneas y archivos son contexto de reviewability/delivery, nunca degradan un hard floor de riesgo.
 6. **Cambio pequeño, proceso pequeño.** Una capacidad solo se activa por una obligación o riesgo demostrable.
 7. **Independencia.** Implementación, verificación y aprobación consumen contratos distintos y una identidad común.
 8. **Evidencia no equivale a verdict.** Tests verdes son una entrada; contrato, invariantes y challenges determinan suficiencia.
 9. **Complejidad justificada.** Toda abstracción nueva compara no hacer nada, cambio local, patrón existente y nueva abstracción.
-10. **Recovery ejecutable.** Todo bloqueo termina en `execute`, `collect`, `decide` o `stop`.
+10. **Recovery ejecutable.** Todo bloqueo termina en `execute`, `collect`, `decide` o `stop`. Una superficie humana o negociada solo nombra un comando cuando ejecutarlo resuelve el bloqueo; nombrar un callejón sin salida es peor que no nombrar nada.
 11. **Fail-closed selectivo.** Identidad, permisos, evidencia requerida, seguridad y efectos destructivos fallan cerrados.
 12. **Compatibilidad antes de retirada.** Fixed, aliases y artefactos actuales se mantienen hasta que una migración probada los sustituya.
 13. **Una responsabilidad, un kernel.** Review, archive, evidence y routing no tendrán implementaciones paralelas permanentes.
 14. **Observabilidad separada.** Los eventos registran hechos y coste; no son razonamiento interno ni estado canónico.
+15. **Paridad de superficies.** Para la misma condición, la proyección humana y el envelope negociado/máquina llevan al menos la misma especificidad (código, causa y siguiente acción); no divergen en datos materiales.
 
 Estas invariantes deberán tener schemas y tests de conformance. Su redacción no basta como enforcement.
 
@@ -95,39 +96,37 @@ Estas invariantes deberán tener schemas y tests de conformance. Su redacción n
 | Review lineage | Candidate/paths/findings congelados, lenses one-shot, correction focal y límites de intentos. | Kernel de adjudicación acotada ligado al Candidate ID universal. |
 | O4.2 | Recovery focal para drift de evidencia, con invariancia funcional y recheck. | Patrón de remediation tipada y bounded recovery. |
 | O6A archive | Plan semántico + transacción runtime, staging, hashes, inventario, rollback/recovery y receipt. | Kernel reusable de efectos recuperables y receipts mecánicos. |
-| Multi-target | Generación y adapters para Claude Code, VS Code, GitHub Copilot, OpenCode y Codex. | Adapters mínimos consumidores de capability manifests. |
-| Model resolver | Catálogo y resolución estática agent → tier → target. | Base para routing por work order/nodo con clamps. |
-| O2A evals | Catálogo de nueve perfiles, smoke, runner local y scoring estructural. | Base de shadow/headless; O2B debe fijar el control. |
+| Multi-target | Generación y adapters para Claude Code, VS Code, GitHub Copilot, OpenCode, Codex y Cursor. | Adapters mínimos consumidores de capability manifests. |
+| Model resolver | Catálogo y resolución estática agent → tier → target (`models.yaml` canónico). | Base para routing por work order/nodo con clamps. |
+| O2A evals | Catálogo de nueve perfiles, smoke, runner local y scoring estructural. | Base de shadow/headless; control fixed fijado por O2B. |
+| O2B fixed baseline | Baseline 9/9 versionada, verify `PASS`, gate 4R `approved`, publicada en v2.36.0. | Control/default hasta que K9 y gates posteriores autoricen otro cambio. |
 | Apply/verify | Roles y contratos separados. | Se endurece su independencia por Candidate ID y evidence manifest. |
 | Telemetría/hooks | Costes, lifecycle hints y resultados parciales. | Productores de eventos normalizados, no nueva autoridad. |
 
 ### Estado inmediato
 
-O2B no está cerrado. Su estado autoritativo actual:
+O2B está cerrado y archivado (`openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`). Hechos al corte:
 
-- top-level `status: blocked`;
-- `sdd-apply: partial`;
-- `sdd-verify: done`, verdict `FAIL` y `next_recommended: none`;
-- 16/16 MUST, 67/67 tests focales y `npm test` verdes;
-- recovery offline ya preserva `quality_evidence`;
-- un único CRITICAL `tasks-gap`: la cronología RED histórica de Strict TDD no está autenticada ni puede reconstruirse honestamente;
-- baseline live 9/9 todavía ausente, de forma esperada y no causante del `FAIL`.
+- verify `PASS` para 16/16 escenarios MUST;
+- gate 4R `approved` con lineage terminal;
+- fixed permanece como baseline de control y default;
+- K1 (contract suite, vocabulario y clasificación) es la siguiente iniciativa activa y bloquea K2.
 
-Por tanto, el programa conserva fixed como default. O2B no tiene una transición automática: requiere evidencia externa autenticada o una decisión humana explícita sobre policy/spec antes de continuar.
+El programa no cambia defaults por el solo hecho de cerrar O2B: cualquier promoción de policy, fixtures o routing exige los gates K1–K12 aplicables.
 
 ### Deuda real
 
-- No existe un kernel global `status → next_transition`.
+- No existe un kernel global `status → next_transition` ejecutable.
 - No existe Graph IR semántico común a Repair, planificación, invalidación y federación.
-- La clasificación no separa completamente impacto, incertidumbre y ejecución.
+- La clasificación no separa completamente impacto, incertidumbre y ejecución ni fija hard floors por evidencia en runtime.
 - Los budgets no son uniformes por nodo.
-- Failure/recovery no comparten taxonomy y shape universales.
-- Candidate freeze no gobierna todavía apply → verify → review → delivery.
+- Failure/recovery no comparten taxonomy y shape universales; las continuaciones anunciadas no siempre se ejercen E2E.
+- Candidate freeze no gobierna todavía apply → verify → review → delivery ni declara proyección `workspace|staged`.
 - No hay delivery receipt ligado a contract/graph/candidate/evidence/findings.
 - No hay selector de estrategia de evidencia por tipo de cambio.
 - Revert/mutation challenges y `complexity_delta` no son gates reutilizables.
 - Worker isolation y ownership son parciales.
-- Falta la suite completa de schemas, event contracts y evals longitudinales.
+- Falta la suite completa de schemas, event contracts, paridad de superficies y evals longitudinales/fricción.
 
 ## Cadena canónica del change
 
@@ -166,6 +165,7 @@ Cualquier byte distinto crea un candidato sucesor. Verify, review y delivery ant
 candidate:
   schema_version: 1
   id: sha256:...
+  projection: workspace # workspace | staged
   base_tree: ...
   candidate_tree: ...
   diff_hash: ...
@@ -174,7 +174,7 @@ candidate:
   predecessor_id: null
 ```
 
-La identidad es universal, pero no sustituye Git. Es una representación canónica y verificable de sus bytes y relaciones.
+La identidad es universal, pero no sustituye Git. Es una representación canónica y verificable de sus bytes y relaciones. `projection` declara qué superficie de bytes se congela: el working tree (`workspace`) o exactamente el índice Git (`staged`). Recovery hereda la proyección del predecesor salvo successor explícito autorizado; un receipt no puede apuntar solo a branch o working tree mutable.
 
 ### Delivery receipt
 
@@ -236,19 +236,26 @@ Cada operación devuelve estado estructurado y siguiente transición:
   "next_transition": {
     "kind": "execute",
     "operation": "repair-node",
-    "arguments": {
-      "node_id": "repair-auth-session"
-    }
+    "command": "ospec kernel repair-node --node-id=repair-auth-session",
+    "arguments": [
+      {
+        "name": "node_id",
+        "value": "repair-auth-session",
+        "token": "--node-id=repair-auth-session"
+      }
+    ]
   }
 }
 ```
 
 Los cuatro tipos de continuación son:
 
-- `execute`: el runtime puede ejecutar una operación autorizada;
-- `collect`: falta un resultado externo o de un modelo;
+- `execute`: el runtime puede ejecutar una operación autorizada; lleva `command` completo y `arguments` con `token` exactos;
+- `collect`: falta un resultado externo o de un modelo; puede llevar tokens de admisión, pero no un `command` que presuponga un artefacto aún inexistente;
 - `decide`: se necesita una decisión humana;
 - `stop`: no existe continuación segura.
+
+La proyección humana y el envelope negociado de la misma condición deben ser recuperables entre sí: el código, la causa y la siguiente acción no se pierden al cruzar de prosa a JSON.
 
 ### Kernel compuesto, no reemplazo
 
@@ -332,7 +339,9 @@ Reglas:
 - ejemplos generados o validados;
 - consumidores pinnean versión;
 - migraciones explícitas;
-- ninguna operación de autoridad tiene fallback silencioso a prosa.
+- ninguna operación de autoridad tiene fallback silencioso a prosa;
+- docs y fixtures no pueden nombrar campo, operación o comando que el código no emita;
+- proyección humana y envelope negociado de la misma condición preservan código, causa y siguiente acción.
 
 ## Clasificación, rutas y capacidades
 
@@ -369,7 +378,7 @@ Hard floors iniciales:
 - bug reproducible localizado → `repair`;
 - cambio mecánico sin comportamiento → `direct`.
 
-Los conteos de líneas/archivos pueden informar reviewability y delivery, pero no degradar un hard floor de riesgo.
+La clasificación nombra sus `reasons` y produce fingerprint estable. El tier de review y la ruta salen de qué se tocó y con qué incertidumbre, no del tamaño del diff: un cambio documental masivo puede permanecer en Nivel 0; dos líneas sobre autenticación activan hard floor `critical`. Los conteos de líneas/archivos informan reviewability y delivery, pero no degradan un hard floor de riesgo.
 
 ### Cinco rutas como recetas
 
@@ -643,10 +652,10 @@ Repositorios fixture reciben 10–30 cambios consecutivos. Se miden duplicación
 
 ### Orden
 
-1. Resolver el bloqueo de proveniencia O2B mediante evidencia externa o decisión explícita y reconciliar documentación/estado.
-2. Definir invariantes, vocabulario y contract suite mínima.
-3. Implementar kernel `status/next_transition/recovery/events`.
-4. Extraer Candidate ID universal.
+1. ~~Resolver O2B~~ — hecho: baseline fixed publicada en v2.36.0; fixed permanece como control.
+2. Definir invariantes, vocabulario y contract suite mínima (K1), incluyendo shapes de transición ejecutable y paridad de superficies.
+3. Implementar kernel `status/next_transition/recovery/events` (K2) con continuaciones que desbloquean al ejecutarse.
+4. Extraer Candidate ID universal con proyección `workspace|staged` (K3).
 5. Probar Graph IR + Repair compiler en shadow.
 6. Añadir budgets/failure routing.
 7. K6a: aislar worker y compilar capsule; gate por work result/inventory.
@@ -658,12 +667,12 @@ Repositorios fixture reciben 10–30 cambios consecutivos. Se miden duplicación
 13. Implementar enforcement productivo de receipt para pre-commit/pre-push/pre-PR.
 14. Expandir rutas/capacidades.
 15. K11a adapters → K11b model routing → K11c ownership/worktrees → K11d roles/paridad, cada uno con gate terminal.
-16. Añadir headless y longitudinal.
+16. Añadir headless, longitudinal y medición de fricción de bloqueos.
 
 ### Gates
 
-- O2B cerrado antes de cambiar defaults.
-- Un target inicial antes de paridad de cinco.
+- O2B cerrado (hecho); defaults siguen fijos hasta K9 y gates posteriores.
+- Un target inicial antes de paridad multi-target.
 - Repair shadow antes de cinco rutas.
 - Candidate freeze antes de receipts.
 - Work-order contracts antes de simplificar roles.
@@ -702,9 +711,9 @@ No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
 - Review selectivo/full 4R y linaje acotado.
 - Recovery focal O4.2.
 - Archive híbrido/transaccional O6A.
-- Cinco adapters/targets.
-- Model resolver estático.
-- Evals/benchmark O2A.
+- Seis adapters/targets (incluye Cursor).
+- Model resolver estático (`models.yaml` canónico).
+- Evals/benchmark O2A y baseline fixed O2B.
 - Separación apply/verify.
 - Observabilidad parcial.
 
@@ -712,10 +721,11 @@ No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
 
 - Runtime-owned lifecycle.
 - Schemas versionados y ausencia de fallback de autoridad a prosa.
-- `status → next_transition`.
-- Candidate freeze universal.
+- `status → next_transition` ejecutable (`execute|collect|decide|stop` con tokens/`command`).
+- Paridad material entre proyección humana y envelope negociado.
+- Candidate freeze universal con proyección `workspace|staged`.
 - Graph IR semántico.
-- Clasificación por impacto + incertidumbre.
+- Clasificación por impacto + incertidumbre; hard floors no degradables por tamaño.
 - Rutas como recetas y fases como capacidades.
 - Clarify con invalidación parcial.
 - Budgets/failure/recovery comunes.
@@ -725,6 +735,7 @@ No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
 - Delivery receipt de evaluación y enforcement productivo posterior ligado al candidato.
 - Adapters mínimos.
 - Eventos estructurados.
+- Medición de fricción de bloqueos (`in_band`/`out_of_band`/`dead_end`/…).
 - Shadow/A-B antes de promoción.
 
 ### Hipótesis experimentales
@@ -749,7 +760,21 @@ No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
 - divergencia state/IR falla cerrada;
 - bytes distintos → successor;
 - stale receipt bloqueado;
-- recovery no reinicia budgets ni findings.
+- recovery no reinicia budgets ni findings;
+- comando nombrado en un bloqueo, al ejecutarse, avanza o termina de forma honestamente terminal;
+- proyección humana y envelope negociado no divergen en código, causa ni siguiente acción.
+
+### Fricción de bloqueos
+
+Cada bloqueo se clasifica en exactamente una clase:
+
+- `in_band`: la negativa nombra una continuación ejecutable que desbloquea;
+- `out_of_band`: detiene sin nombrarla;
+- `by_design`: negativa correcta sin comando posible, acotada a vocabulario cerrado;
+- `dead_end`: nada la resuelve;
+- `self_recovered`: el flujo continúa sin comando extra.
+
+La métrica privilegia reducir `dead_end` y `out_of_band`, no “parar menos”.
 
 ### Calidad
 
