@@ -461,6 +461,8 @@ K6 no se ejecuta como un change transversal. Cada slice tiene output terminal y 
 - independent acceptance;
 - test inspection.
 
+K6c ataca la **evidencia/implementación** del candidato (defects sembrados, mutantes, aceptación independiente). La refutación adversaria de *findings de review* no vive aquí: es un filtro de precisión del kernel de review y se programa en K7. Patrones reutilizables (independent acceptance, envelope inválido = no-corroboración, budget de mutación) informan K7 sin fusionar los dos scopes.
+
 #### Done criteria
 
 - defects sembrados aplicables son detectados;
@@ -468,7 +470,8 @@ K6 no se ejecuta como un change transversal. Cada slice tiene output terminal y 
 - challenges están ligados a Candidate ID/node/strategy;
 - mutation budget es acotado y exhaustion produce transition;
 - challenge no muta el candidato aprobado;
-- fallos se clasifican causalmente.
+- fallos se clasifican causalmente;
+- no se introduce un segundo stack de “refuter de review” paralelo a K7.
 
 **Gate terminal:** suite adversarial verde; K6d no empieza antes.
 
@@ -511,6 +514,8 @@ No retirar universalidad de Strict TDD hasta que K6b/K6c/K9 demuestren que cada 
 
 **Absorbe/rebasa:** P10/P11; O4+O5/O4.1.
 
+**Ventaja absorbida (comparativo Gentle AI, 2026-08):** no se porta RDD/CLI/`review-integration` ni un ledger markdown paralelo. Se absorbe solo lo que mejora el kernel de review ya entregado: criterios de lente más densos, *precision gate*, y refutación acotada de findings severos. La machinery (selector determinista, lineage, remediation-v2, fail-closed) permanece la de ospec y se considera superior al triage 3-tier / convergence genérico de Gentle.
+
 #### Alcance
 
 - Nivel 0: sin review de modelo solo para candidatos Direct mecánicos cuya validación determinista sea suficiente y sin señales materiales;
@@ -520,7 +525,11 @@ No retirar universalidad de Strict TDD hasta que K6b/K6c/K9 demuestren que cada 
 - mapear especialistas a signals del classifier/Graph;
 - incorporar `performance` y `compatibility-migration` como señales/lenses condicionadas, no reviewers permanentes;
 - conservar one-shot/frozen findings/correction budgets;
-- impedir rediscovery y reset.
+- impedir rediscovery y reset;
+- **calidad de lente (prompt surgery):** enriquecer Flag/Do-Not-Flag de risk/reliability/resilience/readability con reglas concretas de alto valor (secrets hardcodeados, authz solo-frontend, sinks HTML, cookies de sesión, `forbidOnly`/`test.only`, tests behavior-first vs implementation-centric, dead code/magic numbers, rollback/observability cuando el stack lo soporte); filtrar reglas producto-específicas (p. ej. Sentry hardcode) para que queden stack-aware o gated por señal;
+- **precision gate:** cada lente reporta solo defectos user-impacting defendibles con evidencia; en duda, silencio; estilo/preferencia no bloquea salvo que oculte un defecto; sweep budget alineado al one-shot existente (1 sweep targeted; ≤2 en full-4R/high-risk);
+- **refutación de findings (opcional→gated):** antes de `freezeFindings` / corrección, un validador read-only batch-eado evalúa solo BLOCKER/CRITICAL; techo estructural 1 task (targeted) o 3 en paralelo con voto 2-of-3 (full-4R/high-risk); envelope inválido o ausente → `stands`; nunca 1 task por finding; no discovery, no nuevos IDs, no budget nuevo;
+- **severity floor:** WARNING/SUGGESTION se registran como follow-up/info y nunca abren el loop de corrección; solo findings severos que sobrevivan refutación (cuando el gate esté activo) consumen correction budget.
 
 #### Done criteria
 
@@ -535,7 +544,11 @@ No retirar universalidad de Strict TDD hasta que K6b/K6c/K9 demuestren que cada 
 - correction solo toca paths/IDs autorizados;
 - Candidate successor invalida receipt/review anterior sin reusar findings como aprobados;
 - late observations quedan follow-up;
-- tests de compatibilidad cubren lineages v1.
+- tests de compatibilidad cubren lineages v1;
+- skills de lente incluyen precision gate + criterios enriquecidos sin duplicar el contrato de lineage en cada agent prompt (el protocolo compartido sigue en `gate-4r-review` / reducers);
+- cuando la refutación esté habilitada: solo BLOCKER/CRITICAL entran; techo 1|3 respetado; findings `refuted` no consumen correction; `stands`/malformed default no inventa clean envelopes;
+- no existe `review-ledger.md` ni store ajeno como segunda autoridad de findings; lineage en OpenSpec state permanece canónico;
+- Judgment Day permanece skill on-demand y no se fusiona al gate 4R.
 
 ## Bloque 8 — entrega ligada a prueba
 
@@ -543,13 +556,17 @@ No retirar universalidad de Strict TDD hasta que K6b/K6c/K9 demuestren que cada 
 
 **Absorbe/rebasa:** P17, slice de evaluación; O15/O19B; primitives de O6A; R1 como consumidor futuro.
 
+**Ventaja absorbida (comparativo Gentle AI):** el *qué* (receipt content-bound que gobierna confianza, no la narración del agente) ya está en esta dirección vía O6A→K8. Se refuerza el *cómo* propio: threat model local, proyección `workspace|staged` de K3, recovery nombrada solo si es ejecutable, y rechazo explícito a consumir `gentle-ai.review-integration` u otro binario ajeno como autoridad.
+
 #### Alcance
 
 - finalizar evidence/findings digests;
 - receipt ligado a contract, graph, candidate, evidence y findings;
 - outcome y `valid_for`;
 - stale/foreign receipt checks;
-- scope inicial `evaluation`.
+- scope inicial `evaluation`;
+- threat-model mínimo del store/emisión (corrupción accidental, writer stale, interrupción, identity mismatch) sin pretender autenticar actor malicioso same-user;
+- decline/bypass auditado nunca reporta `approved` ni fabrica receipt.
 
 #### Done criteria
 
@@ -560,7 +577,9 @@ No retirar universalidad de Strict TDD hasta que K6b/K6c/K9 demuestren que cada 
 - recovery de emisión es idempotente/reconciliable;
 - archive receipt y delivery receipt mantienen scopes distintos;
 - schema y conformance cubren tampering/corruption;
-- no se habilita commit/push/PR todavía.
+- no se habilita commit/push/PR todavía;
+- proyección del candidato emitido coincide exactamente con la congelada en K3;
+- ninguna superficie de evaluación depende de un proveedor de review externo.
 
 #### Gate
 
@@ -615,6 +634,8 @@ Promoción no activa cinco rutas ni targets; autoriza primero K10-delivery y des
 
 **Absorbe/rebasa:** P17 productivo; O19B/R1.
 
+**Ventaja absorbida (comparativo Gentle AI):** gates de delivery que re-derivan evidencia desde Git vivo (no espejos narrados), kill-switch/bypass que **aplaza** sin fabricar aprobación, y la regla de fricción “solo nombrar un comando si ejecutarlo desbloquea”. Todo ello se implementa sobre el receipt/kernel de ospec; no se adopta el compact store ni el CLI de Gentle.
+
 #### Scope inicial
 
 - `pre-commit`;
@@ -628,7 +649,10 @@ Promoción no activa cinco rutas ni targets; autoriza primero K10-delivery y des
 - expiry e invalidación por successor, cambios de policy/schema o evidence;
 - replay protection y reconciliation;
 - validadores headless fail-closed;
-- degradación declarada por target.
+- degradación declarada por target;
+- re-derivación live del candidate/scope en el gate (worktree o index según proyección), rechazando drift;
+- modo unmanaged/bypass: `allowed: false` o defer-a-policy del repo, nunca `approved` sintético;
+- denegaciones con `next_action` ejecutable (`execute|collect|decide|stop`); un recovery nombrado debe desbloquear al correrse.
 
 #### Done criteria
 
@@ -639,7 +663,9 @@ Promoción no activa cinco rutas ni targets; autoriza primero K10-delivery y des
 - interruption/retry no duplica entrega;
 - bypass requiere decisión humana persistida y auditable, nunca fallback silencioso;
 - threat fixtures cubren tampering, rollback, rebase y successor;
-- un target inicial demuestra pre-commit/pre-push/pre-PR antes de paridad.
+- un target inicial demuestra pre-commit/pre-push/pre-PR antes de paridad;
+- fixtures de scope-changed / projection-mismatched nombran recovery ejecutable o `stop` honesto;
+- disable/bypass no destruye receipts históricos válidos ni inventa autoridad.
 
 **Gate terminal:** enforcement productivo aprobado; K10 puede expandir rutas sin dejar P17 en estado experimental.
 
@@ -815,7 +841,7 @@ La evidencia mecánica (comando nombrado y ejecutable) prevalece sobre anotacion
 | O2A | done | O2B/K9/K12 | Conservar runner y catálogo |
 | O2B | done | Baseline/control | Gate inicial cerrado; conservar fixed como control para K1–K12 |
 | O3 | done | K4/K10 | Generalizar como evento |
-| O4+O5/O4.1 | done | K7 | Reutilizar selector/lineage y extender niveles/lenses con gates |
+| O4+O5/O4.1 | done | K7 | Reutilizar selector/lineage; extender niveles/lenses; precision/refutación sin reescribir machinery |
 | O4.2 | done | K5/K6b | Reutilizar recovery focal |
 | O6A | done | K2/K8 | Reutilizar transacción/receipt primitives |
 | O20A | pending | K1–K4 | Rebasar como vertical Repair shadow |
@@ -854,14 +880,14 @@ No queda ninguna iniciativa transversal anterior sin destino explícito.
 | P7 budgets | K5 | no implicit reset |
 | P8 failure routing | K5 | causal recovery |
 | P9 candidate freeze | K3 | byte-level successor |
-| P10 review niveles | K7 | Nivel 0 determinista; Nivel 1 generalista; Nivel 2 specialists con performance/compatibility conditional |
-| P11 loops review | K7 | frozen lineage |
+| P10 review niveles | K7 | Nivel 0 determinista; Nivel 1 generalista; Nivel 2 specialists + precision gate/criterios densos + refutación acotada de findings; performance/compatibility conditional |
+| P11 loops review | K7 | frozen lineage (machinery ospec; no ledger ajeno) |
 | P12 evidence strategies | K6b/K10 | Strict TDD equivalence |
-| P13 challenges | K6c/K9 | seeded defects |
+| P13 challenges | K6c/K9 | seeded defects sobre evidencia; refutación de findings → K7 |
 | P14 anti-overengineering | K6d | alternatives contract |
 | P15 architecture delta | K6d/K12 | candidate-bound metrics |
 | P16 independencia | K6a/K6b | worker/verifier boundary |
-| P17 delivery receipt | K8 + K10-delivery | evaluation binding + productivo pre-commit/pre-push/pre-PR |
+| P17 delivery receipt | K8 + K10-delivery | evaluation binding + productivo pre-commit/pre-push/pre-PR; threat/bypass/live re-derive propios |
 | P18 recovery | K2/K5 | E2E transition |
 | P19 schemas | K1 | CI/version pinning |
 | P20 adapters | K11a | core-owned lifecycle |
@@ -1016,6 +1042,7 @@ Cada child conserva clasificación, Candidate ID y receipt propios.
 | Segunda fuente de verdad | Reducer único, reconciliation y fail-closed |
 | Perder la baseline O2B | Fixed publicado como control y protegido por gates posteriores |
 | Reescribir lineage/archive | Compat adapters y regression fixtures |
+| Portar RDD/CLI Gentle como 2ª autoridad | Absorber solo ventajas en K7/K8/K10-delivery; rechazar `review-integration` ajeno |
 | Receipt sin freeze | K3 bloquea K8 |
 | Agentes simplificados prematuramente | P21 queda en K11d tras work orders, scheduler y adapters estables |
 | Cinco targets/rutas/worktrees simultáneos | Rollout uno a uno |
@@ -1034,6 +1061,8 @@ Cada child conserva clasificación, Candidate ID y receipt propios.
 - No relanzar reviewers tras congelar findings.
 - No resetear lineages, budgets o attempts por retry/interrupción.
 - No emitir receipt para working tree mutable.
+- No importar `gentle-ai.review-integration`, compact store ajeno ni `review-ledger.md` como autoridad paralela al lineage OpenSpec.
+- No fusionar Judgment Day al gate 4R; permanece on-demand.
 - No finalizar evidencia antes de identificar qué Candidate ID fue verificado.
 - No tratar Markdown libre como contract de autoridad.
 - No activar routing dinámico de modelos antes de K9.
@@ -1053,3 +1082,4 @@ Cada child conserva clasificación, Candidate ID y receipt propios.
 - 2026-07-29: la visión P0–P27 se fusiona con el programa: O2B → K1–K12, preservando kernels entregados y fixed como control.
 - 2026-07-31: un replay limpio resuelve la proveniencia Strict TDD; O2B obtiene verify `PASS`, supera el gate 4R, se archiva y se publica en v2.36.0. K1 pasa a ser la iniciativa activa y bloquea K2.
 - 2026-08-03: reconciliación documental post-O2B: se afilan K1–K3/K12 y la arquitectura (transición ejecutable, paridad de superficies, proyección de candidato, fricción de bloqueos) sin cambiar la ruta crítica.
+- 2026-08-03: comparativo Gentle AI reviewers → ventajas absorbidas solo donde refuerzan la dirección existente: K7 (precision gate, criterios de lente, refutación acotada), K6c (límite de scope vs K7), K8/K10-delivery (threat/bypass/live re-derive propios). Sin iniciativas paralelas ni CLI/RDD ajeno.

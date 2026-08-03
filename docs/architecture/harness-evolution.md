@@ -204,7 +204,7 @@ Cada superficie:
 - no relanza modelos/reviewers ni infiere aprobación desde prosa;
 - declara degradación por target.
 
-El rollout requiere threat model, recovery/reconciliation y fixtures de tampering, rebase, rollback y successor. Un receipt `evaluation` nunca autoriza delivery.
+El rollout requiere threat model, recovery/reconciliation y fixtures de tampering, rebase, rollback y successor. Un receipt `evaluation` nunca autoriza delivery. Bypass/unmanaged aplaza a la policy del repo sin fabricar `approved`. Las denegaciones solo nombran un comando cuando ejecutarlo desbloquea. No se consume un proveedor de review externo (`gentle-ai.review-integration` u equivalente) como autoridad.
 
 ## Kernel determinista y Graph IR
 
@@ -544,9 +544,16 @@ Se conserva el comportamiento entregado de los niveles 1/2:
 - follow-ups no bloqueantes;
 - successor explícito para nuevo scope/discovery.
 
-`performance` y `compatibility-migration` se incorporan como señales y lenses condicionadas, no como reviewers permanentes. Antes de poder bloquear necesitan contract, budget, fixtures positivos/negativos y evals que prueben activación por cambio de rendimiento, API/formatos, migración o compatibilidad. La ausencia de señal persiste una razón de skip. Las cuatro lenses 4R actuales no se renombran ni reescriben.
+`performance` y `compatibility-migration` se incorporan como señales y lenses condicionadas, no como reviewers permanentes. Antes de poder bloquear necesitan contract, budget, fixtures positivos/negativos y evals que prueben activación por cambio de rendimiento, API/formatos, migración o compatibilidad. La ausencia de señal persiste una razón de skip. Las cuatro lenses 4R actuales no se renombran ni se reescriben como stack paralelo.
 
-El cambio arquitectónico es el input: el linaje consumirá Candidate ID universal, Graph/evidence digests y classification reasons.
+Calidad de descubrimiento (roadmap K7), sin cambiar la machinery:
+
+- *precision gate* y Flag/Do-Not-Flag densos en las lentes;
+- refutación acotada solo de BLOCKER/CRITICAL antes de freeze/corrección (techo 1|3 tasks; default `stands`);
+- severity floor: WARNING/SUGGESTION no abren correction;
+- lineage OpenSpec permanece el ledger canónico; no se adopta un store/CLI de review externo.
+
+El cambio arquitectónico de input sigue siendo: el linaje consumirá Candidate ID universal, Graph/evidence digests y classification reasons.
 
 ### Archive
 
@@ -829,5 +836,6 @@ La métrica privilegia reducir `dead_end` y `out_of_band`, no “parar menos”.
 - Duplicar lifecycle por target.
 - Mantener O20A y O13/O15/O18/O19/R1 como stacks equivalentes permanentes.
 - Reescribir review lineage o archive transaccional.
+- Adoptar el CLI/RDD/`review-integration` de Gentle AI (u otro arnés) como segunda autoridad de review o delivery.
 - Activar cinco targets/worktrees/rutas en un solo change.
 - Retirar formatos actuales sin deprecación y fallback.
