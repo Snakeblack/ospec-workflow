@@ -6,7 +6,8 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 
-const { validate } = require("./validate-cursor.js");
+const { hostBinarySuffix } = require("./install-target.js");
+const { validate, validateInstalled } = require("./validate-cursor.js");
 
 function tmpRoot(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "validate-cursor-"));
@@ -68,6 +69,30 @@ function cleanTree(root) {
       2,
     ),
   );
+}
+
+function installedTree(root) {
+  cleanTree(root);
+  const cursorRootPosix = path.resolve(root).split(path.sep).join("/");
+  write(
+    root,
+    "hooks.json",
+    JSON.stringify({
+      version: 1,
+      hooks: {
+        stop: [
+          {
+            command: `node "${cursorRootPosix}/scripts/hooks/ospec-hooks-launch.js" stop`,
+          },
+        ],
+      },
+    }),
+  );
+  const { ext } = hostBinarySuffix();
+  const binary = path.join(root, "scripts", "hooks", `ospec-hooks${ext}`);
+  fs.writeFileSync(binary, "binary-fixture");
+  if (process.platform !== "win32") fs.chmodSync(binary, 0o755);
+  return { cursorRootPosix, binary };
 }
 
 test("validate-cursor accepts a clean tree with zero errors", (t) => {
@@ -180,4 +205,220 @@ test("validate-cursor triangulation: unmapped abstract tool token in agent fails
   );
   const result = validate(root);
   assert.ok(result.errors.some((e) => e.includes("agents/sdd-apply.md") && (e.includes("`search`") || e.includes("abstract"))));
+});
+
+test("validateInstalled accepts expanded hooks and a regular host binary", (t) => {
+  const root = tmpRoot(t);
+  installedTree(root);
+  assert.deepEqual(validateInstalled(root).errors, []);
+});
+
+test("validateInstalled rejects an unresolved Cursor root placeholder", (t) => {
+  const root = tmpRoot(t);
+  installedTree(root);
+  write(
+    root,
+    "hooks.json",
+    JSON.stringify({
+      version: 1,
+      hooks: { stop: [{ command: "node __OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks-launch.js stop" }] },
+    }),
+  );
+  assert.ok(validateInstalled(root).errors.some((error) => /unresolved|placeholder/i.test(error)));
+});
+
+test("validateInstalled rejects a hook command rooted outside the installed Cursor home", (t) => {
+  const root = tmpRoot(t);
+  installedTree(root);
+  const outside = path.resolve(root, "..", "outside", "scripts", "hooks", "ospec-hooks-launch.js")
+    .split(path.sep)
+    .join("/");
+  write(
+    root,
+    "hooks.json",
+    JSON.stringify({ version: 1, hooks: { stop: [{ command: `node "${outside}" stop` }] } }),
+  );
+  assert.ok(validateInstalled(root).errors.some((error) => /outside|installed Cursor root/i.test(error)));
+});
+
+test("validateInstalled rejects a missing or non-regular host binary", (t) => {
+  const missingRoot = tmpRoot(t);
+  const { binary } = installedTree(missingRoot);
+  fs.rmSync(binary);
+  assert.ok(validateInstalled(missingRoot).errors.some((error) => /binary.*missing|required binary/i.test(error)));
+
+  const directoryRoot = tmpRoot(t);
+  const installed = installedTree(directoryRoot);
+  fs.rmSync(installed.binary);
+  fs.mkdirSync(installed.binary);
+  assert.ok(validateInstalled(directoryRoot).errors.some((error) => /binary.*regular file|not a file/i.test(error)));
+});
+
+test(
+  "validateInstalled rejects a non-executable host binary on POSIX",
+  (t) => {
+    const root = tmpRoot(t);
+    const { binary } = installedTree(root);
+    fs.chmodSync(binary, 0o644);
+    assert.ok(validateInstalled(root, { platform: "linux" }).errors.some((error) => /executable/i.test(error)));
+  },
+);
+
+test("validateInstalled fails closed for missing roots and unreadable installed artifacts", (t) => {
+  const missing = path.join(tmpRoot(t), "missing");
+  assert.ok(validateInstalled(missing).errors.some((error) => /not a directory/i.test(error)));
+
+  const fileRoot = path.join(tmpRoot(t), "cursor-file");
+  fs.writeFileSync(fileRoot, "not-a-directory");
+  assert.ok(validateInstalled(fileRoot).errors.some((error) => /not a directory/i.test(error)));
+
+  const inaccessibleRoot = tmpRoot(t);
+  const rootFs = new Proxy(fs, {
+    get(target, property) {
+      if (property === "statSync") return () => { throw new Error("root stat denied"); };
+      const value = target[property];
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  assert.ok(validateInstalled(inaccessibleRoot, { fs: rootFs }).errors.some((error) => /root stat denied/i.test(error)));
+
+  const hooksRoot = tmpRoot(t);
+  installedTree(hooksRoot);
+  const hooksPath = path.join(hooksRoot, "hooks.json");
+  const hooksFs = new Proxy(fs, {
+    get(target, property) {
+      if (property === "readFileSync") {
+        return (candidate, ...args) => {
+          if (path.resolve(candidate) === path.resolve(hooksPath)) throw new Error("hooks read denied");
+          return target.readFileSync(candidate, ...args);
+        };
+      }
+      const value = target[property];
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  assert.ok(validateInstalled(hooksRoot, { fs: hooksFs }).errors.some((error) => /hooks read denied/i.test(error)));
+
+  const binaryRoot = tmpRoot(t);
+  const { binary } = installedTree(binaryRoot);
+  const binaryFs = new Proxy(fs, {
+    get(target, property) {
+      if (property === "lstatSync") {
+        return (candidate, ...args) => {
+          if (path.resolve(candidate) === path.resolve(binary)) throw new Error("binary stat denied");
+          return target.lstatSync(candidate, ...args);
+        };
+      }
+      const value = target[property];
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  assert.ok(validateInstalled(binaryRoot, { fs: binaryFs }).errors.some((error) => /binary stat denied/i.test(error)));
+});
+
+test("validateInstalled reports malformed hook JSON and invalid hook shapes", (t) => {
+  const malformedRoot = tmpRoot(t);
+  installedTree(malformedRoot);
+  write(malformedRoot, "hooks.json", "{");
+  assert.ok(validateInstalled(malformedRoot).errors.some((error) => /valid JSON/i.test(error)));
+
+  const invalidRoot = tmpRoot(t);
+  installedTree(invalidRoot);
+  write(
+    invalidRoot,
+    "hooks.json",
+    JSON.stringify({
+      version: 2,
+      hooks: {
+        SubagentStop: [{ command: 42 }],
+        futureEvent: "not-an-array",
+        stop: [null, { command: "node ./relative.js stop" }],
+      },
+    }),
+  );
+  const errors = validateInstalled(invalidRoot).errors.join("\n");
+  assert.match(errors, /version: 1/);
+  assert.match(errors, /SubagentStop/);
+  assert.match(errors, /unmapped event: futureEvent/);
+  assert.match(errors, /must map to an array/);
+  assert.match(errors, /must be an action object/);
+  assert.match(errors, /command must be a string/);
+  assert.match(errors, /outside the installed Cursor root/);
+
+  write(invalidRoot, "hooks.json", JSON.stringify({ version: 1, hooks: [] }));
+  assert.ok(validateInstalled(invalidRoot).errors.some((error) => /hooks object/i.test(error)));
+});
+
+function failingFs(method, predicate, message) {
+  return new Proxy(fs, {
+    get(target, property) {
+      if (property === method) {
+        return (...args) => {
+          if (predicate(...args)) throw new Error(message);
+          return target[property](...args);
+        };
+      }
+      const value = target[property];
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
+
+test("validate generated converts root stat, walk, read, and hook races into errors", (t) => {
+  const root = tmpRoot(t);
+  cleanTree(root);
+
+  const rootStatFs = failingFs(
+    "statSync",
+    (candidate) => path.resolve(candidate) === path.resolve(root),
+    "generated root stat denied",
+  );
+  assert.doesNotThrow(() => validate(root, { fs: rootStatFs }));
+  assert.ok(validate(root, { fs: rootStatFs }).errors.some((error) => /root stat denied/i.test(error)));
+
+  const agentsDir = path.join(root, "agents");
+  const walkFs = failingFs(
+    "readdirSync",
+    (candidate) => path.resolve(candidate) === path.resolve(agentsDir),
+    "agents walk denied",
+  );
+  assert.ok(validate(root, { fs: walkFs }).errors.some((error) => /agents walk denied/i.test(error)));
+
+  const agentFile = path.join(root, "agents", "sdd-apply.md");
+  const readFs = failingFs(
+    "readFileSync",
+    (candidate) => path.resolve(candidate) === path.resolve(agentFile),
+    "agent read denied",
+  );
+  assert.ok(validate(root, { fs: readFs }).errors.some((error) => /agent read denied/i.test(error)));
+
+  const hooksPath = path.join(root, "hooks.json");
+  const hooksRaceFs = failingFs(
+    "statSync",
+    (candidate) => path.resolve(candidate) === path.resolve(hooksPath),
+    "hooks stat race",
+  );
+  assert.ok(validate(root, { fs: hooksRaceFs }).errors.some((error) => /hooks stat race/i.test(error)));
+});
+
+test("validateInstalled converts common-tree walk failures into errors", (t) => {
+  const root = tmpRoot(t);
+  installedTree(root);
+  const rulesDir = path.join(root, "rules");
+  const ioFs = failingFs(
+    "readdirSync",
+    (candidate) => path.resolve(candidate) === path.resolve(rulesDir),
+    "installed rules walk denied",
+  );
+  assert.doesNotThrow(() => validateInstalled(root, { fs: ioFs }));
+  assert.ok(validateInstalled(root, { fs: ioFs }).errors.some((error) => /rules walk denied/i.test(error)));
+
+  const hooksPath = path.join(root, "hooks.json");
+  const hookRaceFs = failingFs(
+    "statSync",
+    (candidate) => path.resolve(candidate) === path.resolve(hooksPath),
+    "installed hooks stat race",
+  );
+  assert.doesNotThrow(() => validateInstalled(root, { fs: hookRaceFs }));
+  assert.ok(validateInstalled(root, { fs: hookRaceFs }).errors.some((error) => /hooks stat race/i.test(error)));
 });

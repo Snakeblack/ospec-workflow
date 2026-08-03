@@ -8,6 +8,16 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.37.1] - 2026-08-03
+
+### Fixed
+- **Instalación completa y rollback (Targets)**: Completa la sincronización de artefactos gestionados y aplica rollback transaccional ante fallos tardíos, restaurando bytes y permisos, retirando altas MCP parciales y limpiando directorios nuevos sin alterar archivos del usuario.
+- **Validación binaria fail-closed (Copilot y Cursor)**: Distingue contenido binario real de texto por su contenido, exige el ejecutable nativo requerido y convierte errores, carreras y artefactos ilegibles del filesystem en fallos de validación explícitos.
+
+### Changed
+- **Idempotencia real (Codex y Cursor)**: Las reinstalaciones convergen sin duplicar agentes, hooks o MCP, preservan configuración y autenticación del usuario, y mantienen sin cambios los digests de los árboles gestionados.
+- **Evidencia de verificación (Setup de targets)**: Valida 127 pruebas focales y una suite global con 1.734 pruebas aprobadas, 2 omitidas y 0 fallos; cobertura combinada de 89,41% en líneas, 84,64% en ramas y 95,35% en funciones.
+
 ## [2.37.0] - 2026-08-03
 
 ### Added

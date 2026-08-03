@@ -8,17 +8,89 @@ const test = require("node:test");
 
 const {
   assertCursorPathSafe,
+  createRollbackJournal,
   expandCursorHooksPlaceholder,
   syncTreeByContent,
   installHooksJson,
   parseArgs,
   main,
 } = require("./install-cursor.js");
+const { hostBinarySuffix } = require("./install-target.js");
+const { validate, validateInstalled } = require("./validate-cursor.js");
+
+const ROOT = path.resolve(__dirname, "..", "..");
 
 function makeTempDir(t, prefix) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   return dir;
+}
+
+function write(root, rel, content) {
+  const destination = path.join(root, rel);
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.writeFileSync(destination, content);
+}
+
+function stageRealSource(t, sandbox, { withBinary = true } = {}) {
+  const sourceDir = path.join(sandbox, "source");
+  fs.mkdirSync(sourceDir, { recursive: true });
+  for (const rel of ["agents", "commands", "rules", "skills", "hooks", "scripts/hooks", "scripts/lib"]) {
+    fs.cpSync(path.join(ROOT, rel), path.join(sourceDir, rel), { recursive: true });
+  }
+  for (const rel of [".claude-plugin/plugin.json", ".mcp.json", "models.yaml", "AGENTS.md"]) {
+    const source = path.join(ROOT, rel);
+    if (fs.existsSync(source)) {
+      fs.mkdirSync(path.dirname(path.join(sourceDir, rel)), { recursive: true });
+      fs.copyFileSync(source, path.join(sourceDir, rel));
+    }
+  }
+  if (withBinary) {
+    const { os: goos, arch, ext } = hostBinarySuffix();
+    write(sourceDir, path.join("release", "dist", `ospec-hooks-${goos}-${arch}${ext}`), "cursor-binary-fixture");
+  }
+  return sourceDir;
+}
+
+function treeSnapshot(root, ignored = new Set()) {
+  const snapshot = {};
+  function visit(dir, rel = "") {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const childRel = rel ? `${rel}/${entry.name}` : entry.name;
+      if (ignored.has(childRel)) continue;
+      const absolute = path.join(dir, entry.name);
+      if (entry.isDirectory()) visit(absolute, childRel);
+      else if (entry.isFile()) snapshot[childRel] = fs.readFileSync(absolute).toString("base64");
+    }
+  }
+  visit(root);
+  return snapshot;
+}
+
+function sandboxedFs(sandbox) {
+  const resolvedSandbox = path.resolve(sandbox);
+  const inside = (candidate) => {
+    const rel = path.relative(resolvedSandbox, path.resolve(candidate));
+    return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+  };
+  const mutationTargets = {
+    mkdirSync: [0],
+    writeFileSync: [0],
+    copyFileSync: [1],
+    chmodSync: [0],
+  };
+  return new Proxy(fs, {
+    get(target, property) {
+      const value = target[property];
+      if (typeof value !== "function") return value;
+      return (...args) => {
+        for (const index of mutationTargets[property] || []) {
+          if (!inside(args[index])) throw new Error(`write outside sandbox: ${args[index]}`);
+        }
+        return value.apply(target, args);
+      };
+    },
+  });
 }
 
 test("assertCursorPathSafe refuses filesystem root", () => {
@@ -87,6 +159,17 @@ test("expandCursorHooksPlaceholder always quotes the expanded path", () => {
 
 test("expandCursorHooksPlaceholder is a no-op without the marker", () => {
   assert.equal(expandCursorHooksPlaceholder("node ./x.js", "C:/Users/a/.cursor"), "node ./x.js");
+});
+
+test("expandCursorHooksPlaceholder shell-quotes quotes, backslashes, dollars, and backticks exactly", () => {
+  const cursorRoot = 'C:/Users/a"b\\c$d`e/.cursor';
+  assert.equal(
+    expandCursorHooksPlaceholder(
+      "node __OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks-launch.js stop",
+      cursorRoot,
+    ),
+    'node "C:/Users/a\\"b\\\\c\\$d\\`e/.cursor/scripts/hooks/ospec-hooks-launch.js" stop',
+  );
 });
 
 test("installHooksJson expands placeholder and dry-run writes nothing", (t) => {
@@ -227,4 +310,271 @@ test("main --dry-run with injected deps writes nothing under cursor home", (t) =
   assert.equal(code, 0);
   assert.deepEqual(writes, []);
   assert.ok(!fs.existsSync(cursorRoot) || fs.readdirSync(cursorRoot).length === 0);
+});
+
+test("main performs a real isolated generate-validate-install round-trip and converges on rerun", (t) => {
+  const sandbox = makeTempDir(t, "cursor-roundtrip-");
+  const sourceDir = stageRealSource(t, sandbox);
+  const homeDir = path.join(sandbox, "home");
+  const cursorRoot = path.join(homeDir, ".cursor");
+  const foreignRel = "user-owned/notes.txt";
+  write(cursorRoot, foreignRel, "do-not-touch\n");
+  const stdout = { write() {} };
+  const stderrChunks = [];
+  const deps = {
+    fs: sandboxedFs(sandbox),
+    homedir: () => homeDir,
+    stdout,
+    stderr: { write(chunk) { stderrChunks.push(chunk); } },
+  };
+
+  assert.equal(main(["--source", sourceDir], deps), 0, stderrChunks.join(""));
+  const outDir = path.join(sourceDir, "dist", "cursor");
+  assert.deepEqual(validate(outDir).errors, []);
+  assert.deepEqual(validateInstalled(cursorRoot).errors, []);
+
+  const installedHooks = fs.readFileSync(path.join(cursorRoot, "hooks.json"), "utf8");
+  const cursorRootPosix = path.resolve(cursorRoot).split(path.sep).join("/");
+  assert.doesNotMatch(installedHooks, /__OSPEC_CURSOR_ROOT__/);
+  assert.match(installedHooks, new RegExp(cursorRootPosix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  const { ext } = hostBinarySuffix();
+  assert.equal(
+    fs.readFileSync(path.join(cursorRoot, "scripts", "hooks", `ospec-hooks${ext}`), "utf8"),
+    "cursor-binary-fixture",
+  );
+  const beforeSecondRun = treeSnapshot(cursorRoot, new Set([foreignRel]));
+
+  assert.equal(main(["--source", sourceDir], deps), 0, stderrChunks.join(""));
+  assert.deepEqual(treeSnapshot(cursorRoot, new Set([foreignRel])), beforeSecondRun);
+  assert.equal(fs.readFileSync(path.join(cursorRoot, foreignRel), "utf8"), "do-not-touch\n");
+});
+
+test("main fails closed before writing Cursor home when the required binary is absent", (t) => {
+  const sandbox = makeTempDir(t, "cursor-required-binary-");
+  const sourceDir = stageRealSource(t, sandbox, { withBinary: false });
+  const homeDir = path.join(sandbox, "home");
+  const cursorRoot = path.join(homeDir, ".cursor");
+  const stderrChunks = [];
+  const code = main(["--source", sourceDir], {
+    fs: sandboxedFs(sandbox),
+    homedir: () => homeDir,
+    stdout: { write() {} },
+    stderr: { write() {} },
+  });
+  assert.equal(code, 1);
+  assert.equal(fs.existsSync(cursorRoot), false);
+});
+
+test("main returns 1 when installed-layout validation fails", (t) => {
+  const sandbox = makeTempDir(t, "cursor-installed-invalid-");
+  const sourceDir = path.join(sandbox, "source");
+  const outDir = path.join(sourceDir, "dist", "cursor");
+  fs.mkdirSync(outDir, { recursive: true });
+  write(outDir, "hooks.json", JSON.stringify({ version: 1, hooks: {} }));
+  const code = main(["--source", sourceDir], {
+    homedir: () => path.join(sandbox, "home"),
+    runConfigure: () => ({ files: [], summary: [], exitCode: 0, validation: null }),
+    copyBinaryToTree() {},
+    syncTreeByContent: () => ({ updated: [], unchanged: [] }),
+    installHooksJson() {},
+    validateInstalled: () => ({ errors: ["installed layout corrupt"], warnings: [] }),
+    stdout: { write() {} },
+    stderr: { write() {} },
+  });
+  assert.equal(code, 1);
+});
+
+function rollbackTreeState(root) {
+  const state = {};
+  if (!fs.existsSync(root)) return state;
+  function visit(dir, rel = "") {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const childRel = rel ? `${rel}/${entry.name}` : entry.name;
+      const absolute = path.join(dir, entry.name);
+      if (entry.isDirectory()) visit(absolute, childRel);
+      else if (entry.isFile()) {
+        const stat = fs.statSync(absolute);
+        state[childRel] = { bytes: fs.readFileSync(absolute).toString("base64"), mode: stat.mode & 0o777 };
+      }
+    }
+  }
+  visit(root);
+  return state;
+}
+
+function rollbackFixture(t, failureStage) {
+  const sandbox = makeTempDir(t, `cursor-rollback-${failureStage}-`);
+  const sourceDir = path.join(sandbox, "source");
+  const outDir = path.join(sourceDir, "dist", "cursor");
+  const homeDir = path.join(sandbox, "home");
+  const cursorRoot = path.join(homeDir, ".cursor");
+  write(outDir, "agents/a.md", "new-agent\n");
+  write(outDir, "commands/new.md", "new-command\n");
+  write(
+    outDir,
+    "hooks.json",
+    JSON.stringify({
+      version: 1,
+      hooks: { stop: [{ command: "node __OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks-launch.js stop" }] },
+    }),
+  );
+  write(cursorRoot, "agents/a.md", "old-agent\n");
+  write(cursorRoot, "hooks.json", "old-hooks-bytes\n");
+  write(cursorRoot, "user-owned/notes.txt", "preserve-extra\n");
+  fs.chmodSync(path.join(cursorRoot, "agents", "a.md"), 0o600);
+  const before = rollbackTreeState(cursorRoot);
+  const stderrChunks = [];
+  const realFs = sandboxedFs(sandbox);
+  let injectedHooksFailure = false;
+  const failingFs = new Proxy(realFs, {
+    get(target, property) {
+      const value = target[property];
+      if (property === "copyFileSync") {
+        return (source, destination) => {
+          if (
+            failureStage === "sync" &&
+            path.resolve(destination) === path.resolve(cursorRoot, "commands", "new.md")
+          ) {
+            throw new Error("injected sync failure");
+          }
+          const result = value(source, destination);
+          if (path.resolve(destination) === path.resolve(cursorRoot, "agents", "a.md")) {
+            target.chmodSync(destination, 0o666);
+          }
+          return result;
+        };
+      }
+      if (failureStage === "hooks" && property === "writeFileSync") {
+        return (destination, ...args) => {
+          if (
+            !injectedHooksFailure &&
+            path.resolve(destination) === path.resolve(cursorRoot, "hooks.json")
+          ) {
+            injectedHooksFailure = true;
+            throw new Error("injected hooks failure");
+          }
+          return value(destination, ...args);
+        };
+      }
+      return value;
+    },
+  });
+
+  const code = main(["--source", sourceDir], {
+    fs: failingFs,
+    homedir: () => homeDir,
+    runConfigure: () => ({ files: [], summary: [], exitCode: 0, validation: null }),
+    copyBinaryToTree(destination) {
+      const { ext } = hostBinarySuffix();
+      write(destination, path.join("scripts", "hooks", `ospec-hooks${ext}`), "new-binary");
+    },
+    validateInstalled: () =>
+      failureStage === "postvalidate" ? { errors: ["injected validation failure"] } : { errors: [] },
+    stdout: { write() {} },
+    stderr: { write(chunk) { stderrChunks.push(chunk); } },
+  });
+  return { code, before, after: rollbackTreeState(cursorRoot), stderr: stderrChunks.join("") };
+}
+
+for (const failureStage of ["sync", "hooks", "postvalidate"]) {
+  test(`main rolls back bytes, modes, and new managed files after ${failureStage} failure`, (t) => {
+    const result = rollbackFixture(t, failureStage);
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, new RegExp(`injected ${failureStage === "postvalidate" ? "validation" : failureStage} failure`));
+    assert.deepEqual(result.after, result.before);
+  });
+}
+
+test("main removes a newly-created empty Cursor root when initial sync traversal fails", (t) => {
+  const sandbox = makeTempDir(t, "cursor-rollback-empty-root-");
+  const sourceDir = path.join(sandbox, "source");
+  const outDir = path.join(sourceDir, "dist", "cursor");
+  const homeDir = path.join(sandbox, "home");
+  const cursorRoot = path.join(homeDir, ".cursor");
+  fs.mkdirSync(outDir, { recursive: true });
+  const baseFs = sandboxedFs(sandbox);
+  let injected = false;
+  const failingFs = new Proxy(baseFs, {
+    get(target, property) {
+      const value = target[property];
+      if (property === "readdirSync") {
+        return (candidate, ...args) => {
+          if (!injected && path.resolve(candidate) === path.resolve(outDir)) {
+            injected = true;
+            throw new Error("initial traversal failure");
+          }
+          return value(candidate, ...args);
+        };
+      }
+      return value;
+    },
+  });
+
+  const code = main(["--source", sourceDir], {
+    fs: failingFs,
+    homedir: () => homeDir,
+    runConfigure: () => ({ files: [], summary: [], exitCode: 0, validation: null }),
+    copyBinaryToTree() {},
+    stdout: { write() {} },
+    stderr: { write() {} },
+  });
+
+  assert.equal(code, 1);
+  assert.equal(fs.existsSync(cursorRoot), false);
+});
+
+test("rollback removes managed-new empty directories and preserves preexisting empty directories", (t) => {
+  const sandbox = makeTempDir(t, "cursor-rollback-empty-dirs-");
+  const sourceDir = path.join(sandbox, "source");
+  const outDir = path.join(sourceDir, "dist", "cursor");
+  const homeDir = path.join(sandbox, "home");
+  const cursorRoot = path.join(homeDir, ".cursor");
+  fs.mkdirSync(path.join(outDir, "managed-new", "nested"), { recursive: true });
+  fs.mkdirSync(path.join(outDir, "managed-existing"), { recursive: true });
+  write(
+    outDir,
+    "hooks.json",
+    JSON.stringify({
+      version: 1,
+      hooks: { stop: [{ command: "node __OSPEC_CURSOR_ROOT__/scripts/hooks/ospec-hooks-launch.js stop" }] },
+    }),
+  );
+  fs.mkdirSync(path.join(cursorRoot, "managed-existing"), { recursive: true });
+  fs.mkdirSync(path.join(cursorRoot, "user-owned-empty"), { recursive: true });
+
+  const code = main(["--source", sourceDir], {
+    fs: sandboxedFs(sandbox),
+    homedir: () => homeDir,
+    runConfigure: () => ({ files: [], summary: [], exitCode: 0, validation: null }),
+    copyBinaryToTree() {},
+    validateInstalled: () => ({ errors: ["injected post-sync failure"] }),
+    stdout: { write() {} },
+    stderr: { write() {} },
+  });
+
+  assert.equal(code, 1);
+  assert.equal(fs.existsSync(path.join(cursorRoot, "managed-new")), false);
+  assert.equal(fs.statSync(path.join(cursorRoot, "managed-existing")).isDirectory(), true);
+  assert.equal(fs.statSync(path.join(cursorRoot, "user-owned-empty")).isDirectory(), true);
+});
+
+test("rollback refuses a symlink substituted for a managed-new directory", (t) => {
+  const sandbox = makeTempDir(t, "cursor-rollback-dir-symlink-");
+  const cursorRoot = path.join(sandbox, ".cursor");
+  const managedDir = path.join(cursorRoot, "managed-new");
+  const outside = path.join(sandbox, "outside");
+  fs.mkdirSync(cursorRoot);
+  fs.mkdirSync(outside);
+  write(outside, "sentinel.txt", "outside-preserved\n");
+  const journal = createRollbackJournal(cursorRoot);
+  journal.captureDirectory(managedDir);
+  try {
+    fs.symlinkSync(outside, managedDir, "junction");
+  } catch (error) {
+    t.skip(`symlink unavailable: ${error.message}`);
+    return;
+  }
+
+  assert.throws(() => journal.rollback(), /symlink|rollback incomplete/i);
+  assert.equal(fs.readFileSync(path.join(outside, "sentinel.txt"), "utf8"), "outside-preserved\n");
 });

@@ -13,7 +13,7 @@ const {
   copyCodexAgents,
   installCodexHooks,
   copyCodexRuntime,
-  syncCodexAgentSkills,
+  syncCodexSkills,
   readCodexMcpDefinitions,
   ensureCodexMcps,
   assertManagedPathSafe,
@@ -30,6 +30,47 @@ function readRepoFile(...segments) {
   return fs.readFileSync(path.join(__dirname, "..", "..", ...segments), "utf8");
 }
 
+function snapshotTree(root) {
+  const snapshot = [];
+  const walk = (absolute, relative = "") => {
+    if (!fs.existsSync(absolute)) return;
+    for (const entry of fs.readdirSync(absolute, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const childRelative = relative ? path.join(relative, entry.name) : entry.name;
+      const childAbsolute = path.join(absolute, entry.name);
+      const stat = fs.lstatSync(childAbsolute);
+      if (entry.isDirectory()) {
+        snapshot.push(["dir", childRelative, stat.mode & 0o777]);
+        walk(childAbsolute, childRelative);
+      } else if (entry.isFile()) {
+        snapshot.push(["file", childRelative, stat.mode & 0o777, fs.readFileSync(childAbsolute, "hex")]);
+      } else {
+        snapshot.push(["other", childRelative, stat.mode & 0o777]);
+      }
+    }
+  };
+  walk(root);
+  return snapshot;
+}
+
+function failOnceFs(method, destinationPattern) {
+  let failed = false;
+  return new Proxy(fs, {
+    get(target, property) {
+      if (property !== method) return target[property];
+      return (...args) => {
+        const destination = method === "copyFileSync" ? args[1] : args[0];
+        if (!failed && destinationPattern.test(String(destination))) {
+          failed = true;
+          const error = new Error(`injected ${method} failure`);
+          error.code = "EIO";
+          throw error;
+        }
+        return target[property](...args);
+      };
+    },
+  });
+}
+
 function writeGeneratedCodexTree(root) {
   fs.mkdirSync(path.join(root, ".codex", "agents"), { recursive: true });
   fs.writeFileSync(path.join(root, ".codex", "agents", "apply.toml"), 'name = "apply"\n');
@@ -40,10 +81,13 @@ function writeGeneratedCodexTree(root) {
   fs.mkdirSync(path.join(root, "skills", "apply"), { recursive: true });
   fs.mkdirSync(path.join(root, "skills", "verify"), { recursive: true });
   fs.mkdirSync(path.join(root, "skills", "_shared"), { recursive: true });
+  fs.mkdirSync(path.join(root, "skills", "standalone-tool", "references"), { recursive: true });
   fs.writeFileSync(path.join(root, "scripts", "hooks", "session-start.js"), "// runtime\n");
   fs.writeFileSync(path.join(root, "skills", "apply", "SKILL.md"), "# Apply\n");
   fs.writeFileSync(path.join(root, "skills", "verify", "SKILL.md"), "# Verify\n");
   fs.writeFileSync(path.join(root, "skills", "_shared", "shared.md"), "shared\n");
+  fs.writeFileSync(path.join(root, "skills", "standalone-tool", "SKILL.md"), "# Standalone\n");
+  fs.writeFileSync(path.join(root, "skills", "standalone-tool", "references", "nested.txt"), "nested\n");
   fs.writeFileSync(
     path.join(root, "hooks.json"),
     JSON.stringify({
@@ -113,7 +157,7 @@ test("global native runtime installs hooks and keeps skills outside the runtime"
   const runtimeDir = path.join(codexRoot, "ospec-workflow");
   const skillsRoot = path.join(codexRoot, "..", ".agents", "skills");
   copyCodexRuntime(outDir, runtimeDir);
-  syncCodexAgentSkills(outDir, skillsRoot);
+  syncCodexSkills(outDir, skillsRoot);
   installCodexHooks(outDir, codexRoot, runtimeDir);
 
   const installed = JSON.parse(fs.readFileSync(path.join(codexRoot, "hooks.json"), "utf8"));
@@ -125,6 +169,8 @@ test("global native runtime installs hooks and keeps skills outside the runtime"
   assert.equal(fs.readFileSync(path.join(skillsRoot, "apply", "SKILL.md"), "utf8"), "# Apply\n");
   assert.equal(fs.readFileSync(path.join(skillsRoot, "verify", "SKILL.md"), "utf8"), "# Verify\n");
   assert.ok(fs.existsSync(path.join(skillsRoot, "_shared", "shared.md")));
+  assert.equal(fs.readFileSync(path.join(skillsRoot, "standalone-tool", "SKILL.md"), "utf8"), "# Standalone\n");
+  assert.equal(fs.readFileSync(path.join(skillsRoot, "standalone-tool", "references", "nested.txt"), "utf8"), "nested\n");
 });
 
 test("copyCodexRuntime refreshes changed runtime bytes and is idempotent", (t) => {
@@ -147,19 +193,102 @@ test("copyCodexRuntime refreshes changed runtime bytes and is idempotent", (t) =
   assert.ok(third.unchanged.some((file) => file.endsWith(path.join("scripts", "hooks", "subagent-stop.js"))));
 });
 
-test("syncCodexAgentSkills updates differing content and skips byte-identical files", (t) => {
+test("copyCodexRuntime is a no-op when the generated runtime is absent", (t) => {
+  const outDir = makeTempDir(t, "codex-runtime-absent-source-");
+  const runtimeDir = makeTempDir(t, "codex-runtime-absent-dest-");
+
+  assert.deepEqual(copyCodexRuntime(outDir, runtimeDir, { fs }), { updated: [], unchanged: [] });
+  assert.deepEqual(fs.readdirSync(runtimeDir), []);
+});
+
+test("syncCodexSkills installs every generated skill recursively, preserves extras, and is idempotent", (t) => {
   const outDir = makeTempDir(t, "codex-skills-source-");
   const skillsRoot = makeTempDir(t, "codex-skills-dest-");
   writeGeneratedCodexTree(outDir);
   fs.mkdirSync(path.join(skillsRoot, "apply"), { recursive: true });
   fs.writeFileSync(path.join(skillsRoot, "apply", "SKILL.md"), "old\n");
+  fs.mkdirSync(path.join(skillsRoot, "user-extra"), { recursive: true });
+  fs.writeFileSync(path.join(skillsRoot, "user-extra", "SKILL.md"), "keep\n");
+  fs.mkdirSync(path.join(skillsRoot, "stale-ospec"), { recursive: true });
+  fs.writeFileSync(path.join(skillsRoot, "stale-ospec", "SKILL.md"), "preserve-without-manifest\n");
 
-  const first = syncCodexAgentSkills(outDir, skillsRoot);
-  const second = syncCodexAgentSkills(outDir, skillsRoot);
+  const first = syncCodexSkills(outDir, skillsRoot);
+  const second = syncCodexSkills(outDir, skillsRoot);
 
   assert.equal(fs.readFileSync(path.join(skillsRoot, "apply", "SKILL.md"), "utf8"), "# Apply\n");
+  assert.equal(fs.readFileSync(path.join(skillsRoot, "standalone-tool", "SKILL.md"), "utf8"), "# Standalone\n");
+  assert.equal(fs.readFileSync(path.join(skillsRoot, "standalone-tool", "references", "nested.txt"), "utf8"), "nested\n");
+  assert.equal(fs.readFileSync(path.join(skillsRoot, "user-extra", "SKILL.md"), "utf8"), "keep\n");
+  assert.equal(fs.readFileSync(path.join(skillsRoot, "stale-ospec", "SKILL.md"), "utf8"), "preserve-without-manifest\n");
   assert.ok(first.updated.some((file) => file.endsWith(path.join("apply", "SKILL.md"))));
   assert.equal(second.updated.length, 0);
+});
+
+test("syncCodexSkills fails closed before a nested destination symlink can escape", (t) => {
+  const outDir = makeTempDir(t, "codex-skills-symlink-source-");
+  const homeDir = makeTempDir(t, "codex-skills-symlink-home-");
+  const outsideDir = makeTempDir(t, "codex-skills-symlink-outside-");
+  const skillsRoot = path.join(homeDir, ".agents", "skills");
+  writeGeneratedCodexTree(outDir);
+  fs.mkdirSync(skillsRoot, { recursive: true });
+
+  try {
+    fs.symlinkSync(outsideDir, path.join(skillsRoot, "standalone-tool"), "junction");
+  } catch {
+    t.skip("symlink creation unavailable");
+    return;
+  }
+
+  assert.throws(
+    () => syncCodexSkills(outDir, skillsRoot, { approvedRoot: homeDir }),
+    /redirects through a symlinked or canonicalized path/i,
+  );
+  assert.ok(!fs.existsSync(path.join(outsideDir, "SKILL.md")));
+  assert.ok(!fs.existsSync(path.join(skillsRoot, "apply", "SKILL.md")), "preflight must prevent partial skill writes");
+});
+
+test("syncCodexSkills fails closed when the generated skills root is missing or redirected", (t) => {
+  const outDir = makeTempDir(t, "codex-skills-invalid-source-");
+  const skillsRoot = makeTempDir(t, "codex-skills-invalid-dest-");
+
+  assert.throws(
+    () => syncCodexSkills(outDir, skillsRoot, { fs }),
+    /generated Codex skills root must be a real directory/i,
+  );
+
+  const outsideDir = makeTempDir(t, "codex-skills-source-outside-");
+  fs.writeFileSync(path.join(outsideDir, "SKILL.md"), "outside\n");
+  try {
+    fs.symlinkSync(outsideDir, path.join(outDir, "skills"), "junction");
+  } catch {
+    t.skip("symlink creation unavailable");
+    return;
+  }
+
+  assert.throws(
+    () => syncCodexSkills(outDir, skillsRoot, { fs }),
+    /generated Codex skills root must be a real directory/i,
+  );
+  assert.deepEqual(fs.readdirSync(skillsRoot), []);
+});
+
+test("syncCodexSkills rejects non-file entries in the generated skill tree", (t) => {
+  const outDir = makeTempDir(t, "codex-skills-special-source-");
+  const skillsRoot = makeTempDir(t, "codex-skills-special-dest-");
+  const outsideDir = makeTempDir(t, "codex-skills-special-outside-");
+  fs.mkdirSync(path.join(outDir, "skills"), { recursive: true });
+  try {
+    fs.symlinkSync(outsideDir, path.join(outDir, "skills", "redirected"), "junction");
+  } catch {
+    t.skip("symlink creation unavailable");
+    return;
+  }
+
+  assert.throws(
+    () => syncCodexSkills(outDir, skillsRoot, { fs }),
+    /must be a regular file or directory/i,
+  );
+  assert.deepEqual(fs.readdirSync(skillsRoot), []);
 });
 
 
@@ -248,6 +377,27 @@ test("readCodexMcpDefinitions normalizes legacy slash-qualified names for Codex"
   ]);
 });
 
+test("readCodexMcpDefinitions rejects unknown or changed identities without echoing untrusted values", (t) => {
+  const sourceDir = makeTempDir(t, "codex-untrusted-mcp-");
+  const cases = [
+    { "unknown-secret-name": { command: "secret-command", args: ["secret-arg"] } },
+    { context7: { command: "secret-command", args: ["@upstash/context7-mcp@1.0.31"] } },
+    { markitdown: { command: "uvx", args: ["secret-arg"] } },
+  ];
+
+  for (const mcpServers of cases) {
+    fs.writeFileSync(path.join(sourceDir, ".mcp.json"), JSON.stringify({ mcpServers }));
+    assert.throws(
+      () => readCodexMcpDefinitions(sourceDir),
+      (error) => {
+        assert.match(error.message, /unsupported Codex MCP definition/i);
+        assert.doesNotMatch(error.message, /secret/i);
+        return true;
+      },
+    );
+  }
+});
+
 test("ensureCodexMcps is idempotent when all required identities already exist", () => {
   const calls = [];
   const definitions = [
@@ -274,6 +424,125 @@ test("ensureCodexMcps is idempotent when all required identities already exist",
 
   assert.equal(exitCode, 0);
   assert.deepEqual(calls, [["codex", "mcp", "list", "--json"]]);
+});
+
+test("ensureCodexMcps removes only additions from the current attempt when a later add fails", () => {
+  const calls = [];
+  const definitions = [
+    { name: "context7", command: "npx", args: ["@upstash/context7-mcp@1.0.31"] },
+    { name: "markitdown", command: "uvx", args: ["markitdown-mcp@0.0.1a4"] },
+  ];
+  const exitCode = ensureCodexMcps("codex", definitions, {
+    stdout: { write() {} },
+    stderr: { write() {} },
+    runCodexCommand(bin, args) {
+      calls.push([bin, ...args]);
+      if (args.join(" ") === "mcp list --json") {
+        return {
+          status: 0,
+          stdout: JSON.stringify([{
+            name: "user-owned",
+            transport: { type: "stdio", command: "user-command", args: [] },
+          }]),
+          stderr: "",
+        };
+      }
+      if (args.slice(0, 3).join(" ") === "mcp add markitdown") {
+        return { status: 9, stdout: "", stderr: "add failed\n" };
+      }
+      return { status: 0, stdout: "", stderr: "" };
+    },
+  });
+
+  assert.equal(exitCode, 9);
+  assert.deepEqual(calls, [
+    ["codex", "mcp", "list", "--json"],
+    ["codex", "mcp", "add", "context7", "--", "npx", "@upstash/context7-mcp@1.0.31"],
+    ["codex", "mcp", "add", "markitdown", "--", "uvx", "markitdown-mcp@0.0.1a4"],
+    ["codex", "mcp", "remove", "context7"],
+  ]);
+  assert.ok(!calls.some((call) => call.slice(1).join(" ") === "mcp remove user-owned"));
+});
+
+test("ensureCodexMcps compensates prior additions when a later CLI invocation throws", () => {
+  const calls = [];
+  assert.equal(ensureCodexMcps("codex", [
+    { name: "context7", command: "npx", args: ["@upstash/context7-mcp@1.0.31"] },
+    { name: "markitdown", command: "uvx", args: ["markitdown-mcp@0.0.1a4"] },
+  ], {
+    stdout: { write() {} },
+    stderr: { write() {} },
+    runCodexCommand(bin, args) {
+      calls.push([bin, ...args]);
+      if (args.join(" ") === "mcp list --json") return { status: 0, stdout: "[]", stderr: "" };
+      if (args.slice(0, 3).join(" ") === "mcp add markitdown") throw new Error("runner failed");
+      return { status: 0, stdout: "", stderr: "" };
+    },
+  }), 1);
+  assert.deepEqual(calls.at(-1), ["codex", "mcp", "remove", "context7"]);
+});
+
+test("ensureCodexMcps rejects unsupported direct definitions before invoking the CLI", () => {
+  const stderr = [];
+  let calls = 0;
+  const exitCode = ensureCodexMcps("codex", [{
+    name: "unknown-secret-name",
+    command: "secret-command",
+    args: ["secret-arg"],
+  }], {
+    stderr: { write: (chunk) => stderr.push(chunk) },
+    runCodexCommand() {
+      calls += 1;
+      return { status: 0, stdout: "[]", stderr: "" };
+    },
+  });
+
+  assert.equal(exitCode, 1);
+  assert.equal(calls, 0);
+  assert.match(stderr.join(""), /unsupported Codex MCP definition/i);
+  assert.doesNotMatch(stderr.join(""), /secret/i);
+});
+
+test("ensureCodexMcps fails closed on unusable list responses", () => {
+  const definition = [{ name: "context7", command: "npx", args: ["@upstash/context7-mcp@1.0.31"] }];
+  const stderr = [];
+  const responses = [
+    { status: null, stdout: "[]", stderr: "list failed\n" },
+    { status: 0, stdout: "not-json", stderr: "" },
+    { status: 0, stdout: "{}", stderr: "" },
+  ];
+
+  assert.equal(ensureCodexMcps("codex", [], { runCodexCommand() { throw new Error("must not run"); } }), 0);
+  for (const response of responses) {
+    assert.equal(ensureCodexMcps("codex", definition, {
+      stderr: { write: (chunk) => stderr.push(chunk) },
+      stdout: { write() {} },
+      runCodexCommand: () => response,
+    }), 1);
+  }
+  assert.match(stderr.join(""), /failed while listing|invalid JSON|unexpected JSON shape/);
+});
+
+test("installCodexHooks rejects malformed generated and existing hook maps without overwriting", (t) => {
+  const outDir = makeTempDir(t, "codex-hooks-invalid-source-");
+  const codexRoot = makeTempDir(t, "codex-hooks-invalid-dest-");
+  const runtimeDir = path.join(codexRoot, "ospec-workflow");
+
+  assert.equal(installCodexHooks(outDir, codexRoot, runtimeDir, { fs }), undefined);
+  fs.writeFileSync(path.join(outDir, "hooks.json"), "{}\n");
+  assert.throws(
+    () => installCodexHooks(outDir, codexRoot, runtimeDir, { fs }),
+    /generated Codex hooks\.json must contain a hooks object/i,
+  );
+
+  fs.writeFileSync(path.join(outDir, "hooks.json"), JSON.stringify({ hooks: { Stop: [] } }));
+  fs.writeFileSync(path.join(codexRoot, "hooks.json"), JSON.stringify({ hooks: [] }));
+  const before = fs.readFileSync(path.join(codexRoot, "hooks.json"), "utf8");
+  assert.throws(
+    () => installCodexHooks(outDir, codexRoot, runtimeDir, { fs }),
+    /existing Codex hooks\.json must contain a hooks object/i,
+  );
+  assert.equal(fs.readFileSync(path.join(codexRoot, "hooks.json"), "utf8"), before);
 });
 
 test("main falls back to manual Codex commands when the CLI is unavailable", (t) => {
@@ -524,6 +793,34 @@ test("assertManagedPathSafe: accepts valid paths inside the root", (t) => {
   assert.doesNotThrow(() => assertManagedPathSafe(root, managed));
 });
 
+test("assertManagedPathSafe: accepts a legitimate destination when an existing ancestor canonicalizes through an OS alias", () => {
+  const lexicalParent = path.resolve("virtual-volume", "tmp");
+  const canonicalParent = path.resolve("canonical-volume", "tmp");
+  const root = path.join(lexicalParent, "codex-root");
+  const managedParent = path.join(root, "skills", "apply");
+  const managed = path.join(managedParent, "SKILL.md");
+  const missing = () => {
+    const error = new Error("missing fixture path");
+    error.code = "ENOENT";
+    throw error;
+  };
+  const fsWithAncestorAlias = {
+    lstatSync: missing,
+    realpathSync(target) {
+      if (target === root) return missing();
+      if (target === lexicalParent) return canonicalParent;
+      if (target === managedParent) {
+        return path.join(canonicalParent, "codex-root", "skills", "apply");
+      }
+      throw new Error(`unexpected fixture path: ${target}`);
+    },
+  };
+
+  assert.doesNotThrow(() =>
+    assertManagedPathSafe(root, managed, "Codex skill destination", fsWithAncestorAlias),
+  );
+});
+
 test("assertManagedPathSafe: rejects when managedPath itself is a symlink", (t) => {
   const root = makeTempDir(t, "codex-symlink-root-");
   const managed = path.join(root, "config.toml");
@@ -624,6 +921,11 @@ test("main global install is idempotent across the plugin channel and the agent 
   const homeDir = makeTempDir(t, "codex-idempotent-global-home-");
   const codexCalls = [];
   const configuredMcps = [];
+  fs.mkdirSync(path.join(homeDir, ".codex"), { recursive: true });
+  fs.writeFileSync(path.join(homeDir, ".codex", "config.toml"), "model = \"user-choice\"\n");
+  fs.writeFileSync(path.join(homeDir, ".codex", "auth.json"), "{\"token\":\"user-owned\"}\n");
+  fs.mkdirSync(path.join(homeDir, ".agents", "skills", "user-extra"), { recursive: true });
+  fs.writeFileSync(path.join(homeDir, ".agents", "skills", "user-extra", "SKILL.md"), "keep\n");
   fs.writeFileSync(
     path.join(sourceDir, ".mcp.json"),
     JSON.stringify({
@@ -673,9 +975,163 @@ test("main global install is idempotent across the plugin channel and the agent 
   assert.equal(secondExit, 0);
   assert.deepEqual(secondAgents, firstAgents);
   assert.equal(secondAgentMd, firstAgentMd);
-  assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "config.toml")));
+  assert.equal(fs.readFileSync(path.join(homeDir, ".codex", "config.toml"), "utf8"), "model = \"user-choice\"\n");
+  assert.equal(fs.readFileSync(path.join(homeDir, ".codex", "auth.json"), "utf8"), "{\"token\":\"user-owned\"}\n");
+  assert.equal(fs.readFileSync(path.join(homeDir, ".agents", "skills", "user-extra", "SKILL.md"), "utf8"), "keep\n");
+  assert.ok(fs.existsSync(path.join(homeDir, ".agents", "skills", "standalone-tool", "references", "nested.txt")));
   assert.equal(codexCalls.filter((call) => call.slice(1, 4).join(" ") === "mcp add markitdown").length, 1);
   assert.equal(codexCalls.filter((call) => call.slice(1).join(" ") === "mcp list --json").length, 2);
+});
+
+test("main rolls back managed filesystem bytes and modes after failures at every install stage", (t) => {
+  const failures = [
+    ["copyFileSync", /[\\/]\.codex[\\/]agents[\\/]apply\.toml$/],
+    ["copyFileSync", /[\\/]\.codex[\\/]ospec-workflow[\\/]scripts[\\/]hooks[\\/]session-start\.js$/],
+    ["copyFileSync", /[\\/]\.agents[\\/]skills[\\/]standalone-tool[\\/]SKILL\.md$/],
+    ["writeFileSync", /[\\/]\.codex[\\/]hooks\.json$/],
+    ["rmSync", /[\\/]\.codex[\\/]ospec-workflow[\\/]skills$/],
+  ];
+
+  for (const [method, pattern] of failures) {
+    const sourceDir = makeTempDir(t, `codex-rollback-source-${method}-`);
+    const homeDir = makeTempDir(t, `codex-rollback-home-${method}-`);
+    fs.mkdirSync(path.join(homeDir, ".codex", "agents"), { recursive: true });
+    fs.mkdirSync(path.join(homeDir, ".codex", "ospec-workflow", "scripts", "hooks"), { recursive: true });
+    fs.mkdirSync(path.join(homeDir, ".codex", "ospec-workflow", "skills", "legacy"), { recursive: true });
+    fs.mkdirSync(path.join(homeDir, ".agents", "skills", "apply"), { recursive: true });
+    fs.mkdirSync(path.join(homeDir, ".agents", "skills", "user-extra"), { recursive: true });
+    fs.writeFileSync(path.join(homeDir, ".codex", "AGENTS.md"), "old-agent\n");
+    fs.writeFileSync(path.join(homeDir, ".codex", "agents", "apply.toml"), "old-apply\n");
+    fs.chmodSync(path.join(homeDir, ".codex", "agents", "apply.toml"), 0o600);
+    fs.writeFileSync(path.join(homeDir, ".codex", "ospec-workflow", "scripts", "hooks", "session-start.js"), "old-runtime\n");
+    fs.writeFileSync(path.join(homeDir, ".codex", "ospec-workflow", "skills", "legacy", "SKILL.md"), "old-legacy\n");
+    fs.writeFileSync(path.join(homeDir, ".agents", "skills", "apply", "SKILL.md"), "old-skill\n");
+    fs.writeFileSync(path.join(homeDir, ".agents", "skills", "user-extra", "SKILL.md"), "keep-extra\n");
+    fs.writeFileSync(path.join(homeDir, ".codex", "hooks.json"), JSON.stringify({ hooks: { Stop: [{ matcher: ".*", hooks: [{ command: "user-hook" }] }] } }));
+    fs.writeFileSync(path.join(homeDir, ".codex", "config.toml"), "model = \"user-choice\"\n");
+    fs.writeFileSync(path.join(homeDir, ".codex", "auth.json"), "{\"token\":\"user-owned\"}\n");
+    const before = snapshotTree(homeDir);
+
+    const runInstall = (fsImpl) => main([], {
+      cwd: sourceDir,
+      homedir: () => homeDir,
+      fs: fsImpl,
+      stdout: { write() {} },
+      stderr: { write() {} },
+      findCodexBin: () => null,
+      runConfigure({ outDir }) {
+        writeGeneratedCodexTree(outDir);
+        return { exitCode: 0, validation: null };
+      },
+    });
+
+    assert.equal(runInstall(failOnceFs(method, pattern)), 1, `${method} ${pattern} must fail the install`);
+    assert.deepEqual(snapshotTree(homeDir), before, `${method} ${pattern} must restore the exact prior tree`);
+    assert.equal(runInstall(fs), 0, `${method} ${pattern} must allow a clean second run`);
+    assert.equal(fs.readFileSync(path.join(homeDir, ".agents", "skills", "user-extra", "SKILL.md"), "utf8"), "keep-extra\n");
+    assert.equal(fs.readFileSync(path.join(homeDir, ".codex", "config.toml"), "utf8"), "model = \"user-choice\"\n");
+    assert.equal(fs.readFileSync(path.join(homeDir, ".codex", "auth.json"), "utf8"), "{\"token\":\"user-owned\"}\n");
+  }
+});
+
+test("main compensates allowlisted MCP additions when later install stages fail", (t) => {
+  const failures = [
+    ["lstatSync", /[\\/]\.codex[\\/]ospec-workflow$/],
+    ["copyFileSync", /[\\/]\.codex[\\/]agents[\\/]apply\.toml$/],
+    ["copyFileSync", /[\\/]\.codex[\\/]ospec-workflow[\\/]scripts[\\/]hooks[\\/]session-start\.js$/],
+    ["copyFileSync", /[\\/]\.agents[\\/]skills[\\/]standalone-tool[\\/]SKILL\.md$/],
+    ["writeFileSync", /[\\/]\.codex[\\/]hooks\.json$/],
+  ];
+
+  for (const [method, pattern] of failures) {
+    const sourceDir = makeTempDir(t, `codex-mcp-file-rollback-source-${method}-`);
+    const homeDir = makeTempDir(t, `codex-mcp-file-rollback-home-${method}-`);
+    fs.writeFileSync(path.join(sourceDir, ".mcp.json"), JSON.stringify({
+      mcpServers: {
+        context7: { command: "npx", args: ["@upstash/context7-mcp@1.0.31"] },
+        markitdown: { command: "uvx", args: ["markitdown-mcp@0.0.1a4"] },
+      },
+    }));
+    const calls = [];
+    const configured = [{
+      name: "user-owned",
+      transport: { type: "stdio", command: "user-command", args: [] },
+    }];
+    const stderr = [];
+
+    const exitCode = main([], {
+      cwd: sourceDir,
+      homedir: () => homeDir,
+      fs: failOnceFs(method, pattern),
+      stdout: { write() {} },
+      stderr: { write: (chunk) => stderr.push(chunk) },
+      findCodexBin: () => "codex",
+      runConfigure({ outDir }) {
+        writeGeneratedCodexTree(outDir);
+        return { exitCode: 0, validation: null };
+      },
+      runCodexCommand(bin, args) {
+        calls.push([bin, ...args]);
+        if (args.join(" ") === "mcp list --json") {
+          return { status: 0, stdout: JSON.stringify(configured), stderr: "" };
+        }
+        if (args[1] === "add") {
+          configured.push({
+            name: args[2],
+            transport: { type: "stdio", command: args[4], args: args.slice(5) },
+          });
+        } else if (args[1] === "remove") {
+          const index = configured.findIndex((server) => server.name === args[2]);
+          if (index >= 0) configured.splice(index, 1);
+        }
+        return { status: 0, stdout: "", stderr: "" };
+      },
+    });
+
+    assert.equal(exitCode, 1, `${method} ${pattern} must preserve the original install failure`);
+    assert.deepEqual(calls.filter((call) => call[2] === "remove"), [
+      ["codex", "mcp", "remove", "markitdown"],
+      ["codex", "mcp", "remove", "context7"],
+    ]);
+    assert.deepEqual(configured.map((server) => server.name), ["user-owned"]);
+    assert.ok(!calls.some((call) => call.slice(1).join(" ") === "mcp remove user-owned"));
+    assert.doesNotMatch(stderr.join(""), /user-command/);
+  }
+});
+
+test("main reports MCP compensation failure generically without replacing the install failure", (t) => {
+  const sourceDir = makeTempDir(t, "codex-mcp-remove-failure-source-");
+  const homeDir = makeTempDir(t, "codex-mcp-remove-failure-home-");
+  fs.writeFileSync(path.join(sourceDir, ".mcp.json"), JSON.stringify({
+    mcpServers: { context7: { command: "npx", args: ["@upstash/context7-mcp@1.0.31"] } },
+  }));
+  const stderr = [];
+  let removeCalls = 0;
+  const exitCode = main([], {
+    cwd: sourceDir,
+    homedir: () => homeDir,
+    fs: failOnceFs("copyFileSync", /[\\/]\.codex[\\/]agents[\\/]apply\.toml$/),
+    stdout: { write() {} },
+    stderr: { write: (chunk) => stderr.push(chunk) },
+    findCodexBin: () => "codex",
+    runConfigure({ outDir }) {
+      writeGeneratedCodexTree(outDir);
+      return { exitCode: 0, validation: null };
+    },
+    runCodexCommand(bin, args) {
+      if (args.join(" ") === "mcp list --json") return { status: 0, stdout: "[]", stderr: "" };
+      if (args[1] === "remove") {
+        removeCalls += 1;
+        return { status: 7, stdout: "", stderr: "secret-remove-detail" };
+      }
+      return { status: 0, stdout: "", stderr: "" };
+    },
+  });
+
+  assert.equal(exitCode, 1);
+  assert.equal(removeCalls, 1);
+  assert.match(stderr.join(""), /failed to roll back a newly added Codex MCP server/i);
+  assert.doesNotMatch(stderr.join(""), /secret-remove-detail/);
 });
 
 test("copyCodexAgents: validates each target file individual paths with assertManagedPathSafe", (t) => {

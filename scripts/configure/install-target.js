@@ -41,12 +41,17 @@ function copyBinaryToTree(outDir, target, sourceDir, deps = {}) {
   const fsImpl = deps.fs || fs;
   const stdout = deps.stdout || process.stdout;
   const stderr = deps.stderr || process.stderr;
+  const required = Boolean(deps.required);
   const { os: goos, arch, ext } = hostBinarySuffix();
   const srcBin = path.join(sourceDir, "release", "dist", `ospec-hooks-${goos}-${arch}${ext}`);
 
   if (!fsImpl.existsSync(srcBin)) {
+    const message = `ospec-hooks binary not found at ${srcBin}`;
+    if (required) {
+      throw new Error(`required ${message}`);
+    }
     stderr.write(
-      `[warn] ospec-hooks binary not found at ${srcBin}; skipping copy.\n` +
+      `[warn] ${message}; skipping copy.\n` +
         `       Run the CI build (build-hooks.yml) or 'go build -o release/dist/ospec-hooks-${goos}-${arch}${ext} ./cmd/ospec-hooks' first.\n`,
     );
     return;
@@ -72,6 +77,9 @@ function copyBinaryToTree(outDir, target, sourceDir, deps = {}) {
       }
       stdout.write(`  + ospec-hooks${ext} -> ${path.relative(outDir, dest)}\n`);
     } catch (err) {
+      if (required) {
+        throw err;
+      }
       stderr.write(`[warn] failed to copy binary to ${dest}: ${err.message}. Continuing sync.\n`);
     }
   }
@@ -84,11 +92,71 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (arg === "--dry-run") args.dryRun = true;
     else if (arg === "--no-validate") args.validate = false;
-    else if (arg === "--source") args.source = argv[++i];
+    else if (arg === "--source") {
+      const value = argv[i + 1];
+      if (!value || value.startsWith("--")) {
+        throw new Error("--source requires a value");
+      }
+      args.source = value;
+      i += 1;
+    }
     else positional.push(arg);
   }
   [args.target, args.dest] = positional;
   return args;
+}
+
+function syncEntriesTransactional(outDir, destDir, entries, fsImpl) {
+  const backupRoot = fsImpl.mkdtempSync(path.join(os.tmpdir(), "ospec-target-sync-"));
+  const manifest = [];
+  let primaryError = null;
+
+  try {
+    // Snapshot every destination entry before the first mutation. Unrelated
+    // destination entries are deliberately absent from the manifest.
+    for (const entry of entries) {
+      const destination = path.join(destDir, entry);
+      const existed = fsImpl.existsSync(destination);
+      const backup = path.join(backupRoot, entry);
+      if (existed) {
+        fsImpl.cpSync(destination, backup, { recursive: true, force: true, preserveTimestamps: true });
+      }
+      manifest.push({ entry, destination, backup, existed });
+    }
+
+    for (const { entry, destination } of manifest) {
+      fsImpl.cpSync(path.join(outDir, entry), destination, { recursive: true, force: true });
+    }
+  } catch (error) {
+    primaryError = error;
+    const rollbackErrors = [];
+    for (const item of [...manifest].reverse()) {
+      try {
+        fsImpl.rmSync(item.destination, { recursive: true, force: true });
+        if (item.existed) {
+          fsImpl.cpSync(item.backup, item.destination, {
+            recursive: true,
+            force: true,
+            preserveTimestamps: true,
+          });
+        }
+      } catch (rollbackError) {
+        rollbackErrors.push(`${item.entry}: ${rollbackError.message}`);
+      }
+    }
+    if (rollbackErrors.length > 0) {
+      throw new Error(`${error.message}; rollback failed: ${rollbackErrors.join("; ")}`);
+    }
+    throw new Error(`${error.message}; changes rolled back`);
+  } finally {
+    try {
+      fsImpl.rmSync(backupRoot, { recursive: true, force: true });
+    } catch (cleanupError) {
+      if (!primaryError) {
+        throw new Error(`failed to clean transaction backup: ${cleanupError.message}`);
+      }
+    }
+  }
 }
 
 // Refuse to copy a generated tree on top of paths we must never clobber: the
@@ -161,7 +229,14 @@ function main(argv, deps = {}) {
   const runConfigureImpl = deps.runConfigure || runConfigure;
   const exitCodeTarget = deps.exitCodeTarget || process;
 
-  const args = parseArgs(argv);
+  let args;
+  try {
+    args = parseArgs(argv);
+  } catch (error) {
+    stderr.write(`${error.message}\n`);
+    exitCodeTarget.exitCode = 2;
+    return;
+  }
   const sourceDir = path.resolve(args.source || process.cwd());
 
   if (!TARGETS.has(args.target) || !args.dest) {
@@ -204,17 +279,19 @@ function main(argv, deps = {}) {
   const entries = fsImpl.readdirSync(outDir);
   stdout.write(`\n${args.dryRun ? "[dry-run] would sync" : "sync"} ${outDir} -> ${destDir}\n`);
   for (const entry of entries) {
-    const src = path.join(outDir, entry);
-    const dst = path.join(destDir, entry);
     stdout.write(`  ${args.dryRun ? "·" : "+"} ${entry}\n`);
-    if (!args.dryRun) {
-      fsImpl.cpSync(src, dst, { recursive: true, force: true });
-    }
   }
 
   if (args.dryRun) {
     stdout.write("\n[dry-run] no files written.\n");
   } else {
+    try {
+      syncEntriesTransactional(outDir, destDir, entries, fsImpl);
+    } catch (error) {
+      stderr.write(`\nsync failed: ${error.message}\n`);
+      exitCodeTarget.exitCode = 2;
+      return;
+    }
     stdout.write(`\nDone. ${args.target} workflow synced into ${destDir}.\n`);
   }
 }
@@ -228,4 +305,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { main, assertSafeDest, parseArgs, copyBinaryToTree, hostBinarySuffix };
+module.exports = { main, assertSafeDest, parseArgs, copyBinaryToTree, hostBinarySuffix, syncEntriesTransactional };
