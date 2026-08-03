@@ -8,6 +8,12 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.37.2] - 2026-08-03
+
+### Fixed
+- **Cursor hooks / Task**: el launcher degrada `permissionDecision: ask` a `allow` + mensaje advisory en hosts Cursor (`preToolUse`, `beforeShellExecution`, `beforeReadFile`, `subagentStart`), porque Cursor no implementa `ask` y abortaba el despacho de subagentes con error fatal.
+- **Install Cursor**: al sincronizar `hooks.json`, cablea `preToolUse`/`subagentStart` (y `preCompact` cuando aplica) a partir de los eventos ya generados; `validate-cursor` acepta esos eventos.
+
 ## [2.37.1] - 2026-08-03
 
 ### Fixed

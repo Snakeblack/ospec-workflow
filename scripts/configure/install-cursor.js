@@ -237,6 +237,36 @@ function renderHooksValue(value, cursorRootPosix) {
   return value;
 }
 
+// Cursor's generic preToolUse / subagentStart only accept allow|deny. Mirror the
+// PreToolUse launcher commands onto those events at install time so Task/MCP
+// never run without the ask→allow adapter in ospec-hooks-launch.
+function ensureCursorGenericHookEvents(hooksDoc) {
+  if (!hooksDoc || typeof hooksDoc !== "object" || Array.isArray(hooksDoc)) {
+    return hooksDoc;
+  }
+  const hooks = hooksDoc.hooks;
+  if (!hooks || typeof hooks !== "object" || Array.isArray(hooks)) {
+    return hooksDoc;
+  }
+  const next = { ...hooksDoc, hooks: { ...hooks } };
+  const shellHooks = next.hooks.beforeShellExecution;
+  if (Array.isArray(shellHooks) && shellHooks.length > 0) {
+    if (!Array.isArray(next.hooks.preToolUse) || next.hooks.preToolUse.length === 0) {
+      next.hooks.preToolUse = shellHooks;
+    }
+    if (!Array.isArray(next.hooks.subagentStart) || next.hooks.subagentStart.length === 0) {
+      next.hooks.subagentStart = shellHooks;
+    }
+  }
+  const editHooks = next.hooks.afterFileEdit;
+  if (Array.isArray(editHooks) && editHooks.length > 0) {
+    if (!Array.isArray(next.hooks.preCompact) || next.hooks.preCompact.length === 0) {
+      next.hooks.preCompact = editHooks;
+    }
+  }
+  return next;
+}
+
 function installHooksJson(outDir, cursorRoot, deps = {}) {
   const fsImpl = deps.fs || fs;
   const dryRun = Boolean(deps.dryRun);
@@ -247,7 +277,8 @@ function installHooksJson(outDir, cursorRoot, deps = {}) {
     throw new Error(`generated hooks.json missing at ${sourcePath}; refusing to leave ~/.cursor hooks stale`);
   }
   const generated = JSON.parse(fsImpl.readFileSync(sourcePath, "utf8"));
-  const rendered = renderHooksValue(generated, cursorRootPosix);
+  const withGenericEvents = ensureCursorGenericHookEvents(generated);
+  const rendered = renderHooksValue(withGenericEvents, cursorRootPosix);
   const destPath = path.join(cursorRoot, "hooks.json");
   if (dryRun) {
     return;
@@ -375,6 +406,7 @@ module.exports = {
   assertCursorPathSafe,
   quoteCursorHookPath,
   expandCursorHooksPlaceholder,
+  ensureCursorGenericHookEvents,
   createRollbackJournal,
   syncTreeByContent,
   installHooksJson,
