@@ -21,12 +21,14 @@ Sin duplicar el backlog: solo responsabilidades y límites alineados al roadmap 
 
 | Tema | Decisión arquitectónica |
 | --- | --- |
-| Estado | K1 `done`; K2 next-eligible |
+| Estado | K1 `done`; K2 next-eligible (`pending` desbloqueado; no es estado OpenSpec distinto) |
 | Dos grafos | **Execution Graph** (trabajo) ≠ **Assurance Graph** (fiabilidad / evidencia; no “prueba formal”) |
 | Identidades | `SourceSnapshotId` / `WorkOrderId` / `WorkResultId` / `CandidateId` |
+| Proyección | `Candidate.projection` solo `workspace\|staged` (`candidate/v1`); un commit puede origenar `SourceSnapshot`, no es tercera proyección de Candidate |
 | Policy | `PolicySnapshot` digiere bundle/classifier/compiler/runtime/`effectiveRules` |
 | Cierre | `ArchiveTransactionReceipt` ≠ `CandidateEvaluationAttestation` ≠ `DeliveryAuthorization` |
-| Host | Adapter de referencia temprano (**K2a**); expansión multi-target en **K11a** |
+| Schemas de cierre | `receipt/v1` (K1, envelope legacy genérico) permanece; K8 y K10-delivery introducen schemas propios — no reutilizar `receipt/v1` como contrato canónico |
+| Host | Seis targets; **K2a** elige uno de referencia; **K11a** expande el mismo contrato a los cinco restantes |
 | Compile vs execute | **K4a** compila; **K6a** ejecuta (primitives); **K4b** orquesta Repair shadow; **K3** identifica |
 | Runner | Minimal Kernel Harness + model-based (invariantes por madurez) en **K2**; corpus/longitudinal en **K12** |
 | Delivery | Primer enforcement productivo solo del **profile promovido por K9**; resto `fixed` / unmanaged |
@@ -39,7 +41,7 @@ Change Contract → Execution Graph → Candidate → Assurance Graph → Attest
 
 1. [Modelo de autoridad](#modelo-de-autoridad).
 2. [Cadena canónica](#cadena-canónica-del-change).
-3. [Kernel y Execution Graph](#kernel-determinista-y-graph-ir).
+3. [Kernel y Execution Graph](#kernel-determinista-y-execution-graph).
 4. [Rutas y capacidades](#clasificación-rutas-y-capacidades).
 5. [Migración sin big bang](#estrategia-de-migración).
 6. [Qué es hecho, target o hipótesis](#registro-de-madurez).
@@ -200,17 +202,19 @@ El árbol de código se congela antes de verify:
 3. El verifier recibe contrato, Execution Graph, `candidate_id`, repositorio y evidencia bruta.
 4. Tras verify se finalizan evidence/findings digests.
 5. Review consume la misma identidad y findings congelados.
-6. El receipt liga todos los digests.
+6. `CandidateEvaluationAttestation` (K8) liga contract/graph/candidate/evidence/findings/policy; `DeliveryAuthorization` (K10-delivery) añade gate + route/profile digest cuando aplique.
 
-Cualquier byte distinto crea un candidato sucesor. Verify, review y delivery anteriores dejan de aplicar; no se “actualiza” un receipt existente.
+Cualquier byte distinto crea un candidato sucesor. Verify, review y delivery anteriores dejan de aplicar; no se “actualiza” una attestation ni una authorization existente.
 
 ### Candidate identity
+
+Alineado con `schemas/kernel/candidate/v1` (campo canónico `candidate_id`):
 
 ```yaml
 candidate:
   schema_version: 1
-  id: sha256:...
-  projection: workspace # workspace | staged
+  candidate_id: sha256:...
+  projection: workspace # solo workspace | staged — no commit
   base_tree: ...
   candidate_tree: ...
   diff_hash: ...
@@ -219,7 +223,7 @@ candidate:
   predecessor_id: null
 ```
 
-La identidad es universal, pero no sustituye Git. Es una representación canónica y verificable de sus bytes y relaciones. `projection` declara qué superficie de bytes se congela: el working tree (`workspace`) o exactamente el índice Git (`staged`). Recovery hereda la proyección del predecesor salvo successor explícito autorizado; un receipt no puede apuntar solo a branch o working tree mutable.
+La identidad es universal, pero no sustituye Git. Es una representación canónica y verificable de sus bytes y relaciones. `Candidate.projection` solo puede ser `workspace|staged`. Un commit puede ser el origen de un `SourceSnapshot`, pero no constituye una tercera proyección de Candidate. Recovery hereda la proyección del predecesor salvo successor explícito autorizado; ni attestation ni authorization pueden apuntar solo a branch o working tree mutable.
 
 ### Delivery: attestation vs authorization
 
@@ -236,14 +240,34 @@ outcome: approved-for-evaluation
 valid_for: [evaluation]
 
 # DeliveryAuthorization (K10-delivery) — por gate + profile promovido
+# Nunca “Delivery Authorization Receipt”: Receipt ≠ Authorization
 kind: delivery-authorization
+candidate_id: sha256:...
 route_profile_digest: sha256:...
 valid_for: [pre-commit]   # o pre-push / pre-pr
 ```
 
-`ArchiveTransactionReceipt` (O6A) atestigua solo la transacción de archive.
+`ArchiveTransactionReceipt` (O6A) registra solo la transacción de archive (operación mecánica).
 
 Regla: Receipt registra operación; Attestation declara evaluación; Authorization concede capacidad. El primer enforcement productivo solo gobierna el profile promovido por K9; el resto permanece `fixed` o unmanaged/deferred.
+
+#### Migración de schemas de cierre (no reabrir K1)
+
+```text
+schemas/kernel/receipt/v1
+  = envelope legacy/genérico entregado por K1
+  = exige candidate_id y kind genérico
+  = no define la taxonomía semántica futura
+  = permanece intacto por compatibilidad
+
+schemas/kernel/candidate-evaluation-attestation/v1
+  = schema propio introducido en K8
+
+schemas/kernel/delivery-authorization/v1
+  = schema propio introducido en K10-delivery
+```
+
+K8 y K10-delivery **no** reutilizan `receipt/v1` como contrato canónico. Pueden convivir bindings/adapters de compatibilidad hacia el envelope legacy, pero kinds y scopes nuevos viven en schemas propios.
 
 #### Enforcement productivo
 
@@ -261,7 +285,12 @@ Una Evaluation Attestation nunca autoriza delivery. Bypass/unmanaged aplaza a la
 
 ## Kernel determinista y Execution Graph
 
+<a id="kernel-determinista-y-execution-graph"></a>
+<a id="kernel-determinista-y-graph-ir"></a>
+
 ### Superficie del kernel
+
+Lista objetivo del kernel completo (no es la API que K2 implementa íntegra):
 
 ```text
 status
@@ -280,6 +309,20 @@ validate-delivery
 recover
 ```
 
+| Operación o capacidad | Primer slice propietario |
+| --- | --- |
+| `status`, `next_transition`, `recover`, eventos derivados | K2 |
+| `HostCapabilities`, transports y adapter de referencia | K2a |
+| `freeze-candidate`, successor e identidad | K3 |
+| clasificación runtime y `compile` | K4a |
+| presupuestos y failure routing | K5 |
+| execute-work-order y captura de `WorkResult` | K6a |
+| verificación y Assurance Graph | K6b |
+| adjudicación / review | K7 |
+| attest-candidate (`CandidateEvaluationAttestation`) | K8 |
+| `authorize-delivery` / `validate-delivery` (`DeliveryAuthorization`) | K10-delivery |
+
+K2 solo materializa lifecycle (`status` / node lifecycle / `recover` / eventos). El resto permanece target hasta su slice.
 Cada operación devuelve estado estructurado y siguiente transición:
 
 ```json
@@ -355,7 +398,7 @@ graph:
 intención + clasificación + contrato + capabilities
   → receta de ruta
   → selección de capacidades
-  → Graph IR
+  → Execution Graph
   → work orders
 ```
 
@@ -685,7 +728,7 @@ Los eventos registran IDs, timestamps, digests, target, costes y outcomes. La te
 
 ### Headless
 
-R1 será consumidor del kernel y receipts. Evalúa resultados estructurales, nunca auto-aprueba, y devuelve `halt` ante decisión humana pendiente.
+R1 será consumidor del kernel, attestations y authorizations. Evalúa resultados estructurales, nunca auto-aprueba, y devuelve `halt` ante decisión humana pendiente.
 
 Fixtures mínimos:
 
@@ -736,17 +779,17 @@ Verbos por slice: K4a **compila**, K6a **ejecuta**, K4b **orquesta**, K3 **ident
 - O2B cerrado (hecho); defaults siguen fijos hasta K9 y gates posteriores.
 - Un target inicial antes de paridad multi-target.
 - Repair shadow antes de cinco rutas.
-- Candidate freeze antes de receipts.
+- Candidate freeze antes de Evaluation Attestation / Delivery Authorization (no bloquea `ArchiveTransactionReceipt` de O6A).
 - Work-order contracts antes de simplificar roles.
 - Evidence equivalence antes de retirar Strict TDD universal.
 - K6a→K6d y K11a→K11d se ejecutan como changes separados; ningún slice hereda aprobación terminal del anterior.
-- Receipt de evaluación no habilita delivery; enforcement productivo solo después de shadow/A-B.
+- `CandidateEvaluationAttestation` no habilita delivery; enforcement productivo solo después de shadow/A-B.
 - Gate único para rebasar O13/O15/O18/O19/R1 sobre el kernel.
 - Compatibilidad y fallback fixed probados antes de deprecación.
 
 ### Anti-big-bang
 
-No se permite un change que combine kernel global, cinco rutas, cinco targets, consolidación de agentes y worktrees. Cada slice debe preservar autoridad, rollback y un camino de comparación fixed.
+No se permite un change que combine kernel global, cinco rutas, seis targets, consolidación de agentes y worktrees. Cada slice debe preservar autoridad, rollback y un camino de comparación fixed.
 
 ## Multi-target, conocimiento y federación
 
@@ -754,7 +797,7 @@ Los roadmaps de target siguen subordinados. Pueden mejorar capacidades independi
 
 R2 Foundation/OpenWiki permanece separado de evidencia de ejecución. Conserva siete slices: reparto normativo, consumo aguas abajo, ingesta resiliente, foundation por etapas, adopción brownfield, staleness/refresh y Starlight opcional. Cada slice tiene gate propio en el roadmap; puede consumir receipts/eventos como referencias, pero no gobernar transitions.
 
-R4 epic/federation extiende el mismo Graph IR:
+R4 epic/federation extiende el mismo Execution Graph:
 
 1. subgraphs intra-repo;
 2. contratos compartidos versionados;
@@ -787,10 +830,10 @@ No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
 - {target} `status → next_transition` ejecutable (`execute|collect|decide|stop` con tokens/`command`).
 - {target} Minimal Kernel Harness + model-based testing (invariantes por madurez).
 - {target} Paridad material entre proyección humana y envelope negociado.
-- {target} Candidate freeze universal con cuatro identidades y proyección `workspace|staged|commit`.
+- {target} Candidate freeze universal con cuatro identidades; `Candidate.projection` solo `workspace|staged` (`commit` pertenece a `SourceSnapshot`).
 - {target} Execution Graph semántico (derived plan; not independent authority).
 - {target} Assurance Graph (proyección de evidencia; no autoridad ni prueba formal).
-- {target} Reference Host Contract (K2a) antes de expansión multi-target (K11a).
+- {target} Reference Host Contract (K2a): un host de referencia entre seis targets; expansión de los cinco restantes en K11a.
 - {target} Clasificación por impacto + incertidumbre; hard floors no degradables por tamaño.
 - {target} Rutas como recetas y fases como capacidades.
 - {target} Clarify con invalidación parcial.
@@ -823,9 +866,9 @@ No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
 ### Determinismo e integridad
 
 - misma entrada → mismas transitions;
-- divergencia state/IR falla cerrada;
+- divergencia state/Execution Graph falla cerrada;
 - bytes distintos → successor;
-- stale receipt bloqueado;
+- stale `CandidateEvaluationAttestation` / `DeliveryAuthorization` bloqueados;
 - recovery no reinicia budgets ni findings;
 - comando nombrado en un bloqueo, al ejecutarse, avanza o termina de forma honestamente terminal;
 - proyección humana y envelope negociado no divergen en código, causa ni siguiente acción.
@@ -876,11 +919,11 @@ La métrica privilegia reducir `dead_end` y `out_of_band`, no “parar menos”.
 
 1. Autoridad exacta del Execution Graph respecto a state/OpenSpec.
 2. Granularidad y lint de nodos semánticos.
-3. Schema y migración de la contract suite (K1 delivered; evolución futura).
+3. ~~Schema y migración de la contract suite~~ — **parcial:** K1 delivered (`receipt/v1` legacy intacto); evolución futura = schemas propios en K8/K10-delivery (ver migración de cierre).
 4. Taxonomy/versionado de failure codes existentes.
 5. Estrategias de evidencia mínimas por clasificación / ChallengePlan.
-6. Orden de finalización de evidence/findings alrededor de review.
-7. Scope inicial de DeliveryAuthorization (profile promovido por K9).
+6. ~~Orden de finalización de evidence/findings alrededor de review~~ — **parcial:** K7/K8 acotan freeze → verify → review → attestation; detalles de digest final siguen en esos slices.
+7. ~~Scope inicial de DeliveryAuthorization~~ — **resuelto:** solo el profile promovido por K9; resto `fixed`/unmanaged.
 8. Clamps por target para worktrees, paralelismo y modelos.
 9. Umbral para consolidar agentes sin perder contratos.
 10. Semántica de replay y reconciliación de eventos.
@@ -897,5 +940,6 @@ La métrica privilegia reducir `dead_end` y `out_of_band`, no “parar menos”.
 - Mantener O20A y O13/O15/O18/O19/R1 como stacks equivalentes permanentes.
 - Reescribir review lineage o archive transaccional.
 - Adoptar el CLI/RDD/`review-integration` de Gentle AI (u otro arnés) como segunda autoridad de review o delivery.
-- Activar cinco targets/worktrees/rutas en un solo change.
+- Activar seis targets/worktrees/rutas en un solo change.
 - Retirar formatos actuales sin deprecación y fallback.
+- Reabrir K1 o mutar `receipt/v1` para expresar la taxonomía Attestation/Authorization.
