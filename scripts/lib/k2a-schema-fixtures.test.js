@@ -37,7 +37,12 @@ function listJson(dir) {
 }
 
 function sha256File(rel) {
-  return crypto.createHash("sha256").update(fs.readFileSync(path.join(ROOT, rel))).digest("hex");
+  // Canonicalize newlines so autocrlf/working-tree CRLF does not drift the pin.
+  const text = fs
+    .readFileSync(path.join(ROOT, rel), "utf8")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
+  return crypto.createHash("sha256").update(text, "utf8").digest("hex");
 }
 
 test("K2a host-capabilities schema exists with stable $id, closed state enum, fixtures", () => {
@@ -152,7 +157,7 @@ test("K2.1 OperationPermit/CAS/effect-class and receipt/v1 remain unchanged (add
   // Pin content digests so K2a does not mutate K2.1 families.
   const pins = {
     "schemas/kernel/receipt/v1.schema.json":
-      "40f9a7566101c5efb13e2a51b78b8782975d85f6c59c27db25093362ea04a9cf",
+      "4193db3029274e06880a5b2c178e15916cd574841d3d9bd6691ce00151558b46",
     "schemas/kernel/operation-permit/v1.schema.json":
       "f8604ed66a64013ab7912ea425a752409430e2741f946f9e2b76dab331ef0adf",
     "schemas/kernel/operation-receipt/v1.schema.json":
