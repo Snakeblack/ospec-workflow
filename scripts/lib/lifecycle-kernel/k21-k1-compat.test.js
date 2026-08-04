@@ -1,12 +1,12 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
 const { validateInstance, loadSchemaById } = require("../kernel-schema-validator.js");
+const { digestFile, K1_SCHEMA_BASELINE } = require("./k1-compat.js");
 
 const ROOT = path.resolve(__dirname, "..", "..", "..");
 const RECEIPT_SCHEMA = path.join(ROOT, "schemas", "kernel", "receipt", "v1.schema.json");
@@ -20,15 +20,12 @@ const RECEIPT_VALID = path.join(
   "minimal.json"
 );
 const BASELINE_RECEIPT_SHA =
-  "sha256:40f9a7566101c5efb13e2a51b78b8782975d85f6c59c27db25093362ea04a9cf";
-
-function fileSha(p) {
-  return `sha256:${crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex")}`;
-}
+  K1_SCHEMA_BASELINE["schemas/kernel/receipt/v1.schema.json"];
 
 test("K1 receipt/v1 schema bytes remain unchanged under K2.1", () => {
   assert.ok(fs.existsSync(RECEIPT_SCHEMA));
-  assert.equal(fileSha(RECEIPT_SCHEMA), BASELINE_RECEIPT_SHA);
+  // digestFile LF-normalizes so Windows CRLF checkouts match POSIX CI pins.
+  assert.equal(digestFile(RECEIPT_SCHEMA), BASELINE_RECEIPT_SHA);
   const schema = JSON.parse(fs.readFileSync(RECEIPT_SCHEMA, "utf8"));
   assert.equal(schema.$id, "ospec://schemas/kernel/receipt/v1");
   assert.equal(schema.schema_version, 1);
