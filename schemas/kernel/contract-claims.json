@@ -82,6 +82,51 @@
       "required_fields": ["schema_version", "event_id", "type", "timestamp"],
       "enum_values": {},
       "command_shapes": []
+    },
+    "operation-permit": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "permit_id",
+        "domain",
+        "operation",
+        "subject_id",
+        "expected_revision",
+        "arguments_digest",
+        "scope_digest",
+        "policy_digest",
+        "budget_ref",
+        "single_use"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "operation-receipt": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "receipt_id",
+        "permit_id",
+        "subject_id",
+        "operation",
+        "revision",
+        "outcome"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "effect-class": {
+      "required_fields": ["schema_version", "effect_class"],
+      "enum_values": {
+        "effect_class": [
+          "pure",
+          "idempotent-keyed",
+          "probeable",
+          "compensatable",
+          "irreversible"
+        ]
+      },
+      "command_shapes": []
     }
   }
 }

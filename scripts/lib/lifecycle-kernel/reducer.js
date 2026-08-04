@@ -5,8 +5,19 @@ const {
   validateOperationTransition,
 } = require("./operations.js");
 
+const DEFAULT_EFFECT_CLASS = "idempotent-keyed";
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function pushPersistEffect(effects, effectId, nodeId, phase, effectClass = DEFAULT_EFFECT_CLASS) {
+  effects.push({
+    effect_id: effectId,
+    kind: "persist-node",
+    payload: { node_id: nodeId, phase },
+    effect_class: effectClass,
+  });
 }
 
 function reduceLifecycle(state, action = {}) {
@@ -26,6 +37,10 @@ function reduceLifecycle(state, action = {}) {
   const auth = authorizeOperation({
     operation,
     authorityToken: action.authorityToken,
+    operationPermit: action.operationPermit,
+    permitLedger: action.permitLedger,
+    headRevision: action.headRevision,
+    transitionOffer: action.transitionOffer,
   });
   if (!auth.ok) {
     return {
@@ -54,16 +69,13 @@ function reduceLifecycle(state, action = {}) {
   const node = next.nodes[nodeId];
   const effects = [];
   const events = [];
+  const effectClass = action.effect_class || DEFAULT_EFFECT_CLASS;
 
   if (operation === "start") {
     node.phase = "started";
     node.attempt = Number(node.attempt || 0) + 1;
     next.status = "running";
-    effects.push({
-      effect_id: `effect:start:${nodeId}`,
-      kind: "persist-node",
-      payload: { node_id: nodeId, phase: "started" },
-    });
+    pushPersistEffect(effects, `effect:start:${nodeId}`, nodeId, "started", effectClass);
     events.push({
       kind: "operation-started",
       subject: nodeId,
@@ -75,11 +87,7 @@ function reduceLifecycle(state, action = {}) {
   if (operation === "complete") {
     node.phase = "completed";
     next.status = allTerminal(next) ? "terminal" : next.status;
-    effects.push({
-      effect_id: `effect:complete:${nodeId}`,
-      kind: "persist-node",
-      payload: { node_id: nodeId, phase: "completed" },
-    });
+    pushPersistEffect(effects, `effect:complete:${nodeId}`, nodeId, "completed", effectClass);
     events.push({
       kind: "operation-completed",
       subject: nodeId,
@@ -96,11 +104,7 @@ function reduceLifecycle(state, action = {}) {
   if (operation === "fail") {
     node.phase = "failed";
     next.status = "blocked";
-    effects.push({
-      effect_id: `effect:fail:${nodeId}`,
-      kind: "persist-node",
-      payload: { node_id: nodeId, phase: "failed" },
-    });
+    pushPersistEffect(effects, `effect:fail:${nodeId}`, nodeId, "failed", effectClass);
     events.push({
       kind: "operation-failed",
       subject: nodeId,
@@ -111,11 +115,7 @@ function reduceLifecycle(state, action = {}) {
 
   if (operation === "invalidate-node") {
     node.phase = "invalidated";
-    effects.push({
-      effect_id: `effect:invalidate:${nodeId}`,
-      kind: "persist-node",
-      payload: { node_id: nodeId, phase: "invalidated" },
-    });
+    pushPersistEffect(effects, `effect:invalidate:${nodeId}`, nodeId, "invalidated", effectClass);
     events.push({
       kind: "node-invalidated",
       subject: nodeId,
@@ -127,11 +127,7 @@ function reduceLifecycle(state, action = {}) {
   if (operation === "recover") {
     node.phase = "pending";
     next.status = "ready";
-    effects.push({
-      effect_id: `effect:recover:${nodeId}`,
-      kind: "persist-node",
-      payload: { node_id: nodeId, phase: "pending" },
-    });
+    pushPersistEffect(effects, `effect:recover:${nodeId}`, nodeId, "pending", effectClass);
     events.push({
       kind: "operation-recovered",
       subject: nodeId,
@@ -160,4 +156,4 @@ function allTerminal(state) {
   );
 }
 
-module.exports = { reduceLifecycle };
+module.exports = { reduceLifecycle, DEFAULT_EFFECT_CLASS };

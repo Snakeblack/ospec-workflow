@@ -6,6 +6,7 @@ const test = require("node:test");
 const {
   MODEL_CONFIG,
   EXECUTABLE_INVARIANTS,
+  K21_EXECUTABLE_INVARIANTS,
   DEFERRED_INVARIANTS,
   exploreModel,
   checkInvariant,
@@ -29,25 +30,24 @@ test("MODEL_CONFIG publishes versioned domains, actions, limits and mapping", ()
   assert.ok(MODEL_CONFIG.abstraction_mapping.nodes);
 });
 
-test("every executable invariant has a non-optional checker", () => {
+test("every executable invariant has a non-optional checker", async () => {
   assert.equal(EXECUTABLE_INVARIANTS.length, 8);
   for (const inv of EXECUTABLE_INVARIANTS) {
     assert.equal(typeof inv.id, "string");
     assert.equal(typeof inv.name, "string");
     assert.equal(inv.optional, false);
-    assert.equal(typeof checkInvariant, "function");
-    const result = checkInvariant(inv.id);
+    const result = await checkInvariant(inv.id);
     assert.equal(typeof result.ok, "boolean");
   }
-  const all = runAllInvariantCheckers();
+  const all = await runAllInvariantCheckers();
   const enforced = all.results.filter((r) => r.counts_as_enforced);
-  assert.equal(enforced.length, 8);
-  assert.equal(all.enforced_count, 8);
+  assert.equal(enforced.length, EXECUTABLE_INVARIANTS.length + K21_EXECUTABLE_INVARIANTS.length);
+  assert.equal(all.enforced_count, enforced.length);
   assert.equal(all.ok, true);
 });
 
-test("inv-no-duplicate-effects is non-vacuous: completed effects skip, planned execute", () => {
-  const result = checkInvariant("inv-no-duplicate-effects");
+test("inv-no-duplicate-effects is non-vacuous: completed effects skip, planned execute", async () => {
+  const result = await checkInvariant("inv-no-duplicate-effects");
   assert.equal(result.ok, true);
   assert.equal(result.invariant_id, "inv-no-duplicate-effects");
   assert.ok(result.detail, "checker must expose decision detail (not a vacuous ok)");
@@ -55,19 +55,44 @@ test("inv-no-duplicate-effects is non-vacuous: completed effects skip, planned e
   assert.equal(result.detail.completed.reason, "already-completed");
   assert.equal(result.detail.planned.action, "execute");
   assert.equal(result.detail.failed.action, "skip");
-  // A second completed reconcile must still skip (replay safety).
   assert.equal(result.detail.replay_completed.action, "skip");
 });
 
-test("deferred invariants are listed but do not count as K2 enforcement", () => {
+test("deferred invariants are listed but do not count as K2 enforcement", async () => {
   assert.ok(DEFERRED_INVARIANTS.length >= 3);
   for (const inv of DEFERRED_INVARIANTS) {
     assert.equal(inv.enforced_in_k2, false);
     assert.ok(inv.owned_by);
   }
-  const all = runAllInvariantCheckers();
+  const all = await runAllInvariantCheckers();
   assert.ok(!all.results.some((r) => r.deferred === true && r.counts_as_enforced));
-  assert.equal(all.enforced_count, EXECUTABLE_INVARIANTS.length);
+  assert.equal(
+    all.enforced_count,
+    EXECUTABLE_INVARIANTS.length + K21_EXECUTABLE_INVARIANTS.length
+  );
+});
+
+test("K2.1 manifest lists seven executable invariants not on deferred list", async () => {
+  assert.equal(K21_EXECUTABLE_INVARIANTS.length, 7);
+  const deferredIds = new Set(DEFERRED_INVARIANTS.map((d) => d.id));
+  for (const inv of K21_EXECUTABLE_INVARIANTS) {
+    assert.equal(deferredIds.has(inv.id), false);
+    const result = await checkInvariant(inv.id);
+    assert.equal(result.ok, true, inv.id);
+  }
+  const all = await runAllInvariantCheckers();
+  assert.equal(all.k21_count, 7);
+});
+
+test("opaque AuthorityToken without concrete permit fails under K2.1 checkers", async () => {
+  const result = await checkInvariant("inv-k21-no-self-grant");
+  assert.equal(result.ok, true);
+});
+
+test("model self-grant exploration records pass only when authorize fail-closed holds", async () => {
+  const result = await checkInvariant("inv-k21-no-self-grant");
+  assert.equal(result.ok, true);
+  assert.equal(result.invariant_id, "inv-k21-no-self-grant");
 });
 
 test("opaque SubjectId change invalidates bound decision without Candidate fields", () => {
@@ -78,14 +103,8 @@ test("opaque SubjectId change invalidates bound decision without Candidate field
     policy_ref: "opaque:policy-1",
   };
   assert.equal(opaquePortsEqual(decision.subject_id, "opaque:subject-a"), true);
-  assert.equal(
-    isDecisionStaleForSubject(decision, "opaque:subject-b"),
-    true
-  );
-  assert.equal(
-    isDecisionStaleForSubject(decision, "opaque:subject-a"),
-    false
-  );
+  assert.equal(isDecisionStaleForSubject(decision, "opaque:subject-b"), true);
+  assert.equal(isDecisionStaleForSubject(decision, "opaque:subject-a"), false);
   assert.equal(decision.candidate, undefined);
 });
 

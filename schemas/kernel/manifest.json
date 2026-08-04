@@ -60,6 +60,21 @@
       "path": "schemas/kernel/event/v1.schema.json",
       "$id": "ospec://schemas/kernel/event/v1",
       "schema_version": 1
+    },
+    "operation-permit": {
+      "path": "schemas/kernel/operation-permit/v1.schema.json",
+      "$id": "ospec://schemas/kernel/operation-permit/v1",
+      "schema_version": 1
+    },
+    "operation-receipt": {
+      "path": "schemas/kernel/operation-receipt/v1.schema.json",
+      "$id": "ospec://schemas/kernel/operation-receipt/v1",
+      "schema_version": 1
+    },
+    "effect-class": {
+      "path": "schemas/kernel/effect-class/v1.schema.json",
+      "$id": "ospec://schemas/kernel/effect-class/v1",
+      "schema_version": 1
     }
   }
 }

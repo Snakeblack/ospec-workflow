@@ -22,6 +22,7 @@ const PROSE_LIFECYCLE_PATTERNS = [
 
 /**
  * Compatibility boundary for routing: structured K2 ops only; fixed policy preserved.
+ * OperationPermit cannot override OpenSpec/Git semantic facts — bridges remain non-authoritative.
  */
 function routeK2Operation(action = {}) {
   if (!action || !K2_COVERED_OPS.has(action.operation)) {
@@ -33,8 +34,36 @@ function routeK2Operation(action = {}) {
     operation: action.operation,
     arguments: action.arguments || {},
     authorityToken: action.authorityToken || null,
+    operationPermit: action.operationPermit || null,
     route_policy: "fixed",
     adaptive: false,
+    // Permits authorize kernel mutations; they do not become a second lifecycle authority.
+    second_lifecycle_authority: false,
+    openspec_git_sole_authority: true,
+  };
+}
+
+/**
+ * Reject attempts to treat OperationPermit as OpenSpec/Git semantic override.
+ */
+function assertPermitDoesNotOverrideAuthority({ permit, openspecFact, gitFact } = {}) {
+  if (permit && (openspecFact === undefined || gitFact === undefined)) {
+    return {
+      ok: false,
+      code: "authority-facts-required",
+      hint: "OpenSpec/Git facts remain sole semantic authority",
+    };
+  }
+  if (permit && permit.overrides_openspec === true) {
+    return { ok: false, code: "permit-cannot-override-openspec" };
+  }
+  if (permit && permit.overrides_git === true) {
+    return { ok: false, code: "permit-cannot-override-git" };
+  }
+  return {
+    ok: true,
+    second_lifecycle_authority: false,
+    openspec_git_sole_authority: true,
   };
 }
 
@@ -157,5 +186,6 @@ module.exports = {
   rejectProseLifecycleOperation,
   assertSingleLifecycleReducer,
   sourceDefinesReduceLifecycle,
+  assertPermitDoesNotOverrideAuthority,
   K2_COVERED_OPS,
 };

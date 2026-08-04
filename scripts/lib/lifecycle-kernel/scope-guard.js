@@ -11,9 +11,11 @@ const path = require("node:path");
 const FORBIDDEN_SYMBOL_PATTERNS = [
   /\bHostCapabilities\b/,
   /\bcreateHostAdapter\b/,
+  /\bCapabilityProof\b/,
   /\bExecutionGraph\b/,
   /\bexecution_graph\b/,
   /\bexecution-graph\b/,
+  /\bObligationManifest\b/,
   /\bcreateCandidate\b/,
   /\bCandidateIdentity\b/,
   /\bcandidate_identity\b/,
@@ -29,7 +31,9 @@ const FORBIDDEN_SYMBOL_PATTERNS = [
 
 const FORBIDDEN_MODULE_PATTERNS = [
   /host-capabilities/i,
+  /capability-proof/i,
   /execution-graph/i,
+  /obligation-manifest/i,
   /productive-budget/i,
   /delivery-auth/i,
   /attestation-runtime/i,

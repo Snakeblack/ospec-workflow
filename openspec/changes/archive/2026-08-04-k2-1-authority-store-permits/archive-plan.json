@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "change": "k2-1-authority-store-permits",
+  "source_fingerprint": "sha256:4ef49c562332aff071a5f8ade474c1f6ff8c5fe1784e91c6c55ad26aa96859a3",
+  "spec_writes": [
+    {
+      "domain": "lifecycle-kernel-runtime",
+      "source_delta": "specs/lifecycle-kernel-runtime/prepared-spec.md",
+      "target": "openspec/specs/lifecycle-kernel-runtime/spec.md",
+      "target_before_sha256": "sha256:0a13bcd5bd0d09dc84e1287db4a4d174cb559486df14ab5daf794651327c114b",
+      "content_sha256": "sha256:11d2554c7c67890244c715b8372044b6b7d72afe40c7d44c53bfac7efde707fa"
+    },
+    {
+      "domain": "minimal-kernel-harness",
+      "source_delta": "specs/minimal-kernel-harness/prepared-spec.md",
+      "target": "openspec/specs/minimal-kernel-harness/spec.md",
+      "target_before_sha256": "sha256:a30d5f3e5a63b88a831d53ae1a3e707a6df9def654458fb280cca7d994107ec8",
+      "content_sha256": "sha256:551d24162217987d9ecacfd3f48725dc53fd1e495666dfbb1374c15bfcd34d34"
+    },
+    {
+      "domain": "lifecycle-model-conformance",
+      "source_delta": "specs/lifecycle-model-conformance/prepared-spec.md",
+      "target": "openspec/specs/lifecycle-model-conformance/spec.md",
+      "target_before_sha256": "sha256:6bd94a2be34599ea9e1e894b269319b74ed447a9741b7a0a55d986ec85af4f33",
+      "content_sha256": "sha256:a74e054c31d010b70b454a5eae0ad6b6b8d5a4282e12cff8c7a0b9fd8392cd29"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "specs/kernel-contract-schemas/prepared-spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:e0f45a4c7deed0a3983efeb7f8cb3d45563db643f764a315e5e14779cbfa34d5",
+      "content_sha256": "sha256:b105a486e95e3fdc6c361b30c107a97812b09fa0b5d047fd52caad53a891cf0f"
+    },
+    {
+      "domain": "harness-authority-canon",
+      "source_delta": "specs/harness-authority-canon/prepared-spec.md",
+      "target": "openspec/specs/harness-authority-canon/spec.md",
+      "target_before_sha256": "sha256:01bc86b60bc41d30cb87071f7c8b6058994df44fd11672d4a0fe3b96c8af3af3",
+      "content_sha256": "sha256:644f8dc320128ca3a6408c262055d94aef94b7d2a0e014a2508276b0a406cccb"
+    },
+    {
+      "domain": "authority-store",
+      "source_delta": "specs/authority-store/spec.md",
+      "target": "openspec/specs/authority-store/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:8b3087f57f08218903ae7c8135c604c1d21dc3497e1877c2b64e859fd5cc8d8d"
+    },
+    {
+      "domain": "operation-permits",
+      "source_delta": "specs/operation-permits/spec.md",
+      "target": "openspec/specs/operation-permits/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:7c16da62ac0399e8de65cda6c58a6df535f380f92a40be0444cc31a7215e49d4"
+    },
+    {
+      "domain": "effect-semantics",
+      "source_delta": "specs/effect-semantics/spec.md",
+      "target": "openspec/specs/effect-semantics/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:d8c096071e97a446bc12c5c268bf8843ecf02ff67a55ef1fbf75318e7ce0c9a5"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260804-001-cas-wraps-journaled-commit.md",
+      "content_sha256": "sha256:72e6051a1574a9b25025b20953a2d06cddeddd9d4c06437a6fb4297ac8128bae"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260804-002-operation-receipt-distinct-from-receipt-v1.md",
+      "content_sha256": "sha256:850928132f0dd4a1f07c91b16a1db0a89b783120d8c5f4986f4f61daab50c15b"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260804-003-runtime-owned-operation-permit-ledger.md",
+      "content_sha256": "sha256:c1a05417fc6a9ed9b855086e0ef0827347084a4d8c3da7ec794fc1087acb0115"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260804-004-effect-class-governs-retry-policy.md",
+      "content_sha256": "sha256:28349f01617f94bb26ae086cdd5a414d268ca3d284f5f55654be27ac3e7e1d0c"
+    }
+  ],
+  "archive_inventory": [
+    ".4r/derived.json",
+    ".4r/diff.tracked.patch",
+    ".4r/diff.unified.patch",
+    ".4r/diff.untracked.patch",
+    ".4r/evidence.json",
+    ".4r/extract-resilience.js",
+    ".4r/findings-summary.json",
+    ".4r/freeze-all-findings.js",
+    ".4r/freeze-lineage.js",
+    ".4r/generalist.json",
+    ".4r/lens-readability.json",
+    ".4r/lens-reliability.json",
+    ".4r/lens-resilience.json",
+    ".4r/lens-risk.json",
+    ".4r/lineage.json",
+    ".4r/meta.json",
+    ".4r/normalize-evidence.js",
+    ".4r/paths.json",
+    ".4r/persist-gate.js",
+    ".4r/planned-after-freeze.json",
+    ".4r/planned.json",
+    ".4r/record-readability.js",
+    ".4r/record-resilience.js",
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "design.md",
+    "proposal.md",
+    "specs/authority-store/spec.md",
+    "specs/effect-semantics/spec.md",
+    "specs/harness-authority-canon/prepared-spec.md",
+    "specs/harness-authority-canon/spec.md",
+    "specs/kernel-contract-schemas/prepared-spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "specs/lifecycle-kernel-runtime/prepared-spec.md",
+    "specs/lifecycle-kernel-runtime/spec.md",
+    "specs/lifecycle-model-conformance/prepared-spec.md",
+    "specs/lifecycle-model-conformance/spec.md",
+    "specs/minimal-kernel-harness/prepared-spec.md",
+    "specs/minimal-kernel-harness/spec.md",
+    "specs/operation-permits/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    "F-14dbb8e2b5bedc92 WARNING: blockDirectWrite called with usedCas:true hardcoded before compareAndSwap; guard does not enforce CAS.",
+    "F-2e44f6ded70c698e WARNING: commitJournal is public API without revision/permit and mutates journal outside CAS.",
+    "F-ef7f31694da99f27 WARNING: consumePermit failure after CAS does not block; double-consume untested.",
+    "F-55bd97b29ebc4608 WARNING: commitJournal barriers ignore ok:false and continue to executor.",
+    "F-ddab94b038e8d838 WARNING: Fault matrix and authority-store tests do not cover mid-execution interrupt or CAS mid-op commitJournal.",
+    "F-bd27a22f78d52b17 WARNING: consumePermit has empty if mixing expected_revision (permit) and revision (receipt).",
+    "F-c8aca91e7038f73f WARNING: transitionOffer as peer parameter of permit suggests offer authorizes.",
+    "F-f259fd5761c2f1e6 WARNING: Effect loop in runKernelOperation nests more than 3 levels.",
+    "F-a926938492433da7 WARNING: Interrupt rewrites barrier executing→pre-effect without comment.",
+    "F-f5309077a189d636 SUGGESTION: Irreversible branch in reconcileEffect is identical to non-irreversible."
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

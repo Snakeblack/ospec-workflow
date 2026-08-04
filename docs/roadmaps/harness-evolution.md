@@ -1,7 +1,7 @@
 # Roadmap general — kernel, grafo y evidencia
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.37.2, 2026-08-04.
+> **Versión de referencia:** v2.39.0, 2026-08-04.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
 > **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md).
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
@@ -14,16 +14,17 @@ La nueva ruta crítica es:
 O2B fixed baseline
   → K1 contracts/invariants
   → K2 lifecycle kernel
-  → K2a reference host contract
-  → K3 candidate freeze
-  → K4a Execution Graph compiler + replay
+  → K2.1 Authority Store / permits / effect semantics
+  → K2a Headless Conformance Host + real adapter
+  → K3 candidate freeze + basic relation
+  → K4a Execution Graph compiler + Obligation Manifest + replay
   → K5 budgets/failure/recovery
   → K6a isolation/capsule
   → K4b Repair shadow execution
-  → K6b verifier/evidence
+  → K6b verifier/evidence + provenance
   → K6c policy-selected challenges
   → K6d complexity delta
-  → K7 reuse review lineage
+  → K7 review authority (adapter + reducer)
   → K8 Candidate Evaluation Attestation
   → K9 shadow/replay/A-B
   → K10-delivery DeliveryAuthorization
@@ -35,9 +36,11 @@ O2B fixed baseline
   → K12 corpus/longitudinal evaluation
 ```
 
-La columna vertebral se conserva: lifecycle (+ **Minimal Kernel Harness** + model-based invariants) → identidad → **compilar grafo** → budgets → aislamiento → **ejecutar shadow** → evidencia → review → attestation → shadow/A-B → delivery/routing → plataforma → **corpus/longitudinal**. K4 se parte en K4a/K4b; K2 adelanta runner headless mínimo y model-based testing; K12 conserva evaluación estructural a escala. K2a adelanta el adapter de referencia (uno de **seis** targets); la expansión a los **cinco** restantes permanece en K11a.
+La columna vertebral se conserva: lifecycle (+ **Authority Store** + **Minimal Kernel Harness** + model-based invariants) → host contract → identidad → **compilar grafo** (con Obligation Manifest) → budgets → aislamiento → **ejecutar shadow** → evidencia con provenance → review → attestation → shadow/A-B → delivery/routing → plataforma → **corpus/longitudinal**. K4 se parte en K4a/K4b; K2 adelanta runner headless mínimo y model-based testing; **K2.1** endurece CAS, permits y semántica de efectos antes de Work Orders/Candidate/Graph; K12 conserva evaluación estructural a escala. K2a adelanta Headless Conformance Host + un adapter real de referencia (uno de **seis** targets); la expansión a los **cinco** restantes permanece en K11a.
 
-O2B cerró el gate inicial. El change `fixed-policy-reference-baseline` obtuvo verify `PASS` para 16/16 MUST y evidencia Strict TDD autenticada, superó el gate 4R con estado `approved` y quedó archivado en `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`. La versión v2.36.0 que lo contiene ya está publicada. K1 (`k1-contract-suite`) cerró con verify `PASS`, gate 4R `approved` (2 CRITICAL remediados), archive transaccional en `openspec/changes/archive/2026-08-03-k1-contract-suite/` y publicación en v2.37.0. K2 (`k2-lifecycle-kernel`) cerró con verify `PASS`, gate 4R `approved` (3 CRITICAL remediados + 7 WARNING follow-up), archive transaccional en `openspec/changes/archive/2026-08-04-k2-lifecycle-kernel/` y publicación en v2.38.0. K2a es la siguiente iniciativa **next-eligible**; el resto de iniciativas posteriores permanece `pending`. Fixed continúa como control/default hasta que los gates posteriores autoricen otro cambio.
+Este programa **no** sustituye el roadmap por un “OSPEC v3” paralelo. Los deltas K2.1–K12 refuerzan la dirección ya fijada (runtime-owned lifecycle, Execution ≠ Assurance, cuatro identidades, separación worker/verifier/reviewer/delivery, Attestation ≠ Authorization, invalidación selectiva, shadow/A-B antes de defaults, rollout por perfil/target, rutas como recetas). OpenSpec y Git siguen siendo la autoridad semántica; el kernel posee transiciones, permisos, budgets, digests y efectos mecánicos; los modelos no se aprueban ni se conceden permisos a sí mismos.
+
+O2B cerró el gate inicial. El change `fixed-policy-reference-baseline` obtuvo verify `PASS` para 16/16 MUST y evidencia Strict TDD autenticada, superó el gate 4R con estado `approved` y quedó archivado en `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`. La versión v2.36.0 que lo contiene ya está publicada. K1 (`k1-contract-suite`) cerró con verify `PASS`, gate 4R `approved` (2 CRITICAL remediados), archive transaccional en `openspec/changes/archive/2026-08-03-k1-contract-suite/` y publicación en v2.37.0. K2 (`k2-lifecycle-kernel`) cerró con verify `PASS`, gate 4R `approved` (3 CRITICAL remediados + 7 WARNING follow-up), archive transaccional en `openspec/changes/archive/2026-08-04-k2-lifecycle-kernel/` y publicación en v2.38.0. K2.1 (`k2-1-authority-store-permits`) cerró con verify `PASS`, gate 4R `approved` (8 bloqueantes remediados + 10 WARNING advisory), archive transaccional en `openspec/changes/archive/2026-08-04-k2-1-authority-store-permits/` y publicación en v2.39.0. **K2a** es la siguiente iniciativa **next-eligible**; el resto de iniciativas posteriores permanece `pending`. Fixed continúa como control/default hasta que los gates posteriores autoricen otro cambio.
 
 Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R1 se rebasan sobre un kernel común; O7+O10 se convierte en capacidades; O9+O11 en invalidación/recompilación; O14 en routing por nodo; R4 consume el mismo Execution Graph. O8 y O12 conservan shadow, compatibilidad y deprecación. Targets y R2 siguen subordinados a la estabilidad del core.
 
@@ -45,11 +48,11 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 
 | Orden | Acción | Gate de salida |
 | ---: | --- | --- |
-| 1 | Ejecutar K2 → K2a → K3 | Transitions + harness + model-based invariants, host contract y cuatro identidades |
-| 2 | Ejecutar K4a → K5 → K6a → K4b | Graph compilable + budgets + aislamiento + shadow con Candidate |
-| 3 | Ejecutar K6b→K6d → K7 → K8 | Verify/challenges/review + Candidate Evaluation Attestation |
-| 4 | Ejecutar K9 | Calidad no inferior, replay y fallback fixed |
-| 5 | Ejecutar K10-delivery | `DeliveryAuthorization` **solo** del profile promovido por K9; resto fixed/deferred |
+| 1 | Ejecutar K2a → K3 | Headless Conformance Host + adapter real + cuatro identidades y relación básica |
+| 2 | Ejecutar K4a → K5 → K6a → K4b | Graph + Obligation Manifest + budgets (autoridad/efectos) + aislamiento + shadow con Candidate |
+| 3 | Ejecutar K6b→K6d → K7 → K8 | Verify/provenance/challenges/review authority + Candidate Evaluation Attestation |
+| 4 | Ejecutar K9 | Calidad no inferior, replay y fallback fixed (checkpoints intermedios ya emitidos) |
+| 5 | Ejecutar K10-delivery | `DeliveryAuthorization` **solo** del profile promovido por K9; relación Candidate por etapas; resto fixed/deferred |
 | 6 | Expandir K10, K11a→K11d y K12 | Rutas/targets de uno en uno, luego corpus/longitudinal (runner mínimo ya en K2) |
 
 ## Estado ejecutivo
@@ -65,18 +68,19 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **O2B** | Verify `PASS`, gate 4R `approved`, archivado y publicado en v2.36.0 |
 | `done` | **K1** | Contract suite, vocabulario, clasificación, paridad; archivado y publicado en v2.37.0 |
 | `done` | **K2** | Lifecycle + Minimal Kernel Harness + model-based invariants; archivado y publicado en v2.38.0 |
-| `pending` | **K2a** | Reference Host Contract (un adapter; core host-agnostic); **next-eligible** |
-| `pending` | K3 | Cuatro identidades + Candidate freeze (`SourceSnapshot`/`WorkOrder`/`WorkResult`/`Candidate`) |
-| `pending` | K4a | Graph compiler + replay (sin worker autoritativo) |
-| `pending` | K5 | Budgets, failures y recovery |
+| `done` | **K2.1** | Authority Store (CAS), OperationPermit/Receipt y semántica de efectos; archivado y publicado en v2.39.0 |
+| `pending` | **K2a** | Headless Conformance Host + adapter real de referencia + CapabilityProof |
+| `pending` | K3 | Cuatro identidades + Candidate freeze + relación básica (`exact`/`changed`/`ambiguous`/`unknown`) |
+| `pending` | K4a | Graph compiler + Obligation Manifest + replay (sin worker autoritativo) |
+| `pending` | K5 | Budgets (incl. autoridad/efectos), failures y recovery |
 | `pending` | K6a | Worker isolation / work-order capsule |
 | `pending` | K4b | Repair shadow execution (WO→WR→integrate→Candidate) |
-| `pending` | K6b–K8 | Verifier, challenges, complexity, review, **Evaluation Attestation** |
-| `pending` | K9 | Gate de promoción shadow/replay/A-B |
-| `pending` | K10-delivery | `DeliveryAuthorization` **acotada al profile K9**; fixed/deferred para el resto |
+| `pending` | K6b–K8 | Verifier + provenance, challenges, complexity, review authority, **Evaluation Attestation** |
+| `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
+| `pending` | K10-delivery | `DeliveryAuthorization` **acotada al profile K9**; relación Candidate por etapas; fixed/deferred para el resto |
 | `pending` | K10–K12 | Expansión adaptativa; K11a = multi-target; K12 = corpus/longitudinal (no el primer runner) |
 
-No se modifica el estado de OpenSpec desde este documento. El cierre de O2B se toma de `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`; el de K1, de `openspec/changes/archive/2026-08-03-k1-contract-suite/` y v2.37.0.
+No se modifica el estado de OpenSpec desde este documento. El cierre de O2B se toma de `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`; el de K1, de `openspec/changes/archive/2026-08-03-k1-contract-suite/` y v2.37.0; el de K2, de `openspec/changes/archive/2026-08-04-k2-lifecycle-kernel/` y v2.38.0; el de K2.1, de `openspec/changes/archive/2026-08-04-k2-1-authority-store-permits/` y v2.39.0.
 
 ## Reglas del programa
 
@@ -175,10 +179,10 @@ Campo canónico de binding al candidato: **`candidate_id`** (no `candidate_diges
 
 ```text
 Entregado:
-G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2
-                                                             ↓
-Next eligible:                                              K2a
-                                                             ↓
+G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2 → K2.1
+                                                                      ↓
+Next eligible:                                                       K2a
+                                                                      ↓
 Pending:     K2a → K3 → K4a → K5 → K6a → K4b → K6b → K6c → K6d → K7 → K8
                                                                   ↓
 Promoción:                                                       K9
@@ -189,7 +193,7 @@ Delivery:                                                   K10-delivery
 Expansión:                          K10 → K11a → K11b → K11c → K11d → K12
 ```
 
-K2a selecciona **un** host de referencia entre los seis targets; K11a expande el mismo contrato a los **cinco** restantes. K4a compila/valida/replay **antes** de ejecutar; K4b ejecuta shadow solo tras K5+K6a.
+K2.1 fija Authority Store (CAS), permits y effect semantics antes de identidades/Graph. K2a selecciona **un** host de referencia entre los seis targets (Headless Conformance Host + adapter real); K11a expande el mismo contrato a los **cinco** restantes. K4a compila/valida/replay **antes** de ejecutar (incluye Obligation Manifest); K4b ejecuta shadow solo tras K5+K6a.
 Lanes R2 y targets solo avanzan en paralelo si no cambian control plane, contract suite, Execution Graph ni baseline.
 
 ## Bloque 0 — cerrar el control y preservar lo entregado
@@ -202,7 +206,7 @@ Entregado:
 - separación entre autoridad, targets y análisis;
 - historial no normativo fuera de la ruta operativa.
 
-La reconciliación vigente fija el corte en **v2.38.0** (K1+K2 `done`; K2a next-eligible) y conserva la dirección kernel/Execution Graph/Assurance Graph. No reabre los changes entregados.
+La reconciliación vigente fija el corte en **v2.39.0** (K1+K2+K2.1 `done`; K2a next-eligible) y conserva la dirección kernel/Execution Graph/Assurance Graph. No reabre los changes entregados.
 
 ### O2A — infraestructura de benchmark — **done**
 
@@ -339,7 +343,7 @@ Gate cerrado: K1 puede iniciar. El cierre de O2B no cambia por sí mismo default
 
 K1 entrega la **materialización declarativa** de las 15 invariantes P0: `state-transition`/`failure-recovery` (continuaciones y recovery), `classification` (proporcionalidad/hard floors), `contract` + canon (autoridad persistida), `graph-node` (DAG semántico), `work-order` + `candidate` (independencia e identidad), `evidence` + `verification` + `finding-review` + `receipt` (evidence ≠ verdict y binding), `event` (observabilidad no autoritativa), aliases/pinning (compatibilidad) y fixtures de paridad/fail-closed.
 
-No entrega todavía el enforcement runtime correspondiente: reducer/replay/paridad E2E + Minimal Kernel Harness + model-based testing (K2), Reference Host Contract (K2a), freeze universal (K3), Graph compiler/replay (K4a), budgets/recovery (K5), aislamiento (K6a), shadow execution (K4b), verificación/challenges/complexity (K6b–K6d), adjudicación y lineage universal (K7), Candidate Evaluation Attestation (K8), promoción/fallback (K9), Delivery Authorization + rutas (K10), expansión multi-target/model routing/ownership/worktrees/roles (K11) ni corpus/evaluación longitudinal (K12). Esos slices siguen siendo obligatorios; los schemas K1 no los sustituyen.
+No entrega todavía el enforcement runtime correspondiente: reducer/replay/paridad E2E + Minimal Kernel Harness + model-based testing (K2), Authority Store/permits/effects (K2.1), Headless Conformance Host + adapter real (K2a), freeze universal (K3), Graph compiler/Obligation Manifest/replay (K4a), budgets/recovery (K5), aislamiento (K6a), shadow execution (K4b), verificación/provenance/challenges/complexity (K6b–K6d), review authority (K7), Candidate Evaluation Attestation (K8), promoción/fallback (K9), Delivery Authorization + rutas (K10), expansión multi-target/model routing/ownership/worktrees/roles (K11) ni corpus/evaluación longitudinal (K12). Esos slices siguen siendo obligatorios; los schemas K1 no los sustituyen.
 
 #### Review path
 
@@ -351,7 +355,7 @@ Revisar primero autoridad/migración, después shapes, por último ejemplos y cl
 
 **Absorbe/rebasa:** P1, P18, P25 (emisión); P26 (runner mínimo); O13B/O13C; parte de O19B; patrones O4.2/O6A.
 
-**Dependencia:** K1 `done`. **Cierre:** change `k2-lifecycle-kernel` con verify `PASS`, 4R `approved` (CRITICAL remediados; WARNING follow-up), archive `2026-08-04-k2-lifecycle-kernel`, publicado en v2.38.0. Iniciativa terminal: `done`. K2a queda **next-eligible**.
+**Dependencia:** K1 `done`. **Cierre:** change `k2-lifecycle-kernel` con verify `PASS`, 4R `approved` (CRITICAL remediados; WARNING follow-up), archive `2026-08-04-k2-lifecycle-kernel`, publicado en v2.38.0. Iniciativa terminal: `done`. K2.1 quedó **next-eligible** y posteriormente se cerró en v2.39.0.
 
 **Motivación:** sin un runner headless temprano, K2 acaba probado solo con unidades aisladas y no como protocolo ejecutable. El corpus amplio y la evaluación longitudinal permanecen en K12. El model-based testing comprueba invariantes sobre un espacio de transiciones pequeño; TLA+ no es requisito de entrega de K2.
 
@@ -467,19 +471,124 @@ Se comienza con tests de modelo exhaustivos sobre el espacio pequeño vía Minim
 
 #### Gate
 
-Lifecycle + harness mínimo + invariantes ejecutables/abstractas verdes. No compilar Execution Graph ni acoplar transports de host hasta entonces. Desbloquea K2a. K12 no es prerequisito del runner básico. TLA+ no bloquea el gate de K2.
+Lifecycle + harness mínimo + invariantes ejecutables/abstractas verdes. No compilar Execution Graph ni acoplar transports de host hasta entonces. Desbloquea K2.1 (Authority Store / permits / effects). K12 no es prerequisito del runner básico. TLA+ no bloquea el gate de K2.
 
-### K2a — Reference Host Contract — **pending**
+### K2.1 — Authority Store, OperationPermit y semántica de efectos — **done**
 
-**Dependencias:** K2.
+**Dependencias:** K2 `done`.
+
+**Absorbe/rebasa:** endurecimiento de P1/P18 (authority/effects); cierra la laguna de autorización mutante de K2 (token no vacío ≠ permiso).
+
+**Motivación:** K2 entregó estado, journal, commits e idempotencia de efectos, pero no un contrato CAS que impida que dos writers avancen desde la misma revisión, ni permisos ligados al estado, ni semántica explícita de efectos. Eso era razonable en el alcance reducido de K2; debe resolverse **antes** de introducir Work Orders, Candidate y Graph. Sin K2.1, K3–K8 construirían identidad y attestation sobre una autoridad mutante débil.
+
+**Change:** `k2-1-authority-store-permits` (ruta `critical`).
+
+**Cierre:** verify `PASS`, 4R `approved` (8 bloqueantes remediados; 10 WARNING advisory), archive `2026-08-04-k2-1-authority-store-permits`, publicado en v2.39.0. Iniciativa terminal: `done`. K2a queda **next-eligible**.
+
+#### Alcance — Authority Store (CAS obligatorio)
+
+El store debe exponer:
+
+```ts
+load(subjectId): { state; revision }
+
+compareAndSwap(
+  subjectId,
+  expectedRevision,
+  nextState
+)
+```
+
+- un único writer gana por `expectedRevision`; conflicto CAS no reinicia el trabajo ni aumenta budgets;
+- journal/commits existentes se conservan; CAS es el contrato de mutación concurrente;
+- replay exacto sobre la misma revisión converge.
+
+#### Alcance — permisos ligados al estado
+
+Separar tres artefactos:
+
+| Artefacto | Qué dice | Qué no es |
+| --- | --- | --- |
+| `TransitionOffer` | Qué operación *podría* realizarse | Autorización de mutación |
+| `OperationPermit` | Autoriza una mutación concreta (single-use, revision-bound) | Attestation ni Delivery Authorization |
+| `OperationReceipt` | Demuestra que la operación mecánica terminó | Evaluación ni pase de delivery |
+
+Shape conceptual de `OperationPermit`:
+
+```json
+{
+  "permit_id": "opaque:...",
+  "domain": "execution",
+  "operation": "submit-work-result",
+  "subject_id": "wo:...",
+  "expected_revision": "sha256:...",
+  "arguments_digest": "sha256:...",
+  "scope_digest": "sha256:...",
+  "policy_digest": "sha256:...",
+  "budget_ref": "budget:...",
+  "single_use": true
+}
+```
+
+Reglas:
+
+- 0 mutaciones sin CAS;
+- 0 permits stale aceptados (`expected_revision` distinto del head);
+- 0 reutilizaciones de permits (`single_use`);
+- un permit no equivale a attestation ni a authorization de delivery;
+- modelos no emiten ni se conceden permits a sí mismos.
+
+#### Alcance — semántica explícita de efectos
+
+Cada efecto declara una clase:
+
+```text
+pure
+idempotent-keyed
+probeable
+compensatable
+irreversible
+```
+
+- un efecto `irreversible` con resultado ambiguo **no** se reintenta automáticamente; produce `decide` o `stop`;
+- no se promete exactly-once falso sobre shell, Git, APIs o servicios externos;
+- adapters direct-write quedan bloqueados: toda mutación pasa por permit + CAS + clase de efecto.
+
+#### Fuera de alcance
+
+- cuatro identidades / Candidate freeze (K3);
+- HostCapabilities / transports de producto (K2a);
+- Execution Graph / Obligation Manifest (K4a);
+- Evaluation Attestation / Delivery Authorization (K8 / K10-delivery);
+- firmas criptográficas sin trust root real;
+- cambiar defaults globales.
+
+#### Done criteria / gate terminal
+
+- 0 mutaciones sin CAS;
+- 0 permits stale aceptados;
+- 0 reutilizaciones de permits;
+- 0 efectos ambiguos reintentados a ciegas;
+- replay exacto convergente;
+- adapter direct-write bloqueado;
+- fixed sin regresiones;
+- fault matrix de CAS/conflict/stale/reuse/ambiguous-effect cubierta por fixtures.
+
+#### Gate
+
+Authority Store + permits + effect semantics conformes. Checkpoint: `continue` | `revise` | `reject`. Desbloquea K2a.
+
+### K2a — Headless Conformance Host + adapter real de referencia — **pending**
+
+**Dependencias:** K2.1.
 
 **Absorbe/rebasa:** P20 (contrato mínimo); bases de O13D; desacopla el core de cualquier target concreto.
 
-**Motivación:** K4a/K4b (target inicial), K6a (workspace aislado), K10-delivery (hooks reales) y degradaciones por capability no pueden esperar a K11a. Sin un adapter de referencia temprano, **K3–K10** (y los transports de host) introducirían conocimiento de VS Code/Codex/Claude/etc. en el core y K11a sería una extracción dolorosa. K2 permanece host-agnostic por diseño y no carga transports de host.
+**Motivación:** K4a/K4b (target inicial), K6a (workspace aislado), K10-delivery (hooks reales) y degradaciones por capability no pueden esperar a K11a. Un contrato “perfecto” solo headless es irreal; un adapter real sin fixture de conformance no permite fault injection. La opción sólida es **ambos**: Headless Conformance Host (faults, timeouts, cancelación, workers, conformance) **más** un adapter real de referencia. K2/K2.1 permanecen host-agnostic por diseño.
 
 #### Alcance
 
-Contrato host-agnostic consumido por el core; un único adapter de referencia (el host con mayor capacidad reproducible al abrir el change):
+Contrato host-agnostic consumido por el core; Headless Conformance Host + un único adapter real de referencia (el host con mayor capacidad reproducible al abrir el change):
 
 - `HostCapabilities`
 - `HostAdapter`
@@ -488,12 +597,15 @@ Contrato host-agnostic consumido por el core; un único adapter de referencia (e
 - `WorkerTransport`
 - `ToolExecutionTransport`
 - `DeliveryGateTransport`
+- **`CapabilityProof`:** una capability no se enforcea porque lo diga un JSON, sino porque exista una prueba reproducible con `adapter_version`, `host_version`, fixture y `evidence_digest`
 
 Estados de capability:
 
 ```text
 enforced · partial · instructional · unavailable
 ```
+
+El fixture headless sirve para fault injection, timeouts, cancelación, workers y conformance. El adapter real evita definir un contrato perfecto pero irreal. K2a identifica los transports necesarios y evita expandir los seis targets antes de estabilizar uno.
 
 #### Fuera de alcance
 
@@ -506,8 +618,9 @@ enforced · partial · instructional · unavailable
 #### Done criteria
 
 - el core solo habla el contrato (`HostCapabilities` + transports); ningún módulo de lifecycle/Graph/receipt importa APIs de un host concreto;
-- existe exactamente un adapter de referencia cableado; los demás hosts no están activados;
-- cada capability declara `enforced|partial|instructional|unavailable` con fixtures;
+- existe Headless Conformance Host con fault matrix (timeout, cancel, worker fail, interrupt);
+- existe exactamente un adapter real de referencia cableado; los demás hosts no están activados;
+- cada capability `enforced` tiene `CapabilityProof` reproducible (adapter/host version + fixture + evidence digest);
 - degradación honesta: `unavailable`/`instructional` no se promocionan a `enforced` por fallback silencioso;
 - `DeliveryGateTransport` y `WorkerTransport` permiten a K6a/K10-delivery ejercitar aislamiento y hooks sin policy propia del adapter;
 - conformance rechaza adapters que dupliquen lifecycle o Graph semantics;
@@ -515,7 +628,7 @@ enforced · partial · instructional · unavailable
 
 #### Gate
 
-Core host-agnostic con un adapter de referencia. Desbloquea K3/K4a sobre ese host; la paridad multi-target queda en K11a.
+Core host-agnostic con Headless Conformance Host + un adapter real de referencia. Checkpoint: `continue` | `revise` | `reject`. Desbloquea K3/K4a sobre ese host; la paridad multi-target queda en K11a.
 
 ## Bloque 3 — identidad universal
 
@@ -523,7 +636,9 @@ Core host-agnostic con un adapter de referencia. Desbloquea K3/K4a sobre ese hos
 
 **Absorbe/rebasa:** P9; identidad existente de O4/O5 y fingerprints de O6A.
 
-**Invariante de separación:** cuatro identidades distintas; no son alias ni etapas renombradas del mismo digest.
+**Dependencias:** K2a.
+
+**Invariante de separación:** cuatro identidades distintas; no son alias ni etapas renombradas del mismo digest. No se añaden IDs nuevos en este slice.
 
 | Identidad | Qué congela | No es |
 | --- | --- | --- |
@@ -597,19 +712,41 @@ Resultado **no aprobado** del worker (ligado a `WorkOrderId` + `SourceSnapshotId
 
 Contenido **integrado** sobre la base autorizada y **congelado** antes de verify/review/attestation/authorization. Incluye:
 
-- canonicalización de paths;
+- canonicalización de paths (semántica canónica explícita);
 - proyección **solo** `workspace|staged` (alineado con `candidate/v1`; un commit puede ser origen de `SourceSnapshot`, no de Candidate);
+- `repository_id` (evita colisión entre repos con árboles iguales);
 - base tree, candidate tree, diff hash, paths digest;
+- `changed_paths_modes_digest` (detecta 100644→100755 y modos);
+- `intended_untracked_digest` cuando aplique;
+- cobertura de symlinks, case sensitivity y selectors ambiguos;
 - freeze antes de verify;
 - successor ante cualquier byte distinto;
 - recovery hereda proyección del predecesor salvo successor explícito autorizado;
 - adapters para lineage/archive.
 
+La separación `WorkResult ≠ Candidate` se conserva: el resultado del worker solo se convierte en Candidate después de integrarse sobre la base autorizada y congelarse.
+
+#### Relación inicial Candidate (fail-closed)
+
+Primera versión (enforcement productivo acotado en K10-delivery; vocabulario y fixtures aquí):
+
+| Relación | Significado | Acción inicial |
+| --- | --- | --- |
+| `exact` | Mismo candidate congelado | Validar |
+| `changed` | Bytes distintos / successor | Nueva evaluación |
+| `ambiguous` | Selector o proyección ambigua | `decide` / `stop` |
+| `unknown` | Relación no determinable | `stop` |
+
+- `compatible-base-advance` queda **experimental** hasta K9 (fixtures suficientes);
+- `provable-contraction` se difiere hasta evidencia, findings y delivery completos;
+- no se importa la relation algebra completa de Gentle-AI: empezar simple, fail-closed, promocionar relaciones avanzadas solo con fixtures.
+
 #### Alcance adicional
 
 - schemas/IDs estables para las cuatro identidades y sus bindings;
 - rechazo fail-closed si un consumer trata `WorkResultId` como `CandidateId`, o `CandidateId` como attestation/delivery auth;
-- ningún attestation/authorization puede apuntar solo a branch o working tree mutable.
+- ningún attestation/authorization puede apuntar solo a branch o working tree mutable;
+- fixtures de ambigüedad de selector, modos, symlinks y case.
 
 #### Done criteria
 
@@ -618,6 +755,8 @@ Contenido **integrado** sobre la base autorizada y **congelado** antes de verify
 - mismo tree integrado produce mismo `CandidateId` en plataformas soportadas;
 - cambio de un byte del candidate produce ID distinto;
 - dirty/untracked/symlink/case edge cases están cubiertos;
+- `repository_id`, modes digest y selector ambiguity tienen fixtures negativas;
+- relación básica `exact|changed|ambiguous|unknown` es determinista y fail-closed;
 - `workspace` y `staged` con el mismo contenido índice/árbol no se confunden cuando el worktree diverge;
 - verify/review/delivery rechazan identidad distinta o un `WorkResult` no integrado;
 - legacy review/archive conserva histories y no resetea lineage;
@@ -626,7 +765,7 @@ Contenido **integrado** sobre la base autorizada y **congelado** antes de verify
 
 #### Gate
 
-K3 bloquea **Evaluation Attestation** y **Delivery Authorization** (y la vertical Repair que las consume) hasta que las cuatro identidades y el freeze de Candidate estén conformes. No bloquea `ArchiveTransactionReceipt` de O6A ni el envelope legacy `receipt/v1`.
+K3 bloquea **Evaluation Attestation** y **Delivery Authorization** (y la vertical Repair que las consume) hasta que las cuatro identidades y el freeze de Candidate estén conformes. Checkpoint: identidad y ambigüedad → `continue` | `revise` | `reject`. No bloquea `ArchiveTransactionReceipt` de O6A ni el envelope legacy `receipt/v1`.
 
 ## Bloque 4 — Execution Graph: compilar antes de ejecutar
 
@@ -645,6 +784,19 @@ K4 se parte porque el aislamiento real del worker llega en K6a. **Verbos:** K4a 
 #### Alcance
 
 - Execution Graph con nodos semánticos, dependencias, invariantes, ownership y evidence refs;
+- **Obligation Manifest** como vista determinista **dentro** del propio Graph (no un tercer grafo ni store independiente):
+
+```yaml
+obligations:
+  - id: req-session-rotation-001
+    criticality: must
+    implemented_by:
+      - repair-auth-session
+    required_evidence:
+      - auth-contract-tests
+```
+
+  Cada obligación `MUST` → está implementada por un nodo → tiene evidencia requerida → o está aplazada mediante decisión explícita. Ventaja defendible: no solo demostrar que un candidato fue revisado, sino que ninguna obligación del contrato se perdió durante la compilación del trabajo;
 - compile de Repair (bug reproducible/localizado);
 - **`PolicySnapshot` de compile:** la decisión de policy usada para clasificar/compilar queda digesta y reproducible (bundle, classifier/compiler/runtime versions, `effectiveRules`);
 - validación/conformance de Execution Graph;
@@ -681,6 +833,7 @@ compact contract
 - nodos microscópicos `read/edit/test` son rechazados por contract/lint;
 - Graph ID es estable y está ligado al contract digest **y** al `policyBundleDigest` efectivo de compile;
 - el mismo contract bajo policies distintas produce Graph/policy digests distintos cuando las `effectiveRules` divergen;
+- Obligation Manifest: toda obligación `MUST` tiene `implemented_by` + `required_evidence` o defer explícito auditado;
 - clarify invalida solo descendants declarados;
 - dependency desconocida impide reutilizar output;
 - Work Order shape v1 valida en conformance (sin ejecución);
@@ -691,7 +844,7 @@ compact contract
 
 #### Gate
 
-Compile/replay estables. Rechazo conserva fixed. Promoción desbloquea K5 (luego K6a); **no** activa shadow execution (K4b) ni cambia default.
+Compile/replay + Obligation Manifest estables. Checkpoint: cobertura de obligaciones y calidad del Graph → `continue` | `revise` | `reject`. Rechazo conserva fixed. Promoción desbloquea K5 (luego K6a); **no** activa shadow execution (K4b) ni cambia default.
 
 ## Bloque 5 — ejecución acotada y causal
 
@@ -704,10 +857,21 @@ Compile/replay estables. Rechazo conserva fixed. Promoción desbloquea K5 (luego
 #### Alcance
 
 - budgets por node: turns, patches, commands, wall time, changed lines, paths;
+- budgets de **autoridad y efectos** (además de turns/patches/commands):
+
+```yaml
+budget:
+  effect_attempts: 8
+  authority_mutations: 12
+  evidence_runs: 6
+  review_sweeps: 1
+```
+
 - taxonomy causal;
 - mapping de tags existentes;
 - repair/replan/escalate/stop;
-- no automatic reset.
+- no automatic reset;
+- el budget **no** aumenta por retry; un CAS conflict no reinicia el trabajo; un efecto ambiguo no se etiqueta automáticamente como defecto de código.
 
 #### Done criteria
 
@@ -717,6 +881,7 @@ Compile/replay estables. Rechazo conserva fixed. Promoción desbloquea K5 (luego
 - repair limita node/paths/findings;
 - zero-delta consume attempt cuando corresponde;
 - environment/tool/external failures no se etiquetan como code defect;
+- CAS conflict y efecto ambiguo no reinician budgets ni se reclasifican como code defect;
 - recovery E2E prueba avance o stop;
 - métricas de consumo quedan fuera del state semántico.
 
@@ -887,6 +1052,18 @@ No se reejecuta “absolutamente todo” por defecto; tampoco se reutiliza evide
 - verifier consume contract, Execution Graph, **`CandidateId` (no `WorkResultId`)**, repo y raw evidence;
 - strategies bug/feature/refactor/migration/config-docs;
 - evidence refs con origin, hash y node binding **como nodos/edges del Assurance Graph**;
+- **provenance de evidencia** (obligatorio en cada evidence node):
+
+```text
+runtime-observed
+host-attested
+tool-produced
+model-reported
+human-decision
+external-unverified
+```
+
+  Ejemplo: “tests passed” escrito por el worker (`model-reported`) ≠ resultado observado por el runtime (`runtime-observed`). La policy decide qué provenance puede satisfacer cada obligación;
 - emisión/actualización de `AssuranceEdge` al verificar (`verified-by`, `satisfies`, `derived-from`, `invalidates`);
 - closure de invalidación selectiva cuando aparece successor o cambia un sujeto fuente;
 - fallback Strict TDD;
@@ -903,6 +1080,7 @@ No se reejecuta “absolutamente todo” por defecto; tampoco se reutiliza evide
 - narrativa del worker no es input de autoridad;
 - cada strategy declara evidencia mínima y negative cases;
 - evidencia fabricada/stale/foreign falla cerrada;
+- provenance insuficiente para una obligación falla cerrada según policy;
 - cambio post-freeze crea successor;
 - el Assurance Graph es reproducible desde inputs canónicos (mismo digest ⇒ mismos edges);
 - fixtures de successor invalidan solo el closure afectado y **conservan** evidencia independiente;
@@ -911,7 +1089,7 @@ No se reejecuta “absolutamente todo” por defecto; tampoco se reutiliza evide
 - equivalence manifest queda listo para K9;
 - ningún consumer trata el Assurance Graph como segunda fuente de verdad frente a OpenSpec/Git/Candidate.
 
-**Gate terminal:** verifier, strategy selector y Assurance Graph (proyección) conformes; K6c no empieza antes.
+**Gate terminal:** verifier, strategy selector, provenance y Assurance Graph (proyección) conformes; checkpoint evidencia/challenges → `continue` | `revise` | `reject`. K6c no empieza antes.
 
 ### K6c — adversarial challenges (policy-selected) — **pending**
 
@@ -1016,11 +1194,20 @@ No retirar universalidad de Strict TDD hasta que K6b/K6c/K9 demuestren que cada 
 
 ## Bloque 7 — review reusable
 
-### K7 — integrar Candidate/Graph/evidence con lineage — **pending**
+### K7 — review authority (ReviewAdapter + ReviewReducer) — **pending**
 
 **Absorbe/rebasa:** P10/P11; O4+O5/O4.1.
 
 **Policy:** el selector de review consume un `PolicySnapshot` (reglas efectivas de clasificación/niveles/lenses). Cambiar policy puede exigir review donde antes bastaba Nivel 0, o al revés; el lineage registra el policy digest usado, no solo el candidate.
+
+**Autoridad de review explícita:**
+
+| Componente | Responsabilidad |
+| --- | --- |
+| `ReviewAdapter` | Invoca modelos y presenta decisiones; no congela tier/lenses ni concede aprobación |
+| `ReviewReducer` | Congela tier y lenses; admite findings; consume correction budget; crea successor; finaliza review |
+
+Corrección bounded ordinaria inicialmente. Una corrección por closure (estilo Gentle) puede evaluarse después en shadow; **no** entra como default (riesgo de reintroducir loops).
 
 **Assurance Graph (con K6b):** el review **extiende** la proyección con edges `reviewed-by` / `invalidates` sobre findings y lenses; no inventa una segunda autoridad. Ante Candidate successor (o invalidación selectiva de evidencia):
 
@@ -1035,10 +1222,11 @@ Candidate successor
 
 Invalidar “todo el review anterior” sigue siendo correcto para el **receipt** y para findings ya aprobados como autoridad; la **re-ejecución** de trabajo de review/verify debe ser selectiva vía Assurance Graph, no un replay total por defecto.
 
-**Ventaja absorbida (comparativo Gentle AI, 2026-08):** no se porta RDD/CLI/`review-integration` ni un ledger markdown paralelo. Se absorbe solo lo que mejora el kernel de review ya entregado: criterios de lente más densos, *precision gate*, y refutación acotada de findings severos. La machinery (selector determinista, lineage, remediation-v2, fail-closed) permanece la de ospec y se considera superior al triage 3-tier / convergence genérico de Gentle.
+**Ventaja absorbida (comparativo Gentle AI, 2026-08):** no se porta RDD/CLI/`review-integration` ni un ledger markdown paralelo. Se absorbe solo lo que mejora el kernel de review ya entregado: criterios de lente más densos, *precision gate*, y refutación acotada de findings severos. La machinery (selector determinista, lineage, remediation-v2, fail-closed) permanece la de ospec y se considera superior al triage 3-tier / convergence genérico de Gentle. No hace falta importar RDD.
 
 #### Alcance
 
+- separar `ReviewAdapter` (invocación/presentación) de `ReviewReducer` (congelación, findings, budget, successor, finalize);
 - Nivel 0: sin review de modelo solo para candidatos Direct mecánicos cuya validación determinista sea suficiente y sin señales materiales;
 - Nivel 1: generalista read-only para cumplimiento, correctness, scope, evidencia, complejidad, regresiones y coherencia;
 - Nivel 2: especialistas selectivos activados por riesgo/evidencia;
@@ -1075,7 +1263,9 @@ Invalidar “todo el review anterior” sigue siendo correcto para el **receipt*
 - no existe `review-ledger.md` ni store ajeno como segunda autoridad de findings; lineage en OpenSpec state permanece canónico;
 - Judgment Day permanece skill on-demand y no se fusiona al gate 4R;
 - fixtures demuestran que el mismo Candidate bajo policies distintas puede seleccionar niveles/lenses distintos;
-- fixtures demuestran invalidación selectiva: evidencia/lenses independientes sobreviven; dependientes se regeneran.
+- fixtures demuestran invalidación selectiva: evidencia/lenses independientes sobreviven; dependientes se regeneran;
+- `ReviewAdapter` no puede congelar findings ni consumir correction budget; solo el reducer muta lineage;
+- checkpoint precisión/coste de review → `continue` | `revise` | `reject`.
 
 ## Bloque 8 — attestation de evaluación
 
@@ -1093,6 +1283,16 @@ Invalidar “todo el review anterior” sigue siendo correcto para el **receipt*
 | **Delivery Authorization** | Ese candidate puede atravesar un gate concreto | **K10-delivery** |
 
 **Separación (K3):** la attestation liga un `CandidateId` congelado. `EvaluationAttestation ≠ DeliveryAuthorization`.
+
+**Emisión mediante CAS:** la attestation se emite con `OperationPermit` + `compareAndSwap` sobre el subject de evaluación. Campos adicionales:
+
+- `expected_revision` / `authority_revision`
+- `issuer_version`
+- `OperationPermit` single-use
+- exact replay
+- single writer
+
+No se añaden firmas criptográficas sin un trust root real.
 
 **Policy Snapshot:** el mismo candidate puede ser aprobado bajo una policy y rechazado bajo otra. La attestation **debe** ligar un `PolicySnapshot` verificable; sin ese digest, la revalidación en K10-delivery quedaría indirecta.
 
@@ -1117,6 +1317,9 @@ Shape conceptual de la Candidate Evaluation Attestation:
   "evidence_root_digest": "sha256:...",
   "findings_digest": "sha256:...",
   "policy_digest": "sha256:...",
+  "expected_revision": "sha256:...",
+  "authority_revision": "sha256:...",
+  "issuer_version": "...",
   "runtime_version": "...",
   "outcome": "approved-for-evaluation"
 }
@@ -1130,11 +1333,12 @@ Shape conceptual de la Candidate Evaluation Attestation:
 
 - finalizar evidence/findings digests (root alineable al Assurance Graph; el grafo no es autoridad);
 - Evaluation Attestation ligada a contract, graph, candidate, evidence, findings **y policy**;
-- materializar `PolicySnapshot` / `policy_digest` + `runtime_version` en el envelope;
+- emisión vía CAS + `OperationPermit` (single writer, exact replay, single-use);
+- materializar `PolicySnapshot` / `policy_digest` + `runtime_version` + `issuer_version` + revisions en el envelope;
 - `kind` discriminante explícito (`candidate-evaluation-attestation`); nunca alias silencioso a delivery;
 - outcome y `valid_for` (scope inicial `evaluation`);
-- stale/foreign checks (incluye policy/runtime mismatch);
-- threat-model mínimo del store/emisión (corrupción accidental, writer stale, interrupción, identity mismatch) sin pretender autenticar actor malicioso same-user;
+- stale/foreign checks (incluye policy/runtime mismatch y revision stale);
+- threat-model mínimo del store/emisión (corrupción accidental, writer stale, interrupción, identity mismatch) sin pretender autenticar actor malicioso same-user ni firmas sin trust root;
 - decline/bypass auditado nunca reporta autorización de delivery ni fabrica attestation.
 
 #### Done criteria
@@ -1162,6 +1366,23 @@ Extender `valid_for` requiere un change posterior con threat model y evidencia K
 
 **Conserva/rebasa:** P13/P26 parcial; O8; O2B como control.
 
+K9 sigue siendo el **único gate que promociona** `kernel-shadow → kernel`. No desaparece. Pero no se espera hasta K9 para descubrir que una abstracción no funciona: los checkpoints intermedios ya habrán emitido `continue` | `revise` | `reject`.
+
+#### Checkpoints previos (no sustituyen K9)
+
+| Después de | Se valida |
+| --- | --- |
+| K2.1 | CAS, permits y fault matrix |
+| K2a | Contrato real de host + CapabilityProof |
+| K3 | Identidad y ambigüedad |
+| K4a | Cobertura de obligaciones y calidad del Graph |
+| K4b | Repair shadow sin bypass |
+| K6b/K6c | Evidencia, provenance y challenges |
+| K7 | Precisión y coste de review |
+| **K9** | Perfil integrado completo |
+
+Cada checkpoint puede emitir `continue` | `revise` | `reject`. Así no se arrastra una mala abstracción durante seis slices.
+
 #### Policies
 
 ```text
@@ -1177,11 +1398,12 @@ kernel
 - mismos fixtures, harness, target, modelo/effort y budgets;
 - **PolicySnapshot / `policy_digest`** por brazo (mismas rules ⇒ digests iguales; divergencia tipada);
 - obligaciones/verdict/findings;
-- evidence/challenges;
+- evidence/challenges/provenance;
 - invocaciones/tokens/duración;
 - preguntas, retries y recovery;
 - complexity delta;
-- divergencias y fallback.
+- divergencias y fallback;
+- evaluación experimental de `compatible-base-advance` **solo** si fixtures K3/K9 lo soportan; no entra como default.
 
 #### Done criteria
 
@@ -1209,7 +1431,7 @@ Promoción no activa cinco rutas ni targets. Autoriza **solo** el perfil/ruta/ta
 
 **Nombre = arquitectura:** emite/valida un **`DeliveryAuthorization`** por gate concreto (`pre-commit` / `pre-push` / `pre-pr`). Consume Evaluation Attestations de K8; **nunca** las renombra ni las trata como pase de delivery. **Nunca** se llama «Delivery Authorization Receipt» (Receipt ≠ Authorization). Schema propio: `schemas/kernel/delivery-authorization/v1` — no reutilizar `receipt/v1`.
 
-**Alcance de promoción (obligatorio):** el primer enforcement productivo **solo** gobierna el **perfil promovido por K9** (ruta + target + configuración demostrados; típicamente Repair en el host de referencia).
+**Alcance de promoción (obligatorio):** el primer enforcement productivo **solo** gobierna el **perfil promovido por K9** (ruta + target + configuración demostrados; típicamente Repair en el host de referencia). Es una decisión sólida del roadmap y se conserva.
 
 ```text
 K9 demuestra Repair (perfil P)
@@ -1217,6 +1439,16 @@ K9 demuestra Repair (perfil P)
   → otras rutas/perfiles: fixed | unmanaged/deferred
 ```
 
+**Relación Candidate por etapas (primera versión):**
+
+| Relación | Acción en delivery |
+| --- | --- |
+| `exact` | Validar |
+| `changed` | Nueva evaluación |
+| `ambiguous` | `decide` / `stop` |
+| `unknown` | `stop` |
+
+Después de pruebas en K9 podría incorporarse `compatible-base-advance`. No se copia la relation algebra completa de Gentle-AI: empezar simple, fail-closed, promocionar relaciones avanzadas solo con fixtures suficientes.
 **Prohibido:**
 
 ```text
@@ -1323,7 +1555,7 @@ Activar una ruta cada vez, empezando Repair. Cada ruta nueva exige promoción (K
 
 **Absorbe/rebasa:** P20 (expansión); O13D restante; lanes de targets.
 
-**No redefine el primer adapter:** el Reference Host Contract vive en K2a. K11a solo expande.
+**No redefine el primer adapter:** el Headless Conformance Host + adapter real de referencia viven en K2a. K11a solo expande.
 
 #### Alcance
 
@@ -1539,7 +1771,7 @@ No queda ninguna iniciativa transversal anterior sin destino explícito.
 | P17 attestation + delivery auth | K8 + K10-delivery | kinds distintos; `policy_digest` + **route/profile digest**; enforcement solo profiles promovidos |
 | P18 recovery | K2/K5 | E2E transition |
 | P19 schemas | K1 | CI/version pinning |
-| P20 adapters | K2a (contrato + adapter de referencia); K11a (expansión multi-target) | core-owned lifecycle; un host antes que paridad |
+| P20 adapters | K2a (Headless Conformance Host + adapter real + CapabilityProof); K11a (expansión multi-target) | core-owned lifecycle; un host antes que paridad |
 | P21 roles | K11d | measured equivalence |
 | P22 model routing | K11b | node cause + target clamp |
 | P23 ownership | K11c | overlap guard |
@@ -1567,14 +1799,15 @@ Evidencia: verify `PASS`, gate 4R `approved` y archive `openspec/changes/archive
 - same state → same transition;
 - Minimal Kernel Harness ejecuta reducers/comandos/interruption/replay/idempotencia/recovery/snapshots;
 - model-based testing: invariantes ejecutables + puertos opacos; diferidas sin fingir enforcement;
-- cuatro identidades + Candidate freeze (`SourceSnapshot`/`WorkOrder`/`WorkResult`/`Candidate`);
-- Reference Host Contract (K2a) con un adapter; core sin APIs de host;
+- Authority Store CAS + OperationPermit/Receipt + effect semantics (K2.1);
+- Headless Conformance Host + adapter real + CapabilityProof (K2a);
+- cuatro identidades + Candidate freeze + relación básica (K3);
 - no segunda autoridad;
 - fixtures de confusión: `WorkResult ≠ Candidate ≠ EvaluationAttestation ≠ DeliveryAuthorization`.
 
 ### Gate C — Repair MVP
 
-- Graph compile/replay estable (K4a);
+- Graph compile/replay estable + Obligation Manifest (K4a);
 - shadow execution produce Candidate tras K6a (K4b);
 - independent verify;
 - challenges detectan defects **según ChallengePlan** (no catálogo universal);
@@ -1721,7 +1954,7 @@ Cada child conserva clasificación, Candidate ID y receipt propios.
 | TLA+ como gate de K2 | Model-based exhaustivo sobre espacio pequeño primero; TLA+ solo si scheduler/worktrees/federación lo exigen |
 | Agentes simplificados prematuramente | P21 queda en K11d tras work orders, scheduler y adapters estables |
 | Cinco targets/rutas/worktrees simultáneos | Rollout uno a uno; seis targets en metadata; primer adapter en K2a, cinco restantes en K11a |
-| Adapter mínimo solo en K11a | Adelantar Reference Host Contract a K2a; K11a = expansión |
+| Adapter mínimo solo en K11a | Adelantar Headless Conformance Host + adapter real a K2a; Authority Store en K2.1; K11a = expansión |
 | K4 compile+execute juntos | K4a compiler/replay; K4b shadow execution solo tras K5+K6a |
 | Worker autoritativo antes de aislamiento | Ningún runtime nuevo con autoridad hasta K6a; K4a solo fixtures/replay |
 | Retirar Strict TDD sin equivalencia | Gates K6b/K6c/K9 |
@@ -1787,3 +2020,6 @@ Cada child conserva clasificación, Candidate ID y receipt propios.
 - 2026-08-04: K6c adopta `ChallengePlan` policy-selected (selected/skipped/reasons/budget); challenges dejan de ser cuatro pasos universales.
 - 2026-08-04: precisión post-análisis: Execution Graph / Assurance Graph; taxonomía ArchiveTransactionReceipt / CandidateEvaluationAttestation / DeliveryAuthorization; invariantes K2 por madurez; ownership K6a primitives ↔ K4b orchestrator; regla de justificación de slices; sync con arquitectura.
 - 2026-08-04: reconciliación pre-K2: `candidate_id` canónico; `Candidate.projection` = workspace|staged; seis targets (1 reference + 5 expansión); mapa operación→slice; nota de migración `receipt/v1` → schemas propios K8/K10-delivery; anchors legacy conservados como alias.
+- 2026-08-04: K2 (`k2-lifecycle-kernel`) cierra con verify PASS, 4R approved, archive y v2.38.0; versión de referencia alineada a v2.38.0.
+- 2026-08-04: reconciliación post-análisis Authority Store: se inserta **K2.1** (CAS / OperationPermit / effect semantics) entre K2 y K2a; K2a pasa a Headless Conformance Host + adapter real + CapabilityProof; deltas en K3 (relación básica), K4a (Obligation Manifest), K5 (budgets de autoridad/efectos), K6b (provenance), K7 (ReviewAdapter/Reducer), K8 (emisión CAS), K9 (checkpoints), K10-delivery (relación por etapas). Next-eligible: K2.1 (`k2-1-authority-store-permits`). No es un “OSPEC v3” paralelo.
+- 2026-08-04: K2.1 (`k2-1-authority-store-permits`) cierra con verify PASS, 4R approved (8 bloqueantes remediados), archive y v2.39.0; K2a queda next-eligible; versión de referencia alineada a v2.39.0.

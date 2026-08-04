@@ -1,6 +1,7 @@
 "use strict";
 
 const { digestLifecycleState } = require("./state-digest.js");
+const { authorizeOperationWithPermit } = require("./permits.js");
 
 const OPERATIONS = Object.freeze([
   Object.freeze({ name: "status", mutates: false }),
@@ -35,16 +36,32 @@ function allowedOperationsFor(state, nodeId) {
   return ["status"];
 }
 
-function authorizeOperation({ operation, authorityToken }) {
+/**
+ * Authorize a lifecycle operation.
+ * Mutating ops require a runtime-minted OperationPermit; AuthorityToken alone is insufficient.
+ */
+function authorizeOperation({
+  operation,
+  authorityToken = null,
+  operationPermit = null,
+  permitLedger = null,
+  headRevision = null,
+  transitionOffer = null,
+} = {}) {
   const meta = OPERATION_BY_NAME.get(operation);
   if (!meta) {
     return { ok: false, code: "unknown-operation" };
   }
   if (!meta.mutates) return { ok: true };
-  if (typeof authorityToken !== "string" || authorityToken.trim() === "") {
-    return { ok: false, code: "unauthorized" };
-  }
-  return { ok: true };
+
+  return authorizeOperationWithPermit({
+    operation,
+    authorityToken,
+    operationPermit,
+    permitLedger,
+    headRevision,
+    transitionOffer,
+  });
 }
 
 function failClosed(state, code, allowed_operations) {

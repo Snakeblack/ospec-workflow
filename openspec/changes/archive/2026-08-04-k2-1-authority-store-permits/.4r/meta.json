@@ -1,0 +1,11 @@
+{
+  "base_tree": "a27a7ddbcf4db711028a84cd493ef86f9218199c",
+  "candidate_tree": "WORKING-TREE-k2-1-authority-store-permits",
+  "changed_lines": 3155,
+  "plus": 2826,
+  "minus": 329,
+  "paths_count": 41,
+  "evidence_fingerprint": "sha256:4e94548cb70e9d01c2d737b1047a0ed4e68df65776ca3dca9e6ee121cf8e36b5",
+  "diff_hash": "sha256:85b301cb4bb3ca7c5b2a6cae498e01c81fb38670f324e7f90b072cf062978fd6",
+  "paths_digest": "sha256:297bcaf618207832a257aac26ba974fa4035a026f7c34c0275e927218852b994"
+}

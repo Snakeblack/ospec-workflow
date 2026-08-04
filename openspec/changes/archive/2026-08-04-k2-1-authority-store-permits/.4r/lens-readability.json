@@ -1,0 +1,39 @@
+{
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "summary": "Semántica mid-op oculta en compareAndSwap vía midOpJournalOk sin comentario ni nombre claro.",
+      "acceptance_criteria": "Documentar invariante baseline state_digest + renombrar midOpJournalOk; comentar por qué expectedRevision puede diferir del head tras commitJournal."
+    },
+    {
+      "severity": "CRITICAL",
+      "summary": "commitJournal no declara que muta journal fuera del chequeo de revisión del CAS.",
+      "acceptance_criteria": "JSDoc en commitJournal y compareAndSwap describiendo protocolo mid-op de dos fases (durabilidad pre-CAS + CAS tolerante a baseline)."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "consumePermit tiene if vacío que mezcla expected_revision (permit) y revision (receipt).",
+      "acceptance_criteria": "Eliminar if vacío o rechazar de verdad; documentar que consume emite receipt post-CAS sin revalidar stale."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "transitionOffer como parámetro peer de permit sugiere que el offer autoriza.",
+      "acceptance_criteria": "Quitar transitionOffer de authorize* o JSDoc explícito: offer non-authorizing / solo offer-only reject."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "Loop de efectos en runKernelOperation anida más de 3 niveles.",
+      "acceptance_criteria": "Extraer helpers de barrier/interrupt para ≤3 niveles en el loop principal."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "Interrupt reescribe barrier executing→pre-effect sin comentario.",
+      "acceptance_criteria": "Comentar la justificación en el sitio o materializar estado ambiguo distinto de pre-effect."
+    },
+    {
+      "severity": "SUGGESTION",
+      "summary": "Rama irreversible en reconcileEffect es idéntica a la no irreversible.",
+      "acceptance_criteria": "Colapsar ramas o implementar diferencia real alineada al comentario."
+    }
+  ]
+}

@@ -2,10 +2,12 @@
 
 const {
   runKernelOperation,
+  createAuthorityStore,
   createMemoryStore,
   digestLifecycleState,
   selectTransitions,
   interruptError,
+  DEFAULT_SUBJECT_ID,
 } = require("./lifecycle-kernel/index.js");
 
 /**
@@ -19,13 +21,17 @@ async function runHarnessScenario(scenario = {}) {
     operations = [],
     effectExecutor,
     clock = () => 0,
-    // Shell checkpoint barrier tokens, e.g. "before-journal" | "after-journal" | "after-effect".
     checkpointInterrupt = null,
-    // Scenario-step tokens, e.g. "before-op:0" | "after-op:0" | "before-effect:<id>" | "after-effect:<id>".
     scenarioInterrupt = null,
+    budgets = null,
+    subjectId = DEFAULT_SUBJECT_ID,
   } = scenario;
 
-  const store = createMemoryStore({ state: initialState, journal: scenario.initialJournal || [] });
+  const store = createAuthorityStore({
+    subjectId,
+    initial: { state: initialState, journal: scenario.initialJournal || [] },
+    budgets: budgets || { attempts: 0, corrections: 0 },
+  });
   const executedEffects = [];
   const defaultExecutor = async (effect) => {
     executedEffects.push(effect.effect_id);
@@ -56,8 +62,15 @@ async function runHarnessScenario(scenario = {}) {
       result = await runKernelOperation({
         operation: step.operation,
         arguments: step.arguments || {},
-        authorityToken: step.authorityToken ?? "opaque:harness",
+        authorityToken: step.authorityToken ?? null,
+        operationPermit: step.operationPermit,
+        permitLedger: step.permitLedger,
+        mintPermit: step.mintPermit !== undefined ? step.mintPermit : true,
+        transitionOffer: step.transitionOffer,
+        irreversibleAmbiguousNext: step.irreversibleAmbiguousNext || scenario.irreversibleAmbiguousNext,
+        effect_class: step.effect_class || scenario.effect_class || null,
         store,
+        subjectId,
         effectExecutor: async (effect) => {
           if (scenarioInterrupt === `before-effect:${effect.effect_id}`) {
             throw interruptError(scenarioInterrupt);
@@ -87,6 +100,8 @@ async function runHarnessScenario(scenario = {}) {
       outcome: result.outcome,
       next_transition: result.next_transition,
       code: result.code,
+      revision: result.revision,
+      budgets: result.budgets,
     });
 
     if (result.next_transition && result.next_transition.kind === "decide") {
@@ -97,8 +112,16 @@ async function runHarnessScenario(scenario = {}) {
       break;
     }
 
+    if (result.next_transition && result.next_transition.kind === "stop") {
+      halted = {
+        reason: "stop",
+        decision: result.next_transition,
+      };
+      break;
+    }
+
     if (result.outcome === "blocked" && result.code) {
-      halted = { reason: "blocked", code: result.code };
+      halted = { reason: "blocked", code: result.code, budgets: result.budgets };
       break;
     }
 
@@ -109,7 +132,7 @@ async function runHarnessScenario(scenario = {}) {
   }
 
   const snapshot = store.snapshot();
-  const status = await runKernelOperation({ operation: "status", store, clock });
+  const status = await runKernelOperation({ operation: "status", store, subjectId, clock });
 
   return {
     scenario_id: id,
@@ -118,7 +141,9 @@ async function runHarnessScenario(scenario = {}) {
     outcome: halted
       ? halted.reason === "decision-required"
         ? "decision-required"
-        : halted.reason
+        : halted.reason === "stop"
+          ? "stop"
+          : halted.reason
       : status.outcome,
     operations: history,
     effects: executedEffects,
@@ -127,14 +152,59 @@ async function runHarnessScenario(scenario = {}) {
     next_transition: status.next_transition,
     halted,
     snapshot,
+    budgets: store.getBudgets(subjectId),
+    revision: status.revision,
+    store,
+  };
+}
+
+/**
+ * Fault-matrix helpers exercised only via public runHarnessScenario / runKernelOperation.
+ */
+async function runCasConflictFault(scenario = {}) {
+  const base = {
+    schema_version: 1,
+    status: "ready",
+    nodes: { n1: { id: "n1", phase: "pending", attempt: 0 } },
+  };
+  const store = createAuthorityStore({
+    initial: { state: base },
+    budgets: { attempts: 2, corrections: 1 },
+  });
+  const budgetsBefore = store.getBudgets();
+  const head = await store.load();
+
+  const winnerState = {
+    schema_version: 1,
+    status: "running",
+    nodes: { n1: { id: "n1", phase: "started", attempt: 1 } },
+  };
+  const loserState = {
+    schema_version: 1,
+    status: "blocked",
+    nodes: { n1: { id: "n1", phase: "failed", attempt: 1 } },
+  };
+
+  const win = await store.compareAndSwap("lifecycle:default", head.revision, winnerState, []);
+  const lose = await store.compareAndSwap("lifecycle:default", head.revision, loserState, []);
+
+  return {
+    scenario_id: scenario.id || "fault:cas-conflict",
+    winner_ok: win.ok,
+    loser_ok: lose.ok,
+    loser_code: lose.code,
+    budgets_before: budgetsBefore,
+    budgets_after: store.getBudgets(),
+    budgets_unchanged:
+      JSON.stringify(budgetsBefore) === JSON.stringify(store.getBudgets()),
   };
 }
 
 async function snapshotRoundTrip(state, journal = []) {
-  const store = createMemoryStore({ state, journal });
+  const store = createAuthorityStore({ initial: { state, journal } });
   const before = await runKernelOperation({ operation: "status", store });
   const snap = store.snapshot();
-  const restored = createMemoryStore(snap);
+  const restored = createAuthorityStore({ initial: snap });
   const after = await runKernelOperation({ operation: "status", store: restored });
   return {
     before_digest: before.state_digest,
@@ -160,9 +230,11 @@ function assertPublicApiConformance({ usedRunKernelOperation, usedReducerOnly })
 
 module.exports = {
   runHarnessScenario,
+  runCasConflictFault,
   snapshotRoundTrip,
   assertPublicApiConformance,
   createMemoryStore,
+  createAuthorityStore,
   runKernelOperation,
   digestLifecycleState,
   selectTransitions,

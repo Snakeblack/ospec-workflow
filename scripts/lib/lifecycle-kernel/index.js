@@ -10,40 +10,24 @@ const {
   reconcileEffect,
 } = require("./journal.js");
 const { projectEvents } = require("./events.js");
-const { authorizeOperation, validateOperationTransition } = require("./operations.js");
-
-function createMemoryStore(initial = {}) {
-  let state = initial.state
-    ? JSON.parse(JSON.stringify(initial.state))
-    : { schema_version: 1, status: "ready", nodes: {} };
-  let journal = Array.isArray(initial.journal)
-    ? JSON.parse(JSON.stringify(initial.journal))
-    : [];
-
-  return {
-    async load() {
-      return {
-        state: JSON.parse(JSON.stringify(state)),
-        journal: JSON.parse(JSON.stringify(journal)),
-      };
-    },
-    async commitJournal(nextJournal) {
-      journal = JSON.parse(JSON.stringify(nextJournal));
-      return { journal };
-    },
-    async commit({ state: nextState, journal: nextJournal }) {
-      state = JSON.parse(JSON.stringify(nextState));
-      journal = JSON.parse(JSON.stringify(nextJournal));
-      return { state, journal };
-    },
-    snapshot() {
-      return {
-        state: JSON.parse(JSON.stringify(state)),
-        journal: JSON.parse(JSON.stringify(journal)),
-      };
-    },
-  };
-}
+const { validateOperationTransition } = require("./operations.js");
+const { createMemoryStore } = require("./memory-store.js");
+const {
+  createPermitLedger,
+  mintOperationPermit,
+  consumePermit,
+  authorizeOperationWithPermit,
+} = require("./permits.js");
+const {
+  DEFAULT_SUBJECT_ID,
+  createAuthorityStore,
+} = require("../authority-store/index.js");
+const {
+  requireEffectClass,
+  applyEffectPolicy,
+  selectIrreversibleAmbiguousNext,
+  blockDirectWrite,
+} = require("./effect-policy.js");
 
 function interruptError(at) {
   const error = new Error(`kernel-interrupt:${at}`);
@@ -72,6 +56,18 @@ function blockedResult(state, journal, code, extra = {}) {
   };
 }
 
+function resolveAuthorityStore(store, subjectId) {
+  if (!store) return null;
+  if (typeof store.compareAndSwap === "function" && typeof store.load === "function") {
+    return store;
+  }
+  // Bare memory commit is not a public authoritative mutation path.
+  if (typeof store.commit === "function" && typeof store.compareAndSwap !== "function") {
+    return null;
+  }
+  return null;
+}
+
 async function runKernelOperation(input = {}) {
   const {
     operation,
@@ -81,17 +77,39 @@ async function runKernelOperation(input = {}) {
     effectExecutor,
     clock = null,
     hooks = null,
+    subjectId = DEFAULT_SUBJECT_ID,
+    permitLedger = null,
+    operationPermit = null,
+    transitionOffer = null,
+    mintPermit = true,
+    irreversibleAmbiguousNext = "decide",
+    effect_class = null,
   } = input;
 
-  if (!store || typeof store.load !== "function" || typeof store.commit !== "function") {
-    const error = new Error("kernel store is required");
-    error.code = "store-required";
+  const authorityStore = resolveAuthorityStore(store, subjectId);
+  if (!authorityStore) {
+    const error = new Error("authority store with compareAndSwap is required");
+    error.code = "authority-store-required";
     throw error;
   }
 
-  const loaded = await store.load();
+  const loaded = await authorityStore.load(subjectId);
+  if (loaded && loaded.ok === false) {
+    return blockedResult(
+      { schema_version: 1, status: "ready", nodes: {} },
+      [],
+      loaded.code || "subject-not-found"
+    );
+  }
+
   const state = loaded.state || { schema_version: 1, status: "ready", nodes: {} };
   let journal = Array.isArray(loaded.journal) ? [...loaded.journal] : [];
+  const headRevision = loaded.revision;
+  let midOpTicket = null;
+  async function persistJournal() {
+    const jr = await authorityStore.commitJournal(journal, subjectId, headRevision);
+    if (jr.mid_op_ticket) midOpTicket = jr.mid_op_ticket;
+  }
 
   // clock is injected for shell use but excluded from semantic digest.
   void clock;
@@ -111,10 +129,35 @@ async function runKernelOperation(input = {}) {
       next_transition: nextTransition(state),
       outcome: state.status === "terminal" ? "terminal" : "advanced",
       events,
+      revision: headRevision,
     };
   }
 
-  const auth = authorizeOperation({ operation, authorityToken });
+  const ledger = permitLedger || createPermitLedger();
+  let permit = operationPermit;
+
+  if (!permit && mintPermit === true) {
+    permit = mintOperationPermit({
+      ledger,
+      domain: "lifecycle",
+      operation,
+      subject_id: subjectId,
+      expected_revision: headRevision,
+      arguments: args,
+      budget_ref: input.budget_ref || "budget:none",
+    });
+  }
+
+  const auth = authorizeOperationWithPermit({
+    operation,
+    authorityToken,
+    operationPermit: permit,
+    permitLedger: ledger,
+    headRevision,
+    transitionOffer,
+    subject_id: subjectId,
+    arguments: args,
+  });
   if (!auth.ok) return blockedResult(state, journal, auth.code);
 
   const validation = validateOperationTransition(state, { operation, arguments: args });
@@ -125,13 +168,11 @@ async function runKernelOperation(input = {}) {
     });
   }
 
-  // Mutating ops require an effectExecutor; only non-mutating status may omit it.
   if (typeof effectExecutor !== "function") {
     return blockedResult(state, journal, "effect-executor-required");
   }
 
-  // Mid-operation journal durability is mandatory to prevent duplicate effects on resume.
-  if (typeof store.commitJournal !== "function") {
+  if (typeof authorityStore.commitJournal !== "function") {
     return blockedResult(state, journal, "journal-durability-required");
   }
 
@@ -140,17 +181,47 @@ async function runKernelOperation(input = {}) {
     operation,
     arguments: args,
     authorityToken,
+    operationPermit: permit,
+    permitLedger: ledger,
+    headRevision,
+    effect_class: effect_class || undefined,
   });
+
+  if (reduced.outcome === "blocked") {
+    return blockedResult(state, journal, reduced.code || "unauthorized", {
+      allowed_operations: reduced.allowed_operations,
+    });
+  }
 
   const effectRecords = [];
   for (const effect of reduced.effects) {
+    const classCheck = requireEffectClass(effect);
+    if (!classCheck.ok) {
+      return blockedResult(state, journal, classCheck.code);
+    }
+
     const effectId = deriveEffectId(operationId, effect);
     const existing = journal.find((entry) => entry.effect_id === effectId);
     let decision = reconcileEffect({
       record: existing || { status: "planned", effect_id: effectId },
+      effect_class: effect.effect_class,
     });
 
     if (decision.action === "fail-closed") {
+      if (decision.code === "irreversible-ambiguous") {
+        const nextKind = selectIrreversibleAmbiguousNext(irreversibleAmbiguousNext);
+        return {
+          ...blockedResult(state, journal, "irreversible-ambiguous", {
+            operation_id: operationId,
+          }),
+          next_transition: {
+            kind: nextKind,
+            operation: null,
+            reason: "irreversible-ambiguous",
+            not_code_defect: true,
+          },
+        };
+      }
       return blockedResult(state, journal, decision.code || "reconciliation-required");
     }
 
@@ -159,7 +230,15 @@ async function runKernelOperation(input = {}) {
       continue;
     }
 
-    // Self-describing journal actions: retry-execute (safe pre-effect) vs execute (planned).
+    const policy = applyEffectPolicy({
+      effect_class: effect.effect_class,
+      reconcileAction: decision.action,
+      effect_id: effectId,
+    });
+    if (!policy.ok) {
+      return blockedResult(state, journal, policy.code);
+    }
+
     if (decision.action === "retry-execute") {
       decision = { action: "execute", reason: decision.reason || "started-pre-effect-safe-retry" };
     } else if (decision.action === "reconcile") {
@@ -175,21 +254,22 @@ async function runKernelOperation(input = {}) {
       effect_id: effectId,
       status: "started",
       result: { barrier: "pre-effect" },
+      effect_class: effect.effect_class,
     });
     journal = upsertJournal(journal, record);
-    await store.commitJournal(journal);
+    await persistJournal();
 
     await checkpoint(hooks, "after-journal", { operation_id: operationId, effect_id: effectId });
 
-    // Durable in-flight mark: crash after this point is not a safe blind re-execute.
     record = createJournalRecord({
       operation_id: operationId,
       effect_id: effectId,
       status: "started",
       result: { barrier: "executing" },
+      effect_class: effect.effect_class,
     });
     journal = upsertJournal(journal, record);
-    await store.commitJournal(journal);
+    await persistJournal();
 
     let result;
     try {
@@ -198,30 +278,44 @@ async function runKernelOperation(input = {}) {
         kind: effect.kind,
         payload: effect.payload,
         operation_id: operationId,
+        effect_class: effect.effect_class,
       });
     } catch (error) {
       if (error && error.code === "kernel-interrupt") {
-        // Controlled harness interrupt: leave journal as-is for the interrupt point.
-        // before-effect → restore pre-effect for safe resume; after-effect with partial → complete.
         if (error.partial !== undefined) {
           record = createJournalRecord({
             operation_id: operationId,
             effect_id: effectId,
             status: "completed",
             result: error.partial || { ok: true },
+            effect_class: effect.effect_class,
           });
           journal = upsertJournal(journal, record);
-          await store.commitJournal(journal);
-        } else if (isPreEffectStarted(record) || (record.result && record.result.barrier === "executing")) {
-          // scenarioInterrupt before-effect: executor never completed; restore pre-effect.
+          await persistJournal();
+        } else if (record.result && record.result.barrier === "executing") {
+          // Mid-executor: effect may have started — never rewrite to pre-effect.
+          record = createJournalRecord({
+            operation_id: operationId,
+            effect_id: effectId,
+            status: "unknown",
+            result: {
+              ok: false,
+              error: error && error.message ? String(error.message) : "interrupt-mid-executor",
+            },
+            effect_class: effect.effect_class,
+          });
+          journal = upsertJournal(journal, record);
+          await persistJournal();
+        } else if (isPreEffectStarted(record)) {
           record = createJournalRecord({
             operation_id: operationId,
             effect_id: effectId,
             status: "started",
             result: { barrier: "pre-effect" },
+            effect_class: effect.effect_class,
           });
           journal = upsertJournal(journal, record);
-          await store.commitJournal(journal);
+          await persistJournal();
         }
         throw error;
       }
@@ -234,13 +328,58 @@ async function runKernelOperation(input = {}) {
           ok: false,
           error: error && error.message ? String(error.message) : "ambiguous-executor-failure",
         },
+        effect_class: effect.effect_class,
       });
       journal = upsertJournal(journal, record);
-      await store.commitJournal(journal);
+      await persistJournal();
+
+      if (effect.effect_class === "irreversible") {
+        const nextKind = selectIrreversibleAmbiguousNext(irreversibleAmbiguousNext);
+        return {
+          ...blockedResult(state, journal, "irreversible-ambiguous", {
+            operation_id: operationId,
+            effects: [...effectRecords, record],
+          }),
+          next_transition: {
+            kind: nextKind,
+            operation: null,
+            reason: "irreversible-ambiguous",
+            not_code_defect: true,
+          },
+        };
+      }
+
       return blockedResult(state, journal, "reconciliation-required", {
         operation_id: operationId,
         effects: [...effectRecords, record],
       });
+    }
+
+    if (result && result.ambiguous === true && effect.effect_class === "irreversible") {
+      record = createJournalRecord({
+        operation_id: operationId,
+        effect_id: effectId,
+        status: "unknown",
+        result,
+        effect_class: effect.effect_class,
+      });
+      journal = upsertJournal(journal, record);
+      await persistJournal();
+      const nextKind = selectIrreversibleAmbiguousNext(
+        result.next_kind || irreversibleAmbiguousNext
+      );
+      return {
+        ...blockedResult(state, journal, "irreversible-ambiguous", {
+          operation_id: operationId,
+          effects: [...effectRecords, record],
+        }),
+        next_transition: {
+          kind: nextKind,
+          operation: null,
+          reason: "irreversible-ambiguous",
+          not_code_defect: true,
+        },
+      };
     }
 
     if (result && result.ok === false) {
@@ -249,9 +388,10 @@ async function runKernelOperation(input = {}) {
         effect_id: effectId,
         status: "failed",
         result,
+        effect_class: effect.effect_class,
       });
       journal = upsertJournal(journal, record);
-      await store.commitJournal(journal);
+      await persistJournal();
       return blockedResult(state, journal, "effect-failed", {
         operation_id: operationId,
         effects: [...effectRecords, record],
@@ -263,10 +403,11 @@ async function runKernelOperation(input = {}) {
       effect_id: effectId,
       status: "completed",
       result: result || { ok: true },
+      effect_class: effect.effect_class,
     });
 
     journal = upsertJournal(journal, record);
-    await store.commitJournal(journal);
+    await persistJournal();
     effectRecords.push(record);
 
     await checkpoint(hooks, "after-effect", { operation_id: operationId, effect_id: effectId });
@@ -279,9 +420,44 @@ async function runKernelOperation(input = {}) {
     });
   }
 
+  const direct = blockDirectWrite({
+    hasPermit: Boolean(permit),
+    usedCas: true,
+    hasEffectClass: reduced.effects.every((e) => requireEffectClass(e).ok),
+  });
+  if (!direct.ok) {
+    return blockedResult(state, journal, direct.code);
+  }
+
   await checkpoint(hooks, "before-state-commit", { operation_id: operationId });
-  await store.commit({ state: reduced.state, journal });
+  const budgetsBefore = typeof authorityStore.getBudgets === "function"
+    ? authorityStore.getBudgets(subjectId)
+    : null;
+  const cas = await authorityStore.compareAndSwap(
+    subjectId,
+    headRevision,
+    reduced.state,
+    journal,
+    midOpTicket
+  );
+  if (!cas.ok) {
+    return blockedResult(state, journal, cas.code || "cas-conflict", {
+      operation_id: operationId,
+      revision: cas.revision,
+      budgets: cas.budgets || budgetsBefore,
+      budgets_unchanged: true,
+    });
+  }
   await checkpoint(hooks, "after-state-commit", { operation_id: operationId });
+
+  const consumed = consumePermit({
+    permit_id: permit.permit_id,
+    ledger,
+    subject_id: subjectId,
+    operation,
+    revision: cas.revision,
+    outcome: reduced.outcome,
+  });
 
   const events = projectEvents({ state: reduced.state, journal });
   const transitions = selectTransitions(reduced.state);
@@ -300,6 +476,9 @@ async function runKernelOperation(input = {}) {
     events,
     operation_id: operationId,
     effects: effectRecords,
+    revision: cas.revision,
+    operation_permit_id: permit.permit_id,
+    operation_receipt: consumed.ok ? consumed.receipt : null,
   };
 }
 
@@ -328,10 +507,16 @@ function isPreEffectStarted(record) {
 module.exports = {
   runKernelOperation,
   createMemoryStore,
+  createAuthorityStore,
+  createPermitLedger,
+  mintOperationPermit,
   reduceLifecycle,
   digestLifecycleState,
   selectTransitions,
   nextTransition,
   KERNEL_VERSION,
   interruptError,
+  DEFAULT_SUBJECT_ID,
+  // Internalized: bare commit is not a public mutation API on authority subjects.
+  _internalMemoryCommit: null,
 };

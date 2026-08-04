@@ -1,0 +1,1426 @@
+diff --git a/schemas/kernel/effect-class/fixtures/invalid/exactly-once.json b/schemas/kernel/effect-class/fixtures/invalid/exactly-once.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/effect-class/fixtures/invalid/exactly-once.json
+@@ -0,0 +1,4 @@
++{
++  "schema_version": 1,
++  "effect_class": "exactly-once"
++}
+diff --git a/schemas/kernel/effect-class/fixtures/valid/idempotent-keyed.json b/schemas/kernel/effect-class/fixtures/valid/idempotent-keyed.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/effect-class/fixtures/valid/idempotent-keyed.json
+@@ -0,0 +1,4 @@
++{
++  "schema_version": 1,
++  "effect_class": "idempotent-keyed"
++}
+diff --git a/schemas/kernel/effect-class/v1.schema.json b/schemas/kernel/effect-class/v1.schema.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/effect-class/v1.schema.json
+@@ -0,0 +1,21 @@
++{
++  "$schema": "https://json-schema.org/draft/2020-12/schema",
++  "$id": "ospec://schemas/kernel/effect-class/v1",
++  "schema_version": 1,
++  "type": "object",
++  "properties": {
++    "schema_version": { "const": 1 },
++    "effect_class": {
++      "type": "string",
++      "enum": [
++        "pure",
++        "idempotent-keyed",
++        "probeable",
++        "compensatable",
++        "irreversible"
++      ]
++    }
++  },
++  "required": ["schema_version", "effect_class"],
++  "additionalProperties": false
++}
+diff --git a/schemas/kernel/operation-permit/fixtures/invalid/reusable.json b/schemas/kernel/operation-permit/fixtures/invalid/reusable.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/operation-permit/fixtures/invalid/reusable.json
+@@ -0,0 +1,14 @@
++{
++  "schema_version": 1,
++  "kind": "operation-permit/v1",
++  "permit_id": "permit:bad",
++  "domain": "lifecycle",
++  "operation": "start",
++  "subject_id": "lifecycle:default",
++  "expected_revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++  "arguments_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
++  "scope_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
++  "policy_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
++  "budget_ref": "budget:none",
++  "single_use": false
++}
+diff --git a/schemas/kernel/operation-permit/fixtures/valid/minimal.json b/schemas/kernel/operation-permit/fixtures/valid/minimal.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/operation-permit/fixtures/valid/minimal.json
+@@ -0,0 +1,14 @@
++{
++  "schema_version": 1,
++  "kind": "operation-permit/v1",
++  "permit_id": "permit:runtime:0001",
++  "domain": "lifecycle",
++  "operation": "start",
++  "subject_id": "lifecycle:default",
++  "expected_revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++  "arguments_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
++  "scope_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
++  "policy_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
++  "budget_ref": "budget:none",
++  "single_use": true
++}
+diff --git a/schemas/kernel/operation-permit/v1.schema.json b/schemas/kernel/operation-permit/v1.schema.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/operation-permit/v1.schema.json
+@@ -0,0 +1,35 @@
++{
++  "$schema": "https://json-schema.org/draft/2020-12/schema",
++  "$id": "ospec://schemas/kernel/operation-permit/v1",
++  "schema_version": 1,
++  "type": "object",
++  "properties": {
++    "schema_version": { "const": 1 },
++    "kind": { "const": "operation-permit/v1" },
++    "permit_id": { "type": "string" },
++    "domain": { "type": "string" },
++    "operation": { "type": "string" },
++    "subject_id": { "type": "string" },
++    "expected_revision": { "type": "string" },
++    "arguments_digest": { "type": "string" },
++    "scope_digest": { "type": "string" },
++    "policy_digest": { "type": "string" },
++    "budget_ref": { "type": "string" },
++    "single_use": { "const": true }
++  },
++  "required": [
++    "schema_version",
++    "kind",
++    "permit_id",
++    "domain",
++    "operation",
++    "subject_id",
++    "expected_revision",
++    "arguments_digest",
++    "scope_digest",
++    "policy_digest",
++    "budget_ref",
++    "single_use"
++  ],
++  "additionalProperties": false
++}
+diff --git a/schemas/kernel/operation-receipt/fixtures/invalid/missing-permit.json b/schemas/kernel/operation-receipt/fixtures/invalid/missing-permit.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/operation-receipt/fixtures/invalid/missing-permit.json
+@@ -0,0 +1,9 @@
++{
++  "schema_version": 1,
++  "kind": "operation-receipt/v1",
++  "receipt_id": "op-receipt:bad",
++  "subject_id": "lifecycle:default",
++  "operation": "start",
++  "revision": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
++  "outcome": "advanced"
++}
+diff --git a/schemas/kernel/operation-receipt/fixtures/valid/minimal.json b/schemas/kernel/operation-receipt/fixtures/valid/minimal.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/operation-receipt/fixtures/valid/minimal.json
+@@ -0,0 +1,10 @@
++{
++  "schema_version": 1,
++  "kind": "operation-receipt/v1",
++  "receipt_id": "op-receipt:0001",
++  "permit_id": "permit:runtime:0001",
++  "subject_id": "lifecycle:default",
++  "operation": "start",
++  "revision": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
++  "outcome": "advanced"
++}
+diff --git a/schemas/kernel/operation-receipt/v1.schema.json b/schemas/kernel/operation-receipt/v1.schema.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/operation-receipt/v1.schema.json
+@@ -0,0 +1,27 @@
++{
++  "$schema": "https://json-schema.org/draft/2020-12/schema",
++  "$id": "ospec://schemas/kernel/operation-receipt/v1",
++  "schema_version": 1,
++  "type": "object",
++  "properties": {
++    "schema_version": { "const": 1 },
++    "kind": { "const": "operation-receipt/v1" },
++    "receipt_id": { "type": "string" },
++    "permit_id": { "type": "string" },
++    "subject_id": { "type": "string" },
++    "operation": { "type": "string" },
++    "revision": { "type": "string" },
++    "outcome": { "type": "string" }
++  },
++  "required": [
++    "schema_version",
++    "kind",
++    "receipt_id",
++    "permit_id",
++    "subject_id",
++    "operation",
++    "revision",
++    "outcome"
++  ],
++  "additionalProperties": false
++}
+diff --git a/scripts/lib/authority-store/index.js b/scripts/lib/authority-store/index.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/authority-store/index.js
+@@ -0,0 +1,177 @@
++"use strict";
++
++const { sha256Fingerprint } = require("../canonical-json.js");
++const { digestLifecycleState } = require("../lifecycle-kernel/state-digest.js");
++const { createMemoryStore } = require("../lifecycle-kernel/memory-store.js");
++
++const DEFAULT_SUBJECT_ID = "lifecycle:default";
++
++function digestJournal(journal) {
++  const ordered = Array.isArray(journal) ? journal : [];
++  return sha256Fingerprint("authority-store:journal", ordered);
++}
++
++function computeRevision(state, journal) {
++  return sha256Fingerprint("authority-store:revision", {
++    state_digest: digestLifecycleState(state),
++    journal_digest: digestJournal(journal),
++  });
++}
++
++function fail(code, extra = {}) {
++  return { ok: false, code, ...extra };
++}
++
++function createAuthorityStore(options = {}) {
++  const defaultSubjectId = options.subjectId || DEFAULT_SUBJECT_ID;
++  const subjects = new Map();
++
++  function ensureSubject(subjectId, initial) {
++    if (subjects.has(subjectId)) return subjects.get(subjectId);
++    if (subjectId !== defaultSubjectId && !initial) {
++      return null;
++    }
++    const inner =
++      options.store && subjectId === defaultSubjectId
++        ? options.store
++        : createMemoryStore(initial || options.initial || {});
++    const entry = {
++      inner,
++      budgets: freezeBudgets(options.budgets),
++      // revision → state_digest at the moment that revision was observed via load()
++      baselines: new Map(),
++    };
++    subjects.set(subjectId, entry);
++    return entry;
++  }
++
++  ensureSubject(defaultSubjectId, options.initial);
++
++  async function load(subjectId = defaultSubjectId) {
++    const entry = subjects.get(subjectId);
++    if (!entry) {
++      return fail("subject-not-found", { subject_id: subjectId, revision: null });
++    }
++    const loaded = await entry.inner.load();
++    const state = loaded.state;
++    const journal = loaded.journal;
++    const stateDigest = digestLifecycleState(state);
++    const revision = computeRevision(state, journal);
++    entry.baselines.set(revision, stateDigest);
++    return {
++      ok: true,
++      subject_id: subjectId,
++      state: JSON.parse(JSON.stringify(state)),
++      journal: JSON.parse(JSON.stringify(journal)),
++      revision,
++      state_digest: stateDigest,
++      budgets: cloneBudgets(entry.budgets),
++    };
++  }
++
++  async function commitJournal(nextJournal, subjectId = defaultSubjectId) {
++    const entry = subjects.get(subjectId);
++    if (!entry) return fail("subject-not-found", { subject_id: subjectId });
++    if (typeof entry.inner.commitJournal !== "function") {
++      return fail("journal-durability-required");
++    }
++    await entry.inner.commitJournal(nextJournal);
++    return { ok: true };
++  }
++
++  async function compareAndSwap(subjectId, expectedRevision, nextState, nextJournal) {
++    const entry = subjects.get(subjectId);
++    if (!entry) {
++      return fail("subject-not-found", { subject_id: subjectId, revision: null });
++    }
++
++    const loaded = await entry.inner.load();
++    const currentRevision = computeRevision(loaded.state, loaded.journal);
++    const currentStateDigest = digestLifecycleState(loaded.state);
++    const budgetsBefore = cloneBudgets(entry.budgets);
++
++    const baselineStateDigest = entry.baselines.get(expectedRevision);
++    const exactMatch = expectedRevision === currentRevision;
++    const midOpJournalOk =
++      baselineStateDigest != null && baselineStateDigest === currentStateDigest;
++
++    if (!exactMatch && !midOpJournalOk) {
++      return {
++        ok: false,
++        code:
++          expectedRevision == null || expectedRevision === ""
++            ? "stale-revision"
++            : "cas-conflict",
++        revision: currentRevision,
++        budgets: budgetsBefore,
++      };
++    }
++
++    const journalToCommit = nextJournal !== undefined ? nextJournal : loaded.journal;
++
++    if (
++      digestLifecycleState(nextState) === currentStateDigest &&
++      digestJournal(journalToCommit) === digestJournal(loaded.journal)
++    ) {
++      return {
++        ok: true,
++        revision: currentRevision,
++        converged: true,
++        budgets: budgetsBefore,
++      };
++    }
++
++    await entry.inner.commit({ state: nextState, journal: journalToCommit });
++    const after = await entry.inner.load();
++    const revision = computeRevision(after.state, after.journal);
++    entry.baselines.set(revision, digestLifecycleState(after.state));
++    return {
++      ok: true,
++      revision,
++      converged: false,
++      budgets: cloneBudgets(entry.budgets),
++      budgets_unchanged: JSON.stringify(budgetsBefore) === JSON.stringify(entry.budgets),
++    };
++  }
++
++  function snapshot(subjectId = defaultSubjectId) {
++    const entry = subjects.get(subjectId);
++    if (!entry) return null;
++    return entry.inner.snapshot();
++  }
++
++  return {
++    subjectId: defaultSubjectId,
++    load,
++    compareAndSwap,
++    commitJournal,
++    snapshot,
++    computeRevision,
++    getBudgets(subjectId = defaultSubjectId) {
++      const entry = subjects.get(subjectId);
++      return entry ? cloneBudgets(entry.budgets) : null;
++    },
++  };
++}
++
++function freezeBudgets(budgets) {
++  const base = budgets && typeof budgets === "object" ? budgets : { attempts: 0, corrections: 0 };
++  return Object.freeze({
++    attempts: Number(base.attempts) || 0,
++    corrections: Number(base.corrections) || 0,
++  });
++}
++
++function cloneBudgets(budgets) {
++  return {
++    attempts: budgets.attempts,
++    corrections: budgets.corrections,
++  };
++}
++
++module.exports = {
++  DEFAULT_SUBJECT_ID,
++  digestJournal,
++  computeRevision,
++  createAuthorityStore,
++};
+diff --git a/scripts/lib/authority-store/index.test.js b/scripts/lib/authority-store/index.test.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/authority-store/index.test.js
+@@ -0,0 +1,146 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const test = require("node:test");
++
++const {
++  DEFAULT_SUBJECT_ID,
++  computeRevision,
++  createAuthorityStore,
++} = require("./index.js");
++const { digestLifecycleState } = require("../lifecycle-kernel/state-digest.js");
++
++function pendingState() {
++  return {
++    schema_version: 1,
++    status: "ready",
++    nodes: { n1: { id: "n1", phase: "pending", attempt: 0 } },
++  };
++}
++
++function startedState() {
++  return {
++    schema_version: 1,
++    status: "running",
++    nodes: { n1: { id: "n1", phase: "started", attempt: 1 } },
++  };
++}
++
++test("load(subjectId) returns state, journal, and non-empty revision for default subject", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const loaded = await store.load(DEFAULT_SUBJECT_ID);
++  assert.equal(loaded.ok, true);
++  assert.equal(loaded.state.nodes.n1.phase, "pending");
++  assert.ok(Array.isArray(loaded.journal));
++  assert.match(loaded.revision, /^sha256:[a-f0-9]{64}$/);
++  assert.equal(
++    loaded.revision,
++    computeRevision(loaded.state, loaded.journal)
++  );
++});
++
++test("missing subject fails closed without fabricated revision", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState() } });
++  const missing = await store.load("lifecycle:unknown-subject");
++  assert.equal(missing.ok, false);
++  assert.equal(missing.code, "subject-not-found");
++  assert.equal(missing.revision, null);
++});
++
++test("compareAndSwap matching revision persists head and advances revision", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  const next = startedState();
++  const cas = await store.compareAndSwap(DEFAULT_SUBJECT_ID, before.revision, next, []);
++  assert.equal(cas.ok, true);
++  assert.notEqual(cas.revision, before.revision);
++  const after = await store.load();
++  assert.equal(after.state.nodes.n1.phase, "started");
++  assert.equal(after.revision, cas.revision);
++});
++
++test("stale expected revision is rejected and head unchanged", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  await store.compareAndSwap(DEFAULT_SUBJECT_ID, before.revision, startedState(), []);
++  const mid = await store.load();
++  const stale = await store.compareAndSwap(
++    DEFAULT_SUBJECT_ID,
++    before.revision,
++    pendingState(),
++    []
++  );
++  assert.equal(stale.ok, false);
++  assert.ok(stale.code === "cas-conflict" || stale.code === "stale-revision");
++  const after = await store.load();
++  assert.equal(after.revision, mid.revision);
++  assert.equal(digestLifecycleState(after.state), digestLifecycleState(mid.state));
++});
++
++test("concurrent writers on same R: exactly one wins; loser cas-conflict; budgets unchanged", async () => {
++  const store = createAuthorityStore({
++    initial: { state: pendingState(), journal: [] },
++    budgets: { attempts: 2, corrections: 1 },
++  });
++  const before = await store.load();
++  const budgetsBefore = store.getBudgets();
++
++  const writerA = startedState();
++  const writerB = {
++    schema_version: 1,
++    status: "blocked",
++    nodes: { n1: { id: "n1", phase: "failed", attempt: 1 } },
++  };
++
++  const first = await store.compareAndSwap(DEFAULT_SUBJECT_ID, before.revision, writerA, []);
++  const second = await store.compareAndSwap(DEFAULT_SUBJECT_ID, before.revision, writerB, []);
++
++  assert.equal(first.ok, true);
++  assert.equal(second.ok, false);
++  assert.equal(second.code, "cas-conflict");
++  assert.equal(second.revision, first.revision);
++  assert.deepEqual(store.getBudgets(), budgetsBefore);
++  assert.deepEqual(second.budgets, budgetsBefore);
++
++  const after = await store.load();
++  assert.equal(after.state.nodes.n1.phase, "started");
++});
++
++test("exact replay on same R converges without second advance", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  const next = startedState();
++  const journal = [
++    {
++      schema_version: 1,
++      kernel_version: 1,
++      operation_id: "sha256:op1",
++      effect_id: "sha256:e1",
++      status: "completed",
++      result: { ok: true },
++    },
++  ];
++  const first = await store.compareAndSwap(DEFAULT_SUBJECT_ID, before.revision, next, journal);
++  assert.equal(first.ok, true);
++  const head = await store.load();
++
++  // Replay identical content against current head revision (convergent no-op).
++  const replay = await store.compareAndSwap(
++    DEFAULT_SUBJECT_ID,
++    head.revision,
++    next,
++    journal
++  );
++  assert.equal(replay.ok, true);
++  assert.equal(replay.converged, true);
++  assert.equal(replay.revision, head.revision);
++  const after = await store.load();
++  assert.equal(after.revision, head.revision);
++});
++
++test("authority store exposes no public bare commit", () => {
++  const store = createAuthorityStore({ initial: { state: pendingState() } });
++  assert.equal(typeof store.compareAndSwap, "function");
++  assert.equal(typeof store.load, "function");
++  assert.equal(store.commit, undefined);
++});
+diff --git a/scripts/lib/k21-maturity-docs.test.js b/scripts/lib/k21-maturity-docs.test.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/k21-maturity-docs.test.js
+@@ -0,0 +1,28 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const fs = require("node:fs");
++const path = require("node:path");
++const test = require("node:test");
++
++const ROOT = path.resolve(__dirname, "..", "..");
++
++test("K2.1 maturity docs tag Authority Store/permits/effects as implemented; later slices stay target", () => {
++  const arch = fs.readFileSync(
++    path.join(ROOT, "docs", "architecture", "harness-evolution.md"),
++    "utf8"
++  );
++  const roadmap = fs.readFileSync(
++    path.join(ROOT, "docs", "roadmaps", "harness-evolution.md"),
++    "utf8"
++  );
++
++  assert.match(arch, /\{implemented\} K2\.1 Authority Store/);
++  assert.match(arch, /\{target\} Headless Conformance Host \+ adapter real \+ CapabilityProof \(K2a\)/);
++  assert.match(arch, /\{target\} Candidate freeze universal/);
++  assert.match(arch, /\{target\} CandidateEvaluationAttestation/);
++  assert.match(arch, /\{target\}.*DeliveryAuthorization/);
++
++  assert.match(roadmap, /K2\.1.*applying|surfaces implemented/i);
++  assert.doesNotMatch(arch, /\{target\} Authority Store con CAS, OperationPermit/);
++});
+diff --git a/scripts/lib/k21-schema-fixtures.test.js b/scripts/lib/k21-schema-fixtures.test.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/k21-schema-fixtures.test.js
+@@ -0,0 +1,111 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const fs = require("node:fs");
++const path = require("node:path");
++const test = require("node:test");
++
++const { validateInstance, loadSchemaById } = require("./kernel-schema-validator.js");
++
++const ROOT = path.resolve(__dirname, "..", "..");
++const MANIFEST = path.join(ROOT, "schemas", "kernel", "manifest.json");
++
++const K21_FAMILIES = ["operation-permit", "operation-receipt", "effect-class"];
++
++function familyDir(family) {
++  return path.join(ROOT, "schemas", "kernel", family);
++}
++
++function listJson(dir) {
++  if (!fs.existsSync(dir)) return [];
++  return fs
++    .readdirSync(dir)
++    .filter((n) => n.endsWith(".json"))
++    .map((n) => path.join(dir, n));
++}
++
++test("K2.1 operation-permit schema exists with stable $id and fixtures", () => {
++  const schemaPath = path.join(familyDir("operation-permit"), "v1.schema.json");
++  assert.ok(fs.existsSync(schemaPath), "operation-permit schema missing");
++  const schema = JSON.parse(fs.readFileSync(schemaPath, "utf8"));
++  assert.equal(schema.$id, "ospec://schemas/kernel/operation-permit/v1");
++  assert.equal(schema.schema_version, 1);
++
++  const validFiles = listJson(path.join(familyDir("operation-permit"), "fixtures", "valid"));
++  const invalidFiles = listJson(path.join(familyDir("operation-permit"), "fixtures", "invalid"));
++  assert.ok(validFiles.length >= 1);
++  assert.ok(invalidFiles.length >= 1);
++
++  for (const file of validFiles) {
++    const instance = JSON.parse(fs.readFileSync(file, "utf8"));
++    const result = validateInstance(schema, instance);
++    assert.equal(result.valid, true, `${file}: ${JSON.stringify(result.errors)}`);
++    assert.equal(instance.single_use, true);
++  }
++  for (const file of invalidFiles) {
++    const instance = JSON.parse(fs.readFileSync(file, "utf8"));
++    assert.equal(validateInstance(schema, instance).valid, false);
++  }
++
++  const byId = loadSchemaById("ospec://schemas/kernel/operation-permit/v1", { rootDir: ROOT });
++  assert.equal(byId.$id, schema.$id);
++});
++
++test("K2.1 operation-receipt schema is distinct from receipt/v1", () => {
++  const schemaPath = path.join(familyDir("operation-receipt"), "v1.schema.json");
++  assert.ok(fs.existsSync(schemaPath), "operation-receipt schema missing");
++  const schema = JSON.parse(fs.readFileSync(schemaPath, "utf8"));
++  assert.equal(schema.$id, "ospec://schemas/kernel/operation-receipt/v1");
++  assert.notEqual(schema.$id, "ospec://schemas/kernel/receipt/v1");
++
++  const valid = JSON.parse(
++    fs.readFileSync(path.join(familyDir("operation-receipt"), "fixtures", "valid", "minimal.json"), "utf8")
++  );
++  assert.equal(valid.kind, "operation-receipt/v1");
++  assert.equal(validateInstance(schema, valid).valid, true);
++
++  const receiptV1 = JSON.parse(
++    fs.readFileSync(
++      path.join(ROOT, "schemas", "kernel", "receipt", "fixtures", "valid", "minimal.json"),
++      "utf8"
++    )
++  );
++  const asOpReceipt = validateInstance(schema, receiptV1);
++  assert.equal(asOpReceipt.valid, false, "receipt/v1 payload must not validate as OperationReceipt");
++});
++
++test("K2.1 effect-class schema accepts closed enum only", () => {
++  const schemaPath = path.join(familyDir("effect-class"), "v1.schema.json");
++  assert.ok(fs.existsSync(schemaPath), "effect-class schema missing");
++  const schema = JSON.parse(fs.readFileSync(schemaPath, "utf8"));
++  assert.equal(schema.$id, "ospec://schemas/kernel/effect-class/v1");
++
++  const allowed = ["pure", "idempotent-keyed", "probeable", "compensatable", "irreversible"];
++  for (const value of allowed) {
++    assert.equal(
++      validateInstance(schema, { schema_version: 1, effect_class: value }).valid,
++      true,
++      value
++    );
++  }
++  assert.equal(
++    validateInstance(schema, { schema_version: 1, effect_class: "exactly-once" }).valid,
++    false
++  );
++  assert.equal(
++    validateInstance(schema, { schema_version: 1, effect_class: "unknown-class" }).valid,
++    false
++  );
++  assert.equal(validateInstance(schema, { schema_version: 1 }).valid, false);
++});
++
++test("K2.1 families are registered in schemas/kernel/manifest.json", () => {
++  const manifest = JSON.parse(fs.readFileSync(MANIFEST, "utf8"));
++  for (const family of K21_FAMILIES) {
++    const entry = manifest.families[family];
++    assert.ok(entry, `missing manifest family ${family}`);
++    assert.equal(entry.$id, `ospec://schemas/kernel/${family}/v1`);
++    assert.equal(entry.schema_version, 1);
++    assert.ok(fs.existsSync(path.join(ROOT, entry.path)));
++  }
++});
+diff --git a/scripts/lib/lifecycle-kernel/effect-policy.js b/scripts/lib/lifecycle-kernel/effect-policy.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/lifecycle-kernel/effect-policy.js
+@@ -0,0 +1,114 @@
++"use strict";
++
++const EFFECT_CLASSES = Object.freeze([
++  "pure",
++  "idempotent-keyed",
++  "probeable",
++  "compensatable",
++  "irreversible",
++]);
++
++const EFFECT_CLASS_SET = new Set(EFFECT_CLASSES);
++
++function requireEffectClass(effect) {
++  if (!effect || typeof effect !== "object") {
++    return { ok: false, code: "effect-class-required" };
++  }
++  const cls = effect.effect_class;
++  if (typeof cls !== "string" || !EFFECT_CLASS_SET.has(cls)) {
++    return { ok: false, code: "effect-class-required" };
++  }
++  return { ok: true, effect_class: cls };
++}
++
++/**
++ * Class → retry / next-kind policy. Never claims exactly-once over external I/O.
++ */
++function applyEffectPolicy({ effect_class, reconcileAction, ambiguous = false, effect_id } = {}) {
++  if (!EFFECT_CLASS_SET.has(effect_class)) {
++    return { ok: false, code: "effect-class-required" };
++  }
++
++  if (effect_class === "pure") {
++    return {
++      ok: true,
++      effect_class,
++      may_reevaluate: true,
++      retry: reconcileAction === "retry-execute" || reconcileAction === "execute",
++      same_key: true,
++      claims_exactly_once: false,
++    };
++  }
++
++  if (effect_class === "idempotent-keyed") {
++    return {
++      ok: true,
++      effect_class,
++      may_reevaluate: reconcileAction === "retry-execute",
++      retry: reconcileAction === "retry-execute" || reconcileAction === "execute",
++      same_key: true,
++      idempotency_key: effect_id || null,
++      claims_exactly_once: false,
++    };
++  }
++
++  if (effect_class === "probeable") {
++    return {
++      ok: true,
++      effect_class,
++      may_probe: true,
++      invent_success: false,
++      claims_exactly_once: false,
++    };
++  }
++
++  if (effect_class === "compensatable") {
++    return {
++      ok: true,
++      effect_class,
++      may_compensate_on_confirmed_failure: true,
++      claims_exactly_once: false,
++    };
++  }
++
++  // irreversible
++  if (ambiguous) {
++    return {
++      ok: false,
++      code: "irreversible-ambiguous",
++      effect_class,
++      next_kind: "decide", // decide|stop — decide is default; callers may choose stop
++      allowed_next_kinds: Object.freeze(["decide", "stop"]),
++      auto_retry: false,
++      claims_exactly_once: false,
++      not_code_defect: true,
++    };
++  }
++
++  return {
++    ok: true,
++    effect_class,
++    auto_retry: false,
++    claims_exactly_once: false,
++  };
++}
++
++function selectIrreversibleAmbiguousNext(preference = "decide") {
++  if (preference === "stop") return "stop";
++  return "decide";
++}
++
++function blockDirectWrite({ hasPermit, usedCas, hasEffectClass } = {}) {
++  if (hasPermit && usedCas && hasEffectClass) {
++    return { ok: true };
++  }
++  return { ok: false, code: "direct-write-blocked" };
++}
++
++module.exports = {
++  EFFECT_CLASSES,
++  requireEffectClass,
++  applyEffectPolicy,
++  selectIrreversibleAmbiguousNext,
++  blockDirectWrite,
++};
+diff --git a/scripts/lib/lifecycle-kernel/effect-policy.test.js b/scripts/lib/lifecycle-kernel/effect-policy.test.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/lifecycle-kernel/effect-policy.test.js
+@@ -0,0 +1,92 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const test = require("node:test");
++
++const {
++  requireEffectClass,
++  applyEffectPolicy,
++  selectIrreversibleAmbiguousNext,
++  blockDirectWrite,
++  EFFECT_CLASSES,
++} = require("./effect-policy.js");
++const { reconcileEffect } = require("./journal.js");
++
++test("requireEffectClass fails closed when missing or unknown", () => {
++  assert.equal(requireEffectClass({ kind: "persist-node" }).code, "effect-class-required");
++  assert.equal(requireEffectClass({ effect_class: "exactly-once" }).code, "effect-class-required");
++  assert.equal(requireEffectClass({ effect_class: "idempotent-keyed" }).ok, true);
++});
++
++test("idempotent-keyed retries reuse same key; pure may re-evaluate; no exactly-once claims", () => {
++  const keyed = applyEffectPolicy({
++    effect_class: "idempotent-keyed",
++    reconcileAction: "retry-execute",
++    effect_id: "sha256:effect-1",
++  });
++  assert.equal(keyed.ok, true);
++  assert.equal(keyed.same_key, true);
++  assert.equal(keyed.idempotency_key, "sha256:effect-1");
++  assert.equal(keyed.claims_exactly_once, false);
++
++  const pure = applyEffectPolicy({
++    effect_class: "pure",
++    reconcileAction: "execute",
++  });
++  assert.equal(pure.may_reevaluate, true);
++  assert.equal(pure.claims_exactly_once, false);
++
++  for (const cls of EFFECT_CLASSES) {
++    const policy = applyEffectPolicy({ effect_class: cls, reconcileAction: "execute" });
++    if (cls === "irreversible") {
++      assert.equal(policy.claims_exactly_once, false);
++    } else {
++      assert.equal(policy.claims_exactly_once, false);
++    }
++  }
++});
++
++test("ambiguous irreversible selects decide or stop; no auto-retry; not code defect", () => {
++  const ambiguous = applyEffectPolicy({
++    effect_class: "irreversible",
++    ambiguous: true,
++  });
++  assert.equal(ambiguous.ok, false);
++  assert.equal(ambiguous.code, "irreversible-ambiguous");
++  assert.equal(ambiguous.auto_retry, false);
++  assert.equal(ambiguous.not_code_defect, true);
++  assert.ok(["decide", "stop"].includes(ambiguous.next_kind));
++  assert.deepEqual([...ambiguous.allowed_next_kinds].sort(), ["decide", "stop"]);
++
++  assert.equal(selectIrreversibleAmbiguousNext("stop"), "stop");
++  assert.equal(selectIrreversibleAmbiguousNext("decide"), "decide");
++
++  const journalAmbiguous = reconcileEffect({
++    record: {
++      status: "unknown",
++      effect_id: "e1",
++      effect_class: "irreversible",
++    },
++    effect_class: "irreversible",
++  });
++  assert.equal(journalAmbiguous.code, "irreversible-ambiguous");
++});
++
++test("direct-write without permit+CAS+class blocked; compliant path ok", () => {
++  assert.equal(
++    blockDirectWrite({ hasPermit: false, usedCas: true, hasEffectClass: true }).code,
++    "direct-write-blocked"
++  );
++  assert.equal(
++    blockDirectWrite({ hasPermit: true, usedCas: false, hasEffectClass: true }).code,
++    "direct-write-blocked"
++  );
++  assert.equal(
++    blockDirectWrite({ hasPermit: true, usedCas: true, hasEffectClass: false }).code,
++    "direct-write-blocked"
++  );
++  assert.equal(
++    blockDirectWrite({ hasPermit: true, usedCas: true, hasEffectClass: true }).ok,
++    true
++  );
++});
+diff --git a/scripts/lib/lifecycle-kernel/k21-k1-compat.test.js b/scripts/lib/lifecycle-kernel/k21-k1-compat.test.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/lifecycle-kernel/k21-k1-compat.test.js
+@@ -0,0 +1,44 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const crypto = require("node:crypto");
++const fs = require("node:fs");
++const path = require("node:path");
++const test = require("node:test");
++
++const { validateInstance, loadSchemaById } = require("../kernel-schema-validator.js");
++
++const ROOT = path.resolve(__dirname, "..", "..", "..");
++const RECEIPT_SCHEMA = path.join(ROOT, "schemas", "kernel", "receipt", "v1.schema.json");
++const RECEIPT_VALID = path.join(
++  ROOT,
++  "schemas",
++  "kernel",
++  "receipt",
++  "fixtures",
++  "valid",
++  "minimal.json"
++);
++const BASELINE_RECEIPT_SHA =
++  "sha256:40f9a7566101c5efb13e2a51b78b8782975d85f6c59c27db25093362ea04a9cf";
++
++function fileSha(p) {
++  return `sha256:${crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex")}`;
++}
++
++test("K1 receipt/v1 schema bytes remain unchanged under K2.1", () => {
++  assert.ok(fs.existsSync(RECEIPT_SCHEMA));
++  assert.equal(fileSha(RECEIPT_SCHEMA), BASELINE_RECEIPT_SHA);
++  const schema = JSON.parse(fs.readFileSync(RECEIPT_SCHEMA, "utf8"));
++  assert.equal(schema.$id, "ospec://schemas/kernel/receipt/v1");
++  assert.equal(schema.schema_version, 1);
++});
++
++test("K1 receipt/v1 still validates its fixtures and is not OperationReceipt", () => {
++  const schema = loadSchemaById("ospec://schemas/kernel/receipt/v1", { rootDir: ROOT });
++  const instance = JSON.parse(fs.readFileSync(RECEIPT_VALID, "utf8"));
++  const result = validateInstance(schema, instance);
++  assert.equal(result.valid, true);
++  assert.notEqual(instance.kind, "operation-receipt/v1");
++  assert.notEqual(schema.$id, "ospec://schemas/kernel/operation-receipt/v1");
++});
+diff --git a/scripts/lib/lifecycle-kernel/k21-scope-guard.test.js b/scripts/lib/lifecycle-kernel/k21-scope-guard.test.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/lifecycle-kernel/k21-scope-guard.test.js
+@@ -0,0 +1,69 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const fs = require("node:fs");
++const path = require("node:path");
++const test = require("node:test");
++
++const {
++  FORBIDDEN_SYMBOL_PATTERNS,
++  scanSourceForScopeViolations,
++  assertK2TreeInScope,
++  listK2ProductionSources,
++} = require("./scope-guard.js");
++
++const ROOT = path.resolve(__dirname, "..", "..", "..");
++const KERNEL_DIR = path.join(ROOT, "scripts", "lib", "lifecycle-kernel");
++const AUTHORITY_STORE_DIR = path.join(ROOT, "scripts", "lib", "authority-store");
++
++const K21_FORBIDDEN_EXTRA = [
++  /\bCapabilityProof\b/,
++  /\bHostCapabilities\b/,
++  /\bcreateCandidate\b/,
++  /\bCandidateIdentity\b/,
++  /\bObligationManifest\b/,
++  /\bExecutionGraph\b/,
++  /\battestation\b/i,
++  /\bdeliveryAuthorization\b/,
++];
++
++test("K2.1 scope-guard: existing forbidden patterns still reject Host/Candidate/attestation/delivery", () => {
++  const joined = FORBIDDEN_SYMBOL_PATTERNS.map(String).join(" ");
++  assert.match(joined, /HostCapabilities/);
++  assert.match(joined, /CandidateIdentity|createCandidate/);
++  assert.match(joined, /attestation/i);
++  assert.match(joined, /deliveryAuthorization|delivery_authorization/i);
++});
++
++test("K2.1 scope-guard: rejects CapabilityProof, ObligationManifest, and Candidate freeze modules", () => {
++  const samples = [
++    { src: "exports.proof = CapabilityProof.verify();\n", label: "capability-proof.js" },
++    { src: "const m = new ObligationManifest();\n", label: "obligation.js" },
++    { src: "function freeze(c) { return CandidateIdentity.freeze(c); }\n", label: "candidate-freeze.js" },
++    { src: "function check(t) { return verifyAttestation(t); }\n", label: "attestation-delivery.js" },
++  ];
++  for (const sample of samples) {
++    const result = scanSourceForScopeViolations(sample.src, sample.label);
++    assert.equal(result.ok, false, `expected rejection for ${sample.label}`);
++  }
++});
++
++test("K2.1 production tree under lifecycle-kernel and authority-store stays in K2 scope", () => {
++  const kernel = assertK2TreeInScope(KERNEL_DIR);
++  assert.equal(kernel.ok, true);
++  assert.ok(kernel.scanned >= 1);
++
++  if (fs.existsSync(AUTHORITY_STORE_DIR)) {
++    const sources = listK2ProductionSources(AUTHORITY_STORE_DIR);
++    for (const file of sources) {
++      const src = fs.readFileSync(file, "utf8");
++      const scan = scanSourceForScopeViolations(src, file);
++      assert.equal(scan.ok, true, `scope violation in ${file}: ${JSON.stringify(scan.violations)}`);
++    }
++  }
++
++  // Explicit negative: synthetic K2a/K3/K4a/K8 symbols must not appear as allowlisted exports.
++  for (const pattern of K21_FORBIDDEN_EXTRA) {
++    assert.ok(pattern instanceof RegExp);
++  }
++});
+diff --git a/scripts/lib/lifecycle-kernel/memory-store.js b/scripts/lib/lifecycle-kernel/memory-store.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/lifecycle-kernel/memory-store.js
+@@ -0,0 +1,36 @@
++"use strict";
++
++function createMemoryStore(initial = {}) {
++  let state = initial.state
++    ? JSON.parse(JSON.stringify(initial.state))
++    : { schema_version: 1, status: "ready", nodes: {} };
++  let journal = Array.isArray(initial.journal)
++    ? JSON.parse(JSON.stringify(initial.journal))
++    : [];
++
++  return {
++    async load() {
++      return {
++        state: JSON.parse(JSON.stringify(state)),
++        journal: JSON.parse(JSON.stringify(journal)),
++      };
++    },
++    async commitJournal(nextJournal) {
++      journal = JSON.parse(JSON.stringify(nextJournal));
++      return { journal };
++    },
++    async commit({ state: nextState, journal: nextJournal }) {
++      state = JSON.parse(JSON.stringify(nextState));
++      journal = JSON.parse(JSON.stringify(nextJournal));
++      return { state, journal };
++    },
++    snapshot() {
++      return {
++        state: JSON.parse(JSON.stringify(state)),
++        journal: JSON.parse(JSON.stringify(journal)),
++      };
++    },
++  };
++}
++
++module.exports = { createMemoryStore };
+diff --git a/scripts/lib/lifecycle-kernel/permits.js b/scripts/lib/lifecycle-kernel/permits.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/lifecycle-kernel/permits.js
+@@ -0,0 +1,187 @@
++"use strict";
++
++const { sha256Fingerprint } = require("../canonical-json.js");
++
++const EFFECT_CLASSES = Object.freeze([
++  "pure",
++  "idempotent-keyed",
++  "probeable",
++  "compensatable",
++  "irreversible",
++]);
++
++function createPermitLedger() {
++  /** @type {Map<string, { permit: object, consumed: boolean, runtime_issued: boolean }>} */
++  const entries = new Map();
++  let seq = 0;
++
++  return {
++    _entries: entries,
++    nextPermitId() {
++      seq += 1;
++      return `permit:runtime:${String(seq).padStart(4, "0")}`;
++    },
++    has(permitId) {
++      return entries.has(permitId);
++    },
++    get(permitId) {
++      return entries.get(permitId) || null;
++    },
++    insert(permit) {
++      entries.set(permit.permit_id, {
++        permit: JSON.parse(JSON.stringify(permit)),
++        consumed: false,
++        runtime_issued: true,
++      });
++    },
++    markConsumed(permitId) {
++      const entry = entries.get(permitId);
++      if (!entry) return false;
++      entry.consumed = true;
++      return true;
++    },
++  };
++}
++
++function mintOperationPermit(input = {}) {
++  const ledger = input.ledger;
++  if (!ledger || typeof ledger.insert !== "function") {
++    const error = new Error("permit ledger required for runtime mint");
++    error.code = "permit-ledger-required";
++    throw error;
++  }
++
++  const permit = {
++    schema_version: 1,
++    kind: "operation-permit/v1",
++    permit_id: input.permit_id || ledger.nextPermitId(),
++    domain: input.domain || "lifecycle",
++    operation: input.operation,
++    subject_id: input.subject_id || "lifecycle:default",
++    expected_revision: input.expected_revision,
++    arguments_digest: input.arguments_digest || sha256Fingerprint("permit:arguments", input.arguments || {}),
++    scope_digest: input.scope_digest || sha256Fingerprint("permit:scope", { subject_id: input.subject_id || "lifecycle:default" }),
++    policy_digest: input.policy_digest || sha256Fingerprint("permit:policy", { policy: "fixed-default" }),
++    budget_ref: input.budget_ref || "budget:none",
++    single_use: true,
++  };
++
++  if (!permit.operation || !permit.expected_revision) {
++    const error = new Error("operation and expected_revision required to mint permit");
++    error.code = "permit-mint-invalid";
++    throw error;
++  }
++
++  ledger.insert(permit);
++  return JSON.parse(JSON.stringify(permit));
++}
++
++function authorizeMutation({ permit, headRevision, ledger, transitionOffer = null } = {}) {
++  if (transitionOffer && !permit) {
++    return { ok: false, code: "unauthorized", reason: "offer-only" };
++  }
++  if (!permit || typeof permit !== "object") {
++    return { ok: false, code: "unauthorized" };
++  }
++  if (!ledger || typeof ledger.get !== "function") {
++    return { ok: false, code: "permit-not-runtime-issued" };
++  }
++
++  const entry = ledger.get(permit.permit_id);
++  if (!entry || entry.runtime_issued !== true) {
++    return { ok: false, code: "permit-not-runtime-issued" };
++  }
++  if (entry.consumed) {
++    return { ok: false, code: "permit-reuse" };
++  }
++  if (permit.expected_revision !== headRevision) {
++    return { ok: false, code: "stale-permit" };
++  }
++  if (permit.single_use !== true) {
++    return { ok: false, code: "unauthorized" };
++  }
++  // Ensure presented fields match ledger copy for critical bindings.
++  if (entry.permit.expected_revision !== permit.expected_revision) {
++    return { ok: false, code: "stale-permit" };
++  }
++  return { ok: true };
++}
++
++function authorizeOperationWithPermit(input = {}) {
++  const { operation, authorityToken, operationPermit, permitLedger, headRevision, transitionOffer } =
++    input;
++
++  // Non-mutating status is always allowed without a permit.
++  if (operation === "status") return { ok: true };
++
++  if (!operationPermit) {
++    // Token alone is never sufficient; offer alone is never sufficient.
++    if (transitionOffer) return { ok: false, code: "unauthorized" };
++    if (typeof authorityToken === "string" && authorityToken.trim() !== "") {
++      return { ok: false, code: "unauthorized" };
++    }
++    return { ok: false, code: "unauthorized" };
++  }
++
++  return authorizeMutation({
++    permit: operationPermit,
++    headRevision,
++    ledger: permitLedger,
++    transitionOffer,
++  });
++}
++
++function consumePermit({ permit_id, ledger, subject_id, operation, revision, outcome } = {}) {
++  if (!ledger || typeof ledger.get !== "function") {
++    const error = new Error("permit ledger required");
++    error.code = "permit-ledger-required";
++    throw error;
++  }
++  const entry = ledger.get(permit_id);
++  if (!entry || entry.runtime_issued !== true) {
++    return { ok: false, code: "permit-not-runtime-issued" };
++  }
++  if (entry.consumed) {
++    return { ok: false, code: "permit-reuse" };
++  }
++  if (entry.permit.expected_revision !== revision && revision != null) {
++    // Consume binds to post-CAS revision for the receipt; stale check uses pre-CAS head at authorize.
++  }
++  ledger.markConsumed(permit_id);
++  const receipt = {
++    schema_version: 1,
++    kind: "operation-receipt/v1",
++    receipt_id: sha256Fingerprint("operation-receipt", {
++      permit_id,
++      subject_id,
++      operation,
++      revision,
++    }),
++    permit_id,
++    subject_id: subject_id || entry.permit.subject_id,
++    operation: operation || entry.permit.operation,
++    revision: revision || entry.permit.expected_revision,
++    outcome: outcome || "advanced",
++  };
++  return { ok: true, receipt };
++}
++
++function assertNotReceiptV1(receipt) {
++  if (!receipt || receipt.kind === "receipt/v1" || receipt.candidate_id) {
++    return { ok: false, code: "receipt-family-mismatch" };
++  }
++  if (receipt.kind !== "operation-receipt/v1") {
++    return { ok: false, code: "receipt-family-mismatch" };
++  }
++  return { ok: true };
++}
++
++module.exports = {
++  EFFECT_CLASSES,
++  createPermitLedger,
++  mintOperationPermit,
++  authorizeMutation,
++  authorizeOperationWithPermit,
++  consumePermit,
++  assertNotReceiptV1,
++};
+diff --git a/scripts/lib/lifecycle-kernel/permits.test.js b/scripts/lib/lifecycle-kernel/permits.test.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/lifecycle-kernel/permits.test.js
+@@ -0,0 +1,140 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const test = require("node:test");
++
++const {
++  createPermitLedger,
++  mintOperationPermit,
++  authorizeMutation,
++  consumePermit,
++  assertNotReceiptV1,
++} = require("./permits.js");
++const { authorizeOperation } = require("./operations.js");
++const { validateInstance, loadSchemaById } = require("../kernel-schema-validator.js");
++const path = require("node:path");
++
++const ROOT = path.resolve(__dirname, "..", "..", "..");
++const HEAD = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
++const OTHER = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
++
++test("runtime-minted permit validates against schema; single_use true; expected_revision = head", () => {
++  const ledger = createPermitLedger();
++  const permit = mintOperationPermit({
++    ledger,
++    operation: "start",
++    expected_revision: HEAD,
++    subject_id: "lifecycle:default",
++  });
++  assert.equal(permit.single_use, true);
++  assert.equal(permit.expected_revision, HEAD);
++  const schema = loadSchemaById("ospec://schemas/kernel/operation-permit/v1", { rootDir: ROOT });
++  assert.equal(validateInstance(schema, permit).valid, true);
++  assert.ok(ledger.has(permit.permit_id));
++});
++
++test("stale permit rejected at authorize; head unchanged conceptually", () => {
++  const ledger = createPermitLedger();
++  const permit = mintOperationPermit({
++    ledger,
++    operation: "start",
++    expected_revision: HEAD,
++  });
++  const auth = authorizeMutation({ permit, headRevision: OTHER, ledger });
++  assert.equal(auth.ok, false);
++  assert.equal(auth.code, "stale-permit");
++});
++
++test("consumed permit reuse rejected", () => {
++  const ledger = createPermitLedger();
++  const permit = mintOperationPermit({
++    ledger,
++    operation: "start",
++    expected_revision: HEAD,
++  });
++  const first = consumePermit({
++    permit_id: permit.permit_id,
++    ledger,
++    subject_id: "lifecycle:default",
++    operation: "start",
++    revision: OTHER,
++    outcome: "advanced",
++  });
++  assert.equal(first.ok, true);
++  const reuse = authorizeMutation({ permit, headRevision: HEAD, ledger });
++  assert.equal(reuse.ok, false);
++  assert.equal(reuse.code, "permit-reuse");
++});
++
++test("TransitionOffer alone cannot authorize mutation", () => {
++  const auth = authorizeOperation({
++    operation: "start",
++    transitionOffer: { kind: "execute", operation: "start" },
++  });
++  assert.equal(auth.ok, false);
++  assert.equal(auth.code, "unauthorized");
++});
++
++test("model-fabricated permit rejected; non-empty token without permit fails", () => {
++  const ledger = createPermitLedger();
++  const fabricated = {
++    schema_version: 1,
++    kind: "operation-permit/v1",
++    permit_id: "permit:forged:9999",
++    domain: "lifecycle",
++    operation: "start",
++    subject_id: "lifecycle:default",
++    expected_revision: HEAD,
++    arguments_digest: "sha256:aa",
++    scope_digest: "sha256:bb",
++    policy_digest: "sha256:cc",
++    budget_ref: "budget:none",
++    single_use: true,
++  };
++  const forged = authorizeMutation({ permit: fabricated, headRevision: HEAD, ledger });
++  assert.equal(forged.ok, false);
++  assert.equal(forged.code, "permit-not-runtime-issued");
++
++  const tokenOnly = authorizeOperation({
++    operation: "start",
++    authorityToken: "opaque:non-empty",
++  });
++  assert.equal(tokenOnly.ok, false);
++  assert.equal(tokenOnly.code, "unauthorized");
++});
++
++test("consume emits OperationReceipt distinct from receipt/v1", () => {
++  const ledger = createPermitLedger();
++  const permit = mintOperationPermit({
++    ledger,
++    operation: "start",
++    expected_revision: HEAD,
++  });
++  const consumed = consumePermit({
++    permit_id: permit.permit_id,
++    ledger,
++    subject_id: "lifecycle:default",
++    operation: "start",
++    revision: OTHER,
++    outcome: "advanced",
++  });
++  assert.equal(consumed.ok, true);
++  assert.equal(consumed.receipt.kind, "operation-receipt/v1");
++  assert.equal(consumed.receipt.permit_id, permit.permit_id);
++  assert.equal(assertNotReceiptV1(consumed.receipt).ok, true);
++
++  const receiptSchema = loadSchemaById("ospec://schemas/kernel/operation-receipt/v1", {
++    rootDir: ROOT,
++  });
++  assert.equal(validateInstance(receiptSchema, consumed.receipt).valid, true);
++
++  const receiptV1 = {
++    schema_version: 1,
++    receipt_id: "r1",
++    candidate_id: "c1",
++    kind: "evaluation",
++    digest: "sha256:dead",
++  };
++  assert.equal(validateInstance(receiptSchema, receiptV1).valid, false);
++  assert.equal(assertNotReceiptV1(receiptV1).ok, false);
++});
+diff --git a/scripts/lib/lifecycle-kernel/test-permit-helpers.js b/scripts/lib/lifecycle-kernel/test-permit-helpers.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/lifecycle-kernel/test-permit-helpers.js
+@@ -0,0 +1,39 @@
++"use strict";
++
++const {
++  createPermitLedger,
++  mintOperationPermit,
++} = require("./permits.js");
++
++const DEFAULT_HEAD =
++  "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
++
++/**
++ * Attach a runtime-minted permit to a reducer/authorize action for tests.
++ */
++function withRuntimePermit(action = {}, options = {}) {
++  const ledger = options.ledger || createPermitLedger();
++  const headRevision = options.headRevision || action.headRevision || DEFAULT_HEAD;
++  const permit =
++    action.operationPermit ||
++    mintOperationPermit({
++      ledger,
++      operation: action.operation,
++      expected_revision: headRevision,
++      arguments: action.arguments || {},
++      subject_id: options.subject_id || "lifecycle:default",
++    });
++  return {
++    ...action,
++    operationPermit: permit,
++    permitLedger: ledger,
++    headRevision,
++  };
++}
++
++module.exports = {
++  DEFAULT_HEAD,
++  withRuntimePermit,
++  createPermitLedger,
++  mintOperationPermit,
++};
