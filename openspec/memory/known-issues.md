@@ -3,6 +3,13 @@ title: Known Issues
 last_updated: 2026-08-04
 ---
 
+## Harness-alone host-fault incompleteness lacks explicit negative runtime test
+- severity: WARNING
+- area: scripts/lib/minimal-kernel-harness.test.js (REQ-minimal-kernel-harness-009)
+- workaround: add a runtime case that evaluates K2a host-fault conformance with only Minimal Kernel Harness fixtures (no Headless Conformance Host peer) and asserts coverage remains incomplete
+- change: k2a-headless-conformance-host
+- date: 2026-08-04
+
 ## Full npm test fails: K1 scope guard rejects new K2 modules as unmanifested inventory
 - severity: BLOCKER
 - area: scripts/lib/k1-scope-guard.test.js (frozen candidate inventory vs post-K1 changes)

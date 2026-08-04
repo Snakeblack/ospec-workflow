@@ -51,9 +51,23 @@ vscode/copilot NO debe asumir que el token advisor o AgentShield corren para él
 — tiene la versión instruccional (defensa pasiva) generada en las rules de su
 target.
 
-## 4. Trabajo futuro declarado
+## 4. K2a capability states and proof-backed Claude activation
+
+Closed capability states: `enforced | partial | instructional | unavailable`.
+
+- **Claude Code (`claude`)** is the sole K2a activated real HostAdapter. Enforced
+  capabilities require a verifying `CapabilityProof` bound to
+  `adapter_version` + `host_version` + fixture + `evidence_digest`
+  (fixtures under `scripts/lib/host-adapters/claude/fixtures/`).
+- Other targets remain inactive stubs until K11a; Headless Conformance Host is a
+  fault fixture, not a second product adapter.
+- Adapters translate host surfaces into contract ports; they are **not** semantic
+  authority (OpenSpec/Git remain sole).
+
+## 5. Trabajo futuro declarado
 
 - Campo `capabilities:` en `target-profiles/*.js` para inyectar/omitir secciones
-  condicionales en la transform (hoy la degradación es prosa compartida).
+  condicionales en la transform (hoy Claude declara `hostCapabilities` para
+  proof binding; degradación residual sigue en prosa compartida).
 - MCP server `ospec` read-only (D3) como canal uniforme de estado para los 6
   targets y hosts futuros.

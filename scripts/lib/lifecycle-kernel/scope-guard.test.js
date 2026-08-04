@@ -17,11 +17,13 @@ const {
 const ROOT = path.resolve(__dirname, "..", "..", "..");
 const KERNEL_DIR = path.join(ROOT, "scripts", "lib", "lifecycle-kernel");
 
-test("scope-guard exports forbidden host/Candidate/budget/attestation/delivery patterns", () => {
+test("scope-guard exports forbidden Candidate/budget/attestation/delivery and concrete-host patterns", () => {
   assert.ok(Array.isArray(FORBIDDEN_SYMBOL_PATTERNS));
   assert.ok(FORBIDDEN_SYMBOL_PATTERNS.length >= 5);
   const joined = FORBIDDEN_SYMBOL_PATTERNS.map(String).join(" ");
-  assert.match(joined, /HostCapabilities/);
+  // K2a: generic HostCapabilities/createHostAdapter allowed; concrete host + later slices banned.
+  assert.doesNotMatch(joined, /HostCapabilities/);
+  assert.match(joined, /createClaudeHostAdapter|AskUserQuestion/);
   assert.match(joined, /ExecutionGraph|execution_graph|execution-graph/i);
   assert.match(joined, /productiveBudget|productive_budget|productive-budget/i);
   assert.match(joined, /attestation/i);
@@ -32,13 +34,13 @@ test("scope-guard exports forbidden host/Candidate/budget/attestation/delivery p
   assert.ok(FORBIDDEN_MODULE_PATTERNS.length >= 3);
 });
 
-test("scanSourceForScopeViolations rejects HostCapabilities and Candidate APIs", () => {
+test("scanSourceForScopeViolations rejects concrete host APIs and Candidate APIs", () => {
   const hostViolation = scanSourceForScopeViolations(
-    'function boot(host) { return host.HostCapabilities.open(); }\n',
+    'const { createClaudeHostAdapter } = require("../host-adapters/claude.js");\n',
     "synthetic-host.js"
   );
   assert.equal(hostViolation.ok, false);
-  assert.ok(hostViolation.violations.some((v) => /HostCapabilities/.test(v.pattern)));
+  assert.ok(hostViolation.violations.length >= 1);
 
   const candidateViolation = scanSourceForScopeViolations(
     "const id = createCandidate({ subject: 'x' });\n",
@@ -53,6 +55,12 @@ test("scanSourceForScopeViolations rejects HostCapabilities and Candidate APIs",
   );
   assert.equal(clean.ok, true);
   assert.deepEqual(clean.violations, []);
+
+  const generic = scanSourceForScopeViolations(
+    'const { resolveCapabilityState } = require("../host-contract/index.js");\n',
+    "host-boundary.js"
+  );
+  assert.equal(generic.ok, true);
 });
 
 test("scanSourceForScopeViolations rejects productive budget, attestation and delivery modules", () => {
@@ -83,10 +91,10 @@ test("scanSourceForScopeViolations rejects productive budget, attestation and de
 
 test("assertK2SourceInScope throws with stable code on violation", () => {
   assert.throws(
-    () => assertK2SourceInScope("const HostCapabilities = {};\n", "bad.js"),
+    () => assertK2SourceInScope("const createClaudeHostAdapter = () => {};\n", "bad.js"),
     (error) => {
       assert.equal(error.code, "k2-scope-violation");
-      assert.match(String(error.message), /HostCapabilities/);
+      assert.match(String(error.message), /createClaudeHostAdapter/);
       return true;
     }
   );

@@ -1,0 +1,29 @@
+{
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "summary": "evaluateEnforcementEligibility selecciona reason_code con ternarios anidados (>3 niveles) que hacen ilegible el path de verificación de proof.",
+      "acceptance_criteria": "Reemplazar el ternario anidado por ramas if/else o un helper con nombre explícito (p.ej. selectEnforcementFailureReason) que deje ≤2 niveles de nesting y documente en comentario o nombre la matriz declared×request_enforced×proof.reason."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "Dos APIs casi gemelas (resolveCapabilityState y evaluateEnforcementEligibility) implementan el mismo gate de promoción con reglas de reason_code distintas y sin comentario que explique la divergencia.",
+      "acceptance_criteria": "Unificar en una sola función de resolución o hacer que una delegue en la otra; si se conservan ambas, añadir comentario en ambas sedes que declare quién es autoridad, cuándo usar cada una, y una tabla mínima de reason_code para declared/request_enforced/fallo-de-proof."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "detectDuplication colapsa authority_surface al adapter completo cuando falta el campo, sin documentar el boundary authority vs metadata/transports.",
+      "acceptance_criteria": "Documentar en comentario junto al fallback por qué se sondea el adapter completo, o restringir el probe a un allowlist/denylist explícito de claves de authority (sin caer en transports/capabilities) y nombrar la variable de forma que no diga \"surface\" cuando en realidad es el adapter."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "El módulo Headless Conformance Host exporta HARNESS_KIND (identidad del peer Minimal Kernel Harness), lo que reintroduce la confusión host↔harness que el cambio pretende evitar.",
+      "acceptance_criteria": "Dejar de exportar HARNESS_KIND desde headless-conformance-host.js (usar solo peer_of con literal o import del harness), o renombrar el export a algo inequívoco (p.ej. PEER_HARNESS_KIND) con comentario de una línea: \"identidad del peer; este módulo es KIND=headless-conformance-host/v1\"."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "Tras un fault, se demociona capabilityStates[target] usando el nombre del transport port como si fuera capability_id, sin declarar esa igualdad de identidad.",
+      "acceptance_criteria": "Añadir comentario o helper (p.ej. capabilityIdForFaultedPort) que deje explícito el contrato \"capability_id === transport port name en K2a\", o mapear port→capability_id de forma nombrada antes de mutar capabilityStates/proofVerification."
+    }
+  ]
+}

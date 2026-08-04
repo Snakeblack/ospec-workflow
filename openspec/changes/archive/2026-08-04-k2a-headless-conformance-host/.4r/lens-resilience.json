@@ -1,0 +1,19 @@
+{
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "summary": "invokePort y el bucle de transports no atrapan excepciones; un throw deja el escenario sin outcome estructurado fail-closed.",
+      "acceptance_criteria": "Cada invocación de puerto en runConformanceScenario/runHostFaultMatrix debe atrapar throws y registrar un outcome normalizado {ok:false, outcome:\"error\"|equivalente, code estable}; el escenario/matrix debe completar con pass:false y port_outcomes consistentes, sin abortar a mitad de bucle."
+    },
+    {
+      "severity": "CRITICAL",
+      "summary": "Sin fault inyectado, pass=true si cada outcome es string, incluso con ok:false (timeout/error/worker-fail), ocultando fallos reales.",
+      "acceptance_criteria": "Cuando fault==null, pass debe exigir outcomes normalizados con ok===true (p.ej. vía normalizeTransportOutcome); cualquier ok:false o outcome de fallo debe forzar pass:false y reason_code estable. Añadir test que demuestre que {ok:false, outcome:\"timeout\"} sin fault inyectado no pasa."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "Claude: carga de fixtures sin try/catch y handlers que fuerzan ok:true / no atrapan throws de primitivas.",
+      "acceptance_criteria": "loadFixture debe mapear ENOENT/JSON inválido a error estructurado o reason_code de proof (no uncaught). Handlers de transport deben atrapar throws de primitives y no reportar ok:true cuando la primitiva falla de forma observable; degradación honestamente visible al consumidor del puerto."
+    }
+  ]
+}

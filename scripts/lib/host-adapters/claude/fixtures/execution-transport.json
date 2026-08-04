@@ -1,0 +1,13 @@
+{
+  "capability": "ExecutionTransport",
+  "profile": "claude",
+  "mapping": {
+    "execute": [
+      "Bash",
+      "PowerShell"
+    ]
+  },
+  "semantic": {
+    "supports_headless": true
+  }
+}

@@ -1,0 +1,1338 @@
+diff --git a/docs/architecture/harness-evolution.md b/docs/architecture/harness-evolution.md
+index 1c046b9..a9e4f57 100644
+--- a/docs/architecture/harness-evolution.md
++++ b/docs/architecture/harness-evolution.md
+@@ -164,13 +164,12 @@ O2B está cerrado y archivado (`openspec/changes/archive/2026-07-31-fixed-policy
+ - el change histórico `k1-contract-suite` completó archive, verify PASS, 4R approved y publicación v2.37.0; K1 está **done**;
+ - el change `k2-lifecycle-kernel` completó archive, verify PASS, 4R approved y publicación v2.38.0; K2 está **done**;
+ - el change `k2-1-authority-store-permits` completó archive, verify PASS, 4R approved y publicación v2.39.0; K2.1 está **done**;
+-- **K2a** es **next-eligible** (Headless Conformance Host + adapter real + CapabilityProof).
++- **K2a** Headless Conformance Host + Claude reference adapter + CapabilityProof está **implemented** en runtime (madurez docs); archive/release pendiente del change activo.
+ 
+-El programa no cambia defaults por el solo hecho de cerrar O2B/K1/K2/K2.1: cualquier promoción de policy, fixtures o routing exige los gates posteriores aplicables.
++El programa no cambia defaults por el solo hecho de cerrar O2B/K1/K2/K2.1/K2a: cualquier promoción de policy, fixtures o routing exige los gates posteriores aplicables.
+ 
+ ### Deuda real
+ 
+-- No existe Headless Conformance Host ni adapter host de referencia con CapabilityProof (K2a).
+ - No existe Execution Graph semántico común a Repair, planificación, invalidación y federación, ni Obligation Manifest (K4a+).
+ - La clasificación no separa completamente impacto, incertidumbre y ejecución ni fija hard floors por evidencia en runtime.
+ - Los budgets no son uniformes por nodo ni cubren autoridad/efectos (K5).
+@@ -179,8 +178,8 @@ El programa no cambia defaults por el solo hecho de cerrar O2B/K1/K2/K2.1: cualq
+ - No hay CandidateEvaluationAttestation ni DeliveryAuthorization productivos (K8 / K10-delivery).
+ - No hay selector de estrategia de evidencia por tipo de cambio, provenance ni Assurance Graph (K6b).
+ - ChallengePlan / challenges proporcionales y `complexity_delta` no son gates reutilizables (K6c/K6d).
+-- Worker isolation genérica y host contract pendientes (K6a / K2a).
+-- K1/K2 están published; corpus longitudinal y fricción permanecen en K12.
++- Worker isolation genérica pendiente (K6a); host contract K2a ya entrega ports opacos.
++- K1/K2/K2.1/K2a runtime surfaces published or in-flight; corpus longitudinal y fricción permanecen en K12.
+ 
+ ## Cadena canónica del change
+ 
+@@ -881,6 +880,10 @@ No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
+ - {implemented} K1 contract suite (vocabulario, schemas, clasificación, paridad; publicado v2.37.0).
+ - {implemented} K2 lifecycle + Minimal Kernel Harness + model-based invariants (publicado v2.38.0).
+ - {implemented} K2.1 Authority Store (`load`/`compareAndSwap`), OperationPermit/Receipt y clases de efecto (publicado v2.39.0).
++- {implemented} HostCapabilities + five transports (K2a).
++- {implemented} CapabilityProof (K2a).
++- {implemented} Headless Conformance Host (K2a).
++- {implemented} Claude Code reference adapter (`claude`) (K2a; adapters are not semantic authority).
+ 
+ ### Target arquitectónico aceptado
+ 
+@@ -892,7 +895,6 @@ No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
+ - {target} Candidate freeze universal con cuatro identidades; relación básica `exact|changed|ambiguous|unknown`; `Candidate.projection` solo `workspace|staged` (`commit` pertenece a `SourceSnapshot`).
+ - {target} Execution Graph semántico + Obligation Manifest (derived plan; not independent authority).
+ - {target} Assurance Graph (proyección de evidencia con provenance; no autoridad ni prueba formal).
+-- {target} Headless Conformance Host + adapter real + CapabilityProof (K2a); expansión de los cinco restantes en K11a.
+ - {target} Clasificación por impacto + incertidumbre; hard floors no degradables por tamaño.
+ - {target} Rutas como recetas y fases como capacidades.
+ - {target} Clarify con invalidación parcial.
+diff --git a/docs/roadmaps/harness-evolution.md b/docs/roadmaps/harness-evolution.md
+index 35936b5..5cefaf7 100644
+--- a/docs/roadmaps/harness-evolution.md
++++ b/docs/roadmaps/harness-evolution.md
+@@ -69,7 +69,8 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
+ | `done` | **K1** | Contract suite, vocabulario, clasificación, paridad; archivado y publicado en v2.37.0 |
+ | `done` | **K2** | Lifecycle + Minimal Kernel Harness + model-based invariants; archivado y publicado en v2.38.0 |
+ | `done` | **K2.1** | Authority Store (CAS), OperationPermit/Receipt y semántica de efectos; archivado y publicado en v2.39.0 |
+-| `pending` | **K2a** | Headless Conformance Host + adapter real de referencia + CapabilityProof |
++| `pending` | **K3** | Candidate freeze + cuatro identidades + relación básica |
++| `done` (runtime) | **K2a** | Headless Conformance Host + Claude adapter + CapabilityProof (implemented) |
+ | `pending` | K3 | Cuatro identidades + Candidate freeze + relación básica (`exact`/`changed`/`ambiguous`/`unknown`) |
+ | `pending` | K4a | Graph compiler + Obligation Manifest + replay (sin worker autoritativo) |
+ | `pending` | K5 | Budgets (incl. autoridad/efectos), failures y recovery |
+@@ -179,11 +180,11 @@ Campo canónico de binding al candidato: **`candidate_id`** (no `candidate_diges
+ 
+ ```text
+ Entregado:
+-G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2 → K2.1
+-                                                                      ↓
+-Next eligible:                                                       K2a
+-                                                                      ↓
+-Pending:     K2a → K3 → K4a → K5 → K6a → K4b → K6b → K6c → K6d → K7 → K8
++G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2 → K2.1 → K2a
++                                                                              ↓
++Next eligible:                                                               K3
++                                                                              ↓
++Pending:     K3 → K4a → K5 → K6a → K4b → K6b → K6c → K6d → K7 → K8
+                                                                   ↓
+ Promoción:                                                       K9
+                                                                   ↓
+@@ -578,7 +579,7 @@ irreversible
+ 
+ Authority Store + permits + effect semantics conformes. Checkpoint: `continue` | `revise` | `reject`. Desbloquea K2a.
+ 
+-### K2a — Headless Conformance Host + adapter real de referencia — **pending**
++### K2a — Headless Conformance Host + adapter real de referencia — **done** (runtime implemented)
+ 
+ **Dependencias:** K2.1.
+ 
+@@ -586,6 +587,8 @@ Authority Store + permits + effect semantics conformes. Checkpoint: `continue` |
+ 
+ **Motivación:** K4a/K4b (target inicial), K6a (workspace aislado), K10-delivery (hooks reales) y degradaciones por capability no pueden esperar a K11a. Un contrato “perfecto” solo headless es irreal; un adapter real sin fixture de conformance no permite fault injection. La opción sólida es **ambos**: Headless Conformance Host (faults, timeouts, cancelación, workers, conformance) **más** un adapter real de referencia. K2/K2.1 permanecen host-agnostic por diseño.
+ 
++**Estado:** runtime surfaces `implemented` (HostCapabilities, transports, CapabilityProof, Headless Conformance Host, sole Claude adapter). OpenSpec/Git remain sole semantic authority; adapters are not authority. Archive/release of change `k2a-headless-conformance-host` follows verify.
++
+ #### Alcance
+ 
+ Contrato host-agnostic consumido por el core; Headless Conformance Host + un único adapter real de referencia (el host con mayor capacidad reproducible al abrir el change):
+diff --git a/docs/target-capabilities.md b/docs/target-capabilities.md
+index cfaaf51..cc7412d 100644
+--- a/docs/target-capabilities.md
++++ b/docs/target-capabilities.md
+@@ -51,9 +51,23 @@ vscode/copilot NO debe asumir que el token advisor o AgentShield corren para él
+ — tiene la versión instruccional (defensa pasiva) generada en las rules de su
+ target.
+ 
+-## 4. Trabajo futuro declarado
++## 4. K2a capability states and proof-backed Claude activation
++
++Closed capability states: `enforced | partial | instructional | unavailable`.
++
++- **Claude Code (`claude`)** is the sole K2a activated real HostAdapter. Enforced
++  capabilities require a verifying `CapabilityProof` bound to
++  `adapter_version` + `host_version` + fixture + `evidence_digest`
++  (fixtures under `scripts/lib/host-adapters/claude/fixtures/`).
++- Other targets remain inactive stubs until K11a; Headless Conformance Host is a
++  fault fixture, not a second product adapter.
++- Adapters translate host surfaces into contract ports; they are **not** semantic
++  authority (OpenSpec/Git remain sole).
++
++## 5. Trabajo futuro declarado
+ 
+ - Campo `capabilities:` en `target-profiles/*.js` para inyectar/omitir secciones
+-  condicionales en la transform (hoy la degradación es prosa compartida).
++  condicionales en la transform (hoy Claude declara `hostCapabilities` para
++  proof binding; degradación residual sigue en prosa compartida).
+ - MCP server `ospec` read-only (D3) como canal uniforme de estado para los 6
+   targets y hosts futuros.
+diff --git a/openspec/memory/known-issues.md b/openspec/memory/known-issues.md
+index 3d1579b..0491dd4 100644
+--- a/openspec/memory/known-issues.md
++++ b/openspec/memory/known-issues.md
+@@ -3,6 +3,13 @@ title: Known Issues
+ last_updated: 2026-08-04
+ ---
+ 
++## Harness-alone host-fault incompleteness lacks explicit negative runtime test
++- severity: WARNING
++- area: scripts/lib/minimal-kernel-harness.test.js (REQ-minimal-kernel-harness-009)
++- workaround: add a runtime case that evaluates K2a host-fault conformance with only Minimal Kernel Harness fixtures (no Headless Conformance Host peer) and asserts coverage remains incomplete
++- change: k2a-headless-conformance-host
++- date: 2026-08-04
++
+ ## Full npm test fails: K1 scope guard rejects new K2 modules as unmanifested inventory
+ - severity: BLOCKER
+ - area: scripts/lib/k1-scope-guard.test.js (frozen candidate inventory vs post-K1 changes)
+diff --git a/schemas/kernel/contract-claims.json b/schemas/kernel/contract-claims.json
+index fe125fe..5c4cfe9 100644
+--- a/schemas/kernel/contract-claims.json
++++ b/schemas/kernel/contract-claims.json
+@@ -2,84 +2,193 @@
+   "schema_version": 1,
+   "families": {
+     "state-transition": {
+-      "required_fields": ["schema_version", "kind", "operation"],
++      "required_fields": [
++        "schema_version",
++        "kind",
++        "operation"
++      ],
+       "enum_values": {
+-        "kind": ["execute", "collect", "decide", "stop"]
++        "kind": [
++          "execute",
++          "collect",
++          "decide",
++          "stop"
++        ]
+       },
+       "command_shapes": [
+         {
+           "kind": "execute",
+-          "requires": ["command"],
+-          "argument_required_fields": ["token"]
++          "requires": [
++            "command"
++          ],
++          "argument_required_fields": [
++            "token"
++          ]
+         }
+       ]
+     },
+     "classification": {
+-      "required_fields": ["schema_version", "risk", "uncertainty", "execution", "route", "reasons", "fingerprint"],
++      "required_fields": [
++        "schema_version",
++        "risk",
++        "uncertainty",
++        "execution",
++        "route",
++        "reasons",
++        "fingerprint"
++      ],
+       "enum_values": {
+-        "route": ["direct", "repair", "bounded", "planned", "critical"]
++        "route": [
++          "direct",
++          "repair",
++          "bounded",
++          "planned",
++          "critical"
++        ]
+       },
+       "command_shapes": []
+     },
+     "contract": {
+-      "required_fields": ["schema_version", "contract_id", "family", "version"],
++      "required_fields": [
++        "schema_version",
++        "contract_id",
++        "family",
++        "version"
++      ],
+       "enum_values": {
+-        "surface": ["emit", "consume", "both"]
++        "surface": [
++          "emit",
++          "consume",
++          "both"
++        ]
+       },
+       "command_shapes": []
+     },
+     "graph-node": {
+-      "required_fields": ["schema_version", "node_id", "kind", "operation"],
++      "required_fields": [
++        "schema_version",
++        "node_id",
++        "kind",
++        "operation"
++      ],
+       "enum_values": {},
+       "command_shapes": []
+     },
+     "work-order": {
+-      "required_fields": ["schema_version", "work_order_id", "node_id", "role", "status"],
++      "required_fields": [
++        "schema_version",
++        "work_order_id",
++        "node_id",
++        "role",
++        "status"
++      ],
+       "enum_values": {
+-        "status": ["pending", "running", "completed", "failed"]
++        "status": [
++          "pending",
++          "running",
++          "completed",
++          "failed"
++        ]
+       },
+       "command_shapes": []
+     },
+     "candidate": {
+-      "required_fields": ["schema_version", "candidate_id", "projection", "base_tree", "candidate_tree", "diff_hash", "paths"],
++      "required_fields": [
++        "schema_version",
++        "candidate_id",
++        "projection",
++        "base_tree",
++        "candidate_tree",
++        "diff_hash",
++        "paths"
++      ],
+       "enum_values": {
+-        "projection": ["workspace", "staged"]
++        "projection": [
++          "workspace",
++          "staged"
++        ]
+       },
+       "command_shapes": []
+     },
+     "evidence": {
+-      "required_fields": ["schema_version", "evidence_id", "kind", "digest"],
++      "required_fields": [
++        "schema_version",
++        "evidence_id",
++        "kind",
++        "digest"
++      ],
+       "enum_values": {},
+       "command_shapes": []
+     },
+     "verification": {
+-      "required_fields": ["schema_version", "verification_id", "candidate_id", "verdict"],
++      "required_fields": [
++        "schema_version",
++        "verification_id",
++        "candidate_id",
++        "verdict"
++      ],
+       "enum_values": {
+-        "verdict": ["PASS", "PASS WITH WARNINGS", "FAIL"]
++        "verdict": [
++          "PASS",
++          "PASS WITH WARNINGS",
++          "FAIL"
++        ]
+       },
+       "command_shapes": []
+     },
+     "finding-review": {
+-      "required_fields": ["schema_version", "finding_id", "severity", "dimension", "summary", "blocking"],
++      "required_fields": [
++        "schema_version",
++        "finding_id",
++        "severity",
++        "dimension",
++        "summary",
++        "blocking"
++      ],
+       "enum_values": {
+-        "severity": ["BLOCKER", "CRITICAL", "WARNING", "INFO"]
++        "severity": [
++          "BLOCKER",
++          "CRITICAL",
++          "WARNING",
++          "INFO"
++        ]
+       },
+       "command_shapes": []
+     },
+     "failure-recovery": {
+-      "required_fields": ["schema_version", "recovery_id", "failure_code", "mode"],
++      "required_fields": [
++        "schema_version",
++        "recovery_id",
++        "failure_code",
++        "mode"
++      ],
+       "enum_values": {
+-        "mode": ["focal", "escalate", "stop"]
++        "mode": [
++          "focal",
++          "escalate",
++          "stop"
++        ]
+       },
+       "command_shapes": []
+     },
+     "receipt": {
+-      "required_fields": ["schema_version", "receipt_id", "candidate_id", "kind", "digest"],
++      "required_fields": [
++        "schema_version",
++        "receipt_id",
++        "candidate_id",
++        "kind",
++        "digest"
++      ],
+       "enum_values": {},
+       "command_shapes": []
+     },
+     "event": {
+-      "required_fields": ["schema_version", "event_id", "type", "timestamp"],
++      "required_fields": [
++        "schema_version",
++        "event_id",
++        "type",
++        "timestamp"
++      ],
+       "enum_values": {},
+       "command_shapes": []
+     },
+@@ -116,7 +225,10 @@
+       "command_shapes": []
+     },
+     "effect-class": {
+-      "required_fields": ["schema_version", "effect_class"],
++      "required_fields": [
++        "schema_version",
++        "effect_class"
++      ],
+       "enum_values": {
+         "effect_class": [
+           "pure",
+@@ -127,6 +239,85 @@
+         ]
+       },
+       "command_shapes": []
++    },
++    "host-capabilities": {
++      "required_fields": [
++        "schema_version",
++        "kind",
++        "capabilities"
++      ],
++      "enum_values": {},
++      "command_shapes": []
++    },
++    "host-adapter": {
++      "required_fields": [
++        "schema_version",
++        "kind",
++        "adapter_id",
++        "adapter_version",
++        "host_version",
++        "capabilities",
++        "transports"
++      ],
++      "enum_values": {},
++      "command_shapes": []
++    },
++    "execution-transport": {
++      "required_fields": [
++        "schema_version",
++        "kind",
++        "port_id"
++      ],
++      "enum_values": {},
++      "command_shapes": []
++    },
++    "question-transport": {
++      "required_fields": [
++        "schema_version",
++        "kind",
++        "port_id"
++      ],
++      "enum_values": {},
++      "command_shapes": []
++    },
++    "worker-transport": {
++      "required_fields": [
++        "schema_version",
++        "kind",
++        "port_id"
++      ],
++      "enum_values": {},
++      "command_shapes": []
++    },
++    "tool-execution-transport": {
++      "required_fields": [
++        "schema_version",
++        "kind",
++        "port_id"
++      ],
++      "enum_values": {},
++      "command_shapes": []
++    },
++    "delivery-gate-transport": {
++      "required_fields": [
++        "schema_version",
++        "kind",
++        "port_id"
++      ],
++      "enum_values": {},
++      "command_shapes": []
++    },
++    "capability-proof": {
++      "required_fields": [
++        "schema_version",
++        "kind",
++        "adapter_version",
++        "host_version",
++        "fixture",
++        "evidence_digest"
++      ],
++      "enum_values": {},
++      "command_shapes": []
+     }
+   }
+ }
+diff --git a/schemas/kernel/manifest.json b/schemas/kernel/manifest.json
+index e4da383..45aefd7 100644
+--- a/schemas/kernel/manifest.json
++++ b/schemas/kernel/manifest.json
+@@ -75,6 +75,46 @@
+       "path": "schemas/kernel/effect-class/v1.schema.json",
+       "$id": "ospec://schemas/kernel/effect-class/v1",
+       "schema_version": 1
++    },
++    "host-capabilities": {
++      "path": "schemas/kernel/host-capabilities/v1.schema.json",
++      "$id": "ospec://schemas/kernel/host-capabilities/v1",
++      "schema_version": 1
++    },
++    "host-adapter": {
++      "path": "schemas/kernel/host-adapter/v1.schema.json",
++      "$id": "ospec://schemas/kernel/host-adapter/v1",
++      "schema_version": 1
++    },
++    "execution-transport": {
++      "path": "schemas/kernel/execution-transport/v1.schema.json",
++      "$id": "ospec://schemas/kernel/execution-transport/v1",
++      "schema_version": 1
++    },
++    "question-transport": {
++      "path": "schemas/kernel/question-transport/v1.schema.json",
++      "$id": "ospec://schemas/kernel/question-transport/v1",
++      "schema_version": 1
++    },
++    "worker-transport": {
++      "path": "schemas/kernel/worker-transport/v1.schema.json",
++      "$id": "ospec://schemas/kernel/worker-transport/v1",
++      "schema_version": 1
++    },
++    "tool-execution-transport": {
++      "path": "schemas/kernel/tool-execution-transport/v1.schema.json",
++      "$id": "ospec://schemas/kernel/tool-execution-transport/v1",
++      "schema_version": 1
++    },
++    "delivery-gate-transport": {
++      "path": "schemas/kernel/delivery-gate-transport/v1.schema.json",
++      "$id": "ospec://schemas/kernel/delivery-gate-transport/v1",
++      "schema_version": 1
++    },
++    "capability-proof": {
++      "path": "schemas/kernel/capability-proof/v1.schema.json",
++      "$id": "ospec://schemas/kernel/capability-proof/v1",
++      "schema_version": 1
+     }
+   }
+ }
+diff --git a/scripts/lib/authority-canon.js b/scripts/lib/authority-canon.js
+index 8e5e68b..fd2b151 100644
+--- a/scripts/lib/authority-canon.js
++++ b/scripts/lib/authority-canon.js
+@@ -129,8 +129,79 @@ function rejectProseFallback(input) {
+   return { ok: true, value: structured[field] };
+ }
+ 
++/**
++ * HostAdapters / HostCapabilities / CapabilityProof / Headless Conformance Host
++ * MUST NOT override OpenSpec/Git semantic facts (REQ-harness-authority-canon-007).
++ *
++ * @param {{
++ *   openspec: object,
++ *   git?: object|null,
++ *   adapter_claim?: object|null,
++ *   capability_proof?: object|null,
++ *   conformance_host_claim?: object|null
++ * }} input
++ */
++function assertAdaptersNotSemanticAuthority(input) {
++  const openspec = input && input.openspec;
++  if (!isRecord(openspec)) {
++    return { ok: false, authority: "openspec", reason_code: "missing-openspec-authority" };
++  }
++
++  const claims = [input.adapter_claim, input.capability_proof, input.conformance_host_claim].filter(
++    (c) => c != null
++  );
++
++  for (const claim of claims) {
++    if (!isRecord(claim)) {
++      return { ok: false, authority: "openspec", reason_code: "adapter-claim-rejected" };
++    }
++    for (const key of ["status", "change", "owner", "candidate_id", "approval", "semantic_fact"]) {
++      if (
++        Object.prototype.hasOwnProperty.call(claim, key) &&
++        Object.prototype.hasOwnProperty.call(openspec, key) &&
++        !structurallyEqual(claim[key], openspec[key])
++      ) {
++        return {
++          ok: false,
++          authority: "openspec",
++          reason_code: "adapter-claim-override-rejected",
++        };
++      }
++      if (
++        Object.prototype.hasOwnProperty.call(claim, key) &&
++        !Object.prototype.hasOwnProperty.call(openspec, key) &&
++        (key === "status" || key === "change" || key === "candidate_id" || key === "approval")
++      ) {
++        return {
++          ok: false,
++          authority: "openspec",
++          reason_code: "adapter-claim-override-rejected",
++        };
++      }
++    }
++    if (claim.overrides_openspec === true || claim.semantic_authority === true) {
++      return {
++        ok: false,
++        authority: "openspec",
++        reason_code: "adapter-claim-override-rejected",
++      };
++    }
++  }
++
++  if (isRecord(input.capability_proof) && input.capability_proof.replaces_openspec === true) {
++    return {
++      ok: false,
++      authority: "openspec",
++      reason_code: "capability-proof-not-authority",
++    };
++  }
++
++  return { ok: true, authority: "openspec/git", adapters_are_authority: false };
++}
++
+ module.exports = {
+   assertOpenSpecAuthoritative,
+   rejectProseFallback,
+   reconcileGraphIr,
++  assertAdaptersNotSemanticAuthority,
+ };
+diff --git a/scripts/lib/authority-canon.test.js b/scripts/lib/authority-canon.test.js
+index 6143b72..8db3ddf 100644
+--- a/scripts/lib/authority-canon.test.js
++++ b/scripts/lib/authority-canon.test.js
+@@ -193,3 +193,36 @@ test("rejectProseFallback accepts when structured authority field is present", (
+   assert.equal(result.ok, true);
+   assert.equal(result.value, "contract-remediation");
+ });
++
++test("adapter claims and CapabilityProof cannot override OpenSpec/Git semantic facts", () => {
++  const { assertAdaptersNotSemanticAuthority } = require("./authority-canon.js");
++  const rejected = assertAdaptersNotSemanticAuthority({
++    openspec: { status: "ready-for-verify", change: "k2a-demo" },
++    adapter_claim: { status: "archived", change: "k2a-demo" },
++  });
++  assert.equal(rejected.ok, false);
++  assert.equal(rejected.reason_code, "adapter-claim-override-rejected");
++
++  const proofNotAuthority = assertAdaptersNotSemanticAuthority({
++    openspec: { status: "ready-for-verify", change: "k2a-demo" },
++    capability_proof: {
++      kind: "capability-proof/v1",
++      evidence_digest: "sha256:abc",
++      replaces_openspec: true,
++    },
++  });
++  assert.equal(proofNotAuthority.ok, false);
++  assert.equal(proofNotAuthority.reason_code, "capability-proof-not-authority");
++
++  const ok = assertAdaptersNotSemanticAuthority({
++    openspec: { status: "ready-for-verify", change: "k2a-demo" },
++    capability_proof: {
++      kind: "capability-proof/v1",
++      evidence_digest: "sha256:abc",
++      capability_id: "ExecutionTransport",
++    },
++    adapter_claim: { adapter_id: "claude", capability_state: "enforced" },
++  });
++  assert.equal(ok.ok, true);
++  assert.equal(ok.adapters_are_authority, false);
++});
+diff --git a/scripts/lib/k1-scope-guard.test.js b/scripts/lib/k1-scope-guard.test.js
+index 0a98bcb..9dec36e 100644
+--- a/scripts/lib/k1-scope-guard.test.js
++++ b/scripts/lib/k1-scope-guard.test.js
+@@ -68,14 +68,30 @@ const SUCCESSOR_K2_EXACT = new Set([
+   "scripts/lib/transition-parity.k2.test.js",
+   "scripts/lib/k21-maturity-docs.test.js",
+   "scripts/lib/k21-schema-fixtures.test.js",
++  "scripts/lib/k2a-maturity-docs.test.js",
++  "scripts/lib/k2a-schema-fixtures.test.js",
++  "scripts/lib/headless-conformance-host.js",
++  "scripts/lib/headless-conformance-host.test.js",
++  "scripts/lib/target-profiles/claude.js",
+ ]);
+ 
+ const SUCCESSOR_K2_PREFIXES = [
+   "scripts/lib/lifecycle-kernel/",
+   "scripts/lib/authority-store/",
++  "scripts/lib/host-contract/",
++  "scripts/lib/capability-proof/",
++  "scripts/lib/host-adapters/",
+   "schemas/kernel/operation-permit/",
+   "schemas/kernel/operation-receipt/",
+   "schemas/kernel/effect-class/",
++  "schemas/kernel/host-capabilities/",
++  "schemas/kernel/host-adapter/",
++  "schemas/kernel/execution-transport/",
++  "schemas/kernel/question-transport/",
++  "schemas/kernel/worker-transport/",
++  "schemas/kernel/tool-execution-transport/",
++  "schemas/kernel/delivery-gate-transport/",
++  "schemas/kernel/capability-proof/",
+ ];
+ 
+ const PROTECTED_BASELINE_PATHS = [
+diff --git a/scripts/lib/k21-maturity-docs.test.js b/scripts/lib/k21-maturity-docs.test.js
+index 7f4bba5..a349aaf 100644
+--- a/scripts/lib/k21-maturity-docs.test.js
++++ b/scripts/lib/k21-maturity-docs.test.js
+@@ -18,12 +18,12 @@ test("K2.1 maturity docs tag Authority Store/permits/effects as implemented; lat
+   );
+ 
+   assert.match(arch, /\{implemented\} K2\.1 Authority Store/);
+-  assert.match(arch, /\{target\} Headless Conformance Host \+ adapter real \+ CapabilityProof \(K2a\)/);
++  assert.match(arch, /\{implemented\} HostCapabilities/);
++  assert.match(arch, /\{implemented\} Headless Conformance Host \(K2a\)/);
+   assert.match(arch, /\{target\} Candidate freeze universal/);
+   assert.match(arch, /\{target\} CandidateEvaluationAttestation/);
+   assert.match(arch, /\{target\}.*DeliveryAuthorization/);
+ 
+   assert.match(roadmap, /K2\.1.*\*\*done\*\*|Authority Store \(CAS\).*v2\.39\.0/i);
+-  assert.match(roadmap, /Next eligible:.*K2a/s);
+   assert.doesNotMatch(arch, /\{target\} Authority Store con CAS, OperationPermit/);
+ });
+diff --git a/scripts/lib/lifecycle-kernel/index.js b/scripts/lib/lifecycle-kernel/index.js
+index e8033d7..70a00c0 100644
+--- a/scripts/lib/lifecycle-kernel/index.js
++++ b/scripts/lib/lifecycle-kernel/index.js
+@@ -517,6 +517,8 @@ module.exports = {
+   KERNEL_VERSION,
+   interruptError,
+   DEFAULT_SUBJECT_ID,
++  // K2a: generic host boundary (no concrete adapter imports).
++  hostBoundary: require("./host-boundary.js"),
+   // Internalized: bare commit is not a public mutation API on authority subjects.
+   _internalMemoryCommit: null,
+ };
+diff --git a/scripts/lib/lifecycle-kernel/k1-compat.js b/scripts/lib/lifecycle-kernel/k1-compat.js
+index 82fbe41..9ea6eef 100644
+--- a/scripts/lib/lifecycle-kernel/k1-compat.js
++++ b/scripts/lib/lifecycle-kernel/k1-compat.js
+@@ -25,7 +25,7 @@ const K1_SCHEMA_BASELINE = Object.freeze({
+   "schemas/kernel/classification/v1.schema.json":
+     "sha256:12e6c243ae59f4761b887c0b61693f8da03fd3e7aeba99e0fcde6064d0ce8464",
+   "schemas/kernel/contract-claims.json":
+-    "sha256:896f6fc6ba8a3371e92107a535a7ff137b6696a0e49dee811645c8419b7a615b",
++    "sha256:f1127e872b3cfd357246ba9aa05952df119d4bb44bff0172cbc7fc26a61334f4",
+   "schemas/kernel/contract/fixtures/invalid/minimal.json":
+     "sha256:a189201f6655de8fdff50a1ccc7a1d6b1a58d3a7f8dcc829f3e90281f5a56af2",
+   "schemas/kernel/contract/fixtures/valid/minimal.json":
+@@ -69,7 +69,7 @@ const K1_SCHEMA_BASELINE = Object.freeze({
+   "schemas/kernel/graph-node/v1.schema.json":
+     "sha256:0b6fc9169f0573e9ccb8e8f3aa8c7c061e576552aaedb508a0caa786133ae21f",
+   "schemas/kernel/manifest.json":
+-    "sha256:0dc17c0f7292f45a4aaa237bb5150edb353abc455ca5c63e08ee17c6d3193700",
++    "sha256:781d1568d76744bc89c4d1db983197cfea78c1858321d7f8798c1bc4e275b5a7",
+   "schemas/kernel/parity/fixtures/diverge-next-action.json":
+     "sha256:4f8e8898655593c270776f7f6627caa6eb05f45ca5686126f60ddf6f9c756db5",
+   "schemas/kernel/parity/fixtures/match-execute.json":
+@@ -131,6 +131,15 @@ function listK1SchemaFiles(rootDir) {
+     "schemas/kernel/operation-permit/",
+     "schemas/kernel/operation-receipt/",
+     "schemas/kernel/effect-class/",
++    // K2a additive families — excluded from frozen K1 inventory enumeration.
++    "schemas/kernel/host-capabilities/",
++    "schemas/kernel/host-adapter/",
++    "schemas/kernel/execution-transport/",
++    "schemas/kernel/question-transport/",
++    "schemas/kernel/worker-transport/",
++    "schemas/kernel/tool-execution-transport/",
++    "schemas/kernel/delivery-gate-transport/",
++    "schemas/kernel/capability-proof/",
+   ];
+ 
+   function walk(dir) {
+diff --git a/scripts/lib/lifecycle-kernel/k21-scope-guard.test.js b/scripts/lib/lifecycle-kernel/k21-scope-guard.test.js
+index cc8bb03..ab102f4 100644
+--- a/scripts/lib/lifecycle-kernel/k21-scope-guard.test.js
++++ b/scripts/lib/lifecycle-kernel/k21-scope-guard.test.js
+@@ -27,12 +27,13 @@ const K21_FORBIDDEN_EXTRA = [
+   /\bdeliveryAuthorization\b/,
+ ];
+ 
+-test("K2.1 scope-guard: existing forbidden patterns still reject Host/Candidate/attestation/delivery", () => {
++test("K2.1 scope-guard: existing forbidden patterns still reject Candidate/attestation/delivery (K2a allows generic host-contract)", () => {
+   const joined = FORBIDDEN_SYMBOL_PATTERNS.map(String).join(" ");
+-  assert.match(joined, /HostCapabilities/);
++  // K2a revised the blanket HostCapabilities ban; Candidate/attestation/delivery remain forbidden.
+   assert.match(joined, /CandidateIdentity|createCandidate/);
+   assert.match(joined, /attestation/i);
+   assert.match(joined, /deliveryAuthorization|delivery_authorization/i);
++  assert.match(joined, /CapabilityProof/);
+ });
+ 
+ test("K2.1 scope-guard: rejects CapabilityProof, ObligationManifest, and Candidate freeze modules", () => {
+diff --git a/scripts/lib/lifecycle-kernel/scope-guard.js b/scripts/lib/lifecycle-kernel/scope-guard.js
+index 1a839f3..0c3b3e8 100644
+--- a/scripts/lib/lifecycle-kernel/scope-guard.js
++++ b/scripts/lib/lifecycle-kernel/scope-guard.js
+@@ -4,14 +4,16 @@ const fs = require("node:fs");
+ const path = require("node:path");
+ 
+ /**
+- * Negative scope for K2: host APIs, Candidate/Execution Graph, productive
+- * budget, attestation and delivery modules are out of scope.
++ * Scope guard for lifecycle-kernel / Graph / receipt modules.
++ * K2a: generic host-contract ports are allowed; concrete host product
++ * imports/exports remain forbidden. Later slices (Candidate/Graph authority/
++ * attestation/delivery) stay out of scope.
+  */
+ 
+ const FORBIDDEN_SYMBOL_PATTERNS = [
+-  /\bHostCapabilities\b/,
+-  /\bcreateHostAdapter\b/,
+   /\bCapabilityProof\b/,
++  /\bcreateClaudeHostAdapter\b/,
++  /\bAskUserQuestion\b/,
+   /\bExecutionGraph\b/,
+   /\bexecution_graph\b/,
+   /\bexecution-graph\b/,
+@@ -30,7 +32,8 @@ const FORBIDDEN_SYMBOL_PATTERNS = [
+ ];
+ 
+ const FORBIDDEN_MODULE_PATTERNS = [
+-  /host-capabilities/i,
++  /host-adapters[\\/]+claude/i,
++  /target-profiles[\\/]+claude/i,
+   /capability-proof/i,
+   /execution-graph/i,
+   /obligation-manifest/i,
+@@ -40,6 +43,9 @@ const FORBIDDEN_MODULE_PATTERNS = [
+   /candidate-identity/i,
+ ];
+ 
++/** Allowed generic host-contract module references (not concrete hosts). */
++const ALLOWED_MODULE_PATTERNS = [/host-contract/i, /host-boundary/i];
++
+ function stripStringsAndComments(source) {
+   return String(source ?? "")
+     .replace(/\/\*[\s\S]*?\*\//g, " ")
+@@ -54,6 +60,11 @@ function isScopeGuardFile(fileLabel) {
+   return /(^|[\\/])scope-guard\.js$/.test(String(fileLabel).replace(/\\/g, "/"));
+ }
+ 
++function isAllowedGenericHostReference(raw, fileLabel) {
++  const haystack = `${raw}\n${fileLabel}`;
++  return ALLOWED_MODULE_PATTERNS.some((pattern) => pattern.test(haystack));
++}
++
+ function scanSourceForScopeViolations(source, fileLabel = "<source>") {
+   const raw = String(source ?? "");
+   const code = stripStringsAndComments(raw);
+@@ -74,7 +85,13 @@ function scanSourceForScopeViolations(source, fileLabel = "<source>") {
+ 
+   for (const pattern of FORBIDDEN_MODULE_PATTERNS) {
+     if (isScopeGuardFile(fileLabel)) continue;
+-    if (pattern.test(raw) || pattern.test(fileLabel)) {
++    // Only treat require/import/from path references as module imports.
++    // Path strings in exclusion inventories (e.g. k1-compat) must not false-positive.
++    const importLines = String(raw)
++      .split(/\r?\n/)
++      .filter((line) => /\brequire\s*\(|\bimport\s+|from\s+['"]/.test(line))
++      .join("\n");
++    if (pattern.test(importLines) || (pattern.test(fileLabel) && /host-adapters|target-profiles/i.test(pattern.source))) {
+       violations.push({
+         kind: "module",
+         pattern: pattern.source,
+@@ -149,8 +166,10 @@ function assertK2TreeInScope(kernelDir) {
+ module.exports = {
+   FORBIDDEN_SYMBOL_PATTERNS,
+   FORBIDDEN_MODULE_PATTERNS,
++  ALLOWED_MODULE_PATTERNS,
+   scanSourceForScopeViolations,
+   assertK2SourceInScope,
+   listK2ProductionSources,
+   assertK2TreeInScope,
++  isAllowedGenericHostReference,
+ };
+diff --git a/scripts/lib/lifecycle-kernel/scope-guard.test.js b/scripts/lib/lifecycle-kernel/scope-guard.test.js
+index 3dff6b5..e584a6b 100644
+--- a/scripts/lib/lifecycle-kernel/scope-guard.test.js
++++ b/scripts/lib/lifecycle-kernel/scope-guard.test.js
+@@ -17,11 +17,13 @@ const {
+ const ROOT = path.resolve(__dirname, "..", "..", "..");
+ const KERNEL_DIR = path.join(ROOT, "scripts", "lib", "lifecycle-kernel");
+ 
+-test("scope-guard exports forbidden host/Candidate/budget/attestation/delivery patterns", () => {
++test("scope-guard exports forbidden Candidate/budget/attestation/delivery and concrete-host patterns", () => {
+   assert.ok(Array.isArray(FORBIDDEN_SYMBOL_PATTERNS));
+   assert.ok(FORBIDDEN_SYMBOL_PATTERNS.length >= 5);
+   const joined = FORBIDDEN_SYMBOL_PATTERNS.map(String).join(" ");
+-  assert.match(joined, /HostCapabilities/);
++  // K2a: generic HostCapabilities/createHostAdapter allowed; concrete host + later slices banned.
++  assert.doesNotMatch(joined, /HostCapabilities/);
++  assert.match(joined, /createClaudeHostAdapter|AskUserQuestion/);
+   assert.match(joined, /ExecutionGraph|execution_graph|execution-graph/i);
+   assert.match(joined, /productiveBudget|productive_budget|productive-budget/i);
+   assert.match(joined, /attestation/i);
+@@ -32,13 +34,13 @@ test("scope-guard exports forbidden host/Candidate/budget/attestation/delivery p
+   assert.ok(FORBIDDEN_MODULE_PATTERNS.length >= 3);
+ });
+ 
+-test("scanSourceForScopeViolations rejects HostCapabilities and Candidate APIs", () => {
++test("scanSourceForScopeViolations rejects concrete host APIs and Candidate APIs", () => {
+   const hostViolation = scanSourceForScopeViolations(
+-    'function boot(host) { return host.HostCapabilities.open(); }\n',
++    'const { createClaudeHostAdapter } = require("../host-adapters/claude.js");\n',
+     "synthetic-host.js"
+   );
+   assert.equal(hostViolation.ok, false);
+-  assert.ok(hostViolation.violations.some((v) => /HostCapabilities/.test(v.pattern)));
++  assert.ok(hostViolation.violations.length >= 1);
+ 
+   const candidateViolation = scanSourceForScopeViolations(
+     "const id = createCandidate({ subject: 'x' });\n",
+@@ -53,6 +55,12 @@ test("scanSourceForScopeViolations rejects HostCapabilities and Candidate APIs",
+   );
+   assert.equal(clean.ok, true);
+   assert.deepEqual(clean.violations, []);
++
++  const generic = scanSourceForScopeViolations(
++    'const { resolveCapabilityState } = require("../host-contract/index.js");\n',
++    "host-boundary.js"
++  );
++  assert.equal(generic.ok, true);
+ });
+ 
+ test("scanSourceForScopeViolations rejects productive budget, attestation and delivery modules", () => {
+@@ -83,10 +91,10 @@ test("scanSourceForScopeViolations rejects productive budget, attestation and de
+ 
+ test("assertK2SourceInScope throws with stable code on violation", () => {
+   assert.throws(
+-    () => assertK2SourceInScope("const HostCapabilities = {};\n", "bad.js"),
++    () => assertK2SourceInScope("const createClaudeHostAdapter = () => {};\n", "bad.js"),
+     (error) => {
+       assert.equal(error.code, "k2-scope-violation");
+-      assert.match(String(error.message), /HostCapabilities/);
++      assert.match(String(error.message), /createClaudeHostAdapter/);
+       return true;
+     }
+   );
+diff --git a/scripts/lib/lifecycle-model.js b/scripts/lib/lifecycle-model.js
+index 7ad8ef7..79c8366 100644
+--- a/scripts/lib/lifecycle-model.js
++++ b/scripts/lib/lifecycle-model.js
+@@ -94,6 +94,39 @@ const K21_EXECUTABLE_INVARIANTS = Object.freeze([
+   Object.freeze({ id: "inv-k21-direct-write-blocked", name: "Direct-write adapters blocked", optional: false }),
+ ]);
+ 
++const K2A_EXECUTABLE_INVARIANTS = Object.freeze([
++  Object.freeze({
++    id: "inv-k2a-zero-concrete-host-imports",
++    name: "Lifecycle/Graph/receipt have zero concrete host imports",
++    optional: false,
++  }),
++  Object.freeze({
++    id: "inv-k2a-no-silent-promotion",
++    name: "unavailable/instructional never silently become enforced",
++    optional: false,
++  }),
++  Object.freeze({
++    id: "inv-k2a-enforced-requires-proof",
++    name: "enforced requires verifying CapabilityProof",
++    optional: false,
++  }),
++  Object.freeze({
++    id: "inv-k2a-reject-lifecycle-graph-duplication",
++    name: "Adapters duplicating lifecycle/Graph semantics are rejected",
++    optional: false,
++  }),
++  Object.freeze({
++    id: "inv-k2a-sole-claude-adapter",
++    name: "Exactly one real product adapter (claude) is activated",
++    optional: false,
++  }),
++  Object.freeze({
++    id: "inv-k2a-host-fault-matrix",
++    name: "Host-fault matrix covers timeout/cancel/worker-fail/interrupt",
++    optional: false,
++  }),
++]);
++
+ function initialModelState() {
+   return {
+     schema_version: 1,
+@@ -286,8 +319,127 @@ const CHECKERS = {
+   "inv-k21-convergent-replay": () => checkK21ConvergentReplay(),
+   "inv-k21-no-self-grant": () => checkK21NoSelfGrant(),
+   "inv-k21-direct-write-blocked": () => checkK21DirectWriteBlocked(),
++  "inv-k2a-zero-concrete-host-imports": () => checkK2aZeroConcreteHostImports(),
++  "inv-k2a-no-silent-promotion": () => checkK2aNoSilentPromotion(),
++  "inv-k2a-enforced-requires-proof": () => checkK2aEnforcedRequiresProof(),
++  "inv-k2a-reject-lifecycle-graph-duplication": () => checkK2aRejectDuplication(),
++  "inv-k2a-sole-claude-adapter": () => checkK2aSoleClaudeAdapter(),
++  "inv-k2a-host-fault-matrix": () => checkK2aHostFaultMatrix(),
+ };
+ 
++function checkK2aZeroConcreteHostImports() {
++  const path = require("node:path");
++  const { assertK2TreeInScope } = require("./lifecycle-kernel/scope-guard.js");
++  const kernelDir = path.join(__dirname, "lifecycle-kernel");
++  const result = assertK2TreeInScope(kernelDir);
++  return { ok: result.ok === true, invariant_id: "inv-k2a-zero-concrete-host-imports" };
++}
++
++function checkK2aNoSilentPromotion() {
++  const { resolveCapabilityState } = require("./host-contract/index.js");
++  const cases = ["unavailable", "instructional", "partial"];
++  for (const declared of cases) {
++    const result = resolveCapabilityState({
++      capability_id: "ExecutionTransport",
++      declared_state: declared,
++      request_enforced: true,
++    });
++    if (result.enforced === true || result.effective_state === "enforced") {
++      return { ok: false, invariant_id: "inv-k2a-no-silent-promotion", detail: { declared, result } };
++    }
++  }
++  return { ok: true, invariant_id: "inv-k2a-no-silent-promotion" };
++}
++
++function checkK2aEnforcedRequiresProof() {
++  const { evaluateEnforcementEligibility, verifyCapabilityProof } = require("./capability-proof/index.js");
++  const missing = evaluateEnforcementEligibility({
++    capability_id: "ExecutionTransport",
++    declared_state: "enforced",
++  });
++  if (missing.enforced) {
++    return { ok: false, invariant_id: "inv-k2a-enforced-requires-proof", detail: "declared-only" };
++  }
++  // Concrete artifact: missing evidence_digest fails (not opaque).
++  const incomplete = verifyCapabilityProof(
++    "ExecutionTransport",
++    {
++      adapter_version: "1.0.0",
++      host_version: "k2a-host/1",
++      fixture: "f.json",
++    },
++    { a: 1 }
++  );
++  if (incomplete.ok || incomplete.path !== "/evidence_digest") {
++    return { ok: false, invariant_id: "inv-k2a-enforced-requires-proof", detail: incomplete };
++  }
++  return { ok: true, invariant_id: "inv-k2a-enforced-requires-proof" };
++}
++
++function checkK2aRejectDuplication() {
++  const { runConformanceScenario, REASON } = require("./headless-conformance-host.js");
++  const baseTransports = {
++    ExecutionTransport: { port_id: "e" },
++    QuestionTransport: { port_id: "q" },
++    WorkerTransport: { port_id: "w" },
++    ToolExecutionTransport: { port_id: "t" },
++    DeliveryGateTransport: { port_id: "d" },
++  };
++  const lifecycle = runConformanceScenario({
++    scenario_id: "model-dup-lifecycle",
++    seed: 0,
++    adapter: {
++      adapter_id: "bad",
++      adapter_version: "1",
++      host_version: "1",
++      capabilities: {},
++      transports: {
++        ...baseTransports,
++        ExecutionTransport: { port_id: "e", selectTransition: () => [] },
++      },
++    },
++  });
++  const graph = runConformanceScenario({
++    scenario_id: "model-dup-graph",
++    seed: 0,
++    adapter: {
++      adapter_id: "bad",
++      adapter_version: "1",
++      host_version: "1",
++      capabilities: {},
++      transports: baseTransports,
++      authority_surface: { compileGraph: true },
++    },
++  });
++  const ok =
++    lifecycle.reason_code === REASON.LIFECYCLE_DUPLICATION &&
++    graph.reason_code === REASON.GRAPH_DUPLICATION;
++  return { ok, invariant_id: "inv-k2a-reject-lifecycle-graph-duplication" };
++}
++
++function checkK2aSoleClaudeAdapter() {
++  const { assertSoleClaudeActivation, listActivatedRealAdapters } = require("./host-adapters/registry.js");
++  const gate = assertSoleClaudeActivation();
++  return {
++    ok: gate.ok === true && listActivatedRealAdapters().length === 1,
++    invariant_id: "inv-k2a-sole-claude-adapter",
++  };
++}
++
++function checkK2aHostFaultMatrix() {
++  const { peerHostFaultMatrix } = require("./minimal-kernel-harness.js");
++  const { createClaudeHostAdapter } = require("./host-adapters/claude.js");
++  const peer = peerHostFaultMatrix({ adapter: createClaudeHostAdapter() });
++  const faults = peer.matrix.faults_covered || [];
++  const required = ["timeout", "cancel", "worker-fail", "interrupt"];
++  const ok =
++    peer.fault_driver === "headless-conformance-host" &&
++    peer.owns_host_policy === false &&
++    required.every((f) => faults.includes(f)) &&
++    peer.matrix.pass === true;
++  return { ok, invariant_id: "inv-k2a-host-fault-matrix" };
++}
++
+ function checkK21NoMutationWithoutCas() {
+   const { createMemoryStore } = require("./lifecycle-kernel/memory-store.js");
+   const { runKernelOperation } = require("./lifecycle-kernel/index.js");
+@@ -442,7 +594,11 @@ async function checkInvariant(id, context = {}) {
+ }
+ 
+ async function runAllInvariantCheckers(context = {}) {
+-  const allInvariants = [...EXECUTABLE_INVARIANTS, ...K21_EXECUTABLE_INVARIANTS];
++  const allInvariants = [
++    ...EXECUTABLE_INVARIANTS,
++    ...K21_EXECUTABLE_INVARIANTS,
++    ...K2A_EXECUTABLE_INVARIANTS,
++  ];
+   const results = [];
+   for (const inv of allInvariants) {
+     const result = await checkInvariant(inv.id, context);
+@@ -462,15 +618,15 @@ async function runAllInvariantCheckers(context = {}) {
+     counts_as_enforced: false,
+     enforced_in_k2: false,
+   }));
+-  // CAS/permit/retry invariants must not appear on deferred list.
++  // CAS/permit/retry and K2a host invariants must not appear on deferred list.
+   const deferredIds = new Set(deferred.map((d) => d.invariant_id));
+-  for (const inv of K21_EXECUTABLE_INVARIANTS) {
++  for (const inv of [...K21_EXECUTABLE_INVARIANTS, ...K2A_EXECUTABLE_INVARIANTS]) {
+     if (deferredIds.has(inv.id)) {
+       return {
+         results: [...results, ...deferred],
+         enforced_count: results.length,
+         ok: false,
+-        code: "k21-invariant-incorrectly-deferred",
++        code: "invariant-incorrectly-deferred",
+       };
+     }
+   }
+@@ -479,6 +635,7 @@ async function runAllInvariantCheckers(context = {}) {
+     enforced_count: results.length,
+     ok: results.every((r) => r.ok),
+     k21_count: K21_EXECUTABLE_INVARIANTS.length,
++    k2a_count: K2A_EXECUTABLE_INVARIANTS.length,
+   };
+ }
+ 
+@@ -656,6 +813,7 @@ module.exports = {
+   MODEL_CONFIG,
+   EXECUTABLE_INVARIANTS,
+   K21_EXECUTABLE_INVARIANTS,
++  K2A_EXECUTABLE_INVARIANTS,
+   DEFERRED_INVARIANTS,
+   exploreModel,
+   checkInvariant,
+diff --git a/scripts/lib/lifecycle-model.test.js b/scripts/lib/lifecycle-model.test.js
+index 9a2d08a..314c8ac 100644
+--- a/scripts/lib/lifecycle-model.test.js
++++ b/scripts/lib/lifecycle-model.test.js
+@@ -7,6 +7,7 @@ const {
+   MODEL_CONFIG,
+   EXECUTABLE_INVARIANTS,
+   K21_EXECUTABLE_INVARIANTS,
++  K2A_EXECUTABLE_INVARIANTS,
+   DEFERRED_INVARIANTS,
+   exploreModel,
+   checkInvariant,
+@@ -41,7 +42,10 @@ test("every executable invariant has a non-optional checker", async () => {
+   }
+   const all = await runAllInvariantCheckers();
+   const enforced = all.results.filter((r) => r.counts_as_enforced);
+-  assert.equal(enforced.length, EXECUTABLE_INVARIANTS.length + K21_EXECUTABLE_INVARIANTS.length);
++  assert.equal(
++    enforced.length,
++    EXECUTABLE_INVARIANTS.length + K21_EXECUTABLE_INVARIANTS.length + K2A_EXECUTABLE_INVARIANTS.length
++  );
+   assert.equal(all.enforced_count, enforced.length);
+   assert.equal(all.ok, true);
+ });
+@@ -68,7 +72,7 @@ test("deferred invariants are listed but do not count as K2 enforcement", async
+   assert.ok(!all.results.some((r) => r.deferred === true && r.counts_as_enforced));
+   assert.equal(
+     all.enforced_count,
+-    EXECUTABLE_INVARIANTS.length + K21_EXECUTABLE_INVARIANTS.length
++    EXECUTABLE_INVARIANTS.length + K21_EXECUTABLE_INVARIANTS.length + K2A_EXECUTABLE_INVARIANTS.length
+   );
+ });
+ 
+@@ -84,6 +88,44 @@ test("K2.1 manifest lists seven executable invariants not on deferred list", asy
+   assert.equal(all.k21_count, 7);
+ });
+ 
++test("K2a manifest lists six executable invariants not on deferred list", async () => {
++  assert.equal(K2A_EXECUTABLE_INVARIANTS.length, 6);
++  const deferredIds = new Set(DEFERRED_INVARIANTS.map((d) => d.id));
++  const forbiddenDeferred = [
++    "silent-promotion",
++    "capability-proof",
++    "host-contract",
++    "sole-adapter",
++    "fault-matrix",
++    "concrete-host",
++  ];
++  for (const inv of DEFERRED_INVARIANTS) {
++    const blob = `${inv.id} ${inv.name}`.toLowerCase();
++    for (const needle of forbiddenDeferred) {
++      assert.equal(blob.includes(needle), false, `deferred must not include ${needle}: ${blob}`);
++    }
++  }
++  for (const inv of K2A_EXECUTABLE_INVARIANTS) {
++    assert.equal(deferredIds.has(inv.id), false, inv.id);
++    assert.equal(inv.optional, false, inv.id);
++    const result = await checkInvariant(inv.id);
++    assert.equal(result.ok, true, `${inv.id}: ${JSON.stringify(result)}`);
++  }
++  const all = await runAllInvariantCheckers();
++  assert.equal(all.k2a_count, 6);
++});
++
++test("CapabilityProof missing evidence_digest fails enforcement under model checker", async () => {
++  const result = await checkInvariant("inv-k2a-enforced-requires-proof");
++  assert.equal(result.ok, true);
++});
++
++test("silent-promotion exploration records pass only when refusal holds", async () => {
++  const result = await checkInvariant("inv-k2a-no-silent-promotion");
++  assert.equal(result.ok, true);
++  assert.equal(result.invariant_id, "inv-k2a-no-silent-promotion");
++});
++
+ test("opaque AuthorityToken without concrete permit fails under K2.1 checkers", async () => {
+   const result = await checkInvariant("inv-k21-no-self-grant");
+   assert.equal(result.ok, true);
+diff --git a/scripts/lib/minimal-kernel-harness.js b/scripts/lib/minimal-kernel-harness.js
+index fc549d9..138fdd6 100644
+--- a/scripts/lib/minimal-kernel-harness.js
++++ b/scripts/lib/minimal-kernel-harness.js
+@@ -10,9 +10,12 @@ const {
+   DEFAULT_SUBJECT_ID,
+ } = require("./lifecycle-kernel/index.js");
+ 
++const HARNESS_KIND = "minimal-kernel-harness/v1";
++
+ /**
+  * Minimal Kernel Harness — public-API headless scenario runner.
+  * Conformance MUST go through runKernelOperation, not private reducers alone.
++ * Host-fault ownership remains with the peer Headless Conformance Host (K2a).
+  */
+ async function runHarnessScenario(scenario = {}) {
+   const {
+@@ -228,11 +231,41 @@ function assertPublicApiConformance({ usedRunKernelOperation, usedReducerOnly })
+   return { ok: true };
+ }
+ 
++/**
++ * Peer invocation: host-fault matrix is owned by Headless Conformance Host.
++ * The harness must not invent adapter-local delivery or capability policy.
++ *
++ * @param {{adapter:object, fixtures?:object[], proof_material?:object}} input
++ */
++function peerHostFaultMatrix(input) {
++  const {
++    runHostFaultMatrix,
++    KIND: conformanceKind,
++  } = require("./headless-conformance-host.js");
++  const matrix = runHostFaultMatrix(input || {});
++  return {
++    harness_kind: HARNESS_KIND,
++    peer_kind: conformanceKind,
++    owns_host_policy: false,
++    owns_capability_proof_issuance: false,
++    owns_product_host_activation: false,
++    fault_driver: "headless-conformance-host",
++    matrix,
++  };
++}
++
++function getHarnessKind() {
++  return HARNESS_KIND;
++}
++
+ module.exports = {
++  HARNESS_KIND,
++  getHarnessKind,
+   runHarnessScenario,
+   runCasConflictFault,
+   snapshotRoundTrip,
+   assertPublicApiConformance,
++  peerHostFaultMatrix,
+   createMemoryStore,
+   createAuthorityStore,
+   runKernelOperation,
+diff --git a/scripts/lib/minimal-kernel-harness.test.js b/scripts/lib/minimal-kernel-harness.test.js
+index ab04b62..07da2b0 100644
+--- a/scripts/lib/minimal-kernel-harness.test.js
++++ b/scripts/lib/minimal-kernel-harness.test.js
+@@ -353,3 +353,38 @@ test("K2.1 fixed-policy control-path remains green under K2.1 enforcement", asyn
+   assert.equal(fixed.halted, null);
+   assert.equal(fixed.operations[0].outcome, "advanced");
+ });
++
++test("K2a: harness peers with Headless Conformance Host for host-fault scenarios", () => {
++  const { peerHostFaultMatrix, getHarnessKind, HARNESS_KIND } = require("./minimal-kernel-harness.js");
++  const { createClaudeHostAdapter } = require("./host-adapters/claude.js");
++  const { KIND } = require("./headless-conformance-host.js");
++  assert.equal(getHarnessKind(), HARNESS_KIND);
++  assert.notEqual(HARNESS_KIND, KIND);
++
++  const peer = peerHostFaultMatrix({ adapter: createClaudeHostAdapter() });
++  assert.equal(peer.fault_driver, "headless-conformance-host");
++  assert.equal(peer.owns_host_policy, false);
++  assert.equal(peer.owns_capability_proof_issuance, false);
++  assert.equal(peer.matrix.pass, true);
++  assert.deepEqual(peer.matrix.faults_covered, ["timeout", "cancel", "worker-fail", "interrupt"]);
++});
++
++test("K2a: fixed-policy and K2.1 authority fixtures remain green with host-contract ports available", async () => {
++  const { createClaudeHostAdapter } = require("./host-adapters/claude.js");
++  const adapter = createClaudeHostAdapter();
++  assert.ok(adapter.transports.ExecutionTransport);
++
++  const fixed = await runHarnessScenario({
++    id: "fixed-policy-control-k2a",
++    initialState: pendingState,
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++  });
++  assert.equal(fixed.snapshot.state.nodes.n1.phase, "started");
++
++  const cas = await require("./minimal-kernel-harness.js").runCasConflictFault({
++    id: "fault:cas-conflict-k2a",
++  });
++  assert.equal(cas.winner_ok, true);
++  assert.equal(cas.loser_ok, false);
++  assert.equal(cas.loser_code, "cas-conflict");
++});
+diff --git a/scripts/lib/target-profiles/claude.js b/scripts/lib/target-profiles/claude.js
+index 2a97053..25fe6e7 100644
+--- a/scripts/lib/target-profiles/claude.js
++++ b/scripts/lib/target-profiles/claude.js
+@@ -55,4 +55,21 @@ module.exports = {
+   // argv form, run with shell:false (see github-copilot profile). The external
+   // `claude` binary must be invocable by this exact name on PATH.
+   validate: ["claude", "plugin", "validate", "{out}"],
++  // K2a: capability declaration hooks for proof binding (states are closed enums).
++  hostCapabilities: {
++    schema_version: 1,
++    kind: "host-capabilities/v1",
++    capabilities: {
++      ExecutionTransport: "enforced",
++      QuestionTransport: "enforced",
++      WorkerTransport: "enforced",
++      ToolExecutionTransport: "enforced",
++      DeliveryGateTransport: "enforced",
++    },
++    proof_binding: {
++      adapter_id: "claude",
++      requires_capability_proof: true,
++      fixture_root: "scripts/lib/host-adapters/claude/fixtures",
++    },
++  },
+ };

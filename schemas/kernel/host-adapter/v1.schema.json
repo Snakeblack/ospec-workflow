@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/host-adapter/v1",
+  "schema_version": 1,
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "host-adapter/v1"
+    },
+    "adapter_id": {
+      "type": "string"
+    },
+    "adapter_version": {
+      "type": "string"
+    },
+    "host_version": {
+      "type": "string"
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "enum": [
+          "enforced",
+          "partial",
+          "instructional",
+          "unavailable"
+        ]
+      }
+    },
+    "transports": {
+      "type": "object",
+      "properties": {
+        "ExecutionTransport": {
+          "type": "object"
+        },
+        "QuestionTransport": {
+          "type": "object"
+        },
+        "WorkerTransport": {
+          "type": "object"
+        },
+        "ToolExecutionTransport": {
+          "type": "object"
+        },
+        "DeliveryGateTransport": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "ExecutionTransport",
+        "QuestionTransport",
+        "WorkerTransport",
+        "ToolExecutionTransport",
+        "DeliveryGateTransport"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "adapter_id",
+    "adapter_version",
+    "host_version",
+    "capabilities",
+    "transports"
+  ],
+  "additionalProperties": false
+}

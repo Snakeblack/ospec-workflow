@@ -1,0 +1,265 @@
+change: k2a-headless-conformance-host
+status: archived
+created_at: "2026-08-04T20:46:07.000Z"
+last_updated: "2026-08-05T10:37:00.000Z"
+blocking_questions: []
+
+
+classification: high-risk
+owner:
+  author: Manuel Retamozo
+  branch: feat/k2a-headless-conformance-host
+workload:
+  estimated_changed_lines: "1400-2000"
+  budget_risk: High
+  chained_prs_recommended: false
+  chain_strategy: size-exception
+  decision_needed_before_apply: false
+  delivery_strategy: exception-ok
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "K2a Headless Conformance Host + real adapter is high-risk host-contract work on an active project; first matching route is standard (clarify + 4R)."
+  validated: true
+  validation_errors: []
+execution_mode: interactive
+delivery_strategy: exception-ok
+approvals:
+  - id: exec-mode-001
+    gate: execution-mode
+    decision: interactive
+    source: user-chat
+    accepted_at: "2026-08-04T20:46:07.000Z"
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: user-chat
+    accepted_at: "2026-08-04T20:46:07.000Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: continue-spec-001
+    gate: execution-mode
+    decision: continue-sdd-spec
+    source: user-chat
+    accepted_at: "2026-08-04T20:53:00.000Z"
+    applies_to:
+      - sdd-spec
+  - id: assume-claude-host-001
+    gate: architecture
+    decision: "confirm sdd-propose-001 — Claude Code sole K2a reference adapter"
+    source: user-chat
+    accepted_at: "2026-08-04T20:53:00.000Z"
+    applies_to:
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+  - id: continue-tasks-001
+    gate: execution-mode
+    decision: continue-sdd-tasks
+    source: user-chat
+    accepted_at: "2026-08-04T21:16:00.000Z"
+    applies_to:
+      - sdd-tasks
+  - id: size-exception-001
+    gate: review-workload
+    decision: size-exception
+    source: user-chat
+    accepted_at: "2026-08-04T20:46:07.000Z"
+    applies_to:
+      - sdd-apply
+  - id: continue-apply-001
+    gate: execution-mode
+    decision: continue-sdd-apply
+    source: user-chat
+    accepted_at: "2026-08-04T21:21:00.000Z"
+    applies_to:
+      - sdd-apply
+  - id: continue-verify-001
+    gate: execution-mode
+    decision: continue-sdd-verify
+    source: user-chat
+    accepted_at: "2026-08-04T21:43:00.000Z"
+    applies_to:
+      - sdd-verify
+  - id: assumption-reconcile-001
+    gate: assumption-reconciliation
+    decision: "confirm sdd-apply-001, sdd-apply-002"
+    source: user-chat
+    accepted_at: "2026-08-04T21:53:00.000Z"
+    applies_to:
+      - sdd-verify
+  - id: continue-4r-001
+    gate: 4r-review-gate
+    decision: proceed-4r-review
+    source: user-chat
+    accepted_at: "2026-08-05T00:07:00.000Z"
+    applies_to:
+      - 4r-review-gate
+  - id: remediation-001
+    gate: 4r-review-gate
+    decision: correct-all-4-blocking-findings
+    source: user-chat
+    accepted_at: "2026-08-05T00:27:00.000Z"
+    applies_to:
+      - 4r-review-gate
+  - id: archive-warnings-001
+    gate: archive-warning
+    decision: accept-11-warning-as-follow-up
+    source: user-chat
+    accepted_at: "2026-08-05T00:37:00.000Z"
+    applies_to:
+      - sdd-archive
+  - id: archive-001
+    gate: sdd-archive
+    decision: proceed-archive
+    source: user-chat
+    accepted_at: "2026-08-05T00:37:00.000Z"
+    applies_to:
+      - sdd-archive
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/k2a-headless-conformance-host/proposal.md"
+    summary: "K2a host contract + CapabilityProof + Headless Conformance Host; sole real adapter = Claude Code; preserve K2.1 CAS/permits."
+    key_decisions:
+      - "Reference host = claude (AskUserQuestion + parallel/background + hooks + headless CI evidence)"
+      - "Headless Conformance Host is fault fixture, not a second product target"
+      - "Do not reopen K2.1 Authority Store / permits redesign"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/k2a-headless-conformance-host/specs/host-capabilities-contract/spec.md"
+      - "openspec/changes/k2a-headless-conformance-host/specs/capability-proof/spec.md"
+      - "openspec/changes/k2a-headless-conformance-host/specs/headless-conformance-host/spec.md"
+      - "openspec/changes/k2a-headless-conformance-host/specs/reference-host-adapter/spec.md"
+      - "openspec/changes/k2a-headless-conformance-host/specs/lifecycle-kernel-runtime/spec.md"
+      - "openspec/changes/k2a-headless-conformance-host/specs/minimal-kernel-harness/spec.md"
+      - "openspec/changes/k2a-headless-conformance-host/specs/kernel-contract-schemas/spec.md"
+      - "openspec/changes/k2a-headless-conformance-host/specs/harness-authority-canon/spec.md"
+      - "openspec/changes/k2a-headless-conformance-host/specs/lifecycle-model-conformance/spec.md"
+    summary: "4 new + 5 delta specs: HostCapabilities/transports, CapabilityProof, headless fault matrix, sole Claude adapter, kernel port/guard deltas."
+    key_decisions:
+      - "No silent unavailable/instructional→enforced without CapabilityProof"
+      - "Lifecycle/Graph/receipt forbid concrete host imports; adapters not authority"
+      - "Headless Conformance Host ≠ Minimal Kernel Harness; peer for host faults only"
+  clarify:
+    status: skipped
+    reason: "residual_ambiguity=false and all ambiguity arrays empty"
+  design:
+    status: done
+    artifact: "openspec/changes/k2a-headless-conformance-host/design.md"
+    summary: "Contratos host v1, proof canónico, conformance host peer y registro explícito con solo claude; kernel CAS/permisos intacto."
+    key_decisions:
+      - "Una familia JSON Schema v1 por contrato y transport"
+      - "CapabilityProof usa SHA-256 canónico con dominio y evidencia sin timestamps"
+      - "Headless Conformance Host es peer; el registro activa solo claude"
+  tasks:
+    status: done
+    artifact: "openspec/changes/k2a-headless-conformance-host/tasks.md"
+    summary: "11 fases, 31 MUST REQ trazados; ~1400–2000 LOC; size-exception aprobado; orden schemas→core→conformance→claude→kernel→harness→model→docs."
+    key_decisions:
+      - "Decision needed before apply: No (delivery_strategy exception-ok)"
+      - "Single PR size-exception; no chained PRs"
+      - "Strict TDD RED→GREEN→TRIANGULATE→REFACTOR por módulo"
+  apply:
+    status: done
+    artifact: "openspec/changes/k2a-headless-conformance-host/apply-progress.md"
+    summary: "53/54 tasks + 4R CRITICAL remediation (authority denylist, invokePort catch, pass ok===true, selectEnforcementFailureReason)."
+    key_decisions:
+      - "size:exception full-batch apply on feat/k2a-headless-conformance-host"
+      - "Scope-guard allows generic host-contract; rejects concrete claude imports"
+      - "Task 11.5 deferred to orchestrator 4R after verify"
+      - "4R remediation: transportOwnsAuthority + invokePort normalize/catch; no .4r writes"
+  verify:
+    status: done
+    artifact: "openspec/changes/k2a-headless-conformance-host/verify-report.md"
+    verdict: PASS WITH WARNINGS
+    summary: "PASS WITH WARNINGS — npm test 1917/0; Strict TDD OK; 1 WARNING harness-alone host-fault negative path; assumptions confirmed."
+    key_decisions:
+      - "Step 2a cleared via confirmed sdd-apply-001/002"
+      - "Verdict PASS WITH WARNINGS (tasks-gap on REQ-minimal-kernel-harness-009 negative scenario)"
+      - "Next: orchestrator 4R (task 11.5)"
+  archive:
+    status: done
+    artifact: "openspec/changes/k2a-headless-conformance-host/archive-report.md"
+    summary: "Plan-and-Report emitted: 4 new + 5 merged specs, 4 ADR promotions, 12 accepted warnings; runtime move pending receipt."
+    key_decisions:
+      - "archive-001 proceed-archive + archive-warnings-001 accept 11 advisory 4R WARNINGs"
+      - "Prepared merges at specs/*/prepared-spec.md; live openspec/specs writes runtime-owned"
+      - "Destination openspec/changes/archive/2026-08-05-k2a-headless-conformance-host/"
+
+gates:
+  clarify:
+    status: skipped
+    skip_reason: residual_ambiguity false; ambiguity arrays empty
+  4r-review-gate:
+    status: approved
+    lineage_status: approved
+    terminal_reason: all-remediation-slices-passed
+    archive_allowed: true
+    lineage_id: "sha256:02c94ef67c42f3bba0044fd8f6e770927be4cf8130355e6bb70e60e0f9778797"
+    lineage_revision: 21
+    candidate_id: "sha256:818aab2a7a5a0d3889bd0506eac7b9c11cf417a132abda76a4d4331490b021c1"
+    selected_dimensions: [risk, reliability, resilience, readability]
+    depth: strict
+    correction_budget_limit: 200
+    lineage_artifact: openspec/changes/k2a-headless-conformance-host/.4r/lineage.json
+    evidence_fingerprint: "sha256:c49cd7afe377629773898b6009c59cef06ed0166cb4b489c3502508f02105a12"
+    findings_summary: "4R approved: 4/4 CRITICAL resolved; 11 WARNING remain advisory; terminal_reason=all-remediation-slices-passed"
+    blocking_resolved: 4
+    advisory_count: 11
+    next_action: stop
+
+baseline_fingerprints:
+  lifecycle-kernel-runtime: "sha256:0be0b26352ad333b644ffe0de585c6189c7db923211ffabc238de8f3c1174b70"
+  minimal-kernel-harness: "sha256:75705eb35eb9a666acb2f64c467ed228437579aed6df24c0cae80e51e45858c1"
+  kernel-contract-schemas: "sha256:0c2594ace655749944aa066faad2efdea85303e8912c885d440019021ca9a141"
+  harness-authority-canon: "sha256:0fd36dfb7747049f1d55ab09e6adebf86bf18d1c7cc019da49f1c7ad5639ead3"
+  lifecycle-model-conformance: "sha256:78a11ea69cc892d1c5345677e86c1878813fc4611b28670c0739e4390b107964"
+assumptions:
+  - id: sdd-propose-001
+    phase: sdd-propose
+    statement: "Claude Code is the sole K2a reference host adapter."
+    reversibility: low
+    basis: "docs/target-capabilities.md matrix + target-claude headless CI docs; roadmap §K2a choose by reproducible capability."
+    recorded_at: "2026-08-04T20:52:00.000Z"
+    status: confirmed
+    resolved_at: "2026-08-04T20:53:00.000Z"
+    resolution:
+      action: confirm
+      note: "User continued to sdd-spec without adjusting reference host"
+      resolved_at: "2026-08-04T20:53:00.000Z"
+  - id: sdd-apply-001
+    phase: sdd-apply
+    statement: "CapabilityProof binds capability_id as verifier digest input rather than a proof schema field."
+    reversibility: high
+    basis: "design.md Interfaces/Contracts note on cross-capability replay prevention."
+    recorded_at: "2026-08-04T21:41:00.000Z"
+    status: confirmed
+    resolved_at: "2026-08-04T21:53:00.000Z"
+    resolution:
+      action: confirm
+      note: "User confirmed both apply assumptions (option 3)"
+      resolved_at: "2026-08-04T21:53:00.000Z"
+  - id: sdd-apply-002
+    phase: sdd-apply
+    statement: "Claude adapter omits compareAndSwap/mintPermit properties entirely (unreachable surface) instead of throwing getters."
+    reversibility: high
+    basis: "Avoided false lifecycle-duplication when conformance scans authority surface getters."
+    recorded_at: "2026-08-04T21:41:00.000Z"
+    status: confirmed
+    resolved_at: "2026-08-04T21:53:00.000Z"
+    resolution:
+      action: confirm
+      note: "User confirmed both apply assumptions (option 3)"
+      resolved_at: "2026-08-04T21:53:00.000Z"

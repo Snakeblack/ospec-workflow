@@ -55,4 +55,21 @@ module.exports = {
   // argv form, run with shell:false (see github-copilot profile). The external
   // `claude` binary must be invocable by this exact name on PATH.
   validate: ["claude", "plugin", "validate", "{out}"],
+  // K2a: capability declaration hooks for proof binding (states are closed enums).
+  hostCapabilities: {
+    schema_version: 1,
+    kind: "host-capabilities/v1",
+    capabilities: {
+      ExecutionTransport: "enforced",
+      QuestionTransport: "enforced",
+      WorkerTransport: "enforced",
+      ToolExecutionTransport: "enforced",
+      DeliveryGateTransport: "enforced",
+    },
+    proof_binding: {
+      adapter_id: "claude",
+      requires_capability_proof: true,
+      fixture_root: "scripts/lib/host-adapters/claude/fixtures",
+    },
+  },
 };

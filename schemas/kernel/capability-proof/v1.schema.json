@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/capability-proof/v1",
+  "schema_version": 1,
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "capability-proof/v1"
+    },
+    "adapter_version": {
+      "type": "string"
+    },
+    "host_version": {
+      "type": "string"
+    },
+    "fixture": {
+      "type": "string"
+    },
+    "evidence_digest": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "adapter_version",
+    "host_version",
+    "fixture",
+    "evidence_digest"
+  ],
+  "additionalProperties": false
+}

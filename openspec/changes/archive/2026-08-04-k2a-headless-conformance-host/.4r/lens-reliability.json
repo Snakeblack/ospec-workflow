@@ -1,0 +1,29 @@
+{
+  "findings": [
+    {
+      "severity": "WARNING",
+      "summary": "Falta el runtime test negativo de «harness alone» para host-fault incompleteness (REQ-minimal-kernel-harness-009).",
+      "acceptance_criteria": "Añadir un test runtime en minimal-kernel-harness.test.js que evalúe cobertura K2a host-fault solo con fixtures del Minimal Kernel Harness (sin peer Headless Conformance Host) y aserte que la cobertura permanece incomplete; el caso positivo peerHostFaultMatrix debe seguir en verde."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "transitionInputsEquivalent usa JSON.stringify (orden de inserción) en lugar de serialización canónica.",
+      "acceptance_criteria": "Comparar con stableSerialize (o equivalente key-sorted) y añadir un test donde left/right solo difieren en orden de claves (y host_product_id) y deben ser equivalent === true."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "observeHostPort no tiene tests de los caminos fail-closed unknown-host-port y missing-transport-port.",
+      "acceptance_criteria": "Tests runtime que llamen observeHostPort con port no listado en REQUIRED_TRANSPORTS y con transports sin el port requerido, asertando {ok:false, code:'unknown-host-port'|'missing-transport-port'}."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "normalizeTransportOutcome carece de test del camino non-record → invalid-transport-outcome.",
+      "acceptance_criteria": "Añadir aserciones en host-contract/index.test.js para null, array y primitivo: {ok:false, outcome:'invalid', code:'invalid-transport-outcome'}."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "createHostAdapter no tiene tests de rechazo por identidad ausente/vacía (adapter_id|adapter_version|host_version).",
+      "acceptance_criteria": "Tests que llamen createHostAdapter sin cada campo de identidad (o con string vacío) y aserten throw con REASON.MISSING_ADAPTER_IDENTITY y path /adapter_id|/adapter_version|/host_version."
+    }
+  ]
+}

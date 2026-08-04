@@ -27,12 +27,13 @@ const K21_FORBIDDEN_EXTRA = [
   /\bdeliveryAuthorization\b/,
 ];
 
-test("K2.1 scope-guard: existing forbidden patterns still reject Host/Candidate/attestation/delivery", () => {
+test("K2.1 scope-guard: existing forbidden patterns still reject Candidate/attestation/delivery (K2a allows generic host-contract)", () => {
   const joined = FORBIDDEN_SYMBOL_PATTERNS.map(String).join(" ");
-  assert.match(joined, /HostCapabilities/);
+  // K2a revised the blanket HostCapabilities ban; Candidate/attestation/delivery remain forbidden.
   assert.match(joined, /CandidateIdentity|createCandidate/);
   assert.match(joined, /attestation/i);
   assert.match(joined, /deliveryAuthorization|delivery_authorization/i);
+  assert.match(joined, /CapabilityProof/);
 });
 
 test("K2.1 scope-guard: rejects CapabilityProof, ObligationManifest, and Candidate freeze modules", () => {

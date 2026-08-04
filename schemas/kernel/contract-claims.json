@@ -2,84 +2,193 @@
   "schema_version": 1,
   "families": {
     "state-transition": {
-      "required_fields": ["schema_version", "kind", "operation"],
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "operation"
+      ],
       "enum_values": {
-        "kind": ["execute", "collect", "decide", "stop"]
+        "kind": [
+          "execute",
+          "collect",
+          "decide",
+          "stop"
+        ]
       },
       "command_shapes": [
         {
           "kind": "execute",
-          "requires": ["command"],
-          "argument_required_fields": ["token"]
+          "requires": [
+            "command"
+          ],
+          "argument_required_fields": [
+            "token"
+          ]
         }
       ]
     },
     "classification": {
-      "required_fields": ["schema_version", "risk", "uncertainty", "execution", "route", "reasons", "fingerprint"],
+      "required_fields": [
+        "schema_version",
+        "risk",
+        "uncertainty",
+        "execution",
+        "route",
+        "reasons",
+        "fingerprint"
+      ],
       "enum_values": {
-        "route": ["direct", "repair", "bounded", "planned", "critical"]
+        "route": [
+          "direct",
+          "repair",
+          "bounded",
+          "planned",
+          "critical"
+        ]
       },
       "command_shapes": []
     },
     "contract": {
-      "required_fields": ["schema_version", "contract_id", "family", "version"],
+      "required_fields": [
+        "schema_version",
+        "contract_id",
+        "family",
+        "version"
+      ],
       "enum_values": {
-        "surface": ["emit", "consume", "both"]
+        "surface": [
+          "emit",
+          "consume",
+          "both"
+        ]
       },
       "command_shapes": []
     },
     "graph-node": {
-      "required_fields": ["schema_version", "node_id", "kind", "operation"],
+      "required_fields": [
+        "schema_version",
+        "node_id",
+        "kind",
+        "operation"
+      ],
       "enum_values": {},
       "command_shapes": []
     },
     "work-order": {
-      "required_fields": ["schema_version", "work_order_id", "node_id", "role", "status"],
+      "required_fields": [
+        "schema_version",
+        "work_order_id",
+        "node_id",
+        "role",
+        "status"
+      ],
       "enum_values": {
-        "status": ["pending", "running", "completed", "failed"]
+        "status": [
+          "pending",
+          "running",
+          "completed",
+          "failed"
+        ]
       },
       "command_shapes": []
     },
     "candidate": {
-      "required_fields": ["schema_version", "candidate_id", "projection", "base_tree", "candidate_tree", "diff_hash", "paths"],
+      "required_fields": [
+        "schema_version",
+        "candidate_id",
+        "projection",
+        "base_tree",
+        "candidate_tree",
+        "diff_hash",
+        "paths"
+      ],
       "enum_values": {
-        "projection": ["workspace", "staged"]
+        "projection": [
+          "workspace",
+          "staged"
+        ]
       },
       "command_shapes": []
     },
     "evidence": {
-      "required_fields": ["schema_version", "evidence_id", "kind", "digest"],
+      "required_fields": [
+        "schema_version",
+        "evidence_id",
+        "kind",
+        "digest"
+      ],
       "enum_values": {},
       "command_shapes": []
     },
     "verification": {
-      "required_fields": ["schema_version", "verification_id", "candidate_id", "verdict"],
+      "required_fields": [
+        "schema_version",
+        "verification_id",
+        "candidate_id",
+        "verdict"
+      ],
       "enum_values": {
-        "verdict": ["PASS", "PASS WITH WARNINGS", "FAIL"]
+        "verdict": [
+          "PASS",
+          "PASS WITH WARNINGS",
+          "FAIL"
+        ]
       },
       "command_shapes": []
     },
     "finding-review": {
-      "required_fields": ["schema_version", "finding_id", "severity", "dimension", "summary", "blocking"],
+      "required_fields": [
+        "schema_version",
+        "finding_id",
+        "severity",
+        "dimension",
+        "summary",
+        "blocking"
+      ],
       "enum_values": {
-        "severity": ["BLOCKER", "CRITICAL", "WARNING", "INFO"]
+        "severity": [
+          "BLOCKER",
+          "CRITICAL",
+          "WARNING",
+          "INFO"
+        ]
       },
       "command_shapes": []
     },
     "failure-recovery": {
-      "required_fields": ["schema_version", "recovery_id", "failure_code", "mode"],
+      "required_fields": [
+        "schema_version",
+        "recovery_id",
+        "failure_code",
+        "mode"
+      ],
       "enum_values": {
-        "mode": ["focal", "escalate", "stop"]
+        "mode": [
+          "focal",
+          "escalate",
+          "stop"
+        ]
       },
       "command_shapes": []
     },
     "receipt": {
-      "required_fields": ["schema_version", "receipt_id", "candidate_id", "kind", "digest"],
+      "required_fields": [
+        "schema_version",
+        "receipt_id",
+        "candidate_id",
+        "kind",
+        "digest"
+      ],
       "enum_values": {},
       "command_shapes": []
     },
     "event": {
-      "required_fields": ["schema_version", "event_id", "type", "timestamp"],
+      "required_fields": [
+        "schema_version",
+        "event_id",
+        "type",
+        "timestamp"
+      ],
       "enum_values": {},
       "command_shapes": []
     },
@@ -116,7 +225,10 @@
       "command_shapes": []
     },
     "effect-class": {
-      "required_fields": ["schema_version", "effect_class"],
+      "required_fields": [
+        "schema_version",
+        "effect_class"
+      ],
       "enum_values": {
         "effect_class": [
           "pure",
@@ -126,6 +238,85 @@
           "irreversible"
         ]
       },
+      "command_shapes": []
+    },
+    "host-capabilities": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "capabilities"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "host-adapter": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "adapter_id",
+        "adapter_version",
+        "host_version",
+        "capabilities",
+        "transports"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "execution-transport": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "port_id"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "question-transport": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "port_id"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "worker-transport": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "port_id"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "tool-execution-transport": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "port_id"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "delivery-gate-transport": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "port_id"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "capability-proof": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "adapter_version",
+        "host_version",
+        "fixture",
+        "evidence_digest"
+      ],
+      "enum_values": {},
       "command_shapes": []
     }
   }

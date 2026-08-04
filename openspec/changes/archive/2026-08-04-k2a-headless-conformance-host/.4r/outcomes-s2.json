@@ -1,0 +1,12 @@
+{
+  "outcomes": [
+    { "id": "F-362e5e5cf6161f07", "status": "resolved" }
+  ],
+  "regression": {
+    "detected": false,
+    "evidence": [
+      "node --test scripts/lib/host-contract/index.test.js scripts/lib/headless-conformance-host.test.js scripts/lib/capability-proof/index.test.js → 20/20 PASS"
+    ]
+  },
+  "follow_ups": []
+}

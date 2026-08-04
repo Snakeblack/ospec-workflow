@@ -1,0 +1,10 @@
+{
+  "capability": "QuestionTransport",
+  "profile": "claude",
+  "mapping": {
+    "AskUserQuestion": "QuestionTransport"
+  },
+  "semantic": {
+    "structured_questions": true
+  }
+}

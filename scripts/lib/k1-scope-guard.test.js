@@ -68,14 +68,30 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/transition-parity.k2.test.js",
   "scripts/lib/k21-maturity-docs.test.js",
   "scripts/lib/k21-schema-fixtures.test.js",
+  "scripts/lib/k2a-maturity-docs.test.js",
+  "scripts/lib/k2a-schema-fixtures.test.js",
+  "scripts/lib/headless-conformance-host.js",
+  "scripts/lib/headless-conformance-host.test.js",
+  "scripts/lib/target-profiles/claude.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [
   "scripts/lib/lifecycle-kernel/",
   "scripts/lib/authority-store/",
+  "scripts/lib/host-contract/",
+  "scripts/lib/capability-proof/",
+  "scripts/lib/host-adapters/",
   "schemas/kernel/operation-permit/",
   "schemas/kernel/operation-receipt/",
   "schemas/kernel/effect-class/",
+  "schemas/kernel/host-capabilities/",
+  "schemas/kernel/host-adapter/",
+  "schemas/kernel/execution-transport/",
+  "schemas/kernel/question-transport/",
+  "schemas/kernel/worker-transport/",
+  "schemas/kernel/tool-execution-transport/",
+  "schemas/kernel/delivery-gate-transport/",
+  "schemas/kernel/capability-proof/",
 ];
 
 const PROTECTED_BASELINE_PATHS = [

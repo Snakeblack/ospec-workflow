@@ -1,0 +1,8 @@
+{
+  "status": "reviewing",
+  "next_action": {
+    "type": "freeze-findings"
+  },
+  "dispatch": [],
+  "archive_allowed": false
+}

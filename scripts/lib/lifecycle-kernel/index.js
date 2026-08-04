@@ -517,6 +517,8 @@ module.exports = {
   KERNEL_VERSION,
   interruptError,
   DEFAULT_SUBJECT_ID,
+  // K2a: generic host boundary (no concrete adapter imports).
+  hostBoundary: require("./host-boundary.js"),
   // Internalized: bare commit is not a public mutation API on authority subjects.
   _internalMemoryCommit: null,
 };

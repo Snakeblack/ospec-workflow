@@ -353,3 +353,38 @@ test("K2.1 fixed-policy control-path remains green under K2.1 enforcement", asyn
   assert.equal(fixed.halted, null);
   assert.equal(fixed.operations[0].outcome, "advanced");
 });
+
+test("K2a: harness peers with Headless Conformance Host for host-fault scenarios", () => {
+  const { peerHostFaultMatrix, getHarnessKind, HARNESS_KIND } = require("./minimal-kernel-harness.js");
+  const { createClaudeHostAdapter } = require("./host-adapters/claude.js");
+  const { KIND } = require("./headless-conformance-host.js");
+  assert.equal(getHarnessKind(), HARNESS_KIND);
+  assert.notEqual(HARNESS_KIND, KIND);
+
+  const peer = peerHostFaultMatrix({ adapter: createClaudeHostAdapter() });
+  assert.equal(peer.fault_driver, "headless-conformance-host");
+  assert.equal(peer.owns_host_policy, false);
+  assert.equal(peer.owns_capability_proof_issuance, false);
+  assert.equal(peer.matrix.pass, true);
+  assert.deepEqual(peer.matrix.faults_covered, ["timeout", "cancel", "worker-fail", "interrupt"]);
+});
+
+test("K2a: fixed-policy and K2.1 authority fixtures remain green with host-contract ports available", async () => {
+  const { createClaudeHostAdapter } = require("./host-adapters/claude.js");
+  const adapter = createClaudeHostAdapter();
+  assert.ok(adapter.transports.ExecutionTransport);
+
+  const fixed = await runHarnessScenario({
+    id: "fixed-policy-control-k2a",
+    initialState: pendingState,
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+  });
+  assert.equal(fixed.snapshot.state.nodes.n1.phase, "started");
+
+  const cas = await require("./minimal-kernel-harness.js").runCasConflictFault({
+    id: "fault:cas-conflict-k2a",
+  });
+  assert.equal(cas.winner_ok, true);
+  assert.equal(cas.loser_ok, false);
+  assert.equal(cas.loser_code, "cas-conflict");
+});

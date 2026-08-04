@@ -75,6 +75,46 @@
       "path": "schemas/kernel/effect-class/v1.schema.json",
       "$id": "ospec://schemas/kernel/effect-class/v1",
       "schema_version": 1
+    },
+    "host-capabilities": {
+      "path": "schemas/kernel/host-capabilities/v1.schema.json",
+      "$id": "ospec://schemas/kernel/host-capabilities/v1",
+      "schema_version": 1
+    },
+    "host-adapter": {
+      "path": "schemas/kernel/host-adapter/v1.schema.json",
+      "$id": "ospec://schemas/kernel/host-adapter/v1",
+      "schema_version": 1
+    },
+    "execution-transport": {
+      "path": "schemas/kernel/execution-transport/v1.schema.json",
+      "$id": "ospec://schemas/kernel/execution-transport/v1",
+      "schema_version": 1
+    },
+    "question-transport": {
+      "path": "schemas/kernel/question-transport/v1.schema.json",
+      "$id": "ospec://schemas/kernel/question-transport/v1",
+      "schema_version": 1
+    },
+    "worker-transport": {
+      "path": "schemas/kernel/worker-transport/v1.schema.json",
+      "$id": "ospec://schemas/kernel/worker-transport/v1",
+      "schema_version": 1
+    },
+    "tool-execution-transport": {
+      "path": "schemas/kernel/tool-execution-transport/v1.schema.json",
+      "$id": "ospec://schemas/kernel/tool-execution-transport/v1",
+      "schema_version": 1
+    },
+    "delivery-gate-transport": {
+      "path": "schemas/kernel/delivery-gate-transport/v1.schema.json",
+      "$id": "ospec://schemas/kernel/delivery-gate-transport/v1",
+      "schema_version": 1
+    },
+    "capability-proof": {
+      "path": "schemas/kernel/capability-proof/v1.schema.json",
+      "$id": "ospec://schemas/kernel/capability-proof/v1",
+      "schema_version": 1
     }
   }
 }

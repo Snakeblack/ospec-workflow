@@ -1,0 +1,347 @@
+{
+  "status": "ready",
+  "run_generalist": true,
+  "dispatch": [
+    "review-risk",
+    "review-reliability",
+    "review-resilience",
+    "review-readability"
+  ],
+  "archive_allowed": false,
+  "gate": {
+    "status": "ready",
+    "schema_version": 1,
+    "classification": "high-risk",
+    "evidence": {
+      "schema_version": 1,
+      "fingerprint": "sha256:c49cd7afe377629773898b6009c59cef06ed0166cb4b489c3502508f02105a12",
+      "sources": {
+        "paths": [
+          "docs/architecture/harness-evolution.md",
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "openspec/changes/k2a-headless-conformance-host/apply-progress.md",
+          "openspec/changes/k2a-headless-conformance-host/decisions/adr-001.md",
+          "openspec/changes/k2a-headless-conformance-host/decisions/adr-002.md",
+          "openspec/changes/k2a-headless-conformance-host/decisions/adr-003.md",
+          "openspec/changes/k2a-headless-conformance-host/decisions/adr-004.md",
+          "openspec/changes/k2a-headless-conformance-host/design.md",
+          "openspec/changes/k2a-headless-conformance-host/proposal.md",
+          "openspec/changes/k2a-headless-conformance-host/specs/capability-proof/spec.md",
+          "openspec/changes/k2a-headless-conformance-host/specs/harness-authority-canon/spec.md",
+          "openspec/changes/k2a-headless-conformance-host/specs/headless-conformance-host/spec.md",
+          "openspec/changes/k2a-headless-conformance-host/specs/host-capabilities-contract/spec.md",
+          "openspec/changes/k2a-headless-conformance-host/specs/kernel-contract-schemas/spec.md",
+          "openspec/changes/k2a-headless-conformance-host/specs/lifecycle-kernel-runtime/spec.md",
+          "openspec/changes/k2a-headless-conformance-host/specs/lifecycle-model-conformance/spec.md",
+          "openspec/changes/k2a-headless-conformance-host/specs/minimal-kernel-harness/spec.md",
+          "openspec/changes/k2a-headless-conformance-host/specs/reference-host-adapter/spec.md",
+          "openspec/changes/k2a-headless-conformance-host/state.yaml",
+          "openspec/changes/k2a-headless-conformance-host/tasks.md",
+          "openspec/changes/k2a-headless-conformance-host/verify-report.md",
+          "openspec/memory/known-issues.md",
+          "schemas/kernel/capability-proof/fixtures/invalid/missing-evidence-digest.json",
+          "schemas/kernel/capability-proof/fixtures/invalid/missing-fixture.json",
+          "schemas/kernel/capability-proof/fixtures/valid/minimal.json",
+          "schemas/kernel/capability-proof/v1.schema.json",
+          "schemas/kernel/contract-claims.json",
+          "schemas/kernel/delivery-gate-transport/fixtures/invalid/minimal.json",
+          "schemas/kernel/delivery-gate-transport/fixtures/valid/minimal.json",
+          "schemas/kernel/delivery-gate-transport/v1.schema.json",
+          "schemas/kernel/execution-transport/fixtures/invalid/minimal.json",
+          "schemas/kernel/execution-transport/fixtures/valid/minimal.json",
+          "schemas/kernel/execution-transport/v1.schema.json",
+          "schemas/kernel/host-adapter/fixtures/invalid/missing-transport.json",
+          "schemas/kernel/host-adapter/fixtures/valid/minimal.json",
+          "schemas/kernel/host-adapter/v1.schema.json",
+          "schemas/kernel/host-capabilities/fixtures/invalid/enabled-state.json",
+          "schemas/kernel/host-capabilities/fixtures/invalid/unknown-state.json",
+          "schemas/kernel/host-capabilities/fixtures/valid/minimal.json",
+          "schemas/kernel/host-capabilities/v1.schema.json",
+          "schemas/kernel/manifest.json",
+          "schemas/kernel/question-transport/fixtures/invalid/minimal.json",
+          "schemas/kernel/question-transport/fixtures/valid/minimal.json",
+          "schemas/kernel/question-transport/v1.schema.json",
+          "schemas/kernel/tool-execution-transport/fixtures/invalid/minimal.json",
+          "schemas/kernel/tool-execution-transport/fixtures/valid/minimal.json",
+          "schemas/kernel/tool-execution-transport/v1.schema.json",
+          "schemas/kernel/worker-transport/fixtures/invalid/minimal.json",
+          "schemas/kernel/worker-transport/fixtures/valid/minimal.json",
+          "schemas/kernel/worker-transport/v1.schema.json",
+          "scripts/lib/authority-canon.js",
+          "scripts/lib/authority-canon.test.js",
+          "scripts/lib/capability-proof/index.js",
+          "scripts/lib/capability-proof/index.test.js",
+          "scripts/lib/headless-conformance-host.js",
+          "scripts/lib/headless-conformance-host.test.js",
+          "scripts/lib/host-adapters/claude.js",
+          "scripts/lib/host-adapters/claude.test.js",
+          "scripts/lib/host-adapters/claude/fixtures/delivery-gate-transport.json",
+          "scripts/lib/host-adapters/claude/fixtures/execution-transport.json",
+          "scripts/lib/host-adapters/claude/fixtures/question-transport.json",
+          "scripts/lib/host-adapters/claude/fixtures/tool-execution-transport.json",
+          "scripts/lib/host-adapters/claude/fixtures/worker-transport.json",
+          "scripts/lib/host-adapters/registry.js",
+          "scripts/lib/host-adapters/registry.test.js",
+          "scripts/lib/host-contract/index.js",
+          "scripts/lib/host-contract/index.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/k21-maturity-docs.test.js",
+          "scripts/lib/k2a-maturity-docs.test.js",
+          "scripts/lib/k2a-schema-fixtures.test.js",
+          "scripts/lib/lifecycle-kernel/host-boundary.js",
+          "scripts/lib/lifecycle-kernel/host-boundary.test.js",
+          "scripts/lib/lifecycle-kernel/index.js",
+          "scripts/lib/lifecycle-kernel/k1-compat.js",
+          "scripts/lib/lifecycle-kernel/k21-scope-guard.test.js",
+          "scripts/lib/lifecycle-kernel/k2a-scope-guard.test.js",
+          "scripts/lib/lifecycle-kernel/scope-guard.js",
+          "scripts/lib/lifecycle-kernel/scope-guard.test.js",
+          "scripts/lib/lifecycle-model.js",
+          "scripts/lib/lifecycle-model.test.js",
+          "scripts/lib/minimal-kernel-harness.js",
+          "scripts/lib/minimal-kernel-harness.test.js",
+          "scripts/lib/target-profiles/claude.js"
+        ],
+        "capabilities": [
+          "agents",
+          "host-contract",
+          "routing",
+          "runtime",
+          "skills",
+          "strict-tdd"
+        ],
+        "operation_types": [
+          "add",
+          "modify"
+        ],
+        "dependencies": [
+          "schemas/kernel/manifest.json",
+          "scripts/lib/authority-canon.js",
+          "scripts/lib/lifecycle-kernel/scope-guard.js",
+          "scripts/lib/lifecycle-model.js",
+          "scripts/lib/minimal-kernel-harness.js"
+        ],
+        "facts": [
+          {
+            "code": "dependency-change",
+            "source": "dependency",
+            "detail": "schemas/kernel/manifest.json,scripts/lib/authority-canon.js,scripts/lib/lifecycle-kernel/scope-guard.js,scripts/lib/lifecycle-model.js,scripts/lib/minimal-kernel-harness.js"
+          },
+          {
+            "code": "design-risk",
+            "source": "design",
+            "detail": "CapabilityProof required before enforced; no silent unavailable/instructional promotion."
+          },
+          {
+            "code": "design-risk",
+            "source": "design",
+            "detail": "Headless Conformance Host is peer to Minimal Kernel Harness, not a replacement."
+          },
+          {
+            "code": "design-risk",
+            "source": "design",
+            "detail": "Host adapters must not mint permits or own CAS; OpenSpec+Git remain semantic authority."
+          },
+          {
+            "code": "design-risk",
+            "source": "design",
+            "detail": "Lifecycle/Graph/receipt modules must not import concrete host APIs."
+          },
+          {
+            "code": "design-risk",
+            "source": "design",
+            "detail": "Sole real adapter is claude; other targets must remain inactive until K11a."
+          },
+          {
+            "code": "metadata-runtime",
+            "source": "metadata",
+            "detail": "runtime"
+          },
+          {
+            "code": "diff-auth-permission",
+            "source": "real-diff",
+            "detail": "scripts/lib/authority-canon.js,scripts/lib/headless-conformance-host.js,scripts/lib/host-adapters/claude.js,scripts/lib/host-contract/index.js,scripts/lib/lifecycle-model.js"
+          },
+          {
+            "code": "diff-error-flow",
+            "source": "real-diff",
+            "detail": "scripts/lib/capability-proof/index.js,scripts/lib/headless-conformance-host.js,scripts/lib/host-adapters/registry.js,scripts/lib/host-contract/index.js"
+          },
+          {
+            "code": "diff-structural-complexity",
+            "source": "real-diff",
+            "detail": "scripts/lib/headless-conformance-host.js"
+          },
+          {
+            "code": "verify-reliability",
+            "source": "verify",
+            "detail": "WARNING tasks-gap: harness-alone host-fault negative path lacks explicit runtime test (REQ-minimal-kernel-harness-009)"
+          }
+        ]
+      }
+    },
+    "generalist": {
+      "status": "needs-specialist",
+      "specialists": [
+        "risk",
+        "reliability",
+        "resilience",
+        "readability"
+      ],
+      "reason": "signals=dependency-change,design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability"
+    },
+    "depth": {
+      "review": "strict"
+    },
+    "escalation_reason": null,
+    "dimensions": {
+      "risk": {
+        "selected": true,
+        "reasons": [
+          {
+            "code": "high-risk-override",
+            "source": "override",
+            "detail": "Classification requires full 4R",
+            "precedence": 0
+          },
+          {
+            "code": "diff-auth-permission",
+            "source": "real-diff",
+            "detail": "scripts/lib/authority-canon.js,scripts/lib/headless-conformance-host.js,scripts/lib/host-adapters/claude.js,scripts/lib/host-contract/index.js,scripts/lib/lifecycle-model.js",
+            "precedence": 2
+          },
+          {
+            "code": "generalist-escalation",
+            "source": "generalist",
+            "detail": "signals=dependency-change,design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability",
+            "precedence": 3
+          },
+          {
+            "code": "dependency-change",
+            "source": "dependency",
+            "detail": "schemas/kernel/manifest.json,scripts/lib/authority-canon.js,scripts/lib/lifecycle-kernel/scope-guard.js,scripts/lib/lifecycle-model.js,scripts/lib/minimal-kernel-harness.js",
+            "precedence": 4
+          },
+          {
+            "code": "design-risk",
+            "source": "design",
+            "detail": "CapabilityProof required before enforced; no silent unavailable/instructional promotion.",
+            "precedence": 4
+          },
+          {
+            "code": "design-risk",
+            "source": "design",
+            "detail": "Headless Conformance Host is peer to Minimal Kernel Harness, not a replacement.",
+            "precedence": 4
+          },
+          {
+            "code": "design-risk",
+            "source": "design",
+            "detail": "Host adapters must not mint permits or own CAS; OpenSpec+Git remain semantic authority.",
+            "precedence": 4
+          },
+          {
+            "code": "design-risk",
+            "source": "design",
+            "detail": "Lifecycle/Graph/receipt modules must not import concrete host APIs.",
+            "precedence": 4
+          },
+          {
+            "code": "design-risk",
+            "source": "design",
+            "detail": "Sole real adapter is claude; other targets must remain inactive until K11a.",
+            "precedence": 4
+          }
+        ]
+      },
+      "reliability": {
+        "selected": true,
+        "reasons": [
+          {
+            "code": "high-risk-override",
+            "source": "override",
+            "detail": "Classification requires full 4R",
+            "precedence": 0
+          },
+          {
+            "code": "verify-reliability",
+            "source": "verify",
+            "detail": "WARNING tasks-gap: harness-alone host-fault negative path lacks explicit runtime test (REQ-minimal-kernel-harness-009)",
+            "precedence": 1
+          },
+          {
+            "code": "diff-error-flow",
+            "source": "real-diff",
+            "detail": "scripts/lib/capability-proof/index.js,scripts/lib/headless-conformance-host.js,scripts/lib/host-adapters/registry.js,scripts/lib/host-contract/index.js",
+            "precedence": 2
+          },
+          {
+            "code": "generalist-escalation",
+            "source": "generalist",
+            "detail": "signals=dependency-change,design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability",
+            "precedence": 3
+          },
+          {
+            "code": "dependency-change",
+            "source": "dependency",
+            "detail": "schemas/kernel/manifest.json,scripts/lib/authority-canon.js,scripts/lib/lifecycle-kernel/scope-guard.js,scripts/lib/lifecycle-model.js,scripts/lib/minimal-kernel-harness.js",
+            "precedence": 4
+          },
+          {
+            "code": "metadata-runtime",
+            "source": "metadata",
+            "detail": "runtime",
+            "precedence": 5
+          }
+        ]
+      },
+      "resilience": {
+        "selected": true,
+        "reasons": [
+          {
+            "code": "high-risk-override",
+            "source": "override",
+            "detail": "Classification requires full 4R",
+            "precedence": 0
+          },
+          {
+            "code": "diff-error-flow",
+            "source": "real-diff",
+            "detail": "scripts/lib/capability-proof/index.js,scripts/lib/headless-conformance-host.js,scripts/lib/host-adapters/registry.js,scripts/lib/host-contract/index.js",
+            "precedence": 2
+          },
+          {
+            "code": "generalist-escalation",
+            "source": "generalist",
+            "detail": "signals=dependency-change,design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability",
+            "precedence": 3
+          }
+        ]
+      },
+      "readability": {
+        "selected": true,
+        "reasons": [
+          {
+            "code": "high-risk-override",
+            "source": "override",
+            "detail": "Classification requires full 4R",
+            "precedence": 0
+          },
+          {
+            "code": "diff-structural-complexity",
+            "source": "real-diff",
+            "detail": "scripts/lib/headless-conformance-host.js",
+            "precedence": 2
+          },
+          {
+            "code": "generalist-escalation",
+            "source": "generalist",
+            "detail": "signals=dependency-change,design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability",
+            "precedence": 3
+          }
+        ]
+      }
+    }
+  }
+}

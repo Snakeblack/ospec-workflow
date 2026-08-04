@@ -1,0 +1,10 @@
+{
+  "status": "needs-specialist",
+  "specialists": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "reason": "signals=dependency-change,design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability"
+}

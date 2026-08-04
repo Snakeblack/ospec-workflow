@@ -1,0 +1,11 @@
+{
+  "base_tree": "9b03b2fb84e0420f100ed047e1fb4083efc238ca",
+  "candidate_tree": "WORKING-TREE-k2a-headless-conformance-host",
+  "changed_lines": 5100,
+  "plus": 5042,
+  "minus": 58,
+  "paths_count": 85,
+  "evidence_fingerprint": "sha256:c49cd7afe377629773898b6009c59cef06ed0166cb4b489c3502508f02105a12",
+  "diff_hash": "sha256:d0695d74d1b28b1a7eb1eb0587d41f6fdf64e7ab2bf50e9d67ee4ddfe862f82a",
+  "paths_digest": "sha256:8a9ab65fa797bf4c2b69fc57e04afa20888f5f68754fadf37579988cd815bfe3"
+}
