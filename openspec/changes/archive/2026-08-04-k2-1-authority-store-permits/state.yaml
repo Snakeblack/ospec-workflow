@@ -1,0 +1,203 @@
+change: k2-1-authority-store-permits
+status: ready-for-archive
+created_at: "2026-08-04T18:56:02.948Z"
+last_updated: "2026-08-04T20:20:00.000Z"
+blocking_questions: []
+
+classification: high-risk
+owner:
+  author: Manuel Retamozo
+  branch: feat/k2-1-authority-store-permits
+workload: {}
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "K2.1 Authority Store / permits / effect semantics is high-risk kernel authority on an active project; first matching route is standard (clarify + 4R). Analysis 'critical' denotes program priority, not a declared route name."
+  validated: true
+  validation_errors: []
+execution_mode: auto
+delivery_strategy: exception-ok
+approvals:
+  - id: exec-mode-001
+    gate: execution-mode
+    decision: auto
+    source: user-chat
+    accepted_at: "2026-08-04T18:56:02.948Z"
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: user-chat
+    accepted_at: "2026-08-04T18:56:02.948Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: assumption-reconciliation-001
+    gate: architecture
+    decision: "confirm sdd-design-001, sdd-apply-001, sdd-propose-001, sdd-design-002"
+    source: user-chat
+    accepted_at: "2026-08-04T19:33:00.000Z"
+    applies_to:
+      - sdd-verify
+  - id: remediation-001
+    gate: 4r-review-gate
+    decision: correct-all-8-blocking-findings
+    source: user-chat
+    accepted_at: "2026-08-04T20:00:00.000Z"
+    applies_to:
+      - 4r-review-gate
+  - id: archive-001
+    gate: sdd-archive
+    decision: proceed-archive
+    source: user-chat
+    accepted_at: "2026-08-04T20:16:00.000Z"
+    applies_to:
+      - sdd-archive
+assumptions:
+  - id: sdd-propose-001
+    phase: sdd-propose
+    statement: "Tres capacidades nuevas (authority-store, operation-permits, effect-semantics) más deltas en lifecycle-kernel-runtime, minimal-kernel-harness, lifecycle-model-conformance, kernel-contract-schemas y harness-authority-canon."
+    reversibility: high
+    basis: "Partición 1:1 con los tres alcances de docs/roadmaps/harness-evolution.md §K2.1 y el patrón de capabilities de k2-lifecycle-kernel."
+    recorded_at: "2026-08-04T19:00:00.000Z"
+    status: confirmed
+    resolved_at: "2026-08-04T19:33:00.000Z"
+    resolution:
+      action: confirm
+      note: "User confirmed via question_gate 3.1"
+      resolved_at: "2026-08-04T19:33:00.000Z"
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "Revision digest = sha256Fingerprint(authority-store:revision, {state_digest, journal_digest}) with default subject_id lifecycle:default."
+    reversibility: low
+    basis: "Spec requires stable head revision; CAS must observe journal advances; single-subject K2 memory store pattern in createMemoryStore."
+    recorded_at: "2026-08-04T19:30:00.000Z"
+    status: confirmed
+    resolved_at: "2026-08-04T19:33:00.000Z"
+    resolution:
+      action: confirm
+      note: "User confirmed via question_gate 1.1"
+      resolved_at: "2026-08-04T19:33:00.000Z"
+  - id: sdd-design-002
+    phase: sdd-design
+    statement: "Existing reducer persist-node effects default to effect_class idempotent-keyed unless a fixture injects irreversible."
+    reversibility: high
+    basis: "K2 persist-node effects are keyed journaled mutations; irreversible is reserved for injected fault-matrix / external-I/O fixtures."
+    recorded_at: "2026-08-04T19:30:00.000Z"
+    status: confirmed
+    resolved_at: "2026-08-04T19:33:00.000Z"
+    resolution:
+      action: confirm
+      note: "User confirmed via question_gate 3.2"
+      resolved_at: "2026-08-04T19:33:00.000Z"
+  - id: sdd-apply-001
+    phase: sdd-apply
+    statement: "CAS allows mid-op commitJournal when state_digest matches the baseline captured at load for expectedRevision; concurrent state writers still cas-conflict."
+    reversibility: low
+    basis: "Design requires revision=state+journal and mid-op journal durability before final CAS; exact full-revision match would always fail after commitJournal."
+    recorded_at: "2026-08-04T21:30:00.000Z"
+    status: confirmed
+    resolved_at: "2026-08-04T19:33:00.000Z"
+    resolution:
+      action: confirm
+      note: "User confirmed via question_gate 2.1 — operational mid-op journal interpretation accepted"
+      resolved_at: "2026-08-04T19:33:00.000Z"
+gates:
+  clarify:
+    status: skipped
+    skip_reason: "residual_ambiguity false; public_contract_questions/conflicting_requirements/missing_acceptance_criteria empty"
+  4r-review-gate:
+    status: approved
+    lineage_status: approved
+    terminal_reason: all-remediation-slices-passed
+    lineage_id: "sha256:60b7f93edb2ed310dc0fff039b8e10f9be0a42e93a0a770d893844ccf4ba3b7e"
+    lineage_revision: 33
+    findings_summary: "4R approved: 8/8 blocking resolved; 10 WARNING/SUGGESTION remain advisory; terminal_reason=all-remediation-slices-passed"
+    archive_allowed: true
+    lineage_artifact: openspec/changes/k2-1-authority-store-permits/.4r/lineage.json
+baseline_fingerprints:
+  lifecycle-kernel-runtime: "sha256:0a13bcd5bd0d09dc84e1287db4a4d174cb559486df14ab5daf794651327c114b"
+  minimal-kernel-harness: "sha256:a30d5f3e5a63b88a831d53ae1a3e707a6df9def654458fb280cca7d994107ec8"
+  lifecycle-model-conformance: "sha256:6bd94a2be34599ea9e1e894b269319b74ed447a9741b7a0a55d986ec85af4f33"
+  kernel-contract-schemas: "sha256:e0f45a4c7deed0a3983efeb7f8cb3d45563db643f764a315e5e14779cbfa34d5"
+  harness-authority-canon: "sha256:01bc86b60bc41d30cb87071f7c8b6058994df44fd11672d4a0fe3b96c8af3af3"
+phases:
+  current: sdd-archive
+  completed:
+    - sdd-propose
+    - sdd-spec
+    - sdd-design
+    - sdd-tasks
+    - sdd-apply
+    - sdd-verify
+  proposal:
+    status: done
+    artifact: "openspec/changes/k2-1-authority-store-permits/proposal.md"
+    summary: "K2.1 CAS Authority Store, OperationPermit/Receipt, effect classes; closes K2 token≠permit gap before K2a/K3."
+    key_decisions:
+      - "TransitionOffer ≠ OperationPermit ≠ OperationReceipt; receipt/v1 not reused"
+      - "Mandatory CAS compareAndSwap; conflict does not restart work or inflate budgets"
+      - "Effect classes pure|idempotent-keyed|probeable|compensatable|irreversible"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/k2-1-authority-store-permits/specs/authority-store/spec.md"
+      - "openspec/changes/k2-1-authority-store-permits/specs/operation-permits/spec.md"
+      - "openspec/changes/k2-1-authority-store-permits/specs/effect-semantics/spec.md"
+      - "openspec/changes/k2-1-authority-store-permits/specs/lifecycle-kernel-runtime/spec.md"
+      - "openspec/changes/k2-1-authority-store-permits/specs/minimal-kernel-harness/spec.md"
+      - "openspec/changes/k2-1-authority-store-permits/specs/lifecycle-model-conformance/spec.md"
+      - "openspec/changes/k2-1-authority-store-permits/specs/kernel-contract-schemas/spec.md"
+      - "openspec/changes/k2-1-authority-store-permits/specs/harness-authority-canon/spec.md"
+    summary: "3 new specs (CAS store, permits/receipts, effect classes) + 5 deltas wiring runtime/harness/model/schemas/canon."
+    key_decisions:
+      - "TransitionOffer never authorizes; OperationReceipt ≠ receipt/v1"
+      - "K2.1 invariants promoted from deferred/opaque AuthorityToken to executable checkers"
+      - "Fault matrix CAS/stale/reuse/ambiguous-irreversible required via public harness entrypoint"
+  design:
+    status: done
+    artifact: "openspec/changes/k2-1-authority-store-permits/design.md"
+    summary: "CAS adapter over journal; runtime permit ledger; effect classes; OperationReceipt ≠ receipt/v1; 4 ADRs."
+    key_decisions:
+      - "CAS wraps journaled commit; revision = state+journal fingerprint"
+      - "Runtime-owned permit ledger; token alone insufficient"
+      - "Effect class policy; irreversible ambiguous → decide|stop"
+  tasks:
+    status: done
+    artifact: "openspec/changes/k2-1-authority-store-permits/tasks.md"
+    summary: "10 fases TDD: schemas→CAS store→permits→effects→kernel wire→harness matrix→7 model checkers→bridges/docs; size-exception ~1200–1800 LOC."
+    key_decisions:
+      - "Single PR size-exception (delivery-001 pre-approved); logical apply slices store→permit→effects→harness"
+      - "Every MUST REQ mapped to concrete file; 55 checklist tasks with RED→GREEN ordering"
+      - "Pin reason codes + subject_id lifecycle:default in apply-progress"
+  apply:
+    status: done
+    artifact: "openspec/changes/k2-1-authority-store-permits/apply-progress.md"
+    summary: "CAS Authority Store, runtime permits/receipts, effect classes, harness fault matrix, 7 model checkers; npm test green."
+    key_decisions:
+      - "Mid-op commitJournal allowed when state_digest matches load baseline for expectedRevision"
+      - "runKernelOperation requires compareAndSwap; auto-mints permits by default"
+      - "K2.1 schema families excluded from K1 frozen inventory; additive manifest/claims re-pinned"
+  verify:
+    status: done
+    verdict: PASS
+    artifact: "openspec/changes/k2-1-authority-store-permits/verify-report.md"
+    summary: "PASS: 54/54 MUST scenarios runtime-test; npm test 1868 pass/0 fail; K2.1 gate criteria green; assumptions confirmed."
+    key_decisions:
+      - "All four assumption_resolutions confirmed; mid-op CAS interpretation accepted"
+      - "Task 10.5 deferred to orchestrator 4R (not a verify defect)"
+  archive:
+    status: done
+    artifact: "openspec/changes/k2-1-authority-store-permits/archive-report.md"
+    summary: "Plan v1: 3 new + 5 delta specs prepared; 4 ADR promotions; 47-path inventory; runtime move pending."
+    key_decisions:
+      - "Prepared merges at specs/*/prepared-spec.md; live openspec/specs writes runtime-owned"
+      - "ADR targets docs/adr/adr-20260804-001..004-*"
+      - "10 advisory 4R warnings accepted; verify PASS; archive-001 approved"

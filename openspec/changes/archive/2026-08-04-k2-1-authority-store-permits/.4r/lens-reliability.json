@@ -1,0 +1,24 @@
+{
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "summary": "midOpJournalOk permite CAS concurrente tras commitJournal ajeno",
+      "acceptance_criteria": "CAS con R pre-journal de otro escritor y nextState distinto → cas-conflict y head intacto; test runtime verde."
+    },
+    {
+      "severity": "CRITICAL",
+      "summary": "Ruta mid-op journal CAS sin test pese a evidencia TDD afirmada",
+      "acceptance_criteria": "Tests de aceptación mid-op (journal-only ok) y rechazo si state_digest divergió."
+    },
+    {
+      "severity": "CRITICAL",
+      "summary": "Permit no enlaza operation solicitada al ledger",
+      "acceptance_criteria": "Mismatch de operation (y binding crítico ledger) → unauthorized/fail-closed; test dedicado en verde."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "consumePermit fallido tras CAS no bloquea; double-consume sin test",
+      "acceptance_criteria": "Fallo de consume post-CAS → blocked con código estable; segundo consume → permit-reuse cubierto por test."
+    }
+  ]
+}

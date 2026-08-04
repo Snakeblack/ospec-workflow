@@ -11,6 +11,7 @@ const {
   rejectProseLifecycleOperation,
   assertSingleLifecycleReducer,
   sourceDefinesReduceLifecycle,
+  assertPermitDoesNotOverrideAuthority,
 } = require("./bridges.js");
 
 test("routing bridge consumes structured K2 operation without changing fixed route defaults", () => {
@@ -109,4 +110,33 @@ test("assertSingleLifecycleReducer detects arrow/const/exported reduceLifecycle 
     sourceDefinesReduceLifecycle("module.exports = { reduceLifecycle };"),
     false
   );
+});
+
+test("K2.1 bridges: permit cannot override OpenSpec/Git; no second lifecycle authority", () => {
+  const routed = routeK2Operation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    operationPermit: { permit_id: "permit:runtime:0001" },
+  });
+  assert.equal(routed.ok, true);
+  assert.equal(routed.second_lifecycle_authority, false);
+  assert.equal(routed.openspec_git_sole_authority, true);
+  assert.equal(routed.route_policy, "fixed");
+  assert.equal(routed.adaptive, false);
+
+  const blocked = assertPermitDoesNotOverrideAuthority({
+    permit: { permit_id: "p1", overrides_openspec: true },
+    openspecFact: { status: "ready-for-apply" },
+    gitFact: { branch: "feat/x" },
+  });
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.code, "permit-cannot-override-openspec");
+
+  const ok = assertPermitDoesNotOverrideAuthority({
+    permit: { permit_id: "p1" },
+    openspecFact: { status: "ready-for-apply" },
+    gitFact: { branch: "feat/x" },
+  });
+  assert.equal(ok.ok, true);
+  assert.equal(ok.openspec_git_sole_authority, true);
 });

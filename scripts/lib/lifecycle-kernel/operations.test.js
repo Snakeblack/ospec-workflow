@@ -92,7 +92,8 @@ test("recover without recoverable interruption fails closed", () => {
   assert.equal(result.code, "invalid-transition");
 });
 
-test("authorizeOperation rejects missing authority token for mutating ops", () => {
+test("authorizeOperation rejects token-only and missing permit for mutating ops", () => {
+  const { createPermitLedger, mintOperationPermit } = require("./permits.js");
   const denied = authorizeOperation({
     operation: "start",
     arguments: { node_id: "n1" },
@@ -108,10 +109,27 @@ test("authorizeOperation rejects missing authority token for mutating ops", () =
   });
   assert.equal(allowed.ok, true);
 
-  const authed = authorizeOperation({
+  const tokenOnly = authorizeOperation({
     operation: "start",
     arguments: { node_id: "n1" },
     authorityToken: "opaque:token-1",
+  });
+  assert.equal(tokenOnly.ok, false);
+  assert.equal(tokenOnly.code, "unauthorized");
+
+  const ledger = createPermitLedger();
+  const head = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+  const permit = mintOperationPermit({
+    ledger,
+    operation: "start",
+    expected_revision: head,
+  });
+  const authed = authorizeOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    operationPermit: permit,
+    permitLedger: ledger,
+    headRevision: head,
   });
   assert.equal(authed.ok, true);
 });

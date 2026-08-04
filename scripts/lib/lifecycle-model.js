@@ -84,6 +84,16 @@ const DEFERRED_INVARIANTS = Object.freeze([
   }),
 ]);
 
+const K21_EXECUTABLE_INVARIANTS = Object.freeze([
+  Object.freeze({ id: "inv-k21-no-mutation-without-cas", name: "No mutation without CAS", optional: false }),
+  Object.freeze({ id: "inv-k21-stale-permit-reject", name: "Stale permit rejected", optional: false }),
+  Object.freeze({ id: "inv-k21-permit-reuse-reject", name: "Permit reuse rejected", optional: false }),
+  Object.freeze({ id: "inv-k21-irreversible-ambiguous", name: "Irreversible ambiguous → decide|stop", optional: false }),
+  Object.freeze({ id: "inv-k21-convergent-replay", name: "Convergent replay on same revision", optional: false }),
+  Object.freeze({ id: "inv-k21-no-self-grant", name: "No model self-grant of permits", optional: false }),
+  Object.freeze({ id: "inv-k21-direct-write-blocked", name: "Direct-write adapters blocked", optional: false }),
+]);
+
 function initialModelState() {
   return {
     schema_version: 1,
@@ -189,7 +199,19 @@ function checkRecoveryAdvances(state) {
   const reduced = reduceLifecycle(state, {
     operation: "recover",
     arguments: { node_id: "n1" },
-    authorityToken: "opaque:model",
+    ...(() => {
+      const { createPermitLedger, mintOperationPermit } = require("./lifecycle-kernel/permits.js");
+      const ledger = createPermitLedger();
+      const headRevision =
+        "sha256:modelrecoveraaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      const permit = mintOperationPermit({
+        ledger,
+        operation: "recover",
+        expected_revision: headRevision,
+        arguments: { node_id: "n1" },
+      });
+      return { operationPermit: permit, permitLedger: ledger, headRevision };
+    })(),
   });
   const after = digestLifecycleState(reduced.state);
   const ok = after !== before || reduced.outcome === "terminal";
@@ -257,26 +279,181 @@ const CHECKERS = {
   "inv-no-implicit-restart": (ctx) => checkNoImplicitRestart(ctx.state),
   "inv-events-non-authoritative": (ctx) => checkEventsNonAuthoritative(ctx.state),
   "inv-terminal-no-execute": () => checkTerminalNoExecute(),
+  "inv-k21-no-mutation-without-cas": () => checkK21NoMutationWithoutCas(),
+  "inv-k21-stale-permit-reject": () => checkK21StalePermitReject(),
+  "inv-k21-permit-reuse-reject": () => checkK21PermitReuseReject(),
+  "inv-k21-irreversible-ambiguous": () => checkK21IrreversibleAmbiguous(),
+  "inv-k21-convergent-replay": () => checkK21ConvergentReplay(),
+  "inv-k21-no-self-grant": () => checkK21NoSelfGrant(),
+  "inv-k21-direct-write-blocked": () => checkK21DirectWriteBlocked(),
 };
 
-function checkInvariant(id, context = {}) {
+function checkK21NoMutationWithoutCas() {
+  const { createMemoryStore } = require("./lifecycle-kernel/memory-store.js");
+  const { runKernelOperation } = require("./lifecycle-kernel/index.js");
+  const bare = createMemoryStore({
+    state: initialModelState(),
+  });
+  let rejected = false;
+  return runKernelOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    store: bare,
+    effectExecutor: async () => ({ ok: true }),
+  })
+    .then(() => ({ ok: false, invariant_id: "inv-k21-no-mutation-without-cas" }))
+    .catch((error) => {
+      rejected = error && error.code === "authority-store-required";
+      return { ok: rejected, invariant_id: "inv-k21-no-mutation-without-cas" };
+    });
+}
+
+function checkK21StalePermitReject() {
+  const { createPermitLedger, mintOperationPermit, authorizeMutation } = require("./lifecycle-kernel/permits.js");
+  const ledger = createPermitLedger();
+  const permit = mintOperationPermit({
+    ledger,
+    operation: "start",
+    expected_revision: "sha256:old",
+  });
+  const auth = authorizeMutation({
+    permit,
+    headRevision: "sha256:new",
+    ledger,
+  });
+  return {
+    ok: auth.ok === false && auth.code === "stale-permit",
+    invariant_id: "inv-k21-stale-permit-reject",
+  };
+}
+
+function checkK21PermitReuseReject() {
+  const { createPermitLedger, mintOperationPermit, authorizeMutation, consumePermit } = require("./lifecycle-kernel/permits.js");
+  const ledger = createPermitLedger();
+  const permit = mintOperationPermit({
+    ledger,
+    operation: "start",
+    expected_revision: "sha256:head",
+  });
+  consumePermit({
+    permit_id: permit.permit_id,
+    ledger,
+    subject_id: "lifecycle:default",
+    operation: "start",
+    revision: "sha256:next",
+    outcome: "advanced",
+  });
+  const reuse = authorizeMutation({ permit, headRevision: "sha256:head", ledger });
+  return {
+    ok: reuse.ok === false && reuse.code === "permit-reuse",
+    invariant_id: "inv-k21-permit-reuse-reject",
+  };
+}
+
+function checkK21IrreversibleAmbiguous() {
+  const { applyEffectPolicy } = require("./lifecycle-kernel/effect-policy.js");
+  const policy = applyEffectPolicy({ effect_class: "irreversible", ambiguous: true });
+  const ok =
+    policy.ok === false &&
+    policy.code === "irreversible-ambiguous" &&
+    policy.auto_retry === false &&
+    ["decide", "stop"].includes(policy.next_kind);
+  return { ok, invariant_id: "inv-k21-irreversible-ambiguous" };
+}
+
+function checkK21ConvergentReplay() {
+  const { createAuthorityStore } = require("./authority-store/index.js");
+  // Sync shape check: store API supports convergent replay flag contract.
+  const store = createAuthorityStore({ initial: { state: initialModelState(), journal: [] } });
+  return store.load().then(async (before) => {
+    const next = {
+      schema_version: 1,
+      status: "running",
+      nodes: { n1: { id: "n1", phase: "started", attempt: 1 } },
+    };
+    const journal = [
+      {
+        schema_version: 1,
+        kernel_version: 1,
+        operation_id: "sha256:op",
+        effect_id: "sha256:e",
+        status: "completed",
+        result: { ok: true },
+      },
+    ];
+    const first = await store.compareAndSwap("lifecycle:default", before.revision, next, journal);
+    const head = await store.load();
+    const replay = await store.compareAndSwap("lifecycle:default", head.revision, next, journal);
+    return {
+      ok: first.ok && replay.ok && replay.converged === true && replay.revision === head.revision,
+      invariant_id: "inv-k21-convergent-replay",
+    };
+  });
+}
+
+function checkK21NoSelfGrant() {
+  const { createPermitLedger, authorizeMutation } = require("./lifecycle-kernel/permits.js");
+  const ledger = createPermitLedger();
+  const fabricated = {
+    schema_version: 1,
+    kind: "operation-permit/v1",
+    permit_id: "permit:model-self-grant",
+    domain: "lifecycle",
+    operation: "start",
+    subject_id: "lifecycle:default",
+    expected_revision: "sha256:head",
+    arguments_digest: "sha256:a",
+    scope_digest: "sha256:b",
+    policy_digest: "sha256:c",
+    budget_ref: "budget:none",
+    single_use: true,
+  };
+  const auth = authorizeMutation({ permit: fabricated, headRevision: "sha256:head", ledger });
+  const tokenOnly = require("./lifecycle-kernel/operations.js").authorizeOperation({
+    operation: "start",
+    authorityToken: "opaque:model-token",
+  });
+  return {
+    ok:
+      auth.ok === false &&
+      auth.code === "permit-not-runtime-issued" &&
+      tokenOnly.ok === false &&
+      tokenOnly.code === "unauthorized",
+    invariant_id: "inv-k21-no-self-grant",
+  };
+}
+
+function checkK21DirectWriteBlocked() {
+  const { blockDirectWrite } = require("./lifecycle-kernel/effect-policy.js");
+  const blocked = blockDirectWrite({ hasPermit: false, usedCas: false, hasEffectClass: false });
+  const okPath = blockDirectWrite({ hasPermit: true, usedCas: true, hasEffectClass: true });
+  return {
+    ok: blocked.code === "direct-write-blocked" && okPath.ok === true,
+    invariant_id: "inv-k21-direct-write-blocked",
+  };
+}
+
+async function checkInvariant(id, context = {}) {
   const checker = CHECKERS[id];
   if (!checker) return { ok: false, invariant_id: id, code: "unknown-invariant" };
   const state = context.state || initialModelState();
-  return checker({ state, selector: context.selector || selectTransitions });
+  const result = checker({ state, selector: context.selector || selectTransitions });
+  return Promise.resolve(result);
 }
 
-function runAllInvariantCheckers(context = {}) {
-  const results = EXECUTABLE_INVARIANTS.map((inv) => {
-    const result = checkInvariant(inv.id, context);
-    return {
+async function runAllInvariantCheckers(context = {}) {
+  const allInvariants = [...EXECUTABLE_INVARIANTS, ...K21_EXECUTABLE_INVARIANTS];
+  const results = [];
+  for (const inv of allInvariants) {
+    const result = await checkInvariant(inv.id, context);
+    results.push({
       ...result,
       name: inv.name,
       optional: inv.optional,
       deferred: false,
       counts_as_enforced: true,
-    };
-  });
+    });
+  }
   const deferred = DEFERRED_INVARIANTS.map((inv) => ({
     ok: true,
     invariant_id: inv.id,
@@ -285,20 +462,45 @@ function runAllInvariantCheckers(context = {}) {
     counts_as_enforced: false,
     enforced_in_k2: false,
   }));
+  // CAS/permit/retry invariants must not appear on deferred list.
+  const deferredIds = new Set(deferred.map((d) => d.invariant_id));
+  for (const inv of K21_EXECUTABLE_INVARIANTS) {
+    if (deferredIds.has(inv.id)) {
+      return {
+        results: [...results, ...deferred],
+        enforced_count: results.length,
+        ok: false,
+        code: "k21-invariant-incorrectly-deferred",
+      };
+    }
+  }
   return {
     results: [...results, ...deferred],
     enforced_count: results.length,
     ok: results.every((r) => r.ok),
+    k21_count: K21_EXECUTABLE_INVARIANTS.length,
   };
 }
 
 function applyAction(state, action) {
   if (action === "status") return { state, outcome: "advanced" };
   const nodeId = "n1";
+  const { createPermitLedger, mintOperationPermit } = require("./lifecycle-kernel/permits.js");
+  const ledger = createPermitLedger();
+  const headRevision =
+    "sha256:modelexploreaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const permit = mintOperationPermit({
+    ledger,
+    operation: action,
+    expected_revision: headRevision,
+    arguments: { node_id: nodeId },
+  });
   const reduced = reduceLifecycle(state, {
     operation: action,
     arguments: { node_id: nodeId },
-    authorityToken: "opaque:model",
+    operationPermit: permit,
+    permitLedger: ledger,
+    headRevision,
   });
   return { state: reduced.state, outcome: reduced.outcome, code: reduced.code };
 }
@@ -382,15 +584,24 @@ function exploreModel(options = {}) {
   }
 
   // Also run the full checker suite on the initial state.
-  const suite = runAllInvariantCheckers({ state: initialModelState(), selector });
-  if (!suite.ok) {
-    const failed = suite.results.find((r) => !r.ok && r.counts_as_enforced);
+  // Note: exploreModel is sync for BFS; K2.1 async checkers are covered by runAllInvariantCheckers callers.
+  const suiteSync = {
+    ok: EXECUTABLE_INVARIANTS.every((inv) => {
+      const checker = CHECKERS[inv.id];
+      if (!checker) return false;
+      const result = checker({ state: initialModelState(), selector });
+      // Sync checkers only in explore path.
+      if (result && typeof result.then === "function") return true;
+      return result && result.ok;
+    }),
+  };
+  if (!suiteSync.ok) {
     return {
       ok: false,
       visited: visitCount,
       counterexample: {
         seed,
-        invariant_id: failed.invariant_id,
+        invariant_id: "inv-suite",
         trace: [],
         state: initialModelState(),
       },
@@ -444,6 +655,7 @@ async function replayCounterexample(counterexample) {
 module.exports = {
   MODEL_CONFIG,
   EXECUTABLE_INVARIANTS,
+  K21_EXECUTABLE_INVARIANTS,
   DEFERRED_INVARIANTS,
   exploreModel,
   checkInvariant,

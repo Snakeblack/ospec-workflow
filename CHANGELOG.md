@@ -8,6 +8,21 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.39.0] - 2026-08-04
+
+### Added
+- **K2.1 Authority Store**: CAS obligatorio (`compareAndSwap`) con revisión `state+journal`, durabilidad mid-op vía `commitJournal` y ancla por-writer (`mid_op_ticket`) que cierra recycle S0→S1→S0 y forge ajeno.
+- **OperationPermit / OperationReceipt**: ledger runtime-owned; `TransitionOffer` nunca autoriza; receipt distinto de `receipt/v1`; binding de operation/subject/args al ledger.
+- **Effect semantics**: clases cerradas `pure|idempotent-keyed|probeable|compensatable|irreversible`; irreversible ambiguo → `decide|stop` sin retry ciego; interrupt en `executing` persiste `unknown`.
+- **Harness / model / schemas**: fault matrix K2.1 (CAS/stale/reuse/irreversible), 7 checkers ejecutables, familias `operation-permit`, `operation-receipt`, `effect-class`.
+
+### Fixed
+- **4R remediation**: 8 hallazgos bloqueantes resueltos (ticket mid-op, authorize binding, interrupt unknown, tests mid-op, rename semántico, permit↔operation).
+
+### Docs
+- Specs baseline: `authority-store`, `operation-permits`, `effect-semantics` + deltas en runtime/harness/model/schemas/canon.
+- ADRs `adr-20260804-001`…`004`; change archivado en `openspec/changes/archive/2026-08-04-k2-1-authority-store-permits/`.
+
 ## [2.38.0] - 2026-08-04
 
 ### Added

@@ -35,12 +35,13 @@ function createJournalRecord({
   status,
   kernel_version = KERNEL_VERSION,
   result = null,
+  effect_class = null,
 }) {
   const allowed = new Set(["planned", "started", "completed", "failed", "unknown"]);
   if (!allowed.has(status)) {
     throw new Error(`invalid journal status: ${status}`);
   }
-  return {
+  const record = {
     schema_version: 1,
     kernel_version,
     operation_id,
@@ -48,9 +49,11 @@ function createJournalRecord({
     status,
     result,
   };
+  if (effect_class) record.effect_class = effect_class;
+  return record;
 }
 
-function reconcileEffect({ record }) {
+function reconcileEffect({ record, effect_class = null }) {
   if (!record || typeof record !== "object") {
     return { action: "fail-closed", code: "reconciliation-required" };
   }
@@ -64,7 +67,20 @@ function reconcileEffect({ record }) {
     // Replay-once: only pre-effect barrier proves the effect never ran (e.g. interrupt
     // after durable started, before executor). Any other started mark is ambiguous.
     if (record.result && record.result.barrier === "pre-effect") {
-      return { action: "retry-execute", reason: "started-pre-effect-safe-retry" };
+      const cls = effect_class || record.effect_class;
+      if (cls === "irreversible") {
+        // Irreversible must not blind-retry even on pre-effect if marked ambiguous externally;
+        // pre-effect still proves effect never ran, so retry-execute remains safe for pre-effect.
+        return { action: "retry-execute", reason: "started-pre-effect-safe-retry", same_key: true };
+      }
+      return { action: "retry-execute", reason: "started-pre-effect-safe-retry", same_key: true };
+    }
+    if ((effect_class || record.effect_class) === "irreversible") {
+      return {
+        action: "fail-closed",
+        code: "irreversible-ambiguous",
+        reason: "started-ambiguous-irreversible",
+      };
     }
     return {
       action: "fail-closed",
@@ -74,6 +90,13 @@ function reconcileEffect({ record }) {
   }
   if (record.status === "failed") {
     return { action: "skip", reason: "already-failed" };
+  }
+  if (record.status === "unknown" && (effect_class || record.effect_class) === "irreversible") {
+    return {
+      action: "fail-closed",
+      code: "irreversible-ambiguous",
+      reason: "unknown-irreversible",
+    };
   }
   return { action: "fail-closed", code: "reconciliation-required" };
 }

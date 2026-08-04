@@ -252,3 +252,104 @@ test("named execute and recover fixtures are invoked through the harness", async
   assert.notEqual(recover.final_state_digest, require("./lifecycle-kernel/state-digest.js").digestLifecycleState(failState));
   assert.equal(start.snapshot.state.nodes.n1.phase, "started");
 });
+
+test("K2.1 fault matrix: CAS conflict via public API — one winner, budgets unchanged", async () => {
+  const { runCasConflictFault } = require("./minimal-kernel-harness.js");
+  const result = await runCasConflictFault({ id: "fault:cas-conflict" });
+  assert.equal(result.winner_ok, true);
+  assert.equal(result.loser_ok, false);
+  assert.equal(result.loser_code, "cas-conflict");
+  assert.equal(result.budgets_unchanged, true);
+});
+
+test("K2.1 fault matrix: stale permit fails closed; head unchanged", async () => {
+  const { createPermitLedger, mintOperationPermit } = require("./lifecycle-kernel/permits.js");
+  const { createAuthorityStore, runKernelOperation } = require("./minimal-kernel-harness.js");
+  const store = createAuthorityStore({ initial: { state: pendingState } });
+  const before = await store.load();
+  const ledger = createPermitLedger();
+  const stale = mintOperationPermit({
+    ledger,
+    operation: "start",
+    expected_revision: "sha256:not-the-head",
+  });
+  const result = await runKernelOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    store,
+    mintPermit: false,
+    operationPermit: stale,
+    permitLedger: ledger,
+    effectExecutor: async () => ({ ok: true }),
+  });
+  assert.equal(result.outcome, "blocked");
+  assert.equal(result.code, "stale-permit");
+  assert.equal((await store.load()).revision, before.revision);
+});
+
+test("K2.1 fault matrix: permit reuse fails; no second advance", async () => {
+  const first = await runHarnessScenario({
+    id: "fault:permit-reuse-prep",
+    initialState: pendingState,
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+  });
+  assert.equal(first.snapshot.state.nodes.n1.phase, "started");
+
+  const { createPermitLedger, mintOperationPermit, consumePermit } = require("./lifecycle-kernel/permits.js");
+  const { runKernelOperation } = require("./minimal-kernel-harness.js");
+  const ledger = createPermitLedger();
+  const head = first.revision;
+  const permit = mintOperationPermit({
+    ledger,
+    operation: "complete",
+    expected_revision: head,
+  });
+  consumePermit({
+    permit_id: permit.permit_id,
+    ledger,
+    subject_id: "lifecycle:default",
+    operation: "complete",
+    revision: head,
+    outcome: "advanced",
+  });
+  const beforeDigest = first.final_state_digest;
+  const reuse = await runKernelOperation({
+    operation: "complete",
+    arguments: { node_id: "n1" },
+    store: first.store,
+    mintPermit: false,
+    operationPermit: permit,
+    permitLedger: ledger,
+    effectExecutor: async () => ({ ok: true }),
+  });
+  assert.equal(reuse.outcome, "blocked");
+  assert.equal(reuse.code, "permit-reuse");
+  assert.equal(reuse.state_digest, beforeDigest);
+});
+
+test("K2.1 fault matrix: ambiguous irreversible → decide|stop; no auto-retry", async () => {
+  const result = await runHarnessScenario({
+    id: "fault:irreversible-ambiguous",
+    initialState: pendingState,
+    irreversibleAmbiguousNext: "decide",
+    effect_class: "irreversible",
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+    effectExecutor: async () => ({ ok: true, ambiguous: true, next_kind: "decide" }),
+  });
+  assert.equal(result.outcome, "decision-required");
+  assert.equal(result.halted.reason, "decision-required");
+  assert.equal(result.halted.decision.kind, "decide");
+  assert.equal(result.halted.decision.not_code_defect, true);
+  assert.equal(result.snapshot.state.nodes.n1.phase, "pending");
+});
+
+test("K2.1 fixed-policy control-path remains green under K2.1 enforcement", async () => {
+  const fixed = await runHarnessScenario({
+    id: "fixed-policy-control",
+    initialState: pendingState,
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+  });
+  assert.equal(fixed.snapshot.state.nodes.n1.phase, "started");
+  assert.equal(fixed.halted, null);
+  assert.equal(fixed.operations[0].outcome, "advanced");
+});

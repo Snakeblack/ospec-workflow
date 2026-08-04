@@ -1,0 +1,19 @@
+{
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "summary": "Interrupt reescribe barrier executing→pre-effect y habilita retry-execute de irreversible ambiguo",
+      "acceptance_criteria": "Interrupt sin partial con barrier executing MUST persistir unknown o fail-closed irreversible-ambiguous|reconciliation-required; nunca reescribir a pre-effect Test: interrupt mid-executor + effect_class irreversible → journal ≠ pre-effect; resume no reinvoca executor Solo pre-effect durable (efecto no iniciado) MAY retry-execute"
+    },
+    {
+      "severity": "WARNING",
+      "summary": "Barreras commitJournal ignoran ok:false y continúan al executor",
+      "acceptance_criteria": "Si commitJournal.ok !== true MUST abortar fail-closed sin ejecutar el efecto Test con store que retorna ok:false en barrera pre-efecto: 0 invocaciones al executor"
+    },
+    {
+      "severity": "WARNING",
+      "summary": "Fault matrix y tests authority-store no cubren interrupt mid-ejecución ni CAS mid-op commitJournal",
+      "acceptance_criteria": "Fixture público interrupt tras executing + resume sin reintento ciego irreversible Unit test: commitJournal mid-op + CAS con expectedRevision de load ok; conflicto de estado → cas-conflict"
+    }
+  ]
+}

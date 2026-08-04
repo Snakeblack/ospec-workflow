@@ -1,0 +1,24 @@
+{
+  "findings": [
+    {
+      "severity": "BLOCKER",
+      "summary": "compareAndSwap acepta expectedRevision distinta del head vía midOpJournalOk cuando el state_digest coincide con un baseline previo (bypass CAS concurrente/reciclado).",
+      "acceptance_criteria": "CAS debe fallar closed salvo expectedRevision === currentRevision, o un ancla mid-op por-writer que no permita mutación de estado bajo R stale; fixture de carrera commitJournal+CAS stale y fixture S0→S1→S0 con R0 deben fallar closed."
+    },
+    {
+      "severity": "CRITICAL",
+      "summary": "authorizeMutation no valida operation/subject_id/arguments_digest del permit del ledger contra la mutación solicitada.",
+      "acceptance_criteria": "Authorize debe rechazar mismatch de operation, subject_id o arguments_digest respecto al permit del ledger y a los args presentados; tests negativos de rebind de op y args obligatorios."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "blockDirectWrite se llama con usedCas:true hardcodeado antes de compareAndSwap; el guard no enforce CAS.",
+      "acceptance_criteria": "usedCas solo tras CAS exitoso, o eliminar el claim pre-CAS; el invariante debe fallar si usedCas se afirma sin compareAndSwap ok."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "commitJournal es API pública sin revisión/permit y muta journal (componente de la revisión) fuera de CAS.",
+      "acceptance_criteria": "commitJournal debe exigir ancla de revisión del writer o no ser público; llamada externa arbitraria debe fallar closed o no alterar head sin CAS."
+    }
+  ]
+}

@@ -1,0 +1,1323 @@
+{
+  "schema_version": 1,
+  "lineage_id": "sha256:60b7f93edb2ed310dc0fff039b8e10f9be0a42e93a0a770d893844ccf4ba3b7e",
+  "generation": 1,
+  "predecessor_lineage_id": null,
+  "recovery": null,
+  "revision": 33,
+  "status": "approved",
+  "genesis": {
+    "candidate": {
+      "projection": "workspace",
+      "base_tree": "a27a7ddbcf4db711028a84cd493ef86f9218199c",
+      "candidate_tree": "WORKING-TREE-k2-1-authority-store-permits",
+      "paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/effect-class/fixtures/invalid/exactly-once.json",
+        "schemas/kernel/effect-class/fixtures/valid/idempotent-keyed.json",
+        "schemas/kernel/effect-class/v1.schema.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/operation-permit/fixtures/invalid/reusable.json",
+        "schemas/kernel/operation-permit/fixtures/valid/minimal.json",
+        "schemas/kernel/operation-permit/v1.schema.json",
+        "schemas/kernel/operation-receipt/fixtures/invalid/missing-permit.json",
+        "schemas/kernel/operation-receipt/fixtures/valid/minimal.json",
+        "schemas/kernel/operation-receipt/v1.schema.json",
+        "scripts/lib/authority-store/index.js",
+        "scripts/lib/authority-store/index.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k21-maturity-docs.test.js",
+        "scripts/lib/k21-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/bridges.js",
+        "scripts/lib/lifecycle-kernel/bridges.test.js",
+        "scripts/lib/lifecycle-kernel/effect-policy.js",
+        "scripts/lib/lifecycle-kernel/effect-policy.test.js",
+        "scripts/lib/lifecycle-kernel/index.js",
+        "scripts/lib/lifecycle-kernel/index.test.js",
+        "scripts/lib/lifecycle-kernel/journal.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/lifecycle-kernel/k21-k1-compat.test.js",
+        "scripts/lib/lifecycle-kernel/k21-scope-guard.test.js",
+        "scripts/lib/lifecycle-kernel/memory-store.js",
+        "scripts/lib/lifecycle-kernel/operations.js",
+        "scripts/lib/lifecycle-kernel/operations.test.js",
+        "scripts/lib/lifecycle-kernel/permits.js",
+        "scripts/lib/lifecycle-kernel/permits.test.js",
+        "scripts/lib/lifecycle-kernel/reducer.js",
+        "scripts/lib/lifecycle-kernel/reducer.test.js",
+        "scripts/lib/lifecycle-kernel/scope-guard.js",
+        "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/lifecycle-model.test.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "diff_hash": "sha256:85b301cb4bb3ca7c5b2a6cae498e01c81fb38670f324e7f90b072cf062978fd6",
+      "paths_digest": "sha256:297bcaf618207832a257aac26ba974fa4035a026f7c34c0275e927218852b994",
+      "authored_lines": 3155,
+      "original_changed_lines": 3155
+    },
+    "candidate_id": "sha256:02120799686ed42255fdc3866eeedf90558900b71704f4e57e6764a53e0b521c",
+    "paths": [
+      "docs/architecture/harness-evolution.md",
+      "docs/roadmaps/harness-evolution.md",
+      "schemas/kernel/contract-claims.json",
+      "schemas/kernel/effect-class/fixtures/invalid/exactly-once.json",
+      "schemas/kernel/effect-class/fixtures/valid/idempotent-keyed.json",
+      "schemas/kernel/effect-class/v1.schema.json",
+      "schemas/kernel/manifest.json",
+      "schemas/kernel/operation-permit/fixtures/invalid/reusable.json",
+      "schemas/kernel/operation-permit/fixtures/valid/minimal.json",
+      "schemas/kernel/operation-permit/v1.schema.json",
+      "schemas/kernel/operation-receipt/fixtures/invalid/missing-permit.json",
+      "schemas/kernel/operation-receipt/fixtures/valid/minimal.json",
+      "schemas/kernel/operation-receipt/v1.schema.json",
+      "scripts/lib/authority-store/index.js",
+      "scripts/lib/authority-store/index.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/k21-maturity-docs.test.js",
+      "scripts/lib/k21-schema-fixtures.test.js",
+      "scripts/lib/lifecycle-kernel/bridges.js",
+      "scripts/lib/lifecycle-kernel/bridges.test.js",
+      "scripts/lib/lifecycle-kernel/effect-policy.js",
+      "scripts/lib/lifecycle-kernel/effect-policy.test.js",
+      "scripts/lib/lifecycle-kernel/index.js",
+      "scripts/lib/lifecycle-kernel/index.test.js",
+      "scripts/lib/lifecycle-kernel/journal.js",
+      "scripts/lib/lifecycle-kernel/k1-compat.js",
+      "scripts/lib/lifecycle-kernel/k21-k1-compat.test.js",
+      "scripts/lib/lifecycle-kernel/k21-scope-guard.test.js",
+      "scripts/lib/lifecycle-kernel/memory-store.js",
+      "scripts/lib/lifecycle-kernel/operations.js",
+      "scripts/lib/lifecycle-kernel/operations.test.js",
+      "scripts/lib/lifecycle-kernel/permits.js",
+      "scripts/lib/lifecycle-kernel/permits.test.js",
+      "scripts/lib/lifecycle-kernel/reducer.js",
+      "scripts/lib/lifecycle-kernel/reducer.test.js",
+      "scripts/lib/lifecycle-kernel/scope-guard.js",
+      "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+      "scripts/lib/lifecycle-model.js",
+      "scripts/lib/lifecycle-model.test.js",
+      "scripts/lib/minimal-kernel-harness.js",
+      "scripts/lib/minimal-kernel-harness.test.js"
+    ],
+    "classification": "high-risk",
+    "selected_dimensions": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "evidence_fingerprint": "sha256:4e94548cb70e9d01c2d737b1047a0ed4e68df65776ca3dca9e6ee121cf8e36b5",
+    "original_changed_lines": 3155,
+    "authored_lines": 3155
+  },
+  "current_candidate_id": "sha256:13bbd6f18cc757d514ef8bcf3ea8d55bc332b7cd0753955780754bcdc8e1e8dc",
+  "current_candidate": {
+    "projection": "workspace",
+    "base_tree": "a27a7ddbcf4db711028a84cd493ef86f9218199c",
+    "candidate_tree": "WORKING-TREE-k2-1-authority-store-permits-s8",
+    "paths": [
+      "docs/architecture/harness-evolution.md",
+      "docs/roadmaps/harness-evolution.md",
+      "schemas/kernel/contract-claims.json",
+      "schemas/kernel/effect-class/fixtures/invalid/exactly-once.json",
+      "schemas/kernel/effect-class/fixtures/valid/idempotent-keyed.json",
+      "schemas/kernel/effect-class/v1.schema.json",
+      "schemas/kernel/manifest.json",
+      "schemas/kernel/operation-permit/fixtures/invalid/reusable.json",
+      "schemas/kernel/operation-permit/fixtures/valid/minimal.json",
+      "schemas/kernel/operation-permit/v1.schema.json",
+      "schemas/kernel/operation-receipt/fixtures/invalid/missing-permit.json",
+      "schemas/kernel/operation-receipt/fixtures/valid/minimal.json",
+      "schemas/kernel/operation-receipt/v1.schema.json",
+      "scripts/lib/authority-store/index.js",
+      "scripts/lib/authority-store/index.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/k21-maturity-docs.test.js",
+      "scripts/lib/k21-schema-fixtures.test.js",
+      "scripts/lib/lifecycle-kernel/bridges.js",
+      "scripts/lib/lifecycle-kernel/bridges.test.js",
+      "scripts/lib/lifecycle-kernel/effect-policy.js",
+      "scripts/lib/lifecycle-kernel/effect-policy.test.js",
+      "scripts/lib/lifecycle-kernel/index.js",
+      "scripts/lib/lifecycle-kernel/index.test.js",
+      "scripts/lib/lifecycle-kernel/journal.js",
+      "scripts/lib/lifecycle-kernel/k1-compat.js",
+      "scripts/lib/lifecycle-kernel/k21-k1-compat.test.js",
+      "scripts/lib/lifecycle-kernel/k21-scope-guard.test.js",
+      "scripts/lib/lifecycle-kernel/memory-store.js",
+      "scripts/lib/lifecycle-kernel/operations.js",
+      "scripts/lib/lifecycle-kernel/operations.test.js",
+      "scripts/lib/lifecycle-kernel/permits.js",
+      "scripts/lib/lifecycle-kernel/permits.test.js",
+      "scripts/lib/lifecycle-kernel/reducer.js",
+      "scripts/lib/lifecycle-kernel/reducer.test.js",
+      "scripts/lib/lifecycle-kernel/scope-guard.js",
+      "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+      "scripts/lib/lifecycle-model.js",
+      "scripts/lib/lifecycle-model.test.js",
+      "scripts/lib/minimal-kernel-harness.js",
+      "scripts/lib/minimal-kernel-harness.test.js"
+    ],
+    "diff_hash": "sha256:0233eac11a53c5cbe2f53d062ce95a95a8bae69b6ecbf1f34b92e42d3e2a3f50",
+    "paths_digest": "sha256:297bcaf618207832a257aac26ba974fa4035a026f7c34c0275e927218852b994",
+    "authored_lines": 3155,
+    "original_changed_lines": 3155
+  },
+  "lenses": {
+    "risk": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-risk-k21",
+      "result_digest": "sha256:d3f305386b79010471fd3beda85fd7f262d42d490dae9c2425d86ba86378383f",
+      "result": {
+        "findings": [
+          {
+            "severity": "BLOCKER",
+            "summary": "compareAndSwap acepta expectedRevision distinta del head vía midOpJournalOk cuando el state_digest coincide con un baseline previo (bypass CAS concurrente/reciclado).",
+            "acceptance_criteria": "CAS debe fallar closed salvo expectedRevision === currentRevision, o un ancla mid-op por-writer que no permita mutación de estado bajo R stale; fixture de carrera commitJournal+CAS stale y fixture S0→S1→S0 con R0 deben fallar closed."
+          },
+          {
+            "severity": "CRITICAL",
+            "summary": "authorizeMutation no valida operation/subject_id/arguments_digest del permit del ledger contra la mutación solicitada.",
+            "acceptance_criteria": "Authorize debe rechazar mismatch de operation, subject_id o arguments_digest respecto al permit del ledger y a los args presentados; tests negativos de rebind de op y args obligatorios."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "blockDirectWrite se llama con usedCas:true hardcodeado antes de compareAndSwap; el guard no enforce CAS.",
+            "acceptance_criteria": "usedCas solo tras CAS exitoso, o eliminar el claim pre-CAS; el invariante debe fallar si usedCas se afirma sin compareAndSwap ok."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "commitJournal es API pública sin revisión/permit y muta journal (componente de la revisión) fuera de CAS.",
+            "acceptance_criteria": "commitJournal debe exigir ancla de revisión del writer o no ser público; llamada externa arbitraria debe fallar closed o no alterar head sin CAS."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "result-risk-k21"
+    },
+    "reliability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-reliability-k21",
+      "result_digest": "sha256:6908140334175a4d7009d7a734f750d65afa7e42de4787a3ee06c69c0a06b61c",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "midOpJournalOk permite CAS concurrente tras commitJournal ajeno",
+            "acceptance_criteria": "CAS con R pre-journal de otro escritor y nextState distinto → cas-conflict y head intacto; test runtime verde."
+          },
+          {
+            "severity": "CRITICAL",
+            "summary": "Ruta mid-op journal CAS sin test pese a evidencia TDD afirmada",
+            "acceptance_criteria": "Tests de aceptación mid-op (journal-only ok) y rechazo si state_digest divergió."
+          },
+          {
+            "severity": "CRITICAL",
+            "summary": "Permit no enlaza operation solicitada al ledger",
+            "acceptance_criteria": "Mismatch de operation (y binding crítico ledger) → unauthorized/fail-closed; test dedicado en verde."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "consumePermit fallido tras CAS no bloquea; double-consume sin test",
+            "acceptance_criteria": "Fallo de consume post-CAS → blocked con código estable; segundo consume → permit-reuse cubierto por test."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "result-reliability-k21"
+    },
+    "resilience": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-resilience-k21",
+      "result_digest": "sha256:2ce72774f08e356d535b4c7793ea2350cbd64285d81c01a41ecd29ed6d5e6065",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "Interrupt reescribe barrier executing→pre-effect y habilita retry-execute de irreversible ambiguo",
+            "acceptance_criteria": "Interrupt sin partial con barrier executing MUST persistir unknown o fail-closed irreversible-ambiguous|reconciliation-required; nunca reescribir a pre-effect Test: interrupt mid-executor + effect_class irreversible → journal ≠ pre-effect; resume no reinvoca executor Solo pre-effect durable (efecto no iniciado) MAY retry-execute"
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Barreras commitJournal ignoran ok:false y continúan al executor",
+            "acceptance_criteria": "Si commitJournal.ok !== true MUST abortar fail-closed sin ejecutar el efecto Test con store que retorna ok:false en barrera pre-efecto: 0 invocaciones al executor"
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Fault matrix y tests authority-store no cubren interrupt mid-ejecución ni CAS mid-op commitJournal",
+            "acceptance_criteria": "Fixture público interrupt tras executing + resume sin reintento ciego irreversible Unit test: commitJournal mid-op + CAS con expectedRevision de load ok; conflicto de estado → cas-conflict"
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "result-resilience-k21"
+    },
+    "readability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-readability-k21",
+      "result_digest": "sha256:6594fab9efb8501f81b611f5ae9913e967db847a6606cf1db9a171f466965574",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "Semántica mid-op oculta en compareAndSwap vía midOpJournalOk sin comentario ni nombre claro.",
+            "acceptance_criteria": "Documentar invariante baseline state_digest + renombrar midOpJournalOk; comentar por qué expectedRevision puede diferir del head tras commitJournal."
+          },
+          {
+            "severity": "CRITICAL",
+            "summary": "commitJournal no declara que muta journal fuera del chequeo de revisión del CAS.",
+            "acceptance_criteria": "JSDoc en commitJournal y compareAndSwap describiendo protocolo mid-op de dos fases (durabilidad pre-CAS + CAS tolerante a baseline)."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "consumePermit tiene if vacío que mezcla expected_revision (permit) y revision (receipt).",
+            "acceptance_criteria": "Eliminar if vacío o rechazar de verdad; documentar que consume emite receipt post-CAS sin revalidar stale."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "transitionOffer como parámetro peer de permit sugiere que el offer autoriza.",
+            "acceptance_criteria": "Quitar transitionOffer de authorize* o JSDoc explícito: offer non-authorizing / solo offer-only reject."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Loop de efectos en runKernelOperation anida más de 3 niveles.",
+            "acceptance_criteria": "Extraer helpers de barrier/interrupt para ≤3 niveles en el loop principal."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Interrupt reescribe barrier executing→pre-effect sin comentario.",
+            "acceptance_criteria": "Comentar la justificación en el sitio o materializar estado ambiguo distinto de pre-effect."
+          },
+          {
+            "severity": "SUGGESTION",
+            "summary": "Rama irreversible en reconcileEffect es idéntica a la no irreversible.",
+            "acceptance_criteria": "Colapsar ramas o implementar diferencia real alineada al comentario."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "result-readability-k21"
+    }
+  },
+  "findings": [
+    {
+      "id": "F-b395d498678f2816",
+      "owner": "risk",
+      "severity": "BLOCKER",
+      "summary": "compareAndSwap acepta expectedRevision distinta del head vía midOpJournalOk cuando el state_digest coincide con un baseline previo (bypass CAS concurrente/reciclado).",
+      "acceptance_criteria": "CAS debe fallar closed salvo expectedRevision === currentRevision, o un ancla mid-op por-writer que no permita mutación de estado bajo R stale; fixture de carrera commitJournal+CAS stale y fixture S0→S1→S0 con R0 deben fallar closed.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-5c5a1ec7d4801e6a",
+      "owner": "risk",
+      "severity": "CRITICAL",
+      "summary": "authorizeMutation no valida operation/subject_id/arguments_digest del permit del ledger contra la mutación solicitada.",
+      "acceptance_criteria": "Authorize debe rechazar mismatch de operation, subject_id o arguments_digest respecto al permit del ledger y a los args presentados; tests negativos de rebind de op y args obligatorios.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-14dbb8e2b5bedc92",
+      "owner": "risk",
+      "severity": "WARNING",
+      "summary": "blockDirectWrite se llama con usedCas:true hardcodeado antes de compareAndSwap; el guard no enforce CAS.",
+      "acceptance_criteria": "usedCas solo tras CAS exitoso, o eliminar el claim pre-CAS; el invariante debe fallar si usedCas se afirma sin compareAndSwap ok.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-2e44f6ded70c698e",
+      "owner": "risk",
+      "severity": "WARNING",
+      "summary": "commitJournal es API pública sin revisión/permit y muta journal (componente de la revisión) fuera de CAS.",
+      "acceptance_criteria": "commitJournal debe exigir ancla de revisión del writer o no ser público; llamada externa arbitraria debe fallar closed o no alterar head sin CAS.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-2cb8582ee07f41fc",
+      "owner": "reliability",
+      "severity": "CRITICAL",
+      "summary": "midOpJournalOk permite CAS concurrente tras commitJournal ajeno",
+      "acceptance_criteria": "CAS con R pre-journal de otro escritor y nextState distinto → cas-conflict y head intacto; test runtime verde.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-5dabe898b9b03f44",
+      "owner": "reliability",
+      "severity": "CRITICAL",
+      "summary": "Ruta mid-op journal CAS sin test pese a evidencia TDD afirmada",
+      "acceptance_criteria": "Tests de aceptación mid-op (journal-only ok) y rechazo si state_digest divergió.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-aaca1885fa28dcc4",
+      "owner": "reliability",
+      "severity": "CRITICAL",
+      "summary": "Permit no enlaza operation solicitada al ledger",
+      "acceptance_criteria": "Mismatch de operation (y binding crítico ledger) → unauthorized/fail-closed; test dedicado en verde.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-ef7f31694da99f27",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "consumePermit fallido tras CAS no bloquea; double-consume sin test",
+      "acceptance_criteria": "Fallo de consume post-CAS → blocked con código estable; segundo consume → permit-reuse cubierto por test.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-4bf30d9c8ce96e4b",
+      "owner": "resilience",
+      "severity": "CRITICAL",
+      "summary": "Interrupt reescribe barrier executing→pre-effect y habilita retry-execute de irreversible ambiguo",
+      "acceptance_criteria": "Interrupt sin partial con barrier executing MUST persistir unknown o fail-closed irreversible-ambiguous|reconciliation-required; nunca reescribir a pre-effect Test: interrupt mid-executor + effect_class irreversible → journal ≠ pre-effect; resume no reinvoca executor Solo pre-effect durable (efecto no iniciado) MAY retry-execute",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-55bd97b29ebc4608",
+      "owner": "resilience",
+      "severity": "WARNING",
+      "summary": "Barreras commitJournal ignoran ok:false y continúan al executor",
+      "acceptance_criteria": "Si commitJournal.ok !== true MUST abortar fail-closed sin ejecutar el efecto Test con store que retorna ok:false en barrera pre-efecto: 0 invocaciones al executor",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-ddab94b038e8d838",
+      "owner": "resilience",
+      "severity": "WARNING",
+      "summary": "Fault matrix y tests authority-store no cubren interrupt mid-ejecución ni CAS mid-op commitJournal",
+      "acceptance_criteria": "Fixture público interrupt tras executing + resume sin reintento ciego irreversible Unit test: commitJournal mid-op + CAS con expectedRevision de load ok; conflicto de estado → cas-conflict",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-742a1e919fd6e3a3",
+      "owner": "readability",
+      "severity": "CRITICAL",
+      "summary": "Semántica mid-op oculta en compareAndSwap vía midOpJournalOk sin comentario ni nombre claro.",
+      "acceptance_criteria": "Documentar invariante baseline state_digest + renombrar midOpJournalOk; comentar por qué expectedRevision puede diferir del head tras commitJournal.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-202fb76dd7e38c87",
+      "owner": "readability",
+      "severity": "CRITICAL",
+      "summary": "commitJournal no declara que muta journal fuera del chequeo de revisión del CAS.",
+      "acceptance_criteria": "JSDoc en commitJournal y compareAndSwap describiendo protocolo mid-op de dos fases (durabilidad pre-CAS + CAS tolerante a baseline).",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-bd27a22f78d52b17",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "consumePermit tiene if vacío que mezcla expected_revision (permit) y revision (receipt).",
+      "acceptance_criteria": "Eliminar if vacío o rechazar de verdad; documentar que consume emite receipt post-CAS sin revalidar stale.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-c8aca91e7038f73f",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "transitionOffer como parámetro peer de permit sugiere que el offer autoriza.",
+      "acceptance_criteria": "Quitar transitionOffer de authorize* o JSDoc explícito: offer non-authorizing / solo offer-only reject.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-f259fd5761c2f1e6",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "Loop de efectos en runKernelOperation anida más de 3 niveles.",
+      "acceptance_criteria": "Extraer helpers de barrier/interrupt para ≤3 niveles en el loop principal.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-a926938492433da7",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "Interrupt reescribe barrier executing→pre-effect sin comentario.",
+      "acceptance_criteria": "Comentar la justificación en el sitio o materializar estado ambiguo distinto de pre-effect.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-f5309077a189d636",
+      "owner": "readability",
+      "severity": "SUGGESTION",
+      "summary": "Rama irreversible en reconcileEffect es idéntica a la no irreversible.",
+      "acceptance_criteria": "Colapsar ramas o implementar diferencia real alineada al comentario.",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ],
+  "findings_digest": "sha256:4d808fb81538ef0821ab00f9ecc431704bf5c9ed86a5f58409f78209dc0eea28",
+  "correction_budget": {
+    "limit_lines": 200,
+    "used_lines": 0,
+    "failed_attempts": 0,
+    "max_failed_attempts": 3
+  },
+  "correction_history": [],
+  "validation_history": [],
+  "follow_ups": [],
+  "pending_operation": null,
+  "pending_correction": null,
+  "terminal_reason": "all-remediation-slices-passed",
+  "remediation_schema_version": 2,
+  "remediation_migration": {
+    "source_digest": "sha256:d6822e5e3c64a8344fb1406a9f6402bb5212fdcbd26d1307b9d10207bcd869a3",
+    "manifest_digest": "sha256:c458ad1e397d58560c8aaae132186f75caf0722966edb7673b83d15a57cb8e69",
+    "legacy_used_lines": 0,
+    "legacy_failed_attempts": 0,
+    "migrated_at": "deterministic"
+  },
+  "slice_order": [
+    "S-de044661da173d91",
+    "S-bc8e69f5cb9688e3",
+    "S-5f47bc4ff55fc643",
+    "S-842f6a2f2ac48d11",
+    "S-1c6ef37181185c43",
+    "S-b30698c584e6090f",
+    "S-8d958c32afcc3b25",
+    "S-e545fd5eb1eaef14"
+  ],
+  "active_slice_id": null,
+  "correction_slices": {
+    "S-de044661da173d91": {
+      "slice_id": "S-de044661da173d91",
+      "root_cause_key": "F-202fb76dd7e38c87",
+      "finding_ids": [
+        "F-202fb76dd7e38c87"
+      ],
+      "evidence_digests": [
+        "sha256:e9368c105001ca745721378927c9631625e4d8a298ade1bac687b6600edbde61"
+      ],
+      "permitted_paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/effect-class/fixtures/invalid/exactly-once.json",
+        "schemas/kernel/effect-class/fixtures/valid/idempotent-keyed.json",
+        "schemas/kernel/effect-class/v1.schema.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/operation-permit/fixtures/invalid/reusable.json",
+        "schemas/kernel/operation-permit/fixtures/valid/minimal.json",
+        "schemas/kernel/operation-permit/v1.schema.json",
+        "schemas/kernel/operation-receipt/fixtures/invalid/missing-permit.json",
+        "schemas/kernel/operation-receipt/fixtures/valid/minimal.json",
+        "schemas/kernel/operation-receipt/v1.schema.json",
+        "scripts/lib/authority-store/index.js",
+        "scripts/lib/authority-store/index.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k21-maturity-docs.test.js",
+        "scripts/lib/k21-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/bridges.js",
+        "scripts/lib/lifecycle-kernel/bridges.test.js",
+        "scripts/lib/lifecycle-kernel/effect-policy.js",
+        "scripts/lib/lifecycle-kernel/effect-policy.test.js",
+        "scripts/lib/lifecycle-kernel/index.js",
+        "scripts/lib/lifecycle-kernel/index.test.js",
+        "scripts/lib/lifecycle-kernel/journal.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/lifecycle-kernel/k21-k1-compat.test.js",
+        "scripts/lib/lifecycle-kernel/k21-scope-guard.test.js",
+        "scripts/lib/lifecycle-kernel/memory-store.js",
+        "scripts/lib/lifecycle-kernel/operations.js",
+        "scripts/lib/lifecycle-kernel/operations.test.js",
+        "scripts/lib/lifecycle-kernel/permits.js",
+        "scripts/lib/lifecycle-kernel/permits.test.js",
+        "scripts/lib/lifecycle-kernel/reducer.js",
+        "scripts/lib/lifecycle-kernel/reducer.test.js",
+        "scripts/lib/lifecycle-kernel/scope-guard.js",
+        "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/lifecycle-model.test.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "resolutions": {
+        "F-202fb76dd7e38c87": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 25,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-de044661da173d91",
+          "request_id": "correct-S-de044661da173d91-1",
+          "finding_ids": [
+            "F-202fb76dd7e38c87"
+          ],
+          "paths": [
+            "scripts/lib/authority-store/index.js"
+          ],
+          "base_candidate_id": "sha256:02120799686ed42255fdc3866eeedf90558900b71704f4e57e6764a53e0b521c",
+          "forecast_lines": 40,
+          "actual_changed_lines": 25,
+          "record_request_id": "record-S-de044661da173d91-1",
+          "corrected_candidate_id": "sha256:01f4b4b3145741ba2a5a9294033d2e451e736de1c7269b7465b554c8267ce4af"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-S-de044661da173d91-1",
+          "outcomes": [
+            {
+              "id": "F-202fb76dd7e38c87",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "targeted inspection of scripts/lib/authority-store/index.js JSDoc on commitJournal and compareAndSwap"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-bc8e69f5cb9688e3": {
+      "slice_id": "S-bc8e69f5cb9688e3",
+      "root_cause_key": "F-2cb8582ee07f41fc",
+      "finding_ids": [
+        "F-2cb8582ee07f41fc"
+      ],
+      "evidence_digests": [
+        "sha256:120d4f744125abc89bc8a4964088d62bcd00ad69c932d0010f68384244a7d323"
+      ],
+      "permitted_paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/effect-class/fixtures/invalid/exactly-once.json",
+        "schemas/kernel/effect-class/fixtures/valid/idempotent-keyed.json",
+        "schemas/kernel/effect-class/v1.schema.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/operation-permit/fixtures/invalid/reusable.json",
+        "schemas/kernel/operation-permit/fixtures/valid/minimal.json",
+        "schemas/kernel/operation-permit/v1.schema.json",
+        "schemas/kernel/operation-receipt/fixtures/invalid/missing-permit.json",
+        "schemas/kernel/operation-receipt/fixtures/valid/minimal.json",
+        "schemas/kernel/operation-receipt/v1.schema.json",
+        "scripts/lib/authority-store/index.js",
+        "scripts/lib/authority-store/index.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k21-maturity-docs.test.js",
+        "scripts/lib/k21-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/bridges.js",
+        "scripts/lib/lifecycle-kernel/bridges.test.js",
+        "scripts/lib/lifecycle-kernel/effect-policy.js",
+        "scripts/lib/lifecycle-kernel/effect-policy.test.js",
+        "scripts/lib/lifecycle-kernel/index.js",
+        "scripts/lib/lifecycle-kernel/index.test.js",
+        "scripts/lib/lifecycle-kernel/journal.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/lifecycle-kernel/k21-k1-compat.test.js",
+        "scripts/lib/lifecycle-kernel/k21-scope-guard.test.js",
+        "scripts/lib/lifecycle-kernel/memory-store.js",
+        "scripts/lib/lifecycle-kernel/operations.js",
+        "scripts/lib/lifecycle-kernel/operations.test.js",
+        "scripts/lib/lifecycle-kernel/permits.js",
+        "scripts/lib/lifecycle-kernel/permits.test.js",
+        "scripts/lib/lifecycle-kernel/reducer.js",
+        "scripts/lib/lifecycle-kernel/reducer.test.js",
+        "scripts/lib/lifecycle-kernel/scope-guard.js",
+        "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/lifecycle-model.test.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "resolutions": {
+        "F-2cb8582ee07f41fc": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 76,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-bc8e69f5cb9688e3",
+          "request_id": "correct-S-bc8e69f5cb9688e3-1",
+          "finding_ids": [
+            "F-2cb8582ee07f41fc"
+          ],
+          "paths": [
+            "scripts/lib/authority-store/index.js",
+            "scripts/lib/authority-store/index.test.js"
+          ],
+          "base_candidate_id": "sha256:01f4b4b3145741ba2a5a9294033d2e451e736de1c7269b7465b554c8267ce4af",
+          "forecast_lines": 80,
+          "actual_changed_lines": 76,
+          "record_request_id": "record-S-bc8e69f5cb9688e3-1",
+          "corrected_candidate_id": "sha256:dc0d044d93eb1cc032b227d63187aa3f3cb97c16bd4a9fe58e01b95a008cb545"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-S-bc8e69f5cb9688e3-1",
+          "outcomes": [
+            {
+              "id": "F-2cb8582ee07f41fc",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "node --test scripts/lib/authority-store/index.test.js → 9/9 pass; foreign commitJournal + CAS stale R → cas-conflict",
+              "JSDoc mid-op protocol intact (S-de044661da173d91)"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-5f47bc4ff55fc643": {
+      "slice_id": "S-5f47bc4ff55fc643",
+      "root_cause_key": "F-4bf30d9c8ce96e4b",
+      "finding_ids": [
+        "F-4bf30d9c8ce96e4b"
+      ],
+      "evidence_digests": [
+        "sha256:25ab542a2045e0963560f6691ba4f2319efb495427c394c29b39e2e90dd9e998"
+      ],
+      "permitted_paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/effect-class/fixtures/invalid/exactly-once.json",
+        "schemas/kernel/effect-class/fixtures/valid/idempotent-keyed.json",
+        "schemas/kernel/effect-class/v1.schema.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/operation-permit/fixtures/invalid/reusable.json",
+        "schemas/kernel/operation-permit/fixtures/valid/minimal.json",
+        "schemas/kernel/operation-permit/v1.schema.json",
+        "schemas/kernel/operation-receipt/fixtures/invalid/missing-permit.json",
+        "schemas/kernel/operation-receipt/fixtures/valid/minimal.json",
+        "schemas/kernel/operation-receipt/v1.schema.json",
+        "scripts/lib/authority-store/index.js",
+        "scripts/lib/authority-store/index.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k21-maturity-docs.test.js",
+        "scripts/lib/k21-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/bridges.js",
+        "scripts/lib/lifecycle-kernel/bridges.test.js",
+        "scripts/lib/lifecycle-kernel/effect-policy.js",
+        "scripts/lib/lifecycle-kernel/effect-policy.test.js",
+        "scripts/lib/lifecycle-kernel/index.js",
+        "scripts/lib/lifecycle-kernel/index.test.js",
+        "scripts/lib/lifecycle-kernel/journal.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/lifecycle-kernel/k21-k1-compat.test.js",
+        "scripts/lib/lifecycle-kernel/k21-scope-guard.test.js",
+        "scripts/lib/lifecycle-kernel/memory-store.js",
+        "scripts/lib/lifecycle-kernel/operations.js",
+        "scripts/lib/lifecycle-kernel/operations.test.js",
+        "scripts/lib/lifecycle-kernel/permits.js",
+        "scripts/lib/lifecycle-kernel/permits.test.js",
+        "scripts/lib/lifecycle-kernel/reducer.js",
+        "scripts/lib/lifecycle-kernel/reducer.test.js",
+        "scripts/lib/lifecycle-kernel/scope-guard.js",
+        "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/lifecycle-model.test.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "resolutions": {
+        "F-4bf30d9c8ce96e4b": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 59,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-5f47bc4ff55fc643",
+          "request_id": "correct-S-5f47bc4ff55fc643-1",
+          "finding_ids": [
+            "F-4bf30d9c8ce96e4b"
+          ],
+          "paths": [
+            "scripts/lib/lifecycle-kernel/effect-policy.js",
+            "scripts/lib/lifecycle-kernel/effect-policy.test.js",
+            "scripts/lib/lifecycle-kernel/index.js",
+            "scripts/lib/lifecycle-kernel/index.test.js"
+          ],
+          "base_candidate_id": "sha256:dc0d044d93eb1cc032b227d63187aa3f3cb97c16bd4a9fe58e01b95a008cb545",
+          "forecast_lines": 100,
+          "actual_changed_lines": 59,
+          "record_request_id": "record-S-5f47bc4ff55fc643-1",
+          "corrected_candidate_id": "sha256:a27f1fd5461b8a81831feb29cb966173b390ecd16a59d6b6d1dfa52fd10fdc11"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-S-5f47bc4ff55fc643-1",
+          "outcomes": [
+            {
+              "id": "F-4bf30d9c8ce96e4b",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "interrupt executing → unknown; resume no reinvoke; index 12/12",
+              "authority-store 9/9 intact"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-842f6a2f2ac48d11": {
+      "slice_id": "S-842f6a2f2ac48d11",
+      "root_cause_key": "F-5c5a1ec7d4801e6a",
+      "finding_ids": [
+        "F-5c5a1ec7d4801e6a"
+      ],
+      "evidence_digests": [
+        "sha256:59f1fdeca9fc95c0d4a724820fd749e21cc898b5379a8b61fa046b7aa151243d"
+      ],
+      "permitted_paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/effect-class/fixtures/invalid/exactly-once.json",
+        "schemas/kernel/effect-class/fixtures/valid/idempotent-keyed.json",
+        "schemas/kernel/effect-class/v1.schema.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/operation-permit/fixtures/invalid/reusable.json",
+        "schemas/kernel/operation-permit/fixtures/valid/minimal.json",
+        "schemas/kernel/operation-permit/v1.schema.json",
+        "schemas/kernel/operation-receipt/fixtures/invalid/missing-permit.json",
+        "schemas/kernel/operation-receipt/fixtures/valid/minimal.json",
+        "schemas/kernel/operation-receipt/v1.schema.json",
+        "scripts/lib/authority-store/index.js",
+        "scripts/lib/authority-store/index.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k21-maturity-docs.test.js",
+        "scripts/lib/k21-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/bridges.js",
+        "scripts/lib/lifecycle-kernel/bridges.test.js",
+        "scripts/lib/lifecycle-kernel/effect-policy.js",
+        "scripts/lib/lifecycle-kernel/effect-policy.test.js",
+        "scripts/lib/lifecycle-kernel/index.js",
+        "scripts/lib/lifecycle-kernel/index.test.js",
+        "scripts/lib/lifecycle-kernel/journal.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/lifecycle-kernel/k21-k1-compat.test.js",
+        "scripts/lib/lifecycle-kernel/k21-scope-guard.test.js",
+        "scripts/lib/lifecycle-kernel/memory-store.js",
+        "scripts/lib/lifecycle-kernel/operations.js",
+        "scripts/lib/lifecycle-kernel/operations.test.js",
+        "scripts/lib/lifecycle-kernel/permits.js",
+        "scripts/lib/lifecycle-kernel/permits.test.js",
+        "scripts/lib/lifecycle-kernel/reducer.js",
+        "scripts/lib/lifecycle-kernel/reducer.test.js",
+        "scripts/lib/lifecycle-kernel/scope-guard.js",
+        "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/lifecycle-model.test.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "resolutions": {
+        "F-5c5a1ec7d4801e6a": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 85,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-842f6a2f2ac48d11",
+          "request_id": "correct-S-842f6a2f2ac48d11-1",
+          "finding_ids": [
+            "F-5c5a1ec7d4801e6a"
+          ],
+          "paths": [
+            "scripts/lib/lifecycle-kernel/index.js",
+            "scripts/lib/lifecycle-kernel/index.test.js",
+            "scripts/lib/lifecycle-kernel/permits.js",
+            "scripts/lib/lifecycle-kernel/permits.test.js"
+          ],
+          "base_candidate_id": "sha256:a27f1fd5461b8a81831feb29cb966173b390ecd16a59d6b6d1dfa52fd10fdc11",
+          "forecast_lines": 90,
+          "actual_changed_lines": 85,
+          "record_request_id": "record-S-842f6a2f2ac48d11-1",
+          "corrected_candidate_id": "sha256:6d0ad92719faaf840e0d9dda2391e9d01c2a21157ecabb57356547d908ad192f"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-S-842f6a2f2ac48d11-1",
+          "outcomes": [
+            {
+              "id": "F-5c5a1ec7d4801e6a",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "authorizeMutation binding + permits/index green"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-1c6ef37181185c43": {
+      "slice_id": "S-1c6ef37181185c43",
+      "root_cause_key": "F-5dabe898b9b03f44",
+      "finding_ids": [
+        "F-5dabe898b9b03f44"
+      ],
+      "evidence_digests": [
+        "sha256:a49fca231f5025fd762010450fe1c646ad771f7d31fc151a4916b30a6626ea85"
+      ],
+      "permitted_paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/effect-class/fixtures/invalid/exactly-once.json",
+        "schemas/kernel/effect-class/fixtures/valid/idempotent-keyed.json",
+        "schemas/kernel/effect-class/v1.schema.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/operation-permit/fixtures/invalid/reusable.json",
+        "schemas/kernel/operation-permit/fixtures/valid/minimal.json",
+        "schemas/kernel/operation-permit/v1.schema.json",
+        "schemas/kernel/operation-receipt/fixtures/invalid/missing-permit.json",
+        "schemas/kernel/operation-receipt/fixtures/valid/minimal.json",
+        "schemas/kernel/operation-receipt/v1.schema.json",
+        "scripts/lib/authority-store/index.js",
+        "scripts/lib/authority-store/index.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k21-maturity-docs.test.js",
+        "scripts/lib/k21-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/bridges.js",
+        "scripts/lib/lifecycle-kernel/bridges.test.js",
+        "scripts/lib/lifecycle-kernel/effect-policy.js",
+        "scripts/lib/lifecycle-kernel/effect-policy.test.js",
+        "scripts/lib/lifecycle-kernel/index.js",
+        "scripts/lib/lifecycle-kernel/index.test.js",
+        "scripts/lib/lifecycle-kernel/journal.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/lifecycle-kernel/k21-k1-compat.test.js",
+        "scripts/lib/lifecycle-kernel/k21-scope-guard.test.js",
+        "scripts/lib/lifecycle-kernel/memory-store.js",
+        "scripts/lib/lifecycle-kernel/operations.js",
+        "scripts/lib/lifecycle-kernel/operations.test.js",
+        "scripts/lib/lifecycle-kernel/permits.js",
+        "scripts/lib/lifecycle-kernel/permits.test.js",
+        "scripts/lib/lifecycle-kernel/reducer.js",
+        "scripts/lib/lifecycle-kernel/reducer.test.js",
+        "scripts/lib/lifecycle-kernel/scope-guard.js",
+        "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/lifecycle-model.test.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "resolutions": {
+        "F-5dabe898b9b03f44": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 50,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-1c6ef37181185c43",
+          "request_id": "correct-S-1c6ef37181185c43-1",
+          "finding_ids": [
+            "F-5dabe898b9b03f44"
+          ],
+          "paths": [
+            "scripts/lib/authority-store/index.js",
+            "scripts/lib/authority-store/index.test.js"
+          ],
+          "base_candidate_id": "sha256:6d0ad92719faaf840e0d9dda2391e9d01c2a21157ecabb57356547d908ad192f",
+          "forecast_lines": 60,
+          "actual_changed_lines": 50,
+          "record_request_id": "record-S-1c6ef37181185c43-1",
+          "corrected_candidate_id": "sha256:3dd41c8223d258bce12dcac6cf183cd4207a4b22ddcd121be11e0411235d5851"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-S-1c6ef37181185c43-1",
+          "outcomes": [
+            {
+              "id": "F-5dabe898b9b03f44",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "mid-op journal-only OK + state_digest diverge reject; 10/10"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-b30698c584e6090f": {
+      "slice_id": "S-b30698c584e6090f",
+      "root_cause_key": "F-742a1e919fd6e3a3",
+      "finding_ids": [
+        "F-742a1e919fd6e3a3"
+      ],
+      "evidence_digests": [
+        "sha256:17e6ad3edbcb7e9f227b99966dffbfa3bec04f3c11a7459876f96561ef630857"
+      ],
+      "permitted_paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/effect-class/fixtures/invalid/exactly-once.json",
+        "schemas/kernel/effect-class/fixtures/valid/idempotent-keyed.json",
+        "schemas/kernel/effect-class/v1.schema.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/operation-permit/fixtures/invalid/reusable.json",
+        "schemas/kernel/operation-permit/fixtures/valid/minimal.json",
+        "schemas/kernel/operation-permit/v1.schema.json",
+        "schemas/kernel/operation-receipt/fixtures/invalid/missing-permit.json",
+        "schemas/kernel/operation-receipt/fixtures/valid/minimal.json",
+        "schemas/kernel/operation-receipt/v1.schema.json",
+        "scripts/lib/authority-store/index.js",
+        "scripts/lib/authority-store/index.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k21-maturity-docs.test.js",
+        "scripts/lib/k21-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/bridges.js",
+        "scripts/lib/lifecycle-kernel/bridges.test.js",
+        "scripts/lib/lifecycle-kernel/effect-policy.js",
+        "scripts/lib/lifecycle-kernel/effect-policy.test.js",
+        "scripts/lib/lifecycle-kernel/index.js",
+        "scripts/lib/lifecycle-kernel/index.test.js",
+        "scripts/lib/lifecycle-kernel/journal.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/lifecycle-kernel/k21-k1-compat.test.js",
+        "scripts/lib/lifecycle-kernel/k21-scope-guard.test.js",
+        "scripts/lib/lifecycle-kernel/memory-store.js",
+        "scripts/lib/lifecycle-kernel/operations.js",
+        "scripts/lib/lifecycle-kernel/operations.test.js",
+        "scripts/lib/lifecycle-kernel/permits.js",
+        "scripts/lib/lifecycle-kernel/permits.test.js",
+        "scripts/lib/lifecycle-kernel/reducer.js",
+        "scripts/lib/lifecycle-kernel/reducer.test.js",
+        "scripts/lib/lifecycle-kernel/scope-guard.js",
+        "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/lifecycle-model.test.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "resolutions": {
+        "F-742a1e919fd6e3a3": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 18,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-b30698c584e6090f",
+          "request_id": "correct-S-b30698c584e6090f-1",
+          "finding_ids": [
+            "F-742a1e919fd6e3a3"
+          ],
+          "paths": [
+            "scripts/lib/authority-store/index.js"
+          ],
+          "base_candidate_id": "sha256:3dd41c8223d258bce12dcac6cf183cd4207a4b22ddcd121be11e0411235d5851",
+          "forecast_lines": 40,
+          "actual_changed_lines": 18,
+          "record_request_id": "record-S-b30698c584e6090f-1",
+          "corrected_candidate_id": "sha256:fe0a9abb12d54b5e8c1277f6da3785a0b6cf9237c6ea4483a675ef24c00b4fb2"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-S-b30698c584e6090f-1",
+          "outcomes": [
+            {
+              "id": "F-742a1e919fd6e3a3",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "midOpBaselineIntactWithJournalContinuity rename; 10/10"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-8d958c32afcc3b25": {
+      "slice_id": "S-8d958c32afcc3b25",
+      "root_cause_key": "F-aaca1885fa28dcc4",
+      "finding_ids": [
+        "F-aaca1885fa28dcc4"
+      ],
+      "evidence_digests": [
+        "sha256:1adc00ac152f3d17dd2777fb273974ce79770ff69ae6e1f455497ae406bd8cf1"
+      ],
+      "permitted_paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/effect-class/fixtures/invalid/exactly-once.json",
+        "schemas/kernel/effect-class/fixtures/valid/idempotent-keyed.json",
+        "schemas/kernel/effect-class/v1.schema.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/operation-permit/fixtures/invalid/reusable.json",
+        "schemas/kernel/operation-permit/fixtures/valid/minimal.json",
+        "schemas/kernel/operation-permit/v1.schema.json",
+        "schemas/kernel/operation-receipt/fixtures/invalid/missing-permit.json",
+        "schemas/kernel/operation-receipt/fixtures/valid/minimal.json",
+        "schemas/kernel/operation-receipt/v1.schema.json",
+        "scripts/lib/authority-store/index.js",
+        "scripts/lib/authority-store/index.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k21-maturity-docs.test.js",
+        "scripts/lib/k21-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/bridges.js",
+        "scripts/lib/lifecycle-kernel/bridges.test.js",
+        "scripts/lib/lifecycle-kernel/effect-policy.js",
+        "scripts/lib/lifecycle-kernel/effect-policy.test.js",
+        "scripts/lib/lifecycle-kernel/index.js",
+        "scripts/lib/lifecycle-kernel/index.test.js",
+        "scripts/lib/lifecycle-kernel/journal.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/lifecycle-kernel/k21-k1-compat.test.js",
+        "scripts/lib/lifecycle-kernel/k21-scope-guard.test.js",
+        "scripts/lib/lifecycle-kernel/memory-store.js",
+        "scripts/lib/lifecycle-kernel/operations.js",
+        "scripts/lib/lifecycle-kernel/operations.test.js",
+        "scripts/lib/lifecycle-kernel/permits.js",
+        "scripts/lib/lifecycle-kernel/permits.test.js",
+        "scripts/lib/lifecycle-kernel/reducer.js",
+        "scripts/lib/lifecycle-kernel/reducer.test.js",
+        "scripts/lib/lifecycle-kernel/scope-guard.js",
+        "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/lifecycle-model.test.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "resolutions": {
+        "F-aaca1885fa28dcc4": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 32,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-8d958c32afcc3b25",
+          "request_id": "correct-S-8d958c32afcc3b25-1",
+          "finding_ids": [
+            "F-aaca1885fa28dcc4"
+          ],
+          "paths": [
+            "scripts/lib/lifecycle-kernel/permits.js",
+            "scripts/lib/lifecycle-kernel/permits.test.js"
+          ],
+          "base_candidate_id": "sha256:fe0a9abb12d54b5e8c1277f6da3785a0b6cf9237c6ea4483a675ef24c00b4fb2",
+          "forecast_lines": 40,
+          "actual_changed_lines": 32,
+          "record_request_id": "record-S-8d958c32afcc3b25-1",
+          "corrected_candidate_id": "sha256:f5477a223ebdc5499f1410c5969be43d77ca80325e74f9d9292ab706f1ecdcd3"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-S-8d958c32afcc3b25-1",
+          "outcomes": [
+            {
+              "id": "F-aaca1885fa28dcc4",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "dedicated op↔ledger test; permits 10/10"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-e545fd5eb1eaef14": {
+      "slice_id": "S-e545fd5eb1eaef14",
+      "root_cause_key": "F-b395d498678f2816",
+      "finding_ids": [
+        "F-b395d498678f2816"
+      ],
+      "evidence_digests": [
+        "sha256:34d7ca5d112aeed569243d28bfb140e2c25dfffd6b59ed0924415bc1e1270b10"
+      ],
+      "permitted_paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/effect-class/fixtures/invalid/exactly-once.json",
+        "schemas/kernel/effect-class/fixtures/valid/idempotent-keyed.json",
+        "schemas/kernel/effect-class/v1.schema.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/operation-permit/fixtures/invalid/reusable.json",
+        "schemas/kernel/operation-permit/fixtures/valid/minimal.json",
+        "schemas/kernel/operation-permit/v1.schema.json",
+        "schemas/kernel/operation-receipt/fixtures/invalid/missing-permit.json",
+        "schemas/kernel/operation-receipt/fixtures/valid/minimal.json",
+        "schemas/kernel/operation-receipt/v1.schema.json",
+        "scripts/lib/authority-store/index.js",
+        "scripts/lib/authority-store/index.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k21-maturity-docs.test.js",
+        "scripts/lib/k21-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/bridges.js",
+        "scripts/lib/lifecycle-kernel/bridges.test.js",
+        "scripts/lib/lifecycle-kernel/effect-policy.js",
+        "scripts/lib/lifecycle-kernel/effect-policy.test.js",
+        "scripts/lib/lifecycle-kernel/index.js",
+        "scripts/lib/lifecycle-kernel/index.test.js",
+        "scripts/lib/lifecycle-kernel/journal.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/lifecycle-kernel/k21-k1-compat.test.js",
+        "scripts/lib/lifecycle-kernel/k21-scope-guard.test.js",
+        "scripts/lib/lifecycle-kernel/memory-store.js",
+        "scripts/lib/lifecycle-kernel/operations.js",
+        "scripts/lib/lifecycle-kernel/operations.test.js",
+        "scripts/lib/lifecycle-kernel/permits.js",
+        "scripts/lib/lifecycle-kernel/permits.test.js",
+        "scripts/lib/lifecycle-kernel/reducer.js",
+        "scripts/lib/lifecycle-kernel/reducer.test.js",
+        "scripts/lib/lifecycle-kernel/scope-guard.js",
+        "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/lifecycle-model.test.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "resolutions": {
+        "F-b395d498678f2816": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 95,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-e545fd5eb1eaef14",
+          "request_id": "correct-S-e545fd5eb1eaef14-1",
+          "finding_ids": [
+            "F-b395d498678f2816"
+          ],
+          "paths": [
+            "scripts/lib/authority-store/index.js",
+            "scripts/lib/authority-store/index.test.js",
+            "scripts/lib/lifecycle-kernel/index.js",
+            "scripts/lib/lifecycle-kernel/index.test.js"
+          ],
+          "base_candidate_id": "sha256:f5477a223ebdc5499f1410c5969be43d77ca80325e74f9d9292ab706f1ecdcd3",
+          "forecast_lines": 120,
+          "actual_changed_lines": 95,
+          "record_request_id": "record-S-e545fd5eb1eaef14-1",
+          "corrected_candidate_id": "sha256:13bbd6f18cc757d514ef8bcf3ea8d55bc332b7cd0753955780754bcdc8e1e8dc"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-S-e545fd5eb1eaef14-1",
+          "outcomes": [
+            {
+              "id": "F-b395d498678f2816",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "mid_op_ticket writer anchor; recycle+foreign forge fail-closed",
+              "authority-store 12/12 + lifecycle-kernel 12/12"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    }
+  }
+}

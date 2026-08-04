@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/operation-permit/v1",
+  "schema_version": 1,
+  "type": "object",
+  "properties": {
+    "schema_version": { "const": 1 },
+    "kind": { "const": "operation-permit/v1" },
+    "permit_id": { "type": "string" },
+    "domain": { "type": "string" },
+    "operation": { "type": "string" },
+    "subject_id": { "type": "string" },
+    "expected_revision": { "type": "string" },
+    "arguments_digest": { "type": "string" },
+    "scope_digest": { "type": "string" },
+    "policy_digest": { "type": "string" },
+    "budget_ref": { "type": "string" },
+    "single_use": { "const": true }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "permit_id",
+    "domain",
+    "operation",
+    "subject_id",
+    "expected_revision",
+    "arguments_digest",
+    "scope_digest",
+    "policy_digest",
+    "budget_ref",
+    "single_use"
+  ],
+  "additionalProperties": false
+}

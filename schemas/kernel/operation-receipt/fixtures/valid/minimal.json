@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "kind": "operation-receipt/v1",
+  "receipt_id": "op-receipt:0001",
+  "permit_id": "permit:runtime:0001",
+  "subject_id": "lifecycle:default",
+  "operation": "start",
+  "revision": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "outcome": "advanced"
+}

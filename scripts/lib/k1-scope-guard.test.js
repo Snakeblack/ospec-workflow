@@ -66,9 +66,17 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/minimal-kernel-harness.js",
   "scripts/lib/minimal-kernel-harness.test.js",
   "scripts/lib/transition-parity.k2.test.js",
+  "scripts/lib/k21-maturity-docs.test.js",
+  "scripts/lib/k21-schema-fixtures.test.js",
 ]);
 
-const SUCCESSOR_K2_PREFIXES = ["scripts/lib/lifecycle-kernel/"];
+const SUCCESSOR_K2_PREFIXES = [
+  "scripts/lib/lifecycle-kernel/",
+  "scripts/lib/authority-store/",
+  "schemas/kernel/operation-permit/",
+  "schemas/kernel/operation-receipt/",
+  "schemas/kernel/effect-class/",
+];
 
 const PROTECTED_BASELINE_PATHS = [
   "openspec/config.yaml",
