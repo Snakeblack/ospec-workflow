@@ -6,110 +6,116 @@ const path = require("node:path");
 
 /**
  * Frozen digests of K1 schemas/aliases at K2 apply start.
+ * Digests hash LF-normalized UTF-8 so Windows CRLF checkouts match POSIX CI.
  * K2 MUST NOT mutate these artifacts; digests are the compatibility pin.
  */
 const K1_SCHEMA_BASELINE = Object.freeze({
   "schemas/kernel/aliases/v1.json":
-    "sha256:9f80c839e0a30d72384039060797e0ee735908ce052a0bc46b81e45e5982c320",
+    "sha256:5cd2656f7b0976cf0bcd7055e7380b4d08f8b1c8b62153904873c5e73973e72d",
   "schemas/kernel/candidate/fixtures/invalid/minimal.json":
-    "sha256:ab2c8553d18e40bd2bd513f62b440b1c3ca01224d64446753750424e1f27667d",
+    "sha256:6e810c5251baaaf41f6eaa7d90c1e16a3dd656322e09f46e91df168639a340e7",
   "schemas/kernel/candidate/fixtures/valid/minimal.json":
-    "sha256:f34ce86c2d689e47ec31fbebd01979f49f0756b48e30047ac0c20b0966044934",
+    "sha256:7e06ee4de1ab6b0578153f59199dd6212f78454dab5b8b05164c1cfe180187ce",
   "schemas/kernel/candidate/v1.schema.json":
-    "sha256:ea5817f2ea6576587892835e745dcd38582ba61aec6beb1c23ee12d737a314b9",
+    "sha256:752c7a708300d64b8480b35ebf2897592df36246462d139004c8ec585556edfd",
   "schemas/kernel/classification/fixtures/invalid/minimal.json":
-    "sha256:011ee06e21a459cfb987d60c5359b1c81c670c0eb58d3ce891088c7d90ad627f",
+    "sha256:c9828b072931b6d0b3cd87c2ff8f98041f6362242403de93608dbc79e31de9ae",
   "schemas/kernel/classification/fixtures/valid/minimal.json":
-    "sha256:16be813be7d592d633389abbe5d7fc48ee780dd8a314dbd0a869b4a8cb17028f",
+    "sha256:cdd5f56a06c6089423b4711a7f3574007bc210a927f60cdc6372ea9d05eff72c",
   "schemas/kernel/classification/v1.schema.json":
-    "sha256:0777c4bd9d7aab9ff165b5b7923685a116adffee5870f2511ace35d8b7bb038e",
+    "sha256:12e6c243ae59f4761b887c0b61693f8da03fd3e7aeba99e0fcde6064d0ce8464",
   "schemas/kernel/contract-claims.json":
-    "sha256:5d2d29842c850568019c678aaedc47d22c5eca3dba76bf1d2f83b9ac18264ac4",
+    "sha256:30b2fa7932fbbb9b4fdc23c528da2c67103d606e41be61ace338d1a8443f8e89",
   "schemas/kernel/contract/fixtures/invalid/minimal.json":
-    "sha256:fa5ce3448ffa4f82cd7c6259e49d3b5f9854eef9fef25ea744e23ed397d8b20f",
+    "sha256:a189201f6655de8fdff50a1ccc7a1d6b1a58d3a7f8dcc829f3e90281f5a56af2",
   "schemas/kernel/contract/fixtures/valid/minimal.json":
-    "sha256:321886cefc786db7b5fbd237f0d2b463636c9e844e1e45f2f05065fa58d4e49a",
+    "sha256:89a64987b54c7d1c36301b24f7ab553a87adafb7522eca8d67f958b1f255408f",
   "schemas/kernel/contract/v1.schema.json":
-    "sha256:5268fefe9ffd581f2e0a42496afea5599e5f45fff15cc72bf5af30bad8bdae78",
+    "sha256:b29a4a426f65ac00975154354bd1251afcafaf3af800f805b3a57c87828021c3",
   "schemas/kernel/emission-claims.json":
-    "sha256:908d9836639d32da91c521312fe118799414fa347fea31100d752167e2dba730",
+    "sha256:5dc227a61008d01ffbc7b33b2250a287342382249bffeb5061361593bf9bcf6f",
   "schemas/kernel/event/fixtures/invalid/minimal.json":
-    "sha256:fd9e32d384fda5402fb70b09002a11b02656befda4e1ecfefd93061f9f5335af",
+    "sha256:3fa9d31456102fe9d1a1a2f0eaed4e54b43494e703b6a6b5eb26b9d912155326",
   "schemas/kernel/event/fixtures/valid/minimal.json":
-    "sha256:fa09c964ddd198eb56699136f569e72e7a5239f988f7ef7fde4030496a8927f0",
+    "sha256:2e68d5a9d57161e0931a552e967ee0ce6a6a3c4667c139d659e6063f8590d54e",
   "schemas/kernel/event/v1.schema.json":
-    "sha256:8eb9817f52195bb6cc0f7482dee7bb6e93a68bb566670fed479fbfaf6e34a099",
+    "sha256:4eadf033fd4947d7273f09e3807e6a6d03dc48c34fa91c98c77c1558714f414b",
   "schemas/kernel/evidence/fixtures/invalid/minimal.json":
-    "sha256:28d24872f3cebf812c5ea1913297013bb300ec044334545037e1558dc254db04",
+    "sha256:a58c86857a5e00c1d4c21d56fce039b690db08a21e0208098a9452c2d71cf6b1",
   "schemas/kernel/evidence/fixtures/valid/minimal.json":
-    "sha256:befcf25086c132107542bb471be97cfa92978423931a03106628ee99fa3b278e",
+    "sha256:5eb865fe3de23bd6ae0cddd83bceffe9e91d148f4193007e43dc379b28ae4ff0",
   "schemas/kernel/evidence/v1.schema.json":
-    "sha256:bdb769769cd3c5b0800b660bdcb1bbe4d586f0c14c420a714e5c1cc132e01a09",
+    "sha256:edf5f600909482a2c45e5959d26d9a58d12631c31b276006f713801792c2b050",
   "schemas/kernel/failure-recovery/fixtures/invalid/minimal.json":
-    "sha256:e08c97ac487c95744f90c09d7f8eb91126b2cd339c4907483e2dd7e037fc6103",
+    "sha256:a2e292f22cd9cefa1f0e7ad751ca779fed32c31c0fb7a7b073f63c6fac9d5e2c",
   "schemas/kernel/failure-recovery/fixtures/valid/minimal.json":
-    "sha256:06dc8c1c422ce96d81908785018a5dda511f378459f2d9314b3d9f6055f665aa",
+    "sha256:ed5414b86154352146d9c1797dd038c9da32da30aed209d2d1aa971b2965b059",
   "schemas/kernel/failure-recovery/v1.schema.json":
-    "sha256:40b7634c502f2fe059e99f226a9ce70d1390111e73afa1da91f087a24d61231c",
+    "sha256:bafc730a691dd1427d2ff94d950e97e5bfce43a682ed41f4899a5ffad160f004",
   "schemas/kernel/finding-review/fixtures/invalid/minimal.json":
-    "sha256:54eb0e98c77f6fee999f6017b2a5da54448c6dfd8907a51e197772bf2648cb39",
+    "sha256:a94ea16cc86f742c4b6e8afc4a0a56b737eea0bf2a85ebcec1eab647c93a5e12",
   "schemas/kernel/finding-review/fixtures/valid/minimal.json":
-    "sha256:7004044ddf40d656e2a9c1e64e00fa78bbc09da051b1779236e7d6243afc7226",
+    "sha256:d116590fa8a4aa26163b695d1d10e20e2df0341cfd7016d3bae252ba4da9bd37",
   "schemas/kernel/finding-review/v1.schema.json":
-    "sha256:546a6237044a7fb3f8cc50f44f616ae3020f9fef4771c9895f4c1ec834bd3227",
+    "sha256:27d4cdc13cc7ac315e786fcfd01c3d7f6fcb509efee8e74eaf73ddae6bd2f576",
   "schemas/kernel/graph-node/fixtures/invalid/minimal.json":
-    "sha256:1ddf21afd90e6eee0547ea1709ac01e7a4f0665e652691c6d9ba3e8bd9f43392",
+    "sha256:0e4a64bbb9d3aac2b5a363008b6747eb012b9ef740e1b9596d14c2dbe98f6638",
   "schemas/kernel/graph-node/fixtures/invalid/partial-canonical-node.json":
-    "sha256:f8f33443f40a442cbe77a6f419cd67e9dd2e297792c410da4ca1f0ea8ad80665",
+    "sha256:9a617c5a91723a7433bccca9024660536a34c9c6a06771a81a306a7ed3beeed3",
   "schemas/kernel/graph-node/fixtures/valid/canonical-semantic-node.json":
-    "sha256:4ec4e070fe747b4012da98a439d63c6f77dd5b1e6e013c16441852152b77590e",
+    "sha256:05b9fe43dea8c0696849b03874ea2bc49e9f330a077cdcbb253e0f9339d6ec21",
   "schemas/kernel/graph-node/fixtures/valid/minimal.json":
-    "sha256:1ef197bbd8df12a36ab434f62c68ff6b0c1b8396c65b1b9fbe039a1d45275364",
+    "sha256:2a534e05a40a5dee373165bc950b509b9b5373135d011ca37c8e4bf1377735ba",
   "schemas/kernel/graph-node/v1.schema.json":
-    "sha256:c97acb72f170826533e97215385965ea2c6852ef3000d6c702b75a053053960c",
+    "sha256:0b6fc9169f0573e9ccb8e8f3aa8c7c061e576552aaedb508a0caa786133ae21f",
   "schemas/kernel/manifest.json":
-    "sha256:7ddebfd11045e461309f80887cd14bb435af349f0829d533da5ac5a1dfc3e678",
+    "sha256:84a69c66725df5e32d3c02b846c0a012819820e0e26c6fe78693fc2fa7a80fb4",
   "schemas/kernel/parity/fixtures/diverge-next-action.json":
-    "sha256:1e3ff0ff8629e5f383d9a0f7e269aa4e499785f086e26c2d079d19244f267355",
+    "sha256:4f8e8898655593c270776f7f6627caa6eb05f45ca5686126f60ddf6f9c756db5",
   "schemas/kernel/parity/fixtures/match-execute.json":
-    "sha256:58e7c395be6912e41ce4020ea68fe7ea15940014ed378b33470255cf8bb22e5a",
+    "sha256:1ade05ada25ecd5e6650df514699d14c64f2ded758d1ebbfdd63078e29cbfef0",
   "schemas/kernel/receipt/fixtures/invalid/minimal.json":
-    "sha256:29fe935e15f9c6452a0796e1116bca35f36483f91494ed49dd76d254f646b0ef",
+    "sha256:54311ba5d090533f1ef19399ad3ba94757ba2e66891e71d21074c1c212431c6c",
   "schemas/kernel/receipt/fixtures/invalid/unbound-evaluation.json":
-    "sha256:4a57f821f6b3737428ef74eb53a5f0ba89a26e405b9b55426116114700291b63",
+    "sha256:f8bcda97ed8c9d1988b344460d7cadaa005f684ea1bce9a06170c57b770d959e",
   "schemas/kernel/receipt/fixtures/valid/canonical-evaluation.json":
-    "sha256:bf075171e5168b2839000948a5704e0e22e0e690a8325b9fdb2cf1ddb4b952bc",
+    "sha256:66f4f74aecb62f5be66631d6fcd533e3b30369db503f960adf977e5a5c451bae",
   "schemas/kernel/receipt/fixtures/valid/minimal.json":
-    "sha256:a562f5fcee6634d64d76653ac1a0a76ed1a94eb764917c8579caa4eab86da269",
+    "sha256:8193b4a030273d840004241d0e6c3de8ea9efbe27869851873e23c6327a0aa38",
   "schemas/kernel/receipt/v1.schema.json":
-    "sha256:40f9a7566101c5efb13e2a51b78b8782975d85f6c59c27db25093362ea04a9cf",
+    "sha256:4193db3029274e06880a5b2c178e15916cd574841d3d9bd6691ce00151558b46",
   "schemas/kernel/state-transition/fixtures/invalid/minimal.json":
-    "sha256:fe3f2f27e2e38e299b3217f1417b8b27aa82394d7621cdb4edc2c5d794c232eb",
+    "sha256:664d908a2f0533198166a3bf76f7967d61bfd53e37f5dedc9f383685580f72b9",
   "schemas/kernel/state-transition/fixtures/valid/minimal.json":
-    "sha256:2d493dc8e55c5ae5d8c18c2a92a1c1cf256e1a5976ace3b5fe7466f3952fe320",
+    "sha256:8b2d676babdbe23c33556198657082077da1ef4461b9ee011fcbc34ce07d6b7d",
   "schemas/kernel/state-transition/v1.schema.json":
-    "sha256:32747c40bb35e05bf5cd8b172048ebf1f86b78a13ade8c500571a553544fcb99",
+    "sha256:fde7572213651a5ba69612db6132c79d45e4da7fcabc1a68b5a023f4007a25dc",
   "schemas/kernel/verification/fixtures/invalid/minimal.json":
-    "sha256:d7c08d1a425dd2ea88cc80a03bf8ee10e1020ffd41255971133c862c70ffcb8e",
+    "sha256:5146916324fef6864776a4b4dc2912b8159c54d0c81d64340ce8a1dc84a425f3",
   "schemas/kernel/verification/fixtures/valid/minimal.json":
-    "sha256:22b976af5f6068e0bf266beab9e1e06782cebbe00df6d8f92d0822f514819e91",
+    "sha256:c095b92561feb3f7f7f32c153679b821a3e164f610061bd044231ba7b770f6d9",
   "schemas/kernel/verification/v1.schema.json":
-    "sha256:592ca8b159d3bdf820f730549424a4758dc3bdeaa426203cf85436fd9b1814df",
+    "sha256:15a12ffe15a823239ad8e3bacd2c4dd97e646bc11733cae139e8863735674606",
   "schemas/kernel/work-order/fixtures/invalid/minimal.json":
-    "sha256:523b0c506cfbc0d188e0ee0ccf727c75ef35070d64c429390c08d25aaa4ed7d8",
+    "sha256:6ad582b1e4867728cfc432c7226f97bd67c3db40473ce1afc6d1551488ae5589",
   "schemas/kernel/work-order/fixtures/invalid/partial-canonical-work-order.json":
-    "sha256:fc5a6d3e596afb15d442d200ce413d7b072c58f9130c6f55c49d2aa127003cde",
+    "sha256:a306f74f38d25515ff3b18f1676ab56275f222a5b52f41b40b59f24a5162e207",
   "schemas/kernel/work-order/fixtures/valid/canonical-bounded-work-order.json":
-    "sha256:155d6c87e70fa3f93c09ebd405ad0a55367c09d92d37fb448d8c1996057aae84",
+    "sha256:a85df3ab2a6f87e5ff901e1d135b48aac73fa2b101c579f5467e44ec3b1595a3",
   "schemas/kernel/work-order/fixtures/valid/minimal.json":
-    "sha256:4345f5513e562c699228a880f1bde5a31a04c6cd48a66b17f000497bcd4de5f4",
+    "sha256:e6bfbc0e2489733b4976e95230c1e63750752026c6c1a6c52001cb4d85a0e409",
   "schemas/kernel/work-order/v1.schema.json":
-    "sha256:8fc776c4e67ddb339c08036bfab4e9f97f9f0363caa519b5f462d3b8621954c0",
+    "sha256:a8204e0ff55a5175b33ada046928d82e32acb22d73068bbe2988ac1d50c921e5"
 });
 
 function digestFile(absolutePath) {
   const bytes = fs.readFileSync(absolutePath);
-  return `sha256:${crypto.createHash("sha256").update(bytes).digest("hex")}`;
+  // Canonicalize newlines so autocrlf/working-tree CRLF does not drift the pin.
+  const normalized = Buffer.from(
+    bytes.toString("utf8").replace(/\r\n/g, "\n").replace(/\r/g, "\n"),
+    "utf8"
+  );
+  return `sha256:${crypto.createHash("sha256").update(normalized).digest("hex")}`;
 }
 
 function toPosix(relativePath) {

@@ -38,6 +38,18 @@ test("digestFile is stable for aliases document", () => {
   assert.equal(digest, K1_SCHEMA_BASELINE[relative]);
 });
 
+test("digestFile is invariant to CRLF vs LF working-tree newlines", () => {
+  const fixtureDir = path.join(ROOT, "scripts", "lib", "lifecycle-kernel", "__k1-compat-eol");
+  fs.mkdirSync(fixtureDir, { recursive: true });
+  const lfPath = path.join(fixtureDir, "lf.json");
+  const crlfPath = path.join(fixtureDir, "crlf.json");
+  const payload = '{\n  "schema_version": 1\n}\n';
+  fs.writeFileSync(lfPath, payload, "utf8");
+  fs.writeFileSync(crlfPath, payload.replace(/\n/g, "\r\n"), "utf8");
+  assert.equal(digestFile(lfPath), digestFile(crlfPath));
+  fs.rmSync(fixtureDir, { recursive: true, force: true });
+});
+
 test("assertK1SchemasUnchanged passes against current tree", () => {
   const result = assertK1SchemasUnchanged(ROOT);
   assert.equal(result.ok, true);

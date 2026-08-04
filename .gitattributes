@@ -8,6 +8,9 @@ scripts/fixtures/** text eol=lf
 openspec/changes/**/state.yaml text eol=lf
 openspec/changes/archive/**/state.yaml text eol=lf
 
+# K1 schema pins (lifecycle-kernel/k1-compat) hash LF-canonical bytes.
+schemas/kernel/** text eol=lf
+
 # Runtime receipts are content-addressed raw bytes: never rewrite them at checkout.
 # Ignore trailing-space diagnostics only for these immutable execution artifacts.
 openspec/changes/**/evidence/receipts/** -text -whitespace
