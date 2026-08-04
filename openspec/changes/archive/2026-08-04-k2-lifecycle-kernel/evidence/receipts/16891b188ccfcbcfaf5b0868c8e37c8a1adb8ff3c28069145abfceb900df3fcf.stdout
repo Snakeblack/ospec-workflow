@@ -1,0 +1,11 @@
+✔ public runKernelOperation advances state through store and journal (2.54ms)
+✔ invalid transition via public API does not mutate store (0.2486ms)
+✔ reducer-only helper remains available but is not the public conformance entry (0.077ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 73.1701

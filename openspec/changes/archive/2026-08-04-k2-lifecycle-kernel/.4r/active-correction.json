@@ -1,0 +1,22 @@
+{
+  "request_id": "correct-shell-effect-fail-closed-k2",
+  "slice_id": "S-d29e47102af6ce3d",
+  "finding_ids": [
+    "F-2b903d354e7568e1",
+    "F-335f0270aab52137",
+    "F-d43f995b73caada6"
+  ],
+  "paths": [
+    "scripts/lib/lifecycle-kernel/index.js",
+    "scripts/lib/lifecycle-kernel/index.test.js",
+    "scripts/lib/lifecycle-kernel/journal.js",
+    "scripts/lib/minimal-kernel-harness.js",
+    "scripts/lib/minimal-kernel-harness.test.js"
+  ],
+  "forecast_lines": 120,
+  "budget_limit_lines": 200,
+  "used_lines": 0,
+  "candidate_id": "sha256:584faa5104be1965122ccfaba2c0f386f0de647f882a94dac5e724caaef805b2",
+  "lineage_id": "sha256:7ba95b7de2e400335034f5ef7cf71bde46003fa553e709755d884c72bfa5a347",
+  "base_candidate_id": "sha256:584faa5104be1965122ccfaba2c0f386f0de647f882a94dac5e724caaef805b2"
+}

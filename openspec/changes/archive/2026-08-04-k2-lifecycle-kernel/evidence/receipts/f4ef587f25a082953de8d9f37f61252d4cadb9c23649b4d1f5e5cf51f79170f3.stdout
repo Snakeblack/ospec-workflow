@@ -1,0 +1,13 @@
+✔ assertPublicApiConformance rejects reducer-only evidence (0.6926ms)
+✔ harness executes start through public kernel API (1.6342ms)
+✔ harness halts on decide without auto-approval (0.3728ms)
+✔ snapshot round-trip preserves digest and transitions (0.8324ms)
+✔ completed effect is not duplicated on resume after interrupt marker (0.5826ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 63.5084

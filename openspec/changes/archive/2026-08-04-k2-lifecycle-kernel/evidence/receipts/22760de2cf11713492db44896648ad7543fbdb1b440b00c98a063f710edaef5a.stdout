@@ -1,0 +1,15 @@
+✔ MODEL_CONFIG publishes versioned domains, actions, limits and mapping (0.6099ms)
+✔ every executable invariant has a non-optional checker (1.8212ms)
+✔ deferred invariants are listed but do not count as K2 enforcement (0.2335ms)
+✔ opaque SubjectId change invalidates bound decision without Candidate fields (0.0912ms)
+✔ seeded faulty selector produces a stable counterexample (0.4466ms)
+✔ healthy exploration finds no counterexample under bounds (1.0112ms)
+✔ counterexample replays through Minimal Kernel Harness (0.6918ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 65.0929

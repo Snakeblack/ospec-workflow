@@ -1,0 +1,13 @@
+✔ routing bridge consumes structured K2 operation without changing fixed route defaults (0.5004ms)
+✔ review-lineage fixture preserves candidate/findings/attempt history (0.4842ms)
+✔ archive fixture preserves transaction history and rollback semantics (0.145ms)
+✔ orchestrator rejects prose interpretation for K2-covered operations (0.3461ms)
+✔ no second lifecycle reducer outside lifecycle-kernel (0.2565ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 55.6822

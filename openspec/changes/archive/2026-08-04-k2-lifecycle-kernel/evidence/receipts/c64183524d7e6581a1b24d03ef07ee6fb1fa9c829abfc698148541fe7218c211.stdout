@@ -1,0 +1,16 @@
+✔ OPERATIONS registry lists the K2 public verbs (1.0611ms)
+✔ complete without start fails closed with stable code and no mutation (0.6341ms)
+✔ start on already started node fails closed (0.1246ms)
+✔ fail on pending node fails closed (0.1003ms)
+✔ invalidate-node on missing node fails closed (0.1234ms)
+✔ recover without recoverable interruption fails closed (0.0919ms)
+✔ authorizeOperation rejects missing authority token for mutating ops (0.1266ms)
+✔ valid start transition is accepted (0.0699ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 62.4963

@@ -1,0 +1,254 @@
+"use strict";
+
+const assert = require("node:assert/strict");
+const test = require("node:test");
+
+const {
+  runHarnessScenario,
+  snapshotRoundTrip,
+  assertPublicApiConformance,
+  reduceLifecycle,
+} = (() => {
+  const harness = require("./minimal-kernel-harness.js");
+  const kernel = require("./lifecycle-kernel/index.js");
+  return { ...harness, reduceLifecycle: kernel.reduceLifecycle };
+})();
+
+const pendingState = {
+  schema_version: 1,
+  status: "ready",
+  nodes: { n1: { id: "n1", phase: "pending", attempt: 0 } },
+};
+
+test("assertPublicApiConformance rejects reducer-only evidence", () => {
+  assert.throws(
+    () =>
+      assertPublicApiConformance({
+        usedRunKernelOperation: false,
+        usedReducerOnly: true,
+      }),
+    (error) => error.code === "harness-conformance-incomplete"
+  );
+  assert.equal(typeof reduceLifecycle, "function");
+  assert.doesNotThrow(() =>
+    assertPublicApiConformance({
+      usedRunKernelOperation: true,
+      usedReducerOnly: true,
+    })
+  );
+});
+
+test("harness executes start through public kernel API", async () => {
+  const result = await runHarnessScenario({
+    id: "start-n1",
+    initialState: pendingState,
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+  });
+  assert.equal(result.scenario_id, "start-n1");
+  assert.equal(result.snapshot.state.nodes.n1.phase, "started");
+  assert.ok(result.effects.length >= 1);
+  assert.match(result.final_state_digest, /^sha256:[a-f0-9]{64}$/);
+  assert.equal(result.next_transition.operation, "complete");
+});
+
+test("harness halts on decide without auto-approval", async () => {
+  const result = await runHarnessScenario({
+    id: "decide-halt",
+    initialState: {
+      schema_version: 1,
+      status: "blocked",
+      nodes: { n1: { id: "n1", phase: "failed", attempt: 3, exhausted: true } },
+    },
+    operations: [{ operation: "status" }],
+  });
+  assert.equal(result.outcome, "decision-required");
+  assert.equal(result.halted.reason, "decision-required");
+  assert.equal(result.halted.decision.kind, "decide");
+  assert.equal(result.next_transition.kind, "decide");
+  // Must not invent an approval operation.
+  assert.ok(!result.operations.some((op) => op.operation === "approve"));
+});
+
+test("snapshot round-trip preserves digest and transitions", async () => {
+  const started = await runHarnessScenario({
+    id: "snap-prep",
+    initialState: pendingState,
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+  });
+  const round = await snapshotRoundTrip(started.snapshot.state, started.snapshot.journal);
+  assert.equal(round.ok, true);
+  assert.equal(round.before_digest, round.after_digest);
+  assert.equal(
+    JSON.stringify(round.before_transitions),
+    JSON.stringify(round.after_transitions)
+  );
+});
+
+test("completed effect is not duplicated on resume after interrupt marker", async () => {
+  const effectIds = [];
+  const first = await runHarnessScenario({
+    id: "interrupt-prep",
+    initialState: pendingState,
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+    effectExecutor: async (effect) => {
+      effectIds.push(effect.effect_id);
+      return { ok: true };
+    },
+  });
+  assert.equal(effectIds.length, 1);
+
+  // Resume with journal already containing completed effect: reconciliation skips re-exec.
+  const resumedEffects = [];
+  const resumed = await runHarnessScenario({
+    id: "interrupt-resume",
+    initialState: first.snapshot.state,
+    initialJournal: first.snapshot.journal,
+    operations: [{ operation: "complete", arguments: { node_id: "n1" } }],
+    effectExecutor: async (effect) => {
+      resumedEffects.push(effect.effect_id);
+      return { ok: true };
+    },
+  });
+  assert.equal(resumed.snapshot.state.nodes.n1.phase, "completed");
+  // New complete effect executes once; prior start effect is not replayed.
+  assert.equal(resumedEffects.length, 1);
+  assert.notEqual(resumedEffects[0], effectIds[0]);
+});
+
+test("interruption matrix: before-journal leaves state and journal untouched", async () => {
+  const executed = [];
+  const result = await runHarnessScenario({
+    id: "interrupt-before-journal",
+    initialState: pendingState,
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+    checkpointInterrupt: "before-journal",
+    effectExecutor: async (effect) => {
+      executed.push(effect.effect_id);
+      return { ok: true };
+    },
+  });
+  assert.equal(result.halted.reason, "interrupt");
+  assert.equal(result.halted.at, "before-journal");
+  assert.equal(executed.length, 0);
+  assert.equal(result.snapshot.state.nodes.n1.phase, "pending");
+  assert.equal(result.snapshot.journal.length, 0);
+});
+
+test("harness: effectExecutor {ok:false} halts blocked without advancing state", async () => {
+  const result = await runHarnessScenario({
+    id: "effect-failed-ok-false",
+    initialState: pendingState,
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+    effectExecutor: async () => ({ ok: false, reason: "denied" }),
+  });
+  assert.equal(result.halted.reason, "blocked");
+  assert.equal(result.halted.code, "effect-failed");
+  assert.equal(result.snapshot.state.nodes.n1.phase, "pending");
+  assert.equal(result.snapshot.journal[0].status, "failed");
+  assert.notEqual(result.outcome, "advanced");
+});
+
+test("interruption matrix: after-journal before effect persists started and does not mutate state", async () => {
+  const executed = [];
+  const result = await runHarnessScenario({
+    id: "interrupt-after-journal",
+    initialState: pendingState,
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+    checkpointInterrupt: "after-journal",
+    effectExecutor: async (effect) => {
+      executed.push(effect.effect_id);
+      return { ok: true };
+    },
+  });
+  assert.equal(result.halted.at, "after-journal");
+  assert.equal(executed.length, 0);
+  assert.equal(result.snapshot.state.nodes.n1.phase, "pending");
+  assert.equal(result.snapshot.journal.length, 1);
+  assert.equal(result.snapshot.journal[0].status, "started");
+
+  const resumedExec = [];
+  const resumed = await runHarnessScenario({
+    id: "resume-after-journal",
+    initialState: result.snapshot.state,
+    initialJournal: result.snapshot.journal,
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+    effectExecutor: async (effect) => {
+      resumedExec.push(effect.effect_id);
+      return { ok: true };
+    },
+  });
+  assert.equal(resumedExec.length, 1);
+  assert.equal(resumed.snapshot.state.nodes.n1.phase, "started");
+});
+
+test("interruption matrix: after-effect before state commit does not re-execute on resume", async () => {
+  const executed = [];
+  const interrupted = await runHarnessScenario({
+    id: "interrupt-after-effect",
+    initialState: pendingState,
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+    checkpointInterrupt: "after-effect",
+    effectExecutor: async (effect) => {
+      executed.push(effect.effect_id);
+      return { ok: true };
+    },
+  });
+  assert.equal(interrupted.halted.at, "after-effect");
+  assert.equal(executed.length, 1);
+  assert.equal(interrupted.snapshot.state.nodes.n1.phase, "pending");
+  assert.equal(interrupted.snapshot.journal[0].status, "completed");
+
+  const resumedExec = [];
+  const resumed = await runHarnessScenario({
+    id: "resume-after-effect",
+    initialState: interrupted.snapshot.state,
+    initialJournal: interrupted.snapshot.journal,
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+    effectExecutor: async (effect) => {
+      resumedExec.push(effect.effect_id);
+      return { ok: true };
+    },
+  });
+  assert.equal(resumedExec.length, 0);
+  assert.equal(resumed.snapshot.state.nodes.n1.phase, "started");
+  // Converges to the same digest as an uninterrupted start.
+  const clean = await runHarnessScenario({
+    id: "clean-start",
+    initialState: pendingState,
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+  });
+  assert.equal(resumed.final_state_digest, clean.final_state_digest);
+});
+
+test("named execute and recover fixtures are invoked through the harness", async () => {
+  const invoked = [];
+  const start = await runHarnessScenario({
+    id: "fixture-execute-start",
+    initialState: pendingState,
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+    effectExecutor: async (effect) => {
+      invoked.push({ op: "start", effect_id: effect.effect_id });
+      return { ok: true };
+    },
+  });
+  assert.ok(invoked.some((entry) => entry.op === "start"));
+
+  const failState = {
+    schema_version: 1,
+    status: "blocked",
+    nodes: { n1: { id: "n1", phase: "failed", attempt: 1 } },
+  };
+  const recover = await runHarnessScenario({
+    id: "fixture-execute-recover",
+    initialState: failState,
+    operations: [{ operation: "recover", arguments: { node_id: "n1" } }],
+    effectExecutor: async (effect) => {
+      invoked.push({ op: "recover", effect_id: effect.effect_id });
+      return { ok: true };
+    },
+  });
+  assert.equal(recover.snapshot.state.nodes.n1.phase, "pending");
+  assert.ok(invoked.some((entry) => entry.op === "recover"));
+  assert.notEqual(recover.final_state_digest, require("./lifecycle-kernel/state-digest.js").digestLifecycleState(failState));
+  assert.equal(start.snapshot.state.nodes.n1.phase, "started");
+});

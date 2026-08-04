@@ -1,0 +1,13 @@
+✔ scope-guard exports forbidden host/Candidate/budget/attestation/delivery patterns (0.7945ms)
+✔ scanSourceForScopeViolations rejects HostCapabilities and Candidate APIs (1.0032ms)
+✔ scanSourceForScopeViolations rejects productive budget, attestation and delivery modules (0.1266ms)
+✔ assertK2SourceInScope throws with stable code on violation (0.3629ms)
+✔ assertK2TreeInScope scans production modules under lifecycle-kernel (2.3666ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 62.6643

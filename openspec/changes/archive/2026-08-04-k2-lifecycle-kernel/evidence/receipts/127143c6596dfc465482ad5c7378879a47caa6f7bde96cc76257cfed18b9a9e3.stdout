@@ -1,0 +1,14 @@
+✔ human and negotiated projections derived independently can diverge (0.6995ms)
+✔ both projections derived from same K2-selected transition share discriminants and digest (0.6901ms)
+✔ projection attempting to override selected operation fails closed (0.1501ms)
+✔ command honesty rejects dead-end recovery that preserves blocking digest (0.6945ms)
+✔ command honesty accepts advancing recover via harness (1.159ms)
+✔ selectTransitions still available for kernel authority (0.0794ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 63.0372

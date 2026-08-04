@@ -1,8 +1,8 @@
 # Arquitectura objetivo — harness gobernado por kernel, grafo y evidencia
 
 > **Autoridad:** fuente conceptual y estratégica del harness (responsabilidades y límites).
-> **Corte documental:** v2.37.2, 2026-08-04.
-> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B y **K1** están entregados (K1 archivado y publicado en v2.37.0). **K2** es next-eligible (sin change OpenSpec abierto).
+> **Corte documental:** v2.38.0, 2026-08-04.
+> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1** y **K2** están entregados (K2 archivado y publicado en v2.38.0). **K2a** es next-eligible.
 > **Roadmap:** orden, estado operativo y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
 > **Precedencia documental:** ante diferencias de **orden o estado**, prevalece el roadmap; ante diferencias **conceptuales**, reconciliar antes de iniciar el slice.
 > **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md).
@@ -21,7 +21,7 @@ Sin duplicar el backlog: solo responsabilidades y límites alineados al roadmap 
 
 | Tema | Decisión arquitectónica |
 | --- | --- |
-| Estado | K1 `done`; K2 next-eligible (`pending` desbloqueado; no es estado OpenSpec distinto) |
+| Estado | K1+K2 `done`; K2a next-eligible (`pending` desbloqueado; no es estado OpenSpec distinto) |
 | Dos grafos | **Execution Graph** (trabajo) ≠ **Assurance Graph** (fiabilidad / evidencia; no “prueba formal”) |
 | Identidades | `SourceSnapshotId` / `WorkOrderId` / `WorkResultId` / `CandidateId` |
 | Proyección | `Candidate.projection` solo `workspace\|staged` (`candidate/v1`); un commit puede origenar `SourceSnapshot`, no es tercera proyección de Candidate |
@@ -159,17 +159,18 @@ O2B está cerrado y archivado (`openspec/changes/archive/2026-07-31-fixed-policy
 - gate 4R `approved` con lineage terminal;
 - fixed permanece como baseline de control y default;
 - el change histórico `k1-contract-suite` completó archive, verify PASS, 4R approved y publicación v2.37.0; K1 está **done**;
-- K2 es **next-eligible** (sin change OpenSpec abierto).
+- el change `k2-lifecycle-kernel` completó archive, verify PASS, 4R approved y publicación v2.38.0; K2 está **done**;
+- K2a es **next-eligible**.
 
-El programa no cambia defaults por el solo hecho de cerrar O2B/K1: cualquier promoción de policy, fixtures o routing exige los gates posteriores aplicables.
+El programa no cambia defaults por el solo hecho de cerrar O2B/K1/K2: cualquier promoción de policy, fixtures o routing exige los gates posteriores aplicables.
 
 ### Deuda real
 
-- No existe un kernel global `status → next_transition` ejecutable (K2).
+- No existe Reference Host Contract ni adapter host de referencia (K2a).
 - No existe Execution Graph semántico común a Repair, planificación, invalidación y federación (K4a+).
 - La clasificación no separa completamente impacto, incertidumbre y ejecución ni fija hard floors por evidencia en runtime.
 - Los budgets no son uniformes por nodo (K5).
-- Failure/recovery no comparten taxonomy y shape universales; las continuaciones anunciadas no siempre se ejercen E2E (K2/K5).
+- Failure/recovery no comparten taxonomy y shape universales a escala de grafo (K5).
 - Candidate freeze / cuatro identidades no gobiernan todavía apply → verify → review → delivery (K3+).
 - No hay CandidateEvaluationAttestation ni DeliveryAuthorization productivos (K8 / K10-delivery).
 - No hay selector de estrategia de evidencia por tipo de cambio ni Assurance Graph (K6b).

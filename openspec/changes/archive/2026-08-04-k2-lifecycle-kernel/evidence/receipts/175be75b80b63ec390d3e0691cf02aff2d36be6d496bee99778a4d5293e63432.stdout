@@ -1,0 +1,12 @@
+✔ KERNEL_VERSION is a positive integer (0.6982ms)
+✔ equivalent states with different property order share digest (0.5682ms)
+✔ material status change changes digest (0.1692ms)
+✔ volatile clock fields are excluded from semantic digest (0.128ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 61.3244

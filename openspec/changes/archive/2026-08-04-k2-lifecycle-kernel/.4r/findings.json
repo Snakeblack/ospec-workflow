@@ -1,0 +1,117 @@
+[
+  {
+    "id": "F-2b903d354e7568e1",
+    "owner": "risk",
+    "severity": "CRITICAL",
+    "summary": "runKernelOperation commits advanced lifecycle state even when an effect is journaled as failed",
+    "acceptance_criteria": "Any failed effect must block state commit, preserve prior authoritative state (or explicit reconcile), and return blocked with a stable code—never advanced/terminal.",
+    "blocking": true,
+    "resolution": "unresolved"
+  },
+  {
+    "id": "F-c44d82b8e1cd7768",
+    "owner": "risk",
+    "severity": "WARNING",
+    "summary": "Missing effectExecutor synthesizes completed effects and still mutates state",
+    "acceptance_criteria": "Mutating operations without effectExecutor fail closed; only non-mutating status may omit it; regression tests cover denial and no commit.",
+    "blocking": false,
+    "resolution": "remediated",
+    "remediation_note": "Mutating ops require effectExecutor (effect-executor-required); status may omit. 2026-08-04 warning follow-up."
+  },
+  {
+    "id": "F-f257d334331e45c1",
+    "owner": "risk",
+    "severity": "WARNING",
+    "summary": "assertSingleLifecycleReducer misses arrow/const reducer definitions",
+    "acceptance_criteria": "Checker flags arrow/assignment/exported reduceLifecycle definitions outside reducer.js; fixture test proves detection.",
+    "blocking": false,
+    "resolution": "remediated",
+    "remediation_note": "sourceDefinesReduceLifecycle covers arrow/const/exports; fixture tests in bridges.test.js. 2026-08-04 warning follow-up."
+  },
+  {
+    "id": "F-fb3424fb598c2ee7",
+    "owner": "risk",
+    "severity": "SUGGESTION",
+    "summary": "K2 scope-guard module bans can be bypassed via string concatenation",
+    "acceptance_criteria": "Detect concatenated require/import toward banned module names or tighten allowlisted K2 file set with regression fixture.",
+    "blocking": false,
+    "resolution": "advisory"
+  },
+  {
+    "id": "F-d43f995b73caada6",
+    "owner": "reliability",
+    "severity": "CRITICAL",
+    "summary": "effectExecutor {ok:false} journals failed then still commits reduced success state with no covering test",
+    "acceptance_criteria": "Add a runtime test where effectExecutor returns {ok:false} and assert blocked/failed outcome, state digest does not advance to the success post-state, and journal records failure without committing the reduced success state.",
+    "blocking": true,
+    "resolution": "unresolved"
+  },
+  {
+    "id": "F-7962c70c9e0436f1",
+    "owner": "reliability",
+    "severity": "WARNING",
+    "summary": "journal status unknown fail-closed lacks public runKernelOperation integration test",
+    "acceptance_criteria": "Add runKernelOperation test with initial journal status unknown expecting outcome blocked, code reconciliation-required, and unchanged store state digest/journal material content.",
+    "blocking": false,
+    "resolution": "remediated",
+    "remediation_note": "index.test.js preseeded unknown journal integration coverage. 2026-08-04 warning follow-up."
+  },
+  {
+    "id": "F-335f0270aab52137",
+    "owner": "resilience",
+    "severity": "CRITICAL",
+    "summary": "Ambiguous effectExecutor failure leaves journal started and resume blindly re-executes without unknown/fail-closed",
+    "acceptance_criteria": "Ambiguous executor failure after started must durable-mark unknown (or equivalent) and resume must block with reconciliation-required until exact outcome; started re-execute only when effect is proven not to have run.",
+    "blocking": true,
+    "resolution": "unresolved"
+  },
+  {
+    "id": "F-99013a8c06ee2b2d",
+    "owner": "resilience",
+    "severity": "WARNING",
+    "summary": "Optional commitJournal allows after-effect interrupt to duplicate effects",
+    "acceptance_criteria": "Require durable journal commits before effect start and after effect completion, or fail-closed when the store cannot provide mid-operation journal durability.",
+    "blocking": false,
+    "resolution": "remediated",
+    "remediation_note": "commitJournal mandatory (journal-durability-required) for mutating ops. 2026-08-04 warning follow-up."
+  },
+  {
+    "id": "F-e69e265f2a715ae8",
+    "owner": "readability",
+    "severity": "WARNING",
+    "summary": "Near-identical interruptAt vs interruptAfter hide distinct barrier vocabularies",
+    "acceptance_criteria": "Rename to mechanism-revealing names or document each parameter's accepted token vocabulary with examples next to the destructuring.",
+    "blocking": false,
+    "resolution": "remediated",
+    "remediation_note": "Renamed to checkpointInterrupt / scenarioInterrupt with vocab comments. 2026-08-04 warning follow-up."
+  },
+  {
+    "id": "F-b5d24c2d875d071c",
+    "owner": "readability",
+    "severity": "WARNING",
+    "summary": "Silent reconcile→execute remap hides replay-once policy",
+    "acceptance_criteria": "Emit distinct self-describing journal actions or comment the remap citing the replay invariant and why started is not immediate fail-closed.",
+    "blocking": false,
+    "resolution": "remediated",
+    "remediation_note": "reconcileEffect emits retry-execute vs fail-closed for started barriers. 2026-08-04 warning follow-up."
+  },
+  {
+    "id": "F-511f1befb15e00ec",
+    "owner": "readability",
+    "severity": "WARNING",
+    "summary": "Opaque stableSerialize&&JSON.stringify expression in checkSameTransitions",
+    "acceptance_criteria": "Replace with named clones that state intent and remove decorative stableSerialize&&, or comment why the form is deliberate.",
+    "blocking": false,
+    "resolution": "remediated",
+    "remediation_note": "Named identityClone / keyOrderReshape; removed decorative &&. 2026-08-04 warning follow-up."
+  },
+  {
+    "id": "F-82d7a8914da5c264",
+    "owner": "readability",
+    "severity": "SUGGESTION",
+    "summary": "Public barrel re-exports reduceLifecycle blurring core/shell conformance boundary",
+    "acceptance_criteria": "Stop re-exporting the reducer from the shell barrel, or explicitly label conformance API vs internal/model utilities.",
+    "blocking": false,
+    "resolution": "advisory"
+  }
+]

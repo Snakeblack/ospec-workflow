@@ -1,0 +1,14 @@
+✔ syntactically valid recovery that returns same blocking digest fails honesty (0.9219ms)
+✔ recovery that advances digest is honest (0.1752ms)
+✔ recovery that reaches terminal is honest (0.1293ms)
+✔ selectHonestTransitions replaces non-advancing recover with decide/stop (0.323ms)
+✔ harness recover fixture advances digest (recoverable triangulation) (1.4698ms)
+✔ exhausted failure exposes decide not recover (human-decision triangulation) (0.2376ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 63.4256
