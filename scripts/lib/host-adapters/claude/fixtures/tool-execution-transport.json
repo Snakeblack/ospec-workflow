@@ -1,0 +1,16 @@
+{
+  "capability": "ToolExecutionTransport",
+  "profile": "claude",
+  "mapping": {
+    "tools": [
+      "Read",
+      "Edit",
+      "Write",
+      "Grep",
+      "Glob"
+    ]
+  },
+  "semantic": {
+    "tool_surface": "claude-code"
+  }
+}

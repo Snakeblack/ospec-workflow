@@ -94,6 +94,39 @@ const K21_EXECUTABLE_INVARIANTS = Object.freeze([
   Object.freeze({ id: "inv-k21-direct-write-blocked", name: "Direct-write adapters blocked", optional: false }),
 ]);
 
+const K2A_EXECUTABLE_INVARIANTS = Object.freeze([
+  Object.freeze({
+    id: "inv-k2a-zero-concrete-host-imports",
+    name: "Lifecycle/Graph/receipt have zero concrete host imports",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k2a-no-silent-promotion",
+    name: "unavailable/instructional never silently become enforced",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k2a-enforced-requires-proof",
+    name: "enforced requires verifying CapabilityProof",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k2a-reject-lifecycle-graph-duplication",
+    name: "Adapters duplicating lifecycle/Graph semantics are rejected",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k2a-sole-claude-adapter",
+    name: "Exactly one real product adapter (claude) is activated",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k2a-host-fault-matrix",
+    name: "Host-fault matrix covers timeout/cancel/worker-fail/interrupt",
+    optional: false,
+  }),
+]);
+
 function initialModelState() {
   return {
     schema_version: 1,
@@ -286,7 +319,126 @@ const CHECKERS = {
   "inv-k21-convergent-replay": () => checkK21ConvergentReplay(),
   "inv-k21-no-self-grant": () => checkK21NoSelfGrant(),
   "inv-k21-direct-write-blocked": () => checkK21DirectWriteBlocked(),
+  "inv-k2a-zero-concrete-host-imports": () => checkK2aZeroConcreteHostImports(),
+  "inv-k2a-no-silent-promotion": () => checkK2aNoSilentPromotion(),
+  "inv-k2a-enforced-requires-proof": () => checkK2aEnforcedRequiresProof(),
+  "inv-k2a-reject-lifecycle-graph-duplication": () => checkK2aRejectDuplication(),
+  "inv-k2a-sole-claude-adapter": () => checkK2aSoleClaudeAdapter(),
+  "inv-k2a-host-fault-matrix": () => checkK2aHostFaultMatrix(),
 };
+
+function checkK2aZeroConcreteHostImports() {
+  const path = require("node:path");
+  const { assertK2TreeInScope } = require("./lifecycle-kernel/scope-guard.js");
+  const kernelDir = path.join(__dirname, "lifecycle-kernel");
+  const result = assertK2TreeInScope(kernelDir);
+  return { ok: result.ok === true, invariant_id: "inv-k2a-zero-concrete-host-imports" };
+}
+
+function checkK2aNoSilentPromotion() {
+  const { resolveCapabilityState } = require("./host-contract/index.js");
+  const cases = ["unavailable", "instructional", "partial"];
+  for (const declared of cases) {
+    const result = resolveCapabilityState({
+      capability_id: "ExecutionTransport",
+      declared_state: declared,
+      request_enforced: true,
+    });
+    if (result.enforced === true || result.effective_state === "enforced") {
+      return { ok: false, invariant_id: "inv-k2a-no-silent-promotion", detail: { declared, result } };
+    }
+  }
+  return { ok: true, invariant_id: "inv-k2a-no-silent-promotion" };
+}
+
+function checkK2aEnforcedRequiresProof() {
+  const { evaluateEnforcementEligibility, verifyCapabilityProof } = require("./capability-proof/index.js");
+  const missing = evaluateEnforcementEligibility({
+    capability_id: "ExecutionTransport",
+    declared_state: "enforced",
+  });
+  if (missing.enforced) {
+    return { ok: false, invariant_id: "inv-k2a-enforced-requires-proof", detail: "declared-only" };
+  }
+  // Concrete artifact: missing evidence_digest fails (not opaque).
+  const incomplete = verifyCapabilityProof(
+    "ExecutionTransport",
+    {
+      adapter_version: "1.0.0",
+      host_version: "k2a-host/1",
+      fixture: "f.json",
+    },
+    { a: 1 }
+  );
+  if (incomplete.ok || incomplete.path !== "/evidence_digest") {
+    return { ok: false, invariant_id: "inv-k2a-enforced-requires-proof", detail: incomplete };
+  }
+  return { ok: true, invariant_id: "inv-k2a-enforced-requires-proof" };
+}
+
+function checkK2aRejectDuplication() {
+  const { runConformanceScenario, REASON } = require("./headless-conformance-host.js");
+  const baseTransports = {
+    ExecutionTransport: { port_id: "e" },
+    QuestionTransport: { port_id: "q" },
+    WorkerTransport: { port_id: "w" },
+    ToolExecutionTransport: { port_id: "t" },
+    DeliveryGateTransport: { port_id: "d" },
+  };
+  const lifecycle = runConformanceScenario({
+    scenario_id: "model-dup-lifecycle",
+    seed: 0,
+    adapter: {
+      adapter_id: "bad",
+      adapter_version: "1",
+      host_version: "1",
+      capabilities: {},
+      transports: {
+        ...baseTransports,
+        ExecutionTransport: { port_id: "e", selectTransition: () => [] },
+      },
+    },
+  });
+  const graph = runConformanceScenario({
+    scenario_id: "model-dup-graph",
+    seed: 0,
+    adapter: {
+      adapter_id: "bad",
+      adapter_version: "1",
+      host_version: "1",
+      capabilities: {},
+      transports: baseTransports,
+      authority_surface: { compileGraph: true },
+    },
+  });
+  const ok =
+    lifecycle.reason_code === REASON.LIFECYCLE_DUPLICATION &&
+    graph.reason_code === REASON.GRAPH_DUPLICATION;
+  return { ok, invariant_id: "inv-k2a-reject-lifecycle-graph-duplication" };
+}
+
+function checkK2aSoleClaudeAdapter() {
+  const { assertSoleClaudeActivation, listActivatedRealAdapters } = require("./host-adapters/registry.js");
+  const gate = assertSoleClaudeActivation();
+  return {
+    ok: gate.ok === true && listActivatedRealAdapters().length === 1,
+    invariant_id: "inv-k2a-sole-claude-adapter",
+  };
+}
+
+function checkK2aHostFaultMatrix() {
+  const { peerHostFaultMatrix } = require("./minimal-kernel-harness.js");
+  const { createClaudeHostAdapter } = require("./host-adapters/claude.js");
+  const peer = peerHostFaultMatrix({ adapter: createClaudeHostAdapter() });
+  const faults = peer.matrix.faults_covered || [];
+  const required = ["timeout", "cancel", "worker-fail", "interrupt"];
+  const ok =
+    peer.fault_driver === "headless-conformance-host" &&
+    peer.owns_host_policy === false &&
+    required.every((f) => faults.includes(f)) &&
+    peer.matrix.pass === true;
+  return { ok, invariant_id: "inv-k2a-host-fault-matrix" };
+}
 
 function checkK21NoMutationWithoutCas() {
   const { createMemoryStore } = require("./lifecycle-kernel/memory-store.js");
@@ -442,7 +594,11 @@ async function checkInvariant(id, context = {}) {
 }
 
 async function runAllInvariantCheckers(context = {}) {
-  const allInvariants = [...EXECUTABLE_INVARIANTS, ...K21_EXECUTABLE_INVARIANTS];
+  const allInvariants = [
+    ...EXECUTABLE_INVARIANTS,
+    ...K21_EXECUTABLE_INVARIANTS,
+    ...K2A_EXECUTABLE_INVARIANTS,
+  ];
   const results = [];
   for (const inv of allInvariants) {
     const result = await checkInvariant(inv.id, context);
@@ -462,15 +618,15 @@ async function runAllInvariantCheckers(context = {}) {
     counts_as_enforced: false,
     enforced_in_k2: false,
   }));
-  // CAS/permit/retry invariants must not appear on deferred list.
+  // CAS/permit/retry and K2a host invariants must not appear on deferred list.
   const deferredIds = new Set(deferred.map((d) => d.invariant_id));
-  for (const inv of K21_EXECUTABLE_INVARIANTS) {
+  for (const inv of [...K21_EXECUTABLE_INVARIANTS, ...K2A_EXECUTABLE_INVARIANTS]) {
     if (deferredIds.has(inv.id)) {
       return {
         results: [...results, ...deferred],
         enforced_count: results.length,
         ok: false,
-        code: "k21-invariant-incorrectly-deferred",
+        code: "invariant-incorrectly-deferred",
       };
     }
   }
@@ -479,6 +635,7 @@ async function runAllInvariantCheckers(context = {}) {
     enforced_count: results.length,
     ok: results.every((r) => r.ok),
     k21_count: K21_EXECUTABLE_INVARIANTS.length,
+    k2a_count: K2A_EXECUTABLE_INVARIANTS.length,
   };
 }
 
@@ -656,6 +813,7 @@ module.exports = {
   MODEL_CONFIG,
   EXECUTABLE_INVARIANTS,
   K21_EXECUTABLE_INVARIANTS,
+  K2A_EXECUTABLE_INVARIANTS,
   DEFERRED_INVARIANTS,
   exploreModel,
   checkInvariant,

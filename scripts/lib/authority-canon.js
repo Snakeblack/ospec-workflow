@@ -129,8 +129,79 @@ function rejectProseFallback(input) {
   return { ok: true, value: structured[field] };
 }
 
+/**
+ * HostAdapters / HostCapabilities / CapabilityProof / Headless Conformance Host
+ * MUST NOT override OpenSpec/Git semantic facts (REQ-harness-authority-canon-007).
+ *
+ * @param {{
+ *   openspec: object,
+ *   git?: object|null,
+ *   adapter_claim?: object|null,
+ *   capability_proof?: object|null,
+ *   conformance_host_claim?: object|null
+ * }} input
+ */
+function assertAdaptersNotSemanticAuthority(input) {
+  const openspec = input && input.openspec;
+  if (!isRecord(openspec)) {
+    return { ok: false, authority: "openspec", reason_code: "missing-openspec-authority" };
+  }
+
+  const claims = [input.adapter_claim, input.capability_proof, input.conformance_host_claim].filter(
+    (c) => c != null
+  );
+
+  for (const claim of claims) {
+    if (!isRecord(claim)) {
+      return { ok: false, authority: "openspec", reason_code: "adapter-claim-rejected" };
+    }
+    for (const key of ["status", "change", "owner", "candidate_id", "approval", "semantic_fact"]) {
+      if (
+        Object.prototype.hasOwnProperty.call(claim, key) &&
+        Object.prototype.hasOwnProperty.call(openspec, key) &&
+        !structurallyEqual(claim[key], openspec[key])
+      ) {
+        return {
+          ok: false,
+          authority: "openspec",
+          reason_code: "adapter-claim-override-rejected",
+        };
+      }
+      if (
+        Object.prototype.hasOwnProperty.call(claim, key) &&
+        !Object.prototype.hasOwnProperty.call(openspec, key) &&
+        (key === "status" || key === "change" || key === "candidate_id" || key === "approval")
+      ) {
+        return {
+          ok: false,
+          authority: "openspec",
+          reason_code: "adapter-claim-override-rejected",
+        };
+      }
+    }
+    if (claim.overrides_openspec === true || claim.semantic_authority === true) {
+      return {
+        ok: false,
+        authority: "openspec",
+        reason_code: "adapter-claim-override-rejected",
+      };
+    }
+  }
+
+  if (isRecord(input.capability_proof) && input.capability_proof.replaces_openspec === true) {
+    return {
+      ok: false,
+      authority: "openspec",
+      reason_code: "capability-proof-not-authority",
+    };
+  }
+
+  return { ok: true, authority: "openspec/git", adapters_are_authority: false };
+}
+
 module.exports = {
   assertOpenSpecAuthoritative,
   rejectProseFallback,
   reconcileGraphIr,
+  assertAdaptersNotSemanticAuthority,
 };

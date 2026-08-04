@@ -4,14 +4,16 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 /**
- * Negative scope for K2: host APIs, Candidate/Execution Graph, productive
- * budget, attestation and delivery modules are out of scope.
+ * Scope guard for lifecycle-kernel / Graph / receipt modules.
+ * K2a: generic host-contract ports are allowed; concrete host product
+ * imports/exports remain forbidden. Later slices (Candidate/Graph authority/
+ * attestation/delivery) stay out of scope.
  */
 
 const FORBIDDEN_SYMBOL_PATTERNS = [
-  /\bHostCapabilities\b/,
-  /\bcreateHostAdapter\b/,
   /\bCapabilityProof\b/,
+  /\bcreateClaudeHostAdapter\b/,
+  /\bAskUserQuestion\b/,
   /\bExecutionGraph\b/,
   /\bexecution_graph\b/,
   /\bexecution-graph\b/,
@@ -30,7 +32,8 @@ const FORBIDDEN_SYMBOL_PATTERNS = [
 ];
 
 const FORBIDDEN_MODULE_PATTERNS = [
-  /host-capabilities/i,
+  /host-adapters[\\/]+claude/i,
+  /target-profiles[\\/]+claude/i,
   /capability-proof/i,
   /execution-graph/i,
   /obligation-manifest/i,
@@ -39,6 +42,9 @@ const FORBIDDEN_MODULE_PATTERNS = [
   /attestation-runtime/i,
   /candidate-identity/i,
 ];
+
+/** Allowed generic host-contract module references (not concrete hosts). */
+const ALLOWED_MODULE_PATTERNS = [/host-contract/i, /host-boundary/i];
 
 function stripStringsAndComments(source) {
   return String(source ?? "")
@@ -52,6 +58,11 @@ function stripStringsAndComments(source) {
 
 function isScopeGuardFile(fileLabel) {
   return /(^|[\\/])scope-guard\.js$/.test(String(fileLabel).replace(/\\/g, "/"));
+}
+
+function isAllowedGenericHostReference(raw, fileLabel) {
+  const haystack = `${raw}\n${fileLabel}`;
+  return ALLOWED_MODULE_PATTERNS.some((pattern) => pattern.test(haystack));
 }
 
 function scanSourceForScopeViolations(source, fileLabel = "<source>") {
@@ -74,7 +85,13 @@ function scanSourceForScopeViolations(source, fileLabel = "<source>") {
 
   for (const pattern of FORBIDDEN_MODULE_PATTERNS) {
     if (isScopeGuardFile(fileLabel)) continue;
-    if (pattern.test(raw) || pattern.test(fileLabel)) {
+    // Only treat require/import/from path references as module imports.
+    // Path strings in exclusion inventories (e.g. k1-compat) must not false-positive.
+    const importLines = String(raw)
+      .split(/\r?\n/)
+      .filter((line) => /\brequire\s*\(|\bimport\s+|from\s+['"]/.test(line))
+      .join("\n");
+    if (pattern.test(importLines) || (pattern.test(fileLabel) && /host-adapters|target-profiles/i.test(pattern.source))) {
       violations.push({
         kind: "module",
         pattern: pattern.source,
@@ -149,8 +166,10 @@ function assertK2TreeInScope(kernelDir) {
 module.exports = {
   FORBIDDEN_SYMBOL_PATTERNS,
   FORBIDDEN_MODULE_PATTERNS,
+  ALLOWED_MODULE_PATTERNS,
   scanSourceForScopeViolations,
   assertK2SourceInScope,
   listK2ProductionSources,
   assertK2TreeInScope,
+  isAllowedGenericHostReference,
 };

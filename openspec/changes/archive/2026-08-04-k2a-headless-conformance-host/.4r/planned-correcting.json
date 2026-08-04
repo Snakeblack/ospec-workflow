@@ -1,0 +1,15 @@
+{
+  "status": "correcting",
+  "next_action": {
+    "type": "record-correction",
+    "slice_id": "S-c7287ca3d143070a",
+    "request_id": "correct-S-c7287ca3d143070a"
+  },
+  "dispatch": [],
+  "archive_allowed": false,
+  "active_slice": {
+    "slice_id": "S-c7287ca3d143070a",
+    "finding_ids": [],
+    "paths": []
+  }
+}

@@ -193,3 +193,36 @@ test("rejectProseFallback accepts when structured authority field is present", (
   assert.equal(result.ok, true);
   assert.equal(result.value, "contract-remediation");
 });
+
+test("adapter claims and CapabilityProof cannot override OpenSpec/Git semantic facts", () => {
+  const { assertAdaptersNotSemanticAuthority } = require("./authority-canon.js");
+  const rejected = assertAdaptersNotSemanticAuthority({
+    openspec: { status: "ready-for-verify", change: "k2a-demo" },
+    adapter_claim: { status: "archived", change: "k2a-demo" },
+  });
+  assert.equal(rejected.ok, false);
+  assert.equal(rejected.reason_code, "adapter-claim-override-rejected");
+
+  const proofNotAuthority = assertAdaptersNotSemanticAuthority({
+    openspec: { status: "ready-for-verify", change: "k2a-demo" },
+    capability_proof: {
+      kind: "capability-proof/v1",
+      evidence_digest: "sha256:abc",
+      replaces_openspec: true,
+    },
+  });
+  assert.equal(proofNotAuthority.ok, false);
+  assert.equal(proofNotAuthority.reason_code, "capability-proof-not-authority");
+
+  const ok = assertAdaptersNotSemanticAuthority({
+    openspec: { status: "ready-for-verify", change: "k2a-demo" },
+    capability_proof: {
+      kind: "capability-proof/v1",
+      evidence_digest: "sha256:abc",
+      capability_id: "ExecutionTransport",
+    },
+    adapter_claim: { adapter_id: "claude", capability_state: "enforced" },
+  });
+  assert.equal(ok.ok, true);
+  assert.equal(ok.adapters_are_authority, false);
+});

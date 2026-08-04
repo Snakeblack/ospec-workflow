@@ -1,0 +1,10 @@
+{
+  "capability": "WorkerTransport",
+  "profile": "claude",
+  "mapping": {
+    "Agent": "WorkerTransport"
+  },
+  "semantic": {
+    "parallel_workers": true
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "summary": "Denylist de autoridad en transports incompleta: aliases snake_case (y claves de AUTHORITY_SURFACE_KEYS) no se rechazan y persisten en el HostAdapter congelado.",
+      "acceptance_criteria": "Un test debe construir un HostAdapter cuya ExecutionTransport (u otro port requerido) exponga mint_permit, compare_and_swap, select_transition o mint_operation_permit como function y demostrar que createHostAdapter y detectDuplication fallan con AUTHORITY_SURFACE_REJECTED / lifecycle-duplication; el mismo caso con camelCase ya rechazado debe seguir fallando."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "verifyCapabilityProof / resolveCapabilityState no revalidan proof.adapter_version/host_version contra la identidad viva del HostAdapter.",
+      "acceptance_criteria": "Dado un adapter con adapter_version/host_version V2 y un CapabilityProof self-consistent firmado solo para V1 (digest válido bajo V1), resolveCapabilityState/verifyCapabilityProof (o el caller de enforcement en headless) debe fallar cerrado con reason estable de identity/version mismatch y enforced===false."
+    }
+  ]
+}

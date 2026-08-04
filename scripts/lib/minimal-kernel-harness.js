@@ -10,9 +10,12 @@ const {
   DEFAULT_SUBJECT_ID,
 } = require("./lifecycle-kernel/index.js");
 
+const HARNESS_KIND = "minimal-kernel-harness/v1";
+
 /**
  * Minimal Kernel Harness — public-API headless scenario runner.
  * Conformance MUST go through runKernelOperation, not private reducers alone.
+ * Host-fault ownership remains with the peer Headless Conformance Host (K2a).
  */
 async function runHarnessScenario(scenario = {}) {
   const {
@@ -228,11 +231,41 @@ function assertPublicApiConformance({ usedRunKernelOperation, usedReducerOnly })
   return { ok: true };
 }
 
+/**
+ * Peer invocation: host-fault matrix is owned by Headless Conformance Host.
+ * The harness must not invent adapter-local delivery or capability policy.
+ *
+ * @param {{adapter:object, fixtures?:object[], proof_material?:object}} input
+ */
+function peerHostFaultMatrix(input) {
+  const {
+    runHostFaultMatrix,
+    KIND: conformanceKind,
+  } = require("./headless-conformance-host.js");
+  const matrix = runHostFaultMatrix(input || {});
+  return {
+    harness_kind: HARNESS_KIND,
+    peer_kind: conformanceKind,
+    owns_host_policy: false,
+    owns_capability_proof_issuance: false,
+    owns_product_host_activation: false,
+    fault_driver: "headless-conformance-host",
+    matrix,
+  };
+}
+
+function getHarnessKind() {
+  return HARNESS_KIND;
+}
+
 module.exports = {
+  HARNESS_KIND,
+  getHarnessKind,
   runHarnessScenario,
   runCasConflictFault,
   snapshotRoundTrip,
   assertPublicApiConformance,
+  peerHostFaultMatrix,
   createMemoryStore,
   createAuthorityStore,
   runKernelOperation,

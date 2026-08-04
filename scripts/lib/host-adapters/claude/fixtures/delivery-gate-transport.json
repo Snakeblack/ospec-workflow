@@ -1,0 +1,10 @@
+{
+  "capability": "DeliveryGateTransport",
+  "profile": "claude",
+  "mapping": {
+    "hooks": "observation-only"
+  },
+  "semantic": {
+    "authorizes_delivery": false
+  }
+}

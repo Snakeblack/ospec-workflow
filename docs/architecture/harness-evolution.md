@@ -1,8 +1,8 @@
 # Arquitectura objetivo — harness gobernado por kernel, grafo y evidencia
 
 > **Autoridad:** fuente conceptual y estratégica del harness (responsabilidades y límites).
-> **Corte documental:** v2.39.0, 2026-08-04.
-> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2** y **K2.1** están entregados (K2.1 archivado y publicado en v2.39.0). **K2a** es next-eligible.
+> **Corte documental:** v2.40.0, 2026-08-05.
+> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1** y **K2a** están entregados (K2a archivado y publicado en v2.40.0). **K3** es next-eligible.
 > **Roadmap:** orden, estado operativo y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
 > **Precedencia documental:** ante diferencias de **orden o estado**, prevalece el roadmap; ante diferencias **conceptuales**, reconciliar antes de iniciar el slice.
 > **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md).
@@ -21,7 +21,7 @@ Sin duplicar el backlog: solo responsabilidades y límites alineados al roadmap 
 
 | Tema | Decisión arquitectónica |
 | --- | --- |
-| Estado | K1+K2+K2.1 `done`; **K2a** next-eligible (`pending` desbloqueado; no es estado OpenSpec distinto) |
+| Estado | K1+K2+K2.1+K2a `done`; **K3** next-eligible (`pending` desbloqueado; no es estado OpenSpec distinto) |
 | Dos grafos | **Execution Graph** (trabajo) ≠ **Assurance Graph** (fiabilidad / evidencia; no “prueba formal”) |
 | Identidades | `SourceSnapshotId` / `WorkOrderId` / `WorkResultId` / `CandidateId` (sin IDs nuevos por ahora) |
 | Relación Candidate | Inicial: `exact` / `changed` / `ambiguous` / `unknown`; `compatible-base-advance` experimental hasta K9 |
@@ -164,13 +164,12 @@ O2B está cerrado y archivado (`openspec/changes/archive/2026-07-31-fixed-policy
 - el change histórico `k1-contract-suite` completó archive, verify PASS, 4R approved y publicación v2.37.0; K1 está **done**;
 - el change `k2-lifecycle-kernel` completó archive, verify PASS, 4R approved y publicación v2.38.0; K2 está **done**;
 - el change `k2-1-authority-store-permits` completó archive, verify PASS, 4R approved y publicación v2.39.0; K2.1 está **done**;
-- **K2a** es **next-eligible** (Headless Conformance Host + adapter real + CapabilityProof).
+- el change `k2a-headless-conformance-host` completó archive, verify PASS WITH WARNINGS, 4R approved y publicación v2.40.0; K2a está **done**.
 
-El programa no cambia defaults por el solo hecho de cerrar O2B/K1/K2/K2.1: cualquier promoción de policy, fixtures o routing exige los gates posteriores aplicables.
+El programa no cambia defaults por el solo hecho de cerrar O2B/K1/K2/K2.1/K2a: cualquier promoción de policy, fixtures o routing exige los gates posteriores aplicables.
 
 ### Deuda real
 
-- No existe Headless Conformance Host ni adapter host de referencia con CapabilityProof (K2a).
 - No existe Execution Graph semántico común a Repair, planificación, invalidación y federación, ni Obligation Manifest (K4a+).
 - La clasificación no separa completamente impacto, incertidumbre y ejecución ni fija hard floors por evidencia en runtime.
 - Los budgets no son uniformes por nodo ni cubren autoridad/efectos (K5).
@@ -179,8 +178,8 @@ El programa no cambia defaults por el solo hecho de cerrar O2B/K1/K2/K2.1: cualq
 - No hay CandidateEvaluationAttestation ni DeliveryAuthorization productivos (K8 / K10-delivery).
 - No hay selector de estrategia de evidencia por tipo de cambio, provenance ni Assurance Graph (K6b).
 - ChallengePlan / challenges proporcionales y `complexity_delta` no son gates reutilizables (K6c/K6d).
-- Worker isolation genérica y host contract pendientes (K6a / K2a).
-- K1/K2 están published; corpus longitudinal y fricción permanecen en K12.
+- Worker isolation genérica pendiente (K6a); host contract K2a ya entrega ports opacos.
+- K1/K2/K2.1/K2a runtime surfaces published or in-flight; corpus longitudinal y fricción permanecen en K12.
 
 ## Cadena canónica del change
 
@@ -814,7 +813,7 @@ Repositorios fixture reciben 10–30 cambios consecutivos. Se miden duplicación
 2. ~~K1 contract suite~~ — hecho: archivado y publicado en v2.37.0.
 3. ~~K2: lifecycle + Minimal Kernel Harness + model-based~~ — hecho: archivado y publicado en v2.38.0.
 4. ~~K2.1: Authority Store (CAS) + OperationPermit/Receipt + semántica de efectos~~ — hecho: archivado y publicado en v2.39.0.
-5. K2a: Headless Conformance Host + adapter real de referencia + CapabilityProof.
+5. ~~K2a: Headless Conformance Host + adapter real de referencia + CapabilityProof~~ — hecho: archivado y publicado en v2.40.0.
 6. K3: cuatro identidades + Candidate freeze + relación básica (`exact`/`changed`/`ambiguous`/`unknown`).
 7. K4a: Execution Graph compiler + Obligation Manifest + replay (sin worker autoritativo).
 8. K5: budgets (incl. autoridad/efectos) / failure / recovery.
@@ -881,6 +880,10 @@ No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
 - {implemented} K1 contract suite (vocabulario, schemas, clasificación, paridad; publicado v2.37.0).
 - {implemented} K2 lifecycle + Minimal Kernel Harness + model-based invariants (publicado v2.38.0).
 - {implemented} K2.1 Authority Store (`load`/`compareAndSwap`), OperationPermit/Receipt y clases de efecto (publicado v2.39.0).
+- {implemented} HostCapabilities + five transports (K2a).
+- {implemented} CapabilityProof (K2a).
+- {implemented} Headless Conformance Host (K2a).
+- {implemented} Claude Code reference adapter (`claude`) (K2a; adapters are not semantic authority).
 
 ### Target arquitectónico aceptado
 
@@ -892,7 +895,6 @@ No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
 - {target} Candidate freeze universal con cuatro identidades; relación básica `exact|changed|ambiguous|unknown`; `Candidate.projection` solo `workspace|staged` (`commit` pertenece a `SourceSnapshot`).
 - {target} Execution Graph semántico + Obligation Manifest (derived plan; not independent authority).
 - {target} Assurance Graph (proyección de evidencia con provenance; no autoridad ni prueba formal).
-- {target} Headless Conformance Host + adapter real + CapabilityProof (K2a); expansión de los cinco restantes en K11a.
 - {target} Clasificación por impacto + incertidumbre; hard floors no degradables por tamaño.
 - {target} Rutas como recetas y fases como capacidades.
 - {target} Clarify con invalidación parcial.

@@ -18,12 +18,12 @@ test("K2.1 maturity docs tag Authority Store/permits/effects as implemented; lat
   );
 
   assert.match(arch, /\{implemented\} K2\.1 Authority Store/);
-  assert.match(arch, /\{target\} Headless Conformance Host \+ adapter real \+ CapabilityProof \(K2a\)/);
+  assert.match(arch, /\{implemented\} HostCapabilities/);
+  assert.match(arch, /\{implemented\} Headless Conformance Host \(K2a\)/);
   assert.match(arch, /\{target\} Candidate freeze universal/);
   assert.match(arch, /\{target\} CandidateEvaluationAttestation/);
   assert.match(arch, /\{target\}.*DeliveryAuthorization/);
 
   assert.match(roadmap, /K2\.1.*\*\*done\*\*|Authority Store \(CAS\).*v2\.39\.0/i);
-  assert.match(roadmap, /Next eligible:.*K2a/s);
   assert.doesNotMatch(arch, /\{target\} Authority Store con CAS, OperationPermit/);
 });

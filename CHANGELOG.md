@@ -8,6 +8,22 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.40.0] - 2026-08-05
+
+### Added
+- **K2a Host Capabilities Contract**: `HostCapabilities` con estados cerrados `enforced|partial|instructional|unavailable` y cinco transports (`Execution`, `Question`, `Worker`, `ToolExecution`, `DeliveryGate`) sin autoridad de lifecycle/CAS/permit.
+- **CapabilityProof**: prueba reproducible (`adapter_version`, `host_version`, `fixture`, `evidence_digest`) requerida antes de `enforced`; digests canónicos sin timestamps.
+- **Headless Conformance Host**: peer del Minimal Kernel Harness con fault matrix (timeout/cancel/worker-fail/interrupt), rechazo de adapters que dupliquen lifecycle/Graph, y outcomes fail-closed.
+- **Reference adapter Claude Code**: único adapter real activado; registry con stubs inactivos para el resto (expansión en K11a).
+- **Schemas / model**: ocho familias JSON Schema K2a, `host-boundary` + scope-guard, seis checkers de modelo y peer wiring del harness.
+
+### Fixed
+- **4R remediation**: denylist de autoridad completa (aliases snake_case), `invokePort` con catch estructurado, `pass` exige `ok===true` sin fault, helper legible `selectEnforcementFailureReason`.
+
+### Docs
+- Specs baseline nuevas: `host-capabilities-contract`, `capability-proof`, `headless-conformance-host`, `reference-host-adapter` + deltas en runtime/harness/schemas/canon/model.
+- ADRs `adr-20260805-001`…`004`; change archivado en `openspec/changes/archive/2026-08-04-k2a-headless-conformance-host/`.
+
 ## [2.39.0] - 2026-08-04
 
 ### Added

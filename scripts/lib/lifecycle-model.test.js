@@ -7,6 +7,7 @@ const {
   MODEL_CONFIG,
   EXECUTABLE_INVARIANTS,
   K21_EXECUTABLE_INVARIANTS,
+  K2A_EXECUTABLE_INVARIANTS,
   DEFERRED_INVARIANTS,
   exploreModel,
   checkInvariant,
@@ -41,7 +42,10 @@ test("every executable invariant has a non-optional checker", async () => {
   }
   const all = await runAllInvariantCheckers();
   const enforced = all.results.filter((r) => r.counts_as_enforced);
-  assert.equal(enforced.length, EXECUTABLE_INVARIANTS.length + K21_EXECUTABLE_INVARIANTS.length);
+  assert.equal(
+    enforced.length,
+    EXECUTABLE_INVARIANTS.length + K21_EXECUTABLE_INVARIANTS.length + K2A_EXECUTABLE_INVARIANTS.length
+  );
   assert.equal(all.enforced_count, enforced.length);
   assert.equal(all.ok, true);
 });
@@ -68,7 +72,7 @@ test("deferred invariants are listed but do not count as K2 enforcement", async 
   assert.ok(!all.results.some((r) => r.deferred === true && r.counts_as_enforced));
   assert.equal(
     all.enforced_count,
-    EXECUTABLE_INVARIANTS.length + K21_EXECUTABLE_INVARIANTS.length
+    EXECUTABLE_INVARIANTS.length + K21_EXECUTABLE_INVARIANTS.length + K2A_EXECUTABLE_INVARIANTS.length
   );
 });
 
@@ -82,6 +86,44 @@ test("K2.1 manifest lists seven executable invariants not on deferred list", asy
   }
   const all = await runAllInvariantCheckers();
   assert.equal(all.k21_count, 7);
+});
+
+test("K2a manifest lists six executable invariants not on deferred list", async () => {
+  assert.equal(K2A_EXECUTABLE_INVARIANTS.length, 6);
+  const deferredIds = new Set(DEFERRED_INVARIANTS.map((d) => d.id));
+  const forbiddenDeferred = [
+    "silent-promotion",
+    "capability-proof",
+    "host-contract",
+    "sole-adapter",
+    "fault-matrix",
+    "concrete-host",
+  ];
+  for (const inv of DEFERRED_INVARIANTS) {
+    const blob = `${inv.id} ${inv.name}`.toLowerCase();
+    for (const needle of forbiddenDeferred) {
+      assert.equal(blob.includes(needle), false, `deferred must not include ${needle}: ${blob}`);
+    }
+  }
+  for (const inv of K2A_EXECUTABLE_INVARIANTS) {
+    assert.equal(deferredIds.has(inv.id), false, inv.id);
+    assert.equal(inv.optional, false, inv.id);
+    const result = await checkInvariant(inv.id);
+    assert.equal(result.ok, true, `${inv.id}: ${JSON.stringify(result)}`);
+  }
+  const all = await runAllInvariantCheckers();
+  assert.equal(all.k2a_count, 6);
+});
+
+test("CapabilityProof missing evidence_digest fails enforcement under model checker", async () => {
+  const result = await checkInvariant("inv-k2a-enforced-requires-proof");
+  assert.equal(result.ok, true);
+});
+
+test("silent-promotion exploration records pass only when refusal holds", async () => {
+  const result = await checkInvariant("inv-k2a-no-silent-promotion");
+  assert.equal(result.ok, true);
+  assert.equal(result.invariant_id, "inv-k2a-no-silent-promotion");
 });
 
 test("opaque AuthorityToken without concrete permit fails under K2.1 checkers", async () => {

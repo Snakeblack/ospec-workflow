@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "change": "k2a-headless-conformance-host",
+  "source_fingerprint": "sha256:908d8e8903645bab08ca1cfeaf4e14ec2dec7948ee8fc2454a7490219af76803",
+  "spec_writes": [
+    {
+      "domain": "lifecycle-kernel-runtime",
+      "source_delta": "specs/lifecycle-kernel-runtime/prepared-spec.md",
+      "target": "openspec/specs/lifecycle-kernel-runtime/spec.md",
+      "target_before_sha256": "sha256:0be0b26352ad333b644ffe0de585c6189c7db923211ffabc238de8f3c1174b70",
+      "content_sha256": "sha256:34151a23b9d5bb8e54590df1768ddba9833ae54a3d3d9ad6dda4071c111c423f"
+    },
+    {
+      "domain": "minimal-kernel-harness",
+      "source_delta": "specs/minimal-kernel-harness/prepared-spec.md",
+      "target": "openspec/specs/minimal-kernel-harness/spec.md",
+      "target_before_sha256": "sha256:75705eb35eb9a666acb2f64c467ed228437579aed6df24c0cae80e51e45858c1",
+      "content_sha256": "sha256:98ce99a222408808361f1dcf2ffc647b6ce4d30afb4f4a1ecb3f27099decb703"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "specs/kernel-contract-schemas/prepared-spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:0c2594ace655749944aa066faad2efdea85303e8912c885d440019021ca9a141",
+      "content_sha256": "sha256:f803f14c5873a0ab7a7e35d85cfcd5746032d474ec83d9c81e8c7a26bd16e093"
+    },
+    {
+      "domain": "harness-authority-canon",
+      "source_delta": "specs/harness-authority-canon/prepared-spec.md",
+      "target": "openspec/specs/harness-authority-canon/spec.md",
+      "target_before_sha256": "sha256:0fd36dfb7747049f1d55ab09e6adebf86bf18d1c7cc019da49f1c7ad5639ead3",
+      "content_sha256": "sha256:e0c183a048f35487b1ebe1bfbddebc5d2ab4403129146153d5aa9a7e0b956673"
+    },
+    {
+      "domain": "lifecycle-model-conformance",
+      "source_delta": "specs/lifecycle-model-conformance/prepared-spec.md",
+      "target": "openspec/specs/lifecycle-model-conformance/spec.md",
+      "target_before_sha256": "sha256:78a11ea69cc892d1c5345677e86c1878813fc4611b28670c0739e4390b107964",
+      "content_sha256": "sha256:8b2614c36d6ede6ea83f3e8ed59dee2673d1d30da9b66743bb3709002a0ddbae"
+    },
+    {
+      "domain": "capability-proof",
+      "source_delta": "specs/capability-proof/spec.md",
+      "target": "openspec/specs/capability-proof/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:15efd7ef6d1f8d1ea1489e66847ac86651bd328134b336deaf6d57fb25b72f2e"
+    },
+    {
+      "domain": "headless-conformance-host",
+      "source_delta": "specs/headless-conformance-host/spec.md",
+      "target": "openspec/specs/headless-conformance-host/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:21d2690d4122039a71b115aaf06bc2d7dbf701620c854704c8264c3a6e8e8ccb"
+    },
+    {
+      "domain": "host-capabilities-contract",
+      "source_delta": "specs/host-capabilities-contract/spec.md",
+      "target": "openspec/specs/host-capabilities-contract/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:30fd5f46c74867a51ad69f2850f9ed4c1ec759754ebd04d775dda7caee789bfc"
+    },
+    {
+      "domain": "reference-host-adapter",
+      "source_delta": "specs/reference-host-adapter/spec.md",
+      "target": "openspec/specs/reference-host-adapter/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:194eaf7c51756009240ffc2cdb4290e918702603644df1316664b0d9b557321d"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260805-001-one-versioned-schema-family-per-host-contract.md",
+      "content_sha256": "sha256:7428d759602c70aae8b940c09f7c9a7c2d56c7586fc00f5f4eba7dc8f50d07e1"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260805-002-canonical-domain-prefixed-capabilityproof-digests.md",
+      "content_sha256": "sha256:d748aab60e8ff34f4d254fca3f6456d17e1ee87a16ea0ebeef2776682dc4c900"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260805-003-peer-headless-conformance-host.md",
+      "content_sha256": "sha256:737207957ef642ff53e2a72262a63cf47dc063a26babb421912396c973111a27"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260805-004-explicit-single-product-adapter-registry.md",
+      "content_sha256": "sha256:fd4a54065d31b21e56f0fe6923f134db53f9ca1ff84b4b74c7cebc05f1f8a92f"
+    }
+  ],
+  "archive_inventory": [
+    ".4r/derived.json",
+    ".4r/diff.base-wt.patch",
+    ".4r/diff.tracked.patch",
+    ".4r/diff.unified.patch",
+    ".4r/diff.untracked.patch",
+    ".4r/diff.wt.patch",
+    ".4r/evidence.json",
+    ".4r/finalize-gate.js",
+    ".4r/findings-summary.json",
+    ".4r/freeze-all-findings.js",
+    ".4r/freeze-lineage.js",
+    ".4r/gate-plan.json",
+    ".4r/generalist.json",
+    ".4r/lens-readability.json",
+    ".4r/lens-reliability.json",
+    ".4r/lens-resilience.json",
+    ".4r/lens-risk.json",
+    ".4r/lineage.json",
+    ".4r/meta.json",
+    ".4r/normalize-evidence.js",
+    ".4r/outcomes-s1.json",
+    ".4r/outcomes-s2.json",
+    ".4r/outcomes-s3.json",
+    ".4r/outcomes-s4.json",
+    ".4r/paths.json",
+    ".4r/persist-gate.js",
+    ".4r/planned-after-freeze.json",
+    ".4r/planned-after-validate.json",
+    ".4r/planned-correcting.json",
+    ".4r/planned-validating.json",
+    ".4r/planned.json",
+    ".4r/record-lens.js",
+    ".4r/remediation-ops.js",
+    ".4r/update-gate-status.js",
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "design.md",
+    "proposal.md",
+    "specs/capability-proof/spec.md",
+    "specs/harness-authority-canon/prepared-spec.md",
+    "specs/harness-authority-canon/spec.md",
+    "specs/headless-conformance-host/spec.md",
+    "specs/host-capabilities-contract/spec.md",
+    "specs/kernel-contract-schemas/prepared-spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "specs/lifecycle-kernel-runtime/prepared-spec.md",
+    "specs/lifecycle-kernel-runtime/spec.md",
+    "specs/lifecycle-model-conformance/prepared-spec.md",
+    "specs/lifecycle-model-conformance/spec.md",
+    "specs/minimal-kernel-harness/prepared-spec.md",
+    "specs/minimal-kernel-harness/spec.md",
+    "specs/reference-host-adapter/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    "Verify WARNING [tasks-gap]: REQ-minimal-kernel-harness-009 scenario \"Harness alone does not satisfy host-fault ownership\" lacks explicit negative runtime case (accepted via archive-warnings-001; tracked in openspec/memory/known-issues.md).",
+    "4R advisory F-bf5536ea2d7dfeb9 (risk): proof.adapter_version/host_version not revalidated against live HostAdapter identity.",
+    "4R advisory F-e191c92c3da5bf90 (reliability): missing harness-alone negative host-fault incompleteness test.",
+    "4R advisory F-7a9e4048630da9f9 (reliability): transitionInputsEquivalent uses JSON.stringify instead of canonical serialization.",
+    "4R advisory F-9906432537c61be8 (reliability): observeHostPort missing fail-closed path tests.",
+    "4R advisory F-cb5e4c4ccca3df2b (reliability): normalizeTransportOutcome missing non-record path tests.",
+    "4R advisory F-7d27660b31fee1fd (reliability): createHostAdapter missing identity rejection tests.",
+    "4R advisory F-76a103404e2adcda (resilience): Claude fixture load/handlers lack try/catch and honest degradation.",
+    "4R advisory F-18559bdd28b81cd9 (readability): resolveCapabilityState vs evaluateEnforcementEligibility divergence undocumented.",
+    "4R advisory F-e59bcc910185c204 (readability): detectDuplication authority_surface fallback undocumented.",
+    "4R advisory F-92f133f838f82404 (readability): HARNESS_KIND export reintroduces host/harness confusion.",
+    "4R advisory F-a6a30dc591bb9769 (readability): capability_id === transport port name undocumented after fault demotion."
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}
