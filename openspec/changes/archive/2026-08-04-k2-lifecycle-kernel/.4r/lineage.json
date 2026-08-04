@@ -1,0 +1,470 @@
+{
+  "schema_version": 1,
+  "lineage_id": "sha256:7ba95b7de2e400335034f5ef7cf71bde46003fa553e709755d884c72bfa5a347",
+  "generation": 1,
+  "predecessor_lineage_id": null,
+  "recovery": null,
+  "revision": 12,
+  "status": "approved",
+  "genesis": {
+    "candidate": {
+      "projection": "workspace",
+      "base_tree": "ae6927e1f0e039d7cc1fe2f52f27e2500e83bf66",
+      "candidate_tree": "WORKING-TREE-k2-lifecycle-kernel",
+      "paths": [
+        "openspec/memory/known-issues.md",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/lifecycle-kernel/bridges.js",
+        "scripts/lib/lifecycle-kernel/bridges.test.js",
+        "scripts/lib/lifecycle-kernel/events.js",
+        "scripts/lib/lifecycle-kernel/events.test.js",
+        "scripts/lib/lifecycle-kernel/index.js",
+        "scripts/lib/lifecycle-kernel/index.test.js",
+        "scripts/lib/lifecycle-kernel/journal.js",
+        "scripts/lib/lifecycle-kernel/journal.test.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.test.js",
+        "scripts/lib/lifecycle-kernel/operations.js",
+        "scripts/lib/lifecycle-kernel/operations.test.js",
+        "scripts/lib/lifecycle-kernel/recovery.js",
+        "scripts/lib/lifecycle-kernel/recovery.test.js",
+        "scripts/lib/lifecycle-kernel/reducer.js",
+        "scripts/lib/lifecycle-kernel/reducer.test.js",
+        "scripts/lib/lifecycle-kernel/scope-guard.js",
+        "scripts/lib/lifecycle-kernel/scope-guard.test.js",
+        "scripts/lib/lifecycle-kernel/state-digest.js",
+        "scripts/lib/lifecycle-kernel/state-digest.test.js",
+        "scripts/lib/lifecycle-kernel/transition-selector.js",
+        "scripts/lib/lifecycle-kernel/transition-selector.test.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/lifecycle-model.test.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js",
+        "scripts/lib/transition-parity.js",
+        "scripts/lib/transition-parity.k2.test.js"
+      ],
+      "diff_hash": "sha256:59a73d4aaa5a7b7f9574fb225c9b8891149c1e4ad4f549576b6df33dd790fa7a",
+      "paths_digest": "sha256:75cfe470243d16de7659862b1a719c9e2da622a738583af6341c33d53dbbe9fe",
+      "authored_lines": 3710,
+      "original_changed_lines": 3710
+    },
+    "candidate_id": "sha256:584faa5104be1965122ccfaba2c0f386f0de647f882a94dac5e724caaef805b2",
+    "paths": [
+      "openspec/memory/known-issues.md",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/lifecycle-kernel/bridges.js",
+      "scripts/lib/lifecycle-kernel/bridges.test.js",
+      "scripts/lib/lifecycle-kernel/events.js",
+      "scripts/lib/lifecycle-kernel/events.test.js",
+      "scripts/lib/lifecycle-kernel/index.js",
+      "scripts/lib/lifecycle-kernel/index.test.js",
+      "scripts/lib/lifecycle-kernel/journal.js",
+      "scripts/lib/lifecycle-kernel/journal.test.js",
+      "scripts/lib/lifecycle-kernel/k1-compat.js",
+      "scripts/lib/lifecycle-kernel/k1-compat.test.js",
+      "scripts/lib/lifecycle-kernel/operations.js",
+      "scripts/lib/lifecycle-kernel/operations.test.js",
+      "scripts/lib/lifecycle-kernel/recovery.js",
+      "scripts/lib/lifecycle-kernel/recovery.test.js",
+      "scripts/lib/lifecycle-kernel/reducer.js",
+      "scripts/lib/lifecycle-kernel/reducer.test.js",
+      "scripts/lib/lifecycle-kernel/scope-guard.js",
+      "scripts/lib/lifecycle-kernel/scope-guard.test.js",
+      "scripts/lib/lifecycle-kernel/state-digest.js",
+      "scripts/lib/lifecycle-kernel/state-digest.test.js",
+      "scripts/lib/lifecycle-kernel/transition-selector.js",
+      "scripts/lib/lifecycle-kernel/transition-selector.test.js",
+      "scripts/lib/lifecycle-model.js",
+      "scripts/lib/lifecycle-model.test.js",
+      "scripts/lib/minimal-kernel-harness.js",
+      "scripts/lib/minimal-kernel-harness.test.js",
+      "scripts/lib/transition-parity.js",
+      "scripts/lib/transition-parity.k2.test.js"
+    ],
+    "classification": "high-risk",
+    "selected_dimensions": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "evidence_fingerprint": "sha256:2cdcc6e6d67b08c864176f9cc3d697f14fb2498f94bdf16908c35316b6beb53c",
+    "original_changed_lines": 3710,
+    "authored_lines": 3710
+  },
+  "current_candidate_id": "sha256:9ce0c3c861f422a6479e38443ff03f401fc3b8b9e7cfff12159d0ecda26b7735",
+  "current_candidate": {
+    "projection": "workspace",
+    "base_tree": "ae6927e1f0e039d7cc1fe2f52f27e2500e83bf66",
+    "candidate_tree": "sha256:20d2c7a60d30c89a5c83ef739dd63e814e6c8e83b89b57771c87d77184845368",
+    "paths": [
+      "openspec/memory/known-issues.md",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/lifecycle-kernel/bridges.js",
+      "scripts/lib/lifecycle-kernel/bridges.test.js",
+      "scripts/lib/lifecycle-kernel/events.js",
+      "scripts/lib/lifecycle-kernel/events.test.js",
+      "scripts/lib/lifecycle-kernel/index.js",
+      "scripts/lib/lifecycle-kernel/index.test.js",
+      "scripts/lib/lifecycle-kernel/journal.js",
+      "scripts/lib/lifecycle-kernel/journal.test.js",
+      "scripts/lib/lifecycle-kernel/k1-compat.js",
+      "scripts/lib/lifecycle-kernel/k1-compat.test.js",
+      "scripts/lib/lifecycle-kernel/operations.js",
+      "scripts/lib/lifecycle-kernel/operations.test.js",
+      "scripts/lib/lifecycle-kernel/recovery.js",
+      "scripts/lib/lifecycle-kernel/recovery.test.js",
+      "scripts/lib/lifecycle-kernel/reducer.js",
+      "scripts/lib/lifecycle-kernel/reducer.test.js",
+      "scripts/lib/lifecycle-kernel/scope-guard.js",
+      "scripts/lib/lifecycle-kernel/scope-guard.test.js",
+      "scripts/lib/lifecycle-kernel/state-digest.js",
+      "scripts/lib/lifecycle-kernel/state-digest.test.js",
+      "scripts/lib/lifecycle-kernel/transition-selector.js",
+      "scripts/lib/lifecycle-kernel/transition-selector.test.js",
+      "scripts/lib/lifecycle-model.js",
+      "scripts/lib/lifecycle-model.test.js",
+      "scripts/lib/minimal-kernel-harness.js",
+      "scripts/lib/minimal-kernel-harness.test.js",
+      "scripts/lib/transition-parity.js",
+      "scripts/lib/transition-parity.k2.test.js"
+    ],
+    "diff_hash": "sha256:6c5f908057959723bf58e35fbded0d2888513409c9573a2287bb1738a06e102b",
+    "paths_digest": "sha256:75cfe470243d16de7659862b1a719c9e2da622a738583af6341c33d53dbbe9fe",
+    "authored_lines": 115,
+    "original_changed_lines": 3710
+  },
+  "lenses": {
+    "risk": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-risk-k2",
+      "result_digest": "sha256:0f79ee4916f63a3d93f8494b7d4cb63fadbf01420c38ef6513f29ff08dbda5ff",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "runKernelOperation commits advanced lifecycle state even when an effect is journaled as failed",
+            "acceptance_criteria": "Any failed effect must block state commit, preserve prior authoritative state (or explicit reconcile), and return blocked with a stable code—never advanced/terminal."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Missing effectExecutor synthesizes completed effects and still mutates state",
+            "acceptance_criteria": "Mutating operations without effectExecutor fail closed; only non-mutating status may omit it; regression tests cover denial and no commit."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "assertSingleLifecycleReducer misses arrow/const reducer definitions",
+            "acceptance_criteria": "Checker flags arrow/assignment/exported reduceLifecycle definitions outside reducer.js; fixture test proves detection."
+          },
+          {
+            "severity": "SUGGESTION",
+            "summary": "K2 scope-guard module bans can be bypassed via string concatenation",
+            "acceptance_criteria": "Detect concatenated require/import toward banned module names or tighten allowlisted K2 file set with regression fixture."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "result-risk-k2"
+    },
+    "reliability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-reliability-k2",
+      "result_digest": "sha256:4e57d3d5fd4d6ecc5b44f1d4b0448851ecd76a04f30d65bac871dfbc20916a05",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "effectExecutor {ok:false} journals failed then still commits reduced success state with no covering test",
+            "acceptance_criteria": "Add a runtime test where effectExecutor returns {ok:false} and assert blocked/failed outcome, state digest does not advance to the success post-state, and journal records failure without committing the reduced success state."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "journal status unknown fail-closed lacks public runKernelOperation integration test",
+            "acceptance_criteria": "Add runKernelOperation test with initial journal status unknown expecting outcome blocked, code reconciliation-required, and unchanged store state digest/journal material content."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "result-reliability-k2"
+    },
+    "resilience": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-resilience-k2",
+      "result_digest": "sha256:54a36c2ee09391cc37bb3cfa4acc8455526cc729f9938ab0cbcbb4460b9f689b",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "Ambiguous effectExecutor failure leaves journal started and resume blindly re-executes without unknown/fail-closed",
+            "acceptance_criteria": "Ambiguous executor failure after started must durable-mark unknown (or equivalent) and resume must block with reconciliation-required until exact outcome; started re-execute only when effect is proven not to have run."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Optional commitJournal allows after-effect interrupt to duplicate effects",
+            "acceptance_criteria": "Require durable journal commits before effect start and after effect completion, or fail-closed when the store cannot provide mid-operation journal durability."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "result-resilience-k2"
+    },
+    "readability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-readability-k2",
+      "result_digest": "sha256:c5c345928195c7113d450f3d609e54897755f50201ce2b13f49e812c7ca8fb73",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "Near-identical interruptAt vs interruptAfter hide distinct barrier vocabularies",
+            "acceptance_criteria": "Rename to mechanism-revealing names or document each parameter's accepted token vocabulary with examples next to the destructuring."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Silent reconcile→execute remap hides replay-once policy",
+            "acceptance_criteria": "Emit distinct self-describing journal actions or comment the remap citing the replay invariant and why started is not immediate fail-closed."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Opaque stableSerialize&&JSON.stringify expression in checkSameTransitions",
+            "acceptance_criteria": "Replace with named clones that state intent and remove decorative stableSerialize&&, or comment why the form is deliberate."
+          },
+          {
+            "severity": "SUGGESTION",
+            "summary": "Public barrel re-exports reduceLifecycle blurring core/shell conformance boundary",
+            "acceptance_criteria": "Stop re-exporting the reducer from the shell barrel, or explicitly label conformance API vs internal/model utilities."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "result-readability-k2"
+    }
+  },
+  "findings": [
+    {
+      "id": "F-2b903d354e7568e1",
+      "owner": "risk",
+      "severity": "CRITICAL",
+      "summary": "runKernelOperation commits advanced lifecycle state even when an effect is journaled as failed",
+      "acceptance_criteria": "Any failed effect must block state commit, preserve prior authoritative state (or explicit reconcile), and return blocked with a stable code—never advanced/terminal.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-c44d82b8e1cd7768",
+      "owner": "risk",
+      "severity": "WARNING",
+      "summary": "Missing effectExecutor synthesizes completed effects and still mutates state",
+      "acceptance_criteria": "Mutating operations without effectExecutor fail closed; only non-mutating status may omit it; regression tests cover denial and no commit.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-f257d334331e45c1",
+      "owner": "risk",
+      "severity": "WARNING",
+      "summary": "assertSingleLifecycleReducer misses arrow/const reducer definitions",
+      "acceptance_criteria": "Checker flags arrow/assignment/exported reduceLifecycle definitions outside reducer.js; fixture test proves detection.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-fb3424fb598c2ee7",
+      "owner": "risk",
+      "severity": "SUGGESTION",
+      "summary": "K2 scope-guard module bans can be bypassed via string concatenation",
+      "acceptance_criteria": "Detect concatenated require/import toward banned module names or tighten allowlisted K2 file set with regression fixture.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-d43f995b73caada6",
+      "owner": "reliability",
+      "severity": "CRITICAL",
+      "summary": "effectExecutor {ok:false} journals failed then still commits reduced success state with no covering test",
+      "acceptance_criteria": "Add a runtime test where effectExecutor returns {ok:false} and assert blocked/failed outcome, state digest does not advance to the success post-state, and journal records failure without committing the reduced success state.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-7962c70c9e0436f1",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "journal status unknown fail-closed lacks public runKernelOperation integration test",
+      "acceptance_criteria": "Add runKernelOperation test with initial journal status unknown expecting outcome blocked, code reconciliation-required, and unchanged store state digest/journal material content.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-335f0270aab52137",
+      "owner": "resilience",
+      "severity": "CRITICAL",
+      "summary": "Ambiguous effectExecutor failure leaves journal started and resume blindly re-executes without unknown/fail-closed",
+      "acceptance_criteria": "Ambiguous executor failure after started must durable-mark unknown (or equivalent) and resume must block with reconciliation-required until exact outcome; started re-execute only when effect is proven not to have run.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-99013a8c06ee2b2d",
+      "owner": "resilience",
+      "severity": "WARNING",
+      "summary": "Optional commitJournal allows after-effect interrupt to duplicate effects",
+      "acceptance_criteria": "Require durable journal commits before effect start and after effect completion, or fail-closed when the store cannot provide mid-operation journal durability.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-e69e265f2a715ae8",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "Near-identical interruptAt vs interruptAfter hide distinct barrier vocabularies",
+      "acceptance_criteria": "Rename to mechanism-revealing names or document each parameter's accepted token vocabulary with examples next to the destructuring.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-b5d24c2d875d071c",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "Silent reconcile→execute remap hides replay-once policy",
+      "acceptance_criteria": "Emit distinct self-describing journal actions or comment the remap citing the replay invariant and why started is not immediate fail-closed.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-511f1befb15e00ec",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "Opaque stableSerialize&&JSON.stringify expression in checkSameTransitions",
+      "acceptance_criteria": "Replace with named clones that state intent and remove decorative stableSerialize&&, or comment why the form is deliberate.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-82d7a8914da5c264",
+      "owner": "readability",
+      "severity": "SUGGESTION",
+      "summary": "Public barrel re-exports reduceLifecycle blurring core/shell conformance boundary",
+      "acceptance_criteria": "Stop re-exporting the reducer from the shell barrel, or explicitly label conformance API vs internal/model utilities.",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ],
+  "findings_digest": "sha256:aea862abd2e092ad2c15b1573c612d12210ffe1f73a2e5a743bb02df4061f9bb",
+  "correction_budget": {
+    "limit_lines": 200,
+    "used_lines": 0,
+    "failed_attempts": 0,
+    "max_failed_attempts": 3
+  },
+  "correction_history": [],
+  "validation_history": [],
+  "follow_ups": [],
+  "pending_operation": null,
+  "pending_correction": null,
+  "terminal_reason": "all-remediation-slices-passed",
+  "remediation_schema_version": 2,
+  "remediation_migration": {
+    "source_digest": "sha256:6605e78df88d58135fa6c7fc67945d83b367743123d0a3f87eab72b4a9d6fbcc",
+    "manifest_digest": "sha256:da6c51af05e4c59127843a0b20b654ed70b7d12c3a9ec05610bbdf09598019d8",
+    "legacy_used_lines": 0,
+    "legacy_failed_attempts": 0,
+    "migrated_at": "deterministic"
+  },
+  "slice_order": [
+    "S-d29e47102af6ce3d"
+  ],
+  "active_slice_id": null,
+  "correction_slices": {
+    "S-d29e47102af6ce3d": {
+      "slice_id": "S-d29e47102af6ce3d",
+      "root_cause_key": "shell-effect-fail-closed",
+      "finding_ids": [
+        "F-2b903d354e7568e1",
+        "F-335f0270aab52137",
+        "F-d43f995b73caada6"
+      ],
+      "evidence_digests": [
+        "sha256:3cd6c8f3397daf107a8437dae7cbb3339468b9896d06cc542ea0765d9b2a4e48",
+        "sha256:8d00c12601a8d8a4b32aff6405dc13de3edba1c81a185b1776c30ae44bc7e87e",
+        "sha256:9e1c14389f209d0adc2af060faf4aa5e435722e0372e2373ed33e8132c7d7ec5"
+      ],
+      "permitted_paths": [
+        "scripts/lib/lifecycle-kernel/index.js",
+        "scripts/lib/lifecycle-kernel/index.test.js",
+        "scripts/lib/lifecycle-kernel/journal.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "resolutions": {
+        "F-2b903d354e7568e1": "unresolved",
+        "F-335f0270aab52137": "unresolved",
+        "F-d43f995b73caada6": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 115,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-d29e47102af6ce3d",
+          "request_id": "correct-shell-effect-fail-closed-k2",
+          "finding_ids": [
+            "F-2b903d354e7568e1",
+            "F-335f0270aab52137",
+            "F-d43f995b73caada6"
+          ],
+          "paths": [
+            "scripts/lib/lifecycle-kernel/index.js",
+            "scripts/lib/lifecycle-kernel/index.test.js",
+            "scripts/lib/lifecycle-kernel/journal.js",
+            "scripts/lib/minimal-kernel-harness.js",
+            "scripts/lib/minimal-kernel-harness.test.js"
+          ],
+          "base_candidate_id": "sha256:584faa5104be1965122ccfaba2c0f386f0de647f882a94dac5e724caaef805b2",
+          "forecast_lines": 120,
+          "actual_changed_lines": 115,
+          "record_request_id": "correct-shell-effect-fail-closed-k2",
+          "corrected_candidate_id": "sha256:9ce0c3c861f422a6479e38443ff03f401fc3b8b9e7cfff12159d0ecda26b7735"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-shell-effect-fail-closed-k2",
+          "outcomes": [
+            {
+              "id": "F-2b903d354e7568e1",
+              "status": "resolved"
+            },
+            {
+              "id": "F-d43f995b73caada6",
+              "status": "resolved"
+            },
+            {
+              "id": "F-335f0270aab52137",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "node --test index+harness 15/15 pass",
+              "effect-failed blocks before store.commit",
+              "unknown journal resume reconciliation-required"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    }
+  }
+}

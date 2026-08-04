@@ -37,7 +37,7 @@ O2B fixed baseline
 
 La columna vertebral se conserva: lifecycle (+ **Minimal Kernel Harness** + model-based invariants) → identidad → **compilar grafo** → budgets → aislamiento → **ejecutar shadow** → evidencia → review → attestation → shadow/A-B → delivery/routing → plataforma → **corpus/longitudinal**. K4 se parte en K4a/K4b; K2 adelanta runner headless mínimo y model-based testing; K12 conserva evaluación estructural a escala. K2a adelanta el adapter de referencia (uno de **seis** targets); la expansión a los **cinco** restantes permanece en K11a.
 
-O2B cerró el gate inicial. El change `fixed-policy-reference-baseline` obtuvo verify `PASS` para 16/16 MUST y evidencia Strict TDD autenticada, superó el gate 4R con estado `approved` y quedó archivado en `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`. La versión v2.36.0 que lo contiene ya está publicada. K1 (`k1-contract-suite`) cerró con verify `PASS`, gate 4R `approved` (2 CRITICAL remediados), archive transaccional en `openspec/changes/archive/2026-08-03-k1-contract-suite/` y publicación en v2.37.0. K2 es la siguiente iniciativa **next-eligible** (sin change OpenSpec abierto; no `in-progress`); el resto de iniciativas posteriores permanece `pending`. Fixed continúa como control/default hasta que los gates posteriores autoricen otro cambio.
+O2B cerró el gate inicial. El change `fixed-policy-reference-baseline` obtuvo verify `PASS` para 16/16 MUST y evidencia Strict TDD autenticada, superó el gate 4R con estado `approved` y quedó archivado en `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`. La versión v2.36.0 que lo contiene ya está publicada. K1 (`k1-contract-suite`) cerró con verify `PASS`, gate 4R `approved` (2 CRITICAL remediados), archive transaccional en `openspec/changes/archive/2026-08-03-k1-contract-suite/` y publicación en v2.37.0. K2 (`k2-lifecycle-kernel`) cerró con verify `PASS`, gate 4R `approved` (3 CRITICAL remediados + 7 WARNING follow-up), archive transaccional en `openspec/changes/archive/2026-08-04-k2-lifecycle-kernel/` y publicación en v2.38.0. K2a es la siguiente iniciativa **next-eligible**; el resto de iniciativas posteriores permanece `pending`. Fixed continúa como control/default hasta que los gates posteriores autoricen otro cambio.
 
 Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R1 se rebasan sobre un kernel común; O7+O10 se convierte en capacidades; O9+O11 en invalidación/recompilación; O14 en routing por nodo; R4 consume el mismo Execution Graph. O8 y O12 conservan shadow, compatibilidad y deprecación. Targets y R2 siguen subordinados a la estabilidad del core.
 
@@ -64,8 +64,8 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | O6A | Archive híbrido transaccional |
 | `done` | **O2B** | Verify `PASS`, gate 4R `approved`, archivado y publicado en v2.36.0 |
 | `done` | **K1** | Contract suite, vocabulario, clasificación, paridad; archivado y publicado en v2.37.0 |
-| `pending` | **K2** | Lifecycle + Minimal Kernel Harness + model-based invariants; **next-eligible** |
-| `pending` | K2a | Reference Host Contract (un adapter; core host-agnostic) |
+| `done` | **K2** | Lifecycle + Minimal Kernel Harness + model-based invariants; archivado y publicado en v2.38.0 |
+| `pending` | **K2a** | Reference Host Contract (un adapter; core host-agnostic); **next-eligible** |
 | `pending` | K3 | Cuatro identidades + Candidate freeze (`SourceSnapshot`/`WorkOrder`/`WorkResult`/`Candidate`) |
 | `pending` | K4a | Graph compiler + replay (sin worker autoritativo) |
 | `pending` | K5 | Budgets, failures y recovery |
@@ -175,9 +175,9 @@ Campo canónico de binding al candidato: **`candidate_id`** (no `candidate_diges
 
 ```text
 Entregado:
-G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1
+G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2
                                                              ↓
-Next eligible:                                              K2
+Next eligible:                                              K2a
                                                              ↓
 Pending:     K2a → K3 → K4a → K5 → K6a → K4b → K6b → K6c → K6d → K7 → K8
                                                                   ↓
@@ -202,7 +202,7 @@ Entregado:
 - separación entre autoridad, targets y análisis;
 - historial no normativo fuera de la ruta operativa.
 
-La reconciliación vigente fija el corte en **v2.37.2** (K1 `done`; K2 next-eligible) y conserva la dirección kernel/Execution Graph/Assurance Graph. No reabre los changes entregados.
+La reconciliación vigente fija el corte en **v2.38.0** (K1+K2 `done`; K2a next-eligible) y conserva la dirección kernel/Execution Graph/Assurance Graph. No reabre los changes entregados.
 
 ### O2A — infraestructura de benchmark — **done**
 
@@ -347,11 +347,11 @@ Revisar primero autoridad/migración, después shapes, por último ejemplos y cl
 
 ## Bloque 2 — kernel de lifecycle
 
-### K2 — state machine, transitions, recovery, eventos, Minimal Kernel Harness y model-based testing — **pending** (next-eligible)
+### K2 — state machine, transitions, recovery, eventos, Minimal Kernel Harness y model-based testing — **done**
 
 **Absorbe/rebasa:** P1, P18, P25 (emisión); P26 (runner mínimo); O13B/O13C; parte de O19B; patrones O4.2/O6A.
 
-**Dependencia:** K1 `done`. **Estado operativo:** next-eligible — desbloqueado, sin change OpenSpec abierto; no usar `in-progress` hasta crear el change.
+**Dependencia:** K1 `done`. **Cierre:** change `k2-lifecycle-kernel` con verify `PASS`, 4R `approved` (CRITICAL remediados; WARNING follow-up), archive `2026-08-04-k2-lifecycle-kernel`, publicado en v2.38.0. Iniciativa terminal: `done`. K2a queda **next-eligible**.
 
 **Motivación:** sin un runner headless temprano, K2 acaba probado solo con unidades aisladas y no como protocolo ejecutable. El corpus amplio y la evaluación longitudinal permanecen en K12. El model-based testing comprueba invariantes sobre un espacio de transiciones pequeño; TLA+ no es requisito de entrega de K2.
 

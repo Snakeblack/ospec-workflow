@@ -1,0 +1,12 @@
+✔ equivalent states produce byte-equivalent ordered transitions (1.1304ms)
+✔ transition priority prefers recover over start over complete (0.1303ms)
+✔ terminal state exposes no ordinary execute transition (0.2099ms)
+✔ exhausted operation cannot restart implicitly (0.1868ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 66.048

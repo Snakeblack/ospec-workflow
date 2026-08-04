@@ -1,0 +1,13 @@
+✔ K1_SCHEMA_BASELINE pins aliases, manifest and every schema family (0.581ms)
+✔ listK1SchemaFiles enumerates schemas/kernel JSON artifacts (6.7627ms)
+✔ digestFile is stable for aliases document (0.4394ms)
+✔ assertK1SchemasUnchanged passes against current tree (10.7511ms)
+✔ assertK1SchemasUnchanged detects a digest drift (3.7424ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 83.3237

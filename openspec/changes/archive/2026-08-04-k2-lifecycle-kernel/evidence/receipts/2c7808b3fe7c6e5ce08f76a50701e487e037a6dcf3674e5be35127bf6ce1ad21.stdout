@@ -1,0 +1,13 @@
+✔ reduceLifecycle is pure: no fs/process/clock/random identifiers in source (0.7519ms)
+✔ reduceLifecycle returns new state, effects, events and outcome without mutating input (0.7937ms)
+✔ reduceLifecycle fails closed for invalid complete (0.4925ms)
+✔ reduceLifecycle rejects unauthorized mutation (0.1098ms)
+✔ complete after start advances to completed (0.2985ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 61.5377

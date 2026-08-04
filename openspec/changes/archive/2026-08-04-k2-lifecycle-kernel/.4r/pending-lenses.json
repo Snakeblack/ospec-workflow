@@ -1,0 +1,18 @@
+{
+  "risk": {
+    "request_id": "start-risk-k2",
+    "revision_after_begin": 1
+  },
+  "reliability": {
+    "request_id": "start-reliability-k2",
+    "revision_after_begin": 2
+  },
+  "resilience": {
+    "request_id": "start-resilience-k2",
+    "revision_after_begin": 3
+  },
+  "readability": {
+    "request_id": "start-readability-k2",
+    "revision_after_begin": 4
+  }
+}

@@ -1,0 +1,152 @@
+{
+  "scripts/lib/minimal-kernel-harness.test.js": {
+    "valid": true,
+    "receipt": {
+      "schema_version": 1,
+      "authority": "runtime-test",
+      "digest_policy": "sha256-raw-v1",
+      "test_digest_policy": "sha256-lf-v1",
+      "change": "k2-lifecycle-kernel",
+      "phase": "GREEN",
+      "base_tree": "working-tree",
+      "candidate_id": "k2-lifecycle-kernel-apply-batch-2",
+      "test_file": "scripts/lib/minimal-kernel-harness.test.js",
+      "test_digest": "sha256:9a41e9cbff23bf2aa5bde80dc5f69c976a40534f4511a929d60e9aab3a735d91",
+      "command": "node --test scripts/lib/minimal-kernel-harness.test.js",
+      "exit_code": 0,
+      "outcome": "pass",
+      "stdout": {
+        "path": "openspec/changes/k2-lifecycle-kernel/evidence/receipts/1f5665d0bd3a9225dec3d827f35416803c1b0b69bf2db81b2a0e2deac3ee85dd.stdout",
+        "digest": "sha256:1f5665d0bd3a9225dec3d827f35416803c1b0b69bf2db81b2a0e2deac3ee85dd",
+        "digest_policy": "sha256-raw-v1"
+      },
+      "stderr": {
+        "path": "openspec/changes/k2-lifecycle-kernel/evidence/receipts/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.stderr",
+        "digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "digest_policy": "sha256-raw-v1"
+      }
+    },
+    "receipt_id": "sha256:ee8e1b5711bc80e070849c61f9b642c1d07bf7996d4c40703c53fb8a978c0c5f",
+    "receipt_path": "openspec/changes/k2-lifecycle-kernel/evidence/receipts/ee8e1b5711bc80e070849c61f9b642c1d07bf7996d4c40703c53fb8a978c0c5f.json"
+  },
+  "scripts/lib/lifecycle-kernel/recovery.test.js": {
+    "valid": true,
+    "receipt": {
+      "schema_version": 1,
+      "authority": "runtime-test",
+      "digest_policy": "sha256-raw-v1",
+      "test_digest_policy": "sha256-lf-v1",
+      "change": "k2-lifecycle-kernel",
+      "phase": "GREEN",
+      "base_tree": "working-tree",
+      "candidate_id": "k2-lifecycle-kernel-apply-batch-2",
+      "test_file": "scripts/lib/lifecycle-kernel/recovery.test.js",
+      "test_digest": "sha256:33b72a0ad18491ac1c979ee727ec95f6cb3a576cd8d6500d7ef19108ed6a16ce",
+      "command": "node --test scripts/lib/lifecycle-kernel/recovery.test.js",
+      "exit_code": 0,
+      "outcome": "pass",
+      "stdout": {
+        "path": "openspec/changes/k2-lifecycle-kernel/evidence/receipts/dc72655f471422ab3df545be26926c9f24a3c4e11b8b8f4b4f975132f6e43d08.stdout",
+        "digest": "sha256:dc72655f471422ab3df545be26926c9f24a3c4e11b8b8f4b4f975132f6e43d08",
+        "digest_policy": "sha256-raw-v1"
+      },
+      "stderr": {
+        "path": "openspec/changes/k2-lifecycle-kernel/evidence/receipts/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.stderr",
+        "digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "digest_policy": "sha256-raw-v1"
+      }
+    },
+    "receipt_id": "sha256:328f9d77b8283be35570ac90ab719e5443b0c51ffe8d249a62c412c389f69e4b",
+    "receipt_path": "openspec/changes/k2-lifecycle-kernel/evidence/receipts/328f9d77b8283be35570ac90ab719e5443b0c51ffe8d249a62c412c389f69e4b.json"
+  },
+  "scripts/lib/lifecycle-model.test.js": {
+    "valid": true,
+    "receipt": {
+      "schema_version": 1,
+      "authority": "runtime-test",
+      "digest_policy": "sha256-raw-v1",
+      "test_digest_policy": "sha256-lf-v1",
+      "change": "k2-lifecycle-kernel",
+      "phase": "GREEN",
+      "base_tree": "working-tree",
+      "candidate_id": "k2-lifecycle-kernel-apply-batch-2",
+      "test_file": "scripts/lib/lifecycle-model.test.js",
+      "test_digest": "sha256:d773c3708d20586f1d88042afdc1d07f89f869ef91321aa0c05df2d00c23f85c",
+      "command": "node --test scripts/lib/lifecycle-model.test.js",
+      "exit_code": 0,
+      "outcome": "pass",
+      "stdout": {
+        "path": "openspec/changes/k2-lifecycle-kernel/evidence/receipts/22760de2cf11713492db44896648ad7543fbdb1b440b00c98a063f710edaef5a.stdout",
+        "digest": "sha256:22760de2cf11713492db44896648ad7543fbdb1b440b00c98a063f710edaef5a",
+        "digest_policy": "sha256-raw-v1"
+      },
+      "stderr": {
+        "path": "openspec/changes/k2-lifecycle-kernel/evidence/receipts/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.stderr",
+        "digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "digest_policy": "sha256-raw-v1"
+      }
+    },
+    "receipt_id": "sha256:9085806aa81edc78d22805d7dfb11e6c5265a03d149f771ca6dacd76e9e5fff1",
+    "receipt_path": "openspec/changes/k2-lifecycle-kernel/evidence/receipts/9085806aa81edc78d22805d7dfb11e6c5265a03d149f771ca6dacd76e9e5fff1.json"
+  },
+  "scripts/lib/transition-parity.k2.test.js": {
+    "valid": true,
+    "receipt": {
+      "schema_version": 1,
+      "authority": "runtime-test",
+      "digest_policy": "sha256-raw-v1",
+      "test_digest_policy": "sha256-lf-v1",
+      "change": "k2-lifecycle-kernel",
+      "phase": "GREEN",
+      "base_tree": "working-tree",
+      "candidate_id": "k2-lifecycle-kernel-apply-batch-2",
+      "test_file": "scripts/lib/transition-parity.k2.test.js",
+      "test_digest": "sha256:cb8405f97760cfdee00ff0a932e44f9c9829034a5437d4e9a209b9e3fac0eb16",
+      "command": "node --test scripts/lib/transition-parity.k2.test.js",
+      "exit_code": 0,
+      "outcome": "pass",
+      "stdout": {
+        "path": "openspec/changes/k2-lifecycle-kernel/evidence/receipts/127143c6596dfc465482ad5c7378879a47caa6f7bde96cc76257cfed18b9a9e3.stdout",
+        "digest": "sha256:127143c6596dfc465482ad5c7378879a47caa6f7bde96cc76257cfed18b9a9e3",
+        "digest_policy": "sha256-raw-v1"
+      },
+      "stderr": {
+        "path": "openspec/changes/k2-lifecycle-kernel/evidence/receipts/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.stderr",
+        "digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "digest_policy": "sha256-raw-v1"
+      }
+    },
+    "receipt_id": "sha256:6f8239da92c837e19264d565d46aaf9685615160086fb81af41598b4af5accb5",
+    "receipt_path": "openspec/changes/k2-lifecycle-kernel/evidence/receipts/6f8239da92c837e19264d565d46aaf9685615160086fb81af41598b4af5accb5.json"
+  },
+  "scripts/lib/lifecycle-kernel/bridges.test.js": {
+    "valid": true,
+    "receipt": {
+      "schema_version": 1,
+      "authority": "runtime-test",
+      "digest_policy": "sha256-raw-v1",
+      "test_digest_policy": "sha256-lf-v1",
+      "change": "k2-lifecycle-kernel",
+      "phase": "GREEN",
+      "base_tree": "working-tree",
+      "candidate_id": "k2-lifecycle-kernel-apply-batch-2",
+      "test_file": "scripts/lib/lifecycle-kernel/bridges.test.js",
+      "test_digest": "sha256:77c97fce31765883295a40b624a006312ff9410489563bf44964af42edf4e6d8",
+      "command": "node --test scripts/lib/lifecycle-kernel/bridges.test.js",
+      "exit_code": 0,
+      "outcome": "pass",
+      "stdout": {
+        "path": "openspec/changes/k2-lifecycle-kernel/evidence/receipts/7a98adf6105064d096d1d61dc9921122079af29822b8acde527bb53666d65538.stdout",
+        "digest": "sha256:7a98adf6105064d096d1d61dc9921122079af29822b8acde527bb53666d65538",
+        "digest_policy": "sha256-raw-v1"
+      },
+      "stderr": {
+        "path": "openspec/changes/k2-lifecycle-kernel/evidence/receipts/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.stderr",
+        "digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "digest_policy": "sha256-raw-v1"
+      }
+    },
+    "receipt_id": "sha256:74e022363b7fe280b750bde1366e7e48eab1109166861a0da87ebdf02d2aaaa7",
+    "receipt_path": "openspec/changes/k2-lifecycle-kernel/evidence/receipts/74e022363b7fe280b750bde1366e7e48eab1109166861a0da87ebdf02d2aaaa7.json"
+  }
+}

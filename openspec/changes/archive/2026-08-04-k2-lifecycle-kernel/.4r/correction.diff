@@ -1,0 +1,1036 @@
+diff --git a/scripts/lib/lifecycle-kernel/index.js b/scripts/lib/lifecycle-kernel/index.js
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/scripts/lib/lifecycle-kernel/index.js
+@@ -0,0 +1,357 @@
++"use strict";
++
++const { reduceLifecycle } = require("./reducer.js");
++const { digestLifecycleState, KERNEL_VERSION } = require("./state-digest.js");
++const { selectTransitions, nextTransition } = require("./transition-selector.js");
++const {
++  deriveOperationId,
++  deriveEffectId,
++  createJournalRecord,
++  reconcileEffect,
++} = require("./journal.js");
++const { projectEvents } = require("./events.js");
++const { authorizeOperation, validateOperationTransition } = require("./operations.js");
++
++function createMemoryStore(initial = {}) {
++  let state = initial.state
++    ? JSON.parse(JSON.stringify(initial.state))
++    : { schema_version: 1, status: "ready", nodes: {} };
++  let journal = Array.isArray(initial.journal)
++    ? JSON.parse(JSON.stringify(initial.journal))
++    : [];
++
++  return {
++    async load() {
++      return {
++        state: JSON.parse(JSON.stringify(state)),
++        journal: JSON.parse(JSON.stringify(journal)),
++      };
++    },
++    async commitJournal(nextJournal) {
++      journal = JSON.parse(JSON.stringify(nextJournal));
++      return { journal };
++    },
++    async commit({ state: nextState, journal: nextJournal }) {
++      state = JSON.parse(JSON.stringify(nextState));
++      journal = JSON.parse(JSON.stringify(nextJournal));
++      return { state, journal };
++    },
++    snapshot() {
++      return {
++        state: JSON.parse(JSON.stringify(state)),
++        journal: JSON.parse(JSON.stringify(journal)),
++      };
++    },
++  };
++}
++
++function interruptError(at) {
++  const error = new Error(`kernel-interrupt:${at}`);
++  error.code = "kernel-interrupt";
++  error.at = at;
++  return error;
++}
++
++async function checkpoint(hooks, at, context) {
++  if (!hooks || typeof hooks.onCheckpoint !== "function") return;
++  await hooks.onCheckpoint(at, context);
++}
++
++function blockedResult(state, journal, code, extra = {}) {
++  return {
++    schema_version: 1,
++    kernel_version: KERNEL_VERSION,
++    state_digest: digestLifecycleState(state),
++    status: { lifecycle_status: state.status, nodes: state.nodes || {} },
++    transitions: selectTransitions(state),
++    next_transition: nextTransition(state),
++    outcome: "blocked",
++    code,
++    events: projectEvents({ state, journal }),
++    ...extra,
++  };
++}
++
++async function runKernelOperation(input = {}) {
++  const {
++    operation,
++    arguments: args = {},
++    authorityToken = null,
++    store,
++    effectExecutor,
++    clock = null,
++    hooks = null,
++  } = input;
++
++  if (!store || typeof store.load !== "function" || typeof store.commit !== "function") {
++    const error = new Error("kernel store is required");
++    error.code = "store-required";
++    throw error;
++  }
++
++  const loaded = await store.load();
++  const state = loaded.state || { schema_version: 1, status: "ready", nodes: {} };
++  let journal = Array.isArray(loaded.journal) ? [...loaded.journal] : [];
++
++  // clock is injected for shell use but excluded from semantic digest.
++  void clock;
++
++  if (operation === "status") {
++    const transitions = selectTransitions(state);
++    const events = projectEvents({ state, journal });
++    return {
++      schema_version: 1,
++      kernel_version: KERNEL_VERSION,
++      state_digest: digestLifecycleState(state),
++      status: {
++        lifecycle_status: state.status,
++        nodes: state.nodes || {},
++      },
++      transitions,
++      next_transition: nextTransition(state),
++      outcome: state.status === "terminal" ? "terminal" : "advanced",
++      events,
++    };
++  }
++
++  const auth = authorizeOperation({ operation, authorityToken });
++  if (!auth.ok) return blockedResult(state, journal, auth.code);
++
++  const validation = validateOperationTransition(state, { operation, arguments: args });
++  if (!validation.ok) {
++    return blockedResult(state, journal, validation.code, {
++      state_digest: validation.state_digest,
++      allowed_operations: validation.allowed_operations,
++    });
++  }
++
++  const operationId = deriveOperationId({ state, operation, arguments: args });
++  const reduced = reduceLifecycle(state, {
++    operation,
++    arguments: args,
++    authorityToken,
++  });
++
++  const effectRecords = [];
++  for (const effect of reduced.effects) {
++    const effectId = deriveEffectId(operationId, effect);
++    const existing = journal.find((entry) => entry.effect_id === effectId);
++    let decision = reconcileEffect({
++      record: existing || { status: "planned", effect_id: effectId },
++    });
++
++    if (decision.action === "fail-closed") {
++      return blockedResult(state, journal, decision.code || "reconciliation-required");
++    }
++
++    if (decision.action === "skip") {
++      effectRecords.push(existing);
++      continue;
++    }
++
++    // Resume started only when effect is proven not to have run (pre-effect barrier).
++    // Ambiguous / in-flight started records fail closed (must be durable-marked unknown).
++    if (decision.action === "reconcile" && existing && existing.status === "started") {
++      if (isPreEffectStarted(existing)) {
++        decision = { action: "execute", reason: "started-pre-effect-retry" };
++      } else {
++        return blockedResult(state, journal, "reconciliation-required");
++      }
++    } else if (decision.action === "reconcile") {
++      return blockedResult(state, journal, "reconciliation-required");
++    }
++
++    await checkpoint(hooks, "before-journal", { operation_id: operationId, effect_id: effectId });
++
++    let record = createJournalRecord({
++      operation_id: operationId,
++      effect_id: effectId,
++      status: "started",
++      result: { barrier: "pre-effect" },
++    });
++    journal = upsertJournal(journal, record);
++    if (typeof store.commitJournal === "function") {
++      await store.commitJournal(journal);
++    }
++
++    await checkpoint(hooks, "after-journal", { operation_id: operationId, effect_id: effectId });
++
++    if (typeof effectExecutor === "function" && decision.action === "execute") {
++      // Durable in-flight mark: crash after this point is not a safe blind re-execute.
++      record = createJournalRecord({
++        operation_id: operationId,
++        effect_id: effectId,
++        status: "started",
++        result: { barrier: "executing" },
++      });
++      journal = upsertJournal(journal, record);
++      if (typeof store.commitJournal === "function") {
++        await store.commitJournal(journal);
++      }
++
++      let result;
++      try {
++        result = await effectExecutor({
++          effect_id: effectId,
++          kind: effect.kind,
++          payload: effect.payload,
++          operation_id: operationId,
++        });
++      } catch (error) {
++        if (error && error.code === "kernel-interrupt") {
++          // Controlled harness interrupt: leave journal as-is for the interrupt point.
++          // before-effect → still pre-effect/executing without conclusive run handled above;
++          // after-effect with partial → durable-complete then rethrow.
++          if (error.partial !== undefined) {
++            record = createJournalRecord({
++              operation_id: operationId,
++              effect_id: effectId,
++              status: "completed",
++              result: error.partial || { ok: true },
++            });
++            journal = upsertJournal(journal, record);
++            if (typeof store.commitJournal === "function") {
++              await store.commitJournal(journal);
++            }
++          } else if (isPreEffectStarted(record) || (record.result && record.result.barrier === "executing")) {
++            // Effect not proven to have completed; restore pre-effect so resume may retry
++            // only when interrupt happened before any executor side effects.
++            // For interruptAfter before-effect: executor never entered user code after our mark.
++            // Treat kernel-interrupt without partial as "not run" → pre-effect barrier.
++            record = createJournalRecord({
++              operation_id: operationId,
++              effect_id: effectId,
++              status: "started",
++              result: { barrier: "pre-effect" },
++            });
++            journal = upsertJournal(journal, record);
++            if (typeof store.commitJournal === "function") {
++              await store.commitJournal(journal);
++            }
++          }
++          throw error;
++        }
++
++        record = createJournalRecord({
++          operation_id: operationId,
++          effect_id: effectId,
++          status: "unknown",
++          result: {
++            ok: false,
++            error: error && error.message ? String(error.message) : "ambiguous-executor-failure",
++          },
++        });
++        journal = upsertJournal(journal, record);
++        if (typeof store.commitJournal === "function") {
++          await store.commitJournal(journal);
++        }
++        return blockedResult(state, journal, "reconciliation-required", {
++          operation_id: operationId,
++          effects: [...effectRecords, record],
++        });
++      }
++
++      if (result && result.ok === false) {
++        record = createJournalRecord({
++          operation_id: operationId,
++          effect_id: effectId,
++          status: "failed",
++          result,
++        });
++        journal = upsertJournal(journal, record);
++        if (typeof store.commitJournal === "function") {
++          await store.commitJournal(journal);
++        }
++        return blockedResult(state, journal, "effect-failed", {
++          operation_id: operationId,
++          effects: [...effectRecords, record],
++        });
++      }
++
++      record = createJournalRecord({
++        operation_id: operationId,
++        effect_id: effectId,
++        status: "completed",
++        result: result || { ok: true },
++      });
++    } else {
++      record = createJournalRecord({
++        operation_id: operationId,
++        effect_id: effectId,
++        status: "completed",
++        result: { ok: true, synthetic: true },
++      });
++    }
++
++    journal = upsertJournal(journal, record);
++    if (typeof store.commitJournal === "function") {
++      await store.commitJournal(journal);
++    }
++    effectRecords.push(record);
++
++    await checkpoint(hooks, "after-effect", { operation_id: operationId, effect_id: effectId });
++  }
++
++  if (effectRecords.some((entry) => entry && entry.status === "failed")) {
++    return blockedResult(state, journal, "effect-failed", {
++      operation_id: operationId,
++      effects: effectRecords,
++    });
++  }
++
++  await checkpoint(hooks, "before-state-commit", { operation_id: operationId });
++  await store.commit({ state: reduced.state, journal });
++  await checkpoint(hooks, "after-state-commit", { operation_id: operationId });
++
++  const events = projectEvents({ state: reduced.state, journal });
++  const transitions = selectTransitions(reduced.state);
++
++  return {
++    schema_version: 1,
++    kernel_version: KERNEL_VERSION,
++    state_digest: digestLifecycleState(reduced.state),
++    status: {
++      lifecycle_status: reduced.state.status,
++      nodes: reduced.state.nodes || {},
++    },
++    transitions,
++    next_transition: nextTransition(reduced.state),
++    outcome: reduced.outcome,
++    events,
++    operation_id: operationId,
++    effects: effectRecords,
++  };
++}
++
++function upsertJournal(journal, record) {
++  const next = journal.filter((entry) => entry.effect_id !== record.effect_id);
++  next.push(record);
++  next.sort((a, b) => {
++    const ea = a.effect_id || "";
++    const eb = b.effect_id || "";
++    if (ea < eb) return -1;
++    if (ea > eb) return 1;
++    return 0;
++  });
++  return next;
++}
++
++function isPreEffectStarted(record) {
++  return (
++    record &&
++    record.status === "started" &&
++    record.result &&
++    record.result.barrier === "pre-effect"
++  );
++}
++
++module.exports = {
++  runKernelOperation,
++  createMemoryStore,
++  reduceLifecycle,
++  digestLifecycleState,
++  selectTransitions,
++  nextTransition,
++  KERNEL_VERSION,
++  interruptError,
++};
+diff --git a/scripts/lib/lifecycle-kernel/index.test.js b/scripts/lib/lifecycle-kernel/index.test.js
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/scripts/lib/lifecycle-kernel/index.test.js
+@@ -0,0 +1,150 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const test = require("node:test");
++
++const {
++  runKernelOperation,
++  createMemoryStore,
++  reduceLifecycle,
++  digestLifecycleState,
++} = require("./index.js");
++
++test("public runKernelOperation advances state through store and journal", async () => {
++  const store = createMemoryStore({
++    state: {
++      schema_version: 1,
++      status: "ready",
++      nodes: { n1: { id: "n1", phase: "pending", attempt: 0 } },
++    },
++  });
++  const executed = [];
++  const result = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    authorityToken: "opaque:t1",
++    store,
++    effectExecutor: async (effect) => {
++      executed.push(effect.effect_id);
++      return { ok: true };
++    },
++    clock: () => 0,
++  });
++
++  assert.equal(result.outcome, "advanced");
++  assert.match(result.state_digest, /^sha256:[a-f0-9]{64}$/);
++  assert.equal(result.status.nodes.n1.phase, "started");
++  assert.equal(executed.length, 1);
++  assert.ok(result.events.length >= 1);
++
++  const status = await runKernelOperation({
++    operation: "status",
++    store,
++  });
++  assert.equal(status.state_digest, result.state_digest);
++  assert.equal(status.next_transition.operation, "complete");
++});
++
++test("invalid transition via public API does not mutate store", async () => {
++  const store = createMemoryStore({
++    state: {
++      schema_version: 1,
++      status: "ready",
++      nodes: { n1: { id: "n1", phase: "pending", attempt: 0 } },
++    },
++  });
++  const before = digestLifecycleState((await store.load()).state);
++  const result = await runKernelOperation({
++    operation: "complete",
++    arguments: { node_id: "n1" },
++    authorityToken: "opaque:t1",
++    store,
++    effectExecutor: async () => ({ ok: true }),
++  });
++  assert.equal(result.outcome, "blocked");
++  assert.equal(result.code, "invalid-transition");
++  assert.equal(digestLifecycleState((await store.load()).state), before);
++});
++
++test("reducer-only helper remains available but is not the public conformance entry", () => {
++  assert.equal(typeof reduceLifecycle, "function");
++  assert.equal(typeof runKernelOperation, "function");
++});
++
++test("effectExecutor {ok:false} blocks without committing reduced success state", async () => {
++  const initialState = {
++    schema_version: 1,
++    status: "ready",
++    nodes: { n1: { id: "n1", phase: "pending", attempt: 0 } },
++  };
++  const store = createMemoryStore({ state: initialState });
++  const beforeDigest = digestLifecycleState(initialState);
++
++  const result = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    authorityToken: "opaque:t1",
++    store,
++    effectExecutor: async () => ({ ok: false, reason: "persist-denied" }),
++    clock: () => 0,
++  });
++
++  assert.equal(result.outcome, "blocked");
++  assert.equal(result.code, "effect-failed");
++  assert.equal(result.state_digest, beforeDigest);
++
++  const snap = store.snapshot();
++  assert.equal(digestLifecycleState(snap.state), beforeDigest);
++  assert.equal(snap.state.nodes.n1.phase, "pending");
++  assert.equal(snap.journal.length, 1);
++  assert.equal(snap.journal[0].status, "failed");
++});
++
++test("ambiguous executor throw after started durable-marks unknown and resume fail-closes", async () => {
++  const initialState = {
++    schema_version: 1,
++    status: "ready",
++    nodes: { n1: { id: "n1", phase: "pending", attempt: 0 } },
++  };
++  const store = createMemoryStore({ state: initialState });
++  const beforeDigest = digestLifecycleState(initialState);
++
++  const first = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    authorityToken: "opaque:t1",
++    store,
++    effectExecutor: async () => {
++      throw new Error("executor-crashed-mid-flight");
++    },
++    clock: () => 0,
++  });
++
++  assert.equal(first.outcome, "blocked");
++  assert.equal(first.code, "reconciliation-required");
++  assert.equal(first.state_digest, beforeDigest);
++
++  const afterThrow = store.snapshot();
++  assert.equal(afterThrow.state.nodes.n1.phase, "pending");
++  assert.equal(afterThrow.journal.length, 1);
++  assert.equal(afterThrow.journal[0].status, "unknown");
++
++  let resumedExecutions = 0;
++  const resume = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    authorityToken: "opaque:t1",
++    store,
++    effectExecutor: async () => {
++      resumedExecutions += 1;
++      return { ok: true };
++    },
++    clock: () => 0,
++  });
++
++  assert.equal(resume.outcome, "blocked");
++  assert.equal(resume.code, "reconciliation-required");
++  assert.equal(resumedExecutions, 0);
++  assert.equal(digestLifecycleState(store.snapshot().state), beforeDigest);
++  assert.equal(store.snapshot().journal[0].status, "unknown");
++});
+diff --git a/scripts/lib/lifecycle-kernel/journal.js b/scripts/lib/lifecycle-kernel/journal.js
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/scripts/lib/lifecycle-kernel/journal.js
+@@ -0,0 +1,78 @@
++"use strict";
++
++const { sha256Fingerprint } = require("../canonical-json.js");
++const { digestLifecycleState, KERNEL_VERSION } = require("./state-digest.js");
++
++function normalizeArguments(args) {
++  if (!args || typeof args !== "object") return {};
++  const out = {};
++  for (const key of Object.keys(args).sort()) {
++    out[key] = args[key];
++  }
++  return out;
++}
++
++function deriveOperationId({ state, operation, arguments: args }) {
++  return sha256Fingerprint("lifecycle-kernel:operation", {
++    kernel_version: KERNEL_VERSION,
++    state_digest: digestLifecycleState(state),
++    operation,
++    arguments: normalizeArguments(args),
++  });
++}
++
++function deriveEffectId(operationId, effect) {
++  return sha256Fingerprint("lifecycle-kernel:effect", {
++    operation_id: operationId,
++    kind: effect && effect.kind,
++    payload: effect && effect.payload ? normalizeArguments(effect.payload) : {},
++  });
++}
++
++function createJournalRecord({
++  operation_id,
++  effect_id,
++  status,
++  kernel_version = KERNEL_VERSION,
++  result = null,
++}) {
++  const allowed = new Set(["planned", "started", "completed", "failed", "unknown"]);
++  if (!allowed.has(status)) {
++    throw new Error(`invalid journal status: ${status}`);
++  }
++  return {
++    schema_version: 1,
++    kernel_version,
++    operation_id,
++    effect_id,
++    status,
++    result,
++  };
++}
++
++function reconcileEffect({ record }) {
++  if (!record || typeof record !== "object") {
++    return { action: "fail-closed", code: "reconciliation-required" };
++  }
++  if (record.status === "completed") {
++    return { action: "skip", reason: "already-completed" };
++  }
++  if (record.status === "planned") {
++    return { action: "execute" };
++  }
++  if (record.status === "started") {
++    return { action: "reconcile", reason: "started-uncommitted" };
++  }
++  if (record.status === "failed") {
++    return { action: "skip", reason: "already-failed" };
++  }
++  return { action: "fail-closed", code: "reconciliation-required" };
++}
++
++module.exports = {
++  deriveOperationId,
++  deriveEffectId,
++  createJournalRecord,
++  reconcileEffect,
++  normalizeArguments,
++};
+diff --git a/scripts/lib/minimal-kernel-harness.js b/scripts/lib/minimal-kernel-harness.js
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/scripts/lib/minimal-kernel-harness.js
+@@ -0,0 +1,167 @@
++"use strict";
++
++const {
++  runKernelOperation,
++  createMemoryStore,
++  digestLifecycleState,
++  selectTransitions,
++  interruptError,
++} = require("./lifecycle-kernel/index.js");
++
++/**
++ * Minimal Kernel Harness — public-API headless scenario runner.
++ * Conformance MUST go through runKernelOperation, not private reducers alone.
++ */
++async function runHarnessScenario(scenario = {}) {
++  const {
++    id = "anonymous",
++    initialState,
++    operations = [],
++    effectExecutor,
++    clock = () => 0,
++    interruptAfter = null,
++    interruptAt = null,
++  } = scenario;
++
++  const store = createMemoryStore({ state: initialState, journal: scenario.initialJournal || [] });
++  const executedEffects = [];
++  const defaultExecutor = async (effect) => {
++    executedEffects.push(effect.effect_id);
++    return { ok: true };
++  };
++  const executor = typeof effectExecutor === "function" ? effectExecutor : defaultExecutor;
++
++  const history = [];
++  let halted = null;
++
++  const hooks = {
++    async onCheckpoint(at) {
++      if (interruptAt && at === interruptAt) {
++        throw interruptError(at);
++      }
++    },
++  };
++
++  for (let index = 0; index < operations.length; index += 1) {
++    const step = operations[index];
++    if (interruptAfter === `before-op:${index}`) {
++      halted = { reason: "interrupt", at: interruptAfter };
++      break;
++    }
++
++    let result;
++    try {
++      result = await runKernelOperation({
++        operation: step.operation,
++        arguments: step.arguments || {},
++        authorityToken: step.authorityToken ?? "opaque:harness",
++        store,
++        effectExecutor: async (effect) => {
++          if (interruptAfter === `before-effect:${effect.effect_id}`) {
++            throw interruptError(interruptAfter);
++          }
++          const out = await executor(effect);
++          if (interruptAfter === `after-effect:${effect.effect_id}`) {
++            const error = interruptError(interruptAfter);
++            error.partial = out;
++            throw error;
++          }
++          return out;
++        },
++        clock,
++        hooks,
++      });
++    } catch (error) {
++      if (error && error.code === "kernel-interrupt") {
++        halted = { reason: "interrupt", at: error.at };
++        break;
++      }
++      throw error;
++    }
++
++    history.push({
++      operation: step.operation,
++      state_digest: result.state_digest,
++      outcome: result.outcome,
++      next_transition: result.next_transition,
++      code: result.code,
++    });
++
++    if (result.next_transition && result.next_transition.kind === "decide") {
++      halted = {
++        reason: "decision-required",
++        decision: result.next_transition,
++      };
++      break;
++    }
++
++    if (result.outcome === "blocked" && result.code) {
++      halted = { reason: "blocked", code: result.code };
++      break;
++    }
++
++    if (interruptAfter === `after-op:${index}`) {
++      halted = { reason: "interrupt", at: interruptAfter };
++      break;
++    }
++  }
++
++  const snapshot = store.snapshot();
++  const status = await runKernelOperation({ operation: "status", store, clock });
++
++  return {
++    scenario_id: id,
++    initial_state_digest: digestLifecycleState(initialState || snapshot.state),
++    final_state_digest: status.state_digest,
++    outcome: halted
++      ? halted.reason === "decision-required"
++        ? "decision-required"
++        : halted.reason
++      : status.outcome,
++    operations: history,
++    effects: executedEffects,
++    events: status.events,
++    transitions: status.transitions,
++    next_transition: status.next_transition,
++    halted,
++    snapshot,
++  };
++}
++
++async function snapshotRoundTrip(state, journal = []) {
++  const store = createMemoryStore({ state, journal });
++  const before = await runKernelOperation({ operation: "status", store });
++  const snap = store.snapshot();
++  const restored = createMemoryStore(snap);
++  const after = await runKernelOperation({ operation: "status", store: restored });
++  return {
++    before_digest: before.state_digest,
++    after_digest: after.state_digest,
++    before_transitions: before.transitions,
++    after_transitions: after.transitions,
++    ok:
++      before.state_digest === after.state_digest &&
++      JSON.stringify(before.transitions) === JSON.stringify(after.transitions),
++  };
++}
++
++function assertPublicApiConformance({ usedRunKernelOperation, usedReducerOnly }) {
++  if (usedReducerOnly && !usedRunKernelOperation) {
++    const error = new Error(
++      "K2 conformance incomplete: reducer-only tests cannot satisfy harness requirements"
++    );
++    error.code = "harness-conformance-incomplete";
++    throw error;
++  }
++  return { ok: true };
++}
++
++module.exports = {
++  runHarnessScenario,
++  snapshotRoundTrip,
++  assertPublicApiConformance,
++  createMemoryStore,
++  runKernelOperation,
++  digestLifecycleState,
++  selectTransitions,
++};
+diff --git a/scripts/lib/minimal-kernel-harness.test.js b/scripts/lib/minimal-kernel-harness.test.js
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/scripts/lib/minimal-kernel-harness.test.js
+@@ -0,0 +1,254 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const test = require("node:test");
++
++const {
++  runHarnessScenario,
++  snapshotRoundTrip,
++  assertPublicApiConformance,
++  reduceLifecycle,
++} = (() => {
++  const harness = require("./minimal-kernel-harness.js");
++  const kernel = require("./lifecycle-kernel/index.js");
++  return { ...harness, reduceLifecycle: kernel.reduceLifecycle };
++})();
++
++const pendingState = {
++  schema_version: 1,
++  status: "ready",
++  nodes: { n1: { id: "n1", phase: "pending", attempt: 0 } },
++};
++
++test("assertPublicApiConformance rejects reducer-only evidence", () => {
++  assert.throws(
++    () =>
++      assertPublicApiConformance({
++        usedRunKernelOperation: false,
++        usedReducerOnly: true,
++      }),
++    (error) => error.code === "harness-conformance-incomplete"
++  );
++  assert.equal(typeof reduceLifecycle, "function");
++  assert.doesNotThrow(() =>
++    assertPublicApiConformance({
++      usedRunKernelOperation: true,
++      usedReducerOnly: true,
++    })
++  );
++});
++
++test("harness executes start through public kernel API", async () => {
++  const result = await runHarnessScenario({
++    id: "start-n1",
++    initialState: pendingState,
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++  });
++  assert.equal(result.scenario_id, "start-n1");
++  assert.equal(result.snapshot.state.nodes.n1.phase, "started");
++  assert.ok(result.effects.length >= 1);
++  assert.match(result.final_state_digest, /^sha256:[a-f0-9]{64}$/);
++  assert.equal(result.next_transition.operation, "complete");
++});
++
++test("harness halts on decide without auto-approval", async () => {
++  const result = await runHarnessScenario({
++    id: "decide-halt",
++    initialState: {
++      schema_version: 1,
++      status: "blocked",
++      nodes: { n1: { id: "n1", phase: "failed", attempt: 3, exhausted: true } },
++    },
++    operations: [{ operation: "status" }],
++  });
++  assert.equal(result.outcome, "decision-required");
++  assert.equal(result.halted.reason, "decision-required");
++  assert.equal(result.halted.decision.kind, "decide");
++  assert.equal(result.next_transition.kind, "decide");
++  // Must not invent an approval operation.
++  assert.ok(!result.operations.some((op) => op.operation === "approve"));
++});
++
++test("snapshot round-trip preserves digest and transitions", async () => {
++  const started = await runHarnessScenario({
++    id: "snap-prep",
++    initialState: pendingState,
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++  });
++  const round = await snapshotRoundTrip(started.snapshot.state, started.snapshot.journal);
++  assert.equal(round.ok, true);
++  assert.equal(round.before_digest, round.after_digest);
++  assert.equal(
++    JSON.stringify(round.before_transitions),
++    JSON.stringify(round.after_transitions)
++  );
++});
++
++test("completed effect is not duplicated on resume after interrupt marker", async () => {
++  const effectIds = [];
++  const first = await runHarnessScenario({
++    id: "interrupt-prep",
++    initialState: pendingState,
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++    effectExecutor: async (effect) => {
++      effectIds.push(effect.effect_id);
++      return { ok: true };
++    },
++  });
++  assert.equal(effectIds.length, 1);
++
++  // Resume with journal already containing completed effect: reconciliation skips re-exec.
++  const resumedEffects = [];
++  const resumed = await runHarnessScenario({
++    id: "interrupt-resume",
++    initialState: first.snapshot.state,
++    initialJournal: first.snapshot.journal,
++    operations: [{ operation: "complete", arguments: { node_id: "n1" } }],
++    effectExecutor: async (effect) => {
++      resumedEffects.push(effect.effect_id);
++      return { ok: true };
++    },
++  });
++  assert.equal(resumed.snapshot.state.nodes.n1.phase, "completed");
++  // New complete effect executes once; prior start effect is not replayed.
++  assert.equal(resumedEffects.length, 1);
++  assert.notEqual(resumedEffects[0], effectIds[0]);
++});
++
++test("interruption matrix: before-journal leaves state and journal untouched", async () => {
++  const executed = [];
++  const result = await runHarnessScenario({
++    id: "interrupt-before-journal",
++    initialState: pendingState,
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++    interruptAt: "before-journal",
++    effectExecutor: async (effect) => {
++      executed.push(effect.effect_id);
++      return { ok: true };
++    },
++  });
++  assert.equal(result.halted.reason, "interrupt");
++  assert.equal(result.halted.at, "before-journal");
++  assert.equal(executed.length, 0);
++  assert.equal(result.snapshot.state.nodes.n1.phase, "pending");
++  assert.equal(result.snapshot.journal.length, 0);
++});
++
++test("harness: effectExecutor {ok:false} halts blocked without advancing state", async () => {
++  const result = await runHarnessScenario({
++    id: "effect-failed-ok-false",
++    initialState: pendingState,
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++    effectExecutor: async () => ({ ok: false, reason: "denied" }),
++  });
++  assert.equal(result.halted.reason, "blocked");
++  assert.equal(result.halted.code, "effect-failed");
++  assert.equal(result.snapshot.state.nodes.n1.phase, "pending");
++  assert.equal(result.snapshot.journal[0].status, "failed");
++  assert.notEqual(result.outcome, "advanced");
++});
++
++test("interruption matrix: after-journal before effect persists started and does not mutate state", async () => {
++  const executed = [];
++  const result = await runHarnessScenario({
++    id: "interrupt-after-journal",
++    initialState: pendingState,
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++    interruptAt: "after-journal",
++    effectExecutor: async (effect) => {
++      executed.push(effect.effect_id);
++      return { ok: true };
++    },
++  });
++  assert.equal(result.halted.at, "after-journal");
++  assert.equal(executed.length, 0);
++  assert.equal(result.snapshot.state.nodes.n1.phase, "pending");
++  assert.equal(result.snapshot.journal.length, 1);
++  assert.equal(result.snapshot.journal[0].status, "started");
++
++  const resumedExec = [];
++  const resumed = await runHarnessScenario({
++    id: "resume-after-journal",
++    initialState: result.snapshot.state,
++    initialJournal: result.snapshot.journal,
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++    effectExecutor: async (effect) => {
++      resumedExec.push(effect.effect_id);
++      return { ok: true };
++    },
++  });
++  assert.equal(resumedExec.length, 1);
++  assert.equal(resumed.snapshot.state.nodes.n1.phase, "started");
++});
++
++test("interruption matrix: after-effect before state commit does not re-execute on resume", async () => {
++  const executed = [];
++  const interrupted = await runHarnessScenario({
++    id: "interrupt-after-effect",
++    initialState: pendingState,
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++    interruptAt: "after-effect",
++    effectExecutor: async (effect) => {
++      executed.push(effect.effect_id);
++      return { ok: true };
++    },
++  });
++  assert.equal(interrupted.halted.at, "after-effect");
++  assert.equal(executed.length, 1);
++  assert.equal(interrupted.snapshot.state.nodes.n1.phase, "pending");
++  assert.equal(interrupted.snapshot.journal[0].status, "completed");
++
++  const resumedExec = [];
++  const resumed = await runHarnessScenario({
++    id: "resume-after-effect",
++    initialState: interrupted.snapshot.state,
++    initialJournal: interrupted.snapshot.journal,
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++    effectExecutor: async (effect) => {
++      resumedExec.push(effect.effect_id);
++      return { ok: true };
++    },
++  });
++  assert.equal(resumedExec.length, 0);
++  assert.equal(resumed.snapshot.state.nodes.n1.phase, "started");
++  // Converges to the same digest as an uninterrupted start.
++  const clean = await runHarnessScenario({
++    id: "clean-start",
++    initialState: pendingState,
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++  });
++  assert.equal(resumed.final_state_digest, clean.final_state_digest);
++});
++
++test("named execute and recover fixtures are invoked through the harness", async () => {
++  const invoked = [];
++  const start = await runHarnessScenario({
++    id: "fixture-execute-start",
++    initialState: pendingState,
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++    effectExecutor: async (effect) => {
++      invoked.push({ op: "start", effect_id: effect.effect_id });
++      return { ok: true };
++    },
++  });
++  assert.ok(invoked.some((entry) => entry.op === "start"));
++
++  const failState = {
++    schema_version: 1,
++    status: "blocked",
++    nodes: { n1: { id: "n1", phase: "failed", attempt: 1 } },
++  };
++  const recover = await runHarnessScenario({
++    id: "fixture-execute-recover",
++    initialState: failState,
++    operations: [{ operation: "recover", arguments: { node_id: "n1" } }],
++    effectExecutor: async (effect) => {
++      invoked.push({ op: "recover", effect_id: effect.effect_id });
++      return { ok: true };
++    },
++  });
++  assert.equal(recover.snapshot.state.nodes.n1.phase, "pending");
++  assert.ok(invoked.some((entry) => entry.op === "recover"));
++  assert.notEqual(recover.final_state_digest, require("./lifecycle-kernel/state-digest.js").digestLifecycleState(failState));
++  assert.equal(start.snapshot.state.nodes.n1.phase, "started");
++});

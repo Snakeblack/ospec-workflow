@@ -1,6 +1,8 @@
 "use strict";
 
 const { stableSerialize } = require("./canonical-json.js");
+const { digestLifecycleState } = require("./lifecycle-kernel/state-digest.js");
+const { validateRecoveryHonesty } = require("./lifecycle-kernel/recovery.js");
 
 const NEXT_ACTION_KINDS = new Set(["execute", "collect", "decide", "stop"]);
 
@@ -90,4 +92,121 @@ function normalize(value) {
   return extractDiscriminants(value);
 }
 
-module.exports = { extractDiscriminants, compareParity };
+function commandForTransition(selected) {
+  if (!selected || selected.kind !== "execute") return undefined;
+  const nodeId = selected.arguments && selected.arguments.node_id;
+  if (nodeId) return `ospec ${selected.operation} --node-id=${nodeId}`;
+  return `ospec ${selected.operation}`;
+}
+
+/**
+ * Derive human and negotiated surfaces from one K2-selected transition.
+ */
+function deriveSurfacesFromKernel({ state, selected, code, cause }) {
+  const state_digest = digestLifecycleState(state);
+  const next_action = {
+    kind: selected.kind,
+    operation: selected.operation,
+  };
+  const command = commandForTransition(selected);
+  if (command) next_action.command = command;
+
+  const base = {
+    code,
+    cause,
+    state_digest,
+    next_action: { ...next_action },
+    next_transition: { ...selected, ...(command ? { command } : {}) },
+  };
+  return {
+    human: { ...base, surface: "human" },
+    negotiated: {
+      ...base,
+      surface: "negotiated",
+      envelope: { next_transition: base.next_transition, state_digest },
+    },
+  };
+}
+
+/**
+ * Validate that human/negotiated surfaces match each other and the kernel selection.
+ */
+function validateProjectionParity({
+  human,
+  negotiated,
+  kernelSelected = null,
+  stateDigest = null,
+}) {
+  if (kernelSelected) {
+    const humanOp = extractDiscriminants(human).next_action.operation;
+    const negotiatedOp = extractDiscriminants(negotiated).next_action.operation;
+    if (
+      humanOp !== kernelSelected.operation ||
+      negotiatedOp !== kernelSelected.operation
+    ) {
+      return {
+        ok: false,
+        code: "projection-override",
+        mismatches: [
+          {
+            field: "next_action.operation",
+            left: humanOp,
+            right: kernelSelected.operation,
+          },
+        ],
+      };
+    }
+  }
+
+  const parity = compareParity(human, negotiated);
+  if (!parity.ok) {
+    return { ok: false, mismatches: parity.mismatches, code: "parity-mismatch" };
+  }
+
+  if (stateDigest) {
+    if (human.state_digest !== stateDigest || negotiated.state_digest !== stateDigest) {
+      return {
+        ok: false,
+        code: "digest-mismatch",
+        mismatches: [{ field: "state_digest", left: human.state_digest, right: negotiated.state_digest }],
+      };
+    }
+  }
+
+  return { ok: true, mismatches: [] };
+}
+
+/**
+ * Command honesty: named execute/recover must advance or terminate when probed.
+ */
+async function validateCommandHonesty({ state, transition, executeProbe }) {
+  if (!transition || (transition.kind !== "execute" && transition.operation !== "recover")) {
+    return { ok: true, reason: "not-execute" };
+  }
+  if (typeof executeProbe !== "function") {
+    return { ok: false, code: "probe-required" };
+  }
+  const probed = await executeProbe({ state, transition });
+  const honesty = validateRecoveryHonesty({
+    beforeState: state,
+    afterState: probed.afterState || state,
+    outcome: probed.outcome || "advanced",
+  });
+  if (!honesty.ok) {
+    return {
+      ok: false,
+      code: "command-not-honest",
+      replacement: { kind: "decide", operation: "decide", arguments: {} },
+      honesty,
+    };
+  }
+  return { ok: true, honesty };
+}
+
+module.exports = {
+  extractDiscriminants,
+  compareParity,
+  deriveSurfacesFromKernel,
+  validateProjectionParity,
+  validateCommandHonesty,
+};

@@ -1,0 +1,14 @@
+✔ deriveOperationId is stable for identical inputs (1.2603ms)
+✔ deriveOperationId changes when state or arguments change (0.2047ms)
+✔ deriveEffectId is a stable child of operation id (0.172ms)
+✔ createJournalRecord shapes planned/started/completed/failed (0.186ms)
+✔ reconcileEffect does not re-execute completed effects (0.1177ms)
+✔ reconcileEffect executes pending and reconciles started/unknown fail-closed (0.0788ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 65.2335

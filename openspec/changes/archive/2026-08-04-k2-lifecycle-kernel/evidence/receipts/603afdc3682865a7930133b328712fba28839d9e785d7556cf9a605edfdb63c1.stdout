@@ -1,0 +1,11 @@
+✔ projectEvents rebuilds equivalent ids and order from identical commit (1.4478ms)
+✔ deleting event projection does not change status digest or transitions (0.342ms)
+✔ reordered journal still yields deterministic event order by effect_id (0.2231ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 67.6474

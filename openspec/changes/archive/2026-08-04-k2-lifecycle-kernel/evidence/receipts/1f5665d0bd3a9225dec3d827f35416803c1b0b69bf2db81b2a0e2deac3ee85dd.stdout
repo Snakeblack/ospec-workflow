@@ -1,0 +1,17 @@
+✔ assertPublicApiConformance rejects reducer-only evidence (0.7459ms)
+✔ harness executes start through public kernel API (1.58ms)
+✔ harness halts on decide without auto-approval (0.7826ms)
+✔ snapshot round-trip preserves digest and transitions (0.433ms)
+✔ completed effect is not duplicated on resume after interrupt marker (0.7005ms)
+✔ interruption matrix: before-journal leaves state and journal untouched (0.2876ms)
+✔ interruption matrix: after-journal before effect persists started and does not mutate state (0.5358ms)
+✔ interruption matrix: after-effect before state commit does not re-execute on resume (0.5742ms)
+✔ named execute and recover fixtures are invoked through the harness (0.6138ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 66.654

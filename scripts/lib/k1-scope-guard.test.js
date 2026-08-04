@@ -56,6 +56,20 @@ const ALLOWED_PREFIXES = [
   "scripts/lib/emission-catalogs/",
 ];
 
+/**
+ * Post-K1 successor implementation (K2). These paths MUST NOT be treated as
+ * undeclared K1 candidate inventory, and MUST NOT become K1-allowed paths.
+ */
+const SUCCESSOR_K2_EXACT = new Set([
+  "scripts/lib/lifecycle-model.js",
+  "scripts/lib/lifecycle-model.test.js",
+  "scripts/lib/minimal-kernel-harness.js",
+  "scripts/lib/minimal-kernel-harness.test.js",
+  "scripts/lib/transition-parity.k2.test.js",
+]);
+
+const SUCCESSOR_K2_PREFIXES = ["scripts/lib/lifecycle-kernel/"];
+
 const PROTECTED_BASELINE_PATHS = [
   "openspec/config.yaml",
   "scripts/lib/route-dispatcher.js",
@@ -129,6 +143,12 @@ function isAllowedK1Path(relativePath) {
   return false;
 }
 
+function isSuccessorK2Path(relativePath) {
+  const normalized = toPosix(relativePath);
+  if (SUCCESSOR_K2_EXACT.has(normalized)) return true;
+  return SUCCESSOR_K2_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+}
+
 function isImplementationPath(relativePath) {
   return (
     relativePath === "docs/architecture/harness-evolution.md" ||
@@ -136,6 +156,10 @@ function isImplementationPath(relativePath) {
     relativePath.startsWith("schemas/kernel/") ||
     relativePath.startsWith("scripts/lib/")
   );
+}
+
+function isK1GovernedImplementationPath(relativePath) {
+  return isImplementationPath(relativePath) && !isSuccessorK2Path(relativePath);
 }
 
 function loadCandidateImplementationPaths() {
@@ -175,6 +199,22 @@ test("K1 scope guard classifies representative in-scope and out-of-scope paths",
   assert.equal(isAllowedK1Path("docs/adr/adr-20260803-999-unplanned.md"), false);
 });
 
+test("K1 scope guard: K2 successor paths are excluded from K1 inventory governance without becoming K1-allowed", () => {
+  assert.equal(isSuccessorK2Path("scripts/lib/lifecycle-kernel/reducer.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/lifecycle-model.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/minimal-kernel-harness.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/transition-parity.k2.test.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/transition-parity.js"), false);
+  assert.equal(isSuccessorK2Path("scripts/lib/canonical-json.js"), false);
+
+  // Successor exclusion must not expand K1 allowlist confinement.
+  assert.equal(isAllowedK1Path("scripts/lib/lifecycle-kernel/reducer.js"), false);
+  assert.equal(isAllowedK1Path("scripts/lib/lifecycle-model.js"), false);
+  assert.equal(isAllowedK1Path("scripts/lib/minimal-kernel-harness.js"), false);
+  assert.equal(isK1GovernedImplementationPath("scripts/lib/lifecycle-kernel/reducer.js"), false);
+  assert.equal(isK1GovernedImplementationPath("scripts/lib/canonical-json.js"), true);
+});
+
 test("K1 scope guard: the frozen candidate implementation inventory is confined to design", () => {
   const baseline = git(["cat-file", "-e", `${K1_BASELINE}^{commit}`]);
   assert.equal(baseline.status, 0, `K1 baseline commit is unavailable (${K1_BASELINE}): ${baseline.stderr}`);
@@ -184,7 +224,11 @@ test("K1 scope guard: the frozen candidate implementation inventory is confined 
   const outside = candidatePaths.filter((relativePath) => !isAllowedK1Path(relativePath));
   assert.deepEqual(outside, [], `K1 candidate paths outside its design allocation:\n${outside.join("\n")}`);
 
-  const governedChanges = [...changedPathsSinceBaseline()].filter(isImplementationPath).sort();
+  // Only K1-governed implementation paths must appear in the frozen inventory.
+  // Post-K1 successor modules (K2) are excluded from this confinement check.
+  const governedChanges = [...changedPathsSinceBaseline()]
+    .filter(isK1GovernedImplementationPath)
+    .sort();
   const unmanifested = governedChanges.filter((relativePath) => !candidatePaths.includes(relativePath));
   assert.deepEqual(
     unmanifested,

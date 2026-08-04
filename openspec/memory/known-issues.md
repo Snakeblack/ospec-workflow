@@ -1,7 +1,21 @@
 ---
 title: Known Issues
-last_updated: 2026-07-26
+last_updated: 2026-08-04
 ---
+
+## Full npm test fails: K1 scope guard rejects new K2 modules as unmanifested inventory
+- severity: BLOCKER
+- area: scripts/lib/k1-scope-guard.test.js (frozen candidate inventory vs post-K1 changes)
+- workaround: carve out or remediate the K1 frozen-inventory check so legitimate K2 paths under scripts/lib/lifecycle-kernel/**, lifecycle-model*, minimal-kernel-harness* and transition-parity.k2.test.js are not treated as unmanifested K1 changes; then re-run npm test and sdd-verify
+- change: k2-lifecycle-kernel
+- date: 2026-08-04
+
+## Model inv-no-duplicate-effects checker is vacuous (always ok)
+- severity: WARNING
+- area: scripts/lib/lifecycle-model.js (checkNoDuplicateEffects)
+- workaround: implement a real model-level duplicate-effect check or explicitly document that harness/journal tests are the sole enforcement and stop counting the stub as mechanical model enforcement
+- change: k2-lifecycle-kernel
+- date: 2026-08-04
 
 ## Archive receipt cost aggregation omits duration, model tiers, statuses and questions_asked
 - severity: BLOCKER

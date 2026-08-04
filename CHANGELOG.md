@@ -8,6 +8,24 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.38.0] - 2026-08-04
+
+### Added
+- **K2 Lifecycle Kernel**: núcleo funcional / shell imperativo con digest de estado, registro de operaciones, reducer puro, selector de transiciones, journal con idempotencia/reconciliación, eventos derivados no autoritativos y recovery honesty.
+- **Minimal Kernel Harness**: API pública determinista con store/executor/clock inyectados, matriz de interrupción, snapshot round-trip y halt en `decide` sin auto-aprobación.
+- **Model-based conformance**: exploración acotada en Node con 8 invariantes ejecutables, ports opacos (`SubjectId`/`AuthorityToken`/`BudgetRef`/`PolicyRef`), manifest diferido y replay de contraejemplos vía harness.
+- **Parity de superficie runtime**: proyecciones humana/negociada derivadas de la misma transición K2; command honesty contra dead-ends.
+- **Bridges de compatibilidad**: routing, review-lineage y archive consumen operaciones K2 sin segundo reducer ni romper historiales.
+
+### Fixed
+- **Fail-closed de effects**: `{ok:false}` y outcomes ambiguos no avanzan estado; journal `failed`/`unknown` con resume `reconciliation-required`; `started` solo reintenta con barrera pre-effect.
+- **K1 scope-guard**: rutas sucesoras K2 excluidas del inventario congelado K1 sin debilitar el allowlist K1.
+- **Durabilidad de journal**: `commitJournal` obligatorio en mutaciones; `effectExecutor` requerido salvo `status`.
+
+### Docs
+- Specs baseline: `lifecycle-kernel-runtime`, `minimal-kernel-harness`, `lifecycle-model-conformance` y delta `transition-surface-parity` (REQ-006/007).
+- Change archivado en `openspec/changes/archive/2026-08-04-k2-lifecycle-kernel/`.
+
 ## [2.37.2] - 2026-08-03
 
 ### Fixed
