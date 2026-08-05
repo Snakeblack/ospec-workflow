@@ -1,0 +1,225 @@
+change: k2a-1-live-capability-probes-async-transports
+status: archived
+created_at: "2026-08-05T13:26:00.000Z"
+last_updated: "2026-08-05T15:30:00.000Z"
+blocking_questions: []
+
+classification: high-risk
+owner:
+  author: Manuel Retamozo
+  branch: feat/k2a-1-live-capability-probes-async-transports
+workload:
+  estimated_changed_lines: "700-950"
+  budget_risk: High
+  chained_prs_recommended: false
+  chain_strategy: size-exception
+  decision_needed_before_apply: false
+  delivery_strategy: exception-ok
+  delivery_path: size:exception
+  suggested_split: "proof+schemas → async boundary/headless → Claude gate → fault-via-port + W4"
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "k2a-1 live capability probes / async transports is high-risk host-contract hardening on an active project; first matching route is standard (clarify + 4R)."
+  validated: true
+  validation_errors: []
+execution_mode: auto
+delivery_strategy: exception-ok
+session:
+  plan_source: openspec/memory/handoff-pre-k3-correctives.md
+  parent_change: k2a-headless-conformance-host
+  blocks: k3-runtime
+approvals:
+  - id: exec-mode-001
+    gate: execution-mode
+    decision: auto
+    source: user-chat
+    accepted_at: "2026-08-05T13:26:00.000Z"
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: user-chat
+    accepted_at: "2026-08-05T13:26:00.000Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: scope-001
+    gate: architecture
+    decision: "k2a-1 CRITICAL 3-5 + W1-W4 per handoff-pre-k3-correctives; K3 runtime blocked"
+    source: user-chat
+    accepted_at: "2026-08-05T13:26:00.000Z"
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+  - id: assumption-reconciliation-001
+    gate: architecture
+    decision: "confirm all five: sdd-design-001, sdd-propose-001, sdd-propose-002, sdd-design-002, sdd-apply-001"
+    source: user-chat
+    accepted_at: "2026-08-05T14:08:00.000Z"
+    applies_to:
+      - sdd-verify
+  - id: remediation-001
+    gate: 4r-review-gate
+    decision: "correct-all-4-critical-slices"
+    source: user-chat
+    accepted_at: "2026-08-05T15:06:00.000Z"
+    applies_to:
+      - 4r-review-gate
+phases:
+  sdd-propose:
+    status: done
+    artifact: openspec/changes/k2a-1-live-capability-probes-async-transports/proposal.md
+    summary: "Correctivo CRITICAL 3–5 + W1–W4: live proof binding, Claude probe-gated enforced, async transports, fault-via-port."
+    key_decisions:
+      - "W1–W4 in-scope same change (not deferred)"
+      - "Additive transport-request/outcome/failure v1 schemas; no silent mutate of existing transport v1"
+      - "No new capability domains — deltas on existing K2a specs"
+  sdd-spec:
+    status: done
+    artifacts:
+      - openspec/changes/k2a-1-live-capability-probes-async-transports/specs/capability-proof/spec.md
+      - openspec/changes/k2a-1-live-capability-probes-async-transports/specs/host-capabilities-contract/spec.md
+      - openspec/changes/k2a-1-live-capability-probes-async-transports/specs/reference-host-adapter/spec.md
+      - openspec/changes/k2a-1-live-capability-probes-async-transports/specs/headless-conformance-host/spec.md
+      - openspec/changes/k2a-1-live-capability-probes-async-transports/specs/kernel-contract-schemas/spec.md
+      - openspec/changes/k2a-1-live-capability-probes-async-transports/specs/minimal-kernel-harness/spec.md
+      - openspec/changes/k2a-1-live-capability-probes-async-transports/specs/lifecycle-kernel-runtime/spec.md
+    summary: "Deltas CRITICAL 3–5 + W1–W4: live proof binding, async ports, Claude probe-gated enforced, fault-via-port, additive transport schemas."
+    key_decisions:
+      - "verifyCapabilityProof requires expectedAdapterId/Version, expectedHostRuntimeVersion, expectedProbeDigest"
+      - "enforced only after live probe; fixture digest ≠ live probe"
+      - "Additive transport-request/outcome/failure v1; existing transport v1 $ids pinned"
+  clarify:
+    status: skipped
+    rationale: "residual_ambiguity false; empty public_contract_questions, conflicting_requirements, missing_acceptance_criteria"
+  sdd-design:
+    status: done
+    artifact: openspec/changes/k2a-1-live-capability-probes-async-transports/design.md
+    summary: "Object verify+probe digest; shared invokeTransportAsync; Claude probe-gated enforced; fault-via-port; additive transport schemas; deep-freeze."
+    key_decisions:
+      - "verifyCapabilityProof options object + createProbeDigest (capability-probe/v1); fixture ≠ live"
+      - "Shared invokeTransportAsync/classifyTransportFailure for headless + host-boundary"
+      - "Claude enforced only after live probe; fixture-only never authorizes"
+  sdd-tasks:
+    status: done
+    artifact: openspec/changes/k2a-1-live-capability-probes-async-transports/tasks.md
+    summary: "5 phases, 28 tasks; proof→async→Claude→fault/W4 slices; size-exception; 700–950 LOC est."
+    key_decisions:
+      - "Strict TDD RED→GREEN per slice; shared invokeTransportAsync for headless + boundary"
+      - "size-exception single PR (exception-ok pre-approved via delivery-001)"
+      - "All 14 MUST REQs mapped; reconciliation complete"
+  sdd-apply:
+    status: done
+    artifact: openspec/changes/k2a-1-live-capability-probes-async-transports/apply-progress.md
+    summary: "Full apply + 4R CRITICAL remediation: independent probe digest, primitive-gated enforced, invokePromise settlement; npm test 1974 pass."
+    key_decisions:
+      - "Object-form verifyCapabilityProof + createProbeDigest (capability-probe/v1)"
+      - "Shared invokeTransportAsync for headless + host-boundary; deep-freeze adapters"
+      - "enforced requires primitive + live probe + independent expectedProbeDigest"
+  sdd-verify:
+    status: done
+    verdict: PASS WITH WARNINGS
+    artifact: openspec/changes/k2a-1-live-capability-probes-async-transports/verify-report.md
+    summary: "PASS WITH WARNINGS: 28/28 tasks; npm test 1969 pass; 1 assertion WARNING on host-boundary success path."
+    key_decisions:
+      - "All five assumptions confirmed (assumption-reconciliation-001)"
+      - "Strict TDD evidence validated against runtime; acceptance gates covered"
+      - "No CRITICAL; WARNING: observeHostPort success lacks explicit ok:true assert"
+  sdd-archive:
+    status: done
+    artifact: openspec/changes/k2a-1-live-capability-probes-async-transports/archive-report.md
+    summary: "Plan emitido: 7 spec merges + 3 ADR promotions; WARNING observeHostPort aceptado; runtime archive pendiente."
+    key_decisions:
+      - "Prepared merges en specs/*/prepared-spec.md; live writes runtime-owned"
+      - "ADR 007–009 propuestos en docs/adr/"
+      - "Handoff/roadmap: k2a-1 cerrado, K3 next-eligible"
+assumptions:
+  - id: sdd-propose-001
+    phase: sdd-propose
+    statement: "W1–W4 se incluyen íntegramente en este change en lugar de diferirse."
+    reversibility: high
+    basis: "Handoff permite 'cerrar en el mismo change o justificar defer'; los acceptance gates ya requieren fault-via-adapter y Claude honest."
+    recorded_at: "2026-08-05T13:30:00.000Z"
+    status: confirmed
+    resolved_at: "2026-08-05T14:08:00.000Z"
+    resolution_source: user-chat
+  - id: sdd-propose-002
+    phase: sdd-propose
+    statement: "transport-request/outcome/failure se publican como familias schema v1 aditivas sin mutar schemas de transport existentes."
+    reversibility: high
+    basis: "Handoff W2: no mutar v1 silenciosamente; kernel-contract-schemas ya versiona familias por $id."
+    recorded_at: "2026-08-05T13:30:00.000Z"
+    status: confirmed
+    resolved_at: "2026-08-05T14:08:00.000Z"
+    resolution_source: user-chat
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "CapabilityProof v1 gana campos adapter_id y probe_digest sin cambiar $id; createProbeDigest usa dominio capability-probe/v1 distinto del fixture."
+    reversibility: low
+    basis: "REQ-capability-proof-005 exige identidad de adapter y probe digest en el proof; schemas K2a ya versionan por $id estable."
+    recorded_at: "2026-08-05T13:50:00.000Z"
+    status: confirmed
+    resolved_at: "2026-08-05T14:08:00.000Z"
+    resolution_source: user-chat
+  - id: sdd-design-002
+    phase: sdd-design
+    statement: "injectFault permanece como factory de wrappers de puerto fallidos; la cobertura normativa exige invokeTransportAsync sobre esos ports."
+    reversibility: high
+    basis: "REQ-headless-conformance-host-002 permite helpers sintéticos de setup pero no como cobertura sola."
+    recorded_at: "2026-08-05T13:50:00.000Z"
+    status: confirmed
+    resolved_at: "2026-08-05T14:08:00.000Z"
+    resolution_source: user-chat
+  - id: sdd-apply-001
+    phase: sdd-apply
+    statement: "transport-outcome contradicción ok:true+failure_class se expresa con if/then (failure_class:false) porque el intérprete de schemas no soporta not/dependentSchemas."
+    reversibility: high
+    basis: "scripts/lib/kernel-schema-validator.js documenta keywords soportados; if/then está en el subset."
+    recorded_at: "2026-08-05T14:15:00.000Z"
+    status: confirmed
+    resolved_at: "2026-08-05T14:08:00.000Z"
+    resolution_source: user-chat
+baseline_fingerprints:
+  capability-proof: "sha256:15efd7ef6d1f8d1ea1489e66847ac86651bd328134b336deaf6d57fb25b72f2e"
+  host-capabilities-contract: "sha256:30fd5f46c74867a51ad69f2850f9ed4c1ec759754ebd04d775dda7caee789bfc"
+  reference-host-adapter: "sha256:194eaf7c51756009240ffc2cdb4290e918702603644df1316664b0d9b557321d"
+  headless-conformance-host: "sha256:21d2690d4122039a71b115aaf06bc2d7dbf701620c854704c8264c3a6e8e8ccb"
+  kernel-contract-schemas: "sha256:56bd0b6b346465403bc27ae91aad7955aa4c58197d76fc831173c914b9772865"
+  minimal-kernel-harness: "sha256:7706b9f0647449773e81ab4540dffbdf47e68fa826d274fc20e3ff8524dfdb20"
+  lifecycle-kernel-runtime: "sha256:f9b3ebc8c614f0578c93c6e07a01e49f37b346590689fa2edb808763b7d17349"
+gates:
+  clarify:
+    status: skipped
+    skip_reason: "residual_ambiguity false"
+  4r-review-gate:
+    status: approved
+    lineage_id: "sha256:2281b0e342ea5703d979af46c08a6e8afd3a658ded26cc962d4a21e7570e77a8"
+    candidate_id: "sha256:6d3793a48ec0c9bdafa82d107dbcbd98103b7089b709f9b3507ffc1973da32e5"
+    findings_summary: "4 CRITICAL remediados; 12 WARNING + 2 SUGGESTION advisory"
+    remediation_schema_version: 2
+    lineage_status: approved
+    terminal_reason: all-remediation-slices-passed
+    archive_allowed: true
+    blocking_finding_ids: []
+    resolved_blocking_ids:
+      - F-257363d612b4f8ad
+      - F-42a44346728b7090
+      - F-a23fde0a12e81544
+      - F-ea52b9c672375e23
+  review-workload:
+    status: done
+    forecast: "~700-950 lines; 400-budget risk High; single PR size-exception"
+    decision: size-exception
+    decision_source: delivery-001
+    surfaced_to_user: false

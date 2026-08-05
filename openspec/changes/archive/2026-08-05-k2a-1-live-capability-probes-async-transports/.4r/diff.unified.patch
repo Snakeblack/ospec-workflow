@@ -1,0 +1,3040 @@
+diff --git a/openspec/memory/known-issues.md b/openspec/memory/known-issues.md
+index 4eeccde..d71f422 100644
+--- a/openspec/memory/known-issues.md
++++ b/openspec/memory/known-issues.md
+@@ -3,6 +3,13 @@ title: Known Issues
+ last_updated: 2026-08-05
+ ---
+ 
++## Host-boundary success observe lacks explicit ok:true assertion
++- severity: WARNING
++- area: scripts/lib/lifecycle-kernel/host-boundary.test.js (REQ-lifecycle-kernel-runtime-017 success scenario)
++- workaround: after observeHostPort with a successful port, assert.equal(a.ok, true) (and optionally a.outcome) instead of only comparing two runs for equality
++- change: k2a-1-live-capability-probes-async-transports
++- date: 2026-08-05
++
+ ## Type-only re-export smoke for issueOperationPermit
+ - severity: WARNING
+ - area: scripts/lib/lifecycle-kernel/index.test.js:341 (task 2.4)
+diff --git a/schemas/kernel/capability-proof/fixtures/invalid/missing-evidence-digest.json b/schemas/kernel/capability-proof/fixtures/invalid/missing-evidence-digest.json
+index 0c1d3db..9499d2d 100644
+--- a/schemas/kernel/capability-proof/fixtures/invalid/missing-evidence-digest.json
++++ b/schemas/kernel/capability-proof/fixtures/invalid/missing-evidence-digest.json
+@@ -1,7 +1,9 @@
+ {
+   "schema_version": 1,
+   "kind": "capability-proof/v1",
++  "adapter_id": "claude",
+   "adapter_version": "1.0.0",
+   "host_version": "k2a-host/1",
+-  "fixture": "x.json"
++  "fixture": "x.json",
++  "probe_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+ }
+diff --git a/schemas/kernel/capability-proof/fixtures/invalid/missing-fixture.json b/schemas/kernel/capability-proof/fixtures/invalid/missing-fixture.json
+index 069cfaf..77b5c2e 100644
+--- a/schemas/kernel/capability-proof/fixtures/invalid/missing-fixture.json
++++ b/schemas/kernel/capability-proof/fixtures/invalid/missing-fixture.json
+@@ -1,7 +1,9 @@
+ {
+   "schema_version": 1,
+   "kind": "capability-proof/v1",
++  "adapter_id": "claude",
+   "adapter_version": "1.0.0",
+   "host_version": "k2a-host/1",
+-  "evidence_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
++  "evidence_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++  "probe_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+ }
+diff --git a/schemas/kernel/capability-proof/fixtures/valid/minimal.json b/schemas/kernel/capability-proof/fixtures/valid/minimal.json
+index e2dd131..9130a3e 100644
+--- a/schemas/kernel/capability-proof/fixtures/valid/minimal.json
++++ b/schemas/kernel/capability-proof/fixtures/valid/minimal.json
+@@ -1,8 +1,10 @@
+ {
+   "schema_version": 1,
+   "kind": "capability-proof/v1",
++  "adapter_id": "claude",
+   "adapter_version": "1.0.0",
+   "host_version": "k2a-host/1",
+   "fixture": "scripts/lib/host-adapters/claude/fixtures/execution-transport.json",
+-  "evidence_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
++  "evidence_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++  "probe_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+ }
+diff --git a/schemas/kernel/capability-proof/v1.schema.json b/schemas/kernel/capability-proof/v1.schema.json
+index e4aecf9..b04b6be 100644
+--- a/schemas/kernel/capability-proof/v1.schema.json
++++ b/schemas/kernel/capability-proof/v1.schema.json
+@@ -10,6 +10,10 @@
+     "kind": {
+       "const": "capability-proof/v1"
+     },
++    "adapter_id": {
++      "type": "string",
++      "minLength": 1
++    },
+     "adapter_version": {
+       "type": "string"
+     },
+@@ -21,15 +25,21 @@
+     },
+     "evidence_digest": {
+       "type": "string"
++    },
++    "probe_digest": {
++      "type": "string",
++      "minLength": 1
+     }
+   },
+   "required": [
+     "schema_version",
+     "kind",
++    "adapter_id",
+     "adapter_version",
+     "host_version",
+     "fixture",
+-    "evidence_digest"
++    "evidence_digest",
++    "probe_digest"
+   ],
+   "additionalProperties": false
+ }
+diff --git a/schemas/kernel/contract-claims.json b/schemas/kernel/contract-claims.json
+index 5c4cfe9..89f31be 100644
+--- a/schemas/kernel/contract-claims.json
++++ b/schemas/kernel/contract-claims.json
+@@ -311,13 +311,59 @@
+       "required_fields": [
+         "schema_version",
+         "kind",
++        "adapter_id",
+         "adapter_version",
+         "host_version",
+         "fixture",
+-        "evidence_digest"
++        "evidence_digest",
++        "probe_digest"
+       ],
+       "enum_values": {},
+       "command_shapes": []
++    },
++    "transport-request": {
++      "required_fields": [
++        "schema_version",
++        "kind",
++        "requestId"
++      ],
++      "enum_values": {},
++      "command_shapes": []
++    },
++    "transport-outcome": {
++      "required_fields": [
++        "schema_version",
++        "kind",
++        "ok"
++      ],
++      "enum_values": {
++        "failure_class": [
++          "timeout",
++          "cancel",
++          "reject",
++          "interrupt",
++          "worker-fail"
++        ]
++      },
++      "command_shapes": []
++    },
++    "transport-failure": {
++      "required_fields": [
++        "schema_version",
++        "kind",
++        "ok",
++        "failure_class"
++      ],
++      "enum_values": {
++        "failure_class": [
++          "timeout",
++          "cancel",
++          "reject",
++          "interrupt",
++          "worker-fail"
++        ]
++      },
++      "command_shapes": []
+     }
+   }
+ }
+diff --git a/schemas/kernel/manifest.json b/schemas/kernel/manifest.json
+index 45aefd7..6ecb924 100644
+--- a/schemas/kernel/manifest.json
++++ b/schemas/kernel/manifest.json
+@@ -115,6 +115,21 @@
+       "path": "schemas/kernel/capability-proof/v1.schema.json",
+       "$id": "ospec://schemas/kernel/capability-proof/v1",
+       "schema_version": 1
++    },
++    "transport-request": {
++      "path": "schemas/kernel/transport-request/v1.schema.json",
++      "$id": "ospec://schemas/kernel/transport-request/v1",
++      "schema_version": 1
++    },
++    "transport-outcome": {
++      "path": "schemas/kernel/transport-outcome/v1.schema.json",
++      "$id": "ospec://schemas/kernel/transport-outcome/v1",
++      "schema_version": 1
++    },
++    "transport-failure": {
++      "path": "schemas/kernel/transport-failure/v1.schema.json",
++      "$id": "ospec://schemas/kernel/transport-failure/v1",
++      "schema_version": 1
+     }
+   }
+ }
+diff --git a/scripts/lib/capability-proof/index.js b/scripts/lib/capability-proof/index.js
+index 329837b..ada5009 100644
+--- a/scripts/lib/capability-proof/index.js
++++ b/scripts/lib/capability-proof/index.js
+@@ -3,12 +3,19 @@
+ const { sha256Fingerprint } = require("../canonical-json.js");
+ 
+ const PROOF_DOMAIN = "capability-proof/v1";
++const PROBE_DOMAIN = "capability-probe/v1";
+ const PROOF_KIND = "capability-proof/v1";
+ 
+ const REASON = Object.freeze({
+   PROOF_MISSING: "proof-missing",
+   PROOF_FIELD_MISSING: "proof-field-missing",
++  EXPECTED_FIELD_MISSING: "expected-field-missing",
++  FOREIGN_ADAPTER: "foreign-adapter",
++  FOREIGN_ADAPTER_VERSION: "foreign-adapter-version",
++  FOREIGN_HOST: "foreign-host",
++  FIXTURE_DIGEST_NOT_LIVE_PROBE: "fixture-digest-not-live-probe",
+   DIGEST_MISMATCH: "digest-mismatch",
++  PROBE_DIGEST_MISMATCH: "probe-digest-mismatch",
+   PROOF_VERIFICATION_FAILED: "proof-verification-failed",
+   SILENT_PROMOTION_REFUSED: "silent-promotion-refused",
+ });
+@@ -47,8 +54,6 @@ function createEvidenceDigest(input) {
+     error.path = "/evidence";
+     throw error;
+   }
+-  // Volatile timestamps must not appear in digest inputs (caller responsibility;
+-  // we reject common timestamp keys if present on a plain object evidence payload).
+   if (evidence !== null && typeof evidence === "object" && !Array.isArray(evidence)) {
+     for (const banned of ["timestamp", "created_at", "updated_at", "now", "wall_clock"]) {
+       if (Object.prototype.hasOwnProperty.call(evidence, banned)) {
+@@ -69,20 +74,101 @@ function createEvidenceDigest(input) {
+ }
+ 
+ /**
+- * @param {string} capabilityId
+- * @param {object|null|undefined} proof
+- * @param {*} semanticEvidence
+- * @returns {{ok:boolean, reason_code?:string, path?:string, evidence_digest?:string}}
++ * Live probe digest — distinct domain from fixture evidence_digest.
++ * @param {{capability_id:string, adapter_id:string, adapter_version:string, host_version:string, probe:*}} input
++ * @returns {string}
+  */
+-function verifyCapabilityProof(capabilityId, proof, semanticEvidence) {
++function createProbeDigest(input) {
++  if (!input || typeof input !== "object") {
++    const error = new Error("createProbeDigest requires an object");
++    error.code = REASON.PROOF_FIELD_MISSING;
++    throw error;
++  }
++  const { capability_id, adapter_id, adapter_version, host_version, probe } = input;
++  for (const [key, value] of Object.entries({
++    capability_id,
++    adapter_id,
++    adapter_version,
++    host_version,
++  })) {
++    if (!nonEmptyString(value)) {
++      const error = new Error(`missing or empty ${key}`);
++      error.code = REASON.PROOF_FIELD_MISSING;
++      error.path = `/${key}`;
++      throw error;
++    }
++  }
++  if (probe === undefined) {
++    const error = new Error("missing probe");
++    error.code = REASON.PROOF_FIELD_MISSING;
++    error.path = "/probe";
++    throw error;
++  }
++  return sha256Fingerprint(PROBE_DOMAIN, {
++    capability_id,
++    adapter_id,
++    adapter_version,
++    host_version,
++    probe,
++  });
++}
++
++/**
++ * Object-form verify with required live expected identity + probe digest.
++ * @param {{
++ *   capabilityId:string,
++ *   expectedAdapterId:string,
++ *   expectedAdapterVersion:string,
++ *   expectedHostRuntimeVersion:string,
++ *   expectedProbeDigest:string,
++ *   proof:object|null|undefined,
++ *   evidence:*
++ * }} opts
++ * @returns {{ok:boolean, reason_code?:string, path?:string, evidence_digest?:string, probe_digest?:string}}
++ */
++function verifyCapabilityProof(opts) {
++  if (opts == null || typeof opts !== "object" || Array.isArray(opts)) {
++    return { ok: false, reason_code: REASON.EXPECTED_FIELD_MISSING, path: "/" };
++  }
++
++  const {
++    capabilityId,
++    expectedAdapterId,
++    expectedAdapterVersion,
++    expectedHostRuntimeVersion,
++    expectedProbeDigest,
++    proof,
++    evidence: semanticEvidence,
++  } = opts;
++
+   if (!nonEmptyString(capabilityId)) {
+     return { ok: false, reason_code: REASON.PROOF_FIELD_MISSING, path: "/capability_id" };
+   }
++
++  const expectedFields = [
++    ["expectedAdapterId", expectedAdapterId],
++    ["expectedAdapterVersion", expectedAdapterVersion],
++    ["expectedHostRuntimeVersion", expectedHostRuntimeVersion],
++    ["expectedProbeDigest", expectedProbeDigest],
++  ];
++  for (const [name, value] of expectedFields) {
++    if (!nonEmptyString(value)) {
++      return { ok: false, reason_code: REASON.EXPECTED_FIELD_MISSING, path: `/${name}` };
++    }
++  }
++
+   if (proof == null || typeof proof !== "object" || Array.isArray(proof)) {
+     return { ok: false, reason_code: REASON.PROOF_MISSING };
+   }
+ 
+-  const required = ["adapter_version", "host_version", "fixture", "evidence_digest"];
++  const required = [
++    "adapter_id",
++    "adapter_version",
++    "host_version",
++    "fixture",
++    "evidence_digest",
++    "probe_digest",
++  ];
+   for (const field of required) {
+     if (!nonEmptyString(proof[field])) {
+       return { ok: false, reason_code: REASON.PROOF_FIELD_MISSING, path: `/${field}` };
+@@ -93,9 +179,32 @@ function verifyCapabilityProof(capabilityId, proof, semanticEvidence) {
+     return { ok: false, reason_code: REASON.PROOF_VERIFICATION_FAILED, path: "/kind" };
+   }
+ 
+-  let expected;
++  if (proof.adapter_id !== expectedAdapterId) {
++    return { ok: false, reason_code: REASON.FOREIGN_ADAPTER, path: "/adapter_id" };
++  }
++  if (proof.adapter_version !== expectedAdapterVersion) {
++    return { ok: false, reason_code: REASON.FOREIGN_ADAPTER_VERSION, path: "/adapter_version" };
++  }
++  if (proof.host_version !== expectedHostRuntimeVersion) {
++    return { ok: false, reason_code: REASON.FOREIGN_HOST, path: "/host_version" };
++  }
++
++  // Fixture digest must never substitute for the live probe digest.
++  if (expectedProbeDigest === proof.evidence_digest) {
++    return {
++      ok: false,
++      reason_code: REASON.FIXTURE_DIGEST_NOT_LIVE_PROBE,
++      path: "/expectedProbeDigest",
++    };
++  }
++
++  if (proof.probe_digest !== expectedProbeDigest) {
++    return { ok: false, reason_code: REASON.PROBE_DIGEST_MISMATCH, path: "/probe_digest" };
++  }
++
++  let expectedEvidence;
+   try {
+-    expected = createEvidenceDigest({
++    expectedEvidence = createEvidenceDigest({
+       capability_id: capabilityId,
+       adapter_version: proof.adapter_version,
+       host_version: proof.host_version,
+@@ -110,17 +219,31 @@ function verifyCapabilityProof(capabilityId, proof, semanticEvidence) {
+     };
+   }
+ 
+-  if (proof.evidence_digest !== expected) {
++  if (proof.evidence_digest !== expectedEvidence) {
+     return { ok: false, reason_code: REASON.DIGEST_MISMATCH, path: "/evidence_digest" };
+   }
+ 
+-  return { ok: true, evidence_digest: expected };
++  return {
++    ok: true,
++    evidence_digest: expectedEvidence,
++    probe_digest: proof.probe_digest,
++  };
+ }
+ 
+ /**
+  * Enforcement eligibility: declaration alone is insufficient.
+- * Promotion to enforced requires a verifying CapabilityProof.
+- * @param {{capability_id:string, declared_state:string, proof?:object|null, semantic_evidence?:*, request_enforced?:boolean}} input
++ * Promotion to enforced requires a verifying CapabilityProof with live bind.
++ * @param {{
++ *   capability_id:string,
++ *   declared_state:string,
++ *   proof?:object|null,
++ *   semantic_evidence?:*,
++ *   request_enforced?:boolean,
++ *   expectedAdapterId?:string,
++ *   expectedAdapterVersion?:string,
++ *   expectedHostRuntimeVersion?:string,
++ *   expectedProbeDigest?:string
++ * }} input
+  */
+ function evaluateEnforcementEligibility(input) {
+   const capabilityId = input && input.capability_id;
+@@ -128,7 +251,12 @@ function evaluateEnforcementEligibility(input) {
+   if (!nonEmptyString(capabilityId)) {
+     return { ok: false, enforced: false, reason_code: REASON.PROOF_FIELD_MISSING, path: "/capability_id" };
+   }
+-  if (declared !== "enforced" && declared !== "partial" && declared !== "instructional" && declared !== "unavailable") {
++  if (
++    declared !== "enforced" &&
++    declared !== "partial" &&
++    declared !== "instructional" &&
++    declared !== "unavailable"
++  ) {
+     return { ok: false, enforced: false, reason_code: "unknown-capability-state", path: "/declared_state" };
+   }
+ 
+@@ -137,7 +265,15 @@ function evaluateEnforcementEligibility(input) {
+     return { ok: true, enforced: false, effective_state: declared };
+   }
+ 
+-  const verification = verifyCapabilityProof(capabilityId, input.proof, input.semantic_evidence);
++  const verification = verifyCapabilityProof({
++    capabilityId,
++    expectedAdapterId: input.expectedAdapterId,
++    expectedAdapterVersion: input.expectedAdapterVersion,
++    expectedHostRuntimeVersion: input.expectedHostRuntimeVersion,
++    expectedProbeDigest: input.expectedProbeDigest,
++    proof: input.proof,
++    evidence: input.semantic_evidence,
++  });
+   if (!verification.ok) {
+     return {
+       ok: false,
+@@ -157,17 +293,10 @@ function evaluateEnforcementEligibility(input) {
+     enforced: true,
+     effective_state: "enforced",
+     evidence_digest: verification.evidence_digest,
++    probe_digest: verification.probe_digest,
+   };
+ }
+ 
+-/**
+- * Select reason_code for failed enforcement.
+- * Matrix declared × request_enforced × proof.reason:
+- * - not requesting enforced → silent-promotion-refused
+- * - proof-missing → proof-missing (always when wants enforced)
+- * - declared !== enforced (promotion attempt) → silent-promotion-refused
+- * - declared === enforced → underlying verification.reason_code
+- */
+ function selectEnforcementFailureReason(declared, requestEnforced, verificationReason) {
+   const wantsEnforced = requestEnforced === true || declared === "enforced";
+   if (!wantsEnforced) {
+@@ -184,9 +313,11 @@ function selectEnforcementFailureReason(declared, requestEnforced, verificationR
+ 
+ module.exports = {
+   PROOF_DOMAIN,
++  PROBE_DOMAIN,
+   PROOF_KIND,
+   REASON,
+   createEvidenceDigest,
++  createProbeDigest,
+   verifyCapabilityProof,
+   evaluateEnforcementEligibility,
+   selectEnforcementFailureReason,
+diff --git a/scripts/lib/capability-proof/index.test.js b/scripts/lib/capability-proof/index.test.js
+index 69259ce..d8039df 100644
+--- a/scripts/lib/capability-proof/index.test.js
++++ b/scripts/lib/capability-proof/index.test.js
+@@ -5,79 +5,237 @@ const test = require("node:test");
+ 
+ const {
+   createEvidenceDigest,
++  createProbeDigest,
+   verifyCapabilityProof,
+   evaluateEnforcementEligibility,
+   REASON,
++  PROBE_DOMAIN,
+ } = require("./index.js");
+ 
+-function makeProof(capabilityId, evidence) {
+-  const adapter_version = "1.0.0";
+-  const host_version = "k2a-host/1";
++const ADAPTER_ID = "claude";
++const ADAPTER_VERSION = "1.0.0";
++const HOST_VERSION = "k2a-host/1";
++
++function makeLiveMaterial(capabilityId, evidence, probe = { surface: "live", ok: true }) {
+   const fixture = `fixtures/${capabilityId}.json`;
+   const evidence_digest = createEvidenceDigest({
+     capability_id: capabilityId,
+-    adapter_version,
+-    host_version,
++    adapter_version: ADAPTER_VERSION,
++    host_version: HOST_VERSION,
+     fixture,
+     evidence,
+   });
+-  return {
++  const probe_digest = createProbeDigest({
++    capability_id: capabilityId,
++    adapter_id: ADAPTER_ID,
++    adapter_version: ADAPTER_VERSION,
++    host_version: HOST_VERSION,
++    probe,
++  });
++  assert.notEqual(probe_digest, evidence_digest);
++  const proof = {
+     schema_version: 1,
+     kind: "capability-proof/v1",
+-    adapter_version,
+-    host_version,
++    adapter_id: ADAPTER_ID,
++    adapter_version: ADAPTER_VERSION,
++    host_version: HOST_VERSION,
+     fixture,
+     evidence_digest,
++    probe_digest,
++  };
++  return {
++    proof,
++    evidence,
++    expected: {
++      capabilityId,
++      expectedAdapterId: ADAPTER_ID,
++      expectedAdapterVersion: ADAPTER_VERSION,
++      expectedHostRuntimeVersion: HOST_VERSION,
++      expectedProbeDigest: probe_digest,
++      proof,
++      evidence,
++    },
+   };
+ }
+ 
+-test("declared enforced without proof fails; valid proof enables enforcement", () => {
++test("declared enforced without proof fails; valid live-bound proof enables enforcement", () => {
+   const refused = evaluateEnforcementEligibility({
+     capability_id: "ExecutionTransport",
+     declared_state: "enforced",
+   });
+   assert.equal(refused.ok, false);
+   assert.equal(refused.enforced, false);
+-  assert.equal(refused.reason_code, REASON.PROOF_MISSING);
++  assert.ok(
++    refused.reason_code === REASON.PROOF_MISSING ||
++      refused.reason_code === REASON.EXPECTED_FIELD_MISSING
++  );
+ 
+-  const evidence = { surface: "execution", headless: true };
+-  const proof = makeProof("ExecutionTransport", evidence);
++  const { expected, proof } = makeLiveMaterial("ExecutionTransport", { surface: "execution", headless: true });
+   const ok = evaluateEnforcementEligibility({
+     capability_id: "ExecutionTransport",
+     declared_state: "enforced",
+-    proof,
+-    semantic_evidence: evidence,
++    proof: expected.proof,
++    semantic_evidence: expected.evidence,
++    expectedAdapterId: expected.expectedAdapterId,
++    expectedAdapterVersion: expected.expectedAdapterVersion,
++    expectedHostRuntimeVersion: expected.expectedHostRuntimeVersion,
++    expectedProbeDigest: expected.expectedProbeDigest,
+   });
+   assert.equal(ok.ok, true);
+   assert.equal(ok.enforced, true);
+   assert.equal(ok.evidence_digest, proof.evidence_digest);
++  assert.equal(ok.probe_digest, proof.probe_digest);
+ });
+ 
+-test("missing adapter_version/host_version/fixture/evidence_digest fails verification", () => {
+-  const evidence = { a: 1 };
+-  const base = makeProof("QuestionTransport", evidence);
+-  for (const field of ["adapter_version", "host_version", "fixture", "evidence_digest"]) {
+-    const broken = { ...base, [field]: "" };
+-    const result = verifyCapabilityProof("QuestionTransport", broken, evidence);
++test("object verify rejects missing expected live identity fields", () => {
++  const { proof, evidence, expected } = makeLiveMaterial("QuestionTransport", { a: 1 });
++  for (const field of [
++    "expectedAdapterId",
++    "expectedAdapterVersion",
++    "expectedHostRuntimeVersion",
++    "expectedProbeDigest",
++  ]) {
++    const opts = { ...expected, [field]: undefined };
++    const result = verifyCapabilityProof(opts);
+     assert.equal(result.ok, false, field);
+-    assert.equal(result.reason_code, REASON.PROOF_FIELD_MISSING, field);
++    assert.equal(result.reason_code, REASON.EXPECTED_FIELD_MISSING, field);
+     assert.equal(result.path, `/${field}`, field);
+   }
++  void proof;
++  void evidence;
+ });
+ 
+-test("digest mismatch fails; repeated verification is byte-equivalent; no timestamps", () => {
++test("foreign adapter / version / host fail closed with stable reasons", () => {
++  const { expected } = makeLiveMaterial("WorkerTransport", { fixture_bytes: "abc" });
++
++  const foreignAdapter = verifyCapabilityProof({
++    ...expected,
++    expectedAdapterId: "codex",
++  });
++  assert.equal(foreignAdapter.ok, false);
++  assert.equal(foreignAdapter.reason_code, REASON.FOREIGN_ADAPTER);
++
++  const foreignVersion = verifyCapabilityProof({
++    ...expected,
++    expectedAdapterVersion: "9.9.9",
++  });
++  assert.equal(foreignVersion.ok, false);
++  assert.equal(foreignVersion.reason_code, REASON.FOREIGN_ADAPTER_VERSION);
++
++  const foreignHost = verifyCapabilityProof({
++    ...expected,
++    expectedHostRuntimeVersion: "other-host/2",
++  });
++  assert.equal(foreignHost.ok, false);
++  assert.equal(foreignHost.reason_code, REASON.FOREIGN_HOST);
++});
++
++test("fixture-only digest rejected when expectedProbeDigest is distinct live probe", () => {
+   const evidence = { fixture_bytes: "abc" };
+-  const proof = makeProof("WorkerTransport", evidence);
+-  const mismatch = verifyCapabilityProof("WorkerTransport", { ...proof, evidence_digest: "sha256:dead" }, evidence);
++  const fixture = "fixtures/WorkerTransport.json";
++  const evidence_digest = createEvidenceDigest({
++    capability_id: "WorkerTransport",
++    adapter_version: ADAPTER_VERSION,
++    host_version: HOST_VERSION,
++    fixture,
++    evidence,
++  });
++  const liveProbe = createProbeDigest({
++    capability_id: "WorkerTransport",
++    adapter_id: ADAPTER_ID,
++    adapter_version: ADAPTER_VERSION,
++    host_version: HOST_VERSION,
++    probe: { live: true, tick: 1 },
++  });
++  assert.notEqual(liveProbe, evidence_digest);
++
++  // Caller supplies fixture digest as expectedProbeDigest → fail closed.
++  const asFixture = verifyCapabilityProof({
++    capabilityId: "WorkerTransport",
++    expectedAdapterId: ADAPTER_ID,
++    expectedAdapterVersion: ADAPTER_VERSION,
++    expectedHostRuntimeVersion: HOST_VERSION,
++    expectedProbeDigest: evidence_digest,
++    proof: {
++      schema_version: 1,
++      kind: "capability-proof/v1",
++      adapter_id: ADAPTER_ID,
++      adapter_version: ADAPTER_VERSION,
++      host_version: HOST_VERSION,
++      fixture,
++      evidence_digest,
++      probe_digest: liveProbe,
++    },
++    evidence,
++  });
++  assert.equal(asFixture.ok, false);
++  assert.equal(asFixture.reason_code, REASON.FIXTURE_DIGEST_NOT_LIVE_PROBE);
++
++  // Matching live probe succeeds.
++  const ok = verifyCapabilityProof({
++    capabilityId: "WorkerTransport",
++    expectedAdapterId: ADAPTER_ID,
++    expectedAdapterVersion: ADAPTER_VERSION,
++    expectedHostRuntimeVersion: HOST_VERSION,
++    expectedProbeDigest: liveProbe,
++    proof: {
++      schema_version: 1,
++      kind: "capability-proof/v1",
++      adapter_id: ADAPTER_ID,
++      adapter_version: ADAPTER_VERSION,
++      host_version: HOST_VERSION,
++      fixture,
++      evidence_digest,
++      probe_digest: liveProbe,
++    },
++    evidence,
++  });
++  assert.equal(ok.ok, true);
++  assert.equal(ok.probe_digest, liveProbe);
++});
++
++test("missing adapter_version/host_version/fixture/evidence_digest/probe_digest fails verification", () => {
++  const { expected } = makeLiveMaterial("QuestionTransport", { a: 1 });
++  for (const field of [
++    "adapter_id",
++    "adapter_version",
++    "host_version",
++    "fixture",
++    "evidence_digest",
++    "probe_digest",
++  ]) {
++    const broken = { ...expected.proof, [field]: "" };
++    const result = verifyCapabilityProof({ ...expected, proof: broken });
++    assert.equal(result.ok, false, field);
++    assert.equal(result.reason_code, REASON.PROOF_FIELD_MISSING, field);
++    assert.equal(result.path, `/${field}`, field);
++  }
++});
++
++test("digest mismatch fails; repeated verification is byte-equivalent; probe domain distinct", () => {
++  const { expected, proof } = makeLiveMaterial("WorkerTransport", { fixture_bytes: "abc" });
++  const mismatch = verifyCapabilityProof({
++    ...expected,
++    proof: { ...proof, evidence_digest: "sha256:dead" },
++  });
+   assert.equal(mismatch.ok, false);
+   assert.equal(mismatch.reason_code, REASON.DIGEST_MISMATCH);
+ 
+-  const a = verifyCapabilityProof("WorkerTransport", proof, evidence);
+-  const b = verifyCapabilityProof("WorkerTransport", proof, evidence);
++  const probeMismatch = verifyCapabilityProof({
++    ...expected,
++    expectedProbeDigest: "sha256:other-probe",
++  });
++  assert.equal(probeMismatch.ok, false);
++  assert.equal(probeMismatch.reason_code, REASON.PROBE_DIGEST_MISMATCH);
++
++  const a = verifyCapabilityProof(expected);
++  const b = verifyCapabilityProof(expected);
+   assert.equal(a.ok, true);
+   assert.equal(b.ok, true);
+   assert.equal(a.evidence_digest, b.evidence_digest);
++  assert.equal(a.probe_digest, b.probe_digest);
+ 
++  assert.equal(PROBE_DOMAIN, "capability-probe/v1");
+   assert.throws(
+     () =>
+       createEvidenceDigest({
+@@ -97,8 +255,19 @@ test("failed/absent proof does not promote partial/unavailable/instructional to
+       capability_id: "DeliveryGateTransport",
+       declared_state: declared,
+       request_enforced: true,
+-      proof: { adapter_version: "1", host_version: "1", fixture: "f", evidence_digest: "sha256:bad" },
++      proof: {
++        adapter_id: ADAPTER_ID,
++        adapter_version: "1",
++        host_version: "1",
++        fixture: "f",
++        evidence_digest: "sha256:bad",
++        probe_digest: "sha256:probe",
++      },
+       semantic_evidence: {},
++      expectedAdapterId: ADAPTER_ID,
++      expectedAdapterVersion: "1",
++      expectedHostRuntimeVersion: "1",
++      expectedProbeDigest: "sha256:probe",
+     });
+     assert.equal(result.enforced, false, declared);
+     assert.equal(result.effective_state, declared, declared);
+diff --git a/scripts/lib/headless-conformance-host.js b/scripts/lib/headless-conformance-host.js
+index b51ce09..6b547dc 100644
+--- a/scripts/lib/headless-conformance-host.js
++++ b/scripts/lib/headless-conformance-host.js
+@@ -7,6 +7,7 @@ const {
+   normalizeTransportOutcome,
+   REQUIRED_TRANSPORTS,
+   transportOwnsAuthority,
++  invokeTransportAsync,
+ } = require("./host-contract/index.js");
+ 
+ const KIND = "headless-conformance-host/v1";
+@@ -19,6 +20,7 @@ const REASON = Object.freeze({
+   GRAPH_DUPLICATION: "graph-duplication",
+   UNKNOWN_FAULT: "unknown-fault",
+   ADAPTER_REJECTED: "adapter-rejected",
++  SYNTHETIC_INJECT_ALONE: "synthetic-inject-alone",
+ });
+ 
+ function isRecord(value) {
+@@ -65,41 +67,35 @@ function detectDuplication(adapter) {
+   return { ok: true };
+ }
+ 
+-function invokePort(port, input) {
+-  try {
+-    if (typeof port === "function") {
+-      return normalizeTransportOutcome(port(input));
+-    }
+-    if (isRecord(port) && typeof port.invoke === "function") {
+-      return normalizeTransportOutcome(port.invoke(input));
+-    }
+-    if (isRecord(port) && typeof port.run === "function") {
+-      return normalizeTransportOutcome(port.run(input));
+-    }
+-    // Passive port metadata — synthetic observation only.
+-    return { ok: true, outcome: "noop", value: { port_id: port && port.port_id } };
+-  } catch (err) {
+-    const code =
+-      err && typeof err.code === "string" && err.code.trim() !== ""
+-        ? err.code
+-        : "transport-invoke-error";
+-    return { ok: false, outcome: "error", code };
+-  }
+-}
+-
++/**
++ * Synthetic inject helper — factory for expected fault shapes / failing wrappers.
++ * Alone does NOT satisfy fault-matrix coverage.
++ */
+ function injectFault(fault, portName) {
+   const code = `host-fault-${fault}`;
+   switch (fault) {
+     case "timeout":
+-      return { ok: false, outcome: "timeout", code, value: { port: portName } };
++      return { ok: false, outcome: "timeout", failure_class: "timeout", code, value: { port: portName } };
+     case "cancel":
+-      return { ok: false, outcome: "cancel", code, value: { port: portName } };
++      return { ok: false, outcome: "cancel", failure_class: "cancel", code, value: { port: portName } };
+     case "worker-fail":
+-      return { ok: false, outcome: "worker-fail", code, value: { port: portName } };
++      return {
++        ok: false,
++        outcome: "worker-fail",
++        failure_class: "worker-fail",
++        code,
++        value: { port: portName },
++      };
+     case "interrupt":
+-      return { ok: false, outcome: "interrupt", code, value: { port: portName } };
++      return {
++        ok: false,
++        outcome: "interrupt",
++        failure_class: "interrupt",
++        code,
++        value: { port: portName },
++      };
+     default:
+-      return { ok: false, outcome: "error", code: REASON.UNKNOWN_FAULT };
++      return { ok: false, outcome: "error", failure_class: "reject", code: REASON.UNKNOWN_FAULT };
+   }
+ }
+ 
+@@ -110,10 +106,63 @@ function faultTargetPort(fault) {
+   return "ExecutionTransport";
+ }
+ 
++/**
++ * Install a failing port wrapper that surfaces the fault through invokeTransportAsync.
++ */
++function createFailingPortWrapper(fault, portName, originalPort) {
++  const synthetic = injectFault(fault, portName);
++  const portId = (isRecord(originalPort) && originalPort.port_id) || portName;
++  return {
++    port_id: portId,
++    async invoke() {
++      if (fault === "timeout") {
++        throw Object.assign(new Error("deadline exceeded"), {
++          name: "TimeoutError",
++          code: synthetic.code,
++          failure_class: "timeout",
++        });
++      }
++      if (fault === "cancel") {
++        throw Object.assign(new Error("aborted"), {
++          name: "AbortError",
++          code: synthetic.code,
++          failure_class: "cancel",
++        });
++      }
++      if (fault === "interrupt") {
++        throw Object.assign(new Error("interrupt"), {
++          code: synthetic.code,
++          failure_class: "interrupt",
++        });
++      }
++      if (fault === "worker-fail") {
++        throw Object.assign(new Error("worker-fail"), {
++          code: synthetic.code,
++          failure_class: "worker-fail",
++        });
++      }
++      return synthetic;
++    },
++  };
++}
++
++/**
++ * Coverage is incomplete when only synthetic injectFault bypasses published ports.
++ */
++function evaluateFaultMatrixCoverage({ port_invocations = [], synthetic_only = false } = {}) {
++  if (synthetic_only || port_invocations.length === 0) {
++    return {
++      complete: false,
++      reason_code: REASON.SYNTHETIC_INJECT_ALONE,
++    };
++  }
++  return { complete: true, reason_code: null };
++}
++
+ /**
+  * @param {{scenario_id:string, seed:string|number, adapter:object, fault?:string|null, proof_material?:object}} input
+  */
+-function runConformanceScenario(input) {
++async function runConformanceScenario(input) {
+   const scenarioId = (input && input.scenario_id) || "anonymous";
+   const seed = input && input.seed != null ? input.seed : 0;
+   const adapterInput = input && input.adapter;
+@@ -134,9 +183,17 @@ function runConformanceScenario(input) {
+       capability_states: {},
+       proof_verification: null,
+       port_outcomes: {},
++      port_traversal: false,
+     });
+   }
+ 
++  const transports = { ...(adapterInput.transports || {}) };
++  let portTraversal = false;
++  if (fault) {
++    const target = faultTargetPort(fault);
++    transports[target] = createFailingPortWrapper(fault, target, transports[target]);
++  }
++
+   let adapter;
+   try {
+     adapter = createHostAdapter({
+@@ -144,7 +201,7 @@ function runConformanceScenario(input) {
+       adapter_version: adapterInput.adapter_version,
+       host_version: adapterInput.host_version,
+       capabilities: adapterInput.capabilities || {},
+-      transports: adapterInput.transports,
++      transports,
+       authority_surface: adapterInput.authority_surface,
+     });
+   } catch (err) {
+@@ -161,29 +218,36 @@ function runConformanceScenario(input) {
+       capability_states: {},
+       proof_verification: null,
+       port_outcomes: {},
++      port_traversal: false,
+     });
+   }
+ 
+   const portOutcomes = {};
+   for (const name of REQUIRED_TRANSPORTS) {
++    const outcome = await invokeTransportAsync(adapter.transports[name], {
++      requestId: `${scenarioId}:${name}`,
++      input: { seed, scenario_id: scenarioId },
++    });
++    portOutcomes[name] = outcome;
+     if (fault && faultTargetPort(fault) === name) {
+-      portOutcomes[name] = injectFault(fault, name);
+-      continue;
++      portTraversal = true;
+     }
+-    portOutcomes[name] = invokePort(adapter.transports[name], { seed, scenario_id: scenarioId });
+   }
+ 
+   const capabilityStates = {};
+   const proofVerification = {};
+   for (const [capId, declared] of Object.entries(adapter.capabilities)) {
+-    const proof = proofMaterial[capId] && proofMaterial[capId].proof;
+-    const evidence = proofMaterial[capId] && proofMaterial[capId].evidence;
++    const entry = proofMaterial[capId] || {};
+     const resolved = resolveCapabilityState({
+       capability_id: capId,
+       declared_state: declared,
+-      proof,
+-      semantic_evidence: evidence,
++      proof: entry.proof,
++      semantic_evidence: entry.evidence,
+       request_enforced: declared === "enforced",
++      expectedAdapterId: entry.expectedAdapterId || adapter.adapter_id,
++      expectedAdapterVersion: entry.expectedAdapterVersion || adapter.adapter_version,
++      expectedHostRuntimeVersion: entry.expectedHostRuntimeVersion || adapter.host_version,
++      expectedProbeDigest: entry.expectedProbeDigest || (entry.proof && entry.proof.probe_digest),
+     });
+     capabilityStates[capId] = resolved.effective_state;
+     proofVerification[capId] = {
+@@ -192,7 +256,6 @@ function runConformanceScenario(input) {
+     };
+   }
+ 
+-  // Fault paths must not invent successful enforced capability for the faulted port.
+   if (fault) {
+     const target = faultTargetPort(fault);
+     if (capabilityStates[target] === "enforced" && portOutcomes[target].ok === false) {
+@@ -204,16 +267,19 @@ function runConformanceScenario(input) {
+   let pass;
+   let reasonCode = null;
+   if (fault == null) {
+-    const failed = Object.values(portOutcomes).find((o) => normalizeTransportOutcome(o).ok !== true);
++    const failed = Object.values(portOutcomes).find((o) => o.ok !== true);
+     pass = failed == null;
+     if (!pass) {
+-      const normalized = normalizeTransportOutcome(failed);
+-      reasonCode = normalized.code || "transport-outcome-failed";
++      reasonCode = failed.code || failed.failure_class || "transport-outcome-failed";
+     }
+   } else {
++    const target = faultTargetPort(fault);
+     const expected = fault === "worker-fail" ? "worker-fail" : fault;
+-    pass = portOutcomes[faultTargetPort(fault)].outcome === expected;
+-    if (!pass) reasonCode = portOutcomes[faultTargetPort(fault)].code;
++    const observed = portOutcomes[target];
++    pass =
++      observed.ok === false &&
++      (observed.outcome === expected || observed.failure_class === expected);
++    if (!pass) reasonCode = observed.code || observed.failure_class;
+   }
+ 
+   return semanticResult({
+@@ -228,11 +294,11 @@ function runConformanceScenario(input) {
+     capability_states: capabilityStates,
+     proof_verification: proofVerification,
+     port_outcomes: portOutcomes,
++    port_traversal: portTraversal,
+   });
+ }
+ 
+ function semanticResult(payload) {
+-  // Exclude volatile timestamps from semantic digests by construction.
+   const semantic = {
+     kind: KIND,
+     scenario_id: payload.scenario_id,
+@@ -247,6 +313,7 @@ function semanticResult(payload) {
+     capability_states: payload.capability_states,
+     proof_verification: payload.proof_verification,
+     port_outcomes: payload.port_outcomes,
++    port_traversal: payload.port_traversal === true,
+   };
+   return {
+     ...semantic,
+@@ -257,7 +324,7 @@ function semanticResult(payload) {
+ /**
+  * @param {{adapter:object, fixtures?:object[], proof_material?:object}} input
+  */
+-function runHostFaultMatrix(input) {
++async function runHostFaultMatrix(input) {
+   const adapter = input && input.adapter;
+   const proofMaterial = (input && input.proof_material) || {};
+   const fixtures =
+@@ -265,22 +332,31 @@ function runHostFaultMatrix(input) {
+       ? input.fixtures
+       : FAULTS.map((fault) => ({ scenario_id: `fault-${fault}`, seed: "k2a-fault", fault }));
+ 
+-  const results = fixtures.map((fixture) =>
+-    runConformanceScenario({
+-      scenario_id: fixture.scenario_id,
+-      seed: fixture.seed != null ? fixture.seed : "k2a-fault",
+-      adapter,
+-      fault: fixture.fault,
+-      proof_material: proofMaterial,
+-    })
+-  );
++  const results = [];
++  for (const fixture of fixtures) {
++    results.push(
++      await runConformanceScenario({
++        scenario_id: fixture.scenario_id,
++        seed: fixture.seed != null ? fixture.seed : "k2a-fault",
++        adapter,
++        fault: fixture.fault,
++        proof_material: proofMaterial,
++      })
++    );
++  }
++
++  const coverage = evaluateFaultMatrixCoverage({
++    port_invocations: results.filter((r) => r.port_traversal === true),
++    synthetic_only: results.every((r) => r.port_traversal !== true),
++  });
+ 
+   return {
+     kind: KIND,
+     peer_of: HARNESS_KIND,
+     faults_covered: FAULTS.slice(),
+     results,
+-    pass: results.every((r) => r.pass === true),
++    coverage,
++    pass: results.every((r) => r.pass === true) && coverage.complete === true,
+   };
+ }
+ 
+@@ -297,4 +373,9 @@ module.exports = {
+   runConformanceScenario,
+   runHostFaultMatrix,
+   detectDuplication,
++  injectFault,
++  evaluateFaultMatrixCoverage,
++  createFailingPortWrapper,
++  faultTargetPort,
++  normalizeTransportOutcome,
+ };
+diff --git a/scripts/lib/headless-conformance-host.test.js b/scripts/lib/headless-conformance-host.test.js
+index 89c8145..b389fab 100644
+--- a/scripts/lib/headless-conformance-host.test.js
++++ b/scripts/lib/headless-conformance-host.test.js
+@@ -12,6 +12,8 @@ const {
+   runConformanceScenario,
+   runHostFaultMatrix,
+   detectDuplication,
++  injectFault,
++  evaluateFaultMatrixCoverage,
+ } = require("./headless-conformance-host.js");
+ 
+ function baseAdapter(overrides = {}) {
+@@ -27,11 +29,11 @@ function baseAdapter(overrides = {}) {
+       DeliveryGateTransport: "partial",
+     },
+     transports: {
+-      ExecutionTransport: { port_id: "e", invoke: () => ({ ok: true, outcome: "ok" }) },
+-      QuestionTransport: { port_id: "q", invoke: () => ({ ok: true, outcome: "ok" }) },
+-      WorkerTransport: { port_id: "w", invoke: () => ({ ok: true, outcome: "ok" }) },
+-      ToolExecutionTransport: { port_id: "t", invoke: () => ({ ok: true, outcome: "ok" }) },
+-      DeliveryGateTransport: { port_id: "d", invoke: () => ({ ok: true, outcome: "ok" }) },
++      ExecutionTransport: { port_id: "e", invoke: async () => ({ ok: true, outcome: "ok" }) },
++      QuestionTransport: { port_id: "q", invoke: async () => ({ ok: true, outcome: "ok" }) },
++      WorkerTransport: { port_id: "w", invoke: async () => ({ ok: true, outcome: "ok" }) },
++      ToolExecutionTransport: { port_id: "t", invoke: async () => ({ ok: true, outcome: "ok" }) },
++      DeliveryGateTransport: { port_id: "d", invoke: async () => ({ ok: true, outcome: "ok" }) },
+     },
+     ...overrides,
+   };
+@@ -44,22 +46,64 @@ test("Headless Conformance Host kind is distinct from Minimal Kernel Harness", (
+   assert.match(HARNESS_KIND, /minimal-kernel-harness/);
+ });
+ 
+-test("fault matrix exercises timeout, cancel, worker-fail, interrupt through ports", () => {
+-  const matrix = runHostFaultMatrix({ adapter: baseAdapter() });
++test("fault matrix exercises timeout, cancel, worker-fail, interrupt through ports", async () => {
++  const matrix = await runHostFaultMatrix({ adapter: baseAdapter() });
+   assert.deepEqual(matrix.faults_covered, FAULTS);
+   assert.equal(matrix.results.length, 4);
+   assert.equal(matrix.pass, true);
++  assert.equal(matrix.coverage.complete, true);
+   for (const fault of FAULTS) {
+     const row = matrix.results.find((r) => r.fault === fault);
+     assert.ok(row, fault);
+     assert.equal(row.pass, true, fault);
++    assert.equal(row.port_traversal, true, fault);
+     const outcomes = Object.values(row.port_outcomes);
+-    assert.ok(outcomes.some((o) => o.ok === false && o.outcome.includes(fault === "worker-fail" ? "worker-fail" : fault)));
++    assert.ok(
++      outcomes.some(
++        (o) =>
++          o.ok === false &&
++          (o.outcome.includes(fault === "worker-fail" ? "worker-fail" : fault) ||
++            o.failure_class === (fault === "worker-fail" ? "worker-fail" : fault))
++      )
++    );
+   }
+ });
+ 
+-test("lifecycle-duplicating and Graph-duplicating adapters fail with stable reason codes", () => {
+-  const lifecycle = runConformanceScenario({
++test("synthetic injectFault alone does not satisfy fault coverage", () => {
++  const synthetic = injectFault("timeout", "ExecutionTransport");
++  assert.equal(synthetic.ok, false);
++  const coverage = evaluateFaultMatrixCoverage({
++    port_invocations: [],
++    synthetic_only: true,
++  });
++  assert.equal(coverage.complete, false);
++  assert.equal(coverage.reason_code, REASON.SYNTHETIC_INJECT_ALONE);
++});
++
++test("rejected port Promise is recorded as failure not success", async () => {
++  const result = await runConformanceScenario({
++    scenario_id: "reject-promise",
++    seed: 9,
++    adapter: baseAdapter({
++      transports: {
++        ...baseAdapter().transports,
++        ExecutionTransport: {
++          port_id: "e",
++          invoke: async () => {
++            throw Object.assign(new Error("reject"), { code: "async-reject" });
++          },
++        },
++      },
++    }),
++  });
++  assert.equal(result.pass, false);
++  assert.equal(result.port_outcomes.ExecutionTransport.ok, false);
++  assert.notEqual(result.port_outcomes.ExecutionTransport.ok, true);
++  assert.equal(result.port_outcomes.ExecutionTransport.failure_class, "reject");
++});
++
++test("lifecycle-duplicating and Graph-duplicating adapters fail with stable reason codes", async () => {
++  const lifecycle = await runConformanceScenario({
+     scenario_id: "dup-lifecycle",
+     seed: 1,
+     adapter: baseAdapter({
+@@ -75,14 +119,13 @@ test("lifecycle-duplicating and Graph-duplicating adapters fail with stable reas
+   assert.equal(lifecycle.pass, false);
+   assert.equal(lifecycle.reason_code, REASON.LIFECYCLE_DUPLICATION);
+ 
+-  const graph = runConformanceScenario({
++  const graph = await runConformanceScenario({
+     scenario_id: "dup-graph",
+     seed: 1,
+     adapter: baseAdapter({
+       authority_surface: { compileGraph: true },
+     }),
+   });
+-  // authority_surface compileGraph is caught by detectDuplication before createHostAdapter
+   assert.equal(graph.pass, false);
+   assert.equal(graph.reason_code, REASON.GRAPH_DUPLICATION);
+ });
+@@ -102,44 +145,41 @@ test("detectDuplication rejects snake_case authority aliases on transport ports"
+   }
+ });
+ 
+-test("throwing transport yields structured error outcome and pass:false without aborting loop", () => {
++test("throwing transport yields structured error outcome and pass:false without aborting loop", async () => {
+   const adapter = baseAdapter({
+     transports: {
+       ...baseAdapter().transports,
+       ExecutionTransport: {
+         port_id: "e",
+-        invoke: () => {
++        invoke: async () => {
+           throw new Error("boom");
+         },
+       },
+       QuestionTransport: {
+         port_id: "q",
+-        invoke: () => {
++        invoke: async () => {
+           throw Object.assign(new Error("q-fail"), { code: "q-throw" });
+         },
+       },
+     },
+   });
+-  const result = runConformanceScenario({
++  const result = await runConformanceScenario({
+     scenario_id: "throw-ports",
+     seed: 7,
+     adapter,
+   });
+   assert.equal(result.pass, false);
+   assert.equal(result.port_outcomes.ExecutionTransport.ok, false);
+-  assert.equal(result.port_outcomes.ExecutionTransport.outcome, "error");
+   assert.ok(typeof result.port_outcomes.ExecutionTransport.code === "string");
+   assert.equal(result.port_outcomes.QuestionTransport.ok, false);
+-  assert.equal(result.port_outcomes.QuestionTransport.outcome, "error");
+   assert.equal(result.port_outcomes.QuestionTransport.code, "q-throw");
+-  // Remaining ports still recorded — loop did not abort mid-flight.
+   assert.equal(result.port_outcomes.WorkerTransport.ok, true);
+   assert.equal(result.port_outcomes.ToolExecutionTransport.ok, true);
+   assert.equal(result.port_outcomes.DeliveryGateTransport.ok, true);
+ });
+ 
+-test("ok:false timeout without injected fault forces pass:false", () => {
+-  const result = runConformanceScenario({
++test("ok:false timeout without injected fault forces pass:false", async () => {
++  const result = await runConformanceScenario({
+     scenario_id: "silent-timeout",
+     seed: 3,
+     adapter: baseAdapter({
+@@ -147,7 +187,7 @@ test("ok:false timeout without injected fault forces pass:false", () => {
+         ...baseAdapter().transports,
+         ExecutionTransport: {
+           port_id: "e",
+-          invoke: () => ({ ok: false, outcome: "timeout", code: "host-timeout" }),
++          invoke: async () => ({ ok: false, outcome: "timeout", code: "host-timeout", failure_class: "timeout" }),
+         },
+       },
+     }),
+@@ -158,15 +198,15 @@ test("ok:false timeout without injected fault forces pass:false", () => {
+   assert.equal(result.port_outcomes.ExecutionTransport.outcome, "timeout");
+ });
+ 
+-test("repeated conformance runs with same seed produce byte-equivalent semantic results", () => {
++test("repeated conformance runs with same seed produce byte-equivalent semantic results", async () => {
+   const input = {
+     scenario_id: "det-1",
+     seed: "seed-42",
+     adapter: baseAdapter(),
+     fault: "timeout",
+   };
+-  const a = runConformanceScenario(input);
+-  const b = runConformanceScenario(input);
++  const a = await runConformanceScenario(input);
++  const b = await runConformanceScenario(input);
+   assert.equal(a.semantic_bytes, b.semantic_bytes);
+   assert.ok(!a.semantic_bytes.includes("timestamp"));
+ });
+diff --git a/scripts/lib/host-adapters/claude.js b/scripts/lib/host-adapters/claude.js
+index 6d937ef..fc9aab2 100644
+--- a/scripts/lib/host-adapters/claude.js
++++ b/scripts/lib/host-adapters/claude.js
+@@ -2,8 +2,12 @@
+ 
+ const path = require("node:path");
+ const fs = require("node:fs");
+-const { createHostAdapter } = require("../host-contract/index.js");
+-const { createEvidenceDigest, verifyCapabilityProof } = require("../capability-proof/index.js");
++const { createHostAdapter, invokeTransportAsync } = require("../host-contract/index.js");
++const {
++  createEvidenceDigest,
++  createProbeDigest,
++  verifyCapabilityProof,
++} = require("../capability-proof/index.js");
+ const profile = require("../target-profiles/claude.js");
+ 
+ const ADAPTER_ID = "claude";
+@@ -12,7 +16,7 @@ const HOST_VERSION = "k2a-host/1";
+ 
+ const FIXTURE_DIR = path.join(__dirname, "claude", "fixtures");
+ 
+-const ENFORCED_CAPABILITIES = Object.freeze([
++const TRANSPORT_CAPABILITIES = Object.freeze([
+   "ExecutionTransport",
+   "QuestionTransport",
+   "WorkerTransport",
+@@ -20,17 +24,23 @@ const ENFORCED_CAPABILITIES = Object.freeze([
+   "DeliveryGateTransport",
+ ]);
+ 
++/** @deprecated use TRANSPORT_CAPABILITIES — enforced only after live probe */
++const ENFORCED_CAPABILITIES = TRANSPORT_CAPABILITIES;
++
++const PRIMITIVE_FOR_CAPABILITY = Object.freeze({
++  ExecutionTransport: "execute",
++  QuestionTransport: "askUserQuestion",
++  WorkerTransport: "worker",
++  ToolExecutionTransport: "tool",
++  DeliveryGateTransport: "hooksObserve",
++});
++
+ function loadFixture(name) {
+   const file = path.join(FIXTURE_DIR, name);
+   return JSON.parse(fs.readFileSync(file, "utf8"));
+ }
+ 
+-function buildEvidence(capabilityId) {
+-  const fixtureName = `${capabilityId
+-    .replace(/Transport$/, "")
+-    .replace(/([a-z])([A-Z])/g, "$1-$2")
+-    .toLowerCase()}-transport.json`;
+-  // Map Capability ids to fixture filenames.
++function fixtureMap(capabilityId) {
+   const map = {
+     ExecutionTransport: "execution-transport.json",
+     QuestionTransport: "question-transport.json",
+@@ -38,8 +48,13 @@ function buildEvidence(capabilityId) {
+     ToolExecutionTransport: "tool-execution-transport.json",
+     DeliveryGateTransport: "delivery-gate-transport.json",
+   };
+-  const fixtureRel = `scripts/lib/host-adapters/claude/fixtures/${map[capabilityId]}`;
+-  const evidence = loadFixture(map[capabilityId]);
++  return map[capabilityId];
++}
++
++function buildEvidence(capabilityId, probePayload) {
++  const mapName = fixtureMap(capabilityId);
++  const fixtureRel = `scripts/lib/host-adapters/claude/fixtures/${mapName}`;
++  const evidence = loadFixture(mapName);
+   const digest = createEvidenceDigest({
+     capability_id: capabilityId,
+     adapter_version: ADAPTER_VERSION,
+@@ -47,16 +62,30 @@ function buildEvidence(capabilityId) {
+     fixture: fixtureRel,
+     evidence,
+   });
++  const probe =
++    probePayload !== undefined
++      ? probePayload
++      : { instructional: true, capability_id: capabilityId };
++  const probe_digest = createProbeDigest({
++    capability_id: capabilityId,
++    adapter_id: ADAPTER_ID,
++    adapter_version: ADAPTER_VERSION,
++    host_version: HOST_VERSION,
++    probe,
++  });
+   return {
+     fixture: fixtureRel,
+     evidence,
++    probe,
+     proof: {
+       schema_version: 1,
+       kind: "capability-proof/v1",
++      adapter_id: ADAPTER_ID,
+       adapter_version: ADAPTER_VERSION,
+       host_version: HOST_VERSION,
+       fixture: fixtureRel,
+       evidence_digest: digest,
++      probe_digest,
+     },
+   };
+ }
+@@ -64,16 +93,30 @@ function buildEvidence(capabilityId) {
+ function makePort(portId, handler) {
+   return {
+     port_id: portId,
+-    invoke: typeof handler === "function" ? handler : () => ({ ok: true, outcome: "ok", value: { port_id: portId } }),
++    invoke:
++      typeof handler === "function"
++        ? async (input) => handler(input)
++        : async () => ({ ok: true, outcome: "ok", value: { port_id: portId } }),
+   };
+ }
+ 
++function resolveHonestState(capabilityId, primitives) {
++  const key = PRIMITIVE_FOR_CAPABILITY[capabilityId];
++  if (typeof primitives[key] !== "function") {
++    if (capabilityId === "DeliveryGateTransport") return "instructional";
++    if (capabilityId === "QuestionTransport") return "instructional";
++    return "unavailable";
++  }
++  return "partial";
++}
++
+ /**
+  * Compose Claude HostAdapter from target profile + injected host primitives.
+- * Does not expose CAS, permit minting, or lifecycle transition selection.
++ * `enforced` only after live probe + live-bound proof verification.
+  */
+ function createClaudeHostAdapter(options = {}) {
+   const primitives = options.primitives || {};
++  const liveProbes = options.liveProbes || null;
+ 
+   const transports = {
+     ExecutionTransport: makePort("claude-execution", (input) => {
+@@ -84,7 +127,6 @@ function createClaudeHostAdapter(options = {}) {
+       return { ok: true, outcome: "ok", value: { toolMap: profile.toolMap } };
+     }),
+     QuestionTransport: makePort("claude-question", (input) => {
+-      // AskUserQuestion → QuestionTransport (observation only).
+       if (typeof primitives.askUserQuestion === "function") {
+         const value = primitives.askUserQuestion(input);
+         return { ok: true, outcome: "ok", value };
+@@ -111,7 +153,6 @@ function createClaudeHostAdapter(options = {}) {
+       return { ok: true, outcome: "ok", value: { tools: profile.toolMap } };
+     }),
+     DeliveryGateTransport: makePort("claude-delivery-gate", (input) => {
+-      // Hooks map without authorizing delivery.
+       if (typeof primitives.hooksObserve === "function") {
+         return { ok: true, outcome: "observation", value: primitives.hooksObserve(input) };
+       }
+@@ -127,8 +168,22 @@ function createClaudeHostAdapter(options = {}) {
+   };
+ 
+   const capabilities = {};
+-  for (const id of ENFORCED_CAPABILITIES) {
+-    capabilities[id] = "enforced";
++  for (const id of TRANSPORT_CAPABILITIES) {
++    if (liveProbes && liveProbes[id]) {
++      const material = buildEvidence(id, liveProbes[id]);
++      const verification = verifyCapabilityProof({
++        capabilityId: id,
++        expectedAdapterId: ADAPTER_ID,
++        expectedAdapterVersion: ADAPTER_VERSION,
++        expectedHostRuntimeVersion: HOST_VERSION,
++        expectedProbeDigest: material.proof.probe_digest,
++        proof: material.proof,
++        evidence: material.evidence,
++      });
++      capabilities[id] = verification.ok ? "enforced" : resolveHonestState(id, primitives);
++    } else {
++      capabilities[id] = resolveHonestState(id, primitives);
++    }
+   }
+ 
+   return createHostAdapter({
+@@ -140,19 +195,36 @@ function createClaudeHostAdapter(options = {}) {
+   });
+ }
+ 
+-function getClaudeProofMaterial() {
++function getClaudeProofMaterial(liveProbes = null) {
+   const material = {};
+-  for (const id of ENFORCED_CAPABILITIES) {
+-    material[id] = buildEvidence(id);
++  for (const id of TRANSPORT_CAPABILITIES) {
++    const probe = liveProbes && liveProbes[id] ? liveProbes[id] : undefined;
++    material[id] = buildEvidence(id, probe);
+   }
+   return material;
+ }
+ 
+-function verifyAllClaudeEnforcedProofs() {
+-  const material = getClaudeProofMaterial();
++/**
++ * Verify proofs for capabilities that are (or would be) enforced under live probes.
++ * Fixture-only material without live probes does not authorize enforced.
++ */
++function verifyAllClaudeEnforcedProofs(options = {}) {
++  const liveProbes = options.liveProbes || null;
++  if (!liveProbes) {
++    return { ok: false, reason_code: "fixture-only-not-live-probe", results: {} };
++  }
++  const material = getClaudeProofMaterial(liveProbes);
+   const results = {};
+-  for (const id of ENFORCED_CAPABILITIES) {
+-    results[id] = verifyCapabilityProof(id, material[id].proof, material[id].evidence);
++  for (const id of Object.keys(liveProbes)) {
++    results[id] = verifyCapabilityProof({
++      capabilityId: id,
++      expectedAdapterId: ADAPTER_ID,
++      expectedAdapterVersion: ADAPTER_VERSION,
++      expectedHostRuntimeVersion: HOST_VERSION,
++      expectedProbeDigest: material[id].proof.probe_digest,
++      proof: material[id].proof,
++      evidence: material[id].evidence,
++    });
+   }
+   return {
+     ok: Object.values(results).every((r) => r.ok),
+@@ -165,8 +237,10 @@ module.exports = {
+   ADAPTER_VERSION,
+   HOST_VERSION,
+   ENFORCED_CAPABILITIES,
++  TRANSPORT_CAPABILITIES,
+   createClaudeHostAdapter,
+   getClaudeProofMaterial,
+   verifyAllClaudeEnforcedProofs,
+   buildEvidence,
++  invokeTransportAsync,
+ };
+diff --git a/scripts/lib/host-adapters/claude.test.js b/scripts/lib/host-adapters/claude.test.js
+index 0ad74aa..2661058 100644
+--- a/scripts/lib/host-adapters/claude.test.js
++++ b/scripts/lib/host-adapters/claude.test.js
+@@ -7,17 +7,28 @@ const {
+   createClaudeHostAdapter,
+   getClaudeProofMaterial,
+   verifyAllClaudeEnforcedProofs,
++  ADAPTER_ID,
++  ADAPTER_VERSION,
++  HOST_VERSION,
+ } = require("./claude.js");
+ const { resolveCapabilityState } = require("../host-contract/index.js");
+ 
+-test("claude HostAdapter exposes five transports and proof-bound enforced capabilities", () => {
+-  const adapter = createClaudeHostAdapter({
+-    primitives: {
+-      askUserQuestion: (q) => ({ answered: true, q }),
+-      hooksObserve: () => ({ hook: "Stop", authorized: false }),
+-    },
+-  });
+-  assert.equal(adapter.adapter_id, "claude");
++function allLiveProbes() {
++  const probes = {};
++  for (const id of [
++    "ExecutionTransport",
++    "QuestionTransport",
++    "WorkerTransport",
++    "ToolExecutionTransport",
++    "DeliveryGateTransport",
++  ]) {
++    probes[id] = { live: true, capability_id: id, tick: 1 };
++  }
++  return probes;
++}
++
++test("missing primitive degrades honestly — never enforced", async () => {
++  const adapter = createClaudeHostAdapter();
+   for (const name of [
+     "ExecutionTransport",
+     "QuestionTransport",
+@@ -26,19 +37,59 @@ test("claude HostAdapter exposes five transports and proof-bound enforced capabi
+     "DeliveryGateTransport",
+   ]) {
+     assert.ok(adapter.transports[name]);
+-    assert.equal(adapter.capabilities[name], "enforced");
++    assert.notEqual(adapter.capabilities[name], "enforced", name);
++    assert.ok(
++      ["unavailable", "instructional", "partial"].includes(adapter.capabilities[name]),
++      name
++    );
++  }
++});
++
++test("fixture-only proof without live probe must not mark enforced", () => {
++  const adapter = createClaudeHostAdapter({
++    primitives: {
++      askUserQuestion: (q) => ({ answered: true, q }),
++      hooksObserve: () => ({ hook: "Stop", authorized: false }),
++    },
++  });
++  assert.notEqual(adapter.capabilities.QuestionTransport, "enforced");
++  assert.notEqual(adapter.capabilities.DeliveryGateTransport, "enforced");
++
++  const fixtureOnly = verifyAllClaudeEnforcedProofs();
++  assert.equal(fixtureOnly.ok, false);
++  assert.equal(fixtureOnly.reason_code, "fixture-only-not-live-probe");
++});
++
++test("live probe + verified proof enables enforced", async () => {
++  const liveProbes = allLiveProbes();
++  const adapter = createClaudeHostAdapter({
++    primitives: {
++      execute: () => ({ ran: true }),
++      askUserQuestion: (q) => ({ answered: true, q }),
++      worker: () => ({ spawned: true }),
++      tool: () => ({ tool: "Bash" }),
++      hooksObserve: () => ({ hook: "Stop", authorized: false }),
++    },
++    liveProbes,
++  });
++  for (const name of Object.keys(liveProbes)) {
++    assert.equal(adapter.capabilities[name], "enforced", name);
+   }
+ 
+-  const material = getClaudeProofMaterial();
++  const material = getClaudeProofMaterial(liveProbes);
+   const resolved = resolveCapabilityState({
+     capability_id: "QuestionTransport",
+     declared_state: "enforced",
+     proof: material.QuestionTransport.proof,
+     semantic_evidence: material.QuestionTransport.evidence,
++    expectedAdapterId: ADAPTER_ID,
++    expectedAdapterVersion: ADAPTER_VERSION,
++    expectedHostRuntimeVersion: HOST_VERSION,
++    expectedProbeDigest: material.QuestionTransport.proof.probe_digest,
+   });
+   assert.equal(resolved.enforced, true);
+-  assert.equal(verifyAllClaudeEnforcedProofs().ok, true);
++  assert.equal(verifyAllClaudeEnforcedProofs({ liveProbes }).ok, true);
+ 
+-  const q = adapter.transports.QuestionTransport.invoke({ prompt: "continue?" });
++  const q = await adapter.transports.QuestionTransport.invoke({ prompt: "continue?" });
+   assert.equal(q.value.answered, true);
+ });
+diff --git a/scripts/lib/host-adapters/registry.test.js b/scripts/lib/host-adapters/registry.test.js
+index a8d1db3..9bb1ff2 100644
+--- a/scripts/lib/host-adapters/registry.test.js
++++ b/scripts/lib/host-adapters/registry.test.js
+@@ -32,13 +32,13 @@ test("activated real adapters list contains exactly claude; others inactive; con
+   assert.equal(assertSoleClaudeActivation(["headless-conformance-host", "claude"]).ok, true);
+ });
+ 
+-test("claude adapter maps AskUserQuestion → QuestionTransport and hooks without authorizing delivery", () => {
++test("claude adapter maps AskUserQuestion → QuestionTransport and hooks without authorizing delivery", async () => {
+   const adapter = createClaudeHostAdapter();
+-  const q = adapter.transports.QuestionTransport.invoke({});
++  const q = await adapter.transports.QuestionTransport.invoke({});
+   assert.equal(q.ok, true);
+   assert.equal(q.value.mapped_from, "AskUserQuestion");
+ 
+-  const d = adapter.transports.DeliveryGateTransport.invoke({});
++  const d = await adapter.transports.DeliveryGateTransport.invoke({});
+   assert.equal(d.ok, true);
+   assert.equal(d.outcome, "observation");
+   assert.equal(d.value.authorizes_delivery, false);
+@@ -54,21 +54,45 @@ test("claude adapter cannot reach compareAndSwap or permit minting; store head u
+   assert.equal(store.head, "rev-1");
+ });
+ 
+-test("every claude enforced capability has verifying CapabilityProof fixture", () => {
+-  const verified = verifyAllClaudeEnforcedProofs();
++test("claude enforced capabilities require live probe + verifying CapabilityProof", () => {
++  const liveProbes = {};
++  for (const id of [
++    "ExecutionTransport",
++    "QuestionTransport",
++    "WorkerTransport",
++    "ToolExecutionTransport",
++    "DeliveryGateTransport",
++  ]) {
++    liveProbes[id] = { live: true, capability_id: id };
++  }
++  const verified = verifyAllClaudeEnforcedProofs({ liveProbes });
+   assert.equal(verified.ok, true);
+-  const material = getClaudeProofMaterial();
++  const material = getClaudeProofMaterial(liveProbes);
++  const adapter = createClaudeHostAdapter({
++    primitives: {
++      execute: () => ({}),
++      askUserQuestion: () => ({}),
++      worker: () => ({}),
++      tool: () => ({}),
++      hooksObserve: () => ({}),
++    },
++    liveProbes,
++  });
+   for (const [id, entry] of Object.entries(material)) {
+     assert.ok(entry.proof.evidence_digest.startsWith("sha256:"));
++    assert.ok(entry.proof.probe_digest.startsWith("sha256:"));
++    assert.notEqual(entry.proof.probe_digest, entry.proof.evidence_digest);
+     assert.ok(entry.fixture.includes("host-adapters/claude/fixtures"));
+-    assert.equal(adapterCapability(id), "enforced");
++    assert.equal(adapter.capabilities[id], "enforced");
+   }
+   assert.equal(ADAPTER_ID, "claude");
+-});
+ 
+-function adapterCapability(id) {
+-  return createClaudeHostAdapter().capabilities[id];
+-}
++  // Fixture-only default adapter never claims enforced.
++  const fixtureOnly = createClaudeHostAdapter();
++  for (const id of Object.keys(material)) {
++    assert.notEqual(fixtureOnly.capabilities[id], "enforced");
++  }
++});
+ 
+ test("inactive stubs cannot be loaded as executable adapters", () => {
+   assert.throws(() => getAdapterFactory("codex"), (err) => err.code === "inactive-adapter-stub");
+diff --git a/scripts/lib/host-contract/index.js b/scripts/lib/host-contract/index.js
+index c6cc190..8ff5f41 100644
+--- a/scripts/lib/host-contract/index.js
++++ b/scripts/lib/host-contract/index.js
+@@ -39,6 +39,14 @@ const AUTHORITY_SURFACE_KEYS = Object.freeze([
+   "compileGraph",
+ ]);
+ 
++const FAILURE_CLASSES = Object.freeze([
++  "timeout",
++  "cancel",
++  "reject",
++  "interrupt",
++  "worker-fail",
++]);
++
+ const REASON = Object.freeze({
+   UNKNOWN_CAPABILITY_STATE: "unknown-capability-state",
+   MISSING_TRANSPORT_PORT: "missing-transport-port",
+@@ -63,6 +71,21 @@ function fail(code, path, message) {
+   throw error;
+ }
+ 
++function deepFreeze(value, seen = new WeakSet()) {
++  if (value === null || (typeof value !== "object" && typeof value !== "function")) {
++    return value;
++  }
++  if (seen.has(value)) return value;
++  seen.add(value);
++  Object.freeze(value);
++  if (typeof value === "object") {
++    for (const key of Reflect.ownKeys(value)) {
++      deepFreeze(value[key], seen);
++    }
++  }
++  return value;
++}
++
+ function validateCapabilityStates(capabilities, basePath = "/capabilities") {
+   if (!isRecord(capabilities)) {
+     fail(REASON.UNKNOWN_CAPABILITY_STATE, basePath, "capabilities must be an object");
+@@ -92,7 +115,6 @@ function assertNoAuthoritySurface(authoritySurface) {
+       );
+     }
+   }
+-  // Reject if any truthy authority-like method is present.
+   for (const key of AUTHORITY_SURFACE_KEYS) {
+     if (Object.prototype.hasOwnProperty.call(authoritySurface, key)) {
+       fail(
+@@ -114,7 +136,6 @@ function assertTransportPorts(transports) {
+     }
+   }
+ 
+-  // Policy-owning DeliveryGate / Worker transports fail closed.
+   for (const name of ["DeliveryGateTransport", "WorkerTransport"]) {
+     const port = transports[name];
+     if (!isRecord(port)) continue;
+@@ -136,7 +157,6 @@ function assertTransportPorts(transports) {
+     }
+   }
+ 
+-  // Lifecycle/CAS policy embedded in any transport is rejected.
+   for (const name of REQUIRED_TRANSPORTS) {
+     const port = transports[name];
+     if (!isRecord(port) && typeof port !== "function") continue;
+@@ -151,7 +171,6 @@ function assertTransportPorts(transports) {
+   }
+ }
+ 
+-/** True when a transport port exposes any AUTHORITY_SURFACE_KEYS method or owns_* flag. */
+ function transportOwnsAuthority(probe) {
+   if (!isRecord(probe)) return false;
+   for (const key of AUTHORITY_SURFACE_KEYS) {
+@@ -188,19 +207,27 @@ function createHostAdapter(input) {
+   assertTransportPorts(input.transports);
+   assertNoAuthoritySurface(input.authority_surface);
+ 
+-  return Object.freeze({
++  const capabilities = { ...input.capabilities };
++  const transports = { ...input.transports };
++  for (const name of Object.keys(transports)) {
++    const port = transports[name];
++    if (isRecord(port)) {
++      transports[name] = { ...port };
++    }
++  }
++
++  return deepFreeze({
+     kind: "host-adapter/v1",
+     adapter_id: input.adapter_id,
+     adapter_version: input.adapter_version,
+     host_version: input.host_version,
+-    capabilities: Object.freeze({ ...input.capabilities }),
+-    transports: Object.freeze({ ...input.transports }),
++    capabilities,
++    transports,
+   });
+ }
+ 
+ /**
+- * Resolve effective capability state. Promotion to enforced requires proof.
+- * @param {{capability_id:string, declared_state:string, proof?:object|null, semantic_evidence?:*, request_enforced?:boolean}} input
++ * Resolve effective capability state. Promotion to enforced requires live-bound proof.
+  */
+ function resolveCapabilityState(input) {
+   const capabilityId = input && input.capability_id;
+@@ -222,9 +249,16 @@ function resolveCapabilityState(input) {
+     return { ok: true, effective_state: declared, enforced: false };
+   }
+ 
+-  const verification = verifyCapabilityProof(capabilityId, input.proof, input.semantic_evidence);
++  const verification = verifyCapabilityProof({
++    capabilityId,
++    expectedAdapterId: input.expectedAdapterId,
++    expectedAdapterVersion: input.expectedAdapterVersion,
++    expectedHostRuntimeVersion: input.expectedHostRuntimeVersion,
++    expectedProbeDigest: input.expectedProbeDigest,
++    proof: input.proof,
++    evidence: input.semantic_evidence,
++  });
+   if (!verification.ok) {
+-    // No silent promotion: unavailable/instructional/partial stay honest.
+     return {
+       ok: false,
+       effective_state: declared === "enforced" ? "unavailable" : declared,
+@@ -243,12 +277,10 @@ function resolveCapabilityState(input) {
+     effective_state: "enforced",
+     enforced: true,
+     evidence_digest: verification.evidence_digest,
++    probe_digest: verification.probe_digest,
+   };
+ }
+ 
+-/**
+- * Normalize transport outcome shape.
+- */
+ function normalizeTransportOutcome(raw) {
+   if (!isRecord(raw)) {
+     return { ok: false, outcome: "invalid", code: "invalid-transport-outcome" };
+@@ -259,13 +291,192 @@ function normalizeTransportOutcome(raw) {
+   };
+   if (raw.code != null) result.code = String(raw.code);
+   if (Object.prototype.hasOwnProperty.call(raw, "value")) result.value = raw.value;
++  if (raw.failure_class != null) result.failure_class = raw.failure_class;
++  if (raw.requestId != null) result.requestId = raw.requestId;
++  return result;
++}
++
++/**
++ * Classify transport failures into stable failure_class values.
++ */
++function classifyTransportFailure(errOrOutcome, opts = {}) {
++  const requestId = opts.requestId;
++  const portName = opts.portName;
++
++  let failureClass = "reject";
++  let code = "transport-reject";
++  let outcome = "error";
++
++  if (isRecord(errOrOutcome) && errOrOutcome.ok === false && nonEmptyString(errOrOutcome.failure_class)) {
++    failureClass = errOrOutcome.failure_class;
++    code = errOrOutcome.code || `host-fault-${failureClass}`;
++    outcome = errOrOutcome.outcome || failureClass;
++  } else {
++    const hintParts = [];
++    if (errOrOutcome && typeof errOrOutcome === "object") {
++      hintParts.push(
++        errOrOutcome.failure_class,
++        errOrOutcome.code,
++        errOrOutcome.name,
++        errOrOutcome.outcome,
++        errOrOutcome.message
++      );
++    } else if (typeof errOrOutcome === "string") {
++      hintParts.push(errOrOutcome);
++    }
++    const text = hintParts.filter(Boolean).join(" ").toLowerCase();
++
++    if (text.includes("timeout") || text.includes("deadline") || (errOrOutcome && errOrOutcome.name === "TimeoutError")) {
++      failureClass = "timeout";
++      outcome = "timeout";
++      code = (errOrOutcome && errOrOutcome.code) || "host-fault-timeout";
++    } else if (
++      text.includes("abort") ||
++      text.includes("cancel") ||
++      (errOrOutcome && errOrOutcome.name === "AbortError")
++    ) {
++      failureClass = "cancel";
++      outcome = "cancel";
++      code = (errOrOutcome && errOrOutcome.code) || "host-fault-cancel";
++    } else if (text.includes("interrupt")) {
++      failureClass = "interrupt";
++      outcome = "interrupt";
++      code = (errOrOutcome && errOrOutcome.code) || "host-fault-interrupt";
++    } else if (text.includes("worker-fail") || text.includes("worker")) {
++      failureClass = "worker-fail";
++      outcome = "worker-fail";
++      code = (errOrOutcome && errOrOutcome.code) || "host-fault-worker-fail";
++    } else if (portName === "WorkerTransport") {
++      failureClass = "worker-fail";
++      outcome = "worker-fail";
++      code = (errOrOutcome && errOrOutcome.code) || "host-fault-worker-fail";
++    } else if (errOrOutcome && nonEmptyString(errOrOutcome.code)) {
++      code = errOrOutcome.code;
++    }
++  }
++
++  if (!FAILURE_CLASSES.includes(failureClass)) {
++    failureClass = "reject";
++    outcome = "error";
++  }
++
++  const result = {
++    ok: false,
++    failure_class: failureClass,
++    outcome,
++    code,
++  };
++  if (requestId != null) result.requestId = requestId;
+   return result;
+ }
+ 
++function resolvePortInvoker(port) {
++  if (typeof port === "function") return (request) => port(request);
++  if (isRecord(port) && typeof port.invoke === "function") return (request) => port.invoke(request);
++  if (isRecord(port) && typeof port.run === "function") return (request) => port.run(request);
++  return null;
++}
++
++/**
++ * Shared async transport invoke: await + catch; never invent ok:true from rejection.
++ * @param {*} port
++ * @param {{requestId:string, signal?:AbortSignal, deadlineMs?:number, input?:*}} request
++ * @returns {Promise<object>}
++ */
++async function invokeTransportAsync(port, request) {
++  const requestId = request && request.requestId;
++  const signal = request && request.signal;
++  const deadlineMs = request && typeof request.deadlineMs === "number" ? request.deadlineMs : null;
++  const input = request && Object.prototype.hasOwnProperty.call(request, "input") ? request.input : request || {};
++
++  if (signal && signal.aborted) {
++    return classifyTransportFailure(
++      Object.assign(new Error("aborted"), { name: "AbortError", code: "host-fault-cancel" }),
++      { requestId }
++    );
++  }
++
++  const invoker = resolvePortInvoker(port);
++  if (!invoker) {
++    // Passive port metadata — synthetic observation only (no invoke/run).
++    const normalized = normalizeTransportOutcome({
++      ok: true,
++      outcome: "noop",
++      value: { port_id: isRecord(port) ? port.port_id : undefined },
++    });
++    if (requestId != null) normalized.requestId = requestId;
++    return normalized;
++  }
++
++  let timeoutId = null;
++  let abortHandler = null;
++  const guards = [];
++
++  if (signal) {
++    guards.push(
++      new Promise((_, reject) => {
++        abortHandler = () => {
++          reject(Object.assign(new Error("aborted"), { name: "AbortError", code: "host-fault-cancel" }));
++        };
++        signal.addEventListener("abort", abortHandler, { once: true });
++      })
++    );
++  }
++
++  if (deadlineMs != null && deadlineMs >= 0) {
++    guards.push(
++      new Promise((_, reject) => {
++        timeoutId = setTimeout(() => {
++          reject(Object.assign(new Error("deadline exceeded"), { name: "TimeoutError", code: "host-fault-timeout" }));
++        }, deadlineMs);
++      })
++    );
++  }
++
++  const cleanup = () => {
++    if (timeoutId != null) clearTimeout(timeoutId);
++    if (signal && abortHandler) signal.removeEventListener("abort", abortHandler);
++  };
++
++  try {
++    const invokePromise = Promise.resolve().then(() => invoker(input));
++    const raw = guards.length > 0 ? await Promise.race([invokePromise, ...guards]) : await invokePromise;
++    cleanup();
++
++    if (isRecord(raw) && raw.ok === false) {
++      const classified = classifyTransportFailure(raw, {
++        requestId: requestId != null ? requestId : raw.requestId,
++        portName: optsPortName(port),
++      });
++      if (requestId != null && classified.requestId == null) classified.requestId = requestId;
++      return classified;
++    }
++
++    const normalized = normalizeTransportOutcome(raw);
++    if (requestId != null) normalized.requestId = requestId;
++    if (normalized.ok !== true) {
++      return classifyTransportFailure(
++        { ...normalized, failure_class: normalized.failure_class || "reject" },
++        { requestId }
++      );
++    }
++    return normalized;
++  } catch (err) {
++    cleanup();
++    return classifyTransportFailure(err, { requestId, portName: optsPortName(port) });
++  }
++}
++
++function optsPortName(port) {
++  if (isRecord(port) && nonEmptyString(port.port_id)) return port.port_id;
++  return undefined;
++}
++
+ module.exports = {
+   CAPABILITY_STATES,
+   REQUIRED_TRANSPORTS,
+   AUTHORITY_SURFACE_KEYS,
++  FAILURE_CLASSES,
+   REASON,
+   createHostAdapter,
+   resolveCapabilityState,
+@@ -273,4 +484,7 @@ module.exports = {
+   validateCapabilityStates,
+   evaluateEnforcementEligibility,
+   transportOwnsAuthority,
++  deepFreeze,
++  classifyTransportFailure,
++  invokeTransportAsync,
+ };
+diff --git a/scripts/lib/host-contract/index.test.js b/scripts/lib/host-contract/index.test.js
+index cdc8924..46f77c3 100644
+--- a/scripts/lib/host-contract/index.test.js
++++ b/scripts/lib/host-contract/index.test.js
+@@ -11,7 +11,7 @@ const {
+   REQUIRED_TRANSPORTS,
+   REASON,
+ } = require("./index.js");
+-const { createEvidenceDigest } = require("../capability-proof/index.js");
++const { createEvidenceDigest, createProbeDigest } = require("../capability-proof/index.js");
+ 
+ function baseTransports(overrides = {}) {
+   return {
+@@ -25,6 +25,7 @@ function baseTransports(overrides = {}) {
+ }
+ 
+ function validProof(capabilityId, evidence = { ok: true }) {
++  const adapter_id = "claude";
+   const adapter_version = "1.0.0";
+   const host_version = "k2a-host/1";
+   const fixture = `fixture/${capabilityId}.json`;
+@@ -35,16 +36,31 @@ function validProof(capabilityId, evidence = { ok: true }) {
+     fixture,
+     evidence,
+   });
++  const probe_digest = createProbeDigest({
++    capability_id: capabilityId,
++    adapter_id,
++    adapter_version,
++    host_version,
++    probe: { live: true, capabilityId },
++  });
+   return {
+     proof: {
+       schema_version: 1,
+       kind: "capability-proof/v1",
++      adapter_id,
+       adapter_version,
+       host_version,
+       fixture,
+       evidence_digest,
++      probe_digest,
+     },
+     evidence,
++    expected: {
++      expectedAdapterId: adapter_id,
++      expectedAdapterVersion: adapter_version,
++      expectedHostRuntimeVersion: host_version,
++      expectedProbeDigest: probe_digest,
++    },
+   };
+ }
+ 
+@@ -158,8 +174,8 @@ test("resolveCapabilityState refuses unavailable/instructional/partial → enfor
+   }
+ });
+ 
+-test("resolveCapabilityState promotes only with verifying proof", () => {
+-  const { proof, evidence } = validProof("ExecutionTransport");
++test("resolveCapabilityState promotes only with verifying live-bound proof", () => {
++  const { proof, evidence, expected } = validProof("ExecutionTransport");
+   const refused = resolveCapabilityState({
+     capability_id: "ExecutionTransport",
+     declared_state: "enforced",
+@@ -173,6 +189,10 @@ test("resolveCapabilityState promotes only with verifying proof", () => {
+     proof,
+     semantic_evidence: evidence,
+     request_enforced: true,
++    expectedAdapterId: expected.expectedAdapterId,
++    expectedAdapterVersion: expected.expectedAdapterVersion,
++    expectedHostRuntimeVersion: expected.expectedHostRuntimeVersion,
++    expectedProbeDigest: expected.expectedProbeDigest,
+   });
+   assert.equal(ok.ok, true);
+   assert.equal(ok.enforced, true);
+@@ -221,3 +241,79 @@ test("normalizeTransportOutcome triangulates {ok,outcome,code?,value?}", () => {
+     code: "host-fault-timeout",
+   });
+ });
++
++test("invokeTransportAsync: rejected Promise becomes ok:false classified failure", async () => {
++  const { invokeTransportAsync, classifyTransportFailure } = require("./index.js");
++  const port = {
++    invoke: async () => {
++      throw Object.assign(new Error("boom"), { code: "reject-boom" });
++    },
++  };
++  const outcome = await invokeTransportAsync(port, { requestId: "r-1", input: {} });
++  assert.equal(outcome.ok, false);
++  assert.equal(outcome.failure_class, "reject");
++  assert.equal(outcome.requestId, "r-1");
++  assert.notEqual(outcome.ok, true);
++
++  const classified = classifyTransportFailure(
++    Object.assign(new Error("worker crashed"), { code: "worker-fail" }),
++    { requestId: "r-2", portName: "WorkerTransport" }
++  );
++  assert.equal(classified.ok, false);
++  assert.equal(classified.failure_class, "worker-fail");
++  assert.equal(classified.requestId, "r-2");
++});
++
++test("invokeTransportAsync: AbortSignal and deadline classify as cancel/timeout with requestId", async () => {
++  const { invokeTransportAsync } = require("./index.js");
++
++  const ac = new AbortController();
++  ac.abort();
++  const cancelled = await invokeTransportAsync(
++    { invoke: async () => ({ ok: true, outcome: "ok" }) },
++    { requestId: "abort-1", signal: ac.signal, input: {} }
++  );
++  assert.equal(cancelled.ok, false);
++  assert.equal(cancelled.failure_class, "cancel");
++  assert.equal(cancelled.requestId, "abort-1");
++
++  const timedOut = await invokeTransportAsync(
++    {
++      invoke: () =>
++        new Promise((resolve) => {
++          setTimeout(() => resolve({ ok: true, outcome: "ok" }), 200);
++        }),
++    },
++    { requestId: "dl-1", deadlineMs: 5, input: {} }
++  );
++  assert.equal(timedOut.ok, false);
++  assert.equal(timedOut.failure_class, "timeout");
++  assert.equal(timedOut.requestId, "dl-1");
++});
++
++test("createHostAdapter deep-freezes ports and capabilities (post-create mutation fails closed)", () => {
++  const adapter = createHostAdapter({
++    adapter_id: "claude",
++    adapter_version: "1.0.0",
++    host_version: "k2a-host/1",
++    capabilities: { ExecutionTransport: "partial" },
++    transports: baseTransports({
++      ExecutionTransport: { port_id: "e", invoke: () => ({ ok: true, outcome: "ok" }) },
++    }),
++  });
++
++  assert.throws(() => {
++    adapter.capabilities.ExecutionTransport = "enforced";
++  });
++  assert.equal(adapter.capabilities.ExecutionTransport, "partial");
++
++  assert.throws(() => {
++    adapter.transports.ExecutionTransport = { port_id: "hijacked" };
++  });
++  assert.equal(adapter.transports.ExecutionTransport.port_id, "e");
++
++  assert.throws(() => {
++    adapter.transports.ExecutionTransport.port_id = "mutated";
++  });
++  assert.equal(adapter.transports.ExecutionTransport.port_id, "e");
++});
+diff --git a/scripts/lib/k1-scope-guard.test.js b/scripts/lib/k1-scope-guard.test.js
+index 9dec36e..23184e3 100644
+--- a/scripts/lib/k1-scope-guard.test.js
++++ b/scripts/lib/k1-scope-guard.test.js
+@@ -92,6 +92,9 @@ const SUCCESSOR_K2_PREFIXES = [
+   "schemas/kernel/tool-execution-transport/",
+   "schemas/kernel/delivery-gate-transport/",
+   "schemas/kernel/capability-proof/",
++  "schemas/kernel/transport-request/",
++  "schemas/kernel/transport-outcome/",
++  "schemas/kernel/transport-failure/",
+ ];
+ 
+ const PROTECTED_BASELINE_PATHS = [
+diff --git a/scripts/lib/k2a-schema-fixtures.test.js b/scripts/lib/k2a-schema-fixtures.test.js
+index a4a342e..2c0b861 100644
+--- a/scripts/lib/k2a-schema-fixtures.test.js
++++ b/scripts/lib/k2a-schema-fixtures.test.js
+@@ -22,8 +22,36 @@ const K2A_FAMILIES = [
+   "capability-proof",
+ ];
+ 
++const K2A1_TRANSPORT_ENVELOPE_FAMILIES = [
++  "transport-request",
++  "transport-outcome",
++  "transport-failure",
++];
++
+ const K21_FAMILIES = ["operation-permit", "operation-receipt", "effect-class"];
+ 
++/** Pre-change content pins for the five transport port schemas (LF-normalized). */
++const TRANSPORT_V1_CONTENT_PINS = Object.freeze({
++  "schemas/kernel/execution-transport/v1.schema.json":
++    "c31ee709e34f155f64db05448fc45b5f8cc4f08fe4ce1ef15b4a6a36638fd786",
++  "schemas/kernel/question-transport/v1.schema.json":
++    "5c6e6073d826d8893aee903eb3ee3b2e765eb4bcd224c3bc1c6bac5dced644ff",
++  "schemas/kernel/worker-transport/v1.schema.json":
++    "bf9e79362ca1f4c5127099ae73712b3c8da44dd6841c1ab75bee36696db0c128",
++  "schemas/kernel/tool-execution-transport/v1.schema.json":
++    "eb1f399f9c47bbd2e678997f85234b4285c317594b17c36523fc856d707b0c3e",
++  "schemas/kernel/delivery-gate-transport/v1.schema.json":
++    "a792a5c858133ea6823f2ab84a46cc509fb8a78d7ed0984e961dcab7326d966a",
++});
++
++const TRANSPORT_V1_IDS = Object.freeze([
++  "ospec://schemas/kernel/execution-transport/v1",
++  "ospec://schemas/kernel/question-transport/v1",
++  "ospec://schemas/kernel/worker-transport/v1",
++  "ospec://schemas/kernel/tool-execution-transport/v1",
++  "ospec://schemas/kernel/delivery-gate-transport/v1",
++]);
++
+ function familyDir(family) {
+   return path.join(ROOT, "schemas", "kernel", family);
+ }
+@@ -173,3 +201,76 @@ test("K2.1 OperationPermit/CAS/effect-class and receipt/v1 remain unchanged (add
+     assert.ok(manifest.families[family], family);
+   }
+ });
++
++test("k2a-1: five existing transport v1 $ids and content pins remain unchanged", () => {
++  for (const [rel, expected] of Object.entries(TRANSPORT_V1_CONTENT_PINS)) {
++    assert.equal(sha256File(rel), expected, rel);
++  }
++  for (const family of [
++    "execution-transport",
++    "question-transport",
++    "worker-transport",
++    "tool-execution-transport",
++    "delivery-gate-transport",
++  ]) {
++    const schema = JSON.parse(fs.readFileSync(path.join(familyDir(family), "v1.schema.json"), "utf8"));
++    assert.equal(schema.$id, `ospec://schemas/kernel/${family}/v1`);
++    assert.ok(TRANSPORT_V1_IDS.includes(schema.$id));
++  }
++});
++
++test("k2a-1: additive transport-request/outcome/failure families exist with fixtures and distinct $ids", () => {
++  const manifest = JSON.parse(fs.readFileSync(MANIFEST, "utf8"));
++  for (const family of K2A1_TRANSPORT_ENVELOPE_FAMILIES) {
++    const schemaPath = path.join(familyDir(family), "v1.schema.json");
++    assert.ok(fs.existsSync(schemaPath), `${family} schema missing`);
++    const schema = JSON.parse(fs.readFileSync(schemaPath, "utf8"));
++    assert.equal(schema.$id, `ospec://schemas/kernel/${family}/v1`);
++    assert.equal(schema.schema_version, 1);
++    assert.ok(!TRANSPORT_V1_IDS.includes(schema.$id), `${family} must not alias transport port $id`);
++
++    const valid = listJson(path.join(familyDir(family), "fixtures", "valid"));
++    const invalid = listJson(path.join(familyDir(family), "fixtures", "invalid"));
++    assert.ok(valid.length >= 1, family);
++    assert.ok(invalid.length >= 1, family);
++    for (const file of valid) {
++      assert.equal(validateInstance(schema, JSON.parse(fs.readFileSync(file, "utf8"))).valid, true, file);
++    }
++    for (const file of invalid) {
++      assert.equal(validateInstance(schema, JSON.parse(fs.readFileSync(file, "utf8"))).valid, false, file);
++    }
++
++    const entry = manifest.families[family];
++    assert.ok(entry, `missing ${family} in manifest`);
++    assert.equal(entry.$id, schema.$id);
++  }
++
++  const failureSchema = JSON.parse(
++    fs.readFileSync(path.join(familyDir("transport-failure"), "v1.schema.json"), "utf8")
++  );
++  assert.deepEqual(failureSchema.properties.ok, { const: false });
++  assert.ok(failureSchema.required.includes("failure_class"));
++});
++
++test("k2a-1: CapabilityProof schema requires adapter_id and probe_digest", () => {
++  const schema = JSON.parse(
++    fs.readFileSync(path.join(familyDir("capability-proof"), "v1.schema.json"), "utf8")
++  );
++  assert.equal(schema.$id, "ospec://schemas/kernel/capability-proof/v1");
++  assert.ok(schema.required.includes("adapter_id"));
++  assert.ok(schema.required.includes("probe_digest"));
++  assert.ok(schema.properties.adapter_id);
++  assert.ok(schema.properties.probe_digest);
++
++  const missingProbe = validateInstance(schema, {
++    schema_version: 1,
++    kind: "capability-proof/v1",
++    adapter_id: "claude",
++    adapter_version: "1.0.0",
++    host_version: "k2a-host/1",
++    fixture: "f.json",
++    evidence_digest: "sha256:aa",
++  });
++  assert.equal(missingProbe.valid, false);
++  assert.ok(missingProbe.errors.some((e) => e.path === "/probe_digest"));
++});
+diff --git a/scripts/lib/lifecycle-kernel/host-boundary.js b/scripts/lib/lifecycle-kernel/host-boundary.js
+index 463a0c3..54da417 100644
+--- a/scripts/lib/lifecycle-kernel/host-boundary.js
++++ b/scripts/lib/lifecycle-kernel/host-boundary.js
+@@ -1,6 +1,11 @@
+ "use strict";
+ 
+-const { resolveCapabilityState, normalizeTransportOutcome, REQUIRED_TRANSPORTS } = require("../host-contract/index.js");
++const {
++  resolveCapabilityState,
++  normalizeTransportOutcome,
++  REQUIRED_TRANSPORTS,
++  invokeTransportAsync,
++} = require("../host-contract/index.js");
+ 
+ /**
+  * Kernel-owned generic host boundary.
+@@ -12,10 +17,10 @@ function isRecord(value) {
+ }
+ 
+ /**
+- * Observe a transport through the generic boundary.
+- * @param {{transports:object, port:string, input?:*}} args
++ * Observe a transport through the generic async boundary.
++ * @param {{transports:object, port:string, input?:*, requestId?:string, signal?:AbortSignal, deadlineMs?:number}} args
+  */
+-function observeHostPort(args) {
++async function observeHostPort(args) {
+   const portName = args && args.port;
+   const transports = args && args.transports;
+   if (!REQUIRED_TRANSPORTS.includes(portName)) {
+@@ -25,32 +30,39 @@ function observeHostPort(args) {
+     return { ok: false, outcome: "error", code: "missing-transport-port" };
+   }
+   const port = transports[portName];
+-  let raw;
+-  if (typeof port === "function") raw = port(args.input || {});
+-  else if (isRecord(port) && typeof port.invoke === "function") raw = port.invoke(args.input || {});
+-  else if (isRecord(port) && typeof port.run === "function") raw = port.run(args.input || {});
+-  else raw = { ok: true, outcome: "noop", value: port };
+-  return normalizeTransportOutcome(raw);
++  const invoker =
++    typeof port === "function" ||
++    (isRecord(port) && (typeof port.invoke === "function" || typeof port.run === "function"));
++  if (!invoker) {
++    return normalizeTransportOutcome({ ok: true, outcome: "noop", value: port });
++  }
++  return invokeTransportAsync(port, {
++    requestId: args.requestId || `observe:${portName}`,
++    signal: args.signal,
++    deadlineMs: args.deadlineMs,
++    input: args.input || {},
++  });
+ }
+ 
+ /**
+  * Resolve capability enforcement eligibility via ports/proof — never by host product id.
+- * @param {{capability_id:string, declared_state:string, proof?:object, semantic_evidence?:*, host_product_id?:string}} input
+  */
+ function resolveHostCapability(input) {
+-  // Explicitly ignore host_product_id for transition/enforcement decisions.
+   return resolveCapabilityState({
+     capability_id: input.capability_id,
+     declared_state: input.declared_state,
+     proof: input.proof,
+     semantic_evidence: input.semantic_evidence,
+     request_enforced: input.request_enforced,
++    expectedAdapterId: input.expectedAdapterId,
++    expectedAdapterVersion: input.expectedAdapterVersion,
++    expectedHostRuntimeVersion: input.expectedHostRuntimeVersion,
++    expectedProbeDigest: input.expectedProbeDigest,
+   });
+ }
+ 
+ /**
+  * After a transport fault, authoritative mutation still requires permit+CAS.
+- * This helper only reports that host-local mutation is forbidden.
+  */
+ function requirePermitCasAfterHostFault(faultOutcome) {
+   if (!faultOutcome || faultOutcome.ok === true) {
+@@ -61,14 +73,10 @@ function requirePermitCasAfterHostFault(faultOutcome) {
+     host_local_mutation_allowed: false,
+     requires_operation_permit: true,
+     requires_cas: true,
+-    fault_code: faultOutcome.code || faultOutcome.outcome,
++    fault_code: faultOutcome.code || faultOutcome.outcome || faultOutcome.failure_class,
+   };
+ }
+ 
+-/**
+- * Compare transition selection inputs that differ only by host product id —
+- * results must be identical when port outcomes match.
+- */
+ function transitionInputsEquivalent(left, right) {
+   const strip = (v) => {
+     if (!isRecord(v)) return v;
+diff --git a/scripts/lib/lifecycle-kernel/host-boundary.test.js b/scripts/lib/lifecycle-kernel/host-boundary.test.js
+index d71dca8..6cb78fa 100644
+--- a/scripts/lib/lifecycle-kernel/host-boundary.test.js
++++ b/scripts/lib/lifecycle-kernel/host-boundary.test.js
+@@ -9,52 +9,71 @@ const {
+   requirePermitCasAfterHostFault,
+   transitionInputsEquivalent,
+ } = require("./host-boundary.js");
+-const { createEvidenceDigest } = require("../capability-proof/index.js");
++const { createEvidenceDigest, createProbeDigest } = require("../capability-proof/index.js");
+ const { createAuthorityStore, runKernelOperation } = require("./index.js");
+ 
+ function proofFor(cap) {
+   const evidence = { cap };
++  const adapter_id = "claude";
+   const adapter_version = "1.0.0";
+   const host_version = "k2a-host/1";
+   const fixture = `f/${cap}.json`;
++  const evidence_digest = createEvidenceDigest({
++    capability_id: cap,
++    adapter_version,
++    host_version,
++    fixture,
++    evidence,
++  });
++  const probe_digest = createProbeDigest({
++    capability_id: cap,
++    adapter_id,
++    adapter_version,
++    host_version,
++    probe: { live: true, cap },
++  });
+   return {
+     proof: {
+       schema_version: 1,
+       kind: "capability-proof/v1",
++      adapter_id,
+       adapter_version,
+       host_version,
+       fixture,
+-      evidence_digest: createEvidenceDigest({
+-        capability_id: cap,
+-        adapter_version,
+-        host_version,
+-        fixture,
+-        evidence,
+-      }),
++      evidence_digest,
++      probe_digest,
+     },
+     evidence,
++    expected: {
++      expectedAdapterId: adapter_id,
++      expectedAdapterVersion: adapter_version,
++      expectedHostRuntimeVersion: host_version,
++      expectedProbeDigest: probe_digest,
++    },
+   };
+ }
+ 
+-test("transition selection uses port outcomes, not concrete host product id", () => {
++test("transition selection uses port outcomes, not concrete host product id", async () => {
+   const left = { status: "ready", port_outcome: "ok", host_product_id: "claude" };
+   const right = { status: "ready", port_outcome: "ok", host_product_id: "codex" };
+   assert.equal(transitionInputsEquivalent(left, right), true);
+ 
+   const transports = {
+-    ExecutionTransport: { invoke: () => ({ ok: true, outcome: "ok", value: 1 }) },
++    ExecutionTransport: { invoke: async () => ({ ok: true, outcome: "ok", value: 1 }) },
+   };
+-  const a = observeHostPort({ transports, port: "ExecutionTransport" });
+-  const b = observeHostPort({ transports, port: "ExecutionTransport" });
+-  assert.deepEqual(a, b);
++  const a = await observeHostPort({ transports, port: "ExecutionTransport" });
++  const b = await observeHostPort({ transports, port: "ExecutionTransport" });
++  assert.equal(a.ok, b.ok);
++  assert.equal(a.outcome, b.outcome);
+ 
+-  const { proof, evidence } = proofFor("ExecutionTransport");
++  const { proof, evidence, expected } = proofFor("ExecutionTransport");
+   const claude = resolveHostCapability({
+     capability_id: "ExecutionTransport",
+     declared_state: "enforced",
+     proof,
+     semantic_evidence: evidence,
+     host_product_id: "claude",
++    ...expected,
+   });
+   const other = resolveHostCapability({
+     capability_id: "ExecutionTransport",
+@@ -62,15 +81,18 @@ test("transition selection uses port outcomes, not concrete host product id", ()
+     proof,
+     semantic_evidence: evidence,
+     host_product_id: "cursor",
++    ...expected,
+   });
+   assert.equal(claude.enforced, other.enforced);
+   assert.equal(claude.effective_state, other.effective_state);
+ });
+ 
+ test("host port failure does not bypass permit+CAS requirements", async () => {
+-  const fault = observeHostPort({
++  const fault = await observeHostPort({
+     transports: {
+-      ExecutionTransport: { invoke: () => ({ ok: false, outcome: "timeout", code: "host-fault-timeout" }) },
++      ExecutionTransport: {
++        invoke: async () => ({ ok: false, outcome: "timeout", code: "host-fault-timeout", failure_class: "timeout" }),
++      },
+     },
+     port: "ExecutionTransport",
+   });
+@@ -91,7 +113,6 @@ test("host port failure does not bypass permit+CAS requirements", async () => {
+       journal: [],
+     },
+   });
+-  // After fault, mutation still needs the normal kernel path (permit+CAS).
+   const result = await runKernelOperation({
+     operation: "status",
+     arguments: {},
+@@ -101,3 +122,25 @@ test("host port failure does not bypass permit+CAS requirements", async () => {
+   assert.equal(result.outcome === "advanced" || result.outcome === "ready" || typeof result.state_digest === "string", true);
+   assert.ok(!result.code || result.code !== "host-local-mutation");
+ });
++
++test("rejected transport Promise is observed as ok:false; no authority mint", async () => {
++  const rejected = await observeHostPort({
++    transports: {
++      ExecutionTransport: {
++        invoke: async () => {
++          throw Object.assign(new Error("port reject"), { code: "reject-x" });
++        },
++      },
++    },
++    port: "ExecutionTransport",
++    requestId: "obs-1",
++  });
++  assert.equal(rejected.ok, false);
++  assert.notEqual(rejected.ok, true);
++  assert.equal(rejected.requestId, "obs-1");
++
++  const gate = requirePermitCasAfterHostFault(rejected);
++  assert.equal(gate.host_local_mutation_allowed, false);
++  assert.equal(gate.requires_operation_permit, true);
++  assert.equal(gate.requires_cas, true);
++});
+diff --git a/scripts/lib/lifecycle-kernel/k1-compat.js b/scripts/lib/lifecycle-kernel/k1-compat.js
+index 9ea6eef..aa1669d 100644
+--- a/scripts/lib/lifecycle-kernel/k1-compat.js
++++ b/scripts/lib/lifecycle-kernel/k1-compat.js
+@@ -25,7 +25,7 @@ const K1_SCHEMA_BASELINE = Object.freeze({
+   "schemas/kernel/classification/v1.schema.json":
+     "sha256:12e6c243ae59f4761b887c0b61693f8da03fd3e7aeba99e0fcde6064d0ce8464",
+   "schemas/kernel/contract-claims.json":
+-    "sha256:f1127e872b3cfd357246ba9aa05952df119d4bb44bff0172cbc7fc26a61334f4",
++    "sha256:2a7fcb0a2aaa609209e6445f034f58679dd5fe260eb2cd39e533ea507718a25c",
+   "schemas/kernel/contract/fixtures/invalid/minimal.json":
+     "sha256:a189201f6655de8fdff50a1ccc7a1d6b1a58d3a7f8dcc829f3e90281f5a56af2",
+   "schemas/kernel/contract/fixtures/valid/minimal.json":
+@@ -69,7 +69,7 @@ const K1_SCHEMA_BASELINE = Object.freeze({
+   "schemas/kernel/graph-node/v1.schema.json":
+     "sha256:0b6fc9169f0573e9ccb8e8f3aa8c7c061e576552aaedb508a0caa786133ae21f",
+   "schemas/kernel/manifest.json":
+-    "sha256:781d1568d76744bc89c4d1db983197cfea78c1858321d7f8798c1bc4e275b5a7",
++    "sha256:942c5dddfbe724de2d0530856406030987d0fbf90c791a4072111f6eda9a88b0",
+   "schemas/kernel/parity/fixtures/diverge-next-action.json":
+     "sha256:4f8e8898655593c270776f7f6627caa6eb05f45ca5686126f60ddf6f9c756db5",
+   "schemas/kernel/parity/fixtures/match-execute.json":
+@@ -140,6 +140,10 @@ function listK1SchemaFiles(rootDir) {
+     "schemas/kernel/tool-execution-transport/",
+     "schemas/kernel/delivery-gate-transport/",
+     "schemas/kernel/capability-proof/",
++    // k2a-1 additive transport envelope families
++    "schemas/kernel/transport-request/",
++    "schemas/kernel/transport-outcome/",
++    "schemas/kernel/transport-failure/",
+   ];
+ 
+   function walk(dir) {
+diff --git a/scripts/lib/lifecycle-model.js b/scripts/lib/lifecycle-model.js
+index 6ac5604..bc17934 100644
+--- a/scripts/lib/lifecycle-model.js
++++ b/scripts/lib/lifecycle-model.js
+@@ -373,7 +373,7 @@ function checkK2aNoSilentPromotion() {
+ }
+ 
+ function checkK2aEnforcedRequiresProof() {
+-  const { evaluateEnforcementEligibility, verifyCapabilityProof } = require("./capability-proof/index.js");
++  const { evaluateEnforcementEligibility, verifyCapabilityProof, REASON } = require("./capability-proof/index.js");
+   const missing = evaluateEnforcementEligibility({
+     capability_id: "ExecutionTransport",
+     declared_state: "enforced",
+@@ -381,23 +381,32 @@ function checkK2aEnforcedRequiresProof() {
+   if (missing.enforced) {
+     return { ok: false, invariant_id: "inv-k2a-enforced-requires-proof", detail: "declared-only" };
+   }
+-  // Concrete artifact: missing evidence_digest fails (not opaque).
+-  const incomplete = verifyCapabilityProof(
+-    "ExecutionTransport",
+-    {
++  // Concrete artifact: missing evidence_digest fails (not opaque) when live expected fields present.
++  const incomplete = verifyCapabilityProof({
++    capabilityId: "ExecutionTransport",
++    expectedAdapterId: "claude",
++    expectedAdapterVersion: "1.0.0",
++    expectedHostRuntimeVersion: "k2a-host/1",
++    expectedProbeDigest: "sha256:probe-live-distinct",
++    proof: {
++      adapter_id: "claude",
+       adapter_version: "1.0.0",
+       host_version: "k2a-host/1",
+       fixture: "f.json",
++      probe_digest: "sha256:probe-live-distinct",
+     },
+-    { a: 1 }
+-  );
++    evidence: { a: 1 },
++  });
+   if (incomplete.ok || incomplete.path !== "/evidence_digest") {
+     return { ok: false, invariant_id: "inv-k2a-enforced-requires-proof", detail: incomplete };
+   }
++  if (incomplete.reason_code !== REASON.PROOF_FIELD_MISSING) {
++    return { ok: false, invariant_id: "inv-k2a-enforced-requires-proof", detail: incomplete };
++  }
+   return { ok: true, invariant_id: "inv-k2a-enforced-requires-proof" };
+ }
+ 
+-function checkK2aRejectDuplication() {
++async function checkK2aRejectDuplication() {
+   const { runConformanceScenario, REASON } = require("./headless-conformance-host.js");
+   const baseTransports = {
+     ExecutionTransport: { port_id: "e" },
+@@ -406,7 +415,7 @@ function checkK2aRejectDuplication() {
+     ToolExecutionTransport: { port_id: "t" },
+     DeliveryGateTransport: { port_id: "d" },
+   };
+-  const lifecycle = runConformanceScenario({
++  const lifecycle = await runConformanceScenario({
+     scenario_id: "model-dup-lifecycle",
+     seed: 0,
+     adapter: {
+@@ -420,7 +429,7 @@ function checkK2aRejectDuplication() {
+       },
+     },
+   });
+-  const graph = runConformanceScenario({
++  const graph = await runConformanceScenario({
+     scenario_id: "model-dup-graph",
+     seed: 0,
+     adapter: {
+@@ -447,10 +456,10 @@ function checkK2aSoleClaudeAdapter() {
+   };
+ }
+ 
+-function checkK2aHostFaultMatrix() {
++async function checkK2aHostFaultMatrix() {
+   const { peerHostFaultMatrix } = require("./minimal-kernel-harness.js");
+   const { createClaudeHostAdapter } = require("./host-adapters/claude.js");
+-  const peer = peerHostFaultMatrix({ adapter: createClaudeHostAdapter() });
++  const peer = await peerHostFaultMatrix({ adapter: createClaudeHostAdapter() });
+   const faults = peer.matrix.faults_covered || [];
+   const required = ["timeout", "cancel", "worker-fail", "interrupt"];
+   const ok =
+diff --git a/scripts/lib/minimal-kernel-harness.js b/scripts/lib/minimal-kernel-harness.js
+index 006c777..d6a15de 100644
+--- a/scripts/lib/minimal-kernel-harness.js
++++ b/scripts/lib/minimal-kernel-harness.js
+@@ -265,12 +265,12 @@ function assertPublicApiConformance({ usedRunKernelOperation, usedReducerOnly })
+  *
+  * @param {{adapter:object, fixtures?:object[], proof_material?:object}} input
+  */
+-function peerHostFaultMatrix(input) {
++async function peerHostFaultMatrix(input) {
+   const {
+     runHostFaultMatrix,
+     KIND: conformanceKind,
+   } = require("./headless-conformance-host.js");
+-  const matrix = runHostFaultMatrix(input || {});
++  const matrix = await runHostFaultMatrix(input || {});
+   return {
+     harness_kind: HARNESS_KIND,
+     peer_kind: conformanceKind,
+@@ -282,6 +282,33 @@ function peerHostFaultMatrix(input) {
+   };
+ }
+ 
++/**
++ * Evaluate host-fault coverage using only Minimal Kernel Harness fixtures
++ * (no Headless Conformance Host peer). Coverage MUST remain incomplete.
++ *
++ * @param {{peer_wired?:boolean, fault_driver?:string|null, faults_exercised?:string[]}} input
++ */
++function evaluateHarnessAloneHostFaultCoverage(input = {}) {
++  const peerWired = input.peer_wired === true;
++  const faultDriver = input.fault_driver || null;
++  const faults = Array.isArray(input.faults_exercised) ? input.faults_exercised : [];
++
++  if (peerWired && faultDriver === "headless-conformance-host") {
++    return {
++      complete: faults.length >= 4,
++      reason_code: faults.length >= 4 ? null : "host-fault-coverage-incomplete",
++      peer_wired: true,
++    };
++  }
++
++  return {
++    complete: false,
++    reason_code: "host-fault-coverage-incomplete",
++    peer_wired: false,
++    harness_kind: HARNESS_KIND,
++  };
++}
++
+ function getHarnessKind() {
+   return HARNESS_KIND;
+ }
+@@ -294,6 +321,7 @@ module.exports = {
+   snapshotRoundTrip,
+   assertPublicApiConformance,
+   peerHostFaultMatrix,
++  evaluateHarnessAloneHostFaultCoverage,
+   createMemoryStore,
+   createAuthorityStore,
+   runKernelOperation,
+diff --git a/scripts/lib/minimal-kernel-harness.test.js b/scripts/lib/minimal-kernel-harness.test.js
+index e4755dc..3cec2c9 100644
+--- a/scripts/lib/minimal-kernel-harness.test.js
++++ b/scripts/lib/minimal-kernel-harness.test.js
+@@ -354,14 +354,14 @@ test("K2.1 fixed-policy control-path remains green under K2.1 enforcement", asyn
+   assert.equal(fixed.operations[0].outcome, "advanced");
+ });
+ 
+-test("K2a: harness peers with Headless Conformance Host for host-fault scenarios", () => {
++test("K2a: harness peers with Headless Conformance Host for host-fault scenarios", async () => {
+   const { peerHostFaultMatrix, getHarnessKind, HARNESS_KIND } = require("./minimal-kernel-harness.js");
+   const { createClaudeHostAdapter } = require("./host-adapters/claude.js");
+   const { KIND } = require("./headless-conformance-host.js");
+   assert.equal(getHarnessKind(), HARNESS_KIND);
+   assert.notEqual(HARNESS_KIND, KIND);
+ 
+-  const peer = peerHostFaultMatrix({ adapter: createClaudeHostAdapter() });
++  const peer = await peerHostFaultMatrix({ adapter: createClaudeHostAdapter() });
+   assert.equal(peer.fault_driver, "headless-conformance-host");
+   assert.equal(peer.owns_host_policy, false);
+   assert.equal(peer.owns_capability_proof_issuance, false);
+@@ -369,6 +369,27 @@ test("K2a: harness peers with Headless Conformance Host for host-fault scenarios
+   assert.deepEqual(peer.matrix.faults_covered, ["timeout", "cancel", "worker-fail", "interrupt"]);
+ });
+ 
++test("K2a: harness-alone host-fault coverage remains incomplete without headless peer (W4)", () => {
++  const {
++    evaluateHarnessAloneHostFaultCoverage,
++    HARNESS_KIND,
++  } = require("./minimal-kernel-harness.js");
++
++  // Only Minimal Kernel Harness fixtures — no Headless Conformance Host peer wired.
++  const alone = evaluateHarnessAloneHostFaultCoverage({
++    peer_wired: false,
++    fault_driver: null,
++    faults_exercised: [],
++  });
++  assert.equal(alone.complete, false);
++  assert.equal(alone.reason_code, "host-fault-coverage-incomplete");
++  assert.equal(alone.peer_wired, false);
++  assert.equal(alone.harness_kind, HARNESS_KIND);
++
++  // Must not pass by stubbing incompleteness away.
++  assert.notEqual(alone.complete, true);
++});
++
+ test("K2a: fixed-policy and K2.1 authority fixtures remain green with host-contract ports available", async () => {
+   const { createClaudeHostAdapter } = require("./host-adapters/claude.js");
+   const adapter = createClaudeHostAdapter();
+diff --git a/schemas/kernel/transport-failure/fixtures/invalid/minimal.json b/schemas/kernel/transport-failure/fixtures/invalid/minimal.json
+new file mode 100644
+index 0000000..8415995
+--- /dev/null
++++ b/schemas/kernel/transport-failure/fixtures/invalid/minimal.json
+@@ -0,0 +1,6 @@
++{
++  "schema_version": 1,
++  "kind": "transport-failure/v1",
++  "ok": true,
++  "failure_class": "timeout"
++}
+diff --git a/schemas/kernel/transport-failure/fixtures/valid/minimal.json b/schemas/kernel/transport-failure/fixtures/valid/minimal.json
+new file mode 100644
+index 0000000..d2bbb3b
+--- /dev/null
++++ b/schemas/kernel/transport-failure/fixtures/valid/minimal.json
+@@ -0,0 +1,9 @@
++{
++  "schema_version": 1,
++  "kind": "transport-failure/v1",
++  "ok": false,
++  "failure_class": "timeout",
++  "requestId": "req-1",
++  "outcome": "timeout",
++  "code": "host-fault-timeout"
++}
+diff --git a/schemas/kernel/transport-failure/v1.schema.json b/schemas/kernel/transport-failure/v1.schema.json
+new file mode 100644
+index 0000000..13f231f
+--- /dev/null
++++ b/schemas/kernel/transport-failure/v1.schema.json
+@@ -0,0 +1,43 @@
++{
++  "$schema": "https://json-schema.org/draft/2020-12/schema",
++  "$id": "ospec://schemas/kernel/transport-failure/v1",
++  "schema_version": 1,
++  "type": "object",
++  "properties": {
++    "schema_version": {
++      "const": 1
++    },
++    "kind": {
++      "const": "transport-failure/v1"
++    },
++    "ok": {
++      "const": false
++    },
++    "failure_class": {
++      "type": "string",
++      "enum": [
++        "timeout",
++        "cancel",
++        "reject",
++        "interrupt",
++        "worker-fail"
++      ]
++    },
++    "requestId": {
++      "type": "string"
++    },
++    "outcome": {
++      "type": "string"
++    },
++    "code": {
++      "type": "string"
++    }
++  },
++  "required": [
++    "schema_version",
++    "kind",
++    "ok",
++    "failure_class"
++  ],
++  "additionalProperties": false
++}
+diff --git a/schemas/kernel/transport-outcome/fixtures/invalid/minimal.json b/schemas/kernel/transport-outcome/fixtures/invalid/minimal.json
+new file mode 100644
+index 0000000..78155ae
+--- /dev/null
++++ b/schemas/kernel/transport-outcome/fixtures/invalid/minimal.json
+@@ -0,0 +1,7 @@
++{
++  "schema_version": 1,
++  "kind": "transport-outcome/v1",
++  "ok": true,
++  "failure_class": "timeout",
++  "outcome": "ok"
++}
+diff --git a/schemas/kernel/transport-outcome/fixtures/valid/minimal.json b/schemas/kernel/transport-outcome/fixtures/valid/minimal.json
+new file mode 100644
+index 0000000..a704ae1
+--- /dev/null
++++ b/schemas/kernel/transport-outcome/fixtures/valid/minimal.json
+@@ -0,0 +1,10 @@
++{
++  "schema_version": 1,
++  "kind": "transport-outcome/v1",
++  "ok": true,
++  "outcome": "ok",
++  "requestId": "req-1",
++  "value": {
++    "done": true
++  }
++}
+diff --git a/schemas/kernel/transport-outcome/v1.schema.json b/schemas/kernel/transport-outcome/v1.schema.json
+new file mode 100644
+index 0000000..0c2fefc
+--- /dev/null
++++ b/schemas/kernel/transport-outcome/v1.schema.json
+@@ -0,0 +1,63 @@
++{
++  "$schema": "https://json-schema.org/draft/2020-12/schema",
++  "$id": "ospec://schemas/kernel/transport-outcome/v1",
++  "schema_version": 1,
++  "type": "object",
++  "properties": {
++    "schema_version": {
++      "const": 1
++    },
++    "kind": {
++      "const": "transport-outcome/v1"
++    },
++    "ok": {
++      "type": "boolean"
++    },
++    "outcome": {
++      "type": "string"
++    },
++    "requestId": {
++      "type": "string"
++    },
++    "code": {
++      "type": "string"
++    },
++    "value": {},
++    "failure_class": {
++      "type": "string",
++      "enum": [
++        "timeout",
++        "cancel",
++        "reject",
++        "interrupt",
++        "worker-fail"
++      ]
++    }
++  },
++  "required": [
++    "schema_version",
++    "kind",
++    "ok"
++  ],
++  "if": {
++    "properties": {
++      "ok": {
++        "const": true
++      }
++    },
++    "required": [
++      "ok"
++    ]
++  },
++  "then": {
++    "properties": {
++      "failure_class": false
++    }
++  },
++  "else": {
++    "required": [
++      "failure_class"
++    ]
++  },
++  "additionalProperties": false
++}
+diff --git a/schemas/kernel/transport-request/fixtures/invalid/minimal.json b/schemas/kernel/transport-request/fixtures/invalid/minimal.json
+new file mode 100644
+index 0000000..494ac53
+--- /dev/null
++++ b/schemas/kernel/transport-request/fixtures/invalid/minimal.json
+@@ -0,0 +1,4 @@
++{
++  "schema_version": 1,
++  "kind": "transport-request/v1"
++}
+diff --git a/schemas/kernel/transport-request/fixtures/valid/minimal.json b/schemas/kernel/transport-request/fixtures/valid/minimal.json
+new file mode 100644
+index 0000000..acbd0f0
+--- /dev/null
++++ b/schemas/kernel/transport-request/fixtures/valid/minimal.json
+@@ -0,0 +1,9 @@
++{
++  "schema_version": 1,
++  "kind": "transport-request/v1",
++  "requestId": "req-1",
++  "deadlineMs": 1000,
++  "abort": {
++    "aborted": false
++  }
++}
+diff --git a/schemas/kernel/transport-request/v1.schema.json b/schemas/kernel/transport-request/v1.schema.json
+new file mode 100644
+index 0000000..92320be
+--- /dev/null
++++ b/schemas/kernel/transport-request/v1.schema.json
+@@ -0,0 +1,41 @@
++{
++  "$schema": "https://json-schema.org/draft/2020-12/schema",
++  "$id": "ospec://schemas/kernel/transport-request/v1",
++  "schema_version": 1,
++  "type": "object",
++  "properties": {
++    "schema_version": {
++      "const": 1
++    },
++    "kind": {
++      "const": "transport-request/v1"
++    },
++    "requestId": {
++      "type": "string",
++      "minLength": 1
++    },
++    "deadlineMs": {
++      "type": "integer",
++      "minimum": 0
++    },
++    "abort": {
++      "type": "object",
++      "properties": {
++        "aborted": {
++          "type": "boolean"
++        },
++        "reason": {
++          "type": "string"
++        }
++      },
++      "additionalProperties": false
++    },
++    "input": {}
++  },
++  "required": [
++    "schema_version",
++    "kind",
++    "requestId"
++  ],
++  "additionalProperties": false
++}

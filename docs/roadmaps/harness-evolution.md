@@ -40,7 +40,7 @@ La columna vertebral se conserva: lifecycle (+ **Authority Store** + **Minimal K
 
 Este programa **no** sustituye el roadmap por un “OSPEC v3” paralelo. Los deltas K2.1–K12 refuerzan la dirección ya fijada (runtime-owned lifecycle, Execution ≠ Assurance, cuatro identidades, separación worker/verifier/reviewer/delivery, Attestation ≠ Authorization, invalidación selectiva, shadow/A-B antes de defaults, rollout por perfil/target, rutas como recetas). OpenSpec y Git siguen siendo la autoridad semántica; el kernel posee transiciones, permisos, budgets, digests y efectos mecánicos; los modelos no se aprueban ni se conceden permisos a sí mismos.
 
-O2B cerró el gate inicial. El change `fixed-policy-reference-baseline` obtuvo verify `PASS` para 16/16 MUST y evidencia Strict TDD autenticada, superó el gate 4R con estado `approved` y quedó archivado en `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`. La versión v2.36.0 que lo contiene ya está publicada. K1 (`k1-contract-suite`) cerró con verify `PASS`, gate 4R `approved` (2 CRITICAL remediados), archive transaccional en `openspec/changes/archive/2026-08-03-k1-contract-suite/` y publicación en v2.37.0. K2 (`k2-lifecycle-kernel`) cerró con verify `PASS`, gate 4R `approved` (3 CRITICAL remediados + 7 WARNING follow-up), archive transaccional en `openspec/changes/archive/2026-08-04-k2-lifecycle-kernel/` y publicación en v2.38.0. K2.1 (`k2-1-authority-store-permits`) cerró con verify `PASS`, gate 4R `approved` (8 bloqueantes remediados + 10 WARNING advisory), archive transaccional en `openspec/changes/archive/2026-08-04-k2-1-authority-store-permits/` y publicación en v2.39.0. K2a (`k2a-headless-conformance-host`) cerró con verify `PASS WITH WARNINGS`, gate 4R `approved` (4 CRITICAL remediados + 11 WARNING advisory), archive transaccional en `openspec/changes/archive/2026-08-04-k2a-headless-conformance-host/` y publicación en v2.40.0. **K3** es la siguiente iniciativa **next-eligible**; el resto de iniciativas posteriores permanece `pending`. Fixed continúa como control/default hasta que los gates posteriores autoricen otro cambio.
+O2B cerró el gate inicial. El change `fixed-policy-reference-baseline` obtuvo verify `PASS` para 16/16 MUST y evidencia Strict TDD autenticada, superó el gate 4R con estado `approved` y quedó archivado en `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`. La versión v2.36.0 que lo contiene ya está publicada. K1 (`k1-contract-suite`) cerró con verify `PASS`, gate 4R `approved` (2 CRITICAL remediados), archive transaccional en `openspec/changes/archive/2026-08-03-k1-contract-suite/` y publicación en v2.37.0. K2 (`k2-lifecycle-kernel`) cerró con verify `PASS`, gate 4R `approved` (3 CRITICAL remediados + 7 WARNING follow-up), archive transaccional en `openspec/changes/archive/2026-08-04-k2-lifecycle-kernel/` y publicación en v2.38.0. K2.1 (`k2-1-authority-store-permits`) cerró con verify `PASS`, gate 4R `approved` (8 bloqueantes remediados + 10 WARNING advisory), archive transaccional en `openspec/changes/archive/2026-08-04-k2-1-authority-store-permits/` y publicación en v2.39.0. K2a (`k2a-headless-conformance-host`) cerró con verify `PASS WITH WARNINGS`, gate 4R `approved` (4 CRITICAL remediados + 11 WARNING advisory), archive transaccional en `openspec/changes/archive/2026-08-04-k2a-headless-conformance-host/` y publicación en v2.40.0. K2.1b (`k2-1b-permit-issuance-atomic-consume`) cerró con verify `PASS WITH WARNINGS`, gate 4R `approved` (3 CRITICAL remediados), archive y v2.40.1. k2a-1 (`k2a-1-live-capability-probes-async-transports`) cerró con verify `PASS WITH WARNINGS`, gate 4R `approved` (4 CRITICAL remediados); plan de archive emitido — transacción runtime pendiente. **K3** es la siguiente iniciativa **next-eligible**; el resto de iniciativas posteriores permanece `pending`. Fixed continúa como control/default hasta que los gates posteriores autoricen otro cambio.
 
 Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R1 se rebasan sobre un kernel común; O7+O10 se convierte en capacidades; O9+O11 en invalidación/recompilación; O14 en routing por nodo; R4 consume el mismo Execution Graph. O8 y O12 conservan shadow, compatibilidad y deprecación. Targets y R2 siguen subordinados a la estabilidad del core.
 
@@ -48,7 +48,7 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 
 | Orden | Acción | Gate de salida |
 | ---: | --- | --- |
-| 1 | Completar correctivos K2.1b (issuance+atomic consume) y k2a-1 (probes/async) → luego Ejecutar K3 | Correctivos de autoridad/host antes de cuatro identidades + Candidate freeze + relación básica |
+| 1 | Ejecutar K3 (correctivos K2.1b + k2a-1 cerrados) | Cuatro identidades + Candidate freeze + relación básica |
 | 2 | Ejecutar K4a → K5 → K6a → K4b | Graph + Obligation Manifest + budgets (autoridad/efectos) + aislamiento + shadow con Candidate |
 | 3 | Ejecutar K6b→K6d → K7 → K8 | Verify/provenance/challenges/review authority + Candidate Evaluation Attestation |
 | 4 | Ejecutar K9 | Calidad no inferior, replay y fallback fixed (checkpoints intermedios ya emitidos) |
@@ -70,9 +70,9 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **K2** | Lifecycle + Minimal Kernel Harness + model-based invariants; archivado y publicado en v2.38.0 |
 | `done` | **K2.1** | Authority Store (CAS), OperationPermit/Receipt y semántica de efectos; archivado y publicado en v2.39.0 |
 | `done` | **K2a** | Headless Conformance Host + Claude adapter + CapabilityProof; archivado y publicado en v2.40.0 |
-| `in-progress` | **K2.1b** | Controlled issuer + atomic CAS consume/receipt (corrective pre-K3) |
-| `pending` | **k2a-1** | Live capability probes + async transports (corrective pre-K3) |
-| `pending` | **K3** | Cuatro identidades + Candidate freeze + relación básica (`exact`/`changed`/`ambiguous`/`unknown`) |
+| `done` | **K2.1b** | Controlled issuer + atomic CAS consume/receipt (corrective pre-K3); archivado y publicado en v2.40.1 |
+| `done` | **k2a-1** | Live capability probes + async transports (corrective pre-K3); verify PASS WITH WARNINGS + 4R approved; archive plan emitido |
+| `next-eligible` | **K3** | Cuatro identidades + Candidate freeze + relación básica (`exact`/`changed`/`ambiguous`/`unknown`) |
 | `pending` | K4a | Graph compiler + Obligation Manifest + replay (sin worker autoritativo) |
 | `pending` | K5 | Budgets (incl. autoridad/efectos), failures y recovery |
 | `pending` | K6a | Worker isolation / work-order capsule |
@@ -208,7 +208,7 @@ Entregado:
 - separación entre autoridad, targets y análisis;
 - historial no normativo fuera de la ruta operativa.
 
-La reconciliación vigente fija el corte en **v2.40.0** (K1+K2+K2.1+K2a `done`; K3 next-eligible) y conserva la dirección kernel/Execution Graph/Assurance Graph. No reabre los changes entregados.
+La reconciliación vigente fija el corte post-k2a-1 (K1+K2+K2.1+K2a+K2.1b+k2a-1 `done`; K3 next-eligible) y conserva la dirección kernel/Execution Graph/Assurance Graph. No reabre los changes entregados.
 
 ### O2A — infraestructura de benchmark — **done**
 
@@ -636,7 +636,7 @@ Core host-agnostic con Headless Conformance Host + un adapter real de referencia
 
 ## Bloque 3 — identidad universal
 
-### K3 — identidades de ejecución, Candidate ID y successor semantics — **pending**
+### K3 — identidades de ejecución, Candidate ID y successor semantics — **next-eligible**
 
 **Absorbe/rebasa:** P9; identidad existente de O4/O5 y fingerprints de O6A.
 
@@ -2027,4 +2027,5 @@ Cada child conserva clasificación, Candidate ID y receipt propios.
 - 2026-08-04: K2 (`k2-lifecycle-kernel`) cierra con verify PASS, 4R approved, archive y v2.38.0; versión de referencia alineada a v2.38.0.
 - 2026-08-04: reconciliación post-análisis Authority Store: se inserta **K2.1** (CAS / OperationPermit / effect semantics) entre K2 y K2a; K2a pasa a Headless Conformance Host + adapter real + CapabilityProof; deltas en K3 (relación básica), K4a (Obligation Manifest), K5 (budgets de autoridad/efectos), K6b (provenance), K7 (ReviewAdapter/Reducer), K8 (emisión CAS), K9 (checkpoints), K10-delivery (relación por etapas). Next-eligible: K2.1 (`k2-1-authority-store-permits`). No es un “OSPEC v3” paralelo.
 - 2026-08-04: K2.1 (`k2-1-authority-store-permits`) cierra con verify PASS, 4R approved (8 bloqueantes remediados), archive y v2.39.0; K2a queda next-eligible; versión de referencia alineada a v2.39.0.
-- 2026-08-05: K2a (`k2a-headless-conformance-host`) cierra con verify PASS WITH WARNINGS, 4R approved (4 CRITICAL remediados), archive y v2.40.0; K3 queda next-eligible; versión de referencia alineada a v2.40.0.
+- 2026-08-05: K2a (`k2a-headless-conformance-host`) cierra con verify PASS WITH WARNINGS, 4R approved (4 CRITICAL remediados), archive y v2.40.0; versión de referencia alineada a v2.40.0.
+- 2026-08-05: k2a-1 (`k2a-1-live-capability-probes-async-transports`) cierra con verify PASS WITH WARNINGS, 4R approved (4 CRITICAL remediados); plan archive emitido; K3 queda next-eligible; transacción runtime pendiente.

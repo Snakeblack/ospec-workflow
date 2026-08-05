@@ -1,0 +1,13 @@
+{
+  "base_tree": "315c63c1e4ee39a3bbeac29899b8ba9272d191dc",
+  "candidate_tree": "WORKING-TREE-k2a-1-live-capability-probes-async-transports",
+  "changed_lines": 1877,
+  "plus": 1625,
+  "minus": 252,
+  "paths_count": 33,
+  "evidence_fingerprint": "sha256:0e3829ca0768675c0de0e590fb374d37803f12f00caa0842888b35ae33d91fc6",
+  "diff_hash": "sha256:4bb52453cc70f5651b4141bfdf5a07a6e6b5b7619159d73f0f8b174ed07c6564",
+  "paths_digest": "sha256:73865989809816c5e885617e5e847f794efa62ac2176b889638866b56101f22c",
+  "head": "315c63c1e4ee39a3bbeac29899b8ba9272d191dc",
+  "branch": "feat/k2a-1-live-capability-probes-async-transports"
+}

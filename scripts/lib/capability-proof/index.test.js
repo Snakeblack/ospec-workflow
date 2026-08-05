@@ -5,79 +5,237 @@ const test = require("node:test");
 
 const {
   createEvidenceDigest,
+  createProbeDigest,
   verifyCapabilityProof,
   evaluateEnforcementEligibility,
   REASON,
+  PROBE_DOMAIN,
 } = require("./index.js");
 
-function makeProof(capabilityId, evidence) {
-  const adapter_version = "1.0.0";
-  const host_version = "k2a-host/1";
+const ADAPTER_ID = "claude";
+const ADAPTER_VERSION = "1.0.0";
+const HOST_VERSION = "k2a-host/1";
+
+function makeLiveMaterial(capabilityId, evidence, probe = { surface: "live", ok: true }) {
   const fixture = `fixtures/${capabilityId}.json`;
   const evidence_digest = createEvidenceDigest({
     capability_id: capabilityId,
-    adapter_version,
-    host_version,
+    adapter_version: ADAPTER_VERSION,
+    host_version: HOST_VERSION,
     fixture,
     evidence,
   });
-  return {
+  const probe_digest = createProbeDigest({
+    capability_id: capabilityId,
+    adapter_id: ADAPTER_ID,
+    adapter_version: ADAPTER_VERSION,
+    host_version: HOST_VERSION,
+    probe,
+  });
+  assert.notEqual(probe_digest, evidence_digest);
+  const proof = {
     schema_version: 1,
     kind: "capability-proof/v1",
-    adapter_version,
-    host_version,
+    adapter_id: ADAPTER_ID,
+    adapter_version: ADAPTER_VERSION,
+    host_version: HOST_VERSION,
     fixture,
     evidence_digest,
+    probe_digest,
+  };
+  return {
+    proof,
+    evidence,
+    expected: {
+      capabilityId,
+      expectedAdapterId: ADAPTER_ID,
+      expectedAdapterVersion: ADAPTER_VERSION,
+      expectedHostRuntimeVersion: HOST_VERSION,
+      expectedProbeDigest: probe_digest,
+      proof,
+      evidence,
+    },
   };
 }
 
-test("declared enforced without proof fails; valid proof enables enforcement", () => {
+test("declared enforced without proof fails; valid live-bound proof enables enforcement", () => {
   const refused = evaluateEnforcementEligibility({
     capability_id: "ExecutionTransport",
     declared_state: "enforced",
   });
   assert.equal(refused.ok, false);
   assert.equal(refused.enforced, false);
-  assert.equal(refused.reason_code, REASON.PROOF_MISSING);
+  assert.ok(
+    refused.reason_code === REASON.PROOF_MISSING ||
+      refused.reason_code === REASON.EXPECTED_FIELD_MISSING
+  );
 
-  const evidence = { surface: "execution", headless: true };
-  const proof = makeProof("ExecutionTransport", evidence);
+  const { expected, proof } = makeLiveMaterial("ExecutionTransport", { surface: "execution", headless: true });
   const ok = evaluateEnforcementEligibility({
     capability_id: "ExecutionTransport",
     declared_state: "enforced",
-    proof,
-    semantic_evidence: evidence,
+    proof: expected.proof,
+    semantic_evidence: expected.evidence,
+    expectedAdapterId: expected.expectedAdapterId,
+    expectedAdapterVersion: expected.expectedAdapterVersion,
+    expectedHostRuntimeVersion: expected.expectedHostRuntimeVersion,
+    expectedProbeDigest: expected.expectedProbeDigest,
   });
   assert.equal(ok.ok, true);
   assert.equal(ok.enforced, true);
   assert.equal(ok.evidence_digest, proof.evidence_digest);
+  assert.equal(ok.probe_digest, proof.probe_digest);
 });
 
-test("missing adapter_version/host_version/fixture/evidence_digest fails verification", () => {
-  const evidence = { a: 1 };
-  const base = makeProof("QuestionTransport", evidence);
-  for (const field of ["adapter_version", "host_version", "fixture", "evidence_digest"]) {
-    const broken = { ...base, [field]: "" };
-    const result = verifyCapabilityProof("QuestionTransport", broken, evidence);
+test("object verify rejects missing expected live identity fields", () => {
+  const { proof, evidence, expected } = makeLiveMaterial("QuestionTransport", { a: 1 });
+  for (const field of [
+    "expectedAdapterId",
+    "expectedAdapterVersion",
+    "expectedHostRuntimeVersion",
+    "expectedProbeDigest",
+  ]) {
+    const opts = { ...expected, [field]: undefined };
+    const result = verifyCapabilityProof(opts);
+    assert.equal(result.ok, false, field);
+    assert.equal(result.reason_code, REASON.EXPECTED_FIELD_MISSING, field);
+    assert.equal(result.path, `/${field}`, field);
+  }
+  void proof;
+  void evidence;
+});
+
+test("foreign adapter / version / host fail closed with stable reasons", () => {
+  const { expected } = makeLiveMaterial("WorkerTransport", { fixture_bytes: "abc" });
+
+  const foreignAdapter = verifyCapabilityProof({
+    ...expected,
+    expectedAdapterId: "codex",
+  });
+  assert.equal(foreignAdapter.ok, false);
+  assert.equal(foreignAdapter.reason_code, REASON.FOREIGN_ADAPTER);
+
+  const foreignVersion = verifyCapabilityProof({
+    ...expected,
+    expectedAdapterVersion: "9.9.9",
+  });
+  assert.equal(foreignVersion.ok, false);
+  assert.equal(foreignVersion.reason_code, REASON.FOREIGN_ADAPTER_VERSION);
+
+  const foreignHost = verifyCapabilityProof({
+    ...expected,
+    expectedHostRuntimeVersion: "other-host/2",
+  });
+  assert.equal(foreignHost.ok, false);
+  assert.equal(foreignHost.reason_code, REASON.FOREIGN_HOST);
+});
+
+test("fixture-only digest rejected when expectedProbeDigest is distinct live probe", () => {
+  const evidence = { fixture_bytes: "abc" };
+  const fixture = "fixtures/WorkerTransport.json";
+  const evidence_digest = createEvidenceDigest({
+    capability_id: "WorkerTransport",
+    adapter_version: ADAPTER_VERSION,
+    host_version: HOST_VERSION,
+    fixture,
+    evidence,
+  });
+  const liveProbe = createProbeDigest({
+    capability_id: "WorkerTransport",
+    adapter_id: ADAPTER_ID,
+    adapter_version: ADAPTER_VERSION,
+    host_version: HOST_VERSION,
+    probe: { live: true, tick: 1 },
+  });
+  assert.notEqual(liveProbe, evidence_digest);
+
+  // Caller supplies fixture digest as expectedProbeDigest → fail closed.
+  const asFixture = verifyCapabilityProof({
+    capabilityId: "WorkerTransport",
+    expectedAdapterId: ADAPTER_ID,
+    expectedAdapterVersion: ADAPTER_VERSION,
+    expectedHostRuntimeVersion: HOST_VERSION,
+    expectedProbeDigest: evidence_digest,
+    proof: {
+      schema_version: 1,
+      kind: "capability-proof/v1",
+      adapter_id: ADAPTER_ID,
+      adapter_version: ADAPTER_VERSION,
+      host_version: HOST_VERSION,
+      fixture,
+      evidence_digest,
+      probe_digest: liveProbe,
+    },
+    evidence,
+  });
+  assert.equal(asFixture.ok, false);
+  assert.equal(asFixture.reason_code, REASON.FIXTURE_DIGEST_NOT_LIVE_PROBE);
+
+  // Matching live probe succeeds.
+  const ok = verifyCapabilityProof({
+    capabilityId: "WorkerTransport",
+    expectedAdapterId: ADAPTER_ID,
+    expectedAdapterVersion: ADAPTER_VERSION,
+    expectedHostRuntimeVersion: HOST_VERSION,
+    expectedProbeDigest: liveProbe,
+    proof: {
+      schema_version: 1,
+      kind: "capability-proof/v1",
+      adapter_id: ADAPTER_ID,
+      adapter_version: ADAPTER_VERSION,
+      host_version: HOST_VERSION,
+      fixture,
+      evidence_digest,
+      probe_digest: liveProbe,
+    },
+    evidence,
+  });
+  assert.equal(ok.ok, true);
+  assert.equal(ok.probe_digest, liveProbe);
+});
+
+test("missing adapter_version/host_version/fixture/evidence_digest/probe_digest fails verification", () => {
+  const { expected } = makeLiveMaterial("QuestionTransport", { a: 1 });
+  for (const field of [
+    "adapter_id",
+    "adapter_version",
+    "host_version",
+    "fixture",
+    "evidence_digest",
+    "probe_digest",
+  ]) {
+    const broken = { ...expected.proof, [field]: "" };
+    const result = verifyCapabilityProof({ ...expected, proof: broken });
     assert.equal(result.ok, false, field);
     assert.equal(result.reason_code, REASON.PROOF_FIELD_MISSING, field);
     assert.equal(result.path, `/${field}`, field);
   }
 });
 
-test("digest mismatch fails; repeated verification is byte-equivalent; no timestamps", () => {
-  const evidence = { fixture_bytes: "abc" };
-  const proof = makeProof("WorkerTransport", evidence);
-  const mismatch = verifyCapabilityProof("WorkerTransport", { ...proof, evidence_digest: "sha256:dead" }, evidence);
+test("digest mismatch fails; repeated verification is byte-equivalent; probe domain distinct", () => {
+  const { expected, proof } = makeLiveMaterial("WorkerTransport", { fixture_bytes: "abc" });
+  const mismatch = verifyCapabilityProof({
+    ...expected,
+    proof: { ...proof, evidence_digest: "sha256:dead" },
+  });
   assert.equal(mismatch.ok, false);
   assert.equal(mismatch.reason_code, REASON.DIGEST_MISMATCH);
 
-  const a = verifyCapabilityProof("WorkerTransport", proof, evidence);
-  const b = verifyCapabilityProof("WorkerTransport", proof, evidence);
+  const probeMismatch = verifyCapabilityProof({
+    ...expected,
+    expectedProbeDigest: "sha256:other-probe",
+  });
+  assert.equal(probeMismatch.ok, false);
+  assert.equal(probeMismatch.reason_code, REASON.PROBE_DIGEST_MISMATCH);
+
+  const a = verifyCapabilityProof(expected);
+  const b = verifyCapabilityProof(expected);
   assert.equal(a.ok, true);
   assert.equal(b.ok, true);
   assert.equal(a.evidence_digest, b.evidence_digest);
+  assert.equal(a.probe_digest, b.probe_digest);
 
+  assert.equal(PROBE_DOMAIN, "capability-probe/v1");
   assert.throws(
     () =>
       createEvidenceDigest({
@@ -97,8 +255,19 @@ test("failed/absent proof does not promote partial/unavailable/instructional to 
       capability_id: "DeliveryGateTransport",
       declared_state: declared,
       request_enforced: true,
-      proof: { adapter_version: "1", host_version: "1", fixture: "f", evidence_digest: "sha256:bad" },
+      proof: {
+        adapter_id: ADAPTER_ID,
+        adapter_version: "1",
+        host_version: "1",
+        fixture: "f",
+        evidence_digest: "sha256:bad",
+        probe_digest: "sha256:probe",
+      },
       semantic_evidence: {},
+      expectedAdapterId: ADAPTER_ID,
+      expectedAdapterVersion: "1",
+      expectedHostRuntimeVersion: "1",
+      expectedProbeDigest: "sha256:probe",
     });
     assert.equal(result.enforced, false, declared);
     assert.equal(result.effective_state, declared, declared);

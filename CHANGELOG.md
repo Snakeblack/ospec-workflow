@@ -8,6 +8,21 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.40.2] - 2026-08-05
+
+### Fixed
+- **CapabilityProof live bind**: `verifyCapabilityProof` exige identidad viva (`expectedAdapterId/Version`, `expectedHostRuntimeVersion`, `expectedProbeDigest`); el headless ya no rellena el digest desde `proof.probe_digest`.
+- **Claude `enforced` honesto**: solo con primitiva real + live probe + digest independiente; sin primitiva → `unavailable|instructional|partial`.
+- **Transports async seguros**: `invokeTransportAsync` / `classifyTransportFailure` compartidos; rechazo de Promise → `ok:false`; settlement del invoke tras timeout/cancel (sin `unhandledRejection`).
+- **Fault matrix vía ports**: fallos atraviesan el adapter con wrappers + invoke async (no solo inject sintético).
+- **Deep-freeze de ports** en `createHostAdapter`; schemas aditivos `transport-request|outcome|failure` v1.
+- **W4 harness-alone**: test negativo runtime de cobertura incompleta sin Headless peer.
+
+### Docs
+- Specs baseline deltas en capability-proof, host-capabilities-contract, reference-host-adapter, headless-conformance-host, kernel-contract-schemas, minimal-kernel-harness, lifecycle-kernel-runtime.
+- ADRs `adr-20260805-007`…`009`; change archivado en `openspec/changes/archive/2026-08-05-k2a-1-live-capability-probes-async-transports/`.
+- Roadmap: k2a-1 `done`; K3 `next-eligible`.
+
 ## [2.40.1] - 2026-08-05
 
 ### Fixed

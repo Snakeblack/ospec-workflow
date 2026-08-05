@@ -39,6 +39,14 @@ const AUTHORITY_SURFACE_KEYS = Object.freeze([
   "compileGraph",
 ]);
 
+const FAILURE_CLASSES = Object.freeze([
+  "timeout",
+  "cancel",
+  "reject",
+  "interrupt",
+  "worker-fail",
+]);
+
 const REASON = Object.freeze({
   UNKNOWN_CAPABILITY_STATE: "unknown-capability-state",
   MISSING_TRANSPORT_PORT: "missing-transport-port",
@@ -61,6 +69,21 @@ function fail(code, path, message) {
   error.code = code;
   error.path = path;
   throw error;
+}
+
+function deepFreeze(value, seen = new WeakSet()) {
+  if (value === null || (typeof value !== "object" && typeof value !== "function")) {
+    return value;
+  }
+  if (seen.has(value)) return value;
+  seen.add(value);
+  Object.freeze(value);
+  if (typeof value === "object") {
+    for (const key of Reflect.ownKeys(value)) {
+      deepFreeze(value[key], seen);
+    }
+  }
+  return value;
 }
 
 function validateCapabilityStates(capabilities, basePath = "/capabilities") {
@@ -92,7 +115,6 @@ function assertNoAuthoritySurface(authoritySurface) {
       );
     }
   }
-  // Reject if any truthy authority-like method is present.
   for (const key of AUTHORITY_SURFACE_KEYS) {
     if (Object.prototype.hasOwnProperty.call(authoritySurface, key)) {
       fail(
@@ -114,7 +136,6 @@ function assertTransportPorts(transports) {
     }
   }
 
-  // Policy-owning DeliveryGate / Worker transports fail closed.
   for (const name of ["DeliveryGateTransport", "WorkerTransport"]) {
     const port = transports[name];
     if (!isRecord(port)) continue;
@@ -136,7 +157,6 @@ function assertTransportPorts(transports) {
     }
   }
 
-  // Lifecycle/CAS policy embedded in any transport is rejected.
   for (const name of REQUIRED_TRANSPORTS) {
     const port = transports[name];
     if (!isRecord(port) && typeof port !== "function") continue;
@@ -151,7 +171,6 @@ function assertTransportPorts(transports) {
   }
 }
 
-/** True when a transport port exposes any AUTHORITY_SURFACE_KEYS method or owns_* flag. */
 function transportOwnsAuthority(probe) {
   if (!isRecord(probe)) return false;
   for (const key of AUTHORITY_SURFACE_KEYS) {
@@ -188,19 +207,27 @@ function createHostAdapter(input) {
   assertTransportPorts(input.transports);
   assertNoAuthoritySurface(input.authority_surface);
 
-  return Object.freeze({
+  const capabilities = { ...input.capabilities };
+  const transports = { ...input.transports };
+  for (const name of Object.keys(transports)) {
+    const port = transports[name];
+    if (isRecord(port)) {
+      transports[name] = { ...port };
+    }
+  }
+
+  return deepFreeze({
     kind: "host-adapter/v1",
     adapter_id: input.adapter_id,
     adapter_version: input.adapter_version,
     host_version: input.host_version,
-    capabilities: Object.freeze({ ...input.capabilities }),
-    transports: Object.freeze({ ...input.transports }),
+    capabilities,
+    transports,
   });
 }
 
 /**
- * Resolve effective capability state. Promotion to enforced requires proof.
- * @param {{capability_id:string, declared_state:string, proof?:object|null, semantic_evidence?:*, request_enforced?:boolean}} input
+ * Resolve effective capability state. Promotion to enforced requires live-bound proof.
  */
 function resolveCapabilityState(input) {
   const capabilityId = input && input.capability_id;
@@ -222,9 +249,16 @@ function resolveCapabilityState(input) {
     return { ok: true, effective_state: declared, enforced: false };
   }
 
-  const verification = verifyCapabilityProof(capabilityId, input.proof, input.semantic_evidence);
+  const verification = verifyCapabilityProof({
+    capabilityId,
+    expectedAdapterId: input.expectedAdapterId,
+    expectedAdapterVersion: input.expectedAdapterVersion,
+    expectedHostRuntimeVersion: input.expectedHostRuntimeVersion,
+    expectedProbeDigest: input.expectedProbeDigest,
+    proof: input.proof,
+    evidence: input.semantic_evidence,
+  });
   if (!verification.ok) {
-    // No silent promotion: unavailable/instructional/partial stay honest.
     return {
       ok: false,
       effective_state: declared === "enforced" ? "unavailable" : declared,
@@ -243,12 +277,10 @@ function resolveCapabilityState(input) {
     effective_state: "enforced",
     enforced: true,
     evidence_digest: verification.evidence_digest,
+    probe_digest: verification.probe_digest,
   };
 }
 
-/**
- * Normalize transport outcome shape.
- */
 function normalizeTransportOutcome(raw) {
   if (!isRecord(raw)) {
     return { ok: false, outcome: "invalid", code: "invalid-transport-outcome" };
@@ -259,13 +291,195 @@ function normalizeTransportOutcome(raw) {
   };
   if (raw.code != null) result.code = String(raw.code);
   if (Object.prototype.hasOwnProperty.call(raw, "value")) result.value = raw.value;
+  if (raw.failure_class != null) result.failure_class = raw.failure_class;
+  if (raw.requestId != null) result.requestId = raw.requestId;
   return result;
+}
+
+/**
+ * Classify transport failures into stable failure_class values.
+ */
+function classifyTransportFailure(errOrOutcome, opts = {}) {
+  const requestId = opts.requestId;
+  const portName = opts.portName;
+
+  let failureClass = "reject";
+  let code = "transport-reject";
+  let outcome = "error";
+
+  if (isRecord(errOrOutcome) && errOrOutcome.ok === false && nonEmptyString(errOrOutcome.failure_class)) {
+    failureClass = errOrOutcome.failure_class;
+    code = errOrOutcome.code || `host-fault-${failureClass}`;
+    outcome = errOrOutcome.outcome || failureClass;
+  } else {
+    const hintParts = [];
+    if (errOrOutcome && typeof errOrOutcome === "object") {
+      hintParts.push(
+        errOrOutcome.failure_class,
+        errOrOutcome.code,
+        errOrOutcome.name,
+        errOrOutcome.outcome,
+        errOrOutcome.message
+      );
+    } else if (typeof errOrOutcome === "string") {
+      hintParts.push(errOrOutcome);
+    }
+    const text = hintParts.filter(Boolean).join(" ").toLowerCase();
+
+    if (text.includes("timeout") || text.includes("deadline") || (errOrOutcome && errOrOutcome.name === "TimeoutError")) {
+      failureClass = "timeout";
+      outcome = "timeout";
+      code = (errOrOutcome && errOrOutcome.code) || "host-fault-timeout";
+    } else if (
+      text.includes("abort") ||
+      text.includes("cancel") ||
+      (errOrOutcome && errOrOutcome.name === "AbortError")
+    ) {
+      failureClass = "cancel";
+      outcome = "cancel";
+      code = (errOrOutcome && errOrOutcome.code) || "host-fault-cancel";
+    } else if (text.includes("interrupt")) {
+      failureClass = "interrupt";
+      outcome = "interrupt";
+      code = (errOrOutcome && errOrOutcome.code) || "host-fault-interrupt";
+    } else if (text.includes("worker-fail") || text.includes("worker")) {
+      failureClass = "worker-fail";
+      outcome = "worker-fail";
+      code = (errOrOutcome && errOrOutcome.code) || "host-fault-worker-fail";
+    } else if (portName === "WorkerTransport") {
+      failureClass = "worker-fail";
+      outcome = "worker-fail";
+      code = (errOrOutcome && errOrOutcome.code) || "host-fault-worker-fail";
+    } else if (errOrOutcome && nonEmptyString(errOrOutcome.code)) {
+      code = errOrOutcome.code;
+    }
+  }
+
+  if (!FAILURE_CLASSES.includes(failureClass)) {
+    failureClass = "reject";
+    outcome = "error";
+  }
+
+  const result = {
+    ok: false,
+    failure_class: failureClass,
+    outcome,
+    code,
+  };
+  if (requestId != null) result.requestId = requestId;
+  return result;
+}
+
+function resolvePortInvoker(port) {
+  if (typeof port === "function") return (request) => port(request);
+  if (isRecord(port) && typeof port.invoke === "function") return (request) => port.invoke(request);
+  if (isRecord(port) && typeof port.run === "function") return (request) => port.run(request);
+  return null;
+}
+
+/**
+ * Shared async transport invoke: await + catch; never invent ok:true from rejection.
+ * @param {*} port
+ * @param {{requestId:string, signal?:AbortSignal, deadlineMs?:number, input?:*}} request
+ * @returns {Promise<object>}
+ */
+async function invokeTransportAsync(port, request) {
+  const requestId = request && request.requestId;
+  const signal = request && request.signal;
+  const deadlineMs = request && typeof request.deadlineMs === "number" ? request.deadlineMs : null;
+  const input = request && Object.prototype.hasOwnProperty.call(request, "input") ? request.input : request || {};
+
+  if (signal && signal.aborted) {
+    return classifyTransportFailure(
+      Object.assign(new Error("aborted"), { name: "AbortError", code: "host-fault-cancel" }),
+      { requestId }
+    );
+  }
+
+  const invoker = resolvePortInvoker(port);
+  if (!invoker) {
+    // Passive port metadata — synthetic observation only (no invoke/run).
+    const normalized = normalizeTransportOutcome({
+      ok: true,
+      outcome: "noop",
+      value: { port_id: isRecord(port) ? port.port_id : undefined },
+    });
+    if (requestId != null) normalized.requestId = requestId;
+    return normalized;
+  }
+
+  let timeoutId = null;
+  let abortHandler = null;
+  const guards = [];
+
+  if (signal) {
+    guards.push(
+      new Promise((_, reject) => {
+        abortHandler = () => {
+          reject(Object.assign(new Error("aborted"), { name: "AbortError", code: "host-fault-cancel" }));
+        };
+        signal.addEventListener("abort", abortHandler, { once: true });
+      })
+    );
+  }
+
+  if (deadlineMs != null && deadlineMs >= 0) {
+    guards.push(
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(Object.assign(new Error("deadline exceeded"), { name: "TimeoutError", code: "host-fault-timeout" }));
+        }, deadlineMs);
+      })
+    );
+  }
+
+  const cleanup = () => {
+    if (timeoutId != null) clearTimeout(timeoutId);
+    if (signal && abortHandler) signal.removeEventListener("abort", abortHandler);
+  };
+
+  try {
+    const invokePromise = Promise.resolve().then(() => invoker(input));
+    // Absorb late settlement so a losing invoke cannot raise unhandledRejection
+    // after timeout/abort already won the race (caller still gets classified failure).
+    invokePromise.catch(() => {});
+    const raw = guards.length > 0 ? await Promise.race([invokePromise, ...guards]) : await invokePromise;
+    cleanup();
+
+    if (isRecord(raw) && raw.ok === false) {
+      const classified = classifyTransportFailure(raw, {
+        requestId: requestId != null ? requestId : raw.requestId,
+        portName: optsPortName(port),
+      });
+      if (requestId != null && classified.requestId == null) classified.requestId = requestId;
+      return classified;
+    }
+
+    const normalized = normalizeTransportOutcome(raw);
+    if (requestId != null) normalized.requestId = requestId;
+    if (normalized.ok !== true) {
+      return classifyTransportFailure(
+        { ...normalized, failure_class: normalized.failure_class || "reject" },
+        { requestId }
+      );
+    }
+    return normalized;
+  } catch (err) {
+    cleanup();
+    return classifyTransportFailure(err, { requestId, portName: optsPortName(port) });
+  }
+}
+
+function optsPortName(port) {
+  if (isRecord(port) && nonEmptyString(port.port_id)) return port.port_id;
+  return undefined;
 }
 
 module.exports = {
   CAPABILITY_STATES,
   REQUIRED_TRANSPORTS,
   AUTHORITY_SURFACE_KEYS,
+  FAILURE_CLASSES,
   REASON,
   createHostAdapter,
   resolveCapabilityState,
@@ -273,4 +487,7 @@ module.exports = {
   validateCapabilityStates,
   evaluateEnforcementEligibility,
   transportOwnsAuthority,
+  deepFreeze,
+  classifyTransportFailure,
+  invokeTransportAsync,
 };

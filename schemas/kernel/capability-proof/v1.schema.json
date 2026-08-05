@@ -10,6 +10,10 @@
     "kind": {
       "const": "capability-proof/v1"
     },
+    "adapter_id": {
+      "type": "string",
+      "minLength": 1
+    },
     "adapter_version": {
       "type": "string"
     },
@@ -21,15 +25,21 @@
     },
     "evidence_digest": {
       "type": "string"
+    },
+    "probe_digest": {
+      "type": "string",
+      "minLength": 1
     }
   },
   "required": [
     "schema_version",
     "kind",
+    "adapter_id",
     "adapter_version",
     "host_version",
     "fixture",
-    "evidence_digest"
+    "evidence_digest",
+    "probe_digest"
   ],
   "additionalProperties": false
 }

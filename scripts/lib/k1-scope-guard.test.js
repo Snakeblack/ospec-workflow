@@ -92,6 +92,9 @@ const SUCCESSOR_K2_PREFIXES = [
   "schemas/kernel/tool-execution-transport/",
   "schemas/kernel/delivery-gate-transport/",
   "schemas/kernel/capability-proof/",
+  "schemas/kernel/transport-request/",
+  "schemas/kernel/transport-outcome/",
+  "schemas/kernel/transport-failure/",
 ];
 
 const PROTECTED_BASELINE_PATHS = [

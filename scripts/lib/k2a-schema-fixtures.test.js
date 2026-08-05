@@ -22,7 +22,35 @@ const K2A_FAMILIES = [
   "capability-proof",
 ];
 
+const K2A1_TRANSPORT_ENVELOPE_FAMILIES = [
+  "transport-request",
+  "transport-outcome",
+  "transport-failure",
+];
+
 const K21_FAMILIES = ["operation-permit", "operation-receipt", "effect-class"];
+
+/** Pre-change content pins for the five transport port schemas (LF-normalized). */
+const TRANSPORT_V1_CONTENT_PINS = Object.freeze({
+  "schemas/kernel/execution-transport/v1.schema.json":
+    "c31ee709e34f155f64db05448fc45b5f8cc4f08fe4ce1ef15b4a6a36638fd786",
+  "schemas/kernel/question-transport/v1.schema.json":
+    "5c6e6073d826d8893aee903eb3ee3b2e765eb4bcd224c3bc1c6bac5dced644ff",
+  "schemas/kernel/worker-transport/v1.schema.json":
+    "bf9e79362ca1f4c5127099ae73712b3c8da44dd6841c1ab75bee36696db0c128",
+  "schemas/kernel/tool-execution-transport/v1.schema.json":
+    "eb1f399f9c47bbd2e678997f85234b4285c317594b17c36523fc856d707b0c3e",
+  "schemas/kernel/delivery-gate-transport/v1.schema.json":
+    "a792a5c858133ea6823f2ab84a46cc509fb8a78d7ed0984e961dcab7326d966a",
+});
+
+const TRANSPORT_V1_IDS = Object.freeze([
+  "ospec://schemas/kernel/execution-transport/v1",
+  "ospec://schemas/kernel/question-transport/v1",
+  "ospec://schemas/kernel/worker-transport/v1",
+  "ospec://schemas/kernel/tool-execution-transport/v1",
+  "ospec://schemas/kernel/delivery-gate-transport/v1",
+]);
 
 function familyDir(family) {
   return path.join(ROOT, "schemas", "kernel", family);
@@ -172,4 +200,77 @@ test("K2.1 OperationPermit/CAS/effect-class and receipt/v1 remain unchanged (add
   for (const family of K21_FAMILIES) {
     assert.ok(manifest.families[family], family);
   }
+});
+
+test("k2a-1: five existing transport v1 $ids and content pins remain unchanged", () => {
+  for (const [rel, expected] of Object.entries(TRANSPORT_V1_CONTENT_PINS)) {
+    assert.equal(sha256File(rel), expected, rel);
+  }
+  for (const family of [
+    "execution-transport",
+    "question-transport",
+    "worker-transport",
+    "tool-execution-transport",
+    "delivery-gate-transport",
+  ]) {
+    const schema = JSON.parse(fs.readFileSync(path.join(familyDir(family), "v1.schema.json"), "utf8"));
+    assert.equal(schema.$id, `ospec://schemas/kernel/${family}/v1`);
+    assert.ok(TRANSPORT_V1_IDS.includes(schema.$id));
+  }
+});
+
+test("k2a-1: additive transport-request/outcome/failure families exist with fixtures and distinct $ids", () => {
+  const manifest = JSON.parse(fs.readFileSync(MANIFEST, "utf8"));
+  for (const family of K2A1_TRANSPORT_ENVELOPE_FAMILIES) {
+    const schemaPath = path.join(familyDir(family), "v1.schema.json");
+    assert.ok(fs.existsSync(schemaPath), `${family} schema missing`);
+    const schema = JSON.parse(fs.readFileSync(schemaPath, "utf8"));
+    assert.equal(schema.$id, `ospec://schemas/kernel/${family}/v1`);
+    assert.equal(schema.schema_version, 1);
+    assert.ok(!TRANSPORT_V1_IDS.includes(schema.$id), `${family} must not alias transport port $id`);
+
+    const valid = listJson(path.join(familyDir(family), "fixtures", "valid"));
+    const invalid = listJson(path.join(familyDir(family), "fixtures", "invalid"));
+    assert.ok(valid.length >= 1, family);
+    assert.ok(invalid.length >= 1, family);
+    for (const file of valid) {
+      assert.equal(validateInstance(schema, JSON.parse(fs.readFileSync(file, "utf8"))).valid, true, file);
+    }
+    for (const file of invalid) {
+      assert.equal(validateInstance(schema, JSON.parse(fs.readFileSync(file, "utf8"))).valid, false, file);
+    }
+
+    const entry = manifest.families[family];
+    assert.ok(entry, `missing ${family} in manifest`);
+    assert.equal(entry.$id, schema.$id);
+  }
+
+  const failureSchema = JSON.parse(
+    fs.readFileSync(path.join(familyDir("transport-failure"), "v1.schema.json"), "utf8")
+  );
+  assert.deepEqual(failureSchema.properties.ok, { const: false });
+  assert.ok(failureSchema.required.includes("failure_class"));
+});
+
+test("k2a-1: CapabilityProof schema requires adapter_id and probe_digest", () => {
+  const schema = JSON.parse(
+    fs.readFileSync(path.join(familyDir("capability-proof"), "v1.schema.json"), "utf8")
+  );
+  assert.equal(schema.$id, "ospec://schemas/kernel/capability-proof/v1");
+  assert.ok(schema.required.includes("adapter_id"));
+  assert.ok(schema.required.includes("probe_digest"));
+  assert.ok(schema.properties.adapter_id);
+  assert.ok(schema.properties.probe_digest);
+
+  const missingProbe = validateInstance(schema, {
+    schema_version: 1,
+    kind: "capability-proof/v1",
+    adapter_id: "claude",
+    adapter_version: "1.0.0",
+    host_version: "k2a-host/1",
+    fixture: "f.json",
+    evidence_digest: "sha256:aa",
+  });
+  assert.equal(missingProbe.valid, false);
+  assert.ok(missingProbe.errors.some((e) => e.path === "/probe_digest"));
 });

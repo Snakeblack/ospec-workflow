@@ -3,12 +3,19 @@
 const { sha256Fingerprint } = require("../canonical-json.js");
 
 const PROOF_DOMAIN = "capability-proof/v1";
+const PROBE_DOMAIN = "capability-probe/v1";
 const PROOF_KIND = "capability-proof/v1";
 
 const REASON = Object.freeze({
   PROOF_MISSING: "proof-missing",
   PROOF_FIELD_MISSING: "proof-field-missing",
+  EXPECTED_FIELD_MISSING: "expected-field-missing",
+  FOREIGN_ADAPTER: "foreign-adapter",
+  FOREIGN_ADAPTER_VERSION: "foreign-adapter-version",
+  FOREIGN_HOST: "foreign-host",
+  FIXTURE_DIGEST_NOT_LIVE_PROBE: "fixture-digest-not-live-probe",
   DIGEST_MISMATCH: "digest-mismatch",
+  PROBE_DIGEST_MISMATCH: "probe-digest-mismatch",
   PROOF_VERIFICATION_FAILED: "proof-verification-failed",
   SILENT_PROMOTION_REFUSED: "silent-promotion-refused",
 });
@@ -47,8 +54,6 @@ function createEvidenceDigest(input) {
     error.path = "/evidence";
     throw error;
   }
-  // Volatile timestamps must not appear in digest inputs (caller responsibility;
-  // we reject common timestamp keys if present on a plain object evidence payload).
   if (evidence !== null && typeof evidence === "object" && !Array.isArray(evidence)) {
     for (const banned of ["timestamp", "created_at", "updated_at", "now", "wall_clock"]) {
       if (Object.prototype.hasOwnProperty.call(evidence, banned)) {
@@ -69,20 +74,101 @@ function createEvidenceDigest(input) {
 }
 
 /**
- * @param {string} capabilityId
- * @param {object|null|undefined} proof
- * @param {*} semanticEvidence
- * @returns {{ok:boolean, reason_code?:string, path?:string, evidence_digest?:string}}
+ * Live probe digest — distinct domain from fixture evidence_digest.
+ * @param {{capability_id:string, adapter_id:string, adapter_version:string, host_version:string, probe:*}} input
+ * @returns {string}
  */
-function verifyCapabilityProof(capabilityId, proof, semanticEvidence) {
+function createProbeDigest(input) {
+  if (!input || typeof input !== "object") {
+    const error = new Error("createProbeDigest requires an object");
+    error.code = REASON.PROOF_FIELD_MISSING;
+    throw error;
+  }
+  const { capability_id, adapter_id, adapter_version, host_version, probe } = input;
+  for (const [key, value] of Object.entries({
+    capability_id,
+    adapter_id,
+    adapter_version,
+    host_version,
+  })) {
+    if (!nonEmptyString(value)) {
+      const error = new Error(`missing or empty ${key}`);
+      error.code = REASON.PROOF_FIELD_MISSING;
+      error.path = `/${key}`;
+      throw error;
+    }
+  }
+  if (probe === undefined) {
+    const error = new Error("missing probe");
+    error.code = REASON.PROOF_FIELD_MISSING;
+    error.path = "/probe";
+    throw error;
+  }
+  return sha256Fingerprint(PROBE_DOMAIN, {
+    capability_id,
+    adapter_id,
+    adapter_version,
+    host_version,
+    probe,
+  });
+}
+
+/**
+ * Object-form verify with required live expected identity + probe digest.
+ * @param {{
+ *   capabilityId:string,
+ *   expectedAdapterId:string,
+ *   expectedAdapterVersion:string,
+ *   expectedHostRuntimeVersion:string,
+ *   expectedProbeDigest:string,
+ *   proof:object|null|undefined,
+ *   evidence:*
+ * }} opts
+ * @returns {{ok:boolean, reason_code?:string, path?:string, evidence_digest?:string, probe_digest?:string}}
+ */
+function verifyCapabilityProof(opts) {
+  if (opts == null || typeof opts !== "object" || Array.isArray(opts)) {
+    return { ok: false, reason_code: REASON.EXPECTED_FIELD_MISSING, path: "/" };
+  }
+
+  const {
+    capabilityId,
+    expectedAdapterId,
+    expectedAdapterVersion,
+    expectedHostRuntimeVersion,
+    expectedProbeDigest,
+    proof,
+    evidence: semanticEvidence,
+  } = opts;
+
   if (!nonEmptyString(capabilityId)) {
     return { ok: false, reason_code: REASON.PROOF_FIELD_MISSING, path: "/capability_id" };
   }
+
+  const expectedFields = [
+    ["expectedAdapterId", expectedAdapterId],
+    ["expectedAdapterVersion", expectedAdapterVersion],
+    ["expectedHostRuntimeVersion", expectedHostRuntimeVersion],
+    ["expectedProbeDigest", expectedProbeDigest],
+  ];
+  for (const [name, value] of expectedFields) {
+    if (!nonEmptyString(value)) {
+      return { ok: false, reason_code: REASON.EXPECTED_FIELD_MISSING, path: `/${name}` };
+    }
+  }
+
   if (proof == null || typeof proof !== "object" || Array.isArray(proof)) {
     return { ok: false, reason_code: REASON.PROOF_MISSING };
   }
 
-  const required = ["adapter_version", "host_version", "fixture", "evidence_digest"];
+  const required = [
+    "adapter_id",
+    "adapter_version",
+    "host_version",
+    "fixture",
+    "evidence_digest",
+    "probe_digest",
+  ];
   for (const field of required) {
     if (!nonEmptyString(proof[field])) {
       return { ok: false, reason_code: REASON.PROOF_FIELD_MISSING, path: `/${field}` };
@@ -93,9 +179,32 @@ function verifyCapabilityProof(capabilityId, proof, semanticEvidence) {
     return { ok: false, reason_code: REASON.PROOF_VERIFICATION_FAILED, path: "/kind" };
   }
 
-  let expected;
+  if (proof.adapter_id !== expectedAdapterId) {
+    return { ok: false, reason_code: REASON.FOREIGN_ADAPTER, path: "/adapter_id" };
+  }
+  if (proof.adapter_version !== expectedAdapterVersion) {
+    return { ok: false, reason_code: REASON.FOREIGN_ADAPTER_VERSION, path: "/adapter_version" };
+  }
+  if (proof.host_version !== expectedHostRuntimeVersion) {
+    return { ok: false, reason_code: REASON.FOREIGN_HOST, path: "/host_version" };
+  }
+
+  // Fixture digest must never substitute for the live probe digest.
+  if (expectedProbeDigest === proof.evidence_digest) {
+    return {
+      ok: false,
+      reason_code: REASON.FIXTURE_DIGEST_NOT_LIVE_PROBE,
+      path: "/expectedProbeDigest",
+    };
+  }
+
+  if (proof.probe_digest !== expectedProbeDigest) {
+    return { ok: false, reason_code: REASON.PROBE_DIGEST_MISMATCH, path: "/probe_digest" };
+  }
+
+  let expectedEvidence;
   try {
-    expected = createEvidenceDigest({
+    expectedEvidence = createEvidenceDigest({
       capability_id: capabilityId,
       adapter_version: proof.adapter_version,
       host_version: proof.host_version,
@@ -110,17 +219,31 @@ function verifyCapabilityProof(capabilityId, proof, semanticEvidence) {
     };
   }
 
-  if (proof.evidence_digest !== expected) {
+  if (proof.evidence_digest !== expectedEvidence) {
     return { ok: false, reason_code: REASON.DIGEST_MISMATCH, path: "/evidence_digest" };
   }
 
-  return { ok: true, evidence_digest: expected };
+  return {
+    ok: true,
+    evidence_digest: expectedEvidence,
+    probe_digest: proof.probe_digest,
+  };
 }
 
 /**
  * Enforcement eligibility: declaration alone is insufficient.
- * Promotion to enforced requires a verifying CapabilityProof.
- * @param {{capability_id:string, declared_state:string, proof?:object|null, semantic_evidence?:*, request_enforced?:boolean}} input
+ * Promotion to enforced requires a verifying CapabilityProof with live bind.
+ * @param {{
+ *   capability_id:string,
+ *   declared_state:string,
+ *   proof?:object|null,
+ *   semantic_evidence?:*,
+ *   request_enforced?:boolean,
+ *   expectedAdapterId?:string,
+ *   expectedAdapterVersion?:string,
+ *   expectedHostRuntimeVersion?:string,
+ *   expectedProbeDigest?:string
+ * }} input
  */
 function evaluateEnforcementEligibility(input) {
   const capabilityId = input && input.capability_id;
@@ -128,7 +251,12 @@ function evaluateEnforcementEligibility(input) {
   if (!nonEmptyString(capabilityId)) {
     return { ok: false, enforced: false, reason_code: REASON.PROOF_FIELD_MISSING, path: "/capability_id" };
   }
-  if (declared !== "enforced" && declared !== "partial" && declared !== "instructional" && declared !== "unavailable") {
+  if (
+    declared !== "enforced" &&
+    declared !== "partial" &&
+    declared !== "instructional" &&
+    declared !== "unavailable"
+  ) {
     return { ok: false, enforced: false, reason_code: "unknown-capability-state", path: "/declared_state" };
   }
 
@@ -137,7 +265,15 @@ function evaluateEnforcementEligibility(input) {
     return { ok: true, enforced: false, effective_state: declared };
   }
 
-  const verification = verifyCapabilityProof(capabilityId, input.proof, input.semantic_evidence);
+  const verification = verifyCapabilityProof({
+    capabilityId,
+    expectedAdapterId: input.expectedAdapterId,
+    expectedAdapterVersion: input.expectedAdapterVersion,
+    expectedHostRuntimeVersion: input.expectedHostRuntimeVersion,
+    expectedProbeDigest: input.expectedProbeDigest,
+    proof: input.proof,
+    evidence: input.semantic_evidence,
+  });
   if (!verification.ok) {
     return {
       ok: false,
@@ -157,17 +293,10 @@ function evaluateEnforcementEligibility(input) {
     enforced: true,
     effective_state: "enforced",
     evidence_digest: verification.evidence_digest,
+    probe_digest: verification.probe_digest,
   };
 }
 
-/**
- * Select reason_code for failed enforcement.
- * Matrix declared × request_enforced × proof.reason:
- * - not requesting enforced → silent-promotion-refused
- * - proof-missing → proof-missing (always when wants enforced)
- * - declared !== enforced (promotion attempt) → silent-promotion-refused
- * - declared === enforced → underlying verification.reason_code
- */
 function selectEnforcementFailureReason(declared, requestEnforced, verificationReason) {
   const wantsEnforced = requestEnforced === true || declared === "enforced";
   if (!wantsEnforced) {
@@ -184,9 +313,11 @@ function selectEnforcementFailureReason(declared, requestEnforced, verificationR
 
 module.exports = {
   PROOF_DOMAIN,
+  PROBE_DOMAIN,
   PROOF_KIND,
   REASON,
   createEvidenceDigest,
+  createProbeDigest,
   verifyCapabilityProof,
   evaluateEnforcementEligibility,
   selectEnforcementFailureReason,

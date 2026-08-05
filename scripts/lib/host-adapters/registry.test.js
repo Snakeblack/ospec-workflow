@@ -32,13 +32,13 @@ test("activated real adapters list contains exactly claude; others inactive; con
   assert.equal(assertSoleClaudeActivation(["headless-conformance-host", "claude"]).ok, true);
 });
 
-test("claude adapter maps AskUserQuestion → QuestionTransport and hooks without authorizing delivery", () => {
+test("claude adapter maps AskUserQuestion → QuestionTransport and hooks without authorizing delivery", async () => {
   const adapter = createClaudeHostAdapter();
-  const q = adapter.transports.QuestionTransport.invoke({});
+  const q = await adapter.transports.QuestionTransport.invoke({});
   assert.equal(q.ok, true);
   assert.equal(q.value.mapped_from, "AskUserQuestion");
 
-  const d = adapter.transports.DeliveryGateTransport.invoke({});
+  const d = await adapter.transports.DeliveryGateTransport.invoke({});
   assert.equal(d.ok, true);
   assert.equal(d.outcome, "observation");
   assert.equal(d.value.authorizes_delivery, false);
@@ -54,21 +54,46 @@ test("claude adapter cannot reach compareAndSwap or permit minting; store head u
   assert.equal(store.head, "rev-1");
 });
 
-test("every claude enforced capability has verifying CapabilityProof fixture", () => {
-  const verified = verifyAllClaudeEnforcedProofs();
+test("claude enforced capabilities require live probe + verifying CapabilityProof", () => {
+  const liveProbes = {};
+  for (const id of [
+    "ExecutionTransport",
+    "QuestionTransport",
+    "WorkerTransport",
+    "ToolExecutionTransport",
+    "DeliveryGateTransport",
+  ]) {
+    liveProbes[id] = { live: true, capability_id: id };
+  }
+  const verified = verifyAllClaudeEnforcedProofs({ liveProbes });
   assert.equal(verified.ok, true);
-  const material = getClaudeProofMaterial();
+  const material = getClaudeProofMaterial(liveProbes);
+  const adapter = createClaudeHostAdapter({
+    primitives: {
+      execute: () => ({}),
+      askUserQuestion: () => ({}),
+      worker: () => ({}),
+      tool: () => ({}),
+      hooksObserve: () => ({}),
+    },
+    liveProbes,
+  });
   for (const [id, entry] of Object.entries(material)) {
     assert.ok(entry.proof.evidence_digest.startsWith("sha256:"));
+    assert.ok(entry.proof.probe_digest.startsWith("sha256:"));
+    assert.notEqual(entry.proof.probe_digest, entry.proof.evidence_digest);
+    assert.equal(entry.expectedProbeDigest, entry.proof.probe_digest);
     assert.ok(entry.fixture.includes("host-adapters/claude/fixtures"));
-    assert.equal(adapterCapability(id), "enforced");
+    assert.equal(adapter.capabilities[id], "enforced");
   }
   assert.equal(ADAPTER_ID, "claude");
-});
 
-function adapterCapability(id) {
-  return createClaudeHostAdapter().capabilities[id];
-}
+  // Fixture-only default adapter never claims enforced.
+  const fixtureOnly = createClaudeHostAdapter();
+  for (const id of Object.keys(material)) {
+    assert.notEqual(fixtureOnly.capabilities[id], "enforced");
+  }
+});
 
 test("inactive stubs cannot be loaded as executable adapters", () => {
   assert.throws(() => getAdapterFactory("codex"), (err) => err.code === "inactive-adapter-stub");

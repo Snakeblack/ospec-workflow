@@ -265,12 +265,12 @@ function assertPublicApiConformance({ usedRunKernelOperation, usedReducerOnly })
  *
  * @param {{adapter:object, fixtures?:object[], proof_material?:object}} input
  */
-function peerHostFaultMatrix(input) {
+async function peerHostFaultMatrix(input) {
   const {
     runHostFaultMatrix,
     KIND: conformanceKind,
   } = require("./headless-conformance-host.js");
-  const matrix = runHostFaultMatrix(input || {});
+  const matrix = await runHostFaultMatrix(input || {});
   return {
     harness_kind: HARNESS_KIND,
     peer_kind: conformanceKind,
@@ -279,6 +279,33 @@ function peerHostFaultMatrix(input) {
     owns_product_host_activation: false,
     fault_driver: "headless-conformance-host",
     matrix,
+  };
+}
+
+/**
+ * Evaluate host-fault coverage using only Minimal Kernel Harness fixtures
+ * (no Headless Conformance Host peer). Coverage MUST remain incomplete.
+ *
+ * @param {{peer_wired?:boolean, fault_driver?:string|null, faults_exercised?:string[]}} input
+ */
+function evaluateHarnessAloneHostFaultCoverage(input = {}) {
+  const peerWired = input.peer_wired === true;
+  const faultDriver = input.fault_driver || null;
+  const faults = Array.isArray(input.faults_exercised) ? input.faults_exercised : [];
+
+  if (peerWired && faultDriver === "headless-conformance-host") {
+    return {
+      complete: faults.length >= 4,
+      reason_code: faults.length >= 4 ? null : "host-fault-coverage-incomplete",
+      peer_wired: true,
+    };
+  }
+
+  return {
+    complete: false,
+    reason_code: "host-fault-coverage-incomplete",
+    peer_wired: false,
+    harness_kind: HARNESS_KIND,
   };
 }
 
@@ -294,6 +321,7 @@ module.exports = {
   snapshotRoundTrip,
   assertPublicApiConformance,
   peerHostFaultMatrix,
+  evaluateHarnessAloneHostFaultCoverage,
   createMemoryStore,
   createAuthorityStore,
   runKernelOperation,

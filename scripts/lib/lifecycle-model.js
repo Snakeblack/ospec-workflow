@@ -373,7 +373,7 @@ function checkK2aNoSilentPromotion() {
 }
 
 function checkK2aEnforcedRequiresProof() {
-  const { evaluateEnforcementEligibility, verifyCapabilityProof } = require("./capability-proof/index.js");
+  const { evaluateEnforcementEligibility, verifyCapabilityProof, REASON } = require("./capability-proof/index.js");
   const missing = evaluateEnforcementEligibility({
     capability_id: "ExecutionTransport",
     declared_state: "enforced",
@@ -381,23 +381,32 @@ function checkK2aEnforcedRequiresProof() {
   if (missing.enforced) {
     return { ok: false, invariant_id: "inv-k2a-enforced-requires-proof", detail: "declared-only" };
   }
-  // Concrete artifact: missing evidence_digest fails (not opaque).
-  const incomplete = verifyCapabilityProof(
-    "ExecutionTransport",
-    {
+  // Concrete artifact: missing evidence_digest fails (not opaque) when live expected fields present.
+  const incomplete = verifyCapabilityProof({
+    capabilityId: "ExecutionTransport",
+    expectedAdapterId: "claude",
+    expectedAdapterVersion: "1.0.0",
+    expectedHostRuntimeVersion: "k2a-host/1",
+    expectedProbeDigest: "sha256:probe-live-distinct",
+    proof: {
+      adapter_id: "claude",
       adapter_version: "1.0.0",
       host_version: "k2a-host/1",
       fixture: "f.json",
+      probe_digest: "sha256:probe-live-distinct",
     },
-    { a: 1 }
-  );
+    evidence: { a: 1 },
+  });
   if (incomplete.ok || incomplete.path !== "/evidence_digest") {
+    return { ok: false, invariant_id: "inv-k2a-enforced-requires-proof", detail: incomplete };
+  }
+  if (incomplete.reason_code !== REASON.PROOF_FIELD_MISSING) {
     return { ok: false, invariant_id: "inv-k2a-enforced-requires-proof", detail: incomplete };
   }
   return { ok: true, invariant_id: "inv-k2a-enforced-requires-proof" };
 }
 
-function checkK2aRejectDuplication() {
+async function checkK2aRejectDuplication() {
   const { runConformanceScenario, REASON } = require("./headless-conformance-host.js");
   const baseTransports = {
     ExecutionTransport: { port_id: "e" },
@@ -406,7 +415,7 @@ function checkK2aRejectDuplication() {
     ToolExecutionTransport: { port_id: "t" },
     DeliveryGateTransport: { port_id: "d" },
   };
-  const lifecycle = runConformanceScenario({
+  const lifecycle = await runConformanceScenario({
     scenario_id: "model-dup-lifecycle",
     seed: 0,
     adapter: {
@@ -420,7 +429,7 @@ function checkK2aRejectDuplication() {
       },
     },
   });
-  const graph = runConformanceScenario({
+  const graph = await runConformanceScenario({
     scenario_id: "model-dup-graph",
     seed: 0,
     adapter: {
@@ -447,10 +456,10 @@ function checkK2aSoleClaudeAdapter() {
   };
 }
 
-function checkK2aHostFaultMatrix() {
+async function checkK2aHostFaultMatrix() {
   const { peerHostFaultMatrix } = require("./minimal-kernel-harness.js");
   const { createClaudeHostAdapter } = require("./host-adapters/claude.js");
-  const peer = peerHostFaultMatrix({ adapter: createClaudeHostAdapter() });
+  const peer = await peerHostFaultMatrix({ adapter: createClaudeHostAdapter() });
   const faults = peer.matrix.faults_covered || [];
   const required = ["timeout", "cancel", "worker-fail", "interrupt"];
   const ok =

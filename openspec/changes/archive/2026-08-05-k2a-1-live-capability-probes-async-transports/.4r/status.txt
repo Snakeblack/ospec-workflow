@@ -1,0 +1,29 @@
+ M openspec/memory/known-issues.md
+ M schemas/kernel/capability-proof/fixtures/invalid/missing-evidence-digest.json
+ M schemas/kernel/capability-proof/fixtures/invalid/missing-fixture.json
+ M schemas/kernel/capability-proof/fixtures/valid/minimal.json
+ M schemas/kernel/capability-proof/v1.schema.json
+ M schemas/kernel/contract-claims.json
+ M schemas/kernel/manifest.json
+ M scripts/lib/capability-proof/index.js
+ M scripts/lib/capability-proof/index.test.js
+ M scripts/lib/headless-conformance-host.js
+ M scripts/lib/headless-conformance-host.test.js
+ M scripts/lib/host-adapters/claude.js
+ M scripts/lib/host-adapters/claude.test.js
+ M scripts/lib/host-adapters/registry.test.js
+ M scripts/lib/host-contract/index.js
+ M scripts/lib/host-contract/index.test.js
+ M scripts/lib/k1-scope-guard.test.js
+ M scripts/lib/k2a-schema-fixtures.test.js
+ M scripts/lib/lifecycle-kernel/host-boundary.js
+ M scripts/lib/lifecycle-kernel/host-boundary.test.js
+ M scripts/lib/lifecycle-kernel/k1-compat.js
+ M scripts/lib/lifecycle-model.js
+ M scripts/lib/minimal-kernel-harness.js
+ M scripts/lib/minimal-kernel-harness.test.js
+?? openspec/changes/k2a-1-live-capability-probes-async-transports/
+?? openspec/memory/handoff-pre-k3-correctives.md
+?? schemas/kernel/transport-failure/
+?? schemas/kernel/transport-outcome/
+?? schemas/kernel/transport-request/
