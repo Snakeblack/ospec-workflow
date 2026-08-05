@@ -6,9 +6,12 @@ const test = require("node:test");
 const {
   createPermitLedger,
   mintOperationPermit,
+  issueOperationPermit,
   authorizeMutation,
   authorizeOperationWithPermit,
   consumePermit,
+  prepareOperationReceipt,
+  findReplayReceipt,
   assertNotReceiptV1,
 } = require("./permits.js");
 const { authorizeOperation } = require("./operations.js");
@@ -283,4 +286,159 @@ test("requested operation mismatch against ledger-backed permit fails closed", (
     arguments: { node_id: "n1" },
   });
   assert.equal(ok.ok, true);
+});
+
+const OFFER = Object.freeze({
+  kind: "transition-offer/v1",
+  operation: "start",
+  subject_id: "lifecycle:default",
+});
+
+test("issueOperationPermit produces permit from offer plus policy decision", () => {
+  const ledger = createPermitLedger();
+  const issued = issueOperationPermit({
+    ledger,
+    transitionOffer: OFFER,
+    expected_revision: HEAD,
+    subject_id: "lifecycle:default",
+    policyDecision: {
+      kind: "policy-decision/v1",
+      decision_id: "pol:1",
+      operation: "start",
+      subject_id: "lifecycle:default",
+    },
+  });
+  assert.equal(issued.ok, true);
+  assert.equal(issued.permit.kind, "operation-permit/v1");
+  assert.equal(issued.permit.expected_revision, HEAD);
+  assert.equal(issued.permit.operation, "start");
+  assert.equal(issued.permit.single_use, true);
+  assert.ok(ledger.has(issued.permit.permit_id));
+});
+
+test("issueOperationPermit rejects offer-only without decision (issuer-decision-required)", () => {
+  const ledger = createPermitLedger();
+  const result = issueOperationPermit({
+    ledger,
+    transitionOffer: OFFER,
+    expected_revision: HEAD,
+    subject_id: "lifecycle:default",
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "issuer-decision-required");
+  assert.equal(ledger._entries.size, 0);
+});
+
+test("issueOperationPermit rejects ambiguous multiple decisions", () => {
+  const ledger = createPermitLedger();
+  const result = issueOperationPermit({
+    ledger,
+    transitionOffer: OFFER,
+    expected_revision: HEAD,
+    subject_id: "lifecycle:default",
+    policyDecision: { kind: "policy-decision/v1", decision_id: "pol:1" },
+    humanDecision: { kind: "human-decision/v1", decision_id: "hum:1" },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "issuer-decision-ambiguous");
+  assert.equal(ledger._entries.size, 0);
+});
+
+test("issueOperationPermit accepts humanDecision or kernelRule alone", () => {
+  const ledger = createPermitLedger();
+  const human = issueOperationPermit({
+    ledger,
+    transitionOffer: OFFER,
+    expected_revision: HEAD,
+    subject_id: "lifecycle:default",
+    humanDecision: { kind: "human-decision/v1", decision_id: "hum:2" },
+  });
+  assert.equal(human.ok, true);
+  assert.ok(ledger.has(human.permit.permit_id));
+
+  const ledger2 = createPermitLedger();
+  const rule = issueOperationPermit({
+    ledger: ledger2,
+    transitionOffer: OFFER,
+    expected_revision: HEAD,
+    subject_id: "lifecycle:default",
+    kernelRule: { kind: "kernel-rule/v1", rule_id: "rule:fixture-start" },
+  });
+  assert.equal(rule.ok, true);
+  assert.ok(ledger2.has(rule.permit.permit_id));
+});
+
+test("issueOperationPermit rejects invalid decision DTO kind", () => {
+  const ledger = createPermitLedger();
+  const result = issueOperationPermit({
+    ledger,
+    transitionOffer: OFFER,
+    expected_revision: HEAD,
+    subject_id: "lifecycle:default",
+    policyDecision: { kind: "policy-decision/v0", decision_id: "pol:bad" },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "issuer-decision-required");
+});
+
+test("findReplayReceipt binds arguments_digest; non-identical args are not replay", () => {
+  const ledger = createPermitLedger();
+  const argsA = { node_id: "n1" };
+  const argsB = { node_id: "n2" };
+  const digestA = sha256Fingerprint("permit:arguments", argsA);
+  const digestB = sha256Fingerprint("permit:arguments", argsB);
+  const permit = mintOperationPermit({
+    ledger,
+    operation: "start",
+    expected_revision: HEAD,
+    subject_id: "lifecycle:default",
+    arguments: argsA,
+  });
+  const receipt = prepareOperationReceipt({
+    permit_id: permit.permit_id,
+    subject_id: "lifecycle:default",
+    operation: "start",
+    expected_revision: HEAD,
+    outcome: "advanced",
+  });
+  const authority = {
+    permits: { [permit.permit_id]: { permit_id: permit.permit_id, status: "consumed" } },
+    receipts: { [permit.permit_id]: receipt },
+  };
+
+  const exact = findReplayReceipt(authority, permit, "start", "lifecycle:default", digestA);
+  assert.ok(exact);
+  assert.equal(exact.receipt_id, receipt.receipt_id);
+
+  const mismatched = findReplayReceipt(authority, permit, "start", "lifecycle:default", digestB);
+  assert.equal(mismatched, null);
+});
+
+test("authorizeMutation fails closed with permit-reuse when bag shows consumed", () => {
+  const ledger = createPermitLedger();
+  const permit = mintOperationPermit({
+    ledger,
+    operation: "start",
+    expected_revision: HEAD,
+    subject_id: "lifecycle:default",
+    arguments: { node_id: "n1" },
+  });
+  // Simulate restart: empty process Map, bag already consumed without matching replay receipt path.
+  const emptyLedger = createPermitLedger();
+  const authority = {
+    permits: { [permit.permit_id]: { permit_id: permit.permit_id, status: "consumed" } },
+    receipts: {},
+  };
+
+  const reuse = authorizeMutation({
+    permit,
+    headRevision: HEAD,
+    ledger: emptyLedger,
+    authority,
+    operation: "start",
+    subject_id: "lifecycle:default",
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(reuse.ok, false);
+  assert.equal(reuse.code, "permit-reuse");
 });

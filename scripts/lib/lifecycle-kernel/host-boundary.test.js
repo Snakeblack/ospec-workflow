@@ -96,7 +96,6 @@ test("host port failure does not bypass permit+CAS requirements", async () => {
     operation: "status",
     arguments: {},
     store,
-    mintPermit: true,
   });
   assert.ok(result);
   assert.equal(result.outcome === "advanced" || result.outcome === "ready" || typeof result.state_digest === "string", true);

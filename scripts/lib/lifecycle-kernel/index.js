@@ -14,14 +14,16 @@ const { validateOperationTransition } = require("./operations.js");
 const { createMemoryStore } = require("./memory-store.js");
 const {
   createPermitLedger,
-  mintOperationPermit,
-  consumePermit,
+  issueOperationPermit,
   authorizeOperationWithPermit,
+  prepareOperationReceipt,
+  findReplayReceipt,
 } = require("./permits.js");
 const {
   DEFAULT_SUBJECT_ID,
   createAuthorityStore,
 } = require("../authority-store/index.js");
+const { sha256Fingerprint } = require("../canonical-json.js");
 const {
   requireEffectClass,
   applyEffectPolicy,
@@ -81,7 +83,7 @@ async function runKernelOperation(input = {}) {
     permitLedger = null,
     operationPermit = null,
     transitionOffer = null,
-    mintPermit = true,
+    mintPermit = false,
     irreversibleAmbiguousNext = "decide",
     effect_class = null,
   } = input;
@@ -105,9 +107,15 @@ async function runKernelOperation(input = {}) {
   const state = loaded.state || { schema_version: 1, status: "ready", nodes: {} };
   let journal = Array.isArray(loaded.journal) ? [...loaded.journal] : [];
   const headRevision = loaded.revision;
+  const authorityBag = loaded.authority || { permits: {}, receipts: {} };
   let midOpTicket = null;
   async function persistJournal() {
     const jr = await authorityStore.commitJournal(journal, subjectId, headRevision);
+    if (!jr || jr.ok === false) {
+      const err = new Error(jr?.code || "journal-commit-failed");
+      err.code = jr?.code || "journal-commit-failed";
+      throw err;
+    }
     if (jr.mid_op_ticket) midOpTicket = jr.mid_op_ticket;
   }
 
@@ -133,19 +141,46 @@ async function runKernelOperation(input = {}) {
     };
   }
 
-  const ledger = permitLedger || createPermitLedger();
-  let permit = operationPermit;
-
-  if (!permit && mintPermit === true) {
-    permit = mintOperationPermit({
-      ledger,
-      domain: "lifecycle",
-      operation,
-      subject_id: subjectId,
-      expected_revision: headRevision,
-      arguments: args,
-      budget_ref: input.budget_ref || "budget:none",
+  // K2.1b: public auto-mint is rejected; controlled issuer is the only issuance path.
+  if (mintPermit === true) {
+    return blockedResult(state, journal, "auto-mint-disabled", {
+      revision: headRevision,
+      operation_receipt: null,
     });
+  }
+
+  const ledger = permitLedger || createPermitLedger();
+  const permit = operationPermit || null;
+  const argumentsDigest = sha256Fingerprint("permit:arguments", args);
+
+  // Exact replay: consumed permit + matching receipt in authority bag → return prior receipt.
+  const replayReceipt = findReplayReceipt(
+    authorityBag,
+    permit,
+    operation,
+    subjectId,
+    argumentsDigest
+  );
+  if (replayReceipt) {
+    const events = projectEvents({ state, journal });
+    const transitions = selectTransitions(state);
+    return {
+      schema_version: 1,
+      kernel_version: KERNEL_VERSION,
+      state_digest: digestLifecycleState(state),
+      status: {
+        lifecycle_status: state.status,
+        nodes: state.nodes || {},
+      },
+      transitions,
+      next_transition: nextTransition(state),
+      outcome: replayReceipt.outcome || "advanced",
+      events,
+      revision: headRevision,
+      operation_permit_id: permit.permit_id,
+      operation_receipt: replayReceipt,
+      replayed: true,
+    };
   }
 
   const auth = authorizeOperationWithPermit({
@@ -157,6 +192,8 @@ async function runKernelOperation(input = {}) {
     transitionOffer,
     subject_id: subjectId,
     arguments: args,
+    arguments_digest: argumentsDigest,
+    authority: authorityBag,
   });
   if (!auth.ok) return blockedResult(state, journal, auth.code);
 
@@ -433,12 +470,27 @@ async function runKernelOperation(input = {}) {
   const budgetsBefore = typeof authorityStore.getBudgets === "function"
     ? authorityStore.getBudgets(subjectId)
     : null;
+
+  const receipt = prepareOperationReceipt({
+    permit_id: permit.permit_id,
+    subject_id: subjectId,
+    operation,
+    expected_revision: headRevision,
+    outcome: reduced.outcome,
+  });
+  const authorityCommit = {
+    permit_id: permit.permit_id,
+    receipt,
+    status: "consumed",
+  };
+
   const cas = await authorityStore.compareAndSwap(
     subjectId,
     headRevision,
     reduced.state,
     journal,
-    midOpTicket
+    midOpTicket,
+    authorityCommit
   );
   if (!cas.ok) {
     return blockedResult(state, journal, cas.code || "cas-conflict", {
@@ -446,18 +498,29 @@ async function runKernelOperation(input = {}) {
       revision: cas.revision,
       budgets: cas.budgets || budgetsBefore,
       budgets_unchanged: true,
+      operation_receipt: null,
     });
   }
   await checkpoint(hooks, "after-state-commit", { operation_id: operationId });
 
-  const consumed = consumePermit({
-    permit_id: permit.permit_id,
-    ledger,
-    subject_id: subjectId,
-    operation,
-    revision: cas.revision,
-    outcome: reduced.outcome,
-  });
+  // Process-local Map is issued-only mirror; bag is sole consume truth after CAS.
+  if (typeof ledger.markConsumed === "function") {
+    ledger.markConsumed(permit.permit_id);
+  }
+
+  const committedReceipt =
+    cas.operation_receipt ||
+    (await authorityStore.load(subjectId)).authority?.receipts?.[permit.permit_id] ||
+    null;
+  if (!committedReceipt) {
+    return blockedResult(reduced.state, journal, "authority-commit-incomplete", {
+      operation_id: operationId,
+      revision: cas.revision,
+      budgets: cas.budgets || budgetsBefore,
+      budgets_unchanged: true,
+      operation_receipt: null,
+    });
+  }
 
   const events = projectEvents({ state: reduced.state, journal });
   const transitions = selectTransitions(reduced.state);
@@ -478,7 +541,7 @@ async function runKernelOperation(input = {}) {
     effects: effectRecords,
     revision: cas.revision,
     operation_permit_id: permit.permit_id,
-    operation_receipt: consumed.ok ? consumed.receipt : null,
+    operation_receipt: committedReceipt,
   };
 }
 
@@ -509,7 +572,7 @@ module.exports = {
   createMemoryStore,
   createAuthorityStore,
   createPermitLedger,
-  mintOperationPermit,
+  issueOperationPermit,
   reduceLifecycle,
   digestLifecycleState,
   selectTransitions,

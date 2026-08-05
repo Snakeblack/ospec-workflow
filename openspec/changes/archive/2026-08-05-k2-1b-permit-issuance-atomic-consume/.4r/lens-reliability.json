@@ -1,0 +1,24 @@
+{
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "summary": "compareAndSwap awaits inner.commit before writing the authority bag; concurrent load/snapshot can observe advanced head without consume+receipt.",
+      "acceptance_criteria": "Permit-authorized CAS MUST never expose load()/snapshot() with advanced state/journal lacking matching consumed permit+receipt; add an interleaving/observable-atomicity test."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "Exact-replay does not validate arguments_digest/other digests before returning the prior OperationReceipt.",
+      "acceptance_criteria": "Same permit/operation with different arguments MUST NOT short-circuit as exact replay; add negative test."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "permit-reuse does not consult authority bag consumed status after findReplayReceipt misses.",
+      "acceptance_criteria": "Bag-consumed without matching receipt MUST fail closed with permit-reuse (including after restart with empty issued Map); add test."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "Restart recovery tests only assert load() after snapshot→initial; public runKernelOperation exact-replay after restart is unverified.",
+      "acceptance_criteria": "After restart with empty issued ledger, runKernelOperation exact replay MUST return prior receipt without re-running effects; add test."
+    }
+  ]
+}

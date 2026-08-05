@@ -1,0 +1,8 @@
+{
+  "status": "migration-required",
+  "next_action": {
+    "type": "migrate-remediation-v2"
+  },
+  "dispatch": [],
+  "archive_allowed": false
+}

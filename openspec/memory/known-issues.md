@@ -1,7 +1,14 @@
 ---
 title: Known Issues
-last_updated: 2026-08-04
+last_updated: 2026-08-05
 ---
+
+## Type-only re-export smoke for issueOperationPermit
+- severity: WARNING
+- area: scripts/lib/lifecycle-kernel/index.test.js:341 (task 2.4)
+- workaround: assert a call through the kernel re-export returns a permit with expected_revision/operation (behavior already covered in permits.test.js)
+- change: k2-1b-permit-issuance-atomic-consume
+- date: 2026-08-05
 
 ## Harness-alone host-fault incompleteness lacks explicit negative runtime test
 - severity: WARNING

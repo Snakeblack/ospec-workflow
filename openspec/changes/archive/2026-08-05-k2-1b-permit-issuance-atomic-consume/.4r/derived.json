@@ -1,0 +1,254 @@
+{
+  "schema_version": 1,
+  "classification": "high-risk",
+  "evidence": {
+    "schema_version": 1,
+    "fingerprint": "sha256:856e58e0395d49f9cc134f3df4ca237213d9a6dbc4145a6e6b9adbb2ea82a4b2",
+    "sources": {
+      "paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/apply-progress.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-001.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-002.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/design.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/proposal.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/authority-store/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/harness-authority-canon/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-kernel-runtime/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-model-conformance/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/minimal-kernel-harness/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/operation-permits/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/state.yaml",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/tasks.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/verify-report.md",
+        "openspec/memory/known-issues.md",
+        "scripts/lib/authority-store/index.js",
+        "scripts/lib/authority-store/index.test.js",
+        "scripts/lib/lifecycle-kernel/host-boundary.test.js",
+        "scripts/lib/lifecycle-kernel/index.js",
+        "scripts/lib/lifecycle-kernel/index.test.js",
+        "scripts/lib/lifecycle-kernel/permits.js",
+        "scripts/lib/lifecycle-kernel/permits.test.js",
+        "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/lifecycle-model.test.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "capabilities": [
+        "agents",
+        "routing",
+        "runtime",
+        "skills",
+        "strict-tdd"
+      ],
+      "operation_types": [
+        "add",
+        "modify"
+      ],
+      "dependencies": [
+        "scripts/lib/authority-store/index.js",
+        "scripts/lib/canonical-json.js",
+        "scripts/lib/lifecycle-kernel/journal.js",
+        "scripts/lib/lifecycle-kernel/state-digest.js"
+      ],
+      "facts": [
+        {
+          "code": "dependency-change",
+          "source": "dependency",
+          "detail": "scripts/lib/authority-store/index.js,scripts/lib/canonical-json.js,scripts/lib/lifecycle-kernel/journal.js,scripts/lib/lifecycle-kernel/state-digest.js"
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "K2.1b must not invent K2a capability probes, K3 Candidate freeze, or multi-process durable ledger."
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "Models must not mint or self-grant OperationPermit; issuer is controlled TransitionOffer+decision/rule+revision."
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "Permit consumed + OperationReceipt must co-commit in same CAS revision as state/journal (CRITICAL 2)."
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "Public runKernelOperation must default mintPermit=false; auto-mint rejected (CRITICAL 1)."
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "Revision fingerprint remains state_digest+journal_digest; authority bag co-committed outside hash (sdd-design-002 confirmed)."
+        },
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime"
+        },
+        {
+          "code": "diff-auth-permission",
+          "source": "real-diff",
+          "detail": "scripts/lib/authority-store/index.js,scripts/lib/lifecycle-kernel/index.js,scripts/lib/lifecycle-kernel/permits.js,scripts/lib/lifecycle-model.js"
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/lifecycle-kernel/test-permit-helpers.js"
+        }
+      ]
+    }
+  },
+  "generalist": {
+    "status": "needs-specialist",
+    "specialists": [
+      "risk",
+      "reliability",
+      "resilience"
+    ],
+    "reason": "signals=dependency-change,design-risk,diff-auth-permission,diff-error-flow,metadata-runtime;dimensions=risk,reliability,resilience"
+  },
+  "depth": {
+    "review": "strict"
+  },
+  "escalation_reason": null,
+  "dimensions": {
+    "risk": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "diff-auth-permission",
+          "source": "real-diff",
+          "detail": "scripts/lib/authority-store/index.js,scripts/lib/lifecycle-kernel/index.js,scripts/lib/lifecycle-kernel/permits.js,scripts/lib/lifecycle-model.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=dependency-change,design-risk,diff-auth-permission,diff-error-flow,metadata-runtime;dimensions=risk,reliability,resilience",
+          "precedence": 3
+        },
+        {
+          "code": "dependency-change",
+          "source": "dependency",
+          "detail": "scripts/lib/authority-store/index.js,scripts/lib/canonical-json.js,scripts/lib/lifecycle-kernel/journal.js,scripts/lib/lifecycle-kernel/state-digest.js",
+          "precedence": 4
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "K2.1b must not invent K2a capability probes, K3 Candidate freeze, or multi-process durable ledger.",
+          "precedence": 4
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "Models must not mint or self-grant OperationPermit; issuer is controlled TransitionOffer+decision/rule+revision.",
+          "precedence": 4
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "Permit consumed + OperationReceipt must co-commit in same CAS revision as state/journal (CRITICAL 2).",
+          "precedence": 4
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "Public runKernelOperation must default mintPermit=false; auto-mint rejected (CRITICAL 1).",
+          "precedence": 4
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "Revision fingerprint remains state_digest+journal_digest; authority bag co-committed outside hash (sdd-design-002 confirmed).",
+          "precedence": 4
+        }
+      ]
+    },
+    "reliability": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=dependency-change,design-risk,diff-auth-permission,diff-error-flow,metadata-runtime;dimensions=risk,reliability,resilience",
+          "precedence": 3
+        },
+        {
+          "code": "dependency-change",
+          "source": "dependency",
+          "detail": "scripts/lib/authority-store/index.js,scripts/lib/canonical-json.js,scripts/lib/lifecycle-kernel/journal.js,scripts/lib/lifecycle-kernel/state-digest.js",
+          "precedence": 4
+        },
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime",
+          "precedence": 5
+        }
+      ]
+    },
+    "resilience": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=dependency-change,design-risk,diff-auth-permission,diff-error-flow,metadata-runtime;dimensions=risk,reliability,resilience",
+          "precedence": 3
+        }
+      ]
+    },
+    "readability": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        }
+      ]
+    }
+  },
+  "selected_specialists": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ]
+}

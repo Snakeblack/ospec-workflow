@@ -880,6 +880,8 @@ No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
 - {implemented} K1 contract suite (vocabulario, schemas, clasificación, paridad; publicado v2.37.0).
 - {implemented} K2 lifecycle + Minimal Kernel Harness + model-based invariants (publicado v2.38.0).
 - {implemented} K2.1 Authority Store (`load`/`compareAndSwap`), OperationPermit/Receipt y clases de efecto (publicado v2.39.0).
+- {implemented} K2.1b controlled permit issuance (TransitionOffer + PolicyDecision|HumanDecision|KernelRule + expected_revision).
+- {implemented} K2.1b atomic CAS consume of permit status + OperationReceipt with next_state/next_journal.
 - {implemented} HostCapabilities + five transports (K2a).
 - {implemented} CapabilityProof (K2a).
 - {implemented} Headless Conformance Host (K2a).

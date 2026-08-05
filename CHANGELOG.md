@@ -8,6 +8,18 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.40.1] - 2026-08-05
+
+### Fixed
+- **K2.1b permit issuance**: `runKernelOperation` deja de auto-mintear (`mintPermit` default `false`); issuer controlado `issueOperationPermit` (TransitionOffer + PolicyDecision|HumanDecision|KernelRule + `expected_revision`).
+- **Consume atómico**: permit consumed + `OperationReceipt` co-commiteados en la misma revisión CAS que state/journal (authority bag); sin receipt efímero post-CAS.
+- **4R remediation**: CAS convergente co-escribe bag o fail-closed; bag materializado antes de `inner.commit` con rollback; `mintOperationPermit` fuera de la API pública; exact-replay liga `arguments_digest`; `permit-reuse` consulta bag; `persistJournal` respeta `commitJournal` `ok:false`.
+
+### Docs
+- Roadmap quick-path: deja de decir bare `Ejecutar K2a → K3` (WARNING5).
+- Specs baseline deltas en `operation-permits`, `authority-store`, `lifecycle-kernel-runtime`, harness/model/canon.
+- ADRs `adr-20260805-005`…`006`; change archivado en `openspec/changes/archive/2026-08-05-k2-1b-permit-issuance-atomic-consume/`.
+
 ## [2.40.0] - 2026-08-05
 
 ### Added

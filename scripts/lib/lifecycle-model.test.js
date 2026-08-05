@@ -7,6 +7,7 @@ const {
   MODEL_CONFIG,
   EXECUTABLE_INVARIANTS,
   K21_EXECUTABLE_INVARIANTS,
+  K21B_EXECUTABLE_INVARIANTS,
   K2A_EXECUTABLE_INVARIANTS,
   DEFERRED_INVARIANTS,
   exploreModel,
@@ -44,7 +45,10 @@ test("every executable invariant has a non-optional checker", async () => {
   const enforced = all.results.filter((r) => r.counts_as_enforced);
   assert.equal(
     enforced.length,
-    EXECUTABLE_INVARIANTS.length + K21_EXECUTABLE_INVARIANTS.length + K2A_EXECUTABLE_INVARIANTS.length
+    EXECUTABLE_INVARIANTS.length +
+      K21_EXECUTABLE_INVARIANTS.length +
+      K21B_EXECUTABLE_INVARIANTS.length +
+      K2A_EXECUTABLE_INVARIANTS.length
   );
   assert.equal(all.enforced_count, enforced.length);
   assert.equal(all.ok, true);
@@ -72,12 +76,15 @@ test("deferred invariants are listed but do not count as K2 enforcement", async 
   assert.ok(!all.results.some((r) => r.deferred === true && r.counts_as_enforced));
   assert.equal(
     all.enforced_count,
-    EXECUTABLE_INVARIANTS.length + K21_EXECUTABLE_INVARIANTS.length + K2A_EXECUTABLE_INVARIANTS.length
+    EXECUTABLE_INVARIANTS.length +
+      K21_EXECUTABLE_INVARIANTS.length +
+      K21B_EXECUTABLE_INVARIANTS.length +
+      K2A_EXECUTABLE_INVARIANTS.length
   );
 });
 
-test("K2.1 manifest lists seven executable invariants not on deferred list", async () => {
-  assert.equal(K21_EXECUTABLE_INVARIANTS.length, 7);
+test("K2.1 manifest lists nine executable invariants not on deferred list", async () => {
+  assert.equal(K21_EXECUTABLE_INVARIANTS.length, 9);
   const deferredIds = new Set(DEFERRED_INVARIANTS.map((d) => d.id));
   for (const inv of K21_EXECUTABLE_INVARIANTS) {
     assert.equal(deferredIds.has(inv.id), false);
@@ -85,7 +92,20 @@ test("K2.1 manifest lists seven executable invariants not on deferred list", asy
     assert.equal(result.ok, true, inv.id);
   }
   const all = await runAllInvariantCheckers();
-  assert.equal(all.k21_count, 7);
+  assert.equal(all.k21_count, 9);
+});
+
+test("K2.1b manifest lists five executable invariants not deferred", async () => {
+  assert.equal(K21B_EXECUTABLE_INVARIANTS.length, 5);
+  const deferredIds = new Set(DEFERRED_INVARIANTS.map((d) => d.id));
+  for (const inv of K21B_EXECUTABLE_INVARIANTS) {
+    assert.equal(deferredIds.has(inv.id), false, inv.id);
+    assert.equal(inv.optional, false, inv.id);
+    const result = await checkInvariant(inv.id);
+    assert.equal(result.ok, true, `${inv.id}: ${JSON.stringify(result)}`);
+  }
+  const all = await runAllInvariantCheckers();
+  assert.equal(all.k21b_count, 5);
 });
 
 test("K2a manifest lists six executable invariants not on deferred list", async () => {
