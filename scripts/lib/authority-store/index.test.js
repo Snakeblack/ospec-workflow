@@ -308,3 +308,268 @@ test("foreign commitJournal with copied journal but no ticket fails closed", asy
   assert.equal(forged.ok, false);
   assert.equal(forged.code, "cas-conflict");
 });
+
+function sampleReceipt(permitId, revision) {
+  return {
+    schema_version: 1,
+    kind: "operation-receipt/v1",
+    receipt_id: "sha256:receipt-sample-0001",
+    permit_id: permitId,
+    subject_id: DEFAULT_SUBJECT_ID,
+    operation: "start",
+    revision,
+    outcome: "advanced",
+  };
+}
+
+test("load and snapshot expose authority bag with permits and receipts", async () => {
+  const store = createAuthorityStore({
+    initial: {
+      state: pendingState(),
+      journal: [],
+      authority: { permits: {}, receipts: {} },
+    },
+  });
+  const loaded = await store.load();
+  assert.equal(loaded.ok, true);
+  assert.ok(loaded.authority);
+  assert.equal(typeof loaded.authority.permits, "object");
+  assert.equal(typeof loaded.authority.receipts, "object");
+
+  const snap = store.snapshot();
+  assert.ok(snap.authority);
+  assert.equal(typeof snap.authority.permits, "object");
+  assert.equal(typeof snap.authority.receipts, "object");
+});
+
+test("permit-authorized CAS requires authorityCommit; incomplete fails with head unchanged", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const before = await store.load();
+  // Explicit null / partial payload = permit-authorized intent without complete bag write.
+  const omitted = await store.compareAndSwap(
+    DEFAULT_SUBJECT_ID,
+    before.revision,
+    startedState(),
+    [],
+    null,
+    null
+  );
+  assert.equal(omitted.ok, false);
+  assert.equal(omitted.code, "authority-commit-incomplete");
+
+  const partial = await store.compareAndSwap(
+    DEFAULT_SUBJECT_ID,
+    before.revision,
+    startedState(),
+    [],
+    null,
+    { permit_id: "permit:runtime:partial", status: "consumed" }
+  );
+  assert.equal(partial.ok, false);
+  assert.equal(partial.code, "authority-commit-incomplete");
+
+  const after = await store.load();
+  assert.equal(after.revision, before.revision);
+  assert.equal(after.state.nodes.n1.phase, "pending");
+});
+
+test("winning CAS with authorityCommit atomically writes consumed permit and receipt", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const before = await store.load();
+  const permitId = "permit:runtime:0001";
+  const receipt = sampleReceipt(permitId, "pending");
+  const cas = await store.compareAndSwap(
+    DEFAULT_SUBJECT_ID,
+    before.revision,
+    startedState(),
+    [],
+    null,
+    {
+      permit_id: permitId,
+      receipt,
+      status: "consumed",
+    }
+  );
+  assert.equal(cas.ok, true);
+  assert.notEqual(cas.revision, before.revision);
+
+  const after = await store.load();
+  assert.equal(after.state.nodes.n1.phase, "started");
+  assert.equal(after.authority.permits[permitId].status, "consumed");
+  assert.equal(after.authority.receipts[permitId].receipt_id, receipt.receipt_id);
+  assert.equal(after.authority.receipts[permitId].kind, "operation-receipt/v1");
+
+  // Revision digest stays state+journal only (authority bag co-committed, not hashed).
+  assert.equal(after.revision, computeRevision(after.state, after.journal));
+});
+
+test("exact replay of permit-authorized CAS returns stored receipt without second advance", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const before = await store.load();
+  const permitId = "permit:runtime:replay-1";
+  const journal = [
+    {
+      schema_version: 1,
+      kernel_version: 1,
+      operation_id: "sha256:op-replay",
+      effect_id: "sha256:e-replay",
+      status: "completed",
+      result: { ok: true },
+    },
+  ];
+  const receipt = sampleReceipt(permitId, "pending");
+  const first = await store.compareAndSwap(
+    DEFAULT_SUBJECT_ID,
+    before.revision,
+    startedState(),
+    journal,
+    null,
+    { permit_id: permitId, receipt, status: "consumed" }
+  );
+  assert.equal(first.ok, true);
+  const head = await store.load();
+  const storedReceipt = head.authority.receipts[permitId];
+
+  const replay = await store.compareAndSwap(
+    DEFAULT_SUBJECT_ID,
+    head.revision,
+    startedState(),
+    journal,
+    null,
+    { permit_id: permitId, receipt, status: "consumed" }
+  );
+  assert.equal(replay.ok, true);
+  assert.equal(replay.converged, true);
+  assert.equal(replay.revision, head.revision);
+  assert.deepEqual(replay.operation_receipt, storedReceipt);
+
+  const after = await store.load();
+  assert.equal(after.revision, head.revision);
+  assert.equal(after.authority.receipts[permitId].receipt_id, storedReceipt.receipt_id);
+});
+
+test("in-process restart via snapshot/initial preserves authority bag", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const before = await store.load();
+  const permitId = "permit:runtime:restart-1";
+  const receipt = sampleReceipt(permitId, "pending");
+  await store.compareAndSwap(
+    DEFAULT_SUBJECT_ID,
+    before.revision,
+    startedState(),
+    [],
+    null,
+    { permit_id: permitId, receipt, status: "consumed" }
+  );
+  const snap = store.snapshot();
+  assert.ok(snap.authority.permits[permitId]);
+  assert.ok(snap.authority.receipts[permitId]);
+
+  const restored = createAuthorityStore({ initial: snap });
+  const loaded = await restored.load();
+  assert.equal(loaded.authority.permits[permitId].status, "consumed");
+  assert.equal(loaded.authority.receipts[permitId].receipt_id, receipt.receipt_id);
+  assert.equal(loaded.state.nodes.n1.phase, "started");
+});
+
+test("convergent permit-authorized CAS without bag receipt co-writes or fails closed", async () => {
+  const store = createAuthorityStore({ initial: { state: startedState(), journal: [] } });
+  const head = await store.load();
+  const permitId = "permit:runtime:converge-heal";
+  const receipt = sampleReceipt(permitId, head.revision);
+
+  // State+journal already match next → convergent path; bag lacks consume+receipt.
+  const cas = await store.compareAndSwap(
+    DEFAULT_SUBJECT_ID,
+    head.revision,
+    startedState(),
+    [],
+    null,
+    { permit_id: permitId, receipt, status: "consumed" }
+  );
+  assert.equal(cas.ok, true);
+  assert.equal(cas.converged, true);
+  assert.ok(cas.operation_receipt);
+  assert.equal(cas.operation_receipt.receipt_id, receipt.receipt_id);
+
+  const after = await store.load();
+  assert.equal(after.authority.permits[permitId].status, "consumed");
+  assert.equal(after.authority.receipts[permitId].receipt_id, receipt.receipt_id);
+});
+
+test("permit-authorized CAS never exposes advanced head without matching consume+receipt", async () => {
+  const { createMemoryStore } = require("../lifecycle-kernel/memory-store.js");
+  const observations = [];
+  const inner = createMemoryStore({ state: pendingState(), journal: [] });
+  const origCommit = inner.commit.bind(inner);
+  let store;
+
+  inner.commit = async (payload) => {
+    const result = await origCommit(payload);
+    // Yield so a concurrent load/snapshot can observe mid-CAS.
+    await new Promise((resolve) => {
+      queueMicrotask(async () => {
+        observations.push(await store.load());
+        observations.push(store.snapshot());
+        resolve();
+      });
+    });
+    return result;
+  };
+
+  store = createAuthorityStore({ store: inner, initial: { state: pendingState(), journal: [] } });
+  const before = await store.load();
+  const permitId = "permit:runtime:atomic-obs";
+  const receipt = sampleReceipt(permitId, "pending");
+  const cas = await store.compareAndSwap(
+    DEFAULT_SUBJECT_ID,
+    before.revision,
+    startedState(),
+    [],
+    null,
+    { permit_id: permitId, receipt, status: "consumed" }
+  );
+  assert.equal(cas.ok, true);
+  assert.ok(observations.length >= 2);
+
+  for (const mid of observations) {
+    const advanced =
+      mid.state && mid.state.nodes && mid.state.nodes.n1 && mid.state.nodes.n1.phase === "started";
+    if (!advanced) continue;
+    assert.equal(mid.authority.permits[permitId].status, "consumed");
+    assert.ok(mid.authority.receipts[permitId]);
+    assert.equal(mid.authority.receipts[permitId].receipt_id, receipt.receipt_id);
+  }
+});
+
+test("failure during authority bag materialization does not leave orphan head", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const before = await store.load();
+  const permitId = "permit:runtime:bag-boom";
+  const receipt = sampleReceipt(permitId, "pending");
+  Object.defineProperty(receipt, "poison", {
+    enumerable: true,
+    get() {
+      throw new Error("bag-materialization-failed");
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      store.compareAndSwap(
+        DEFAULT_SUBJECT_ID,
+        before.revision,
+        startedState(),
+        [],
+        null,
+        { permit_id: permitId, receipt, status: "consumed" }
+      ),
+    /bag-materialization-failed/
+  );
+
+  const after = await store.load();
+  assert.equal(after.revision, before.revision);
+  assert.equal(after.state.nodes.n1.phase, "pending");
+  assert.deepEqual(Object.keys(after.authority.permits), []);
+  assert.deepEqual(Object.keys(after.authority.receipts), []);
+});

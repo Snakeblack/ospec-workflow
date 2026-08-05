@@ -388,3 +388,88 @@ test("K2a: fixed-policy and K2.1 authority fixtures remain green with host-contr
   assert.equal(cas.loser_ok, false);
   assert.equal(cas.loser_code, "cas-conflict");
 });
+
+test("K2.1b: positive companion issues permit via controlled issuer (mintPermit default false)", async () => {
+  const positive = await runHarnessScenario({
+    id: "k21b-issuer-first-positive",
+    initialState: pendingState,
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+  });
+  assert.equal(positive.snapshot.state.nodes.n1.phase, "started");
+  assert.ok(positive.operations[0].operation_permit_id);
+  assert.ok(positive.operations[0].operation_receipt);
+  assert.equal(
+    positive.snapshot.authority.permits[positive.operations[0].operation_permit_id].status,
+    "consumed"
+  );
+});
+
+test("K2.1b: auto-mint convenience does not count as positive authorization", async () => {
+  const auto = await runHarnessScenario({
+    id: "k21b-auto-mint-not-positive",
+    initialState: pendingState,
+    operations: [{ operation: "start", arguments: { node_id: "n1" }, mintPermit: true }],
+  });
+  assert.equal(auto.outcome, "blocked");
+  assert.equal(auto.halted.code, "auto-mint-disabled");
+});
+
+test("K2.1b: atomic consume revision inspection via public harness", async () => {
+  const result = await runHarnessScenario({
+    id: "k21b-atomic-consume",
+    initialState: pendingState,
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+  });
+  const permitId = result.operations[0].operation_permit_id;
+  const receipt = result.operations[0].operation_receipt;
+  assert.equal(result.snapshot.state.nodes.n1.phase, "started");
+  assert.ok(Array.isArray(result.snapshot.journal));
+  assert.equal(result.snapshot.authority.permits[permitId].status, "consumed");
+  assert.equal(result.snapshot.authority.receipts[permitId].receipt_id, receipt.receipt_id);
+});
+
+test("K2.1b: exact replay receipt stability via public entrypoint", async () => {
+  const { createAuthorityStore, runKernelOperation } = require("./minimal-kernel-harness.js");
+  const { issueFixturePermit, createPermitLedger } = require("./lifecycle-kernel/test-permit-helpers.js");
+  const store = createAuthorityStore({ initial: { state: pendingState, journal: [] } });
+  const head = await store.load();
+  const issued = issueFixturePermit({
+    ledger: createPermitLedger(),
+    operation: "start",
+    headRevision: head.revision,
+    arguments: { node_id: "n1" },
+  });
+  const first = await runKernelOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    store,
+    operationPermit: issued.permit,
+    permitLedger: issued.ledger,
+    effectExecutor: async () => ({ ok: true }),
+  });
+  const replay = await runKernelOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    store,
+    operationPermit: issued.permit,
+    permitLedger: issued.ledger,
+    effectExecutor: async () => ({ ok: true }),
+  });
+  assert.equal(replay.operation_receipt.receipt_id, first.operation_receipt.receipt_id);
+  assert.equal(replay.replayed, true);
+});
+
+test("K2.1b: in-process restart keeps consumed permit and receipt verifiable", async () => {
+  const { createAuthorityStore } = require("./minimal-kernel-harness.js");
+  const first = await runHarnessScenario({
+    id: "k21b-restart-prep",
+    initialState: pendingState,
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+  });
+  const permitId = first.operations[0].operation_permit_id;
+  const receiptId = first.operations[0].operation_receipt.receipt_id;
+  const restored = createAuthorityStore({ initial: first.snapshot });
+  const loaded = await restored.load();
+  assert.equal(loaded.authority.permits[permitId].status, "consumed");
+  assert.equal(loaded.authority.receipts[permitId].receipt_id, receiptId);
+});

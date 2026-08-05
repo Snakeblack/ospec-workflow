@@ -1,0 +1,3451 @@
+diff --git a/docs/architecture/harness-evolution.md b/docs/architecture/harness-evolution.md
+index bdac482..2edb2d7 100644
+--- a/docs/architecture/harness-evolution.md
++++ b/docs/architecture/harness-evolution.md
+@@ -880,6 +880,8 @@ No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
+ - {implemented} K1 contract suite (vocabulario, schemas, clasificación, paridad; publicado v2.37.0).
+ - {implemented} K2 lifecycle + Minimal Kernel Harness + model-based invariants (publicado v2.38.0).
+ - {implemented} K2.1 Authority Store (`load`/`compareAndSwap`), OperationPermit/Receipt y clases de efecto (publicado v2.39.0).
++- {implemented} K2.1b controlled permit issuance (TransitionOffer + PolicyDecision|HumanDecision|KernelRule + expected_revision).
++- {implemented} K2.1b atomic CAS consume of permit status + OperationReceipt with next_state/next_journal.
+ - {implemented} HostCapabilities + five transports (K2a).
+ - {implemented} CapabilityProof (K2a).
+ - {implemented} Headless Conformance Host (K2a).
+diff --git a/docs/roadmaps/harness-evolution.md b/docs/roadmaps/harness-evolution.md
+index 4f6b6da..f36d8d4 100644
+--- a/docs/roadmaps/harness-evolution.md
++++ b/docs/roadmaps/harness-evolution.md
+@@ -48,7 +48,7 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
+ 
+ | Orden | Acción | Gate de salida |
+ | ---: | --- | --- |
+-| 1 | Ejecutar K2a → K3 | Headless Conformance Host + adapter real + cuatro identidades y relación básica |
++| 1 | Completar correctivos K2.1b (issuance+atomic consume) y k2a-1 (probes/async) → luego Ejecutar K3 | Correctivos de autoridad/host antes de cuatro identidades + Candidate freeze + relación básica |
+ | 2 | Ejecutar K4a → K5 → K6a → K4b | Graph + Obligation Manifest + budgets (autoridad/efectos) + aislamiento + shadow con Candidate |
+ | 3 | Ejecutar K6b→K6d → K7 → K8 | Verify/provenance/challenges/review authority + Candidate Evaluation Attestation |
+ | 4 | Ejecutar K9 | Calidad no inferior, replay y fallback fixed (checkpoints intermedios ya emitidos) |
+@@ -70,6 +70,8 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
+ | `done` | **K2** | Lifecycle + Minimal Kernel Harness + model-based invariants; archivado y publicado en v2.38.0 |
+ | `done` | **K2.1** | Authority Store (CAS), OperationPermit/Receipt y semántica de efectos; archivado y publicado en v2.39.0 |
+ | `done` | **K2a** | Headless Conformance Host + Claude adapter + CapabilityProof; archivado y publicado en v2.40.0 |
++| `in-progress` | **K2.1b** | Controlled issuer + atomic CAS consume/receipt (corrective pre-K3) |
++| `pending` | **k2a-1** | Live capability probes + async transports (corrective pre-K3) |
+ | `pending` | **K3** | Cuatro identidades + Candidate freeze + relación básica (`exact`/`changed`/`ambiguous`/`unknown`) |
+ | `pending` | K4a | Graph compiler + Obligation Manifest + replay (sin worker autoritativo) |
+ | `pending` | K5 | Budgets (incl. autoridad/efectos), failures y recovery |
+diff --git a/openspec/memory/known-issues.md b/openspec/memory/known-issues.md
+index 0491dd4..4eeccde 100644
+--- a/openspec/memory/known-issues.md
++++ b/openspec/memory/known-issues.md
+@@ -1,8 +1,15 @@
+ ---
+ title: Known Issues
+-last_updated: 2026-08-04
++last_updated: 2026-08-05
+ ---
+ 
++## Type-only re-export smoke for issueOperationPermit
++- severity: WARNING
++- area: scripts/lib/lifecycle-kernel/index.test.js:341 (task 2.4)
++- workaround: assert a call through the kernel re-export returns a permit with expected_revision/operation (behavior already covered in permits.test.js)
++- change: k2-1b-permit-issuance-atomic-consume
++- date: 2026-08-05
++
+ ## Harness-alone host-fault incompleteness lacks explicit negative runtime test
+ - severity: WARNING
+ - area: scripts/lib/minimal-kernel-harness.test.js (REQ-minimal-kernel-harness-009)
+diff --git a/scripts/lib/authority-store/index.js b/scripts/lib/authority-store/index.js
+index 3184d59..6dd9386 100644
+--- a/scripts/lib/authority-store/index.js
++++ b/scripts/lib/authority-store/index.js
+@@ -22,6 +22,29 @@ function fail(code, extra = {}) {
+   return { ok: false, code, ...extra };
+ }
+ 
++function emptyAuthority() {
++  return { permits: {}, receipts: {} };
++}
++
++function cloneAuthority(authority) {
++  const src = authority && typeof authority === "object" ? authority : emptyAuthority();
++  return {
++    permits: JSON.parse(JSON.stringify(src.permits || {})),
++    receipts: JSON.parse(JSON.stringify(src.receipts || {})),
++  };
++}
++
++function isCompleteAuthorityCommit(authorityCommit) {
++  if (!authorityCommit || typeof authorityCommit !== "object") return false;
++  if (!authorityCommit.permit_id || typeof authorityCommit.permit_id !== "string") return false;
++  if (authorityCommit.status !== "consumed") return false;
++  const receipt = authorityCommit.receipt;
++  if (!receipt || typeof receipt !== "object") return false;
++  if (receipt.kind !== "operation-receipt/v1") return false;
++  if (!receipt.receipt_id || receipt.permit_id !== authorityCommit.permit_id) return false;
++  return true;
++}
++
+ function createAuthorityStore(options = {}) {
+   const defaultSubjectId = options.subjectId || DEFAULT_SUBJECT_ID;
+   const subjects = new Map();
+@@ -31,12 +54,14 @@ function createAuthorityStore(options = {}) {
+     if (subjectId !== defaultSubjectId && !initial) {
+       return null;
+     }
++    const seed = initial || options.initial || {};
+     const inner =
+       options.store && subjectId === defaultSubjectId
+         ? options.store
+-        : createMemoryStore(initial || options.initial || {});
++        : createMemoryStore(seed);
+     const entry = {
+       inner,
++      authority: cloneAuthority(seed.authority),
+       budgets: freezeBudgets(options.budgets),
+       baselines: new Map(),
+       midOpTicket: null,
+@@ -67,6 +92,7 @@ function createAuthorityStore(options = {}) {
+       revision,
+       state_digest: stateDigest,
+       budgets: cloneBudgets(entry.budgets),
++      authority: cloneAuthority(entry.authority),
+     };
+   }
+ 
+@@ -119,13 +145,34 @@ function createAuthorityStore(options = {}) {
+    * changing state; same-writer CAS succeeds when nextJournal matches the
+    * journal already persisted. A foreign commitJournal without that journal
+    * view fails closed.
++   *
++   * When authorityCommit is provided (including null), it MUST be a complete
++   * { permit_id, receipt, status: "consumed" } or CAS fails closed with
++   * authority-commit-incomplete and does not advance the head. Omitted
++   * (undefined) keeps non-permit CAS paths working for store unit tests.
+    */
+-  async function compareAndSwap(subjectId, expectedRevision, nextState, nextJournal, midOpTicket = null) {
++  async function compareAndSwap(
++    subjectId,
++    expectedRevision,
++    nextState,
++    nextJournal,
++    midOpTicket = null,
++    authorityCommit = undefined
++  ) {
+     const entry = subjects.get(subjectId);
+     if (!entry) {
+       return fail("subject-not-found", { subject_id: subjectId, revision: null });
+     }
+ 
++    const permitAuthorized = authorityCommit !== undefined;
++    if (permitAuthorized && !isCompleteAuthorityCommit(authorityCommit)) {
++      const loaded = await entry.inner.load();
++      return fail("authority-commit-incomplete", {
++        revision: computeRevision(loaded.state, loaded.journal),
++        budgets: cloneBudgets(entry.budgets),
++      });
++    }
++
+     const loaded = await entry.inner.load();
+     const currentRevision = computeRevision(loaded.state, loaded.journal);
+     const currentStateDigest = digestLifecycleState(loaded.state);
+@@ -164,33 +211,68 @@ function createAuthorityStore(options = {}) {
+ 
+     const stateUnchanged = digestLifecycleState(nextState) === currentStateDigest;
+     if (stateUnchanged && digestJournal(journalToCommit) === digestJournal(loaded.journal)) {
++      const convergedReceipt =
++        permitAuthorized && entry.authority.receipts[authorityCommit.permit_id]
++          ? JSON.parse(JSON.stringify(entry.authority.receipts[authorityCommit.permit_id]))
++          : null;
+       return {
+         ok: true,
+         revision: currentRevision,
+         converged: true,
+         budgets: budgetsBefore,
++        operation_receipt: convergedReceipt,
+       };
+     }
+ 
+     await entry.inner.commit({ state: nextState, journal: journalToCommit });
+     entry.midOpTicket = null;
+     if (!stateUnchanged) entry.baselines.clear();
++
++    if (permitAuthorized) {
++      const nextAuthority = cloneAuthority(entry.authority);
++      nextAuthority.permits[authorityCommit.permit_id] = {
++        permit_id: authorityCommit.permit_id,
++        status: "consumed",
++      };
++      nextAuthority.receipts[authorityCommit.permit_id] = JSON.parse(
++        JSON.stringify(authorityCommit.receipt)
++      );
++      entry.authority = nextAuthority;
++    }
++
+     const after = await entry.inner.load();
+     const revision = computeRevision(after.state, after.journal);
+     entry.baselines.set(revision, digestLifecycleState(after.state));
++
++    // Bind receipt.revision to the winning head when caller left a placeholder.
++    if (permitAuthorized) {
++      const stored = entry.authority.receipts[authorityCommit.permit_id];
++      if (stored && (stored.revision === "pending" || stored.revision == null)) {
++        stored.revision = revision;
++      }
++    }
++
+     return {
+       ok: true,
+       revision,
+       converged: false,
+       budgets: cloneBudgets(entry.budgets),
+       budgets_unchanged: JSON.stringify(budgetsBefore) === JSON.stringify(entry.budgets),
++      operation_receipt: permitAuthorized
++        ? JSON.parse(JSON.stringify(entry.authority.receipts[authorityCommit.permit_id]))
++        : null,
+     };
+   }
+ 
+   function snapshot(subjectId = defaultSubjectId) {
+     const entry = subjects.get(subjectId);
+     if (!entry) return null;
+-    return entry.inner.snapshot();
++    const innerSnap = entry.inner.snapshot();
++    return {
++      state: innerSnap.state,
++      journal: innerSnap.journal,
++      authority: cloneAuthority(entry.authority),
++    };
+   }
+ 
+   return {
+diff --git a/scripts/lib/authority-store/index.test.js b/scripts/lib/authority-store/index.test.js
+index 68f11ec..431e29f 100644
+--- a/scripts/lib/authority-store/index.test.js
++++ b/scripts/lib/authority-store/index.test.js
+@@ -308,3 +308,166 @@ test("foreign commitJournal with copied journal but no ticket fails closed", asy
+   assert.equal(forged.ok, false);
+   assert.equal(forged.code, "cas-conflict");
+ });
++
++function sampleReceipt(permitId, revision) {
++  return {
++    schema_version: 1,
++    kind: "operation-receipt/v1",
++    receipt_id: "sha256:receipt-sample-0001",
++    permit_id: permitId,
++    subject_id: DEFAULT_SUBJECT_ID,
++    operation: "start",
++    revision,
++    outcome: "advanced",
++  };
++}
++
++test("load and snapshot expose authority bag with permits and receipts", async () => {
++  const store = createAuthorityStore({
++    initial: {
++      state: pendingState(),
++      journal: [],
++      authority: { permits: {}, receipts: {} },
++    },
++  });
++  const loaded = await store.load();
++  assert.equal(loaded.ok, true);
++  assert.ok(loaded.authority);
++  assert.equal(typeof loaded.authority.permits, "object");
++  assert.equal(typeof loaded.authority.receipts, "object");
++
++  const snap = store.snapshot();
++  assert.ok(snap.authority);
++  assert.equal(typeof snap.authority.permits, "object");
++  assert.equal(typeof snap.authority.receipts, "object");
++});
++
++test("permit-authorized CAS requires authorityCommit; incomplete fails with head unchanged", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  // Explicit null / partial payload = permit-authorized intent without complete bag write.
++  const omitted = await store.compareAndSwap(
++    DEFAULT_SUBJECT_ID,
++    before.revision,
++    startedState(),
++    [],
++    null,
++    null
++  );
++  assert.equal(omitted.ok, false);
++  assert.equal(omitted.code, "authority-commit-incomplete");
++
++  const partial = await store.compareAndSwap(
++    DEFAULT_SUBJECT_ID,
++    before.revision,
++    startedState(),
++    [],
++    null,
++    { permit_id: "permit:runtime:partial", status: "consumed" }
++  );
++  assert.equal(partial.ok, false);
++  assert.equal(partial.code, "authority-commit-incomplete");
++
++  const after = await store.load();
++  assert.equal(after.revision, before.revision);
++  assert.equal(after.state.nodes.n1.phase, "pending");
++});
++
++test("winning CAS with authorityCommit atomically writes consumed permit and receipt", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  const permitId = "permit:runtime:0001";
++  const receipt = sampleReceipt(permitId, "pending");
++  const cas = await store.compareAndSwap(
++    DEFAULT_SUBJECT_ID,
++    before.revision,
++    startedState(),
++    [],
++    null,
++    {
++      permit_id: permitId,
++      receipt,
++      status: "consumed",
++    }
++  );
++  assert.equal(cas.ok, true);
++  assert.notEqual(cas.revision, before.revision);
++
++  const after = await store.load();
++  assert.equal(after.state.nodes.n1.phase, "started");
++  assert.equal(after.authority.permits[permitId].status, "consumed");
++  assert.equal(after.authority.receipts[permitId].receipt_id, receipt.receipt_id);
++  assert.equal(after.authority.receipts[permitId].kind, "operation-receipt/v1");
++
++  // Revision digest stays state+journal only (authority bag co-committed, not hashed).
++  assert.equal(after.revision, computeRevision(after.state, after.journal));
++});
++
++test("exact replay of permit-authorized CAS returns stored receipt without second advance", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  const permitId = "permit:runtime:replay-1";
++  const journal = [
++    {
++      schema_version: 1,
++      kernel_version: 1,
++      operation_id: "sha256:op-replay",
++      effect_id: "sha256:e-replay",
++      status: "completed",
++      result: { ok: true },
++    },
++  ];
++  const receipt = sampleReceipt(permitId, "pending");
++  const first = await store.compareAndSwap(
++    DEFAULT_SUBJECT_ID,
++    before.revision,
++    startedState(),
++    journal,
++    null,
++    { permit_id: permitId, receipt, status: "consumed" }
++  );
++  assert.equal(first.ok, true);
++  const head = await store.load();
++  const storedReceipt = head.authority.receipts[permitId];
++
++  const replay = await store.compareAndSwap(
++    DEFAULT_SUBJECT_ID,
++    head.revision,
++    startedState(),
++    journal,
++    null,
++    { permit_id: permitId, receipt, status: "consumed" }
++  );
++  assert.equal(replay.ok, true);
++  assert.equal(replay.converged, true);
++  assert.equal(replay.revision, head.revision);
++  assert.deepEqual(replay.operation_receipt, storedReceipt);
++
++  const after = await store.load();
++  assert.equal(after.revision, head.revision);
++  assert.equal(after.authority.receipts[permitId].receipt_id, storedReceipt.receipt_id);
++});
++
++test("in-process restart via snapshot/initial preserves authority bag", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  const permitId = "permit:runtime:restart-1";
++  const receipt = sampleReceipt(permitId, "pending");
++  await store.compareAndSwap(
++    DEFAULT_SUBJECT_ID,
++    before.revision,
++    startedState(),
++    [],
++    null,
++    { permit_id: permitId, receipt, status: "consumed" }
++  );
++  const snap = store.snapshot();
++  assert.ok(snap.authority.permits[permitId]);
++  assert.ok(snap.authority.receipts[permitId]);
++
++  const restored = createAuthorityStore({ initial: snap });
++  const loaded = await restored.load();
++  assert.equal(loaded.authority.permits[permitId].status, "consumed");
++  assert.equal(loaded.authority.receipts[permitId].receipt_id, receipt.receipt_id);
++  assert.equal(loaded.state.nodes.n1.phase, "started");
++});
+diff --git a/scripts/lib/lifecycle-kernel/host-boundary.test.js b/scripts/lib/lifecycle-kernel/host-boundary.test.js
+index 8dd5243..d71dca8 100644
+--- a/scripts/lib/lifecycle-kernel/host-boundary.test.js
++++ b/scripts/lib/lifecycle-kernel/host-boundary.test.js
+@@ -96,7 +96,6 @@ test("host port failure does not bypass permit+CAS requirements", async () => {
+     operation: "status",
+     arguments: {},
+     store,
+-    mintPermit: true,
+   });
+   assert.ok(result);
+   assert.equal(result.outcome === "advanced" || result.outcome === "ready" || typeof result.state_digest === "string", true);
+diff --git a/scripts/lib/lifecycle-kernel/index.js b/scripts/lib/lifecycle-kernel/index.js
+index 70a00c0..ea12521 100644
+--- a/scripts/lib/lifecycle-kernel/index.js
++++ b/scripts/lib/lifecycle-kernel/index.js
+@@ -15,8 +15,10 @@ const { createMemoryStore } = require("./memory-store.js");
+ const {
+   createPermitLedger,
+   mintOperationPermit,
+-  consumePermit,
++  issueOperationPermit,
+   authorizeOperationWithPermit,
++  prepareOperationReceipt,
++  findReplayReceipt,
+ } = require("./permits.js");
+ const {
+   DEFAULT_SUBJECT_ID,
+@@ -81,7 +83,7 @@ async function runKernelOperation(input = {}) {
+     permitLedger = null,
+     operationPermit = null,
+     transitionOffer = null,
+-    mintPermit = true,
++    mintPermit = false,
+     irreversibleAmbiguousNext = "decide",
+     effect_class = null,
+   } = input;
+@@ -105,6 +107,7 @@ async function runKernelOperation(input = {}) {
+   const state = loaded.state || { schema_version: 1, status: "ready", nodes: {} };
+   let journal = Array.isArray(loaded.journal) ? [...loaded.journal] : [];
+   const headRevision = loaded.revision;
++  const authorityBag = loaded.authority || { permits: {}, receipts: {} };
+   let midOpTicket = null;
+   async function persistJournal() {
+     const jr = await authorityStore.commitJournal(journal, subjectId, headRevision);
+@@ -133,21 +136,41 @@ async function runKernelOperation(input = {}) {
+     };
+   }
+ 
+-  const ledger = permitLedger || createPermitLedger();
+-  let permit = operationPermit;
+-
+-  if (!permit && mintPermit === true) {
+-    permit = mintOperationPermit({
+-      ledger,
+-      domain: "lifecycle",
+-      operation,
+-      subject_id: subjectId,
+-      expected_revision: headRevision,
+-      arguments: args,
+-      budget_ref: input.budget_ref || "budget:none",
++  // K2.1b: public auto-mint is rejected; controlled issuer is the only issuance path.
++  if (mintPermit === true) {
++    return blockedResult(state, journal, "auto-mint-disabled", {
++      revision: headRevision,
++      operation_receipt: null,
+     });
+   }
+ 
++  const ledger = permitLedger || createPermitLedger();
++  const permit = operationPermit || null;
++
++  // Exact replay: consumed permit + matching receipt in authority bag → return prior receipt.
++  const replayReceipt = findReplayReceipt(authorityBag, permit, operation, subjectId);
++  if (replayReceipt) {
++    const events = projectEvents({ state, journal });
++    const transitions = selectTransitions(state);
++    return {
++      schema_version: 1,
++      kernel_version: KERNEL_VERSION,
++      state_digest: digestLifecycleState(state),
++      status: {
++        lifecycle_status: state.status,
++        nodes: state.nodes || {},
++      },
++      transitions,
++      next_transition: nextTransition(state),
++      outcome: replayReceipt.outcome || "advanced",
++      events,
++      revision: headRevision,
++      operation_permit_id: permit.permit_id,
++      operation_receipt: replayReceipt,
++      replayed: true,
++    };
++  }
++
+   const auth = authorizeOperationWithPermit({
+     operation,
+     authorityToken,
+@@ -433,12 +456,27 @@ async function runKernelOperation(input = {}) {
+   const budgetsBefore = typeof authorityStore.getBudgets === "function"
+     ? authorityStore.getBudgets(subjectId)
+     : null;
++
++  const receipt = prepareOperationReceipt({
++    permit_id: permit.permit_id,
++    subject_id: subjectId,
++    operation,
++    expected_revision: headRevision,
++    outcome: reduced.outcome,
++  });
++  const authorityCommit = {
++    permit_id: permit.permit_id,
++    receipt,
++    status: "consumed",
++  };
++
+   const cas = await authorityStore.compareAndSwap(
+     subjectId,
+     headRevision,
+     reduced.state,
+     journal,
+-    midOpTicket
++    midOpTicket,
++    authorityCommit
+   );
+   if (!cas.ok) {
+     return blockedResult(state, journal, cas.code || "cas-conflict", {
+@@ -446,18 +484,20 @@ async function runKernelOperation(input = {}) {
+       revision: cas.revision,
+       budgets: cas.budgets || budgetsBefore,
+       budgets_unchanged: true,
++      operation_receipt: null,
+     });
+   }
+   await checkpoint(hooks, "after-state-commit", { operation_id: operationId });
+ 
+-  const consumed = consumePermit({
+-    permit_id: permit.permit_id,
+-    ledger,
+-    subject_id: subjectId,
+-    operation,
+-    revision: cas.revision,
+-    outcome: reduced.outcome,
+-  });
++  // Process-local Map is issued-only mirror; bag is sole consume truth after CAS.
++  if (typeof ledger.markConsumed === "function") {
++    ledger.markConsumed(permit.permit_id);
++  }
++
++  const committedReceipt =
++    cas.operation_receipt ||
++    (await authorityStore.load(subjectId)).authority?.receipts?.[permit.permit_id] ||
++    receipt;
+ 
+   const events = projectEvents({ state: reduced.state, journal });
+   const transitions = selectTransitions(reduced.state);
+@@ -478,7 +518,7 @@ async function runKernelOperation(input = {}) {
+     effects: effectRecords,
+     revision: cas.revision,
+     operation_permit_id: permit.permit_id,
+-    operation_receipt: consumed.ok ? consumed.receipt : null,
++    operation_receipt: committedReceipt,
+   };
+ }
+ 
+@@ -510,6 +550,7 @@ module.exports = {
+   createAuthorityStore,
+   createPermitLedger,
+   mintOperationPermit,
++  issueOperationPermit,
+   reduceLifecycle,
+   digestLifecycleState,
+   selectTransitions,
+diff --git a/scripts/lib/lifecycle-kernel/index.test.js b/scripts/lib/lifecycle-kernel/index.test.js
+index 624de6f..ec954ab 100644
+--- a/scripts/lib/lifecycle-kernel/index.test.js
++++ b/scripts/lib/lifecycle-kernel/index.test.js
+@@ -8,11 +8,12 @@ const {
+   createAuthorityStore,
+   createPermitLedger,
+   mintOperationPermit,
++  issueOperationPermit,
+   reduceLifecycle,
+   digestLifecycleState,
+   interruptError,
+ } = require("./index.js");
+-const { withRuntimePermit } = require("./test-permit-helpers.js");
++const { withRuntimePermit, issueFixturePermit } = require("./test-permit-helpers.js");
+ 
+ function pendingState() {
+   return {
+@@ -22,19 +23,36 @@ function pendingState() {
+   };
+ }
+ 
+-test("public runKernelOperation advances state through authority store CAS and journal", async () => {
+-  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+-  const executed = [];
+-  const result = await runKernelOperation({
++async function authorizedStart(store, extra = {}) {
++  const head = await store.load();
++  const issued = issueFixturePermit({
++    ledger: extra.permitLedger || createPermitLedger(),
++    operation: "start",
++    headRevision: head.revision,
++    arguments: { node_id: "n1" },
++    subject_id: "lifecycle:default",
++  });
++  return runKernelOperation({
+     operation: "start",
+     arguments: { node_id: "n1" },
+     store,
++    operationPermit: issued.permit,
++    permitLedger: issued.ledger,
++    effectExecutor: extra.effectExecutor || (async () => ({ ok: true })),
++    clock: extra.clock || (() => 0),
++    ...extra.kernel,
++  });
++}
++
++test("public runKernelOperation advances state through authority store CAS and journal", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const executed = [];
++  const result = await authorizedStart(store, {
+     effectExecutor: async (effect) => {
+       executed.push(effect.effect_id);
+       assert.equal(effect.effect_class, "idempotent-keyed");
+       return { ok: true };
+     },
+-    clock: () => 0,
+   });
+ 
+   assert.equal(result.outcome, "advanced");
+@@ -56,10 +74,19 @@ test("public runKernelOperation advances state through authority store CAS and j
+ test("invalid transition via public API does not mutate store", async () => {
+   const store = createAuthorityStore({ initial: { state: pendingState() } });
+   const before = digestLifecycleState((await store.load()).state);
++  const head = await store.load();
++  const issued = issueFixturePermit({
++    ledger: createPermitLedger(),
++    operation: "complete",
++    headRevision: head.revision,
++    arguments: { node_id: "n1" },
++  });
+   const result = await runKernelOperation({
+     operation: "complete",
+     arguments: { node_id: "n1" },
+     store,
++    operationPermit: issued.permit,
++    permitLedger: issued.ledger,
+     effectExecutor: async () => ({ ok: true }),
+   });
+   assert.equal(result.outcome, "blocked");
+@@ -77,12 +104,8 @@ test("effectExecutor {ok:false} blocks without committing reduced success state"
+   const store = createAuthorityStore({ initial: { state: initialState } });
+   const beforeDigest = digestLifecycleState(initialState);
+ 
+-  const result = await runKernelOperation({
+-    operation: "start",
+-    arguments: { node_id: "n1" },
+-    store,
++  const result = await authorizedStart(store, {
+     effectExecutor: async () => ({ ok: false, reason: "persist-denied" }),
+-    clock: () => 0,
+   });
+ 
+   assert.equal(result.outcome, "blocked");
+@@ -100,11 +123,20 @@ test("mutating operation without effectExecutor fail-closes and does not commit"
+   const initialState = pendingState();
+   const store = createAuthorityStore({ initial: { state: initialState } });
+   const beforeDigest = digestLifecycleState(initialState);
++  const head = await store.load();
++  const issued = issueFixturePermit({
++    ledger: createPermitLedger(),
++    operation: "start",
++    headRevision: head.revision,
++    arguments: { node_id: "n1" },
++  });
+ 
+   const result = await runKernelOperation({
+     operation: "start",
+     arguments: { node_id: "n1" },
+     store,
++    operationPermit: issued.permit,
++    permitLedger: issued.ledger,
+     clock: () => 0,
+   });
+ 
+@@ -133,6 +165,39 @@ test("bare memory commit store is rejected (authority-store-required)", async ()
+   );
+ });
+ 
++test("default mintPermit is false; state-valid op without permit fails; head unchanged", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState() } });
++  const before = await store.load();
++  const result = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    authorityToken: "opaque:t1",
++    effectExecutor: async () => ({ ok: true }),
++  });
++  assert.equal(result.outcome, "blocked");
++  assert.equal(result.code, "unauthorized");
++  const after = await store.load();
++  assert.equal(after.revision, before.revision);
++});
++
++test("explicit mintPermit:true is rejected with auto-mint-disabled", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState() } });
++  const before = await store.load();
++  const result = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    mintPermit: true,
++    effectExecutor: async () => ({ ok: true }),
++  });
++  assert.equal(result.outcome, "blocked");
++  assert.equal(result.code, "auto-mint-disabled");
++  assert.equal(result.operation_receipt, null);
++  const after = await store.load();
++  assert.equal(after.revision, before.revision);
++});
++
+ test("mutation without runtime-minted permit fails; head unchanged", async () => {
+   const store = createAuthorityStore({ initial: { state: pendingState() } });
+   const before = await store.load();
+@@ -182,6 +247,100 @@ test("mutation with fabricated permit bypassing ledger fails", async () => {
+   assert.equal((await store.load()).revision, before.revision);
+ });
+ 
++test("successful mutate records consumed permit + receipt in same CAS revision", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  const result = await authorizedStart(store);
++  assert.equal(result.outcome, "advanced");
++  assert.ok(result.operation_receipt);
++  assert.equal(result.operation_receipt.kind, "operation-receipt/v1");
++
++  const after = await store.load();
++  assert.notEqual(after.revision, before.revision);
++  const permitId = result.operation_permit_id;
++  assert.equal(after.authority.permits[permitId].status, "consumed");
++  assert.equal(after.authority.receipts[permitId].receipt_id, result.operation_receipt.receipt_id);
++  assert.equal(after.state.nodes.n1.phase, "started");
++});
++
++test("incomplete authority commit leaves head unchanged and operation_receipt null", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  const originalCas = store.compareAndSwap.bind(store);
++  store.compareAndSwap = async (subjectId, expectedRevision, nextState, nextJournal, midOpTicket) => {
++    // Drop authorityCommit → store rejects as incomplete when null is forced.
++    return originalCas(subjectId, expectedRevision, nextState, nextJournal, midOpTicket, null);
++  };
++
++  const result = await authorizedStart(store);
++  assert.equal(result.outcome, "blocked");
++  assert.equal(result.code, "authority-commit-incomplete");
++  assert.equal(result.operation_receipt, null);
++  const after = await store.load();
++  // State MUST NOT advance; journal may have mid-op durable entries but no consume bag.
++  assert.equal(after.state.nodes.n1.phase, "pending");
++  assert.equal(digestLifecycleState(after.state), digestLifecycleState(before.state));
++  assert.deepEqual(Object.keys(after.authority.permits), []);
++  assert.deepEqual(Object.keys(after.authority.receipts), []);
++});
++
++test("exact identical replay returns prior OperationReceipt without second consume", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const head = await store.load();
++  const issued = issueFixturePermit({
++    ledger: createPermitLedger(),
++    operation: "start",
++    headRevision: head.revision,
++    arguments: { node_id: "n1" },
++  });
++
++  const first = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    operationPermit: issued.permit,
++    permitLedger: issued.ledger,
++    effectExecutor: async () => ({ ok: true }),
++  });
++  assert.equal(first.outcome, "advanced");
++  const receiptId = first.operation_receipt.receipt_id;
++
++  let effectRuns = 0;
++  const replay = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    operationPermit: issued.permit,
++    permitLedger: issued.ledger,
++    effectExecutor: async () => {
++      effectRuns += 1;
++      return { ok: true };
++    },
++  });
++  assert.equal(replay.operation_receipt.receipt_id, receiptId);
++  assert.equal(replay.revision, first.revision);
++  assert.equal(effectRuns, 0);
++  assert.equal(replay.replayed, true);
++});
++
++test("in-process restart via snapshot/initial keeps permit and receipt verifiable", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const first = await authorizedStart(store);
++  assert.equal(first.outcome, "advanced");
++  const permitId = first.operation_permit_id;
++  const snap = store.snapshot();
++
++  const restored = createAuthorityStore({ initial: snap });
++  const loaded = await restored.load();
++  assert.equal(loaded.authority.permits[permitId].status, "consumed");
++  assert.equal(loaded.authority.receipts[permitId].receipt_id, first.operation_receipt.receipt_id);
++  assert.equal(loaded.state.nodes.n1.phase, "started");
++});
++
++test("issueOperationPermit is re-exported from kernel index", () => {
++  assert.equal(typeof issueOperationPermit, "function");
++});
++
+ test("preseeded unknown journal fail-closes without mutating store", async () => {
+   const initialState = pendingState();
+   const { deriveOperationId, deriveEffectId } = require("./journal.js");
+@@ -212,12 +371,7 @@ test("preseeded unknown journal fail-closes without mutating store", async () =>
+   const beforeDigest = digestLifecycleState(initialState);
+   const beforeJournal = JSON.stringify(store.snapshot().journal);
+ 
+-  const result = await runKernelOperation({
+-    operation: "start",
+-    arguments: { node_id: "n1" },
+-    store,
+-    effectExecutor: async () => ({ ok: true }),
+-  });
++  const result = await authorizedStart(store);
+ 
+   assert.equal(result.outcome, "blocked");
+   assert.equal(result.code, "reconciliation-required");
+@@ -230,14 +384,10 @@ test("ambiguous executor throw after started durable-marks unknown and resume fa
+   const store = createAuthorityStore({ initial: { state: initialState } });
+   const beforeDigest = digestLifecycleState(initialState);
+ 
+-  const first = await runKernelOperation({
+-    operation: "start",
+-    arguments: { node_id: "n1" },
+-    store,
++  const first = await authorizedStart(store, {
+     effectExecutor: async () => {
+       throw new Error("executor-crashed-mid-flight");
+     },
+-    clock: () => 0,
+   });
+ 
+   assert.equal(first.outcome, "blocked");
+@@ -250,15 +400,11 @@ test("ambiguous executor throw after started durable-marks unknown and resume fa
+   assert.equal(afterThrow.journal[0].status, "unknown");
+ 
+   let resumedExecutions = 0;
+-  const resume = await runKernelOperation({
+-    operation: "start",
+-    arguments: { node_id: "n1" },
+-    store,
++  const resume = await authorizedStart(store, {
+     effectExecutor: async () => {
+       resumedExecutions += 1;
+       return { ok: true };
+     },
+-    clock: () => 0,
+   });
+ 
+   assert.equal(resume.outcome, "blocked");
+@@ -272,6 +418,13 @@ test("interrupt mid-executor with irreversible persists unknown; resume does not
+   const initialState = pendingState();
+   const store = createAuthorityStore({ initial: { state: initialState } });
+   const beforeDigest = digestLifecycleState(initialState);
++  const head = await store.load();
++  const issued = issueFixturePermit({
++    ledger: createPermitLedger(),
++    operation: "start",
++    headRevision: head.revision,
++    arguments: { node_id: "n1" },
++  });
+ 
+   let executions = 0;
+   await assert.rejects(
+@@ -281,6 +434,8 @@ test("interrupt mid-executor with irreversible persists unknown; resume does not
+         arguments: { node_id: "n1" },
+         store,
+         effect_class: "irreversible",
++        operationPermit: issued.permit,
++        permitLedger: issued.ledger,
+         effectExecutor: async () => {
+           executions += 1;
+           throw interruptError("mid-executor");
+@@ -298,11 +453,20 @@ test("interrupt mid-executor with irreversible persists unknown; resume does not
+   assert.equal(afterInterrupt.journal[0].effect_class, "irreversible");
+ 
+   let resumedExecutions = 0;
++  const head2 = await store.load();
++  const issued2 = issueFixturePermit({
++    ledger: createPermitLedger(),
++    operation: "start",
++    headRevision: head2.revision,
++    arguments: { node_id: "n1" },
++  });
+   const resume = await runKernelOperation({
+     operation: "start",
+     arguments: { node_id: "n1" },
+     store,
+     effect_class: "irreversible",
++    operationPermit: issued2.permit,
++    permitLedger: issued2.ledger,
+     effectExecutor: async () => {
+       resumedExecutions += 1;
+       return { ok: true };
+@@ -323,7 +487,6 @@ test("CAS conflict after effects does not inflate budgets", async () => {
+     budgets: { attempts: 3, corrections: 1 },
+   });
+   const loaded = await store.load();
+-  // Race: advance head out from under the in-flight operation by CAS with same R.
+   const raced = await store.compareAndSwap(
+     "lifecycle:default",
+     loaded.revision,
+@@ -336,8 +499,6 @@ test("CAS conflict after effects does not inflate budgets", async () => {
+   );
+   assert.equal(raced.ok, true);
+ 
+-  // Restore pending state for the operation attempt but keep advanced revision via fresh store race:
+-  // Simulate conflict by minting against stale revision.
+   const store2 = createAuthorityStore({
+     initial: { state: pendingState() },
+     budgets: { attempts: 3, corrections: 1 },
+@@ -349,7 +510,6 @@ test("CAS conflict after effects does not inflate budgets", async () => {
+     operation: "start",
+     expected_revision: head.revision,
+   });
+-  // Advance head first
+   await store2.compareAndSwap(
+     "lifecycle:default",
+     head.revision,
+diff --git a/scripts/lib/lifecycle-kernel/permits.js b/scripts/lib/lifecycle-kernel/permits.js
+index ad258ad..6ae57ea 100644
+--- a/scripts/lib/lifecycle-kernel/permits.js
++++ b/scripts/lib/lifecycle-kernel/permits.js
+@@ -76,6 +76,116 @@ function mintOperationPermit(input = {}) {
+   return JSON.parse(JSON.stringify(permit));
+ }
+ 
++const POLICY_DECISION_KIND = "policy-decision/v1";
++const HUMAN_DECISION_KIND = "human-decision/v1";
++const KERNEL_RULE_KIND = "kernel-rule/v1";
++
++function isValidPolicyDecision(dto) {
++  return (
++    dto &&
++    typeof dto === "object" &&
++    dto.kind === POLICY_DECISION_KIND &&
++    typeof dto.decision_id === "string" &&
++    dto.decision_id.trim() !== ""
++  );
++}
++
++function isValidHumanDecision(dto) {
++  return (
++    dto &&
++    typeof dto === "object" &&
++    dto.kind === HUMAN_DECISION_KIND &&
++    typeof dto.decision_id === "string" &&
++    dto.decision_id.trim() !== ""
++  );
++}
++
++function isValidKernelRule(dto) {
++  return (
++    dto &&
++    typeof dto === "object" &&
++    dto.kind === KERNEL_RULE_KIND &&
++    typeof dto.rule_id === "string" &&
++    dto.rule_id.trim() !== ""
++  );
++}
++
++/**
++ * Controlled issuer: TransitionOffer + exactly one decision/rule + expected_revision.
++ * Does not authorize mutation by itself; only inserts into the issued-only ledger.
++ */
++function issueOperationPermit(input = {}) {
++  const {
++    ledger,
++    transitionOffer,
++    expected_revision,
++    subject_id = "lifecycle:default",
++    policyDecision = null,
++    humanDecision = null,
++    kernelRule = null,
++    arguments: mutationArgs = null,
++    arguments_digest = null,
++    scope_digest = null,
++    policy_digest = null,
++    budget_ref = null,
++  } = input;
++
++  if (!ledger || typeof ledger.insert !== "function") {
++    return { ok: false, code: "permit-ledger-required" };
++  }
++  if (!transitionOffer || typeof transitionOffer !== "object") {
++    return { ok: false, code: "issuer-decision-required" };
++  }
++  if (!expected_revision || typeof expected_revision !== "string") {
++    return { ok: false, code: "permit-mint-invalid" };
++  }
++
++  const present = [];
++  if (policyDecision != null) present.push("policy");
++  if (humanDecision != null) present.push("human");
++  if (kernelRule != null) present.push("rule");
++
++  if (present.length === 0) {
++    return { ok: false, code: "issuer-decision-required" };
++  }
++  if (present.length > 1) {
++    return { ok: false, code: "issuer-decision-ambiguous" };
++  }
++
++  if (present[0] === "policy" && !isValidPolicyDecision(policyDecision)) {
++    return { ok: false, code: "issuer-decision-required" };
++  }
++  if (present[0] === "human" && !isValidHumanDecision(humanDecision)) {
++    return { ok: false, code: "issuer-decision-required" };
++  }
++  if (present[0] === "rule" && !isValidKernelRule(kernelRule)) {
++    return { ok: false, code: "issuer-decision-required" };
++  }
++
++  const operation =
++    transitionOffer.operation ||
++    (policyDecision && policyDecision.operation) ||
++    (humanDecision && humanDecision.operation) ||
++    null;
++  if (!operation) {
++    return { ok: false, code: "permit-mint-invalid" };
++  }
++
++  const permit = mintOperationPermit({
++    ledger,
++    operation,
++    expected_revision,
++    subject_id,
++    arguments: mutationArgs || {},
++    arguments_digest: arguments_digest || undefined,
++    scope_digest: scope_digest || undefined,
++    policy_digest: policy_digest || undefined,
++    budget_ref: budget_ref || undefined,
++  });
++
++  return { ok: true, permit };
++}
++
+ function authorizeMutation({
+   permit,
+   headRevision,
+@@ -197,22 +307,59 @@ function consumePermit({ permit_id, ledger, subject_id, operation, revision, out
+     // Consume binds to post-CAS revision for the receipt; stale check uses pre-CAS head at authorize.
+   }
+   ledger.markConsumed(permit_id);
+-  const receipt = {
++  const receipt = prepareOperationReceipt({
++    permit_id,
++    subject_id: subject_id || entry.permit.subject_id,
++    operation: operation || entry.permit.operation,
++    expected_revision: revision || entry.permit.expected_revision,
++    outcome: outcome || "advanced",
++  });
++  if (revision != null) receipt.revision = revision;
++  return { ok: true, receipt };
++}
++
++/**
++ * Build an OperationReceipt before CAS so it can be co-committed in authorityCommit.
++ * receipt_id is bound to permit + operation + subject + expected_revision (stable across replay).
++ */
++function prepareOperationReceipt({
++  permit_id,
++  subject_id,
++  operation,
++  expected_revision,
++  outcome = "advanced",
++} = {}) {
++  return {
+     schema_version: 1,
+     kind: "operation-receipt/v1",
+     receipt_id: sha256Fingerprint("operation-receipt", {
+       permit_id,
+       subject_id,
+       operation,
+-      revision,
++      expected_revision,
+     }),
+     permit_id,
+-    subject_id: subject_id || entry.permit.subject_id,
+-    operation: operation || entry.permit.operation,
+-    revision: revision || entry.permit.expected_revision,
+-    outcome: outcome || "advanced",
++    subject_id,
++    operation,
++    revision: expected_revision,
++    outcome,
+   };
+-  return { ok: true, receipt };
++}
++
++/**
++ * Exact-replay lookup against the Authority Store authority bag.
++ */
++function findReplayReceipt(authority, permit, operation, subjectId) {
++  if (!authority || !permit || typeof permit !== "object") return null;
++  const permits = authority.permits || {};
++  const receipts = authority.receipts || {};
++  const entry = permits[permit.permit_id];
++  if (!entry || entry.status !== "consumed") return null;
++  const receipt = receipts[permit.permit_id];
++  if (!receipt || receipt.kind !== "operation-receipt/v1") return null;
++  if (receipt.operation !== operation) return null;
++  if (subjectId != null && receipt.subject_id !== subjectId) return null;
++  return JSON.parse(JSON.stringify(receipt));
+ }
+ 
+ function assertNotReceiptV1(receipt) {
+@@ -229,8 +376,11 @@ module.exports = {
+   EFFECT_CLASSES,
+   createPermitLedger,
+   mintOperationPermit,
++  issueOperationPermit,
+   authorizeMutation,
+   authorizeOperationWithPermit,
+   consumePermit,
++  prepareOperationReceipt,
++  findReplayReceipt,
+   assertNotReceiptV1,
+ };
+diff --git a/scripts/lib/lifecycle-kernel/permits.test.js b/scripts/lib/lifecycle-kernel/permits.test.js
+index e1cd98b..6d772e0 100644
+--- a/scripts/lib/lifecycle-kernel/permits.test.js
++++ b/scripts/lib/lifecycle-kernel/permits.test.js
+@@ -6,6 +6,7 @@ const test = require("node:test");
+ const {
+   createPermitLedger,
+   mintOperationPermit,
++  issueOperationPermit,
+   authorizeMutation,
+   authorizeOperationWithPermit,
+   consumePermit,
+@@ -284,3 +285,96 @@ test("requested operation mismatch against ledger-backed permit fails closed", (
+   });
+   assert.equal(ok.ok, true);
+ });
++
++const OFFER = Object.freeze({
++  kind: "transition-offer/v1",
++  operation: "start",
++  subject_id: "lifecycle:default",
++});
++
++test("issueOperationPermit produces permit from offer plus policy decision", () => {
++  const ledger = createPermitLedger();
++  const issued = issueOperationPermit({
++    ledger,
++    transitionOffer: OFFER,
++    expected_revision: HEAD,
++    subject_id: "lifecycle:default",
++    policyDecision: {
++      kind: "policy-decision/v1",
++      decision_id: "pol:1",
++      operation: "start",
++      subject_id: "lifecycle:default",
++    },
++  });
++  assert.equal(issued.ok, true);
++  assert.equal(issued.permit.kind, "operation-permit/v1");
++  assert.equal(issued.permit.expected_revision, HEAD);
++  assert.equal(issued.permit.operation, "start");
++  assert.equal(issued.permit.single_use, true);
++  assert.ok(ledger.has(issued.permit.permit_id));
++});
++
++test("issueOperationPermit rejects offer-only without decision (issuer-decision-required)", () => {
++  const ledger = createPermitLedger();
++  const result = issueOperationPermit({
++    ledger,
++    transitionOffer: OFFER,
++    expected_revision: HEAD,
++    subject_id: "lifecycle:default",
++  });
++  assert.equal(result.ok, false);
++  assert.equal(result.code, "issuer-decision-required");
++  assert.equal(ledger._entries.size, 0);
++});
++
++test("issueOperationPermit rejects ambiguous multiple decisions", () => {
++  const ledger = createPermitLedger();
++  const result = issueOperationPermit({
++    ledger,
++    transitionOffer: OFFER,
++    expected_revision: HEAD,
++    subject_id: "lifecycle:default",
++    policyDecision: { kind: "policy-decision/v1", decision_id: "pol:1" },
++    humanDecision: { kind: "human-decision/v1", decision_id: "hum:1" },
++  });
++  assert.equal(result.ok, false);
++  assert.equal(result.code, "issuer-decision-ambiguous");
++  assert.equal(ledger._entries.size, 0);
++});
++
++test("issueOperationPermit accepts humanDecision or kernelRule alone", () => {
++  const ledger = createPermitLedger();
++  const human = issueOperationPermit({
++    ledger,
++    transitionOffer: OFFER,
++    expected_revision: HEAD,
++    subject_id: "lifecycle:default",
++    humanDecision: { kind: "human-decision/v1", decision_id: "hum:2" },
++  });
++  assert.equal(human.ok, true);
++  assert.ok(ledger.has(human.permit.permit_id));
++
++  const ledger2 = createPermitLedger();
++  const rule = issueOperationPermit({
++    ledger: ledger2,
++    transitionOffer: OFFER,
++    expected_revision: HEAD,
++    subject_id: "lifecycle:default",
++    kernelRule: { kind: "kernel-rule/v1", rule_id: "rule:fixture-start" },
++  });
++  assert.equal(rule.ok, true);
++  assert.ok(ledger2.has(rule.permit.permit_id));
++});
++
++test("issueOperationPermit rejects invalid decision DTO kind", () => {
++  const ledger = createPermitLedger();
++  const result = issueOperationPermit({
++    ledger,
++    transitionOffer: OFFER,
++    expected_revision: HEAD,
++    subject_id: "lifecycle:default",
++    policyDecision: { kind: "policy-decision/v0", decision_id: "pol:bad" },
++  });
++  assert.equal(result.ok, false);
++  assert.equal(result.code, "issuer-decision-required");
++});
+diff --git a/scripts/lib/lifecycle-kernel/test-permit-helpers.js b/scripts/lib/lifecycle-kernel/test-permit-helpers.js
+index 62e07cf..84ad066 100644
+--- a/scripts/lib/lifecycle-kernel/test-permit-helpers.js
++++ b/scripts/lib/lifecycle-kernel/test-permit-helpers.js
+@@ -3,26 +3,75 @@
+ const {
+   createPermitLedger,
+   mintOperationPermit,
++  issueOperationPermit,
+ } = require("./permits.js");
+ 
+ const DEFAULT_HEAD =
+   "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+ 
++const DEFAULT_KERNEL_RULE = Object.freeze({
++  kind: "kernel-rule/v1",
++  rule_id: "rule:fixture-issuer",
++});
++
++/**
++ * Issue a permit via the controlled issuer for test fixtures (K2.1b).
++ * Prefer this over mintOperationPermit / mintPermit:true on the public path.
++ */
++function issueFixturePermit(options = {}) {
++  const ledger = options.ledger || createPermitLedger();
++  const headRevision = options.headRevision || options.expected_revision || DEFAULT_HEAD;
++  const operation = options.operation || "start";
++  const subject_id = options.subject_id || "lifecycle:default";
++  const transitionOffer =
++    options.transitionOffer || {
++      kind: "transition-offer/v1",
++      operation,
++      subject_id,
++    };
++
++  const decisionFields = {};
++  if (options.policyDecision) decisionFields.policyDecision = options.policyDecision;
++  else if (options.humanDecision) decisionFields.humanDecision = options.humanDecision;
++  else if (options.kernelRule) decisionFields.kernelRule = options.kernelRule;
++  else decisionFields.kernelRule = { ...DEFAULT_KERNEL_RULE, operation, subject_id };
++
++  const issued = issueOperationPermit({
++    ledger,
++    transitionOffer,
++    expected_revision: headRevision,
++    subject_id,
++    arguments: options.arguments || {},
++    ...decisionFields,
++  });
++  if (!issued.ok) {
++    const error = new Error(`fixture issuer failed: ${issued.code}`);
++    error.code = issued.code;
++    throw error;
++  }
++  return { permit: issued.permit, ledger, headRevision };
++}
++
+ /**
+- * Attach a runtime-minted permit to a reducer/authorize action for tests.
++ * Attach an issuer-produced permit to a reducer/authorize action for tests.
+  */
+ function withRuntimePermit(action = {}, options = {}) {
+   const ledger = options.ledger || createPermitLedger();
+   const headRevision = options.headRevision || action.headRevision || DEFAULT_HEAD;
+-  const permit =
+-    action.operationPermit ||
+-    mintOperationPermit({
++  let permit = action.operationPermit;
++  if (!permit) {
++    const issued = issueFixturePermit({
+       ledger,
+       operation: action.operation,
+-      expected_revision: headRevision,
++      headRevision,
+       arguments: action.arguments || {},
+       subject_id: options.subject_id || "lifecycle:default",
++      policyDecision: options.policyDecision,
++      humanDecision: options.humanDecision,
++      kernelRule: options.kernelRule,
+     });
++    permit = issued.permit;
++  }
+   return {
+     ...action,
+     operationPermit: permit,
+@@ -33,7 +82,10 @@ function withRuntimePermit(action = {}, options = {}) {
+ 
+ module.exports = {
+   DEFAULT_HEAD,
++  DEFAULT_KERNEL_RULE,
+   withRuntimePermit,
++  issueFixturePermit,
+   createPermitLedger,
+   mintOperationPermit,
++  issueOperationPermit,
+ };
+diff --git a/scripts/lib/lifecycle-model.js b/scripts/lib/lifecycle-model.js
+index 79c8366..6ac5604 100644
+--- a/scripts/lib/lifecycle-model.js
++++ b/scripts/lib/lifecycle-model.js
+@@ -92,6 +92,16 @@ const K21_EXECUTABLE_INVARIANTS = Object.freeze([
+   Object.freeze({ id: "inv-k21-convergent-replay", name: "Convergent replay on same revision", optional: false }),
+   Object.freeze({ id: "inv-k21-no-self-grant", name: "No model self-grant of permits", optional: false }),
+   Object.freeze({ id: "inv-k21-direct-write-blocked", name: "Direct-write adapters blocked", optional: false }),
++  Object.freeze({ id: "inv-k21-no-public-auto-mint", name: "Public auto-mint is not a valid auth path", optional: false }),
++  Object.freeze({ id: "inv-k21-replay-receipt-stable", name: "Exact replay returns prior OperationReceipt", optional: false }),
++]);
++
++const K21B_EXECUTABLE_INVARIANTS = Object.freeze([
++  Object.freeze({ id: "inv-k21b-no-state-valid-only", name: "No auth solely because state-valid", optional: false }),
++  Object.freeze({ id: "inv-k21b-commit-requires-issued-permit", name: "No commit without issued permit", optional: false }),
++  Object.freeze({ id: "inv-k21b-atomic-consume-revision", name: "Consume+receipt same CAS revision", optional: false }),
++  Object.freeze({ id: "inv-k21b-replay-prior-receipt", name: "Exact replay returns prior receipt", optional: false }),
++  Object.freeze({ id: "inv-k21b-restart-verifiable", name: "Restart keeps permit+receipt verifiable", optional: false }),
+ ]);
+ 
+ const K2A_EXECUTABLE_INVARIANTS = Object.freeze([
+@@ -319,6 +329,17 @@ const CHECKERS = {
+   "inv-k21-convergent-replay": () => checkK21ConvergentReplay(),
+   "inv-k21-no-self-grant": () => checkK21NoSelfGrant(),
+   "inv-k21-direct-write-blocked": () => checkK21DirectWriteBlocked(),
++  "inv-k21-no-public-auto-mint": () => checkK21NoPublicAutoMint(),
++  "inv-k21-replay-receipt-stable": () =>
++    checkK21bReplayPriorReceipt().then((r) => ({
++      ...r,
++      invariant_id: "inv-k21-replay-receipt-stable",
++    })),
++  "inv-k21b-no-state-valid-only": () => checkK21bNoStateValidOnly(),
++  "inv-k21b-commit-requires-issued-permit": () => checkK21bCommitRequiresIssuedPermit(),
++  "inv-k21b-atomic-consume-revision": () => checkK21bAtomicConsumeRevision(),
++  "inv-k21b-replay-prior-receipt": () => checkK21bReplayPriorReceipt(),
++  "inv-k21b-restart-verifiable": () => checkK21bRestartVerifiable(),
+   "inv-k2a-zero-concrete-host-imports": () => checkK2aZeroConcreteHostImports(),
+   "inv-k2a-no-silent-promotion": () => checkK2aNoSilentPromotion(),
+   "inv-k2a-enforced-requires-proof": () => checkK2aEnforcedRequiresProof(),
+@@ -585,6 +606,138 @@ function checkK21DirectWriteBlocked() {
+   };
+ }
+ 
++function pendingModelState() {
++  return {
++    schema_version: 1,
++    status: "ready",
++    nodes: { n1: { id: "n1", phase: "pending", attempt: 0 } },
++  };
++}
++
++async function checkK21NoPublicAutoMint() {
++  const { createAuthorityStore, runKernelOperation } = require("./lifecycle-kernel/index.js");
++  const store = createAuthorityStore({ initial: { state: pendingModelState(), journal: [] } });
++  const auto = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    mintPermit: true,
++    effectExecutor: async () => ({ ok: true }),
++  });
++  const missing = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    effectExecutor: async () => ({ ok: true }),
++  });
++  const ok =
++    auto.outcome === "blocked" &&
++    auto.code === "auto-mint-disabled" &&
++    missing.outcome === "blocked" &&
++    missing.code === "unauthorized";
++  return { ok, invariant_id: "inv-k21-no-public-auto-mint" };
++}
++
++async function checkK21bNoStateValidOnly() {
++  const { runHarnessScenario } = require("./minimal-kernel-harness.js");
++  const result = await runHarnessScenario({
++    id: "model:k21b-state-valid-only",
++    initialState: pendingModelState(),
++    operations: [{ operation: "start", arguments: { node_id: "n1" }, omitPermit: true }],
++  });
++  const ok = result.outcome === "blocked" && result.halted && result.halted.code === "unauthorized";
++  return { ok, invariant_id: "inv-k21b-no-state-valid-only" };
++}
++
++async function checkK21bCommitRequiresIssuedPermit() {
++  // Same gate as state-valid-only: no issued permit → no CAS advance.
++  const result = await checkK21bNoStateValidOnly();
++  return { ok: result.ok, invariant_id: "inv-k21b-commit-requires-issued-permit" };
++}
++
++async function checkK21bAtomicConsumeRevision() {
++  const { runHarnessScenario } = require("./minimal-kernel-harness.js");
++  const result = await runHarnessScenario({
++    id: "model:k21b-atomic-consume",
++    initialState: pendingModelState(),
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++  });
++  const snap = result.snapshot;
++  const permitId = result.operations[0] && result.operations[0].operation_permit_id;
++  const receipt = result.operations[0] && result.operations[0].operation_receipt;
++  const ok =
++    result.outcome !== "blocked" &&
++    snap.state.nodes.n1.phase === "started" &&
++    permitId &&
++    snap.authority &&
++    snap.authority.permits[permitId] &&
++    snap.authority.permits[permitId].status === "consumed" &&
++    snap.authority.receipts[permitId] &&
++    receipt &&
++    snap.authority.receipts[permitId].receipt_id === receipt.receipt_id;
++  return { ok, invariant_id: "inv-k21b-atomic-consume-revision" };
++}
++
++async function checkK21bReplayPriorReceipt() {
++  const { createAuthorityStore, runKernelOperation, createPermitLedger } = require("./lifecycle-kernel/index.js");
++  const { issueFixturePermit } = require("./lifecycle-kernel/test-permit-helpers.js");
++  const store = createAuthorityStore({ initial: { state: pendingModelState(), journal: [] } });
++  const head = await store.load();
++  const issued = issueFixturePermit({
++    ledger: createPermitLedger(),
++    operation: "start",
++    headRevision: head.revision,
++    arguments: { node_id: "n1" },
++  });
++  const first = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    operationPermit: issued.permit,
++    permitLedger: issued.ledger,
++    effectExecutor: async () => ({ ok: true }),
++  });
++  const replay = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    operationPermit: issued.permit,
++    permitLedger: issued.ledger,
++    effectExecutor: async () => ({ ok: true }),
++  });
++  const ok =
++    first.outcome === "advanced" &&
++    first.operation_receipt &&
++    replay.operation_receipt &&
++    replay.operation_receipt.receipt_id === first.operation_receipt.receipt_id &&
++    replay.replayed === true;
++  return { ok, invariant_id: "inv-k21b-replay-prior-receipt" };
++}
++
++async function checkK21bRestartVerifiable() {
++  const { runHarnessScenario, createAuthorityStore } = require("./minimal-kernel-harness.js");
++  const result = await runHarnessScenario({
++    id: "model:k21b-restart",
++    initialState: pendingModelState(),
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++  });
++  const permitId = result.operations[0] && result.operations[0].operation_permit_id;
++  const receiptId =
++    result.operations[0] &&
++    result.operations[0].operation_receipt &&
++    result.operations[0].operation_receipt.receipt_id;
++  const restored = createAuthorityStore({ initial: result.snapshot });
++  const loaded = await restored.load();
++  const ok =
++    permitId &&
++    receiptId &&
++    loaded.authority.permits[permitId] &&
++    loaded.authority.permits[permitId].status === "consumed" &&
++    loaded.authority.receipts[permitId] &&
++    loaded.authority.receipts[permitId].receipt_id === receiptId;
++  return { ok, invariant_id: "inv-k21b-restart-verifiable" };
++}
++
+ async function checkInvariant(id, context = {}) {
+   const checker = CHECKERS[id];
+   if (!checker) return { ok: false, invariant_id: id, code: "unknown-invariant" };
+@@ -597,6 +750,7 @@ async function runAllInvariantCheckers(context = {}) {
+   const allInvariants = [
+     ...EXECUTABLE_INVARIANTS,
+     ...K21_EXECUTABLE_INVARIANTS,
++    ...K21B_EXECUTABLE_INVARIANTS,
+     ...K2A_EXECUTABLE_INVARIANTS,
+   ];
+   const results = [];
+@@ -618,9 +772,9 @@ async function runAllInvariantCheckers(context = {}) {
+     counts_as_enforced: false,
+     enforced_in_k2: false,
+   }));
+-  // CAS/permit/retry and K2a host invariants must not appear on deferred list.
++  // CAS/permit/retry, K2.1b, and K2a host invariants must not appear on deferred list.
+   const deferredIds = new Set(deferred.map((d) => d.invariant_id));
+-  for (const inv of [...K21_EXECUTABLE_INVARIANTS, ...K2A_EXECUTABLE_INVARIANTS]) {
++  for (const inv of [...K21_EXECUTABLE_INVARIANTS, ...K21B_EXECUTABLE_INVARIANTS, ...K2A_EXECUTABLE_INVARIANTS]) {
+     if (deferredIds.has(inv.id)) {
+       return {
+         results: [...results, ...deferred],
+@@ -635,6 +789,7 @@ async function runAllInvariantCheckers(context = {}) {
+     enforced_count: results.length,
+     ok: results.every((r) => r.ok),
+     k21_count: K21_EXECUTABLE_INVARIANTS.length,
++    k21b_count: K21B_EXECUTABLE_INVARIANTS.length,
+     k2a_count: K2A_EXECUTABLE_INVARIANTS.length,
+   };
+ }
+@@ -813,6 +968,7 @@ module.exports = {
+   MODEL_CONFIG,
+   EXECUTABLE_INVARIANTS,
+   K21_EXECUTABLE_INVARIANTS,
++  K21B_EXECUTABLE_INVARIANTS,
+   K2A_EXECUTABLE_INVARIANTS,
+   DEFERRED_INVARIANTS,
+   exploreModel,
+diff --git a/scripts/lib/lifecycle-model.test.js b/scripts/lib/lifecycle-model.test.js
+index 314c8ac..00bcc41 100644
+--- a/scripts/lib/lifecycle-model.test.js
++++ b/scripts/lib/lifecycle-model.test.js
+@@ -7,6 +7,7 @@ const {
+   MODEL_CONFIG,
+   EXECUTABLE_INVARIANTS,
+   K21_EXECUTABLE_INVARIANTS,
++  K21B_EXECUTABLE_INVARIANTS,
+   K2A_EXECUTABLE_INVARIANTS,
+   DEFERRED_INVARIANTS,
+   exploreModel,
+@@ -44,7 +45,10 @@ test("every executable invariant has a non-optional checker", async () => {
+   const enforced = all.results.filter((r) => r.counts_as_enforced);
+   assert.equal(
+     enforced.length,
+-    EXECUTABLE_INVARIANTS.length + K21_EXECUTABLE_INVARIANTS.length + K2A_EXECUTABLE_INVARIANTS.length
++    EXECUTABLE_INVARIANTS.length +
++      K21_EXECUTABLE_INVARIANTS.length +
++      K21B_EXECUTABLE_INVARIANTS.length +
++      K2A_EXECUTABLE_INVARIANTS.length
+   );
+   assert.equal(all.enforced_count, enforced.length);
+   assert.equal(all.ok, true);
+@@ -72,12 +76,15 @@ test("deferred invariants are listed but do not count as K2 enforcement", async
+   assert.ok(!all.results.some((r) => r.deferred === true && r.counts_as_enforced));
+   assert.equal(
+     all.enforced_count,
+-    EXECUTABLE_INVARIANTS.length + K21_EXECUTABLE_INVARIANTS.length + K2A_EXECUTABLE_INVARIANTS.length
++    EXECUTABLE_INVARIANTS.length +
++      K21_EXECUTABLE_INVARIANTS.length +
++      K21B_EXECUTABLE_INVARIANTS.length +
++      K2A_EXECUTABLE_INVARIANTS.length
+   );
+ });
+ 
+-test("K2.1 manifest lists seven executable invariants not on deferred list", async () => {
+-  assert.equal(K21_EXECUTABLE_INVARIANTS.length, 7);
++test("K2.1 manifest lists nine executable invariants not on deferred list", async () => {
++  assert.equal(K21_EXECUTABLE_INVARIANTS.length, 9);
+   const deferredIds = new Set(DEFERRED_INVARIANTS.map((d) => d.id));
+   for (const inv of K21_EXECUTABLE_INVARIANTS) {
+     assert.equal(deferredIds.has(inv.id), false);
+@@ -85,7 +92,20 @@ test("K2.1 manifest lists seven executable invariants not on deferred list", asy
+     assert.equal(result.ok, true, inv.id);
+   }
+   const all = await runAllInvariantCheckers();
+-  assert.equal(all.k21_count, 7);
++  assert.equal(all.k21_count, 9);
++});
++
++test("K2.1b manifest lists five executable invariants not deferred", async () => {
++  assert.equal(K21B_EXECUTABLE_INVARIANTS.length, 5);
++  const deferredIds = new Set(DEFERRED_INVARIANTS.map((d) => d.id));
++  for (const inv of K21B_EXECUTABLE_INVARIANTS) {
++    assert.equal(deferredIds.has(inv.id), false, inv.id);
++    assert.equal(inv.optional, false, inv.id);
++    const result = await checkInvariant(inv.id);
++    assert.equal(result.ok, true, `${inv.id}: ${JSON.stringify(result)}`);
++  }
++  const all = await runAllInvariantCheckers();
++  assert.equal(all.k21b_count, 5);
+ });
+ 
+ test("K2a manifest lists six executable invariants not on deferred list", async () => {
+diff --git a/scripts/lib/minimal-kernel-harness.js b/scripts/lib/minimal-kernel-harness.js
+index 138fdd6..006c777 100644
+--- a/scripts/lib/minimal-kernel-harness.js
++++ b/scripts/lib/minimal-kernel-harness.js
+@@ -9,6 +9,7 @@ const {
+   interruptError,
+   DEFAULT_SUBJECT_ID,
+ } = require("./lifecycle-kernel/index.js");
++const { issueFixturePermit } = require("./lifecycle-kernel/test-permit-helpers.js");
+ 
+ const HARNESS_KIND = "minimal-kernel-harness/v1";
+ 
+@@ -16,6 +17,7 @@ const HARNESS_KIND = "minimal-kernel-harness/v1";
+  * Minimal Kernel Harness — public-API headless scenario runner.
+  * Conformance MUST go through runKernelOperation, not private reducers alone.
+  * Host-fault ownership remains with the peer Headless Conformance Host (K2a).
++ * K2.1b: positive mutating steps issue permits via controlled issuer (mintPermit default false).
+  */
+ async function runHarnessScenario(scenario = {}) {
+   const {
+@@ -60,15 +62,38 @@ async function runHarnessScenario(scenario = {}) {
+       break;
+     }
+ 
++    let operationPermit = step.operationPermit;
++    let permitLedger = step.permitLedger;
++    // Default false: positive paths issue via controlled issuer; explicit false without
++    // permit exercises unauthorized; explicit true is rejected by kernel (auto-mint-disabled).
++    const mintPermit = step.mintPermit !== undefined ? step.mintPermit : false;
++
++    if (
++      step.operation !== "status" &&
++      !operationPermit &&
++      step.mintPermit === undefined &&
++      step.omitPermit !== true
++    ) {
++      const head = await store.load(subjectId);
++      const issued = issueFixturePermit({
++        operation: step.operation,
++        headRevision: head.revision,
++        arguments: step.arguments || {},
++        subject_id: subjectId,
++      });
++      operationPermit = issued.permit;
++      permitLedger = issued.ledger;
++    }
++
+     let result;
+     try {
+       result = await runKernelOperation({
+         operation: step.operation,
+         arguments: step.arguments || {},
+         authorityToken: step.authorityToken ?? null,
+-        operationPermit: step.operationPermit,
+-        permitLedger: step.permitLedger,
+-        mintPermit: step.mintPermit !== undefined ? step.mintPermit : true,
++        operationPermit,
++        permitLedger,
++        mintPermit,
+         transitionOffer: step.transitionOffer,
+         irreversibleAmbiguousNext: step.irreversibleAmbiguousNext || scenario.irreversibleAmbiguousNext,
+         effect_class: step.effect_class || scenario.effect_class || null,
+@@ -105,6 +130,9 @@ async function runHarnessScenario(scenario = {}) {
+       code: result.code,
+       revision: result.revision,
+       budgets: result.budgets,
++      operation_receipt: result.operation_receipt || null,
++      operation_permit_id: result.operation_permit_id || null,
++      replayed: result.replayed === true,
+     });
+ 
+     if (result.next_transition && result.next_transition.kind === "decide") {
+diff --git a/scripts/lib/minimal-kernel-harness.test.js b/scripts/lib/minimal-kernel-harness.test.js
+index 07da2b0..e4755dc 100644
+--- a/scripts/lib/minimal-kernel-harness.test.js
++++ b/scripts/lib/minimal-kernel-harness.test.js
+@@ -388,3 +388,88 @@ test("K2a: fixed-policy and K2.1 authority fixtures remain green with host-contr
+   assert.equal(cas.loser_ok, false);
+   assert.equal(cas.loser_code, "cas-conflict");
+ });
++
++test("K2.1b: positive companion issues permit via controlled issuer (mintPermit default false)", async () => {
++  const positive = await runHarnessScenario({
++    id: "k21b-issuer-first-positive",
++    initialState: pendingState,
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++  });
++  assert.equal(positive.snapshot.state.nodes.n1.phase, "started");
++  assert.ok(positive.operations[0].operation_permit_id);
++  assert.ok(positive.operations[0].operation_receipt);
++  assert.equal(
++    positive.snapshot.authority.permits[positive.operations[0].operation_permit_id].status,
++    "consumed"
++  );
++});
++
++test("K2.1b: auto-mint convenience does not count as positive authorization", async () => {
++  const auto = await runHarnessScenario({
++    id: "k21b-auto-mint-not-positive",
++    initialState: pendingState,
++    operations: [{ operation: "start", arguments: { node_id: "n1" }, mintPermit: true }],
++  });
++  assert.equal(auto.outcome, "blocked");
++  assert.equal(auto.halted.code, "auto-mint-disabled");
++});
++
++test("K2.1b: atomic consume revision inspection via public harness", async () => {
++  const result = await runHarnessScenario({
++    id: "k21b-atomic-consume",
++    initialState: pendingState,
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++  });
++  const permitId = result.operations[0].operation_permit_id;
++  const receipt = result.operations[0].operation_receipt;
++  assert.equal(result.snapshot.state.nodes.n1.phase, "started");
++  assert.ok(Array.isArray(result.snapshot.journal));
++  assert.equal(result.snapshot.authority.permits[permitId].status, "consumed");
++  assert.equal(result.snapshot.authority.receipts[permitId].receipt_id, receipt.receipt_id);
++});
++
++test("K2.1b: exact replay receipt stability via public entrypoint", async () => {
++  const { createAuthorityStore, runKernelOperation } = require("./minimal-kernel-harness.js");
++  const { issueFixturePermit, createPermitLedger } = require("./lifecycle-kernel/test-permit-helpers.js");
++  const store = createAuthorityStore({ initial: { state: pendingState, journal: [] } });
++  const head = await store.load();
++  const issued = issueFixturePermit({
++    ledger: createPermitLedger(),
++    operation: "start",
++    headRevision: head.revision,
++    arguments: { node_id: "n1" },
++  });
++  const first = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    operationPermit: issued.permit,
++    permitLedger: issued.ledger,
++    effectExecutor: async () => ({ ok: true }),
++  });
++  const replay = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    operationPermit: issued.permit,
++    permitLedger: issued.ledger,
++    effectExecutor: async () => ({ ok: true }),
++  });
++  assert.equal(replay.operation_receipt.receipt_id, first.operation_receipt.receipt_id);
++  assert.equal(replay.replayed, true);
++});
++
++test("K2.1b: in-process restart keeps consumed permit and receipt verifiable", async () => {
++  const { createAuthorityStore } = require("./minimal-kernel-harness.js");
++  const first = await runHarnessScenario({
++    id: "k21b-restart-prep",
++    initialState: pendingState,
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++  });
++  const permitId = first.operations[0].operation_permit_id;
++  const receiptId = first.operations[0].operation_receipt.receipt_id;
++  const restored = createAuthorityStore({ initial: first.snapshot });
++  const loaded = await restored.load();
++  assert.equal(loaded.authority.permits[permitId].status, "consumed");
++  assert.equal(loaded.authority.receipts[permitId].receipt_id, receiptId);
++});
+diff --git a/openspec/changes/k2-1b-permit-issuance-atomic-consume/apply-progress.md b/openspec/changes/k2-1b-permit-issuance-atomic-consume/apply-progress.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k2-1b-permit-issuance-atomic-consume/apply-progress.md
+@@ -0,0 +1,237 @@
++# Apply Progress: k2-1b-permit-issuance-atomic-consume
++
++**Mode**: Strict TDD  
++**Delivery**: `size:exception` (exception-ok) — full tasks.md in one apply pass  
++**Branch**: `feat/k2-1b-permit-issuance-atomic-consume`  
++**Started**: 2026-08-05T09:50:00.000Z  
++**Completed**: 2026-08-05T10:15:00.000Z  
++**Status**: done — ready for verify
++
++## Pinned reason codes (apply)
++
++| Code | Meaning |
++|------|---------|
++| `auto-mint-disabled` | Public `runKernelOperation` rejected `mintPermit: true` |
++| `issuer-decision-required` | Issuer called without valid PolicyDecision/HumanDecision/KernelRule |
++| `issuer-decision-ambiguous` | More than one decision DTO supplied to issuer |
++| `authority-commit-incomplete` | Permit-authorized CAS missing consumed status or OperationReceipt |
++
++## Pinned decision DTO fields
++
++```js
++{ kind: "policy-decision/v1", decision_id, subject_id?, operation?, note? }
++{ kind: "human-decision/v1", decision_id, subject_id?, operation?, note? }
++{ kind: "kernel-rule/v1", rule_id, subject_id?, operation?, note? }
++```
++
++## Batch log
++
++### Batch 1 — size:exception full pass
++
++- Delivery strategy confirmed: `size:exception`
++- Safety net authority-store: 12/12 pass before modifications
++- Safety net permits: 10/10 pass before modifications
++- Phase 1–6 all `[x]`; `npm test` → 1944 pass / 0 fail (1946 total)
++- memory-store.js unchanged (authority bag lives on Authority Store subject entry)
++- host-contract/registry: no mintPermit:true mutate defaults to migrate (status-only / adapter surface checks)
++
++## Acceptance gates (verified locally)
++
++| Gate | Evidence |
++|------|----------|
++| 0 ops authorized solely as state-valid | Kernel/harness/model: omitPermit → `unauthorized` |
++| 0 commits without previously issued permit | Default `mintPermit=false`; auto-mint rejected |
++| 0 state commits without permit consumed | CAS `authorityCommit` co-writes bag; incomplete fails closed |
++| same replay → same OperationReceipt | Kernel + harness + model checkers |
++| restart → permit/receipt verifiable | snapshot → `initial` → load |
++
++## TDD Cycle Evidence
++
++| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR | Notes / Rationale |
++|------|-----------|-------|------------|-----|-------|-------------|----------|-------------------|
++| 1.1–1.3 | `scripts/lib/authority-store/index.test.js` | Unit | ✅ 12/12 | ✅ Written | ✅ Passed | ✅ 5 cases (bag/incomplete/atomic/replay/restart) | ✅ Clean | Bag on subject entry; digest unchanged |
++| 1.4 | N/A | Structural | N/A | ➖ | ➖ | ➖ Single | ➖ None needed | Triangulation skipped: memory-store unchanged per design |
++| 2.1–2.2 | `scripts/lib/lifecycle-kernel/permits.test.js` | Unit | ✅ 10/10 | ✅ Written | ✅ Passed | ✅ 5 issuer cases | ✅ Clean | Exact one decision DTO |
++| 2.3 | `scripts/lib/lifecycle-kernel/test-permit-helpers.js` | Unit | N/A (new helpers) | ✅ Written | ✅ Passed | ✅ via harness/kernel | ✅ Clean | `issueFixturePermit` issuer-first |
++| 2.4 | `scripts/lib/lifecycle-kernel/index.test.js` | Unit | ✅ | ✅ Written | ✅ Passed | ➖ Single | ✅ Clean | Re-export smoke |
++| 3.1–3.6 | `scripts/lib/lifecycle-kernel/index.test.js` | Integration | ✅ | ✅ Written | ✅ Passed | ✅ default/auto-mint/atomic/incomplete/replay/restart | ✅ Clean | Post-CAS Map mirror only |
++| 3.7 | `scripts/lib/lifecycle-kernel/host-boundary.test.js` | Unit | ✅ | ✅ Written | ✅ Passed | ➖ Single | ✅ Clean | Dropped mintPermit:true on status |
++| 4.1–4.2 | `scripts/lib/minimal-kernel-harness.test.js` | Integration | ✅ | ✅ Written | ✅ Passed | ✅ issuer/auto-mint/atomic/replay/restart | ✅ Clean | Default mintPermit false + auto-issue |
++| 4.3–4.4 | `scripts/lib/lifecycle-model.test.js` | Unit | ✅ | ✅ Written | ✅ Passed | ✅ K21=9 + K21B=5 non-deferred | ✅ Clean | Checkers exercise harness/kernel |
++| 5.1–5.2 | docs (checklist) | Docs | N/A | ➖ | ✅ | ➖ Single | ➖ | WARNING5 quick-path + maturity tags |
++| 6.1 | `npm test` | Suite | ✅ | N/A | ✅ 1944/0 | N/A | N/A | Full suite green |
++| 6.2 | this file | Evidence | N/A | N/A | ✅ | N/A | N/A | Evidence table + schema-v1 record |
++
++### Test Summary
++
++- **Total tests written** (new/extended this change): ~25 behavioral cases across store/permits/kernel/harness/model
++- **Total tests passing** (suite): 1944
++- **Layers used**: Unit, Integration, Suite
++- **Approval tests** (refactoring): None — behavioral deltas, not pure refactors
++- **Pure functions created**: `prepareOperationReceipt`, `findReplayReceipt`, decision DTO validators, `isCompleteAuthorityCommit`
++
++## Deviations from Design
++
++None — implementation matches design. Assumption sdd-design-001 (runtime DTO kinds without schema-family registration) and sdd-design-002 (revision digest unchanged) held.
++
++## Issues Found
++
++None blocking. Mid-op journal durability may advance journal_digest before a failed CAS; state head and authority bag remain unchanged on `authority-commit-incomplete` (asserted).
++
++## Workload / PR Boundary
++
++- Mode: `size:exception`
++- Current work unit: N/A (full tasks.md)
++- Boundary: Phase 1 store → Phase 6 evidence
++- Estimated review budget impact: High (accepted exception)
++
++```json:strict-tdd-evidence
++{
++  "schema_version": 1,
++  "change": "k2-1b-permit-issuance-atomic-consume",
++  "evidence_mode": "live",
++  "pinned_reason_codes": [
++    "auto-mint-disabled",
++    "issuer-decision-required",
++    "issuer-decision-ambiguous",
++    "authority-commit-incomplete"
++  ],
++  "pinned_decision_dto_kinds": [
++    "policy-decision/v1",
++    "human-decision/v1",
++    "kernel-rule/v1"
++  ],
++  "cycles": [
++    {
++      "task": "1.1-1.3",
++      "test_file": "scripts/lib/authority-store/index.test.js",
++      "layer": "unit",
++      "red": "written",
++      "green": "passed",
++      "triangulate": "passed",
++      "refactor": "passed",
++      "provenance": {
++        "source": "working-tree",
++        "command": "node --test scripts/lib/authority-store/index.test.js",
++        "digest": "sha256:c8878cee8a2a8a824a779e68254b244f4708b484bb93aa90c9ad02b606c09b24"
++      }
++    },
++    {
++      "task": "1.4",
++      "test_file": "scripts/lib/authority-store/index.test.js",
++      "layer": "structural",
++      "red": "n/a",
++      "green": "n/a",
++      "triangulate": "skipped",
++      "refactor": "none-needed",
++      "notes": "memory-store unchanged; bag on Authority Store subject entry",
++      "provenance": {
++        "source": "working-tree",
++        "command": "node --test scripts/lib/authority-store/index.test.js"
++      }
++    },
++    {
++      "task": "2.1-2.3",
++      "test_file": "scripts/lib/lifecycle-kernel/permits.test.js",
++      "layer": "unit",
++      "red": "written",
++      "green": "passed",
++      "triangulate": "passed",
++      "refactor": "passed",
++      "provenance": {
++        "source": "working-tree",
++        "command": "node --test scripts/lib/lifecycle-kernel/permits.test.js",
++        "digest": "sha256:21ae563f5c49b658c65a67934c40c5a192b287c425b4bc1376f3bab55c11a3db"
++      }
++    },
++    {
++      "task": "2.4-3.7",
++      "test_file": "scripts/lib/lifecycle-kernel/index.test.js",
++      "layer": "integration",
++      "red": "written",
++      "green": "passed",
++      "triangulate": "passed",
++      "refactor": "passed",
++      "provenance": {
++        "source": "working-tree",
++        "command": "node --test scripts/lib/lifecycle-kernel/index.test.js",
++        "digest": "sha256:0286b82b94543475bd153f30152189811771add7cd7014e8d15cb387d8de576f"
++      }
++    },
++    {
++      "task": "4.1-4.2",
++      "test_file": "scripts/lib/minimal-kernel-harness.test.js",
++      "layer": "integration",
++      "red": "written",
++      "green": "passed",
++      "triangulate": "passed",
++      "refactor": "passed",
++      "provenance": {
++        "source": "working-tree",
++        "command": "node --test scripts/lib/minimal-kernel-harness.test.js",
++        "digest": "sha256:88c933b1ac4a340ada344b2e574cb07855b20e0c6d3b127d504d1e0a220de783"
++      }
++    },
++    {
++      "task": "4.3-4.4",
++      "test_file": "scripts/lib/lifecycle-model.test.js",
++      "layer": "unit",
++      "red": "written",
++      "green": "passed",
++      "triangulate": "passed",
++      "refactor": "passed",
++      "provenance": {
++        "source": "working-tree",
++        "command": "node --test scripts/lib/lifecycle-model.test.js",
++        "digest": "sha256:4d10c1e6b3966a104a86ba01c2ea5192211a63d162b54b0249f8b6209d8e832b"
++      }
++    },
++    {
++      "task": "5.1-5.2",
++      "test_file": "docs/roadmaps/harness-evolution.md",
++      "layer": "docs",
++      "red": "n/a",
++      "green": "passed",
++      "triangulate": "n/a",
++      "refactor": "n/a",
++      "notes": "WARNING5 quick-path + architecture maturity tags",
++      "provenance": {
++        "source": "working-tree",
++        "command": "manual-docs-checklist"
++      }
++    },
++    {
++      "task": "6.1",
++      "test_file": "npm test",
++      "layer": "suite",
++      "red": "n/a",
++      "green": "passed",
++      "triangulate": "n/a",
++      "refactor": "n/a",
++      "provenance": {
++        "source": "working-tree",
++        "command": "npm test",
++        "result": "1944 pass / 0 fail"
++      }
++    }
++  ],
++  "functional_snapshot": {
++    "files": [
++      "scripts/lib/authority-store/index.js",
++      "scripts/lib/authority-store/index.test.js",
++      "scripts/lib/lifecycle-kernel/permits.js",
++      "scripts/lib/lifecycle-kernel/permits.test.js",
++      "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
++      "scripts/lib/lifecycle-kernel/index.js",
++      "scripts/lib/lifecycle-kernel/index.test.js",
++      "scripts/lib/lifecycle-kernel/host-boundary.test.js",
++      "scripts/lib/minimal-kernel-harness.js",
++      "scripts/lib/minimal-kernel-harness.test.js",
++      "scripts/lib/lifecycle-model.js",
++      "scripts/lib/lifecycle-model.test.js",
++      "docs/roadmaps/harness-evolution.md",
++      "docs/architecture/harness-evolution.md"
++    ]
++  }
++}
++```
+diff --git a/openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-001.md b/openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-001.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-001.md
+@@ -0,0 +1,29 @@
++# ADR-001: Controlled issuer separate from public mutate path
++
++- Status: proposed
++- Change: k2-1b-permit-issuance-atomic-consume
++- Date: 2026-08-05
++
++## Context
++
++K2.1 `runKernelOperation` defaults `mintPermit = true`, so a state-valid
++transition request is effectively auto-authorized. Specs require issuance only
++via TransitionOffer + PolicyDecision|HumanDecision|KernelRule + expected_revision,
++and forbid public auto-mint.
++
++## Decision
++
++Expose `issueOperationPermit` as the controlled runtime issuer. Public
++`runKernelOperation` defaults `mintPermit` to false and rejects `mintPermit: true`
++(`auto-mint-disabled`). Positive callers must present an issuer-produced permit.
++
++## Alternatives
++
++- Flag-only default flip while keeping auto-mint branch — still teaches the wrong public path.
++- Cryptographic / multi-process issuer — out of scope for K2.1 process-local model.
++
++## Consequences
++
++Harness/model fixtures must issue before mutate (high churn, intentional).
++Reversible by restoring the K2.1 mint branch. Extends parent ADR-003 (runtime-
++owned ledger) with an explicit issuance gate.
+diff --git a/openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-002.md b/openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-002.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-002.md
+@@ -0,0 +1,35 @@
++# ADR-002: CAS authority bag co-commits consume and receipt
++
++- Status: proposed
++- Change: k2-1b-permit-issuance-atomic-consume
++- Date: 2026-08-05
++
++## Context
++
++K2.1 consumes permits in a separate in-memory Map after successful
++`compareAndSwap`, so CAS can advance state/journal while `operation_receipt` is
++null. Specs require consumed status + OperationReceipt in the same winning
++revision as next_state/next_journal, with in-process restart verifiability.
++
++## Decision
++
++Store an `authority` bag on each Authority Store subject
++(`permits` + `receipts`). Permit-authorized `compareAndSwap` requires
++`authorityCommit`; the bag is written in the same success path as
++`inner.commit`. Incomplete commit fails closed without advancing head.
++Revision digest formula stays state+journal (parent ADR-001); bag is
++co-committed and exposed via `load`/`snapshot`. Issued-but-unused permits may
++remain in the process-local Map until consume.
++
++## Alternatives
++
++- Keep post-CAS Map as sole consume truth — dual authority; rejected by specs.
++- Fold authority into revision digest — breaks mid-op baselines and in-flight
++  expected_revision bindings.
++- Encode consume only as journal rows — couples effect journal to authority.
++
++## Consequences
++
++Restart fixtures restore authority from snapshot. Exact replay reads the bag
++instead of re-consuming. Apply must migrate kernel consume into the CAS call.
++Reversible by dropping the bag and restoring post-CAS Map consume.
+diff --git a/openspec/changes/k2-1b-permit-issuance-atomic-consume/design.md b/openspec/changes/k2-1b-permit-issuance-atomic-consume/design.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k2-1b-permit-issuance-atomic-consume/design.md
+@@ -0,0 +1,214 @@
++# Design: K2.1b — Permit issuance control and atomic consume
++
++## Technical Approach
++
++Correct K2.1 authority gaps without reopening K2a/K3: (1) separate controlled
++issuer so public `runKernelOperation` never auto-mints; (2) fold permit consume
+++ `OperationReceipt` into the same Authority Store CAS that commits
++`next_state` / `next_journal`; (3) exact replay returns the stored receipt;
++(4) in-process restart reloads consume/receipt from the store snapshot;
++(5) roadmap WARNING5 quick-path wording.
++
++Maps 1:1 to change-local deltas `operation-permits`, `authority-store`,
++`lifecycle-kernel-runtime`, `minimal-kernel-harness`,
++`lifecycle-model-conformance`, `harness-authority-canon`. Parent:
++`archive/2026-08-04-k2-1-authority-store-permits/`. Mode: `design-after-spec`.
++
++## Architecture Decisions
++
++### Decision: Controlled issuer is a separate public API
++
++| Option | Tradeoff | Decision |
++|--------|----------|----------|
++| Keep `mintPermit=true` default on `runKernelOperation` | State-valid ≡ authorized | Reject |
++| Gate mint behind flag only | Callers still auto-mint on public path | Reject |
++| `issueOperationPermit(offer + decision/rule + revision)` outside mutate path | Explicit authority; public path fail-closed | **Choose** |
++
++**Choice:** Export `issueOperationPermit` from `permits.js` (re-exported by
++kernel index). Require `TransitionOffer` + exactly one of
++`PolicyDecision` | `HumanDecision` | `KernelRule` + `expected_revision`.
++Remove the public auto-mint branch (`mintPermit` default `false`; `true` is
++rejected with `auto-mint-disabled`). Low-level `mintOperationPermit` remains
++internal to the issuer (tests may still call it only via issuer helpers).
++See ADR-001.
++
++### Decision: Consume + receipt live in the CAS subject authority bag
++
++| Option | Tradeoff | Decision |
++|--------|----------|----------|
++| Keep post-CAS Map consume | Dual truth; CAS can succeed with null receipt | Reject |
++| Put consume only in journal rows | Couples effect journal to authority ledger | Reject |
++| Atomic `authority` bag on subject, written inside `compareAndSwap` | Single commit; restart via snapshot | **Choose** |
++
++**Choice:** Each Authority Store subject holds
++`authority: { permits: {id→{permit,status}}, receipts: {id→receipt} }`.
++Permit-authorized CAS MUST pass `authorityCommit`; incomplete → fail closed
++(`authority-commit-incomplete`) with head unchanged. Process-local Map remains
++**issued-only** mirror until consume; winning revision is sole consume truth.
++Revision fingerprint stays `{state_digest, journal_digest}` (parent ADR-001) so
++mid-op baselines and in-flight `expected_revision` values stay stable; authority
++is co-committed and returned by `load` / `snapshot`. See ADR-002.
++
++### Decision: Exact replay short-circuits before re-consume
++
++**Choice:** After load, if the presented permit is already `consumed` in the
++authority bag and an `OperationReceipt` exists for that `permit_id` with matching
++`operation` / `subject_id` / digests, return that receipt without re-running
++effects or a second consume. Convergent CAS (`converged: true`) also resolves
++receipt from the bag. Authorize `permit-reuse` still blocks a consumed permit
++when no matching receipt/replay keys exist.
++
++### Decision: Issuer decision DTOs are runtime-validated shapes (no new schema families)
++
++**Choice:** Minimal frozen `kind` discriminators
++(`policy-decision/v1` | `human-decision/v1` | `kernel-rule/v1`) validated in
++`issueOperationPermit`. No new entries in `schemas/kernel/manifest.json` in this
++slice (proposal did not add schema families). Later slices may promote schemas.
++
++## Data Flow
++
++```mermaid
++sequenceDiagram
++  participant C as Caller/Harness
++  participant I as issueOperationPermit
++  participant L as Issued ledger (Map)
++  participant K as runKernelOperation
++  participant A as Authority Store
++  participant R as Reducer/Effects
++
++  C->>I: offer + PolicyDecision|HumanDecision|KernelRule + expected_revision
++  alt missing decision
++    I-->>C: fail closed (no permit)
++  else valid
++    I->>L: insert issued permit
++    I-->>C: OperationPermit
++  end
++  C->>K: mutate + operationPermit (mintPermit default false)
++  K->>A: load → state, journal, revision, authority
++  alt exact replay (consumed + receipt)
++    K-->>C: prior OperationReceipt (no second consume)
++  else authorize unused
++    K->>L: authorize vs head
++    K->>R: reduce + class-governed effects + commitJournal
++    K->>A: compareAndSwap(..., authorityCommit{consumed, receipt})
++    alt CAS ok
++      Note over A: atomic state+journal+authority
++      A-->>K: revision N
++      K-->>C: OperationReceipt
++    else incomplete authority / conflict
++      A-->>K: fail closed (head unchanged)
++    end
++  end
++```
++
++```text
++In-process restart:
++  snap = store.snapshot()  → { state, journal, authority }
++  store2 = createAuthorityStore({ initial: snap })
++  load → consumed permit + receipt still verifiable
++  (unused issued Map entries are not required across restart)
++```
++
++## Spec → design allocation
++
++| Spec MUST | Component / interface |
++|-----------|----------------------|
++| REQ-operation-permits-005 | `issueOperationPermit` + decision DTO check |
++| REQ-operation-permits-006 | CAS `authorityCommit` + replay short-circuit + snapshot |
++| REQ-authority-store-005 / 006 / MOD-004 | `compareAndSwap` + `load`/`snapshot` authority bag |
++| REQ-lifecycle-kernel-runtime-015 / 016 / MOD-011 | `runKernelOperation` defaults + wire CAS commit |
++| REQ-minimal-kernel-harness-011 / 012 / MOD-007 | Issuer-first fixtures; atomic/replay/restart scenarios |
++| REQ-lifecycle-model-conformance-009 / MOD-007 | K2.1b checkers 1–5 + inv 8–9 |
++| REQ-harness-authority-canon-008 / 009 | Docs maturity + WARNING5 quick-path |
++
++## File Changes
++
++| File | Action | Description |
++|------|--------|-------------|
++| `scripts/lib/lifecycle-kernel/permits.js` | Modify | Add `issueOperationPermit`; decision validation; keep Map as issued ledger |
++| `scripts/lib/lifecycle-kernel/permits.test.js` | Modify | Issuer RED/GREEN; offer-only reject; decision required |
++| `scripts/lib/lifecycle-kernel/test-permit-helpers.js` | Modify | Issuer-first helpers for fixtures |
++| `scripts/lib/lifecycle-kernel/index.js` | Modify | `mintPermit` default false; drop auto-mint; atomic CAS commit; replay receipt |
++| `scripts/lib/lifecycle-kernel/index.test.js` | Modify | Default false; atomic consume; replay; restart |
++| `scripts/lib/authority-store/index.js` | Modify | Authority bag; CAS `authorityCommit`; extend `load`/`snapshot`/`initial` |
++| `scripts/lib/authority-store/index.test.js` | Modify | Atomic payload; incomplete reject; replay receipt; restart |
++| `scripts/lib/lifecycle-kernel/memory-store.js` | Modify | Optional: persist authority if inner store owns it; prefer bag on Authority Store entry |
++| `scripts/lib/minimal-kernel-harness.js` | Modify | Default `mintPermit: false`; issuer-first positive steps |
++| `scripts/lib/minimal-kernel-harness.test.js` | Modify | Atomic/replay/restart + positive issuer companions |
++| `scripts/lib/lifecycle-model.js` | Modify | K2.1b executable invariants/checkers |
++| `scripts/lib/lifecycle-model*.test.js` / related | Modify | Pin new checkers non-optional |
++| `docs/roadmaps/harness-evolution.md` | Modify | Quick-path: replace bare `Ejecutar K2a → K3`; tag K2.1b `implemented` |
++| `docs/architecture/harness-evolution.md` | Modify | Same maturity / no K3-as-implemented claim |
++
++Authority bag lives on the **Authority Store subject entry** (not only the inner
++memory store) so `commitJournal` mid-op paths stay unchanged; CAS writes bag +
++`inner.commit` in one success path before returning `ok: true`.
++
++## Interfaces / Contracts
++
++```js
++// Decision DTOs (exactly one required by issuer)
++{ kind: "policy-decision/v1", decision_id, subject_id?, operation?, note? }
++{ kind: "human-decision/v1", decision_id, subject_id?, operation?, note? }
++{ kind: "kernel-rule/v1", rule_id, subject_id?, operation?, note? }
++
++issueOperationPermit({
++  ledger, transitionOffer, expected_revision, subject_id,
++  policyDecision?, humanDecision?, kernelRule?, // exactly one
++  arguments?, arguments_digest?, scope_digest?, policy_digest?, budget_ref?,
++}) → OperationPermit | throws/returns fail-closed
++
++// Authority Store
++load(subjectId) → { ..., authority: { permits, receipts } }
++snapshot(subjectId) → { state, journal, authority }
++compareAndSwap(subjectId, expectedRevision, nextState, nextJournal, midOpTicket?,
++  authorityCommit?: {
++    permit_id, receipt /* operation-receipt/v1 */, status: "consumed"
++  } | null
++)
++// Permit-authorized mutate: authorityCommit REQUIRED; omit/partial →
++//   { ok:false, code:"authority-commit-incomplete" }
++
++runKernelOperation({ ..., mintPermit = false, operationPermit, permitLedger })
++// mintPermit === true → blocked code "auto-mint-disabled"
++```
++
++Stable reason codes (additive): `auto-mint-disabled`, `issuer-decision-required`,
++`issuer-decision-ambiguous`, `authority-commit-incomplete`, plus existing
++`stale-permit`, `permit-reuse`, `cas-conflict`, `unauthorized`.
++
++## Testing Strategy
++
++Strict TDD (`strict_tdd: true`); `node --test` / `npm test`.
++
++| Layer | What to Test | Approach |
++|-------|-------------|----------|
++| Unit | Issuer decision gate; CAS authorityCommit accept/reject; replay lookup | RED→GREEN in permits + authority-store tests |
++| Integration | issue → authorize → CAS atomic bag; consume failure cannot advance head | Kernel index tests with memory authority store |
++| Replay | Exact identical op returns same receipt_id; no second consume | Kernel + harness fixtures |
++| Restart | `snapshot` → new store `initial` → load verifies consumed+receipt | Harness REQ-012 |
++| Harness | Positive issuer-first; fault matrix unchanged; auto-mint path not counted | `minimal-kernel-harness` |
++| Model | Invariants 1–5 (K2.1b) + inv 8–9; none deferred | `lifecycle-model` checkers |
++| Docs | Quick-path ≠ bare `Ejecutar K2a → K3`; K2.1b implemented; K3 not | Contract/docs assertion or checklist in verify |
++
++Acceptance gates: 0 state-valid-only auth; 0 commit without issued permit; 0
++commit without same-revision consume; exact replay → prior receipt; in-process
++restart verifiable; WARNING5 fixed.
++
++## Migration / Rollout
++
++1. Authority bag + CAS `authorityCommit` (store tests first).
++2. Issuer API + kill public auto-mint default.
++3. Wire kernel: prepare receipt pre-CAS; commit atomically; replay short-circuit.
++4. Migrate harness/model/helpers to issuer-first (expect widespread fixture churn).
++5. Docs WARNING5 + maturity labels.
++6. Rollback: revert modules/docs; restore K2.1 `mintPermit=true` + post-CAS Map
++   consume; leave journal history.
++
++`delivery_strategy: exception-ok` — slice store → issuer → kernel wire →
++harness/model → docs.
++
++## Open Questions
++
++None blocking. Apply MUST pin exact decision DTO field names and reason-code
++strings in `apply-progress.md` when implementing.
+diff --git a/openspec/changes/k2-1b-permit-issuance-atomic-consume/proposal.md b/openspec/changes/k2-1b-permit-issuance-atomic-consume/proposal.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k2-1b-permit-issuance-atomic-consume/proposal.md
+@@ -0,0 +1,131 @@
++# Proposal: K2.1b — Permit issuance control and atomic consume
++
++## Intent
++
++K2.1 delivered Authority Store CAS, `OperationPermit`, and effect classes, but
++two authority gaps remain before K3:
++
++1. Public `runKernelOperation` defaults `mintPermit = true`, so a valid
++   transition request is effectively auto-authorized.
++2. Permit consume lives in a separate in-memory Map after `compareAndSwap`. CAS
++   can succeed while consume fails (`operation_receipt: null`); replay/restart
++   cannot treat permit+receipt as part of the authoritative revision.
++
++This corrective hardening slice closes those gaps **before** Candidate/K3. It
++does **not** reopen K2a scope. Parent:
++`openspec/changes/archive/2026-08-04-k2-1-authority-store-permits/`.
++
++## Scope
++
++### In Scope
++
++- Public authoritative entrypoint MUST default `mintPermit = false`.
++- Separate controlled issuer path:
++  `TransitionOffer + PolicyDecision|HumanDecision|KernelRule + expected_revision
++  → issue OperationPermit` (runtime-owned; not model/self-grant).
++- Positive mutating tests MUST obtain a previously issued permit from that
++  issuer — no auto-mint convenience on the public path.
++- Permit consumed status, `next_state`, `next_journal`, and `OperationReceipt`
++  MUST commit in the **same** authoritative CAS revision.
++- Exact identical-operation replay MUST return the prior `OperationReceipt`
++  (no second ledger/receipt).
++- After in-process restart (K2.1 process-local durability model), permit and
++  receipt MUST remain verifiable from the authority-store revision.
++- Roadmap WARNING 5: `docs/roadmaps/harness-evolution.md` quick-path
++  `Ejecutar K2a → K3` MUST become `Ejecutar K3` **or** reflect that
++  K2.1b / k2a-1 correctives precede K3 (approved docs fix).
++
++### Out of Scope
++
++- K2a live capability probes / async transports / Claude enforced states
++  (`k2a-1-live-capability-probes-async-transports`).
++- K3 Candidate freeze / identities / relation algebra runtime.
++- Multi-process durable ledger beyond K2.1’s process-local store (consume +
++  receipt still MUST ride the same CAS revision as state).
++- Cryptographic trust roots, attestation, delivery authorization.
++
++## Capabilities
++
++### New Capabilities
++
++- None
++
++### Modified Capabilities
++
++- `operation-permits`: Controlled issuance (offer + decision/rule + revision);
++  public path must not auto-mint; consume + `OperationReceipt` are revision-
++  authoritative; exact replay returns prior receipt.
++- `authority-store`: CAS payload MUST atomically include permit consumed status
++  and `OperationReceipt` with next state/journal.
++- `lifecycle-kernel-runtime`: `runKernelOperation` defaults `mintPermit=false`;
++  mutating ops require a pre-issued permit; fail closed if consume cannot be
++  part of the successful CAS.
++- `minimal-kernel-harness`: Fault/positive matrix uses controlled issuer; assert
++  atomic consume and replay/restart receipt stability.
++- `lifecycle-model-conformance`: Promote “no auto-authorize on state-valid” and
++  “no commit without consumed permit in same revision” invariants.
++- `harness-authority-canon`: Record K2.1b corrective maturity (issuance vs
++  consume atomicity) without claiming K3 readiness.
++
++## Approach
++
++Keep functional-core / imperative-shell (CommonJS, Strict TDD):
++
++1. Flip public default to `mintPermit = false`; keep mint only on an explicit
++   issuer API (or gated internal helper) that requires TransitionOffer +
++   PolicyDecision/HumanDecision/KernelRule + `expected_revision`.
++2. Extend Authority Store CAS so the winning revision records permit consumed
++   status + OperationReceipt alongside next state/journal (process-local
++   durability preserved; separate Map is no longer the sole consume truth).
++3. On exact replay of an identical authorized operation, return the stored prior
++   OperationReceipt; do not mint/consume again.
++4. Update harness, model, and kernel tests under Strict TDD (RED→GREEN) so
++   fixtures issue permits first.
++5. Patch roadmap quick-path per approved WARNING 5.
++
++## Affected Areas
++
++| Area | Impact | Description |
++|------|--------|-------------|
++| `scripts/lib/lifecycle-kernel/index.js` | Modified | Default `mintPermit=false`; atomic post-effect commit |
++| `scripts/lib/lifecycle-kernel/permits.js` | Modified | Controlled issuer; consume tied to CAS revision |
++| `scripts/lib/authority-store/index.js` | Modified | CAS payload carries permit/receipt records |
++| `scripts/lib/minimal-kernel-harness.js` | Modified | Issuer-first scenarios; no auto-mint defaults |
++| `scripts/lib/lifecycle-model.js` | Modified | New authority invariants |
++| `scripts/lib/**/*.test.js` | Modified | Strict TDD coverage for gates |
++| `docs/roadmaps/harness-evolution.md` | Modified | Quick-path precedes-K3 wording |
++| `openspec/specs/*` (on archive) | Modified | Promote deltas |
++
++## Risks
++
++| Risk | Likelihood | Mitigation |
++|------|------------|------------|
++| Callers/tests break when auto-mint removed | High | Controlled issuer helper; migrate harness/model fixtures first (Strict TDD) |
++| Partial migrate leaves dual truth (Map vs CAS) | Med | Single authoritative consume record in CAS revision; ledger mirrors only |
++| Scope creep into K2a/K3 | High | Explicit out-of-scope; plan approval `plan-001` |
++| Review LOC overrun | Med | `delivery_strategy: exception-ok`; slice issuer → CAS payload → replay → docs |
++| Process-local durability misread as multi-process | Low | Document K2.1 model unchanged; assert in-process restart only |
++
++## Rollback Plan
++
++1. Revert K2.1b kernel/store/permit/harness/model edits and roadmap quick-path.
++2. Restore K2.1 `mintPermit=true` default and post-CAS Map consume behavior.
++3. Leave K2.1 schemas, journal history, and fixed-policy defaults intact.
++4. Do not rewrite review/archive lineages or reopen K2a/K3 artifacts.
++
++## Dependencies
++
++- Parent K2.1 archived (`2026-08-04-k2-1-authority-store-permits`, v2.39.0).
++- K2a archived separately; this change does not depend on k2a-1 completion.
++- Blocks K3 Candidate runtime until this corrective (and planned k2a-1) close
++  per approval `plan-001`.
++
++## Success Criteria
++
++- [ ] 0 operations authorized solely because they are state-valid.
++- [ ] 0 commits without a previously issued permit.
++- [ ] 0 state commits without permit consumed in the same revision.
++- [ ] Exact identical replay → same OperationReceipt.
++- [ ] In-process restart → permit/receipt still verifiable from authority-store revision.
++- [ ] Roadmap quick-path no longer says bare `Ejecutar K2a → K3` without correctives.
++- [ ] Strict TDD evidence for issuer, atomic consume, replay, and restart paths.
+diff --git a/openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/authority-store/spec.md b/openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/authority-store/spec.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/authority-store/spec.md
+@@ -0,0 +1,78 @@
++# Delta for authority-store
++
++## ADDED Requirements
++
++### Requirement: CAS Payload Atomically Includes Permit And Receipt {#REQ-authority-store-005}
++
++A successful authoritative `compareAndSwap` for a permit-authorized mutation
++MUST atomically persist, in the winning revision: `next_state`, `next_journal`,
++permit consumed status for the authorizing `permit_id`, and the corresponding
++`OperationReceipt`. The store MUST NOT treat a separate post-CAS side map as the
++sole authoritative consume truth. If permit consumed status and receipt cannot
++be included in that same winning revision, the CAS MUST fail closed and MUST NOT
++advance the head.
++
++#### Scenario: Winning revision carries state journal permit and receipt
++
++- GIVEN expectedRevision R and a permit-authorized next_state / next_journal
++- WHEN `compareAndSwap` succeeds
++- THEN the new head revision MUST include next_state and next_journal
++- AND MUST include permit status consumed for that permit_id
++- AND MUST include the OperationReceipt for that consume
++
++#### Scenario: Incomplete consume payload rejects CAS
++
++- GIVEN a CAS attempt whose payload omits permit consumed status or
++  OperationReceipt for a permit-authorized mutation
++- WHEN `compareAndSwap` is evaluated
++- THEN the call MUST fail closed
++- AND the head revision MUST remain unchanged
++
++### Requirement: Replay Returns Stored Receipt Without Second Advance {#REQ-authority-store-006}
++
++Exact identical replay of a previously successful permit-authorized CAS MUST
++converge on the stored post-state and MUST expose the prior OperationReceipt
++already recorded in that revision. Replay MUST NOT invent a second head advance
++or a second receipt for the same completed mutation keys.
++
++#### Scenario: Exact replay exposes prior receipt
++
++- GIVEN a successful CAS that recorded OperationReceipt Rc at head N
++- WHEN the same CAS inputs are reconciled or replayed
++- THEN the authoritative head MUST remain N
++- AND the returned receipt MUST equal Rc
++- AND no second consume record MUST be created
++
++## MODIFIED Requirements
++
++### Requirement: Exact Replay Converges On Same Revision {#REQ-authority-store-004}
++
++Replaying the same successful CAS inputs against the same pre-CAS revision MUST
++converge to the same post-state digest. Exact replay MUST NOT invent a second
++head advance when the journal already records the completed mutation for that
++revision and effect keys. When the completed mutation was permit-authorized,
++exact replay MUST also return the prior OperationReceipt recorded in that
++revision and MUST NOT mint a new receipt.
++(Previously: replay converged on state/effects only; K2.1b binds receipt
++identity to the same revision.)
++
++#### Scenario: Exact replay after successful CAS
++
++- GIVEN a successful CAS from revision R to state N with recorded journal keys
++- WHEN the same CAS inputs are reconciled or replayed
++- THEN the authoritative head MUST remain N
++- AND completed effects MUST NOT execute again
++
++#### Scenario: Stale expected revision is rejected
++
++- GIVEN the head revision advanced beyond R
++- WHEN `compareAndSwap(S, R, nextState)` runs
++- THEN the call MUST fail closed as stale or conflict
++- AND the head MUST remain unchanged
++
++#### Scenario: Exact replay returns prior OperationReceipt
++
++- GIVEN a successful permit-authorized CAS that recorded OperationReceipt Rc
++- WHEN the same CAS inputs are reconciled or replayed
++- THEN the runtime MUST return Rc
++- AND MUST NOT emit a distinct second OperationReceipt
+diff --git a/openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/harness-authority-canon/spec.md b/openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/harness-authority-canon/spec.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/harness-authority-canon/spec.md
+@@ -0,0 +1,53 @@
++# Delta for harness-authority-canon
++
++## ADDED Requirements
++
++### Requirement: K2.1b Issuance And Consume Maturity Is Implemented {#REQ-harness-authority-canon-008}
++
++Normative harness-evolution documentation MUST label controlled permit issuance
++(TransitionOffer + PolicyDecision|HumanDecision|KernelRule + expected_revision)
++and atomic CAS consume of permit status + OperationReceipt with next
++state/journal as `implemented` for the K2.1b corrective. Documentation MUST NOT
++claim K3 Candidate runtime readiness solely because K2.1b closed. Candidate
++freeze, attestation, and delivery authorization MUST remain `target` (or later
++slice) and MUST NOT be labeled `implemented` by K2.1b.
++
++#### Scenario: K2.1b surfaces tagged implemented
++
++- GIVEN harness-evolution docs listing controlled issuance and atomic
++  permit/receipt consume
++- WHEN maturity labeling is validated after K2.1b
++- THEN those surfaces MUST be tagged `implemented`
++- AND K3 Candidate runtime MUST NOT be tagged `implemented` solely by K2.1b
++
++#### Scenario: K3 remains non-implemented after K2.1b
++
++- GIVEN documentation mentioning Candidate freeze or relation algebra runtime
++- WHEN maturity labeling is validated after K2.1b
++- THEN those capabilities MUST remain `target` or `experimental`
++- AND MUST NOT be presented as delivered by this corrective
++
++### Requirement: Roadmap Quick-Path Reflects Post-K2a Correctives {#REQ-harness-authority-canon-009}
++
++The harness-evolution roadmap quick-path MUST NOT present bare
++`Ejecutar K2a → K3` as if K2a were still the pending predecessor of K3.
++After K2a archive, the quick-path MUST present K3 accurately and MUST reflect
++that K2.1b and/or other approved correctives preceding K3 remain required when
++applicable. The wording MAY say `Ejecutar K3` or an equivalent ordered list that
++names those correctives before K3.
++
++#### Scenario: Bare K2a-to-K3 quick-path is rejected
++
++- GIVEN the roadmap quick-path table row that sequences work before K3
++- WHEN maturity/docs validation runs after K2.1b
++- THEN the row MUST NOT equal bare `Ejecutar K2a → K3` implying K2a still pending
++- AND MUST name K3 and/or correctives that precede K3 accurately
++
++#### Scenario: Correctives-before-K3 wording is accepted
++
++- GIVEN a quick-path entry that lists K2.1b (and any approved k2a-1 corrective)
++  before K3, or simply `Ejecutar K3` once correctives are acknowledged elsewhere
++  as gates
++- WHEN docs validation runs
++- THEN the entry MUST be accepted
++- AND MUST NOT claim K3 runtime is already implemented
+diff --git a/openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-kernel-runtime/spec.md b/openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-kernel-runtime/spec.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-kernel-runtime/spec.md
+@@ -0,0 +1,93 @@
++# Delta for lifecycle-kernel-runtime
++
++## ADDED Requirements
++
++### Requirement: Public Entrypoint Does Not Auto-Mint Permits {#REQ-lifecycle-kernel-runtime-015}
++
++The public authoritative entrypoint (`runKernelOperation` and equivalent public
++mutating APIs) MUST default `mintPermit` to `false`. Mutating operations MUST
++require a previously issued OperationPermit from the controlled issuer. Zero
++operations MAY be authorized solely because the transition is state-valid. Zero
++commits MAY complete without a previously issued permit.
++
++#### Scenario: Default mintPermit is false
++
++- GIVEN a public runKernelOperation call with no mintPermit override
++- WHEN the call is constructed
++- THEN mintPermit MUST default to false
++- AND the call MUST NOT auto-mint an OperationPermit
++
++#### Scenario: State-valid transition without permit fails
++
++- GIVEN a reducer action that is state-valid for the current head
++- AND no previously issued OperationPermit is presented
++- WHEN the public mutating entrypoint runs
++- THEN authorize MUST fail closed
++- AND the Authority Store head MUST remain unchanged
++
++#### Scenario: Commit requires previously issued permit
++
++- GIVEN a state-valid mutation request
++- AND mintPermit remains false
++- AND no issuer-produced permit is supplied
++- WHEN commit is attempted
++- THEN the commit MUST fail closed
++- AND no compareAndSwap success MUST be recorded
++
++### Requirement: Successful Commit Requires Atomic Permit Consume {#REQ-lifecycle-kernel-runtime-016}
++
++The imperative shell MUST commit authoritative mutations only when permit
++consumed status and OperationReceipt are part of the same successful
++`compareAndSwap` revision as `next_state` and `next_journal`. If consume cannot
++be included in that CAS, the operation MUST fail closed without advancing the
++head. Exact identical replay MUST return the prior OperationReceipt.
++
++#### Scenario: CAS success includes consumed permit and receipt
++
++- GIVEN an issuer-produced valid permit matching head revision R
++- WHEN the public mutating entrypoint completes successfully
++- THEN the winning revision MUST record next_state, next_journal, consumed
++  permit status, and OperationReceipt together
++- AND a post-CAS-only consume map MUST NOT be the sole authority
++
++#### Scenario: Missing atomic consume fails closed
++
++- GIVEN an issuer-produced valid permit
++- WHEN CAS cannot persist consume + receipt with next_state/journal
++- THEN the operation MUST fail closed
++- AND the head MUST remain at the pre-attempt revision
++- AND operation_receipt MUST NOT imply a committed advance
++
++#### Scenario: Exact replay returns prior receipt
++
++- GIVEN a completed authorized operation with stored OperationReceipt Rc
++- WHEN the exact identical operation is replayed through the public entrypoint
++- THEN the response MUST return Rc
++- AND MUST NOT mint or consume a new permit for that replay
++
++## MODIFIED Requirements
++
++### Requirement: TransitionOffer Never Authorizes Mutation {#REQ-lifecycle-kernel-runtime-011}
++
++A `TransitionOffer` from `next_transition` MUST NOT authorize mutation by
++itself. Authorization MUST require a separately issued `OperationPermit` from
++the controlled issuer. Issuance MUST require TransitionOffer plus exactly one of
++`PolicyDecision`, `HumanDecision`, or `KernelRule`, plus `expected_revision`.
++Offers MUST NOT be sufficient inputs for auto-mint on the public mutating path.
++(Previously: offers MAY feed minting with digests; K2.1b requires controlled
++issuer inputs and forbids public auto-mint.)
++
++#### Scenario: Offer-only authorize fails
++
++- GIVEN a TransitionOffer for operation O
++- WHEN authorize is invoked with the offer and no OperationPermit
++- THEN authorize MUST fail closed
++- AND no compareAndSwap MUST run
++
++#### Scenario: Offer without decision or rule cannot issue
++
++- GIVEN a TransitionOffer and expected_revision R
++- AND no PolicyDecision, HumanDecision, or KernelRule
++- WHEN the controlled issuer is invoked
++- THEN issuance MUST fail closed
++- AND no OperationPermit MUST be returned
+diff --git a/openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-model-conformance/spec.md b/openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-model-conformance/spec.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-model-conformance/spec.md
+@@ -0,0 +1,82 @@
++# Delta for lifecycle-model-conformance
++
++## ADDED Requirements
++
++### Requirement: Executable K2.1b Issuance And Consume Invariants {#REQ-lifecycle-model-conformance-009}
++
++The model suite MUST check these executable K2.1b invariants against the real
++Minimal Kernel Harness:
++
++1. No operation is authorized solely because the transition is state-valid.
++2. No commit completes without a previously issued OperationPermit.
++3. No state commit succeeds without permit consumed status recorded in the same
++   Authority Store revision as next_state / next_journal / OperationReceipt.
++4. Exact identical replay returns the prior OperationReceipt (no second ledger
++   or receipt).
++5. After in-process restart, permit consumed status and receipt remain
++   verifiable from the Authority Store revision.
++
++#### Scenario: Every K2.1b invariant has a checker
++
++- GIVEN the model suite manifest after K2.1b
++- WHEN conformance verification runs
++- THEN every invariant above MUST map to an executable checker
++- AND no K2.1b checker MAY be marked optional or deferred
++
++#### Scenario: State-valid alone cannot authorize
++
++- GIVEN a model action that is state-valid but supplies no issuer-produced permit
++- WHEN the model suite explores that action
++- THEN authorize MUST fail closed
++- AND the checker for invariant 1 MUST pass only if rejection holds
++
++#### Scenario: Commit without same-revision consume fails checker
++
++- GIVEN a model trace that advances head without consumed permit in that revision
++- WHEN the suite evaluates invariant 3
++- THEN the checker MUST fail the trace
++- AND MUST pass only when consume and receipt share the winning revision
++
++## MODIFIED Requirements
++
++### Requirement: Executable K2.1 Authority Invariants {#REQ-lifecycle-model-conformance-007}
++
++The model suite MUST check these executable K2.1 invariants against the real
++Minimal Kernel Harness:
++
++1. No authoritative mutation without successful compareAndSwap.
++2. Stale permits (`expected_revision` ≠ head) are rejected.
++3. Consumed permits cannot be reused.
++4. Ambiguous irreversible effects never blind-retry; next kind is `decide` or
++   `stop`.
++5. Exact replay on the same revision converges.
++6. Models cannot mint or self-grant OperationPermits.
++7. Direct-write paths without permit + CAS + effect class are rejected.
++8. Public auto-mint is not a valid authorization path; positive advances use
++   controlled-issuer permits.
++9. Exact replay returns the prior OperationReceipt without a second consume.
++
++K2.1b checkers for invariants 8–9 MUST NOT be deferred.
++(Previously: seven K2.1 checkers; K2.1b adds issuer-first and receipt-stable
++replay.)
++
++#### Scenario: Every K2.1 invariant has a checker
++
++- GIVEN the model suite manifest after K2.1
++- WHEN conformance verification runs
++- THEN every invariant above MUST map to an executable checker
++- AND no K2.1 checker MAY be marked optional or deferred
++
++#### Scenario: Model cannot self-grant permits
++
++- GIVEN a model action that fabricates an OperationPermit
++- WHEN the model suite explores that action
++- THEN authorize MUST fail closed
++- AND the checker for invariant 6 MUST record a pass only if rejection holds
++
++#### Scenario: Auto-mint path is rejected by checker
++
++- GIVEN a model action that relies on public mintPermit defaulting to true
++- WHEN the model suite explores that action
++- THEN the checker for invariant 8 MUST fail the path
++- AND MUST pass only when issuer-produced permits are required
+diff --git a/openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/minimal-kernel-harness/spec.md b/openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/minimal-kernel-harness/spec.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/minimal-kernel-harness/spec.md
+@@ -0,0 +1,101 @@
++# Delta for minimal-kernel-harness
++
++## ADDED Requirements
++
++### Requirement: Positive Paths Use Controlled Issuer Permits {#REQ-minimal-kernel-harness-011}
++
++Positive mutating harness fixtures that authorize an advance MUST obtain an
++OperationPermit from the controlled issuer before calling the public kernel
++entrypoint. Fixtures MUST NOT rely on public-path auto-mint (`mintPermit`
++default true) to pass. Fault-matrix fixtures MAY continue to inject stale,
++reused, or missing permits explicitly.
++
++#### Scenario: Positive mutation issues permit first
++
++- GIVEN a positive mutating harness fixture that expects a successful advance
++- WHEN the fixture prepares authorization
++- THEN it MUST call the controlled issuer with TransitionOffer plus
++  PolicyDecision, HumanDecision, or KernelRule and expected_revision
++- AND MUST present that issuer-produced permit to the public entrypoint
++
++#### Scenario: Auto-mint convenience does not satisfy positive coverage
++
++- GIVEN a fixture that mutates solely by enabling public auto-mint
++- WHEN K2.1b harness conformance is evaluated
++- THEN that fixture MUST NOT count as a passing positive authorization path
++
++### Requirement: Atomic Consume Replay And Restart Fixtures {#REQ-minimal-kernel-harness-012}
++
++The harness MUST exercise atomic consume, exact identical replay receipt
++stability, and in-process restart verifiability through the public entrypoint.
++Private reducer-only fixtures MUST NOT satisfy these checks.
++
++#### Scenario: Atomic consume fixture
++
++- GIVEN an issuer-produced valid permit and a successful public mutation
++- WHEN the harness inspects the Authority Store winning revision
++- THEN next_state, next_journal, permit consumed status, and OperationReceipt
++  MUST all be present in that revision
++- AND a failed consume path MUST leave the pre-attempt head unchanged
++
++#### Scenario: Exact replay receipt fixture
++
++- GIVEN a completed authorized mutation with OperationReceipt Rc
++- WHEN the harness replays the exact identical operation
++- THEN the result MUST return Rc
++- AND MUST NOT record a second consume or receipt
++
++#### Scenario: In-process restart receipt fixture
++
++- GIVEN a process-local store revision that recorded consumed permit and receipt
++- WHEN the harness restarts the in-process store and reloads the subject
++- THEN permit consumed status and OperationReceipt MUST remain verifiable
++- AND multi-process durability MUST NOT be required for the fixture to pass
++
++## MODIFIED Requirements
++
++### Requirement: Authority Fault Matrix Through Public Entrypoint {#REQ-minimal-kernel-harness-007}
++
++The Minimal Kernel Harness MUST exercise the K2.1 authority fault matrix through
++the same public kernel entrypoint used by runtime consumers. The matrix MUST
++cover at least: CAS conflict, stale permit, permit reuse, and ambiguous
++irreversible effect. Positive companion paths in the same suite MUST use
++controlled-issuer permits rather than public auto-mint. Private reducer-only
++fixtures MUST NOT satisfy this requirement.
++(Previously: fault matrix only; K2.1b requires issuer-first positive companions.)
++
++#### Scenario: CAS conflict fixture
++
++- GIVEN two concurrent writers sharing the same loaded revision
++- WHEN both attempt compareAndSwap through the public entrypoint
++- THEN exactly one MUST succeed
++- AND the harness result MUST record a CAS-conflict outcome for the loser
++- AND budgets MUST NOT inflate because of the conflict
++
++#### Scenario: Stale permit fixture
++
++- GIVEN a permit whose expected_revision no longer matches the head
++- WHEN the harness authorizes a mutation with that permit
++- THEN authorize MUST fail closed as stale
++- AND the final head digest MUST match the pre-attempt head
++
++#### Scenario: Permit reuse fixture
++
++- GIVEN a permit already consumed into an OperationReceipt
++- WHEN the harness presents the same permit again
++- THEN the attempt MUST fail closed
++- AND no second authoritative advance MUST occur
++
++#### Scenario: Ambiguous irreversible effect fixture
++
++- GIVEN an irreversible effect whose outcome is injected as ambiguous
++- WHEN the harness continues the protocol
++- THEN the next kind MUST be `decide` or `stop`
++- AND the same irreversible effect MUST NOT auto-retry
++
++#### Scenario: Positive companion uses issuer permit
++
++- GIVEN a harness positive path that expects a successful CAS advance
++- WHEN authorization is prepared
++- THEN the permit MUST come from the controlled issuer
++- AND mintPermit on the public entrypoint MUST remain false by default
+diff --git a/openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/operation-permits/spec.md b/openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/operation-permits/spec.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/operation-permits/spec.md
+@@ -0,0 +1,71 @@
++# Delta for operation-permits
++
++## ADDED Requirements
++
++### Requirement: Controlled Issuer Issues Permits {#REQ-operation-permits-005}
++
++Permit issuance MUST occur only through a controlled runtime issuer that
++accepts a `TransitionOffer` plus exactly one of `PolicyDecision`,
++`HumanDecision`, or `KernelRule`, plus `expected_revision`, and returns an
++`OperationPermit`. State-validity of the offered transition alone MUST NOT
++authorize issuance or mutation. Models, hosts, and public mutating entrypoints
++MUST NOT self-grant or auto-mint permits.
++
++#### Scenario: Issuer produces permit from offer plus decision
++
++- GIVEN a valid TransitionOffer and a PolicyDecision (or HumanDecision or
++  KernelRule) bound to expected_revision R
++- WHEN the controlled issuer runs
++- THEN it MUST return a runtime-owned OperationPermit with expected_revision R
++- AND the permit MUST NOT be minted by the public mutating entrypoint
++
++#### Scenario: State-valid offer alone does not issue
++
++- GIVEN a TransitionOffer that is state-valid for the current head
++- AND no PolicyDecision, HumanDecision, or KernelRule is supplied
++- WHEN issuance is attempted
++- THEN the issuer MUST fail closed
++- AND no OperationPermit MUST exist for that attempt
++
++### Requirement: Consume And Receipt Are Revision Authoritative {#REQ-operation-permits-006}
++
++Consuming an OperationPermit and emitting its OperationReceipt MUST be recorded
++in the same Authority Store revision that commits `next_state` and
++`next_journal`. A failed consume MUST NOT leave committed authoritative state
++without a consumed permit. Exact identical replay of a completed authorized
++operation MUST return the prior OperationReceipt and MUST NOT mint a second
++ledger entry or receipt. After in-process restart under the K2.1 process-local
++durability model, permit consumed status and receipt MUST remain verifiable
++from the Authority Store revision.
++
++#### Scenario: Successful consume records receipt in winning revision
++
++- GIVEN a valid unused issuer-produced permit matching head revision R
++- WHEN the authorized mutation commits successfully
++- THEN the winning revision MUST record permit status consumed
++- AND MUST record the OperationReceipt referencing that permit_id
++- AND MUST record next_state and next_journal in that same revision
++
++#### Scenario: Failed consume does not leave orphan committed state
++
++- GIVEN a valid unused permit matching head revision R
++- WHEN consume cannot be recorded as part of the successful CAS
++- THEN the authoritative head MUST remain at R
++- AND no OperationReceipt MUST be treated as committed for that attempt
++
++#### Scenario: Exact identical replay returns prior receipt
++
++- GIVEN a completed mutation whose OperationReceipt is already recorded in the
++  authority-store revision
++- WHEN the exact same authorized operation is replayed
++- THEN the runtime MUST return that prior OperationReceipt
++- AND MUST NOT mint a new permit consume or second receipt
++
++#### Scenario: In-process restart keeps permit and receipt verifiable
++
++- GIVEN a process-local Authority Store revision that recorded consumed permit
++  status and OperationReceipt
++- WHEN the process restarts and reloads that subject
++- THEN permit consumed status and receipt MUST remain verifiable from the
++  loaded revision
++- AND multi-process durable ledger behavior MUST NOT be required
+diff --git a/openspec/changes/k2-1b-permit-issuance-atomic-consume/state.yaml b/openspec/changes/k2-1b-permit-issuance-atomic-consume/state.yaml
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k2-1b-permit-issuance-atomic-consume/state.yaml
+@@ -0,0 +1,182 @@
++change: k2-1b-permit-issuance-atomic-consume
++status: verified
++created_at: "2026-08-05T09:20:00.000Z"
++last_updated: "2026-08-05T10:05:00.000Z"
++blocking_questions: []
++
++classification: high-risk
++owner:
++  author: Manuel Retamozo
++  branch: feat/k2-1b-permit-issuance-atomic-consume
++workload: {}
++route:
++  intended_route: standard
++  actual_route: standard
++  route_rationale: "K2.1b permit issuance / atomic consume is high-risk kernel authority hardening on an active project; first matching route is standard (clarify + 4R)."
++  validated: true
++  validation_errors: []
++execution_mode: auto
++delivery_strategy: exception-ok
++session:
++  plan_source: pre-k3-authority-review
++  next_after_archive: k2a-1-live-capability-probes-async-transports
++approvals:
++  - id: plan-001
++    gate: architecture
++    decision: "k2-1b first then k2a-1; K3 runtime blocked until both close"
++    source: user-chat
++    accepted_at: "2026-08-05T09:20:00.000Z"
++    applies_to:
++      - sdd-propose
++      - sdd-spec
++      - sdd-design
++      - sdd-tasks
++      - sdd-apply
++  - id: exec-mode-001
++    gate: execution-mode
++    decision: auto
++    source: user-chat
++    accepted_at: "2026-08-05T09:20:00.000Z"
++    applies_to:
++      - sdd-propose
++      - sdd-spec
++      - sdd-design
++      - sdd-tasks
++      - sdd-apply
++      - sdd-verify
++      - sdd-archive
++  - id: delivery-001
++    gate: delivery-strategy
++    decision: exception-ok
++    source: user-chat
++    accepted_at: "2026-08-05T09:20:00.000Z"
++    applies_to:
++      - sdd-tasks
++      - sdd-apply
++  - id: review-workload-001
++    gate: review-workload
++    decision: size-exception
++    source: user-chat
++    accepted_at: "2026-08-05T09:40:00.000Z"
++    applies_to:
++      - sdd-apply
++  - id: assumption-reconciliation-001
++    gate: architecture
++    decision: "confirm sdd-design-002, sdd-design-001 (and sdd-apply-001 held)"
++    source: user-chat
++    accepted_at: "2026-08-05T09:53:00.000Z"
++    applies_to:
++      - sdd-verify
++  - id: roadmap-001
++    gate: architecture
++    decision: "include WARNING5 roadmap quick-path fix in k2-1b scope"
++    source: user-chat
++    accepted_at: "2026-08-05T09:20:00.000Z"
++    applies_to:
++      - sdd-propose
++      - sdd-tasks
++      - sdd-apply
++phases:
++  sdd-propose:
++    status: done
++    artifact: openspec/changes/k2-1b-permit-issuance-atomic-consume/proposal.md
++    summary: "K2.1b corrective: mintPermit default false + controlled issuer; atomic CAS consume/receipt; roadmap WARNING5; blocks K3."
++    key_decisions:
++      - "Public runKernelOperation defaults mintPermit=false; issuer is separate"
++      - "Permit consumed + OperationReceipt commit in same CAS revision as state/journal"
++      - "Process-local durability model unchanged; multi-process ledger out of scope"
++  sdd-spec:
++    status: done
++    artifacts:
++      - openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/operation-permits/spec.md
++      - openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/authority-store/spec.md
++      - openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-kernel-runtime/spec.md
++      - openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/minimal-kernel-harness/spec.md
++      - openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-model-conformance/spec.md
++      - openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/harness-authority-canon/spec.md
++    summary: "Deltas for issuer+atomic consume across 6 domains; mintPermit default false; roadmap quick-path; K2.1b invariants."
++    key_decisions:
++      - "Issuance requires TransitionOffer + PolicyDecision|HumanDecision|KernelRule + expected_revision"
++      - "CAS winning revision atomically carries state/journal/consumed permit/receipt"
++      - "Roadmap MUST NOT keep bare Ejecutar K2a → K3; K3/correctives wording required"
++  clarify:
++    status: skipped
++    rationale: "residual_ambiguity false; empty public_contract_questions, conflicting_requirements, missing_acceptance_criteria"
++  sdd-design:
++    status: done
++    artifact: openspec/changes/k2-1b-permit-issuance-atomic-consume/design.md
++    summary: "Issuer API + CAS authority bag; mintPermit false; replay/restart from bag; WARNING5 docs; Strict TDD."
++    key_decisions:
++      - "issueOperationPermit separate; public auto-mint rejected"
++      - "Authority bag co-committed in compareAndSwap; revision digest unchanged"
++      - "Exact replay returns stored receipt before re-consume"
++  sdd-tasks:
++    status: done
++    artifact: openspec/changes/k2-1b-permit-issuance-atomic-consume/tasks.md
++    summary: "6 phases, 22 tasks; store→issuer→kernel→harness/model→docs; size-exception; 520–680 LOC est."
++    key_decisions:
++      - "Strict TDD RED→GREEN per layer; authority bag before kernel wire"
++      - "size-exception single PR (exception-ok); optional 3-unit chain"
++      - "All 15 MUST REQs mapped; reconciliation complete"
++  sdd-apply:
++    status: done
++    artifact: openspec/changes/k2-1b-permit-issuance-atomic-consume/apply-progress.md
++    summary: "Strict TDD size:exception: authority bag, issuer, mintPermit=false, atomic CAS consume/replay/restart, harness/model, WARNING5 docs; npm test 1944/0."
++    key_decisions:
++      - "authority bag on Authority Store subject entry; digest stays state+journal"
++      - "issueOperationPermit separate; public auto-mint rejected with auto-mint-disabled"
++      - "consume+receipt co-committed via authorityCommit; Map is issued-only mirror"
++  sdd-verify:
++    status: done
++    artifact: openspec/changes/k2-1b-permit-issuance-atomic-consume/verify-report.md
++    summary: "PASS WITH WARNINGS: 40/40 MUST scenarios; npm test 1944/0; Strict TDD complete; 1 type-only re-export assertion WARNING."
++    key_decisions:
++      - "Assumptions sdd-design-001/002 and sdd-apply-001 confirmed; Step 2a cleared"
++      - "Acceptance gates + WARNING5 satisfied with runtime-test/static-lint"
++      - "Verdict PASS WITH WARNINGS — proceed to 4r-review-gate"
++  sdd-archive:
++    status: pending
++
++baseline_fingerprints:
++  operation-permits: "sha256:7c16da62ac0399e8de65cda6c58a6df535f380f92a40be0444cc31a7215e49d4"
++  authority-store: "sha256:8b3087f57f08218903ae7c8135c604c1d21dc3497e1877c2b64e859fd5cc8d8d"
++  lifecycle-kernel-runtime: "sha256:0845e5a96b365accb280dce6a82acc866c01ead88c6d80b7fddc82f9ad902ec0"
++  minimal-kernel-harness: "sha256:bc92ad72ad472c312dee5fdd9c39bd0b58069df32daf2372f2122122b7173985"
++  lifecycle-model-conformance: "sha256:01436aa243372b2d8302b0f4bfd04083901accf20b65d2dcf35ef04773f49b32"
++  harness-authority-canon: "sha256:18be52a930a2d1731d1d431db9f4d23dec4a44a3a624ba9d2fa31d03dc4410a4"
++
++assumptions:
++  - id: sdd-design-001
++    phase: sdd-design
++    statement: "Decision DTOs use runtime-validated kinds policy-decision/v1|human-decision/v1|kernel-rule/v1 without new schema-family entries in this slice."
++    reversibility: high
++    basis: "Proposal affected areas omit schemas/kernel; specs name the three decision kinds but do not require manifest registration."
++    recorded_at: "2026-08-05T09:35:00.000Z"
++    status: confirmed
++    resolution:
++      action: confirm
++      note: "User confirmed via assumption_resolutions (orchestrator relaunch)."
++      resolved_at: "2026-08-05T09:53:00.000Z"
++  - id: sdd-design-002
++    phase: sdd-design
++    statement: "Revision fingerprint remains state_digest+journal_digest; authority bag is co-committed and exposed via load/snapshot without changing the hash formula."
++    reversibility: low
++    basis: "Parent ADR-001 mid-op baselines and in-flight expected_revision bindings; specs require co-presence in the winning revision, not digest recomputation."
++    recorded_at: "2026-08-05T09:35:00.000Z"
++    status: confirmed
++    resolution:
++      action: confirm
++      note: "User confirmed via assumption_resolutions (orchestrator relaunch)."
++      resolved_at: "2026-08-05T09:53:00.000Z"
++  - id: sdd-apply-001
++    phase: sdd-apply
++    statement: "Permit-authorized CAS signals intent via authorityCommit argument presence (undefined = non-permit store path; null/partial = authority-commit-incomplete)."
++    reversibility: high
++    basis: "design.md Interfaces/Contracts authorityCommit optional vs required for permit-authorized mutate."
++    recorded_at: "2026-08-05T09:50:00.000Z"
++    status: confirmed
++    resolution:
++      action: confirm
++      note: "User confirmed via assumption_resolutions (orchestrator relaunch)."
++      resolved_at: "2026-08-05T09:53:00.000Z"
++
+diff --git a/openspec/changes/k2-1b-permit-issuance-atomic-consume/tasks.md b/openspec/changes/k2-1b-permit-issuance-atomic-consume/tasks.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k2-1b-permit-issuance-atomic-consume/tasks.md
+@@ -0,0 +1,97 @@
++# Tasks: K2.1b — Permit issuance control and atomic consume
++
++## Spec/Design Reconciliation
++
++| Requirement / Scenario | Priority | Design Allocation | Status | Notes |
++|------------------------|----------|-------------------|--------|-------|
++| REQ-operation-permits-005 / issuer scenarios | MUST | `permits.js` `issueOperationPermit`, decision DTO validation | covered-by-design | ADR-001 |
++| REQ-operation-permits-006 / atomic consume + replay + restart | MUST | CAS `authorityCommit`, kernel replay short-circuit, `snapshot`/`initial` | covered-by-design | ADR-002 |
++| REQ-authority-store-005 / winning revision carries bag | MUST | `authority-store/index.js` subject `authority` bag | covered-by-design | Co-committed in CAS |
++| REQ-authority-store-006 / replay receipt | MUST | `compareAndSwap` converged path + kernel lookup | covered-by-design | No second advance |
++| REQ-authority-store-004 MOD / receipt on replay | MUST | Same as 006; converged CAS returns stored receipt | covered-by-design | Extends K2.1 replay |
++| REQ-lifecycle-kernel-runtime-015 / no auto-mint | MUST | `index.js` `mintPermit = false`, `auto-mint-disabled` | covered-by-design | Public path fail-closed |
++| REQ-lifecycle-kernel-runtime-016 / atomic commit | MUST | Kernel prepares `authorityCommit` pre-CAS | covered-by-design | Drops post-CAS sole truth |
++| REQ-lifecycle-kernel-runtime-011 MOD / offer-only fail | MUST | Existing `authorizeOperationWithPermit` + issuer gate | covered-by-design | No public mint branch |
++| REQ-minimal-kernel-harness-011 / issuer-first positive | MUST | `minimal-kernel-harness.js`, `test-permit-helpers.js` | covered-by-design | Default `mintPermit: false` |
++| REQ-minimal-kernel-harness-012 / atomic replay restart | MUST | Harness fixtures via public entrypoint | covered-by-design | REQ-012 scenarios |
++| REQ-minimal-kernel-harness-007 MOD / positive companion | MUST | Fault matrix unchanged; positive uses issuer | covered-by-design | Auto-mint not counted |
++| REQ-lifecycle-model-conformance-009 / K2.1b invariants 1–5 | MUST | `lifecycle-model.js` new checkers | covered-by-design | Non-optional |
++| REQ-lifecycle-model-conformance-007 MOD / inv 8–9 | MUST | Same file; auto-mint + receipt replay checkers | covered-by-design | Extends K2.1 suite |
++| REQ-harness-authority-canon-008 / K2.1b maturity | MUST | `docs/architecture/harness-evolution.md` | covered-by-design | K3 stays `target` |
++| REQ-harness-authority-canon-009 / WARNING5 quick-path | MUST | `docs/roadmaps/harness-evolution.md` row 1 | covered-by-design | No bare `Ejecutar K2a → K3` |
++
++### Reconciliation Verdict
++- MUST coverage: complete
++- SHOULD/MAY gaps: none
++- Ambiguities to track: none (apply pins exact reason codes in `apply-progress.md`)
++
++## Review Workload Forecast
++
++| Field | Value |
++|-------|-------|
++| Estimated changed lines | 520–680 |
++| 400-line budget risk | High |
++| Chained PRs recommended | Yes |
++| Suggested split | Single PR (`size-exception`) **or** WU1 store → WU2 issuer+kernel → WU3 harness/model/docs |
++| Delivery strategy | exception-ok |
++| Chain strategy | size-exception |
++
++Decision needed before apply: No
++Chained PRs recommended: Yes
++Chain strategy: size-exception
++400-line budget risk: High
++
++### Suggested Work Units
++
++| Unit | Goal | Likely PR | Notes |
++|------|------|-----------|-------|
++| 1 | Authority bag + CAS `authorityCommit` + store tests | PR 1 (optional) | Foundation; no kernel/harness until green |
++| 2 | Controlled issuer + kernel wire + replay | PR 2 (optional) | Depends on WU1; kills post-CAS consume truth |
++| 3 | Harness/model migration + roadmap docs + TDD evidence | PR 3 or same PR | Fixture churn; verify WARNING5 |
++
++### Checklist Status Legend
++
++- `[ ]` Not implemented yet
++- `[~]` Implemented but not yet verified locally
++- `[x]` Implemented and verified locally
++
++## Phase 1: Authority Store — authority bag (Strict TDD)
++
++- [x] 1.1 **RED** — Add failing tests in `scripts/lib/authority-store/index.test.js`: `load`/`snapshot` expose `authority: { permits, receipts }`; permit-authorized CAS requires `authorityCommit`; incomplete payload → `authority-commit-incomplete` with head unchanged [REQ-authority-store-005, REQ-authority-store-006]
++- [x] 1.2 **GREEN** — Extend `scripts/lib/authority-store/index.js`: subject entry holds authority bag; `createAuthorityStore({ initial })` accepts bag; winning `compareAndSwap` atomically writes state+journal+bag; revision digest stays `{state_digest, journal_digest}` only [REQ-authority-store-005]
++- [x] 1.3 **GREEN** — Implement converged replay path: same inputs return stored receipt from bag without second advance [REQ-authority-store-006, REQ-authority-store-004]
++- [x] 1.4 **REFACTOR** — Adjust `scripts/lib/lifecycle-kernel/memory-store.js` only if inner store must round-trip bag; prefer bag on Authority Store subject entry per design [REQ-authority-store-005]
++
++## Phase 2: Controlled issuer API (Strict TDD)
++
++- [x] 2.1 **RED** — Add failing tests in `scripts/lib/lifecycle-kernel/permits.test.js`: `issueOperationPermit` requires exactly one of `policyDecision`/`humanDecision`/`kernelRule`; offer-only → fail closed (`issuer-decision-required`); ambiguous multiple decisions → `issuer-decision-ambiguous` [REQ-operation-permits-005, REQ-lifecycle-kernel-runtime-011]
++- [x] 2.2 **GREEN** — Implement `issueOperationPermit` + frozen decision DTO validators in `scripts/lib/lifecycle-kernel/permits.js`; keep `mintOperationPermit` internal to issuer; Map remains issued-only mirror [REQ-operation-permits-005]
++- [x] 2.3 **GREEN** — Update `scripts/lib/lifecycle-kernel/test-permit-helpers.js` with issuer-first helpers for fixtures (TransitionOffer + decision + `expected_revision`) [REQ-minimal-kernel-harness-011]
++- [x] 2.4 **REFACTOR** — Re-export `issueOperationPermit` from `scripts/lib/lifecycle-kernel/index.js` module.exports [REQ-operation-permits-005]
++
++## Phase 3: Kernel runtime — fail-closed + atomic consume (Strict TDD)
++
++- [x] 3.1 **RED** — Add failing tests in `scripts/lib/lifecycle-kernel/index.test.js`: default `mintPermit` is `false`; explicit `mintPermit: true` → `auto-mint-disabled`; state-valid op without permit → unauthorized with head unchanged [REQ-lifecycle-kernel-runtime-015]
++- [x] 3.2 **RED** — Add failing tests: successful mutate records consumed permit + receipt in same revision via CAS; failed/incomplete authority commit leaves head unchanged and `operation_receipt` null [REQ-lifecycle-kernel-runtime-016, REQ-operation-permits-006]
++- [x] 3.3 **RED** — Add failing tests: exact identical replay returns prior `OperationReceipt`; in-process restart (`snapshot` → new store `initial` → `load`) verifies consumed+receipt [REQ-operation-permits-006, REQ-lifecycle-kernel-runtime-016]
++- [x] 3.4 **GREEN** — Change `scripts/lib/lifecycle-kernel/index.js`: `mintPermit = false` default; remove public auto-mint branch; reject `mintPermit === true` with `auto-mint-disabled` [REQ-lifecycle-kernel-runtime-015]
++- [x] 3.5 **GREEN** — Prepare `OperationReceipt` pre-CAS; pass `authorityCommit` to `compareAndSwap`; on success return receipt from bag — remove post-CAS `consumePermit` as sole authority (Map mirror only) [REQ-lifecycle-kernel-runtime-016, REQ-operation-permits-006]
++- [x] 3.6 **GREEN** — Replay short-circuit: if bag shows consumed permit + matching receipt keys, return stored receipt before effects/re-consume [REQ-operation-permits-006, REQ-authority-store-006]
++- [x] 3.7 **REFACTOR** — Migrate dependent tests in `host-boundary.test.js`, `host-contract/index.test.js`, `host-adapters/registry.test.js` to issuer-first (no `mintPermit: true` defaults) [REQ-lifecycle-kernel-runtime-015]
++
++## Phase 4: Harness & model conformance (Strict TDD)
++
++- [x] 4.1 **RED** — Add failing harness tests in `scripts/lib/minimal-kernel-harness.test.js`: atomic consume revision inspection; exact replay receipt stability; in-process restart fixture [REQ-minimal-kernel-harness-012]
++- [x] 4.2 **GREEN** — Update `scripts/lib/minimal-kernel-harness.js`: default `mintPermit: false`; positive steps issue permit via controlled issuer before public entrypoint [REQ-minimal-kernel-harness-011, REQ-minimal-kernel-harness-007]
++- [x] 4.3 **RED** — Add failing model tests in `scripts/lib/lifecycle-model.test.js` for K2.1b invariants 1–5 and extended inv 8–9 (non-deferred) [REQ-lifecycle-model-conformance-009, REQ-lifecycle-model-conformance-007]
++- [x] 4.4 **GREEN** — Implement checkers in `scripts/lib/lifecycle-model.js`; ensure deferred list excludes K2.1b checkers [REQ-lifecycle-model-conformance-009]
++
++## Phase 5: Documentation & canon (WARNING5)
++
++- [x] 5.1 Replace bare `Ejecutar K2a → K3` quick-path in `docs/roadmaps/harness-evolution.md` with K3-accurate wording naming K2.1b/k2a-1 correctives before K3 [REQ-harness-authority-canon-009]
++- [x] 5.2 Tag controlled issuance + atomic consume as `implemented`; keep K3 Candidate runtime `target` in `docs/architecture/harness-evolution.md` [REQ-harness-authority-canon-008]
++
++## Phase 6: Verification prep & TDD evidence
++
++- [x] 6.1 Run `npm test`; fix any remaining auto-mint fixture regressions across `scripts/lib/**/*.test.js` [REQ-minimal-kernel-harness-011]
++- [x] 6.2 Initialize `openspec/changes/k2-1b-permit-issuance-atomic-consume/apply-progress.md` with TDD Cycle Evidence table (RED/GREEN/TRIANGULATE/REFACTOR per task batch); pin exact reason codes and decision DTO field names [Strict TDD]
+diff --git a/openspec/changes/k2-1b-permit-issuance-atomic-consume/verify-report.md b/openspec/changes/k2-1b-permit-issuance-atomic-consume/verify-report.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k2-1b-permit-issuance-atomic-consume/verify-report.md
+@@ -0,0 +1,192 @@
++## Verification Report
++
++**Change**: k2-1b-permit-issuance-atomic-consume
++**Version**: N/A (change-local deltas)
++**Mode**: Strict TDD
++**Classification**: high-risk
++**Route**: standard
++**Verified at**: 2026-08-05T10:05:00.000Z
++
++### Completeness
++| Metric | Value |
++|--------|-------|
++| Tasks total | 22 |
++| Tasks complete | 22 (`[x]`) |
++| Tasks incomplete | 0 |
++
++### Build & Tests Execution
++**Build**: ➖ Not configured (`rules.verify.build_command` empty)
++
++**Tests**: ✅ 1944 passed / ❌ 0 failed / ⚠️ 2 skipped
++```text
++Command: npm test
++Exit code: 0
++Summary: tests 1946 | pass 1944 | fail 0 | skipped 2 | duration_ms ~33254
++Change-scoped (authority-store, permits, kernel index, host-boundary, harness, model):
++  node --test … → tests 90 | pass 90 | fail 0
++```
++
++**Manual verification**: not performed (automated runtime evidence sufficient for MUST scenarios)
++
++**Coverage**: ➖ Not available (`testing.coverage.available: false`) → skipped per Strict TDD Step 5d
++
++### Spec Compliance Matrix
++| Requirement | Scenario | Evidence Level | Source | Result | Notes |
++|-------------|----------|----------------|--------|--------|-------|
++| REQ-operation-permits-005 | Issuer produces permit from offer plus decision | `runtime-test` | `permits.test.js` > issueOperationPermit + policy/human/kernel | PASS | |
++| REQ-operation-permits-005 | State-valid offer alone does not issue | `runtime-test` | `permits.test.js` > offer-only / issuer-decision-required | PASS | |
++| REQ-operation-permits-006 | Successful consume records receipt in winning revision | `runtime-test` | `authority-store/index.test.js`, `lifecycle-kernel/index.test.js` | PASS | |
++| REQ-operation-permits-006 | Failed consume does not leave orphan committed state | `runtime-test` | incomplete authorityCommit → head unchanged | PASS | |
++| REQ-operation-permits-006 | Exact identical replay returns prior receipt | `runtime-test` | kernel + harness replay tests | PASS | |
++| REQ-operation-permits-006 | In-process restart keeps permit and receipt verifiable | `runtime-test` | snapshot → initial → load | PASS | |
++| REQ-authority-store-005 | Winning revision carries state journal permit and receipt | `runtime-test` | `authority-store/index.test.js` atomic CAS | PASS | |
++| REQ-authority-store-005 | Incomplete consume payload rejects CAS | `runtime-test` | `authority-commit-incomplete` | PASS | |
++| REQ-authority-store-006 | Exact replay exposes prior receipt | `runtime-test` | store converged + receipt | PASS | |
++| REQ-authority-store-004 | Exact replay after successful CAS | `runtime-test` | store replay converges | PASS | |
++| REQ-authority-store-004 | Stale expected revision is rejected | `runtime-test` | store stale CAS | PASS | |
++| REQ-authority-store-004 | Exact replay returns prior OperationReceipt | `runtime-test` | store/kernel receipt identity | PASS | |
++| REQ-lifecycle-kernel-runtime-015 | Default mintPermit is false | `runtime-test` | `index.test.js` default mintPermit | PASS | |
++| REQ-lifecycle-kernel-runtime-015 | State-valid transition without permit fails | `runtime-test` | omitPermit → unauthorized; head unchanged | PASS | |
++| REQ-lifecycle-kernel-runtime-015 | Commit requires previously issued permit | `runtime-test` | mintPermit false + no permit | PASS | Acceptance gate |
++| REQ-lifecycle-kernel-runtime-016 | CAS success includes consumed permit and receipt | `runtime-test` | atomic CAS revision inspection | PASS | |
++| REQ-lifecycle-kernel-runtime-016 | Missing atomic consume fails closed | `runtime-test` | authority-commit-incomplete | PASS | |
++| REQ-lifecycle-kernel-runtime-016 | Exact replay returns prior receipt | `runtime-test` | kernel replayed:true | PASS | |
++| REQ-lifecycle-kernel-runtime-011 | Offer-only authorize fails | `runtime-test` | permits + kernel unauthorized | PASS | |
++| REQ-lifecycle-kernel-runtime-011 | Offer without decision or rule cannot issue | `runtime-test` | issuer-decision-required | PASS | |
++| REQ-minimal-kernel-harness-011 | Positive mutation issues permit first | `runtime-test` | harness k21b-issuer-first-positive | PASS | |
++| REQ-minimal-kernel-harness-011 | Auto-mint convenience does not satisfy positive coverage | `runtime-test` | mintPermit:true → auto-mint-disabled | PASS | |
++| REQ-minimal-kernel-harness-012 | Atomic consume fixture | `runtime-test` | harness k21b-atomic-consume | PASS | |
++| REQ-minimal-kernel-harness-012 | Exact replay receipt fixture | `runtime-test` | harness replay stability | PASS | |
++| REQ-minimal-kernel-harness-012 | In-process restart receipt fixture | `runtime-test` | harness restart fixture | PASS | |
++| REQ-minimal-kernel-harness-007 | CAS conflict fixture | `runtime-test` | K2.1 fault matrix CAS | PASS | |
++| REQ-minimal-kernel-harness-007 | Stale permit fixture | `runtime-test` | K2.1 fault matrix stale | PASS | |
++| REQ-minimal-kernel-harness-007 | Permit reuse fixture | `runtime-test` | K2.1 fault matrix reuse | PASS | |
++| REQ-minimal-kernel-harness-007 | Ambiguous irreversible effect fixture | `runtime-test` | K2.1 fault matrix ambiguous | PASS | |
++| REQ-minimal-kernel-harness-007 | Positive companion uses issuer permit | `runtime-test` | issuer-first positive companion | PASS | |
++| REQ-lifecycle-model-conformance-009 | Every K2.1b invariant has a checker | `runtime-test` | model K21B manifest 5 non-deferred | PASS | |
++| REQ-lifecycle-model-conformance-009 | State-valid alone cannot authorize | `runtime-test` | inv-k21b-no-state-valid-only | PASS | Gate 1 |
++| REQ-lifecycle-model-conformance-009 | Commit without same-revision consume fails checker | `runtime-test` | inv-k21b-atomic-consume-revision | PASS | Gate 3 |
++| REQ-lifecycle-model-conformance-007 | Every K2.1 invariant has a checker | `runtime-test` | K21 nine invariants + inv 8–9 | PASS | |
++| REQ-lifecycle-model-conformance-007 | Model cannot self-grant permits | `runtime-test` | inv-k21-no-self-grant | PASS | |
++| REQ-lifecycle-model-conformance-007 | Auto-mint path is rejected by checker | `runtime-test` | inv-k21-no-public-auto-mint | PASS | |
++| REQ-harness-authority-canon-008 | K2.1b surfaces tagged implemented | `static-lint` | `docs/architecture/harness-evolution.md` L883–884 | PASS | Structural MUST |
++| REQ-harness-authority-canon-008 | K3 remains non-implemented after K2.1b | `static-lint` | K3 Candidate freeze remains `{target}` | PASS | |
++| REQ-harness-authority-canon-009 | Bare K2a-to-K3 quick-path is rejected | `static-lint` | roadmap row 1 names K2.1b/k2a-1 → K3; no bare `Ejecutar K2a → K3` | PASS | WARNING5 fixed |
++| REQ-harness-authority-canon-009 | Correctives-before-K3 wording is accepted | `static-lint` | `docs/roadmaps/harness-evolution.md` L51 | PASS | |
++
++**Compliance summary**: 40/40 scenarios satisfied at acceptable evidence levels
++
++### Acceptance Gates
++| Gate | Result | Evidence |
++|------|--------|----------|
++| 0 ops authorized solely as state-valid | ✅ | kernel omitPermit + model inv-k21b-no-state-valid-only |
++| 0 commits without previously issued permit | ✅ | mintPermit default false; auto-mint-disabled; issuer-first |
++| 0 state commits without permit consumed | ✅ | authorityCommit CAS co-write; incomplete fail-closed |
++| same replay → same OperationReceipt | ✅ | kernel/harness/model replay |
++| restart → permit/receipt verifiable | ✅ | snapshot → createAuthorityStore({initial}) → load |
++| mintPermit default false; public auto-mint rejected | ✅ | runtime-test |
++| roadmap WARNING5 fixed | ✅ | static-lint on quick-path row 1 |
++
++### Correctness (Static Evidence)
++| Requirement | Status | Notes |
++|------------|--------|-------|
++| Controlled issuer API | ✅ Implemented | `issueOperationPermit` + DTO validators in `permits.js` |
++| Authority bag on subject entry | ✅ Implemented | co-committed in `compareAndSwap`; digest formula unchanged |
++| Public auto-mint removed | ✅ Implemented | `mintPermit=false`; `true` → `auto-mint-disabled` |
++| Replay short-circuit | ✅ Implemented | `findReplayReceipt` before re-consume |
++| Harness issuer-first positives | ✅ Implemented | default mintPermit false + auto-issue |
++| Model K2.1b checkers 1–5 + inv 8–9 | ✅ Implemented | non-optional / non-deferred |
++| WARNING5 docs | ✅ Implemented | quick-path + maturity tags |
++
++### Coherence (Design)
++| Decision | Followed? | Notes |
++|----------|-----------|-------|
++| Separate `issueOperationPermit` public API | ✅ Yes | ADR-001 |
++| Authority bag in CAS; digest unchanged | ✅ Yes | ADR-002; assumption sdd-design-002 confirmed |
++| Exact replay short-circuit | ✅ Yes | bag lookup before effects |
++| Runtime DTO kinds without schema-family registration | ✅ Yes | assumption sdd-design-001 confirmed |
++| memory-store.js optional / bag on Authority Store | ✅ Yes | task 1.4 N/A; bag on subject entry |
++
++### TDD Compliance
++| Check | Result | Details |
++|-------|--------|---------|
++| TDD Evidence reported | ✅ | Found in `apply-progress.md` (+ `json:strict-tdd-evidence`) |
++| All tasks have tests | ✅ | 22/22 tasks present in evidence table (docs/structural marked N/A) |
++| RED confirmed (tests exist) | ✅ | Test files exist for all coding tasks |
++| GREEN confirmed (tests pass) | ✅ | Full suite 1944/0; change-scoped 90/0 |
++| Triangulation adequate | ✅ | Multi-case issuer/store/kernel/harness/model; singles documented |
++| Safety Net for modified files | ✅ | Pre-mod safety nets recorded (store 12/12, permits 10/10) |
++
++**TDD Compliance**: 6/6 checks passed
++
++---
++
++### Test Layer Distribution
++| Layer | Tests | Files | Tools |
++|-------|-------|-------|-------|
++| Unit | ~55 | authority-store, permits, host-boundary, lifecycle-model | Node `--test` |
++| Integration | ~35 | lifecycle-kernel/index.test.js, minimal-kernel-harness.test.js | Node `--test` (in-process store/harness) |
++| E2E | 0 | — | not installed / not required |
++| **Total (change-scoped run)** | **90** | **6** | |
++
++---
++
++### Changed File Coverage
++Coverage analysis skipped — no coverage tool detected
++
++---
++
++### Assertion Quality
++| File | Line | Assertion | Issue | Severity |
++|------|------|-----------|-------|----------|
++| `scripts/lib/lifecycle-kernel/index.test.js` | 341 | `assert.equal(typeof issueOperationPermit, "function")` | Type-only re-export smoke without value assertion in that case | WARNING |
++
++**Assertion quality**: 0 CRITICAL, 1 WARNING
++
++Companion issuer/atomic/replay tests exercise real production paths with value assertions; the WARNING is localized to the re-export surface check (task 2.4).
++
++---
++
++### Quality Metrics
++**Linter**: ➖ Not available
++**Type Checker**: ➖ Not available
++
++### Issues Found
++**CRITICAL**: None
++
++**WARNING**:
++- [assertion-quality] Type-only re-export smoke for `issueOperationPermit` in `lifecycle-kernel/index.test.js:341` — origin `tasks-gap` (supplemental smoke; behavior covered elsewhere)
++
++**SUGGESTION**:
++- Consider asserting that a call through the kernel re-export issues a permit with expected_revision / operation fields (promotes task 2.4 smoke to a behavioral check)
++
++### Traceability Matrix
++| REQ | Tasks | Commits | Tests | Status |
++|-----|-------|---------|-------|--------|
++| REQ-operation-permits-005 | 2.1–2.4 | (uncommitted working tree) | permits.test.js issuer cases | OK |
++| REQ-operation-permits-006 | 1.1–1.3, 3.2–3.6 | (uncommitted) | store/kernel/harness/model | OK |
++| REQ-authority-store-005 | 1.1–1.3 | (uncommitted) | authority-store/index.test.js | OK |
++| REQ-authority-store-006 | 1.3, 3.6 | (uncommitted) | store + kernel replay | OK |
++| REQ-authority-store-004 | 1.3, 3.6 | (uncommitted) | store replay + receipt | OK |
++| REQ-lifecycle-kernel-runtime-015 | 3.1, 3.4, 3.7 | (uncommitted) | index.test.js mintPermit | OK |
++| REQ-lifecycle-kernel-runtime-016 | 3.2–3.6 | (uncommitted) | atomic/incomplete/replay | OK |
++| REQ-lifecycle-kernel-runtime-011 | 2.1–2.2, 3.1 | (uncommitted) | offer-only + issuer | OK |
++| REQ-minimal-kernel-harness-011 | 2.3, 4.1–4.2 | (uncommitted) | harness issuer-first | OK |
++| REQ-minimal-kernel-harness-012 | 4.1–4.2 | (uncommitted) | atomic/replay/restart fixtures | OK |
++| REQ-minimal-kernel-harness-007 | 4.1–4.2 | (uncommitted) | fault matrix + positive companion | OK |
++| REQ-lifecycle-model-conformance-009 | 4.3–4.4 | (uncommitted) | K21B checkers | OK |
++| REQ-lifecycle-model-conformance-007 | 4.3–4.4 | (uncommitted) | inv 8–9 + self-grant | OK |
++| REQ-harness-authority-canon-008 | 5.2 | (uncommitted) | docs static-lint | OK |
++| REQ-harness-authority-canon-009 | 5.1 | (uncommitted) | roadmap static-lint | OK |
++
++### Assumption Reconciliation
++| id | statement | reversibility | outcome |
++|----|-----------|----------------|---------|
++| sdd-design-001 | Decision DTOs use runtime-validated kinds without new schema-family entries | high | confirmed |
++| sdd-design-002 | Revision fingerprint remains state_digest+journal_digest; authority bag co-committed without hash formula change | low | confirmed |
++| sdd-apply-001 | Permit-authorized CAS signals intent via authorityCommit argument presence | high | confirmed |
++
++### Verdict
++**PASS WITH WARNINGS**
++
++All 40 MUST scenarios pass with runtime-test or accepted static-lint evidence; full suite green (1944/0); Strict TDD evidence complete; acceptance gates and WARNING5 satisfied. One non-blocking assertion-quality WARNING on the re-export typeof smoke.

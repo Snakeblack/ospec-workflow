@@ -1,0 +1,208 @@
+change: k2-1b-permit-issuance-atomic-consume
+status: archived
+created_at: "2026-08-05T09:20:00.000Z"
+last_updated: "2026-08-05T12:26:00.000Z"
+blocking_questions: []
+
+classification: high-risk
+owner:
+  author: Manuel Retamozo
+  branch: feat/k2-1b-permit-issuance-atomic-consume
+workload: {}
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "K2.1b permit issuance / atomic consume is high-risk kernel authority hardening on an active project; first matching route is standard (clarify + 4R)."
+  validated: true
+  validation_errors: []
+execution_mode: auto
+delivery_strategy: exception-ok
+session:
+  plan_source: pre-k3-authority-review
+  next_after_archive: k2a-1-live-capability-probes-async-transports
+approvals:
+  - id: plan-001
+    gate: architecture
+    decision: "k2-1b first then k2a-1; K3 runtime blocked until both close"
+    source: user-chat
+    accepted_at: "2026-08-05T09:20:00.000Z"
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+  - id: exec-mode-001
+    gate: execution-mode
+    decision: auto
+    source: user-chat
+    accepted_at: "2026-08-05T09:20:00.000Z"
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: user-chat
+    accepted_at: "2026-08-05T09:20:00.000Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: review-workload-001
+    gate: review-workload
+    decision: size-exception
+    source: user-chat
+    accepted_at: "2026-08-05T09:40:00.000Z"
+    applies_to:
+      - sdd-apply
+  - id: assumption-reconciliation-001
+    gate: architecture
+    decision: "confirm sdd-design-002, sdd-design-001 (and sdd-apply-001 held)"
+    source: user-chat
+    accepted_at: "2026-08-05T09:53:00.000Z"
+    applies_to:
+      - sdd-verify
+  - id: remediation-001
+    gate: 4r-review-gate
+    decision: correct-all-3-critical-plus-authority-warnings
+    source: user-chat
+    accepted_at: "2026-08-05T12:07:00.000Z"
+    applies_to:
+      - 4r-review-gate
+  - id: roadmap-001
+    gate: architecture
+    decision: "include WARNING5 roadmap quick-path fix in k2-1b scope"
+    source: user-chat
+    accepted_at: "2026-08-05T09:20:00.000Z"
+    applies_to:
+      - sdd-propose
+      - sdd-tasks
+      - sdd-apply
+phases:
+  sdd-propose:
+    status: done
+    artifact: openspec/changes/k2-1b-permit-issuance-atomic-consume/proposal.md
+    summary: "K2.1b corrective: mintPermit default false + controlled issuer; atomic CAS consume/receipt; roadmap WARNING5; blocks K3."
+    key_decisions:
+      - "Public runKernelOperation defaults mintPermit=false; issuer is separate"
+      - "Permit consumed + OperationReceipt commit in same CAS revision as state/journal"
+      - "Process-local durability model unchanged; multi-process ledger out of scope"
+  sdd-spec:
+    status: done
+    artifacts:
+      - openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/operation-permits/spec.md
+      - openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/authority-store/spec.md
+      - openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-kernel-runtime/spec.md
+      - openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/minimal-kernel-harness/spec.md
+      - openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-model-conformance/spec.md
+      - openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/harness-authority-canon/spec.md
+    summary: "Deltas for issuer+atomic consume across 6 domains; mintPermit default false; roadmap quick-path; K2.1b invariants."
+    key_decisions:
+      - "Issuance requires TransitionOffer + PolicyDecision|HumanDecision|KernelRule + expected_revision"
+      - "CAS winning revision atomically carries state/journal/consumed permit/receipt"
+      - "Roadmap MUST NOT keep bare Ejecutar K2a → K3; K3/correctives wording required"
+  clarify:
+    status: skipped
+    rationale: "residual_ambiguity false; empty public_contract_questions, conflicting_requirements, missing_acceptance_criteria"
+  sdd-design:
+    status: done
+    artifact: openspec/changes/k2-1b-permit-issuance-atomic-consume/design.md
+    summary: "Issuer API + CAS authority bag; mintPermit false; replay/restart from bag; WARNING5 docs; Strict TDD."
+    key_decisions:
+      - "issueOperationPermit separate; public auto-mint rejected"
+      - "Authority bag co-committed in compareAndSwap; revision digest unchanged"
+      - "Exact replay returns stored receipt before re-consume"
+  sdd-tasks:
+    status: done
+    artifact: openspec/changes/k2-1b-permit-issuance-atomic-consume/tasks.md
+    summary: "6 phases, 22 tasks; store→issuer→kernel→harness/model→docs; size-exception; 520–680 LOC est."
+    key_decisions:
+      - "Strict TDD RED→GREEN per layer; authority bag before kernel wire"
+      - "size-exception single PR (exception-ok); optional 3-unit chain"
+      - "All 15 MUST REQs mapped; reconciliation complete"
+  sdd-apply:
+    status: done
+    artifact: openspec/changes/k2-1b-permit-issuance-atomic-consume/apply-progress.md
+    summary: "Strict TDD size:exception: authority bag, issuer, mintPermit=false, atomic CAS consume/replay/restart, harness/model, WARNING5 docs; npm test 1944/0."
+    key_decisions:
+      - "authority bag on Authority Store subject entry; digest stays state+journal"
+      - "issueOperationPermit separate; public auto-mint rejected with auto-mint-disabled"
+      - "consume+receipt co-committed via authorityCommit; Map is issued-only mirror"
+  sdd-verify:
+    status: done
+    verdict: PASS WITH WARNINGS
+    artifact: openspec/changes/k2-1b-permit-issuance-atomic-consume/verify-report.md
+    summary: "PASS WITH WARNINGS: 40/40 MUST scenarios; npm test 1944/0; Strict TDD complete; 1 type-only re-export assertion WARNING."
+    key_decisions:
+      - "Assumptions sdd-design-001/002 and sdd-apply-001 confirmed; Step 2a cleared"
+      - "Acceptance gates + WARNING5 satisfied with runtime-test/static-lint"
+      - "Verdict PASS WITH WARNINGS — proceed to 4r-review-gate"
+  sdd-archive:
+    status: done
+    artifact: openspec/changes/k2-1b-permit-issuance-atomic-consume/archive-report.md
+    summary: "Plan-and-Report: 6 spec merges + 2 ADR promotions; archive-plan.json emitted; runtime move pending."
+    key_decisions:
+      - "Prepared merges at specs/{domain}/prepared-spec.md; live writes deferred to archive transaction runtime"
+      - "Accepted verify assertion-quality WARNING as non-blocking follow-up"
+
+baseline_fingerprints:
+  operation-permits: "sha256:7c16da62ac0399e8de65cda6c58a6df535f380f92a40be0444cc31a7215e49d4"
+  authority-store: "sha256:8b3087f57f08218903ae7c8135c604c1d21dc3497e1877c2b64e859fd5cc8d8d"
+  lifecycle-kernel-runtime: "sha256:0845e5a96b365accb280dce6a82acc866c01ead88c6d80b7fddc82f9ad902ec0"
+  minimal-kernel-harness: "sha256:bc92ad72ad472c312dee5fdd9c39bd0b58069df32daf2372f2122122b7173985"
+  lifecycle-model-conformance: "sha256:01436aa243372b2d8302b0f4bfd04083901accf20b65d2dcf35ef04773f49b32"
+  harness-authority-canon: "sha256:18be52a930a2d1731d1d431db9f4d23dec4a44a3a624ba9d2fa31d03dc4410a4"
+
+assumptions:
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "Decision DTOs use runtime-validated kinds policy-decision/v1|human-decision/v1|kernel-rule/v1 without new schema-family entries in this slice."
+    reversibility: high
+    basis: "Proposal affected areas omit schemas/kernel; specs name the three decision kinds but do not require manifest registration."
+    recorded_at: "2026-08-05T09:35:00.000Z"
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "User confirmed via assumption_resolutions (orchestrator relaunch)."
+      resolved_at: "2026-08-05T09:53:00.000Z"
+  - id: sdd-design-002
+    phase: sdd-design
+    statement: "Revision fingerprint remains state_digest+journal_digest; authority bag is co-committed and exposed via load/snapshot without changing the hash formula."
+    reversibility: low
+    basis: "Parent ADR-001 mid-op baselines and in-flight expected_revision bindings; specs require co-presence in the winning revision, not digest recomputation."
+    recorded_at: "2026-08-05T09:35:00.000Z"
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "User confirmed via assumption_resolutions (orchestrator relaunch)."
+      resolved_at: "2026-08-05T09:53:00.000Z"
+  - id: sdd-apply-001
+    phase: sdd-apply
+    statement: "Permit-authorized CAS signals intent via authorityCommit argument presence (undefined = non-permit store path; null/partial = authority-commit-incomplete)."
+    reversibility: high
+    basis: "design.md Interfaces/Contracts authorityCommit optional vs required for permit-authorized mutate."
+    recorded_at: "2026-08-05T09:50:00.000Z"
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "User confirmed via assumption_resolutions (orchestrator relaunch)."
+      resolved_at: "2026-08-05T09:53:00.000Z"
+
+gates:
+  clarify:
+    status: skipped
+    skip_reason: "residual_ambiguity false"
+  4r-review-gate:
+    status: approved
+    lineage_status: approved
+    terminal_reason: all-remediation-slices-passed
+    lineage_id: "sha256:0d1158ee797b506ed828184bd3564b6415196dc2781ccd7194a1ead6870e8d61"
+    lineage_revision: 18
+    findings_summary: "4R approved: 3/3 CRITICAL resolved; WARNING/SUGGESTION remain advisory; authority WARNINGs remediated in-code"
+    archive_allowed: true
+    lineage_artifact: openspec/changes/k2-1b-permit-issuance-atomic-consume/.4r/lineage.json

@@ -1,0 +1,9 @@
+{
+  "status": "approved",
+  "next_action": {
+    "type": "stop",
+    "reason": "all-remediation-slices-passed"
+  },
+  "dispatch": [],
+  "archive_allowed": true
+}

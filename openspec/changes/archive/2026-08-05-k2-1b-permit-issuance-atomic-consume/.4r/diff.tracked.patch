@@ -1,0 +1,1786 @@
+diff --git a/docs/architecture/harness-evolution.md b/docs/architecture/harness-evolution.md
+index bdac482..2edb2d7 100644
+--- a/docs/architecture/harness-evolution.md
++++ b/docs/architecture/harness-evolution.md
+@@ -880,6 +880,8 @@ No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
+ - {implemented} K1 contract suite (vocabulario, schemas, clasificación, paridad; publicado v2.37.0).
+ - {implemented} K2 lifecycle + Minimal Kernel Harness + model-based invariants (publicado v2.38.0).
+ - {implemented} K2.1 Authority Store (`load`/`compareAndSwap`), OperationPermit/Receipt y clases de efecto (publicado v2.39.0).
++- {implemented} K2.1b controlled permit issuance (TransitionOffer + PolicyDecision|HumanDecision|KernelRule + expected_revision).
++- {implemented} K2.1b atomic CAS consume of permit status + OperationReceipt with next_state/next_journal.
+ - {implemented} HostCapabilities + five transports (K2a).
+ - {implemented} CapabilityProof (K2a).
+ - {implemented} Headless Conformance Host (K2a).
+diff --git a/docs/roadmaps/harness-evolution.md b/docs/roadmaps/harness-evolution.md
+index 4f6b6da..f36d8d4 100644
+--- a/docs/roadmaps/harness-evolution.md
++++ b/docs/roadmaps/harness-evolution.md
+@@ -48,7 +48,7 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
+ 
+ | Orden | Acción | Gate de salida |
+ | ---: | --- | --- |
+-| 1 | Ejecutar K2a → K3 | Headless Conformance Host + adapter real + cuatro identidades y relación básica |
++| 1 | Completar correctivos K2.1b (issuance+atomic consume) y k2a-1 (probes/async) → luego Ejecutar K3 | Correctivos de autoridad/host antes de cuatro identidades + Candidate freeze + relación básica |
+ | 2 | Ejecutar K4a → K5 → K6a → K4b | Graph + Obligation Manifest + budgets (autoridad/efectos) + aislamiento + shadow con Candidate |
+ | 3 | Ejecutar K6b→K6d → K7 → K8 | Verify/provenance/challenges/review authority + Candidate Evaluation Attestation |
+ | 4 | Ejecutar K9 | Calidad no inferior, replay y fallback fixed (checkpoints intermedios ya emitidos) |
+@@ -70,6 +70,8 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
+ | `done` | **K2** | Lifecycle + Minimal Kernel Harness + model-based invariants; archivado y publicado en v2.38.0 |
+ | `done` | **K2.1** | Authority Store (CAS), OperationPermit/Receipt y semántica de efectos; archivado y publicado en v2.39.0 |
+ | `done` | **K2a** | Headless Conformance Host + Claude adapter + CapabilityProof; archivado y publicado en v2.40.0 |
++| `in-progress` | **K2.1b** | Controlled issuer + atomic CAS consume/receipt (corrective pre-K3) |
++| `pending` | **k2a-1** | Live capability probes + async transports (corrective pre-K3) |
+ | `pending` | **K3** | Cuatro identidades + Candidate freeze + relación básica (`exact`/`changed`/`ambiguous`/`unknown`) |
+ | `pending` | K4a | Graph compiler + Obligation Manifest + replay (sin worker autoritativo) |
+ | `pending` | K5 | Budgets (incl. autoridad/efectos), failures y recovery |
+diff --git a/openspec/memory/known-issues.md b/openspec/memory/known-issues.md
+index 0491dd4..4eeccde 100644
+--- a/openspec/memory/known-issues.md
++++ b/openspec/memory/known-issues.md
+@@ -1,8 +1,15 @@
+ ---
+ title: Known Issues
+-last_updated: 2026-08-04
++last_updated: 2026-08-05
+ ---
+ 
++## Type-only re-export smoke for issueOperationPermit
++- severity: WARNING
++- area: scripts/lib/lifecycle-kernel/index.test.js:341 (task 2.4)
++- workaround: assert a call through the kernel re-export returns a permit with expected_revision/operation (behavior already covered in permits.test.js)
++- change: k2-1b-permit-issuance-atomic-consume
++- date: 2026-08-05
++
+ ## Harness-alone host-fault incompleteness lacks explicit negative runtime test
+ - severity: WARNING
+ - area: scripts/lib/minimal-kernel-harness.test.js (REQ-minimal-kernel-harness-009)
+diff --git a/scripts/lib/authority-store/index.js b/scripts/lib/authority-store/index.js
+index 3184d59..6dd9386 100644
+--- a/scripts/lib/authority-store/index.js
++++ b/scripts/lib/authority-store/index.js
+@@ -22,6 +22,29 @@ function fail(code, extra = {}) {
+   return { ok: false, code, ...extra };
+ }
+ 
++function emptyAuthority() {
++  return { permits: {}, receipts: {} };
++}
++
++function cloneAuthority(authority) {
++  const src = authority && typeof authority === "object" ? authority : emptyAuthority();
++  return {
++    permits: JSON.parse(JSON.stringify(src.permits || {})),
++    receipts: JSON.parse(JSON.stringify(src.receipts || {})),
++  };
++}
++
++function isCompleteAuthorityCommit(authorityCommit) {
++  if (!authorityCommit || typeof authorityCommit !== "object") return false;
++  if (!authorityCommit.permit_id || typeof authorityCommit.permit_id !== "string") return false;
++  if (authorityCommit.status !== "consumed") return false;
++  const receipt = authorityCommit.receipt;
++  if (!receipt || typeof receipt !== "object") return false;
++  if (receipt.kind !== "operation-receipt/v1") return false;
++  if (!receipt.receipt_id || receipt.permit_id !== authorityCommit.permit_id) return false;
++  return true;
++}
++
+ function createAuthorityStore(options = {}) {
+   const defaultSubjectId = options.subjectId || DEFAULT_SUBJECT_ID;
+   const subjects = new Map();
+@@ -31,12 +54,14 @@ function createAuthorityStore(options = {}) {
+     if (subjectId !== defaultSubjectId && !initial) {
+       return null;
+     }
++    const seed = initial || options.initial || {};
+     const inner =
+       options.store && subjectId === defaultSubjectId
+         ? options.store
+-        : createMemoryStore(initial || options.initial || {});
++        : createMemoryStore(seed);
+     const entry = {
+       inner,
++      authority: cloneAuthority(seed.authority),
+       budgets: freezeBudgets(options.budgets),
+       baselines: new Map(),
+       midOpTicket: null,
+@@ -67,6 +92,7 @@ function createAuthorityStore(options = {}) {
+       revision,
+       state_digest: stateDigest,
+       budgets: cloneBudgets(entry.budgets),
++      authority: cloneAuthority(entry.authority),
+     };
+   }
+ 
+@@ -119,13 +145,34 @@ function createAuthorityStore(options = {}) {
+    * changing state; same-writer CAS succeeds when nextJournal matches the
+    * journal already persisted. A foreign commitJournal without that journal
+    * view fails closed.
++   *
++   * When authorityCommit is provided (including null), it MUST be a complete
++   * { permit_id, receipt, status: "consumed" } or CAS fails closed with
++   * authority-commit-incomplete and does not advance the head. Omitted
++   * (undefined) keeps non-permit CAS paths working for store unit tests.
+    */
+-  async function compareAndSwap(subjectId, expectedRevision, nextState, nextJournal, midOpTicket = null) {
++  async function compareAndSwap(
++    subjectId,
++    expectedRevision,
++    nextState,
++    nextJournal,
++    midOpTicket = null,
++    authorityCommit = undefined
++  ) {
+     const entry = subjects.get(subjectId);
+     if (!entry) {
+       return fail("subject-not-found", { subject_id: subjectId, revision: null });
+     }
+ 
++    const permitAuthorized = authorityCommit !== undefined;
++    if (permitAuthorized && !isCompleteAuthorityCommit(authorityCommit)) {
++      const loaded = await entry.inner.load();
++      return fail("authority-commit-incomplete", {
++        revision: computeRevision(loaded.state, loaded.journal),
++        budgets: cloneBudgets(entry.budgets),
++      });
++    }
++
+     const loaded = await entry.inner.load();
+     const currentRevision = computeRevision(loaded.state, loaded.journal);
+     const currentStateDigest = digestLifecycleState(loaded.state);
+@@ -164,33 +211,68 @@ function createAuthorityStore(options = {}) {
+ 
+     const stateUnchanged = digestLifecycleState(nextState) === currentStateDigest;
+     if (stateUnchanged && digestJournal(journalToCommit) === digestJournal(loaded.journal)) {
++      const convergedReceipt =
++        permitAuthorized && entry.authority.receipts[authorityCommit.permit_id]
++          ? JSON.parse(JSON.stringify(entry.authority.receipts[authorityCommit.permit_id]))
++          : null;
+       return {
+         ok: true,
+         revision: currentRevision,
+         converged: true,
+         budgets: budgetsBefore,
++        operation_receipt: convergedReceipt,
+       };
+     }
+ 
+     await entry.inner.commit({ state: nextState, journal: journalToCommit });
+     entry.midOpTicket = null;
+     if (!stateUnchanged) entry.baselines.clear();
++
++    if (permitAuthorized) {
++      const nextAuthority = cloneAuthority(entry.authority);
++      nextAuthority.permits[authorityCommit.permit_id] = {
++        permit_id: authorityCommit.permit_id,
++        status: "consumed",
++      };
++      nextAuthority.receipts[authorityCommit.permit_id] = JSON.parse(
++        JSON.stringify(authorityCommit.receipt)
++      );
++      entry.authority = nextAuthority;
++    }
++
+     const after = await entry.inner.load();
+     const revision = computeRevision(after.state, after.journal);
+     entry.baselines.set(revision, digestLifecycleState(after.state));
++
++    // Bind receipt.revision to the winning head when caller left a placeholder.
++    if (permitAuthorized) {
++      const stored = entry.authority.receipts[authorityCommit.permit_id];
++      if (stored && (stored.revision === "pending" || stored.revision == null)) {
++        stored.revision = revision;
++      }
++    }
++
+     return {
+       ok: true,
+       revision,
+       converged: false,
+       budgets: cloneBudgets(entry.budgets),
+       budgets_unchanged: JSON.stringify(budgetsBefore) === JSON.stringify(entry.budgets),
++      operation_receipt: permitAuthorized
++        ? JSON.parse(JSON.stringify(entry.authority.receipts[authorityCommit.permit_id]))
++        : null,
+     };
+   }
+ 
+   function snapshot(subjectId = defaultSubjectId) {
+     const entry = subjects.get(subjectId);
+     if (!entry) return null;
+-    return entry.inner.snapshot();
++    const innerSnap = entry.inner.snapshot();
++    return {
++      state: innerSnap.state,
++      journal: innerSnap.journal,
++      authority: cloneAuthority(entry.authority),
++    };
+   }
+ 
+   return {
+diff --git a/scripts/lib/authority-store/index.test.js b/scripts/lib/authority-store/index.test.js
+index 68f11ec..431e29f 100644
+--- a/scripts/lib/authority-store/index.test.js
++++ b/scripts/lib/authority-store/index.test.js
+@@ -308,3 +308,166 @@ test("foreign commitJournal with copied journal but no ticket fails closed", asy
+   assert.equal(forged.ok, false);
+   assert.equal(forged.code, "cas-conflict");
+ });
++
++function sampleReceipt(permitId, revision) {
++  return {
++    schema_version: 1,
++    kind: "operation-receipt/v1",
++    receipt_id: "sha256:receipt-sample-0001",
++    permit_id: permitId,
++    subject_id: DEFAULT_SUBJECT_ID,
++    operation: "start",
++    revision,
++    outcome: "advanced",
++  };
++}
++
++test("load and snapshot expose authority bag with permits and receipts", async () => {
++  const store = createAuthorityStore({
++    initial: {
++      state: pendingState(),
++      journal: [],
++      authority: { permits: {}, receipts: {} },
++    },
++  });
++  const loaded = await store.load();
++  assert.equal(loaded.ok, true);
++  assert.ok(loaded.authority);
++  assert.equal(typeof loaded.authority.permits, "object");
++  assert.equal(typeof loaded.authority.receipts, "object");
++
++  const snap = store.snapshot();
++  assert.ok(snap.authority);
++  assert.equal(typeof snap.authority.permits, "object");
++  assert.equal(typeof snap.authority.receipts, "object");
++});
++
++test("permit-authorized CAS requires authorityCommit; incomplete fails with head unchanged", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  // Explicit null / partial payload = permit-authorized intent without complete bag write.
++  const omitted = await store.compareAndSwap(
++    DEFAULT_SUBJECT_ID,
++    before.revision,
++    startedState(),
++    [],
++    null,
++    null
++  );
++  assert.equal(omitted.ok, false);
++  assert.equal(omitted.code, "authority-commit-incomplete");
++
++  const partial = await store.compareAndSwap(
++    DEFAULT_SUBJECT_ID,
++    before.revision,
++    startedState(),
++    [],
++    null,
++    { permit_id: "permit:runtime:partial", status: "consumed" }
++  );
++  assert.equal(partial.ok, false);
++  assert.equal(partial.code, "authority-commit-incomplete");
++
++  const after = await store.load();
++  assert.equal(after.revision, before.revision);
++  assert.equal(after.state.nodes.n1.phase, "pending");
++});
++
++test("winning CAS with authorityCommit atomically writes consumed permit and receipt", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  const permitId = "permit:runtime:0001";
++  const receipt = sampleReceipt(permitId, "pending");
++  const cas = await store.compareAndSwap(
++    DEFAULT_SUBJECT_ID,
++    before.revision,
++    startedState(),
++    [],
++    null,
++    {
++      permit_id: permitId,
++      receipt,
++      status: "consumed",
++    }
++  );
++  assert.equal(cas.ok, true);
++  assert.notEqual(cas.revision, before.revision);
++
++  const after = await store.load();
++  assert.equal(after.state.nodes.n1.phase, "started");
++  assert.equal(after.authority.permits[permitId].status, "consumed");
++  assert.equal(after.authority.receipts[permitId].receipt_id, receipt.receipt_id);
++  assert.equal(after.authority.receipts[permitId].kind, "operation-receipt/v1");
++
++  // Revision digest stays state+journal only (authority bag co-committed, not hashed).
++  assert.equal(after.revision, computeRevision(after.state, after.journal));
++});
++
++test("exact replay of permit-authorized CAS returns stored receipt without second advance", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  const permitId = "permit:runtime:replay-1";
++  const journal = [
++    {
++      schema_version: 1,
++      kernel_version: 1,
++      operation_id: "sha256:op-replay",
++      effect_id: "sha256:e-replay",
++      status: "completed",
++      result: { ok: true },
++    },
++  ];
++  const receipt = sampleReceipt(permitId, "pending");
++  const first = await store.compareAndSwap(
++    DEFAULT_SUBJECT_ID,
++    before.revision,
++    startedState(),
++    journal,
++    null,
++    { permit_id: permitId, receipt, status: "consumed" }
++  );
++  assert.equal(first.ok, true);
++  const head = await store.load();
++  const storedReceipt = head.authority.receipts[permitId];
++
++  const replay = await store.compareAndSwap(
++    DEFAULT_SUBJECT_ID,
++    head.revision,
++    startedState(),
++    journal,
++    null,
++    { permit_id: permitId, receipt, status: "consumed" }
++  );
++  assert.equal(replay.ok, true);
++  assert.equal(replay.converged, true);
++  assert.equal(replay.revision, head.revision);
++  assert.deepEqual(replay.operation_receipt, storedReceipt);
++
++  const after = await store.load();
++  assert.equal(after.revision, head.revision);
++  assert.equal(after.authority.receipts[permitId].receipt_id, storedReceipt.receipt_id);
++});
++
++test("in-process restart via snapshot/initial preserves authority bag", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  const permitId = "permit:runtime:restart-1";
++  const receipt = sampleReceipt(permitId, "pending");
++  await store.compareAndSwap(
++    DEFAULT_SUBJECT_ID,
++    before.revision,
++    startedState(),
++    [],
++    null,
++    { permit_id: permitId, receipt, status: "consumed" }
++  );
++  const snap = store.snapshot();
++  assert.ok(snap.authority.permits[permitId]);
++  assert.ok(snap.authority.receipts[permitId]);
++
++  const restored = createAuthorityStore({ initial: snap });
++  const loaded = await restored.load();
++  assert.equal(loaded.authority.permits[permitId].status, "consumed");
++  assert.equal(loaded.authority.receipts[permitId].receipt_id, receipt.receipt_id);
++  assert.equal(loaded.state.nodes.n1.phase, "started");
++});
+diff --git a/scripts/lib/lifecycle-kernel/host-boundary.test.js b/scripts/lib/lifecycle-kernel/host-boundary.test.js
+index 8dd5243..d71dca8 100644
+--- a/scripts/lib/lifecycle-kernel/host-boundary.test.js
++++ b/scripts/lib/lifecycle-kernel/host-boundary.test.js
+@@ -96,7 +96,6 @@ test("host port failure does not bypass permit+CAS requirements", async () => {
+     operation: "status",
+     arguments: {},
+     store,
+-    mintPermit: true,
+   });
+   assert.ok(result);
+   assert.equal(result.outcome === "advanced" || result.outcome === "ready" || typeof result.state_digest === "string", true);
+diff --git a/scripts/lib/lifecycle-kernel/index.js b/scripts/lib/lifecycle-kernel/index.js
+index 70a00c0..ea12521 100644
+--- a/scripts/lib/lifecycle-kernel/index.js
++++ b/scripts/lib/lifecycle-kernel/index.js
+@@ -15,8 +15,10 @@ const { createMemoryStore } = require("./memory-store.js");
+ const {
+   createPermitLedger,
+   mintOperationPermit,
+-  consumePermit,
++  issueOperationPermit,
+   authorizeOperationWithPermit,
++  prepareOperationReceipt,
++  findReplayReceipt,
+ } = require("./permits.js");
+ const {
+   DEFAULT_SUBJECT_ID,
+@@ -81,7 +83,7 @@ async function runKernelOperation(input = {}) {
+     permitLedger = null,
+     operationPermit = null,
+     transitionOffer = null,
+-    mintPermit = true,
++    mintPermit = false,
+     irreversibleAmbiguousNext = "decide",
+     effect_class = null,
+   } = input;
+@@ -105,6 +107,7 @@ async function runKernelOperation(input = {}) {
+   const state = loaded.state || { schema_version: 1, status: "ready", nodes: {} };
+   let journal = Array.isArray(loaded.journal) ? [...loaded.journal] : [];
+   const headRevision = loaded.revision;
++  const authorityBag = loaded.authority || { permits: {}, receipts: {} };
+   let midOpTicket = null;
+   async function persistJournal() {
+     const jr = await authorityStore.commitJournal(journal, subjectId, headRevision);
+@@ -133,21 +136,41 @@ async function runKernelOperation(input = {}) {
+     };
+   }
+ 
+-  const ledger = permitLedger || createPermitLedger();
+-  let permit = operationPermit;
+-
+-  if (!permit && mintPermit === true) {
+-    permit = mintOperationPermit({
+-      ledger,
+-      domain: "lifecycle",
+-      operation,
+-      subject_id: subjectId,
+-      expected_revision: headRevision,
+-      arguments: args,
+-      budget_ref: input.budget_ref || "budget:none",
++  // K2.1b: public auto-mint is rejected; controlled issuer is the only issuance path.
++  if (mintPermit === true) {
++    return blockedResult(state, journal, "auto-mint-disabled", {
++      revision: headRevision,
++      operation_receipt: null,
+     });
+   }
+ 
++  const ledger = permitLedger || createPermitLedger();
++  const permit = operationPermit || null;
++
++  // Exact replay: consumed permit + matching receipt in authority bag → return prior receipt.
++  const replayReceipt = findReplayReceipt(authorityBag, permit, operation, subjectId);
++  if (replayReceipt) {
++    const events = projectEvents({ state, journal });
++    const transitions = selectTransitions(state);
++    return {
++      schema_version: 1,
++      kernel_version: KERNEL_VERSION,
++      state_digest: digestLifecycleState(state),
++      status: {
++        lifecycle_status: state.status,
++        nodes: state.nodes || {},
++      },
++      transitions,
++      next_transition: nextTransition(state),
++      outcome: replayReceipt.outcome || "advanced",
++      events,
++      revision: headRevision,
++      operation_permit_id: permit.permit_id,
++      operation_receipt: replayReceipt,
++      replayed: true,
++    };
++  }
++
+   const auth = authorizeOperationWithPermit({
+     operation,
+     authorityToken,
+@@ -433,12 +456,27 @@ async function runKernelOperation(input = {}) {
+   const budgetsBefore = typeof authorityStore.getBudgets === "function"
+     ? authorityStore.getBudgets(subjectId)
+     : null;
++
++  const receipt = prepareOperationReceipt({
++    permit_id: permit.permit_id,
++    subject_id: subjectId,
++    operation,
++    expected_revision: headRevision,
++    outcome: reduced.outcome,
++  });
++  const authorityCommit = {
++    permit_id: permit.permit_id,
++    receipt,
++    status: "consumed",
++  };
++
+   const cas = await authorityStore.compareAndSwap(
+     subjectId,
+     headRevision,
+     reduced.state,
+     journal,
+-    midOpTicket
++    midOpTicket,
++    authorityCommit
+   );
+   if (!cas.ok) {
+     return blockedResult(state, journal, cas.code || "cas-conflict", {
+@@ -446,18 +484,20 @@ async function runKernelOperation(input = {}) {
+       revision: cas.revision,
+       budgets: cas.budgets || budgetsBefore,
+       budgets_unchanged: true,
++      operation_receipt: null,
+     });
+   }
+   await checkpoint(hooks, "after-state-commit", { operation_id: operationId });
+ 
+-  const consumed = consumePermit({
+-    permit_id: permit.permit_id,
+-    ledger,
+-    subject_id: subjectId,
+-    operation,
+-    revision: cas.revision,
+-    outcome: reduced.outcome,
+-  });
++  // Process-local Map is issued-only mirror; bag is sole consume truth after CAS.
++  if (typeof ledger.markConsumed === "function") {
++    ledger.markConsumed(permit.permit_id);
++  }
++
++  const committedReceipt =
++    cas.operation_receipt ||
++    (await authorityStore.load(subjectId)).authority?.receipts?.[permit.permit_id] ||
++    receipt;
+ 
+   const events = projectEvents({ state: reduced.state, journal });
+   const transitions = selectTransitions(reduced.state);
+@@ -478,7 +518,7 @@ async function runKernelOperation(input = {}) {
+     effects: effectRecords,
+     revision: cas.revision,
+     operation_permit_id: permit.permit_id,
+-    operation_receipt: consumed.ok ? consumed.receipt : null,
++    operation_receipt: committedReceipt,
+   };
+ }
+ 
+@@ -510,6 +550,7 @@ module.exports = {
+   createAuthorityStore,
+   createPermitLedger,
+   mintOperationPermit,
++  issueOperationPermit,
+   reduceLifecycle,
+   digestLifecycleState,
+   selectTransitions,
+diff --git a/scripts/lib/lifecycle-kernel/index.test.js b/scripts/lib/lifecycle-kernel/index.test.js
+index 624de6f..ec954ab 100644
+--- a/scripts/lib/lifecycle-kernel/index.test.js
++++ b/scripts/lib/lifecycle-kernel/index.test.js
+@@ -8,11 +8,12 @@ const {
+   createAuthorityStore,
+   createPermitLedger,
+   mintOperationPermit,
++  issueOperationPermit,
+   reduceLifecycle,
+   digestLifecycleState,
+   interruptError,
+ } = require("./index.js");
+-const { withRuntimePermit } = require("./test-permit-helpers.js");
++const { withRuntimePermit, issueFixturePermit } = require("./test-permit-helpers.js");
+ 
+ function pendingState() {
+   return {
+@@ -22,19 +23,36 @@ function pendingState() {
+   };
+ }
+ 
+-test("public runKernelOperation advances state through authority store CAS and journal", async () => {
+-  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+-  const executed = [];
+-  const result = await runKernelOperation({
++async function authorizedStart(store, extra = {}) {
++  const head = await store.load();
++  const issued = issueFixturePermit({
++    ledger: extra.permitLedger || createPermitLedger(),
++    operation: "start",
++    headRevision: head.revision,
++    arguments: { node_id: "n1" },
++    subject_id: "lifecycle:default",
++  });
++  return runKernelOperation({
+     operation: "start",
+     arguments: { node_id: "n1" },
+     store,
++    operationPermit: issued.permit,
++    permitLedger: issued.ledger,
++    effectExecutor: extra.effectExecutor || (async () => ({ ok: true })),
++    clock: extra.clock || (() => 0),
++    ...extra.kernel,
++  });
++}
++
++test("public runKernelOperation advances state through authority store CAS and journal", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const executed = [];
++  const result = await authorizedStart(store, {
+     effectExecutor: async (effect) => {
+       executed.push(effect.effect_id);
+       assert.equal(effect.effect_class, "idempotent-keyed");
+       return { ok: true };
+     },
+-    clock: () => 0,
+   });
+ 
+   assert.equal(result.outcome, "advanced");
+@@ -56,10 +74,19 @@ test("public runKernelOperation advances state through authority store CAS and j
+ test("invalid transition via public API does not mutate store", async () => {
+   const store = createAuthorityStore({ initial: { state: pendingState() } });
+   const before = digestLifecycleState((await store.load()).state);
++  const head = await store.load();
++  const issued = issueFixturePermit({
++    ledger: createPermitLedger(),
++    operation: "complete",
++    headRevision: head.revision,
++    arguments: { node_id: "n1" },
++  });
+   const result = await runKernelOperation({
+     operation: "complete",
+     arguments: { node_id: "n1" },
+     store,
++    operationPermit: issued.permit,
++    permitLedger: issued.ledger,
+     effectExecutor: async () => ({ ok: true }),
+   });
+   assert.equal(result.outcome, "blocked");
+@@ -77,12 +104,8 @@ test("effectExecutor {ok:false} blocks without committing reduced success state"
+   const store = createAuthorityStore({ initial: { state: initialState } });
+   const beforeDigest = digestLifecycleState(initialState);
+ 
+-  const result = await runKernelOperation({
+-    operation: "start",
+-    arguments: { node_id: "n1" },
+-    store,
++  const result = await authorizedStart(store, {
+     effectExecutor: async () => ({ ok: false, reason: "persist-denied" }),
+-    clock: () => 0,
+   });
+ 
+   assert.equal(result.outcome, "blocked");
+@@ -100,11 +123,20 @@ test("mutating operation without effectExecutor fail-closes and does not commit"
+   const initialState = pendingState();
+   const store = createAuthorityStore({ initial: { state: initialState } });
+   const beforeDigest = digestLifecycleState(initialState);
++  const head = await store.load();
++  const issued = issueFixturePermit({
++    ledger: createPermitLedger(),
++    operation: "start",
++    headRevision: head.revision,
++    arguments: { node_id: "n1" },
++  });
+ 
+   const result = await runKernelOperation({
+     operation: "start",
+     arguments: { node_id: "n1" },
+     store,
++    operationPermit: issued.permit,
++    permitLedger: issued.ledger,
+     clock: () => 0,
+   });
+ 
+@@ -133,6 +165,39 @@ test("bare memory commit store is rejected (authority-store-required)", async ()
+   );
+ });
+ 
++test("default mintPermit is false; state-valid op without permit fails; head unchanged", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState() } });
++  const before = await store.load();
++  const result = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    authorityToken: "opaque:t1",
++    effectExecutor: async () => ({ ok: true }),
++  });
++  assert.equal(result.outcome, "blocked");
++  assert.equal(result.code, "unauthorized");
++  const after = await store.load();
++  assert.equal(after.revision, before.revision);
++});
++
++test("explicit mintPermit:true is rejected with auto-mint-disabled", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState() } });
++  const before = await store.load();
++  const result = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    mintPermit: true,
++    effectExecutor: async () => ({ ok: true }),
++  });
++  assert.equal(result.outcome, "blocked");
++  assert.equal(result.code, "auto-mint-disabled");
++  assert.equal(result.operation_receipt, null);
++  const after = await store.load();
++  assert.equal(after.revision, before.revision);
++});
++
+ test("mutation without runtime-minted permit fails; head unchanged", async () => {
+   const store = createAuthorityStore({ initial: { state: pendingState() } });
+   const before = await store.load();
+@@ -182,6 +247,100 @@ test("mutation with fabricated permit bypassing ledger fails", async () => {
+   assert.equal((await store.load()).revision, before.revision);
+ });
+ 
++test("successful mutate records consumed permit + receipt in same CAS revision", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  const result = await authorizedStart(store);
++  assert.equal(result.outcome, "advanced");
++  assert.ok(result.operation_receipt);
++  assert.equal(result.operation_receipt.kind, "operation-receipt/v1");
++
++  const after = await store.load();
++  assert.notEqual(after.revision, before.revision);
++  const permitId = result.operation_permit_id;
++  assert.equal(after.authority.permits[permitId].status, "consumed");
++  assert.equal(after.authority.receipts[permitId].receipt_id, result.operation_receipt.receipt_id);
++  assert.equal(after.state.nodes.n1.phase, "started");
++});
++
++test("incomplete authority commit leaves head unchanged and operation_receipt null", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  const originalCas = store.compareAndSwap.bind(store);
++  store.compareAndSwap = async (subjectId, expectedRevision, nextState, nextJournal, midOpTicket) => {
++    // Drop authorityCommit → store rejects as incomplete when null is forced.
++    return originalCas(subjectId, expectedRevision, nextState, nextJournal, midOpTicket, null);
++  };
++
++  const result = await authorizedStart(store);
++  assert.equal(result.outcome, "blocked");
++  assert.equal(result.code, "authority-commit-incomplete");
++  assert.equal(result.operation_receipt, null);
++  const after = await store.load();
++  // State MUST NOT advance; journal may have mid-op durable entries but no consume bag.
++  assert.equal(after.state.nodes.n1.phase, "pending");
++  assert.equal(digestLifecycleState(after.state), digestLifecycleState(before.state));
++  assert.deepEqual(Object.keys(after.authority.permits), []);
++  assert.deepEqual(Object.keys(after.authority.receipts), []);
++});
++
++test("exact identical replay returns prior OperationReceipt without second consume", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const head = await store.load();
++  const issued = issueFixturePermit({
++    ledger: createPermitLedger(),
++    operation: "start",
++    headRevision: head.revision,
++    arguments: { node_id: "n1" },
++  });
++
++  const first = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    operationPermit: issued.permit,
++    permitLedger: issued.ledger,
++    effectExecutor: async () => ({ ok: true }),
++  });
++  assert.equal(first.outcome, "advanced");
++  const receiptId = first.operation_receipt.receipt_id;
++
++  let effectRuns = 0;
++  const replay = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    operationPermit: issued.permit,
++    permitLedger: issued.ledger,
++    effectExecutor: async () => {
++      effectRuns += 1;
++      return { ok: true };
++    },
++  });
++  assert.equal(replay.operation_receipt.receipt_id, receiptId);
++  assert.equal(replay.revision, first.revision);
++  assert.equal(effectRuns, 0);
++  assert.equal(replay.replayed, true);
++});
++
++test("in-process restart via snapshot/initial keeps permit and receipt verifiable", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const first = await authorizedStart(store);
++  assert.equal(first.outcome, "advanced");
++  const permitId = first.operation_permit_id;
++  const snap = store.snapshot();
++
++  const restored = createAuthorityStore({ initial: snap });
++  const loaded = await restored.load();
++  assert.equal(loaded.authority.permits[permitId].status, "consumed");
++  assert.equal(loaded.authority.receipts[permitId].receipt_id, first.operation_receipt.receipt_id);
++  assert.equal(loaded.state.nodes.n1.phase, "started");
++});
++
++test("issueOperationPermit is re-exported from kernel index", () => {
++  assert.equal(typeof issueOperationPermit, "function");
++});
++
+ test("preseeded unknown journal fail-closes without mutating store", async () => {
+   const initialState = pendingState();
+   const { deriveOperationId, deriveEffectId } = require("./journal.js");
+@@ -212,12 +371,7 @@ test("preseeded unknown journal fail-closes without mutating store", async () =>
+   const beforeDigest = digestLifecycleState(initialState);
+   const beforeJournal = JSON.stringify(store.snapshot().journal);
+ 
+-  const result = await runKernelOperation({
+-    operation: "start",
+-    arguments: { node_id: "n1" },
+-    store,
+-    effectExecutor: async () => ({ ok: true }),
+-  });
++  const result = await authorizedStart(store);
+ 
+   assert.equal(result.outcome, "blocked");
+   assert.equal(result.code, "reconciliation-required");
+@@ -230,14 +384,10 @@ test("ambiguous executor throw after started durable-marks unknown and resume fa
+   const store = createAuthorityStore({ initial: { state: initialState } });
+   const beforeDigest = digestLifecycleState(initialState);
+ 
+-  const first = await runKernelOperation({
+-    operation: "start",
+-    arguments: { node_id: "n1" },
+-    store,
++  const first = await authorizedStart(store, {
+     effectExecutor: async () => {
+       throw new Error("executor-crashed-mid-flight");
+     },
+-    clock: () => 0,
+   });
+ 
+   assert.equal(first.outcome, "blocked");
+@@ -250,15 +400,11 @@ test("ambiguous executor throw after started durable-marks unknown and resume fa
+   assert.equal(afterThrow.journal[0].status, "unknown");
+ 
+   let resumedExecutions = 0;
+-  const resume = await runKernelOperation({
+-    operation: "start",
+-    arguments: { node_id: "n1" },
+-    store,
++  const resume = await authorizedStart(store, {
+     effectExecutor: async () => {
+       resumedExecutions += 1;
+       return { ok: true };
+     },
+-    clock: () => 0,
+   });
+ 
+   assert.equal(resume.outcome, "blocked");
+@@ -272,6 +418,13 @@ test("interrupt mid-executor with irreversible persists unknown; resume does not
+   const initialState = pendingState();
+   const store = createAuthorityStore({ initial: { state: initialState } });
+   const beforeDigest = digestLifecycleState(initialState);
++  const head = await store.load();
++  const issued = issueFixturePermit({
++    ledger: createPermitLedger(),
++    operation: "start",
++    headRevision: head.revision,
++    arguments: { node_id: "n1" },
++  });
+ 
+   let executions = 0;
+   await assert.rejects(
+@@ -281,6 +434,8 @@ test("interrupt mid-executor with irreversible persists unknown; resume does not
+         arguments: { node_id: "n1" },
+         store,
+         effect_class: "irreversible",
++        operationPermit: issued.permit,
++        permitLedger: issued.ledger,
+         effectExecutor: async () => {
+           executions += 1;
+           throw interruptError("mid-executor");
+@@ -298,11 +453,20 @@ test("interrupt mid-executor with irreversible persists unknown; resume does not
+   assert.equal(afterInterrupt.journal[0].effect_class, "irreversible");
+ 
+   let resumedExecutions = 0;
++  const head2 = await store.load();
++  const issued2 = issueFixturePermit({
++    ledger: createPermitLedger(),
++    operation: "start",
++    headRevision: head2.revision,
++    arguments: { node_id: "n1" },
++  });
+   const resume = await runKernelOperation({
+     operation: "start",
+     arguments: { node_id: "n1" },
+     store,
+     effect_class: "irreversible",
++    operationPermit: issued2.permit,
++    permitLedger: issued2.ledger,
+     effectExecutor: async () => {
+       resumedExecutions += 1;
+       return { ok: true };
+@@ -323,7 +487,6 @@ test("CAS conflict after effects does not inflate budgets", async () => {
+     budgets: { attempts: 3, corrections: 1 },
+   });
+   const loaded = await store.load();
+-  // Race: advance head out from under the in-flight operation by CAS with same R.
+   const raced = await store.compareAndSwap(
+     "lifecycle:default",
+     loaded.revision,
+@@ -336,8 +499,6 @@ test("CAS conflict after effects does not inflate budgets", async () => {
+   );
+   assert.equal(raced.ok, true);
+ 
+-  // Restore pending state for the operation attempt but keep advanced revision via fresh store race:
+-  // Simulate conflict by minting against stale revision.
+   const store2 = createAuthorityStore({
+     initial: { state: pendingState() },
+     budgets: { attempts: 3, corrections: 1 },
+@@ -349,7 +510,6 @@ test("CAS conflict after effects does not inflate budgets", async () => {
+     operation: "start",
+     expected_revision: head.revision,
+   });
+-  // Advance head first
+   await store2.compareAndSwap(
+     "lifecycle:default",
+     head.revision,
+diff --git a/scripts/lib/lifecycle-kernel/permits.js b/scripts/lib/lifecycle-kernel/permits.js
+index ad258ad..6ae57ea 100644
+--- a/scripts/lib/lifecycle-kernel/permits.js
++++ b/scripts/lib/lifecycle-kernel/permits.js
+@@ -76,6 +76,116 @@ function mintOperationPermit(input = {}) {
+   return JSON.parse(JSON.stringify(permit));
+ }
+ 
++const POLICY_DECISION_KIND = "policy-decision/v1";
++const HUMAN_DECISION_KIND = "human-decision/v1";
++const KERNEL_RULE_KIND = "kernel-rule/v1";
++
++function isValidPolicyDecision(dto) {
++  return (
++    dto &&
++    typeof dto === "object" &&
++    dto.kind === POLICY_DECISION_KIND &&
++    typeof dto.decision_id === "string" &&
++    dto.decision_id.trim() !== ""
++  );
++}
++
++function isValidHumanDecision(dto) {
++  return (
++    dto &&
++    typeof dto === "object" &&
++    dto.kind === HUMAN_DECISION_KIND &&
++    typeof dto.decision_id === "string" &&
++    dto.decision_id.trim() !== ""
++  );
++}
++
++function isValidKernelRule(dto) {
++  return (
++    dto &&
++    typeof dto === "object" &&
++    dto.kind === KERNEL_RULE_KIND &&
++    typeof dto.rule_id === "string" &&
++    dto.rule_id.trim() !== ""
++  );
++}
++
++/**
++ * Controlled issuer: TransitionOffer + exactly one decision/rule + expected_revision.
++ * Does not authorize mutation by itself; only inserts into the issued-only ledger.
++ */
++function issueOperationPermit(input = {}) {
++  const {
++    ledger,
++    transitionOffer,
++    expected_revision,
++    subject_id = "lifecycle:default",
++    policyDecision = null,
++    humanDecision = null,
++    kernelRule = null,
++    arguments: mutationArgs = null,
++    arguments_digest = null,
++    scope_digest = null,
++    policy_digest = null,
++    budget_ref = null,
++  } = input;
++
++  if (!ledger || typeof ledger.insert !== "function") {
++    return { ok: false, code: "permit-ledger-required" };
++  }
++  if (!transitionOffer || typeof transitionOffer !== "object") {
++    return { ok: false, code: "issuer-decision-required" };
++  }
++  if (!expected_revision || typeof expected_revision !== "string") {
++    return { ok: false, code: "permit-mint-invalid" };
++  }
++
++  const present = [];
++  if (policyDecision != null) present.push("policy");
++  if (humanDecision != null) present.push("human");
++  if (kernelRule != null) present.push("rule");
++
++  if (present.length === 0) {
++    return { ok: false, code: "issuer-decision-required" };
++  }
++  if (present.length > 1) {
++    return { ok: false, code: "issuer-decision-ambiguous" };
++  }
++
++  if (present[0] === "policy" && !isValidPolicyDecision(policyDecision)) {
++    return { ok: false, code: "issuer-decision-required" };
++  }
++  if (present[0] === "human" && !isValidHumanDecision(humanDecision)) {
++    return { ok: false, code: "issuer-decision-required" };
++  }
++  if (present[0] === "rule" && !isValidKernelRule(kernelRule)) {
++    return { ok: false, code: "issuer-decision-required" };
++  }
++
++  const operation =
++    transitionOffer.operation ||
++    (policyDecision && policyDecision.operation) ||
++    (humanDecision && humanDecision.operation) ||
++    null;
++  if (!operation) {
++    return { ok: false, code: "permit-mint-invalid" };
++  }
++
++  const permit = mintOperationPermit({
++    ledger,
++    operation,
++    expected_revision,
++    subject_id,
++    arguments: mutationArgs || {},
++    arguments_digest: arguments_digest || undefined,
++    scope_digest: scope_digest || undefined,
++    policy_digest: policy_digest || undefined,
++    budget_ref: budget_ref || undefined,
++  });
++
++  return { ok: true, permit };
++}
++
+ function authorizeMutation({
+   permit,
+   headRevision,
+@@ -197,22 +307,59 @@ function consumePermit({ permit_id, ledger, subject_id, operation, revision, out
+     // Consume binds to post-CAS revision for the receipt; stale check uses pre-CAS head at authorize.
+   }
+   ledger.markConsumed(permit_id);
+-  const receipt = {
++  const receipt = prepareOperationReceipt({
++    permit_id,
++    subject_id: subject_id || entry.permit.subject_id,
++    operation: operation || entry.permit.operation,
++    expected_revision: revision || entry.permit.expected_revision,
++    outcome: outcome || "advanced",
++  });
++  if (revision != null) receipt.revision = revision;
++  return { ok: true, receipt };
++}
++
++/**
++ * Build an OperationReceipt before CAS so it can be co-committed in authorityCommit.
++ * receipt_id is bound to permit + operation + subject + expected_revision (stable across replay).
++ */
++function prepareOperationReceipt({
++  permit_id,
++  subject_id,
++  operation,
++  expected_revision,
++  outcome = "advanced",
++} = {}) {
++  return {
+     schema_version: 1,
+     kind: "operation-receipt/v1",
+     receipt_id: sha256Fingerprint("operation-receipt", {
+       permit_id,
+       subject_id,
+       operation,
+-      revision,
++      expected_revision,
+     }),
+     permit_id,
+-    subject_id: subject_id || entry.permit.subject_id,
+-    operation: operation || entry.permit.operation,
+-    revision: revision || entry.permit.expected_revision,
+-    outcome: outcome || "advanced",
++    subject_id,
++    operation,
++    revision: expected_revision,
++    outcome,
+   };
+-  return { ok: true, receipt };
++}
++
++/**
++ * Exact-replay lookup against the Authority Store authority bag.
++ */
++function findReplayReceipt(authority, permit, operation, subjectId) {
++  if (!authority || !permit || typeof permit !== "object") return null;
++  const permits = authority.permits || {};
++  const receipts = authority.receipts || {};
++  const entry = permits[permit.permit_id];
++  if (!entry || entry.status !== "consumed") return null;
++  const receipt = receipts[permit.permit_id];
++  if (!receipt || receipt.kind !== "operation-receipt/v1") return null;
++  if (receipt.operation !== operation) return null;
++  if (subjectId != null && receipt.subject_id !== subjectId) return null;
++  return JSON.parse(JSON.stringify(receipt));
+ }
+ 
+ function assertNotReceiptV1(receipt) {
+@@ -229,8 +376,11 @@ module.exports = {
+   EFFECT_CLASSES,
+   createPermitLedger,
+   mintOperationPermit,
++  issueOperationPermit,
+   authorizeMutation,
+   authorizeOperationWithPermit,
+   consumePermit,
++  prepareOperationReceipt,
++  findReplayReceipt,
+   assertNotReceiptV1,
+ };
+diff --git a/scripts/lib/lifecycle-kernel/permits.test.js b/scripts/lib/lifecycle-kernel/permits.test.js
+index e1cd98b..6d772e0 100644
+--- a/scripts/lib/lifecycle-kernel/permits.test.js
++++ b/scripts/lib/lifecycle-kernel/permits.test.js
+@@ -6,6 +6,7 @@ const test = require("node:test");
+ const {
+   createPermitLedger,
+   mintOperationPermit,
++  issueOperationPermit,
+   authorizeMutation,
+   authorizeOperationWithPermit,
+   consumePermit,
+@@ -284,3 +285,96 @@ test("requested operation mismatch against ledger-backed permit fails closed", (
+   });
+   assert.equal(ok.ok, true);
+ });
++
++const OFFER = Object.freeze({
++  kind: "transition-offer/v1",
++  operation: "start",
++  subject_id: "lifecycle:default",
++});
++
++test("issueOperationPermit produces permit from offer plus policy decision", () => {
++  const ledger = createPermitLedger();
++  const issued = issueOperationPermit({
++    ledger,
++    transitionOffer: OFFER,
++    expected_revision: HEAD,
++    subject_id: "lifecycle:default",
++    policyDecision: {
++      kind: "policy-decision/v1",
++      decision_id: "pol:1",
++      operation: "start",
++      subject_id: "lifecycle:default",
++    },
++  });
++  assert.equal(issued.ok, true);
++  assert.equal(issued.permit.kind, "operation-permit/v1");
++  assert.equal(issued.permit.expected_revision, HEAD);
++  assert.equal(issued.permit.operation, "start");
++  assert.equal(issued.permit.single_use, true);
++  assert.ok(ledger.has(issued.permit.permit_id));
++});
++
++test("issueOperationPermit rejects offer-only without decision (issuer-decision-required)", () => {
++  const ledger = createPermitLedger();
++  const result = issueOperationPermit({
++    ledger,
++    transitionOffer: OFFER,
++    expected_revision: HEAD,
++    subject_id: "lifecycle:default",
++  });
++  assert.equal(result.ok, false);
++  assert.equal(result.code, "issuer-decision-required");
++  assert.equal(ledger._entries.size, 0);
++});
++
++test("issueOperationPermit rejects ambiguous multiple decisions", () => {
++  const ledger = createPermitLedger();
++  const result = issueOperationPermit({
++    ledger,
++    transitionOffer: OFFER,
++    expected_revision: HEAD,
++    subject_id: "lifecycle:default",
++    policyDecision: { kind: "policy-decision/v1", decision_id: "pol:1" },
++    humanDecision: { kind: "human-decision/v1", decision_id: "hum:1" },
++  });
++  assert.equal(result.ok, false);
++  assert.equal(result.code, "issuer-decision-ambiguous");
++  assert.equal(ledger._entries.size, 0);
++});
++
++test("issueOperationPermit accepts humanDecision or kernelRule alone", () => {
++  const ledger = createPermitLedger();
++  const human = issueOperationPermit({
++    ledger,
++    transitionOffer: OFFER,
++    expected_revision: HEAD,
++    subject_id: "lifecycle:default",
++    humanDecision: { kind: "human-decision/v1", decision_id: "hum:2" },
++  });
++  assert.equal(human.ok, true);
++  assert.ok(ledger.has(human.permit.permit_id));
++
++  const ledger2 = createPermitLedger();
++  const rule = issueOperationPermit({
++    ledger: ledger2,
++    transitionOffer: OFFER,
++    expected_revision: HEAD,
++    subject_id: "lifecycle:default",
++    kernelRule: { kind: "kernel-rule/v1", rule_id: "rule:fixture-start" },
++  });
++  assert.equal(rule.ok, true);
++  assert.ok(ledger2.has(rule.permit.permit_id));
++});
++
++test("issueOperationPermit rejects invalid decision DTO kind", () => {
++  const ledger = createPermitLedger();
++  const result = issueOperationPermit({
++    ledger,
++    transitionOffer: OFFER,
++    expected_revision: HEAD,
++    subject_id: "lifecycle:default",
++    policyDecision: { kind: "policy-decision/v0", decision_id: "pol:bad" },
++  });
++  assert.equal(result.ok, false);
++  assert.equal(result.code, "issuer-decision-required");
++});
+diff --git a/scripts/lib/lifecycle-kernel/test-permit-helpers.js b/scripts/lib/lifecycle-kernel/test-permit-helpers.js
+index 62e07cf..84ad066 100644
+--- a/scripts/lib/lifecycle-kernel/test-permit-helpers.js
++++ b/scripts/lib/lifecycle-kernel/test-permit-helpers.js
+@@ -3,26 +3,75 @@
+ const {
+   createPermitLedger,
+   mintOperationPermit,
++  issueOperationPermit,
+ } = require("./permits.js");
+ 
+ const DEFAULT_HEAD =
+   "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+ 
++const DEFAULT_KERNEL_RULE = Object.freeze({
++  kind: "kernel-rule/v1",
++  rule_id: "rule:fixture-issuer",
++});
++
++/**
++ * Issue a permit via the controlled issuer for test fixtures (K2.1b).
++ * Prefer this over mintOperationPermit / mintPermit:true on the public path.
++ */
++function issueFixturePermit(options = {}) {
++  const ledger = options.ledger || createPermitLedger();
++  const headRevision = options.headRevision || options.expected_revision || DEFAULT_HEAD;
++  const operation = options.operation || "start";
++  const subject_id = options.subject_id || "lifecycle:default";
++  const transitionOffer =
++    options.transitionOffer || {
++      kind: "transition-offer/v1",
++      operation,
++      subject_id,
++    };
++
++  const decisionFields = {};
++  if (options.policyDecision) decisionFields.policyDecision = options.policyDecision;
++  else if (options.humanDecision) decisionFields.humanDecision = options.humanDecision;
++  else if (options.kernelRule) decisionFields.kernelRule = options.kernelRule;
++  else decisionFields.kernelRule = { ...DEFAULT_KERNEL_RULE, operation, subject_id };
++
++  const issued = issueOperationPermit({
++    ledger,
++    transitionOffer,
++    expected_revision: headRevision,
++    subject_id,
++    arguments: options.arguments || {},
++    ...decisionFields,
++  });
++  if (!issued.ok) {
++    const error = new Error(`fixture issuer failed: ${issued.code}`);
++    error.code = issued.code;
++    throw error;
++  }
++  return { permit: issued.permit, ledger, headRevision };
++}
++
+ /**
+- * Attach a runtime-minted permit to a reducer/authorize action for tests.
++ * Attach an issuer-produced permit to a reducer/authorize action for tests.
+  */
+ function withRuntimePermit(action = {}, options = {}) {
+   const ledger = options.ledger || createPermitLedger();
+   const headRevision = options.headRevision || action.headRevision || DEFAULT_HEAD;
+-  const permit =
+-    action.operationPermit ||
+-    mintOperationPermit({
++  let permit = action.operationPermit;
++  if (!permit) {
++    const issued = issueFixturePermit({
+       ledger,
+       operation: action.operation,
+-      expected_revision: headRevision,
++      headRevision,
+       arguments: action.arguments || {},
+       subject_id: options.subject_id || "lifecycle:default",
++      policyDecision: options.policyDecision,
++      humanDecision: options.humanDecision,
++      kernelRule: options.kernelRule,
+     });
++    permit = issued.permit;
++  }
+   return {
+     ...action,
+     operationPermit: permit,
+@@ -33,7 +82,10 @@ function withRuntimePermit(action = {}, options = {}) {
+ 
+ module.exports = {
+   DEFAULT_HEAD,
++  DEFAULT_KERNEL_RULE,
+   withRuntimePermit,
++  issueFixturePermit,
+   createPermitLedger,
+   mintOperationPermit,
++  issueOperationPermit,
+ };
+diff --git a/scripts/lib/lifecycle-model.js b/scripts/lib/lifecycle-model.js
+index 79c8366..6ac5604 100644
+--- a/scripts/lib/lifecycle-model.js
++++ b/scripts/lib/lifecycle-model.js
+@@ -92,6 +92,16 @@ const K21_EXECUTABLE_INVARIANTS = Object.freeze([
+   Object.freeze({ id: "inv-k21-convergent-replay", name: "Convergent replay on same revision", optional: false }),
+   Object.freeze({ id: "inv-k21-no-self-grant", name: "No model self-grant of permits", optional: false }),
+   Object.freeze({ id: "inv-k21-direct-write-blocked", name: "Direct-write adapters blocked", optional: false }),
++  Object.freeze({ id: "inv-k21-no-public-auto-mint", name: "Public auto-mint is not a valid auth path", optional: false }),
++  Object.freeze({ id: "inv-k21-replay-receipt-stable", name: "Exact replay returns prior OperationReceipt", optional: false }),
++]);
++
++const K21B_EXECUTABLE_INVARIANTS = Object.freeze([
++  Object.freeze({ id: "inv-k21b-no-state-valid-only", name: "No auth solely because state-valid", optional: false }),
++  Object.freeze({ id: "inv-k21b-commit-requires-issued-permit", name: "No commit without issued permit", optional: false }),
++  Object.freeze({ id: "inv-k21b-atomic-consume-revision", name: "Consume+receipt same CAS revision", optional: false }),
++  Object.freeze({ id: "inv-k21b-replay-prior-receipt", name: "Exact replay returns prior receipt", optional: false }),
++  Object.freeze({ id: "inv-k21b-restart-verifiable", name: "Restart keeps permit+receipt verifiable", optional: false }),
+ ]);
+ 
+ const K2A_EXECUTABLE_INVARIANTS = Object.freeze([
+@@ -319,6 +329,17 @@ const CHECKERS = {
+   "inv-k21-convergent-replay": () => checkK21ConvergentReplay(),
+   "inv-k21-no-self-grant": () => checkK21NoSelfGrant(),
+   "inv-k21-direct-write-blocked": () => checkK21DirectWriteBlocked(),
++  "inv-k21-no-public-auto-mint": () => checkK21NoPublicAutoMint(),
++  "inv-k21-replay-receipt-stable": () =>
++    checkK21bReplayPriorReceipt().then((r) => ({
++      ...r,
++      invariant_id: "inv-k21-replay-receipt-stable",
++    })),
++  "inv-k21b-no-state-valid-only": () => checkK21bNoStateValidOnly(),
++  "inv-k21b-commit-requires-issued-permit": () => checkK21bCommitRequiresIssuedPermit(),
++  "inv-k21b-atomic-consume-revision": () => checkK21bAtomicConsumeRevision(),
++  "inv-k21b-replay-prior-receipt": () => checkK21bReplayPriorReceipt(),
++  "inv-k21b-restart-verifiable": () => checkK21bRestartVerifiable(),
+   "inv-k2a-zero-concrete-host-imports": () => checkK2aZeroConcreteHostImports(),
+   "inv-k2a-no-silent-promotion": () => checkK2aNoSilentPromotion(),
+   "inv-k2a-enforced-requires-proof": () => checkK2aEnforcedRequiresProof(),
+@@ -585,6 +606,138 @@ function checkK21DirectWriteBlocked() {
+   };
+ }
+ 
++function pendingModelState() {
++  return {
++    schema_version: 1,
++    status: "ready",
++    nodes: { n1: { id: "n1", phase: "pending", attempt: 0 } },
++  };
++}
++
++async function checkK21NoPublicAutoMint() {
++  const { createAuthorityStore, runKernelOperation } = require("./lifecycle-kernel/index.js");
++  const store = createAuthorityStore({ initial: { state: pendingModelState(), journal: [] } });
++  const auto = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    mintPermit: true,
++    effectExecutor: async () => ({ ok: true }),
++  });
++  const missing = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    effectExecutor: async () => ({ ok: true }),
++  });
++  const ok =
++    auto.outcome === "blocked" &&
++    auto.code === "auto-mint-disabled" &&
++    missing.outcome === "blocked" &&
++    missing.code === "unauthorized";
++  return { ok, invariant_id: "inv-k21-no-public-auto-mint" };
++}
++
++async function checkK21bNoStateValidOnly() {
++  const { runHarnessScenario } = require("./minimal-kernel-harness.js");
++  const result = await runHarnessScenario({
++    id: "model:k21b-state-valid-only",
++    initialState: pendingModelState(),
++    operations: [{ operation: "start", arguments: { node_id: "n1" }, omitPermit: true }],
++  });
++  const ok = result.outcome === "blocked" && result.halted && result.halted.code === "unauthorized";
++  return { ok, invariant_id: "inv-k21b-no-state-valid-only" };
++}
++
++async function checkK21bCommitRequiresIssuedPermit() {
++  // Same gate as state-valid-only: no issued permit → no CAS advance.
++  const result = await checkK21bNoStateValidOnly();
++  return { ok: result.ok, invariant_id: "inv-k21b-commit-requires-issued-permit" };
++}
++
++async function checkK21bAtomicConsumeRevision() {
++  const { runHarnessScenario } = require("./minimal-kernel-harness.js");
++  const result = await runHarnessScenario({
++    id: "model:k21b-atomic-consume",
++    initialState: pendingModelState(),
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++  });
++  const snap = result.snapshot;
++  const permitId = result.operations[0] && result.operations[0].operation_permit_id;
++  const receipt = result.operations[0] && result.operations[0].operation_receipt;
++  const ok =
++    result.outcome !== "blocked" &&
++    snap.state.nodes.n1.phase === "started" &&
++    permitId &&
++    snap.authority &&
++    snap.authority.permits[permitId] &&
++    snap.authority.permits[permitId].status === "consumed" &&
++    snap.authority.receipts[permitId] &&
++    receipt &&
++    snap.authority.receipts[permitId].receipt_id === receipt.receipt_id;
++  return { ok, invariant_id: "inv-k21b-atomic-consume-revision" };
++}
++
++async function checkK21bReplayPriorReceipt() {
++  const { createAuthorityStore, runKernelOperation, createPermitLedger } = require("./lifecycle-kernel/index.js");
++  const { issueFixturePermit } = require("./lifecycle-kernel/test-permit-helpers.js");
++  const store = createAuthorityStore({ initial: { state: pendingModelState(), journal: [] } });
++  const head = await store.load();
++  const issued = issueFixturePermit({
++    ledger: createPermitLedger(),
++    operation: "start",
++    headRevision: head.revision,
++    arguments: { node_id: "n1" },
++  });
++  const first = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    operationPermit: issued.permit,
++    permitLedger: issued.ledger,
++    effectExecutor: async () => ({ ok: true }),
++  });
++  const replay = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    operationPermit: issued.permit,
++    permitLedger: issued.ledger,
++    effectExecutor: async () => ({ ok: true }),
++  });
++  const ok =
++    first.outcome === "advanced" &&
++    first.operation_receipt &&
++    replay.operation_receipt &&
++    replay.operation_receipt.receipt_id === first.operation_receipt.receipt_id &&
++    replay.replayed === true;
++  return { ok, invariant_id: "inv-k21b-replay-prior-receipt" };
++}
++
++async function checkK21bRestartVerifiable() {
++  const { runHarnessScenario, createAuthorityStore } = require("./minimal-kernel-harness.js");
++  const result = await runHarnessScenario({
++    id: "model:k21b-restart",
++    initialState: pendingModelState(),
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++  });
++  const permitId = result.operations[0] && result.operations[0].operation_permit_id;
++  const receiptId =
++    result.operations[0] &&
++    result.operations[0].operation_receipt &&
++    result.operations[0].operation_receipt.receipt_id;
++  const restored = createAuthorityStore({ initial: result.snapshot });
++  const loaded = await restored.load();
++  const ok =
++    permitId &&
++    receiptId &&
++    loaded.authority.permits[permitId] &&
++    loaded.authority.permits[permitId].status === "consumed" &&
++    loaded.authority.receipts[permitId] &&
++    loaded.authority.receipts[permitId].receipt_id === receiptId;
++  return { ok, invariant_id: "inv-k21b-restart-verifiable" };
++}
++
+ async function checkInvariant(id, context = {}) {
+   const checker = CHECKERS[id];
+   if (!checker) return { ok: false, invariant_id: id, code: "unknown-invariant" };
+@@ -597,6 +750,7 @@ async function runAllInvariantCheckers(context = {}) {
+   const allInvariants = [
+     ...EXECUTABLE_INVARIANTS,
+     ...K21_EXECUTABLE_INVARIANTS,
++    ...K21B_EXECUTABLE_INVARIANTS,
+     ...K2A_EXECUTABLE_INVARIANTS,
+   ];
+   const results = [];
+@@ -618,9 +772,9 @@ async function runAllInvariantCheckers(context = {}) {
+     counts_as_enforced: false,
+     enforced_in_k2: false,
+   }));
+-  // CAS/permit/retry and K2a host invariants must not appear on deferred list.
++  // CAS/permit/retry, K2.1b, and K2a host invariants must not appear on deferred list.
+   const deferredIds = new Set(deferred.map((d) => d.invariant_id));
+-  for (const inv of [...K21_EXECUTABLE_INVARIANTS, ...K2A_EXECUTABLE_INVARIANTS]) {
++  for (const inv of [...K21_EXECUTABLE_INVARIANTS, ...K21B_EXECUTABLE_INVARIANTS, ...K2A_EXECUTABLE_INVARIANTS]) {
+     if (deferredIds.has(inv.id)) {
+       return {
+         results: [...results, ...deferred],
+@@ -635,6 +789,7 @@ async function runAllInvariantCheckers(context = {}) {
+     enforced_count: results.length,
+     ok: results.every((r) => r.ok),
+     k21_count: K21_EXECUTABLE_INVARIANTS.length,
++    k21b_count: K21B_EXECUTABLE_INVARIANTS.length,
+     k2a_count: K2A_EXECUTABLE_INVARIANTS.length,
+   };
+ }
+@@ -813,6 +968,7 @@ module.exports = {
+   MODEL_CONFIG,
+   EXECUTABLE_INVARIANTS,
+   K21_EXECUTABLE_INVARIANTS,
++  K21B_EXECUTABLE_INVARIANTS,
+   K2A_EXECUTABLE_INVARIANTS,
+   DEFERRED_INVARIANTS,
+   exploreModel,
+diff --git a/scripts/lib/lifecycle-model.test.js b/scripts/lib/lifecycle-model.test.js
+index 314c8ac..00bcc41 100644
+--- a/scripts/lib/lifecycle-model.test.js
++++ b/scripts/lib/lifecycle-model.test.js
+@@ -7,6 +7,7 @@ const {
+   MODEL_CONFIG,
+   EXECUTABLE_INVARIANTS,
+   K21_EXECUTABLE_INVARIANTS,
++  K21B_EXECUTABLE_INVARIANTS,
+   K2A_EXECUTABLE_INVARIANTS,
+   DEFERRED_INVARIANTS,
+   exploreModel,
+@@ -44,7 +45,10 @@ test("every executable invariant has a non-optional checker", async () => {
+   const enforced = all.results.filter((r) => r.counts_as_enforced);
+   assert.equal(
+     enforced.length,
+-    EXECUTABLE_INVARIANTS.length + K21_EXECUTABLE_INVARIANTS.length + K2A_EXECUTABLE_INVARIANTS.length
++    EXECUTABLE_INVARIANTS.length +
++      K21_EXECUTABLE_INVARIANTS.length +
++      K21B_EXECUTABLE_INVARIANTS.length +
++      K2A_EXECUTABLE_INVARIANTS.length
+   );
+   assert.equal(all.enforced_count, enforced.length);
+   assert.equal(all.ok, true);
+@@ -72,12 +76,15 @@ test("deferred invariants are listed but do not count as K2 enforcement", async
+   assert.ok(!all.results.some((r) => r.deferred === true && r.counts_as_enforced));
+   assert.equal(
+     all.enforced_count,
+-    EXECUTABLE_INVARIANTS.length + K21_EXECUTABLE_INVARIANTS.length + K2A_EXECUTABLE_INVARIANTS.length
++    EXECUTABLE_INVARIANTS.length +
++      K21_EXECUTABLE_INVARIANTS.length +
++      K21B_EXECUTABLE_INVARIANTS.length +
++      K2A_EXECUTABLE_INVARIANTS.length
+   );
+ });
+ 
+-test("K2.1 manifest lists seven executable invariants not on deferred list", async () => {
+-  assert.equal(K21_EXECUTABLE_INVARIANTS.length, 7);
++test("K2.1 manifest lists nine executable invariants not on deferred list", async () => {
++  assert.equal(K21_EXECUTABLE_INVARIANTS.length, 9);
+   const deferredIds = new Set(DEFERRED_INVARIANTS.map((d) => d.id));
+   for (const inv of K21_EXECUTABLE_INVARIANTS) {
+     assert.equal(deferredIds.has(inv.id), false);
+@@ -85,7 +92,20 @@ test("K2.1 manifest lists seven executable invariants not on deferred list", asy
+     assert.equal(result.ok, true, inv.id);
+   }
+   const all = await runAllInvariantCheckers();
+-  assert.equal(all.k21_count, 7);
++  assert.equal(all.k21_count, 9);
++});
++
++test("K2.1b manifest lists five executable invariants not deferred", async () => {
++  assert.equal(K21B_EXECUTABLE_INVARIANTS.length, 5);
++  const deferredIds = new Set(DEFERRED_INVARIANTS.map((d) => d.id));
++  for (const inv of K21B_EXECUTABLE_INVARIANTS) {
++    assert.equal(deferredIds.has(inv.id), false, inv.id);
++    assert.equal(inv.optional, false, inv.id);
++    const result = await checkInvariant(inv.id);
++    assert.equal(result.ok, true, `${inv.id}: ${JSON.stringify(result)}`);
++  }
++  const all = await runAllInvariantCheckers();
++  assert.equal(all.k21b_count, 5);
+ });
+ 
+ test("K2a manifest lists six executable invariants not on deferred list", async () => {
+diff --git a/scripts/lib/minimal-kernel-harness.js b/scripts/lib/minimal-kernel-harness.js
+index 138fdd6..006c777 100644
+--- a/scripts/lib/minimal-kernel-harness.js
++++ b/scripts/lib/minimal-kernel-harness.js
+@@ -9,6 +9,7 @@ const {
+   interruptError,
+   DEFAULT_SUBJECT_ID,
+ } = require("./lifecycle-kernel/index.js");
++const { issueFixturePermit } = require("./lifecycle-kernel/test-permit-helpers.js");
+ 
+ const HARNESS_KIND = "minimal-kernel-harness/v1";
+ 
+@@ -16,6 +17,7 @@ const HARNESS_KIND = "minimal-kernel-harness/v1";
+  * Minimal Kernel Harness — public-API headless scenario runner.
+  * Conformance MUST go through runKernelOperation, not private reducers alone.
+  * Host-fault ownership remains with the peer Headless Conformance Host (K2a).
++ * K2.1b: positive mutating steps issue permits via controlled issuer (mintPermit default false).
+  */
+ async function runHarnessScenario(scenario = {}) {
+   const {
+@@ -60,15 +62,38 @@ async function runHarnessScenario(scenario = {}) {
+       break;
+     }
+ 
++    let operationPermit = step.operationPermit;
++    let permitLedger = step.permitLedger;
++    // Default false: positive paths issue via controlled issuer; explicit false without
++    // permit exercises unauthorized; explicit true is rejected by kernel (auto-mint-disabled).
++    const mintPermit = step.mintPermit !== undefined ? step.mintPermit : false;
++
++    if (
++      step.operation !== "status" &&
++      !operationPermit &&
++      step.mintPermit === undefined &&
++      step.omitPermit !== true
++    ) {
++      const head = await store.load(subjectId);
++      const issued = issueFixturePermit({
++        operation: step.operation,
++        headRevision: head.revision,
++        arguments: step.arguments || {},
++        subject_id: subjectId,
++      });
++      operationPermit = issued.permit;
++      permitLedger = issued.ledger;
++    }
++
+     let result;
+     try {
+       result = await runKernelOperation({
+         operation: step.operation,
+         arguments: step.arguments || {},
+         authorityToken: step.authorityToken ?? null,
+-        operationPermit: step.operationPermit,
+-        permitLedger: step.permitLedger,
+-        mintPermit: step.mintPermit !== undefined ? step.mintPermit : true,
++        operationPermit,
++        permitLedger,
++        mintPermit,
+         transitionOffer: step.transitionOffer,
+         irreversibleAmbiguousNext: step.irreversibleAmbiguousNext || scenario.irreversibleAmbiguousNext,
+         effect_class: step.effect_class || scenario.effect_class || null,
+@@ -105,6 +130,9 @@ async function runHarnessScenario(scenario = {}) {
+       code: result.code,
+       revision: result.revision,
+       budgets: result.budgets,
++      operation_receipt: result.operation_receipt || null,
++      operation_permit_id: result.operation_permit_id || null,
++      replayed: result.replayed === true,
+     });
+ 
+     if (result.next_transition && result.next_transition.kind === "decide") {
+diff --git a/scripts/lib/minimal-kernel-harness.test.js b/scripts/lib/minimal-kernel-harness.test.js
+index 07da2b0..e4755dc 100644
+--- a/scripts/lib/minimal-kernel-harness.test.js
++++ b/scripts/lib/minimal-kernel-harness.test.js
+@@ -388,3 +388,88 @@ test("K2a: fixed-policy and K2.1 authority fixtures remain green with host-contr
+   assert.equal(cas.loser_ok, false);
+   assert.equal(cas.loser_code, "cas-conflict");
+ });
++
++test("K2.1b: positive companion issues permit via controlled issuer (mintPermit default false)", async () => {
++  const positive = await runHarnessScenario({
++    id: "k21b-issuer-first-positive",
++    initialState: pendingState,
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++  });
++  assert.equal(positive.snapshot.state.nodes.n1.phase, "started");
++  assert.ok(positive.operations[0].operation_permit_id);
++  assert.ok(positive.operations[0].operation_receipt);
++  assert.equal(
++    positive.snapshot.authority.permits[positive.operations[0].operation_permit_id].status,
++    "consumed"
++  );
++});
++
++test("K2.1b: auto-mint convenience does not count as positive authorization", async () => {
++  const auto = await runHarnessScenario({
++    id: "k21b-auto-mint-not-positive",
++    initialState: pendingState,
++    operations: [{ operation: "start", arguments: { node_id: "n1" }, mintPermit: true }],
++  });
++  assert.equal(auto.outcome, "blocked");
++  assert.equal(auto.halted.code, "auto-mint-disabled");
++});
++
++test("K2.1b: atomic consume revision inspection via public harness", async () => {
++  const result = await runHarnessScenario({
++    id: "k21b-atomic-consume",
++    initialState: pendingState,
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++  });
++  const permitId = result.operations[0].operation_permit_id;
++  const receipt = result.operations[0].operation_receipt;
++  assert.equal(result.snapshot.state.nodes.n1.phase, "started");
++  assert.ok(Array.isArray(result.snapshot.journal));
++  assert.equal(result.snapshot.authority.permits[permitId].status, "consumed");
++  assert.equal(result.snapshot.authority.receipts[permitId].receipt_id, receipt.receipt_id);
++});
++
++test("K2.1b: exact replay receipt stability via public entrypoint", async () => {
++  const { createAuthorityStore, runKernelOperation } = require("./minimal-kernel-harness.js");
++  const { issueFixturePermit, createPermitLedger } = require("./lifecycle-kernel/test-permit-helpers.js");
++  const store = createAuthorityStore({ initial: { state: pendingState, journal: [] } });
++  const head = await store.load();
++  const issued = issueFixturePermit({
++    ledger: createPermitLedger(),
++    operation: "start",
++    headRevision: head.revision,
++    arguments: { node_id: "n1" },
++  });
++  const first = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    operationPermit: issued.permit,
++    permitLedger: issued.ledger,
++    effectExecutor: async () => ({ ok: true }),
++  });
++  const replay = await runKernelOperation({
++    operation: "start",
++    arguments: { node_id: "n1" },
++    store,
++    operationPermit: issued.permit,
++    permitLedger: issued.ledger,
++    effectExecutor: async () => ({ ok: true }),
++  });
++  assert.equal(replay.operation_receipt.receipt_id, first.operation_receipt.receipt_id);
++  assert.equal(replay.replayed, true);
++});
++
++test("K2.1b: in-process restart keeps consumed permit and receipt verifiable", async () => {
++  const { createAuthorityStore } = require("./minimal-kernel-harness.js");
++  const first = await runHarnessScenario({
++    id: "k21b-restart-prep",
++    initialState: pendingState,
++    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
++  });
++  const permitId = first.operations[0].operation_permit_id;
++  const receiptId = first.operations[0].operation_receipt.receipt_id;
++  const restored = createAuthorityStore({ initial: first.snapshot });
++  const loaded = await restored.load();
++  assert.equal(loaded.authority.permits[permitId].status, "consumed");
++  assert.equal(loaded.authority.receipts[permitId].receipt_id, receiptId);
++});

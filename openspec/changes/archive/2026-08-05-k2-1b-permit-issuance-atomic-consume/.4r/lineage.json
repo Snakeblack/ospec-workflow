@@ -1,0 +1,681 @@
+{
+  "schema_version": 1,
+  "lineage_id": "sha256:0d1158ee797b506ed828184bd3564b6415196dc2781ccd7194a1ead6870e8d61",
+  "generation": 1,
+  "predecessor_lineage_id": null,
+  "recovery": null,
+  "revision": 18,
+  "status": "approved",
+  "genesis": {
+    "candidate": {
+      "projection": "workspace",
+      "base_tree": "703f10f6470f8caec9b636cffc480f6f3e224434",
+      "candidate_tree": "WORKING-TREE-k2-1b-permit-issuance-atomic-consume",
+      "paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/apply-progress.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-001.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-002.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/design.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/proposal.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/authority-store/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/harness-authority-canon/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-kernel-runtime/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-model-conformance/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/minimal-kernel-harness/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/operation-permits/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/state.yaml",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/tasks.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/verify-report.md",
+        "openspec/memory/known-issues.md",
+        "scripts/lib/authority-store/index.js",
+        "scripts/lib/authority-store/index.test.js",
+        "scripts/lib/lifecycle-kernel/host-boundary.test.js",
+        "scripts/lib/lifecycle-kernel/index.js",
+        "scripts/lib/lifecycle-kernel/index.test.js",
+        "scripts/lib/lifecycle-kernel/permits.js",
+        "scripts/lib/lifecycle-kernel/permits.test.js",
+        "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/lifecycle-model.test.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "diff_hash": "sha256:f54abc98ff14acb8f5467b70f08c0cfb05d65082db5c2859f7b50a53ee6eb1c7",
+      "paths_digest": "sha256:1942514b873b20d1425a6f99d79db80a8110d36dd1a64ca3f501b74850a8676a",
+      "authored_lines": 2801,
+      "original_changed_lines": 2801
+    },
+    "candidate_id": "sha256:ed7dbb31e7c59e89572a4baf072c959910dee052d3d7a1d1d8a6ff8b13547519",
+    "paths": [
+      "docs/architecture/harness-evolution.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/apply-progress.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-001.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-002.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/design.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/proposal.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/authority-store/spec.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/harness-authority-canon/spec.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-kernel-runtime/spec.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-model-conformance/spec.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/minimal-kernel-harness/spec.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/operation-permits/spec.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/state.yaml",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/tasks.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/verify-report.md",
+      "openspec/memory/known-issues.md",
+      "scripts/lib/authority-store/index.js",
+      "scripts/lib/authority-store/index.test.js",
+      "scripts/lib/lifecycle-kernel/host-boundary.test.js",
+      "scripts/lib/lifecycle-kernel/index.js",
+      "scripts/lib/lifecycle-kernel/index.test.js",
+      "scripts/lib/lifecycle-kernel/permits.js",
+      "scripts/lib/lifecycle-kernel/permits.test.js",
+      "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+      "scripts/lib/lifecycle-model.js",
+      "scripts/lib/lifecycle-model.test.js",
+      "scripts/lib/minimal-kernel-harness.js",
+      "scripts/lib/minimal-kernel-harness.test.js"
+    ],
+    "classification": "high-risk",
+    "selected_dimensions": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "evidence_fingerprint": "sha256:856e58e0395d49f9cc134f3df4ca237213d9a6dbc4145a6e6b9adbb2ea82a4b2",
+    "original_changed_lines": 2801,
+    "authored_lines": 2801
+  },
+  "current_candidate_id": "sha256:2bf838d6de95890bb6256d4954a4b62cd02b49a9ee9d37fde0681df1c6334aaf",
+  "current_candidate": {
+    "projection": "workspace",
+    "base_tree": "703f10f6470f8caec9b636cffc480f6f3e224434",
+    "candidate_tree": "WORKING-TREE-k2-1b-after-remediation-c-s3",
+    "paths": [
+      "docs/architecture/harness-evolution.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/apply-progress.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-001.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-002.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/design.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/proposal.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/authority-store/spec.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/harness-authority-canon/spec.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-kernel-runtime/spec.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-model-conformance/spec.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/minimal-kernel-harness/spec.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/operation-permits/spec.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/state.yaml",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/tasks.md",
+      "openspec/changes/k2-1b-permit-issuance-atomic-consume/verify-report.md",
+      "openspec/memory/known-issues.md",
+      "scripts/lib/authority-store/index.js",
+      "scripts/lib/authority-store/index.test.js",
+      "scripts/lib/lifecycle-kernel/host-boundary.test.js",
+      "scripts/lib/lifecycle-kernel/index.js",
+      "scripts/lib/lifecycle-kernel/index.test.js",
+      "scripts/lib/lifecycle-kernel/permits.js",
+      "scripts/lib/lifecycle-kernel/permits.test.js",
+      "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+      "scripts/lib/lifecycle-model.js",
+      "scripts/lib/lifecycle-model.test.js",
+      "scripts/lib/minimal-kernel-harness.js",
+      "scripts/lib/minimal-kernel-harness.test.js"
+    ],
+    "diff_hash": "sha256:8b8241a698939958f8e6b5b5901f67df52859721f727ece5cff4e2cefe8fabfe",
+    "paths_digest": "sha256:1942514b873b20d1425a6f99d79db80a8110d36dd1a64ca3f501b74850a8676a",
+    "authored_lines": 3247,
+    "original_changed_lines": 2801
+  },
+  "lenses": {
+    "risk": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-risk-k21b",
+      "result_digest": "sha256:4e67c0820f586ce7ede88fde675b5d831dae1bd4babf68138c71ea8ae8f4fbf6",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "mintOperationPermit remains publicly reexported and can bypass the controlled issuer (no TransitionOffer+decision).",
+            "acceptance_criteria": "Stop reexporting mintOperationPermit from the public kernel API (or hard-deprecate so callers cannot mint without issueOperationPermit); add a negative test that public mint without decision fails closed."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "findReplayReceipt / exact-replay short-circuit matches only operation+subject_id, not digests/arguments required by design.",
+            "acceptance_criteria": "Exact replay MUST bind arguments_digest (and other design digests); non-identical arguments MUST NOT short-circuit as replayed; add negative test."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "result-risk-k21b"
+    },
+    "reliability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-reliability-k21b",
+      "result_digest": "sha256:c1658ada72b6039fcbbb3d53b29ccb4fda005fef8c005b08f538fae778c713eb",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "compareAndSwap awaits inner.commit before writing the authority bag; concurrent load/snapshot can observe advanced head without consume+receipt.",
+            "acceptance_criteria": "Permit-authorized CAS MUST never expose load()/snapshot() with advanced state/journal lacking matching consumed permit+receipt; add an interleaving/observable-atomicity test."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Exact-replay does not validate arguments_digest/other digests before returning the prior OperationReceipt.",
+            "acceptance_criteria": "Same permit/operation with different arguments MUST NOT short-circuit as exact replay; add negative test."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "permit-reuse does not consult authority bag consumed status after findReplayReceipt misses.",
+            "acceptance_criteria": "Bag-consumed without matching receipt MUST fail closed with permit-reuse (including after restart with empty issued Map); add test."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Restart recovery tests only assert load() after snapshot→initial; public runKernelOperation exact-replay after restart is unverified.",
+            "acceptance_criteria": "After restart with empty issued ledger, runKernelOperation exact replay MUST return prior receipt without re-running effects; add test."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "result-reliability-k21b"
+    },
+    "resilience": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-resilience-k21b",
+      "result_digest": "sha256:bcae83632df11291e34fd69a64576f98898c99b2eb8f088ec78ca99bdc4f9750",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "Permit-authorized convergent CAS can return ok:true without writing consume+receipt into the authority bag; kernel may substitute an ephemeral pre-CAS receipt.",
+            "acceptance_criteria": "Convergent permit-authorized CAS MUST co-write/verify consume+receipt in the bag or fail closed; callers MUST NOT see success with only an ephemeral receipt; add regression test."
+          },
+          {
+            "severity": "CRITICAL",
+            "summary": "inner.commit advances head before authority bag mutation with no rollback if bag write throws; orphan advanced state without consumed permit/receipt.",
+            "acceptance_criteria": "Failed consume/bag write MUST NOT leave committed authoritative state without consumed permit+receipt; fail closed with intact head or transactional co-commit; add failure-injection test."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "persistJournal ignores commitJournal ok:false and continues effects/CAS without durable mid-op barriers.",
+            "acceptance_criteria": "commitJournal ok:false MUST block/fail closed before effects continue; add negative test for subject-not-found / journal-durability-required."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "result-resilience-k21b"
+    },
+    "readability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-readability-k21b",
+      "result_digest": "sha256:16487c2b91202c7aec3cb443d22f8898f08f90f5361bb1f094ff747cce3ddb58",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "Name permitAuthorized is misleading: it is true whenever authorityCommit !== undefined, including null incomplete commits.",
+            "acceptance_criteria": "Rename or document the sentinel clearly (e.g. authorityCommitProvided) so maintainers do not read it as authorization success."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Converged CAS branch returns bag receipt without a comment linking it to kernel exact-replay.",
+            "acceptance_criteria": "Add a brief intent comment tying converged receipt materialization to findReplayReceipt / exact-replay contract."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Post-CAS committedReceipt cascade (cas || reload bag || local) has three arms with no justification comment.",
+            "acceptance_criteria": "Document when each arm is allowed after ok CAS, or collapse to a single authoritative source to avoid wrong-fallback edits."
+          },
+          {
+            "severity": "SUGGESTION",
+            "summary": "issueOperationPermit operation fallback priority (offer then policy/human; kernelRule omitted) lacks a priority comment.",
+            "acceptance_criteria": "Document operation resolution priority across decision kinds in issuer code."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "result-readability-k21b"
+    }
+  },
+  "findings": [
+    {
+      "id": "F-d1fbf4c898cead47",
+      "owner": "risk",
+      "severity": "WARNING",
+      "summary": "mintOperationPermit remains publicly reexported and can bypass the controlled issuer (no TransitionOffer+decision).",
+      "acceptance_criteria": "Stop reexporting mintOperationPermit from the public kernel API (or hard-deprecate so callers cannot mint without issueOperationPermit); add a negative test that public mint without decision fails closed.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-875b3270a6c28709",
+      "owner": "risk",
+      "severity": "WARNING",
+      "summary": "findReplayReceipt / exact-replay short-circuit matches only operation+subject_id, not digests/arguments required by design.",
+      "acceptance_criteria": "Exact replay MUST bind arguments_digest (and other design digests); non-identical arguments MUST NOT short-circuit as replayed; add negative test.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-8753ba3959e40ec7",
+      "owner": "reliability",
+      "severity": "CRITICAL",
+      "summary": "compareAndSwap awaits inner.commit before writing the authority bag; concurrent load/snapshot can observe advanced head without consume+receipt.",
+      "acceptance_criteria": "Permit-authorized CAS MUST never expose load()/snapshot() with advanced state/journal lacking matching consumed permit+receipt; add an interleaving/observable-atomicity test.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-6b98c7947f3dc2a8",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "Exact-replay does not validate arguments_digest/other digests before returning the prior OperationReceipt.",
+      "acceptance_criteria": "Same permit/operation with different arguments MUST NOT short-circuit as exact replay; add negative test.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-9e285841b6112d9f",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "permit-reuse does not consult authority bag consumed status after findReplayReceipt misses.",
+      "acceptance_criteria": "Bag-consumed without matching receipt MUST fail closed with permit-reuse (including after restart with empty issued Map); add test.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-55bb1e3997fa42a1",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "Restart recovery tests only assert load() after snapshot→initial; public runKernelOperation exact-replay after restart is unverified.",
+      "acceptance_criteria": "After restart with empty issued ledger, runKernelOperation exact replay MUST return prior receipt without re-running effects; add test.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-16ef85fdf6e8c12d",
+      "owner": "resilience",
+      "severity": "CRITICAL",
+      "summary": "Permit-authorized convergent CAS can return ok:true without writing consume+receipt into the authority bag; kernel may substitute an ephemeral pre-CAS receipt.",
+      "acceptance_criteria": "Convergent permit-authorized CAS MUST co-write/verify consume+receipt in the bag or fail closed; callers MUST NOT see success with only an ephemeral receipt; add regression test.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-eabceb8c932efab2",
+      "owner": "resilience",
+      "severity": "CRITICAL",
+      "summary": "inner.commit advances head before authority bag mutation with no rollback if bag write throws; orphan advanced state without consumed permit/receipt.",
+      "acceptance_criteria": "Failed consume/bag write MUST NOT leave committed authoritative state without consumed permit+receipt; fail closed with intact head or transactional co-commit; add failure-injection test.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-dd34acafafc8f202",
+      "owner": "resilience",
+      "severity": "WARNING",
+      "summary": "persistJournal ignores commitJournal ok:false and continues effects/CAS without durable mid-op barriers.",
+      "acceptance_criteria": "commitJournal ok:false MUST block/fail closed before effects continue; add negative test for subject-not-found / journal-durability-required.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-a2a9033ca0898b7c",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "Name permitAuthorized is misleading: it is true whenever authorityCommit !== undefined, including null incomplete commits.",
+      "acceptance_criteria": "Rename or document the sentinel clearly (e.g. authorityCommitProvided) so maintainers do not read it as authorization success.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-ecf04c4c08e5c429",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "Converged CAS branch returns bag receipt without a comment linking it to kernel exact-replay.",
+      "acceptance_criteria": "Add a brief intent comment tying converged receipt materialization to findReplayReceipt / exact-replay contract.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-1968b7bf2d39ebe8",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "Post-CAS committedReceipt cascade (cas || reload bag || local) has three arms with no justification comment.",
+      "acceptance_criteria": "Document when each arm is allowed after ok CAS, or collapse to a single authoritative source to avoid wrong-fallback edits.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-33bc4c75cdecb75d",
+      "owner": "readability",
+      "severity": "SUGGESTION",
+      "summary": "issueOperationPermit operation fallback priority (offer then policy/human; kernelRule omitted) lacks a priority comment.",
+      "acceptance_criteria": "Document operation resolution priority across decision kinds in issuer code.",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ],
+  "findings_digest": "sha256:ef9c346cd5a7c1c7ad1550a85a98ccdf49dc73e645a0024ca97b205915279a2d",
+  "correction_budget": {
+    "limit_lines": 200,
+    "used_lines": 0,
+    "failed_attempts": 0,
+    "max_failed_attempts": 3
+  },
+  "correction_history": [],
+  "validation_history": [],
+  "follow_ups": [
+    {
+      "owner": "resilience",
+      "summary": "Bag-before-commit transient window deferred to S-793395efa763a46d / F-eabceb8c932efab2",
+      "blocking": false
+    }
+  ],
+  "pending_operation": null,
+  "pending_correction": null,
+  "terminal_reason": "all-remediation-slices-passed",
+  "remediation_schema_version": 2,
+  "remediation_migration": {
+    "source_digest": "sha256:19bce8d7d97259722f7bb49f3e82db97a93338ff64d97b5546ba8f47ebaabef9",
+    "manifest_digest": "sha256:aae40a9b485151d40b06d42d80b0cc2d5f27138d84e4f802b5e48ba91cd3afed",
+    "legacy_used_lines": 0,
+    "legacy_failed_attempts": 0,
+    "migrated_at": "deterministic"
+  },
+  "slice_order": [
+    "S-57d07bc1feea03da",
+    "S-2262134832122cf8",
+    "S-793395efa763a46d"
+  ],
+  "active_slice_id": null,
+  "correction_slices": {
+    "S-57d07bc1feea03da": {
+      "slice_id": "S-57d07bc1feea03da",
+      "root_cause_key": "F-16ef85fdf6e8c12d",
+      "finding_ids": [
+        "F-16ef85fdf6e8c12d"
+      ],
+      "evidence_digests": [
+        "sha256:9ab8bd9f885150a5ce569212ee701be2ba7fc8a2fba26727065125ef0cab401f"
+      ],
+      "permitted_paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/apply-progress.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-001.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-002.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/design.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/proposal.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/authority-store/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/harness-authority-canon/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-kernel-runtime/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-model-conformance/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/minimal-kernel-harness/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/operation-permits/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/state.yaml",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/tasks.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/verify-report.md",
+        "openspec/memory/known-issues.md",
+        "scripts/lib/authority-store/index.js",
+        "scripts/lib/authority-store/index.test.js",
+        "scripts/lib/lifecycle-kernel/host-boundary.test.js",
+        "scripts/lib/lifecycle-kernel/index.js",
+        "scripts/lib/lifecycle-kernel/index.test.js",
+        "scripts/lib/lifecycle-kernel/permits.js",
+        "scripts/lib/lifecycle-kernel/permits.test.js",
+        "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/lifecycle-model.test.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "resolutions": {
+        "F-16ef85fdf6e8c12d": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 180,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-57d07bc1feea03da",
+          "request_id": "correct-slice1-convergent-cas-k21b",
+          "finding_ids": [
+            "F-16ef85fdf6e8c12d"
+          ],
+          "paths": [
+            "scripts/lib/authority-store/index.js",
+            "scripts/lib/authority-store/index.test.js",
+            "scripts/lib/lifecycle-kernel/index.js",
+            "scripts/lib/lifecycle-kernel/index.test.js",
+            "scripts/lib/lifecycle-kernel/permits.js",
+            "scripts/lib/lifecycle-kernel/permits.test.js"
+          ],
+          "base_candidate_id": "sha256:ed7dbb31e7c59e89572a4baf072c959910dee052d3d7a1d1d8a6ff8b13547519",
+          "forecast_lines": 180,
+          "actual_changed_lines": 180,
+          "record_request_id": "record-slice1-convergent-cas-k21b",
+          "corrected_candidate_id": "sha256:1b36dad2050c672b18374284db2fe4d766b6cad7cd1c3a9bed2467e58cdc2a37"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-slice1-k21b",
+          "outcomes": [
+            {
+              "id": "F-16ef85fdf6e8c12d",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "No previously passed remediation slices exist to reopen.",
+              "Targeted suite authority-store+lifecycle-kernel index tests 44 pass / 0 fail.",
+              "review-correction resolved F-16ef85fdf6e8c12d without impacted_slices."
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-2262134832122cf8": {
+      "slice_id": "S-2262134832122cf8",
+      "root_cause_key": "F-8753ba3959e40ec7",
+      "finding_ids": [
+        "F-8753ba3959e40ec7"
+      ],
+      "evidence_digests": [
+        "sha256:8bb0e948b13aedffa1ee3b362b65351fd1d07cfd8ba42d2aa860fe484242ee35"
+      ],
+      "permitted_paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/apply-progress.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-001.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-002.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/design.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/proposal.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/authority-store/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/harness-authority-canon/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-kernel-runtime/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-model-conformance/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/minimal-kernel-harness/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/operation-permits/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/state.yaml",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/tasks.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/verify-report.md",
+        "openspec/memory/known-issues.md",
+        "scripts/lib/authority-store/index.js",
+        "scripts/lib/authority-store/index.test.js",
+        "scripts/lib/lifecycle-kernel/host-boundary.test.js",
+        "scripts/lib/lifecycle-kernel/index.js",
+        "scripts/lib/lifecycle-kernel/index.test.js",
+        "scripts/lib/lifecycle-kernel/permits.js",
+        "scripts/lib/lifecycle-kernel/permits.test.js",
+        "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/lifecycle-model.test.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "resolutions": {
+        "F-8753ba3959e40ec7": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 150,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-2262134832122cf8",
+          "request_id": "correct-slice2-observable-atomicity-k21b",
+          "finding_ids": [
+            "F-8753ba3959e40ec7"
+          ],
+          "paths": [
+            "scripts/lib/authority-store/index.js",
+            "scripts/lib/authority-store/index.test.js",
+            "scripts/lib/lifecycle-kernel/index.js",
+            "scripts/lib/lifecycle-kernel/index.test.js"
+          ],
+          "base_candidate_id": "sha256:1b36dad2050c672b18374284db2fe4d766b6cad7cd1c3a9bed2467e58cdc2a37",
+          "forecast_lines": 150,
+          "actual_changed_lines": 150,
+          "record_request_id": "record-slice2-observable-atomicity-k21b",
+          "corrected_candidate_id": "sha256:2ed5e4dc9ccacd00b94e3627ac7dd7652c37c35f8a8e52edaa456ccd48bfc508"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-slice2-k21b",
+          "outcomes": [
+            {
+              "id": "F-8753ba3959e40ec7",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "node --test authority-store+lifecycle-kernel index tests 44 pass / 0 fail",
+              "Sibling S-57d07bc1feea03da / F-16ef85fdf6e8c12d remains green; impacted_slices=[]"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-793395efa763a46d": {
+      "slice_id": "S-793395efa763a46d",
+      "root_cause_key": "F-eabceb8c932efab2",
+      "finding_ids": [
+        "F-eabceb8c932efab2"
+      ],
+      "evidence_digests": [
+        "sha256:44a02d1a7ba7386fa950ec9037a6bfca5a5497c454bbef26e0842fae6086e43e"
+      ],
+      "permitted_paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/apply-progress.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-001.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/decisions/adr-002.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/design.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/proposal.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/authority-store/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/harness-authority-canon/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-kernel-runtime/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/lifecycle-model-conformance/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/minimal-kernel-harness/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/specs/operation-permits/spec.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/state.yaml",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/tasks.md",
+        "openspec/changes/k2-1b-permit-issuance-atomic-consume/verify-report.md",
+        "openspec/memory/known-issues.md",
+        "scripts/lib/authority-store/index.js",
+        "scripts/lib/authority-store/index.test.js",
+        "scripts/lib/lifecycle-kernel/host-boundary.test.js",
+        "scripts/lib/lifecycle-kernel/index.js",
+        "scripts/lib/lifecycle-kernel/index.test.js",
+        "scripts/lib/lifecycle-kernel/permits.js",
+        "scripts/lib/lifecycle-kernel/permits.test.js",
+        "scripts/lib/lifecycle-kernel/test-permit-helpers.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/lifecycle-model.test.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "resolutions": {
+        "F-eabceb8c932efab2": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 71,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-793395efa763a46d",
+          "request_id": "correct-slice3-bag-rollback-k21b",
+          "finding_ids": [
+            "F-eabceb8c932efab2"
+          ],
+          "paths": [
+            "scripts/lib/authority-store/index.js",
+            "scripts/lib/authority-store/index.test.js"
+          ],
+          "base_candidate_id": "sha256:2ed5e4dc9ccacd00b94e3627ac7dd7652c37c35f8a8e52edaa456ccd48bfc508",
+          "forecast_lines": 71,
+          "actual_changed_lines": 71,
+          "record_request_id": "record-slice3-bag-rollback-k21b",
+          "corrected_candidate_id": "sha256:2bf838d6de95890bb6256d4954a4b62cd02b49a9ee9d37fde0681df1c6334aaf"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-slice3-k21b",
+          "outcomes": [
+            {
+              "id": "F-eabceb8c932efab2",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "node --test scripts/lib/authority-store/index.test.js → 20 pass / 0 fail",
+              "Passed S-57d07bc1feea03da / F-16ef85fdf6e8c12d convergent path green",
+              "Passed S-2262134832122cf8 / F-8753ba3959e40ec7 observable atomicity green"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    }
+  }
+}

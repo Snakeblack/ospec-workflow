@@ -48,7 +48,7 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 
 | Orden | Acción | Gate de salida |
 | ---: | --- | --- |
-| 1 | Ejecutar K2a → K3 | Headless Conformance Host + adapter real + cuatro identidades y relación básica |
+| 1 | Completar correctivos K2.1b (issuance+atomic consume) y k2a-1 (probes/async) → luego Ejecutar K3 | Correctivos de autoridad/host antes de cuatro identidades + Candidate freeze + relación básica |
 | 2 | Ejecutar K4a → K5 → K6a → K4b | Graph + Obligation Manifest + budgets (autoridad/efectos) + aislamiento + shadow con Candidate |
 | 3 | Ejecutar K6b→K6d → K7 → K8 | Verify/provenance/challenges/review authority + Candidate Evaluation Attestation |
 | 4 | Ejecutar K9 | Calidad no inferior, replay y fallback fixed (checkpoints intermedios ya emitidos) |
@@ -70,6 +70,8 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **K2** | Lifecycle + Minimal Kernel Harness + model-based invariants; archivado y publicado en v2.38.0 |
 | `done` | **K2.1** | Authority Store (CAS), OperationPermit/Receipt y semántica de efectos; archivado y publicado en v2.39.0 |
 | `done` | **K2a** | Headless Conformance Host + Claude adapter + CapabilityProof; archivado y publicado en v2.40.0 |
+| `in-progress` | **K2.1b** | Controlled issuer + atomic CAS consume/receipt (corrective pre-K3) |
+| `pending` | **k2a-1** | Live capability probes + async transports (corrective pre-K3) |
 | `pending` | **K3** | Cuatro identidades + Candidate freeze + relación básica (`exact`/`changed`/`ambiguous`/`unknown`) |
 | `pending` | K4a | Graph compiler + Obligation Manifest + replay (sin worker autoritativo) |
 | `pending` | K5 | Budgets (incl. autoridad/efectos), failures y recovery |

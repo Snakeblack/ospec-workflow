@@ -9,6 +9,7 @@ const {
   interruptError,
   DEFAULT_SUBJECT_ID,
 } = require("./lifecycle-kernel/index.js");
+const { issueFixturePermit } = require("./lifecycle-kernel/test-permit-helpers.js");
 
 const HARNESS_KIND = "minimal-kernel-harness/v1";
 
@@ -16,6 +17,7 @@ const HARNESS_KIND = "minimal-kernel-harness/v1";
  * Minimal Kernel Harness — public-API headless scenario runner.
  * Conformance MUST go through runKernelOperation, not private reducers alone.
  * Host-fault ownership remains with the peer Headless Conformance Host (K2a).
+ * K2.1b: positive mutating steps issue permits via controlled issuer (mintPermit default false).
  */
 async function runHarnessScenario(scenario = {}) {
   const {
@@ -60,15 +62,38 @@ async function runHarnessScenario(scenario = {}) {
       break;
     }
 
+    let operationPermit = step.operationPermit;
+    let permitLedger = step.permitLedger;
+    // Default false: positive paths issue via controlled issuer; explicit false without
+    // permit exercises unauthorized; explicit true is rejected by kernel (auto-mint-disabled).
+    const mintPermit = step.mintPermit !== undefined ? step.mintPermit : false;
+
+    if (
+      step.operation !== "status" &&
+      !operationPermit &&
+      step.mintPermit === undefined &&
+      step.omitPermit !== true
+    ) {
+      const head = await store.load(subjectId);
+      const issued = issueFixturePermit({
+        operation: step.operation,
+        headRevision: head.revision,
+        arguments: step.arguments || {},
+        subject_id: subjectId,
+      });
+      operationPermit = issued.permit;
+      permitLedger = issued.ledger;
+    }
+
     let result;
     try {
       result = await runKernelOperation({
         operation: step.operation,
         arguments: step.arguments || {},
         authorityToken: step.authorityToken ?? null,
-        operationPermit: step.operationPermit,
-        permitLedger: step.permitLedger,
-        mintPermit: step.mintPermit !== undefined ? step.mintPermit : true,
+        operationPermit,
+        permitLedger,
+        mintPermit,
         transitionOffer: step.transitionOffer,
         irreversibleAmbiguousNext: step.irreversibleAmbiguousNext || scenario.irreversibleAmbiguousNext,
         effect_class: step.effect_class || scenario.effect_class || null,
@@ -105,6 +130,9 @@ async function runHarnessScenario(scenario = {}) {
       code: result.code,
       revision: result.revision,
       budgets: result.budgets,
+      operation_receipt: result.operation_receipt || null,
+      operation_permit_id: result.operation_permit_id || null,
+      replayed: result.replayed === true,
     });
 
     if (result.next_transition && result.next_transition.kind === "decide") {

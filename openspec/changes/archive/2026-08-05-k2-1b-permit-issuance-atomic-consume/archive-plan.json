@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "change": "k2-1b-permit-issuance-atomic-consume",
+  "source_fingerprint": "sha256:f7c03947cd8f99ad0e404e28d32a9ce87e1e2122bf268acb89061bfa1b74141b",
+  "spec_writes": [
+    {
+      "domain": "operation-permits",
+      "source_delta": "specs/operation-permits/prepared-spec.md",
+      "target": "openspec/specs/operation-permits/spec.md",
+      "target_before_sha256": "sha256:7c16da62ac0399e8de65cda6c58a6df535f380f92a40be0444cc31a7215e49d4",
+      "content_sha256": "sha256:3a8a09e10979d839e3ee3b715a649394cb8ee8bc90b4bc6310abf3f15b166b9c"
+    },
+    {
+      "domain": "authority-store",
+      "source_delta": "specs/authority-store/prepared-spec.md",
+      "target": "openspec/specs/authority-store/spec.md",
+      "target_before_sha256": "sha256:8b3087f57f08218903ae7c8135c604c1d21dc3497e1877c2b64e859fd5cc8d8d",
+      "content_sha256": "sha256:cf9408650c70a8734263d8d5dc5e0490409b144c60280f2a1dbacc2501aca348"
+    },
+    {
+      "domain": "lifecycle-kernel-runtime",
+      "source_delta": "specs/lifecycle-kernel-runtime/prepared-spec.md",
+      "target": "openspec/specs/lifecycle-kernel-runtime/spec.md",
+      "target_before_sha256": "sha256:0845e5a96b365accb280dce6a82acc866c01ead88c6d80b7fddc82f9ad902ec0",
+      "content_sha256": "sha256:6c41d5bec1d4dfab344042262d31faf9c998bf8c60f1472844af6dc974d385b8"
+    },
+    {
+      "domain": "minimal-kernel-harness",
+      "source_delta": "specs/minimal-kernel-harness/prepared-spec.md",
+      "target": "openspec/specs/minimal-kernel-harness/spec.md",
+      "target_before_sha256": "sha256:bc92ad72ad472c312dee5fdd9c39bd0b58069df32daf2372f2122122b7173985",
+      "content_sha256": "sha256:7a8deda73af029f42fa8c711c2c528e1c670c498321919a940d142b7fab4c17f"
+    },
+    {
+      "domain": "lifecycle-model-conformance",
+      "source_delta": "specs/lifecycle-model-conformance/prepared-spec.md",
+      "target": "openspec/specs/lifecycle-model-conformance/spec.md",
+      "target_before_sha256": "sha256:01436aa243372b2d8302b0f4bfd04083901accf20b65d2dcf35ef04773f49b32",
+      "content_sha256": "sha256:cfff3d9dfc16275f485498ce30f250a7b71c60acd15e90ff6d3d8b06dc999159"
+    },
+    {
+      "domain": "harness-authority-canon",
+      "source_delta": "specs/harness-authority-canon/prepared-spec.md",
+      "target": "openspec/specs/harness-authority-canon/spec.md",
+      "target_before_sha256": "sha256:18be52a930a2d1731d1d431db9f4d23dec4a44a3a624ba9d2fa31d03dc4410a4",
+      "content_sha256": "sha256:c86fe8e5ef928149347eb1a922798fef59e017b57fdeaa533318b8622d30bd90"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260805-005-controlled-issuer-separate-from-public-mutate-path.md",
+      "content_sha256": "sha256:4a6e639321c5f88b2c72e6f27b2099e231c4bf662d8408be0d0d6086d78ce496"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260805-006-cas-authority-bag-co-commits-consume-and-receipt.md",
+      "content_sha256": "sha256:1254a1c1c09aac27ea64a464101d7aa8e2ceef4160e262bae8295b13f296b806"
+    }
+  ],
+  "archive_inventory": [
+    ".4r/derived.json",
+    ".4r/diff.after-slice1.patch",
+    ".4r/diff.tracked.patch",
+    ".4r/diff.unified.patch",
+    ".4r/diff.untracked.patch",
+    ".4r/evidence.json",
+    ".4r/findings-summary.json",
+    ".4r/freeze-all-findings.js",
+    ".4r/freeze-lineage.js",
+    ".4r/generalist.json",
+    ".4r/lens-readability.json",
+    ".4r/lens-reliability.json",
+    ".4r/lens-resilience.json",
+    ".4r/lens-risk.json",
+    ".4r/lineage.json",
+    ".4r/meta.after-slice1.json",
+    ".4r/meta.json",
+    ".4r/normalize-evidence.js",
+    ".4r/paths.json",
+    ".4r/planned-after-freeze.json",
+    ".4r/planned-after-migrate.json",
+    ".4r/planned-after-record-slice1.json",
+    ".4r/planned-terminal.json",
+    ".4r/planned.json",
+    ".4r/record-slice1.js",
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "design.md",
+    "proposal.md",
+    "specs/authority-store/prepared-spec.md",
+    "specs/authority-store/spec.md",
+    "specs/harness-authority-canon/prepared-spec.md",
+    "specs/harness-authority-canon/spec.md",
+    "specs/lifecycle-kernel-runtime/prepared-spec.md",
+    "specs/lifecycle-kernel-runtime/spec.md",
+    "specs/lifecycle-model-conformance/prepared-spec.md",
+    "specs/lifecycle-model-conformance/spec.md",
+    "specs/minimal-kernel-harness/prepared-spec.md",
+    "specs/minimal-kernel-harness/spec.md",
+    "specs/operation-permits/prepared-spec.md",
+    "specs/operation-permits/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    "[assertion-quality] Type-only re-export smoke for issueOperationPermit in lifecycle-kernel/index.test.js:341 — origin tasks-gap; behavior covered by issuer/atomic/replay tests elsewhere (verify PASS WITH WARNINGS advisory)"
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

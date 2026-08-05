@@ -1,0 +1,21 @@
+{
+  "status": "validating",
+  "next_action": {
+    "type": "targeted-validation",
+    "slice_id": "S-57d07bc1feea03da",
+    "finding_ids": [
+      "F-16ef85fdf6e8c12d"
+    ]
+  },
+  "dispatch": [
+    "review-correction"
+  ],
+  "archive_allowed": false,
+  "active_slice": {
+    "slice_id": "S-57d07bc1feea03da",
+    "finding_ids": [
+      "F-16ef85fdf6e8c12d"
+    ],
+    "paths": []
+  }
+}

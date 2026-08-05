@@ -1,0 +1,11 @@
+{
+  "base_tree": "703f10f6470f8caec9b636cffc480f6f3e224434",
+  "candidate_tree": "WORKING-TREE-k2-1b-permit-issuance-atomic-consume",
+  "changed_lines": 2801,
+  "plus": 2718,
+  "minus": 83,
+  "paths_count": 29,
+  "evidence_fingerprint": "sha256:856e58e0395d49f9cc134f3df4ca237213d9a6dbc4145a6e6b9adbb2ea82a4b2",
+  "diff_hash": "sha256:f54abc98ff14acb8f5467b70f08c0cfb05d65082db5c2859f7b50a53ee6eb1c7",
+  "paths_digest": "sha256:1942514b873b20d1425a6f99d79db80a8110d36dd1a64ca3f501b74850a8676a"
+}

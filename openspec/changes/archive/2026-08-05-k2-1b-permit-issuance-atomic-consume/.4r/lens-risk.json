@@ -1,0 +1,14 @@
+{
+  "findings": [
+    {
+      "severity": "WARNING",
+      "summary": "mintOperationPermit remains publicly reexported and can bypass the controlled issuer (no TransitionOffer+decision).",
+      "acceptance_criteria": "Stop reexporting mintOperationPermit from the public kernel API (or hard-deprecate so callers cannot mint without issueOperationPermit); add a negative test that public mint without decision fails closed."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "findReplayReceipt / exact-replay short-circuit matches only operation+subject_id, not digests/arguments required by design.",
+      "acceptance_criteria": "Exact replay MUST bind arguments_digest (and other design digests); non-identical arguments MUST NOT short-circuit as replayed; add negative test."
+    }
+  ]
+}

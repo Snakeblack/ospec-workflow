@@ -92,6 +92,16 @@ const K21_EXECUTABLE_INVARIANTS = Object.freeze([
   Object.freeze({ id: "inv-k21-convergent-replay", name: "Convergent replay on same revision", optional: false }),
   Object.freeze({ id: "inv-k21-no-self-grant", name: "No model self-grant of permits", optional: false }),
   Object.freeze({ id: "inv-k21-direct-write-blocked", name: "Direct-write adapters blocked", optional: false }),
+  Object.freeze({ id: "inv-k21-no-public-auto-mint", name: "Public auto-mint is not a valid auth path", optional: false }),
+  Object.freeze({ id: "inv-k21-replay-receipt-stable", name: "Exact replay returns prior OperationReceipt", optional: false }),
+]);
+
+const K21B_EXECUTABLE_INVARIANTS = Object.freeze([
+  Object.freeze({ id: "inv-k21b-no-state-valid-only", name: "No auth solely because state-valid", optional: false }),
+  Object.freeze({ id: "inv-k21b-commit-requires-issued-permit", name: "No commit without issued permit", optional: false }),
+  Object.freeze({ id: "inv-k21b-atomic-consume-revision", name: "Consume+receipt same CAS revision", optional: false }),
+  Object.freeze({ id: "inv-k21b-replay-prior-receipt", name: "Exact replay returns prior receipt", optional: false }),
+  Object.freeze({ id: "inv-k21b-restart-verifiable", name: "Restart keeps permit+receipt verifiable", optional: false }),
 ]);
 
 const K2A_EXECUTABLE_INVARIANTS = Object.freeze([
@@ -319,6 +329,17 @@ const CHECKERS = {
   "inv-k21-convergent-replay": () => checkK21ConvergentReplay(),
   "inv-k21-no-self-grant": () => checkK21NoSelfGrant(),
   "inv-k21-direct-write-blocked": () => checkK21DirectWriteBlocked(),
+  "inv-k21-no-public-auto-mint": () => checkK21NoPublicAutoMint(),
+  "inv-k21-replay-receipt-stable": () =>
+    checkK21bReplayPriorReceipt().then((r) => ({
+      ...r,
+      invariant_id: "inv-k21-replay-receipt-stable",
+    })),
+  "inv-k21b-no-state-valid-only": () => checkK21bNoStateValidOnly(),
+  "inv-k21b-commit-requires-issued-permit": () => checkK21bCommitRequiresIssuedPermit(),
+  "inv-k21b-atomic-consume-revision": () => checkK21bAtomicConsumeRevision(),
+  "inv-k21b-replay-prior-receipt": () => checkK21bReplayPriorReceipt(),
+  "inv-k21b-restart-verifiable": () => checkK21bRestartVerifiable(),
   "inv-k2a-zero-concrete-host-imports": () => checkK2aZeroConcreteHostImports(),
   "inv-k2a-no-silent-promotion": () => checkK2aNoSilentPromotion(),
   "inv-k2a-enforced-requires-proof": () => checkK2aEnforcedRequiresProof(),
@@ -585,6 +606,138 @@ function checkK21DirectWriteBlocked() {
   };
 }
 
+function pendingModelState() {
+  return {
+    schema_version: 1,
+    status: "ready",
+    nodes: { n1: { id: "n1", phase: "pending", attempt: 0 } },
+  };
+}
+
+async function checkK21NoPublicAutoMint() {
+  const { createAuthorityStore, runKernelOperation } = require("./lifecycle-kernel/index.js");
+  const store = createAuthorityStore({ initial: { state: pendingModelState(), journal: [] } });
+  const auto = await runKernelOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    store,
+    mintPermit: true,
+    effectExecutor: async () => ({ ok: true }),
+  });
+  const missing = await runKernelOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    store,
+    effectExecutor: async () => ({ ok: true }),
+  });
+  const ok =
+    auto.outcome === "blocked" &&
+    auto.code === "auto-mint-disabled" &&
+    missing.outcome === "blocked" &&
+    missing.code === "unauthorized";
+  return { ok, invariant_id: "inv-k21-no-public-auto-mint" };
+}
+
+async function checkK21bNoStateValidOnly() {
+  const { runHarnessScenario } = require("./minimal-kernel-harness.js");
+  const result = await runHarnessScenario({
+    id: "model:k21b-state-valid-only",
+    initialState: pendingModelState(),
+    operations: [{ operation: "start", arguments: { node_id: "n1" }, omitPermit: true }],
+  });
+  const ok = result.outcome === "blocked" && result.halted && result.halted.code === "unauthorized";
+  return { ok, invariant_id: "inv-k21b-no-state-valid-only" };
+}
+
+async function checkK21bCommitRequiresIssuedPermit() {
+  // Same gate as state-valid-only: no issued permit → no CAS advance.
+  const result = await checkK21bNoStateValidOnly();
+  return { ok: result.ok, invariant_id: "inv-k21b-commit-requires-issued-permit" };
+}
+
+async function checkK21bAtomicConsumeRevision() {
+  const { runHarnessScenario } = require("./minimal-kernel-harness.js");
+  const result = await runHarnessScenario({
+    id: "model:k21b-atomic-consume",
+    initialState: pendingModelState(),
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+  });
+  const snap = result.snapshot;
+  const permitId = result.operations[0] && result.operations[0].operation_permit_id;
+  const receipt = result.operations[0] && result.operations[0].operation_receipt;
+  const ok =
+    result.outcome !== "blocked" &&
+    snap.state.nodes.n1.phase === "started" &&
+    permitId &&
+    snap.authority &&
+    snap.authority.permits[permitId] &&
+    snap.authority.permits[permitId].status === "consumed" &&
+    snap.authority.receipts[permitId] &&
+    receipt &&
+    snap.authority.receipts[permitId].receipt_id === receipt.receipt_id;
+  return { ok, invariant_id: "inv-k21b-atomic-consume-revision" };
+}
+
+async function checkK21bReplayPriorReceipt() {
+  const { createAuthorityStore, runKernelOperation, createPermitLedger } = require("./lifecycle-kernel/index.js");
+  const { issueFixturePermit } = require("./lifecycle-kernel/test-permit-helpers.js");
+  const store = createAuthorityStore({ initial: { state: pendingModelState(), journal: [] } });
+  const head = await store.load();
+  const issued = issueFixturePermit({
+    ledger: createPermitLedger(),
+    operation: "start",
+    headRevision: head.revision,
+    arguments: { node_id: "n1" },
+  });
+  const first = await runKernelOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    store,
+    operationPermit: issued.permit,
+    permitLedger: issued.ledger,
+    effectExecutor: async () => ({ ok: true }),
+  });
+  const replay = await runKernelOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    store,
+    operationPermit: issued.permit,
+    permitLedger: issued.ledger,
+    effectExecutor: async () => ({ ok: true }),
+  });
+  const ok =
+    first.outcome === "advanced" &&
+    first.operation_receipt &&
+    replay.operation_receipt &&
+    replay.operation_receipt.receipt_id === first.operation_receipt.receipt_id &&
+    replay.replayed === true;
+  return { ok, invariant_id: "inv-k21b-replay-prior-receipt" };
+}
+
+async function checkK21bRestartVerifiable() {
+  const { runHarnessScenario, createAuthorityStore } = require("./minimal-kernel-harness.js");
+  const result = await runHarnessScenario({
+    id: "model:k21b-restart",
+    initialState: pendingModelState(),
+    operations: [{ operation: "start", arguments: { node_id: "n1" } }],
+  });
+  const permitId = result.operations[0] && result.operations[0].operation_permit_id;
+  const receiptId =
+    result.operations[0] &&
+    result.operations[0].operation_receipt &&
+    result.operations[0].operation_receipt.receipt_id;
+  const restored = createAuthorityStore({ initial: result.snapshot });
+  const loaded = await restored.load();
+  const ok =
+    permitId &&
+    receiptId &&
+    loaded.authority.permits[permitId] &&
+    loaded.authority.permits[permitId].status === "consumed" &&
+    loaded.authority.receipts[permitId] &&
+    loaded.authority.receipts[permitId].receipt_id === receiptId;
+  return { ok, invariant_id: "inv-k21b-restart-verifiable" };
+}
+
 async function checkInvariant(id, context = {}) {
   const checker = CHECKERS[id];
   if (!checker) return { ok: false, invariant_id: id, code: "unknown-invariant" };
@@ -597,6 +750,7 @@ async function runAllInvariantCheckers(context = {}) {
   const allInvariants = [
     ...EXECUTABLE_INVARIANTS,
     ...K21_EXECUTABLE_INVARIANTS,
+    ...K21B_EXECUTABLE_INVARIANTS,
     ...K2A_EXECUTABLE_INVARIANTS,
   ];
   const results = [];
@@ -618,9 +772,9 @@ async function runAllInvariantCheckers(context = {}) {
     counts_as_enforced: false,
     enforced_in_k2: false,
   }));
-  // CAS/permit/retry and K2a host invariants must not appear on deferred list.
+  // CAS/permit/retry, K2.1b, and K2a host invariants must not appear on deferred list.
   const deferredIds = new Set(deferred.map((d) => d.invariant_id));
-  for (const inv of [...K21_EXECUTABLE_INVARIANTS, ...K2A_EXECUTABLE_INVARIANTS]) {
+  for (const inv of [...K21_EXECUTABLE_INVARIANTS, ...K21B_EXECUTABLE_INVARIANTS, ...K2A_EXECUTABLE_INVARIANTS]) {
     if (deferredIds.has(inv.id)) {
       return {
         results: [...results, ...deferred],
@@ -635,6 +789,7 @@ async function runAllInvariantCheckers(context = {}) {
     enforced_count: results.length,
     ok: results.every((r) => r.ok),
     k21_count: K21_EXECUTABLE_INVARIANTS.length,
+    k21b_count: K21B_EXECUTABLE_INVARIANTS.length,
     k2a_count: K2A_EXECUTABLE_INVARIANTS.length,
   };
 }
@@ -813,6 +968,7 @@ module.exports = {
   MODEL_CONFIG,
   EXECUTABLE_INVARIANTS,
   K21_EXECUTABLE_INVARIANTS,
+  K21B_EXECUTABLE_INVARIANTS,
   K2A_EXECUTABLE_INVARIANTS,
   DEFERRED_INVARIANTS,
   exploreModel,

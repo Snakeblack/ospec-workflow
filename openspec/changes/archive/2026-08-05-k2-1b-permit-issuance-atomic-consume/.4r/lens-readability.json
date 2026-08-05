@@ -1,0 +1,24 @@
+{
+  "findings": [
+    {
+      "severity": "WARNING",
+      "summary": "Name permitAuthorized is misleading: it is true whenever authorityCommit !== undefined, including null incomplete commits.",
+      "acceptance_criteria": "Rename or document the sentinel clearly (e.g. authorityCommitProvided) so maintainers do not read it as authorization success."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "Converged CAS branch returns bag receipt without a comment linking it to kernel exact-replay.",
+      "acceptance_criteria": "Add a brief intent comment tying converged receipt materialization to findReplayReceipt / exact-replay contract."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "Post-CAS committedReceipt cascade (cas || reload bag || local) has three arms with no justification comment.",
+      "acceptance_criteria": "Document when each arm is allowed after ok CAS, or collapse to a single authoritative source to avoid wrong-fallback edits."
+    },
+    {
+      "severity": "SUGGESTION",
+      "summary": "issueOperationPermit operation fallback priority (offer then policy/human; kernelRule omitted) lacks a priority comment.",
+      "acceptance_criteria": "Document operation resolution priority across decision kinds in issuer code."
+    }
+  ]
+}

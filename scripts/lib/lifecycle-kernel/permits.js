@@ -76,6 +76,116 @@ function mintOperationPermit(input = {}) {
   return JSON.parse(JSON.stringify(permit));
 }
 
+const POLICY_DECISION_KIND = "policy-decision/v1";
+const HUMAN_DECISION_KIND = "human-decision/v1";
+const KERNEL_RULE_KIND = "kernel-rule/v1";
+
+function isValidPolicyDecision(dto) {
+  return (
+    dto &&
+    typeof dto === "object" &&
+    dto.kind === POLICY_DECISION_KIND &&
+    typeof dto.decision_id === "string" &&
+    dto.decision_id.trim() !== ""
+  );
+}
+
+function isValidHumanDecision(dto) {
+  return (
+    dto &&
+    typeof dto === "object" &&
+    dto.kind === HUMAN_DECISION_KIND &&
+    typeof dto.decision_id === "string" &&
+    dto.decision_id.trim() !== ""
+  );
+}
+
+function isValidKernelRule(dto) {
+  return (
+    dto &&
+    typeof dto === "object" &&
+    dto.kind === KERNEL_RULE_KIND &&
+    typeof dto.rule_id === "string" &&
+    dto.rule_id.trim() !== ""
+  );
+}
+
+/**
+ * Controlled issuer: TransitionOffer + exactly one decision/rule + expected_revision.
+ * Does not authorize mutation by itself; only inserts into the issued-only ledger.
+ */
+function issueOperationPermit(input = {}) {
+  const {
+    ledger,
+    transitionOffer,
+    expected_revision,
+    subject_id = "lifecycle:default",
+    policyDecision = null,
+    humanDecision = null,
+    kernelRule = null,
+    arguments: mutationArgs = null,
+    arguments_digest = null,
+    scope_digest = null,
+    policy_digest = null,
+    budget_ref = null,
+  } = input;
+
+  if (!ledger || typeof ledger.insert !== "function") {
+    return { ok: false, code: "permit-ledger-required" };
+  }
+  if (!transitionOffer || typeof transitionOffer !== "object") {
+    return { ok: false, code: "issuer-decision-required" };
+  }
+  if (!expected_revision || typeof expected_revision !== "string") {
+    return { ok: false, code: "permit-mint-invalid" };
+  }
+
+  const present = [];
+  if (policyDecision != null) present.push("policy");
+  if (humanDecision != null) present.push("human");
+  if (kernelRule != null) present.push("rule");
+
+  if (present.length === 0) {
+    return { ok: false, code: "issuer-decision-required" };
+  }
+  if (present.length > 1) {
+    return { ok: false, code: "issuer-decision-ambiguous" };
+  }
+
+  if (present[0] === "policy" && !isValidPolicyDecision(policyDecision)) {
+    return { ok: false, code: "issuer-decision-required" };
+  }
+  if (present[0] === "human" && !isValidHumanDecision(humanDecision)) {
+    return { ok: false, code: "issuer-decision-required" };
+  }
+  if (present[0] === "rule" && !isValidKernelRule(kernelRule)) {
+    return { ok: false, code: "issuer-decision-required" };
+  }
+
+  const operation =
+    transitionOffer.operation ||
+    (policyDecision && policyDecision.operation) ||
+    (humanDecision && humanDecision.operation) ||
+    null;
+  if (!operation) {
+    return { ok: false, code: "permit-mint-invalid" };
+  }
+
+  const permit = mintOperationPermit({
+    ledger,
+    operation,
+    expected_revision,
+    subject_id,
+    arguments: mutationArgs || {},
+    arguments_digest: arguments_digest || undefined,
+    scope_digest: scope_digest || undefined,
+    policy_digest: policy_digest || undefined,
+    budget_ref: budget_ref || undefined,
+  });
+
+  return { ok: true, permit };
+}
+
 function authorizeMutation({
   permit,
   headRevision,
@@ -85,6 +195,7 @@ function authorizeMutation({
   subject_id = null,
   arguments: mutationArgs = null,
   arguments_digest = null,
+  authority = null,
 } = {}) {
   if (transitionOffer && !permit) {
     return { ok: false, code: "unauthorized", reason: "offer-only" };
@@ -92,6 +203,18 @@ function authorizeMutation({
   if (!permit || typeof permit !== "object") {
     return { ok: false, code: "unauthorized" };
   }
+
+  // Bag is sole durable consume truth across restart; process Map may be empty.
+  if (
+    authority &&
+    typeof authority === "object" &&
+    authority.permits &&
+    authority.permits[permit.permit_id] &&
+    authority.permits[permit.permit_id].status === "consumed"
+  ) {
+    return { ok: false, code: "permit-reuse" };
+  }
+
   if (!ledger || typeof ledger.get !== "function") {
     return { ok: false, code: "permit-not-runtime-issued" };
   }
@@ -154,6 +277,7 @@ function authorizeOperationWithPermit(input = {}) {
     subject_id = null,
     arguments: mutationArgs = null,
     arguments_digest = null,
+    authority = null,
   } = input;
 
   // Non-mutating status is always allowed without a permit.
@@ -177,6 +301,7 @@ function authorizeOperationWithPermit(input = {}) {
     subject_id,
     arguments: mutationArgs,
     arguments_digest,
+    authority,
   });
 }
 
@@ -197,22 +322,61 @@ function consumePermit({ permit_id, ledger, subject_id, operation, revision, out
     // Consume binds to post-CAS revision for the receipt; stale check uses pre-CAS head at authorize.
   }
   ledger.markConsumed(permit_id);
-  const receipt = {
+  const receipt = prepareOperationReceipt({
+    permit_id,
+    subject_id: subject_id || entry.permit.subject_id,
+    operation: operation || entry.permit.operation,
+    expected_revision: revision || entry.permit.expected_revision,
+    outcome: outcome || "advanced",
+  });
+  if (revision != null) receipt.revision = revision;
+  return { ok: true, receipt };
+}
+
+/**
+ * Build an OperationReceipt before CAS so it can be co-committed in authorityCommit.
+ * receipt_id is bound to permit + operation + subject + expected_revision (stable across replay).
+ */
+function prepareOperationReceipt({
+  permit_id,
+  subject_id,
+  operation,
+  expected_revision,
+  outcome = "advanced",
+} = {}) {
+  return {
     schema_version: 1,
     kind: "operation-receipt/v1",
     receipt_id: sha256Fingerprint("operation-receipt", {
       permit_id,
       subject_id,
       operation,
-      revision,
+      expected_revision,
     }),
     permit_id,
-    subject_id: subject_id || entry.permit.subject_id,
-    operation: operation || entry.permit.operation,
-    revision: revision || entry.permit.expected_revision,
-    outcome: outcome || "advanced",
+    subject_id,
+    operation,
+    revision: expected_revision,
+    outcome,
   };
-  return { ok: true, receipt };
+}
+
+/**
+ * Exact-replay lookup against the Authority Store authority bag.
+ * Binds arguments_digest when provided so non-identical args never short-circuit.
+ */
+function findReplayReceipt(authority, permit, operation, subjectId, arguments_digest = null) {
+  if (!authority || !permit || typeof permit !== "object") return null;
+  const permits = authority.permits || {};
+  const receipts = authority.receipts || {};
+  const entry = permits[permit.permit_id];
+  if (!entry || entry.status !== "consumed") return null;
+  const receipt = receipts[permit.permit_id];
+  if (!receipt || receipt.kind !== "operation-receipt/v1") return null;
+  if (receipt.operation !== operation) return null;
+  if (subjectId != null && receipt.subject_id !== subjectId) return null;
+  if (arguments_digest != null && permit.arguments_digest !== arguments_digest) return null;
+  return JSON.parse(JSON.stringify(receipt));
 }
 
 function assertNotReceiptV1(receipt) {
@@ -229,8 +393,11 @@ module.exports = {
   EFFECT_CLASSES,
   createPermitLedger,
   mintOperationPermit,
+  issueOperationPermit,
   authorizeMutation,
   authorizeOperationWithPermit,
   consumePermit,
+  prepareOperationReceipt,
+  findReplayReceipt,
   assertNotReceiptV1,
 };

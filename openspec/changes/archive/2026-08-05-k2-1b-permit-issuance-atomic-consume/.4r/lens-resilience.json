@@ -1,0 +1,19 @@
+{
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "summary": "Permit-authorized convergent CAS can return ok:true without writing consume+receipt into the authority bag; kernel may substitute an ephemeral pre-CAS receipt.",
+      "acceptance_criteria": "Convergent permit-authorized CAS MUST co-write/verify consume+receipt in the bag or fail closed; callers MUST NOT see success with only an ephemeral receipt; add regression test."
+    },
+    {
+      "severity": "CRITICAL",
+      "summary": "inner.commit advances head before authority bag mutation with no rollback if bag write throws; orphan advanced state without consumed permit/receipt.",
+      "acceptance_criteria": "Failed consume/bag write MUST NOT leave committed authoritative state without consumed permit+receipt; fail closed with intact head or transactional co-commit; add failure-injection test."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "persistJournal ignores commitJournal ok:false and continues effects/CAS without durable mid-op barriers.",
+      "acceptance_criteria": "commitJournal ok:false MUST block/fail closed before effects continue; add negative test for subject-not-found / journal-durability-required."
+    }
+  ]
+}
