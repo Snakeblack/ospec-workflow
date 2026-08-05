@@ -10,16 +10,41 @@ const EFFECT_CLASSES = Object.freeze([
   "irreversible",
 ]);
 
+const POLICY_DECISION_KIND = "policy-decision/v1";
+const HUMAN_DECISION_KIND = "human-decision/v1";
+const KERNEL_RULE_KIND = "kernel-rule/v1";
+const TRANSITION_OFFER_KIND = "transition-offer/v1";
+
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.trim() !== "";
+}
+
 function createPermitLedger() {
   /** @type {Map<string, { permit: object, consumed: boolean, runtime_issued: boolean }>} */
   const entries = new Map();
+  /** @type {Map<string, object>} */
+  const offers = new Map();
+  /** @type {Map<string, { record: object, kind: string, offer_id: string, consumed: boolean }>} */
+  const decisions = new Map();
   let seq = 0;
+  let offerSeq = 0;
+  let decisionSeq = 0;
 
   return {
     _entries: entries,
+    _offers: offers,
+    _decisions: decisions,
     nextPermitId() {
       seq += 1;
       return `permit:runtime:${String(seq).padStart(4, "0")}`;
+    },
+    nextOfferId() {
+      offerSeq += 1;
+      return `offer:runtime:${String(offerSeq).padStart(4, "0")}`;
+    },
+    nextDecisionId(prefix) {
+      decisionSeq += 1;
+      return `${prefix}:runtime:${String(decisionSeq).padStart(4, "0")}`;
     },
     has(permitId) {
       return entries.has(permitId);
@@ -40,7 +65,128 @@ function createPermitLedger() {
       entry.consumed = true;
       return true;
     },
+    getOffer(offerId) {
+      const offer = offers.get(offerId);
+      return offer ? JSON.parse(JSON.stringify(offer)) : null;
+    },
+    getDecision(decisionId) {
+      const entry = decisions.get(decisionId);
+      return entry
+        ? {
+            kind: entry.kind,
+            offer_id: entry.offer_id,
+            consumed: entry.consumed,
+            record: JSON.parse(JSON.stringify(entry.record)),
+          }
+        : null;
+    },
+    /**
+     * Runtime-owned TransitionOffer registration. Caller DTOs alone never authorize issuance.
+     */
+    registerTransitionOffer(offerInput = {}) {
+      if (!offerInput || typeof offerInput !== "object") {
+        return { ok: false, code: "issuer-offer-required" };
+      }
+      if (offerInput.kind != null && offerInput.kind !== TRANSITION_OFFER_KIND) {
+        return { ok: false, code: "issuer-offer-required" };
+      }
+      if (!isNonEmptyString(offerInput.operation)) {
+        return { ok: false, code: "issuer-offer-required" };
+      }
+      const offer_id = isNonEmptyString(offerInput.offer_id)
+        ? offerInput.offer_id
+        : this.nextOfferId();
+      if (offers.has(offer_id)) {
+        return { ok: false, code: "issuer-offer-reuse" };
+      }
+      const offer = {
+        schema_version: 1,
+        kind: TRANSITION_OFFER_KIND,
+        offer_id,
+        operation: offerInput.operation,
+        subject_id: isNonEmptyString(offerInput.subject_id)
+          ? offerInput.subject_id
+          : "lifecycle:default",
+      };
+      offers.set(offer_id, offer);
+      return { ok: true, offer_id, offer: JSON.parse(JSON.stringify(offer)) };
+    },
+    registerPolicyDecision(decisionInput = {}) {
+      return registerDecisionRecord(this, decisions, {
+        input: decisionInput,
+        kind: POLICY_DECISION_KIND,
+        idField: "decision_id",
+        idPrefix: "pol",
+        offers,
+      });
+    },
+    registerHumanDecision(decisionInput = {}) {
+      return registerDecisionRecord(this, decisions, {
+        input: decisionInput,
+        kind: HUMAN_DECISION_KIND,
+        idField: "decision_id",
+        idPrefix: "hum",
+        offers,
+      });
+    },
+    registerKernelRule(ruleInput = {}) {
+      return registerDecisionRecord(this, decisions, {
+        input: ruleInput,
+        kind: KERNEL_RULE_KIND,
+        idField: "rule_id",
+        idPrefix: "rule",
+        offers,
+      });
+    },
+    markDecisionConsumed(decisionId) {
+      const entry = decisions.get(decisionId);
+      if (!entry) return false;
+      entry.consumed = true;
+      return true;
+    },
   };
+}
+
+function registerDecisionRecord(ledger, decisions, { input, kind, idField, idPrefix, offers }) {
+  if (!input || typeof input !== "object") {
+    return { ok: false, code: "issuer-decision-required" };
+  }
+  if (input.kind != null && input.kind !== kind) {
+    return { ok: false, code: "issuer-decision-required" };
+  }
+  if (!isNonEmptyString(input.offer_id) || !offers.has(input.offer_id)) {
+    return { ok: false, code: "issuer-offer-not-registered" };
+  }
+  const offer = offers.get(input.offer_id);
+  const operation = isNonEmptyString(input.operation) ? input.operation : offer.operation;
+  if (operation !== offer.operation) {
+    return { ok: false, code: "issuer-decision-offer-mismatch" };
+  }
+  const subject_id = isNonEmptyString(input.subject_id) ? input.subject_id : offer.subject_id;
+  if (subject_id !== offer.subject_id) {
+    return { ok: false, code: "issuer-decision-offer-mismatch" };
+  }
+
+  const id = isNonEmptyString(input[idField]) ? input[idField] : ledger.nextDecisionId(idPrefix);
+  if (decisions.has(id)) {
+    return { ok: false, code: "issuer-decision-reuse" };
+  }
+
+  const record = {
+    schema_version: 1,
+    kind,
+    [idField]: id,
+    offer_id: input.offer_id,
+    operation,
+    subject_id,
+  };
+  decisions.set(id, {
+    kind,
+    offer_id: input.offer_id,
+    consumed: false,
+    record,
+  });
+  return { ok: true, [idField]: id, record: JSON.parse(JSON.stringify(record)) };
 }
 
 function mintOperationPermit(input = {}) {
@@ -66,6 +212,13 @@ function mintOperationPermit(input = {}) {
     single_use: true,
   };
 
+  if (input.issuer_decision_id) {
+    permit.issuer_decision_id = input.issuer_decision_id;
+  }
+  if (input.offer_id) {
+    permit.offer_id = input.offer_id;
+  }
+
   if (!permit.operation || !permit.expected_revision) {
     const error = new Error("operation and expected_revision required to mint permit");
     error.code = "permit-mint-invalid";
@@ -76,50 +229,20 @@ function mintOperationPermit(input = {}) {
   return JSON.parse(JSON.stringify(permit));
 }
 
-const POLICY_DECISION_KIND = "policy-decision/v1";
-const HUMAN_DECISION_KIND = "human-decision/v1";
-const KERNEL_RULE_KIND = "kernel-rule/v1";
-
-function isValidPolicyDecision(dto) {
-  return (
-    dto &&
-    typeof dto === "object" &&
-    dto.kind === POLICY_DECISION_KIND &&
-    typeof dto.decision_id === "string" &&
-    dto.decision_id.trim() !== ""
-  );
-}
-
-function isValidHumanDecision(dto) {
-  return (
-    dto &&
-    typeof dto === "object" &&
-    dto.kind === HUMAN_DECISION_KIND &&
-    typeof dto.decision_id === "string" &&
-    dto.decision_id.trim() !== ""
-  );
-}
-
-function isValidKernelRule(dto) {
-  return (
-    dto &&
-    typeof dto === "object" &&
-    dto.kind === KERNEL_RULE_KIND &&
-    typeof dto.rule_id === "string" &&
-    dto.rule_id.trim() !== ""
-  );
-}
-
 /**
- * Controlled issuer: TransitionOffer + exactly one decision/rule + expected_revision.
- * Does not authorize mutation by itself; only inserts into the issued-only ledger.
+ * Controlled issuer: runtime-registered offer_id + decision_id|rule_id + expected_revision.
+ * Fabricated DTOs (transitionOffer / policyDecision objects) are rejected.
  */
 function issueOperationPermit(input = {}) {
   const {
     ledger,
-    transitionOffer,
+    offer_id = null,
+    decision_id = null,
+    rule_id = null,
     expected_revision,
-    subject_id = "lifecycle:default",
+    subject_id = null,
+    // Legacy fabricated DTO fields — rejected closed.
+    transitionOffer = null,
     policyDecision = null,
     humanDecision = null,
     kernelRule = null,
@@ -133,18 +256,27 @@ function issueOperationPermit(input = {}) {
   if (!ledger || typeof ledger.insert !== "function") {
     return { ok: false, code: "permit-ledger-required" };
   }
-  if (!transitionOffer || typeof transitionOffer !== "object") {
-    return { ok: false, code: "issuer-decision-required" };
+
+  // Reject fabricated DTOs: issuance must bind to runtime-owned registry ids only.
+  if (transitionOffer != null || policyDecision != null || humanDecision != null || kernelRule != null) {
+    return { ok: false, code: "issuer-fabricated-decision" };
   }
-  if (!expected_revision || typeof expected_revision !== "string") {
+
+  if (!isNonEmptyString(expected_revision)) {
     return { ok: false, code: "permit-mint-invalid" };
+  }
+  if (!isNonEmptyString(offer_id) || typeof ledger.getOffer !== "function") {
+    return { ok: false, code: "issuer-offer-not-registered" };
+  }
+
+  const offer = ledger.getOffer(offer_id);
+  if (!offer) {
+    return { ok: false, code: "issuer-offer-not-registered" };
   }
 
   const present = [];
-  if (policyDecision != null) present.push("policy");
-  if (humanDecision != null) present.push("human");
-  if (kernelRule != null) present.push("rule");
-
+  if (decision_id != null) present.push("decision");
+  if (rule_id != null) present.push("rule");
   if (present.length === 0) {
     return { ok: false, code: "issuer-decision-required" };
   }
@@ -152,36 +284,62 @@ function issueOperationPermit(input = {}) {
     return { ok: false, code: "issuer-decision-ambiguous" };
   }
 
-  if (present[0] === "policy" && !isValidPolicyDecision(policyDecision)) {
-    return { ok: false, code: "issuer-decision-required" };
+  const lookupId = decision_id != null ? decision_id : rule_id;
+  if (!isNonEmptyString(lookupId) || typeof ledger.getDecision !== "function") {
+    return { ok: false, code: "issuer-decision-not-registered" };
   }
-  if (present[0] === "human" && !isValidHumanDecision(humanDecision)) {
-    return { ok: false, code: "issuer-decision-required" };
+  const decisionEntry = ledger.getDecision(lookupId);
+  if (!decisionEntry) {
+    return { ok: false, code: "issuer-decision-not-registered" };
   }
-  if (present[0] === "rule" && !isValidKernelRule(kernelRule)) {
-    return { ok: false, code: "issuer-decision-required" };
+  if (decisionEntry.consumed) {
+    return { ok: false, code: "issuer-decision-consumed" };
+  }
+  if (decisionEntry.offer_id !== offer_id) {
+    return { ok: false, code: "issuer-decision-offer-mismatch" };
   }
 
-  const operation =
-    transitionOffer.operation ||
-    (policyDecision && policyDecision.operation) ||
-    (humanDecision && humanDecision.operation) ||
-    null;
-  if (!operation) {
-    return { ok: false, code: "permit-mint-invalid" };
+  if (decision_id != null) {
+    if (
+      decisionEntry.kind !== POLICY_DECISION_KIND &&
+      decisionEntry.kind !== HUMAN_DECISION_KIND
+    ) {
+      return { ok: false, code: "issuer-decision-not-registered" };
+    }
+  } else if (decisionEntry.kind !== KERNEL_RULE_KIND) {
+    return { ok: false, code: "issuer-decision-not-registered" };
+  }
+
+  const operation = offer.operation;
+  const resolvedSubject =
+    subject_id != null ? subject_id : offer.subject_id || "lifecycle:default";
+  if (resolvedSubject !== offer.subject_id) {
+    return { ok: false, code: "issuer-decision-offer-mismatch" };
+  }
+  if (decisionEntry.record.operation !== operation) {
+    return { ok: false, code: "issuer-decision-offer-mismatch" };
+  }
+  if (decisionEntry.record.subject_id !== resolvedSubject) {
+    return { ok: false, code: "issuer-decision-offer-mismatch" };
   }
 
   const permit = mintOperationPermit({
     ledger,
     operation,
     expected_revision,
-    subject_id,
+    subject_id: resolvedSubject,
     arguments: mutationArgs || {},
     arguments_digest: arguments_digest || undefined,
     scope_digest: scope_digest || undefined,
     policy_digest: policy_digest || undefined,
     budget_ref: budget_ref || undefined,
+    offer_id,
+    issuer_decision_id: lookupId,
   });
+
+  if (typeof ledger.markDecisionConsumed === "function") {
+    ledger.markDecisionConsumed(lookupId);
+  }
 
   return { ok: true, permit };
 }
@@ -400,4 +558,8 @@ module.exports = {
   prepareOperationReceipt,
   findReplayReceipt,
   assertNotReceiptV1,
+  POLICY_DECISION_KIND,
+  HUMAN_DECISION_KIND,
+  KERNEL_RULE_KIND,
+  TRANSITION_OFFER_KIND,
 };

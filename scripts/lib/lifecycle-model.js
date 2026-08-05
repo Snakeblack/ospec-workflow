@@ -459,7 +459,7 @@ function checkK2aSoleClaudeAdapter() {
 async function checkK2aHostFaultMatrix() {
   const { peerHostFaultMatrix } = require("./minimal-kernel-harness.js");
   const { createClaudeHostAdapter } = require("./host-adapters/claude.js");
-  const peer = await peerHostFaultMatrix({ adapter: createClaudeHostAdapter() });
+  const peer = await peerHostFaultMatrix({ adapter: await createClaudeHostAdapter() });
   const faults = peer.matrix.faults_covered || [];
   const required = ["timeout", "cancel", "worker-fail", "interrupt"];
   const ok =
