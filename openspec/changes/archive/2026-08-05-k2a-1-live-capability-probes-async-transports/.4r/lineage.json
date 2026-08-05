@@ -1,0 +1,855 @@
+{
+  "schema_version": 1,
+  "lineage_id": "sha256:2281b0e342ea5703d979af46c08a6e8afd3a658ded26cc962d4a21e7570e77a8",
+  "generation": 1,
+  "predecessor_lineage_id": null,
+  "recovery": null,
+  "revision": 21,
+  "status": "approved",
+  "genesis": {
+    "candidate": {
+      "projection": "workspace",
+      "base_tree": "315c63c1e4ee39a3bbeac29899b8ba9272d191dc",
+      "candidate_tree": "WORKING-TREE-k2a-1-live-capability-probes-async-transports",
+      "paths": [
+        "openspec/memory/known-issues.md",
+        "schemas/kernel/capability-proof/fixtures/invalid/missing-evidence-digest.json",
+        "schemas/kernel/capability-proof/fixtures/invalid/missing-fixture.json",
+        "schemas/kernel/capability-proof/fixtures/valid/minimal.json",
+        "schemas/kernel/capability-proof/v1.schema.json",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/transport-failure/fixtures/invalid/minimal.json",
+        "schemas/kernel/transport-failure/fixtures/valid/minimal.json",
+        "schemas/kernel/transport-failure/v1.schema.json",
+        "schemas/kernel/transport-outcome/fixtures/invalid/minimal.json",
+        "schemas/kernel/transport-outcome/fixtures/valid/minimal.json",
+        "schemas/kernel/transport-outcome/v1.schema.json",
+        "schemas/kernel/transport-request/fixtures/invalid/minimal.json",
+        "schemas/kernel/transport-request/fixtures/valid/minimal.json",
+        "schemas/kernel/transport-request/v1.schema.json",
+        "scripts/lib/capability-proof/index.js",
+        "scripts/lib/capability-proof/index.test.js",
+        "scripts/lib/headless-conformance-host.js",
+        "scripts/lib/headless-conformance-host.test.js",
+        "scripts/lib/host-adapters/claude.js",
+        "scripts/lib/host-adapters/claude.test.js",
+        "scripts/lib/host-adapters/registry.test.js",
+        "scripts/lib/host-contract/index.js",
+        "scripts/lib/host-contract/index.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k2a-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/host-boundary.js",
+        "scripts/lib/lifecycle-kernel/host-boundary.test.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "diff_hash": "sha256:4bb52453cc70f5651b4141bfdf5a07a6e6b5b7619159d73f0f8b174ed07c6564",
+      "paths_digest": "sha256:73865989809816c5e885617e5e847f794efa62ac2176b889638866b56101f22c",
+      "authored_lines": 1877,
+      "original_changed_lines": 1877
+    },
+    "candidate_id": "sha256:96b8c9d071a66ededbbb3a801ecbacb9de31e097763d9f7f6f3ed3b7e8d51e42",
+    "paths": [
+      "openspec/memory/known-issues.md",
+      "schemas/kernel/capability-proof/fixtures/invalid/missing-evidence-digest.json",
+      "schemas/kernel/capability-proof/fixtures/invalid/missing-fixture.json",
+      "schemas/kernel/capability-proof/fixtures/valid/minimal.json",
+      "schemas/kernel/capability-proof/v1.schema.json",
+      "schemas/kernel/contract-claims.json",
+      "schemas/kernel/manifest.json",
+      "schemas/kernel/transport-failure/fixtures/invalid/minimal.json",
+      "schemas/kernel/transport-failure/fixtures/valid/minimal.json",
+      "schemas/kernel/transport-failure/v1.schema.json",
+      "schemas/kernel/transport-outcome/fixtures/invalid/minimal.json",
+      "schemas/kernel/transport-outcome/fixtures/valid/minimal.json",
+      "schemas/kernel/transport-outcome/v1.schema.json",
+      "schemas/kernel/transport-request/fixtures/invalid/minimal.json",
+      "schemas/kernel/transport-request/fixtures/valid/minimal.json",
+      "schemas/kernel/transport-request/v1.schema.json",
+      "scripts/lib/capability-proof/index.js",
+      "scripts/lib/capability-proof/index.test.js",
+      "scripts/lib/headless-conformance-host.js",
+      "scripts/lib/headless-conformance-host.test.js",
+      "scripts/lib/host-adapters/claude.js",
+      "scripts/lib/host-adapters/claude.test.js",
+      "scripts/lib/host-adapters/registry.test.js",
+      "scripts/lib/host-contract/index.js",
+      "scripts/lib/host-contract/index.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/k2a-schema-fixtures.test.js",
+      "scripts/lib/lifecycle-kernel/host-boundary.js",
+      "scripts/lib/lifecycle-kernel/host-boundary.test.js",
+      "scripts/lib/lifecycle-kernel/k1-compat.js",
+      "scripts/lib/lifecycle-model.js",
+      "scripts/lib/minimal-kernel-harness.js",
+      "scripts/lib/minimal-kernel-harness.test.js"
+    ],
+    "classification": "high-risk",
+    "selected_dimensions": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "evidence_fingerprint": "sha256:0e3829ca0768675c0de0e590fb374d37803f12f00caa0842888b35ae33d91fc6",
+    "original_changed_lines": 1877,
+    "authored_lines": 1877
+  },
+  "current_candidate_id": "sha256:6d3793a48ec0c9bdafa82d107dbcbd98103b7089b709f9b3507ffc1973da32e5",
+  "current_candidate": {
+    "projection": "workspace",
+    "base_tree": "315c63c1e4ee39a3bbeac29899b8ba9272d191dc",
+    "candidate_tree": "WORKING-TREE-k2a-1-S-7c3940fe2ba51767",
+    "paths": [
+      "openspec/memory/known-issues.md",
+      "schemas/kernel/capability-proof/fixtures/invalid/missing-evidence-digest.json",
+      "schemas/kernel/capability-proof/fixtures/invalid/missing-fixture.json",
+      "schemas/kernel/capability-proof/fixtures/valid/minimal.json",
+      "schemas/kernel/capability-proof/v1.schema.json",
+      "schemas/kernel/contract-claims.json",
+      "schemas/kernel/manifest.json",
+      "schemas/kernel/transport-failure/fixtures/invalid/minimal.json",
+      "schemas/kernel/transport-failure/fixtures/valid/minimal.json",
+      "schemas/kernel/transport-failure/v1.schema.json",
+      "schemas/kernel/transport-outcome/fixtures/invalid/minimal.json",
+      "schemas/kernel/transport-outcome/fixtures/valid/minimal.json",
+      "schemas/kernel/transport-outcome/v1.schema.json",
+      "schemas/kernel/transport-request/fixtures/invalid/minimal.json",
+      "schemas/kernel/transport-request/fixtures/valid/minimal.json",
+      "schemas/kernel/transport-request/v1.schema.json",
+      "scripts/lib/capability-proof/index.js",
+      "scripts/lib/capability-proof/index.test.js",
+      "scripts/lib/headless-conformance-host.js",
+      "scripts/lib/headless-conformance-host.test.js",
+      "scripts/lib/host-adapters/claude.js",
+      "scripts/lib/host-adapters/claude.test.js",
+      "scripts/lib/host-adapters/registry.test.js",
+      "scripts/lib/host-contract/index.js",
+      "scripts/lib/host-contract/index.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/k2a-schema-fixtures.test.js",
+      "scripts/lib/lifecycle-kernel/host-boundary.js",
+      "scripts/lib/lifecycle-kernel/host-boundary.test.js",
+      "scripts/lib/lifecycle-kernel/k1-compat.js",
+      "scripts/lib/lifecycle-model.js",
+      "scripts/lib/minimal-kernel-harness.js",
+      "scripts/lib/minimal-kernel-harness.test.js"
+    ],
+    "diff_hash": "sha256:36d78542d0b7dd976477385cea1e2ee891aaafbde8eba29d3d559e000bfdc4e8",
+    "paths_digest": "sha256:73865989809816c5e885617e5e847f794efa62ac2176b889638866b56101f22c",
+    "authored_lines": 1877,
+    "original_changed_lines": 1877
+  },
+  "lenses": {
+    "risk": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-risk-k2a1",
+      "result_digest": "sha256:c9879005010a712936605bfd4b45e0b7fcc5081e396d0185c3dfba96f4c5f065",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "runConformanceScenario fills expectedProbeDigest from entry.proof.probe_digest, bypassing independent live bind required by ADR-001/REQ-capability-proof-005.",
+            "acceptance_criteria": "Caller must supply independent expectedProbeDigest; missing value fail-closed. Headless must not default expectedProbeDigest from proof.probe_digest. Add regression: coherent proof without external expectedProbeDigest cannot authenticate enforced."
+          },
+          {
+            "severity": "CRITICAL",
+            "summary": "createClaudeHostAdapter promotes to enforced when liveProbes[id] is truthy without requiring a real host primitive, and verifies with expectedProbeDigest from the same built proof (circular bind).",
+            "acceptance_criteria": "enforced only when a real primitive for that capability is present AND live probe evidence verifies against an independent expectedProbeDigest. Fixture-only or synthetic liveProbes without primitives MUST resolve unavailable|instructional|partial. Add test: liveProbes without primitives never yields enforced."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Claude transport handlers still return ok:true stubs when host primitives are absent (toolMap/delegation metadata), which can be confused with demonstrated capability.",
+            "acceptance_criteria": "Without primitives, port outcomes MUST NOT claim success that implies demonstrated capability; align with instructional/unavailable honesty (ok:false or explicit instructional outcome documented in ADR)."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "start-risk-k2a1"
+    },
+    "reliability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-reliability-k2a1",
+      "result_digest": "sha256:7680ca51ec9e0f4e263866e01530d173918af722bb1d5ef4eec900f4217f0b05",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "observeHostPort success test compares equality across runs without asserting ok===true, so identical failures would pass.",
+            "acceptance_criteria": "Assert a.ok === true (and outcome) on the success path for REQ-lifecycle-kernel-runtime-017."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "AbortSignal in-flight cancel path (addEventListener abort) lacks a dedicated test; only pre-aborted signal is covered.",
+            "acceptance_criteria": "Add test: slow invoke + deferred abort mid-flight → failure_class cancel with preserved requestId."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "invokeTransportAsync Promise.race leaves losing invokePromise unsettled; late rejection after timeout/abort may become unhandledRejection.",
+            "acceptance_criteria": "Settle raced invokePromise after guard wins; add regression where port rejects after deadline wins race with zero unhandledRejection."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "verifyCapabilityProof fail-closed branch for invalid proof.kind has no dedicated unit test.",
+            "acceptance_criteria": "Add test: proof.kind !== capability-proof/v1 → ok:false, PROOF_VERIFICATION_FAILED, path:/kind."
+          },
+          {
+            "severity": "SUGGESTION",
+            "summary": "No dedicated unit success case for invokeTransportAsync in host-contract tests (only via consumers).",
+            "acceptance_criteria": "Add host-contract unit: async success returns ok:true with preserved requestId."
+          },
+          {
+            "severity": "SUGGESTION",
+            "summary": "observeHostPort error paths unknown-host-port and missing-transport-port lack tests.",
+            "acceptance_criteria": "Add host-boundary tests covering both structured error codes."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "start-reliability-k2a1"
+    },
+    "resilience": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-resilience-k2a1",
+      "result_digest": "sha256:951f5ec7e52938ed4411f473a2f54fe18374c92a4f01e04be813d1698907873a",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "invokeTransportAsync Promise.race abandons the losing invokePromise; a late port rejection after timeout/cancel becomes unhandledRejection.",
+            "acceptance_criteria": "Attach settlement handler to raced invokePromise (or forward AbortSignal so port stops) so late reject cannot surface as unhandledRejection; add regression test with reject-after-deadline."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Claude port handlers return ok:true with raw primitive return without awaiting; async primitive rejection bypasses structured failure mapping.",
+            "acceptance_criteria": "Await Promise.resolve(primitives.*) (or catch) and map failures to ok:false; add test with async rejecting primitive that must not yield ok:true."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "AbortSignal/deadlineMs are race guards only and are not forwarded to the port invoker, so in-flight work continues after classified timeout/cancel.",
+            "acceptance_criteria": "Forward AbortSignal into invoker request for cooperative cancel, or document intentional non-cooperative cancel in ADR while still settling the raced promise; cover with a test."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Claude loadFixture uses readFileSync/JSON.parse without try/catch; missing/invalid fixture throws unstructured ENOENT/SyntaxError.",
+            "acceptance_criteria": "Map fixture I/O/parse failures to a stable structured reason_code (or documented intentional fail-fast)."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "start-resilience-k2a1"
+    },
+    "readability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-readability-k2a1",
+      "result_digest": "sha256:c810dcd5dc78c39399f1345de91f1dbd09a83e71dbf825fee752953aaf1b4b11",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "createClaudeHostAdapter JSDoc claims live-bound verification but uses expectedProbeDigest from the same buildEvidence material, hiding that enforced mainly requires liveProbes presence.",
+            "acceptance_criteria": "Document or redesign the gate so enforced requires an independent expectedProbeDigest (or remove the tautological verify); JSDoc must not claim external live-bind when the digest is self-derived."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "resolveCapabilityState and evaluateEnforcementEligibility duplicate enforcement promotion gates with divergent reason_code rules and no authority comment.",
+            "acceptance_criteria": "Make one delegate to the other, or document which API is authoritative and the declared×request_enforced×reason_code matrix."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "classifyTransportFailure uses undocumented substring heuristics and WorkerTransport→worker-fail fallback without priority comments.",
+            "acceptance_criteria": "Document classification order: explicit failure_class → text heuristics → portName fallback."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "ENFORCED_CAPABILITIES alias still names transport IDs as ENFORCED despite enforced-only-after-probe semantics.",
+            "acceptance_criteria": "Remove alias or rename so no symbol says ENFORCED unless it means enforced state."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "resolveHonestState special-cases DeliveryGate/Question → instructional without explaining why others are unavailable.",
+            "acceptance_criteria": "Add one-line rationale or capability→fallback table next to resolveHonestState."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "start-readability-k2a1"
+    }
+  },
+  "findings": [
+    {
+      "id": "F-257363d612b4f8ad",
+      "owner": "risk",
+      "severity": "CRITICAL",
+      "summary": "runConformanceScenario fills expectedProbeDigest from entry.proof.probe_digest, bypassing independent live bind required by ADR-001/REQ-capability-proof-005.",
+      "acceptance_criteria": "Caller must supply independent expectedProbeDigest; missing value fail-closed. Headless must not default expectedProbeDigest from proof.probe_digest. Add regression: coherent proof without external expectedProbeDigest cannot authenticate enforced.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-42a44346728b7090",
+      "owner": "risk",
+      "severity": "CRITICAL",
+      "summary": "createClaudeHostAdapter promotes to enforced when liveProbes[id] is truthy without requiring a real host primitive, and verifies with expectedProbeDigest from the same built proof (circular bind).",
+      "acceptance_criteria": "enforced only when a real primitive for that capability is present AND live probe evidence verifies against an independent expectedProbeDigest. Fixture-only or synthetic liveProbes without primitives MUST resolve unavailable|instructional|partial. Add test: liveProbes without primitives never yields enforced.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-b812ffde443f7be6",
+      "owner": "risk",
+      "severity": "WARNING",
+      "summary": "Claude transport handlers still return ok:true stubs when host primitives are absent (toolMap/delegation metadata), which can be confused with demonstrated capability.",
+      "acceptance_criteria": "Without primitives, port outcomes MUST NOT claim success that implies demonstrated capability; align with instructional/unavailable honesty (ok:false or explicit instructional outcome documented in ADR).",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-705ec640e54decef",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "observeHostPort success test compares equality across runs without asserting ok===true, so identical failures would pass.",
+      "acceptance_criteria": "Assert a.ok === true (and outcome) on the success path for REQ-lifecycle-kernel-runtime-017.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-64573f4ef1f32916",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "AbortSignal in-flight cancel path (addEventListener abort) lacks a dedicated test; only pre-aborted signal is covered.",
+      "acceptance_criteria": "Add test: slow invoke + deferred abort mid-flight → failure_class cancel with preserved requestId.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-94571a6a90831727",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "invokeTransportAsync Promise.race leaves losing invokePromise unsettled; late rejection after timeout/abort may become unhandledRejection.",
+      "acceptance_criteria": "Settle raced invokePromise after guard wins; add regression where port rejects after deadline wins race with zero unhandledRejection.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-3e34fc47132940fd",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "verifyCapabilityProof fail-closed branch for invalid proof.kind has no dedicated unit test.",
+      "acceptance_criteria": "Add test: proof.kind !== capability-proof/v1 → ok:false, PROOF_VERIFICATION_FAILED, path:/kind.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-46e5c679d66ef15e",
+      "owner": "reliability",
+      "severity": "SUGGESTION",
+      "summary": "No dedicated unit success case for invokeTransportAsync in host-contract tests (only via consumers).",
+      "acceptance_criteria": "Add host-contract unit: async success returns ok:true with preserved requestId.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-d278262b34c5c2f2",
+      "owner": "reliability",
+      "severity": "SUGGESTION",
+      "summary": "observeHostPort error paths unknown-host-port and missing-transport-port lack tests.",
+      "acceptance_criteria": "Add host-boundary tests covering both structured error codes.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-ea52b9c672375e23",
+      "owner": "resilience",
+      "severity": "CRITICAL",
+      "summary": "invokeTransportAsync Promise.race abandons the losing invokePromise; a late port rejection after timeout/cancel becomes unhandledRejection.",
+      "acceptance_criteria": "Attach settlement handler to raced invokePromise (or forward AbortSignal so port stops) so late reject cannot surface as unhandledRejection; add regression test with reject-after-deadline.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-9854c34f4ac29303",
+      "owner": "resilience",
+      "severity": "WARNING",
+      "summary": "Claude port handlers return ok:true with raw primitive return without awaiting; async primitive rejection bypasses structured failure mapping.",
+      "acceptance_criteria": "Await Promise.resolve(primitives.*) (or catch) and map failures to ok:false; add test with async rejecting primitive that must not yield ok:true.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-684cf73ff7c94394",
+      "owner": "resilience",
+      "severity": "WARNING",
+      "summary": "AbortSignal/deadlineMs are race guards only and are not forwarded to the port invoker, so in-flight work continues after classified timeout/cancel.",
+      "acceptance_criteria": "Forward AbortSignal into invoker request for cooperative cancel, or document intentional non-cooperative cancel in ADR while still settling the raced promise; cover with a test.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-ba353d0345bfc45b",
+      "owner": "resilience",
+      "severity": "WARNING",
+      "summary": "Claude loadFixture uses readFileSync/JSON.parse without try/catch; missing/invalid fixture throws unstructured ENOENT/SyntaxError.",
+      "acceptance_criteria": "Map fixture I/O/parse failures to a stable structured reason_code (or documented intentional fail-fast).",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-a23fde0a12e81544",
+      "owner": "readability",
+      "severity": "CRITICAL",
+      "summary": "createClaudeHostAdapter JSDoc claims live-bound verification but uses expectedProbeDigest from the same buildEvidence material, hiding that enforced mainly requires liveProbes presence.",
+      "acceptance_criteria": "Document or redesign the gate so enforced requires an independent expectedProbeDigest (or remove the tautological verify); JSDoc must not claim external live-bind when the digest is self-derived.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-371a7d8a3dda6b7e",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "resolveCapabilityState and evaluateEnforcementEligibility duplicate enforcement promotion gates with divergent reason_code rules and no authority comment.",
+      "acceptance_criteria": "Make one delegate to the other, or document which API is authoritative and the declared×request_enforced×reason_code matrix.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-ff6fe0c02202c01f",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "classifyTransportFailure uses undocumented substring heuristics and WorkerTransport→worker-fail fallback without priority comments.",
+      "acceptance_criteria": "Document classification order: explicit failure_class → text heuristics → portName fallback.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-a0580fb75eb8cd13",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "ENFORCED_CAPABILITIES alias still names transport IDs as ENFORCED despite enforced-only-after-probe semantics.",
+      "acceptance_criteria": "Remove alias or rename so no symbol says ENFORCED unless it means enforced state.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-d02fb78707ca6fb0",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "resolveHonestState special-cases DeliveryGate/Question → instructional without explaining why others are unavailable.",
+      "acceptance_criteria": "Add one-line rationale or capability→fallback table next to resolveHonestState.",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ],
+  "findings_digest": "sha256:99539bf6f8f3f88c5272c8f9778e577df43ae6b44043b37324c16ac796115180",
+  "correction_budget": {
+    "limit_lines": 200,
+    "used_lines": 0,
+    "failed_attempts": 0,
+    "max_failed_attempts": 3
+  },
+  "correction_history": [],
+  "validation_history": [],
+  "follow_ups": [],
+  "pending_operation": null,
+  "pending_correction": null,
+  "terminal_reason": "all-remediation-slices-passed",
+  "remediation_schema_version": 2,
+  "remediation_migration": {
+    "source_digest": "sha256:7a56a420a98f21f7fe6eb6abe13c2f02ca61f01e6e9ab94a06a19b1ba0d0ecfa",
+    "manifest_digest": "sha256:95e6a1d5244ae24b6fb558b9d9f023d9893f99f5028cf7d1a3152094ccc7edd8",
+    "legacy_used_lines": 0,
+    "legacy_failed_attempts": 0,
+    "migrated_at": "deterministic"
+  },
+  "slice_order": [
+    "S-26c46ab2aeffedd5",
+    "S-b8b099c23b69193c",
+    "S-4c2d500485920d59",
+    "S-7c3940fe2ba51767"
+  ],
+  "active_slice_id": null,
+  "correction_slices": {
+    "S-26c46ab2aeffedd5": {
+      "slice_id": "S-26c46ab2aeffedd5",
+      "root_cause_key": "F-257363d612b4f8ad",
+      "finding_ids": [
+        "F-257363d612b4f8ad"
+      ],
+      "evidence_digests": [
+        "sha256:a616f66709bbda81788dec4f53b8809dda6d8ab9f7c05bf730de35090730f62d"
+      ],
+      "permitted_paths": [
+        "openspec/memory/known-issues.md",
+        "schemas/kernel/capability-proof/fixtures/invalid/missing-evidence-digest.json",
+        "schemas/kernel/capability-proof/fixtures/invalid/missing-fixture.json",
+        "schemas/kernel/capability-proof/fixtures/valid/minimal.json",
+        "schemas/kernel/capability-proof/v1.schema.json",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/transport-failure/fixtures/invalid/minimal.json",
+        "schemas/kernel/transport-failure/fixtures/valid/minimal.json",
+        "schemas/kernel/transport-failure/v1.schema.json",
+        "schemas/kernel/transport-outcome/fixtures/invalid/minimal.json",
+        "schemas/kernel/transport-outcome/fixtures/valid/minimal.json",
+        "schemas/kernel/transport-outcome/v1.schema.json",
+        "schemas/kernel/transport-request/fixtures/invalid/minimal.json",
+        "schemas/kernel/transport-request/fixtures/valid/minimal.json",
+        "schemas/kernel/transport-request/v1.schema.json",
+        "scripts/lib/capability-proof/index.js",
+        "scripts/lib/capability-proof/index.test.js",
+        "scripts/lib/headless-conformance-host.js",
+        "scripts/lib/headless-conformance-host.test.js",
+        "scripts/lib/host-adapters/claude.js",
+        "scripts/lib/host-adapters/claude.test.js",
+        "scripts/lib/host-adapters/registry.test.js",
+        "scripts/lib/host-contract/index.js",
+        "scripts/lib/host-contract/index.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k2a-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/host-boundary.js",
+        "scripts/lib/lifecycle-kernel/host-boundary.test.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "resolutions": {
+        "F-257363d612b4f8ad": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 56,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-26c46ab2aeffedd5",
+          "request_id": "correct-S-26c46ab2aeffedd5",
+          "finding_ids": [
+            "F-257363d612b4f8ad"
+          ],
+          "paths": [
+            "scripts/lib/headless-conformance-host.js",
+            "scripts/lib/headless-conformance-host.test.js"
+          ],
+          "base_candidate_id": "sha256:96b8c9d071a66ededbbb3a801ecbacb9de31e097763d9f7f6f3ed3b7e8d51e42",
+          "forecast_lines": 80,
+          "actual_changed_lines": 56,
+          "record_request_id": "record-S-26c46ab2aeffedd5",
+          "corrected_candidate_id": "sha256:094e1f3884cf29625cf9a43513c704890dceaa65378e8fa31d48c8d7bfafc952"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-S-26c46ab2aeffedd5",
+          "outcomes": [
+            {
+              "id": "F-257363d612b4f8ad",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "headless no longer falls back to proof.probe_digest",
+              "missing expectedProbeDigest fails closed; focused tests 10/10"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-b8b099c23b69193c": {
+      "slice_id": "S-b8b099c23b69193c",
+      "root_cause_key": "F-42a44346728b7090",
+      "finding_ids": [
+        "F-42a44346728b7090"
+      ],
+      "evidence_digests": [
+        "sha256:a1926fbe5f952e5c2449653503874e42bf62a6ea341e783111eed91bcb8add67"
+      ],
+      "permitted_paths": [
+        "openspec/memory/known-issues.md",
+        "schemas/kernel/capability-proof/fixtures/invalid/missing-evidence-digest.json",
+        "schemas/kernel/capability-proof/fixtures/invalid/missing-fixture.json",
+        "schemas/kernel/capability-proof/fixtures/valid/minimal.json",
+        "schemas/kernel/capability-proof/v1.schema.json",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/transport-failure/fixtures/invalid/minimal.json",
+        "schemas/kernel/transport-failure/fixtures/valid/minimal.json",
+        "schemas/kernel/transport-failure/v1.schema.json",
+        "schemas/kernel/transport-outcome/fixtures/invalid/minimal.json",
+        "schemas/kernel/transport-outcome/fixtures/valid/minimal.json",
+        "schemas/kernel/transport-outcome/v1.schema.json",
+        "schemas/kernel/transport-request/fixtures/invalid/minimal.json",
+        "schemas/kernel/transport-request/fixtures/valid/minimal.json",
+        "schemas/kernel/transport-request/v1.schema.json",
+        "scripts/lib/capability-proof/index.js",
+        "scripts/lib/capability-proof/index.test.js",
+        "scripts/lib/headless-conformance-host.js",
+        "scripts/lib/headless-conformance-host.test.js",
+        "scripts/lib/host-adapters/claude.js",
+        "scripts/lib/host-adapters/claude.test.js",
+        "scripts/lib/host-adapters/registry.test.js",
+        "scripts/lib/host-contract/index.js",
+        "scripts/lib/host-contract/index.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k2a-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/host-boundary.js",
+        "scripts/lib/lifecycle-kernel/host-boundary.test.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "resolutions": {
+        "F-42a44346728b7090": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 84,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-b8b099c23b69193c",
+          "request_id": "correct-S-b8b099c23b69193c",
+          "finding_ids": [
+            "F-42a44346728b7090"
+          ],
+          "paths": [
+            "scripts/lib/host-adapters/claude.js",
+            "scripts/lib/host-adapters/claude.test.js",
+            "scripts/lib/host-adapters/registry.test.js"
+          ],
+          "base_candidate_id": "sha256:094e1f3884cf29625cf9a43513c704890dceaa65378e8fa31d48c8d7bfafc952",
+          "forecast_lines": 120,
+          "actual_changed_lines": 84,
+          "record_request_id": "record-S-b8b099c23b69193c",
+          "corrected_candidate_id": "sha256:5b53ad6dbbedf5c139d4230cb73755bc7123b7853d30c81de972dc77f67de74b"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-S-b8b099c23b69193c",
+          "outcomes": [
+            {
+              "id": "F-42a44346728b7090",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "enforced requires primitive+probe+independent digest",
+              "claude+registry tests 11/11"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-4c2d500485920d59": {
+      "slice_id": "S-4c2d500485920d59",
+      "root_cause_key": "F-a23fde0a12e81544",
+      "finding_ids": [
+        "F-a23fde0a12e81544"
+      ],
+      "evidence_digests": [
+        "sha256:c9704d2f38449a82e3b47ed1db37164864a593e11bc3e2eafb8a2342b911f4c4"
+      ],
+      "permitted_paths": [
+        "openspec/memory/known-issues.md",
+        "schemas/kernel/capability-proof/fixtures/invalid/missing-evidence-digest.json",
+        "schemas/kernel/capability-proof/fixtures/invalid/missing-fixture.json",
+        "schemas/kernel/capability-proof/fixtures/valid/minimal.json",
+        "schemas/kernel/capability-proof/v1.schema.json",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/transport-failure/fixtures/invalid/minimal.json",
+        "schemas/kernel/transport-failure/fixtures/valid/minimal.json",
+        "schemas/kernel/transport-failure/v1.schema.json",
+        "schemas/kernel/transport-outcome/fixtures/invalid/minimal.json",
+        "schemas/kernel/transport-outcome/fixtures/valid/minimal.json",
+        "schemas/kernel/transport-outcome/v1.schema.json",
+        "schemas/kernel/transport-request/fixtures/invalid/minimal.json",
+        "schemas/kernel/transport-request/fixtures/valid/minimal.json",
+        "schemas/kernel/transport-request/v1.schema.json",
+        "scripts/lib/capability-proof/index.js",
+        "scripts/lib/capability-proof/index.test.js",
+        "scripts/lib/headless-conformance-host.js",
+        "scripts/lib/headless-conformance-host.test.js",
+        "scripts/lib/host-adapters/claude.js",
+        "scripts/lib/host-adapters/claude.test.js",
+        "scripts/lib/host-adapters/registry.test.js",
+        "scripts/lib/host-contract/index.js",
+        "scripts/lib/host-contract/index.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k2a-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/host-boundary.js",
+        "scripts/lib/lifecycle-kernel/host-boundary.test.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "resolutions": {
+        "F-a23fde0a12e81544": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 24,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-4c2d500485920d59",
+          "request_id": "correct-S-4c2d500485920d59",
+          "finding_ids": [
+            "F-a23fde0a12e81544"
+          ],
+          "paths": [
+            "scripts/lib/host-adapters/claude.js",
+            "scripts/lib/host-adapters/claude.test.js"
+          ],
+          "base_candidate_id": "sha256:5b53ad6dbbedf5c139d4230cb73755bc7123b7853d30c81de972dc77f67de74b",
+          "forecast_lines": 40,
+          "actual_changed_lines": 24,
+          "record_request_id": "record-S-4c2d500485920d59",
+          "corrected_candidate_id": "sha256:de744a0ca04a9d48d7d35866abcaa9105eba8d5a10526ccaeb6686021a66e868"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-S-4c2d500485920d59",
+          "outcomes": [
+            {
+              "id": "F-a23fde0a12e81544",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "independent createProbeDigest; JSDoc corrected; claude.test 6/6"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    },
+    "S-7c3940fe2ba51767": {
+      "slice_id": "S-7c3940fe2ba51767",
+      "root_cause_key": "F-ea52b9c672375e23",
+      "finding_ids": [
+        "F-ea52b9c672375e23"
+      ],
+      "evidence_digests": [
+        "sha256:def1c7e3fde98f5f8f15d1c01a7d616b67a1e341c577a4dc154e61cd8bf314c7"
+      ],
+      "permitted_paths": [
+        "openspec/memory/known-issues.md",
+        "schemas/kernel/capability-proof/fixtures/invalid/missing-evidence-digest.json",
+        "schemas/kernel/capability-proof/fixtures/invalid/missing-fixture.json",
+        "schemas/kernel/capability-proof/fixtures/valid/minimal.json",
+        "schemas/kernel/capability-proof/v1.schema.json",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/transport-failure/fixtures/invalid/minimal.json",
+        "schemas/kernel/transport-failure/fixtures/valid/minimal.json",
+        "schemas/kernel/transport-failure/v1.schema.json",
+        "schemas/kernel/transport-outcome/fixtures/invalid/minimal.json",
+        "schemas/kernel/transport-outcome/fixtures/valid/minimal.json",
+        "schemas/kernel/transport-outcome/v1.schema.json",
+        "schemas/kernel/transport-request/fixtures/invalid/minimal.json",
+        "schemas/kernel/transport-request/fixtures/valid/minimal.json",
+        "schemas/kernel/transport-request/v1.schema.json",
+        "scripts/lib/capability-proof/index.js",
+        "scripts/lib/capability-proof/index.test.js",
+        "scripts/lib/headless-conformance-host.js",
+        "scripts/lib/headless-conformance-host.test.js",
+        "scripts/lib/host-adapters/claude.js",
+        "scripts/lib/host-adapters/claude.test.js",
+        "scripts/lib/host-adapters/registry.test.js",
+        "scripts/lib/host-contract/index.js",
+        "scripts/lib/host-contract/index.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k2a-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/host-boundary.js",
+        "scripts/lib/lifecycle-kernel/host-boundary.test.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "resolutions": {
+        "F-ea52b9c672375e23": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 42,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-7c3940fe2ba51767",
+          "request_id": "correct-S-7c3940fe2ba51767",
+          "finding_ids": [
+            "F-ea52b9c672375e23"
+          ],
+          "paths": [
+            "scripts/lib/host-contract/index.js",
+            "scripts/lib/host-contract/index.test.js"
+          ],
+          "base_candidate_id": "sha256:de744a0ca04a9d48d7d35866abcaa9105eba8d5a10526ccaeb6686021a66e868",
+          "forecast_lines": 60,
+          "actual_changed_lines": 42,
+          "record_request_id": "record-S-7c3940fe2ba51767",
+          "corrected_candidate_id": "sha256:6d3793a48ec0c9bdafa82d107dbcbd98103b7089b709f9b3507ffc1973da32e5"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-S-7c3940fe2ba51767",
+          "outcomes": [
+            {
+              "id": "F-ea52b9c672375e23",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "invokePromise.catch noop; host-contract tests 13/13 incl F-ea52"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "dimension": "reliability",
+  "findings": [
+    {
+      "severity": "WARNING",
+      "summary": "observeHostPort success test compares equality across runs without asserting ok===true, so identical failures would pass.",
+      "acceptance_criteria": "Assert a.ok === true (and outcome) on the success path for REQ-lifecycle-kernel-runtime-017."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "AbortSignal in-flight cancel path (addEventListener abort) lacks a dedicated test; only pre-aborted signal is covered.",
+      "acceptance_criteria": "Add test: slow invoke + deferred abort mid-flight → failure_class cancel with preserved requestId."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "invokeTransportAsync Promise.race leaves losing invokePromise unsettled; late rejection after timeout/abort may become unhandledRejection.",
+      "acceptance_criteria": "Settle raced invokePromise after guard wins; add regression where port rejects after deadline wins race with zero unhandledRejection."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "verifyCapabilityProof fail-closed branch for invalid proof.kind has no dedicated unit test.",
+      "acceptance_criteria": "Add test: proof.kind !== capability-proof/v1 → ok:false, PROOF_VERIFICATION_FAILED, path:/kind."
+    },
+    {
+      "severity": "SUGGESTION",
+      "summary": "No dedicated unit success case for invokeTransportAsync in host-contract tests (only via consumers).",
+      "acceptance_criteria": "Add host-contract unit: async success returns ok:true with preserved requestId."
+    },
+    {
+      "severity": "SUGGESTION",
+      "summary": "observeHostPort error paths unknown-host-port and missing-transport-port lack tests.",
+      "acceptance_criteria": "Add host-boundary tests covering both structured error codes."
+    }
+  ]
+}

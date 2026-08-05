@@ -7,6 +7,7 @@ const {
   normalizeTransportOutcome,
   REQUIRED_TRANSPORTS,
   transportOwnsAuthority,
+  invokeTransportAsync,
 } = require("./host-contract/index.js");
 
 const KIND = "headless-conformance-host/v1";
@@ -19,6 +20,7 @@ const REASON = Object.freeze({
   GRAPH_DUPLICATION: "graph-duplication",
   UNKNOWN_FAULT: "unknown-fault",
   ADAPTER_REJECTED: "adapter-rejected",
+  SYNTHETIC_INJECT_ALONE: "synthetic-inject-alone",
 });
 
 function isRecord(value) {
@@ -65,41 +67,35 @@ function detectDuplication(adapter) {
   return { ok: true };
 }
 
-function invokePort(port, input) {
-  try {
-    if (typeof port === "function") {
-      return normalizeTransportOutcome(port(input));
-    }
-    if (isRecord(port) && typeof port.invoke === "function") {
-      return normalizeTransportOutcome(port.invoke(input));
-    }
-    if (isRecord(port) && typeof port.run === "function") {
-      return normalizeTransportOutcome(port.run(input));
-    }
-    // Passive port metadata — synthetic observation only.
-    return { ok: true, outcome: "noop", value: { port_id: port && port.port_id } };
-  } catch (err) {
-    const code =
-      err && typeof err.code === "string" && err.code.trim() !== ""
-        ? err.code
-        : "transport-invoke-error";
-    return { ok: false, outcome: "error", code };
-  }
-}
-
+/**
+ * Synthetic inject helper — factory for expected fault shapes / failing wrappers.
+ * Alone does NOT satisfy fault-matrix coverage.
+ */
 function injectFault(fault, portName) {
   const code = `host-fault-${fault}`;
   switch (fault) {
     case "timeout":
-      return { ok: false, outcome: "timeout", code, value: { port: portName } };
+      return { ok: false, outcome: "timeout", failure_class: "timeout", code, value: { port: portName } };
     case "cancel":
-      return { ok: false, outcome: "cancel", code, value: { port: portName } };
+      return { ok: false, outcome: "cancel", failure_class: "cancel", code, value: { port: portName } };
     case "worker-fail":
-      return { ok: false, outcome: "worker-fail", code, value: { port: portName } };
+      return {
+        ok: false,
+        outcome: "worker-fail",
+        failure_class: "worker-fail",
+        code,
+        value: { port: portName },
+      };
     case "interrupt":
-      return { ok: false, outcome: "interrupt", code, value: { port: portName } };
+      return {
+        ok: false,
+        outcome: "interrupt",
+        failure_class: "interrupt",
+        code,
+        value: { port: portName },
+      };
     default:
-      return { ok: false, outcome: "error", code: REASON.UNKNOWN_FAULT };
+      return { ok: false, outcome: "error", failure_class: "reject", code: REASON.UNKNOWN_FAULT };
   }
 }
 
@@ -111,9 +107,62 @@ function faultTargetPort(fault) {
 }
 
 /**
+ * Install a failing port wrapper that surfaces the fault through invokeTransportAsync.
+ */
+function createFailingPortWrapper(fault, portName, originalPort) {
+  const synthetic = injectFault(fault, portName);
+  const portId = (isRecord(originalPort) && originalPort.port_id) || portName;
+  return {
+    port_id: portId,
+    async invoke() {
+      if (fault === "timeout") {
+        throw Object.assign(new Error("deadline exceeded"), {
+          name: "TimeoutError",
+          code: synthetic.code,
+          failure_class: "timeout",
+        });
+      }
+      if (fault === "cancel") {
+        throw Object.assign(new Error("aborted"), {
+          name: "AbortError",
+          code: synthetic.code,
+          failure_class: "cancel",
+        });
+      }
+      if (fault === "interrupt") {
+        throw Object.assign(new Error("interrupt"), {
+          code: synthetic.code,
+          failure_class: "interrupt",
+        });
+      }
+      if (fault === "worker-fail") {
+        throw Object.assign(new Error("worker-fail"), {
+          code: synthetic.code,
+          failure_class: "worker-fail",
+        });
+      }
+      return synthetic;
+    },
+  };
+}
+
+/**
+ * Coverage is incomplete when only synthetic injectFault bypasses published ports.
+ */
+function evaluateFaultMatrixCoverage({ port_invocations = [], synthetic_only = false } = {}) {
+  if (synthetic_only || port_invocations.length === 0) {
+    return {
+      complete: false,
+      reason_code: REASON.SYNTHETIC_INJECT_ALONE,
+    };
+  }
+  return { complete: true, reason_code: null };
+}
+
+/**
  * @param {{scenario_id:string, seed:string|number, adapter:object, fault?:string|null, proof_material?:object}} input
  */
-function runConformanceScenario(input) {
+async function runConformanceScenario(input) {
   const scenarioId = (input && input.scenario_id) || "anonymous";
   const seed = input && input.seed != null ? input.seed : 0;
   const adapterInput = input && input.adapter;
@@ -134,7 +183,15 @@ function runConformanceScenario(input) {
       capability_states: {},
       proof_verification: null,
       port_outcomes: {},
+      port_traversal: false,
     });
+  }
+
+  const transports = { ...(adapterInput.transports || {}) };
+  let portTraversal = false;
+  if (fault) {
+    const target = faultTargetPort(fault);
+    transports[target] = createFailingPortWrapper(fault, target, transports[target]);
   }
 
   let adapter;
@@ -144,7 +201,7 @@ function runConformanceScenario(input) {
       adapter_version: adapterInput.adapter_version,
       host_version: adapterInput.host_version,
       capabilities: adapterInput.capabilities || {},
-      transports: adapterInput.transports,
+      transports,
       authority_surface: adapterInput.authority_surface,
     });
   } catch (err) {
@@ -161,29 +218,38 @@ function runConformanceScenario(input) {
       capability_states: {},
       proof_verification: null,
       port_outcomes: {},
+      port_traversal: false,
     });
   }
 
   const portOutcomes = {};
   for (const name of REQUIRED_TRANSPORTS) {
+    const outcome = await invokeTransportAsync(adapter.transports[name], {
+      requestId: `${scenarioId}:${name}`,
+      input: { seed, scenario_id: scenarioId },
+    });
+    portOutcomes[name] = outcome;
     if (fault && faultTargetPort(fault) === name) {
-      portOutcomes[name] = injectFault(fault, name);
-      continue;
+      portTraversal = true;
     }
-    portOutcomes[name] = invokePort(adapter.transports[name], { seed, scenario_id: scenarioId });
   }
 
   const capabilityStates = {};
   const proofVerification = {};
   for (const [capId, declared] of Object.entries(adapter.capabilities)) {
-    const proof = proofMaterial[capId] && proofMaterial[capId].proof;
-    const evidence = proofMaterial[capId] && proofMaterial[capId].evidence;
+    const entry = proofMaterial[capId] || {};
     const resolved = resolveCapabilityState({
       capability_id: capId,
       declared_state: declared,
-      proof,
-      semantic_evidence: evidence,
+      proof: entry.proof,
+      semantic_evidence: entry.evidence,
       request_enforced: declared === "enforced",
+      expectedAdapterId: entry.expectedAdapterId || adapter.adapter_id,
+      expectedAdapterVersion: entry.expectedAdapterVersion || adapter.adapter_version,
+      expectedHostRuntimeVersion: entry.expectedHostRuntimeVersion || adapter.host_version,
+      // Independent expectedProbeDigest required — never fall back to proof.probe_digest
+      // (self-consistent proof must not authenticate without an external digest bind).
+      expectedProbeDigest: entry.expectedProbeDigest,
     });
     capabilityStates[capId] = resolved.effective_state;
     proofVerification[capId] = {
@@ -192,7 +258,6 @@ function runConformanceScenario(input) {
     };
   }
 
-  // Fault paths must not invent successful enforced capability for the faulted port.
   if (fault) {
     const target = faultTargetPort(fault);
     if (capabilityStates[target] === "enforced" && portOutcomes[target].ok === false) {
@@ -204,16 +269,19 @@ function runConformanceScenario(input) {
   let pass;
   let reasonCode = null;
   if (fault == null) {
-    const failed = Object.values(portOutcomes).find((o) => normalizeTransportOutcome(o).ok !== true);
+    const failed = Object.values(portOutcomes).find((o) => o.ok !== true);
     pass = failed == null;
     if (!pass) {
-      const normalized = normalizeTransportOutcome(failed);
-      reasonCode = normalized.code || "transport-outcome-failed";
+      reasonCode = failed.code || failed.failure_class || "transport-outcome-failed";
     }
   } else {
+    const target = faultTargetPort(fault);
     const expected = fault === "worker-fail" ? "worker-fail" : fault;
-    pass = portOutcomes[faultTargetPort(fault)].outcome === expected;
-    if (!pass) reasonCode = portOutcomes[faultTargetPort(fault)].code;
+    const observed = portOutcomes[target];
+    pass =
+      observed.ok === false &&
+      (observed.outcome === expected || observed.failure_class === expected);
+    if (!pass) reasonCode = observed.code || observed.failure_class;
   }
 
   return semanticResult({
@@ -228,11 +296,11 @@ function runConformanceScenario(input) {
     capability_states: capabilityStates,
     proof_verification: proofVerification,
     port_outcomes: portOutcomes,
+    port_traversal: portTraversal,
   });
 }
 
 function semanticResult(payload) {
-  // Exclude volatile timestamps from semantic digests by construction.
   const semantic = {
     kind: KIND,
     scenario_id: payload.scenario_id,
@@ -247,6 +315,7 @@ function semanticResult(payload) {
     capability_states: payload.capability_states,
     proof_verification: payload.proof_verification,
     port_outcomes: payload.port_outcomes,
+    port_traversal: payload.port_traversal === true,
   };
   return {
     ...semantic,
@@ -257,7 +326,7 @@ function semanticResult(payload) {
 /**
  * @param {{adapter:object, fixtures?:object[], proof_material?:object}} input
  */
-function runHostFaultMatrix(input) {
+async function runHostFaultMatrix(input) {
   const adapter = input && input.adapter;
   const proofMaterial = (input && input.proof_material) || {};
   const fixtures =
@@ -265,22 +334,31 @@ function runHostFaultMatrix(input) {
       ? input.fixtures
       : FAULTS.map((fault) => ({ scenario_id: `fault-${fault}`, seed: "k2a-fault", fault }));
 
-  const results = fixtures.map((fixture) =>
-    runConformanceScenario({
-      scenario_id: fixture.scenario_id,
-      seed: fixture.seed != null ? fixture.seed : "k2a-fault",
-      adapter,
-      fault: fixture.fault,
-      proof_material: proofMaterial,
-    })
-  );
+  const results = [];
+  for (const fixture of fixtures) {
+    results.push(
+      await runConformanceScenario({
+        scenario_id: fixture.scenario_id,
+        seed: fixture.seed != null ? fixture.seed : "k2a-fault",
+        adapter,
+        fault: fixture.fault,
+        proof_material: proofMaterial,
+      })
+    );
+  }
+
+  const coverage = evaluateFaultMatrixCoverage({
+    port_invocations: results.filter((r) => r.port_traversal === true),
+    synthetic_only: results.every((r) => r.port_traversal !== true),
+  });
 
   return {
     kind: KIND,
     peer_of: HARNESS_KIND,
     faults_covered: FAULTS.slice(),
     results,
-    pass: results.every((r) => r.pass === true),
+    coverage,
+    pass: results.every((r) => r.pass === true) && coverage.complete === true,
   };
 }
 
@@ -297,4 +375,9 @@ module.exports = {
   runConformanceScenario,
   runHostFaultMatrix,
   detectDuplication,
+  injectFault,
+  evaluateFaultMatrixCoverage,
+  createFailingPortWrapper,
+  faultTargetPort,
+  normalizeTransportOutcome,
 };

@@ -1,0 +1,25 @@
+{
+  "dimension": "resilience",
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "summary": "invokeTransportAsync Promise.race abandons the losing invokePromise; a late port rejection after timeout/cancel becomes unhandledRejection.",
+      "acceptance_criteria": "Attach settlement handler to raced invokePromise (or forward AbortSignal so port stops) so late reject cannot surface as unhandledRejection; add regression test with reject-after-deadline."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "Claude port handlers return ok:true with raw primitive return without awaiting; async primitive rejection bypasses structured failure mapping.",
+      "acceptance_criteria": "Await Promise.resolve(primitives.*) (or catch) and map failures to ok:false; add test with async rejecting primitive that must not yield ok:true."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "AbortSignal/deadlineMs are race guards only and are not forwarded to the port invoker, so in-flight work continues after classified timeout/cancel.",
+      "acceptance_criteria": "Forward AbortSignal into invoker request for cooperative cancel, or document intentional non-cooperative cancel in ADR while still settling the raced promise; cover with a test."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "Claude loadFixture uses readFileSync/JSON.parse without try/catch; missing/invalid fixture throws unstructured ENOENT/SyntaxError.",
+      "acceptance_criteria": "Map fixture I/O/parse failures to a stable structured reason_code (or documented intentional fail-fast)."
+    }
+  ]
+}

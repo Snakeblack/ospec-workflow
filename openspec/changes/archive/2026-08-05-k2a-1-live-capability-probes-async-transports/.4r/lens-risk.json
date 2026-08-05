@@ -1,0 +1,20 @@
+{
+  "dimension": "risk",
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "summary": "runConformanceScenario fills expectedProbeDigest from entry.proof.probe_digest, bypassing independent live bind required by ADR-001/REQ-capability-proof-005.",
+      "acceptance_criteria": "Caller must supply independent expectedProbeDigest; missing value fail-closed. Headless must not default expectedProbeDigest from proof.probe_digest. Add regression: coherent proof without external expectedProbeDigest cannot authenticate enforced."
+    },
+    {
+      "severity": "CRITICAL",
+      "summary": "createClaudeHostAdapter promotes to enforced when liveProbes[id] is truthy without requiring a real host primitive, and verifies with expectedProbeDigest from the same built proof (circular bind).",
+      "acceptance_criteria": "enforced only when a real primitive for that capability is present AND live probe evidence verifies against an independent expectedProbeDigest. Fixture-only or synthetic liveProbes without primitives MUST resolve unavailable|instructional|partial. Add test: liveProbes without primitives never yields enforced."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "Claude transport handlers still return ok:true stubs when host primitives are absent (toolMap/delegation metadata), which can be confused with demonstrated capability.",
+      "acceptance_criteria": "Without primitives, port outcomes MUST NOT claim success that implies demonstrated capability; align with instructional/unavailable honesty (ok:false or explicit instructional outcome documented in ADR)."
+    }
+  ]
+}

@@ -3,6 +3,13 @@ title: Known Issues
 last_updated: 2026-08-05
 ---
 
+## Host-boundary success observe lacks explicit ok:true assertion
+- severity: WARNING
+- area: scripts/lib/lifecycle-kernel/host-boundary.test.js (REQ-lifecycle-kernel-runtime-017 success scenario)
+- workaround: after observeHostPort with a successful port, assert.equal(a.ok, true) (and optionally a.outcome) instead of only comparing two runs for equality
+- change: k2a-1-live-capability-probes-async-transports
+- date: 2026-08-05
+
 ## Type-only re-export smoke for issueOperationPermit
 - severity: WARNING
 - area: scripts/lib/lifecycle-kernel/index.test.js:341 (task 2.4)

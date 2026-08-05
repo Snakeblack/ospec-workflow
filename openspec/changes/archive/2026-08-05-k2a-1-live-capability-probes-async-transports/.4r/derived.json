@@ -1,0 +1,243 @@
+{
+  "schema_version": 1,
+  "classification": "high-risk",
+  "evidence": {
+    "schema_version": 1,
+    "fingerprint": "sha256:0e3829ca0768675c0de0e590fb374d37803f12f00caa0842888b35ae33d91fc6",
+    "sources": {
+      "paths": [
+        "openspec/memory/known-issues.md",
+        "schemas/kernel/capability-proof/fixtures/invalid/missing-evidence-digest.json",
+        "schemas/kernel/capability-proof/fixtures/invalid/missing-fixture.json",
+        "schemas/kernel/capability-proof/fixtures/valid/minimal.json",
+        "schemas/kernel/capability-proof/v1.schema.json",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/transport-failure/fixtures/invalid/minimal.json",
+        "schemas/kernel/transport-failure/fixtures/valid/minimal.json",
+        "schemas/kernel/transport-failure/v1.schema.json",
+        "schemas/kernel/transport-outcome/fixtures/invalid/minimal.json",
+        "schemas/kernel/transport-outcome/fixtures/valid/minimal.json",
+        "schemas/kernel/transport-outcome/v1.schema.json",
+        "schemas/kernel/transport-request/fixtures/invalid/minimal.json",
+        "schemas/kernel/transport-request/fixtures/valid/minimal.json",
+        "schemas/kernel/transport-request/v1.schema.json",
+        "scripts/lib/capability-proof/index.js",
+        "scripts/lib/capability-proof/index.test.js",
+        "scripts/lib/headless-conformance-host.js",
+        "scripts/lib/headless-conformance-host.test.js",
+        "scripts/lib/host-adapters/claude.js",
+        "scripts/lib/host-adapters/claude.test.js",
+        "scripts/lib/host-adapters/registry.test.js",
+        "scripts/lib/host-contract/index.js",
+        "scripts/lib/host-contract/index.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k2a-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/host-boundary.js",
+        "scripts/lib/lifecycle-kernel/host-boundary.test.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/minimal-kernel-harness.js",
+        "scripts/lib/minimal-kernel-harness.test.js"
+      ],
+      "capabilities": [
+        "capability-proof",
+        "headless-conformance",
+        "host-adapters",
+        "host-contract",
+        "kernel-schemas",
+        "lifecycle-kernel",
+        "runtime"
+      ],
+      "operation_types": [
+        "add",
+        "modify"
+      ],
+      "dependencies": [
+        "host-contract",
+        "lifecycle-kernel"
+      ],
+      "facts": [
+        {
+          "code": "dependency-change",
+          "source": "dependency",
+          "detail": "host-contract,lifecycle-kernel"
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "async-rejection-handling on transport ports"
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "enforced-without-probe gate for Claude adapter"
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "live-identity-binding for CapabilityProof"
+        },
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime"
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/capability-proof/index.js,scripts/lib/headless-conformance-host.js,scripts/lib/host-contract/index.js"
+        },
+        {
+          "code": "verify-reliability",
+          "source": "verify",
+          "detail": "observeHostPort success path compares equality across runs without asserting ok===true"
+        }
+      ]
+    }
+  },
+  "generalist": {
+    "status": "needs-specialist",
+    "specialists": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "reason": "signals=dependency-change,design-risk,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability"
+  },
+  "depth": {
+    "review": "strict"
+  },
+  "escalation_reason": null,
+  "dimensions": {
+    "risk": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=dependency-change,design-risk,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability",
+          "precedence": 3
+        },
+        {
+          "code": "dependency-change",
+          "source": "dependency",
+          "detail": "host-contract,lifecycle-kernel",
+          "precedence": 4
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "async-rejection-handling on transport ports",
+          "precedence": 4
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "enforced-without-probe gate for Claude adapter",
+          "precedence": 4
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "live-identity-binding for CapabilityProof",
+          "precedence": 4
+        }
+      ]
+    },
+    "reliability": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "verify-reliability",
+          "source": "verify",
+          "detail": "observeHostPort success path compares equality across runs without asserting ok===true",
+          "precedence": 1
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/capability-proof/index.js,scripts/lib/headless-conformance-host.js,scripts/lib/host-contract/index.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=dependency-change,design-risk,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability",
+          "precedence": 3
+        },
+        {
+          "code": "dependency-change",
+          "source": "dependency",
+          "detail": "host-contract,lifecycle-kernel",
+          "precedence": 4
+        },
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime",
+          "precedence": 5
+        }
+      ]
+    },
+    "resilience": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/capability-proof/index.js,scripts/lib/headless-conformance-host.js,scripts/lib/host-contract/index.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=dependency-change,design-risk,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability",
+          "precedence": 3
+        }
+      ]
+    },
+    "readability": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=dependency-change,design-risk,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability",
+          "precedence": 3
+        }
+      ]
+    }
+  },
+  "selected_specialists": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ]
+}

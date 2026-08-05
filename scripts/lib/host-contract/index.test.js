@@ -11,7 +11,7 @@ const {
   REQUIRED_TRANSPORTS,
   REASON,
 } = require("./index.js");
-const { createEvidenceDigest } = require("../capability-proof/index.js");
+const { createEvidenceDigest, createProbeDigest } = require("../capability-proof/index.js");
 
 function baseTransports(overrides = {}) {
   return {
@@ -25,6 +25,7 @@ function baseTransports(overrides = {}) {
 }
 
 function validProof(capabilityId, evidence = { ok: true }) {
+  const adapter_id = "claude";
   const adapter_version = "1.0.0";
   const host_version = "k2a-host/1";
   const fixture = `fixture/${capabilityId}.json`;
@@ -35,16 +36,31 @@ function validProof(capabilityId, evidence = { ok: true }) {
     fixture,
     evidence,
   });
+  const probe_digest = createProbeDigest({
+    capability_id: capabilityId,
+    adapter_id,
+    adapter_version,
+    host_version,
+    probe: { live: true, capabilityId },
+  });
   return {
     proof: {
       schema_version: 1,
       kind: "capability-proof/v1",
+      adapter_id,
       adapter_version,
       host_version,
       fixture,
       evidence_digest,
+      probe_digest,
     },
     evidence,
+    expected: {
+      expectedAdapterId: adapter_id,
+      expectedAdapterVersion: adapter_version,
+      expectedHostRuntimeVersion: host_version,
+      expectedProbeDigest: probe_digest,
+    },
   };
 }
 
@@ -158,8 +174,8 @@ test("resolveCapabilityState refuses unavailable/instructional/partial → enfor
   }
 });
 
-test("resolveCapabilityState promotes only with verifying proof", () => {
-  const { proof, evidence } = validProof("ExecutionTransport");
+test("resolveCapabilityState promotes only with verifying live-bound proof", () => {
+  const { proof, evidence, expected } = validProof("ExecutionTransport");
   const refused = resolveCapabilityState({
     capability_id: "ExecutionTransport",
     declared_state: "enforced",
@@ -173,6 +189,10 @@ test("resolveCapabilityState promotes only with verifying proof", () => {
     proof,
     semantic_evidence: evidence,
     request_enforced: true,
+    expectedAdapterId: expected.expectedAdapterId,
+    expectedAdapterVersion: expected.expectedAdapterVersion,
+    expectedHostRuntimeVersion: expected.expectedHostRuntimeVersion,
+    expectedProbeDigest: expected.expectedProbeDigest,
   });
   assert.equal(ok.ok, true);
   assert.equal(ok.enforced, true);
@@ -220,4 +240,107 @@ test("normalizeTransportOutcome triangulates {ok,outcome,code?,value?}", () => {
     outcome: "timeout",
     code: "host-fault-timeout",
   });
+});
+
+test("invokeTransportAsync: rejected Promise becomes ok:false classified failure", async () => {
+  const { invokeTransportAsync, classifyTransportFailure } = require("./index.js");
+  const port = {
+    invoke: async () => {
+      throw Object.assign(new Error("boom"), { code: "reject-boom" });
+    },
+  };
+  const outcome = await invokeTransportAsync(port, { requestId: "r-1", input: {} });
+  assert.equal(outcome.ok, false);
+  assert.equal(outcome.failure_class, "reject");
+  assert.equal(outcome.requestId, "r-1");
+  assert.notEqual(outcome.ok, true);
+
+  const classified = classifyTransportFailure(
+    Object.assign(new Error("worker crashed"), { code: "worker-fail" }),
+    { requestId: "r-2", portName: "WorkerTransport" }
+  );
+  assert.equal(classified.ok, false);
+  assert.equal(classified.failure_class, "worker-fail");
+  assert.equal(classified.requestId, "r-2");
+});
+
+test("invokeTransportAsync: AbortSignal and deadline classify as cancel/timeout with requestId", async () => {
+  const { invokeTransportAsync } = require("./index.js");
+
+  const ac = new AbortController();
+  ac.abort();
+  const cancelled = await invokeTransportAsync(
+    { invoke: async () => ({ ok: true, outcome: "ok" }) },
+    { requestId: "abort-1", signal: ac.signal, input: {} }
+  );
+  assert.equal(cancelled.ok, false);
+  assert.equal(cancelled.failure_class, "cancel");
+  assert.equal(cancelled.requestId, "abort-1");
+
+  const timedOut = await invokeTransportAsync(
+    {
+      invoke: () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve({ ok: true, outcome: "ok" }), 200);
+        }),
+    },
+    { requestId: "dl-1", deadlineMs: 5, input: {} }
+  );
+  assert.equal(timedOut.ok, false);
+  assert.equal(timedOut.failure_class, "timeout");
+  assert.equal(timedOut.requestId, "dl-1");
+});
+
+test("F-ea52b9c672375e23: late invoke rejection after timeout does not unhandledReject", async () => {
+  const { invokeTransportAsync } = require("./index.js");
+  const unhandled = [];
+  const onUnhandled = (err) => {
+    unhandled.push(err);
+  };
+  process.on("unhandledRejection", onUnhandled);
+  try {
+    const outcome = await invokeTransportAsync(
+      {
+        invoke: () =>
+          new Promise((_, reject) => {
+            setTimeout(() => reject(new Error("late-orphan-reject")), 80);
+          }),
+      },
+      { requestId: "orphan-1", deadlineMs: 5, input: {} }
+    );
+    assert.equal(outcome.ok, false);
+    assert.equal(outcome.failure_class, "timeout");
+    assert.equal(outcome.requestId, "orphan-1");
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    assert.equal(unhandled.length, 0, `unexpected unhandledRejection: ${unhandled.map(String)}`);
+  } finally {
+    process.removeListener("unhandledRejection", onUnhandled);
+  }
+});
+
+test("createHostAdapter deep-freezes ports and capabilities (post-create mutation fails closed)", () => {
+  const adapter = createHostAdapter({
+    adapter_id: "claude",
+    adapter_version: "1.0.0",
+    host_version: "k2a-host/1",
+    capabilities: { ExecutionTransport: "partial" },
+    transports: baseTransports({
+      ExecutionTransport: { port_id: "e", invoke: () => ({ ok: true, outcome: "ok" }) },
+    }),
+  });
+
+  assert.throws(() => {
+    adapter.capabilities.ExecutionTransport = "enforced";
+  });
+  assert.equal(adapter.capabilities.ExecutionTransport, "partial");
+
+  assert.throws(() => {
+    adapter.transports.ExecutionTransport = { port_id: "hijacked" };
+  });
+  assert.equal(adapter.transports.ExecutionTransport.port_id, "e");
+
+  assert.throws(() => {
+    adapter.transports.ExecutionTransport.port_id = "mutated";
+  });
+  assert.equal(adapter.transports.ExecutionTransport.port_id, "e");
 });

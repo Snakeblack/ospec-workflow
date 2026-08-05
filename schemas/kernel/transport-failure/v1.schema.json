@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/transport-failure/v1",
+  "schema_version": 1,
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "transport-failure/v1"
+    },
+    "ok": {
+      "const": false
+    },
+    "failure_class": {
+      "type": "string",
+      "enum": [
+        "timeout",
+        "cancel",
+        "reject",
+        "interrupt",
+        "worker-fail"
+      ]
+    },
+    "requestId": {
+      "type": "string"
+    },
+    "outcome": {
+      "type": "string"
+    },
+    "code": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "ok",
+    "failure_class"
+  ],
+  "additionalProperties": false
+}

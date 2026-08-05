@@ -311,12 +311,58 @@
       "required_fields": [
         "schema_version",
         "kind",
+        "adapter_id",
         "adapter_version",
         "host_version",
         "fixture",
-        "evidence_digest"
+        "evidence_digest",
+        "probe_digest"
       ],
       "enum_values": {},
+      "command_shapes": []
+    },
+    "transport-request": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "requestId"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "transport-outcome": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "ok"
+      ],
+      "enum_values": {
+        "failure_class": [
+          "timeout",
+          "cancel",
+          "reject",
+          "interrupt",
+          "worker-fail"
+        ]
+      },
+      "command_shapes": []
+    },
+    "transport-failure": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "ok",
+        "failure_class"
+      ],
+      "enum_values": {
+        "failure_class": [
+          "timeout",
+          "cancel",
+          "reject",
+          "interrupt",
+          "worker-fail"
+        ]
+      },
       "command_shapes": []
     }
   }

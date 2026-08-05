@@ -115,6 +115,21 @@
       "path": "schemas/kernel/capability-proof/v1.schema.json",
       "$id": "ospec://schemas/kernel/capability-proof/v1",
       "schema_version": 1
+    },
+    "transport-request": {
+      "path": "schemas/kernel/transport-request/v1.schema.json",
+      "$id": "ospec://schemas/kernel/transport-request/v1",
+      "schema_version": 1
+    },
+    "transport-outcome": {
+      "path": "schemas/kernel/transport-outcome/v1.schema.json",
+      "$id": "ospec://schemas/kernel/transport-outcome/v1",
+      "schema_version": 1
+    },
+    "transport-failure": {
+      "path": "schemas/kernel/transport-failure/v1.schema.json",
+      "$id": "ospec://schemas/kernel/transport-failure/v1",
+      "schema_version": 1
     }
   }
 }

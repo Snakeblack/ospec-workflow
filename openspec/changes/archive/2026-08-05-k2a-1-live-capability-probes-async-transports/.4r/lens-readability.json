@@ -1,0 +1,30 @@
+{
+  "dimension": "readability",
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "summary": "createClaudeHostAdapter JSDoc claims live-bound verification but uses expectedProbeDigest from the same buildEvidence material, hiding that enforced mainly requires liveProbes presence.",
+      "acceptance_criteria": "Document or redesign the gate so enforced requires an independent expectedProbeDigest (or remove the tautological verify); JSDoc must not claim external live-bind when the digest is self-derived."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "resolveCapabilityState and evaluateEnforcementEligibility duplicate enforcement promotion gates with divergent reason_code rules and no authority comment.",
+      "acceptance_criteria": "Make one delegate to the other, or document which API is authoritative and the declared×request_enforced×reason_code matrix."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "classifyTransportFailure uses undocumented substring heuristics and WorkerTransport→worker-fail fallback without priority comments.",
+      "acceptance_criteria": "Document classification order: explicit failure_class → text heuristics → portName fallback."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "ENFORCED_CAPABILITIES alias still names transport IDs as ENFORCED despite enforced-only-after-probe semantics.",
+      "acceptance_criteria": "Remove alias or rename so no symbol says ENFORCED unless it means enforced state."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "resolveHonestState special-cases DeliveryGate/Question → instructional without explaining why others are unavailable.",
+      "acceptance_criteria": "Add one-line rationale or capability→fallback table next to resolveHonestState."
+    }
+  ]
+}

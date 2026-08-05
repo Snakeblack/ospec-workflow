@@ -354,19 +354,40 @@ test("K2.1 fixed-policy control-path remains green under K2.1 enforcement", asyn
   assert.equal(fixed.operations[0].outcome, "advanced");
 });
 
-test("K2a: harness peers with Headless Conformance Host for host-fault scenarios", () => {
+test("K2a: harness peers with Headless Conformance Host for host-fault scenarios", async () => {
   const { peerHostFaultMatrix, getHarnessKind, HARNESS_KIND } = require("./minimal-kernel-harness.js");
   const { createClaudeHostAdapter } = require("./host-adapters/claude.js");
   const { KIND } = require("./headless-conformance-host.js");
   assert.equal(getHarnessKind(), HARNESS_KIND);
   assert.notEqual(HARNESS_KIND, KIND);
 
-  const peer = peerHostFaultMatrix({ adapter: createClaudeHostAdapter() });
+  const peer = await peerHostFaultMatrix({ adapter: createClaudeHostAdapter() });
   assert.equal(peer.fault_driver, "headless-conformance-host");
   assert.equal(peer.owns_host_policy, false);
   assert.equal(peer.owns_capability_proof_issuance, false);
   assert.equal(peer.matrix.pass, true);
   assert.deepEqual(peer.matrix.faults_covered, ["timeout", "cancel", "worker-fail", "interrupt"]);
+});
+
+test("K2a: harness-alone host-fault coverage remains incomplete without headless peer (W4)", () => {
+  const {
+    evaluateHarnessAloneHostFaultCoverage,
+    HARNESS_KIND,
+  } = require("./minimal-kernel-harness.js");
+
+  // Only Minimal Kernel Harness fixtures — no Headless Conformance Host peer wired.
+  const alone = evaluateHarnessAloneHostFaultCoverage({
+    peer_wired: false,
+    fault_driver: null,
+    faults_exercised: [],
+  });
+  assert.equal(alone.complete, false);
+  assert.equal(alone.reason_code, "host-fault-coverage-incomplete");
+  assert.equal(alone.peer_wired, false);
+  assert.equal(alone.harness_kind, HARNESS_KIND);
+
+  // Must not pass by stubbing incompleteness away.
+  assert.notEqual(alone.complete, true);
 });
 
 test("K2a: fixed-policy and K2.1 authority fixtures remain green with host-contract ports available", async () => {

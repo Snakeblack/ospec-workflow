@@ -25,7 +25,7 @@ const K1_SCHEMA_BASELINE = Object.freeze({
   "schemas/kernel/classification/v1.schema.json":
     "sha256:12e6c243ae59f4761b887c0b61693f8da03fd3e7aeba99e0fcde6064d0ce8464",
   "schemas/kernel/contract-claims.json":
-    "sha256:f1127e872b3cfd357246ba9aa05952df119d4bb44bff0172cbc7fc26a61334f4",
+    "sha256:2a7fcb0a2aaa609209e6445f034f58679dd5fe260eb2cd39e533ea507718a25c",
   "schemas/kernel/contract/fixtures/invalid/minimal.json":
     "sha256:a189201f6655de8fdff50a1ccc7a1d6b1a58d3a7f8dcc829f3e90281f5a56af2",
   "schemas/kernel/contract/fixtures/valid/minimal.json":
@@ -69,7 +69,7 @@ const K1_SCHEMA_BASELINE = Object.freeze({
   "schemas/kernel/graph-node/v1.schema.json":
     "sha256:0b6fc9169f0573e9ccb8e8f3aa8c7c061e576552aaedb508a0caa786133ae21f",
   "schemas/kernel/manifest.json":
-    "sha256:781d1568d76744bc89c4d1db983197cfea78c1858321d7f8798c1bc4e275b5a7",
+    "sha256:942c5dddfbe724de2d0530856406030987d0fbf90c791a4072111f6eda9a88b0",
   "schemas/kernel/parity/fixtures/diverge-next-action.json":
     "sha256:4f8e8898655593c270776f7f6627caa6eb05f45ca5686126f60ddf6f9c756db5",
   "schemas/kernel/parity/fixtures/match-execute.json":
@@ -140,6 +140,10 @@ function listK1SchemaFiles(rootDir) {
     "schemas/kernel/tool-execution-transport/",
     "schemas/kernel/delivery-gate-transport/",
     "schemas/kernel/capability-proof/",
+    // k2a-1 additive transport envelope families
+    "schemas/kernel/transport-request/",
+    "schemas/kernel/transport-outcome/",
+    "schemas/kernel/transport-failure/",
   ];
 
   function walk(dir) {

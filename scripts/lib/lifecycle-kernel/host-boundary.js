@@ -1,6 +1,11 @@
 "use strict";
 
-const { resolveCapabilityState, normalizeTransportOutcome, REQUIRED_TRANSPORTS } = require("../host-contract/index.js");
+const {
+  resolveCapabilityState,
+  normalizeTransportOutcome,
+  REQUIRED_TRANSPORTS,
+  invokeTransportAsync,
+} = require("../host-contract/index.js");
 
 /**
  * Kernel-owned generic host boundary.
@@ -12,10 +17,10 @@ function isRecord(value) {
 }
 
 /**
- * Observe a transport through the generic boundary.
- * @param {{transports:object, port:string, input?:*}} args
+ * Observe a transport through the generic async boundary.
+ * @param {{transports:object, port:string, input?:*, requestId?:string, signal?:AbortSignal, deadlineMs?:number}} args
  */
-function observeHostPort(args) {
+async function observeHostPort(args) {
   const portName = args && args.port;
   const transports = args && args.transports;
   if (!REQUIRED_TRANSPORTS.includes(portName)) {
@@ -25,32 +30,39 @@ function observeHostPort(args) {
     return { ok: false, outcome: "error", code: "missing-transport-port" };
   }
   const port = transports[portName];
-  let raw;
-  if (typeof port === "function") raw = port(args.input || {});
-  else if (isRecord(port) && typeof port.invoke === "function") raw = port.invoke(args.input || {});
-  else if (isRecord(port) && typeof port.run === "function") raw = port.run(args.input || {});
-  else raw = { ok: true, outcome: "noop", value: port };
-  return normalizeTransportOutcome(raw);
+  const invoker =
+    typeof port === "function" ||
+    (isRecord(port) && (typeof port.invoke === "function" || typeof port.run === "function"));
+  if (!invoker) {
+    return normalizeTransportOutcome({ ok: true, outcome: "noop", value: port });
+  }
+  return invokeTransportAsync(port, {
+    requestId: args.requestId || `observe:${portName}`,
+    signal: args.signal,
+    deadlineMs: args.deadlineMs,
+    input: args.input || {},
+  });
 }
 
 /**
  * Resolve capability enforcement eligibility via ports/proof — never by host product id.
- * @param {{capability_id:string, declared_state:string, proof?:object, semantic_evidence?:*, host_product_id?:string}} input
  */
 function resolveHostCapability(input) {
-  // Explicitly ignore host_product_id for transition/enforcement decisions.
   return resolveCapabilityState({
     capability_id: input.capability_id,
     declared_state: input.declared_state,
     proof: input.proof,
     semantic_evidence: input.semantic_evidence,
     request_enforced: input.request_enforced,
+    expectedAdapterId: input.expectedAdapterId,
+    expectedAdapterVersion: input.expectedAdapterVersion,
+    expectedHostRuntimeVersion: input.expectedHostRuntimeVersion,
+    expectedProbeDigest: input.expectedProbeDigest,
   });
 }
 
 /**
  * After a transport fault, authoritative mutation still requires permit+CAS.
- * This helper only reports that host-local mutation is forbidden.
  */
 function requirePermitCasAfterHostFault(faultOutcome) {
   if (!faultOutcome || faultOutcome.ok === true) {
@@ -61,14 +73,10 @@ function requirePermitCasAfterHostFault(faultOutcome) {
     host_local_mutation_allowed: false,
     requires_operation_permit: true,
     requires_cas: true,
-    fault_code: faultOutcome.code || faultOutcome.outcome,
+    fault_code: faultOutcome.code || faultOutcome.outcome || faultOutcome.failure_class,
   };
 }
 
-/**
- * Compare transition selection inputs that differ only by host product id —
- * results must be identical when port outcomes match.
- */
 function transitionInputsEquivalent(left, right) {
   const strip = (v) => {
     if (!isRecord(v)) return v;

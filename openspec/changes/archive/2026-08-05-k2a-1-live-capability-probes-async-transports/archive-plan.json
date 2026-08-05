@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "change": "k2a-1-live-capability-probes-async-transports",
+  "source_fingerprint": "sha256:64d3c9f2eeb1ad8bc995147ce6ad56df11bbf1acf69b793fcc8dd9908c0e9e75",
+  "spec_writes": [
+    {
+      "domain": "capability-proof",
+      "source_delta": "specs/capability-proof/prepared-spec.md",
+      "target": "openspec/specs/capability-proof/spec.md",
+      "target_before_sha256": "sha256:15efd7ef6d1f8d1ea1489e66847ac86651bd328134b336deaf6d57fb25b72f2e",
+      "content_sha256": "sha256:69e5686b46a1dcba3ce8d73022a0ad6995e0c253775f40a667aba6878295c851"
+    },
+    {
+      "domain": "host-capabilities-contract",
+      "source_delta": "specs/host-capabilities-contract/prepared-spec.md",
+      "target": "openspec/specs/host-capabilities-contract/spec.md",
+      "target_before_sha256": "sha256:30fd5f46c74867a51ad69f2850f9ed4c1ec759754ebd04d775dda7caee789bfc",
+      "content_sha256": "sha256:d6b5996b9b24d998e496dfee69910d9c1ee91883867af4a27722826cf01d17dd"
+    },
+    {
+      "domain": "reference-host-adapter",
+      "source_delta": "specs/reference-host-adapter/prepared-spec.md",
+      "target": "openspec/specs/reference-host-adapter/spec.md",
+      "target_before_sha256": "sha256:194eaf7c51756009240ffc2cdb4290e918702603644df1316664b0d9b557321d",
+      "content_sha256": "sha256:2a7dd19db576112449e4d09bf69a55c963fbb44a2c4b8873d876777974bf225d"
+    },
+    {
+      "domain": "headless-conformance-host",
+      "source_delta": "specs/headless-conformance-host/prepared-spec.md",
+      "target": "openspec/specs/headless-conformance-host/spec.md",
+      "target_before_sha256": "sha256:21d2690d4122039a71b115aaf06bc2d7dbf701620c854704c8264c3a6e8e8ccb",
+      "content_sha256": "sha256:c803032609d2385edf215f9ef290807c512ecb2bdf36f517e91df99c7951af24"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "specs/kernel-contract-schemas/prepared-spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:56bd0b6b346465403bc27ae91aad7955aa4c58197d76fc831173c914b9772865",
+      "content_sha256": "sha256:c29b6eec695fea5085ffc4fa6efa318e322bdb7739736c82f129c37b663755b8"
+    },
+    {
+      "domain": "minimal-kernel-harness",
+      "source_delta": "specs/minimal-kernel-harness/prepared-spec.md",
+      "target": "openspec/specs/minimal-kernel-harness/spec.md",
+      "target_before_sha256": "sha256:7706b9f0647449773e81ab4540dffbdf47e68fa826d274fc20e3ff8524dfdb20",
+      "content_sha256": "sha256:a58840d1d788172298669e82afa1469e647d954e7cf0c3a34da408da95af4262"
+    },
+    {
+      "domain": "lifecycle-kernel-runtime",
+      "source_delta": "specs/lifecycle-kernel-runtime/prepared-spec.md",
+      "target": "openspec/specs/lifecycle-kernel-runtime/spec.md",
+      "target_before_sha256": "sha256:f9b3ebc8c614f0578c93c6e07a01e49f37b346590689fa2edb808763b7d17349",
+      "content_sha256": "sha256:973df1375f039f2296487683733056c0d28100bd41f1abe42b9e162b6a5ab8e5"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260805-007-live-expected-identity-probe-binding-on-verify.md",
+      "content_sha256": "sha256:cf9fadc7ba7cb0665b19457a482b83da60531b95738a1aeb4521b14b66dda400"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260805-008-shared-async-transport-invoke-and-failure-classification.md",
+      "content_sha256": "sha256:406eebbf956a76d92941fc4c3de5d811af71d99dde049ae4f3b14f727f478a10"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260805-009-claude-enforced-only-after-live-probe.md",
+      "content_sha256": "sha256:36c105fe4b4f9b6a07a789332228349cf52ea6587955810cc26187c1474517ff"
+    }
+  ],
+  "archive_inventory": [
+    ".4r/build-evidence.js",
+    ".4r/derived.json",
+    ".4r/diff.unified.patch",
+    ".4r/evidence.json",
+    ".4r/findings-summary.json",
+    ".4r/freeze-findings.js",
+    ".4r/freeze-lineage.js",
+    ".4r/generalist.json",
+    ".4r/lens-readability.json",
+    ".4r/lens-reliability.json",
+    ".4r/lens-resilience.json",
+    ".4r/lens-risk.json",
+    ".4r/lineage.json",
+    ".4r/meta.json",
+    ".4r/paths.json",
+    ".4r/planned.json",
+    ".4r/remediation-notes.md",
+    ".4r/status.txt",
+    ".4r/tracked.diff",
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "design.md",
+    "proposal.md",
+    "specs/capability-proof/prepared-spec.md",
+    "specs/capability-proof/spec.md",
+    "specs/headless-conformance-host/prepared-spec.md",
+    "specs/headless-conformance-host/spec.md",
+    "specs/host-capabilities-contract/prepared-spec.md",
+    "specs/host-capabilities-contract/spec.md",
+    "specs/kernel-contract-schemas/prepared-spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "specs/lifecycle-kernel-runtime/prepared-spec.md",
+    "specs/lifecycle-kernel-runtime/spec.md",
+    "specs/minimal-kernel-harness/prepared-spec.md",
+    "specs/minimal-kernel-harness/spec.md",
+    "specs/reference-host-adapter/prepared-spec.md",
+    "specs/reference-host-adapter/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    "[assertion-quality] host-boundary observeHostPort success path compares a.ok===b.ok without explicit ok===true (REQ-lifecycle-kernel-runtime-017; verify PASS WITH WARNINGS advisory; behavior exercised, triangulation deferred)",
+    "[suggestion] Add dedicated invokeTransportAsync success unit in host-contract/index.test.js (REQ-host-capabilities-contract-006; non-blocking follow-up)"
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "status": "correction-required",
+  "terminal_reason": null,
+  "findings_digest": "sha256:99539bf6f8f3f88c5272c8f9778e577df43ae6b44043b37324c16ac796115180",
+  "counts": {
+    "CRITICAL": 4,
+    "WARNING": 12,
+    "SUGGESTION": 2
+  },
+  "blocking": [
+    {
+      "id": "F-257363d612b4f8ad",
+      "owner": "risk",
+      "summary": "runConformanceScenario fills expectedProbeDigest from entry.proof.probe_digest, bypassing independent live bind required by ADR-001/REQ-capability-proof-005."
+    },
+    {
+      "id": "F-42a44346728b7090",
+      "owner": "risk",
+      "summary": "createClaudeHostAdapter promotes to enforced when liveProbes[id] is truthy without requiring a real host primitive, and verifies with expectedProbeDigest from the same built proof (circular bind)."
+    },
+    {
+      "id": "F-ea52b9c672375e23",
+      "owner": "resilience",
+      "summary": "invokeTransportAsync Promise.race abandons the losing invokePromise; a late port rejection after timeout/cancel becomes unhandledRejection."
+    },
+    {
+      "id": "F-a23fde0a12e81544",
+      "owner": "readability",
+      "summary": "createClaudeHostAdapter JSDoc claims live-bound verification but uses expectedProbeDigest from the same buildEvidence material, hiding that enforced mainly requires liveProbes presence."
+    }
+  ],
+  "next_action": {
+    "type": "migrate-remediation-v2"
+  },
+  "slices": null
+}
