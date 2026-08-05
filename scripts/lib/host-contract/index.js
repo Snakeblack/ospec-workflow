@@ -60,6 +60,10 @@ function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+function isThenable(value) {
+  return value != null && (typeof value === "object" || typeof value === "function") && typeof value.then === "function";
+}
+
 function nonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";
 }
@@ -443,8 +447,17 @@ async function invokeTransportAsync(port, request) {
     // Absorb late settlement so a losing invoke cannot raise unhandledRejection
     // after timeout/abort already won the race (caller still gets classified failure).
     invokePromise.catch(() => {});
-    const raw = guards.length > 0 ? await Promise.race([invokePromise, ...guards]) : await invokePromise;
+    let raw = guards.length > 0 ? await Promise.race([invokePromise, ...guards]) : await invokePromise;
     cleanup();
+
+    // Settle nested thenables in value — never report ok:true with a rejecting Promise inside.
+    if (isRecord(raw) && raw.ok === true && isThenable(raw.value)) {
+      try {
+        raw = { ...raw, value: await raw.value };
+      } catch (nestedErr) {
+        return classifyTransportFailure(nestedErr, { requestId, portName: optsPortName(port) });
+      }
+    }
 
     if (isRecord(raw) && raw.ok === false) {
       const classified = classifyTransportFailure(raw, {

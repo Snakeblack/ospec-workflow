@@ -361,7 +361,7 @@ test("K2a: harness peers with Headless Conformance Host for host-fault scenarios
   assert.equal(getHarnessKind(), HARNESS_KIND);
   assert.notEqual(HARNESS_KIND, KIND);
 
-  const peer = await peerHostFaultMatrix({ adapter: createClaudeHostAdapter() });
+  const peer = await peerHostFaultMatrix({ adapter: await createClaudeHostAdapter() });
   assert.equal(peer.fault_driver, "headless-conformance-host");
   assert.equal(peer.owns_host_policy, false);
   assert.equal(peer.owns_capability_proof_issuance, false);
@@ -392,7 +392,7 @@ test("K2a: harness-alone host-fault coverage remains incomplete without headless
 
 test("K2a: fixed-policy and K2.1 authority fixtures remain green with host-contract ports available", async () => {
   const { createClaudeHostAdapter } = require("./host-adapters/claude.js");
-  const adapter = createClaudeHostAdapter();
+  const adapter = await createClaudeHostAdapter();
   assert.ok(adapter.transports.ExecutionTransport);
 
   const fixed = await runHarnessScenario({

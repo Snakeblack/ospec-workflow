@@ -264,6 +264,22 @@ test("invokeTransportAsync: rejected Promise becomes ok:false classified failure
   assert.equal(classified.requestId, "r-2");
 });
 
+test("invokeTransportAsync: nested rejecting Promise in value becomes ok:false", async () => {
+  const { invokeTransportAsync } = require("./index.js");
+  const port = {
+    port_id: "nested-reject",
+    invoke: async () => ({
+      ok: true,
+      outcome: "ok",
+      value: Promise.reject(Object.assign(new Error("nested-fail"), { code: "nested-fail" })),
+    }),
+  };
+  const outcome = await invokeTransportAsync(port, { requestId: "r-nested", input: {} });
+  assert.equal(outcome.ok, false);
+  assert.ok(outcome.failure_class);
+  assert.equal(outcome.requestId, "r-nested");
+});
+
 test("invokeTransportAsync: AbortSignal and deadline classify as cancel/timeout with requestId", async () => {
   const { invokeTransportAsync } = require("./index.js");
 

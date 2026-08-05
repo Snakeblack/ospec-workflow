@@ -8,6 +8,7 @@ const {
   createProbeDigest,
   verifyCapabilityProof,
 } = require("../capability-proof/index.js");
+const { sha256Fingerprint } = require("../canonical-json.js");
 const profile = require("../target-profiles/claude.js");
 
 const ADAPTER_ID = "claude";
@@ -35,6 +36,21 @@ const PRIMITIVE_FOR_CAPABILITY = Object.freeze({
   DeliveryGateTransport: "hooksObserve",
 });
 
+const PROBE_CHALLENGES = Object.freeze({
+  ExecutionTransport: Object.freeze({ probe: true, capability: "ExecutionTransport" }),
+  QuestionTransport: Object.freeze({ prompt: "probe?", probe: true }),
+  WorkerTransport: Object.freeze({ probe: true, parallel: true }),
+  ToolExecutionTransport: Object.freeze({ probe: true, tool: "probe" }),
+  DeliveryGateTransport: Object.freeze({ probe: true, hook: "Stop" }),
+});
+
+/** @type {WeakMap<object, object>} */
+const probeObservationsByAdapter = new WeakMap();
+
+function getProbeObservations(adapter) {
+  return probeObservationsByAdapter.get(adapter) || null;
+}
+
 function loadFixture(name) {
   const file = path.join(FIXTURE_DIR, name);
   return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -51,8 +67,12 @@ function fixtureMap(capabilityId) {
   return map[capabilityId];
 }
 
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 /**
- * Independent live-probe digest — computed from probe payload + identity,
+ * Independent live-probe digest — computed from observed probe payload + identity,
  * never read back from a proof field for authority decisions.
  */
 function independentExpectedProbeDigest(capabilityId, probePayload) {
@@ -112,6 +132,18 @@ function makePort(portId, handler) {
   };
 }
 
+/**
+ * Normalize a primitive return into a TransportOutcome, awaiting thenables.
+ * Never wraps a rejecting Promise as ok:true.
+ */
+async function settlePrimitiveOutcome(raw, { defaultOutcome = "ok" } = {}) {
+  const settled = await Promise.resolve(raw);
+  if (isRecord(settled) && typeof settled.ok === "boolean") {
+    return settled;
+  }
+  return { ok: true, outcome: defaultOutcome, value: settled };
+}
+
 function resolveHonestState(capabilityId, primitives) {
   const key = PRIMITIVE_FOR_CAPABILITY[capabilityId];
   if (typeof primitives[key] !== "function") {
@@ -127,32 +159,17 @@ function hasHostPrimitive(capabilityId, primitives) {
   return typeof primitives[key] === "function";
 }
 
-/**
- * Compose Claude HostAdapter from target profile + injected host primitives.
- *
- * `enforced` requires ALL of: (1) a real host primitive for that capability,
- * (2) a live probe payload, and (3) CapabilityProof verification against an
- * *independent* expectedProbeDigest (createProbeDigest from the live probe —
- * not proof.probe_digest copied as the expected value). Live probes alone do
- * not authorize enforced; digest integrity without a primitive is not an
- * external live-bind for enforcement authority.
- */
-function createClaudeHostAdapter(options = {}) {
-  const primitives = options.primitives || {};
-  const liveProbes = options.liveProbes || null;
-
-  const transports = {
-    ExecutionTransport: makePort("claude-execution", (input) => {
+function buildTransports(primitives) {
+  return {
+    ExecutionTransport: makePort("claude-execution", async (input) => {
       if (typeof primitives.execute === "function") {
-        const value = primitives.execute(input);
-        return { ok: true, outcome: "ok", value };
+        return settlePrimitiveOutcome(primitives.execute(input, { requestId: "claude-execution" }));
       }
       return { ok: true, outcome: "ok", value: { toolMap: profile.toolMap } };
     }),
-    QuestionTransport: makePort("claude-question", (input) => {
+    QuestionTransport: makePort("claude-question", async (input) => {
       if (typeof primitives.askUserQuestion === "function") {
-        const value = primitives.askUserQuestion(input);
-        return { ok: true, outcome: "ok", value };
+        return settlePrimitiveOutcome(primitives.askUserQuestion(input));
       }
       return {
         ok: true,
@@ -163,21 +180,23 @@ function createClaudeHostAdapter(options = {}) {
         },
       };
     }),
-    WorkerTransport: makePort("claude-worker", (input) => {
+    WorkerTransport: makePort("claude-worker", async (input) => {
       if (typeof primitives.worker === "function") {
-        return { ok: true, outcome: "ok", value: primitives.worker(input) };
+        return settlePrimitiveOutcome(primitives.worker(input));
       }
       return { ok: true, outcome: "ok", value: { delegation: "Agent" } };
     }),
-    ToolExecutionTransport: makePort("claude-tool", (input) => {
+    ToolExecutionTransport: makePort("claude-tool", async (input) => {
       if (typeof primitives.tool === "function") {
-        return { ok: true, outcome: "ok", value: primitives.tool(input) };
+        return settlePrimitiveOutcome(primitives.tool(input));
       }
       return { ok: true, outcome: "ok", value: { tools: profile.toolMap } };
     }),
-    DeliveryGateTransport: makePort("claude-delivery-gate", (input) => {
+    DeliveryGateTransport: makePort("claude-delivery-gate", async (input) => {
       if (typeof primitives.hooksObserve === "function") {
-        return { ok: true, outcome: "observation", value: primitives.hooksObserve(input) };
+        return settlePrimitiveOutcome(primitives.hooksObserve(input), {
+          defaultOutcome: "observation",
+        });
       }
       return {
         ok: true,
@@ -189,80 +208,169 @@ function createClaudeHostAdapter(options = {}) {
       };
     }),
   };
+}
 
+/**
+ * Execute a live probe by invoking the real port and observing the TransportOutcome.
+ * Caller-supplied declarative payloads never authorize enforced.
+ */
+async function executeLiveProbe(port, capabilityId) {
+  const challenge = PROBE_CHALLENGES[capabilityId] || { probe: true, capability_id: capabilityId };
+  const outcome = await invokeTransportAsync(port, {
+    requestId: `probe:${capabilityId}`,
+    input: challenge,
+  });
+  if (!outcome || outcome.ok !== true) {
+    return { ok: false, outcome };
+  }
+  const probe = {
+    capability_id: capabilityId,
+    observed: true,
+    outcome: outcome.outcome || "ok",
+    value_digest: sha256Fingerprint("probe:observation-value", {
+      value: outcome.value === undefined ? null : outcome.value,
+    }),
+    requestId: outcome.requestId || `probe:${capabilityId}`,
+  };
+  return { ok: true, probe, outcome };
+}
+
+/**
+ * Compose Claude HostAdapter from target profile + injected host primitives.
+ *
+ * `enforced` requires ALL of: (1) a real host primitive, (2) a successfully
+ * *executed* live probe through the port (observed TransportOutcome), and
+ * (3) CapabilityProof verification against an independent expectedProbeDigest
+ * derived from that observation — never from a caller-supplied liveProbes blob.
+ *
+ * `options.liveProbes` is ignored for enforcement (legacy callers must migrate).
+ *
+ * @returns {Promise<object>} HostAdapter
+ */
+async function createClaudeHostAdapter(options = {}) {
+  const primitives = options.primitives || {};
+  // liveProbes intentionally ignored for enforcement authority.
+  void options.liveProbes;
+
+  const transports = buildTransports(primitives);
   const capabilities = {};
+  const probeObservations = {};
+
   for (const id of TRANSPORT_CAPABILITIES) {
-    if (liveProbes && liveProbes[id] && hasHostPrimitive(id, primitives)) {
-      const expectedProbeDigest = independentExpectedProbeDigest(id, liveProbes[id]);
-      const material = buildEvidence(id, liveProbes[id]);
-      const verification = verifyCapabilityProof({
-        capabilityId: id,
-        expectedAdapterId: ADAPTER_ID,
-        expectedAdapterVersion: ADAPTER_VERSION,
-        expectedHostRuntimeVersion: HOST_VERSION,
-        expectedProbeDigest,
-        proof: material.proof,
-        evidence: material.evidence,
-      });
-      capabilities[id] = verification.ok ? "enforced" : resolveHonestState(id, primitives);
-    } else {
+    if (!hasHostPrimitive(id, primitives)) {
       capabilities[id] = resolveHonestState(id, primitives);
+      continue;
+    }
+
+    const observation = await executeLiveProbe(transports[id], id);
+    if (!observation.ok) {
+      capabilities[id] = "partial";
+      continue;
+    }
+
+    const expectedProbeDigest = independentExpectedProbeDigest(id, observation.probe);
+    const material = buildEvidence(id, observation.probe);
+    const verification = verifyCapabilityProof({
+      capabilityId: id,
+      expectedAdapterId: ADAPTER_ID,
+      expectedAdapterVersion: ADAPTER_VERSION,
+      expectedHostRuntimeVersion: HOST_VERSION,
+      expectedProbeDigest,
+      proof: material.proof,
+      evidence: material.evidence,
+    });
+    capabilities[id] = verification.ok ? "enforced" : resolveHonestState(id, primitives);
+    if (verification.ok) {
+      probeObservations[id] = {
+        ...material,
+        expectedProbeDigest,
+        observation: observation.probe,
+      };
     }
   }
 
-  return createHostAdapter({
+  const adapter = createHostAdapter({
     adapter_id: ADAPTER_ID,
     adapter_version: ADAPTER_VERSION,
     host_version: HOST_VERSION,
     capabilities,
     transports,
   });
+  probeObservationsByAdapter.set(adapter, Object.freeze(probeObservations));
+  return adapter;
 }
 
 /**
- * Proof material for callers (e.g. headless conformance). When live probes are
- * supplied, each entry includes an independent `expectedProbeDigest` computed
- * from the probe payload — callers must pass that field, not proof.probe_digest.
+ * Proof material for callers. When primitives are supplied, runs live probes and
+ * returns observation-backed material. Declarative liveProbes alone never authorize.
  */
-function getClaudeProofMaterial(liveProbes = null) {
+async function getClaudeProofMaterial(options = {}) {
+  const liveProbes = options && options.liveProbes ? options.liveProbes : null;
+  const primitives = options && options.primitives ? options.primitives : null;
+
+  // Legacy signature: getClaudeProofMaterial(liveProbesMap)
+  const legacyMap =
+    liveProbes == null && options && !options.primitives && !options.liveProbes && typeof options === "object"
+      ? Object.keys(options).some((k) => TRANSPORT_CAPABILITIES.includes(k))
+        ? options
+        : null
+      : liveProbes;
+
+  if (primitives) {
+    const adapter = await createClaudeHostAdapter({ primitives });
+    const observations = getProbeObservations(adapter) || {};
+    const material = {};
+    for (const id of TRANSPORT_CAPABILITIES) {
+      const obs = observations[id];
+      if (obs) {
+        material[id] = obs;
+      } else {
+        material[id] = buildEvidence(id, undefined);
+      }
+    }
+    return material;
+  }
+
+  // Without primitives, only fixture/instructional material — never enforced.
   const material = {};
   for (const id of TRANSPORT_CAPABILITIES) {
-    const probe = liveProbes && liveProbes[id] ? liveProbes[id] : undefined;
-    const built = buildEvidence(id, probe);
-    if (probe !== undefined) {
-      material[id] = {
-        ...built,
-        expectedProbeDigest: independentExpectedProbeDigest(id, probe),
-      };
-    } else {
-      material[id] = built;
-    }
+    // Ignore declarative legacyMap for expectedProbeDigest authority.
+    void legacyMap;
+    material[id] = buildEvidence(id, undefined);
   }
   return material;
 }
 
 /**
- * Verify proofs under live probes using the independent expectedProbeDigest.
- * Fixture-only material without live probes does not authorize enforced.
- * Integrity verify alone is not enforcement authority (primitives required at adapter compose).
+ * Verify proofs under executed probes. Declarative liveProbes without primitives
+ * do not authorize enforced.
  */
-function verifyAllClaudeEnforcedProofs(options = {}) {
+async function verifyAllClaudeEnforcedProofs(options = {}) {
+  const primitives = options.primitives || null;
   const liveProbes = options.liveProbes || null;
-  if (!liveProbes) {
+
+  if (!primitives) {
     return { ok: false, reason_code: "fixture-only-not-live-probe", results: {} };
   }
-  const material = getClaudeProofMaterial(liveProbes);
+  // liveProbes alone are not authority — require executed probes via primitives.
+  void liveProbes;
+
+  const material = await getClaudeProofMaterial({ primitives });
   const results = {};
-  for (const id of Object.keys(liveProbes)) {
+  for (const id of TRANSPORT_CAPABILITIES) {
     const entry = material[id];
+    if (!entry || !entry.expectedProbeDigest) {
+      results[id] = { ok: false, reason_code: "probe-not-executed" };
+      continue;
+    }
     results[id] = verifyCapabilityProof({
       capabilityId: id,
       expectedAdapterId: ADAPTER_ID,
       expectedAdapterVersion: ADAPTER_VERSION,
       expectedHostRuntimeVersion: HOST_VERSION,
-      expectedProbeDigest: entry && entry.expectedProbeDigest,
-      proof: entry && entry.proof,
-      evidence: entry && entry.evidence,
+      expectedProbeDigest: entry.expectedProbeDigest,
+      proof: entry.proof,
+      evidence: entry.evidence,
     });
   }
   return {
@@ -277,9 +385,12 @@ module.exports = {
   HOST_VERSION,
   ENFORCED_CAPABILITIES,
   TRANSPORT_CAPABILITIES,
+  PROBE_CHALLENGES,
   createClaudeHostAdapter,
   getClaudeProofMaterial,
   verifyAllClaudeEnforcedProofs,
   buildEvidence,
+  executeLiveProbe,
+  getProbeObservations,
   invokeTransportAsync,
 };

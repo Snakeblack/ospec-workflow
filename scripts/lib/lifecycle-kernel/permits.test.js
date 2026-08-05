@@ -294,33 +294,59 @@ const OFFER = Object.freeze({
   subject_id: "lifecycle:default",
 });
 
-test("issueOperationPermit produces permit from offer plus policy decision", () => {
+test("issueOperationPermit produces permit from registered offer plus policy decision", () => {
   const ledger = createPermitLedger();
+  const offerReg = ledger.registerTransitionOffer(OFFER);
+  assert.equal(offerReg.ok, true);
+  const decisionReg = ledger.registerPolicyDecision({
+    kind: "policy-decision/v1",
+    decision_id: "pol:1",
+    offer_id: offerReg.offer_id,
+    operation: "start",
+    subject_id: "lifecycle:default",
+  });
+  assert.equal(decisionReg.ok, true);
   const issued = issueOperationPermit({
     ledger,
-    transitionOffer: OFFER,
+    offer_id: offerReg.offer_id,
+    decision_id: decisionReg.decision_id,
     expected_revision: HEAD,
     subject_id: "lifecycle:default",
-    policyDecision: {
-      kind: "policy-decision/v1",
-      decision_id: "pol:1",
-      operation: "start",
-      subject_id: "lifecycle:default",
-    },
   });
   assert.equal(issued.ok, true);
   assert.equal(issued.permit.kind, "operation-permit/v1");
   assert.equal(issued.permit.expected_revision, HEAD);
   assert.equal(issued.permit.operation, "start");
   assert.equal(issued.permit.single_use, true);
+  assert.equal(issued.permit.offer_id, offerReg.offer_id);
+  assert.equal(issued.permit.issuer_decision_id, "pol:1");
   assert.ok(ledger.has(issued.permit.permit_id));
 });
 
-test("issueOperationPermit rejects offer-only without decision (issuer-decision-required)", () => {
+test("issueOperationPermit rejects fabricated DTOs (issuer-fabricated-decision)", () => {
   const ledger = createPermitLedger();
   const result = issueOperationPermit({
     ledger,
     transitionOffer: OFFER,
+    expected_revision: HEAD,
+    subject_id: "lifecycle:default",
+    policyDecision: {
+      kind: "policy-decision/v1",
+      decision_id: "fabricated",
+      operation: "start",
+    },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "issuer-fabricated-decision");
+  assert.equal(ledger._entries.size, 0);
+});
+
+test("issueOperationPermit rejects offer-only without decision (issuer-decision-required)", () => {
+  const ledger = createPermitLedger();
+  const offerReg = ledger.registerTransitionOffer(OFFER);
+  const result = issueOperationPermit({
+    ledger,
+    offer_id: offerReg.offer_id,
     expected_revision: HEAD,
     subject_id: "lifecycle:default",
   });
@@ -329,56 +355,90 @@ test("issueOperationPermit rejects offer-only without decision (issuer-decision-
   assert.equal(ledger._entries.size, 0);
 });
 
-test("issueOperationPermit rejects ambiguous multiple decisions", () => {
+test("issueOperationPermit rejects ambiguous decision_id + rule_id", () => {
   const ledger = createPermitLedger();
+  const offerReg = ledger.registerTransitionOffer(OFFER);
+  const pol = ledger.registerPolicyDecision({
+    offer_id: offerReg.offer_id,
+    decision_id: "pol:1",
+    operation: "start",
+  });
+  const rule = ledger.registerKernelRule({
+    offer_id: offerReg.offer_id,
+    rule_id: "rule:1",
+    operation: "start",
+  });
   const result = issueOperationPermit({
     ledger,
-    transitionOffer: OFFER,
+    offer_id: offerReg.offer_id,
+    decision_id: pol.decision_id,
+    rule_id: rule.rule_id,
     expected_revision: HEAD,
-    subject_id: "lifecycle:default",
-    policyDecision: { kind: "policy-decision/v1", decision_id: "pol:1" },
-    humanDecision: { kind: "human-decision/v1", decision_id: "hum:1" },
   });
   assert.equal(result.ok, false);
   assert.equal(result.code, "issuer-decision-ambiguous");
   assert.equal(ledger._entries.size, 0);
 });
 
-test("issueOperationPermit accepts humanDecision or kernelRule alone", () => {
+test("issueOperationPermit accepts registered humanDecision or kernelRule", () => {
   const ledger = createPermitLedger();
+  const offerReg = ledger.registerTransitionOffer(OFFER);
+  const humanReg = ledger.registerHumanDecision({
+    offer_id: offerReg.offer_id,
+    decision_id: "hum:2",
+    operation: "start",
+  });
   const human = issueOperationPermit({
     ledger,
-    transitionOffer: OFFER,
+    offer_id: offerReg.offer_id,
+    decision_id: humanReg.decision_id,
     expected_revision: HEAD,
     subject_id: "lifecycle:default",
-    humanDecision: { kind: "human-decision/v1", decision_id: "hum:2" },
   });
   assert.equal(human.ok, true);
   assert.ok(ledger.has(human.permit.permit_id));
 
   const ledger2 = createPermitLedger();
+  const offer2 = ledger2.registerTransitionOffer(OFFER);
+  const ruleReg = ledger2.registerKernelRule({
+    offer_id: offer2.offer_id,
+    rule_id: "rule:fixture-start",
+    operation: "start",
+  });
   const rule = issueOperationPermit({
     ledger: ledger2,
-    transitionOffer: OFFER,
+    offer_id: offer2.offer_id,
+    rule_id: ruleReg.rule_id,
     expected_revision: HEAD,
     subject_id: "lifecycle:default",
-    kernelRule: { kind: "kernel-rule/v1", rule_id: "rule:fixture-start" },
   });
   assert.equal(rule.ok, true);
   assert.ok(ledger2.has(rule.permit.permit_id));
 });
 
-test("issueOperationPermit rejects invalid decision DTO kind", () => {
+test("issueOperationPermit rejects unregistered decision_id", () => {
   const ledger = createPermitLedger();
+  const offerReg = ledger.registerTransitionOffer(OFFER);
   const result = issueOperationPermit({
     ledger,
-    transitionOffer: OFFER,
+    offer_id: offerReg.offer_id,
+    decision_id: "pol:never-registered",
     expected_revision: HEAD,
-    subject_id: "lifecycle:default",
-    policyDecision: { kind: "policy-decision/v0", decision_id: "pol:bad" },
   });
   assert.equal(result.ok, false);
-  assert.equal(result.code, "issuer-decision-required");
+  assert.equal(result.code, "issuer-decision-not-registered");
+});
+
+test("CRITICAL: fabricated PolicyDecision DTO alone cannot issue a permit", () => {
+  const ledger = createPermitLedger();
+  const forged = issueOperationPermit({
+    ledger,
+    transitionOffer: { kind: "transition-offer/v1", operation: "start" },
+    expected_revision: HEAD,
+    policyDecision: { kind: "policy-decision/v1", decision_id: "fabricated" },
+  });
+  assert.equal(forged.ok, false);
+  assert.equal(forged.code, "issuer-fabricated-decision");
 });
 
 test("findReplayReceipt binds arguments_digest; non-identical args are not replay", () => {

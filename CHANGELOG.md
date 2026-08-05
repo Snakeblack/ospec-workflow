@@ -8,6 +8,16 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.40.3] - 2026-08-06
+
+### Fixed
+- **Issuer sin DTOs fabricados**: `issueOperationPermit` exige `offer_id` + `decision_id|rule_id` registrados en el ledger runtime (`registerTransitionOffer` / `registerPolicyDecision` / `registerHumanDecision` / `registerKernelRule`); DTOs inventados → `issuer-fabricated-decision`.
+- **Probes ejecutados para `enforced`**: `createClaudeHostAdapter` es async y marca `enforced` solo tras observar un `TransportOutcome` real vía `invokeTransportAsync`; `liveProbes` declarativos ya no autorizan.
+- **Promise anidada rechazada**: handlers Claude hacen `await` de primitives; `invokeTransportAsync` asienta thenables en `value` y clasifica rechazo como `ok:false` (sin falso éxito).
+
+### Docs
+- Changelog de hardening pre-K3 (authority provenance + live probes + async settlement).
+
 ## [2.40.2] - 2026-08-05
 
 ### Fixed

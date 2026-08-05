@@ -17,6 +17,7 @@ const {
   getClaudeProofMaterial,
   verifyAllClaudeEnforcedProofs,
   ADAPTER_ID,
+  TRANSPORT_CAPABILITIES,
 } = require("./claude.js");
 
 test("activated real adapters list contains exactly claude; others inactive; conformance host not counted", () => {
@@ -33,7 +34,7 @@ test("activated real adapters list contains exactly claude; others inactive; con
 });
 
 test("claude adapter maps AskUserQuestion → QuestionTransport and hooks without authorizing delivery", async () => {
-  const adapter = createClaudeHostAdapter();
+  const adapter = await createClaudeHostAdapter();
   const q = await adapter.transports.QuestionTransport.invoke({});
   assert.equal(q.ok, true);
   assert.equal(q.value.mapped_from, "AskUserQuestion");
@@ -44,8 +45,8 @@ test("claude adapter maps AskUserQuestion → QuestionTransport and hooks withou
   assert.equal(d.value.authorizes_delivery, false);
 });
 
-test("claude adapter cannot reach compareAndSwap or permit minting; store head unchanged", () => {
-  const adapter = createClaudeHostAdapter();
+test("claude adapter cannot reach compareAndSwap or permit minting; store head unchanged", async () => {
+  const adapter = await createClaudeHostAdapter();
   const store = { head: "rev-1", compareAndSwap() { this.head = "mutated"; } };
   // Authority surface is absent — adapter cannot mint permits or CAS.
   assert.equal(adapter.compareAndSwap, undefined);
@@ -54,31 +55,20 @@ test("claude adapter cannot reach compareAndSwap or permit minting; store head u
   assert.equal(store.head, "rev-1");
 });
 
-test("claude enforced capabilities require live probe + verifying CapabilityProof", () => {
-  const liveProbes = {};
-  for (const id of [
-    "ExecutionTransport",
-    "QuestionTransport",
-    "WorkerTransport",
-    "ToolExecutionTransport",
-    "DeliveryGateTransport",
-  ]) {
-    liveProbes[id] = { live: true, capability_id: id };
-  }
-  const verified = verifyAllClaudeEnforcedProofs({ liveProbes });
+test("claude enforced capabilities require executed live probe + verifying CapabilityProof", async () => {
+  const primitives = {
+    execute: () => ({}),
+    askUserQuestion: () => ({}),
+    worker: () => ({}),
+    tool: () => ({}),
+    hooksObserve: () => ({}),
+  };
+  const verified = await verifyAllClaudeEnforcedProofs({ primitives });
   assert.equal(verified.ok, true);
-  const material = getClaudeProofMaterial(liveProbes);
-  const adapter = createClaudeHostAdapter({
-    primitives: {
-      execute: () => ({}),
-      askUserQuestion: () => ({}),
-      worker: () => ({}),
-      tool: () => ({}),
-      hooksObserve: () => ({}),
-    },
-    liveProbes,
-  });
-  for (const [id, entry] of Object.entries(material)) {
+  const material = await getClaudeProofMaterial({ primitives });
+  const adapter = await createClaudeHostAdapter({ primitives });
+  for (const id of TRANSPORT_CAPABILITIES) {
+    const entry = material[id];
     assert.ok(entry.proof.evidence_digest.startsWith("sha256:"));
     assert.ok(entry.proof.probe_digest.startsWith("sha256:"));
     assert.notEqual(entry.proof.probe_digest, entry.proof.evidence_digest);
@@ -89,8 +79,8 @@ test("claude enforced capabilities require live probe + verifying CapabilityProo
   assert.equal(ADAPTER_ID, "claude");
 
   // Fixture-only default adapter never claims enforced.
-  const fixtureOnly = createClaudeHostAdapter();
-  for (const id of Object.keys(material)) {
+  const fixtureOnly = await createClaudeHostAdapter();
+  for (const id of TRANSPORT_CAPABILITIES) {
     assert.notEqual(fixtureOnly.capabilities[id], "enforced");
   }
 });
