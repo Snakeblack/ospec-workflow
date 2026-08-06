@@ -5,6 +5,8 @@ const test = require("node:test");
 
 const {
   createPermitLedger,
+  createPermitAuthorityIssuer,
+  isPermitAuthorityIssuer,
   mintOperationPermit,
   issueOperationPermit,
   authorizeMutation,
@@ -23,8 +25,102 @@ const ROOT = path.resolve(__dirname, "..", "..", "..");
 const HEAD = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
 const OTHER = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
 
+/** Durable consume record as the Authority Store persists it. */
+function storedPermitRecord(permit) {
+  return {
+    permit_id: permit.permit_id,
+    status: "consumed",
+    operation_intent_digest: permit.operation_intent_digest,
+    permit_digest: permit.permit_digest,
+    operation: permit.operation,
+    subject_id: permit.subject_id,
+    arguments_digest: permit.arguments_digest,
+    scope_digest: permit.scope_digest,
+    policy_digest: permit.policy_digest,
+    issuer_decision_id: permit.issuer_decision_id || null,
+    expected_revision: permit.expected_revision,
+  };
+}
+
+test("CRITICAL: reader ledger carries no issuer capability and cannot register or mint", () => {
+  const reader = createPermitLedger();
+  assert.equal(isPermitAuthorityIssuer(reader), false);
+  assert.equal(typeof reader.insert, "undefined");
+  assert.equal(typeof reader.nextPermitId, "undefined");
+  assert.equal(typeof reader.nextOfferId, "undefined");
+  assert.equal(typeof reader.nextDecisionId, "undefined");
+
+  assert.equal(reader.registerTransitionOffer(OFFER).code, "issuer-capability-required");
+  assert.equal(
+    reader.registerPolicyDecision({ offer_id: "offer:x", operation: "start" }).code,
+    "issuer-capability-required"
+  );
+  assert.equal(
+    reader.registerHumanDecision({ offer_id: "offer:x", operation: "start" }).code,
+    "issuer-capability-required"
+  );
+  assert.equal(
+    reader.registerKernelRule({ offer_id: "offer:x", operation: "start" }).code,
+    "issuer-capability-required"
+  );
+
+  const issued = issueOperationPermit({
+    ledger: reader,
+    offer_id: "offer:x",
+    rule_id: "rule:x",
+    expected_revision: HEAD,
+  });
+  assert.equal(issued.ok, false);
+  assert.equal(issued.code, "issuer-capability-required");
+
+  assert.throws(
+    () => mintOperationPermit({ ledger: reader, operation: "start", expected_revision: HEAD }),
+    (error) => error.code === "issuer-capability-required"
+  );
+  assert.equal(reader._entries.size, 0);
+});
+
+test("issuer allocates non-recyclable ids; a fresh issuer never reuses them", () => {
+  const first = createPermitAuthorityIssuer();
+  const a = mintOperationPermit({ ledger: first, operation: "start", expected_revision: HEAD });
+  const b = mintOperationPermit({ ledger: first, operation: "start", expected_revision: HEAD });
+  assert.notEqual(a.permit_id, b.permit_id);
+  assert.match(
+    a.permit_id,
+    /^permit:runtime:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+  );
+
+  // Restart: a new issuer starts from an empty map but must not recycle ids.
+  const restarted = createPermitAuthorityIssuer();
+  const c = mintOperationPermit({ ledger: restarted, operation: "start", expected_revision: HEAD });
+  assert.notEqual(c.permit_id, a.permit_id);
+  assert.notEqual(c.permit_id, b.permit_id);
+});
+
+test("minted permit carries operation intent and permit digests", () => {
+  const issuer = createPermitAuthorityIssuer();
+  const permit = mintOperationPermit({
+    ledger: issuer,
+    operation: "start",
+    expected_revision: HEAD,
+    subject_id: "lifecycle:default",
+    arguments: { node_id: "n1" },
+  });
+  assert.match(permit.operation_intent_digest, /^sha256:[a-f0-9]{64}$/);
+  assert.match(permit.permit_digest, /^sha256:[a-f0-9]{64}$/);
+
+  const other = mintOperationPermit({
+    ledger: issuer,
+    operation: "start",
+    expected_revision: HEAD,
+    subject_id: "lifecycle:default",
+    arguments: { node_id: "n2" },
+  });
+  assert.notEqual(other.operation_intent_digest, permit.operation_intent_digest);
+});
+
 test("runtime-minted permit validates against schema; single_use true; expected_revision = head", () => {
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const permit = mintOperationPermit({
     ledger,
     operation: "start",
@@ -39,7 +135,7 @@ test("runtime-minted permit validates against schema; single_use true; expected_
 });
 
 test("stale permit rejected at authorize; head unchanged conceptually", () => {
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const permit = mintOperationPermit({
     ledger,
     operation: "start",
@@ -51,7 +147,7 @@ test("stale permit rejected at authorize; head unchanged conceptually", () => {
 });
 
 test("consumed permit reuse rejected", () => {
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const permit = mintOperationPermit({
     ledger,
     operation: "start",
@@ -81,7 +177,7 @@ test("TransitionOffer alone cannot authorize mutation", () => {
 });
 
 test("model-fabricated permit rejected; non-empty token without permit fails", () => {
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const fabricated = {
     schema_version: 1,
     kind: "operation-permit/v1",
@@ -109,7 +205,7 @@ test("model-fabricated permit rejected; non-empty token without permit fails", (
 });
 
 test("consume emits OperationReceipt distinct from receipt/v1", () => {
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const permit = mintOperationPermit({
     ledger,
     operation: "start",
@@ -145,7 +241,7 @@ test("consume emits OperationReceipt distinct from receipt/v1", () => {
 });
 
 test("authorizeMutation binds presented permit to ledger operation/subject/args", () => {
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const args = { node_id: "n1" };
   const permit = mintOperationPermit({
     ledger,
@@ -185,7 +281,7 @@ test("authorizeMutation binds presented permit to ledger operation/subject/args"
 });
 
 test("authorizeMutation rejects requested operation/subject/args rebinding", () => {
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const args = { node_id: "n1" };
   const permit = mintOperationPermit({
     ledger,
@@ -234,7 +330,7 @@ test("authorizeMutation rejects requested operation/subject/args rebinding", () 
 });
 
 test("authorizeOperationWithPermit forwards binding fields to authorizeMutation", () => {
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const args = { node_id: "n1" };
   const permit = mintOperationPermit({
     ledger,
@@ -256,7 +352,7 @@ test("authorizeOperationWithPermit forwards binding fields to authorizeMutation"
 });
 
 test("requested operation mismatch against ledger-backed permit fails closed", () => {
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const permit = mintOperationPermit({
     ledger,
     operation: "start",
@@ -295,7 +391,7 @@ const OFFER = Object.freeze({
 });
 
 test("issueOperationPermit produces permit from registered offer plus policy decision", () => {
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const offerReg = ledger.registerTransitionOffer(OFFER);
   assert.equal(offerReg.ok, true);
   const decisionReg = ledger.registerPolicyDecision({
@@ -324,7 +420,7 @@ test("issueOperationPermit produces permit from registered offer plus policy dec
 });
 
 test("issueOperationPermit rejects fabricated DTOs (issuer-fabricated-decision)", () => {
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const result = issueOperationPermit({
     ledger,
     transitionOffer: OFFER,
@@ -342,7 +438,7 @@ test("issueOperationPermit rejects fabricated DTOs (issuer-fabricated-decision)"
 });
 
 test("issueOperationPermit rejects offer-only without decision (issuer-decision-required)", () => {
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const offerReg = ledger.registerTransitionOffer(OFFER);
   const result = issueOperationPermit({
     ledger,
@@ -356,7 +452,7 @@ test("issueOperationPermit rejects offer-only without decision (issuer-decision-
 });
 
 test("issueOperationPermit rejects ambiguous decision_id + rule_id", () => {
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const offerReg = ledger.registerTransitionOffer(OFFER);
   const pol = ledger.registerPolicyDecision({
     offer_id: offerReg.offer_id,
@@ -381,7 +477,7 @@ test("issueOperationPermit rejects ambiguous decision_id + rule_id", () => {
 });
 
 test("issueOperationPermit accepts registered humanDecision or kernelRule", () => {
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const offerReg = ledger.registerTransitionOffer(OFFER);
   const humanReg = ledger.registerHumanDecision({
     offer_id: offerReg.offer_id,
@@ -398,7 +494,7 @@ test("issueOperationPermit accepts registered humanDecision or kernelRule", () =
   assert.equal(human.ok, true);
   assert.ok(ledger.has(human.permit.permit_id));
 
-  const ledger2 = createPermitLedger();
+  const ledger2 = createPermitAuthorityIssuer();
   const offer2 = ledger2.registerTransitionOffer(OFFER);
   const ruleReg = ledger2.registerKernelRule({
     offer_id: offer2.offer_id,
@@ -417,7 +513,7 @@ test("issueOperationPermit accepts registered humanDecision or kernelRule", () =
 });
 
 test("issueOperationPermit rejects unregistered decision_id", () => {
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const offerReg = ledger.registerTransitionOffer(OFFER);
   const result = issueOperationPermit({
     ledger,
@@ -430,7 +526,7 @@ test("issueOperationPermit rejects unregistered decision_id", () => {
 });
 
 test("CRITICAL: fabricated PolicyDecision DTO alone cannot issue a permit", () => {
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const forged = issueOperationPermit({
     ledger,
     transitionOffer: { kind: "transition-offer/v1", operation: "start" },
@@ -442,7 +538,7 @@ test("CRITICAL: fabricated PolicyDecision DTO alone cannot issue a permit", () =
 });
 
 test("findReplayReceipt binds arguments_digest; non-identical args are not replay", () => {
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const argsA = { node_id: "n1" };
   const argsB = { node_id: "n2" };
   const digestA = sha256Fingerprint("permit:arguments", argsA);
@@ -462,7 +558,7 @@ test("findReplayReceipt binds arguments_digest; non-identical args are not repla
     outcome: "advanced",
   });
   const authority = {
-    permits: { [permit.permit_id]: { permit_id: permit.permit_id, status: "consumed" } },
+    permits: { [permit.permit_id]: storedPermitRecord(permit) },
     receipts: { [permit.permit_id]: receipt },
   };
 
@@ -474,8 +570,72 @@ test("findReplayReceipt binds arguments_digest; non-identical args are not repla
   assert.equal(mismatched, null);
 });
 
+test("CRITICAL: forged permit reusing a consumed id with other args is not a replay", () => {
+  const issuer = createPermitAuthorityIssuer();
+  const argsA = { node_id: "n1" };
+  const argsB = { node_id: "n2" };
+  const digestB = sha256Fingerprint("permit:arguments", argsB);
+  const permit = mintOperationPermit({
+    ledger: issuer,
+    operation: "start",
+    expected_revision: HEAD,
+    subject_id: "lifecycle:default",
+    arguments: argsA,
+  });
+  const receipt = prepareOperationReceipt({
+    permit_id: permit.permit_id,
+    subject_id: "lifecycle:default",
+    operation: "start",
+    expected_revision: HEAD,
+    outcome: "advanced",
+    operation_intent_digest: permit.operation_intent_digest,
+    arguments_digest: permit.arguments_digest,
+  });
+  const authority = {
+    permits: { [permit.permit_id]: storedPermitRecord(permit) },
+    receipts: { [permit.permit_id]: receipt },
+  };
+
+  // Same permit_id, caller-presented digests rewritten to the forged arguments.
+  const forged = {
+    ...permit,
+    arguments_digest: digestB,
+    operation_intent_digest: "sha256:forged-intent",
+  };
+  assert.equal(findReplayReceipt(authority, forged, "start", "lifecycle:default", digestB), null);
+});
+
+test("replay against a bag record without stored intent fails closed", () => {
+  const issuer = createPermitAuthorityIssuer();
+  const args = { node_id: "n1" };
+  const digest = sha256Fingerprint("permit:arguments", args);
+  const permit = mintOperationPermit({
+    ledger: issuer,
+    operation: "start",
+    expected_revision: HEAD,
+    subject_id: "lifecycle:default",
+    arguments: args,
+  });
+  const authority = {
+    permits: { [permit.permit_id]: { permit_id: permit.permit_id, status: "consumed" } },
+    receipts: {
+      [permit.permit_id]: {
+        schema_version: 1,
+        kind: "operation-receipt/v1",
+        receipt_id: "sha256:legacy",
+        permit_id: permit.permit_id,
+        subject_id: "lifecycle:default",
+        operation: "start",
+        revision: HEAD,
+        outcome: "advanced",
+      },
+    },
+  };
+  assert.equal(findReplayReceipt(authority, permit, "start", "lifecycle:default", digest), null);
+});
+
 test("authorizeMutation fails closed with permit-reuse when bag shows consumed", () => {
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const permit = mintOperationPermit({
     ledger,
     operation: "start",
@@ -484,7 +644,7 @@ test("authorizeMutation fails closed with permit-reuse when bag shows consumed",
     arguments: { node_id: "n1" },
   });
   // Simulate restart: empty process Map, bag already consumed without matching replay receipt path.
-  const emptyLedger = createPermitLedger();
+  const emptyLedger = createPermitAuthorityIssuer();
   const authority = {
     permits: { [permit.permit_id]: { permit_id: permit.permit_id, status: "consumed" } },
     receipts: {},

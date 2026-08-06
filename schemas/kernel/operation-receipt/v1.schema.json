@@ -11,7 +11,9 @@
     "subject_id": { "type": "string" },
     "operation": { "type": "string" },
     "revision": { "type": "string" },
-    "outcome": { "type": "string" }
+    "outcome": { "type": "string" },
+    "operation_intent_digest": { "type": ["string", "null"] },
+    "arguments_digest": { "type": ["string", "null"] }
   },
   "required": [
     "schema_version",

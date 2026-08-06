@@ -8,6 +8,7 @@ const {
   getClaudeProofMaterial,
   verifyAllClaudeEnforcedProofs,
   getProbeObservations,
+  evaluateCapabilityOracle,
   ADAPTER_ID,
   ADAPTER_VERSION,
   HOST_VERSION,
@@ -17,11 +18,11 @@ const { resolveCapabilityState, invokeTransportAsync } = require("../host-contra
 const { createProbeDigest } = require("../capability-proof/index.js");
 
 const ALL_PRIMITIVES = Object.freeze({
-  execute: () => ({ ran: true }),
-  askUserQuestion: (q) => ({ answered: true, q }),
-  worker: () => ({ spawned: true }),
+  execute: () => ({ execution_id: "exec-1", ran: true }),
+  askUserQuestion: (q) => ({ answered: true, request_id: "q-1", q }),
+  worker: () => ({ worker_id: "w-1", spawned: true }),
   tool: () => ({ tool: "Bash" }),
-  hooksObserve: () => ({ hook: "Stop", authorized: false }),
+  hooksObserve: () => ({ hook: "Stop", authorizes_delivery: false }),
 });
 
 test("missing primitive degrades honestly — never enforced", async () => {
@@ -39,8 +40,8 @@ test("missing primitive degrades honestly — never enforced", async () => {
 test("fixture-only proof without executed probe must not mark enforced", async () => {
   const adapter = await createClaudeHostAdapter({
     primitives: {
-      askUserQuestion: (q) => ({ answered: true, q }),
-      hooksObserve: () => ({ hook: "Stop", authorized: false }),
+      askUserQuestion: (q) => ({ answered: true, request_id: "q-1", q }),
+      hooksObserve: () => ({ hook: "Stop", authorizes_delivery: false }),
     },
   });
   // Primitives present → probes execute → those two may be enforced; others not.
@@ -116,16 +117,16 @@ test("CRITICAL: noop primitive + declarative liveProbes does NOT yield enforced 
   assert.notEqual(withDeclarativeOnly.capabilities.QuestionTransport, "enforced");
 
   const withoutProbeExecution = await createClaudeHostAdapter({
-    primitives: { askUserQuestion: () => ({ answered: true }) },
+    primitives: { askUserQuestion: () => ({ answered: true, request_id: "q-1" }) },
   });
-  // Probe IS executed against the primitive → enforced is allowed.
+  // Probe IS executed against the primitive and satisfies the oracle → enforced is allowed.
   assert.equal(withoutProbeExecution.capabilities.QuestionTransport, "enforced");
   assert.notEqual(withoutProbeExecution.capabilities.ExecutionTransport, "enforced");
 });
 
 test("CRITICAL: fabricated liveProbes ignored when primitives absent for other caps", async () => {
   const adapter = await createClaudeHostAdapter({
-    primitives: { askUserQuestion: () => ({ answered: true }) },
+    primitives: { askUserQuestion: () => ({ answered: true, request_id: "q-1" }) },
     liveProbes: {
       ExecutionTransport: { live: true, capability_id: "ExecutionTransport" },
       QuestionTransport: { live: true, capability_id: "QuestionTransport" },
@@ -153,6 +154,125 @@ test("CRITICAL: Claude primitive returning Promise.reject → ok:false via invok
   assert.equal(outcome.ok, false);
   assert.ok(outcome.failure_class);
   assert.equal(outcome.requestId, "nested-reject-1");
+});
+
+test("CRITICAL: no-op primitive returning undefined executes the port but fails the oracle → partial", async () => {
+  const adapter = await createClaudeHostAdapter({
+    primitives: {
+      worker: () => undefined,
+      execute: () => undefined,
+      tool: () => undefined,
+    },
+  });
+  assert.equal(adapter.capabilities.WorkerTransport, "partial");
+  assert.equal(adapter.capabilities.ExecutionTransport, "partial");
+  assert.equal(adapter.capabilities.ToolExecutionTransport, "partial");
+
+  // The port still executes and reports ok — only the capability claim is withheld.
+  const outcome = await invokeTransportAsync(adapter.transports.WorkerTransport, {
+    requestId: "noop-worker-1",
+    input: {},
+  });
+  assert.equal(outcome.ok, true);
+  assert.equal(outcome.value, undefined);
+});
+
+test("CRITICAL: empty-record primitives do not demonstrate capability → partial", async () => {
+  const adapter = await createClaudeHostAdapter({
+    primitives: {
+      execute: () => ({}),
+      askUserQuestion: () => ({}),
+      worker: () => ({}),
+      tool: () => ({}),
+      hooksObserve: () => ({}),
+    },
+  });
+  for (const name of TRANSPORT_CAPABILITIES) {
+    assert.equal(adapter.capabilities[name], "partial", name);
+  }
+
+  const verified = await verifyAllClaudeEnforcedProofs({
+    primitives: { worker: () => ({}) },
+  });
+  assert.equal(verified.ok, false);
+  assert.equal(verified.results.WorkerTransport.reason_code, "probe-not-executed");
+});
+
+test("CRITICAL: bare spawned:true worker and unanswered question stay partial", async () => {
+  const adapter = await createClaudeHostAdapter({
+    primitives: {
+      worker: () => ({ spawned: true }),
+      askUserQuestion: () => ({ answered: true }),
+    },
+  });
+  assert.equal(adapter.capabilities.WorkerTransport, "partial");
+  assert.equal(adapter.capabilities.QuestionTransport, "partial");
+});
+
+test("CRITICAL: delivery gate claiming authorization fails the oracle → partial", async () => {
+  const authorizing = await createClaudeHostAdapter({
+    primitives: { hooksObserve: () => ({ hook: "Stop", authorizes_delivery: true }) },
+  });
+  assert.equal(authorizing.capabilities.DeliveryGateTransport, "partial");
+
+  const observing = await createClaudeHostAdapter({
+    primitives: { hooksObserve: () => ({ hook: "Stop", authorizes_delivery: false }) },
+  });
+  assert.equal(observing.capabilities.DeliveryGateTransport, "enforced");
+});
+
+test("CRITICAL: rejecting primitive yields partial plus structured transport failure", async () => {
+  const adapter = await createClaudeHostAdapter({
+    primitives: {
+      worker: () => Promise.reject(Object.assign(new Error("worker-fail"), { code: "worker-fail" })),
+    },
+  });
+  assert.equal(adapter.capabilities.WorkerTransport, "partial");
+
+  const outcome = await invokeTransportAsync(adapter.transports.WorkerTransport, {
+    requestId: "worker-reject-1",
+    input: {},
+  });
+  assert.equal(outcome.ok, false);
+  assert.equal(outcome.failure_class, "worker-fail");
+  assert.equal(outcome.requestId, "worker-reject-1");
+});
+
+test("evaluateCapabilityOracle enforces per-capability semantic markers", () => {
+  const ok = (capability, value) => evaluateCapabilityOracle(capability, { ok: true, value });
+
+  assert.equal(ok("ExecutionTransport", { execution_id: "exec-1" }).ok, true);
+  assert.equal(ok("ExecutionTransport", { execution_id: "  " }).ok, false);
+  assert.equal(ok("ExecutionTransport", { ran: true }).ok, false);
+
+  assert.equal(ok("QuestionTransport", { answered: true, request_id: "q-1" }).ok, true);
+  assert.equal(ok("QuestionTransport", { answered: true, correlation_id: "c-1" }).ok, true);
+  assert.equal(ok("QuestionTransport", { answered: true }).reason_code, "oracle-missing-correlation-id");
+  assert.equal(ok("QuestionTransport", { request_id: "q-1" }).reason_code, "oracle-question-not-answered");
+
+  assert.equal(ok("WorkerTransport", { worker_id: "w-1" }).ok, true);
+  assert.equal(ok("WorkerTransport", { spawned: true }).ok, false);
+
+  assert.equal(ok("ToolExecutionTransport", { tool: "Bash" }).ok, true);
+  assert.equal(ok("ToolExecutionTransport", { tool: "" }).ok, false);
+
+  assert.equal(ok("DeliveryGateTransport", { authorizes_delivery: false }).ok, true);
+  assert.equal(
+    ok("DeliveryGateTransport", { authorizes_delivery: true }).reason_code,
+    "oracle-delivery-authorization-claimed"
+  );
+  assert.equal(ok("DeliveryGateTransport", { hook: "Stop" }).ok, false);
+
+  assert.equal(ok("WorkerTransport", undefined).reason_code, "oracle-value-not-record");
+  assert.equal(ok("WorkerTransport", [{ worker_id: "w-1" }]).reason_code, "oracle-value-not-record");
+  assert.equal(
+    evaluateCapabilityOracle("WorkerTransport", { ok: false, value: { worker_id: "w-1" } }).reason_code,
+    "oracle-probe-not-executed"
+  );
+  assert.equal(
+    evaluateCapabilityOracle("UnknownTransport", { ok: true, value: {} }).reason_code,
+    "oracle-unknown-capability"
+  );
 });
 
 test("verifyAllClaudeEnforcedProofs requires primitives (executed probes)", async () => {

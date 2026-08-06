@@ -57,11 +57,11 @@ test("claude adapter cannot reach compareAndSwap or permit minting; store head u
 
 test("claude enforced capabilities require executed live probe + verifying CapabilityProof", async () => {
   const primitives = {
-    execute: () => ({}),
-    askUserQuestion: () => ({}),
-    worker: () => ({}),
-    tool: () => ({}),
-    hooksObserve: () => ({}),
+    execute: () => ({ execution_id: "exec-1", ran: true }),
+    askUserQuestion: (q) => ({ answered: true, request_id: "q-1", q }),
+    worker: () => ({ worker_id: "w-1", spawned: true }),
+    tool: () => ({ tool: "Bash" }),
+    hooksObserve: () => ({ hook: "Stop", authorizes_delivery: false }),
   };
   const verified = await verifyAllClaudeEnforcedProofs({ primitives });
   assert.equal(verified.ok, true);
@@ -83,6 +83,31 @@ test("claude enforced capabilities require executed live probe + verifying Capab
   for (const id of TRANSPORT_CAPABILITIES) {
     assert.notEqual(fixtureOnly.capabilities[id], "enforced");
   }
+});
+
+test("claude adapter from registry factory withholds enforced when the semantic oracle fails", async () => {
+  const factory = getAdapterFactory("claude");
+  const semanticallyEmpty = await factory({
+    primitives: {
+      execute: () => ({ ran: true }),
+      askUserQuestion: () => ({}),
+      worker: () => undefined,
+      tool: () => ({ tool: "" }),
+      hooksObserve: () => ({ hook: "Stop", authorizes_delivery: true }),
+    },
+  });
+  for (const id of TRANSPORT_CAPABILITIES) {
+    assert.equal(semanticallyEmpty.capabilities[id], "partial", id);
+  }
+
+  const noProofMaterial = await getClaudeProofMaterial({
+    primitives: { worker: () => ({ spawned: true }) },
+  });
+  assert.equal(noProofMaterial.WorkerTransport.expectedProbeDigest, undefined);
+  assert.equal(
+    (await verifyAllClaudeEnforcedProofs({ primitives: { worker: () => ({ spawned: true }) } })).ok,
+    false
+  );
 });
 
 test("inactive stubs cannot be loaded as executable adapters", () => {

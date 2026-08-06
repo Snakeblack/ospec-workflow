@@ -93,7 +93,7 @@ test("recover without recoverable interruption fails closed", () => {
 });
 
 test("authorizeOperation rejects token-only and missing permit for mutating ops", () => {
-  const { createPermitLedger, mintOperationPermit } = require("./permits.js");
+  const { createPermitAuthorityIssuer, mintOperationPermit } = require("./permits.js");
   const denied = authorizeOperation({
     operation: "start",
     arguments: { node_id: "n1" },
@@ -117,7 +117,7 @@ test("authorizeOperation rejects token-only and missing permit for mutating ops"
   assert.equal(tokenOnly.ok, false);
   assert.equal(tokenOnly.code, "unauthorized");
 
-  const ledger = createPermitLedger();
+  const ledger = createPermitAuthorityIssuer();
   const head = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
   const permit = mintOperationPermit({
     ledger,

@@ -7,6 +7,7 @@ const {
   runKernelOperation,
   createAuthorityStore,
   createPermitLedger,
+  createPermitAuthorityIssuer,
   issueOperationPermit,
   reduceLifecycle,
   digestLifecycleState,
@@ -26,7 +27,7 @@ function pendingState() {
 async function authorizedStart(store, extra = {}) {
   const head = await store.load();
   const issued = issueFixturePermit({
-    ledger: extra.permitLedger || createPermitLedger(),
+    ledger: extra.permitLedger || store.getPermitIssuer(),
     operation: "start",
     headRevision: head.revision,
     arguments: { node_id: "n1" },
@@ -76,7 +77,7 @@ test("invalid transition via public API does not mutate store", async () => {
   const before = digestLifecycleState((await store.load()).state);
   const head = await store.load();
   const issued = issueFixturePermit({
-    ledger: createPermitLedger(),
+    ledger: store.getPermitIssuer(),
     operation: "complete",
     headRevision: head.revision,
     arguments: { node_id: "n1" },
@@ -125,7 +126,7 @@ test("mutating operation without effectExecutor fail-closes and does not commit"
   const beforeDigest = digestLifecycleState(initialState);
   const head = await store.load();
   const issued = issueFixturePermit({
-    ledger: createPermitLedger(),
+    ledger: store.getPermitIssuer(),
     operation: "start",
     headRevision: head.revision,
     arguments: { node_id: "n1" },
@@ -218,7 +219,7 @@ test("mutation without runtime-minted permit fails; head unchanged", async () =>
 test("mutation with fabricated permit bypassing ledger fails", async () => {
   const store = createAuthorityStore({ initial: { state: pendingState() } });
   const before = await store.load();
-  const ledger = createPermitLedger();
+  const ledger = store.getPermitIssuer();
   const fabricated = {
     schema_version: 1,
     kind: "operation-permit/v1",
@@ -288,7 +289,7 @@ test("exact identical replay returns prior OperationReceipt without second consu
   const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
   const head = await store.load();
   const issued = issueFixturePermit({
-    ledger: createPermitLedger(),
+    ledger: store.getPermitIssuer(),
     operation: "start",
     headRevision: head.revision,
     arguments: { node_id: "n1" },
@@ -341,6 +342,145 @@ test("issueOperationPermit is re-exported from kernel index", () => {
   assert.equal(typeof issueOperationPermit, "function");
 });
 
+test("CRITICAL: a caller-created issuer is not accepted as the store's permit authority", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const before = await store.load();
+  const rogue = createPermitAuthorityIssuer();
+  const issued = issueFixturePermit({
+    ledger: rogue,
+    operation: "start",
+    headRevision: before.revision,
+    arguments: { node_id: "n1" },
+  });
+
+  let effectRuns = 0;
+  const result = await runKernelOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    store,
+    operationPermit: issued.permit,
+    permitLedger: rogue,
+    effectExecutor: async () => {
+      effectRuns += 1;
+      return { ok: true };
+    },
+  });
+
+  assert.equal(result.outcome, "blocked");
+  assert.equal(result.code, "issuer-capability-required");
+  assert.equal(effectRuns, 0);
+  const after = await store.load();
+  assert.equal(after.revision, before.revision);
+  assert.equal(after.state.nodes.n1.phase, "pending");
+});
+
+test("CRITICAL: a reader ledger presented as permitLedger is rejected", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const before = await store.load();
+  const issued = issueFixturePermit({
+    ledger: store.getPermitIssuer(),
+    operation: "start",
+    headRevision: before.revision,
+    arguments: { node_id: "n1" },
+  });
+
+  const result = await runKernelOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    store,
+    operationPermit: issued.permit,
+    permitLedger: createPermitLedger(),
+    effectExecutor: async () => ({ ok: true }),
+  });
+  assert.equal(result.outcome, "blocked");
+  assert.equal(result.code, "issuer-capability-required");
+  assert.equal((await store.load()).revision, before.revision);
+});
+
+test("CRITICAL: consumed permit_id with forged arguments is never replayed as success", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const first = await authorizedStart(store);
+  assert.equal(first.outcome, "advanced");
+  const permitId = first.operation_permit_id;
+  const consumedPermit = store.getPermitIssuer().get(permitId).permit;
+
+  const forged = {
+    ...consumedPermit,
+    arguments_digest: require("../canonical-json.js").sha256Fingerprint("permit:arguments", {
+      node_id: "n2",
+    }),
+    operation_intent_digest: "sha256:forged-intent",
+  };
+
+  let effectRuns = 0;
+  const replay = await runKernelOperation({
+    operation: "start",
+    arguments: { node_id: "n2" },
+    store,
+    operationPermit: forged,
+    effectExecutor: async () => {
+      effectRuns += 1;
+      return { ok: true };
+    },
+  });
+  assert.notEqual(replay.replayed, true);
+  assert.equal(replay.outcome, "blocked");
+  assert.equal(replay.code, "permit-reuse");
+  assert.equal(effectRuns, 0);
+  assert.equal(replay.operation_receipt, undefined);
+});
+
+test("restart issues a fresh permit id that cannot collide with a consumed one", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const first = await authorizedStart(store);
+  assert.equal(first.outcome, "advanced");
+  const consumedId = first.operation_permit_id;
+
+  const restored = createAuthorityStore({ initial: store.snapshot() });
+  assert.notEqual(restored.getPermitIssuer(), store.getPermitIssuer());
+  const head = await restored.load();
+  assert.equal(head.authority.permits[consumedId].status, "consumed");
+
+  const issued = issueFixturePermit({
+    ledger: restored.getPermitIssuer(),
+    operation: "complete",
+    headRevision: head.revision,
+    arguments: { node_id: "n1" },
+  });
+  assert.notEqual(issued.permit.permit_id, consumedId);
+
+  const next = await runKernelOperation({
+    operation: "complete",
+    arguments: { node_id: "n1" },
+    store: restored,
+    operationPermit: issued.permit,
+    effectExecutor: async () => ({ ok: true }),
+  });
+  assert.notEqual(next.outcome, "blocked");
+  assert.equal(next.operation_permit_id, issued.permit.permit_id);
+  assert.ok(next.operation_receipt);
+  const after = await restored.load();
+  assert.equal(after.authority.permits[consumedId].status, "consumed");
+  assert.equal(after.authority.permits[issued.permit.permit_id].status, "consumed");
+});
+
+test("consumed permit record persists full intent for post-restart verification", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const result = await authorizedStart(store);
+  const permitId = result.operation_permit_id;
+  const issuedPermit = store.getPermitIssuer().get(permitId).permit;
+
+  const stored = (await store.load()).authority.permits[permitId];
+  assert.equal(stored.status, "consumed");
+  assert.equal(stored.operation_intent_digest, issuedPermit.operation_intent_digest);
+  assert.equal(stored.permit_digest, issuedPermit.permit_digest);
+  assert.equal(stored.arguments_digest, issuedPermit.arguments_digest);
+  assert.equal(stored.operation, "start");
+  assert.equal(stored.subject_id, "lifecycle:default");
+  assert.equal(stored.expected_revision, issuedPermit.expected_revision);
+  assert.equal(result.operation_receipt.operation_intent_digest, issuedPermit.operation_intent_digest);
+});
+
 test("mintOperationPermit is not part of public kernel index API", () => {
   const kernel = require("./index.js");
   assert.equal(kernel.mintOperationPermit, undefined);
@@ -350,7 +490,7 @@ test("non-identical arguments do not short-circuit as exact replay", async () =>
   const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
   const head = await store.load();
   const issued = issueFixturePermit({
-    ledger: createPermitLedger(),
+    ledger: store.getPermitIssuer(),
     operation: "start",
     headRevision: head.revision,
     arguments: { node_id: "n1" },
@@ -382,7 +522,7 @@ test("non-identical arguments do not short-circuit as exact replay", async () =>
 test("bag-consumed without matching receipt fails closed with permit-reuse after restart", async () => {
   const probe = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
   const head = await probe.load();
-  const bootstrap = createPermitLedger();
+  const bootstrap = probe.getPermitIssuer();
   const permit = mintOperationPermit({
     ledger: bootstrap,
     operation: "start",
@@ -406,7 +546,7 @@ test("bag-consumed without matching receipt fails closed with permit-reuse after
     arguments: { node_id: "n1" },
     store,
     operationPermit: permit,
-    permitLedger: createPermitLedger(), // empty Map after restart
+    // Restart: the new store owns a fresh issuer whose map is empty.
     effectExecutor: async () => ({ ok: true }),
   });
   assert.equal(result.outcome, "blocked");
@@ -528,7 +668,7 @@ test("interrupt mid-executor with irreversible persists unknown; resume does not
   const beforeDigest = digestLifecycleState(initialState);
   const head = await store.load();
   const issued = issueFixturePermit({
-    ledger: createPermitLedger(),
+    ledger: store.getPermitIssuer(),
     operation: "start",
     headRevision: head.revision,
     arguments: { node_id: "n1" },
@@ -563,7 +703,7 @@ test("interrupt mid-executor with irreversible persists unknown; resume does not
   let resumedExecutions = 0;
   const head2 = await store.load();
   const issued2 = issueFixturePermit({
-    ledger: createPermitLedger(),
+    ledger: store.getPermitIssuer(),
     operation: "start",
     headRevision: head2.revision,
     arguments: { node_id: "n1" },
@@ -612,7 +752,7 @@ test("CAS conflict after effects does not inflate budgets", async () => {
     budgets: { attempts: 3, corrections: 1 },
   });
   const head = await store2.load();
-  const ledger = createPermitLedger();
+  const ledger = store2.getPermitIssuer();
   const stalePermit = mintOperationPermit({
     ledger,
     operation: "start",

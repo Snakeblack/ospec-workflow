@@ -71,6 +71,81 @@ function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+function nonEmptyString(value) {
+  return typeof value === "string" && value.trim() !== "";
+}
+
+const ORACLE_REASON = Object.freeze({
+  PROBE_NOT_OK: "oracle-probe-not-executed",
+  UNKNOWN_CAPABILITY: "oracle-unknown-capability",
+  VALUE_NOT_RECORD: "oracle-value-not-record",
+  MISSING_EXECUTION_ID: "oracle-missing-execution-id",
+  QUESTION_NOT_ANSWERED: "oracle-question-not-answered",
+  MISSING_CORRELATION_ID: "oracle-missing-correlation-id",
+  MISSING_WORKER_ID: "oracle-missing-worker-id",
+  MISSING_TOOL_IDENTITY: "oracle-missing-tool-identity",
+  DELIVERY_AUTHORIZATION_CLAIMED: "oracle-delivery-authorization-claimed",
+});
+
+const CAPABILITY_ORACLES = Object.freeze({
+  ExecutionTransport(value) {
+    return nonEmptyString(value.execution_id)
+      ? { ok: true }
+      : { ok: false, reason_code: ORACLE_REASON.MISSING_EXECUTION_ID };
+  },
+  QuestionTransport(value) {
+    if (value.answered !== true) {
+      return { ok: false, reason_code: ORACLE_REASON.QUESTION_NOT_ANSWERED };
+    }
+    // A correlation id is what distinguishes an answered question from a bare
+    // truthy flag: it binds the answer to the request that produced it.
+    return nonEmptyString(value.request_id) || nonEmptyString(value.correlation_id)
+      ? { ok: true }
+      : { ok: false, reason_code: ORACLE_REASON.MISSING_CORRELATION_ID };
+  },
+  WorkerTransport(value) {
+    return nonEmptyString(value.worker_id)
+      ? { ok: true }
+      : { ok: false, reason_code: ORACLE_REASON.MISSING_WORKER_ID };
+  },
+  ToolExecutionTransport(value) {
+    return nonEmptyString(value.tool)
+      ? { ok: true }
+      : { ok: false, reason_code: ORACLE_REASON.MISSING_TOOL_IDENTITY };
+  },
+  DeliveryGateTransport(value) {
+    return value.authorizes_delivery === false
+      ? { ok: true }
+      : { ok: false, reason_code: ORACLE_REASON.DELIVERY_AUTHORIZATION_CLAIMED };
+  },
+});
+
+/**
+ * Semantic capability oracle: a port that merely executed has not demonstrated
+ * the capability. Only a probe whose observed value carries the capability's
+ * semantic marker may authorize `enforced`; anything else stays `partial`.
+ *
+ * The QuestionTransport correlation id may be an echo of the probe requestId,
+ * as long as the primitive surfaces it as `request_id`/`correlation_id`.
+ *
+ * @param {string} capabilityId
+ * @param {object} outcome observed TransportOutcome
+ * @returns {{ok:boolean, reason_code?:string}}
+ */
+function evaluateCapabilityOracle(capabilityId, outcome) {
+  const oracle = CAPABILITY_ORACLES[capabilityId];
+  if (typeof oracle !== "function") {
+    return { ok: false, reason_code: ORACLE_REASON.UNKNOWN_CAPABILITY };
+  }
+  if (!isRecord(outcome) || outcome.ok !== true) {
+    return { ok: false, reason_code: ORACLE_REASON.PROBE_NOT_OK };
+  }
+  if (!isRecord(outcome.value)) {
+    return { ok: false, reason_code: ORACLE_REASON.VALUE_NOT_RECORD };
+  }
+  return oracle(outcome.value);
+}
+
 /**
  * Independent live-probe digest — computed from observed probe payload + identity,
  * never read back from a proof field for authority decisions.
@@ -211,7 +286,8 @@ function buildTransports(primitives) {
 }
 
 /**
- * Execute a live probe by invoking the real port and observing the TransportOutcome.
+ * Execute a live probe by invoking the real port and observing the TransportOutcome,
+ * then require the semantic oracle for that capability to pass.
  * Caller-supplied declarative payloads never authorize enforced.
  */
 async function executeLiveProbe(port, capabilityId) {
@@ -221,12 +297,17 @@ async function executeLiveProbe(port, capabilityId) {
     input: challenge,
   });
   if (!outcome || outcome.ok !== true) {
-    return { ok: false, outcome };
+    return { ok: false, reason_code: ORACLE_REASON.PROBE_NOT_OK, outcome };
+  }
+  const oracle = evaluateCapabilityOracle(capabilityId, outcome);
+  if (!oracle.ok) {
+    return { ok: false, reason_code: oracle.reason_code, outcome };
   }
   const probe = {
     capability_id: capabilityId,
     observed: true,
     outcome: outcome.outcome || "ok",
+    semantic_oracle: "pass",
     value_digest: sha256Fingerprint("probe:observation-value", {
       value: outcome.value === undefined ? null : outcome.value,
     }),
@@ -262,6 +343,8 @@ async function createClaudeHostAdapter(options = {}) {
       continue;
     }
 
+    // Probe failure or an unmet semantic oracle both stop at partial: the
+    // primitive exists but the capability was never demonstrated.
     const observation = await executeLiveProbe(transports[id], id);
     if (!observation.ok) {
       capabilities[id] = "partial";
@@ -386,6 +469,8 @@ module.exports = {
   ENFORCED_CAPABILITIES,
   TRANSPORT_CAPABILITIES,
   PROBE_CHALLENGES,
+  ORACLE_REASON,
+  evaluateCapabilityOracle,
   createClaudeHostAdapter,
   getClaudeProofMaterial,
   verifyAllClaudeEnforcedProofs,
