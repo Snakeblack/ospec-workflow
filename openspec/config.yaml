@@ -11,7 +11,7 @@ context: |
 
 project:
   name: ospec-workflow
-  version: 2.40.8
+  version: 2.40.9
   status: active
 
 artifact_store:

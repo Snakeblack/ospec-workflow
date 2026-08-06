@@ -12,15 +12,16 @@ const {
   interruptError,
 } = require("./index.js");
 const {
-  mintOperationPermit,
+  createTestKernelRuntime,
   createPermitAuthorityIssuer,
+  mintOperationPermit,
   issueOperationPermit,
   withRuntimePermit,
   issueFixturePermit,
 } = require("../test-support/permit-test-helpers.js");
 
 function runKernelOperation(input = {}) {
-  const runtime = createKernelRuntime({ store: input.store, permitIssuer: input.permitLedger });
+  const runtime = createTestKernelRuntime({ store: input.store, permitIssuer: input.permitLedger });
   return runtime.runOperation(input);
 }
 
@@ -413,6 +414,33 @@ test("CRITICAL: KernelRuntime ignores rogue permitLedger passed by caller", asyn
   assert.equal(result.code, "permit-not-runtime-issued");
   assert.equal(effectRuns, 0);
 });
+
+test("CRITICAL: production createKernelRuntime does not accept options.permitIssuer or expose permitIssuer getter", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const rogue = createPermitAuthorityIssuer();
+  const runtime = createKernelRuntime({ store, permitIssuer: rogue });
+
+  assert.equal(runtime.permitIssuer, undefined);
+
+  const before = await store.load();
+  const issued = issueFixturePermit({
+    ledger: rogue,
+    operation: "start",
+    headRevision: before.revision,
+    arguments: { node_id: "n1" },
+  });
+
+  const result = await runtime.runOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    operationPermit: issued.permit,
+    effectExecutor: async () => ({ ok: true }),
+  });
+
+  assert.equal(result.outcome, "blocked");
+  assert.equal(result.code, "permit-not-runtime-issued");
+});
+
 
 
 test("CRITICAL: a reader ledger presented as permitLedger is rejected", async () => {

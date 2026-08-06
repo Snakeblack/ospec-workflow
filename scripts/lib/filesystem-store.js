@@ -52,7 +52,25 @@ async function withFileLock(filePath, fn, options = {}) {
               const lockContent = await fs.readFile(lockPath, "utf8");
               const lockData = JSON.parse(lockContent);
               if (lockData && typeof lockData.pid === "number" && !isPidAlive(lockData.pid)) {
-                await fs.unlink(lockPath);
+                let takeoverHandle = null;
+                try {
+                  takeoverHandle = await fs.open(lockPath, "r+");
+                  const checkContent = await takeoverHandle.readFile({ encoding: "utf8" });
+                  const checkData = JSON.parse(checkContent);
+                  if (checkData && checkData.ownerToken === lockData.ownerToken) {
+                    await takeoverHandle.truncate(0);
+                    await takeoverHandle.writeFile(lockPayload, "utf8");
+                    await takeoverHandle.sync();
+                    handle = takeoverHandle;
+                    takeoverHandle = null;
+                    break;
+                  }
+                } catch (_) {
+                } finally {
+                  if (takeoverHandle) {
+                    try { await takeoverHandle.close(); } catch (_) {}
+                  }
+                }
               }
             } catch (_) {}
           }

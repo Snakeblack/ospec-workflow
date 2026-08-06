@@ -36,12 +36,21 @@ Test helpers requiring direct permit minting MUST be isolated in `scripts/lib/te
 
 ### Requirement: Internal Permit Authority Issuer Isolation {#REQ-lifecycle-kernel-027}
 
-`KernelRuntime.runOperation` MUST ignore any caller-supplied `permitLedger` input and strictly use its internal, private `permitIssuer`.
+`createKernelRuntime` MUST NOT accept `options.permitIssuer` and MUST NOT expose a `permitIssuer` getter on runtime instances. `KernelRuntime.runOperation` MUST ignore any caller-supplied `permitLedger` input and strictly use its internal, private `permitIssuer`. `minimal-kernel-harness` MUST NOT inject external `permitLedger` into `createKernelRuntime`.
 
-#### Scenario: KernelRuntime ignores caller permitLedger
+#### Scenario: KernelRuntime ignores caller permitLedger and hides internal issuer
 
 - GIVEN a `KernelRuntime` instance created via `createKernelRuntime`
-- WHEN `runOperation` is called with an explicit `permitLedger` property in the input object
-- THEN `runOperation` MUST NOT pass the caller-supplied `permitLedger` to `runKernelOperation`
-- AND MUST use exclusively the internal `permitIssuer` created at runtime initialization
+- WHEN `createKernelRuntime` is called with an explicit `options.permitIssuer` property
+- THEN `createKernelRuntime` MUST ignore `options.permitIssuer` and construct a private internal `permitIssuer`
+- AND `runtime.permitIssuer` MUST be `undefined`
+- AND `runOperation` MUST NOT pass any caller-supplied `permitLedger` or `options.permitIssuer` to `runKernelOperation`
+
+#### Scenario: Harness does not inject caller permitLedger into runtime
+
+- GIVEN an execution through `minimal-kernel-harness.js`
+- WHEN `runKernelOperation` is invoked with `input.permitLedger`
+- THEN `minimal-kernel-harness` MUST NOT pass `permitIssuer: input.permitLedger` to `createKernelRuntime`
+- AND MUST construct `createKernelRuntime` with strictly default private authority isolation
+
 
