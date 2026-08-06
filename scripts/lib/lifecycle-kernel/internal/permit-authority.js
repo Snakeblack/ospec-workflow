@@ -370,19 +370,6 @@ function issueOperationPermit(input = {}) {
   return { ok: true, permit };
 }
 
-let _runKernelOperation = null;
-
-function setRunKernelOperation(fn) {
-  _runKernelOperation = fn;
-}
-
-function runKernelOperation(...args) {
-  if (!_runKernelOperation) {
-    throw new Error("Kernel operation runner not initialized");
-  }
-  return _runKernelOperation(...args);
-}
-
 module.exports = {
   PERMIT_AUTHORITY_ISSUER,
   isPermitAuthorityIssuer,
@@ -391,7 +378,5 @@ module.exports = {
   issueOperationPermit,
   computeOperationIntentDigest,
   computePermitDigest,
-  setRunKernelOperation,
-  runKernelOperation,
 };
 

@@ -36,7 +36,7 @@ Test helpers requiring direct permit minting MUST be isolated in `scripts/lib/te
 
 ### Requirement: Internal Permit Authority Issuer Isolation {#REQ-lifecycle-kernel-027}
 
-`createKernelRuntime` MUST NOT accept `options.permitIssuer` and MUST NOT expose a `permitIssuer` getter on runtime instances. `KernelRuntime.runOperation` MUST ignore any caller-supplied `permitLedger` input and strictly use its internal, private `permitIssuer`. `minimal-kernel-harness` MUST NOT inject external `permitLedger` into `createKernelRuntime`.
+`createKernelRuntime` MUST NOT accept `options.permitIssuer` and MUST NOT expose a `permitIssuer` getter on runtime instances. `runKernelOperation` MUST remain strictly lexical private within `lifecycle-kernel/index.js` and MUST NOT be exported by `internal/permit-authority.js`, `permits.js`, `minimal-kernel-harness.js`, or any module in `scripts/lib/`. `minimal-kernel-harness` MUST NOT accept or inject external `permitLedger` into `createKernelRuntime`.
 
 #### Scenario: KernelRuntime ignores caller permitLedger and hides internal issuer
 
@@ -45,12 +45,14 @@ Test helpers requiring direct permit minting MUST be isolated in `scripts/lib/te
 - THEN `createKernelRuntime` MUST ignore `options.permitIssuer` and construct a private internal `permitIssuer`
 - AND `runtime.permitIssuer` MUST be `undefined`
 - AND `runOperation` MUST NOT pass any caller-supplied `permitLedger` or `options.permitIssuer` to `runKernelOperation`
+- AND `internal/permit-authority.js` MUST NOT export `runKernelOperation` or `setRunKernelOperation`
 
 #### Scenario: Harness does not inject caller permitLedger into runtime
 
 - GIVEN an execution through `minimal-kernel-harness.js`
-- WHEN `runKernelOperation` is invoked with `input.permitLedger`
-- THEN `minimal-kernel-harness` MUST NOT pass `permitIssuer: input.permitLedger` to `createKernelRuntime`
+- WHEN `runKernelOperation` or `runHarnessScenario` is invoked
+- THEN `minimal-kernel-harness` MUST NOT accept external `permitLedger` to authorize mutations
 - AND MUST construct `createKernelRuntime` with strictly default private authority isolation
+
 
 
