@@ -243,8 +243,8 @@ function checkRecoveryAdvances(state) {
     operation: "recover",
     arguments: { node_id: "n1" },
     ...(() => {
-      const { createPermitLedger, mintOperationPermit } = require("./lifecycle-kernel/permits.js");
-      const ledger = createPermitLedger();
+      const { createPermitAuthorityIssuer, mintOperationPermit } = require("./lifecycle-kernel/permits.js");
+      const ledger = createPermitAuthorityIssuer();
       const headRevision =
         "sha256:modelrecoveraaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
       const permit = mintOperationPermit({
@@ -491,8 +491,8 @@ function checkK21NoMutationWithoutCas() {
 }
 
 function checkK21StalePermitReject() {
-  const { createPermitLedger, mintOperationPermit, authorizeMutation } = require("./lifecycle-kernel/permits.js");
-  const ledger = createPermitLedger();
+  const { createPermitAuthorityIssuer, mintOperationPermit, authorizeMutation } = require("./lifecycle-kernel/permits.js");
+  const ledger = createPermitAuthorityIssuer();
   const permit = mintOperationPermit({
     ledger,
     operation: "start",
@@ -510,8 +510,8 @@ function checkK21StalePermitReject() {
 }
 
 function checkK21PermitReuseReject() {
-  const { createPermitLedger, mintOperationPermit, authorizeMutation, consumePermit } = require("./lifecycle-kernel/permits.js");
-  const ledger = createPermitLedger();
+  const { createPermitAuthorityIssuer, mintOperationPermit, authorizeMutation, consumePermit } = require("./lifecycle-kernel/permits.js");
+  const ledger = createPermitAuthorityIssuer();
   const permit = mintOperationPermit({
     ledger,
     operation: "start",
@@ -574,8 +574,8 @@ function checkK21ConvergentReplay() {
 }
 
 function checkK21NoSelfGrant() {
-  const { createPermitLedger, authorizeMutation } = require("./lifecycle-kernel/permits.js");
-  const ledger = createPermitLedger();
+  const { createPermitAuthorityIssuer, authorizeMutation } = require("./lifecycle-kernel/permits.js");
+  const ledger = createPermitAuthorityIssuer();
   const fabricated = {
     schema_version: 1,
     kind: "operation-permit/v1",
@@ -688,12 +688,12 @@ async function checkK21bAtomicConsumeRevision() {
 }
 
 async function checkK21bReplayPriorReceipt() {
-  const { createAuthorityStore, runKernelOperation, createPermitLedger } = require("./lifecycle-kernel/index.js");
+  const { createAuthorityStore, runKernelOperation } = require("./lifecycle-kernel/index.js");
   const { issueFixturePermit } = require("./lifecycle-kernel/test-permit-helpers.js");
   const store = createAuthorityStore({ initial: { state: pendingModelState(), journal: [] } });
   const head = await store.load();
   const issued = issueFixturePermit({
-    ledger: createPermitLedger(),
+    ledger: store.getPermitIssuer(),
     operation: "start",
     headRevision: head.revision,
     arguments: { node_id: "n1" },
@@ -806,8 +806,8 @@ async function runAllInvariantCheckers(context = {}) {
 function applyAction(state, action) {
   if (action === "status") return { state, outcome: "advanced" };
   const nodeId = "n1";
-  const { createPermitLedger, mintOperationPermit } = require("./lifecycle-kernel/permits.js");
-  const ledger = createPermitLedger();
+  const { createPermitAuthorityIssuer, mintOperationPermit } = require("./lifecycle-kernel/permits.js");
+  const ledger = createPermitAuthorityIssuer();
   const headRevision =
     "sha256:modelexploreaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   const permit = mintOperationPermit({

@@ -14,6 +14,8 @@ const { validateOperationTransition } = require("./operations.js");
 const { createMemoryStore } = require("./memory-store.js");
 const {
   createPermitLedger,
+  createPermitAuthorityIssuer,
+  isPermitAuthorityIssuer,
   issueOperationPermit,
   authorizeOperationWithPermit,
   prepareOperationReceipt,
@@ -149,7 +151,19 @@ async function runKernelOperation(input = {}) {
     });
   }
 
-  const ledger = permitLedger || createPermitLedger();
+  // Authorization runs against the store-owned issuer only. A caller-supplied
+  // ledger is accepted solely when it IS that issuer; anything else would let a
+  // caller present its own mint authority.
+  const storeIssuer =
+    typeof authorityStore.getPermitIssuer === "function" ? authorityStore.getPermitIssuer() : null;
+  if (!isPermitAuthorityIssuer(storeIssuer) || (permitLedger && permitLedger !== storeIssuer)) {
+    return blockedResult(state, journal, "issuer-capability-required", {
+      revision: headRevision,
+      operation_receipt: null,
+    });
+  }
+
+  const ledger = storeIssuer;
   const permit = operationPermit || null;
   const argumentsDigest = sha256Fingerprint("permit:arguments", args);
 
@@ -471,17 +485,44 @@ async function runKernelOperation(input = {}) {
     ? authorityStore.getBudgets(subjectId)
     : null;
 
+  // Persisted intent comes from the ledger-held permit, never from the
+  // caller-presented copy.
+  const ledgerEntry = ledger.get(permit.permit_id);
+  const issuedPermit = ledgerEntry ? ledgerEntry.permit : null;
+  if (!issuedPermit) {
+    return blockedResult(state, journal, "permit-not-runtime-issued", {
+      operation_id: operationId,
+      revision: headRevision,
+      operation_receipt: null,
+    });
+  }
+
   const receipt = prepareOperationReceipt({
     permit_id: permit.permit_id,
     subject_id: subjectId,
     operation,
     expected_revision: headRevision,
     outcome: reduced.outcome,
+    operation_intent_digest: issuedPermit.operation_intent_digest,
+    arguments_digest: issuedPermit.arguments_digest,
   });
   const authorityCommit = {
     permit_id: permit.permit_id,
     receipt,
     status: "consumed",
+    permit_record: {
+      permit_id: issuedPermit.permit_id,
+      status: "consumed",
+      operation_intent_digest: issuedPermit.operation_intent_digest,
+      permit_digest: issuedPermit.permit_digest,
+      operation: issuedPermit.operation,
+      subject_id: issuedPermit.subject_id,
+      arguments_digest: issuedPermit.arguments_digest,
+      scope_digest: issuedPermit.scope_digest,
+      policy_digest: issuedPermit.policy_digest,
+      issuer_decision_id: issuedPermit.issuer_decision_id || null,
+      expected_revision: issuedPermit.expected_revision,
+    },
   };
 
   const cas = await authorityStore.compareAndSwap(
@@ -572,6 +613,8 @@ module.exports = {
   createMemoryStore,
   createAuthorityStore,
   createPermitLedger,
+  createPermitAuthorityIssuer,
+  isPermitAuthorityIssuer,
   issueOperationPermit,
   reduceLifecycle,
   digestLifecycleState,

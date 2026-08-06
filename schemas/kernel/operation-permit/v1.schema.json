@@ -15,7 +15,11 @@
     "scope_digest": { "type": "string" },
     "policy_digest": { "type": "string" },
     "budget_ref": { "type": "string" },
-    "single_use": { "const": true }
+    "single_use": { "const": true },
+    "operation_intent_digest": { "type": "string" },
+    "permit_digest": { "type": "string" },
+    "issuer_decision_id": { "type": "string" },
+    "offer_id": { "type": "string" }
   },
   "required": [
     "schema_version",

@@ -3,18 +3,58 @@
 const { sha256Fingerprint } = require("../canonical-json.js");
 const { digestLifecycleState } = require("../lifecycle-kernel/state-digest.js");
 const { createMemoryStore } = require("../lifecycle-kernel/memory-store.js");
+const { createPermitAuthorityIssuer } = require("../lifecycle-kernel/permits.js");
 
 const DEFAULT_SUBJECT_ID = "lifecycle:default";
+
+const REQUIRED_PERMIT_RECORD_STRINGS = Object.freeze([
+  "permit_id",
+  "operation_intent_digest",
+  "permit_digest",
+  "operation",
+  "subject_id",
+  "arguments_digest",
+  "scope_digest",
+  "policy_digest",
+  "expected_revision",
+]);
 
 function digestJournal(journal) {
   const ordered = Array.isArray(journal) ? journal : [];
   return sha256Fingerprint("authority-store:journal", ordered);
 }
 
-function computeRevision(state, journal) {
+/**
+ * Root digest over the authority bag (consumed permits + receipts).
+ *
+ * A receipt's own `revision` is a back-reference to the head that contains it,
+ * so it is excluded: hashing it would make the root digest self-referential.
+ */
+function digestAuthority(authority) {
+  const src = authority && typeof authority === "object" ? authority : emptyAuthority();
+  const receipts = src.receipts || {};
+  const normalizedReceipts = {};
+  for (const key of Object.keys(receipts)) {
+    const receipt = receipts[key];
+    if (!receipt || typeof receipt !== "object") {
+      normalizedReceipts[key] = receipt;
+      continue;
+    }
+    const { revision, ...rest } = receipt;
+    void revision;
+    normalizedReceipts[key] = rest;
+  }
+  return sha256Fingerprint("authority-store:authority-root", {
+    permits: src.permits || {},
+    receipts: normalizedReceipts,
+  });
+}
+
+function computeRevision(state, journal, authority = null) {
   return sha256Fingerprint("authority-store:revision", {
     state_digest: digestLifecycleState(state),
     journal_digest: digestJournal(journal),
+    authority_root_digest: digestAuthority(authority),
   });
 }
 
@@ -34,6 +74,41 @@ function cloneAuthority(authority) {
   };
 }
 
+/**
+ * Serializes every read and write on a subject so no caller can observe a head
+ * that has advanced past its matching authority bag.
+ */
+function createMutex() {
+  let tail = Promise.resolve();
+  return function runExclusive(fn) {
+    const result = tail.then(() => fn());
+    tail = result.then(
+      () => undefined,
+      () => undefined
+    );
+    return result;
+  };
+}
+
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.trim() !== "";
+}
+
+function isCompletePermitRecord(record, permitId) {
+  if (!record || typeof record !== "object") return false;
+  if (record.permit_id !== permitId) return false;
+  if (record.status !== "consumed") return false;
+  for (const field of REQUIRED_PERMIT_RECORD_STRINGS) {
+    if (!isNonEmptyString(record[field])) return false;
+  }
+  // Kernel-rule issuance may have no decision id, but the key must be present
+  // so an omitted intent can never masquerade as a complete record.
+  if (!Object.prototype.hasOwnProperty.call(record, "issuer_decision_id")) return false;
+  const decisionId = record.issuer_decision_id;
+  if (decisionId !== null && !isNonEmptyString(decisionId)) return false;
+  return true;
+}
+
 function isCompleteAuthorityCommit(authorityCommit) {
   if (!authorityCommit || typeof authorityCommit !== "object") return false;
   if (!authorityCommit.permit_id || typeof authorityCommit.permit_id !== "string") return false;
@@ -42,6 +117,9 @@ function isCompleteAuthorityCommit(authorityCommit) {
   if (!receipt || typeof receipt !== "object") return false;
   if (receipt.kind !== "operation-receipt/v1") return false;
   if (!receipt.receipt_id || receipt.permit_id !== authorityCommit.permit_id) return false;
+  if (!isCompletePermitRecord(authorityCommit.permit_record, authorityCommit.permit_id)) {
+    return false;
+  }
   return true;
 }
 
@@ -51,9 +129,19 @@ function isCompleteAuthorityCommit(authorityCommit) {
  */
 function materializeAuthorityCommit(currentAuthority, authorityCommit) {
   const nextAuthority = cloneAuthority(currentAuthority);
+  const record = authorityCommit.permit_record;
   nextAuthority.permits[authorityCommit.permit_id] = {
     permit_id: authorityCommit.permit_id,
     status: "consumed",
+    operation_intent_digest: record.operation_intent_digest,
+    permit_digest: record.permit_digest,
+    operation: record.operation,
+    subject_id: record.subject_id,
+    arguments_digest: record.arguments_digest,
+    scope_digest: record.scope_digest,
+    policy_digest: record.policy_digest,
+    issuer_decision_id: record.issuer_decision_id === undefined ? null : record.issuer_decision_id,
+    expected_revision: record.expected_revision,
   };
   nextAuthority.receipts[authorityCommit.permit_id] = JSON.parse(
     JSON.stringify(authorityCommit.receipt)
@@ -64,6 +152,8 @@ function materializeAuthorityCommit(currentAuthority, authorityCommit) {
 function createAuthorityStore(options = {}) {
   const defaultSubjectId = options.subjectId || DEFAULT_SUBJECT_ID;
   const subjects = new Map();
+  // The store owns the only mint-capable issuer; callers get reader views.
+  const permitIssuer = options.permitIssuer || createPermitAuthorityIssuer();
 
   function ensureSubject(subjectId, initial) {
     if (subjects.has(subjectId)) return subjects.get(subjectId);
@@ -82,6 +172,9 @@ function createAuthorityStore(options = {}) {
       baselines: new Map(),
       midOpTicket: null,
       midOpSeq: 0,
+      lock: createMutex(),
+      // Pre-CAS coherent view served to synchronous readers while a commit is in flight.
+      inflight: null,
     };
     subjects.set(subjectId, entry);
     return entry;
@@ -89,16 +182,12 @@ function createAuthorityStore(options = {}) {
 
   ensureSubject(defaultSubjectId, options.initial);
 
-  async function load(subjectId = defaultSubjectId) {
-    const entry = subjects.get(subjectId);
-    if (!entry) {
-      return fail("subject-not-found", { subject_id: subjectId, revision: null });
-    }
+  async function loadLocked(entry, subjectId) {
     const loaded = await entry.inner.load();
     const state = loaded.state;
     const journal = loaded.journal;
     const stateDigest = digestLifecycleState(state);
-    const revision = computeRevision(state, journal);
+    const revision = computeRevision(state, journal, entry.authority);
     entry.baselines.set(revision, stateDigest);
     return {
       ok: true,
@@ -110,6 +199,14 @@ function createAuthorityStore(options = {}) {
       budgets: cloneBudgets(entry.budgets),
       authority: cloneAuthority(entry.authority),
     };
+  }
+
+  async function load(subjectId = defaultSubjectId) {
+    const entry = subjects.get(subjectId);
+    if (!entry) {
+      return fail("subject-not-found", { subject_id: subjectId, revision: null });
+    }
+    return entry.lock(() => loadLocked(entry, subjectId));
   }
 
   /**
@@ -129,20 +226,22 @@ function createAuthorityStore(options = {}) {
     if (typeof entry.inner.commitJournal !== "function") {
       return fail("journal-durability-required");
     }
-    await entry.inner.commitJournal(nextJournal);
-    const loaded = await entry.inner.load();
-    const revision = computeRevision(loaded.state, loaded.journal);
-    let mid_op_ticket = null;
-    if (fromRevision != null && fromRevision !== "") {
-      const stateDigest = digestLifecycleState(loaded.state);
-      mid_op_ticket = sha256Fingerprint("authority-store:mid-op-ticket", {
-        from_revision: fromRevision,
-        state_digest: stateDigest,
-        seq: ++entry.midOpSeq,
-      });
-      entry.midOpTicket = { token: mid_op_ticket, fromRevision, stateDigest };
-    }
-    return { ok: true, mid_op_ticket, revision };
+    return entry.lock(async () => {
+      await entry.inner.commitJournal(nextJournal);
+      const loaded = await entry.inner.load();
+      const revision = computeRevision(loaded.state, loaded.journal, entry.authority);
+      let mid_op_ticket = null;
+      if (fromRevision != null && fromRevision !== "") {
+        const stateDigest = digestLifecycleState(loaded.state);
+        mid_op_ticket = sha256Fingerprint("authority-store:mid-op-ticket", {
+          from_revision: fromRevision,
+          state_digest: stateDigest,
+          seq: ++entry.midOpSeq,
+        });
+        entry.midOpTicket = { token: mid_op_ticket, fromRevision, stateDigest };
+      }
+      return { ok: true, mid_op_ticket, revision };
+    });
   }
 
   /**
@@ -163,9 +262,9 @@ function createAuthorityStore(options = {}) {
    * view fails closed.
    *
    * When authorityCommit is provided (including null), it MUST be a complete
-   * { permit_id, receipt, status: "consumed" } or CAS fails closed with
-   * authority-commit-incomplete and does not advance the head. Omitted
-   * (undefined) keeps non-permit CAS paths working for store unit tests.
+   * { permit_id, receipt, permit_record, status: "consumed" } or CAS fails
+   * closed with authority-commit-incomplete and does not advance the head.
+   * Omitted (undefined) keeps non-permit CAS paths working for store unit tests.
    */
   async function compareAndSwap(
     subjectId,
@@ -179,18 +278,37 @@ function createAuthorityStore(options = {}) {
     if (!entry) {
       return fail("subject-not-found", { subject_id: subjectId, revision: null });
     }
+    return entry.lock(() =>
+      compareAndSwapLocked(
+        entry,
+        expectedRevision,
+        nextState,
+        nextJournal,
+        midOpTicket,
+        authorityCommit
+      )
+    );
+  }
 
+  async function compareAndSwapLocked(
+    entry,
+    expectedRevision,
+    nextState,
+    nextJournal,
+    midOpTicket,
+    authorityCommit
+  ) {
     const permitAuthorized = authorityCommit !== undefined;
     if (permitAuthorized && !isCompleteAuthorityCommit(authorityCommit)) {
       const loaded = await entry.inner.load();
       return fail("authority-commit-incomplete", {
-        revision: computeRevision(loaded.state, loaded.journal),
+        revision: computeRevision(loaded.state, loaded.journal, entry.authority),
         budgets: cloneBudgets(entry.budgets),
       });
     }
 
     const loaded = await entry.inner.load();
-    const currentRevision = computeRevision(loaded.state, loaded.journal);
+    const currentRevision = computeRevision(loaded.state, loaded.journal, entry.authority);
     const currentStateDigest = digestLifecycleState(loaded.state);
     const budgetsBefore = cloneBudgets(entry.budgets);
 
@@ -240,16 +358,19 @@ function createAuthorityStore(options = {}) {
           };
         }
         // Heal/co-write: convergent intent without bag receipt must persist consume+receipt
-        // before returning ok (never ok with null/ephemeral receipt).
+        // before returning ok (never ok with null/ephemeral receipt). The bag is part of the
+        // revision, so the healed head advances even though state and journal did not.
         const nextAuthority = materializeAuthorityCommit(entry.authority, authorityCommit);
+        const healedRevision = computeRevision(loaded.state, loaded.journal, nextAuthority);
         const stored = nextAuthority.receipts[authorityCommit.permit_id];
         if (stored && (stored.revision === "pending" || stored.revision == null)) {
-          stored.revision = currentRevision;
+          stored.revision = healedRevision;
         }
         entry.authority = nextAuthority;
+        entry.baselines.set(healedRevision, currentStateDigest);
         return {
           ok: true,
-          revision: currentRevision,
+          revision: healedRevision,
           converged: true,
           budgets: budgetsBefore,
           operation_receipt: JSON.parse(JSON.stringify(stored)),
@@ -264,26 +385,30 @@ function createAuthorityStore(options = {}) {
       };
     }
 
-    // Prepare authority bag before head mutation so load/snapshot never observe
-    // an advanced head without matching consume+receipt. Roll back bag if commit fails.
-    let previousAuthority = null;
-    if (permitAuthorized) {
-      const nextAuthority = materializeAuthorityCommit(entry.authority, authorityCommit);
-      previousAuthority = entry.authority;
-      entry.authority = nextAuthority;
-    }
+    // Prepare the next authority bag without publishing it: an inner commit that
+    // throws must leave the bag exactly as it was.
+    const nextAuthority = permitAuthorized
+      ? materializeAuthorityCommit(entry.authority, authorityCommit)
+      : null;
 
+    // Synchronous readers keep seeing the pre-CAS pair until state and bag are both published.
+    entry.inflight = {
+      state: JSON.parse(JSON.stringify(loaded.state)),
+      journal: JSON.parse(JSON.stringify(loaded.journal)),
+      authority: cloneAuthority(entry.authority),
+    };
     try {
       await entry.inner.commit({ state: nextState, journal: journalToCommit });
-    } catch (err) {
-      if (previousAuthority) entry.authority = previousAuthority;
-      throw err;
+      if (nextAuthority) entry.authority = nextAuthority;
+    } finally {
+      entry.inflight = null;
     }
+
     entry.midOpTicket = null;
     if (!stateUnchanged) entry.baselines.clear();
 
     const after = await entry.inner.load();
-    const revision = computeRevision(after.state, after.journal);
+    const revision = computeRevision(after.state, after.journal, entry.authority);
     entry.baselines.set(revision, digestLifecycleState(after.state));
 
     // Bind receipt.revision to the winning head when caller left a placeholder.
@@ -309,6 +434,13 @@ function createAuthorityStore(options = {}) {
   function snapshot(subjectId = defaultSubjectId) {
     const entry = subjects.get(subjectId);
     if (!entry) return null;
+    if (entry.inflight) {
+      return {
+        state: JSON.parse(JSON.stringify(entry.inflight.state)),
+        journal: JSON.parse(JSON.stringify(entry.inflight.journal)),
+        authority: cloneAuthority(entry.inflight.authority),
+      };
+    }
     const innerSnap = entry.inner.snapshot();
     return {
       state: innerSnap.state,
@@ -324,6 +456,9 @@ function createAuthorityStore(options = {}) {
     commitJournal,
     snapshot,
     computeRevision,
+    getPermitIssuer() {
+      return permitIssuer;
+    },
     getBudgets(subjectId = defaultSubjectId) {
       const entry = subjects.get(subjectId);
       return entry ? cloneBudgets(entry.budgets) : null;
@@ -349,6 +484,7 @@ function cloneBudgets(budgets) {
 module.exports = {
   DEFAULT_SUBJECT_ID,
   digestJournal,
+  digestAuthority,
   computeRevision,
   createAuthorityStore,
 };

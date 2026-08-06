@@ -1,5 +1,6 @@
 "use strict";
 
+const { randomUUID } = require("node:crypto");
 const { sha256Fingerprint } = require("../canonical-json.js");
 
 const EFFECT_CLASSES = Object.freeze([
@@ -15,36 +16,52 @@ const HUMAN_DECISION_KIND = "human-decision/v1";
 const KERNEL_RULE_KIND = "kernel-rule/v1";
 const TRANSITION_OFFER_KIND = "transition-offer/v1";
 
+/**
+ * Capability brand for the mint-capable permit authority. Holding a reference to
+ * a branded issuer IS the authority to mint; readers never carry the brand.
+ */
+const PERMIT_AUTHORITY_ISSUER = Symbol.for("ospec.permitAuthorityIssuer");
+
 function isNonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";
 }
 
-function createPermitLedger() {
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function isPermitAuthorityIssuer(ledger) {
+  return Boolean(
+    ledger && typeof ledger === "object" && ledger[PERMIT_AUTHORITY_ISSUER] === true
+  );
+}
+
+/**
+ * Mint-capable permit authority. Only the Authority Store should hold one:
+ * registration, insertion, and id allocation are authority-granting operations.
+ */
+function createPermitAuthorityIssuer() {
   /** @type {Map<string, { permit: object, consumed: boolean, runtime_issued: boolean }>} */
   const entries = new Map();
   /** @type {Map<string, object>} */
   const offers = new Map();
   /** @type {Map<string, { record: object, kind: string, offer_id: string, consumed: boolean }>} */
   const decisions = new Map();
-  let seq = 0;
-  let offerSeq = 0;
-  let decisionSeq = 0;
 
   return {
+    [PERMIT_AUTHORITY_ISSUER]: true,
     _entries: entries,
     _offers: offers,
     _decisions: decisions,
+    // Non-recyclable ids: a restarted issuer never reissues a previously consumed id.
     nextPermitId() {
-      seq += 1;
-      return `permit:runtime:${String(seq).padStart(4, "0")}`;
+      return `permit:runtime:${randomUUID()}`;
     },
     nextOfferId() {
-      offerSeq += 1;
-      return `offer:runtime:${String(offerSeq).padStart(4, "0")}`;
+      return `offer:runtime:${randomUUID()}`;
     },
     nextDecisionId(prefix) {
-      decisionSeq += 1;
-      return `${prefix}:runtime:${String(decisionSeq).padStart(4, "0")}`;
+      return `${prefix}:runtime:${randomUUID()}`;
     },
     has(permitId) {
       return entries.has(permitId);
@@ -54,7 +71,7 @@ function createPermitLedger() {
     },
     insert(permit) {
       entries.set(permit.permit_id, {
-        permit: JSON.parse(JSON.stringify(permit)),
+        permit: clone(permit),
         consumed: false,
         runtime_issued: true,
       });
@@ -67,7 +84,7 @@ function createPermitLedger() {
     },
     getOffer(offerId) {
       const offer = offers.get(offerId);
-      return offer ? JSON.parse(JSON.stringify(offer)) : null;
+      return offer ? clone(offer) : null;
     },
     getDecision(decisionId) {
       const entry = decisions.get(decisionId);
@@ -76,7 +93,7 @@ function createPermitLedger() {
             kind: entry.kind,
             offer_id: entry.offer_id,
             consumed: entry.consumed,
-            record: JSON.parse(JSON.stringify(entry.record)),
+            record: clone(entry.record),
           }
         : null;
     },
@@ -109,7 +126,7 @@ function createPermitLedger() {
           : "lifecycle:default",
       };
       offers.set(offer_id, offer);
-      return { ok: true, offer_id, offer: JSON.parse(JSON.stringify(offer)) };
+      return { ok: true, offer_id, offer: clone(offer) };
     },
     registerPolicyDecision(decisionInput = {}) {
       return registerDecisionRecord(this, decisions, {
@@ -144,6 +161,47 @@ function createPermitLedger() {
       entry.consumed = true;
       return true;
     },
+  };
+}
+
+/**
+ * Reader-only ledger view. It can answer "was this issued/consumed?" but it
+ * cannot register offers/decisions, insert permits, or allocate ids.
+ */
+function createPermitLedger() {
+  /** @type {Map<string, { permit: object, consumed: boolean, runtime_issued: boolean }>} */
+  const entries = new Map();
+  /** @type {Map<string, object>} */
+  const offers = new Map();
+  /** @type {Map<string, object>} */
+  const decisions = new Map();
+
+  function denied() {
+    return { ok: false, code: "issuer-capability-required" };
+  }
+
+  return {
+    _entries: entries,
+    _offers: offers,
+    _decisions: decisions,
+    has(permitId) {
+      return entries.has(permitId);
+    },
+    get(permitId) {
+      return entries.get(permitId) || null;
+    },
+    getOffer(offerId) {
+      const offer = offers.get(offerId);
+      return offer ? clone(offer) : null;
+    },
+    getDecision(decisionId) {
+      const entry = decisions.get(decisionId);
+      return entry ? clone(entry) : null;
+    },
+    registerTransitionOffer: denied,
+    registerPolicyDecision: denied,
+    registerHumanDecision: denied,
+    registerKernelRule: denied,
   };
 }
 
@@ -186,27 +244,61 @@ function registerDecisionRecord(ledger, decisions, { input, kind, idField, idPre
     consumed: false,
     record,
   });
-  return { ok: true, [idField]: id, record: JSON.parse(JSON.stringify(record)) };
+  return { ok: true, [idField]: id, record: clone(record) };
+}
+
+/**
+ * Durable intent of an operation: what may happen, to whom, with which args,
+ * against which head. Persisted with the consume so replay can be verified
+ * without trusting anything the caller presents later.
+ */
+function computeOperationIntentDigest({
+  domain,
+  operation,
+  subject_id,
+  arguments_digest,
+  expected_revision,
+}) {
+  return sha256Fingerprint("operation-intent/v1", {
+    domain: domain || "lifecycle",
+    operation: operation || null,
+    subject_id: subject_id || null,
+    arguments_digest: arguments_digest || null,
+    expected_revision: expected_revision || null,
+  });
+}
+
+function computePermitDigest(permit) {
+  const { permit_digest, ...rest } = permit;
+  void permit_digest;
+  return sha256Fingerprint("operation-permit/v1", rest);
 }
 
 function mintOperationPermit(input = {}) {
   const ledger = input.ledger;
-  if (!ledger || typeof ledger.insert !== "function") {
+  if (!ledger || typeof ledger !== "object") {
     const error = new Error("permit ledger required for runtime mint");
     error.code = "permit-ledger-required";
     throw error;
   }
+  if (!isPermitAuthorityIssuer(ledger) || typeof ledger.insert !== "function") {
+    const error = new Error("permit authority issuer capability required for runtime mint");
+    error.code = "issuer-capability-required";
+    throw error;
+  }
 
+  const subject_id = input.subject_id || "lifecycle:default";
   const permit = {
     schema_version: 1,
     kind: "operation-permit/v1",
     permit_id: input.permit_id || ledger.nextPermitId(),
     domain: input.domain || "lifecycle",
     operation: input.operation,
-    subject_id: input.subject_id || "lifecycle:default",
+    subject_id,
     expected_revision: input.expected_revision,
-    arguments_digest: input.arguments_digest || sha256Fingerprint("permit:arguments", input.arguments || {}),
-    scope_digest: input.scope_digest || sha256Fingerprint("permit:scope", { subject_id: input.subject_id || "lifecycle:default" }),
+    arguments_digest:
+      input.arguments_digest || sha256Fingerprint("permit:arguments", input.arguments || {}),
+    scope_digest: input.scope_digest || sha256Fingerprint("permit:scope", { subject_id }),
     policy_digest: input.policy_digest || sha256Fingerprint("permit:policy", { policy: "fixed-default" }),
     budget_ref: input.budget_ref || "budget:none",
     single_use: true,
@@ -225,8 +317,11 @@ function mintOperationPermit(input = {}) {
     throw error;
   }
 
+  permit.operation_intent_digest = computeOperationIntentDigest(permit);
+  permit.permit_digest = computePermitDigest(permit);
+
   ledger.insert(permit);
-  return JSON.parse(JSON.stringify(permit));
+  return clone(permit);
 }
 
 /**
@@ -253,8 +348,11 @@ function issueOperationPermit(input = {}) {
     budget_ref = null,
   } = input;
 
-  if (!ledger || typeof ledger.insert !== "function") {
+  if (!ledger || typeof ledger !== "object") {
     return { ok: false, code: "permit-ledger-required" };
+  }
+  if (!isPermitAuthorityIssuer(ledger) || typeof ledger.insert !== "function") {
+    return { ok: false, code: "issuer-capability-required" };
   }
 
   // Reject fabricated DTOs: issuance must bind to runtime-owned registry ids only.
@@ -476,6 +574,9 @@ function consumePermit({ permit_id, ledger, subject_id, operation, revision, out
   if (entry.consumed) {
     return { ok: false, code: "permit-reuse" };
   }
+  if (typeof ledger.markConsumed !== "function") {
+    return { ok: false, code: "issuer-capability-required" };
+  }
   if (entry.permit.expected_revision !== revision && revision != null) {
     // Consume binds to post-CAS revision for the receipt; stale check uses pre-CAS head at authorize.
   }
@@ -486,6 +587,8 @@ function consumePermit({ permit_id, ledger, subject_id, operation, revision, out
     operation: operation || entry.permit.operation,
     expected_revision: revision || entry.permit.expected_revision,
     outcome: outcome || "advanced",
+    operation_intent_digest: entry.permit.operation_intent_digest || null,
+    arguments_digest: entry.permit.arguments_digest || null,
   });
   if (revision != null) receipt.revision = revision;
   return { ok: true, receipt };
@@ -493,7 +596,7 @@ function consumePermit({ permit_id, ledger, subject_id, operation, revision, out
 
 /**
  * Build an OperationReceipt before CAS so it can be co-committed in authorityCommit.
- * receipt_id is bound to permit + operation + subject + expected_revision (stable across replay).
+ * receipt_id is bound to permit + intent + subject + expected_revision (stable across replay).
  */
 function prepareOperationReceipt({
   permit_id,
@@ -501,6 +604,8 @@ function prepareOperationReceipt({
   operation,
   expected_revision,
   outcome = "advanced",
+  operation_intent_digest = null,
+  arguments_digest = null,
 } = {}) {
   return {
     schema_version: 1,
@@ -510,31 +615,47 @@ function prepareOperationReceipt({
       subject_id,
       operation,
       expected_revision,
+      operation_intent_digest: operation_intent_digest || null,
+      arguments_digest: arguments_digest || null,
     }),
     permit_id,
     subject_id,
     operation,
     revision: expected_revision,
     outcome,
+    operation_intent_digest: operation_intent_digest || null,
+    arguments_digest: arguments_digest || null,
   };
 }
 
 /**
  * Exact-replay lookup against the Authority Store authority bag.
- * Binds arguments_digest when provided so non-identical args never short-circuit.
+ *
+ * Binding is against the STORED permit record, never against the permit object
+ * the caller presents: a forged permit that reuses a consumed permit_id with
+ * different arguments must not resolve to the prior receipt.
  */
 function findReplayReceipt(authority, permit, operation, subjectId, arguments_digest = null) {
   if (!authority || !permit || typeof permit !== "object") return null;
   const permits = authority.permits || {};
   const receipts = authority.receipts || {};
-  const entry = permits[permit.permit_id];
-  if (!entry || entry.status !== "consumed") return null;
+  const stored = permits[permit.permit_id];
+  if (!stored || stored.status !== "consumed") return null;
   const receipt = receipts[permit.permit_id];
   if (!receipt || receipt.kind !== "operation-receipt/v1") return null;
   if (receipt.operation !== operation) return null;
   if (subjectId != null && receipt.subject_id !== subjectId) return null;
-  if (arguments_digest != null && permit.arguments_digest !== arguments_digest) return null;
-  return JSON.parse(JSON.stringify(receipt));
+  if (stored.operation != null && stored.operation !== operation) return null;
+  if (subjectId != null && stored.subject_id != null && stored.subject_id !== subjectId) {
+    return null;
+  }
+  if (arguments_digest != null) {
+    const storedDigest =
+      stored.arguments_digest != null ? stored.arguments_digest : receipt.arguments_digest;
+    // Fail closed: without a stored intent there is nothing to prove replay against.
+    if (storedDigest == null || storedDigest !== arguments_digest) return null;
+  }
+  return clone(receipt);
 }
 
 function assertNotReceiptV1(receipt) {
@@ -549,6 +670,9 @@ function assertNotReceiptV1(receipt) {
 
 module.exports = {
   EFFECT_CLASSES,
+  PERMIT_AUTHORITY_ISSUER,
+  createPermitAuthorityIssuer,
+  isPermitAuthorityIssuer,
   createPermitLedger,
   mintOperationPermit,
   issueOperationPermit,
@@ -556,6 +680,8 @@ module.exports = {
   authorizeOperationWithPermit,
   consumePermit,
   prepareOperationReceipt,
+  computeOperationIntentDigest,
+  computePermitDigest,
   findReplayReceipt,
   assertNotReceiptV1,
   POLICY_DECISION_KIND,

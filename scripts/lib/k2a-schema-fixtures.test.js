@@ -182,14 +182,17 @@ test("K2a families are registered in schemas/kernel/manifest.json", () => {
 });
 
 test("K2.1 OperationPermit/CAS/effect-class and receipt/v1 remain unchanged (additive only)", () => {
-  // Pin content digests so K2a does not mutate K2.1 families.
+  // Pin content digests so K2a does not mutate K2.1 families. The permit and
+  // receipt pins were re-baselined when durable authority intent
+  // (operation_intent_digest / permit_digest / arguments_digest) was added as
+  // optional properties; the required sets are unchanged.
   const pins = {
     "schemas/kernel/receipt/v1.schema.json":
       "4193db3029274e06880a5b2c178e15916cd574841d3d9bd6691ce00151558b46",
     "schemas/kernel/operation-permit/v1.schema.json":
-      "f8604ed66a64013ab7912ea425a752409430e2741f946f9e2b76dab331ef0adf",
+      "2724d14b7bd60a1061365daccb6da115040615e8a72f64839e4b42f7583a7d89",
     "schemas/kernel/operation-receipt/v1.schema.json":
-      "6d040cf1826cb67ed4932de028bd039d72d9ddbc81a3f6d7e5dc1bdcce029ca0",
+      "8c94ed63ace128e85e7e1fd647f21992177933914c828d9fd488bcba30fd255f",
     "schemas/kernel/effect-class/v1.schema.json":
       "48e60ed54af27f06eb99708d535670cb9cea9e4a748709d8f9da95e798a8716e",
   };

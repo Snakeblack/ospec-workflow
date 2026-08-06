@@ -263,11 +263,11 @@ test("K2.1 fault matrix: CAS conflict via public API — one winner, budgets unc
 });
 
 test("K2.1 fault matrix: stale permit fails closed; head unchanged", async () => {
-  const { createPermitLedger, mintOperationPermit } = require("./lifecycle-kernel/permits.js");
+  const { mintOperationPermit } = require("./lifecycle-kernel/permits.js");
   const { createAuthorityStore, runKernelOperation } = require("./minimal-kernel-harness.js");
   const store = createAuthorityStore({ initial: { state: pendingState } });
   const before = await store.load();
-  const ledger = createPermitLedger();
+  const ledger = store.getPermitIssuer();
   const stale = mintOperationPermit({
     ledger,
     operation: "start",
@@ -295,9 +295,9 @@ test("K2.1 fault matrix: permit reuse fails; no second advance", async () => {
   });
   assert.equal(first.snapshot.state.nodes.n1.phase, "started");
 
-  const { createPermitLedger, mintOperationPermit, consumePermit } = require("./lifecycle-kernel/permits.js");
+  const { mintOperationPermit, consumePermit } = require("./lifecycle-kernel/permits.js");
   const { runKernelOperation } = require("./minimal-kernel-harness.js");
-  const ledger = createPermitLedger();
+  const ledger = first.store.getPermitIssuer();
   const head = first.revision;
   const permit = mintOperationPermit({
     ledger,
@@ -451,11 +451,11 @@ test("K2.1b: atomic consume revision inspection via public harness", async () =>
 
 test("K2.1b: exact replay receipt stability via public entrypoint", async () => {
   const { createAuthorityStore, runKernelOperation } = require("./minimal-kernel-harness.js");
-  const { issueFixturePermit, createPermitLedger } = require("./lifecycle-kernel/test-permit-helpers.js");
+  const { issueFixturePermit } = require("./lifecycle-kernel/test-permit-helpers.js");
   const store = createAuthorityStore({ initial: { state: pendingState, journal: [] } });
   const head = await store.load();
   const issued = issueFixturePermit({
-    ledger: createPermitLedger(),
+    ledger: store.getPermitIssuer(),
     operation: "start",
     headRevision: head.revision,
     arguments: { node_id: "n1" },

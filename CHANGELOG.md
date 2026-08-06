@@ -8,6 +8,18 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.40.4] - 2026-08-06
+
+### Fixed
+- **Issuer capability**: `createPermitLedger()` es reader-only; solo `createPermitAuthorityIssuer()` (propiedad del Authority Store) puede registrar offers/decisions y emitir permits. `runKernelOperation` rechaza ledgers ajenos (`issuer-capability-required`).
+- **Replay ligado al intent persistido**: la authority bag guarda `operation_intent_digest` / digests completos; `findReplayReceipt` compara contra el registro almacenado, no contra el permit presentado por el caller.
+- **IDs no reciclables**: `permit_id` / offer / decision usan UUID; restart no colisiona con IDs consumidos.
+- **CAS atómico**: mutex por subject; authority bag se publica solo tras `inner.commit` exitoso; `computeRevision` incluye `authority_root_digest`.
+- **Oráculos semánticos**: `enforced` exige marcadores por capability (`execution_id`, `worker_id`, `tool`, `answered`+correlation, `authorizes_delivery===false`); no-op/`{}` → `partial`.
+
+### Docs
+- Changelog de hardening durable-authority + semantic oracles (pre-K3).
+
 ## [2.40.3] - 2026-08-06
 
 ### Fixed

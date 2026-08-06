@@ -2,6 +2,7 @@
 
 const {
   createPermitLedger,
+  createPermitAuthorityIssuer,
   mintOperationPermit,
   issueOperationPermit,
 } = require("./permits.js");
@@ -9,9 +10,10 @@ const {
 const DEFAULT_HEAD =
   "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
+// No pinned rule_id: a shared issuer allocates one per registration, so repeated
+// fixtures on the same store never collide with issuer-decision-reuse.
 const DEFAULT_KERNEL_RULE = Object.freeze({
   kind: "kernel-rule/v1",
-  rule_id: "rule:fixture-issuer",
 });
 
 /**
@@ -19,7 +21,7 @@ const DEFAULT_KERNEL_RULE = Object.freeze({
  * Prefer this over mintOperationPermit / mintPermit:true on the public path.
  */
 function issueFixturePermit(options = {}) {
-  const ledger = options.ledger || createPermitLedger();
+  const ledger = options.ledger || createPermitAuthorityIssuer();
   const headRevision = options.headRevision || options.expected_revision || DEFAULT_HEAD;
   const operation = options.operation || "start";
   const subject_id = options.subject_id || "lifecycle:default";
@@ -111,7 +113,7 @@ function issueFixturePermit(options = {}) {
  * Attach an issuer-produced permit to a reducer/authorize action for tests.
  */
 function withRuntimePermit(action = {}, options = {}) {
-  const ledger = options.ledger || createPermitLedger();
+  const ledger = options.ledger || createPermitAuthorityIssuer();
   const headRevision = options.headRevision || action.headRevision || DEFAULT_HEAD;
   let permit = action.operationPermit;
   if (!permit) {
@@ -141,6 +143,7 @@ module.exports = {
   withRuntimePermit,
   issueFixturePermit,
   createPermitLedger,
+  createPermitAuthorityIssuer,
   mintOperationPermit,
   issueOperationPermit,
 };
