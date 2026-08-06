@@ -608,15 +608,19 @@ function isPreEffectStarted(record) {
 }
 
 function createKernelRuntime(options = {}) {
-  const permitIssuer = createPermitAuthorityIssuer();
+  const permitIssuer = options.permitIssuer || createPermitAuthorityIssuer();
   const store = options.store || createAuthorityStore(options);
 
   return {
+    get permitIssuer() {
+      return permitIssuer;
+    },
     async runOperation(input = {}) {
+      const { permitLedger: _ignored, ...operationInput } = input;
       return runKernelOperation({
-        ...input,
+        ...operationInput,
         store,
-        permitLedger: input.permitLedger || permitIssuer,
+        permitLedger: permitIssuer,
       });
     },
     issuePermitForSelectedTransition(input = {}) {

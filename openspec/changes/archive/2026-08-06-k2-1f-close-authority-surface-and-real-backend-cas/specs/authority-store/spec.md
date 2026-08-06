@@ -29,6 +29,13 @@ Enforce strict verification of `expectedRevision` in backend CAS commits, preven
 - THEN `FileSystemStore.commit` MUST compare `expectedRevision` against `currentRevision` read under lock
 - AND IF `expectedRevision !== currentRevision`, `commit` MUST fail closed with `cas-conflict` without mutating disk state
 
+#### Scenario: AuthorityStore propagates backend commit conflict
+
+- GIVEN an `AuthorityStore` calling `inner.commit(...)` during `compareAndSwap`
+- WHEN `inner.commit(...)` returns an un-successful result (e.g. `{ ok: false, code: "cas-conflict", revision }`)
+- THEN `AuthorityStore` MUST NOT update its local authority bag or baselines
+- AND MUST propagate the failed commit result directly to the caller with original `budgets`
+
 ### Requirement: Fail-Closed on Missing Authority Records {#REQ-authority-store-019}
 
 `FileSystemStore.load()` MUST NOT re-initialize state to `defaultRecord()` when both primary and `.bak` files are missing, unless `initializeIfMissing: true` is explicitly provided. In normal operation, missing records MUST fail closed with `authority-head-not-found`.
@@ -50,7 +57,7 @@ Enforce strict verification of `expectedRevision` in backend CAS commits, preven
 
 ### Requirement: Lockfile Owner Token & Safe Unlink {#REQ-authority-store-020}
 
-`FileSystemStore` `withFileLock` MUST store a JSON object containing `{ ownerToken, pid, timestamp }` in `.lock`. Unlinking in `finally` MUST only occur if the lockfile content matches current `ownerToken`.
+`FileSystemStore` `withFileLock` MUST store a JSON object containing `{ ownerToken, pid, timestamp }` in `.lock`. Unlinking in `finally` or during stale lock inspection MUST only occur if the lockfile content matches current `ownerToken` or is verified via valid token inspection without racing active locks.
 
 #### Scenario: Lockfile carries JSON owner metadata
 
@@ -65,3 +72,11 @@ Enforce strict verification of `expectedRevision` in backend CAS commits, preven
 - THEN it MUST read the current content of `.lock`
 - AND MUST unlink `.lock` strictly if the `ownerToken` in the lockfile matches the process's `ownerToken`
 - AND MUST NOT unlink `.lock` if the file is missing or contains a different `ownerToken`
+
+#### Scenario: Stale lock removal validates lock owner before unlink
+
+- GIVEN a process attempting lock acquisition on a stale `.lock` file
+- WHEN evaluating lock staleness
+- THEN it MUST NOT unlink an active lock owned by another live process without owner token validation
+- AND MUST NOT delete a lock currently held by an active operation
+

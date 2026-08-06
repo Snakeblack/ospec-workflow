@@ -369,13 +369,19 @@ function createAuthorityStore(options = {}) {
         if (stored && (stored.revision === "pending" || stored.revision == null)) {
           stored.revision = healedRevision;
         }
-        await entry.inner.commit({
+        const persisted = await entry.inner.commit({
           state: loaded.state,
           journal: loaded.journal,
           authority: nextAuthority,
           budgets: entry.budgets,
           expectedRevision: currentRevision,
         });
+        if (persisted?.ok === false) {
+          return {
+            ...persisted,
+            budgets: budgetsBefore,
+          };
+        }
         entry.authority = nextAuthority;
         entry.baselines.set(healedRevision, currentStateDigest);
         return {
@@ -416,13 +422,19 @@ function createAuthorityStore(options = {}) {
       authority: cloneAuthority(entry.authority),
     };
     try {
-      await entry.inner.commit({
+      const persisted = await entry.inner.commit({
         state: nextState,
         journal: journalToCommit,
         authority: nextAuthority,
         budgets: entry.budgets,
         expectedRevision: currentRevision,
       });
+      if (persisted?.ok === false) {
+        return {
+          ...persisted,
+          budgets: budgetsBefore,
+        };
+      }
       entry.authority = nextAuthority;
     } finally {
       entry.inflight = null;

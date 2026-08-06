@@ -33,3 +33,15 @@ Test helpers requiring direct permit minting MUST be isolated in `scripts/lib/te
 - WHEN importing test helper utilities
 - THEN those helpers MUST be imported strictly from `scripts/lib/test-support/` (e.g. `kernel-helpers.js`)
 - AND MUST NOT be exposed or re-exported by any production module in `scripts/lib/lifecycle-kernel/`
+
+### Requirement: Internal Permit Authority Issuer Isolation {#REQ-lifecycle-kernel-027}
+
+`KernelRuntime.runOperation` MUST ignore any caller-supplied `permitLedger` input and strictly use its internal, private `permitIssuer`.
+
+#### Scenario: KernelRuntime ignores caller permitLedger
+
+- GIVEN a `KernelRuntime` instance created via `createKernelRuntime`
+- WHEN `runOperation` is called with an explicit `permitLedger` property in the input object
+- THEN `runOperation` MUST NOT pass the caller-supplied `permitLedger` to `runKernelOperation`
+- AND MUST use exclusively the internal `permitIssuer` created at runtime initialization
+

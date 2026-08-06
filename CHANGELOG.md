@@ -8,6 +8,14 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.40.8] - 2026-08-06
+
+### Fixed
+- **Aislamiento estricto de `permitIssuer` en `KernelRuntime`**: `KernelRuntime.runOperation` descarta incondicionalmente cualquier `permitLedger` proporcionado por el caller en los argumentos de entrada y utiliza exclusivamente su `permitIssuer` privado interno.
+- **Propagación de fallo backend CAS en `AuthorityStore`**: `AuthorityStore.compareAndSwapLocked` inspecciona el resultado de `entry.inner.commit(...)` tanto en el flujo estándar como en el de curado convergente, propagando inmediatamente respuestas no exitosas (como `cas-conflict`) sin alterar el `authority` local ni los baselines.
+- **Protección de liveness en stale lockfiles**: `FileSystemStore.withFileLock` verifica la actividad del proceso propietario (`isPidAlive`) antes de eliminar candados `.lock` por caducidad, evitando robo de candados activos en operaciones de larga duración.
+- **Pruebas de concurrencia a nivel `AuthorityStore`**: Pruebas de integración con `Promise.all` sobre instancias de `AuthorityStore` compitiendo sobre un mismo `FileSystemStore`, verificando el comportamiento end-to-end de 1 ganador y 1 `cas-conflict`.
+
 ## [2.40.7] - 2026-08-06
 
 ### Fixed

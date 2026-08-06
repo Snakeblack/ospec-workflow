@@ -1,6 +1,6 @@
 change: "k2-1f-close-authority-surface-and-real-backend-cas"
-status: "verify"
-last_updated: "2026-08-06T03:35:10Z"
+status: "archive"
+last_updated: "2026-08-06T23:26:00Z"
 blocking_questions: []
 phases:
   proposal:
@@ -16,35 +16,35 @@ phases:
     artifacts:
       - "openspec/changes/k2-1f-close-authority-surface-and-real-backend-cas/specs/authority-store/spec.md"
       - "openspec/changes/k2-1f-close-authority-surface-and-real-backend-cas/specs/lifecycle-kernel/spec.md"
-    summary: "Especificación de deltas para verificación de expectedRevision en compareAndSwap/commit, comportamiento fail-closed en FileSystemStore.load, teardown seguro de candados con ownerToken JSON, des-exportación de funciones internas de permit minting e aislamiento de helpers de test en test-support."
+    summary: "Especificación de deltas para verificación de expectedRevision en compareAndSwap/commit, comportamiento fail-closed en FileSystemStore.load, teardown seguro de candados con ownerToken JSON, des-exportación de funciones internas de permit minting, aislamiento de permitIssuer en KernelRuntime y propagación de conflictos CAS en AuthorityStore."
     key_decisions:
       - "compareAndSwap pasa expectedRevision a inner.commit tanto en CAS normal como en heal convergente."
       - "FileSystemStore.load falla cerrado con authority-head-not-found si no existe primary ni .bak excepto si initializeIfMissing: true."
-      - "withFileLock escribe JSON { ownerToken, pid, timestamp } y solo elimina .lock si ownerToken coincide."
-      - "createKernelRuntime es el único entrypoint público en lifecycle-kernel; utilidades de minteo directo para tests residen en test-support."
+      - "withFileLock escribe JSON { ownerToken, pid, timestamp } y solo elimina .lock si ownerToken coincide o si el PID propietario ha fallecido."
+      - "createKernelRuntime es el único entrypoint público en lifecycle-kernel; runOperation ignora permitLedger recibido del caller."
   design:
     status: "done"
     artifact: "openspec/changes/k2-1f-close-authority-surface-and-real-backend-cas/design.md"
-    summary: "Diseño técnico para cierre de superficie pública de permisos, propagación de expectedRevision en AuthorityStore y FileSystemStore, teardown seguro de candados con token de propietario JSON y fail-closed en FileSystemStore.load."
+    summary: "Diseño técnico para cierre de superficie pública de permisos, propagación de expectedRevision y conflictos CAS en AuthorityStore y FileSystemStore, teardown seguro de candados con token de propietario JSON/liveness y fail-closed en FileSystemStore.load."
     key_decisions:
       - "Des-exportación de funciones internas de permisos y runKernelOperation de la API de producción, promoviendo createKernelRuntime como único entrypoint."
       - "Creación del módulo de soporte para tests scripts/lib/test-support/permit-test-helpers.js."
-      - "Verificación estricta de expectedRevision en FileSystemStore.commit bajo lockfile con token de propietario JSON."
-      - "Lanzamiento de authority-head-not-found en FileSystemStore.load salvo que initializeIfMissing sea true."
+      - "Verificación estricta de expectedRevision en FileSystemStore.commit bajo lockfile con token de propietario JSON y comprobación isPidAlive."
+      - "Propagación explícita de persisted.ok === false en AuthorityStore.compareAndSwapLocked."
   tasks:
     status: "done"
     artifact: "openspec/changes/k2-1f-close-authority-surface-and-real-backend-cas/tasks.md"
-    summary: "Plan de tareas desglosado en 4 fases TDD para encapsulación de superficie pública, CAS backend con expectedRevision, teardown seguro de candados y suite de pruebas de integración/carreras."
+    summary: "Plan de tareas desglosado en 5 fases TDD completadas al 100%."
     key_decisions:
-      - "Estructura de tareas en 4 fases orientadas a TDD."
+      - "Estructura de tareas en 5 fases orientadas a TDD."
       - "Inclusión del encabezado obligatorio con presupuesto de líneas e información de PRs encadenadas."
   apply:
     status: "done"
     artifact: "openspec/changes/k2-1f-close-authority-surface-and-real-backend-cas/apply-progress.md"
-    summary: "Ejecución TDD completada exitosamente en 4 fases con 100% de tests pasando."
+    summary: "Ejecución TDD completada exitosamente en 5 fases con 100% de tests pasando."
   verify:
     status: "done"
     artifact: "openspec/changes/k2-1f-close-authority-surface-and-real-backend-cas/verify-report.md"
-    summary: "Todas las 5 REQs verificadas con evidencia de línea de código y ejecución runtime. npm test pasa con 0 errores. Evidencia TDD auditada y completa."
+    summary: "Todas las 6 REQs verificadas con evidencia de línea de código y ejecución runtime. npm test pasa con 0 errores (2019 tests). Evidencia TDD auditada y completa."
   archive:
-    status: "pending"
+    status: "done"
