@@ -73,6 +73,8 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/headless-conformance-host.js",
   "scripts/lib/headless-conformance-host.test.js",
   "scripts/lib/target-profiles/claude.js",
+  "scripts/lib/filesystem-store.js",
+  "scripts/lib/filesystem-store.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [

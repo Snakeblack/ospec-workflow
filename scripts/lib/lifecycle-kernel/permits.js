@@ -20,7 +20,8 @@ const TRANSITION_OFFER_KIND = "transition-offer/v1";
  * Capability brand for the mint-capable permit authority. Holding a reference to
  * a branded issuer IS the authority to mint; readers never carry the brand.
  */
-const PERMIT_AUTHORITY_ISSUER = Symbol.for("ospec.permitAuthorityIssuer");
+const PERMIT_AUTHORITY_ISSUER = Symbol("ospec.permitAuthorityIssuer");
+
 
 function isNonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";
@@ -670,10 +671,11 @@ function assertNotReceiptV1(receipt) {
 
 module.exports = {
   EFFECT_CLASSES,
-  PERMIT_AUTHORITY_ISSUER,
-  createPermitAuthorityIssuer,
   isPermitAuthorityIssuer,
   createPermitLedger,
+  _createPermitAuthorityIssuerInternal: createPermitAuthorityIssuer,
+
+
   mintOperationPermit,
   issueOperationPermit,
   authorizeMutation,

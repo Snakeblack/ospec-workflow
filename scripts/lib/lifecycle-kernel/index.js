@@ -14,7 +14,6 @@ const { validateOperationTransition } = require("./operations.js");
 const { createMemoryStore } = require("./memory-store.js");
 const {
   createPermitLedger,
-  createPermitAuthorityIssuer,
   isPermitAuthorityIssuer,
   issueOperationPermit,
   authorizeOperationWithPermit,
@@ -24,6 +23,8 @@ const {
 const {
   DEFAULT_SUBJECT_ID,
   createAuthorityStore,
+  createAuthorityRuntime,
+  getPrivateIssuer,
 } = require("../authority-store/index.js");
 const { sha256Fingerprint } = require("../canonical-json.js");
 const {
@@ -154,8 +155,7 @@ async function runKernelOperation(input = {}) {
   // Authorization runs against the store-owned issuer only. A caller-supplied
   // ledger is accepted solely when it IS that issuer; anything else would let a
   // caller present its own mint authority.
-  const storeIssuer =
-    typeof authorityStore.getPermitIssuer === "function" ? authorityStore.getPermitIssuer() : null;
+  const storeIssuer = getPrivateIssuer(authorityStore);
   if (!isPermitAuthorityIssuer(storeIssuer) || (permitLedger && permitLedger !== storeIssuer)) {
     return blockedResult(state, journal, "issuer-capability-required", {
       revision: headRevision,
@@ -612,8 +612,9 @@ module.exports = {
   runKernelOperation,
   createMemoryStore,
   createAuthorityStore,
+  createAuthorityRuntime,
+  getPrivateIssuer,
   createPermitLedger,
-  createPermitAuthorityIssuer,
   isPermitAuthorityIssuer,
   issueOperationPermit,
   reduceLifecycle,

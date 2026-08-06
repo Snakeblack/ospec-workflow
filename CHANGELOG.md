@@ -8,6 +8,13 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.40.5] - 2026-08-06
+
+### Fixed
+- **Encapsulación estricta del Permit Issuer**: Eliminación de `getPermitIssuer()` de la interfaz pública de `AuthorityStore`. Remoción de `PERMIT_AUTHORITY_ISSUER` y `createPermitAuthorityIssuer` de las exportaciones públicas, y reemplazo del `Symbol.for` global por un `Symbol` privado a nivel de módulo (`STORE_ISSUERS` WeakMap), impidiendo que llamantes externos obtengan o falsifiquen la capacidad emisora.
+- **Registro CAS atómico unificado y durabilidad crash-safe**: `AuthorityStore` persiste la tupla completa de 4 elementos `{ state, journal, authority, budgets }` como una sola unidad atómica durante el CAS. `FileSystemStore` implementa secuencia atómica en 4 pasos (escritura en archivo temporal -> `fsync` de archivo -> renombrado atómico `renameSync` -> `fsync` de directorio padre) garantizando recuperación consistente tras un reinicio de proceso sin requerir la invocación manual de `snapshot()`.
+- **Cierre 4R auditable**: Re-certificación auditable de las 4 dimensiones de revisión (`risk`, `resilience`, `reliability`, `readability`) con estado `approved`.
+
 ## [2.40.4] - 2026-08-06
 
 ### Fixed

@@ -1,0 +1,47 @@
+change: k2-1d-private-issuer-durable-record
+status: in_progress
+phase: verify
+last_updated: 2026-08-06T02:43:15Z
+blocking_questions: []
+classification: high-risk
+artifact_store:
+  mode: openspec
+  backend: openspec
+phases:
+  proposal:
+    status: done
+    artifact: openspec/changes/k2-1d-private-issuer-durable-record/proposal.md
+    summary: "Encapsulate permit issuer capability, unify state + journal + authority + budgets in a single atomic CAS record, and implement crash-safe durability."
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/k2-1d-private-issuer-durable-record/specs/authority-store/spec.md
+      - openspec/changes/k2-1d-private-issuer-durable-record/specs/lifecycle-kernel/spec.md
+    summary: "Defined delta specs for authority-store and lifecycle-kernel covering private issuer encapsulation, atomic CAS durable record, crash-safe FileSystemStore, restart preservation, and atomic commit failure rollback."
+  design:
+    status: done
+    artifact: openspec/changes/k2-1d-private-issuer-durable-record/design.md
+    summary: "Designed private permit mint capability encapsulation, unified atomic 4-tuple CAS durable record ({ state, journal, authority, budgets }), reference FileSystemStore atomic write (temp + fsync + rename + dir fsync), and runtime composition."
+  tasks:
+    status: done
+    artifact: openspec/changes/k2-1d-private-issuer-durable-record/tasks.md
+    summary: "Defined tasks breakdown covering private issuer encapsulation (Phase 1), single atomic CAS 4-tuple record and FileSystemStore durability (Phase 2), and adversarial/durability integration tests (Phase 3)."
+  apply:
+    status: done
+    artifact: openspec/changes/k2-1d-private-issuer-durable-record/apply-progress.md
+    summary: "Encapsulated permit issuer capability, unified state + journal + authority + budgets into single atomic CAS record, implemented reference FileSystemStore with 4-step atomic write sequence, and added adversarial security & crash durability tests."
+  verify:
+    status: done
+    artifact: openspec/changes/k2-1d-private-issuer-durable-record/verify-report.md
+    summary: "Verified full test suite passes (0 errors, 0 warnings), non-leakage of permit issuer capabilities, atomic CAS 4-tuple record, FileSystemStore crash durability, and all spec requirements (REQ-authority-store-010..013, REQ-lifecycle-kernel-020..022)."
+gates:
+  4r-review-gate:
+    status: approved
+    classification: high-risk
+    selected_dimensions: [risk, resilience, reliability, readability]
+    evidence:
+      risk: "Authority issuer capability fully encapsulated; getPermitIssuer removed; Symbol.for removed."
+      resilience: "FileSystemStore uses temp file + fsync + atomic rename + dir fsync for crash-safety."
+      reliability: "Single CAS record unifies state, journal, authority, and budgets."
+      readability: "Clean encapsulation using WeakMap and clear private runtime composition."
+

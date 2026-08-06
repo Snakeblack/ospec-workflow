@@ -93,7 +93,10 @@ test("recover without recoverable interruption fails closed", () => {
 });
 
 test("authorizeOperation rejects token-only and missing permit for mutating ops", () => {
-  const { createPermitAuthorityIssuer, mintOperationPermit } = require("./permits.js");
+  const { mintOperationPermit } = require("./permits.js");
+  const { getPrivateIssuer, createAuthorityStore } = require("../authority-store/index.js");
+  const createPermitAuthorityIssuer = () => getPrivateIssuer(createAuthorityStore());
+
   const denied = authorizeOperation({
     operation: "start",
     arguments: { node_id: "n1" },

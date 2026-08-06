@@ -3,7 +3,7 @@
 const { sha256Fingerprint } = require("../canonical-json.js");
 const { digestLifecycleState } = require("../lifecycle-kernel/state-digest.js");
 const { createMemoryStore } = require("../lifecycle-kernel/memory-store.js");
-const { createPermitAuthorityIssuer } = require("../lifecycle-kernel/permits.js");
+const { _createPermitAuthorityIssuerInternal } = require("../lifecycle-kernel/permits.js");
 
 const DEFAULT_SUBJECT_ID = "lifecycle:default";
 
@@ -149,11 +149,17 @@ function materializeAuthorityCommit(currentAuthority, authorityCommit) {
   return nextAuthority;
 }
 
+const STORE_ISSUERS = new WeakMap();
+
+function getPrivateIssuer(store) {
+  return STORE_ISSUERS.get(store) || null;
+}
+
 function createAuthorityStore(options = {}) {
   const defaultSubjectId = options.subjectId || DEFAULT_SUBJECT_ID;
   const subjects = new Map();
   // The store owns the only mint-capable issuer; callers get reader views.
-  const permitIssuer = options.permitIssuer || createPermitAuthorityIssuer();
+  const permitIssuer = options.permitIssuer || _createPermitAuthorityIssuerInternal();
 
   function ensureSubject(subjectId, initial) {
     if (subjects.has(subjectId)) return subjects.get(subjectId);
@@ -184,6 +190,12 @@ function createAuthorityStore(options = {}) {
 
   async function loadLocked(entry, subjectId) {
     const loaded = await entry.inner.load();
+    if (loaded.authority) {
+      entry.authority = cloneAuthority(loaded.authority);
+    }
+    if (loaded.budgets) {
+      entry.budgets = freezeBudgets(loaded.budgets);
+    }
     const state = loaded.state;
     const journal = loaded.journal;
     const stateDigest = digestLifecycleState(state);
@@ -389,7 +401,7 @@ function createAuthorityStore(options = {}) {
     // throws must leave the bag exactly as it was.
     const nextAuthority = permitAuthorized
       ? materializeAuthorityCommit(entry.authority, authorityCommit)
-      : null;
+      : entry.authority;
 
     // Synchronous readers keep seeing the pre-CAS pair until state and bag are both published.
     entry.inflight = {
@@ -398,8 +410,13 @@ function createAuthorityStore(options = {}) {
       authority: cloneAuthority(entry.authority),
     };
     try {
-      await entry.inner.commit({ state: nextState, journal: journalToCommit });
-      if (nextAuthority) entry.authority = nextAuthority;
+      await entry.inner.commit({
+        state: nextState,
+        journal: journalToCommit,
+        authority: nextAuthority,
+        budgets: entry.budgets,
+      });
+      entry.authority = nextAuthority;
     } finally {
       entry.inflight = null;
     }
@@ -449,19 +466,29 @@ function createAuthorityStore(options = {}) {
     };
   }
 
-  return {
+  const storeInstance = {
     subjectId: defaultSubjectId,
     load,
     compareAndSwap,
     commitJournal,
     snapshot,
     computeRevision,
-    getPermitIssuer() {
-      return permitIssuer;
-    },
     getBudgets(subjectId = defaultSubjectId) {
       const entry = subjects.get(subjectId);
       return entry ? cloneBudgets(entry.budgets) : null;
+    },
+  };
+
+  STORE_ISSUERS.set(storeInstance, permitIssuer);
+  return storeInstance;
+}
+
+function createAuthorityRuntime(options = {}) {
+  const store = createAuthorityStore(options);
+  return {
+    store,
+    getPrivateIssuer() {
+      return getPrivateIssuer(store);
     },
   };
 }
@@ -487,4 +514,6 @@ module.exports = {
   digestAuthority,
   computeRevision,
   createAuthorityStore,
+  createAuthorityRuntime,
+  getPrivateIssuer,
 };
