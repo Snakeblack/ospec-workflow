@@ -1,0 +1,115 @@
+change: "k3-identities-candidate-freeze"
+status: "archived"
+last_updated: "2026-08-06T22:48:46.837Z"
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k3-identities-candidate-freeze/proposal.md"
+    summary: "Propuesta para K3: identidades de ejecución, freeze de Candidate y relación inicial fail-closed."
+    key_decisions:
+      - "Cuatro identidades distintas: SourceSnapshotId, WorkOrderId, WorkResultId, CandidateId"
+      - "Candidate freeze restringido a workspace|staged antes de verify"
+      - "Relación inicial Candidate fail-closed: exact, changed, ambiguous, unknown"
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k3-identities-candidate-freeze/specs/execution-identities/spec.md"
+      - "openspec/changes/k3-identities-candidate-freeze/specs/kernel-contract-schemas/spec.md"
+    summary: "Especificaciones escritas para execution-identities (nueva) y kernel-contract-schemas (delta) para K3."
+    key_decisions:
+      - "Cuatro identidades strictly separadas con validación fail-closed"
+      - "Candidate freeze restringido a workspace|staged con digest de modos"
+  design:
+    status: "done"
+    artifact: "openspec/changes/k3-identities-candidate-freeze/design.md"
+    summary: "Diseño técnico para K3: 4 identidades con domain digests, candidate freeze en workspace|staged y relaciones fail-closed."
+    key_decisions:
+      - "Digests SHA-256 por dominio para SourceSnapshotId, WorkOrderId, WorkResultId, CandidateId"
+      - "Candidate freeze restringido a workspace|staged con digest de modos y untracked"
+      - "Evaluador fail-closed de relación inicial Candidate (exact, changed, ambiguous, unknown)"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k3-identities-candidate-freeze/tasks.md"
+    summary: "Plan de 5 fases con reconciliación de specs/diseño, trazabilidad REQ y pronóstico de revisión High risk."
+    key_decisions:
+      - "Chained PRs recomendados por pronóstico > 400 líneas"
+      - "División en 2 Work Units: Schemas/Fixtures (PR1) e Implementación/Tests (PR2)"
+  apply:
+    status: "done"
+    artifact: "openspec/changes/k3-identities-candidate-freeze/apply-progress.md"
+    summary: "Implementadas 4 identidades con domain digests, candidate freeze (workspace|staged) y relaciones fail-closed con Strict TDD."
+    key_decisions:
+      - "Digests domain-prefixed sha256 para las 4 identidades"
+      - "Candidate freeze con modos y untracked digest en workspace|staged"
+      - "Evaluación determinista 4-valor (exact, changed, ambiguous, unknown) y guardas no-alias"
+  verify:
+    status: "done"
+    verdict: "PASS"
+    artifact: "openspec/changes/k3-identities-candidate-freeze/verify-report.md"
+    summary: "Verificación Strict TDD completa: 17/17 escenarios PASS, 2036 pruebas pasadas sin errores ni advertencias."
+    key_decisions:
+      - "Veredicto PASS: 100% escenarios probados con runtime-test"
+  archive:
+    status: "done"
+    artifact: "openspec/changes/k3-identities-candidate-freeze/archive-report.md"
+    summary: "Plan de archivo emitido, veredicto PASS, 2 specs preparadas y 4 ADRs propuestos."
+
+baseline_fingerprints:
+  kernel-contract-schemas: "sha256:2a56344c57c3a12155af7dd5271f3b5ba5785a61bf803ac7fbc0ca16ee21b36d"
+  execution-identities: null
+
+gates:
+  4r-review-gate:
+    schema_version: 1
+    status: "approved"
+    classification: "standard"
+    evidence:
+      signals:
+        - "diff-error-flow"
+      changed_lines: 820
+      touched_paths:
+        - "scripts/lib/execution-identities/index.js"
+        - "scripts/lib/execution-identities/index.test.js"
+        - "scripts/lib/k3-schema-fixtures.test.js"
+        - "schemas/kernel/source-snapshot/v1.schema.json"
+        - "schemas/kernel/work-result/v1.schema.json"
+        - "schemas/kernel/candidate/v1.schema.json"
+        - "schemas/kernel/work-order/v1.schema.json"
+        - "schemas/kernel/manifest.json"
+        - "schemas/kernel/contract-claims.json"
+    generalist: "review-change"
+    depth: "selective"
+    dimensions:
+      reliability:
+        selected: true
+        reason: "diff-error-flow signal in production JS files"
+        reviewer: "review-reliability"
+        status: "remediated"
+        findings_count: 2
+        findings:
+          - id: "REL-001"
+            severity: "CRITICAL"
+            description: "evaluateCandidateRelation does not check ambiguous/unknown baseline state"
+            status: "remediated"
+            remediation: "Added baseline.ambiguous and baseline.relation checks before target evaluation"
+          - id: "REL-002"
+            severity: "WARNING"
+            description: "Digest compute functions lack null/undefined input guards"
+            status: "remediated"
+            remediation: "Added TypeError guards to all 4 compute functions and freezeCandidate"
+      resilience:
+        selected: true
+        reason: "diff-error-flow signal in production JS files"
+        reviewer: "review-resilience"
+        status: "pass"
+        findings_count: 0
+      risk:
+        selected: false
+        reason: "No auth/security/PII signals detected"
+      readability:
+        selected: false
+        reason: "Not triggered by diff-error-flow signal"
+    remediation_verified: true
+    remediation_test_evidence: "8/8 tests pass including 2 new tests for null guards and ambiguous baseline"
+

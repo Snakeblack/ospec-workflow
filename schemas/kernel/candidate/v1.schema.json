@@ -31,6 +31,33 @@
       "items": {
         "type": "string"
       }
+    },
+    "repository_id": {
+      "type": "string"
+    },
+    "changed_paths_modes_digest": {
+      "type": "string"
+    },
+    "intended_untracked_digest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "predecessor_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "relation": {
+      "type": "string",
+      "enum": [
+        "exact",
+        "changed",
+        "ambiguous",
+        "unknown"
+      ]
     }
   },
   "required": [

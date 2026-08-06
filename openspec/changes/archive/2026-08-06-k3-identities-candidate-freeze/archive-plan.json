@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "change": "k3-identities-candidate-freeze",
+  "source_fingerprint": "sha256:3cc91c5a77b03753046a57a8190e569dd7389e12364bb6f2cf0872e6158d76b0",
+  "spec_writes": [
+    {
+      "domain": "execution-identities",
+      "source_delta": "specs/execution-identities/spec.md",
+      "target": "openspec/specs/execution-identities/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:30aec73084c41c938741fe56b26d7575edbd2caf100841f376e823daf0b4b678"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "specs/kernel-contract-schemas/spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:2a56344c57c3a12155af7dd5271f3b5ba5785a61bf803ac7fbc0ca16ee21b36d",
+      "content_sha256": "sha256:d0b17b04f7882fc8e2b8758d7c4e9a77fa94bc36d6f39355bdd15690ba2c51cb"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001-four-execution-identities-domain-digests.md",
+      "target": "docs/adr/adr-20260807-001-four-execution-identities-domain-digests.md",
+      "content_sha256": "sha256:5bb826bd332a5bebc8b488735c37b82f215415139f7aa19e6e419abe5e2f8800"
+    },
+    {
+      "source": "decisions/adr-002-candidate-freeze-projections-and-mode-digests.md",
+      "target": "docs/adr/adr-20260807-002-candidate-freeze-projections-and-mode-digests.md",
+      "content_sha256": "sha256:23d393d9274f01fd3153440add3a501d069ee1d72af59741f209981cd98fd045"
+    },
+    {
+      "source": "decisions/adr-003-fail-closed-initial-candidate-relations.md",
+      "target": "docs/adr/adr-20260807-003-fail-closed-initial-candidate-relations.md",
+      "content_sha256": "sha256:2446b482f4d07016134e92560660a9e09dc963c91cc6ec0f04af413e7576b543"
+    },
+    {
+      "source": "decisions/adr-004-non-aliasing-and-mutable-target-rejection.md",
+      "target": "docs/adr/adr-20260807-004-non-aliasing-and-mutable-target-rejection.md",
+      "content_sha256": "sha256:07a65e118f2c17d67e6514c056c16b4be623d2945d9c6993dcafab1719d30da6"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001-four-execution-identities-domain-digests.md",
+    "decisions/adr-002-candidate-freeze-projections-and-mode-digests.md",
+    "decisions/adr-003-fail-closed-initial-candidate-relations.md",
+    "decisions/adr-004-non-aliasing-and-mutable-target-rejection.md",
+    "design.md",
+    "proposal.md",
+    "specs/execution-identities/spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

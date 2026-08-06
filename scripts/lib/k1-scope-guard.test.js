@@ -75,6 +75,10 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/target-profiles/claude.js",
   "scripts/lib/filesystem-store.js",
   "scripts/lib/filesystem-store.test.js",
+  "scripts/lib/k3-schema-fixtures.test.js",
+  "schemas/kernel/candidate/fixtures/valid/k3-frozen.json",
+  "schemas/kernel/candidate/fixtures/invalid/commit-projection.json",
+  "schemas/kernel/candidate/fixtures/invalid/work-result-alias.json",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [
@@ -84,6 +88,7 @@ const SUCCESSOR_K2_PREFIXES = [
   "scripts/lib/capability-proof/",
   "scripts/lib/host-adapters/",
   "scripts/lib/test-support/",
+  "scripts/lib/execution-identities/",
   "schemas/kernel/operation-permit/",
   "schemas/kernel/operation-receipt/",
   "schemas/kernel/effect-class/",
@@ -98,6 +103,8 @@ const SUCCESSOR_K2_PREFIXES = [
   "schemas/kernel/transport-request/",
   "schemas/kernel/transport-outcome/",
   "schemas/kernel/transport-failure/",
+  "schemas/kernel/source-snapshot/",
+  "schemas/kernel/work-result/",
 ];
 
 const PROTECTED_BASELINE_PATHS = [
