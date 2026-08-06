@@ -4,9 +4,54 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { renameWithFallback } = require("./atomic-write.js");
+const { computeRevision } = require("./authority-store/index.js");
 
 function clone(val) {
   return val !== undefined ? JSON.parse(JSON.stringify(val)) : undefined;
+}
+
+async function withFileLock(filePath, fn, options = {}) {
+  const lockPath = `${filePath}.lock`;
+  const retries = options.retries ?? 50;
+  const retryInterval = options.retryInterval ?? 10;
+  const staleTimeout = options.staleTimeout ?? 5000;
+
+  let handle = null;
+  for (let i = 0; i < retries; i++) {
+    try {
+      handle = await fs.open(lockPath, "wx");
+      break;
+    } catch (err) {
+      if (err.code === "EEXIST") {
+        try {
+          const stats = await fs.stat(lockPath);
+          if (Date.now() - stats.mtimeMs > staleTimeout) {
+            try {
+              await fs.unlink(lockPath);
+            } catch (_) {}
+          }
+        } catch (_) {}
+        await new Promise((resolve) => setTimeout(resolve, retryInterval));
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  if (!handle) {
+    throw new Error(`Failed to acquire lockfile on ${lockPath}`);
+  }
+
+  try {
+    return await fn();
+  } finally {
+    try {
+      await handle.close();
+    } catch (_) {}
+    try {
+      await fs.unlink(lockPath);
+    } catch (_) {}
+  }
 }
 
 function createFileSystemStore(options = {}) {
@@ -77,33 +122,87 @@ function createFileSystemStore(options = {}) {
         return clone(memoryCache);
       } catch (err) {
         if (err.code === "ENOENT") {
-          memoryCache = defaultRecord();
-          return clone(memoryCache);
+          const bakPath = `${filePath}.bak`;
+          try {
+            const bakContent = await fs.readFile(bakPath, "utf8");
+            await renameWithFallback(bakPath, filePath);
+            const record = JSON.parse(bakContent);
+            memoryCache = {
+              state: record.state || { schema_version: 1, status: "ready", nodes: {} },
+              journal: Array.isArray(record.journal) ? record.journal : [],
+              authority: record.authority || { permits: {}, receipts: {} },
+              budgets: record.budgets || { attempts: 0, corrections: 0 },
+            };
+            return clone(memoryCache);
+          } catch (bakErr) {
+            if (bakErr.code === "ENOENT") {
+              memoryCache = defaultRecord();
+              return clone(memoryCache);
+            }
+            throw bakErr;
+          }
         }
         throw err;
       }
     },
     async commitJournal(nextJournal) {
-      const current = memoryCache || (await this.load());
-      const nextRecord = {
-        state: current.state,
-        journal: clone(nextJournal),
-        authority: current.authority,
-        budgets: current.budgets,
-      };
-      await writeRecordAtomic(nextRecord);
-      return { journal: nextRecord.journal };
+      return withFileLock(filePath, async () => {
+        const current = await this.load();
+        const nextRecord = {
+          state: current.state,
+          journal: clone(nextJournal),
+          authority: current.authority,
+          budgets: current.budgets,
+        };
+        await writeRecordAtomic(nextRecord);
+        return { journal: nextRecord.journal };
+      });
     },
-    async commit({ state, journal, authority, budgets }) {
-      const current = memoryCache || (await this.load());
-      const nextRecord = {
-        state: clone(state !== undefined ? state : current.state),
-        journal: clone(journal !== undefined ? journal : current.journal),
-        authority: clone(authority !== undefined ? authority : current.authority),
-        budgets: clone(budgets !== undefined ? budgets : current.budgets),
-      };
-      await writeRecordAtomic(nextRecord);
-      return clone(nextRecord);
+    async commit({ state, journal, authority, budgets, expectedRevision }) {
+      return withFileLock(filePath, async () => {
+        let currentRecord;
+        try {
+          const content = await fs.readFile(filePath, "utf8");
+          currentRecord = JSON.parse(content);
+        } catch (err) {
+          if (err.code === "ENOENT") {
+            const bakPath = `${filePath}.bak`;
+            try {
+              const bakContent = await fs.readFile(bakPath, "utf8");
+              await renameWithFallback(bakPath, filePath);
+              currentRecord = JSON.parse(bakContent);
+            } catch (bakErr) {
+              if (bakErr.code === "ENOENT") {
+                currentRecord = defaultRecord();
+              } else {
+                throw bakErr;
+              }
+            }
+          } else {
+            throw err;
+          }
+        }
+
+        const currentRevision = computeRevision(
+          currentRecord.state,
+          currentRecord.journal,
+          currentRecord.authority
+        );
+
+        if (expectedRevision !== undefined && expectedRevision !== null && expectedRevision !== currentRevision) {
+          return { ok: false, code: "cas-conflict", revision: currentRevision };
+        }
+
+        const nextRecord = {
+          state: clone(state !== undefined ? state : currentRecord.state),
+          journal: clone(journal !== undefined ? journal : currentRecord.journal),
+          authority: clone(authority !== undefined ? authority : currentRecord.authority),
+          budgets: clone(budgets !== undefined ? budgets : currentRecord.budgets),
+        };
+
+        await writeRecordAtomic(nextRecord);
+        return clone(nextRecord);
+      });
     },
     snapshot() {
       if (!memoryCache) {
@@ -114,4 +213,4 @@ function createFileSystemStore(options = {}) {
   };
 }
 
-module.exports = { createFileSystemStore };
+module.exports = { createFileSystemStore, withFileLock };

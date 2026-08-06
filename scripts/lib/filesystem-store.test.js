@@ -7,8 +7,8 @@ const path = require("node:path");
 const os = require("node:os");
 
 const { createFileSystemStore } = require("./filesystem-store.js");
-const { createAuthorityStore, getPrivateIssuer } = require("./authority-store/index.js");
-const { runKernelOperation } = require("./lifecycle-kernel/index.js");
+const { createAuthorityStore } = require("./authority-store/index.js");
+const { createKernelRuntime, runKernelOperation } = require("./lifecycle-kernel/index.js");
 const { issueFixturePermit } = require("./lifecycle-kernel/test-permit-helpers.js");
 
 function tmpFile() {
@@ -80,6 +80,7 @@ test("Real process restart reading from FileSystemStore preserves authority bag 
       arguments: { node_id: "n1" },
       store: store1,
       operationPermit: issued.permit,
+      permitLedger: issued.ledger,
       effectExecutor: async () => ({ ok: true }),
     });
     assert.equal(opResult.outcome, "advanced");
@@ -105,6 +106,7 @@ test("Real process restart reading from FileSystemStore preserves authority bag 
       arguments: { node_id: "n1" },
       store: store2,
       operationPermit: issued.permit,
+      permitLedger: issued.ledger,
       effectExecutor: async () => {
         reExecuted = true;
         return { ok: true };
@@ -138,6 +140,7 @@ test("Crash before atomic rename retains old head intact; incomplete temp files 
       arguments: { node_id: "n1" },
       store: store1,
       operationPermit: issued.permit,
+      permitLedger: issued.ledger,
       effectExecutor: async () => ({ ok: true }),
     });
 
@@ -180,6 +183,7 @@ test("Crash after atomic rename retains new head intact with zero torn state", a
       arguments: { node_id: "n1" },
       store: store1,
       operationPermit: issued.permit,
+      permitLedger: issued.ledger,
       effectExecutor: async () => ({ ok: true }),
     });
 
@@ -199,8 +203,71 @@ test("Crash after atomic rename retains new head intact with zero torn state", a
 
     assert.equal(reloaded.revision, res.revision);
     assert.equal(reloaded.state.nodes.n1.phase, "started");
-    assert.ok(reloaded.authority.permits[issued.permit.permit_id]);
+    assert.ok(record.authority.permits[issued.permit.permit_id]);
   } finally {
     try { await fs.unlink(filePath); } catch (_) {}
   }
 });
+
+test("Phase 3: Multi-instance FileSystemStore CAS conflict on same R0 head", async () => {
+  const filePath = tmpFile();
+  try {
+    const fs1 = createFileSystemStore({ filePath, initial: { state: pendingState() } });
+    await fs1.commit({});
+    const fs2 = createFileSystemStore({ filePath });
+
+    const store1 = createAuthorityStore({ store: fs1 });
+    const store2 = createAuthorityStore({ store: fs2 });
+
+    const head1 = await store1.load();
+    const head2 = await store2.load();
+    assert.equal(head1.revision, head2.revision);
+
+    const winnerState = { schema_version: 1, status: "running", nodes: { n1: { phase: "started" } } };
+    const loserState = { schema_version: 1, status: "blocked", nodes: { n1: { phase: "failed" } } };
+
+    const win = await store1.compareAndSwap("lifecycle:default", head1.revision, winnerState, []);
+    const lose = await store2.compareAndSwap("lifecycle:default", head2.revision, loserState, []);
+
+    assert.equal(win.ok, true);
+    assert.equal(lose.ok, false);
+    assert.equal(lose.code, "cas-conflict");
+    assert.equal(lose.revision, win.revision);
+  } finally {
+    try { await fs.unlink(filePath); } catch (_) {}
+    try { await fs.unlink(`${filePath}.lock`); } catch (_) {}
+  }
+});
+
+test("Phase 3: Resilient .bak recovery on load() when primary filePath returns ENOENT", async () => {
+  const filePath = tmpFile();
+  const bakPath = `${filePath}.bak`;
+  try {
+    const fsStore = createFileSystemStore({ filePath, initial: { state: pendingState() } });
+    await fsStore.commit({
+      state: { schema_version: 1, status: "running", nodes: { n1: { phase: "started" } } },
+      journal: [{ effect_id: "e1", status: "completed" }],
+      authority: { permits: { p1: { status: "consumed" } }, receipts: {} },
+      budgets: { attempts: 1, corrections: 0 },
+    });
+
+    // Simulate crash after rename step 1: target -> target.bak (target is ENOENT, bak exists)
+    await fs.rename(filePath, bakPath);
+
+    // Call load() on a fresh store instance
+    const freshStore = createFileSystemStore({ filePath });
+    const loaded = await freshStore.load();
+
+    assert.equal(loaded.state.status, "running");
+    assert.equal(loaded.state.nodes.n1.phase, "started");
+    assert.equal(loaded.journal[0].effect_id, "e1");
+
+    // Verify target file was restored on disk
+    const targetExists = await fs.stat(filePath).then(() => true, () => false);
+    assert.equal(targetExists, true);
+  } finally {
+    try { await fs.unlink(filePath); } catch (_) {}
+    try { await fs.unlink(bakPath); } catch (_) {}
+  }
+});
+

@@ -9,6 +9,7 @@ const {
   validateOperationTransition,
 } = require("./operations.js");
 const { digestLifecycleState } = require("./state-digest.js");
+const { mintOperationPermit, _internalCreateIssuer: createPermitAuthorityIssuer } = require("./permits.js");
 
 function baseState(overrides = {}) {
   return {
@@ -93,10 +94,6 @@ test("recover without recoverable interruption fails closed", () => {
 });
 
 test("authorizeOperation rejects token-only and missing permit for mutating ops", () => {
-  const { mintOperationPermit } = require("./permits.js");
-  const { getPrivateIssuer, createAuthorityStore } = require("../authority-store/index.js");
-  const createPermitAuthorityIssuer = () => getPrivateIssuer(createAuthorityStore());
-
   const denied = authorizeOperation({
     operation: "start",
     arguments: { node_id: "n1" },

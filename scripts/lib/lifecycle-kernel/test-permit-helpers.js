@@ -2,13 +2,10 @@
 
 const {
   createPermitLedger,
+  _internalCreateIssuer: createPermitAuthorityIssuer,
   mintOperationPermit,
   issueOperationPermit,
 } = require("./permits.js");
-const {
-  getPrivateIssuer,
-  createAuthorityStore,
-} = require("../authority-store/index.js");
 
 const DEFAULT_HEAD =
   "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -26,8 +23,7 @@ const DEFAULT_KERNEL_RULE = Object.freeze({
 function issueFixturePermit(options = {}) {
   const ledger =
     options.ledger ||
-    (options.store ? getPrivateIssuer(options.store) : null) ||
-    getPrivateIssuer(createAuthorityStore());
+    createPermitAuthorityIssuer();
 
   const headRevision = options.headRevision || options.expected_revision || DEFAULT_HEAD;
   const operation = options.operation || "start";
@@ -122,9 +118,7 @@ function issueFixturePermit(options = {}) {
 function withRuntimePermit(action = {}, options = {}) {
   const ledger =
     options.ledger ||
-    (options.store ? getPrivateIssuer(options.store) : null) ||
-    (action.store ? getPrivateIssuer(action.store) : null) ||
-    getPrivateIssuer(createAuthorityStore());
+    createPermitAuthorityIssuer();
   const headRevision = options.headRevision || action.headRevision || DEFAULT_HEAD;
   let permit = action.operationPermit;
   if (!permit) {

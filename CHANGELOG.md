@@ -8,6 +8,15 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.40.6] - 2026-08-06
+
+### Fixed
+- **Encapsulación total en Kernel Runtime**: Eliminación completa de accesores públicos (`getPrivateIssuer`, `_createPermitAuthorityIssuerInternal`). `createKernelRuntime(options)` actúa como el único punto de entrada con closure privado que protege la capacidad de emisión de permisos.
+- **Sanación convergente CAS durable**: `AuthorityStore.compareAndSwap` invoca explícitamente `inner.commit(...)` al curar el authority bag en el camino convergente, garantizando que los permisos consumidos y receipts persistan en disco tras un reinicio.
+- **CAS multi-instancia cruzado**: `FileSystemStore` implementa `withFileLock` (archivo `.lock` con reintentos y expiración de stale locks) y comprobación de revisión en disco antes del commit. Dos instancias concurrentes sobre la misma revisión resultan en exactamente un éxito y un conflicto `cas-conflict`.
+- **Recuperación resiliente en Windows**: `FileSystemStore.load()` inspecciona y restaura automáticamente desde archivos de respaldo `.bak` cuando la ruta principal devuelva `ENOENT`, evitando reinicializaciones accidentales del lifecycle.
+- **Vinculación de revisión post-CAS en Receipt**: `OperationReceipt.revision` se vincula a la revisión ganadora post-CAS `R1` (en lugar de la previa `R0`).
+
 ## [2.40.5] - 2026-08-06
 
 ### Fixed
