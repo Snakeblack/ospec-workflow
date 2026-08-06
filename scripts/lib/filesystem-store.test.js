@@ -8,7 +8,8 @@ const os = require("node:os");
 
 const { createFileSystemStore } = require("./filesystem-store.js");
 const { createAuthorityStore } = require("./authority-store/index.js");
-const { createKernelRuntime, runKernelOperation } = require("./lifecycle-kernel/index.js");
+const { createKernelRuntime } = require("./lifecycle-kernel/index.js");
+const { runKernelOperation } = require("./minimal-kernel-harness.js");
 const { issueFixturePermit } = require("./lifecycle-kernel/test-permit-helpers.js");
 
 function tmpFile() {
@@ -26,7 +27,7 @@ function pendingState() {
 test("FileSystemStore saves and loads full 4-tuple record atomic CAS unit", async () => {
   const filePath = tmpFile();
   try {
-    const fsStore = createFileSystemStore({ filePath });
+    const fsStore = createFileSystemStore({ filePath, initializeIfMissing: true });
     const loadedInit = await fsStore.load();
     assert.deepEqual(loadedInit.state, { schema_version: 1, status: "ready", nodes: {} });
     assert.deepEqual(loadedInit.journal, []);
@@ -64,7 +65,7 @@ test("FileSystemStore saves and loads full 4-tuple record atomic CAS unit", asyn
 test("Real process restart reading from FileSystemStore preserves authority bag without manual snapshot()", async () => {
   const filePath = tmpFile();
   try {
-    const inner1 = createFileSystemStore({ filePath, initial: { state: pendingState() } });
+    const inner1 = createFileSystemStore({ filePath, initial: { state: pendingState() }, initializeIfMissing: true });
     const store1 = createAuthorityStore({ store: inner1 });
 
     const head1 = await store1.load();
@@ -124,7 +125,7 @@ test("Real process restart reading from FileSystemStore preserves authority bag 
 test("Crash before atomic rename retains old head intact; incomplete temp files ignored", async () => {
   const filePath = tmpFile();
   try {
-    const inner1 = createFileSystemStore({ filePath, initial: { state: pendingState() } });
+    const inner1 = createFileSystemStore({ filePath, initial: { state: pendingState() }, initializeIfMissing: true });
     const store1 = createAuthorityStore({ store: inner1 });
 
     const head1 = await store1.load();
@@ -167,7 +168,7 @@ test("Crash before atomic rename retains old head intact; incomplete temp files 
 test("Crash after atomic rename retains new head intact with zero torn state", async () => {
   const filePath = tmpFile();
   try {
-    const inner1 = createFileSystemStore({ filePath, initial: { state: pendingState() } });
+    const inner1 = createFileSystemStore({ filePath, initial: { state: pendingState() }, initializeIfMissing: true });
     const store1 = createAuthorityStore({ store: inner1 });
 
     const head1 = await store1.load();
@@ -212,7 +213,7 @@ test("Crash after atomic rename retains new head intact with zero torn state", a
 test("Phase 3: Multi-instance FileSystemStore CAS conflict on same R0 head", async () => {
   const filePath = tmpFile();
   try {
-    const fs1 = createFileSystemStore({ filePath, initial: { state: pendingState() } });
+    const fs1 = createFileSystemStore({ filePath, initial: { state: pendingState() }, initializeIfMissing: true });
     await fs1.commit({});
     const fs2 = createFileSystemStore({ filePath });
 
@@ -243,7 +244,7 @@ test("Phase 3: Resilient .bak recovery on load() when primary filePath returns E
   const filePath = tmpFile();
   const bakPath = `${filePath}.bak`;
   try {
-    const fsStore = createFileSystemStore({ filePath, initial: { state: pendingState() } });
+    const fsStore = createFileSystemStore({ filePath, initial: { state: pendingState() }, initializeIfMissing: true });
     await fsStore.commit({
       state: { schema_version: 1, status: "running", nodes: { n1: { phase: "started" } } },
       journal: [{ effect_id: "e1", status: "completed" }],
@@ -270,4 +271,96 @@ test("Phase 3: Resilient .bak recovery on load() when primary filePath returns E
     try { await fs.unlink(bakPath); } catch (_) {}
   }
 });
+
+test("FileSystemStore.load() fails closed with authority-head-not-found when primary and .bak are missing without initializeIfMissing", async () => {
+  const filePath = tmpFile();
+  const fsStore = createFileSystemStore({ filePath, initializeIfMissing: false });
+  await assert.rejects(
+    () => fsStore.load(),
+    (err) => err && err.code === "authority-head-not-found"
+  );
+
+  const fsStoreInit = createFileSystemStore({ filePath, initializeIfMissing: true });
+  const loaded = await fsStoreInit.load();
+  assert.equal(loaded.state.status, "ready");
+});
+
+test("Concurrent race test with synchronization barrier: exactly 1 winner and 1 cas-conflict", async () => {
+  const filePath = tmpFile();
+  const { computeRevision } = require("./authority-store/index.js");
+  try {
+    const fs1 = createFileSystemStore({ filePath, initializeIfMissing: true });
+    const initRecord = await fs1.load();
+    const r0 = computeRevision(initRecord.state, initRecord.journal, initRecord.authority);
+    await fs1.commit({ state: initRecord.state, expectedRevision: r0 });
+
+    const fs2 = createFileSystemStore({ filePath });
+
+    // Synchronization barrier/latch: both read R0 head before issuing concurrent commit
+    const [rec1, rec2] = await Promise.all([fs1.load(), fs2.load()]);
+    const r0Read = computeRevision(rec1.state, rec1.journal, rec1.authority);
+    assert.equal(r0Read, computeRevision(rec2.state, rec2.journal, rec2.authority));
+
+    const commit1Promise = fs1.commit({
+      state: { schema_version: 1, status: "running", nodes: { n1: { phase: "started" } } },
+      expectedRevision: r0Read,
+    });
+    const commit2Promise = fs2.commit({
+      state: { schema_version: 1, status: "blocked", nodes: { n1: { phase: "failed" } } },
+      expectedRevision: r0Read,
+    });
+
+    const [res1, res2] = await Promise.all([commit1Promise, commit2Promise]);
+
+    const successes = [res1, res2].filter((r) => r.state !== undefined || r.ok === true);
+    const conflicts = [res1, res2].filter((r) => r.code === "cas-conflict");
+
+    assert.equal(successes.length, 1);
+    assert.equal(conflicts.length, 1);
+    assert.equal(conflicts[0].ok, false);
+  } finally {
+    try { await fs.unlink(filePath); } catch (_) {}
+  }
+});
+
+test("Lockfile owner token safety: teardown unlinks only matching ownerToken", async () => {
+  const { withFileLock } = require("./filesystem-store.js");
+  const filePath = tmpFile();
+  const lockPath = `${filePath}.lock`;
+
+  try {
+    // Normal teardown: matching token deletes lockfile
+    await withFileLock(filePath, async () => {
+      const lockRaw = await fs.readFile(lockPath, "utf8");
+      const lockData = JSON.parse(lockRaw);
+      assert.ok(lockData.ownerToken);
+      assert.equal(lockData.pid, process.pid);
+    });
+
+    const lockExistsAfterNormal = await fs.stat(lockPath).then(() => true, () => false);
+    assert.equal(lockExistsAfterNormal, false);
+
+    // Mismatched token teardown: altered token prevents deletion
+    await assert.rejects(async () => {
+      await withFileLock(filePath, async () => {
+        // Simulate another process taking over the lockfile with a new ownerToken
+        const forgedPayload = JSON.stringify({
+          ownerToken: "other-process-token",
+          pid: 999999,
+          timestamp: Date.now(),
+        });
+        await fs.writeFile(lockPath, forgedPayload, "utf8");
+        throw new Error("simulated failure inside lock");
+      });
+    }, /simulated failure inside lock/);
+
+    // Lockfile should STILL exist on disk because ownerToken was changed!
+    const lockExistsAfterMismatched = await fs.stat(lockPath).then(() => true, () => false);
+    assert.equal(lockExistsAfterMismatched, true);
+  } finally {
+    try { await fs.unlink(filePath); } catch (_) {}
+    try { await fs.unlink(lockPath); } catch (_) {}
+  }
+});
+
 

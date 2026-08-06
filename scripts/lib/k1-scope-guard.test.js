@@ -83,6 +83,7 @@ const SUCCESSOR_K2_PREFIXES = [
   "scripts/lib/host-contract/",
   "scripts/lib/capability-proof/",
   "scripts/lib/host-adapters/",
+  "scripts/lib/test-support/",
   "schemas/kernel/operation-permit/",
   "schemas/kernel/operation-receipt/",
   "schemas/kernel/effect-class/",

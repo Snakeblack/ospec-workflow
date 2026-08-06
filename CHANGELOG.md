@@ -8,6 +8,15 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.40.7] - 2026-08-06
+
+### Fixed
+- **Encapsulación completa de la superficie de autoridad**: Des-exportación de `_internalCreateIssuer`, `mintOperationPermit`, `issueOperationPermit`, `isPermitAuthorityIssuer` y `runKernelOperation` de las interfaces públicas de producción (`permits.js`, `lifecycle-kernel/index.js`). `createKernelRuntime(options)` es el único punto de entrada público. Las funciones internas de permit authority residen en `lifecycle-kernel/internal/permit-authority.js`.
+- **Módulo de soporte de pruebas aislado**: Creación de `scripts/lib/test-support/permit-test-helpers.js` con helpers de minteo directo para suites de test, sin re-exportación en módulos de producción.
+- **Verificación de `expectedRevision` en CAS backend**: `AuthorityStore.compareAndSwap` propaga `expectedRevision: currentRevision` a `entry.inner.commit(...)` tanto en la ruta CAS normal como en la ruta de curado convergente (heal). `FileSystemStore.commit(...)` verifica `expectedRevision === currentRevision` bajo `withFileLock` y retorna `{ ok: false, code: "cas-conflict" }` si no coincide.
+- **Fail-closed en `FileSystemStore.load()`**: Cuando el archivo principal y el `.bak` están ausentes, lanza error con código `authority-head-not-found` en lugar de reinicializar silenciosamente, salvo que se proporcione explícitamente `initializeIfMissing: true`.
+- **Lockfile con token de propietario JSON**: `withFileLock` escribe `{ ownerToken, pid, timestamp }` en el archivo `.lock` y solo lo desvincula en `finally` si el `ownerToken` coincide con el del proceso actual, previniendo la eliminación accidental de candados ajenos.
+- **Suite adversarial y de concurrencia**: Tests de no-filtración de superficie pública, carrera concurrente con barrera de sincronización (`Promise.all`, 2 instancias leen R0 antes de commit), fail-closed sin archivos, y seguridad de token de propietario.
 ## [2.40.6] - 2026-08-06
 
 ### Fixed

@@ -374,6 +374,7 @@ function createAuthorityStore(options = {}) {
           journal: loaded.journal,
           authority: nextAuthority,
           budgets: entry.budgets,
+          expectedRevision: currentRevision,
         });
         entry.authority = nextAuthority;
         entry.baselines.set(healedRevision, currentStateDigest);
@@ -420,6 +421,7 @@ function createAuthorityStore(options = {}) {
         journal: journalToCommit,
         authority: nextAuthority,
         budgets: entry.budgets,
+        expectedRevision: currentRevision,
       });
       entry.authority = nextAuthority;
     } finally {

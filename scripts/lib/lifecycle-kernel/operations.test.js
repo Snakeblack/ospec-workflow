@@ -9,7 +9,7 @@ const {
   validateOperationTransition,
 } = require("./operations.js");
 const { digestLifecycleState } = require("./state-digest.js");
-const { mintOperationPermit, _internalCreateIssuer: createPermitAuthorityIssuer } = require("./permits.js");
+const { mintOperationPermit, createPermitAuthorityIssuer } = require("../test-support/permit-test-helpers.js");
 
 function baseState(overrides = {}) {
   return {

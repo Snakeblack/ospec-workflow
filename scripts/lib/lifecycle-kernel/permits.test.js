@@ -5,21 +5,26 @@ const test = require("node:test");
 
 const {
   createPermitLedger,
-  _internalCreateIssuer: createPermitAuthorityIssuer,
-  isPermitAuthorityIssuer,
-  mintOperationPermit,
-  issueOperationPermit,
   authorizeMutation,
   authorizeOperationWithPermit,
   consumePermit,
   prepareOperationReceipt,
   findReplayReceipt,
   assertNotReceiptV1,
-  _createPermitAuthorityIssuerInternal,
 } = require("./permits.js");
+const {
+  createPermitAuthorityIssuer,
+  isPermitAuthorityIssuer,
+  mintOperationPermit,
+  issueOperationPermit,
+} = require("../test-support/permit-test-helpers.js");
 
-test("Phase 1: _createPermitAuthorityIssuerInternal is undefined on permits.js export", () => {
-  assert.equal(typeof _createPermitAuthorityIssuerInternal, "undefined");
+test("Phase 1: internal minting functions are undefined on permits.js export", () => {
+  const permits = require("./permits.js");
+  assert.equal(permits._internalCreateIssuer, undefined);
+  assert.equal(permits.mintOperationPermit, undefined);
+  assert.equal(permits.issueOperationPermit, undefined);
+  assert.equal(permits.isPermitAuthorityIssuer, undefined);
 });
 
 

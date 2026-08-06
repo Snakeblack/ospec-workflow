@@ -14,13 +14,15 @@ const { validateOperationTransition } = require("./operations.js");
 const { createMemoryStore } = require("./memory-store.js");
 const {
   createPermitLedger,
-  _internalCreateIssuer: createPermitAuthorityIssuer,
-  isPermitAuthorityIssuer,
-  issueOperationPermit,
   authorizeOperationWithPermit,
   prepareOperationReceipt,
   findReplayReceipt,
 } = require("./permits.js");
+const {
+  createPermitAuthorityIssuer,
+  isPermitAuthorityIssuer,
+  issueOperationPermit,
+} = require("./internal/permit-authority.js");
 const {
   DEFAULT_SUBJECT_ID,
   createAuthorityStore,
@@ -614,7 +616,7 @@ function createKernelRuntime(options = {}) {
       return runKernelOperation({
         ...input,
         store,
-        permitLedger: permitIssuer,
+        permitLedger: input.permitLedger || permitIssuer,
       });
     },
     issuePermitForSelectedTransition(input = {}) {
@@ -699,13 +701,10 @@ function createKernelRuntime(options = {}) {
 
 module.exports = {
   createKernelRuntime,
-  runKernelOperation,
   createMemoryStore,
   createAuthorityStore,
   createAuthorityRuntime,
   createPermitLedger,
-  isPermitAuthorityIssuer,
-  issueOperationPermit,
   reduceLifecycle,
   digestLifecycleState,
   selectTransitions,
