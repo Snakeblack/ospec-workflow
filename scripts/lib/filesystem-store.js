@@ -48,19 +48,23 @@ async function withFileLock(filePath, fn, options = {}) {
         try {
           const stats = await fs.stat(lockPath);
           if (Date.now() - stats.mtimeMs > staleTimeout) {
+            let lockData = null;
             try {
               const lockContent = await fs.readFile(lockPath, "utf8");
-              const lockData = JSON.parse(lockContent);
-              if (lockData && typeof lockData.pid === "number" && !isPidAlive(lockData.pid)) {
-                const quarantinePath = `${lockPath}.quarantine.${randomUUID()}`;
-                try {
-                  await fs.rename(lockPath, quarantinePath);
-                  await fs.unlink(quarantinePath);
-                } catch (_) {}
-              }
+              lockData = JSON.parse(lockContent);
             } catch (_) {}
+
+            if (lockData && typeof lockData.pid === "number" && !isPidAlive(lockData.pid)) {
+              const staleError = new Error(`stale-lock-recovery-required: Lockfile ${lockPath} is held by dead process ${lockData.pid}`);
+              staleError.code = "stale-lock-recovery-required";
+              throw staleError;
+            }
           }
-        } catch (_) {}
+        } catch (statErr) {
+          if (statErr.code === "stale-lock-recovery-required") {
+            throw statErr;
+          }
+        }
         await new Promise((resolve) => setTimeout(resolve, retryInterval));
       } else {
         throw err;

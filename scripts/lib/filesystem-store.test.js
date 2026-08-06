@@ -384,7 +384,30 @@ test("Lockfile owner token safety: teardown unlinks only matching ownerToken", a
   }
 });
 
-test("Stale lock takeover under concurrent scavengers produces valid JSON without NUL byte corruption", async () => {
+test("FileSystemStore withFileLock enforces strict single-writer mutual exclusion", async () => {
+  const { withFileLock } = require("./filesystem-store.js");
+  const filePath = tmpFile();
+
+  let active = 0;
+  let maximumActive = 0;
+
+  const worker = async () => {
+    return withFileLock(filePath, async () => {
+      active += 1;
+      maximumActive = Math.max(maximumActive, active);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      active -= 1;
+    });
+  };
+
+  await Promise.all([worker(), worker(), worker()]);
+  assert.equal(maximumActive, 1, "maximum active processes in critical section must be strictly 1");
+
+  try { await fs.unlink(filePath); } catch (_) {}
+  try { await fs.unlink(`${filePath}.lock`); } catch (_) {}
+});
+
+test("Stale lock recovery fails closed with stale-lock-recovery-required", async () => {
   const { withFileLock } = require("./filesystem-store.js");
   const filePath = tmpFile();
   const lockPath = `${filePath}.lock`;
@@ -398,30 +421,12 @@ test("Stale lock takeover under concurrent scavengers produces valid JSON withou
     });
     await fs.writeFile(lockPath, deadLockPayload, "utf8");
 
-    // Run two scavengers concurrently attempting to acquire the lock
-    const p1 = withFileLock(filePath, async () => {
-      const content = await fs.readFile(lockPath, "utf8");
-      assert.ok(!content.includes("\0"), "lockfile content must not contain NUL bytes");
-      const parsed = JSON.parse(content);
-      assert.ok(parsed.ownerToken);
-      return "worker1";
-    }, { staleTimeout: 100 });
-
-    const p2 = withFileLock(filePath, async () => {
-      const content = await fs.readFile(lockPath, "utf8");
-      assert.ok(!content.includes("\0"), "lockfile content must not contain NUL bytes");
-      const parsed = JSON.parse(content);
-      assert.ok(parsed.ownerToken);
-      return "worker2";
-    }, { staleTimeout: 100 });
-
-    const results = await Promise.all([p1, p2]);
-    assert.ok(results.includes("worker1"));
-    assert.ok(results.includes("worker2"));
-
-    // Lockfile should be cleanly unlinked after both tasks finish
-    const lockExists = await fs.stat(lockPath).then(() => true, () => false);
-    assert.equal(lockExists, false);
+    await assert.rejects(
+      async () => {
+        await withFileLock(filePath, async () => {}, { staleTimeout: 100 });
+      },
+      (err) => err && err.code === "stale-lock-recovery-required"
+    );
   } finally {
     try { await fs.unlink(filePath); } catch (_) {}
     try { await fs.unlink(lockPath); } catch (_) {}

@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
+## [2.40.11] - 2026-08-07
+
+### Fixed
+- **Recuperación fail-closed ante candados stale (`stale-lock-recovery-required`)**: Eliminado el borrado/renombrado automático inseguro de candados caducados en `FileSystemStore.withFileLock`. Al detectar un `.lock` caducado perteneciente a un proceso extinto, `withFileLock` falla cerrado lanzando `stale-lock-recovery-required`.
+- **Verificación determinista de exclusión mutua single-writer**: Añadida prueba determinista con barrera `Promise.all` verificando que el número máximo de ejecuciones concurrentes dentro de la sección crítica es estrictamente 1 (`maximumActive === 1`), garantizando la prevención de carreras TOCTOU y escrituras concurrentes.
+
 ## [2.40.10] - 2026-08-07
 
 ### Fixed
