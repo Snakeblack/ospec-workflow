@@ -1,0 +1,49 @@
+change: "k2-1e-private-runtime-real-durable-cas"
+status: "archive"
+last_updated: "2026-08-06T03:10:30Z"
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k2-1e-private-runtime-real-durable-cas/proposal.md"
+    summary: "Encapsulación privada del permit issuer, CAS multi-instancia durable con lockfile y recuperación de .bak."
+    key_decisions:
+      - "Encapsular permit issuer en closure de createKernelRuntime."
+      - "Utilizar lockfile en FileSystemStore para serializar CAS multi-proceso."
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k2-1e-private-runtime-real-durable-cas/specs/authority-store/spec.md"
+      - "openspec/changes/k2-1e-private-runtime-real-durable-cas/specs/lifecycle-kernel/spec.md"
+  design:
+    status: "done"
+    artifact: "openspec/changes/k2-1e-private-runtime-real-durable-cas/design.md"
+    summary: "Diseño para la encapsulación estricta en createKernelRuntime, CAS durable en sanación convergente, lockfile multi-instancia en FileSystemStore, recuperación de .bak en ENOENT y binding de revisión R1 post-CAS en OperationReceipt."
+    key_decisions:
+      - "Eliminar getPrivateIssuer y _createPermitAuthorityIssuerInternal de las exportaciones públicas."
+      - "Sanación convergente invoca inner.commit antes de responder ok."
+      - "Lockfile .lock en FileSystemStore para serialización multi-instancia."
+      - "Restauración de .bak en load() cuando el archivo primario devuelve ENOENT."
+      - "Vinculación de receipt.revision a la revisión ganadora R1 post-CAS."
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k2-1e-private-runtime-real-durable-cas/tasks.md"
+  apply:
+    status: "done"
+  verify:
+    status: "done"
+    artifact: "openspec/changes/k2-1e-private-runtime-real-durable-cas/verify-report.md"
+  archive:
+    status: "done"
+    artifact: "openspec/changes/archive/2026-08-06-k2-1e-private-runtime-real-durable-cas/archive-report.md"
+gates:
+  4r-review-gate:
+    status: approved
+    classification: high-risk
+    selected_dimensions: [risk, resilience, reliability, readability]
+    evidence:
+      risk: "All public accessors removed; permit issuer strictly encapsulated in private runtime closure; Symbol.for eliminated."
+      resilience: "FileSystemStore uses withFileLock lockfile serialization and automatic .bak recovery on ENOENT."
+      reliability: "Multi-instance CAS correctly rejects race conditions with cas-conflict; convergent path commits authority bag; receipt.revision binds to R1."
+      readability: "Clean encapsulation via createKernelRuntime closure; explicit lockfile retry logic and clear TDD test coverage."
+

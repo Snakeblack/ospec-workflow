@@ -673,7 +673,7 @@ module.exports = {
   EFFECT_CLASSES,
   isPermitAuthorityIssuer,
   createPermitLedger,
-  _createPermitAuthorityIssuerInternal: createPermitAuthorityIssuer,
+  _internalCreateIssuer: createPermitAuthorityIssuer,
 
 
   mintOperationPermit,

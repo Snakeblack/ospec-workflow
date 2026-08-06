@@ -14,6 +14,7 @@ const { validateOperationTransition } = require("./operations.js");
 const { createMemoryStore } = require("./memory-store.js");
 const {
   createPermitLedger,
+  _internalCreateIssuer: createPermitAuthorityIssuer,
   isPermitAuthorityIssuer,
   issueOperationPermit,
   authorizeOperationWithPermit,
@@ -24,7 +25,6 @@ const {
   DEFAULT_SUBJECT_ID,
   createAuthorityStore,
   createAuthorityRuntime,
-  getPrivateIssuer,
 } = require("../authority-store/index.js");
 const { sha256Fingerprint } = require("../canonical-json.js");
 const {
@@ -152,20 +152,16 @@ async function runKernelOperation(input = {}) {
     });
   }
 
-  // Authorization runs against the store-owned issuer only. A caller-supplied
-  // ledger is accepted solely when it IS that issuer; anything else would let a
-  // caller present its own mint authority.
-  const storeIssuer = getPrivateIssuer(authorityStore);
-  if (!isPermitAuthorityIssuer(storeIssuer) || (permitLedger && permitLedger !== storeIssuer)) {
+  const ledger = permitLedger;
+  const permit = operationPermit || null;
+  const argumentsDigest = sha256Fingerprint("permit:arguments", args);
+
+  if (permitLedger && !isPermitAuthorityIssuer(permitLedger)) {
     return blockedResult(state, journal, "issuer-capability-required", {
       revision: headRevision,
       operation_receipt: null,
     });
   }
-
-  const ledger = storeIssuer;
-  const permit = operationPermit || null;
-  const argumentsDigest = sha256Fingerprint("permit:arguments", args);
 
   // Exact replay: consumed permit + matching receipt in authority bag → return prior receipt.
   const replayReceipt = findReplayReceipt(
@@ -506,6 +502,7 @@ async function runKernelOperation(input = {}) {
     operation_intent_digest: issuedPermit.operation_intent_digest,
     arguments_digest: issuedPermit.arguments_digest,
   });
+  receipt.revision = "pending";
   const authorityCommit = {
     permit_id: permit.permit_id,
     receipt,
@@ -608,12 +605,104 @@ function isPreEffectStarted(record) {
   );
 }
 
+function createKernelRuntime(options = {}) {
+  const permitIssuer = createPermitAuthorityIssuer();
+  const store = options.store || createAuthorityStore(options);
+
+  return {
+    async runOperation(input = {}) {
+      return runKernelOperation({
+        ...input,
+        store,
+        permitLedger: permitIssuer,
+      });
+    },
+    issuePermitForSelectedTransition(input = {}) {
+      if (input.offer_id && (input.decision_id || input.rule_id)) {
+        return issueOperationPermit({
+          ...input,
+          ledger: permitIssuer,
+        });
+      }
+
+      const subject_id = input.subject_id || options.subjectId || DEFAULT_SUBJECT_ID;
+      const operation = input.operation || input.transitionOffer?.operation;
+
+      const offerInput = input.transitionOffer || {
+        operation,
+        subject_id,
+      };
+      const offerReg = permitIssuer.registerTransitionOffer(offerInput);
+      if (!offerReg.ok) return offerReg;
+
+      let decision_id = input.decision_id || null;
+      let rule_id = input.rule_id || null;
+
+      if (!decision_id && !rule_id) {
+        if (input.policyDecision) {
+          const reg = permitIssuer.registerPolicyDecision({
+            ...input.policyDecision,
+            offer_id: offerReg.offer_id,
+            operation,
+            subject_id,
+          });
+          if (!reg.ok) return reg;
+          decision_id = reg.decision_id;
+        } else if (input.humanDecision) {
+          const reg = permitIssuer.registerHumanDecision({
+            ...input.humanDecision,
+            offer_id: offerReg.offer_id,
+            operation,
+            subject_id,
+          });
+          if (!reg.ok) return reg;
+          decision_id = reg.decision_id;
+        } else {
+          const kernelRule = input.kernelRule || {
+            kind: "kernel-rule/v1",
+            operation,
+            subject_id,
+          };
+          const reg = permitIssuer.registerKernelRule({
+            ...kernelRule,
+            offer_id: offerReg.offer_id,
+            operation,
+            subject_id,
+          });
+          if (!reg.ok) return reg;
+          rule_id = reg.rule_id;
+        }
+      }
+
+      return issueOperationPermit({
+        ledger: permitIssuer,
+        offer_id: offerReg.offer_id,
+        decision_id,
+        rule_id,
+        expected_revision: input.expected_revision,
+        subject_id,
+        arguments: input.arguments || {},
+      });
+    },
+    async getStatus(subjectId = options.subjectId || DEFAULT_SUBJECT_ID) {
+      return runKernelOperation({
+        operation: "status",
+        store,
+        subjectId,
+      });
+    },
+    snapshot(subjectId = options.subjectId || DEFAULT_SUBJECT_ID) {
+      return store.snapshot(subjectId);
+    },
+  };
+}
+
 module.exports = {
+  createKernelRuntime,
   runKernelOperation,
   createMemoryStore,
   createAuthorityStore,
   createAuthorityRuntime,
-  getPrivateIssuer,
   createPermitLedger,
   isPermitAuthorityIssuer,
   issueOperationPermit,

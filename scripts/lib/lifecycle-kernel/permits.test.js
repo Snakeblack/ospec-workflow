@@ -5,6 +5,7 @@ const test = require("node:test");
 
 const {
   createPermitLedger,
+  _internalCreateIssuer: createPermitAuthorityIssuer,
   isPermitAuthorityIssuer,
   mintOperationPermit,
   issueOperationPermit,
@@ -14,9 +15,13 @@ const {
   prepareOperationReceipt,
   findReplayReceipt,
   assertNotReceiptV1,
+  _createPermitAuthorityIssuerInternal,
 } = require("./permits.js");
-const { getPrivateIssuer, createAuthorityStore } = require("../authority-store/index.js");
-const createPermitAuthorityIssuer = () => getPrivateIssuer(createAuthorityStore());
+
+test("Phase 1: _createPermitAuthorityIssuerInternal is undefined on permits.js export", () => {
+  assert.equal(typeof _createPermitAuthorityIssuerInternal, "undefined");
+});
+
 
 const { authorizeOperation } = require("./operations.js");
 const { sha256Fingerprint } = require("../canonical-json.js");

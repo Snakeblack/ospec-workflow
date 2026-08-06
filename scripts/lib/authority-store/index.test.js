@@ -7,8 +7,16 @@ const {
   DEFAULT_SUBJECT_ID,
   computeRevision,
   createAuthorityStore,
+  getPrivateIssuer,
 } = require("./index.js");
+const { _createPermitAuthorityIssuerInternal } = require("../lifecycle-kernel/permits.js");
 const { digestLifecycleState } = require("../lifecycle-kernel/state-digest.js");
+
+test("Phase 1 RED: getPrivateIssuer and _createPermitAuthorityIssuerInternal must be undefined", () => {
+  assert.equal(typeof getPrivateIssuer, "undefined");
+  assert.equal(typeof _createPermitAuthorityIssuerInternal, "undefined");
+});
+
 
 function pendingState() {
   return {
@@ -605,6 +613,38 @@ test("convergent permit-authorized CAS without bag receipt co-writes or fails cl
   const after = await store.load();
   assert.equal(after.authority.permits[permitId].status, "consumed");
   assert.equal(after.authority.receipts[permitId].receipt_id, receipt.receipt_id);
+});
+
+test("convergent permit-authorized CAS persists updated authority bag to inner store via inner.commit", async () => {
+  let committed = false;
+  const innerStore = {
+    async load() {
+      return { state: startedState(), journal: [], authority: { permits: {}, receipts: {} } };
+    },
+    async commit(record) {
+      committed = true;
+      assert.ok(record.authority.permits["permit:runtime:converge-persist"]);
+    },
+    snapshot() {
+      return { state: startedState(), journal: [], authority: { permits: {}, receipts: {} } };
+    },
+  };
+  const store = createAuthorityStore({ store: innerStore });
+  const head = await store.load();
+  const permitId = "permit:runtime:converge-persist";
+  const receipt = sampleReceipt(permitId, head.revision);
+
+  const cas = await store.compareAndSwap(
+    DEFAULT_SUBJECT_ID,
+    head.revision,
+    startedState(),
+    [],
+    null,
+    sampleAuthorityCommit(permitId, receipt)
+  );
+  assert.equal(cas.ok, true);
+  assert.equal(cas.converged, true);
+  assert.equal(committed, true);
 });
 
 test("permit-authorized CAS never exposes advanced head without matching consume+receipt", async () => {

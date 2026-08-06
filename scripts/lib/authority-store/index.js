@@ -3,7 +3,6 @@
 const { sha256Fingerprint } = require("../canonical-json.js");
 const { digestLifecycleState } = require("../lifecycle-kernel/state-digest.js");
 const { createMemoryStore } = require("../lifecycle-kernel/memory-store.js");
-const { _createPermitAuthorityIssuerInternal } = require("../lifecycle-kernel/permits.js");
 
 const DEFAULT_SUBJECT_ID = "lifecycle:default";
 
@@ -149,17 +148,9 @@ function materializeAuthorityCommit(currentAuthority, authorityCommit) {
   return nextAuthority;
 }
 
-const STORE_ISSUERS = new WeakMap();
-
-function getPrivateIssuer(store) {
-  return STORE_ISSUERS.get(store) || null;
-}
-
 function createAuthorityStore(options = {}) {
   const defaultSubjectId = options.subjectId || DEFAULT_SUBJECT_ID;
   const subjects = new Map();
-  // The store owns the only mint-capable issuer; callers get reader views.
-  const permitIssuer = options.permitIssuer || _createPermitAuthorityIssuerInternal();
 
   function ensureSubject(subjectId, initial) {
     if (subjects.has(subjectId)) return subjects.get(subjectId);
@@ -378,6 +369,12 @@ function createAuthorityStore(options = {}) {
         if (stored && (stored.revision === "pending" || stored.revision == null)) {
           stored.revision = healedRevision;
         }
+        await entry.inner.commit({
+          state: loaded.state,
+          journal: loaded.journal,
+          authority: nextAuthority,
+          budgets: entry.budgets,
+        });
         entry.authority = nextAuthority;
         entry.baselines.set(healedRevision, currentStateDigest);
         return {
@@ -403,6 +400,14 @@ function createAuthorityStore(options = {}) {
       ? materializeAuthorityCommit(entry.authority, authorityCommit)
       : entry.authority;
 
+    const winningRevision = computeRevision(nextState, journalToCommit, nextAuthority);
+    if (permitAuthorized) {
+      const stored = nextAuthority.receipts[authorityCommit.permit_id];
+      if (stored && (stored.revision === "pending" || stored.revision == null)) {
+        stored.revision = winningRevision;
+      }
+    }
+
     // Synchronous readers keep seeing the pre-CAS pair until state and bag are both published.
     entry.inflight = {
       state: JSON.parse(JSON.stringify(loaded.state)),
@@ -427,14 +432,6 @@ function createAuthorityStore(options = {}) {
     const after = await entry.inner.load();
     const revision = computeRevision(after.state, after.journal, entry.authority);
     entry.baselines.set(revision, digestLifecycleState(after.state));
-
-    // Bind receipt.revision to the winning head when caller left a placeholder.
-    if (permitAuthorized) {
-      const stored = entry.authority.receipts[authorityCommit.permit_id];
-      if (stored && (stored.revision === "pending" || stored.revision == null)) {
-        stored.revision = revision;
-      }
-    }
 
     return {
       ok: true,
@@ -479,7 +476,6 @@ function createAuthorityStore(options = {}) {
     },
   };
 
-  STORE_ISSUERS.set(storeInstance, permitIssuer);
   return storeInstance;
 }
 
@@ -487,9 +483,6 @@ function createAuthorityRuntime(options = {}) {
   const store = createAuthorityStore(options);
   return {
     store,
-    getPrivateIssuer() {
-      return getPrivateIssuer(store);
-    },
   };
 }
 
@@ -515,5 +508,4 @@ module.exports = {
   computeRevision,
   createAuthorityStore,
   createAuthorityRuntime,
-  getPrivateIssuer,
 };

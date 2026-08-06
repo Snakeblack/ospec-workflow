@@ -3,6 +3,7 @@
 const {
   runKernelOperation,
   createAuthorityStore,
+  createKernelRuntime,
   createMemoryStore,
   digestLifecycleState,
   selectTransitions,
@@ -37,6 +38,7 @@ async function runHarnessScenario(scenario = {}) {
     initial: { state: initialState, journal: scenario.initialJournal || [] },
     budgets: budgets || { attempts: 0, corrections: 0 },
   });
+  const runtime = createKernelRuntime({ store, subjectId });
   const executedEffects = [];
   const defaultExecutor = async (effect) => {
     executedEffects.push(effect.effect_id);
@@ -75,20 +77,24 @@ async function runHarnessScenario(scenario = {}) {
       step.omitPermit !== true
     ) {
       const head = await store.load(subjectId);
-      const issued = issueFixturePermit({
-        store,
+      const issued = runtime.issuePermitForSelectedTransition({
         operation: step.operation,
-        headRevision: head.revision,
+        expected_revision: head.revision,
         arguments: step.arguments || {},
         subject_id: subjectId,
+        transitionOffer: step.transitionOffer,
+        policyDecision: step.policyDecision,
+        humanDecision: step.humanDecision,
+        kernelRule: step.kernelRule,
       });
-      operationPermit = issued.permit;
-      permitLedger = issued.ledger;
+      if (issued.ok) {
+        operationPermit = issued.permit;
+      }
     }
 
     let result;
     try {
-      result = await runKernelOperation({
+      result = await runtime.runOperation({
         operation: step.operation,
         arguments: step.arguments || {},
         authorityToken: step.authorityToken ?? null,
@@ -98,7 +104,6 @@ async function runHarnessScenario(scenario = {}) {
         transitionOffer: step.transitionOffer,
         irreversibleAmbiguousNext: step.irreversibleAmbiguousNext || scenario.irreversibleAmbiguousNext,
         effect_class: step.effect_class || scenario.effect_class || null,
-        store,
         subjectId,
         effectExecutor: async (effect) => {
           if (scenarioInterrupt === `before-effect:${effect.effect_id}`) {
