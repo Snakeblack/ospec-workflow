@@ -332,7 +332,11 @@ module.exports = {
   createMemoryStore,
   createAuthorityStore,
   runKernelOperation(input) {
-    return createKernelRuntime({ store: input.store, subjectId: input.subjectId }).runOperation(input);
+    return createKernelRuntime({
+      store: input.store,
+      subjectId: input.subjectId,
+      permitIssuer: input.permitLedger,
+    }).runOperation(input);
   },
   digestLifecycleState,
   selectTransitions,

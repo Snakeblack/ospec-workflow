@@ -2,19 +2,19 @@
 
 ## Summary
 
-All 5 requirements (`REQ-authority-store-018`–`020`, `REQ-lifecycle-kernel-025`–`026`) are **PASS**. The test suite (`npm test`) exits with code 0 and 0 errors, 0 warnings. TDD evidence in `apply-progress.md` covers all 4 phases with RED→GREEN→REFACTOR cycles documented.
+All 6 requirements (`REQ-authority-store-018`–`020`, `REQ-lifecycle-kernel-025`–`027`) are **PASS**. The test suite (`npm test`) exits with code 0 and 0 errors, 0 warnings. TDD evidence in `apply-progress.md` covers all 5 phases with RED→GREEN→REFACTOR cycles documented.
 
 ## Requirement Verification
 
-### REQ-authority-store-018 — Backend CAS `expectedRevision` Verification
+### REQ-authority-store-018 — Backend CAS `expectedRevision` Verification & Conflict Propagation
 
 **Status: PASS**
 
 Evidence:
-- [`authority-store/index.js` L372–377](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/scripts/lib/authority-store/index.js#L372-L377): Convergent heal path passes `expectedRevision: currentRevision` to `entry.inner.commit(...)`.
-- [`authority-store/index.js` L418–424](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/scripts/lib/authority-store/index.js#L418-L424): Normal CAS path passes `expectedRevision: currentRevision` to `entry.inner.commit(...)`.
+- [`authority-store/index.js` L372–385](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/scripts/lib/authority-store/index.js#L372-L385): Convergent heal path passes `expectedRevision: currentRevision` to `entry.inner.commit(...)` and propagates `persisted?.ok === false`.
+- [`authority-store/index.js` L418–430](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/scripts/lib/authority-store/index.js#L418-L430): Normal CAS path passes `expectedRevision: currentRevision` to `entry.inner.commit(...)` and returns `persisted` when `persisted?.ok === false` without updating local `entry.authority`.
 - [`filesystem-store.js` L183–216](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/scripts/lib/filesystem-store.js#L183-L216): `commit(...)` reads current record inside `withFileLock`, computes `currentRevision` via `computeRevision`, and returns `{ ok: false, code: "cas-conflict", revision: currentRevision }` if `expectedRevision !== currentRevision`.
-- [`filesystem-store.test.js` L288–323](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/scripts/lib/filesystem-store.test.js#L288-L323): Concurrent race test with synchronization barrier using `Promise.all` — 2 `FileSystemStore` instances read R0 before either commits. Verifies exactly 1 success and 1 `cas-conflict`.
+- [`filesystem-store.test.js` L240–280](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/scripts/lib/filesystem-store.test.js#L240-L280): Concurrent `AuthorityStore` `compareAndSwap` race test via `Promise.all` over `FileSystemStore` — 2 instances read R0 before issuing concurrent commits. Verifies exactly 1 success and 1 `cas-conflict`.
 
 ### REQ-authority-store-019 — Fail-Closed on Missing Authority Records
 
@@ -31,7 +31,7 @@ Evidence:
 
 Evidence:
 - [`filesystem-store.js` L18–23](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/scripts/lib/filesystem-store.js#L18-L23): `withFileLock` generates `ownerToken = randomUUID()` and writes JSON `{ ownerToken, pid: process.pid, timestamp: Date.now() }` to `.lock`.
-- [`filesystem-store.js` L29–30](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/scripts/lib/filesystem-store.js#L29-L30): Owner payload is fsynced to the lockfile.
+- [`filesystem-store.js` L41–46](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/scripts/lib/filesystem-store.js#L41-L46): Stale lock inspection reads lock payload and verifies `!isPidAlive(lockData.pid)` before unlinking dead locks.
 - [`filesystem-store.js` L63–69](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/scripts/lib/filesystem-store.js#L63-L69): `finally` block reads lockfile content, parses JSON, and only unlinks if `lockData.ownerToken === ownerToken`.
 - [`filesystem-store.test.js` L326–364](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/scripts/lib/filesystem-store.test.js#L326-L364): Tests verify: (a) normal teardown deletes lockfile, (b) when lockfile content is overwritten by another process's token, teardown does NOT delete it — lockfile remains on disk.
 
@@ -53,6 +53,14 @@ Evidence:
 - [`test-support/permit-test-helpers.js`](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/scripts/lib/test-support/permit-test-helpers.js): Exports `createTestPermitIssuer`, `mintTestPermit`, `issueTestPermit`, `issueFixturePermit`, `withRuntimePermit` for unit test use only. Imports from `../lifecycle-kernel/internal/permit-authority.js`.
 - NOT re-exported from `lifecycle-kernel/index.js` or `permits.js` production surfaces.
 
+### REQ-lifecycle-kernel-027 — Internal Permit Authority Issuer Isolation
+
+**Status: PASS**
+
+Evidence:
+- [`lifecycle-kernel/index.js` L615–622](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/scripts/lib/lifecycle-kernel/index.js#L615-L622): `KernelRuntime.runOperation` destructures input to discard `input.permitLedger` and enforces private `permitIssuer`.
+- [`lifecycle-kernel/index.test.js` L388–416](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/scripts/lib/lifecycle-kernel/index.test.js#L388-L416): Unit test `CRITICAL: KernelRuntime ignores rogue permitLedger passed by caller` asserts caller-supplied `permitLedger` is ignored and rogue permits fail with `permit-not-runtime-issued`.
+
 ## TDD Evidence Audit
 
 | Phase | RED | GREEN | REFACTOR | Status |
@@ -60,16 +68,18 @@ Evidence:
 | Phase 1 — Surface Encapsulation | `AssertionError: Expected values to be strictly equal` on export-surface test | Created internal module, test-support, removed exports | Test file import migration | ✅ |
 | Phase 2 — expectedRevision & Fail-Closed | `Missing expected rejection for authority-head-not-found` | CAS propagation, expectedRevision check, fail-closed | Clean error propagation | ✅ |
 | Phase 3 — Lockfile Owner Token | `SyntaxError: Unexpected end of JSON input` | ownerToken JSON write/verify | Safe JSON parsing | ✅ |
-| Phase 4 — Adversarial Suite | `K1 implementation changes absent from frozen inventory` | scope-guard update, barrier race test, fail-closed tests | Full suite 2017+ pass | ✅ |
+| Phase 4 — Adversarial Suite | `K1 implementation changes absent from frozen inventory` | scope-guard update, barrier race test, fail-closed tests | Full suite pass | ✅ |
+| Phase 5 — Issuer Isolation & CAS Propagation | `AssertionError: 'advanced' !== 'blocked'` / `Authority head not found` | Input destructuring in runOperation, inner.commit result inspection in compareAndSwapLocked, isPidAlive stale lock check | Test helper issuer binding | ✅ |
 
 ## Runtime Test Execution
 
 ```
 npm test → exit code 0
 0 errors, 0 warnings
-All checks passed.
+All checks passed. (2019 tests passing)
 ```
 
 ## Verdict
 
-**PASS** — All requirements verified. No CRITICAL or WARNING issues found. Ready for archive phase.
+**PASS** — All 6 requirements verified. No CRITICAL or WARNING issues found. Ready for archive phase.
+

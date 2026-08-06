@@ -240,6 +240,49 @@ test("Phase 3: Multi-instance FileSystemStore CAS conflict on same R0 head", asy
   }
 });
 
+test("Concurrent AuthorityStore compareAndSwap race via Promise.all over FileSystemStore: exactly 1 winner and 1 cas-conflict", async () => {
+  const filePath = tmpFile();
+  try {
+    const fs1 = createFileSystemStore({ filePath, initializeIfMissing: true });
+    const store1 = createAuthorityStore({ store: fs1 });
+    const head1 = await store1.load();
+    const initRes = await store1.compareAndSwap(
+      "lifecycle:default",
+      head1.revision,
+      { ...head1.state, version: 1 },
+      [{ action: "init" }]
+    );
+    assert.equal(initRes.ok, true);
+    const r0 = initRes.revision;
+
+    const fs2 = createFileSystemStore({ filePath });
+    const store2 = createAuthorityStore({ store: fs2 });
+
+    const [rec1, rec2] = await Promise.all([store1.load(), store2.load()]);
+    assert.equal(rec1.revision, r0);
+    assert.equal(rec2.revision, r0);
+
+    const winnerState = { schema_version: 1, status: "running", nodes: { n1: { phase: "started" } } };
+    const loserState = { schema_version: 1, status: "blocked", nodes: { n1: { phase: "failed" } } };
+
+    const [res1, res2] = await Promise.all([
+      store1.compareAndSwap("lifecycle:default", r0, winnerState, [{ action: "w1" }]),
+      store2.compareAndSwap("lifecycle:default", r0, loserState, [{ action: "l1" }]),
+    ]);
+
+    const results = [res1, res2];
+    const winners = results.filter((r) => r.ok === true);
+    const conflicts = results.filter((r) => r.ok === false && r.code === "cas-conflict");
+
+    assert.equal(winners.length, 1, "Exactly one AuthorityStore CAS commit must succeed");
+    assert.equal(conflicts.length, 1, "Exactly one AuthorityStore CAS commit must fail with cas-conflict");
+  } finally {
+    try { await fs.unlink(filePath); } catch (_) {}
+    try { await fs.unlink(`${filePath}.lock`); } catch (_) {}
+  }
+});
+
+
 test("Phase 3: Resilient .bak recovery on load() when primary filePath returns ENOENT", async () => {
   const filePath = tmpFile();
   const bakPath = `${filePath}.bak`;

@@ -10,6 +10,16 @@ function clone(val) {
   return val !== undefined ? JSON.parse(JSON.stringify(val)) : undefined;
 }
 
+function isPidAlive(pid) {
+  if (typeof pid !== "number" || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code !== "ESRCH";
+  }
+}
+
 async function withFileLock(filePath, fn, options = {}) {
   const lockPath = `${filePath}.lock`;
   const retries = options.retries ?? 50;
@@ -39,7 +49,11 @@ async function withFileLock(filePath, fn, options = {}) {
           const stats = await fs.stat(lockPath);
           if (Date.now() - stats.mtimeMs > staleTimeout) {
             try {
-              await fs.unlink(lockPath);
+              const lockContent = await fs.readFile(lockPath, "utf8");
+              const lockData = JSON.parse(lockContent);
+              if (lockData && typeof lockData.pid === "number" && !isPidAlive(lockData.pid)) {
+                await fs.unlink(lockPath);
+              }
             } catch (_) {}
           }
         } catch (_) {}
