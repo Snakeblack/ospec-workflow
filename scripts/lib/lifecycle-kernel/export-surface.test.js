@@ -16,6 +16,18 @@ test("lifecycle-kernel production export surface does not leak permit minting or
   assert.equal(typeof kernel.digestLifecycleState, "function");
   assert.equal(typeof kernel.selectTransitions, "function");
   assert.equal(typeof kernel.nextTransition, "function");
+
+  const runtime = kernel.createKernelRuntime();
+  assert.equal(runtime.permitIssuer, undefined, "runtime instance must not expose permitIssuer property");
+});
+
+test("createKernelRuntime ignores options.permitIssuer passed during construction", () => {
+  const kernel = require("./index.js");
+  const { createTestPermitIssuer } = require("../test-support/permit-test-helpers.js");
+  const rogue = createTestPermitIssuer();
+
+  const runtime = kernel.createKernelRuntime({ permitIssuer: rogue });
+  assert.equal(runtime.permitIssuer, undefined, "options.permitIssuer must be ignored and not exposed");
 });
 
 test("permits.js production export surface does not leak direct minting or issuer creation", () => {
@@ -32,3 +44,4 @@ test("permits.js production export surface does not leak direct minting or issue
   assert.equal(typeof permits.authorizeOperationWithPermit, "function");
   assert.equal(typeof permits.consumePermit, "function");
 });
+

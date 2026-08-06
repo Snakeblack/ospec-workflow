@@ -93,3 +93,26 @@ Chain strategy: size-exception
   - [x] Read lock content and verify `!isPidAlive(lockData.pid)` before deleting stale `.lock` files.
   - [x] Satisfies `REQ-authority-store-020`.
 
+## Phase 6: Strict KernelRuntime Issuer Isolation & Atomic Stale Lock Takeover Patches
+
+- [x] Task 6.1: Remove `options.permitIssuer` and `permitIssuer` getter from production `createKernelRuntime` in `scripts/lib/lifecycle-kernel/index.js`.
+  - [x] Instantiate `permitIssuer` strictly inside private closure in `createKernelRuntime`.
+  - [x] Remove `get permitIssuer()` getter from runtime instance.
+  - [x] Satisfies `REQ-lifecycle-kernel-027`.
+
+- [x] Task 6.2: Remove `permitIssuer: input.permitLedger` from `scripts/lib/minimal-kernel-harness.js`.
+  - [x] Ensure `minimal-kernel-harness` constructs `createKernelRuntime` with default private authority isolation.
+  - [x] Satisfies `REQ-lifecycle-kernel-027`.
+
+- [x] Task 6.3: Implement handle-bound atomic takeover (`"r+"` open handle, token match under handle, `truncate(0)` + `writeFile` + `sync`) for dead stale locks in `scripts/lib/filesystem-store.js`.
+  - [x] Open stale lock in `r+` mode, verify `checkData.ownerToken === lockData.ownerToken`, truncate and write new payload under handle.
+  - [x] Eliminate TOCTOU race on stale lock removal.
+  - [x] Satisfies `REQ-authority-store-020`.
+
+- [x] Task 6.4: Add `createTestKernelRuntime` in `scripts/lib/test-support/permit-test-helpers.js` and unit tests in `export-surface.test.js` & `index.test.js`.
+  - [x] Add `createTestKernelRuntime` for isolated unit test scenarios.
+  - [x] Assert `runtime.permitIssuer` is `undefined` on production `createKernelRuntime` instances.
+  - [x] Assert `createKernelRuntime({ permitIssuer: rogue })` ignores `options.permitIssuer`.
+  - [x] Satisfies `REQ-lifecycle-kernel-027`.
+
+

@@ -8,6 +8,14 @@ Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.40.9] - 2026-08-07
+
+### Fixed
+- **Encapsulación estricta de `permitIssuer` en `createKernelRuntime`**: Eliminada la opción `options.permitIssuer` y la propiedad accesor `permitIssuer` del runtime de producción en `lifecycle-kernel/index.js`. `createKernelRuntime` genera y mantiene `permitIssuer` dentro de su closure privada.
+- **Remoción de bypass en `minimal-kernel-harness.js`**: El harness ya no inyecta `input.permitLedger` en `createKernelRuntime`.
+- **Composición aislada para tests**: Creado `createTestKernelRuntime` en `scripts/lib/test-support/permit-test-helpers.js` para permitir la inyección controlada de issuers en suites de pruebas unitarias sin contaminar el runtime de producción.
+- **Takeover atómico de candados stale**: `FileSystemStore.withFileLock` abre `.lock` en modo `"r+"`, verifica que `ownerToken` bajo el handle coincida con el token caducado del proceso extinto, trunca e instala el nuevo payload atómicamente antes de retornar el handle, eliminando la carrera TOCTOU.
+
 ## [2.40.8] - 2026-08-06
 
 ### Fixed

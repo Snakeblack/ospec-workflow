@@ -10,7 +10,7 @@ const { createFileSystemStore } = require("./filesystem-store.js");
 const { createAuthorityStore } = require("./authority-store/index.js");
 const { createKernelRuntime } = require("./lifecycle-kernel/index.js");
 const { runKernelOperation } = require("./minimal-kernel-harness.js");
-const { issueFixturePermit } = require("./lifecycle-kernel/test-permit-helpers.js");
+const { issueFixturePermit } = require("./test-support/permit-test-helpers.js");
 
 function tmpFile() {
   return path.join(os.tmpdir(), `fs-store-test-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);

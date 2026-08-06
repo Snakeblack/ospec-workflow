@@ -22,6 +22,7 @@ const {
   createPermitAuthorityIssuer,
   isPermitAuthorityIssuer,
   issueOperationPermit,
+  setRunKernelOperation,
 } = require("./internal/permit-authority.js");
 const {
   DEFAULT_SUBJECT_ID,
@@ -607,14 +608,13 @@ function isPreEffectStarted(record) {
   );
 }
 
+setRunKernelOperation(runKernelOperation);
+
 function createKernelRuntime(options = {}) {
-  const permitIssuer = options.permitIssuer || createPermitAuthorityIssuer();
+  const permitIssuer = createPermitAuthorityIssuer();
   const store = options.store || createAuthorityStore(options);
 
   return {
-    get permitIssuer() {
-      return permitIssuer;
-    },
     async runOperation(input = {}) {
       const { permitLedger: _ignored, ...operationInput } = input;
       return runKernelOperation({
