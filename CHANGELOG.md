@@ -6,7 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
-## [Unreleased]
+## [2.40.10] - 2026-08-07
+
+### Fixed
+- **Eliminación del puente `setRunKernelOperation` / `runKernelOperation` de `internal/permit-authority.js`**: Removidas las funciones del export de `internal/permit-authority.js` y `index.js`. `runKernelOperation` permanece como función lexical y estrictamente privada dentro de `lifecycle-kernel/index.js`.
+- **Eliminación de self-grant en `minimal-kernel-harness.js`**: Removido `runKernelOperation` aceptando `permitLedger` y sustituidas todas las llamadas en el harness por `createKernelRuntime` directo.
+- **Estrategia atómica Quarantined Rename en `FileSystemStore`**: Reemplazada la reapertura `"r+"` por la operación atómica del sistema `fs.rename(lockPath, quarantinePath)`. En POSIX y Windows, exactamente un scavenger atómicamente renombra el candado caducado, eliminando completamente la corrupción de bytes nulos (`\0`) por desalineación de offset de archivo y resolviendo la condición de carrera TOCTOU.
 
 ## [2.40.9] - 2026-08-07
 

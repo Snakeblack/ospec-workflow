@@ -9,7 +9,7 @@ const {
   interruptError,
   DEFAULT_SUBJECT_ID,
 } = require("./lifecycle-kernel/index.js");
-const { issueFixturePermit, createTestKernelRuntime } = require("./test-support/permit-test-helpers.js");
+const { issueFixturePermit } = require("./test-support/permit-test-helpers.js");
 
 const HARNESS_KIND = "minimal-kernel-harness/v1";
 
@@ -41,7 +41,7 @@ async function runHarnessScenario(scenario = {}) {
     initial: { state: initialState, journal: initialJournal, authority: initialAuthority },
     budgets: budgets || { attempts: 0, corrections: 0 },
   });
-  const runtime = createTestKernelRuntime({ store, subjectId, permitIssuer: scenario.permitLedger || options.permitLedger });
+  const runtime = createKernelRuntime({ store, subjectId });
   const executedEffects = [];
   const defaultExecutor = async (effect) => {
     executedEffects.push(effect.effect_id);
@@ -336,10 +336,9 @@ module.exports = {
   createMemoryStore,
   createAuthorityStore,
   runKernelOperation(input) {
-    return createTestKernelRuntime({
+    return createKernelRuntime({
       store: input.store,
       subjectId: input.subjectId,
-      permitIssuer: input.permitLedger,
     }).runOperation(input);
   },
   digestLifecycleState,

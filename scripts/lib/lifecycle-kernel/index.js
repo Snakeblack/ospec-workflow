@@ -22,7 +22,6 @@ const {
   createPermitAuthorityIssuer,
   isPermitAuthorityIssuer,
   issueOperationPermit,
-  setRunKernelOperation,
 } = require("./internal/permit-authority.js");
 const {
   DEFAULT_SUBJECT_ID,
@@ -607,8 +606,6 @@ function isPreEffectStarted(record) {
     record.result.barrier === "pre-effect"
   );
 }
-
-setRunKernelOperation(runKernelOperation);
 
 function createKernelRuntime(options = {}) {
   const permitIssuer = createPermitAuthorityIssuer();

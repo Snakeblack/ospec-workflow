@@ -45,3 +45,10 @@ test("permits.js production export surface does not leak direct minting or issue
   assert.equal(typeof permits.consumePermit, "function");
 });
 
+test("internal/permit-authority.js export surface does not leak runKernelOperation or setRunKernelOperation", () => {
+  const authority = require("./internal/permit-authority.js");
+
+  assert.equal(authority.runKernelOperation, undefined, "internal permit-authority must not export runKernelOperation");
+  assert.equal(authority.setRunKernelOperation, undefined, "internal permit-authority must not export setRunKernelOperation");
+});
+

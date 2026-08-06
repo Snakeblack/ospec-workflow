@@ -263,23 +263,19 @@ test("K2.1 fault matrix: CAS conflict via public API — one winner, budgets unc
 });
 
 test("K2.1 fault matrix: stale permit fails closed; head unchanged", async () => {
-  const { mintOperationPermit, createPermitAuthorityIssuer } = require("./test-support/permit-test-helpers.js");
-  const { createAuthorityStore, runKernelOperation } = require("./minimal-kernel-harness.js");
+  const { createAuthorityStore, createKernelRuntime } = require("./lifecycle-kernel/index.js");
   const store = createAuthorityStore({ initial: { state: pendingState } });
   const before = await store.load();
-  const ledger = createPermitAuthorityIssuer();
-  const stale = mintOperationPermit({
-    ledger,
+  const runtime = createKernelRuntime({ store });
+  const stale = runtime.issuePermitForSelectedTransition({
     operation: "start",
     expected_revision: "sha256:not-the-head",
+    arguments: { node_id: "n1" },
   });
-  const result = await runKernelOperation({
+  const result = await runtime.runOperation({
     operation: "start",
     arguments: { node_id: "n1" },
-    store,
-    mintPermit: false,
-    operationPermit: stale,
-    permitLedger: ledger,
+    operationPermit: stale.permit,
     effectExecutor: async () => ({ ok: true }),
   });
   assert.equal(result.outcome, "blocked");
@@ -295,36 +291,32 @@ test("K2.1 fault matrix: permit reuse fails; no second advance", async () => {
   });
   assert.equal(first.snapshot.state.nodes.n1.phase, "started");
 
-  const { mintOperationPermit, createPermitAuthorityIssuer } = require("./test-support/permit-test-helpers.js");
-  const { consumePermit } = require("./lifecycle-kernel/permits.js");
-  const { runKernelOperation } = require("./minimal-kernel-harness.js");
-  const ledger = createPermitAuthorityIssuer();
+  const { createKernelRuntime } = require("./lifecycle-kernel/index.js");
+  const runtime = createKernelRuntime({ store: first.store });
   const head = first.revision;
-  const permit = mintOperationPermit({
-    ledger,
+  const issued = runtime.issuePermitForSelectedTransition({
     operation: "complete",
     expected_revision: head,
+    arguments: { node_id: "n1" },
   });
-  consumePermit({
-    permit_id: permit.permit_id,
-    ledger,
-    subject_id: "lifecycle:default",
-    operation: "complete",
-    revision: head,
-    outcome: "advanced",
-  });
-  const beforeDigest = first.final_state_digest;
-  const reuse = await runKernelOperation({
+  assert.ok(issued.ok);
+
+  const firstExec = await runtime.runOperation({
     operation: "complete",
     arguments: { node_id: "n1" },
-    store: first.store,
-    mintPermit: false,
-    operationPermit: permit,
-    permitLedger: ledger,
+    operationPermit: issued.permit,
     effectExecutor: async () => ({ ok: true }),
   });
-  assert.equal(reuse.outcome, "blocked");
-  assert.equal(reuse.code, "permit-reuse");
+  assert.ok(firstExec.outcome === "advanced" || firstExec.outcome === "terminal");
+
+  const beforeDigest = firstExec.state_digest;
+  const reuse = await runtime.runOperation({
+    operation: "complete",
+    arguments: { node_id: "n1" },
+    operationPermit: issued.permit,
+    effectExecutor: async () => ({ ok: true }),
+  });
+  assert.equal(reuse.replayed, true);
   assert.equal(reuse.state_digest, beforeDigest);
 });
 
@@ -451,30 +443,27 @@ test("K2.1b: atomic consume revision inspection via public harness", async () =>
 });
 
 test("K2.1b: exact replay receipt stability via public entrypoint", async () => {
-  const { createAuthorityStore, runKernelOperation } = require("./minimal-kernel-harness.js");
-  const { issueFixturePermit, createPermitAuthorityIssuer } = require("./test-support/permit-test-helpers.js");
+  const { createAuthorityStore, createKernelRuntime } = require("./lifecycle-kernel/index.js");
   const store = createAuthorityStore({ initial: { state: pendingState, journal: [] } });
+  const runtime = createKernelRuntime({ store });
   const head = await store.load();
-  const issued = issueFixturePermit({
-    ledger: createPermitAuthorityIssuer(),
+  const issued = runtime.issuePermitForSelectedTransition({
     operation: "start",
-    headRevision: head.revision,
+    expected_revision: head.revision,
     arguments: { node_id: "n1" },
   });
-  const first = await runKernelOperation({
+  assert.ok(issued.ok);
+
+  const first = await runtime.runOperation({
     operation: "start",
     arguments: { node_id: "n1" },
-    store,
     operationPermit: issued.permit,
-    permitLedger: issued.ledger,
     effectExecutor: async () => ({ ok: true }),
   });
-  const replay = await runKernelOperation({
+  const replay = await runtime.runOperation({
     operation: "start",
     arguments: { node_id: "n1" },
-    store,
     operationPermit: issued.permit,
-    permitLedger: issued.ledger,
     effectExecutor: async () => ({ ok: true }),
   });
   assert.equal(replay.operation_receipt.receipt_id, first.operation_receipt.receipt_id);

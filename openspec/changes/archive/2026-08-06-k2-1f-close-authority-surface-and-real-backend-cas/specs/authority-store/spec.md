@@ -73,12 +73,14 @@ Enforce strict verification of `expectedRevision` in backend CAS commits, preven
 - AND MUST unlink `.lock` strictly if the `ownerToken` in the lockfile matches the process's `ownerToken`
 - AND MUST NOT unlink `.lock` if the file is missing or contains a different `ownerToken`
 
-#### Scenario: Stale lock removal performs atomic handle-bound takeover
+#### Scenario: Stale lock recovery performs atomic quarantine rename
 
 - GIVEN a process attempting lock acquisition on a stale `.lock` file owned by a dead process
 - WHEN evaluating lock staleness and executing takeover
-- THEN it MUST open `.lock` in `r+` read/write mode and verify `checkData.ownerToken` matches the expected stale lock token under handle
-- AND MUST atomically truncate and write new `lockPayload` to the open file descriptor
-- AND MUST NOT call non-atomic `unlink` on `.lock` files owned by active or changed processes
+- THEN it MUST attempt atomic `rename` of `lockPath` to a unique `quarantinePath` (`lockPath + ".quarantine." + randomUUID()`)
+- AND MUST unlink `quarantinePath` exclusively if `rename` succeeded
+- AND MUST NOT attempt file descriptorSeek or in-place handle modification on `.lock` files
+- AND MUST NOT unlink `.lock` files owned by active or changed processes
+
 
 
