@@ -741,3 +741,9 @@ test("failure during authority bag materialization does not leave orphan head", 
   assert.deepEqual(Object.keys(after.authority.permits), []);
   assert.deepEqual(Object.keys(after.authority.receipts), []);
 });
+
+test("Task 1.2 & 3.1: store.getPermitIssuer is undefined on public store interface", () => {
+  const store = createAuthorityStore({ initial: { state: pendingState() } });
+  assert.equal(store.getPermitIssuer, undefined);
+});
+

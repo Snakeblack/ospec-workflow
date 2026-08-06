@@ -5,7 +5,6 @@ const test = require("node:test");
 
 const {
   createPermitLedger,
-  createPermitAuthorityIssuer,
   isPermitAuthorityIssuer,
   mintOperationPermit,
   issueOperationPermit,
@@ -16,6 +15,9 @@ const {
   findReplayReceipt,
   assertNotReceiptV1,
 } = require("./permits.js");
+const { getPrivateIssuer, createAuthorityStore } = require("../authority-store/index.js");
+const createPermitAuthorityIssuer = () => getPrivateIssuer(createAuthorityStore());
+
 const { authorizeOperation } = require("./operations.js");
 const { sha256Fingerprint } = require("../canonical-json.js");
 const { validateInstance, loadSchemaById } = require("../kernel-schema-validator.js");
@@ -662,3 +664,15 @@ test("authorizeMutation fails closed with permit-reuse when bag shows consumed",
   assert.equal(reuse.ok, false);
   assert.equal(reuse.code, "permit-reuse");
 });
+
+test("Task 1.1 & 3.1: PERMIT_AUTHORITY_ISSUER and createPermitAuthorityIssuer are not exported publicly", () => {
+  const permitsModule = require("./permits.js");
+  assert.equal(permitsModule.PERMIT_AUTHORITY_ISSUER, undefined);
+  assert.equal(permitsModule.createPermitAuthorityIssuer, undefined);
+});
+
+test("Task 3.1: Forged Symbol.for is rejected by isPermitAuthorityIssuer", () => {
+  const forgedSymbol = Symbol.for("ospec.permitAuthorityIssuer");
+  const forgedObj = { [forgedSymbol]: true };
+  assert.equal(isPermitAuthorityIssuer(forgedObj), false);
+});

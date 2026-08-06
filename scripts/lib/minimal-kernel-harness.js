@@ -76,7 +76,7 @@ async function runHarnessScenario(scenario = {}) {
     ) {
       const head = await store.load(subjectId);
       const issued = issueFixturePermit({
-        ledger: store.getPermitIssuer(),
+        store,
         operation: step.operation,
         headRevision: head.revision,
         arguments: step.arguments || {},

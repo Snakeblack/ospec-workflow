@@ -2,10 +2,13 @@
 
 const {
   createPermitLedger,
-  createPermitAuthorityIssuer,
   mintOperationPermit,
   issueOperationPermit,
 } = require("./permits.js");
+const {
+  getPrivateIssuer,
+  createAuthorityStore,
+} = require("../authority-store/index.js");
 
 const DEFAULT_HEAD =
   "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -21,7 +24,11 @@ const DEFAULT_KERNEL_RULE = Object.freeze({
  * Prefer this over mintOperationPermit / mintPermit:true on the public path.
  */
 function issueFixturePermit(options = {}) {
-  const ledger = options.ledger || createPermitAuthorityIssuer();
+  const ledger =
+    options.ledger ||
+    (options.store ? getPrivateIssuer(options.store) : null) ||
+    getPrivateIssuer(createAuthorityStore());
+
   const headRevision = options.headRevision || options.expected_revision || DEFAULT_HEAD;
   const operation = options.operation || "start";
   const subject_id = options.subject_id || "lifecycle:default";
@@ -113,7 +120,11 @@ function issueFixturePermit(options = {}) {
  * Attach an issuer-produced permit to a reducer/authorize action for tests.
  */
 function withRuntimePermit(action = {}, options = {}) {
-  const ledger = options.ledger || createPermitAuthorityIssuer();
+  const ledger =
+    options.ledger ||
+    (options.store ? getPrivateIssuer(options.store) : null) ||
+    (action.store ? getPrivateIssuer(action.store) : null) ||
+    getPrivateIssuer(createAuthorityStore());
   const headRevision = options.headRevision || action.headRevision || DEFAULT_HEAD;
   let permit = action.operationPermit;
   if (!permit) {
@@ -143,7 +154,7 @@ module.exports = {
   withRuntimePermit,
   issueFixturePermit,
   createPermitLedger,
-  createPermitAuthorityIssuer,
   mintOperationPermit,
   issueOperationPermit,
 };
+
