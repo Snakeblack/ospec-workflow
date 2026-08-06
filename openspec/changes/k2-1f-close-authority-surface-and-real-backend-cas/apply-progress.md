@@ -1,0 +1,10 @@
+# Apply Progress: k2-1f-close-authority-surface-and-real-backend-cas
+
+## TDD Cycle Evidence
+
+| Phase | Feature / Task | RED Test Command & Output | GREEN Implementation & Output | REFACTOR / Cleanup |
+|---|---|---|---|---|
+| Phase 1 | Encapsulate Permit Issuer Surface & create test-support module | `node --test scripts/lib/lifecycle-kernel/export-surface.test.js` <br> `AssertionError: Expected values to be strictly equal: [Function: issueOperationPermit] !== undefined` | Created `scripts/lib/test-support/permit-test-helpers.js`, `scripts/lib/lifecycle-kernel/internal/permit-authority.js`, updated `permits.js` and `index.js`. <br> `✔ 2 pass` | Updated internal test files to import permit minting functions from `test-support/permit-test-helpers.js`. |
+| Phase 2 | Backend CAS expectedRevision & Fail-Closed Load | `node --test scripts/lib/filesystem-store.test.js` <br> `AssertionError: Missing expected rejection for authority-head-not-found` | Forwarded `expectedRevision: currentRevision` in `AuthorityStore.compareAndSwap` (both normal and heal paths); enforced `expectedRevision` check in `FileSystemStore.commit`; threw `authority-head-not-found` in `FileSystemStore.load()` when double `ENOENT` without `initializeIfMissing: true`. <br> `✔ 9 pass` | Clean error propagation and default options handling across `createFileSystemStore`. |
+| Phase 3 | Lockfile Owner Token Teardown Safety | `node --test scripts/lib/filesystem-store.test.js` <br> `SyntaxError: Unexpected end of JSON input` | Added `ownerToken = randomUUID()` in `withFileLock`, wrote `{ ownerToken, pid, timestamp }` JSON payload to `.lock`, unlinked strictly on matching `ownerToken`. <br> `✔ 9 pass` | Safe JSON parsing and cleanup handling in `withFileLock` finally block. |
+| Phase 4 | Adversarial & Integration Test Suite | `npm test` <br> `AssertionError: K1 implementation changes absent from frozen inventory` | Added `scripts/lib/test-support/` to `SUCCESSOR_K2_PREFIXES` in `k1-scope-guard.test.js`. Added barrier race test and missing file fail-closed tests. <br> `✔ 2017 pass` | Verified 100% test suite pass across all Node test runner targets. |

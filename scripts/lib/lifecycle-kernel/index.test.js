@@ -4,17 +4,25 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const {
-  runKernelOperation,
   createAuthorityStore,
   createKernelRuntime,
   createPermitLedger,
-  issueOperationPermit,
   reduceLifecycle,
   digestLifecycleState,
   interruptError,
 } = require("./index.js");
-const { mintOperationPermit, _internalCreateIssuer: createPermitAuthorityIssuer } = require("./permits.js");
-const { withRuntimePermit, issueFixturePermit } = require("./test-permit-helpers.js");
+const {
+  mintOperationPermit,
+  createPermitAuthorityIssuer,
+  issueOperationPermit,
+  withRuntimePermit,
+  issueFixturePermit,
+} = require("../test-support/permit-test-helpers.js");
+
+function runKernelOperation(input = {}) {
+  const runtime = createKernelRuntime({ store: input.store });
+  return runtime.runOperation(input);
+}
 
 function pendingState() {
   return {
@@ -340,8 +348,10 @@ test("in-process restart via snapshot/initial keeps permit and receipt verifiabl
   assert.equal(loaded.state.nodes.n1.phase, "started");
 });
 
-test("issueOperationPermit is re-exported from kernel index", () => {
-  assert.equal(typeof issueOperationPermit, "function");
+test("issueOperationPermit is not exported from kernel index", () => {
+  const kernel = require("./index.js");
+  assert.equal(kernel.issueOperationPermit, undefined);
+  assert.equal(kernel.runKernelOperation, undefined);
 });
 
 test("CRITICAL: a caller-created issuer is not accepted as the store's permit authority", async () => {

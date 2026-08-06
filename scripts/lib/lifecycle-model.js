@@ -243,7 +243,7 @@ function checkRecoveryAdvances(state) {
     operation: "recover",
     arguments: { node_id: "n1" },
     ...(() => {
-      const { mintOperationPermit, _internalCreateIssuer: createPermitAuthorityIssuer } = require("./lifecycle-kernel/permits.js");
+      const { mintOperationPermit, createPermitAuthorityIssuer } = require("./test-support/permit-test-helpers.js");
       const ledger = createPermitAuthorityIssuer();
       const headRevision =
         "sha256:modelrecoveraaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -472,17 +472,17 @@ async function checkK2aHostFaultMatrix() {
 
 function checkK21NoMutationWithoutCas() {
   const { createMemoryStore } = require("./lifecycle-kernel/memory-store.js");
-  const { runKernelOperation } = require("./lifecycle-kernel/index.js");
+  const { createKernelRuntime } = require("./lifecycle-kernel/index.js");
   const bare = createMemoryStore({
     state: initialModelState(),
   });
   let rejected = false;
-  return runKernelOperation({
-    operation: "start",
-    arguments: { node_id: "n1" },
-    store: bare,
-    effectExecutor: async () => ({ ok: true }),
-  })
+  return createKernelRuntime({ store: bare })
+    .runOperation({
+      operation: "start",
+      arguments: { node_id: "n1" },
+      effectExecutor: async () => ({ ok: true }),
+    })
     .then(() => ({ ok: false, invariant_id: "inv-k21-no-mutation-without-cas" }))
     .catch((error) => {
       rejected = error && error.code === "authority-store-required";
@@ -491,7 +491,8 @@ function checkK21NoMutationWithoutCas() {
 }
 
 function checkK21StalePermitReject() {
-  const { mintOperationPermit, authorizeMutation, _internalCreateIssuer: createPermitAuthorityIssuer } = require("./lifecycle-kernel/permits.js");
+  const { authorizeMutation } = require("./lifecycle-kernel/permits.js");
+  const { mintOperationPermit, createPermitAuthorityIssuer } = require("./test-support/permit-test-helpers.js");
   const ledger = createPermitAuthorityIssuer();
   const permit = mintOperationPermit({
     ledger,
@@ -510,7 +511,8 @@ function checkK21StalePermitReject() {
 }
 
 function checkK21PermitReuseReject() {
-  const { mintOperationPermit, authorizeMutation, consumePermit, _internalCreateIssuer: createPermitAuthorityIssuer } = require("./lifecycle-kernel/permits.js");
+  const { authorizeMutation, consumePermit } = require("./lifecycle-kernel/permits.js");
+  const { mintOperationPermit, createPermitAuthorityIssuer } = require("./test-support/permit-test-helpers.js");
   const ledger = createPermitAuthorityIssuer();
   const permit = mintOperationPermit({
     ledger,
@@ -574,7 +576,8 @@ function checkK21ConvergentReplay() {
 }
 
 function checkK21NoSelfGrant() {
-  const { authorizeMutation, _internalCreateIssuer: createPermitAuthorityIssuer } = require("./lifecycle-kernel/permits.js");
+  const { authorizeMutation } = require("./lifecycle-kernel/permits.js");
+  const { createPermitAuthorityIssuer } = require("./test-support/permit-test-helpers.js");
   const ledger = createPermitAuthorityIssuer();
   const fabricated = {
     schema_version: 1,
@@ -624,19 +627,18 @@ function pendingModelState() {
 }
 
 async function checkK21NoPublicAutoMint() {
-  const { createAuthorityStore, runKernelOperation } = require("./lifecycle-kernel/index.js");
+  const { createAuthorityStore, createKernelRuntime } = require("./lifecycle-kernel/index.js");
   const store = createAuthorityStore({ initial: { state: pendingModelState(), journal: [] } });
-  const auto = await runKernelOperation({
+  const runtime = createKernelRuntime({ store });
+  const auto = await runtime.runOperation({
     operation: "start",
     arguments: { node_id: "n1" },
-    store,
     mintPermit: true,
     effectExecutor: async () => ({ ok: true }),
   });
-  const missing = await runKernelOperation({
+  const missing = await runtime.runOperation({
     operation: "start",
     arguments: { node_id: "n1" },
-    store,
     effectExecutor: async () => ({ ok: true }),
   });
   const ok =
@@ -801,7 +803,7 @@ async function runAllInvariantCheckers(context = {}) {
 function applyAction(state, action) {
   if (action === "status") return { state, outcome: "advanced" };
   const nodeId = "n1";
-  const { mintOperationPermit, _internalCreateIssuer: createPermitAuthorityIssuer } = require("./lifecycle-kernel/permits.js");
+  const { mintOperationPermit, createPermitAuthorityIssuer } = require("./test-support/permit-test-helpers.js");
   const ledger = createPermitAuthorityIssuer();
   const headRevision =
     "sha256:modelexploreaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";

@@ -7,14 +7,13 @@ const {
   DEFAULT_SUBJECT_ID,
   computeRevision,
   createAuthorityStore,
-  getPrivateIssuer,
 } = require("./index.js");
-const { _createPermitAuthorityIssuerInternal } = require("../lifecycle-kernel/permits.js");
+const permits = require("../lifecycle-kernel/permits.js");
 const { digestLifecycleState } = require("../lifecycle-kernel/state-digest.js");
 
-test("Phase 1 RED: getPrivateIssuer and _createPermitAuthorityIssuerInternal must be undefined", () => {
-  assert.equal(typeof getPrivateIssuer, "undefined");
-  assert.equal(typeof _createPermitAuthorityIssuerInternal, "undefined");
+test("Phase 1: getPrivateIssuer and _createPermitAuthorityIssuerInternal must be undefined", () => {
+  assert.equal(permits._internalCreateIssuer, undefined);
+  assert.equal(permits._createPermitAuthorityIssuerInternal, undefined);
 });
 
 

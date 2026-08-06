@@ -15,13 +15,25 @@ async function withFileLock(filePath, fn, options = {}) {
   const retries = options.retries ?? 50;
   const retryInterval = options.retryInterval ?? 10;
   const staleTimeout = options.staleTimeout ?? 5000;
+  const ownerToken = randomUUID();
+  const lockPayload = JSON.stringify({
+    ownerToken,
+    pid: process.pid,
+    timestamp: Date.now(),
+  });
 
   let handle = null;
   for (let i = 0; i < retries; i++) {
     try {
       handle = await fs.open(lockPath, "wx");
+      await handle.writeFile(lockPayload, "utf8");
+      await handle.sync();
       break;
     } catch (err) {
+      if (handle) {
+        try { await handle.close(); } catch (_) {}
+        handle = null;
+      }
       if (err.code === "EEXIST") {
         try {
           const stats = await fs.stat(lockPath);
@@ -49,7 +61,11 @@ async function withFileLock(filePath, fn, options = {}) {
       await handle.close();
     } catch (_) {}
     try {
-      await fs.unlink(lockPath);
+      const lockContent = await fs.readFile(lockPath, "utf8");
+      const lockData = JSON.parse(lockContent);
+      if (lockData && lockData.ownerToken === ownerToken) {
+        await fs.unlink(lockPath);
+      }
     } catch (_) {}
   }
 }
@@ -60,6 +76,7 @@ function createFileSystemStore(options = {}) {
     throw new Error("FileSystemStore requires options.filePath string");
   }
 
+  const initializeIfMissing = options.initializeIfMissing ?? false;
   let memoryCache = null;
 
   async function writeRecordAtomic(record) {
@@ -136,8 +153,13 @@ function createFileSystemStore(options = {}) {
             return clone(memoryCache);
           } catch (bakErr) {
             if (bakErr.code === "ENOENT") {
-              memoryCache = defaultRecord();
-              return clone(memoryCache);
+              if (initializeIfMissing === true) {
+                memoryCache = defaultRecord();
+                return clone(memoryCache);
+              }
+              const notFoundErr = new Error(`Authority head not found at ${filePath}`);
+              notFoundErr.code = "authority-head-not-found";
+              throw notFoundErr;
             }
             throw bakErr;
           }

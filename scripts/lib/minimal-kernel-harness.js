@@ -1,7 +1,6 @@
 "use strict";
 
 const {
-  runKernelOperation,
   createAuthorityStore,
   createKernelRuntime,
   createMemoryStore,
@@ -10,7 +9,7 @@ const {
   interruptError,
   DEFAULT_SUBJECT_ID,
 } = require("./lifecycle-kernel/index.js");
-const { issueFixturePermit } = require("./lifecycle-kernel/test-permit-helpers.js");
+const { issueFixturePermit } = require("./test-support/permit-test-helpers.js");
 
 const HARNESS_KIND = "minimal-kernel-harness/v1";
 
@@ -169,7 +168,7 @@ async function runHarnessScenario(scenario = {}) {
   }
 
   const snapshot = store.snapshot();
-  const status = await runKernelOperation({ operation: "status", store, subjectId, clock });
+  const status = await runtime.getStatus(subjectId);
 
   return {
     scenario_id: id,
@@ -239,10 +238,12 @@ async function runCasConflictFault(scenario = {}) {
 
 async function snapshotRoundTrip(state, journal = []) {
   const store = createAuthorityStore({ initial: { state, journal } });
-  const before = await runKernelOperation({ operation: "status", store });
+  const runtime = createKernelRuntime({ store });
+  const before = await runtime.getStatus();
   const snap = store.snapshot();
   const restored = createAuthorityStore({ initial: snap });
-  const after = await runKernelOperation({ operation: "status", store: restored });
+  const restoredRuntime = createKernelRuntime({ store: restored });
+  const after = await restoredRuntime.getStatus();
   return {
     before_digest: before.state_digest,
     after_digest: after.state_digest,
@@ -330,7 +331,9 @@ module.exports = {
   evaluateHarnessAloneHostFaultCoverage,
   createMemoryStore,
   createAuthorityStore,
-  runKernelOperation,
+  runKernelOperation(input) {
+    return createKernelRuntime({ store: input.store, subjectId: input.subjectId }).runOperation(input);
+  },
   digestLifecycleState,
   selectTransitions,
 };

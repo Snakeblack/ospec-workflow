@@ -263,7 +263,7 @@ test("K2.1 fault matrix: CAS conflict via public API — one winner, budgets unc
 });
 
 test("K2.1 fault matrix: stale permit fails closed; head unchanged", async () => {
-  const { mintOperationPermit, _internalCreateIssuer: createPermitAuthorityIssuer } = require("./lifecycle-kernel/permits.js");
+  const { mintOperationPermit, createPermitAuthorityIssuer } = require("./test-support/permit-test-helpers.js");
   const { createAuthorityStore, runKernelOperation } = require("./minimal-kernel-harness.js");
   const store = createAuthorityStore({ initial: { state: pendingState } });
   const before = await store.load();
@@ -295,7 +295,8 @@ test("K2.1 fault matrix: permit reuse fails; no second advance", async () => {
   });
   assert.equal(first.snapshot.state.nodes.n1.phase, "started");
 
-  const { mintOperationPermit, consumePermit, _internalCreateIssuer: createPermitAuthorityIssuer } = require("./lifecycle-kernel/permits.js");
+  const { mintOperationPermit, createPermitAuthorityIssuer } = require("./test-support/permit-test-helpers.js");
+  const { consumePermit } = require("./lifecycle-kernel/permits.js");
   const { runKernelOperation } = require("./minimal-kernel-harness.js");
   const ledger = createPermitAuthorityIssuer();
   const head = first.revision;
@@ -451,8 +452,7 @@ test("K2.1b: atomic consume revision inspection via public harness", async () =>
 
 test("K2.1b: exact replay receipt stability via public entrypoint", async () => {
   const { createAuthorityStore, runKernelOperation } = require("./minimal-kernel-harness.js");
-  const { issueFixturePermit } = require("./lifecycle-kernel/test-permit-helpers.js");
-  const { _internalCreateIssuer: createPermitAuthorityIssuer } = require("./lifecycle-kernel/permits.js");
+  const { issueFixturePermit, createPermitAuthorityIssuer } = require("./test-support/permit-test-helpers.js");
   const store = createAuthorityStore({ initial: { state: pendingState, journal: [] } });
   const head = await store.load();
   const issued = issueFixturePermit({

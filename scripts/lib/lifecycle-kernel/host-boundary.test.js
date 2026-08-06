@@ -10,7 +10,7 @@ const {
   transitionInputsEquivalent,
 } = require("./host-boundary.js");
 const { createEvidenceDigest, createProbeDigest } = require("../capability-proof/index.js");
-const { createAuthorityStore, runKernelOperation } = require("./index.js");
+const { createAuthorityStore, createKernelRuntime } = require("./index.js");
 
 function proofFor(cap) {
   const evidence = { cap };
@@ -113,11 +113,7 @@ test("host port failure does not bypass permit+CAS requirements", async () => {
       journal: [],
     },
   });
-  const result = await runKernelOperation({
-    operation: "status",
-    arguments: {},
-    store,
-  });
+  const result = await createKernelRuntime({ store }).getStatus();
   assert.ok(result);
   assert.equal(result.outcome === "advanced" || result.outcome === "ready" || typeof result.state_digest === "string", true);
   assert.ok(!result.code || result.code !== "host-local-mutation");
