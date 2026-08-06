@@ -73,13 +73,12 @@ Enforce strict verification of `expectedRevision` in backend CAS commits, preven
 - AND MUST unlink `.lock` strictly if the `ownerToken` in the lockfile matches the process's `ownerToken`
 - AND MUST NOT unlink `.lock` if the file is missing or contains a different `ownerToken`
 
-#### Scenario: Stale lock recovery performs atomic quarantine rename
+#### Scenario: Stale lock recovery fails closed with stale-lock-recovery-required
 
 - GIVEN a process attempting lock acquisition on a stale `.lock` file owned by a dead process
-- WHEN evaluating lock staleness and executing takeover
-- THEN it MUST attempt atomic `rename` of `lockPath` to a unique `quarantinePath` (`lockPath + ".quarantine." + randomUUID()`)
-- AND MUST unlink `quarantinePath` exclusively if `rename` succeeded
-- AND MUST NOT attempt file descriptorSeek or in-place handle modification on `.lock` files
+- WHEN evaluating lock staleness
+- THEN `withFileLock` MUST fail closed by throwing an error with code `stale-lock-recovery-required`
+- AND MUST NOT attempt automatic in-place recovery or unsafe renaming of `.lock` files
 - AND MUST NOT unlink `.lock` files owned by active or changed processes
 
 
