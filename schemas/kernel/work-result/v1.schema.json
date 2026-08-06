@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/work-result/v1",
+  "schema_version": 1,
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "work_result_id": {
+      "type": "string"
+    },
+    "work_order_id": {
+      "type": "string"
+    },
+    "source_snapshot_id": {
+      "type": "string"
+    },
+    "patch": {
+      "type": "string"
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "logs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "exit_code": {
+      "type": "integer"
+    },
+    "filesystem_inventory": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "work_result_id",
+    "work_order_id",
+    "source_snapshot_id",
+    "patch",
+    "commands",
+    "logs",
+    "exit_code",
+    "filesystem_inventory"
+  ],
+  "additionalProperties": false
+}

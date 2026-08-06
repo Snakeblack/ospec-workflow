@@ -161,6 +161,7 @@ test("work-order v1 carries the bounded worker capsule without rejecting legacy 
   const canonical = {
     schema_version: 1,
     work_order_id: "wo-repair-auth-session",
+    source_snapshot_id: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
     node_id: "repair-auth-session",
     role: "worker",
     status: "pending",

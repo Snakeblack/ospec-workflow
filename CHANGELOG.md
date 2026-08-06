@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
 
+## [2.41.0] - 2026-08-07
+
+### Added
+- **K3: Identidades de ejecución y Candidate freeze** (`k3-identities-candidate-freeze`):
+  - Cuatro identidades de ejecución con digests SHA-256 domain-prefixed: `SourceSnapshotId`, `WorkOrderId`, `WorkResultId`, `CandidateId`.
+  - Schemas JSON estables `source-snapshot/v1` y `work-result/v1` bajo `schemas/kernel/`.
+  - Extensión de `candidate/v1.schema.json` con campos de freeze (modos, untracked, predecessor, relación).
+  - Campo requerido `source_snapshot_id` en `work-order/v1.schema.json`.
+  - Módulo `scripts/lib/execution-identities/index.js` con funciones `computeSourceSnapshotId`, `computeWorkOrderId`, `computeWorkResultId`, `computeCandidateId`, `freezeCandidate`, `evaluateCandidateRelation`, `validateIdentityKind`.
+  - Candidate freeze restringido a proyecciones `workspace` | `staged` con digest de modos de archivo y untracked intencionados.
+  - Evaluación fail-closed de relación inicial Candidate: `exact`, `changed`, `ambiguous`, `unknown`.
+  - Guardas no-aliasing y rechazo de targets mutables para identidades de ejecución.
+  - Validación de inputs null/undefined en todas las funciones compute (TypeError guards).
+  - Validación de baseline ambiguo/unknown en `evaluateCandidateRelation`.
+  - Familias `source-snapshot` y `work-result` registradas en `manifest.json` y `contract-claims.json`.
+  - Fixtures de validación (válidos e inválidos) para los 4 schemas.
+  - Suite de tests con Strict TDD: 8 tests de ejecución-identidades + fixtures de schema.
+
 ## [2.40.11] - 2026-08-07
 
 ### Fixed

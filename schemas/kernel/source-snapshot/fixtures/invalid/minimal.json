@@ -1,8 +1,6 @@
 {
   "schema_version": 1,
-  "work_order_id": "wo-1",
   "source_snapshot_id": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-  "node_id": "n1",
-  "role": "worker",
-  "status": "pending"
+  "repository_id": "repo-1",
+  "projection": "invalid-projection"
 }

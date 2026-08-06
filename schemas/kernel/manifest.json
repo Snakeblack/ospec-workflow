@@ -130,6 +130,16 @@
       "path": "schemas/kernel/transport-failure/v1.schema.json",
       "$id": "ospec://schemas/kernel/transport-failure/v1",
       "schema_version": 1
+    },
+    "source-snapshot": {
+      "path": "schemas/kernel/source-snapshot/v1.schema.json",
+      "$id": "ospec://schemas/kernel/source-snapshot/v1",
+      "schema_version": 1
+    },
+    "work-result": {
+      "path": "schemas/kernel/work-result/v1.schema.json",
+      "$id": "ospec://schemas/kernel/work-result/v1",
+      "schema_version": 1
     }
   }
 }

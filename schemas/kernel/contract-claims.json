@@ -364,6 +364,38 @@
         ]
       },
       "command_shapes": []
+    },
+    "source-snapshot": {
+      "required_fields": [
+        "schema_version",
+        "source_snapshot_id",
+        "repository_id",
+        "base_tree_digest",
+        "projection"
+      ],
+      "enum_values": {
+        "projection": [
+          "workspace",
+          "staged",
+          "commit"
+        ]
+      },
+      "command_shapes": []
+    },
+    "work-result": {
+      "required_fields": [
+        "schema_version",
+        "work_result_id",
+        "work_order_id",
+        "source_snapshot_id",
+        "patch",
+        "commands",
+        "logs",
+        "exit_code",
+        "filesystem_inventory"
+      ],
+      "enum_values": {},
+      "command_shapes": []
     }
   }
 }
