@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "ospec://schemas/kernel/work-order-v2/v2",
+  "$id": "ospec://schemas/kernel/work-order/v2",
   "title": "WorkOrderIdentityV2",
   "description": "Kernel WorkOrder Execution Identity Schema v2 enforcing kind discriminator, dependencies, ownership, and evidence.",
   "type": "object",

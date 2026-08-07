@@ -34,6 +34,8 @@ function listJsonFiles(dir) {
   return fs
     .readdirSync(dir)
     .filter((name) => name.endsWith(".json"))
+    // v2-* and k3-frozen fixtures belong to Candidate/WorkOrder v2 publication, not v1 family walks
+    .filter((name) => !name.startsWith("v2-") && name !== "k3-frozen.json")
     .map((name) => path.join(dir, name));
 }
 
@@ -161,7 +163,6 @@ test("work-order v1 carries the bounded worker capsule without rejecting legacy 
   const canonical = {
     schema_version: 1,
     work_order_id: "wo-repair-auth-session",
-    source_snapshot_id: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
     node_id: "repair-auth-session",
     role: "worker",
     status: "pending",

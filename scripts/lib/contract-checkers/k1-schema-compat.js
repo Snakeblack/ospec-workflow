@@ -22,6 +22,34 @@ const REQUIRED_FAMILIES = Object.freeze([
   "event",
 ]);
 
+/**
+ * Publication aliases: manifest family key differs from filesystem directory.
+ * ADR-001: candidate-v2 / work-order-v2 keys point at candidate/v2 and work-order/v2.
+ */
+const FAMILY_PUBLICATION = Object.freeze({
+  "candidate-v2": Object.freeze({
+    path: "schemas/kernel/candidate/v2.schema.json",
+    id: "ospec://schemas/kernel/candidate/v2",
+    fixturesDir: "schemas/kernel/candidate/fixtures",
+    fixtureNameFilter: (name) => name.startsWith("v2-"),
+  }),
+  "work-order-v2": Object.freeze({
+    path: "schemas/kernel/work-order/v2.schema.json",
+    id: "ospec://schemas/kernel/work-order/v2",
+    fixturesDir: "schemas/kernel/work-order/fixtures",
+    fixtureNameFilter: (name) => name.startsWith("v2-"),
+  }),
+  candidate: Object.freeze({
+    // k3-frozen.json is a Candidate v2 frozen-shape fixture living under the v1
+    // fixtures tree for K3 adversarial tests; exclude it from K1 v1 family publication
+    // so K1 schema-compat does not treat it as a v1 valid/invalid fixture.
+    fixtureNameFilter: (name) => !name.startsWith("v2-") && name !== "k3-frozen.json",
+  }),
+  "work-order": Object.freeze({
+    fixtureNameFilter: (name) => !name.startsWith("v2-"),
+  }),
+});
+
 function toPosix(relativePath) {
   return relativePath.split(path.sep).join("/");
 }
@@ -68,18 +96,23 @@ function readConfinedSchema(root, family, entry, offenders) {
       offender(entryPath, "positive integer schema_version", JSON.stringify(version), `${entryPath} schema_version must be a positive integer`)
     );
   }
-  const expectedPath = Number.isInteger(version)
-    ? `schemas/kernel/${family}/v${version}.schema.json`
-    : `schemas/kernel/${family}/v<schema_version>.schema.json`;
+  const publication = FAMILY_PUBLICATION[family];
+  const expectedPath = publication && publication.path
+    ? publication.path
+    : Number.isInteger(version)
+      ? `schemas/kernel/${family}/v${version}.schema.json`
+      : `schemas/kernel/${family}/v<schema_version>.schema.json`;
   if (typeof entry.path !== "string" || toPosix(entry.path) !== expectedPath) {
     offenders.push(
       offender(entryPath, `canonical path ${expectedPath}`, JSON.stringify(entry.path), `${entryPath} path must equal canonical path ${expectedPath}`)
     );
     return null;
   }
-  const expectedId = Number.isInteger(version)
-    ? `ospec://schemas/kernel/${family}/v${version}`
-    : `ospec://schemas/kernel/${family}/v<schema_version>`;
+  const expectedId = publication && publication.id
+    ? publication.id
+    : Number.isInteger(version)
+      ? `ospec://schemas/kernel/${family}/v${version}`
+      : `ospec://schemas/kernel/${family}/v<schema_version>`;
   if (entry.$id !== expectedId) {
     offenders.push(
       offender(entryPath, `$id ${expectedId}`, JSON.stringify(entry.$id), `${entryPath} $id must equal ${expectedId}`)
@@ -304,10 +337,11 @@ function validateFixtureSemantics(family, instance) {
   return errors;
 }
 
-function listJsonFiles(directory) {
+function listJsonFiles(directory, nameFilter) {
   try {
     return fs.readdirSync(directory, { withFileTypes: true })
       .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
+      .filter((entry) => !nameFilter || nameFilter(entry.name))
       .map((entry) => path.join(directory, entry.name))
       .sort();
   } catch {
@@ -316,10 +350,14 @@ function listJsonFiles(directory) {
 }
 
 function validateFixtures(root, family, schema, offenders) {
-  const familyRoot = path.join(root, "schemas", "kernel", family, "fixtures");
+  const publication = FAMILY_PUBLICATION[family] || {};
+  const familyRoot = publication.fixturesDir
+    ? path.join(root, publication.fixturesDir)
+    : path.join(root, "schemas", "kernel", family, "fixtures");
+  const nameFilter = publication.fixtureNameFilter;
   for (const expectedOutcome of ["valid", "invalid"]) {
     const directory = path.join(familyRoot, expectedOutcome);
-    const files = listJsonFiles(directory);
+    const files = listJsonFiles(directory, nameFilter);
     const relDir = toPosix(path.relative(root, directory));
     if (files.length === 0) {
       offenders.push(offender(relDir, `at least one ${expectedOutcome} JSON fixture`, "none", `${relDir} requires at least one JSON fixture`));

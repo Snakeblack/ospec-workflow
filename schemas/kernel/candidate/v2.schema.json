@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "ospec://schemas/kernel/candidate-v2/v2",
+  "$id": "ospec://schemas/kernel/candidate/v2",
   "title": "CandidateIdentityV2",
   "description": "Kernel Candidate Execution Identity Schema v2 enforcing kind discriminator and strict sha256 digests.",
   "type": "object",
@@ -9,6 +9,7 @@
     "schema_version",
     "kind",
     "candidate_id",
+    "repository_id",
     "projection",
     "base_tree",
     "candidate_tree",
