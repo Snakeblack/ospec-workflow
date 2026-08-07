@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/candidate-v2/v2",
+  "title": "CandidateIdentityV2",
+  "description": "Kernel Candidate Execution Identity Schema v2 enforcing kind discriminator and strict sha256 digests.",
+  "type": "object",
+  "schema_version": 2,
+  "required": [
+    "schema_version",
+    "kind",
+    "candidate_id",
+    "projection",
+    "base_tree",
+    "candidate_tree",
+    "diff_hash",
+    "paths",
+    "changed_paths_modes_digest",
+    "intended_untracked_digest",
+    "relation"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "kind": {
+      "type": "string",
+      "const": "candidate/v2"
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "repository_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "projection": {
+      "type": "string",
+      "enum": [
+        "workspace",
+        "staged"
+      ]
+    },
+    "base_tree": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "candidate_tree": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "diff_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "paths": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "changed_paths_modes_digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "intended_untracked_digest": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "predecessor_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "relation": {
+      "type": "string",
+      "enum": [
+        "exact",
+        "superset",
+        "subset",
+        "overlapping",
+        "disjoint",
+        "unknown"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

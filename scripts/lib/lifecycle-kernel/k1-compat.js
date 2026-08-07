@@ -147,6 +147,8 @@ function listK1SchemaFiles(rootDir) {
     // K3 identity families and fixtures
     "schemas/kernel/source-snapshot/",
     "schemas/kernel/work-result/",
+    "schemas/kernel/candidate-v2/",
+    "schemas/kernel/work-order-v2/",
     "schemas/kernel/candidate/fixtures/valid/k3-frozen.json",
     "schemas/kernel/candidate/fixtures/invalid/commit-projection.json",
     "schemas/kernel/candidate/fixtures/invalid/work-result-alias.json",

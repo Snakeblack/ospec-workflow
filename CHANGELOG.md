@@ -4,7 +4,18 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-Plugin version tracks `.plugin.json` and `.claude-plugin/plugin.json`.
+## [2.42.0] - 2026-08-07
+
+### Added
+- **Remediación de Identidades de Ejecución K3 y Versionado de Schemas v2** (`k3-identities-remediation`):
+  - Schemas JSON v2 con discriminador de tipo explícito (`kind` const): `schemas/kernel/candidate-v2/v2.schema.json` (`kind: "candidate/v2"`) y `schemas/kernel/work-order-v2/v2.schema.json` (`kind: "work-order/v2"`).
+  - Inmutabilidad absoluta de la baseline K1 (`candidate/v1.schema.json`, `work-order/v1.schema.json` y `K1_SCHEMA_BASELINE` preservados al 100%).
+  - Constructor exclusivo `freezeCandidate()` para `candidate/v2` con desambiguación estricta entre `diffText` (cadena cruda procesada como digest SHA-256) y `diff_hash` (digest verificado), rechazando valores vacíos o contradictorios.
+  - Payloads canónicos completos en `computeWorkOrderId` (incluyendo `dependencies`, `ownership`, `required_evidence`).
+  - Validaciones de binding fail-closed `validateWorkOrderBinding()` y `validateWorkResultBinding()`.
+  - Recálculo determinista de digests en `evaluateCandidateRelation()`, ignorando el `candidate_id` declarado para detectar spoofing y retornar `DECLARED_ID_MISMATCH` (`relation: "unknown"`, `action: "stop"`).
+  - Discriminación cerrada por schema/kind en `validateIdentityKind()` y regla positiva para `EvaluationAttestation` y `DeliveryAuthorization` (exigiendo `CandidateId` sintácticamente válido `sha256:<64 hex>`).
+  - Suite de 14 pruebas adversariales verificando inmunidad ante suplantación de identidades, alteración de payloads congelados y alias de tipos.
 
 ## [2.41.0] - 2026-08-07
 

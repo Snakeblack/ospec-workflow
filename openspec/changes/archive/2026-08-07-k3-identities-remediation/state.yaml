@@ -1,0 +1,56 @@
+change: "k3-identities-remediation"
+status: "archived"
+last_updated: "2026-08-07T13:57:30Z"
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k3-identities-remediation/proposal.md"
+    summary: "Remediación K3: restaurar K1 pins, schemas v2 (candidate/work-order), funciones compute strictly, freezeCandidate exclusivo, bindings, relación recalculada y suite adversarial."
+    key_decisions:
+      - "Usar candidate/v2 y work-order/v2 con discriminador kind explícito sin alterar v1"
+      - "freezeCandidate como constructor exclusivo v2 con hash obligatorio en diffText"
+      - "Recalcular digests en evaluateCandidateRelation para evitar suplantaciones"
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k3-identities-remediation/specs/execution-identities/spec.md"
+      - "openspec/changes/k3-identities-remediation/specs/kernel-contract-schemas/spec.md"
+    summary: "Delta specs creadas para execution-identities (invariantes, freeze v2, bindings, evaluateCandidateRelation) y kernel-contract-schemas (v2 schemas, baseline v1)."
+    key_decisions:
+      - "Identidad candidate/v2 con discriminador kind explícito y freeze exclusivo"
+      - "Recálculo estricto en evaluateCandidateRelation detectando DECLARED_ID_MISMATCH fail-closed"
+  design:
+    status: "done"
+    artifact: "openspec/changes/k3-identities-remediation/design.md"
+    summary: "Diseño técnico completo de la remediación K3 en 7 bloques: schemas v2 con kind, validaciones digest strictly, bindings, recálculo en evaluateCandidateRelation y 4 ADRs."
+    key_decisions:
+      - "Schemas v2 explícitos candidate/v2 y work-order/v2 sin modificar baseline K1 v1"
+      - "Recálculo obligatorio de candidate_id en evaluateCandidateRelation para mitigar spoofing"
+      - "freezeCandidate exclusivo para candidate/v2 con desambiguación estricta de diffText/diff_hash"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k3-identities-remediation/tasks.md"
+    summary: "Plan de tareas desglosado en 5 fases lógicas (K1 baseline & schemas v2, compute*, freeze & bindings, relation & kind guards, suite 14+ tests adversariales)."
+    key_decisions:
+      - "Plan organizado en 5 fases lógicas con trazabilidad estricta REQ"
+      - "Single PR con bajo riesgo de presupuesto de revisión"
+  apply:
+    status: "done"
+    artifact: "openspec/changes/k3-identities-remediation/apply-progress.md"
+    summary: "Implementación K3 completada con TDD estricto: schemas v2 con kind, validaciones digest sha256, freezeCandidate v2, bindings y 14 tests adversariales (81/81 pass)."
+  verify:
+    status: "done"
+    verdict: "PASS"
+    artifact: "openspec/changes/k3-identities-remediation/verify-report.md"
+    summary: "Verificación finalizada con PASS: suite completa npm test 100% exitosa (2063/2063 tests pass), matriz spec/design/TDD validada."
+    key_decisions:
+      - "Veredicto PASS: 100% escenarios probados con runtime-test"
+  archive:
+    status: "done"
+    artifact: "openspec/changes/k3-identities-remediation/archive-report.md"
+    summary: "Plan de archivo emitido en archive-plan.json (2 deltas spec preparadas, 4 propuestas de promoción ADR, inventario de 13 archivos origin verificado)."
+
+baseline_fingerprints:
+  execution-identities: "sha256:a76904c3fc619d36081d2d224e6d9c0429deeb9605b0e06ec0594ae6825eb17f"
+  kernel-contract-schemas: "sha256:8ec8767aa4e830aa1a3e0325875433aa4189e22bbb9811b0ac8f90b841500e74"

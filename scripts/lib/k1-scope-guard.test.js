@@ -11,6 +11,12 @@ const K1_BASELINE_PIN = "9aa6c453681f46941b8b34b89496b9aae89fa20c";
 const FROZEN_CANDIDATE_INVENTORY =
   "openspec/changes/archive/2026-08-03-k1-contract-suite/.4r/paths.json";
 const REMEDIATION_IMPLEMENTATION_PATHS = [
+  "schemas/kernel/candidate/fixtures/v2/invalid/v2-missing-kind.json",
+  "schemas/kernel/candidate/fixtures/v2/valid/v2-minimal.json",
+  "schemas/kernel/candidate/v2.schema.json",
+  "schemas/kernel/work-order/fixtures/v2/invalid/v2-missing-kind.json",
+  "schemas/kernel/work-order/fixtures/v2/valid/v2-minimal.json",
+  "schemas/kernel/work-order/v2.schema.json",
   "schemas/kernel/contract-claims.json",
   "schemas/kernel/graph-node/fixtures/invalid/partial-canonical-node.json",
   "schemas/kernel/graph-node/fixtures/valid/canonical-semantic-node.json",
@@ -105,6 +111,8 @@ const SUCCESSOR_K2_PREFIXES = [
   "schemas/kernel/transport-failure/",
   "schemas/kernel/source-snapshot/",
   "schemas/kernel/work-result/",
+  "schemas/kernel/candidate-v2/",
+  "schemas/kernel/work-order-v2/",
 ];
 
 const PROTECTED_BASELINE_PATHS = [

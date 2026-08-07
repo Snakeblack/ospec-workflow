@@ -636,7 +636,7 @@ Core host-agnostic con Headless Conformance Host + un adapter real de referencia
 
 ## Bloque 3 — identidad universal
 
-### K3 — identidades de ejecución, Candidate ID y successor semantics — **next-eligible**
+### K3 — identidades de ejecución, Candidate ID y successor semantics — **SHIPPED (v2.42.0)**
 
 **Absorbe/rebasa:** P9; identidad existente de O4/O5 y fingerprints de O6A.
 

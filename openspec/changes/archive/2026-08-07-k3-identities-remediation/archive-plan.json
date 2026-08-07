@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "change": "k3-identities-remediation",
+  "source_fingerprint": "sha256:c8d3f916f8fac62da8be491384e634aff9d0724fe1dcbd61fbad0a4e03027ae4",
+  "spec_writes": [
+    {
+      "domain": "execution-identities",
+      "source_delta": "specs/execution-identities/spec.md",
+      "target": "openspec/specs/execution-identities/spec.md",
+      "target_before_sha256": "sha256:a76904c3fc619d36081d2d224e6d9c0429deeb9605b0e06ec0594ae6825eb17f",
+      "content_sha256": "sha256:065aa4d99c0e981f2d4b708635a478da1b13b51bb5cb3a3783d3dc21e74ecb81"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "specs/kernel-contract-schemas/spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:8ec8767aa4e830aa1a3e0325875433aa4189e22bbb9811b0ac8f90b841500e74",
+      "content_sha256": "sha256:fec2021ee023828237f0678d4408607a213682b35de0a8876020209654a54a6b"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260807-005-versionado-y-discriminador-kind-en-schemas-v2-preservando-inmutabilidad-v1.md",
+      "content_sha256": "sha256:93322480cf8fd29b85c624a0976c330b47f92716eba81da6a05e1aa51fc4129f"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260807-006-recalculo-determinista-de-candidatos-en-evaluation-relation.md",
+      "content_sha256": "sha256:1d070ac621f5fa8dae011ec72a39dd48e38fee411e3b4afa5cf14f674457291a"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260807-007-verificacion-estricta-de-formato-digest-y-expansion-canonica-de-payloads.md",
+      "content_sha256": "sha256:0ae764c5c4b55a4ce0e9e6f5f9588cee4f037b66ac73922bd7ae50e7a4c494d6"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260807-008-discriminacion-cerrada-y-regla-positiva-para-attestations-y-authorizations.md",
+      "content_sha256": "sha256:da782a876c070d6b612beef7f30c5d76a934235525b5ed6544dea7514bdc9e49"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "design.md",
+    "proposal.md",
+    "specs/execution-identities/spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

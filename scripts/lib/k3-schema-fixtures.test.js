@@ -90,3 +90,93 @@ test("K3 schemas: WorkOrder schema requires source_snapshot_id for bound work or
   const invalidRes = validateInstance(schema, invalidOrder);
   assert.equal(invalidRes.valid, false, "WorkOrder missing source_snapshot_id must be rejected");
 });
+
+test("K3 schemas: candidate/v2 and work-order/v2 schemas expose valid $id and kind const", () => {
+  const candidateV2Schema = readJson("schemas/kernel/candidate-v2/v2.schema.json");
+  assert.equal(candidateV2Schema.$id, "ospec://schemas/kernel/candidate-v2/v2");
+  assert.equal(candidateV2Schema.schema_version, 2);
+  assert.equal(candidateV2Schema.properties.kind.const, "candidate/v2");
+
+  const workOrderV2Schema = readJson("schemas/kernel/work-order-v2/v2.schema.json");
+  assert.equal(workOrderV2Schema.$id, "ospec://schemas/kernel/work-order-v2/v2");
+  assert.equal(workOrderV2Schema.schema_version, 2);
+  assert.equal(workOrderV2Schema.properties.kind.const, "work-order/v2");
+});
+
+test("K3 schemas: candidate/v2 schema validates valid and invalid v2 fixtures", () => {
+  const schema = readJson("schemas/kernel/candidate-v2/v2.schema.json");
+  const validV2 = readJson("schemas/kernel/candidate-v2/fixtures/valid/minimal.json");
+  const invalidV2 = readJson("schemas/kernel/candidate-v2/fixtures/invalid/missing-kind.json");
+
+  const validRes = validateInstance(schema, validV2);
+  assert.equal(validRes.valid, true, `valid candidate/v2 fixture rejected: ${JSON.stringify(validRes.errors)}`);
+
+  const invalidRes = validateInstance(schema, invalidV2);
+  assert.equal(invalidRes.valid, false, "candidate/v2 fixture missing kind must be rejected");
+});
+
+test("K3 schemas: work-order/v2 schema validates valid and invalid v2 fixtures", () => {
+  const schema = readJson("schemas/kernel/work-order-v2/v2.schema.json");
+  const validV2 = readJson("schemas/kernel/work-order-v2/fixtures/valid/minimal.json");
+  const invalidV2 = readJson("schemas/kernel/work-order-v2/fixtures/invalid/missing-kind.json");
+
+  const validRes = validateInstance(schema, validV2);
+  assert.equal(validRes.valid, true, `valid work-order/v2 fixture rejected: ${JSON.stringify(validRes.errors)}`);
+
+  const invalidRes = validateInstance(schema, invalidV2);
+  assert.equal(invalidRes.valid, false, "work-order/v2 fixture missing kind must be rejected");
+});
+
+test("Adversarial Scenario 7: Candidate without freeze fields in schema v2 is REJECTED", () => {
+  const schema = readJson("schemas/kernel/candidate-v2/v2.schema.json");
+  const unfrozenCandidate = {
+    schema_version: 2,
+    kind: "candidate/v2",
+    candidate_id: "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+    repository_id: "repo-1",
+    projection: "workspace",
+    base_tree: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    candidate_tree: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+    diff_hash: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    paths: ["a.js"]
+    // missing changed_paths_modes_digest, intended_untracked_digest, relation
+  };
+  const res = validateInstance(schema, unfrozenCandidate);
+  assert.equal(res.valid, false, "Candidate v2 missing freeze fields must be rejected");
+});
+
+test("Adversarial Scenario 12 (Design): WorkResult validated against Candidate v2 Schema is REJECTED", () => {
+  const schema = readJson("schemas/kernel/candidate-v2/v2.schema.json");
+  const workResult = readJson("schemas/kernel/work-result/fixtures/valid/minimal.json");
+  const res = validateInstance(schema, workResult);
+  assert.equal(res.valid, false, "WorkResult must fail validation against Candidate v2 Schema");
+});
+
+test("Adversarial Scenario 13 (Design): Candidate validated against WorkOrder v2 Schema is REJECTED", () => {
+  const schema = readJson("schemas/kernel/work-order-v2/v2.schema.json");
+  const candidateV2 = readJson("schemas/kernel/candidate-v2/fixtures/valid/minimal.json");
+  const res = validateInstance(schema, candidateV2);
+  assert.equal(res.valid, false, "Candidate v2 must fail validation against WorkOrder v2 Schema");
+});
+
+test("Adversarial Scenario 14: candidate/v1 continues validating v1, candidate/v2 validates K3 semantics, K1_SCHEMA_BASELINE remains intact", () => {
+  const schemaV1 = readJson("schemas/kernel/candidate/v1.schema.json");
+  const schemaV2 = readJson("schemas/kernel/candidate-v2/v2.schema.json");
+  const v1Fixture = readJson("schemas/kernel/candidate/fixtures/valid/minimal.json");
+  const v2Fixture = readJson("schemas/kernel/candidate-v2/fixtures/valid/minimal.json");
+
+  // candidate/v1 validates v1 fixture
+  const resV1 = validateInstance(schemaV1, v1Fixture);
+  assert.equal(resV1.valid, true, `v1 schema must validate v1 fixture: ${JSON.stringify(resV1.errors)}`);
+
+  // candidate/v2 validates v2 fixture
+  const resV2 = validateInstance(schemaV2, v2Fixture);
+  assert.equal(resV2.valid, true, `v2 schema must validate v2 fixture: ${JSON.stringify(resV2.errors)}`);
+
+  // v1 fixture fails v2 schema because missing kind and required v2 freeze fields
+  const resV1InV2 = validateInstance(schemaV2, v1Fixture);
+  assert.equal(resV1InV2.valid, false, "v1 fixture must fail v2 schema");
+});
+
+
+
