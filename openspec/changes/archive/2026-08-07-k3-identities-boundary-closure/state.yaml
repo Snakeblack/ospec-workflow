@@ -1,0 +1,223 @@
+change: k3-identities-boundary-closure
+status: verified
+created_at: 2026-08-07T12:15:19Z
+last_updated: 2026-08-07T14:30:00Z
+owner:
+  author: Manuel Retamozo
+  branch: fix/k3-identities-boundary-closure
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "high-risk security/public-contract remediation on project.status:active; first matching route is standard"
+  validated: true
+  validation_errors: []
+session:
+  execution_mode: automatic
+  delivery_strategy: exception-ok
+  reply_language: Spanish
+approvals:
+  - id: exec-mode-001
+    gate: execution-mode
+    decision: automatic
+    source: vscode/askQuestions
+    accepted_at: 2026-08-07T12:15:19Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: vscode/askQuestions
+    accepted_at: 2026-08-07T12:15:19Z
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: change-start-001
+    gate: architecture
+    decision: "start change k3-identities-boundary-closure"
+    source: vscode/askQuestions
+    accepted_at: 2026-08-07T12:15:19Z
+    applies_to:
+      - sdd-propose
+  - id: review-workload-001
+    gate: review-workload
+    decision: size-exception
+    source: vscode/askQuestions
+    accepted_at: 2026-08-07T12:45:00Z
+    applies_to:
+      - sdd-apply
+  - id: assumptions-001
+    gate: architecture
+    decision: "confirm all assumptions sdd-propose-001,sdd-propose-002,sdd-spec-001,sdd-design-001,sdd-apply-001"
+    source: vscode/askQuestions
+    accepted_at: 2026-08-07T14:01:00Z
+    applies_to:
+      - sdd-verify
+  - id: archive-warning-001
+    gate: archive-warning
+    decision: "defer-archive-fix-4r-warnings-first"
+    source: vscode/askQuestions
+    accepted_at: 2026-08-07T14:17:00Z
+    applies_to:
+      - sdd-apply
+      - sdd-archive
+  - id: architecture-bounded-review-001
+    gate: architecture
+    decision: "new-scope successor to remediate advisory 4R WARNINGs before archive"
+    source: vscode/askQuestions
+    accepted_at: 2026-08-07T14:17:00Z
+    applies_to:
+      - sdd-apply
+      - sdd-verify
+      - sdd-design
+      - sdd-tasks
+blocking_questions: []
+gates:
+  4r-review-gate:
+    status: approved
+    schema_version: 1
+    classification: high-risk
+    evidence_fingerprint: sha256:26ac86a04fb01eb8252d5b3d031d65a0aa969d043bdf1c401ffb457d7f4af76f
+    selected_specialists: [risk, reliability, resilience, readability]
+    findings_summary: "0 BLOCKER, 0 CRITICAL, 0 WARNING, 0 SUGGESTION"
+    terminal_reason: no-unresolved-blocking-findings
+    candidate_id: sha256:c836416e79331c887ab184edad4f06499a473ced828c5ac78828c68013186c16
+    lineage_id: sha256:02393f510cd8381efb2a136f6f1ec6f9687edaca062a0b6c6d956fad8d6b27f8
+    predecessor_lineage_id: sha256:fb1470040e4ec2b3ff20c63ec62a8f0e27665bac645715fc5d08c3672eae4dba
+    authority_kind: new-scope
+    approval_reference: architecture-bounded-review-001
+    sidecar: openspec/changes/k3-identities-boundary-closure/gates-4r-review-gate.json
+    note: "successor approved after Phase 5 remediation; prior advisory WARNINGs closed"
+phases:
+  proposal:
+    status: done
+    artifact: openspec/changes/k3-identities-boundary-closure/proposal.md
+    summary: "Boundary closure K3: freeze gate, EXPECTED_KINDS, crypto bindings, K1 restore@02e97a5, v2 path/$id, strict compute*/freeze, work-order/v2 domain."
+    key_decisions:
+      - "Delta specs only on execution-identities + kernel-contract-schemas; no new capabilities"
+      - "Relocate schemas from candidate-v2/work-order-v2 to candidate/v2.schema.json and work-order/v2.schema.json"
+      - "Restore K1 v1 files+pins from 02e97a5 era; never retarget pins alone"
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/k3-identities-boundary-closure/specs/execution-identities/spec.md
+      - openspec/changes/k3-identities-boundary-closure/specs/kernel-contract-schemas/spec.md
+    summary: "Deltas: INVALID_FROZEN_CANDIDATE gate, EXPECTED_KINDS, crypto bindings, strict compute*/freeze, work-order/v2 domain; v2 path/$id registry + K1@02e97a5 restore."
+    key_decisions:
+      - "ADDED REQ-008/009 (kinds + digest domain); MODIFIED 003/004/005/007 for closures"
+      - "ADDED REQ-013/014 (publication + K1 restore); MODIFIED 012 for canonical paths"
+      - "GO items (DECLARED_ID_MISMATCH, deps/ownership) preserved as non-regression scenarios"
+  clarify:
+    status: skipped
+    rationale: "residual_ambiguity false and all ambiguity arrays empty"
+  design:
+    status: done
+    artifact: openspec/changes/k3-identities-boundary-closure/design.md
+    summary: "Freeze gate+EXPECTED_KINDS; crypto binding recompute; v2 path/$id relocate; K1@02e97a5 restore; dual-domain WO; ~12 adversarial TDD."
+    key_decisions:
+      - "Canonical v2 paths + manifest keys candidate-v2/work-order-v2; delete wrong *-v2/ trees"
+      - "validateWorkOrderBinding(sourceSnapshot, workOrder) with full digest recompute"
+      - "Restore K1 v1 files+pins from 02e97a5; never pin-only retarget"
+  tasks:
+    status: done
+    artifact: openspec/changes/k3-identities-boundary-closure/tasks.md
+    summary: "4 fases, 33 tareas; 14 RED adversariales + 8 GREEN closures; ~650–850 LOC; size-exception aprobado."
+    key_decisions:
+      - "Un solo apply batch (exception-ok); secuencia foundation→RED→GREEN→regression"
+      - "14 casos adversariales mapeados a REQ-003/004/005/007/008/009/013/014"
+      - "Preservar tests GO DECLARED_ID_MISMATCH y canonical WO fields"
+  apply:
+    status: done
+    artifact: openspec/changes/k3-identities-boundary-closure/apply-progress.md
+    summary: "Batch2 4R WARNINGs closed (freeze-first, WO kind/schema, strict ownership/patch, ILL_FORMED_SNAPSHOT_ID); npm test PASS."
+    key_decisions:
+      - "size:exception full batch on fix/k3-identities-boundary-closure"
+      - "Typed candidate-relation-selector preserves legitimate ambiguous short-circuit"
+      - "SNAPSHOT_MISMATCH renamed to ILL_FORMED_SNAPSHOT_ID"
+  verify:
+    status: done
+    verdict: PASS
+    artifact: openspec/changes/k3-identities-boundary-closure/verify-report.md
+    summary: "PASS; 2085 pass; zero warnings; task 4.4 clean conventional commit completed."
+    key_decisions:
+      - "Assumption reconciliations confirmed incl. sdd-apply-002 typed selector"
+      - "node scripts/check.js 2085 pass / 0 fail; identity suite 49/49"
+      - "Task 4.4 incomplete remains WARNING/process only"
+  archive:
+    status: pending
+    artifact: openspec/changes/k3-identities-boundary-closure/archive-report.md
+baseline_fingerprints:
+  execution-identities: sha256:065aa4d99c0e981f2d4b708635a478da1b13b51bb5cb3a3783d3dc21e74ecb81
+  kernel-contract-schemas: sha256:fec2021ee023828237f0678d4408607a213682b35de0a8876020209654a54a6b
+assumptions:
+  - id: sdd-propose-001
+    phase: sdd-propose
+    statement: "No se introduce capability nueva; solo deltas de requirements en execution-identities y kernel-contract-schemas."
+    reversibility: high
+    basis: "Ambos dominios ya existen en openspec/specs/ y el intent es closure de gaps, no producto nuevo."
+    recorded_at: 2026-08-07T12:20:00Z
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "User confirmed all five assumptions (option 6 / approvals.assumptions-001)"
+      resolved_at: 2026-08-07T14:01:00Z
+  - id: sdd-propose-002
+    phase: sdd-propose
+    statement: "validateCandidateV2 será un validador de schema/runtime explícito invocado por evaluateCandidateRelation antes de evaluar relación."
+    reversibility: high
+    basis: "User intent exige kind candidate/v2 + schema_version 2 + validateCandidateV2; nombre alineado con patrón validateIdentityKind existente."
+    recorded_at: 2026-08-07T12:20:00Z
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "User confirmed all five assumptions (option 6 / approvals.assumptions-001)"
+      resolved_at: 2026-08-07T14:01:00Z
+  - id: sdd-spec-001
+    phase: sdd-spec
+    statement: "Solo WorkOrder v2 exige dominio digest work-order/v2; Candidate domain no se cambia salvo necesidad futura."
+    reversibility: high
+    basis: "Closure normativo #8 y proposal HIGH-8 mandatan work-order/v2; Candidate domain era opcional ('if needed')."
+    recorded_at: 2026-08-07T12:35:00Z
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "User confirmed all five assumptions (option 6 / approvals.assumptions-001)"
+      resolved_at: 2026-08-07T14:01:00Z
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "EXPECTED_KINDS usa candidate-evaluation-attestation/v1 y delivery-authorization/v1 como kinds provisionales hasta K8/K10."
+    reversibility: high
+    basis: "Canon de autoridad y patches K2.1 nombran esos discriminantes; schemas K8/K10 siguen out of scope."
+    recorded_at: 2026-08-07T12:50:00Z
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "User confirmed all five assumptions (option 6 / approvals.assumptions-001)"
+      resolved_at: 2026-08-07T14:01:00Z
+  - id: sdd-apply-001
+    phase: sdd-apply
+    statement: "Companion WorkOrder v1 fixtures were restored from 02e97a5 alongside schemas so K1 pins and schema-compat remain coherent after v1 restore."
+    reversibility: high
+    basis: "Restored v1 schema rejects source_snapshot_id; drifted fixtures would fail assertK1SchemasUnchanged / fixture walks."
+    recorded_at: 2026-08-07T14:50:00Z
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "User confirmed all five assumptions (option 6 / approvals.assumptions-001)"
+      resolved_at: 2026-08-07T14:01:00Z
+  - id: sdd-apply-002
+    phase: sdd-apply
+    statement: "El selector tipado legítimo para short-circuit ambiguous/unknown usa kind candidate-relation-selector con ambiguous:true o relation ambiguous|unknown."
+    reversibility: high
+    basis: "Criterio 4R y remediación autorizada por el usuario (opción 3 / architecture-bounded-review-001)."
+    recorded_at: 2026-08-07T14:25:00Z
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "User chose fix-4r-warnings-before-archive (option 3); typed selector accepted as remediation path"
+      resolved_at: 2026-08-07T14:25:00Z

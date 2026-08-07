@@ -11,7 +11,9 @@ const {
   validateWorkOrderBinding,
   validateWorkResultBinding,
   evaluateCandidateRelation,
-  validateIdentityKind
+  validateIdentityKind,
+  validateCandidateV2,
+  EXPECTED_KINDS
 } = require("./index.js");
 
 test("REQ-execution-identities-001: Distinct digests with domain prefixes for four identities", () => {
@@ -208,13 +210,22 @@ test("REQ-execution-identities-005: Fail-closed initial candidate relation evalu
   assert.equal(relChanged.relation, "changed");
   assert.equal(relChanged.action, "re-evaluate");
 
-  // ambiguous
-  const relAmbiguous = evaluateCandidateRelation(c1, { ambiguous: true });
+  // forged ambiguous marker (no typed selector) must not bypass freeze gate
+  const relForgedAmbiguous = evaluateCandidateRelation(c1, { ambiguous: true });
+  assert.equal(relForgedAmbiguous.relation, "unknown");
+  assert.equal(relForgedAmbiguous.action, "stop");
+  assert.equal(relForgedAmbiguous.reason_code, "INVALID_FROZEN_CANDIDATE");
+
+  const relForgedAmbiguousBase = evaluateCandidateRelation({ ambiguous: true }, c1);
+  assert.equal(relForgedAmbiguousBase.reason_code, "INVALID_FROZEN_CANDIDATE");
+
+  // typed relation selector may short-circuit after positive kind check
+  const typedAmbiguous = { kind: "candidate-relation-selector", ambiguous: true };
+  const relAmbiguous = evaluateCandidateRelation(c1, typedAmbiguous);
   assert.equal(relAmbiguous.relation, "ambiguous");
   assert.equal(relAmbiguous.action, "decide");
 
-  // ambiguous baseline
-  const relAmbiguousBase = evaluateCandidateRelation({ ambiguous: true }, c1);
+  const relAmbiguousBase = evaluateCandidateRelation(typedAmbiguous, c1);
   assert.equal(relAmbiguousBase.relation, "ambiguous");
   assert.equal(relAmbiguousBase.action, "decide");
 
@@ -223,10 +234,16 @@ test("REQ-execution-identities-005: Fail-closed initial candidate relation evalu
   assert.equal(relUnknown.relation, "unknown");
   assert.equal(relUnknown.action, "stop");
 
-  // unknown baseline
-  const relUnknownBase = evaluateCandidateRelation({ relation: "unknown" }, c1);
-  assert.equal(relUnknownBase.relation, "unknown");
-  assert.equal(relUnknownBase.action, "stop");
+  // forged unknown marker (no typed selector) → INVALID_FROZEN_CANDIDATE
+  const relForgedUnknown = evaluateCandidateRelation({ relation: "unknown" }, c1);
+  assert.equal(relForgedUnknown.relation, "unknown");
+  assert.equal(relForgedUnknown.action, "stop");
+  assert.equal(relForgedUnknown.reason_code, "INVALID_FROZEN_CANDIDATE");
+
+  const typedUnknown = { kind: "candidate-relation-selector", relation: "unknown" };
+  const relUnknownSel = evaluateCandidateRelation(typedUnknown, c1);
+  assert.equal(relUnknownSel.relation, "unknown");
+  assert.equal(relUnknownSel.action, "stop");
 });
 
 test("REQ-execution-identities-006: Non-aliasing type guards and rejection of mutable targets", () => {
@@ -256,12 +273,20 @@ test("REQ-execution-identities-006: Non-aliasing type guards and rejection of mu
   assert.equal(v2.reason_code, "KIND_MISMATCH");
 
   // Reject mutable branch reference for Attestation / Authorization target
-  const mutableBranchTarget = { targetRef: "refs/heads/main" };
+  const mutableBranchTarget = {
+    kind: "candidate-evaluation-attestation/v1",
+    targetRef: "refs/heads/main",
+    target: "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+  };
   const v3 = validateIdentityKind(mutableBranchTarget, "EvaluationAttestation");
   assert.equal(v3.ok, false);
   assert.equal(v3.reason_code, "MUTABLE_TARGET_REJECTED");
 
-  const mutablePathTarget = { targetPath: "./src" };
+  const mutablePathTarget = {
+    kind: "delivery-authorization/v1",
+    targetPath: "./src",
+    target: "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+  };
   const v4 = validateIdentityKind(mutablePathTarget, "DeliveryAuthorization");
   assert.equal(v4.ok, false);
   assert.equal(v4.reason_code, "MUTABLE_TARGET_REJECTED");
@@ -336,7 +361,11 @@ test("REQ-execution-identities-007: computeWorkResultId validates presence and f
   const validResult = {
     workOrderId: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
     sourceSnapshotId: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-    patch: "diff..."
+    patch: "diff...",
+    commands: [],
+    logs: [],
+    exit_code: 0,
+    filesystem_inventory: []
   };
 
   assert.ok(computeWorkResultId(validResult).startsWith("sha256:"));
@@ -408,30 +437,50 @@ test("REQ-execution-identities-004: freezeCandidate constructs candidate/v2 with
 });
 
 test("REQ-execution-identities-003: validateWorkOrderBinding and validateWorkResultBinding fail-closed validation", () => {
-  const validSnapshotId = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
-  const validWorkOrderId = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
+  const sourceSnapshot = {
+    repository_id: "repo-1",
+    base_tree_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    projection: "workspace",
+    dependency_digests: []
+  };
+  const snapshotId = computeSourceSnapshotId(sourceSnapshot);
 
-  const workOrder = {
-    work_order_id: validWorkOrderId,
-    source_snapshot_id: validSnapshotId,
+  const workOrderFields = {
+    source_snapshot_id: snapshotId,
     node_id: "node-1",
-    role: "worker"
+    role: "worker",
+    operation: "build",
+    objective: "compile",
+    dependencies: [],
+    ownership: { owner: "worker", mode: "exclusive" },
+    allowed_paths: ["src/"],
+    invariants: [],
+    required_evidence: ["log"],
+    budget: { model_turns: 1, patches: 1, commands: 1, wall_time_minutes: 1, changed_lines: 1 }
   };
+  const workOrderId = computeWorkOrderId(workOrderFields);
+  const workOrder = { ...workOrderFields, work_order_id: workOrderId };
 
-  const workResult = {
-    work_order_id: validWorkOrderId,
-    source_snapshot_id: validSnapshotId,
-    patch: "diff..."
+  const workResultFields = {
+    work_order_id: workOrderId,
+    source_snapshot_id: snapshotId,
+    patch: "diff...",
+    commands: [],
+    logs: [],
+    exit_code: 0,
+    filesystem_inventory: []
   };
+  const workResultId = computeWorkResultId(workResultFields);
+  const workResult = { ...workResultFields, work_result_id: workResultId };
 
-  // validateWorkOrderBinding success
-  const obRes = validateWorkOrderBinding(workOrder);
+  // validateWorkOrderBinding success (two-arg cryptographic recompute)
+  const obRes = validateWorkOrderBinding(sourceSnapshot, workOrder);
   assert.equal(obRes.ok, true);
 
-  // validateWorkOrderBinding fail on missing or invalid snapshot
-  const obFail = validateWorkOrderBinding({ ...workOrder, source_snapshot_id: "invalid" });
+  // validateWorkOrderBinding fail on missing or invalid snapshot digest
+  const obFail = validateWorkOrderBinding(sourceSnapshot, { ...workOrder, source_snapshot_id: "invalid" });
   assert.equal(obFail.ok, false);
-  assert.equal(obFail.reason_code, "SNAPSHOT_MISMATCH");
+  assert.equal(obFail.reason_code, "ILL_FORMED_SNAPSHOT_ID");
 
   // validateWorkResultBinding success
   const rbRes = validateWorkResultBinding(workOrder, workResult);
@@ -559,10 +608,33 @@ test("Adversarial Scenario 4: WorkOrder work_order_id copied + dependencies alte
 test("Adversarial Scenario 5: WorkOrder(S1) + WorkResult(S2) yields REJECT SOURCE_SNAPSHOT_MISMATCH", () => {
   const s1 = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
   const s2 = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
-  const wId = "sha256:3333333333333333333333333333333333333333333333333333333333333333";
 
-  const order = { work_order_id: wId, source_snapshot_id: s1, node_id: "node-1", role: "worker" };
-  const result = { work_order_id: wId, source_snapshot_id: s2, patch: "diff" };
+  const orderFields = {
+    source_snapshot_id: s1,
+    node_id: "node-1",
+    role: "worker",
+    operation: "build",
+    objective: "x",
+    dependencies: [],
+    ownership: { owner: "w", mode: "exclusive" },
+    allowed_paths: [],
+    invariants: [],
+    required_evidence: [],
+    budget: {}
+  };
+  const wId = computeWorkOrderId(orderFields);
+  const order = { ...orderFields, work_order_id: wId };
+
+  const resultFields = {
+    work_order_id: wId,
+    source_snapshot_id: s2,
+    patch: "diff",
+    commands: [],
+    logs: [],
+    exit_code: 0,
+    filesystem_inventory: []
+  };
+  const result = { ...resultFields, work_result_id: computeWorkResultId(resultFields) };
 
   const binding = validateWorkResultBinding(order, result);
   assert.equal(binding.ok, false);
@@ -573,7 +645,11 @@ test("Adversarial Scenario 6: WorkResultId copied + patch altered yields distinc
   const baseResult = {
     workOrderId: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
     sourceSnapshotId: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-    patch: "diff original"
+    patch: "diff original",
+    commands: [],
+    logs: [],
+    exit_code: 0,
+    filesystem_inventory: []
   };
   const originalId = computeWorkResultId(baseResult);
 
@@ -626,6 +702,7 @@ test("Adversarial Scenario 10: Candidate presented as EvaluationAttestation is R
 
 test("Adversarial Scenario 11: feature/foo non-sha256 target used as Attestation target is REJECTED", () => {
   const badTargetPayload = {
+    kind: "candidate-evaluation-attestation/v1",
     attestation_id: "att-123",
     target: "feature/foo"
   };
@@ -668,7 +745,426 @@ test("Adversarial Scenario 13: diffText and diff_hash simultaneously conflicting
   }, /conflict/i);
 });
 
+// ---------------------------------------------------------------------------
+// K3 boundary-closure adversarial gates (REQ-003/004/005/007/008/009)
+// ---------------------------------------------------------------------------
 
+const DIGEST_A = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const DIGEST_B = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const DIGEST_C = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
 
+function makeFrozenCandidate(overrides = {}) {
+  return freezeCandidate({
+    repositoryId: "repo-1",
+    projection: "workspace",
+    baseTree: DIGEST_A,
+    candidateTree: DIGEST_B,
+    diffText: "diff-content",
+    paths: ["a.js"],
+    ...overrides
+  });
+}
 
+test("K3-2.1: non-frozen / missing kind candidate → INVALID_FROZEN_CANDIDATE (no relation)", () => {
+  const valid = makeFrozenCandidate();
+  const nonFrozen = {
+    projection: "workspace",
+    base_tree: DIGEST_A,
+    candidate_tree: DIGEST_B,
+    diff_hash: DIGEST_C,
+    paths: ["a.js"]
+  };
+  const res = evaluateCandidateRelation(valid, nonFrozen);
+  assert.equal(res.relation, "unknown");
+  assert.equal(res.action, "stop");
+  assert.equal(res.reason_code, "INVALID_FROZEN_CANDIDATE");
+});
+
+test("K3-2.2: hand-built kind candidate/v2 but schema-invalid → INVALID_FROZEN_CANDIDATE", () => {
+  const valid = makeFrozenCandidate();
+  const forged = {
+    kind: "candidate/v2",
+    schema_version: 2,
+    candidate_id: DIGEST_A,
+    // missing repository_id and other required freeze fields
+    projection: "workspace",
+    base_tree: DIGEST_A,
+    candidate_tree: DIGEST_B,
+    diff_hash: DIGEST_C,
+    paths: ["a.js"]
+  };
+  const res = evaluateCandidateRelation(valid, forged);
+  assert.equal(res.relation, "unknown");
+  assert.equal(res.action, "stop");
+  assert.equal(res.reason_code, "INVALID_FROZEN_CANDIDATE");
+  assert.equal(validateCandidateV2(forged), false);
+});
+
+test("K3-2.3: attestation surface without kind → validateIdentityKind fail closed", () => {
+  const payload = {
+    attestation_id: "att-1",
+    target: DIGEST_A
+  };
+  const res = validateIdentityKind(payload, "EvaluationAttestation");
+  assert.equal(res.ok, false);
+  assert.equal(res.reason_code, "KIND_MISMATCH");
+});
+
+test("K3-2.4: SourceSnapshot + attestation_id without attestation kind → fail closed", () => {
+  const disguise = {
+    kind: "source-snapshot/v1",
+    attestation_id: "att-spoof",
+    source_snapshot_id: DIGEST_A,
+    base_tree_digest: DIGEST_B,
+    projection: "workspace",
+    target: DIGEST_A
+  };
+  const res = validateIdentityKind(disguise, "EvaluationAttestation");
+  assert.equal(res.ok, false);
+  assert.equal(res.reason_code, "KIND_MISMATCH");
+});
+
+test("K3-2.5: compatible EXPECTED_KINDS kind → pass", () => {
+  assert.ok(EXPECTED_KINDS.Candidate.includes("candidate/v2"));
+  assert.ok(EXPECTED_KINDS.EvaluationAttestation.includes("candidate-evaluation-attestation/v1"));
+  const payload = {
+    kind: "candidate-evaluation-attestation/v1",
+    attestation_id: "att-1",
+    target: DIGEST_A
+  };
+  const res = validateIdentityKind(payload, "EvaluationAttestation");
+  assert.equal(res.ok, true);
+});
+
+test("K3-2.6: binding spoof — declared IDs string-equal but payload mutated → binding fail", () => {
+  const sourceSnapshot = {
+    repository_id: "repo-1",
+    base_tree_digest: DIGEST_A,
+    projection: "workspace",
+    dependency_digests: []
+  };
+  const snapshotId = computeSourceSnapshotId(sourceSnapshot);
+  const orderFields = {
+    source_snapshot_id: snapshotId,
+    node_id: "node-1",
+    role: "worker",
+    operation: "build",
+    objective: "honest",
+    dependencies: [],
+    ownership: { owner: "worker", mode: "exclusive" },
+    allowed_paths: ["src/"],
+    invariants: [],
+    required_evidence: ["log"],
+    budget: { model_turns: 1, patches: 1, commands: 1, wall_time_minutes: 1, changed_lines: 1 }
+  };
+  const honestOrderId = computeWorkOrderId(orderFields);
+  const honestOrder = { ...orderFields, work_order_id: honestOrderId };
+
+  // Mutate objective but keep declared work_order_id (spoof)
+  const spoofedOrder = { ...honestOrder, objective: "malicious" };
+  const woBind = validateWorkOrderBinding(sourceSnapshot, spoofedOrder);
+  assert.equal(woBind.ok, false, "gate must reject spoofed WorkOrder even when declared IDs look equal");
+  assert.ok(
+    woBind.reason_code === "WORK_ORDER_MISMATCH" ||
+      woBind.reason_code === "DIGEST_MISMATCH" ||
+      woBind.reason_code === "DECLARED_ID_MISMATCH"
+  );
+
+  const resultFields = {
+    work_order_id: honestOrderId,
+    source_snapshot_id: snapshotId,
+    patch: "honest-patch",
+    commands: [],
+    logs: [],
+    exit_code: 0,
+    filesystem_inventory: []
+  };
+  const honestResultId = computeWorkResultId(resultFields);
+  const spoofedResult = {
+    ...resultFields,
+    patch: "malicious-patch",
+    work_result_id: honestResultId
+  };
+  const wrBind = validateWorkResultBinding(honestOrder, spoofedResult);
+  assert.equal(wrBind.ok, false, "gate must reject spoofed WorkResult even when declared IDs look equal");
+  assert.ok(
+    wrBind.reason_code === "DIGEST_MISMATCH" ||
+      wrBind.reason_code === "DECLARED_ID_MISMATCH" ||
+      wrBind.reason_code === "WORK_ORDER_MISMATCH"
+  );
+});
+
+test("K3-2.7: validateWorkOrderBinding requires sourceSnapshot + workOrder (arity)", () => {
+  const order = {
+    work_order_id: DIGEST_A,
+    source_snapshot_id: DIGEST_B,
+    node_id: "node-1",
+    role: "worker"
+  };
+  // One-arg call (legacy) must fail closed — sourceSnapshot is required
+  const missingSnap = validateWorkOrderBinding(order);
+  assert.equal(missingSnap.ok, false);
+  assert.ok(missingSnap.reason_code);
+});
+
+test("K3-2.8: dependencies null / non-array → computeWorkOrderId throws (no [] coercion)", () => {
+  const base = {
+    source_snapshot_id: DIGEST_A,
+    node_id: "node-1",
+    role: "worker"
+  };
+  assert.throws(() => computeWorkOrderId({ ...base, dependencies: null }), /dependenc/i);
+  assert.throws(() => computeWorkOrderId({ ...base, dependencies: "not-an-array" }), /dependenc/i);
+});
+
+test("K3-2.9: WorkResult missing required exit_code → computeWorkResultId throws (no silent default)", () => {
+  assert.throws(() => {
+    computeWorkResultId({
+      work_order_id: DIGEST_A,
+      source_snapshot_id: DIGEST_B,
+      patch: "diff",
+      commands: [],
+      logs: [],
+      filesystem_inventory: []
+      // exit_code intentionally omitted
+    });
+  }, /exit_code/i);
+});
+
+test("K3-2.10: freezeCandidate rejects empty repository_id; intended_untracked_digest never empty string", () => {
+  assert.throws(() => {
+    freezeCandidate({
+      repositoryId: "",
+      projection: "workspace",
+      baseTree: DIGEST_A,
+      candidateTree: DIGEST_B,
+      diffText: "diff",
+      paths: ["a.js"]
+    });
+  }, /repository_id/i);
+
+  assert.throws(() => {
+    freezeCandidate({
+      repositoryId: "repo-1",
+      projection: "workspace",
+      baseTree: DIGEST_A,
+      candidateTree: DIGEST_B,
+      diffText: "diff",
+      paths: ["a.js"],
+      intended_untracked_digest: ""
+    });
+  }, /intended_untracked_digest/i);
+});
+
+test("K3-2.11: invariant validateCandidateV2(freezeCandidate(validInput)) === true", () => {
+  const frozen = makeFrozenCandidate();
+  assert.equal(validateCandidateV2(frozen), true);
+  assert.equal(frozen.kind, "candidate/v2");
+  assert.equal(frozen.schema_version, 2);
+  assert.ok(frozen.repository_id.length >= 1);
+  assert.ok(frozen.intended_untracked_digest === null || /^sha256:[a-f0-9]{64}$/.test(frozen.intended_untracked_digest));
+});
+
+test("K3-2.12: same WorkOrder payload v1 vs v2 → distinct digests; v2 domain is work-order/v2", () => {
+  const payload = {
+    source_snapshot_id: DIGEST_A,
+    node_id: "node-1",
+    role: "worker",
+    operation: "build",
+    objective: "compile",
+    dependencies: [],
+    ownership: { owner: "w", mode: "exclusive" },
+    allowed_paths: ["src/"],
+    invariants: [],
+    required_evidence: [],
+    budget: {}
+  };
+  const v1Id = computeWorkOrderId({ ...payload, kind: "work-order/v1", schema_version: 1 });
+  const v2Id = computeWorkOrderId({ ...payload, kind: "work-order/v2", schema_version: 2 });
+  assert.notEqual(v1Id, v2Id, "v1 and v2 digest domains must not alias");
+
+  // Prove domain string by recomputing with sha256Fingerprint
+  const { sha256Fingerprint } = require("../canonical-json.js");
+  const canonical = {
+    source_snapshot_id: DIGEST_A,
+    node_id: "node-1",
+    role: "worker",
+    operation: "build",
+    objective: "compile",
+    dependencies: [],
+    ownership: { owner: "w", mode: "exclusive" },
+    allowed_paths: ["src/"],
+    invariants: [],
+    required_evidence: [],
+    budget: {}
+  };
+  assert.equal(v2Id, sha256Fingerprint("work-order/v2", canonical));
+  assert.equal(v1Id, sha256Fingerprint("work-order/v1", canonical));
+});
+
+test("K3 GO: DECLARED_ID_MISMATCH still fires after freeze gate on schema-valid tamper", () => {
+  const valid = makeFrozenCandidate();
+  const tampered = {
+    ...valid,
+    candidate_id: "sha256:9999999999999999999999999999999999999999999999999999999999999999"
+  };
+  assert.equal(validateCandidateV2(tampered), true, "tampered record remains schema-valid");
+  const res = evaluateCandidateRelation(valid, tampered);
+  assert.equal(res.relation, "unknown");
+  assert.equal(res.action, "stop");
+  assert.equal(res.reason_code, "DECLARED_ID_MISMATCH");
+});
+
+// --- 4R advisory remediation (architecture-bounded-review-001 / new-scope) ---
+
+test("4R-R1: forged {ambiguous:true} cannot bypass INVALID_FROZEN_CANDIDATE", () => {
+  const valid = makeFrozenCandidate();
+  const forged = { ambiguous: true };
+  const res = evaluateCandidateRelation(valid, forged);
+  assert.equal(res.relation, "unknown");
+  assert.equal(res.action, "stop");
+  assert.equal(res.reason_code, "INVALID_FROZEN_CANDIDATE");
+});
+
+test("4R-R1b: typed candidate-relation-selector ambiguous still decides", () => {
+  const valid = makeFrozenCandidate();
+  const selector = { kind: "candidate-relation-selector", ambiguous: true };
+  const res = evaluateCandidateRelation(valid, selector);
+  assert.equal(res.relation, "ambiguous");
+  assert.equal(res.action, "decide");
+});
+
+test("4R-R2: kind work-order/v1 + schema_version 2 throws (fail closed disagreement)", () => {
+  const payload = {
+    source_snapshot_id: DIGEST_A,
+    node_id: "n1",
+    role: "implementer",
+    operation: "edit",
+    objective: "x",
+    kind: "work-order/v1",
+    schema_version: 2
+  };
+  assert.throws(() => computeWorkOrderId(payload), /kind|schema_version|disagree/i);
+});
+
+test("4R-R2c: kind work-order/v2 + schema_version 1 throws (symmetric disagreement)", () => {
+  assert.throws(
+    () =>
+      computeWorkOrderId({
+        source_snapshot_id: DIGEST_A,
+        node_id: "n1",
+        role: "implementer",
+        kind: "work-order/v2",
+        schema_version: 1
+      }),
+    /kind|schema_version|disagree/i
+  );
+});
+
+test("4R-R2b: consistent work-order/v2 + schema_version 2 uses v2 domain", () => {
+  const { sha256Fingerprint } = require("../canonical-json.js");
+  const payload = {
+    source_snapshot_id: DIGEST_A,
+    node_id: "n1",
+    role: "implementer",
+    operation: "edit",
+    objective: "x",
+    kind: "work-order/v2",
+    schema_version: 2
+  };
+  const id = computeWorkOrderId(payload);
+  const canonical = {
+    source_snapshot_id: DIGEST_A,
+    node_id: "n1",
+    role: "implementer",
+    operation: "edit",
+    objective: "x",
+    dependencies: [],
+    ownership: {},
+    allowed_paths: [],
+    invariants: [],
+    required_evidence: [],
+    budget: {}
+  };
+  assert.equal(id, sha256Fingerprint("work-order/v2", canonical));
+});
+
+test("4R-R3: ownership null / non-object → computeWorkOrderId throws (no {} coercion)", () => {
+  const base = {
+    source_snapshot_id: DIGEST_A,
+    node_id: "n1",
+    role: "implementer"
+  };
+  assert.throws(() => computeWorkOrderId({ ...base, ownership: null }), /ownership/i);
+  assert.throws(() => computeWorkOrderId({ ...base, ownership: "team" }), /ownership/i);
+  assert.throws(() => computeWorkOrderId({ ...base, budget: null }), /budget/i);
+  assert.throws(() => computeWorkOrderId({ ...base, budget: 42 }), /budget/i);
+});
+
+test("4R-R4: missing patch → computeWorkResultId throws (no default empty string)", () => {
+  assert.throws(
+    () =>
+      computeWorkResultId({
+        work_order_id: DIGEST_A,
+        source_snapshot_id: DIGEST_B,
+        exit_code: 0
+      }),
+    /patch/i
+  );
+});
+
+test("4R-R4b: exit_code null / non-integer → computeWorkResultId throws", () => {
+  const base = {
+    work_order_id: DIGEST_A,
+    source_snapshot_id: DIGEST_B,
+    patch: "diff"
+  };
+  assert.throws(() => computeWorkResultId({ ...base, exit_code: null }), /exit_code/i);
+  assert.throws(() => computeWorkResultId({ ...base, exit_code: 1.5 }), /exit_code/i);
+  assert.throws(() => computeWorkResultId({ ...base, exit_code: "0" }), /exit_code/i);
+});
+
+test("4R-R6: ill-formed declared snapshot id uses ILL_FORMED_SNAPSHOT_ID (not SOURCE_SNAPSHOT_MISMATCH)", () => {
+  const sourceSnapshot = {
+    repository_id: "repo-1",
+    base_tree_digest: DIGEST_A,
+    projection: "workspace",
+    dependency_digests: []
+  };
+  const sourceSnapshotId = computeSourceSnapshotId(sourceSnapshot);
+  const workOrder = {
+    source_snapshot_id: "not-a-digest",
+    work_order_id: DIGEST_A,
+    node_id: "n1",
+    role: "implementer"
+  };
+  const res = validateWorkOrderBinding(sourceSnapshot, workOrder);
+  assert.equal(res.ok, false);
+  assert.equal(res.reason_code, "ILL_FORMED_SNAPSHOT_ID");
+  assert.notEqual(res.reason_code, "SOURCE_SNAPSHOT_MISMATCH");
+
+  const honestOrder = {
+    source_snapshot_id: sourceSnapshotId,
+    node_id: "n1",
+    role: "implementer",
+    operation: "",
+    objective: "",
+    dependencies: [],
+    ownership: {},
+    allowed_paths: [],
+    invariants: [],
+    required_evidence: [],
+    budget: {}
+  };
+  honestOrder.work_order_id = computeWorkOrderId(honestOrder);
+  const mismatchSnap = {
+    repository_id: "repo-1",
+    base_tree_digest: DIGEST_B,
+    projection: "workspace",
+    dependency_digests: []
+  };
+  const mismatch = validateWorkOrderBinding(mismatchSnap, honestOrder);
+  assert.equal(mismatch.ok, false);
+  assert.equal(mismatch.reason_code, "SOURCE_SNAPSHOT_MISMATCH");
+});
 

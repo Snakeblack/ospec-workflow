@@ -111,8 +111,12 @@ const SUCCESSOR_K2_PREFIXES = [
   "schemas/kernel/transport-failure/",
   "schemas/kernel/source-snapshot/",
   "schemas/kernel/work-result/",
-  "schemas/kernel/candidate-v2/",
-  "schemas/kernel/work-order-v2/",
+  "schemas/kernel/candidate/v2.schema.json",
+  "schemas/kernel/work-order/v2.schema.json",
+  "schemas/kernel/candidate/fixtures/valid/v2-",
+  "schemas/kernel/candidate/fixtures/invalid/v2-",
+  "schemas/kernel/work-order/fixtures/valid/v2-",
+  "schemas/kernel/work-order/fixtures/invalid/v2-",
 ];
 
 const PROTECTED_BASELINE_PATHS = [

@@ -1,15 +1,25 @@
 "use strict";
 
+const path = require("node:path");
 const { sha256Fingerprint } = require("../canonical-json.js");
+const { validateInstance, loadSchemaById } = require("../kernel-schema-validator.js");
 
-/**
- * Compute SourceSnapshotId digest.
- * Domain prefix: "source-snapshot/v1"
- *
- * @param {{ repositoryId?: string, repository_id?: string, baseTreeDigest?: string, base_tree_digest?: string, projection: "workspace"|"staged"|"commit", dependencyDigests?: string[], dependency_digests?: string[] }} snapshot
- * @returns {string} sha256:...
- */
 const SHA256_REGEX = /^sha256:[a-f0-9]{64}$/;
+const CANDIDATE_V2_SCHEMA_ID = "ospec://schemas/kernel/candidate/v2";
+const DEFAULT_SCHEMA_ROOT = path.resolve(__dirname, "../../..");
+
+const EXPECTED_KINDS = Object.freeze({
+  SourceSnapshot: Object.freeze(["source-snapshot/v1"]),
+  WorkOrder: Object.freeze(["work-order/v1", "work-order/v2"]),
+  WorkResult: Object.freeze(["work-result/v1"]),
+  Candidate: Object.freeze(["candidate/v1", "candidate/v2"]),
+  // EvaluationAttestation aliases CandidateEvaluationAttestation (same provisional kind strings)
+  EvaluationAttestation: Object.freeze(["candidate-evaluation-attestation/v1"]),
+  CandidateEvaluationAttestation: Object.freeze(["candidate-evaluation-attestation/v1"]),
+  DeliveryAuthorization: Object.freeze(["delivery-authorization/v1"]),
+});
+
+let cachedCandidateV2Schema = null;
 
 function isValidSha256(str) {
   return typeof str === "string" && SHA256_REGEX.test(str);
@@ -19,6 +29,105 @@ function assertValidSha256(str, fieldName) {
   if (!isValidSha256(str)) {
     throw new Error(`Field ${fieldName} must be a valid sha256 digest (sha256:<64 hex>). Received: ${str}`);
   }
+}
+
+function assertArrayField(value, fieldName) {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) {
+    throw new TypeError(`Field ${fieldName} must be an array. Received: ${typeof value}`);
+  }
+  return value;
+}
+
+function resolveArrayField(primary, secondary, fieldName) {
+  if (primary !== undefined) return assertArrayField(primary, fieldName);
+  if (secondary !== undefined) return assertArrayField(secondary, fieldName);
+  return [];
+}
+
+/**
+ * Resolve WorkOrder digest domain. Fail closed when kind and schema_version disagree.
+ * Domain is work-order/v2 only for a consistent v2 identity: when both fields are present
+ * for a known work-order kind they must agree; otherwise a single present v2 signal selects
+ * the domain (legacy single-field callers).
+ *
+ * @param {object} workOrder
+ * @returns {boolean}
+ */
+function isWorkOrderV2(workOrder) {
+  const kind = workOrder.kind;
+  const schemaVersion = workOrder.schema_version;
+  const hasKind = typeof kind === "string";
+  const hasSchema = schemaVersion !== undefined && schemaVersion !== null;
+  const kindSaysV2 = kind === "work-order/v2";
+  const schemaSaysV2 = schemaVersion === 2;
+
+  if (hasKind && hasSchema && (kind === "work-order/v1" || kind === "work-order/v2")) {
+    if (kindSaysV2 !== schemaSaysV2) {
+      throw new Error(
+        `WorkOrder kind/schema_version disagreement: kind=${kind}, schema_version=${schemaVersion}`
+      );
+    }
+    return kindSaysV2;
+  }
+
+  return kindSaysV2 || schemaSaysV2;
+}
+
+/**
+ * Validate a Candidate v2 record against the canonical schema (lazy-cached).
+ * Schema-load infrastructure failures throw (fail closed, distinct from invalid instance).
+ * Invalid candidate instances return false without throwing.
+ * @param {object} candidate
+ * @returns {boolean}
+ */
+function validateCandidateV2(candidate) {
+  if (!candidate || typeof candidate !== "object") return false;
+  if (!cachedCandidateV2Schema) {
+    try {
+      cachedCandidateV2Schema = loadSchemaById(CANDIDATE_V2_SCHEMA_ID, {
+        rootDir: DEFAULT_SCHEMA_ROOT,
+      });
+    } catch (err) {
+      const wrapped = new Error(`Candidate v2 schema load failed: ${err.message}`);
+      wrapped.code = "CANDIDATE_V2_SCHEMA_LOAD_FAILED";
+      wrapped.cause = err;
+      throw wrapped;
+    }
+  }
+  try {
+    return validateInstance(cachedCandidateV2Schema, candidate).valid;
+  } catch {
+    // Instance validation threw — treat as invalid instance, not infra failure
+    return false;
+  }
+}
+
+function assertPlainObjectField(value, fieldName) {
+  if (value === undefined) return {};
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError(`Field ${fieldName} must be a plain object. Received: ${value === null ? "null" : typeof value}`);
+  }
+  return value;
+}
+
+function isRelationSelector(value) {
+  return (
+    value &&
+    typeof value === "object" &&
+    value.kind === "candidate-relation-selector" &&
+    (value.ambiguous === true || value.relation === "ambiguous" || value.relation === "unknown")
+  );
+}
+
+function isFrozenCandidateV2(value) {
+  return (
+    value &&
+    typeof value === "object" &&
+    value.kind === "candidate/v2" &&
+    value.schema_version === 2 &&
+    validateCandidateV2(value)
+  );
 }
 
 /**
@@ -44,18 +153,20 @@ function computeSourceSnapshotId(snapshot) {
     throw new Error("computeSourceSnapshotId requires projection");
   }
 
-  const dependencyDigests = snapshot.dependencyDigests || snapshot.dependency_digests || [];
-  if (Array.isArray(dependencyDigests)) {
-    for (const d of dependencyDigests) {
-      assertValidSha256(d, "dependency_digests item");
-    }
+  const dependencyDigests = resolveArrayField(
+    snapshot.dependencyDigests,
+    snapshot.dependency_digests,
+    "dependency_digests"
+  );
+  for (const d of dependencyDigests) {
+    assertValidSha256(d, "dependency_digests item");
   }
 
   const canonicalPayload = {
     repository_id: repositoryId,
     base_tree_digest: baseTreeDigest,
     projection: projection,
-    dependency_digests: Array.isArray(dependencyDigests) ? [...dependencyDigests].sort() : []
+    dependency_digests: [...dependencyDigests].sort()
   };
 
   return sha256Fingerprint("source-snapshot/v1", canonicalPayload);
@@ -63,9 +174,9 @@ function computeSourceSnapshotId(snapshot) {
 
 /**
  * Compute WorkOrderId digest.
- * Domain prefix: "work-order/v1"
+ * Domain: work-order/v1 or work-order/v2 based on kind/schema_version.
  *
- * @param {{ sourceSnapshotId?: string, source_snapshot_id?: string, nodeId?: string, node_id?: string, role: string, operation?: string, objective?: string, dependencies?: string[], ownership?: object, allowedPaths?: string[], allowed_paths?: string[], invariants?: string[], requiredEvidence?: string[], required_evidence?: string[], budget?: object }} workOrder
+ * @param {object} workOrder
  * @returns {string} sha256:...
  */
 function computeWorkOrderId(workOrder) {
@@ -89,12 +200,20 @@ function computeWorkOrderId(workOrder) {
 
   const operation = workOrder.operation || "";
   const objective = workOrder.objective || "";
-  const dependencies = workOrder.dependencies || [];
-  const ownership = workOrder.ownership || {};
-  const allowedPaths = workOrder.allowedPaths || workOrder.allowed_paths || [];
-  const invariants = workOrder.invariants || [];
-  const requiredEvidence = workOrder.requiredEvidence || workOrder.required_evidence || [];
-  const budget = workOrder.budget || {};
+  const dependencies = resolveArrayField(workOrder.dependencies, undefined, "dependencies");
+  const ownership = assertPlainObjectField(workOrder.ownership, "ownership");
+  const allowedPaths = resolveArrayField(
+    workOrder.allowedPaths,
+    workOrder.allowed_paths,
+    "allowed_paths"
+  );
+  const invariants = resolveArrayField(workOrder.invariants, undefined, "invariants");
+  const requiredEvidence = resolveArrayField(
+    workOrder.requiredEvidence,
+    workOrder.required_evidence,
+    "required_evidence"
+  );
+  const budget = assertPlainObjectField(workOrder.budget, "budget");
 
   const canonicalPayload = {
     source_snapshot_id: sourceSnapshotId,
@@ -102,22 +221,23 @@ function computeWorkOrderId(workOrder) {
     role: role,
     operation: operation,
     objective: objective,
-    dependencies: Array.isArray(dependencies) ? [...dependencies].sort() : [],
+    dependencies: [...dependencies].sort(),
     ownership: ownership,
-    allowed_paths: Array.isArray(allowedPaths) ? [...allowedPaths].sort() : [],
-    invariants: Array.isArray(invariants) ? [...invariants].sort() : [],
-    required_evidence: Array.isArray(requiredEvidence) ? [...requiredEvidence].sort() : [],
+    allowed_paths: [...allowedPaths].sort(),
+    invariants: [...invariants].sort(),
+    required_evidence: [...requiredEvidence].sort(),
     budget: budget
   };
 
-  return sha256Fingerprint("work-order/v1", canonicalPayload);
+  const domain = isWorkOrderV2(workOrder) ? "work-order/v2" : "work-order/v1";
+  return sha256Fingerprint(domain, canonicalPayload);
 }
 
 /**
  * Compute WorkResultId digest.
  * Domain prefix: "work-result/v1"
  *
- * @param {{ workOrderId?: string, work_order_id?: string, sourceSnapshotId?: string, source_snapshot_id?: string, patch: string, commands?: object[], logs?: string[], exitCode?: number, exit_code?: number, filesystemInventory?: object[], filesystem_inventory?: object[] }} workResult
+ * @param {object} workResult
  * @returns {string} sha256:...
  */
 function computeWorkResultId(workResult) {
@@ -136,11 +256,31 @@ function computeWorkResultId(workResult) {
   }
   assertValidSha256(sourceSnapshotId, "source_snapshot_id");
 
-  const patch = workResult.patch || "";
-  const commands = workResult.commands || [];
-  const logs = workResult.logs || [];
-  const exitCode = workResult.exitCode !== undefined ? workResult.exitCode : (workResult.exit_code !== undefined ? workResult.exit_code : 0);
-  const filesystemInventory = workResult.filesystemInventory || workResult.filesystem_inventory || [];
+  // Reject missing patch — empty string is a valid explicit patch value; undefined is not.
+  if (workResult.patch === undefined) {
+    throw new Error("computeWorkResultId requires patch");
+  }
+  const patch = workResult.patch;
+  const commands = resolveArrayField(workResult.commands, undefined, "commands");
+  const logs = resolveArrayField(workResult.logs, undefined, "logs");
+
+  const hasExitCode =
+    workResult.exitCode !== undefined || workResult.exit_code !== undefined;
+  if (!hasExitCode) {
+    throw new Error("computeWorkResultId requires exit_code");
+  }
+  const exitCode = workResult.exitCode !== undefined ? workResult.exitCode : workResult.exit_code;
+  if (exitCode === null || typeof exitCode !== "number" || !Number.isInteger(exitCode)) {
+    throw new Error(
+      `computeWorkResultId requires integer exit_code. Received: ${exitCode === null ? "null" : typeof exitCode}`
+    );
+  }
+
+  const filesystemInventory = resolveArrayField(
+    workResult.filesystemInventory,
+    workResult.filesystem_inventory,
+    "filesystem_inventory"
+  );
 
   const canonicalPayload = {
     work_order_id: workOrderId,
@@ -157,9 +297,9 @@ function computeWorkResultId(workResult) {
 
 /**
  * Compute CandidateId digest.
- * Domain prefix: "candidate/v1"
+ * Domain prefix: "candidate/v1" (payload domain; record kind may be candidate/v2).
  *
- * @param {{ repositoryId?: string, repository_id?: string, projection: "workspace"|"staged", baseTree?: string, base_tree?: string, candidateTree?: string, candidate_tree?: string, diffHash?: string, diff_hash?: string, pathsDigest?: string[], paths?: string[], changedPathsModesDigest?: string, changed_paths_modes_digest?: string, intendedUntrackedDigest?: string|null, intended_untracked_digest?: string|null }} candidate
+ * @param {object} candidate
  * @returns {string} sha256:...
  */
 function computeCandidateId(candidate) {
@@ -190,13 +330,18 @@ function computeCandidateId(candidate) {
   }
   assertValidSha256(diffHash, "diff_hash");
 
-  const paths = candidate.pathsDigest || candidate.paths || [];
+  const paths = resolveArrayField(candidate.pathsDigest, candidate.paths, "paths");
   const changedPathsModesDigest = candidate.changedPathsModesDigest || candidate.changed_paths_modes_digest || "";
   if (changedPathsModesDigest) {
     assertValidSha256(changedPathsModesDigest, "changed_paths_modes_digest");
   }
 
-  const intendedUntrackedDigest = candidate.intendedUntrackedDigest !== undefined ? candidate.intendedUntrackedDigest : (candidate.intended_untracked_digest !== undefined ? candidate.intended_untracked_digest : null);
+  const intendedUntrackedDigest = candidate.intendedUntrackedDigest !== undefined
+    ? candidate.intendedUntrackedDigest
+    : (candidate.intended_untracked_digest !== undefined ? candidate.intended_untracked_digest : null);
+  if (intendedUntrackedDigest === "") {
+    throw new Error("Field intended_untracked_digest must be sha256 digest or null, never empty string");
+  }
   if (intendedUntrackedDigest) {
     assertValidSha256(intendedUntrackedDigest, "intended_untracked_digest");
   }
@@ -207,7 +352,7 @@ function computeCandidateId(candidate) {
     base_tree: baseTree,
     candidate_tree: candidateTree,
     diff_hash: diffHash,
-    paths: Array.isArray(paths) ? [...paths].sort() : [],
+    paths: [...paths].sort(),
     changed_paths_modes_digest: changedPathsModesDigest,
     intended_untracked_digest: intendedUntrackedDigest
   };
@@ -217,7 +362,7 @@ function computeCandidateId(candidate) {
 
 /**
  * Freeze a candidate into a Candidate/v2 object and compute CandidateId.
- * @param {{ repositoryId?: string, repository_id?: string, projection: "workspace"|"staged", baseTree?: string, base_tree?: string, candidateTree?: string, candidate_tree?: string, diffText?: string, diffHash?: string, diff_hash?: string, paths?: string[], fileModes?: Record<string, string>, changed_paths_modes_digest?: string, intendedUntracked?: Array<{path: string, hash: string}>|object, intended_untracked_digest?: string|null, predecessorId?: string, predecessor_id?: string }} input
+ * @param {object} input
  * @returns {object} CandidateRecord
  */
 function freezeCandidate(input) {
@@ -230,6 +375,10 @@ function freezeCandidate(input) {
   }
 
   const repositoryId = input.repositoryId || input.repository_id || "";
+  if (typeof repositoryId !== "string" || repositoryId.length < 1) {
+    throw new Error("freezeCandidate requires non-empty repository_id");
+  }
+
   const baseTree = input.baseTree || input.base_tree || "";
   if (!baseTree) {
     throw new Error("freezeCandidate requires base_tree");
@@ -261,7 +410,7 @@ function freezeCandidate(input) {
     throw new Error("freezeCandidate requires diffText or diff_hash");
   }
 
-  const rawPaths = input.paths || [];
+  const rawPaths = input.paths !== undefined ? assertArrayField(input.paths, "paths") : [];
   const canonicalPaths = [...new Set(rawPaths.map((p) => p.replace(/\\/g, "/")))].sort();
 
   let modesDigest = input.changed_paths_modes_digest || "";
@@ -273,11 +422,19 @@ function freezeCandidate(input) {
     modesDigest = sha256Fingerprint("candidate-modes/v1", {});
   }
 
-  let untrackedDigest = input.intended_untracked_digest !== undefined ? input.intended_untracked_digest : null;
-  if (untrackedDigest !== null && untrackedDigest !== undefined && untrackedDigest !== "") {
+  let untrackedDigest = input.intended_untracked_digest !== undefined
+    ? input.intended_untracked_digest
+    : (input.intendedUntrackedDigest !== undefined ? input.intendedUntrackedDigest : null);
+
+  if (untrackedDigest === "") {
+    throw new Error("Field intended_untracked_digest must be sha256 digest or null, never empty string");
+  }
+  if (untrackedDigest !== null && untrackedDigest !== undefined) {
     assertValidSha256(untrackedDigest, "intended_untracked_digest");
-  } else if (untrackedDigest === null && input.intendedUntracked) {
+  } else if ((untrackedDigest === null || untrackedDigest === undefined) && input.intendedUntracked) {
     untrackedDigest = sha256Fingerprint("candidate-untracked/v1", input.intendedUntracked);
+  } else {
+    untrackedDigest = null;
   }
 
   const predecessorId = input.predecessorId || input.predecessor_id || null;
@@ -316,23 +473,98 @@ function freezeCandidate(input) {
 }
 
 /**
- * Validate WorkOrder binding fail-closed.
+ * Validate WorkOrder binding fail-closed with cryptographic recompute.
+ * @param {object} sourceSnapshot
  * @param {object} workOrder
  * @returns {{ ok: boolean, reason_code?: string, error?: string }}
  */
-function validateWorkOrderBinding(workOrder) {
+function validateWorkOrderBinding(sourceSnapshot, workOrder) {
+  if (workOrder === undefined && sourceSnapshot && typeof sourceSnapshot === "object" &&
+      (sourceSnapshot.source_snapshot_id || sourceSnapshot.sourceSnapshotId || sourceSnapshot.work_order_id)) {
+    // Legacy one-arg call: treat first arg as workOrder without snapshot
+    return {
+      ok: false,
+      reason_code: "INVALID_PAYLOAD",
+      error: "validateWorkOrderBinding requires (sourceSnapshot, workOrder)"
+    };
+  }
+
+  if (!sourceSnapshot || typeof sourceSnapshot !== "object") {
+    return {
+      ok: false,
+      reason_code: "INVALID_PAYLOAD",
+      error: "validateWorkOrderBinding requires a valid sourceSnapshot object"
+    };
+  }
   if (!workOrder || typeof workOrder !== "object") {
-    return { ok: false, reason_code: "INVALID_WORK_ORDER", error: "WorkOrder must be a valid object" };
+    return {
+      ok: false,
+      reason_code: "INVALID_WORK_ORDER",
+      error: "WorkOrder must be a valid object"
+    };
   }
-  const snapshotId = workOrder.sourceSnapshotId || workOrder.source_snapshot_id;
-  if (!snapshotId || !isValidSha256(snapshotId)) {
-    return { ok: false, reason_code: "SNAPSHOT_MISMATCH", error: "WorkOrder source_snapshot_id is missing or ill-formed" };
+
+  const declaredSnapshotId = workOrder.sourceSnapshotId || workOrder.source_snapshot_id;
+  // ILL_FORMED_SNAPSHOT_ID: declared id missing/malformed (not a recompute mismatch).
+  // SOURCE_SNAPSHOT_MISMATCH: recomputed SourceSnapshotId ≠ declared id.
+  if (!declaredSnapshotId || !isValidSha256(declaredSnapshotId)) {
+    return {
+      ok: false,
+      reason_code: "ILL_FORMED_SNAPSHOT_ID",
+      error: "WorkOrder source_snapshot_id is missing or ill-formed"
+    };
   }
+
+  let recomputedSnapshotId;
+  try {
+    recomputedSnapshotId = computeSourceSnapshotId(sourceSnapshot);
+  } catch (err) {
+    return {
+      ok: false,
+      reason_code: "SOURCE_SNAPSHOT_MISMATCH",
+      error: `Failed to recompute SourceSnapshotId: ${err.message}`
+    };
+  }
+  if (recomputedSnapshotId !== declaredSnapshotId) {
+    return {
+      ok: false,
+      reason_code: "SOURCE_SNAPSHOT_MISMATCH",
+      error: "Recomputed SourceSnapshotId does not match declared source_snapshot_id"
+    };
+  }
+
+  const declaredOrderId = workOrder.workOrderId || workOrder.work_order_id;
+  if (!declaredOrderId || !isValidSha256(declaredOrderId)) {
+    return {
+      ok: false,
+      reason_code: "WORK_ORDER_MISMATCH",
+      error: "WorkOrder work_order_id is missing or ill-formed"
+    };
+  }
+
+  let recomputedOrderId;
+  try {
+    recomputedOrderId = computeWorkOrderId(workOrder);
+  } catch (err) {
+    return {
+      ok: false,
+      reason_code: "DIGEST_MISMATCH",
+      error: `Failed to recompute WorkOrderId: ${err.message}`
+    };
+  }
+  if (recomputedOrderId !== declaredOrderId) {
+    return {
+      ok: false,
+      reason_code: "WORK_ORDER_MISMATCH",
+      error: "Recomputed WorkOrderId does not match declared work_order_id"
+    };
+  }
+
   return { ok: true };
 }
 
 /**
- * Validate WorkResult binding against WorkOrder fail-closed.
+ * Validate WorkResult binding against WorkOrder fail-closed with recompute.
  * @param {object} workOrder
  * @param {object} workResult
  * @returns {{ ok: boolean, reason_code?: string, error?: string }}
@@ -341,6 +573,7 @@ function validateWorkResultBinding(workOrder, workResult) {
   if (!workOrder || typeof workOrder !== "object" || !workResult || typeof workResult !== "object") {
     return { ok: false, reason_code: "INVALID_PAYLOAD", error: "workOrder and workResult must be valid objects" };
   }
+
   const orderIdInResult = workResult.workOrderId || workResult.work_order_id;
   const expectedOrderId = workOrder.workOrderId || workOrder.work_order_id;
   if (!orderIdInResult || !expectedOrderId || orderIdInResult !== expectedOrderId) {
@@ -353,12 +586,58 @@ function validateWorkResultBinding(workOrder, workResult) {
     return { ok: false, reason_code: "SOURCE_SNAPSHOT_MISMATCH", error: "WorkResult source_snapshot_id does not match WorkOrder source_snapshot_id" };
   }
 
+  let recomputedOrderId;
+  try {
+    recomputedOrderId = computeWorkOrderId(workOrder);
+  } catch (err) {
+    return {
+      ok: false,
+      reason_code: "DIGEST_MISMATCH",
+      error: `Failed to recompute WorkOrderId: ${err.message}`
+    };
+  }
+  if (expectedOrderId !== recomputedOrderId) {
+    return {
+      ok: false,
+      reason_code: "WORK_ORDER_MISMATCH",
+      error: "Declared WorkOrderId does not match recomputed WorkOrderId"
+    };
+  }
+
+  const declaredResultId = workResult.workResultId || workResult.work_result_id;
+  if (!declaredResultId || !isValidSha256(declaredResultId)) {
+    return {
+      ok: false,
+      reason_code: "DIGEST_MISMATCH",
+      error: "WorkResult work_result_id is missing or ill-formed"
+    };
+  }
+
+  let recomputedResultId;
+  try {
+    recomputedResultId = computeWorkResultId(workResult);
+  } catch (err) {
+    return {
+      ok: false,
+      reason_code: "DIGEST_MISMATCH",
+      error: `Failed to recompute WorkResultId: ${err.message}`
+    };
+  }
+  if (recomputedResultId !== declaredResultId) {
+    return {
+      ok: false,
+      reason_code: "DIGEST_MISMATCH",
+      error: "Recomputed WorkResultId does not match declared work_result_id"
+    };
+  }
+
   return { ok: true };
 }
 
 /**
  * Evaluate relation between a baseline Candidate and a target Candidate or selector.
- * Recomputes candidate digests from canonical frozen payloads, ignoring declared candidate_id.
+ * Freeze gate / typed-selector check runs before ambiguous/unknown short-circuit so
+ * forged markers like `{ambiguous:true}` cannot bypass INVALID_FROZEN_CANDIDATE.
  *
  * @param {object} baseline
  * @param {object} target
@@ -373,20 +652,49 @@ function evaluateCandidateRelation(baseline, target) {
     };
   }
 
-  if (baseline.ambiguous || baseline.relation === "ambiguous" || target.ambiguous || target.relation === "ambiguous") {
-    return {
-      relation: "ambiguous",
-      action: "decide",
-      reason: "Baseline or target selector or candidate state is ambiguous"
-    };
-  }
+  const baselineSelector = isRelationSelector(baseline);
+  const targetSelector = isRelationSelector(target);
+  const baselineFrozen = baselineSelector ? false : isFrozenCandidateV2(baseline);
+  const targetFrozen = targetSelector ? false : isFrozenCandidateV2(target);
 
-  if (baseline.relation === "unknown" || target.relation === "unknown") {
+  if (!baselineSelector && !baselineFrozen) {
     return {
       relation: "unknown",
       action: "stop",
-      reason: "Baseline or target candidate relation is unknown"
+      reason: "Baseline or target is not a valid frozen Candidate v2",
+      reason_code: "INVALID_FROZEN_CANDIDATE"
     };
+  }
+  if (!targetSelector && !targetFrozen) {
+    return {
+      relation: "unknown",
+      action: "stop",
+      reason: "Baseline or target is not a valid frozen Candidate v2",
+      reason_code: "INVALID_FROZEN_CANDIDATE"
+    };
+  }
+
+  // Typed selector short-circuit (only after positive kind check above)
+  if (baselineSelector || targetSelector) {
+    if (
+      baseline.ambiguous ||
+      baseline.relation === "ambiguous" ||
+      target.ambiguous ||
+      target.relation === "ambiguous"
+    ) {
+      return {
+        relation: "ambiguous",
+        action: "decide",
+        reason: "Baseline or target selector or candidate state is ambiguous"
+      };
+    }
+    if (baseline.relation === "unknown" || target.relation === "unknown") {
+      return {
+        relation: "unknown",
+        action: "stop",
+        reason: "Baseline or target candidate relation is unknown"
+      };
+    }
   }
 
   let computedBaseId = "";
@@ -443,7 +751,7 @@ function evaluateCandidateRelation(baseline, target) {
 }
 
 /**
- * Assert strict identity separation & reject aliased or mutable targets.
+ * Assert strict identity separation via positive EXPECTED_KINDS discrimination.
  * @param {object} payload
  * @param {"SourceSnapshot"|"WorkOrder"|"WorkResult"|"Candidate"|"EvaluationAttestation"|"CandidateEvaluationAttestation"|"DeliveryAuthorization"} expectedKind
  * @returns {{ ok: boolean, reason_code?: string }}
@@ -451,6 +759,16 @@ function evaluateCandidateRelation(baseline, target) {
 function validateIdentityKind(payload, expectedKind) {
   if (!payload || typeof payload !== "object") {
     return { ok: false, reason_code: "INVALID_PAYLOAD" };
+  }
+
+  const expected = EXPECTED_KINDS[expectedKind];
+  if (!expected) {
+    return { ok: false, reason_code: "KIND_MISMATCH" };
+  }
+
+  const kind = payload.kind;
+  if (typeof kind !== "string" || kind.length === 0 || !expected.includes(kind)) {
+    return { ok: false, reason_code: "KIND_MISMATCH" };
   }
 
   if (expectedKind === "EvaluationAttestation" || expectedKind === "CandidateEvaluationAttestation" || expectedKind === "DeliveryAuthorization") {
@@ -474,36 +792,24 @@ function validateIdentityKind(payload, expectedKind) {
   }
 
   if (expectedKind === "Candidate") {
-    if (payload.kind && payload.kind !== "candidate/v2" && payload.kind !== "candidate/v1") {
-      return { ok: false, reason_code: "KIND_MISMATCH" };
-    }
     if (payload.work_result_id || payload.patch || payload.source_snapshot_id || payload.base_tree_digest) {
       return { ok: false, reason_code: "KIND_MISMATCH" };
     }
   }
 
   if (expectedKind === "SourceSnapshot") {
-    if (payload.kind && payload.kind !== "source-snapshot/v1") {
-      return { ok: false, reason_code: "KIND_MISMATCH" };
-    }
     if (payload.candidate_id || payload.work_order_id || payload.work_result_id) {
       return { ok: false, reason_code: "KIND_MISMATCH" };
     }
   }
 
   if (expectedKind === "WorkOrder") {
-    if (payload.kind && payload.kind !== "work-order/v2" && payload.kind !== "work-order/v1") {
-      return { ok: false, reason_code: "KIND_MISMATCH" };
-    }
     if (payload.candidate_id || payload.work_result_id) {
       return { ok: false, reason_code: "KIND_MISMATCH" };
     }
   }
 
   if (expectedKind === "WorkResult") {
-    if (payload.kind && payload.kind !== "work-result/v1") {
-      return { ok: false, reason_code: "KIND_MISMATCH" };
-    }
     if (payload.candidate_id) {
       return { ok: false, reason_code: "KIND_MISMATCH" };
     }
@@ -513,6 +819,8 @@ function validateIdentityKind(payload, expectedKind) {
 }
 
 module.exports = {
+  EXPECTED_KINDS,
+  validateCandidateV2,
   computeSourceSnapshotId,
   computeWorkOrderId,
   computeWorkResultId,

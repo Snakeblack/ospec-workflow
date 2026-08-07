@@ -396,6 +396,58 @@
       ],
       "enum_values": {},
       "command_shapes": []
+    },
+    "candidate-v2": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "candidate_id",
+        "repository_id",
+        "projection",
+        "base_tree",
+        "candidate_tree",
+        "diff_hash",
+        "paths",
+        "changed_paths_modes_digest",
+        "intended_untracked_digest",
+        "relation"
+      ],
+      "enum_values": {
+        "projection": [
+          "workspace",
+          "staged"
+        ]
+      },
+      "command_shapes": []
+    },
+    "work-order-v2": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "work_order_id",
+        "source_snapshot_id",
+        "node_id",
+        "role",
+        "status",
+        "operation",
+        "objective",
+        "dependencies",
+        "ownership",
+        "allowed_paths",
+        "invariants",
+        "required_evidence",
+        "budget"
+      ],
+      "enum_values": {
+        "status": [
+          "pending",
+          "in_progress",
+          "completed",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "command_shapes": []
     }
   }
 }

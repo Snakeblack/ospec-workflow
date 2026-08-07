@@ -1,7 +1,14 @@
 ---
 title: Known Issues
-last_updated: 2026-08-05
+last_updated: 2026-08-07
 ---
+
+## Task 4.4 work-unit commits still pending after K3 verify PASS
+- severity: WARNING
+- area: openspec/changes/k3-identities-boundary-closure (task 4.4 Conventional Commits)
+- workaround: create Spanish Conventional Commits without AI attribution (schemas → runtime → tests); harness Co-authored-by injection must be avoided so the repo commit-msg hook accepts the message
+- change: k3-identities-boundary-closure
+- date: 2026-08-07
 
 ## Host-boundary success observe lacks explicit ok:true assertion
 - severity: WARNING

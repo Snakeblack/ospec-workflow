@@ -10,9 +10,6 @@
     "work_order_id": {
       "type": "string"
     },
-    "source_snapshot_id": {
-      "type": "string"
-    },
     "node_id": {
       "type": "string"
     },
@@ -83,7 +80,6 @@
   },
   "then": {
     "required": [
-      "source_snapshot_id",
       "operation",
       "dependencies",
       "ownership",

@@ -17,7 +17,7 @@ const K1_SCHEMA_BASELINE = Object.freeze({
   "schemas/kernel/candidate/fixtures/valid/minimal.json":
     "sha256:7e06ee4de1ab6b0578153f59199dd6212f78454dab5b8b05164c1cfe180187ce",
   "schemas/kernel/candidate/v1.schema.json":
-    "sha256:7cf47e0aa1e53f0c1ffe9581a5925654078c075b94ac3bc0822a9212b8f64b82",
+    "sha256:752c7a708300d64b8480b35ebf2897592df36246462d139004c8ec585556edfd",
   "schemas/kernel/classification/fixtures/invalid/minimal.json":
     "sha256:c9828b072931b6d0b3cd87c2ff8f98041f6362242403de93608dbc79e31de9ae",
   "schemas/kernel/classification/fixtures/valid/minimal.json":
@@ -25,7 +25,7 @@ const K1_SCHEMA_BASELINE = Object.freeze({
   "schemas/kernel/classification/v1.schema.json":
     "sha256:12e6c243ae59f4761b887c0b61693f8da03fd3e7aeba99e0fcde6064d0ce8464",
   "schemas/kernel/contract-claims.json":
-    "sha256:264ab72e8c7951b5a2cf3125523bdabff89f12704a747ba7c816f76d949196c0",
+    "sha256:a59bca2b38da5546ae574156881d257f147d576a9eeb2f91df3d67d28d305705",
   "schemas/kernel/contract/fixtures/invalid/minimal.json":
     "sha256:a189201f6655de8fdff50a1ccc7a1d6b1a58d3a7f8dcc829f3e90281f5a56af2",
   "schemas/kernel/contract/fixtures/valid/minimal.json":
@@ -69,7 +69,7 @@ const K1_SCHEMA_BASELINE = Object.freeze({
   "schemas/kernel/graph-node/v1.schema.json":
     "sha256:0b6fc9169f0573e9ccb8e8f3aa8c7c061e576552aaedb508a0caa786133ae21f",
   "schemas/kernel/manifest.json":
-    "sha256:896b9f59acc13432a35844c8f5ff707000e2c581211f06cf80109c205fb6177f",
+    "sha256:4e1af042a40e24f328e7f9f580ea3b2ecf7272646c65d31dcf5d28e938b6488f",
   "schemas/kernel/parity/fixtures/diverge-next-action.json":
     "sha256:4f8e8898655593c270776f7f6627caa6eb05f45ca5686126f60ddf6f9c756db5",
   "schemas/kernel/parity/fixtures/match-execute.json":
@@ -101,11 +101,11 @@ const K1_SCHEMA_BASELINE = Object.freeze({
   "schemas/kernel/work-order/fixtures/invalid/partial-canonical-work-order.json":
     "sha256:a306f74f38d25515ff3b18f1676ab56275f222a5b52f41b40b59f24a5162e207",
   "schemas/kernel/work-order/fixtures/valid/canonical-bounded-work-order.json":
-    "sha256:483aabfcd32bc80304629ee0b177c340d88a575255fed02cd32e41462a6ad76c",
+    "sha256:a85df3ab2a6f87e5ff901e1d135b48aac73fa2b101c579f5467e44ec3b1595a3",
   "schemas/kernel/work-order/fixtures/valid/minimal.json":
-    "sha256:59ec6b4ada83aaaab7460bd869da2dcc5331454f5001a892df16ff6d2c3b0b55",
+    "sha256:e6bfbc0e2489733b4976e95230c1e63750752026c6c1a6c52001cb4d85a0e409",
   "schemas/kernel/work-order/v1.schema.json":
-    "sha256:33cf07ac1f4439a0fbf2c1ff534228a0b397d801b0163fae57f1187f0e76ca39"
+    "sha256:a8204e0ff55a5175b33ada046928d82e32acb22d73068bbe2988ac1d50c921e5"
 });
 
 function digestFile(absolutePath) {
@@ -147,8 +147,13 @@ function listK1SchemaFiles(rootDir) {
     // K3 identity families and fixtures
     "schemas/kernel/source-snapshot/",
     "schemas/kernel/work-result/",
-    "schemas/kernel/candidate-v2/",
-    "schemas/kernel/work-order-v2/",
+    // Canonical v2 publication paths (not the old candidate-v2/ / work-order-v2/ trees)
+    "schemas/kernel/candidate/v2.schema.json",
+    "schemas/kernel/work-order/v2.schema.json",
+    "schemas/kernel/candidate/fixtures/valid/v2-",
+    "schemas/kernel/candidate/fixtures/invalid/v2-",
+    "schemas/kernel/work-order/fixtures/valid/v2-",
+    "schemas/kernel/work-order/fixtures/invalid/v2-",
     "schemas/kernel/candidate/fixtures/valid/k3-frozen.json",
     "schemas/kernel/candidate/fixtures/invalid/commit-projection.json",
     "schemas/kernel/candidate/fixtures/invalid/work-result-alias.json",

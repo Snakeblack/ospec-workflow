@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [2.42.1] - 2026-08-07
+
+### Fixed
+- **Cierre de Límites de Identidades K3 y Publicación Canónica v2** (`k3-identities-boundary-closure`):
+  - Gate de congelado `INVALID_FROZEN_CANDIDATE` en `evaluateCandidateRelation` rechazando baselines o targets no congelados o inválidos antes de evaluar relación.
+  - Discriminación positiva cerrada por tabla `EXPECTED_KINDS` en `validateIdentityKind` fallando ante kinds ausentes o incompatibles.
+  - Recomputación criptográfica completa en `validateWorkOrderBinding` y `validateWorkResultBinding` verificando payloads declarados contra digests de origen.
+  - Publicación de schemas v2 en rutas canónicas `schemas/kernel/candidate/v2.schema.json` y `schemas/kernel/work-order/v2.schema.json` con id estable `ospec://schemas/kernel/candidate/v2` y `ospec://schemas/kernel/work-order/v2`.
+  - Restauración exacta de bytes y pins `K1_SCHEMA_BASELINE` era `02e97a5` para `candidate/v1` y `work-order/v1`.
+  - Dominio digest `work-order/v2` para WorkOrder v2 con aislamiento respecto a `work-order/v1`.
+  - Promoción de 5 Decisiones de Arquitectura (`ADR-001` a `ADR-005`) en `docs/adr/`.
+
 ## [2.42.0] - 2026-08-07
 
 ### Added

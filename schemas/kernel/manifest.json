@@ -140,6 +140,16 @@
       "path": "schemas/kernel/work-result/v1.schema.json",
       "$id": "ospec://schemas/kernel/work-result/v1",
       "schema_version": 1
+    },
+    "candidate-v2": {
+      "path": "schemas/kernel/candidate/v2.schema.json",
+      "$id": "ospec://schemas/kernel/candidate/v2",
+      "schema_version": 2
+    },
+    "work-order-v2": {
+      "path": "schemas/kernel/work-order/v2.schema.json",
+      "$id": "ospec://schemas/kernel/work-order/v2",
+      "schema_version": 2
     }
   }
 }

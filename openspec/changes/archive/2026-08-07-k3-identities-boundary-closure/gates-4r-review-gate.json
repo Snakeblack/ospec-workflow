@@ -1,0 +1,372 @@
+{
+  "schema_version": 1,
+  "status": "approved",
+  "classification": "high-risk",
+  "evidence": {
+    "schema_version": 1,
+    "classification": "high-risk",
+    "fingerprint": "sha256:b3f68d77ac09ac3ab433984be8c5382aa601e66ac00a8fe80990a23fcf7e7bc2",
+    "sources": {
+      "paths": [
+        "openspec/changes/k3-identities-boundary-closure/apply-progress.md",
+        "openspec/changes/k3-identities-boundary-closure/decisions/adr-001.md",
+        "openspec/changes/k3-identities-boundary-closure/decisions/adr-002.md",
+        "openspec/changes/k3-identities-boundary-closure/decisions/adr-003.md",
+        "openspec/changes/k3-identities-boundary-closure/decisions/adr-004.md",
+        "openspec/changes/k3-identities-boundary-closure/decisions/adr-005.md",
+        "openspec/changes/k3-identities-boundary-closure/design.md",
+        "openspec/changes/k3-identities-boundary-closure/gates-4r-review-gate.json",
+        "openspec/changes/k3-identities-boundary-closure/proposal.md",
+        "openspec/changes/k3-identities-boundary-closure/specs/execution-identities/spec.md",
+        "openspec/changes/k3-identities-boundary-closure/specs/kernel-contract-schemas/spec.md",
+        "openspec/changes/k3-identities-boundary-closure/state.yaml",
+        "openspec/changes/k3-identities-boundary-closure/tasks.md",
+        "openspec/changes/k3-identities-boundary-closure/verify-report.md",
+        "openspec/memory/known-issues.md",
+        "schemas/kernel/candidate/v1.schema.json",
+        "schemas/kernel/candidate/v2.schema.json",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/work-order/v1.schema.json",
+        "schemas/kernel/work-order/v2.schema.json",
+        "scripts/lib/contract-checkers/k1-schema-compat.js",
+        "scripts/lib/execution-identities/index.js",
+        "scripts/lib/execution-identities/index.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k3-schema-fixtures.test.js",
+        "scripts/lib/kernel-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js"
+      ],
+      "capabilities": [
+        "runtime"
+      ],
+      "operation_types": [
+        "add",
+        "delete",
+        "modify"
+      ],
+      "dependencies": [],
+      "facts": [
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "4R WARNING remediation successor candidate"
+        },
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime"
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/execution-identities/index.js"
+        }
+      ]
+    }
+  },
+  "generalist": {
+    "status": "needs-specialist",
+    "specialists": [
+      "risk",
+      "reliability",
+      "resilience"
+    ],
+    "reason": "signals=design-risk,diff-error-flow,metadata-runtime;dimensions=risk,reliability,resilience"
+  },
+  "dimensions": {
+    "risk": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-error-flow,metadata-runtime;dimensions=risk,reliability,resilience",
+          "precedence": 3
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "4R WARNING remediation successor candidate",
+          "precedence": 4
+        }
+      ]
+    },
+    "reliability": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/execution-identities/index.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-error-flow,metadata-runtime;dimensions=risk,reliability,resilience",
+          "precedence": 3
+        },
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime",
+          "precedence": 5
+        }
+      ]
+    },
+    "resilience": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/execution-identities/index.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-error-flow,metadata-runtime;dimensions=risk,reliability,resilience",
+          "precedence": 3
+        }
+      ]
+    },
+    "readability": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        }
+      ]
+    }
+  },
+  "selected_specialists": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "predecessor_lineage_id": "sha256:fb1470040e4ec2b3ff20c63ec62a8f0e27665bac645715fc5d08c3672eae4dba",
+  "lineage": {
+    "schema_version": 1,
+    "lineage_id": "sha256:02393f510cd8381efb2a136f6f1ec6f9687edaca062a0b6c6d956fad8d6b27f8",
+    "generation": 2,
+    "predecessor_lineage_id": "sha256:fb1470040e4ec2b3ff20c63ec62a8f0e27665bac645715fc5d08c3672eae4dba",
+    "recovery": {
+      "reason": "new-scope: remediate advisory 4R WARNINGs before archive",
+      "approval_reference": "architecture-bounded-review-001"
+    },
+    "revision": 9,
+    "status": "approved",
+    "genesis": {
+      "candidate": {
+        "projection": "workspace",
+        "base_tree": "sha256:cca71ec350dc4aee196798a2fb664055217741f1ce7bbe749a8a6fa81203ac55",
+        "candidate_tree": "sha256:fe8e3f5ed56583b9c6b2681104e432c62f072ff18df039e24d9042cad521b470",
+        "paths": [
+          "openspec/changes/k3-identities-boundary-closure/apply-progress.md",
+          "openspec/changes/k3-identities-boundary-closure/decisions/adr-001.md",
+          "openspec/changes/k3-identities-boundary-closure/decisions/adr-002.md",
+          "openspec/changes/k3-identities-boundary-closure/decisions/adr-003.md",
+          "openspec/changes/k3-identities-boundary-closure/decisions/adr-004.md",
+          "openspec/changes/k3-identities-boundary-closure/decisions/adr-005.md",
+          "openspec/changes/k3-identities-boundary-closure/design.md",
+          "openspec/changes/k3-identities-boundary-closure/gates-4r-review-gate.json",
+          "openspec/changes/k3-identities-boundary-closure/proposal.md",
+          "openspec/changes/k3-identities-boundary-closure/specs/execution-identities/spec.md",
+          "openspec/changes/k3-identities-boundary-closure/specs/kernel-contract-schemas/spec.md",
+          "openspec/changes/k3-identities-boundary-closure/state.yaml",
+          "openspec/changes/k3-identities-boundary-closure/tasks.md",
+          "openspec/changes/k3-identities-boundary-closure/verify-report.md",
+          "openspec/memory/known-issues.md",
+          "schemas/kernel/candidate/v1.schema.json",
+          "schemas/kernel/candidate/v2.schema.json",
+          "schemas/kernel/contract-claims.json",
+          "schemas/kernel/manifest.json",
+          "schemas/kernel/work-order/v1.schema.json",
+          "schemas/kernel/work-order/v2.schema.json",
+          "scripts/lib/contract-checkers/k1-schema-compat.js",
+          "scripts/lib/execution-identities/index.js",
+          "scripts/lib/execution-identities/index.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/k3-schema-fixtures.test.js",
+          "scripts/lib/kernel-schema-fixtures.test.js",
+          "scripts/lib/lifecycle-kernel/k1-compat.js"
+        ],
+        "diff_hash": "sha256:d7adf5f10df3d41be9ea0a98d74609d820ef9fc957215273861e9bae9463587a",
+        "paths_digest": "sha256:1eab5fa140f4d64ddf7461f571d0ee93f09c9464654f75114fa92f3cd379132c",
+        "authored_lines": 4274,
+        "original_changed_lines": 4274
+      },
+      "candidate_id": "sha256:c836416e79331c887ab184edad4f06499a473ced828c5ac78828c68013186c16",
+      "paths": [
+        "openspec/changes/k3-identities-boundary-closure/apply-progress.md",
+        "openspec/changes/k3-identities-boundary-closure/decisions/adr-001.md",
+        "openspec/changes/k3-identities-boundary-closure/decisions/adr-002.md",
+        "openspec/changes/k3-identities-boundary-closure/decisions/adr-003.md",
+        "openspec/changes/k3-identities-boundary-closure/decisions/adr-004.md",
+        "openspec/changes/k3-identities-boundary-closure/decisions/adr-005.md",
+        "openspec/changes/k3-identities-boundary-closure/design.md",
+        "openspec/changes/k3-identities-boundary-closure/gates-4r-review-gate.json",
+        "openspec/changes/k3-identities-boundary-closure/proposal.md",
+        "openspec/changes/k3-identities-boundary-closure/specs/execution-identities/spec.md",
+        "openspec/changes/k3-identities-boundary-closure/specs/kernel-contract-schemas/spec.md",
+        "openspec/changes/k3-identities-boundary-closure/state.yaml",
+        "openspec/changes/k3-identities-boundary-closure/tasks.md",
+        "openspec/changes/k3-identities-boundary-closure/verify-report.md",
+        "openspec/memory/known-issues.md",
+        "schemas/kernel/candidate/v1.schema.json",
+        "schemas/kernel/candidate/v2.schema.json",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/work-order/v1.schema.json",
+        "schemas/kernel/work-order/v2.schema.json",
+        "scripts/lib/contract-checkers/k1-schema-compat.js",
+        "scripts/lib/execution-identities/index.js",
+        "scripts/lib/execution-identities/index.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k3-schema-fixtures.test.js",
+        "scripts/lib/kernel-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js"
+      ],
+      "classification": "high-risk",
+      "selected_dimensions": [
+        "risk",
+        "reliability",
+        "resilience",
+        "readability"
+      ],
+      "evidence_fingerprint": "sha256:b3f68d77ac09ac3ab433984be8c5382aa601e66ac00a8fe80990a23fcf7e7bc2",
+      "original_changed_lines": 4274,
+      "authored_lines": 4274
+    },
+    "current_candidate_id": "sha256:c836416e79331c887ab184edad4f06499a473ced828c5ac78828c68013186c16",
+    "current_candidate": {
+      "projection": "workspace",
+      "base_tree": "sha256:cca71ec350dc4aee196798a2fb664055217741f1ce7bbe749a8a6fa81203ac55",
+      "candidate_tree": "sha256:fe8e3f5ed56583b9c6b2681104e432c62f072ff18df039e24d9042cad521b470",
+      "paths": [
+        "openspec/changes/k3-identities-boundary-closure/apply-progress.md",
+        "openspec/changes/k3-identities-boundary-closure/decisions/adr-001.md",
+        "openspec/changes/k3-identities-boundary-closure/decisions/adr-002.md",
+        "openspec/changes/k3-identities-boundary-closure/decisions/adr-003.md",
+        "openspec/changes/k3-identities-boundary-closure/decisions/adr-004.md",
+        "openspec/changes/k3-identities-boundary-closure/decisions/adr-005.md",
+        "openspec/changes/k3-identities-boundary-closure/design.md",
+        "openspec/changes/k3-identities-boundary-closure/gates-4r-review-gate.json",
+        "openspec/changes/k3-identities-boundary-closure/proposal.md",
+        "openspec/changes/k3-identities-boundary-closure/specs/execution-identities/spec.md",
+        "openspec/changes/k3-identities-boundary-closure/specs/kernel-contract-schemas/spec.md",
+        "openspec/changes/k3-identities-boundary-closure/state.yaml",
+        "openspec/changes/k3-identities-boundary-closure/tasks.md",
+        "openspec/changes/k3-identities-boundary-closure/verify-report.md",
+        "openspec/memory/known-issues.md",
+        "schemas/kernel/candidate/v1.schema.json",
+        "schemas/kernel/candidate/v2.schema.json",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/work-order/v1.schema.json",
+        "schemas/kernel/work-order/v2.schema.json",
+        "scripts/lib/contract-checkers/k1-schema-compat.js",
+        "scripts/lib/execution-identities/index.js",
+        "scripts/lib/execution-identities/index.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k3-schema-fixtures.test.js",
+        "scripts/lib/kernel-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js"
+      ],
+      "diff_hash": "sha256:d7adf5f10df3d41be9ea0a98d74609d820ef9fc957215273861e9bae9463587a",
+      "paths_digest": "sha256:1eab5fa140f4d64ddf7461f571d0ee93f09c9464654f75114fa92f3cd379132c",
+      "authored_lines": 4274,
+      "original_changed_lines": 4274
+    },
+    "lenses": {
+      "risk": {
+        "selected": true,
+        "status": "completed",
+        "request_id": "lens-start-risk-k3-successor",
+        "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+        "result": {
+          "findings": []
+        },
+        "operation": null,
+        "result_request_id": "lens-result-risk-k3-successor"
+      },
+      "reliability": {
+        "selected": true,
+        "status": "completed",
+        "request_id": "lens-start-reliability-k3-successor",
+        "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+        "result": {
+          "findings": []
+        },
+        "operation": null,
+        "result_request_id": "lens-result-reliability-k3-successor"
+      },
+      "resilience": {
+        "selected": true,
+        "status": "completed",
+        "request_id": "lens-start-resilience-k3-successor",
+        "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+        "result": {
+          "findings": []
+        },
+        "operation": null,
+        "result_request_id": "lens-result-resilience-k3-successor"
+      },
+      "readability": {
+        "selected": true,
+        "status": "completed",
+        "request_id": "lens-start-readability-k3-successor",
+        "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+        "result": {
+          "findings": []
+        },
+        "operation": null,
+        "result_request_id": "lens-result-readability-k3-successor"
+      }
+    },
+    "findings": [],
+    "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+    "correction_budget": {
+      "limit_lines": 200,
+      "used_lines": 0,
+      "failed_attempts": 0,
+      "max_failed_attempts": 3
+    },
+    "correction_history": [],
+    "validation_history": [],
+    "follow_ups": [],
+    "pending_operation": null,
+    "pending_correction": null,
+    "terminal_reason": "no-unresolved-blocking-findings"
+  },
+  "successor_of": "sha256:fb1470040e4ec2b3ff20c63ec62a8f0e27665bac645715fc5d08c3672eae4dba",
+  "findings_summary": {
+    "total": 0,
+    "blocking": 0,
+    "by_severity": {}
+  }
+}
