@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "change": "k3-identities-boundary-closure",
+  "source_fingerprint": "sha256:8b76d4c2cfe4d9f7b4ed38a2a48d932df3fccd34bc10305de194ee675346ed48",
+  "spec_writes": [
+    {
+      "domain": "execution-identities",
+      "source_delta": "specs/execution-identities/spec.md",
+      "target": "openspec/specs/execution-identities/spec.md",
+      "target_before_sha256": "sha256:065aa4d99c0e981f2d4b708635a478da1b13b51bb5cb3a3783d3dc21e74ecb81",
+      "content_sha256": "sha256:f6f7b606022168e0855c6be308be0793efaf0e46baa3bedeb9b7b4d2801cf411"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "specs/kernel-contract-schemas/spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:fec2021ee023828237f0678d4408607a213682b35de0a8876020209654a54a6b",
+      "content_sha256": "sha256:f3fa3d373082c1064e29d48d11c2b5e6bf7124712f0cd604692530cee750e9af"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260807-001-canonical-v2-identity-schemas-and-registry.md",
+      "content_sha256": "sha256:e9c0ab97ad433b16aaaf9e696a8644bd95111a516d26c609e0bed42f101f29dd"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260807-002-two-argument-cryptographic-binding-validation.md",
+      "content_sha256": "sha256:4207b91d676fd9fc438f75bb81abdd06e258690e8e67428c349f1cd1102e6c43"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260807-003-k1-schema-and-baseline-pin-restoration.md",
+      "content_sha256": "sha256:d2e2db09bafa08d64e5c410c7062be3105b69444b7ad3994fad2d272bb098269"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260807-004-work-order-v2-digest-domain-separation.md",
+      "content_sha256": "sha256:5e4f96d75ad41f640cbac96c5e3f6277d33c1083d3cc4e2e4f8c4954a2a8901e"
+    },
+    {
+      "source": "decisions/adr-005.md",
+      "target": "docs/adr/adr-20260807-005-expected-kinds-positive-identity-discrimination.md",
+      "content_sha256": "sha256:50eec525abd61a4cd5958a3e635bfe8985295a165900be25b6d2a4134278fd53"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "decisions/adr-005.md",
+    "design.md",
+    "gates-4r-review-gate.json",
+    "proposal.md",
+    "specs/execution-identities/spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

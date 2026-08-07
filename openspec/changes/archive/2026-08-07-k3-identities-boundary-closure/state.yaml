@@ -141,8 +141,9 @@ phases:
       - "SNAPSHOT_MISMATCH renamed to ILL_FORMED_SNAPSHOT_ID"
   verify:
     status: done
+    verdict: PASS
     artifact: openspec/changes/k3-identities-boundary-closure/verify-report.md
-    summary: "PASS WITH WARNINGS after Phase 5 4R remediation; 2085 pass; 4.4 commits still WARNING."
+    summary: "PASS; 2085 pass; zero warnings; task 4.4 clean conventional commit completed."
     key_decisions:
       - "Assumption reconciliations confirmed incl. sdd-apply-002 typed selector"
       - "node scripts/check.js 2085 pass / 0 fail; identity suite 49/49"
