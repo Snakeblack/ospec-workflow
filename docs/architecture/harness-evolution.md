@@ -2,7 +2,7 @@
 
 > **Autoridad:** fuente conceptual y estratégica del harness (responsabilidades y límites).
 > **Corte documental:** v2.40.0, 2026-08-05.
-> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1** y **K2a** están entregados (K2a archivado y publicado en v2.40.0). **K3** es next-eligible.
+> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a** y **K3** están entregados (K3 archivado y congelado como baseline estable en v2.42.3). **K4a** es next-eligible.
 > **Roadmap:** orden, estado operativo y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
 > **Precedencia documental:** ante diferencias de **orden o estado**, prevalece el roadmap; ante diferencias **conceptuales**, reconciliar antes de iniciar el slice.
 > **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md).
@@ -21,7 +21,7 @@ Sin duplicar el backlog: solo responsabilidades y límites alineados al roadmap 
 
 | Tema | Decisión arquitectónica |
 | --- | --- |
-| Estado | K1+K2+K2.1+K2a `done`; **K3** next-eligible (`pending` desbloqueado; no es estado OpenSpec distinto) |
+| Estado | K1+K2+K2.1+K2a+K3 `done`; **K4a** next-eligible (`pending` desbloqueado; no es estado OpenSpec distinto) |
 | Dos grafos | **Execution Graph** (trabajo) ≠ **Assurance Graph** (fiabilidad / evidencia; no “prueba formal”) |
 | Identidades | `SourceSnapshotId` / `WorkOrderId` / `WorkResultId` / `CandidateId` (sin IDs nuevos por ahora) |
 | Relación Candidate | Inicial: `exact` / `changed` / `ambiguous` / `unknown`; `compatible-base-advance` experimental hasta K9 |

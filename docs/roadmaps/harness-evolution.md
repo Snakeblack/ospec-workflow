@@ -40,7 +40,7 @@ La columna vertebral se conserva: lifecycle (+ **Authority Store** + **Minimal K
 
 Este programa **no** sustituye el roadmap por un “OSPEC v3” paralelo. Los deltas K2.1–K12 refuerzan la dirección ya fijada (runtime-owned lifecycle, Execution ≠ Assurance, cuatro identidades, separación worker/verifier/reviewer/delivery, Attestation ≠ Authorization, invalidación selectiva, shadow/A-B antes de defaults, rollout por perfil/target, rutas como recetas). OpenSpec y Git siguen siendo la autoridad semántica; el kernel posee transiciones, permisos, budgets, digests y efectos mecánicos; los modelos no se aprueban ni se conceden permisos a sí mismos.
 
-O2B cerró el gate inicial. El change `fixed-policy-reference-baseline` obtuvo verify `PASS` para 16/16 MUST y evidencia Strict TDD autenticada, superó el gate 4R con estado `approved` y quedó archivado en `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`. La versión v2.36.0 que lo contiene ya está publicada. K1 (`k1-contract-suite`) cerró con verify `PASS`, gate 4R `approved` (2 CRITICAL remediados), archive transaccional en `openspec/changes/archive/2026-08-03-k1-contract-suite/` y publicación en v2.37.0. K2 (`k2-lifecycle-kernel`) cerró con verify `PASS`, gate 4R `approved` (3 CRITICAL remediados + 7 WARNING follow-up), archive transaccional en `openspec/changes/archive/2026-08-04-k2-lifecycle-kernel/` y publicación en v2.38.0. K2.1 (`k2-1-authority-store-permits`) cerró con verify `PASS`, gate 4R `approved` (8 bloqueantes remediados + 10 WARNING advisory), archive transaccional en `openspec/changes/archive/2026-08-04-k2-1-authority-store-permits/` y publicación en v2.39.0. K2a (`k2a-headless-conformance-host`) cerró con verify `PASS WITH WARNINGS`, gate 4R `approved` (4 CRITICAL remediados + 11 WARNING advisory), archive transaccional en `openspec/changes/archive/2026-08-04-k2a-headless-conformance-host/` y publicación en v2.40.0. K2.1b (`k2-1b-permit-issuance-atomic-consume`) cerró con verify `PASS WITH WARNINGS`, gate 4R `approved` (3 CRITICAL remediados), archive y v2.40.1. k2a-1 (`k2a-1-live-capability-probes-async-transports`) cerró con verify `PASS WITH WARNINGS`, gate 4R `approved` (4 CRITICAL remediados); plan de archive emitido — transacción runtime pendiente. **K3** es la siguiente iniciativa **next-eligible**; el resto de iniciativas posteriores permanece `pending`. Fixed continúa como control/default hasta que los gates posteriores autoricen otro cambio.
+O2B cerró el gate inicial. El change `fixed-policy-reference-baseline` obtuvo verify `PASS` para 16/16 MUST y evidencia Strict TDD autenticada, superó el gate 4R con estado `approved` y quedó archivado en `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`. La versión v2.36.0 que lo contiene ya está publicada. K1 (`k1-contract-suite`) cerró con verify `PASS`, gate 4R `approved` (2 CRITICAL remediados), archive transaccional en `openspec/changes/archive/2026-08-03-k1-contract-suite/` y publicación en v2.37.0. K2 (`k2-lifecycle-kernel`) cerró con verify `PASS`, gate 4R `approved` (3 CRITICAL remediados + 7 WARNING follow-up), archive transaccional en `openspec/changes/archive/2026-08-04-k2-lifecycle-kernel/` y publicación en v2.38.0. K2.1 (`k2-1-authority-store-permits`) cerró con verify `PASS`, gate 4R `approved` (8 bloqueantes remediados + 10 WARNING advisory), archive transaccional en `openspec/changes/archive/2026-08-04-k2-1-authority-store-permits/` y publicación en v2.39.0. K2a (`k2a-headless-conformance-host`) cerró con verify `PASS WITH WARNINGS`, gate 4R `approved` (4 CRITICAL remediados + 11 WARNING advisory), archive transaccional en `openspec/changes/archive/2026-08-04-k2a-headless-conformance-host/` y publicación en v2.40.0. K2.1b (`k2-1b-permit-issuance-atomic-consume`) cerró con verify `PASS WITH WARNINGS`, gate 4R `approved` (3 CRITICAL remediados), archive y v2.40.1. k2a-1 (`k2a-1-live-capability-probes-async-transports`) cerró con verify `PASS WITH WARNINGS`, gate 4R `approved` (4 CRITICAL remediados). **K3** cerró y se encuentra congelado como baseline estable (v2.42.3) sin más micro-modificaciones salvo regresiones explícitas. **K4a** es la siguiente iniciativa **next-eligible**; el resto de iniciativas posteriores permanece `pending`. Fixed continúa como control/default hasta que los gates posteriores autoricen otro cambio.
 
 Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R1 se rebasan sobre un kernel común; O7+O10 se convierte en capacidades; O9+O11 en invalidación/recompilación; O14 en routing por nodo; R4 consume el mismo Execution Graph. O8 y O12 conservan shadow, compatibilidad y deprecación. Targets y R2 siguen subordinados a la estabilidad del core.
 
@@ -72,8 +72,8 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **K2a** | Headless Conformance Host + Claude adapter + CapabilityProof; archivado y publicado en v2.40.0 |
 | `done` | **K2.1b** | Controlled issuer + atomic CAS consume/receipt (corrective pre-K3); archivado y publicado en v2.40.1 |
 | `done` | **k2a-1** | Live capability probes + async transports (corrective pre-K3); verify PASS WITH WARNINGS + 4R approved; archive plan emitido |
-| `next-eligible` | **K3** | Cuatro identidades + Candidate freeze + relación básica (`exact`/`changed`/`ambiguous`/`unknown`) |
-| `pending` | K4a | Graph compiler + Obligation Manifest + replay (sin worker autoritativo) |
+| `done` | **K3** | Cuatro identidades + Candidate freeze + relación básica; archivado y publicado en v2.42.3 (baseline estable congelada) |
+| `next-eligible` | **K4a** | Graph compiler + Obligation Manifest + replay (sin worker autoritativo) |
 | `pending` | K5 | Budgets (incl. autoridad/efectos), failures y recovery |
 | `pending` | K6a | Worker isolation / work-order capsule |
 | `pending` | K4b | Repair shadow execution (WO→WR→integrate→Candidate) |
@@ -181,11 +181,11 @@ Campo canónico de binding al candidato: **`candidate_id`** (no `candidate_diges
 
 ```text
 Entregado:
-G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2 → K2.1 → K2a
-                                                                              ↓
-Next eligible:                                                               K3
-                                                                              ↓
-Pending:     K3 → K4a → K5 → K6a → K4b → K6b → K6c → K6d → K7 → K8
+G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2 → K2.1 → K2a → K3
+                                                                               ↓
+Next eligible:                                                               K4a
+                                                                               ↓
+Pending:     K4a → K5 → K6a → K4b → K6b → K6c → K6d → K7 → K8
                                                                   ↓
 Promoción:                                                       K9
                                                                   ↓
@@ -779,7 +779,7 @@ K3 bloquea **Evaluation Attestation** y **Delivery Authorization** (y la vertica
 
 K4 se parte porque el aislamiento real del worker llega en K6a. **Verbos:** K4a **compila**; K4b **orquesta**; K6a **ejecuta**; K3 **identifica**. Compilar y validar el grafo **no** implica ejecutar un worker nuevo con autoridad.
 
-### K4a — Execution Graph compiler y replay — **pending**
+### K4a — Execution Graph compiler y replay — **next-eligible**
 
 **Dependencias:** K2a + K3.
 
