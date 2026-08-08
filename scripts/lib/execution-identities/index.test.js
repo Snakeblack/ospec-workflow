@@ -1691,6 +1691,18 @@ test("K3 Remediation: SourceSnapshot own-ID integrity and freezeCandidate schema
     });
   }, /non-empty strings/i);
 
+  // freezeCandidate rejects non-string diffText
+  assert.throws(() => {
+    freezeCandidate({
+      repositoryId: "repo-1",
+      projection: "workspace",
+      baseTree: DIGEST_A,
+      candidateTree: DIGEST_B,
+      diffText: { invalid: true },
+      paths: ["src/index.js"]
+    });
+  }, /diffText must be a string/i);
+
   // freezeCandidate output always passes validateCandidateV2
   const frozen = freezeCandidate({
     repositoryId: "repo-1",
