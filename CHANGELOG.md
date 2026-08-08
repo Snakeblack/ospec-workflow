@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [2.42.6] - 2026-08-08
+
+### Fixed
+- **Endurecimiento de Tipo String en `freezeCandidate` diffText**:
+  - Validación explícita de tipo `string` para la propiedad opcional `diffText` en `freezeCandidate`, rechazando valores no-string fail-closed con `TypeError`.
+  - Cobertura de prueba unitaria verificando el rechazo de objetos o tipos no-string en `diffText`.
+
 ## [2.42.5] - 2026-08-08
 
 ### Fixed

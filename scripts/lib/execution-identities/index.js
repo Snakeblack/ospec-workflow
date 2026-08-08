@@ -568,6 +568,9 @@ function freezeCandidate(input) {
   assertValidSha256(candidateTree, "candidate_tree");
 
   const diffText = input.diffText;
+  if (diffText !== undefined && typeof diffText !== "string") {
+    throw new TypeError("freezeCandidate diffText must be a string");
+  }
   const rawDiffHash = input.diffHash || input.diff_hash;
 
   let diffHash = "";
