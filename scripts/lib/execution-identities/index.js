@@ -69,16 +69,7 @@ function getWorkResultV1Schema() {
 function validateSourceSnapshotV1(snapshot) {
   if (!snapshot || typeof snapshot !== "object") return false;
   try {
-    let snapId = snapshot.source_snapshot_id || snapshot.sourceSnapshotId;
-    if (!snapId && snapshot.repository_id && snapshot.base_tree_digest && snapshot.projection) {
-      try { snapId = computeSourceSnapshotId(snapshot); } catch {}
-    }
-    const instance = {
-      schema_version: 1,
-      source_snapshot_id: snapId || "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-      ...snapshot
-    };
-    return validateInstance(getSourceSnapshotV1Schema(), instance).valid;
+    return validateInstance(getSourceSnapshotV1Schema(), snapshot).valid;
   } catch {
     return false;
   }
@@ -89,20 +80,7 @@ function validateWorkOrderSchema(workOrder) {
   try {
     const isV2 = isWorkOrderV2(workOrder);
     const schema = isV2 ? getWorkOrderV2Schema() : getWorkOrderV1Schema();
-    let orderId = workOrder.work_order_id || workOrder.workOrderId;
-    if (!orderId) {
-      try { orderId = computeWorkOrderId(workOrder); } catch {}
-    }
-    const instance = {
-      schema_version: isV2 ? 2 : 1,
-      status: "pending",
-      work_order_id: orderId || "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-      ...workOrder
-    };
-    if (isV2 && !instance.kind) {
-      instance.kind = "work-order/v2";
-    }
-    return validateInstance(schema, instance).valid;
+    return validateInstance(schema, workOrder).valid;
   } catch {
     return false;
   }
@@ -111,16 +89,7 @@ function validateWorkOrderSchema(workOrder) {
 function validateWorkResultV1(workResult) {
   if (!workResult || typeof workResult !== "object") return false;
   try {
-    let resId = workResult.work_result_id || workResult.workResultId;
-    if (!resId) {
-      try { resId = computeWorkResultId(workResult); } catch {}
-    }
-    const instance = {
-      schema_version: 1,
-      work_result_id: resId || "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-      ...workResult
-    };
-    return validateInstance(getWorkResultV1Schema(), instance).valid;
+    return validateInstance(getWorkResultV1Schema(), workResult).valid;
   } catch {
     return false;
   }
@@ -499,10 +468,13 @@ function computeCandidateId(candidate) {
   if (!candidate || typeof candidate !== "object") {
     throw new TypeError("computeCandidateId requires a valid candidate object");
   }
-  const repositoryId = candidate.repositoryId || candidate.repository_id || "";
-  const projection = candidate.projection || "";
-  if (!projection) {
-    throw new Error("computeCandidateId requires projection");
+  const repositoryId = candidate.repositoryId || candidate.repository_id;
+  if (!repositoryId || typeof repositoryId !== "string" || repositoryId.length < 1) {
+    throw new Error("computeCandidateId requires non-empty repository_id");
+  }
+  const projection = candidate.projection;
+  if (projection !== "workspace" && projection !== "staged") {
+    throw new Error(`computeCandidateId requires valid projection (workspace|staged). Received: ${projection}`);
   }
 
   const baseTree = candidate.baseTree || candidate.base_tree || "";
@@ -523,11 +495,22 @@ function computeCandidateId(candidate) {
   }
   assertValidSha256(diffHash, "diff_hash");
 
-  const paths = resolveArrayField(candidate.pathsDigest, candidate.paths, "paths");
-  const changedPathsModesDigest = candidate.changedPathsModesDigest || candidate.changed_paths_modes_digest || "";
-  if (changedPathsModesDigest) {
-    assertValidSha256(changedPathsModesDigest, "changed_paths_modes_digest");
+  const rawPaths = candidate.paths !== undefined ? candidate.paths : candidate.pathsDigest;
+  if (rawPaths === undefined) {
+    throw new Error("computeCandidateId requires paths array");
   }
+  const paths = resolveArrayField(candidate.pathsDigest, candidate.paths, "paths");
+  for (const item of paths) {
+    if (typeof item !== "string") {
+      throw new TypeError(`Field paths array items must be strings. Received: ${typeof item}`);
+    }
+  }
+
+  const changedPathsModesDigest = candidate.changedPathsModesDigest || candidate.changed_paths_modes_digest;
+  if (!changedPathsModesDigest) {
+    throw new Error("computeCandidateId requires changed_paths_modes_digest");
+  }
+  assertValidSha256(changedPathsModesDigest, "changed_paths_modes_digest");
 
   const intendedUntrackedDigest = candidate.intendedUntrackedDigest !== undefined
     ? candidate.intendedUntrackedDigest
@@ -1041,6 +1024,24 @@ function validateIdentityKind(payload, expectedKind) {
   if (expectedKind === "WorkResult") {
     if (payload.candidate_id) {
       return { ok: false, reason_code: "KIND_MISMATCH" };
+    }
+  }
+
+  if (expectedKind === "SourceSnapshot") {
+    if (!validateSourceSnapshotV1(payload)) {
+      return { ok: false, reason_code: "INVALID_SCHEMA" };
+    }
+  } else if (expectedKind === "WorkOrder") {
+    if (!validateWorkOrderSchema(payload)) {
+      return { ok: false, reason_code: "INVALID_SCHEMA" };
+    }
+  } else if (expectedKind === "WorkResult") {
+    if (!validateWorkResultV1(payload)) {
+      return { ok: false, reason_code: "INVALID_SCHEMA" };
+    }
+  } else if (expectedKind === "Candidate") {
+    if (!validateCandidateV2(payload)) {
+      return { ok: false, reason_code: "INVALID_SCHEMA" };
     }
   }
 

@@ -444,14 +444,19 @@ test("REQ-execution-identities-004: freezeCandidate constructs candidate/v2 with
 
 test("REQ-execution-identities-003: validateWorkOrderBinding and validateWorkResultBinding fail-closed validation", () => {
   const sourceSnapshot = {
+    schema_version: 1,
     repository_id: "repo-1",
     base_tree_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     projection: "workspace",
     dependency_digests: []
   };
   const snapshotId = computeSourceSnapshotId(sourceSnapshot);
+  sourceSnapshot.source_snapshot_id = snapshotId;
 
   const workOrderFields = {
+    kind: "work-order/v2",
+    schema_version: 2,
+    status: "pending",
     source_snapshot_id: snapshotId,
     node_id: "node-1",
     role: "worker",
@@ -468,6 +473,7 @@ test("REQ-execution-identities-003: validateWorkOrderBinding and validateWorkRes
   const workOrder = { ...workOrderFields, work_order_id: workOrderId };
 
   const workResultFields = {
+    schema_version: 1,
     work_order_id: workOrderId,
     source_snapshot_id: snapshotId,
     patch: "diff...",
@@ -637,6 +643,9 @@ test("Adversarial Scenario 5: WorkOrder(S1) + WorkResult(S2) yields REJECT SOURC
   const s2 = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
 
   const orderFields = {
+    kind: "work-order/v2",
+    schema_version: 2,
+    status: "pending",
     source_snapshot_id: s1,
     node_id: "node-1",
     role: "worker",
@@ -653,6 +662,7 @@ test("Adversarial Scenario 5: WorkOrder(S1) + WorkResult(S2) yields REJECT SOURC
   const order = { ...orderFields, work_order_id: wId };
 
   const resultFields = {
+    schema_version: 1,
     work_order_id: wId,
     source_snapshot_id: s2,
     patch: "diff",
@@ -863,15 +873,20 @@ test("K3-2.5: compatible EXPECTED_KINDS kind → pass", () => {
   assert.equal(res.ok, true);
 });
 
-test("K3-2.6: binding spoof — declared IDs string-equal but payload mutated → binding fail", () => {
+test("K3-2.6: binding spoof — declared IDs string-equal but payload mutated → binding", () => {
   const sourceSnapshot = {
+    schema_version: 1,
     repository_id: "repo-1",
     base_tree_digest: DIGEST_A,
     projection: "workspace",
     dependency_digests: []
   };
   const snapshotId = computeSourceSnapshotId(sourceSnapshot);
+  sourceSnapshot.source_snapshot_id = snapshotId;
   const orderFields = {
+    kind: "work-order/v2",
+    schema_version: 2,
+    status: "pending",
     source_snapshot_id: snapshotId,
     node_id: "node-1",
     role: "worker",
@@ -898,6 +913,7 @@ test("K3-2.6: binding spoof — declared IDs string-equal but payload mutated �
   );
 
   const resultFields = {
+    schema_version: 1,
     work_order_id: honestOrderId,
     source_snapshot_id: snapshotId,
     patch: "honest-patch",
@@ -1176,23 +1192,40 @@ test("4R-R4b: exit_code null / non-integer → computeWorkResultId throws", () =
 
 test("4R-R6: ill-formed declared snapshot id uses ILL_FORMED_SNAPSHOT_ID or INVALID_SCHEMA", () => {
   const sourceSnapshot = {
+    schema_version: 1,
     repository_id: "repo-1",
     base_tree_digest: DIGEST_A,
     projection: "workspace",
     dependency_digests: []
   };
   const sourceSnapshotId = computeSourceSnapshotId(sourceSnapshot);
+  sourceSnapshot.source_snapshot_id = sourceSnapshotId;
+
   const workOrder = {
+    kind: "work-order/v2",
+    schema_version: 2,
+    status: "pending",
     source_snapshot_id: "not-a-digest",
     work_order_id: DIGEST_A,
     node_id: "n1",
-    role: "implementer"
+    role: "implementer",
+    operation: "test",
+    objective: "verify",
+    dependencies: [],
+    ownership: { owner: "team", mode: "exclusive" },
+    allowed_paths: ["src/"],
+    invariants: [],
+    required_evidence: [],
+    budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
   };
   const res = validateWorkOrderBinding(sourceSnapshot, workOrder);
   assert.equal(res.ok, false);
   assert.ok(res.reason_code === "ILL_FORMED_SNAPSHOT_ID" || res.reason_code === "INVALID_SCHEMA");
 
   const honestOrder = {
+    kind: "work-order/v2",
+    schema_version: 2,
+    status: "pending",
     source_snapshot_id: sourceSnapshotId,
     node_id: "n1",
     role: "implementer",
@@ -1207,11 +1240,13 @@ test("4R-R6: ill-formed declared snapshot id uses ILL_FORMED_SNAPSHOT_ID or INVA
   };
   honestOrder.work_order_id = computeWorkOrderId(honestOrder);
   const mismatchSnap = {
+    schema_version: 1,
     repository_id: "repo-1",
     base_tree_digest: DIGEST_B,
     projection: "workspace",
     dependency_digests: []
   };
+  mismatchSnap.source_snapshot_id = computeSourceSnapshotId(mismatchSnap);
   const mismatch = validateWorkOrderBinding(mismatchSnap, honestOrder);
   assert.equal(mismatch.ok, false);
   assert.equal(mismatch.reason_code, "SOURCE_SNAPSHOT_MISMATCH");
@@ -1350,6 +1385,7 @@ test("REQ-execution-identities-008: validateIdentityKind accepts SourceSnapshot 
     projection: "workspace",
     dependency_digests: []
   };
+  snapWithoutKind.source_snapshot_id = computeSourceSnapshotId(snapWithoutKind);
   const snapWithKind = { ...snapWithoutKind, kind: "source-snapshot/v1" };
 
   assert.equal(validateIdentityKind(snapWithoutKind, "SourceSnapshot").ok, true);
@@ -1365,6 +1401,7 @@ test("REQ-execution-identities-008: validateIdentityKind accepts SourceSnapshot 
     exit_code: 0,
     filesystem_inventory: []
   };
+  resultWithoutKind.work_result_id = computeWorkResultId(resultWithoutKind);
   const resultWithKind = { ...resultWithoutKind, kind: "work-result/v1" };
 
   assert.equal(validateIdentityKind(resultWithoutKind, "WorkResult").ok, true);
@@ -1440,5 +1477,168 @@ test("K3 Remediation: binding gates enforce JSON Schema validation before digest
   assert.equal(resOrder.ok, false);
   assert.equal(resOrder.reason_code, "INVALID_SCHEMA");
 });
+
+test("K3 Remediation: unmutated raw payloads missing required schema fields fail-close with INVALID_SCHEMA", () => {
+  const validSnapshot = {
+    schema_version: 1,
+    repository_id: "repo",
+    base_tree_digest: DIGEST_A,
+    projection: "workspace",
+    dependency_digests: []
+  };
+  const snapshotId = computeSourceSnapshotId(validSnapshot);
+  validSnapshot.source_snapshot_id = snapshotId;
+
+  const fullOrder = {
+    kind: "work-order/v2",
+    schema_version: 2,
+    status: "pending",
+    source_snapshot_id: snapshotId,
+    node_id: "n1",
+    role: "worker",
+    operation: "build",
+    objective: "compile",
+    dependencies: [],
+    ownership: { owner: "dev", mode: "exclusive" },
+    allowed_paths: ["src/"],
+    invariants: [],
+    required_evidence: [],
+    budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
+  };
+  fullOrder.work_order_id = computeWorkOrderId(fullOrder);
+
+  // Raw WorkOrder compute-valid but missing kind / schema_version / status
+  const orderNoKind = { ...fullOrder };
+  delete orderNoKind.kind;
+  orderNoKind.work_order_id = computeWorkOrderId(orderNoKind);
+  assert.equal(validateWorkOrderBinding(validSnapshot, orderNoKind).reason_code, "INVALID_SCHEMA");
+
+  const orderNoSchemaVer = { ...fullOrder };
+  delete orderNoSchemaVer.schema_version;
+  assert.equal(validateWorkOrderBinding(validSnapshot, orderNoSchemaVer).reason_code, "INVALID_SCHEMA");
+
+  const orderNoStatus = { ...fullOrder };
+  delete orderNoStatus.status;
+  assert.equal(validateWorkOrderBinding(validSnapshot, orderNoStatus).reason_code, "INVALID_SCHEMA");
+
+  // Raw SourceSnapshot missing schema_version / source_snapshot_id
+  const snapNoSchemaVer = { ...validSnapshot };
+  delete snapNoSchemaVer.schema_version;
+  assert.equal(validateWorkOrderBinding(snapNoSchemaVer, fullOrder).reason_code, "INVALID_SCHEMA");
+
+  const snapNoId = { ...validSnapshot };
+  delete snapNoId.source_snapshot_id;
+  assert.equal(validateWorkOrderBinding(snapNoId, fullOrder).reason_code, "INVALID_SCHEMA");
+
+  // Raw WorkResult missing schema_version / work_result_id
+  const fullResult = {
+    schema_version: 1,
+    work_order_id: fullOrder.work_order_id,
+    source_snapshot_id: snapshotId,
+    patch: "diff",
+    commands: [],
+    logs: [],
+    exit_code: 0,
+    filesystem_inventory: []
+  };
+  fullResult.work_result_id = computeWorkResultId(fullResult);
+
+  const resultNoSchemaVer = { ...fullResult };
+  delete resultNoSchemaVer.schema_version;
+  assert.equal(validateWorkResultBinding(fullOrder, resultNoSchemaVer).reason_code, "INVALID_SCHEMA");
+
+  const resultNoId = { ...fullResult };
+  delete resultNoId.work_result_id;
+  assert.equal(validateWorkResultBinding(fullOrder, resultNoId).reason_code, "INVALID_SCHEMA");
+});
+
+test("REQ-execution-identities-007: computeCandidateId strictly enforces K3 parameters without defaulting", () => {
+  const validCandidate = {
+    repository_id: "repo-1",
+    projection: "workspace",
+    base_tree: DIGEST_A,
+    candidate_tree: DIGEST_B,
+    diff_hash: DIGEST_C,
+    paths: ["src/a.js"],
+    changed_paths_modes_digest: DIGEST_A
+  };
+
+  assert.ok(computeCandidateId(validCandidate).startsWith("sha256:"));
+
+  assert.throws(() => computeCandidateId({ ...validCandidate, repository_id: "" }), /repository_id/i);
+  assert.throws(() => computeCandidateId({ ...validCandidate, projection: "commit" }), /projection/i);
+  assert.throws(() => computeCandidateId({ ...validCandidate, paths: undefined, pathsDigest: undefined }), /paths/i);
+  assert.throws(() => computeCandidateId({ ...validCandidate, paths: [123] }), /paths/i);
+  assert.throws(() => computeCandidateId({ ...validCandidate, changed_paths_modes_digest: "" }), /changed_paths_modes_digest/i);
+});
+
+test("K3 Remediation: validateIdentityKind enforces JSON Schema validation on payloads with declared kind", () => {
+  assert.equal(validateIdentityKind({ kind: "source-snapshot/v1" }, "SourceSnapshot").reason_code, "INVALID_SCHEMA");
+  assert.equal(validateIdentityKind({ kind: "work-order/v2" }, "WorkOrder").reason_code, "INVALID_SCHEMA");
+  assert.equal(validateIdentityKind({ kind: "work-result/v1" }, "WorkResult").reason_code, "INVALID_SCHEMA");
+  assert.equal(validateIdentityKind({ kind: "candidate/v2" }, "Candidate").reason_code, "INVALID_SCHEMA");
+
+  // Complete schema-valid objects pass validateIdentityKind
+  const validSnapshot = {
+    kind: "source-snapshot/v1",
+    schema_version: 1,
+    source_snapshot_id: DIGEST_A,
+    repository_id: "repo",
+    base_tree_digest: DIGEST_B,
+    projection: "workspace",
+    dependency_digests: []
+  };
+  assert.equal(validateIdentityKind(validSnapshot, "SourceSnapshot").ok, true);
+
+  const validOrder = {
+    kind: "work-order/v2",
+    schema_version: 2,
+    status: "pending",
+    work_order_id: DIGEST_C,
+    source_snapshot_id: DIGEST_A,
+    node_id: "n1",
+    role: "worker",
+    operation: "build",
+    objective: "compile",
+    dependencies: [],
+    ownership: { owner: "dev", mode: "exclusive" },
+    allowed_paths: ["src/"],
+    invariants: [],
+    required_evidence: [],
+    budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
+  };
+  assert.equal(validateIdentityKind(validOrder, "WorkOrder").ok, true);
+
+  const validResult = {
+    kind: "work-result/v1",
+    schema_version: 1,
+    work_result_id: DIGEST_A,
+    work_order_id: DIGEST_C,
+    source_snapshot_id: DIGEST_A,
+    patch: "diff",
+    commands: [],
+    logs: [],
+    exit_code: 0,
+    filesystem_inventory: []
+  };
+  assert.equal(validateIdentityKind(validResult, "WorkResult").ok, true);
+
+  const validCandidate = {
+    kind: "candidate/v2",
+    schema_version: 2,
+    candidate_id: DIGEST_A,
+    repository_id: "repo",
+    projection: "workspace",
+    base_tree: DIGEST_A,
+    candidate_tree: DIGEST_B,
+    diff_hash: DIGEST_C,
+    paths: ["src/a.js"],
+    changed_paths_modes_digest: DIGEST_A,
+    intended_untracked_digest: null,
+    relation: "exact"
+  };
+  assert.equal(validateIdentityKind(validCandidate, "Candidate").ok, true);
+});
+
 
 

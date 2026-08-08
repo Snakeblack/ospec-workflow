@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [2.42.4] - 2026-08-08
+
+### Fixed
+- **Corrección de Cierre Contractual de Validación de Schemas K3 y Endurecimiento de Candidates**:
+  - Eliminación de la mutación/reparación previa de payloads en `validateSourceSnapshotV1`, `validateWorkOrderSchema` y `validateWorkResultV1`, garantizando validación pura sobre el objeto original recibido.
+  - Ejecución incondicional de validación de esquema JSON en `validateIdentityKind` para las entidades primarias (`SourceSnapshot`, `WorkOrder`, `WorkResult` y `Candidate`), eliminando el bypass cuando la propiedad `kind` estaba presente.
+  - Endurecimiento estricto de `computeCandidateId` para exigir propiedades canónicas K3 (`repository_id`, `projection` `workspace|staged`, `base_tree`, `candidate_tree`, `diff_hash`, `paths` arreglo de strings, `changed_paths_modes_digest`).
+  - Cobertura de pruebas unitarias y adversariales adicionales verificando el comportamiento fail-closed ante payloads sin reparar.
+
 ## [2.42.3] - 2026-08-08
 
 ### Fixed
