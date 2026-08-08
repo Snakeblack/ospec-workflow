@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [2.42.3] - 2026-08-08
+
+### Fixed
+- **Remediación Acumulativa de Schemas y Bindings Criptográficos K3** (`k3-cumulative-schema-binding-remediation`):
+  - Ejecución obligatoria de validación JSON Schema dentro de los gates de binding `validateWorkOrderBinding` (`SourceSnapshot` v1 y `WorkOrder` v2) y `validateWorkResultBinding` (`WorkOrder` v2 y `WorkResult` v1) previa a la recomputación criptográfica.
+  - Validación estructural contra JSON Schema v1 en `validateIdentityKind` para objetos `SourceSnapshot` y `WorkResult` sin propiedad `kind` (v1 des-kinded), rechazando objetos vacíos o malformados como `{}` fail-closed.
+  - Validación profunda de tipos y formatos de propiedades anidadas en `computeWorkOrderId` (`ownership` owner/mode, `budget` campos numéricos, `dependencies` ítems sha256) y `computeWorkResultId` (`patch` string, `commands` ítems, `logs` ítems, `filesystem_inventory` ítems).
+  - Limpieza de la tabla `EXPECTED_KINDS` en `validateIdentityKind` para restricción estricta de `Candidate` a `"candidate/v2"` y `WorkOrder` a `"work-order/v2"`.
+  - Inclusión de 58 pruebas TDD unitarias y adversariales garantizando 0 errores y 0 advertencias en todo el sistema.
+
 ## [2.42.2] - 2026-08-08
 
 ### Fixed

@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "change": "k3-cumulative-schema-binding-remediation",
+  "source_fingerprint": "sha256:5abb80084df8392d577a7fbb978014809352ad447e4956af155cbc0f4fe9c6c7",
+  "spec_writes": [
+    {
+      "domain": "execution-identities",
+      "source_delta": "specs/execution-identities/spec-merged.md",
+      "target": "openspec/specs/execution-identities/spec.md",
+      "content_sha256": "sha256:a6d8794ae809bfa5ed108b5fa455ebb1dc59a09b5e371e714fdfc741788fb7a7",
+      "target_before_sha256": "sha256:4044d95eb4cfabe2998bda2da5f33f9e5b95bbaff29392fc4dc782fe1234be9d"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/2026-08-08-mandatory-json-schema-validation-in-binding-gates.md",
+      "content_sha256": "sha256:319c93db9f98ec67eb06f6739326930384b709ccccac6576f0e8a6a591950bf0"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/2026-08-08-structural-schema-validation-for-un-kinded-v1-identity-payloads.md",
+      "content_sha256": "sha256:190ea416bf5d460e877bd7172edb735647ef6b2857aff8d5638ffeeed8f82fa8"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/2026-08-08-deep-property-shape-validation-in-identity-compute-functions.md",
+      "content_sha256": "sha256:208a9457cb509c3617dc8e51f18f2a38af11f9bd60e2426f8aabf94d8921313b"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "design.md",
+    "proposal.md",
+    "specs/execution-identities/spec-merged.md",
+    "specs/execution-identities/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

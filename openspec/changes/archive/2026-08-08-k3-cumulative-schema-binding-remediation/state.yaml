@@ -1,0 +1,71 @@
+change: k3-cumulative-schema-binding-remediation
+status: proposing
+created_at: 2026-08-08T02:26:00Z
+last_updated: 2026-08-08T02:26:00Z
+owner:
+  author: Manuel Retamozo
+  branch: fix/k3-cumulative-schema-binding-remediation
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "high-risk security/identity remediation on active project; standard route"
+  validated: true
+  validation_errors: []
+session:
+  execution_mode: automatic
+  delivery_strategy: exception-ok
+  reply_language: Spanish
+approvals:
+  - id: exec-mode-001
+    gate: execution-mode
+    decision: automatic
+    source: vscode/askQuestions
+    accepted_at: 2026-08-08T02:26:00Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+blocking_questions: []
+gates: {}
+phases:
+  proposal:
+    status: done
+    artifact: openspec/changes/k3-cumulative-schema-binding-remediation/proposal.md
+    summary: "Cumulative schema & cryptographic binding validation, structural v1 kind guard, deep compute shape validation."
+    key_decisions:
+      - "validateWorkOrderBinding and validateWorkResultBinding execute schema validation before digest checks"
+      - "validateIdentityKind for SourceSnapshot/WorkResult with kind:undefined requires schema v1 validation"
+      - "computeWorkOrderId and computeWorkResultId perform deep property shape checks"
+  spec:
+    status: done
+    artifact: openspec/changes/k3-cumulative-schema-binding-remediation/specs/execution-identities/spec.md
+    summary: "Cumulative schema & crypto binding requirements, structural v1 identity guard, deep compute shape validation."
+  design:
+    status: done
+    artifact: openspec/changes/k3-cumulative-schema-binding-remediation/design.md
+    summary: "Cumulative schema & crypto binding architecture, structural v1 identity guard, deep compute shape validation."
+    key_decisions:
+      - "Cumulative validation (schema-valid ∧ kind-valid ∧ digest-valid) in binding gates"
+      - "Structural v1 schema validation in validateIdentityKind for un-kinded payloads"
+      - "Deep property shape checks in computeWorkOrderId and computeWorkResultId"
+  tasks:
+    status: done
+    artifact: openspec/changes/k3-cumulative-schema-binding-remediation/tasks.md
+    summary: "8 tasks across 4 phases covering deep compute shape, structural v1 guard, cumulative schema-binding gates, and adversarial tests."
+  apply:
+    status: done
+    artifact: openspec/changes/k3-cumulative-schema-binding-remediation/apply-progress.md
+    summary: "Implemented cumulative JSON schema validation in binding gates, structural v1 identity guard in validateIdentityKind, deep compute shape validation, and 58 passing tests."
+  verify:
+    status: done
+    artifact: openspec/changes/k3-cumulative-schema-binding-remediation/verify-report.md
+    verdict: PASS
+    summary: "All 8 tasks verified against specs, design, and 58 passing unit tests (0 errors, 0 warnings)."
+baseline_fingerprints:
+  execution-identities: sha256:4044d95eb4cfabe2998bda2da5f33f9e5b95bbaff29392fc4dc782fe1234be9d
+  kernel-contract-schemas: sha256:b81fbfc2fa2c56ff6ae6b7fe0347f51fa2312bbb1f3cf7e53fc16a38666183aa
+assumptions: []

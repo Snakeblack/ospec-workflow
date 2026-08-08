@@ -8,11 +8,16 @@ const SHA256_REGEX = /^sha256:[a-f0-9]{64}$/;
 const CANDIDATE_V2_SCHEMA_ID = "ospec://schemas/kernel/candidate/v2";
 const DEFAULT_SCHEMA_ROOT = path.resolve(__dirname, "../../..");
 
+const SOURCE_SNAPSHOT_V1_SCHEMA_ID = "ospec://schemas/kernel/source-snapshot/v1";
+const WORK_ORDER_V2_SCHEMA_ID = "ospec://schemas/kernel/work-order/v2";
+const WORK_ORDER_V1_SCHEMA_ID = "ospec://schemas/kernel/work-order/v1";
+const WORK_RESULT_V1_SCHEMA_ID = "ospec://schemas/kernel/work-result/v1";
+
 const EXPECTED_KINDS = Object.freeze({
   SourceSnapshot: Object.freeze(["source-snapshot/v1"]),
-  WorkOrder: Object.freeze(["work-order/v1", "work-order/v2"]),
+  WorkOrder: Object.freeze(["work-order/v2"]),
   WorkResult: Object.freeze(["work-result/v1"]),
-  Candidate: Object.freeze(["candidate/v1", "candidate/v2"]),
+  Candidate: Object.freeze(["candidate/v2"]),
   // EvaluationAttestation aliases CandidateEvaluationAttestation (same provisional kind strings)
   EvaluationAttestation: Object.freeze(["candidate-evaluation-attestation/v1"]),
   CandidateEvaluationAttestation: Object.freeze(["candidate-evaluation-attestation/v1"]),
@@ -20,6 +25,106 @@ const EXPECTED_KINDS = Object.freeze({
 });
 
 let cachedCandidateV2Schema = null;
+let cachedSourceSnapshotV1Schema = null;
+let cachedWorkOrderV2Schema = null;
+let cachedWorkOrderV1Schema = null;
+let cachedWorkResultV1Schema = null;
+
+function getSourceSnapshotV1Schema() {
+  if (!cachedSourceSnapshotV1Schema) {
+    cachedSourceSnapshotV1Schema = loadSchemaById(SOURCE_SNAPSHOT_V1_SCHEMA_ID, {
+      rootDir: DEFAULT_SCHEMA_ROOT,
+    });
+  }
+  return cachedSourceSnapshotV1Schema;
+}
+
+function getWorkOrderV2Schema() {
+  if (!cachedWorkOrderV2Schema) {
+    cachedWorkOrderV2Schema = loadSchemaById(WORK_ORDER_V2_SCHEMA_ID, {
+      rootDir: DEFAULT_SCHEMA_ROOT,
+    });
+  }
+  return cachedWorkOrderV2Schema;
+}
+
+function getWorkOrderV1Schema() {
+  if (!cachedWorkOrderV1Schema) {
+    cachedWorkOrderV1Schema = loadSchemaById(WORK_ORDER_V1_SCHEMA_ID, {
+      rootDir: DEFAULT_SCHEMA_ROOT,
+    });
+  }
+  return cachedWorkOrderV1Schema;
+}
+
+function getWorkResultV1Schema() {
+  if (!cachedWorkResultV1Schema) {
+    cachedWorkResultV1Schema = loadSchemaById(WORK_RESULT_V1_SCHEMA_ID, {
+      rootDir: DEFAULT_SCHEMA_ROOT,
+    });
+  }
+  return cachedWorkResultV1Schema;
+}
+
+function validateSourceSnapshotV1(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") return false;
+  try {
+    let snapId = snapshot.source_snapshot_id || snapshot.sourceSnapshotId;
+    if (!snapId && snapshot.repository_id && snapshot.base_tree_digest && snapshot.projection) {
+      try { snapId = computeSourceSnapshotId(snapshot); } catch {}
+    }
+    const instance = {
+      schema_version: 1,
+      source_snapshot_id: snapId || "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      ...snapshot
+    };
+    return validateInstance(getSourceSnapshotV1Schema(), instance).valid;
+  } catch {
+    return false;
+  }
+}
+
+function validateWorkOrderSchema(workOrder) {
+  if (!workOrder || typeof workOrder !== "object") return false;
+  try {
+    const isV2 = isWorkOrderV2(workOrder);
+    const schema = isV2 ? getWorkOrderV2Schema() : getWorkOrderV1Schema();
+    let orderId = workOrder.work_order_id || workOrder.workOrderId;
+    if (!orderId) {
+      try { orderId = computeWorkOrderId(workOrder); } catch {}
+    }
+    const instance = {
+      schema_version: isV2 ? 2 : 1,
+      status: "pending",
+      work_order_id: orderId || "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      ...workOrder
+    };
+    if (isV2 && !instance.kind) {
+      instance.kind = "work-order/v2";
+    }
+    return validateInstance(schema, instance).valid;
+  } catch {
+    return false;
+  }
+}
+
+function validateWorkResultV1(workResult) {
+  if (!workResult || typeof workResult !== "object") return false;
+  try {
+    let resId = workResult.work_result_id || workResult.workResultId;
+    if (!resId) {
+      try { resId = computeWorkResultId(workResult); } catch {}
+    }
+    const instance = {
+      schema_version: 1,
+      work_result_id: resId || "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      ...workResult
+    };
+    return validateInstance(getWorkResultV1Schema(), instance).valid;
+  } catch {
+    return false;
+  }
+}
 
 function isValidSha256(str) {
   return typeof str === "string" && SHA256_REGEX.test(str);
@@ -71,7 +176,9 @@ function isWorkOrderV2(workOrder) {
     return kindSaysV2;
   }
 
-  return kindSaysV2 || schemaSaysV2;
+  const hasV2Fields = workOrder.source_snapshot_id || workOrder.sourceSnapshotId;
+
+  return kindSaysV2 || schemaSaysV2 || !!hasV2Fields;
 }
 
 /**
@@ -218,11 +325,17 @@ function computeWorkOrderId(workOrder) {
     throw new Error("computeWorkOrderId requires dependencies array");
   }
   const dependencies = resolveArrayField(workOrder.dependencies, undefined, "dependencies");
+  for (const dep of dependencies) {
+    assertValidSha256(dep, "dependencies item");
+  }
 
   if (workOrder.ownership === undefined) {
     throw new Error("computeWorkOrderId requires ownership object");
   }
   const ownership = assertPlainObjectField(workOrder.ownership, "ownership");
+  if (typeof ownership.owner !== "string" || (ownership.mode !== undefined && typeof ownership.mode !== "string")) {
+    throw new Error("computeWorkOrderId requires ownership.owner and ownership.mode strings");
+  }
 
   const rawAllowedPaths = workOrder.allowedPaths !== undefined ? workOrder.allowedPaths : workOrder.allowed_paths;
   if (rawAllowedPaths === undefined) {
@@ -253,6 +366,16 @@ function computeWorkOrderId(workOrder) {
     throw new Error("computeWorkOrderId requires budget object");
   }
   const budget = assertPlainObjectField(workOrder.budget, "budget");
+  if (Object.keys(budget).length === 0) {
+    throw new Error("computeWorkOrderId requires non-empty budget object");
+  }
+  const budgetFields = ["model_turns", "patches", "commands", "wall_time_minutes", "changed_lines"];
+  for (const field of budgetFields) {
+    const val = budget[field];
+    if (val !== undefined && (typeof val !== "number" || !Number.isFinite(val))) {
+      throw new Error(`computeWorkOrderId requires numeric budget.${field}`);
+    }
+  }
 
   const canonicalPayload = {
     source_snapshot_id: sourceSnapshotId,
@@ -300,16 +423,30 @@ function computeWorkResultId(workResult) {
     throw new Error("computeWorkResultId requires patch");
   }
   const patch = workResult.patch;
+  if (typeof patch !== "string") {
+    throw new TypeError(`computeWorkResultId requires string patch. Received: ${typeof patch}`);
+  }
 
   if (workResult.commands === undefined) {
     throw new Error("computeWorkResultId requires commands array");
   }
   const commands = resolveArrayField(workResult.commands, undefined, "commands");
+  for (const cmd of commands) {
+    if (!cmd || typeof cmd !== "object" || typeof cmd.command !== "string" || typeof cmd.exit_code !== "number" || !Number.isInteger(cmd.exit_code) || typeof cmd.duration_ms !== "number" || !Number.isFinite(cmd.duration_ms)) {
+      throw new Error("computeWorkResultId requires commands array elements with command string, exit_code integer, and duration_ms number");
+    }
+  }
 
   if (workResult.logs === undefined) {
     throw new Error("computeWorkResultId requires logs array");
   }
   const logs = resolveArrayField(workResult.logs, undefined, "logs");
+  for (const log of logs) {
+    if (typeof log === "string") continue;
+    if (!log || typeof log !== "object" || typeof log.stream !== "string" || (log.stream !== "stdout" && log.stream !== "stderr") || typeof log.content !== "string") {
+      throw new Error("computeWorkResultId requires logs array elements with stream ('stdout'|'stderr') and content string");
+    }
+  }
 
   const hasExitCode =
     workResult.exitCode !== undefined || workResult.exit_code !== undefined;
@@ -332,6 +469,11 @@ function computeWorkResultId(workResult) {
     workResult.filesystem_inventory,
     "filesystem_inventory"
   );
+  for (const item of filesystemInventory) {
+    if (!item || typeof item !== "object" || typeof item.path !== "string" || !isValidSha256(item.sha256) || (typeof item.mode !== "string" && typeof item.mode !== "number")) {
+      throw new Error("computeWorkResultId requires filesystem_inventory array elements with path string, valid sha256, and mode");
+    }
+  }
 
   const canonicalPayload = {
     work_order_id: workOrderId,
@@ -555,6 +697,21 @@ function validateWorkOrderBinding(sourceSnapshot, workOrder) {
     };
   }
 
+  if (!validateSourceSnapshotV1(sourceSnapshot)) {
+    return {
+      ok: false,
+      reason_code: "INVALID_SCHEMA",
+      error: "sourceSnapshot fails source-snapshot/v1 JSON schema validation"
+    };
+  }
+  if (!validateWorkOrderSchema(workOrder)) {
+    return {
+      ok: false,
+      reason_code: "INVALID_SCHEMA",
+      error: "workOrder fails work-order JSON schema validation"
+    };
+  }
+
   const declaredSnapshotId = workOrder.sourceSnapshotId || workOrder.source_snapshot_id;
   // ILL_FORMED_SNAPSHOT_ID: declared id missing/malformed (not a recompute mismatch).
   // SOURCE_SNAPSHOT_MISMATCH: recomputed SourceSnapshotId ≠ declared id.
@@ -623,6 +780,21 @@ function validateWorkOrderBinding(sourceSnapshot, workOrder) {
 function validateWorkResultBinding(workOrder, workResult) {
   if (!workOrder || typeof workOrder !== "object" || !workResult || typeof workResult !== "object") {
     return { ok: false, reason_code: "INVALID_PAYLOAD", error: "workOrder and workResult must be valid objects" };
+  }
+
+  if (!validateWorkOrderSchema(workOrder)) {
+    return {
+      ok: false,
+      reason_code: "INVALID_SCHEMA",
+      error: "workOrder fails work-order JSON schema validation"
+    };
+  }
+  if (!validateWorkResultV1(workResult)) {
+    return {
+      ok: false,
+      reason_code: "INVALID_SCHEMA",
+      error: "workResult fails work-result/v1 JSON schema validation"
+    };
   }
 
   const orderIdInResult = workResult.workOrderId || workResult.work_order_id;
@@ -819,7 +991,12 @@ function validateIdentityKind(payload, expectedKind) {
 
   const kind = payload.kind;
   const isV1SnapshotOrResult = (expectedKind === "SourceSnapshot" || expectedKind === "WorkResult") && kind === undefined;
-  if (!isV1SnapshotOrResult && (typeof kind !== "string" || kind.length === 0 || !expected.includes(kind))) {
+  if (isV1SnapshotOrResult) {
+    const isValidSchema = expectedKind === "SourceSnapshot" ? validateSourceSnapshotV1(payload) : validateWorkResultV1(payload);
+    if (!isValidSchema) {
+      return { ok: false, reason_code: "INVALID_SCHEMA" };
+    }
+  } else if (typeof kind !== "string" || kind.length === 0 || !expected.includes(kind)) {
     return { ok: false, reason_code: "KIND_MISMATCH" };
   }
 
