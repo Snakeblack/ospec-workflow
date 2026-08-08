@@ -141,16 +141,19 @@ function computeSourceSnapshotId(snapshot) {
   if (!snapshot || typeof snapshot !== "object") {
     throw new TypeError("computeSourceSnapshotId requires a valid snapshot object");
   }
-  const repositoryId = snapshot.repositoryId || snapshot.repository_id || "";
+  const repositoryId = snapshot.repositoryId || snapshot.repository_id;
+  if (!repositoryId || typeof repositoryId !== "string" || repositoryId.length < 1) {
+    throw new Error("computeSourceSnapshotId requires non-empty repository_id");
+  }
   const baseTreeDigest = snapshot.baseTreeDigest || snapshot.base_tree_digest || "";
   if (!baseTreeDigest) {
     throw new Error("computeSourceSnapshotId requires base_tree_digest");
   }
   assertValidSha256(baseTreeDigest, "base_tree_digest");
 
-  const projection = snapshot.projection || "";
-  if (!projection) {
-    throw new Error("computeSourceSnapshotId requires projection");
+  const projection = snapshot.projection;
+  if (!projection || (projection !== "workspace" && projection !== "staged" && projection !== "commit")) {
+    throw new Error(`computeSourceSnapshotId requires valid projection (workspace|staged|commit). Received: ${projection}`);
   }
 
   const dependencyDigests = resolveArrayField(
@@ -198,21 +201,57 @@ function computeWorkOrderId(workOrder) {
     throw new Error("computeWorkOrderId requires role");
   }
 
-  const operation = workOrder.operation || "";
-  const objective = workOrder.objective || "";
+  // Determine domain early to validate kind/schema_version agreement before field checks
+  const isV2 = isWorkOrderV2(workOrder);
+
+  if (typeof workOrder.operation !== "string" || workOrder.operation.length < 1) {
+    throw new Error("computeWorkOrderId requires non-empty operation");
+  }
+  const operation = workOrder.operation;
+
+  if (typeof workOrder.objective !== "string" || workOrder.objective.length < 1) {
+    throw new Error("computeWorkOrderId requires non-empty objective");
+  }
+  const objective = workOrder.objective;
+
+  if (workOrder.dependencies === undefined) {
+    throw new Error("computeWorkOrderId requires dependencies array");
+  }
   const dependencies = resolveArrayField(workOrder.dependencies, undefined, "dependencies");
+
+  if (workOrder.ownership === undefined) {
+    throw new Error("computeWorkOrderId requires ownership object");
+  }
   const ownership = assertPlainObjectField(workOrder.ownership, "ownership");
+
+  const rawAllowedPaths = workOrder.allowedPaths !== undefined ? workOrder.allowedPaths : workOrder.allowed_paths;
+  if (rawAllowedPaths === undefined) {
+    throw new Error("computeWorkOrderId requires allowed_paths array");
+  }
   const allowedPaths = resolveArrayField(
     workOrder.allowedPaths,
     workOrder.allowed_paths,
     "allowed_paths"
   );
+
+  if (workOrder.invariants === undefined) {
+    throw new Error("computeWorkOrderId requires invariants array");
+  }
   const invariants = resolveArrayField(workOrder.invariants, undefined, "invariants");
+
+  const rawReqEv = workOrder.requiredEvidence !== undefined ? workOrder.requiredEvidence : workOrder.required_evidence;
+  if (rawReqEv === undefined) {
+    throw new Error("computeWorkOrderId requires required_evidence array");
+  }
   const requiredEvidence = resolveArrayField(
     workOrder.requiredEvidence,
     workOrder.required_evidence,
     "required_evidence"
   );
+
+  if (workOrder.budget === undefined) {
+    throw new Error("computeWorkOrderId requires budget object");
+  }
   const budget = assertPlainObjectField(workOrder.budget, "budget");
 
   const canonicalPayload = {
@@ -229,7 +268,7 @@ function computeWorkOrderId(workOrder) {
     budget: budget
   };
 
-  const domain = isWorkOrderV2(workOrder) ? "work-order/v2" : "work-order/v1";
+  const domain = isV2 ? "work-order/v2" : "work-order/v1";
   return sha256Fingerprint(domain, canonicalPayload);
 }
 
@@ -261,7 +300,15 @@ function computeWorkResultId(workResult) {
     throw new Error("computeWorkResultId requires patch");
   }
   const patch = workResult.patch;
+
+  if (workResult.commands === undefined) {
+    throw new Error("computeWorkResultId requires commands array");
+  }
   const commands = resolveArrayField(workResult.commands, undefined, "commands");
+
+  if (workResult.logs === undefined) {
+    throw new Error("computeWorkResultId requires logs array");
+  }
   const logs = resolveArrayField(workResult.logs, undefined, "logs");
 
   const hasExitCode =
@@ -276,6 +323,10 @@ function computeWorkResultId(workResult) {
     );
   }
 
+  const rawFsInv = workResult.filesystemInventory !== undefined ? workResult.filesystemInventory : workResult.filesystem_inventory;
+  if (rawFsInv === undefined) {
+    throw new Error("computeWorkResultId requires filesystem_inventory array");
+  }
   const filesystemInventory = resolveArrayField(
     workResult.filesystemInventory,
     workResult.filesystem_inventory,
@@ -767,7 +818,8 @@ function validateIdentityKind(payload, expectedKind) {
   }
 
   const kind = payload.kind;
-  if (typeof kind !== "string" || kind.length === 0 || !expected.includes(kind)) {
+  const isV1SnapshotOrResult = (expectedKind === "SourceSnapshot" || expectedKind === "WorkResult") && kind === undefined;
+  if (!isV1SnapshotOrResult && (typeof kind !== "string" || kind.length === 0 || !expected.includes(kind))) {
     return { ok: false, reason_code: "KIND_MISMATCH" };
   }
 

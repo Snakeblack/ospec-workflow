@@ -14,9 +14,8 @@ const {
 
 const ROOT = path.resolve(__dirname, "..", "..", "..");
 
-test("K1_SCHEMA_BASELINE pins aliases, manifest and every schema family", () => {
+test("K1_SCHEMA_BASELINE pins aliases and every schema family", () => {
   assert.equal(typeof K1_SCHEMA_BASELINE, "object");
-  assert.ok(K1_SCHEMA_BASELINE["schemas/kernel/manifest.json"]);
   assert.ok(K1_SCHEMA_BASELINE["schemas/kernel/aliases/v1.json"]);
   assert.ok(K1_SCHEMA_BASELINE["schemas/kernel/state-transition/v1.schema.json"]);
   assert.ok(K1_SCHEMA_BASELINE["schemas/kernel/event/v1.schema.json"]);
@@ -26,7 +25,6 @@ test("K1_SCHEMA_BASELINE pins aliases, manifest and every schema family", () => 
 
 test("listK1SchemaFiles enumerates schemas/kernel JSON artifacts", () => {
   const files = listK1SchemaFiles(ROOT);
-  assert.ok(files.includes("schemas/kernel/manifest.json"));
   assert.ok(files.includes("schemas/kernel/aliases/v1.json"));
   assert.ok(files.some((f) => f.endsWith("v1.schema.json")));
   assert.equal(files.length, Object.keys(K1_SCHEMA_BASELINE).length);

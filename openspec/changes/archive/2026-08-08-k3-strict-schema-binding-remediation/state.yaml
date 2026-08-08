@@ -1,0 +1,82 @@
+change: k3-strict-schema-binding-remediation
+status: proposing
+created_at: 2026-08-08T02:03:00Z
+last_updated: 2026-08-08T02:03:00Z
+owner:
+  author: Manuel Retamozo
+  branch: fix/k3-strict-schema-binding-remediation
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "high-risk security/identity remediation on active project; standard route"
+  validated: true
+  validation_errors: []
+session:
+  execution_mode: automatic
+  delivery_strategy: exception-ok
+  reply_language: Spanish
+approvals:
+  - id: exec-mode-001
+    gate: execution-mode
+    decision: automatic
+    source: vscode/askQuestions
+    accepted_at: 2026-08-08T02:03:00Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+blocking_questions: []
+gates: {}
+phases:
+  proposal:
+    status: done
+    artifact: openspec/changes/k3-strict-schema-binding-remediation/proposal.md
+    summary: "Strict shape & binding validation for SourceSnapshot, WorkOrder, WorkResult, v1 kind coherence, K1 baseline refinement."
+    key_decisions:
+      - "compute* functions fail closed on missing required fields or invalid enums without silent defaults"
+      - "validateWorkOrderBinding and validateWorkResultBinding validate schema before digest checks"
+      - "Allow optional kind on source-snapshot/v1 and work-result/v1 schemas"
+      - "Refine K1_SCHEMA_BASELINE to exclude mutable registry manifests"
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/k3-strict-schema-binding-remediation/specs/execution-identities/spec.md
+      - openspec/changes/k3-strict-schema-binding-remediation/specs/kernel-contract-schemas/spec.md
+    summary: "Strict compute* shape checks, schema-valid binding gates, v1 kind coherence, K1 baseline inventory."
+  design:
+    status: done
+    artifact: openspec/changes/k3-strict-schema-binding-remediation/design.md
+    summary: "Cumulative schema & digest binding gates, strict compute* validation, v1 kind schema alignment, K1 baseline refinement."
+  tasks:
+    status: done
+    artifact: openspec/changes/k3-strict-schema-binding-remediation/tasks.md
+    summary: "4 fases, 10 tareas concretas; estrictos compute*, binding gates con validación de schema, coherencia kind v1, depuración baseline K1."
+    key_decisions:
+      - "Un solo apply batch (exception-ok); secuenciación schemas→compute*→bindings→tests"
+  apply:
+    status: done
+    artifact: openspec/changes/k3-strict-schema-binding-remediation/apply-progress.md
+    summary: "Strict compute functions shape validation, cumulative binding gates, v1 kind schema alignment, K1 baseline refinement, and 10 adversarial TDD tests."
+    key_decisions:
+      - "Todos los 11 tasks implementados y verificados con Strict TDD"
+  verify:
+    status: done
+    verdict: PASS
+    artifact: openspec/changes/k3-strict-schema-binding-remediation/verify-report.md
+    summary: "Verification PASSED. 2085/2085 tests passing, 0 errors, 0 warnings. Strict TDD evidence validated."
+    key_decisions:
+      - "Full suite node scripts/check.js passed cleanly"
+  archive:
+    status: done
+    artifact: openspec/changes/k3-strict-schema-binding-remediation/archive-report.md
+    summary: "Archive plan emitted. Spec deltas and 4 ADR promotions prepared."
+    key_decisions:
+      - "Emitted archive-plan.json for deterministic transaction runtime"
+baseline_fingerprints:
+  execution-identities: sha256:5fa173eafe30c951003f9f679f58ecb4391e07ccfe3acefa59cb1c8f067f66a7
+  kernel-contract-schemas: sha256:0c976a514d8a17ba114d3e1006b81dc318a09687fbd1a93c36c56f69dfe10d29
+assumptions: []
