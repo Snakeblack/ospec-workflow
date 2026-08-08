@@ -4,6 +4,10 @@
   "schema_version": 1,
   "type": "object",
   "properties": {
+    "kind": {
+      "type": "string",
+      "const": "source-snapshot/v1"
+    },
     "schema_version": {
       "const": 1
     },

@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "change": "k3-strict-schema-binding-remediation",
+  "created_at": "2026-08-08T02:09:30Z",
+  "source_fingerprint": "sha256:3deaeacb5e210f2edb77b4c0ab3c28c08290047df24090a2b1d51e0d0b1530ca",
+  "spec_writes": [
+    {
+      "domain": "execution-identities",
+      "source_delta": "specs/execution-identities/spec-merged.md",
+      "target": "openspec/specs/execution-identities/spec.md",
+      "target_before_sha256": "sha256:5fa173eafe30c951003f9f679f58ecb4391e07ccfe3acefa59cb1c8f067f66a7",
+      "content_sha256": "sha256:6ac42aa67eb0894cd81fbf78713c024f85a2dae6acc5ff86fc01550e71070db7"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "specs/kernel-contract-schemas/spec-merged.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:0c976a514d8a17ba114d3e1006b81dc318a09687fbd1a93c36c56f69dfe10d29",
+      "content_sha256": "sha256:441fe35a4e89da7d24476b2e18cb8d9d56ddff0d3ca83be929c160440a406b50"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260808-001-cumulative-schema-validation-in-binding-gates.md",
+      "content_sha256": "sha256:0d14ba884024a26d2cc2d9b7e137368dd657f8db7624197d7e2702b10fcf00b3"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260808-002-strict-shape-validation-in-identity-compute-functions.md",
+      "content_sha256": "sha256:4ce0a65f6620c10612d583656dd0b6ce45a5a568802ba25dda5240be57a6b17f"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260808-003-coherent-v1-kind-discrimination.md",
+      "content_sha256": "sha256:44821e467d167b377543af95ee5c8d7562cb7335b9cf6afb1b9d7cb806e370de"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260808-004-refining-k1-schema-baseline-inventory.md",
+      "content_sha256": "sha256:1ec9bfb4783f813223e17e15ff151d9d456ea52b6378a808090561e9ef9faa86"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "design.md",
+    "proposal.md",
+    "specs/execution-identities/spec-merged.md",
+    "specs/execution-identities/spec.md",
+    "specs/kernel-contract-schemas/spec-merged.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

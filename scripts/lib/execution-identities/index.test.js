@@ -32,8 +32,11 @@ test("REQ-execution-identities-001: Distinct digests with domain prefixes for fo
     role: "worker",
     operation: "build",
     objective: "compile",
+    dependencies: [],
+    ownership: { owner: "worker" },
     allowedPaths: ["src/"],
     invariants: [],
+    requiredEvidence: [],
     budget: { model_turns: 5, patches: 2, commands: 10, wall_time_minutes: 5, changed_lines: 50 }
   };
   const orderId = computeWorkOrderId(workOrder);
@@ -331,8 +334,11 @@ test("REQ-execution-identities-003: computeWorkOrderId canonical payload include
     role: "worker",
     operation: "build",
     objective: "compile",
+    dependencies: [],
+    ownership: { owner: "worker" },
     allowedPaths: ["src/"],
     invariants: [],
+    requiredEvidence: [],
     budget: { model_turns: 5, patches: 2, commands: 10, wall_time_minutes: 5, changed_lines: 50 }
   };
 
@@ -556,7 +562,14 @@ test("Adversarial Scenario 2: WorkOrder work_order_id copied + ownership altered
     sourceSnapshotId: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
     nodeId: "node-1",
     role: "worker",
-    ownership: { owner: "team-1", mode: "exclusive" }
+    operation: "build",
+    objective: "compile",
+    dependencies: [],
+    ownership: { owner: "team-1", mode: "exclusive" },
+    allowedPaths: ["src/"],
+    invariants: [],
+    requiredEvidence: [],
+    budget: { model_turns: 1 }
   };
   const originalId = computeWorkOrderId(baseOrder);
 
@@ -574,7 +587,14 @@ test("Adversarial Scenario 3: WorkOrder work_order_id copied + required_evidence
     sourceSnapshotId: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
     nodeId: "node-1",
     role: "worker",
-    requiredEvidence: ["proof-1"]
+    operation: "build",
+    objective: "compile",
+    dependencies: [],
+    ownership: { owner: "team-1" },
+    allowedPaths: ["src/"],
+    invariants: [],
+    requiredEvidence: ["proof-1"],
+    budget: { model_turns: 1 }
   };
   const originalId = computeWorkOrderId(baseOrder);
 
@@ -592,7 +612,14 @@ test("Adversarial Scenario 4: WorkOrder work_order_id copied + dependencies alte
     sourceSnapshotId: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
     nodeId: "node-1",
     role: "worker",
-    dependencies: ["sha256:aaaaa11111111111111111111111111111111111111111111111111111111111"]
+    operation: "build",
+    objective: "compile",
+    dependencies: ["sha256:aaaaa11111111111111111111111111111111111111111111111111111111111"],
+    ownership: { owner: "team-1" },
+    allowedPaths: ["src/"],
+    invariants: [],
+    requiredEvidence: [],
+    budget: { model_turns: 1 }
   };
   const originalId = computeWorkOrderId(baseOrder);
 
@@ -911,7 +938,14 @@ test("K3-2.8: dependencies null / non-array → computeWorkOrderId throws (no []
   const base = {
     source_snapshot_id: DIGEST_A,
     node_id: "node-1",
-    role: "worker"
+    role: "worker",
+    operation: "build",
+    objective: "compile",
+    ownership: { owner: "dev" },
+    allowed_paths: ["src/"],
+    invariants: [],
+    required_evidence: [],
+    budget: { model_turns: 1 }
   };
   assert.throws(() => computeWorkOrderId({ ...base, dependencies: null }), /dependenc/i);
   assert.throws(() => computeWorkOrderId({ ...base, dependencies: "not-an-array" }), /dependenc/i);
@@ -1069,6 +1103,12 @@ test("4R-R2b: consistent work-order/v2 + schema_version 2 uses v2 domain", () =>
     role: "implementer",
     operation: "edit",
     objective: "x",
+    dependencies: [],
+    ownership: { owner: "team" },
+    allowed_paths: ["src/"],
+    invariants: [],
+    required_evidence: [],
+    budget: { model_turns: 1 },
     kind: "work-order/v2",
     schema_version: 2
   };
@@ -1080,11 +1120,11 @@ test("4R-R2b: consistent work-order/v2 + schema_version 2 uses v2 domain", () =>
     operation: "edit",
     objective: "x",
     dependencies: [],
-    ownership: {},
-    allowed_paths: [],
+    ownership: { owner: "team" },
+    allowed_paths: ["src/"],
     invariants: [],
     required_evidence: [],
-    budget: {}
+    budget: { model_turns: 1 }
   };
   assert.equal(id, sha256Fingerprint("work-order/v2", canonical));
 });
@@ -1093,12 +1133,19 @@ test("4R-R3: ownership null / non-object → computeWorkOrderId throws (no {} co
   const base = {
     source_snapshot_id: DIGEST_A,
     node_id: "n1",
-    role: "implementer"
+    role: "implementer",
+    operation: "edit",
+    objective: "x",
+    dependencies: [],
+    allowed_paths: ["src/"],
+    invariants: [],
+    required_evidence: [],
+    budget: { model_turns: 1 }
   };
   assert.throws(() => computeWorkOrderId({ ...base, ownership: null }), /ownership/i);
   assert.throws(() => computeWorkOrderId({ ...base, ownership: "team" }), /ownership/i);
-  assert.throws(() => computeWorkOrderId({ ...base, budget: null }), /budget/i);
-  assert.throws(() => computeWorkOrderId({ ...base, budget: 42 }), /budget/i);
+  assert.throws(() => computeWorkOrderId({ ...base, ownership: { owner: "team" }, budget: null }), /budget/i);
+  assert.throws(() => computeWorkOrderId({ ...base, ownership: { owner: "team" }, budget: 42 }), /budget/i);
 });
 
 test("4R-R4: missing patch → computeWorkResultId throws (no default empty string)", () => {
@@ -1117,7 +1164,10 @@ test("4R-R4b: exit_code null / non-integer → computeWorkResultId throws", () =
   const base = {
     work_order_id: DIGEST_A,
     source_snapshot_id: DIGEST_B,
-    patch: "diff"
+    patch: "diff",
+    commands: [],
+    logs: [],
+    filesystem_inventory: []
   };
   assert.throws(() => computeWorkResultId({ ...base, exit_code: null }), /exit_code/i);
   assert.throws(() => computeWorkResultId({ ...base, exit_code: 1.5 }), /exit_code/i);
@@ -1147,14 +1197,14 @@ test("4R-R6: ill-formed declared snapshot id uses ILL_FORMED_SNAPSHOT_ID (not SO
     source_snapshot_id: sourceSnapshotId,
     node_id: "n1",
     role: "implementer",
-    operation: "",
-    objective: "",
+    operation: "test",
+    objective: "verify",
     dependencies: [],
-    ownership: {},
-    allowed_paths: [],
+    ownership: { owner: "team" },
+    allowed_paths: ["src/"],
     invariants: [],
     required_evidence: [],
-    budget: {}
+    budget: { model_turns: 1 }
   };
   honestOrder.work_order_id = computeWorkOrderId(honestOrder);
   const mismatchSnap = {
@@ -1167,4 +1217,156 @@ test("4R-R6: ill-formed declared snapshot id uses ILL_FORMED_SNAPSHOT_ID (not SO
   assert.equal(mismatch.ok, false);
   assert.equal(mismatch.reason_code, "SOURCE_SNAPSHOT_MISMATCH");
 });
+
+test("REQ-execution-identities-007: computeSourceSnapshotId throws on missing repository_id or invalid projection", () => {
+  const base = {
+    base_tree_digest: DIGEST_A,
+    projection: "workspace"
+  };
+  assert.throws(() => computeSourceSnapshotId(base), /repository_id/i);
+  assert.throws(() => computeSourceSnapshotId({ ...base, repository_id: "" }), /repository_id/i);
+  assert.throws(() => computeSourceSnapshotId({ ...base, repository_id: "repo", projection: "banana" }), /projection/i);
+});
+
+test("REQ-execution-identities-007: computeWorkOrderId fails closed on missing required fields without defaulting", () => {
+  const validOrder = {
+    source_snapshot_id: DIGEST_A,
+    node_id: "n1",
+    role: "worker",
+    operation: "test",
+    objective: "verify",
+    dependencies: [],
+    ownership: { owner: "dev" },
+    allowed_paths: ["src/"],
+    invariants: ["inv-1"],
+    required_evidence: ["ev-1"],
+    budget: { model_turns: 1 }
+  };
+  assert.ok(computeWorkOrderId(validOrder));
+
+  assert.throws(() => computeWorkOrderId({ ...validOrder, operation: "" }), /operation/i);
+  assert.throws(() => computeWorkOrderId({ ...validOrder, objective: "" }), /objective/i);
+
+  const missingDeps = { ...validOrder }; delete missingDeps.dependencies;
+  assert.throws(() => computeWorkOrderId(missingDeps), /dependencies/i);
+
+  const missingOwnership = { ...validOrder }; delete missingOwnership.ownership;
+  assert.throws(() => computeWorkOrderId(missingOwnership), /ownership/i);
+
+  const missingPaths = { ...validOrder }; delete missingPaths.allowed_paths;
+  assert.throws(() => computeWorkOrderId(missingPaths), /allowed_paths/i);
+
+  const missingInvariants = { ...validOrder }; delete missingInvariants.invariants;
+  assert.throws(() => computeWorkOrderId(missingInvariants), /invariants/i);
+
+  const missingReqEv = { ...validOrder }; delete missingReqEv.required_evidence;
+  assert.throws(() => computeWorkOrderId(missingReqEv), /required_evidence/i);
+
+  const missingBudget = { ...validOrder }; delete missingBudget.budget;
+  assert.throws(() => computeWorkOrderId(missingBudget), /budget/i);
+});
+
+test("REQ-execution-identities-007: computeWorkResultId fails closed on missing required array fields without defaulting to []", () => {
+  const validResult = {
+    work_order_id: DIGEST_A,
+    source_snapshot_id: DIGEST_B,
+    patch: "diff",
+    commands: [],
+    logs: ["ok"],
+    exit_code: 0,
+    filesystem_inventory: []
+  };
+  assert.ok(computeWorkResultId(validResult));
+
+  const missingCommands = { ...validResult }; delete missingCommands.commands;
+  assert.throws(() => computeWorkResultId(missingCommands), /commands/i);
+
+  const missingLogs = { ...validResult }; delete missingLogs.logs;
+  assert.throws(() => computeWorkResultId(missingLogs), /logs/i);
+
+  const missingInventory = { ...validResult }; delete missingInventory.filesystem_inventory;
+  assert.throws(() => computeWorkResultId(missingInventory), /filesystem_inventory/i);
+});
+
+test("REQ-execution-identities-003: validateWorkOrderBinding fails closed on schema-invalid inputs", () => {
+  const snap = {
+    repository_id: "repo",
+    base_tree_digest: DIGEST_A,
+    projection: "workspace"
+  };
+  const invalidWorkOrder = {
+    source_snapshot_id: computeSourceSnapshotId(snap),
+    node_id: "n1",
+    role: "worker",
+    operation: "build"
+    // missing dependencies, ownership, budget, etc.
+  };
+  invalidWorkOrder.work_order_id = DIGEST_B; // dummy
+  const res = validateWorkOrderBinding(snap, invalidWorkOrder);
+  assert.equal(res.ok, false);
+  assert.ok(res.reason_code === "DIGEST_MISMATCH" || res.reason_code === "INVALID_WORK_ORDER" || res.reason_code === "WORK_ORDER_MISMATCH");
+});
+
+test("REQ-execution-identities-003: validateWorkResultBinding fails closed on schema-invalid inputs", () => {
+  const snap = {
+    repository_id: "repo",
+    base_tree_digest: DIGEST_A,
+    projection: "workspace"
+  };
+  const snapId = computeSourceSnapshotId(snap);
+  const workOrder = {
+    source_snapshot_id: snapId,
+    node_id: "n1",
+    role: "worker",
+    operation: "test",
+    objective: "verify",
+    dependencies: [],
+    ownership: { owner: "dev" },
+    allowed_paths: ["src/"],
+    invariants: [],
+    required_evidence: [],
+    budget: { model_turns: 1 }
+  };
+  workOrder.work_order_id = computeWorkOrderId(workOrder);
+
+  const invalidResult = {
+    work_order_id: workOrder.work_order_id,
+    source_snapshot_id: snapId,
+    patch: "diff",
+    exit_code: 0
+    // missing commands, logs, filesystem_inventory
+  };
+  invalidResult.work_result_id = DIGEST_B;
+
+  const res = validateWorkResultBinding(workOrder, invalidResult);
+  assert.equal(res.ok, false);
+  assert.equal(res.reason_code, "DIGEST_MISMATCH");
+});
+
+test("REQ-execution-identities-008: validateIdentityKind accepts SourceSnapshot v1 and WorkResult v1 with optional or omitted kind", () => {
+  const snapWithoutKind = {
+    repository_id: "repo",
+    base_tree_digest: DIGEST_A,
+    projection: "workspace"
+  };
+  const snapWithKind = { ...snapWithoutKind, kind: "source-snapshot/v1" };
+
+  assert.equal(validateIdentityKind(snapWithoutKind, "SourceSnapshot").ok, true);
+  assert.equal(validateIdentityKind(snapWithKind, "SourceSnapshot").ok, true);
+
+  const resultWithoutKind = {
+    work_order_id: DIGEST_A,
+    source_snapshot_id: DIGEST_B,
+    patch: "diff",
+    commands: [],
+    logs: [],
+    exit_code: 0,
+    filesystem_inventory: []
+  };
+  const resultWithKind = { ...resultWithoutKind, kind: "work-result/v1" };
+
+  assert.equal(validateIdentityKind(resultWithoutKind, "WorkResult").ok, true);
+  assert.equal(validateIdentityKind(resultWithKind, "WorkResult").ok, true);
+});
+
 

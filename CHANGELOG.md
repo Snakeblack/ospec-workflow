@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [2.42.2] - 2026-08-08
+
+### Fixed
+- **Remediación Estricta de Binding y Schemas K3** (`k3-strict-schema-binding-remediation`):
+  - Validación de forma estricta sin coerción silenciosa a valores vacíos (`""`, `[]`, `{}`) en las funciones de cómputo de identidades K3 (`computeSourceSnapshotId`, `computeWorkOrderId`, `computeWorkResultId`).
+  - Validación acumulativa de contrato y digest (`schema válido ∧ kind/version válido ∧ ID recomputado == ID declarado`) en las puertas de binding `validateWorkOrderBinding` y `validateWorkResultBinding`.
+  - Discriminación coherente de tipos v1 permitiendo propiedad `kind` opcional en los schemas `source-snapshot/v1` y `work-result/v1`.
+  - Refinamiento de la baseline de inventario `K1_SCHEMA_BASELINE` excluyendo manifiestos evolutivos de registro (`manifest.json` y `contract-claims.json`).
+  - Cobertura completa de 10 pruebas adversariales TDD verificando el comportamiento fail-closed ante manipulación de datos o esquemas parciales.
+
 ## [2.42.1] - 2026-08-07
 
 ### Fixed

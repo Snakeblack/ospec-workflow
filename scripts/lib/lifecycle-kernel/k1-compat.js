@@ -24,8 +24,6 @@ const K1_SCHEMA_BASELINE = Object.freeze({
     "sha256:cdd5f56a06c6089423b4711a7f3574007bc210a927f60cdc6372ea9d05eff72c",
   "schemas/kernel/classification/v1.schema.json":
     "sha256:12e6c243ae59f4761b887c0b61693f8da03fd3e7aeba99e0fcde6064d0ce8464",
-  "schemas/kernel/contract-claims.json":
-    "sha256:a59bca2b38da5546ae574156881d257f147d576a9eeb2f91df3d67d28d305705",
   "schemas/kernel/contract/fixtures/invalid/minimal.json":
     "sha256:a189201f6655de8fdff50a1ccc7a1d6b1a58d3a7f8dcc829f3e90281f5a56af2",
   "schemas/kernel/contract/fixtures/valid/minimal.json":
@@ -68,8 +66,6 @@ const K1_SCHEMA_BASELINE = Object.freeze({
     "sha256:2a534e05a40a5dee373165bc950b509b9b5373135d011ca37c8e4bf1377735ba",
   "schemas/kernel/graph-node/v1.schema.json":
     "sha256:0b6fc9169f0573e9ccb8e8f3aa8c7c061e576552aaedb508a0caa786133ae21f",
-  "schemas/kernel/manifest.json":
-    "sha256:4e1af042a40e24f328e7f9f580ea3b2ecf7272646c65d31dcf5d28e938b6488f",
   "schemas/kernel/parity/fixtures/diverge-next-action.json":
     "sha256:4f8e8898655593c270776f7f6627caa6eb05f45ca5686126f60ddf6f9c756db5",
   "schemas/kernel/parity/fixtures/match-execute.json":
@@ -157,6 +153,9 @@ function listK1SchemaFiles(rootDir) {
     "schemas/kernel/candidate/fixtures/valid/k3-frozen.json",
     "schemas/kernel/candidate/fixtures/invalid/commit-projection.json",
     "schemas/kernel/candidate/fixtures/invalid/work-result-alias.json",
+    // Evolutionary catalog registries (excluded from K1 frozen baseline pin)
+    "schemas/kernel/manifest.json",
+    "schemas/kernel/contract-claims.json",
   ];
 
   function walk(dir) {
