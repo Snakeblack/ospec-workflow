@@ -12,13 +12,16 @@
       "const": 1
     },
     "source_snapshot_id": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
     },
     "repository_id": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "base_tree_digest": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
     },
     "projection": {
       "type": "string",
