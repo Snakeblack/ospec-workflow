@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [2.42.5] - 2026-08-08
+
+### Fixed
+- **Integridad de Autodeclaración de SourceSnapshot y Garantía de Esquema en freezeCandidate**:
+  - Verificación en `validateWorkOrderBinding` de la autoconsistencia del `source_snapshot_id` declarado dentro del propio registro `sourceSnapshot` contra su digest recomputado, retornando el código de razón específico `SOURCE_SNAPSHOT_ID_MISMATCH` cuando difieren.
+  - Validación de patrón `^sha256:[a-f0-9]{64}$` y `minLength: 1` en `schemas/kernel/source-snapshot/v1.schema.json`.
+  - Validación estricta de elementos de `paths` (strings no vacíos) en `freezeCandidate` e inyección de un guard de invariante final (`validateCandidateV2`) garantizando que todo resultado de `freezeCandidate` sea siempre schema-valid Candidate v2.
+  - Pruebas adversariales adicionales para verificación de autoconsistencia de SourceSnapshot e invariante de freezeCandidate.
+
 ## [2.42.4] - 2026-08-08
 
 ### Fixed

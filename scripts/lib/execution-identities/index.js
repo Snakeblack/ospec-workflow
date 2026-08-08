@@ -587,6 +587,11 @@ function freezeCandidate(input) {
   }
 
   const rawPaths = input.paths !== undefined ? assertArrayField(input.paths, "paths") : [];
+  for (const path of rawPaths) {
+    if (typeof path !== "string" || path.length === 0) {
+      throw new TypeError("Candidate paths must be non-empty strings");
+    }
+  }
   const canonicalPaths = [...new Set(rawPaths.map((p) => p.replace(/\\/g, "/")))].sort();
 
   let modesDigest = input.changed_paths_modes_digest || "";
@@ -631,7 +636,7 @@ function freezeCandidate(input) {
 
   const candidateId = computeCandidateId(candidateData);
 
-  return {
+  const frozenRecord = {
     kind: "candidate/v2",
     schema_version: 2,
     candidate_id: candidateId,
@@ -646,6 +651,12 @@ function freezeCandidate(input) {
     predecessor_id: predecessorId,
     relation: "exact"
   };
+
+  if (!validateCandidateV2(frozenRecord)) {
+    throw new Error("freezeCandidate produced invalid Candidate v2");
+  }
+
+  return frozenRecord;
 }
 
 /**
@@ -716,6 +727,16 @@ function validateWorkOrderBinding(sourceSnapshot, workOrder) {
       error: `Failed to recompute SourceSnapshotId: ${err.message}`
     };
   }
+
+  const ownSnapshotId = sourceSnapshot.source_snapshot_id || sourceSnapshot.sourceSnapshotId;
+  if (ownSnapshotId && ownSnapshotId !== recomputedSnapshotId) {
+    return {
+      ok: false,
+      reason_code: "SOURCE_SNAPSHOT_ID_MISMATCH",
+      error: "SourceSnapshot declared source_snapshot_id does not match recomputed computeSourceSnapshotId"
+    };
+  }
+
   if (recomputedSnapshotId !== declaredSnapshotId) {
     return {
       ok: false,

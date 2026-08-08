@@ -1640,5 +1640,68 @@ test("K3 Remediation: validateIdentityKind enforces JSON Schema validation on pa
   assert.equal(validateIdentityKind(validCandidate, "Candidate").ok, true);
 });
 
+test("K3 Remediation: SourceSnapshot own-ID integrity and freezeCandidate schema invariant", () => {
+  // SourceSnapshot declaring false ID fails validateWorkOrderBinding with SOURCE_SNAPSHOT_ID_MISMATCH
+  const realSnap = {
+    kind: "source-snapshot/v1",
+    schema_version: 1,
+    repository_id: "repo",
+    base_tree_digest: DIGEST_A,
+    projection: "workspace",
+    dependency_digests: []
+  };
+  const realSnapId = computeSourceSnapshotId(realSnap);
+
+  const forgedSnap = {
+    ...realSnap,
+    source_snapshot_id: DIGEST_B // forged declared ID
+  };
+
+  const order = {
+    kind: "work-order/v2",
+    schema_version: 2,
+    status: "pending",
+    source_snapshot_id: realSnapId,
+    node_id: "n1",
+    role: "worker",
+    operation: "build",
+    objective: "compile",
+    dependencies: [],
+    ownership: { owner: "dev", mode: "exclusive" },
+    allowed_paths: ["src/"],
+    invariants: [],
+    required_evidence: [],
+    budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
+  };
+  order.work_order_id = computeWorkOrderId(order);
+
+  const bindingResult = validateWorkOrderBinding(forgedSnap, order);
+  assert.equal(bindingResult.ok, false);
+  assert.equal(bindingResult.reason_code, "SOURCE_SNAPSHOT_ID_MISMATCH");
+
+  // freezeCandidate rejects empty path string
+  assert.throws(() => {
+    freezeCandidate({
+      repositoryId: "repo-1",
+      projection: "workspace",
+      baseTree: DIGEST_A,
+      candidateTree: DIGEST_B,
+      diffText: "diff",
+      paths: [""]
+    });
+  }, /non-empty strings/i);
+
+  // freezeCandidate output always passes validateCandidateV2
+  const frozen = freezeCandidate({
+    repositoryId: "repo-1",
+    projection: "workspace",
+    baseTree: DIGEST_A,
+    candidateTree: DIGEST_B,
+    diffText: "diff content",
+    paths: ["src/index.js"]
+  });
+  assert.equal(validateCandidateV2(frozen), true);
+});
+
 
 
