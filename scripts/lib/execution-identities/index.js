@@ -206,6 +206,40 @@ function isFrozenCandidateV2(value) {
   );
 }
 
+function derivedCandidateRelation(predecessorId, candidateId) {
+  return predecessorId && predecessorId !== candidateId ? "changed" : "exact";
+}
+
+function hasCoherentCandidateLineage(candidate, comparedCandidateId) {
+  const candidateId = computeCandidateId(candidate);
+  const expectedRelation = derivedCandidateRelation(candidate.predecessor_id, candidateId);
+  if (candidate.relation !== expectedRelation) return false;
+  if (candidate.relation === "exact" && candidate.predecessor_id !== null) return false;
+  if (candidate.relation === "changed" && !candidate.predecessor_id) return false;
+  if (candidate.predecessor_id && comparedCandidateId !== undefined && candidate.predecessor_id !== comparedCandidateId && candidate.relation === "changed") return false;
+  return true;
+}
+
+function isCanonicalFrozenCandidateV2(value) {
+  if (!isFrozenCandidateV2(value)) return false;
+  try {
+    return value.candidate_id === computeCandidateId(value) && hasCoherentCandidateLineage(value);
+  } catch {
+    return false;
+  }
+}
+
+function hasStructurallyParseableLineageMismatch(candidate) {
+  if (!candidate || typeof candidate !== "object" || candidate.kind !== "candidate/v2" || candidate.schema_version !== 2) return false;
+  if (!["exact", "changed"].includes(candidate.relation) || candidate.predecessor_id === undefined) return false;
+  try {
+    const candidateId = computeCandidateId(candidate);
+    return candidate.relation !== derivedCandidateRelation(candidate.predecessor_id, candidateId);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Compute SourceSnapshotId digest.
  * Domain prefix: "source-snapshot/v1"
@@ -621,9 +655,18 @@ function freezeCandidate(input) {
     untrackedDigest = null;
   }
 
-  const predecessorId = input.predecessorId || input.predecessor_id || null;
-  if (predecessorId) {
-    assertValidSha256(predecessorId, "predecessor_id");
+  if (input.predecessorId !== undefined || input.predecessor_id !== undefined) {
+    throw new Error("freezeCandidate requires predecessorCandidate instead of a bare predecessor_id");
+  }
+  let predecessorId = null;
+  if (input.predecessorCandidate !== undefined) {
+    if (!isCanonicalFrozenCandidateV2(input.predecessorCandidate)) {
+      throw new Error("freezeCandidate predecessorCandidate must be a canonical, coherent frozen Candidate v2");
+    }
+    predecessorId = computeCandidateId(input.predecessorCandidate);
+    if (input.predecessorCandidate.candidate_id !== predecessorId) {
+      throw new Error("freezeCandidate predecessorCandidate has a declared candidate_id mismatch");
+    }
   }
 
   const candidateData = {
@@ -639,6 +682,7 @@ function freezeCandidate(input) {
 
   const candidateId = computeCandidateId(candidateData);
 
+  const relation = derivedCandidateRelation(predecessorId, candidateId);
   const frozenRecord = {
     kind: "candidate/v2",
     schema_version: 2,
@@ -651,8 +695,8 @@ function freezeCandidate(input) {
     paths: canonicalPaths,
     changed_paths_modes_digest: modesDigest,
     intended_untracked_digest: untrackedDigest,
-    predecessor_id: predecessorId,
-    relation: "exact"
+    predecessor_id: relation === "exact" ? null : predecessorId,
+    relation
   };
 
   if (!validateCandidateV2(frozenRecord)) {
@@ -895,6 +939,16 @@ function evaluateCandidateRelation(baseline, target) {
       reason_code: "INVALID_FROZEN_CANDIDATE"
     };
   }
+  // Schema validation rejects exact-with-predecessor, but preserve the more
+  // precise lineage diagnostic when its frozen payload remains parseable.
+  if (!targetSelector && hasStructurallyParseableLineageMismatch(target)) {
+    return {
+      relation: "unknown",
+      action: "stop",
+      reason: "Persisted relation or predecessor_id contradicts frozen candidate lineage",
+      reason_code: "LINEAGE_RELATION_MISMATCH"
+    };
+  }
   if (!targetSelector && !targetFrozen) {
     return {
       relation: "unknown",
@@ -964,6 +1018,15 @@ function evaluateCandidateRelation(baseline, target) {
       action: "stop",
       reason: "candidate-id-mismatch",
       reason_code: "DECLARED_ID_MISMATCH"
+    };
+  }
+
+  if (!hasCoherentCandidateLineage(baseline) || !hasCoherentCandidateLineage(target, computedBaseId)) {
+    return {
+      relation: "unknown",
+      action: "stop",
+      reason: "Persisted relation or predecessor_id contradicts frozen candidate lineage",
+      reason_code: "LINEAGE_RELATION_MISMATCH"
     };
   }
 

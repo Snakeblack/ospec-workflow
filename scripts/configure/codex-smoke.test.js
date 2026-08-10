@@ -45,6 +45,7 @@ test("codex smoke: output is generated and installed as a root agent.md and cust
   // 2. Install into a temp destination repo
   const installExit = installMain([destRepo, "--no-validate"], {
     cwd: sourceDir,
+    outDir: buildOut,
     stdout: { write() {} },
     stderr: { write() {} },
     runConfigure({ outDir, validate }) {
@@ -115,6 +116,12 @@ test("codex smoke: global install contains every generated skill and preserves u
     fs.readFileSync(path.join(installedSkills, relative), "hex"),
   ]);
 
+  const activeRuntime = path.join(homeDir, ".codex", "ospec-workflow");
+  const staleSchema = path.join(activeRuntime, "schemas", "kernel", "obsolete-managed-schema.json");
+  const externalSentinel = path.join(homeDir, ".codex", "outside-managed-runtime-sentinel.txt");
+  fs.writeFileSync(staleSchema, "obsolete managed schema\n");
+  fs.writeFileSync(externalSentinel, "keep outside schemas\n");
+
   assert.equal(runInstall(), 0);
   assert.deepEqual(
     generatedSkillFiles.map((relative) => [relative, fs.readFileSync(path.join(installedSkills, relative), "hex")]),
@@ -123,4 +130,17 @@ test("codex smoke: global install contains every generated skill and preserves u
   assert.equal(fs.readFileSync(path.join(installedSkills, "user-extra", "SKILL.md"), "utf8"), "keep\n");
   assert.equal(fs.readFileSync(path.join(homeDir, ".codex", "config.toml"), "utf8"), "model = \"user-choice\"\n");
   assert.equal(fs.readFileSync(path.join(homeDir, ".codex", "auth.json"), "utf8"), "{\"token\":\"user-owned\"}\n");
+  assert.equal(fs.existsSync(staleSchema), false, "reinstall must prune stale schemas only inside the managed schemas tree");
+  assert.equal(fs.readFileSync(externalSentinel, "utf8"), "keep outside schemas\n", "reinstall must preserve paths outside the managed schemas tree");
+  assert.ok(fs.existsSync(path.join(activeRuntime, "schemas", "kernel", "manifest.json")));
+  const runtime = require(path.join(activeRuntime, "scripts", "lib", "execution-identities", "index.js"));
+  assert.equal(typeof runtime.validateCandidateV2, "function");
+  const installedCandidate = JSON.parse(fs.readFileSync(path.join(activeRuntime, "schemas", "kernel", "candidate", "fixtures", "valid", "v2-minimal.json"), "utf8"));
+  assert.equal(runtime.validateCandidateV2(installedCandidate), true, "installed runtime must load its installed schema manifest");
+  const distSchemas = listFiles(path.join(buildOut, "schemas"));
+  const activeSchemas = listFiles(path.join(activeRuntime, "schemas"));
+  assert.deepEqual(activeSchemas, distSchemas, "installed schema inventory must equal generated Codex schemas");
+  for (const relative of distSchemas) {
+    assert.ok(fs.readFileSync(path.join(buildOut, "schemas", relative)).equals(fs.readFileSync(path.join(activeRuntime, "schemas", relative))), relative);
+  }
 });

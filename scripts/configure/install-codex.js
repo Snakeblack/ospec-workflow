@@ -106,11 +106,18 @@ function copyTree(sourceDir, destDir, fsImpl = fs) {
 
 function copyCodexRuntime(outDir, runtimeDir, deps = {}) {
   const fsImpl = deps.fs || fs;
-  const source = path.join(outDir, "scripts");
-  if (fsImpl.existsSync(source)) {
-    return syncTreeByContent(source, path.join(runtimeDir, "scripts"), fsImpl);
+  const result = { updated: [], unchanged: [] };
+  const scriptsSource = path.join(outDir, "scripts");
+  if (fsImpl.existsSync(scriptsSource)) {
+    syncTreeByContent(scriptsSource, path.join(runtimeDir, "scripts"), fsImpl, result);
   }
-  return { updated: [], unchanged: [] };
+  const schemasSource = path.join(outDir, "schemas");
+  const schemasDestination = path.join(runtimeDir, "schemas");
+  if (fsImpl.existsSync(schemasSource)) {
+    pruneManagedTree(schemasSource, schemasDestination, fsImpl);
+    syncTreeByContent(schemasSource, schemasDestination, fsImpl, result);
+  }
+  return result;
 }
 
 function filesMatch(source, destination, fsImpl = fs) {
@@ -139,6 +146,21 @@ function syncTreeByContent(sourceDir, destDir, fsImpl = fs, result = { updated: 
     }
   }
   return result;
+}
+
+function pruneManagedTree(sourceDir, destDir, fsImpl = fs) {
+  if (!fsImpl.existsSync(destDir)) return;
+  const sourceEntries = new Map(fsImpl.readdirSync(sourceDir, { withFileTypes: true }).map((entry) => [entry.name, entry]));
+  for (const entry of fsImpl.readdirSync(destDir, { withFileTypes: true })) {
+    const sourceEntry = sourceEntries.get(entry.name);
+    const source = path.join(sourceDir, entry.name);
+    const destination = path.join(destDir, entry.name);
+    if (!sourceEntry || sourceEntry.isDirectory() !== entry.isDirectory()) {
+      fsImpl.rmSync(destination, { recursive: true, force: true });
+    } else if (sourceEntry.isDirectory()) {
+      pruneManagedTree(source, destination, fsImpl);
+    }
+  }
 }
 
 function preflightManagedTree(sourceDir, destDir, approvedRoot, fsImpl = fs) {
@@ -682,7 +704,9 @@ function main(argv, deps = {}) {
       codexRoot = path.join(homedir(), ".codex");
     }
 
-    const outDir = path.join(sourceDir, "dist", "codex");
+    // Callers embedding the installer (notably concurrent integration tests)
+    // may supply an owned build destination. CLI installs retain dist/codex.
+    const outDir = deps.outDir || path.join(sourceDir, "dist", "codex");
     const result = runConfigureImpl({ sourceDir, target: "codex", outDir, validate: args.validate });
     if (result.validation?.stdout) stdout.write(result.validation.stdout);
     if (result.validation?.stderr) stderr.write(result.validation.stderr);
@@ -726,6 +750,7 @@ function main(argv, deps = {}) {
       const runtimeDir = path.join(codexRoot, "ospec-workflow");
       const hooksDest = path.join(codexRoot, "hooks.json");
       const runtimeSource = path.join(outDir, "scripts");
+      const schemasSource = path.join(outDir, "schemas");
       const legacyRuntimeSkills = path.join(runtimeDir, "skills");
       const orchestratorAgent = path.join(agentsDest, "sdd-orchestrator.toml");
       assertManagedPathSafe(codexRoot, runtimeDir, "Codex runtime destination", fsImpl);
@@ -734,6 +759,9 @@ function main(argv, deps = {}) {
       assertManagedPathSafe(codexRoot, orchestratorAgent, "Codex orchestrator agent destination", fsImpl);
       if (fsImpl.existsSync(runtimeSource)) {
         preflightManagedTree(runtimeSource, path.join(runtimeDir, "scripts"), codexRoot, fsImpl);
+      }
+      if (fsImpl.existsSync(schemasSource)) {
+        preflightManagedTree(schemasSource, path.join(runtimeDir, "schemas"), codexRoot, fsImpl);
       }
       preflightManagedTree(path.join(outDir, "skills"), globalSkillsRoot, userHome, fsImpl);
     }

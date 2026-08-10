@@ -1,0 +1,33 @@
+✔ codex smoke: output is generated and installed as a root agent.md and custom TOML agents (1280.5044ms)
+✖ codex smoke: global install contains every generated skill and preserves user state across two runs (4656.4588ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6023.2194
+
+✖ failing tests:
+
+test at scripts\configure\codex-smoke.test.js:76:1
+✖ codex smoke: global install contains every generated skill and preserves user state across two runs (4656.4588ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(fs.existsSync(path.join(activeRuntime, "schemas", "kernel", "manifest.json")))
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\configure\codex-smoke.test.js:128:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

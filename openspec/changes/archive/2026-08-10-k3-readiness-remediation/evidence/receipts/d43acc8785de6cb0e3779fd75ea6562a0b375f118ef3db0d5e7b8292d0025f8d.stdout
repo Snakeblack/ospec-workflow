@@ -1,0 +1,12 @@
+✔ RED: a staged write failure preserves an existing destination byte-for-byte and cleans owned artifacts (66.5028ms)
+✔ RED: a stage-to-destination rename failure restores an existing destination and absent output is never partial (700.7691ms)
+✔ RED: failed restoration retains the only backup and reports its recovery path (382.0832ms)
+✔ transactional publication runs independently for all six configured destinations (2355.9692ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3566.1839

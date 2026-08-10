@@ -6,7 +6,8 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { loadTree, gatherRuntimeScripts, parseModels, runConfigure: runConfigureStrict, defaultRunValidator } = require("./cli.js");
+const { loadTree, gatherRuntimeScripts, parseModels, runConfigure: runConfigureStrict, defaultRunValidator, PROFILES } = require("./cli.js");
+const { transform } = require("../lib/target-transform.js");
 const runConfigure = options => runConfigureStrict(options);
 const { rootedEvidencePath } = require("../lib/strict-tdd-evidence-remediation.js");
 
@@ -161,7 +162,9 @@ test("github-copilot validation uses the profile-level validator command", (t) =
   });
 
   assert.equal(result.exitCode, 0);
-  assert.equal(validatorOut, out);
+  assert.notEqual(validatorOut, out);
+  assert.equal(path.dirname(validatorOut), path.dirname(out));
+  assert.match(path.basename(validatorOut), /^\..+\.configure-stage-/);
   assert.ok(
     validatorProfile.validate.some((part) => part.includes("validate-github-copilot.js")),
     "profile.validate argv must reference the github-copilot validator",
@@ -508,4 +511,19 @@ test("RED: runConfigure aborts without output when a managed source read fails",
   const out = tmpOut(t);
   assert.throws(() => runConfigure({ sourceDir: SOURCE, target: "claude", outDir: out, validate: false }), /EACCES/);
   assert.equal(fs.existsSync(path.join(out, "agents")), false);
+});
+
+test("K3 readiness: every generated target receives the Candidate v2 schema and runtime closure", () => {
+  const source = loadTree(process.cwd());
+  const required = [
+    "schemas/kernel/manifest.json",
+    "schemas/kernel/candidate/v2.schema.json",
+    "scripts/lib/execution-identities/index.js",
+  ];
+  for (const target of Object.keys(PROFILES)) {
+    const files = transform({ files: source, profile: PROFILES[target] }).files;
+    for (const requiredPath of required) {
+      assert.ok(files.some((file) => file.path === requiredPath), `${target} is missing ${requiredPath}`);
+    }
+  }
 });

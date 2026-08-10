@@ -1,0 +1,90 @@
+✔ RED: a staged write failure preserves an existing destination byte-for-byte and cleans owned artifacts (68.7511ms)
+✖ RED: a stage-to-destination rename failure restores an existing destination and absent output is never partial (255.8588ms)
+✖ RED: failed restoration retains the only backup and reports its recovery path (251.3301ms)
+✖ transactional publication runs independently for all six configured destinations (252.5155ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 1
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 909.9861
+
+✖ failing tests:
+
+test at scripts\lib\k3-publication-transaction.test.js:55:1
+✖ RED: a stage-to-destination rename failure restores an existing destination and absent output is never partial (255.8588ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /injected publish failure/. Input:
+  
+  'Error: staged tree validation failed for .claude-plugin/plugin.json'
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\k3-publication-transaction.test.js:66:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: Error: staged tree validation failed for .claude-plugin/plugin.json
+        at validateStagedTree (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\configure\cli.js:446:13)
+        at publishTransaction (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\configure\cli.js:498:5)
+        at runConfigure (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\configure\cli.js:550:23)
+        at C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\k3-publication-transaction.test.js:66:23
+        at getActual (node:assert:611:5)
+        at strict.throws (node:assert:759:24)
+        at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\k3-publication-transaction.test.js:66:10)
+        at Test.runInAsyncScope (node:async_hooks:227:14)
+        at Test.run (node:internal/test_runner/test:1306:25)
+        at Test.processPendingSubtests (node:internal/test_runner/test:897:18),
+    expected: /injected publish failure/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at scripts\lib\k3-publication-transaction.test.js:77:1
+✖ RED: failed restoration retains the only backup and reports its recovery path (251.3301ms)
+  AssertionError [ERR_ASSERTION]: The validation function is expected to return "true". Received false
+  
+  Caught error:
+  
+  Error: staged tree validation failed for .claude-plugin/plugin.json
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\k3-publication-transaction.test.js:84:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: Error: staged tree validation failed for .claude-plugin/plugin.json
+        at validateStagedTree (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\configure\cli.js:446:13)
+        at publishTransaction (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\configure\cli.js:498:5)
+        at runConfigure (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\configure\cli.js:550:23)
+        at C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\k3-publication-transaction.test.js:84:23
+        at getActual (node:assert:611:5)
+        at strict.throws (node:assert:759:24)
+        at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\k3-publication-transaction.test.js:84:10)
+        at Test.runInAsyncScope (node:async_hooks:227:14)
+        at Test.run (node:internal/test_runner/test:1306:25)
+        at Test.processPendingSubtests (node:internal/test_runner/test:897:18),
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at scripts\lib\k3-publication-transaction.test.js:93:1
+✖ transactional publication runs independently for all six configured destinations (252.5155ms)
+  Error: staged tree validation failed for .claude-plugin/plugin.json
+      at validateStagedTree (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\configure\cli.js:446:13)
+      at publishTransaction (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\configure\cli.js:498:5)
+      at runConfigure (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\configure\cli.js:550:23)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\k3-publication-transaction.test.js:98:20)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)

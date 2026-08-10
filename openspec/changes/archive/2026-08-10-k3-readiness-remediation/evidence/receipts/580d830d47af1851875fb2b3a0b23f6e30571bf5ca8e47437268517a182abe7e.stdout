@@ -1,0 +1,39 @@
+✔ runConfigure writes a claude tree to the out dir (28.3345ms)
+✔ runConfigure omits the unsupported codex config artifact (11.3131ms)
+✔ the source fixture is left byte-for-byte unchanged (26.5167ms)
+✔ --no-validate skips the gate (validator not invoked) (11.5972ms)
+✔ a validator failure yields a non-zero exit without throwing (11.6998ms)
+✔ reported warnings also fail the strict gate even on a zero status (11.4668ms)
+✔ a clean validator run keeps a zero exit (11.9903ms)
+✔ github-copilot validation uses the profile-level validator command (12.3369ms)
+✔ defaultRunValidator runs the validator without a shell, passing {out} as one literal argv element (38.8027ms)
+✔ generated claude tree matches the committed golden (14.4682ms)
+✔ generated github-copilot tree matches the committed golden (13.5578ms)
+✔ generated opencode tree matches the committed golden (16.1605ms)
+✔ generated codex tree matches the committed golden (13.2945ms)
+✔ generated cursor tree matches the committed golden (12.562ms)
+✔ regenerating prunes stale generated files but keeps unrelated entries (21.1285ms)
+✔ regenerating codex removes the formerly managed bundled .mcp.json (11.8403ms)
+✔ gatherRuntimeScripts walks hook requires, excluding tests and generator code (3.9997ms)
+✔ loadTree reads the plugin source roots into {path, content} (2.0767ms)
+✔ parseModels reads the two-table shape with scalars and inline arrays (0.1313ms)
+✔ parseModels reads block-sequence target models (0.0724ms)
+✔ RED: runConfigure aborts before writing on reviewer, missing, or invalid Codex model policy (26.5111ms)
+✔ RED: evidence authorization rejects a symlinked change root (2.9968ms)
+✔ parseModels rejects duplicate mapping keys before overwrite (0.3005ms)
+✔ G1: gatherRuntimeScripts includes all four skill entry-point scripts as additional BFS roots (4.5269ms)
+✔ G2: gatherRuntimeScripts excludes target-* modules even when required by an entry script (3.2424ms)
+✔ G3: gatherRuntimeScripts includes a non-excluded transitive dep of a skill entry script (3.0324ms)
+✔ G4: gatherRuntimeScripts excludes modules under scripts/configure/ required transitively (2.953ms)
+✔ G5: gatherRuntimeScripts excludes frontmatter.js and model-resolver.js required transitively (3.1084ms)
+✔ gatherRuntimeScripts handles fs permission errors gracefully (1.8972ms)
+✔ RED: runConfigure aborts without output when a managed source read fails (0.8367ms)
+✔ K3 readiness: every generated target receives the Candidate v2 schema and runtime closure (59.0426ms)
+ℹ tests 31
+ℹ suites 0
+ℹ pass 31
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 482.5982

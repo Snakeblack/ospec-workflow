@@ -1,0 +1,753 @@
+change: k3-readiness-remediation
+status: verified
+classification: high-risk
+last_updated: 2026-08-09T14:46:42Z
+blocking_questions: []
+owner:
+  author: Manuel Retamozo
+  branch: main
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "High-risk public-contract remediation on an active project; the first matching declared route is standard."
+  validated: true
+  validation_errors: []
+baseline_fingerprints:
+  agents: 05e73bac08ef5efb2b5c7e0b980db85601de443a10fc7553f5641d84b0962369
+  execution-identities: 37abe2244a944946aef7214417f27ee7571fc04548088401a0adf7c51bd570d2
+  kernel-contract-schemas: 3b215c7e9959ed50dab8e621ea3cfcb85910dfc7b1a8a5649ed50575b2985979
+  routing: 17ca6aefe160158d28be52d77b2002a1873891378650d971c2d7359ea242e196
+approvals:
+  - id: ambient-sdd-route-001
+    gate: architecture
+    decision: "Route the K3 remediation through persisted SDD."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-09T07:58:28Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: intent-scope-001
+    gate: architecture
+    decision: "Remediate K3 relation/successor contracts, missing fixtures, dist packaging, archived states, and roadmap without implementing K4a behavior."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-09T07:58:28Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: vscode/askQuestions
+    accepted_at: 2026-08-09T07:58:28Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: vscode/askQuestions
+    accepted_at: 2026-08-09T07:58:28Z
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: strict-tdd-provenance-001
+    gate: testing
+    decision: "Run a fresh isolated and reversible TDD cycle to produce authentic RED/GREEN runtime receipts without attributing historical evidence."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-09T08:34:34Z
+    applies_to:
+      - sdd-apply
+      - sdd-verify
+  - id: 4r-critical-remediation-001
+    gate: architecture
+    decision: "Correct the frozen CRITICAL Candidate predecessor canonicality finding within its two-path, 200-line slice, then run targeted validation."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-09T10:15:10Z
+    applies_to:
+      - sdd-apply
+      - review-correction
+      - sdd-archive
+  - id: 4r-warning-remediation-001
+    gate: archive-warning
+    decision: "Remediate frozen advisory F-ec67ad112c0f3c41 with transactional six-target publication and injected write-failure recovery evidence before archive."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-09T10:35:46Z
+    applies_to:
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: assumption-lock-policy-001
+    gate: architecture
+    decision: "Confirm exclusive per-destination locking with explicit cleanup for stale locks; no automatic stale-lock recovery."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-09T10:59:41Z
+    applies_to:
+      - sdd-verify
+      - sdd-archive
+assumptions:
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "Concurrent publications to the same destination are rejected by an exclusive sibling lock; stale locks require explicit cleanup rather than automatic recovery."
+    reversibility: high
+    basis: "Node core provides no portable directory lock that can safely distinguish an active process from a stale lock."
+    recorded_at: 2026-08-09T10:44:36Z
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Confirmed by the maintainer before post-transaction verification."
+      resolved_at: 2026-08-09T10:59:41Z
+  - id: sdd-design-002
+    phase: sdd-design
+    statement: "La representación generacional usa un contenedor sibling con orden canónico, colección por id y puntero activo, manteniendo el lineage singular como semilla legado inmutable."
+    reversibility: low
+    basis: "Es la única alternativa evaluada que preserva compatibilidad fail-closed, bytes legado, determinismo multigeneración y escritura atómica sin dividir el estado OpenSpec."
+    recorded_at: 2026-08-09T14:47:55Z
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Confirmado por el mantenedor (opción 1: aprobar contenedor sibling lineages)."
+      resolved_at: 2026-08-10T14:00:00Z
+phases:
+  proposal:
+    status: done
+    artifact: openspec/changes/k3-readiness-remediation/proposal.md
+    summary: "K3 remediation proposal aligns relation/successor contract, fixtures, dist proof, archive state, and planning references before K4a."
+    key_decisions:
+      - "The normative relation vocabulary is exact, changed, ambiguous, and unknown across spec, schema, and runtime."
+      - "Predecessor metadata must not permit a modified Candidate to remain relation exact."
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/k3-readiness-remediation/specs/execution-identities/spec.md
+      - openspec/changes/k3-readiness-remediation/specs/kernel-contract-schemas/spec.md
+      - openspec/changes/k3-readiness-remediation/specs/agents/spec.md
+      - openspec/changes/k3-readiness-remediation/specs/routing/spec.md
+    summary: "Deltas cover Candidate K3 contracts, transactional publication, ledger-resolved successor authority, and additive generational 4R lineage persistence."
+    key_decisions:
+      - "Candidate.v2.relation remains the persisted four-value K3 vocabulary; no second relation schema is introduced."
+      - "predecessor_id is lineage metadata; frozen payloads derive relation and a changed successor cannot be exact."
+      - "Historical archive evidence stays byte-identical; only evidence-supported metadata may be reconciled."
+      - "4R successor approval is resolved by exact ledger entry and scope, while lineages persist as an additive predecessor-linked chain."
+  clarify:
+    status: skipped
+    summary: "Skipped after validated successor-authority and lineage-persistence deltas reported no residual ambiguity or missing criteria."
+  design:
+    status: done
+    artifact: openspec/changes/k3-readiness-remediation/design.md
+    summary: "Adds ledger-resolved successor authority and an additive active-pointer lineage store while preserving the terminal legacy lineage."
+    key_decisions:
+      - "Generic approval ids resolve by exact unique ledger entry, valid source/decision/scope, allowlisted authority, and chain-wide non-reuse."
+      - "The singular lineage remains immutable; a sibling lineages container owns ordered generations and one active pointer."
+      - "Store mutations use locked compare-and-swap plus atomic read-merge-write; pending or unknown work blocks dispatch until exact reconciliation."
+  tasks:
+    status: done
+    artifact: openspec/changes/k3-readiness-remediation/tasks.md
+    summary: "Backlog marks 9.2-9.4 partially verified and adds Phase 10 for permanent stale-schema pruning, managed-tree safety, source-to-active parity, authenticated evidence, and full final verification."
+    key_decisions:
+      - "Estimated 1,350-1,950 total lines, including 450-650 incremental transactional remediation; exception-ok resolves apply guard with size-exception strategy."
+      - "Every MUST requirement maps to concrete RED/GREEN/TRIANGULATE/REFACTOR tasks and REQ tags."
+      - "Verification findings are preserved verbatim in Phase 7 task intent; Claude validator unavailability is environment-only and cannot be replaced with synthetic evidence."
+      - "Phase 8 requires cleanup-operation fault injection itself, best-effort sequencing with exact recovery reporting, artifact inventory, and fresh focal plus parallel/serial verification."
+      - "Phase 9 addresses the active Codex installer omission: generated dist/codex/schemas closure must be installed and validated through a permanent isolated-home test; active harness restart is required."
+      - "Phase 10 limits pruning to the managed ~/.codex/ospec-workflow/schemas tree, preserves broad Codex-home paths, and requires stale removal plus exact inventory/byte proofs."
+  apply:
+    status: done
+    artifact: openspec/changes/k3-readiness-remediation/apply-progress.md
+    summary: "La evidencia Strict TDD global se reemitió y finalizó contra CandidateId 1473d9; matriz focal, K1 y npm test pasan."
+    key_decisions:
+      - "El único registro autoritativo usa los cuatro pares reemitidos y el manifiesto funcional vivo de 16 rutas."
+      - "La entrega mantiene la excepción de tamaño aprobada y está lista para revalidación independiente."
+  verify:
+    status: done
+    artifact: openspec/changes/k3-readiness-remediation/verify-report.md
+    verdict: PASS
+    summary: "64/64 tasks and 26/26 MUST pass; Codex stale-schema pruning, 31-script/113-schema parity, and all fresh suites are green."
+    key_decisions:
+      - "Live Candidate 0b154b, RED 78f25e, GREEN d02c8c, and finalization 9cb1b2 are runtime-authenticated across 19 paths."
+      - "Focal/parallel/serial, cleanup, six targets, isolated stale prune, real active parity, history, and no-K4a all pass."
+      - "Predecessor 4R remains immutable; normalized new-candidate/new-scope successor inputs are ready without lineage allocation."
+  archive:
+    status: pending
+    artifact: openspec/changes/k3-readiness-remediation/archive-report.md
+gates:
+  4r-review-gate:
+    status: "approved"
+    findings_summary: "0 BLOCKER, 0 unresolved CRITICAL, 1 advisory WARNING, 0 SUGGESTION"
+    schema_version: 1
+    classification: "high-risk"
+    evidence:
+      schema_version: 1
+      fingerprint: "sha256:9b6a9755e1cde63a8dad3b2f6b74bfacac40a9d1ac51f67493a264af2ca98e1d"
+      sources:
+        paths:
+          - "docs/architecture/harness-evolution.md"
+          - "docs/roadmaps/harness-evolution.md"
+          - "openspec/changes/archive/2026-08-07-k3-identities-boundary-closure/state.yaml"
+          - "openspec/changes/archive/2026-08-08-k3-cumulative-schema-binding-remediation/state.yaml"
+          - "openspec/changes/archive/2026-08-08-k3-strict-schema-binding-remediation/state.yaml"
+          - "openspec/changes/k3-readiness-remediation/apply-progress.md"
+          - "openspec/changes/k3-readiness-remediation/decisions/adr-001.md"
+          - "openspec/changes/k3-readiness-remediation/decisions/adr-002.md"
+          - "openspec/changes/k3-readiness-remediation/design.md"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/008506041f203ad4b6b9a6932273eb3d83490e13285efd8b86f356736c411f4e.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/011cf9adce8073be404858b35b68844509c95648696adef4f1e74e37f7cd9bfb.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/0233ed33030547800a9cda39c42fb5a1edf08ef0ec3a047f9933c1398faebc71.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/0766eb5ab03a11c753e58e829efea0705e1980c350369ca929265e87b283ec66.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/0a46abc209a31b24252ca65483600c8ff0878faa35be8a8a2d57e2b2b1f15444.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/0b7155c7185633c294e2360ae23aa46f007608004e2c3c922931657e81b7a031.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/0ed51dd4d48d1bff8ed483a6e572c222e91e705bf2cc68900d4752173feec8a9.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/19420fe8d67d6c51a9b8a1d8a655054b152148e50492112fdda191ca16ac124d.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/1fe2db1f130b67251cb2492b55b47d80645317d32645e592d1549946b59321ce.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/267213593078e628b1da14316220fc5e00806cd7081685cfe037c3c8ac9624b8.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/26e546e080e30d89e69cd1ba6db06196f60f4d0dec519ef070a64a9993753470.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/2aadbf9b78247cf6f7e2409364642a73c56246495bae10dafed3c4a1480eab56.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/3c0fb4660c0b26f6229b2ab90a38d6dcaad37bb3a290f4c6984f7d582dd646cf.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/45d37bf41111924ccf66dcebd92c4a7e7f450e9505bab411943dcc58939c159c.stderr"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/4adefb50c0a836ce10bf2d4d82d3ba005a99fa8ff1ea83762e0afe9263d85952.stderr"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/4b4a66cde3be2a51e5c62e35e3afa93b8b5372e0d182aec950e23cf56f51366a.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/4b537bc854556f11449b6e93b3e0e9f00e682ff047e39d717c5d14f502488e73.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/4bfc80f7b1b723e54b10316b44f10707d182345e0bd455c328f8f47743d9901d.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/4c6610b2af24d35b807fa2d5be0ed7fafa2851bbd418db6fa8c03cf4c9abbf7f.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/53658bdfaa9ed954276a9cabfdd454eb1c3d961b4245539460e892e99fb6aeae.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/54d9ff63087c16b87b9e2d6d0c8b3a17b47f54d68e4f9352dfb7645a2442430e.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/5774b98314360c62634cf12450d33f5e95467190772b1627be3e08a27aa926a3.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/580d830d47af1851875fb2b3a0b23f6e30571bf5ca8e47437268517a182abe7e.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/5a097af82857fe9a65feed581737219cf8d8200afddcd2f49c9d5dbf424e78cb.stderr"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/5ac6a0d5d58a4ab427aae3312abf4e936d8538c628d4a0628cba55aa514a1c21.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/5b83deb7d9193823d0ee881f33af798aa7e84694f20c05c404de02a7577849ce.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/743f73418339f7f7bef6f1063c23fd19e924d2b0c473214ba96fa2600e5a10a3.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/75125f1a458f5aaa184f8b5c1ed56ae55064825c8a65d5e8096e8efc9ef30044.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/7abfd2d280bee5e1f113bed44c70637419d00c969bb360731c80963e408dddd5.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/844be386633cb926eed0f173d2071dd0771d55d7be222b7c04ed303d1f98941d.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/86fd359bfeb7216e6c1fd70de20f9f4769219f6c60a092b2d71d5918c9087ce5.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/8f459932b35f17d3350ffc4b5876e0e1cd8f179e3efdbb2c07617c12ce800f5d.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/8fd2fe8df5625489cd02b76ddb67a90c6f8d883fce5cf191a882732f04ec8b9d.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/9b811505bc5be04a5e360788c09bb0b5a454ff364e3c691540109c040af7909f.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/9eb3208fda3f990894452aa62a2c96355fad4516663008a82eb34fb67a7f1f36.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/a07dff5c38835d8fa924d4959db1359b6fee6aa205282063bd99d314055e7f8c.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/a0ea4973d1020ec0dc4f9af9562ee0d136f3d46e91cebf801e13a8d0280b3b7e.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/a11f26e10347e6682f15196d54e746ea91930f6472e3b726899d7d3bc843ffd3.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/a99690e8f866982b0a727a18eb69e9c94ccd388f8010c4d3869945dc74d98fc1.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/ab2e2fa0af3570d539a0820a26e624a8d2062d7f81cad51e2e07cf79ef695d2e.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/ab53437d1648fd2c590e6357e148af9e170f02a8aef155443fce7f03232e98be.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/b25d702ba45510af1831129b810093a8ef34f967f5821727cb074cefd147eacd.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/b84f0726fd689d04196d23d78ecce206e908a77b78255a0587c353f317af41ff.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/c25fd157cb0d5d3d6dafa10d2ab4e05104be9d13f5c4ed2198504dbe3aa3f55e.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/c814e424ade310101fbfa9fc56212e2c7d142bc4b32123b706a57e88a447a251.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/c84584686b68fa11689764125f37f9bb82c45f2154f2cb5524a00c0cf5e81d00.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/ca806c5e125580bd0ef8941db4e6aef78d9ee3511e2ec4002a7308ba0ef3e5f7.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/ce66384eef9c97d805470bdad7e5a7cabf49a1050dca4d63d528ad6ba0edc112.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/d1082d8757752d1d1d6ede3e5b1c5ace3854119a20467af4b6d9264f147789ad.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/d1829c9d8c0280c221541b07bb0ee3be9a9d8b2039449479f8151fef7b0287ba.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/d4792b60e4cf31ad5d2b96eb3fe1e21a1f2e29d745ee453d7bf5752d8d68fd21.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/d923b68b8b237716a10430f26ed7d5973c5d76d1a10b2eef61f41c5fab591bab.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/daabc56684c9675ac51ca9541988f49aadedca5d104114a77e4b9608a2ac0ffd.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/df925c74876f37f762e38c2c26a93c71f59478bd6032acf12a4db230491e6ec7.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/e0a36a96121ce399a4b06ec5be02917f05dc47c5557c9c11a03ad8d838af7a13.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/e229db480a00cdc9ad98c318885f3a6db64dc68b783598374fc47cbd3ed0ae62.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/e39124cb86f5164c7edb16221339466a5ff5c7efc3bdf848f40b013c2b9c4d55.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.stderr"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/e8fdfdc3abe130b3c1d45c447441b13ecd179e9d3465969bfe7b977cf623e078.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/e9fbde7831da87193f78e030289ea3574c14b04f53082a0aee1d2254cc1d94fe.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/f1fcda59a925f37d67b10e77f95724a4aae3218ad4676e3887a321134705adbf.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/ff9c8d13cdb491f780e91835de852e6cf461ecad168da8ea4a8b76317923ebcd.stdout"
+          - "openspec/changes/k3-readiness-remediation/proposal.md"
+          - "openspec/changes/k3-readiness-remediation/specs/execution-identities/spec.md"
+          - "openspec/changes/k3-readiness-remediation/specs/kernel-contract-schemas/spec.md"
+          - "openspec/changes/k3-readiness-remediation/state.yaml"
+          - "openspec/changes/k3-readiness-remediation/tasks.md"
+          - "openspec/changes/k3-readiness-remediation/verify-report.md"
+          - "schemas/kernel/candidate/fixtures/identity/case-distinct-paths.json"
+          - "schemas/kernel/candidate/fixtures/identity/projection-change.json"
+          - "schemas/kernel/candidate/fixtures/identity/symlink-target-change.json"
+          - "schemas/kernel/candidate/fixtures/invalid/v2-exact-with-predecessor.json"
+          - "schemas/kernel/candidate/fixtures/invalid/v2-retired-superset.json"
+          - "schemas/kernel/candidate/fixtures/valid/v2-changed-successor.json"
+          - "schemas/kernel/candidate/v2.schema.json"
+          - "scripts/configure/cli.js"
+          - "scripts/configure/cli.test.js"
+          - "scripts/lib/execution-identities/index.js"
+          - "scripts/lib/execution-identities/index.test.js"
+          - "scripts/lib/k1-scope-guard.test.js"
+          - "scripts/lib/k3-readiness-reconciliation.test.js"
+          - "scripts/lib/k3-schema-fixtures.test.js"
+          - "scripts/lib/lifecycle-kernel/k1-compat.js"
+          - "scripts/strict-tdd-evidence-parity.test.js"
+        capabilities:
+          - "runtime"
+        operation_types:
+          - "add"
+          - "modify"
+        dependencies: []
+        facts:
+          -
+            code: "design-risk"
+            source: "design"
+            detail: "Public Candidate contract, generated multi-target distribution, and evidence/history reconciliation"
+          -
+            code: "metadata-runtime"
+            source: "metadata"
+            detail: "runtime"
+    generalist:
+      status: "needs-specialist"
+      specialists:
+        - "risk"
+        - "reliability"
+        - "resilience"
+        - "readability"
+      reason: "signals=design-risk,diff-error-flow,diff-process-execution,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability"
+    depth:
+      review: "strict"
+    escalation_reason: null
+    dimensions:
+      risk:
+        selected: true
+        reasons:
+          -
+            code: "high-risk-override"
+            source: "override"
+            detail: "Classification requires full 4R"
+            precedence: 0
+          -
+            code: "generalist-escalation"
+            source: "generalist"
+            detail: "signals=design-risk,diff-error-flow,diff-process-execution,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability"
+            precedence: 3
+          -
+            code: "design-risk"
+            source: "design"
+            detail: "Public Candidate contract, generated multi-target distribution, and evidence/history reconciliation"
+            precedence: 4
+      reliability:
+        selected: true
+        reasons:
+          -
+            code: "high-risk-override"
+            source: "override"
+            detail: "Classification requires full 4R"
+            precedence: 0
+          -
+            code: "generalist-escalation"
+            source: "generalist"
+            detail: "signals=design-risk,diff-error-flow,diff-process-execution,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability"
+            precedence: 3
+          -
+            code: "metadata-runtime"
+            source: "metadata"
+            detail: "runtime"
+            precedence: 5
+      resilience:
+        selected: true
+        reasons:
+          -
+            code: "high-risk-override"
+            source: "override"
+            detail: "Classification requires full 4R"
+            precedence: 0
+          -
+            code: "generalist-escalation"
+            source: "generalist"
+            detail: "signals=design-risk,diff-error-flow,diff-process-execution,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability"
+            precedence: 3
+      readability:
+        selected: true
+        reasons:
+          -
+            code: "high-risk-override"
+            source: "override"
+            detail: "Classification requires full 4R"
+            precedence: 0
+          -
+            code: "generalist-escalation"
+            source: "generalist"
+            detail: "signals=design-risk,diff-error-flow,diff-process-execution,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability"
+            precedence: 3
+    candidate_id: "sha256:d8f4163b543efa6b1194da3e8b84ccff42ae8358aaea9571c4a9c62f4dc4a0de"
+    original_changed_lines: 3348
+    correction_allowance_lines: 200
+    generalist_execution:
+      status: "completed"
+      skill_resolution: "none"
+    lineage:
+      schema_version: 1
+      lineage_id: "sha256:80b9ecc85a3d769e46cc2710fcf4f0cd07b20973ac51513e86d02b363116fdd6"
+      generation: 1
+      predecessor_lineage_id: null
+      recovery: null
+      revision: 12
+      status: "approved"
+      genesis:
+        candidate:
+          projection: "workspace"
+          base_tree: "fd812f7d298b298db9af384ebcb1f8ab0c84e143"
+          candidate_tree: "sha256:1473d9febaccd2779a4a470d0dcc03b726818c93e8398adb94de50856d92ac3b"
+          paths: &review_genesis_paths
+            - "docs/architecture/harness-evolution.md"
+            - "docs/roadmaps/harness-evolution.md"
+            - "openspec/changes/archive/2026-08-07-k3-identities-boundary-closure/state.yaml"
+            - "openspec/changes/archive/2026-08-08-k3-cumulative-schema-binding-remediation/state.yaml"
+            - "openspec/changes/archive/2026-08-08-k3-strict-schema-binding-remediation/state.yaml"
+            - "openspec/changes/k3-readiness-remediation/apply-progress.md"
+            - "openspec/changes/k3-readiness-remediation/decisions/adr-001.md"
+            - "openspec/changes/k3-readiness-remediation/decisions/adr-002.md"
+            - "openspec/changes/k3-readiness-remediation/design.md"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/008506041f203ad4b6b9a6932273eb3d83490e13285efd8b86f356736c411f4e.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/011cf9adce8073be404858b35b68844509c95648696adef4f1e74e37f7cd9bfb.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/0233ed33030547800a9cda39c42fb5a1edf08ef0ec3a047f9933c1398faebc71.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/0766eb5ab03a11c753e58e829efea0705e1980c350369ca929265e87b283ec66.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/0a46abc209a31b24252ca65483600c8ff0878faa35be8a8a2d57e2b2b1f15444.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/0b7155c7185633c294e2360ae23aa46f007608004e2c3c922931657e81b7a031.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/0ed51dd4d48d1bff8ed483a6e572c222e91e705bf2cc68900d4752173feec8a9.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/19420fe8d67d6c51a9b8a1d8a655054b152148e50492112fdda191ca16ac124d.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/1fe2db1f130b67251cb2492b55b47d80645317d32645e592d1549946b59321ce.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/267213593078e628b1da14316220fc5e00806cd7081685cfe037c3c8ac9624b8.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/26e546e080e30d89e69cd1ba6db06196f60f4d0dec519ef070a64a9993753470.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/2aadbf9b78247cf6f7e2409364642a73c56246495bae10dafed3c4a1480eab56.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/3c0fb4660c0b26f6229b2ab90a38d6dcaad37bb3a290f4c6984f7d582dd646cf.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/45d37bf41111924ccf66dcebd92c4a7e7f450e9505bab411943dcc58939c159c.stderr"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/4adefb50c0a836ce10bf2d4d82d3ba005a99fa8ff1ea83762e0afe9263d85952.stderr"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/4b4a66cde3be2a51e5c62e35e3afa93b8b5372e0d182aec950e23cf56f51366a.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/4b537bc854556f11449b6e93b3e0e9f00e682ff047e39d717c5d14f502488e73.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/4bfc80f7b1b723e54b10316b44f10707d182345e0bd455c328f8f47743d9901d.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/4c6610b2af24d35b807fa2d5be0ed7fafa2851bbd418db6fa8c03cf4c9abbf7f.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/53658bdfaa9ed954276a9cabfdd454eb1c3d961b4245539460e892e99fb6aeae.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/54d9ff63087c16b87b9e2d6d0c8b3a17b47f54d68e4f9352dfb7645a2442430e.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/5774b98314360c62634cf12450d33f5e95467190772b1627be3e08a27aa926a3.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/580d830d47af1851875fb2b3a0b23f6e30571bf5ca8e47437268517a182abe7e.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/5a097af82857fe9a65feed581737219cf8d8200afddcd2f49c9d5dbf424e78cb.stderr"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/5ac6a0d5d58a4ab427aae3312abf4e936d8538c628d4a0628cba55aa514a1c21.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/5b83deb7d9193823d0ee881f33af798aa7e84694f20c05c404de02a7577849ce.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/743f73418339f7f7bef6f1063c23fd19e924d2b0c473214ba96fa2600e5a10a3.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/75125f1a458f5aaa184f8b5c1ed56ae55064825c8a65d5e8096e8efc9ef30044.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/7abfd2d280bee5e1f113bed44c70637419d00c969bb360731c80963e408dddd5.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/844be386633cb926eed0f173d2071dd0771d55d7be222b7c04ed303d1f98941d.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/86fd359bfeb7216e6c1fd70de20f9f4769219f6c60a092b2d71d5918c9087ce5.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/8f459932b35f17d3350ffc4b5876e0e1cd8f179e3efdbb2c07617c12ce800f5d.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/8fd2fe8df5625489cd02b76ddb67a90c6f8d883fce5cf191a882732f04ec8b9d.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/9b811505bc5be04a5e360788c09bb0b5a454ff364e3c691540109c040af7909f.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/9eb3208fda3f990894452aa62a2c96355fad4516663008a82eb34fb67a7f1f36.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/a07dff5c38835d8fa924d4959db1359b6fee6aa205282063bd99d314055e7f8c.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/a0ea4973d1020ec0dc4f9af9562ee0d136f3d46e91cebf801e13a8d0280b3b7e.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/a11f26e10347e6682f15196d54e746ea91930f6472e3b726899d7d3bc843ffd3.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/a99690e8f866982b0a727a18eb69e9c94ccd388f8010c4d3869945dc74d98fc1.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/ab2e2fa0af3570d539a0820a26e624a8d2062d7f81cad51e2e07cf79ef695d2e.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/ab53437d1648fd2c590e6357e148af9e170f02a8aef155443fce7f03232e98be.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/b25d702ba45510af1831129b810093a8ef34f967f5821727cb074cefd147eacd.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/b84f0726fd689d04196d23d78ecce206e908a77b78255a0587c353f317af41ff.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/c25fd157cb0d5d3d6dafa10d2ab4e05104be9d13f5c4ed2198504dbe3aa3f55e.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/c814e424ade310101fbfa9fc56212e2c7d142bc4b32123b706a57e88a447a251.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/c84584686b68fa11689764125f37f9bb82c45f2154f2cb5524a00c0cf5e81d00.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/ca806c5e125580bd0ef8941db4e6aef78d9ee3511e2ec4002a7308ba0ef3e5f7.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/ce66384eef9c97d805470bdad7e5a7cabf49a1050dca4d63d528ad6ba0edc112.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/d1082d8757752d1d1d6ede3e5b1c5ace3854119a20467af4b6d9264f147789ad.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/d1829c9d8c0280c221541b07bb0ee3be9a9d8b2039449479f8151fef7b0287ba.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/d4792b60e4cf31ad5d2b96eb3fe1e21a1f2e29d745ee453d7bf5752d8d68fd21.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/d923b68b8b237716a10430f26ed7d5973c5d76d1a10b2eef61f41c5fab591bab.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/daabc56684c9675ac51ca9541988f49aadedca5d104114a77e4b9608a2ac0ffd.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/df925c74876f37f762e38c2c26a93c71f59478bd6032acf12a4db230491e6ec7.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/e0a36a96121ce399a4b06ec5be02917f05dc47c5557c9c11a03ad8d838af7a13.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/e229db480a00cdc9ad98c318885f3a6db64dc68b783598374fc47cbd3ed0ae62.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/e39124cb86f5164c7edb16221339466a5ff5c7efc3bdf848f40b013c2b9c4d55.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.stderr"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/e8fdfdc3abe130b3c1d45c447441b13ecd179e9d3465969bfe7b977cf623e078.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/e9fbde7831da87193f78e030289ea3574c14b04f53082a0aee1d2254cc1d94fe.stdout"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/f1fcda59a925f37d67b10e77f95724a4aae3218ad4676e3887a321134705adbf.json"
+            - "openspec/changes/k3-readiness-remediation/evidence/receipts/ff9c8d13cdb491f780e91835de852e6cf461ecad168da8ea4a8b76317923ebcd.stdout"
+            - "openspec/changes/k3-readiness-remediation/proposal.md"
+            - "openspec/changes/k3-readiness-remediation/specs/execution-identities/spec.md"
+            - "openspec/changes/k3-readiness-remediation/specs/kernel-contract-schemas/spec.md"
+            - "openspec/changes/k3-readiness-remediation/state.yaml"
+            - "openspec/changes/k3-readiness-remediation/tasks.md"
+            - "openspec/changes/k3-readiness-remediation/verify-report.md"
+            - "schemas/kernel/candidate/fixtures/identity/case-distinct-paths.json"
+            - "schemas/kernel/candidate/fixtures/identity/projection-change.json"
+            - "schemas/kernel/candidate/fixtures/identity/symlink-target-change.json"
+            - "schemas/kernel/candidate/fixtures/invalid/v2-exact-with-predecessor.json"
+            - "schemas/kernel/candidate/fixtures/invalid/v2-retired-superset.json"
+            - "schemas/kernel/candidate/fixtures/valid/v2-changed-successor.json"
+            - "schemas/kernel/candidate/v2.schema.json"
+            - "scripts/configure/cli.js"
+            - "scripts/configure/cli.test.js"
+            - "scripts/lib/execution-identities/index.js"
+            - "scripts/lib/execution-identities/index.test.js"
+            - "scripts/lib/k1-scope-guard.test.js"
+            - "scripts/lib/k3-readiness-reconciliation.test.js"
+            - "scripts/lib/k3-schema-fixtures.test.js"
+            - "scripts/lib/lifecycle-kernel/k1-compat.js"
+            - "scripts/strict-tdd-evidence-parity.test.js"
+          diff_hash: "sha256:7279d77c744a49166d2c36194d22ec725fcd55e6f1916daf5da9c678aaf07abc"
+          paths_digest: "sha256:5975601ed32fba703b66370bf638dc3a5b1f62501c8827a9b4593406ba7e62df"
+          authored_lines: 3348
+          original_changed_lines: 3348
+        candidate_id: "sha256:d8f4163b543efa6b1194da3e8b84ccff42ae8358aaea9571c4a9c62f4dc4a0de"
+        paths: *review_genesis_paths
+        classification: "high-risk"
+        selected_dimensions:
+          - "risk"
+          - "reliability"
+          - "resilience"
+          - "readability"
+        evidence_fingerprint: "sha256:9b6a9755e1cde63a8dad3b2f6b74bfacac40a9d1ac51f67493a264af2ca98e1d"
+        original_changed_lines: 3348
+        authored_lines: 3348
+      current_candidate_id: "sha256:c2416e5b4f3b7fd9b3a8c6c90008ee49618dee8d459a64be122411a43eb729ce"
+      current_candidate:
+        projection: "workspace"
+        base_tree: "fd812f7d298b298db9af384ebcb1f8ab0c84e143"
+        candidate_tree: "sha256:249aefdd516e41d053e49376963d271d2e2a7dfeadb377b48112b5ade151e977"
+        paths:
+          - "docs/architecture/harness-evolution.md"
+          - "docs/roadmaps/harness-evolution.md"
+          - "openspec/changes/archive/2026-08-07-k3-identities-boundary-closure/state.yaml"
+          - "openspec/changes/archive/2026-08-08-k3-cumulative-schema-binding-remediation/state.yaml"
+          - "openspec/changes/archive/2026-08-08-k3-strict-schema-binding-remediation/state.yaml"
+          - "openspec/changes/k3-readiness-remediation/apply-progress.md"
+          - "openspec/changes/k3-readiness-remediation/decisions/adr-001.md"
+          - "openspec/changes/k3-readiness-remediation/decisions/adr-002.md"
+          - "openspec/changes/k3-readiness-remediation/design.md"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/008506041f203ad4b6b9a6932273eb3d83490e13285efd8b86f356736c411f4e.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/011cf9adce8073be404858b35b68844509c95648696adef4f1e74e37f7cd9bfb.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/0233ed33030547800a9cda39c42fb5a1edf08ef0ec3a047f9933c1398faebc71.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/0766eb5ab03a11c753e58e829efea0705e1980c350369ca929265e87b283ec66.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/0a46abc209a31b24252ca65483600c8ff0878faa35be8a8a2d57e2b2b1f15444.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/0b7155c7185633c294e2360ae23aa46f007608004e2c3c922931657e81b7a031.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/0ed51dd4d48d1bff8ed483a6e572c222e91e705bf2cc68900d4752173feec8a9.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/19420fe8d67d6c51a9b8a1d8a655054b152148e50492112fdda191ca16ac124d.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/1fe2db1f130b67251cb2492b55b47d80645317d32645e592d1549946b59321ce.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/267213593078e628b1da14316220fc5e00806cd7081685cfe037c3c8ac9624b8.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/26e546e080e30d89e69cd1ba6db06196f60f4d0dec519ef070a64a9993753470.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/2aadbf9b78247cf6f7e2409364642a73c56246495bae10dafed3c4a1480eab56.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/3c0fb4660c0b26f6229b2ab90a38d6dcaad37bb3a290f4c6984f7d582dd646cf.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/45d37bf41111924ccf66dcebd92c4a7e7f450e9505bab411943dcc58939c159c.stderr"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/4adefb50c0a836ce10bf2d4d82d3ba005a99fa8ff1ea83762e0afe9263d85952.stderr"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/4b4a66cde3be2a51e5c62e35e3afa93b8b5372e0d182aec950e23cf56f51366a.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/4b537bc854556f11449b6e93b3e0e9f00e682ff047e39d717c5d14f502488e73.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/4bfc80f7b1b723e54b10316b44f10707d182345e0bd455c328f8f47743d9901d.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/4c6610b2af24d35b807fa2d5be0ed7fafa2851bbd418db6fa8c03cf4c9abbf7f.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/53658bdfaa9ed954276a9cabfdd454eb1c3d961b4245539460e892e99fb6aeae.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/54d9ff63087c16b87b9e2d6d0c8b3a17b47f54d68e4f9352dfb7645a2442430e.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/5774b98314360c62634cf12450d33f5e95467190772b1627be3e08a27aa926a3.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/580d830d47af1851875fb2b3a0b23f6e30571bf5ca8e47437268517a182abe7e.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/5a097af82857fe9a65feed581737219cf8d8200afddcd2f49c9d5dbf424e78cb.stderr"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/5ac6a0d5d58a4ab427aae3312abf4e936d8538c628d4a0628cba55aa514a1c21.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/5b83deb7d9193823d0ee881f33af798aa7e84694f20c05c404de02a7577849ce.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/743f73418339f7f7bef6f1063c23fd19e924d2b0c473214ba96fa2600e5a10a3.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/75125f1a458f5aaa184f8b5c1ed56ae55064825c8a65d5e8096e8efc9ef30044.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/7abfd2d280bee5e1f113bed44c70637419d00c969bb360731c80963e408dddd5.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/844be386633cb926eed0f173d2071dd0771d55d7be222b7c04ed303d1f98941d.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/86fd359bfeb7216e6c1fd70de20f9f4769219f6c60a092b2d71d5918c9087ce5.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/8f459932b35f17d3350ffc4b5876e0e1cd8f179e3efdbb2c07617c12ce800f5d.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/8fd2fe8df5625489cd02b76ddb67a90c6f8d883fce5cf191a882732f04ec8b9d.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/9b811505bc5be04a5e360788c09bb0b5a454ff364e3c691540109c040af7909f.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/9eb3208fda3f990894452aa62a2c96355fad4516663008a82eb34fb67a7f1f36.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/a07dff5c38835d8fa924d4959db1359b6fee6aa205282063bd99d314055e7f8c.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/a0ea4973d1020ec0dc4f9af9562ee0d136f3d46e91cebf801e13a8d0280b3b7e.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/a11f26e10347e6682f15196d54e746ea91930f6472e3b726899d7d3bc843ffd3.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/a99690e8f866982b0a727a18eb69e9c94ccd388f8010c4d3869945dc74d98fc1.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/ab2e2fa0af3570d539a0820a26e624a8d2062d7f81cad51e2e07cf79ef695d2e.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/ab53437d1648fd2c590e6357e148af9e170f02a8aef155443fce7f03232e98be.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/b25d702ba45510af1831129b810093a8ef34f967f5821727cb074cefd147eacd.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/b84f0726fd689d04196d23d78ecce206e908a77b78255a0587c353f317af41ff.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/c25fd157cb0d5d3d6dafa10d2ab4e05104be9d13f5c4ed2198504dbe3aa3f55e.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/c814e424ade310101fbfa9fc56212e2c7d142bc4b32123b706a57e88a447a251.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/c84584686b68fa11689764125f37f9bb82c45f2154f2cb5524a00c0cf5e81d00.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/ca806c5e125580bd0ef8941db4e6aef78d9ee3511e2ec4002a7308ba0ef3e5f7.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/ce66384eef9c97d805470bdad7e5a7cabf49a1050dca4d63d528ad6ba0edc112.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/d1082d8757752d1d1d6ede3e5b1c5ace3854119a20467af4b6d9264f147789ad.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/d1829c9d8c0280c221541b07bb0ee3be9a9d8b2039449479f8151fef7b0287ba.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/d4792b60e4cf31ad5d2b96eb3fe1e21a1f2e29d745ee453d7bf5752d8d68fd21.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/d923b68b8b237716a10430f26ed7d5973c5d76d1a10b2eef61f41c5fab591bab.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/daabc56684c9675ac51ca9541988f49aadedca5d104114a77e4b9608a2ac0ffd.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/df925c74876f37f762e38c2c26a93c71f59478bd6032acf12a4db230491e6ec7.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/e0a36a96121ce399a4b06ec5be02917f05dc47c5557c9c11a03ad8d838af7a13.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/e229db480a00cdc9ad98c318885f3a6db64dc68b783598374fc47cbd3ed0ae62.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/e39124cb86f5164c7edb16221339466a5ff5c7efc3bdf848f40b013c2b9c4d55.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.stderr"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/e8fdfdc3abe130b3c1d45c447441b13ecd179e9d3465969bfe7b977cf623e078.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/e9fbde7831da87193f78e030289ea3574c14b04f53082a0aee1d2254cc1d94fe.stdout"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/f1fcda59a925f37d67b10e77f95724a4aae3218ad4676e3887a321134705adbf.json"
+          - "openspec/changes/k3-readiness-remediation/evidence/receipts/ff9c8d13cdb491f780e91835de852e6cf461ecad168da8ea4a8b76317923ebcd.stdout"
+          - "openspec/changes/k3-readiness-remediation/proposal.md"
+          - "openspec/changes/k3-readiness-remediation/specs/execution-identities/spec.md"
+          - "openspec/changes/k3-readiness-remediation/specs/kernel-contract-schemas/spec.md"
+          - "openspec/changes/k3-readiness-remediation/state.yaml"
+          - "openspec/changes/k3-readiness-remediation/tasks.md"
+          - "openspec/changes/k3-readiness-remediation/verify-report.md"
+          - "schemas/kernel/candidate/fixtures/identity/case-distinct-paths.json"
+          - "schemas/kernel/candidate/fixtures/identity/projection-change.json"
+          - "schemas/kernel/candidate/fixtures/identity/symlink-target-change.json"
+          - "schemas/kernel/candidate/fixtures/invalid/v2-exact-with-predecessor.json"
+          - "schemas/kernel/candidate/fixtures/invalid/v2-retired-superset.json"
+          - "schemas/kernel/candidate/fixtures/valid/v2-changed-successor.json"
+          - "schemas/kernel/candidate/v2.schema.json"
+          - "scripts/configure/cli.js"
+          - "scripts/configure/cli.test.js"
+          - "scripts/lib/execution-identities/index.js"
+          - "scripts/lib/execution-identities/index.test.js"
+          - "scripts/lib/k1-scope-guard.test.js"
+          - "scripts/lib/k3-readiness-reconciliation.test.js"
+          - "scripts/lib/k3-schema-fixtures.test.js"
+          - "scripts/lib/lifecycle-kernel/k1-compat.js"
+          - "scripts/strict-tdd-evidence-parity.test.js"
+        diff_hash: "sha256:0cba62d5af7ca263c7495c5e13cc5b6fe05581023c8f18445285158877b5bdd3"
+        paths_digest: "sha256:5975601ed32fba703b66370bf638dc3a5b1f62501c8827a9b4593406ba7e62df"
+        authored_lines: 3348
+        original_changed_lines: 3348
+      lenses:
+        risk:
+          selected: true
+          status: "completed"
+          request_id: "k3-readiness-remediation-risk-initial-001"
+          result_digest: "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc"
+          result_request_id: "k3-readiness-remediation-risk-initial-001"
+          result:
+            findings: []
+          operation: null
+        reliability:
+          selected: true
+          status: "completed"
+          request_id: "k3-readiness-remediation-reliability-initial-001"
+          result_digest: "sha256:40a7e96dfe617ec2a4b4ec6939665482359d701228ec2fe37dce2ad3a751cd65"
+          result_request_id: "k3-readiness-remediation-reliability-initial-001"
+          result:
+            findings:
+              -
+                severity: "CRITICAL"
+                summary: "`scripts/lib/execution-identities/index.js`: `freezeCandidate()` solo usa `isFrozenCandidateV2()` para `predecessorCandidate`, que valida el JSON Schema pero no la coherencia canónica del linaje. El esquema permite `relation: \"ambiguous\"`; un predecesor derivado mediante `{ ...root, relation: \"ambiguous\" }` es schema-válido y `freezeCandidate(..., predecessorCandidate)` lo acepta, creando un sucesor `changed`. Falta el caso negativo en `scripts/lib/execution-identities/index.test.js` que exija rechazar un predecesor schema-válido con `relation: \"ambiguous\"` (y, análogamente, `unknown` o un linaje persistido incoherente)."
+                acceptance_criteria: "Antes de derivar `predecessor_id`, `freezeCandidate()` rechaza predecesores que no sean un Candidate v2 canónico y coherente; las pruebas cubren que los predecesores `ambiguous`, `unknown` y `changed` con metadatos de linaje inconsistentes no pueden generar sucesores."
+          operation: null
+        resilience:
+          selected: true
+          status: "completed"
+          request_id: "k3-readiness-remediation-resilience-initial-001"
+          result_digest: "sha256:6d29dab30c70f78b13c2d74baca1b2ab4c3b87a0c1f4c11fc9dfa5748518b871"
+          result_request_id: "k3-readiness-remediation-resilience-initial-001"
+          result:
+            findings:
+              -
+                severity: "WARNING"
+                summary: "scripts/configure/cli.js:185-190 poda primero los artefactos gestionados y después escribe cada archivo directamente en el destino; si `mkdirSync` o `writeFileSync` falla a mitad de la secuencia, no hay staging, rollback ni restauración del árbol previo. La ampliación K3 de `SOURCE_ROOTS` y `SKILL_ENTRY_SCRIPTS` hace que esta ruta publique ahora el esquema Candidate v2 y su cierre de runtime en los seis destinos."
+                acceptance_criteria: "Generar cada destino en un directorio temporal y sustituirlo sólo tras completar todas las escrituras y la validación, o implementar una restauración verificable del árbol previo ante errores de poda/escritura/validación. Añadir una prueba que inyecte un fallo de escritura posterior a la poda y demuestre que el destino existente queda íntegro o que no se publica ningún estado parcial."
+          operation: null
+        readability:
+          selected: true
+          status: "completed"
+          request_id: "k3-readiness-remediation-readability-initial-001"
+          result_digest: "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc"
+          result_request_id: "k3-readiness-remediation-readability-initial-001"
+          result:
+            findings: []
+          operation: null
+      findings:
+        -
+          id: "F-b317239e03fd1367"
+          owner: "reliability"
+          severity: "CRITICAL"
+          summary: "`scripts/lib/execution-identities/index.js`: `freezeCandidate()` solo usa `isFrozenCandidateV2()` para `predecessorCandidate`, que valida el JSON Schema pero no la coherencia canónica del linaje. El esquema permite `relation: \"ambiguous\"`; un predecesor derivado mediante `{ ...root, relation: \"ambiguous\" }` es schema-válido y `freezeCandidate(..., predecessorCandidate)` lo acepta, creando un sucesor `changed`. Falta el caso negativo en `scripts/lib/execution-identities/index.test.js` que exija rechazar un predecesor schema-válido con `relation: \"ambiguous\"` (y, análogamente, `unknown` o un linaje persistido incoherente)."
+          acceptance_criteria: "Antes de derivar `predecessor_id`, `freezeCandidate()` rechaza predecesores que no sean un Candidate v2 canónico y coherente; las pruebas cubren que los predecesores `ambiguous`, `unknown` y `changed` con metadatos de linaje inconsistentes no pueden generar sucesores."
+          blocking: true
+          resolution: "resolved"
+        -
+          id: "F-ec67ad112c0f3c41"
+          owner: "resilience"
+          severity: "WARNING"
+          summary: "scripts/configure/cli.js:185-190 poda primero los artefactos gestionados y después escribe cada archivo directamente en el destino; si `mkdirSync` o `writeFileSync` falla a mitad de la secuencia, no hay staging, rollback ni restauración del árbol previo. La ampliación K3 de `SOURCE_ROOTS` y `SKILL_ENTRY_SCRIPTS` hace que esta ruta publique ahora el esquema Candidate v2 y su cierre de runtime en los seis destinos."
+          acceptance_criteria: "Generar cada destino en un directorio temporal y sustituirlo sólo tras completar todas las escrituras y la validación, o implementar una restauración verificable del árbol previo ante errores de poda/escritura/validación. Añadir una prueba que inyecte un fallo de escritura posterior a la poda y demuestre que el destino existente queda íntegro o que no se publica ningún estado parcial."
+          blocking: false
+          resolution: "advisory"
+      findings_digest: "sha256:f24c34f48bac7ccbf87335b3d2fcecd775971fcfcc0eb3dc94aae59ebf73ed9a"
+      correction_budget:
+        limit_lines: 200
+        used_lines: 0
+        failed_attempts: 0
+        max_failed_attempts: 3
+      correction_history: []
+      validation_history: []
+      follow_ups: []
+      pending_operation: null
+      pending_correction: null
+      terminal_reason: "all-remediation-slices-passed"
+      remediation_schema_version: 2
+      remediation_migration:
+        source_digest: "sha256:cae45c0cedf2f457aba3af0e7df69cee66d3bb7131c04ac7c611f56d8ffd6a3e"
+        manifest_digest: "sha256:68fd61bd32aff38507132c9f7bd2e0b78b8cb41be0ef6dc996517290af2ad831"
+        legacy_used_lines: 0
+        legacy_failed_attempts: 0
+        migrated_at: "deterministic"
+      slice_order:
+        - "S-7c6cafaab68ee11c"
+      active_slice_id: null
+      correction_slices:
+        S-7c6cafaab68ee11c:
+          slice_id: "S-7c6cafaab68ee11c"
+          root_cause_key: "candidate-predecessor-canonicality"
+          finding_ids:
+            - "F-b317239e03fd1367"
+          evidence_digests:
+            - "sha256:39198a0a460d851c9802f084de45780d35c258e52f50537e86baf78d2c2036e7"
+          permitted_paths:
+            - "scripts/lib/execution-identities/index.js"
+            - "scripts/lib/execution-identities/index.test.js"
+          resolutions:
+            F-b317239e03fd1367: "unresolved"
+          status: "passed"
+          used_lines: 36
+          failed_attempts: 0
+          limit_lines: 200
+          max_failed_attempts: 3
+          correction_history:
+            -
+              slice_id: "S-7c6cafaab68ee11c"
+              request_id: "k3-readiness-remediation-slice-correction-001"
+              finding_ids:
+                - "F-b317239e03fd1367"
+              paths:
+                - "scripts/lib/execution-identities/index.js"
+                - "scripts/lib/execution-identities/index.test.js"
+              base_candidate_id: "sha256:d8f4163b543efa6b1194da3e8b84ccff42ae8358aaea9571c4a9c62f4dc4a0de"
+              forecast_lines: 80
+              actual_changed_lines: 36
+              record_request_id: "k3-readiness-remediation-slice-record-001"
+              corrected_candidate_id: "sha256:c2416e5b4f3b7fd9b3a8c6c90008ee49618dee8d459a64be122411a43eb729ce"
+          validation_history:
+            -
+              request_id: "k3-readiness-remediation-targeted-validation-001"
+              outcomes:
+                -
+                  id: "F-b317239e03fd1367"
+                  status: "resolved"
+              regression:
+                detected: false
+                evidence:
+                  - "Focal: node --test --test-name-pattern='4R F-b317239e03fd1367' scripts/lib/execution-identities/index.test.js — 1/1 passed."
+                  - "Relevant regression: node --test --test-name-pattern='K3 readiness: successor relation is derived' scripts/lib/execution-identities/index.test.js — 1/1 passed."
+                  - "Permitted-path integrity: git diff --check -- scripts/lib/execution-identities/index.js scripts/lib/execution-identities/index.test.js — passed (only CRLF advisory warnings)."
+                  - "Inspection: freezeCandidate() now requires predecessorCandidate, validates its canonical candidate_id and coherent derived relation before deriving predecessor_id; focused test rejects schema-valid ambiguous, unknown, and incoherent changed predecessor variants."
+                impacted_slices: []
+              result: "passed"
+          regression_history: []
+          legacy_correction_refs: []
+          legacy_validation_refs: []
+    next_action:
+      type: "stop"
+      reason: "all-remediation-slices-passed"

@@ -31,6 +31,7 @@ const SOURCE_ROOTS = [
   "commands",
   "rules",
   "skills",
+  "schemas/kernel",
   "models.yaml",
 ];
 
@@ -76,6 +77,7 @@ const SKILL_ENTRY_SCRIPTS = [
   "scripts/lib/workspace-general-baseline.js",
   "scripts/lib/federation-baseline-orchestrator.js",
   "scripts/lib/strict-tdd-evidence-remediation.js",
+  "scripts/lib/execution-identities/index.js",
 ];
 
 // Returns true for modules that must never appear in the runtime dist:
@@ -172,7 +174,11 @@ function gatherRuntimeScripts(sourceDir) {
 // .github/, skills/, .mcp.json). Files the generator never produces are left
 // untouched, so pointing --out at a populated directory cannot delete unrelated
 // data. No whole-directory rmSync, so there is no destructive blast radius.
-function writeTree(outDir, { files }, additionalManagedRoots = []) {
+function observe(observer, event) {
+  observer({ ...event });
+}
+
+function writeTree(outDir, { files }, additionalManagedRoots = [], operationObserver = () => {}) {
   const sorted = [...files].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const desired = new Set(sorted.map((file) => file.path));
   const managedRoots = new Set([
@@ -180,11 +186,13 @@ function writeTree(outDir, { files }, additionalManagedRoots = []) {
     ...additionalManagedRoots,
   ]);
 
-  pruneStale(outDir, managedRoots, desired);
+  pruneStale(outDir, managedRoots, desired, operationObserver);
 
   for (const file of sorted) {
     const abs = path.join(outDir, ...file.path.split("/"));
+    observe(operationObserver, { phase: "stage", operation: "mkdir", path: path.dirname(abs) });
     fs.mkdirSync(path.dirname(abs), { recursive: true });
+    observe(operationObserver, { phase: "stage", operation: "write", path: abs });
     fs.writeFileSync(abs, file.content);
   }
 }
@@ -192,7 +200,7 @@ function writeTree(outDir, { files }, additionalManagedRoots = []) {
 // Within each managed root, delete files not present in `desired` (POSIX-relative
 // paths), then remove directories left empty. Roots that are files (e.g.
 // .mcp.json) are simply overwritten by the write loop.
-function pruneStale(outDir, managedRoots, desired) {
+function pruneStale(outDir, managedRoots, desired, operationObserver = () => {}) {
   for (const root of managedRoots) {
     const absRoot = path.join(outDir, ...root.split("/"));
     if (!fs.existsSync(absRoot)) {
@@ -200,6 +208,7 @@ function pruneStale(outDir, managedRoots, desired) {
     }
     if (fs.statSync(absRoot).isFile()) {
       if (!desired.has(root)) {
+        observe(operationObserver, { phase: "stage", operation: "prune", path: absRoot });
         fs.rmSync(absRoot, { force: true });
       }
       continue;
@@ -210,7 +219,9 @@ function pruneStale(outDir, managedRoots, desired) {
     for (const rel of walkRel(absRoot)) {
       const relFromOut = `${root}/${rel}`;
       if (!desired.has(relFromOut)) {
-        fs.rmSync(path.join(absRoot, ...rel.split("/")), { force: true });
+        const stale = path.join(absRoot, ...rel.split("/"));
+        observe(operationObserver, { phase: "stage", operation: "prune", path: stale });
+        fs.rmSync(stale, { force: true });
       }
     }
     pruneEmptyDirs(absRoot);
@@ -426,7 +437,108 @@ function validatorFailed(result) {
 
 // --- orchestration ---------------------------------------------------------
 
-function runConfigure({ sourceDir, target, outDir, validate = true, runValidator = defaultRunValidator }) {
+function validateStagedTree(stageDir, output, additionalManagedRoots = [], operationObserver = () => {}, requireK3Closure = false) {
+  observe(operationObserver, { phase: "stage", operation: "validate", path: stageDir });
+  const desired = new Map(output.files.map(file => [file.path, file.content]));
+  for (const [rel, content] of desired) {
+    const abs = path.join(stageDir, ...rel.split("/"));
+    if (!fs.existsSync(abs) || fs.readFileSync(abs, "utf8") !== content) {
+      throw new Error(`staged tree validation failed for ${rel}`);
+    }
+  }
+  const roots = new Set([...output.files.map(file => file.path.split("/")[0]), ...additionalManagedRoots]);
+  for (const root of roots) {
+    const absRoot = path.join(stageDir, ...root.split("/"));
+    if (!fs.existsSync(absRoot) || !fs.statSync(absRoot).isDirectory()) continue;
+    for (const rel of walkRel(absRoot)) {
+      if (!desired.has(`${root}/${rel}`)) throw new Error(`staged tree retains stale managed path ${root}/${rel}`);
+    }
+  }
+  const k3Required = ["schemas/kernel/manifest.json", "schemas/kernel/candidate/v2.schema.json", "scripts/lib/execution-identities/index.js"];
+  if (requireK3Closure) {
+    for (const required of k3Required) {
+      if (!desired.has(required) || !fs.existsSync(path.join(stageDir, ...required.split("/")))) {
+        throw new Error(`staged tree is missing required K3 asset ${required}`);
+      }
+    }
+  }
+}
+
+function acquireDestinationLock(outDir) {
+  const destination = path.resolve(outDir);
+  const parent = path.dirname(destination);
+  fs.mkdirSync(parent, { recursive: true });
+  const lockPath = path.join(parent, `.${path.basename(destination)}.configure.lock`);
+  let fd;
+  try {
+    fd = fs.openSync(lockPath, "wx");
+    fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, destination, started_at: new Date().toISOString() }) + "\n");
+  } catch (error) {
+    if (error && error.code === "EEXIST") throw new Error(`configure destination is locked: ${lockPath}`);
+    throw error;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+  return { destination, parent, lockPath };
+}
+
+function removeOwned(pathname, operationObserver = () => {}) {
+  observe(operationObserver, { phase: "cleanup", operation: "cleanup", path: pathname });
+  if (pathname && fs.existsSync(pathname)) fs.rmSync(pathname, { recursive: true, force: true });
+}
+
+function publishTransaction({ outDir, output, profile, validate, runValidator, operationObserver, requireK3Closure }) {
+  const lock = acquireDestinationLock(outDir);
+  let stage;
+  let backup;
+  let retainBackup = false;
+  try {
+    stage = fs.mkdtempSync(path.join(lock.parent, `.${path.basename(lock.destination)}.configure-stage-`));
+    if (fs.existsSync(lock.destination)) fs.cpSync(lock.destination, stage, { recursive: true });
+    writeTree(stage, output, profile.managedRoots || [], operationObserver);
+    validateStagedTree(stage, output, profile.managedRoots || [], operationObserver, requireK3Closure);
+    let validation = null;
+    if (validate && profile.validate) {
+      validation = runValidator(profile, stage);
+      if (validatorFailed(validation)) return { exitCode: validation.status && validation.status !== 0 ? validation.status : 1, validation };
+    }
+    if (fs.existsSync(lock.destination)) {
+      backup = fs.mkdtempSync(path.join(lock.parent, `.${path.basename(lock.destination)}.configure-backup-`));
+      fs.rmdirSync(backup);
+      observe(operationObserver, { phase: "backup", operation: "rename", from: lock.destination, to: backup });
+      fs.renameSync(lock.destination, backup);
+    }
+    try {
+      observe(operationObserver, { phase: "publish", operation: "rename", from: stage, to: lock.destination });
+      fs.renameSync(stage, lock.destination);
+      stage = null;
+    } catch (error) {
+      if (backup) {
+        try {
+          observe(operationObserver, { phase: "restore", operation: "rename", from: backup, to: lock.destination });
+          fs.renameSync(backup, lock.destination);
+          backup = null;
+        } catch (restoreError) {
+          retainBackup = true;
+          throw new AggregateError([error, restoreError], `publication failed and restoration was retained at ${backup}`);
+        }
+      }
+      throw error;
+    }
+    return { exitCode: 0, validation };
+  } finally {
+    const cleanupErrors = [];
+    for (const pathname of [stage, retainBackup ? null : backup, lock.lockPath]) {
+      try { removeOwned(pathname, operationObserver); } catch (error) { cleanupErrors.push(error); }
+    }
+    if (cleanupErrors.length) {
+      const retained = [stage, retainBackup ? backup : null, lock.lockPath].filter(pathname => pathname && fs.existsSync(pathname));
+      throw new AggregateError(cleanupErrors, `publication cleanup failed (${cleanupErrors.map(error => error.message).join("; ")}); retained paths: ${retained.join(", ")}`);
+    }
+  }
+}
+
+function runConfigure({ sourceDir, target, outDir, validate = true, runValidator = defaultRunValidator, operationObserver = () => {} }) {
   const profile = PROFILES[target];
   if (!profile) {
     throw new Error(`unknown target: ${target}`);
@@ -440,20 +552,17 @@ function runConfigure({ sourceDir, target, outDir, validate = true, runValidator
   if (!policy.valid) return { files: [], summary: [], exitCode: 1, validation: { status: 1, stdout: "", stderr: `invalid SDD model policy: ${JSON.stringify(policy.errors)}\n` } };
 
   const output = transform({ files, profile, models });
-  writeTree(outDir, output, profile.managedRoots || []);
-
   const summary = output.files.map((file) => file.path);
-  let exitCode = 0;
-  let validation = null;
-
-  if (validate && profile.validate) {
-    validation = runValidator(profile, outDir);
-    if (validatorFailed(validation)) {
-      exitCode = validation.status && validation.status !== 0 ? validation.status : 1;
-    }
-  }
-
-  return { files: output.files, summary, exitCode, validation };
+  const publication = publishTransaction({
+    outDir,
+    output,
+    profile,
+    validate,
+    runValidator,
+    operationObserver,
+    requireK3Closure: fs.existsSync(path.join(sourceDir, "schemas", "kernel", "manifest.json")),
+  });
+  return { files: output.files, summary, exitCode: publication.exitCode, validation: publication.validation };
 }
 
 // --- CLI entry -------------------------------------------------------------
@@ -513,6 +622,7 @@ module.exports = {
   loadTree,
   gatherRuntimeScripts,
   writeTree,
+  validateStagedTree,
   parseModels,
   defaultRunValidator,
   resolveClaudeBin,

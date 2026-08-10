@@ -1,0 +1,47 @@
+✔ RED: a staged write failure preserves an existing destination byte-for-byte and cleans owned artifacts (74.7559ms)
+✔ RED: a stage-to-destination rename failure restores an existing destination and absent output is never partial (779.6971ms)
+✔ RED: failed restoration retains the only backup and reports its recovery path (412.1779ms)
+✔ permanent fault matrix covers prune, mkdir, backup rename, and lock collision without leaking owned stage or lock (545.4714ms)
+✖ RED: cleanup failure still attempts later lock cleanup and reports the retained stage path (340.2173ms)
+✔ transactional publication runs independently for all six configured destinations (2519.8958ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 5
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4759.6796
+
+✖ failing tests:
+
+test at scripts\lib\k3-publication-transaction.test.js:113:1
+✖ RED: cleanup failure still attempts later lock cleanup and reports the retained stage path (340.2173ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /cleanup failure/. Input:
+  
+  'Error: primary failure'
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\k3-publication-transaction.test.js:118:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: Error: primary failure
+        at operationObserver (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\k3-publication-transaction.test.js:120:47)
+        at observe (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\configure\cli.js:178:3)
+        at validateStagedTree (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\configure\cli.js:441:3)
+        at publishTransaction (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\configure\cli.js:499:5)
+        at runConfigure (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\configure\cli.js:556:23)
+        at C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\k3-publication-transaction.test.js:118:23
+        at getActual (node:assert:611:5)
+        at strict.throws (node:assert:759:24)
+        at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\k3-publication-transaction.test.js:118:10)
+        at Test.runInAsyncScope (node:async_hooks:227:14),
+    expected: /cleanup failure/,
+    operator: 'throws',
+    diff: 'simple'
+  }
