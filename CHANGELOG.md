@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [2.42.8] - 2026-08-10
+
+### Changed
+- **Reestructuración de Arquitectura TDD, Bounded Lineage y Codex Target**:
+  - Desacoplamiento de `strict_tdd: true` implícito por detección de test runner en `sdd-init`, estableciendo el modelo por niveles `testing.tdd_mode` (`standard`, `focused`, `strict`) según escala (`solo` → `standard`, `team` → `focused`, `enterprise` → `strict`).
+  - Triangulación y refactorización condicional en `strict-tdd.md` eliminando microciclos excesivos y ejecutando pruebas tras el lote de refactor completo.
+  - Exclusión explícita en `tdd-workflow` cuando el ciclo de cambio SDD se encuentra activo.
+  - Implementación de `Bounded Verify Lineage` en `sdd-verify`, acotando las re-verificaciones tras `sdd-apply` al chequeo dirigido de hallazgos congelados en `state.yaml` y marcando nuevos problemas como `late_observation` no bloqueantes.
+  - Corrección de la estrategia de reglas del target Codex a `to-agents-md` acorde al ADR-001, sintetizando el archivo `AGENTS.md` a nivel raíz y manteniendo el orquestador por debajo de 500 líneas.
+
 ## [2.42.7] - 2026-08-10
 
 ### Fixed

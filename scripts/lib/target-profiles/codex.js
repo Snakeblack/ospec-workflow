@@ -39,8 +39,8 @@ module.exports = {
 
   commandFile: { from: ".prompt.md", format: "skill" },
 
-  // All rules/*.instructions.md are folded into the root agent.md orchestrator
-  rules: { strategy: "inline-into-orchestrator" },
+  // All rules/*.instructions.md are folded into the root synthesized AGENTS.md (ADR-001)
+  rules: { strategy: "to-agents-md" },
 
   orchestrator: {
     agent: "sdd-orchestrator",

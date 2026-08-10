@@ -40,9 +40,9 @@ Run this phase when the orchestrator/user asks to initialize SDD in a project. Y
 |---|---|
 | `mode=openspec` | Create/update openspec bootstrap files only. |
 | `mode=none` | Return detected context only; write no SDD artifacts except the skill registry cache if required. |
-| strict TDD marker/config found | Use that value. |
-| no marker/config but test runner exists | Default `strict_tdd: true`. |
-| no test runner | Set `strict_tdd: false` and explain unavailable. |
+| `testing.tdd_mode` or legacy `strict_tdd` marker/config found | Preserve explicitly configured TDD mode (`strict_tdd: true` maps to `strict`, `false` to `standard`). |
+| no marker/config but `scale` specified | Resolve `testing.tdd_mode`: `solo` → `standard`, `team` → `focused`, `enterprise` → `strict`. |
+| no marker/config and no scale | Default `testing.tdd_mode: focused` if test runner exists; otherwise `standard`. |
 | existing code detected AND `openspec/specs/` empty AND no `baseline` block | Activate brownfield branch: write `baseline` block, return `next_recommended: sdd-baseline`. |
 | `baseline` block already present (any status) | Preserve it unchanged; if `status` is `pending` or `partial`, return `next_recommended: sdd-baseline`. |
 | `baseline.status: done` | Brownfield branch does not activate; fall back to standard `next_recommended` logic. |
@@ -91,7 +91,7 @@ After resolving a valid base path, scan its immediate children (depth-1 only, no
 6b. **Scale preset** (openspec mode only): read the `scale: <solo|team|enterprise>` line from the `## Parameters` prompt block (the orchestrator asks the user once at first init; absent → default `team`, ask nothing yourself). Write `scale: {value}` into `openspec/config.yaml` and materialize its preset:
    - `solo`: keep everything advisory — no extra blocks; routing prefers `lite` for trivial/small; clarify fires only on `residual_ambiguity`; 4R stays out of default route gates.
    - `team` (default): current defaults unchanged; the Change Collision Gate applies (it is always-on when other active changes exist); traceability trailers stay advisory.
-   - `enterprise`: uncomment/write `strict_tdd: true` (when a runner exists), `traceability: { trailers: required }`, and `mentorship: { mode: balanced }`; keep 4R in the standard route gates; recommend declaring `quality_gates:` with `on_fail: halt`.
+   - `enterprise`: write `testing: { tdd_mode: strict }` and legacy `strict_tdd: true` (when a runner exists), `traceability: { trailers: required }`, and `mentorship: { mode: balanced }`; keep 4R in the standard route gates; recommend declaring `quality_gates:` with `on_fail: halt`.
    On re-init with an existing `scale:` key, preserve it unchanged (same rule as the `baseline` block).
 7. **Brownfield branch** (openspec mode only): if existing application code is detected outside `openspec/`, `docs/`, and dotfiles AND `openspec/specs/` is empty AND `openspec/config.yaml` has no `baseline` block, write the `baseline` block with `status: pending`, empty `domains_pending`, `domains_done`, `stale_domains`, and `last_checked: ""`. On re-init, if a `baseline` block already exists, preserve it unchanged.
 8. Return the structured initialization envelope.

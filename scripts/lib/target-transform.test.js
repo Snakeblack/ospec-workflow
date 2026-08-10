@@ -986,12 +986,13 @@ test("codex leaves an already front-loaded description unchanged", () => {
   assert.equal(getField(fm, "description").value, "desc");
 });
 
-test("codex rules fold into a single synthesized agent.md", () => {
+test("codex rules fold into a single synthesized AGENTS.md (ADR-001)", () => {
   const out = transform({ files: makeSource(), profile: codex, models: MODELS });
   const agentMd = find(out, "agent.md");
+  const agentsMd = find(out, "AGENTS.md");
   assert.ok(agentMd, "agent.md must be synthesized");
-  assert.match(agentMd.content, /ALWAYS use OpenSpec/);
-  assert.ok(!find(out, "AGENTS.md"), "AGENTS.md must not be synthesized");
+  assert.ok(agentsMd, "AGENTS.md must be synthesized (ADR-001)");
+  assert.match(agentsMd.content, /ALWAYS use OpenSpec/);
   assert.ok(!out.files.some((f) => f.path.startsWith("rules/")), "rules/ source files must not survive");
 });
 

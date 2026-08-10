@@ -48,26 +48,16 @@ FOR EACH TASK:
 │   │   └── ❌ Failed → fix the implementation, NOT the test
 │   └── GATE: Do NOT proceed until GREEN is confirmed by execution
 │
-├── 4. TRIANGULATE (MANDATORY for most tasks)
-│   ├── DEFAULT: triangulation is REQUIRED. You need a compelling reason to skip it.
-│   ├── Add a second test case with DIFFERENT inputs/expected outputs
-│   ├── EXECUTE tests → if Fake It breaks (hardcoded no longer works):
-│   │   └── Generalize to real logic (this is the whole point)
-│   ├── Repeat until ALL spec scenarios for this task are covered
-│   ├── Each triangulation pass: write test → run → fix implementation
-│   ├── MINIMUM: at least 2 test cases per behavior (happy path + one edge case)
-│   │   ├── One test with data that produces a NON-EMPTY/NON-TRIVIAL result
-│   │   └── One test with data that exercises a DIFFERENT code path
+├── 4. TRIANGULATE (Conditional)
+│   ├── Triangulate ONLY when:
+│   │   ├── The specification defines materially different scenarios, or
+│   │   └── One test example cannot establish the behavioral contract
+│   ├── When required: add a second test case with DIFFERENT inputs/expected outputs to force real logic
 │   ├── WATCH OUT for GREEN that passes trivially:
 │   │   ├── If your test passes because the component/element isn't rendered → NOT a real GREEN
 │   │   ├── If your test passes because a loop iterates 0 times → NOT a real GREEN
-│   │   ├── If your test passes because the setup doesn't trigger the code path → NOT a real GREEN
 │   │   └── A real GREEN means: production code RAN and produced the expected output
-│   ├── Skip triangulation ONLY when ALL of these are true:
-│   │   ├── The task is purely structural (config file, constant definition, type export)
-│   │   ├── There is literally ONE possible output (no branching, no logic)
-│   │   └── You explicitly note "Triangulation skipped: {reason}" in the evidence table
-│   └── GATE: All spec scenarios for this task must have tests before REFACTOR
+│   └── Skip triangulation when a single test establishes the complete contract or for structural tasks
 │
 ├── 5. REFACTOR — Improve without changing behavior
 │   ├── Extract constants (eliminate magic numbers)
@@ -75,7 +65,7 @@ FOR EACH TASK:
 │   ├── Improve naming, remove duplication
 │   ├── Push toward pure functions where feasible
 │   ├── Apply Boy Scout Rule: leave code cleaner than you found it
-│   ├── EXECUTE tests after EACH refactoring step → must STILL PASS
+│   ├── EXECUTE tests ONCE after the completed refactor batch → must STILL PASS
 │   │   ├── ✅ Still passing → refactoring is safe, continue
 │   │   └── ❌ Failed → REVERT that refactoring step, try smaller
 │   └── GATE: Tests green after EVERY refactoring change

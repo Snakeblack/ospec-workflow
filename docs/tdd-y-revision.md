@@ -6,7 +6,7 @@ La IA puede escribir mucho codigo rapido. Precisamente por eso necesita frenos. 
 
 ## Strict TDD
 
-Strict TDD se activa cuando el contexto del proyecto indica `strict_tdd: true` y hay un test runner disponible. `sdd-init` detecta y persiste esa capacidad en `openspec/config.yaml`.
+Strict TDD se activa cuando la configuración del proyecto establece `testing.tdd_mode: strict` (o el legado `strict_tdd: true`) y hay un test runner disponible. `sdd-init` detecta las capacidades y mapea el modo según escala (`solo` → `standard`, `team` → `focused`, `enterprise` → `strict`).
 
 Cuando esta activo, `sdd-apply` debe seguir este ciclo por tarea:
 
