@@ -1,0 +1,46 @@
+✔ K3 schemas: manifest registers source-snapshot and work-result families (0.7758ms)
+✔ K3 schemas: SourceSnapshot schema validates valid and invalid fixtures (0.7418ms)
+✔ K3 schemas: WorkResult schema validates valid and invalid fixtures (0.6387ms)
+✔ K3 schemas: Candidate v2 schema validates freeze fields and rejects invalid fixtures (7.3549ms)
+✔ K3 schemas: WorkOrder v2 schema requires source_snapshot_id for bound work orders (0.3274ms)
+✔ K3 schemas: candidate/v2 and work-order/v2 schemas expose canonical $id and kind const (0.2797ms)
+✔ K3 schemas: candidate/v2 schema validates valid and invalid v2 fixtures (0.5007ms)
+✖ K3 readiness: successor and retired-vocabulary fixtures are structurally discriminated (0.9476ms)
+✔ K3 schemas: work-order/v2 schema validates valid and invalid v2 fixtures (0.4407ms)
+✔ Adversarial Scenario 7: Candidate without freeze fields in schema v2 is REJECTED (0.2621ms)
+✔ Adversarial Scenario 12 (Design): WorkResult validated against Candidate v2 Schema is REJECTED (0.2787ms)
+✔ Adversarial Scenario 13 (Design): Candidate validated against WorkOrder v2 Schema is REJECTED (0.2476ms)
+✔ Adversarial Scenario 14: candidate/v1 continues validating v1, candidate/v2 validates K3 semantics (0.4504ms)
+✔ K3 adversarial: canonical v2 paths + $id resolve; wrong candidate-v2/ tree is not authoritative (2.864ms)
+✔ K3 adversarial: K1 v1 files+pins match 02e97a5 era; pin-only retarget is non-compliant (38.1525ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 14
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 114.1198
+
+✖ failing tests:
+
+test at scripts\lib\k3-schema-fixtures.test.js:125:1
+✖ K3 readiness: successor and retired-vocabulary fixtures are structurally discriminated (0.9476ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\k3-schema-fixtures.test.js:132:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

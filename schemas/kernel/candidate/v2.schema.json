@@ -84,12 +84,27 @@
       "type": "string",
       "enum": [
         "exact",
-        "superset",
-        "subset",
-        "overlapping",
-        "disjoint",
+        "changed",
+        "ambiguous",
         "unknown"
       ]
+    }
+  },
+  "if": {
+    "properties": { "relation": { "const": "exact" } },
+    "required": [ "relation" ]
+  },
+  "then": {
+    "properties": { "predecessor_id": { "type": "null" } }
+  },
+  "else": {
+    "if": {
+      "properties": { "relation": { "const": "changed" } },
+      "required": [ "relation" ]
+    },
+    "then": {
+      "required": [ "predecessor_id" ],
+      "properties": { "predecessor_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" } }
     }
   },
   "additionalProperties": false

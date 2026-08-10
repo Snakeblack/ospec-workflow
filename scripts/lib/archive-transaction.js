@@ -807,7 +807,9 @@ async function runArchiveTransaction(opts) {
         const sw = (plan.spec_writes || []).find((s) => s.domain === domain);
         if (!sw) continue;
         const live = snapshot.targets[sw.target];
-        if (live && recorded.toLowerCase() !== live.toLowerCase()) {
+        const normRecorded = String(recorded).replace(/^sha256:/i, "").toLowerCase();
+        const normLive = String(live || "").replace(/^sha256:/i, "").toLowerCase();
+        if (live && normRecorded !== normLive) {
           const receipt = emptyReceipt(changeName, planSha, "failed", {
             failure_reason: "baseline-stale",
           });

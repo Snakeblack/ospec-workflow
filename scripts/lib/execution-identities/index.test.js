@@ -1715,5 +1715,120 @@ test("K3 Remediation: SourceSnapshot own-ID integrity and freezeCandidate schema
   assert.equal(validateCandidateV2(frozen), true);
 });
 
+test("K3 readiness: successor relation is derived from a frozen predecessor and cannot remain exact", () => {
+  const common = {
+    repositoryId: "repo-k3",
+    projection: "workspace",
+    baseTree: DIGEST_A,
+    candidateTree: DIGEST_B,
+    diffText: "base patch",
+    paths: ["src/Readme.md"],
+  };
+  const predecessor = freezeCandidate(common);
+  assert.throws(() => freezeCandidate({ ...common, predecessorId: predecessor.candidate_id }), /predecessorCandidate/i);
+  const equal = freezeCandidate({ ...common, predecessorCandidate: predecessor });
+  assert.equal(equal.relation, "exact");
+  assert.equal(equal.predecessor_id, null);
 
+  const successor = freezeCandidate({
+    ...common,
+    diffText: "changed patch",
+    predecessorCandidate: predecessor,
+  });
+  assert.equal(successor.relation, "changed");
+  assert.equal(successor.predecessor_id, predecessor.candidate_id);
+  assert.deepEqual(evaluateCandidateRelation(predecessor, successor), {
+    relation: "changed",
+    action: "re-evaluate",
+  });
 
+  const secondSuccessor = freezeCandidate({
+    ...common,
+    diffText: "changed patch again",
+    predecessorCandidate: successor,
+  });
+  assert.deepEqual(evaluateCandidateRelation(successor, secondSuccessor), {
+    relation: "changed",
+    action: "re-evaluate",
+  });
+});
+
+test("4R F-b317239e03fd1367: freezeCandidate rejects non-canonical predecessor Candidate v2 relations", () => {
+  const input = {
+    repositoryId: "repo-k3-predecessor",
+    projection: "workspace",
+    baseTree: DIGEST_A,
+    candidateTree: DIGEST_B,
+    diffText: "base patch",
+    paths: ["src/a.js"],
+  };
+  const predecessor = freezeCandidate(input);
+
+  for (const invalidPredecessor of [
+    { ...predecessor, relation: "ambiguous" },
+    { ...predecessor, relation: "unknown" },
+    { ...predecessor, relation: "changed", predecessor_id: predecessor.candidate_id },
+  ]) {
+    assert.throws(
+      () => freezeCandidate({ ...input, diffText: "successor patch", predecessorCandidate: invalidPredecessor }),
+      /canonical|coherent|predecessorCandidate/i,
+    );
+  }
+});
+
+test("K3 readiness: relation evaluation rejects incoherent persisted lineage and retired vocabulary", () => {
+  const predecessor = freezeCandidate({
+    repositoryId: "repo-k3",
+    projection: "workspace",
+    baseTree: DIGEST_A,
+    candidateTree: DIGEST_B,
+    diffText: "base patch",
+    paths: ["src/a.js"],
+  });
+  const successor = freezeCandidate({
+    repositoryId: "repo-k3",
+    projection: "workspace",
+    baseTree: DIGEST_A,
+    candidateTree: DIGEST_B,
+    diffText: "changed patch",
+    paths: ["src/a.js"],
+    predecessorCandidate: predecessor,
+  });
+
+  const exactWithPredecessor = evaluateCandidateRelation(predecessor, {
+    ...successor,
+    relation: "exact",
+  });
+  assert.equal(exactWithPredecessor.relation, "unknown");
+  assert.equal(exactWithPredecessor.action, "stop");
+  assert.equal(exactWithPredecessor.reason_code, "LINEAGE_RELATION_MISMATCH");
+
+  for (const invalid of [{ ...successor, predecessor_id: null }]) {
+    const result = evaluateCandidateRelation(predecessor, invalid);
+    assert.equal(result.relation, "unknown");
+    assert.equal(result.action, "stop");
+    assert.equal(result.reason_code, "LINEAGE_RELATION_MISMATCH");
+  }
+
+  const retired = evaluateCandidateRelation(predecessor, { ...successor, relation: "superset" });
+  assert.equal(retired.relation, "unknown");
+  assert.equal(retired.action, "stop");
+  assert.equal(retired.reason_code, "INVALID_FROZEN_CANDIDATE");
+});
+
+test("K3 readiness: identity boundaries preserve case and distinguish projection, modes, symlink and untracked inputs", () => {
+  const input = {
+    repositoryId: "repo-boundary", projection: "workspace", baseTree: DIGEST_A,
+    candidateTree: DIGEST_B, diffText: "same", paths: ["Readme.md"],
+  };
+  const root = freezeCandidate(input);
+  const caseVariant = freezeCandidate({ ...input, paths: ["README.md"] });
+  const staged = freezeCandidate({ ...input, projection: "staged" });
+  const modeVariant = freezeCandidate({ ...input, fileModes: { "Readme.md": "100755" } });
+  const symlinkVariant = freezeCandidate({ ...input, fileModes: { "Readme.md": "120000:target-a" } });
+  const untrackedVariant = freezeCandidate({ ...input, intendedUntracked: [{ path: "new.txt", digest: DIGEST_C }] });
+  const ids = new Set([root, caseVariant, staged, modeVariant, symlinkVariant, untrackedVariant].map((candidate) => candidate.candidate_id));
+  assert.equal(ids.size, 6);
+  assert.deepEqual(caseVariant.paths, ["README.md"]);
+  assert.throws(() => freezeCandidate({ ...input, projection: "commit" }), /workspace or staged/i);
+});

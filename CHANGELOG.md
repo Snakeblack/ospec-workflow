@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [2.42.7] - 2026-08-10
+
+### Fixed
+- **Remediación de Preparación y Cierre de Contratos K3** (`k3-readiness-remediation`):
+  - Alineación de la validación de Candidate v2 con el vocabulario fail-closed (`exact`, `changed`, `ambiguous` y `unknown`).
+  - Definición explícita de la semántica predecesor/sucesor impidiendo que un Candidate modificado permanezca marcado como `exact`.
+  - Inclusión de fixtures de prueba para enlaces simbólicos, rutas sensibles a mayúsculas/minúsculas, proyecciones y separación de identidades.
+  - Verificación de la disponibilidad de esquemas y APIs K3 en todas las distribuciones en `dist/`.
+  - Reconciliación transaccional de estados de archivo y promoción de decisiones arquitectónicas (`docs/adr/adr-20260809-001` a `004`).
+
 ## [2.42.6] - 2026-08-08
 
 ### Fixed

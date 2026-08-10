@@ -1,0 +1,156 @@
+✔ K3 readiness: only evidence-backed archive states are reconciled and sibling evidence remains immutable (4.5241ms)
+✔ K3 readiness: historical state snapshots name Git HEAD as their before provenance (661.4034ms)
+✖ K3 readiness: documentation keeps K4a blocked until this remediation closes (13.286ms)
+✔ K3 readiness: Git-clean historical siblings remain canonically equal across checkout line endings (53.323ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 3
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 789.6041
+
+✖ failing tests:
+
+test at scripts\lib\k3-readiness-reconciliation.test.js:64:1
+✖ K3 readiness: documentation keeps K4a blocked until this remediation closes (13.286ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /K4a.*bloquead/i. Input:
+  
+  '# Arquitectura objetivo — harness gobernado por kernel, grafo y evidencia\r\n' +
+    '\r\n' +
+    '> **Autoridad:** fuente conceptual y estratégica del harness (responsabilidades y límites).\r\n' +
+    '> **Corte documental:** v2.40.0, 2026-08-05.\r\n' +
+    '> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a** y **K3** están entregados. `k3-readiness-remediation` debe verificar y archivarse antes de que **K4a** sea elegible.\n' +
+    '> **Roadmap:** orden, estado operativo y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).\r\n' +
+    '> **Precedencia documental:** ante diferencias de **orden o estado**, prevalece el roadmap; ante diferencias **conceptuales**, reconciliar antes de iniciar el slice.\r\n' +
+    '> **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md).\r\n' +
+    '\r\n' +
+    '## Decisión\r\n' +
+    '\r\n' +
+    'El harness evoluciona hacia un **kernel determinista que compila intención y contratos semánticos en un Execution Graph**, autoriza transiciones tipadas y liga verificación, review y entrega a un **Assurance Graph** (proyección de evidencia) y a una identidad inmutable de candidato.\r\n' +
+    '\r\n' +
+    'Esta dirección no es una reescritura ni un “OSPEC v3” paralelo. Se construye generalizando los kernels ya entregados de clarify, review/linaje, recovery focal y archive transaccional, con deltas concretos sobre K2–K12. OpenSpec y Git siguen siendo la autoridad del change; el runtime gobierna lifecycle, **Authority Store (CAS)**, permisos, budgets, digests y efectos mecánicos; los modelos conservan el trabajo semántico y **no** se aprueban ni se conceden permisos a sí mismos.\r\n' +
+    '\r\n' +
+    'O2B cerró la baseline fixed-policy de control. K1 materializó la contract suite declarativa. K2 materializó lifecycle + Minimal Kernel Harness. El cambio de defaults sigue bloqueado hasta superar shadow/A-B (K9) y los gates posteriores. Fixed permanece control/default.\r\n' +
+    '\r\n' +
+    '### Corte conceptual 2026-08-04 (reconciliación con roadmap)\r\n' +
+    '\r\n' +
+    'Sin duplicar el backlog: solo responsabilidades y límites alineados al roadmap operativo.\r\n' +
+    '\r\n' +
+    '| Tema | Decisión arquitectónica |\r\n' +
+    '| --- | --- |\r\n' +
+    '| Estado | K1+K2+K2.1+K2a+K3 `done`; **K4a** pendiente hasta cerrar `k3-readiness-remediation` |\n' +
+    '| Dos grafos | **Execution Graph** (trabajo) ≠ **Assurance Graph** (fiabilidad / evidencia; no “prueba formal”) |\r\n' +
+    '| Identidades | `SourceSnapshotId` / `WorkOrderId` / `WorkResultId` / `CandidateId` (sin IDs nuevos por ahora) |\r\n' +
+    '| Relación Candidate | Inicial: `exact` / `changed` / `ambiguous` / `unknown`; `compatible-base-advance` experimental hasta K9 |\r\n' +
+    '| Authority | **K2.1:** CAS obligatorio, `TransitionOffer` ≠ `OperationPermit` ≠ `OperationReceipt`, clases de efecto |\r\n' +
+    '| Proyección | `Candidate.projection` solo `workspace\\|staged` (`candidate/v1`); un commit puede origenar `SourceSnapshot`, no es tercera proyección de Candidate |\r\n' +
+    '| Policy | `PolicySnapshot` digiere bundle/classifier/compiler/runtime/`effectiveRules` |\r\n' +
+    '| Cierre | `ArchiveTransactionReceipt` ≠ `CandidateEvaluationAttestation` ≠ `DeliveryAuthorization` |\r\n' +
+    '| Schemas de cierre | `receipt/v1` (K1, envelope legacy genérico) permanece; K8 y K10-delivery introducen schemas propios — no reutilizar `receipt/v1` como contrato canónico |\r\n' +
+    '| Host | Seis targets; **K2a** = Headless Conformance Host + un adapter real + CapabilityProof; **K11a** expande a los cinco restantes |\r\n' +
+    '| Obligations | **K4a:** Obligation Manifest como vista determinista del Graph (no tercer grafo) |\r\n' +
+    '| Compile vs execute | **K4a** compila; **K6a** ejecuta (primitives); **K4b** orquesta Repair shadow; **K3** identifica |\r\n' +
+    '| Runner | Minimal Kernel Harness + model-based (invariantes por madurez) en **K2**; corpus/longitudinal en **K12** |\r\n' +
+    '| Delivery | Primer enforcement productivo solo del **profile promovido por K9**; resto `fixed` / unmanaged |\r\n' +
+    '\r\n' +
+    '```text\r\n' +
+    'Change Contract → Execution Graph → Candidate → Assurance Graph → Attestation / Authorization\r\n' +
+    '```\r\n' +
+    '\r\n' +
+    '## Ruta rápida\r\n' +
+    '\r\n' +
+    '1. [Modelo de autoridad](#modelo-de-autoridad).\r\n' +
+    '2. [Cadena canónica](#cadena-canónica-del-change).\r\n' +
+    '3. [Kernel y Execution Graph](#kernel-determinista-y-execution-graph).\r\n' +
+    '4. [Rutas y capacidades](#clasificación-rutas-y-capacidades).\r\n' +
+    '5. [Migración sin big bang](#estrategia-de-migración).\r\n' +
+    '6. [Qué es hecho, target o hipótesis](#registro-de-madurez).\r\n' +
+    '\r\n' +
+    '## Propósito del producto\r\n' +
+    '\r\n' +
+    '`ospec-workflow` es un harness Spec-Driven Development multi-target para ejecutar cambios con garantías proporcionales a impacto e incertidumbre.\r\n' +
+    '\r\n' +
+    'Debe:\r\n' +
+    '\r\n' +
+    '- comprender intención, restricciones, contexto y riesgo;\r\n' +
+    '- conservar trazabilidad entre contrato, grafo, diff, evidencia, findings y entrega;\r\n' +
+    '- pedir decisiones humanas solo cuando sean materiales;\r\n' +
+    '- mantener cambios simples pequeños;\r\n' +
+    '- adaptar profundidad sin omitir garantías necesarias;\r\n' +
+    '- recuperar fallos mediante transiciones ejecutables;\r\n' +
+    '- declarar qué garantiza cada target;\r\n' +
+    '- explicar por qué ejecutó, omitió, escaló o detuvo cada unidad.\r\n' +
+    '\r\n' +
+    'La promesa no es producir más fases o documentos. Es **compilar el mínimo trabajo que demuestre el cambio correcto y gobernarlo con contratos verificables**.\r\n' +
+    '\r\n' +
+    '## Modelo de autoridad\r\n' +
+    '\r\n' +
+    '### Precedencia\r\n' +
+    '\r\n' +
+    '```text\r\n' +
+    'código + OpenSpec baseline/changes + Git\r\n' +
+    '  → arquitectura activa\r\n' +
+    '  → roadmap general\r\n' +
+    '  → roadmaps de target\r\n' +
+    '  → análisis e investigación\r\n' +
+    '```\r\n' +
+    '\r\n' +
+    '| Superficie | Autoridad | Restricción |\r\n' +
+    '| --- | --- | --- |\r\n' +
+    '| OpenSpec + Git | Estado semántico y bytes del change | Ninguna proyección puede contradecirlos. |\r\n' +
+    '| Kernel runtime | Transiciones, **Authority Store (CAS)**, budgets, permisos (`OperationPermit`), digests y efectos mecánicos tipados | No interpreta semántica libre. Modelos no emiten permits. |\r\n' +
+    '| Modelos | Descubrimiento, contrato, diseño, implementación, diagnóstico y review | No se conceden aprobación ni siguiente transición. |\r\n' +
+    '| Execution Graph | Plan ejecutable fingerprinted del change (legado: Graph IR) | Debe derivarse o reconciliarse con la autoridad canónica. No es autoridad independiente. |\r\n' +
+    '| Assurance Graph | Proyección content-addressed de evidencia/verify/challenge/finding/attestation | Derivada; nunca segunda autoridad ni “demostración formal”. |\r\n' +
+    '| Evidence/event stores | Hechos y telemetría | No sustituyen estado ni verdict. |\r\n' +
+    '| Markdown | Vista humana y semántica revisable | No concede autoridad mecánica mediante parsing ambiguo. |\r\n' +
+    '| Adapters | Traducción al host | No duplican lifecycle ni relajan garantías silenciosamente. |\r\n' +
+    '\r\n' +
+    '<a id="3-principios-invariantes"></a>\r\n' +
+    '\r\n' +
+    '### Invariantes\r\n' +
+    '\r\n' +
+    '1. **Runtime-owned lifecycle.** El mismo estado y contratos producen las mismas transiciones válidas, con independencia del modelo o target.\r\n' +
+    '2. **Modelos sin auto-autoridad.** Un modelo puede proponer y ejecutar trabajo autorizado; no aprueba su candidato ni crea permisos.\r\n' +
+    '3. **Estado persistido sobre conversación.** Reanudar parte de filesystem, no de memoria conversacional.\r\n' +
+    '4. **DAG por defecto.** Un ciclo requiere allowlist, causa, presupuesto e interruptor terminal.\r\n' +
+    '5. **Proporcionalidad por evidencia.** Las garantías responden a impacto e incertidumbre demostrables; líneas y archivos son contexto de reviewability/delivery, nunca degradan un hard floor de riesgo.\r\n' +
+    '6. **Cambio pequeño, proceso pequeño.** Una capacidad solo se activa por una obligación o riesgo demostrable.\r\n' +
+    '7. **Independencia.** Implementación, verificación y aprobación consumen contratos distintos y una identidad común.\r\n' +
+    '8. **Evidencia no equivale a verdict.** Tests verdes son una entrada; contrato, invariantes y challenges determinan suficiencia.\r\n' +
+    '9. **Complejidad justificada.** Toda abstracción nueva compara no hacer nada, cambio local, patrón existente y nueva abstracción.\r\n' +
+    '10. **Recovery ejecutable.** Todo bloqueo termina en `execute`, `collect`, `decide` o `stop`. Una superficie humana o negociada solo nombra un comando cuando ejecutarlo resuelve el bloqueo; nombrar un callejón sin salida es peor que no nombrar nada.\r\n' +
+    '11. **Fail-closed selectivo.** Identidad, permisos, evidencia requerida, seguridad y efectos destructivos fallan cerrados.\r\n' +
+    '12. **Compatibilidad antes de retirada.** Fixed, aliases y artefactos actuales se mantienen hasta que una migración probada los sustituya.\r\n' +
+    '13. **Una responsabilidad, un kernel.** Review, archive, evidence y routing no tendrán implementaciones paralelas permanentes.\r\n' +
+    '14. **Observabilidad separada.** Los eventos registran hechos y coste; no son razonamiento interno ni estado canónico.\r\n' +
+    '15. **Paridad de superficies.** Para la misma condición, la proyección humana y el envelope negociado/máquina llevan al menos la misma especificidad (código, causa y siguiente acción); no divergen en datos materiales.\r\n' +
+    '\r\n' +
+    'Estas invariantes deberán tener schemas y tests de conformance. Su redacción no basta como enforcement.\r\n' +
+    '\r\n' +
+    '#### Materialización P0: contrato ahora, enforcement después\r\n' +
+    '\r\n' +
+    'P0 no termina en una lista de principios ni queda íntegramente ejecutado por K1. K1 materializa el vocabulario y las restricciones declarativas que pueden verificarse sin activar lifecycle; los slices posteriores deben consumir esos contratos y demostrar el comportamiento runtime indicado en la última columna.\r\n' +
+    '\r\n' +
+    '| # | Invariante P0 | Materialización contractual en K1 | Enforcement que permanece en K2+ |\r\n' +
+    '| ---: | --- | --- | --- |\r\n' +
+    '| 1 | Runtime-owned lifecycle | `state-transition/v1` fija `execute\\|collect\\|decide\\|stop`, `operation`, tokens y condiciones de `command`. | K2 implementa el reducer determinista, replay e idempotencia; **K2.1** añade CAS y permits. |\r\n' +
+    '| 2 | Modelos sin auto-autoridad | El canon de autoridad y los contratos `verification`, `finding-review` y `receipt` separan propuesta, verdict y binding. | K2.1/K7/K8 impiden auto-aprobación y mutación de permisos/candidato en runtime. |\r\n' +
+    '| 3 | Estado persistido sobre conversación | `contract` y el canon declaran OpenSpec/Git como autoridad; Execution Graph no puede sobrescribirlos. | K2 reconcilia state y recupe'... 42777 more characters
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\k3-readiness-reconciliation.test.js:69:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '# Arquitectura objetivo — harness gobernado por kernel, grafo y evidencia\r\n\r\n> **Autoridad:** fuente conceptual y estratégica del harness (responsabilidades y límites).\r\n> **Corte documental:** v2.40.0, 2026-08-05.\r\n> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a** y **K3** están entregados. `k3-readiness-remediation` debe verificar y archivarse antes de que **K4a** sea elegible.\n> **Roadmap:** orden, estado operativo y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).\r\n> **Precedencia documental:** ante diferencias de **orden o estado**, prevalece el roadmap; ante diferencias **conceptuales**, reconciliar antes de iniciar el slice.\r\n> **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md).\r\n\r\n## Decisión\r\n\r\nEl harness evoluciona hacia un **kernel determinista que compila intención y contratos semánticos en un Execution Graph**, autoriza transiciones tipadas y liga verificación, review y entrega a un **Assurance Graph** (proyección de evidencia) y a una identidad inmutable de candidato.\r\n\r\nEsta dirección no es una reescritura ni un “OSPEC v3” paralelo. Se construye generalizando los kernels ya entregados de clarify, review/linaje, recovery focal y archive transaccional, con deltas concretos sobre K2–K12. OpenSpec y Git siguen siendo la autoridad del change; el runtime gobierna lifecycle, **Authority Store (CAS)**, permisos, budgets, digests y efectos mecánicos; los modelos conservan el trabajo semántico y **no** se aprueban ni se conceden permisos a sí mismos.\r\n\r\nO2B cerró la baseline fixed-policy de control. K1 materializó la contract suite declarativa. K2 materializó lifecycle + Minimal Kernel Harness. El cambio de defaults sigue bloqueado hasta superar shadow/A-B (K9) y los gates posteriores. Fixed permanece control/default.\r\n\r\n### Corte conceptual 2026-08-04 (reconciliación con roadmap)\r\n\r\nSin duplicar el backlog: solo responsabilidades y límites alineados al roadmap operativo.\r\n\r\n| Tema | Decisión arquitectónica |\r\n| --- | --- |\r\n| Estado | K1+K2+K2.1+K2a+K3 `done`; **K4a** pendiente hasta cerrar `k3-readiness-remediation` |\n| Dos grafos | **Execution Graph** (trabajo) ≠ **Assurance Graph** (fiabilidad / evidencia; no “prueba formal”) |\r\n| Identidades | `SourceSnapshotId` / `WorkOrderId` / `WorkResultId` / `CandidateId` (sin IDs nuevos por ahora) |\r\n| Relación Candidate | Inicial: `exact` / `changed` / `ambiguous` / `unknown`; `compatible-base-advance` experimental hasta K9 |\r\n| Authority | **K2.1:** CAS obligatorio, `TransitionOffer` ≠ `OperationPermit` ≠ `OperationReceipt`, clases de efecto |\r\n| Proyección | `Candidate.projection` solo `workspace\\|staged` (`candidate/v1`); un commit puede origenar `SourceSnapshot`, no es tercera proyección de Candidate |\r\n| Policy | `PolicySnapshot` digiere bundle/classifier/compiler/runtime/`effectiveRules` |\r\n| Cierre | `ArchiveTransactionReceipt` ≠ `CandidateEvaluationAttestation` ≠ `DeliveryAuthorization` |\r\n| Schemas de cierre | `receipt/v1` (K1, envelope legacy genérico) permanece; K8 y K10-delivery introducen schemas propios — no reutilizar `receipt/v1` como contrato canónico |\r\n| Host | Seis targets; **K2a** = Headless Conformance Host + un adapter real + CapabilityProof; **K11a** expande a los cinco restantes |\r\n| Obligations | **K4a:** Obligation Manifest como vista determinista del Graph (no tercer grafo) |\r\n| Compile vs execute | **K4a** compila; **K6a** ejecuta (primitives); **K4b** orquesta Repair shadow; **K3** identifica |\r\n| Runner | Minimal Kernel Harness + model-based (invariantes por madurez) en **K2**; corpus/longitudinal en **K12** |\r\n| Delivery | Primer enforcement productivo solo del **profile promovido por K9**; resto `fixed` / unmanaged |\r\n\r\n```text\r\nChange Contract → Execution Graph → Candidate → Assurance Graph → Attestation / Authorization\r\n```\r\n\r\n## Ruta rápida\r\n\r\n1. [Modelo de autoridad](#modelo-de-autoridad).\r\n2. [Cadena canónica](#cadena-canónica-del-change).\r\n3. [Kernel y Execution Graph](#kernel-determinista-y-execution-graph).\r\n4. [Rutas y capacidades](#clasificación-rutas-y-capacidades).\r\n5. [Migración sin big bang](#estrategia-de-migración).\r\n6. [Qué es hecho, target o hipótesis](#registro-de-madurez).\r\n\r\n## Propósito del producto\r\n\r\n`ospec-workflow` es un harness Spec-Driven Development multi-target para ejecutar cambios con garantías proporcionales a impacto e incertidumbre.\r\n\r\nDebe:\r\n\r\n- comprender intención, restricciones, contexto y riesgo;\r\n- conservar trazabilidad entre contrato, grafo, diff, evidencia, findings y entrega;\r\n- pedir decisiones humanas solo cuando sean materiales;\r\n- mantener cambios simples pequeños;\r\n- adaptar profundidad sin omitir garantías necesarias;\r\n- recuperar fallos mediante transiciones ejecutables;\r\n- declarar qué garantiza cada target;\r\n- explicar por qué ejecutó, omitió, escaló o detuvo cada unidad.\r\n\r\nLa promesa no es producir más fases o documentos. Es **compilar el mínimo trabajo que demuestre el cambio correcto y gobernarlo con contratos verificables**.\r\n\r\n## Modelo de autoridad\r\n\r\n### Precedencia\r\n\r\n```text\r\ncódigo + OpenSpec baseline/changes + Git\r\n  → arquitectura activa\r\n  → roadmap general\r\n  → roadmaps de target\r\n  → análisis e investigación\r\n```\r\n\r\n| Superficie | Autoridad | Restricción |\r\n| --- | --- | --- |\r\n| OpenSpec + Git | Estado semántico y bytes del change | Ninguna proyección puede contradecirlos. |\r\n| Kernel runtime | Transiciones, **Authority Store (CAS)**, budgets, permisos (`OperationPermit`), digests y efectos mecánicos tipados | No interpreta semántica libre. Modelos no emiten permits. |\r\n| Modelos | Descubrimiento, contrato, diseño, implementación, diagnóstico y review | No se conceden aprobación ni siguiente transición. |\r\n| Execution Graph | Plan ejecutable fingerprinted del change (legado: Graph IR) | Debe derivarse o reconciliarse con la autoridad canónica. No es autoridad independiente. |\r\n| Assurance Graph | Proyección content-addressed de evidencia/verify/challenge/finding/attestation | Derivada; nunca segunda autoridad ni “demostración formal”. |\r\n| Evidence/event stores | Hechos y telemetría | No sustituyen estado ni verdict. |\r\n| Markdown | Vista humana y semántica revisable | No concede autoridad mecánica mediante parsing ambiguo. |\r\n| Adapters | Traducción al host | No duplican lifecycle ni relajan garantías silenciosamente. |\r\n\r\n<a id="3-principios-invariantes"></a>\r\n\r\n### Invariantes\r\n\r\n1. **Runtime-owned lifecycle.** El mismo estado y contratos producen las mismas transiciones válidas, con independencia del modelo o target.\r\n2. **Modelos sin auto-autoridad.** Un modelo puede proponer y ejecutar trabajo autorizado; no aprueba su candidato ni crea permisos.\r\n3. **Estado persistido sobre conversación.** Reanudar parte de filesystem, no de memoria conversacional.\r\n4. **DAG por defecto.** Un ciclo requiere allowlist, causa, presupuesto e interruptor terminal.\r\n5. **Proporcionalidad por evidencia.** Las garantías responden a impacto e incertidumbre demostrables; líneas y archivos son contexto de reviewability/delivery, nunca degradan un hard floor de riesgo.\r\n6. **Cambio pequeño, proceso pequeño.** Una capacidad solo se activa por una obligación o riesgo demostrable.\r\n7. **Independencia.** Implementación, verificación y aprobación consumen contratos distintos y una identidad común.\r\n8. **Evidencia no equivale a verdict.** Tests verdes son una entrada; contrato, invariantes y challenges determinan suficiencia.\r\n9. **Complejidad justificada.** Toda abstracción nueva compara no hacer nada, cambio local, patrón existente y nueva abstracción.\r\n10. **Recovery ejecutable.** Todo bloqueo termina en `execute`, `collect`, `decide` o `stop`. Una superficie humana o negociada solo nombra un comando cuando ejecutarlo resuelve el bloqueo; nombrar un callejón sin salida es peor que no nombrar nada.\r\n11. **Fail-closed selectivo.** Identidad, permisos, evidencia requerida, seguridad y efectos destructivos fallan cerrados.\r\n12. **Compatibilidad antes de retirada.** Fixed, aliases y artefactos actuales se mantienen hasta que una migración probada los sustituya.\r\n13. **Una responsabilidad, un kernel.** Review, archive, evidence y routing no tendrán implementaciones paralelas permanentes.\r\n14. **Observabilidad separada.** Los eventos registran hechos y coste; no son razonamiento interno ni estado canónico.\r\n15. **Paridad de superficies.** Para la misma condición, la proyección humana y el envelope negociado/máquina llevan al menos la misma especificidad (código, causa y siguiente acción); no divergen en datos materiales.\r\n\r\nEstas invariantes deberán tener schemas y tests de conformance. Su redacción no basta como enforcement.\r\n\r\n#### Materialización P0: contrato ahora, enforcement después\r\n\r\nP0 no termina en una lista de principios ni queda íntegramente ejecutado por K1. K1 materializa el vocabulario y las restricciones declarativas que pueden verificarse sin activar lifecycle; los slices posteriores deben consumir esos contratos y demostrar el comportamiento runtime indicado en la última columna.\r\n\r\n| # | Invariante P0 | Materialización contractual en K1 | Enforcement que permanece en K2+ |\r\n| ---: | --- | --- | --- |\r\n| 1 | Runtime-owned lifecycle | `state-transition/v1` fija `execute\\|collect\\|decide\\|stop`, `operation`, tokens y condiciones de `command`. | K2 implementa el reducer determinista, replay e idempotencia; **K2.1** añade CAS y permits. |\r\n| 2 | Modelos sin auto-autoridad | El canon de autoridad y los contratos `verification`, `finding-review` y `receipt` separan propuesta, verdict y binding. | K2.1/K7/K8 impiden auto-aprobación y mutación de permisos/candidato en runtime. |\r\n| 3 | Estado persistido sobre conversación | `contract` y el canon declaran OpenSpec/Git como autoridad; Execution Graph no puede sobrescribirlos. | K2 reconcilia state y recupe'... 42777 more characters,
+    expected: /K4a.*bloquead/i,
+    operator: 'match',
+    diff: 'simple'
+  }

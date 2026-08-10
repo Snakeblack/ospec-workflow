@@ -97,3 +97,20 @@ test("REQ-agents-012 executable isolated mutations all fail closed", () => {
   const resolved = remediation.reduce(state, focal); assert.equal(resolved.status, "resolved");
   assert.equal(remediation.reduce(resolved, focal).status, "ordinary-routing");
 });
+
+test("K3 readiness: all six generated targets retain byte-equal Candidate schema, manifest, runtime and validator dependency", () => {
+  const source = loadTree(process.cwd());
+  const canonical = new Map(source.map((file) => [file.path, file.content]));
+  const required = [
+    "schemas/kernel/manifest.json",
+    "schemas/kernel/candidate/v2.schema.json",
+    "scripts/lib/execution-identities/index.js",
+    "scripts/lib/kernel-schema-validator.js",
+  ];
+  for (const target of targets) {
+    const files = new Map(transform({ files: source, profile: PROFILES[target] }).files.map((file) => [file.path, file.content]));
+    for (const requiredPath of required) {
+      assert.equal(files.get(requiredPath), canonical.get(requiredPath), `${target} must preserve ${requiredPath} byte-for-byte`);
+    }
+  }
+});

@@ -1,0 +1,10 @@
+✔ codex smoke: output is generated and installed as a root agent.md and custom TOML agents (1276.3059ms)
+✔ codex smoke: global install contains every generated skill and preserves user state across two runs (5314.0594ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6674.3564

@@ -153,6 +153,7 @@ function listK1SchemaFiles(rootDir) {
     "schemas/kernel/candidate/fixtures/valid/k3-frozen.json",
     "schemas/kernel/candidate/fixtures/invalid/commit-projection.json",
     "schemas/kernel/candidate/fixtures/invalid/work-result-alias.json",
+    "schemas/kernel/candidate/fixtures/identity/",
     // Evolutionary catalog registries (excluded from K1 frozen baseline pin)
     "schemas/kernel/manifest.json",
     "schemas/kernel/contract-claims.json",

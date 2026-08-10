@@ -122,6 +122,19 @@ test("K3 schemas: candidate/v2 schema validates valid and invalid v2 fixtures", 
   assert.equal(invalidRes.valid, false, "candidate/v2 fixture missing kind must be rejected");
 });
 
+test("K3 readiness: successor and retired-vocabulary fixtures are structurally discriminated", () => {
+  const schema = readJson("schemas/kernel/candidate/v2.schema.json");
+  const successor = readJson("schemas/kernel/candidate/fixtures/valid/v2-changed-successor.json");
+  const retired = readJson("schemas/kernel/candidate/fixtures/invalid/v2-retired-superset.json");
+  const exactWithPredecessor = readJson("schemas/kernel/candidate/fixtures/invalid/v2-exact-with-predecessor.json");
+  assert.equal(validateInstance(schema, successor).valid, true);
+  assert.equal(validateInstance(schema, retired).valid, false);
+  assert.equal(validateInstance(schema, exactWithPredecessor).valid, false);
+  for (const rel of ["case-distinct-paths.json", "projection-change.json", "symlink-target-change.json"]) {
+    assert.ok(fs.existsSync(path.join(ROOT, "schemas/kernel/candidate/fixtures/identity", rel)));
+  }
+});
+
 test("K3 schemas: work-order/v2 schema validates valid and invalid v2 fixtures", () => {
   const schema = readJson("schemas/kernel/work-order/v2.schema.json");
   const validV2 = readJson("schemas/kernel/work-order/fixtures/valid/v2-minimal.json");

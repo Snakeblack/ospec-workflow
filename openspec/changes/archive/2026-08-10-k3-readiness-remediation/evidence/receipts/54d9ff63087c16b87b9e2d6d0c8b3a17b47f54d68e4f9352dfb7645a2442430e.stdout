@@ -1,0 +1,369 @@
+✖ REQ-execution-identities-001: Distinct digests with domain prefixes for four identities (1.746ms)
+✔ REQ-execution-identities-001: Single byte mutation alters digest (0.177ms)
+✔ REQ-execution-identities-002: SourceSnapshot digest incorporates projection and base tree (0.1139ms)
+✖ REQ-execution-identities-004: Candidate freeze restricts projections and tracks modes & untracked (0.6198ms)
+✔ REQ-execution-identities-004: Candidate freeze path canonicalization and deduplication (2.1498ms)
+✖ REQ-execution-identities-005: Fail-closed initial candidate relation evaluation (0.1465ms)
+✖ REQ-execution-identities-006: Non-aliasing type guards and rejection of mutable targets (0.2107ms)
+✔ REQ-execution-identities-001: Digest functions reject null or non-object inputs (0.1161ms)
+✔ REQ-execution-identities-007: computeSourceSnapshotId validates required inputs and digest format (0.1536ms)
+✔ REQ-execution-identities-003: computeWorkOrderId canonical payload includes dependencies, ownership, required_evidence and validates snapshot digest (0.3172ms)
+✔ REQ-execution-identities-007: computeWorkResultId validates presence and format of work_order_id and source_snapshot_id (0.1941ms)
+✖ REQ-execution-identities-007: computeCandidateId requires mandatory base_tree and projection and validates digest format (0.4024ms)
+✖ REQ-execution-identities-004: freezeCandidate constructs candidate/v2 with schema_version 2 and strict diff disambiguation (0.1234ms)
+✔ REQ-execution-identities-003: validateWorkOrderBinding and validateWorkResultBinding fail-closed validation (3.6414ms)
+✖ REQ-execution-identities-005: evaluateCandidateRelation recomputes candidate_id and detects declared candidate_id mismatch (0.1091ms)
+✖ Adversarial Scenario 1: Candidate candidate_id copied + content altered yields unknown / candidate-id-mismatch (0.0904ms)
+✔ Adversarial Scenario 2: WorkOrder work_order_id copied + ownership altered yields distinct digest (0.1109ms)
+✔ Adversarial Scenario 3: WorkOrder work_order_id copied + required_evidence altered yields distinct digest (0.0997ms)
+✔ Adversarial Scenario 4: WorkOrder work_order_id copied + dependencies altered yields distinct digest (0.0849ms)
+✔ Adversarial Scenario 5: WorkOrder(S1) + WorkResult(S2) yields REJECT SOURCE_SNAPSHOT_MISMATCH (0.1408ms)
+✔ Adversarial Scenario 6: WorkResultId copied + patch altered yields distinct digest (0.0855ms)
+✔ Adversarial Scenario 8: SourceSnapshot presented as Candidate is REJECTED (0.0686ms)
+✔ Adversarial Scenario 9: SourceSnapshot presented as DeliveryAuthorization is REJECTED (0.0548ms)
+✖ Adversarial Scenario 10: Candidate presented as EvaluationAttestation is REJECTED (0.0876ms)
+✔ Adversarial Scenario 11: feature/foo non-sha256 target used as Attestation target is REJECTED (0.0584ms)
+✖ Adversarial Scenario 12: diffText=sha256:esto-es-texto processed as raw text hash, not precomputed (0.0859ms)
+✔ Adversarial Scenario 13: diffText and diff_hash simultaneously conflicting are REJECTED (0.1147ms)
+✖ K3-2.1: non-frozen / missing kind candidate → INVALID_FROZEN_CANDIDATE (no relation) (0.0991ms)
+✖ K3-2.2: hand-built kind candidate/v2 but schema-invalid → INVALID_FROZEN_CANDIDATE (0.0815ms)
+✔ K3-2.3: attestation surface without kind → validateIdentityKind fail closed (0.0516ms)
+✔ K3-2.4: SourceSnapshot + attestation_id without attestation kind → fail closed (0.0693ms)
+✔ K3-2.5: compatible EXPECTED_KINDS kind → pass (0.05ms)
+✔ K3-2.6: binding spoof — declared IDs string-equal but payload mutated → binding (0.2484ms)
+✔ K3-2.7: validateWorkOrderBinding requires sourceSnapshot + workOrder (arity) (0.0628ms)
+✔ K3-2.8: dependencies null / non-array → computeWorkOrderId throws (no [] coercion) (0.1543ms)
+✔ K3-2.9: WorkResult missing required exit_code → computeWorkResultId throws (no silent default) (0.1184ms)
+✔ K3-2.10: freezeCandidate rejects empty repository_id; intended_untracked_digest never empty string (0.1506ms)
+✖ K3-2.11: invariant validateCandidateV2(freezeCandidate(validInput)) === true (0.0922ms)
+✔ K3-2.12: same WorkOrder payload v1 vs v2 → distinct digests; v2 domain is work-order/v2 (0.1364ms)
+✖ K3 GO: DECLARED_ID_MISMATCH still fires after freeze gate on schema-valid tamper (0.0792ms)
+✖ 4R-R1: forged {ambiguous:true} cannot bypass INVALID_FROZEN_CANDIDATE (0.4137ms)
+✖ 4R-R1b: typed candidate-relation-selector ambiguous still decides (0.0888ms)
+✔ 4R-R2: kind work-order/v1 + schema_version 2 throws (fail closed disagreement) (0.1103ms)
+✔ 4R-R2c: kind work-order/v2 + schema_version 1 throws (symmetric disagreement) (0.1783ms)
+✔ 4R-R2b: consistent work-order/v2 + schema_version 2 uses v2 domain (0.242ms)
+✔ 4R-R3: ownership null / non-object → computeWorkOrderId throws (no {} coercion) (0.3921ms)
+✔ 4R-R4: missing patch → computeWorkResultId throws (no default empty string) (0.1295ms)
+✔ 4R-R4b: exit_code null / non-integer → computeWorkResultId throws (0.1452ms)
+✔ 4R-R6: ill-formed declared snapshot id uses ILL_FORMED_SNAPSHOT_ID or INVALID_SCHEMA (0.2106ms)
+✔ REQ-execution-identities-007: computeSourceSnapshotId throws on missing repository_id or invalid projection (0.1677ms)
+✔ REQ-execution-identities-007: computeWorkOrderId fails closed on missing required fields without defaulting (0.4596ms)
+✔ REQ-execution-identities-007: computeWorkResultId fails closed on missing required array fields without defaulting to [] (0.1874ms)
+✔ REQ-execution-identities-003: validateWorkOrderBinding fails closed on schema-invalid inputs (0.097ms)
+✔ REQ-execution-identities-003: validateWorkResultBinding fails closed on schema-invalid inputs (0.1175ms)
+✔ REQ-execution-identities-008: validateIdentityKind accepts SourceSnapshot v1 and WorkResult v1 with optional or omitted kind (0.1829ms)
+✔ K3 Remediation: Deep compute shape validation rejects malformed nested fields (0.3322ms)
+✔ K3 Remediation: validateIdentityKind fails closed on un-kinded schema-invalid v1 objects (0.0643ms)
+✔ K3 Remediation: binding gates enforce JSON Schema validation before digest recompute (0.0744ms)
+✔ K3 Remediation: unmutated raw payloads missing required schema fields fail-close with INVALID_SCHEMA (0.2381ms)
+✖ REQ-execution-identities-007: computeCandidateId strictly enforces K3 parameters without defaulting (0.096ms)
+✔ K3 Remediation: validateIdentityKind enforces JSON Schema validation on payloads with declared kind (0.2419ms)
+✖ K3 Remediation: SourceSnapshot own-ID integrity and freezeCandidate schema invariant (0.2646ms)
+✖ K3 readiness: successor relation is derived from a frozen predecessor and cannot remain exact (0.1182ms)
+✖ K3 readiness: relation evaluation rejects incoherent persisted lineage and retired vocabulary (0.1099ms)
+✖ K3 readiness: identity boundaries preserve case and distinguish projection, modes, symlink and untracked inputs (0.0989ms)
+ℹ tests 65
+ℹ suites 0
+ℹ pass 44
+ℹ fail 21
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 110.4825
+
+✖ failing tests:
+
+test at scripts\lib\execution-identities\index.test.js:19:1
+✖ REQ-execution-identities-001: Distinct digests with domain prefixes for four identities (1.746ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:67:18)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.start (node:internal/test_runner/test:1177:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17)
+
+test at scripts\lib\execution-identities\index.test.js:104:1
+✖ REQ-execution-identities-004: Candidate freeze restricts projections and tracks modes & untracked (0.6198ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:122:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\lib\execution-identities\index.test.js:174:1
+✖ REQ-execution-identities-005: Fail-closed initial candidate relation evaluation (0.1465ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:179:14)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\lib\execution-identities\index.test.js:252:1
+✖ REQ-execution-identities-006: Non-aliasing type guards and rejection of mutable targets (0.2107ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:266:27)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\lib\execution-identities\index.test.js:388:1
+✖ REQ-execution-identities-007: computeCandidateId requires mandatory base_tree and projection and validates digest format (0.4024ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /base_tree|baseTree/i. Input:
+  
+  'Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace'
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:390:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+        at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+        at C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:391:5
+        at getActual (node:assert:611:5)
+        at strict.throws (node:assert:759:24)
+        at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:390:10)
+        at Test.runInAsyncScope (node:async_hooks:227:14)
+        at Test.run (node:internal/test_runner/test:1306:25)
+        at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+        at Test.postRun (node:internal/test_runner/test:1447:19)
+        at Test.run (node:internal/test_runner/test:1372:12),
+    expected: /base_tree|baseTree/i,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at scripts\lib\execution-identities\index.test.js:410:1
+✖ REQ-execution-identities-004: freezeCandidate constructs candidate/v2 with schema_version 2 and strict diff disambiguation (0.1234ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:420:18)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\lib\execution-identities\index.test.js:518:1
+✖ REQ-execution-identities-005: evaluateCandidateRelation recomputes candidate_id and detects declared candidate_id mismatch (0.1091ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:522:26)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\lib\execution-identities\index.test.js:542:1
+✖ Adversarial Scenario 1: Candidate candidate_id copied + content altered yields unknown / candidate-id-mismatch (0.0904ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:546:20)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\lib\execution-identities\index.test.js:723:1
+✖ Adversarial Scenario 10: Candidate presented as EvaluationAttestation is REJECTED (0.0876ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:726:27)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\lib\execution-identities\index.test.js:751:1
+✖ Adversarial Scenario 12: diffText=sha256:esto-es-texto processed as raw text hash, not precomputed (0.0859ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:755:18)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\lib\execution-identities\index.test.js:805:1
+✖ K3-2.1: non-frozen / missing kind candidate → INVALID_FROZEN_CANDIDATE (no relation) (0.0991ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at makeFrozenCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:794:10)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:806:17)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\lib\execution-identities\index.test.js:820:1
+✖ K3-2.2: hand-built kind candidate/v2 but schema-invalid → INVALID_FROZEN_CANDIDATE (0.0815ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at makeFrozenCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:794:10)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:821:17)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\lib\execution-identities\index.test.js:1009:1
+✖ K3-2.11: invariant validateCandidateV2(freezeCandidate(validInput)) === true (0.0922ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at makeFrozenCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:794:10)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:1010:18)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\lib\execution-identities\index.test.js:1055:1
+✖ K3 GO: DECLARED_ID_MISMATCH still fires after freeze gate on schema-valid tamper (0.0792ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at makeFrozenCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:794:10)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:1056:17)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\lib\execution-identities\index.test.js:1070:1
+✖ 4R-R1: forged {ambiguous:true} cannot bypass INVALID_FROZEN_CANDIDATE (0.4137ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at makeFrozenCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:794:10)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:1071:17)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\lib\execution-identities\index.test.js:1079:1
+✖ 4R-R1b: typed candidate-relation-selector ambiguous still decides (0.0888ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at makeFrozenCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:794:10)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:1080:17)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\lib\execution-identities\index.test.js:1555:1
+✖ REQ-execution-identities-007: computeCandidateId strictly enforces K3 parameters without defaulting (0.096ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:1566:13)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\lib\execution-identities\index.test.js:1643:1
+✖ K3 Remediation: SourceSnapshot own-ID integrity and freezeCandidate schema invariant (0.2646ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:1707:18)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\lib\execution-identities\index.test.js:1718:1
+✖ K3 readiness: successor relation is derived from a frozen predecessor and cannot remain exact (0.1182ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:1727:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\lib\execution-identities\index.test.js:1746:1
+✖ K3 readiness: relation evaluation rejects incoherent persisted lineage and retired vocabulary (0.1099ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:1747:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at scripts\lib\execution-identities\index.test.js:1781:1
+✖ K3 readiness: identity boundaries preserve case and distinguish projection, modes, symlink and untracked inputs (0.0989ms)
+  Error: computeCandidateId requires valid projection (workspace|staged). Received: workspace
+      at computeCandidateId (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:491:11)
+      at freezeCandidate (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.js:663:23)
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\lib\execution-identities\index.test.js:1786:16)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)

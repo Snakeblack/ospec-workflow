@@ -1,0 +1,12 @@
+✔ K3 readiness: only evidence-backed archive states are reconciled and sibling evidence remains immutable (4.0571ms)
+✔ K3 readiness: historical state snapshots name Git HEAD as their before provenance (670.5779ms)
+✔ K3 readiness: documentation keeps K4a blocked until this remediation closes (7.8434ms)
+✔ K3 readiness: Git-clean historical siblings remain canonically equal across checkout line endings (51.7752ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 790.6595

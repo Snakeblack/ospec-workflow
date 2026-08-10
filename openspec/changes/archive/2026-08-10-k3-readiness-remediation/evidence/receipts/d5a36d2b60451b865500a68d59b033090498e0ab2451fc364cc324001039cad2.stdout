@@ -1,0 +1,33 @@
+✔ codex smoke: output is generated and installed as a root agent.md and custom TOML agents (1288.7628ms)
+✖ codex smoke: global install contains every generated skill and preserves user state across two runs (5805.9017ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7180.5928
+
+✖ failing tests:
+
+test at scripts\configure\codex-smoke.test.js:76:1
+✖ codex smoke: global install contains every generated skill and preserves user state across two runs (5805.9017ms)
+  AssertionError [ERR_ASSERTION]: reinstall must prune stale schemas only inside the managed schemas tree
+  
+  true !== false
+  
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\configure\codex-smoke.test.js:133:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

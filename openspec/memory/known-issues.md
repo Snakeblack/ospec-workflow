@@ -1,7 +1,21 @@
 ---
 title: Known Issues
-last_updated: 2026-08-07
+last_updated: 2026-08-09
 ---
+
+## Codex active runtime retains destination-only managed schemas
+- severity: BLOCKER
+- area: scripts/configure/install-codex.js (copyCodexRuntime / syncTreeByContent)
+- workaround: remove obsolete files from the managed active schema tree before or during supported reinstall, then verify active inventory equals dist/codex/schemas exactly
+- change: k3-readiness-remediation
+- date: 2026-08-09
+
+## Phase 9 tasks claim stale-schema cleanup without permanent coverage
+- severity: BLOCKER
+- area: openspec/changes/k3-readiness-remediation/tasks.md 9.2-9.4; scripts/configure/codex-smoke.test.js
+- workaround: add a permanent isolated-home reinstall case that seeds a destination-only managed schema and requires it to be pruned
+- change: k3-readiness-remediation
+- date: 2026-08-09
 
 ## Task 4.4 work-unit commits still pending after K3 verify PASS
 - severity: WARNING

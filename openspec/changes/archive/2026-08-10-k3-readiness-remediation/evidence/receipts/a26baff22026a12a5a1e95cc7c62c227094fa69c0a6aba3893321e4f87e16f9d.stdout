@@ -1,0 +1,13 @@
+✔ RED: a staged write failure preserves an existing destination byte-for-byte and cleans owned artifacts (74.6387ms)
+✔ RED: a stage-to-destination rename failure restores an existing destination and absent output is never partial (709.807ms)
+✔ RED: failed restoration retains the only backup and reports its recovery path (376.8665ms)
+✔ permanent fault matrix covers prune, mkdir, backup rename, and lock collision without leaking owned stage or lock (559.5817ms)
+✔ transactional publication runs independently for all six configured destinations (2274.6263ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4057.6213

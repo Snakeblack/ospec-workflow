@@ -1,5 +1,5 @@
 change: k3-cumulative-schema-binding-remediation
-status: proposing
+status: archived
 created_at: 2026-08-08T02:26:00Z
 last_updated: 2026-08-08T02:26:00Z
 owner:
@@ -65,6 +65,10 @@ phases:
     artifact: openspec/changes/k3-cumulative-schema-binding-remediation/verify-report.md
     verdict: PASS
     summary: "All 8 tasks verified against specs, design, and 58 passing unit tests (0 errors, 0 warnings)."
+  archive:
+    status: done
+    artifact: openspec/changes/k3-cumulative-schema-binding-remediation/archive-report.md
+    summary: "Archive evidence is present; state metadata reconciled without modifying historical receipts."
 baseline_fingerprints:
   execution-identities: sha256:4044d95eb4cfabe2998bda2da5f33f9e5b95bbaff29392fc4dc782fe1234be9d
   kernel-contract-schemas: sha256:b81fbfc2fa2c56ff6ae6b7fe0347f51fa2312bbb1f3cf7e53fc16a38666183aa

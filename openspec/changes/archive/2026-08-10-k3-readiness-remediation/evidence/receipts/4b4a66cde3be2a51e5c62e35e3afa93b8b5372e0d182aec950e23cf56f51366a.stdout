@@ -1,0 +1,59 @@
+✔ runConfigure writes a claude tree to the out dir (50.4979ms)
+✔ runConfigure omits the unsupported codex config artifact (12.1729ms)
+✔ the source fixture is left byte-for-byte unchanged (26.8436ms)
+✔ --no-validate skips the gate (validator not invoked) (12.2417ms)
+✔ a validator failure yields a non-zero exit without throwing (12.3548ms)
+✔ reported warnings also fail the strict gate even on a zero status (10.8947ms)
+✔ a clean validator run keeps a zero exit (11.8191ms)
+✔ github-copilot validation uses the profile-level validator command (12.0434ms)
+✔ defaultRunValidator runs the validator without a shell, passing {out} as one literal argv element (38.7306ms)
+✔ generated claude tree matches the committed golden (14.2245ms)
+✔ generated github-copilot tree matches the committed golden (13.5827ms)
+✔ generated opencode tree matches the committed golden (16.482ms)
+✔ generated codex tree matches the committed golden (12.4366ms)
+✔ generated cursor tree matches the committed golden (15.4507ms)
+✔ regenerating prunes stale generated files but keeps unrelated entries (22.6073ms)
+✔ regenerating codex removes the formerly managed bundled .mcp.json (11.0049ms)
+✔ gatherRuntimeScripts walks hook requires, excluding tests and generator code (9.7088ms)
+✔ loadTree reads the plugin source roots into {path, content} (2.0333ms)
+✔ parseModels reads the two-table shape with scalars and inline arrays (0.133ms)
+✔ parseModels reads block-sequence target models (0.0719ms)
+✔ RED: runConfigure aborts before writing on reviewer, missing, or invalid Codex model policy (31.1136ms)
+✔ RED: evidence authorization rejects a symlinked change root (3.4163ms)
+✔ parseModels rejects duplicate mapping keys before overwrite (0.2995ms)
+✔ G1: gatherRuntimeScripts includes all four skill entry-point scripts as additional BFS roots (11.4921ms)
+✔ G2: gatherRuntimeScripts excludes target-* modules even when required by an entry script (11.0205ms)
+✔ G3: gatherRuntimeScripts includes a non-excluded transitive dep of a skill entry script (9.512ms)
+✔ G4: gatherRuntimeScripts excludes modules under scripts/configure/ required transitively (11.7699ms)
+✔ G5: gatherRuntimeScripts excludes frontmatter.js and model-resolver.js required transitively (3.4533ms)
+✔ gatherRuntimeScripts handles fs permission errors gracefully (1.9773ms)
+✔ RED: runConfigure aborts without output when a managed source read fails (0.7513ms)
+✖ K3 readiness: every generated target receives the Candidate v2 schema and runtime closure (34.3521ms)
+ℹ tests 31
+ℹ suites 0
+ℹ pass 30
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 525.2957
+
+✖ failing tests:
+
+test at scripts\configure\cli.test.js:514:1
+✖ K3 readiness: every generated target receives the Candidate v2 schema and runtime closure (34.3521ms)
+  AssertionError [ERR_ASSERTION]: claude is missing schemas/kernel/manifest.json
+      at TestContext.<anonymous> (C:\Users\sn4ke\dev\activos\ospec-workflow\scripts\configure\cli.test.js:524:14)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
