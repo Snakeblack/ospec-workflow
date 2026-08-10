@@ -314,24 +314,19 @@ Automatic mode does not override this guard. Always pass the resolved delivery s
 When `sdd-verify` returns `FAIL`, do NOT route everything back to `sdd-apply` by default.
 
 Route by the issue origin tags or `next_recommended` returned by verify:
-- `code-bug` → `sdd-apply`
+- `code-bug` → `sdd-apply` (forward frozen finding IDs from `verify_lineage`)
 - `tasks-gap` → `sdd-tasks`
 - `design-gap` → `sdd-design`
 - `spec-gap` → `sdd-spec`
 
-Routing priority when multiple origins appear in one report:
-1. `spec-gap`
-2. `design-gap`
-3. `tasks-gap`
-4. `code-bug`
+**Bounded Verify Lineage Rule**:
+When re-dispatching `sdd-apply` after a `code-bug` failure, pass only the frozen finding IDs from `verify_lineage.findings`. When re-dispatching `sdd-verify` after remediation, instruct `sdd-verify` to run in `recheck` mode (checking only frozen finding IDs and treating new observations as non-blocking).
 
-If verification returns mixed defects, route to the earliest upstream phase represented and summarize the downstream findings so they are not lost.
+Routing priority when multiple origins appear in one report: 1. `spec-gap`, 2. `design-gap`, 3. `tasks-gap`, 4. `code-bug`. Route to earliest upstream phase represented.
 
-Note the distinction between the two mechanisms above and below: `design-gap`/`spec-gap` are post-hoc origin tags that `sdd-verify` assigns after reviewing already-completed work, whereas the `blocker_type` values below (`design-mismatch`, `spec-change-required`) are live blockers that `sdd-apply` raises mid-implementation, before verify ever runs. Do not conflate a verify-time origin tag with an apply-time live blocker when routing.
-
-This routing table also covers `status: blocked` envelopes with a `blocker_type`, not only post-verify findings:
-- `blocker_type: design-mismatch` (fired from `sdd-apply` when existing code contradicts the design) → route to `sdd-design`, not `sdd-clarify`, and do NOT silently retry `sdd-apply`. Update `state.yaml` (top-level `status: blocked`, blocking question/reason recorded) and re-dispatch `sdd-apply` only once a revised design is produced.
-- `blocker_type: spec-change-required` → route to `sdd-spec`, same as the `spec-gap` origin above.
+Note: `design-gap`/`spec-gap` are post-hoc origin tags from verify; `blocker_type` values (`design-mismatch`, `spec-change-required`) are live blockers from apply:
+- `blocker_type: design-mismatch` → route to `sdd-design` (update `state.yaml` `status: blocked`). Re-dispatch `sdd-apply` only after design revision.
+- `blocker_type: spec-change-required` → route to `sdd-spec`.
 
 ### Sub-Agent Launch Pattern
 
@@ -410,9 +405,12 @@ success/blocked/user-skip bookkeeping through `skills/_shared/clarify-routing.md
 (Clarify Gate Handler, pointer table). Clarify remains a gate outside declared
 route phases and MUST NOT be passed through `validate-phase.js`.
 
-#### Strict TDD Forwarding (MANDATORY)
+#### TDD Mode Forwarding (MANDATORY)
 
-When launching `sdd-apply` or `sdd-verify`, read `openspec/config.yaml` (ONCE per session at first apply/verify launch, then cached). If it contains `strict_tdd: true`, add to the sub-agent prompt: `"STRICT TDD MODE IS ACTIVE. Test runner: {test_command}. You MUST follow strict-tdd.md. Do NOT fall back to Standard Mode."` — NON-NEGOTIABLE; do not rely on the sub-agent discovering it independently. If config is missing or `strict_tdd` is not found, add nothing (the sub-agent resolves mode from project files or uses Standard Mode).
+When launching `sdd-apply` or `sdd-verify`, read `openspec/config.yaml` (`testing.tdd_mode` or legacy `strict_tdd: true`, ONCE per session at first apply/verify launch, then cached).
+- If `testing.tdd_mode: strict` (or legacy `strict_tdd: true`), add to the sub-agent prompt: `"STRICT TDD MODE IS ACTIVE. Test runner: {test_command}. You MUST follow strict-tdd.md. Do NOT fall back to Standard Mode."`.
+- If `testing.tdd_mode: focused`, add to the sub-agent prompt: `"TDD MODE: FOCUSED. Test runner: {test_command}. Follow focused TDD."`.
+- If `testing.tdd_mode: standard` or config missing, add nothing (Standard Mode).
 
 #### Reply Language Forwarding (MANDATORY)
 

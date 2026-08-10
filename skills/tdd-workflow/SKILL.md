@@ -12,12 +12,10 @@ This skill ensures all code development follows TDD principles with comprehensiv
 
 ## When to Activate
 
-- Writing new features or functionality
-- Fixing bugs or issues
-- Refactoring existing code
-- Adding API endpoints
-- Creating new components
-- Continuing from a `/plan` output or another `*.plan.md` implementation plan
+- Standalone development outside an SDD change cycle (writing standalone features, fixing standalone bugs, refactoring).
+- Continuing from a `/plan` output or another `*.plan.md` implementation plan.
+
+> **SDD EXCLUSION**: If an SDD change cycle is active (`sdd-orchestrator` / `sdd-apply`), SDD owns the testing policy (`standard`, `focused`, or `strict`). This skill MUST NOT activate in parallel during SDD phases.
 
 ## Plan Handoff
 

@@ -23,7 +23,18 @@ function headBytes(rel) {
     if (headSha !== current) return resHead.stdout;
   }
   const resPrev = spawnSync("git", ["show", `HEAD~1:${rel}`], { cwd: ROOT, encoding: null });
-  if (resPrev.status === 0) return resPrev.stdout;
+  if (resPrev.status === 0) {
+    const prevSha = crypto.createHash("sha256").update(resPrev.stdout).digest("hex");
+    if (prevSha !== current) return resPrev.stdout;
+  }
+  const resLog = spawnSync("git", ["log", "-n", "2", "--format=%H", "--", rel], { cwd: ROOT, encoding: "utf8" });
+  if (resLog.status === 0 && resLog.stdout) {
+    const commits = resLog.stdout.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    if (commits.length > 1) {
+      const resParent = spawnSync("git", ["show", `${commits[1]}:${rel}`], { cwd: ROOT, encoding: null });
+      if (resParent.status === 0) return resParent.stdout;
+    }
+  }
   assert.equal(resHead.status, 0, `HEAD blob missing for ${rel}`);
   return resHead.stdout;
 }

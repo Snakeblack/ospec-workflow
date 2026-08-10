@@ -226,7 +226,7 @@ test("real repo: codex synthesizes a single agent.md from the rules tree and orc
   runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
 
   assert.ok(fs.existsSync(path.join(out, "agent.md")), "agent.md must be synthesized");
-  assert.ok(!fs.existsSync(path.join(out, "AGENTS.md")), "AGENTS.md must not survive in codex output");
+  assert.ok(fs.existsSync(path.join(out, "AGENTS.md")), "AGENTS.md must be synthesized in codex output (ADR-001)");
   assert.ok(!fs.existsSync(path.join(out, "rules")), "rules/ must not survive in codex output");
 });
 

@@ -1,6 +1,8 @@
 name = "sdd-apply"
 description = "Implement assigned SDD tasks under strict TDD."
 sandbox_mode = "workspace-write"
+model = "gpt-5.6-terra"
+model_reasoning_effort = "medium"
 developer_instructions = """
 
 # SDD Apply

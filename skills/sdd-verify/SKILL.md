@@ -56,11 +56,11 @@ Compliance rule matrix:
 
 ## Decision Gates
 
-| Condition | Action |
+| Input / Condition | Action |
 |---|---|
-| Orchestrator says `STRICT TDD MODE IS ACTIVE` | Treat as authoritative. |
-| Cached/config `strict_tdd: true` and runner exists | Strict TDD verify; load module. |
-| Strict TDD false or no runner | Standard verify; skip TDD checks. |
+| Orchestrator says `STRICT TDD MODE IS ACTIVE` | Treat as authoritative (`strict` TDD mode). |
+| Config `testing.tdd_mode: strict` (or legacy `strict_tdd: true`) and runner exists | Strict TDD verify; load module. |
+| Config `testing.tdd_mode: focused` or `standard` | Standard/focused verify; skip strict TDD evidence audits. |
 | Task incomplete | CRITICAL for core task, WARNING for cleanup task. |
 | Test command exits non-zero | CRITICAL. |
 | MUST scenario lacks `runtime-test` or accepted `static-proof` | CRITICAL. |
@@ -69,6 +69,7 @@ Compliance rule matrix:
 | Design deviation exists | WARNING unless it breaks a spec. |
 | Unresolved `reversibility: low` assumption entry after the Step 2a checklist | WARNING finding referencing that assumption's `id`. |
 | Unresolved `reversibility: high` assumption entry after the Step 2a checklist | No escalation — MUST NOT raise a finding. |
+| `verify_lineage.status: active` during re-verification | Targeted recheck mode; evaluate ONLY frozen finding IDs. Late observations are non-blocking. |
 
 ## Execution Steps
 
@@ -86,6 +87,19 @@ b. If unresolved entries exist (`status: unresolved`) and the launch prompt cont
    - `promote-to-clarification` MUST only set `status: promoted` on the entry; `sdd-verify` MUST NOT auto-invoke `sdd-clarify` — the user alone decides when (or whether) to re-run it.
 c. On relaunch with an `assumption_resolutions` block (`{ id, action: confirm|correct|promote-to-clarification|leave-unresolved, note? }` per entry), apply each resolution to the matching `state.yaml assumptions:` entry — set `status` (`confirmed`/`corrected`/`promoted`) and `resolution: { action, note, resolved_at }` — then continue to Step 3.
 d. Any entry with `reversibility: low` that remains `unresolved` after this pass MUST produce a `WARNING` finding in `verify-report.md` (Decision Gates above), subject to the same `known-issues.md` write contract as other `WARNING` findings (Step 10b). Entries with `reversibility: high` that remain unresolved MUST NOT escalate.
+
+### Step 2b: Bounded Verify Lineage (Discovery vs Targeted Recheck)
+
+Runs after Step 2a and BEFORE testing/TDD mode resolution (Step 3).
+
+a. Read `openspec/changes/{change-name}/state.yaml` `verify_lineage:`.
+b. **Mode 1: Discovery** (`verify_lineage` is absent or `status: closed`):
+   - Full discovery mode. Evaluate specs, design, tasks, and code.
+   - If findings are produced (CRITICAL or WARNING), freeze them in `state.yaml` under `verify_lineage` (`status: active`, `frozen_at: ISO-timestamp`, `findings: [{ id: "V001", summary: "...", origin: "code-bug", blocking: true }]`).
+c. **Mode 2: Targeted Recheck** (`verify_lineage.status: active`):
+   - Recheck mode. Evaluate ONLY whether the frozen finding IDs in `verify_lineage.findings` are fixed.
+   - Any new issue observed during recheck MUST NOT create new blocking findings. Record it as a `late_observation` (`blocking: false`, `severity: follow-up`).
+   - If all frozen findings are verified fixed, update `verify_lineage.status: closed` in `state.yaml`.
 
 3. Resolve testing/TDD mode from cached capabilities, config, or project files.
 4. Count completed and incomplete tasks.
