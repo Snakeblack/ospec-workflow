@@ -68,7 +68,7 @@ FOR EACH TASK:
 │   ├── EXECUTE tests ONCE after the completed refactor batch → must STILL PASS
 │   │   ├── ✅ Still passing → refactoring is safe, continue
 │   │   └── ❌ Failed → REVERT that refactoring step, try smaller
-│   └── GATE: Tests green after EVERY refactoring change
+│   └── GATE: The refactor batch is complete only when that final targeted run is green
 │
 ├── 6. Mark task complete [x]
 └── 7. Note any deviations or issues discovered

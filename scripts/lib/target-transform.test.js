@@ -993,6 +993,7 @@ test("codex rules fold into a single synthesized AGENTS.md (ADR-001)", () => {
   assert.ok(agentMd, "agent.md must be synthesized");
   assert.ok(agentsMd, "AGENTS.md must be synthesized (ADR-001)");
   assert.match(agentsMd.content, /ALWAYS use OpenSpec/);
+  assert.doesNotMatch(agentMd.content, /ALWAYS use OpenSpec/, "agent.md MUST NOT contain rule content when strategy is to-agents-md");
   assert.ok(!out.files.some((f) => f.path.startsWith("rules/")), "rules/ source files must not survive");
 });
 

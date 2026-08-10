@@ -69,7 +69,7 @@ Compliance rule matrix:
 | Design deviation exists | WARNING unless it breaks a spec. |
 | Unresolved `reversibility: low` assumption entry after the Step 2a checklist | WARNING finding referencing that assumption's `id`. |
 | Unresolved `reversibility: high` assumption entry after the Step 2a checklist | No escalation — MUST NOT raise a finding. |
-| `verify_lineage.status: active` during re-verification | Targeted recheck mode; evaluate ONLY frozen finding IDs. Late observations are non-blocking. |
+| `verify_lineage.status: recheck-pending` during re-verification | Targeted recheck pipeline; evaluate ONLY frozen finding IDs + causal regressions. Late observations are non-blocking. |
 
 ## Execution Steps
 
@@ -88,18 +88,30 @@ b. If unresolved entries exist (`status: unresolved`) and the launch prompt cont
 c. On relaunch with an `assumption_resolutions` block (`{ id, action: confirm|correct|promote-to-clarification|leave-unresolved, note? }` per entry), apply each resolution to the matching `state.yaml assumptions:` entry — set `status` (`confirmed`/`corrected`/`promoted`) and `resolution: { action, note, resolved_at }` — then continue to Step 3.
 d. Any entry with `reversibility: low` that remains `unresolved` after this pass MUST produce a `WARNING` finding in `verify-report.md` (Decision Gates above), subject to the same `known-issues.md` write contract as other `WARNING` findings (Step 10b). Entries with `reversibility: high` that remain unresolved MUST NOT escalate.
 
-### Step 2b: Bounded Verify Lineage (Discovery vs Targeted Recheck)
+### Step 2b: Bounded Verify Lineage (Discovery vs Targeted Recheck Pipelines)
 
 Runs after Step 2a and BEFORE testing/TDD mode resolution (Step 3).
 
 a. Read `openspec/changes/{change-name}/state.yaml` `verify_lineage:`.
-b. **Mode 1: Discovery** (`verify_lineage` is absent or `status: closed`):
-   - Full discovery mode. Evaluate specs, design, tasks, and code.
-   - If findings are produced (CRITICAL or WARNING), freeze them in `state.yaml` under `verify_lineage` (`status: active`, `frozen_at: ISO-timestamp`, `findings: [{ id: "V001", summary: "...", origin: "code-bug", blocking: true }]`).
-c. **Mode 2: Targeted Recheck** (`verify_lineage.status: active`):
-   - Recheck mode. Evaluate ONLY whether the frozen finding IDs in `verify_lineage.findings` are fixed.
-   - Any new issue observed during recheck MUST NOT create new blocking findings. Record it as a `late_observation` (`blocking: false`, `severity: follow-up`).
-   - If all frozen findings are verified fixed, update `verify_lineage.status: closed` in `state.yaml`.
+b. Determine active mode via `getLineageNextAction` (`scripts/lib/verify-lineage.js`):
+
+- **Pipeline A: Targeted Recheck Pipeline** (`verify_lineage.status: recheck-pending`):
+  1. Evaluate ONLY whether the frozen finding IDs in `verify_lineage.findings` are fixed by executing their targeted validation tests/commands + regression safety net on impacted paths.
+  2. If new issues are observed during recheck:
+     - Issues in modified/impacted paths with `BLOCKER`/`CRITICAL` severity are tagged as **causal regressions** and added as unresolved findings.
+     - Issues in un-impacted paths are recorded in `late_observations` (`blocking: false`, `severity: follow-up`).
+  3. Evaluate state transition using `evaluateRecheck(verify_lineage, ...)`:
+     - All frozen findings fixed & no causal regressions → update `verify_lineage.status: closed` in `state.yaml`.
+     - Findings remain unresolved & attempts < 2 → update `remediation_attempts` and keep `status: recheck-pending`.
+     - Findings remain unresolved & attempts == 2 → update `verify_lineage.status: exhausted` in `state.yaml` and demand user intervention.
+     - Contract drift detected → update `verify_lineage.status: superseded`.
+  4. Persist updated `verify_lineage` state in `state.yaml` and write the targeted recheck report.
+  5. **`RETURN` / HALT**: End execution here. Do NOT fall through to Steps 3–10 of full discovery.
+
+- **Pipeline B: Full Discovery Pipeline** (`verify_lineage` absent, `closed` with contract drift, or `superseded`):
+  1. Continue to Step 3 and run full spec, design, task, and test suite discovery.
+  2. If `BLOCKER` or `CRITICAL` findings are produced, call `startVerifyLineage` (`scripts/lib/verify-lineage.js`) to freeze them in `state.yaml` under `verify_lineage` (`status: recheck-pending`, `remediation_attempts: 0`, `max_remediation_attempts: 2`, `contract_digest: sha256:...`, `candidate_id: sha256:...`).
+  3. `WARNING` and `SUGGESTION` findings remain advisory and MUST NOT open an active remediation lineage.
 
 3. Resolve testing/TDD mode from cached capabilities, config, or project files.
 4. Count completed and incomplete tasks.

@@ -99,21 +99,25 @@ Read the cached testing capabilities to determine implementation mode:
 
 ```
 Read testing capabilities from:
-├── openspec: openspec/config.yaml → strict_tdd + testing section
+├── openspec: openspec/config.yaml → testing.tdd_mode (or legacy strict_tdd) + testing section
 └── Fallback: check project files directly (package.json, go.mod, etc.)
 
 Resolve mode:
-├── IF strict_tdd: true AND test runner exists
+├── IF (testing.tdd_mode: strict OR legacy strict_tdd: true) AND test runner exists
 │   └── STRICT TDD MODE → Load and follow strict-tdd.md module
 │       (read the file: skills/sdd-apply/strict-tdd.md)
 │
-├── IF strict_tdd: false OR no test runner
+├── IF (testing.tdd_mode: focused OR scale: team) AND test runner exists
+│   └── FOCUSED TDD MODE → Load and follow focused-tdd.md module
+│       (read the file: skills/sdd-apply/focused-tdd.md)
+│
+├── IF testing.tdd_mode: standard OR no test runner
 │   └── STANDARD MODE → use Step 4 below (no TDD module loaded)
 │
 └── Cache the resolved mode for the return summary
 ```
 
-**Key principle**: If Strict TDD Mode is not active, ZERO TDD instructions are loaded. The `strict-tdd.md` module is never read, never processed, never consumes tokens.
+**Key principle**: Load ONLY the module required by the resolved mode. If Standard Mode is resolved, zero TDD modules are loaded.
 
 #### Hard Gate (Strict TDD Only)
 
