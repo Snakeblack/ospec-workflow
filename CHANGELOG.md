@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.43.4] - 2026-08-10
+
+### Fixed
+- **Cierre definitivo de Bounded Verify Lineage (K3)**:
+  - `deriveCandidateDeltaPaths` exige objetos Git resolubles para calcular el delta real Candidate A → B; eliminados `diffText`/`diff` externos y fallback por conjuntos de paths.
+  - `startVerifyLineage`, `evaluateRecheck` y `getLineageNextAction` derivan `contract_digest` exclusivamente desde bytes OpenSpec en disco (`computeContractDigestFromArtifacts(changeRoot, mode)`); el objeto `contract` inline ya no es autoridad.
+  - `resolveTddMode` lee únicamente `testing.tdd_mode`; eliminado todo residuo de `strict_tdd`/`strictTdd` en runtime, pre-commit hook, regla Strict y skill de init.
+  - `scale: team` ya no activa Focused Mode si `testing.tdd_mode: standard`.
+  - Integridad de evidencia de verificación: afirmaciones de `apply-progress.md` y `verify-report.md` reconciliadas contra HEAD real.
+
 ## [2.43.3] - 2026-08-10
 
 ### Fixed

@@ -68,10 +68,8 @@ function runPreCommit() {
     if (fs.existsSync(configPath)) {
       const configContent = fs.readFileSync(configPath, "utf8");
       const tddModeMatch = configContent.match(/tdd_mode\s*:\s*(\w+)/i);
-      const legacyMatch = /strict_tdd\s*:\s*true/i.test(configContent);
       const dummyConfig = {
         testing: tddModeMatch ? { tdd_mode: tddModeMatch[1] } : undefined,
-        strict_tdd: legacyMatch,
       };
       if (resolveTddMode(dummyConfig) === "strict") {
         strictTdd = true;

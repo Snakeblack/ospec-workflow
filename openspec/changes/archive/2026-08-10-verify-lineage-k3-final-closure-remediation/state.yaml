@@ -1,0 +1,131 @@
+change: verify-lineage-k3-final-closure-remediation
+status: archived
+classification: high-risk
+last_updated: 2026-08-10T23:52:25Z
+blocking_questions: []
+phases:
+  proposal:
+    status: done
+    artifact: openspec/changes/verify-lineage-k3-final-closure-remediation/proposal.md
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/verify-lineage-k3-final-closure-remediation/specs/verify-lineage/spec.md
+  design:
+    status: done
+    artifact: openspec/changes/verify-lineage-k3-final-closure-remediation/design.md
+  tasks:
+    status: done
+    artifact: openspec/changes/verify-lineage-k3-final-closure-remediation/tasks.md
+  apply:
+    status: done
+    artifact: openspec/changes/verify-lineage-k3-final-closure-remediation/apply-progress.md
+    summary: "Se implementó el delta mecánico real de Candidate, autoridad de contrato sólo-filesystem, cleanup de TDD authority e integridad de evidencia."
+  verify:
+    status: done
+    artifact: openspec/changes/verify-lineage-k3-final-closure-remediation/verify-report.md
+    verdict: "PASS"
+    summary: "Verificación EXITOSA: 433 tests pasados, 0 errores, 0 warnings. Especificaciones REQ-VL-FINAL-002, 003, 004 y 007 verificadas."
+  archive:
+    status: done
+    artifact: openspec/changes/verify-lineage-k3-final-closure-remediation/archive-report.md
+    summary: "Reporte de archivo generado y plan emitido con 4 requerimientos de spec fusionados."
+verify_lineage:
+  schema_version: 1
+  lineage_id: "sha256:aaf15431db747523fc79f7366b518a622d0abb0559c965a375a85e6b65ebac03"
+  generation: 1
+  predecessor_id: null
+  status: "closed"
+  genesis_candidate_id: "sha256:454b0bde4c3eff3b9e261cd1f7eb5aa405bdeadd145e1bc4fcb28e428b4d37e6"
+  current_candidate_id: "sha256:eafac7a4c65498cb947e2db3786dc462f1bb9592c04baf61e4a074861ebe5ec3"
+  verified_candidate_id: "sha256:eafac7a4c65498cb947e2db3786dc462f1bb9592c04baf61e4a074861ebe5ec3"
+  contract_digest: "sha256:8bb08f77ca9ece5ae3ce033dc65f4ceca6c52fb66a6117f1afe4c1ba3a54d3da"
+  remediation_attempts: 1
+  max_remediation_attempts: 2
+  findings:
+    - id: V001
+      severity: CRITICAL
+      summary: "npm test exit code 1: scripts/lib/verify-lineage.test.js crashes on load with Error: freezeCandidate requires diffText or diff_hash"
+      origin: code-bug
+      allowed_paths:
+        - scripts/lib/verify-lineage.js
+        - scripts/lib/verify-lineage.test.js
+      validation:
+        commands:
+          - "node --test scripts/lib/verify-lineage.test.js"
+        expected_exit: 0
+        test_files:
+          - scripts/lib/verify-lineage.test.js
+      status: resolved
+    - id: V002
+      severity: CRITICAL
+      summary: "Over-claimed test pass in apply-progress.md and tasks.md (task 4.2 marked complete despite npm test failure)"
+      origin: tasks-gap
+      allowed_paths:
+        - openspec/changes/verify-lineage-k3-final-closure-remediation/apply-progress.md
+        - openspec/changes/verify-lineage-k3-final-closure-remediation/tasks.md
+      validation:
+        commands:
+          - "npm test"
+        expected_exit: 0
+        test_files:
+          - scripts/lib/verify-lineage.test.js
+      status: resolved
+  late_observations: []
+  terminal_reason: "all-findings-verified"
+owner:
+  author: Manuel Retamozo
+  branch: main
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "High-risk public-contract remediation on active project; standard route is selected."
+  validated: true
+  validation_errors: []
+approvals:
+  - id: ambient-sdd-route-001
+    gate: architecture
+    decision: "Route verify-lineage-k3-final-closure-remediation through persisted SDD."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-10T23:43:00Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: intent-scope-001
+    gate: architecture
+    decision: "Remediate mechanical candidate delta, filesystem-only contract authority, sole TDD authority, and verify report integrity in verify_lineage."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-10T23:43:00Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: vscode/askQuestions
+    accepted_at: 2026-08-10T23:43:00Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: vscode/askQuestions
+    accepted_at: 2026-08-10T23:43:00Z
+    applies_to:
+      - sdd-tasks
+      - sdd-apply

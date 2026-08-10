@@ -81,7 +81,7 @@ Compliance rule matrix:
 Runs IMMEDIATELY after artifact retrieval (Step 2) and BEFORE any discovery preflights (assumptions, TDD mode, spec mapping).
 
 a. Read `openspec/changes/{change-name}/state.yaml` `verify_lineage:`.
-b. Call `getLineageNextAction(verify_lineage, { contract, candidate })` (`scripts/lib/verify-lineage.js`) to determine routing:
+b. Call `getLineageNextAction(verify_lineage, { changeRoot, mode, candidate })` (`scripts/lib/verify-lineage.js`) to determine routing:
 
 1. **Remediation Pending** (`action: apply-remediation`):
    - STOP immediately and return `status: blocked` to the orchestrator: "Remediation pending for frozen blocker findings. Run sdd-apply in remediation mode."
@@ -93,7 +93,7 @@ b. Call `getLineageNextAction(verify_lineage, { contract, candidate })` (`script
      b. If new issues are observed:
         - Issues in modified/impacted paths with `BLOCKER`/`CRITICAL` severity are tagged as **causal regressions** and added to `findings`.
         - Issues in un-impacted paths are recorded in `late_observations` (`blocking: false`, `severity: follow-up`).
-     c. Evaluate state transition using `evaluateRecheck(verify_lineage, ...)`:
+     c. Evaluate state transition using `evaluateRecheck(verify_lineage, { changeRoot, mode, candidate, recheck_results, new_findings, remediation_delta })`:
         - All frozen findings fixed & no causal regressions → update `status: closed` and set `verified_candidate_id` in `state.yaml`.
         - Findings remain unresolved & attempts < 2 → update `status: remediation-pending` in `state.yaml`.
         - Findings remain unresolved & attempts == 2 → update `status: exhausted` in `state.yaml`.
@@ -128,7 +128,7 @@ d. Any entry with `reversibility: low` that remains `unresolved` after this pass
 ### Step 2c: Full Discovery Pipeline Execution
 
 1. Continue to Step 3 and run full spec, design, task, and test suite discovery.
-2. If `BLOCKER` or `CRITICAL` findings are produced, call `startVerifyLineage` (`scripts/lib/verify-lineage.js`) to freeze them in `state.yaml` under `verify_lineage` (`status: remediation-pending`, `remediation_attempts: 0`, `max_remediation_attempts: 2`, `genesis_candidate_id: sha256:...`, `contract_digest: sha256:...`).
+2. If `BLOCKER` or `CRITICAL` findings are produced, call `startVerifyLineage({ changeRoot, mode, candidate, findings }, meta)` (`scripts/lib/verify-lineage.js`) to freeze them in `state.yaml` under `verify_lineage` (`status: remediation-pending`, `remediation_attempts: 0`, `max_remediation_attempts: 2`, `genesis_candidate_id: sha256:...`, `contract_digest: sha256:...`).
 3. `WARNING` and `SUGGESTION` findings remain advisory and MUST NOT open an active remediation lineage.
 
 3. Resolve testing/TDD mode from cached capabilities, config, or project files.

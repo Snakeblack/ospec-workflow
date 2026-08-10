@@ -40,7 +40,7 @@ Run this phase when the orchestrator/user asks to initialize SDD in a project. Y
 |---|---|
 | `mode=openspec` | Create/update openspec bootstrap files only. |
 | `mode=none` | Return detected context only; write no SDD artifacts except the skill registry cache if required. |
-| `testing.tdd_mode` or legacy `strict_tdd` marker/config found | Preserve explicitly configured TDD mode (`strict_tdd: true` maps to `strict`, `false` to `standard`). |
+| `testing.tdd_mode` marker/config found | Preserve explicitly configured TDD mode in `testing.tdd_mode`. |
 | no marker/config but `scale` specified | Resolve `testing.tdd_mode`: `solo` → `standard`, `team` → `focused`, `enterprise` → `strict`. |
 | no marker/config and no scale | Default `testing.tdd_mode: focused` if test runner exists; otherwise `standard`. |
 | existing code detected AND `openspec/specs/` empty AND no `baseline` block | Activate brownfield branch: write `baseline` block, return `next_recommended: sdd-baseline`. |

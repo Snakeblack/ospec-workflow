@@ -1,6 +1,6 @@
 # Strict TDD Module — Apply Phase
 
-> **This module is loaded ONLY when Strict TDD Mode is enabled.**
+> **This module is loaded ONLY when Strict TDD Mode is enabled (`testing.tdd_mode: strict`).**
 > If you are reading this, the orchestrator already verified this condition. Follow every instruction.
 
 ## TDD Philosophy

@@ -3,7 +3,6 @@
 /**
  * Resolves the TDD mode from openspec config object.
  * Authority: testing.tdd_mode (standard | focused | strict).
- * Legacy migration: config.strict_tdd === true -> strict.
  * Scale is NOT used for runtime resolution.
  *
  * @param {object} [config]
@@ -19,10 +18,6 @@ function resolveTddMode(config = {}) {
     if (["standard", "focused", "strict"].includes(normalized)) {
       return normalized;
     }
-  }
-  // Legacy migration input
-  if (config.strict_tdd === true || config.strictTdd === true) {
-    return "strict";
   }
   return "standard";
 }

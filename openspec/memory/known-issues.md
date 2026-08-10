@@ -3,6 +3,21 @@ title: Known Issues
 last_updated: 2026-08-10
 ---
 
+## npm test exit code 1: scripts/lib/verify-lineage.test.js crashes on load with Error: freezeCandidate requires diffText or diff_hash
+- severity: BLOCKER
+- area: scripts/lib/verify-lineage.test.js
+- workaround: pass diff_hash or diffText to freezeCandidate in sampleCandidate fixture
+- change: verify-lineage-k3-final-closure-remediation
+- date: 2026-08-10
+
+## Over-claimed test pass in apply-progress.md and tasks.md (task 4.2 marked complete despite npm test failure)
+- severity: BLOCKER
+- area: openspec/changes/verify-lineage-k3-final-closure-remediation/apply-progress.md
+- workaround: fix test failure and reconcile task status
+- change: verify-lineage-k3-final-closure-remediation
+- date: 2026-08-10
+
+
 ## K1 scope guard rejects new scripts (apply-resume.js, roadmap-boundary.test.js, verify-evidence-classification.js, etc.) as unmanifested inventory
 - severity: BLOCKER
 - area: scripts/lib/k1-scope-guard.test.js

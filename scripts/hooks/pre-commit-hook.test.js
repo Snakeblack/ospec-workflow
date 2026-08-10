@@ -92,9 +92,9 @@ test("allows commit when strict_tdd is inactive, even if no tests staged", (t) =
     return { status: 0, stdout: "" };
   });
 
-  // config.yaml has strict_tdd: false
+  // config.yaml has testing.tdd_mode: standard and legacy strict_tdd: true (which is ignored)
   t.mock.method(fs, "existsSync", (p) => p.endsWith("config.yaml"));
-  t.mock.method(fs, "readFileSync", () => "strict_tdd: false\n");
+  t.mock.method(fs, "readFileSync", () => "testing:\n  tdd_mode: standard\nstrict_tdd: true\n");
 
   runPreCommit();
   assert.equal(exitCode, 0);
@@ -117,9 +117,9 @@ test("allows commit when strict_tdd is active and no production files are staged
     return { status: 0, stdout: "" };
   });
 
-  // config.yaml has strict_tdd: true
+  // config.yaml has testing.tdd_mode: strict
   t.mock.method(fs, "existsSync", (p) => p.endsWith("config.yaml"));
-  t.mock.method(fs, "readFileSync", () => "strict_tdd: true\n");
+  t.mock.method(fs, "readFileSync", () => "testing:\n  tdd_mode: strict\n");
 
   runPreCommit();
   assert.equal(exitCode, 0);
@@ -143,7 +143,7 @@ test("blocks commit when strict_tdd is active and production files have no tests
   });
 
   t.mock.method(fs, "existsSync", (p) => p.endsWith("config.yaml"));
-  t.mock.method(fs, "readFileSync", () => "strict_tdd: true\n");
+  t.mock.method(fs, "readFileSync", () => "testing:\n  tdd_mode: strict\n");
 
   runPreCommit();
   assert.equal(exitCode, 1);
@@ -167,7 +167,7 @@ test("allows commit when strict_tdd is active and production files are staged al
   });
 
   t.mock.method(fs, "existsSync", (p) => p.endsWith("config.yaml"));
-  t.mock.method(fs, "readFileSync", () => "strict_tdd: true\n");
+  t.mock.method(fs, "readFileSync", () => "testing:\n  tdd_mode: strict\n");
 
   runPreCommit();
   assert.equal(exitCode, 0);
@@ -191,7 +191,7 @@ test("allows commit when strict_tdd is active and production files are staged al
   });
 
   t.mock.method(fs, "existsSync", (p) => p.endsWith("config.yaml"));
-  t.mock.method(fs, "readFileSync", () => "strict_tdd: true\n");
+  t.mock.method(fs, "readFileSync", () => "testing:\n  tdd_mode: strict\n");
 
   runPreCommit();
   assert.equal(exitCode, 0);

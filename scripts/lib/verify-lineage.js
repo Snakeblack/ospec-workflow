@@ -124,87 +124,17 @@ function computeContractDigestFromArtifacts(changeRoot, options = {}) {
 }
 
 function computeContractDigest(contract, options = {}) {
-  if (!contract) {
-    throw new TypeError("contract object or changeRoot string is required");
+  const changeRoot =
+    options.changeRoot ||
+    options.rootDir ||
+    (typeof contract === "string" ? contract : (contract && typeof contract === "object" ? contract.changeRoot || contract.rootDir : null));
+  const mode = options.mode || (contract && typeof contract === "object" ? contract.mode : null) || "standard";
+
+  if (!changeRoot || typeof changeRoot !== "string") {
+    throw new TypeError("changeRoot is required; arbitrary inline contract objects are rejected");
   }
 
-  const changeRoot = options.changeRoot || options.rootDir || (typeof contract === "string" ? contract : contract.changeRoot || contract.rootDir);
-  const mode = options.mode || (contract && contract.mode) || (contract && contract.proposal_lite !== undefined ? "lite" : "standard");
-
-  if (changeRoot && typeof changeRoot === "string") {
-    return computeContractDigestFromArtifacts(changeRoot, { mode });
-  }
-
-  if (typeof contract !== "object") {
-    throw new TypeError("contract object or changeRoot string is required");
-  }
-
-  // Reject external declared digests or trusting unvalidated path strings
-  if (contract.external_digest || contract.digest) {
-    throw new Error("External or declared digests are not trusted; contract digest must be derived from filesystem bytes");
-  }
-
-  function resolveArtifact(key, defaultPath, isRequired) {
-    const val = contract[key];
-    if (val === undefined || val === null) {
-      if (isRequired) {
-        throw new Error(`Required contract artifact missing: ${defaultPath}`);
-      }
-      return null;
-    }
-
-    let relPath = defaultPath;
-    let bytes = null;
-
-    if (typeof val === "object" && val !== null) {
-      relPath = val.path || defaultPath;
-      if (val.content !== undefined && val.content !== null) {
-        bytes = Buffer.from(val.content, typeof val.content === "string" ? "utf8" : undefined);
-      }
-    } else if (typeof val === "string") {
-      bytes = Buffer.from(val, "utf8");
-    }
-
-    if (!bytes) {
-      if (isRequired) {
-        throw new Error(`Required contract artifact missing or unreadable: ${relPath}`);
-      }
-      return null;
-    }
-
-    const cPath = canonicalPath(relPath);
-    const sha = `sha256:${crypto.createHash("sha256").update(bytes).digest("hex")}`;
-    return { path: cPath, digest: sha };
-  }
-
-  const proposalKey = contract.proposal !== undefined ? "proposal" : (contract.proposal_lite !== undefined ? "proposal_lite" : "proposal");
-  const defaultProposalPath = contract.proposal_lite !== undefined ? "proposal-lite.md" : "proposal.md";
-  const proposalEntry = resolveArtifact(proposalKey, defaultProposalPath, true);
-
-  const rawSpecs = Array.isArray(contract.specs) ? contract.specs : (contract.specs ? [contract.specs] : []);
-  const specEntries = rawSpecs.map((specItem, idx) => {
-    const defaultSpecPath = `specs/spec-${idx + 1}.md`;
-    if (typeof specItem === "object" && specItem !== null) {
-      const specRelPath = specItem.path || defaultSpecPath;
-      if (specItem.content !== undefined && specItem.content !== null) {
-        const bytes = Buffer.from(specItem.content, typeof specItem.content === "string" ? "utf8" : undefined);
-        return { path: canonicalPath(specRelPath), digest: `sha256:${crypto.createHash("sha256").update(bytes).digest("hex")}` };
-      }
-    } else if (typeof specItem === "string") {
-      const bytes = Buffer.from(specItem, "utf8");
-      return { path: canonicalPath(defaultSpecPath), digest: `sha256:${crypto.createHash("sha256").update(bytes).digest("hex")}` };
-    }
-    throw new Error("Required contract spec artifact missing or unreadable");
-  }).sort((a, b) => a.path.localeCompare(b.path));
-
-  const designEntry = contract.design !== undefined ? resolveArtifact("design", "design.md", false) : null;
-  const tasksEntry = contract.tasks !== undefined ? resolveArtifact("tasks", "tasks.md", false) : null;
-
-  const artifacts = [proposalEntry, ...specEntries, designEntry, tasksEntry]
-    .filter(Boolean)
-    .sort((a, b) => a.path.localeCompare(b.path));
-
-  return digest("verify-contract-v1", { artifacts });
+  return computeContractDigestFromArtifacts(changeRoot, { mode });
 }
 
 function deriveCandidateDeltaPaths(beforeCandidate, afterCandidate, options = {}) {
@@ -217,8 +147,10 @@ function deriveCandidateDeltaPaths(beforeCandidate, afterCandidate, options = {}
 
   const rootDir = options.rootDir || options.cwd || null;
   if (rootDir && typeof rootDir === "string" && fsSync.existsSync(rootDir)) {
-    const bTree = (beforeCandidate.candidate_tree || "").replace("sha256:", "");
-    const aTree = (afterCandidate.candidate_tree || "").replace("sha256:", "");
+    let bTree = (beforeCandidate.candidate_tree || "").replace("sha256:", "");
+    let aTree = (afterCandidate.candidate_tree || "").replace("sha256:", "");
+    if (bTree.length === 64 && /^0{24}[a-f0-9]{40}$/i.test(bTree)) bTree = bTree.slice(24);
+    if (aTree.length === 64 && /^0{24}[a-f0-9]{40}$/i.test(aTree)) aTree = aTree.slice(24);
     if (bTree && aTree) {
       try {
         const stdout = require("node:child_process").execFileSync(
@@ -228,50 +160,17 @@ function deriveCandidateDeltaPaths(beforeCandidate, afterCandidate, options = {}
         );
         const paths = stdout.split(/\r?\n/).map((s) => s.trim()).filter(Boolean).map(canonicalPath);
         return Array.from(new Set(paths)).sort();
-      } catch {
-        // Fall back to candidate diff parsing or path comparison
+      } catch (err) {
+        const error = new Error(`Failed to derive candidate delta paths via Git diff-tree: delta-unresolvable (${err.message})`);
+        error.code = "delta-unresolvable";
+        throw error;
       }
     }
   }
 
-  const pathsSet = new Set();
-
-  const diffText = options.diffText || options.diff || (afterCandidate && afterCandidate.diffText);
-  if (diffText && typeof diffText === "string") {
-    const matches = diffText.matchAll(/^diff --git a\/(.+?) b\/(.+?)$/gm);
-    for (const match of matches) {
-      pathsSet.add(canonicalPath(match[1]));
-      pathsSet.add(canonicalPath(match[2]));
-    }
-  }
-
-  if (pathsSet.size === 0) {
-    const beforePaths = new Set((beforeCandidate.paths || []).map(canonicalPath));
-    const afterPaths = new Set((afterCandidate.paths || []).map(canonicalPath));
-
-    for (const p of afterPaths) {
-      if (!beforePaths.has(p)) {
-        pathsSet.add(p);
-      }
-    }
-    for (const p of beforePaths) {
-      if (!afterPaths.has(p)) {
-        pathsSet.add(p);
-      }
-    }
-
-    if (pathsSet.size === 0 && beforeCandidate.diff_hash !== afterCandidate.diff_hash) {
-      for (const p of afterPaths) {
-        pathsSet.add(p);
-      }
-    }
-  }
-
-  if (pathsSet.size === 0 && beforeId !== afterId) {
-    throw new Error("Cannot reliably derive candidate delta paths between CandidateBefore and CandidateAfter");
-  }
-
-  return Array.from(pathsSet).sort();
+  const error = new Error("Cannot derive candidate delta paths: candidate_tree or rootDir is missing or unresolvable against Git repository (delta-unresolvable)");
+  error.code = "delta-unresolvable";
+  throw error;
 }
 
 function assertVerifyLineage(state) {
@@ -297,7 +196,12 @@ function startVerifyLineage(input, meta = {}) {
   if (!input || typeof input !== "object") {
     throw new TypeError("input is required to start verify lineage");
   }
-  const contractDigest = computeContractDigest(input.contract || {}, meta);
+  const changeRoot = input.changeRoot || meta.changeRoot;
+  const mode = input.mode || meta.mode || "standard";
+  if (!changeRoot || typeof changeRoot !== "string") {
+    throw new TypeError("changeRoot is required for startVerifyLineage; arbitrary inline contract objects are rejected");
+  }
+  const contractDigest = computeContractDigestFromArtifacts(changeRoot, { mode });
   const candidateDigest = resolveCanonicalCandidateId(input.candidate);
 
   const blockingFindings = (input.findings || [])
@@ -466,6 +370,12 @@ function evaluateRecheck(state, input) {
     throw new TypeError("input is required for evaluateRecheck");
   }
 
+  const changeRoot = input.changeRoot;
+  const mode = input.mode || "standard";
+  if (!changeRoot || typeof changeRoot !== "string") {
+    throw new TypeError("changeRoot is required for evaluateRecheck; arbitrary inline contract objects are rejected");
+  }
+
   if (state.status !== "recheck-pending") {
     throw new Error(`Cannot evaluate recheck on lineage with status '${state.status}' (expected 'recheck-pending')`);
   }
@@ -484,7 +394,7 @@ function evaluateRecheck(state, input) {
     };
   }
 
-  const currentContractDigest = computeContractDigest(input.contract || {}, input);
+  const currentContractDigest = computeContractDigestFromArtifacts(changeRoot, { mode });
   if (currentContractDigest !== next.contract_digest) {
     next.status = "superseded";
     next.terminal_reason = "contract-drift";
@@ -587,7 +497,12 @@ function getLineageNextAction(state, input = {}) {
   }
   assertVerifyLineage(state);
 
-  const currentContractDigest = computeContractDigest(input.contract || {}, input);
+  const changeRoot = input.changeRoot;
+  const mode = input.mode || "standard";
+  if (!changeRoot || typeof changeRoot !== "string") {
+    throw new TypeError("changeRoot is required for getLineageNextAction; arbitrary inline contract objects are rejected");
+  }
+  const currentContractDigest = computeContractDigestFromArtifacts(changeRoot, { mode });
   if (currentContractDigest !== state.contract_digest) {
     return { action: "supersede-and-discovery", reason: "contract-changed" };
   }

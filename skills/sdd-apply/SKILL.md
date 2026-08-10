@@ -59,7 +59,7 @@ If the orchestrator invoked `sdd-apply` in remediation mode, OR `state.yaml` con
 3. Read ONLY the frozen blocker findings in `verify_lineage.findings` (`allowed_paths`, `summary`, `validation`). Do NOT load full specs, full design, unrelated code, or normal workload forecast.
 4. **Restrict code edits strictly to `allowed_paths`**. Do not touch unrelated files or take on new features/tasks.
 5. Apply the targeted fix for each frozen finding.
-6. Freeze successor candidate `postCandidate`, derive `remediationChangedPaths` via `deriveCandidateDeltaPaths(currentCandidate, postCandidate)`, and call `recordRemediationAttempt(verify_lineage, { baseline_candidate: currentCandidate, candidate: postCandidate })` to transition `verify_lineage` to `recheck-pending`.
+6. Freeze successor candidate `postCandidate`, derive `remediationChangedPaths` via `deriveCandidateDeltaPaths(currentCandidate, postCandidate, { rootDir })`, and call `recordRemediationAttempt(verify_lineage, { baseline_candidate: currentCandidate, candidate: postCandidate, rootDir })` to transition `verify_lineage` to `recheck-pending`.
 7. Update `state.yaml` `verify_lineage` block and save remediation progress in `apply-progress.md`.
 8. **`RETURN` / HALT**: Return summary with `status: success` (or `blocked` if remediation failed) and end execution. Do NOT fall through to normal task implementation.
 
@@ -114,7 +114,7 @@ Resolve mode:
 │   └── STRICT TDD MODE → Load and follow strict-tdd.md module
 │       (read the file: skills/sdd-apply/strict-tdd.md)
 │
-├── IF (testing.tdd_mode: focused OR scale: team) AND test runner exists
+├── IF testing.tdd_mode: focused AND test runner exists
 │   └── FOCUSED TDD MODE → Load and follow focused-tdd.md module
 │       (read the file: skills/sdd-apply/focused-tdd.md)
 │
