@@ -111,19 +111,19 @@ test("real repo: every generated .codex/agents/*.toml file is syntactically vali
   }
 });
 
-test("real repo: the orchestrator agent dispatches through the root agent.md with no manifest or hooks warnings", (t) => {
+test("real repo: the orchestrator agent dispatches through the root AGENTS.md with no manifest or hooks warnings", (t) => {
   const out = tmpOut(t);
   runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
 
-  const agentMdPath = path.join(out, "agent.md");
-  assert.ok(fs.existsSync(agentMdPath), "orchestrator agent.md must be generated");
+  const agentMdPath = path.join(out, "AGENTS.md");
+  assert.ok(fs.existsSync(agentMdPath), "orchestrator AGENTS.md must be generated");
   const orchestratorPath = path.join(out, ".codex", "agents", "sdd-orchestrator.toml");
   assert.ok(!fs.existsSync(orchestratorPath), "orchestrator TOML agent must not be generated");
 
   const content = fs.readFileSync(agentMdPath, "utf8");
   assert.ok(
     content.includes("sdd-propose") || content.includes("sdd-explore") || content.includes("Propose") || content.includes("Explore"),
-    "orchestrator agent.md instructions must retain delegation to phase sub-agents",
+    "orchestrator AGENTS.md instructions must retain delegation to phase sub-agents",
   );
 
   const result = validateCodex(out);
@@ -209,8 +209,8 @@ test("real repo: codex emits every source agent as TOML outside the plugin bundl
     const base = rel.slice("agents/".length, rel.length - ".agent.md".length);
     if (base === "sdd-orchestrator") {
       assert.ok(
-        fs.existsSync(path.join(out, "agent.md")),
-        `orchestrator agent must be emitted as agent.md`
+        fs.existsSync(path.join(out, "AGENTS.md")),
+        `orchestrator agent must be emitted as AGENTS.md`
       );
       continue;
     }
@@ -221,11 +221,10 @@ test("real repo: codex emits every source agent as TOML outside the plugin bundl
   }
 });
 
-test("real repo: codex synthesizes a single agent.md from the rules tree and orchestrator", (t) => {
+test("real repo: codex synthesizes a single AGENTS.md from the rules tree and orchestrator", (t) => {
   const out = tmpOut(t);
   runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
 
-  assert.ok(fs.existsSync(path.join(out, "agent.md")), "agent.md must be synthesized");
   assert.ok(fs.existsSync(path.join(out, "AGENTS.md")), "AGENTS.md must be synthesized in codex output (ADR-001)");
   assert.ok(!fs.existsSync(path.join(out, "rules")), "rules/ must not survive in codex output");
 });
@@ -398,7 +397,7 @@ test("real repo: all six targets preserve the signal-driven clarify gate", (t) =
     vscode: "agents/sdd-orchestrator.agent.md",
     "github-copilot": ".github/agents/sdd-orchestrator.agent.md",
     opencode: ".opencode/agents/ospec-workflow.md",
-    codex: "agent.md",
+    codex: "AGENTS.md",
     cursor: "agents/sdd-orchestrator.md",
   };
 

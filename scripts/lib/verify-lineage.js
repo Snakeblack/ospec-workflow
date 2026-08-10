@@ -68,9 +68,12 @@ function assertVerifyLineage(state) {
   if (typeof state.lineage_id !== "string" || !state.lineage_id.startsWith("sha256:")) {
     throw new TypeError("verify_lineage lineage_id must be a sha256 string");
   }
-  const validStatuses = ["recheck-pending", "closed", "exhausted", "superseded"];
+  const validStatuses = ["remediation-pending", "recheck-pending", "closed", "exhausted", "superseded"];
   if (!validStatuses.includes(state.status)) {
     throw new TypeError(`verify_lineage status must be one of ${validStatuses.join(", ")}`);
+  }
+  if (state.max_remediation_attempts !== MAX_REMEDIATION_ATTEMPTS) {
+    throw new TypeError(`verify_lineage max_remediation_attempts must equal immutable hard limit ${MAX_REMEDIATION_ATTEMPTS}`);
   }
 }
 
@@ -88,7 +91,12 @@ function startVerifyLineage(input, meta = {}) {
       severity: f.severity,
       summary: f.summary || "Unspecified defect",
       origin: f.origin || "code-bug",
-      allowed_paths: (f.allowed_paths || input.candidate?.paths || []).map(canonicalPath),
+      allowed_paths: (f.allowed_paths || input.candidate?.paths || []).map(canonicalPath).sort(),
+      validation: {
+        commands: f.validation?.commands || (input.test_command ? [input.test_command] : ["npm test"]),
+        expected_exit: f.validation?.expected_exit ?? 0,
+        test_files: (f.validation?.test_files || []).map(canonicalPath).sort(),
+      },
       status: "unresolved",
     }));
 
@@ -97,7 +105,7 @@ function startVerifyLineage(input, meta = {}) {
   }
 
   const lineageId = digest("verify-lineage-v1", {
-    candidate_id: candidateDigest,
+    genesis_candidate_id: candidateDigest,
     contract_digest: contractDigest,
     findings_ids: blockingFindings.map((f) => f.id).sort(),
     generation: meta.generation || 1,
@@ -109,14 +117,44 @@ function startVerifyLineage(input, meta = {}) {
     lineage_id: lineageId,
     generation: meta.generation || 1,
     predecessor_id: meta.predecessor_id || null,
-    status: "recheck-pending",
-    candidate_id: candidateDigest,
+    status: "remediation-pending",
+    genesis_candidate_id: candidateDigest,
+    current_candidate_id: candidateDigest,
+    verified_candidate_id: null,
     contract_digest: contractDigest,
     remediation_attempts: 0,
     max_remediation_attempts: MAX_REMEDIATION_ATTEMPTS,
     findings: blockingFindings,
     late_observations: [],
     terminal_reason: null,
+  };
+}
+
+function recordRemediationAttempt(state, candidateInput) {
+  assertVerifyLineage(state);
+  if (state.status !== "remediation-pending") {
+    throw new Error(`Cannot record remediation attempt on lineage with status '${state.status}' (expected 'remediation-pending')`);
+  }
+  const next = clone(state);
+  const candidateDigest = computeCandidateDigest(candidateInput || {});
+  next.current_candidate_id = candidateDigest;
+  next.remediation_attempts += 1;
+
+  if (next.remediation_attempts > MAX_REMEDIATION_ATTEMPTS) {
+    next.status = "exhausted";
+    next.terminal_reason = "max-attempts-exceeded";
+    return {
+      lineage: next,
+      action: "exhaust",
+      reason: `Exhausted ${MAX_REMEDIATION_ATTEMPTS} remediation attempts`,
+    };
+  }
+
+  next.status = "recheck-pending";
+  return {
+    lineage: next,
+    action: "run-targeted-recheck",
+    reason: `Remediation attempt ${next.remediation_attempts} applied; ready for targeted recheck`,
   };
 }
 
@@ -127,7 +165,7 @@ function evaluateRecheck(state, input) {
   }
 
   if (state.status !== "recheck-pending") {
-    throw new Error(`Cannot evaluate recheck on lineage with status '${state.status}'`);
+    throw new Error(`Cannot evaluate recheck on lineage with status '${state.status}' (expected 'recheck-pending')`);
   }
 
   const next = clone(state);
@@ -145,17 +183,17 @@ function evaluateRecheck(state, input) {
   }
 
   const candidateDigest = computeCandidateDigest(input.candidate || {});
-  next.candidate_id = candidateDigest;
+  next.current_candidate_id = candidateDigest;
 
   const recheckResults = input.recheck_results || {};
   const observedFindings = input.new_findings || [];
-
-  let allFixed = true;
-  const impactedPaths = new Set(
-    (input.candidate?.paths || []).map(canonicalPath)
+  const remediationPaths = new Set(
+    (input.remediation_delta?.paths || input.candidate?.paths || []).map(canonicalPath)
   );
 
-  // 2. Evaluate frozen findings
+  let allFixed = true;
+
+  // 2. Evaluate frozen findings against frozen validation recipes
   for (const finding of next.findings) {
     const isFixed = recheckResults[finding.id] === true || recheckResults[finding.id] === "PASS";
     if (isFixed) {
@@ -169,7 +207,7 @@ function evaluateRecheck(state, input) {
   // 3. Classify new findings during recheck: causal regression vs late observation
   for (const newFinding of observedFindings) {
     const findingPaths = (newFinding.paths || []).map(canonicalPath);
-    const isCausalRegression = findingPaths.some((p) => impactedPaths.has(p));
+    const isCausalRegression = findingPaths.some((p) => remediationPaths.has(p));
 
     if (isCausalRegression && BLOCKING_SEVERITIES.has(newFinding.severity)) {
       allFixed = false;
@@ -184,6 +222,11 @@ function evaluateRecheck(state, input) {
           summary: newFinding.summary || "Causal regression from remediation",
           origin: newFinding.origin || "code-bug",
           allowed_paths: findingPaths,
+          validation: {
+            commands: newFinding.validation?.commands || (input.test_command ? [input.test_command] : ["npm test"]),
+            expected_exit: newFinding.validation?.expected_exit ?? 0,
+            test_files: (newFinding.validation?.test_files || []).map(canonicalPath).sort(),
+          },
           status: "unresolved",
         });
       }
@@ -201,6 +244,7 @@ function evaluateRecheck(state, input) {
   // 4. State Transition Logic
   if (allFixed) {
     next.status = "closed";
+    next.verified_candidate_id = candidateDigest;
     next.terminal_reason = "all-findings-verified";
     return {
       lineage: next,
@@ -209,22 +253,22 @@ function evaluateRecheck(state, input) {
     };
   }
 
-  // Failed recheck: increment attempt count
-  next.remediation_attempts += 1;
-  if (next.remediation_attempts >= next.max_remediation_attempts) {
+  // Failed recheck: transition back to remediation-pending if attempts remaining
+  if (next.remediation_attempts >= MAX_REMEDIATION_ATTEMPTS) {
     next.status = "exhausted";
     next.terminal_reason = "max-attempts-exceeded";
     return {
       lineage: next,
       action: "exhaust",
-      reason: `Exhausted ${next.max_remediation_attempts} remediation attempts`,
+      reason: `Exhausted ${MAX_REMEDIATION_ATTEMPTS} remediation attempts`,
     };
   }
 
+  next.status = "remediation-pending";
   return {
     lineage: next,
     action: "remediate-again",
-    reason: `Remediation attempt ${next.remediation_attempts} of ${next.max_remediation_attempts} failed`,
+    reason: `Remediation attempt ${next.remediation_attempts} of ${MAX_REMEDIATION_ATTEMPTS} failed`,
   };
 }
 
@@ -240,8 +284,15 @@ function getLineageNextAction(state, input = {}) {
   }
 
   switch (state.status) {
-    case "closed":
-      return { action: "return-cached-pass", reason: "lineage-closed-and-verified" };
+    case "closed": {
+      const currentCandidateDigest = computeCandidateDigest(input.candidate || {});
+      if (currentCandidateDigest === state.verified_candidate_id) {
+        return { action: "return-cached-pass", reason: "lineage-closed-and-candidate-verified" };
+      }
+      return { action: "supersede-and-discovery", reason: "candidate-code-changed" };
+    }
+    case "remediation-pending":
+      return { action: "apply-remediation", reason: "remediation-required-for-frozen-findings" };
     case "recheck-pending":
       return { action: "run-targeted-recheck", reason: "active-recheck-pending" };
     case "exhausted":
@@ -262,6 +313,7 @@ module.exports = {
   computeCandidateDigest,
   assertVerifyLineage,
   startVerifyLineage,
+  recordRemediationAttempt,
   evaluateRecheck,
   getLineageNextAction,
 };

@@ -223,7 +223,7 @@ function targetPaths(target) {
     vscode: { generalist: "agents/review-change.agent.md", correction: "agents/review-correction.agent.md", orchestrator: "agents/sdd-orchestrator.agent.md" },
     "github-copilot": { generalist: ".github/agents/review-change.agent.md", correction: ".github/agents/review-correction.agent.md", orchestrator: ".github/agents/sdd-orchestrator.agent.md" },
     opencode: { generalist: ".opencode/agents/review-change.md", correction: ".opencode/agents/review-correction.md", orchestrator: ".opencode/agents/ospec-workflow.md" },
-    codex: { generalist: ".codex/agents/review-change.toml", correction: ".codex/agents/review-correction.toml", orchestrator: "agent.md" },
+    codex: { generalist: ".codex/agents/review-change.toml", correction: ".codex/agents/review-correction.toml", orchestrator: "AGENTS.md" },
     cursor: { generalist: "agents/review-change.md", correction: "agents/review-correction.md", orchestrator: "agents/sdd-orchestrator.md" },
   }[target];
 }

@@ -31,7 +31,7 @@ function listFiles(root, relDir = "", files = []) {
   return files.sort();
 }
 
-test("codex smoke: output is generated and installed as a root agent.md and custom TOML agents", async (t) => {
+test("codex smoke: output is generated and installed as a root AGENTS.md and custom TOML agents", async (t) => {
   const sourceDir = ROOT;
   const buildOut = tmpDir(t, "ospec-codex-smoke-build-");
   const destRepo = tmpDir(t, "ospec-codex-smoke-dest-");
@@ -57,13 +57,13 @@ test("codex smoke: output is generated and installed as a root agent.md and cust
   assert.equal(installExit, 0);
   assert.ok(!fs.existsSync(path.join(destRepo, ".codex", "config.toml")));
 
-  // 3. Root agent.md should exist and contain the orchestrator instructions
-  const agentMdPath = path.join(destRepo, "agent.md");
-  assert.ok(fs.existsSync(agentMdPath), "agent.md must be installed at the root");
+  // 3. Root AGENTS.md should exist and contain the orchestrator instructions
+  const agentMdPath = path.join(destRepo, "AGENTS.md");
+  assert.ok(fs.existsSync(agentMdPath), "AGENTS.md must be installed at the root");
   const agentMdContent = fs.readFileSync(agentMdPath, "utf8");
   assert.ok(
     agentMdContent.includes("sdd-propose") || agentMdContent.includes("Propose"),
-    "agent.md must contain reference to orchestrator delegation workflows",
+    "AGENTS.md must contain reference to orchestrator delegation workflows",
   );
 
   // 4. Custom agents (excluding orchestrator) should be generated as TOML agents

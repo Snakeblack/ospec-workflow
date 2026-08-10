@@ -36,7 +36,7 @@ function outputPath(out, target, agent) {
   if (target === "github-copilot") return path.join(out, ".github", "agents", `${agent}.agent.md`);
   if (target === "opencode") return path.join(out, ".opencode", "agents", `${agent === "sdd-orchestrator" ? "ospec-workflow" : agent}.md`);
   if (target === "cursor") return path.join(out, "agents", `${agent}.md`);
-  return agent === "sdd-orchestrator" ? path.join(out, "agent.md") : path.join(out, ".codex", "agents", `${agent}.toml`);
+  return agent === "sdd-orchestrator" ? path.join(out, "AGENTS.md") : path.join(out, ".codex", "agents", `${agent}.toml`);
 }
 
 function treeDigest(root) {

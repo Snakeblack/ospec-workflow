@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.43.1] - 2026-08-10
+
+### Fixed
+- **Remediación de Defectos de Convergencia FSM y Alineación del Contrato Nativo de Codex**:
+  - Incorporado el estado `remediation-pending` en `verify-lineage.js` y la transición mediante `recordRemediationAttempt()` a `recheck-pending`.
+  - Validación estricta del digest del candidato en estado `closed` (`verified_candidate_id`), transicionando a `supersede-and-discovery` si el código cambia.
+  - Reordenado `Step 2a: Bounded Verify Lineage Router` en `sdd-verify/SKILL.md` para ejecutarse al inicio de `sdd-verify` con `HALT` inmediato antes de cualquier preflight de discovery.
+  - Implementación del `Step 2c: Remediation Mode Pipeline` y desglose del `Step 4: Common Task Executor` (`standard`, `focused`, `strict`) en `sdd-apply/SKILL.md`.
+  - Emisión e instalación exclusiva de `AGENTS.md` para el target Codex en `~/.codex/AGENTS.md` o `<repo>/AGENTS.md`, eliminando la dependencia de `agent.md`.
+  - Filtrado de reglas condicionales (`activation: conditional`) en la inyección de `AGENTS.md` para Codex.
+  - Unificación de la resolución del modo TDD desde `testing.tdd_mode` como fuente única de verdad.
+
 ## [2.43.0] - 2026-08-10
 
 ### Fixed

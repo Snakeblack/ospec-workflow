@@ -814,7 +814,7 @@ test("toEnvExpansion rewrites two placeholders in a single string value — both
 // Requirement: codex target (Bloque 5.1)
 // ---------------------------------------------------------------------------
 
-test("codex emits agents as TOML outside the plugin bundle, and orchestrator as agent.md", () => {
+test("codex emits agents as TOML outside the plugin bundle, and orchestrator as AGENTS.md", () => {
   const out = transform({ files: makeSource(), profile: codex, models: MODELS });
   const toml = find(out, ".codex/agents/sdd-apply.toml");
   assert.ok(toml, "agent must be emitted as .codex/agents/sdd-apply.toml");
@@ -822,10 +822,10 @@ test("codex emits agents as TOML outside the plugin bundle, and orchestrator as 
   assert.match(toml.content, /developer_instructions = """/);
   assert.ok(!find(out, "agents/sdd-apply.agent.md"), "source-path residue must not survive");
 
-  // Orchestrator should not be emitted as TOML agent but as agent.md
+  // Orchestrator should not be emitted as TOML agent but as AGENTS.md
   assert.equal(find(out, ".codex/agents/sdd-orchestrator.toml"), undefined);
-  const agentMd = find(out, "agent.md");
-  assert.ok(agentMd, "orchestrator must be emitted as agent.md");
+  const agentsMd = find(out, "AGENTS.md");
+  assert.ok(agentsMd, "orchestrator must be emitted as AGENTS.md");
 });
 
 test("codex TOML agent output path is ./-relative-safe (no leading slash, no .. segment)", () => {
@@ -988,12 +988,10 @@ test("codex leaves an already front-loaded description unchanged", () => {
 
 test("codex rules fold into a single synthesized AGENTS.md (ADR-001)", () => {
   const out = transform({ files: makeSource(), profile: codex, models: MODELS });
-  const agentMd = find(out, "agent.md");
   const agentsMd = find(out, "AGENTS.md");
-  assert.ok(agentMd, "agent.md must be synthesized");
   assert.ok(agentsMd, "AGENTS.md must be synthesized (ADR-001)");
   assert.match(agentsMd.content, /ALWAYS use OpenSpec/);
-  assert.doesNotMatch(agentMd.content, /ALWAYS use OpenSpec/, "agent.md MUST NOT contain rule content when strategy is to-agents-md");
+  assert.match(agentsMd.content, /Orchestrator body/);
   assert.ok(!out.files.some((f) => f.path.startsWith("rules/")), "rules/ source files must not survive");
 });
 

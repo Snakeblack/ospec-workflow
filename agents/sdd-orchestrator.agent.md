@@ -320,7 +320,7 @@ Route by the issue origin tags or `next_recommended` returned by verify:
 - `spec-gap` → `sdd-spec`
 
 **Bounded Verify Lineage Rule**:
-When re-dispatching `sdd-apply` after a `code-bug` failure, pass only the frozen finding IDs from `verify_lineage.findings` in remediation mode. When re-dispatching `sdd-verify` after remediation, instruct `sdd-verify` to evaluate `verify_lineage.status: recheck-pending` via `scripts/lib/verify-lineage.js` (evaluating frozen finding IDs + causal regressions, while treating unrelated new observations as non-blocking follow-ups). If contract changes occur, mark active lineage `superseded` and create a successor.
+When re-dispatching `sdd-apply` after a `code-bug` failure, pass only the frozen finding IDs from `verify_lineage.findings` in remediation mode (`verify_lineage.status: remediation-pending`). When re-dispatching `sdd-verify` after remediation, instruct `sdd-verify` to evaluate `verify_lineage.status: recheck-pending` via `scripts/lib/verify-lineage.js` (evaluating frozen finding IDs + causal regressions, while treating unrelated new observations as non-blocking follow-ups). If contract changes occur, mark active lineage `superseded` and create a successor.
 
 Routing priority when multiple origins appear in one report: 1. `spec-gap`, 2. `design-gap`, 3. `tasks-gap`, 4. `code-bug`. Route to earliest upstream phase represented.
 

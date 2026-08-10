@@ -45,7 +45,7 @@ module.exports = {
   orchestrator: {
     agent: "sdd-orchestrator",
     emitAs: "root-agent-md",
-    agentPath: "agent.md"
+    agentPath: "AGENTS.md"
   },
 
   // sandbox_mode derives from the tools[] capability declaration (edit ->

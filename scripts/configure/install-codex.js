@@ -717,7 +717,7 @@ function main(argv, deps = {}) {
 
     const agentsDest = path.join(codexRoot, "agents");
     const agentDestFile = isRepoInstall
-      ? path.join(path.dirname(codexRoot), "agent.md")
+      ? path.join(path.dirname(codexRoot), "AGENTS.md")
       : path.join(codexRoot, "AGENTS.md");
 
     if (!args.dryRun && !isRepoInstall) {
@@ -770,7 +770,7 @@ function main(argv, deps = {}) {
     copyCodexAgents(outDir, agentsDest, { fs: writeFs, dryRun: args.dryRun, skillsRoot: globalSkillsRoot });
 
     if (!args.dryRun) {
-      writeFs.copyFileSync(path.join(outDir, "agent.md"), agentDestFile);
+      writeFs.copyFileSync(path.join(outDir, "AGENTS.md"), agentDestFile);
       if (!isRepoInstall) {
         const runtimeDir = path.join(codexRoot, "ospec-workflow");
         const hooksDest = path.join(codexRoot, "hooks.json");
@@ -788,12 +788,12 @@ function main(argv, deps = {}) {
     }
 
     if (args.dryRun) {
-      stdout.write(`[dry-run] Codex agents and ${isRepoInstall ? "agent.md" : "AGENTS.md"} prepared; no files were written.\n`);
+      stdout.write(`[dry-run] Codex agents and AGENTS.md prepared; no files were written.\n`);
       return 0;
     }
 
     if (isRepoInstall) {
-      stdout.write(`Done. Codex agent.md and custom agents synced into ${path.dirname(codexRoot)}.\n`);
+      stdout.write(`Done. Codex AGENTS.md and custom agents synced into ${path.dirname(codexRoot)}.\n`);
       return 0;
     }
 

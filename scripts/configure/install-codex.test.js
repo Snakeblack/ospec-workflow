@@ -76,7 +76,7 @@ function writeGeneratedCodexTree(root) {
   fs.writeFileSync(path.join(root, ".codex", "agents", "apply.toml"), 'name = "apply"\n');
   fs.writeFileSync(path.join(root, ".codex", "agents", "verify.toml"), 'name = "verify"\n');
   fs.writeFileSync(path.join(root, ".codex", "agents", "README.md"), "ignore\n");
-  fs.writeFileSync(path.join(root, "agent.md"), "orchestrator instructions\n");
+  fs.writeFileSync(path.join(root, "AGENTS.md"), "orchestrator instructions\n");
   fs.mkdirSync(path.join(root, "scripts", "hooks"), { recursive: true });
   fs.mkdirSync(path.join(root, "skills", "apply"), { recursive: true });
   fs.mkdirSync(path.join(root, "skills", "verify"), { recursive: true });
@@ -606,7 +606,7 @@ test("main installs repo-local agents without changing an existing config or cop
 
   assert.equal(exitCode, 0);
   assert.ok(fs.existsSync(path.join(destRepo, ".codex", "agents", "apply.toml")));
-  assert.ok(fs.existsSync(path.join(destRepo, "agent.md")));
+  assert.ok(fs.existsSync(path.join(destRepo, "AGENTS.md")));
   assert.equal(fs.readFileSync(path.join(destRepo, ".codex", "config.toml"), "utf8"), "model = \"user-choice\"\n");
   assert.ok(!fs.existsSync(path.join(destRepo, ".codex-plugin", "plugin.json")));
   assert.equal(fs.readFileSync(path.join(destRepo, "README.md"), "utf8"), "keep\n");

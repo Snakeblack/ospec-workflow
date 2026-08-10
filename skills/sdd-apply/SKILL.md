@@ -82,16 +82,18 @@ Runtime drift guard:
 - If the live estimate grows above the forecast by more than 50%, or would exceed the baseline 400-line review budget before the next task boundary, STOP immediately before starting the next task.
 - Persist partial progress, keep already verified work marked accurately, and return `partial` with risk `workload-escalation`.
 
-#### Step 2b: Read Previous Apply-Progress (if exists)
+#### Step 2c: Check Remediation Mode Pipeline
 
-Before starting work in `openspec` mode, check for existing apply-progress:
+If the orchestrator invoked `sdd-apply` in remediation mode, OR `state.yaml` contains `verify_lineage.status: remediation-pending`:
 
-1. Read `openspec/changes/{change-name}/apply-progress.md` if it exists
-2. Parse which tasks are already marked complete
-3. Skip those tasks — start from the first incomplete task
-4. When saving your apply-progress in Step 6, MERGE: include all previously completed tasks PLUS your newly completed tasks in a single combined artifact
-
-**CRITICAL**: If the orchestrator told you previous progress exists, you MUST read it. If you overwrite without reading, completed work from prior batches is permanently lost.
+1. Require `verify_lineage.status == remediation-pending`.
+2. Read the frozen blocker findings in `verify_lineage.findings` (`allowed_paths`, `summary`, `validation`).
+3. **Restrict code edits strictly to `allowed_paths`**. Do not touch unrelated files or take on new features/tasks.
+4. Apply the targeted fix for each frozen finding.
+5. Run the frozen validation commands/tests declared in `finding.validation`.
+6. Call `recordRemediationAttempt(verify_lineage, { candidate })` (`scripts/lib/verify-lineage.js`) to transition `verify_lineage` to `recheck-pending`.
+7. Update `state.yaml` `verify_lineage` block and save remediation progress in `apply-progress.md`.
+8. **`RETURN` / HALT**: Return summary with `status: success` (or `blocked` if remediation failed) and end execution. Do NOT fall through to normal task implementation.
 
 ### Step 3: Read Testing Capabilities and Resolve Mode
 
@@ -99,11 +101,11 @@ Read the cached testing capabilities to determine implementation mode:
 
 ```
 Read testing capabilities from:
-├── openspec: openspec/config.yaml → testing.tdd_mode (or legacy strict_tdd) + testing section
+├── openspec: openspec/config.yaml → testing.tdd_mode + testing section
 └── Fallback: check project files directly (package.json, go.mod, etc.)
 
 Resolve mode:
-├── IF (testing.tdd_mode: strict OR legacy strict_tdd: true) AND test runner exists
+├── IF testing.tdd_mode: strict AND test runner exists
 │   └── STRICT TDD MODE → Load and follow strict-tdd.md module
 │       (read the file: skills/sdd-apply/strict-tdd.md)
 │
@@ -129,9 +131,16 @@ If Strict TDD Mode is active (either from orchestrator injection or self-discove
 
 **There is no silent fallback.** If you resolved Strict TDD as active, you follow it or you report failure. You do NOT quietly switch to Standard Mode.
 
-### Step 4: Implement Tasks (Standard Workflow)
+### Step 4: Implement Tasks (Common Task Executor)
 
-This step is used when Strict TDD Mode is NOT active:
+Execute assigned tasks using the strategy resolved in Step 3:
+- **Standard Mode**: Execute Step 4a below.
+- **Focused Mode**: Follow `focused-tdd.md` workflow (loaded in Step 3).
+- **Strict Mode**: Follow `strict-tdd.md` workflow (loaded in Step 3).
+
+All modes enforce common guards (spec check, design contradiction check, workload live estimation, and task status updates).
+
+#### Step 4a: Standard Workflow (Standard Mode Only)
 
 ```
 FOR EACH TASK:
@@ -191,7 +200,7 @@ Return to the orchestrator:
 ## Implementation Progress
 
 **Change**: {change-name}
-**Mode**: {Strict TDD | Standard}
+**Mode**: {Strict TDD | Focused TDD | Standard}
 
 ### Completed Tasks
 - [x] {task 1.1 description}

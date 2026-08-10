@@ -81,9 +81,9 @@ test("2.1 · sdd-orchestrator.agent.md documents the renumber-on-collision rule 
 // Phase 3: sdd-verify Reconciliation
 // ---------------------------------------------------------------------------
 
-test("3.1 · sdd-verify SKILL.md contains the Step 2a pre-flight heading", async () => {
+test("3.1 · sdd-verify SKILL.md contains the Step 2b pre-flight heading", async () => {
   const content = await readFile(VERIFY_SKILL_PATH);
-  assert.match(content, /Step 2a[:.]? Assumption Reconciliation Pre-flight/i);
+  assert.match(content, /Step 2[ab][:.]? Assumption Reconciliation Pre-flight/i);
 });
 
 test("3.1 · sdd-verify SKILL.md documents the three resolution actions plus leave-unresolved", async () => {
@@ -158,7 +158,7 @@ test("4.1 · generated vscode target carries the Assumption Ledger Protocol and 
 
   const verify = result.files.find((f) => f.path === "skills/sdd-verify/SKILL.md");
   assert.ok(verify, "vscode target must emit skills/sdd-verify/SKILL.md");
-  assert.match(verify.content, /Step 2a[:.]? Assumption Reconciliation Pre-flight/i);
+  assert.match(verify.content, /Step 2[ab][:.]? Assumption Reconciliation Pre-flight/i);
 });
 
 test("4.2 · generated claude orchestrator/verify wrapper carries the pointer to sdd-phase-common.md §D unchanged", (t) => {

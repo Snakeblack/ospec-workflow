@@ -16,7 +16,7 @@ function makeValidCodexTree(t) {
   fs.mkdirSync(path.join(root, "skills", "foo"), { recursive: true });
 
   fs.writeFileSync(
-    path.join(root, "agent.md"),
+    path.join(root, "AGENTS.md"),
     "# Orchestrator Instructions\n"
   );
   fs.writeFileSync(
@@ -180,11 +180,11 @@ test("validate-codex rejects a generated config.toml", (t) => {
   assert.match(result.errors.join("\n"), /forbidden path present: \.codex\/config\.toml/);
 });
 
-test("validate-codex rejects missing agent.md", (t) => {
+test("validate-codex rejects missing AGENTS.md", (t) => {
   const root = makeValidCodexTree(t);
-  fs.rmSync(path.join(root, "agent.md"));
+  fs.rmSync(path.join(root, "AGENTS.md"));
   const result = validate(root);
-  assert.match(result.errors.join("\n"), /missing required file: agent.md/);
+  assert.match(result.errors.join("\n"), /missing required file: AGENTS.md/);
 });
 
 test("validate-codex rejects a missing native hooks payload", (t) => {

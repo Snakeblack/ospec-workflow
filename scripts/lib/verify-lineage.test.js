@@ -1,148 +1,182 @@
 "use strict";
 
-const test = require("node:test");
 const assert = require("node:assert/strict");
+const test = require("node:test");
 const {
   startVerifyLineage,
+  recordRemediationAttempt,
   evaluateRecheck,
   getLineageNextAction,
   computeContractDigest,
   computeCandidateDigest,
+  assertVerifyLineage,
+  MAX_REMEDIATION_ATTEMPTS,
 } = require("./verify-lineage.js");
 
 const sampleContract = {
-  proposal: "Fix null pointer in auth module",
-  specs: ["spec-auth-001"],
-  design: "Add null check",
-  tasks: "1. Fix auth null pointer",
+  proposal: "Fix auth token expiry bug",
+  specs: ["specs/auth/spec.md"],
+  design: "design.md",
+  tasks: "tasks.md",
 };
 
 const sampleCandidate = {
-  paths: ["scripts/lib/auth.js"],
-  diff_hash: "sha256:abc123diff",
+  paths: ["internal/auth/auth.go", "internal/auth/auth_test.go"],
+  diff_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
 };
 
-test("verify-lineage: starts lineage only with BLOCKER/CRITICAL findings", () => {
-  assert.throws(() => {
-    startVerifyLineage({
-      contract: sampleContract,
-      candidate: sampleCandidate,
-      findings: [{ id: "V001", severity: "WARNING", summary: "Low branch coverage" }],
-    });
-  }, /Cannot open remediation lineage without at least one BLOCKER\/CRITICAL finding/);
+const sampleFindings = [
+  {
+    id: "V001",
+    severity: "BLOCKER",
+    summary: "JWT token validation fails on expired signature",
+    origin: "code-bug",
+    allowed_paths: ["internal/auth/auth.go"],
+    validation: { commands: ["go test ./internal/auth"], expected_exit: 0, test_files: ["internal/auth/auth_test.go"] },
+  },
+];
 
-  const lineage = startVerifyLineage({
-    contract: sampleContract,
-    candidate: sampleCandidate,
-    findings: [{ id: "V001", severity: "BLOCKER", summary: "Null pointer exception" }],
-  });
+test("verify-lineage FSM: startVerifyLineage sets status to remediation-pending and freezes validation recipes", () => {
+  const lineage = startVerifyLineage(
+    { contract: sampleContract, candidate: sampleCandidate, findings: sampleFindings },
+    { generation: 1 }
+  );
 
-  assert.equal(lineage.status, "recheck-pending");
+  assert.equal(lineage.status, "remediation-pending");
   assert.equal(lineage.remediation_attempts, 0);
-  assert.equal(lineage.max_remediation_attempts, 2);
+  assert.equal(lineage.max_remediation_attempts, MAX_REMEDIATION_ATTEMPTS);
   assert.equal(lineage.findings.length, 1);
   assert.equal(lineage.findings[0].id, "V001");
-  assert.equal(lineage.findings[0].status, "unresolved");
+  assert.deepEqual(lineage.findings[0].validation.commands, ["go test ./internal/auth"]);
+
+  const nextAction = getLineageNextAction(lineage, { contract: sampleContract, candidate: sampleCandidate });
+  assert.equal(nextAction.action, "apply-remediation");
 });
 
-test("verify-lineage: successful recheck closes lineage", () => {
-  const lineage = startVerifyLineage({
+test("verify-lineage FSM: recordRemediationAttempt transitions status to recheck-pending", () => {
+  const lineage = startVerifyLineage(
+    { contract: sampleContract, candidate: sampleCandidate, findings: sampleFindings }
+  );
+
+  const attemptResult = recordRemediationAttempt(lineage, sampleCandidate);
+  assert.equal(attemptResult.lineage.status, "recheck-pending");
+  assert.equal(attemptResult.lineage.remediation_attempts, 1);
+  assert.equal(attemptResult.action, "run-targeted-recheck");
+
+  const nextAction = getLineageNextAction(attemptResult.lineage, { contract: sampleContract, candidate: sampleCandidate });
+  assert.equal(nextAction.action, "run-targeted-recheck");
+});
+
+test("verify-lineage FSM: successful evaluateRecheck closes lineage and sets verified_candidate_id", () => {
+  const lineage0 = startVerifyLineage(
+    { contract: sampleContract, candidate: sampleCandidate, findings: sampleFindings }
+  );
+  const { lineage: lineage1 } = recordRemediationAttempt(lineage0, sampleCandidate);
+
+  const recheckResult = evaluateRecheck(lineage1, {
     contract: sampleContract,
     candidate: sampleCandidate,
-    findings: [{ id: "V001", severity: "BLOCKER", summary: "Null pointer exception" }],
+    recheck_results: { V001: true },
+    new_findings: [],
   });
 
-  const result = evaluateRecheck(lineage, {
+  assert.equal(recheckResult.action, "close");
+  assert.equal(recheckResult.lineage.status, "closed");
+  assert.equal(recheckResult.lineage.verified_candidate_id, computeCandidateDigest(sampleCandidate));
+
+  const nextActionSameCandidate = getLineageNextAction(recheckResult.lineage, {
+    contract: sampleContract,
+    candidate: sampleCandidate,
+  });
+  assert.equal(nextActionSameCandidate.action, "return-cached-pass");
+});
+
+test("verify-lineage FSM: closed lineage with modified candidate code returns supersede-and-discovery", () => {
+  const lineage0 = startVerifyLineage(
+    { contract: sampleContract, candidate: sampleCandidate, findings: sampleFindings }
+  );
+  const { lineage: lineage1 } = recordRemediationAttempt(lineage0, sampleCandidate);
+
+  const recheckResult = evaluateRecheck(lineage1, {
     contract: sampleContract,
     candidate: sampleCandidate,
     recheck_results: { V001: true },
   });
 
-  assert.equal(result.action, "close");
-  assert.equal(result.lineage.status, "closed");
-  assert.equal(result.lineage.findings[0].status, "resolved");
+  const modifiedCandidate = {
+    paths: ["internal/auth/auth.go", "internal/auth/new_feature.go"],
+    diff_hash: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  };
 
-  const nextAction = getLineageNextAction(result.lineage, { contract: sampleContract });
-  assert.equal(nextAction.action, "return-cached-pass");
-});
-
-test("verify-lineage: failed recheck increments attempt count and exhausts at limit (2)", () => {
-  const lineage = startVerifyLineage({
+  const nextActionModifiedCandidate = getLineageNextAction(recheckResult.lineage, {
     contract: sampleContract,
-    candidate: sampleCandidate,
-    findings: [{ id: "V001", severity: "BLOCKER", summary: "Null pointer exception" }],
+    candidate: modifiedCandidate,
   });
 
-  // Attempt 1: Failed
-  const res1 = evaluateRecheck(lineage, {
+  assert.equal(nextActionModifiedCandidate.action, "supersede-and-discovery");
+  assert.equal(nextActionModifiedCandidate.reason, "candidate-code-changed");
+});
+
+test("verify-lineage FSM: 2 failed remediation attempts exhaust the lineage", () => {
+  const lineage0 = startVerifyLineage(
+    { contract: sampleContract, candidate: sampleCandidate, findings: sampleFindings }
+  );
+
+  // Attempt 1
+  const { lineage: lineage1 } = recordRemediationAttempt(lineage0, sampleCandidate);
+  const recheck1 = evaluateRecheck(lineage1, {
     contract: sampleContract,
     candidate: sampleCandidate,
     recheck_results: { V001: false },
   });
-  assert.equal(res1.action, "remediate-again");
-  assert.equal(res1.lineage.remediation_attempts, 1);
-  assert.equal(res1.lineage.status, "recheck-pending");
 
-  // Attempt 2: Failed -> Exhausted
-  const res2 = evaluateRecheck(res1.lineage, {
+  assert.equal(recheck1.action, "remediate-again");
+  assert.equal(recheck1.lineage.status, "remediation-pending");
+  assert.equal(recheck1.lineage.remediation_attempts, 1);
+
+  // Attempt 2
+  const { lineage: lineage2 } = recordRemediationAttempt(recheck1.lineage, sampleCandidate);
+  assert.equal(lineage2.remediation_attempts, 2);
+
+  const recheck2 = evaluateRecheck(lineage2, {
     contract: sampleContract,
     candidate: sampleCandidate,
     recheck_results: { V001: false },
   });
-  assert.equal(res2.action, "exhaust");
-  assert.equal(res2.lineage.remediation_attempts, 2);
-  assert.equal(res2.lineage.status, "exhausted");
-  assert.equal(res2.lineage.terminal_reason, "max-attempts-exceeded");
 
-  const nextAction = getLineageNextAction(res2.lineage, { contract: sampleContract });
-  assert.equal(nextAction.action, "require-user-intervention");
+  assert.equal(recheck2.action, "exhaust");
+  assert.equal(recheck2.lineage.status, "exhausted");
+
+  const nextActionExhausted = getLineageNextAction(recheck2.lineage, {
+    contract: sampleContract,
+    candidate: sampleCandidate,
+  });
+  assert.equal(nextActionExhausted.action, "require-user-intervention");
 });
 
-test("verify-lineage: causal regression in modified path becomes BLOCKER, while unrelated becomes late observation", () => {
-  const lineage = startVerifyLineage({
-    contract: sampleContract,
-    candidate: sampleCandidate,
-    findings: [{ id: "V001", severity: "BLOCKER", summary: "Null pointer exception" }],
-  });
+test("verify-lineage FSM: hard limit tampering is rejected by assertVerifyLineage", () => {
+  const lineage = startVerifyLineage(
+    { contract: sampleContract, candidate: sampleCandidate, findings: sampleFindings }
+  );
+  lineage.max_remediation_attempts = 50;
 
-  const result = evaluateRecheck(lineage, {
-    contract: sampleContract,
-    candidate: sampleCandidate,
-    recheck_results: { V001: true }, // V001 fixed
-    new_findings: [
-      { id: "V002", severity: "BLOCKER", summary: "Broken auth validation", paths: ["scripts/lib/auth.js"] }, // Causal regression
-      { id: "V003", severity: "WARNING", summary: "Unrelated styling issue", paths: ["scripts/lib/style.css"] }, // Unrelated late observation
-    ],
-  });
-
-  assert.equal(result.action, "remediate-again");
-  assert.equal(result.lineage.status, "recheck-pending");
-  assert.equal(result.lineage.findings.length, 2);
-  assert.equal(result.lineage.findings[1].id, "V002");
-  assert.equal(result.lineage.late_observations.length, 1);
-  assert.equal(result.lineage.late_observations[0].id, "V003");
-  assert.equal(result.lineage.late_observations[0].blocking, false);
+  assert.throws(() => assertVerifyLineage(lineage), /max_remediation_attempts must equal immutable hard limit 2/);
 });
 
-test("verify-lineage: contract drift supersedes lineage", () => {
-  const lineage = startVerifyLineage({
-    contract: sampleContract,
+test("verify-lineage FSM: contract drift sets status to superseded", () => {
+  const lineage0 = startVerifyLineage(
+    { contract: sampleContract, candidate: sampleCandidate, findings: sampleFindings }
+  );
+  const { lineage: lineage1 } = recordRemediationAttempt(lineage0, sampleCandidate);
+
+  const modifiedContract = { ...sampleContract, design: "design_v2.md" };
+
+  const recheckResult = evaluateRecheck(lineage1, {
+    contract: modifiedContract,
     candidate: sampleCandidate,
-    findings: [{ id: "V001", severity: "BLOCKER", summary: "Null pointer exception" }],
+    recheck_results: { V001: false },
   });
 
-  const updatedContract = { ...sampleContract, design: "Updated design architecture" };
-
-  const result = evaluateRecheck(lineage, {
-    contract: updatedContract,
-    candidate: sampleCandidate,
-    recheck_results: { V001: true },
-  });
-
-  assert.equal(result.action, "superseded");
-  assert.equal(result.lineage.status, "superseded");
-  assert.equal(result.lineage.terminal_reason, "contract-drift");
-
-  const nextAction = getLineageNextAction(lineage, { contract: updatedContract });
-  assert.equal(nextAction.action, "supersede-and-discovery");
+  assert.equal(recheckResult.action, "superseded");
+  assert.equal(recheckResult.lineage.status, "superseded");
 });

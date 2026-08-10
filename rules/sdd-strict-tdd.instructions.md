@@ -1,6 +1,7 @@
 ---
 description: 'Strict TDD forwarding and evidence rules for SDD apply and verify phases.'
 applyTo: '**/*.{spec.ts,test.ts,cs,js,go,py,kt}'
+activation: conditional
 ---
 
 > Plugin-bundled instruction: Keep this file in sync with the target distribution folders (run the configuration build script to reload/sync changes).

@@ -253,7 +253,7 @@ function validateSkills(root, errors, readFile = readUtf8) {
 }
 
 function validateRootAgent(root, errors) {
-  const rel = "agent.md";
+  const rel = "AGENTS.md";
   if (pathType(root, rel) !== "file") {
     addError(errors, `missing required file: ${rel}`);
   }

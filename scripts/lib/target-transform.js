@@ -450,7 +450,13 @@ function collectRules(files, profile) {
   const parts = [];
   for (const file of files) {
     if (isRulesFile(file.path)) {
-      let body = parse(file.content).body.trim();
+      const parsed = parse(file.content);
+      const activationField = getField(parsed.frontmatter, "activation");
+      const activation = activationField ? activationField.value : "always";
+      if (activation !== "always") {
+        continue;
+      }
+      let body = parsed.body.trim();
       if (profile.toolMap) {
         body = substituteProse(body, profile.toolMap);
       }
@@ -497,7 +503,7 @@ function emitOrchestratorRootAgentMd(file, profile, rulesContent) {
   if (profile.toolMap) {
     body = substituteProse(body, profile.toolMap);
   }
-  if (rulesContent && profile.rules && isInlineStrategy(profile.rules.strategy)) {
+  if (rulesContent && profile.rules && (isInlineStrategy(profile.rules.strategy) || profile.rules.strategy === "to-agents-md")) {
     body = body.replace(/\s*$/, "") + "\n\n" + rulesContent + "\n";
   }
   body = substituteAgentNames(body, profile);
@@ -1048,7 +1054,9 @@ function synthesizeFiles(files, profile, rulesContent) {
   }
   if (profile.rules && profile.rules.strategy === "to-agents-md" && rulesContent) {
     const location = profile.rules.outLocation || "AGENTS.md";
-    out.push({ path: location, content: rulesContent.replace(/\s+$/, "") + "\n" });
+    if (!profile.orchestrator || profile.orchestrator.agentPath !== location) {
+      out.push({ path: location, content: rulesContent.replace(/\s+$/, "") + "\n" });
+    }
   }
 
   return out;
