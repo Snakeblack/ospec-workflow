@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "change": "verify-lineage-k3-final-closure-corrective",
+  "created_at": "2026-08-10T23:25:20.000Z",
+  "source_fingerprint": "sha256:d1362cadab3d108418f5ab8a791faa675b0f6a10c5274c3dd1b872c188b0768a",
+  "spec_writes": [
+    {
+      "domain": "verify-lineage",
+      "source_delta": "specs/verify-lineage/spec.md",
+      "target": "openspec/specs/verify-lineage/spec.md",
+      "target_before_sha256": "sha256:2e87405965f80dc6b9092c44554670eb00c03e4da7e31e73b75abba9aaecb756",
+      "content_sha256": "sha256:df226c2d38a30c11f47c365fa674f66043adf47013c10f896412adac728bf592"
+    }
+  ],
+  "adr_promotions": [],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "design.md",
+    "proposal.md",
+    "specs/verify-lineage/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

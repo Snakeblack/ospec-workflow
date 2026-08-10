@@ -2,7 +2,7 @@
 
 **Change**: k3-readiness-remediation  
 **Date**: 2026-08-09  
-**Status**: Plan Emitted (Plan-and-Report)
+**Status**: Completed  
 
 ## Executive Summary
 
@@ -43,6 +43,6 @@ Estimated token cost per phase, aggregated from `.ospec/session/k3-readiness-rem
 
 **Total user questions asked**: 0
 
-## Move Completion Pending (runtime-owned)
+## Archive Transaction Completed
 
-The archive transaction runtime (`node scripts/archive-transaction-run.js k3-readiness-remediation`) will validate the plan, apply live spec merges and ADR promotions, move the change folder to `openspec/changes/archive/2026-08-09-k3-readiness-remediation/`, and commit the transaction.
+The archive transaction completed and the change folder was archived to `openspec/changes/archive/2026-08-10-k3-readiness-remediation/`.

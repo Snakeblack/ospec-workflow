@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.43.3] - 2026-08-10
+
+### Fixed
+- **Cierre Final de Garantías de Bounded Verify Lineage (K3)**:
+  - Guard de candidate drift pre-remediación (`prepareRemediation`) con validación obligatoria contra `current_candidate_id` antes de escrituras.
+  - Derivación mecánica del delta de remediación (`deriveCandidateDeltaPaths`) a partir de la diferencia real Candidate A → Candidate B.
+  - Derivación de `contract_digest` directamente desde los bytes de artefactos OpenSpec leídos de disco (`computeContractDigestFromArtifacts`).
+  - `resolveTddMode` simplificado a `testing.tdd_mode` exclusivamente, eliminando `scale` y legacy `strict_tdd` en runtime.
+  - Fast-path de remediación en `sdd-apply` ejecutado antes de la carga de contexto completo.
+  - Lógica determinista de reanudación de tareas (`apply-resume.js`) impidiendo la reejecución de tareas `[x]` tras reinicios.
+  - Clasificación de evidencia de verificación (`verify-evidence-classification.js`) y suite de límites de roadmap (`roadmap-boundary.test.js`).
+  - Reconciliación de estado terminal de `k3-readiness-remediation` y roadmap marcando K4a como `next-eligible`.
+
 ## [2.43.2] - 2026-08-10
 
 ### Fixed

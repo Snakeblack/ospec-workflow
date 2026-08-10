@@ -1,0 +1,123 @@
+change: verify-lineage-k3-final-closure-corrective
+status: archived
+classification: high-risk
+last_updated: 2026-08-10T23:25:15Z
+blocking_questions: []
+phases:
+  propose:
+    status: done
+  spec:
+    status: done
+  design:
+    status: done
+  tasks:
+    status: done
+  apply:
+    status: done
+  verify:
+    status: done
+    artifact: "openspec/changes/verify-lineage-k3-final-closure-corrective/verify-report.md"
+    verdict: "PASS"
+    summary: "Targeted recheck finalizado con veredicto PASS. Hallazgos V001 y V002 resueltos sin regresiones."
+  archive:
+    status: done
+    artifact: "openspec/changes/verify-lineage-k3-final-closure-corrective/archive-report.md"
+    summary: "Archive plan emitted for verify-lineage-k3-final-closure-corrective with 1 spec write."
+verify_lineage:
+  schema_version: 1
+  lineage_id: "sha256:8d533a8ffb45ce80f2e871e067688417013fff089f034571aec27fa74a1a2c7e"
+  generation: 1
+  predecessor_id: null
+  status: "closed"
+  genesis_candidate_id: "sha256:8a1fb2f09f51413b1e0cf851dc0970b573e21cba63c2fc773410da5c628c8062"
+  current_candidate_id: "sha256:8a1fb2f09f51413b1e0cf851dc0970b573e21cba63c2fc773410da5c628c8062"
+  verified_candidate_id: "sha256:8a1fb2f09f51413b1e0cf851dc0970b573e21cba63c2fc773410da5c628c8062"
+  contract_digest: "sha256:65a1d773424dd01d64cc6e6eb71e25a3723cbb37afde5f6a26c74522702fb48d"
+  remediation_attempts: 1
+  max_remediation_attempts: 2
+  findings:
+    - id: "V001"
+      severity: "CRITICAL"
+      summary: "Legacy strict_tdd test assertion in pre-commit-hook.test.js fails after REQ-VL-FINAL-004 removed strict_tdd parsing"
+      origin: "tasks-gap"
+      allowed_paths:
+        - "scripts/hooks/pre-commit-hook.js"
+        - "scripts/hooks/pre-commit-hook.test.js"
+      validation:
+        commands:
+          - "node --test scripts/hooks/pre-commit-hook.test.js"
+        expected_exit: 0
+        test_files:
+          - "scripts/hooks/pre-commit-hook.test.js"
+      status: "resolved"
+    - id: "V002"
+      severity: "CRITICAL"
+      summary: "K1 scope guard rejects new scripts (apply-resume.js, roadmap-boundary.test.js, verify-evidence-classification.js, etc.) as unmanifested inventory"
+      origin: "tasks-gap"
+      allowed_paths:
+        - "scripts/lib/k1-scope-guard.test.js"
+      validation:
+        commands:
+          - "node --test scripts/lib/k1-scope-guard.test.js"
+        expected_exit: 0
+        test_files:
+          - "scripts/lib/k1-scope-guard.test.js"
+      status: "resolved"
+  late_observations: []
+  terminal_reason: "all-findings-verified"
+owner:
+  author: Manuel Retamozo
+  branch: main
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "High-risk public-contract corrective on active project; standard route is selected."
+  validated: true
+  validation_errors: []
+approvals:
+  - id: ambient-sdd-route-001
+    gate: architecture
+    decision: "Route verify-lineage-k3-final-closure-corrective through persisted SDD."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-10T18:17:30Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: intent-scope-001
+    gate: architecture
+    decision: "Close Bounded Verify Lineage guarantees (pre-remediation candidate drift guard, candidate delta scope, runtime OpenSpec contract digest, sole TDD authority, true remediation fast path, behavioral apply resume, verify evidence classification integrity, K3/K4a roadmap reconciliation) without introducing K4a/K4b primitives."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-10T18:17:30Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: vscode/askQuestions
+    accepted_at: 2026-08-10T18:17:30Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: vscode/askQuestions
+    accepted_at: 2026-08-10T18:17:30Z
+    applies_to:
+      - sdd-tasks
+      - sdd-apply

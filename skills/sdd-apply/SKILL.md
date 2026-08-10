@@ -46,32 +46,27 @@ From the orchestrator:
 ### Step 1: Load Skills
 Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
 
-### Step 2: Read Context
+### Step 2: Execution Router & Remediation Fast Path
 
-Before writing ANY code:
-1. In standard mode, read the specs — understand WHAT the code must do
-2. In standard mode, read the design — understand HOW to structure the code
-3. In lite mode, read `proposal-lite.md` — it is the behavior contract when spec/design are intentionally absent
-4. Read existing code in affected files — understand current patterns
-5. Check the project's coding conventions from `config.yaml`
+BEFORE loading full change context (specs, design, backlog, workload forecast):
 
 #### Step 2a: Check Remediation Mode Pipeline (Execution Router)
 
 If the orchestrator invoked `sdd-apply` in remediation mode, OR `state.yaml` contains `verify_lineage.status: remediation-pending`:
 
 1. Require `verify_lineage.status == remediation-pending`.
-2. Read the frozen blocker findings in `verify_lineage.findings` (`allowed_paths`, `summary`, `validation`).
-3. **Restrict code edits strictly to `allowed_paths`**. Do not touch unrelated files or take on new features/tasks.
-4. Apply the targeted fix for each frozen finding.
-5. Run the frozen validation commands/tests declared in `finding.validation`.
-6. Call `recordRemediationAttempt(verify_lineage, { candidate })` (`scripts/lib/verify-lineage.js`) to transition `verify_lineage` to `recheck-pending`.
+2. Freeze baseline candidate `currentCandidate` and call `prepareRemediation(verify_lineage, currentCandidate)` (`scripts/lib/verify-lineage.js`). Validate baseline candidate matches `verify_lineage.current_candidate_id`. If `candidate-drift` is detected, stop immediately and return `candidate-drift` without editing any files or incrementing remediation attempts.
+3. Read ONLY the frozen blocker findings in `verify_lineage.findings` (`allowed_paths`, `summary`, `validation`). Do NOT load full specs, full design, unrelated code, or normal workload forecast.
+4. **Restrict code edits strictly to `allowed_paths`**. Do not touch unrelated files or take on new features/tasks.
+5. Apply the targeted fix for each frozen finding.
+6. Freeze successor candidate `postCandidate`, derive `remediationChangedPaths` via `deriveCandidateDeltaPaths(currentCandidate, postCandidate)`, and call `recordRemediationAttempt(verify_lineage, { baseline_candidate: currentCandidate, candidate: postCandidate })` to transition `verify_lineage` to `recheck-pending`.
 7. Update `state.yaml` `verify_lineage` block and save remediation progress in `apply-progress.md`.
 8. **`RETURN` / HALT**: Return summary with `status: success` (or `blocked` if remediation failed) and end execution. Do NOT fall through to normal task implementation.
 
-#### Step 2b: Read Previous Apply Progress & Contract Context
+#### Step 2b: Read Previous Apply Progress & Full Contract Context
 
-Before writing ANY code for normal task backlog implementation:
-1. Read `openspec/changes/{change-name}/apply-progress.md` if it exists. Restore previously completed tasks marked `[x]` to avoid re-implementing verified work.
+For normal task backlog implementation (when no active remediation is pending):
+1. Read `openspec/changes/{change-name}/apply-progress.md` if it exists. Call `resolveRemainingTasks(tasksContent, applyProgressContent)` (`scripts/lib/apply-resume.js`) to restore previously completed tasks marked `[x]` and prevent re-executing verified work.
 2. In standard mode, read the specs — understand WHAT the code must do
 3. In standard mode, read the design — understand HOW to structure the code
 4. In lite mode, read `proposal-lite.md` — it is the behavior contract when spec/design are intentionally absent

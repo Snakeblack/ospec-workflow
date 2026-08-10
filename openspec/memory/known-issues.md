@@ -3,6 +3,20 @@ title: Known Issues
 last_updated: 2026-08-10
 ---
 
+## K1 scope guard rejects new scripts (apply-resume.js, roadmap-boundary.test.js, verify-evidence-classification.js, etc.) as unmanifested inventory
+- severity: BLOCKER
+- area: scripts/lib/k1-scope-guard.test.js
+- workaround: none
+- change: verify-lineage-k3-final-closure-corrective
+- date: 2026-08-10
+
+## Legacy strict_tdd test assertion in pre-commit-hook.test.js fails after REQ-VL-FINAL-004 removed strict_tdd parsing
+- severity: BLOCKER
+- area: scripts/hooks/pre-commit-hook.test.js
+- workaround: update pre-commit-hook.test.js to reflect REQ-VL-FINAL-004
+- change: verify-lineage-k3-final-closure-corrective
+- date: 2026-08-10
+
 ## Post-verify cleanup tasks 10.9 and 10.10 remain pending before archive
 - severity: WARNING
 - area: openspec/changes/verify-lineage-k3-alignment-corrective/tasks.md

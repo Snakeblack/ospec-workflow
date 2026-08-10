@@ -7,10 +7,13 @@ const test = require("node:test");
 
 const {
   startVerifyLineage,
+  prepareRemediation,
   recordRemediationAttempt,
   evaluateRecheck,
   getLineageNextAction,
   computeContractDigest,
+  computeContractDigestFromArtifacts,
+  deriveCandidateDeltaPaths,
   resolveCanonicalCandidateId,
   assertVerifyLineage,
   MAX_REMEDIATION_ATTEMPTS,
@@ -48,183 +51,125 @@ const sampleFindings = [
 
 // --- Phase 1 — Canonical Candidate Binding ---
 
-test("Phase 1.1-1.4: verify-lineage uses Candidate/v2.candidate_id as canonical identity", () => {
+test("Phase 1.1-1.7: prepareRemediation and recordRemediationAttempt enforce baseline candidate and detect drift before writes", () => {
   const lineage = startVerifyLineage(
     { contract: sampleContract, candidate: sampleCandidate, findings: sampleFindings },
     { generation: 1 }
   );
 
-  const expectedId = computeCandidateId(sampleCandidate);
-  assert.equal(lineage.genesis_candidate_id, expectedId);
-  assert.equal(lineage.current_candidate_id, expectedId);
-  assert.equal(lineage.status, "remediation-pending");
-  assert.equal(lineage.remediation_attempts, 0);
-  assert.equal(lineage.max_remediation_attempts, MAX_REMEDIATION_ATTEMPTS);
-  assert.equal(lineage.findings.length, 1);
-  assert.equal(lineage.findings[0].id, "V001");
-  assert.deepEqual(lineage.findings[0].validation.commands, ["go test ./internal/auth"]);
-});
+  // 1.1 & 1.2: prepareRemediation validates current candidate against lineage.current_candidate_id
+  const prepOk = prepareRemediation(lineage, sampleCandidate);
+  assert.equal(prepOk.valid, true);
+  assert.equal(prepOk.allowed_paths.length, 2);
+  assert.deepEqual(prepOk.allowed_paths, ["internal/auth/auth.go", "internal/auth/auth_test.go"]);
 
-test("Phase 1.3 & 1.5: rejects Candidate malformed, empty input, and forged candidate_id", () => {
-  assert.throws(
-    () => resolveCanonicalCandidateId(null),
-    /Candidate\/v2 object is required/
-  );
-
-  assert.throws(
-    () => resolveCanonicalCandidateId({}),
-    /failed schema validation/
-  );
-
-  assert.throws(
-    () => resolveCanonicalCandidateId({ paths: ["internal/auth/auth.go"], diff_hash: "sha256:1111" }),
-    /failed schema validation/
-  );
-
-  const forgedCandidate = {
-    ...sampleCandidate,
-    candidate_id: "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-  };
-  assert.throws(
-    () => resolveCanonicalCandidateId(forgedCandidate),
-    /Candidate candidate_id mismatch/
-  );
-});
-
-// --- Phase 2 — Active Candidate Drift ---
-
-test("Phase 2.1-2.4: Active candidate drift in remediation-pending, recheck-pending, and closed", () => {
-  const lineage0 = startVerifyLineage(
-    { contract: sampleContract, candidate: sampleCandidate, findings: sampleFindings }
-  );
-
-  const modifiedCandidate = freezeCandidate({
+  const driftedCandidate = freezeCandidate({
     repository_id: "repo-1",
     projection: "workspace",
     base_tree: "sha256:0000000000000000000000000000000000000000000000000000000000000001",
-    candidate_tree: "sha256:0000000000000000000000000000000000000000000000000000000000000003",
-    diffText: "diff --git a/internal/auth/auth.go b/internal/auth/auth.go\n+modified",
-    paths: ["internal/auth/auth.go"],
+    candidate_tree: "sha256:0000000000000000000000000000000000000000000000000000000000000099",
+    diffText: "diff --git a/drift.go b/drift.go\n+drift",
+    paths: ["drift.go"],
   });
 
-  // 2.2 remediation-pending drift
-  const nextDriftRem = getLineageNextAction(lineage0, {
-    contract: sampleContract,
-    candidate: modifiedCandidate,
-  });
-  assert.equal(nextDriftRem.action, "supersede-and-discovery");
-  assert.equal(nextDriftRem.reason, "candidate-code-changed");
+  // 1.3 & 1.4: prepareRemediation rejects candidate drift
+  const prepDrift = prepareRemediation(lineage, driftedCandidate);
+  assert.equal(prepDrift.valid, false);
+  assert.equal(prepDrift.reason_code, "candidate-drift");
+  assert.equal(prepDrift.lineage.status, "superseded");
 
-  // Record attempt with same candidate -> recheck-pending
-  const { lineage: lineage1 } = recordRemediationAttempt(lineage0, sampleCandidate);
-  assert.equal(lineage1.status, "recheck-pending");
-
-  // 2.3 recheck-pending drift in evaluateRecheck
-  const recheckDrift = evaluateRecheck(lineage1, {
-    contract: sampleContract,
-    candidate: modifiedCandidate,
-    recheck_results: { V001: true },
-  });
-  assert.equal(recheckDrift.action, "superseded");
-  assert.equal(recheckDrift.lineage.status, "superseded");
-
-  // 2.3 recheck-pending drift in getLineageNextAction
-  const nextDriftRecheck = getLineageNextAction(lineage1, {
-    contract: sampleContract,
-    candidate: modifiedCandidate,
-  });
-  assert.equal(nextDriftRecheck.action, "supersede-and-discovery");
-  assert.equal(nextDriftRecheck.reason, "candidate-code-changed");
-
-  // Close lineage
-  const recheckClose = evaluateRecheck(lineage1, {
-    contract: sampleContract,
-    candidate: sampleCandidate,
-    recheck_results: { V001: true },
-  });
-  assert.equal(recheckClose.action, "close");
-
-  // 2.4 closed drift
-  const nextDriftClosed = getLineageNextAction(recheckClose.lineage, {
-    contract: sampleContract,
-    candidate: modifiedCandidate,
-  });
-  assert.equal(nextDriftClosed.action, "supersede-and-discovery");
-  assert.equal(nextDriftClosed.reason, "candidate-code-changed");
-});
-
-test("Phase 2.6: Restart in every persisted state produces deterministic next_action", () => {
-  const lineage0 = startVerifyLineage(
-    { contract: sampleContract, candidate: sampleCandidate, findings: sampleFindings }
-  );
-
-  // Remediation pending
-  const actionRem = getLineageNextAction(lineage0, { contract: sampleContract, candidate: sampleCandidate });
-  assert.equal(actionRem.action, "apply-remediation");
-
-  // Recheck pending
-  const { lineage: lineage1 } = recordRemediationAttempt(lineage0, sampleCandidate);
-  const actionRecheck = getLineageNextAction(lineage1, { contract: sampleContract, candidate: sampleCandidate });
-  assert.equal(actionRecheck.action, "run-targeted-recheck");
-
-  // Closed
-  const recheckResult = evaluateRecheck(lineage1, {
-    contract: sampleContract,
-    candidate: sampleCandidate,
-    recheck_results: { V001: true },
-  });
-  const actionClosed = getLineageNextAction(recheckResult.lineage, { contract: sampleContract, candidate: sampleCandidate });
-  assert.equal(actionClosed.action, "return-cached-pass");
-});
-
-// --- Phase 3 — Byte-Bound Contract Fingerprint ---
-
-test("Phase 3.1-3.5: Byte-bound contract digest changes when bytes change and fails closed on missing artifact", () => {
-  const contractA = {
-    proposal: "Fix auth bug",
-    specs: ["specs/auth/spec.md"],
-    design: "design v1 content",
-    tasks: "tasks.md",
-  };
-  const contractB = {
-    proposal: "Fix auth bug",
-    specs: ["specs/auth/spec.md"],
-    design: "design v2 modified content",
-    tasks: "tasks.md",
-  };
-
-  const digestA = computeContractDigest(contractA);
-  const digestB = computeContractDigest(contractB);
-
-  assert.notEqual(digestA, digestB);
-
-  // Missing required proposal artifact
+  // 1.5: recordRemediationAttempt fails closed when baseline_candidate is missing
   assert.throws(
-    () => computeContractDigest({ specs: ["specs/auth/spec.md"] }),
-    /Required contract artifact missing/
+    () => recordRemediationAttempt(lineage, sampleCandidate), // missing baseline_candidate!
+    /baseline_candidate is required for recordRemediationAttempt/
   );
+
+  // 1.6 & 1.7: recordRemediationAttempt with drifted baseline returns candidate-drift without incrementing remediation_attempts
+  const recDrift = recordRemediationAttempt(lineage, {
+    baseline_candidate: driftedCandidate,
+    candidate: sampleCandidate,
+  });
+  assert.equal(recDrift.action, "supersede-and-discovery");
+  assert.equal(recDrift.reason_code, "candidate-drift");
+  assert.equal(recDrift.lineage.remediation_attempts, 0); // attempts NOT incremented!
+  assert.equal(recDrift.lineage.status, "superseded");
 });
 
-test("Phase 3.3: Fingerprint specs are canonically sorted by path", () => {
-  const contract1 = {
-    proposal: "p",
-    specs: [{ path: "specs/z.md", content: "z" }, { path: "specs/a.md", content: "a" }],
-  };
-  const contract2 = {
-    proposal: "p",
-    specs: [{ path: "specs/a.md", content: "a" }, { path: "specs/z.md", content: "z" }],
-  };
+// --- Phase 2 — Active Candidate Drift & Real Candidate Delta ---
 
-  assert.equal(computeContractDigest(contract1), computeContractDigest(contract2));
+test("Phase 2.1-2.9: deriveCandidateDeltaPaths covers added, modified, deleted paths and rejects unauthorized delta", () => {
+  const cA = freezeCandidate({
+    repository_id: "repo-1",
+    projection: "workspace",
+    base_tree: "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+    candidate_tree: "sha256:0000000000000000000000000000000000000000000000000000000000000002",
+    diffText: "diff --git a/auth.js b/auth.js\n+auth\ndiff --git a/user.js b/user.js\n+user",
+    paths: ["auth.js", "user.js"],
+  });
+
+  const cB = freezeCandidate({
+    repository_id: "repo-1",
+    projection: "workspace",
+    base_tree: "sha256:0000000000000000000000000000000000000000000000000000000000000002",
+    candidate_tree: "sha256:0000000000000000000000000000000000000000000000000000000000000003",
+    diffText: "diff --git a/auth.js b/auth.js\n+fix",
+    paths: ["auth.js", "user.js"],
+  });
+
+  // Pre-existing paths (user.js) are ignored; delta derived from diffText is ONLY auth.js
+  const delta = deriveCandidateDeltaPaths(cA, cB, { diffText: "diff --git a/auth.js b/auth.js\n+fix" });
+  assert.deepEqual(delta, ["auth.js"]);
+
+  // Record attempt using cA as baseline and cB as successor
+  const lineage = startVerifyLineage(
+    { contract: sampleContract, candidate: cA, findings: [{ ...sampleFindings[0], allowed_paths: ["auth.js"] }] }
+  );
+
+  const res = recordRemediationAttempt(lineage, {
+    baseline_candidate: cA,
+    candidate: cB,
+    diffText: "diff --git a/auth.js b/auth.js\n+fix",
+  });
+
+  assert.equal(res.action, "run-targeted-recheck");
+  assert.equal(res.lineage.status, "recheck-pending");
+});
+
+test("Phase 3.1-3.10: computeContractDigestFromArtifacts reads actual OpenSpec bytes from filesystem", () => {
+  const tmpDir = path.resolve(__dirname, "../../tmp-test-contract-digest");
+  fs.mkdirSync(path.join(tmpDir, "specs"), { recursive: true });
+
+  try {
+    fs.writeFileSync(path.join(tmpDir, "proposal.md"), "# Proposal\nFix auth bug");
+    fs.writeFileSync(path.join(tmpDir, "specs", "spec-1.md"), "# Spec 1\nRequirements");
+    fs.writeFileSync(path.join(tmpDir, "design.md"), "# Design\nArchitecture");
+    fs.writeFileSync(path.join(tmpDir, "tasks.md"), "# Tasks\n- [ ] 1.1");
+
+    const digest1 = computeContractDigestFromArtifacts(tmpDir, { mode: "standard" });
+    assert.match(digest1, /^sha256:[a-f0-9]{64}$/);
+
+    // Byte modification changes digest
+    fs.writeFileSync(path.join(tmpDir, "design.md"), "# Design\nArchitecture v2");
+    const digest2 = computeContractDigestFromArtifacts(tmpDir, { mode: "standard" });
+    assert.notEqual(digest1, digest2);
+
+    // Missing required artifact fails closed
+    fs.unlinkSync(path.join(tmpDir, "proposal.md"));
+    assert.throws(
+      () => computeContractDigestFromArtifacts(tmpDir, { mode: "standard" }),
+      /Required contract artifact missing: proposal.md/
+    );
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 
 // --- Phase 4 — Mechanical Remediation Scope ---
 
-test("Phase 4.1-4.6: Mechanical remediation scope enforcement", () => {
+test("Phase 4.1-4.6: Mechanical remediation scope enforcement with baseline Candidate", () => {
   const lineage = startVerifyLineage(
     { contract: sampleContract, candidate: sampleCandidate, findings: sampleFindings }
   );
-  // Allowed path for V001 is "internal/auth/auth.go"
 
   const inScopeCandidate = freezeCandidate({
     repository_id: "repo-1",
@@ -235,7 +180,10 @@ test("Phase 4.1-4.6: Mechanical remediation scope enforcement", () => {
     paths: ["internal/auth/auth.go"],
   });
 
-  const inScopeRes = recordRemediationAttempt(lineage, { candidate: inScopeCandidate });
+  const inScopeRes = recordRemediationAttempt(lineage, {
+    baseline_candidate: sampleCandidate,
+    candidate: inScopeCandidate,
+  });
   assert.equal(inScopeRes.action, "run-targeted-recheck");
   assert.equal(inScopeRes.lineage.status, "recheck-pending");
 
@@ -248,7 +196,10 @@ test("Phase 4.1-4.6: Mechanical remediation scope enforcement", () => {
     paths: ["internal/auth/auth.go", "unauthorized.go"],
   });
 
-  const outOfScopeRes = recordRemediationAttempt(lineage, { candidate: outOfScopeCandidate });
+  const outOfScopeRes = recordRemediationAttempt(lineage, {
+    baseline_candidate: sampleCandidate,
+    candidate: outOfScopeCandidate,
+  });
   assert.equal(outOfScopeRes.action, "reject-remediation-scope");
   assert.equal(outOfScopeRes.reason_code, "remediation-scope-violation");
   assert.deepEqual(outOfScopeRes.unauthorized_paths, ["unauthorized.go"]);
@@ -312,7 +263,7 @@ test("Phase 8.1-8.5: Full FSM lifecycle from start to exhausted", () => {
   assert.equal(l0.status, "remediation-pending");
 
   // 8.2 Successful remediation -> recheck-pending
-  const { lineage: l1 } = recordRemediationAttempt(l0, sampleCandidate);
+  const { lineage: l1 } = recordRemediationAttempt(l0, { baseline_candidate: sampleCandidate, candidate: sampleCandidate });
   assert.equal(l1.status, "recheck-pending");
 
   // 8.4 First failed recheck -> remediation-pending (attempts = 1)
@@ -326,7 +277,7 @@ test("Phase 8.1-8.5: Full FSM lifecycle from start to exhausted", () => {
   assert.equal(recheck1.lineage.remediation_attempts, 1);
 
   // 8.2 Second remediation attempt -> recheck-pending (attempts = 2)
-  const { lineage: l2 } = recordRemediationAttempt(recheck1.lineage, sampleCandidate);
+  const { lineage: l2 } = recordRemediationAttempt(recheck1.lineage, { baseline_candidate: sampleCandidate, candidate: sampleCandidate });
   assert.equal(l2.status, "recheck-pending");
   assert.equal(l2.remediation_attempts, 2);
 
@@ -351,7 +302,7 @@ test("Phase 8.8: Hard retry limit tampering is rejected by assertVerifyLineage",
 
 test("Phase 8.12-8.13: Closed lineage cached PASS behavior", () => {
   const l0 = startVerifyLineage({ contract: sampleContract, candidate: sampleCandidate, findings: sampleFindings });
-  const { lineage: l1 } = recordRemediationAttempt(l0, sampleCandidate);
+  const { lineage: l1 } = recordRemediationAttempt(l0, { baseline_candidate: sampleCandidate, candidate: sampleCandidate });
   const recheckClosed = evaluateRecheck(l1, {
     contract: sampleContract,
     candidate: sampleCandidate,

@@ -52,11 +52,97 @@ function resolveCanonicalCandidateId(candidate) {
   return computedId;
 }
 
-function computeContractDigest(contract, options = {}) {
-  if (!contract || typeof contract !== "object") {
-    throw new TypeError("contract object is required");
+function computeContractDigestFromArtifacts(changeRoot, options = {}) {
+  if (typeof changeRoot !== "string" || changeRoot.trim().length === 0) {
+    throw new TypeError("changeRoot must be a non-empty string");
   }
-  const rootDir = options.rootDir || contract.rootDir || null;
+  const mode = options.mode || "standard";
+  const absRoot = path.resolve(changeRoot);
+
+  if (!fsSync.existsSync(absRoot)) {
+    throw new Error(`changeRoot directory does not exist: ${changeRoot}`);
+  }
+
+  const artifacts = [];
+
+  function addArtifact(relPath, required) {
+    const full = path.resolve(absRoot, relPath);
+    const cPath = canonicalPath(relPath);
+    if (!fsSync.existsSync(full)) {
+      if (required) {
+        throw new Error(`Required contract artifact missing: ${relPath}`);
+      }
+      return;
+    }
+    let bytes;
+    try {
+      bytes = fsSync.readFileSync(full);
+    } catch (err) {
+      if (required) {
+        throw new Error(`Required contract artifact unreadable: ${relPath}`);
+      }
+      return;
+    }
+    const sha = `sha256:${crypto.createHash("sha256").update(bytes).digest("hex")}`;
+    artifacts.push({ path: cPath, digest: sha });
+  }
+
+  if (mode === "lite") {
+    addArtifact("proposal-lite.md", true);
+    addArtifact("tasks.md", false);
+  } else {
+    addArtifact("proposal.md", true);
+
+    const specsDir = path.join(absRoot, "specs");
+    if (fsSync.existsSync(specsDir)) {
+      const specFiles = [];
+      function walkSpecs(dir) {
+        const entries = fsSync.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const res = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            walkSpecs(res);
+          } else if (entry.isFile() && entry.name.endsWith(".md")) {
+            const rel = path.relative(absRoot, res);
+            specFiles.push(rel);
+          }
+        }
+      }
+      walkSpecs(specsDir);
+      specFiles.sort();
+      for (const sf of specFiles) {
+        addArtifact(sf, true);
+      }
+    }
+
+    addArtifact("design.md", false);
+    addArtifact("tasks.md", false);
+  }
+
+  artifacts.sort((a, b) => a.path.localeCompare(b.path));
+  return digest("verify-contract-v1", { artifacts });
+}
+
+function computeContractDigest(contract, options = {}) {
+  if (!contract) {
+    throw new TypeError("contract object or changeRoot string is required");
+  }
+
+  const changeRoot = options.changeRoot || options.rootDir || (typeof contract === "string" ? contract : contract.changeRoot || contract.rootDir);
+  const mode = options.mode || (contract && contract.mode) || (contract && contract.proposal_lite !== undefined ? "lite" : "standard");
+
+  if (changeRoot && typeof changeRoot === "string") {
+    return computeContractDigestFromArtifacts(changeRoot, { mode });
+  }
+
+  if (typeof contract !== "object") {
+    throw new TypeError("contract object or changeRoot string is required");
+  }
+
+  // Reject external declared digests or trusting unvalidated path strings
+  if (contract.external_digest || contract.digest) {
+    throw new Error("External or declared digests are not trusted; contract digest must be derived from filesystem bytes");
+  }
 
   function resolveArtifact(key, defaultPath, isRequired) {
     const val = contract[key];
@@ -72,31 +158,11 @@ function computeContractDigest(contract, options = {}) {
 
     if (typeof val === "object" && val !== null) {
       relPath = val.path || defaultPath;
-      if (val.digest && typeof val.digest === "string") {
-        return { path: canonicalPath(relPath), digest: val.digest };
-      }
       if (val.content !== undefined && val.content !== null) {
         bytes = Buffer.from(val.content, typeof val.content === "string" ? "utf8" : undefined);
       }
     } else if (typeof val === "string") {
-      if (rootDir) {
-        const full = path.resolve(rootDir, val);
-        try {
-          if (fsSync.existsSync(full)) {
-            relPath = val;
-            bytes = fsSync.readFileSync(full);
-          }
-        } catch {
-          // ignore
-        }
-      }
-      if (!bytes) {
-        if (/^[\w\-./\\]+\.(md|yaml|json)$/i.test(val) && rootDir) {
-          throw new Error(`Required contract artifact unreadable at path: ${val}`);
-        }
-        relPath = defaultPath;
-        bytes = Buffer.from(val, "utf8");
-      }
+      bytes = Buffer.from(val, "utf8");
     }
 
     if (!bytes) {
@@ -120,42 +186,92 @@ function computeContractDigest(contract, options = {}) {
     const defaultSpecPath = `specs/spec-${idx + 1}.md`;
     if (typeof specItem === "object" && specItem !== null) {
       const specRelPath = specItem.path || defaultSpecPath;
-      if (specItem.digest && typeof specItem.digest === "string") {
-        return { path: canonicalPath(specRelPath), digest: specItem.digest };
-      }
       if (specItem.content !== undefined && specItem.content !== null) {
         const bytes = Buffer.from(specItem.content, typeof specItem.content === "string" ? "utf8" : undefined);
         return { path: canonicalPath(specRelPath), digest: `sha256:${crypto.createHash("sha256").update(bytes).digest("hex")}` };
       }
     } else if (typeof specItem === "string") {
-      if (rootDir) {
-        const full = path.resolve(rootDir, specItem);
-        try {
-          if (fsSync.existsSync(full)) {
-            const bytes = fsSync.readFileSync(full);
-            return { path: canonicalPath(specItem), digest: `sha256:${crypto.createHash("sha256").update(bytes).digest("hex")}` };
-          }
-        } catch {
-          // ignore
-        }
-      }
       const bytes = Buffer.from(specItem, "utf8");
       return { path: canonicalPath(defaultSpecPath), digest: `sha256:${crypto.createHash("sha256").update(bytes).digest("hex")}` };
     }
-    throw new Error(`Required contract spec artifact missing or unreadable`);
+    throw new Error("Required contract spec artifact missing or unreadable");
   }).sort((a, b) => a.path.localeCompare(b.path));
 
   const designEntry = contract.design !== undefined ? resolveArtifact("design", "design.md", false) : null;
   const tasksEntry = contract.tasks !== undefined ? resolveArtifact("tasks", "tasks.md", false) : null;
 
-  const payload = {
-    proposal: proposalEntry,
-    specs: specEntries,
-    design: designEntry,
-    tasks: tasksEntry,
-  };
+  const artifacts = [proposalEntry, ...specEntries, designEntry, tasksEntry]
+    .filter(Boolean)
+    .sort((a, b) => a.path.localeCompare(b.path));
 
-  return digest("verify-contract-v1", payload);
+  return digest("verify-contract-v1", { artifacts });
+}
+
+function deriveCandidateDeltaPaths(beforeCandidate, afterCandidate, options = {}) {
+  const beforeId = resolveCanonicalCandidateId(beforeCandidate);
+  const afterId = resolveCanonicalCandidateId(afterCandidate);
+
+  if (beforeId === afterId) {
+    return [];
+  }
+
+  const rootDir = options.rootDir || options.cwd || null;
+  if (rootDir && typeof rootDir === "string" && fsSync.existsSync(rootDir)) {
+    const bTree = (beforeCandidate.candidate_tree || "").replace("sha256:", "");
+    const aTree = (afterCandidate.candidate_tree || "").replace("sha256:", "");
+    if (bTree && aTree) {
+      try {
+        const stdout = require("node:child_process").execFileSync(
+          "git",
+          ["diff-tree", "-r", "--name-only", bTree, aTree],
+          { cwd: rootDir, encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }
+        );
+        const paths = stdout.split(/\r?\n/).map((s) => s.trim()).filter(Boolean).map(canonicalPath);
+        return Array.from(new Set(paths)).sort();
+      } catch {
+        // Fall back to candidate diff parsing or path comparison
+      }
+    }
+  }
+
+  const pathsSet = new Set();
+
+  const diffText = options.diffText || options.diff || (afterCandidate && afterCandidate.diffText);
+  if (diffText && typeof diffText === "string") {
+    const matches = diffText.matchAll(/^diff --git a\/(.+?) b\/(.+?)$/gm);
+    for (const match of matches) {
+      pathsSet.add(canonicalPath(match[1]));
+      pathsSet.add(canonicalPath(match[2]));
+    }
+  }
+
+  if (pathsSet.size === 0) {
+    const beforePaths = new Set((beforeCandidate.paths || []).map(canonicalPath));
+    const afterPaths = new Set((afterCandidate.paths || []).map(canonicalPath));
+
+    for (const p of afterPaths) {
+      if (!beforePaths.has(p)) {
+        pathsSet.add(p);
+      }
+    }
+    for (const p of beforePaths) {
+      if (!afterPaths.has(p)) {
+        pathsSet.add(p);
+      }
+    }
+
+    if (pathsSet.size === 0 && beforeCandidate.diff_hash !== afterCandidate.diff_hash) {
+      for (const p of afterPaths) {
+        pathsSet.add(p);
+      }
+    }
+  }
+
+  if (pathsSet.size === 0 && beforeId !== afterId) {
+    throw new Error("Cannot reliably derive candidate delta paths between CandidateBefore and CandidateAfter");
+  }
+
+  return Array.from(pathsSet).sort();
 }
 
 function assertVerifyLineage(state) {
@@ -236,42 +352,75 @@ function startVerifyLineage(input, meta = {}) {
   };
 }
 
+function prepareRemediation(state, currentCandidate) {
+  assertVerifyLineage(state);
+  if (state.status !== "remediation-pending") {
+    throw new Error(`Cannot prepare remediation on lineage with status '${state.status}' (expected 'remediation-pending')`);
+  }
+  if (!currentCandidate) {
+    throw new TypeError("currentCandidate baseline is required for prepareRemediation");
+  }
+
+  const currentCandidateDigest = resolveCanonicalCandidateId(currentCandidate);
+
+  if (currentCandidateDigest !== state.current_candidate_id) {
+    const next = clone(state);
+    next.status = "superseded";
+    next.terminal_reason = "candidate-drift";
+    return {
+      valid: false,
+      action: "supersede-and-discovery",
+      reason: "Candidate drift detected before remediation attempt",
+      reason_code: "candidate-drift",
+      lineage: next,
+    };
+  }
+
+  const unresolvedFindings = state.findings.filter((f) => f.status === "unresolved");
+  const allowedPaths = Array.from(
+    new Set(unresolvedFindings.flatMap((f) => f.allowed_paths.map(canonicalPath)))
+  ).sort();
+
+  return {
+    valid: true,
+    lineage: clone(state),
+    findings: unresolvedFindings.map(clone),
+    allowed_paths: allowedPaths,
+  };
+}
+
 function recordRemediationAttempt(state, candidateInput) {
   assertVerifyLineage(state);
   if (state.status !== "remediation-pending") {
     throw new Error(`Cannot record remediation attempt on lineage with status '${state.status}' (expected 'remediation-pending')`);
   }
 
-  const postCandidate = candidateInput?.candidate || candidateInput;
+  const preCandidate = candidateInput?.baseline_candidate || candidateInput?.preCandidate || candidateInput?.beforeCandidate || candidateInput?.baselineCandidate;
+  if (!preCandidate) {
+    throw new TypeError("baseline_candidate is required for recordRemediationAttempt");
+  }
+
+  const preCandidateDigest = resolveCanonicalCandidateId(preCandidate);
+  if (preCandidateDigest !== state.current_candidate_id) {
+    const next = clone(state);
+    next.status = "superseded";
+    next.terminal_reason = "candidate-drift";
+    return {
+      lineage: next,
+      action: "supersede-and-discovery",
+      reason: "Candidate drift detected before remediation attempt",
+      reason_code: "candidate-drift",
+    };
+  }
+
+  const postCandidate = candidateInput?.candidate || (candidateInput !== preCandidate ? candidateInput : null);
+  if (!postCandidate) {
+    throw new TypeError("successor candidate is required for recordRemediationAttempt");
+  }
   const postCandidateDigest = resolveCanonicalCandidateId(postCandidate);
 
-  // Drift check if baseline candidate is passed
-  if (candidateInput?.baseline_candidate) {
-    const preCandidateDigest = resolveCanonicalCandidateId(candidateInput.baseline_candidate);
-    if (preCandidateDigest !== state.current_candidate_id) {
-      const next = clone(state);
-      next.status = "superseded";
-      next.terminal_reason = "candidate-drift";
-      return {
-        lineage: next,
-        action: "supersede-and-discovery",
-        reason: "Candidate drift detected before remediation attempt",
-        reason_code: "candidate-drift",
-      };
-    }
-  }
+  const actualChangedPaths = deriveCandidateDeltaPaths(preCandidate, postCandidate, candidateInput);
 
-  // Derive actual remediation changed paths
-  let actualChangedPaths;
-  if (Array.isArray(candidateInput?.actual_changed_paths)) {
-    actualChangedPaths = candidateInput.actual_changed_paths.map(canonicalPath);
-  } else if (Array.isArray(postCandidate?.paths)) {
-    actualChangedPaths = postCandidate.paths.map(canonicalPath);
-  } else {
-    actualChangedPaths = [];
-  }
-
-  // Allowed paths union across unresolved findings
   const allowedPathsUnion = new Set(
     state.findings
       .filter((f) => f.status === "unresolved")
@@ -323,7 +472,6 @@ function evaluateRecheck(state, input) {
 
   const next = clone(state);
 
-  // Candidate drift check
   const candidateDigest = resolveCanonicalCandidateId(input.candidate);
   if (candidateDigest !== next.current_candidate_id) {
     next.status = "superseded";
@@ -336,7 +484,6 @@ function evaluateRecheck(state, input) {
     };
   }
 
-  // Contract drift check
   const currentContractDigest = computeContractDigest(input.contract || {}, input);
   if (currentContractDigest !== next.contract_digest) {
     next.status = "superseded";
@@ -356,7 +503,6 @@ function evaluateRecheck(state, input) {
 
   let allFixed = true;
 
-  // Evaluate frozen findings against frozen validation recipes
   for (const finding of next.findings) {
     const isFixed = recheckResults[finding.id] === true || recheckResults[finding.id] === "PASS";
     if (isFixed) {
@@ -367,7 +513,6 @@ function evaluateRecheck(state, input) {
     }
   }
 
-  // Classify new findings: causal regression vs late observation
   for (const newFinding of observedFindings) {
     const findingPaths = (newFinding.paths || []).map(canonicalPath);
     const isCausalRegression = findingPaths.some((p) => remediationPaths.has(p));
@@ -483,11 +628,15 @@ module.exports = {
   digest,
   canonicalPath,
   resolveCanonicalCandidateId,
+  computeContractDigestFromArtifacts,
   computeContractDigest,
+  deriveCandidateDeltaPaths,
   assertVerifyLineage,
   startVerifyLineage,
+  prepareRemediation,
   recordRemediationAttempt,
   evaluateRecheck,
   getLineageNextAction,
 };
+
 

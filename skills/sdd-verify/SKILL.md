@@ -59,7 +59,7 @@ Compliance rule matrix:
 | Input / Condition | Action |
 |---|---|
 | Orchestrator says `STRICT TDD MODE IS ACTIVE` | Treat as authoritative (`strict` TDD mode). |
-| Config `testing.tdd_mode: strict` (or legacy `strict_tdd: true` resolved via `resolveTddMode`) and runner exists | Strict TDD verify; load module. |
+| Config `testing.tdd_mode: strict` (resolved via `resolveTddMode`) and runner exists | Strict TDD verify; load module. |
 | Config `testing.tdd_mode: focused` or `standard` | Standard/focused verify; skip strict TDD evidence audits. |
 | Task incomplete | CRITICAL for core task, WARNING for cleanup task. |
 | Test command exits non-zero | CRITICAL. |

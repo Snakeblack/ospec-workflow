@@ -40,7 +40,7 @@ La columna vertebral se conserva: lifecycle (+ **Authority Store** + **Minimal K
 
 Este programa **no** sustituye el roadmap por un “OSPEC v3” paralelo. Los deltas K2.1–K12 refuerzan la dirección ya fijada (runtime-owned lifecycle, Execution ≠ Assurance, cuatro identidades, separación worker/verifier/reviewer/delivery, Attestation ≠ Authorization, invalidación selectiva, shadow/A-B antes de defaults, rollout por perfil/target, rutas como recetas). OpenSpec y Git siguen siendo la autoridad semántica; el kernel posee transiciones, permisos, budgets, digests y efectos mecánicos; los modelos no se aprueban ni se conceden permisos a sí mismos.
 
-O2B cerró el gate inicial. K1, K2, K2.1, K2a, K2.1b y k2a-1 conservan sus cierres publicados. **K3** requiere la remediación `k3-readiness-remediation` para cerrar la coherencia de Candidate v2; hasta que verifique y archive, **K4a** permanece bloqueada y las iniciativas posteriores siguen `pending`. Fixed continúa como control/default hasta que los gates posteriores autoricen otro cambio.
+O2B cerró el gate inicial. K1, K2, K2.1, K2a, K2.1b, k2a-1, K3 y `k3-readiness-remediation` conservan sus cierres verificados y archivados. **K4a** es la siguiente iniciativa elegible. Fixed continúa como control/default hasta que los gates posteriores autoricen otro cambio.
 
 Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R1 se rebasan sobre un kernel común; O7+O10 se convierte en capacidades; O9+O11 en invalidación/recompilación; O14 en routing por nodo; R4 consume el mismo Execution Graph. O8 y O12 conservan shadow, compatibilidad y deprecación. Targets y R2 siguen subordinados a la estabilidad del core.
 
@@ -73,7 +73,8 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **K2.1b** | Controlled issuer + atomic CAS consume/receipt (corrective pre-K3); archivado y publicado en v2.40.1 |
 | `done` | **k2a-1** | Live capability probes + async transports (corrective pre-K3); verify PASS WITH WARNINGS + 4R approved; archive plan emitido |
 | `done` | **K3** | Cuatro identidades + Candidate freeze + relación básica; archivado y publicado en v2.42.3 (baseline estable congelada) |
-| `blocked` | **K4a** | Graph compiler + Obligation Manifest + replay (sin worker autoritativo); requiere `k3-readiness-remediation` |
+| `done` | **`k3-readiness-remediation`** | Relación/successor/dist packaging reconciliado; archivado y publicado |
+| `next-eligible` | **K4a** | Graph compiler + Obligation Manifest + replay (sin worker autoritativo) |
 | `pending` | K5 | Budgets (incl. autoridad/efectos), failures y recovery |
 | `pending` | K6a | Worker isolation / work-order capsule |
 | `pending` | K4b | Repair shadow execution (WO→WR→integrate→Candidate) |

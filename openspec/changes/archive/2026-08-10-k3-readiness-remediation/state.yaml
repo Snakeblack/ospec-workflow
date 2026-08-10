@@ -1,5 +1,5 @@
 change: k3-readiness-remediation
-status: verified
+status: archived
 classification: high-risk
 last_updated: 2026-08-09T14:46:42Z
 blocking_questions: []
@@ -184,8 +184,8 @@ phases:
       - "Focal/parallel/serial, cleanup, six targets, isolated stale prune, real active parity, history, and no-K4a all pass."
       - "Predecessor 4R remains immutable; normalized new-candidate/new-scope successor inputs are ready without lineage allocation."
   archive:
-    status: pending
-    artifact: openspec/changes/k3-readiness-remediation/archive-report.md
+    status: done
+    artifact: openspec/changes/archive/2026-08-10-k3-readiness-remediation/archive-report.md
 gates:
   4r-review-gate:
     status: "approved"
