@@ -61,8 +61,9 @@ Normal registry freshness is handled by the `SessionStart` hook. Do not make eve
 ```text
 openspec/config.yaml
   context: detected project context summary
-  strict_tdd: true|false
-  testing: detected testing capabilities
+  testing:
+    tdd_mode: standard|focused|strict
+    runner: detected test runner
   rules: phase-specific defaults
 
 .ospec/cache/skill-registry.cache.json

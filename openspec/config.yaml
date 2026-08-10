@@ -11,16 +11,15 @@ context: |
 
 project:
   name: ospec-workflow
-  version: 2.42.8
+  version: 2.43.0
   status: active
 
 artifact_store:
   mode: openspec
   backend: openspec
 
-strict_tdd: true
-
 testing:
+  tdd_mode: focused
   runner: node
   test_command: "npm test"
   raw_command: "node --test scripts/**/*.test.js"

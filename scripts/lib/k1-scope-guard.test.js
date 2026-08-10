@@ -92,6 +92,10 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/archive-transaction.test.js",
   "scripts/lib/atomic-write.js",
   "scripts/lib/atomic-write.test.js",
+  "scripts/lib/target-transform.js",
+  "scripts/lib/verify-lineage.js",
+  "scripts/lib/verify-lineage.test.js",
+  "skills/sdd-apply/focused-tdd.md",
   "schemas/kernel/candidate/fixtures/valid/k3-frozen.json",
   "schemas/kernel/candidate/fixtures/invalid/commit-projection.json",
   "schemas/kernel/candidate/fixtures/invalid/work-result-alias.json",
@@ -306,7 +310,10 @@ test("K1 scope guard: fixed routing and phase validation remain byte-equivalent 
       const normalizeConfig = (text) =>
         text
           .replace(/\r\n/g, "\n")
-          .replace(/^(\s*version:\s*)\S+$/m, "$1<release-version>");
+          .replace(/^(\s*version:\s*)\S+$/m, "$1<release-version>")
+          .replace(/^strict_tdd:\s*true\n?/gm, "")
+          .replace(/^\s*tdd_mode:\s*focused\n?/gm, "")
+          .replace(/\n{3,}/g, "\n\n");
       assert.equal(
         normalizeConfig(baseline.stdout),
         normalizeConfig(current),

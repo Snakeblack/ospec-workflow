@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.43.0] - 2026-08-10
+
+### Fixed
+- **Remediación Determinista del Protocolo SDD, Bounded Verify Lineage y Codex Target**:
+  - Implementación del reductor puramente funcional `verify-lineage.js` con presupuesto acotado de 2 reintentos de remediación (`max_remediation_attempts: 2`), digests de candidato/contrato y manejo determinista de regresiones causales vs observaciones tardías.
+  - Separación física en `sdd-verify` entre los pipelines de Discovery y Targeted Recheck, con `RETURN` explícito tras finalizar la verificación dirigida de hallazgos congelados.
+  - Creación e integración del módulo `focused-tdd.md` en `sdd-apply` soportando 3 modos de TDD (`STRICT`, `FOCUSED`, `STANDARD`).
+  - Corrección de la duplicación de reglas en la transformación del target Codex (`scripts/lib/target-transform.js`), evitando inyectar contenido de reglas en `agent.md` cuando la estrategia es `to-agents-md`.
+  - Migración de la configuración legacy `strict_tdd: true` a `testing.tdd_mode: focused` en `openspec/config.yaml`.
+  - Eliminación de la contradicción en `strict-tdd.md` sobre la ejecución de tests tras el lote completo de refactorización.
+
 ## [2.42.8] - 2026-08-10
 
 ### Changed

@@ -471,7 +471,7 @@ function emitOrchestratorSkill(file, profile, rulesContent) {
   if (profile.toolMap) {
     body = substituteProse(body, profile.toolMap);
   }
-  if (rulesContent) {
+  if (rulesContent && profile.rules && isInlineStrategy(profile.rules.strategy)) {
     body = body.replace(/\s*$/, "") + "\n\n" + rulesContent + "\n";
   }
   body = substituteAgentNames(body, profile);
@@ -497,7 +497,7 @@ function emitOrchestratorRootAgentMd(file, profile, rulesContent) {
   if (profile.toolMap) {
     body = substituteProse(body, profile.toolMap);
   }
-  if (rulesContent) {
+  if (rulesContent && profile.rules && isInlineStrategy(profile.rules.strategy)) {
     body = body.replace(/\s*$/, "") + "\n\n" + rulesContent + "\n";
   }
   body = substituteAgentNames(body, profile);
