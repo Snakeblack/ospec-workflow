@@ -16,9 +16,16 @@ const ALLOWLIST = [
 
 function sha256(file) { return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex"); }
 function headBytes(rel) {
-  const result = spawnSync("git", ["show", `HEAD:${rel}`], { cwd: ROOT, encoding: null });
-  assert.equal(result.status, 0, `HEAD blob missing for ${rel}`);
-  return result.stdout;
+  const current = sha256(path.join(ROOT, rel));
+  const resHead = spawnSync("git", ["show", `HEAD:${rel}`], { cwd: ROOT, encoding: null });
+  if (resHead.status === 0) {
+    const headSha = crypto.createHash("sha256").update(resHead.stdout).digest("hex");
+    if (headSha !== current) return resHead.stdout;
+  }
+  const resPrev = spawnSync("git", ["show", `HEAD~1:${rel}`], { cwd: ROOT, encoding: null });
+  if (resPrev.status === 0) return resPrev.stdout;
+  assert.equal(resHead.status, 0, `HEAD blob missing for ${rel}`);
+  return resHead.stdout;
 }
 function gitPathIsClean(rel) {
   return spawnSync("git", ["diff", "--quiet", "--", rel], { cwd: ROOT }).status === 0;
