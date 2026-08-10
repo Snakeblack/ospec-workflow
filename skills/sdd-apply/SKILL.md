@@ -55,7 +55,30 @@ Before writing ANY code:
 4. Read existing code in affected files — understand current patterns
 5. Check the project's coding conventions from `config.yaml`
 
-#### Step 2a: Enforce Review Workload Decision
+#### Step 2a: Check Remediation Mode Pipeline (Execution Router)
+
+If the orchestrator invoked `sdd-apply` in remediation mode, OR `state.yaml` contains `verify_lineage.status: remediation-pending`:
+
+1. Require `verify_lineage.status == remediation-pending`.
+2. Read the frozen blocker findings in `verify_lineage.findings` (`allowed_paths`, `summary`, `validation`).
+3. **Restrict code edits strictly to `allowed_paths`**. Do not touch unrelated files or take on new features/tasks.
+4. Apply the targeted fix for each frozen finding.
+5. Run the frozen validation commands/tests declared in `finding.validation`.
+6. Call `recordRemediationAttempt(verify_lineage, { candidate })` (`scripts/lib/verify-lineage.js`) to transition `verify_lineage` to `recheck-pending`.
+7. Update `state.yaml` `verify_lineage` block and save remediation progress in `apply-progress.md`.
+8. **`RETURN` / HALT**: Return summary with `status: success` (or `blocked` if remediation failed) and end execution. Do NOT fall through to normal task implementation.
+
+#### Step 2b: Read Previous Apply Progress & Contract Context
+
+Before writing ANY code for normal task backlog implementation:
+1. Read `openspec/changes/{change-name}/apply-progress.md` if it exists. Restore previously completed tasks marked `[x]` to avoid re-implementing verified work.
+2. In standard mode, read the specs — understand WHAT the code must do
+3. In standard mode, read the design — understand HOW to structure the code
+4. In lite mode, read `proposal-lite.md` — it is the behavior contract when spec/design are intentionally absent
+5. Read existing code in affected files — understand current patterns
+6. Check the project's coding conventions from `config.yaml`
+
+#### Step 2c: Enforce Review Workload Decision
 
 Before implementing, inspect the tasks artifact for `Review Workload Forecast`.
 
@@ -81,19 +104,6 @@ Runtime drift guard:
 - Track the forecast from `tasks.md` against the real work discovered while implementing.
 - If the live estimate grows above the forecast by more than 50%, or would exceed the baseline 400-line review budget before the next task boundary, STOP immediately before starting the next task.
 - Persist partial progress, keep already verified work marked accurately, and return `partial` with risk `workload-escalation`.
-
-#### Step 2c: Check Remediation Mode Pipeline
-
-If the orchestrator invoked `sdd-apply` in remediation mode, OR `state.yaml` contains `verify_lineage.status: remediation-pending`:
-
-1. Require `verify_lineage.status == remediation-pending`.
-2. Read the frozen blocker findings in `verify_lineage.findings` (`allowed_paths`, `summary`, `validation`).
-3. **Restrict code edits strictly to `allowed_paths`**. Do not touch unrelated files or take on new features/tasks.
-4. Apply the targeted fix for each frozen finding.
-5. Run the frozen validation commands/tests declared in `finding.validation`.
-6. Call `recordRemediationAttempt(verify_lineage, { candidate })` (`scripts/lib/verify-lineage.js`) to transition `verify_lineage` to `recheck-pending`.
-7. Update `state.yaml` `verify_lineage` block and save remediation progress in `apply-progress.md`.
-8. **`RETURN` / HALT**: Return summary with `status: success` (or `blocked` if remediation failed) and end execution. Do NOT fall through to normal task implementation.
 
 ### Step 3: Read Testing Capabilities and Resolve Mode
 

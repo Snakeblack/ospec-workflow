@@ -63,11 +63,17 @@ function runPreCommit() {
   // 3. Verificación de Strict TDD
   let strictTdd = false;
   try {
+    const { resolveTddMode } = require("../lib/tdd-mode.js");
     const configPath = path.join(repoRoot, "openspec", "config.yaml");
     if (fs.existsSync(configPath)) {
       const configContent = fs.readFileSync(configPath, "utf8");
-      // Buscar strict_tdd: true
-      if (/strict_tdd\s*:\s*true/i.test(configContent)) {
+      const tddModeMatch = configContent.match(/tdd_mode\s*:\s*(\w+)/i);
+      const legacyMatch = /strict_tdd\s*:\s*true/i.test(configContent);
+      const dummyConfig = {
+        testing: tddModeMatch ? { tdd_mode: tddModeMatch[1] } : undefined,
+        strict_tdd: legacyMatch,
+      };
+      if (resolveTddMode(dummyConfig) === "strict") {
         strictTdd = true;
       }
     }

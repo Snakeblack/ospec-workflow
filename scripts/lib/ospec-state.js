@@ -1086,6 +1086,8 @@ function detectSpecDrift(options = {}) {
   return domains.length > 0 ? { status: "warning", domains } : null;
 }
 
+const { resolveTddMode } = require("./tdd-mode.js");
+
 module.exports = {
   RUNTIME_EVENT_RELATIVE_PATH,
   PHASE_COST_FILE_NAME,
@@ -1102,6 +1104,7 @@ module.exports = {
   readBaselineState,
   readStagedFiles,
   readState,
+  resolveTddMode,
   setPhaseSummary,
   withAppendLock,
   withFileLock,

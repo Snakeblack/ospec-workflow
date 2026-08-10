@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "change": "verify-lineage-k3-alignment-corrective",
+  "created_at": "2026-08-10T15:38:07.095Z",
+  "source_fingerprint": "sha256:e02facc39915441717e1c0ea6544ce696a7ea0022d03bf61fe74613f1ad47d91",
+  "spec_writes": [
+    {
+      "domain": "verify-lineage",
+      "source_delta": "specs/verify-lineage/spec.md",
+      "target": "openspec/specs/verify-lineage/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:2e87405965f80dc6b9092c44554670eb00c03e4da7e31e73b75abba9aaecb756"
+    }
+  ],
+  "adr_promotions": [],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "design.md",
+    "proposal.md",
+    "specs/verify-lineage/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    "Post-verify lifecycle tasks 10.9 and 10.10 remain pending; to be completed during/after sdd-archive."
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

@@ -1,7 +1,14 @@
 ---
 title: Known Issues
-last_updated: 2026-08-09
+last_updated: 2026-08-10
 ---
+
+## Post-verify cleanup tasks 10.9 and 10.10 remain pending before archive
+- severity: WARNING
+- area: openspec/changes/verify-lineage-k3-alignment-corrective/tasks.md
+- workaround: complete tasks 10.9 and 10.10 during sdd-archive phase
+- change: verify-lineage-k3-alignment-corrective
+- date: 2026-08-10
 
 ## Codex active runtime retains destination-only managed schemas
 - severity: BLOCKER

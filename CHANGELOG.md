@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.43.2] - 2026-08-10
+
+### Fixed
+- **Alineación de Bounded Verify Lineage con Garantías K3**:
+  - Reemplazada la identidad `verify-candidate-v1` por el `Candidate/v2.candidate_id` canónico de K3.
+  - Detección de candidate drift activa en todos los estados (`remediation-pending`, `recheck-pending`, `closed`).
+  - `contract_digest` vinculado a los bytes reales de artefactos OpenSpec ordenados canónicamente.
+  - Comprobación mecánica del scope de remediación (`actual_remediation_changed_paths` ⊆ `allowed_paths`).
+  - Recetas explícitas de validación obligatorias para congelar hallazgos bloqueantes sin fallbacks implícitos.
+  - Recuperación normal de tareas `[x]` en `sdd-apply` leyendo `apply-progress.md` antes del flujo normal.
+  - `resolveTddMode(config)` como única autoridad runtime TDD para `sdd-apply`, `sdd-verify` y pre-commit.
+
 ## [2.43.1] - 2026-08-10
 
 ### Fixed

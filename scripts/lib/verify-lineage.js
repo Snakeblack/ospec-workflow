@@ -1,6 +1,9 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const fsSync = require("node:fs");
+const path = require("node:path");
+const { validateCandidateV2, computeCandidateId } = require("./execution-identities/index.js");
 
 const MAX_REMEDIATION_ATTEMPTS = 2;
 const BLOCKING_SEVERITIES = new Set(["BLOCKER", "CRITICAL"]);
@@ -35,27 +38,124 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function computeContractDigest(contract) {
+function resolveCanonicalCandidateId(candidate) {
+  if (!candidate || typeof candidate !== "object") {
+    throw new TypeError("Candidate/v2 object is required");
+  }
+  if (!validateCandidateV2(candidate)) {
+    throw new Error("Candidate v2 object failed schema validation");
+  }
+  const computedId = computeCandidateId(candidate);
+  if (candidate.candidate_id && candidate.candidate_id !== computedId) {
+    throw new Error(`Candidate candidate_id mismatch: declared '${candidate.candidate_id}' vs computed '${computedId}'`);
+  }
+  return computedId;
+}
+
+function computeContractDigest(contract, options = {}) {
   if (!contract || typeof contract !== "object") {
     throw new TypeError("contract object is required");
   }
-  return digest("verify-contract-v1", {
-    proposal: contract.proposal || "",
-    specs: contract.specs || [],
-    design: contract.design || "",
-    tasks: contract.tasks || "",
-  });
-}
+  const rootDir = options.rootDir || contract.rootDir || null;
 
-function computeCandidateDigest(candidate) {
-  if (!candidate || typeof candidate !== "object") {
-    throw new TypeError("candidate object is required");
+  function resolveArtifact(key, defaultPath, isRequired) {
+    const val = contract[key];
+    if (val === undefined || val === null) {
+      if (isRequired) {
+        throw new Error(`Required contract artifact missing: ${defaultPath}`);
+      }
+      return null;
+    }
+
+    let relPath = defaultPath;
+    let bytes = null;
+
+    if (typeof val === "object" && val !== null) {
+      relPath = val.path || defaultPath;
+      if (val.digest && typeof val.digest === "string") {
+        return { path: canonicalPath(relPath), digest: val.digest };
+      }
+      if (val.content !== undefined && val.content !== null) {
+        bytes = Buffer.from(val.content, typeof val.content === "string" ? "utf8" : undefined);
+      }
+    } else if (typeof val === "string") {
+      if (rootDir) {
+        const full = path.resolve(rootDir, val);
+        try {
+          if (fsSync.existsSync(full)) {
+            relPath = val;
+            bytes = fsSync.readFileSync(full);
+          }
+        } catch {
+          // ignore
+        }
+      }
+      if (!bytes) {
+        if (/^[\w\-./\\]+\.(md|yaml|json)$/i.test(val) && rootDir) {
+          throw new Error(`Required contract artifact unreadable at path: ${val}`);
+        }
+        relPath = defaultPath;
+        bytes = Buffer.from(val, "utf8");
+      }
+    }
+
+    if (!bytes) {
+      if (isRequired) {
+        throw new Error(`Required contract artifact missing or unreadable: ${relPath}`);
+      }
+      return null;
+    }
+
+    const cPath = canonicalPath(relPath);
+    const sha = `sha256:${crypto.createHash("sha256").update(bytes).digest("hex")}`;
+    return { path: cPath, digest: sha };
   }
-  const paths = (candidate.paths || []).map(canonicalPath).sort();
-  return digest("verify-candidate-v1", {
-    paths,
-    diff_hash: candidate.diff_hash || "",
-  });
+
+  const proposalKey = contract.proposal !== undefined ? "proposal" : (contract.proposal_lite !== undefined ? "proposal_lite" : "proposal");
+  const defaultProposalPath = contract.proposal_lite !== undefined ? "proposal-lite.md" : "proposal.md";
+  const proposalEntry = resolveArtifact(proposalKey, defaultProposalPath, true);
+
+  const rawSpecs = Array.isArray(contract.specs) ? contract.specs : (contract.specs ? [contract.specs] : []);
+  const specEntries = rawSpecs.map((specItem, idx) => {
+    const defaultSpecPath = `specs/spec-${idx + 1}.md`;
+    if (typeof specItem === "object" && specItem !== null) {
+      const specRelPath = specItem.path || defaultSpecPath;
+      if (specItem.digest && typeof specItem.digest === "string") {
+        return { path: canonicalPath(specRelPath), digest: specItem.digest };
+      }
+      if (specItem.content !== undefined && specItem.content !== null) {
+        const bytes = Buffer.from(specItem.content, typeof specItem.content === "string" ? "utf8" : undefined);
+        return { path: canonicalPath(specRelPath), digest: `sha256:${crypto.createHash("sha256").update(bytes).digest("hex")}` };
+      }
+    } else if (typeof specItem === "string") {
+      if (rootDir) {
+        const full = path.resolve(rootDir, specItem);
+        try {
+          if (fsSync.existsSync(full)) {
+            const bytes = fsSync.readFileSync(full);
+            return { path: canonicalPath(specItem), digest: `sha256:${crypto.createHash("sha256").update(bytes).digest("hex")}` };
+          }
+        } catch {
+          // ignore
+        }
+      }
+      const bytes = Buffer.from(specItem, "utf8");
+      return { path: canonicalPath(defaultSpecPath), digest: `sha256:${crypto.createHash("sha256").update(bytes).digest("hex")}` };
+    }
+    throw new Error(`Required contract spec artifact missing or unreadable`);
+  }).sort((a, b) => a.path.localeCompare(b.path));
+
+  const designEntry = contract.design !== undefined ? resolveArtifact("design", "design.md", false) : null;
+  const tasksEntry = contract.tasks !== undefined ? resolveArtifact("tasks", "tasks.md", false) : null;
+
+  const payload = {
+    proposal: proposalEntry,
+    specs: specEntries,
+    design: designEntry,
+    tasks: tasksEntry,
+  };
+
+  return digest("verify-contract-v1", payload);
 }
 
 function assertVerifyLineage(state) {
@@ -81,24 +181,30 @@ function startVerifyLineage(input, meta = {}) {
   if (!input || typeof input !== "object") {
     throw new TypeError("input is required to start verify lineage");
   }
-  const contractDigest = computeContractDigest(input.contract || {});
-  const candidateDigest = computeCandidateDigest(input.candidate || {});
+  const contractDigest = computeContractDigest(input.contract || {}, meta);
+  const candidateDigest = resolveCanonicalCandidateId(input.candidate);
 
   const blockingFindings = (input.findings || [])
     .filter((f) => f && BLOCKING_SEVERITIES.has(f.severity))
-    .map((f, idx) => ({
-      id: f.id || `V${String(idx + 1).padStart(3, "0")}`,
-      severity: f.severity,
-      summary: f.summary || "Unspecified defect",
-      origin: f.origin || "code-bug",
-      allowed_paths: (f.allowed_paths || input.candidate?.paths || []).map(canonicalPath).sort(),
-      validation: {
-        commands: f.validation?.commands || (input.test_command ? [input.test_command] : ["npm test"]),
-        expected_exit: f.validation?.expected_exit ?? 0,
-        test_files: (f.validation?.test_files || []).map(canonicalPath).sort(),
-      },
-      status: "unresolved",
-    }));
+    .map((f, idx) => {
+      const commands = f.validation?.commands;
+      if (!Array.isArray(commands) || commands.length === 0 || commands.some((c) => typeof c !== "string" || c.trim().length === 0)) {
+        throw new Error(`Finding ${f.id || idx + 1} lacks explicit reproducible validation recipe`);
+      }
+      return {
+        id: f.id || `V${String(idx + 1).padStart(3, "0")}`,
+        severity: f.severity,
+        summary: f.summary || "Unspecified defect",
+        origin: f.origin || "code-bug",
+        allowed_paths: (f.allowed_paths || input.candidate?.paths || []).map(canonicalPath).sort(),
+        validation: {
+          commands: commands,
+          expected_exit: f.validation?.expected_exit ?? 0,
+          test_files: (f.validation?.test_files || []).map(canonicalPath).sort(),
+        },
+        status: "unresolved",
+      };
+    });
 
   if (blockingFindings.length === 0) {
     throw new Error("Cannot open remediation lineage without at least one BLOCKER/CRITICAL finding");
@@ -135,9 +241,56 @@ function recordRemediationAttempt(state, candidateInput) {
   if (state.status !== "remediation-pending") {
     throw new Error(`Cannot record remediation attempt on lineage with status '${state.status}' (expected 'remediation-pending')`);
   }
+
+  const postCandidate = candidateInput?.candidate || candidateInput;
+  const postCandidateDigest = resolveCanonicalCandidateId(postCandidate);
+
+  // Drift check if baseline candidate is passed
+  if (candidateInput?.baseline_candidate) {
+    const preCandidateDigest = resolveCanonicalCandidateId(candidateInput.baseline_candidate);
+    if (preCandidateDigest !== state.current_candidate_id) {
+      const next = clone(state);
+      next.status = "superseded";
+      next.terminal_reason = "candidate-drift";
+      return {
+        lineage: next,
+        action: "supersede-and-discovery",
+        reason: "Candidate drift detected before remediation attempt",
+        reason_code: "candidate-drift",
+      };
+    }
+  }
+
+  // Derive actual remediation changed paths
+  let actualChangedPaths;
+  if (Array.isArray(candidateInput?.actual_changed_paths)) {
+    actualChangedPaths = candidateInput.actual_changed_paths.map(canonicalPath);
+  } else if (Array.isArray(postCandidate?.paths)) {
+    actualChangedPaths = postCandidate.paths.map(canonicalPath);
+  } else {
+    actualChangedPaths = [];
+  }
+
+  // Allowed paths union across unresolved findings
+  const allowedPathsUnion = new Set(
+    state.findings
+      .filter((f) => f.status === "unresolved")
+      .flatMap((f) => f.allowed_paths.map(canonicalPath))
+  );
+
+  const unauthorizedPaths = actualChangedPaths.filter((p) => !allowedPathsUnion.has(p));
+  if (unauthorizedPaths.length > 0) {
+    return {
+      lineage: clone(state),
+      action: "reject-remediation-scope",
+      reason: `Remediation modified paths outside allowed scope: ${unauthorizedPaths.join(", ")}`,
+      reason_code: "remediation-scope-violation",
+      unauthorized_paths: unauthorizedPaths,
+    };
+  }
+
   const next = clone(state);
-  const candidateDigest = computeCandidateDigest(candidateInput || {});
-  next.current_candidate_id = candidateDigest;
+  next.current_candidate_id = postCandidateDigest;
   next.remediation_attempts += 1;
 
   if (next.remediation_attempts > MAX_REMEDIATION_ATTEMPTS) {
@@ -169,9 +322,22 @@ function evaluateRecheck(state, input) {
   }
 
   const next = clone(state);
-  const currentContractDigest = computeContractDigest(input.contract || {});
 
-  // 1. Contract Drift Guard: spec/design/tasks changed
+  // Candidate drift check
+  const candidateDigest = resolveCanonicalCandidateId(input.candidate);
+  if (candidateDigest !== next.current_candidate_id) {
+    next.status = "superseded";
+    next.terminal_reason = "candidate-drift";
+    return {
+      lineage: next,
+      action: "superseded",
+      reason: "Candidate changed before targeted recheck",
+      reason_code: "candidate-drift",
+    };
+  }
+
+  // Contract drift check
+  const currentContractDigest = computeContractDigest(input.contract || {}, input);
   if (currentContractDigest !== next.contract_digest) {
     next.status = "superseded";
     next.terminal_reason = "contract-drift";
@@ -182,9 +348,6 @@ function evaluateRecheck(state, input) {
     };
   }
 
-  const candidateDigest = computeCandidateDigest(input.candidate || {});
-  next.current_candidate_id = candidateDigest;
-
   const recheckResults = input.recheck_results || {};
   const observedFindings = input.new_findings || [];
   const remediationPaths = new Set(
@@ -193,7 +356,7 @@ function evaluateRecheck(state, input) {
 
   let allFixed = true;
 
-  // 2. Evaluate frozen findings against frozen validation recipes
+  // Evaluate frozen findings against frozen validation recipes
   for (const finding of next.findings) {
     const isFixed = recheckResults[finding.id] === true || recheckResults[finding.id] === "PASS";
     if (isFixed) {
@@ -204,7 +367,7 @@ function evaluateRecheck(state, input) {
     }
   }
 
-  // 3. Classify new findings during recheck: causal regression vs late observation
+  // Classify new findings: causal regression vs late observation
   for (const newFinding of observedFindings) {
     const findingPaths = (newFinding.paths || []).map(canonicalPath);
     const isCausalRegression = findingPaths.some((p) => remediationPaths.has(p));
@@ -216,6 +379,10 @@ function evaluateRecheck(state, input) {
         existing.status = "unresolved";
         existing.summary = newFinding.summary || existing.summary;
       } else {
+        const commands = newFinding.validation?.commands;
+        if (!Array.isArray(commands) || commands.length === 0) {
+          throw new Error(`Causal regression finding ${newFinding.id} lacks explicit validation recipe`);
+        }
         next.findings.push({
           id: newFinding.id || `V${String(next.findings.length + 1).padStart(3, "0")}`,
           severity: newFinding.severity,
@@ -223,7 +390,7 @@ function evaluateRecheck(state, input) {
           origin: newFinding.origin || "code-bug",
           allowed_paths: findingPaths,
           validation: {
-            commands: newFinding.validation?.commands || (input.test_command ? [input.test_command] : ["npm test"]),
+            commands: commands,
             expected_exit: newFinding.validation?.expected_exit ?? 0,
             test_files: (newFinding.validation?.test_files || []).map(canonicalPath).sort(),
           },
@@ -231,7 +398,6 @@ function evaluateRecheck(state, input) {
         });
       }
     } else {
-      // Unrelated late observation -> advisory non-blocking
       next.late_observations.push({
         id: newFinding.id || `L${String(next.late_observations.length + 1).padStart(3, "0")}`,
         severity: newFinding.severity || "WARNING",
@@ -241,7 +407,6 @@ function evaluateRecheck(state, input) {
     }
   }
 
-  // 4. State Transition Logic
   if (allFixed) {
     next.status = "closed";
     next.verified_candidate_id = candidateDigest;
@@ -253,7 +418,6 @@ function evaluateRecheck(state, input) {
     };
   }
 
-  // Failed recheck: transition back to remediation-pending if attempts remaining
   if (next.remediation_attempts >= MAX_REMEDIATION_ATTEMPTS) {
     next.status = "exhausted";
     next.terminal_reason = "max-attempts-exceeded";
@@ -278,23 +442,32 @@ function getLineageNextAction(state, input = {}) {
   }
   assertVerifyLineage(state);
 
-  const currentContractDigest = computeContractDigest(input.contract || {});
+  const currentContractDigest = computeContractDigest(input.contract || {}, input);
   if (currentContractDigest !== state.contract_digest) {
     return { action: "supersede-and-discovery", reason: "contract-changed" };
   }
 
+  const currentCandidateDigest = resolveCanonicalCandidateId(input.candidate);
+
   switch (state.status) {
     case "closed": {
-      const currentCandidateDigest = computeCandidateDigest(input.candidate || {});
       if (currentCandidateDigest === state.verified_candidate_id) {
         return { action: "return-cached-pass", reason: "lineage-closed-and-candidate-verified" };
       }
       return { action: "supersede-and-discovery", reason: "candidate-code-changed" };
     }
-    case "remediation-pending":
+    case "remediation-pending": {
+      if (currentCandidateDigest !== state.current_candidate_id) {
+        return { action: "supersede-and-discovery", reason: "candidate-code-changed" };
+      }
       return { action: "apply-remediation", reason: "remediation-required-for-frozen-findings" };
-    case "recheck-pending":
+    }
+    case "recheck-pending": {
+      if (currentCandidateDigest !== state.current_candidate_id) {
+        return { action: "supersede-and-discovery", reason: "candidate-code-changed" };
+      }
       return { action: "run-targeted-recheck", reason: "active-recheck-pending" };
+    }
     case "exhausted":
       return { action: "require-user-intervention", reason: "remediation-attempts-exhausted" };
     case "superseded":
@@ -309,11 +482,12 @@ module.exports = {
   stableSerialize,
   digest,
   canonicalPath,
+  resolveCanonicalCandidateId,
   computeContractDigest,
-  computeCandidateDigest,
   assertVerifyLineage,
   startVerifyLineage,
   recordRemediationAttempt,
   evaluateRecheck,
   getLineageNextAction,
 };
+

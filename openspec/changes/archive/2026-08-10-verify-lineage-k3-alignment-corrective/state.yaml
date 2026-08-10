@@ -1,0 +1,90 @@
+change: verify-lineage-k3-alignment-corrective
+status: archived
+classification: high-risk
+last_updated: 2026-08-10T17:38:00Z
+blocking_questions: []
+owner:
+  author: Manuel Retamozo
+  branch: main
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "High-risk public-contract corrective on active project; standard route is selected."
+  validated: true
+  validation_errors: []
+approvals:
+  - id: ambient-sdd-route-001
+    gate: architecture
+    decision: "Route verify-lineage-k3-alignment-corrective through persisted SDD."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-10T17:33:00Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: intent-scope-001
+    gate: architecture
+    decision: "Align verify_lineage with K3 Candidate/v2 identities, active drift checks, byte-bound contract digest, mechanical remediation scope, explicit validation recipes, apply progress recovery, and canonical TDD authority without introducing K4a/K4b primitives."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-10T17:33:00Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: vscode/askQuestions
+    accepted_at: 2026-08-10T17:33:00Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: vscode/askQuestions
+    accepted_at: 2026-08-10T17:33:00Z
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/verify-lineage-k3-alignment-corrective/proposal.md"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/verify-lineage-k3-alignment-corrective/specs/verify-lineage/spec.md"
+  design:
+    status: done
+    artifact: "openspec/changes/verify-lineage-k3-alignment-corrective/design.md"
+  tasks:
+    status: done
+    artifact: "openspec/changes/verify-lineage-k3-alignment-corrective/tasks.md"
+  apply:
+    status: done
+    artifact: "openspec/changes/verify-lineage-k3-alignment-corrective/apply-progress.md"
+    summary: "Aligned verify_lineage with K3 Candidate/v2 identities, byte-bound contract digest, active drift checks, mechanical scope guard, and resolveTddMode authority."
+  verify:
+    status: done
+    artifact: "openspec/changes/verify-lineage-k3-alignment-corrective/verify-report.md"
+    verdict: "PASS WITH WARNINGS"
+    summary: "Verified verify-lineage-k3-alignment-corrective: all tests pass, 16/16 spec scenarios satisfied (PASS WITH WARNINGS)."
+  archive:
+    status: done
+    artifact: "openspec/changes/verify-lineage-k3-alignment-corrective/archive-report.md"
+    summary: "Archive plan emitted for verify-lineage-k3-alignment-corrective with 1 spec write."
+
+
