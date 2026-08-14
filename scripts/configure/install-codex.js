@@ -7,6 +7,12 @@ const { spawnSync } = require("node:child_process");
 
 const { runConfigure } = require("./cli.js");
 const { assertSafeDest } = require("./install-target.js");
+const {
+  readOwnershipManifest,
+  writeOwnershipManifest,
+  pruneStaleFiles,
+  toPosix,
+} = require("./install-engine.js");
 
 
 function usage() {
@@ -673,6 +679,9 @@ function createFilesystemTransaction(fsImpl = fs) {
 
 function preflightCodexAgents(outDir, destDir, approvedRoot, fsImpl = fs) {
   const agentsDir = path.join(outDir, ".codex", "agents");
+  if (!fsImpl.existsSync(agentsDir)) {
+    return;
+  }
   for (const entry of fsImpl.readdirSync(agentsDir, { withFileTypes: true })) {
     if (entry.isFile() && entry.name.endsWith(".toml")) {
       assertManagedPathSafe(approvedRoot, path.join(destDir, entry.name), "Codex agent file destination", fsImpl);
@@ -680,7 +689,38 @@ function preflightCodexAgents(outDir, destDir, approvedRoot, fsImpl = fs) {
   }
 }
 
+function gatherCodexOwnedFiles(outDir, fsImpl = fs) {
+  const owned = ["AGENTS.md", "hooks.json"];
 
+  // Agents
+  const agentsDir = path.join(outDir, ".codex", "agents");
+  if (fsImpl.existsSync(agentsDir)) {
+    for (const entry of fsImpl.readdirSync(agentsDir)) {
+      if (entry.endsWith(".toml") && entry !== "sdd-orchestrator.toml") {
+        owned.push(`agents/${entry}`);
+      }
+    }
+  }
+
+  // Runtime
+  function walkRel(dir, baseRel) {
+    if (!fsImpl.existsSync(dir)) return;
+    for (const entry of fsImpl.readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = path.join(dir, entry.name);
+      const relPath = `${baseRel}/${entry.name}`;
+      if (entry.isDirectory()) {
+        walkRel(fullPath, relPath);
+      } else if (entry.isFile()) {
+        owned.push(relPath);
+      }
+    }
+  }
+
+  walkRel(path.join(outDir, "scripts"), "ospec-workflow/scripts");
+  walkRel(path.join(outDir, "schemas"), "ospec-workflow/schemas");
+
+  return owned;
+}
 
 function main(argv, deps = {}) {
   const args = parseArgs(argv);
@@ -758,15 +798,17 @@ function main(argv, deps = {}) {
     const userHome = isRepoInstall ? undefined : path.resolve(homedir());
     const globalSkillsRoot = isRepoInstall ? undefined : path.join(userHome, ".agents", "skills");
     preflightCodexAgents(outDir, agentsDest, codexRoot, fsImpl);
+
     if (!isRepoInstall) {
       const runtimeDir = path.join(codexRoot, "ospec-workflow");
-      const hooksDest = path.join(codexRoot, "hooks.json");
       const runtimeSource = path.join(outDir, "scripts");
       const schemasSource = path.join(outDir, "schemas");
       const legacyRuntimeSkills = path.join(runtimeDir, "skills");
       const orchestratorAgent = path.join(agentsDest, "sdd-orchestrator.toml");
-      assertManagedPathSafe(codexRoot, runtimeDir, "Codex runtime destination", fsImpl);
-      assertManagedPathSafe(codexRoot, hooksDest, "Codex hooks destination", fsImpl);
+
+      assertManagedPathSafe(codexRoot, agentsDest, "Codex agents destination", fsImpl);
+      assertManagedPathSafe(codexRoot, path.join(codexRoot, "hooks.json"), "Codex hooks destination", fsImpl);
+      assertManagedPathSafe(codexRoot, runtimeDir, "Codex runtime directory", fsImpl);
       assertManagedPathSafe(codexRoot, legacyRuntimeSkills, "Codex legacy skills destination", fsImpl);
       assertManagedPathSafe(codexRoot, orchestratorAgent, "Codex orchestrator agent destination", fsImpl);
       if (fsImpl.existsSync(runtimeSource)) {
@@ -786,6 +828,11 @@ function main(argv, deps = {}) {
       if (!isRepoInstall) {
         const runtimeDir = path.join(codexRoot, "ospec-workflow");
         const hooksDest = path.join(codexRoot, "hooks.json");
+        const previousManifest = readOwnershipManifest(codexRoot, fsImpl);
+        const currentOwnedFiles = gatherCodexOwnedFiles(outDir, fsImpl);
+
+        pruneStaleFiles(codexRoot, previousManifest, currentOwnedFiles, writeFs);
+
         copyCodexRuntime(outDir, runtimeDir, { fs: writeFs });
         const legacyRuntimeSkills = path.join(runtimeDir, "skills");
         if (writeFs.existsSync(legacyRuntimeSkills)) {
@@ -794,6 +841,17 @@ function main(argv, deps = {}) {
         syncCodexSkills(outDir, globalSkillsRoot, { fs: writeFs, approvedRoot: userHome });
         writeFs.rmSync(path.join(agentsDest, "sdd-orchestrator.toml"), { force: true });
         installCodexHooks(outDir, codexRoot, runtimeDir, { fs: writeFs });
+
+        writeOwnershipManifest(
+          codexRoot,
+          {
+            version: require("../../package.json").version,
+            target: "codex",
+            installedAt: previousManifest?.installedAt || new Date().toISOString(),
+            files: currentOwnedFiles.map(toPosix),
+          },
+          writeFs,
+        );
       }
       fileTransaction.commit();
       mcpMutationJournal?.commit();
@@ -843,5 +901,6 @@ module.exports = {
   readCodexMcpDefinitions,
   ensureCodexMcps,
   assertManagedPathSafe,
+  gatherCodexOwnedFiles,
   main,
 };

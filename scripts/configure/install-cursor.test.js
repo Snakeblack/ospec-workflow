@@ -13,6 +13,7 @@ const {
   ensureCursorGenericHookEvents,
   syncTreeByContent,
   installHooksJson,
+  sanitizeCursorMcpServers,
   parseArgs,
   main,
 } = require("./install-cursor.js");
@@ -596,3 +597,27 @@ test("rollback refuses a symlink substituted for a managed-new directory", (t) =
   assert.throws(() => journal.rollback(), /symlink|rollback incomplete/i);
   assert.equal(fs.readFileSync(path.join(outside, "sentinel.txt"), "utf8"), "outside-preserved\n");
 });
+
+test("sanitizeCursorMcpServers resolves or strips ${input:...} placeholders", () => {
+  const mcpServers = {
+    context7: {
+      command: "npx",
+      args: ["-y", "@context7/mcp-server"],
+      env: {
+        CONTEXT7_API_KEY: "${input:CONTEXT7_API_KEY}",
+        STATIC_VAR: "literal_value",
+      },
+    },
+  };
+
+  // When env variable is unset in environment: placeholder stripped
+  const sanitizedUnset = sanitizeCursorMcpServers(mcpServers, {});
+  assert.equal(sanitizedUnset.context7.env.CONTEXT7_API_KEY, undefined);
+  assert.equal(sanitizedUnset.context7.env.STATIC_VAR, "literal_value");
+
+  // When env variable is set: expanded with value
+  const sanitizedSet = sanitizeCursorMcpServers(mcpServers, { CONTEXT7_API_KEY: "secret-key-123" });
+  assert.equal(sanitizedSet.context7.env.CONTEXT7_API_KEY, "secret-key-123");
+  assert.equal(sanitizedSet.context7.env.STATIC_VAR, "literal_value");
+});
+

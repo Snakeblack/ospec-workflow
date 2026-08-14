@@ -1,0 +1,19 @@
+schema: 1
+change: installation-engine-convergence-hardening
+phase: archive
+status: completed
+created_at: "2026-08-14T23:58:00Z"
+updated_at: "2026-08-15T00:09:00Z"
+baseline_fingerprints:
+  install: "4bead2a84ba7130eb53ad7697479633eeb4a6fa189c42621bdfc91beffb5c65f"
+approvals:
+  proposal:
+    approved: true
+    approved_by: user
+    approved_at: "2026-08-14T23:58:00Z"
+    notes: "Automatic execution approved with exception-ok"
+  size_exception:
+    approved: true
+    approved_by: user
+    approved_at: "2026-08-14T23:58:00Z"
+    notes: "User approved exception-ok mode"

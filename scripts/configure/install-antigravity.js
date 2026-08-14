@@ -177,7 +177,10 @@ function main(argv, deps = {}) {
     const allOwned = Array.from(new Set([...syncResult.ownedFiles, "hooks.json", MANIFEST_FILENAME]));
     const pruneResult = pruneStaleFiles(antigravityRoot, previousManifest, allOwned, fsImpl, journal);
 
-    const version = require(path.join(sourceDir, "package.json")).version;
+    let version = "0.0.0";
+    if (fsImpl.existsSync(path.join(sourceDir, "package.json"))) {
+      version = JSON.parse(fsImpl.readFileSync(path.join(sourceDir, "package.json"), "utf8")).version;
+    }
     const manifest = {
       version,
       target: "antigravity",

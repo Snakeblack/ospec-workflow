@@ -13,7 +13,7 @@ const os = require("node:os");
 
 const { runConfigure } = require("./cli.js");
 const { copyBinaryToTree } = require("./install-target.js");
-const { mergeJsoncFile } = require("./install-engine.js");
+const { safeParseJsonc, mergeJsoncFile } = require("./install-engine.js");
 
 function getSettingsPaths(deps = {}) {
   const home = deps.homedir ? deps.homedir() : os.homedir();
@@ -78,6 +78,46 @@ function parseArgs(argv) {
   return args;
 }
 
+function updateSettingsJsoncPreservingComments(rawContent, pluginPath) {
+  // Validate that rawContent is parseable JSONC
+  const parsed = safeParseJsonc(rawContent, "settings.json");
+  const currentLocations = parsed["chat.pluginLocations"] || [];
+  const locationsArray = Array.isArray(currentLocations) ? currentLocations : [currentLocations];
+  if (locationsArray.includes(pluginPath)) {
+    return { content: rawContent, updated: false };
+  }
+
+  // If chat.pluginLocations key is present in text
+  const keyRegex = /"chat\.pluginLocations"\s*:\s*\[([\s\S]*?)\]/;
+  const match = rawContent.match(keyRegex);
+  if (match) {
+    const arrayBody = match[1];
+    const cleanBody = arrayBody.trim();
+    let newArrayContent;
+    if (cleanBody === "") {
+      newArrayContent = `\n    ${JSON.stringify(pluginPath)}\n  `;
+    } else {
+      newArrayContent = `${arrayBody.replace(/\s+$/, "")},\n    ${JSON.stringify(pluginPath)}\n  `;
+    }
+    const replaced = rawContent.replace(keyRegex, `"chat.pluginLocations": [${newArrayContent}]`);
+    return { content: replaced, updated: true };
+  }
+
+  // Otherwise, insert after first opening {
+  const firstBrace = rawContent.indexOf("{");
+  if (firstBrace !== -1) {
+    const prefix = rawContent.slice(0, firstBrace + 1);
+    const suffix = rawContent.slice(firstBrace + 1);
+    const insertion = `\n  "chat.pluginLocations": [\n    ${JSON.stringify(pluginPath)}\n  ],`;
+    return { content: `${prefix}${insertion}${suffix}`, updated: true };
+  }
+
+  return {
+    content: `{\n  "chat.pluginLocations": [\n    ${JSON.stringify(pluginPath)}\n  ]\n}\n`,
+    updated: true,
+  };
+}
+
 function main(argv = process.argv.slice(2), deps = {}) {
   const args = parseArgs(argv);
   const cwd = deps.cwd || process.cwd();
@@ -122,31 +162,30 @@ function main(argv = process.argv.slice(2), deps = {}) {
 
   const settingsFiles = getSettingsPaths(deps);
   let configuredAny = false;
+  let hasErrors = false;
 
   for (const file of settingsFiles) {
     if (fsImpl.existsSync(file.path)) {
       try {
-        mergeJsoncFile(
-          file.path,
-          (config) => {
-            const next = { ...config };
-            next["chat.pluginLocations"] = next["chat.pluginLocations"] || [];
-            if (!Array.isArray(next["chat.pluginLocations"])) {
-              next["chat.pluginLocations"] = [next["chat.pluginLocations"]];
-            }
-            if (!next["chat.pluginLocations"].includes(absPluginPath)) {
-              next["chat.pluginLocations"].push(absPluginPath);
-            }
-            return next;
-          },
-          { fs: fsImpl },
-        );
-        stdout.write(`  + Updated ${file.name} settings.json\n`);
+        const raw = fsImpl.readFileSync(file.path, "utf8");
+        const { content: updatedContent, updated } = updateSettingsJsoncPreservingComments(raw, absPluginPath);
+        if (updated) {
+          fsImpl.writeFileSync(file.path, updatedContent, "utf8");
+          stdout.write(`  + Updated ${file.name} settings.json\n`);
+        } else {
+          stdout.write(`  · ${file.name} settings.json already configured\n`);
+        }
         configuredAny = true;
       } catch (err) {
-        stderr.write(`  [warn] Failed to parse/update ${file.name} settings.json: ${err.message}\n`);
+        stderr.write(`  [error] Failed to parse/update ${file.name} settings.json: ${err.message}\n`);
+        hasErrors = true;
       }
     }
+  }
+
+  if (hasErrors) {
+    stderr.write("\nVS Code installation failed due to invalid configuration file(s).\n");
+    return 1;
   }
 
   if (!configuredAny) {
@@ -173,5 +212,6 @@ if (require.main === module) {
 module.exports = {
   getSettingsPaths,
   parseArgs,
+  updateSettingsJsoncPreservingComments,
   main,
 };

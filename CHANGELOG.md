@@ -5,6 +5,29 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.44.1] - 2026-08-15
+
+### Added
+- **Aprovisionamiento Automático de Binario en Clones Limpios (`REQ-install-015`)**:
+  - Función `ensureRuntimeBinary()` en `scripts/configure/install-target.js` que compila automáticamente `ospec-hooks` con el compilador `go` local cuando está disponible en PATH.
+  - Scripts `build:hooks` y `ensure:hooks` en `package.json`.
+- **Tests de Integración de Convergencia Multiversión**:
+  - Nueva suite `tests/integration/installation-convergence.test.js` que valida ciclos de actualización entre versiones (v1 -> v2), poda de archivos obsoletos y preservación de archivos y hooks de usuario en OpenCode, Copilot, VS Code y Antigravity.
+
+### Fixed
+- **Corrección de Prefijo en Ownership de OpenCode y Copilot (`destRel`)**:
+  - Paso de `remap.destRel` como `relPrefix` a `syncTargetTree()` en `install-global-opencode.js` e `install-global-copilot.js` para registrar rutas relativas correctas (`agents/...`, `skills/...`) en `.ospec-workflow-install.json`.
+- **Poda Segura Fail-Closed en `pruneStaleFiles`**:
+  - Re-lanzamiento estricto de cualquier error del sistema de archivos, permisos o violación de seguridad en `install-engine.js` (ignorando únicamente `ENOENT`).
+- **Integración de Ownership y Convergencia en Codex**:
+  - Soporte de manifiesto de propiedad `.ospec-workflow-install.json`, cálculo de `gatherCodexOwnedFiles()` y poda automática `pruneStaleFiles()` en `install-codex.js`.
+- **Preservación de Comentarios JSONC y Fail-Closed en VS Code**:
+  - `updateSettingsJsoncPreservingComments()` en `install-vscode.js` para actualizar `chat.pluginLocations` preservando comentarios y formato, retornando código de salida no cero ante configuraciones corruptas.
+- **Sanitización de Variables MCP en Cursor**:
+  - Resolución o eliminación de placeholders no soportados `${input:...}` en `install-cursor.js` para evitar fugas en `~/.cursor/mcp.json`.
+- **Consolidación de la Especificación de Instalación**:
+  - Actualización completa de la línea base `openspec/specs/install/spec.md` con los 7 targets globales y requerimientos `REQ-install-008` a `REQ-install-015`.
+
 ## [2.44.0] - 2026-08-14
 
 ### Added
