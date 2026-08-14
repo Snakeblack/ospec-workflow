@@ -84,7 +84,7 @@ After resolving a valid base path, scan its immediate children (depth-1 only, no
 
 1. Inspect project files (`package.json`, `go.mod`, `pyproject.toml`, CI, lint/test config) and summarize stack/conventions.
 2. Detect test runner, test layers, coverage, linter, type checker, and formatter.
-3. Resolve Strict TDD from agent marker, `openspec/config.yaml`, detected runner fallback, or no-runner fallback.
+3. Resolve test runner availability and initialize `testing.tdd_mode` in `openspec/config.yaml` based on scale preset (`solo` → `standard`, `team` → `focused`, `enterprise` → `strict`).
 4. Initialize persistence for the resolved mode.
 5. Build `.ospec/cache/skill-registry.cache.json` using the skill-registry scan rules.
 6. Persist testing capabilities and project context.

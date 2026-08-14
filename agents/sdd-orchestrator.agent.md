@@ -407,8 +407,8 @@ route phases and MUST NOT be passed through `validate-phase.js`.
 
 #### TDD Mode Forwarding (MANDATORY)
 
-When launching `sdd-apply` or `sdd-verify`, read `openspec/config.yaml` (`testing.tdd_mode` or legacy `strict_tdd: true`, ONCE per session at first apply/verify launch, then cached).
-- If `testing.tdd_mode: strict` (or legacy `strict_tdd: true`), add to the sub-agent prompt: `"STRICT TDD MODE IS ACTIVE. Test runner: {test_command}. You MUST follow strict-tdd.md. Do NOT fall back to Standard Mode."`.
+When launching `sdd-apply` or `sdd-verify`, read `openspec/config.yaml` (`testing.tdd_mode`, resolved via `resolveTddMode`, ONCE per session at first apply/verify launch, then cached).
+- If `testing.tdd_mode: strict`, add to the sub-agent prompt: `"STRICT TDD MODE IS ACTIVE. Test runner: {test_command}. You MUST follow strict-tdd.md. Do NOT fall back to Standard Mode."`.
 - If `testing.tdd_mode: focused`, add to the sub-agent prompt: `"TDD MODE: FOCUSED. Test runner: {test_command}. Follow focused TDD."`.
 - If `testing.tdd_mode: standard` or config missing, add nothing (Standard Mode).
 

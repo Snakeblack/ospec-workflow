@@ -46,14 +46,13 @@ function setupGitRepoWithCandidates() {
   exec("git add .");
   exec('git commit -m "initial commit"');
   const tree1 = child_process.execFileSync("git", ["rev-parse", "HEAD^{tree}"], { cwd: tmpDir, encoding: "utf8" }).trim();
-  const tree1Padded = tree1.padStart(64, "0");
 
   const cA = freezeCandidate({
     repository_id: "repo-1",
     projection: "workspace",
-    base_tree: `sha256:${tree1Padded}`,
-    candidate_tree: `sha256:${tree1Padded}`,
-    diff_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+    base_tree: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    candidate_tree: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+    diff_hash: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
     paths: ["internal/auth/auth.go", "internal/auth/auth_test.go"],
   });
 
@@ -61,18 +60,22 @@ function setupGitRepoWithCandidates() {
   exec("git add internal/auth/auth.go");
   exec('git commit -m "fix auth"');
   const tree2 = child_process.execFileSync("git", ["rev-parse", "HEAD^{tree}"], { cwd: tmpDir, encoding: "utf8" }).trim();
-  const tree2Padded = tree2.padStart(64, "0");
 
   const cB = freezeCandidate({
     repository_id: "repo-1",
     projection: "workspace",
-    base_tree: `sha256:${tree1Padded}`,
-    candidate_tree: `sha256:${tree2Padded}`,
-    diff_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000002",
+    base_tree: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    candidate_tree: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+    diff_hash: "sha256:5555555555555555555555555555555555555555555555555555555555555555",
     paths: ["internal/auth/auth.go", "internal/auth/auth_test.go"],
   });
 
-  return { tmpDir, cA, cB, tree1, tree2 };
+  const git_trees = {
+    [cA.candidate_id]: tree1,
+    [cB.candidate_id]: tree2,
+  };
+
+  return { tmpDir, cA, cB, tree1, tree2, git_trees };
 }
 
 const sampleCandidate = freezeCandidate({
@@ -147,10 +150,15 @@ test("Phase 1.1-1.7: prepareRemediation and recordRemediationAttempt enforce bas
 test("deriveCandidateDeltaPaths uses real Git objects on rootDir and ignores diffText or path-set fallbacks", () => {
   const gitRepo = setupGitRepoWithCandidates();
   try {
-    const { tmpDir, cA, cB } = gitRepo;
+    const { tmpDir, cA, cB, git_trees, tree1, tree2 } = gitRepo;
 
-    const delta = deriveCandidateDeltaPaths(cA, cB, { rootDir: tmpDir });
-    assert.deepEqual(delta, ["internal/auth/auth.go"]);
+    // Test with explicit git_trees dictionary
+    const delta1 = deriveCandidateDeltaPaths(cA, cB, { rootDir: tmpDir, git_trees });
+    assert.deepEqual(delta1, ["internal/auth/auth.go"]);
+
+    // Test with before_git_tree and after_git_tree options
+    const delta2 = deriveCandidateDeltaPaths(cA, cB, { rootDir: tmpDir, before_git_tree: tree1, after_git_tree: tree2 });
+    assert.deepEqual(delta2, ["internal/auth/auth.go"]);
 
     assert.throws(
       () => deriveCandidateDeltaPaths(cA, cB, { diffText: "diff --git a/auth.go b/auth.go\n+fix" }),
@@ -233,13 +241,14 @@ test("Mechanical remediation scope enforcement with baseline Candidate and Git d
   const changeRoot = setupContractDir();
   const gitRepo = setupGitRepoWithCandidates();
   try {
-    const { tmpDir, cA, cB } = gitRepo;
+    const { tmpDir, cA, cB, git_trees } = gitRepo;
     const lineage = startVerifyLineage({ changeRoot, candidate: cA, findings: sampleFindings });
 
     const inScopeRes = recordRemediationAttempt(lineage, {
       baseline_candidate: cA,
       candidate: cB,
       rootDir: tmpDir,
+      git_trees,
     });
     assert.equal(inScopeRes.action, "run-targeted-recheck");
     assert.equal(inScopeRes.lineage.status, "recheck-pending");
@@ -294,11 +303,11 @@ test("Full FSM lifecycle from start to exhausted with filesystem contract author
   const changeRoot = setupContractDir();
   const gitRepo = setupGitRepoWithCandidates();
   try {
-    const { tmpDir, cA, cB } = gitRepo;
+    const { tmpDir, cA, cB, git_trees } = gitRepo;
     const l0 = startVerifyLineage({ changeRoot, candidate: cA, findings: sampleFindings });
     assert.equal(l0.status, "remediation-pending");
 
-    const { lineage: l1 } = recordRemediationAttempt(l0, { baseline_candidate: cA, candidate: cB, rootDir: tmpDir });
+    const { lineage: l1 } = recordRemediationAttempt(l0, { baseline_candidate: cA, candidate: cB, rootDir: tmpDir, git_trees });
     assert.equal(l1.status, "recheck-pending");
 
     const recheck1 = evaluateRecheck(l1, {
@@ -310,7 +319,7 @@ test("Full FSM lifecycle from start to exhausted with filesystem contract author
     assert.equal(recheck1.lineage.status, "remediation-pending");
     assert.equal(recheck1.lineage.remediation_attempts, 1);
 
-    const { lineage: l2 } = recordRemediationAttempt(recheck1.lineage, { baseline_candidate: cB, candidate: cB });
+    const { lineage: l2 } = recordRemediationAttempt(recheck1.lineage, { baseline_candidate: cB, candidate: cB, rootDir: tmpDir, git_trees });
     assert.equal(l2.status, "recheck-pending");
     assert.equal(l2.remediation_attempts, 2);
 
@@ -334,9 +343,9 @@ test("Closed lineage cached PASS behavior", () => {
   const changeRoot = setupContractDir();
   const gitRepo = setupGitRepoWithCandidates();
   try {
-    const { tmpDir, cA, cB } = gitRepo;
+    const { tmpDir, cA, cB, git_trees } = gitRepo;
     const l0 = startVerifyLineage({ changeRoot, candidate: cA, findings: sampleFindings });
-    const { lineage: l1 } = recordRemediationAttempt(l0, { baseline_candidate: cA, candidate: cB, rootDir: tmpDir });
+    const { lineage: l1 } = recordRemediationAttempt(l0, { baseline_candidate: cA, candidate: cB, rootDir: tmpDir, git_trees });
     const recheckClosed = evaluateRecheck(l1, {
       changeRoot,
       candidate: cB,
@@ -372,4 +381,66 @@ test("Phase 9.1-9.5: Assert corrective introduces no K4a/K4b primitives in verif
   assert.equal(source.includes("EvaluationAttestation"), false);
   assert.equal(source.includes("DeliveryAuthorization"), false);
   assert.equal(source.includes("AuthorityStore"), false);
+});
+
+test("Candidate ↔ Git Tree binding: genuine Candidate v2 with real SHA-256 tree digests derives delta via mechanical git_trees binding", () => {
+  const tmpDir = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "vl-binding-"));
+  const exec = (cmd) => child_process.execSync(cmd, { cwd: tmpDir, stdio: "ignore" });
+  exec("git init");
+  exec('git config user.name "Test"');
+  exec('git config user.email "test@example.com"');
+
+  fs.mkdirSync(path.join(tmpDir, "pkg", "service"), { recursive: true });
+  fs.writeFileSync(path.join(tmpDir, "pkg", "service", "service.go"), "package service\n");
+  exec("git add .");
+  exec('git commit -m "init"');
+  const treeA = child_process.execFileSync("git", ["rev-parse", "HEAD^{tree}"], { cwd: tmpDir, encoding: "utf8" }).trim();
+
+  fs.writeFileSync(path.join(tmpDir, "pkg", "service", "service.go"), "package service\n// updated\n");
+  exec("git add .");
+  exec('git commit -m "update"');
+  const treeB = child_process.execFileSync("git", ["rev-parse", "HEAD^{tree}"], { cwd: tmpDir, encoding: "utf8" }).trim();
+
+  const candA = freezeCandidate({
+    repository_id: "repo-1",
+    projection: "workspace",
+    base_tree: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    candidate_tree: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    diff_hash: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    paths: ["pkg/service/service.go"],
+  });
+
+  const candB = freezeCandidate({
+    repository_id: "repo-1",
+    projection: "workspace",
+    base_tree: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    candidate_tree: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    diff_hash: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    paths: ["pkg/service/service.go"],
+  });
+
+  try {
+    assert.throws(
+      () => deriveCandidateDeltaPaths(candA, candB, { rootDir: tmpDir }),
+      (err) => err.code === "delta-unresolvable"
+    );
+
+    const deltaWithDict = deriveCandidateDeltaPaths(candA, candB, {
+      rootDir: tmpDir,
+      git_trees: {
+        [candA.candidate_id]: treeA,
+        [candB.candidate_id]: treeB,
+      },
+    });
+    assert.deepEqual(deltaWithDict, ["pkg/service/service.go"]);
+
+    const deltaWithExplicit = deriveCandidateDeltaPaths(candA, candB, {
+      rootDir: tmpDir,
+      before_git_tree: treeA,
+      after_git_tree: treeB,
+    });
+    assert.deepEqual(deltaWithExplicit, ["pkg/service/service.go"]);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });

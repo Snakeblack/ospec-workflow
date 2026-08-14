@@ -147,10 +147,53 @@ function deriveCandidateDeltaPaths(beforeCandidate, afterCandidate, options = {}
 
   const rootDir = options.rootDir || options.cwd || null;
   if (rootDir && typeof rootDir === "string" && fsSync.existsSync(rootDir)) {
-    let bTree = (beforeCandidate.candidate_tree || "").replace("sha256:", "");
-    let aTree = (afterCandidate.candidate_tree || "").replace("sha256:", "");
-    if (bTree.length === 64 && /^0{24}[a-f0-9]{40}$/i.test(bTree)) bTree = bTree.slice(24);
-    if (aTree.length === 64 && /^0{24}[a-f0-9]{40}$/i.test(aTree)) aTree = aTree.slice(24);
+    const gitTrees = options.git_trees || options.gitTrees || {};
+    let bTree =
+      options.before_git_tree ||
+      options.beforeGitTree ||
+      gitTrees[beforeId] ||
+      beforeCandidate?.git_tree_oid ||
+      beforeCandidate?.gitTreeOid ||
+      null;
+
+    let aTree =
+      options.after_git_tree ||
+      options.afterGitTree ||
+      gitTrees[afterId] ||
+      afterCandidate?.git_tree_oid ||
+      afterCandidate?.gitTreeOid ||
+      null;
+
+    if (!bTree && beforeCandidate?.candidate_tree) {
+      const rawB = (beforeCandidate.candidate_tree || "").replace("sha256:", "");
+      try {
+        bTree = require("node:child_process")
+          .execFileSync("git", ["rev-parse", "--verify", `${rawB}^{tree}`], {
+            cwd: rootDir,
+            encoding: "utf8",
+            stdio: ["pipe", "pipe", "ignore"],
+          })
+          .trim();
+      } catch {
+        bTree = null;
+      }
+    }
+
+    if (!aTree && afterCandidate?.candidate_tree) {
+      const rawA = (afterCandidate.candidate_tree || "").replace("sha256:", "");
+      try {
+        aTree = require("node:child_process")
+          .execFileSync("git", ["rev-parse", "--verify", `${rawA}^{tree}`], {
+            cwd: rootDir,
+            encoding: "utf8",
+            stdio: ["pipe", "pipe", "ignore"],
+          })
+          .trim();
+      } catch {
+        aTree = null;
+      }
+    }
+
     if (bTree && aTree) {
       try {
         const stdout = require("node:child_process").execFileSync(
@@ -168,7 +211,7 @@ function deriveCandidateDeltaPaths(beforeCandidate, afterCandidate, options = {}
     }
   }
 
-  const error = new Error("Cannot derive candidate delta paths: candidate_tree or rootDir is missing or unresolvable against Git repository (delta-unresolvable)");
+  const error = new Error("Cannot derive candidate delta paths: git tree OIDs or rootDir are missing or unresolvable against Git repository (delta-unresolvable)");
   error.code = "delta-unresolvable";
   throw error;
 }
@@ -293,7 +336,7 @@ function prepareRemediation(state, currentCandidate) {
   };
 }
 
-function recordRemediationAttempt(state, candidateInput) {
+function recordRemediationAttempt(state, candidateInput, options = {}) {
   assertVerifyLineage(state);
   if (state.status !== "remediation-pending") {
     throw new Error(`Cannot record remediation attempt on lineage with status '${state.status}' (expected 'remediation-pending')`);
@@ -323,7 +366,8 @@ function recordRemediationAttempt(state, candidateInput) {
   }
   const postCandidateDigest = resolveCanonicalCandidateId(postCandidate);
 
-  const actualChangedPaths = deriveCandidateDeltaPaths(preCandidate, postCandidate, candidateInput);
+  const deltaOptions = Object.assign({}, typeof candidateInput === "object" ? candidateInput : {}, options);
+  const actualChangedPaths = deriveCandidateDeltaPaths(preCandidate, postCandidate, deltaOptions);
 
   const allowedPathsUnion = new Set(
     state.findings
