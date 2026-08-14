@@ -8,7 +8,7 @@ Per-target installation and distribution of the ospec-workflow plugin. Covers ho
 
 - npm scripts:
   - Claude: `build:claude`, `setup:claude`, `reload:claude`
-  - GitHub Copilot: `build:copilot`, `setup:copilot`, `reload:copilot`, `install:copilot`, `install:global:copilot`
+  - GitHub Copilot: `build:copilot`, `setup:copilot`, `reload:copilot`, `install:global:copilot`
   - OpenCode: `build:opencode`, `setup:opencode`, `reload:opencode`, `install:opencode`, `install:global:opencode`
   - Codex: `build:codex`, `setup:codex`, `install:codex`
   - VS Code: `build:vscode`, `setup:vscode`, `reload:vscode`

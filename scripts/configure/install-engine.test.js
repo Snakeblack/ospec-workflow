@@ -271,3 +271,11 @@ test("safeParseJsonc parses complex JSONC without corrupting string literals", (
   assert.deepEqual(parsed.nested.array, ["item1", "item2"]);
 });
 
+test("safeParseJsonc preserves string literals containing comma and closing brace", () => {
+  const jsonc = `{\n  "template": "function() { return { a: 1, }; }",\n  "arrayInString": "[\\n    1,\\n  ]"\n}`;
+  const parsed = safeParseJsonc(jsonc);
+  assert.equal(parsed.template, "function() { return { a: 1, }; }");
+  assert.equal(parsed.arrayInString, "[\n    1,\n  ]");
+});
+
+

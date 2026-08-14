@@ -221,11 +221,12 @@ function safeParseJson(content, filename = "config.json") {
 }
 
 function stripJsoncComments(content) {
-  let result = "";
+  const chars = [];
   let inString = false;
   let inSingleLineComment = false;
   let inMultiLineComment = false;
   let isEscaped = false;
+  let lastCommaIndex = -1;
 
   for (let i = 0; i < content.length; i += 1) {
     const char = content[i];
@@ -234,7 +235,7 @@ function stripJsoncComments(content) {
     if (inSingleLineComment) {
       if (char === "\n" || char === "\r") {
         inSingleLineComment = false;
-        result += char;
+        chars.push(char);
       }
       continue;
     }
@@ -248,7 +249,7 @@ function stripJsoncComments(content) {
     }
 
     if (inString) {
-      result += char;
+      chars.push(char);
       if (isEscaped) {
         isEscaped = false;
       } else if (char === "\\") {
@@ -261,7 +262,8 @@ function stripJsoncComments(content) {
 
     if (char === '"') {
       inString = true;
-      result += char;
+      lastCommaIndex = -1;
+      chars.push(char);
       continue;
     }
 
@@ -277,11 +279,32 @@ function stripJsoncComments(content) {
       continue;
     }
 
-    result += char;
+    // Outside comments and strings
+    if (char === ",") {
+      lastCommaIndex = chars.length;
+      chars.push(char);
+      continue;
+    }
+
+    if (char === "}" || char === "]") {
+      if (lastCommaIndex !== -1) {
+        chars.splice(lastCommaIndex, 1);
+        lastCommaIndex = -1;
+      }
+      chars.push(char);
+      continue;
+    }
+
+    if (char === " " || char === "\t" || char === "\n" || char === "\r") {
+      chars.push(char);
+      continue;
+    }
+
+    lastCommaIndex = -1;
+    chars.push(char);
   }
 
-  // Strip trailing commas before closing } or ]
-  return result.replace(/,\s*([}\]])/g, "$1");
+  return chars.join("");
 }
 
 function safeParseJsonc(content, filename = "settings.json") {

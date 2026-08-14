@@ -126,3 +126,39 @@ test("main returns 1 when no VS Code settings directory exists", () => {
   assert.equal(exitCode, 1);
 });
 
+test("updateSettingsJsoncPreservingComments handles array with trailing comma and comments", () => {
+  const initialJsonc = `{\n  "chat.pluginLocations": [\n    "/existing/one", // first plugin\n    "/existing/two",\n  ],\n}`;
+  const pluginPath = "/new/plugin";
+  const { content, updated } = updateSettingsJsoncPreservingComments(initialJsonc, pluginPath);
+  assert.equal(updated, true);
+  assert.match(content, /"\/existing\/one"/);
+  assert.match(content, /"\/existing\/two"/);
+  assert.match(content, /"\/new\/plugin"/);
+  assert.match(content, /\/\/ first plugin/);
+});
+
+test("main preflight aborts before any writes when one settings file is corrupt", () => {
+  const written = {};
+  const mockFs = {
+    existsSync: (p) => p.includes("settings.json"),
+    readFileSync: (p) => {
+      if (p.includes("Insiders")) return "{ corrupt json syntax";
+      return '{\n  "editor.fontSize": 14\n}';
+    },
+    writeFileSync: (p, data) => { written[p] = data; },
+  };
+  const exitCode = main([], {
+    fs: mockFs,
+    runConfigure: () => ({ exitCode: 0 }),
+    copyBinaryToTree: () => {},
+    homedir: () => "/home/user",
+    env: { APPDATA: "C:/fake" },
+    platform: "win32",
+    stdout: { write: () => {} },
+    stderr: { write: () => {} },
+  });
+  assert.equal(exitCode, 1);
+  assert.equal(Object.keys(written).length, 0, "No files must be written if any settings file fails preflight");
+});
+
+
