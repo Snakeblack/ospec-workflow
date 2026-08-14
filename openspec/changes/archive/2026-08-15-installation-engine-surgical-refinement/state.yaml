@@ -1,0 +1,19 @@
+schema: 1
+change: installation-engine-surgical-refinement
+phase: archive
+status: completed
+created_at: "2026-08-15T00:21:00Z"
+updated_at: "2026-08-15T00:26:00Z"
+baseline_fingerprints:
+  install: "cbb26fcbc701f568a8dc41ff25068205ef5ee2c700fb47cb4fa29d20c5717bc4"
+approvals:
+  proposal:
+    approved: true
+    approved_by: user
+    approved_at: "2026-08-15T00:21:00Z"
+    notes: "Automatic execution approved with exception-ok"
+  size_exception:
+    approved: true
+    approved_by: user
+    approved_at: "2026-08-15T00:21:00Z"
+    notes: "User approved exception-ok mode"

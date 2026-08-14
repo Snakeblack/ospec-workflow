@@ -73,3 +73,56 @@ test("main returns non-zero when settings file is corrupt", () => {
   });
   assert.equal(exitCode, 1);
 });
+
+test("updateSettingsJsoncPreservingComments converts scalar pluginLocations without duplication", () => {
+  const initialJsonc = `{\n  "editor.fontSize": 14,\n  "chat.pluginLocations": "C:/other-plugin"\n}`;
+  const pluginPath = "C:/dev/ospec-workflow/dist/vscode";
+  const { content, updated } = updateSettingsJsoncPreservingComments(initialJsonc, pluginPath);
+  assert.equal(updated, true);
+  assert.match(content, /"chat\.pluginLocations": \[\s*"C:\/other-plugin",\s*"C:\/dev\/ospec-workflow\/dist\/vscode"\s*\]/);
+
+  // Check no duplicate key was created
+  const matches = content.match(/"chat\.pluginLocations"/g);
+  assert.equal(matches.length, 1);
+});
+
+test("main creates settings.json when user settings directory exists", () => {
+  const written = {};
+  const mockFs = {
+    existsSync: (p) => p.includes("User") && !p.includes("settings.json"),
+    readFileSync: () => "",
+    writeFileSync: (p, data) => { written[p] = data; },
+  };
+  const exitCode = main([], {
+    fs: mockFs,
+    runConfigure: () => ({ exitCode: 0 }),
+    copyBinaryToTree: () => {},
+    homedir: () => "/home/user",
+    env: { APPDATA: "C:/fake" },
+    platform: "win32",
+    stdout: { write: () => {} },
+    stderr: { write: () => {} },
+  });
+  assert.equal(exitCode, 0);
+  assert.ok(Object.keys(written).some((p) => p.includes("settings.json")));
+});
+
+test("main returns 1 when no VS Code settings directory exists", () => {
+  const mockFs = {
+    existsSync: () => false,
+    readFileSync: () => "",
+    writeFileSync: () => {},
+  };
+  const exitCode = main([], {
+    fs: mockFs,
+    runConfigure: () => ({ exitCode: 0 }),
+    copyBinaryToTree: () => {},
+    homedir: () => "/home/user",
+    env: { APPDATA: "C:/fake" },
+    platform: "win32",
+    stdout: { write: () => {} },
+    stderr: { write: () => {} },
+  });
+  assert.equal(exitCode, 1);
+});
+

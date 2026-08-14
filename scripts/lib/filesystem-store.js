@@ -44,7 +44,7 @@ async function withFileLock(filePath, fn, options = {}) {
         try { await handle.close(); } catch (_) {}
         handle = null;
       }
-      if (err.code === "EEXIST") {
+      if (err.code === "EEXIST" || (process.platform === "win32" && (err.code === "EPERM" || err.code === "EBUSY" || err.code === "EACCES"))) {
         try {
           const stats = await fs.stat(lockPath);
           if (Date.now() - stats.mtimeMs > staleTimeout) {

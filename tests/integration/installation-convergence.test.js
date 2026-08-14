@@ -229,3 +229,88 @@ test("Antigravity installation engine: multi-version upgrade converges and prese
   assert.ok(!manifest.files.includes("skills/old-skill/SKILL.md"));
 });
 
+test("Codex installation engine: multi-version upgrade converges skills and agents while preserving user custom skills", (t) => {
+  const sandbox = makeTempDir(t, "codex-conv-");
+  const home = path.join(sandbox, "user-home");
+  const codexRoot = path.join(home, ".codex");
+  const skillsRoot = path.join(home, ".agents", "skills");
+  const sourceV1 = path.join(sandbox, "source-v1");
+  const sourceV2 = path.join(sandbox, "source-v2");
+
+  fs.mkdirSync(codexRoot, { recursive: true });
+  fs.mkdirSync(skillsRoot, { recursive: true });
+
+  // V1 build: sdd-apply and old-skill
+  const outDirV1 = path.join(sourceV1, "dist", "codex");
+  fs.mkdirSync(path.join(outDirV1, ".codex", "agents"), { recursive: true });
+  fs.writeFileSync(path.join(outDirV1, "AGENTS.md"), "# Codex Agents");
+  fs.writeFileSync(path.join(outDirV1, ".codex", "agents", "sdd-apply.toml"), 'name = "sdd-apply"');
+  fs.writeFileSync(path.join(outDirV1, ".codex", "agents", "old-agent.toml"), 'name = "old-agent"');
+  fs.mkdirSync(path.join(outDirV1, "skills", "old-skill"), { recursive: true });
+  fs.writeFileSync(path.join(outDirV1, "skills", "old-skill", "SKILL.md"), "# Old Skill");
+  fs.mkdirSync(path.join(outDirV1, "scripts"), { recursive: true });
+  fs.writeFileSync(path.join(outDirV1, "hooks.json"), JSON.stringify({ hooks: {} }));
+
+  const codeV1 = installCodex(["--source", sourceV1, "--no-validate"], {
+    fs,
+    homedir: () => home,
+    outDir: outDirV1,
+    runConfigure: () => ({ exitCode: 0 }),
+    findCodexBin: () => null,
+    stdout: { write: () => {} },
+    stderr: { write: () => {} },
+  });
+  assert.equal(codeV1, 0);
+
+  // User adds custom agent and custom skill
+  fs.writeFileSync(path.join(codexRoot, "agents", "user-custom.toml"), 'name = "user-custom"');
+  fs.mkdirSync(path.join(skillsRoot, "user-custom-skill"), { recursive: true });
+  fs.writeFileSync(path.join(skillsRoot, "user-custom-skill", "SKILL.md"), "# User Custom Skill");
+
+  // V2 build: old-agent and old-skill are removed; sdd-verify and new-skill are added
+  const outDirV2 = path.join(sourceV2, "dist", "codex");
+  fs.mkdirSync(path.join(outDirV2, ".codex", "agents"), { recursive: true });
+  fs.writeFileSync(path.join(outDirV2, "AGENTS.md"), "# Codex Agents");
+  fs.writeFileSync(path.join(outDirV2, ".codex", "agents", "sdd-apply.toml"), 'name = "sdd-apply"');
+  fs.writeFileSync(path.join(outDirV2, ".codex", "agents", "sdd-verify.toml"), 'name = "sdd-verify"');
+  fs.mkdirSync(path.join(outDirV2, "skills", "new-skill"), { recursive: true });
+  fs.writeFileSync(path.join(outDirV2, "skills", "new-skill", "SKILL.md"), "# New Skill");
+  fs.mkdirSync(path.join(outDirV2, "scripts"), { recursive: true });
+  fs.writeFileSync(path.join(outDirV2, "hooks.json"), JSON.stringify({ hooks: {} }));
+
+  const codeV2 = installCodex(["--source", sourceV2, "--no-validate"], {
+    fs,
+    homedir: () => home,
+    outDir: outDirV2,
+    runConfigure: () => ({ exitCode: 0 }),
+    findCodexBin: () => null,
+    stdout: { write: () => {} },
+    stderr: { write: () => {} },
+  });
+  assert.equal(codeV2, 0);
+
+  // Assert old agent and old skill were pruned
+  assert.equal(fs.existsSync(path.join(codexRoot, "agents", "old-agent.toml")), false);
+  assert.equal(fs.existsSync(path.join(skillsRoot, "old-skill", "SKILL.md")), false);
+
+  // Assert new agent and new skill were added
+  assert.equal(fs.existsSync(path.join(codexRoot, "agents", "sdd-verify.toml")), true);
+  assert.equal(fs.existsSync(path.join(skillsRoot, "new-skill", "SKILL.md")), true);
+
+  // Assert user custom files are completely preserved
+  assert.equal(fs.existsSync(path.join(codexRoot, "agents", "user-custom.toml")), true);
+  assert.equal(fs.existsSync(path.join(skillsRoot, "user-custom-skill", "SKILL.md")), true);
+
+  // Assert both manifests are present and updated
+  const codexManifest = JSON.parse(fs.readFileSync(path.join(codexRoot, ".ospec-workflow-install.json"), "utf8"));
+  assert.equal(codexManifest.target, "codex");
+  assert.ok(codexManifest.files.includes("agents/sdd-verify.toml"));
+  assert.ok(!codexManifest.files.includes("agents/old-agent.toml"));
+
+  const skillsManifest = JSON.parse(fs.readFileSync(path.join(skillsRoot, ".ospec-workflow-install.json"), "utf8"));
+  assert.equal(skillsManifest.target, "codex-skills");
+  assert.ok(skillsManifest.files.includes("new-skill/SKILL.md"));
+  assert.ok(!skillsManifest.files.includes("old-skill/SKILL.md"));
+});
+
+

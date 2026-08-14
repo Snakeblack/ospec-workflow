@@ -39,16 +39,19 @@ Claude Code discovers plugins through a local marketplace registered with its CL
 
 ### 1.2 GitHub Copilot and OpenCode — Global Home and Repo Sync
 
-Copilot (`~/.config/github-copilot/` or `.github/`) and OpenCode (`~/.config/opencode/` or `.opencode/`) consume the workflow through structured folders. Global setups use `install-engine.js` with `.ospec-workflow-install.json` manifest tracking, subfolder prefix preservation, and stale file pruning.
+Copilot (`~/.copilot/` or `.github/`) and OpenCode (`~/.config/opencode/` or `.opencode/`) consume the workflow through structured folders. Global setups use `install-engine.js` with `.ospec-workflow-install.json` manifest tracking, subfolder prefix preservation, and stale file pruning.
 
 **npm commands**
 
 | Command | Script | Effect |
 |---|---|---|
 | `npm run build:copilot` | `scripts/configure/cli.js --target github-copilot --out dist/github-copilot` | Build `dist/github-copilot/` only |
-| `npm run setup:copilot` | `scripts/configure/install-global-copilot.js` | Build + install into global Copilot config |
+| `npm run setup:copilot` | `scripts/configure/install-global-copilot.js` | Build + install into global Copilot config (`~/.copilot/`) |
+| `npm run reload:copilot` | `scripts/configure/install-global-copilot.js` | Re-run global Copilot installation |
+| `npm run install:global:copilot` | `scripts/configure/install-global-copilot.js` | Alias for `setup:copilot` |
 | `npm run build:opencode` | `scripts/configure/cli.js --target opencode --out dist/opencode` | Build `dist/opencode/` only |
-| `npm run setup:opencode` | `scripts/configure/install-global-opencode.js` | Build + install into global OpenCode config |
+| `npm run setup:opencode` | `scripts/configure/install-global-opencode.js` | Build + install into global OpenCode config (`~/.config/opencode/`) |
+| `npm run install:opencode -- <destRepo>` | `scripts/configure/install-target.js opencode <destRepo>` | Build + sync into destination repository |
 
 ### 1.3 Codex — Native Global Installation & Ownership
 
@@ -607,7 +610,7 @@ and `setup:cursor` as the supported Cursor path.
 
 ### Requirement: Unified Installation Ownership Manifest & Convergence {#REQ-install-008}
 
-All global target installers (Cursor, Copilot, OpenCode, Codex, VS Code, Antigravity) MUST persist an installation manifest (`.ospec-workflow-install.json`) recording the installed version, target, timestamp, and array of all files/roots owned by OSpec Workflow. On subsequent executions, the installer MUST compute `stale = previous_owned - current_owned` and delete stale files while strictly preserving all user-created or third-party files.
+All global filesystem target installers (Cursor, Copilot, OpenCode, Codex, Antigravity) MUST persist an installation manifest (`.ospec-workflow-install.json` in their managed global root, as well as in `~/.agents/skills/` for Codex skills) recording the installed version, target, timestamp, and array of all files owned by OSpec Workflow. On subsequent executions, the installer MUST compute `stale = previous_owned - current_owned` and delete stale files while strictly preserving all user-created or third-party files. VS Code manages plugin registration via its `settings.json` `chat.pluginLocations` array.
 
 #### Scenario: Stale agent or script removed after version upgrade
 - GIVEN a previous installation recorded `agents/old-agent.md` in its ownership manifest

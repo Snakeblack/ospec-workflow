@@ -5,6 +5,25 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.44.2] - 2026-08-15
+
+### Added
+- **Convergencia y Poda de Skills en Codex**:
+  - Seguimiento de manifiesto `.ospec-workflow-install.json` en `~/.agents/skills/` y cálculo de `gatherCodexSkillsFiles()` en `scripts/configure/install-codex.js`.
+  - Poda automática de skills obsoletas entre versiones preservando de forma estricta las skills personalizadas del usuario.
+- **Parser JSONC con Autómata de Estados**:
+  - Implementación de `stripJsoncComments()` en `scripts/configure/install-engine.js` mediante escáner carácter por carácter, garantizando que cadenas literales con `//` o `/* ... */` no se corrompan y eliminando comas finales.
+- **Soporte Escalar y Creación de Configuración en VS Code**:
+  - Conversión limpia de `"chat.pluginLocations": "ruta"` a listas sin duplicación de propiedades.
+  - Creación automática de `settings.json` cuando el directorio de configuración del usuario existe.
+  - Salida con código de error no cero (`exit 1`) en `scripts/configure/install-vscode.js` cuando no se encuentra ningún directorio de configuración de VS Code en el host.
+- **Código de Salida en Compilación de Hooks**:
+  - Actualización del script `build:hooks` en `package.json` para fallar con código `1` si el aprovisionamiento del binario no tiene éxito.
+
+### Fixed
+- **Alineación de la Especificación OpenSpec**:
+  - Corrección de la ruta global de Copilot (`~/.copilot/`) y comandos de scripts (`install:global:copilot`, `setup:copilot`) en `openspec/specs/install/spec.md`.
+
 ## [2.44.1] - 2026-08-15
 
 ### Added
