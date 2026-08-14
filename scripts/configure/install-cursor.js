@@ -276,9 +276,43 @@ function ensureCursorGenericHookEvents(hooksDoc) {
   return next;
 }
 
+function sanitizeCursorMcpServers(mcpServers, env = process.env) {
+  if (!mcpServers || typeof mcpServers !== "object") return {};
+  const result = {};
+  for (const [name, server] of Object.entries(mcpServers)) {
+    if (!server || typeof server !== "object") {
+      result[name] = server;
+      continue;
+    }
+    const cleanServer = { ...server };
+    if (cleanServer.env && typeof cleanServer.env === "object") {
+      const cleanEnv = {};
+      for (const [key, val] of Object.entries(cleanServer.env)) {
+        if (typeof val === "string") {
+          const match = val.match(/^\$\{input:([A-Za-z0-9_]+)\}$/);
+          if (match) {
+            const varName = match[1];
+            if (env && env[varName]) {
+              cleanEnv[key] = env[varName];
+            }
+          } else {
+            cleanEnv[key] = val;
+          }
+        } else {
+          cleanEnv[key] = val;
+        }
+      }
+      cleanServer.env = cleanEnv;
+    }
+    result[name] = cleanServer;
+  }
+  return result;
+}
+
 function installMcpJson(sourceDir, cursorRoot, deps = {}) {
   const fsImpl = deps.fs || fs;
   const dryRun = Boolean(deps.dryRun);
+  const env = deps.env || process.env;
   const mcpSourcePath = path.join(sourceDir, ".mcp.json");
   if (!fsImpl.existsSync(mcpSourcePath)) {
     return;
@@ -287,12 +321,14 @@ function installMcpJson(sourceDir, cursorRoot, deps = {}) {
   const destPath = path.join(cursorRoot, "mcp.json");
   if (dryRun) return;
 
+  const sanitizedServers = sanitizeCursorMcpServers(sourceMcp?.mcpServers, env);
+
   assertCursorPathSafe(cursorRoot, destPath, fsImpl);
   mergeJsonFile(
     destPath,
     (existingDoc) => {
       const next = { ...existingDoc };
-      next.mcpServers = { ...(existingDoc?.mcpServers || {}), ...(sourceMcp?.mcpServers || {}) };
+      next.mcpServers = { ...(existingDoc?.mcpServers || {}), ...sanitizedServers };
       return next;
     },
     { fs: fsImpl, journal: deps.journal },
@@ -496,5 +532,6 @@ module.exports = {
   syncTreeByContent,
   installHooksJson,
   installMcpJson,
+  sanitizeCursorMcpServers,
   main,
 };

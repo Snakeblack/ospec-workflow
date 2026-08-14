@@ -1,6 +1,6 @@
 {
   "name": "ospec-workflow",
-  "version": "2.44.0",
+  "version": "2.44.1",
   "private": true,
   "description": "Spec-Driven Development workflow with OpenSpec, strict TDD, phase agents, skills, hooks, and verification contracts.",
   "license": "MIT",
@@ -40,6 +40,8 @@
     "build:antigravity": "node scripts/configure/cli.js --target antigravity --out dist/antigravity",
     "setup:antigravity": "node scripts/configure/install-antigravity.js",
     "reload:antigravity": "node scripts/configure/install-antigravity.js",
+    "build:hooks": "node -e \"require('./scripts/configure/install-target.js').ensureRuntimeBinary(process.cwd())\"",
+    "ensure:hooks": "npm run build:hooks",
     "setup:git-hooks": "node scripts/setup-git-hooks.js"
   }
 }

@@ -18,6 +18,7 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 const { runConfigure } = require("./cli.js");
 
 const TARGETS = new Set(["opencode", "github-copilot"]);
@@ -32,18 +33,63 @@ function hostBinarySuffix() {
   return { os: goos, arch, ext };
 }
 
+// Automatically compile the ospec-hooks Go binary if missing and go is installed
+function ensureRuntimeBinary(sourceDir, deps = {}) {
+  const fsImpl = deps.fs || fs;
+  const stdout = deps.stdout || process.stdout;
+  const spawnSyncImpl = deps.spawnSync || spawnSync;
+  const { os: goos, arch, ext } = hostBinarySuffix();
+  const distDir = path.join(sourceDir, "release", "dist");
+  const srcBin = path.join(distDir, `ospec-hooks-${goos}-${arch}${ext}`);
+
+  if (fsImpl.existsSync(srcBin)) {
+    return srcBin;
+  }
+
+  const cmdDir = path.join(sourceDir, "cmd", "ospec-hooks");
+  if (fsImpl.existsSync(cmdDir)) {
+    try {
+      const probe = spawnSyncImpl("go", ["version"], { stdio: "ignore", shell: false });
+      if (!probe.error && probe.status === 0) {
+        stdout.write(`  * Compiling ospec-hooks binary for ${goos}-${arch} with local Go toolchain...\n`);
+        fsImpl.mkdirSync(distDir, { recursive: true });
+        const buildResult = spawnSyncImpl("go", ["build", "-o", srcBin, "./cmd/ospec-hooks"], {
+          cwd: sourceDir,
+          stdio: "inherit",
+          shell: false,
+        });
+        if (buildResult.status === 0 && fsImpl.existsSync(srcBin)) {
+          stdout.write(`  + Successfully compiled ${srcBin}\n`);
+          return srcBin;
+        }
+      }
+    } catch {
+      // Best-effort Go compilation failed
+    }
+  }
+
+  return null;
+}
+
 // Copy the platform-appropriate ospec-hooks binary into the generated output
 // tree. For claude/vscode/github-copilot the binary lands in scripts/hooks/;
 // for opencode it lands in release/dist/ (where the plugin's resolveBinary()
 // looks first). If the source binary is absent (pre-CI dev environment),
-// print a warning and skip without failing.
+// attempt automatic compilation with local Go or print a warning / fail.
 function copyBinaryToTree(outDir, target, sourceDir, deps = {}) {
   const fsImpl = deps.fs || fs;
   const stdout = deps.stdout || process.stdout;
   const stderr = deps.stderr || process.stderr;
   const required = Boolean(deps.required);
   const { os: goos, arch, ext } = hostBinarySuffix();
-  const srcBin = path.join(sourceDir, "release", "dist", `ospec-hooks-${goos}-${arch}${ext}`);
+  let srcBin = path.join(sourceDir, "release", "dist", `ospec-hooks-${goos}-${arch}${ext}`);
+
+  if (!fsImpl.existsSync(srcBin)) {
+    const compiledBin = ensureRuntimeBinary(sourceDir, deps);
+    if (compiledBin) {
+      srcBin = compiledBin;
+    }
+  }
 
   if (!fsImpl.existsSync(srcBin)) {
     const message = `ospec-hooks binary not found at ${srcBin}`;
@@ -52,7 +98,7 @@ function copyBinaryToTree(outDir, target, sourceDir, deps = {}) {
     }
     stderr.write(
       `[warn] ${message}; skipping copy.\n` +
-        `       Run the CI build (build-hooks.yml) or 'go build -o release/dist/ospec-hooks-${goos}-${arch}${ext} ./cmd/ospec-hooks' first.\n`,
+        `       Run the CI build (build-hooks.yml) or 'npm run build:hooks' first.\n`,
     );
     return;
   }
@@ -305,4 +351,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { main, assertSafeDest, parseArgs, copyBinaryToTree, hostBinarySuffix, syncEntriesTransactional };
+module.exports = { main, assertSafeDest, parseArgs, copyBinaryToTree, ensureRuntimeBinary, hostBinarySuffix, syncEntriesTransactional };

@@ -6,18 +6,24 @@ Per-target installation and distribution of the ospec-workflow plugin. Covers ho
 
 ## Scope
 
-- npm scripts: `build:claude`, `setup:claude`, `reload:claude`, `build:copilot`, `build:opencode`, `install:opencode`, `install:copilot`, `build:codex`, `setup:codex`, `install:codex`
-- Source modules: `scripts/configure/claude-marketplace.js`, `scripts/configure/install-claude.js`, `scripts/configure/install-target.js`, `scripts/configure/install-codex.js`
-- Generated distribution roots: `dist/claude-marketplace/`, `dist/github-copilot/`, `dist/opencode/`, `dist/codex/`
-- Test files: `scripts/configure/claude-marketplace.test.js`, `scripts/configure/real-repo.test.js`, `scripts/configure/e2e.test.js`, `scripts/configure/install-codex.test.js`, `scripts/configure/validate-codex.test.js`
-
-Out of scope: the generator pipeline that produces the per-target file tree (covered by the `generator` domain), the in-process validators (`validate-github-copilot.js`, `validate-opencode.js`), and the vscode target (no public install command exists; generated only in tests).
+- npm scripts:
+  - Claude: `build:claude`, `setup:claude`, `reload:claude`
+  - GitHub Copilot: `build:copilot`, `setup:copilot`, `reload:copilot`, `install:copilot`, `install:global:copilot`
+  - OpenCode: `build:opencode`, `setup:opencode`, `reload:opencode`, `install:opencode`, `install:global:opencode`
+  - Codex: `build:codex`, `setup:codex`, `install:codex`
+  - VS Code: `build:vscode`, `setup:vscode`, `reload:vscode`
+  - Cursor: `build:cursor`, `setup:cursor`, `reload:cursor`
+  - Antigravity: `build:antigravity`, `setup:antigravity`, `reload:antigravity`
+  - Compiler Hooks: `build:hooks`, `ensure:hooks`
+- Source modules: `scripts/configure/install-engine.js`, `scripts/configure/claude-marketplace.js`, `scripts/configure/install-claude.js`, `scripts/configure/install-target.js`, `scripts/configure/install-global-copilot.js`, `scripts/configure/install-global-opencode.js`, `scripts/configure/install-codex.js`, `scripts/configure/install-vscode.js`, `scripts/configure/install-cursor.js`, `scripts/configure/install-antigravity.js`
+- Generated distribution roots: `dist/claude-marketplace/`, `dist/github-copilot/`, `dist/opencode/`, `dist/codex/`, `dist/vscode/`, `dist/cursor/`, `dist/antigravity/`
+- Test files: `scripts/configure/install-engine.test.js`, `scripts/configure/claude-marketplace.test.js`, `scripts/configure/install-codex.test.js`, `scripts/configure/install-vscode.test.js`, `scripts/configure/install-cursor.test.js`, `scripts/configure/install-antigravity.test.js`, `tests/integration/installation-convergence.test.js`
 
 ---
 
 ## 1. Target Install Models
 
-There are two fundamentally different distribution mechanisms, one per tool family.
+There are three primary distribution mechanisms across supported AI assistants:
 
 ### 1.1 Claude Code — Marketplace Registration
 
@@ -31,32 +37,36 @@ Claude Code discovers plugins through a local marketplace registered with its CL
 | `npm run setup:claude` | `scripts/configure/install-claude.js` | Build + register marketplace + install plugin |
 | `npm run reload:claude` | `scripts/configure/install-claude.js --build-only` | Build only; user applies via `/reload-plugins` |
 
-The `setup:claude` / `reload:claude` split exists because registering the marketplace requires an interactive Claude Code session on subsequent runs; `reload:claude` is the preferred path for day-to-day iteration when a session is already open.
+### 1.2 GitHub Copilot and OpenCode — Global Home and Repo Sync
 
-### 1.2 GitHub Copilot and Opencode — Filesystem Sync
-
-These targets have no plugin marketplace. The workflow is consumed by copying the generated tree into the root of a destination repository, where each tool auto-discovers it via its conventional directory layout (`.github/` + `.mcp.json` for Copilot; `.opencode/` + `opencode.json` for opencode).
+Copilot (`~/.config/github-copilot/` or `.github/`) and OpenCode (`~/.config/opencode/` or `.opencode/`) consume the workflow through structured folders. Global setups use `install-engine.js` with `.ospec-workflow-install.json` manifest tracking, subfolder prefix preservation, and stale file pruning.
 
 **npm commands**
 
 | Command | Script | Effect |
 |---|---|---|
 | `npm run build:copilot` | `scripts/configure/cli.js --target github-copilot --out dist/github-copilot` | Build `dist/github-copilot/` only |
+| `npm run setup:copilot` | `scripts/configure/install-global-copilot.js` | Build + install into global Copilot config |
 | `npm run build:opencode` | `scripts/configure/cli.js --target opencode --out dist/opencode` | Build `dist/opencode/` only |
-| `npm run install:copilot -- <destRepo>` | `scripts/configure/install-target.js github-copilot <destRepo>` | Build + sync into destRepo |
-| `npm run install:opencode -- <destRepo>` | `scripts/configure/install-target.js opencode <destRepo>` | Build + sync into destRepo |
+| `npm run setup:opencode` | `scripts/configure/install-global-opencode.js` | Build + install into global OpenCode config |
 
-The `--` separator is required to pass `<destRepo>` through npm to the script.
-
-### 1.3 Codex — Native Global Installation
+### 1.3 Codex — Native Global Installation & Ownership
 
 `npm run setup:codex` MUST install the generated `AGENTS.md`, `.codex/agents/*.toml`, skills, runtime scripts and native `hooks.json` under the user's `~/.codex/` without a plugin or marketplace. It MUST register only missing global MCP definitions through `codex mcp add`, deduplicating by command plus ordered arguments and preserving name collisions. It MUST merge its own hook groups while preserving user-owned groups. `npm run install:codex -- <destRepo>` targets `<destRepo>/.codex/agents/` and MUST NOT modify the destination project's `.codex/config.toml`.
 
-The generated Codex tree MUST contain `agent.md`, `.codex/agents/*.toml`, `skills/`, runtime `scripts/` and `hooks.json`, and MUST NOT contain `.codex-plugin/`, `.codex/config.toml` or `.mcp.json`. The Codex validator MUST reject generated config and plugin artifacts, and require a valid native hooks payload with the runtime placeholder.
+The generated Codex tree MUST contain `agent.md`, `.codex/agents/*.toml`, `skills/`, runtime `scripts/` and `hooks.json`, and MUST NOT contain `.codex-plugin/`, `.codex/config.toml` or `.mcp.json`. The Codex validator MUST reject generated config and plugin artifacts, and require a valid native hooks payload with the runtime placeholder. It maintains `.ospec-workflow-install.json`, and prunes stale agents/scripts upon upgrade.
 
-### 1.4 VSCode
+### 1.4 VS Code — Settings Configuration & Plugin Root
 
-No public install command exists for the VSCode target. It is generated internally by `runConfigure({ target: "vscode" })` during `real-repo.test.js` regression tests but is not shipped via any npm dist command.
+`npm run setup:vscode` builds `dist/vscode` and updates VS Code's `settings.json` (`chat.pluginLocations` array) non-destructively, preserving existing comments and syntax while guaranteeing fail-closed execution on unparseable configurations.
+
+### 1.5 Cursor — Native Global Home & Hook Adapter
+
+`npm run setup:cursor` builds `dist/cursor` and deploys into `~/.cursor`, configuring `mcp.json` with sanitized environment variables, non-destructively merging `hooks.json`, and managing rollback journals.
+
+### 1.6 Antigravity — Native Configuration & Hooks
+
+`npm run setup:antigravity` builds `dist/antigravity` and deploys into `~/.gemini/config`, non-destructively merging `hooks.json` and tracking installed files via `.ospec-workflow-install.json`.
 
 ---
 
@@ -701,4 +711,17 @@ Codex MCP installation in `scripts/configure/install-codex.js` MUST derive serve
 - GIVEN `claude plugin install` fails with exit code 1
 - WHEN `npm run setup:claude` is executed
 - THEN the script MUST abort immediately and exit with code 1 without printing a false success message
+
+---
+
+### Requirement: Fresh-Clone Automated Binary Provisioning {#REQ-install-015}
+
+`npm run setup:*` and `copyBinaryToTree` MUST ensure the required `ospec-hooks` executable is provisioned. If the target platform binary is absent under `release/dist/`, the provisioning logic MUST attempt to compile it using the host's `go` compiler (`go build -o release/dist/ospec-hooks-... ./cmd/ospec-hooks`). If `go` is unavailable and the pre-built binary is absent, it MUST fail-closed when `required: true`.
+
+#### Scenario: Fresh clone builds binary when Go is installed
+- GIVEN a fresh repository clone where `release/dist/` has no pre-compiled binaries
+- AND `go` is available on PATH
+- WHEN `npm run setup:opencode` (or any setup requiring binary) is executed
+- THEN `ospec-hooks` binary MUST be automatically compiled to `release/dist/` and copied to the target tree
+
 

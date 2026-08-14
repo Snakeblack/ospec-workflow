@@ -17,6 +17,7 @@ const {
   readCodexMcpDefinitions,
   ensureCodexMcps,
   assertManagedPathSafe,
+  gatherCodexOwnedFiles,
   main,
 } = require("./install-codex.js");
 
@@ -1156,3 +1157,78 @@ test("copyCodexAgents: validates each target file individual paths with assertMa
     /redirects through a symlinked or canonicalized path/i
   );
 });
+
+test("main persists .ospec-workflow-install.json and prunes stale agents/scripts", (t) => {
+  const sandbox = makeTempDir(t, "codex-manifest-");
+  const home = path.join(sandbox, "home");
+  const codexRoot = path.join(home, ".codex");
+  const source = path.join(sandbox, "source");
+  const outDir = path.join(source, "dist", "codex");
+
+  fs.mkdirSync(codexRoot, { recursive: true });
+  fs.mkdirSync(path.join(codexRoot, "agents"), { recursive: true });
+  fs.mkdirSync(path.join(codexRoot, "ospec-workflow", "scripts"), { recursive: true });
+  fs.mkdirSync(path.join(outDir, ".codex", "agents"), { recursive: true });
+  fs.mkdirSync(path.join(outDir, "scripts"), { recursive: true });
+  fs.mkdirSync(path.join(outDir, "skills"), { recursive: true });
+
+  // Simulate previous installation with old-agent.toml and old-script.js
+  fs.writeFileSync(path.join(codexRoot, "agents", "old-agent.toml"), "name = 'old'");
+  fs.writeFileSync(path.join(codexRoot, "agents", "user-custom.toml"), "name = 'user-custom'");
+  fs.writeFileSync(path.join(codexRoot, "ospec-workflow", "scripts", "old-script.js"), "// old");
+
+  const prevManifest = {
+    version: "2.43.0",
+    target: "codex",
+    installedAt: "2026-08-01T00:00:00.000Z",
+    files: [
+      "AGENTS.md",
+      "hooks.json",
+      "agents/old-agent.toml",
+      "ospec-workflow/scripts/old-script.js",
+    ],
+  };
+  fs.writeFileSync(path.join(codexRoot, ".ospec-workflow-install.json"), JSON.stringify(prevManifest, null, 2));
+
+  // Current build contains sdd-apply.toml and new-script.js
+  fs.writeFileSync(path.join(outDir, "AGENTS.md"), "# Codex Agents\n");
+  fs.writeFileSync(path.join(outDir, ".codex", "agents", "sdd-apply.toml"), "name = 'sdd-apply'");
+  fs.writeFileSync(path.join(outDir, "scripts", "new-script.js"), "// new");
+  fs.writeFileSync(
+    path.join(outDir, "hooks.json"),
+    JSON.stringify({ hooks: { SessionStart: [{ command: "node test.js" }] } })
+  );
+
+  const stdout = [];
+  const stderr = [];
+  const exitCode = main(["--source", source, "--no-validate"], {
+    fs,
+    homedir: () => home,
+    outDir,
+    runConfigure: () => ({ exitCode: 0 }),
+    findCodexBin: () => null,
+    stdout: { write: (msg) => stdout.push(msg) },
+    stderr: { write: (msg) => stderr.push(msg) },
+  });
+
+  assert.equal(exitCode, 0);
+
+  // Assert stale files were pruned
+  assert.equal(fs.existsSync(path.join(codexRoot, "agents", "old-agent.toml")), false);
+  assert.equal(fs.existsSync(path.join(codexRoot, "ospec-workflow", "scripts", "old-script.js")), false);
+
+  // Assert user-created file was preserved
+  assert.equal(fs.existsSync(path.join(codexRoot, "agents", "user-custom.toml")), true);
+
+  // Assert new files were installed
+  assert.equal(fs.existsSync(path.join(codexRoot, "agents", "sdd-apply.toml")), true);
+  assert.equal(fs.existsSync(path.join(codexRoot, "ospec-workflow", "scripts", "new-script.js")), true);
+
+  // Assert manifest was written
+  const manifest = JSON.parse(fs.readFileSync(path.join(codexRoot, ".ospec-workflow-install.json"), "utf8"));
+  assert.equal(manifest.target, "codex");
+  assert.ok(manifest.files.includes("agents/sdd-apply.toml"));
+  assert.ok(manifest.files.includes("ospec-workflow/scripts/new-script.js"));
+  assert.ok(!manifest.files.includes("agents/old-agent.toml"));
+});
+

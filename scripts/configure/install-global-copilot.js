@@ -137,7 +137,7 @@ function main(argv = process.argv.slice(2), deps = {}) {
 
     for (const remap of remappings) {
       if (fsImpl.existsSync(remap.src)) {
-        syncTargetTree(remap.src, remap.dest, fsImpl, syncResult, new Set(), globalDir, journal);
+        syncTargetTree(remap.src, remap.dest, fsImpl, syncResult, new Set(), globalDir, journal, remap.destRel);
       }
     }
 

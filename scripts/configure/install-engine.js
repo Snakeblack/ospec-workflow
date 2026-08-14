@@ -198,8 +198,10 @@ function pruneStaleFiles(targetRoot, previousManifest, currentFiles, fsImpl = fs
             }
           }
         }
-      } catch {
-        // Skip or capture failure
+      } catch (error) {
+        if (error.code !== "ENOENT") {
+          throw new Error(`Failed to prune stale file ${fullPath}: ${error.message || error}`);
+        }
       }
     }
   }
