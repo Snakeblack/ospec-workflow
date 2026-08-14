@@ -70,6 +70,10 @@ function handleFile(file, profile, models, rulesContent) {
     return cursorHooks(file, profile);
   }
 
+  if (profile.hooks && profile.hooks.format === "antigravity" && path === (profile.hooks.source || "hooks/hooks.json")) {
+    return antigravityHooks(file, profile);
+  }
+
   // Profile-scoped synthesize sources (e.g. AGENTS.md → agents-protocol.mdc)
   // must run before the generic .md passthrough (ADR-002).
   if (profile.rules && Array.isArray(profile.rules.synthesize)) {
@@ -437,6 +441,58 @@ function cursorHooks(file, profile) {
   return {
     path: profile.hooks.location || "hooks.json",
     content: JSON.stringify({ version: 1, hooks: out }, null, 2) + "\n",
+  };
+}
+
+function antigravityHooks(file, profile) {
+  const obj = parseJsonFile(file);
+  const events = obj.hooks || {};
+  const placeholder = profile.hooks.runtimePlaceholder || "__OSPEC_ANTIGRAVITY_ROOT__";
+  const out = {};
+
+  const groupMapping = {
+    SessionStart: "ospec-session-start",
+    PreToolUse: "ospec-pre-tool-use",
+    PreCompact: "ospec-pre-compact",
+    SubagentStop: "ospec-subagent-stop",
+    Stop: "ospec-stop",
+  };
+
+  for (const [event, entries] of Object.entries(events)) {
+    validateHookEntries(file, event, entries);
+    const groupName = groupMapping[event] || `ospec-${event.toLowerCase()}`;
+    const hooks = entries.map((entry, index) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        throw new Error(`${file.path}: hooks.${event}[${index}] must be an object`);
+      }
+      if (typeof entry.command !== "string") {
+        throw new Error(`${file.path}: hooks.${event}[${index}].command must be a string`);
+      }
+      const command = entry.command.split("${CLAUDE_PLUGIN_ROOT}").join(placeholder);
+      const res = {
+        type: entry.type || "command",
+        command,
+      };
+      if (typeof entry.timeout === "number") {
+        res.timeout = entry.timeout;
+      }
+      return res;
+    });
+
+    out[groupName] = {
+      enabled: true,
+      [event]: [
+        {
+          matcher: ".*",
+          hooks,
+        },
+      ],
+    };
+  }
+
+  return {
+    path: profile.hooks.location || "hooks.json",
+    content: JSON.stringify(out, null, 2) + "\n",
   };
 }
 

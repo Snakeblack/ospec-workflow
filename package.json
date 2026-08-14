@@ -1,6 +1,6 @@
 {
   "name": "ospec-workflow",
-  "version": "2.43.5",
+  "version": "2.44.0",
   "private": true,
   "description": "Spec-Driven Development workflow with OpenSpec, strict TDD, phase agents, skills, hooks, and verification contracts.",
   "license": "MIT",
@@ -37,9 +37,9 @@
     "install:opencode": "node scripts/configure/install-target.js opencode",
     "install:global:opencode": "node scripts/configure/install-global-opencode.js",
     "install:global:copilot": "node scripts/configure/install-global-copilot.js",
-    "install:copilot": "node scripts/configure/install-target.js github-copilot",
-    "setup:antigravity": "node scripts/sync-antigravity.js",
-    "reload:antigravity": "node scripts/sync-antigravity.js",
+    "build:antigravity": "node scripts/configure/cli.js --target antigravity --out dist/antigravity",
+    "setup:antigravity": "node scripts/configure/install-antigravity.js",
+    "reload:antigravity": "node scripts/configure/install-antigravity.js",
     "setup:git-hooks": "node scripts/setup-git-hooks.js"
   }
 }

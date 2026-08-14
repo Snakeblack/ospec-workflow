@@ -8,10 +8,6 @@ const { spawnSync } = require("node:child_process");
 const { runConfigure } = require("./cli.js");
 const { assertSafeDest } = require("./install-target.js");
 
-const SUPPORTED_CODEX_MCPS = Object.freeze({
-  context7: Object.freeze({ command: "npx", args: Object.freeze(["@upstash/context7-mcp@1.0.31"]) }),
-  markitdown: Object.freeze({ command: "uvx", args: Object.freeze(["markitdown-mcp@0.0.1a4"]) }),
-});
 
 function usage() {
   return (
@@ -260,12 +256,6 @@ function normalizeCodexMcpName(name) {
   return normalized;
 }
 
-function isSupportedCodexMcpDefinition(definition) {
-  const supported = definition && SUPPORTED_CODEX_MCPS[definition.name];
-  return Boolean(supported) && definition.command === supported.command &&
-    sameStringArray(definition.args, supported.args);
-}
-
 function readCodexMcpDefinitions(sourceDir, fsImpl = fs) {
   const mcpPath = path.join(sourceDir, ".mcp.json");
   if (!fsImpl.existsSync(mcpPath)) {
@@ -285,10 +275,8 @@ function readCodexMcpDefinitions(sourceDir, fsImpl = fs) {
     }
     const name = normalizeCodexMcpName(sourceName);
     const args = Array.isArray(server.args) ? server.args.map(String) : [];
-    const definition = { name, command: server.command, args };
-    if (!isSupportedCodexMcpDefinition(definition)) {
-      throw new Error("source .mcp.json contains an unsupported Codex MCP definition");
-    }
+    const env = server.env && typeof server.env === "object" ? { ...server.env } : {};
+    const definition = { name, command: server.command, args, env };
     if (names.has(name)) {
       throw new Error(`multiple MCP definitions normalize to the Codex name: ${name}`);
     }
@@ -303,11 +291,19 @@ function sameStringArray(left, right) {
     left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+function sameEnv(left = {}, right = {}) {
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  if (!sameStringArray(leftKeys, rightKeys)) return false;
+  return leftKeys.every((key) => String(left[key]) === String(right[key]));
+}
+
 function sameMcpIdentity(existing, definition) {
   const transport = existing?.transport || existing;
   return transport?.type !== "http" &&
     transport?.command === definition.command &&
-    sameStringArray(transport?.args || [], definition.args || []);
+    sameStringArray(transport?.args || [], definition.args || []) &&
+    sameEnv(transport?.env || existing?.env || {}, definition.env || {});
 }
 
 function createMcpMutationJournal(codexBin, deps, stderr) {
@@ -347,6 +343,15 @@ function createMcpMutationJournal(codexBin, deps, stderr) {
   };
 }
 
+function isValidCodexMcpDefinition(definition) {
+  return Boolean(
+    definition &&
+    typeof definition.name === "string" &&
+    typeof definition.command === "string" &&
+    Array.isArray(definition.args),
+  );
+}
+
 function ensureCodexMcps(codexBin, definitions, deps = {}) {
   if (!Array.isArray(definitions) || definitions.length === 0) {
     return 0;
@@ -354,7 +359,7 @@ function ensureCodexMcps(codexBin, definitions, deps = {}) {
   const runCodexCommand = deps.runCodexCommand || defaultRunCodexCommand;
   const stdout = deps.stdout || process.stdout;
   const stderr = deps.stderr || process.stderr;
-  if (definitions.some((definition) => !isSupportedCodexMcpDefinition(definition))) {
+  if (definitions.some((definition) => !isValidCodexMcpDefinition(definition))) {
     stderr.write("unsupported Codex MCP definition; no MCP configuration was changed\n");
     return 1;
   }
@@ -416,7 +421,14 @@ function ensureCodexMcps(codexBin, definitions, deps = {}) {
       continue;
     }
 
-    const commandArgs = ["mcp", "add", definition.name, "--", definition.command, ...definition.args];
+    const envArgs = [];
+    if (definition.env && typeof definition.env === "object") {
+      for (const [key, value] of Object.entries(definition.env)) {
+        envArgs.push("--env", `${key}=${value}`);
+      }
+    }
+
+    const commandArgs = ["mcp", "add", definition.name, ...envArgs, "--", definition.command, ...definition.args];
     let added;
     try {
       added = runCodexCommand(codexBin, commandArgs, deps);
@@ -437,7 +449,7 @@ function ensureCodexMcps(codexBin, definitions, deps = {}) {
     deps.mcpMutationJournal?.record(definition.name);
     existing.push({
       name: definition.name,
-      transport: { type: "stdio", command: definition.command, args: definition.args },
+      transport: { type: "stdio", command: definition.command, args: definition.args, env: definition.env },
     });
   }
   return 0;

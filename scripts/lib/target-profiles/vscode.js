@@ -11,5 +11,5 @@ module.exports = {
   agentFile: { from: ".agent.md", to: ".agent.md" },
   commandFile: { from: ".prompt.md", to: ".prompt.md" },
   model: true,
-  validate: null,
+  validate: ["node", "scripts/configure/validate-vscode.js", "{out}"],
 };

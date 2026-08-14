@@ -372,17 +372,16 @@ test("readCodexMcpDefinitions normalizes legacy slash-qualified names for Codex"
   );
 
   assert.deepEqual(readCodexMcpDefinitions(sourceDir), [
-    { name: "context7", command: "npx", args: ["@upstash/context7-mcp@1.0.31"] },
-    { name: "markitdown", command: "uvx", args: ["markitdown-mcp@0.0.1a4"] },
+    { name: "context7", command: "npx", args: ["@upstash/context7-mcp@1.0.31"], env: {} },
+    { name: "markitdown", command: "uvx", args: ["markitdown-mcp@0.0.1a4"], env: {} },
   ]);
 });
 
-test("readCodexMcpDefinitions rejects unknown or changed identities without echoing untrusted values", (t) => {
+test("readCodexMcpDefinitions rejects malformed MCP definitions without echoing untrusted values", (t) => {
   const sourceDir = makeTempDir(t, "codex-untrusted-mcp-");
   const cases = [
-    { "unknown-secret-name": { command: "secret-command", args: ["secret-arg"] } },
-    { context7: { command: "secret-command", args: ["@upstash/context7-mcp@1.0.31"] } },
-    { markitdown: { command: "uvx", args: ["secret-arg"] } },
+    { "bad-command": { command: 123, args: ["secret-arg"] } },
+    { "bad-entry": "string-entry" },
   ];
 
   for (const mcpServers of cases) {
@@ -482,13 +481,13 @@ test("ensureCodexMcps compensates prior additions when a later CLI invocation th
   assert.deepEqual(calls.at(-1), ["codex", "mcp", "remove", "context7"]);
 });
 
-test("ensureCodexMcps rejects unsupported direct definitions before invoking the CLI", () => {
+test("ensureCodexMcps rejects invalid direct definitions before invoking the CLI", () => {
   const stderr = [];
   let calls = 0;
   const exitCode = ensureCodexMcps("codex", [{
-    name: "unknown-secret-name",
-    command: "secret-command",
-    args: ["secret-arg"],
+    name: "invalid-name",
+    command: 123,
+    args: "invalid-arg",
   }], {
     stderr: { write: (chunk) => stderr.push(chunk) },
     runCodexCommand() {
@@ -500,7 +499,6 @@ test("ensureCodexMcps rejects unsupported direct definitions before invoking the
   assert.equal(exitCode, 1);
   assert.equal(calls, 0);
   assert.match(stderr.join(""), /unsupported Codex MCP definition/i);
-  assert.doesNotMatch(stderr.join(""), /secret/i);
 });
 
 test("ensureCodexMcps fails closed on unusable list responses", () => {

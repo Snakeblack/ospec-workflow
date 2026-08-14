@@ -81,11 +81,12 @@ function main(deps = {}) {
     // when its CLI is installed.
     const targets = [
       { target: "claude", validate: claudeOk },
-      { target: "vscode", validate: false },
+      { target: "vscode", validate: true },
       { target: "github-copilot", validate: true },
       { target: "opencode", validate: true },
       { target: "codex", validate: true },
       { target: "cursor", validate: true },
+      { target: "antigravity", validate: true },
     ];
 
     for (const { target, validate } of targets) {

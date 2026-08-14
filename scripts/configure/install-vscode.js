@@ -1,24 +1,28 @@
 "use strict";
 
 // One-shot, idempotent installer for VS Code target. Builds the vscode target,
-// copy platform-appropriate hooks binaries, and modifies user's settings.json
-// to add the plugin location.
+// copies platform-appropriate hooks binaries, and modifies user's settings.json
+// cleanly using fail-closed JSONC merger.
 //
 // Usage:
-//   node scripts/configure/install-vscode.js
+//   node scripts/configure/install-vscode.js [--dry-run] [--no-validate] [--source <sourceRepo>]
 
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
+
 const { runConfigure } = require("./cli.js");
 const { copyBinaryToTree } = require("./install-target.js");
+const { mergeJsoncFile } = require("./install-engine.js");
 
-function getSettingsPaths() {
-  const home = os.homedir();
+function getSettingsPaths(deps = {}) {
+  const home = deps.homedir ? deps.homedir() : os.homedir();
+  const env = deps.env || process.env;
+  const platform = deps.platform || process.platform;
   const paths = [];
 
-  if (process.platform === "win32") {
-    const appData = process.env.APPDATA;
+  if (platform === "win32") {
+    const appData = env.APPDATA;
     if (appData) {
       paths.push({
         name: "VS Code",
@@ -29,7 +33,7 @@ function getSettingsPaths() {
         path: path.join(appData, "Code - Insiders", "User", "settings.json"),
       });
     }
-  } else if (process.platform === "darwin") {
+  } else if (platform === "darwin") {
     paths.push({
       name: "VS Code",
       path: path.join(home, "Library", "Application Support", "Code", "User", "settings.json"),
@@ -52,76 +56,122 @@ function getSettingsPaths() {
   return paths;
 }
 
-// Strip block and line comments to safely parse JSONC
-function parseJsonc(content) {
-  const cleaned = content.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, "$1");
-  return JSON.parse(cleaned);
+function parseArgs(argv) {
+  const args = { dryRun: false, validate: true, source: undefined };
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === "--dry-run") args.dryRun = true;
+    else if (arg === "--no-validate") args.validate = false;
+    else if (arg === "--source") {
+      const next = argv[i + 1];
+      if (!next || next.startsWith("--")) {
+        args.error = "missing value for --source";
+        return args;
+      }
+      args.source = next;
+      i += 1;
+    } else {
+      args.error = `unknown argument: ${arg}`;
+      return args;
+    }
+  }
+  return args;
 }
 
-function main() {
-  const sourceDir = path.resolve(__dirname, "..", "..");
+function main(argv = process.argv.slice(2), deps = {}) {
+  const args = parseArgs(argv);
+  const cwd = deps.cwd || process.cwd();
+  const fsImpl = deps.fs || fs;
+  const stdout = deps.stdout || process.stdout;
+  const stderr = deps.stderr || process.stderr;
+  const runConfigureImpl = deps.runConfigure || runConfigure;
+  const copyBinary = deps.copyBinaryToTree || copyBinaryToTree;
+
+  if (args.error) {
+    stderr.write(`usage: install-vscode [--dry-run] [--no-validate] [--source <sourceRepo>]\n${args.error}\n`);
+    return 2;
+  }
+
+  const sourceDir = path.resolve(args.source || cwd);
   const outDir = path.join(sourceDir, "dist", "vscode");
 
   // 1. Build the target vscode to dist/vscode
-  const result = runConfigure({ sourceDir, target: "vscode", outDir, validate: true });
+  const result = runConfigureImpl({ sourceDir, target: "vscode", outDir, validate: args.validate });
+  if (result.validation?.stdout) stdout.write(result.validation.stdout);
+  if (result.validation?.stderr) stderr.write(result.validation.stderr);
   if (result.exitCode !== 0) {
-    process.stderr.write("\nBuild/validation failed; aborting vscode install\n");
-    process.exitCode = result.exitCode;
-    return;
+    stderr.write("\nbuild/validation failed; aborting vscode install\n");
+    return result.exitCode || 1;
   }
 
   // Copy compiler hooks binary if present in release/dist/
-  copyBinaryToTree(outDir, "vscode", sourceDir);
+  copyBinary(outDir, "vscode", sourceDir, {
+    fs: fsImpl,
+    stdout,
+    stderr,
+    required: false,
+  });
 
   const absPluginPath = path.resolve(outDir);
-  process.stdout.write(`\nConfiguring VS Code to load plugin from: ${absPluginPath}\n`);
+  stdout.write(`\nConfiguring VS Code to load plugin from: ${absPluginPath}${args.dryRun ? " (dry-run)" : ""}\n`);
 
-  const settingsFiles = getSettingsPaths();
+  if (args.dryRun) {
+    stdout.write("dry-run: no files modified\n");
+    return 0;
+  }
+
+  const settingsFiles = getSettingsPaths(deps);
   let configuredAny = false;
 
   for (const file of settingsFiles) {
-    if (fs.existsSync(file.path)) {
+    if (fsImpl.existsSync(file.path)) {
       try {
-        const rawContent = fs.readFileSync(file.path, "utf8");
-        // Parse current config (stripping comments)
-        const config = parseJsonc(rawContent);
-
-        config["chat.pluginLocations"] = config["chat.pluginLocations"] || [];
-        if (!Array.isArray(config["chat.pluginLocations"])) {
-          config["chat.pluginLocations"] = [config["chat.pluginLocations"]];
-        }
-
-        // Add absolute path if not already present
-        if (!config["chat.pluginLocations"].includes(absPluginPath)) {
-          // Backup original file
-          const backupPath = `${file.path}.bak`;
-          fs.copyFileSync(file.path, backupPath);
-          process.stdout.write(`  + Created backup at ${backupPath}\n`);
-
-          config["chat.pluginLocations"].push(absPluginPath);
-          fs.writeFileSync(file.path, JSON.stringify(config, null, 2), "utf8");
-          process.stdout.write(`  + Successfully updated ${file.name} settings.json\n`);
-        } else {
-          process.stdout.write(`  · ${file.name} settings.json already configured.\n`);
-        }
+        mergeJsoncFile(
+          file.path,
+          (config) => {
+            const next = { ...config };
+            next["chat.pluginLocations"] = next["chat.pluginLocations"] || [];
+            if (!Array.isArray(next["chat.pluginLocations"])) {
+              next["chat.pluginLocations"] = [next["chat.pluginLocations"]];
+            }
+            if (!next["chat.pluginLocations"].includes(absPluginPath)) {
+              next["chat.pluginLocations"].push(absPluginPath);
+            }
+            return next;
+          },
+          { fs: fsImpl },
+        );
+        stdout.write(`  + Updated ${file.name} settings.json\n`);
         configuredAny = true;
       } catch (err) {
-        process.stderr.write(`  [warn] Failed to parse/update ${file.name} settings.json: ${err.message}\n`);
+        stderr.write(`  [warn] Failed to parse/update ${file.name} settings.json: ${err.message}\n`);
       }
     }
   }
 
   if (!configuredAny) {
-    process.stdout.write(
+    stdout.write(
       `\nTo complete setup, please configure your VS Code settings.json manually:\n` +
-      `Add the following path to "chat.pluginLocations":\n` +
-      `  "${absPluginPath}"\n`
+        `Add the following path to "chat.pluginLocations":\n` +
+        `  "${absPluginPath}"\n`,
     );
   } else {
-    process.stdout.write("\nDone. VS Code setup completed successfully. Restart VS Code to apply.\n");
+    stdout.write("\nDone. VS Code setup completed successfully. Restart VS Code to apply.\n");
   }
+  return 0;
 }
 
 if (require.main === module) {
-  main();
+  try {
+    process.exitCode = main();
+  } catch (error) {
+    process.stderr.write(`fatal: ${error.stack || error.message || error}\n`);
+    process.exitCode = 1;
+  }
 }
+
+module.exports = {
+  getSettingsPaths,
+  parseArgs,
+  main,
+};

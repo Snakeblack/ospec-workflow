@@ -35,7 +35,9 @@ Elige tu target y ejecuta su configurador automático:
 | **Claude Code** | `npm run setup:claude` | Compila, valida de forma estricta e instala como plugin persistente. |
 | **Copilot CLI** | `npm run setup:copilot` | Compila e instala globalmente en tu máquina (`~/.copilot/`). |
 | **opencode** | `npm run setup:opencode` | Compila e instala en la carpeta de OpenCode (`~/.config/opencode/`). |
-| **Codex CLI** | `npm run setup:codex` | Compila `dist/codex`, registra el marketplace, añade solo los MCP globales que falten (deduplicados por comando+args) y copia `.codex/agents/*.toml`. |
+| **Codex CLI** | `npm run setup:codex` | Compila `dist/codex`, registra el marketplace, añade solo los MCP globales que falten y copia `.codex/agents/*.toml`. |
+| **Cursor** | `npm run setup:cursor` | Compila `dist/cursor`, sincroniza a `~/.cursor/`, configura MCPs y preserva hooks. |
+| **Antigravity** | `npm run setup:antigravity` | Compila `dist/antigravity` e instala en `~/.gemini/config/` con manifiesto transaccional. |
 
 ### 3. Iniciar un Ciclo SDD
 Una vez cargado el plugin en tu agente de chat:
@@ -110,6 +112,24 @@ Una vez cargado el plugin en tu agente de chat:
   *(Copia solo `.codex/agents/*.toml` al repo destino y no modifica `.codex/config.toml`.)*
 
   Si una instalación previa dejó claves no compatibles en `.codex/config.toml`, elimínalas manualmente según el mensaje de Codex; este instalador no altera configuraciones propiedad del usuario.
+
+### 🖱️ Cursor
+- **Instalación Global**:
+  ```powershell
+  npm run setup:cursor
+  ```
+  *(Compila `dist/cursor`, sincroniza a `~/.cursor/`, traduce `.mcp.json` y preserva hooks de usuario en `hooks.json`.)*
+
+### 🌌 Antigravity IDE
+- **Instalación Global**:
+  ```powershell
+  npm run setup:antigravity
+  ```
+  *(Compila `dist/antigravity` con perfiles y validación, desplegando skills, agentes y hooks adaptados en `~/.gemini/config/` con manifiesto transaccional.)*
+- **Reconstrucción rápida durante el desarrollo**:
+  ```powershell
+  npm run reload:antigravity
+  ```
 
 Consulta la [guía de instalación](docs/plugin-installation.md) para más detalles sobre la instalación nativa global y el runtime de hooks.
 

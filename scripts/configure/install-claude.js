@@ -57,17 +57,26 @@ function resolveClaudeBin() {
 function run(bin, args) {
   process.stdout.write(`\n==> ${bin} ${args.join(" ")}\n`);
   const result = spawnSync(bin, args, { stdio: "inherit", shell: false });
-  return result.status === 0;
+  if (result.error) {
+    throw new Error(`Failed to execute ${bin}: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    throw new Error(`Command failed with exit code ${result.status}: ${bin} ${args.join(" ")}`);
+  }
+  return true;
 }
 
 // Capture stdout to decide add-vs-update / install-vs-update without parsing
 // exit codes (which conflate "absent" with real failures).
 function listOutput(bin, args) {
   const result = spawnSync(bin, args, { encoding: "utf8", shell: false });
+  if (result.error) {
+    throw new Error(`Failed to execute ${bin} ${args.join(" ")}: ${result.error.message}`);
+  }
   return `${result.stdout || ""}${result.stderr || ""}`;
 }
 
-function main(argv) {
+function main(argv = process.argv.slice(2)) {
   const buildOnly = argv.includes("--build-only");
   const bin = resolveClaudeBin();
 
@@ -85,7 +94,7 @@ function main(argv) {
 
   if (build.exitCode !== 0) {
     process.stderr.write("\nbuild/validation failed; not touching marketplace state\n");
-    process.exitCode = build.exitCode;
+    process.exitCode = build.exitCode || 1;
     return;
   }
 
@@ -106,24 +115,29 @@ function main(argv) {
     return;
   }
 
-  // Marketplace: add the first time, refresh on every subsequent run.
-  if (listOutput(bin, ["plugin", "marketplace", "list"]).includes(MARKETPLACE)) {
-    run(bin, ["plugin", "marketplace", "update", MARKETPLACE]);
-  } else {
-    run(bin, ["plugin", "marketplace", "add", build.outDir, "--scope", "user"]);
-  }
+  try {
+    // Marketplace: add the first time, refresh on every subsequent run.
+    if (listOutput(bin, ["plugin", "marketplace", "list"]).includes(MARKETPLACE)) {
+      run(bin, ["plugin", "marketplace", "update", MARKETPLACE]);
+    } else {
+      run(bin, ["plugin", "marketplace", "add", build.outDir, "--scope", "user"]);
+    }
 
-  // Plugin: install the first time, update on every subsequent run. Both the
-  // detection and the update use the qualified `name@marketplace` id — the bare
-  // name is ambiguous to the CLI and `plugin update <name>` reports "not found".
-  const pluginId = `${PLUGIN}@${MARKETPLACE}`;
-  if (listOutput(bin, ["plugin", "list"]).includes(pluginId)) {
-    run(bin, ["plugin", "update", pluginId]);
-  } else {
-    run(bin, ["plugin", "install", pluginId]);
-  }
+    // Plugin: install the first time, update on every subsequent run. Both the
+    // detection and the update use the qualified `name@marketplace` id — the bare
+    // name is ambiguous to the CLI and `plugin update <name>` reports "not found".
+    const pluginId = `${PLUGIN}@${MARKETPLACE}`;
+    if (listOutput(bin, ["plugin", "list"]).includes(pluginId)) {
+      run(bin, ["plugin", "update", pluginId]);
+    } else {
+      run(bin, ["plugin", "install", pluginId]);
+    }
 
-  process.stdout.write("\nDone. Restart Claude Code or run /reload-plugins to apply.\n");
+    process.stdout.write("\nDone. Restart Claude Code or run /reload-plugins to apply.\n");
+  } catch (error) {
+    process.stderr.write(`\nClaude marketplace installation failed: ${error.message}\n`);
+    process.exitCode = 1;
+  }
 }
 
 if (require.main === module) {

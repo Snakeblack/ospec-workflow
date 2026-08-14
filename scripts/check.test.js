@@ -81,11 +81,12 @@ test("main includes cursor and skips claude validation when the claude CLI is un
   assert.equal(exitCode, undefined);
   assert.deepEqual(generated, [
     { target: "claude", validate: false },
-    { target: "vscode", validate: false },
+    { target: "vscode", validate: true },
     { target: "github-copilot", validate: true },
     { target: "opencode", validate: true },
     { target: "codex", validate: true },
     { target: "cursor", validate: true },
+    { target: "antigravity", validate: true },
   ]);
   assert.match(stdout.join(""), /claude CLI not found/);
 });

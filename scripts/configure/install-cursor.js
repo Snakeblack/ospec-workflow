@@ -7,6 +7,15 @@ const path = require("node:path");
 const { runConfigure } = require("./cli.js");
 const { copyBinaryToTree } = require("./install-target.js");
 const { validateInstalled: validateInstalledCursor } = require("./validate-cursor.js");
+const {
+  MANIFEST_FILENAME,
+  toPosix,
+  readOwnershipManifest,
+  writeOwnershipManifest,
+  pruneStaleFiles,
+  mergeHooksDoc,
+  mergeJsonFile,
+} = require("./install-engine.js");
 
 function usage() {
   return "usage: install-cursor [--dry-run] [--no-validate] [--source <sourceRepo>]\n";
@@ -267,6 +276,29 @@ function ensureCursorGenericHookEvents(hooksDoc) {
   return next;
 }
 
+function installMcpJson(sourceDir, cursorRoot, deps = {}) {
+  const fsImpl = deps.fs || fs;
+  const dryRun = Boolean(deps.dryRun);
+  const mcpSourcePath = path.join(sourceDir, ".mcp.json");
+  if (!fsImpl.existsSync(mcpSourcePath)) {
+    return;
+  }
+  const sourceMcp = JSON.parse(fsImpl.readFileSync(mcpSourcePath, "utf8"));
+  const destPath = path.join(cursorRoot, "mcp.json");
+  if (dryRun) return;
+
+  assertCursorPathSafe(cursorRoot, destPath, fsImpl);
+  mergeJsonFile(
+    destPath,
+    (existingDoc) => {
+      const next = { ...existingDoc };
+      next.mcpServers = { ...(existingDoc?.mcpServers || {}), ...(sourceMcp?.mcpServers || {}) };
+      return next;
+    },
+    { fs: fsImpl, journal: deps.journal },
+  );
+}
+
 function installHooksJson(outDir, cursorRoot, deps = {}) {
   const fsImpl = deps.fs || fs;
   const dryRun = Boolean(deps.dryRun);
@@ -284,10 +316,21 @@ function installHooksJson(outDir, cursorRoot, deps = {}) {
     return;
   }
   assertCursorPathSafe(cursorRoot, destPath, fsImpl);
-  if (deps.journal) deps.journal.capture(destPath);
   if (deps.journal) deps.journal.captureDirectory(cursorRoot);
+  if (deps.journal) deps.journal.capture(destPath);
+
+  let existing = {};
+  if (fsImpl.existsSync(destPath)) {
+    try {
+      existing = JSON.parse(fsImpl.readFileSync(destPath, "utf8"));
+    } catch (error) {
+      throw new Error(`Failed to parse existing hooks.json at ${destPath}: ${error.message}`);
+    }
+  }
+
+  const merged = mergeHooksDoc(existing, rendered, "cursor");
   fsImpl.mkdirSync(cursorRoot, { recursive: true });
-  fsImpl.writeFileSync(destPath, JSON.stringify(rendered, null, 2) + "\n");
+  fsImpl.writeFileSync(destPath, JSON.stringify(merged, null, 2) + "\n");
 }
 
 function main(argv, deps = {}) {
@@ -301,6 +344,7 @@ function main(argv, deps = {}) {
   const copyBinary = deps.copyBinaryToTree || copyBinaryToTree;
   const syncTree = deps.syncTreeByContent || syncTreeByContent;
   const installHooks = deps.installHooksJson || installHooksJson;
+  const installMcp = deps.installMcpJson || installMcpJson;
   const validateInstalled = deps.validateInstalled || validateInstalledCursor;
 
   if (args.error) {
@@ -349,6 +393,9 @@ function main(argv, deps = {}) {
 
   let journal = null;
   try {
+    journal = createRollbackJournal(cursorRoot, fsImpl);
+    const previousManifest = readOwnershipManifest(cursorRoot, fsImpl);
+
     // Cursor requires its native hook binary. Stage it in the generated tree
     // before touching the home directory so absence/copy failure is fail-closed.
     copyBinary(outDir, "cursor", sourceDir, {
@@ -364,14 +411,52 @@ function main(argv, deps = {}) {
       { updated: [], unchanged: [] },
       new Set(["hooks.json"]),
       cursorRoot,
-      (journal = createRollbackJournal(cursorRoot, fsImpl)),
+      journal,
     );
     installHooks(outDir, cursorRoot, { fs: fsImpl, dryRun: false, journal });
+    installMcp(sourceDir, cursorRoot, { fs: fsImpl, dryRun: false, journal });
+
     const installedValidation = validateInstalled(cursorRoot, { fs: fsImpl });
     if (installedValidation.errors.length > 0) {
       throw new Error(`installed Cursor validation failed: ${installedValidation.errors.join("; ")}`);
     }
-    stdout.write(`  updated ${syncResult.updated.length}, unchanged ${syncResult.unchanged.length}\n`);
+
+    let version = "0.0.0";
+    try {
+      version = JSON.parse(fsImpl.readFileSync(path.join(sourceDir, "package.json"), "utf8")).version;
+    } catch {
+      // Test fixtures may omit package.json
+    }
+    const allOwned = Array.from(
+      new Set(
+        [...syncResult.updated, ...syncResult.unchanged]
+          .map((p) => toPosix(path.relative(cursorRoot, p)))
+          .concat(["hooks.json", "mcp.json", MANIFEST_FILENAME]),
+      ),
+    ).sort();
+
+    const pruneResult = pruneStaleFiles(cursorRoot, previousManifest, allOwned, fsImpl, journal);
+
+    const isIdentical =
+      previousManifest &&
+      JSON.stringify(previousManifest.files?.slice().sort()) === JSON.stringify(allOwned.slice().sort()) &&
+      syncResult.updated.length === 0 &&
+      pruneResult.deleted.length === 0;
+
+    const installedAt = isIdentical && previousManifest.installedAt
+      ? previousManifest.installedAt
+      : new Date().toISOString();
+
+    writeOwnershipManifest(
+      cursorRoot,
+      { version, target: "cursor", installedAt, files: allOwned },
+      fsImpl,
+      journal,
+    );
+
+    stdout.write(
+      `  updated ${syncResult.updated.length}, unchanged ${syncResult.unchanged.length}, pruned ${pruneResult.deleted.length}\n`,
+    );
     return 0;
   } catch (error) {
     let rollbackError = null;
@@ -410,5 +495,6 @@ module.exports = {
   createRollbackJournal,
   syncTreeByContent,
   installHooksJson,
+  installMcpJson,
   main,
 };
