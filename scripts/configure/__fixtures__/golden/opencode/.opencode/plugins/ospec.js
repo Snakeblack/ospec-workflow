@@ -38,31 +38,34 @@ export const OspecWorkflowPlugin = async ({ directory }) => {
       }
     },
     "tool.execute.before": async (input, output) => {
+      const bin = resolveBinary();
+      const result = spawnSync(bin, ["pre-tool-use"], {
+        input: JSON.stringify({
+          tool_name: input && input.tool,
+          tool_input: (output && output.args) || {},
+        }),
+        encoding: "utf8",
+        shell: false,
+      });
+      if (result.error) {
+        throw new Error("[ospec-workflow] pre-tool-use hook failed: " + result.error.message);
+      }
+      if (result.status !== 0) {
+        throw new Error("[ospec-workflow] pre-tool-use hook failed with status " + result.status);
+      }
       let verdict = null;
       try {
-        const bin = resolveBinary();
-        const result = spawnSync(bin, ["pre-tool-use"], {
-          input: JSON.stringify({
-            tool_name: input && input.tool,
-            tool_input: (output && output.args) || {},
-          }),
-          encoding: "utf8",
-          shell: false,
-        });
-        // Fail-open: binary absent, non-zero exit, or unparseable stdout -> allow.
-        if (!result.error && result.status === 0 && result.stdout) {
-          const parsed = JSON.parse(result.stdout);
-          verdict = parsed && parsed.hookSpecificOutput;
-        }
-      } catch {
-        // spawnSync or JSON.parse error -> fail-open (allow the tool call).
+        const parsed = JSON.parse(result.stdout || "{}");
+        verdict = parsed && parsed.hookSpecificOutput;
+      } catch (err) {
+        throw new Error("[ospec-workflow] pre-tool-use invalid output: " + err.message);
       }
       if (!verdict) {
         return;
       }
       // opencode plugins can only allow (return) or block (throw) — no native ask.
       if (verdict.permissionDecision === "deny" || verdict.permissionDecision === "ask") {
-        throw new Error(verdict.permissionDecisionReason);
+        throw new Error(verdict.permissionDecisionReason || "Blocked by ospec-workflow safety policy");
       }
     },
   };

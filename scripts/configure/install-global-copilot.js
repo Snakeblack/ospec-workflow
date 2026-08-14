@@ -2,105 +2,223 @@
 
 // Idempotent installer to register the ospec-workflow globally under ~/.copilot/
 // directory. Builds the github-copilot target, copies agents, prompts, instructions,
-// hooks, and skills to the global directories, and merges the MCP config.
+// hooks, and skills to the global directories, merges MCP config fail-closed,
+// tracks ownership manifest, and prunes stale files.
 //
 // Usage:
-//   node scripts/configure/install-global-copilot.js
+//   node scripts/configure/install-global-copilot.js [--dry-run] [--no-validate] [--source <sourceRepo>] [--dest <targetDir>]
 
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
+
 const { runConfigure } = require("./cli.js");
 const { copyBinaryToTree } = require("./install-target.js");
+const {
+  MANIFEST_FILENAME,
+  toPosix,
+  assertPathSafe,
+  createRollbackJournal,
+  readOwnershipManifest,
+  writeOwnershipManifest,
+  pruneStaleFiles,
+  mergeJsonFile,
+  syncTargetTree,
+} = require("./install-engine.js");
 
-function main() {
-  const sourceDir = path.resolve(__dirname, "..", "..");
-  const home = os.homedir();
-  const globalDir = path.join(home, ".copilot");
+function usage() {
+  return "usage: install-global-copilot [--dry-run] [--no-validate] [--source <sourceRepo>] [--dest <targetDir>]\n";
+}
 
-  if (!fs.existsSync(globalDir)) {
-    process.stdout.write(`Creating global Copilot CLI configuration directory at ${globalDir}...\n`);
-    fs.mkdirSync(globalDir, { recursive: true });
+function parseArgs(argv) {
+  const args = { dryRun: false, validate: true, source: undefined, dest: undefined };
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === "--dry-run") args.dryRun = true;
+    else if (arg === "--no-validate") args.validate = false;
+    else if (arg === "--source") {
+      const next = argv[i + 1];
+      if (!next || next.startsWith("--")) {
+        args.error = "missing value for --source";
+        return args;
+      }
+      args.source = next;
+      i += 1;
+    } else if (arg === "--dest") {
+      const next = argv[i + 1];
+      if (!next || next.startsWith("--")) {
+        args.error = "missing value for --dest";
+        return args;
+      }
+      args.dest = next;
+      i += 1;
+    } else {
+      args.error = `unknown argument: ${arg}`;
+      return args;
+    }
+  }
+  return args;
+}
+
+function main(argv = process.argv.slice(2), deps = {}) {
+  const args = parseArgs(argv);
+  const cwd = deps.cwd || process.cwd();
+  const fsImpl = deps.fs || fs;
+  const stdout = deps.stdout || process.stdout;
+  const stderr = deps.stderr || process.stderr;
+  const homedir = deps.homedir || os.homedir;
+  const runConfigureImpl = deps.runConfigure || runConfigure;
+  const copyBinary = deps.copyBinaryToTree || copyBinaryToTree;
+
+  if (args.error) {
+    stderr.write(`${usage()}${args.error}\n`);
+    return 2;
   }
 
-  // 1. Build the target github-copilot to dist/github-copilot
+  const sourceDir = path.resolve(args.source || cwd);
+  const globalDir = path.resolve(args.dest || path.join(homedir(), ".copilot"));
   const outDir = path.join(sourceDir, "dist", "github-copilot");
-  const result = runConfigure({ sourceDir, target: "github-copilot", outDir, validate: true });
-  if (result.exitCode !== 0) {
-    process.stderr.write("\nBuild/validation failed; aborting global install\n");
-    process.exitCode = result.exitCode;
-    return;
+
+  try {
+    assertPathSafe(globalDir, globalDir, fsImpl);
+  } catch (error) {
+    stderr.write(`${error.message}\n`);
+    return 1;
   }
 
-  // Copy compiler hooks binary if present in release/dist/
-  copyBinaryToTree(outDir, "github-copilot", sourceDir);
+  const result = runConfigureImpl({
+    sourceDir,
+    target: "github-copilot",
+    outDir,
+    validate: args.validate,
+  });
+  if (result.validation?.stdout) stdout.write(result.validation.stdout);
+  if (result.validation?.stderr) stderr.write(result.validation.stderr);
+  if (result.exitCode !== 0) {
+    stderr.write("\nbuild/validation failed; nothing installed\n");
+    return result.exitCode || 1;
+  }
 
-  process.stdout.write(`\nInstalling globally to ${globalDir}...\n`);
+  stdout.write(`install-global-copilot -> ${globalDir}${args.dryRun ? " (dry-run)" : ""}\n`);
 
-  // Helper to copy files recursively and preserve directory tree structure
-  const copyFolder = (src, dest) => {
-    fs.mkdirSync(dest, { recursive: true });
-    for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
-      const srcPath = path.join(src, entry.name);
-      const destPath = path.join(dest, entry.name);
-      if (entry.isDirectory()) {
-        copyFolder(srcPath, destPath);
-      } else {
-        fs.copyFileSync(srcPath, destPath);
-        process.stdout.write(`  + ${path.relative(globalDir, destPath)}\n`);
+  if (args.dryRun) {
+    stdout.write("dry-run: no files written\n");
+    return 0;
+  }
+
+  let journal = null;
+  try {
+    journal = createRollbackJournal(globalDir, fsImpl);
+    const previousManifest = readOwnershipManifest(globalDir, fsImpl);
+
+    // Enforce required binary presence (fail-closed if missing)
+    copyBinary(outDir, "github-copilot", sourceDir, {
+      fs: fsImpl,
+      stdout,
+      stderr,
+      required: true,
+    });
+
+    const syncResult = { updated: [], unchanged: [], ownedFiles: [] };
+
+    // Remap .github/ subfolders into global root
+    const remappings = [
+      { src: path.join(outDir, ".github", "agents"), dest: path.join(globalDir, "agents"), destRel: "agents" },
+      { src: path.join(outDir, ".github", "prompts"), dest: path.join(globalDir, "prompts"), destRel: "prompts" },
+      { src: path.join(outDir, ".github", "instructions"), dest: path.join(globalDir, "instructions"), destRel: "instructions" },
+      { src: path.join(outDir, ".github", "hooks"), dest: path.join(globalDir, "hooks"), destRel: "hooks" },
+      { src: path.join(outDir, "skills"), dest: path.join(globalDir, "skills"), destRel: "skills" },
+      { src: path.join(outDir, "scripts"), dest: path.join(globalDir, "scripts"), destRel: "scripts" },
+    ];
+
+    if (fsImpl.existsSync(path.join(outDir, "release"))) {
+      remappings.push({ src: path.join(outDir, "release"), dest: path.join(globalDir, "release"), destRel: "release" });
+    }
+
+    for (const remap of remappings) {
+      if (fsImpl.existsSync(remap.src)) {
+        syncTargetTree(remap.src, remap.dest, fsImpl, syncResult, new Set(), globalDir, journal);
       }
     }
-  };
 
-  // 2. Copy remapped folders
-  copyFolder(path.join(outDir, ".github", "agents"), path.join(globalDir, "agents"));
-  copyFolder(path.join(outDir, ".github", "prompts"), path.join(globalDir, "prompts"));
-  copyFolder(path.join(outDir, ".github", "instructions"), path.join(globalDir, "instructions"));
-  copyFolder(path.join(outDir, ".github", "hooks"), path.join(globalDir, "hooks"));
-  copyFolder(path.join(outDir, "skills"), path.join(globalDir, "skills"));
-  copyFolder(path.join(outDir, "scripts"), path.join(globalDir, "scripts"));
-
-  if (fs.existsSync(path.join(outDir, "release"))) {
-    copyFolder(path.join(outDir, "release"), path.join(globalDir, "release"));
-  }
-
-  // 3. Merge MCP configuration
-  const globalConfigPath = path.join(globalDir, "mcp-config.json");
-  const generatedConfigPath = path.join(outDir, ".mcp.json");
-
-  let globalConfig = {};
-  if (fs.existsSync(globalConfigPath)) {
-    try {
-      globalConfig = JSON.parse(fs.readFileSync(globalConfigPath, "utf8"));
-    } catch (err) {
-      process.stderr.write(`Warning: Failed to parse existing global mcp-config.json: ${err.message}\n`);
+    // Merge MCP configuration fail-closed
+    const globalConfigPath = path.join(globalDir, "mcp-config.json");
+    const generatedConfigPath = path.join(outDir, ".mcp.json");
+    let generatedConfig = {};
+    if (fsImpl.existsSync(generatedConfigPath)) {
+      generatedConfig = JSON.parse(fsImpl.readFileSync(generatedConfigPath, "utf8"));
     }
-  }
 
-  let generatedConfig;
-  try {
-    generatedConfig = JSON.parse(fs.readFileSync(generatedConfigPath, "utf8"));
-  } catch (err) {
-    throw new Error(
-      `Could not read generated .mcp.json at ${generatedConfigPath}: ${err.message}`,
+    mergeJsonFile(
+      globalConfigPath,
+      (existingDoc) => {
+        const next = { ...existingDoc };
+        next.mcpServers = { ...(existingDoc.mcpServers || {}), ...(generatedConfig.mcpServers || {}) };
+        return next;
+      },
+      { fs: fsImpl, journal },
     );
+
+    let version = "0.0.0";
+    try {
+      version = JSON.parse(fsImpl.readFileSync(path.join(sourceDir, "package.json"), "utf8")).version;
+    } catch {
+      // Stub fixtures may lack package.json
+    }
+
+    const allOwned = Array.from(new Set([...syncResult.ownedFiles, "mcp-config.json", MANIFEST_FILENAME])).sort();
+    const pruneResult = pruneStaleFiles(globalDir, previousManifest, allOwned, fsImpl, journal);
+
+    const isIdentical =
+      previousManifest &&
+      JSON.stringify(previousManifest.files?.slice().sort()) === JSON.stringify(allOwned.slice().sort()) &&
+      syncResult.updated.length === 0 &&
+      pruneResult.deleted.length === 0;
+
+    const installedAt = isIdentical && previousManifest.installedAt
+      ? previousManifest.installedAt
+      : new Date().toISOString();
+
+    writeOwnershipManifest(
+      globalDir,
+      { version, target: "github-copilot", installedAt, files: allOwned },
+      fsImpl,
+      journal,
+    );
+
+    stdout.write(
+      `  updated ${syncResult.updated.length}, unchanged ${syncResult.unchanged.length}, pruned ${pruneResult.deleted.length}\n`,
+    );
+    return 0;
+  } catch (error) {
+    let rollbackError = null;
+    if (journal) {
+      try {
+        journal.rollback();
+      } catch (failure) {
+        rollbackError = failure;
+      }
+    }
+    stderr.write(
+      `install-global-copilot aborted: ${error.message || error}\n` +
+        (rollbackError
+          ? `${rollbackError.message || rollbackError}\nmanual recovery may be required\n`
+          : "managed Copilot changes were rolled back\n"),
+    );
+    return 1;
   }
-
-  // Merge MCP servers
-  globalConfig.mcpServers = globalConfig.mcpServers || {};
-  for (const [key, value] of Object.entries(generatedConfig.mcpServers || {})) {
-    globalConfig.mcpServers[key] = value;
-  }
-
-  fs.writeFileSync(globalConfigPath, JSON.stringify(globalConfig, null, 2));
-  process.stdout.write(`  + merged config into mcp-config.json\n`);
-
-  process.stdout.write("\nDone. Global installation completed successfully.\n");
 }
 
-try {
-  main();
-} catch (err) {
-  process.stderr.write(`\nGlobal install failed: ${err.message}\n`);
-  process.exit(1);
+if (require.main === module) {
+  try {
+    process.exitCode = main();
+  } catch (error) {
+    process.stderr.write(`fatal: ${error.stack || error.message || error}\n`);
+    process.exitCode = 1;
+  }
 }
+
+module.exports = {
+  parseArgs,
+  main,
+};

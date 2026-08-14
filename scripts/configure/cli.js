@@ -19,6 +19,7 @@ const PROFILES = {
   opencode: require("../lib/target-profiles/opencode.js"),
   codex: require("../lib/target-profiles/codex.js"),
   cursor: require("../lib/target-profiles/cursor.js"),
+  antigravity: require("../lib/target-profiles/antigravity.js"),
 };
 
 // Source roots that make up a plugin tree. Files are read into the
@@ -66,7 +67,7 @@ function loadTree(sourceDir, roots = SOURCE_ROOTS) {
 }
 
 // Skill entry-point scripts that must always be included in the runtime dist as
-// additional BFS roots alongside hooks/*.js. These four scripts are the runtime
+// additional BFS roots alongside hooks/*.js. These entry-point scripts are the runtime
 // half of the federation/explore/baseline skills and are unreachable from hooks.
 const SKILL_ENTRY_SCRIPTS = [
   "scripts/lib/review-dimensions.js",

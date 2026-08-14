@@ -5,6 +5,34 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.44.0] - 2026-08-14
+
+### Added
+- **Target Antigravity de Primera Clase**:
+  - Perfil declarativo del compilador (`scripts/lib/target-profiles/antigravity.js`) y registro en `PROFILES` de `cli.js`.
+  - Transformador de hooks para Antigravity en `scripts/lib/target-transform.js` adaptando eventos (`SessionStart`, `PreToolUse`, `PreCompact`, `SubagentStop`, `Stop`).
+  - Validador formal `scripts/configure/validate-antigravity.js` y suite de pruebas `validate-antigravity.test.js`.
+  - Instalador transaccional `scripts/configure/install-antigravity.js` con soporte para expansión de variables, idempotencia y preservación de hooks de usuario.
+  - Comandos npm en `package.json`: `build:antigravity`, `setup:antigravity`, `reload:antigravity`.
+  - Eliminado el script legacy no integrado `scripts/sync-antigravity.js`.
+- **Motor Unificado de Instalación (`scripts/configure/install-engine.js`)**:
+  - Manifiesto de propiedad (`.ospec-workflow-install.json`) con normalización de rutas POSIX para todos los targets globales.
+  - Poda automática y segura de archivos obsoletos (`pruneStaleFiles`) entre versiones preservando estrictamente archivos del usuario.
+  - Journal de rollback transaccional con reversión completa en caso de fallo durante la sincronización.
+  - Parsers JSON y JSONC seguros con política fail-closed (cero escrituras destructivas ante sintaxis inválida).
+  - Fusión no destructiva de configuraciones y hooks en `~/.cursor/hooks.json`, `~/.gemini/config/hooks.json` y `opencode.json`.
+
+### Fixed
+- **Hardening de Seguridad y Convergencia Multiobjetivo**:
+  - **Cursor**: Sincronización de servidores MCP desde `.mcp.json` y preservación no destructiva de hooks de usuario en `~/.cursor/hooks.json`.
+  - **OpenCode**: Ejecución fail-closed en `tool.execute.before` (`opencode-plugin.js`), denegando herramientas ante errores de hook; requerimiento mandatorio de binario compilador (`required: true`).
+  - **Copilot**: Fusión segura fail-closed de configuración y seguimiento mediante manifiesto de propiedad.
+  - **Codex**: Extracción dinámica de MCP desde `.mcp.json` con soporte completo de variables de entorno (`env`); eliminada la tabla estática duplicada.
+  - **Claude**: Validación estricta de códigos de salida en comandos de marketplace y plugin (`status === 0`), eliminando falsos éxitos.
+  - **VS Code**: Fusión segura JSONC de `settings.json` preservando comentarios; validador `validate-vscode.js` integrado en la suite de comprobación.
+  - **Limpieza de Código Muerto**: Eliminadas constantes obsoletas (`ALLOWED_BUNDLE_KEYS`, `RELATIVE_PATH_KEYS`) en `validate-codex.js`.
+  - **Especificación OpenSpec**: Actualizada la línea base de `openspec/specs/install/spec.md` con los requerimientos `REQ-install-008` a `REQ-install-014`.
+
 ## [2.43.5] - 2026-08-14
 
 ### Fixed

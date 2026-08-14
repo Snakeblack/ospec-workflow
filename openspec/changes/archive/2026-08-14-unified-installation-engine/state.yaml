@@ -1,0 +1,20 @@
+schema: 1
+change: unified-installation-engine
+phase: archive
+status: completed
+created_at: "2026-08-14T23:18:00Z"
+updated_at: "2026-08-14T23:32:30Z"
+archived_at: "2026-08-14T23:32:30Z"
+baseline_fingerprints:
+  install: "be4902509a23aeea891c8e354b2e58bf594ae316c849709ab6f82a12d30c27e0"
+approvals:
+  proposal:
+    approved: true
+    approved_by: user
+    approved_at: "2026-08-14T23:18:00Z"
+    notes: "Automatic execution approved with exception-ok"
+  size_exception:
+    approved: true
+    approved_by: user
+    approved_at: "2026-08-14T23:18:00Z"
+    notes: "User approved exception-ok mode"

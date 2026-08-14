@@ -111,6 +111,7 @@ const SUCCESSOR_K2_EXACT = new Set([
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [
+  "scripts/lib/target-profiles/",
   "scripts/lib/lifecycle-kernel/",
   "scripts/lib/authority-store/",
   "scripts/lib/host-contract/",

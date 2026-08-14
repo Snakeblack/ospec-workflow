@@ -3,22 +3,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-// Fields the codex plugin bundle allowlist permits at .codex-plugin/plugin.json
-// (mirrors profile.manifest.keepFields plus the injected `interface` block).
-const ALLOWED_BUNDLE_KEYS = new Set([
-  "skills",
-  "apps",
-  "hooks",
-  "interface",
-  "name",
-  "version",
-  "description",
-]);
-
-// REQ-generator-004 (ADR-001): the bundle keys whose value must be a safe
-// "./"-relative path (no ".." traversal, no absolute filesystem path).
-const RELATIVE_PATH_KEYS = ["skills", "hooks"];
-
 // codex has no shell-hook/plugin bridge finalized until 5.2/5.3, and no other
 // target's layout may leak through; agents never live under a `prompts/` path
 // (Codex custom prompts are deprecated in favor of skills).

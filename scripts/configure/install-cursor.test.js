@@ -437,7 +437,7 @@ function rollbackFixture(t, failureStage) {
     }),
   );
   write(cursorRoot, "agents/a.md", "old-agent\n");
-  write(cursorRoot, "hooks.json", "old-hooks-bytes\n");
+  write(cursorRoot, "hooks.json", JSON.stringify({ version: 1, hooks: { stop: [{ command: "old-hooks" }] } }) + "\n");
   write(cursorRoot, "user-owned/notes.txt", "preserve-extra\n");
   fs.chmodSync(path.join(cursorRoot, "agents", "a.md"), 0o600);
   const before = rollbackTreeState(cursorRoot);
