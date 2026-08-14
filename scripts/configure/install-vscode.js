@@ -87,6 +87,8 @@ function updateSettingsJsoncPreservingComments(rawContent, pluginPath) {
     return { content: rawContent, updated: false };
   }
 
+  let finalContent;
+
   // Check if chat.pluginLocations is present as a scalar property
   const scalarRegex = /"chat\.pluginLocations"\s*:\s*("[^"]*"|[^,\}\]\s]+)/;
   const scalarMatch = rawContent.match(scalarRegex);
@@ -94,39 +96,45 @@ function updateSettingsJsoncPreservingComments(rawContent, pluginPath) {
     const existingVal = parsed["chat.pluginLocations"];
     const newLocations = [existingVal, pluginPath].filter(Boolean);
     const newArrayContent = `\n    ${newLocations.map((p) => JSON.stringify(p)).join(",\n    ")}\n  `;
-    const replaced = rawContent.replace(scalarRegex, `"chat.pluginLocations": [${newArrayContent}]`);
-    return { content: replaced, updated: true };
-  }
-
-  // If chat.pluginLocations key is present as array in text
-  const keyRegex = /"chat\.pluginLocations"\s*:\s*\[([\s\S]*?)\]/;
-  const match = rawContent.match(keyRegex);
-  if (match) {
-    const arrayBody = match[1];
-    const cleanBody = arrayBody.trim();
-    let newArrayContent;
-    if (cleanBody === "") {
-      newArrayContent = `\n    ${JSON.stringify(pluginPath)}\n  `;
+    finalContent = rawContent.replace(scalarRegex, `"chat.pluginLocations": [${newArrayContent}]`);
+  } else {
+    // If chat.pluginLocations key is present as array in text
+    const keyRegex = /"chat\.pluginLocations"\s*:\s*\[([\s\S]*?)\]/;
+    const match = rawContent.match(keyRegex);
+    if (match) {
+      const arrayBody = match[1];
+      const cleanBody = arrayBody.trim();
+      let newArrayContent;
+      if (cleanBody === "") {
+        newArrayContent = `\n    ${JSON.stringify(pluginPath)}\n  `;
+      } else {
+        const bodyWithoutTrailingComma = arrayBody.replace(/,\s*$/, "");
+        newArrayContent = `${bodyWithoutTrailingComma.replace(/\s+$/, "")},\n    ${JSON.stringify(pluginPath)}\n  `;
+      }
+      finalContent = rawContent.replace(keyRegex, `"chat.pluginLocations": [${newArrayContent}]`);
     } else {
-      newArrayContent = `${arrayBody.replace(/\s+$/, "")},\n    ${JSON.stringify(pluginPath)}\n  `;
+      // Otherwise, insert after first opening {
+      const firstBrace = rawContent.indexOf("{");
+      if (firstBrace !== -1) {
+        const prefix = rawContent.slice(0, firstBrace + 1);
+        const suffix = rawContent.slice(firstBrace + 1);
+        const insertion = `\n  "chat.pluginLocations": [\n    ${JSON.stringify(pluginPath)}\n  ],`;
+        finalContent = `${prefix}${insertion}${suffix}`;
+      } else {
+        finalContent = `{\n  "chat.pluginLocations": [\n    ${JSON.stringify(pluginPath)}\n  ]\n}\n`;
+      }
     }
-    const replaced = rawContent.replace(keyRegex, `"chat.pluginLocations": [${newArrayContent}]`);
-    return { content: replaced, updated: true };
   }
 
-  // Otherwise, insert after first opening {
-  const firstBrace = rawContent.indexOf("{");
-  if (firstBrace !== -1) {
-    const prefix = rawContent.slice(0, firstBrace + 1);
-    const suffix = rawContent.slice(firstBrace + 1);
-    const insertion = `\n  "chat.pluginLocations": [\n    ${JSON.stringify(pluginPath)}\n  ],`;
-    return { content: `${prefix}${insertion}${suffix}`, updated: true };
+  // Roundtrip validation: ensure modified content is 100% valid JSONC containing the plugin
+  const recheck = safeParseJsonc(finalContent, "settings.json (post-edit)");
+  const recheckLocations = recheck["chat.pluginLocations"] || [];
+  const recheckArray = Array.isArray(recheckLocations) ? recheckLocations : [recheckLocations];
+  if (!recheckArray.includes(pluginPath)) {
+    throw new Error("Failed to verify updated settings.json: plugin path missing in modified JSONC");
   }
 
-  return {
-    content: `{\n  "chat.pluginLocations": [\n    ${JSON.stringify(pluginPath)}\n  ]\n}\n`,
-    updated: true,
-  };
+  return { content: finalContent, updated: true };
 }
 
 function main(argv = process.argv.slice(2), deps = {}) {
@@ -171,36 +179,24 @@ function main(argv = process.argv.slice(2), deps = {}) {
   }
 
   const settingsFiles = getSettingsPaths(deps);
-  let configuredAny = false;
+  const preparedWrites = [];
   let hasErrors = false;
 
+  // Preflight validation of all candidate settings files before modifying any file on disk
   for (const file of settingsFiles) {
     const parentDir = path.dirname(file.path);
     if (fsImpl.existsSync(file.path)) {
       try {
         const raw = fsImpl.readFileSync(file.path, "utf8");
         const { content: updatedContent, updated } = updateSettingsJsoncPreservingComments(raw, absPluginPath);
-        if (updated) {
-          fsImpl.writeFileSync(file.path, updatedContent, "utf8");
-          stdout.write(`  + Updated ${file.name} settings.json\n`);
-        } else {
-          stdout.write(`  · ${file.name} settings.json already configured\n`);
-        }
-        configuredAny = true;
+        preparedWrites.push({ file, content: updatedContent, updated, exists: true });
       } catch (err) {
-        stderr.write(`  [error] Failed to parse/update ${file.name} settings.json: ${err.message}\n`);
+        stderr.write(`  [error] Preflight check failed for ${file.name} settings.json: ${err.message}\n`);
         hasErrors = true;
       }
     } else if (fsImpl.existsSync(parentDir)) {
-      try {
-        const initialContent = `{\n  "chat.pluginLocations": [\n    ${JSON.stringify(absPluginPath)}\n  ]\n}\n`;
-        fsImpl.writeFileSync(file.path, initialContent, "utf8");
-        stdout.write(`  + Created ${file.name} settings.json\n`);
-        configuredAny = true;
-      } catch (err) {
-        stderr.write(`  [error] Failed to create ${file.name} settings.json: ${err.message}\n`);
-        hasErrors = true;
-      }
+      const initialContent = `{\n  "chat.pluginLocations": [\n    ${JSON.stringify(absPluginPath)}\n  ]\n}\n`;
+      preparedWrites.push({ file, content: initialContent, updated: true, exists: false });
     }
   }
 
@@ -209,13 +205,22 @@ function main(argv = process.argv.slice(2), deps = {}) {
     return 1;
   }
 
-  if (!configuredAny) {
+  if (preparedWrites.length === 0) {
     stderr.write(
       `\nVS Code settings directory not found on host. Please ensure VS Code is installed or configure settings.json manually:\n` +
         `Add the following path to "chat.pluginLocations":\n` +
         `  "${absPluginPath}"\n`,
     );
     return 1;
+  }
+
+  for (const writeItem of preparedWrites) {
+    if (writeItem.updated) {
+      fsImpl.writeFileSync(writeItem.file.path, writeItem.content, "utf8");
+      stdout.write(`  + ${writeItem.exists ? "Updated" : "Created"} ${writeItem.file.name} settings.json\n`);
+    } else {
+      stdout.write(`  · ${writeItem.file.name} settings.json already configured\n`);
+    }
   }
 
   stdout.write("\nDone. VS Code setup completed successfully. Restart VS Code to apply.\n");

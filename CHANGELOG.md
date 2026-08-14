@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.44.3] - 2026-08-15
+
+### Added
+- **Eliminación Directa de Comas Finales en el Autómata de Estados**:
+  - `stripJsoncComments()` en `scripts/configure/install-engine.js` gestiona la omisión de comas finales directamente durante el escaneo carácter a carácter fuera de cadenas, evitando expresiones regulares sobre el texto resultante.
+- **Validación Roundtrip y Preflight en VS Code**:
+  - `updateSettingsJsoncPreservingComments()` en `scripts/configure/install-vscode.js` revalida el documento resultante antes de retornar, y `main()` ejecuta un preflight completo sobre todos los archivos de configuración antes de escribir cambios a disco.
+
+### Fixed
+- **Limpieza de Alcance en Especificación**:
+  - Eliminada la referencia residual a `install:copilot` en la sección Scope de `openspec/specs/install/spec.md`.
+
 ## [2.44.2] - 2026-08-15
 
 ### Added
