@@ -400,3 +400,58 @@ test("main: a later sync failure rolls back replaced and new entries and cleans 
   assert.ok(rollbackDirs.length > 0);
   assert.ok(rollbackDirs.every((dir) => !fs.existsSync(dir)), "all rollback directories must be cleaned");
 });
+
+test("ensureRuntimeBinary: returns existing binary path when present", (t) => {
+  const { ensureRuntimeBinary, hostBinarySuffix } = require("./install-target.js");
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-binary-test-"));
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }));
+
+  const binInfo = hostBinarySuffix();
+  const binDir = path.join(tempDir, "release", "dist");
+  fs.mkdirSync(binDir, { recursive: true });
+  const binPath = path.join(binDir, `ospec-hooks-${binInfo.os}-${binInfo.arch}${binInfo.ext}`);
+  fs.writeFileSync(binPath, "dummy binary");
+
+  const resolved = ensureRuntimeBinary(tempDir);
+  assert.equal(resolved, binPath);
+});
+
+test("ensureRuntimeBinary: attempts compilation when binary is missing and Go is available", (t) => {
+  const { ensureRuntimeBinary, hostBinarySuffix } = require("./install-target.js");
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-go-test-"));
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }));
+
+  const binInfo = hostBinarySuffix();
+  const cmdDir = path.join(tempDir, "cmd", "ospec-hooks");
+  fs.mkdirSync(cmdDir, { recursive: true });
+  const expectedBinPath = path.join(tempDir, "release", "dist", `ospec-hooks-${binInfo.os}-${binInfo.arch}${binInfo.ext}`);
+
+  let spawnCalled = false;
+  const mockSpawn = (cmd, args) => {
+    if (cmd === "go" && args[0] === "version") {
+      return { status: 0 };
+    }
+    if (cmd === "go" && args[0] === "build") {
+      spawnCalled = true;
+      fs.mkdirSync(path.dirname(expectedBinPath), { recursive: true });
+      fs.writeFileSync(expectedBinPath, "compiled binary");
+      return { status: 0 };
+    }
+    return { status: 1 };
+  };
+
+  const resolved = ensureRuntimeBinary(tempDir, { spawnSync: mockSpawn });
+  assert.equal(spawnCalled, true);
+  assert.equal(resolved, expectedBinPath);
+});
+
+test("ensureRuntimeBinary: returns null when Go is unavailable and binary missing", (t) => {
+  const { ensureRuntimeBinary } = require("./install-target.js");
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-nogo-test-"));
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }));
+
+  const mockSpawn = () => ({ status: 1 });
+  const resolved = ensureRuntimeBinary(tempDir, { spawnSync: mockSpawn });
+  assert.equal(resolved, null);
+});
+

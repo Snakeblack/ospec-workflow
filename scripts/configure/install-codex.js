@@ -722,6 +722,27 @@ function gatherCodexOwnedFiles(outDir, fsImpl = fs) {
   return owned;
 }
 
+function gatherCodexSkillsFiles(outDir, fsImpl = fs) {
+  const skillsDir = path.join(outDir, "skills");
+  const owned = [];
+  if (!fsImpl.existsSync(skillsDir)) return owned;
+
+  function walk(currentDir, baseRel = "") {
+    for (const entry of fsImpl.readdirSync(currentDir, { withFileTypes: true })) {
+      const relPath = baseRel ? `${baseRel}/${entry.name}` : entry.name;
+      const fullPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath, relPath);
+      } else if (entry.isFile()) {
+        owned.push(relPath);
+      }
+    }
+  }
+
+  walk(skillsDir, "");
+  return owned;
+}
+
 function main(argv, deps = {}) {
   const args = parseArgs(argv);
   const cwd = deps.cwd || process.cwd();
@@ -838,6 +859,11 @@ function main(argv, deps = {}) {
         if (writeFs.existsSync(legacyRuntimeSkills)) {
           writeFs.rmSync(legacyRuntimeSkills, { recursive: true, force: true });
         }
+
+        const previousSkillsManifest = readOwnershipManifest(globalSkillsRoot, fsImpl);
+        const currentSkillsFiles = gatherCodexSkillsFiles(outDir, fsImpl);
+        pruneStaleFiles(globalSkillsRoot, previousSkillsManifest, currentSkillsFiles, writeFs);
+
         syncCodexSkills(outDir, globalSkillsRoot, { fs: writeFs, approvedRoot: userHome });
         writeFs.rmSync(path.join(agentsDest, "sdd-orchestrator.toml"), { force: true });
         installCodexHooks(outDir, codexRoot, runtimeDir, { fs: writeFs });
@@ -849,6 +875,17 @@ function main(argv, deps = {}) {
             target: "codex",
             installedAt: previousManifest?.installedAt || new Date().toISOString(),
             files: currentOwnedFiles.map(toPosix),
+          },
+          writeFs,
+        );
+
+        writeOwnershipManifest(
+          globalSkillsRoot,
+          {
+            version: require("../../package.json").version,
+            target: "codex-skills",
+            installedAt: previousSkillsManifest?.installedAt || new Date().toISOString(),
+            files: currentSkillsFiles.map(toPosix),
           },
           writeFs,
         );

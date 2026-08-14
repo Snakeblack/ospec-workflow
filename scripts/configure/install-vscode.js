@@ -87,7 +87,18 @@ function updateSettingsJsoncPreservingComments(rawContent, pluginPath) {
     return { content: rawContent, updated: false };
   }
 
-  // If chat.pluginLocations key is present in text
+  // Check if chat.pluginLocations is present as a scalar property
+  const scalarRegex = /"chat\.pluginLocations"\s*:\s*("[^"]*"|[^,\}\]\s]+)/;
+  const scalarMatch = rawContent.match(scalarRegex);
+  if (scalarMatch && !rawContent.match(/"chat\.pluginLocations"\s*:\s*\[/)) {
+    const existingVal = parsed["chat.pluginLocations"];
+    const newLocations = [existingVal, pluginPath].filter(Boolean);
+    const newArrayContent = `\n    ${newLocations.map((p) => JSON.stringify(p)).join(",\n    ")}\n  `;
+    const replaced = rawContent.replace(scalarRegex, `"chat.pluginLocations": [${newArrayContent}]`);
+    return { content: replaced, updated: true };
+  }
+
+  // If chat.pluginLocations key is present as array in text
   const keyRegex = /"chat\.pluginLocations"\s*:\s*\[([\s\S]*?)\]/;
   const match = rawContent.match(keyRegex);
   if (match) {
@@ -138,10 +149,9 @@ function main(argv = process.argv.slice(2), deps = {}) {
   // 1. Build the target vscode to dist/vscode
   const result = runConfigureImpl({ sourceDir, target: "vscode", outDir, validate: args.validate });
   if (result.validation?.stdout) stdout.write(result.validation.stdout);
-  if (result.validation?.stderr) stderr.write(result.validation.stderr);
   if (result.exitCode !== 0) {
-    stderr.write("\nbuild/validation failed; aborting vscode install\n");
-    return result.exitCode || 1;
+    stderr.write(`\nVS Code configuration build failed with exit code ${result.exitCode}\n`);
+    return result.exitCode;
   }
 
   // Copy compiler hooks binary if present in release/dist/
@@ -165,6 +175,7 @@ function main(argv = process.argv.slice(2), deps = {}) {
   let hasErrors = false;
 
   for (const file of settingsFiles) {
+    const parentDir = path.dirname(file.path);
     if (fsImpl.existsSync(file.path)) {
       try {
         const raw = fsImpl.readFileSync(file.path, "utf8");
@@ -180,6 +191,16 @@ function main(argv = process.argv.slice(2), deps = {}) {
         stderr.write(`  [error] Failed to parse/update ${file.name} settings.json: ${err.message}\n`);
         hasErrors = true;
       }
+    } else if (fsImpl.existsSync(parentDir)) {
+      try {
+        const initialContent = `{\n  "chat.pluginLocations": [\n    ${JSON.stringify(absPluginPath)}\n  ]\n}\n`;
+        fsImpl.writeFileSync(file.path, initialContent, "utf8");
+        stdout.write(`  + Created ${file.name} settings.json\n`);
+        configuredAny = true;
+      } catch (err) {
+        stderr.write(`  [error] Failed to create ${file.name} settings.json: ${err.message}\n`);
+        hasErrors = true;
+      }
     }
   }
 
@@ -189,14 +210,15 @@ function main(argv = process.argv.slice(2), deps = {}) {
   }
 
   if (!configuredAny) {
-    stdout.write(
-      `\nTo complete setup, please configure your VS Code settings.json manually:\n` +
+    stderr.write(
+      `\nVS Code settings directory not found on host. Please ensure VS Code is installed or configure settings.json manually:\n` +
         `Add the following path to "chat.pluginLocations":\n` +
         `  "${absPluginPath}"\n`,
     );
-  } else {
-    stdout.write("\nDone. VS Code setup completed successfully. Restart VS Code to apply.\n");
+    return 1;
   }
+
+  stdout.write("\nDone. VS Code setup completed successfully. Restart VS Code to apply.\n");
   return 0;
 }
 

@@ -248,3 +248,26 @@ test("mergeHooksDoc merges OSpec hooks without deleting foreign hooks", () => {
   assert.equal(merged.hooks.beforeShellExecution[1].command, "node /new/path/ospec-hooks-launch.js pre-tool-use");
   assert.equal(merged.hooks.stop.length, 1);
 });
+
+test("safeParseJsonc parses complex JSONC without corrupting string literals", () => {
+  const jsonc = `// Leading file comment
+{
+  /* Block comment */
+  "url": "https://example.com/api//endpoint",
+  "commentLike": "/* this is not a comment */",
+  "escapedQuotes": "hello \\" // still inside string \\" world",
+  "nested": {
+    "array": [
+      "item1",
+      "item2", // Trailing line comment
+    ],
+  },
+}
+`;
+  const parsed = safeParseJsonc(jsonc);
+  assert.equal(parsed.url, "https://example.com/api//endpoint");
+  assert.equal(parsed.commentLike, "/* this is not a comment */");
+  assert.equal(parsed.escapedQuotes, 'hello " // still inside string " world');
+  assert.deepEqual(parsed.nested.array, ["item1", "item2"]);
+});
+

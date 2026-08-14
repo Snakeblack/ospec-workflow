@@ -1232,3 +1232,80 @@ test("main persists .ospec-workflow-install.json and prunes stale agents/scripts
   assert.ok(!manifest.files.includes("agents/old-agent.toml"));
 });
 
+test("setup:codex maintains skills ownership manifest and prunes stale skills", (t) => {
+  const home = makeTempDir(t, "codex-skills-ownership-home-");
+  const codexRoot = path.join(home, ".codex");
+  const skillsRoot = path.join(home, ".agents", "skills");
+  const source = makeTempDir(t, "codex-skills-source-");
+  const outDir = makeTempDir(t, "codex-skills-out-");
+
+  fs.mkdirSync(codexRoot, { recursive: true });
+  fs.mkdirSync(skillsRoot, { recursive: true });
+
+  // Setup previous skills state
+  const oldSkillDir = path.join(skillsRoot, "old-skill");
+  const userCustomSkillDir = path.join(skillsRoot, "user-custom-skill");
+  fs.mkdirSync(oldSkillDir, { recursive: true });
+  fs.mkdirSync(userCustomSkillDir, { recursive: true });
+  fs.writeFileSync(path.join(oldSkillDir, "SKILL.md"), "# Old Skill");
+  fs.writeFileSync(path.join(userCustomSkillDir, "SKILL.md"), "# User Custom Skill");
+
+  // Previous skills manifest
+  fs.writeFileSync(
+    path.join(skillsRoot, ".ospec-workflow-install.json"),
+    JSON.stringify({
+      version: "2.44.0",
+      target: "codex-skills",
+      installedAt: "2026-08-14T00:00:00.000Z",
+      files: ["old-skill/SKILL.md"],
+    }),
+  );
+
+  // New source output
+  fs.writeFileSync(path.join(outDir, "AGENTS.md"), "# Codex Agents\n");
+  fs.mkdirSync(path.join(outDir, ".codex", "agents"), { recursive: true });
+  fs.writeFileSync(path.join(outDir, ".codex", "agents", "sdd-apply.toml"), "name = 'sdd-apply'");
+  fs.mkdirSync(path.join(outDir, "skills", "sdd-apply"), { recursive: true });
+  fs.writeFileSync(path.join(outDir, "skills", "sdd-apply", "SKILL.md"), "# SDD Apply Skill");
+  fs.mkdirSync(path.join(outDir, "scripts"), { recursive: true });
+  fs.writeFileSync(
+    path.join(outDir, "hooks.json"),
+    JSON.stringify({ hooks: {} }),
+  );
+
+  const stdout = [];
+  const stderr = [];
+  const exitCode = main(["--source", source, "--no-validate"], {
+    fs,
+    homedir: () => home,
+    outDir,
+    runConfigure: () => ({ exitCode: 0 }),
+    findCodexBin: () => null,
+    stdout: { write: (msg) => stdout.push(msg) },
+    stderr: { write: (msg) => stderr.push(msg) },
+  });
+
+  if (exitCode !== 0) {
+    console.error("Test failed with stderr:", stderr.join("\n"), "stdout:", stdout.join("\n"));
+  }
+  assert.equal(exitCode, 0);
+
+  // Assert stale skill was pruned
+  assert.equal(fs.existsSync(path.join(oldSkillDir, "SKILL.md")), false);
+
+  // Assert user custom skill was preserved
+  assert.equal(fs.existsSync(path.join(userCustomSkillDir, "SKILL.md")), true);
+
+  // Assert new skill was installed
+  assert.equal(fs.existsSync(path.join(skillsRoot, "sdd-apply", "SKILL.md")), true);
+
+  // Assert skills manifest was updated
+  const skillsManifest = JSON.parse(
+    fs.readFileSync(path.join(skillsRoot, ".ospec-workflow-install.json"), "utf8"),
+  );
+  assert.equal(skillsManifest.target, "codex-skills");
+  assert.ok(skillsManifest.files.includes("sdd-apply/SKILL.md"));
+  assert.ok(!skillsManifest.files.includes("old-skill/SKILL.md"));
+});
+
+

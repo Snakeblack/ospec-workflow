@@ -220,17 +220,75 @@ function safeParseJson(content, filename = "config.json") {
   }
 }
 
+function stripJsoncComments(content) {
+  let result = "";
+  let inString = false;
+  let inSingleLineComment = false;
+  let inMultiLineComment = false;
+  let isEscaped = false;
+
+  for (let i = 0; i < content.length; i += 1) {
+    const char = content[i];
+    const nextChar = content[i + 1];
+
+    if (inSingleLineComment) {
+      if (char === "\n" || char === "\r") {
+        inSingleLineComment = false;
+        result += char;
+      }
+      continue;
+    }
+
+    if (inMultiLineComment) {
+      if (char === "*" && nextChar === "/") {
+        inMultiLineComment = false;
+        i += 1;
+      }
+      continue;
+    }
+
+    if (inString) {
+      result += char;
+      if (isEscaped) {
+        isEscaped = false;
+      } else if (char === "\\") {
+        isEscaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      result += char;
+      continue;
+    }
+
+    if (char === "/" && nextChar === "/") {
+      inSingleLineComment = true;
+      i += 1;
+      continue;
+    }
+
+    if (char === "/" && nextChar === "*") {
+      inMultiLineComment = true;
+      i += 1;
+      continue;
+    }
+
+    result += char;
+  }
+
+  // Strip trailing commas before closing } or ]
+  return result.replace(/,\s*([}\]])/g, "$1");
+}
+
 function safeParseJsonc(content, filename = "settings.json") {
   if (typeof content !== "string" || !content.trim()) {
     return {};
   }
-  // Strip block comments /* ... */ and line comments // ... outside quotes
-  const noComments = content.replace(
-    /\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm,
-    "$1",
-  );
-  // Strip trailing commas before closing } or ]
-  const cleaned = noComments.replace(/,\s*([}\]])/g, "$1");
+  const cleaned = stripJsoncComments(content);
   try {
     return JSON.parse(cleaned);
   } catch (error) {
@@ -361,6 +419,7 @@ module.exports = {
   writeOwnershipManifest,
   pruneStaleFiles,
   safeParseJson,
+  stripJsoncComments,
   safeParseJsonc,
   mergeJsonFile,
   mergeJsoncFile,
