@@ -128,7 +128,7 @@ Resolve mode:
 
 #### Hard Gate (Strict TDD Only)
 
-If Strict TDD Mode is active (either from orchestrator injection or self-discovery):
+If Strict TDD Mode is active (when `testing.tdd_mode` resolved to `strict`):
 - You MUST produce a **TDD Cycle Evidence** table in your apply-progress artifact
 - Each task row MUST have: RED (test written first) → GREEN (implementation passes) → REFACTOR columns
 - If you complete a task WITHOUT writing tests first, mark it as FAILED in the evidence table

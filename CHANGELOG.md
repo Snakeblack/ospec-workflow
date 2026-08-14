@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.43.5] - 2026-08-14
+
+### Fixed
+- **Unificación Total de Autoridad TDD y Binding Mecánico Candidate ↔ Git Tree**:
+  - `deriveCandidateDeltaPaths` y `recordRemediationAttempt` soportan binding mecánico explícito entre identidades canónicas de Candidate v2 (con digests SHA-256 reales de 64 hex) y Git Tree OIDs (`options.git_trees`, `options.before_git_tree`/`options.after_git_tree`), eliminando el hack de relleno y recorte de 24 ceros (`slice(24)` / `padStart(64, "0")`).
+  - `skills/sdd-verify/SKILL.md`: eliminada la regla que otorgaba autoridad directa al prompt del orquestador; `testing.tdd_mode` resuelto mediante `resolveTddMode` es la única autoridad, y el orquestador se limita a reenviar el valor resuelto.
+  - `skills/sdd-apply/SKILL.md`: clarificada la activación de Strict TDD supeditada exclusivamente a `testing.tdd_mode: strict`.
+  - `rules/sdd-strict-tdd.instructions.md`: actualizada la cabecera de activación condicional para referir a `testing.tdd_mode: strict`.
+  - `skills/sdd-init/SKILL.md`: Paso 3 actualizado para definir el test runner como detector de disponibilidad y delegar el modo TDD en `testing.tdd_mode` / preset de escala.
+  - `agents/sdd-orchestrator.agent.md`, `docs/tdd-y-revision.md` y `docs/harness-runtime.md`: eliminadas todas las referencias residuales a `strict_tdd: true`.
+
 ## [2.43.4] - 2026-08-10
 
 ### Fixed

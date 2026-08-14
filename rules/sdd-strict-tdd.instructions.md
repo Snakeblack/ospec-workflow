@@ -8,7 +8,7 @@ activation: conditional
 
 # Strict TDD Protocol
 
-Load these rules only when `openspec/config.yaml` explicitly enables `strict_tdd: true` and Strict TDD Mode is active. The orchestrator should forward: `STRICT TDD MODE IS ACTIVE. Test runner: {command or "unavailable"}.`
+Load these rules only when `openspec/config.yaml` explicitly enables `testing.tdd_mode: strict` (resolved via `resolveTddMode`) and Strict TDD Mode is active. The orchestrator forwards: `STRICT TDD MODE IS ACTIVE. Test runner: {command or "unavailable"}.`
 
 ## Apply phase
 

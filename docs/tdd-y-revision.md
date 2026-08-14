@@ -6,7 +6,7 @@ La IA puede escribir mucho codigo rapido. Precisamente por eso necesita frenos. 
 
 ## Strict TDD
 
-Strict TDD se activa cuando la configuración del proyecto establece `testing.tdd_mode: strict` (o el legado `strict_tdd: true`) y hay un test runner disponible. `sdd-init` detecta las capacidades y mapea el modo según escala (`solo` → `standard`, `team` → `focused`, `enterprise` → `strict`).
+Strict TDD se activa cuando la configuración del proyecto establece `testing.tdd_mode: strict` y hay un test runner disponible. `sdd-init` detecta las capacidades y mapea el modo según escala (`solo` → `standard`, `team` → `focused`, `enterprise` → `strict`).
 
 Cuando esta activo, `sdd-apply` debe seguir este ciclo por tarea:
 
@@ -27,7 +27,7 @@ TDD no es "hacer tests". TDD es disenar desde comportamiento. Si escribes el cod
 ### Guardas locales en Git (Pre-commit Hook)
 
 Para asegurar que las reglas del ciclo Strict TDD no se pasen por alto, el arnés incluye un hook de pre-commit que actúa como validador local de Git:
-- **Control de Strict TDD**: Si `strict_tdd: true` está activo en `openspec/config.yaml`, el hook de Git examina los archivos preparados (`staged`) para el commit. Si detecta archivos de producción modificados en rutas de código activas (como `internal/`, `cmd/`, `scripts/hooks/`, `scripts/lib/`), requerirá obligatoriamente que también esté preparado al menos un archivo de pruebas correspondiente (`*_test.go`, `*.test.js`) o el archivo `tasks.md` de planificación.
+- **Control de Strict TDD**: Si `testing.tdd_mode: strict` está activo en `openspec/config.yaml`, el hook de Git examina los archivos preparados (`staged`) para el commit. Si detecta archivos de producción modificados en rutas de código activas (como `internal/`, `cmd/`, `scripts/hooks/`, `scripts/lib/`), requerirá obligatoriamente que también esté preparado al menos un archivo de pruebas correspondiente (`*_test.go`, `*.test.js`) o el archivo `tasks.md` de planificación.
 - **Validación del Workspace**: Ejecuta localmente `scripts/check.js` para asegurar la paridad e integridad de todos los targets y evitar subir código con errores de sintaxis o tests rotos.
 - **Instalación y bypass**: Instala el hook ejecutando `npm run setup:git-hooks`. Puedes omitirlo temporalmente con la variable `DISABLE_OSPEC_PRECOMMIT=true` o la opción de git `--no-verify`.
 

@@ -105,7 +105,7 @@ Protege contra fugas de información confidencial y el acceso no deseado a crede
 Validador local que asegura la calidad del repositorio antes de consolidar cambios:
 - **Instalación**: Se configura de manera idempotente usando `npm run setup:git-hooks` (ejecuta [setup-git-hooks.js](../scripts/setup-git-hooks.js) para instalar los hooks en `.git/hooks/`).
 - **Validación de Workspace**: Invoca `scripts/check.js` para asegurar que el plugin compila y todos los tests pasan.
-- **Validación de Strict TDD**: Si `strict_tdd: true` en `openspec/config.yaml`, rechaza commits si hay cambios de código de producción preparados (`staged`) sin sus correspondientes archivos de prueba (`*_test.go`, `*.test.js`) o su archivo `tasks.md` de planificación.
+- **Validación de Strict TDD**: Si `testing.tdd_mode: strict` en `openspec/config.yaml`, rechaza commits si hay cambios de código de producción preparados (`staged`) sin sus correspondientes archivos de prueba (`*_test.go`, `*.test.js`) o su archivo `tasks.md` de planificación.
 - **Bypass**: Habilita la variable de entorno `DISABLE_OSPEC_PRECOMMIT=true` o usa `git commit --no-verify`.
 
 ### 4. No-Model-Attribution Enforcement (Tres Capas)
