@@ -1,0 +1,67 @@
+change: "k4a-remediation-v2-45-1"
+status: "archived"
+last_updated: 2026-08-15T21:00:00Z
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k4a-remediation-v2-45-1/proposal.md"
+    summary: "Propuesta de remediación K4a para 5 BLOCKERs, 2 CRITICALs y 2 WARNINGs en interoperabilidad criptográfica con K3, esquemas y validación."
+    key_decisions:
+      - "Topological WorkOrder compilation with sha256 dependency digests"
+      - "Incorporate policy_snapshot_id into GraphId and ExecutionGraph schema"
+      - "Fail-closed replay rejection of invalidated nodes upon ClarifyEvent"
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k4a-remediation-v2-45-1/specs/execution-graph-compiler/spec.md"
+      - "openspec/changes/k4a-remediation-v2-45-1/specs/kernel-contract-schemas/spec.md"
+      - "openspec/changes/k4a-remediation-v2-45-1/specs/execution-identities/spec.md"
+    summary: "Deltas de especificación para grafos de ejecución, esquemas de contrato v2 y vinculación criptográfica con detección de ciclos y validación canónica."
+    key_decisions:
+      - "Topological WorkOrder v2 compilation with sha256 dependency digests"
+      - "Mandatory policy_snapshot_id in schema and GraphId derivation"
+      - "Closed completion discrimination and clarify invalidation rejection in replay"
+  design:
+    status: "done"
+    artifact: "openspec/changes/k4a-remediation-v2-45-1/design.md"
+    summary: "Diseño técnico K4a con compilación topológica WorkOrder v2, validación canónica atómica y reconciliación autoritativa de obligaciones."
+    key_decisions:
+      - "Topological WorkOrder v2 compilation with sha256 dependency digests"
+      - "Atomic canonical schema validation for graph and emitted WorkOrders"
+      - "Authoritative contract obligation manifest reconciliation"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k4a-remediation-v2-45-1/tasks.md"
+    summary: "Desglose de 31 tareas en 7 fases para esquemas, compiladores topológicos, clarify/replay, shadow comparator y test de integración cruzada."
+    key_decisions:
+      - "Topological WorkOrder compilation with sha256 dependency digests"
+      - "Atomic canonical schema validation for graph and emitted WorkOrders"
+      - "Hardened multi-dimensional shadow comparator and fail-closed replay"
+  apply:
+    status: "done"
+    artifact: "openspec/changes/k4a-remediation-v2-45-1/apply-progress.md"
+    summary: "Implementación y verificación completa de las 31 tareas en 7 fases: esquemas kernel, compilador topológico WorkOrder v2, policy_snapshot_id, clarify/replay hardening, shadow comparator multi-dimensional y test de integración cruzada K3-K4a con 100% test pass (2236+ pruebas)."
+    key_decisions:
+      - "Topological WorkOrder compilation with sha256 dependency digests"
+      - "Atomic canonical schema validation for graph and emitted WorkOrders"
+      - "Authoritative contract obligation manifest reconciliation"
+      - "Hardened multi-dimensional shadow comparator and fail-closed replay"
+  verify:
+    status: "done"
+    verdict: "PASS"
+    artifact: "openspec/changes/k4a-remediation-v2-45-1/verify-report.md"
+    summary: "Verificación formal exhaustiva de los 10 requisitos normativos y 53 escenarios con nivel de evidencia runtime-test al 100% (2234 tests pasados en la suite global, 60 tests focales de K4a). Veredicto PASS sin issues críticos ni advertencias."
+    key_decisions:
+      - "Topological WorkOrder compilation with sha256 dependency digests"
+      - "Atomic canonical schema validation for graph and emitted WorkOrders"
+      - "Authoritative contract obligation manifest reconciliation"
+      - "Hardened multi-dimensional shadow comparator and fail-closed replay"
+  archive:
+    status: "done"
+    artifact: "openspec/changes/k4a-remediation-v2-45-1/archive-report.md"
+    summary: "Plan-and-Report emitido con 3 especificaciones preparadas, 6 ADRs propuestos e inventario de archivo completo para ejecución por el runtime de transacción."
+    key_decisions:
+      - "Topological WorkOrder compilation with sha256 dependency digests"
+      - "Incorporate policy_snapshot_id into GraphId and ExecutionGraph schema"
+      - "Fail-closed replay rejection of invalidated nodes upon ClarifyEvent"

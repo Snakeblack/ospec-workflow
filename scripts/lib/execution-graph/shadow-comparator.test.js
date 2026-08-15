@@ -119,3 +119,36 @@ test("ShadowComparator: isolates the baseline input from mutating active state a
   assert.equal(JSON.stringify(contractInput), frozenInputJson, "Baseline mutations must not reach the original contract input");
   assert.equal(JSON.stringify(stateSnapshot), JSON.stringify(contractInput.state), "Active state and journal must remain identical");
 });
+
+test("ShadowComparator: detects multi-dimensional divergences across invariants, obligations, dependencies, and ownership", () => {
+  const contractInput = {
+    change_id: "change:repair-005",
+    classification: { route: "repair", risk: "low" },
+  };
+
+  const baselineFnWithDivergentDimensions = (input) => ({
+    route: "repair",
+    steps: ["apply_repair_patch", "verify_repair_conformance"],
+    allowed_paths: ["src/**", "tests/**"],
+    invariants: ["inv-other"],
+    obligations: ["req-other-obligation"],
+    dependencies: [{ node_id: "repair-patch", dependencies: ["other-dep"] }],
+    ownership: [{ node_id: "repair-patch", ownership: { owner: "other-agent", mode: "shared" } }],
+  });
+
+  const graph = createSampleExecutionGraph();
+
+  const comparison = compareShadowExecution({
+    contractInput,
+    fixedBaselineFn: baselineFnWithDivergentDimensions,
+    compiledGraph: graph,
+  });
+
+  assert.equal(comparison.match, false);
+  assert.ok(comparison.telemetryDiff);
+  const diffFields = comparison.telemetryDiff.divergences.map((d) => d.field);
+  assert.ok(diffFields.includes("invariants"));
+  assert.ok(diffFields.includes("obligations"));
+  assert.ok(diffFields.includes("dependencies"));
+  assert.ok(diffFields.includes("ownership"));
+});

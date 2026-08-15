@@ -8,7 +8,7 @@
   "operation": "build",
   "objective": "compile",
   "dependencies": [
-    "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+    12345
   ],
   "ownership": {
     "owner": "worker-1",

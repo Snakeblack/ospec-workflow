@@ -34,6 +34,7 @@ const sampleGraph = {
   graph_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
   contract_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
   policy_bundle_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  policy_snapshot_id: "sha256:5555555555555555555555555555555555555555555555555555555555555555",
   source_snapshot_id: sampleSnapshotId,
   nodes: [
     {
@@ -107,7 +108,7 @@ test("WorkOrderCompiler: legacy v1 output does not acquire v2 provenance semanti
   assert.deepEqual(withV2Provenance, withoutContext);
 });
 
-test("WorkOrderCompiler: public v2 surface preserves valid provenance and semantic dependencies", () => {
+test("WorkOrderCompiler: public v2 surface preserves valid provenance and semantic dependencies as sha256 digests", () => {
   const sourceSnapshot = createValidatedSourceSnapshot();
   const sourceSnapshotId = sourceSnapshot.source_snapshot_id;
   const workOrders = compileWorkOrders(sampleGraph, { sourceSnapshot, sourceSnapshotId });
@@ -123,7 +124,8 @@ test("WorkOrderCompiler: public v2 surface preserves valid provenance and semant
     assert.equal(wo.source_snapshot_id, sourceSnapshotId);
     assert.equal(validateInstance(schema, wo).valid, true);
   }
-  assert.deepEqual(workOrders[1].dependencies, ["repair-node-1"]);
+  assert.deepEqual(workOrders[1].dependencies, [workOrders[0].work_order_id]);
+  assert.match(workOrders[1].dependencies[0], /^sha256:[a-f0-9]{64}$/);
 });
 
 test("WorkOrderCompiler: public v2 path rejects a missing, empty, uppercase, or malformed SourceSnapshotId", () => {
@@ -230,7 +232,11 @@ test("WorkOrderCompiler: atomic validation fails closed on microscopic node with
 
   assert.throws(
     () => compileWorkOrders(graphWithMicroNode),
-    (err) => err.code === "microscopic-node-rejected" || err.message.includes("Microscopic")
+    (err) =>
+      err.code === "microscopic-node-rejected" ||
+      err.code === "invalid-graph-schema" ||
+      err.message.includes("Microscopic") ||
+      err.message.includes("schema validation")
   );
 });
 

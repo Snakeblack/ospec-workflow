@@ -16,16 +16,67 @@ const FORBIDDEN_OPERATIONS = Object.freeze([
 const SHA256_DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
 
 /**
- * Derives a deterministic GraphId from contract digest, policy bundle digest, source snapshot id, and nodes.
+ * Detects cycles in the DAG using DFS coloring algorithm.
+ * @param {Array<Object>} nodes
+ * @returns {boolean} true if cycle detected
+ */
+function hasCycle(nodes) {
+  const nodeMap = new Map();
+  for (const node of (Array.isArray(nodes) ? nodes : [])) {
+    if (node && node.node_id) {
+      nodeMap.set(node.node_id, node);
+    }
+  }
+
+  // 0: unvisited, 1: visiting, 2: visited
+  const state = new Map();
+  for (const node of (Array.isArray(nodes) ? nodes : [])) {
+    if (node && node.node_id) {
+      state.set(node.node_id, 0);
+    }
+  }
+
+  function dfs(nodeId) {
+    state.set(nodeId, 1);
+    const node = nodeMap.get(nodeId);
+    const deps = (node && Array.isArray(node.dependencies)) ? node.dependencies : [];
+
+    for (const depId of deps) {
+      if (!nodeMap.has(depId)) continue;
+      const depState = state.get(depId);
+      if (depState === 1) return true; // back-edge = cycle
+      if (depState === 0) {
+        if (dfs(depId)) return true;
+      }
+    }
+
+    state.set(nodeId, 2);
+    return false;
+  }
+
+  for (const [nodeId] of nodeMap) {
+    if (state.get(nodeId) === 0) {
+      if (dfs(nodeId)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Derives a deterministic GraphId from contract digest, policy snapshot id, policy bundle digest, source snapshot id, and nodes.
  * @param {string} contractDigest
+ * @param {string} policySnapshotId
  * @param {string} policyBundleDigest
  * @param {string} sourceSnapshotId
  * @param {Array<Object>} nodes
  * @returns {string} sha256:<64 hex>
  */
-function computeGraphId(contractDigest, policyBundleDigest, sourceSnapshotId, nodes) {
+function computeGraphId(contractDigest, policySnapshotId, policyBundleDigest, sourceSnapshotId, nodes) {
   if (!contractDigest || typeof contractDigest !== "string") {
     throw new TypeError("contractDigest must be a non-empty string");
+  }
+  if (!policySnapshotId || typeof policySnapshotId !== "string" || !SHA256_DIGEST_PATTERN.test(policySnapshotId)) {
+    throw new TypeError("policySnapshotId must be a valid SHA-256 digest");
   }
   if (!policyBundleDigest || typeof policyBundleDigest !== "string") {
     throw new TypeError("policyBundleDigest must be a non-empty string");
@@ -36,6 +87,7 @@ function computeGraphId(contractDigest, policyBundleDigest, sourceSnapshotId, no
   const nodesPayload = Array.isArray(nodes) ? nodes : [];
   return sha256Fingerprint("execution-graph/v1", {
     contract_digest: contractDigest,
+    policy_snapshot_id: policySnapshotId,
     policy_bundle_digest: policyBundleDigest,
     source_snapshot_id: sourceSnapshotId,
     nodes: nodesPayload,
@@ -68,6 +120,16 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
       ? policySnapshot
       : createPolicySnapshot(policySnapshot || {});
 
+  if (typeof snapshot.snapshot_id !== "string" || !SHA256_DIGEST_PATTERN.test(snapshot.snapshot_id)) {
+    const err = new Error(
+      `Missing or malformed policy_snapshot_id for Execution Graph: "${snapshot.snapshot_id}"`
+    );
+    err.code = "invalid-policy-snapshot-id";
+    err.policy_snapshot_id = snapshot.snapshot_id;
+    throw err;
+  }
+
+  const policySnapshotId = snapshot.snapshot_id;
   const policyBundleDigest = snapshot.policy_bundle_digest;
 
   const resolvedSourceSnapshotId =
@@ -84,10 +146,19 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
     throw err;
   }
 
-  // Resolve nodes
-  const graphNodes = Array.isArray(nodes) ? nodes : [];
-  if (graphNodes.length === 0 && contract.nodes && Array.isArray(contract.nodes)) {
-    graphNodes.push(...contract.nodes);
+  // Resolve nodes (defensive copy)
+  const inputNodes = Array.isArray(nodes)
+    ? nodes
+    : (contract.nodes && Array.isArray(contract.nodes))
+      ? contract.nodes
+      : [];
+  const graphNodes = structuredClone(inputNodes);
+
+  // Check for dependency cycles
+  if (hasCycle(graphNodes)) {
+    const err = new Error("Dependency cycle detected in Execution Graph");
+    err.code = "cyclic-dependency-detected";
+    throw err;
   }
 
   // Reject microscopic nodes fail-closed
@@ -137,12 +208,34 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
     }
   }
 
-  // Resolve obligations
-  const graphObligations = Array.isArray(obligations)
-    ? obligations
-    : Array.isArray(contract.obligations)
-      ? contract.obligations
-      : [];
+  // Resolve obligations against authoritative contract.obligations
+  let rawObligations;
+  const contractObligations = Array.isArray(contract.obligations) ? contract.obligations : [];
+  if (Array.isArray(obligations) && obligations.length > 0) {
+    const callerObligationMap = new Map(obligations.map((o) => [o.id, o]));
+    const merged = [];
+    const seenIds = new Set();
+    for (const contractOb of contractObligations) {
+      if (callerObligationMap.has(contractOb.id)) {
+        merged.push(callerObligationMap.get(contractOb.id));
+      } else {
+        merged.push(contractOb);
+      }
+      seenIds.add(contractOb.id);
+    }
+    for (const callerOb of obligations) {
+      if (!seenIds.has(callerOb.id)) {
+        merged.push(callerOb);
+      }
+    }
+    rawObligations = merged;
+  } else {
+    rawObligations = contractObligations.length > 0
+      ? contractObligations
+      : (Array.isArray(obligations) ? obligations : []);
+  }
+
+  const graphObligations = structuredClone(rawObligations);
 
   // Validate obligation manifest coverage
   const obligationValidation = validateObligationManifest(graphObligations, graphNodes);
@@ -157,21 +250,24 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
     throw err;
   }
 
-  const graphId = computeGraphId(contractDigest, policyBundleDigest, resolvedSourceSnapshotId, graphNodes);
+  const graphId = computeGraphId(contractDigest, policySnapshotId, policyBundleDigest, resolvedSourceSnapshotId, graphNodes);
 
   return {
     schema_version: 1,
     graph_id: graphId,
     contract_digest: contractDigest,
     policy_bundle_digest: policyBundleDigest,
+    policy_snapshot_id: policySnapshotId,
     source_snapshot_id: resolvedSourceSnapshotId,
-    nodes: graphNodes,
-    obligations: graphObligations,
+    nodes: structuredClone(graphNodes),
+    obligations: structuredClone(graphObligations),
   };
 }
 
 module.exports = {
   FORBIDDEN_OPERATIONS,
+  hasCycle,
   computeGraphId,
   compileExecutionGraph,
 };
+

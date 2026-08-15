@@ -107,10 +107,12 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/k4a-schema-fixtures.test.js",
   "scripts/lib/k4a-lifecycle-model.test.js",
   "scripts/lib/contract-checkers/k4a-checkers.test.js",
+  "scripts/lib/k3-k4a-integration.test.js",
   "skills/sdd-apply/focused-tdd.md",
   "schemas/kernel/candidate/fixtures/valid/k3-frozen.json",
   "schemas/kernel/candidate/fixtures/invalid/commit-projection.json",
   "schemas/kernel/candidate/fixtures/invalid/work-result-alias.json",
+  "schemas/kernel/work-order/fixtures/invalid/malformed-dependencies-digest.json",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [
