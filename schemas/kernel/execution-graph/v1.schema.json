@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/execution-graph/v1",
+  "title": "ExecutionGraphV1",
+  "description": "Kernel Execution Graph and Obligation Manifest Schema v1 for Repair routes.",
+  "type": "object",
+  "schema_version": 1,
+  "required": [
+    "schema_version",
+    "graph_id",
+    "contract_digest",
+    "policy_bundle_digest",
+    "source_snapshot_id",
+    "nodes",
+    "obligations"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "graph_id": {
+      "type": "string"
+    },
+    "contract_digest": {
+      "type": "string"
+    },
+    "policy_bundle_digest": {
+      "type": "string"
+    },
+    "source_snapshot_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "obligations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/obligation"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "node": {
+      "type": "object",
+      "required": [
+        "node_id",
+        "kind",
+        "operation",
+        "objective",
+        "dependencies",
+        "ownership",
+        "allowed_paths",
+        "invariants",
+        "required_evidence",
+        "budget_ref"
+      ],
+      "properties": {
+        "node_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ownership": {
+          "$ref": "#/$defs/ownership"
+        },
+        "allowed_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "invariants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "budget_ref": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "read",
+              "edit",
+              "test",
+              "file_edit",
+              "bash_run",
+              "grep"
+            ]
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "properties": {
+          "operation": {
+            "enum": []
+          }
+        }
+      }
+    },
+    "ownership": {
+      "type": "object",
+      "required": [
+        "owner",
+        "mode"
+      ],
+      "properties": {
+        "owner": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "exclusive",
+            "shared"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "obligation": {
+      "type": "object",
+      "required": [
+        "id",
+        "criticality",
+        "implemented_by",
+        "required_evidence"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "criticality": {
+          "type": "string",
+          "enum": [
+            "must",
+            "should",
+            "may"
+          ]
+        },
+        "implemented_by": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deferred": {
+          "$ref": "#/$defs/deferred"
+        }
+      },
+      "additionalProperties": false
+    },
+    "deferred": {
+      "type": "object",
+      "required": [
+        "reason",
+        "approved_by"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "approved_by": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

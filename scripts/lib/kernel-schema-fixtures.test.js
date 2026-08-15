@@ -6,6 +6,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const { validateInstance, loadSchemaById } = require("./kernel-schema-validator.js");
+const { digestFile, K1_SCHEMA_BASELINE } = require("./lifecycle-kernel/k1-compat.js");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 const MANIFEST_PATH = path.join(ROOT, "schemas", "kernel", "manifest.json");
@@ -42,6 +43,15 @@ function listJsonFiles(dir) {
 function loadKernelSchema(family) {
   return JSON.parse(
     fs.readFileSync(path.join(ROOT, "schemas", "kernel", family, "v1.schema.json"), "utf8")
+  );
+}
+
+function loadWorkOrderSchema(version) {
+  return JSON.parse(
+    fs.readFileSync(
+      path.join(ROOT, "schemas", "kernel", "work-order", `v${version}.schema.json`),
+      "utf8"
+    )
   );
 }
 
@@ -211,6 +221,55 @@ test("work-order v1 carries the bounded worker capsule without rejecting legacy 
     "required_evidence",
     "budget",
   ]);
+});
+
+test("work-order versions validate only their own fixture families and reject authority", () => {
+  const schemaV1 = loadWorkOrderSchema(1);
+  const schemaV2 = loadWorkOrderSchema(2);
+  const v1 = JSON.parse(
+    fs.readFileSync(path.join(ROOT, "schemas", "kernel", "work-order", "fixtures", "valid", "minimal.json"), "utf8")
+  );
+  const v2 = JSON.parse(
+    fs.readFileSync(path.join(ROOT, "schemas", "kernel", "work-order", "fixtures", "valid", "v2-minimal.json"), "utf8")
+  );
+
+  assert.equal(validateInstance(schemaV1, v1).valid, true);
+  assert.equal(validateInstance(schemaV2, v2).valid, true);
+  assert.equal(validateInstance(schemaV1, v2).valid, false, "v2 fixture must not alias v1");
+  assert.equal(validateInstance(schemaV2, v1).valid, false, "v1 fixture must not alias v2");
+
+  for (const name of ["v2-missing-source-snapshot.json", "v2-execution-authority.json"]) {
+    const fixture = JSON.parse(
+      fs.readFileSync(path.join(ROOT, "schemas", "kernel", "work-order", "fixtures", "invalid", name), "utf8")
+    );
+    assert.equal(validateInstance(schemaV2, fixture).valid, false, `${name} must be rejected`);
+  }
+
+  const uppercaseProvenance = { ...v2, source_snapshot_id: `sha256:${"A".repeat(64)}` };
+  const sourceSnapshotPattern = new RegExp(schemaV2.properties.source_snapshot_id.pattern);
+  assert.equal(sourceSnapshotPattern.test(uppercaseProvenance.source_snapshot_id), false);
+});
+
+test("work-order v1 historical schema and fixture snapshot remain pinned", () => {
+  const v1Paths = [
+    "schemas/kernel/work-order/v1.schema.json",
+    "schemas/kernel/work-order/fixtures/valid/minimal.json",
+    "schemas/kernel/work-order/fixtures/valid/canonical-bounded-work-order.json",
+    "schemas/kernel/work-order/fixtures/invalid/minimal.json",
+    "schemas/kernel/work-order/fixtures/invalid/partial-canonical-work-order.json",
+  ];
+  for (const relativePath of v1Paths) {
+    assert.equal(
+      digestFile(path.join(ROOT, ...relativePath.split("/"))),
+      K1_SCHEMA_BASELINE[relativePath],
+      `${relativePath} must retain its frozen K1 digest`
+    );
+  }
+  assert.equal(
+    Object.hasOwn(loadWorkOrderSchema(1).properties, "source_snapshot_id"),
+    false,
+    "frozen work-order/v1 must not absorb v2 provenance"
+  );
 });
 
 test("receipt v1 binds canonical evaluation outcomes while accepting legacy archive-style receipts", () => {

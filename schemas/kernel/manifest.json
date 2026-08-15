@@ -150,6 +150,21 @@
       "path": "schemas/kernel/work-order/v2.schema.json",
       "$id": "ospec://schemas/kernel/work-order/v2",
       "schema_version": 2
+    },
+    "execution-graph": {
+      "path": "schemas/kernel/execution-graph/v1.schema.json",
+      "$id": "ospec://schemas/kernel/execution-graph/v1",
+      "schema_version": 1
+    },
+    "policy-snapshot": {
+      "path": "schemas/kernel/policy-snapshot/v1.schema.json",
+      "$id": "ospec://schemas/kernel/policy-snapshot/v1",
+      "schema_version": 1
+    },
+    "clarify-event": {
+      "path": "schemas/kernel/clarify-event/v1.schema.json",
+      "$id": "ospec://schemas/kernel/clarify-event/v1",
+      "schema_version": 1
     }
   }
 }

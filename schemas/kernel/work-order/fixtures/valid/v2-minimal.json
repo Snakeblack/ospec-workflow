@@ -7,7 +7,9 @@
   "role": "worker",
   "operation": "build",
   "objective": "compile",
-  "dependencies": [],
+  "dependencies": [
+    "semantic-node-dependency"
+  ],
   "ownership": {
     "owner": "worker-1",
     "mode": "exclusive"

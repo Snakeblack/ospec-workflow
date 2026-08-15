@@ -137,6 +137,44 @@ const K2A_EXECUTABLE_INVARIANTS = Object.freeze([
   }),
 ]);
 
+const K4A_EXECUTABLE_INVARIANTS = Object.freeze([
+  Object.freeze({
+    id: "inv-k4a-deterministic-graph-id",
+    name: "Execution graph id is deterministic for contract, policy, snapshot, and nodes",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k4a-policy-divergence",
+    name: "Policy snapshot changes produce distinct policy bundle digests and graph ids",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k4a-obligation-coverage",
+    name: "Execution graph enforces complete obligation coverage fail-closed",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k4a-clarify-invalidation-boundary",
+    name: "Clarify events invalidate only affected nodes and their transitive descendants",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k4a-replay-convergence",
+    name: "Replay engine evaluates execution graph deterministically without live authority",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k4a-shadow-non-interference",
+    name: "Shadow comparator operates without mutating active state or journal",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k4a-no-live-authority",
+    name: "Compiled work orders contain declarative boundaries and zero execution authority",
+    optional: false,
+  }),
+]);
+
 function initialModelState() {
   return {
     schema_version: 1,
@@ -346,6 +384,13 @@ const CHECKERS = {
   "inv-k2a-reject-lifecycle-graph-duplication": () => checkK2aRejectDuplication(),
   "inv-k2a-sole-claude-adapter": () => checkK2aSoleClaudeAdapter(),
   "inv-k2a-host-fault-matrix": () => checkK2aHostFaultMatrix(),
+  "inv-k4a-deterministic-graph-id": () => checkK4aDeterministicGraphId(),
+  "inv-k4a-policy-divergence": () => checkK4aPolicyDivergence(),
+  "inv-k4a-obligation-coverage": () => checkK4aObligationCoverage(),
+  "inv-k4a-clarify-invalidation-boundary": () => checkK4aClarifyInvalidationBoundary(),
+  "inv-k4a-replay-convergence": () => checkK4aReplayConvergence(),
+  "inv-k4a-shadow-non-interference": () => checkK4aShadowNonInterference(),
+  "inv-k4a-no-live-authority": () => checkK4aNoLiveAuthority(),
 };
 
 function checkK2aZeroConcreteHostImports() {
@@ -468,6 +513,160 @@ async function checkK2aHostFaultMatrix() {
     required.every((f) => faults.includes(f)) &&
     peer.matrix.pass === true;
   return { ok, invariant_id: "inv-k2a-host-fault-matrix" };
+}
+
+function checkK4aDeterministicGraphId() {
+  const { compileExecutionGraph } = require("./execution-graph/compiler.js");
+  const { createPolicySnapshot } = require("./execution-graph/policy-snapshot.js");
+  const { createSampleRepairContract } = require("./test-support/execution-graph-fixtures.js");
+  const contract = createSampleRepairContract();
+  const snapshot = createPolicySnapshot({ effectiveRules: ["rule-1"] });
+  const nodes = [
+    {
+      node_id: "r1",
+      kind: "repair-action/v1",
+      operation: "apply_repair_patch",
+      objective: "Repair",
+      dependencies: [],
+      ownership: { owner: "agent:repair", mode: "exclusive" },
+      allowed_paths: ["src/**"],
+      invariants: ["inv-fail-closed"],
+      required_evidence: ["ev:test"],
+      budget_ref: "budget:default",
+    },
+  ];
+  const obligations = [{ id: "req-1", criticality: "must", implemented_by: ["r1"], required_evidence: ["ev:test"] }];
+  const g1 = compileExecutionGraph({ contract, policySnapshot: snapshot, nodes, obligations });
+  const g2 = compileExecutionGraph({ contract, policySnapshot: snapshot, nodes, obligations });
+  const ok = g1.graph_id === g2.graph_id && typeof g1.graph_id === "string";
+  return { ok, invariant_id: "inv-k4a-deterministic-graph-id" };
+}
+
+function checkK4aPolicyDivergence() {
+  const { compileExecutionGraph } = require("./execution-graph/compiler.js");
+  const { createPolicySnapshot } = require("./execution-graph/policy-snapshot.js");
+  const { createSampleRepairContract } = require("./test-support/execution-graph-fixtures.js");
+  const contract = createSampleRepairContract();
+  const nodes = [
+    {
+      node_id: "r1",
+      kind: "repair-action/v1",
+      operation: "apply_repair_patch",
+      objective: "Repair",
+      dependencies: [],
+      ownership: { owner: "agent:repair", mode: "exclusive" },
+      allowed_paths: ["src/**"],
+      invariants: ["inv-fail-closed"],
+      required_evidence: ["ev:test"],
+      budget_ref: "budget:default",
+    },
+  ];
+  const obligations = [{ id: "req-1", criticality: "must", implemented_by: ["r1"], required_evidence: ["ev:test"] }];
+  const snapA = createPolicySnapshot({ effectiveRules: ["rule-alpha"] });
+  const snapB = createPolicySnapshot({ effectiveRules: ["rule-beta"] });
+  const gA = compileExecutionGraph({ contract, policySnapshot: snapA, nodes, obligations });
+  const gB = compileExecutionGraph({ contract, policySnapshot: snapB, nodes, obligations });
+  const ok = snapA.snapshot_id !== snapB.snapshot_id && gA.graph_id !== gB.graph_id;
+  return { ok, invariant_id: "inv-k4a-policy-divergence" };
+}
+
+function checkK4aObligationCoverage() {
+  const { validateObligationManifest } = require("./execution-graph/obligation-manifest.js");
+  const nodes = [{ node_id: "r1" }];
+  const validObligations = [{ id: "req-1", criticality: "must", implemented_by: ["r1"], required_evidence: ["ev:test"] }];
+  const orphanObligations = [{ id: "req-orphan", criticality: "must", implemented_by: [], required_evidence: ["ev:test"] }];
+  const validRes = validateObligationManifest(validObligations, nodes);
+  const orphanRes = validateObligationManifest(orphanObligations, nodes);
+  const ok = validRes.valid === true && orphanRes.valid === false && orphanRes.unmapped.includes("req-orphan");
+  return { ok, invariant_id: "inv-k4a-obligation-coverage" };
+}
+
+function checkK4aClarifyInvalidationBoundary() {
+  const { applyClarifyEvent } = require("./execution-graph/clarify.js");
+  const graph = {
+    schema_version: 1,
+    graph_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    contract_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+    policy_bundle_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    source_snapshot_id: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+    nodes: [
+      { node_id: "n1", dependencies: [] },
+      { node_id: "n2", dependencies: ["n1"] },
+      { node_id: "n3", dependencies: ["n2"] },
+      { node_id: "n4", dependencies: [] },
+    ],
+    obligations: [],
+  };
+  const event = {
+    schema_version: 1,
+    event_id: "e1",
+    question_id: "q1",
+    answer: "a",
+    timestamp: "2026-08-15T00:00:00Z",
+    affected_nodes: ["n2"],
+  };
+  const result = applyClarifyEvent(graph, event);
+  const ok =
+    result.invalidatedNodeIds.includes("n2") &&
+    result.invalidatedNodeIds.includes("n3") &&
+    result.preservedNodeIds.includes("n1") &&
+    result.preservedNodeIds.includes("n4");
+  return { ok, invariant_id: "inv-k4a-clarify-invalidation-boundary" };
+}
+
+function checkK4aReplayConvergence() {
+  const { replayExecutionGraph } = require("./execution-graph/replay-engine.js");
+  const { createSampleExecutionGraph, createSampleFixtureResults } = require("./test-support/execution-graph-fixtures.js");
+  const graph = createSampleExecutionGraph();
+  const fixtures = createSampleFixtureResults();
+  const r1 = replayExecutionGraph(graph, fixtures);
+  const r2 = replayExecutionGraph(graph, fixtures);
+  const ok = r1.ok === true && r1.finalStateDigest === r2.finalStateDigest;
+  return { ok, invariant_id: "inv-k4a-replay-convergence" };
+}
+
+function checkK4aShadowNonInterference() {
+  const { compareShadowExecution } = require("./execution-graph/shadow-comparator.js");
+  const { createSampleExecutionGraph } = require("./test-support/execution-graph-fixtures.js");
+  const activeState = { status: "ready", revision: "sha256:initial" };
+  const beforeJson = JSON.stringify(activeState);
+  const graph = createSampleExecutionGraph();
+  const comp = compareShadowExecution({
+    contractInput: { state: activeState },
+    fixedBaselineFn: () => ({
+      route: "repair",
+      steps: ["apply_repair_patch", "verify_repair_conformance"],
+      allowed_paths: ["src/**", "tests/**"],
+    }),
+    compiledGraph: graph,
+  });
+  const afterJson = JSON.stringify(activeState);
+  const ok = comp.match === true && beforeJson === afterJson;
+  return { ok, invariant_id: "inv-k4a-shadow-non-interference" };
+}
+
+function checkK4aNoLiveAuthority() {
+  const { compileWorkOrders } = require("./execution-graph/work-order-compiler.js");
+  const {
+    createSampleExecutionGraph,
+    createSampleSourceSnapshot,
+  } = require("./test-support/execution-graph-fixtures.js");
+  const graph = createSampleExecutionGraph();
+  const sourceSnapshot = createSampleSourceSnapshot();
+  const sourceSnapshotId = sourceSnapshot.source_snapshot_id;
+  const workOrders = compileWorkOrders(graph, { sourceSnapshot, sourceSnapshotId });
+  const ok =
+    workOrders.length > 0 &&
+    workOrders.every(
+      (wo) =>
+        wo.operation_permit === undefined &&
+        wo.permit === undefined &&
+        wo.authority_token === undefined &&
+        wo.token === undefined &&
+        wo.kind === "work-order/v2" &&
+        wo.source_snapshot_id === sourceSnapshotId
+    );
+  return { ok, invariant_id: "inv-k4a-no-live-authority" };
 }
 
 function checkK21NoMutationWithoutCas() {
@@ -758,6 +957,7 @@ async function runAllInvariantCheckers(context = {}) {
     ...K21_EXECUTABLE_INVARIANTS,
     ...K21B_EXECUTABLE_INVARIANTS,
     ...K2A_EXECUTABLE_INVARIANTS,
+    ...K4A_EXECUTABLE_INVARIANTS,
   ];
   const results = [];
   for (const inv of allInvariants) {
@@ -778,9 +978,14 @@ async function runAllInvariantCheckers(context = {}) {
     counts_as_enforced: false,
     enforced_in_k2: false,
   }));
-  // CAS/permit/retry, K2.1b, and K2a host invariants must not appear on deferred list.
+  // CAS/permit/retry, K2.1b, K2a host, and K4a graph invariants must not appear on deferred list.
   const deferredIds = new Set(deferred.map((d) => d.invariant_id));
-  for (const inv of [...K21_EXECUTABLE_INVARIANTS, ...K21B_EXECUTABLE_INVARIANTS, ...K2A_EXECUTABLE_INVARIANTS]) {
+  for (const inv of [
+    ...K21_EXECUTABLE_INVARIANTS,
+    ...K21B_EXECUTABLE_INVARIANTS,
+    ...K2A_EXECUTABLE_INVARIANTS,
+    ...K4A_EXECUTABLE_INVARIANTS,
+  ]) {
     if (deferredIds.has(inv.id)) {
       return {
         results: [...results, ...deferred],
@@ -797,6 +1002,7 @@ async function runAllInvariantCheckers(context = {}) {
     k21_count: K21_EXECUTABLE_INVARIANTS.length,
     k21b_count: K21B_EXECUTABLE_INVARIANTS.length,
     k2a_count: K2A_EXECUTABLE_INVARIANTS.length,
+    k4a_count: K4A_EXECUTABLE_INVARIANTS.length,
   };
 }
 
@@ -976,6 +1182,7 @@ module.exports = {
   K21_EXECUTABLE_INVARIANTS,
   K21B_EXECUTABLE_INVARIANTS,
   K2A_EXECUTABLE_INVARIANTS,
+  K4A_EXECUTABLE_INVARIANTS,
   DEFERRED_INVARIANTS,
   exploreModel,
   checkInvariant,
