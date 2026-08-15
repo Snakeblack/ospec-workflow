@@ -34,6 +34,7 @@ test("K4a contract claims: contract-claims.json specifies required fields for K4
     "graph_id",
     "contract_digest",
     "policy_bundle_digest",
+    "policy_snapshot_id",
     "source_snapshot_id",
     "nodes",
     "obligations",
@@ -109,8 +110,28 @@ test("K4a execution-graph schema: validates valid and rejects invalid fixtures",
   const malformedRes = validateInstance(schema, malformedSnapshotFixture);
   assert.equal(malformedRes.valid, false, "Malformed source_snapshot_id fixture must fail validation");
 
+  const missingPolicyFixture = JSON.parse(
+    fs.readFileSync(
+      path.join(ROOT, "schemas", "kernel", "execution-graph", "fixtures", "invalid", "missing-policy-snapshot.json"),
+      "utf8"
+    )
+  );
+  const missingPolicyRes = validateInstance(schema, missingPolicyFixture);
+  assert.equal(missingPolicyRes.valid, false, "Missing policy_snapshot_id fixture must fail validation");
+
+  const malformedPolicyFixture = JSON.parse(
+    fs.readFileSync(
+      path.join(ROOT, "schemas", "kernel", "execution-graph", "fixtures", "invalid", "malformed-policy-snapshot.json"),
+      "utf8"
+    )
+  );
+  const malformedPolicyRes = validateInstance(schema, malformedPolicyFixture);
+  assert.equal(malformedPolicyRes.valid, false, "Malformed policy_snapshot_id fixture must fail validation");
+
   const pattern = new RegExp(schema.properties.source_snapshot_id.pattern);
   assert.equal(pattern.test("sha256:UPPERCASE-ID"), false, "Schema pattern must reject malformed uppercase source_snapshot_id");
+  const policyPattern = new RegExp(schema.properties.policy_snapshot_id.pattern);
+  assert.equal(policyPattern.test("sha256:UPPERCASE-ID"), false, "Schema pattern must reject malformed uppercase policy_snapshot_id");
 });
 
 test("K4a policy-snapshot schema: validates valid and rejects invalid fixtures", () => {
@@ -155,4 +176,30 @@ test("K4a clarify-event schema: validates valid and rejects invalid fixtures", (
   );
   const invalidRes = validateInstance(schema, invalidFixture);
   assert.equal(invalidRes.valid, false, "Missing affected-nodes fixture must fail validation");
+});
+
+test("K4a work-order/v2 schema: validates valid fixtures and rejects invalid dependencies pattern", () => {
+  const schema = loadSchemaById("ospec://schemas/kernel/work-order/v2", { rootDir: ROOT });
+
+  const validFixture = JSON.parse(
+    fs.readFileSync(
+      path.join(ROOT, "schemas", "kernel", "work-order", "fixtures", "valid", "v2-minimal.json"),
+      "utf8"
+    )
+  );
+  const validRes = validateInstance(schema, validFixture);
+  assert.equal(validRes.valid, true, `Valid v2-minimal fixture must pass schema: ${JSON.stringify(validRes.errors)}`);
+
+  const malformedDepFixture = JSON.parse(
+    fs.readFileSync(
+      path.join(ROOT, "schemas", "kernel", "work-order", "fixtures", "invalid", "malformed-dependencies-digest.json"),
+      "utf8"
+    )
+  );
+  const malformedDepRes = validateInstance(schema, malformedDepFixture);
+  assert.equal(malformedDepRes.valid, false, "Malformed dependencies digest fixture must fail validation");
+
+  const depPattern = new RegExp(schema.properties.dependencies.items.pattern);
+  assert.equal(depPattern.test("raw-node-id-without-prefix"), false, "Schema pattern must reject non-sha256 dependency items");
+  assert.equal(depPattern.test("sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"), true, "Schema pattern must accept sha256 dependency item");
 });

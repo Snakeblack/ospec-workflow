@@ -63,6 +63,7 @@ test("Compiler: generates valid semantic ExecutionGraph for Repair route", () =>
   assert.match(graph.graph_id, /^sha256:[a-f0-9]{64}$/);
   assert.equal(graph.contract_digest, sampleContract.contract_digest);
   assert.equal(graph.policy_bundle_digest, policySnapshot.policy_bundle_digest);
+  assert.equal(graph.policy_snapshot_id, policySnapshot.snapshot_id);
   assert.equal(graph.source_snapshot_id, sampleSnapshotId);
   assert.deepEqual(graph.nodes, sampleNodes);
   assert.deepEqual(graph.obligations, sampleObligations);
@@ -74,21 +75,27 @@ test("Compiler: generates valid semantic ExecutionGraph for Repair route", () =>
 
 test("Compiler: deterministic computeGraphId produces identical digests on identical inputs", () => {
   const cDigest = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+  const psId1 = "sha256:4444444444444444444444444444444444444444444444444444444444444444";
   const pDigest = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
   const sId1 = "sha256:3333333333333333333333333333333333333333333333333333333333333333";
 
-  const id1 = computeGraphId(cDigest, pDigest, sId1, sampleNodes);
-  const id2 = computeGraphId(cDigest, pDigest, sId1, sampleNodes);
+  const id1 = computeGraphId(cDigest, psId1, pDigest, sId1, sampleNodes);
+  const id2 = computeGraphId(cDigest, psId1, pDigest, sId1, sampleNodes);
   assert.equal(id1, id2);
 
-  // Divergence upon policy change
+  // Divergence upon policy snapshot id change
+  const psId2 = "sha256:7777777777777777777777777777777777777777777777777777777777777777";
+  const idAltPolicySnapshot = computeGraphId(cDigest, psId2, pDigest, sId1, sampleNodes);
+  assert.notEqual(id1, idAltPolicySnapshot);
+
+  // Divergence upon policy bundle change
   const pDigestAlt = "sha256:5555555555555555555555555555555555555555555555555555555555555555";
-  const idAltPolicy = computeGraphId(cDigest, pDigestAlt, sId1, sampleNodes);
+  const idAltPolicy = computeGraphId(cDigest, psId1, pDigestAlt, sId1, sampleNodes);
   assert.notEqual(id1, idAltPolicy);
 
   // Divergence upon source snapshot change
   const sId2 = "sha256:6666666666666666666666666666666666666666666666666666666666666666";
-  const idAltSnapshot = computeGraphId(cDigest, pDigest, sId2, sampleNodes);
+  const idAltSnapshot = computeGraphId(cDigest, psId1, pDigest, sId2, sampleNodes);
   assert.notEqual(id1, idAltSnapshot);
 });
 
@@ -124,6 +131,94 @@ test("Compiler: rejects missing or malformed source_snapshot_id fail-closed", ()
       (err) => err.code === "invalid-source-snapshot-id" || err.message.includes("source_snapshot_id")
     );
   }
+});
+
+test("Compiler: detects dependency cycles and fails closed", () => {
+  const policySnapshot = createPolicySnapshot();
+  const cyclicNodes = [
+    {
+      ...sampleNodes[0],
+      node_id: "node-a",
+      dependencies: ["node-b"],
+    },
+    {
+      ...sampleNodes[0],
+      node_id: "node-b",
+      dependencies: ["node-a"],
+    },
+  ];
+
+  assert.throws(
+    () => {
+      compileExecutionGraph({
+        contract: sampleContract,
+        policySnapshot,
+        nodes: cyclicNodes,
+        obligations: [
+          { id: "req-a", criticality: "must", implemented_by: ["node-a"], required_evidence: ["ev:test"] },
+          { id: "req-b", criticality: "must", implemented_by: ["node-b"], required_evidence: ["ev:test"] },
+        ],
+      });
+    },
+    (err) => err.code === "cyclic-dependency-detected" || err.message.includes("cycle")
+  );
+});
+
+test("Compiler: defensive cloning prevents post-compilation mutation", () => {
+  const policySnapshot = createPolicySnapshot();
+  const mutableNodes = [structuredClone(sampleNodes[0])];
+  const mutableObligations = [structuredClone(sampleObligations[0])];
+
+  const graph = compileExecutionGraph({
+    contract: sampleContract,
+    policySnapshot,
+    nodes: mutableNodes,
+    obligations: mutableObligations,
+  });
+
+  // Mutate the original inputs
+  mutableNodes[0].operation = "mutated_operation";
+  mutableObligations[0].criticality = "may";
+
+  // Mutate the returned graph objects
+  graph.nodes[0].operation = "another_mutation";
+
+  // Re-compile under clean inputs and verify immutability
+  const cleanGraph = compileExecutionGraph({
+    contract: sampleContract,
+    policySnapshot,
+    nodes: sampleNodes,
+    obligations: sampleObligations,
+  });
+
+  assert.equal(cleanGraph.nodes[0].operation, "apply_repair_patch");
+  assert.equal(cleanGraph.obligations[0].criticality, "must");
+});
+
+test("Compiler: contract obligations are authoritative and cannot be stripped by empty arrays", () => {
+  const policySnapshot = createPolicySnapshot();
+  const contractWithObligations = {
+    ...sampleContract,
+    obligations: [
+      {
+        id: "req-contract-must",
+        criticality: "must",
+        implemented_by: ["repair-core"],
+        required_evidence: ["ev:test-pass"],
+      },
+    ],
+  };
+
+  // Passing empty array [] must retain contract MUST obligations
+  const graph = compileExecutionGraph({
+    contract: contractWithObligations,
+    policySnapshot,
+    nodes: sampleNodes,
+    obligations: [],
+  });
+
+  assert.equal(graph.obligations.length, 1);
+  assert.equal(graph.obligations[0].id, "req-contract-must");
 });
 
 test("Compiler: rejects microscopic worker action nodes fail-closed", () => {

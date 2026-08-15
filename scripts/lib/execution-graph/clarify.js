@@ -10,14 +10,18 @@ const { createPolicySnapshot } = require("./policy-snapshot.js");
  */
 function hasCycle(nodes) {
   const nodeMap = new Map();
-  for (const node of nodes) {
-    nodeMap.set(node.node_id, node);
+  for (const node of (Array.isArray(nodes) ? nodes : [])) {
+    if (node && node.node_id) {
+      nodeMap.set(node.node_id, node);
+    }
   }
 
   // 0: unvisited, 1: visiting, 2: visited
   const state = new Map();
-  for (const node of nodes) {
-    state.set(node.node_id, 0);
+  for (const node of (Array.isArray(nodes) ? nodes : [])) {
+    if (node && node.node_id) {
+      state.set(node.node_id, 0);
+    }
   }
 
   function dfs(nodeId) {
@@ -38,9 +42,9 @@ function hasCycle(nodes) {
     return false;
   }
 
-  for (const node of nodes) {
-    if (state.get(node.node_id) === 0) {
-      if (dfs(node.node_id)) return true;
+  for (const [nodeId] of nodeMap) {
+    if (state.get(nodeId) === 0) {
+      if (dfs(nodeId)) return true;
     }
   }
 
@@ -92,8 +96,8 @@ function computeDescendantClosure(nodes, affectedNodeIds) {
 }
 
 /**
- * Applies a ClarifyEvent to an Execution Graph, computing transitive descendant closure
- * invalidation and updating graph digests.
+ * Applies a ClarifyEvent to an Execution Graph, mutating affected nodes with clarification context,
+ * computing transitive descendant closure invalidation and updating graph digests.
  * @param {Object} graph - ExecutionGraph instance
  * @param {Object} clarifyEvent - Typed ClarifyEvent record
  * @param {Object} [options] - Additional recompile options
@@ -139,23 +143,43 @@ function applyClarifyEvent(graph, clarifyEvent, options = {}) {
     .map((n) => n.node_id)
     .filter((id) => !invalidatedSet.has(id));
 
+  // Mutate affected nodes with clarify answer context
+  const updatedNodes = graph.nodes.map((node) => {
+    if (affectedNodes.includes(node.node_id)) {
+      return {
+        ...node,
+        clarification_context: {
+          event_id: clarifyEvent.event_id,
+          question_id: clarifyEvent.question_id,
+          answer: clarifyEvent.answer,
+        },
+      };
+    }
+    return { ...node };
+  });
+
+  let policySnapshotId = graph.policy_snapshot_id;
   let policyBundleDigest = graph.policy_bundle_digest;
   if (options.policySnapshot || options.effectiveRules) {
     const snapshot = createPolicySnapshot(options.policySnapshot || { effectiveRules: options.effectiveRules });
     policyBundleDigest = snapshot.policy_bundle_digest;
+    policySnapshotId = snapshot.snapshot_id;
   }
 
   const updatedGraphId = computeGraphId(
     graph.contract_digest,
+    policySnapshotId,
     policyBundleDigest,
     graph.source_snapshot_id,
-    graph.nodes
+    updatedNodes
   );
 
   const updatedGraph = {
     ...graph,
     graph_id: updatedGraphId,
+    policy_snapshot_id: policySnapshotId,
     policy_bundle_digest: policyBundleDigest,
+    nodes: updatedNodes,
   };
 
   return {
@@ -175,3 +199,4 @@ module.exports = {
   applyClarifyEvent,
   processClarifyEvent,
 };
+

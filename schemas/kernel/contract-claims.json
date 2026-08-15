@@ -455,6 +455,7 @@
         "graph_id",
         "contract_digest",
         "policy_bundle_digest",
+        "policy_snapshot_id",
         "source_snapshot_id",
         "nodes",
         "obligations"

@@ -19,6 +19,8 @@ function createNode(id, deps = []) {
   };
 }
 
+const samplePolicySnapshotId = "sha256:5555555555555555555555555555555555555555555555555555555555555555";
+
 test("ClarifyEvent: linear DAG invalidates strictly declared affected node and descendants", () => {
   // N1 -> N2 -> N3 (N2 depends on N1, N3 depends on N2)
   const graph = {
@@ -26,6 +28,7 @@ test("ClarifyEvent: linear DAG invalidates strictly declared affected node and d
     graph_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
     contract_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
     policy_bundle_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    policy_snapshot_id: samplePolicySnapshotId,
     source_snapshot_id: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
     nodes: [
       createNode("n1", []),
@@ -52,6 +55,18 @@ test("ClarifyEvent: linear DAG invalidates strictly declared affected node and d
 
   assert.deepEqual(result.invalidatedNodeIds.sort(), ["n2", "n3"]);
   assert.deepEqual(result.preservedNodeIds.sort(), ["n1"]);
+  assert.notEqual(result.graph.graph_id, graph.graph_id);
+  assert.match(result.graph.graph_id, /^sha256:[a-f0-9]{64}$/);
+
+  // Assert affected node is mutated with clarification context
+  const mutatedN2 = result.graph.nodes.find((n) => n.node_id === "n2");
+  assert.ok(mutatedN2.clarification_context);
+  assert.equal(mutatedN2.clarification_context.event_id, "evt-clarify-1");
+  assert.equal(mutatedN2.clarification_context.answer, "Updated approach for N2");
+
+  // Assert unaffected node is not mutated with clarification context
+  const preservedN1 = result.graph.nodes.find((n) => n.node_id === "n1");
+  assert.equal(preservedN1.clarification_context, undefined);
 });
 
 test("ClarifyEvent: parallel independent branches are preserved", () => {
@@ -62,6 +77,7 @@ test("ClarifyEvent: parallel independent branches are preserved", () => {
     graph_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
     contract_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
     policy_bundle_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    policy_snapshot_id: samplePolicySnapshotId,
     source_snapshot_id: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
     nodes: [
       createNode("n1", []),
@@ -99,6 +115,7 @@ test("ClarifyEvent: diamond DAG invalidates only affected branch and common join
     graph_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
     contract_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
     policy_bundle_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    policy_snapshot_id: samplePolicySnapshotId,
     source_snapshot_id: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
     nodes: [
       createNode("n1", []),
@@ -135,6 +152,7 @@ test("ClarifyEvent: rejects unknown affected node IDs fail-closed", () => {
     graph_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
     contract_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
     policy_bundle_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    policy_snapshot_id: samplePolicySnapshotId,
     source_snapshot_id: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
     nodes: [createNode("n1", [])],
     obligations: [{ id: "req-1", criticality: "must", implemented_by: ["n1"], required_evidence: ["ev:n1"] }],
@@ -162,6 +180,7 @@ test("ClarifyEvent: detects dependency cycles and fails closed", () => {
     graph_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
     contract_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
     policy_bundle_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    policy_snapshot_id: samplePolicySnapshotId,
     source_snapshot_id: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
     nodes: [
       createNode("n1", ["n2"]),

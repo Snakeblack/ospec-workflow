@@ -5,6 +5,33 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.1] - 2026-08-15
+
+### Fixed
+- **Resolución Topológica y Compatibilidad Criptográfica de WorkOrders v2 (`k4a-remediation-v2-45-1`)**:
+  - `compileWorkOrdersV2` (`scripts/lib/execution-graph/work-order-compiler.js`) compila los nodos en orden topológico determinista y materializa sus dependencias como digests SHA-256 (`sha256:...`) de los `WorkOrderId` canónicos upstream mediante `computeWorkOrderId()`.
+  - Actualizado `schemas/kernel/work-order/v2.schema.json` restringiendo estrictamente los elementos de `dependencies` al patrón `^sha256:[a-f0-9]{64}$`.
+  - Asegurada interoperabilidad estricta y transparente con la autoridad de identidades K3 [`validateWorkOrderBinding()`](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/scripts/lib/execution-identities/index.js).
+- **Validación Atómica Canónica de Esquemas**:
+  - `compileWorkOrdersV2()` valida atómicamente el grafo completo contra `schemas/kernel/execution-graph/v1.schema.json` y cada orden emitida contra `schemas/kernel/work-order/v2.schema.json` mediante `validateInstance()`, emitiendo cero órdenes parciales ante cualquier error.
+- **Autoridad Absoluta de Obligaciones del Contrato**:
+  - `compileExecutionGraph()` (`scripts/lib/execution-graph/compiler.js`) toma `contract.obligations` como la autoridad canónica inmutable, impidiendo la omisión silenciosa de obligaciones `MUST` mediante arreglos vacíos o sobreescrituras externas.
+- **Propagación de Invalidación en Clarify y Replay Fail-Closed**:
+  - `applyClarifyEvent()` (`scripts/lib/execution-graph/clarify.js`) muta y actualiza los nodos afectados/invalidados en el grafo y recalcula el `graph_id` determinista.
+  - `replayExecutionGraph()` (`scripts/lib/execution-graph/replay-engine.js`) incorpora discriminación cerrada de completitud y rechazo *fail-closed* ante fixtures de nodos invalidados (`stale-fixture-rejected`).
+- **Vinculación Criptográfica de `policy_snapshot_id`**:
+  - Incorporado `policy_snapshot_id` obligatorio en `schemas/kernel/execution-graph/v1.schema.json` y acoplado a la preimagen de cálculo de `computeGraphId()`.
+- **Detección de Ciclos e Inmutabilidad en Compilación de Grafos**:
+  - `compileExecutionGraph()` ejecuta `hasCycle()` antes de emitir la estructura y aplica clonación defensiva profunda (`structuredClone()`) sobre nodos y obligaciones.
+- **Endurecimiento del Comparador Shadow**:
+  - `compareShadowExecution()` (`scripts/lib/execution-graph/shadow-comparator.js`) evalúa multidimensionalmente invariantes, obligaciones, dependencias, ownership, steps y rutas permitidas en modo de solo lectura.
+
+### Added
+- **Suite de Integración Transversal K3 ↔ K4a**:
+  - Nuevo test end-to-end `scripts/lib/k3-k4a-integration.test.js` validando la cadena criptográfica completa: `SourceSnapshot` → `compileExecutionGraph` → `compileWorkOrdersV2` → `validateWorkOrderBinding` → `validateWorkResultBinding` → `replayExecutionGraph`.
+- **ADRs Promovidos**:
+  - Incorporación de ADR-007 a ADR-012 en `docs/adr/` documentando las decisiones de remediación de dependencias, validación canónica, autoridad de obligaciones, invalidación en clarify, enlace de policy snapshot y comparación shadow.
+
 ## [2.45.0] - 2026-08-15
 
 ### Added

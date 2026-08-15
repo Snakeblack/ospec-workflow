@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "change": "k4a-remediation-v2-45-1",
+  "source_fingerprint": "sha256:d62556e34f3117c7689b8e393dd7a5908be1ea11b39083830419a39dce0263eb",
+  "spec_writes": [
+    {
+      "domain": "execution-graph-compiler",
+      "source_delta": "specs/execution-graph-compiler/spec.md",
+      "target": "openspec/specs/execution-graph-compiler/spec.md",
+      "target_before_sha256": "sha256:38d00af980f487f264a409b6812d59932bc57f3ebc55ce1874d63956608e40d8",
+      "content_sha256": "sha256:d83750efb3dd1fd2f6db8417baa8133536b26e855a1c722db7b124be07ffc069"
+    },
+    {
+      "domain": "execution-identities",
+      "source_delta": "specs/execution-identities/spec.md",
+      "target": "openspec/specs/execution-identities/spec.md",
+      "target_before_sha256": "sha256:1254a35b9543fca5d47c8f9e0f03e0db12f81b51c9d4b4f10b33c17f33932fdf",
+      "content_sha256": "sha256:baced04e79d5fc25120f294b6eed3a6d381ff9f5b9def68f47f9a2f386250971"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "specs/kernel-contract-schemas/spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:ba1f91861f9ce569090cb6c024c119bf70c9ddbe402c0365d62b43a9765d6990",
+      "content_sha256": "sha256:6deabb0fd3e0e3a538010e8cea712c902efedf2d71985cfbc73242aaec3359dc"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260815-007-topological-workorder-v2-compilation-with-canonical-workorderid-dependency-digests.md",
+      "content_sha256": "sha256:11fb99a899bc455ff44948e9a66aec916bb361ef3fc5f389ff68a494d5bb832f"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260815-008-atomic-canonical-schema-validation-in-workorder-compiler.md",
+      "content_sha256": "sha256:03ccd2bd4a6c903c8e6aa7a2ecab5593911e1022d472be3805b16505efce08ff"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260815-009-authoritative-contract-obligation-manifest-reconciliation.md",
+      "content_sha256": "sha256:0c24ec994ce3ce8d09bbc3e9fd9f01acd498573e895dc1e691530ce58bdb6027"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260815-010-clarify-invalidation-propagation-and-fail-closed-stale-fixture-rejection-in-replay.md",
+      "content_sha256": "sha256:c13add3d8822bc3879ba49e4f2aac95d9313d9750c3522551ec0dd49cd6f5b7f"
+    },
+    {
+      "source": "decisions/adr-005.md",
+      "target": "docs/adr/adr-20260815-011-cryptographic-binding-of-policy-snapshot-id-to-executiongraph-and-graphid.md",
+      "content_sha256": "sha256:128457511ead3553df411149a330464d9b2c4b43948ba75006c5221810c36e02"
+    },
+    {
+      "source": "decisions/adr-006.md",
+      "target": "docs/adr/adr-20260815-012-hardened-multi-dimensional-shadow-comparison-baseline.md",
+      "content_sha256": "sha256:178fbc73fc89ca72cbee124990a4bad7fe2e6476f791847fb5c3ae08726fdd6d"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "decisions/adr-005.md",
+    "decisions/adr-006.md",
+    "design.md",
+    "proposal.md",
+    "specs/execution-graph-compiler/spec.md",
+    "specs/execution-identities/spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

@@ -90,3 +90,38 @@ test("ReplayEngine: missing required obligation evidence marks replay incomplete
   assert.ok(result.counterexample);
   assert.ok(result.counterexample.reason.includes("evidence") || result.counterexample.reason.includes("obligation"));
 });
+
+test("ReplayEngine: rejects stale fixture result for invalidated node fail-closed", () => {
+  const graph = createSampleExecutionGraph();
+  const fixtures = createSampleFixtureResults();
+
+  assert.throws(
+    () => replayExecutionGraph(graph, fixtures, { invalidatedNodeIds: ["repair-patch"] }),
+    (err) => err.code === "stale-fixture-rejected" && err.node_id === "repair-patch"
+  );
+});
+
+test("ReplayEngine: discriminates cancelled or non-completed status and generates counterexample", () => {
+  const graph = createSampleExecutionGraph();
+  const cancelledFixtures = {
+    "repair-patch": {
+      ok: false,
+      status: "cancelled",
+      error: "Operation timed out and was cancelled",
+    },
+    "repair-verify": {
+      ok: true,
+      status: "completed",
+      evidence: { "ev:test-pass": { digest: "sha256:2" } },
+    },
+  };
+
+  const result = replayExecutionGraph(graph, cancelledFixtures);
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.failedNodes, ["repair-patch"]);
+  assert.ok(result.blockedNodes.includes("repair-verify"));
+  assert.ok(result.counterexample);
+  assert.equal(result.counterexample.failed_node, "repair-patch");
+  assert.ok(result.counterexample.reason.includes("cancelled") || result.counterexample.reason.includes("timed out"));
+});

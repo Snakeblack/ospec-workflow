@@ -1,13 +1,17 @@
 "use strict";
 
+const path = require("node:path");
 const { sha256Fingerprint } = require("../canonical-json.js");
+const { validateInstance, loadSchemaById } = require("../kernel-schema-validator.js");
 const {
   computeSourceSnapshotId,
+  computeWorkOrderId,
   validateIdentityKind,
 } = require("../execution-identities/index.js");
 const { FORBIDDEN_OPERATIONS } = require("./compiler.js");
 const { hasCycle } = require("./clarify.js");
 const { validateObligationManifest } = require("./obligation-manifest.js");
+const { topologicalSort } = require("./replay-engine.js");
 
 const DEFAULT_WORK_ORDER_BUDGET = Object.freeze({
   model_turns: 5,
@@ -18,6 +22,30 @@ const DEFAULT_WORK_ORDER_BUDGET = Object.freeze({
 });
 
 const SHA256_DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
+const DEFAULT_SCHEMA_ROOT = path.resolve(__dirname, "../../..");
+const EXECUTION_GRAPH_V1_SCHEMA_ID = "ospec://schemas/kernel/execution-graph/v1";
+const WORK_ORDER_V2_SCHEMA_ID = "ospec://schemas/kernel/work-order/v2";
+
+let cachedExecutionGraphV1Schema = null;
+let cachedWorkOrderV2Schema = null;
+
+function getExecutionGraphV1Schema() {
+  if (!cachedExecutionGraphV1Schema) {
+    cachedExecutionGraphV1Schema = loadSchemaById(EXECUTION_GRAPH_V1_SCHEMA_ID, {
+      rootDir: DEFAULT_SCHEMA_ROOT,
+    });
+  }
+  return cachedExecutionGraphV1Schema;
+}
+
+function getWorkOrderV2Schema() {
+  if (!cachedWorkOrderV2Schema) {
+    cachedWorkOrderV2Schema = loadSchemaById(WORK_ORDER_V2_SCHEMA_ID, {
+      rootDir: DEFAULT_SCHEMA_ROOT,
+    });
+  }
+  return cachedWorkOrderV2Schema;
+}
 
 function resolveVerifiedSourceSnapshotId(graph, context = {}) {
   const graphSnapshotId = graph.source_snapshot_id;
@@ -121,7 +149,9 @@ function compileWorkOrdersV1(graph, context = {}) {
 
 /**
  * Compiles coarse semantic graph nodes into declarative WorkOrder v2 shapes.
- * Performs fail-closed atomic validation of graph and provenance before emission.
+ * Performs fail-closed atomic validation of graph and provenance before emission,
+ * resolves topological dependencies to canonical WorkOrderId sha256 digests,
+ * and validates each emitted WorkOrder against work-order/v2 schema.
  *
  * @param {Object} graph - ExecutionGraph instance
  * @param {Object} [context] - Declarative compilation context
@@ -131,22 +161,21 @@ function compileWorkOrdersV2(graph, context = {}) {
   if (!graph || typeof graph !== "object") {
     throw new TypeError("graph must be an ExecutionGraph object");
   }
-  if (graph.schema_version !== 1) {
-    const err = new Error("graph schema_version must be 1");
+
+  // 1. Schema Pre-validation
+  const graphValidation = validateInstance(getExecutionGraphV1Schema(), graph);
+  if (!graphValidation.valid) {
+    const err = new Error(
+      `ExecutionGraph failed schema validation: ${graphValidation.errors.map((e) => e.message).join("; ")}`
+    );
     err.code = "invalid-graph-schema";
     throw err;
   }
-  if (!Array.isArray(graph.nodes)) {
-    throw new TypeError("graph.nodes must be an array");
-  }
-  if (!Array.isArray(graph.obligations)) {
-    throw new TypeError("graph.obligations must be an array");
-  }
 
-  // Validate provenance atomically
+  // 2. Provenance verification
   const sourceSnapshotId = resolveVerifiedSourceSnapshotId(graph, context);
 
-  // Validate coarse semantic nodes
+  // 3. Validate coarse semantic nodes
   for (const node of graph.nodes) {
     if (!node || typeof node !== "object") {
       const err = new Error("Graph node must be an object");
@@ -185,7 +214,7 @@ function compileWorkOrdersV2(graph, context = {}) {
     }
   }
 
-  // Validate dependencies
+  // 4. Validate dependencies exist
   const nodeIds = new Set(graph.nodes.map((n) => n.node_id));
   for (const node of graph.nodes) {
     const dependencies = Array.isArray(node.dependencies) ? node.dependencies : [];
@@ -200,14 +229,14 @@ function compileWorkOrdersV2(graph, context = {}) {
     }
   }
 
-  // Validate acyclic
+  // 5. Validate acyclic
   if (hasCycle(graph.nodes)) {
     const err = new Error("Dependency cycle detected in Execution Graph");
     err.code = "cyclic-dependency-detected";
     throw err;
   }
 
-  // Validate Obligation Manifest
+  // 6. Validate Obligation Manifest
   const obligationValidation = validateObligationManifest(graph.obligations, graph.nodes);
   if (!obligationValidation.valid) {
     const err = new Error(
@@ -220,11 +249,30 @@ function compileWorkOrdersV2(graph, context = {}) {
     throw err;
   }
 
+  // 7. Topological Sort and Canonical WorkOrderId Resolution
+  const sortedNodes = topologicalSort(graph.nodes);
+  const nodeIdToWorkOrderId = new Map();
+  const workOrders = [];
+  const woSchema = getWorkOrderV2Schema();
+
   const role = context.role || "repair-worker";
   const defaultBudget = context.defaultBudget || DEFAULT_WORK_ORDER_BUDGET;
   const budgets = context.budgets || {};
 
-  return graph.nodes.map((node) => {
+  for (const node of sortedNodes) {
+    const rawDeps = Array.isArray(node.dependencies) ? node.dependencies : [];
+    const resolvedDeps = rawDeps.map((depNodeId) => {
+      const parentWorkOrderId = nodeIdToWorkOrderId.get(depNodeId);
+      if (!parentWorkOrderId) {
+        const err = new Error(
+          `Unresolved dependency WorkOrderId for node "${depNodeId}" (dependent: "${node.node_id}")`
+        );
+        err.code = "unresolved-dependency-digest";
+        throw err;
+      }
+      return parentWorkOrderId;
+    });
+
     const budget = budgets[node.node_id] || defaultBudget;
     const normalizedBudget = {
       model_turns: Number(budget.model_turns ?? DEFAULT_WORK_ORDER_BUDGET.model_turns),
@@ -233,13 +281,16 @@ function compileWorkOrdersV2(graph, context = {}) {
       wall_time_minutes: Number(budget.wall_time_minutes ?? DEFAULT_WORK_ORDER_BUDGET.wall_time_minutes),
       changed_lines: Number(budget.changed_lines ?? DEFAULT_WORK_ORDER_BUDGET.changed_lines),
     };
-    const bindings = {
+
+    const workOrderPayload = {
+      schema_version: 2,
+      kind: "work-order/v2",
       source_snapshot_id: sourceSnapshotId,
       node_id: String(node.node_id),
       role: String(role),
       operation: String(node.operation),
       objective: String(node.objective),
-      dependencies: Array.isArray(node.dependencies) ? [...node.dependencies] : [],
+      dependencies: resolvedDeps,
       ownership: node.ownership && typeof node.ownership === "object"
         ? { owner: String(node.ownership.owner), mode: String(node.ownership.mode) }
         : { owner: "agent:repair", mode: "exclusive" },
@@ -249,14 +300,28 @@ function compileWorkOrdersV2(graph, context = {}) {
       budget: normalizedBudget,
     };
 
-    return {
-      schema_version: 2,
-      kind: "work-order/v2",
-      work_order_id: sha256Fingerprint("work-order/v2", bindings),
-      ...bindings,
+    const workOrderId = computeWorkOrderId(workOrderPayload);
+    const workOrder = {
+      ...workOrderPayload,
+      work_order_id: workOrderId,
       status: "pending",
     };
-  });
+
+    // 8. WorkOrder v2 Schema Post-validation
+    const woValidation = validateInstance(woSchema, workOrder);
+    if (!woValidation.valid) {
+      const err = new Error(
+        `Emitted WorkOrder failed schema validation: ${woValidation.errors.map((e) => e.message).join("; ")}`
+      );
+      err.code = "invalid-work-order-schema";
+      throw err;
+    }
+
+    nodeIdToWorkOrderId.set(node.node_id, workOrderId);
+    workOrders.push(workOrder);
+  }
+
+  return workOrders;
 }
 
 const compileWorkOrders = compileWorkOrdersV2;
@@ -267,4 +332,5 @@ module.exports = {
   compileWorkOrdersV1,
   compileWorkOrdersV2,
 };
+
 

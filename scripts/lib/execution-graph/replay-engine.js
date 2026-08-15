@@ -60,9 +60,11 @@ function topologicalSort(nodes) {
  *
  * @param {Object} graph - ExecutionGraph instance
  * @param {Object} [fixtureResults] - Map of nodeId -> recorded worker result
+ * @param {Object} [options] - Replay options
+ * @param {string[]|Set<string>} [options.invalidatedNodeIds] - Transitive invalidated node IDs
  * @returns {{ ok: boolean, completedNodes: string[], failedNodes: string[], blockedNodes: string[], finalStateDigest: string, trace: Array<Object>, counterexample: Object|null }}
  */
-function replayExecutionGraph(graph, fixtureResults = {}) {
+function replayExecutionGraph(graph, fixtureResults = {}, options = {}) {
   if (!graph || typeof graph !== "object" || !Array.isArray(graph.nodes)) {
     throw new TypeError("graph must be an ExecutionGraph object with a nodes array");
   }
@@ -71,6 +73,16 @@ function replayExecutionGraph(graph, fixtureResults = {}) {
     const err = new Error("Dependency cycle detected in Execution Graph");
     err.code = "cyclic-dependency-detected";
     throw err;
+  }
+
+  const invalidatedSet = new Set(options.invalidatedNodeIds || []);
+  for (const nodeId of invalidatedSet) {
+    if (fixtureResults && fixtureResults[nodeId] !== undefined) {
+      const err = new Error(`Stale fixture result supplied for invalidated node "${nodeId}"`);
+      err.code = "stale-fixture-rejected";
+      err.node_id = nodeId;
+      throw err;
+    }
   }
 
   const sortedNodes = topologicalSort(graph.nodes);
@@ -113,14 +125,21 @@ function replayExecutionGraph(graph, fixtureResults = {}) {
       continue;
     }
 
-    if (recorded.ok === false || recorded.outcome === "failed") {
+    const isCompleted =
+      recorded.ok !== false &&
+      (recorded.status === "completed" || recorded.outcome === "completed");
+
+    if (!isCompleted) {
+      const isCancelled = recorded.status === "cancelled" || recorded.outcome === "cancelled";
+      const statusValue = isCancelled ? "cancelled" : (recorded.status || recorded.outcome || "failed");
+      const errorMsg = recorded.error || (isCancelled ? "Execution recorded cancelled" : "Execution failed or incomplete status");
       failedNodes.add(nodeId);
-      nodeOutcomes[nodeId] = { status: "failed", error: recorded.error || "Execution recorded failure" };
+      nodeOutcomes[nodeId] = { status: statusValue, error: errorMsg };
       trace.push({
         node_id: nodeId,
         action: "execute",
-        status: "failed",
-        error: recorded.error || "failed",
+        status: statusValue,
+        error: errorMsg,
       });
       continue;
     }
@@ -222,3 +241,4 @@ module.exports = {
   topologicalSort,
   replayExecutionGraph,
 };
+

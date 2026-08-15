@@ -69,7 +69,7 @@
       "type": "array",
       "items": {
         "type": "string",
-        "minLength": 1
+        "pattern": "^sha256:[a-f0-9]{64}$"
       }
     },
     "ownership": {

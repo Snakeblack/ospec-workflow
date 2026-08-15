@@ -150,6 +150,7 @@ function listK1SchemaFiles(rootDir) {
     "schemas/kernel/candidate/fixtures/invalid/v2-",
     "schemas/kernel/work-order/fixtures/valid/v2-",
     "schemas/kernel/work-order/fixtures/invalid/v2-",
+    "schemas/kernel/work-order/fixtures/invalid/malformed-",
     "schemas/kernel/candidate/fixtures/valid/k3-frozen.json",
     "schemas/kernel/candidate/fixtures/invalid/commit-projection.json",
     "schemas/kernel/candidate/fixtures/invalid/work-result-alias.json",

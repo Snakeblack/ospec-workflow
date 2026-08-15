@@ -3,7 +3,6 @@
   "graph_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
   "contract_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
   "policy_bundle_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-  "policy_snapshot_id": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
   "source_snapshot_id": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
   "nodes": [
     {
@@ -26,30 +25,6 @@
         "ev:unit-test-pass"
       ],
       "budget_ref": "budget:repair-default"
-    },
-    {
-      "node_id": "repair-verify-pass",
-      "kind": "repair-action/v1",
-      "operation": "verify_repair_conformance",
-      "objective": "Verify that all repaired modules satisfy requirements",
-      "dependencies": [
-        "repair-apply-core"
-      ],
-      "ownership": {
-        "owner": "agent:verify",
-        "mode": "shared"
-      },
-      "allowed_paths": [
-        "src/core/**",
-        "tests/**"
-      ],
-      "invariants": [
-        "inv-no-direct-mutation"
-      ],
-      "required_evidence": [
-        "ev:conformance-report"
-      ],
-      "budget_ref": "budget:repair-default"
     }
   ],
   "obligations": [
@@ -62,26 +37,6 @@
       "required_evidence": [
         "ev:unit-test-pass"
       ]
-    },
-    {
-      "id": "req-repair-002",
-      "criticality": "must",
-      "implemented_by": [
-        "repair-verify-pass"
-      ],
-      "required_evidence": [
-        "ev:conformance-report"
-      ]
-    },
-    {
-      "id": "req-repair-opt-003",
-      "criticality": "should",
-      "implemented_by": [],
-      "required_evidence": [],
-      "deferred": {
-        "reason": "Deferred to subsequent hardening iteration",
-        "approved_by": "architect"
-      }
     }
   ]
 }
