@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "change": "k4a-execution-graph-compiler-replay",
+  "source_fingerprint": "sha256:1367fb579b8436bcb9c35bde46b335cce89e480cbe8cc2c6aa64c8ce92f87af5",
+  "spec_writes": [
+    {
+      "domain": "execution-graph-compiler",
+      "source_delta": "specs/execution-graph-compiler/spec.md",
+      "target": "openspec/specs/execution-graph-compiler/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:f5d179e2afeca6488616233b4f08133a8180f4f8512b2f0450d037b9a5a14685"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "specs/kernel-contract-schemas/spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:c2c8f895e0b41cd1573a569491c0ace531c277c702ba66778dc41434b3c4147b",
+      "content_sha256": "sha256:6f79a005d724b4c8b6ba2e8a52ea165795ee95a28983715a17461d36656d1178"
+    },
+    {
+      "domain": "contract-lint",
+      "source_delta": "specs/contract-lint/spec.md",
+      "target": "openspec/specs/contract-lint/spec.md",
+      "target_before_sha256": "sha256:7a06cb225a7e05251d4872b66ceed2ff80bf3910e1c11298bd81306afd58eb30",
+      "content_sha256": "sha256:b6c92744f6f8516126ef90e9d4048f954c98d998de3186db7d764e80f30da6c5"
+    },
+    {
+      "domain": "lifecycle-model-conformance",
+      "source_delta": "specs/lifecycle-model-conformance/spec.md",
+      "target": "openspec/specs/lifecycle-model-conformance/spec.md",
+      "target_before_sha256": "sha256:bb3f2fe2b3a2f3f089f36948c5e420efb257831e030e368b53f2408a8c397f30",
+      "content_sha256": "sha256:a016e66e8174d00c72b594cdb410efe1eafa24e38deaffdd9e864eb3e6ce479a"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260815-001-obligation-manifest-as-an-embedded-view-in-execution-graph.md",
+      "content_sha256": "sha256:c04b443528fb72a464a67613cf2b0ad6aec2d04e93212e3623d0cd8e8e86cd3a"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260815-002-deterministic-graphid-coupled-to-contract-policy-bundle-and-sourcesnapshot-digests.md",
+      "content_sha256": "sha256:a7d2fa3e59336fd130679443eb6d4be2dac467ea112802679bc3ecd29ac73c06"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260815-003-typed-clarifyevent-with-descendant-scoped-transitive-invalidation.md",
+      "content_sha256": "sha256:fec877036b0e66d35b81469446065384b59aebc1f7b047c4687198e4e43ec25a"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260815-004-declarative-work-order-compilation-and-fixture-replay-without-live-runtime-authority.md",
+      "content_sha256": "sha256:95b3c3b09dcb59d11fda15fbf09b1093af3c20dfdea6405e3503397fd2ae9785"
+    },
+    {
+      "source": "decisions/adr-005.md",
+      "target": "docs/adr/adr-20260815-005-workorder-v2-as-the-k4a-public-compilation-contract.md",
+      "content_sha256": "sha256:6023bc0e1745470c42fc1a3dca555734693a47f71d841808a19032caabae6f67"
+    },
+    {
+      "source": "decisions/adr-006.md",
+      "target": "docs/adr/adr-20260815-006-atomic-graph-and-provenance-validation-in-compileworkordersv2.md",
+      "content_sha256": "sha256:97951d2761b9e1a89601bb6b34ca39b65effc22620638278fad5346319906c9f"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "decisions/adr-005.md",
+    "decisions/adr-006.md",
+    "design.md",
+    "proposal.md",
+    "specs/contract-lint/spec.md",
+    "specs/execution-graph-compiler/spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "specs/lifecycle-model-conformance/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

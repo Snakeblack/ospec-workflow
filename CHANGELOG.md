@@ -5,6 +5,25 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.0] - 2026-08-15
+
+### Added
+- **Compilador de ExecutionGraph y Vínculo Formal con SourceSnapshot (`k4a-execution-graph-compiler-replay`)**:
+  - Requisito obligatorio de `source_snapshot_id` (`^sha256:[a-f0-9]{64}$`) en `schemas/kernel/execution-graph/v1.schema.json` y `schemas/kernel/work-order/v2.schema.json`.
+  - Derivación determinista de `GraphId` acoplando resúmenes criptográficos de contrato, política, snapshot y estructura de nodos en `scripts/lib/execution-graph/compiler.js`.
+  - Validación atómica *fail-closed* en `compileWorkOrdersV2()` (`scripts/lib/execution-graph/work-order-compiler.js`): rechaza desajustes de procedencia, nodos microscópicos o dependencias cíclicas emitiendo cero órdenes parciales ante cualquier error.
+  - Preservación estricta, byte a byte, del contrato legacy `work-order/v1.schema.json` y el baseline histórico K1 (`K1_SCHEMA_BASELINE`).
+- **Motor de Replay Determinista y Comparador Shadow de Solo Lectura**:
+  - Implementación de `replayExecutionGraph()` en `scripts/lib/execution-graph/replay-engine.js` con ordenación topológica robusta y generación de trazas de contraejemplo.
+  - Implementación de `compareShadowExecution()` en `scripts/lib/execution-graph/shadow-comparator.js` con clonación profunda defensiva (`structuredClone`) y no-interferencia con el estado activo.
+  - Gestión de eventos de aclaración (`applyClarifyEvent`) en `scripts/lib/execution-graph/clarify.js` con cálculo de clausura transitiva e invalidación descendente de nodos dependientes.
+  - Verificación de completitud de obligaciones en `validateObligationManifest()` (`scripts/lib/execution-graph/obligation-manifest.js`).
+- **Linters de Contratos y Conformidad del Modelo de Ciclo de Vida K4a**:
+  - Checkers `k4a-microscopic-nodes.js` y `k4a-obligation-completeness.js` integrados en `scripts/lib/contract-lint.js`.
+  - Promoción y validación de 7 invariantes ejecutables K4a en `scripts/lib/lifecycle-model.js` (`inv-k4a-no-microscopic-nodes`, `inv-k4a-obligation-completeness`, `inv-k4a-derived-graph-identity`, `inv-k4a-atomic-work-order-compilation`, `inv-k4a-replay-determinism`, `inv-k4a-shadow-non-interference`, `inv-k4a-no-live-authority`).
+- **ADRs Promovidos**:
+  - Incorporación de ADR-001 a ADR-006 en `docs/adr/` documentando las decisiones de arquitectura del compilador, modelo de replay, WorkOrder v2 y validación de procedencia.
+
 ## [2.44.3] - 2026-08-15
 
 ### Added

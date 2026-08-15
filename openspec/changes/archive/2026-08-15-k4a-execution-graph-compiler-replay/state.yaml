@@ -1,0 +1,204 @@
+change: k4a-execution-graph-compiler-replay
+status: archived
+classification: high-risk
+last_updated: 2026-08-15T15:24:00Z
+blocking_questions: []
+owner:
+  author: Manuel Retamozo
+  branch: main
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "High-risk compiler/Obligation-Manifest/replay architecture change on an active project; standard route selected."
+  validated: true
+  validation_errors: []
+baseline_fingerprints:
+  kernel-contract-schemas: c2c8f895e0b41cd1573a569491c0ace531c277c702ba66778dc41434b3c4147b
+  contract-lint: 7a06cb225a7e05251d4872b66ceed2ff80bf3910e1c11298bd81306afd58eb30
+  lifecycle-model-conformance: bb3f2fe2b3a2f3f089f36948c5e420efb257831e030e368b53f2408a8c397f30
+session:
+  execution_mode: interactive
+  delivery_strategy: ask-on-risk
+approvals:
+  - id: approval-k4a-scope-001
+    gate: route-confirmation
+    decision: "Scope canonical K4a (Execution Graph compiler, Obligation Manifest, PolicySnapshot and replay with fixtures) accepted."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-14T22:52:01Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: interactive
+    source: vscode/askQuestions
+    accepted_at: 2026-08-14T22:53:04Z
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: ask-on-risk
+    source: vscode/askQuestions
+    accepted_at: 2026-08-14T22:53:04Z
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: approval-workload-001
+    gate: review-workload
+    decision: "Chained PRs (stacked-to-main strategy) approved to protect reviewer cognitive budget"
+    source: vscode/askQuestions
+    accepted_at: 2026-08-14T23:08:52Z
+    applies_to:
+      - sdd-apply
+  - id: approval-4r-remediation-001
+    gate: 4r-review-gate
+    decision: "Remediate the four frozen CRITICAL findings through bounded correction slices and targeted review-correction validation."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-14T23:41:52.865Z
+    applies_to:
+      - sdd-apply
+      - review-correction
+
+  - id: k4a-new-scope-bounded-review-001
+    gate: 4r-review-gate
+    decision: "Authorize a new-scope successor that adds schemas/kernel/work-order/v1.schema.json and completes the remaining WorkOrder provenance and fail-closed checker corrections."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-14T23:53:24.2009583Z
+    applies_to:
+      - sdd-design
+      - sdd-apply
+      - sdd-verify
+      - review-correction
+
+  - id: k4a-regression-bounded-review-002
+    gate: 4r-review-gate
+    decision: "Authorize a new-scope successor to update WorkOrder fixtures, K1 digests, lifecycle-model call sites, and any directly evidenced paths required to clear the 13 post-remediation test failures."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-15T00:08:29.7725839Z
+    applies_to:
+      - sdd-design
+      - sdd-apply
+      - sdd-verify
+      - review-correction
+
+  - id: k4a-work-order-v2-bounded-review-003
+    gate: architecture
+    decision: "Preserve WorkOrder v1 byte-identical and introduce WorkOrder v2 for explicit SourceSnapshot provenance; route through spec, design, implementation, verification, and successor 4R."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-15T00:18:18.2872975Z
+    applies_to:
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+
+  - id: k4a-work-order-v2-workload-004
+    gate: review-workload
+    decision: "Implement the WorkOrder v2 revision as chained PR work units using the stacked-to-main strategy."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-15T00:33:00.016Z
+    applies_to:
+      - sdd-apply
+
+  - id: k4a-gen4-remediation-bounded-review-004
+    gate: 4r-review-gate
+    decision: "Remediate the three frozen generation-4 CRITICAL slices sequentially and validate each with review-correction."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-15T14:18:03.276Z
+    applies_to:
+      - sdd-apply
+      - review-correction
+
+  - id: k4a-graph-snapshot-binding-new-scope-005
+    gate: architecture
+    decision: "Authorize a new-scope successor (Generation 5) to define the contractual binding between ExecutionGraph and SourceSnapshot across spec, design, schemas, and implementation."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-15T14:54:44.000Z
+    applies_to:
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/k4a-execution-graph-compiler-replay/proposal.md"
+    summary: "Propuesta K4a: Execution Graph compiler, Obligation Manifest, PolicySnapshot y replay determinista con fixtures."
+    key_decisions:
+      - "Obligation Manifest como vista determinista interna del Execution Graph"
+      - "Graph ID acoplado deterministamente a contract_digest y policy_bundle_digest"
+      - "Replay determinista y shadow comparison sin workers autoritativos en runtime"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/k4a-execution-graph-compiler-replay/specs/execution-graph-compiler/spec.md"
+      - "openspec/changes/k4a-execution-graph-compiler-replay/specs/kernel-contract-schemas/spec.md"
+      - "openspec/changes/k4a-execution-graph-compiler-replay/specs/contract-lint/spec.md"
+      - "openspec/changes/k4a-execution-graph-compiler-replay/specs/lifecycle-model-conformance/spec.md"
+    summary: "Specs completadas para Gen 5: vínculo formal ExecutionGraph-SourceSnapshot, derivación determinista de GraphId, y validación atómica en compileWorkOrdersV2."
+    key_decisions:
+      - "ExecutionGraph v1 requiere source_snapshot_id y GraphId se acopla a contract_digest, policy_bundle_digest y source_snapshot_id"
+      - "compileWorkOrdersV2 valida atómicamente el grafo completo y previene bypass de procedencia y escalada"
+      - "WorkOrder v1 y baselines K1 permanecen congelados, inmutables y byte-idénticos"
+  clarify:
+    status: skipped
+  design:
+    status: done
+    artifact: "openspec/changes/k4a-execution-graph-compiler-replay/design.md"
+    summary: "Diseño K4a Gen 5: vínculo Graph-SourceSnapshot, validación atómica en compileWorkOrdersV2, y preservación estricta de WorkOrder v1 / K1."
+    key_decisions:
+      - "Vínculo formal ExecutionGraph-SourceSnapshot y GraphId acoplado a contract, policy y snapshot"
+      - "Validación atómica fail-closed en compileWorkOrdersV2 con cero órdenes parciales"
+      - "WorkOrder v1 y baselines K1 congelados e inmutables; v2 es la salida pública"
+  tasks:
+    status: done
+    artifact: "openspec/changes/k4a-execution-graph-compiler-replay/tasks.md"
+    summary: "Plan de tareas K4a completado: 100% de cobertura MUST reconciliada (61 escenarios) y 5 unidades de trabajo en PRs encadenados stacked-to-main."
+    key_decisions:
+      - "Desglose en 5 PRs encadenados (stacked-to-main) ante alto riesgo de presupuesto (>650-900 líneas)"
+      - "Reconciliación 100% de requerimientos MUST sobre esquemas, compilador atómico, linters y modelo"
+      - "Preservación estricta byte-a-byte de WorkOrder v1 y baselines K1"
+  apply:
+    status: done
+    artifact: "openspec/changes/k4a-execution-graph-compiler-replay/apply-progress.md"
+    summary: "Implementación K4a completada en 5 unidades de trabajo: esquemas v1/v2 con source_snapshot_id, compilador DAG atómico con derivación determinista de GraphId, Obligation Manifest con 100% de cobertura MUST, invalidación acotada de ClarifyEvent, Replay Engine determinista, Shadow Comparator de solo lectura, checkers de contract-lint k4a, y 7 invariantes K4a ejecutables en el lifecycle-model."
+    key_decisions:
+      - "ExecutionGraph y WorkOrder v2 requieren source_snapshot_id obligatorio; WorkOrder v1 y baselines K1 preservados inmutables y byte-idénticos"
+      - "compileWorkOrdersV2 valida atómicamente el grafo y procedencia emitiendo cero órdenes parciales ante cualquier error"
+      - "GraphId se deriva criptográficamente acoplando contract, policy, snapshot y nodos"
+      - "ClarifyEvent calcula clausura transitiva en el DAG preservando nodos independientes"
+      - "Replay Engine y Shadow Comparator operan sin emitir permisos ni invocar workers en runtime"
+      - "7 invariantes K4a promovidas a ejecutables en el lifecycle-model y verificadas con éxito"
+  verify:
+    status: done
+    verdict: PASS
+    artifact: "openspec/changes/k4a-execution-graph-compiler-replay/verify-report.md"
+    summary: "100% de cumplimiento en 61 escenarios MUST verificado; 2209 tests pasando, ADR-001 a ADR-006 coherentes y baselines K1 preservados byte-a-byte."
+    key_decisions:
+      - "100% de escenarios MUST verificados con runtime-test"
+      - "Preservación estricta de WorkOrder v1 y baseline K1"
+      - "Coherencia total con ADR-001 a ADR-006"
+  archive:
+    status: done
+    artifact: "openspec/changes/k4a-execution-graph-compiler-replay/archive-report.md"
+    summary: "Plan-and-Report emitido: 4 dominios preparados, 6 ADRs promovidos, inventario de 17 archivos y telemetría de costes consolidada."
+    key_decisions:
+      - "Plan-and-Report con runtime transaccional determinista"
+      - "Preservación estricta de baselines K1 y WorkOrder v1"
+
+gates:
+  4r-review-gate: {"status":"approved","schema_version":1,"classification":"high-risk","evidence":{"schema_version":1,"fingerprint":"sha256:e629d7a947a369db6ff9b6fb88af18953d2d61c1b754850d404deecdb561bcd0","sources":{"paths":["openspec/changes/k4a-execution-graph-compiler-replay/apply-progress.md","openspec/changes/k4a-execution-graph-compiler-replay/decisions/adr-001.md","openspec/changes/k4a-execution-graph-compiler-replay/decisions/adr-002.md","openspec/changes/k4a-execution-graph-compiler-replay/decisions/adr-003.md","openspec/changes/k4a-execution-graph-compiler-replay/decisions/adr-004.md","openspec/changes/k4a-execution-graph-compiler-replay/decisions/adr-005.md","openspec/changes/k4a-execution-graph-compiler-replay/decisions/adr-006.md","openspec/changes/k4a-execution-graph-compiler-replay/design.md","openspec/changes/k4a-execution-graph-compiler-replay/proposal.md","openspec/changes/k4a-execution-graph-compiler-replay/specs/contract-lint/spec.md","openspec/changes/k4a-execution-graph-compiler-replay/specs/execution-graph-compiler/spec.md","openspec/changes/k4a-execution-graph-compiler-replay/specs/kernel-contract-schemas/spec.md","openspec/changes/k4a-execution-graph-compiler-replay/specs/lifecycle-model-conformance/spec.md","openspec/changes/k4a-execution-graph-compiler-replay/state.yaml","openspec/changes/k4a-execution-graph-compiler-replay/tasks.md","openspec/changes/k4a-execution-graph-compiler-replay/verify-report.md","schemas/kernel/clarify-event/fixtures/invalid/missing-affected-nodes.json","schemas/kernel/clarify-event/fixtures/valid/clarify-node.json","schemas/kernel/clarify-event/v1.schema.json","schemas/kernel/contract-claims.json","schemas/kernel/execution-graph/fixtures/invalid/malformed-source-snapshot.json","schemas/kernel/execution-graph/fixtures/invalid/microscopic-node.json","schemas/kernel/execution-graph/fixtures/invalid/missing-obligations.json","schemas/kernel/execution-graph/fixtures/invalid/missing-source-snapshot.json","schemas/kernel/execution-graph/fixtures/invalid/unmapped-must-obligation.json","schemas/kernel/execution-graph/fixtures/valid/repair-route.json","schemas/kernel/execution-graph/v1.schema.json","schemas/kernel/manifest.json","schemas/kernel/policy-snapshot/fixtures/invalid/missing-rules.json","schemas/kernel/policy-snapshot/fixtures/valid/default-snapshot.json","schemas/kernel/policy-snapshot/v1.schema.json","schemas/kernel/work-order/fixtures/invalid/v2-execution-authority.json","schemas/kernel/work-order/fixtures/invalid/v2-missing-source-snapshot.json","schemas/kernel/work-order/fixtures/valid/v2-minimal.json","schemas/kernel/work-order/v2.schema.json","scripts/lib/contract-checkers/k4a-checkers.test.js","scripts/lib/contract-checkers/k4a-microscopic-nodes.js","scripts/lib/contract-checkers/k4a-obligation-completeness.js","scripts/lib/contract-lint.js","scripts/lib/execution-graph/clarify.js","scripts/lib/execution-graph/clarify.test.js","scripts/lib/execution-graph/compiler.js","scripts/lib/execution-graph/compiler.test.js","scripts/lib/execution-graph/index.js","scripts/lib/execution-graph/index.test.js","scripts/lib/execution-graph/obligation-manifest.js","scripts/lib/execution-graph/obligation-manifest.test.js","scripts/lib/execution-graph/policy-snapshot.js","scripts/lib/execution-graph/policy-snapshot.test.js","scripts/lib/execution-graph/replay-engine.js","scripts/lib/execution-graph/replay-engine.test.js","scripts/lib/execution-graph/shadow-comparator.js","scripts/lib/execution-graph/shadow-comparator.test.js","scripts/lib/execution-graph/work-order-compiler.js","scripts/lib/execution-graph/work-order-compiler.test.js","scripts/lib/k1-scope-guard.test.js","scripts/lib/k4a-lifecycle-model.test.js","scripts/lib/k4a-schema-fixtures.test.js","scripts/lib/kernel-schema-fixtures.test.js","scripts/lib/lifecycle-kernel/k1-compat.js","scripts/lib/lifecycle-model.js","scripts/lib/lifecycle-model.test.js","scripts/lib/test-support/execution-graph-fixtures.js"]}}},"generalist":{"status":"needs-specialist","specialists":["risk","reliability","resilience","readability"],"reason":"signals=design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability"},"dimensions":{"risk":{"selected":true,"status":"completed"},"reliability":{"selected":true,"status":"completed"},"resilience":{"selected":true,"status":"completed"},"readability":{"selected":true,"status":"completed"}},"lineage_history":[{"lineage_id":"sha256:e8c2d8eac5cf39831d1fc0584be345149a52560d2cc072605d8d8ce214bb89f9","generation":1,"status":"escalated","terminal_reason":"F-6156acfff5021ce8 cannot be resolved within frozen genesis paths: work-order/v1.schema.json must change, so explicit new-scope successor authority is required.","current_candidate_id":"sha256:22e028979a22786e43b55109d6a92d190166d80c552bdb366aa5c8059febf95f","findings_digest":"sha256:cb97d8aa18a435173986da0815435baf6f7aff5fa2beaaacbb62eb47bda314c4"},{"lineage_id":"sha256:c1dc377e33fe2dd04dbd7059b3ebb83e26825d566c101bc6650963a4d71e6599","generation":2,"status":"approved","terminal_reason":"all-remediation-slices-passed","current_candidate_id":"sha256:fbc2fd34f27d8eee3b5924f0c3d0abf0b6ab0e0d861064aaab69584f91ebcb04","findings_digest":"sha256:c9a8922edf25d47a56d9ec52e742c46171224221d6816bf456d28e853175d750"},{"lineage_id":"sha256:7cc96c97211e4b123312d546bc06d108491861c630b53ac429c2eb1d9474a46d","generation":3,"status":"escalated","terminal_reason":"User selected WorkOrder v2 to preserve the frozen K1 WorkOrder v1 contract; a new-scope spec/design/apply/verify cycle is required before successor review.","current_candidate_id":"sha256:5cc701c52497295be23f9e0a3868ed9d25c26f0c4750a878e09c4cdcf8044d9f","findings_digest":"sha256:5ba46d11c9827e8337b2f0a87b014440ccf772fadc89525c7c60ca6937651c07"},{"lineage_id":"sha256:503c584a0b8b155f26d75e29787d04c05c026bcae37a7ca4338b2ee3186467c9","generation":4,"status":"escalated","terminal_reason":"F-fcfe56fae20ed03f requires defining a formal contract binding between ExecutionGraph and SourceSnapshot; a new-scope spec/design/apply/verify cycle is required before successor review.","current_candidate_id":"sha256:d5fc1ef3bd5ee91dd108062ce67b57bc9e488587de9ad1d6714d5537e6f9e117","findings_digest":"sha256:2b63c7f8bcaeceeae381cedf1dafb9b8b44b8a9911851d3b3d3eb5522575943e"}],"lineage":{"schema_version":1,"generation":5,"status":"approved","terminal_reason":"all-dimensions-passed-without-blocking-findings","findings":[],"findings_digest":null},"findings_summary":"0 BLOCKER, 0 CRITICAL, 0 WARNING, 2 SUGGESTION","archive_allowed":true}

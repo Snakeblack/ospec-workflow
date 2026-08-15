@@ -9,6 +9,7 @@ const {
   K21_EXECUTABLE_INVARIANTS,
   K21B_EXECUTABLE_INVARIANTS,
   K2A_EXECUTABLE_INVARIANTS,
+  K4A_EXECUTABLE_INVARIANTS,
   DEFERRED_INVARIANTS,
   exploreModel,
   checkInvariant,
@@ -48,7 +49,8 @@ test("every executable invariant has a non-optional checker", async () => {
     EXECUTABLE_INVARIANTS.length +
       K21_EXECUTABLE_INVARIANTS.length +
       K21B_EXECUTABLE_INVARIANTS.length +
-      K2A_EXECUTABLE_INVARIANTS.length
+      K2A_EXECUTABLE_INVARIANTS.length +
+      K4A_EXECUTABLE_INVARIANTS.length
   );
   assert.equal(all.enforced_count, enforced.length);
   assert.equal(all.ok, true);
@@ -79,7 +81,8 @@ test("deferred invariants are listed but do not count as K2 enforcement", async 
     EXECUTABLE_INVARIANTS.length +
       K21_EXECUTABLE_INVARIANTS.length +
       K21B_EXECUTABLE_INVARIANTS.length +
-      K2A_EXECUTABLE_INVARIANTS.length
+      K2A_EXECUTABLE_INVARIANTS.length +
+      K4A_EXECUTABLE_INVARIANTS.length
   );
 });
 

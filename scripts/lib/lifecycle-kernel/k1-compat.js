@@ -154,6 +154,10 @@ function listK1SchemaFiles(rootDir) {
     "schemas/kernel/candidate/fixtures/invalid/commit-projection.json",
     "schemas/kernel/candidate/fixtures/invalid/work-result-alias.json",
     "schemas/kernel/candidate/fixtures/identity/",
+    // K4a Execution Graph, PolicySnapshot, and ClarifyEvent families
+    "schemas/kernel/execution-graph/",
+    "schemas/kernel/policy-snapshot/",
+    "schemas/kernel/clarify-event/",
     // Evolutionary catalog registries (excluded from K1 frozen baseline pin)
     "schemas/kernel/manifest.json",
     "schemas/kernel/contract-claims.json",

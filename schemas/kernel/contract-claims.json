@@ -448,6 +448,44 @@
         ]
       },
       "command_shapes": []
+    },
+    "execution-graph": {
+      "required_fields": [
+        "schema_version",
+        "graph_id",
+        "contract_digest",
+        "policy_bundle_digest",
+        "source_snapshot_id",
+        "nodes",
+        "obligations"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "policy-snapshot": {
+      "required_fields": [
+        "schema_version",
+        "snapshot_id",
+        "policy_bundle_digest",
+        "compiler_version",
+        "classifier_version",
+        "runtime_version",
+        "effective_rules"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "clarify-event": {
+      "required_fields": [
+        "schema_version",
+        "event_id",
+        "question_id",
+        "answer",
+        "timestamp",
+        "affected_nodes"
+      ],
+      "enum_values": {},
+      "command_shapes": []
     }
   }
 }

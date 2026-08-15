@@ -65,7 +65,7 @@ tiers:
       model: gpt-5.6-sol
       model_reasoning_effort: medium
       model_verbosity: medium
-    cursor: grok-4.5[fast=false]
+    cursor: grok-4.6[fast=false]
 
   # Default:
   # Terra medium is the balanced default for frequent semantic work.
@@ -78,7 +78,7 @@ tiers:
       model: gpt-5.6-terra
       model_reasoning_effort: medium
       model_verbosity: medium
-    cursor: grok-4.5[fast=false]
+    cursor: grok-4.6[fast=false]
 
   # Cheap:
   # Luna low is the efficient option for bounded or mechanical work.
