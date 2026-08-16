@@ -42,6 +42,7 @@ const {
 
 const {
   replayExecutionGraph,
+  replayLegacyFixtureGraph,
 } = require("./replay-engine.js");
 
 const {
@@ -81,6 +82,7 @@ module.exports = {
   // Replay
   topologicalSort,
   replayExecutionGraph,
+  replayLegacyFixtureGraph,
 
   // Shadow
   compareShadowExecution,

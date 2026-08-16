@@ -15,6 +15,16 @@ test("ShadowComparator: matching baseline and graph execution returns match:true
     route: "repair",
     steps: ["apply_repair_patch", "verify_repair_conformance"],
     allowed_paths: ["src/**", "tests/**"],
+    invariants: ["inv-fail-closed", "inv-no-direct-mutation"],
+    obligations: ["req-repair-patch-001", "req-repair-verify-001"],
+    dependencies: [
+      { node_id: "repair-patch", dependencies: [] },
+      { node_id: "repair-verify", dependencies: ["repair-patch"] },
+    ],
+    ownership: [
+      { node_id: "repair-patch", ownership: { owner: "agent:repair", mode: "exclusive" } },
+      { node_id: "repair-verify", ownership: { owner: "agent:verify", mode: "shared" } },
+    ],
   });
 
   const graph = createSampleExecutionGraph();
@@ -195,9 +205,11 @@ test("ShadowComparator: classifies fully matching baseline across all dimensions
     fixedBaselineFn: skippedDimensionsBaseline,
     compiledGraph: graph,
   });
-  assert.equal(resPartial.match, true);
+  assert.equal(resPartial.match, false);
   assert.equal(resPartial.discrepancy_classification, "partial-match");
   assert.ok(resPartial.skipped_dimensions.includes("invariants"));
+  assert.ok(resPartial.telemetryDiff !== null);
+  assert.deepEqual(resPartial.telemetryDiff.skipped_dimensions, resPartial.skipped_dimensions);
 
   // Full divergence across all evaluated dimensions
   const divergedBaseline = () => ({
@@ -211,6 +223,33 @@ test("ShadowComparator: classifies fully matching baseline across all dimensions
   });
   assert.equal(resDiverged.match, false);
   assert.equal(resDiverged.discrepancy_classification, "diverged");
+  assert.ok(resDiverged.telemetryDiff !== null);
+});
+
+test("ShadowComparator: baseline missing ownership returns match: false, partial-match, and structured telemetry diff", () => {
+  const graph = createSampleExecutionGraph();
+  const baselineMissingOwnership = () => ({
+    steps: ["apply_repair_patch", "verify_repair_conformance"],
+    allowed_paths: ["src/**", "tests/**"],
+    invariants: ["inv-fail-closed", "inv-no-direct-mutation"],
+    obligations: ["req-repair-patch-001", "req-repair-verify-001"],
+    dependencies: [
+      { node_id: "repair-patch", dependencies: [] },
+      { node_id: "repair-verify", dependencies: ["repair-patch"] },
+    ],
+  });
+
+  const res = compareShadowExecution({
+    contractInput: {},
+    fixedBaselineFn: baselineMissingOwnership,
+    compiledGraph: graph,
+  });
+
+  assert.equal(res.match, false);
+  assert.equal(res.discrepancy_classification, "partial-match");
+  assert.deepEqual(res.skipped_dimensions, ["ownership"]);
+  assert.ok(res.telemetryDiff !== null);
+  assert.deepEqual(res.telemetryDiff.skipped_dimensions, ["ownership"]);
 });
 
 test("ShadowComparator: detects structured obligation governance differences", () => {

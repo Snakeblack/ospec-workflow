@@ -17,6 +17,20 @@ function createSampleRepairContract(overrides = {}) {
     version: 1,
     contract_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     source_snapshot_id: createSampleSourceSnapshotId(),
+    obligations: [
+      {
+        id: "req-repair-patch-001",
+        criticality: "must",
+        implemented_by: ["repair-patch"],
+        required_evidence: ["ev:patch-proof"],
+      },
+      {
+        id: "req-repair-verify-001",
+        criticality: "must",
+        implemented_by: ["repair-verify"],
+        required_evidence: ["ev:test-pass"],
+      },
+    ],
     ...overrides,
   };
 }
@@ -89,14 +103,26 @@ function createSampleExecutionGraph(options = {}) {
 }
 
 /**
- * Creates a map of pre-recorded fixture results for replay testing.
+ * Creates a map of pre-recorded fixture results with canonical provenance for replay testing.
+ * @param {Object} [graph]
  * @returns {Object}
  */
-function createSampleFixtureResults() {
+function createSampleFixtureResults(graph) {
+  const g = graph || createSampleExecutionGraph();
+  const { compileWorkOrdersV2 } = require("../execution-graph/work-order-compiler.js");
+  let woMap = new Map();
+  try {
+    const wos = compileWorkOrdersV2(g);
+    woMap = new Map(wos.map((w) => [w.node_id, w.work_order_id]));
+  } catch {}
+
   return {
     "repair-patch": {
       ok: true,
+      status: "completed",
       outcome: "completed",
+      graph_id: g.graph_id,
+      work_order_id: woMap.get("repair-patch"),
       evidence: {
         "ev:patch-proof": { digest: "sha256:evidence-patch-001" },
       },
@@ -104,7 +130,10 @@ function createSampleFixtureResults() {
     },
     "repair-verify": {
       ok: true,
+      status: "completed",
       outcome: "completed",
+      graph_id: g.graph_id,
+      work_order_id: woMap.get("repair-verify"),
       evidence: {
         "ev:test-pass": { digest: "sha256:evidence-verify-001" },
       },

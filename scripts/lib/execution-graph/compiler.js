@@ -180,18 +180,52 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
     throw err;
   }
 
-  // Reject microscopic nodes fail-closed
+  // Reject microscopic nodes and empty required fields fail-closed
   for (const node of graphNodes) {
     if (!node || typeof node !== "object") {
       const err = new Error("Graph node must be an object");
       err.code = "invalid-node";
       throw err;
     }
-    const op = String(node.operation || "");
+
+    const nodeId = typeof node.node_id === "string" ? node.node_id.trim() : "";
+    if (!nodeId) {
+      const err = new Error(`Graph node is missing non-empty node_id: "${node.node_id}"`);
+      err.code = "missing-required-node-field";
+      err.field = "node_id";
+      throw err;
+    }
+
+    const kind = typeof node.kind === "string" ? node.kind.trim() : "";
+    if (!kind) {
+      const err = new Error(`Graph node is missing non-empty kind: "${node.kind}" (node_id: ${node.node_id})`);
+      err.code = "missing-required-node-field";
+      err.field = "kind";
+      err.node_id = node.node_id;
+      throw err;
+    }
+
+    const op = String(node.operation || "").trim();
+    if (!op) {
+      const err = new Error(`Graph node is missing non-empty operation: "${node.operation}" (node_id: ${node.node_id})`);
+      err.code = "missing-required-node-field";
+      err.field = "operation";
+      err.node_id = node.node_id;
+      throw err;
+    }
     if (FORBIDDEN_OPERATIONS.includes(op)) {
       const err = new Error(`Microscopic worker action nodes are forbidden in Execution Graph: ${op} (node_id: ${node.node_id})`);
       err.code = "microscopic-node-rejected";
       err.operation = op;
+      err.node_id = node.node_id;
+      throw err;
+    }
+
+    const budgetRef = typeof node.budget_ref === "string" ? node.budget_ref.trim() : "";
+    if (!budgetRef) {
+      const err = new Error(`Graph node is missing non-empty budget_ref: "${node.budget_ref}" (node_id: ${node.node_id})`);
+      err.code = "missing-required-node-field";
+      err.field = "budget_ref";
       err.node_id = node.node_id;
       throw err;
     }
@@ -201,7 +235,7 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
       const isMissing =
         value === undefined ||
         value === null ||
-        value === "" ||
+        (typeof value === "string" && value.trim() === "") ||
         (Array.isArray(value) && value.length === 0);
       if (isMissing) {
         const err = new Error(`Graph node is missing required field: ${field} (node_id: ${node.node_id})`);
@@ -230,12 +264,23 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
   // Resolve obligations against authoritative contract.obligations with allowlist merge
   let rawObligations;
   const contractObligations = Array.isArray(contract.obligations) ? contract.obligations : [];
-  if (Array.isArray(obligations) && obligations.length > 0) {
+  const contractIds = new Set(contractObligations.map((o) => o && o.id));
+
+  if (Array.isArray(obligations)) {
+    // Every caller-supplied obligation MUST exist in authoritative contract.obligations
+    for (const callerOb of obligations) {
+      if (!callerOb || typeof callerOb !== "object" || !callerOb.id || !contractIds.has(callerOb.id)) {
+        const unknownId = callerOb && typeof callerOb === "object" ? callerOb.id : String(callerOb);
+        const err = new Error(`External obligation ID "${unknownId}" does not exist in authoritative contract obligations`);
+        err.code = "unknown-obligation-id";
+        err.obligation_id = unknownId;
+        throw err;
+      }
+    }
+
     const callerObligationMap = new Map(obligations.map((o) => [o.id, o]));
     const merged = [];
-    const seenIds = new Set();
     for (const contractOb of contractObligations) {
-      seenIds.add(contractOb.id);
       if (callerObligationMap.has(contractOb.id)) {
         const callerOb = callerObligationMap.get(contractOb.id);
         // Allowlist merge from contract authority:
@@ -252,26 +297,9 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
         merged.push(structuredClone(contractOb));
       }
     }
-    for (const callerOb of obligations) {
-      if (!seenIds.has(callerOb.id)) {
-        const isMust = callerOb.criticality === "must";
-        const ob = {
-          id: callerOb.id,
-          criticality: callerOb.criticality || "should",
-          implemented_by: Array.isArray(callerOb.implemented_by) ? callerOb.implemented_by : [],
-          required_evidence: Array.isArray(callerOb.required_evidence) ? callerOb.required_evidence : [],
-        };
-        if (!isMust && callerOb.deferred) {
-          ob.deferred = structuredClone(callerOb.deferred);
-        }
-        merged.push(ob);
-      }
-    }
     rawObligations = merged;
   } else {
-    rawObligations = contractObligations.length > 0
-      ? contractObligations
-      : (Array.isArray(obligations) ? obligations : []);
+    rawObligations = structuredClone(contractObligations);
   }
 
   const graphObligations = structuredClone(rawObligations);

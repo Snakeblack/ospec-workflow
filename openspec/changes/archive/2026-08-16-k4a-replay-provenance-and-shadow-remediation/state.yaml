@@ -1,0 +1,18 @@
+schema_version: 1
+change_id: 2026-08-16-k4a-replay-provenance-and-shadow-remediation
+phase: archive
+status: completed
+route: bugfix
+gates:
+  4r-review-gate:
+    status: passed
+approvals:
+  - phase: tasks
+    approved_by: orchestrator
+    timestamp: "2026-08-16T18:40:00Z"
+  - phase: verify
+    approved_by: orchestrator
+    timestamp: "2026-08-16T18:44:00Z"
+  - phase: archive
+    approved_by: orchestrator
+    timestamp: "2026-08-16T18:44:15Z"

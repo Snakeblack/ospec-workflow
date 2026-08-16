@@ -215,14 +215,18 @@ function compareShadowExecution({ contractInput, fixedBaselineFn, compiledGraph 
     skipped_dimensions.push("ownership");
   }
 
-  const match = divergences.length === 0;
+  const fullyComparable = skipped_dimensions.length === 0 && evaluated_dimensions.length > 0;
+  const hasNoDivergences = divergences.length === 0;
+  const match = hasNoDivergences && fullyComparable;
 
   let discrepancy_classification = "full-match";
-  if (!match) {
-    discrepancy_classification = divergences.length === evaluated_dimensions.length && evaluated_dimensions.length > 0
-      ? "diverged"
-      : "partial-match";
-  } else if (skipped_dimensions.length > 0) {
+  if (match) {
+    discrepancy_classification = "full-match";
+  } else if (hasNoDivergences) {
+    discrepancy_classification = "partial-match";
+  } else if (divergences.length === evaluated_dimensions.length && evaluated_dimensions.length > 0) {
+    discrepancy_classification = "diverged";
+  } else {
     discrepancy_classification = "partial-match";
   }
 

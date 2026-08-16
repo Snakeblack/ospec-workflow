@@ -519,7 +519,8 @@ function checkK4aDeterministicGraphId() {
   const { compileExecutionGraph } = require("./execution-graph/compiler.js");
   const { createPolicySnapshot } = require("./execution-graph/policy-snapshot.js");
   const { createSampleRepairContract } = require("./test-support/execution-graph-fixtures.js");
-  const contract = createSampleRepairContract();
+  const obligations = [{ id: "req-1", criticality: "must", implemented_by: ["r1"], required_evidence: ["ev:test"] }];
+  const contract = createSampleRepairContract({ obligations });
   const snapshot = createPolicySnapshot({ effectiveRules: ["rule-1"] });
   const nodes = [
     {
@@ -535,7 +536,6 @@ function checkK4aDeterministicGraphId() {
       budget_ref: "budget:default",
     },
   ];
-  const obligations = [{ id: "req-1", criticality: "must", implemented_by: ["r1"], required_evidence: ["ev:test"] }];
   const g1 = compileExecutionGraph({ contract, policySnapshot: snapshot, nodes, obligations });
   const g2 = compileExecutionGraph({ contract, policySnapshot: snapshot, nodes, obligations });
   const ok = g1.graph_id === g2.graph_id && typeof g1.graph_id === "string";
@@ -546,7 +546,8 @@ function checkK4aPolicyDivergence() {
   const { compileExecutionGraph } = require("./execution-graph/compiler.js");
   const { createPolicySnapshot } = require("./execution-graph/policy-snapshot.js");
   const { createSampleRepairContract } = require("./test-support/execution-graph-fixtures.js");
-  const contract = createSampleRepairContract();
+  const obligations = [{ id: "req-1", criticality: "must", implemented_by: ["r1"], required_evidence: ["ev:test"] }];
+  const contract = createSampleRepairContract({ obligations });
   const nodes = [
     {
       node_id: "r1",
@@ -561,7 +562,6 @@ function checkK4aPolicyDivergence() {
       budget_ref: "budget:default",
     },
   ];
-  const obligations = [{ id: "req-1", criticality: "must", implemented_by: ["r1"], required_evidence: ["ev:test"] }];
   const snapA = createPolicySnapshot({ effectiveRules: ["rule-alpha"] });
   const snapB = createPolicySnapshot({ effectiveRules: ["rule-beta"] });
   const gA = compileExecutionGraph({ contract, policySnapshot: snapA, nodes, obligations });
@@ -665,6 +665,16 @@ function checkK4aShadowNonInterference() {
       route: "repair",
       steps: ["apply_repair_patch", "verify_repair_conformance"],
       allowed_paths: ["src/**", "tests/**"],
+      invariants: ["inv-fail-closed", "inv-no-direct-mutation"],
+      obligations: ["req-repair-patch-001", "req-repair-verify-001"],
+      dependencies: [
+        { node_id: "repair-patch", dependencies: [] },
+        { node_id: "repair-verify", dependencies: ["repair-patch"] },
+      ],
+      ownership: [
+        { node_id: "repair-patch", ownership: { owner: "agent:repair", mode: "exclusive" } },
+        { node_id: "repair-verify", ownership: { owner: "agent:verify", mode: "shared" } },
+      ],
     }),
     compiledGraph: graph,
   });

@@ -45,6 +45,7 @@ const sampleContract = {
   version: 1,
   contract_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   source_snapshot_id: sampleSnapshotId,
+  obligations: sampleObligations,
 };
 
 test("Compiler: generates valid semantic ExecutionGraph for Repair route", () => {
@@ -518,4 +519,74 @@ test("Compiler: rejects policySnapshot with empty snapshot_id without silently c
     },
     (err) => err.code === "invalid-policy-snapshot-id" || err.code === "policy-snapshot-mismatch"
   );
+});
+
+test("Compiler: rejects external obligations whose id is not present in contract.obligations", () => {
+  const policySnapshot = createPolicySnapshot();
+  const contract = {
+    ...sampleContract,
+    obligations: [
+      {
+        id: "REQ-001",
+        criticality: "must",
+        implemented_by: ["repair-core"],
+        required_evidence: ["ev:test-pass"],
+      },
+    ],
+  };
+
+  // External input tries to inject CALLER-INJECTED-999 not in contract.obligations
+  const injectedExternalObligations = [
+    {
+      id: "REQ-001",
+      criticality: "must",
+      implemented_by: ["repair-core"],
+      required_evidence: ["ev:test-pass"],
+    },
+    {
+      id: "CALLER-INJECTED-999",
+      criticality: "should",
+      implemented_by: ["repair-core"],
+      required_evidence: ["ev:extra"],
+    },
+  ];
+
+  assert.throws(
+    () => {
+      compileExecutionGraph({
+        contract,
+        policySnapshot,
+        nodes: sampleNodes,
+        obligations: injectedExternalObligations,
+      });
+    },
+    (err) => err.code === "unknown-obligation-id" && err.obligation_id === "CALLER-INJECTED-999"
+  );
+});
+
+test("Compiler: rejects empty string fields in nodes fail-closed", () => {
+  const policySnapshot = createPolicySnapshot();
+
+  const emptyStringFieldVectors = [
+    { field: "node_id", node: { ...sampleNodes[0], node_id: "" } },
+    { field: "node_id", node: { ...sampleNodes[0], node_id: "   " } },
+    { field: "kind", node: { ...sampleNodes[0], kind: "" } },
+    { field: "operation", node: { ...sampleNodes[0], operation: "" } },
+    { field: "budget_ref", node: { ...sampleNodes[0], budget_ref: "" } },
+    { field: "objective", node: { ...sampleNodes[0], objective: "" } },
+  ];
+
+  for (const { field, node } of emptyStringFieldVectors) {
+    assert.throws(
+      () => {
+        compileExecutionGraph({
+          contract: sampleContract,
+          policySnapshot,
+          nodes: [node],
+          obligations: sampleObligations,
+        });
+      },
+      (err) => err.code === "missing-required-node-field" && err.field === field
+    );
+  }
 });
