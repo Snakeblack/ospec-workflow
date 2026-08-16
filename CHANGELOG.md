@@ -5,6 +5,26 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.3] - 2026-08-16
+
+### Fixed
+- **Propagación de Clarify en Identidad de WorkOrders (`k4a-integrity-and-bindings-remediation`)**:
+  - Actualizado `schemas/kernel/work-order/v2.schema.json` y `scripts/lib/execution-identities/index.js` (`computeWorkOrderId`) para digerir `clarification_context` canónicamente en la preimagen criptográfica de WorkOrders.
+  - `compileWorkOrdersV2` propaga `node.clarification_context` a los WorkOrders v2, produciendo digests `work_order_id` diferenciados para nodos afectados y sus descendientes dependientes.
+- **Validación de Provenance de Fixtures en Replay**:
+  - `replayExecutionGraph` verifica la vinculación de fixtures contra `graph_id` y `work_order_id`, rechazando fixtures obsoletos pre-clarificación con código `stale-fixture-rejected`.
+  - Discriminación cerrada ante contradicciones lógicas en fixtures (`status` vs `outcome`, `ok: false` con status completed, `cancelled` con outcome completed).
+- **Merge Seguro de Obligaciones y Sanitización de Deferrals**:
+  - `compileExecutionGraph` implementa merge con lista blanca sobre `contract.obligations` inmutables, impidiendo la inyección arbitraria de `deferred` sobre obligaciones `MUST`.
+- **Unicidad de `node_id` Fail-Closed**:
+  - Validación de unicidad de `node_id` en `dag.js`, `binding.js`, `compiler.js` y `work-order-compiler.js` rechazando duplicados con código `duplicate-node-id` / `DUPLICATE_NODE_ID`.
+- **Validación Canónica de ClarifyEvent**:
+  - `applyClarifyEvent` valida atómicamente contra el esquema canónico `ospec://schemas/kernel/clarify-event/v1`.
+- **Verificación Criptográfica de SourceSnapshot y PolicySnapshot**:
+  - Validación y recomputación de `sourceSnapshot` en `compileExecutionGraph` contra su preimagen y rechazo de `policySnapshot: { snapshot_id: "" }`.
+- **Clasificación y Comparación Profunda en Shadow**:
+  - `compareShadowExecution` restringe `full-match` a comparaciones con 0 dimensiones omitidas y realiza comparación profunda de gobernanza en obligaciones.
+
 ## [2.45.2] - 2026-08-16
 
 ### Fixed
