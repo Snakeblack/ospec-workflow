@@ -1,0 +1,65 @@
+change: "k4a-integrity-and-bindings-remediation"
+status: "archived"
+last_updated: "2026-08-16T02:37:00Z"
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k4a-integrity-and-bindings-remediation/proposal.md"
+    summary: "Remediación integral de 4 BLOCKERs, 3 CRITICALs y 1 WARNING en K4a: validaciones de enlace, esquema Clarify y autoridad de contratos."
+    key_decisions:
+      - "Introducir validateExecutionGraphBinding y validatePolicySnapshotBinding canónicos"
+      - "Incluir obligations en computeGraphId() y proteger contract.obligations"
+      - "Soportar clarification_context opcional en execution-graph/v1.schema.json"
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k4a-integrity-and-bindings-remediation/specs/execution-graph-compiler/spec.md"
+      - "openspec/changes/k4a-integrity-and-bindings-remediation/specs/kernel-contract-schemas/spec.md"
+      - "openspec/changes/k4a-integrity-and-bindings-remediation/specs/execution-identities/spec.md"
+    summary: "Especificaciones delta completadas para execution-graph-compiler, kernel-contract-schemas y execution-identities con bindings criptográficos y clarify."
+    key_decisions:
+      - "validateExecutionGraphBinding y validatePolicySnapshotBinding canónicos fail-closed"
+      - "computeGraphId vincula contract, snapshots, nodes y obligations"
+      - "clarification_context en esquema y autoridad inmutable de contract.obligations"
+  design:
+    status: "done"
+    artifact: "openspec/changes/k4a-integrity-and-bindings-remediation/design.md"
+    summary: "Diseño técnico completado con validadores criptográficos canónicos, extensión de esquema para Clarify, autoridad de obligaciones y dag.js unificado."
+    key_decisions:
+      - "Primitivas canónicas validateExecutionGraphBinding y validatePolicySnapshotBinding"
+      - "Preimage de GraphId vincula obligations y blinda contract.obligations"
+      - "clarification_context en esquema, validación estricta de sourceSnapshot y dag.js compartido"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k4a-integrity-and-bindings-remediation/tasks.md"
+    summary: "Plan de 10 fases de implementación modular con reconciliación exhaustiva y suite de tests adversariales."
+    key_decisions:
+      - "Desglose en 10 fases con cobertura completa de 37 escenarios de especificación"
+      - "Pre-validación y post-validación fail-closed de bindings criptográficos"
+      - "Estrategia de entrega single-pr con size-exception"
+  apply:
+    status: "done"
+    artifact: "openspec/changes/k4a-integrity-and-bindings-remediation/apply-progress.md"
+    summary: "Implementación completada de las 10 fases de remediación: primitivas criptográficas canónicas, esquema v1 de ExecutionGraph con clarification_context, blindaje de autoridad de obligaciones, DAG unificado y suite adversarial exhaustiva con 100% pass rate."
+    key_decisions:
+      - "Primitivas criptográficas canónicas implementadas y re-exportadas"
+      - "Esquema v1 de ExecutionGraph ampliado con clarification_context"
+      - "Obligaciones blindadas en preimage de GraphId y DAG centralizado"
+  verify:
+    status: "done"
+    verdict: "PASS"
+    artifact: "openspec/changes/k4a-integrity-and-bindings-remediation/verify-report.md"
+    summary: "Verificación PASS: 37/37 escenarios cumplidos con nivel runtime-test, 31/31 tareas completadas, 8 ADRs coherentes y 100% de tests exitosos."
+    key_decisions:
+      - "validateExecutionGraphBinding y validatePolicySnapshotBinding verificados fail-closed"
+      - "Inclusión de obligations en GraphId y blindaje de contract.obligations probado"
+      - "clarification_context y composabilidad con WorkOrder v2 demostrada"
+  archive:
+    status: "done"
+    artifact: "openspec/changes/k4a-integrity-and-bindings-remediation/archive-report.md"
+    summary: "Plan-and-Report emitido con 3 especificaciones preparadas, 8 ADRs propuestos e inventario de archivo completo para el runtime de transacciones."
+    key_decisions:
+      - "validateExecutionGraphBinding y validatePolicySnapshotBinding canónicos"
+      - "Obligations en preimage de GraphId y blindaje de contract.obligations"
+      - "clarification_context en schema v1 y dag.js unificado"

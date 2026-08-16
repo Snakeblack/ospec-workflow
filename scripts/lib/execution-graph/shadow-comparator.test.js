@@ -151,4 +151,56 @@ test("ShadowComparator: detects multi-dimensional divergences across invariants,
   assert.ok(diffFields.includes("obligations"));
   assert.ok(diffFields.includes("dependencies"));
   assert.ok(diffFields.includes("ownership"));
+  assert.equal(comparison.discrepancy_classification, "partial-match");
+  assert.ok(comparison.evaluated_dimensions.includes("steps"));
+  assert.ok(comparison.evaluated_dimensions.includes("invariants"));
+  assert.equal(comparison.dimension_match_rates.steps, 1);
+  assert.equal(comparison.dimension_match_rates.invariants, 0);
+});
+
+test("ShadowComparator: classifies fully matching baseline as full-match and divergent as diverged", () => {
+  const graph = createSampleExecutionGraph();
+
+  // Full match
+  const fullMatchBaseline = () => ({
+    steps: ["apply_repair_patch", "verify_repair_conformance"],
+    allowed_paths: ["src/**", "tests/**"],
+  });
+  const resFull = compareShadowExecution({
+    contractInput: {},
+    fixedBaselineFn: fullMatchBaseline,
+    compiledGraph: graph,
+  });
+  assert.equal(resFull.match, true);
+  assert.equal(resFull.discrepancy_classification, "full-match");
+  assert.deepEqual(resFull.evaluated_dimensions, ["steps", "allowed_paths"]);
+  assert.ok(resFull.skipped_dimensions.includes("invariants"));
+
+  // Full divergence across all evaluated dimensions
+  const divergedBaseline = () => ({
+    steps: ["completely_different_step"],
+    allowed_paths: ["completely_different_path"],
+  });
+  const resDiverged = compareShadowExecution({
+    contractInput: {},
+    fixedBaselineFn: divergedBaseline,
+    compiledGraph: graph,
+  });
+  assert.equal(resDiverged.match, false);
+  assert.equal(resDiverged.discrepancy_classification, "diverged");
+});
+
+test("ShadowComparator: rejects tampered ExecutionGraph with graph-id-mismatch", () => {
+  const graph = createSampleExecutionGraph();
+  graph.nodes[0].objective = "tampered objective";
+
+  assert.throws(
+    () =>
+      compareShadowExecution({
+        contractInput: {},
+        fixedBaselineFn: () => ({}),
+        compiledGraph: graph,
+      }),
+    (err) => err.code === "graph-id-mismatch" || err.code === "GRAPH_ID_MISMATCH"
+  );
 });

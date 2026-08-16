@@ -7,18 +7,27 @@ const {
 } = require("./compiler.js");
 
 const {
+  validateExecutionGraphBinding,
+} = require("./binding.js");
+
+const {
   validateObligationManifest,
 } = require("./obligation-manifest.js");
+
+const {
+  hasCycle,
+  topologicalSort,
+  computeDescendantClosure,
+} = require("./dag.js");
 
 const {
   DEFAULT_VERSIONS,
   createPolicySnapshot,
   computePolicySnapshotDigest,
+  validatePolicySnapshotBinding,
 } = require("./policy-snapshot.js");
 
 const {
-  hasCycle,
-  computeDescendantClosure,
   calculateDescendantClosure,
   applyClarifyEvent,
   processClarifyEvent,
@@ -32,7 +41,6 @@ const {
 } = require("./work-order-compiler.js");
 
 const {
-  topologicalSort,
   replayExecutionGraph,
 } = require("./replay-engine.js");
 
@@ -46,6 +54,7 @@ module.exports = {
   FORBIDDEN_OPERATIONS,
   computeGraphId,
   compileExecutionGraph,
+  validateExecutionGraphBinding,
 
   // Obligation Manifest
   validateObligationManifest,
@@ -54,6 +63,7 @@ module.exports = {
   DEFAULT_VERSIONS,
   createPolicySnapshot,
   computePolicySnapshotDigest,
+  validatePolicySnapshotBinding,
 
   // Clarify
   hasCycle,

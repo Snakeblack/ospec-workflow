@@ -5,6 +5,31 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.2] - 2026-08-16
+
+### Fixed
+- **Primitivas Canónicas de Binding Criptográfico (`k4a-integrity-and-bindings-remediation`)**:
+  - Implementación de [`validateExecutionGraphBinding()`](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/scripts/lib/execution-graph/binding.js) verificando atómicamente conformidad con el esquema JSON y consistencia criptográfica estricta entre `graph_id` y su preimagen de contenido (`nodes`, `obligations`, `source_snapshot_id`, `policy_snapshot_id`, `policy_bundle_digest`, `contract_digest`), protegiendo de raíz contra manipulación post-compilación (*tampering*).
+  - Implementación de [`validatePolicySnapshotBinding()`](file:///c:/Users/sn4ke/dev/activos/ospec-workflow/scripts/lib/execution-graph/policy-snapshot.js) con recálculo determinista de `snapshot_id` mediante `computePolicySnapshotDigest()`, rechazando snapshots falsificados.
+- **Conformidad de Esquema en Clarify y Composabilidad Extremo a Extremo**:
+  - Actualizado `schemas/kernel/execution-graph/v1.schema.json` para soportar `clarification_context` opcional en `$defs/node`.
+  - Garantizada la composabilidad del pipeline: `applyClarifyEvent` → `validateExecutionGraphBinding` → `compileWorkOrdersV2` → `validateWorkOrderBinding`.
+- **Autoridad Absoluta de Obligaciones y Acoplamiento en Preimagen de GraphId**:
+  - Blindaje de `contract.obligations` como la única autoridad inmutable sobre criticidad (`MUST` no puede ser degradado a `MAY`/`SHOULD` por entradas externas).
+  - Incorporación obligatoria de `obligations` en el cálculo de `computeGraphId()`.
+- **Validación Estricta de Provenance y Evidencia en Replay**:
+  - Rechazo inmediato *fail-closed* ante `sourceSnapshotId: ""` o valores malformados sin fallback silencioso al contrato.
+  - Verificación estricta de `node.required_evidence ⊆ recorded.evidence` a nivel de nodo en `replayExecutionGraph()`.
+- **Consolidación de Utilidades DAG y Comparador Shadow Multidimensional**:
+  - Módulo unificado `scripts/lib/execution-graph/dag.js` (`hasCycle`, `topologicalSort`, `computeDescendantClosure`).
+  - Discriminación multidimensional en `compareShadowExecution()` entre `full-match`, `partial-match` y `diverged`.
+
+### Added
+- **Suite Integral de Tests Adversariales Cross-Layer**:
+  - Casos de prueba exhaustivos en `scripts/lib/k3-k4a-integration.test.js` cubriendo detección de tampering en grafos, rechazo de degradación de obligaciones, pipeline completo de Clarify con compilación de WorkOrders, snapshots de políticas falsificados, `sourceSnapshotId` vacío y fixtures sin evidencia por nodo.
+- **ADRs Promovidos**:
+  - Incorporación de ADR-001 a ADR-008 en `docs/adr/` (ADR-20260816-001 a ADR-20260816-008).
+
 ## [2.45.1] - 2026-08-15
 
 ### Fixed

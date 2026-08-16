@@ -251,3 +251,248 @@ test("K3-K4a Integration: End-to-end cryptographic pipeline and provenance coupl
     (err) => err.code === "stale-fixture-rejected"
   );
 });
+
+test("K3-K4a Integration: Adversarial tampering of each graph field is rejected by validateExecutionGraphBinding", () => {
+  const { validateExecutionGraphBinding } = require("./execution-graph/index.js");
+
+  const sourceSnapshot = createIntegrationSourceSnapshot();
+  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-1"] });
+  const contract = createIntegrationContract(sourceSnapshot.source_snapshot_id);
+  const graph = compileExecutionGraph({
+    contract,
+    policySnapshot,
+    sourceSnapshotId: sourceSnapshot.source_snapshot_id,
+    nodes: contract.nodes,
+    obligations: contract.obligations,
+  });
+
+  // Valid baseline
+  assert.equal(validateExecutionGraphBinding(graph).ok, true);
+
+  // Tamper 1: graph_id
+  const tamperedGraphId = { ...graph, graph_id: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" };
+  assert.equal(validateExecutionGraphBinding(tamperedGraphId).reason_code, "GRAPH_ID_MISMATCH");
+
+  // Tamper 2: policy_snapshot_id
+  const tamperedPsId = { ...graph, policy_snapshot_id: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" };
+  assert.equal(validateExecutionGraphBinding(tamperedPsId).reason_code, "GRAPH_ID_MISMATCH");
+
+  // Tamper 3: policy_bundle_digest
+  const tamperedBundle = { ...graph, policy_bundle_digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" };
+  assert.equal(validateExecutionGraphBinding(tamperedBundle).reason_code, "GRAPH_ID_MISMATCH");
+
+  // Tamper 4: source_snapshot_id
+  const tamperedSrcId = { ...graph, source_snapshot_id: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" };
+  assert.equal(validateExecutionGraphBinding(tamperedSrcId).reason_code, "GRAPH_ID_MISMATCH");
+
+  // Tamper 5: contract_digest
+  const tamperedContractDigest = { ...graph, contract_digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" };
+  assert.equal(validateExecutionGraphBinding(tamperedContractDigest).reason_code, "GRAPH_ID_MISMATCH");
+
+  // Tamper 6: nodes
+  const tamperedNodes = structuredClone(graph);
+  tamperedNodes.nodes[0].operation = "apply_different_patch";
+  assert.equal(validateExecutionGraphBinding(tamperedNodes).reason_code, "GRAPH_ID_MISMATCH");
+
+  // Tamper 7: obligations
+  const tamperedObligations = structuredClone(graph);
+  tamperedObligations.obligations[0].criticality = "should";
+  assert.equal(validateExecutionGraphBinding(tamperedObligations).reason_code, "GRAPH_ID_MISMATCH");
+});
+
+test("K3-K4a Integration: Contract MUST obligation downgrade attempts are rejected", () => {
+  const sourceSnapshot = createIntegrationSourceSnapshot();
+  const policySnapshot = createPolicySnapshot();
+  const contract = createIntegrationContract(sourceSnapshot.source_snapshot_id);
+
+  const downgradedObligations = [
+    {
+      id: "req-patch-001",
+      criticality: "should", // attempted downgrade
+      implemented_by: ["patch-node"],
+      required_evidence: ["ev:patch-proof"],
+    },
+    {
+      id: "req-verify-001",
+      criticality: "may", // attempted downgrade
+      implemented_by: ["verify-node"],
+      required_evidence: ["ev:test-pass"],
+    },
+  ];
+
+  const graph = compileExecutionGraph({
+    contract,
+    policySnapshot,
+    sourceSnapshotId: sourceSnapshot.source_snapshot_id,
+    nodes: contract.nodes,
+    obligations: downgradedObligations,
+  });
+
+  // MUST criticality must be preserved from authoritative contract
+  assert.equal(graph.obligations[0].criticality, "must");
+  assert.equal(graph.obligations[1].criticality, "must");
+});
+
+test("K3-K4a Integration: End-to-end Clarify -> WorkOrder -> K3 execution pipeline", () => {
+  const sourceSnapshot = createIntegrationSourceSnapshot();
+  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-repair"] });
+  const contract = createIntegrationContract(sourceSnapshot.source_snapshot_id);
+
+  // 1. Initial Compilation
+  const graph = compileExecutionGraph({
+    contract,
+    policySnapshot,
+    sourceSnapshotId: sourceSnapshot.source_snapshot_id,
+    nodes: contract.nodes,
+    obligations: contract.obligations,
+  });
+
+  // 2. Apply Clarify Event
+  const clarifyEvent = {
+    schema_version: 1,
+    event_id: "evt-e2e-001",
+    question_id: "q-e2e-001",
+    answer: "Use Argon2id key derivation",
+    timestamp: "2026-08-16T00:00:00Z",
+    affected_nodes: ["patch-node"],
+  };
+  const clarifyResult = applyClarifyEvent(graph, clarifyEvent);
+
+  // 3. Compile WorkOrders from Clarified Graph
+  const workOrders = compileWorkOrdersV2(clarifyResult.graph, {
+    sourceSnapshot,
+    sourceSnapshotId: sourceSnapshot.source_snapshot_id,
+  });
+
+  assert.equal(workOrders.length, 2);
+  const [wo1, wo2] = workOrders;
+
+  // 4. Validate K3 WorkOrder Bindings
+  assert.equal(validateWorkOrderBinding(sourceSnapshot, wo1).ok, true);
+  assert.equal(validateWorkOrderBinding(sourceSnapshot, wo2).ok, true);
+
+  // 5. Simulate WorkResults and Validate K3 WorkResult Bindings
+  const res1 = {
+    schema_version: 1,
+    kind: "work-result/v1",
+    work_order_id: wo1.work_order_id,
+    source_snapshot_id: sourceSnapshot.source_snapshot_id,
+    patch: "diff Argon2id",
+    commands: [],
+    logs: ["completed"],
+    exit_code: 0,
+    filesystem_inventory: [],
+  };
+  res1.work_result_id = computeWorkResultId(res1);
+  assert.equal(validateWorkResultBinding(wo1, res1).ok, true);
+
+  const res2 = {
+    schema_version: 1,
+    kind: "work-result/v1",
+    work_order_id: wo2.work_order_id,
+    source_snapshot_id: sourceSnapshot.source_snapshot_id,
+    patch: "",
+    commands: [],
+    logs: ["verified"],
+    exit_code: 0,
+    filesystem_inventory: [],
+  };
+  res2.work_result_id = computeWorkResultId(res2);
+  assert.equal(validateWorkResultBinding(wo2, res2).ok, true);
+
+  // 6. Replay Engine Verification with Node Required Evidence
+  const replayRes = replayExecutionGraph(clarifyResult.graph, {
+    "patch-node": {
+      ok: true,
+      status: "completed",
+      evidence: { "ev:patch-proof": { signature: "sig1" } },
+    },
+    "verify-node": {
+      ok: true,
+      status: "completed",
+      evidence: { "ev:test-pass": { tests: 10, passed: 10 } },
+    },
+  });
+
+  assert.equal(replayRes.ok, true);
+  assert.deepEqual(replayRes.completedNodes.sort(), ["patch-node", "verify-node"]);
+});
+
+test("K3-K4a Integration: Rejection of forged PolicySnapshot in graph compilation", () => {
+  const sourceSnapshot = createIntegrationSourceSnapshot();
+  const contract = createIntegrationContract(sourceSnapshot.source_snapshot_id);
+
+  const forgedPolicySnapshot = createPolicySnapshot({ effectiveRules: ["rule-alpha"] });
+  forgedPolicySnapshot.snapshot_id = "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+
+  assert.throws(
+    () => {
+      compileExecutionGraph({
+        contract,
+        policySnapshot: forgedPolicySnapshot,
+        sourceSnapshotId: sourceSnapshot.source_snapshot_id,
+        nodes: contract.nodes,
+        obligations: contract.obligations,
+      });
+    },
+    (err) => err.code === "policy-snapshot-mismatch"
+  );
+});
+
+test("K3-K4a Integration: Fail-closed rejection of empty sourceSnapshotId in graph compilation", () => {
+  const policySnapshot = createPolicySnapshot();
+  const contract = {
+    ...createIntegrationContract("sha256:1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff"),
+    source_snapshot_id: "",
+  };
+
+  assert.throws(
+    () => {
+      compileExecutionGraph({
+        contract,
+        policySnapshot,
+        sourceSnapshotId: "",
+        nodes: contract.nodes,
+        obligations: contract.obligations,
+      });
+    },
+    (err) => err.code === "invalid-source-snapshot-id"
+  );
+});
+
+test("K3-K4a Integration: Missing node evidence during replay generates counterexamples", () => {
+  const sourceSnapshot = createIntegrationSourceSnapshot();
+  const policySnapshot = createPolicySnapshot();
+  const contract = createIntegrationContract(sourceSnapshot.source_snapshot_id);
+
+  const graph = compileExecutionGraph({
+    contract,
+    policySnapshot,
+    sourceSnapshotId: sourceSnapshot.source_snapshot_id,
+    nodes: contract.nodes,
+    obligations: contract.obligations,
+  });
+
+  // Replay without patch-node required evidence
+  const fixturesWithoutEvidence = {
+    "patch-node": {
+      ok: true,
+      status: "completed",
+      evidence: {}, // Missing ev:patch-proof
+    },
+    "verify-node": {
+      ok: true,
+      status: "completed",
+      evidence: { "ev:test-pass": { passed: true } },
+    },
+  };
+
+  const replayResult = replayExecutionGraph(graph, fixturesWithoutEvidence);
+  assert.equal(replayResult.ok, false);
+  assert.deepEqual(replayResult.failedNodes, ["patch-node"]);
+  assert.deepEqual(replayResult.blockedNodes, ["verify-node"]);
+  assert.ok(replayResult.counterexample);
+  assert.equal(replayResult.counterexample.failed_node, "patch-node");
+  assert.ok(replayResult.counterexample.reason.includes("missing required evidence"));
+  assert.ok(Array.isArray(replayResult.counterexample.trace));
+});

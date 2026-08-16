@@ -203,3 +203,40 @@ test("K4a work-order/v2 schema: validates valid fixtures and rejects invalid dep
   assert.equal(depPattern.test("raw-node-id-without-prefix"), false, "Schema pattern must reject non-sha256 dependency items");
   assert.equal(depPattern.test("sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"), true, "Schema pattern must accept sha256 dependency item");
 });
+
+test("K4a execution-graph schema: validates node clarification_context and rejects invalid structure", () => {
+  const schema = loadSchemaById("ospec://schemas/kernel/execution-graph/v1", { rootDir: ROOT });
+  const validFixture = JSON.parse(
+    fs.readFileSync(
+      path.join(ROOT, "schemas", "kernel", "execution-graph", "fixtures", "valid", "repair-route.json"),
+      "utf8"
+    )
+  );
+
+  // Clone and add clarification_context
+  const clarifiedGraph = structuredClone(validFixture);
+  clarifiedGraph.nodes[0].clarification_context = {
+    event_id: "evt-001",
+    question_id: "q-001",
+    answer: "Apply security patch with token auth",
+  };
+  const res1 = validateInstance(schema, clarifiedGraph);
+  assert.equal(res1.valid, true, `Clarified node must pass validation: ${JSON.stringify(res1.errors)}`);
+
+  // Clarification context with object answer
+  clarifiedGraph.nodes[0].clarification_context.answer = { strategy: "token", rounds: 10 };
+  const resObjAnswer = validateInstance(schema, clarifiedGraph);
+  assert.equal(resObjAnswer.valid, true, "Clarified node with object answer must pass validation");
+
+  // Missing question_id
+  const invalidMissing = structuredClone(clarifiedGraph);
+  delete invalidMissing.nodes[0].clarification_context.question_id;
+  const resMissing = validateInstance(schema, invalidMissing);
+  assert.equal(resMissing.valid, false, "Clarification context missing question_id must fail validation");
+
+  // Extra unexpected property
+  const invalidExtra = structuredClone(clarifiedGraph);
+  invalidExtra.nodes[0].clarification_context.extra_field = "forbidden";
+  const resExtra = validateInstance(schema, invalidExtra);
+  assert.equal(resExtra.valid, false, "Clarification context with extra property must fail validation");
+});

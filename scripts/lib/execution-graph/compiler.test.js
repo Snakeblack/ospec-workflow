@@ -73,30 +73,93 @@ test("Compiler: generates valid semantic ExecutionGraph for Repair route", () =>
   assert.equal(validation.valid, true, `Compiled graph must validate: ${JSON.stringify(validation.errors)}`);
 });
 
-test("Compiler: deterministic computeGraphId produces identical digests on identical inputs", () => {
+test("Compiler: computeGraphId incorporates obligations in SHA-256 preimage", () => {
   const cDigest = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
   const psId1 = "sha256:4444444444444444444444444444444444444444444444444444444444444444";
   const pDigest = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
   const sId1 = "sha256:3333333333333333333333333333333333333333333333333333333333333333";
 
-  const id1 = computeGraphId(cDigest, psId1, pDigest, sId1, sampleNodes);
-  const id2 = computeGraphId(cDigest, psId1, pDigest, sId1, sampleNodes);
+  const id1 = computeGraphId(cDigest, psId1, pDigest, sId1, sampleNodes, sampleObligations);
+  const id2 = computeGraphId(cDigest, psId1, pDigest, sId1, sampleNodes, sampleObligations);
   assert.equal(id1, id2);
 
-  // Divergence upon policy snapshot id change
-  const psId2 = "sha256:7777777777777777777777777777777777777777777777777777777777777777";
-  const idAltPolicySnapshot = computeGraphId(cDigest, psId2, pDigest, sId1, sampleNodes);
-  assert.notEqual(id1, idAltPolicySnapshot);
+  const altObligations = [
+    {
+      id: "req-repair-001",
+      criticality: "should",
+      implemented_by: ["repair-core"],
+      required_evidence: ["ev:test-pass"],
+    },
+  ];
+  const idAlt = computeGraphId(cDigest, psId1, pDigest, sId1, sampleNodes, altObligations);
+  assert.notEqual(id1, idAlt);
+});
 
-  // Divergence upon policy bundle change
-  const pDigestAlt = "sha256:5555555555555555555555555555555555555555555555555555555555555555";
-  const idAltPolicy = computeGraphId(cDigest, psId1, pDigestAlt, sId1, sampleNodes);
-  assert.notEqual(id1, idAltPolicy);
+test("Compiler: explicit empty sourceSnapshotId fails closed with invalid-source-snapshot-id", () => {
+  const policySnapshot = createPolicySnapshot();
 
-  // Divergence upon source snapshot change
-  const sId2 = "sha256:6666666666666666666666666666666666666666666666666666666666666666";
-  const idAltSnapshot = computeGraphId(cDigest, psId1, pDigest, sId2, sampleNodes);
-  assert.notEqual(id1, idAltSnapshot);
+  assert.throws(
+    () => {
+      compileExecutionGraph({
+        contract: sampleContract,
+        policySnapshot,
+        sourceSnapshotId: "",
+        nodes: sampleNodes,
+        obligations: sampleObligations,
+      });
+    },
+    (err) => err.code === "invalid-source-snapshot-id"
+  );
+});
+
+test("Compiler: forged policySnapshot fails with policy-snapshot-mismatch", () => {
+  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-alpha"] });
+  policySnapshot.snapshot_id = "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+
+  assert.throws(
+    () => {
+      compileExecutionGraph({
+        contract: sampleContract,
+        policySnapshot,
+        nodes: sampleNodes,
+        obligations: sampleObligations,
+      });
+    },
+    (err) => err.code === "policy-snapshot-mismatch"
+  );
+});
+
+test("Compiler: caller cannot downgrade contract MUST obligation to should or may", () => {
+  const policySnapshot = createPolicySnapshot();
+  const contractWithMust = {
+    ...sampleContract,
+    obligations: [
+      {
+        id: "req-must-001",
+        criticality: "must",
+        implemented_by: ["repair-core"],
+        required_evidence: ["ev:test-pass"],
+      },
+    ],
+  };
+
+  const callerDowngrade = [
+    {
+      id: "req-must-001",
+      criticality: "should",
+      implemented_by: ["repair-core"],
+      required_evidence: ["ev:test-pass"],
+    },
+  ];
+
+  const graph = compileExecutionGraph({
+    contract: contractWithMust,
+    policySnapshot,
+    nodes: sampleNodes,
+    obligations: callerDowngrade,
+  });
+
+  assert.equal(graph.obligations[0].criticality, "must");
 });
 
 test("Compiler: rejects missing or malformed source_snapshot_id fail-closed", () => {

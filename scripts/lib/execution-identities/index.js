@@ -1135,6 +1135,11 @@ function validateIdentityKind(payload, expectedKind) {
   return { ok: true };
 }
 
+function validateExecutionGraphBinding(graph, options) {
+  const { validateExecutionGraphBinding: impl } = require("../execution-graph/binding.js");
+  return impl(graph, options);
+}
+
 module.exports = {
   EXPECTED_KINDS,
   validateCandidateV2,
@@ -1146,5 +1151,6 @@ module.exports = {
   validateWorkOrderBinding,
   validateWorkResultBinding,
   evaluateCandidateRelation,
-  validateIdentityKind
+  validateIdentityKind,
+  validateExecutionGraphBinding,
 };

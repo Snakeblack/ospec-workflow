@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "change": "k4a-integrity-and-bindings-remediation",
+  "source_fingerprint": "sha256:4a73546a049b237e9e7daf742de9bf2f8c97d3c914af32cf461a54c4a9da2160",
+  "spec_writes": [
+    {
+      "domain": "execution-graph-compiler",
+      "source_delta": "prepared-specs/execution-graph-compiler/spec.md",
+      "target": "openspec/specs/execution-graph-compiler/spec.md",
+      "target_before_sha256": "sha256:eca088f4b0747701bf679593fe4c65e27f657bf9ff97cf7898b0d1a5424fb80e",
+      "content_sha256": "sha256:9ea154749f2694b591a79038e572059bbc13659801eca5a6d4557fdcdc78c1a6"
+    },
+    {
+      "domain": "execution-identities",
+      "source_delta": "prepared-specs/execution-identities/spec.md",
+      "target": "openspec/specs/execution-identities/spec.md",
+      "target_before_sha256": "sha256:ac10e2050307c5d5880b6c9a9b092a1f95d74d0e513df460cf382c4ed0f4e55d",
+      "content_sha256": "sha256:dceb00f74dcf71675205ba57eb4febc8c8d584b3606cf3845fba52a15d5c8e2f"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "prepared-specs/kernel-contract-schemas/spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:0215b0a052c66fed2ed87234c2401e624281eca1bd8c88a5acc5a792ef9663fe",
+      "content_sha256": "sha256:4472c5bd7ac1994041b7562c2221b53713df7b375f12d6dda251a14f8f467af0"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260816-001-canonical-validateexecutiongraphbinding-primitive.md",
+      "content_sha256": "sha256:3e6a448ed8c2ecacaf5d418446b9aa794ed1eb5102699b1eba38f93de43cf88a"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260816-002-canonical-validatepolicysnapshotbinding-primitive.md",
+      "content_sha256": "sha256:63e3ad1c34b14ada05a268d5e3ca17902c2a44f0ff3a57bf9317b9e16fe816da"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260816-003-extension-of-execution-graph-v1-schema-json-for-clarify-context.md",
+      "content_sha256": "sha256:ed7a5fdd54f2da4b00f82e578f1ce6c5187affa1ecb0eccd0664a84188ed6696"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260816-004-authoritative-contract-obligation-authority-and-graphid-preimage-coupling.md",
+      "content_sha256": "sha256:b16fb6940536fafb4dca9fc568a70f4fd7aab3fc68f5e500bd7556fa542e2fb4"
+    },
+    {
+      "source": "decisions/adr-005.md",
+      "target": "docs/adr/adr-20260816-005-explicit-fail-closed-sourcesnapshotid-validation.md",
+      "content_sha256": "sha256:c13d153819ac13273f89bccbc9546c130bd29c0ea89674fc31af315ea2399385"
+    },
+    {
+      "source": "decisions/adr-006.md",
+      "target": "docs/adr/adr-20260816-006-per-node-required-evidence-enforcement-in-replay-engine.md",
+      "content_sha256": "sha256:b8ca2d50bff9c6faa9874d4fefec97d82770fcf5ce663cdd97839f02056c53fa"
+    },
+    {
+      "source": "decisions/adr-007.md",
+      "target": "docs/adr/adr-20260816-007-consolidated-dag-cycle-detection-and-topological-sort-utility.md",
+      "content_sha256": "sha256:2541b2f1f4deddb67f44066bd998de4272397a76c7675e2f180759b8f1bdcb93"
+    },
+    {
+      "source": "decisions/adr-008.md",
+      "target": "docs/adr/adr-20260816-008-hardened-multi-dimensional-shadow-comparison-baseline.md",
+      "content_sha256": "sha256:aaf638eed480b511f19cd9db11cdc183a6a6f8e5492fdcb44f687a651acf409a"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "decisions/adr-005.md",
+    "decisions/adr-006.md",
+    "decisions/adr-007.md",
+    "decisions/adr-008.md",
+    "design.md",
+    "prepared-specs/execution-graph-compiler/spec.md",
+    "prepared-specs/execution-identities/spec.md",
+    "prepared-specs/kernel-contract-schemas/spec.md",
+    "proposal.md",
+    "specs/execution-graph-compiler/spec.md",
+    "specs/execution-identities/spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}
