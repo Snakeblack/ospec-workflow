@@ -5,6 +5,25 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.4] - 2026-08-16
+
+### Fixed
+- **Replay Fixture Strict Provenance y Compilación Fail-Closed (`k4a-replay-provenance-and-shadow-remediation`)**:
+  - `replayExecutionGraph` exige de forma obligatoria que todo fixture declare `graph_id` y `work_order_id` coincidentes con el grafo canónico y el WorkOrder compilado, rechazando fixtures no vinculados o stale con `stale-fixture-rejected`.
+  - Eliminado el `catch` silencioso en la compilación de WorkOrders durante el replay, asegurando fallo cerrado (`work-order-compilation-failed`).
+  - Segregada la compatibilidad de fixtures legacy mediante `replayLegacyFixtureGraph()` y el flag explícito `options.allowLegacyFixtures: true`.
+- **Autoridad Absoluta de Obligaciones Contractuales**:
+  - `compileExecutionGraph` valida que toda obligación externa reconcilie estrictamente con `contract.obligations`, rechazando identificadores desconocidos con `unknown-obligation-id`.
+- **Consistencia Semántica en Shadow Comparator**:
+  - `compareShadowExecution` restringe `match: true` exclusivamente a coincidencias completas (`full-match`) con cero dimensiones omitidas (`skipped_dimensions.length === 0`).
+  - Ante dimensiones no evaluadas en el baseline (por ejemplo, omisión de `ownership`), retorna `match: false`, `discrepancy_classification: "partial-match"` y emite la discrepancia estructurada en `telemetryDiff`.
+- **Endurecimiento de Esquemas y Nodos Canónicos**:
+  - `schemas/kernel/execution-graph/v1.schema.json` y el compilador imponen `minLength: 1` en todos los identificadores y descriptores de nodo (`node_id`, `kind`, `operation`, `objective`, `budget_ref`, `ownership.owner`, `obligation.id`, `deferred.reason`, `deferred.approved_by`), impidiendo la emisión de grafos con strings vacíos.
+
+### Added
+- **Suite de Pruebas Adversariales**:
+  - Tests exhaustivos en `replay-engine.test.js`, `compiler.test.js`, `shadow-comparator.test.js` y `k3-k4a-integration.test.js` para los 4 vectores adversariales: `oldUnboundFixture + clarifiedGraph`, `unknownExternalObligation`, `baselineMissingOwnership` y `compileExecutionGraph(node_id: "")`.
+
 ## [2.45.3] - 2026-08-16
 
 ### Fixed

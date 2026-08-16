@@ -48,19 +48,16 @@ function replayExecutionGraph(graph, fixtureResults = {}, options = {}) {
 
   const sortedNodes = topologicalSort(graph.nodes);
 
-  let compiledWorkOrdersMap = null;
-  function getWorkOrdersMap() {
-    if (!compiledWorkOrdersMap) {
-      try {
-        const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
-        const orders = compileWorkOrdersV2(graph);
-        compiledWorkOrdersMap = new Map(orders.map((wo) => [wo.node_id, wo]));
-      } catch {
-        compiledWorkOrdersMap = new Map();
-      }
-    }
-    return compiledWorkOrdersMap;
+  const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+  let compiledWorkOrders;
+  try {
+    compiledWorkOrders = compileWorkOrdersV2(graph);
+  } catch (e) {
+    const err = new Error(`Failed to compile WorkOrders for ExecutionGraph replay: ${e.message}`);
+    err.code = e.code || "work-order-compilation-failed";
+    throw err;
   }
+  const compiledWorkOrdersMap = new Map(compiledWorkOrders.map((wo) => [wo.node_id, wo]));
 
   const completedNodes = new Set();
   const failedNodes = new Set();
@@ -100,18 +97,49 @@ function replayExecutionGraph(graph, fixtureResults = {}, options = {}) {
       continue;
     }
 
-    // Verify fixture graph/order provenance if declared in fixture
-    if (recorded.graph_id && recorded.graph_id !== graph.graph_id) {
-      const err = new Error(`Stale fixture result with mismatched graph_id "${recorded.graph_id}" for node "${nodeId}" (expected "${graph.graph_id}")`);
-      err.code = "stale-fixture-rejected";
+    // Verify fixture graph/order provenance fail-closed
+    const isLegacyMode = Boolean(options.allowLegacyFixtures);
+    const expectedWo = compiledWorkOrdersMap.get(nodeId);
+    if (!expectedWo) {
+      const err = new Error(`Unresolved WorkOrder for node "${nodeId}" during replay evaluation`);
+      err.code = "unresolved-work-order";
       err.node_id = nodeId;
       throw err;
     }
 
-    if (recorded.work_order_id) {
-      const woMap = getWorkOrdersMap();
-      const expectedWo = woMap.get(nodeId);
-      if (expectedWo && expectedWo.work_order_id !== recorded.work_order_id) {
+    if (!isLegacyMode) {
+      if (!recorded.graph_id || typeof recorded.graph_id !== "string") {
+        const err = new Error(`Missing graph_id provenance in fixture result for node "${nodeId}"`);
+        err.code = "stale-fixture-rejected";
+        err.node_id = nodeId;
+        throw err;
+      }
+      if (recorded.graph_id !== graph.graph_id) {
+        const err = new Error(`Stale fixture result with mismatched graph_id "${recorded.graph_id}" for node "${nodeId}" (expected "${graph.graph_id}")`);
+        err.code = "stale-fixture-rejected";
+        err.node_id = nodeId;
+        throw err;
+      }
+      if (!recorded.work_order_id || typeof recorded.work_order_id !== "string") {
+        const err = new Error(`Missing work_order_id provenance in fixture result for node "${nodeId}"`);
+        err.code = "stale-fixture-rejected";
+        err.node_id = nodeId;
+        throw err;
+      }
+      if (recorded.work_order_id !== expectedWo.work_order_id) {
+        const err = new Error(`Stale fixture result with mismatched work_order_id "${recorded.work_order_id}" for node "${nodeId}" (expected "${expectedWo.work_order_id}")`);
+        err.code = "stale-fixture-rejected";
+        err.node_id = nodeId;
+        throw err;
+      }
+    } else {
+      if (recorded.graph_id && recorded.graph_id !== graph.graph_id) {
+        const err = new Error(`Stale fixture result with mismatched graph_id "${recorded.graph_id}" for node "${nodeId}" (expected "${graph.graph_id}")`);
+        err.code = "stale-fixture-rejected";
+        err.node_id = nodeId;
+        throw err;
+      }
+      if (recorded.work_order_id && recorded.work_order_id !== expectedWo.work_order_id) {
         const err = new Error(`Stale fixture result with mismatched work_order_id "${recorded.work_order_id}" for node "${nodeId}" (expected "${expectedWo.work_order_id}")`);
         err.code = "stale-fixture-rejected";
         err.node_id = nodeId;
@@ -270,8 +298,16 @@ function replayExecutionGraph(graph, fixtureResults = {}, options = {}) {
   };
 }
 
+/**
+ * Replay helper supporting legacy fixture inputs without mandatory cryptographic provenance.
+ */
+function replayLegacyFixtureGraph(graph, fixtureResults = {}, options = {}) {
+  return replayExecutionGraph(graph, fixtureResults, { ...options, allowLegacyFixtures: true });
+}
+
 module.exports = {
   topologicalSort,
   replayExecutionGraph,
+  replayLegacyFixtureGraph,
 };
 

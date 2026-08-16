@@ -206,6 +206,8 @@ test("K3-K4a Integration: End-to-end cryptographic pipeline and provenance coupl
     "patch-node": {
       ok: true,
       status: "completed",
+      graph_id: graph.graph_id,
+      work_order_id: patchOrder.work_order_id,
       evidence: {
         "ev:patch-proof": { digest: "sha256:evidence-patch-001" },
       },
@@ -214,6 +216,8 @@ test("K3-K4a Integration: End-to-end cryptographic pipeline and provenance coupl
     "verify-node": {
       ok: true,
       status: "completed",
+      graph_id: graph.graph_id,
+      work_order_id: verifyOrder.work_order_id,
       evidence: {
         "ev:test-pass": { digest: "sha256:evidence-verify-001" },
       },
@@ -400,16 +404,20 @@ test("K3-K4a Integration: End-to-end Clarify -> WorkOrder -> K3 execution pipeli
   res2.work_result_id = computeWorkResultId(res2);
   assert.equal(validateWorkResultBinding(wo2, res2).ok, true);
 
-  // 6. Replay Engine Verification with Node Required Evidence
+  // 6. Replay Engine Verification with Node Required Evidence and Provenance
   const replayRes = replayExecutionGraph(clarifyResult.graph, {
     "patch-node": {
       ok: true,
       status: "completed",
+      graph_id: clarifyResult.graph.graph_id,
+      work_order_id: wo1.work_order_id,
       evidence: { "ev:patch-proof": { signature: "sig1" } },
     },
     "verify-node": {
       ok: true,
       status: "completed",
+      graph_id: clarifyResult.graph.graph_id,
+      work_order_id: wo2.work_order_id,
       evidence: { "ev:test-pass": { tests: 10, passed: 10 } },
     },
   });
@@ -473,16 +481,23 @@ test("K3-K4a Integration: Missing node evidence during replay generates countere
     obligations: contract.obligations,
   });
 
+  const workOrders = compileWorkOrdersV2(graph, { sourceSnapshot, sourceSnapshotId: sourceSnapshot.source_snapshot_id });
+  const [patchOrder, verifyOrder] = workOrders;
+
   // Replay without patch-node required evidence
   const fixturesWithoutEvidence = {
     "patch-node": {
       ok: true,
       status: "completed",
+      graph_id: graph.graph_id,
+      work_order_id: patchOrder.work_order_id,
       evidence: {}, // Missing ev:patch-proof
     },
     "verify-node": {
       ok: true,
       status: "completed",
+      graph_id: graph.graph_id,
+      work_order_id: verifyOrder.work_order_id,
       evidence: { "ev:test-pass": { passed: true } },
     },
   };
@@ -495,4 +510,141 @@ test("K3-K4a Integration: Missing node evidence during replay generates countere
   assert.equal(replayResult.counterexample.failed_node, "patch-node");
   assert.ok(replayResult.counterexample.reason.includes("missing required evidence"));
   assert.ok(Array.isArray(replayResult.counterexample.trace));
+});
+
+test("K3-K4a Integration Adversarial Vector 1: oldUnboundFixture + clarifiedGraph => stale-fixture-rejected", () => {
+  const sourceSnapshot = createIntegrationSourceSnapshot();
+  const policySnapshot = createPolicySnapshot();
+  const contract = createIntegrationContract(sourceSnapshot.source_snapshot_id);
+  const graph = compileExecutionGraph({
+    contract,
+    policySnapshot,
+    sourceSnapshotId: sourceSnapshot.source_snapshot_id,
+    nodes: contract.nodes,
+    obligations: contract.obligations,
+  });
+
+  const oldUnboundFixture = {
+    ok: true,
+    status: "completed",
+    evidence: {
+      "ev:patch-proof": { digest: "sha256:old-evidence" },
+    },
+  };
+
+  const clarifyEvent = {
+    schema_version: 1,
+    event_id: "evt-clarify-adversarial-1",
+    question_id: "q-auth",
+    answer: "Argon2id hashing",
+    timestamp: "2026-08-16T12:00:00Z",
+    affected_nodes: ["patch-node"],
+  };
+  const clarified = applyClarifyEvent(graph, clarifyEvent);
+
+  assert.throws(
+    () =>
+      replayExecutionGraph(clarified.graph, {
+        "patch-node": oldUnboundFixture,
+        "verify-node": oldUnboundFixture,
+      }),
+    (err) => err.code === "stale-fixture-rejected"
+  );
+});
+
+test("K3-K4a Integration Adversarial Vector 2: unknownExternalObligation => unknown-obligation-id", () => {
+  const sourceSnapshot = createIntegrationSourceSnapshot();
+  const policySnapshot = createPolicySnapshot();
+  const contract = createIntegrationContract(sourceSnapshot.source_snapshot_id);
+
+  const unknownExternalObligation = [
+    {
+      id: "req-patch-001",
+      criticality: "must",
+      implemented_by: ["patch-node"],
+      required_evidence: ["ev:patch-proof"],
+    },
+    {
+      id: "UNAUTHORIZED-EXTERNAL-OBLIGATION-999",
+      criticality: "should",
+      implemented_by: ["patch-node"],
+      required_evidence: ["ev:patch-proof"],
+    },
+  ];
+
+  assert.throws(
+    () =>
+      compileExecutionGraph({
+        contract,
+        policySnapshot,
+        sourceSnapshotId: sourceSnapshot.source_snapshot_id,
+        nodes: contract.nodes,
+        obligations: unknownExternalObligation,
+      }),
+    (err) => err.code === "unknown-obligation-id" && err.obligation_id === "UNAUTHORIZED-EXTERNAL-OBLIGATION-999"
+  );
+});
+
+test("K3-K4a Integration Adversarial Vector 3: baselineMissingOwnership => match: false & discrepancy_classification: partial-match", () => {
+  const { compareShadowExecution } = require("./execution-graph/index.js");
+  const sourceSnapshot = createIntegrationSourceSnapshot();
+  const policySnapshot = createPolicySnapshot();
+  const contract = createIntegrationContract(sourceSnapshot.source_snapshot_id);
+  const graph = compileExecutionGraph({
+    contract,
+    policySnapshot,
+    sourceSnapshotId: sourceSnapshot.source_snapshot_id,
+    nodes: contract.nodes,
+    obligations: contract.obligations,
+  });
+
+  const baselineMissingOwnership = () => ({
+    route: "repair",
+    steps: ["apply_repair_patch", "verify_repair_conformance"],
+    allowed_paths: ["src/auth/**", "tests/**"],
+    invariants: ["inv-fail-closed", "inv-no-direct-mutation"],
+    obligations: ["req-patch-001", "req-verify-001"],
+    dependencies: [
+      { node_id: "patch-node", dependencies: [] },
+      { node_id: "verify-node", dependencies: ["patch-node"] },
+    ],
+    // ownership is intentionally omitted
+  });
+
+  const comparison = compareShadowExecution({
+    contractInput: {},
+    fixedBaselineFn: baselineMissingOwnership,
+    compiledGraph: graph,
+  });
+
+  assert.equal(comparison.match, false);
+  assert.equal(comparison.discrepancy_classification, "partial-match");
+  assert.deepEqual(comparison.skipped_dimensions, ["ownership"]);
+  assert.ok(comparison.telemetryDiff !== null);
+  assert.deepEqual(comparison.telemetryDiff.skipped_dimensions, ["ownership"]);
+});
+
+test("K3-K4a Integration Adversarial Vector 4: compileExecutionGraph(node_id: '') => reject", () => {
+  const sourceSnapshot = createIntegrationSourceSnapshot();
+  const policySnapshot = createPolicySnapshot();
+  const contract = createIntegrationContract(sourceSnapshot.source_snapshot_id);
+
+  const emptyNodeIdNodes = [
+    {
+      ...contract.nodes[0],
+      node_id: "",
+    },
+  ];
+
+  assert.throws(
+    () =>
+      compileExecutionGraph({
+        contract,
+        policySnapshot,
+        sourceSnapshotId: sourceSnapshot.source_snapshot_id,
+        nodes: emptyNodeIdNodes,
+        obligations: contract.obligations,
+      }),
+    (err) => err.code === "missing-required-node-field" && err.field === "node_id"
+  );
 });

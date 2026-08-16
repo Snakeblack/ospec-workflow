@@ -68,21 +68,26 @@
       ],
       "properties": {
         "node_id": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "kind": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "operation": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "objective": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "dependencies": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         "ownership": {
@@ -91,23 +96,27 @@
         "allowed_paths": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         "invariants": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         "required_evidence": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         "budget_ref": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "clarification_context": {
           "type": "object",
@@ -118,10 +127,12 @@
           ],
           "properties": {
             "event_id": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "question_id": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "answer": {
               "type": [
@@ -167,7 +178,8 @@
       ],
       "properties": {
         "owner": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "mode": {
           "type": "string",
@@ -189,7 +201,8 @@
       ],
       "properties": {
         "id": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "criticality": {
           "type": "string",
@@ -202,13 +215,15 @@
         "implemented_by": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         "required_evidence": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         "deferred": {
@@ -225,10 +240,12 @@
       ],
       "properties": {
         "reason": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "approved_by": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "additionalProperties": false

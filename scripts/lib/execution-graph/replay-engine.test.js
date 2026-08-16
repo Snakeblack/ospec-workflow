@@ -28,13 +28,10 @@ test("ReplayEngine: deterministic convergence with pre-recorded fixtures", () =>
 
 test("ReplayEngine: missing fixture result blocks dependent downstream nodes", () => {
   const graph = createSampleExecutionGraph();
+  const sampleFixtures = createSampleFixtureResults(graph);
   // Only repair-patch has fixture result; repair-verify is missing
   const partialFixtures = {
-    "repair-patch": {
-      ok: true,
-      outcome: "completed",
-      evidence: { "ev:patch-proof": { digest: "sha256:1" } },
-    },
+    "repair-patch": sampleFixtures["repair-patch"],
   };
 
   const result = replayExecutionGraph(graph, partialFixtures);
@@ -47,17 +44,15 @@ test("ReplayEngine: missing fixture result blocks dependent downstream nodes", (
 
 test("ReplayEngine: failed node stops dependent branch and generates counterexample", () => {
   const graph = createSampleExecutionGraph();
+  const sampleFixtures = createSampleFixtureResults(graph);
   const failingFixtures = {
     "repair-patch": {
+      ...sampleFixtures["repair-patch"],
       ok: false,
       outcome: "failed",
       error: "Patch application conflict",
     },
-    "repair-verify": {
-      ok: true,
-      outcome: "completed",
-      evidence: { "ev:test-pass": { digest: "sha256:2" } },
-    },
+    "repair-verify": sampleFixtures["repair-verify"],
   };
 
   const result = replayExecutionGraph(graph, failingFixtures);
@@ -71,17 +66,13 @@ test("ReplayEngine: failed node stops dependent branch and generates counterexam
 
 test("ReplayEngine: missing required obligation evidence marks replay incomplete", () => {
   const graph = createSampleExecutionGraph();
+  const sampleFixtures = createSampleFixtureResults(graph);
   const missingEvidenceFixtures = {
     "repair-patch": {
-      ok: true,
-      outcome: "completed",
+      ...sampleFixtures["repair-patch"],
       evidence: {}, // Missing required ev:patch-proof
     },
-    "repair-verify": {
-      ok: true,
-      outcome: "completed",
-      evidence: { "ev:test-pass": { digest: "sha256:2" } },
-    },
+    "repair-verify": sampleFixtures["repair-verify"],
   };
 
   const result = replayExecutionGraph(graph, missingEvidenceFixtures);
@@ -93,7 +84,7 @@ test("ReplayEngine: missing required obligation evidence marks replay incomplete
 
 test("ReplayEngine: rejects stale fixture result for invalidated node fail-closed", () => {
   const graph = createSampleExecutionGraph();
-  const fixtures = createSampleFixtureResults();
+  const fixtures = createSampleFixtureResults(graph);
 
   assert.throws(
     () => replayExecutionGraph(graph, fixtures, { invalidatedNodeIds: ["repair-patch"] }),
@@ -103,17 +94,15 @@ test("ReplayEngine: rejects stale fixture result for invalidated node fail-close
 
 test("ReplayEngine: discriminates cancelled or non-completed status and generates counterexample", () => {
   const graph = createSampleExecutionGraph();
+  const sampleFixtures = createSampleFixtureResults(graph);
   const cancelledFixtures = {
     "repair-patch": {
+      ...sampleFixtures["repair-patch"],
       ok: false,
       status: "cancelled",
       error: "Operation timed out and was cancelled",
     },
-    "repair-verify": {
-      ok: true,
-      status: "completed",
-      evidence: { "ev:test-pass": { digest: "sha256:2" } },
-    },
+    "repair-verify": sampleFixtures["repair-verify"],
   };
 
   const result = replayExecutionGraph(graph, cancelledFixtures);
@@ -128,18 +117,14 @@ test("ReplayEngine: discriminates cancelled or non-completed status and generate
 
 test("ReplayEngine: per-node required_evidence failure stops node and blocks downstream dependencies", () => {
   const graph = createSampleExecutionGraph();
+  const sampleFixtures = createSampleFixtureResults(graph);
   // repair-patch requires "ev:patch-proof". Providing other evidence but not required evidence
   const fixtures = {
     "repair-patch": {
-      ok: true,
-      status: "completed",
+      ...sampleFixtures["repair-patch"],
       evidence: { "ev:unrelated": { digest: "sha256:3" } },
     },
-    "repair-verify": {
-      ok: true,
-      status: "completed",
-      evidence: { "ev:test-pass": { digest: "sha256:2" } },
-    },
+    "repair-verify": sampleFixtures["repair-verify"],
   };
 
   const result = replayExecutionGraph(graph, fixtures);
@@ -157,7 +142,7 @@ test("ReplayEngine: rejects tampered ExecutionGraph with graph-id-mismatch", () 
   const graph = createSampleExecutionGraph();
   graph.nodes[0].objective = "tampered objective";
 
-  const fixtures = createSampleFixtureResults();
+  const fixtures = createSampleFixtureResults(graph);
 
   assert.throws(
     () => replayExecutionGraph(graph, fixtures),
@@ -167,20 +152,15 @@ test("ReplayEngine: rejects tampered ExecutionGraph with graph-id-mismatch", () 
 
 test("ReplayEngine: rejects contradictory terminal states fail-closed", () => {
   const graph = createSampleExecutionGraph();
+  const sampleFixtures = createSampleFixtureResults(graph);
 
   // Case 1: status completed but outcome failed
   const contradictory1 = {
     "repair-patch": {
-      ok: true,
-      status: "completed",
+      ...sampleFixtures["repair-patch"],
       outcome: "failed",
-      evidence: { "ev:patch-proof": { digest: "sha256:1" } },
     },
-    "repair-verify": {
-      ok: true,
-      status: "completed",
-      evidence: { "ev:test-pass": { digest: "sha256:2" } },
-    },
+    "repair-verify": sampleFixtures["repair-verify"],
   };
   const res1 = replayExecutionGraph(graph, contradictory1);
   assert.equal(res1.ok, false);
@@ -189,16 +169,10 @@ test("ReplayEngine: rejects contradictory terminal states fail-closed", () => {
   // Case 2: ok false but status completed
   const contradictory2 = {
     "repair-patch": {
+      ...sampleFixtures["repair-patch"],
       ok: false,
-      status: "completed",
-      outcome: "completed",
-      evidence: { "ev:patch-proof": { digest: "sha256:1" } },
     },
-    "repair-verify": {
-      ok: true,
-      status: "completed",
-      evidence: { "ev:test-pass": { digest: "sha256:2" } },
-    },
+    "repair-verify": sampleFixtures["repair-verify"],
   };
   const res2 = replayExecutionGraph(graph, contradictory2);
   assert.equal(res2.ok, false);
@@ -207,16 +181,10 @@ test("ReplayEngine: rejects contradictory terminal states fail-closed", () => {
   // Case 3: status cancelled but outcome completed
   const contradictory3 = {
     "repair-patch": {
-      ok: true,
+      ...sampleFixtures["repair-patch"],
       status: "cancelled",
-      outcome: "completed",
-      evidence: { "ev:patch-proof": { digest: "sha256:1" } },
     },
-    "repair-verify": {
-      ok: true,
-      status: "completed",
-      evidence: { "ev:test-pass": { digest: "sha256:2" } },
-    },
+    "repair-verify": sampleFixtures["repair-verify"],
   };
   const res3 = replayExecutionGraph(graph, contradictory3);
   assert.equal(res3.ok, false);
@@ -225,20 +193,15 @@ test("ReplayEngine: rejects contradictory terminal states fail-closed", () => {
 
 test("ReplayEngine: rejects stale fixture with mismatched work_order_id or graph_id fail-closed", () => {
   const graph = createSampleExecutionGraph();
+  const sampleFixtures = createSampleFixtureResults(graph);
 
   // Mismatched graph_id
   const mismatchedGraphFixtures = {
     "repair-patch": {
-      ok: true,
-      status: "completed",
+      ...sampleFixtures["repair-patch"],
       graph_id: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-      evidence: { "ev:patch-proof": { digest: "sha256:1" } },
     },
-    "repair-verify": {
-      ok: true,
-      status: "completed",
-      evidence: { "ev:test-pass": { digest: "sha256:2" } },
-    },
+    "repair-verify": sampleFixtures["repair-verify"],
   };
   assert.throws(
     () => replayExecutionGraph(graph, mismatchedGraphFixtures),
@@ -248,9 +211,23 @@ test("ReplayEngine: rejects stale fixture with mismatched work_order_id or graph
   // Mismatched work_order_id
   const mismatchedWoFixtures = {
     "repair-patch": {
+      ...sampleFixtures["repair-patch"],
+      work_order_id: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    },
+    "repair-verify": sampleFixtures["repair-verify"],
+  };
+  assert.throws(
+    () => replayExecutionGraph(graph, mismatchedWoFixtures),
+    (err) => err.code === "stale-fixture-rejected"
+  );
+});
+
+test("ReplayEngine: rejects unbound fixtures lacking graph_id or work_order_id in canonical mode", () => {
+  const graph = createSampleExecutionGraph();
+  const unboundFixtures = {
+    "repair-patch": {
       ok: true,
       status: "completed",
-      work_order_id: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
       evidence: { "ev:patch-proof": { digest: "sha256:1" } },
     },
     "repair-verify": {
@@ -259,8 +236,50 @@ test("ReplayEngine: rejects stale fixture with mismatched work_order_id or graph
       evidence: { "ev:test-pass": { digest: "sha256:2" } },
     },
   };
+
+  // Canonical replay MUST reject unbound fixtures
   assert.throws(
-    () => replayExecutionGraph(graph, mismatchedWoFixtures),
+    () => replayExecutionGraph(graph, unboundFixtures),
+    (err) => err.code === "stale-fixture-rejected"
+  );
+
+  // Legacy mode explicitly allows unbound fixtures if allowLegacyFixtures is passed
+  const { replayLegacyFixtureGraph } = require("./replay-engine.js");
+  const legacyRes = replayLegacyFixtureGraph(graph, unboundFixtures);
+  assert.equal(legacyRes.ok, true);
+  assert.deepEqual(legacyRes.completedNodes.sort(), ["repair-patch", "repair-verify"]);
+});
+
+test("ReplayEngine: old unbound fixture cannot resurrect clarified graph nodes", () => {
+  const { applyClarifyEvent } = require("./clarify.js");
+  const graph = createSampleExecutionGraph();
+
+  const oldUnboundFixture = {
+    ok: true,
+    status: "completed",
+    evidence: {
+      "ev:patch-proof": { signature: "old-sig" },
+    },
+  };
+
+  const clarifyEvent = {
+    schema_version: 1,
+    event_id: "evt-clarify-adversarial",
+    question_id: "q-auth",
+    answer: "New clarified auth specification",
+    timestamp: "2026-08-16T12:00:00Z",
+    affected_nodes: ["repair-patch"],
+  };
+
+  const clarified = applyClarifyEvent(graph, clarifyEvent);
+
+  // Replay without explicit invalidatedNodeIds must still reject unbound old fixture
+  assert.throws(
+    () =>
+      replayExecutionGraph(clarified.graph, {
+        "repair-patch": oldUnboundFixture,
+        "repair-verify": oldUnboundFixture,
+      }),
     (err) => err.code === "stale-fixture-rejected"
   );
 });
