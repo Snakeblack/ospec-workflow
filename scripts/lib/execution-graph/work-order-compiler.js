@@ -9,9 +9,9 @@ const {
   validateIdentityKind,
 } = require("../execution-identities/index.js");
 const { FORBIDDEN_OPERATIONS } = require("./compiler.js");
-const { hasCycle } = require("./clarify.js");
+const { hasCycle, topologicalSort } = require("./dag.js");
 const { validateObligationManifest } = require("./obligation-manifest.js");
-const { topologicalSort } = require("./replay-engine.js");
+const { validateExecutionGraphBinding } = require("./binding.js");
 
 const DEFAULT_WORK_ORDER_BUDGET = Object.freeze({
   model_turns: 5,
@@ -162,18 +162,28 @@ function compileWorkOrdersV2(graph, context = {}) {
     throw new TypeError("graph must be an ExecutionGraph object");
   }
 
-  // 1. Schema Pre-validation
-  const graphValidation = validateInstance(getExecutionGraphV1Schema(), graph);
-  if (!graphValidation.valid) {
-    const err = new Error(
-      `ExecutionGraph failed schema validation: ${graphValidation.errors.map((e) => e.message).join("; ")}`
-    );
-    err.code = "invalid-graph-schema";
+  // 1. Provenance verification
+  const sourceSnapshotId = resolveVerifiedSourceSnapshotId(graph, context);
+
+  // 2. Cryptographic binding and Schema Pre-validation
+  const bindingCheck = validateExecutionGraphBinding(graph, {
+    sourceSnapshot: context.sourceSnapshot,
+    sourceSnapshotId: context.sourceSnapshotId,
+  });
+  if (!bindingCheck.ok) {
+    const code = bindingCheck.reason_code === "GRAPH_ID_MISMATCH"
+      ? "graph-id-mismatch"
+      : (bindingCheck.reason_code === "SOURCE_SNAPSHOT_MISMATCH"
+        ? "provenance-mismatch"
+        : (bindingCheck.reason_code === "INVALID_SCHEMA"
+          ? "invalid-graph-schema"
+          : (bindingCheck.reason_code === "ILL_FORMED_SNAPSHOT_ID"
+            ? "invalid-source-snapshot-id"
+            : (bindingCheck.reason_code || "invalid-graph-binding"))));
+    const err = new Error(`ExecutionGraph binding validation failed: ${bindingCheck.error}`);
+    err.code = code;
     throw err;
   }
-
-  // 2. Provenance verification
-  const sourceSnapshotId = resolveVerifiedSourceSnapshotId(graph, context);
 
   // 3. Validate coarse semantic nodes
   for (const node of graph.nodes) {

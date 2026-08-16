@@ -13,6 +13,7 @@ const {
   evaluateCandidateRelation,
   validateIdentityKind,
   validateCandidateV2,
+  validateExecutionGraphBinding,
   EXPECTED_KINDS
 } = require("./index.js");
 
@@ -1832,3 +1833,75 @@ test("K3 readiness: identity boundaries preserve case and distinguish projection
   assert.deepEqual(caseVariant.paths, ["README.md"]);
   assert.throws(() => freezeCandidate({ ...input, projection: "commit" }), /workspace or staged/i);
 });
+
+test("REQ-execution-identities-011: validateExecutionGraphBinding cryptographic gate and integrity", () => {
+  const { createSampleExecutionGraph, createSampleSourceSnapshot } = require("../test-support/execution-graph-fixtures.js");
+  const { createPolicySnapshot } = require("../execution-graph/policy-snapshot.js");
+
+  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-1"] });
+  const sourceSnapshot = createSampleSourceSnapshot();
+  const graph = createSampleExecutionGraph({
+    sourceSnapshotId: sourceSnapshot.source_snapshot_id,
+    policyOverrides: { effectiveRules: ["rule-1"] },
+  });
+
+  // 1. Valid intact graph
+  const validRes = validateExecutionGraphBinding(graph, {
+    policySnapshot,
+    sourceSnapshot,
+  });
+  assert.equal(validRes.ok, true, `Valid graph should pass: ${validRes.error}`);
+
+  // 2. Tampered node triggers GRAPH_ID_MISMATCH
+  const tamperedNodeGraph = structuredClone(graph);
+  tamperedNodeGraph.nodes[0].objective = "tampered objective";
+  const tamperedNodeRes = validateExecutionGraphBinding(tamperedNodeGraph);
+  assert.equal(tamperedNodeRes.ok, false);
+  assert.equal(tamperedNodeRes.reason_code, "GRAPH_ID_MISMATCH");
+
+  // 3. Tampered obligation triggers GRAPH_ID_MISMATCH
+  const tamperedObGraph = structuredClone(graph);
+  tamperedObGraph.obligations[0].criticality = "should";
+  const tamperedObRes = validateExecutionGraphBinding(tamperedObGraph);
+  assert.equal(tamperedObRes.ok, false);
+  assert.equal(tamperedObRes.reason_code, "GRAPH_ID_MISMATCH");
+
+  // 4. Invalid schema (missing required fields) triggers INVALID_SCHEMA
+  const invalidSchemaGraph = structuredClone(graph);
+  delete invalidSchemaGraph.contract_digest;
+  const invalidSchemaRes = validateExecutionGraphBinding(invalidSchemaGraph);
+  assert.equal(invalidSchemaRes.ok, false);
+  assert.equal(invalidSchemaRes.reason_code, "INVALID_SCHEMA");
+
+  // 5. Invalid payload (null/undefined/non-object) triggers INVALID_PAYLOAD
+  assert.equal(validateExecutionGraphBinding(null).reason_code, "INVALID_PAYLOAD");
+  assert.equal(validateExecutionGraphBinding("not-an-object").reason_code, "INVALID_PAYLOAD");
+
+  // 6. Malformed snapshot ID triggers ILL_FORMED_SNAPSHOT_ID or INVALID_SCHEMA
+  const malformedSnapGraph = structuredClone(graph);
+  malformedSnapGraph.source_snapshot_id = "malformed-id";
+  const malformedRes = validateExecutionGraphBinding(malformedSnapGraph);
+  assert.equal(malformedRes.ok, false);
+  assert.ok(["ILL_FORMED_SNAPSHOT_ID", "INVALID_SCHEMA"].includes(malformedRes.reason_code));
+
+  // 7. Contextual PolicySnapshot mismatch triggers POLICY_SNAPSHOT_MISMATCH
+  const differentPolicySnapshot = createPolicySnapshot({ effectiveRules: ["different-rule"] });
+  const psMismatchRes = validateExecutionGraphBinding(graph, { policySnapshot: differentPolicySnapshot });
+  assert.equal(psMismatchRes.ok, false);
+  assert.equal(psMismatchRes.reason_code, "POLICY_SNAPSHOT_MISMATCH");
+
+  // 8. Contextual SourceSnapshot mismatch triggers SOURCE_SNAPSHOT_MISMATCH
+  const differentSourceSnapshot = {
+    ...sourceSnapshot,
+    base_tree_digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  };
+  const srcMismatchRes = validateExecutionGraphBinding(graph, { sourceSnapshot: differentSourceSnapshot });
+  assert.equal(srcMismatchRes.ok, false);
+  assert.equal(srcMismatchRes.reason_code, "SOURCE_SNAPSHOT_MISMATCH");
+
+  // 9. Purity: input graph is not mutated
+  const originalJson = JSON.stringify(graph);
+  validateExecutionGraphBinding(graph, { policySnapshot, sourceSnapshot });
+  assert.equal(JSON.stringify(graph), originalJson);
+});
+

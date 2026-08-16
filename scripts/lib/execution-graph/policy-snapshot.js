@@ -1,6 +1,22 @@
 "use strict";
 
+const path = require("node:path");
 const { sha256Fingerprint } = require("../canonical-json.js");
+const { validateInstance, loadSchemaById } = require("../kernel-schema-validator.js");
+
+const SHA256_REGEX = /^sha256:[a-f0-9]{64}$/;
+const POLICY_SNAPSHOT_V1_SCHEMA_ID = "ospec://schemas/kernel/policy-snapshot/v1";
+const DEFAULT_SCHEMA_ROOT = path.resolve(__dirname, "../../..");
+
+let cachedPolicySnapshotV1Schema = null;
+function getPolicySnapshotV1Schema() {
+  if (!cachedPolicySnapshotV1Schema) {
+    cachedPolicySnapshotV1Schema = loadSchemaById(POLICY_SNAPSHOT_V1_SCHEMA_ID, {
+      rootDir: DEFAULT_SCHEMA_ROOT,
+    });
+  }
+  return cachedPolicySnapshotV1Schema;
+}
 
 const DEFAULT_VERSIONS = Object.freeze({
   compiler_version: "1.0.0",
@@ -68,8 +84,46 @@ function createPolicySnapshot(params = {}) {
   return draft;
 }
 
+/**
+ * Validates cryptographic binding and schema of a PolicySnapshot record.
+ * @param {Object} snapshot
+ * @returns {{ ok: boolean, reason_code?: string, error?: string }}
+ */
+function validatePolicySnapshotBinding(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") {
+    return { ok: false, reason_code: "INVALID_PAYLOAD", error: "PolicySnapshot must be a non-null object" };
+  }
+  let validation;
+  try {
+    validation = validateInstance(getPolicySnapshotV1Schema(), snapshot);
+  } catch (err) {
+    return { ok: false, reason_code: "INVALID_SCHEMA", error: err.message };
+  }
+  if (!validation.valid) {
+    return { ok: false, reason_code: "INVALID_SCHEMA", error: validation.errors.map((e) => e.message).join("; ") };
+  }
+  if (typeof snapshot.snapshot_id !== "string" || !SHA256_REGEX.test(snapshot.snapshot_id)) {
+    return { ok: false, reason_code: "ILL_FORMED_SNAPSHOT_ID", error: "snapshot_id must match sha256:<64 hex>" };
+  }
+  let expectedSnapshotId;
+  try {
+    expectedSnapshotId = computePolicySnapshotDigest(snapshot);
+  } catch (err) {
+    return { ok: false, reason_code: "POLICY_SNAPSHOT_MISMATCH", error: err.message };
+  }
+  if (snapshot.snapshot_id !== expectedSnapshotId) {
+    return {
+      ok: false,
+      reason_code: "POLICY_SNAPSHOT_MISMATCH",
+      error: `PolicySnapshot digest mismatch: declared ${snapshot.snapshot_id}, expected ${expectedSnapshotId}`,
+    };
+  }
+  return { ok: true };
+}
+
 module.exports = {
   createPolicySnapshot,
   computePolicySnapshotDigest,
+  validatePolicySnapshotBinding,
   DEFAULT_VERSIONS,
 };

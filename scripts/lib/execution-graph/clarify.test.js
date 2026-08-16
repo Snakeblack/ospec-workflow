@@ -2,7 +2,9 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
+const { computeGraphId } = require("./compiler.js");
 const { applyClarifyEvent, computeDescendantClosure } = require("./clarify.js");
+const { validateExecutionGraphBinding } = require("./binding.js");
 
 function createNode(id, deps = []) {
   return {
@@ -21,26 +23,43 @@ function createNode(id, deps = []) {
 
 const samplePolicySnapshotId = "sha256:5555555555555555555555555555555555555555555555555555555555555555";
 
-test("ClarifyEvent: linear DAG invalidates strictly declared affected node and descendants", () => {
-  // N1 -> N2 -> N3 (N2 depends on N1, N3 depends on N2)
-  const graph = {
+function createTestGraph(nodes, obligations = []) {
+  const contractDigest = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
+  const policyBundleDigest = "sha256:3333333333333333333333333333333333333333333333333333333333333333";
+  const policySnapshotId = samplePolicySnapshotId;
+  const sourceSnapshotId = "sha256:4444444444444444444444444444444444444444444444444444444444444444";
+  const graphId = computeGraphId(
+    contractDigest,
+    policySnapshotId,
+    policyBundleDigest,
+    sourceSnapshotId,
+    nodes,
+    obligations
+  );
+  return {
     schema_version: 1,
-    graph_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    contract_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-    policy_bundle_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-    policy_snapshot_id: samplePolicySnapshotId,
-    source_snapshot_id: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
-    nodes: [
-      createNode("n1", []),
-      createNode("n2", ["n1"]),
-      createNode("n3", ["n2"]),
-    ],
-    obligations: [
-      { id: "req-1", criticality: "must", implemented_by: ["n1"], required_evidence: ["ev:n1"] },
-      { id: "req-2", criticality: "must", implemented_by: ["n2"], required_evidence: ["ev:n2"] },
-      { id: "req-3", criticality: "must", implemented_by: ["n3"], required_evidence: ["ev:n3"] },
-    ],
+    graph_id: graphId,
+    contract_digest: contractDigest,
+    policy_bundle_digest: policyBundleDigest,
+    policy_snapshot_id: policySnapshotId,
+    source_snapshot_id: sourceSnapshotId,
+    nodes,
+    obligations,
   };
+}
+
+test("ClarifyEvent: linear DAG invalidates strictly declared affected node and descendants", () => {
+  const nodes = [
+    createNode("n1", []),
+    createNode("n2", ["n1"]),
+    createNode("n3", ["n2"]),
+  ];
+  const obligations = [
+    { id: "req-1", criticality: "must", implemented_by: ["n1"], required_evidence: ["ev:n1"] },
+    { id: "req-2", criticality: "must", implemented_by: ["n2"], required_evidence: ["ev:n2"] },
+    { id: "req-3", criticality: "must", implemented_by: ["n3"], required_evidence: ["ev:n3"] },
+  ];
+  const graph = createTestGraph(nodes, obligations);
 
   const clarifyEvent = {
     schema_version: 1,
@@ -67,31 +86,26 @@ test("ClarifyEvent: linear DAG invalidates strictly declared affected node and d
   // Assert unaffected node is not mutated with clarification context
   const preservedN1 = result.graph.nodes.find((n) => n.node_id === "n1");
   assert.equal(preservedN1.clarification_context, undefined);
+
+  // Assert clarified graph passes validateExecutionGraphBinding
+  const bindingCheck = validateExecutionGraphBinding(result.graph);
+  assert.equal(bindingCheck.ok, true, `Clarified graph must pass binding check: ${bindingCheck.error}`);
 });
 
 test("ClarifyEvent: parallel independent branches are preserved", () => {
-  // Branch A: n1 -> n2
-  // Branch B: n3 -> n4
-  const graph = {
-    schema_version: 1,
-    graph_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    contract_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-    policy_bundle_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-    policy_snapshot_id: samplePolicySnapshotId,
-    source_snapshot_id: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
-    nodes: [
-      createNode("n1", []),
-      createNode("n2", ["n1"]),
-      createNode("n3", []),
-      createNode("n4", ["n3"]),
-    ],
-    obligations: [
-      { id: "req-1", criticality: "must", implemented_by: ["n1"], required_evidence: ["ev:n1"] },
-      { id: "req-2", criticality: "must", implemented_by: ["n2"], required_evidence: ["ev:n2"] },
-      { id: "req-3", criticality: "must", implemented_by: ["n3"], required_evidence: ["ev:n3"] },
-      { id: "req-4", criticality: "must", implemented_by: ["n4"], required_evidence: ["ev:n4"] },
-    ],
-  };
+  const nodes = [
+    createNode("n1", []),
+    createNode("n2", ["n1"]),
+    createNode("n3", []),
+    createNode("n4", ["n3"]),
+  ];
+  const obligations = [
+    { id: "req-1", criticality: "must", implemented_by: ["n1"], required_evidence: ["ev:n1"] },
+    { id: "req-2", criticality: "must", implemented_by: ["n2"], required_evidence: ["ev:n2"] },
+    { id: "req-3", criticality: "must", implemented_by: ["n3"], required_evidence: ["ev:n3"] },
+    { id: "req-4", criticality: "must", implemented_by: ["n4"], required_evidence: ["ev:n4"] },
+  ];
+  const graph = createTestGraph(nodes, obligations);
 
   const clarifyEvent = {
     schema_version: 1,
@@ -109,27 +123,19 @@ test("ClarifyEvent: parallel independent branches are preserved", () => {
 });
 
 test("ClarifyEvent: diamond DAG invalidates only affected branch and common join point", () => {
-  // n1 -> (n2, n3) -> n4
-  const graph = {
-    schema_version: 1,
-    graph_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    contract_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-    policy_bundle_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-    policy_snapshot_id: samplePolicySnapshotId,
-    source_snapshot_id: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
-    nodes: [
-      createNode("n1", []),
-      createNode("n2", ["n1"]),
-      createNode("n3", ["n1"]),
-      createNode("n4", ["n2", "n3"]),
-    ],
-    obligations: [
-      { id: "req-1", criticality: "must", implemented_by: ["n1"], required_evidence: ["ev:n1"] },
-      { id: "req-2", criticality: "must", implemented_by: ["n2"], required_evidence: ["ev:n2"] },
-      { id: "req-3", criticality: "must", implemented_by: ["n3"], required_evidence: ["ev:n3"] },
-      { id: "req-4", criticality: "must", implemented_by: ["n4"], required_evidence: ["ev:n4"] },
-    ],
-  };
+  const nodes = [
+    createNode("n1", []),
+    createNode("n2", ["n1"]),
+    createNode("n3", ["n1"]),
+    createNode("n4", ["n2", "n3"]),
+  ];
+  const obligations = [
+    { id: "req-1", criticality: "must", implemented_by: ["n1"], required_evidence: ["ev:n1"] },
+    { id: "req-2", criticality: "must", implemented_by: ["n2"], required_evidence: ["ev:n2"] },
+    { id: "req-3", criticality: "must", implemented_by: ["n3"], required_evidence: ["ev:n3"] },
+    { id: "req-4", criticality: "must", implemented_by: ["n4"], required_evidence: ["ev:n4"] },
+  ];
+  const graph = createTestGraph(nodes, obligations);
 
   const clarifyEvent = {
     schema_version: 1,
@@ -147,16 +153,9 @@ test("ClarifyEvent: diamond DAG invalidates only affected branch and common join
 });
 
 test("ClarifyEvent: rejects unknown affected node IDs fail-closed", () => {
-  const graph = {
-    schema_version: 1,
-    graph_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    contract_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-    policy_bundle_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-    policy_snapshot_id: samplePolicySnapshotId,
-    source_snapshot_id: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
-    nodes: [createNode("n1", [])],
-    obligations: [{ id: "req-1", criticality: "must", implemented_by: ["n1"], required_evidence: ["ev:n1"] }],
-  };
+  const nodes = [createNode("n1", [])];
+  const obligations = [{ id: "req-1", criticality: "must", implemented_by: ["n1"], required_evidence: ["ev:n1"] }];
+  const graph = createTestGraph(nodes, obligations);
 
   const clarifyEvent = {
     schema_version: 1,
@@ -174,23 +173,15 @@ test("ClarifyEvent: rejects unknown affected node IDs fail-closed", () => {
 });
 
 test("ClarifyEvent: detects dependency cycles and fails closed", () => {
-  // n1 -> n2 -> n1 cycle
-  const graph = {
-    schema_version: 1,
-    graph_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    contract_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-    policy_bundle_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-    policy_snapshot_id: samplePolicySnapshotId,
-    source_snapshot_id: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
-    nodes: [
-      createNode("n1", ["n2"]),
-      createNode("n2", ["n1"]),
-    ],
-    obligations: [
-      { id: "req-1", criticality: "must", implemented_by: ["n1"], required_evidence: ["ev:n1"] },
-      { id: "req-2", criticality: "must", implemented_by: ["n2"], required_evidence: ["ev:n2"] },
-    ],
-  };
+  const cyclicNodes = [
+    createNode("n1", ["n2"]),
+    createNode("n2", ["n1"]),
+  ];
+  const obligations = [
+    { id: "req-1", criticality: "must", implemented_by: ["n1"], required_evidence: ["ev:n1"] },
+    { id: "req-2", criticality: "must", implemented_by: ["n2"], required_evidence: ["ev:n2"] },
+  ];
+  const graph = createTestGraph(cyclicNodes, obligations);
 
   const clarifyEvent = {
     schema_version: 1,
@@ -204,5 +195,26 @@ test("ClarifyEvent: detects dependency cycles and fails closed", () => {
   assert.throws(
     () => applyClarifyEvent(graph, clarifyEvent),
     (err) => err.code === "cyclic-dependency-detected" || err.message.includes("cycle")
+  );
+});
+
+test("ClarifyEvent: rejects tampered input graph with graph-id-mismatch", () => {
+  const nodes = [createNode("n1", [])];
+  const obligations = [{ id: "req-1", criticality: "must", implemented_by: ["n1"], required_evidence: ["ev:n1"] }];
+  const graph = createTestGraph(nodes, obligations);
+  graph.graph_id = "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+
+  const clarifyEvent = {
+    schema_version: 1,
+    event_id: "evt-clarify-tampered",
+    question_id: "q-tampered",
+    answer: "x",
+    timestamp: "2026-08-15T00:00:00Z",
+    affected_nodes: ["n1"],
+  };
+
+  assert.throws(
+    () => applyClarifyEvent(graph, clarifyEvent),
+    (err) => err.code === "graph-id-mismatch"
   );
 });

@@ -5,6 +5,7 @@ const path = require("node:path");
 const test = require("node:test");
 const { validateInstance, loadSchemaById } = require("../kernel-schema-validator.js");
 const { computeSourceSnapshotId } = require("../execution-identities/index.js");
+const { computeGraphId } = require("./compiler.js");
 const {
   compileWorkOrders,
   compileWorkOrdersV1,
@@ -29,49 +30,64 @@ function createValidatedSourceSnapshot() {
 const sampleSnapshot = createValidatedSourceSnapshot();
 const sampleSnapshotId = sampleSnapshot.source_snapshot_id;
 
+const sampleGraphNodes = [
+  {
+    node_id: "repair-node-1",
+    kind: "repair-action/v1",
+    operation: "apply_repair_patch",
+    objective: "Apply repair changes to src/auth",
+    dependencies: [],
+    ownership: {
+      owner: "agent:repair",
+      mode: "exclusive",
+    },
+    allowed_paths: ["src/auth/**"],
+    invariants: ["inv-fail-closed"],
+    required_evidence: ["ev:auth-tests"],
+    budget_ref: "budget:default",
+  },
+  {
+    node_id: "verify-node-1",
+    kind: "repair-action/v1",
+    operation: "verify_repair_conformance",
+    objective: "Verify auth repair conformance",
+    dependencies: ["repair-node-1"],
+    ownership: {
+      owner: "agent:verify",
+      mode: "shared",
+    },
+    allowed_paths: ["src/auth/**", "tests/**"],
+    invariants: ["inv-no-direct-mutation"],
+    required_evidence: ["ev:verify-report"],
+    budget_ref: "budget:default",
+  },
+];
+
+const sampleGraphObligations = [
+  { id: "req-1", criticality: "must", implemented_by: ["repair-node-1"], required_evidence: ["ev:auth-tests"] },
+  { id: "req-2", criticality: "must", implemented_by: ["verify-node-1"], required_evidence: ["ev:verify-report"] },
+];
+
+const sampleContractDigest = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
+const samplePolicyBundleDigest = "sha256:3333333333333333333333333333333333333333333333333333333333333333";
+const samplePolicySnapshotId = "sha256:5555555555555555555555555555555555555555555555555555555555555555";
+
 const sampleGraph = {
   schema_version: 1,
-  graph_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-  contract_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-  policy_bundle_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-  policy_snapshot_id: "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+  graph_id: computeGraphId(
+    sampleContractDigest,
+    samplePolicySnapshotId,
+    samplePolicyBundleDigest,
+    sampleSnapshotId,
+    sampleGraphNodes,
+    sampleGraphObligations
+  ),
+  contract_digest: sampleContractDigest,
+  policy_bundle_digest: samplePolicyBundleDigest,
+  policy_snapshot_id: samplePolicySnapshotId,
   source_snapshot_id: sampleSnapshotId,
-  nodes: [
-    {
-      node_id: "repair-node-1",
-      kind: "repair-action/v1",
-      operation: "apply_repair_patch",
-      objective: "Apply repair changes to src/auth",
-      dependencies: [],
-      ownership: {
-        owner: "agent:repair",
-        mode: "exclusive",
-      },
-      allowed_paths: ["src/auth/**"],
-      invariants: ["inv-fail-closed"],
-      required_evidence: ["ev:auth-tests"],
-      budget_ref: "budget:default",
-    },
-    {
-      node_id: "verify-node-1",
-      kind: "repair-action/v1",
-      operation: "verify_repair_conformance",
-      objective: "Verify auth repair conformance",
-      dependencies: ["repair-node-1"],
-      ownership: {
-        owner: "agent:verify",
-        mode: "shared",
-      },
-      allowed_paths: ["src/auth/**", "tests/**"],
-      invariants: ["inv-no-direct-mutation"],
-      required_evidence: ["ev:verify-report"],
-      budget_ref: "budget:default",
-    },
-  ],
-  obligations: [
-    { id: "req-1", criticality: "must", implemented_by: ["repair-node-1"], required_evidence: ["ev:auth-tests"] },
-    { id: "req-2", criticality: "must", implemented_by: ["verify-node-1"], required_evidence: ["ev:verify-report"] },
-  ],
+  nodes: sampleGraphNodes,
+  obligations: sampleGraphObligations,
 };
 
 test("WorkOrderCompiler: explicit legacy v1 surface preserves the frozen v1 shape", () => {
@@ -211,23 +227,32 @@ test("WorkOrderCompiler: atomic validation fails closed on provenance mismatch w
 });
 
 test("WorkOrderCompiler: atomic validation fails closed on microscopic node with zero emitted orders", () => {
+  const microNodes = [
+    ...sampleGraph.nodes,
+    {
+      node_id: "micro-node",
+      kind: "microscopic",
+      operation: "file_edit",
+      objective: "Micro edit",
+      dependencies: [],
+      ownership: { owner: "agent:repair", mode: "exclusive" },
+      allowed_paths: ["src/**"],
+      invariants: ["inv-fail-closed"],
+      required_evidence: ["ev:proof"],
+      budget_ref: "budget:default",
+    },
+  ];
   const graphWithMicroNode = {
     ...sampleGraph,
-    nodes: [
-      ...sampleGraph.nodes,
-      {
-        node_id: "micro-node",
-        kind: "microscopic",
-        operation: "file_edit",
-        objective: "Micro edit",
-        dependencies: [],
-        ownership: { owner: "agent:repair", mode: "exclusive" },
-        allowed_paths: ["src/**"],
-        invariants: ["inv-fail-closed"],
-        required_evidence: ["ev:proof"],
-        budget_ref: "budget:default",
-      },
-    ],
+    graph_id: computeGraphId(
+      sampleContractDigest,
+      samplePolicySnapshotId,
+      samplePolicyBundleDigest,
+      sampleSnapshotId,
+      microNodes,
+      sampleGraphObligations
+    ),
+    nodes: microNodes,
   };
 
   assert.throws(
@@ -241,11 +266,20 @@ test("WorkOrderCompiler: atomic validation fails closed on microscopic node with
 });
 
 test("WorkOrderCompiler: atomic validation fails closed on incomplete obligation manifest with zero emitted orders", () => {
+  const incompleteObligations = [
+    { id: "req-unmapped", criticality: "must", implemented_by: [], required_evidence: ["ev:test"] },
+  ];
   const graphWithIncompleteObligations = {
     ...sampleGraph,
-    obligations: [
-      { id: "req-unmapped", criticality: "must", implemented_by: [], required_evidence: ["ev:test"] },
-    ],
+    graph_id: computeGraphId(
+      sampleContractDigest,
+      samplePolicySnapshotId,
+      samplePolicyBundleDigest,
+      sampleSnapshotId,
+      sampleGraph.nodes,
+      incompleteObligations
+    ),
+    obligations: incompleteObligations,
   };
 
   assert.throws(
@@ -255,19 +289,28 @@ test("WorkOrderCompiler: atomic validation fails closed on incomplete obligation
 });
 
 test("WorkOrderCompiler: atomic validation fails closed on cyclic dependency with zero emitted orders", () => {
-  const cyclicGraph = {
+  const cyclicNodes = [
+    {
+      ...sampleGraph.nodes[0],
+      dependencies: ["verify-node-1"],
+    },
+    sampleGraph.nodes[1],
+  ];
+  const graphWithCyclic = {
     ...sampleGraph,
-    nodes: [
-      {
-        ...sampleGraph.nodes[0],
-        dependencies: ["verify-node-1"],
-      },
-      sampleGraph.nodes[1],
-    ],
+    graph_id: computeGraphId(
+      sampleContractDigest,
+      samplePolicySnapshotId,
+      samplePolicyBundleDigest,
+      sampleSnapshotId,
+      cyclicNodes,
+      sampleGraphObligations
+    ),
+    nodes: cyclicNodes,
   };
 
   assert.throws(
-    () => compileWorkOrders(cyclicGraph),
+    () => compileWorkOrders(graphWithCyclic),
     (err) => err.code === "cyclic-dependency-detected" || err.message.includes("cycle")
   );
 });
@@ -281,5 +324,62 @@ test("WorkOrderCompiler: atomic validation fails closed on missing/malformed gra
   assert.throws(
     () => compileWorkOrders(graphWithMalformedSnapshot),
     (err) => err.code === "invalid-source-snapshot-id" || err.message.includes("source_snapshot_id")
+  );
+});
+
+test("WorkOrderCompiler: compiles WorkOrder v2 successfully from clarified graph", () => {
+  const clarifiedNodes = structuredClone(sampleGraphNodes);
+  clarifiedNodes[0].clarification_context = {
+    event_id: "evt-clarify-001",
+    question_id: "q-001",
+    answer: "Apply security patch with HMAC-SHA256",
+  };
+  const clarifiedGraph = {
+    ...sampleGraph,
+    graph_id: computeGraphId(
+      sampleContractDigest,
+      samplePolicySnapshotId,
+      samplePolicyBundleDigest,
+      sampleSnapshotId,
+      clarifiedNodes,
+      sampleGraphObligations
+    ),
+    nodes: clarifiedNodes,
+  };
+
+  const workOrders = compileWorkOrdersV2(clarifiedGraph);
+  assert.equal(workOrders.length, 2);
+  assert.equal(workOrders[0].node_id, "repair-node-1");
+  assert.equal(workOrders[1].node_id, "verify-node-1");
+  assert.equal(workOrders[1].dependencies[0], workOrders[0].work_order_id);
+});
+
+test("WorkOrderCompiler: rejects tampered ExecutionGraph with graph-id-mismatch", () => {
+  const tamperedGraph = structuredClone(sampleGraph);
+  tamperedGraph.nodes[0].objective = "tampered objective";
+
+  assert.throws(
+    () => compileWorkOrdersV2(tamperedGraph),
+    (err) => err.code === "graph-id-mismatch"
+  );
+});
+
+test("WorkOrderCompiler: rejects provenance mismatch between context and graph", () => {
+  const otherSnapshot = {
+    kind: "source-snapshot/v1",
+    schema_version: 1,
+    repository_id: "repo:other",
+    base_tree_digest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    projection: "workspace",
+    dependency_digests: [],
+  };
+  const validOtherSnapshot = { ...otherSnapshot, source_snapshot_id: computeSourceSnapshotId(otherSnapshot) };
+
+  assert.throws(
+    () => compileWorkOrdersV2(sampleGraph, {
+      sourceSnapshot: validOtherSnapshot,
+      sourceSnapshotId: validOtherSnapshot.source_snapshot_id,
+    }),
+    (err) => err.code === "provenance-mismatch" || err.code === "SOURCE_SNAPSHOT_MISMATCH" || err.message.includes("Provenance mismatch")
   );
 });

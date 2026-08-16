@@ -1,58 +1,8 @@
 "use strict";
 
 const { sha256Fingerprint } = require("../canonical-json.js");
-const { hasCycle } = require("./clarify.js");
-
-/**
- * Topologically sorts DAG nodes.
- * @param {Array<Object>} nodes
- * @returns {Array<Object>}
- */
-function topologicalSort(nodes) {
-  const inDegree = new Map();
-  const adj = new Map();
-  const nodeMap = new Map();
-
-  for (const node of nodes) {
-    nodeMap.set(node.node_id, node);
-    inDegree.set(node.node_id, 0);
-    adj.set(node.node_id, []);
-  }
-
-  for (const node of nodes) {
-    const deps = Array.isArray(node.dependencies) ? node.dependencies : [];
-    for (const dep of deps) {
-      if (adj.has(dep)) {
-        adj.get(dep).push(node.node_id);
-        inDegree.set(node.node_id, inDegree.get(node.node_id) + 1);
-      }
-    }
-  }
-
-  const queue = [];
-  for (const [nodeId, degree] of inDegree.entries()) {
-    if (degree === 0) queue.push(nodeId);
-  }
-
-  const sorted = [];
-  while (queue.length > 0) {
-    const u = queue.shift();
-    sorted.push(nodeMap.get(u));
-
-    for (const v of adj.get(u) || []) {
-      inDegree.set(v, inDegree.get(v) - 1);
-      if (inDegree.get(v) === 0) queue.push(v);
-    }
-  }
-
-  if (sorted.length !== nodes.length) {
-    const err = new Error("Dependency cycle detected during topological sort");
-    err.code = "cyclic-dependency-detected";
-    throw err;
-  }
-
-  return sorted;
-}
+const { hasCycle, topologicalSort } = require("./dag.js");
+const { validateExecutionGraphBinding } = require("./binding.js");
 
 /**
  * Executes a deterministic fixture-based replay on the Execution Graph.
@@ -67,6 +17,17 @@ function topologicalSort(nodes) {
 function replayExecutionGraph(graph, fixtureResults = {}, options = {}) {
   if (!graph || typeof graph !== "object" || !Array.isArray(graph.nodes)) {
     throw new TypeError("graph must be an ExecutionGraph object with a nodes array");
+  }
+
+  // Pre-validate cryptographic binding of execution graph
+  const bindingCheck = validateExecutionGraphBinding(graph, options);
+  if (!bindingCheck.ok) {
+    const code = bindingCheck.reason_code === "GRAPH_ID_MISMATCH"
+      ? "graph-id-mismatch"
+      : (bindingCheck.reason_code || "invalid-graph-binding");
+    const err = new Error(`ExecutionGraph binding validation failed: ${bindingCheck.error}`);
+    err.code = code;
+    throw err;
   }
 
   if (hasCycle(graph.nodes)) {
@@ -140,6 +101,31 @@ function replayExecutionGraph(graph, fixtureResults = {}, options = {}) {
         action: "execute",
         status: statusValue,
         error: errorMsg,
+      });
+      continue;
+    }
+
+    // Node required evidence verification
+    const nodeRequiredEvidence = Array.isArray(node.required_evidence) ? node.required_evidence : [];
+    const recordedEvidenceKeys = recorded.evidence && typeof recorded.evidence === "object"
+      ? Object.keys(recorded.evidence)
+      : [];
+    const missingNodeEvidence = nodeRequiredEvidence.filter((evKey) => !recordedEvidenceKeys.includes(evKey));
+
+    if (missingNodeEvidence.length > 0) {
+      const errorMsg = `Node "${nodeId}" missing required evidence: ${missingNodeEvidence.join(", ")}`;
+      failedNodes.add(nodeId);
+      nodeOutcomes[nodeId] = {
+        status: "failed",
+        error: errorMsg,
+        missing_evidence: missingNodeEvidence,
+      };
+      trace.push({
+        node_id: nodeId,
+        action: "execute",
+        status: "failed",
+        error: errorMsg,
+        missing_evidence: missingNodeEvidence,
       });
       continue;
     }

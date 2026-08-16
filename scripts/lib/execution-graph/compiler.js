@@ -1,8 +1,10 @@
 "use strict";
 
 const { sha256Fingerprint } = require("../canonical-json.js");
-const { createPolicySnapshot } = require("./policy-snapshot.js");
+const { hasCycle } = require("./dag.js");
+const { createPolicySnapshot, validatePolicySnapshotBinding } = require("./policy-snapshot.js");
 const { validateObligationManifest } = require("./obligation-manifest.js");
+const { validateExecutionGraphBinding } = require("./binding.js");
 
 const FORBIDDEN_OPERATIONS = Object.freeze([
   "read",
@@ -16,62 +18,16 @@ const FORBIDDEN_OPERATIONS = Object.freeze([
 const SHA256_DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
 
 /**
- * Detects cycles in the DAG using DFS coloring algorithm.
- * @param {Array<Object>} nodes
- * @returns {boolean} true if cycle detected
- */
-function hasCycle(nodes) {
-  const nodeMap = new Map();
-  for (const node of (Array.isArray(nodes) ? nodes : [])) {
-    if (node && node.node_id) {
-      nodeMap.set(node.node_id, node);
-    }
-  }
-
-  // 0: unvisited, 1: visiting, 2: visited
-  const state = new Map();
-  for (const node of (Array.isArray(nodes) ? nodes : [])) {
-    if (node && node.node_id) {
-      state.set(node.node_id, 0);
-    }
-  }
-
-  function dfs(nodeId) {
-    state.set(nodeId, 1);
-    const node = nodeMap.get(nodeId);
-    const deps = (node && Array.isArray(node.dependencies)) ? node.dependencies : [];
-
-    for (const depId of deps) {
-      if (!nodeMap.has(depId)) continue;
-      const depState = state.get(depId);
-      if (depState === 1) return true; // back-edge = cycle
-      if (depState === 0) {
-        if (dfs(depId)) return true;
-      }
-    }
-
-    state.set(nodeId, 2);
-    return false;
-  }
-
-  for (const [nodeId] of nodeMap) {
-    if (state.get(nodeId) === 0) {
-      if (dfs(nodeId)) return true;
-    }
-  }
-  return false;
-}
-
-/**
- * Derives a deterministic GraphId from contract digest, policy snapshot id, policy bundle digest, source snapshot id, and nodes.
+ * Derives a deterministic GraphId from contract digest, policy snapshot id, policy bundle digest, source snapshot id, nodes, and obligations.
  * @param {string} contractDigest
  * @param {string} policySnapshotId
  * @param {string} policyBundleDigest
  * @param {string} sourceSnapshotId
  * @param {Array<Object>} nodes
+ * @param {Array<Object>} [obligations]
  * @returns {string} sha256:<64 hex>
  */
-function computeGraphId(contractDigest, policySnapshotId, policyBundleDigest, sourceSnapshotId, nodes) {
+function computeGraphId(contractDigest, policySnapshotId, policyBundleDigest, sourceSnapshotId, nodes, obligations = []) {
   if (!contractDigest || typeof contractDigest !== "string") {
     throw new TypeError("contractDigest must be a non-empty string");
   }
@@ -85,12 +41,14 @@ function computeGraphId(contractDigest, policySnapshotId, policyBundleDigest, so
     throw new TypeError("sourceSnapshotId must be a valid SHA-256 digest");
   }
   const nodesPayload = Array.isArray(nodes) ? nodes : [];
+  const obligationsPayload = Array.isArray(obligations) ? obligations : [];
   return sha256Fingerprint("execution-graph/v1", {
     contract_digest: contractDigest,
     policy_snapshot_id: policySnapshotId,
     policy_bundle_digest: policyBundleDigest,
     source_snapshot_id: sourceSnapshotId,
     nodes: nodesPayload,
+    obligations: obligationsPayload,
   });
 }
 
@@ -115,10 +73,20 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
     contract.contract_digest ||
     sha256Fingerprint("contract/v1", contract);
 
-  const snapshot =
-    policySnapshot && policySnapshot.snapshot_id
-      ? policySnapshot
-      : createPolicySnapshot(policySnapshot || {});
+  let snapshot;
+  if (policySnapshot && typeof policySnapshot === "object" && policySnapshot.snapshot_id) {
+    const psValidation = validatePolicySnapshotBinding(policySnapshot);
+    if (!psValidation.ok) {
+      const err = new Error(
+        `PolicySnapshot cryptographic binding validation failed: ${psValidation.error}`
+      );
+      err.code = "policy-snapshot-mismatch";
+      throw err;
+    }
+    snapshot = policySnapshot;
+  } else {
+    snapshot = createPolicySnapshot(policySnapshot || {});
+  }
 
   if (typeof snapshot.snapshot_id !== "string" || !SHA256_DIGEST_PATTERN.test(snapshot.snapshot_id)) {
     const err = new Error(
@@ -132,18 +100,39 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
   const policySnapshotId = snapshot.snapshot_id;
   const policyBundleDigest = snapshot.policy_bundle_digest;
 
-  const resolvedSourceSnapshotId =
-    sourceSnapshotId ||
-    (contract && contract.source_snapshot_id) ||
-    (sourceSnapshot && sourceSnapshot.source_snapshot_id);
-
-  if (typeof resolvedSourceSnapshotId !== "string" || !SHA256_DIGEST_PATTERN.test(resolvedSourceSnapshotId)) {
-    const err = new Error(
-      `Missing or malformed source_snapshot_id for Execution Graph: "${resolvedSourceSnapshotId}"`
-    );
-    err.code = "invalid-source-snapshot-id";
-    err.source_snapshot_id = resolvedSourceSnapshotId;
-    throw err;
+  let resolvedSourceSnapshotId;
+  if (sourceSnapshotId !== undefined) {
+    if (typeof sourceSnapshotId !== "string" || !SHA256_DIGEST_PATTERN.test(sourceSnapshotId)) {
+      const err = new Error(
+        `Missing or malformed source_snapshot_id for Execution Graph: "${sourceSnapshotId}"`
+      );
+      err.code = "invalid-source-snapshot-id";
+      err.source_snapshot_id = sourceSnapshotId;
+      throw err;
+    }
+    resolvedSourceSnapshotId = sourceSnapshotId;
+  } else if (sourceSnapshot !== undefined) {
+    const sId = sourceSnapshot && (sourceSnapshot.source_snapshot_id || (typeof sourceSnapshot === "object" ? sourceSnapshot.sourceSnapshotId : ""));
+    if (typeof sId !== "string" || !SHA256_DIGEST_PATTERN.test(sId)) {
+      const err = new Error(
+        `Missing or malformed source_snapshot_id for Execution Graph: "${sId}"`
+      );
+      err.code = "invalid-source-snapshot-id";
+      err.source_snapshot_id = sId;
+      throw err;
+    }
+    resolvedSourceSnapshotId = sId;
+  } else {
+    const cId = contract && contract.source_snapshot_id;
+    if (typeof cId !== "string" || !SHA256_DIGEST_PATTERN.test(cId)) {
+      const err = new Error(
+        `Missing or malformed source_snapshot_id for Execution Graph: "${cId}"`
+      );
+      err.code = "invalid-source-snapshot-id";
+      err.source_snapshot_id = cId;
+      throw err;
+    }
+    resolvedSourceSnapshotId = cId;
   }
 
   // Resolve nodes (defensive copy)
@@ -216,12 +205,21 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
     const merged = [];
     const seenIds = new Set();
     for (const contractOb of contractObligations) {
+      seenIds.add(contractOb.id);
       if (callerObligationMap.has(contractOb.id)) {
-        merged.push(callerObligationMap.get(contractOb.id));
+        const callerOb = callerObligationMap.get(contractOb.id);
+        // Authoritative contract obligation criticality cannot be downgraded
+        const criticality = contractOb.criticality === "must" ? "must" : (callerOb.criticality || contractOb.criticality);
+        merged.push({
+          ...callerOb,
+          id: contractOb.id,
+          criticality,
+          implemented_by: Array.isArray(callerOb.implemented_by) ? callerOb.implemented_by : contractOb.implemented_by,
+          required_evidence: Array.isArray(callerOb.required_evidence) ? callerOb.required_evidence : contractOb.required_evidence,
+        });
       } else {
         merged.push(contractOb);
       }
-      seenIds.add(contractOb.id);
     }
     for (const callerOb of obligations) {
       if (!seenIds.has(callerOb.id)) {
@@ -250,9 +248,9 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
     throw err;
   }
 
-  const graphId = computeGraphId(contractDigest, policySnapshotId, policyBundleDigest, resolvedSourceSnapshotId, graphNodes);
+  const graphId = computeGraphId(contractDigest, policySnapshotId, policyBundleDigest, resolvedSourceSnapshotId, graphNodes, graphObligations);
 
-  return {
+  const compiledGraph = {
     schema_version: 1,
     graph_id: graphId,
     contract_digest: contractDigest,
@@ -262,6 +260,18 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
     nodes: structuredClone(graphNodes),
     obligations: structuredClone(graphObligations),
   };
+
+  const bindingCheck = validateExecutionGraphBinding(compiledGraph, {
+    policySnapshot: snapshot,
+    sourceSnapshotId: resolvedSourceSnapshotId,
+  });
+  if (!bindingCheck.ok) {
+    const err = new Error(`Compiled ExecutionGraph binding validation failed: ${bindingCheck.error}`);
+    err.code = bindingCheck.reason_code || "graph-binding-invalid";
+    throw err;
+  }
+
+  return compiledGraph;
 }
 
 module.exports = {
@@ -269,5 +279,6 @@ module.exports = {
   hasCycle,
   computeGraphId,
   compileExecutionGraph,
+  validateExecutionGraphBinding,
 };
 

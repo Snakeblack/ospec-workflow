@@ -125,3 +125,42 @@ test("ReplayEngine: discriminates cancelled or non-completed status and generate
   assert.equal(result.counterexample.failed_node, "repair-patch");
   assert.ok(result.counterexample.reason.includes("cancelled") || result.counterexample.reason.includes("timed out"));
 });
+
+test("ReplayEngine: per-node required_evidence failure stops node and blocks downstream dependencies", () => {
+  const graph = createSampleExecutionGraph();
+  // repair-patch requires "ev:patch-proof". Providing other evidence but not required evidence
+  const fixtures = {
+    "repair-patch": {
+      ok: true,
+      status: "completed",
+      evidence: { "ev:unrelated": { digest: "sha256:3" } },
+    },
+    "repair-verify": {
+      ok: true,
+      status: "completed",
+      evidence: { "ev:test-pass": { digest: "sha256:2" } },
+    },
+  };
+
+  const result = replayExecutionGraph(graph, fixtures);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.failedNodes, ["repair-patch"]);
+  assert.deepEqual(result.blockedNodes, ["repair-verify"]);
+  assert.ok(result.counterexample);
+  assert.equal(result.counterexample.failed_node, "repair-patch");
+  assert.ok(result.counterexample.reason.includes("missing required evidence") || result.counterexample.reason.includes("ev:patch-proof"));
+  assert.ok(Array.isArray(result.counterexample.trace));
+  assert.ok(result.counterexample.trace.length >= 2);
+});
+
+test("ReplayEngine: rejects tampered ExecutionGraph with graph-id-mismatch", () => {
+  const graph = createSampleExecutionGraph();
+  graph.nodes[0].objective = "tampered objective";
+
+  const fixtures = createSampleFixtureResults();
+
+  assert.throws(
+    () => replayExecutionGraph(graph, fixtures),
+    (err) => err.code === "graph-id-mismatch" || err.code === "GRAPH_ID_MISMATCH"
+  );
+});

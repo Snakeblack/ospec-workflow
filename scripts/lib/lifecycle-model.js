@@ -583,20 +583,47 @@ function checkK4aObligationCoverage() {
 
 function checkK4aClarifyInvalidationBoundary() {
   const { applyClarifyEvent } = require("./execution-graph/clarify.js");
+  const { computeGraphId } = require("./execution-graph/compiler.js");
+  function makeNode(id, deps = []) {
+    return {
+      node_id: id,
+      kind: "repair-action/v1",
+      operation: "apply_repair_patch",
+      objective: `Execute ${id}`,
+      dependencies: deps,
+      ownership: { owner: "agent:repair", mode: "exclusive" },
+      allowed_paths: ["src/**"],
+      invariants: ["inv-fail-closed"],
+      required_evidence: [`ev:${id}`],
+      budget_ref: "budget:default",
+    };
+  }
+  const nodes = [
+    makeNode("n1", []),
+    makeNode("n2", ["n1"]),
+    makeNode("n3", ["n2"]),
+    makeNode("n4", []),
+  ];
+  const obligations = [
+    { id: "req-1", criticality: "must", implemented_by: ["n1"], required_evidence: ["ev:n1"] },
+    { id: "req-2", criticality: "must", implemented_by: ["n2"], required_evidence: ["ev:n2"] },
+    { id: "req-3", criticality: "must", implemented_by: ["n3"], required_evidence: ["ev:n3"] },
+    { id: "req-4", criticality: "must", implemented_by: ["n4"], required_evidence: ["ev:n4"] },
+  ];
+  const contract_digest = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
+  const policy_bundle_digest = "sha256:3333333333333333333333333333333333333333333333333333333333333333";
+  const policy_snapshot_id = "sha256:5555555555555555555555555555555555555555555555555555555555555555";
+  const source_snapshot_id = "sha256:4444444444444444444444444444444444444444444444444444444444444444";
+  const graph_id = computeGraphId(contract_digest, policy_snapshot_id, policy_bundle_digest, source_snapshot_id, nodes, obligations);
   const graph = {
     schema_version: 1,
-    graph_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    contract_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-    policy_bundle_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-    policy_snapshot_id: "sha256:5555555555555555555555555555555555555555555555555555555555555555",
-    source_snapshot_id: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
-    nodes: [
-      { node_id: "n1", dependencies: [] },
-      { node_id: "n2", dependencies: ["n1"] },
-      { node_id: "n3", dependencies: ["n2"] },
-      { node_id: "n4", dependencies: [] },
-    ],
-    obligations: [],
+    graph_id,
+    contract_digest,
+    policy_bundle_digest,
+    policy_snapshot_id,
+    source_snapshot_id,
+    nodes,
+    obligations,
   };
   const event = {
     schema_version: 1,
