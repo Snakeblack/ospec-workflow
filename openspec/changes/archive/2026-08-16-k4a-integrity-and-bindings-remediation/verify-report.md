@@ -1,7 +1,7 @@
 # Verification Report: K4a Execution Graph Integrity and Cryptographic Bindings Remediation
 
 **Change**: `k4a-integrity-and-bindings-remediation`
-**Version**: 2.45.1
+**Version**: 2.45.2
 **Mode**: Standard (Focused TDD)
 
 ## Completeness

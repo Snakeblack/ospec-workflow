@@ -380,6 +380,27 @@ function computeWorkOrderId(workOrder) {
     }
   }
 
+  const rawClarification = workOrder.clarification_context !== undefined
+    ? workOrder.clarification_context
+    : workOrder.clarificationContext;
+  let clarificationContext = undefined;
+  if (rawClarification !== undefined && rawClarification !== null) {
+    if (typeof rawClarification !== "object" || Array.isArray(rawClarification)) {
+      throw new TypeError("computeWorkOrderId requires clarification_context to be an object");
+    }
+    if (typeof rawClarification.event_id !== "string" || typeof rawClarification.question_id !== "string") {
+      throw new Error("computeWorkOrderId clarification_context requires string event_id and question_id");
+    }
+    if (rawClarification.answer === undefined || rawClarification.answer === null) {
+      throw new Error("computeWorkOrderId clarification_context requires answer");
+    }
+    clarificationContext = {
+      event_id: rawClarification.event_id,
+      question_id: rawClarification.question_id,
+      answer: rawClarification.answer,
+    };
+  }
+
   const canonicalPayload = {
     source_snapshot_id: sourceSnapshotId,
     node_id: nodeId,
@@ -391,7 +412,8 @@ function computeWorkOrderId(workOrder) {
     allowed_paths: [...allowedPaths].sort(),
     invariants: [...invariants].sort(),
     required_evidence: [...requiredEvidence].sort(),
-    budget: budget
+    budget: budget,
+    ...(clarificationContext !== undefined ? { clarification_context: clarificationContext } : {})
   };
 
   const domain = isV2 ? "work-order/v2" : "work-order/v1";

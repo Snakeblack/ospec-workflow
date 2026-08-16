@@ -53,7 +53,13 @@ function compareShadowExecution({ contractInput, fixedBaselineFn, compiledGraph 
     new Set(compiledGraph.nodes.flatMap((n) => (Array.isArray(n.invariants) ? n.invariants : [])))
   ).sort();
   const shadowObligations = Array.isArray(compiledGraph.obligations)
-    ? compiledGraph.obligations.map((o) => (typeof o === "string" ? o : o.id)).sort()
+    ? compiledGraph.obligations.map((o) => ({
+        id: typeof o === "string" ? o : o.id,
+        criticality: typeof o === "string" ? "must" : (o.criticality || "must"),
+        implemented_by: typeof o === "object" && Array.isArray(o.implemented_by) ? [...o.implemented_by].sort() : [],
+        required_evidence: typeof o === "object" && Array.isArray(o.required_evidence) ? [...o.required_evidence].sort() : [],
+        deferred: typeof o === "object" && o.deferred ? { reason: o.deferred.reason, approved_by: o.deferred.approved_by } : null,
+      })).sort((a, b) => a.id.localeCompare(b.id))
     : [];
   const shadowDependencies = compiledGraph.nodes.map((n) => ({
     node_id: n.node_id,
@@ -135,16 +141,30 @@ function compareShadowExecution({ contractInput, fixedBaselineFn, compiledGraph 
   // Compare obligations if present in baseline
   if (baselineRoute && Array.isArray(baselineRoute.obligations)) {
     evaluated_dimensions.push("obligations");
-    const baselineObligations = baselineRoute.obligations
-      .map((o) => (typeof o === "string" ? o : o.id))
-      .sort();
-    const isMatch = JSON.stringify(baselineObligations) === JSON.stringify(shadowObligations);
+    const isStringBaseline = baselineRoute.obligations.length > 0 && typeof baselineRoute.obligations[0] === "string";
+    const normalizedBaselineObligations = isStringBaseline
+      ? baselineRoute.obligations.map((o) => (typeof o === "string" ? o : o.id)).sort()
+      : baselineRoute.obligations
+          .map((o) => ({
+            id: typeof o === "string" ? o : o.id,
+            criticality: typeof o === "string" ? "must" : (o.criticality || "must"),
+            implemented_by: typeof o === "object" && Array.isArray(o.implemented_by) ? [...o.implemented_by].sort() : [],
+            required_evidence: typeof o === "object" && Array.isArray(o.required_evidence) ? [...o.required_evidence].sort() : [],
+            deferred: typeof o === "object" && o.deferred ? { reason: o.deferred.reason, approved_by: o.deferred.approved_by } : null,
+          }))
+          .sort((a, b) => a.id.localeCompare(b.id));
+
+    const normalizedShadowObligations = isStringBaseline
+      ? (Array.isArray(compiledGraph.obligations) ? compiledGraph.obligations.map((o) => (typeof o === "string" ? o : o.id)).sort() : [])
+      : shadowObligations;
+
+    const isMatch = JSON.stringify(normalizedBaselineObligations) === JSON.stringify(normalizedShadowObligations);
     dimension_match_rates.obligations = isMatch ? 1 : 0;
     if (!isMatch) {
       divergences.push({
         field: "obligations",
-        baseline: baselineObligations,
-        shadow: shadowObligations,
+        baseline: normalizedBaselineObligations,
+        shadow: normalizedShadowObligations,
       });
     }
   } else {
@@ -202,6 +222,8 @@ function compareShadowExecution({ contractInput, fixedBaselineFn, compiledGraph 
     discrepancy_classification = divergences.length === evaluated_dimensions.length && evaluated_dimensions.length > 0
       ? "diverged"
       : "partial-match";
+  } else if (skipped_dimensions.length > 0) {
+    discrepancy_classification = "partial-match";
   }
 
   const telemetryDiff = match

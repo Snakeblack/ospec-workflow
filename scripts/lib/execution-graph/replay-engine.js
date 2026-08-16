@@ -48,6 +48,20 @@ function replayExecutionGraph(graph, fixtureResults = {}, options = {}) {
 
   const sortedNodes = topologicalSort(graph.nodes);
 
+  let compiledWorkOrdersMap = null;
+  function getWorkOrdersMap() {
+    if (!compiledWorkOrdersMap) {
+      try {
+        const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+        const orders = compileWorkOrdersV2(graph);
+        compiledWorkOrdersMap = new Map(orders.map((wo) => [wo.node_id, wo]));
+      } catch {
+        compiledWorkOrdersMap = new Map();
+      }
+    }
+    return compiledWorkOrdersMap;
+  }
+
   const completedNodes = new Set();
   const failedNodes = new Set();
   const blockedNodes = new Set();
@@ -86,14 +100,47 @@ function replayExecutionGraph(graph, fixtureResults = {}, options = {}) {
       continue;
     }
 
+    // Verify fixture graph/order provenance if declared in fixture
+    if (recorded.graph_id && recorded.graph_id !== graph.graph_id) {
+      const err = new Error(`Stale fixture result with mismatched graph_id "${recorded.graph_id}" for node "${nodeId}" (expected "${graph.graph_id}")`);
+      err.code = "stale-fixture-rejected";
+      err.node_id = nodeId;
+      throw err;
+    }
+
+    if (recorded.work_order_id) {
+      const woMap = getWorkOrdersMap();
+      const expectedWo = woMap.get(nodeId);
+      if (expectedWo && expectedWo.work_order_id !== recorded.work_order_id) {
+        const err = new Error(`Stale fixture result with mismatched work_order_id "${recorded.work_order_id}" for node "${nodeId}" (expected "${expectedWo.work_order_id}")`);
+        err.code = "stale-fixture-rejected";
+        err.node_id = nodeId;
+        throw err;
+      }
+    }
+
+    const hasStatus = recorded.status !== undefined && recorded.status !== null;
+    const hasOutcome = recorded.outcome !== undefined && recorded.outcome !== null;
+    const isExplicitlyOkFalse = recorded.ok === false;
+
+    const isCancelled = recorded.status === "cancelled" || recorded.outcome === "cancelled";
+    const isFailed = recorded.status === "failed" || recorded.outcome === "failed";
+    const hasContradiction =
+      (hasStatus && hasOutcome && recorded.status !== recorded.outcome) ||
+      (isExplicitlyOkFalse && (recorded.status === "completed" || recorded.outcome === "completed")) ||
+      (isCancelled && (recorded.status === "completed" || recorded.outcome === "completed")) ||
+      (isFailed && (recorded.status === "completed" || recorded.outcome === "completed"));
+
     const isCompleted =
-      recorded.ok !== false &&
-      (recorded.status === "completed" || recorded.outcome === "completed");
+      !isExplicitlyOkFalse &&
+      !isCancelled &&
+      !isFailed &&
+      !hasContradiction &&
+      ((hasStatus && recorded.status === "completed") || (hasOutcome && recorded.outcome === "completed"));
 
     if (!isCompleted) {
-      const isCancelled = recorded.status === "cancelled" || recorded.outcome === "cancelled";
-      const statusValue = isCancelled ? "cancelled" : (recorded.status || recorded.outcome || "failed");
-      const errorMsg = recorded.error || (isCancelled ? "Execution recorded cancelled" : "Execution failed or incomplete status");
+      const statusValue = isCancelled ? "cancelled" : (hasContradiction ? "failed" : (recorded.status || recorded.outcome || "failed"));
+      const errorMsg = recorded.error || (isCancelled ? "Execution recorded cancelled" : (hasContradiction ? "Contradictory status/outcome recorded in fixture" : "Execution failed or incomplete status"));
       failedNodes.add(nodeId);
       nodeOutcomes[nodeId] = { status: statusValue, error: errorMsg };
       trace.push({

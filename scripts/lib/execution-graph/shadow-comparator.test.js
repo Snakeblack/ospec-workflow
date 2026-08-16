@@ -158,13 +158,23 @@ test("ShadowComparator: detects multi-dimensional divergences across invariants,
   assert.equal(comparison.dimension_match_rates.invariants, 0);
 });
 
-test("ShadowComparator: classifies fully matching baseline as full-match and divergent as diverged", () => {
+test("ShadowComparator: classifies fully matching baseline across all dimensions as full-match and skipped dimensions as partial-match", () => {
   const graph = createSampleExecutionGraph();
 
-  // Full match
+  // True full match (all 6 dimensions provided and matching)
   const fullMatchBaseline = () => ({
     steps: ["apply_repair_patch", "verify_repair_conformance"],
     allowed_paths: ["src/**", "tests/**"],
+    invariants: ["inv-fail-closed", "inv-no-direct-mutation"],
+    obligations: ["req-repair-patch-001", "req-repair-verify-001"],
+    dependencies: [
+      { node_id: "repair-patch", dependencies: [] },
+      { node_id: "repair-verify", dependencies: ["repair-patch"] },
+    ],
+    ownership: [
+      { node_id: "repair-patch", ownership: { owner: "agent:repair", mode: "exclusive" } },
+      { node_id: "repair-verify", ownership: { owner: "agent:verify", mode: "shared" } },
+    ],
   });
   const resFull = compareShadowExecution({
     contractInput: {},
@@ -173,8 +183,21 @@ test("ShadowComparator: classifies fully matching baseline as full-match and div
   });
   assert.equal(resFull.match, true);
   assert.equal(resFull.discrepancy_classification, "full-match");
-  assert.deepEqual(resFull.evaluated_dimensions, ["steps", "allowed_paths"]);
-  assert.ok(resFull.skipped_dimensions.includes("invariants"));
+  assert.equal(resFull.skipped_dimensions.length, 0);
+
+  // Partial match due to skipped dimensions (steps match, but other dimensions not evaluated)
+  const skippedDimensionsBaseline = () => ({
+    steps: ["apply_repair_patch", "verify_repair_conformance"],
+    allowed_paths: ["src/**", "tests/**"],
+  });
+  const resPartial = compareShadowExecution({
+    contractInput: {},
+    fixedBaselineFn: skippedDimensionsBaseline,
+    compiledGraph: graph,
+  });
+  assert.equal(resPartial.match, true);
+  assert.equal(resPartial.discrepancy_classification, "partial-match");
+  assert.ok(resPartial.skipped_dimensions.includes("invariants"));
 
   // Full divergence across all evaluated dimensions
   const divergedBaseline = () => ({
@@ -188,6 +211,28 @@ test("ShadowComparator: classifies fully matching baseline as full-match and div
   });
   assert.equal(resDiverged.match, false);
   assert.equal(resDiverged.discrepancy_classification, "diverged");
+});
+
+test("ShadowComparator: detects structured obligation governance differences", () => {
+  const graph = createSampleExecutionGraph();
+
+  // Baseline specifies structured obligations with different criticality
+  const baselineFnWithGovernanceDiff = () => ({
+    steps: ["apply_repair_patch", "verify_repair_conformance"],
+    obligations: [
+      { id: "req-repair-patch-001", criticality: "should", implemented_by: [], required_evidence: [] },
+    ],
+  });
+
+  const res = compareShadowExecution({
+    contractInput: {},
+    fixedBaselineFn: baselineFnWithGovernanceDiff,
+    compiledGraph: graph,
+  });
+
+  assert.equal(res.match, false);
+  const diffFields = res.telemetryDiff.divergences.map((d) => d.field);
+  assert.ok(diffFields.includes("obligations"));
 });
 
 test("ShadowComparator: rejects tampered ExecutionGraph with graph-id-mismatch", () => {

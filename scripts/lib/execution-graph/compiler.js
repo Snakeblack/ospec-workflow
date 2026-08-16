@@ -74,18 +74,22 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
     sha256Fingerprint("contract/v1", contract);
 
   let snapshot;
-  if (policySnapshot && typeof policySnapshot === "object" && policySnapshot.snapshot_id) {
-    const psValidation = validatePolicySnapshotBinding(policySnapshot);
-    if (!psValidation.ok) {
-      const err = new Error(
-        `PolicySnapshot cryptographic binding validation failed: ${psValidation.error}`
-      );
-      err.code = "policy-snapshot-mismatch";
-      throw err;
+  if (policySnapshot && typeof policySnapshot === "object") {
+    if (policySnapshot.snapshot_id !== undefined || policySnapshot.schema_version === 1) {
+      const psValidation = validatePolicySnapshotBinding(policySnapshot);
+      if (!psValidation.ok) {
+        const err = new Error(
+          `PolicySnapshot cryptographic binding validation failed: ${psValidation.error}`
+        );
+        err.code = psValidation.reason_code === "ILL_FORMED_SNAPSHOT_ID" ? "invalid-policy-snapshot-id" : "policy-snapshot-mismatch";
+        throw err;
+      }
+      snapshot = policySnapshot;
+    } else {
+      snapshot = createPolicySnapshot(policySnapshot);
     }
-    snapshot = policySnapshot;
   } else {
-    snapshot = createPolicySnapshot(policySnapshot || {});
+    snapshot = createPolicySnapshot({});
   }
 
   if (typeof snapshot.snapshot_id !== "string" || !SHA256_DIGEST_PATTERN.test(snapshot.snapshot_id)) {
@@ -101,7 +105,36 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
   const policyBundleDigest = snapshot.policy_bundle_digest;
 
   let resolvedSourceSnapshotId;
-  if (sourceSnapshotId !== undefined) {
+  let boundSourceSnapshot = undefined;
+  if (sourceSnapshot !== undefined) {
+    if (!sourceSnapshot || typeof sourceSnapshot !== "object") {
+      const err = new Error("sourceSnapshot must be a valid object");
+      err.code = "invalid-source-snapshot";
+      throw err;
+    }
+    const identities = require("../execution-identities/index.js");
+    let computedSrcId;
+    try {
+      computedSrcId = identities.computeSourceSnapshotId(sourceSnapshot);
+    } catch (e) {
+      const err = new Error(`Failed to compute source snapshot digest: ${e.message}`);
+      err.code = "invalid-source-snapshot-id";
+      throw err;
+    }
+    const declaredSrcId = sourceSnapshot.source_snapshot_id || sourceSnapshot.sourceSnapshotId;
+    if (declaredSrcId && declaredSrcId !== computedSrcId) {
+      const err = new Error(`SourceSnapshot declared id "${declaredSrcId}" does not match recomputed id "${computedSrcId}"`);
+      err.code = "source-snapshot-mismatch";
+      throw err;
+    }
+    if (sourceSnapshotId !== undefined && sourceSnapshotId !== computedSrcId) {
+      const err = new Error(`sourceSnapshotId "${sourceSnapshotId}" does not match sourceSnapshot digest "${computedSrcId}"`);
+      err.code = "provenance-mismatch";
+      throw err;
+    }
+    resolvedSourceSnapshotId = computedSrcId;
+    boundSourceSnapshot = sourceSnapshot;
+  } else if (sourceSnapshotId !== undefined) {
     if (typeof sourceSnapshotId !== "string" || !SHA256_DIGEST_PATTERN.test(sourceSnapshotId)) {
       const err = new Error(
         `Missing or malformed source_snapshot_id for Execution Graph: "${sourceSnapshotId}"`
@@ -111,17 +144,6 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
       throw err;
     }
     resolvedSourceSnapshotId = sourceSnapshotId;
-  } else if (sourceSnapshot !== undefined) {
-    const sId = sourceSnapshot && (sourceSnapshot.source_snapshot_id || (typeof sourceSnapshot === "object" ? sourceSnapshot.sourceSnapshotId : ""));
-    if (typeof sId !== "string" || !SHA256_DIGEST_PATTERN.test(sId)) {
-      const err = new Error(
-        `Missing or malformed source_snapshot_id for Execution Graph: "${sId}"`
-      );
-      err.code = "invalid-source-snapshot-id";
-      err.source_snapshot_id = sId;
-      throw err;
-    }
-    resolvedSourceSnapshotId = sId;
   } else {
     const cId = contract && contract.source_snapshot_id;
     if (typeof cId !== "string" || !SHA256_DIGEST_PATTERN.test(cId)) {
@@ -142,6 +164,14 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
       ? contract.nodes
       : [];
   const graphNodes = structuredClone(inputNodes);
+
+  // Check duplicate node_id
+  const rawNodeIds = graphNodes.map((n) => n && n.node_id);
+  if (new Set(rawNodeIds).size !== rawNodeIds.length) {
+    const err = new Error("Duplicate node_id detected in Execution Graph nodes");
+    err.code = "duplicate-node-id";
+    throw err;
+  }
 
   // Check for dependency cycles
   if (hasCycle(graphNodes)) {
@@ -197,7 +227,7 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
     }
   }
 
-  // Resolve obligations against authoritative contract.obligations
+  // Resolve obligations against authoritative contract.obligations with allowlist merge
   let rawObligations;
   const contractObligations = Array.isArray(contract.obligations) ? contract.obligations : [];
   if (Array.isArray(obligations) && obligations.length > 0) {
@@ -208,22 +238,33 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
       seenIds.add(contractOb.id);
       if (callerObligationMap.has(contractOb.id)) {
         const callerOb = callerObligationMap.get(contractOb.id);
-        // Authoritative contract obligation criticality cannot be downgraded
-        const criticality = contractOb.criticality === "must" ? "must" : (callerOb.criticality || contractOb.criticality);
+        // Allowlist merge from contract authority:
+        // Contract defines id, criticality, and deferred authority.
+        // Caller only provides implemented_by and required_evidence mappings.
         merged.push({
-          ...callerOb,
           id: contractOb.id,
-          criticality,
-          implemented_by: Array.isArray(callerOb.implemented_by) ? callerOb.implemented_by : contractOb.implemented_by,
-          required_evidence: Array.isArray(callerOb.required_evidence) ? callerOb.required_evidence : contractOb.required_evidence,
+          criticality: contractOb.criticality,
+          implemented_by: Array.isArray(callerOb.implemented_by) ? callerOb.implemented_by : (contractOb.implemented_by || []),
+          required_evidence: Array.isArray(callerOb.required_evidence) ? callerOb.required_evidence : (contractOb.required_evidence || []),
+          ...(contractOb.deferred ? { deferred: structuredClone(contractOb.deferred) } : {}),
         });
       } else {
-        merged.push(contractOb);
+        merged.push(structuredClone(contractOb));
       }
     }
     for (const callerOb of obligations) {
       if (!seenIds.has(callerOb.id)) {
-        merged.push(callerOb);
+        const isMust = callerOb.criticality === "must";
+        const ob = {
+          id: callerOb.id,
+          criticality: callerOb.criticality || "should",
+          implemented_by: Array.isArray(callerOb.implemented_by) ? callerOb.implemented_by : [],
+          required_evidence: Array.isArray(callerOb.required_evidence) ? callerOb.required_evidence : [],
+        };
+        if (!isMust && callerOb.deferred) {
+          ob.deferred = structuredClone(callerOb.deferred);
+        }
+        merged.push(ob);
       }
     }
     rawObligations = merged;
@@ -263,6 +304,7 @@ function compileExecutionGraph({ contract, policySnapshot, sourceSnapshotId, sou
 
   const bindingCheck = validateExecutionGraphBinding(compiledGraph, {
     policySnapshot: snapshot,
+    sourceSnapshot: boundSourceSnapshot,
     sourceSnapshotId: resolvedSourceSnapshotId,
   });
   if (!bindingCheck.ok) {
