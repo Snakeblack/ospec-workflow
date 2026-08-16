@@ -1,0 +1,35 @@
+change: k4a-work-order-replay-determinism-and-spec-sync
+status: completed
+current_phase: archive
+phases:
+  explore:
+    status: completed
+  propose:
+    status: completed
+  spec:
+    status: completed
+  design:
+    status: completed
+  tasks:
+    status: completed
+  apply:
+    status: completed
+  verify:
+    status: completed
+  archive:
+    status: completed
+approvals:
+  - phase: propose
+    approved: true
+  - phase: spec
+    approved: true
+  - phase: design
+    approved: true
+  - phase: tasks
+    approved: true
+  - phase: apply
+    approved: true
+  - phase: verify
+    approved: true
+  - phase: archive
+    approved: true

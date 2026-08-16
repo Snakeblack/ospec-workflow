@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.5] - 2026-08-16
+
+### Fixed
+- **Determinismo Canónico en Compilación de WorkOrders (`k4a-work-order-replay-determinism-and-spec-sync`)**:
+  - `compileWorkOrdersV2` se establece como una función pura estrictamente determinista de `ExecutionGraph` y su `SourceSnapshot` validado, fijando `role: "repair-worker"` y `DEFAULT_WORK_ORDER_BUDGET`.
+  - Rechazo *fail-closed* ante intentos de suministrar `role` variable (distinto de `"repair-worker"`), `budgets` o `defaultBudget` desacoplados con error `unsupported-compilation-context`, garantizando que todo WorkOrder compilado sea 100% reproducible en `replayExecutionGraph`.
+- **Segregación Estricta de Replay Legacy**:
+  - Eliminado el soporte de `allowLegacyFixtures` en la API canónica `replayExecutionGraph()`, reservando la evaluación de fixtures no vinculados exclusivamente a `replayLegacyFixtureGraph()`.
+- **Sincronización del Spec Canónico Activo (`openspec/specs/execution-graph-compiler/spec.md`)**:
+  - Incorporadas todas las garantías contractuales de `v2.45.4` y `v2.45.5` en el spec canónico (provenance estricta `graph_id` + `work_order_id`, autoridad de obligaciones `unknown-obligation-id`, semántica estricta de Shadow `match: false` en dimensiones omitidas, y determinismo de compilación).
+- **Claridad de Autoridad de Esquemas**:
+  - Documentado formalmente que `schemas/kernel/execution-graph/v1.schema.json` ($defs.node) es el único contrato semántico autoritativo para K4a con `minLength: 1`, manteniendo `schemas/kernel/graph-node/v1.schema.json` congelado para compatibilidad K1.
+
+### Added
+- **Pruebas de Composición WorkOrder Compiler → Replay**:
+  - Añadidas suites de pruebas verificando la reproducibilidad total de WorkOrders canónicos en Replay y el rechazo estricto de opciones no ligadas.
+
 ## [2.45.4] - 2026-08-16
 
 ### Fixed

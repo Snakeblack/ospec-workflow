@@ -272,9 +272,25 @@ function compileWorkOrdersV2(graph, context = {}) {
   const workOrders = [];
   const woSchema = getWorkOrderV2Schema();
 
-  const role = context.role || "repair-worker";
-  const defaultBudget = context.defaultBudget || DEFAULT_WORK_ORDER_BUDGET;
-  const budgets = context.budgets || {};
+  if (context.role !== undefined && context.role !== "repair-worker") {
+    const err = new Error(`Variable worker role "${context.role}" is not supported in canonical K4a WorkOrder compilation`);
+    err.code = "unsupported-compilation-context";
+    throw err;
+  }
+  if (context.budgets !== undefined || context.defaultBudget !== undefined) {
+    const err = new Error("Variable or unlinked budgets are not supported in canonical K4a WorkOrder compilation");
+    err.code = "unsupported-compilation-context";
+    throw err;
+  }
+
+  const role = "repair-worker";
+  const normalizedBudget = {
+    model_turns: DEFAULT_WORK_ORDER_BUDGET.model_turns,
+    patches: DEFAULT_WORK_ORDER_BUDGET.patches,
+    commands: DEFAULT_WORK_ORDER_BUDGET.commands,
+    wall_time_minutes: DEFAULT_WORK_ORDER_BUDGET.wall_time_minutes,
+    changed_lines: DEFAULT_WORK_ORDER_BUDGET.changed_lines,
+  };
 
   for (const node of sortedNodes) {
     const rawDeps = Array.isArray(node.dependencies) ? node.dependencies : [];
@@ -289,15 +305,6 @@ function compileWorkOrdersV2(graph, context = {}) {
       }
       return parentWorkOrderId;
     });
-
-    const budget = budgets[node.node_id] || defaultBudget;
-    const normalizedBudget = {
-      model_turns: Number(budget.model_turns ?? DEFAULT_WORK_ORDER_BUDGET.model_turns),
-      patches: Number(budget.patches ?? DEFAULT_WORK_ORDER_BUDGET.patches),
-      commands: Number(budget.commands ?? DEFAULT_WORK_ORDER_BUDGET.commands),
-      wall_time_minutes: Number(budget.wall_time_minutes ?? DEFAULT_WORK_ORDER_BUDGET.wall_time_minutes),
-      changed_lines: Number(budget.changed_lines ?? DEFAULT_WORK_ORDER_BUDGET.changed_lines),
-    };
 
     const workOrderPayload = {
       schema_version: 2,
