@@ -99,3 +99,23 @@ test("DAG: computeDescendantClosure calculates transitive closure of affected no
   const closureB = computeDescendantClosure(nodes, ["B"]);
   assert.deepEqual(Array.from(closureB).sort(), ["B", "C"]);
 });
+
+test("DAG: throws duplicate-node-id when duplicate node_id are supplied", () => {
+  const dups = [
+    { node_id: "A", dependencies: [] },
+    { node_id: "A", dependencies: [] },
+  ];
+
+  assert.throws(
+    () => hasCycle(dups),
+    (err) => err.code === "duplicate-node-id"
+  );
+  assert.throws(
+    () => topologicalSort(dups),
+    (err) => err.code === "duplicate-node-id"
+  );
+  assert.throws(
+    () => computeDescendantClosure(dups, ["A"]),
+    (err) => err.code === "duplicate-node-id"
+  );
+});

@@ -185,7 +185,14 @@ function compileWorkOrdersV2(graph, context = {}) {
     throw err;
   }
 
-  // 3. Validate coarse semantic nodes
+  // 3. Validate coarse semantic nodes and node_id uniqueness
+  const rawNodeIds = graph.nodes.map((n) => n && n.node_id);
+  if (new Set(rawNodeIds).size !== rawNodeIds.length) {
+    const err = new Error("Duplicate node_id detected in Execution Graph nodes");
+    err.code = "duplicate-node-id";
+    throw err;
+  }
+
   for (const node of graph.nodes) {
     if (!node || typeof node !== "object") {
       const err = new Error("Graph node must be an object");
@@ -308,6 +315,15 @@ function compileWorkOrdersV2(graph, context = {}) {
       invariants: Array.isArray(node.invariants) ? [...node.invariants] : [],
       required_evidence: Array.isArray(node.required_evidence) ? [...node.required_evidence] : [],
       budget: normalizedBudget,
+      ...(node.clarification_context && typeof node.clarification_context === "object"
+        ? {
+            clarification_context: {
+              event_id: String(node.clarification_context.event_id),
+              question_id: String(node.clarification_context.question_id),
+              answer: node.clarification_context.answer,
+            },
+          }
+        : {}),
     };
 
     const workOrderId = computeWorkOrderId(workOrderPayload);

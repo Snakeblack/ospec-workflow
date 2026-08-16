@@ -164,3 +164,103 @@ test("ReplayEngine: rejects tampered ExecutionGraph with graph-id-mismatch", () 
     (err) => err.code === "graph-id-mismatch" || err.code === "GRAPH_ID_MISMATCH"
   );
 });
+
+test("ReplayEngine: rejects contradictory terminal states fail-closed", () => {
+  const graph = createSampleExecutionGraph();
+
+  // Case 1: status completed but outcome failed
+  const contradictory1 = {
+    "repair-patch": {
+      ok: true,
+      status: "completed",
+      outcome: "failed",
+      evidence: { "ev:patch-proof": { digest: "sha256:1" } },
+    },
+    "repair-verify": {
+      ok: true,
+      status: "completed",
+      evidence: { "ev:test-pass": { digest: "sha256:2" } },
+    },
+  };
+  const res1 = replayExecutionGraph(graph, contradictory1);
+  assert.equal(res1.ok, false);
+  assert.deepEqual(res1.failedNodes, ["repair-patch"]);
+
+  // Case 2: ok false but status completed
+  const contradictory2 = {
+    "repair-patch": {
+      ok: false,
+      status: "completed",
+      outcome: "completed",
+      evidence: { "ev:patch-proof": { digest: "sha256:1" } },
+    },
+    "repair-verify": {
+      ok: true,
+      status: "completed",
+      evidence: { "ev:test-pass": { digest: "sha256:2" } },
+    },
+  };
+  const res2 = replayExecutionGraph(graph, contradictory2);
+  assert.equal(res2.ok, false);
+  assert.deepEqual(res2.failedNodes, ["repair-patch"]);
+
+  // Case 3: status cancelled but outcome completed
+  const contradictory3 = {
+    "repair-patch": {
+      ok: true,
+      status: "cancelled",
+      outcome: "completed",
+      evidence: { "ev:patch-proof": { digest: "sha256:1" } },
+    },
+    "repair-verify": {
+      ok: true,
+      status: "completed",
+      evidence: { "ev:test-pass": { digest: "sha256:2" } },
+    },
+  };
+  const res3 = replayExecutionGraph(graph, contradictory3);
+  assert.equal(res3.ok, false);
+  assert.deepEqual(res3.failedNodes, ["repair-patch"]);
+});
+
+test("ReplayEngine: rejects stale fixture with mismatched work_order_id or graph_id fail-closed", () => {
+  const graph = createSampleExecutionGraph();
+
+  // Mismatched graph_id
+  const mismatchedGraphFixtures = {
+    "repair-patch": {
+      ok: true,
+      status: "completed",
+      graph_id: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      evidence: { "ev:patch-proof": { digest: "sha256:1" } },
+    },
+    "repair-verify": {
+      ok: true,
+      status: "completed",
+      evidence: { "ev:test-pass": { digest: "sha256:2" } },
+    },
+  };
+  assert.throws(
+    () => replayExecutionGraph(graph, mismatchedGraphFixtures),
+    (err) => err.code === "stale-fixture-rejected"
+  );
+
+  // Mismatched work_order_id
+  const mismatchedWoFixtures = {
+    "repair-patch": {
+      ok: true,
+      status: "completed",
+      work_order_id: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      evidence: { "ev:patch-proof": { digest: "sha256:1" } },
+    },
+    "repair-verify": {
+      ok: true,
+      status: "completed",
+      evidence: { "ev:test-pass": { digest: "sha256:2" } },
+    },
+  };
+  assert.throws(
+    () => replayExecutionGraph(graph, mismatchedWoFixtures),
+    (err) => err.code === "stale-fixture-rejected"
+  );
+});

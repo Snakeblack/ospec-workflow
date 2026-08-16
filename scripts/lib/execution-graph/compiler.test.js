@@ -376,3 +376,146 @@ test("Compiler: rejects unmapped MUST obligations fail-closed", () => {
     (err) => err.message.includes("req-unmapped-must")
   );
 });
+
+test("Compiler: rejects duplicate node_id in execution graph nodes fail-closed", () => {
+  const policySnapshot = createPolicySnapshot();
+  const dupNodes = [
+    { ...sampleNodes[0], node_id: "duplicate-id" },
+    { ...sampleNodes[0], node_id: "duplicate-id" },
+  ];
+
+  assert.throws(
+    () => {
+      compileExecutionGraph({
+        contract: sampleContract,
+        policySnapshot,
+        nodes: dupNodes,
+        obligations: [
+          { id: "req-repair-001", criticality: "must", implemented_by: ["duplicate-id"], required_evidence: ["ev:test-pass"] },
+        ],
+      });
+    },
+    (err) => err.code === "duplicate-node-id"
+  );
+});
+
+test("Compiler: rejects caller-injected deferred attempting to bypass contract MUST obligation", () => {
+  const policySnapshot = createPolicySnapshot();
+  const contractWithMust = {
+    ...sampleContract,
+    obligations: [
+      {
+        id: "req-must-security",
+        criticality: "must",
+        implemented_by: ["repair-core"],
+        required_evidence: ["ev:test-pass"],
+      },
+    ],
+  };
+
+  // Caller tries to inject a deferred object to bypass implementation and evidence
+  const callerInjectedDeferred = [
+    {
+      id: "req-must-security",
+      criticality: "must",
+      implemented_by: [],
+      required_evidence: [],
+      deferred: {
+        reason: "unauthorized skip",
+        approved_by: "unauthorized",
+      },
+    },
+  ];
+
+  assert.throws(
+    () => {
+      compileExecutionGraph({
+        contract: contractWithMust,
+        policySnapshot,
+        nodes: sampleNodes,
+        obligations: callerInjectedDeferred,
+      });
+    },
+    (err) => err.code === "obligation-manifest-incomplete"
+  );
+});
+
+test("Compiler: cryptographically validates sourceSnapshot object and rejects tampered digests", () => {
+  const policySnapshot = createPolicySnapshot();
+  const { computeSourceSnapshotId } = require("../execution-identities/index.js");
+
+  const validSnapshotObj = {
+    kind: "source-snapshot/v1",
+    schema_version: 1,
+    repository_id: "repo:compiler-crypto-test",
+    base_tree_digest: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    projection: "workspace",
+    dependency_digests: [],
+  };
+  const computedId = computeSourceSnapshotId(validSnapshotObj);
+  const correctSnapshot = { ...validSnapshotObj, source_snapshot_id: computedId };
+
+  // 1. Valid sourceSnapshot compiles correctly
+  const graph = compileExecutionGraph({
+    contract: { ...sampleContract, source_snapshot_id: computedId },
+    policySnapshot,
+    sourceSnapshot: correctSnapshot,
+    nodes: sampleNodes,
+    obligations: sampleObligations,
+  });
+  assert.equal(graph.source_snapshot_id, computedId);
+
+  // 2. Tampered sourceSnapshot with forged ID fails
+  const tamperedSnapshot = { ...correctSnapshot, source_snapshot_id: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" };
+  assert.throws(
+    () => {
+      compileExecutionGraph({
+        contract: { ...sampleContract, source_snapshot_id: computedId },
+        policySnapshot,
+        sourceSnapshot: tamperedSnapshot,
+        nodes: sampleNodes,
+        obligations: sampleObligations,
+      });
+    },
+    (err) => err.code === "source-snapshot-mismatch"
+  );
+
+  // 3. Mismatch between sourceSnapshotId and sourceSnapshot object fails
+  assert.throws(
+    () => {
+      compileExecutionGraph({
+        contract: { ...sampleContract, source_snapshot_id: computedId },
+        policySnapshot,
+        sourceSnapshot: correctSnapshot,
+        sourceSnapshotId: "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+        nodes: sampleNodes,
+        obligations: sampleObligations,
+      });
+    },
+    (err) => err.code === "provenance-mismatch"
+  );
+});
+
+test("Compiler: rejects policySnapshot with empty snapshot_id without silently creating new ID", () => {
+  const emptySnapshotIdPolicy = {
+    schema_version: 1,
+    snapshot_id: "",
+    policy_bundle_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+    compiler_version: "1.0.0",
+    classifier_version: "1.0.0",
+    runtime_version: "1.0.0",
+    effective_rules: ["rule-1"],
+  };
+
+  assert.throws(
+    () => {
+      compileExecutionGraph({
+        contract: sampleContract,
+        policySnapshot: emptySnapshotIdPolicy,
+        nodes: sampleNodes,
+        obligations: sampleObligations,
+      });
+    },
+    (err) => err.code === "invalid-policy-snapshot-id" || err.code === "policy-snapshot-mismatch"
+  );
+});

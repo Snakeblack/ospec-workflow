@@ -1,9 +1,23 @@
 "use strict";
 
+const path = require("node:path");
 const { computeGraphId } = require("./compiler.js");
 const { createPolicySnapshot } = require("./policy-snapshot.js");
 const { hasCycle, computeDescendantClosure } = require("./dag.js");
 const { validateExecutionGraphBinding } = require("./binding.js");
+const { validateInstance, loadSchemaById } = require("../kernel-schema-validator.js");
+
+const CLARIFY_EVENT_V1_SCHEMA_ID = "ospec://schemas/kernel/clarify-event/v1";
+const DEFAULT_SCHEMA_ROOT = path.resolve(__dirname, "../../..");
+let cachedClarifyEventV1Schema = null;
+function getClarifyEventV1Schema() {
+  if (!cachedClarifyEventV1Schema) {
+    cachedClarifyEventV1Schema = loadSchemaById(CLARIFY_EVENT_V1_SCHEMA_ID, {
+      rootDir: DEFAULT_SCHEMA_ROOT,
+    });
+  }
+  return cachedClarifyEventV1Schema;
+}
 
 /**
  * Applies a ClarifyEvent to an Execution Graph, mutating affected nodes with clarification context,
@@ -26,6 +40,25 @@ function applyClarifyEvent(graph, clarifyEvent, options = {}) {
   if (!preCheck.ok) {
     const err = new Error(`Input ExecutionGraph binding validation failed: ${preCheck.error}`);
     err.code = preCheck.reason_code === "GRAPH_ID_MISMATCH" ? "graph-id-mismatch" : (preCheck.reason_code || "invalid-graph");
+    throw err;
+  }
+
+  // Validate ClarifyEvent against canonical schema
+  const eventValidation = validateInstance(getClarifyEventV1Schema(), clarifyEvent);
+  if (!eventValidation.valid) {
+    const err = new Error(
+      `ClarifyEvent failed schema validation: ${eventValidation.errors.map((e) => e.message).join("; ")}`
+    );
+    err.code = "invalid-clarify-event-schema";
+    err.errors = eventValidation.errors;
+    throw err;
+  }
+
+  // Check duplicate node_id in graph.nodes
+  const rawNodeIds = graph.nodes.map((n) => n && n.node_id);
+  if (new Set(rawNodeIds).size !== rawNodeIds.length) {
+    const err = new Error("Duplicate node_id detected in Execution Graph nodes");
+    err.code = "duplicate-node-id";
     throw err;
   }
 

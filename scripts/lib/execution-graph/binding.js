@@ -66,6 +66,18 @@ function validateExecutionGraphBinding(graph, options = {}) {
     };
   }
 
+  // Enforce duplicate node_id check on nodes
+  if (Array.isArray(graph.nodes)) {
+    const rawNodeIds = graph.nodes.map((n) => n && n.node_id);
+    if (new Set(rawNodeIds).size !== rawNodeIds.length) {
+      return {
+        ok: false,
+        reason_code: "DUPLICATE_NODE_ID",
+        error: "Duplicate node_id detected in Execution Graph nodes",
+      };
+    }
+  }
+
   if (
     typeof graph.policy_snapshot_id !== "string" ||
     !SHA256_REGEX.test(graph.policy_snapshot_id) ||

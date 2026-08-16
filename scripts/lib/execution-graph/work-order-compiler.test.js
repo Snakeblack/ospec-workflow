@@ -327,7 +327,9 @@ test("WorkOrderCompiler: atomic validation fails closed on missing/malformed gra
   );
 });
 
-test("WorkOrderCompiler: compiles WorkOrder v2 successfully from clarified graph", () => {
+test("WorkOrderCompiler: compiles WorkOrder v2 successfully from clarified graph with distinct work_order_id", () => {
+  const unclarifiedOrders = compileWorkOrdersV2(sampleGraph);
+
   const clarifiedNodes = structuredClone(sampleGraphNodes);
   clarifiedNodes[0].clarification_context = {
     event_id: "evt-clarify-001",
@@ -352,6 +354,37 @@ test("WorkOrderCompiler: compiles WorkOrder v2 successfully from clarified graph
   assert.equal(workOrders[0].node_id, "repair-node-1");
   assert.equal(workOrders[1].node_id, "verify-node-1");
   assert.equal(workOrders[1].dependencies[0], workOrders[0].work_order_id);
+
+  // Assert affected node acquired clarification_context and distinct work_order_id
+  assert.deepEqual(workOrders[0].clarification_context, clarifiedNodes[0].clarification_context);
+  assert.notEqual(workOrders[0].work_order_id, unclarifiedOrders[0].work_order_id);
+
+  // Assert dependent descendant node acquired new dependency WorkOrderId digest and therefore distinct work_order_id
+  assert.notEqual(workOrders[1].work_order_id, unclarifiedOrders[1].work_order_id);
+});
+
+test("WorkOrderCompiler: rejects ExecutionGraph with duplicate node_id fail-closed", () => {
+  const dupNodes = [
+    { ...sampleGraphNodes[0], node_id: "duplicate-id" },
+    { ...sampleGraphNodes[1], node_id: "duplicate-id", dependencies: [] },
+  ];
+  const graphWithDups = {
+    ...sampleGraph,
+    nodes: dupNodes,
+    graph_id: computeGraphId(
+      sampleContractDigest,
+      samplePolicySnapshotId,
+      samplePolicyBundleDigest,
+      sampleSnapshotId,
+      dupNodes,
+      sampleGraphObligations
+    ),
+  };
+
+  assert.throws(
+    () => compileWorkOrdersV2(graphWithDups),
+    (err) => err.code === "duplicate-node-id" || err.code === "DUPLICATE_NODE_ID"
+  );
 });
 
 test("WorkOrderCompiler: rejects tampered ExecutionGraph with graph-id-mismatch", () => {

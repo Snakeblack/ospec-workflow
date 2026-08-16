@@ -10,6 +10,18 @@ function hasCycle(nodes) {
     return false;
   }
 
+  const ids = [];
+  for (const node of nodes) {
+    if (node && node.node_id) {
+      ids.push(node.node_id);
+    }
+  }
+  if (new Set(ids).size !== ids.length) {
+    const err = new Error("Duplicate node_id detected in DAG nodes");
+    err.code = "duplicate-node-id";
+    throw err;
+  }
+
   const nodeMap = new Map();
   for (const node of nodes) {
     if (node && node.node_id) {
@@ -62,6 +74,18 @@ function topologicalSort(nodes) {
     return [];
   }
 
+  const ids = [];
+  for (const node of nodes) {
+    if (node && node.node_id) {
+      ids.push(node.node_id);
+    }
+  }
+  if (new Set(ids).size !== ids.length) {
+    const err = new Error("Duplicate node_id detected in DAG nodes");
+    err.code = "duplicate-node-id";
+    throw err;
+  }
+
   const inDegree = new Map();
   const adj = new Map();
   const nodeMap = new Map();
@@ -100,7 +124,7 @@ function topologicalSort(nodes) {
     }
   }
 
-  if (sorted.length !== nodeMap.size) {
+  if (sorted.length !== nodes.length) {
     const err = new Error("Dependency cycle detected during topological sort");
     err.code = "cyclic-dependency-detected";
     throw err;
@@ -118,6 +142,18 @@ function topologicalSort(nodes) {
 function computeDescendantClosure(nodes, affectedNodeIds) {
   if (!Array.isArray(nodes) || nodes.length === 0) {
     return new Set(affectedNodeIds || []);
+  }
+
+  const ids = [];
+  for (const node of nodes) {
+    if (node && node.node_id) {
+      ids.push(node.node_id);
+    }
+  }
+  if (new Set(ids).size !== ids.length) {
+    const err = new Error("Duplicate node_id detected in DAG nodes");
+    err.code = "duplicate-node-id";
+    throw err;
   }
 
   // Build reverse adjacency list: parent -> children (nodes that depend on parent)

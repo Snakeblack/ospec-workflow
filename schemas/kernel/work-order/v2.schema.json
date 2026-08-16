@@ -146,6 +146,29 @@
         }
       },
       "additionalProperties": false
+    },
+    "clarification_context": {
+      "type": "object",
+      "required": [
+        "event_id",
+        "question_id",
+        "answer"
+      ],
+      "properties": {
+        "event_id": {
+          "type": "string"
+        },
+        "question_id": {
+          "type": "string"
+        },
+        "answer": {
+          "type": [
+            "string",
+            "object"
+          ]
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

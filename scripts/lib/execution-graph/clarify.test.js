@@ -218,3 +218,69 @@ test("ClarifyEvent: rejects tampered input graph with graph-id-mismatch", () => 
     (err) => err.code === "graph-id-mismatch"
   );
 });
+
+test("ClarifyEvent: rejects schema-invalid ClarifyEvent records fail-closed", () => {
+  const nodes = [createNode("n1", [])];
+  const obligations = [{ id: "req-1", criticality: "must", implemented_by: ["n1"], required_evidence: ["ev:n1"] }];
+  const graph = createTestGraph(nodes, obligations);
+
+  // Missing timestamp
+  const missingTimestamp = {
+    schema_version: 1,
+    event_id: "evt-1",
+    question_id: "q-1",
+    answer: "x",
+    affected_nodes: ["n1"],
+  };
+  assert.throws(
+    () => applyClarifyEvent(graph, missingTimestamp),
+    (err) => err.code === "invalid-clarify-event-schema"
+  );
+
+  // Extra unexpected field
+  const extraField = {
+    schema_version: 1,
+    event_id: "evt-1",
+    question_id: "q-1",
+    answer: "x",
+    timestamp: "2026-08-15T00:00:00Z",
+    affected_nodes: ["n1"],
+    forbidden_extra: "evil",
+  };
+  assert.throws(
+    () => applyClarifyEvent(graph, extraField),
+    (err) => err.code === "invalid-clarify-event-schema"
+  );
+});
+
+test("ClarifyEvent: rejects graph containing duplicate node_id fail-closed", () => {
+  const dupNodes = [
+    createNode("n-dup", []),
+    createNode("n-dup", []),
+  ];
+  const obligations = [{ id: "req-1", criticality: "must", implemented_by: ["n-dup"], required_evidence: ["ev:n-dup"] }];
+  const graph = {
+    schema_version: 1,
+    graph_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    contract_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+    policy_bundle_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    policy_snapshot_id: samplePolicySnapshotId,
+    source_snapshot_id: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+    nodes: dupNodes,
+    obligations,
+  };
+
+  const clarifyEvent = {
+    schema_version: 1,
+    event_id: "evt-1",
+    question_id: "q-1",
+    answer: "x",
+    timestamp: "2026-08-15T00:00:00Z",
+    affected_nodes: ["n-dup"],
+  };
+
+  assert.throws(
+    () => applyClarifyEvent(graph, clarifyEvent),
+    (err) => err.code === "duplicate-node-id" || err.code === "DUPLICATE_NODE_ID" || err.code === "invalid-graph"
+  );
+});
