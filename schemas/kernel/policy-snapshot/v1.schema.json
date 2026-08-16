@@ -20,19 +20,24 @@
       "const": 1
     },
     "snapshot_id": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
     },
     "policy_bundle_digest": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
     },
     "compiler_version": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "classifier_version": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "runtime_version": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "effective_rules": {
       "type": "array",

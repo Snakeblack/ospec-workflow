@@ -5,6 +5,27 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.6] - 2026-08-16
+
+### Fixed
+- **Binding Canónico Estricto en `PolicySnapshot` (`k4a-policy-snapshot-canonicalization-and-replay-hardening`)**:
+  - `schemas/kernel/policy-snapshot/v1.schema.json` impone validación estricta con `pattern: "^sha256:[a-f0-9]{64}$"` para `snapshot_id` y `policy_bundle_digest`, y `minLength: 1` para `compiler_version`, `classifier_version` y `runtime_version`.
+  - `scripts/lib/kernel-schema-validator.js` implementa soporte nativo de evaluación para `minLength` y `pattern`.
+  - `computePolicySnapshotDigest` se convierte en una función pura que procesa exclusivamente el payload canónico ya resuelto sin inyectar defaults ocultos (`|| "1.0.0"`), fallando de forma cerrada ante valores vacíos `""`, sólo espacios o digests malformados.
+  - `createPolicySnapshot` normaliza y aplica defaults antes de la validación de esquema.
+- **Endurecimiento del Contrato de Fixtures en Replay Engine**:
+  - `replayExecutionGraph` exige que todo fixture que reclame `status: "completed"` proporcione un objeto `evidence` válido, definido y no nulo que cubra los `node.required_evidence` del nodo. Fixtures incompletos fallan de forma cerrada y generan un contraejemplo reproducible.
+  - Verificación de contradicción: rechazo *fail-closed* si un fixture declara `status: "completed"` pero contiene `exit_code !== 0`.
+- **Reconciliación de Autoridad Documental y Roadmap**:
+  - `docs/roadmaps/harness-evolution.md`: K4a reconciliado a `done`, K5 a `next-eligible`, y Done Criteria de WorkOrder a `v2` con compilación determinista.
+  - `docs/architecture/harness-evolution.md`: Estado verificado actualizado con K4a `done` y K5 `next-eligible`.
+  - Sincronizados REQ-003 y REQ-006 en `openspec/specs/execution-graph-compiler/spec.md`.
+
+### Added
+- **Suites de Pruebas Adversariales**:
+  - Tests adversariales para `PolicySnapshot` contra strings vacíos, whitespace, digests malformados y rechazos de esquema.
+  - Tests adversariales para `ReplayEngine` contra fixtures con objeto de evidencia ausente y códigos de salida no nulos con estado `completed`.
+
 ## [2.45.5] - 2026-08-16
 
 ### Fixed

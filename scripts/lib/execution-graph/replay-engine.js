@@ -152,20 +152,24 @@ function _executeReplay(graph, fixtureResults = {}, options = {}, isLegacyMode =
 
     const isCancelled = recorded.status === "cancelled" || recorded.outcome === "cancelled";
     const isFailed = recorded.status === "failed" || recorded.outcome === "failed";
+    const hasExitCode = typeof recorded.exit_code === "number";
+    const hasBadExitCode = hasExitCode && recorded.exit_code !== 0 && (recorded.status === "completed" || recorded.outcome === "completed");
+
     const hasContradiction =
       (hasStatus && hasOutcome && recorded.status !== recorded.outcome) ||
       (isExplicitlyOkFalse && (recorded.status === "completed" || recorded.outcome === "completed")) ||
       (isCancelled && (recorded.status === "completed" || recorded.outcome === "completed")) ||
-      (isFailed && (recorded.status === "completed" || recorded.outcome === "completed"));
+      (isFailed && (recorded.status === "completed" || recorded.outcome === "completed")) ||
+      hasBadExitCode;
 
-    const isCompleted =
+    const isCompletedCandidate =
       !isExplicitlyOkFalse &&
       !isCancelled &&
       !isFailed &&
       !hasContradiction &&
       ((hasStatus && recorded.status === "completed") || (hasOutcome && recorded.outcome === "completed"));
 
-    if (!isCompleted) {
+    if (!isCompletedCandidate) {
       const statusValue = isCancelled ? "cancelled" : (hasContradiction ? "failed" : (recorded.status || recorded.outcome || "failed"));
       const errorMsg = recorded.error || (isCancelled ? "Execution recorded cancelled" : (hasContradiction ? "Contradictory status/outcome recorded in fixture" : "Execution failed or incomplete status"));
       failedNodes.add(nodeId);
@@ -179,11 +183,32 @@ function _executeReplay(graph, fixtureResults = {}, options = {}, isLegacyMode =
       continue;
     }
 
+    // Explicit output contract: a completed fixture result MUST declare a valid evidence object
+    const hasValidEvidenceObj =
+      recorded.evidence !== undefined &&
+      recorded.evidence !== null &&
+      typeof recorded.evidence === "object" &&
+      !Array.isArray(recorded.evidence);
+
+    if (!hasValidEvidenceObj) {
+      const errorMsg = `Fixture result for node "${nodeId}" is incomplete: missing or invalid evidence object`;
+      failedNodes.add(nodeId);
+      nodeOutcomes[nodeId] = {
+        status: "failed",
+        error: errorMsg,
+      };
+      trace.push({
+        node_id: nodeId,
+        action: "execute",
+        status: "failed",
+        error: errorMsg,
+      });
+      continue;
+    }
+
     // Node required evidence verification
     const nodeRequiredEvidence = Array.isArray(node.required_evidence) ? node.required_evidence : [];
-    const recordedEvidenceKeys = recorded.evidence && typeof recorded.evidence === "object"
-      ? Object.keys(recorded.evidence)
-      : [];
+    const recordedEvidenceKeys = Object.keys(recorded.evidence);
     const missingNodeEvidence = nodeRequiredEvidence.filter((evKey) => !recordedEvidenceKeys.includes(evKey));
 
     if (missingNodeEvidence.length > 0) {

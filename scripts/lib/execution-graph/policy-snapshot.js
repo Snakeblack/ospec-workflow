@@ -25,21 +25,38 @@ const DEFAULT_VERSIONS = Object.freeze({
 });
 
 /**
- * Computes deterministic PolicySnapshot digest.
+ * Computes deterministic PolicySnapshot digest over an already-resolved, canonical snapshot.
+ * Does NOT inject fallback defaults; fails closed on missing, empty, or malformed fields.
  * @param {Object} snapshot
  * @returns {string} sha256:<64 hex>
  */
 function computePolicySnapshotDigest(snapshot) {
   if (!snapshot || typeof snapshot !== "object") {
-    throw new TypeError("snapshot must be an object");
+    throw new TypeError("snapshot must be a non-null object");
+  }
+
+  if (typeof snapshot.compiler_version !== "string" || snapshot.compiler_version.trim().length === 0) {
+    throw new TypeError("compiler_version must be a non-empty string");
+  }
+  if (typeof snapshot.classifier_version !== "string" || snapshot.classifier_version.trim().length === 0) {
+    throw new TypeError("classifier_version must be a non-empty string");
+  }
+  if (typeof snapshot.runtime_version !== "string" || snapshot.runtime_version.trim().length === 0) {
+    throw new TypeError("runtime_version must be a non-empty string");
+  }
+  if (typeof snapshot.policy_bundle_digest !== "string" || !SHA256_REGEX.test(snapshot.policy_bundle_digest)) {
+    throw new TypeError("policy_bundle_digest must be a valid sha256:<64 hex> digest string");
+  }
+  if (!Array.isArray(snapshot.effective_rules) || snapshot.effective_rules.some((r) => typeof r !== "string")) {
+    throw new TypeError("effective_rules must be an array of strings");
   }
 
   const payload = {
-    compiler_version: String(snapshot.compiler_version || DEFAULT_VERSIONS.compiler_version),
-    classifier_version: String(snapshot.classifier_version || DEFAULT_VERSIONS.classifier_version),
-    runtime_version: String(snapshot.runtime_version || DEFAULT_VERSIONS.runtime_version),
-    policy_bundle_digest: String(snapshot.policy_bundle_digest || ""),
-    effective_rules: Array.isArray(snapshot.effective_rules) ? [...snapshot.effective_rules].map(String) : [],
+    compiler_version: snapshot.compiler_version,
+    classifier_version: snapshot.classifier_version,
+    runtime_version: snapshot.runtime_version,
+    policy_bundle_digest: snapshot.policy_bundle_digest,
+    effective_rules: [...snapshot.effective_rules],
   };
 
   return sha256Fingerprint("policy-snapshot/v1", payload);
@@ -47,6 +64,7 @@ function computePolicySnapshotDigest(snapshot) {
 
 /**
  * Generates a PolicySnapshot with calculated effective rules and cryptographic digest.
+ * Applies defaults during creation before validation and digest calculation.
  * @param {Object} [params]
  * @param {string} [params.policyBundleDigest]
  * @param {string} [params.compilerVersion]
@@ -56,19 +74,27 @@ function computePolicySnapshotDigest(snapshot) {
  * @returns {Object} PolicySnapshot instance conforming to ospec://schemas/kernel/policy-snapshot/v1
  */
 function createPolicySnapshot(params = {}) {
-  const compilerVersion = params.compilerVersion || params.compiler_version || DEFAULT_VERSIONS.compiler_version;
-  const classifierVersion = params.classifierVersion || params.classifier_version || DEFAULT_VERSIONS.classifier_version;
-  const runtimeVersion = params.runtimeVersion || params.runtime_version || DEFAULT_VERSIONS.runtime_version;
+  const compilerVersion = params.compilerVersion !== undefined
+    ? params.compilerVersion
+    : (params.compiler_version !== undefined ? params.compiler_version : DEFAULT_VERSIONS.compiler_version);
+  const classifierVersion = params.classifierVersion !== undefined
+    ? params.classifierVersion
+    : (params.classifier_version !== undefined ? params.classifier_version : DEFAULT_VERSIONS.classifier_version);
+  const runtimeVersion = params.runtimeVersion !== undefined
+    ? params.runtimeVersion
+    : (params.runtime_version !== undefined ? params.runtime_version : DEFAULT_VERSIONS.runtime_version);
+
   const effectiveRules = Array.isArray(params.effectiveRules)
     ? [...params.effectiveRules]
     : Array.isArray(params.effective_rules)
       ? [...params.effective_rules]
       : [];
 
-  const policyBundleDigest =
-    params.policyBundleDigest ||
-    params.policy_bundle_digest ||
-    sha256Fingerprint("policy-bundle/v1", effectiveRules);
+  const policyBundleDigest = params.policyBundleDigest !== undefined
+    ? params.policyBundleDigest
+    : (params.policy_bundle_digest !== undefined
+        ? params.policy_bundle_digest
+        : sha256Fingerprint("policy-bundle/v1", effectiveRules));
 
   const draft = {
     schema_version: 1,
@@ -81,6 +107,14 @@ function createPolicySnapshot(params = {}) {
   };
 
   draft.snapshot_id = computePolicySnapshotDigest(draft);
+
+  const validation = validatePolicySnapshotBinding(draft);
+  if (!validation.ok) {
+    const err = new Error(`Failed to create valid PolicySnapshot: ${validation.error}`);
+    err.code = validation.reason_code || "INVALID_POLICY_SNAPSHOT";
+    throw err;
+  }
+
   return draft;
 }
 

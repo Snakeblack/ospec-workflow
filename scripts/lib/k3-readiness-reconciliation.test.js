@@ -79,13 +79,13 @@ test("K3 readiness: historical state snapshots name Git HEAD as their before pro
   }
 });
 
-test("K3 readiness: documentation reflects archived k3-readiness-remediation and next-eligible K4a status", () => {
+test("K3 readiness: documentation reflects archived k3-readiness-remediation and K4a status", () => {
   const roadmap = fs.readFileSync(path.join(ROOT, "docs/roadmaps/harness-evolution.md"), "utf8");
   const architecture = fs.readFileSync(path.join(ROOT, "docs/architecture/harness-evolution.md"), "utf8");
   assert.match(roadmap, /k3-readiness-remediation.*archivado|k3-readiness-remediation.*done/i);
-  assert.match(roadmap, /next-eligible.*K4a|K4a.*next-eligible/i);
+  assert.match(roadmap, /K4a.*done|K4a.*verificado|next-eligible.*K4a|K4a.*next-eligible/i);
   assert.match(architecture, /k3-readiness-remediation/i);
-  assert.match(architecture, /K4a.*next-eligible/i);
+  assert.match(architecture, /K4a.*done|K4a.*next-eligible|K4a.*están entregados/i);
 });
 
 test("K3 readiness: Git-clean historical siblings remain canonically equal across checkout line endings", () => {

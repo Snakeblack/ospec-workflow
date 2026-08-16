@@ -767,13 +767,6 @@ function validateWorkOrderBinding(sourceSnapshot, workOrder) {
       error: "sourceSnapshot fails source-snapshot/v1 JSON schema validation"
     };
   }
-  if (!validateWorkOrderSchema(workOrder)) {
-    return {
-      ok: false,
-      reason_code: "INVALID_SCHEMA",
-      error: "workOrder fails work-order JSON schema validation"
-    };
-  }
 
   const declaredSnapshotId = workOrder.sourceSnapshotId || workOrder.source_snapshot_id;
   // ILL_FORMED_SNAPSHOT_ID: declared id missing/malformed (not a recompute mismatch).
@@ -783,6 +776,14 @@ function validateWorkOrderBinding(sourceSnapshot, workOrder) {
       ok: false,
       reason_code: "ILL_FORMED_SNAPSHOT_ID",
       error: "WorkOrder source_snapshot_id is missing or ill-formed"
+    };
+  }
+
+  if (!validateWorkOrderSchema(workOrder)) {
+    return {
+      ok: false,
+      reason_code: "INVALID_SCHEMA",
+      error: "workOrder fails work-order JSON schema validation"
     };
   }
 

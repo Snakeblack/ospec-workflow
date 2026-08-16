@@ -1,0 +1,32 @@
+change: 2026-08-16-k4a-policy-snapshot-canonicalization-and-replay-hardening
+status: archived
+proposal:
+  status: done
+specs:
+  status: done
+design:
+  status: done
+tasks:
+  status: done
+apply:
+  status: done
+verify:
+  status: done
+archive:
+  status: done
+approvals:
+  proposal:
+    approved: true
+    approved_by: orchestrator
+  design:
+    approved: true
+    approved_by: orchestrator
+  tasks:
+    approved: true
+    approved_by: orchestrator
+  verify:
+    approved: true
+    approved_by: orchestrator
+  archive:
+    approved: true
+    approved_by: orchestrator

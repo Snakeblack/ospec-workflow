@@ -325,3 +325,62 @@ test("ReplayEngine: Replay accepts every canonical WorkOrder emitted by supporte
   assert.deepEqual(result.completedNodes.sort(), graph.nodes.map((n) => n.node_id).sort());
 });
 
+test("ReplayEngine: rejects incomplete fixture claiming completed without evidence object fail-closed", () => {
+  const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+  const graph = createSampleExecutionGraph();
+  const workOrders = compileWorkOrdersV2(graph);
+  const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
+
+  const incompleteFixtures = {
+    "repair-patch": {
+      graph_id: graph.graph_id,
+      work_order_id: woMap.get("repair-patch"),
+      status: "completed",
+      // missing evidence entirely
+    },
+    "repair-verify": {
+      graph_id: graph.graph_id,
+      work_order_id: woMap.get("repair-verify"),
+      status: "completed",
+      evidence: { "ev:test-pass": { digest: "sha256:pass" } },
+    },
+  };
+
+  const result = replayExecutionGraph(graph, incompleteFixtures);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.failedNodes, ["repair-patch"]);
+  assert.ok(result.counterexample);
+  assert.ok(result.counterexample.reason.includes("incomplete"));
+});
+
+test("ReplayEngine: rejects completed status when exit_code is non-zero fail-closed", () => {
+  const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+  const graph = createSampleExecutionGraph();
+  const workOrders = compileWorkOrdersV2(graph);
+  const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
+
+  const contradictoryExitCodeFixtures = {
+    "repair-patch": {
+      graph_id: graph.graph_id,
+      work_order_id: woMap.get("repair-patch"),
+      status: "completed",
+      exit_code: 1, // Non-zero exit code contradicts completed status
+      evidence: { "ev:patch-proof": { digest: "sha256:proof" } },
+    },
+    "repair-verify": {
+      graph_id: graph.graph_id,
+      work_order_id: woMap.get("repair-verify"),
+      status: "completed",
+      exit_code: 0,
+      evidence: { "ev:test-pass": { digest: "sha256:pass" } },
+    },
+  };
+
+  const result = replayExecutionGraph(graph, contradictoryExitCodeFixtures);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.failedNodes, ["repair-patch"]);
+  assert.ok(result.counterexample);
+  assert.ok(result.counterexample.reason.includes("Contradictory"));
+});
+
+
