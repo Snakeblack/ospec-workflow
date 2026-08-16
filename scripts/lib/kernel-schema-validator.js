@@ -122,6 +122,32 @@ function validate(schema, instance, instancePath, rootSchema, errors) {
     }
   }
 
+  if (typeof instance === "string") {
+    if (typeof schema.minLength === "number") {
+      if (instance.length < schema.minLength) {
+        errors.push({
+          path: instancePath || "/",
+          rule: "minLength",
+          message: `string length ${instance.length} is less than minLength ${schema.minLength}`,
+        });
+      }
+    }
+    if (typeof schema.pattern === "string") {
+      try {
+        const regex = new RegExp(schema.pattern);
+        if (!regex.test(instance)) {
+          errors.push({
+            path: instancePath || "/",
+            rule: "pattern",
+            message: `string does not match pattern ${schema.pattern}`,
+          });
+        }
+      } catch {
+        // ignore invalid regex in schema
+      }
+    }
+  }
+
   if (isPlainObject(instance)) {
     validateObjectInstance(schema, instance, instancePath, rootSchema, errors);
   }

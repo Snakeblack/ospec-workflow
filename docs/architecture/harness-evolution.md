@@ -2,7 +2,7 @@
 
 > **Autoridad:** fuente conceptual y estratégica del harness (responsabilidades y límites).
 > **Corte documental:** v2.40.0, 2026-08-05.
-> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3** y **`k3-readiness-remediation`** están entregados y archivados. **K4a** es la siguiente iniciativa elegible.
+> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`** y **K4a** están entregados y archivados. **K5** es la siguiente iniciativa elegible.
 > **Roadmap:** orden, estado operativo y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
 > **Precedencia documental:** ante diferencias de **orden o estado**, prevalece el roadmap; ante diferencias **conceptuales**, reconciliar antes de iniciar el slice.
 > **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md).
@@ -21,7 +21,7 @@ Sin duplicar el backlog: solo responsabilidades y límites alineados al roadmap 
 
 | Tema | Decisión arquitectónica |
 | --- | --- |
-| Estado | K1+K2+K2.1+K2a+K3+`k3-readiness-remediation` `done`; **K4a** `next-eligible` |
+| Estado | K1+K2+K2.1+K2a+K3+`k3-readiness-remediation`+K4a `done`; **K5** `next-eligible` |
 | Dos grafos | **Execution Graph** (trabajo) ≠ **Assurance Graph** (fiabilidad / evidencia; no “prueba formal”) |
 | Identidades | `SourceSnapshotId` / `WorkOrderId` / `WorkResultId` / `CandidateId` (sin IDs nuevos por ahora) |
 | Relación Candidate | Inicial: `exact` / `changed` / `ambiguous` / `unknown`; `compatible-base-advance` experimental hasta K9 |

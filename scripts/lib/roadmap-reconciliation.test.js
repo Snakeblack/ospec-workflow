@@ -20,11 +20,11 @@ test("Phase 10: k3-readiness-remediation state.yaml and archive-report.md have t
   assert.match(reportContent, /\*\*Status\*\*:\s*Completed/m, "Archived change archive-report.md must report Status: Completed");
 });
 
-test("Phase 10: roadmap evolution docs reflect reconciled k3-readiness-remediation and K4a next-eligible status", () => {
+test("Phase 10: roadmap evolution docs reflect reconciled k3-readiness-remediation and K4a status", () => {
   const archDoc = fs.readFileSync(path.resolve(__dirname, "../../docs/architecture/harness-evolution.md"), "utf8");
   const roadmapDoc = fs.readFileSync(path.resolve(__dirname, "../../docs/roadmaps/harness-evolution.md"), "utf8");
 
   assert.equal(archDoc.includes("`k3-readiness-remediation` debe verificar y archivarse"), false, "Architecture doc must not report stale k3-readiness-remediation requirement");
   assert.equal(roadmapDoc.includes("| `blocked` | **K4a** |"), false, "Roadmap doc must not report K4a as blocked by k3-readiness-remediation");
-  assert.match(roadmapDoc, /\| `next-eligible` \| \*\*K4a\*\* \|/m, "Roadmap doc must report K4a as next-eligible");
+  assert.match(roadmapDoc, /\| `(done|next-eligible)` \| \*\*K4a\*\* \|/m, "Roadmap doc must report K4a as done or next-eligible");
 });

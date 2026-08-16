@@ -74,8 +74,8 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **k2a-1** | Live capability probes + async transports (corrective pre-K3); verify PASS WITH WARNINGS + 4R approved; archive plan emitido |
 | `done` | **K3** | Cuatro identidades + Candidate freeze + relación básica; archivado y publicado en v2.42.3 (baseline estable congelada) |
 | `done` | **`k3-readiness-remediation`** | Relación/successor/dist packaging reconciliado; archivado y publicado |
-| `next-eligible` | **K4a** | Graph compiler + Obligation Manifest + replay (sin worker autoritativo) |
-| `pending` | K5 | Budgets (incl. autoridad/efectos), failures y recovery |
+| `done` | **K4a** | Graph compiler + Obligation Manifest + deterministic replay (sin worker autoritativo); verificado |
+| `next-eligible` | **K5** | Budgets (incl. autoridad/efectos), failures y recovery |
 | `pending` | K6a | Worker isolation / work-order capsule |
 | `pending` | K4b | Repair shadow execution (WO→WR→integrate→Candidate) |
 | `pending` | K6b–K8 | Verifier + provenance, challenges, complexity, review authority, **Evaluation Attestation** |
@@ -182,14 +182,14 @@ Campo canónico de binding al candidato: **`candidate_id`** (no `candidate_diges
 
 ```text
 Entregado:
-G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2 → K2.1 → K2a → K3
-                                                                               ↓
-Next eligible:                                                               K4a
-                                                                               ↓
-Pending:     K4a → K5 → K6a → K4b → K6b → K6c → K6d → K7 → K8
-                                                                  ↓
+G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2 → K2.1 → K2a → K3 → K4a
+                                                                                   ↓
+Next eligible:                                                                   K5
+                                                                                   ↓
+Pending:     K5 → K6a → K4b → K6b → K6c → K6d → K7 → K8
+                                                                   ↓
 Promoción:                                                       K9
-                                                                  ↓
+                                                                   ↓
 Delivery:                                                   K10-delivery
                                                             (DeliveryAuthorization)
                                                                   ↓
@@ -780,7 +780,7 @@ K3 bloquea **Evaluation Attestation** y **Delivery Authorization** (y la vertica
 
 K4 se parte porque el aislamiento real del worker llega en K6a. **Verbos:** K4a **compila**; K4b **orquesta**; K6a **ejecuta**; K3 **identifica**. Compilar y validar el grafo **no** implica ejecutar un worker nuevo con autoridad.
 
-### K4a — Execution Graph compiler y replay — **next-eligible**
+### K4a — Execution Graph compiler y replay — **done**
 
 **Dependencias:** K2a + K3.
 
@@ -841,7 +841,7 @@ compact contract
 - Obligation Manifest: toda obligación `MUST` tiene `implemented_by` + `required_evidence` o defer explícito auditado;
 - clarify invalida solo descendants declarados;
 - dependency desconocida impide reutilizar output;
-- Work Order shape v1 valida en conformance (sin ejecución);
+- Work Order shape v2 valida en conformance con compilación determinista (sin ejecución);
 - fixed y shadow-compile reciben inputs comparables;
 - ninguna transición de compile/replay muta el flujo vigente;
 - replay con fixtures no pierde obligaciones ni resucita nodos;
@@ -853,7 +853,7 @@ Compile/replay + Obligation Manifest estables. Checkpoint: cobertura de obligaci
 
 ## Bloque 5 — ejecución acotada y causal
 
-### K5 — budgets, failures y recovery común — **pending**
+### K5 — budgets, failures y recovery común — **next-eligible**
 
 **Dependencias:** K4a.
 
