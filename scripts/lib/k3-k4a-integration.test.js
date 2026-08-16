@@ -648,3 +648,71 @@ test("K3-K4a Integration Adversarial Vector 4: compileExecutionGraph(node_id: ''
     (err) => err.code === "missing-required-node-field" && err.field === "node_id"
   );
 });
+
+test("K3-K4a Integration: Replay accepts every canonical WorkOrder emitted by supported K4a compilation", () => {
+  const sourceSnapshot = createIntegrationSourceSnapshot();
+  const policySnapshot = createPolicySnapshot();
+  const contract = createIntegrationContract(sourceSnapshot.source_snapshot_id);
+
+  const graph = compileExecutionGraph({
+    contract,
+    policySnapshot,
+    sourceSnapshotId: sourceSnapshot.source_snapshot_id,
+    nodes: contract.nodes,
+    obligations: contract.obligations,
+  });
+
+  const workOrders = compileWorkOrdersV2(graph, {
+    sourceSnapshot,
+    sourceSnapshotId: sourceSnapshot.source_snapshot_id,
+  });
+
+  const fixtures = {};
+  for (const wo of workOrders) {
+    fixtures[wo.node_id] = {
+      graph_id: graph.graph_id,
+      work_order_id: wo.work_order_id,
+      status: "completed",
+      evidence: { [wo.required_evidence[0]]: { verified: true, signature: "sig-k4a" } },
+    };
+  }
+
+  const replayResult = replayExecutionGraph(graph, fixtures);
+  assert.equal(replayResult.ok, true);
+  assert.deepEqual(replayResult.completedNodes.sort(), ["patch-node", "verify-node"]);
+});
+
+test("K3-K4a Integration: compileWorkOrdersV2 rejects unlinked role or budgets overrides in K4a", () => {
+  const sourceSnapshot = createIntegrationSourceSnapshot();
+  const policySnapshot = createPolicySnapshot();
+  const contract = createIntegrationContract(sourceSnapshot.source_snapshot_id);
+
+  const graph = compileExecutionGraph({
+    contract,
+    policySnapshot,
+    sourceSnapshotId: sourceSnapshot.source_snapshot_id,
+    nodes: contract.nodes,
+    obligations: contract.obligations,
+  });
+
+  assert.throws(
+    () =>
+      compileWorkOrdersV2(graph, {
+        sourceSnapshot,
+        sourceSnapshotId: sourceSnapshot.source_snapshot_id,
+        role: "specialized-repair-worker",
+      }),
+    (err) => err.code === "unsupported-compilation-context"
+  );
+
+  assert.throws(
+    () =>
+      compileWorkOrdersV2(graph, {
+        sourceSnapshot,
+        sourceSnapshotId: sourceSnapshot.source_snapshot_id,
+        budgets: { "patch-node": { model_turns: 12 } },
+      }),
+    (err) => err.code === "unsupported-compilation-context"
+  );
+});
+

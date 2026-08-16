@@ -283,3 +283,45 @@ test("ReplayEngine: old unbound fixture cannot resurrect clarified graph nodes",
     (err) => err.code === "stale-fixture-rejected"
   );
 });
+
+test("ReplayEngine: canonical replayExecutionGraph ignores allowLegacyFixtures option", () => {
+  const graph = createSampleExecutionGraph();
+  const unboundFixtures = {
+    "repair-patch": {
+      ok: true,
+      status: "completed",
+      evidence: { "ev:patch-proof": { digest: "sha256:1" } },
+    },
+    "repair-verify": {
+      ok: true,
+      status: "completed",
+      evidence: { "ev:test-pass": { digest: "sha256:2" } },
+    },
+  };
+
+  assert.throws(
+    () => replayExecutionGraph(graph, unboundFixtures, { allowLegacyFixtures: true }),
+    (err) => err.code === "stale-fixture-rejected"
+  );
+});
+
+test("ReplayEngine: Replay accepts every canonical WorkOrder emitted by supported K4a compilation", () => {
+  const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+  const graph = createSampleExecutionGraph();
+  const workOrders = compileWorkOrdersV2(graph);
+
+  const fixtures = {};
+  for (const wo of workOrders) {
+    fixtures[wo.node_id] = {
+      graph_id: graph.graph_id,
+      work_order_id: wo.work_order_id,
+      status: "completed",
+      evidence: { [wo.required_evidence[0]]: { verified: true, digest: "sha256:canonical" } },
+    };
+  }
+
+  const result = replayExecutionGraph(graph, fixtures);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.completedNodes.sort(), graph.nodes.map((n) => n.node_id).sort());
+});
+

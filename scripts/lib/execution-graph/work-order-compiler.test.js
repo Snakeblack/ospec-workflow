@@ -416,3 +416,22 @@ test("WorkOrderCompiler: rejects provenance mismatch between context and graph",
     (err) => err.code === "provenance-mismatch" || err.code === "SOURCE_SNAPSHOT_MISMATCH" || err.message.includes("Provenance mismatch")
   );
 });
+
+test("WorkOrderCompiler: rejects unlinked variable role in K4a", () => {
+  assert.throws(
+    () => compileWorkOrdersV2(sampleGraph, { role: "security-repair-worker" }),
+    (err) => err.code === "unsupported-compilation-context"
+  );
+});
+
+test("WorkOrderCompiler: rejects unlinked variable budgets or defaultBudget in K4a", () => {
+  assert.throws(
+    () => compileWorkOrdersV2(sampleGraph, { budgets: { "test-fix": { model_turns: 10 } } }),
+    (err) => err.code === "unsupported-compilation-context"
+  );
+  assert.throws(
+    () => compileWorkOrdersV2(sampleGraph, { defaultBudget: { model_turns: 10 } }),
+    (err) => err.code === "unsupported-compilation-context"
+  );
+});
+

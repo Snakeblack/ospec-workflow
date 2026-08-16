@@ -14,7 +14,7 @@ const { validateExecutionGraphBinding } = require("./binding.js");
  * @param {string[]|Set<string>} [options.invalidatedNodeIds] - Transitive invalidated node IDs
  * @returns {{ ok: boolean, completedNodes: string[], failedNodes: string[], blockedNodes: string[], finalStateDigest: string, trace: Array<Object>, counterexample: Object|null }}
  */
-function replayExecutionGraph(graph, fixtureResults = {}, options = {}) {
+function _executeReplay(graph, fixtureResults = {}, options = {}, isLegacyMode = false) {
   if (!graph || typeof graph !== "object" || !Array.isArray(graph.nodes)) {
     throw new TypeError("graph must be an ExecutionGraph object with a nodes array");
   }
@@ -98,7 +98,6 @@ function replayExecutionGraph(graph, fixtureResults = {}, options = {}) {
     }
 
     // Verify fixture graph/order provenance fail-closed
-    const isLegacyMode = Boolean(options.allowLegacyFixtures);
     const expectedWo = compiledWorkOrdersMap.get(nodeId);
     if (!expectedWo) {
       const err = new Error(`Unresolved WorkOrder for node "${nodeId}" during replay evaluation`);
@@ -299,10 +298,24 @@ function replayExecutionGraph(graph, fixtureResults = {}, options = {}) {
 }
 
 /**
+ * Executes a deterministic fixture-based replay on the Execution Graph.
+ * Canonical K4a replay strictly requires graph_id and work_order_id provenance.
+ *
+ * @param {Object} graph - ExecutionGraph instance
+ * @param {Object} [fixtureResults] - Map of nodeId -> recorded worker result
+ * @param {Object} [options] - Replay options
+ * @param {string[]|Set<string>} [options.invalidatedNodeIds] - Transitive invalidated node IDs
+ * @returns {{ ok: boolean, completedNodes: string[], failedNodes: string[], blockedNodes: string[], finalStateDigest: string, trace: Array<Object>, counterexample: Object|null }}
+ */
+function replayExecutionGraph(graph, fixtureResults = {}, options = {}) {
+  return _executeReplay(graph, fixtureResults, options, false);
+}
+
+/**
  * Replay helper supporting legacy fixture inputs without mandatory cryptographic provenance.
  */
 function replayLegacyFixtureGraph(graph, fixtureResults = {}, options = {}) {
-  return replayExecutionGraph(graph, fixtureResults, { ...options, allowLegacyFixtures: true });
+  return _executeReplay(graph, fixtureResults, options, true);
 }
 
 module.exports = {
