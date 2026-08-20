@@ -152,6 +152,14 @@ async function runHarnessScenario(scenario = {}) {
       break;
     }
 
+    if (result.next_transition && result.next_transition.kind === "escalate") {
+      halted = {
+        reason: "escalate",
+        decision: result.next_transition,
+      };
+      break;
+    }
+
     if (result.next_transition && result.next_transition.kind === "stop") {
       halted = {
         reason: "stop",
@@ -159,6 +167,7 @@ async function runHarnessScenario(scenario = {}) {
       };
       break;
     }
+
 
     if (result.outcome === "blocked" && result.code) {
       halted = { reason: "blocked", code: result.code, budgets: result.budgets };

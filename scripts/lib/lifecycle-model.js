@@ -758,49 +758,83 @@ async function checkK5BudgetMonotonicity() {
         attempt: 0,
         budget: { schema_version: 1, turns: 5, patches: 3, commands: 10, wall_time_minutes: 15, changed_lines: 300, allowed_paths: [] },
       },
+      n2: {
+        id: "n2",
+        phase: "pending",
+        attempt: 0,
+        budget: { schema_version: 1, turns: 5, patches: 3, commands: 10, wall_time_minutes: 15, changed_lines: 300, allowed_paths: [] },
+      },
     },
     authority_budget: { schema_version: 1, effect_attempts: 3, authority_mutations: 10, evidence_runs: 20, review_sweeps: 1 },
   };
   const store = createAuthorityStore({ initial: { state: initial, journal: [] } });
-  const runtime = createKernelRuntime({ store });
+  const runtime1 = createKernelRuntime({ store });
+  const runtime2 = createKernelRuntime({ store });
+
   const head0 = await store.load();
-  const permit1 = runtime.issuePermitForSelectedTransition({
+
+  // W1 and W2 both issue permits on head0 revision R0
+  const permitW1 = runtime1.issuePermitForSelectedTransition({
     operation: "start",
     expected_revision: head0.revision,
     arguments: { node_id: "n1" },
   });
-  const res1 = await runtime.runOperation({
+  const permitW2 = runtime2.issuePermitForSelectedTransition({
+    operation: "start",
+    expected_revision: head0.revision,
+    arguments: { node_id: "n2" },
+  });
+
+  // W1 executes and commits to CAS -> wins R0 -> R1
+  const resW1 = await runtime1.runOperation({
     operation: "start",
     arguments: { node_id: "n1" },
-    operationPermit: permit1.permit,
+    operationPermit: permitW1.permit,
     effectExecutor: async () => ({ ok: true }),
   });
-  const state1 = (await store.load()).state;
-  const b1 = state1.nodes.n1.budget.turns;
+
+  // W2 tries to execute against stale revision R0 -> fails closed with stale-permit or cas-conflict
+  const resW2 = await runtime2.runOperation({
+    operation: "start",
+    arguments: { node_id: "n2" },
+    operationPermit: permitW2.permit,
+    effectExecutor: async () => ({ ok: true }),
+  });
 
   const head1 = await store.load();
-  const permit2 = runtime.issuePermitForSelectedTransition({
-    operation: "fail",
+
+  // W2 resyncs against R1 and retries, carrying over consumed turns and attempts
+  const retryArgs = {
+    node_id: "n2",
+    consumed: { turns: 1, effect_attempts: 1 },
+  };
+  const permitW2Retry = runtime2.issuePermitForSelectedTransition({
+    operation: "start",
     expected_revision: head1.revision,
-    arguments: { node_id: "n1" },
+    arguments: retryArgs,
   });
-  const res2 = await runtime.runOperation({
-    operation: "fail",
-    arguments: { node_id: "n1" },
-    operationPermit: permit2.permit,
+
+  const resW2Retry = await runtime2.runOperation({
+    operation: "start",
+    arguments: retryArgs,
+    operationPermit: permitW2Retry.permit,
     effectExecutor: async () => ({ ok: true }),
   });
-  const state2 = (await store.load()).state;
-  const b2 = state2.nodes.n1.budget.turns;
+
+  const stateFinal = (await store.load()).state;
 
   const ok =
-    res1.outcome === "advanced" &&
-    res2.outcome === "advanced" &&
-    b1 < 5 &&
-    b2 < b1 &&
-    state2.authority_budget.effect_attempts <= 2;
+    resW1.outcome === "advanced" &&
+    resW2.outcome === "blocked" &&
+    (resW2.code === "stale-permit" || resW2.code === "cas-conflict") &&
+    resW2Retry.outcome === "advanced" &&
+    stateFinal.nodes.n2.budget.turns <= 3 &&
+    stateFinal.authority_budget.effect_attempts <= 2;
+
   return { ok, invariant_id: "inv-k5-budget-monotonicity" };
 }
+
+
 
 function checkK5CausalPriority() {
   const { resolvePrimaryFailure, createCausalFailure } = require("./causal-failure.js");

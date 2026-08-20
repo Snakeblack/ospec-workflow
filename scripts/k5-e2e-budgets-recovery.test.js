@@ -162,8 +162,9 @@ test("K5 E2E: Terminal stop on attempts exhaustion without infinite retry loops"
   assert.ok(!transitions.some((t) => t.operation === "start"));
 
   const next = nextTransition(exhaustedState);
-  assert.ok(next.kind === "decide" || next.kind === "stop");
+  assert.ok(next.kind === "decide" || next.kind === "stop" || next.kind === "escalate");
 });
+
 
 test("K5 E2E: Monotonic budget non-inflation after CAS race retries", async () => {
   const runtime = createKernelRuntime({

@@ -110,8 +110,9 @@ test("K5 Combined Scenario: Node execution budgets, turn decrements and exhausti
 
   // Transitions after turn exhaustion
   const next = nextTransition(state);
-  assert.ok(next.kind === "decide" || next.kind === "stop");
+  assert.ok(next.kind === "decide" || next.kind === "stop" || next.kind === "escalate");
 });
+
 
 test("K5 Combined Scenario: Authority / Effect quotas CAS conflict and recovery allowlists", () => {
   const authBudget = {

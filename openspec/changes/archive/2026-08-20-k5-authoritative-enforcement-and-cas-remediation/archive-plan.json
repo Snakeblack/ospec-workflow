@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "change": "k5-authoritative-enforcement-and-cas-remediation",
+  "created_at": "2026-08-20T18:30:20.670Z",
+  "source_fingerprint": "sha256:20176a54cf76f202edd17c1109ce44d209897dff945a36caf8fe221bce8e5561",
+  "spec_writes": [
+    {
+      "domain": "execution-budgets",
+      "source_delta": "specs/execution-budgets/spec.md",
+      "target": "openspec/specs/execution-budgets/spec.md",
+      "target_before_sha256": "sha256:e0d25beff95100a19588a2fb932c51b0ca5b8197e9fc13212facdfc715bc0174",
+      "content_sha256": "sha256:bb120fe488eae276973e93cb5e8283b4c7a4c625027a463fce3e9c42534eb146"
+    },
+    {
+      "domain": "failure-recovery",
+      "source_delta": "specs/failure-recovery/spec.md",
+      "target": "openspec/specs/failure-recovery/spec.md",
+      "target_before_sha256": "sha256:63f7110d4c6601369658dec79dcc023739dbdb936bb86e2c4d97f201143776c2",
+      "content_sha256": "sha256:e2f12b91fa4cc26142b28d8ee2c3fdcba2503aa7e304edb95de33dccb5cc04e1"
+    },
+    {
+      "domain": "lifecycle-kernel-runtime",
+      "source_delta": "specs/lifecycle-kernel-runtime/spec.md",
+      "target": "openspec/specs/lifecycle-kernel-runtime/spec.md",
+      "target_before_sha256": "sha256:79fe2c8dd20c4133d4ec475214d8512afbfa415f369ec5e807e66e42387922f5",
+      "content_sha256": "sha256:b549b61d0caa2648f85a1c086d9b7ef221cc81c18b02f4bde887fb9551ef086f"
+    },
+    {
+      "domain": "lifecycle-model-conformance",
+      "source_delta": "specs/lifecycle-model-conformance/spec.md",
+      "target": "openspec/specs/lifecycle-model-conformance/spec.md",
+      "target_before_sha256": "sha256:3b7cc311429756bddcebc4964f3af987b437210436111916254546ead4716f66",
+      "content_sha256": "sha256:e4bb5279e4da3734e6141d93f8497f39d1c7fe122c798a681bd0028de0cd8a84"
+    },
+    {
+      "domain": "operation-permits",
+      "source_delta": "specs/operation-permits/spec.md",
+      "target": "openspec/specs/operation-permits/spec.md",
+      "target_before_sha256": "sha256:74441785744f61ae4720fbff8580db12eea384a957369c3c41b258dc2192e100",
+      "content_sha256": "sha256:920313899f4b50d8a151099645fd50058411b3bb0ff2707472e60882ce935862"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001-canonical-recovery-transitions.md",
+      "target": "docs/adr/adr-20260820-007-canonical-recovery-transitions.md",
+      "content_sha256": "sha256:f18b91e1d82638685d6e5c10c09ac703a3a8aed8a6a9365a81fc84335a273c6e"
+    },
+    {
+      "source": "decisions/adr-002-exhaustive-budget-preflight.md",
+      "target": "docs/adr/adr-20260820-008-exhaustive-budget-preflight.md",
+      "content_sha256": "sha256:b1df96145c65345c7d591c88286a4317de49a2f4c0f3d45c62bcacb0d46ab0cd"
+    },
+    {
+      "source": "decisions/adr-003-mandatory-repair-scope-preflight.md",
+      "target": "docs/adr/adr-20260820-009-mandatory-repair-scope-preflight.md",
+      "content_sha256": "sha256:4fa44f0758bceccfbc6319f1e2e69e1571dfe1774758755e5ca35071bef1bb3f"
+    },
+    {
+      "source": "decisions/adr-004-dual-zero-delta-accounting-and-journaling.md",
+      "target": "docs/adr/adr-20260820-010-dual-zero-delta-accounting-and-journaling.md",
+      "content_sha256": "sha256:57922f34141ae7f5c2287cc1b48101932c406bc4b301673235ae3b91cb516da5"
+    },
+    {
+      "source": "decisions/adr-005-cas-conflict-budget-preservation.md",
+      "target": "docs/adr/adr-20260820-011-cas-conflict-budget-preservation.md",
+      "content_sha256": "sha256:38e20b09d37e77f5ed58503a5f6a022d145df16ddc4ac0e89d14729eeec0710b"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001-canonical-recovery-transitions.md",
+    "decisions/adr-002-exhaustive-budget-preflight.md",
+    "decisions/adr-003-mandatory-repair-scope-preflight.md",
+    "decisions/adr-004-dual-zero-delta-accounting-and-journaling.md",
+    "decisions/adr-005-cas-conflict-budget-preservation.md",
+    "design.md",
+    "proposal.md",
+    "specs/execution-budgets/spec.md",
+    "specs/failure-recovery/spec.md",
+    "specs/lifecycle-kernel-runtime/spec.md",
+    "specs/lifecycle-model-conformance/spec.md",
+    "specs/operation-permits/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

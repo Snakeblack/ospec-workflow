@@ -5,7 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.9] - 2026-08-20
+
+### Fixed
+- **Remediación Autoritativa de K5 y Consolidación CAS (`k5-authoritative-enforcement-and-cas-remediation`)**:
+  - Transiciones Canónicas: `code_defect` emite explícitamente `{ kind: "execute", operation: "repair" }` sin degradar a `recover`; `ambiguous_effect` emite `{ kind: "escalate", operation: "escalate" }` consolidándose como commit terminal en el Authority Store vía CAS.
+  - Preflight Exhaustivo de Presupuestos: `isBudgetExhausted()` integrado en preflight de `issueOperationPermit()` y `runKernelOperation()`, denegando permisos y garantizando exactamente 0 llamadas a `effectExecutor` ante cuotas agotadas en 6 dimensiones de nodo y 4 de autoridad.
+  - Repair Scope Fail-Closed Obligatorio: `validateRepairScope()` requiere estructura explícita con `node_ids`, `allowed_paths` y `finding_ids` no vacíos; preflight en `runKernelOperation()` rechaza llamadas a `repair` sin `args.scope` con 0 llamadas a efectos y eliminando fallbacks de histórico.
+  - Contabilidad Zero-Delta Dual y Evento Durable: Mutaciones de efecto que producen zero-delta decrementan simultáneamente `node.turns` y `authority_budget.effect_attempts`, persistiendo el registro durable `zero-delta-attempt` en el journal antes del commit CAS.
+  - Preservación de Presupuesto ante CAS Conflict y Test Concurrente de 2 Writers: Los turnos e intentos consumidos por efectos ejecutados se conservan ante conflictos CAS sin restablecer cuotas al resincronizar contra el nuevo head; verificado en el checker `inv-k5-budget-monotonicity` de `lifecycle-model.js`.
+
 ## [2.45.8] - 2026-08-20
+
 
 ### Fixed
 - **Endurecimiento de Verificación de Presupuestos Fail-Closed y Monótonos (`k5-runtime-enforcement-and-wiring-remediation`)**:

@@ -1,0 +1,62 @@
+change: "k5-authoritative-enforcement-and-cas-remediation"
+status: "archive-planned"
+last_updated: 2026-08-20T20:25:50Z
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k5-authoritative-enforcement-and-cas-remediation/proposal.md"
+    summary: "Remediacion de 5 blockers K5: transiciones canonicas, preflight de presupuestos, scope obligatorio en repair, contabilidad zero-delta y CAS conflict."
+    key_decisions:
+      - "Scope obligatorio en preflight de repair con 0 llamadas a executor si falta"
+      - "Preservar consumo presupuestario tras perder conflicto CAS en efectos ejecutados"
+      - "Emitir operation repair para code_defect sin degradar a recover"
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k5-authoritative-enforcement-and-cas-remediation/specs/failure-recovery/spec.md"
+      - "openspec/changes/k5-authoritative-enforcement-and-cas-remediation/specs/execution-budgets/spec.md"
+      - "openspec/changes/k5-authoritative-enforcement-and-cas-remediation/specs/lifecycle-kernel-runtime/spec.md"
+      - "openspec/changes/k5-authoritative-enforcement-and-cas-remediation/specs/lifecycle-model-conformance/spec.md"
+      - "openspec/changes/k5-authoritative-enforcement-and-cas-remediation/specs/operation-permits/spec.md"
+    summary: "Delta specs para 5 dominios: transiciones canonicas repair/escalate, preflight presupuestario, scope obligatorio, zero-delta dual y preservacion CAS."
+    key_decisions:
+      - "args.scope obligatorio en preflight de repair con 0 llamadas a executor"
+      - "Monotonicidad CAS preserva presupuesto consumido por efectos ejecutados"
+      - "Taxonomia armonizada kind:execute/operation:repair para code_defect"
+  design:
+    status: "done"
+    artifact: "openspec/changes/k5-authoritative-enforcement-and-cas-remediation/design.md"
+    summary: "Diseno tecnico y 5 ADRs: transiciones canonicas, preflight 6+4, scope guard fail-closed, zero-delta dual y monotonicidad en 2-writer CAS."
+    key_decisions:
+      - "args.scope obligatorio en preflight de repair con 0 llamadas a executor"
+      - "Preflight unificado de 6 dimensiones de nodo y 4 de autoridad previo a efectos"
+      - "Contabilidad zero-delta dual con evento durable y monotonicidad en 2-writer CAS"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k5-authoritative-enforcement-and-cas-remediation/tasks.md"
+    summary: "Descomposicion en 6 fases TDD (28 tareas) con reconciliacion completa (11 REQs) y forecast de 6 PRs encadenados (riesgo alto >400 lineas)."
+    key_decisions:
+      - "Estrategia TDD de 6 fases y 28 tareas atómicas con trazabilidad REQ"
+      - "Recomendación de Chained PRs (feature-branch-chain) por riesgo >400 líneas"
+      - "Verificación de 0 llamadas a executor en preflight de presupuestos y scope"
+  apply:
+    status: "done"
+    artifact: "openspec/changes/k5-authoritative-enforcement-and-cas-remediation/apply-progress.md"
+    summary: "Implementadas y verificadas las 6 fases (28 tareas): transiciones canónicas, preflight 6+4 con 0 llamadas a executor, args.scope fail-closed sin fallbacks históricos, contabilidad zero-delta dual con evento durable, preservación de presupuesto en CAS conflict con test de 2 writers, sincronización de 7 checkers K5 y release v2.45.9 con 100% PASS."
+  verify:
+    status: "done"
+    artifact: "openspec/changes/k5-authoritative-enforcement-and-cas-remediation/verify-report.md"
+    verdict: "PASS"
+    summary: "Verificación 100% PASS: 28/28 tasks, 23/23 escenarios en runtime-test, 7/7 invariantes K5 y suite global de 2380 tests sin regresiones."
+    key_decisions:
+      - "Veredicto PASS: cumplimiento total de 11 REQs y 5 blockers remediados"
+      - "Validación de inv-k5-budget-monotonicity con 2 writers concurrentes en CAS race"
+      - "Verificación de 0 llamadas a executor en preflight de presupuestos y scope"
+  archive:
+    status: "done"
+    artifact: "openspec/changes/k5-authoritative-enforcement-and-cas-remediation/archive-report.md"
+    summary: "Plan de archivo emitido: 5 specs sincronizadas, 5 ADRs promovidos a docs/adr y reporte de archivo generado."
+
+
+

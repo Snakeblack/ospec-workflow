@@ -122,6 +122,44 @@ test("decrementBudgetMonotonic: non-increasing decrement math across retries and
   assert.equal(step3.turns, 0);
 });
 
+test("decrementBudgetMonotonic: retains consumed turns and attempts across CAS conflict reconciliation without replenishment [REQ-execution-budgets-003]", () => {
+  const nodeBudget = {
+    schema_version: 1,
+    turns: 5,
+    patches: 3,
+    commands: 10,
+    wall_time_minutes: 15,
+    changed_lines: 300,
+    allowed_paths: ["src/**"],
+  };
+  const authBudget = {
+    schema_version: 1,
+    effect_attempts: 3,
+    authority_mutations: 10,
+    evidence_runs: 20,
+    review_sweeps: 1,
+  };
+
+  // Lost CAS attempt executes 1 turn and 1 attempt
+  const lostRaceDelta = { turns: 1, effect_attempts: 1 };
+  const reconciledNode = decrementBudgetMonotonic(nodeBudget, lostRaceDelta);
+  const reconciledAuth = decrementBudgetMonotonic(authBudget, lostRaceDelta);
+
+  assert.equal(reconciledNode.turns, 4);
+  assert.equal(reconciledAuth.effect_attempts, 2);
+
+  // Retrying operation consumes another 1 turn
+  const retryDelta = { turns: 1, effect_attempts: 1 };
+  const finalNode = decrementBudgetMonotonic(reconciledNode, retryDelta);
+  const finalAuth = decrementBudgetMonotonic(reconciledAuth, retryDelta);
+
+  assert.equal(finalNode.turns, 3);
+  assert.equal(finalAuth.effect_attempts, 1);
+  assert.ok(finalNode.turns < nodeBudget.turns, "Turns must decrease monotonically");
+  assert.ok(finalAuth.effect_attempts < authBudget.effect_attempts, "Attempts must decrease monotonically");
+});
+
+
 test("checkPatchBounds: enforces changed lines limit on diff text", () => {
   const patchDiff = `
 diff --git a/src/auth/jwt.js b/src/auth/jwt.js

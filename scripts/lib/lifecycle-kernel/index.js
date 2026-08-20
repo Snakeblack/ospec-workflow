@@ -216,6 +216,41 @@ async function runKernelOperation(input = {}) {
   });
   if (!auth.ok) return blockedResult(state, journal, auth.code);
 
+  // Preflight budget exhaustion check (REQ-execution-budgets-001, REQ-execution-budgets-002, REQ-lifecycle-kernel-runtime-025)
+  if (state.authority_budget) {
+    const authEval = isBudgetExhausted(state.authority_budget, {}, { isAuthority: true });
+    if (authEval.exhausted) {
+      return blockedResult(state, journal, "budget-exhausted", {
+        dimension: authEval.dimension,
+        violations: authEval.violations,
+      });
+    }
+  }
+  if (args.node_id && state.nodes && state.nodes[args.node_id]) {
+    const targetNode = state.nodes[args.node_id];
+    if (targetNode.exhausted) {
+      return blockedResult(state, journal, "budget-exhausted");
+    }
+    if (targetNode.budget) {
+      const nodeEval = isBudgetExhausted(targetNode.budget, {}, { modifiedPaths: args.modified_paths });
+      if (nodeEval.exhausted) {
+        return blockedResult(state, journal, "budget-exhausted", {
+          dimension: nodeEval.dimension,
+          violations: nodeEval.violations,
+        });
+      }
+    }
+  }
+  if (state.budget) {
+    const stateBudgetEval = isBudgetExhausted(state.budget, {}, { modifiedPaths: args.modified_paths });
+    if (stateBudgetEval.exhausted) {
+      return blockedResult(state, journal, "budget-exhausted", {
+        dimension: stateBudgetEval.dimension,
+        violations: stateBudgetEval.violations,
+      });
+    }
+  }
+
   const validation = validateOperationTransition(state, { operation, arguments: args });
   if (!validation.ok) {
     return blockedResult(state, journal, validation.code, {
@@ -232,21 +267,26 @@ async function runKernelOperation(input = {}) {
     return blockedResult(state, journal, "journal-durability-required");
   }
 
-  if (args.scope !== undefined || operation === "repair") {
-    if (args.scope !== undefined) {
-      const preScope = validateRepairScope({
-        scope: args.scope,
-        targetNodeId: args.node_id,
-        modifiedPaths: args.modified_paths || [],
-        resolvedFindingIds: args.resolved_finding_ids || [],
+
+  if (operation === "repair" || args.scope !== undefined) {
+    if (!args.scope || typeof args.scope !== "object" || Array.isArray(args.scope)) {
+      return blockedResult(state, journal, "repair-scope-violation", {
+        violations: ["args.scope is required for repair operations and must be a non-null object"],
       });
-      if (!preScope.ok) {
-        return blockedResult(state, journal, "repair-scope-violation", {
-          violations: preScope.violations,
-        });
-      }
+    }
+    const preScope = validateRepairScope({
+      scope: args.scope,
+      targetNodeId: args.node_id,
+      modifiedPaths: args.modified_paths || [],
+      resolvedFindingIds: args.resolved_finding_ids || [],
+    });
+    if (!preScope.ok) {
+      return blockedResult(state, journal, "repair-scope-violation", {
+        violations: preScope.violations,
+      });
     }
   }
+
 
   const operationId = deriveOperationId({ state, operation, arguments: args });
   const reduced = reduceLifecycle(state, {
@@ -511,22 +551,20 @@ async function runKernelOperation(input = {}) {
   }
 
   // Post-effect repair scope validation
-  if (args.scope !== undefined || operation === "repair") {
-    const scopeToValidate = args.scope || (effectRecords[0]?.payload?.scope);
-    if (scopeToValidate !== undefined || accumulatedModifiedPaths.length > 0 || accumulatedFindingIds.length > 0) {
-      const postScope = validateRepairScope({
-        scope: scopeToValidate,
-        targetNodeId: args.node_id,
-        modifiedPaths: accumulatedModifiedPaths,
-        resolvedFindingIds: accumulatedFindingIds,
+  if (operation === "repair" || args.scope !== undefined) {
+    const postScope = validateRepairScope({
+      scope: args.scope,
+      targetNodeId: args.node_id,
+      modifiedPaths: accumulatedModifiedPaths,
+      resolvedFindingIds: accumulatedFindingIds,
+    });
+    if (!postScope.ok) {
+      return blockedResult(state, journal, "repair-scope-violation", {
+        violations: postScope.violations,
       });
-      if (!postScope.ok) {
-        return blockedResult(state, journal, "repair-scope-violation", {
-          violations: postScope.violations,
-        });
-      }
     }
   }
+
 
   // Zero-delta mutation check and deduction
   const isZeroDelta = isZeroDeltaMutation({
@@ -537,15 +575,51 @@ async function runKernelOperation(input = {}) {
     outputHashAfter: lastOutputHashAfter,
   });
   const targetNode = reduced.state.nodes && args.node_id ? reduced.state.nodes[args.node_id] : null;
-  if (isZeroDelta && targetNode && operation !== "status") {
-    targetNode.zero_delta_attempts = Number(targetNode.zero_delta_attempts || 0) + 1;
-    if (targetNode.budget) {
-      targetNode.budget = decrementBudgetMonotonic(targetNode.budget, { turns: 1, effect_attempts: 1 });
-      if (isBudgetExhausted(targetNode.budget).exhausted) {
-        targetNode.exhausted = true;
+  if (isZeroDelta && operation !== "status") {
+    if (targetNode) {
+      targetNode.zero_delta_attempts = Number(targetNode.zero_delta_attempts || 0) + 1;
+      if (targetNode.budget && operation !== "start") {
+        targetNode.budget = decrementBudgetMonotonic(targetNode.budget, { turns: 1 });
+        if (isBudgetExhausted(targetNode.budget).exhausted) {
+          targetNode.exhausted = true;
+        }
       }
     }
+    if (reduced.state.authority_budget) {
+
+      reduced.state.authority_budget = decrementBudgetMonotonic(reduced.state.authority_budget, { effect_attempts: 1 });
+      if (isBudgetExhausted(reduced.state.authority_budget, {}, { isAuthority: true }).exhausted) {
+        reduced.state.exhausted = true;
+      }
+    }
+
+    const zeroDeltaRecord = createJournalRecord({
+      effect_id: `zero-delta:${operationId}`,
+      effect_class: "idempotent-keyed",
+      operation_id: operationId,
+      status: "zero-delta-attempt",
+      kind: "zero-delta-attempt",
+      clock,
+      payload: {
+        node_id: args.node_id || null,
+        total_modified_files: totalModifiedFiles,
+        total_changed_lines: totalChangedLines,
+      },
+    });
+    journal = upsertJournal(journal, zeroDeltaRecord);
+    await persistJournal();
+
+    reduced.events.push({
+      kind: "zero-delta-attempt",
+      subject: args.node_id || null,
+      payload: {
+        operation,
+        total_modified_files: totalModifiedFiles,
+        total_changed_lines: totalChangedLines,
+      },
+    });
   }
+
 
   // Honest recovery validation
   if (operation === "recover" || operation === "repair") {

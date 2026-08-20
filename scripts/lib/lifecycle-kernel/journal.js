@@ -37,10 +37,11 @@ function createJournalRecord({
   result = null,
   effect_class = null,
 }) {
-  const allowed = new Set(["planned", "started", "completed", "failed", "unknown"]);
+  const allowed = new Set(["planned", "started", "completed", "failed", "unknown", "zero-delta-attempt"]);
   if (!allowed.has(status)) {
     throw new Error(`invalid journal status: ${status}`);
   }
+
   const record = {
     schema_version: 1,
     kernel_version,

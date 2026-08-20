@@ -254,16 +254,17 @@ function reduceLifecycle(state, action = {}) {
 
   if (operation === "escalate") {
     if (node) {
-      node.phase = "failed";
+      node.phase = "terminal";
     }
-    next.status = "blocked";
+    next.status = "terminal";
     events.push({
       kind: "operation-escalated",
       subject: nodeId || null,
       payload: { failure: node?.failure || args.failure || null },
     });
-    return { state: next, effects: [], events, outcome: "blocked" };
+    return { state: next, effects: [], events, outcome: "terminal" };
   }
+
 
   if (operation === "stop") {
     if (node) {

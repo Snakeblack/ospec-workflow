@@ -128,3 +128,19 @@ test("validateRepairScope: fails closed strictly when scope is empty, null, or m
   });
   assert.equal(arrayScope.ok, false);
 });
+
+test("validateRepairScope: requires explicit non-empty node_ids, allowed_paths, and finding_ids even without explicit target params [REQ-failure-recovery-004]", () => {
+  // Missing finding_ids or allowed_paths or node_ids
+  const partialScope = validateRepairScope({
+    scope: { node_ids: ["n1"], allowed_paths: ["src/**"] }, // missing finding_ids
+  });
+  assert.equal(partialScope.ok, false);
+  assert.ok(partialScope.violations.some((v) => v.includes("finding_ids")));
+
+  const emptyArraysScope = validateRepairScope({
+    scope: { node_ids: [], allowed_paths: [], finding_ids: [] },
+  });
+  assert.equal(emptyArraysScope.ok, false);
+  assert.equal(emptyArraysScope.violations.length, 3);
+});
+

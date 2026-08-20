@@ -41,62 +41,72 @@ function selectTransitions(state) {
   if (!state || typeof state !== "object") return [transition("stop", "stop", null)];
 
   if (state.status === "terminal") {
-    return [transition("decide", "escalate", null), transition("stop", "stop", null)];
+    return [transition("escalate", "escalate", null), transition("stop", "stop", null)];
   }
 
+  const isAuthExhausted =
+    Boolean(state.exhausted) ||
+    (state.authority_budget && isBudgetExhausted(state.authority_budget, {}, { isAuthority: true }).exhausted);
+
   const out = [];
-  for (const { id, node } of nodeEntries(state)) {
-    if (!node || typeof node !== "object") continue;
+  if (!isAuthExhausted) {
+    for (const { id, node } of nodeEntries(state)) {
+      if (!node || typeof node !== "object") continue;
 
-    const isExhausted =
-      Boolean(node.exhausted) ||
-      (node.budget && isBudgetExhausted(node.budget).exhausted);
+      const isExhausted =
+        Boolean(node.exhausted) ||
+        (node.budget && isBudgetExhausted(node.budget).exhausted);
 
-    if (isExhausted && (node.phase === "failed" || node.phase === "interrupted" || node.phase === "terminal")) {
-      continue;
-    }
+      if (isExhausted && (node.phase === "failed" || node.phase === "interrupted" || node.phase === "terminal")) {
+        continue;
+      }
 
-    if (node.phase === "interrupted" || node.phase === "failed") {
-      // Check causal failure taxonomy allowlist if failure descriptor is present
-      const failures = [node.failure, ...(Array.isArray(node.failures) ? node.failures : []), ...(Array.isArray(state.failures) ? state.failures : [])].filter(Boolean);
-      const primaryFailure = resolvePrimaryFailure(failures);
+      if (node.phase === "interrupted" || node.phase === "failed") {
+        // Check causal failure taxonomy allowlist if failure descriptor is present
+        const failures = [node.failure, ...(Array.isArray(node.failures) ? node.failures : []), ...(Array.isArray(state.failures) ? state.failures : [])].filter(Boolean);
+        const primaryFailure = resolvePrimaryFailure(failures);
 
-      if (primaryFailure) {
-        const remainingAttempts = (node.budget && typeof node.budget.turns === "number")
-          ? node.budget.turns
-          : Math.max(0, 3 - Number(node.attempt || 0));
+        if (primaryFailure) {
+          const remainingAttempts = (node.budget && typeof node.budget.turns === "number")
+            ? node.budget.turns
+            : Math.max(0, 3 - Number(node.attempt || 0));
 
-        const allowedOps = getAllowlistedTransitions(primaryFailure.category, { remainingAttempts });
-        for (const op of allowedOps) {
-          if (op === "repair" || op === "recover") {
-            if (remainingAttempts > 0 && !isExhausted) {
-              out.push(transition("execute", "recover", id, { primary_failure: primaryFailure }));
+          const allowedOps = getAllowlistedTransitions(primaryFailure.category, { remainingAttempts });
+          for (const op of allowedOps) {
+            if (op === "repair") {
+              if (remainingAttempts > 0 && !isExhausted) {
+                out.push(transition("execute", "repair", id, { primary_failure: primaryFailure }));
+              }
+            } else if (op === "recover") {
+              if (remainingAttempts > 0 && !isExhausted) {
+                out.push(transition("execute", "recover", id, { primary_failure: primaryFailure }));
+              }
+            } else if (op === "replan") {
+              out.push(transition("decide", "replan", id, { primary_failure: primaryFailure }));
+            } else if (op === "escalate") {
+              out.push(transition("escalate", "escalate", id, { primary_failure: primaryFailure }));
+            } else if (op === "stop") {
+              out.push(transition("stop", "stop", id, { primary_failure: primaryFailure }));
             }
-          } else if (op === "replan") {
-            out.push(transition("decide", "replan", id, { primary_failure: primaryFailure }));
-          } else if (op === "escalate") {
-            out.push(transition("decide", "escalate", id, { primary_failure: primaryFailure }));
-          } else if (op === "stop") {
-            out.push(transition("stop", "stop", id, { primary_failure: primaryFailure }));
+          }
+        } else {
+          if (!isExhausted) {
+            out.push(transition("execute", "recover", id));
           }
         }
-      } else {
+        continue;
+      }
+      if (node.phase === "pending") {
         if (!isExhausted) {
-          out.push(transition("execute", "recover", id));
+          out.push(transition("execute", "start", id));
         }
+        continue;
       }
-      continue;
-    }
-    if (node.phase === "pending") {
-      if (!isExhausted) {
-        out.push(transition("execute", "start", id));
+      if (node.phase === "started") {
+        out.push(transition("execute", "complete", id));
+        out.push(transition("execute", "fail", id));
+        continue;
       }
-      continue;
-    }
-    if (node.phase === "started") {
-      out.push(transition("execute", "complete", id));
-      out.push(transition("execute", "fail", id));
-      continue;
     }
   }
 
@@ -110,7 +120,7 @@ function selectTransitions(state) {
       const allowed = getAllowlistedTransitions(primary.category, { remainingAttempts: 0 });
       const fallbackTransitions = [];
       if (allowed.includes("escalate")) {
-        fallbackTransitions.push(transition("decide", "escalate", null, { primary_failure: primary }));
+        fallbackTransitions.push(transition("escalate", "escalate", null, { primary_failure: primary }));
       } else if (allowed.includes("replan")) {
         fallbackTransitions.push(transition("decide", "replan", null, { primary_failure: primary }));
       }
@@ -118,14 +128,15 @@ function selectTransitions(state) {
       return fallbackTransitions;
     }
 
-    const exhausted = nodeEntries(state).some(
+    const exhausted = isAuthExhausted || nodeEntries(state).some(
       ({ node }) => node && (node.exhausted || (node.budget && isBudgetExhausted(node.budget).exhausted))
     );
     if (exhausted || state.status === "blocked") {
-      return [transition("decide", "escalate", null), transition("stop", "stop", null)];
+      return [transition("escalate", "escalate", null), transition("stop", "stop", null)];
     }
     return [transition("stop", "stop", null)];
   }
+
 
   out.sort((a, b) => {
     const pa = OPERATION_PRIORITY[a.operation] ?? 999;

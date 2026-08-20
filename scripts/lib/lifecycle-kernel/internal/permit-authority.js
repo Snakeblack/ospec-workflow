@@ -258,6 +258,8 @@ function mintOperationPermit(input = {}) {
   return clone(permit);
 }
 
+const { isBudgetExhausted } = require("../../execution-budgets.js");
+
 function issueOperationPermit(input = {}) {
   const {
     ledger,
@@ -277,12 +279,35 @@ function issueOperationPermit(input = {}) {
     budget_ref = null,
   } = input;
 
+  if (input.budget && isBudgetExhausted(input.budget).exhausted) {
+    return { ok: false, code: "budget-exhausted" };
+  }
+  if (input.node_budget && isBudgetExhausted(input.node_budget).exhausted) {
+    return { ok: false, code: "budget-exhausted" };
+  }
+  if (input.authority_budget && isBudgetExhausted(input.authority_budget, {}, { isAuthority: true }).exhausted) {
+    return { ok: false, code: "budget-exhausted" };
+  }
+  if (input.state && typeof input.state === "object") {
+    if (input.state.authority_budget && isBudgetExhausted(input.state.authority_budget, {}, { isAuthority: true }).exhausted) {
+      return { ok: false, code: "budget-exhausted" };
+    }
+    const nodeId = (mutationArgs && mutationArgs.node_id) || input.arguments?.node_id;
+    if (nodeId && input.state.nodes?.[nodeId]) {
+      const n = input.state.nodes[nodeId];
+      if (n.exhausted || (n.budget && isBudgetExhausted(n.budget).exhausted)) {
+        return { ok: false, code: "budget-exhausted" };
+      }
+    }
+  }
+
   if (!ledger || typeof ledger !== "object") {
     return { ok: false, code: "permit-ledger-required" };
   }
   if (!isPermitAuthorityIssuer(ledger) || typeof ledger.insert !== "function") {
     return { ok: false, code: "issuer-capability-required" };
   }
+
 
   if (transitionOffer != null || policyDecision != null || humanDecision != null || kernelRule != null) {
     return { ok: false, code: "issuer-fabricated-decision" };

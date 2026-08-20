@@ -59,7 +59,7 @@ test("terminal state exposes no ordinary execute transition", () => {
   assert.ok(!transitions.some((t) => t.kind === "execute" && t.operation === "complete"));
   const next = nextTransition(state);
   assert.ok(next);
-  assert.ok(next.kind === "decide" || next.kind === "stop" || next.operation === "recover");
+  assert.ok(next.kind === "decide" || next.kind === "stop" || next.kind === "escalate" || next.operation === "recover");
 });
 
 test("exhausted operation cannot restart implicitly", () => {
@@ -69,8 +69,9 @@ test("exhausted operation cannot restart implicitly", () => {
   const transitions = selectTransitions(state);
   assert.ok(!transitions.some((t) => t.operation === "start"));
   const next = nextTransition(state);
-  assert.ok(["decide", "stop", "recover"].includes(next.kind) || next.operation === "recover");
+  assert.ok(["decide", "stop", "recover", "escalate"].includes(next.kind) || next.operation === "recover");
 });
+
 
 test("transition selector: prunes recover when primary failure category is ambiguous_effect or validation_gap", () => {
   const stateAmbiguous = stateWith({
@@ -111,5 +112,53 @@ test("transition selector: prunes recover when node execution budget turns is ex
 
   const transitions = selectTransitions(stateBudgetExhausted);
   assert.ok(!transitions.some((t) => t.operation === "recover"));
-  assert.ok(transitions.some((t) => t.kind === "decide" || t.kind === "stop"));
+  assert.ok(transitions.some((t) => t.kind === "decide" || t.kind === "stop" || t.kind === "escalate"));
 });
+
+test("transition selector: code_defect emits { kind: 'execute', operation: 'repair' } without degrading to recover [REQ-failure-recovery-002, REQ-lifecycle-kernel-runtime-026]", () => {
+  const stateCodeDefect = stateWith({
+    n1: {
+      id: "n1",
+      phase: "failed",
+      attempt: 1,
+      budget: { schema_version: 1, turns: 5, patches: 5, commands: 10, wall_time_minutes: 30, changed_lines: 400, allowed_paths: [] },
+      failure: {
+        category: "code_defect",
+        code: "TEST_FAILED",
+        priority: 5,
+        blocking_fingerprint: "fp:def",
+      },
+    },
+  }, "blocked");
+
+  const transitions = selectTransitions(stateCodeDefect);
+  const repairTrans = transitions.find((t) => t.operation === "repair");
+  assert.ok(repairTrans, "Must emit transition with operation: 'repair'");
+  assert.equal(repairTrans.kind, "execute", "repair must have kind: 'execute'");
+  assert.equal(repairTrans.arguments.node_id, "n1");
+  assert.ok(!transitions.some((t) => t.operation === "recover"), "Must NOT degrade or rename operation to 'recover'");
+});
+
+test("transition selector: ambiguous_effect emits { kind: 'escalate', operation: 'escalate' } without decide substitution [REQ-failure-recovery-002, REQ-lifecycle-kernel-runtime-026]", () => {
+  const stateAmbiguous = stateWith({
+    n1: {
+      id: "n1",
+      phase: "failed",
+      attempt: 1,
+      failure: {
+        category: "ambiguous_effect",
+        code: "UNKNOWN_OUTCOME",
+        priority: 3,
+        blocking_fingerprint: "fp:amb",
+      },
+    },
+  }, "blocked");
+
+  const transitions = selectTransitions(stateAmbiguous);
+  const escTrans = transitions.find((t) => t.operation === "escalate");
+  assert.ok(escTrans, "Must emit transition with operation: 'escalate'");
+  assert.equal(escTrans.kind, "escalate", "escalate must have kind: 'escalate', not 'decide'");
+  assert.ok(!transitions.some((t) => t.kind === "decide" && t.operation === "escalate"), "Must NOT emit decide for escalate");
+  assert.ok(!transitions.some((t) => t.operation === "repair" || t.operation === "recover"), "Must NOT offer repair or recover");
+});
+

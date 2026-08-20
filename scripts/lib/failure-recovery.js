@@ -61,13 +61,11 @@ function validateRecoveryTransition(category, operation, context = {}) {
  * @returns {{ ok: boolean, violations: string[] }}
  */
 function validateRepairScope({
-  scope = {},
+  scope,
   targetNodeId,
   modifiedPaths = [],
   resolvedFindingIds = [],
 } = {}) {
-  const violations = [];
-
   if (!scope || typeof scope !== "object" || Array.isArray(scope)) {
     return {
       ok: false,
@@ -75,37 +73,31 @@ function validateRepairScope({
     };
   }
 
-  // Validate target node ID
-  if (targetNodeId) {
-    if (!Array.isArray(scope.node_ids) || scope.node_ids.length === 0) {
-      violations.push(`Scope missing required non-empty 'node_ids' array for target node '${targetNodeId}'`);
-    } else if (!scope.node_ids.includes(targetNodeId)) {
-      violations.push(`Target node ID '${targetNodeId}' is not in allowlisted scope: [${scope.node_ids.join(", ")}]`);
-    }
+  const violations = [];
+
+  // Required structure checks on scope itself
+  if (!Array.isArray(scope.node_ids) || scope.node_ids.length === 0) {
+    violations.push("Scope missing required non-empty 'node_ids' array");
+  } else if (targetNodeId && !scope.node_ids.includes(targetNodeId)) {
+    violations.push(`Target node ID '${targetNodeId}' is not in allowlisted scope: [${scope.node_ids.join(", ")}]`);
   }
 
-  // Validate modified paths against allowed_paths globs
-  if (Array.isArray(modifiedPaths) && modifiedPaths.length > 0) {
-    if (!Array.isArray(scope.allowed_paths) || scope.allowed_paths.length === 0) {
-      violations.push(`Scope missing required non-empty 'allowed_paths' array for modified paths [${modifiedPaths.join(", ")}]`);
-    } else {
-      for (const modPath of modifiedPaths) {
-        if (!isPathAllowed(modPath, scope.allowed_paths)) {
-          violations.push(`Modified path '${modPath}' violates bounded scope globs: [${scope.allowed_paths.join(", ")}]`);
-        }
+  if (!Array.isArray(scope.allowed_paths) || scope.allowed_paths.length === 0) {
+    violations.push("Scope missing required non-empty 'allowed_paths' array");
+  } else if (Array.isArray(modifiedPaths) && modifiedPaths.length > 0) {
+    for (const modPath of modifiedPaths) {
+      if (!isPathAllowed(modPath, scope.allowed_paths)) {
+        violations.push(`Modified path '${modPath}' violates bounded scope globs: [${scope.allowed_paths.join(", ")}]`);
       }
     }
   }
 
-  // Validate resolved finding IDs
-  if (Array.isArray(resolvedFindingIds) && resolvedFindingIds.length > 0) {
-    if (!Array.isArray(scope.finding_ids) || scope.finding_ids.length === 0) {
-      violations.push(`Scope missing required non-empty 'finding_ids' array for resolved findings [${resolvedFindingIds.join(", ")}]`);
-    } else {
-      for (const fId of resolvedFindingIds) {
-        if (!scope.finding_ids.includes(fId)) {
-          violations.push(`Resolved finding ID '${fId}' is not in frozen finding scope: [${scope.finding_ids.join(", ")}]`);
-        }
+  if (!Array.isArray(scope.finding_ids) || scope.finding_ids.length === 0) {
+    violations.push("Scope missing required non-empty 'finding_ids' array");
+  } else if (Array.isArray(resolvedFindingIds) && resolvedFindingIds.length > 0) {
+    for (const fId of resolvedFindingIds) {
+      if (!scope.finding_ids.includes(fId)) {
+        violations.push(`Resolved finding ID '${fId}' is not in frozen finding scope: [${scope.finding_ids.join(", ")}]`);
       }
     }
   }
@@ -115,6 +107,7 @@ function validateRepairScope({
     violations,
   };
 }
+
 
 function isPathAllowed(targetPath, allowedGlobs) {
   const normTarget = targetPath.replace(/\\/g, "/");

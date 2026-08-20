@@ -823,3 +823,290 @@ test("CAS conflict after effects does not inflate budgets", async () => {
   assert.ok(result.code === "stale-permit" || result.code === "invalid-transition" || result.code === "cas-conflict" || result.code === "permit-not-runtime-issued");
   assert.deepEqual(store2.getBudgets(), budgetsBefore);
 });
+
+test("runKernelOperation: escalate transition consolidates and commits terminal status via CAS to Authority Store [REQ-failure-recovery-002, REQ-lifecycle-kernel-runtime-026]", async () => {
+  const failedState = {
+    schema_version: 1,
+    status: "blocked",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "failed",
+        attempt: 1,
+        failure: { category: "ambiguous_effect", code: "UNKNOWN_EFFECT", priority: 3 },
+      },
+    },
+  };
+  const store = createAuthorityStore({ initial: { state: failedState, journal: [] } });
+  const runtime = createKernelRuntime({ store });
+  const head0 = await store.load();
+
+  const permit = runtime.issuePermitForSelectedTransition({
+    operation: "escalate",
+    expected_revision: head0.revision,
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(permit.ok, true, "Permit issuance for escalate must succeed");
+
+  const result = await runtime.runOperation({
+    operation: "escalate",
+    arguments: { node_id: "n1" },
+    operationPermit: permit.permit,
+    effectExecutor: async () => ({ ok: true }),
+  });
+
+  assert.equal(result.outcome, "terminal", "Outcome of escalate must be terminal");
+  assert.notEqual(result.revision, head0.revision, "Head revision must advance via CAS");
+
+  const loaded = await store.load();
+  assert.equal(loaded.revision, result.revision, "Store revision must match CAS committed revision");
+  assert.equal(loaded.state.status, "terminal", "Committed state status must be terminal");
+  assert.equal(loaded.state.nodes.n1.phase, "terminal", "Node phase must be terminal");
+});
+
+test("runKernelOperation: preflight rejects with budget-exhausted and 0 effectExecutor calls when node or authority budget is exhausted [REQ-execution-budgets-001, REQ-execution-budgets-002, REQ-lifecycle-kernel-runtime-025]", async () => {
+  // Case 1: Node turns exhausted (0)
+  const nodeExhaustedState = {
+    schema_version: 1,
+    status: "ready",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "pending",
+        attempt: 0,
+        budget: { schema_version: 1, turns: 0, patches: 5, commands: 10, wall_time_minutes: 30, changed_lines: 400, allowed_paths: [] },
+      },
+    },
+    authority_budget: { schema_version: 1, effect_attempts: 3, authority_mutations: 10, evidence_runs: 20, review_sweeps: 1 },
+  };
+  const store1 = createAuthorityStore({ initial: { state: nodeExhaustedState, journal: [] } });
+  const runtime1 = createKernelRuntime({ store: store1 });
+  const head1 = await store1.load();
+
+  const permit1 = runtime1.issuePermitForSelectedTransition({
+    operation: "start",
+    expected_revision: head1.revision,
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(permit1.ok, true);
+
+  let calls1 = 0;
+  const result1 = await runtime1.runOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    operationPermit: permit1.permit,
+    effectExecutor: async () => {
+      calls1++;
+      return { ok: true };
+    },
+  });
+
+  assert.equal(result1.outcome, "blocked", "Must block on exhausted budget");
+  assert.equal(result1.code, "budget-exhausted", "Code must be budget-exhausted");
+  assert.equal(calls1, 0, "Must have exactly 0 calls to effectExecutor");
+
+  // Case 2: Authority effect_attempts exhausted (0)
+  const authExhaustedState = {
+    schema_version: 1,
+    status: "ready",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "pending",
+        attempt: 0,
+        budget: { schema_version: 1, turns: 5, patches: 5, commands: 10, wall_time_minutes: 30, changed_lines: 400, allowed_paths: [] },
+      },
+    },
+    authority_budget: { schema_version: 1, effect_attempts: 0, authority_mutations: 10, evidence_runs: 20, review_sweeps: 1 },
+  };
+  const store2 = createAuthorityStore({ initial: { state: authExhaustedState, journal: [] } });
+  const runtime2 = createKernelRuntime({ store: store2 });
+  const head2 = await store2.load();
+
+  const permit2 = runtime2.issuePermitForSelectedTransition({
+    operation: "start",
+    expected_revision: head2.revision,
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(permit2.ok, true);
+
+  let calls2 = 0;
+  const result2 = await runtime2.runOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    operationPermit: permit2.permit,
+    effectExecutor: async () => {
+      calls2++;
+      return { ok: true };
+    },
+  });
+
+  assert.equal(result2.outcome, "blocked", "Must block on exhausted authority budget");
+  assert.equal(result2.code, "budget-exhausted", "Code must be budget-exhausted");
+  assert.equal(calls2, 0, "Must have exactly 0 calls to effectExecutor");
+});
+
+test("runKernelOperation: repair without args.scope fails closed with repair-scope-violation and 0 effectExecutor calls [REQ-failure-recovery-004, REQ-lifecycle-kernel-runtime-026]", async () => {
+  const failedState = {
+    schema_version: 1,
+    status: "blocked",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "failed",
+        attempt: 1,
+        failure: { category: "code_defect", code: "TEST_FAILED", priority: 5, blocking_fingerprint: "fp:1" },
+      },
+    },
+  };
+  const store = createAuthorityStore({ initial: { state: failedState, journal: [] } });
+  const runtime = createKernelRuntime({ store });
+  const head = await store.load();
+
+  const permit = runtime.issuePermitForSelectedTransition({
+    operation: "repair",
+    expected_revision: head.revision,
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(permit.ok, true);
+
+  // Missing args.scope entirely
+  let calls = 0;
+  const result = await runtime.runOperation({
+    operation: "repair",
+    arguments: { node_id: "n1" }, // no scope!
+    operationPermit: permit.permit,
+    effectExecutor: async () => {
+      calls++;
+      return { ok: true };
+    },
+  });
+
+  assert.equal(result.outcome, "blocked");
+  assert.equal(result.code, "repair-scope-violation");
+  assert.equal(calls, 0, "Must perform exactly 0 calls to effectExecutor");
+
+  // Valid args.scope executes successfully
+  const headAfter = await store.load();
+  const permitValid = runtime.issuePermitForSelectedTransition({
+    operation: "repair",
+    expected_revision: headAfter.revision,
+    arguments: {
+      node_id: "n1",
+      scope: {
+        node_ids: ["n1"],
+        allowed_paths: ["src/auth/**"],
+        finding_ids: ["F-001"],
+      },
+    },
+  });
+  assert.equal(permitValid.ok, true);
+
+  let callsValid = 0;
+  const resultValid = await runtime.runOperation({
+    operation: "repair",
+    arguments: {
+      node_id: "n1",
+      scope: {
+        node_ids: ["n1"],
+        allowed_paths: ["src/auth/**"],
+        finding_ids: ["F-001"],
+      },
+    },
+    operationPermit: permitValid.permit,
+    effectExecutor: async () => {
+      callsValid++;
+      return { ok: true, modified_paths: ["src/auth/jwt.js"], resolved_finding_ids: ["F-001"] };
+    },
+  });
+
+  assert.equal(resultValid.outcome, "advanced");
+  assert.equal(callsValid, 1);
+});
+
+test("runKernelOperation: zero-delta mutation simultaneously decrements node turns and authority effect_attempts and records durable zero-delta-attempt journal event [REQ-execution-budgets-001, REQ-execution-budgets-002, REQ-lifecycle-kernel-runtime-027]", async () => {
+  const failedState = {
+    schema_version: 1,
+    status: "blocked",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "failed",
+        attempt: 1,
+        failure: { category: "code_defect", code: "TEST_FAILED", priority: 5, blocking_fingerprint: "fp:1" },
+        budget: { schema_version: 1, turns: 5, patches: 5, commands: 10, wall_time_minutes: 30, changed_lines: 400, allowed_paths: [] },
+      },
+    },
+    authority_budget: { schema_version: 1, effect_attempts: 3, authority_mutations: 10, evidence_runs: 20, review_sweeps: 1 },
+  };
+  const store = createAuthorityStore({ initial: { state: failedState, journal: [] } });
+  const runtime = createKernelRuntime({ store });
+  const head0 = await store.load();
+
+  const permit = runtime.issuePermitForSelectedTransition({
+    operation: "repair",
+    expected_revision: head0.revision,
+    arguments: {
+      node_id: "n1",
+      scope: { node_ids: ["n1"], allowed_paths: ["src/**"], finding_ids: ["F-1"] },
+    },
+  });
+  assert.equal(permit.ok, true);
+
+  // Executor returns 0 modified files and 0 changed lines (zero delta)
+  const result = await runtime.runOperation({
+    operation: "repair",
+    arguments: {
+      node_id: "n1",
+      scope: { node_ids: ["n1"], allowed_paths: ["src/**"], finding_ids: ["F-1"] },
+    },
+    operationPermit: permit.permit,
+    effectExecutor: async () => ({ ok: true, modified_files_count: 0, changed_lines: 0, state_advanced: false }),
+  });
+
+  assert.equal(result.outcome, "advanced");
+
+  const loaded = await store.load();
+  // Node turns decremented from 5 to 4
+  assert.equal(loaded.state.nodes.n1.budget.turns, 4, "Node turns must decrement on zero-delta");
+  // Authority effect_attempts decremented from 3 to 2
+  assert.equal(loaded.state.authority_budget.effect_attempts, 2, "Authority effect_attempts must decrement on zero-delta");
+
+  // Journal contains durable zero-delta record
+  const journalSnap = store.snapshot().journal;
+  const zeroDeltaEntry = journalSnap.find((entry) => entry.status === "zero-delta-attempt" || entry.kind === "zero-delta-attempt");
+  assert.ok(zeroDeltaEntry, "Journal must persist a durable zero-delta-attempt record");
+});
+
+
+test("runKernelOperation: read-only status query does not decrement budgets or record zero-delta attempt [REQ-execution-budgets-001]", async () => {
+  const readyState = {
+    schema_version: 1,
+    status: "ready",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "pending",
+        attempt: 0,
+        budget: { schema_version: 1, turns: 5, patches: 5, commands: 10, wall_time_minutes: 30, changed_lines: 400, allowed_paths: [] },
+      },
+    },
+    authority_budget: { schema_version: 1, effect_attempts: 3, authority_mutations: 10, evidence_runs: 20, review_sweeps: 1 },
+  };
+  const store = createAuthorityStore({ initial: { state: readyState, journal: [] } });
+  const runtime = createKernelRuntime({ store });
+
+  const statusResult = await runtime.runOperation({ operation: "status" });
+  assert.notEqual(statusResult.outcome, "blocked");
+
+  const loaded = await store.load();
+  assert.equal(loaded.state.nodes.n1.budget.turns, 5, "Node turns must remain intact on status");
+  assert.equal(loaded.state.authority_budget.effect_attempts, 3, "Authority attempts must remain intact on status");
+  assert.equal(store.snapshot().journal.length, 0, "No zero delta journal record on status");
+});
+
+
+
+
+
+

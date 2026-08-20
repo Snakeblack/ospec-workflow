@@ -685,4 +685,48 @@ test("Task 3.1: Forged Symbol.for is rejected by isPermitAuthorityIssuer", () =>
   const forgedSymbol = Symbol.for("ospec.permitAuthorityIssuer");
   const forgedObj = { [forgedSymbol]: true };
   assert.equal(isPermitAuthorityIssuer(forgedObj), false);
-});
+});
+
+test("issueOperationPermit: rejects permit when node or authority budget is exhausted [REQ-operation-permits-005, REQ-execution-budgets-002]", () => {
+  const ledger = createPermitAuthorityIssuer();
+  const offerReg = ledger.registerTransitionOffer(OFFER);
+  const decisionReg = ledger.registerPolicyDecision({
+    offer_id: offerReg.offer_id,
+    decision_id: "pol:budget-check",
+    operation: "start",
+    subject_id: "lifecycle:default",
+  });
+
+  // Node budget exhausted (turns: 0)
+  const resNodeExhausted = issueOperationPermit({
+    ledger,
+    offer_id: offerReg.offer_id,
+    decision_id: decisionReg.decision_id,
+    expected_revision: HEAD,
+    subject_id: "lifecycle:default",
+    budget: { turns: 0 },
+  });
+  assert.equal(resNodeExhausted.ok, false);
+  assert.equal(resNodeExhausted.code, "budget-exhausted");
+
+  // Authority budget exhausted (effect_attempts: 0)
+  const ledger2 = createPermitAuthorityIssuer();
+  const offerReg2 = ledger2.registerTransitionOffer(OFFER);
+  const decisionReg2 = ledger2.registerPolicyDecision({
+    offer_id: offerReg2.offer_id,
+    decision_id: "pol:auth-check",
+    operation: "start",
+    subject_id: "lifecycle:default",
+  });
+  const resAuthExhausted = issueOperationPermit({
+    ledger: ledger2,
+    offer_id: offerReg2.offer_id,
+    decision_id: decisionReg2.decision_id,
+    expected_revision: HEAD,
+    subject_id: "lifecycle:default",
+    authority_budget: { effect_attempts: 0 },
+  });
+  assert.equal(resAuthExhausted.ok, false);
+  assert.equal(resAuthExhausted.code, "budget-exhausted");
+});
+
