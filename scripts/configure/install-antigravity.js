@@ -53,6 +53,82 @@ function parseArgs(argv) {
   return args;
 }
 
+function getHooksRootPosix(targetDir) {
+  let posixPath = toPosix(targetDir);
+  const winMntMatch = posixPath.match(/^[a-zA-Z]:\/mnt\/([a-zA-Z])\/(.*)$/);
+  if (winMntMatch) {
+    return `${winMntMatch[1].toUpperCase()}:/${winMntMatch[2]}`;
+  }
+  const wslMatch = posixPath.match(/^\/mnt\/([a-zA-Z])\/(.*)$/);
+  if (wslMatch) {
+    const drive = wslMatch[1].toUpperCase();
+    const rest = wslMatch[2];
+    return `${drive}:/${rest}`;
+  }
+  return posixPath;
+}
+
+function getDestinationRoots(argsDest, deps = {}) {
+  const fsImpl = deps.fs || fs;
+  const homedir = deps.homedir || os.homedir;
+  const env = deps.env || process.env;
+  const platform = deps.platform || process.platform;
+  const pathImpl = deps.path || (platform === "linux" ? path.posix : (platform === "win32" ? path.win32 : path));
+
+  if (argsDest) {
+    return [pathImpl.resolve(argsDest)];
+  }
+
+  const roots = [];
+  const primaryRoot = pathImpl.resolve(pathImpl.join(homedir(), ".gemini", "config"));
+  roots.push(primaryRoot);
+
+  // If in WSL, detect Windows user .gemini/config
+  const isWsl =
+    platform === "linux" &&
+    (Boolean(env.WSL_DISTRO_NAME) ||
+      Boolean(env.WSL_INTEROP) ||
+      (typeof fsImpl.existsSync === "function" &&
+        fsImpl.existsSync("/proc/version") &&
+        fsImpl.readFileSync("/proc/version", "utf8").toLowerCase().includes("microsoft")));
+
+  if (isWsl) {
+    const candidateUsers = new Set();
+    if (env.USER) candidateUsers.add(env.USER);
+    if (env.LOGNAME) candidateUsers.add(env.LOGNAME);
+
+    const mntCUsers = "/mnt/c/Users";
+    if (typeof fsImpl.existsSync === "function" && fsImpl.existsSync(mntCUsers)) {
+      try {
+        const entries = fsImpl.readdirSync(mntCUsers);
+        for (const entry of entries) {
+          if (entry !== "Public" && entry !== "Default" && entry !== "All Users") {
+            candidateUsers.add(entry);
+          }
+        }
+      } catch {
+        // Ignore read errors
+      }
+    }
+
+    for (const user of candidateUsers) {
+      const winConfigDir = pathImpl.join("/mnt/c/Users", user, ".gemini", "config");
+      const winGeminiDir = pathImpl.join("/mnt/c/Users", user, ".gemini");
+      if (
+        typeof fsImpl.existsSync === "function" &&
+        (fsImpl.existsSync(winConfigDir) || fsImpl.existsSync(winGeminiDir))
+      ) {
+        const resolvedWin = pathImpl.resolve(winConfigDir);
+        if (!roots.includes(resolvedWin)) {
+          roots.push(resolvedWin);
+        }
+      }
+    }
+  }
+
+  return roots;
+}
+
 function renderHooksValue(value, antigravityRootPosix) {
   if (typeof value === "string") {
     return value.replace(/__OSPEC_ANTIGRAVITY_ROOT__/g, antigravityRootPosix);
@@ -72,7 +148,7 @@ function installHooksJson(outDir, antigravityRoot, deps = {}) {
   const fsImpl = deps.fs || fs;
   const dryRun = Boolean(deps.dryRun);
   const antigravityRootPosix =
-    deps.antigravityRootPosix || toPosix(path.resolve(antigravityRoot));
+    deps.antigravityRootPosix || getHooksRootPosix(antigravityRoot);
   const sourcePath = path.join(outDir, "hooks.json");
   if (!fsImpl.existsSync(sourcePath)) {
     throw new Error(`generated hooks.json missing at ${sourcePath}`);
@@ -103,44 +179,18 @@ function installHooksJson(outDir, antigravityRoot, deps = {}) {
   fsImpl.writeFileSync(destPath, JSON.stringify(merged, null, 2) + "\n", "utf8");
 }
 
-function main(argv, deps = {}) {
-  const args = parseArgs(argv);
-  const cwd = deps.cwd || process.cwd();
+function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) {
   const fsImpl = deps.fs || fs;
   const stdout = deps.stdout || process.stdout;
   const stderr = deps.stderr || process.stderr;
-  const homedir = deps.homedir || os.homedir;
-  const runConfigureImpl = deps.runConfigure || runConfigure;
   const copyBinary = deps.copyBinaryToTree || copyBinaryToTree;
   const validateInstalled = deps.validateInstalled || validateInstalledAntigravity;
-
-  if (args.error) {
-    stderr.write(`${usage()}${args.error}\n`);
-    return 2;
-  }
-
-  const sourceDir = path.resolve(args.source || cwd);
-  const antigravityRoot = path.resolve(args.dest || path.join(homedir(), ".gemini", "config"));
-  const outDir = path.join(sourceDir, "dist", "antigravity");
 
   try {
     assertPathSafe(antigravityRoot, antigravityRoot, fsImpl);
   } catch (error) {
     stderr.write(`${error.message}\n`);
     return 1;
-  }
-
-  const result = runConfigureImpl({
-    sourceDir,
-    target: "antigravity",
-    outDir,
-    validate: args.validate,
-  });
-  if (result.validation?.stdout) stdout.write(result.validation.stdout);
-  if (result.validation?.stderr) stderr.write(result.validation.stderr);
-  if (result.exitCode !== 0) {
-    stderr.write("\nbuild/validation failed; nothing installed\n");
-    return result.exitCode || 1;
   }
 
   stdout.write(`install-antigravity -> ${antigravityRoot}${args.dryRun ? " (dry-run)" : ""}\n`);
@@ -172,7 +222,13 @@ function main(argv, deps = {}) {
       journal,
     );
 
-    installHooksJson(outDir, antigravityRoot, { fs: fsImpl, dryRun: false, journal });
+    const antigravityRootPosix = getHooksRootPosix(antigravityRoot);
+    installHooksJson(outDir, antigravityRoot, {
+      fs: fsImpl,
+      dryRun: false,
+      journal,
+      antigravityRootPosix,
+    });
 
     const allOwned = Array.from(new Set([...syncResult.ownedFiles, "hooks.json", MANIFEST_FILENAME]));
     const pruneResult = pruneStaleFiles(antigravityRoot, previousManifest, allOwned, fsImpl, journal);
@@ -217,6 +273,45 @@ function main(argv, deps = {}) {
   }
 }
 
+function main(argv = process.argv.slice(2), deps = {}) {
+  const args = parseArgs(argv);
+  const cwd = deps.cwd || process.cwd();
+  const stdout = deps.stdout || process.stdout;
+  const stderr = deps.stderr || process.stderr;
+  const runConfigureImpl = deps.runConfigure || runConfigure;
+
+  if (args.error) {
+    stderr.write(`${usage()}${args.error}\n`);
+    return 2;
+  }
+
+  const sourceDir = path.resolve(args.source || cwd);
+  const outDir = path.join(sourceDir, "dist", "antigravity");
+  const targetRoots = getDestinationRoots(args.dest, deps);
+
+  const result = runConfigureImpl({
+    sourceDir,
+    target: "antigravity",
+    outDir,
+    validate: args.validate,
+  });
+  if (result.validation?.stdout) stdout.write(result.validation.stdout);
+  if (result.validation?.stderr) stderr.write(result.validation.stderr);
+  if (result.exitCode !== 0) {
+    stderr.write("\nbuild/validation failed; nothing installed\n");
+    return result.exitCode || 1;
+  }
+
+  let exitCode = 0;
+  for (const root of targetRoots) {
+    const code = installAntigravityRoot(root, outDir, sourceDir, args, deps);
+    if (code !== 0) {
+      exitCode = code;
+    }
+  }
+  return exitCode;
+}
+
 if (require.main === module) {
   try {
     process.exitCode = main(process.argv.slice(2));
@@ -228,6 +323,8 @@ if (require.main === module) {
 
 module.exports = {
   parseArgs,
+  getHooksRootPosix,
+  getDestinationRoots,
   renderHooksValue,
   installHooksJson,
   main,

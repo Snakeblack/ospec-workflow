@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/causal-failure/v1",
+  "title": "CausalFailureV1",
+  "description": "Typed Causal Failure Descriptor Schema v1 with deterministic priority.",
+  "type": "object",
+  "schema_version": 1,
+  "required": [
+    "schema_version",
+    "failure_id",
+    "category",
+    "code",
+    "priority",
+    "blocking_fingerprint",
+    "details"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "failure_id": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "environment_tooling",
+        "cas_conflict",
+        "ambiguous_effect",
+        "validation_gap",
+        "code_defect"
+      ]
+    },
+    "code": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "blocking_fingerprint": {
+      "type": "string"
+    },
+    "details": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

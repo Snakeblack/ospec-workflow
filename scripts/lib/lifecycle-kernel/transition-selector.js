@@ -1,5 +1,8 @@
 "use strict";
 
+const { resolvePrimaryFailure } = require("../causal-failure.js");
+const { getAllowlistedTransitions } = require("../failure-recovery.js");
+
 /**
  * Explicit total priority for valid transitions.
  * Lower number = higher priority. Secondary key = node_id ascending.
@@ -41,12 +44,33 @@ function selectTransitions(state) {
   for (const { id, node } of nodeEntries(state)) {
     if (!node || typeof node !== "object") continue;
 
-    if (node.exhausted && (node.phase === "failed" || node.phase === "interrupted" || node.phase === "terminal")) {
+    const isExhausted =
+      Boolean(node.exhausted) ||
+      (node.budget && typeof node.budget.turns === "number" && node.budget.turns <= 0) ||
+      (node.budget && typeof node.budget.effect_attempts === "number" && node.budget.effect_attempts <= 0);
+
+    if (isExhausted && (node.phase === "failed" || node.phase === "interrupted" || node.phase === "terminal")) {
       continue;
     }
 
     if (node.phase === "interrupted" || node.phase === "failed") {
-      out.push(transition("execute", "recover", id));
+      // Check causal failure taxonomy allowlist if failure descriptor is present
+      const failures = [node.failure, ...(Array.isArray(node.failures) ? node.failures : []), ...(Array.isArray(state.failures) ? state.failures : [])].filter(Boolean);
+      const primaryFailure = resolvePrimaryFailure(failures);
+
+      if (primaryFailure) {
+        const remainingAttempts = (node.budget && typeof node.budget.turns === "number")
+          ? node.budget.turns
+          : Math.max(0, 3 - Number(node.attempt || 0));
+
+        const allowedOps = getAllowlistedTransitions(primaryFailure.category, { remainingAttempts });
+        // Only permit automatic recover if repair or direct retry is allowlisted
+        if (allowedOps.includes("repair") && remainingAttempts > 0) {
+          out.push(transition("execute", "recover", id, { primary_failure: primaryFailure }));
+        }
+      } else {
+        out.push(transition("execute", "recover", id));
+      }
       continue;
     }
     if (node.phase === "pending") {
@@ -62,7 +86,7 @@ function selectTransitions(state) {
 
   if (out.length === 0) {
     const exhausted = nodeEntries(state).some(
-      ({ node }) => node && node.exhausted
+      ({ node }) => node && (node.exhausted || (node.budget && node.budget.turns <= 0))
     );
     if (exhausted || state.status === "blocked") {
       return [transition("decide", "decide", null), transition("stop", "stop", null)];

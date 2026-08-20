@@ -4,6 +4,12 @@ const {
   authorizeOperation,
   validateOperationTransition,
 } = require("./operations.js");
+const {
+  decrementBudgetMonotonic,
+  evaluateNodeBudget,
+  evaluateAuthorityBudget,
+  isZeroDeltaMutation,
+} = require("../execution-budgets.js");
 
 const DEFAULT_EFFECT_CLASS = "idempotent-keyed";
 
@@ -71,10 +77,64 @@ function reduceLifecycle(state, action = {}) {
   const events = [];
   const effectClass = action.effect_class || DEFAULT_EFFECT_CLASS;
 
+  // Monotonic budget decrement on consumed delta if passed
+  const consumedDelta = action.consumed || action.delta || args.consumed;
+  if (consumedDelta && typeof consumedDelta === "object") {
+    if (node && node.budget) {
+      node.budget = decrementBudgetMonotonic(node.budget, consumedDelta);
+    }
+    if (next.authority_budget) {
+      next.authority_budget = decrementBudgetMonotonic(next.authority_budget, consumedDelta);
+    }
+    if (next.budget) {
+      next.budget = decrementBudgetMonotonic(next.budget, consumedDelta);
+    }
+  }
+
+  // Zero-delta mutation detection
+  const isZeroDelta =
+    action.zero_delta === true ||
+    (action.mutation === true &&
+      isZeroDeltaMutation({
+        modifiedFilesCount: action.modified_files_count || 0,
+        changedLines: action.changed_lines || 0,
+        stateAdvanced: action.state_advanced || false,
+        outputHashBefore: action.output_hash_before,
+        outputHashAfter: action.output_hash_after,
+      }));
+
+  if (isZeroDelta && node) {
+    events.push({
+      kind: "zero-delta-attempt",
+      subject: nodeId,
+      payload: { attempt: node.attempt || 1 },
+    });
+    node.zero_delta_attempts = Number(node.zero_delta_attempts || 0) + 1;
+    if (node.budget) {
+      node.budget = decrementBudgetMonotonic(node.budget, { turns: 1, effect_attempts: 1 });
+    }
+  }
+
   if (operation === "start") {
     node.phase = "started";
     node.attempt = Number(node.attempt || 0) + 1;
     next.status = "running";
+
+    if (node.budget) {
+      node.budget = decrementBudgetMonotonic(node.budget, { turns: 1 });
+      const nodeBudgetEval = evaluateNodeBudget(node.budget);
+      if (nodeBudgetEval.exhausted) {
+        node.exhausted = true;
+      }
+    }
+    if (next.authority_budget) {
+      next.authority_budget = decrementBudgetMonotonic(next.authority_budget, { effect_attempts: 1 });
+      const authBudgetEval = evaluateAuthorityBudget(next.authority_budget);
+      if (authBudgetEval.exhausted) {
+        next.exhausted = true;
+      }
+    }
+
     pushPersistEffect(effects, `effect:start:${nodeId}`, nodeId, "started", effectClass);
     events.push({
       kind: "operation-started",
@@ -104,11 +164,25 @@ function reduceLifecycle(state, action = {}) {
   if (operation === "fail") {
     node.phase = "failed";
     next.status = "blocked";
+
+    if (args.failure || action.failure) {
+      node.failure = clone(args.failure || action.failure);
+    }
+
+    if (
+      (node.max_attempts && node.attempt >= node.max_attempts) ||
+      (node.budget && typeof node.budget.turns === "number" && node.budget.turns <= 0) ||
+      (node.budget && typeof node.budget.effect_attempts === "number" && node.budget.effect_attempts <= 0) ||
+      action.exhausted === true
+    ) {
+      node.exhausted = true;
+    }
+
     pushPersistEffect(effects, `effect:fail:${nodeId}`, nodeId, "failed", effectClass);
     events.push({
       kind: "operation-failed",
       subject: nodeId,
-      payload: {},
+      payload: { failure: node.failure || null, exhausted: Boolean(node.exhausted) },
     });
     return { state: next, effects, events, outcome: "blocked" };
   }
@@ -125,6 +199,15 @@ function reduceLifecycle(state, action = {}) {
   }
 
   if (operation === "recover") {
+    if (node.exhausted) {
+      return {
+        state: clone(input),
+        effects: [],
+        events: [],
+        outcome: "blocked",
+        code: "node-exhausted",
+      };
+    }
     node.phase = "pending";
     next.status = "ready";
     pushPersistEffect(effects, `effect:recover:${nodeId}`, nodeId, "pending", effectClass);

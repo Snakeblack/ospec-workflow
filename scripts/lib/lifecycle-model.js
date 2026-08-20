@@ -65,12 +65,6 @@ const DEFERRED_INVARIANTS = Object.freeze([
     owned_by: "K3/K6b",
   }),
   Object.freeze({
-    id: "def-budget-monotonicity",
-    name: "Productive correction budget monotonicity",
-    enforced_in_k2: false,
-    owned_by: "K5/K7",
-  }),
-  Object.freeze({
     id: "def-delivery-auth",
     name: "Delivery authorization",
     enforced_in_k2: false,
@@ -107,32 +101,32 @@ const K21B_EXECUTABLE_INVARIANTS = Object.freeze([
 const K2A_EXECUTABLE_INVARIANTS = Object.freeze([
   Object.freeze({
     id: "inv-k2a-zero-concrete-host-imports",
-    name: "Lifecycle/Graph/receipt have zero concrete host imports",
+    name: "Lifecycle-kernel production tree has zero concrete host-adapter imports",
     optional: false,
   }),
   Object.freeze({
     id: "inv-k2a-no-silent-promotion",
-    name: "unavailable/instructional never silently become enforced",
+    name: "No capability or profile is promoted without explicit proof in the execution trace",
     optional: false,
   }),
   Object.freeze({
     id: "inv-k2a-enforced-requires-proof",
-    name: "enforced requires verifying CapabilityProof",
+    name: "enforced:true requires verified capability_proof and active verification record",
     optional: false,
   }),
   Object.freeze({
     id: "inv-k2a-reject-lifecycle-graph-duplication",
-    name: "Adapters duplicating lifecycle/Graph semantics are rejected",
+    name: "Host adapters cannot duplicate lifecycle graph, reducer, or state store logic",
     optional: false,
   }),
   Object.freeze({
     id: "inv-k2a-sole-claude-adapter",
-    name: "Exactly one real product adapter (claude) is activated",
+    name: "Claude is the sole concrete adapter in K2a; all other targets use stub interfaces",
     optional: false,
   }),
   Object.freeze({
     id: "inv-k2a-host-fault-matrix",
-    name: "Host-fault matrix covers timeout/cancel/worker-fail/interrupt",
+    name: "Generic host faults map deterministically to lifecycle outcomes without kernel pollution",
     optional: false,
   }),
 ]);
@@ -171,6 +165,44 @@ const K4A_EXECUTABLE_INVARIANTS = Object.freeze([
   Object.freeze({
     id: "inv-k4a-no-live-authority",
     name: "Compiled work orders contain declarative boundaries and zero execution authority",
+    optional: false,
+  }),
+]);
+
+const K5_EXECUTABLE_INVARIANTS = Object.freeze([
+  Object.freeze({
+    id: "inv-k5-budget-monotonicity",
+    name: "Non-increasing budget decrements across retry loops and CAS reconciliations",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k5-causal-priority",
+    name: "Highest-priority causal failure governs recovery transition selection",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k5-allowlist-enforcement",
+    name: "Recovery operations are strictly allowlisted per failure category",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k5-zero-delta-consumption",
+    name: "Non-advancing mutation steps consume attempt budget without advancing blocking state",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k5-budget-exhaustion-terminal",
+    name: "Exhausted budgets prune execution transitions and force terminal states",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k5-honest-recovery-advancement",
+    name: "Honest recovery requires advancement of the blocking fingerprint or terminal state",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k5-telemetry-isolation",
+    name: "Transient consumption and telemetry keys are stripped from semantic state digests",
     optional: false,
   }),
 ]);
@@ -391,6 +423,13 @@ const CHECKERS = {
   "inv-k4a-replay-convergence": () => checkK4aReplayConvergence(),
   "inv-k4a-shadow-non-interference": () => checkK4aShadowNonInterference(),
   "inv-k4a-no-live-authority": () => checkK4aNoLiveAuthority(),
+  "inv-k5-budget-monotonicity": () => checkK5BudgetMonotonicity(),
+  "inv-k5-causal-priority": () => checkK5CausalPriority(),
+  "inv-k5-allowlist-enforcement": () => checkK5AllowlistEnforcement(),
+  "inv-k5-zero-delta-consumption": () => checkK5ZeroDeltaConsumption(),
+  "inv-k5-budget-exhaustion-terminal": () => checkK5BudgetExhaustionTerminal(),
+  "inv-k5-honest-recovery-advancement": () => checkK5HonestRecoveryAdvancement(),
+  "inv-k5-telemetry-isolation": () => checkK5TelemetryIsolation(),
 };
 
 function checkK2aZeroConcreteHostImports() {
@@ -707,6 +746,143 @@ function checkK4aNoLiveAuthority() {
   return { ok, invariant_id: "inv-k4a-no-live-authority" };
 }
 
+function checkK5BudgetMonotonicity() {
+  const { decrementBudgetMonotonic } = require("./execution-budgets.js");
+  const initial = {
+    schema_version: 1,
+    turns: 5,
+    patches: 3,
+    commands: 10,
+    wall_time_minutes: 15,
+    changed_lines: 300,
+  };
+  const step1 = decrementBudgetMonotonic(initial, { turns: 1, patches: 1, commands: 2, wall_time_minutes: 3, changed_lines: 50 });
+  const step2 = decrementBudgetMonotonic(step1, { turns: 2, patches: 1, commands: 5, wall_time_minutes: 5, changed_lines: 100 });
+  const step3 = decrementBudgetMonotonic(step2, { turns: 10, patches: 10, commands: 10, wall_time_minutes: 10, changed_lines: 500 });
+  const ok =
+    step1.turns === 4 &&
+    step2.turns === 2 &&
+    step3.turns === 0 &&
+    step3.patches === 0 &&
+    step3.commands === 0 &&
+    step3.changed_lines === 0;
+  return { ok, invariant_id: "inv-k5-budget-monotonicity" };
+}
+
+function checkK5CausalPriority() {
+  const { resolvePrimaryFailure, createCausalFailure } = require("./causal-failure.js");
+  const f1 = createCausalFailure({ failure_id: "f1", category: "code_defect", code: "TEST_FAILED" });
+  const f2 = createCausalFailure({ failure_id: "f2", category: "validation_gap", code: "LINT_FAILED" });
+  const f3 = createCausalFailure({ failure_id: "f3", category: "cas_conflict", code: "CAS_RACE" });
+  const primary = resolvePrimaryFailure([f1, f2, f3]);
+  const ok = primary !== null && primary.category === "cas_conflict" && primary.priority === 2;
+  return { ok, invariant_id: "inv-k5-causal-priority" };
+}
+
+function checkK5AllowlistEnforcement() {
+  const { validateRecoveryTransition, getAllowlistedTransitions } = require("./failure-recovery.js");
+  const allowAmbiguous = getAllowlistedTransitions("ambiguous_effect");
+  const vAmbiguousRepair = validateRecoveryTransition("ambiguous_effect", "repair");
+  const vAmbiguousEscalate = validateRecoveryTransition("ambiguous_effect", "escalate");
+  const vCodeDefectRepair = validateRecoveryTransition("code_defect", "repair");
+  const ok =
+    !allowAmbiguous.includes("repair") &&
+    vAmbiguousRepair.ok === false &&
+    vAmbiguousEscalate.ok === true &&
+    vCodeDefectRepair.ok === true;
+  return { ok, invariant_id: "inv-k5-allowlist-enforcement" };
+}
+
+function checkK5ZeroDeltaConsumption() {
+  const { isZeroDeltaMutation } = require("./execution-budgets.js");
+  const zeroDeltaMut = isZeroDeltaMutation({
+    modifiedFilesCount: 0,
+    changedLines: 0,
+    stateAdvanced: false,
+  });
+  const advancingMut = isZeroDeltaMutation({
+    modifiedFilesCount: 1,
+    changedLines: 15,
+    stateAdvanced: false,
+  });
+  const ok = zeroDeltaMut === true && advancingMut === false;
+  return { ok, invariant_id: "inv-k5-zero-delta-consumption" };
+}
+
+function checkK5BudgetExhaustionTerminal() {
+  const { selectTransitions, nextTransition } = require("./lifecycle-kernel/index.js");
+  const exhaustedState = {
+    schema_version: 1,
+    status: "blocked",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "failed",
+        attempt: 3,
+        exhausted: true,
+        budget: {
+          schema_version: 1,
+          turns: 0,
+          patches: 0,
+          commands: 0,
+          wall_time_minutes: 0,
+          changed_lines: 0,
+          allowed_paths: [],
+        },
+      },
+    },
+  };
+  const transitions = selectTransitions(exhaustedState);
+  const next = nextTransition(exhaustedState);
+  const ok =
+    !transitions.some((t) => t.operation === "start" || t.operation === "recover") &&
+    (next.kind === "decide" || next.kind === "stop");
+  return { ok, invariant_id: "inv-k5-budget-exhaustion-terminal" };
+}
+
+function checkK5HonestRecoveryAdvancement() {
+  const { validateRecoveryHonesty } = require("./lifecycle-kernel/recovery.js");
+  const before = {
+    schema_version: 1,
+    status: "blocked",
+    nodes: { n1: { id: "n1", phase: "failed", attempt: 1 } },
+  };
+  const stagnant = {
+    schema_version: 1,
+    status: "blocked",
+    nodes: { n1: { id: "n1", phase: "failed", attempt: 2 } },
+  };
+  const advanced = {
+    schema_version: 1,
+    status: "ready",
+    nodes: { n1: { id: "n1", phase: "pending", attempt: 2 } },
+  };
+  const resStagnant = validateRecoveryHonesty({ beforeState: before, afterState: stagnant, outcome: "advanced" });
+  const resAdvanced = validateRecoveryHonesty({ beforeState: before, afterState: advanced, outcome: "advanced" });
+  const ok = resStagnant.ok === false && resAdvanced.ok === true;
+  return { ok, invariant_id: "inv-k5-honest-recovery-advancement" };
+}
+
+function checkK5TelemetryIsolation() {
+  const { digestLifecycleState } = require("./lifecycle-kernel/state-digest.js");
+  const baseState = {
+    schema_version: 1,
+    status: "ready",
+    nodes: { n1: { id: "n1", phase: "pending", attempt: 1 } },
+  };
+  const stateWithTelemetry = {
+    schema_version: 1,
+    status: "ready",
+    telemetry: { wall_clock_ms: 12345, cpu_cycles: 9999 },
+    consumption: { tokens_in: 500, tokens_out: 100 },
+    nodes: { n1: { id: "n1", phase: "pending", attempt: 1, wall_clock_ms: 500 } },
+  };
+  const d1 = digestLifecycleState(baseState);
+  const d2 = digestLifecycleState(stateWithTelemetry);
+  const ok = d1 === d2;
+  return { ok, invariant_id: "inv-k5-telemetry-isolation" };
+}
+
 function checkK21NoMutationWithoutCas() {
   const { createMemoryStore } = require("./lifecycle-kernel/memory-store.js");
   const { createKernelRuntime } = require("./lifecycle-kernel/index.js");
@@ -996,6 +1172,7 @@ async function runAllInvariantCheckers(context = {}) {
     ...K21B_EXECUTABLE_INVARIANTS,
     ...K2A_EXECUTABLE_INVARIANTS,
     ...K4A_EXECUTABLE_INVARIANTS,
+    ...K5_EXECUTABLE_INVARIANTS,
   ];
   const results = [];
   for (const inv of allInvariants) {
@@ -1016,13 +1193,14 @@ async function runAllInvariantCheckers(context = {}) {
     counts_as_enforced: false,
     enforced_in_k2: false,
   }));
-  // CAS/permit/retry, K2.1b, K2a host, and K4a graph invariants must not appear on deferred list.
+  // CAS/permit/retry, K2.1b, K2a host, K4a graph, and K5 budget/recovery invariants must not appear on deferred list.
   const deferredIds = new Set(deferred.map((d) => d.invariant_id));
   for (const inv of [
     ...K21_EXECUTABLE_INVARIANTS,
     ...K21B_EXECUTABLE_INVARIANTS,
     ...K2A_EXECUTABLE_INVARIANTS,
     ...K4A_EXECUTABLE_INVARIANTS,
+    ...K5_EXECUTABLE_INVARIANTS,
   ]) {
     if (deferredIds.has(inv.id)) {
       return {
@@ -1041,6 +1219,7 @@ async function runAllInvariantCheckers(context = {}) {
     k21b_count: K21B_EXECUTABLE_INVARIANTS.length,
     k2a_count: K2A_EXECUTABLE_INVARIANTS.length,
     k4a_count: K4A_EXECUTABLE_INVARIANTS.length,
+    k5_count: K5_EXECUTABLE_INVARIANTS.length,
   };
 }
 
@@ -1221,6 +1400,7 @@ module.exports = {
   K21B_EXECUTABLE_INVARIANTS,
   K2A_EXECUTABLE_INVARIANTS,
   K4A_EXECUTABLE_INVARIANTS,
+  K5_EXECUTABLE_INVARIANTS,
   DEFERRED_INVARIANTS,
   exploreModel,
   checkInvariant,

@@ -122,6 +122,30 @@ function validate(schema, instance, instancePath, rootSchema, errors) {
     }
   }
 
+  if (typeof instance === "number") {
+    if (typeof schema.minimum === "number" && instance < schema.minimum) {
+      errors.push({
+        path: instancePath || "/",
+        rule: "minimum",
+        message: `number ${instance} is less than minimum ${schema.minimum}`,
+      });
+    }
+    if (typeof schema.maximum === "number" && instance > schema.maximum) {
+      errors.push({
+        path: instancePath || "/",
+        rule: "maximum",
+        message: `number ${instance} is greater than maximum ${schema.maximum}`,
+      });
+    }
+    if (typeof schema.exclusiveMinimum === "number" && instance <= schema.exclusiveMinimum) {
+      errors.push({
+        path: instancePath || "/",
+        rule: "exclusiveMinimum",
+        message: `number ${instance} is less than or equal to exclusiveMinimum ${schema.exclusiveMinimum}`,
+      });
+    }
+  }
+
   if (typeof instance === "string") {
     if (typeof schema.minLength === "number") {
       if (instance.length < schema.minLength) {

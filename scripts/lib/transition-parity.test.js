@@ -105,3 +105,29 @@ test("compareParity requires a complete next action on both surfaces", () => {
   assert.ok(invalidKind.mismatches.some((m) => m.field === "next_action"));
   assert.ok(missingExecuteCommand.mismatches.some((m) => m.field === "next_action"));
 });
+
+test("compareParity covers K5 causal failure recovery operations", () => {
+  const codeDefectLeft = {
+    code: "TEST_FAILED",
+    cause: "code_defect",
+    next_action: { kind: "execute", operation: "repair", command: "ospec repair --node-id=apply-task" },
+  };
+  const codeDefectRight = {
+    code: "TEST_FAILED",
+    cause: "code_defect",
+    next_action: { kind: "execute", operation: "repair", command: "ospec repair --node-id=apply-task" },
+  };
+  assert.equal(compareParity(codeDefectLeft, codeDefectRight).ok, true);
+
+  const ambiguousLeft = {
+    code: "EFFECT_UNRESOLVED",
+    cause: "ambiguous_effect",
+    next_action: { kind: "decide", operation: "escalate" },
+  };
+  const ambiguousRight = {
+    code: "EFFECT_UNRESOLVED",
+    cause: "ambiguous_effect",
+    next_action: { kind: "decide", operation: "escalate" },
+  };
+  assert.equal(compareParity(ambiguousLeft, ambiguousRight).ok, true);
+});

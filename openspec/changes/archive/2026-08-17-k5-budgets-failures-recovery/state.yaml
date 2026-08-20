@@ -1,0 +1,69 @@
+change: "k5-budgets-failures-recovery"
+status: "archived"
+last_updated: "2026-08-17T14:08:15Z"
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k5-budgets-failures-recovery/proposal.md"
+    summary: "Budgets por nodo y autoridad/efectos, taxonomía causal, transiciones allowlisted, monotonicidad y recovery E2E honesto."
+    key_decisions:
+      - "Monotonicidad estricta de budgets sin reset en retry/CAS"
+      - "Taxonomía causal con prioridad determinista para fallos mixtos"
+      - "Recovery honesto basado en avance de blocking fingerprint o stop"
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k5-budgets-failures-recovery/specs/execution-budgets/spec.md"
+      - "openspec/changes/k5-budgets-failures-recovery/specs/failure-recovery/spec.md"
+      - "openspec/changes/k5-budgets-failures-recovery/specs/kernel-contract-schemas/spec.md"
+      - "openspec/changes/k5-budgets-failures-recovery/specs/lifecycle-kernel-runtime/spec.md"
+      - "openspec/changes/k5-budgets-failures-recovery/specs/contract-lint/spec.md"
+      - "openspec/changes/k5-budgets-failures-recovery/specs/lifecycle-model-conformance/spec.md"
+    summary: "Especificaciones K5: 2 nuevas (execution-budgets, failure-recovery) y 4 deltas (schemas, runtime, lint, conformance)."
+    key_decisions:
+      - "Monotonicidad estricta de budgets y consumo zero-delta en mutaciones"
+      - "Taxonomía causal de 5 categorías con prioridad determinista"
+      - "Matriz de transiciones allowlisted y avance de blocking fingerprint"
+  design:
+    status: "done"
+    artifact: "openspec/changes/k5-budgets-failures-recovery/design.md"
+    summary: "Evaluador puro de budgets con aislamiento de telemetría, taxonomía causal de 5 categorías con precedencia y matriz allowlisted de recuperación."
+    key_decisions:
+      - "Evaluador puro de budgets con monotonicidad estricta y aislamiento de telemetría"
+      - "Taxonomía causal de 5 categorías con resolución de prioridad determinista"
+      - "Matriz allowlisted de transiciones con ámbito acotado y verificación de avance"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k5-budgets-failures-recovery/tasks.md"
+    summary: "Plan de 31 tareas en 5 fases cubriendo schemas, motores puros TDD, kernel, conformance de modelo y docs con estrategia exception-ok."
+    key_decisions:
+      - "Estrategia exception-ok con forecast de 1950 líneas y desglose en 3 unidades lógicas"
+      - "TDD estricto para motores de budgets y taxonomía causal"
+      - "Verificación de invariantes K5 en lifecycle-model y paridad de transiciones"
+  apply:
+    status: "done"
+    artifact: "openspec/changes/k5-budgets-failures-recovery/apply-progress.md"
+    summary: "31 tareas completadas: schemas K5, contract checkers, motores puros de budgets y causal-failure (Strict TDD), integración lifecycle-kernel, conformance de modelo (7 invariantes ejecutables) y E2E suites pasando al 100% sin regresiones."
+    key_decisions:
+      - "Monotonicidad estricta de budgets sin reset en retry/CAS"
+      - "Taxonomía causal de 5 categorías con resolución determinista"
+      - "Transiciones allowlisted y honestidad de recovery basada en blocking fingerprint"
+  verify:
+    status: "done"
+    verdict: "PASS"
+    artifact: "openspec/changes/k5-budgets-failures-recovery/verify-report.md"
+    summary: "Verificación K5 completa (PASS): 49/49 escenarios con evidencia runtime-test, 0 defectos y 212 tests pasando."
+    key_decisions:
+      - "Monotonicidad de budgets y aislamiento de telemetría verificados al 100%"
+      - "Taxonomía causal y matriz allowlisted validadas en runtime y modelo"
+      - "Honestidad de recovery y 7 invariantes K5 comprobados formalmente"
+  archive:
+    status: "done"
+    artifact: "openspec/changes/k5-budgets-failures-recovery/archive-report.md"
+    summary: "Plan-and-Report v1 emitido con 6 specs preparados (2 nuevas, 4 deltas), 3 ADR promotions y close gate PASS verificado."
+    key_decisions:
+      - "Plan-and-Report v1 emitido para orquestador con atomic staging-rename"
+      - "6 specs preparados localmente para sync de capabilities K5"
+      - "Promoción de 3 ADRs (ADR-001, ADR-002, ADR-003) a docs/adr/"
+
