@@ -1,0 +1,61 @@
+change: "k5-runtime-enforcement-and-wiring-remediation"
+status: "archived"
+last_updated: 2026-08-20T17:38:00Z
+baseline_fingerprints:
+  failure-recovery: "3370695ca8c1b64e57133feb8b466351fd7437639c3d20cef69b3624db2c68e6"
+  execution-budgets: "d69394546044259fbe4b48bf177368a0e7d9fbfd1d904a58bb768f782035c59f"
+  lifecycle-kernel-runtime: "009280c704b99cd275368ba7bd89655dd5df3320d13957a57882f3882af65fbd"
+  lifecycle-model-conformance: "7ca5c378e35de9ada243b5ba61247a226a3715463eca77d203e3bd602030f844"
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k5-runtime-enforcement-and-wiring-remediation/proposal.md"
+    summary: "Integración E2E de garantías K5 en runtime, matrix de recuperación, budget unificado, honest recovery y hardening de 7 invariantes."
+    key_decisions:
+      - "isBudgetExhausted() evalúa las 6 dimensiones de nodo y 4 de autoridad"
+      - "validateRepairScope() opera fail-closed ante scopes vacíos o inválidos"
+      - "Los 7 checkers K5 evalúan composición runtime/CAS real"
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k5-runtime-enforcement-and-wiring-remediation/specs/failure-recovery/spec.md"
+      - "openspec/changes/k5-runtime-enforcement-and-wiring-remediation/specs/execution-budgets/spec.md"
+      - "openspec/changes/k5-runtime-enforcement-and-wiring-remediation/specs/lifecycle-kernel-runtime/spec.md"
+      - "openspec/changes/k5-runtime-enforcement-and-wiring-remediation/specs/lifecycle-model-conformance/spec.md"
+    summary: "4 delta specs escritas: transiciones explícitas, validateRepairScope fail-closed, isBudgetExhausted exhaustivo, zero-delta post-efecto e invariantes K5 reales."
+    key_decisions:
+      - "validateRepairScope estrictamente fail-closed ante scopes vacíos/inválidos"
+      - "isBudgetExhausted evalúa las 6 dimensiones de nodo y 4 de autoridad"
+      - "Los 7 checkers K5 evalúan composición runtime/CAS/store real"
+  design:
+    status: "done"
+    artifact: "openspec/changes/k5-runtime-enforcement-and-wiring-remediation/design.md"
+    summary: "Diseño técnico K5 con isBudgetExhausted (6+4 dim), validateRepairScope fail-closed, transiciones explícitas, honest recovery pre-CAS y hardening de 7 invariantes."
+    key_decisions:
+      - "isBudgetExhausted unifica evaluación de 6 dimensiones de nodo y 4 de autoridad"
+      - "validateRepairScope fail-closed y pre-CAS honest recovery en runKernelOperation"
+      - "Emisión explícita de escalate/replan sin sustitución silenciosa por decide"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k5-runtime-enforcement-and-wiring-remediation/tasks.md"
+    summary: "Plan de 5 fases para pure functions, runtime wiring, model hardening, ADRs, release v2.45.8 y test suite verification."
+    key_decisions:
+      - "Desglose organizado en 5 fases de implementación secuencial"
+      - "Estrategia single-pr con bajo riesgo de presupuesto (< 400 líneas)"
+  apply:
+    status: "done"
+    artifact: "openspec/changes/k5-runtime-enforcement-and-wiring-remediation/apply-progress.md"
+    summary: "Implementadas y verificadas las 5 fases: isBudgetExhausted unificado, validateRepairScope fail-closed, transiciones explícitas, honest recovery pre-CAS, checkers K5 reales y release v2.45.8."
+  verify:
+    status: "done"
+    artifact: "openspec/changes/k5-runtime-enforcement-and-wiring-remediation/verify-report.md"
+    verdict: PASS
+    summary: "Verificación completa de K5: 9/9 requerimientos y 28 escenarios cumplidos, 173/173 tests específicos y 2370/2370 tests totales pasando (PASS)."
+  archive:
+    status: "done"
+    artifact: "openspec/changes/k5-runtime-enforcement-and-wiring-remediation/archive-report.md"
+    summary: "Reporte de archivo y archive-plan.json emitidos; 4 specs fusionadas preparadas y 5 ADRs propuestos para promoción."
+    key_decisions:
+      - "4 specs change-local fusionadas preparadas para commit atómico por runtime"
+      - "5 ADRs (adr-001..005) propuestos para promoción a docs/adr/adr-20260820-002..006"

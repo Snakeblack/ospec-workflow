@@ -1,6 +1,6 @@
 # ADR-003: Closed Allowlisted Transition Matrix, Bounded Repair Scopes, and Zero-Delta Honesty Guarantees
 
-- Status: proposed
+- Status: accepted
 - Change: k5-budgets-failures-recovery
 - Date: 2026-08-17
 

@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.8] - 2026-08-20
+
+### Fixed
+- **Endurecimiento de Verificación de Presupuestos Fail-Closed y Monótonos (`k5-runtime-enforcement-and-wiring-remediation`)**:
+  - Implementado `isBudgetExhausted(budget, consumed, options)` evaluando exhaustivamente las 6 dimensiones de nodo (`turns`, `patches`, `commands`, `wall_time_minutes`, `changed_lines`, `allowed_paths`) y 4 de autoridad (`effect_attempts`, `authority_mutations`, `evidence_runs`, `review_sweeps`).
+  - Endurecido `validateRepairScope()` para fail-closed estricto ante scopes vacíos, nulos o no coincidentes con `node_ids`, `allowed_paths` y `finding_ids`.
+  - Integrado pipeline de validación en `runKernelOperation()`: pre-effect scope validation, captura de métricas post-effect, deducción de cuotas monótona ante zero-delta mutations, validación de honestidad en recuperación con `blockingFingerprint`, y verificación de agotamiento presupuestario pre-CAS.
+  - Reimplementados los 7 invariant checkers de K5 en `scripts/lib/lifecycle-model.js` con composición real de runtime, `AuthorityStore` y CAS.
+  - Aceptados los ADRs `adr-20260817-001`, `adr-20260817-002` y `adr-20260817-003`.
+
 ## [2.45.7] - 2026-08-20
 
 ### Fixed

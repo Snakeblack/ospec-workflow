@@ -1,5 +1,6 @@
 "use strict";
 
+const { isBudgetExhausted } = require("../execution-budgets.js");
 const { resolvePrimaryFailure } = require("../causal-failure.js");
 const { getAllowlistedTransitions } = require("../failure-recovery.js");
 
@@ -9,10 +10,13 @@ const { getAllowlistedTransitions } = require("../failure-recovery.js");
  */
 const OPERATION_PRIORITY = Object.freeze({
   recover: 10,
+  repair: 10,
   start: 20,
   complete: 30,
   fail: 40,
   "invalidate-node": 50,
+  replan: 80,
+  escalate: 85,
   decide: 90,
   stop: 100,
 });
@@ -37,7 +41,7 @@ function selectTransitions(state) {
   if (!state || typeof state !== "object") return [transition("stop", "stop", null)];
 
   if (state.status === "terminal") {
-    return [transition("decide", "decide", null), transition("stop", "stop", null)];
+    return [transition("decide", "escalate", null), transition("stop", "stop", null)];
   }
 
   const out = [];
@@ -46,8 +50,7 @@ function selectTransitions(state) {
 
     const isExhausted =
       Boolean(node.exhausted) ||
-      (node.budget && typeof node.budget.turns === "number" && node.budget.turns <= 0) ||
-      (node.budget && typeof node.budget.effect_attempts === "number" && node.budget.effect_attempts <= 0);
+      (node.budget && isBudgetExhausted(node.budget).exhausted);
 
     if (isExhausted && (node.phase === "failed" || node.phase === "interrupted" || node.phase === "terminal")) {
       continue;
@@ -64,17 +67,30 @@ function selectTransitions(state) {
           : Math.max(0, 3 - Number(node.attempt || 0));
 
         const allowedOps = getAllowlistedTransitions(primaryFailure.category, { remainingAttempts });
-        // Only permit automatic recover if repair or direct retry is allowlisted
-        if (allowedOps.includes("repair") && remainingAttempts > 0) {
-          out.push(transition("execute", "recover", id, { primary_failure: primaryFailure }));
+        for (const op of allowedOps) {
+          if (op === "repair" || op === "recover") {
+            if (remainingAttempts > 0 && !isExhausted) {
+              out.push(transition("execute", "recover", id, { primary_failure: primaryFailure }));
+            }
+          } else if (op === "replan") {
+            out.push(transition("decide", "replan", id, { primary_failure: primaryFailure }));
+          } else if (op === "escalate") {
+            out.push(transition("decide", "escalate", id, { primary_failure: primaryFailure }));
+          } else if (op === "stop") {
+            out.push(transition("stop", "stop", id, { primary_failure: primaryFailure }));
+          }
         }
       } else {
-        out.push(transition("execute", "recover", id));
+        if (!isExhausted) {
+          out.push(transition("execute", "recover", id));
+        }
       }
       continue;
     }
     if (node.phase === "pending") {
-      out.push(transition("execute", "start", id));
+      if (!isExhausted) {
+        out.push(transition("execute", "start", id));
+      }
       continue;
     }
     if (node.phase === "started") {
@@ -85,11 +101,28 @@ function selectTransitions(state) {
   }
 
   if (out.length === 0) {
+    const allFailures = [
+      ...(Array.isArray(state.failures) ? state.failures : []),
+      ...nodeEntries(state).map(({ node }) => node?.failure).filter(Boolean),
+    ];
+    const primary = resolvePrimaryFailure(allFailures);
+    if (primary) {
+      const allowed = getAllowlistedTransitions(primary.category, { remainingAttempts: 0 });
+      const fallbackTransitions = [];
+      if (allowed.includes("escalate")) {
+        fallbackTransitions.push(transition("decide", "escalate", null, { primary_failure: primary }));
+      } else if (allowed.includes("replan")) {
+        fallbackTransitions.push(transition("decide", "replan", null, { primary_failure: primary }));
+      }
+      fallbackTransitions.push(transition("stop", "stop", null));
+      return fallbackTransitions;
+    }
+
     const exhausted = nodeEntries(state).some(
-      ({ node }) => node && (node.exhausted || (node.budget && node.budget.turns <= 0))
+      ({ node }) => node && (node.exhausted || (node.budget && isBudgetExhausted(node.budget).exhausted))
     );
     if (exhausted || state.status === "blocked") {
-      return [transition("decide", "decide", null), transition("stop", "stop", null)];
+      return [transition("decide", "escalate", null), transition("stop", "stop", null)];
     }
     return [transition("stop", "stop", null)];
   }

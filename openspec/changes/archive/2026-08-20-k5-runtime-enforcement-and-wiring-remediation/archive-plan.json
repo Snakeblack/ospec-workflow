@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "change": "k5-runtime-enforcement-and-wiring-remediation",
+  "created_at": "2026-08-20T17:38:00.000Z",
+  "source_fingerprint": "sha256:23b3b50ca42639e76c557788b6f4338e56bf5bcb18eb61110c412e7b14344a61",
+  "spec_writes": [
+    {
+      "domain": "failure-recovery",
+      "source_delta": "specs/failure-recovery/spec.md",
+      "target": "openspec/specs/failure-recovery/spec.md",
+      "target_before_sha256": "sha256:3370695ca8c1b64e57133feb8b466351fd7437639c3d20cef69b3624db2c68e6",
+      "content_sha256": "sha256:4a14df8abfcdfeea0ea07b3931125cd0bb0eb1a05f2f24d3d0ba59a218473fee"
+    },
+    {
+      "domain": "execution-budgets",
+      "source_delta": "specs/execution-budgets/spec.md",
+      "target": "openspec/specs/execution-budgets/spec.md",
+      "target_before_sha256": "sha256:d69394546044259fbe4b48bf177368a0e7d9fbfd1d904a58bb768f782035c59f",
+      "content_sha256": "sha256:51faccd7ecbc6e0277c6c56e87acb74eb8630605e2b1df5058380af6321fda65"
+    },
+    {
+      "domain": "lifecycle-kernel-runtime",
+      "source_delta": "specs/lifecycle-kernel-runtime/spec.md",
+      "target": "openspec/specs/lifecycle-kernel-runtime/spec.md",
+      "target_before_sha256": "sha256:009280c704b99cd275368ba7bd89655dd5df3320d13957a57882f3882af65fbd",
+      "content_sha256": "sha256:a87f0cc55bc708bbde37f6cd1159b73e509b8332736a702a0a47c067d21af73b"
+    },
+    {
+      "domain": "lifecycle-model-conformance",
+      "source_delta": "specs/lifecycle-model-conformance/spec.md",
+      "target": "openspec/specs/lifecycle-model-conformance/spec.md",
+      "target_before_sha256": "sha256:7ca5c378e35de9ada243b5ba61247a226a3715463eca77d203e3bd602030f844",
+      "content_sha256": "sha256:9c539b64667e782f14f8036ab704a02eb906be4b285ab98db884742447a2b606"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260820-002-evaluador-unificado-y-puro-de-presupuestos-isbudgetexhausted.md",
+      "content_sha256": "sha256:486532647334df6ea283f570e80cb9b4a2c929414a10f093d99c0b6455011595"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260820-003-validacion-estrictamente-fail-closed-de-repair-scopes.md",
+      "content_sha256": "sha256:32ac8d3e172eb5c8c2ee9d99480061b48e1ca8e7f007a315d05b7127e369140f"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260820-004-pipeline-de-honest-recovery-y-contabilidad-zero-delta-en-runkerneloperation.md",
+      "content_sha256": "sha256:3cb4ed9f9c3ae899c559366230ed2b07558168644a2bfed733c7d8e6ee36656c"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260820-005-emision-explicita-de-transiciones-de-recuperacion-sin-sustitucion-silenciosa.md",
+      "content_sha256": "sha256:d1996e4673e95b6674700cdc42c4810b7e6f658034971a1292a30519c9b884db"
+    },
+    {
+      "source": "decisions/adr-005.md",
+      "target": "docs/adr/adr-20260820-006-hardening-de-invariantes-k5-con-composicion-runtime-y-cas-real.md",
+      "content_sha256": "sha256:c127fd7552445bd3da5d6f152afc913820387b452a893cb4bdbb118876c3328c"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "decisions/adr-005.md",
+    "design.md",
+    "proposal.md",
+    "specs/execution-budgets/spec.md",
+    "specs/failure-recovery/spec.md",
+    "specs/lifecycle-kernel-runtime/spec.md",
+    "specs/lifecycle-model-conformance/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

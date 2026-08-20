@@ -5,6 +5,9 @@ const test = require("node:test");
 const {
   DEFAULT_NODE_BUDGET,
   DEFAULT_AUTHORITY_BUDGET,
+  isBudgetExhausted,
+  isNodeBudgetExhausted,
+  isAuthorityBudgetExhausted,
   evaluateNodeBudget,
   evaluateAuthorityBudget,
   decrementBudgetMonotonic,
@@ -233,4 +236,65 @@ test("DEFAULT_NODE_BUDGET and DEFAULT_AUTHORITY_BUDGET expose valid baseline env
 
   assert.equal(DEFAULT_AUTHORITY_BUDGET.schema_version, 1);
   assert.ok(DEFAULT_AUTHORITY_BUDGET.effect_attempts > 0);
+});
+
+test("isBudgetExhausted: evaluates all 6 node dimensions accurately", () => {
+  // 1. turns
+  assert.equal(isBudgetExhausted({ turns: 0 }).exhausted, true);
+  assert.equal(isBudgetExhausted({ turns: 5 }, { turns: 5 }).exhausted, true);
+  assert.equal(isBudgetExhausted({ turns: 5 }, { turns: 4 }).exhausted, false);
+
+  // 2. patches
+  assert.equal(isBudgetExhausted({ patches: 0 }).exhausted, true);
+  assert.equal(isBudgetExhausted({ patches: 3 }, { patches: 3 }).exhausted, true);
+
+  // 3. commands
+  assert.equal(isBudgetExhausted({ commands: 0 }).exhausted, true);
+  assert.equal(isBudgetExhausted({ commands: 10 }, { commands: 10 }).exhausted, true);
+
+  // 4. wall_time_minutes
+  assert.equal(isBudgetExhausted({ wall_time_minutes: 0 }).exhausted, true);
+  assert.equal(isBudgetExhausted({ wall_time_minutes: 30 }, { wall_time_minutes: 30 }).exhausted, true);
+
+  // 5. changed_lines
+  assert.equal(isBudgetExhausted({ changed_lines: 0 }).exhausted, true);
+  assert.equal(isBudgetExhausted({ changed_lines: 100 }, { changed_lines: 150 }).exhausted, true);
+
+  // 6. allowed_paths
+  const allowed = isBudgetExhausted({ allowed_paths: ["src/**"] }, { modified_paths: ["docs/readme.md"] });
+  assert.equal(allowed.exhausted, true);
+  assert.equal(allowed.dimension, "allowed_paths");
+  assert.equal(allowed.code, "ALLOWED_PATHS_VIOLATION");
+});
+
+test("isBudgetExhausted: evaluates all 4 authority dimensions accurately", () => {
+  // 1. effect_attempts
+  assert.equal(isBudgetExhausted({ effect_attempts: 0 }).exhausted, true);
+  assert.equal(isBudgetExhausted({ effect_attempts: 3 }, { effect_attempts: 3 }).exhausted, true);
+
+  // 2. authority_mutations
+  assert.equal(isBudgetExhausted({ authority_mutations: 0 }).exhausted, true);
+  assert.equal(isBudgetExhausted({ authority_mutations: 5 }, { authority_mutations: 5 }).exhausted, true);
+
+  // 3. evidence_runs
+  assert.equal(isBudgetExhausted({ evidence_runs: 0 }).exhausted, true);
+  assert.equal(isBudgetExhausted({ evidence_runs: 10 }, { evidence_runs: 10 }).exhausted, true);
+
+  // 4. review_sweeps
+  assert.equal(isBudgetExhausted({ review_sweeps: 0 }).exhausted, true);
+  assert.equal(isBudgetExhausted({ review_sweeps: 1 }, { review_sweeps: 1 }).exhausted, true);
+});
+
+test("isNodeBudgetExhausted and isAuthorityBudgetExhausted apply default envelope overlays", () => {
+  const healthyNode = isNodeBudgetExhausted({}, { turns: 1 });
+  assert.equal(healthyNode.exhausted, false);
+
+  const exhaustedNode = isNodeBudgetExhausted({}, { turns: 10 });
+  assert.equal(exhaustedNode.exhausted, true);
+
+  const healthyAuth = isAuthorityBudgetExhausted({}, { effect_attempts: 1 });
+  assert.equal(healthyAuth.exhausted, false);
+
+  const exhaustedAuth = isAuthorityBudgetExhausted({}, { effect_attempts: 3 });
+  assert.equal(exhaustedAuth.exhausted, true);
 });

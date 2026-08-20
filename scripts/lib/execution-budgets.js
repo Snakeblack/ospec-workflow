@@ -19,6 +19,151 @@ const DEFAULT_AUTHORITY_BUDGET = Object.freeze({
 });
 
 /**
+ * Evaluates whether any declared quota in a budget envelope is exhausted.
+ * Evaluates the 6 node dimensions (turns, patches, commands, wall_time_minutes, changed_lines, allowed_paths)
+ * and the 4 authority dimensions (effect_attempts, authority_mutations, evidence_runs, review_sweeps).
+ *
+ * @param {Object} [budget] - Budget object or envelope
+ * @param {Object} [consumed] - Consumed telemetry or counters
+ * @param {Object} [options]
+ * @param {boolean} [options.isAuthority]
+ * @param {boolean} [options.isNode]
+ * @param {string[]} [options.modifiedPaths]
+ * @returns {{ ok: boolean, exhausted: boolean, dimension?: string, code?: string, remaining: Object, violations: string[] }}
+ */
+function isBudgetExhausted(budget = {}, consumed = {}, options = {}) {
+  const b = budget || {};
+  const c = consumed || {};
+  const violations = [];
+  const remaining = {};
+
+  const numericNodeKeys = ["turns", "patches", "commands", "wall_time_minutes", "changed_lines"];
+  const numericAuthKeys = ["effect_attempts", "authority_mutations", "evidence_runs", "review_sweeps"];
+
+  for (const key of [...numericNodeKeys, ...numericAuthKeys]) {
+    if (b[key] !== undefined && typeof b[key] === "number") {
+      const limit = b[key];
+      const used = Number(c[key] || 0);
+      remaining[key] = Math.max(0, limit - used);
+    }
+  }
+
+  // 1. Check Node Dimensions
+  // turns: limit <= 0 or consumed >= limit
+  if (b.turns !== undefined && typeof b.turns === "number") {
+    const limit = b.turns;
+    const used = Number(c.turns || 0);
+    if (limit <= 0 || used >= limit) {
+      return { ok: false, exhausted: true, dimension: "turns", code: "BUDGET_EXHAUSTED", remaining, violations };
+    }
+  }
+
+  // patches: limit <= 0 or consumed >= limit (if consumed is provided, consumed > limit or limit <= 0 or consumed >= limit when limit == 0)
+  if (b.patches !== undefined && typeof b.patches === "number") {
+    const limit = b.patches;
+    const used = Number(c.patches || 0);
+    if (limit <= 0 || used > limit || (c.patches !== undefined && used >= limit)) {
+      return { ok: false, exhausted: true, dimension: "patches", code: "BUDGET_EXHAUSTED", remaining, violations };
+    }
+  }
+
+  // commands: limit <= 0 or consumed >= limit
+  if (b.commands !== undefined && typeof b.commands === "number") {
+    const limit = b.commands;
+    const used = Number(c.commands || 0);
+    if (limit <= 0 || used > limit || (c.commands !== undefined && used >= limit)) {
+      return { ok: false, exhausted: true, dimension: "commands", code: "BUDGET_EXHAUSTED", remaining, violations };
+    }
+  }
+
+  // wall_time_minutes: limit <= 0 or consumed >= limit
+  if (b.wall_time_minutes !== undefined && typeof b.wall_time_minutes === "number") {
+    const limit = b.wall_time_minutes;
+    const used = Number(c.wall_time_minutes || 0);
+    if (limit <= 0 || used >= limit) {
+      return { ok: false, exhausted: true, dimension: "wall_time_minutes", code: "BUDGET_EXHAUSTED", remaining, violations };
+    }
+  }
+
+  // changed_lines: limit <= 0 or consumed > limit
+  if (b.changed_lines !== undefined && typeof b.changed_lines === "number") {
+    const limit = b.changed_lines;
+    const used = Number(c.changed_lines || 0);
+    if (limit <= 0 || used > limit) {
+      return { ok: false, exhausted: true, dimension: "changed_lines", code: "BUDGET_EXHAUSTED", remaining, violations };
+    }
+  }
+
+  // allowed_paths: check if modified paths are outside allowed globs
+  const pathsToCheck = c.modified_paths || options.modifiedPaths || options.modified_paths;
+  if (Array.isArray(b.allowed_paths) && b.allowed_paths.length > 0 && Array.isArray(pathsToCheck) && pathsToCheck.length > 0) {
+    for (const modPath of pathsToCheck) {
+      if (!isPathAllowed(modPath, b.allowed_paths)) {
+        violations.push(`Modified path '${modPath}' violates bounded allowed_paths: [${b.allowed_paths.join(", ")}]`);
+      }
+    }
+    if (violations.length > 0) {
+      return { ok: false, exhausted: true, dimension: "allowed_paths", code: "ALLOWED_PATHS_VIOLATION", remaining, violations };
+    }
+  }
+
+  // 2. Check Authority Dimensions
+  // effect_attempts: limit <= 0 or consumed >= limit
+  if (b.effect_attempts !== undefined && typeof b.effect_attempts === "number") {
+    const limit = b.effect_attempts;
+    const used = Number(c.effect_attempts || 0);
+    if (limit <= 0 || used >= limit) {
+      return { ok: false, exhausted: true, dimension: "effect_attempts", code: "AUTHORITY_BUDGET_EXHAUSTED", remaining, violations };
+    }
+  }
+
+  // authority_mutations: limit <= 0 or consumed > limit (or consumed >= limit when limit == 0)
+  if (b.authority_mutations !== undefined && typeof b.authority_mutations === "number") {
+    const limit = b.authority_mutations;
+    const used = Number(c.authority_mutations || 0);
+    if (limit <= 0 || used > limit || (c.authority_mutations !== undefined && used >= limit)) {
+      return { ok: false, exhausted: true, dimension: "authority_mutations", code: "AUTHORITY_BUDGET_EXHAUSTED", remaining, violations };
+    }
+  }
+
+  // evidence_runs: limit <= 0 or consumed > limit (or consumed >= limit when limit == 0)
+  if (b.evidence_runs !== undefined && typeof b.evidence_runs === "number") {
+    const limit = b.evidence_runs;
+    const used = Number(c.evidence_runs || 0);
+    if (limit <= 0 || used > limit || (c.evidence_runs !== undefined && used >= limit)) {
+      return { ok: false, exhausted: true, dimension: "evidence_runs", code: "AUTHORITY_BUDGET_EXHAUSTED", remaining, violations };
+    }
+  }
+
+  // review_sweeps: limit <= 0 or consumed > limit (or consumed >= limit when limit == 0)
+  if (b.review_sweeps !== undefined && typeof b.review_sweeps === "number") {
+    const limit = b.review_sweeps;
+    const used = Number(c.review_sweeps || 0);
+    if (limit <= 0 || used > limit || (c.review_sweeps !== undefined && used >= limit)) {
+      return { ok: false, exhausted: true, dimension: "review_sweeps", code: "AUTHORITY_BUDGET_EXHAUSTED", remaining, violations };
+    }
+  }
+
+  return { ok: true, exhausted: false, remaining, violations: [] };
+}
+
+/**
+ * Checks if a node budget is exhausted.
+ */
+function isNodeBudgetExhausted(budget, consumed = {}, options = {}) {
+  const b = { ...DEFAULT_NODE_BUDGET, ...budget };
+  return isBudgetExhausted(b, consumed, { ...options, isNode: true });
+}
+
+/**
+ * Checks if an authority budget is exhausted.
+ */
+function isAuthorityBudgetExhausted(budget, consumed = {}, options = {}) {
+  const b = { ...DEFAULT_AUTHORITY_BUDGET, ...budget };
+  return isBudgetExhausted(b, consumed, { ...options, isAuthority: true });
+}
+
+/**
  * Evaluates node execution budget against consumed telemetry.
  * @param {Object} [budget]
  * @param {Object} [consumed]
@@ -277,6 +422,9 @@ function isZeroDeltaMutation({
 module.exports = {
   DEFAULT_NODE_BUDGET,
   DEFAULT_AUTHORITY_BUDGET,
+  isBudgetExhausted,
+  isNodeBudgetExhausted,
+  isAuthorityBudgetExhausted,
   evaluateNodeBudget,
   evaluateAuthorityBudget,
   decrementBudgetMonotonic,

@@ -35,6 +35,13 @@ const {
   selectIrreversibleAmbiguousNext,
   blockDirectWrite,
 } = require("./effect-policy.js");
+const { validateRepairScope } = require("../failure-recovery.js");
+const { validateRecoveryHonesty, blockingFingerprint } = require("./recovery.js");
+const {
+  isZeroDeltaMutation,
+  decrementBudgetMonotonic,
+  isBudgetExhausted,
+} = require("../execution-budgets.js");
 
 function interruptError(at) {
   const error = new Error(`kernel-interrupt:${at}`);
@@ -225,6 +232,22 @@ async function runKernelOperation(input = {}) {
     return blockedResult(state, journal, "journal-durability-required");
   }
 
+  if (args.scope !== undefined || operation === "repair") {
+    if (args.scope !== undefined) {
+      const preScope = validateRepairScope({
+        scope: args.scope,
+        targetNodeId: args.node_id,
+        modifiedPaths: args.modified_paths || [],
+        resolvedFindingIds: args.resolved_finding_ids || [],
+      });
+      if (!preScope.ok) {
+        return blockedResult(state, journal, "repair-scope-violation", {
+          violations: preScope.violations,
+        });
+      }
+    }
+  }
+
   const operationId = deriveOperationId({ state, operation, arguments: args });
   const reduced = reduceLifecycle(state, {
     operation,
@@ -241,6 +264,14 @@ async function runKernelOperation(input = {}) {
       allowed_operations: reduced.allowed_operations,
     });
   }
+
+  let totalModifiedFiles = 0;
+  let totalChangedLines = 0;
+  let stateAdvanced = false;
+  let lastOutputHashBefore = null;
+  let lastOutputHashAfter = null;
+  const accumulatedModifiedPaths = [...(args.modified_paths || [])];
+  const accumulatedFindingIds = [...(args.resolved_finding_ids || [])];
 
   const effectRecords = [];
   for (const effect of reduced.effects) {
@@ -447,6 +478,16 @@ async function runKernelOperation(input = {}) {
       });
     }
 
+    if (result) {
+      if (typeof result.modified_files_count === "number") totalModifiedFiles += result.modified_files_count;
+      if (typeof result.changed_lines === "number") totalChangedLines += result.changed_lines;
+      if (result.state_advanced === true || result.advanced === true) stateAdvanced = true;
+      if (result.output_hash_before) lastOutputHashBefore = result.output_hash_before;
+      if (result.output_hash_after) lastOutputHashAfter = result.output_hash_after;
+      if (Array.isArray(result.modified_paths)) accumulatedModifiedPaths.push(...result.modified_paths);
+      if (Array.isArray(result.resolved_finding_ids)) accumulatedFindingIds.push(...result.resolved_finding_ids);
+    }
+
     record = createJournalRecord({
       operation_id: operationId,
       effect_id: effectId,
@@ -467,6 +508,73 @@ async function runKernelOperation(input = {}) {
       operation_id: operationId,
       effects: effectRecords,
     });
+  }
+
+  // Post-effect repair scope validation
+  if (args.scope !== undefined || operation === "repair") {
+    const scopeToValidate = args.scope || (effectRecords[0]?.payload?.scope);
+    if (scopeToValidate !== undefined || accumulatedModifiedPaths.length > 0 || accumulatedFindingIds.length > 0) {
+      const postScope = validateRepairScope({
+        scope: scopeToValidate,
+        targetNodeId: args.node_id,
+        modifiedPaths: accumulatedModifiedPaths,
+        resolvedFindingIds: accumulatedFindingIds,
+      });
+      if (!postScope.ok) {
+        return blockedResult(state, journal, "repair-scope-violation", {
+          violations: postScope.violations,
+        });
+      }
+    }
+  }
+
+  // Zero-delta mutation check and deduction
+  const isZeroDelta = isZeroDeltaMutation({
+    modifiedFilesCount: totalModifiedFiles,
+    changedLines: totalChangedLines,
+    stateAdvanced,
+    outputHashBefore: lastOutputHashBefore,
+    outputHashAfter: lastOutputHashAfter,
+  });
+  const targetNode = reduced.state.nodes && args.node_id ? reduced.state.nodes[args.node_id] : null;
+  if (isZeroDelta && targetNode && operation !== "status") {
+    targetNode.zero_delta_attempts = Number(targetNode.zero_delta_attempts || 0) + 1;
+    if (targetNode.budget) {
+      targetNode.budget = decrementBudgetMonotonic(targetNode.budget, { turns: 1, effect_attempts: 1 });
+      if (isBudgetExhausted(targetNode.budget).exhausted) {
+        targetNode.exhausted = true;
+      }
+    }
+  }
+
+  // Honest recovery validation
+  if (operation === "recover" || operation === "repair") {
+    const honesty = validateRecoveryHonesty({
+      beforeState: state,
+      afterState: reduced.state,
+      outcome: reduced.outcome,
+      causalFailure: (state.nodes?.[args.node_id]?.failure) || args.failure,
+    });
+    if (!honesty.ok) {
+      return blockedResult(state, journal, honesty.code || "recovery-non-advancing", {
+        operation_id: operationId,
+        next_transition: { kind: "decide", operation: "escalate", arguments: { node_id: args.node_id } },
+        before_blocking: honesty.before_blocking,
+        after_blocking: honesty.after_blocking,
+      });
+    }
+  }
+
+  // Pre-CAS budget exhaustion check
+  if (targetNode && targetNode.budget) {
+    if (isBudgetExhausted(targetNode.budget).exhausted) {
+      targetNode.exhausted = true;
+    }
+  }
+  if (reduced.state.authority_budget) {
+    if (isBudgetExhausted(reduced.state.authority_budget, {}, { isAuthority: true }).exhausted) {
+      reduced.state.exhausted = true;
+    }
   }
 
   const direct = blockDirectWrite({
