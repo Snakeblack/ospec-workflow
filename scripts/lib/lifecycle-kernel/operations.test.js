@@ -26,11 +26,16 @@ test("OPERATIONS registry lists the K2 public verbs", () => {
   const names = OPERATIONS.map((op) => op.name).sort();
   assert.deepEqual(names, [
     "complete",
+    "decide",
+    "escalate",
     "fail",
     "invalidate-node",
     "recover",
+    "repair",
+    "replan",
     "start",
     "status",
+    "stop",
   ]);
 });
 

@@ -103,3 +103,28 @@ test("requiresReconciliation and requiresStateResync enforce non-mutation polici
   assert.equal(requiresStateResync("cas_conflict"), true);
   assert.equal(requiresStateResync("environment_tooling"), false);
 });
+
+test("validateRepairScope: fails closed strictly when scope is empty, null, or missing bounding arrays", () => {
+  // Empty scope object with targets
+  const emptyScope = validateRepairScope({
+    scope: {},
+    targetNodeId: "n1",
+    modifiedPaths: ["src/foo.js"],
+    resolvedFindingIds: ["F-1"],
+  });
+  assert.equal(emptyScope.ok, false);
+  assert.ok(emptyScope.violations.length >= 3);
+
+  // Null/non-object scope
+  const nullScope = validateRepairScope({
+    scope: null,
+    targetNodeId: "n1",
+  });
+  assert.equal(nullScope.ok, false);
+
+  const arrayScope = validateRepairScope({
+    scope: [],
+    targetNodeId: "n1",
+  });
+  assert.equal(arrayScope.ok, false);
+});

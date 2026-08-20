@@ -10,6 +10,11 @@ const OPERATIONS = Object.freeze([
   Object.freeze({ name: "fail", mutates: true }),
   Object.freeze({ name: "invalidate-node", mutates: true }),
   Object.freeze({ name: "recover", mutates: true }),
+  Object.freeze({ name: "repair", mutates: true }),
+  Object.freeze({ name: "replan", mutates: true }),
+  Object.freeze({ name: "escalate", mutates: false }),
+  Object.freeze({ name: "stop", mutates: false }),
+  Object.freeze({ name: "decide", mutates: false }),
 ]);
 
 const OPERATION_BY_NAME = new Map(OPERATIONS.map((op) => [op.name, op]));
@@ -23,17 +28,17 @@ function getNode(state, nodeId) {
 
 function allowedOperationsFor(state, nodeId) {
   const node = getNode(state, nodeId);
-  if (!node) return ["status"];
+  if (!node) return ["status", "escalate", "stop", "decide"];
   const phase = node.phase;
-  if (phase === "pending") return ["status", "start", "invalidate-node"];
-  if (phase === "started") return ["status", "complete", "fail", "invalidate-node"];
+  if (phase === "pending") return ["status", "start", "invalidate-node", "stop"];
+  if (phase === "started") return ["status", "complete", "fail", "invalidate-node", "stop"];
   if (phase === "interrupted" || phase === "failed") {
-    return ["status", "recover", "invalidate-node"];
+    return ["status", "recover", "repair", "replan", "escalate", "stop", "decide", "invalidate-node"];
   }
   if (phase === "completed" || phase === "terminal" || phase === "invalidated") {
-    return ["status"];
+    return ["status", "stop"];
   }
-  return ["status"];
+  return ["status", "stop"];
 }
 
 /**
@@ -120,10 +125,25 @@ function validateOperationTransition(state, action = {}) {
     return { ok: true };
   }
 
-  if (operation === "recover") {
+  if (operation === "recover" || operation === "repair") {
     if (!node || (node.phase !== "interrupted" && node.phase !== "failed")) {
       return failClosed(state, "invalid-transition", allowed);
     }
+    return { ok: true };
+  }
+
+  if (operation === "replan") {
+    if (!node || (node.phase !== "interrupted" && node.phase !== "failed")) {
+      return failClosed(state, "invalid-transition", allowed);
+    }
+    return { ok: true };
+  }
+
+  if (operation === "escalate") {
+    return { ok: true };
+  }
+
+  if (operation === "stop" || operation === "decide") {
     return { ok: true };
   }
 

@@ -1,6 +1,6 @@
 # ADR-002: Structured 5-Category Causal Failure Taxonomy with Precedence
 
-- Status: proposed
+- Status: accepted
 - Change: k5-budgets-failures-recovery
 - Date: 2026-08-17
 

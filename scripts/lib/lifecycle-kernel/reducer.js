@@ -6,6 +6,7 @@ const {
 } = require("./operations.js");
 const {
   decrementBudgetMonotonic,
+  isBudgetExhausted,
   evaluateNodeBudget,
   evaluateAuthorityBudget,
   isZeroDeltaMutation,
@@ -72,7 +73,7 @@ function reduceLifecycle(state, action = {}) {
 
   const next = clone(input);
   const nodeId = args.node_id;
-  const node = next.nodes[nodeId];
+  const node = next.nodes && nodeId ? next.nodes[nodeId] : null;
   const effects = [];
   const events = [];
   const effectClass = action.effect_class || DEFAULT_EFFECT_CLASS;
@@ -82,12 +83,21 @@ function reduceLifecycle(state, action = {}) {
   if (consumedDelta && typeof consumedDelta === "object") {
     if (node && node.budget) {
       node.budget = decrementBudgetMonotonic(node.budget, consumedDelta);
+      if (isBudgetExhausted(node.budget).exhausted) {
+        node.exhausted = true;
+      }
     }
     if (next.authority_budget) {
       next.authority_budget = decrementBudgetMonotonic(next.authority_budget, consumedDelta);
+      if (isBudgetExhausted(next.authority_budget, {}, { isAuthority: true }).exhausted) {
+        next.exhausted = true;
+      }
     }
     if (next.budget) {
       next.budget = decrementBudgetMonotonic(next.budget, consumedDelta);
+      if (isBudgetExhausted(next.budget).exhausted) {
+        next.exhausted = true;
+      }
     }
   }
 
@@ -112,6 +122,9 @@ function reduceLifecycle(state, action = {}) {
     node.zero_delta_attempts = Number(node.zero_delta_attempts || 0) + 1;
     if (node.budget) {
       node.budget = decrementBudgetMonotonic(node.budget, { turns: 1, effect_attempts: 1 });
+      if (isBudgetExhausted(node.budget).exhausted) {
+        node.exhausted = true;
+      }
     }
   }
 
@@ -122,14 +135,14 @@ function reduceLifecycle(state, action = {}) {
 
     if (node.budget) {
       node.budget = decrementBudgetMonotonic(node.budget, { turns: 1 });
-      const nodeBudgetEval = evaluateNodeBudget(node.budget);
+      const nodeBudgetEval = isBudgetExhausted(node.budget);
       if (nodeBudgetEval.exhausted) {
         node.exhausted = true;
       }
     }
     if (next.authority_budget) {
       next.authority_budget = decrementBudgetMonotonic(next.authority_budget, { effect_attempts: 1 });
-      const authBudgetEval = evaluateAuthorityBudget(next.authority_budget);
+      const authBudgetEval = isBudgetExhausted(next.authority_budget, {}, { isAuthority: true });
       if (authBudgetEval.exhausted) {
         next.exhausted = true;
       }
@@ -171,8 +184,7 @@ function reduceLifecycle(state, action = {}) {
 
     if (
       (node.max_attempts && node.attempt >= node.max_attempts) ||
-      (node.budget && typeof node.budget.turns === "number" && node.budget.turns <= 0) ||
-      (node.budget && typeof node.budget.effect_attempts === "number" && node.budget.effect_attempts <= 0) ||
+      (node.budget && isBudgetExhausted(node.budget).exhausted) ||
       action.exhausted === true
     ) {
       node.exhausted = true;
@@ -184,7 +196,7 @@ function reduceLifecycle(state, action = {}) {
       subject: nodeId,
       payload: { failure: node.failure || null, exhausted: Boolean(node.exhausted) },
     });
-    return { state: next, effects, events, outcome: "blocked" };
+    return { state: next, effects, events, outcome: "advanced" };
   }
 
   if (operation === "invalidate-node") {
@@ -198,8 +210,8 @@ function reduceLifecycle(state, action = {}) {
     return { state: next, effects, events, outcome: "advanced" };
   }
 
-  if (operation === "recover") {
-    if (node.exhausted) {
+  if (operation === "recover" || operation === "repair") {
+    if (node.exhausted || (node.budget && isBudgetExhausted(node.budget).exhausted)) {
       return {
         state: clone(input),
         effects: [],
@@ -210,13 +222,69 @@ function reduceLifecycle(state, action = {}) {
     }
     node.phase = "pending";
     next.status = "ready";
-    pushPersistEffect(effects, `effect:recover:${nodeId}`, nodeId, "pending", effectClass);
+    pushPersistEffect(effects, `effect:${operation}:${nodeId}`, nodeId, "pending", effectClass);
     events.push({
-      kind: "operation-recovered",
+      kind: operation === "repair" ? "operation-repaired" : "operation-recovered",
       subject: nodeId,
       payload: {},
     });
     return { state: next, effects, events, outcome: "advanced" };
+  }
+
+  if (operation === "replan") {
+    if (node.exhausted || (node.budget && isBudgetExhausted(node.budget).exhausted)) {
+      return {
+        state: clone(input),
+        effects: [],
+        events: [],
+        outcome: "blocked",
+        code: "node-exhausted",
+      };
+    }
+    node.phase = "pending";
+    next.status = "ready";
+    pushPersistEffect(effects, `effect:replan:${nodeId}`, nodeId, "pending", effectClass);
+    events.push({
+      kind: "operation-replanned",
+      subject: nodeId,
+      payload: {},
+    });
+    return { state: next, effects, events, outcome: "advanced" };
+  }
+
+  if (operation === "escalate") {
+    if (node) {
+      node.phase = "failed";
+    }
+    next.status = "blocked";
+    events.push({
+      kind: "operation-escalated",
+      subject: nodeId || null,
+      payload: { failure: node?.failure || args.failure || null },
+    });
+    return { state: next, effects: [], events, outcome: "blocked" };
+  }
+
+  if (operation === "stop") {
+    if (node) {
+      node.phase = "terminal";
+    }
+    next.status = "terminal";
+    events.push({
+      kind: "operation-stopped",
+      subject: nodeId || null,
+      payload: {},
+    });
+    return { state: next, effects: [], events, outcome: "terminal" };
+  }
+
+  if (operation === "decide") {
+    events.push({
+      kind: "decision-requested",
+      subject: nodeId || null,
+      payload: {},
+    });
+    return { state: next, effects: [], events, outcome: "blocked" };
   }
 
   return {

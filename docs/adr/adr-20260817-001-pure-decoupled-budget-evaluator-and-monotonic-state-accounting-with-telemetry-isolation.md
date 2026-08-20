@@ -1,6 +1,6 @@
 # ADR-001: Pure Decoupled Budget Evaluator and Monotonic State Accounting with Telemetry Isolation
 
-- Status: proposed
+- Status: accepted
 - Change: k5-budgets-failures-recovery
 - Date: 2026-08-17
 
