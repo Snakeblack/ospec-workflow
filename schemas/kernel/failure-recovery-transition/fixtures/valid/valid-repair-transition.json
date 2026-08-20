@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "transition_id": "recov-trans-001",
+  "failure_code": "TEST_ASSERTION_FAILED",
+  "target_operation": "repair",
+  "scope": {
+    "node_ids": ["node-apply-auth"],
+    "allowed_paths": ["src/auth/**", "tests/auth/**"],
+    "finding_ids": ["F-001"]
+  },
+  "expected_advancement": true
+}

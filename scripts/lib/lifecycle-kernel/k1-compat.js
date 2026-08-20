@@ -159,6 +159,11 @@ function listK1SchemaFiles(rootDir) {
     "schemas/kernel/execution-graph/",
     "schemas/kernel/policy-snapshot/",
     "schemas/kernel/clarify-event/",
+    // K5 Budgets, Failures, and Recovery Transition families
+    "schemas/kernel/execution-budget/",
+    "schemas/kernel/authority-effect-budget/",
+    "schemas/kernel/causal-failure/",
+    "schemas/kernel/failure-recovery-transition/",
     // Evolutionary catalog registries (excluded from K1 frozen baseline pin)
     "schemas/kernel/manifest.json",
     "schemas/kernel/contract-claims.json",

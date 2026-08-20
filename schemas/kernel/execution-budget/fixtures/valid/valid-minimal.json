@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "turns": 5,
+  "patches": 0,
+  "commands": 0,
+  "wall_time_minutes": 10,
+  "changed_lines": 400,
+  "allowed_paths": []
+}

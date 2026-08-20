@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "change": "k4a-replay-completion-contract-reconciliation",
+  "source_fingerprint": "sha256:d471fc945c391c7d7dadec88192d6326859e397dd754965d43deff5edd14b358",
+  "spec_writes": [
+    {
+      "domain": "execution-graph-compiler",
+      "source_delta": "specs/execution-graph-compiler/spec.md",
+      "target": "openspec/specs/execution-graph-compiler/spec.md",
+      "target_before_sha256": "sha256:8458d64615b2a5b8b8f0291285e688af4c0f5ded2d2f245dd452f706021c2f4e",
+      "content_sha256": "sha256:3b46a149174c3e51f05e7765ca6c9243a9d8874d66ec02a5441772bca587096f"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260820-001-formalization-of-replayfixtureresult-contract-and-elimination-of-ambiguous-output-fields.md",
+      "content_sha256": "sha256:68c666597dd5d8a73d5abd146531eb808430963ee56fd767877d92f3a7e84251"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "design.md",
+    "proposal.md",
+    "specs/execution-graph-compiler/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

@@ -501,18 +501,23 @@ function createAuthorityRuntime(options = {}) {
 }
 
 function freezeBudgets(budgets) {
-  const base = budgets && typeof budgets === "object" ? budgets : { attempts: 0, corrections: 0 };
-  return Object.freeze({
-    attempts: Number(base.attempts) || 0,
-    corrections: Number(base.corrections) || 0,
-  });
+  if (!budgets || typeof budgets !== "object") {
+    return Object.freeze({ attempts: 0, corrections: 0 });
+  }
+  const frozen = {};
+  for (const [k, v] of Object.entries(budgets)) {
+    frozen[k] = typeof v === "object" && v !== null ? Object.freeze(JSON.parse(JSON.stringify(v))) : v;
+  }
+  if (frozen.attempts === undefined) frozen.attempts = 0;
+  if (frozen.corrections === undefined) frozen.corrections = 0;
+  return Object.freeze(frozen);
 }
 
 function cloneBudgets(budgets) {
-  return {
-    attempts: budgets.attempts,
-    corrections: budgets.corrections,
-  };
+  if (!budgets || typeof budgets !== "object") {
+    return { attempts: 0, corrections: 0 };
+  }
+  return JSON.parse(JSON.stringify(budgets));
 }
 
 module.exports = {

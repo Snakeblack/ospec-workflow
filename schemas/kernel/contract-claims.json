@@ -487,6 +487,70 @@
       ],
       "enum_values": {},
       "command_shapes": []
+    },
+    "execution-budget": {
+      "required_fields": [
+        "schema_version",
+        "turns",
+        "patches",
+        "commands",
+        "wall_time_minutes",
+        "changed_lines",
+        "allowed_paths"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "authority-effect-budget": {
+      "required_fields": [
+        "schema_version",
+        "effect_attempts",
+        "authority_mutations",
+        "evidence_runs",
+        "review_sweeps"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "causal-failure": {
+      "required_fields": [
+        "schema_version",
+        "failure_id",
+        "category",
+        "code",
+        "priority",
+        "blocking_fingerprint",
+        "details"
+      ],
+      "enum_values": {
+        "category": [
+          "environment_tooling",
+          "cas_conflict",
+          "ambiguous_effect",
+          "validation_gap",
+          "code_defect"
+        ]
+      },
+      "command_shapes": []
+    },
+    "failure-recovery-transition": {
+      "required_fields": [
+        "schema_version",
+        "transition_id",
+        "failure_code",
+        "target_operation",
+        "scope",
+        "expected_advancement"
+      ],
+      "enum_values": {
+        "target_operation": [
+          "repair",
+          "replan",
+          "escalate",
+          "stop"
+        ]
+      },
+      "command_shapes": []
     }
   }
 }

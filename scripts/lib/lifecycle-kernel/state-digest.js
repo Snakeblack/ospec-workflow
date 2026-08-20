@@ -10,6 +10,9 @@ const VOLATILE_KEYS = new Set([
   "clock",
   "timestamp",
   "now",
+  "telemetry",
+  "consumption",
+  "transient_timers",
 ]);
 
 function stripVolatile(value) {

@@ -18,6 +18,8 @@ const { check: checkK1ProseAuthority } = require("./contract-checkers/k1-prose-a
 const { check: checkK1Maturity } = require("./contract-checkers/k1-maturity.js");
 const { check: checkK4aMicroscopicNodes } = require("./contract-checkers/k4a-microscopic-nodes.js");
 const { check: checkK4aObligationCompleteness } = require("./contract-checkers/k4a-obligation-completeness.js");
+const { check: checkK5FailureTransitionMatrix } = require("./contract-checkers/k5-failure-transition-matrix.js");
+const { check: checkK5BudgetStructure } = require("./contract-checkers/k5-budget-structure.js");
 
 /**
  * @typedef {Object} Offender
@@ -56,6 +58,8 @@ const DEFAULT_REGISTRY = [
   checkK1Maturity,
   checkK4aMicroscopicNodes,
   checkK4aObligationCompleteness,
+  checkK5FailureTransitionMatrix,
+  checkK5BudgetStructure,
 ];
 
 /**

@@ -110,3 +110,82 @@ test("missing effect_class on synthetic effect fails requireEffectClass at shell
   assert.equal(requireEffectClass(result.effects[0]).ok, true);
   assert.equal(requireEffectClass({ kind: "persist-node", payload: {} }).code, "effect-class-required");
 });
+
+test("reduceLifecycle: decrements node budget monotonically on start and custom delta", () => {
+  const state = {
+    schema_version: 1,
+    status: "ready",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "pending",
+        attempt: 0,
+        budget: { schema_version: 1, turns: 5, patches: 2, commands: 10, wall_time_minutes: 15, changed_lines: 400, allowed_paths: [] },
+      },
+    },
+  };
+
+  const started = reduceLifecycle(state, withRuntimePermit({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    consumed: { patches: 1, commands: 2 },
+  }));
+
+  assert.equal(started.state.nodes.n1.attempt, 1);
+  assert.equal(started.state.nodes.n1.budget.turns, 4); // turns decremented by 1 on start
+  assert.equal(started.state.nodes.n1.budget.patches, 1);
+  assert.equal(started.state.nodes.n1.budget.commands, 8);
+});
+
+test("reduceLifecycle: detects zero-delta mutation and records zero-delta-attempt event", () => {
+  const state = {
+    schema_version: 1,
+    status: "running",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "started",
+        attempt: 1,
+        budget: { schema_version: 1, turns: 5, patches: 2, commands: 10, wall_time_minutes: 15, changed_lines: 400, allowed_paths: [] },
+      },
+    },
+  };
+
+  const res = reduceLifecycle(state, withRuntimePermit({
+    operation: "fail",
+    arguments: { node_id: "n1" },
+    mutation: true,
+    modified_files_count: 0,
+    changed_lines: 0,
+    state_advanced: false,
+  }));
+
+  assert.equal(res.state.nodes.n1.zero_delta_attempts, 1);
+  assert.ok(res.events.some((e) => e.kind === "zero-delta-attempt"));
+  assert.equal(res.state.nodes.n1.budget.turns, 4);
+});
+
+test("reduceLifecycle: exhausted node budget fails closed on recover", () => {
+  const state = {
+    schema_version: 1,
+    status: "blocked",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "failed",
+        attempt: 5,
+        exhausted: true,
+        budget: { schema_version: 1, turns: 0, patches: 0, commands: 0, wall_time_minutes: 0, changed_lines: 0, allowed_paths: [] },
+      },
+    },
+  };
+
+  const res = reduceLifecycle(state, withRuntimePermit({
+    operation: "recover",
+    arguments: { node_id: "n1" },
+  }));
+
+  assert.equal(res.outcome, "blocked");
+  assert.equal(res.code, "node-exhausted");
+  assert.equal(res.state.nodes.n1.phase, "failed");
+});

@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.7] - 2026-08-20
+
+### Fixed
+- **Reconciliación Canónica de `ReplayFixtureResult` (REQ-006) (`k4a-replay-completion-contract-reconciliation`)**:
+  - `openspec/specs/execution-graph-compiler/spec.md` formaliza el contrato canónico mínimo de `ReplayFixtureResult` en 6 dimensiones deterministas: Provenance estricto (`graph_id` y `work_order_id`), Estado Terminal (`completed` sin cancelaciones ni fallos), Consistencia de Exit Code (`exit_code === 0`), Objeto de Evidencia plano no nulo y no array, Cobertura de Evidencia Requerida por Nodo (`node.required_evidence ⊆ keys(evidence)`), y Satisfacción de Obligaciones a Nivel de Grafo con generación de contraejemplos reproducibles.
+  - Eliminada la referencia ambigua a "missing output fields", consolidando el diccionario de `evidence` como el único contenedor canónico de outputs y pruebas en K4a sin introducir schemas de output artificiales.
+  - Preservación estricta de las fronteras de kernel: estructuras de ejecución de workers vivos (`WorkResult`), permisos y cápsulas permanecen en K6a/K4b, y causalidad de recuperación permanece en K5.
+
+### Added
+- **Suite Exhaustiva de Pruebas Contractuales y Adversariales en Replay Engine**:
+  - `scripts/lib/execution-graph/replay-engine.test.js` ampliado con tests unitarios y adversariales para todas las 6 dimensiones de completitud de `ReplayFixtureResult`.
+  - Cobertura para combinaciones contradictorias de terminal status (`status: "completed"` con `outcome: "failed"`, `ok: false`, non-zero `exit_code`).
+  - Cobertura para tipos de evidencia inválidos (`null`, `[]`, strings, números, booleanos).
+  - Cobertura para rechazo de nodos con evidencia requerida incompleta y bloqueo downstream.
+  - Cobertura para obligaciones `MUST` diferidas vs no satisfechas y generación determinista de contraejemplos.
+
 ## [2.45.6] - 2026-08-16
 
 ### Fixed

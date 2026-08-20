@@ -71,3 +71,45 @@ test("exhausted operation cannot restart implicitly", () => {
   const next = nextTransition(state);
   assert.ok(["decide", "stop", "recover"].includes(next.kind) || next.operation === "recover");
 });
+
+test("transition selector: prunes recover when primary failure category is ambiguous_effect or validation_gap", () => {
+  const stateAmbiguous = stateWith({
+    n1: {
+      id: "n1",
+      phase: "failed",
+      attempt: 1,
+      failure: {
+        category: "ambiguous_effect",
+        code: "UNKNOWN_OUTCOME",
+        priority: 3,
+        blocking_fingerprint: "fp:amb",
+      },
+    },
+  }, "blocked");
+
+  const transitions = selectTransitions(stateAmbiguous);
+  // Ambiguous effect only permits escalate or stop, not direct recover
+  assert.ok(!transitions.some((t) => t.operation === "recover"));
+  assert.ok(transitions.some((t) => t.kind === "decide" || t.kind === "stop"));
+});
+
+test("transition selector: prunes recover when node execution budget turns is exhausted (0)", () => {
+  const stateBudgetExhausted = stateWith({
+    n1: {
+      id: "n1",
+      phase: "failed",
+      attempt: 3,
+      budget: { schema_version: 1, turns: 0, patches: 0, commands: 0, wall_time_minutes: 0, changed_lines: 0, allowed_paths: [] },
+      failure: {
+        category: "code_defect",
+        code: "TEST_FAILED",
+        priority: 5,
+        blocking_fingerprint: "fp:def",
+      },
+    },
+  }, "blocked");
+
+  const transitions = selectTransitions(stateBudgetExhausted);
+  assert.ok(!transitions.some((t) => t.operation === "recover"));
+  assert.ok(transitions.some((t) => t.kind === "decide" || t.kind === "stop"));
+});

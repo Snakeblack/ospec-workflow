@@ -1,0 +1,59 @@
+change: "k4a-replay-completion-contract-reconciliation"
+status: "archived"
+last_updated: "2026-08-20T09:00:50Z"
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k4a-replay-completion-contract-reconciliation/proposal.md"
+    summary: "Reconciliación del contrato canónico de ReplayFixtureResult en K4a (REQ-006), eliminando 'missing output fields' y preparando v2.45.7."
+    key_decisions:
+      - "Formalizar ReplayFixtureResult exacto sin introducir WorkResult runtime en K4a"
+      - "Preservar verificación de obligaciones como satisfacción post-evaluación antes de K5"
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k4a-replay-completion-contract-reconciliation/specs/execution-graph-compiler/spec.md"
+    summary: "Delta spec para execution-graph-compiler formalizando el contrato de ReplayFixtureResult y eliminando 'missing output fields'."
+    key_decisions:
+      - "Contrato mínimo de 6 dimensiones de completitud en ReplayFixtureResult"
+      - "Preservación estricta de todos los escenarios REQ-006 adaptados al contrato"
+  design:
+    status: "done"
+    artifact: "openspec/changes/k4a-replay-completion-contract-reconciliation/design.md"
+    summary: "Formalización de ReplayFixtureResult en 6 dimensiones, eliminación de 'missing output fields' y ADR-001 de fronteras de kernel."
+    key_decisions:
+      - "Contrato formal de 6 dimensiones para ReplayFixtureResult sin schemas de output artificiales"
+      - "Preservación estricta de fronteras de kernel: WorkResult en K6a y causalidad en K5"
+      - "Segregación fail-closed de Replay Canónico vs Replay Legacy"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k4a-replay-completion-contract-reconciliation/tasks.md"
+    summary: "Desglose de 4 fases para reconciliación canónica de REQ-006, tests adversariales de Replay, bump v2.45.7 y gates de calidad."
+    key_decisions:
+      - "Estrategia single-pr sin chained PRs y riesgo de presupuesto bajo (<200 líneas)"
+      - "Trazabilidad completa de tareas hacia REQ-execution-graph-compiler-006"
+  apply:
+    status: "done"
+    artifact: "openspec/changes/k4a-replay-completion-contract-reconciliation/apply-progress.md"
+    summary: "Reconciliado REQ-006 canónico, suite adversarial de 6 dimensiones agregada, bump a v2.45.7 y gates 100% PASS."
+    key_decisions:
+      - "6 dimensiones contractuales en ReplayFixtureResult sin schemas artificiales"
+      - "Endurecimiento adversarial completo en replay-engine.test.js"
+  verify:
+    status: "done"
+    verdict: "PASS"
+    artifact: "openspec/changes/k4a-replay-completion-contract-reconciliation/verify-report.md"
+    summary: "Verificación canónica PASS (10/10 escenarios runtime-test, 104/104 tests execution-graph, fronteras de kernel y 6 dimensiones formalizadas)."
+    key_decisions:
+      - "10/10 escenarios REQ-006 validados con evidencia runtime-test"
+      - "Cero deuda técnica o contaminación de WorkResult runtime en K4a"
+  archive:
+    status: "done"
+    artifact: "openspec/changes/k4a-replay-completion-contract-reconciliation/archive-report.md"
+    summary: "Plan de archivo emitido con fusión change-local de execution-graph-compiler, promoción ADR-001 y plan de inventario completo."
+    key_decisions:
+      - "Fusión change-local completa para execution-graph-compiler"
+      - "Promoción de ADR-001 a docs/adr/"
+baseline_fingerprints:
+  execution-graph-compiler: "8458d64615b2a5b8b8f0291285e688af4c0f5ded2d2f245dd452f706021c2f4e"

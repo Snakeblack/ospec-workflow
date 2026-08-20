@@ -165,6 +165,26 @@
       "path": "schemas/kernel/clarify-event/v1.schema.json",
       "$id": "ospec://schemas/kernel/clarify-event/v1",
       "schema_version": 1
+    },
+    "execution-budget": {
+      "path": "schemas/kernel/execution-budget/v1.schema.json",
+      "$id": "ospec://schemas/kernel/execution-budget/v1",
+      "schema_version": 1
+    },
+    "authority-effect-budget": {
+      "path": "schemas/kernel/authority-effect-budget/v1.schema.json",
+      "$id": "ospec://schemas/kernel/authority-effect-budget/v1",
+      "schema_version": 1
+    },
+    "causal-failure": {
+      "path": "schemas/kernel/causal-failure/v1.schema.json",
+      "$id": "ospec://schemas/kernel/causal-failure/v1",
+      "schema_version": 1
+    },
+    "failure-recovery-transition": {
+      "path": "schemas/kernel/failure-recovery-transition/v1.schema.json",
+      "$id": "ospec://schemas/kernel/failure-recovery-transition/v1",
+      "schema_version": 1
     }
   }
 }

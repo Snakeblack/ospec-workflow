@@ -16,6 +16,9 @@ function blockingFingerprint(state) {
   for (const key of Object.keys(nodes).sort()) {
     const node = { ...nodes[key] };
     delete node.attempt;
+    delete node.zero_delta_attempts;
+    delete node.telemetry;
+    delete node.consumption;
     normalizedNodes[key] = node;
   }
   return sha256Fingerprint(`lifecycle-kernel:blocking:v${KERNEL_VERSION}`, {
@@ -28,12 +31,23 @@ function blockingFingerprint(state) {
  * Recovery is honest only when execution advances the blocking fingerprint
  * or reaches an explicit terminal outcome.
  */
-function validateRecoveryHonesty({ beforeState, afterState, outcome }) {
+function validateRecoveryHonesty({ beforeState, afterState, outcome, causalFailure }) {
   const before_digest = digestLifecycleState(beforeState);
   const after_digest = digestLifecycleState(afterState);
   if (outcome === "terminal" || (afterState && afterState.status === "terminal")) {
     return { ok: true, before_digest, after_digest, reason: "terminal" };
   }
+
+  if (causalFailure && causalFailure.category === "ambiguous_effect" && outcome !== "reconciled") {
+    return {
+      ok: false,
+      code: "ambiguous-effect-unresolved",
+      reason: "reconciliation-required",
+      before_digest,
+      after_digest,
+    };
+  }
+
   const beforeBlock = blockingFingerprint(beforeState);
   const afterBlock = blockingFingerprint(afterState);
   if (beforeBlock === afterBlock) {
@@ -46,7 +60,7 @@ function validateRecoveryHonesty({ beforeState, afterState, outcome }) {
       after_blocking: afterBlock,
     };
   }
-  return { ok: true, before_digest, after_digest, reason: "advanced" };
+  return { ok: true, before_digest, after_digest, reason: "advanced", before_blocking: beforeBlock, after_blocking: afterBlock };
 }
 
 /**

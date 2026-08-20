@@ -383,4 +383,511 @@ test("ReplayEngine: rejects completed status when exit_code is non-zero fail-clo
   assert.ok(result.counterexample.reason.includes("Contradictory"));
 });
 
+test("ReplayEngine (Dimension 1): rejects empty, null, or non-string graph_id or work_order_id fail-closed", () => {
+  const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+  const graph = createSampleExecutionGraph();
+  const workOrders = compileWorkOrdersV2(graph);
+  const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
+
+  const invalidProvenanceCases = [
+    { graph_id: "", work_order_id: woMap.get("repair-patch"), label: "empty graph_id" },
+    { graph_id: null, work_order_id: woMap.get("repair-patch"), label: "null graph_id" },
+    { graph_id: 12345, work_order_id: woMap.get("repair-patch"), label: "numeric graph_id" },
+    { graph_id: graph.graph_id, work_order_id: "", label: "empty work_order_id" },
+    { graph_id: graph.graph_id, work_order_id: null, label: "null work_order_id" },
+    { graph_id: graph.graph_id, work_order_id: { id: "bad" }, label: "object work_order_id" },
+  ];
+
+  for (const tc of invalidProvenanceCases) {
+    const fixtures = {
+      "repair-patch": {
+        graph_id: tc.graph_id,
+        work_order_id: tc.work_order_id,
+        status: "completed",
+        evidence: { "ev:patch-proof": { digest: "sha256:proof" } },
+      },
+      "repair-verify": {
+        graph_id: graph.graph_id,
+        work_order_id: woMap.get("repair-verify"),
+        status: "completed",
+        evidence: { "ev:test-pass": { digest: "sha256:pass" } },
+      },
+    };
+
+    assert.throws(
+      () => replayExecutionGraph(graph, fixtures),
+      (err) => err.code === "stale-fixture-rejected" && err.node_id === "repair-patch",
+      `Expected stale-fixture-rejected for ${tc.label}`
+    );
+  }
+});
+
+test("ReplayEngine (Dimension 2): accepts status or outcome completed independently", () => {
+  const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+  const graph = createSampleExecutionGraph();
+  const workOrders = compileWorkOrdersV2(graph);
+  const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
+
+  // Status completed only
+  const fixturesStatusOnly = {
+    "repair-patch": {
+      graph_id: graph.graph_id,
+      work_order_id: woMap.get("repair-patch"),
+      status: "completed",
+      evidence: { "ev:patch-proof": { digest: "sha256:proof" } },
+    },
+    "repair-verify": {
+      graph_id: graph.graph_id,
+      work_order_id: woMap.get("repair-verify"),
+      status: "completed",
+      evidence: { "ev:test-pass": { digest: "sha256:pass" } },
+    },
+  };
+  const res1 = replayExecutionGraph(graph, fixturesStatusOnly);
+  assert.equal(res1.ok, true);
+
+  // Outcome completed only
+  const fixturesOutcomeOnly = {
+    "repair-patch": {
+      graph_id: graph.graph_id,
+      work_order_id: woMap.get("repair-patch"),
+      outcome: "completed",
+      evidence: { "ev:patch-proof": { digest: "sha256:proof" } },
+    },
+    "repair-verify": {
+      graph_id: graph.graph_id,
+      work_order_id: woMap.get("repair-verify"),
+      outcome: "completed",
+      evidence: { "ev:test-pass": { digest: "sha256:pass" } },
+    },
+  };
+  const res2 = replayExecutionGraph(graph, fixturesOutcomeOnly);
+  assert.equal(res2.ok, true);
+});
+
+test("ReplayEngine (Dimension 2): rejects contradictory status and outcome combinations", () => {
+  const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+  const graph = createSampleExecutionGraph();
+  const workOrders = compileWorkOrdersV2(graph);
+  const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
+
+  const contradictoryCombos = [
+    { status: "completed", outcome: "cancelled" },
+    { status: "cancelled", outcome: "completed" },
+    { status: "failed", outcome: "completed" },
+    { status: "completed", outcome: "failed" },
+    { status: "completed", ok: false },
+    { outcome: "completed", ok: false },
+  ];
+
+  for (const combo of contradictoryCombos) {
+    const fixtures = {
+      "repair-patch": {
+        graph_id: graph.graph_id,
+        work_order_id: woMap.get("repair-patch"),
+        ...combo,
+        evidence: { "ev:patch-proof": { digest: "sha256:proof" } },
+      },
+      "repair-verify": {
+        graph_id: graph.graph_id,
+        work_order_id: woMap.get("repair-verify"),
+        status: "completed",
+        evidence: { "ev:test-pass": { digest: "sha256:pass" } },
+      },
+    };
+
+    const res = replayExecutionGraph(graph, fixtures);
+    assert.equal(res.ok, false, `Expected failure for combo ${JSON.stringify(combo)}`);
+    assert.deepEqual(res.failedNodes, ["repair-patch"]);
+    assert.ok(res.blockedNodes.includes("repair-verify"));
+  }
+});
+
+test("ReplayEngine (Dimension 3): exit_code validation rules", () => {
+  const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+  const graph = createSampleExecutionGraph();
+  const workOrders = compileWorkOrdersV2(graph);
+  const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
+
+  // Exit code 0 is valid
+  const res0 = replayExecutionGraph(graph, {
+    "repair-patch": {
+      graph_id: graph.graph_id,
+      work_order_id: woMap.get("repair-patch"),
+      status: "completed",
+      exit_code: 0,
+      evidence: { "ev:patch-proof": { digest: "sha256:proof" } },
+    },
+    "repair-verify": {
+      graph_id: graph.graph_id,
+      work_order_id: woMap.get("repair-verify"),
+      status: "completed",
+      exit_code: 0,
+      evidence: { "ev:test-pass": { digest: "sha256:pass" } },
+    },
+  });
+  assert.equal(res0.ok, true);
+
+  // Exit code non-zero with completed status fails closed
+  for (const badExitCode of [1, -1, 127, 255]) {
+    const resBad = replayExecutionGraph(graph, {
+      "repair-patch": {
+        graph_id: graph.graph_id,
+        work_order_id: woMap.get("repair-patch"),
+        status: "completed",
+        exit_code: badExitCode,
+        evidence: { "ev:patch-proof": { digest: "sha256:proof" } },
+      },
+      "repair-verify": {
+        graph_id: graph.graph_id,
+        work_order_id: woMap.get("repair-verify"),
+        status: "completed",
+        evidence: { "ev:test-pass": { digest: "sha256:pass" } },
+      },
+    });
+    assert.equal(resBad.ok, false);
+    assert.deepEqual(resBad.failedNodes, ["repair-patch"]);
+  }
+
+  // Non-zero exit code when status is explicitly failed does not contradict
+  const resFailed = replayExecutionGraph(graph, {
+    "repair-patch": {
+      graph_id: graph.graph_id,
+      work_order_id: woMap.get("repair-patch"),
+      status: "failed",
+      exit_code: 1,
+      error: "Command failed with code 1",
+    },
+    "repair-verify": {
+      graph_id: graph.graph_id,
+      work_order_id: woMap.get("repair-verify"),
+      status: "completed",
+      evidence: { "ev:test-pass": { digest: "sha256:pass" } },
+    },
+  });
+  assert.equal(resFailed.ok, false);
+  assert.deepEqual(resFailed.failedNodes, ["repair-patch"]);
+  assert.deepEqual(resFailed.blockedNodes, ["repair-verify"]);
+});
+
+test("ReplayEngine (Dimension 4): malformed evidence types fail closed", () => {
+  const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+  const graph = createSampleExecutionGraph();
+  const workOrders = compileWorkOrdersV2(graph);
+  const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
+
+  const malformedEvidenceValues = [
+    { value: null, label: "null" },
+    { value: [], label: "empty array" },
+    { value: ["ev:patch-proof"], label: "array of strings" },
+    { value: "ev:patch-proof", label: "string primitive" },
+    { value: 12345, label: "number primitive" },
+    { value: true, label: "boolean primitive" },
+  ];
+
+  for (const tc of malformedEvidenceValues) {
+    const fixtures = {
+      "repair-patch": {
+        graph_id: graph.graph_id,
+        work_order_id: woMap.get("repair-patch"),
+        status: "completed",
+        evidence: tc.value,
+      },
+      "repair-verify": {
+        graph_id: graph.graph_id,
+        work_order_id: woMap.get("repair-verify"),
+        status: "completed",
+        evidence: { "ev:test-pass": { digest: "sha256:pass" } },
+      },
+    };
+
+    const res = replayExecutionGraph(graph, fixtures);
+    assert.equal(res.ok, false, `Expected failure for evidence ${tc.label}`);
+    assert.deepEqual(res.failedNodes, ["repair-patch"]);
+    assert.ok(res.counterexample.reason.includes("incomplete") || res.counterexample.reason.includes("evidence"));
+  }
+});
+
+test("ReplayEngine (Dimension 5): multi-item required evidence failure", () => {
+  const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+  const graph = createSampleExecutionGraph({
+    nodes: [
+      {
+        node_id: "repair-patch",
+        kind: "repair-action/v1",
+        operation: "apply_repair_patch",
+        objective: "Apply repair code modifications",
+        dependencies: [],
+        ownership: { owner: "agent:repair", mode: "exclusive" },
+        allowed_paths: ["src/**"],
+        invariants: ["inv-fail-closed"],
+        required_evidence: ["ev:patch-proof", "ev:lint-attestation"],
+        budget_ref: "budget:default",
+      },
+      {
+        node_id: "repair-verify",
+        kind: "repair-action/v1",
+        operation: "verify_repair_conformance",
+        objective: "Run automated verification on repair modifications",
+        dependencies: ["repair-patch"],
+        ownership: { owner: "agent:verify", mode: "shared" },
+        allowed_paths: ["src/**", "tests/**"],
+        invariants: ["inv-no-direct-mutation"],
+        required_evidence: ["ev:test-pass"],
+        budget_ref: "budget:default",
+      },
+    ],
+    obligations: [
+      {
+        id: "req-repair-patch-001",
+        criticality: "must",
+        implemented_by: ["repair-patch"],
+        required_evidence: ["ev:patch-proof", "ev:lint-attestation"],
+      },
+      {
+        id: "req-repair-verify-001",
+        criticality: "must",
+        implemented_by: ["repair-verify"],
+        required_evidence: ["ev:test-pass"],
+      },
+    ],
+    contractOverrides: {
+      obligations: [
+        {
+          id: "req-repair-patch-001",
+          criticality: "must",
+          implemented_by: ["repair-patch"],
+          required_evidence: ["ev:patch-proof", "ev:lint-attestation"],
+        },
+        {
+          id: "req-repair-verify-001",
+          criticality: "must",
+          implemented_by: ["repair-verify"],
+          required_evidence: ["ev:test-pass"],
+        },
+      ],
+    },
+  });
+
+  const workOrders = compileWorkOrdersV2(graph);
+  const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
+
+  // Fixture provides only 1 of 2 required evidence keys
+  const partialEvidenceFixtures = {
+    "repair-patch": {
+      graph_id: graph.graph_id,
+      work_order_id: woMap.get("repair-patch"),
+      status: "completed",
+      evidence: { "ev:patch-proof": { digest: "sha256:patch" } }, // missing ev:lint-attestation
+    },
+    "repair-verify": {
+      graph_id: graph.graph_id,
+      work_order_id: woMap.get("repair-verify"),
+      status: "completed",
+      evidence: { "ev:test-pass": { digest: "sha256:pass" } },
+    },
+  };
+
+  const result = replayExecutionGraph(graph, partialEvidenceFixtures);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.failedNodes, ["repair-patch"]);
+  assert.deepEqual(result.blockedNodes, ["repair-verify"]);
+  assert.ok(result.counterexample);
+  assert.equal(result.counterexample.failed_node, "repair-patch");
+  assert.ok(result.counterexample.reason.includes("missing required evidence") || result.counterexample.reason.includes("ev:lint-attestation"));
+
+  // Providing both required evidence keys succeeds
+  const fullEvidenceFixtures = {
+    "repair-patch": {
+      graph_id: graph.graph_id,
+      work_order_id: woMap.get("repair-patch"),
+      status: "completed",
+      evidence: {
+        "ev:patch-proof": { digest: "sha256:patch" },
+        "ev:lint-attestation": { digest: "sha256:lint" },
+        "ev:extra-telemetry": { duration: 42 }, // Extra keys allowed
+      },
+    },
+    "repair-verify": {
+      graph_id: graph.graph_id,
+      work_order_id: woMap.get("repair-verify"),
+      status: "completed",
+      evidence: { "ev:test-pass": { digest: "sha256:pass" } },
+    },
+  };
+
+  const fullResult = replayExecutionGraph(graph, fullEvidenceFixtures);
+  assert.equal(fullResult.ok, true);
+  assert.deepEqual(fullResult.completedNodes.sort(), ["repair-patch", "repair-verify"]);
+});
+
+test("ReplayEngine (Dimension 6): obligation satisfaction and approved deferrals", () => {
+  const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+  const graphWithDeferred = createSampleExecutionGraph({
+    obligations: [
+      {
+        id: "req-repair-patch-001",
+        criticality: "must",
+        implemented_by: ["repair-patch"],
+        required_evidence: ["ev:patch-proof"],
+      },
+      {
+        id: "req-repair-verify-001",
+        criticality: "must",
+        implemented_by: ["repair-verify"],
+        required_evidence: ["ev:test-pass"],
+      },
+      {
+        id: "obl-security-audit",
+        criticality: "must",
+        description: "External security audit obligation",
+        implemented_by: ["repair-patch"],
+        required_evidence: ["ev:sec-audit"],
+        deferred: {
+          reason: "Deferred to post-release external penetration test",
+          approved_by: "sec-lead-signature",
+        },
+      },
+    ],
+    contractOverrides: {
+      obligations: [
+        {
+          id: "req-repair-patch-001",
+          criticality: "must",
+          implemented_by: ["repair-patch"],
+          required_evidence: ["ev:patch-proof"],
+        },
+        {
+          id: "req-repair-verify-001",
+          criticality: "must",
+          implemented_by: ["repair-verify"],
+          required_evidence: ["ev:test-pass"],
+        },
+        {
+          id: "obl-security-audit",
+          criticality: "must",
+          implemented_by: ["repair-patch"],
+          required_evidence: ["ev:sec-audit"],
+          deferred: {
+            reason: "Deferred to post-release external penetration test",
+            approved_by: "sec-lead-signature",
+          },
+        },
+      ],
+    },
+  });
+
+  const workOrders = compileWorkOrdersV2(graphWithDeferred);
+  const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
+
+  const fixtures = {
+    "repair-patch": {
+      graph_id: graphWithDeferred.graph_id,
+      work_order_id: woMap.get("repair-patch"),
+      status: "completed",
+      evidence: { "ev:patch-proof": { digest: "sha256:patch" } },
+    },
+    "repair-verify": {
+      graph_id: graphWithDeferred.graph_id,
+      work_order_id: woMap.get("repair-verify"),
+      status: "completed",
+      evidence: { "ev:test-pass": { digest: "sha256:pass" } },
+    },
+  };
+
+  // Replay should succeed because obl-security-audit has an approved deferral
+  const resDeferred = replayExecutionGraph(graphWithDeferred, fixtures);
+  assert.equal(resDeferred.ok, true);
+
+  // Without deferred record, obligation check fails and produces counterexample
+  const graphWithoutDeferred = createSampleExecutionGraph({
+    obligations: [
+      {
+        id: "req-repair-patch-001",
+        criticality: "must",
+        implemented_by: ["repair-patch"],
+        required_evidence: ["ev:patch-proof"],
+      },
+      {
+        id: "req-repair-verify-001",
+        criticality: "must",
+        implemented_by: ["repair-verify"],
+        required_evidence: ["ev:test-pass"],
+      },
+      {
+        id: "obl-security-audit",
+        criticality: "must",
+        implemented_by: ["repair-patch"],
+        required_evidence: ["ev:sec-audit"],
+      },
+    ],
+    contractOverrides: {
+      obligations: [
+        {
+          id: "req-repair-patch-001",
+          criticality: "must",
+          implemented_by: ["repair-patch"],
+          required_evidence: ["ev:patch-proof"],
+        },
+        {
+          id: "req-repair-verify-001",
+          criticality: "must",
+          implemented_by: ["repair-verify"],
+          required_evidence: ["ev:test-pass"],
+        },
+        {
+          id: "obl-security-audit",
+          criticality: "must",
+          implemented_by: ["repair-patch"],
+          required_evidence: ["ev:sec-audit"],
+        },
+      ],
+    },
+  });
+
+  const woMapNoDef = new Map(compileWorkOrdersV2(graphWithoutDeferred).map((w) => [w.node_id, w.work_order_id]));
+  const resFailingObl = replayExecutionGraph(graphWithoutDeferred, {
+    "repair-patch": {
+      graph_id: graphWithoutDeferred.graph_id,
+      work_order_id: woMapNoDef.get("repair-patch"),
+      status: "completed",
+      evidence: { "ev:patch-proof": { digest: "sha256:patch" } }, // missing ev:sec-audit
+    },
+    "repair-verify": {
+      graph_id: graphWithoutDeferred.graph_id,
+      work_order_id: woMapNoDef.get("repair-verify"),
+      status: "completed",
+      evidence: { "ev:test-pass": { digest: "sha256:pass" } },
+    },
+  });
+  assert.equal(resFailingObl.ok, false);
+  assert.ok(resFailingObl.counterexample);
+  assert.ok(resFailingObl.counterexample.unfulfilled_obligations.length > 0);
+  assert.equal(resFailingObl.counterexample.unfulfilled_obligations[0].id, "obl-security-audit");
+  assert.deepEqual(resFailingObl.counterexample.unfulfilled_obligations[0].missingEvidence, ["ev:sec-audit"]);
+});
+
+test("ReplayEngine: idempotency of failed evaluations and counterexample determinism", () => {
+  const graph = createSampleExecutionGraph();
+  const sampleFixtures = createSampleFixtureResults(graph);
+  const failingFixtures = {
+    "repair-patch": {
+      ...sampleFixtures["repair-patch"],
+      status: "failed",
+      error: "Deterministic failure injection",
+    },
+    "repair-verify": sampleFixtures["repair-verify"],
+  };
+
+  const run1 = replayExecutionGraph(graph, failingFixtures);
+  const run2 = replayExecutionGraph(graph, failingFixtures);
+
+  assert.equal(run1.ok, false);
+  assert.equal(run2.ok, false);
+  assert.equal(run1.finalStateDigest, run2.finalStateDigest);
+  assert.deepEqual(run1.counterexample, run2.counterexample);
+  assert.deepEqual(run1.trace, run2.trace);
+});
+
+
 

@@ -2,7 +2,7 @@
 
 > **Autoridad:** fuente conceptual y estratégica del harness (responsabilidades y límites).
 > **Corte documental:** v2.40.0, 2026-08-05.
-> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`** y **K4a** están entregados y archivados. **K5** es la siguiente iniciativa elegible.
+> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a** y **K5** están entregados y archivados. **K6a** es la siguiente iniciativa elegible.
 > **Roadmap:** orden, estado operativo y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
 > **Precedencia documental:** ante diferencias de **orden o estado**, prevalece el roadmap; ante diferencias **conceptuales**, reconciliar antes de iniciar el slice.
 > **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md).
@@ -21,7 +21,7 @@ Sin duplicar el backlog: solo responsabilidades y límites alineados al roadmap 
 
 | Tema | Decisión arquitectónica |
 | --- | --- |
-| Estado | K1+K2+K2.1+K2a+K3+`k3-readiness-remediation`+K4a `done`; **K5** `next-eligible` |
+| Estado | K1+K2+K2.1+K2a+K3+`k3-readiness-remediation`+K4a+K5 `done`; **K6a** `next-eligible` |
 | Dos grafos | **Execution Graph** (trabajo) ≠ **Assurance Graph** (fiabilidad / evidencia; no “prueba formal”) |
 | Identidades | `SourceSnapshotId` / `WorkOrderId` / `WorkResultId` / `CandidateId` (sin IDs nuevos por ahora) |
 | Relación Candidate | Inicial: `exact` / `changed` / `ambiguous` / `unknown`; `compatible-base-advance` experimental hasta K9 |
@@ -539,56 +539,58 @@ ambiguity:
 
 Resolver la pregunta persiste aprobación, invalida `affected_nodes` y recompila descendientes. Clarify sigue siendo condicional y no se convierte otra vez en fase universal.
 
-## Ejecución acotada y recovery causal
+## Ejecución acotada y recovery causal (K5)
 
-### Budgets por nodo
+### Budgets por nodo y autoridad
 
 ```yaml
 budget:
-  model_turns: 12
-  patches: 2
-  commands: 20
+  turns: 3
+  patches: 3
+  commands: 10
   wall_time_minutes: 15
-  changed_lines: 150
+  changed_lines: 300
+  allowed_paths:
+    - "src/**"
+```
+
+Y para autoridad/efectos:
+```yaml
+authority_budget:
   effect_attempts: 8
   authority_mutations: 12
   evidence_runs: 6
   review_sweeps: 1
 ```
 
-También se aplican `allowed_paths`, objetivo, finding y permisos (`OperationPermit`). Agotar presupuesto no reinicia el mismo agente: produce failure tipada y transition de escalado, replanning, decisión o stop. Un CAS conflict no reinicia el trabajo ni aumenta budgets. Un efecto ambiguo no se etiqueta automáticamente como defecto de código.
+Se aplican `allowed_paths`, objetivo, finding y permisos (`OperationPermit`).
+- **Monotonicidad estricta:** el decremento es no creciente; ni retries ni reconciliaciones CAS reinician ni inflan presupuestos.
+- **Mutaciones zero-delta:** pasos que declaran intención de mutación sin producir avance semántico consumen un intento del budget.
+- **Terminalidad:** agotar presupuesto no relanza workers en loops infinitos; fuerza transiciones terminales a `decide` o `stop`.
+- **Aislamiento de telemetría:** contadores volátiles y telemetría de consumo no forman parte del digest semántico.
 
-Cada efecto declara clase: `pure` | `idempotent-keyed` | `probeable` | `compensatable` | `irreversible`. Un efecto irreversible con resultado ambiguo produce `decide` o `stop`; no se reintenta a ciegas.
+### Taxonomía causal y prioridad (K5)
 
-### Failure taxonomy
+La taxonomía unificada clasifica fallos en 5 categorías jerárquicas con precedencia determinista (1 = mayor prioridad):
 
-```text
-implementation-defect
-test-defect
-specification-gap
-design-gap
-task-decomposition-gap
-environment-failure
-tool-failure
-scope-drift
-external-dependency
-evidence-gap
-unknown
-```
+1. **`environment_tooling` (Prioridad 1):** fallos de infraestructura, timeouts de red o herramientas ausentes.
+2. **`cas_conflict` (Prioridad 2):** carreras de concurrencia en permisos/store que requieren re-sincronización de estado.
+3. **`ambiguous_effect` (Prioridad 3):** resultados indeterminados de efectos que exigen reconciliación obligatoria antes de cualquier mutación.
+4. **`validation_gap` (Prioridad 4):** discrepancias de lint/contrato o cobertura faltante que requieren replanificación.
+5. **`code_defect` (Prioridad 5):** fallos reproducibles de implementación o asserts en tests.
 
-Los tags actuales `code-bug`, `tasks-gap`, `design-gap` y `spec-gap` se migran con aliases/versionado; no se descartan histories existentes.
+Los tags históricos (`code-bug`, `tasks-gap`, `design-gap`, `spec-gap`) se mapean deterministamente mediante `mapLegacyRoutingTag`.
 
-### Recovery
+### Matriz de recuperación allowlisted y honesty (K5)
 
-Cada recovery:
+Las transiciones de recuperación se restringen según la categoría causal primaria:
+- `code_defect`: `["repair", "replan", "escalate", "stop"]` (la operación `repair` solo está permitida si `remainingAttempts > 0`).
+- `validation_gap`: `["replan", "escalate", "stop"]`.
+- `ambiguous_effect`: `["escalate", "stop"]` (prohíbe reparación o reintento a ciegas sin reconciliación).
+- `cas_conflict`: `["replan", "escalate", "stop"]` (requiere re-sincronizar el estado del CAS).
+- `environment_tooling`: `["replan", "escalate", "stop"]`.
 
-- declara causa, operación, argumentos y precondiciones;
-- limita nodos y paths;
-- consume budget;
-- es idempotente o tiene reconciliación;
-- tiene test E2E que demuestra avance, resolución o terminal honesto.
-
-O4.2 es el patrón para remediación focal; O6A es el patrón para efectos interrumpidos.
+Cada recuperación acota el ámbito (`node_ids`, `allowed_paths`, `finding_ids`) y verifica honestidad mediante el avance del `blockingFingerprint` (`FP_after != FP_before`). Si el fingerprint permanece estancado, el ciclo termina en `stop`/`escalate`.
 
 ## Evidencia, challenges e independencia
 

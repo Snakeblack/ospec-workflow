@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "change": "k5-budgets-failures-recovery",
+  "source_fingerprint": "sha256:068f741da50ea54ede7c0dd0d9d9ecb05656da8165e96cf18b5d470eead78f92",
+  "spec_writes": [
+    {
+      "domain": "execution-budgets",
+      "source_delta": "prepared-specs/execution-budgets/spec.md",
+      "target": "openspec/specs/execution-budgets/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:895637d3ce984c65ee7bded452cb293fc4ce338979de53c5ba237ee86c0aa603"
+    },
+    {
+      "domain": "failure-recovery",
+      "source_delta": "prepared-specs/failure-recovery/spec.md",
+      "target": "openspec/specs/failure-recovery/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:092c731a5cb835c991c59180277ed19d2245cf5c17a42607045ca3aeb422cf42"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "prepared-specs/kernel-contract-schemas/spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:5379e4da9bbb5af974c1716b4a99a571a46d38f6ca3a3c50f1ca4a8fa34042b2",
+      "content_sha256": "sha256:a6148443c7589df0838771d7a0a6f1208f9a92872df217a56814aa08f80966c4"
+    },
+    {
+      "domain": "lifecycle-kernel-runtime",
+      "source_delta": "prepared-specs/lifecycle-kernel-runtime/spec.md",
+      "target": "openspec/specs/lifecycle-kernel-runtime/spec.md",
+      "target_before_sha256": "sha256:4961284ec466f6e6f9ed2b7819a79996c544c274c9c5b0fcf00276d8f1017630",
+      "content_sha256": "sha256:74bf921d49a2062e22e3d684dfbe11e24c5314da11d5f2ec3db6ae10e4e09080"
+    },
+    {
+      "domain": "contract-lint",
+      "source_delta": "prepared-specs/contract-lint/spec.md",
+      "target": "openspec/specs/contract-lint/spec.md",
+      "target_before_sha256": "sha256:45ea64148f8ad03c6087d93e57a34368cb73d916ed7616aafb1b331e1eac2dba",
+      "content_sha256": "sha256:68fc4c78c68a79a00e6e73eb3082ef670ce0758a42697bba9039296045206f2c"
+    },
+    {
+      "domain": "lifecycle-model-conformance",
+      "source_delta": "prepared-specs/lifecycle-model-conformance/spec.md",
+      "target": "openspec/specs/lifecycle-model-conformance/spec.md",
+      "target_before_sha256": "sha256:be4ee8644c0e39162372752d7bf65218c55c193557cbde2c3b3986d7d0c5652a",
+      "content_sha256": "sha256:a5db6de8addf5945388b33f67fffb699494f8de4f94fab9127ae53320fadd352"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260817-001-pure-decoupled-budget-evaluator-and-monotonic-state-accounting-with-telemetry-isolation.md",
+      "content_sha256": "sha256:9e68110408b1526711bd2416e38372e57355c7bcaccf244bc767bd0024d890b0"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260817-002-structured-5-category-causal-failure-taxonomy-with-precedence.md",
+      "content_sha256": "sha256:2cf1e05e7003abda52afa46ddb51aeb23ab8c777b73e3720e2c0f62e40319c78"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260817-003-closed-allowlisted-transition-matrix-bounded-repair-scopes-and-zero-delta-honesty-guarantees.md",
+      "content_sha256": "sha256:f60ed029c5047276e8af6d36462453fcbf2ef99e9902e3a12075adc095265b12"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "design.md",
+    "prepared-specs/contract-lint/spec.md",
+    "prepared-specs/execution-budgets/spec.md",
+    "prepared-specs/failure-recovery/spec.md",
+    "prepared-specs/kernel-contract-schemas/spec.md",
+    "prepared-specs/lifecycle-kernel-runtime/spec.md",
+    "prepared-specs/lifecycle-model-conformance/spec.md",
+    "proposal.md",
+    "specs/contract-lint/spec.md",
+    "specs/execution-budgets/spec.md",
+    "specs/failure-recovery/spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "specs/lifecycle-kernel-runtime/spec.md",
+    "specs/lifecycle-model-conformance/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}
