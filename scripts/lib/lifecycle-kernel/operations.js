@@ -2,6 +2,7 @@
 
 const { digestLifecycleState } = require("./state-digest.js");
 const { authorizeOperationWithPermit } = require("./permits.js");
+const { validateRecoveryTransition } = require("../failure-recovery.js");
 
 const OPERATIONS = Object.freeze([
   Object.freeze({ name: "status", mutates: false }),
@@ -93,6 +94,20 @@ function validateOperationTransition(state, action = {}) {
 
   const node = getNode(state, nodeId);
   const allowed = allowedOperationsFor(state, nodeId);
+
+  // Check Causal Matrix if node is in failure/interrupted state during recovery operations
+  if (operation === "recover" || operation === "repair" || operation === "replan" || operation === "escalate" || operation === "stop") {
+    if (node && (node.phase === "interrupted" || node.phase === "failed")) {
+      const primaryFailure = node.failure || args.failure || state?.failure;
+      if (primaryFailure && primaryFailure.category) {
+        const remainingAttempts = state?.authority_budget?.effect_attempts ?? (node.budget?.turns);
+        const causalRes = validateRecoveryTransition(primaryFailure.category, operation, { remainingAttempts });
+        if (!causalRes.ok) {
+          return failClosed(state, "unallowlisted-recovery-transition", allowed);
+        }
+      }
+    }
+  }
 
   if (operation === "start") {
     if (!node || node.phase !== "pending") {

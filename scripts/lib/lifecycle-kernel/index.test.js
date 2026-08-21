@@ -864,7 +864,7 @@ test("runKernelOperation: escalate transition consolidates and commits terminal 
   assert.equal(loaded.state.nodes.n1.phase, "terminal", "Node phase must be terminal");
 });
 
-test("runKernelOperation: preflight rejects with budget-exhausted and 0 effectExecutor calls when node or authority budget is exhausted [REQ-execution-budgets-001, REQ-execution-budgets-002, REQ-lifecycle-kernel-runtime-025]", async () => {
+test("runKernelOperation: preflight rejects with budget-exhausted and 0 effectExecutor calls for non-terminal operations when node or authority budget is exhausted [REQ-execution-budgets-001, REQ-execution-budgets-002, REQ-lifecycle-kernel-runtime-025]", async () => {
   // Case 1: Node turns exhausted (0)
   const nodeExhaustedState = {
     schema_version: 1,
@@ -888,13 +888,13 @@ test("runKernelOperation: preflight rejects with budget-exhausted and 0 effectEx
     expected_revision: head1.revision,
     arguments: { node_id: "n1" },
   });
-  assert.equal(permit1.ok, true);
+  assert.equal(permit1.ok, false, "Controlled issuer must reject when node budget exhausted");
+  assert.equal(permit1.code, "budget-exhausted");
 
   let calls1 = 0;
   const result1 = await runtime1.runOperation({
     operation: "start",
     arguments: { node_id: "n1" },
-    operationPermit: permit1.permit,
     effectExecutor: async () => {
       calls1++;
       return { ok: true };
@@ -902,7 +902,6 @@ test("runKernelOperation: preflight rejects with budget-exhausted and 0 effectEx
   });
 
   assert.equal(result1.outcome, "blocked", "Must block on exhausted budget");
-  assert.equal(result1.code, "budget-exhausted", "Code must be budget-exhausted");
   assert.equal(calls1, 0, "Must have exactly 0 calls to effectExecutor");
 
   // Case 2: Authority effect_attempts exhausted (0)
@@ -928,13 +927,13 @@ test("runKernelOperation: preflight rejects with budget-exhausted and 0 effectEx
     expected_revision: head2.revision,
     arguments: { node_id: "n1" },
   });
-  assert.equal(permit2.ok, true);
+  assert.equal(permit2.ok, false, "Controlled issuer must reject when authority budget exhausted");
+  assert.equal(permit2.code, "budget-exhausted");
 
   let calls2 = 0;
   const result2 = await runtime2.runOperation({
     operation: "start",
     arguments: { node_id: "n1" },
-    operationPermit: permit2.permit,
     effectExecutor: async () => {
       calls2++;
       return { ok: true };
@@ -942,8 +941,130 @@ test("runKernelOperation: preflight rejects with budget-exhausted and 0 effectEx
   });
 
   assert.equal(result2.outcome, "blocked", "Must block on exhausted authority budget");
-  assert.equal(result2.code, "budget-exhausted", "Code must be budget-exhausted");
   assert.equal(calls2, 0, "Must have exactly 0 calls to effectExecutor");
+});
+
+test("Phase 2 RED: escalate and stop operations execute and commit terminal status via CAS under exhausted node and authority budget [REQ-lifecycle-kernel-runtime-025, REQ-lifecycle-kernel-runtime-026, REQ-failure-recovery-002]", async () => {
+  const exhaustedState = {
+    schema_version: 1,
+    status: "blocked",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "failed",
+        attempt: 3,
+        exhausted: true,
+        failure: { category: "code_defect", code: "OUT_OF_RETRIES", priority: 5 },
+        budget: { schema_version: 1, turns: 0, patches: 0, commands: 0, wall_time_minutes: 0, changed_lines: 0, allowed_paths: [] },
+      },
+    },
+    authority_budget: { schema_version: 1, effect_attempts: 0, authority_mutations: 0, evidence_runs: 0, review_sweeps: 0 },
+  };
+  const store = createAuthorityStore({ initial: { state: exhaustedState, journal: [] } });
+  const runtime = createKernelRuntime({ store });
+  const head0 = await store.load();
+
+  // 1. escalate under exhausted budget
+  const permitEscalate = runtime.issuePermitForSelectedTransition({
+    operation: "escalate",
+    expected_revision: head0.revision,
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(permitEscalate.ok, true, "Permit issuance for escalate must succeed even when budget exhausted");
+
+  const resultEscalate = await runtime.runOperation({
+    operation: "escalate",
+    arguments: { node_id: "n1" },
+    operationPermit: permitEscalate.permit,
+    effectExecutor: async () => ({ ok: true }),
+  });
+
+  assert.equal(resultEscalate.outcome, "terminal", "Outcome must be terminal for escalate under exhaustion");
+  assert.notEqual(resultEscalate.revision, head0.revision, "CAS revision must advance");
+  const loadedEscalate = await store.load();
+  assert.equal(loadedEscalate.state.status, "terminal");
+  assert.equal(loadedEscalate.state.nodes.n1.phase, "terminal");
+
+  // 2. stop under exhausted budget
+  const storeStop = createAuthorityStore({ initial: { state: exhaustedState, journal: [] } });
+  const runtimeStop = createKernelRuntime({ store: storeStop });
+  const headStop0 = await storeStop.load();
+
+  const permitStop = runtimeStop.issuePermitForSelectedTransition({
+    operation: "stop",
+    expected_revision: headStop0.revision,
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(permitStop.ok, true, "Permit issuance for stop must succeed even when budget exhausted");
+
+  const resultStop = await runtimeStop.runOperation({
+    operation: "stop",
+    arguments: { node_id: "n1" },
+    operationPermit: permitStop.permit,
+    effectExecutor: async () => ({ ok: true }),
+  });
+
+  assert.equal(resultStop.outcome, "terminal", "Outcome must be terminal for stop under exhaustion");
+  assert.notEqual(resultStop.revision, headStop0.revision, "CAS revision must advance for stop");
+  const loadedStop = await storeStop.load();
+  assert.equal(loadedStop.state.status, "terminal");
+  assert.equal(loadedStop.state.nodes.n1.phase, "terminal");
+});
+
+test("Phase 3: runKernelOperation and validateOperationTransition reject unallowlisted causal recovery operations with 0 effectExecutor calls [REQ-failure-recovery-002, REQ-failure-recovery-003, REQ-lifecycle-kernel-runtime-026]", async () => {
+  const ambiguousState = {
+    schema_version: 1,
+    status: "blocked",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "failed",
+        attempt: 1,
+        failure: { category: "ambiguous_effect", code: "AMB_EFFECT", priority: 3 },
+      },
+    },
+    authority_budget: { schema_version: 1, effect_attempts: 3, authority_mutations: 5, evidence_runs: 10, review_sweeps: 1 },
+  };
+  const store = createAuthorityStore({ initial: { state: ambiguousState, journal: [] } });
+  const runtime = createKernelRuntime({ store });
+  const head = await store.load();
+
+  // 1. Issuer rejects permit
+  const permitRes = runtime.issuePermitForSelectedTransition({
+    operation: "repair",
+    expected_revision: head.revision,
+    arguments: {
+      node_id: "n1",
+      scope: { node_ids: ["n1"], allowed_paths: ["src/**"], finding_ids: ["F-1"] },
+    },
+  });
+  assert.equal(permitRes.ok, false);
+  assert.equal(permitRes.code, "unallowlisted-recovery-transition");
+
+  // 2. validateOperationTransition fails closed
+  const valRes = require("./operations.js").validateOperationTransition(ambiguousState, {
+    operation: "repair",
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(valRes.ok, false);
+  assert.equal(valRes.code, "unallowlisted-recovery-transition");
+
+  // 3. runOperation fails closed with 0 calls to effectExecutor
+  let calls = 0;
+  const result = await runtime.runOperation({
+    operation: "repair",
+    arguments: {
+      node_id: "n1",
+      scope: { node_ids: ["n1"], allowed_paths: ["src/**"], finding_ids: ["F-1"] },
+    },
+    effectExecutor: async () => {
+      calls++;
+      return { ok: true };
+    },
+  });
+
+  assert.equal(result.outcome, "blocked");
+  assert.equal(calls, 0, "Must perform exactly 0 calls to effectExecutor");
 });
 
 test("runKernelOperation: repair without args.scope fails closed with repair-scope-violation and 0 effectExecutor calls [REQ-failure-recovery-004, REQ-lifecycle-kernel-runtime-026]", async () => {

@@ -91,9 +91,10 @@ test("K5 Combined Scenario: Node execution budgets, turn decrements and exhausti
   assert.equal(state.nodes["apply-k5"].phase, "failed");
 
   // Turn 2
+  const repairScope = { node_ids: ["apply-k5"], allowed_paths: ["src/**"], finding_ids: ["f-1"] };
   state = reduceLifecycle(state, withRuntimePermit({
-    operation: "recover",
-    arguments: { node_id: "apply-k5" },
+    operation: "repair",
+    arguments: { node_id: "apply-k5", scope: repairScope },
   })).state;
   state = reduceLifecycle(state, withRuntimePermit({
     operation: "start",

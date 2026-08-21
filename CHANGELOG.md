@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.10] - 2026-08-21
+
+### Fixed
+- **Remediación Integral de Boundary Autoritativo, CAS Terminal y Monotonicidad Concurrente K5 (`k5-authority-boundary-and-cas-concurrency-remediation`)**:
+  - **Controlled Issuer Autoritativo**: `issuePermitForSelectedTransition` consulta el `AuthorityStore` (`snapshot`/`state`), valida la vigencia de revisión (`expected_revision`), evalúa el agotamiento presupuestario de nodo y autoridad (`isBudgetExhausted`), y valida fail-closed la matriz causal de transiciones antes de emitir cualquier `OperationPermit` (`REQ-operation-permits-005`).
+  - **Consolidación y Commit CAS de Transiciones Terminales**: `runKernelOperation` permite que las operaciones terminales de control (`escalate`, `stop`) superen el preflight de agotamiento presupuestario y consoliden su estado terminal en el `AuthorityStore` vía `compareAndSwap` (`REQ-lifecycle-kernel-runtime-025`, `REQ-lifecycle-kernel-runtime-026`, `REQ-failure-recovery-002`).
+  - **Enforcement Causal en Boundary Autoritativo**: `validateOperationTransition` invoca `validateRecoveryTransition` ante operaciones de recuperación sobre nodos en fallo (`failed`/`interrupted`), impidiendo que llamadas directas eludan la matriz causal (`REQ-failure-recovery-002`, `REQ-failure-recovery-003`).
+  - **Carry-Over de Presupuestos y Monotonicidad CAS Runtime-Owned**: `createKernelRuntime` retiene las cuotas consumidas por efectos tras un conflicto CAS multi-writer (`pendingCarryOver`) y las deduce automáticamente en el reintento sobre el nuevo head sin requerir inyección manual de `args.consumed`; verificado con carrera concurrente real de 2 writers en `inv-k5-budget-monotonicity` (`REQ-execution-budgets-003`, `REQ-lifecycle-model-conformance-011`).
+  - **Semántica Refinada de Zero-Delta**: Acotada la deducción zero-delta exclusivamente a mutaciones effect-bearing reales que no producen avance semántico en el ciclo de vida (`reduced.outcome === "unchanged"`), eximiendo transiciones válidas de control y progreso (`REQ-execution-budgets-004`, `REQ-lifecycle-kernel-runtime-027`).
+  - **Promoción Formal de ADRs**: Promovidos `adr-20260820-007` a `011` a `Status: accepted`.
+
 ## [2.45.9] - 2026-08-20
 
 ### Fixed

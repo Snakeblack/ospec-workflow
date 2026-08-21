@@ -148,3 +148,95 @@ test("valid start transition is accepted", () => {
   assert.equal(result.ok, true);
   assert.equal(result.code, undefined);
 });
+
+test("Phase 3 RED: validateOperationTransition enforces causal recovery allowlist fail-closed [REQ-failure-recovery-002, REQ-failure-recovery-003, REQ-lifecycle-kernel-runtime-026]", () => {
+  // 1. repair rejected for ambiguous_effect
+  const stateAmbiguous = baseState({
+    status: "blocked",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "failed",
+        attempt: 1,
+        failure: { category: "ambiguous_effect", code: "AMB_1", priority: 3 },
+      },
+    },
+  });
+  const resAmbiguousRepair = validateOperationTransition(stateAmbiguous, {
+    operation: "repair",
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(resAmbiguousRepair.ok, false);
+  assert.equal(resAmbiguousRepair.code, "unallowlisted-recovery-transition");
+
+  // 2. repair rejected for validation_gap
+  const stateValGap = baseState({
+    status: "blocked",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "failed",
+        attempt: 1,
+        failure: { category: "validation_gap", code: "GAP_1", priority: 4 },
+      },
+    },
+  });
+  const resValGapRepair = validateOperationTransition(stateValGap, {
+    operation: "repair",
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(resValGapRepair.ok, false);
+  assert.equal(resValGapRepair.code, "unallowlisted-recovery-transition");
+
+  // 3. repair rejected for environment_tooling
+  const stateEnv = baseState({
+    status: "blocked",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "failed",
+        attempt: 1,
+        failure: { category: "environment_tooling", code: "TIMEOUT", priority: 1 },
+      },
+    },
+  });
+  const resEnvRepair = validateOperationTransition(stateEnv, {
+    operation: "repair",
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(resEnvRepair.ok, false);
+  assert.equal(resEnvRepair.code, "unallowlisted-recovery-transition");
+
+  // 4. repair accepted for code_defect
+  const stateCodeDefect = baseState({
+    status: "blocked",
+    authority_budget: { effect_attempts: 2 },
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "failed",
+        attempt: 1,
+        failure: { category: "code_defect", code: "ASSERTION_FAIL", priority: 5 },
+      },
+    },
+  });
+  const resCodeRepair = validateOperationTransition(stateCodeDefect, {
+    operation: "repair",
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(resCodeRepair.ok, true);
+
+  // 5. escalate and stop accepted for all failure categories
+  const resAmbiguousEscalate = validateOperationTransition(stateAmbiguous, {
+    operation: "escalate",
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(resAmbiguousEscalate.ok, true);
+
+  const resAmbiguousStop = validateOperationTransition(stateAmbiguous, {
+    operation: "stop",
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(resAmbiguousStop.ok, true);
+});
+

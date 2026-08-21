@@ -1,6 +1,6 @@
 # ADR-004: Contabilidad Dual Zero-Delta con Evento Durable en Journal
 
-- Status: proposed
+- Status: accepted
 - Change: k5-authoritative-enforcement-and-cas-remediation
 - Date: 2026-08-20
 

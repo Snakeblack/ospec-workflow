@@ -1,6 +1,6 @@
 # ADR-002: Preflight Exhaustivo de Presupuestos de Nodo y Autoridad
 
-- Status: proposed
+- Status: accepted
 - Change: k5-authoritative-enforcement-and-cas-remediation
 - Date: 2026-08-20
 

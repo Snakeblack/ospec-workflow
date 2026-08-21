@@ -265,23 +265,49 @@ test("K2.1 fault matrix: CAS conflict via public API — one winner, budgets unc
 
 test("K2.1 fault matrix: stale permit fails closed; head unchanged", async () => {
   const { createAuthorityStore, createKernelRuntime } = require("./lifecycle-kernel/index.js");
-  const store = createAuthorityStore({ initial: { state: pendingState } });
+  const stateWithTwoNodes = {
+    schema_version: 1,
+    status: "ready",
+    nodes: {
+      n1: { id: "n1", phase: "pending", attempt: 0 },
+      n2: { id: "n2", phase: "pending", attempt: 0 },
+    },
+  };
+  const store = createAuthorityStore({ initial: { state: stateWithTwoNodes } });
   const before = await store.load();
   const runtime = createKernelRuntime({ store });
-  const stale = runtime.issuePermitForSelectedTransition({
+
+  // Issue permit for n2 bound to R0
+  const permitN2 = runtime.issuePermitForSelectedTransition({
     operation: "start",
-    expected_revision: "sha256:not-the-head",
+    expected_revision: before.revision,
+    arguments: { node_id: "n2" },
+  });
+
+  // Issue permit for n1 bound to R0 and execute it -> advances head from R0 to R1
+  const permitN1 = runtime.issuePermitForSelectedTransition({
+    operation: "start",
+    expected_revision: before.revision,
     arguments: { node_id: "n1" },
   });
-  const result = await runtime.runOperation({
+  await runtime.runOperation({
     operation: "start",
     arguments: { node_id: "n1" },
-    operationPermit: stale.permit,
+    operationPermit: permitN1.permit,
+    effectExecutor: async () => ({ ok: true }),
+  });
+  const afterFirst = await store.load();
+
+  // Try to run permitN2 (unconsumed, but bound to stale R0) against head R1
+  const result = await runtime.runOperation({
+    operation: "start",
+    arguments: { node_id: "n2" },
+    operationPermit: permitN2.permit,
     effectExecutor: async () => ({ ok: true }),
   });
   assert.equal(result.outcome, "blocked");
   assert.equal(result.code, "stale-permit");
-  assert.equal((await store.load()).revision, before.revision);
+  assert.equal((await store.load()).revision, afterFirst.revision);
 });
 
 test("K2.1 fault matrix: permit reuse fails; no second advance", async () => {

@@ -1,6 +1,6 @@
 # ADR-001: Transiciones Canónicas de Recuperación y Armonización Taxonómica
 
-- Status: proposed
+- Status: accepted
 - Change: k5-authoritative-enforcement-and-cas-remediation
 - Date: 2026-08-20
 

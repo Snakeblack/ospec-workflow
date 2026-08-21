@@ -1,6 +1,6 @@
 # ADR-003: Scope Obligatorio en Preflight de Repair con Cero Ejecuciones
 
-- Status: proposed
+- Status: accepted
 - Change: k5-authoritative-enforcement-and-cas-remediation
 - Date: 2026-08-20
 

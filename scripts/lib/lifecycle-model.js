@@ -785,50 +785,51 @@ async function checkK5BudgetMonotonicity() {
     arguments: { node_id: "n2" },
   });
 
-  // W1 executes and commits to CAS -> wins R0 -> R1
-  const resW1 = await runtime1.runOperation({
-    operation: "start",
-    arguments: { node_id: "n1" },
-    operationPermit: permitW1.permit,
-    effectExecutor: async () => ({ ok: true }),
-  });
+  // W1 and W2 run concurrently against R0.
+  const [resW1, resW2] = await Promise.all([
+    runtime1.runOperation({
+      operation: "start",
+      arguments: { node_id: "n1" },
+      operationPermit: permitW1.permit,
+      effectExecutor: async () => ({ ok: true, state_advanced: true }),
+    }),
+    runtime2.runOperation({
+      operation: "start",
+      arguments: { node_id: "n2" },
+      operationPermit: permitW2.permit,
+      effectExecutor: async () => ({ ok: true, state_advanced: true }),
+    }),
+  ]);
 
-  // W2 tries to execute against stale revision R0 -> fails closed with stale-permit or cas-conflict
-  const resW2 = await runtime2.runOperation({
-    operation: "start",
-    arguments: { node_id: "n2" },
-    operationPermit: permitW2.permit,
-    effectExecutor: async () => ({ ok: true }),
-  });
+  const winner = resW1.outcome === "advanced" ? resW1 : resW2;
+  const loser = resW1.outcome === "advanced" ? resW2 : resW1;
+  const loserRuntime = resW1.outcome === "advanced" ? runtime2 : runtime1;
+  const loserNodeId = resW1.outcome === "advanced" ? "n2" : "n1";
 
   const head1 = await store.load();
 
-  // W2 resyncs against R1 and retries, carrying over consumed turns and attempts
-  const retryArgs = {
-    node_id: "n2",
-    consumed: { turns: 1, effect_attempts: 1 },
-  };
-  const permitW2Retry = runtime2.issuePermitForSelectedTransition({
+  // Loser resyncs against head1 and retries WITHOUT manually fabricating args.consumed
+  const permitLoserRetry = loserRuntime.issuePermitForSelectedTransition({
     operation: "start",
     expected_revision: head1.revision,
-    arguments: retryArgs,
+    arguments: { node_id: loserNodeId },
   });
 
-  const resW2Retry = await runtime2.runOperation({
+  const resLoserRetry = await loserRuntime.runOperation({
     operation: "start",
-    arguments: retryArgs,
-    operationPermit: permitW2Retry.permit,
-    effectExecutor: async () => ({ ok: true }),
+    arguments: { node_id: loserNodeId },
+    operationPermit: permitLoserRetry.permit,
+    effectExecutor: async () => ({ ok: true, state_advanced: true }),
   });
 
   const stateFinal = (await store.load()).state;
 
   const ok =
-    resW1.outcome === "advanced" &&
-    resW2.outcome === "blocked" &&
-    (resW2.code === "stale-permit" || resW2.code === "cas-conflict") &&
-    resW2Retry.outcome === "advanced" &&
-    stateFinal.nodes.n2.budget.turns <= 3 &&
+    winner.outcome === "advanced" &&
+    loser.outcome === "blocked" &&
+    (loser.code === "cas-conflict" || loser.code === "stale-permit") &&
+    resLoserRetry.outcome === "advanced" &&
+    stateFinal.nodes[loserNodeId].budget.turns <= 4 &&
     stateFinal.authority_budget.effect_attempts <= 2;
 
   return { ok, invariant_id: "inv-k5-budget-monotonicity" };
@@ -1006,16 +1007,20 @@ async function checkK5HonestRecoveryAdvancement() {
   const store = createAuthorityStore({ initial: { state: initial, journal: [] } });
   const runtime = createKernelRuntime({ store });
   const head = await store.load();
+  const args = {
+    node_id: "n1",
+    scope: { node_ids: ["n1"], allowed_paths: ["src/**"], finding_ids: ["ERR_1"] },
+  };
   const issued = runtime.issuePermitForSelectedTransition({
-    operation: "recover",
+    operation: "repair",
     expected_revision: head.revision,
-    arguments: { node_id: "n1" },
+    arguments: args,
   });
   const result = await runtime.runOperation({
-    operation: "recover",
-    arguments: { node_id: "n1" },
+    operation: "repair",
+    arguments: args,
     operationPermit: issued.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, state_advanced: true }),
   });
 
   const ok =

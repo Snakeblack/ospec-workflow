@@ -1,0 +1,69 @@
+change: "k5-authority-boundary-and-cas-concurrency-remediation"
+status: "archived"
+last_updated: 2026-08-21T00:04:00Z
+baseline_fingerprints:
+  operation-permits: "920313899f4b50d8a151099645fd50058411b3bb0ff2707472e60882ce935862"
+  lifecycle-kernel-runtime: "b549b61d0caa2648f85a1c086d9b7ef221cc81c18b02f4bde887fb9551ef086f"
+  execution-budgets: "bb120fe488eae276973e93cb5e8283b4c7a4c625027a463fce3e9c42534eb146"
+  failure-recovery: "e2f12b91fa4cc26142b28d8ee2c3fdcba2503aa7e304edb95de33dccb5cc04e1"
+  lifecycle-model-conformance: "e4bb5279e4da3734e6141d93f8497f39d1c7fe122c798a681bd0028de0cd8a84"
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k5-authority-boundary-and-cas-concurrency-remediation/proposal.md"
+    summary: "Remediación cerrada K5 (v2.45.10): issuer autoritativo, CAS terminal en agotamiento, enforcement causal, carry-over runtime y zero-delta acotado."
+    key_decisions:
+      - "Controlled issuer consulta Authority Store y presupuestos antes de emitir permit"
+      - "Transiciones terminales persistidas vía CAS ante agotamiento presupuestario"
+      - "Carry-over de consumo ante CAS conflict gestionado por runtime"
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k5-authority-boundary-and-cas-concurrency-remediation/specs/operation-permits/spec.md"
+      - "openspec/changes/k5-authority-boundary-and-cas-concurrency-remediation/specs/lifecycle-kernel-runtime/spec.md"
+      - "openspec/changes/k5-authority-boundary-and-cas-concurrency-remediation/specs/execution-budgets/spec.md"
+      - "openspec/changes/k5-authority-boundary-and-cas-concurrency-remediation/specs/failure-recovery/spec.md"
+      - "openspec/changes/k5-authority-boundary-and-cas-concurrency-remediation/specs/lifecycle-model-conformance/spec.md"
+    summary: "Delta specs para 5 dominios K5: issuer con Authority Store, CAS terminal, carry-over runtime-owned, causal boundary y zero-delta acotado."
+    key_decisions:
+      - "Controlled issuer valida Authority Store head, budgets y causal matrix fail-closed"
+      - "Transiciones terminales consolidan vía CAS omitiendo preflight budget exhaustion"
+      - "Zero-delta acotado a mutaciones efectivas sin penalizar avances de ciclo de vida"
+  design:
+    status: "done"
+    artifact: "openspec/changes/k5-authority-boundary-and-cas-concurrency-remediation/design.md"
+    summary: "Diseño de remediación K5: issuer con store query, CAS terminal en agotamiento, causal boundary, carry-over runtime-owned y zero-delta acotado."
+    key_decisions:
+      - "Controlled issuer valida Authority Store head, budgets y causal matrix fail-closed"
+      - "Transiciones terminales persistidas vía CAS omitiendo preflight budget exhaustion"
+      - "Carry-over de cuotas ante conflicto CAS gestionado automáticamente por runtime"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k5-authority-boundary-and-cas-concurrency-remediation/tasks.md"
+    summary: "Plan TDD estricto en 6 fases para remediación K5 con reconciliación de 9 REQs y pronóstico de carga de revisión."
+    key_decisions:
+      - "Desglose TDD RED->GREEN->REFACTOR para los 5 bloqueantes y promoción de ADRs"
+      - "Integridad atómica del batch con forecast de riesgo medio"
+  apply:
+    status: "done"
+    artifact: "openspec/changes/k5-authority-boundary-and-cas-concurrency-remediation/apply-progress.md"
+    summary: "Implementación TDD estricta completa en 6 fases: issuer autoritativo, CAS terminal, boundary causal, carry-over y ADRs aceptados."
+    key_decisions:
+      - "Controlled issuer valida Authority Store, cuotas y causal allowlist"
+      - "Carry-over de consumo ante CAS conflict 100% gestionado por runtime"
+  verify:
+    status: "done"
+    verdict: "PASS"
+    artifact: "openspec/changes/k5-authority-boundary-and-cas-concurrency-remediation/verify-report.md"
+    summary: "Verificación Strict TDD superada: 40/40 escenarios PASS (runtime-test), 7 invariantes K5 conformes, suite 2386 tests (0 fallos)."
+    key_decisions:
+      - "100% conformidad de especificaciones y 7 invariantes ejecutables K5"
+      - "2386 tests pasando (0 fallos, 0 errores, 2 skipped)"
+  archive:
+    status: "done"
+    artifact: "openspec/changes/k5-authority-boundary-and-cas-concurrency-remediation/archive-report.md"
+    summary: "Archive plan emitido: 5 specs K5 fusionadas change-locally, 5 ADRs propuestos, inventario validado."
+    key_decisions:
+      - "Promoción de 5 specs K5 y 5 ADRs a docs/adr/"
+      - "Plan-and-Report emitido para runtime transaccional"

@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "change": "k5-authority-boundary-and-cas-concurrency-remediation",
+  "created_at": "2026-08-21T00:06:22.445Z",
+  "source_fingerprint": "sha256:fcbe31a439d18cc390d0c999b0e19630c258561b8769cce006d9439af360878f",
+  "spec_writes": [
+    {
+      "domain": "operation-permits",
+      "source_delta": "specs/operation-permits/spec.md",
+      "target": "openspec/specs/operation-permits/spec.md",
+      "target_before_sha256": "sha256:920313899f4b50d8a151099645fd50058411b3bb0ff2707472e60882ce935862",
+      "content_sha256": "sha256:1a35035950464b9e752634c88fd07fcda69d54f7334aca98141a6694ed67e552"
+    },
+    {
+      "domain": "execution-budgets",
+      "source_delta": "specs/execution-budgets/spec.md",
+      "target": "openspec/specs/execution-budgets/spec.md",
+      "target_before_sha256": "sha256:bb120fe488eae276973e93cb5e8283b4c7a4c625027a463fce3e9c42534eb146",
+      "content_sha256": "sha256:c293159e60af6dd85287bb48cc1cebb131b48babd437523ac74cd3399ac703a8"
+    },
+    {
+      "domain": "failure-recovery",
+      "source_delta": "specs/failure-recovery/spec.md",
+      "target": "openspec/specs/failure-recovery/spec.md",
+      "target_before_sha256": "sha256:e2f12b91fa4cc26142b28d8ee2c3fdcba2503aa7e304edb95de33dccb5cc04e1",
+      "content_sha256": "sha256:82972b0f72234c9013f002bb54e0b6ddf7f28cdd599b9cc5f1c60e237fc800e4"
+    },
+    {
+      "domain": "lifecycle-kernel-runtime",
+      "source_delta": "specs/lifecycle-kernel-runtime/spec.md",
+      "target": "openspec/specs/lifecycle-kernel-runtime/spec.md",
+      "target_before_sha256": "sha256:b549b61d0caa2648f85a1c086d9b7ef221cc81c18b02f4bde887fb9551ef086f",
+      "content_sha256": "sha256:3af801015edddad652d1196299395ef22601dc95b74503e9ee44de295d17b576"
+    },
+    {
+      "domain": "lifecycle-model-conformance",
+      "source_delta": "specs/lifecycle-model-conformance/spec.md",
+      "target": "openspec/specs/lifecycle-model-conformance/spec.md",
+      "target_before_sha256": "sha256:e4bb5279e4da3734e6141d93f8497f39d1c7fe122c798a681bd0028de0cd8a84",
+      "content_sha256": "sha256:6e1a5e6dc704aa939f83ac214322a8ce86693a5e07092b707781cd457258bfc5"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260821-001-controlled-permit-issuer-with-authority-store-query-budget-preflight-causal-matrix-validation.md",
+      "content_sha256": "sha256:62f813aabd2a1b91c50a2b3bbbd49cd6848f388266cd0d1c0a438e3341f7e779"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260821-002-terminal-control-transitions-commit-via-cas-under-budget-exhaustion.md",
+      "content_sha256": "sha256:155556369e2b92e6c27cf994e4cced4277ca19604fe0de1a4a9ec7484be9e9e7"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260821-003-causal-recovery-allowlist-enforcement-at-boundary-validation.md",
+      "content_sha256": "sha256:b75f2edd777c4b11f286ac9d4360dbb2997d562e41b6eee0363347996ca164f3"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260821-004-runtime-owned-budget-carry-over-on-multi-writer-cas-conflict-race.md",
+      "content_sha256": "sha256:8447b1426141466c7eb5412f8603adfca1796e280faa1c352b82e3dadbfaab40"
+    },
+    {
+      "source": "decisions/adr-005.md",
+      "target": "docs/adr/adr-20260821-005-zero-delta-accounting-bounded-to-non-advancing-effect-mutations.md",
+      "content_sha256": "sha256:329d9e4c788908cc69570d5dc2142e8d941576d7a88f8fd6334070b3636dc70d"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "decisions/adr-005.md",
+    "design.md",
+    "proposal.md",
+    "specs/execution-budgets/spec.md",
+    "specs/failure-recovery/spec.md",
+    "specs/lifecycle-kernel-runtime/spec.md",
+    "specs/lifecycle-model-conformance/spec.md",
+    "specs/operation-permits/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

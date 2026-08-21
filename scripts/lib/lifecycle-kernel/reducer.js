@@ -220,6 +220,7 @@ function reduceLifecycle(state, action = {}) {
         code: "node-exhausted",
       };
     }
+    delete node.failure;
     node.phase = "pending";
     next.status = "ready";
     pushPersistEffect(effects, `effect:${operation}:${nodeId}`, nodeId, "pending", effectClass);
@@ -241,6 +242,7 @@ function reduceLifecycle(state, action = {}) {
         code: "node-exhausted",
       };
     }
+    delete node.failure;
     node.phase = "pending";
     next.status = "ready";
     pushPersistEffect(effects, `effect:replan:${nodeId}`, nodeId, "pending", effectClass);

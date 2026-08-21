@@ -84,10 +84,11 @@ test("K5 E2E: Non-increasing budget decrements across retry loops", () => {
     }),
   })).state;
 
-  // Turn 2: recover -> start -> fail
+  // Turn 2: repair -> start -> fail
+  const repairScope1 = { node_ids: ["apply-task"], allowed_paths: ["src/**"], finding_ids: ["f1"] };
   state = reduceLifecycle(state, withRuntimePermit({
-    operation: "recover",
-    arguments: { node_id: "apply-task" },
+    operation: "repair",
+    arguments: { node_id: "apply-task", scope: repairScope1 },
   })).state;
   state = reduceLifecycle(state, withRuntimePermit({
     operation: "start",
@@ -107,10 +108,11 @@ test("K5 E2E: Non-increasing budget decrements across retry loops", () => {
     }),
   })).state;
 
-  // Turn 3: recover -> start -> fail (exhausts turns: 0)
+  // Turn 3: repair -> start -> fail (exhausts turns: 0)
+  const repairScope2 = { node_ids: ["apply-task"], allowed_paths: ["src/**"], finding_ids: ["f2"] };
   state = reduceLifecycle(state, withRuntimePermit({
-    operation: "recover",
-    arguments: { node_id: "apply-task" },
+    operation: "repair",
+    arguments: { node_id: "apply-task", scope: repairScope2 },
   })).state;
   state = reduceLifecycle(state, withRuntimePermit({
     operation: "start",
@@ -125,10 +127,10 @@ test("K5 E2E: Non-increasing budget decrements across retry loops", () => {
     arguments: { node_id: "apply-task" },
   })).state;
 
-  // Attempt to recover when exhausted must fail closed
+  // Attempt to repair when exhausted must fail closed
   const recoverAttempt = reduceLifecycle(state, withRuntimePermit({
-    operation: "recover",
-    arguments: { node_id: "apply-task" },
+    operation: "repair",
+    arguments: { node_id: "apply-task", scope: repairScope2 },
   }));
   assert.equal(recoverAttempt.outcome, "blocked");
   assert.equal(recoverAttempt.code, "node-exhausted");

@@ -729,4 +729,72 @@ test("issueOperationPermit: rejects permit when node or authority budget is exha
   assert.equal(resAuthExhausted.ok, false);
   assert.equal(resAuthExhausted.code, "budget-exhausted");
 });
+
+test("Task 1.1 RED: runtime.issuePermitForSelectedTransition queries AuthorityStore snapshot and enforces revision, budget, and causal allowlists [REQ-operation-permits-005, REQ-failure-recovery-003]", async () => {
+  const { createKernelRuntime, createAuthorityStore } = require("./index.js");
+
+  const initial = {
+    schema_version: 1,
+    status: "blocked",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "failed",
+        attempt: 1,
+        failure: { category: "ambiguous_effect", code: "AMB_1", priority: 3 },
+        budget: { schema_version: 1, turns: 3, patches: 2, commands: 5, wall_time_minutes: 10, changed_lines: 100, allowed_paths: [] },
+      },
+      n_exhausted: {
+        id: "n_exhausted",
+        phase: "pending",
+        attempt: 0,
+        budget: { schema_version: 1, turns: 0, patches: 0, commands: 0, wall_time_minutes: 0, changed_lines: 0, allowed_paths: [] },
+      },
+    },
+    authority_budget: { schema_version: 1, effect_attempts: 2, authority_mutations: 5, evidence_runs: 10, review_sweeps: 1 },
+  };
+
+  const store = createAuthorityStore({ initial: { state: initial, journal: [] } });
+  const runtime = createKernelRuntime({ store });
+  const head = await store.load();
+
+  // 1. Revision mismatch -> stale-revision
+  const resStale = runtime.issuePermitForSelectedTransition({
+    operation: "escalate",
+    expected_revision: "sha256:stale999999999999999999999999999999999999999999999999999999999999",
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(resStale.ok, false, "Must reject stale expected revision");
+  assert.equal(resStale.code, "stale-revision", "Code must be stale-revision");
+
+  // 2. Budget exhausted in store -> budget-exhausted (for non-terminal operations)
+  const resBudget = runtime.issuePermitForSelectedTransition({
+    operation: "start",
+    expected_revision: head.revision,
+    arguments: { node_id: "n_exhausted" },
+  });
+  assert.equal(resBudget.ok, false, "Must reject permit when node budget is exhausted");
+  assert.equal(resBudget.code, "budget-exhausted", "Code must be budget-exhausted");
+
+  // 3. Causal recovery allowlist violation -> unallowlisted-recovery-transition
+  // n1 has failure category 'ambiguous_effect', so 'repair' is forbidden
+  const resCausal = runtime.issuePermitForSelectedTransition({
+    operation: "repair",
+    expected_revision: head.revision,
+    arguments: { node_id: "n1", scope: { node_ids: ["n1"], allowed_paths: ["src/**"], finding_ids: ["F-1"] } },
+  });
+  assert.equal(resCausal.ok, false, "Must reject repair for ambiguous_effect");
+  assert.equal(resCausal.code, "unallowlisted-recovery-transition", "Code must be unallowlisted-recovery-transition");
+
+  // 4. Positive case: valid transition (escalate on n1) with matching head revision
+  const resValid = runtime.issuePermitForSelectedTransition({
+    operation: "escalate",
+    expected_revision: head.revision,
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(resValid.ok, true, "Must issue permit when revision, budget, and allowlist pass");
+  assert.ok(resValid.permit, "Permit must be returned");
+  assert.equal(resValid.permit.expected_revision, head.revision);
+});
+
 

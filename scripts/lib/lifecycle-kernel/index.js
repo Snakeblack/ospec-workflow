@@ -35,7 +35,7 @@ const {
   selectIrreversibleAmbiguousNext,
   blockDirectWrite,
 } = require("./effect-policy.js");
-const { validateRepairScope } = require("../failure-recovery.js");
+const { validateRepairScope, validateRecoveryTransition } = require("../failure-recovery.js");
 const { validateRecoveryHonesty, blockingFingerprint } = require("./recovery.js");
 const {
   isZeroDeltaMutation,
@@ -217,37 +217,40 @@ async function runKernelOperation(input = {}) {
   if (!auth.ok) return blockedResult(state, journal, auth.code);
 
   // Preflight budget exhaustion check (REQ-execution-budgets-001, REQ-execution-budgets-002, REQ-lifecycle-kernel-runtime-025)
-  if (state.authority_budget) {
-    const authEval = isBudgetExhausted(state.authority_budget, {}, { isAuthority: true });
-    if (authEval.exhausted) {
-      return blockedResult(state, journal, "budget-exhausted", {
-        dimension: authEval.dimension,
-        violations: authEval.violations,
-      });
-    }
-  }
-  if (args.node_id && state.nodes && state.nodes[args.node_id]) {
-    const targetNode = state.nodes[args.node_id];
-    if (targetNode.exhausted) {
-      return blockedResult(state, journal, "budget-exhausted");
-    }
-    if (targetNode.budget) {
-      const nodeEval = isBudgetExhausted(targetNode.budget, {}, { modifiedPaths: args.modified_paths });
-      if (nodeEval.exhausted) {
+  const isTerminalControlOp = operation === "escalate" || operation === "stop";
+  if (!isTerminalControlOp) {
+    if (state.authority_budget) {
+      const authEval = isBudgetExhausted(state.authority_budget, {}, { isAuthority: true });
+      if (authEval.exhausted) {
         return blockedResult(state, journal, "budget-exhausted", {
-          dimension: nodeEval.dimension,
-          violations: nodeEval.violations,
+          dimension: authEval.dimension,
+          violations: authEval.violations,
         });
       }
     }
-  }
-  if (state.budget) {
-    const stateBudgetEval = isBudgetExhausted(state.budget, {}, { modifiedPaths: args.modified_paths });
-    if (stateBudgetEval.exhausted) {
-      return blockedResult(state, journal, "budget-exhausted", {
-        dimension: stateBudgetEval.dimension,
-        violations: stateBudgetEval.violations,
-      });
+    if (args.node_id && state.nodes && state.nodes[args.node_id]) {
+      const targetNode = state.nodes[args.node_id];
+      if (targetNode.exhausted) {
+        return blockedResult(state, journal, "budget-exhausted");
+      }
+      if (targetNode.budget) {
+        const nodeEval = isBudgetExhausted(targetNode.budget, {}, { modifiedPaths: args.modified_paths });
+        if (nodeEval.exhausted) {
+          return blockedResult(state, journal, "budget-exhausted", {
+            dimension: nodeEval.dimension,
+            violations: nodeEval.violations,
+          });
+        }
+      }
+    }
+    if (state.budget) {
+      const stateBudgetEval = isBudgetExhausted(state.budget, {}, { modifiedPaths: args.modified_paths });
+      if (stateBudgetEval.exhausted) {
+        return blockedResult(state, journal, "budget-exhausted", {
+          dimension: stateBudgetEval.dimension,
+          violations: stateBudgetEval.violations,
+        });
+      }
     }
   }
 
@@ -297,6 +300,7 @@ async function runKernelOperation(input = {}) {
     permitLedger: ledger,
     headRevision,
     effect_class: effect_class || undefined,
+    consumed: input.consumed,
   });
 
   if (reduced.outcome === "blocked") {
@@ -792,26 +796,90 @@ function isPreEffectStarted(record) {
 function createKernelRuntime(options = {}) {
   const permitIssuer = createPermitAuthorityIssuer();
   const store = options.store || createAuthorityStore(options);
+  const pendingCarryOver = new Map();
 
   return {
     async runOperation(input = {}) {
+      const subjectId = input.subjectId || options.subjectId || DEFAULT_SUBJECT_ID;
       const { permitLedger: _ignored, ...operationInput } = input;
-      return runKernelOperation({
+      const carryOver = pendingCarryOver.get(subjectId);
+
+      const res = await runKernelOperation({
         ...operationInput,
+        consumed: carryOver || operationInput.consumed,
         store,
         permitLedger: permitIssuer,
       });
+
+      if (res.outcome === "blocked" && res.code === "cas-conflict") {
+        const prior = pendingCarryOver.get(subjectId) || {};
+        pendingCarryOver.set(subjectId, {
+          turns: (prior.turns || 0) + 1,
+          effect_attempts: (prior.effect_attempts || 0) + 1,
+        });
+      } else if (res.outcome === "advanced" || res.outcome === "terminal") {
+        pendingCarryOver.delete(subjectId);
+      }
+
+      return res;
     },
     issuePermitForSelectedTransition(input = {}) {
+      const subject_id = input.subject_id || options.subjectId || DEFAULT_SUBJECT_ID;
+      const operation = input.operation || input.transitionOffer?.operation;
+      const snap = store && typeof store.snapshot === "function" ? store.snapshot(subject_id) : null;
+      const state = snap?.state || input.state || null;
+      const currentRevision =
+        snap && store && typeof store.computeRevision === "function"
+          ? store.computeRevision(snap.state, snap.journal, snap.authority)
+          : null;
+
+      // 1. Revision Check against Authority Store
+      if (input.expected_revision && currentRevision && input.expected_revision !== currentRevision) {
+        return { ok: false, code: "stale-revision" };
+      }
+
+      // 2. Budget Exhaustion Check (terminal control transitions escalate/stop are exempt)
+      const isTerminalControlOp = operation === "escalate" || operation === "stop";
+      if (!isTerminalControlOp && state) {
+        if (
+          state.authority_budget &&
+          isBudgetExhausted(state.authority_budget, {}, { isAuthority: true }).exhausted
+        ) {
+          return { ok: false, code: "budget-exhausted" };
+        }
+        const nodeId = input.arguments?.node_id;
+        if (nodeId && state.nodes?.[nodeId]) {
+          const node = state.nodes[nodeId];
+          if (node.exhausted || (node.budget && isBudgetExhausted(node.budget).exhausted)) {
+            return { ok: false, code: "budget-exhausted" };
+          }
+        }
+        if (state.budget && isBudgetExhausted(state.budget).exhausted) {
+          return { ok: false, code: "budget-exhausted" };
+        }
+      }
+
+      // 2. Causal Recovery Matrix Validation (for recovery operations on failed/interrupted nodes)
+      const targetNode = state?.nodes?.[input.arguments?.node_id];
+      if (targetNode && (targetNode.phase === "failed" || targetNode.phase === "interrupted")) {
+        const primaryFailure = targetNode.failure || input.arguments?.failure || state?.failure;
+        if (primaryFailure && primaryFailure.category) {
+          const remainingAttempts = state?.authority_budget?.effect_attempts ?? (targetNode.budget?.turns);
+          const causalCheck = validateRecoveryTransition(primaryFailure.category, operation, {
+            remainingAttempts,
+          });
+          if (!causalCheck.ok) {
+            return { ok: false, code: "unallowlisted-recovery-transition" };
+          }
+        }
+      }
+
       if (input.offer_id && (input.decision_id || input.rule_id)) {
         return issueOperationPermit({
           ...input,
           ledger: permitIssuer,
         });
       }
-
-      const subject_id = input.subject_id || options.subjectId || DEFAULT_SUBJECT_ID;
-      const operation = input.operation || input.transitionOffer?.operation;
 
       const offerInput = input.transitionOffer || {
         operation,

@@ -1,6 +1,6 @@
 # ADR-005: Preservación de Monotonicidad Presupuestaria ante Conflicto CAS Multi-Writer
 
-- Status: proposed
+- Status: accepted
 - Change: k5-authoritative-enforcement-and-cas-remediation
 - Date: 2026-08-20
 
