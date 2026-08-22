@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "change": "k5-reconciliation",
+  "created_at": "2026-08-22T12:52:26.803Z",
+  "source_fingerprint": "sha256:af097e8ab0228f2da10dfdbc454f95f357db7f86717aefb0d035ee1c6485a224",
+  "spec_writes": [],
+  "adr_promotions": [],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "exploration.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    "F-7bb9293b802b7ec1 WARNING: el e2e no ejercita conflicto CAS posterior a efectos ejecutados; el deepEqual de presupuestos no verifica retención tras carrera real post-efectos (scripts/k5-e2e-budgets-recovery.test.js:198). Follow-up no bloqueante."
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

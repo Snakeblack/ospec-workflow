@@ -1,0 +1,144 @@
+# DAG state — k5-reconciliation
+change: k5-reconciliation
+status: review-gate-approved
+created_at: 2026-08-22T10:38:22Z
+
+phases:
+  review-gate:
+    status: success
+    summary: "Gate 4R ejecutado formalmente por primera vez en la familia K5. Pipeline: normalizeReviewEvidence (fingerprint sha256:c0704d...) → generalista review-change única (needs-specialist, signals=metadata-runtime;dimensions=reliability, envelope válido) → derive/validate (targeted, [reliability], sin escalado) → startReviewLineage (candidate_id sha256:5c8f81..., budget corrección 96 líneas) → lente review-reliability una sola vez → freezeFindings (F-7bb9293b802b7ec1 WARNING) → planLineageGate stop no-unresolved-blocking-findings. Linaje terminal approved; corrección no abierta por severity floor."
+    key_decisions:
+      - "1 WARNING congelado como follow-up no bloqueante; cero despachos de corrección"
+      - "Reducers puros operados por el orquestador como único adaptador I/O; sin reinterpretación de dispatch"
+    artifacts:
+      - openspec/changes/k5-reconciliation/state.yaml
+  verify:
+    status: success
+    verdict: PASS
+    summary: "V1-V7 conforme. Suite re-ejecutada 2384 pass / 0 fail / 3 skipped baseline (coincide con apply-progress). Aserciones A2 sin tautologías con fail-closed negativo; e2e B con carrera CAS real y deepEqual de presupuestos; reconciliación C1/C2/C3 verificada en fuente; diff de 3 commits sin scope drift. Issues: 0 CRITICAL / 0 WARNING / 2 SUGGESTION (S1 design-gap anclar presupuestos a literales; S2 tasks-gap checkboxes sin marcar). Gate 4R correctamente pendiente para el orquestador."
+    key_decisions:
+      - "Veredicto PASS — habilita el hook del gate 4r-review-gate"
+    artifacts:
+      - openspec/changes/k5-reconciliation/verify-report.md
+  apply:
+    status: success
+    summary: "TDD estricto completado en 3 commits: 956cf33 fix(causal-failure) mapeo A2 RED→GREEN con default fail-closed fijado por test; 8f40c11 test(k5-e2e) carrera stale-permit real con asertos deepEqual de presupuestos y matcher estrechado a stale-permit tras evidencia empírica 200/200; c3b6057 docs(archive) reconciliación C1/C2/C3. Suite: node scripts/check.js OK; node --test 2384 pass / 0 fail / 3 skipped preexistentes."
+    key_decisions:
+      - "Tarea condicional 2.2 realizada: matcher fijado a stale-permit con doble evidencia (empírica + estática del orden authorizeMutation)"
+      - "Gate 4R NO ejecutado en apply — reservado al orquestador como gate de ruta tras verify"
+    artifacts:
+      - scripts/lib/causal-failure.js
+      - scripts/lib/causal-failure.test.js
+      - scripts/k5-e2e-budgets-recovery.test.js
+      - scripts/lib/lifecycle-kernel/index.test.js
+      - openspec/changes/archive/2026-08-20-k5-authoritative-enforcement-and-cas-remediation/state.yaml
+      - openspec/changes/archive/2026-08-20-k5-authoritative-enforcement-and-cas-remediation/apply-progress.md
+      - docs/roadmaps/harness-evolution.md
+      - openspec/changes/k5-reconciliation/apply-progress.md
+  tasks:
+    status: success
+    summary: "tasks.md con 5 fases y 9 tareas (~115-160 líneas, riesgo Low). A2: mapear 4 tags legacy a códigos canónicos existentes (code-bug→CODE_DEFECT/CODE_IMPLEMENTATION_DEFECT; spec/design/tasks-gap→VALIDATION_GAP); default UNKNOWN_FAILURE_CODE se conserva fail-closed; sin cambios de schema. B: reescritura del test e2e débil según patrón index.test.js:776-825; matcher de :823 como tarea condicional 2.2. C1/C2: corrección documental mínima en change archivado (archived + nota de conteo real 31). C3: fila K5 del roadmap con v2.45.7→v2.45.10. D: gate 4R registrado como checklist de gobernanza."
+    key_decisions:
+      - "Mapeo A2 semánticamente equivalente a códigos ya probados, sin códigos nuevos"
+      - "Conteo verificado por conteo real de checkboxes: el error está en los contadores, no en tasks.md"
+    artifacts:
+      - openspec/changes/k5-reconciliation/tasks.md
+  explore:
+    status: success
+    summary: "Verificados los 4 focos de deuda K5 con localización exacta. A2: mapLegacyRoutingTag en scripts/lib/causal-failure.js:55-88 no mapea tags legacy guionados (caen a CODE_DEFECT silencioso); contrato incumplido declarado en docs/architecture/harness-evolution.md:582. B: test e2e débil en scripts/k5-e2e-budgets-recovery.test.js:171-182; matcher laxo en lifecycle-kernel/index.test.js:823. C: state.yaml archive-planned + conteo 28≠31 + fila K5 del roadmap sin versión (v2.45.10 confirmada). D: gate 4R pendiente para este change vía review-lineage.js."
+    key_decisions:
+      - "A2 se resuelve extendiendo el switch con códigos canónicos existentes (sin cambio de schema); descartada corrección solo-documental"
+      - "Edición de artefactos archivados limitada a metadatos mínimos con nota correctiva"
+    artifacts:
+      - openspec/changes/k5-reconciliation/exploration.md
+
+route:
+  intended_route: bugfix
+  actual_route: bugfix
+  route_rationale: "classifyChange determinístico ({classification: small, confidence: deterministic}) con explicit_bugfix_intent=true: el defecto A2 (mapLegacyRoutingTag sin mapear tags legacy code-bug/tasks-gap/design-gap/spec-gap, caen a default silencioso code_defect) es un bug confirmado por auditoría de código. La ruta bugfix aporta el gate 4r-review-gate que ninguno de los cuatro changes K5 ejecutó — propósito central de este change."
+  validated: true
+  validation_errors: []
+
+owner:
+  author: Manuel Retamozo
+  branch: main
+
+approvals:
+  - id: approval-execution-mode-001
+    gate: execution-mode
+    decision: automatic
+    source: vscode/askQuestions
+    accepted_at: 2026-08-22T10:38:22Z
+    applies_to:
+      - sdd-orchestrator
+  - id: approval-delivery-strategy-001
+    gate: delivery-strategy
+    decision: ask-on-risk
+    source: vscode/askQuestions
+    accepted_at: 2026-08-22T10:38:22Z
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+
+gates:
+  4r-review-gate:
+    status: approved
+    classification: normal
+    evidence_fingerprint: "sha256:c0704d60a921982b1103b5595"
+    evidence_note: "fingerprint truncado en este bloque; valor completo en /tmp/opencode/k5-review-evidence.json y en el lineage persistido abajo"
+    normalized_evidence:
+      schema_version: 1
+      fact_codes: [metadata-runtime]
+      paths_count: 8
+      operation_types: [modify, add]
+      capabilities: [runtime]
+    generalist:
+      status: needs-specialist
+      specialists: [reliability]
+      reason: "signals=metadata-runtime;dimensions=reliability"
+      validation: valid
+    review_decision:
+      schema_version: 1
+      depth: targeted
+      selected_specialists: [reliability]
+      escalation_reason: null
+    lineage:
+      lineage_id: "sha256:ae91ecdbe94c4677640d76cca91be42f8"
+      candidate_id: "sha256:5c8f8144bd16107419631ef53d272913c"
+      generation: 1
+      predecessor_lineage_id: null
+      projection: workspace
+      base_tree: "git:956cf33^^{tree}"
+      candidate_tree: "git:c3b6057^{tree}"
+      original_changed_lines: 191
+      authored_lines: 176
+      correction_budget_lines: 96
+      selected_dimensions: [reliability]
+      lens_one_shot: true
+      lenses:
+        reliability:
+          reviewer: review-reliability
+          status: completed
+          executions: 1
+          executions_allowed: 1
+          result_verdict: findings
+          request_ids: [req-lens-rel-001]
+      findings_status: frozen
+      findings:
+        - id: F-7bb9293b802b7ec1
+          owner: reliability
+          severity: WARNING
+          summary: "El e2e no ejercita conflicto CAS posterior a efectos ejecutados; el deepEqual de presupuestos no verifica retención tras carrera real post-efectos."
+          path: scripts/k5-e2e-budgets-recovery.test.js
+          line: 198
+          correction_opened: false
+          reason_not_opened: "severity floor — WARNING/SUGGESTION no abren correction (policy)"
+      findings_summary: "0 BLOCKER, 0 CRITICAL, 1 WARNING, 0 SUGGESTION"
+      lineage_status: approved
+      terminal_reason: no-unresolved-blocking-findings
+      remediation_manifest: none
+      slices: []
+    note: >
+      Primer gate 4R registrado para la familia K5: los cuatro changes previos
+      (2026-08-17/20/21) se archivaron sin linaje de revisión; este change existe
+      precisamente para saldar esa deuda de gobernanza.
