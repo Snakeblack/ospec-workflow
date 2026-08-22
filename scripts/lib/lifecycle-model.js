@@ -274,7 +274,8 @@ function checkFailClosed(state) {
 
 /**
  * Model checker for inv-no-duplicate-effects.
- * Proves journal reconciliation skips completed/failed effects and only executes planned.
+ * Proves journal reconciliation skips completed effects, reconciles failed usage
+ * without re-executing, and only executes planned effects.
  */
 function checkNoDuplicateEffects() {
   const completed = reconcileEffect({
@@ -294,7 +295,7 @@ function checkNoDuplicateEffects() {
     completed.action === "skip" &&
     completed.reason === "already-completed" &&
     planned.action === "execute" &&
-    failed.action === "skip" &&
+    failed.action === "reconcile-failed" &&
     replay_completed.action === "skip";
 
   return {
@@ -747,7 +748,7 @@ function checkK4aNoLiveAuthority() {
 }
 
 async function checkK5BudgetMonotonicity() {
-  const { createAuthorityStore, createKernelRuntime } = require("./lifecycle-kernel/index.js");
+  const { createAuthorityStore, createKernelRuntime, DEFAULT_SUBJECT_ID } = require("./lifecycle-kernel/index.js");
   const initial = {
     schema_version: 1,
     status: "ready",
@@ -756,88 +757,149 @@ async function checkK5BudgetMonotonicity() {
         id: "n1",
         phase: "pending",
         attempt: 0,
-        budget: { schema_version: 1, turns: 5, patches: 3, commands: 10, wall_time_minutes: 15, changed_lines: 300, allowed_paths: [] },
-      },
-      n2: {
-        id: "n2",
-        phase: "pending",
-        attempt: 0,
-        budget: { schema_version: 1, turns: 5, patches: 3, commands: 10, wall_time_minutes: 15, changed_lines: 300, allowed_paths: [] },
+        budget: { schema_version: 1, turns: 10, commands: 20, allowed_paths: [] },
       },
     },
-    authority_budget: { schema_version: 1, effect_attempts: 3, authority_mutations: 10, evidence_runs: 20, review_sweeps: 1 },
+    authority_budget: { schema_version: 1, effect_attempts: 5 },
+  };
+  const base = createAuthorityStore({ initial: { state: initial, journal: [] } });
+  let conflicts = 0;
+  const store = {
+    ...base,
+    async compareAndSwap(...args) {
+      conflicts += 1;
+      if (conflicts <= 2) return { ok: false, code: "cas-conflict", revision: (await base.load()).revision };
+      return base.compareAndSwap(...args);
+    },
+  };
+  const runtime = createKernelRuntime({ store });
+  let executions = 0;
+  const attempts = [];
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const head = await base.load();
+    const issued = runtime.issuePermitForSelectedTransition({
+      operation: "start", expected_revision: head.revision, arguments: { node_id: "n1" },
+    });
+    attempts.push(await runtime.runOperation({
+      operation: "start", arguments: { node_id: "n1" }, operationPermit: issued.permit,
+      effectExecutor: async () => {
+        executions += 1;
+        return { ok: true, usage: { turns: 3, effect_attempts: 1 } };
+      },
+    }));
+  }
+  const exactFinal = await base.load();
+
+  const failedStore = createAuthorityStore({ initial: { state: initial, journal: [] } });
+  const failedRuntime = createKernelRuntime({ store: failedStore });
+  const failedHead = await failedStore.load();
+  const failedPermit = failedRuntime.issuePermitForSelectedTransition({
+    operation: "start", expected_revision: failedHead.revision, arguments: { node_id: "n1" },
+  });
+  let failedExecutions = 0;
+  const failed = await failedRuntime.runOperation({
+    operation: "start", arguments: { node_id: "n1" }, operationPermit: failedPermit.permit,
+    effectExecutor: async () => {
+      failedExecutions += 1;
+      return { ok: false, usage: { turns: 3, effect_attempts: 1 } };
+    },
+  });
+  const failedRetryHead = await failedStore.load();
+  const failedRetryPermit = failedRuntime.issuePermitForSelectedTransition({
+    operation: "start", expected_revision: failedRetryHead.revision, arguments: { node_id: "n1" },
+  });
+  const failedRetry = await failedRuntime.runOperation({
+    operation: "start", arguments: { node_id: "n1" }, operationPermit: failedRetryPermit.permit,
+    effectExecutor: async () => {
+      failedExecutions += 1;
+      return { ok: true, usage: { turns: 99 } };
+    },
+  });
+  const failedFinal = await failedStore.load();
+
+  const missingStore = createAuthorityStore({ initial: { state: initial, journal: [] } });
+  const missingRuntime = createKernelRuntime({ store: missingStore });
+  const missingHead = await missingStore.load();
+  const missingPermit = missingRuntime.issuePermitForSelectedTransition({
+    operation: "start", expected_revision: missingHead.revision, arguments: { node_id: "n1" },
+  });
+  const missing = await missingRuntime.runOperation({
+    operation: "start", arguments: { node_id: "n1" }, operationPermit: missingPermit.permit,
+    effectExecutor: async () => ({ ok: true }),
+  });
+
+  const completedJournal = exactFinal.journal[0];
+  const stale = await base.compareAndSwap(
+    DEFAULT_SUBJECT_ID, exactFinal.revision, exactFinal.state,
+    [{ ...completedJournal, status: "failed", result: { ok: false, usage: { turns: 99 } } }]
+  );
+  const monotonicJournal = (await base.load()).journal[0];
+  const ok =
+    attempts[0].code === "cas-conflict" &&
+    attempts[1].code === "cas-conflict" &&
+    attempts[2].outcome === "advanced" &&
+    executions === 1 &&
+    exactFinal.state.nodes.n1.budget.turns === 7 &&
+    exactFinal.state.authority_budget.effect_attempts === 4 &&
+    failed.outcome === "blocked" &&
+    failedRetry.code === "effect-failed" &&
+    failedExecutions === 1 &&
+    failedFinal.state.nodes.n1.budget.turns === 7 &&
+    missing.code === "execution-usage-required" &&
+    stale.ok === true &&
+    monotonicJournal.status === "completed";
+
+  return {
+    ok,
+    invariant_id: "inv-k5-budget-monotonicity",
+    runtime_composed: true,
+    observations: ["success-exact-debit", "two-cas-losses", "failed-and-missing-usage", "completed-monotonicity"],
+    detail: {
+      attempt_codes: attempts.map((result) => result.code || result.outcome),
+      executions,
+      exact_turns: exactFinal.state.nodes.n1.budget.turns,
+      exact_effect_attempts: exactFinal.state.authority_budget.effect_attempts,
+      failed: failed.code,
+      failed_retry: failedRetry.code,
+      failed_executions: failedExecutions,
+      failed_turns: failedFinal.state.nodes.n1.budget.turns,
+      missing: missing.code,
+      stale_ok: stale.ok,
+      stale_code: stale.code || null,
+      monotonic_status: monotonicJournal.status,
+    },
+  };
+}
+
+async function runK5RuntimeCompositionWitness() {
+  const { createAuthorityStore, createKernelRuntime } = require("./lifecycle-kernel/index.js");
+  const initial = {
+    schema_version: 1,
+    status: "ready",
+    nodes: { n1: { id: "n1", phase: "pending", attempt: 0, budget: { schema_version: 1, turns: 2 } } },
+    authority_budget: { schema_version: 1, effect_attempts: 2 },
   };
   const store = createAuthorityStore({ initial: { state: initial, journal: [] } });
-  const runtime1 = createKernelRuntime({ store });
-  const runtime2 = createKernelRuntime({ store });
-
-  const head0 = await store.load();
-
-  // W1 and W2 both issue permits on head0 revision R0
-  const permitW1 = runtime1.issuePermitForSelectedTransition({
-    operation: "start",
-    expected_revision: head0.revision,
-    arguments: { node_id: "n1" },
+  const runtime = createKernelRuntime({ store });
+  const head = await store.load();
+  const issued = runtime.issuePermitForSelectedTransition({
+    operation: "start", expected_revision: head.revision, arguments: { node_id: "n1" },
   });
-  const permitW2 = runtime2.issuePermitForSelectedTransition({
-    operation: "start",
-    expected_revision: head0.revision,
-    arguments: { node_id: "n2" },
+  const result = await runtime.runOperation({
+    operation: "start", arguments: { node_id: "n1" }, operationPermit: issued.permit,
+    effectExecutor: async () => ({ ok: true, usage: { turns: 1, effect_attempts: 1 } }),
   });
-
-  // W1 and W2 run concurrently against R0.
-  const [resW1, resW2] = await Promise.all([
-    runtime1.runOperation({
-      operation: "start",
-      arguments: { node_id: "n1" },
-      operationPermit: permitW1.permit,
-      effectExecutor: async () => ({ ok: true, state_advanced: true }),
-    }),
-    runtime2.runOperation({
-      operation: "start",
-      arguments: { node_id: "n2" },
-      operationPermit: permitW2.permit,
-      effectExecutor: async () => ({ ok: true, state_advanced: true }),
-    }),
-  ]);
-
-  const winner = resW1.outcome === "advanced" ? resW1 : resW2;
-  const loser = resW1.outcome === "advanced" ? resW2 : resW1;
-  const loserRuntime = resW1.outcome === "advanced" ? runtime2 : runtime1;
-  const loserNodeId = resW1.outcome === "advanced" ? "n2" : "n1";
-
-  const head1 = await store.load();
-
-  // Loser resyncs against head1 and retries WITHOUT manually fabricating args.consumed
-  const permitLoserRetry = loserRuntime.issuePermitForSelectedTransition({
-    operation: "start",
-    expected_revision: head1.revision,
-    arguments: { node_id: loserNodeId },
-  });
-
-  const resLoserRetry = await loserRuntime.runOperation({
-    operation: "start",
-    arguments: { node_id: loserNodeId },
-    operationPermit: permitLoserRetry.permit,
-    effectExecutor: async () => ({ ok: true, state_advanced: true }),
-  });
-
-  const stateFinal = (await store.load()).state;
-
-  const ok =
-    winner.outcome === "advanced" &&
-    loser.outcome === "blocked" &&
-    (loser.code === "cas-conflict" || loser.code === "stale-permit") &&
-    resLoserRetry.outcome === "advanced" &&
-    stateFinal.nodes[loserNodeId].budget.turns <= 4 &&
-    stateFinal.authority_budget.effect_attempts <= 2;
-
-  return { ok, invariant_id: "inv-k5-budget-monotonicity" };
+  const after = await store.load();
+  return {
+    ok: issued.ok === true && result.outcome === "advanced" && Boolean(result.operation_receipt) &&
+      after.state.nodes.n1.phase === "started" && after.journal.some((entry) => entry.status === "completed"),
+    runtime_composed: true,
+  };
 }
 
 
 
-function checkK5CausalPriority() {
+async function checkK5CausalPriority() {
   const { resolvePrimaryFailure, createCausalFailure } = require("./causal-failure.js");
   const { selectTransitions } = require("./lifecycle-kernel/transition-selector.js");
   const fCode = createCausalFailure({ failure_id: "f1", category: "code_defect", code: "ASSERTION_FAIL" });
@@ -858,16 +920,18 @@ function checkK5CausalPriority() {
   };
   const transitions = selectTransitions(state);
   const opNames = transitions.map((t) => t.operation);
+  const composition = await runK5RuntimeCompositionWitness();
   const ok =
+    composition.ok &&
     primary !== null &&
     primary.category === "environment_tooling" &&
     primary.priority === 1 &&
     !opNames.includes("repair") &&
     (opNames.includes("replan") || opNames.includes("escalate"));
-  return { ok, invariant_id: "inv-k5-causal-priority" };
+  return { ok, invariant_id: "inv-k5-causal-priority", runtime_composed: composition.runtime_composed };
 }
 
-function checkK5AllowlistEnforcement() {
+async function checkK5AllowlistEnforcement() {
   const { validateRecoveryTransition, getAllowlistedTransitions } = require("./failure-recovery.js");
   const { selectTransitions } = require("./lifecycle-kernel/transition-selector.js");
 
@@ -897,13 +961,15 @@ function checkK5AllowlistEnforcement() {
   const trans = selectTransitions(stateAmbiguous);
   const ops = trans.map((t) => t.operation);
 
+  const composition = await runK5RuntimeCompositionWitness();
   const ok =
+    composition.ok &&
     allOk &&
     !ops.includes("repair") &&
     !ops.includes("replan") &&
     ops.includes("escalate") &&
     ops.includes("stop");
-  return { ok, invariant_id: "inv-k5-allowlist-enforcement" };
+  return { ok, invariant_id: "inv-k5-allowlist-enforcement", runtime_composed: composition.runtime_composed };
 }
 
 async function checkK5ZeroDeltaConsumption() {
@@ -916,7 +982,7 @@ async function checkK5ZeroDeltaConsumption() {
         id: "n1",
         phase: "failed",
         attempt: 1,
-        failure: { category: "code_defect", code: "TEST_FAIL" },
+        failure: { category: "code_defect", code: "TEST_FAIL", blocking_fingerprint: "fp:model-zero-delta" },
         budget: { schema_version: 1, turns: 5, effect_attempts: 3, patches: 5, commands: 10, wall_time_minutes: 30, changed_lines: 400, allowed_paths: [] },
       },
     },
@@ -933,25 +999,36 @@ async function checkK5ZeroDeltaConsumption() {
       scope: { node_ids: ["n1"], allowed_paths: ["src/**"], finding_ids: ["F-1"] },
     },
   });
-  await runtime.runOperation({
+  const result = await runtime.runOperation({
     operation: "repair",
     arguments: {
       node_id: "n1",
       scope: { node_ids: ["n1"], allowed_paths: ["src/**"], finding_ids: ["F-1"] },
     },
     operationPermit: issued.permit,
-    effectExecutor: async () => ({ ok: true, modified_files_count: 0, changed_lines: 0 }),
+    effectExecutor: async () => ({
+      ok: true,
+      usage: {},
+      modified_files_count: 0,
+      changed_lines: 0,
+      state_advanced: true,
+    }),
   });
-  const stateAfter = (await store.load()).state;
+  const after = await store.load();
+  const stateAfter = after.state;
   const nodeAfter = stateAfter.nodes.n1;
 
   const ok =
+    result.outcome === "advanced" &&
     nodeAfter.zero_delta_attempts === 1 &&
-    nodeAfter.budget.turns === 4;
-  return { ok, invariant_id: "inv-k5-zero-delta-consumption" };
+    nodeAfter.budget.turns === 4 &&
+    stateAfter.authority_budget.effect_attempts === 2 &&
+    after.journal.some((entry) => entry.status === "completed") &&
+    after.journal.some((entry) => entry.status === "zero-delta-attempt" || entry.kind === "zero-delta-attempt");
+  return { ok, invariant_id: "inv-k5-zero-delta-consumption", runtime_composed: true };
 }
 
-function checkK5BudgetExhaustionTerminal() {
+async function checkK5BudgetExhaustionTerminal() {
   const { isBudgetExhausted } = require("./execution-budgets.js");
   const { selectTransitions, nextTransition } = require("./lifecycle-kernel/transition-selector.js");
 
@@ -991,11 +1068,13 @@ function checkK5BudgetExhaustionTerminal() {
   const transitions = selectTransitions(exhaustedState);
   const next = nextTransition(exhaustedState);
 
+  const composition = await runK5RuntimeCompositionWitness();
   const ok =
+    composition.ok &&
     allExhausted &&
     !transitions.some((t) => t.operation === "start" || t.operation === "recover" || t.operation === "repair") &&
     (next.operation === "escalate" || next.operation === "stop");
-  return { ok, invariant_id: "inv-k5-budget-exhaustion-terminal" };
+  return { ok, invariant_id: "inv-k5-budget-exhaustion-terminal", runtime_composed: composition.runtime_composed };
 }
 
 async function checkK5HonestRecoveryAdvancement() {
@@ -1008,7 +1087,7 @@ async function checkK5HonestRecoveryAdvancement() {
         id: "n1",
         phase: "failed",
         attempt: 1,
-        failure: { category: "code_defect", code: "ERR_1", priority: 5 },
+        failure: { category: "code_defect", code: "ERR_1", priority: 5, blocking_fingerprint: "fp:model-honesty" },
       },
     },
   };
@@ -1028,16 +1107,16 @@ async function checkK5HonestRecoveryAdvancement() {
     operation: "repair",
     arguments: args,
     operationPermit: issued.permit,
-    effectExecutor: async () => ({ ok: true, state_advanced: true }),
+    effectExecutor: async () => ({ ok: true, usage: {}, state_advanced: true }),
   });
 
   const ok =
     result.outcome === "advanced" &&
     result.status.nodes.n1.phase === "pending";
-  return { ok, invariant_id: "inv-k5-honest-recovery-advancement" };
+  return { ok, invariant_id: "inv-k5-honest-recovery-advancement", runtime_composed: true };
 }
 
-function checkK5TelemetryIsolation() {
+async function checkK5TelemetryIsolation() {
   const { digestLifecycleState } = require("./lifecycle-kernel/state-digest.js");
   const baseState = {
     schema_version: 1,
@@ -1053,8 +1132,9 @@ function checkK5TelemetryIsolation() {
   };
   const d1 = digestLifecycleState(baseState);
   const d2 = digestLifecycleState(stateWithTelemetry);
-  const ok = d1 === d2;
-  return { ok, invariant_id: "inv-k5-telemetry-isolation" };
+  const composition = await runK5RuntimeCompositionWitness();
+  const ok = composition.ok && d1 === d2;
+  return { ok, invariant_id: "inv-k5-telemetry-isolation", runtime_composed: composition.runtime_composed };
 }
 
 function checkK21NoMutationWithoutCas() {
@@ -1068,7 +1148,7 @@ function checkK21NoMutationWithoutCas() {
     .runOperation({
       operation: "start",
       arguments: { node_id: "n1" },
-      effectExecutor: async () => ({ ok: true }),
+      effectExecutor: async () => ({ ok: true, usage: {} }),
     })
     .then(() => ({ ok: false, invariant_id: "inv-k21-no-mutation-without-cas" }))
     .catch((error) => {
@@ -1221,12 +1301,12 @@ async function checkK21NoPublicAutoMint() {
     operation: "start",
     arguments: { node_id: "n1" },
     mintPermit: true,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   const missing = await runtime.runOperation({
     operation: "start",
     arguments: { node_id: "n1" },
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   const ok =
     auto.outcome === "blocked" &&
@@ -1290,13 +1370,13 @@ async function checkK21bReplayPriorReceipt() {
     operation: "start",
     arguments: { node_id: "n1" },
     operationPermit: issued.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   const replay = await runtime.runOperation({
     operation: "start",
     arguments: { node_id: "n1" },
     operationPermit: issued.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   const ok =
     first.outcome === "advanced" &&

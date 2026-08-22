@@ -18,3 +18,6 @@ Implementar merge-safe upsert por `effect_id` en `commitJournal` y en el commit 
 - Aislamiento total en protocolos de commit en dos fases concurrentes.
 - Reconciliación segura de perdedores CAS sin corrupción de estado ni fallos espurios de tickets.
 - Reversibilidad: Alta (encapsulado en la capa de storage).
+
+## Reconciliación K5 (2026-08-22)
+El merge compartido es absorbente para `completed`: una actualización stale con `planned`, `started`, `failed` o `unknown` no puede sustituir ni su estado ni su evidencia de resultado. Esta regla se aplica de forma idéntica en AuthorityStore, MemoryStore y FileSystemStore.

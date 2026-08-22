@@ -66,7 +66,7 @@ test("inv-no-duplicate-effects is non-vacuous: completed effects skip, planned e
   assert.equal(result.detail.completed.action, "skip");
   assert.equal(result.detail.completed.reason, "already-completed");
   assert.equal(result.detail.planned.action, "execute");
-  assert.equal(result.detail.failed.action, "skip");
+  assert.equal(result.detail.failed.action, "reconcile-failed");
   assert.equal(result.detail.replay_completed.action, "skip");
 });
 

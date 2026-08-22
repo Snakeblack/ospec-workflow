@@ -8,6 +8,7 @@ const {
   deriveEffectId,
   createJournalRecord,
   reconcileEffect,
+  mergeJournalEntries,
 } = require("./journal.js");
 const { digestLifecycleState, KERNEL_VERSION } = require("./state-digest.js");
 
@@ -108,6 +109,16 @@ test("reconcileEffect does not re-execute completed effects", () => {
   });
   assert.equal(decision.action, "skip");
   assert.equal(decision.reason, "already-completed");
+});
+
+test("mergeJournalEntries keeps completed evidence absorbing and retains peer effects", () => {
+  const completed = { effect_id: "eff-1", status: "completed", result: { ok: true, usage: { turns: 1 } } };
+  const merged = mergeJournalEntries([completed], [
+    { effect_id: "eff-1", status: "started", result: { barrier: "executing" } },
+    { effect_id: "eff-2", status: "completed", result: { ok: true, usage: {} } },
+  ]);
+  assert.equal(merged.length, 2);
+  assert.deepEqual(merged.find((entry) => entry.effect_id === "eff-1"), completed);
 });
 
 test("reconcileEffect executes pending; started emits retry-execute or fail-closed", () => {

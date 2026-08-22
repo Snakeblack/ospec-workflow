@@ -912,3 +912,13 @@ test("REQ-authority-store-003 / REQ-authority-store-011: winning CAS deletes onl
   assert.equal(casW2.code, "cas-conflict");
 });
 
+test("K5: AuthorityStore never degrades completed journal evidence from a stale update", async () => {
+  const store = createAuthorityStore({ initial: { state: { schema_version: 1, status: "ready", nodes: {} } } });
+  const completed = { effect_id: "eff-complete", status: "completed", result: { ok: true, usage: { turns: 1 } } };
+  await store.commitJournal([completed]);
+  await store.commitJournal([{ effect_id: "eff-complete", status: "started", result: { barrier: "executing" } }]);
+  const entry = (await store.load()).journal.find((item) => item.effect_id === "eff-complete");
+  assert.equal(entry.status, "completed");
+  assert.deepEqual(entry.result, completed.result);
+});
+

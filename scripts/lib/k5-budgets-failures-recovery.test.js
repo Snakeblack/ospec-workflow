@@ -74,6 +74,7 @@ test("K5 Combined Scenario: Node execution budgets, turn decrements and exhausti
   state = reduceLifecycle(state, withRuntimePermit({
     operation: "start",
     arguments: { node_id: "apply-k5" },
+    runtime_consumed: { turns: 1 },
   })).state;
   assert.equal(state.nodes["apply-k5"].attempt, 1);
   assert.equal(state.nodes["apply-k5"].budget.turns, 1);
@@ -99,6 +100,7 @@ test("K5 Combined Scenario: Node execution budgets, turn decrements and exhausti
   state = reduceLifecycle(state, withRuntimePermit({
     operation: "start",
     arguments: { node_id: "apply-k5" },
+    runtime_consumed: { turns: 1 },
   })).state;
   assert.equal(state.nodes["apply-k5"].attempt, 2);
   assert.equal(state.nodes["apply-k5"].budget.turns, 0);

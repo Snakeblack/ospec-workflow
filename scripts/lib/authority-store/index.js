@@ -2,6 +2,7 @@
 
 const { sha256Fingerprint } = require("../canonical-json.js");
 const { digestLifecycleState } = require("../lifecycle-kernel/state-digest.js");
+const { mergeJournalEntries } = require("../lifecycle-kernel/journal.js");
 
 /**
  * Upserts incoming journal entries into existing journal entries deduplicated by effect_id.
@@ -13,28 +14,7 @@ const { digestLifecycleState } = require("../lifecycle-kernel/state-digest.js");
  * @returns {Array<Object>}
  */
 function upsertJournalEntries(existing = [], incoming = []) {
-  const map = new Map();
-  const nonKeyed = [];
-
-  for (const entry of (Array.isArray(existing) ? existing : [])) {
-    if (!entry) continue;
-    if (entry.effect_id) {
-      map.set(entry.effect_id, entry);
-    } else {
-      nonKeyed.push(entry);
-    }
-  }
-  for (const entry of (Array.isArray(incoming) ? incoming : [])) {
-    if (!entry) continue;
-    if (entry.effect_id) {
-      map.set(entry.effect_id, entry);
-    } else {
-      nonKeyed.push(entry);
-    }
-  }
-  const keyed = Array.from(map.values());
-  keyed.sort((a, b) => (a.effect_id || "").localeCompare(b.effect_id || ""));
-  return [...keyed, ...nonKeyed];
+  return mergeJournalEntries(existing, incoming);
 }
 
 const { createMemoryStore } = require("../lifecycle-kernel/memory-store.js");

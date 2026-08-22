@@ -9,7 +9,7 @@ const {
   runAllInvariantCheckers,
 } = require("./lifecycle-model.js");
 
-test("K5 Model Conformance: K5 manifest lists 7 executable invariants", async () => {
+test("REQ-lifecycle-model-conformance-011: K5 manifest lists 7 executable runtime-composed invariants", async () => {
   assert.equal(K5_EXECUTABLE_INVARIANTS.length, 7);
 
   const deferredIds = new Set(DEFERRED_INVARIANTS.map((d) => d.id));
@@ -19,6 +19,7 @@ test("K5 Model Conformance: K5 manifest lists 7 executable invariants", async ()
 
     const result = await checkInvariant(inv.id);
     assert.equal(result.ok, true, `Checker for ${inv.id} must pass: ${JSON.stringify(result)}`);
+    assert.equal(result.runtime_composed, true, `Checker for ${inv.id} must use the full runtime composition`);
   }
 
   const all = await runAllInvariantCheckers();

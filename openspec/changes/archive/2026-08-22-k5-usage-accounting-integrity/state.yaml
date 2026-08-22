@@ -1,0 +1,780 @@
+# DAG state — k5-usage-accounting-integrity
+change: k5-usage-accounting-integrity
+status: archive-ready
+created_at: 2026-08-22T16:54:01Z
+last_updated: 2026-08-23T00:00:00Z
+blocking_questions: []
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "classifyChange determinístico ({classification: high-risk, confidence: deterministic}): remediación multi-dominio del accounting de ExecutionUsage (runtime, reducer, journal, stores) más corrección de contrato spec/ADR; requiere fases propose/spec/design/clarify que las rutas bugfix/hotfix omiten. Primera condición que casa en la tabla declarada: project.status=active → standard. Tabla validada con 0 errores."
+  validated: true
+  validation_errors: []
+
+owner:
+  author: Manuel Retamozo
+  branch: main
+
+delivery_strategy: exception-ok
+execution_mode: auto
+
+approvals:
+  - id: approval-new-change-001
+    gate: new-change-proceed
+    decision: "Crear change estándar k5-usage-accounting-integrity para el slice quirúrgico v2.45.14 según el veredicto de auditoría independiente de v2.45.13 (K5=REVISE, K6a=BLOCKED)"
+    source: question
+    accepted_at: 2026-08-22T16:54:01Z
+    applies_to:
+      - openspec/changes/k5-usage-accounting-integrity
+  - id: approval-execution-mode-001
+    gate: execution-mode
+    decision: interactive
+    source: question
+    accepted_at: 2026-08-22T16:54:01Z
+    applies_to:
+      - sdd-orchestrator
+  - id: approval-delivery-strategy-001
+    gate: delivery-strategy
+    decision: auto-chain
+    source: question
+    accepted_at: 2026-08-22T16:54:01Z
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: approval-verification-successor-001
+    gate: verification-routing
+    decision: "Autorizar successor con new-discovery-authority y full sdd-verify sobre el candidato remediado actual; preservar la lineage predecesora sin reescritura."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-22T18:48:18Z
+    applies_to:
+      - sdd-verify
+      - verify_lineage
+  - id: approval-verification-successor-002
+    gate: verification-routing
+    decision: "Autorizar un nuevo successor con new-discovery-authority sobre el contrato reconciliado y el Candidate actual tras contract-drift; preservar todas las lineages predecesoras."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-22T19:37:02Z
+    applies_to:
+      - sdd-verify
+      - verify_lineage
+  - id: approval-4r-remediation-001
+    gate: 4r-review-remediation
+    decision: "Remediar los tres findings CRITICAL congelados por la lineage 4R, un slice a la vez mediante los paths, presupuestos e IDs inmutables del reducer."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-22T20:30:58Z
+    applies_to:
+      - gates.4r-review-gate
+      - review-correction
+  - id: approval-archive-advisories-001
+    gate: archive-warning
+    decision: "Aceptar para este archivo K5-W-001, los dos WARNING advisory y la SUGGESTION preservados por el gate 4R; mantenerlos visibles como deuda no bloqueante."
+    source: vscode/askQuestions
+    accepted_at: 2026-08-22T21:53:58Z
+    applies_to:
+      - sdd-archive
+      - gates.4r-review-gate
+  - id: approval-release-version-001
+    gate: release-version
+    decision: "Incremento patch a 2.45.15"
+    source: plain-chat-numbered-gate
+    accepted_at: 2026-08-23T00:00:00Z
+    applies_to:
+      - release
+      - version
+      - changelog
+
+assumptions: []
+
+baseline_fingerprints:
+  execution-budgets: 04e524b69722b19f60e04e1a366f609e69bcfc53682c66904dd286106379e970
+  lifecycle-kernel-runtime: 3af801015edddad652d1196299395ef22601dc95b74503e9ee44de295d17b576
+  authority-store: d3642e36e738be7d459cf4721ecf6317029414f4e446666a1ebcd5c1e44e551d
+  lifecycle-model-conformance: 6e1a5e6dc704aa939f83ac214322a8ce86693a5e07092b707781cd457258bfc5
+
+phases:
+  sdd-propose:
+    status: done
+    artifact: openspec/changes/k5-usage-accounting-integrity/proposal.md
+    summary: "Accounting K5 exactamente-una-vez en success/failure/CAS retry, journal completed monotónico y zero-delta de repair estéril."
+    key_decisions:
+      - "Separar usage ejecutado en la invocación de resultados históricos reconciliados."
+      - "ExecutionUsage ausente falla cerrado; nunca se estima desde args."
+      - "completed es monotónico y repair sin progreso de efecto conserva zero-delta."
+  sdd-spec:
+    status: done
+    artifacts:
+      - openspec/changes/k5-usage-accounting-integrity/specs/execution-budgets/spec.md
+      - openspec/changes/k5-usage-accounting-integrity/specs/lifecycle-kernel-runtime/spec.md
+      - openspec/changes/k5-usage-accounting-integrity/specs/authority-store/spec.md
+      - openspec/changes/k5-usage-accounting-integrity/specs/lifecycle-model-conformance/spec.md
+    summary: "Deltas K5 exigen usage exactamente una vez, carry-over sin re-débito, journal completed monotónico y zero-delta para repair estéril."
+    key_decisions:
+      - "Usage de ejecución física se aplica al CAS ganador o se conserva una sola vez como carry-over runtime-owned."
+      - "La falta de ExecutionUsage falla cerrado sin fallback a args; resultados históricos no generan consumo."
+      - "Repair sin effectProgress conserva la penalización dual zero-delta aunque avance el lifecycle."
+  sdd-design:
+    status: done
+    artifact: openspec/changes/k5-usage-accounting-integrity/design.md
+    summary: "Dos buckets P/N y disposición interna garantizan usage exactamente una vez; completed es absorbente y repair estéril sigue zero-delta."
+    key_decisions:
+      - "Separar carry-over previo de usage ejecutado ahora; sólo un commit confirmado elimina la deuda."
+      - "Usage ausente o inválido falla con execution-usage-required, sin defaults ni fallback al caller."
+      - "Un merge compartido preserva completed y su evidencia frente a estados stale inferiores."
+  sdd-tasks:
+    status: done
+    artifact: openspec/changes/k5-usage-accounting-integrity/tasks.md
+    summary: "Tasks 3.1 y 3.2 reabiertas para retry exacto de effect-failed/carry-over y composición runtime completa de REQ-lifecycle-model-conformance-011; size-exception preservado."
+    key_decisions:
+      - "Un único PR size-exception por estrategia exception-ok, con cuatro work units ordenados."
+      - "La remediación queda acotada a K5-SV-001/K5-SV-002 y sus paths/comandos de validación congelados."
+      - "RED/GREEN/refactor y npm test completo son evidencia obligatoria; K6a queda fuera de alcance."
+  clarify:
+    status: skipped
+  sdd-apply:
+    status: done
+    artifact: openspec/changes/k5-usage-accounting-integrity/apply-progress.md
+    summary: "K5-SV-001/002 corregidos y vinculados mecánicamente al successor Candidate v2; 54+24 pruebas congeladas y npm test pasan."
+    key_decisions:
+      - "Un journal failed reconcilia sólo el débito retenido mediante CAS y no avanza el lifecycle ni reejecuta el efecto."
+      - "Los siete checkers K5 producen evidencia de composición runtime completa; el checker budget cubre los cuatro escenarios antes ausentes."
+      - "Attempt 1/2 quedó congelado contra Candidate v2 successor y seis paths funcionales permitidos."
+  sdd-verify:
+    status: done
+    verdict: PASS WITH WARNINGS
+    artifact: openspec/changes/k5-usage-accounting-integrity/verify-report.md
+    summary: "Full discovery successor PASS WITH WARNINGS: 37/37 escenarios, focal 167/167 y repo 2408/2410; listo para 4R."
+    key_decisions:
+      - "Successor 9a5b537b... vincula contrato a5446d... y Candidate 3992ee... antes de tests."
+      - "Los 32 archivos funcionales rehashearon exactos; sólo state/report cambiaron como región de evidencia."
+      - "Sin CRITICAL; warning único por ubicación del merge compartido frente al diseño."
+
+verification:
+  outcome: PASS WITH WARNINGS
+  candidate_id: sha256:3992ee853f3eb9831ecdea35e4b7867243c3074e11d7e2474fe551b9688435c2
+  lineage_id: sha256:9a5b537b5d47989db4efdb4e88208dd43f7f5301f1d9a4c6b7952549b657650a
+  predecessor_lineage_id: sha256:c1de1086730444413dfad1aaddbdf59b2210eff709893909409d3aee6d4ab6c3
+  authority_kind: new-discovery-authority
+  approval_reference: approval-verification-successor-002
+  focused_tests:
+    total: 167
+    passed: 167
+    failed: 0
+    skipped: 0
+    exit_code: 0
+  full_tests:
+    total: 2410
+    passed: 2408
+    failed: 0
+    skipped: 2
+    exit_code: 0
+  compliance:
+    scenarios_total: 37
+    scenarios_passed: 37
+    scenarios_failed: 0
+  baseline_fingerprints_match: true
+  next_recommended: 4r-review-gate
+  targeted_recheck:
+    requested_at: 2026-08-22T19:28:31Z
+    requested_action: run-targeted-recheck
+    consumed: true
+    preflight_result: contract-drift
+    router_action: supersede-and-discovery
+    reducer_action: superseded
+    frozen_contract_digest: sha256:6d786f825c37a5b1f4d129da489d746a2dc34f8599caf1ac6a1fe267d1a47157
+    live_contract_digest: sha256:a5446d8787c18e880858c15bcc5d44fdaf1125f085e7eb12a5324ebddd57d040
+    frozen_git_tree_oid: aa7031ddd9129b05f6fec6c6186b0b2b659cb8b1
+    live_git_tree_oid: 1c12fb7d4a852d622d295d76e327d20b7d039140
+    exact_functional_delta_match: true
+    source_spec_test_drift: []
+    evidence_region_changes:
+      - openspec/changes/k5-usage-accounting-integrity/apply-progress.md
+      - openspec/changes/k5-usage-accounting-integrity/state.yaml
+      - openspec/changes/k5-usage-accounting-integrity/verify-report.md
+    outside_evidence_region_changes:
+      - openspec/changes/k5-usage-accounting-integrity/tasks.md
+    referenced_tests_executed: false
+    referenced_tests_reason: "Identity preflight failed before execution; frozen recipes cannot yield a valid PASS after contract drift."
+    finding_outcomes:
+      K5-SV-001: unresolved
+      K5-SV-002: unresolved
+  successor_discovery_002:
+    status: closed
+    frozen_at: 2026-08-22T19:41:17Z
+    authority_kind: new-discovery-authority
+    approval_reference: approval-verification-successor-002
+    generation: 3
+    lineage_id: sha256:9a5b537b5d47989db4efdb4e88208dd43f7f5301f1d9a4c6b7952549b657650a
+    predecessor_id: sha256:c1de1086730444413dfad1aaddbdf59b2210eff709893909409d3aee6d4ab6c3
+    contract_digest: sha256:a5446d8787c18e880858c15bcc5d44fdaf1125f085e7eb12a5324ebddd57d040
+    candidate:
+      kind: candidate/v2
+      schema_version: 2
+      candidate_id: sha256:3992ee853f3eb9831ecdea35e4b7867243c3074e11d7e2474fe551b9688435c2
+      repository_id: https://github.com/Snakeblack/ospec-workflow.git
+      projection: workspace
+      base_tree: sha256:0ad042d660b4347eeea57e96ee2594ec3390782a00626b6b30ef123de21a7e0e
+      candidate_tree: sha256:be725afc52e89fc7139f0375b5f3ece68f82d8af9e12161e838b1ade50a4cf0f
+      diff_hash: sha256:bc1e3ee7d53ac2a3214f2986ddb030a818a4e930eecda639b873b27f3adc6eab
+      changed_paths_modes_digest: sha256:be0c2bb72f937002d620d0bff91a58c98e6826a524d316ea9a85de91d1e88f97
+      intended_untracked_digest: sha256:f06f5edd6b5d04a61eb6dddb3f687b5eb9891babb7f20a45c3bafea44f96cada
+      predecessor_id: null
+      relation: exact
+      paths:
+        - docs/adr/adr-20260821-004-runtime-owned-budget-carry-over-on-multi-writer-cas-conflict-race.md
+        - docs/adr/adr-20260822-007-runtime-executor-owned-executionusage-interface-and-purge-of-caller-fabricated-input-consumed.md
+        - docs/adr/adr-20260822-009-merge-safe-journal-upsert-by-effect-id-and-peer-mid-op-ticket-preservation-in-authoritystore.md
+        - docs/adr/adr-20260822-011-contractual-zero-delta-scoped-to-stagnant-effect-bearing-code-mutations.md
+        - openspec/changes/k5-usage-accounting-integrity/apply-progress.md
+        - openspec/changes/k5-usage-accounting-integrity/decisions/adr-001.md
+        - openspec/changes/k5-usage-accounting-integrity/decisions/adr-002.md
+        - openspec/changes/k5-usage-accounting-integrity/design.md
+        - openspec/changes/k5-usage-accounting-integrity/proposal.md
+        - openspec/changes/k5-usage-accounting-integrity/specs/authority-store/spec.md
+        - openspec/changes/k5-usage-accounting-integrity/specs/execution-budgets/spec.md
+        - openspec/changes/k5-usage-accounting-integrity/specs/lifecycle-kernel-runtime/spec.md
+        - openspec/changes/k5-usage-accounting-integrity/specs/lifecycle-model-conformance/spec.md
+        - openspec/changes/k5-usage-accounting-integrity/state.yaml
+        - openspec/changes/k5-usage-accounting-integrity/tasks.md
+        - openspec/changes/k5-usage-accounting-integrity/verify-report.md
+        - scripts/k5-e2e-budgets-recovery.test.js
+        - scripts/lib/authority-store/index.js
+        - scripts/lib/authority-store/index.test.js
+        - scripts/lib/filesystem-store.js
+        - scripts/lib/filesystem-store.test.js
+        - scripts/lib/k5-budgets-failures-recovery.test.js
+        - scripts/lib/k5-lifecycle-model.test.js
+        - scripts/lib/lifecycle-kernel/index.js
+        - scripts/lib/lifecycle-kernel/index.test.js
+        - scripts/lib/lifecycle-kernel/journal.js
+        - scripts/lib/lifecycle-kernel/journal.test.js
+        - scripts/lib/lifecycle-kernel/memory-store.js
+        - scripts/lib/lifecycle-kernel/reducer.js
+        - scripts/lib/lifecycle-kernel/reducer.test.js
+        - scripts/lib/lifecycle-model.js
+        - scripts/lib/lifecycle-model.test.js
+        - scripts/lib/minimal-kernel-harness.js
+        - scripts/lib/minimal-kernel-harness.test.js
+    git_binding:
+      base_tree_oid: be528798648aa5c9b990b15a98b27dc2e07ab524
+      candidate_tree_oid: e002745f9d2d04ee5dc66749a07c6d485cddafd5
+    evidence_region_before:
+      openspec/changes/k5-usage-accounting-integrity/state.yaml: sha256:51867748ba51128d0007fbba78165aa44591402e1920cad3796ec5310b483698
+      openspec/changes/k5-usage-accounting-integrity/verify-report.md: sha256:c0ae609a0c313de1f24d1e105c9df71e9bf27740e09b16655862ccd57e6bf88b
+    functional_manifest:
+      docs/adr/adr-20260821-004-runtime-owned-budget-carry-over-on-multi-writer-cas-conflict-race.md: sha256:2d94ae7e5a258d5bcb1ef76c28573532bcb8f95c34fa1cc13332cc62285b631c
+      docs/adr/adr-20260822-007-runtime-executor-owned-executionusage-interface-and-purge-of-caller-fabricated-input-consumed.md: sha256:91830d7802ab4370d8d980c24e1ab97937d853cdf9e582775bae902288c8965d
+      docs/adr/adr-20260822-009-merge-safe-journal-upsert-by-effect-id-and-peer-mid-op-ticket-preservation-in-authoritystore.md: sha256:1d4e881d9d30be13d6509324aaf087b8e0e09044b0c94a6015fcca2f5bdf85c4
+      docs/adr/adr-20260822-011-contractual-zero-delta-scoped-to-stagnant-effect-bearing-code-mutations.md: sha256:0aa7c6e99c236c5322aebdf15bc8a801a96d1e2a2a83141a4c96b3235f0b88f7
+      openspec/changes/k5-usage-accounting-integrity/apply-progress.md: sha256:2cb0445b8786c3f2092b3d52b7870e77b11036b640cfdbf60e6936c86e03ee55
+      openspec/changes/k5-usage-accounting-integrity/decisions/adr-001.md: sha256:5d56a37d8d9a406b7a32f4a3d553b93e3b9abd5982fe37a97cdcf991cfac38d7
+      openspec/changes/k5-usage-accounting-integrity/decisions/adr-002.md: sha256:07ff8b98fc30f3920cfe605366ac376fcf3c25c6a5ef674247de7a2806084cb8
+      openspec/changes/k5-usage-accounting-integrity/design.md: sha256:443d238e771dc0fe4bff7d87bb4c182bbab0a6391e929c9b9f34ce8973be5194
+      openspec/changes/k5-usage-accounting-integrity/proposal.md: sha256:3b6b2e90510a980e82d9742a1cac9feaf7401611da6f8440b1231bf318042c69
+      openspec/changes/k5-usage-accounting-integrity/specs/authority-store/spec.md: sha256:4e8a2ca6eddcc305e570134b3ba681aae9d707d794b3ca17f75f1c94b3bfa3d4
+      openspec/changes/k5-usage-accounting-integrity/specs/execution-budgets/spec.md: sha256:a4d65f952d6f4fec80f177657d8e1ec46016f3392b1bb43a08f4a22a7882239d
+      openspec/changes/k5-usage-accounting-integrity/specs/lifecycle-kernel-runtime/spec.md: sha256:d5bb16f4eb4e92471aeafee8b24eed76cb8dd0eab8d40c94a579133432e137e7
+      openspec/changes/k5-usage-accounting-integrity/specs/lifecycle-model-conformance/spec.md: sha256:3bc790e1d38f112331009a1b625a70870f6c648db3ad3ca3283026e50af56f4b
+      openspec/changes/k5-usage-accounting-integrity/tasks.md: sha256:c719712a902205de85100e9efb3d0ba1d8991166d967aa9df9a53b900c333424
+      scripts/k5-e2e-budgets-recovery.test.js: sha256:2b9ae2ae434ad839edabf31053a35097f0d4064f2e579bba67add9d37ec66518
+      scripts/lib/authority-store/index.js: sha256:f0a4cb7aae28832f6d05f138414777e4e5c8bb61af684ac762d3ac612ba3767e
+      scripts/lib/authority-store/index.test.js: sha256:bbf502a4b6fcc5dbf1d253a25e547f557bbede1b866b066a6a0827e65f87685c
+      scripts/lib/filesystem-store.js: sha256:b21e7d2862d6b0793e60eb24987c736f9d3d1d719adb4861fb7b9540d37a4433
+      scripts/lib/filesystem-store.test.js: sha256:66a21f1a7d453507d245ab0313747898121ea4dcdc59951502a825caf709966a
+      scripts/lib/k5-budgets-failures-recovery.test.js: sha256:e0fdce321c39ca6a520664b4d6ff5eb7f50ebbc0b9e8badfbe7ab6db5dbfacbc
+      scripts/lib/k5-lifecycle-model.test.js: sha256:e963ab328cd40c6460c248a9f3dd9a16c6103343ac326a02598ced9ab2314a20
+      scripts/lib/lifecycle-kernel/index.js: sha256:2f1052c682371f88142a48224ca1c21c2dcf3827ea4810e40d4f6c633ac6f0b0
+      scripts/lib/lifecycle-kernel/index.test.js: sha256:b8966092bf17ef55a2bccf7df4d6e4ef1253237262d7f39a315e2918c1eaf816
+      scripts/lib/lifecycle-kernel/journal.js: sha256:36489f1b0934313a0dc56ab4968d2b8c815b2e644133f996c6688b5e975433b9
+      scripts/lib/lifecycle-kernel/journal.test.js: sha256:25b966e5aa6920fe93c35827233c050744aeb000c5dc30adcdc1d2a4fae5e553
+      scripts/lib/lifecycle-kernel/memory-store.js: sha256:a285dc5614d33b3dbd3f3de9cc45614cafbd5143f2637b62b110e0d0b6325902
+      scripts/lib/lifecycle-kernel/reducer.js: sha256:2405774ec1a62af2ac8ee57d1900339243da4abf0fd9f14a6df5a443ca7920af
+      scripts/lib/lifecycle-kernel/reducer.test.js: sha256:80c1e635c057f47ed6551655a2d169ba654819ba29e5c73e07d599adacc7c27f
+      scripts/lib/lifecycle-model.js: sha256:a9e8de0a76b1bcffb537b4ca4e8db41852403d32c2d3cf2b0fb09274d767385b
+      scripts/lib/lifecycle-model.test.js: sha256:3a0c5bbd7a56b3d78fea975d571ce5a3e1a7556f4a2c5bbe047faf0a41346a4a
+      scripts/lib/minimal-kernel-harness.js: sha256:404f1b7ee7df6b7733a0604ecfc1a5cfb441f78731bda931d69bd42ce63b95fe
+      scripts/lib/minimal-kernel-harness.test.js: sha256:5588f21f4030097e0153ac45b9f040757bb3370ad2b54dc3be9ce77cccac559c
+    executed_at: 2026-08-22T19:46:42Z
+    post_test_contract_digest: sha256:a5446d8787c18e880858c15bcc5d44fdaf1125f085e7eb12a5324ebddd57d040
+    post_test_functional_manifest_match: true
+    post_test_evidence_tree_oid: 07e8248532297b370435ed2693b00b363e1b9536
+    evidence_region_snapshots:
+      state_pre_terminalization: sha256:461f5ee66b8d8b58195e39f8e758d99805a80cd68099e3217664e16284324a69
+      report_post_append: sha256:124ca22060ec0445888e5252dfb87d11679909b161b9989cb6d00e335ae8951e
+    evidence_region_changes:
+      - openspec/changes/k5-usage-accounting-integrity/state.yaml
+      - openspec/changes/k5-usage-accounting-integrity/verify-report.md
+    outside_evidence_region_writes: []
+
+    tests:
+      focused: { total: 167, passed: 167, failed: 0, skipped: 0, exit_code: 0 }
+      full: { total: 2410, passed: 2408, failed: 0, skipped: 2, exit_code: 0 }
+    compliance: { scenarios_total: 37, scenarios_passed: 37, scenarios_failed: 0 }
+    findings:
+      critical: []
+      warnings:
+        - K5-W-001
+    verdict: PASS WITH WARNINGS
+
+  successor_discovery:
+    executed_at: 2026-08-22T18:59:59Z
+    router_action: supersede-and-discovery
+    router_reason: candidate-code-changed
+    candidate_v2_status: valid-frozen
+    candidate:
+      kind: candidate/v2
+      schema_version: 2
+      candidate_id: sha256:de492c19ac7bacb3b662682e53edc4a1bc262148670344832e8e2167185b5c03
+      repository_id: https://github.com/Snakeblack/ospec-workflow.git
+      projection: workspace
+      base_tree: sha256:ee1277a0ff89422190c718ee675fde177b335c66f739320405ea1d9651a9c072
+      candidate_tree: sha256:f9349ecefe3dd6182dea69de7d3b22ed6f0d69834a3f417b649205aae75556f7
+      diff_hash: sha256:0361db8ee606b1ba8819e1a79312a951d80d359d2fe496e7a16ef2cf43c5928b
+      changed_paths_modes_digest: sha256:13c10217786e081d44acdec0284a87b525ceaef8435d988d8a40b0c232181dad
+      intended_untracked_digest: sha256:1893232ceb34ef1de2771ec2ef50807181d28320156383a88ec803a3b82a101d
+      predecessor_id: null
+      relation: exact
+      paths:
+        - docs/adr/adr-20260821-004-runtime-owned-budget-carry-over-on-multi-writer-cas-conflict-race.md
+        - docs/adr/adr-20260822-007-runtime-executor-owned-executionusage-interface-and-purge-of-caller-fabricated-input-consumed.md
+        - docs/adr/adr-20260822-009-merge-safe-journal-upsert-by-effect-id-and-peer-mid-op-ticket-preservation-in-authoritystore.md
+        - docs/adr/adr-20260822-011-contractual-zero-delta-scoped-to-stagnant-effect-bearing-code-mutations.md
+        - openspec/changes/k5-usage-accounting-integrity/apply-progress.md
+        - openspec/changes/k5-usage-accounting-integrity/decisions/adr-001.md
+        - openspec/changes/k5-usage-accounting-integrity/decisions/adr-002.md
+        - openspec/changes/k5-usage-accounting-integrity/design.md
+        - openspec/changes/k5-usage-accounting-integrity/proposal.md
+        - openspec/changes/k5-usage-accounting-integrity/specs/authority-store/spec.md
+        - openspec/changes/k5-usage-accounting-integrity/specs/execution-budgets/spec.md
+        - openspec/changes/k5-usage-accounting-integrity/specs/lifecycle-kernel-runtime/spec.md
+        - openspec/changes/k5-usage-accounting-integrity/specs/lifecycle-model-conformance/spec.md
+        - openspec/changes/k5-usage-accounting-integrity/state.yaml
+        - openspec/changes/k5-usage-accounting-integrity/tasks.md
+        - openspec/changes/k5-usage-accounting-integrity/verify-report.md
+        - scripts/k5-e2e-budgets-recovery.test.js
+        - scripts/lib/authority-store/index.js
+        - scripts/lib/authority-store/index.test.js
+        - scripts/lib/filesystem-store.js
+        - scripts/lib/filesystem-store.test.js
+        - scripts/lib/k5-budgets-failures-recovery.test.js
+        - scripts/lib/lifecycle-kernel/index.js
+        - scripts/lib/lifecycle-kernel/index.test.js
+        - scripts/lib/lifecycle-kernel/journal.js
+        - scripts/lib/lifecycle-kernel/journal.test.js
+        - scripts/lib/lifecycle-kernel/memory-store.js
+        - scripts/lib/lifecycle-kernel/reducer.js
+        - scripts/lib/lifecycle-kernel/reducer.test.js
+        - scripts/lib/lifecycle-model.js
+        - scripts/lib/minimal-kernel-harness.js
+        - scripts/lib/minimal-kernel-harness.test.js
+    git_binding:
+      base_tree_oid: be528798648aa5c9b990b15a98b27dc2e07ab524
+      candidate_tree_oid: f3529f3da9f77604ffd8f25a1649ac065e9ff1ad
+      post_test_tree_oid: f3529f3da9f77604ffd8f25a1649ac065e9ff1ad
+      post_test_match: true
+      pre_final_state_evidence_tree_oid: c607c2d4af7300f473e3ec42879ea550ac218dda
+      evidence_region_paths:
+        - openspec/changes/k5-usage-accounting-integrity/state.yaml
+        - openspec/changes/k5-usage-accounting-integrity/verify-report.md
+      outside_evidence_region_writes: []
+    contract_digest: sha256:6d786f825c37a5b1f4d129da489d746a2dc34f8599caf1ac6a1fe267d1a47157
+    findings:
+      - K5-SV-001
+      - K5-SV-002
+
+verify_lineage_predecessor:
+  schema_version: 1
+  lineage_id: sha256:33db200c3656bf25d298f565c89deef2e532942561083f2fa9200f8cf7752b64
+  generation: 1
+  predecessor_id: null
+  status: remediation-pending
+  genesis_candidate_id: sha256:46ec0973484ba10d60dc6368f974679dbc32453d6621ccab3f196063a346480e
+  current_candidate_id: sha256:46ec0973484ba10d60dc6368f974679dbc32453d6621ccab3f196063a346480e
+  verified_candidate_id: null
+  contract_digest: sha256:6d786f825c37a5b1f4d129da489d746a2dc34f8599caf1ac6a1fe267d1a47157
+  remediation_attempts: 0
+  max_remediation_attempts: 2
+  findings:
+    - id: K5-V-001
+      severity: CRITICAL
+      summary: "Sterile repair with lifecycle signal state_advanced bypasses the required dual zero-delta penalty, and exact CAS-race evidence is absent."
+      origin: code-bug
+      allowed_paths:
+        - scripts/lib/k5-lifecycle-model.test.js
+        - scripts/lib/lifecycle-kernel/index.js
+        - scripts/lib/lifecycle-kernel/index.test.js
+        - scripts/lib/lifecycle-model.js
+      validation:
+        commands:
+          - "node --test scripts/lib/lifecycle-kernel/index.test.js scripts/lib/k5-lifecycle-model.test.js"
+        expected_exit: 0
+        test_files:
+          - scripts/lib/k5-lifecycle-model.test.js
+          - scripts/lib/lifecycle-kernel/index.test.js
+      status: unresolved
+    - id: K5-V-002
+      severity: CRITICAL
+      summary: "Post-effect interruption with partial usage is journal-reconciled without carrying or committing its physical usage; post-CAS receipt failure also omits committed disposition."
+      origin: code-bug
+      allowed_paths:
+        - scripts/lib/lifecycle-kernel/index.js
+        - scripts/lib/lifecycle-kernel/index.test.js
+      validation:
+        commands:
+          - "node --test scripts/lib/lifecycle-kernel/index.test.js"
+        expected_exit: 0
+        test_files:
+          - scripts/lib/lifecycle-kernel/index.test.js
+      status: unresolved
+    - id: K5-V-003
+      severity: CRITICAL
+      summary: "REQ-lifecycle-model-conformance-011 is not implemented through full runtime composition for all seven K5 invariants and omits required failure, missing-usage, and completed evidence."
+      origin: code-bug
+      allowed_paths:
+        - scripts/lib/k5-lifecycle-model.test.js
+        - scripts/lib/lifecycle-model.js
+        - scripts/lib/lifecycle-model.test.js
+      validation:
+        commands:
+          - "node --test scripts/lib/k5-lifecycle-model.test.js scripts/lib/lifecycle-model.test.js"
+        expected_exit: 0
+        test_files:
+          - scripts/lib/k5-lifecycle-model.test.js
+          - scripts/lib/lifecycle-model.test.js
+      status: unresolved
+    - id: K5-V-004
+      severity: CRITICAL
+      summary: "Core MUST evidence lacks composed automated regressions for effect-failure carry-over, exhaustive concurrent dimensions, and zero-delta CAS survival."
+      origin: code-bug
+      allowed_paths:
+        - scripts/k5-e2e-budgets-recovery.test.js
+        - scripts/lib/lifecycle-kernel/index.test.js
+      validation:
+        commands:
+          - "node --test scripts/lib/lifecycle-kernel/index.test.js scripts/k5-e2e-budgets-recovery.test.js"
+        expected_exit: 0
+        test_files:
+          - scripts/k5-e2e-budgets-recovery.test.js
+          - scripts/lib/lifecycle-kernel/index.test.js
+      status: unresolved
+  late_observations: []
+  terminal_reason: null
+
+verify_lineage_predecessor_002:
+  schema_version: 1
+  lineage_id: sha256:c1de1086730444413dfad1aaddbdf59b2210eff709893909409d3aee6d4ab6c3
+  generation: 2
+  predecessor_id: sha256:33db200c3656bf25d298f565c89deef2e532942561083f2fa9200f8cf7752b64
+  status: superseded
+  genesis_candidate_id: sha256:de492c19ac7bacb3b662682e53edc4a1bc262148670344832e8e2167185b5c03
+  current_candidate_id: sha256:607c24e356219057f7ab0f1c055ff0dfc4adb0b24d6a359b1665667d90b8c3bd
+  verified_candidate_id: null
+  contract_digest: sha256:6d786f825c37a5b1f4d129da489d746a2dc34f8599caf1ac6a1fe267d1a47157
+  remediation_attempts: 1
+  max_remediation_attempts: 2
+  findings:
+    - id: K5-SV-001
+      severity: CRITICAL
+      summary: "Effect-failed usage is retained in process memory but an exact retry skips the failed journal record and exits before applying carry-over, leaving authoritative budgets unchanged."
+      origin: code-bug
+      allowed_paths:
+        - scripts/k5-e2e-budgets-recovery.test.js
+        - scripts/lib/lifecycle-kernel/index.js
+        - scripts/lib/lifecycle-kernel/index.test.js
+        - scripts/lib/lifecycle-kernel/journal.js
+      validation:
+        commands:
+          - "node --test scripts/lib/lifecycle-kernel/index.test.js scripts/k5-e2e-budgets-recovery.test.js"
+        expected_exit: 0
+        test_files:
+          - scripts/k5-e2e-budgets-recovery.test.js
+          - scripts/lib/lifecycle-kernel/index.test.js
+      status: unresolved
+    - id: K5-SV-002
+      severity: CRITICAL
+      summary: "REQ-lifecycle-model-conformance-011 still lacks full runtime composition and direct observations for successful exact debit, two consecutive CAS losses, failed/missing usage, and completed-status monotonicity."
+      origin: code-bug
+      allowed_paths:
+        - scripts/lib/k5-lifecycle-model.test.js
+        - scripts/lib/lifecycle-kernel/index.test.js
+        - scripts/lib/lifecycle-model.js
+        - scripts/lib/lifecycle-model.test.js
+      validation:
+        commands:
+          - "node --test scripts/lib/k5-lifecycle-model.test.js scripts/lib/lifecycle-model.test.js"
+        expected_exit: 0
+        test_files:
+          - scripts/lib/k5-lifecycle-model.test.js
+          - scripts/lib/lifecycle-model.test.js
+      status: unresolved
+  late_observations: []
+  terminal_reason: contract-drift
+  recovery:
+    authority_kind: new-discovery-authority
+    approval_reference: approval-verification-successor-001
+    reason: "Full discovery over the current remediated Candidate v2 after predecessor provenance was unavailable."
+  remediation:
+    attempt: 1
+    action: supersede-and-discovery
+    reason: "Targeted recheck preflight consumed once; live contract digest changed after Candidate v2 freeze."
+    baseline_candidate_id: sha256:de492c19ac7bacb3b662682e53edc4a1bc262148670344832e8e2167185b5c03
+    baseline_git_tree_oid: f3529f3da9f77604ffd8f25a1649ac065e9ff1ad
+    candidate:
+      kind: candidate/v2
+      schema_version: 2
+      candidate_id: sha256:607c24e356219057f7ab0f1c055ff0dfc4adb0b24d6a359b1665667d90b8c3bd
+      repository_id: https://github.com/Snakeblack/ospec-workflow.git
+      projection: workspace
+      base_tree: sha256:ee1277a0ff89422190c718ee675fde177b335c66f739320405ea1d9651a9c072
+      candidate_tree: sha256:5c684dd3a9c77f05bb1d0a40befac1b6f5a3b60958706cefd5b3155f4e96759f
+      diff_hash: sha256:cec22c9b96ae00c989521c7986145545b813cbe54879f6da06b21648afa32419
+      changed_paths_modes_digest: sha256:be0c2bb72f937002d620d0bff91a58c98e6826a524d316ea9a85de91d1e88f97
+      intended_untracked_digest: sha256:1893232ceb34ef1de2771ec2ef50807181d28320156383a88ec803a3b82a101d
+      predecessor_id: sha256:de492c19ac7bacb3b662682e53edc4a1bc262148670344832e8e2167185b5c03
+      relation: changed
+      paths:
+        - docs/adr/adr-20260821-004-runtime-owned-budget-carry-over-on-multi-writer-cas-conflict-race.md
+        - docs/adr/adr-20260822-007-runtime-executor-owned-executionusage-interface-and-purge-of-caller-fabricated-input-consumed.md
+        - docs/adr/adr-20260822-009-merge-safe-journal-upsert-by-effect-id-and-peer-mid-op-ticket-preservation-in-authoritystore.md
+        - docs/adr/adr-20260822-011-contractual-zero-delta-scoped-to-stagnant-effect-bearing-code-mutations.md
+        - openspec/changes/k5-usage-accounting-integrity/apply-progress.md
+        - openspec/changes/k5-usage-accounting-integrity/decisions/adr-001.md
+        - openspec/changes/k5-usage-accounting-integrity/decisions/adr-002.md
+        - openspec/changes/k5-usage-accounting-integrity/design.md
+        - openspec/changes/k5-usage-accounting-integrity/proposal.md
+        - openspec/changes/k5-usage-accounting-integrity/specs/authority-store/spec.md
+        - openspec/changes/k5-usage-accounting-integrity/specs/execution-budgets/spec.md
+        - openspec/changes/k5-usage-accounting-integrity/specs/lifecycle-kernel-runtime/spec.md
+        - openspec/changes/k5-usage-accounting-integrity/specs/lifecycle-model-conformance/spec.md
+        - openspec/changes/k5-usage-accounting-integrity/state.yaml
+        - openspec/changes/k5-usage-accounting-integrity/tasks.md
+        - openspec/changes/k5-usage-accounting-integrity/verify-report.md
+        - scripts/k5-e2e-budgets-recovery.test.js
+        - scripts/lib/authority-store/index.js
+        - scripts/lib/authority-store/index.test.js
+        - scripts/lib/filesystem-store.js
+        - scripts/lib/filesystem-store.test.js
+        - scripts/lib/k5-budgets-failures-recovery.test.js
+        - scripts/lib/k5-lifecycle-model.test.js
+        - scripts/lib/lifecycle-kernel/index.js
+        - scripts/lib/lifecycle-kernel/index.test.js
+        - scripts/lib/lifecycle-kernel/journal.js
+        - scripts/lib/lifecycle-kernel/journal.test.js
+        - scripts/lib/lifecycle-kernel/memory-store.js
+        - scripts/lib/lifecycle-kernel/reducer.js
+        - scripts/lib/lifecycle-kernel/reducer.test.js
+        - scripts/lib/lifecycle-model.js
+        - scripts/lib/lifecycle-model.test.js
+        - scripts/lib/minimal-kernel-harness.js
+        - scripts/lib/minimal-kernel-harness.test.js
+    git_binding:
+      candidate_tree_oid: aa7031ddd9129b05f6fec6c6186b0b2b659cb8b1
+      exact_functional_delta:
+        - scripts/k5-e2e-budgets-recovery.test.js
+        - scripts/lib/k5-lifecycle-model.test.js
+        - scripts/lib/lifecycle-kernel/index.js
+        - scripts/lib/lifecycle-kernel/journal.js
+        - scripts/lib/lifecycle-model.js
+        - scripts/lib/lifecycle-model.test.js
+
+verify_lineage:
+  schema_version: 1
+  lineage_id: sha256:9a5b537b5d47989db4efdb4e88208dd43f7f5301f1d9a4c6b7952549b657650a
+  generation: 3
+  predecessor_id: sha256:c1de1086730444413dfad1aaddbdf59b2210eff709893909409d3aee6d4ab6c3
+  status: closed
+  genesis_candidate_id: sha256:3992ee853f3eb9831ecdea35e4b7867243c3074e11d7e2474fe551b9688435c2
+  current_candidate_id: sha256:3992ee853f3eb9831ecdea35e4b7867243c3074e11d7e2474fe551b9688435c2
+  verified_candidate_id: sha256:3992ee853f3eb9831ecdea35e4b7867243c3074e11d7e2474fe551b9688435c2
+  contract_digest: sha256:a5446d8787c18e880858c15bcc5d44fdaf1125f085e7eb12a5324ebddd57d040
+  remediation_attempts: 0
+  max_remediation_attempts: 2
+  findings: []
+  advisory_findings:
+    - id: K5-W-001
+      severity: WARNING
+      summary: "Shared absorbing journal merge is implemented in the existing lifecycle-kernel/journal.js rather than the design's proposed new journal-merge.js file."
+      origin: design-gap
+      status: open
+  late_observations: []
+  terminal_reason: full-discovery-pass-with-warnings
+  recovery:
+    authority_kind: new-discovery-authority
+    approval_reference: approval-verification-successor-002
+    reason: "Authorized full discovery over the reconciled contract and current frozen Candidate after predecessor contract-drift."
+  candidate_reference: verification.successor_discovery_002.candidate
+  git_binding:
+    base_tree_oid: be528798648aa5c9b990b15a98b27dc2e07ab524
+    candidate_tree_oid: e002745f9d2d04ee5dc66749a07c6d485cddafd5
+    post_test_evidence_tree_oid: 07e8248532297b370435ed2693b00b363e1b9536
+    functional_manifest_match: true
+    evidence_region_paths:
+      - openspec/changes/k5-usage-accounting-integrity/state.yaml
+      - openspec/changes/k5-usage-accounting-integrity/verify-report.md
+    outside_evidence_region_writes: []
+
+  archive:
+    status: done
+    artifact: openspec/changes/k5-usage-accounting-integrity/archive-report.md
+    summary: "Archive report and transaction plan prepared; runtime move remains pending."
+    key_decisions:
+      - "Four delta specs sync with stale-baseline fingerprints."
+      - "Two ADR promotions are planned; accepted advisories remain visible."
+
+gates:
+  4r-review-gate:
+    status: approved
+    schema_version: 1
+    classification: high-risk
+    evidence:
+      schema_version: 1
+      fingerprint: sha256:55483fc546e434409c30c01619fe41bb05f6ead51188c14707dc6583cfedd198
+      sources:
+        paths: &k5_review_paths
+          - docs/adr/adr-20260821-004-runtime-owned-budget-carry-over-on-multi-writer-cas-conflict-race.md
+          - docs/adr/adr-20260822-007-runtime-executor-owned-executionusage-interface-and-purge-of-caller-fabricated-input-consumed.md
+          - docs/adr/adr-20260822-009-merge-safe-journal-upsert-by-effect-id-and-peer-mid-op-ticket-preservation-in-authoritystore.md
+          - docs/adr/adr-20260822-011-contractual-zero-delta-scoped-to-stagnant-effect-bearing-code-mutations.md
+          - openspec/changes/k5-usage-accounting-integrity/apply-progress.md
+          - openspec/changes/k5-usage-accounting-integrity/decisions/adr-001.md
+          - openspec/changes/k5-usage-accounting-integrity/decisions/adr-002.md
+          - openspec/changes/k5-usage-accounting-integrity/design.md
+          - openspec/changes/k5-usage-accounting-integrity/proposal.md
+          - openspec/changes/k5-usage-accounting-integrity/specs/authority-store/spec.md
+          - openspec/changes/k5-usage-accounting-integrity/specs/execution-budgets/spec.md
+          - openspec/changes/k5-usage-accounting-integrity/specs/lifecycle-kernel-runtime/spec.md
+          - openspec/changes/k5-usage-accounting-integrity/specs/lifecycle-model-conformance/spec.md
+          - openspec/changes/k5-usage-accounting-integrity/state.yaml
+          - openspec/changes/k5-usage-accounting-integrity/tasks.md
+          - openspec/changes/k5-usage-accounting-integrity/verify-report.md
+          - scripts/k5-e2e-budgets-recovery.test.js
+          - scripts/lib/authority-store/index.js
+          - scripts/lib/authority-store/index.test.js
+          - scripts/lib/filesystem-store.js
+          - scripts/lib/filesystem-store.test.js
+          - scripts/lib/k5-budgets-failures-recovery.test.js
+          - scripts/lib/k5-lifecycle-model.test.js
+          - scripts/lib/lifecycle-kernel/index.js
+          - scripts/lib/lifecycle-kernel/index.test.js
+          - scripts/lib/lifecycle-kernel/journal.js
+          - scripts/lib/lifecycle-kernel/journal.test.js
+          - scripts/lib/lifecycle-kernel/memory-store.js
+          - scripts/lib/lifecycle-kernel/reducer.js
+          - scripts/lib/lifecycle-kernel/reducer.test.js
+          - scripts/lib/lifecycle-model.js
+          - scripts/lib/lifecycle-model.test.js
+          - scripts/lib/minimal-kernel-harness.js
+          - scripts/lib/minimal-kernel-harness.test.js
+        capabilities:
+          - runtime
+        operation_types:
+          - add
+          - modify
+        dependencies: []
+        facts:
+          - code: design-risk
+            source: design
+            detail: "High-risk accounting integrity across runtime, journal, reducers, stores, model, and E2E evidence"
+          - code: metadata-runtime
+            source: metadata
+            detail: runtime
+          - code: diff-auth-permission
+            source: real-diff
+            detail: "scripts/lib/lifecycle-kernel/index.js,scripts/lib/lifecycle-model.js"
+          - code: verify-readability
+            source: verify
+            detail: "K5-W-001: shared absorbing merge lives in lifecycle-kernel/journal.js rather than design-proposed journal-merge.js; semantics pass"
+    generalist:
+      status: needs-specialist
+      specialists:
+        - risk
+        - reliability
+        - readability
+      reason: "signals=diff-auth-permission,metadata-runtime,verify-readability;dimensions=risk,reliability,readability"
+    depth:
+      review: strict
+    escalation_reason: null
+    dimensions:
+      risk:
+        selected: true
+        reasons:
+          - code: high-risk-override
+            source: override
+            detail: "Classification requires full 4R"
+            precedence: 0
+          - code: diff-auth-permission
+            source: real-diff
+            detail: "scripts/lib/lifecycle-kernel/index.js,scripts/lib/lifecycle-model.js"
+            precedence: 2
+          - code: generalist-escalation
+            source: generalist
+            detail: "signals=diff-auth-permission,metadata-runtime,verify-readability;dimensions=risk,reliability,readability"
+            precedence: 3
+          - code: design-risk
+            source: design
+            detail: "High-risk accounting integrity across runtime, journal, reducers, stores, model, and E2E evidence"
+            precedence: 4
+      reliability:
+        selected: true
+        reasons:
+          - code: high-risk-override
+            source: override
+            detail: "Classification requires full 4R"
+            precedence: 0
+          - code: generalist-escalation
+            source: generalist
+            detail: "signals=diff-auth-permission,metadata-runtime,verify-readability;dimensions=risk,reliability,readability"
+            precedence: 3
+          - code: metadata-runtime
+            source: metadata
+            detail: runtime
+            precedence: 5
+      resilience:
+        selected: true
+        reasons:
+          - code: high-risk-override
+            source: override
+            detail: "Classification requires full 4R"
+            precedence: 0
+      readability:
+        selected: true
+        reasons:
+          - code: high-risk-override
+            source: override
+            detail: "Classification requires full 4R"
+            precedence: 0
+          - code: verify-readability
+            source: verify
+            detail: "K5-W-001: shared absorbing merge lives in lifecycle-kernel/journal.js rather than design-proposed journal-merge.js; semantics pass"
+            precedence: 1
+          - code: generalist-escalation
+            source: generalist
+            detail: "signals=diff-auth-permission,metadata-runtime,verify-readability;dimensions=risk,reliability,readability"
+            precedence: 3
+    selected_specialists:
+      - risk
+      - reliability
+      - resilience
+      - readability
+    candidate_id: sha256:d0612a9c80d617c4c859855d32db2d193b1a280788ad323f722292333d1afb63
+    original_changed_lines: 3000
+    correction_allowance_lines: 200
+    generalist_execution:
+      status: completed
+      skill_resolution: none
+    dispatch_mode: serial-fallback
+    dispatch_rationale: concurrency-slot-cap-3
+    specialist_result_adapter: acceptance-array-joined-v1
+    finding_counts: { BLOCKER: 0, CRITICAL: 3, WARNING: 2, SUGGESTION: 1, blocking_unresolved: 0, blocking_resolved: 3, advisory: 3 }
+    findings_summary: "0 BLOCKER, 0 unresolved CRITICAL, 2 advisory WARNING, 1 advisory SUGGESTION"
+    advisory_acceptance:
+      approval_reference: approval-archive-advisories-001
+      accepted_at: 2026-08-22T21:53:58Z
+      includes:
+        - K5-W-001
+        - F-7a4c0b652a913fd4
+        - F-142612f1599590b8
+        - F-415ae19d03cbd218
+    next_action: {"type":"stop","reason":"all-remediation-slices-passed"}
+    archive_allowed: true
+    lineage: {"schema_version":1,"lineage_id":"sha256:8962f69cbdf44fc20370c174d8d83e1214195c954f2736c959a5639a5fa3e843","generation":1,"predecessor_lineage_id":null,"recovery":null,"revision":18,"status":"approved","genesis":{"candidate":{"projection":"workspace","base_tree":"be528798648aa5c9b990b15a98b27dc2e07ab524","candidate_tree":"e002745f9d2d04ee5dc66749a07c6d485cddafd5","paths":["docs/adr/adr-20260821-004-runtime-owned-budget-carry-over-on-multi-writer-cas-conflict-race.md","docs/adr/adr-20260822-007-runtime-executor-owned-executionusage-interface-and-purge-of-caller-fabricated-input-consumed.md","docs/adr/adr-20260822-009-merge-safe-journal-upsert-by-effect-id-and-peer-mid-op-ticket-preservation-in-authoritystore.md","docs/adr/adr-20260822-011-contractual-zero-delta-scoped-to-stagnant-effect-bearing-code-mutations.md","openspec/changes/k5-usage-accounting-integrity/apply-progress.md","openspec/changes/k5-usage-accounting-integrity/decisions/adr-001.md","openspec/changes/k5-usage-accounting-integrity/decisions/adr-002.md","openspec/changes/k5-usage-accounting-integrity/design.md","openspec/changes/k5-usage-accounting-integrity/proposal.md","openspec/changes/k5-usage-accounting-integrity/specs/authority-store/spec.md","openspec/changes/k5-usage-accounting-integrity/specs/execution-budgets/spec.md","openspec/changes/k5-usage-accounting-integrity/specs/lifecycle-kernel-runtime/spec.md","openspec/changes/k5-usage-accounting-integrity/specs/lifecycle-model-conformance/spec.md","openspec/changes/k5-usage-accounting-integrity/state.yaml","openspec/changes/k5-usage-accounting-integrity/tasks.md","openspec/changes/k5-usage-accounting-integrity/verify-report.md","scripts/k5-e2e-budgets-recovery.test.js","scripts/lib/authority-store/index.js","scripts/lib/authority-store/index.test.js","scripts/lib/filesystem-store.js","scripts/lib/filesystem-store.test.js","scripts/lib/k5-budgets-failures-recovery.test.js","scripts/lib/k5-lifecycle-model.test.js","scripts/lib/lifecycle-kernel/index.js","scripts/lib/lifecycle-kernel/index.test.js","scripts/lib/lifecycle-kernel/journal.js","scripts/lib/lifecycle-kernel/journal.test.js","scripts/lib/lifecycle-kernel/memory-store.js","scripts/lib/lifecycle-kernel/reducer.js","scripts/lib/lifecycle-kernel/reducer.test.js","scripts/lib/lifecycle-model.js","scripts/lib/lifecycle-model.test.js","scripts/lib/minimal-kernel-harness.js","scripts/lib/minimal-kernel-harness.test.js"],"diff_hash":"sha256:ecbd2dd8859b723ee6e7ac5d7305df3696411dd409e293e9fde7e8cce52be805","paths_digest":"sha256:ff3846b91b93a51d08be760e4baca75bbd7dddf7af74f1225cc10b88b34bdd80","authored_lines":2702,"original_changed_lines":3000},"candidate_id":"sha256:d0612a9c80d617c4c859855d32db2d193b1a280788ad323f722292333d1afb63","paths":["docs/adr/adr-20260821-004-runtime-owned-budget-carry-over-on-multi-writer-cas-conflict-race.md","docs/adr/adr-20260822-007-runtime-executor-owned-executionusage-interface-and-purge-of-caller-fabricated-input-consumed.md","docs/adr/adr-20260822-009-merge-safe-journal-upsert-by-effect-id-and-peer-mid-op-ticket-preservation-in-authoritystore.md","docs/adr/adr-20260822-011-contractual-zero-delta-scoped-to-stagnant-effect-bearing-code-mutations.md","openspec/changes/k5-usage-accounting-integrity/apply-progress.md","openspec/changes/k5-usage-accounting-integrity/decisions/adr-001.md","openspec/changes/k5-usage-accounting-integrity/decisions/adr-002.md","openspec/changes/k5-usage-accounting-integrity/design.md","openspec/changes/k5-usage-accounting-integrity/proposal.md","openspec/changes/k5-usage-accounting-integrity/specs/authority-store/spec.md","openspec/changes/k5-usage-accounting-integrity/specs/execution-budgets/spec.md","openspec/changes/k5-usage-accounting-integrity/specs/lifecycle-kernel-runtime/spec.md","openspec/changes/k5-usage-accounting-integrity/specs/lifecycle-model-conformance/spec.md","openspec/changes/k5-usage-accounting-integrity/state.yaml","openspec/changes/k5-usage-accounting-integrity/tasks.md","openspec/changes/k5-usage-accounting-integrity/verify-report.md","scripts/k5-e2e-budgets-recovery.test.js","scripts/lib/authority-store/index.js","scripts/lib/authority-store/index.test.js","scripts/lib/filesystem-store.js","scripts/lib/filesystem-store.test.js","scripts/lib/k5-budgets-failures-recovery.test.js","scripts/lib/k5-lifecycle-model.test.js","scripts/lib/lifecycle-kernel/index.js","scripts/lib/lifecycle-kernel/index.test.js","scripts/lib/lifecycle-kernel/journal.js","scripts/lib/lifecycle-kernel/journal.test.js","scripts/lib/lifecycle-kernel/memory-store.js","scripts/lib/lifecycle-kernel/reducer.js","scripts/lib/lifecycle-kernel/reducer.test.js","scripts/lib/lifecycle-model.js","scripts/lib/lifecycle-model.test.js","scripts/lib/minimal-kernel-harness.js","scripts/lib/minimal-kernel-harness.test.js"],"classification":"high-risk","selected_dimensions":["risk","reliability","resilience","readability"],"evidence_fingerprint":"sha256:55483fc546e434409c30c01619fe41bb05f6ead51188c14707dc6583cfedd198","original_changed_lines":3000,"authored_lines":2702},"current_candidate_id":"sha256:9c3edded50448b2dbe06a95ca5b41e5e79efd5fb7c4b6ab91929d7035c3abec3","current_candidate":{"projection":"workspace","base_tree":"be528798648aa5c9b990b15a98b27dc2e07ab524","candidate_tree":"04fbc6f2f8893f1cde5ab01060f037b7636fbfc3","paths":["docs/adr/adr-20260821-004-runtime-owned-budget-carry-over-on-multi-writer-cas-conflict-race.md","docs/adr/adr-20260822-007-runtime-executor-owned-executionusage-interface-and-purge-of-caller-fabricated-input-consumed.md","docs/adr/adr-20260822-009-merge-safe-journal-upsert-by-effect-id-and-peer-mid-op-ticket-preservation-in-authoritystore.md","docs/adr/adr-20260822-011-contractual-zero-delta-scoped-to-stagnant-effect-bearing-code-mutations.md","openspec/changes/k5-usage-accounting-integrity/apply-progress.md","openspec/changes/k5-usage-accounting-integrity/decisions/adr-001.md","openspec/changes/k5-usage-accounting-integrity/decisions/adr-002.md","openspec/changes/k5-usage-accounting-integrity/design.md","openspec/changes/k5-usage-accounting-integrity/proposal.md","openspec/changes/k5-usage-accounting-integrity/specs/authority-store/spec.md","openspec/changes/k5-usage-accounting-integrity/specs/execution-budgets/spec.md","openspec/changes/k5-usage-accounting-integrity/specs/lifecycle-kernel-runtime/spec.md","openspec/changes/k5-usage-accounting-integrity/specs/lifecycle-model-conformance/spec.md","openspec/changes/k5-usage-accounting-integrity/state.yaml","openspec/changes/k5-usage-accounting-integrity/tasks.md","openspec/changes/k5-usage-accounting-integrity/verify-report.md","scripts/k5-e2e-budgets-recovery.test.js","scripts/lib/authority-store/index.js","scripts/lib/authority-store/index.test.js","scripts/lib/filesystem-store.js","scripts/lib/filesystem-store.test.js","scripts/lib/k5-budgets-failures-recovery.test.js","scripts/lib/k5-lifecycle-model.test.js","scripts/lib/lifecycle-kernel/index.js","scripts/lib/lifecycle-kernel/index.test.js","scripts/lib/lifecycle-kernel/journal.js","scripts/lib/lifecycle-kernel/journal.test.js","scripts/lib/lifecycle-kernel/memory-store.js","scripts/lib/lifecycle-kernel/reducer.js","scripts/lib/lifecycle-kernel/reducer.test.js","scripts/lib/lifecycle-model.js","scripts/lib/lifecycle-model.test.js","scripts/lib/minimal-kernel-harness.js","scripts/lib/minimal-kernel-harness.test.js"],"diff_hash":"sha256:62e8530e7f2a8eaf9f9771988b68193baf222af6abedd5207ef870698f31db76","paths_digest":"sha256:ff3846b91b93a51d08be760e4baca75bbd7dddf7af74f1225cc10b88b34bdd80","authored_lines":2702,"original_changed_lines":3000},"lenses":{"risk":{"selected":true,"status":"completed","request_id":"k5-4r-start-risk-001","result_digest":"sha256:af30e31f0f4e54027d25941ae28f4f6bc2ed45a1c65764fed4f1b4fdda4f6230","result":{"findings":[{"severity":"CRITICAL","summary":"El carry-over de ExecutionUsage pendiente no es durable y puede perderse al recrear el runtime después de un CAS conflict.","acceptance_criteria":"Persistir el carry-over pendiente, vinculado de forma inequívoca a subject, node y efecto/operación, en el estado autoritativo o journal sujeto al mismo CAS; al reconstruir createKernelRuntime, recuperar y aplicar ese delta antes de aceptar una transición que omita el efecto completed; añadir una prueba de reinicio/recreación del runtime entre el CAS conflict post-efecto y el retry que demuestre un único débito."}]},"operation":null,"result_request_id":"k5-4r-result-risk-001"},"reliability":{"selected":true,"status":"completed","request_id":"k5-4r-start-reliability-001","result_digest":"sha256:199dde454e5cda7f6a088c67e0f52cf2d9c9ba0827af8103de1ad3033b5e00a4","result":{"findings":[{"severity":"CRITICAL","summary":"Una reconciliación ya confirmada de un efecto con journal failed vuelve a descontar el usage histórico en cada retry posterior.","acceptance_criteria":"Después de que una reconciliación de journal failed confirme su CAS, un retry posterior del mismo efecto no vuelve a aplicar el usage histórico.; Una prueba emite un efecto { ok: false, usage: { turns: 3 } }, reconcilia una vez con CAS satisfactoria, emite un permiso nuevo y repite la operación; el presupuesto se mantiene en 7 desde 10 y el executor sigue con exactamente una invocación.; La prueba conserva la evidencia del journal y confirma que el estado no permite ni redébito ni nueva ejecución física."},{"severity":"CRITICAL","summary":"Un resultado falsy del executor evita la validación obligatoria de ExecutionUsage.","acceptance_criteria":"Todo retorno del effectExecutor, incluidos undefined y null, pasa por la validación de ExecutionUsage antes de que el journal pueda marcarse completed.; Las pruebas para async () => undefined y async () => null devuelven execution-usage-required, no avanzan el estado ni consumen un receipt como éxito, y no toman usage de argumentos del caller.; La evidencia de journal resultante permanece fail-closed para que un retry no pueda reejecutar o contabilizar de forma ambigua."}]},"operation":null,"result_request_id":"k5-4r-result-reliability-001"},"resilience":{"selected":true,"status":"completed","request_id":"k5-4r-start-resilience-001","result_digest":"sha256:bf899eefb87f58a4b73fec924fbf2996fde49c757a71be471dbfc30d6e0e656f","result":{"findings":[{"severity":"WARNING","summary":"La liberación del lock de FileSystemStore silencia fallos de lectura o eliminación y puede dejar un lock huérfano tras una operación confirmada.","acceptance_criteria":"Los fallos al leer o eliminar el lock durante el finally no se silencian: se devuelven como resultado controlado o se registran con lockPath, ownerToken y el estado de la operación ya confirmada.; Una siguiente operación distingue de forma segura un lock activo de uno huérfano y ofrece una recuperación que no pueda eliminar el lock de un escritor vivo.; Existe una regresión que inyecta fallo de fs.readFile o fs.unlink durante la liberación, verifica que el registro confirmado sigue íntegro y demuestra la recuperación de una operación posterior sin reejecutar el efecto."}]},"operation":null,"result_request_id":"k5-4r-result-resilience-001"},"readability":{"selected":true,"status":"completed","request_id":"k5-4r-start-readability-001","result_digest":"sha256:515deaf8b47a57551975799c1ab37c23de72c13ad0f0aab72fdc59dc2720e977","result":{"findings":[{"severity":"WARNING","summary":"La precedencia absorbente de completed está comprimida en un ternario sin explicar la decisión de accounting.","acceptance_criteria":"Documentar inmediatamente sobre mergeJournalEntries o sobre la condición de la línea 30 que completed es absorbente para impedir que una actualización stale degrade evidencia ya confirmada, y que las entradas sin effect_id permanecen append-only; conservar la prueba de monotonicidad existente."},{"severity":"SUGGESTION","summary":"La aplicación de la penalización zero-delta supera tres niveles de anidación.","acceptance_criteria":"Extraer la actualización de presupuesto/agotamiento de nodo y autoridad a un helper con nombre explícito —por ejemplo applyZeroDeltaPenalty— o usar guard clauses, dejando la rama isZeroDelta como una secuencia lineal sin más de tres niveles de anidación; mantener los tests de zero-delta directo y CAS-retry."}]},"operation":null,"result_request_id":"k5-4r-result-readability-001"}},"findings":[{"id":"F-1efcc0485cdd81c4","owner":"risk","severity":"CRITICAL","summary":"El carry-over de ExecutionUsage pendiente no es durable y puede perderse al recrear el runtime después de un CAS conflict.","acceptance_criteria":"Persistir el carry-over pendiente, vinculado de forma inequívoca a subject, node y efecto/operación, en el estado autoritativo o journal sujeto al mismo CAS; al reconstruir createKernelRuntime, recuperar y aplicar ese delta antes de aceptar una transición que omita el efecto completed; añadir una prueba de reinicio/recreación del runtime entre el CAS conflict post-efecto y el retry que demuestre un único débito.","blocking":true,"resolution":"resolved"},{"id":"F-5a4e33b9f87116e7","owner":"reliability","severity":"CRITICAL","summary":"Una reconciliación ya confirmada de un efecto con journal failed vuelve a descontar el usage histórico en cada retry posterior.","acceptance_criteria":"Después de que una reconciliación de journal failed confirme su CAS, un retry posterior del mismo efecto no vuelve a aplicar el usage histórico.; Una prueba emite un efecto { ok: false, usage: { turns: 3 } }, reconcilia una vez con CAS satisfactoria, emite un permiso nuevo y repite la operación; el presupuesto se mantiene en 7 desde 10 y el executor sigue con exactamente una invocación.; La prueba conserva la evidencia del journal y confirma que el estado no permite ni redébito ni nueva ejecución física.","blocking":true,"resolution":"resolved"},{"id":"F-a2fb29d6c75a697c","owner":"reliability","severity":"CRITICAL","summary":"Un resultado falsy del executor evita la validación obligatoria de ExecutionUsage.","acceptance_criteria":"Todo retorno del effectExecutor, incluidos undefined y null, pasa por la validación de ExecutionUsage antes de que el journal pueda marcarse completed.; Las pruebas para async () => undefined y async () => null devuelven execution-usage-required, no avanzan el estado ni consumen un receipt como éxito, y no toman usage de argumentos del caller.; La evidencia de journal resultante permanece fail-closed para que un retry no pueda reejecutar o contabilizar de forma ambigua.","blocking":true,"resolution":"resolved"},{"id":"F-7a4c0b652a913fd4","owner":"resilience","severity":"WARNING","summary":"La liberación del lock de FileSystemStore silencia fallos de lectura o eliminación y puede dejar un lock huérfano tras una operación confirmada.","acceptance_criteria":"Los fallos al leer o eliminar el lock durante el finally no se silencian: se devuelven como resultado controlado o se registran con lockPath, ownerToken y el estado de la operación ya confirmada.; Una siguiente operación distingue de forma segura un lock activo de uno huérfano y ofrece una recuperación que no pueda eliminar el lock de un escritor vivo.; Existe una regresión que inyecta fallo de fs.readFile o fs.unlink durante la liberación, verifica que el registro confirmado sigue íntegro y demuestra la recuperación de una operación posterior sin reejecutar el efecto.","blocking":false,"resolution":"advisory"},{"id":"F-142612f1599590b8","owner":"readability","severity":"WARNING","summary":"La precedencia absorbente de completed está comprimida en un ternario sin explicar la decisión de accounting.","acceptance_criteria":"Documentar inmediatamente sobre mergeJournalEntries o sobre la condición de la línea 30 que completed es absorbente para impedir que una actualización stale degrade evidencia ya confirmada, y que las entradas sin effect_id permanecen append-only; conservar la prueba de monotonicidad existente.","blocking":false,"resolution":"advisory"},{"id":"F-415ae19d03cbd218","owner":"readability","severity":"SUGGESTION","summary":"La aplicación de la penalización zero-delta supera tres niveles de anidación.","acceptance_criteria":"Extraer la actualización de presupuesto/agotamiento de nodo y autoridad a un helper con nombre explícito —por ejemplo applyZeroDeltaPenalty— o usar guard clauses, dejando la rama isZeroDelta como una secuencia lineal sin más de tres niveles de anidación; mantener los tests de zero-delta directo y CAS-retry.","blocking":false,"resolution":"advisory"}],"findings_digest":"sha256:336ba67c95f7eefd0140f987c48a2ec5fd2824338b14feebcc6b9d3ab98ae530","correction_budget":{"limit_lines":200,"used_lines":0,"failed_attempts":0,"max_failed_attempts":3},"correction_history":[],"validation_history":[],"follow_ups":[],"pending_operation":null,"pending_correction":null,"terminal_reason":"all-remediation-slices-passed","remediation_schema_version":2,"remediation_migration":{"source_digest":"sha256:0e35fb29a7190f19fac633899944f4885424bb6e2f75fbc131c5379211d768fc","manifest_digest":"sha256:55fa1b2ff1e3ad482c8e8ba26f0dce6f9e23b775424e2c9d3faf64453759ee39","legacy_used_lines":0,"legacy_failed_attempts":0,"migrated_at":"deterministic"},"slice_order":["S-b3779877b635627b","S-f561fc61fc0f9aa7","S-02826ccbaaaf5ef6"],"active_slice_id":null,"correction_slices":{"S-b3779877b635627b":{"slice_id":"S-b3779877b635627b","root_cause_key":"durable-carryover-restart","finding_ids":["F-1efcc0485cdd81c4"],"evidence_digests":["sha256:150fcc09ac7448fc0a73cf6361a101f07ff4b6dcf01d60d4a18b50f5cfa7898f"],"permitted_paths":["scripts/lib/lifecycle-kernel/index.js"],"resolutions":{"F-1efcc0485cdd81c4":"unresolved"},"status":"passed","used_lines":84,"failed_attempts":0,"limit_lines":200,"max_failed_attempts":3,"correction_history":[{"slice_id":"S-b3779877b635627b","request_id":"k5-4r-correct-S-b3779877b635627b-001","finding_ids":["F-1efcc0485cdd81c4"],"paths":["scripts/lib/lifecycle-kernel/index.js"],"base_candidate_id":"sha256:d0612a9c80d617c4c859855d32db2d193b1a280788ad323f722292333d1afb63","forecast_lines":200,"actual_changed_lines":84,"record_request_id":"k5-4r-record-S-b3779877b635627b-001","corrected_candidate_id":"sha256:03c0c05c8ad085be2127dbfda019e1f3397d6d4b60a07f5722849bc702c92d68"}],"validation_history":[{"request_id":"k5-4r-validate-S-b3779877b635627b-001","outcomes":[{"id":"F-1efcc0485cdd81c4","status":"resolved"}],"regression":{"detected":false,"evidence":["La delta exacta c1d172952324071c19b51f0e2b051ec02e0fb79c..4fd7c1f67829ff21c4053beef2cd4b004802889c es 67 inserciones + 17 eliminaciones = 84 líneas, limitada a scripts/lib/lifecycle-kernel/index.js; git diff --check no reportó errores.","node --test scripts/lib/lifecycle-kernel/index.test.js: 50/50 pasaron, incluidas las regresiones de los otros slices.","Runtime recreado conservó accounting pendiente y lo aplicó una vez; no hubo regresión causal contra los otros slices."],"impacted_slices":[]},"result":"passed"}],"regression_history":[],"legacy_correction_refs":[],"legacy_validation_refs":[]},"S-f561fc61fc0f9aa7":{"slice_id":"S-f561fc61fc0f9aa7","root_cause_key":"failed-reconciliation-rededebit","finding_ids":["F-5a4e33b9f87116e7"],"evidence_digests":["sha256:be223bad762cd0fba27e5c2051a6af530b30c4e9b6c71f53921919abacf756dc"],"permitted_paths":["scripts/k5-e2e-budgets-recovery.test.js","scripts/lib/lifecycle-kernel/index.js","scripts/lib/lifecycle-kernel/index.test.js"],"resolutions":{"F-5a4e33b9f87116e7":"unresolved"},"status":"passed","used_lines":60,"failed_attempts":0,"limit_lines":200,"max_failed_attempts":3,"correction_history":[{"slice_id":"S-f561fc61fc0f9aa7","request_id":"k5-4r-correct-S-f561fc61fc0f9aa7-001","finding_ids":["F-5a4e33b9f87116e7"],"paths":["scripts/k5-e2e-budgets-recovery.test.js","scripts/lib/lifecycle-kernel/index.js","scripts/lib/lifecycle-kernel/index.test.js"],"base_candidate_id":"sha256:03c0c05c8ad085be2127dbfda019e1f3397d6d4b60a07f5722849bc702c92d68","forecast_lines":200,"actual_changed_lines":60,"record_request_id":"k5-4r-record-S-f561fc61fc0f9aa7-001","corrected_candidate_id":"sha256:68168ac474e2b22de98e71ac2b52e8421485c923c8c7416b7f52757743967eb6"}],"validation_history":[{"request_id":"k5-4r-validate-S-f561fc61fc0f9aa7-001","outcomes":[{"id":"F-5a4e33b9f87116e7","status":"resolved"}],"regression":{"detected":false,"evidence":["La prueba unitaria confirma 10 → 7 en la primera conciliación, recrea runtime, otro retry mantiene 7, una invocación y journal failed.","La prueba E2E 1b confirma turns, commands y effect_attempts sin redébito ni reejecución.","La prueba dirigida del slice durable pasó y no hay regresión causal sobre ningún otro slice."],"impacted_slices":[]},"result":"passed"}],"regression_history":[],"legacy_correction_refs":[],"legacy_validation_refs":[]},"S-02826ccbaaaf5ef6":{"slice_id":"S-02826ccbaaaf5ef6","root_cause_key":"falsy-executor-usage-validation","finding_ids":["F-a2fb29d6c75a697c"],"evidence_digests":["sha256:aeeaaccb0430adfd62b2cc8b3159c4c0dc017eb1645e51e8e71f2e36b1e92a95"],"permitted_paths":["scripts/lib/lifecycle-kernel/index.js","scripts/lib/lifecycle-kernel/index.test.js"],"resolutions":{"F-a2fb29d6c75a697c":"unresolved"},"status":"passed","used_lines":95,"failed_attempts":0,"limit_lines":200,"max_failed_attempts":3,"correction_history":[{"slice_id":"S-02826ccbaaaf5ef6","request_id":"k5-4r-correct-S-02826ccbaaaf5ef6-001","finding_ids":["F-a2fb29d6c75a697c"],"paths":["scripts/lib/lifecycle-kernel/index.js","scripts/lib/lifecycle-kernel/index.test.js"],"base_candidate_id":"sha256:68168ac474e2b22de98e71ac2b52e8421485c923c8c7416b7f52757743967eb6","forecast_lines":200,"actual_changed_lines":95,"record_request_id":"k5-4r-record-S-02826ccbaaaf5ef6-001","corrected_candidate_id":"sha256:9c3edded50448b2dbe06a95ca5b41e5e79efd5fb7c4b6ab91929d7035c3abec3"}],"validation_history":[{"request_id":"k5-4r-validate-S-02826ccbaaaf5ef6-001","outcomes":[{"id":"F-a2fb29d6c75a697c","status":"resolved"}],"regression":{"detected":false,"evidence":["Hashes exactos index.js 5adc2e4f...c7f9 e index.test.js cca7cb5f...9f46 coinciden con Candidate corregido.","Validación dirigida 5/5 cubre caller fallback, undefined, null, failed sin redébito y carry-over particionado.","Suite focal index.test.js 53/53 PASS.","Probe undefined: blocked execution-usage-required, journal unknown, 0 receipts, estado intacto, retry reconciliation-required con una invocación."],"impacted_slices":[]},"result":"passed"}],"regression_history":[],"legacy_correction_refs":[],"legacy_validation_refs":[]}}}

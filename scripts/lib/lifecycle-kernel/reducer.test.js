@@ -111,7 +111,7 @@ test("missing effect_class on synthetic effect fails requireEffectClass at shell
   assert.equal(requireEffectClass({ kind: "persist-node", payload: {} }).code, "effect-class-required");
 });
 
-test("reduceLifecycle: decrements node budget monotonically on start and custom delta", () => {
+test("reduceLifecycle: decrements node budget only from runtime-owned deltas", () => {
   const state = {
     schema_version: 1,
     status: "ready",
@@ -128,11 +128,11 @@ test("reduceLifecycle: decrements node budget monotonically on start and custom 
   const started = reduceLifecycle(state, withRuntimePermit({
     operation: "start",
     arguments: { node_id: "n1" },
-    consumed: { patches: 1, commands: 2 },
+    runtime_consumed: { turns: 1, patches: 1, commands: 2 },
   }));
 
   assert.equal(started.state.nodes.n1.attempt, 1);
-  assert.equal(started.state.nodes.n1.budget.turns, 4); // turns decremented by 1 on start
+  assert.equal(started.state.nodes.n1.budget.turns, 4);
   assert.equal(started.state.nodes.n1.budget.patches, 1);
   assert.equal(started.state.nodes.n1.budget.commands, 8);
 });

@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.15] - 2026-08-23
+
+### Fixed
+- **Integridad de contabilidad de uso K5 (`k5-usage-accounting-integrity`)**: Corregida la aplicación exactamente una vez de `ExecutionUsage` en éxitos, fallos y reintentos CAS. El runtime conserva el carry-over entre recreaciones sin volver a debitar efectos fallidos ya reconciliados, trata los resultados `undefined`/`null` del executor de forma cerrada y mantiene el estado `completed` del journal como absorbente durante merges concurrentes.
+- **Semántica de zero-delta y reconciliación durable**: Las reparaciones sin progreso efectivo conservan la penalización dual de zero-delta; la reconciliación distingue consumo físico nuevo de resultados históricos para evitar duplicación o pérdida presupuestaria.
+
+### Changed
+- **Trazabilidad SDD y remediación 4R**: Archivados proposal, specs, diseño, tareas, evidencia de apply/verify, decisiones arquitectónicas y linajes inmutables. El gate 4R completo cerró sus tres hallazgos críticos mediante slices acotados y validación dirigida; los advisories aceptados permanecen registrados como deuda no bloqueante.
+
+### Tests
+- **Evidencia Strict TDD**: 37/37 escenarios contractuales y 167/167 pruebas focales superadas. La suite completa finalizó con 2408/2410 pruebas superadas y 2 omisiones esperadas por entorno, sin fallos.
+
 ## [2.45.14] - 2026-08-22
 
 ### Fixed

@@ -17,3 +17,6 @@ Hacer que el kernel runtime gestione y preserve de forma automática el carry-ov
 ## Consequences
 - Garantía estricta de monotonicidad presupuestaria (`inv-k5-budget-monotonicity`) en entornos concurrentes multi-writer con carry-over transparente.
 - Reversibilidad: Alta (gestión de carry-over en el contexto de `createKernelRuntime`).
+
+## Reconciliación K5 (2026-08-22)
+El carry-over se separa en consumo previo `P` y consumo físico nuevo `N`. El candidato CAS recibe `P + N`; ante cualquier salida post-efecto sin CAS confirmado se conserva `P + N`, y los resultados históricos del journal nunca forman parte de `N`. Un CAS exitoso borra esa partición.
