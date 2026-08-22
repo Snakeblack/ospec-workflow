@@ -1,7 +1,7 @@
 # ADR-004: Contractual Zero-Delta Scoped to Stagnant Effect-Bearing Code Mutations
 
-- Status: proposed
-- Change: k5-core-remediation
+- Status: accepted
+- Change: k5-concurrency-hardening
 - Date: 2026-08-22
 
 ## Context

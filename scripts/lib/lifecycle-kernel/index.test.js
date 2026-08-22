@@ -1379,7 +1379,10 @@ test("REQ-execution-budgets-003: createKernelRuntime accumulates deltas across a
           },
         ]
       );
-      return { ok: true, changed_lines: 45 };
+      return {
+        ok: true,
+        usage: { commands: 3, patches: 1, changed_lines: 45, wall_time_minutes: 2 },
+      };
     },
   });
 
@@ -1466,6 +1469,136 @@ test("REQ-execution-budgets-004: zero-delta dual penalty exempts operations that
   assert.equal(loaded.state.nodes.n1.budget.turns, 4, "Start should consume only 1 turn, not dual penalized as zero-delta");
   assert.equal(loaded.state.nodes.n1.zero_delta_attempts || 0, 0, "zero_delta_attempts must be 0 for advancing start");
   assert.equal(loaded.state.authority_budget.effect_attempts, 2, "Authority attempts should be 2 (start consumes 1 attempt)");
+});
+
+test("REQ-execution-budgets-003: caller-supplied input.consumed is rejected as usage authority and result.usage is used exclusively", async () => {
+  const pendingState = {
+    schema_version: 1,
+    status: "ready",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "pending",
+        attempt: 0,
+        budget: { schema_version: 1, turns: 10, commands: 20 },
+      },
+    },
+    authority_budget: { schema_version: 1, effect_attempts: 5 },
+  };
+  const store = createAuthorityStore({ initial: { state: pendingState, journal: [] } });
+  const runtime = createKernelRuntime({ store });
+  const head = await store.load();
+
+  const permit = runtime.issuePermitForSelectedTransition({
+    operation: "start",
+    expected_revision: head.revision,
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(permit.ok, true);
+
+  // Caller passes inflated input.consumed: { turns: 99, effect_attempts: 99 }
+  // effectExecutor causes a CAS race in parallel and returns genuine usage: { turns: 2, commands: 3, effect_attempts: 1 }
+  const res = await runtime.runOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    operationPermit: permit.permit,
+    consumed: { turns: 99, effect_attempts: 99, commands: 99 },
+    effectExecutor: async () => {
+      // Advance head concurrently while effect is in-flight using current live head revision
+      const currentHead = await store.load();
+      await store.compareAndSwap(
+        DEFAULT_SUBJECT_ID,
+        currentHead.revision,
+        { ...pendingState, status: "blocked", nodes: { n1: { id: "n1", phase: "failed", attempt: 99 } } },
+        []
+      );
+      return {
+        ok: true,
+        usage: { turns: 2, commands: 3, effect_attempts: 1 },
+      };
+    },
+  });
+
+  assert.equal(res.outcome, "blocked");
+  assert.equal(res.code, "cas-conflict");
+  // res.consumed_delta must reflect genuine result.usage, ignoring caller's 99
+  assert.equal(res.consumed_delta.turns, 2, "turns delta must come strictly from result.usage");
+  assert.equal(res.consumed_delta.commands, 3, "commands delta must come strictly from result.usage");
+  assert.equal(res.consumed_delta.effect_attempts, 1, "effect_attempts must come strictly from result.usage");
+});
+
+test("REQ-execution-budgets-003 / REQ-operation-permits-005: partitioned carry-over by ${subjectId}:${nodeId} prevents cross-node contamination", async () => {
+  const pendingState = {
+    schema_version: 1,
+    status: "ready",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "pending",
+        attempt: 0,
+        budget: { schema_version: 1, turns: 2, commands: 5 },
+      },
+      n2: {
+        id: "n2",
+        phase: "pending",
+        attempt: 0,
+        budget: { schema_version: 1, turns: 2, commands: 5 },
+      },
+    },
+    authority_budget: { schema_version: 1, effect_attempts: 5 },
+  };
+  const store = createAuthorityStore({ initial: { state: pendingState, journal: [] } });
+  const runtime = createKernelRuntime({ store });
+  const head = await store.load();
+
+  // Issue permit for n1
+  const permitN1 = runtime.issuePermitForSelectedTransition({
+    operation: "start",
+    expected_revision: head.revision,
+    arguments: { node_id: "n1" },
+  });
+
+  // n1 suffers CAS conflict and incurs carry-over (1 turn consumed)
+  const resN1 = await runtime.runOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    operationPermit: permitN1.permit,
+    effectExecutor: async () => {
+      // Advance head concurrently while effect is in-flight using current live head revision
+      const currentHead = await store.load();
+      await store.compareAndSwap(
+        DEFAULT_SUBJECT_ID,
+        currentHead.revision,
+        { ...pendingState, status: "blocked", nodes: { n1: { id: "n1", phase: "failed", attempt: 99 }, n2: pendingState.nodes.n2 } },
+        []
+      );
+      return { ok: true, usage: { turns: 1 } };
+    },
+  });
+  assert.equal(resN1.outcome, "blocked");
+  assert.equal(resN1.code, "cas-conflict");
+
+  // Now n2 runs under the updated revision
+  const headAfter = await store.load();
+  const permitN2 = runtime.issuePermitForSelectedTransition({
+    operation: "start",
+    expected_revision: headAfter.revision,
+    arguments: { node_id: "n2" },
+  });
+  assert.equal(permitN2.ok, true, "Permit for n2 must not be blocked by n1's carry-over");
+
+  // n2 executes successfully
+  const resN2 = await runtime.runOperation({
+    operation: "start",
+    arguments: { node_id: "n2" },
+    operationPermit: permitN2.permit,
+    effectExecutor: async () => ({ ok: true, usage: { turns: 1 } }),
+  });
+  assert.equal(resN2.outcome, "advanced");
+
+  const loadedFinal = await store.load();
+  // n2's budget should have 1 turn consumed by its own operation, NOT decremented by n1's carry-over
+  assert.equal(loadedFinal.state.nodes.n2.budget.turns, 1, "n2 budget must only reflect n2 consumption");
 });
 
 

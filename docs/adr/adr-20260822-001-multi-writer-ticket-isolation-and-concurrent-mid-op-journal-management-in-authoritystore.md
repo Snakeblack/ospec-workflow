@@ -1,7 +1,7 @@
 # ADR-001: Multi-Writer Ticket Isolation and Concurrent Mid-Op Journal Management in AuthorityStore
 
-- Status: proposed
-- Change: k5-core-remediation
+- Status: accepted
+- Change: k5-concurrency-hardening
 - Date: 2026-08-22
 
 ## Context

@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "change": "k5-concurrency-hardening",
+  "created_at": "2026-08-22T17:28:30.000Z",
+  "source_fingerprint": "sha256:8b583d74e8887286d0e6c5caedf9363b6adc9c9f756522e4607147daede1ae87",
+  "spec_writes": [
+    {
+      "domain": "authority-store",
+      "source_delta": "prepared-specs/authority-store/spec.md",
+      "target": "openspec/specs/authority-store/spec.md",
+      "target_before_sha256": "sha256:8b66db862767c842baa447c9994fed79bc9645c9f4102634aafb6a2ff3f9150f",
+      "content_sha256": "sha256:b7061ff5ce1d919386558dbfd7c22394675a6eddc0ff7766e0a39b9ccb032180"
+    },
+    {
+      "domain": "execution-budgets",
+      "source_delta": "prepared-specs/execution-budgets/spec.md",
+      "target": "openspec/specs/execution-budgets/spec.md",
+      "target_before_sha256": "sha256:0018885952fb7d229cf27c819ea8d9e95617129afd79fddafe898f50f9415fa9",
+      "content_sha256": "sha256:9111c823bcf9d2c6fe81b23be69b1bbf473dadfe2bbdf1bcdc74f9fc74061686"
+    },
+    {
+      "domain": "failure-recovery",
+      "source_delta": "prepared-specs/failure-recovery/spec.md",
+      "target": "openspec/specs/failure-recovery/spec.md",
+      "target_before_sha256": "sha256:cc21ba1b9719767fd988862ee03a5eb67ec5da84867063abbf074d221fa77994",
+      "content_sha256": "sha256:ff9d41745219b8620d43a7011d82e6923e255455ff15dde26bc3b558d5417c24"
+    },
+    {
+      "domain": "operation-permits",
+      "source_delta": "prepared-specs/operation-permits/spec.md",
+      "target": "openspec/specs/operation-permits/spec.md",
+      "target_before_sha256": "sha256:147cf36934e3c819d80d1609934177c4f14415efd9696d578ad8d6c8bc677051",
+      "content_sha256": "sha256:157b8823927a3d1afb2c800a82ad66da7684b69146b3b60a77276f0be7d11bce"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260822-007-runtime-executor-owned-executionusage-interface-and-purge-of-caller-fabricated-input-consumed.md",
+      "content_sha256": "sha256:f54511b79b4aad02280128af4dbd2ec715bd9e6a1e739953fc1e6dcf84090b7b"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260822-008-keyed-carry-over-partitioning-by-subjectid-nodeid-for-concurrent-node-isolation.md",
+      "content_sha256": "sha256:3ac8043571e5edd6b49e0525616416ed3d5f728abdaa408c364b7719ad1e3cae"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260822-009-merge-safe-journal-upsert-by-effect-id-and-peer-mid-op-ticket-preservation-in-authoritystore.md",
+      "content_sha256": "sha256:b93554c57cbf08ebf2d9d3a5f60210ac3d8611664d94907b450f0699d7d44fbb"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260822-010-zero-re-execution-guarantee-and-side-effect-deduplication-via-journal-replay.md",
+      "content_sha256": "sha256:977ae0ed170996ae77156562ae24face82c191d462fef69e0492f0d297a3c2c4"
+    },
+    {
+      "source": "decisions/adr-005.md",
+      "target": "docs/adr/adr-20260822-011-contractual-zero-delta-scoped-to-stagnant-effect-bearing-code-mutations.md",
+      "content_sha256": "sha256:ee8befec8878e618e3ee131b3a9632ab87305716217eec35246e1d35b464918c"
+    },
+    {
+      "source": "decisions/adr-006.md",
+      "target": "docs/adr/adr-20260822-012-unified-causal-failure-normalization-in-host-boundary-via-resolveprimaryfailure.md",
+      "content_sha256": "sha256:cd127e1d33c1234ee397adecdb1a6ce60dfe4ee63d61af3e422bab42f243ef71"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "decisions/adr-005.md",
+    "decisions/adr-006.md",
+    "design.md",
+    "prepared-specs/authority-store/spec.md",
+    "prepared-specs/execution-budgets/spec.md",
+    "prepared-specs/failure-recovery/spec.md",
+    "prepared-specs/operation-permits/spec.md",
+    "proposal.md",
+    "specs/authority-store/spec.md",
+    "specs/execution-budgets/spec.md",
+    "specs/failure-recovery/spec.md",
+    "specs/operation-permits/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

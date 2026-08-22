@@ -1,7 +1,7 @@
 # ADR-005: Fail-Closed Default Mapping of Unknown Legacy Routing Tags to Validation Gap
 
-- Status: proposed
-- Change: k5-core-remediation
+- Status: accepted
+- Change: k5-concurrency-hardening
 - Date: 2026-08-22
 
 ## Context

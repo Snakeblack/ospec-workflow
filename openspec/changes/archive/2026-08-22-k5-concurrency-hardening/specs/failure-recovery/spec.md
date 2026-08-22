@@ -1,0 +1,112 @@
+# Delta for Failure Recovery
+
+## MODIFIED Requirements
+
+### Requirement: Causal Failure Recovery Transition Matrix {#REQ-failure-recovery-002}
+
+The runtime, boundary validator (`validateOperationTransition`), transition selector (`selectTransitions`), controlled permit issuer (`issuePermitForSelectedTransition`), and host boundary (`host-boundary.js`) MUST map and enforce resolved causal failures deterministically against explicit allowlisted recovery transitions from `{repair, replan, escalate, stop}`:
+- `code_defect`: when remaining effect attempts > 0, the selector MUST emit `{ kind: "execute", operation: "repair" }` without degrading or renaming the operation to `recover`. If attempts are exhausted, it MUST emit `replan`, `escalate`, or `stop`.
+- `validation_gap`: allows `replan`, `escalate`, `stop` (MUST NOT allow `repair` without design or specification update).
+- `ambiguous_effect`: allows `escalate`, `stop` (MUST NOT allow blind `repair` or blind retry).
+- `cas_conflict`: allows `replan` (re-sync/rebase), `escalate`, `stop`.
+- `environment_tooling`: allows `replan` (host retry/re-dispatch), `escalate`, `stop`.
+
+All components including host boundary error handlers MUST resolve primary failures uniformly using `resolvePrimaryFailure()`. When port, transport, or process failures occur at the host boundary, `host-boundary.js` MUST normalize them through `resolvePrimaryFailure()`, connecting causal failure normalization across all boundaries. The taxonomies of `kind` (`execute`, `decide`, `stop`) and `operation` (`repair`, `recover`, `replan`, `escalate`, `stop`) MUST remain harmonized. When a failure category requires escalation or cannot be repaired within remaining budget quotas, the selector MUST explicitly emit `{ kind: "escalate", operation: "escalate" }` and MUST NOT silently substitute `decide`. The runtime MUST commit `escalate` and `stop` transitions to the Authority Store via CAS as a consolidated terminal outcome without premature abort and without being blocked by budget exhaustion. Transitions not explicitly allowlisted for the resolved failure category MUST fail closed at boundary validation (`validateOperationTransition` and `runKernelOperation`).
+(Previously: Failure resolution was fragmented and host-boundary.js did not uniformly invoke resolvePrimaryFailure when normalizing port/transport failures.)
+
+#### Scenario: Code defect routes to repair without degrading to recover
+
+- GIVEN a resolved failure of category `code_defect` and positive remaining `effect_attempts`
+- WHEN transition selection executes
+- THEN the selector MUST emit transition `{ kind: "execute", operation: "repair" }`
+- AND MUST NOT degrade or rename the operation to `recover`
+
+#### Scenario: Explicit escalate emitted for ambiguous effect without silent decide substitution
+
+- GIVEN a resolved causal failure of category `ambiguous_effect`
+- WHEN transition selection evaluates the next available operations
+- THEN the selector MUST emit `{ kind: "escalate", operation: "escalate" }` and `stop`
+- AND MUST NOT silently substitute `decide` in place of `escalate`
+- AND MUST NOT offer `repair` or blind re-execution
+
+#### Scenario: Escalate and stop transitions consolidate and commit via CAS even under budget exhaustion
+
+- GIVEN a kernel operation executing an `escalate` or `stop` transition under exhausted budgets
+- WHEN `runKernelOperation` processes the transition
+- THEN the runtime MUST commit the consolidated terminal status to the Authority Store via CAS
+- AND MUST NOT abort execution prematurely or fail due to budget exhaustion
+
+#### Scenario: Boundary validation rejects unallowlisted recovery transitions fail-closed
+
+- GIVEN an active failure category `ambiguous_effect`
+- WHEN an unallowlisted transition `repair` is submitted to `validateOperationTransition` or `runKernelOperation`
+- THEN the operation MUST fail closed with zero calls to `effectExecutor`
+
+#### Scenario: Environment fault takes precedence and routes to replan or escalate
+
+- GIVEN an execution failure classified as `environment_tooling`
+- WHEN the transition selector derives available recovery transitions
+- THEN the selector MUST offer `replan` or `escalate`
+- AND MUST NOT classify the fault as a `code_defect` or offer `repair`
+
+#### Scenario: Unified resolvePrimaryFailure resolves mixed failures identically across components
+
+- GIVEN a mixed set of failures containing `code_defect` and `environment_tooling`
+- WHEN evaluated by `selectTransitions`, `issuePermitForSelectedTransition`, and host boundary error handling
+- THEN all components MUST identify `environment_tooling` as the primary failure via `resolvePrimaryFailure()`
+- AND MUST restrict candidate recovery transitions to `replan`, `escalate`, or `stop`
+
+#### Scenario: Host boundary catches transport failure and normalizes via resolvePrimaryFailure
+
+- GIVEN a host boundary invocation encountering a port disconnection or transport timeout
+- WHEN `host-boundary.js` normalizes the error
+- THEN it MUST pass the error through `resolvePrimaryFailure()` to obtain canonical classification `environment_tooling`
+- AND MUST NOT report the error as an unmapped code defect or bypass causal precedence
+
+---
+
+### Requirement: Allowlisted Recovery Transition Matrix {#REQ-failure-recovery-003}
+
+The kernel, controlled permit issuer (`issuePermitForSelectedTransition`), boundary validator (`validateOperationTransition`), execution coordinator (`runKernelOperation`), and host boundary (`host-boundary.js`) MUST map and enforce each canonical failure code strictly to an allowlisted set of valid recovery operations from `{repair, replan, escalate, stop}` based on the primary failure resolved by `resolvePrimaryFailure()`:
+- `code_defect`: allows `repair` (if attempts remain), `replan`, `escalate`, `stop`.
+- `validation_gap`: allows `replan`, `escalate`, `stop` (MUST NOT allow `repair` without design/spec update).
+- `ambiguous_effect`: allows `escalate`, `stop` (MUST NOT allow blind `repair` or blind retry).
+- `cas_conflict`: allows `replan` (re-sync/rebase), `escalate`, `stop`.
+- `environment_tooling`: allows `replan` (host retry/re-dispatch), `escalate`, `stop`.
+
+Terminal control operations (`escalate`, `stop`) MUST be allowlisted across all causal failure categories. Any transition not explicitly allowlisted for the resolved primary failure code MUST fail closed during transition selection, permit issuance, host boundary dispatch, and kernel runtime execution with zero calls to `effectExecutor`.
+(Previously: Allowlisted recovery matrix enforcement did not explicitly integrate host boundary error normalization into unified resolvePrimaryFailure evaluation.)
+
+#### Scenario: Code defect routes to repair when budget allows
+
+- GIVEN a resolved failure of category `code_defect` and positive remaining `effect_attempts`
+- WHEN transition selection executes
+- THEN `repair` MUST be advertised as a valid transition
+- AND unallowlisted operations MUST NOT be offered
+
+#### Scenario: Ambiguous effect rejects blind repair across selector, permit issuer, and runtime
+
+- GIVEN a resolved failure of category `ambiguous_effect`
+- WHEN transition selection, permit issuance, or `validateOperationTransition` runs
+- THEN `repair` MUST NOT be offered or permitted
+- AND the kernel MUST allow only `escalate` or `stop`
+
+#### Scenario: Kernel operation boundary rejects unallowlisted transition for active failure category
+
+- GIVEN an active failure state of category `validation_gap`
+- WHEN a caller attempts to execute `operation: "repair"` via `runKernelOperation`
+- THEN the runtime MUST fail closed with zero calls to `effectExecutor`
+
+#### Scenario: Terminal control transitions are universally allowlisted
+
+- GIVEN any active causal failure category in the taxonomy
+- WHEN `escalate` or `stop` is evaluated
+- THEN the transition MUST be accepted as allowlisted
+- AND MUST NOT be rejected by causal matrix validation
+
+#### Scenario: Host boundary port failure maps to environment tooling and enforces allowlisted transitions via resolvePrimaryFailure
+
+- GIVEN a host transport error occurring during execution
+- WHEN host boundary normalization and permit checking evaluate the failure
+- THEN `resolvePrimaryFailure()` MUST resolve category `environment_tooling`
+- AND the runtime MUST permit only `replan`, `escalate`, or `stop` transitions

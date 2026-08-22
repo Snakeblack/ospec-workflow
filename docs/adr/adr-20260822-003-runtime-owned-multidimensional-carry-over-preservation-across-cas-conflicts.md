@@ -1,7 +1,7 @@
 # ADR-003: Runtime-Owned Multidimensional Carry-Over Preservation Across CAS Conflicts
 
-- Status: proposed
-- Change: k5-core-remediation
+- Status: accepted
+- Change: k5-concurrency-hardening
 - Date: 2026-08-22
 
 ## Context

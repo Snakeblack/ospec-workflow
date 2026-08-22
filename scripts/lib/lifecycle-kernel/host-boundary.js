@@ -6,6 +6,7 @@ const {
   REQUIRED_TRANSPORTS,
   invokeTransportAsync,
 } = require("../host-contract/index.js");
+const { resolvePrimaryFailure } = require("../causal-failure.js");
 
 /**
  * Kernel-owned generic host boundary.
@@ -36,12 +37,35 @@ async function observeHostPort(args) {
   if (!invoker) {
     return normalizeTransportOutcome({ ok: true, outcome: "noop", value: port });
   }
-  return invokeTransportAsync(port, {
+  const outcome = await invokeTransportAsync(port, {
     requestId: args.requestId || `observe:${portName}`,
     signal: args.signal,
     deadlineMs: args.deadlineMs,
     input: args.input || {},
   });
+  if (!outcome.ok) {
+    const rawFailures = [
+      outcome.primary_failure,
+      outcome.failure,
+      ...(Array.isArray(outcome.failures) ? outcome.failures : []),
+    ].filter(Boolean);
+
+    if (rawFailures.length === 0) {
+      rawFailures.push({
+        category: outcome.category || "environment_tooling",
+        code: outcome.code,
+        message: outcome.message,
+      });
+    }
+
+    const primary = resolvePrimaryFailure(rawFailures);
+    return {
+      ...outcome,
+      primary_failure: primary || null,
+      category: primary ? primary.category : (outcome.category || "environment_tooling"),
+    };
+  }
+  return outcome;
 }
 
 /**
@@ -68,12 +92,29 @@ function requirePermitCasAfterHostFault(faultOutcome) {
   if (!faultOutcome || faultOutcome.ok === true) {
     return { ok: true, host_local_mutation_allowed: false };
   }
+  const rawFailures = [
+    faultOutcome.primary_failure,
+    faultOutcome.failure,
+    ...(Array.isArray(faultOutcome.failures) ? faultOutcome.failures : []),
+  ].filter(Boolean);
+
+  if (rawFailures.length === 0) {
+    rawFailures.push({
+      category: faultOutcome.category,
+      code: faultOutcome.code,
+      message: faultOutcome.message,
+    });
+  }
+
+  const primary = resolvePrimaryFailure(rawFailures);
   return {
     ok: true,
     host_local_mutation_allowed: false,
     requires_operation_permit: true,
     requires_cas: true,
     fault_code: faultOutcome.code || faultOutcome.outcome || faultOutcome.failure_class,
+    primary_failure: primary || null,
+    category: primary ? primary.category : (faultOutcome.category || "environment_tooling"),
   };
 }
 

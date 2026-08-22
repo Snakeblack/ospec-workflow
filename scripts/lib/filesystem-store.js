@@ -4,7 +4,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { renameWithFallback } = require("./atomic-write.js");
-const { computeRevision } = require("./authority-store/index.js");
+const { computeRevision, upsertJournalEntries } = require("./authority-store/index.js");
 
 function clone(val) {
   return val !== undefined ? JSON.parse(JSON.stringify(val)) : undefined;
@@ -194,7 +194,7 @@ function createFileSystemStore(options = {}) {
         const current = await this.load();
         const nextRecord = {
           state: current.state,
-          journal: clone(nextJournal),
+          journal: upsertJournalEntries(current.journal, clone(nextJournal)),
           authority: current.authority,
           budgets: current.budgets,
         };
@@ -239,7 +239,9 @@ function createFileSystemStore(options = {}) {
 
         const nextRecord = {
           state: clone(state !== undefined ? state : currentRecord.state),
-          journal: clone(journal !== undefined ? journal : currentRecord.journal),
+          journal: journal !== undefined
+            ? upsertJournalEntries(currentRecord.journal, clone(journal))
+            : currentRecord.journal,
           authority: clone(authority !== undefined ? authority : currentRecord.authority),
           budgets: clone(budgets !== undefined ? budgets : currentRecord.budgets),
         };

@@ -1,7 +1,7 @@
 # ADR-002: Strict Fail-Closed Authoritative Controlled Permit Issuer without input.state Fallback
 
-- Status: proposed
-- Change: k5-core-remediation
+- Status: accepted
+- Change: k5-concurrency-hardening
 - Date: 2026-08-22
 
 ## Context

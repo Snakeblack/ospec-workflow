@@ -1,0 +1,60 @@
+change: "k5-concurrency-hardening"
+status: "archived"
+last_updated: 2026-08-22T17:27:00Z
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k5-concurrency-hardening/proposal.md"
+    summary: "Blindaje de concurrencia K5: ownership real de usage, carry-over particionado, journal merge-safe, preservación de tickets y zero-delta."
+    key_decisions:
+      - "Keyear carry-over por ${subjectId}:${nodeId}"
+      - "Upsert por effect_id en commitJournal y preservar tickets de perdedores CAS"
+      - "Deducir zero-delta sobre effect-bearing code mutation con effectProgress === false"
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k5-concurrency-hardening/specs/execution-budgets/spec.md"
+      - "openspec/changes/k5-concurrency-hardening/specs/authority-store/spec.md"
+      - "openspec/changes/k5-concurrency-hardening/specs/failure-recovery/spec.md"
+      - "openspec/changes/k5-concurrency-hardening/specs/operation-permits/spec.md"
+    summary: "Deltas para execution-budgets, authority-store, failure-recovery y operation-permits formalizando concurrencia, tickets y carry-over."
+    key_decisions:
+      - "ExecutionUsage extraído exclusivamente de result.usage/execution_usage de effectExecutor"
+      - "Particionado de pendingCarryOver por ${subjectId}:${nodeId}"
+      - "Eliminar solo el ticket ganador en CAS preservando tickets de peers"
+  design:
+    status: "done"
+    artifact: "openspec/changes/k5-concurrency-hardening/design.md"
+    summary: "Diseño de blindaje de concurrencia K5: ExecutionUsage runtime-owned, carry-over por ${subjectId}:${nodeId}, journal merge-safe y 6 ADRs aceptados."
+    key_decisions:
+      - "ExecutionUsage extraído de effectExecutor; eliminar input.consumed"
+      - "Particionar carry-over por ${subjectId}:${nodeId} y preservar peer midOpTickets en CAS"
+      - "Contrato zero-delta acotado a mutaciones de código con effectProgress === false"
+    decisions:
+      - "openspec/changes/k5-concurrency-hardening/decisions/adr-001.md"
+      - "openspec/changes/k5-concurrency-hardening/decisions/adr-002.md"
+      - "openspec/changes/k5-concurrency-hardening/decisions/adr-003.md"
+      - "openspec/changes/k5-concurrency-hardening/decisions/adr-004.md"
+      - "openspec/changes/k5-concurrency-hardening/decisions/adr-005.md"
+      - "openspec/changes/k5-concurrency-hardening/decisions/adr-006.md"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k5-concurrency-hardening/tasks.md"
+    summary: "Desglose de 19 tareas en 5 fases (RED-GREEN-REFACTOR) cubriendo las 7 áreas de hardening con forecast de bajo riesgo (~270 líneas)."
+    key_decisions:
+      - "Secuencia TDD estricta por fase con cobertura completa de requerimientos MUST"
+      - "Entrega en PR único sin chained PRs requeridos (riesgo de presupuesto bajo)"
+  apply:
+    status: "done"
+    artifact: "openspec/changes/k5-concurrency-hardening/apply-progress.md"
+    summary: "Implementadas las 19 tareas bajo TDD estricto: journal merge-safe por effect_id, preservación de midOpTickets, ownership de ExecutionUsage, particionado de carry-over por ${subjectId}:${nodeId}, contrato zero-delta, integración causal en host-boundary y suite E2E completa."
+  verify:
+    status: "done"
+    verdict: "PASS"
+    artifact: "openspec/changes/k5-concurrency-hardening/verify-report.md"
+    summary: "Verificación superada (PASS): 19/19 tareas completas, 32/32 escenarios MUST con evidencia runtime-test y 100% de tests passing."
+  archive:
+    status: "done"
+    artifact: "openspec/changes/k5-concurrency-hardening/archive-report.md"
+    summary: "Plan de archivo emitido con 4 specs preparadas, 6 ADRs promovidos e inventario de 21 archivos."
