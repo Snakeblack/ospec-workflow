@@ -5,6 +5,11 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.16] - 2026-08-23
+
+### Fixed
+- **Fallback configurable de tiers (`internal/modelconfig/models_test.go`)**: Alineada la expectativa de la prueba Go para agentes no declarados con `_default: premium` de `models.yaml`, manteniendo la validación cerrada ante rutas o configuraciones inválidas. Este hotfix sucede a `v2.45.15`, cuyo workflow `Build ospec-hooks` falló en macOS, Ubuntu y Windows por la expectativa obsoleta; validación: `go test ./...`, `npm test` y sincronización de manifiestos.
+
 ## [2.45.15] - 2026-08-23
 
 ### Fixed
