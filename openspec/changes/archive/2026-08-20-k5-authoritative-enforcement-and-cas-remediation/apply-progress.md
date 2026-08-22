@@ -2,11 +2,13 @@
 
 - Change Name: `k5-authoritative-enforcement-and-cas-remediation`
 - Version: `2.45.9`
-- Delivery Decision: `size:exception` (remediación integral cohesiva de las 6 fases y 28 tareas en una sola pasada)
+- Delivery Decision: `size:exception` (remediación integral cohesiva de las 6 fases y 31 tareas en una sola pasada)
 - Status: `COMPLETED`
 - Baseline Safety Net: 2382/2382 tests passing (100% PASS)
 
 ---
+
+> **Nota aclaratoria (2026-08-22, change k5-reconciliation):** los contadores originales de este change registraban "28 tareas", pero el conteo verificado de checkboxes de `tasks.md` es **31** (31 × `- [x]`, 0 pendientes), consistente con las 31 filas 1.1–6.5 de esta tabla. La discrepancia estaba en los contadores y resúmenes, no en las tareas; se corrigen 28→31 sin alterar contenido técnico histórico.
 
 ## Strict TDD Evidence Table
 
@@ -53,8 +55,8 @@
   "version": "2.45.9",
   "delivery_strategy": "size:exception",
   "total_phases": 6,
-  "total_tasks": 28,
-  "tasks_completed": 28,
+  "total_tasks": 31,
+  "tasks_completed": 31,
   "test_suite_status": {
     "total_tests": 2382,
     "passed_tests": 2382,

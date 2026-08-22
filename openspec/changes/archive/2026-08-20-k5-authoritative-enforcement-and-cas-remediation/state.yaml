@@ -1,6 +1,9 @@
 change: "k5-authoritative-enforcement-and-cas-remediation"
-status: "archive-planned"
-last_updated: 2026-08-20T20:25:50Z
+# Nota correctiva (2026-08-22, change k5-reconciliation): el status quedo
+# inconsistente como archive-planned tras el archivo real del change; se corrige
+# a archived sin alterar contenido tecnico archivado.
+status: "archived"
+last_updated: 2026-08-22T00:00:00Z
 blocking_questions: []
 phases:
   proposal:
@@ -35,20 +38,20 @@ phases:
   tasks:
     status: "done"
     artifact: "openspec/changes/k5-authoritative-enforcement-and-cas-remediation/tasks.md"
-    summary: "Descomposicion en 6 fases TDD (28 tareas) con reconciliacion completa (11 REQs) y forecast de 6 PRs encadenados (riesgo alto >400 lineas)."
+    summary: "Descomposicion en 6 fases TDD (31 tareas) con reconciliacion completa (11 REQs) y forecast de 6 PRs encadenados (riesgo alto >400 lineas)."
     key_decisions:
-      - "Estrategia TDD de 6 fases y 28 tareas atómicas con trazabilidad REQ"
+      - "Estrategia TDD de 6 fases y 31 tareas atómicas con trazabilidad REQ"
       - "Recomendación de Chained PRs (feature-branch-chain) por riesgo >400 líneas"
       - "Verificación de 0 llamadas a executor en preflight de presupuestos y scope"
   apply:
     status: "done"
     artifact: "openspec/changes/k5-authoritative-enforcement-and-cas-remediation/apply-progress.md"
-    summary: "Implementadas y verificadas las 6 fases (28 tareas): transiciones canónicas, preflight 6+4 con 0 llamadas a executor, args.scope fail-closed sin fallbacks históricos, contabilidad zero-delta dual con evento durable, preservación de presupuesto en CAS conflict con test de 2 writers, sincronización de 7 checkers K5 y release v2.45.9 con 100% PASS."
+    summary: "Implementadas y verificadas las 6 fases (31 tareas): transiciones canónicas, preflight 6+4 con 0 llamadas a executor, args.scope fail-closed sin fallbacks históricos, contabilidad zero-delta dual con evento durable, preservación de presupuesto en CAS conflict con test de 2 writers, sincronización de 7 checkers K5 y release v2.45.9 con 100% PASS."
   verify:
     status: "done"
     artifact: "openspec/changes/k5-authoritative-enforcement-and-cas-remediation/verify-report.md"
     verdict: "PASS"
-    summary: "Verificación 100% PASS: 28/28 tasks, 23/23 escenarios en runtime-test, 7/7 invariantes K5 y suite global de 2380 tests sin regresiones."
+    summary: "Verificación 100% PASS: 31/31 tasks, 23/23 escenarios en runtime-test, 7/7 invariantes K5 y suite global de 2380 tests sin regresiones."
     key_decisions:
       - "Veredicto PASS: cumplimiento total de 11 REQs y 5 blockers remediados"
       - "Validación de inv-k5-budget-monotonicity con 2 writers concurrentes en CAS race"
