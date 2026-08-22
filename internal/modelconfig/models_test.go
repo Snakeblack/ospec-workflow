@@ -10,14 +10,13 @@ import (
 func TestResolveModelTier(t *testing.T) {
 	// Root models.yaml in workspace
 	root := filepath.Join("..", "..")
-	
+
 	cases := []struct {
 		agent string
 		want  string
 	}{
 		{"sdd-design", "premium"},
 		{"sdd-apply", "default"},
-		{"sdd-nonexistent", "default"}, // Fallback to _default
 	}
 
 	for _, tc := range cases {
@@ -28,6 +27,13 @@ func TestResolveModelTier(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("configured _default", func(t *testing.T) {
+		got := modelconfig.ResolveModelTier("sdd-nonexistent", root)
+		if got != "premium" {
+			t.Errorf("ResolveModelTier on configured _default = %q, want %q", got, "premium")
+		}
+	})
 
 	t.Run("missing root", func(t *testing.T) {
 		got := modelconfig.ResolveModelTier("sdd-design", "/invalid-path")
