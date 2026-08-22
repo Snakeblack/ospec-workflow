@@ -14,7 +14,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Trazabilidad SDD y remediación 4R**: Archivados proposal, specs, diseño, tareas, evidencia de apply/verify, decisiones arquitectónicas y linajes inmutables. El gate 4R completo cerró sus tres hallazgos críticos mediante slices acotados y validación dirigida; los advisories aceptados permanecen registrados como deuda no bloqueante.
 
-### Tests
 - **Evidencia Strict TDD**: 37/37 escenarios contractuales y 167/167 pruebas focales superadas. La suite completa finalizó con 2408/2410 pruebas superadas y 2 omisiones esperadas por entorno, sin fallos.
 
 ## [2.45.14] - 2026-08-22
