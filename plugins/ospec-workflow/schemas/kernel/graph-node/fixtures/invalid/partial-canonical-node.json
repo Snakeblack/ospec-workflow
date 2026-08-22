@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "node_id": "partial-canonical-node",
+  "kind": "repair",
+  "operation": "repair-session-rotation",
+  "objective": "Repair session rotation"
+}

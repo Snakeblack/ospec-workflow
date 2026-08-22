@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "repository_id": "repo-1",
+  "projection": "workspace",
+  "base_tree": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "candidate_tree": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "diff_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "paths": [
+    "src/index.js"
+  ],
+  "changed_paths_modes_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "intended_untracked_digest": null,
+  "predecessor_id": null,
+  "relation": "exact"
+}

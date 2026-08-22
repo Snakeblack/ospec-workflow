@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "finding_id": "F-1",
+  "severity": "CRITICAL",
+  "dimension": "risk",
+  "summary": "auth bypass"
+}

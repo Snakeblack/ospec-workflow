@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "failure_id": "fail-defect-002",
+  "category": "code_defect",
+  "code": "TEST_ASSERTION_FAILED",
+  "priority": 5,
+  "blocking_fingerprint": "fp:test-auth-failed-line-42",
+  "details": {
+    "test_file": "src/auth/jwt.test.js",
+    "failing_tests": ["JWT verification throws on expired token"]
+  }
+}

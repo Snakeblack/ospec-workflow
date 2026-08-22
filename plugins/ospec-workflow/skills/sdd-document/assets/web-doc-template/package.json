@@ -1,0 +1,19 @@
+{
+  "name": "web-doc",
+  "private": true,
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "predev": "node scripts/sync-openwiki.mjs",
+    "dev": "astro dev",
+    "prebuild": "node scripts/sync-openwiki.mjs",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.34.0",
+    "astro": "^5.0.0",
+    "astro-mermaid": "^2.1.0",
+    "mermaid": "^11.16.0"
+  }
+}

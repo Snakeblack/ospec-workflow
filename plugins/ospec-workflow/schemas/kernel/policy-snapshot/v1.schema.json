@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/policy-snapshot/v1",
+  "title": "PolicySnapshotV1",
+  "description": "Kernel PolicySnapshot Schema v1 capturing compiler, classifier, runtime versions and effective rules.",
+  "type": "object",
+  "schema_version": 1,
+  "required": [
+    "schema_version",
+    "snapshot_id",
+    "policy_bundle_digest",
+    "compiler_version",
+    "classifier_version",
+    "runtime_version",
+    "effective_rules"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "snapshot_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "policy_bundle_digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "compiler_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "classifier_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "runtime_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "effective_rules": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}
