@@ -910,27 +910,35 @@ async function checkK5ZeroDeltaConsumption() {
   const { createAuthorityStore, createKernelRuntime } = require("./lifecycle-kernel/index.js");
   const initial = {
     schema_version: 1,
-    status: "running",
+    status: "blocked",
     nodes: {
       n1: {
         id: "n1",
-        phase: "started",
+        phase: "failed",
         attempt: 1,
+        failure: { category: "code_defect", code: "TEST_FAIL" },
         budget: { schema_version: 1, turns: 5, effect_attempts: 3, patches: 5, commands: 10, wall_time_minutes: 30, changed_lines: 400, allowed_paths: [] },
       },
     },
+    authority_budget: { schema_version: 1, effect_attempts: 3 },
   };
   const store = createAuthorityStore({ initial: { state: initial, journal: [] } });
   const runtime = createKernelRuntime({ store });
   const head = await store.load();
   const issued = runtime.issuePermitForSelectedTransition({
-    operation: "fail",
+    operation: "repair",
     expected_revision: head.revision,
-    arguments: { node_id: "n1" },
+    arguments: {
+      node_id: "n1",
+      scope: { node_ids: ["n1"], allowed_paths: ["src/**"], finding_ids: ["F-1"] },
+    },
   });
   await runtime.runOperation({
-    operation: "fail",
-    arguments: { node_id: "n1" },
+    operation: "repair",
+    arguments: {
+      node_id: "n1",
+      scope: { node_ids: ["n1"], allowed_paths: ["src/**"], finding_ids: ["F-1"] },
+    },
     operationPermit: issued.permit,
     effectExecutor: async () => ({ ok: true, modified_files_count: 0, changed_lines: 0 }),
   });

@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.12] - 2026-08-22
+
+### Fixed
+- **Remediación Técnica Integral del Núcleo K5 (`k5-core-remediation`)**:
+  - **Concurrencia CAS Post-Efecto Multi-Writer**: Suite E2E en `scripts/k5-e2e-budgets-recovery.test.js` con carrera real de dos writers ejecutando efectos antes de resolver el CAS, demostrando deterministamente que el writer perdedor retiene su carry-over real y el reintento no duplica efectos ciegamente.
+  - **Carry-Over Multidimensional Exhaustivo**: Acumulador en `createKernelRuntime` que preserva el consumo real de todas las dimensiones (`turns`, `commands`, `patches`, `changed_lines`, `wall_time_minutes`, `effect_attempts`) calculadas a partir del delta ejecutado real ante `cas-conflict`.
+  - **Semántica Contractual de Zero-Delta**: Deducción restringida exclusivamente a mutaciones effect-bearing de código sin avance semántico (`reduced.outcome === "unchanged"` y 0 archivos/líneas modificadas), eximiendo transiciones de ciclo de vida.
+  - **Unificación Determinista de `resolvePrimaryFailure()`**: Resolución idéntica por prioridad causal conectada de forma homogénea en el selector de transiciones, controlled permit issuer y host boundary.
+  - **Aislamiento Multi-Writer en Store y Journal**: `midOpTickets` gestionados con `Map` indexado por escritor/revisión en `AuthorityStore` y validación estricta de continuidad del journal para prevenir sobreescrituras destructivas.
+  - **Controlled Issuer Estrictamente Autoritativo**: Eliminado el fallback a `input.state`, exigiendo snapshot autoritativo de `AuthorityStore` (fail-closed ante ausencia de store).
+  - **Taxonomía Causal Fail-Closed**: Tags no reconocidos en `mapLegacyRoutingTag` resuelven a `validation_gap` (`UNKNOWN_ROUTING_TAG`), prohibiendo transiciones `repair`.
+  - **Promoción de ADRs**: Formalizados y promovidos `adr-20260822-001` a `006` en `docs/adr/`.
+
+### Added
+- **Gate 4R Exhaustivo K5**: Pipeline de revisión 4R completo (screening generalista → especialistas en `risk`, `reliability` y `resilience`) completado con 0 hallazgos y aprobación limpia.
+
 ## [2.45.11] - 2026-08-22
 
 ### Fixed

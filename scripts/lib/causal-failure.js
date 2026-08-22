@@ -102,8 +102,8 @@ function mapLegacyRoutingTag(legacyTag) {
       };
     default:
       return {
-        category: CAUSAL_CATEGORIES.CODE_DEFECT,
-        code: "UNKNOWN_FAILURE_CODE",
+        category: CAUSAL_CATEGORIES.VALIDATION_GAP,
+        code: "UNKNOWN_ROUTING_TAG",
       };
   }
 }

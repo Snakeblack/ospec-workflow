@@ -786,3 +786,53 @@ test("Task 1.2 & 3.1: store.getPermitIssuer is undefined on public store interfa
   assert.equal(store.getPermitIssuer, undefined);
 });
 
+test("REQ-authority-store-003 / REQ-authority-store-011: concurrent commitJournal calls issue isolated mid-op tickets via Map and CAS deletes matched ticket", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const r0 = await store.load();
+
+  const journal1 = [
+    {
+      schema_version: 1,
+      kernel_version: 1,
+      operation_id: "sha256:op-w1",
+      effect_id: "sha256:e-w1",
+      status: "completed",
+      result: { ok: true },
+    },
+  ];
+  const journal2 = [
+    {
+      schema_version: 1,
+      kernel_version: 1,
+      operation_id: "sha256:op-w2",
+      effect_id: "sha256:e-w2",
+      status: "completed",
+      result: { ok: true },
+    },
+  ];
+
+  // Writer 1 and Writer 2 both commitJournal against baseline R0
+  const jr1 = await store.commitJournal(journal1, DEFAULT_SUBJECT_ID, r0.revision);
+  assert.ok(jr1.ok);
+  assert.ok(jr1.mid_op_ticket);
+
+  const jr2 = await store.commitJournal(journal2, DEFAULT_SUBJECT_ID, r0.revision);
+  assert.ok(jr2.ok);
+  assert.ok(jr2.mid_op_ticket);
+  assert.notEqual(jr1.mid_op_ticket, jr2.mid_op_ticket);
+
+  // Writer 1 executes CAS using ticket T1 against baseline R0
+  // Under scalar midOpTicket, W2's commitJournal overwrote T1, causing W1 to fail!
+  const cas1 = await store.compareAndSwap(
+    DEFAULT_SUBJECT_ID,
+    r0.revision,
+    startedState(),
+    journal1,
+    jr1.mid_op_ticket
+  );
+  assert.equal(cas1.ok, true, "Writer 1 CAS with ticket T1 must succeed despite concurrent W2 commitJournal");
+
+  const afterW1 = await store.load();
+  assert.equal(afterW1.state.nodes.n1.phase, "started");
+});
+

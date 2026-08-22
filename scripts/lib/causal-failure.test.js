@@ -93,12 +93,13 @@ test("mapLegacyRoutingTag: maps hyphenated legacy roadmap tags to canonical cate
   });
 });
 
-test("mapLegacyRoutingTag: unknown, empty and null tags fall back fail-closed to UNKNOWN_FAILURE_CODE", () => {
-  const failClosed = { category: "code_defect", code: "UNKNOWN_FAILURE_CODE" };
+test("mapLegacyRoutingTag: unknown, empty and null tags fall back fail-closed to UNKNOWN_ROUTING_TAG (validation_gap)", () => {
+  const failClosed = { category: "validation_gap", code: "UNKNOWN_ROUTING_TAG" };
 
   assert.deepEqual(mapLegacyRoutingTag("nonexistent-tag"), failClosed);
   assert.deepEqual(mapLegacyRoutingTag(""), failClosed);
   assert.deepEqual(mapLegacyRoutingTag(null), failClosed);
+  assert.deepEqual(mapLegacyRoutingTag("unknown-tag-xyz"), failClosed);
 });
 
 test("resolvePrimaryFailure: deterministically resolves highest-priority failure from mixed sets", () => {

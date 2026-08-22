@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "change": "k5-core-remediation",
+  "created_at": "2026-08-22T16:24:00.000Z",
+  "source_fingerprint": "sha256:d87d992acbef870b9a50f934caca4fd0c048b16a00613d0f28c4a272829ac38e",
+  "spec_writes": [
+    {
+      "domain": "execution-budgets",
+      "source_delta": "specs/execution-budgets/spec.md",
+      "target": "openspec/specs/execution-budgets/spec.md",
+      "target_before_sha256": "sha256:c293159e60af6dd85287bb48cc1cebb131b48babd437523ac74cd3399ac703a8",
+      "content_sha256": "sha256:7550a9e0d228d8fc9fefe2824be029f1d2df2147d13bfa781f5b70f21f9db2fd"
+    },
+    {
+      "domain": "failure-recovery",
+      "source_delta": "specs/failure-recovery/spec.md",
+      "target": "openspec/specs/failure-recovery/spec.md",
+      "target_before_sha256": "sha256:82972b0f72234c9013f002bb54e0b6ddf7f28cdd599b9cc5f1c60e237fc800e4",
+      "content_sha256": "sha256:6fd07d83ae575961b2812230a71394a016bdd8bb889369ee6409827197ea27bf"
+    },
+    {
+      "domain": "authority-store",
+      "source_delta": "specs/authority-store/spec.md",
+      "target": "openspec/specs/authority-store/spec.md",
+      "target_before_sha256": "sha256:72f9cf896a58360f42b0868e106532673bfcf1435be43af720de8a941b85bde7",
+      "content_sha256": "sha256:fe191fe3b32dd13b28004b1da65f56d8a5a601614723d2344c7b8c201384fa21"
+    },
+    {
+      "domain": "operation-permits",
+      "source_delta": "specs/operation-permits/spec.md",
+      "target": "openspec/specs/operation-permits/spec.md",
+      "target_before_sha256": "sha256:1a35035950464b9e752634c88fd07fcda69d54f7334aca98141a6694ed67e552",
+      "content_sha256": "sha256:906499a69b10836eb703b7eec21b99cfd06a06b7d355922c6b42134091280db4"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260822-001-multi-writer-ticket-isolation-and-concurrent-mid-op-journal-management-in-authoritystore.md",
+      "content_sha256": "sha256:88efc8237013cbae30c8c80209b3a7365b2f7f88ba76554e104157709e40fbc1"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260822-002-strict-fail-closed-authoritative-controlled-permit-issuer-without-input-state-fallback.md",
+      "content_sha256": "sha256:265605d44a7f977102720dca918661b78bdc7b897f17aa7b6f9fb65b4dfb044b"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260822-003-runtime-owned-multidimensional-carry-over-preservation-across-cas-conflicts.md",
+      "content_sha256": "sha256:0221c840465ef7c6177285038e38e1649bb5e5d83e522f4e77107f7035d6868f"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260822-004-contractual-zero-delta-scoped-to-stagnant-effect-bearing-code-mutations.md",
+      "content_sha256": "sha256:14459c431695b148c4801346f756c7beaef70f27c444a00213e309bad7476e56"
+    },
+    {
+      "source": "decisions/adr-005.md",
+      "target": "docs/adr/adr-20260822-005-fail-closed-default-mapping-of-unknown-legacy-routing-tags-to-validation-gap.md",
+      "content_sha256": "sha256:24f697db8eed31b2151085b7648d7cb86f94ca2fb9ca2f9dd76e05bce5b96d1f"
+    },
+    {
+      "source": "decisions/adr-006.md",
+      "target": "docs/adr/adr-20260822-006-unified-deterministic-resolveprimaryfailure-across-components.md",
+      "content_sha256": "sha256:e4c1416f1dc9677960b0694fef53efa506015b6efec29aa7a926dd62b26006c6"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "decisions/adr-005.md",
+    "decisions/adr-006.md",
+    "design.md",
+    "proposal.md",
+    "specs/authority-store/spec.md",
+    "specs/execution-budgets/spec.md",
+    "specs/failure-recovery/spec.md",
+    "specs/operation-permits/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

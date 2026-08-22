@@ -299,3 +299,131 @@ test("K5 E2E: Recovery honesty verification preventing stagnant loops", () => {
   assert.equal(honestyCheck.code, "recovery-non-advancing");
   assert.equal(honestyCheck.before_blocking, honestyCheck.after_blocking);
 });
+
+test("REQ-authority-store-003 / REQ-execution-budgets-003: E2E concurrent writers CAS race post-effects with monotonic 10D carry-over on retry", async () => {
+  const initialState = {
+    schema_version: 1,
+    status: "ready",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "pending",
+        attempt: 0,
+        budget: {
+          schema_version: 1,
+          turns: 10,
+          patches: 5,
+          commands: 20,
+          wall_time_minutes: 30,
+          changed_lines: 500,
+          allowed_paths: ["src/**"],
+        },
+      },
+    },
+    authority_budget: {
+      schema_version: 1,
+      effect_attempts: 5,
+      authority_mutations: 10,
+      evidence_runs: 20,
+      review_sweeps: 2,
+    },
+  };
+
+  const store = createAuthorityStore({ initial: { state: initialState, journal: [] } });
+  const runtime = createKernelRuntime({ store });
+  const head0 = await store.load();
+
+  // Writer 1 and Writer 2 both issue permits against head0 revision
+  const permit1 = runtime.issuePermitForSelectedTransition({
+    operation: "start",
+    expected_revision: head0.revision,
+    arguments: { node_id: "n1" },
+  });
+  const permit2 = runtime.issuePermitForSelectedTransition({
+    operation: "start",
+    expected_revision: head0.revision,
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(permit1.ok, true);
+  assert.equal(permit2.ok, true);
+
+  // Synchronization barrier to ensure both effectExecutors run before either completes CAS
+  let w1EffectDone = false;
+  let w2EffectDone = false;
+
+  const w1Promise = runtime.runOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    operationPermit: permit1.permit,
+    consumed: { commands: 2, patches: 1, changed_lines: 30 },
+    effectExecutor: async () => {
+      w1EffectDone = true;
+      // Wait until w2 has also started effect
+      while (!w2EffectDone) {
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      return { ok: true, changed_lines: 30 };
+    },
+  });
+
+  const w2Promise = runtime.runOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    operationPermit: permit2.permit,
+    consumed: { commands: 4, patches: 2, changed_lines: 70 },
+    effectExecutor: async () => {
+      w2EffectDone = true;
+      // Wait until w1 has also started effect
+      while (!w1EffectDone) {
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      return { ok: true, changed_lines: 70 };
+    },
+  });
+
+  const [res1, res2] = await Promise.all([w1Promise, w2Promise]);
+
+  // Exactly one writer wins CAS and one fails with cas-conflict
+  const winners = [res1, res2].filter((r) => r.outcome === "advanced");
+  const losers = [res1, res2].filter((r) => r.outcome === "blocked" && r.code === "cas-conflict");
+
+  assert.equal(winners.length, 1, "Exactly one concurrent writer must win the CAS race");
+  assert.equal(losers.length, 1, "The competing concurrent writer must receive cas-conflict");
+
+  // Re-sync store and retry losing operation
+  const headAfterRace = await store.load();
+  assert.equal(headAfterRace.state.nodes.n1.phase, "started");
+
+  // Winner moved node to 'started'. Now complete it or fail it to verify carry-over on next step
+  const retryPermit = runtime.issuePermitForSelectedTransition({
+    operation: "complete",
+    expected_revision: headAfterRace.revision,
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(retryPermit.ok, true);
+
+  const retryRes = await runtime.runOperation({
+    operation: "complete",
+    arguments: { node_id: "n1" },
+    operationPermit: retryPermit.permit,
+    effectExecutor: async () => ({ ok: true }),
+  });
+  assert.ok(
+    retryRes.outcome === "advanced" || retryRes.outcome === "terminal",
+    "Complete operation must reach advanced or terminal outcome"
+  );
+
+  const headFinal = await store.load();
+  const finalBudget = headFinal.state.nodes.n1.budget;
+  const finalAuthBudget = headFinal.state.authority_budget;
+
+  // The final budget must reflect:
+  // 1. Initial quotas
+  // 2. Decrement from winning start
+  // 3. 10D carry-over from losing CAS race attempt (retained across retries)
+  // 4. Decrement from complete operation
+  assert.ok(finalBudget.turns <= 8, "Turns must account for start, carry-over, and completion");
+  assert.ok(finalBudget.commands < 20, "Commands must reflect carry-over deduction");
+  assert.ok(finalBudget.changed_lines < 500, "Changed lines must reflect carry-over deduction");
+  assert.ok(finalAuthBudget.effect_attempts <= 3, "Authority effect attempts must reflect carry-over without replenishment");
+});

@@ -1,0 +1,65 @@
+change: "k5-core-remediation"
+status: "archived"
+last_updated: "2026-08-22T16:24:00Z"
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k5-core-remediation/proposal.md"
+    summary: "Remediación de 7 brechas en núcleo K5: CAS post-efecto, carry-over multidimensional, zero-delta contractual, resolvePrimaryFailure, concurrencia store, controlled issuer y tags fail-closed."
+    key_decisions:
+      - "Eliminar fallback a input.state en controlled issuer exigiendo snapshot autoritativo"
+      - "Default de mapLegacyRoutingTag a validation_gap impidiendo repair"
+      - "Carry-over multidimensional exhaustivo sobre deltas ejecutados reales"
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k5-core-remediation/specs/execution-budgets/spec.md"
+      - "openspec/changes/k5-core-remediation/specs/failure-recovery/spec.md"
+      - "openspec/changes/k5-core-remediation/specs/authority-store/spec.md"
+      - "openspec/changes/k5-core-remediation/specs/operation-permits/spec.md"
+    summary: "Delta specs para presupuestos multidimensionales, causal failure unificado, concurrencia multi-writer en store y controlled issuer estricto."
+    key_decisions:
+      - "Default fail-closed a validation_gap para tags desconocidos"
+      - "Multi-writer midOpTicket aislado por writer/revisión en commitJournal"
+      - "Carry-over exhaustivo de las 6 dimensiones de nodo y 4 de autoridad tras CAS conflict"
+  design:
+    status: "done"
+    artifact: "openspec/changes/k5-core-remediation/design.md"
+    summary: "Diseño técnico para 7 remediaciones K5: aislamiento multi-writer en store, controlled issuer estricto, carry-over 10D, zero-delta y resolvePrimaryFailure."
+    key_decisions:
+      - "Aislamiento multi-writer de tickets mid-op en AuthorityStore con Map"
+      - "Controlled issuer estrictamente autoritativo sin fallback a input.state"
+      - "Carry-over multidimensional runtime-owned de 10 dimensiones ante cas-conflict"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k5-core-remediation/tasks.md"
+    summary: "Desglose RED->GREEN->REFACTOR en 5 fases y 17 tareas para las 7 áreas técnicas de K5 con forecast single-PR de bajo riesgo."
+    key_decisions:
+      - "Estrategia Single PR sin chained PRs por bajo riesgo presupuestario"
+  apply:
+    status: "done"
+    artifact: "openspec/changes/k5-core-remediation/apply-progress.md"
+    summary: "Implementación completada al 100% en 5 fases siguiendo TDD estricto. Todos los 2396 tests pasan con cero regresiones."
+    key_decisions:
+      - "Map-based midOpTickets en AuthorityStore con validación y eliminación atómica"
+      - "Controlled permit issuer estrictamente respaldado por snapshot autoritativo"
+      - "Carry-over exhaustivo de 10 dimensiones y delimitación contractual de zero-delta"
+  verify:
+    status: "done"
+    verdict: "PASS"
+    artifact: "openspec/changes/k5-core-remediation/verify-report.md"
+    summary: "Verificación completa con 100% de tests pasando (2396/2396), 31/31 escenarios cubiertos con evidencia runtime-test y cero regresiones. Veredicto PASS."
+    key_decisions:
+      - "Veredicto PASS para las 7 áreas técnicas de K5 remediadas"
+      - "Confirmada monotonicidad 10D y retención de carry-over en CAS conflict"
+      - "Validada resolución unificada resolvePrimaryFailure y controlled issuer fail-closed"
+  archive:
+    status: "done"
+    artifact: "openspec/changes/k5-core-remediation/archive-report.md"
+    summary: "Plan de archivo emitido y reporte persistido con preparación de 4 specs y propuesta de promoción de 6 ADRs a docs/adr/."
+    key_decisions:
+      - "Plan-and-Report con rollback staging-rename y auditoría transaccional"
+      - "Promoción de 6 ADRs a docs/adr/ con fecha ISO 2026-08-22"
+      - "Sincronización semántica de specs de presupuestos, fallos, store y permits"
+
