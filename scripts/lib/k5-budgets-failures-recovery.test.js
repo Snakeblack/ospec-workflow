@@ -206,3 +206,50 @@ test("K5 Combined Scenario: Bounded repair scope validation", () => {
   assert.equal(invalid.ok, false);
   assert.equal(invalid.violations.length, 3);
 });
+
+test("REQ-failure-recovery-002 / REQ-failure-recovery-003: unified resolvePrimaryFailure across selector, operations boundary and permit issuer", () => {
+  const { validateOperationTransition } = require("./lifecycle-kernel/operations.js");
+  const { createAuthorityStore } = require("./authority-store/index.js");
+
+  // State has code_defect in node.failure (P5) BUT environment_tooling in node.failures (P1)
+  const mixedState = {
+    schema_version: 1,
+    status: "blocked",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "failed",
+        attempt: 1,
+        failure: { category: "code_defect", code: "SYNTAX_ERROR", priority: 5, failure_id: "f-code" },
+        failures: [
+          { category: "environment_tooling", code: "TOOL_CRASH", priority: 1, failure_id: "f-env" },
+        ],
+        budget: { schema_version: 1, turns: 3 },
+      },
+    },
+    authority_budget: { schema_version: 1, effect_attempts: 3 },
+  };
+
+  // 1. Selector MUST resolve environment_tooling as primary (P1 > P5) and NOT offer repair
+  const transitions = selectTransitions(mixedState);
+  assert.ok(!transitions.some((t) => t.operation === "repair"), "Selector must NOT offer repair when environment fault takes precedence");
+  assert.ok(transitions.some((t) => t.operation === "replan" || t.operation === "escalate"), "Selector must offer replan or escalate");
+
+  // 2. Boundary validator MUST reject repair transition as unallowlisted-recovery-transition
+  const boundaryValidation = validateOperationTransition(mixedState, {
+    operation: "repair",
+    arguments: { node_id: "n1", scope: { node_ids: ["n1"], allowed_paths: ["src/**"], finding_ids: ["f-code"] } },
+  });
+  assert.equal(boundaryValidation.ok, false, "Boundary validation must reject repair for environment fault");
+  assert.equal(boundaryValidation.code, "unallowlisted-recovery-transition");
+
+  // 3. Controlled permit issuer MUST also reject repair
+  const store = createAuthorityStore({ initial: { state: mixedState, journal: [] } });
+  const runtime = createKernelRuntime({ store });
+  const permitRes = runtime.issuePermitForSelectedTransition({
+    operation: "repair",
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(permitRes.ok, false);
+  assert.equal(permitRes.code, "unallowlisted-recovery-transition");
+});

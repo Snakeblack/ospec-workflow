@@ -75,7 +75,7 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **K3** | Cuatro identidades + Candidate freeze + relación básica; archivado y publicado en v2.42.3 (baseline estable congelada) |
 | `done` | **`k3-readiness-remediation`** | Relación/successor/dist packaging reconciliado; archivado y publicado |
 | `done` | **K4a** | Graph compiler + Obligation Manifest + deterministic replay (sin worker autoritativo); verificado y reconciliado en v2.45.7 |
-| `done` | **K5** | Budgets (incl. autoridad/efectos), failures y recovery; remediaciones v2.45.7→v2.45.10 (authoritative enforcement, authority boundary/CAS concurrency); archivado y publicado en v2.45.10 |
+| `done` | **K5** | Budgets (incl. autoridad/efectos), failures y recovery; remediaciones v2.45.7→v2.45.12 (authoritative enforcement, authority boundary/CAS concurrency, reconciliación y remediación técnica integral del núcleo); archivado y publicado en v2.45.12 |
 | `next-eligible` | K6a | Worker isolation / work-order capsule |
 | `pending` | K4b | Repair shadow execution (WO→WR→integrate→Candidate) |
 | `pending` | K6b–K8 | Verifier + provenance, challenges, complexity, review authority, **Evaluation Attestation** |

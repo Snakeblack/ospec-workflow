@@ -167,7 +167,7 @@ function createAuthorityStore(options = {}) {
       authority: cloneAuthority(seed.authority),
       budgets: freezeBudgets(options.budgets),
       baselines: new Map(),
-      midOpTicket: null,
+      midOpTickets: new Map(),
       midOpSeq: 0,
       lock: createMutex(),
       // Pre-CAS coherent view served to synchronous readers while a commit is in flight.
@@ -236,12 +236,19 @@ function createAuthorityStore(options = {}) {
       let mid_op_ticket = null;
       if (fromRevision != null && fromRevision !== "") {
         const stateDigest = digestLifecycleState(loaded.state);
+        const journalDigest = digestJournal(nextJournal);
         mid_op_ticket = sha256Fingerprint("authority-store:mid-op-ticket", {
           from_revision: fromRevision,
           state_digest: stateDigest,
+          journal_digest: journalDigest,
           seq: ++entry.midOpSeq,
         });
-        entry.midOpTicket = { token: mid_op_ticket, fromRevision, stateDigest };
+        entry.midOpTickets.set(mid_op_ticket, {
+          token: mid_op_ticket,
+          fromRevision,
+          stateDigest,
+          journalDigest,
+        });
       }
       return { ok: true, mid_op_ticket, revision };
     });
@@ -322,17 +329,19 @@ function createAuthorityStore(options = {}) {
     const exactMatch = expectedRevision === currentRevision;
     // Mid-op path: load-time revision is stale after commitJournal, but baseline
     // state_digest is intact and caller proves journal continuity (see JSDoc).
-    const ticket = entry.midOpTicket;
+    const ticket = midOpTicket ? entry.midOpTickets.get(midOpTicket) : null;
     const midOpWithWriterTicket =
       baselineStateDigest != null &&
       baselineStateDigest === currentStateDigest &&
       nextJournal !== undefined &&
-      digestJournal(nextJournal) === currentJournalDigest &&
       midOpTicket != null &&
       ticket != null &&
       midOpTicket === ticket.token &&
       expectedRevision === ticket.fromRevision &&
-      baselineStateDigest === ticket.stateDigest;
+      baselineStateDigest === ticket.stateDigest &&
+      (ticket.journalDigest !== undefined
+        ? digestJournal(nextJournal) === ticket.journalDigest
+        : digestJournal(nextJournal) === currentJournalDigest);
 
     if (!exactMatch && !midOpWithWriterTicket) {
       return {
@@ -440,8 +449,13 @@ function createAuthorityStore(options = {}) {
       entry.inflight = null;
     }
 
-    entry.midOpTicket = null;
-    if (!stateUnchanged) entry.baselines.clear();
+    if (midOpTicket) {
+      entry.midOpTickets.delete(midOpTicket);
+    }
+    if (!stateUnchanged) {
+      entry.midOpTickets.clear();
+      entry.baselines.clear();
+    }
 
     const after = await entry.inner.load();
     const revision = computeRevision(after.state, after.journal, entry.authority);

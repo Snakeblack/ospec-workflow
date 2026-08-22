@@ -63,7 +63,12 @@ function selectTransitions(state) {
 
       if (node.phase === "interrupted" || node.phase === "failed") {
         // Check causal failure taxonomy allowlist if failure descriptor is present
-        const failures = [node.failure, ...(Array.isArray(node.failures) ? node.failures : []), ...(Array.isArray(state.failures) ? state.failures : [])].filter(Boolean);
+        const failures = [
+          node.failure,
+          ...(Array.isArray(node.failures) ? node.failures : []),
+          state.failure,
+          ...(Array.isArray(state.failures) ? state.failures : []),
+        ].filter(Boolean);
         const primaryFailure = resolvePrimaryFailure(failures);
 
         if (primaryFailure) {
@@ -112,9 +117,13 @@ function selectTransitions(state) {
 
   if (out.length === 0) {
     const allFailures = [
-      ...(Array.isArray(state.failures) ? state.failures : []),
-      ...nodeEntries(state).map(({ node }) => node?.failure).filter(Boolean),
-    ];
+      state?.failure,
+      ...(Array.isArray(state?.failures) ? state.failures : []),
+      ...nodeEntries(state).flatMap(({ node }) => [
+        node?.failure,
+        ...(Array.isArray(node?.failures) ? node.failures : []),
+      ]),
+    ].filter(Boolean);
     const primary = resolvePrimaryFailure(allFailures);
     if (primary) {
       const allowed = getAllowlistedTransitions(primary.category, { remainingAttempts: 0 });

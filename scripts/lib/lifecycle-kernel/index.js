@@ -42,6 +42,7 @@ const {
   decrementBudgetMonotonic,
   isBudgetExhausted,
 } = require("../execution-budgets.js");
+const { resolvePrimaryFailure } = require("../causal-failure.js");
 
 function interruptError(at) {
   const error = new Error(`kernel-interrupt:${at}`);
@@ -570,19 +571,36 @@ async function runKernelOperation(input = {}) {
   }
 
 
-  // Zero-delta mutation check and deduction
-  const isZeroDelta = isZeroDeltaMutation({
-    modifiedFilesCount: totalModifiedFiles,
-    changedLines: totalChangedLines,
-    stateAdvanced,
-    outputHashBefore: lastOutputHashBefore,
-    outputHashAfter: lastOutputHashAfter,
-  });
+  // Zero-delta mutation check and deduction:
+  // Strictly conditioned to code/file mutations where reduced.outcome === "unchanged" and 0 files/lines modified.
+  // Operations with semantic progress (reduced.outcome !== "unchanged"), read-only queries (status),
+  // and terminal control (escalate, stop) are strictly exempt.
+  const isLifecycleTransition = [
+    "start",
+    "complete",
+    "fail",
+    "recover",
+    "replan",
+    "status",
+    "escalate",
+    "stop",
+    "invalidate-node",
+    "decide",
+  ].includes(operation);
+  const isZeroDelta =
+    !isLifecycleTransition &&
+    isZeroDeltaMutation({
+      modifiedFilesCount: totalModifiedFiles,
+      changedLines: totalChangedLines,
+      stateAdvanced,
+      outputHashBefore: lastOutputHashBefore,
+      outputHashAfter: lastOutputHashAfter,
+    });
   const targetNode = reduced.state.nodes && args.node_id ? reduced.state.nodes[args.node_id] : null;
-  if (isZeroDelta && operation !== "status") {
+  if (isZeroDelta) {
     if (targetNode) {
       targetNode.zero_delta_attempts = Number(targetNode.zero_delta_attempts || 0) + 1;
-      if (targetNode.budget && operation !== "start") {
+      if (targetNode.budget) {
         targetNode.budget = decrementBudgetMonotonic(targetNode.budget, { turns: 1 });
         if (isBudgetExhausted(targetNode.budget).exhausted) {
           targetNode.exhausted = true;
@@ -590,7 +608,6 @@ async function runKernelOperation(input = {}) {
       }
     }
     if (reduced.state.authority_budget) {
-
       reduced.state.authority_budget = decrementBudgetMonotonic(reduced.state.authority_budget, { effect_attempts: 1 });
       if (isBudgetExhausted(reduced.state.authority_budget, {}, { isAuthority: true }).exhausted) {
         reduced.state.exhausted = true;
@@ -719,12 +736,31 @@ async function runKernelOperation(input = {}) {
     authorityCommit
   );
   if (!cas.ok) {
+    const executedDelta = {
+      turns: 1,
+      patches: Number(args.patches || (args.patch ? 1 : 0)) || 0,
+      commands: Number(args.commands || 0) || (args.command ? 1 : 0),
+      changed_lines: totalChangedLines,
+      wall_time_minutes: Number(args.wall_time_minutes || 0),
+      effect_attempts: 1,
+      authority_mutations: 1,
+      evidence_runs: Number(args.evidence_runs || 0),
+      review_sweeps: Number(args.review_sweeps || 0),
+    };
+    if (input.consumed && typeof input.consumed === "object") {
+      for (const [k, v] of Object.entries(input.consumed)) {
+        if (typeof v === "number" && v > 0) {
+          executedDelta[k] = Math.max(executedDelta[k] || 0, v);
+        }
+      }
+    }
     return blockedResult(state, journal, cas.code || "cas-conflict", {
       operation_id: operationId,
       revision: cas.revision,
       budgets: cas.budgets || budgetsBefore,
       budgets_unchanged: true,
       operation_receipt: null,
+      consumed_delta: executedDelta,
     });
   }
   await checkpoint(hooks, "after-state-commit", { operation_id: operationId });
@@ -793,6 +829,28 @@ function isPreEffectStarted(record) {
   );
 }
 
+function mergeDeltas(target = {}, source = {}) {
+  const numericKeys = [
+    "turns",
+    "patches",
+    "commands",
+    "wall_time_minutes",
+    "changed_lines",
+    "effect_attempts",
+    "authority_mutations",
+    "evidence_runs",
+    "review_sweeps",
+  ];
+  const out = { ...target };
+  for (const k of numericKeys) {
+    const val = (Number(target[k]) || 0) + (Number(source[k]) || 0);
+    if (val > 0) {
+      out[k] = val;
+    }
+  }
+  return out;
+}
+
 function createKernelRuntime(options = {}) {
   const permitIssuer = createPermitAuthorityIssuer();
   const store = options.store || createAuthorityStore(options);
@@ -802,21 +860,20 @@ function createKernelRuntime(options = {}) {
     async runOperation(input = {}) {
       const subjectId = input.subjectId || options.subjectId || DEFAULT_SUBJECT_ID;
       const { permitLedger: _ignored, ...operationInput } = input;
-      const carryOver = pendingCarryOver.get(subjectId);
+      const carryOver = pendingCarryOver.get(subjectId) || {};
+      const effectiveConsumed = mergeDeltas(carryOver, operationInput.consumed || {});
 
       const res = await runKernelOperation({
         ...operationInput,
-        consumed: carryOver || operationInput.consumed,
+        consumed: effectiveConsumed,
         store,
         permitLedger: permitIssuer,
       });
 
       if (res.outcome === "blocked" && res.code === "cas-conflict") {
+        const executedDelta = res.consumed_delta || { turns: 1, effect_attempts: 1 };
         const prior = pendingCarryOver.get(subjectId) || {};
-        pendingCarryOver.set(subjectId, {
-          turns: (prior.turns || 0) + 1,
-          effect_attempts: (prior.effect_attempts || 0) + 1,
-        });
+        pendingCarryOver.set(subjectId, mergeDeltas(prior, executedDelta));
       } else if (res.outcome === "advanced" || res.outcome === "terminal") {
         pendingCarryOver.delete(subjectId);
       }
@@ -827,9 +884,12 @@ function createKernelRuntime(options = {}) {
       const subject_id = input.subject_id || options.subjectId || DEFAULT_SUBJECT_ID;
       const operation = input.operation || input.transitionOffer?.operation;
       const snap = store && typeof store.snapshot === "function" ? store.snapshot(subject_id) : null;
-      const state = snap?.state || input.state || null;
+      if (!snap || !snap.state) {
+        return { ok: false, code: "authoritative-snapshot-required" };
+      }
+      const state = snap.state;
       const currentRevision =
-        snap && store && typeof store.computeRevision === "function"
+        store && typeof store.computeRevision === "function"
           ? store.computeRevision(snap.state, snap.journal, snap.authority)
           : null;
 
@@ -859,10 +919,17 @@ function createKernelRuntime(options = {}) {
         }
       }
 
-      // 2. Causal Recovery Matrix Validation (for recovery operations on failed/interrupted nodes)
+      // 3. Causal Recovery Matrix Validation (for recovery operations on failed/interrupted nodes)
       const targetNode = state?.nodes?.[input.arguments?.node_id];
       if (targetNode && (targetNode.phase === "failed" || targetNode.phase === "interrupted")) {
-        const primaryFailure = targetNode.failure || input.arguments?.failure || state?.failure;
+        const rawFailures = [
+          targetNode.failure,
+          ...(Array.isArray(targetNode.failures) ? targetNode.failures : []),
+          input.arguments?.failure,
+          state?.failure,
+          ...(Array.isArray(state?.failures) ? state.failures : []),
+        ].filter(Boolean);
+        const primaryFailure = resolvePrimaryFailure(rawFailures);
         if (primaryFailure && primaryFailure.category) {
           const remainingAttempts = state?.authority_budget?.effect_attempts ?? (targetNode.budget?.turns);
           const causalCheck = validateRecoveryTransition(primaryFailure.category, operation, {

@@ -336,3 +336,44 @@ test("isNodeBudgetExhausted and isAuthorityBudgetExhausted apply default envelop
   const exhaustedAuth = isAuthorityBudgetExhausted({}, { effect_attempts: 3 });
   assert.equal(exhaustedAuth.exhausted, true);
 });
+
+test("REQ-execution-budgets-003: decrementBudgetMonotonic exhaustively decrements all 6 node and 4 authority dimensions", () => {
+  const fullBudget = {
+    // 6 node dimensions
+    turns: 10,
+    patches: 5,
+    commands: 20,
+    wall_time_minutes: 30,
+    changed_lines: 400,
+    allowed_paths: ["src/**"],
+    // 4 authority dimensions
+    effect_attempts: 3,
+    authority_mutations: 10,
+    evidence_runs: 20,
+    review_sweeps: 2,
+  };
+
+  const consumedDelta = {
+    turns: 2,
+    patches: 1,
+    commands: 3,
+    wall_time_minutes: 5,
+    changed_lines: 50,
+    effect_attempts: 1,
+    authority_mutations: 2,
+    evidence_runs: 4,
+    review_sweeps: 1,
+  };
+
+  const result = decrementBudgetMonotonic(fullBudget, consumedDelta);
+
+  assert.equal(result.turns, 8);
+  assert.equal(result.patches, 4);
+  assert.equal(result.commands, 17);
+  assert.equal(result.wall_time_minutes, 25);
+  assert.equal(result.changed_lines, 350);
+  assert.equal(result.effect_attempts, 2);
+  assert.equal(result.authority_mutations, 8);
+  assert.equal(result.evidence_runs, 16);
+  assert.equal(result.review_sweeps, 1);
+});

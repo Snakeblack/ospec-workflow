@@ -10,6 +10,7 @@ const {
   reduceLifecycle,
   digestLifecycleState,
   interruptError,
+  DEFAULT_SUBJECT_ID,
 } = require("./index.js");
 const {
   createTestKernelRuntime,
@@ -1228,6 +1229,243 @@ test("runKernelOperation: read-only status query does not decrement budgets or r
   assert.equal(loaded.state.nodes.n1.budget.turns, 5, "Node turns must remain intact on status");
   assert.equal(loaded.state.authority_budget.effect_attempts, 3, "Authority attempts must remain intact on status");
   assert.equal(store.snapshot().journal.length, 0, "No zero delta journal record on status");
+});
+
+test("issuePermitForSelectedTransition: fails closed with authoritative-snapshot-required when store snapshot is absent [REQ-operation-permits-005]", () => {
+  // Store with null snapshot for subject
+  const emptyStore = {
+    snapshot() {
+      return null;
+    },
+  };
+  const runtime = createKernelRuntime({ store: emptyStore });
+
+  // Caller provides fabricated input.state without authoritative snapshot
+  const res = runtime.issuePermitForSelectedTransition({
+    operation: "start",
+    expected_revision: "sha256:fake",
+    state: { schema_version: 1, status: "ready", nodes: { n1: { id: "n1", phase: "pending" } } },
+    arguments: { node_id: "n1" },
+  });
+
+  assert.equal(res.ok, false);
+  assert.equal(res.code, "authoritative-snapshot-required");
+});
+
+test("issuePermitForSelectedTransition: rejects unallowlisted recovery transitions derived from resolvePrimaryFailure over mixed failures [REQ-operation-permits-005, REQ-failure-recovery-002, REQ-failure-recovery-003]", async () => {
+  // Target node has code_defect (allows repair) BUT state/node also has environment_tooling (P1 priority -> only replan/escalate/stop allowlisted)
+  const failedState = {
+    schema_version: 1,
+    status: "blocked",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "failed",
+        attempt: 1,
+        failure: { category: "code_defect", code: "TEST_FAIL", priority: 5, failure_id: "f-code" },
+        failures: [
+          { category: "environment_tooling", code: "HOST_TIMEOUT", priority: 1, failure_id: "f-env" },
+        ],
+        budget: { schema_version: 1, turns: 3 },
+      },
+    },
+    authority_budget: { schema_version: 1, effect_attempts: 3 },
+  };
+  const store = createAuthorityStore({ initial: { state: failedState, journal: [] } });
+  const runtime = createKernelRuntime({ store });
+  const head = await store.load();
+
+  // Attempt to issue permit for "repair" — primary failure is environment_tooling so repair is prohibited!
+  const repairRes = runtime.issuePermitForSelectedTransition({
+    operation: "repair",
+    expected_revision: head.revision,
+    arguments: {
+      node_id: "n1",
+      scope: { node_ids: ["n1"], allowed_paths: ["src/**"], finding_ids: ["f-code"] },
+    },
+  });
+
+  assert.equal(repairRes.ok, false);
+  assert.equal(repairRes.code, "unallowlisted-recovery-transition");
+});
+
+test("REQ-execution-budgets-003: createKernelRuntime accumulates deltas across all 10 dimensions on cas-conflict and deducts them on retry", async () => {
+  const initialState = {
+    schema_version: 1,
+    status: "ready",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "pending",
+        attempt: 0,
+        budget: {
+          schema_version: 1,
+          turns: 10,
+          patches: 5,
+          commands: 20,
+          wall_time_minutes: 30,
+          changed_lines: 400,
+          allowed_paths: ["src/**"],
+        },
+      },
+    },
+    authority_budget: {
+      schema_version: 1,
+      effect_attempts: 3,
+      authority_mutations: 10,
+      evidence_runs: 20,
+      review_sweeps: 2,
+    },
+  };
+
+  const store = createAuthorityStore({ initial: { state: initialState, journal: [] } });
+  const runtime = createKernelRuntime({ store });
+  const head0 = await store.load();
+
+  const permit1 = runtime.issuePermitForSelectedTransition({
+    operation: "start",
+    expected_revision: head0.revision,
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(permit1.ok, true);
+
+  // Execute operation with consumption across dimensions (commands: 3, patches: 1, changed_lines: 45)
+  // Rival writer advances store during effect execution to cause real CAS conflict
+  const conflictResult = await runtime.runOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    operationPermit: permit1.permit,
+    consumed: { commands: 3, patches: 1, changed_lines: 45, wall_time_minutes: 2 },
+    effectExecutor: async () => {
+      const headCurrent = await store.load();
+      await store.compareAndSwap(
+        DEFAULT_SUBJECT_ID,
+        headCurrent.revision,
+        {
+          schema_version: 1,
+          status: "blocked",
+          nodes: {
+            n1: {
+              id: "n1",
+              phase: "failed",
+              attempt: 1,
+              budget: {
+                schema_version: 1,
+                turns: 10,
+                patches: 5,
+                commands: 20,
+                wall_time_minutes: 30,
+                changed_lines: 400,
+                allowed_paths: ["src/**"],
+              },
+            },
+          },
+          authority_budget: {
+            schema_version: 1,
+            effect_attempts: 3,
+            authority_mutations: 10,
+            evidence_runs: 20,
+            review_sweeps: 2,
+          },
+        },
+        [
+          {
+            schema_version: 1,
+            kernel_version: 1,
+            operation_id: "sha256:rival",
+            effect_id: "sha256:rival-e",
+            status: "completed",
+            result: { ok: true },
+          },
+        ]
+      );
+      return { ok: true, changed_lines: 45 };
+    },
+  });
+
+  assert.equal(conflictResult.outcome, "blocked");
+  assert.equal(conflictResult.code, "cas-conflict");
+
+  // Re-sync and retry with fresh permit against updated head
+  const head1 = await store.load();
+  const permit2 = runtime.issuePermitForSelectedTransition({
+    operation: "repair",
+    expected_revision: head1.revision,
+    arguments: {
+      node_id: "n1",
+      scope: { node_ids: ["n1"], allowed_paths: ["src/**"], finding_ids: ["F-1"] },
+    },
+  });
+  assert.equal(permit2.ok, true);
+
+  const retryResult = await runtime.runOperation({
+    operation: "repair",
+    arguments: {
+      node_id: "n1",
+      scope: { node_ids: ["n1"], allowed_paths: ["src/**"], finding_ids: ["F-1"] },
+    },
+    operationPermit: permit2.permit,
+    effectExecutor: async () => ({ ok: true, modified_files_count: 1, changed_lines: 5 }),
+  });
+
+  assert.equal(retryResult.outcome, "advanced");
+
+  const headFinal = await store.load();
+  const nodeBudget = headFinal.state.nodes.n1.budget;
+  const authBudget = headFinal.state.authority_budget;
+
+  // Node turns: 10 - 1 (from first attempt carry-over) = 9
+  assert.equal(nodeBudget.turns, 9, "Turns must reflect carry-over deduction");
+  // Commands: 20 - 3 (carry-over) = 17
+  assert.equal(nodeBudget.commands, 17, "Commands must reflect carry-over deduction");
+  // Patches: 5 - 1 (carry-over) = 4
+  assert.equal(nodeBudget.patches, 4, "Patches must reflect carry-over deduction");
+  // Changed lines: 400 - 45 (carry-over) = 355
+  assert.equal(nodeBudget.changed_lines, 355, "Changed lines must reflect carry-over deduction");
+  // Authority attempts: 3 - 1 (carry-over) = 2
+  assert.equal(authBudget.effect_attempts, 2, "Authority attempts must reflect carry-over deduction");
+});
+
+test("REQ-execution-budgets-004: zero-delta dual penalty exempts operations that advance lifecycle state semantically", async () => {
+  const pendingState = {
+    schema_version: 1,
+    status: "ready",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "pending",
+        attempt: 0,
+        budget: { schema_version: 1, turns: 5 },
+      },
+    },
+    authority_budget: { schema_version: 1, effect_attempts: 3 },
+  };
+  const store = createAuthorityStore({ initial: { state: pendingState, journal: [] } });
+  const runtime = createKernelRuntime({ store });
+  const head = await store.load();
+
+  const permit = runtime.issuePermitForSelectedTransition({
+    operation: "start",
+    expected_revision: head.revision,
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(permit.ok, true);
+
+  // 'start' modifies 0 files, but advances state from 'pending' to 'started' (reduced.outcome === "advanced" !== "unchanged")
+  // It MUST NOT receive zero-delta penalty!
+  const res = await runtime.runOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    operationPermit: permit.permit,
+    effectExecutor: async () => ({ ok: true, modified_files_count: 0, changed_lines: 0 }),
+  });
+
+  assert.equal(res.outcome, "advanced");
+  const loaded = await store.load();
+  // Node turns should be 4 (1 turn consumed for start), NOT 3 (which would happen if zero-delta dual penalty was incorrectly triggered)
+  assert.equal(loaded.state.nodes.n1.budget.turns, 4, "Start should consume only 1 turn, not dual penalized as zero-delta");
+  assert.equal(loaded.state.nodes.n1.zero_delta_attempts || 0, 0, "zero_delta_attempts must be 0 for advancing start");
+  assert.equal(loaded.state.authority_budget.effect_attempts, 2, "Authority attempts should be 2 (start consumes 1 attempt)");
 });
 
 
