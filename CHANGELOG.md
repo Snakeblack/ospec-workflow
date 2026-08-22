@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.11] - 2026-08-22
+
+### Fixed
+- **Reconciliación del Cierre K5 (`k5-reconciliation`)**:
+  - **Mapeo de Tags Legacy Guionados**: `mapLegacyRoutingTag` mapea `code-bug`, `tasks-gap`, `design-gap` y `spec-gap` a los códigos canónicos existentes de la taxonomía causal, eliminando la caída silenciosa al default `UNKNOWN_FAILURE_CODE`; el default se conserva fail-closed para tags desconocidos y está fijado por tests negativos.
+  - **E2E CAS Real**: el test de no-inflación presupuestaria en `k5-e2e-budgets-recovery.test.js` ejercita una carrera stale-permit real contra el Authority Store con aserción `deepEqual` de presupuestos; el matcher laxo de `lifecycle-kernel/index.test.js` se estrecha a `stale-permit` tras evidencia empírica de determinismo (200/200 ejecuciones).
+- **Docs**:
+  - Reconciliados metadatos del change archivado `2026-08-20-k5-authoritative-enforcement-and-cas-remediation` (`archive-planned` → `archived`, conteo de tareas corregido a 31 con nota correctiva).
+  - Fila K5 del roadmap general alineada al formato K1–K4a citando las remediaciones v2.45.7→v2.45.10.
+
+### Added
+- **Primer Gate 4R Formal de la Familia K5**: `k5-reconciliation` ejecuta el pipeline completo de revisión selectiva (generalista read-only → clasificador determinista targeted `[reliability]` → linaje congelado con candidate ID y budget de corrección → lente única → findings congelados) registrando linaje terminal `approved` en `state.yaml`. Follow-up no bloqueante: e2e de conflicto CAS post-efectos (F-7bb9293b802b7ec1).
+
 ## [2.45.10] - 2026-08-21
 
 ### Fixed
