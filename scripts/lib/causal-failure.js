@@ -80,6 +80,26 @@ function mapLegacyRoutingTag(legacyTag) {
         category: CAUSAL_CATEGORIES.VALIDATION_GAP,
         code: "VERIFY_EVIDENCE_FORMAT_INVALID",
       };
+    case "code-bug":
+      return {
+        category: CAUSAL_CATEGORIES.CODE_DEFECT,
+        code: "CODE_IMPLEMENTATION_DEFECT",
+      };
+    case "spec-gap":
+      return {
+        category: CAUSAL_CATEGORIES.VALIDATION_GAP,
+        code: "SPEC_REQUIREMENTS_AMBIGUOUS",
+      };
+    case "design-gap":
+      return {
+        category: CAUSAL_CATEGORIES.VALIDATION_GAP,
+        code: "DESIGN_CONTRACT_MISMATCH",
+      };
+    case "tasks-gap":
+      return {
+        category: CAUSAL_CATEGORIES.VALIDATION_GAP,
+        code: "TASK_DECOMPOSITION_GAP",
+      };
     default:
       return {
         category: CAUSAL_CATEGORIES.CODE_DEFECT,

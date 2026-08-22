@@ -71,6 +71,36 @@ test("mapLegacyRoutingTag: maps legacy verify routing tags to canonical categori
   });
 });
 
+test("mapLegacyRoutingTag: maps hyphenated legacy roadmap tags to canonical categories and codes", () => {
+  assert.deepEqual(mapLegacyRoutingTag("code-bug"), {
+    category: "code_defect",
+    code: "CODE_IMPLEMENTATION_DEFECT",
+  });
+
+  assert.deepEqual(mapLegacyRoutingTag("spec-gap"), {
+    category: "validation_gap",
+    code: "SPEC_REQUIREMENTS_AMBIGUOUS",
+  });
+
+  assert.deepEqual(mapLegacyRoutingTag("design-gap"), {
+    category: "validation_gap",
+    code: "DESIGN_CONTRACT_MISMATCH",
+  });
+
+  assert.deepEqual(mapLegacyRoutingTag("tasks-gap"), {
+    category: "validation_gap",
+    code: "TASK_DECOMPOSITION_GAP",
+  });
+});
+
+test("mapLegacyRoutingTag: unknown, empty and null tags fall back fail-closed to UNKNOWN_FAILURE_CODE", () => {
+  const failClosed = { category: "code_defect", code: "UNKNOWN_FAILURE_CODE" };
+
+  assert.deepEqual(mapLegacyRoutingTag("nonexistent-tag"), failClosed);
+  assert.deepEqual(mapLegacyRoutingTag(""), failClosed);
+  assert.deepEqual(mapLegacyRoutingTag(null), failClosed);
+});
+
 test("resolvePrimaryFailure: deterministically resolves highest-priority failure from mixed sets", () => {
   const defectFailure = createCausalFailure({
     failure_id: "f-defect-1",
