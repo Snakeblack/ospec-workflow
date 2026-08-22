@@ -22,6 +22,9 @@ function deriveOperationId({ state, operation, arguments: args }) {
 }
 
 function deriveEffectId(operationId, effect) {
+  if (effect && effect.effect_id) {
+    return effect.effect_id;
+  }
   return sha256Fingerprint("lifecycle-kernel:effect", {
     operation_id: operationId,
     kind: effect && effect.kind,

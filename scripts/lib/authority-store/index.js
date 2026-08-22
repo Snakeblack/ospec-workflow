@@ -2,6 +2,41 @@
 
 const { sha256Fingerprint } = require("../canonical-json.js");
 const { digestLifecycleState } = require("../lifecycle-kernel/state-digest.js");
+
+/**
+ * Upserts incoming journal entries into existing journal entries deduplicated by effect_id.
+ * If an entry has no effect_id, it is preserved.
+ * Merged entries with effect_id are sorted lexicographically by effect_id.
+ *
+ * @param {Array<Object>} existing
+ * @param {Array<Object>} incoming
+ * @returns {Array<Object>}
+ */
+function upsertJournalEntries(existing = [], incoming = []) {
+  const map = new Map();
+  const nonKeyed = [];
+
+  for (const entry of (Array.isArray(existing) ? existing : [])) {
+    if (!entry) continue;
+    if (entry.effect_id) {
+      map.set(entry.effect_id, entry);
+    } else {
+      nonKeyed.push(entry);
+    }
+  }
+  for (const entry of (Array.isArray(incoming) ? incoming : [])) {
+    if (!entry) continue;
+    if (entry.effect_id) {
+      map.set(entry.effect_id, entry);
+    } else {
+      nonKeyed.push(entry);
+    }
+  }
+  const keyed = Array.from(map.values());
+  keyed.sort((a, b) => (a.effect_id || "").localeCompare(b.effect_id || ""));
+  return [...keyed, ...nonKeyed];
+}
+
 const { createMemoryStore } = require("../lifecycle-kernel/memory-store.js");
 
 const DEFAULT_SUBJECT_ID = "lifecycle:default";
@@ -322,7 +357,9 @@ function createAuthorityStore(options = {}) {
     const currentStateDigest = digestLifecycleState(loaded.state);
     const budgetsBefore = cloneBudgets(entry.budgets);
 
-    const journalToCommit = nextJournal !== undefined ? nextJournal : loaded.journal;
+    const journalToCommit = nextJournal !== undefined
+      ? upsertJournalEntries(loaded.journal, nextJournal)
+      : loaded.journal;
     const currentJournalDigest = digestJournal(loaded.journal);
 
     const baselineStateDigest = entry.baselines.get(expectedRevision);
@@ -452,10 +489,6 @@ function createAuthorityStore(options = {}) {
     if (midOpTicket) {
       entry.midOpTickets.delete(midOpTicket);
     }
-    if (!stateUnchanged) {
-      entry.midOpTickets.clear();
-      entry.baselines.clear();
-    }
 
     const after = await entry.inner.load();
     const revision = computeRevision(after.state, after.journal, entry.authority);
@@ -541,4 +574,5 @@ module.exports = {
   computeRevision,
   createAuthorityStore,
   createAuthorityRuntime,
+  upsertJournalEntries,
 };

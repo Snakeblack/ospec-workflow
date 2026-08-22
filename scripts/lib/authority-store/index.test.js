@@ -836,3 +836,79 @@ test("REQ-authority-store-003 / REQ-authority-store-011: concurrent commitJourna
   assert.equal(afterW1.state.nodes.n1.phase, "started");
 });
 
+test("REQ-authority-store-003 / REQ-authority-store-011: commitJournal performs merge-safe upsert by effect_id", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const r0 = await store.load();
+
+  const j1 = [
+    { effect_id: "eff-101", status: "started", result: { barrier: "pre-effect" } },
+    { effect_id: "eff-102", status: "started", result: { barrier: "pre-effect" } },
+  ];
+  await store.commitJournal(j1, DEFAULT_SUBJECT_ID, r0.revision);
+
+  const after1 = await store.load();
+  assert.equal(after1.journal.length, 2);
+
+  // Second commitJournal updates eff-101 and adds eff-103
+  const j2 = [
+    { effect_id: "eff-101", status: "completed", result: { ok: true } },
+    { effect_id: "eff-103", status: "completed", result: { ok: true } },
+  ];
+  await store.commitJournal(j2, DEFAULT_SUBJECT_ID, after1.revision);
+
+  const after2 = await store.load();
+  assert.equal(after2.journal.length, 3, "Journal entries must be merged/upserted by effect_id");
+  const eff101 = after2.journal.find((e) => e.effect_id === "eff-101");
+  const eff102 = after2.journal.find((e) => e.effect_id === "eff-102");
+  const eff103 = after2.journal.find((e) => e.effect_id === "eff-103");
+  assert.equal(eff101.status, "completed");
+  assert.equal(eff102.status, "started");
+  assert.equal(eff103.status, "completed");
+});
+
+test("REQ-authority-store-003 / REQ-authority-store-011: winning CAS deletes only winning midOpTicket, preserving peer midOpTickets", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const r0 = await store.load();
+
+  const j1 = [{ effect_id: "eff-w1", status: "completed", result: { ok: true } }];
+  const j2 = [{ effect_id: "eff-w2", status: "completed", result: { ok: true } }];
+
+  const jr1 = await store.commitJournal(j1, DEFAULT_SUBJECT_ID, r0.revision);
+  const jr2 = await store.commitJournal(j2, DEFAULT_SUBJECT_ID, r0.revision);
+
+  assert.ok(jr1.mid_op_ticket);
+  assert.ok(jr2.mid_op_ticket);
+
+  // Writer 1 commits CAS successfully, advancing state to started
+  const cas1 = await store.compareAndSwap(
+    DEFAULT_SUBJECT_ID,
+    r0.revision,
+    startedState(),
+    j1,
+    jr1.mid_op_ticket
+  );
+  assert.equal(cas1.ok, true);
+
+  // Calling CAS with deleted jr1 ticket fails
+  const casReplayT1 = await store.compareAndSwap(
+    DEFAULT_SUBJECT_ID,
+    r0.revision,
+    startedState(),
+    j1,
+    jr1.mid_op_ticket
+  );
+  assert.equal(casReplayT1.ok, false);
+
+  // Writer 2's ticket jr2 was preserved: calling CAS with jr2 against R0 detects state drift
+  // and returns cas-conflict (not missing ticket)
+  const casW2 = await store.compareAndSwap(
+    DEFAULT_SUBJECT_ID,
+    r0.revision,
+    { schema_version: 1, status: "running", nodes: { n1: { phase: "started", attempt: 2 } } },
+    j2,
+    jr2.mid_op_ticket
+  );
+  assert.equal(casW2.ok, false);
+  assert.equal(casW2.code, "cas-conflict");
+});
+

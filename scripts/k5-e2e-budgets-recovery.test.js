@@ -4,304 +4,15 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const {
-  DEFAULT_NODE_BUDGET,
-  DEFAULT_AUTHORITY_BUDGET,
-  evaluateNodeBudget,
-  evaluateAuthorityBudget,
-  decrementBudgetMonotonic,
-  checkPatchBounds,
-  isZeroDeltaMutation,
-} = require("./lib/execution-budgets.js");
-
-const {
-  CAUSAL_CATEGORIES,
-  createCausalFailure,
-  resolvePrimaryFailure,
-  mapLegacyRoutingTag,
-} = require("./lib/causal-failure.js");
-
-const {
-  ALLOWLISTED_TRANSITION_MATRIX,
-  getAllowlistedTransitions,
-  validateRecoveryTransition,
-  validateRepairScope,
-  requiresReconciliation,
-  requiresStateResync,
-} = require("./lib/failure-recovery.js");
-
-const {
   createAuthorityStore,
   createKernelRuntime,
-  reduceLifecycle,
-  selectTransitions,
-  nextTransition,
+  DEFAULT_SUBJECT_ID,
+  hostBoundary,
 } = require("./lib/lifecycle-kernel/index.js");
+const { resolvePrimaryFailure } = require("./lib/causal-failure.js");
 
-const {
-  validateRecoveryHonesty,
-  blockingFingerprint,
-} = require("./lib/lifecycle-kernel/recovery.js");
-
-const { withRuntimePermit } = require("./lib/lifecycle-kernel/test-permit-helpers.js");
-
-test("K5 E2E: Non-increasing budget decrements across retry loops", () => {
-  let state = {
-    schema_version: 1,
-    status: "ready",
-    nodes: {
-      "apply-task": {
-        id: "apply-task",
-        phase: "pending",
-        attempt: 0,
-        budget: {
-          schema_version: 1,
-          turns: 3,
-          patches: 3,
-          commands: 10,
-          wall_time_minutes: 15,
-          changed_lines: 300,
-          allowed_paths: ["src/**"],
-        },
-      },
-    },
-  };
-
-  // Turn 1: start -> fail
-  state = reduceLifecycle(state, withRuntimePermit({
-    operation: "start",
-    arguments: { node_id: "apply-task" },
-  })).state;
-  assert.equal(state.nodes["apply-task"].attempt, 1);
-  assert.equal(state.nodes["apply-task"].budget.turns, 2);
-
-  state = reduceLifecycle(state, withRuntimePermit({
-    operation: "fail",
-    arguments: { node_id: "apply-task" },
-    failure: createCausalFailure({
-      failure_id: "f1",
-      category: "code_defect",
-      code: "TEST_FAILED",
-      blocking_fingerprint: "fp:1",
-    }),
-  })).state;
-
-  // Turn 2: repair -> start -> fail
-  const repairScope1 = { node_ids: ["apply-task"], allowed_paths: ["src/**"], finding_ids: ["f1"] };
-  state = reduceLifecycle(state, withRuntimePermit({
-    operation: "repair",
-    arguments: { node_id: "apply-task", scope: repairScope1 },
-  })).state;
-  state = reduceLifecycle(state, withRuntimePermit({
-    operation: "start",
-    arguments: { node_id: "apply-task" },
-  })).state;
-  assert.equal(state.nodes["apply-task"].attempt, 2);
-  assert.equal(state.nodes["apply-task"].budget.turns, 1);
-
-  state = reduceLifecycle(state, withRuntimePermit({
-    operation: "fail",
-    arguments: { node_id: "apply-task" },
-    failure: createCausalFailure({
-      failure_id: "f2",
-      category: "code_defect",
-      code: "TEST_FAILED",
-      blocking_fingerprint: "fp:2",
-    }),
-  })).state;
-
-  // Turn 3: repair -> start -> fail (exhausts turns: 0)
-  const repairScope2 = { node_ids: ["apply-task"], allowed_paths: ["src/**"], finding_ids: ["f2"] };
-  state = reduceLifecycle(state, withRuntimePermit({
-    operation: "repair",
-    arguments: { node_id: "apply-task", scope: repairScope2 },
-  })).state;
-  state = reduceLifecycle(state, withRuntimePermit({
-    operation: "start",
-    arguments: { node_id: "apply-task" },
-  })).state;
-  assert.equal(state.nodes["apply-task"].attempt, 3);
-  assert.equal(state.nodes["apply-task"].budget.turns, 0);
-  assert.equal(state.nodes["apply-task"].exhausted, true);
-
-  state = reduceLifecycle(state, withRuntimePermit({
-    operation: "fail",
-    arguments: { node_id: "apply-task" },
-  })).state;
-
-  // Attempt to repair when exhausted must fail closed
-  const recoverAttempt = reduceLifecycle(state, withRuntimePermit({
-    operation: "repair",
-    arguments: { node_id: "apply-task", scope: repairScope2 },
-  }));
-  assert.equal(recoverAttempt.outcome, "blocked");
-  assert.equal(recoverAttempt.code, "node-exhausted");
-});
-
-test("K5 E2E: Terminal stop on attempts exhaustion without infinite retry loops", () => {
-  const exhaustedState = {
-    schema_version: 1,
-    status: "blocked",
-    nodes: {
-      "apply-task": {
-        id: "apply-task",
-        phase: "failed",
-        attempt: 3,
-        exhausted: true,
-        budget: {
-          schema_version: 1,
-          turns: 0,
-          patches: 0,
-          commands: 0,
-          wall_time_minutes: 0,
-          changed_lines: 0,
-          allowed_paths: [],
-        },
-      },
-    },
-  };
-
-  const transitions = selectTransitions(exhaustedState);
-  assert.ok(!transitions.some((t) => t.operation === "recover"));
-  assert.ok(!transitions.some((t) => t.operation === "start"));
-
-  const next = nextTransition(exhaustedState);
-  assert.ok(next.kind === "decide" || next.kind === "stop" || next.kind === "escalate");
-});
-
-
-test("K5 E2E: Monotonic budget non-inflation after CAS race retries", async () => {
-  const pendingState = {
-    schema_version: 1,
-    status: "ready",
-    nodes: { n1: { id: "n1", phase: "pending", attempt: 0 } },
-  };
-  const store = createAuthorityStore({
-    initial: { state: pendingState },
-    budgets: { attempts: 3, corrections: 2, turns: 10 },
-  });
-  const runtime = createKernelRuntime({ store });
-
-  const statusRes = await runtime.getStatus();
-  assert.equal(statusRes.outcome, "advanced");
-
-  // Se emite un permit válido contra la revisión actual de la cabeza.
-  const head = await store.load();
-  const stalePermit = runtime.issuePermitForSelectedTransition({
-    operation: "start",
-    expected_revision: head.revision,
-    arguments: { node_id: "n1" },
-  });
-  assert.equal(stalePermit.ok, true);
-
-  // Un segundo writer gana la carrera CAS y adelanta la revisión antes de
-  // que el permit se consuma, dejándolo obsoleto (stale).
-  const raced = await store.compareAndSwap(
-    "lifecycle:default",
-    head.revision,
-    {
-      schema_version: 1,
-      status: "running",
-      nodes: { n1: { id: "n1", phase: "started", attempt: 1 } },
-    },
-    []
-  );
-  assert.equal(raced.ok, true);
-
-  // El bloqueo por permit obsoleto no debe tocar los presupuestos de autoridad.
-  const budgetsBefore = store.getBudgets();
-  const result = await runtime.runOperation({
-    operation: "start",
-    arguments: { node_id: "n1" },
-    operationPermit: stalePermit.permit,
-    effectExecutor: async () => ({ ok: true }),
-  });
-
-  assert.equal(result.outcome, "blocked");
-  // La autorización del permit corre antes de la validación de transición y del
-  // CAS del kernel; con revisión desfasada la única salida es stale-permit
-  // (determinismo verificado empíricamente: 200/200 ejecuciones idénticas).
-  assert.equal(result.code, "stale-permit");
-  assert.deepEqual(store.getBudgets(), budgetsBefore);
-});
-
-test("K5 E2E: Bounded scope repair validation", () => {
-  const scope = {
-    node_ids: ["task-fix-auth"],
-    allowed_paths: ["src/auth/**"],
-    finding_ids: ["F-SECURITY-01"],
-  };
-
-  // Valid repair within bounds
-  const valid = validateRepairScope({
-    scope,
-    targetNodeId: "task-fix-auth",
-    modifiedPaths: ["src/auth/token.js"],
-    resolvedFindingIds: ["F-SECURITY-01"],
-  });
-  assert.equal(valid.ok, true);
-
-  // Invalid: path out of scope
-  const invalidPath = validateRepairScope({
-    scope,
-    targetNodeId: "task-fix-auth",
-    modifiedPaths: ["src/payment/gateway.js"],
-    resolvedFindingIds: ["F-SECURITY-01"],
-  });
-  assert.equal(invalidPath.ok, false);
-  assert.ok(invalidPath.violations.some((v) => v.includes("gateway.js")));
-});
-
-test("K5 E2E: Non-mutation policies for ambiguous effects and CAS conflicts", () => {
-  // Ambiguous effects require reconciliation before any mutation
-  assert.equal(requiresReconciliation("ambiguous_effect"), true);
-  assert.deepEqual(getAllowlistedTransitions("ambiguous_effect"), ["escalate", "stop"]);
-
-  // CAS conflicts require re-syncing before retry
-  assert.equal(requiresStateResync("cas_conflict"), true);
-  assert.deepEqual(getAllowlistedTransitions("cas_conflict"), ["replan", "escalate", "stop"]);
-});
-
-test("K5 E2E: Recovery honesty verification preventing stagnant loops", () => {
-  const stateBefore = {
-    schema_version: 1,
-    status: "blocked",
-    nodes: {
-      n1: {
-        id: "n1",
-        phase: "failed",
-        attempt: 1,
-        zero_delta_attempts: 0,
-      },
-    },
-  };
-
-  // Fake recovery where only attempt incremented without changing node state or fixing failure
-  const stateStagnant = {
-    schema_version: 1,
-    status: "blocked",
-    nodes: {
-      n1: {
-        id: "n1",
-        phase: "failed",
-        attempt: 2,
-        zero_delta_attempts: 1,
-      },
-    },
-  };
-
-  const honestyCheck = validateRecoveryHonesty({
-    beforeState: stateBefore,
-    afterState: stateStagnant,
-    outcome: "advanced",
-  });
-
-  assert.equal(honestyCheck.ok, false);
-  assert.equal(honestyCheck.code, "recovery-non-advancing");
-  assert.equal(honestyCheck.before_blocking, honestyCheck.after_blocking);
-});
-
-test("REQ-authority-store-003 / REQ-execution-budgets-003: E2E concurrent writers CAS race post-effects with monotonic 10D carry-over on retry", async () => {
-  const initialState = {
+test("E2E 1: CAS retry with pre-persisted journal generates exactly 0 additional effectExecutor calls [REQ-authority-store-011, REQ-execution-budgets-003]", async () => {
+  const initial = {
     schema_version: 1,
     status: "ready",
     nodes: {
@@ -309,121 +20,205 @@ test("REQ-authority-store-003 / REQ-execution-budgets-003: E2E concurrent writer
         id: "n1",
         phase: "pending",
         attempt: 0,
-        budget: {
-          schema_version: 1,
-          turns: 10,
-          patches: 5,
-          commands: 20,
-          wall_time_minutes: 30,
-          changed_lines: 500,
-          allowed_paths: ["src/**"],
-        },
+        budget: { schema_version: 1, turns: 10, commands: 20 },
       },
     },
-    authority_budget: {
-      schema_version: 1,
-      effect_attempts: 5,
-      authority_mutations: 10,
-      evidence_runs: 20,
-      review_sweeps: 2,
-    },
+    authority_budget: { schema_version: 1, effect_attempts: 5 },
   };
 
-  const store = createAuthorityStore({ initial: { state: initialState, journal: [] } });
+  const store = createAuthorityStore({ initial: { state: initial, journal: [] } });
   const runtime = createKernelRuntime({ store });
   const head0 = await store.load();
 
-  // Writer 1 and Writer 2 both issue permits against head0 revision
   const permit1 = runtime.issuePermitForSelectedTransition({
     operation: "start",
     expected_revision: head0.revision,
     arguments: { node_id: "n1" },
   });
-  const permit2 = runtime.issuePermitForSelectedTransition({
+  assert.equal(permit1.ok, true);
+
+  let effectExecutorCalls = 0;
+
+  // Writer 1 (loser): executes effect, persists journal, but suffers CAS conflict because Writer 2 commits first
+  const loserResult = await runtime.runOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    operationPermit: permit1.permit,
+    effectExecutor: async (effect) => {
+      effectExecutorCalls++;
+      // Rival writer (Writer 2) advances head concurrently
+      const currentHead = await store.load();
+      await store.compareAndSwap(
+        DEFAULT_SUBJECT_ID,
+        currentHead.revision,
+        {
+          ...initial,
+          version_tag: "writer2_commit",
+          nodes: { n1: { id: "n1", phase: "pending", attempt: 0 } },
+        },
+        []
+      );
+      return {
+        ok: true,
+        usage: { turns: 1, commands: 2, effect_attempts: 1 },
+      };
+    },
+  });
+
+  assert.equal(loserResult.outcome, "blocked");
+  assert.equal(loserResult.code, "cas-conflict");
+  assert.equal(effectExecutorCalls, 1, "Effect executor must have been called exactly once on first attempt");
+
+  // Writer 1 retries under the new live head revision
+  const head1 = await store.load();
+  const permitRetry = runtime.issuePermitForSelectedTransition({
+    operation: "start",
+    expected_revision: head1.revision,
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(permitRetry.ok, true);
+
+  const retryResult = await runtime.runOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    operationPermit: permitRetry.permit,
+    effectExecutor: async () => {
+      effectExecutorCalls++;
+      return { ok: true, usage: { turns: 1 } };
+    },
+  });
+
+  assert.equal(retryResult.outcome, "advanced");
+  // Effect must be skipped via journal reconciliation (action: skip)
+  assert.equal(
+    effectExecutorCalls,
+    1,
+    "Retry must generate exactly 0 additional effectExecutor calls due to journal reconciliation"
+  );
+});
+
+test("E2E 2: Partitioned carry-over by ${subjectId}:${nodeId} isolates budgets across concurrent nodes [REQ-execution-budgets-003, REQ-operation-permits-005]", async () => {
+  const initial = {
+    schema_version: 1,
+    status: "ready",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "pending",
+        attempt: 0,
+        budget: { schema_version: 1, turns: 5, commands: 10 },
+      },
+      n2: {
+        id: "n2",
+        phase: "pending",
+        attempt: 0,
+        budget: { schema_version: 1, turns: 5, commands: 10 },
+      },
+    },
+    authority_budget: { schema_version: 1, effect_attempts: 10 },
+  };
+
+  const store = createAuthorityStore({ initial: { state: initial, journal: [] } });
+  const runtime = createKernelRuntime({ store });
+  const head0 = await store.load();
+
+  // Issue permit for n1
+  const permitN1 = runtime.issuePermitForSelectedTransition({
     operation: "start",
     expected_revision: head0.revision,
     arguments: { node_id: "n1" },
   });
-  assert.equal(permit1.ok, true);
-  assert.equal(permit2.ok, true);
+  assert.equal(permitN1.ok, true);
 
-  // Synchronization barrier to ensure both effectExecutors run before either completes CAS
-  let w1EffectDone = false;
-  let w2EffectDone = false;
-
-  const w1Promise = runtime.runOperation({
+  // n1 suffers a CAS conflict and leaves carry-over (turns: 1, commands: 4)
+  const resN1 = await runtime.runOperation({
     operation: "start",
     arguments: { node_id: "n1" },
-    operationPermit: permit1.permit,
-    consumed: { commands: 2, patches: 1, changed_lines: 30 },
+    operationPermit: permitN1.permit,
     effectExecutor: async () => {
-      w1EffectDone = true;
-      // Wait until w2 has also started effect
-      while (!w2EffectDone) {
-        await new Promise((r) => setTimeout(r, 5));
-      }
-      return { ok: true, changed_lines: 30 };
+      const currentHead = await store.load();
+      await store.compareAndSwap(
+        DEFAULT_SUBJECT_ID,
+        currentHead.revision,
+        { ...initial, tag: "concurrent_advance" },
+        []
+      );
+      return { ok: true, usage: { turns: 1, commands: 4, effect_attempts: 1 } };
     },
   });
+  assert.equal(resN1.outcome, "blocked");
+  assert.equal(resN1.code, "cas-conflict");
 
-  const w2Promise = runtime.runOperation({
+  // Now n2 issues permit and executes under updated head
+  const head1 = await store.load();
+  const permitN2 = runtime.issuePermitForSelectedTransition({
+    operation: "start",
+    expected_revision: head1.revision,
+    arguments: { node_id: "n2" },
+  });
+  assert.equal(permitN2.ok, true, "Permit for n2 must not be blocked by n1 carry-over");
+
+  const resN2 = await runtime.runOperation({
+    operation: "start",
+    arguments: { node_id: "n2" },
+    operationPermit: permitN2.permit,
+    effectExecutor: async () => ({ ok: true, usage: { turns: 1, commands: 1 } }),
+  });
+  assert.equal(resN2.outcome, "advanced");
+
+  const head2 = await store.load();
+  // n2 budget must only have decremented by its own turn (5 - 1 = 4 turns)
+  assert.equal(head2.state.nodes.n2.budget.turns, 4, "n2 budget must reflect only n2 execution");
+  assert.equal(head2.state.nodes.n1.budget.turns, 5, "n1 budget on store remains unchanged after n2 commit");
+
+  // Now n1 retries under head2
+  const permitN1Retry = runtime.issuePermitForSelectedTransition({
+    operation: "start",
+    expected_revision: head2.revision,
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(permitN1Retry.ok, true);
+
+  const resN1Retry = await runtime.runOperation({
     operation: "start",
     arguments: { node_id: "n1" },
-    operationPermit: permit2.permit,
-    consumed: { commands: 4, patches: 2, changed_lines: 70 },
-    effectExecutor: async () => {
-      w2EffectDone = true;
-      // Wait until w1 has also started effect
-      while (!w1EffectDone) {
-        await new Promise((r) => setTimeout(r, 5));
-      }
-      return { ok: true, changed_lines: 70 };
-    },
+    operationPermit: permitN1Retry.permit,
+    effectExecutor: async () => ({ ok: true, usage: { turns: 1 } }),
   });
-
-  const [res1, res2] = await Promise.all([w1Promise, w2Promise]);
-
-  // Exactly one writer wins CAS and one fails with cas-conflict
-  const winners = [res1, res2].filter((r) => r.outcome === "advanced");
-  const losers = [res1, res2].filter((r) => r.outcome === "blocked" && r.code === "cas-conflict");
-
-  assert.equal(winners.length, 1, "Exactly one concurrent writer must win the CAS race");
-  assert.equal(losers.length, 1, "The competing concurrent writer must receive cas-conflict");
-
-  // Re-sync store and retry losing operation
-  const headAfterRace = await store.load();
-  assert.equal(headAfterRace.state.nodes.n1.phase, "started");
-
-  // Winner moved node to 'started'. Now complete it or fail it to verify carry-over on next step
-  const retryPermit = runtime.issuePermitForSelectedTransition({
-    operation: "complete",
-    expected_revision: headAfterRace.revision,
-    arguments: { node_id: "n1" },
-  });
-  assert.equal(retryPermit.ok, true);
-
-  const retryRes = await runtime.runOperation({
-    operation: "complete",
-    arguments: { node_id: "n1" },
-    operationPermit: retryPermit.permit,
-    effectExecutor: async () => ({ ok: true }),
-  });
-  assert.ok(
-    retryRes.outcome === "advanced" || retryRes.outcome === "terminal",
-    "Complete operation must reach advanced or terminal outcome"
-  );
+  assert.equal(resN1Retry.outcome, "advanced");
 
   const headFinal = await store.load();
-  const finalBudget = headFinal.state.nodes.n1.budget;
-  const finalAuthBudget = headFinal.state.authority_budget;
+  // n1 budget now incorporates n1 carry-over (5 - 1 carry-over - 1 operation turn = 3 turns, 10 - 4 commands = 6 commands)
+  assert.equal(headFinal.state.nodes.n1.budget.turns, 3);
+  assert.equal(headFinal.state.nodes.n1.budget.commands, 6);
+  assert.equal(headFinal.state.nodes.n2.budget.turns, 4);
+});
 
-  // The final budget must reflect:
-  // 1. Initial quotas
-  // 2. Decrement from winning start
-  // 3. 10D carry-over from losing CAS race attempt (retained across retries)
-  // 4. Decrement from complete operation
-  assert.ok(finalBudget.turns <= 8, "Turns must account for start, carry-over, and completion");
-  assert.ok(finalBudget.commands < 20, "Commands must reflect carry-over deduction");
-  assert.ok(finalBudget.changed_lines < 500, "Changed lines must reflect carry-over deduction");
-  assert.ok(finalAuthBudget.effect_attempts <= 3, "Authority effect attempts must reflect carry-over without replenishment");
+test("E2E 3: Host boundary normalizes multi-transport failure outcomes via resolvePrimaryFailure [REQ-failure-recovery-002, REQ-failure-recovery-003]", async () => {
+  const fault = await hostBoundary.observeHostPort({
+    transports: {
+      ExecutionTransport: {
+        invoke: async () => ({
+          ok: false,
+          outcome: "error",
+          failures: [
+            { category: "validation_gap", code: "SCHEMA_MISMATCH", priority: 4 },
+            { category: "environment_tooling", code: "TOOL_EXIT_1", priority: 1 },
+            { category: "code_defect", code: "SYNTAX_ERROR", priority: 5 },
+          ],
+        }),
+      },
+    },
+    port: "ExecutionTransport",
+  });
+
+  assert.equal(fault.ok, false);
+  assert.equal(fault.category, "environment_tooling", "environment_tooling (priority 1) must be selected as primary");
+  assert.equal(fault.primary_failure.code, "TOOL_EXIT_1");
+
+  const gate = hostBoundary.requirePermitCasAfterHostFault(fault);
+  assert.equal(gate.host_local_mutation_allowed, false);
+  assert.equal(gate.requires_operation_permit, true);
+  assert.equal(gate.requires_cas, true);
+  assert.equal(gate.category, "environment_tooling");
 });

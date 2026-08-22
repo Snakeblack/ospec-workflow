@@ -1,7 +1,7 @@
 # ADR-006: Unified Deterministic resolvePrimaryFailure across Components
 
-- Status: proposed
-- Change: k5-core-remediation
+- Status: accepted
+- Change: k5-concurrency-hardening
 - Date: 2026-08-22
 
 ## Context

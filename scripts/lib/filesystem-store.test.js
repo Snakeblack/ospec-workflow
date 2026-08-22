@@ -433,5 +433,53 @@ test("Stale lock recovery fails closed with stale-lock-recovery-required", async
   }
 });
 
+test("REQ-authority-store-003 / REQ-authority-store-011: FileSystemStore commitJournal and commit merge-safe upsert by effect_id", async () => {
+  const filePath = tmpFile();
+  try {
+    const store = createFileSystemStore({ filePath, initializeIfMissing: true });
+    await store.commitJournal([
+      { effect_id: "eff-1", status: "started", result: { barrier: "pre-effect" } },
+      { effect_id: "eff-2", status: "started", result: { barrier: "pre-effect" } },
+    ]);
+
+    const loaded1 = await store.load();
+    assert.equal(loaded1.journal.length, 2);
+
+    // commitJournal with updated eff-1 and new eff-3
+    await store.commitJournal([
+      { effect_id: "eff-1", status: "completed", result: { ok: true } },
+      { effect_id: "eff-3", status: "completed", result: { ok: true } },
+    ]);
+
+    const loaded2 = await store.load();
+    assert.equal(loaded2.journal.length, 3);
+    const e1 = loaded2.journal.find((e) => e.effect_id === "eff-1");
+    const e2 = loaded2.journal.find((e) => e.effect_id === "eff-2");
+    const e3 = loaded2.journal.find((e) => e.effect_id === "eff-3");
+    assert.equal(e1.status, "completed");
+    assert.equal(e2.status, "started");
+    assert.equal(e3.status, "completed");
+
+    // commit with updated eff-2 and new eff-4
+    await store.commit({
+      state: { schema_version: 1, status: "running", nodes: {} },
+      journal: [
+        { effect_id: "eff-2", status: "completed", result: { ok: true } },
+        { effect_id: "eff-4", status: "completed", result: { ok: true } },
+      ],
+    });
+
+    const loaded3 = await store.load();
+    assert.equal(loaded3.journal.length, 4);
+    const e2After = loaded3.journal.find((e) => e.effect_id === "eff-2");
+    const e4After = loaded3.journal.find((e) => e.effect_id === "eff-4");
+    assert.equal(e2After.status, "completed");
+    assert.equal(e4After.status, "completed");
+  } finally {
+    try { await fs.unlink(filePath); } catch (_) {}
+    try { await fs.unlink(`${filePath}.lock`); } catch (_) {}
+  }
+});
+
 
 

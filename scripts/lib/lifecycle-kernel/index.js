@@ -317,6 +317,7 @@ async function runKernelOperation(input = {}) {
   let lastOutputHashAfter = null;
   const accumulatedModifiedPaths = [...(args.modified_paths || [])];
   const accumulatedFindingIds = [...(args.resolved_finding_ids || [])];
+  const executedResults = [];
 
   const effectRecords = [];
   for (const effect of reduced.effects) {
@@ -352,6 +353,16 @@ async function runKernelOperation(input = {}) {
 
     if (decision.action === "skip") {
       effectRecords.push(existing);
+      if (existing && existing.result) {
+        executedResults.push(existing.result);
+        if (typeof existing.result.modified_files_count === "number") totalModifiedFiles += existing.result.modified_files_count;
+        if (typeof existing.result.changed_lines === "number") totalChangedLines += existing.result.changed_lines;
+        if (existing.result.state_advanced === true || existing.result.advanced === true) stateAdvanced = true;
+        if (existing.result.output_hash_before) lastOutputHashBefore = existing.result.output_hash_before;
+        if (existing.result.output_hash_after) lastOutputHashAfter = existing.result.output_hash_after;
+        if (Array.isArray(existing.result.modified_paths)) accumulatedModifiedPaths.push(...existing.result.modified_paths);
+        if (Array.isArray(existing.result.resolved_finding_ids)) accumulatedFindingIds.push(...existing.result.resolved_finding_ids);
+      }
       continue;
     }
 
@@ -524,6 +535,7 @@ async function runKernelOperation(input = {}) {
     }
 
     if (result) {
+      executedResults.push(result);
       if (typeof result.modified_files_count === "number") totalModifiedFiles += result.modified_files_count;
       if (typeof result.changed_lines === "number") totalChangedLines += result.changed_lines;
       if (result.state_advanced === true || result.advanced === true) stateAdvanced = true;
@@ -572,10 +584,10 @@ async function runKernelOperation(input = {}) {
 
 
   // Zero-delta mutation check and deduction:
-  // Strictly conditioned to code/file mutations where reduced.outcome === "unchanged" and 0 files/lines modified.
-  // Operations with semantic progress (reduced.outcome !== "unchanged"), read-only queries (status),
-  // and terminal control (escalate, stop) are strictly exempt.
-  const isLifecycleTransition = [
+  // Strictly conditioned to code/file mutations where effectProgress === false (0 files/lines modified).
+  // Operations with semantic progress (effectProgress === true), read-only queries (status),
+  // and lifecycle transitions (start, complete, fail, recover, replan, escalate, stop, invalidate-node, decide) are strictly exempt.
+  const isLifecycleControlTransition = [
     "start",
     "complete",
     "fail",
@@ -587,8 +599,10 @@ async function runKernelOperation(input = {}) {
     "invalidate-node",
     "decide",
   ].includes(operation);
+  const effectProgress = totalModifiedFiles > 0 || totalChangedLines > 0 || stateAdvanced === true;
   const isZeroDelta =
-    !isLifecycleTransition &&
+    !isLifecycleControlTransition &&
+    !effectProgress &&
     isZeroDeltaMutation({
       modifiedFilesCount: totalModifiedFiles,
       changedLines: totalChangedLines,
@@ -736,24 +750,10 @@ async function runKernelOperation(input = {}) {
     authorityCommit
   );
   if (!cas.ok) {
-    const executedDelta = {
-      turns: 1,
-      patches: Number(args.patches || (args.patch ? 1 : 0)) || 0,
-      commands: Number(args.commands || 0) || (args.command ? 1 : 0),
-      changed_lines: totalChangedLines,
-      wall_time_minutes: Number(args.wall_time_minutes || 0),
-      effect_attempts: 1,
-      authority_mutations: 1,
-      evidence_runs: Number(args.evidence_runs || 0),
-      review_sweeps: Number(args.review_sweeps || 0),
-    };
-    if (input.consumed && typeof input.consumed === "object") {
-      for (const [k, v] of Object.entries(input.consumed)) {
-        if (typeof v === "number" && v > 0) {
-          executedDelta[k] = Math.max(executedDelta[k] || 0, v);
-        }
-      }
-    }
+    const executedDelta = extractExecutionUsage(executedResults, {
+      args,
+      totalChangedLines,
+    });
     return blockedResult(state, journal, cas.code || "cas-conflict", {
       operation_id: operationId,
       revision: cas.revision,
@@ -851,6 +851,74 @@ function mergeDeltas(target = {}, source = {}) {
   return out;
 }
 
+/**
+ * Normalizes and aggregates ExecutionUsage strictly from effectExecutor results.
+ * Caller-supplied input.consumed is never used as accounting authority.
+ */
+function extractExecutionUsage(results = [], fallback = {}) {
+  let turns = 0;
+  let patches = 0;
+  let commands = 0;
+  let changed_lines = 0;
+  let wall_time_minutes = 0;
+  let effect_attempts = 0;
+  let authority_mutations = 0;
+  let evidence_runs = 0;
+  let review_sweeps = 0;
+  let hasReportedUsage = false;
+
+  for (const res of results) {
+    const raw = res && (res.usage || res.execution_usage);
+    if (raw && typeof raw === "object") {
+      hasReportedUsage = true;
+      if (raw.turns !== undefined) turns += Number(raw.turns || 0);
+      if (raw.patches !== undefined) patches += Number(raw.patches || 0);
+      if (raw.commands !== undefined) commands += Number(raw.commands || 0);
+      if (raw.changed_lines !== undefined) changed_lines += Number(raw.changed_lines || 0);
+      if (raw.wall_time_minutes !== undefined) wall_time_minutes += Number(raw.wall_time_minutes || 0);
+      if (raw.effect_attempts !== undefined) effect_attempts += Number(raw.effect_attempts || 0);
+      if (raw.authority_mutations !== undefined) authority_mutations += Number(raw.authority_mutations || 0);
+      if (raw.evidence_runs !== undefined) evidence_runs += Number(raw.evidence_runs || 0);
+      if (raw.review_sweeps !== undefined) review_sweeps += Number(raw.review_sweeps || 0);
+    }
+  }
+
+  if (hasReportedUsage) {
+    return {
+      turns: Math.max(1, turns),
+      patches,
+      commands,
+      changed_lines: Math.max(changed_lines, fallback.totalChangedLines || 0),
+      wall_time_minutes,
+      effect_attempts: Math.max(1, effect_attempts),
+      authority_mutations: Math.max(1, authority_mutations),
+      evidence_runs,
+      review_sweeps,
+    };
+  }
+
+  return {
+    turns: 1,
+    patches: Number(fallback.args?.patches || (fallback.args?.patch ? 1 : 0) || 0),
+    commands: Number(fallback.args?.commands || 0) || (fallback.args?.command ? 1 : 0),
+    changed_lines: fallback.totalChangedLines || 0,
+    wall_time_minutes: Number(fallback.args?.wall_time_minutes || 0),
+    effect_attempts: 1,
+    authority_mutations: 1,
+    evidence_runs: Number(fallback.args?.evidence_runs || 0),
+    review_sweeps: Number(fallback.args?.review_sweeps || 0),
+  };
+}
+
+/**
+ * Returns partition key for pending carry-over isolation.
+ */
+function getCarryOverKey(subjectId, nodeId) {
+  const s = subjectId || DEFAULT_SUBJECT_ID;
+  const n = nodeId || "default";
+  return `${s}:${n}`;
+}
+
 function createKernelRuntime(options = {}) {
   const permitIssuer = createPermitAuthorityIssuer();
   const store = options.store || createAuthorityStore(options);
@@ -859,9 +927,11 @@ function createKernelRuntime(options = {}) {
   return {
     async runOperation(input = {}) {
       const subjectId = input.subjectId || options.subjectId || DEFAULT_SUBJECT_ID;
+      const nodeId = input.arguments?.node_id || "default";
+      const carryOverKey = getCarryOverKey(subjectId, nodeId);
       const { permitLedger: _ignored, ...operationInput } = input;
-      const carryOver = pendingCarryOver.get(subjectId) || {};
-      const effectiveConsumed = mergeDeltas(carryOver, operationInput.consumed || {});
+      const carryOver = pendingCarryOver.get(carryOverKey) || {};
+      const effectiveConsumed = mergeDeltas(carryOver, {});
 
       const res = await runKernelOperation({
         ...operationInput,
@@ -872,10 +942,10 @@ function createKernelRuntime(options = {}) {
 
       if (res.outcome === "blocked" && res.code === "cas-conflict") {
         const executedDelta = res.consumed_delta || { turns: 1, effect_attempts: 1 };
-        const prior = pendingCarryOver.get(subjectId) || {};
-        pendingCarryOver.set(subjectId, mergeDeltas(prior, executedDelta));
+        const prior = pendingCarryOver.get(carryOverKey) || {};
+        pendingCarryOver.set(carryOverKey, mergeDeltas(prior, executedDelta));
       } else if (res.outcome === "advanced" || res.outcome === "terminal") {
-        pendingCarryOver.delete(subjectId);
+        pendingCarryOver.delete(carryOverKey);
       }
 
       return res;
@@ -901,20 +971,23 @@ function createKernelRuntime(options = {}) {
       // 2. Budget Exhaustion Check (terminal control transitions escalate/stop are exempt)
       const isTerminalControlOp = operation === "escalate" || operation === "stop";
       if (!isTerminalControlOp && state) {
+        const nodeId = input.arguments?.node_id || "default";
+        const carryOverKey = getCarryOverKey(subject_id, nodeId);
+        const carryOver = pendingCarryOver.get(carryOverKey) || {};
+
         if (
           state.authority_budget &&
-          isBudgetExhausted(state.authority_budget, {}, { isAuthority: true }).exhausted
+          isBudgetExhausted(state.authority_budget, carryOver, { isAuthority: true }).exhausted
         ) {
           return { ok: false, code: "budget-exhausted" };
         }
-        const nodeId = input.arguments?.node_id;
         if (nodeId && state.nodes?.[nodeId]) {
           const node = state.nodes[nodeId];
-          if (node.exhausted || (node.budget && isBudgetExhausted(node.budget).exhausted)) {
+          if (node.exhausted || (node.budget && isBudgetExhausted(node.budget, carryOver, { modifiedPaths: input.arguments?.modified_paths }).exhausted)) {
             return { ok: false, code: "budget-exhausted" };
           }
         }
-        if (state.budget && isBudgetExhausted(state.budget).exhausted) {
+        if (state.budget && isBudgetExhausted(state.budget, carryOver, { modifiedPaths: input.arguments?.modified_paths }).exhausted) {
           return { ok: false, code: "budget-exhausted" };
         }
       }
@@ -1032,6 +1105,8 @@ module.exports = {
   DEFAULT_SUBJECT_ID,
   // K2a: generic host boundary (no concrete adapter imports).
   hostBoundary: require("./host-boundary.js"),
+  getCarryOverKey,
+  extractExecutionUsage,
   // Internalized: bare commit is not a public mutation API on authority subjects.
   _internalMemoryCommit: null,
 };

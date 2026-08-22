@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.13] - 2026-08-22
+
+### Fixed
+- **Blindaje y Hardening de Concurrencia K5 (`k5-concurrency-hardening`)**:
+  - **Ownership Autoritativo de ExecutionUsage**: El consumo de presupuestos se extrae exclusivamente de `result.usage` / `result.execution_usage` emitido por el `effectExecutor`, purgando definitivamente `input.consumed` como autoridad del caller (`REQ-execution-budgets-003`).
+  - **Particionado de Carry-Over por Sujeto y Nodo**: Acumulador `pendingCarryOver` indexado por `${subjectId}:${nodeId}` aislando cuotas y evitando contaminación presupuestaria entre nodos/workers concurrentes (`REQ-operation-permits-005`).
+  - **Journaling Merge-Safe y Preservación de Peer Tickets**: `commitJournal` opera con `upsertJournalEntries` merge-safe por `effect_id` en todos los stores (`AuthorityStore`, `MemoryStore`, `FileSystemStore`), y el commit CAS elimina exclusivamente el ticket ganador (`entry.midOpTickets.delete(winner)`), preservando intactos los tickets de los peers concurrentes (`REQ-authority-store-003`, `REQ-authority-store-011`).
+  - **Garantía de Cero Duplicación de Efectos**: Reconciliación contra el journal que retorna `action: "skip"` ante efectos ya completados, verificando exactamente 0 llamadas adicionales al executor en reintentos post-CAS.
+  - **Alineación Contractual de Zero-Delta**: Deducción condicionada a `effect-bearing mutation AND effectProgress === false`, eximiendo transiciones de ciclo de vida como `repair` con avance (`REQ-execution-budgets-004`).
+  - **Integración Causal en Host Boundary**: Integrado `resolvePrimaryFailure` en `host-boundary.js` normalizando fallos de transporte como `environment_tooling` (`REQ-failure-recovery-002`, `REQ-failure-recovery-003`).
+  - **Gobernanza Formal de ADRs**: Promovidos y formalizados `adr-20260822-007` a `012` a `Status: accepted` en `docs/adr/`.
+
+### Added
+- **Gate 4R Completo K5**: Pipeline de revisión 4R selectiva (`risk`, `reliability`, `resilience`) completado con 0 hallazgos y verificación de suite al 100% (2401 tests).
+
 ## [2.45.12] - 2026-08-22
 
 ### Fixed

@@ -140,3 +140,30 @@ test("rejected transport Promise is observed as ok:false; no authority mint", as
   assert.equal(gate.requires_operation_permit, true);
   assert.equal(gate.requires_cas, true);
 });
+
+test("REQ-failure-recovery-002 / REQ-failure-recovery-003: observeHostPort and requirePermitCasAfterHostFault normalize composite failures via resolvePrimaryFailure", async () => {
+  const result = await observeHostPort({
+    transports: {
+      ExecutionTransport: {
+        invoke: async () => ({
+          ok: false,
+          outcome: "error",
+          failures: [
+            { category: "code_defect", code: "TEST_FAILED", priority: 5 },
+            { category: "environment_tooling", code: "TOOL_CRASH", priority: 1 },
+          ],
+        }),
+      },
+    },
+    port: "ExecutionTransport",
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.primary_failure, "primary_failure must be populated via resolvePrimaryFailure");
+  assert.equal(result.primary_failure.category, "environment_tooling", "environment_tooling must have highest priority");
+  assert.equal(result.category, "environment_tooling");
+
+  const gate = requirePermitCasAfterHostFault(result);
+  assert.equal(gate.category, "environment_tooling");
+  assert.equal(gate.primary_failure.category, "environment_tooling");
+});
