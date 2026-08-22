@@ -25,11 +25,11 @@ no escribe la clave `model:` y el host usa el modelo de la sesión.
 ### Tabla `agents` → tier
 
 `models.yaml` es la única fuente de verdad del mapeo agente→tier. El validador
-solo exige el roster SDD completo, tiers conocidos (`premium`/`default`/`cheap`),
-reviewers y `_default` en `default`, y los pins Codex. La partición vigente se
-lee del YAML (hoy: premium = design/verify/foundation/workspace; default incluye
-orchestrator/propose/spec/clarify/apply/reconcile/baseline; cheap =
-init/explore/tasks/archive/onboard/document).
+solo exige el roster SDD completo, tiers conocidos (`premium`/`default`/`cheap`)
+y ausencia de agentes `sdd-*` inesperados. Los reviewers y `_default` pueden usar
+cualquier tier conocido. Los modelos concretos y su configuración específica por
+target —incluidos `model`, `model_reasoning_effort` y `model_verbosity` de Codex—
+se leen exclusivamente del YAML y no se vuelven a fijar en el validador.
 
 ### Tabla `tiers` → modelo por target
 

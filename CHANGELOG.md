@@ -5,6 +5,11 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.14] - 2026-08-22
+
+### Fixed
+- **Política de modelos configurable (`models.yaml`)**: Eliminadas de `scripts/lib/model-resolver.js` las restricciones duplicadas que fijaban los reviewers y `_default` al tier `default`, además de los modelos y `model_reasoning_effort` de Codex. Las asignaciones, modelos, esfuerzo y verbosidad se leen ahora exclusivamente desde `models.yaml`; se conservan las guardas estructurales del roster SDD, tiers conocidos y agentes válidos. Las pruebas contractuales, de generación y telemetría derivan sus expectativas de la configuración viva. Verificación: `npm run setup:codex` con 0 errores y 0 warnings; suite completa `npm test` superada.
+
 ## [2.45.13] - 2026-08-22
 
 ### Fixed
