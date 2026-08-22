@@ -12,6 +12,26 @@ function normalizeArguments(args) {
   return out;
 }
 
+function mergeJournalEntries(existing = [], incoming = []) {
+  const keyed = new Map();
+  const nonKeyed = [];
+  for (const entry of Array.isArray(existing) ? existing : []) {
+    if (!entry) continue;
+    if (entry.effect_id) keyed.set(entry.effect_id, entry);
+    else nonKeyed.push(entry);
+  }
+  for (const entry of Array.isArray(incoming) ? incoming : []) {
+    if (!entry) continue;
+    if (!entry.effect_id) {
+      nonKeyed.push(entry);
+      continue;
+    }
+    const prior = keyed.get(entry.effect_id);
+    keyed.set(entry.effect_id, prior && prior.status === "completed" && entry.status !== "completed" ? prior : entry);
+  }
+  return [...Array.from(keyed.values()).sort((a, b) => a.effect_id.localeCompare(b.effect_id)), ...nonKeyed];
+}
+
 function deriveOperationId({ state, operation, arguments: args }) {
   return sha256Fingerprint("lifecycle-kernel:operation", {
     kernel_version: KERNEL_VERSION,
@@ -93,7 +113,9 @@ function reconcileEffect({ record, effect_class = null }) {
     };
   }
   if (record.status === "failed") {
-    return { action: "skip", reason: "already-failed" };
+    // A failed effect is terminal for physical execution, but its measured usage
+    // still needs one authoritative accounting CAS on the exact retry.
+    return { action: "reconcile-failed", reason: "failed-usage-pending" };
   }
   if (record.status === "unknown" && (effect_class || record.effect_class) === "irreversible") {
     return {
@@ -111,4 +133,5 @@ module.exports = {
   createJournalRecord,
   reconcileEffect,
   normalizeArguments,
+  mergeJournalEntries,
 };

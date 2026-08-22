@@ -45,7 +45,7 @@ async function runHarnessScenario(scenario = {}) {
   const executedEffects = [];
   const defaultExecutor = async (effect) => {
     executedEffects.push(effect.effect_id);
-    return { ok: true };
+    return { ok: true, usage: {} };
   };
   const executor = typeof effectExecutor === "function" ? effectExecutor : defaultExecutor;
 

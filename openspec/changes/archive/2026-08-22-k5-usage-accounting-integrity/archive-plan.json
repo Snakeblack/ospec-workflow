@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "change": "k5-usage-accounting-integrity",
+  "source_fingerprint": "sha256:574a11ba9d4b33ca7447e0acee5dba46921d7ff4398fe656145b3cbdc69a3f85",
+  "spec_writes": [
+    {
+      "domain": "execution-budgets",
+      "source_delta": "specs/execution-budgets/spec.md",
+      "target": "openspec/specs/execution-budgets/spec.md",
+      "target_before_sha256": "sha256:04e524b69722b19f60e04e1a366f609e69bcfc53682c66904dd286106379e970",
+      "content_sha256": "sha256:45dd180e5fe7b14d4c4e10c24c838baf6fd9b880f4479f243f41c93f9e9a661a"
+    },
+    {
+      "domain": "lifecycle-kernel-runtime",
+      "source_delta": "specs/lifecycle-kernel-runtime/spec.md",
+      "target": "openspec/specs/lifecycle-kernel-runtime/spec.md",
+      "target_before_sha256": "sha256:3af801015edddad652d1196299395ef22601dc95b74503e9ee44de295d17b576",
+      "content_sha256": "sha256:2944b4f63e592298b99f721769372a3fc5221a2fd612d898e07fb2cfcd0205f2"
+    },
+    {
+      "domain": "authority-store",
+      "source_delta": "specs/authority-store/spec.md",
+      "target": "openspec/specs/authority-store/spec.md",
+      "target_before_sha256": "sha256:d3642e36e738be7d459cf4721ecf6317029414f4e446666a1ebcd5c1e44e551d",
+      "content_sha256": "sha256:e21140213c46f8414e4672f316b454b3f4aa2f0faa24c009b56089c716093812"
+    },
+    {
+      "domain": "lifecycle-model-conformance",
+      "source_delta": "specs/lifecycle-model-conformance/spec.md",
+      "target": "openspec/specs/lifecycle-model-conformance/spec.md",
+      "target_before_sha256": "sha256:6e1a5e6dc704aa939f83ac214322a8ce86693a5e07092b707781cd457258bfc5",
+      "content_sha256": "sha256:11ad93df5791f7e354194546ca2d41fdaf0e4d3813d9805d6463d8a72c6828ea"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260823-001-two-bucket-execution-usage-accounting.md",
+      "content_sha256": "sha256:5d56a37d8d9a406b7a32f4a3d553b93e3b9abd5982fe37a97cdcf991cfac38d7"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260823-002-completed-absorbing-journal-merge.md",
+      "content_sha256": "sha256:07ff8b98fc30f3920cfe605366ac376fcf3c25c6a5ef674247de7a2806084cb8"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "design.md",
+    "proposal.md",
+    "specs/authority-store/spec.md",
+    "specs/execution-budgets/spec.md",
+    "specs/lifecycle-kernel-runtime/spec.md",
+    "specs/lifecycle-model-conformance/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    "K5-W-001",
+    "archive-4r-warning-001",
+    "archive-4r-warning-002",
+    "archive-4r-suggestion-001"
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

@@ -79,7 +79,9 @@ function reduceLifecycle(state, action = {}) {
   const effectClass = action.effect_class || DEFAULT_EFFECT_CLASS;
 
   // Monotonic budget decrement on consumed delta if passed
-  const consumedDelta = action.consumed || action.delta || args.consumed;
+  // Only the runtime may supply a carry-over delta. Caller input and operation
+  // arguments are not accounting authorities.
+  const consumedDelta = action.runtime_consumed || action.delta;
   if (consumedDelta && typeof consumedDelta === "object") {
     if (node && node.budget) {
       node.budget = decrementBudgetMonotonic(node.budget, consumedDelta);
@@ -132,21 +134,6 @@ function reduceLifecycle(state, action = {}) {
     node.phase = "started";
     node.attempt = Number(node.attempt || 0) + 1;
     next.status = "running";
-
-    if (node.budget) {
-      node.budget = decrementBudgetMonotonic(node.budget, { turns: 1 });
-      const nodeBudgetEval = isBudgetExhausted(node.budget);
-      if (nodeBudgetEval.exhausted) {
-        node.exhausted = true;
-      }
-    }
-    if (next.authority_budget) {
-      next.authority_budget = decrementBudgetMonotonic(next.authority_budget, { effect_attempts: 1 });
-      const authBudgetEval = isBudgetExhausted(next.authority_budget, {}, { isAuthority: true });
-      if (authBudgetEval.exhausted) {
-        next.exhausted = true;
-      }
-    }
 
     pushPersistEffect(effects, `effect:start:${nodeId}`, nodeId, "started", effectClass);
     events.push({

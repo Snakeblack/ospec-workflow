@@ -81,7 +81,7 @@ test("Real process restart reading from FileSystemStore preserves authority bag 
       operation: "start",
       arguments: { node_id: "n1" },
       operationPermit: issued.permit,
-      effectExecutor: async () => ({ ok: true }),
+      effectExecutor: async () => ({ ok: true, usage: {} }),
     });
     assert.equal(opResult.outcome, "advanced");
     assert.ok(opResult.operation_receipt);
@@ -120,7 +120,7 @@ test("Crash before atomic rename retains old head intact; incomplete temp files 
       operation: "start",
       arguments: { node_id: "n1" },
       operationPermit: issued.permit,
-      effectExecutor: async () => ({ ok: true }),
+      effectExecutor: async () => ({ ok: true, usage: {} }),
     });
 
     const headBefore = await store1.load();
@@ -162,7 +162,7 @@ test("Crash after atomic rename retains new head intact with zero torn state", a
       operation: "start",
       arguments: { node_id: "n1" },
       operationPermit: issued.permit,
-      effectExecutor: async () => ({ ok: true }),
+      effectExecutor: async () => ({ ok: true, usage: {} }),
     });
     assert.equal(res.outcome, "advanced");
 
@@ -475,6 +475,22 @@ test("REQ-authority-store-003 / REQ-authority-store-011: FileSystemStore commitJ
     const e4After = loaded3.journal.find((e) => e.effect_id === "eff-4");
     assert.equal(e2After.status, "completed");
     assert.equal(e4After.status, "completed");
+  } finally {
+    try { await fs.unlink(filePath); } catch (_) {}
+    try { await fs.unlink(`${filePath}.lock`); } catch (_) {}
+  }
+});
+
+test("K5: FileSystemStore preserves completed journal evidence against stale status", async () => {
+  const filePath = tmpFile();
+  try {
+    const store = createFileSystemStore({ filePath, initializeIfMissing: true });
+    const completed = { effect_id: "eff-complete", status: "completed", result: { ok: true, usage: {} } };
+    await store.commitJournal([completed]);
+    await store.commitJournal([{ effect_id: "eff-complete", status: "failed", result: { ok: false } }]);
+    const entry = (await store.load()).journal.find((item) => item.effect_id === "eff-complete");
+    assert.equal(entry.status, "completed");
+    assert.deepEqual(entry.result, completed.result);
   } finally {
     try { await fs.unlink(filePath); } catch (_) {}
     try { await fs.unlink(`${filePath}.lock`); } catch (_) {}

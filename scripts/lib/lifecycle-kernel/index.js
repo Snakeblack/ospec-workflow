@@ -301,7 +301,7 @@ async function runKernelOperation(input = {}) {
     permitLedger: ledger,
     headRevision,
     effect_class: effect_class || undefined,
-    consumed: input.consumed,
+    runtime_consumed: pendingAccountingUsage(journal, authorityBag, subjectId, args.node_id),
   });
 
   if (reduced.outcome === "blocked") {
@@ -317,7 +317,8 @@ async function runKernelOperation(input = {}) {
   let lastOutputHashAfter = null;
   const accumulatedModifiedPaths = [...(args.modified_paths || [])];
   const accumulatedFindingIds = [...(args.resolved_finding_ids || [])];
-  const executedResults = [];
+  const physicallyExecutedResults = [];
+  let reconciledFailedEffect = false;
 
   const effectRecords = [];
   for (const effect of reduced.effects) {
@@ -354,7 +355,6 @@ async function runKernelOperation(input = {}) {
     if (decision.action === "skip") {
       effectRecords.push(existing);
       if (existing && existing.result) {
-        executedResults.push(existing.result);
         if (typeof existing.result.modified_files_count === "number") totalModifiedFiles += existing.result.modified_files_count;
         if (typeof existing.result.changed_lines === "number") totalChangedLines += existing.result.changed_lines;
         if (existing.result.state_advanced === true || existing.result.advanced === true) stateAdvanced = true;
@@ -363,6 +363,15 @@ async function runKernelOperation(input = {}) {
         if (Array.isArray(existing.result.modified_paths)) accumulatedModifiedPaths.push(...existing.result.modified_paths);
         if (Array.isArray(existing.result.resolved_finding_ids)) accumulatedFindingIds.push(...existing.result.resolved_finding_ids);
       }
+      continue;
+    }
+
+    if (decision.action === "reconcile-failed") {
+      // The journal proves this effect already ran and failed. Do not invoke the
+      // executor again; commit the runtime-owned pending usage with an
+      // accounting-only CAS below while preserving the failed lifecycle state.
+      effectRecords.push(existing);
+      reconciledFailedEffect = true;
       continue;
     }
 
@@ -419,6 +428,10 @@ async function runKernelOperation(input = {}) {
     } catch (error) {
       if (error && error.code === "kernel-interrupt") {
         if (error.partial !== undefined) {
+          const usage = extractExecutionUsage([error.partial]);
+          if (!usage.ok) {
+            return blockedResult(state, journal, usage.code, { operation_id: operationId });
+          }
           record = createJournalRecord({
             operation_id: operationId,
             effect_id: effectId,
@@ -426,8 +439,15 @@ async function runKernelOperation(input = {}) {
             result: error.partial || { ok: true },
             effect_class: effect.effect_class,
           });
+          record = markAccountingPending(record, subjectId, args.node_id, permit.permit_id, usage.delta);
           journal = upsertJournal(journal, record);
           await persistJournal();
+          return blockedResult(state, journal, "effect-failed", {
+            operation_id: operationId,
+            effects: [...effectRecords, record],
+            consumed_delta: usage.delta,
+            accounting_disposition: "pending",
+          });
         } else if (record.result && record.result.barrier === "executing") {
           // Mid-executor: effect may have started — never rewrite to pre-effect.
           record = createJournalRecord({
@@ -491,6 +511,21 @@ async function runKernelOperation(input = {}) {
       });
     }
 
+    const executionUsage = extractExecutionUsage([result]);
+    if (!executionUsage.ok) {
+      record = createJournalRecord({
+        operation_id: operationId,
+        effect_id: effectId,
+        status: "unknown",
+        result: { ok: false, error: executionUsage.code },
+        effect_class: effect.effect_class,
+      });
+      journal = upsertJournal(journal, record);
+      await persistJournal();
+      return blockedResult(state, journal, executionUsage.code, { operation_id: operationId });
+    }
+    physicallyExecutedResults.push(result);
+
     if (result && result.ambiguous === true && effect.effect_class === "irreversible") {
       record = createJournalRecord({
         operation_id: operationId,
@@ -499,6 +534,7 @@ async function runKernelOperation(input = {}) {
         result,
         effect_class: effect.effect_class,
       });
+      record = markAccountingPending(record, subjectId, args.node_id, permit.permit_id, executionUsage.delta);
       journal = upsertJournal(journal, record);
       await persistJournal();
       const nextKind = selectIrreversibleAmbiguousNext(
@@ -508,6 +544,8 @@ async function runKernelOperation(input = {}) {
         ...blockedResult(state, journal, "irreversible-ambiguous", {
           operation_id: operationId,
           effects: [...effectRecords, record],
+          consumed_delta: executionUsage.delta,
+          accounting_disposition: "pending",
         }),
         next_transition: {
           kind: nextKind,
@@ -526,16 +564,18 @@ async function runKernelOperation(input = {}) {
         result,
         effect_class: effect.effect_class,
       });
+      record = markAccountingPending(record, subjectId, args.node_id, permit.permit_id, executionUsage.delta);
       journal = upsertJournal(journal, record);
       await persistJournal();
       return blockedResult(state, journal, "effect-failed", {
         operation_id: operationId,
         effects: [...effectRecords, record],
+        consumed_delta: executionUsage.delta,
+        accounting_disposition: "pending",
       });
     }
 
     if (result) {
-      executedResults.push(result);
       if (typeof result.modified_files_count === "number") totalModifiedFiles += result.modified_files_count;
       if (typeof result.changed_lines === "number") totalChangedLines += result.changed_lines;
       if (result.state_advanced === true || result.advanced === true) stateAdvanced = true;
@@ -552,6 +592,7 @@ async function runKernelOperation(input = {}) {
       result: result || { ok: true },
       effect_class: effect.effect_class,
     });
+    record = markAccountingPending(record, subjectId, args.node_id, permit.permit_id, executionUsage.delta);
 
     journal = upsertJournal(journal, record);
     await persistJournal();
@@ -560,12 +601,49 @@ async function runKernelOperation(input = {}) {
     await checkpoint(hooks, "after-effect", { operation_id: operationId, effect_id: effectId });
   }
 
-  if (effectRecords.some((entry) => entry && entry.status === "failed")) {
+  if (effectRecords.some((entry) => entry && entry.status === "failed") && !reconciledFailedEffect) {
     return blockedResult(state, journal, "effect-failed", {
       operation_id: operationId,
       effects: effectRecords,
     });
   }
+
+  if (reconciledFailedEffect) {
+    const carried = pendingAccountingUsage(journal, authorityBag, subjectId, args.node_id);
+    const hasCarryOver = Object.values(carried).some((value) => Number(value) > 0);
+    const hasDurableAccounting = effectRecords.some((entry) => entry && entry.accounting);
+    const recordedUsage = hasCarryOver
+      ? { ok: true, delta: carried }
+      : hasDurableAccounting
+        ? { ok: true, delta: {} }
+      : extractExecutionUsage(
+        effectRecords
+          .filter((entry) => entry && entry.status === "failed" && entry.result)
+          .map((entry) => entry.result)
+      );
+    if (!recordedUsage.ok) {
+      return blockedResult(state, journal, recordedUsage.code, { operation_id: operationId });
+    }
+    const accountingOnlyState = JSON.parse(JSON.stringify(state));
+    applyUsageDelta(accountingOnlyState, args.node_id, recordedUsage.delta);
+    reduced.state = accountingOnlyState;
+    reduced.outcome = "blocked";
+  }
+
+  // Physical execution usage is charged to the candidate exactly once. Skipped
+  // journal history is deliberately absent from physicallyExecutedResults.
+  const currentUsage = extractExecutionUsage(physicallyExecutedResults);
+  if (!currentUsage.ok) {
+    return blockedResult(state, journal, currentUsage.code, { operation_id: operationId });
+  }
+  const pendingPostEffectResult = (code, extra = {}) =>
+    blockedResult(state, journal, code, {
+      operation_id: operationId,
+      consumed_delta: currentUsage.delta,
+      accounting_disposition: "pending",
+      ...extra,
+    });
+  applyUsageDelta(reduced.state, args.node_id, currentUsage.delta);
 
   // Post-effect repair scope validation
   if (operation === "repair" || args.scope !== undefined) {
@@ -576,7 +654,7 @@ async function runKernelOperation(input = {}) {
       resolvedFindingIds: accumulatedFindingIds,
     });
     if (!postScope.ok) {
-      return blockedResult(state, journal, "repair-scope-violation", {
+      return pendingPostEffectResult("repair-scope-violation", {
         violations: postScope.violations,
       });
     }
@@ -599,14 +677,16 @@ async function runKernelOperation(input = {}) {
     "invalidate-node",
     "decide",
   ].includes(operation);
-  const effectProgress = totalModifiedFiles > 0 || totalChangedLines > 0 || stateAdvanced === true;
+  // Lifecycle signals supplied by an effect do not make a repair non-sterile.
+  // Only material effect output can exempt a repair from the dual zero-delta cost.
+  const effectProgress = totalModifiedFiles > 0 || totalChangedLines > 0;
   const isZeroDelta =
     !isLifecycleControlTransition &&
     !effectProgress &&
     isZeroDeltaMutation({
       modifiedFilesCount: totalModifiedFiles,
       changedLines: totalChangedLines,
-      stateAdvanced,
+      stateAdvanced: false,
       outputHashBefore: lastOutputHashBefore,
       outputHashAfter: lastOutputHashAfter,
     });
@@ -665,8 +745,7 @@ async function runKernelOperation(input = {}) {
       causalFailure: (state.nodes?.[args.node_id]?.failure) || args.failure,
     });
     if (!honesty.ok) {
-      return blockedResult(state, journal, honesty.code || "recovery-non-advancing", {
-        operation_id: operationId,
+      return pendingPostEffectResult(honesty.code || "recovery-non-advancing", {
         next_transition: { kind: "decide", operation: "escalate", arguments: { node_id: args.node_id } },
         before_blocking: honesty.before_blocking,
         after_blocking: honesty.after_blocking,
@@ -741,6 +820,11 @@ async function runKernelOperation(input = {}) {
     },
   };
 
+  const boundJournal = bindPendingAccounting(journal, authorityBag, subjectId, args.node_id, permit.permit_id);
+  if (boundJournal !== journal) {
+    journal = boundJournal;
+    await persistJournal();
+  }
   const cas = await authorityStore.compareAndSwap(
     subjectId,
     headRevision,
@@ -750,10 +834,7 @@ async function runKernelOperation(input = {}) {
     authorityCommit
   );
   if (!cas.ok) {
-    const executedDelta = extractExecutionUsage(executedResults, {
-      args,
-      totalChangedLines,
-    });
+    const executedDelta = currentUsage.delta;
     return blockedResult(state, journal, cas.code || "cas-conflict", {
       operation_id: operationId,
       revision: cas.revision,
@@ -761,6 +842,7 @@ async function runKernelOperation(input = {}) {
       budgets_unchanged: true,
       operation_receipt: null,
       consumed_delta: executedDelta,
+      accounting_disposition: "pending",
     });
   }
   await checkpoint(hooks, "after-state-commit", { operation_id: operationId });
@@ -779,8 +861,8 @@ async function runKernelOperation(input = {}) {
       operation_id: operationId,
       revision: cas.revision,
       budgets: cas.budgets || budgetsBefore,
-      budgets_unchanged: true,
       operation_receipt: null,
+      accounting_disposition: "committed",
     });
   }
 
@@ -798,12 +880,14 @@ async function runKernelOperation(input = {}) {
     transitions,
     next_transition: nextTransition(reduced.state),
     outcome: reduced.outcome,
+    ...(reconciledFailedEffect ? { code: "effect-failed" } : {}),
     events,
     operation_id: operationId,
     effects: effectRecords,
     revision: cas.revision,
     operation_permit_id: permit.permit_id,
     operation_receipt: committedReceipt,
+    accounting_disposition: "committed",
   };
 }
 
@@ -855,59 +939,40 @@ function mergeDeltas(target = {}, source = {}) {
  * Normalizes and aggregates ExecutionUsage strictly from effectExecutor results.
  * Caller-supplied input.consumed is never used as accounting authority.
  */
-function extractExecutionUsage(results = [], fallback = {}) {
-  let turns = 0;
-  let patches = 0;
-  let commands = 0;
-  let changed_lines = 0;
-  let wall_time_minutes = 0;
-  let effect_attempts = 0;
-  let authority_mutations = 0;
-  let evidence_runs = 0;
-  let review_sweeps = 0;
-  let hasReportedUsage = false;
-
-  for (const res of results) {
-    const raw = res && (res.usage || res.execution_usage);
-    if (raw && typeof raw === "object") {
-      hasReportedUsage = true;
-      if (raw.turns !== undefined) turns += Number(raw.turns || 0);
-      if (raw.patches !== undefined) patches += Number(raw.patches || 0);
-      if (raw.commands !== undefined) commands += Number(raw.commands || 0);
-      if (raw.changed_lines !== undefined) changed_lines += Number(raw.changed_lines || 0);
-      if (raw.wall_time_minutes !== undefined) wall_time_minutes += Number(raw.wall_time_minutes || 0);
-      if (raw.effect_attempts !== undefined) effect_attempts += Number(raw.effect_attempts || 0);
-      if (raw.authority_mutations !== undefined) authority_mutations += Number(raw.authority_mutations || 0);
-      if (raw.evidence_runs !== undefined) evidence_runs += Number(raw.evidence_runs || 0);
-      if (raw.review_sweeps !== undefined) review_sweeps += Number(raw.review_sweeps || 0);
+function extractExecutionUsage(results = []) {
+  const keys = [
+    "turns", "patches", "commands", "wall_time_minutes", "changed_lines",
+    "effect_attempts", "authority_mutations", "evidence_runs", "review_sweeps",
+  ];
+  const delta = Object.fromEntries(keys.map((key) => [key, 0]));
+  for (const result of results) {
+    const raw = result && (result.usage ?? result.execution_usage);
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      return { ok: false, code: "execution-usage-required" };
+    }
+    for (const key of keys) {
+      if (raw[key] === undefined) continue;
+      if (typeof raw[key] !== "number" || !Number.isFinite(raw[key]) || raw[key] < 0) {
+        return { ok: false, code: "execution-usage-required" };
+      }
+      delta[key] += raw[key];
     }
   }
+  return { ok: true, delta };
+}
 
-  if (hasReportedUsage) {
-    return {
-      turns: Math.max(1, turns),
-      patches,
-      commands,
-      changed_lines: Math.max(changed_lines, fallback.totalChangedLines || 0),
-      wall_time_minutes,
-      effect_attempts: Math.max(1, effect_attempts),
-      authority_mutations: Math.max(1, authority_mutations),
-      evidence_runs,
-      review_sweeps,
-    };
+function applyUsageDelta(state, nodeId, delta) {
+  if (!delta || !state) return;
+  const node = nodeId && state.nodes ? state.nodes[nodeId] : null;
+  if (node?.budget) {
+    node.budget = decrementBudgetMonotonic(node.budget, delta);
+    if (isBudgetExhausted(node.budget).exhausted) node.exhausted = true;
   }
-
-  return {
-    turns: 1,
-    patches: Number(fallback.args?.patches || (fallback.args?.patch ? 1 : 0) || 0),
-    commands: Number(fallback.args?.commands || 0) || (fallback.args?.command ? 1 : 0),
-    changed_lines: fallback.totalChangedLines || 0,
-    wall_time_minutes: Number(fallback.args?.wall_time_minutes || 0),
-    effect_attempts: 1,
-    authority_mutations: 1,
-    evidence_runs: Number(fallback.args?.evidence_runs || 0),
-    review_sweeps: Number(fallback.args?.review_sweeps || 0),
-  };
+  if (state.authority_budget) {
+    state.authority_budget = decrementBudgetMonotonic(state.authority_budget, delta);
+    if (isBudgetExhausted(state.authority_budget, {}, { isAuthority: true }).exhausted) state.exhausted = true;
+  }
+  if (state.budget) state.budget = decrementBudgetMonotonic(state.budget, delta);
 }
 
 /**
@@ -919,36 +984,75 @@ function getCarryOverKey(subjectId, nodeId) {
   return `${s}:${n}`;
 }
 
+function markAccountingPending(record, subjectId, nodeId, permitId, delta) {
+  return {
+    ...record,
+    accounting: {
+      disposition: "pending",
+      subject_id: subjectId || DEFAULT_SUBJECT_ID,
+      node_id: nodeId || "default",
+      permit_id: permitId,
+      usage: mergeDeltas({}, delta),
+    },
+  };
+}
+
+function pendingAccountingUsage(journal, authority, subjectId, nodeId) {
+  const key = getCarryOverKey(subjectId, nodeId);
+  const receipts = authority?.receipts || {};
+  return (Array.isArray(journal) ? journal : []).reduce((usage, entry) => {
+    const accounting = entry && entry.accounting;
+    if (
+      !accounting ||
+      accounting.disposition !== "pending" ||
+      receipts[accounting.permit_id] ||
+      getCarryOverKey(accounting.subject_id, accounting.node_id) !== key
+    ) {
+      return usage;
+    }
+    return mergeDeltas(usage, accounting.usage || {});
+  }, {});
+}
+
+function bindPendingAccounting(journal, authority, subjectId, nodeId, permitId) {
+  const key = getCarryOverKey(subjectId, nodeId);
+  const receipts = authority?.receipts || {};
+  let changed = false;
+  const bound = journal.map((entry) => {
+    const accounting = entry && entry.accounting;
+    if (
+      !accounting ||
+      accounting.disposition !== "pending" ||
+      receipts[accounting.permit_id] ||
+      getCarryOverKey(accounting.subject_id, accounting.node_id) !== key
+    ) {
+      return entry;
+    }
+    if (accounting.permit_id === permitId) return entry;
+    changed = true;
+    return { ...entry, accounting: { ...accounting, permit_id: permitId } };
+  });
+  return changed ? bound : journal;
+}
+
 function createKernelRuntime(options = {}) {
   const permitIssuer = createPermitAuthorityIssuer();
   const store = options.store || createAuthorityStore(options);
-  const pendingCarryOver = new Map();
 
   return {
     async runOperation(input = {}) {
       const subjectId = input.subjectId || options.subjectId || DEFAULT_SUBJECT_ID;
       const nodeId = input.arguments?.node_id || "default";
-      const carryOverKey = getCarryOverKey(subjectId, nodeId);
       const { permitLedger: _ignored, ...operationInput } = input;
-      const carryOver = pendingCarryOver.get(carryOverKey) || {};
-      const effectiveConsumed = mergeDeltas(carryOver, {});
 
       const res = await runKernelOperation({
         ...operationInput,
-        consumed: effectiveConsumed,
         store,
         permitLedger: permitIssuer,
       });
 
-      if (res.outcome === "blocked" && res.code === "cas-conflict") {
-        const executedDelta = res.consumed_delta || { turns: 1, effect_attempts: 1 };
-        const prior = pendingCarryOver.get(carryOverKey) || {};
-        pendingCarryOver.set(carryOverKey, mergeDeltas(prior, executedDelta));
-      } else if (res.outcome === "advanced" || res.outcome === "terminal") {
-        pendingCarryOver.delete(carryOverKey);
-      }
-
-      return res;
+      const { accounting_disposition: _accountingDisposition, ...publicResult } = res;
+      return publicResult;
     },
     issuePermitForSelectedTransition(input = {}) {
       const subject_id = input.subject_id || options.subjectId || DEFAULT_SUBJECT_ID;
@@ -972,8 +1076,7 @@ function createKernelRuntime(options = {}) {
       const isTerminalControlOp = operation === "escalate" || operation === "stop";
       if (!isTerminalControlOp && state) {
         const nodeId = input.arguments?.node_id || "default";
-        const carryOverKey = getCarryOverKey(subject_id, nodeId);
-        const carryOver = pendingCarryOver.get(carryOverKey) || {};
+        const carryOver = pendingAccountingUsage(snap.journal, snap.authority, subject_id, nodeId);
 
         if (
           state.authority_budget &&

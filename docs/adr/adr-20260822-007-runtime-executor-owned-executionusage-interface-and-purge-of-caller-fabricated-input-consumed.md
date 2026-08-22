@@ -18,3 +18,6 @@ Establecer que los deltas de consumo (`ExecutionUsage`) son propiedad exclusiva 
 - Garantía de integridad autoritativa en el ledger de presupuestos.
 - Los tests y entornos que simulen consumo deben devolver `result.usage` desde el mock de `effectExecutor`.
 - Reversibilidad: Alta (encapsulado en la interfaz de `runKernelOperation`).
+
+## Reconciliación K5 (2026-08-22)
+La ausencia, forma inválida, número no finito o valor negativo de `usage`/`execution_usage` falla cerrado con `execution-usage-required`. Dimensiones omitidas en un objeto válido equivalen a cero; no hay estimación desde argumentos, `input.consumed`, líneas modificadas ni resultados históricos.

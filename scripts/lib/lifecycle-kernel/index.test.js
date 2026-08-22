@@ -47,7 +47,7 @@ async function authorizedStart(store, extra = {}) {
     operation: "start",
     arguments: { node_id: "n1" },
     operationPermit: issued.permit,
-    effectExecutor: extra.effectExecutor || (async () => ({ ok: true })),
+    effectExecutor: extra.effectExecutor || (async () => ({ ok: true, usage: {} })),
     clock: extra.clock || (() => 0),
     ...extra.kernel,
   });
@@ -60,7 +60,7 @@ test("public runKernelOperation advances state through authority store CAS and j
     effectExecutor: async (effect) => {
       executed.push(effect.effect_id);
       assert.equal(effect.effect_class, "idempotent-keyed");
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
 
@@ -94,7 +94,7 @@ test("invalid transition via public API does not mutate store", async () => {
     operation: "complete",
     arguments: { node_id: "n1" },
     operationPermit: issued.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   assert.equal(result.outcome, "blocked");
   assert.equal(result.code, "invalid-transition");
@@ -112,7 +112,7 @@ test("effectExecutor {ok:false} blocks without committing reduced success state"
   const beforeDigest = digestLifecycleState(initialState);
 
   const result = await authorizedStart(store, {
-    effectExecutor: async () => ({ ok: false, reason: "persist-denied" }),
+    effectExecutor: async () => ({ ok: false, reason: "persist-denied", usage: { commands: 1 } }),
   });
 
   assert.equal(result.outcome, "blocked");
@@ -164,7 +164,7 @@ test("bare memory commit store is rejected (authority-store-required)", async ()
         operation: "start",
         arguments: { node_id: "n1" },
         store,
-        effectExecutor: async () => ({ ok: true }),
+        effectExecutor: async () => ({ ok: true, usage: {} }),
       }),
     (error) => error.code === "authority-store-required"
   );
@@ -178,7 +178,7 @@ test("default mintPermit is false; state-valid op without permit fails; head unc
     arguments: { node_id: "n1" },
     store,
     authorityToken: "opaque:t1",
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   assert.equal(result.outcome, "blocked");
   assert.equal(result.code, "unauthorized");
@@ -194,7 +194,7 @@ test("explicit mintPermit:true is rejected with auto-mint-disabled", async () =>
     arguments: { node_id: "n1" },
     store,
     mintPermit: true,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   assert.equal(result.outcome, "blocked");
   assert.equal(result.code, "auto-mint-disabled");
@@ -212,7 +212,7 @@ test("mutation without runtime-minted permit fails; head unchanged", async () =>
     store,
     mintPermit: false,
     authorityToken: "opaque:t1",
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   assert.equal(result.outcome, "blocked");
   assert.equal(result.code, "unauthorized");
@@ -245,7 +245,7 @@ test("mutation with fabricated permit bypassing ledger fails", async () => {
     mintPermit: false,
     operationPermit: fabricated,
     permitLedger: ledger,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   assert.equal(result.outcome, "blocked");
   assert.equal(result.code, "permit-not-runtime-issued");
@@ -305,7 +305,7 @@ test("exact identical replay returns prior OperationReceipt without second consu
     operation: "start",
     arguments: { node_id: "n1" },
     operationPermit: issued.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   assert.equal(first.outcome, "advanced");
   const receiptId = first.operation_receipt.receipt_id;
@@ -317,7 +317,7 @@ test("exact identical replay returns prior OperationReceipt without second consu
     operationPermit: issued.permit,
     effectExecutor: async () => {
       effectRuns += 1;
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
   assert.equal(replay.operation_receipt.receipt_id, receiptId);
@@ -365,7 +365,7 @@ test("CRITICAL: a caller-created issuer is not accepted as the store's permit au
     operationPermit: issued.permit,
     effectExecutor: async () => {
       effectRuns += 1;
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
 
@@ -397,7 +397,7 @@ test("CRITICAL: KernelRuntime ignores rogue permitLedger passed by caller", asyn
     permitLedger: rogue,
     effectExecutor: async () => {
       effectRuns += 1;
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
 
@@ -425,7 +425,7 @@ test("CRITICAL: production createKernelRuntime does not accept options.permitIss
     operation: "start",
     arguments: { node_id: "n1" },
     operationPermit: issued.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
 
   assert.equal(result.outcome, "blocked");
@@ -450,7 +450,7 @@ test("CRITICAL: permit not issued by runtime private issuer is rejected", async 
     operation: "start",
     arguments: { node_id: "n1" },
     operationPermit: rogueIssued.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   assert.equal(result.outcome, "blocked");
   assert.equal(result.code, "permit-not-runtime-issued");
@@ -481,7 +481,7 @@ test("CRITICAL: consumed permit_id with forged arguments is never replayed as su
     operationPermit: forged,
     effectExecutor: async () => {
       effectRuns += 1;
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
   assert.notEqual(replay.replayed, true);
@@ -513,7 +513,7 @@ test("restart issues a fresh permit id that cannot collide with a consumed one",
     operation: "complete",
     arguments: { node_id: "n1" },
     operationPermit: issued.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   assert.notEqual(next.outcome, "blocked");
   assert.equal(next.operation_permit_id, issued.permit.permit_id);
@@ -554,7 +554,7 @@ test("non-identical arguments do not short-circuit as exact replay", async () =>
     operation: "start",
     arguments: { node_id: "n1" },
     operationPermit: issued.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   assert.equal(first.outcome, "advanced");
 
@@ -563,7 +563,7 @@ test("non-identical arguments do not short-circuit as exact replay", async () =>
     operation: "start",
     arguments: { node_id: "n2" },
     operationPermit: forgedPermit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   assert.equal(second.outcome, "blocked");
 });
@@ -596,7 +596,7 @@ test("bag-consumed without matching receipt fails closed with permit-reuse after
     store,
     operationPermit: permit,
     // Restart: the new store owns a fresh issuer whose map is empty.
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   assert.equal(result.outcome, "blocked");
   assert.equal(result.code, "permit-reuse");
@@ -700,7 +700,7 @@ test("ambiguous executor throw after started durable-marks unknown and resume fa
   const resume = await authorizedStart(store, {
     effectExecutor: async () => {
       resumedExecutions += 1;
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
 
@@ -762,7 +762,7 @@ test("interrupt mid-executor with irreversible persists unknown; resume does not
     operationPermit: issued2.permit,
     effectExecutor: async () => {
       resumedExecutions += 1;
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
     clock: () => 0,
   });
@@ -818,7 +818,7 @@ test("CAS conflict after effects does not inflate budgets", async () => {
     operation: "start",
     arguments: { node_id: "n1" },
     operationPermit: stalePermit.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   assert.equal(result.outcome, "blocked");
   // Determinista: la autorización del permit corre antes de la validación de
@@ -857,7 +857,7 @@ test("runKernelOperation: escalate transition consolidates and commits terminal 
     operation: "escalate",
     arguments: { node_id: "n1" },
     operationPermit: permit.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
 
   assert.equal(result.outcome, "terminal", "Outcome of escalate must be terminal");
@@ -902,7 +902,7 @@ test("runKernelOperation: preflight rejects with budget-exhausted and 0 effectEx
     arguments: { node_id: "n1" },
     effectExecutor: async () => {
       calls1++;
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
 
@@ -941,7 +941,7 @@ test("runKernelOperation: preflight rejects with budget-exhausted and 0 effectEx
     arguments: { node_id: "n1" },
     effectExecutor: async () => {
       calls2++;
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
 
@@ -981,7 +981,7 @@ test("Phase 2 RED: escalate and stop operations execute and commit terminal stat
     operation: "escalate",
     arguments: { node_id: "n1" },
     operationPermit: permitEscalate.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
 
   assert.equal(resultEscalate.outcome, "terminal", "Outcome must be terminal for escalate under exhaustion");
@@ -1006,7 +1006,7 @@ test("Phase 2 RED: escalate and stop operations execute and commit terminal stat
     operation: "stop",
     arguments: { node_id: "n1" },
     operationPermit: permitStop.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
 
   assert.equal(resultStop.outcome, "terminal", "Outcome must be terminal for stop under exhaustion");
@@ -1064,7 +1064,7 @@ test("Phase 3: runKernelOperation and validateOperationTransition reject unallow
     },
     effectExecutor: async () => {
       calls++;
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
 
@@ -1104,7 +1104,7 @@ test("runKernelOperation: repair without args.scope fails closed with repair-sco
     operationPermit: permit.permit,
     effectExecutor: async () => {
       calls++;
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
 
@@ -1142,7 +1142,7 @@ test("runKernelOperation: repair without args.scope fails closed with repair-sco
     operationPermit: permitValid.permit,
     effectExecutor: async () => {
       callsValid++;
-      return { ok: true, modified_paths: ["src/auth/jwt.js"], resolved_finding_ids: ["F-001"] };
+      return { ok: true, usage: {}, modified_paths: ["src/auth/jwt.js"], resolved_finding_ids: ["F-001"] };
     },
   });
 
@@ -1187,7 +1187,7 @@ test("runKernelOperation: zero-delta mutation simultaneously decrements node tur
       scope: { node_ids: ["n1"], allowed_paths: ["src/**"], finding_ids: ["F-1"] },
     },
     operationPermit: permit.permit,
-    effectExecutor: async () => ({ ok: true, modified_files_count: 0, changed_lines: 0, state_advanced: false }),
+    effectExecutor: async () => ({ ok: true, usage: {}, modified_files_count: 0, changed_lines: 0, state_advanced: false }),
   });
 
   assert.equal(result.outcome, "advanced");
@@ -1381,7 +1381,7 @@ test("REQ-execution-budgets-003: createKernelRuntime accumulates deltas across a
       );
       return {
         ok: true,
-        usage: { commands: 3, patches: 1, changed_lines: 45, wall_time_minutes: 2 },
+        usage: { turns: 1, commands: 3, patches: 1, changed_lines: 45, wall_time_minutes: 2, effect_attempts: 1, authority_mutations: 1 },
       };
     },
   });
@@ -1408,7 +1408,7 @@ test("REQ-execution-budgets-003: createKernelRuntime accumulates deltas across a
       scope: { node_ids: ["n1"], allowed_paths: ["src/**"], finding_ids: ["F-1"] },
     },
     operationPermit: permit2.permit,
-    effectExecutor: async () => ({ ok: true, modified_files_count: 1, changed_lines: 5 }),
+    effectExecutor: async () => ({ ok: true, usage: {}, modified_files_count: 1, changed_lines: 5 }),
   });
 
   assert.equal(retryResult.outcome, "advanced");
@@ -1460,7 +1460,7 @@ test("REQ-execution-budgets-004: zero-delta dual penalty exempts operations that
     operation: "start",
     arguments: { node_id: "n1" },
     operationPermit: permit.permit,
-    effectExecutor: async () => ({ ok: true, modified_files_count: 0, changed_lines: 0 }),
+    effectExecutor: async () => ({ ok: true, usage: { turns: 1, effect_attempts: 1 }, modified_files_count: 0, changed_lines: 0 }),
   });
 
   assert.equal(res.outcome, "advanced");
@@ -1600,6 +1600,341 @@ test("REQ-execution-budgets-003 / REQ-operation-permits-005: partitioned carry-o
   // n2's budget should have 1 turn consumed by its own operation, NOT decremented by n1's carry-over
   assert.equal(loadedFinal.state.nodes.n2.budget.turns, 1, "n2 budget must only reflect n2 consumption");
 });
+
+test("K5: sterile repair with a lifecycle signal still receives the dual zero-delta penalty", async () => {
+  const failedState = {
+    schema_version: 1,
+    status: "blocked",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "failed",
+        attempt: 1,
+        failure: { category: "code_defect", code: "TEST_FAIL", priority: 5 },
+        budget: { schema_version: 1, turns: 5 },
+      },
+    },
+    authority_budget: { schema_version: 1, effect_attempts: 3 },
+  };
+  const store = createAuthorityStore({ initial: { state: failedState, journal: [] } });
+  const runtime = createKernelRuntime({ store });
+  const head = await store.load();
+  const arguments_ = {
+    node_id: "n1",
+    scope: { node_ids: ["n1"], allowed_paths: ["src/**"], finding_ids: ["F-1"] },
+  };
+  const issued = runtime.issuePermitForSelectedTransition({
+    operation: "repair", expected_revision: head.revision, arguments: arguments_,
+  });
+
+  const result = await runtime.runOperation({
+    operation: "repair",
+    arguments: arguments_,
+    operationPermit: issued.permit,
+    effectExecutor: async () => ({
+      ok: true,
+      usage: {},
+      modified_files_count: 0,
+      changed_lines: 0,
+      state_advanced: true,
+    }),
+  });
+
+  assert.equal(result.outcome, "advanced");
+  const after = await store.load();
+  assert.equal(after.state.nodes.n1.budget.turns, 4);
+  assert.equal(after.state.authority_budget.effect_attempts, 2);
+  assert.equal(after.state.nodes.n1.zero_delta_attempts, 1);
+  assert.ok(after.journal.some((entry) => entry.status === "zero-delta-attempt" || entry.kind === "zero-delta-attempt"));
+});
+
+test("K5: sterile repair CAS retry preserves its single durable zero-delta penalty", async () => {
+  const failedState = {
+    schema_version: 1,
+    status: "blocked",
+    nodes: {
+      n1: {
+        id: "n1",
+        phase: "failed",
+        attempt: 1,
+        failure: { category: "code_defect", code: "TEST_FAIL", priority: 5 },
+        budget: { schema_version: 1, turns: 5 },
+      },
+    },
+    authority_budget: { schema_version: 1, effect_attempts: 3 },
+  };
+  const base = createAuthorityStore({ initial: { state: failedState, journal: [] } });
+  let compareAndSwapCalls = 0;
+  const store = {
+    ...base,
+    async compareAndSwap(...args) {
+      compareAndSwapCalls += 1;
+      if (compareAndSwapCalls === 1) {
+        return { ok: false, code: "cas-conflict", revision: (await base.load()).revision };
+      }
+      return base.compareAndSwap(...args);
+    },
+  };
+  const runtime = createKernelRuntime({ store });
+  const arguments_ = {
+    node_id: "n1",
+    scope: { node_ids: ["n1"], allowed_paths: ["src/**"], finding_ids: ["F-1"] },
+  };
+  let executions = 0;
+  const firstHead = await store.load();
+  const firstPermit = runtime.issuePermitForSelectedTransition({
+    operation: "repair", expected_revision: firstHead.revision, arguments: arguments_,
+  });
+  const first = await runtime.runOperation({
+    operation: "repair",
+    arguments: arguments_,
+    operationPermit: firstPermit.permit,
+    effectExecutor: async () => {
+      executions += 1;
+      return { ok: true, usage: {}, modified_files_count: 0, changed_lines: 0, state_advanced: true };
+    },
+  });
+  assert.equal(first.outcome, "blocked");
+  assert.equal(first.code, "cas-conflict");
+
+  const retryHead = await store.load();
+  const retryPermit = runtime.issuePermitForSelectedTransition({
+    operation: "repair", expected_revision: retryHead.revision, arguments: arguments_,
+  });
+  const retry = await runtime.runOperation({
+    operation: "repair",
+    arguments: arguments_,
+    operationPermit: retryPermit.permit,
+    effectExecutor: async () => {
+      executions += 1;
+      return { ok: true, usage: {}, modified_files_count: 0, changed_lines: 0 };
+    },
+  });
+
+  assert.equal(retry.outcome, "advanced");
+  assert.equal(executions, 1);
+  const after = await store.load();
+  assert.equal(after.state.nodes.n1.budget.turns, 4);
+  assert.equal(after.state.authority_budget.effect_attempts, 2);
+  assert.equal(after.state.nodes.n1.zero_delta_attempts, 1);
+});
+
+test("K5: post-effect interrupt retains partial usage for one retry and confirmed receipt loss is committed", async () => {
+  const state = pendingState();
+  state.nodes.n1.budget = { turns: 10 };
+  state.authority_budget = { effect_attempts: 3 };
+  const store = createAuthorityStore({ initial: { state } });
+  const runtime = createKernelRuntime({ store });
+  const head = await store.load();
+  const arguments_ = { node_id: "n1" };
+  const issued = runtime.issuePermitForSelectedTransition({
+    operation: "start", expected_revision: head.revision, arguments: arguments_,
+  });
+  let executions = 0;
+  const interrupted = await runtime.runOperation({
+    operation: "start",
+    arguments: arguments_,
+    operationPermit: issued.permit,
+    effectExecutor: async () => {
+      executions += 1;
+      const error = interruptError("after-effect");
+      error.partial = { ok: true, usage: { turns: 3, effect_attempts: 1 } };
+      throw error;
+    },
+  });
+  assert.equal(interrupted.outcome, "blocked");
+  assert.equal(interrupted.code, "effect-failed");
+  assert.equal(interrupted.consumed_delta.turns, 3);
+  assert.equal(store.snapshot().journal[0].status, "completed");
+  assert.deepEqual(store.snapshot().journal[0].result.usage, { turns: 3, effect_attempts: 1 });
+
+  const retryHead = await store.load();
+  const retryPermit = runtime.issuePermitForSelectedTransition({
+    operation: "start", expected_revision: retryHead.revision, arguments: arguments_,
+  });
+  const retry = await runtime.runOperation({
+    operation: "start",
+    arguments: arguments_,
+    operationPermit: retryPermit.permit,
+    effectExecutor: async () => {
+      executions += 1;
+      return { ok: true, usage: { turns: 99 } };
+    },
+  });
+  assert.equal(retry.outcome, "advanced");
+  assert.equal(executions, 1);
+  assert.equal((await store.load()).state.nodes.n1.budget.turns, 7);
+});
+
+test("K5: successful physical execution commits its explicit usage exactly once", async () => {
+  const state = pendingState();
+  state.nodes.n1.budget = { turns: 10, commands: 20, patches: 5, changed_lines: 400 };
+  state.authority_budget = { effect_attempts: 3, authority_mutations: 4 };
+  const store = createAuthorityStore({ initial: { state } });
+  const runtime = createKernelRuntime({ store });
+  const head = await store.load();
+  const issued = runtime.issuePermitForSelectedTransition({
+    operation: "start", expected_revision: head.revision, arguments: { node_id: "n1" },
+  });
+
+  const result = await runtime.runOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    operationPermit: issued.permit,
+    effectExecutor: async () => ({
+      ok: true,
+      usage: { turns: 2, commands: 7, patches: 2, changed_lines: 120, effect_attempts: 1, authority_mutations: 1 },
+    }),
+  });
+
+  assert.equal(result.outcome, "advanced");
+  const after = await store.load();
+  assert.equal(after.state.nodes.n1.budget.turns, 8);
+  assert.equal(after.state.nodes.n1.budget.commands, 13);
+  assert.equal(after.state.nodes.n1.budget.patches, 3);
+  assert.equal(after.state.nodes.n1.budget.changed_lines, 280);
+  assert.equal(after.state.authority_budget.effect_attempts, 2);
+  assert.equal(after.state.authority_budget.authority_mutations, 3);
+});
+
+test("K5: failed physical execution retains usage and repeated CAS conflicts do not re-debit skipped completion", async () => {
+  const state = pendingState();
+  state.nodes.n1.budget = { turns: 10 };
+  const base = createAuthorityStore({ initial: { state } });
+  let conflicts = 0;
+  const store = {
+    ...base,
+    async compareAndSwap(...args) {
+      conflicts += 1;
+      if (conflicts <= 2) return { ok: false, code: "cas-conflict", revision: (await base.load()).revision };
+      return base.compareAndSwap(...args);
+    },
+  };
+  const runtime = createKernelRuntime({ store });
+  let executions = 0;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const head = await base.load();
+    const issued = runtime.issuePermitForSelectedTransition({
+      operation: "start", expected_revision: head.revision, arguments: { node_id: "n1" },
+    });
+    const result = await runtime.runOperation({
+      operation: "start",
+      arguments: { node_id: "n1" },
+      operationPermit: issued.permit,
+      effectExecutor: async () => {
+        executions += 1;
+        return { ok: true, usage: { turns: 3 } };
+      },
+    });
+    if (attempt < 2) assert.equal(result.code, "cas-conflict");
+    else assert.equal(result.outcome, "advanced");
+  }
+
+  assert.equal(executions, 1);
+  assert.equal((await base.load()).state.nodes.n1.budget.turns, 7);
+});
+
+test("K5: confirmed failed reconciliation is not debited again by a later retry", async () => {
+  const state = pendingState();
+  state.nodes.n1.budget = { turns: 10 };
+  const store = createAuthorityStore({ initial: { state } });
+  let runtime = createKernelRuntime({ store });
+  let executions = 0;
+
+  async function retry() {
+    const head = await store.load();
+    const issued = runtime.issuePermitForSelectedTransition({
+      operation: "start", expected_revision: head.revision, arguments: { node_id: "n1" },
+    });
+    return runtime.runOperation({
+      operation: "start",
+      arguments: { node_id: "n1" },
+      operationPermit: issued.permit,
+      effectExecutor: async () => {
+        executions += 1;
+        return { ok: false, usage: { turns: 3 } };
+      },
+    });
+  }
+
+  assert.equal((await retry()).code, "effect-failed");
+  assert.equal((await store.load()).state.nodes.n1.budget.turns, 10);
+  assert.equal((await retry()).code, "effect-failed");
+  assert.equal((await store.load()).state.nodes.n1.budget.turns, 7);
+
+  runtime = createKernelRuntime({ store });
+  assert.equal((await retry()).code, "effect-failed");
+  const after = await store.load();
+  assert.equal(after.state.nodes.n1.budget.turns, 7);
+  assert.equal(executions, 1);
+  assert.equal(after.journal[0].status, "failed");
+});
+
+test("K5: effect results without execution usage fail closed without caller fallback", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState() } });
+  const runtime = createKernelRuntime({ store });
+  const head = await store.load();
+  const issued = runtime.issuePermitForSelectedTransition({
+    operation: "start", expected_revision: head.revision, arguments: { node_id: "n1", commands: 999 },
+  });
+  const result = await runtime.runOperation({
+    operation: "start",
+    arguments: { node_id: "n1", commands: 999 },
+    consumed: { commands: 999 },
+    operationPermit: issued.permit,
+    effectExecutor: async () => ({ ok: true }),
+  });
+  assert.equal(result.outcome, "blocked");
+  assert.equal(result.code, "execution-usage-required");
+});
+
+for (const [label, executorResult] of [["undefined", undefined], ["null", null]]) {
+  test(`K5: ${label} effect result fails closed before completion and cannot be retried`, async () => {
+    const initialState = pendingState();
+    initialState.nodes.n1.budget = { commands: 10 };
+    initialState.authority_budget = { effect_attempts: 2 };
+    const store = createAuthorityStore({ initial: { state: initialState } });
+    const runtime = createKernelRuntime({ store });
+    const beforeDigest = digestLifecycleState(initialState);
+    let executions = 0;
+
+    async function attempt() {
+      const head = await store.load();
+      const issued = runtime.issuePermitForSelectedTransition({
+        operation: "start",
+        expected_revision: head.revision,
+        arguments: { node_id: "n1", commands: 999 },
+      });
+      return runtime.runOperation({
+        operation: "start",
+        arguments: { node_id: "n1", commands: 999 },
+        consumed: { commands: 999 },
+        operationPermit: issued.permit,
+        effectExecutor: async () => {
+          executions += 1;
+          return executorResult;
+        },
+      });
+    }
+
+    const result = await attempt();
+    assert.equal(result.outcome, "blocked");
+    assert.equal(result.code, "execution-usage-required");
+
+    const after = await store.load();
+    assert.equal(digestLifecycleState(after.state), beforeDigest);
+    assert.equal(after.journal.length, 1);
+    assert.equal(after.journal[0].status, "unknown");
+    assert.equal(after.journal[0].result.error, "execution-usage-required");
+    assert.deepEqual(Object.keys(after.authority.receipts), []);
+
+    const retry = await attempt();
+    assert.equal(retry.code, "reconciliation-required");
+    assert.equal(executions, 1);
+    assert.equal(digestLifecycleState((await store.load()).state), beforeDigest);
+  });
+}
 
 
 

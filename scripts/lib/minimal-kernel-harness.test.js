@@ -93,7 +93,7 @@ test("completed effect is not duplicated on resume after interrupt marker", asyn
     operations: [{ operation: "start", arguments: { node_id: "n1" } }],
     effectExecutor: async (effect) => {
       effectIds.push(effect.effect_id);
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
   assert.equal(effectIds.length, 1);
@@ -107,7 +107,7 @@ test("completed effect is not duplicated on resume after interrupt marker", asyn
     operations: [{ operation: "complete", arguments: { node_id: "n1" } }],
     effectExecutor: async (effect) => {
       resumedEffects.push(effect.effect_id);
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
   assert.equal(resumed.snapshot.state.nodes.n1.phase, "completed");
@@ -125,7 +125,7 @@ test("interruption matrix: before-journal leaves state and journal untouched", a
     checkpointInterrupt: "before-journal",
     effectExecutor: async (effect) => {
       executed.push(effect.effect_id);
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
   assert.equal(result.halted.reason, "interrupt");
@@ -140,7 +140,7 @@ test("harness: effectExecutor {ok:false} halts blocked without advancing state",
     id: "effect-failed-ok-false",
     initialState: pendingState,
     operations: [{ operation: "start", arguments: { node_id: "n1" } }],
-    effectExecutor: async () => ({ ok: false, reason: "denied" }),
+    effectExecutor: async () => ({ ok: false, reason: "denied", usage: {} }),
   });
   assert.equal(result.halted.reason, "blocked");
   assert.equal(result.halted.code, "effect-failed");
@@ -158,7 +158,7 @@ test("interruption matrix: after-journal before effect persists started and does
     checkpointInterrupt: "after-journal",
     effectExecutor: async (effect) => {
       executed.push(effect.effect_id);
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
   assert.equal(result.halted.at, "after-journal");
@@ -175,7 +175,7 @@ test("interruption matrix: after-journal before effect persists started and does
     operations: [{ operation: "start", arguments: { node_id: "n1" } }],
     effectExecutor: async (effect) => {
       resumedExec.push(effect.effect_id);
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
   assert.equal(resumedExec.length, 1);
@@ -191,7 +191,7 @@ test("interruption matrix: after-effect before state commit does not re-execute 
     checkpointInterrupt: "after-effect",
     effectExecutor: async (effect) => {
       executed.push(effect.effect_id);
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
   assert.equal(interrupted.halted.at, "after-effect");
@@ -207,7 +207,7 @@ test("interruption matrix: after-effect before state commit does not re-execute 
     operations: [{ operation: "start", arguments: { node_id: "n1" } }],
     effectExecutor: async (effect) => {
       resumedExec.push(effect.effect_id);
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
   assert.equal(resumedExec.length, 0);
@@ -229,7 +229,7 @@ test("named execute and recover fixtures are invoked through the harness", async
     operations: [{ operation: "start", arguments: { node_id: "n1" } }],
     effectExecutor: async (effect) => {
       invoked.push({ op: "start", effect_id: effect.effect_id });
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
   assert.ok(invoked.some((entry) => entry.op === "start"));
@@ -245,7 +245,7 @@ test("named execute and recover fixtures are invoked through the harness", async
     operations: [{ operation: "recover", arguments: { node_id: "n1" } }],
     effectExecutor: async (effect) => {
       invoked.push({ op: "recover", effect_id: effect.effect_id });
-      return { ok: true };
+      return { ok: true, usage: {} };
     },
   });
   assert.equal(recover.snapshot.state.nodes.n1.phase, "pending");
@@ -294,7 +294,7 @@ test("K2.1 fault matrix: stale permit fails closed; head unchanged", async () =>
     operation: "start",
     arguments: { node_id: "n1" },
     operationPermit: permitN1.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   const afterFirst = await store.load();
 
@@ -303,7 +303,7 @@ test("K2.1 fault matrix: stale permit fails closed; head unchanged", async () =>
     operation: "start",
     arguments: { node_id: "n2" },
     operationPermit: permitN2.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   assert.equal(result.outcome, "blocked");
   assert.equal(result.code, "stale-permit");
@@ -332,7 +332,7 @@ test("K2.1 fault matrix: permit reuse fails; no second advance", async () => {
     operation: "complete",
     arguments: { node_id: "n1" },
     operationPermit: issued.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   assert.ok(firstExec.outcome === "advanced" || firstExec.outcome === "terminal");
 
@@ -341,7 +341,7 @@ test("K2.1 fault matrix: permit reuse fails; no second advance", async () => {
     operation: "complete",
     arguments: { node_id: "n1" },
     operationPermit: issued.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   assert.equal(reuse.replayed, true);
   assert.equal(reuse.state_digest, beforeDigest);
@@ -354,7 +354,7 @@ test("K2.1 fault matrix: ambiguous irreversible → decide|stop; no auto-retry",
     irreversibleAmbiguousNext: "decide",
     effect_class: "irreversible",
     operations: [{ operation: "start", arguments: { node_id: "n1" } }],
-    effectExecutor: async () => ({ ok: true, ambiguous: true, next_kind: "decide" }),
+    effectExecutor: async () => ({ ok: true, ambiguous: true, next_kind: "decide", usage: {} }),
   });
   assert.equal(result.outcome, "decision-required");
   assert.equal(result.halted.reason, "decision-required");
@@ -485,13 +485,13 @@ test("K2.1b: exact replay receipt stability via public entrypoint", async () => 
     operation: "start",
     arguments: { node_id: "n1" },
     operationPermit: issued.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   const replay = await runtime.runOperation({
     operation: "start",
     arguments: { node_id: "n1" },
     operationPermit: issued.permit,
-    effectExecutor: async () => ({ ok: true }),
+    effectExecutor: async () => ({ ok: true, usage: {} }),
   });
   assert.equal(replay.operation_receipt.receipt_id, first.operation_receipt.receipt_id);
   assert.equal(replay.replayed, true);
