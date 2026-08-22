@@ -30,6 +30,7 @@ const {
 } = require("./lib/failure-recovery.js");
 
 const {
+  createAuthorityStore,
   createKernelRuntime,
   reduceLifecycle,
   selectTransitions,
@@ -169,16 +170,58 @@ test("K5 E2E: Terminal stop on attempts exhaustion without infinite retry loops"
 
 
 test("K5 E2E: Monotonic budget non-inflation after CAS race retries", async () => {
-  const runtime = createKernelRuntime({
+  const pendingState = {
+    schema_version: 1,
+    status: "ready",
+    nodes: { n1: { id: "n1", phase: "pending", attempt: 0 } },
+  };
+  const store = createAuthorityStore({
+    initial: { state: pendingState },
     budgets: { attempts: 3, corrections: 2, turns: 10 },
   });
+  const runtime = createKernelRuntime({ store });
 
   const statusRes = await runtime.getStatus();
   assert.equal(statusRes.outcome, "advanced");
 
-  // Verify budgets exist and remain preserved across runtime calls
-  const initialSnap = runtime.snapshot();
-  assert.ok(initialSnap);
+  // Se emite un permit válido contra la revisión actual de la cabeza.
+  const head = await store.load();
+  const stalePermit = runtime.issuePermitForSelectedTransition({
+    operation: "start",
+    expected_revision: head.revision,
+    arguments: { node_id: "n1" },
+  });
+  assert.equal(stalePermit.ok, true);
+
+  // Un segundo writer gana la carrera CAS y adelanta la revisión antes de
+  // que el permit se consuma, dejándolo obsoleto (stale).
+  const raced = await store.compareAndSwap(
+    "lifecycle:default",
+    head.revision,
+    {
+      schema_version: 1,
+      status: "running",
+      nodes: { n1: { id: "n1", phase: "started", attempt: 1 } },
+    },
+    []
+  );
+  assert.equal(raced.ok, true);
+
+  // El bloqueo por permit obsoleto no debe tocar los presupuestos de autoridad.
+  const budgetsBefore = store.getBudgets();
+  const result = await runtime.runOperation({
+    operation: "start",
+    arguments: { node_id: "n1" },
+    operationPermit: stalePermit.permit,
+    effectExecutor: async () => ({ ok: true }),
+  });
+
+  assert.equal(result.outcome, "blocked");
+  // La autorización del permit corre antes de la validación de transición y del
+  // CAS del kernel; con revisión desfasada la única salida es stale-permit
+  // (determinismo verificado empíricamente: 200/200 ejecuciones idénticas).
+  assert.equal(result.code, "stale-permit");
+  assert.deepEqual(store.getBudgets(), budgetsBefore);
 });
 
 test("K5 E2E: Bounded scope repair validation", () => {

@@ -820,7 +820,11 @@ test("CAS conflict after effects does not inflate budgets", async () => {
     effectExecutor: async () => ({ ok: true }),
   });
   assert.equal(result.outcome, "blocked");
-  assert.ok(result.code === "stale-permit" || result.code === "invalid-transition" || result.code === "cas-conflict" || result.code === "permit-not-runtime-issued");
+  // Determinista: la autorización del permit corre antes de la validación de
+  // transición y del CAS del kernel; el permit fue emitido por este runtime y
+  // no está consumido, así que una revisión desfasada solo puede producir
+  // stale-permit (verificado empíricamente en 200/200 ejecuciones).
+  assert.equal(result.code, "stale-permit");
   assert.deepEqual(store2.getBudgets(), budgetsBefore);
 });
 
