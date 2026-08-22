@@ -54,8 +54,8 @@ test("all six generated targets carry generalist, classifier, gate, audit, and c
     }
     assert.match(orchestrator + gate, /review-lineage\.js/);
     assert.doesNotMatch(orchestrator + gate, /planBoundedRereview|owner[- ]rereview|owning dimension/i);
-    assert.match(models, /^\s*review-change: default$/m, `${target} model registration`);
-    assert.match(models, /^\s*review-correction: default$/m, `${target} correction model registration`);
+    assert.match(models, /^\s*review-change: (?:premium|default|cheap)$/m, `${target} model registration`);
+    assert.match(models, /^\s*review-correction: (?:premium|default|cheap)$/m, `${target} correction model registration`);
   }
 });
 

@@ -5,6 +5,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
+const { parseModels } = require("../configure/cli.js");
 
 const {
   EVENT_RELATIVE_PATH,
@@ -39,6 +40,11 @@ async function readEvents(workspace) {
     .trim()
     .split(/\r?\n/)
     .map((line) => JSON.parse(line));
+}
+
+async function readRootModels() {
+  const content = await fs.readFile(path.resolve(__dirname, "../..", "models.yaml"), "utf8");
+  return parseModels(content);
 }
 
 test("records fallback-registry resolution from a structured result", async (t) => {
@@ -718,8 +724,9 @@ test("persistPhaseCost writes a record for an active change (phase, agent, est_t
   assert.equal(typeof records[0].ts, "string");
 });
 
-test("persistPhaseCost uses canonical moved tiers for proposal and document telemetry", async (t) => {
+test("persistPhaseCost uses the current models.yaml tiers for proposal and document telemetry", async (t) => {
   const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+  const models = await readRootModels();
   for (const agent_type of ["sdd-propose", "sdd-document"]) {
     await runSubagentStop({
       input: { cwd: workspace, agent_type, status: "success", result: "tier telemetry" },
@@ -727,8 +734,8 @@ test("persistPhaseCost uses canonical moved tiers for proposal and document tele
   }
   const records = await readPhaseCosts(workspace, "strict-result-envelope");
   const tiers = Object.fromEntries(records.map(record => [record.agent, record.model_tier]));
-  assert.equal(tiers["sdd-propose"], "default");
-  assert.equal(tiers["sdd-document"], "cheap");
+  assert.equal(tiers["sdd-propose"], models.agents["sdd-propose"]);
+  assert.equal(tiers["sdd-document"], models.agents["sdd-document"]);
 });
 
 test("persistPhaseCost prefers the valid envelope's status over top-level input.status (triangulation)", async (t) => {
@@ -957,12 +964,12 @@ test("resolveDispatchStatus falls back to top-level input.status, then 'unknown'
 test("resolveModelTier resolves correct tiers and handles fallbacks/failures", async () => {
   const { resolveModelTier } = require("./lib/model-tier.js");
   const testYamlDir = path.resolve(__dirname, "../../"); // Has models.yaml in workspace root
-  
-  assert.equal(resolveModelTier("sdd-design", testYamlDir), "premium");
-  assert.equal(resolveModelTier("sdd-propose", testYamlDir), "default");
-  assert.equal(resolveModelTier("sdd-apply", testYamlDir), "default");
-  assert.equal(resolveModelTier("sdd-document", testYamlDir), "cheap");
-  assert.equal(resolveModelTier("sdd-nonexistent", testYamlDir), "default"); // Fallback to _default
+  const models = await readRootModels();
+
+  for (const agent of ["sdd-design", "sdd-propose", "sdd-apply", "sdd-document"]) {
+    assert.equal(resolveModelTier(agent, testYamlDir), models.agents[agent]);
+  }
+  assert.equal(resolveModelTier("sdd-nonexistent", testYamlDir), models.agents._default);
   assert.equal(resolveModelTier("sdd-design", "/invalid-path"), "unknown"); // Missing file -> unknown
 });
 

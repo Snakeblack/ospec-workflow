@@ -72,7 +72,7 @@ test("generalist contract requires structural classifier references instead of p
 test("registration and specialist sources remain distinct", () => {
   const models = fs.readFileSync(path.join(ROOT, "models.yaml"), "utf8");
   const orchestrator = fs.readFileSync(path.join(ROOT, "agents/sdd-orchestrator.agent.md"), "utf8");
-  assert.match(models, /^\s*review-change: default$/m);
+  assert.match(models, /^\s*review-change: (?:premium|default|cheap)$/m);
   assert.match(orchestrator, /agents: \[[^\n]*'review-change'/);
   for (const id of ["risk", "reliability", "resilience", "readability"]) {
     assert.ok(fs.existsSync(path.join(ROOT, `skills/review-${id}/SKILL.md`)));

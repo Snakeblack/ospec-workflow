@@ -10,7 +10,6 @@ const test = require("node:test");
 const { parseModels, runConfigure } = require("./configure/cli.js");
 const { parse, getField } = require("./lib/frontmatter.js");
 const {
-  CODEX_TIER_POLICY,
   REQUIRED_SDD_AGENTS,
   sddAgentsByTier,
   validateSddModelPolicy,
@@ -18,8 +17,6 @@ const {
 
 const ROOT = path.resolve(__dirname, "..");
 const MODELS_TEXT = fs.readFileSync(path.join(ROOT, "models.yaml"), "utf8");
-const REVIEWERS = ["review-change", "review-correction", "review-risk", "review-readability", "review-reliability", "review-resilience"];
-
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -61,27 +58,17 @@ test("REQ-generator-005 models.yaml is the agent-tier source of truth with struc
     [...partition.premium, ...partition.default, ...partition.cheap].sort(),
     [...REQUIRED_SDD_AGENTS].sort(),
   );
-  assert.deepEqual(CODEX_TIER_POLICY, {
-    premium: { model: "gpt-5.6-sol", model_reasoning_effort: "medium" },
-    default: { model: "gpt-5.6-terra", model_reasoning_effort: "medium" },
-    cheap: { model: "gpt-5.6-luna", model_reasoning_effort: "low" },
-  });
   assert.deepEqual(validateSddModelPolicy(models), { valid: true, errors: [] });
-  for (const reviewer of REVIEWERS) assert.equal(models.agents[reviewer], "default", reviewer);
-  assert.equal(models.agents._default, "default");
-  assert.equal(models.agents["sdd-propose"], "default");
 });
 
-test("REQ-generator-005 missing, unknown, unexpected and wrong Codex policy mutations fail deterministically", () => {
+test("REQ-generator-005 missing, unknown, and unexpected structural mutations fail deterministically", () => {
   const base = parseModels(MODELS_TEXT);
   const cases = [
     ["missing agent", models => { delete models.agents["sdd-tasks"]; }, "missing-agent", "sdd-tasks"],
     ["unknown tier", models => { models.agents["sdd-apply"] = "mystery"; }, "unknown-tier", "sdd-apply"],
     ["unexpected agent", models => { models.agents["sdd-extra"] = "default"; }, "unexpected-agent", "sdd-extra"],
-    ["wrong premium model", models => { models.tiers.premium.codex.model = "gpt-5.6-terra"; }, "codex-model-mismatch", "premium"],
-    ["wrong cheap effort", models => { models.tiers.cheap.codex.model_reasoning_effort = "medium"; }, "codex-reasoning-effort-mismatch", "cheap"],
-    ["missing default mapping", models => { delete models.tiers.default.codex; }, "codex-model-mismatch", "default"],
-    ["reviewer drift", models => { models.agents["review-risk"] = "premium"; }, "tier-mismatch", "review-risk"],
+    ["unknown reviewer tier", models => { models.agents["review-risk"] = "mystery"; }, "unknown-tier", "review-risk"],
+    ["unknown default tier", models => { models.agents._default = "mystery"; }, "unknown-tier", "_default"],
   ];
   for (const [label, mutate, code, identity] of cases) {
     const models = clone(base);
@@ -92,10 +79,16 @@ test("REQ-generator-005 missing, unknown, unexpected and wrong Codex policy muta
   }
 });
 
-test("REQ-generator-005 agent tier reassignment in models.yaml is accepted", () => {
+test("REQ-generator-005 all model routing choices in models.yaml are accepted", () => {
   const models = clone(parseModels(MODELS_TEXT));
   models.agents["sdd-propose"] = "premium";
   models.agents["sdd-document"] = "default";
+  models.agents["review-risk"] = "premium";
+  models.agents._default = "premium";
+  models.tiers.premium.codex.model = "future-premium-model";
+  models.tiers.premium.codex.model_reasoning_effort = "high";
+  models.tiers.default.codex.model = "future-default-model";
+  models.tiers.default.codex.model_reasoning_effort = "xhigh";
   assert.deepEqual(validateSddModelPolicy(models), { valid: true, errors: [] });
 });
 
@@ -126,8 +119,8 @@ test("REQ-generator-005 all six temporary targets honor models.yaml tiers and fa
         if (target === "github-copilot" || (target === "codex" && agent === "sdd-orchestrator")) {
           assert.doesNotMatch(content, target === "codex" ? /^model\s*=/m : /^model:/m, `${target}:${agent}`);
         } else if (target === "codex") {
-          assert.match(content, new RegExp(`^model = "${CODEX_TIER_POLICY[tier].model}"$`, "m"), `${target}:${agent}`);
-          assert.match(content, new RegExp(`^model_reasoning_effort = "${CODEX_TIER_POLICY[tier].model_reasoning_effort}"$`, "m"), `${target}:${agent}`);
+          assert.match(content, new RegExp(`^model = "${models.tiers[tier].codex.model}"$`, "m"), `${target}:${agent}`);
+          assert.match(content, new RegExp(`^model_reasoning_effort = "${models.tiers[tier].codex.model_reasoning_effort}"$`, "m"), `${target}:${agent}`);
         } else {
           const declared = models.tiers[tier][target];
           const expected = declared && typeof declared === "object" && !Array.isArray(declared) ? declared.model : declared;

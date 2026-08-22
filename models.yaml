@@ -4,19 +4,15 @@
 #   agents: which tier each agent needs. THIS is the only agent→tier policy.
 #   tiers:  how each tier maps to a concrete model per target.
 #
-# Cost/intelligence policy (Codex pins):
-#   premium -> Sol medium
-#   default -> Terra medium
-#   cheap   -> Luna low
-#
-# Reassign agents freely among known tiers here; the validator only checks
-# roster completeness and structural invariants. Before changing a tier's
-# concrete model mapping, run the golden orchestrator eval suite.
+# Agent assignments, target models, reasoning effort, and verbosity are all
+# configured here. The validator checks roster completeness and known tiers,
+# but does not duplicate these editable choices in application code.
 
 agents:
   # Premium:
   # Infrequent decisions with high blast radius.
   # A weak result here can invalidate the complete implementation direction.
+  sdd-propose: premium
   sdd-design: premium
   sdd-verify: premium
   sdd-foundation: premium
@@ -25,7 +21,6 @@ agents:
   # Default:
   # Frequent semantic work requiring solid reasoning, but not Sol-level spend.
   sdd-orchestrator: default
-  sdd-propose: default
   sdd-spec: default
   sdd-clarify: default
   sdd-apply: default
@@ -42,20 +37,19 @@ agents:
   sdd-document: cheap
 
   # Reviewers:
-  # Keep them on default while 4R can still fan out to four agents.
-  # A future risk-aware route can promote review-risk selectively.
-  review-change: default
+  # Each reviewer can use any known tier.
+  review-change: premium
   review-correction: default
   review-risk: default
   review-readability: default
   review-reliability: default
   review-resilience: default
 
-  _default: default
+  _default: premium
 
 tiers:
   # Premium:
-  # Sol medium is reserved for infrequent, high-blast-radius decisions.
+  # Defaults for infrequent, high-blast-radius decisions.
   premium:
     claude: opus
     vscode:
@@ -63,12 +57,12 @@ tiers:
     opencode: openai/gpt-5.6-sol
     codex:
       model: gpt-5.6-sol
-      model_reasoning_effort: medium
+      model_reasoning_effort: high
       model_verbosity: medium
     cursor: grok-4.6[fast=false]
 
   # Default:
-  # Terra medium is the balanced default for frequent semantic work.
+  # Defaults for frequent semantic work.
   default:
     claude: sonnet
     vscode:
@@ -76,12 +70,12 @@ tiers:
     opencode: openai/gpt-5.6-terra
     codex:
       model: gpt-5.6-terra
-      model_reasoning_effort: medium
+      model_reasoning_effort: high
       model_verbosity: medium
     cursor: grok-4.6[fast=false]
 
   # Cheap:
-  # Luna low is the efficient option for bounded or mechanical work.
+  # Defaults for bounded or mechanical work.
   cheap:
     claude: haiku
     vscode:

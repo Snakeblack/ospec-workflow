@@ -291,23 +291,31 @@ test("parseModels reads block-sequence target models", () => {
   assert.deepEqual(models.tiers.default.vscode, ["A (copilot)", "B (copilot)"]);
 });
 
-test("RED: runConfigure aborts before writing on reviewer, missing, or invalid Codex model policy", (t) => {
+test("runConfigure accepts configurable reviewer and Codex policy from models.yaml", (t) => {
   const source = fs.mkdtempSync(path.join(os.tmpdir(), "configure-policy-"));
   t.after(() => fs.rmSync(source, { recursive: true, force: true }));
   fs.cpSync(SOURCE, source, { recursive: true });
-  const valid = fs.readFileSync(path.join(process.cwd(), "models.yaml"), "utf8");
-  for (const [label, find, replacement] of [
-    ["reviewer", "  review-risk: default", "  review-risk: premium"],
-    ["missing", "  sdd-propose: default\r?\n", ""],
-    ["codex", "model_reasoning_effort: medium", "model_reasoning_effort: high"],
-  ]) {
-    const models = label === "missing" ? valid.replace(new RegExp(find), replacement) : valid.replace(find, replacement);
-    fs.writeFileSync(path.join(source, "models.yaml"), models);
-    const out = tmpOut(t);
-    const result = runConfigureStrict({ sourceDir: source, target: "claude", outDir: out, validate: false });
-    assert.notEqual(result.exitCode, 0, label);
-    assert.equal(fs.existsSync(path.join(out, "agents", "sdd-apply.md")), false, label);
-  }
+  const models = fs.readFileSync(path.join(process.cwd(), "models.yaml"), "utf8")
+    .replace("  review-risk: default", "  review-risk: premium")
+    .replace("model_reasoning_effort: low", "model_reasoning_effort: xhigh");
+  fs.writeFileSync(path.join(source, "models.yaml"), models);
+  const out = tmpOut(t);
+  const result = runConfigureStrict({ sourceDir: source, target: "claude", outDir: out, validate: false });
+  assert.equal(result.exitCode, 0);
+  assert.equal(fs.existsSync(path.join(out, "agents", "sdd-apply.md")), true);
+});
+
+test("runConfigure aborts before writing on a structural model policy error", (t) => {
+  const source = fs.mkdtempSync(path.join(os.tmpdir(), "configure-policy-"));
+  t.after(() => fs.rmSync(source, { recursive: true, force: true }));
+  fs.cpSync(SOURCE, source, { recursive: true });
+  const invalid = fs.readFileSync(path.join(process.cwd(), "models.yaml"), "utf8")
+    .replace(/^  sdd-propose: .*\r?\n/m, "");
+  fs.writeFileSync(path.join(source, "models.yaml"), invalid);
+  const out = tmpOut(t);
+  const result = runConfigureStrict({ sourceDir: source, target: "claude", outDir: out, validate: false });
+  assert.notEqual(result.exitCode, 0);
+  assert.equal(fs.existsSync(path.join(out, "agents", "sdd-apply.md")), false);
 });
 
 test("RED: evidence authorization rejects a symlinked change root", (t) => {

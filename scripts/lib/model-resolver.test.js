@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { resolveModel, validateSddModelPolicy, OMIT } = require("./model-resolver.js");
+const { resolveModel, validateSddModelPolicy, REQUIRED_SDD_AGENTS, OMIT } = require("./model-resolver.js");
 
 const MODELS = {
   agents: {
@@ -53,14 +53,31 @@ test("absent or malformed config yields OMIT", () => {
   assert.equal(resolveModel("x", "claude", "nope"), OMIT);
 });
 
-test("canonical validator reports structural errors without pinning agent tiers", () => {
+test("canonical validator accepts model, effort, reviewer, and default choices from models.yaml", () => {
+  const agents = Object.fromEntries(REQUIRED_SDD_AGENTS.map(agent => [agent, "default"]));
+  agents["review-change"] = "premium";
+  agents._default = "premium";
+
   const result = validateSddModelPolicy({
-    agents: { "sdd-propose": "default", "sdd-apply": "mystery", _default: "cheap" },
+    agents,
+    tiers: {
+      premium: { codex: { model: "future-premium-model", model_reasoning_effort: "high" } },
+      default: { codex: { model: "future-default-model", model_reasoning_effort: "xhigh" } },
+      cheap: { codex: { model: "future-cheap-model", model_reasoning_effort: "low" } },
+    },
+  });
+
+  assert.deepEqual(result, { valid: true, errors: [] });
+});
+
+test("canonical validator reports structural errors without pinning configurable policy", () => {
+  const result = validateSddModelPolicy({
+    agents: { "sdd-propose": "default", "sdd-apply": "mystery", "review-change": "future", _default: "premium" },
     tiers: { premium: {}, default: {}, cheap: {} },
   });
   assert.equal(result.valid, false);
-  assert.ok(!result.errors.some(error => error.code === "tier-mismatch" && error.agent === "sdd-propose"));
   assert.ok(result.errors.some(error => error.code === "unknown-tier" && error.agent === "sdd-apply" && error.actual === "mystery"));
-  assert.ok(result.errors.some(error => error.code === "tier-mismatch" && error.agent === "_default" && error.expected === "default"));
+  assert.ok(result.errors.some(error => error.code === "unknown-tier" && error.agent === "review-change" && error.actual === "future"));
+  assert.ok(!result.errors.some(error => error.agent === "_default"));
   assert.ok(result.errors.some(error => error.code === "missing-agent" && error.agent === "sdd-design"));
 });
