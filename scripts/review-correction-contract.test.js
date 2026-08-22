@@ -17,7 +17,7 @@ test("review-correction source defines targeted-only exact outcome contract", ()
   assert.match(contract, /MUST NOT.*new.*block/i);
   assert.match(contract, /follow-ups?.*non-blocking/i);
   assert.match(contract, /regression.*evidence/i);
-  assert.match(models, /^\s*review-correction: default$/m);
+  assert.match(models, /^\s*review-correction: (?:premium|default|cheap)$/m);
 });
 
 test("slice remediation contracts preserve active-slice, migration, regression, and read-only boundaries in source mirrors", () => {

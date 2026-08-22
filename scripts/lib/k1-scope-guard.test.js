@@ -96,6 +96,8 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/ospec-state.test.js",
   "scripts/lib/tdd-mode.js",
   "scripts/lib/target-transform.js",
+  "scripts/lib/model-resolver.js",
+  "scripts/lib/model-resolver.test.js",
   "scripts/lib/verify-lineage.js",
   "scripts/lib/verify-lineage.test.js",
   "scripts/lib/apply-resume.js",
