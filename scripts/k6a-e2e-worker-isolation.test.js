@@ -258,11 +258,22 @@ test("K6a Host Isolation Fallback: Reports truthful capability without silent pr
     probe_digest,
   };
 
-  const resWithProof = await executeWorkOrder({
+  const mockWorkerTransport = {
+    port_id: "port-claude-worker",
+    kind: "worker-transport",
+    run: async () => ({
+      ok: true,
+      exit_code: 0,
+      stdout: "with proof and transport\n",
+      stderr: "",
+    }),
+  };
+
+  const resWithProofAndTransport = await executeWorkOrder({
     workOrder,
     workspace,
-    command: process.execPath,
-    args: ["-e", "console.log('with proof');"],
+    transports: { worker: mockWorkerTransport },
+    command: "runner",
     isolationCapability: "enforced",
     capabilityProof,
     semantic_evidence: evidence,
@@ -271,6 +282,24 @@ test("K6a Host Isolation Fallback: Reports truthful capability without silent pr
     expectedHostRuntimeVersion: "1.0.0",
     expectedProbeDigest: probe_digest,
   });
-  assert.equal(resWithProof.isolationReported, "enforced");
+  assert.equal(resWithProofAndTransport.isolationReported, "enforced");
+  assert.equal(resWithProofAndTransport.ok, true);
+
+  // Without active WorkerTransport, enforced isolation fails closed
+  const resMissingTransport = await executeWorkOrder({
+    workOrder,
+    workspace,
+    command: process.execPath,
+    args: ["-e", "console.log('missing transport');"],
+    isolationCapability: "enforced",
+    capabilityProof,
+    semantic_evidence: evidence,
+    expectedAdapterId: "claude",
+    expectedAdapterVersion: "1.0.0",
+    expectedHostRuntimeVersion: "1.0.0",
+    expectedProbeDigest: probe_digest,
+  });
+  assert.equal(resMissingTransport.ok, false, "Must fail closed when enforced requested without WorkerTransport");
+  assert.notEqual(resMissingTransport.isolationReported, "enforced");
 });
 

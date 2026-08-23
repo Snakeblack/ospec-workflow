@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.46.2] - 2026-08-23
+
+### Fixed
+- **Cierre de Fronteras y Contención de Runtime K6a (`k6a-runtime-boundary-closure`)**:
+  - **Generación de Diff Unificado Real y Aplicable**: `generateUnifiedDiff` implementa comparación línea por línea contra `baselineContents` (almacenado durante `materializeSourceSnapshot`), emitiendo hunks estándar `--- a/` / `+++ b/` y `@@ -l,s +l,s @@` con contexto real y eliminando placeholders sintéticos `-old` / `-deleted`.
+  - **Enforcement Estricto de WorkerTransport**: `isolationReported = "enforced"` requiere obligatoriamente que `effective_state === "enforced"` y que exista un `WorkerTransport` verificado activo provisto. Si falta transporte acoplado, la ejecución falla cerrada (`ok: false`) o se degrada explícitamente a `unavailable`/`partial` en spawn local, impidiendo reportes falsos de aislamiento.
+  - **Firma Canónica y Telemetría de HostTransport**: Corregida la invocación `invokeTransportAsync(workerTransport, { signal, deadlineMs, input })` con paso adecuado de timeout y cancelación. `normalizeTransportOutcome` preserva y expone `stdout`, `stderr` y `exit_code`.
+  - **Encapsulación Autorizada de Workspaces**: `createWorkspace` autogenera exclusivamente `workspace_id` mediante UUIDs internos (`ws-${crypto.randomUUID()}`), descartando identificadores del invocador que permitan directory traversal. `getWorkspaceRecord` retorna copias defensivas inmutables y `materializeSourceSnapshot` falla cerrado ante workspaces no registrados (sin fallback a `descriptor.root_path`).
+  - **Sincronización de Procesos y Eliminación de Races**: En cancelaciones o timeouts en spawn local, el runtime espera la resolución obligatoria del evento `'close'` del proceso hijo antes de invocar `recoverInterruptedExecution`, garantizando que no existan escrituras concurrentes residuales.
+  - **Validación de Symlinks Fail-Closed**: `checkSymlinkEscape` retorna `isEscape: true` ante cualquier excepción o fallo en `fs.realpathSync` / `fs.lstatSync`, cerrando ramas fail-open en la contención de filesystem.
+  - **Reconciliación REQ-contract-lint-018**: Eliminados fallbacks legacy `.files` en el runtime y ampliado el checker `k6a-canonical-contracts` para auditar fixtures e invocaciones JS que asuman contratos no canónicos.
+  - **Suite E2E de Composición Canónica K3 -> K4a -> K6a -> K3**: Verificado el ciclo completo con derivación criptográfica de `computeSourceSnapshotId`, compilación vía `compileExecutionGraph`/`compileWorkOrdersV2`, validación de `validateWorkOrderBinding` y vinculación estricta de `validateWorkResultBinding`.
+  - **Promoción de ADRs**: Formalizados y promovidos `adr-20260823-012` a `017` en `docs/adr/`.
+
 ## [2.46.1] - 2026-08-23
 
 ### Fixed

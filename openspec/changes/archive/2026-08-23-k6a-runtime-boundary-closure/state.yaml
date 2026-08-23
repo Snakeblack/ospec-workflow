@@ -1,0 +1,57 @@
+change: "k6a-runtime-boundary-closure"
+status: "archived"
+last_updated: 2026-08-23T22:13:30Z
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k6a-runtime-boundary-closure/proposal.md"
+    summary: "Remediación de 11 defectos en K6a (diff real, WorkerTransport, symlinks fail-closed, encapsulación de registro, E2E canónico y lint REQ-018)."
+    key_decisions:
+      - "WorkerTransport obligatorio para isolationReported=enforced"
+      - "Registro de workspaces privado con UUID interno sin exportación mutable"
+      - "Fail-closed ante fallos en realpath/symlinks y materialización fuera de registro"
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k6a-runtime-boundary-closure/specs/worker-isolation/spec.md"
+      - "openspec/changes/k6a-runtime-boundary-closure/specs/contract-lint/spec.md"
+    summary: "Delta specs para worker-isolation (7 REQs) y contract-lint (1 REQ) con contención fail-closed, diffs auténticos y validación canónica."
+    key_decisions:
+      - "WorkerTransport activo verificado requerido para estado enforced"
+      - "UUIDs internos y registro privado sin fallback a rutas externas"
+      - "Fail-closed en checkSymlinkEscape ante excepciones de filesystem"
+  design:
+    status: "done"
+    artifact: "openspec/changes/k6a-runtime-boundary-closure/design.md"
+    summary: "Diseño técnico de contención: ADR-1 a ADR-6, diffs reales con baseline, sync de subprocesos y suite E2E K3->K4a->K6a->K3."
+    key_decisions:
+      - "Preservar baseline en memoria para diff estándar y sync de close event"
+      - "WorkerTransport obligatorio para enforced y fail-closed sin transporte"
+      - "Fail-closed en symlinks y encapsulación privada de workspace registry"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k6a-runtime-boundary-closure/tasks.md"
+    summary: "Desglose TDD en 7 fases (20 tareas) cubriendo diff real, WorkerTransport, contención fail-closed, reconciliación lint y E2E canónico."
+    key_decisions:
+      - "Pipeline TDD en 7 fases con cobertura total de REQ-001 a REQ-008 y REQ-018"
+      - "Previsión de entrega en Single PR de bajo riesgo (~280-360 líneas)"
+  apply:
+    status: "done"
+    artifact: "openspec/changes/k6a-runtime-boundary-closure/apply-progress.md"
+  verify:
+    status: "done"
+    verdict: "PASS"
+    artifact: "openspec/changes/k6a-runtime-boundary-closure/verify-report.md"
+    summary: "Verificación PASS: 25/25 escenarios cumplidos con runtime-test, 20 tareas completadas, 2485 tests pasando sin regresiones y contención fail-closed."
+    key_decisions:
+      - "100% de escenarios cubiertos con tests de ejecución runtime real"
+      - "Contención fail-closed validada en symlinks, registry y WorkerTransport"
+      - "Composición canónica K3->K4a->K6a->K3 verificada en suite E2E"
+  archive:
+    status: "done"
+    artifact: "openspec/changes/k6a-runtime-boundary-closure/archive-report.md"
+    summary: "Plan emitido: 2 spec writes preparados, 6 promociones ADR y cierre formal de contención runtime K6a."
+    key_decisions:
+      - "Plan-and-Report formal con inventario y hashes SHA-256 completos"
+      - "Promoción de ADR-001 a ADR-006 a docs/adr/"

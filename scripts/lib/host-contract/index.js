@@ -297,6 +297,9 @@ function normalizeTransportOutcome(raw) {
   if (Object.prototype.hasOwnProperty.call(raw, "value")) result.value = raw.value;
   if (raw.failure_class != null) result.failure_class = raw.failure_class;
   if (raw.requestId != null) result.requestId = raw.requestId;
+  if (raw.exit_code != null) result.exit_code = raw.exit_code;
+  if (raw.stdout != null) result.stdout = raw.stdout;
+  if (raw.stderr != null) result.stderr = raw.stderr;
   return result;
 }
 

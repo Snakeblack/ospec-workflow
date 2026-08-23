@@ -242,6 +242,20 @@ test("normalizeTransportOutcome triangulates {ok,outcome,code?,value?}", () => {
   });
 });
 
+test("normalizeTransportOutcome preserves telemetry fields: stdout, stderr, exit_code", () => {
+  const raw = {
+    ok: true,
+    outcome: "ok",
+    exit_code: 0,
+    stdout: "build output line\n",
+    stderr: "warning text\n",
+  };
+  const normalized = normalizeTransportOutcome(raw);
+  assert.equal(normalized.exit_code, 0);
+  assert.equal(normalized.stdout, "build output line\n");
+  assert.equal(normalized.stderr, "warning text\n");
+});
+
 test("invokeTransportAsync: rejected Promise becomes ok:false classified failure", async () => {
   const { invokeTransportAsync, classifyTransportFailure } = require("./index.js");
   const port = {
