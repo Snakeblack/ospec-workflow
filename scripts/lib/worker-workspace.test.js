@@ -12,10 +12,51 @@ const {
   materializeSourceSnapshot,
   inspectWorkspace,
   getWorkspaceRecord,
+  computeTreeDigest,
 } = require("./worker-workspace.js");
+const { computeSourceSnapshotId } = require("./execution-identities/index.js");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 const DUMMY_SNAPSHOT_ID = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+function makeCanonicalSnapshot(repository_id, files, overrides = {}) {
+  const treeDigest = overrides.base_tree_digest || computeTreeDigest(files || {});
+  const snapshot = {
+    schema_version: 1,
+    repository_id,
+    base_tree_digest: treeDigest,
+    projection: "workspace",
+    dependency_digests: [],
+    ...overrides,
+  };
+  if (!snapshot.source_snapshot_id) {
+    snapshot.source_snapshot_id = computeSourceSnapshotId(snapshot);
+  }
+  return snapshot;
+}
+
+test("computeTreeDigest: computes deterministic Merkle tree digest over files object, array, and Map", () => {
+  const filesMap = {
+    "src/b.js": "const b = 2;\n",
+    "src/a.js": "const a = 1;\n",
+  };
+  const filesArray = [
+    { path: "src/b.js", content: "const b = 2;\n" },
+    { path: "src/a.js", content: "const a = 1;\n" },
+  ];
+  const mapObj = new Map([
+    ["src/b.js", "const b = 2;\n"],
+    ["src/a.js", "const a = 1;\n"],
+  ]);
+
+  const d1 = computeTreeDigest(filesMap);
+  const d2 = computeTreeDigest(filesArray);
+  const d3 = computeTreeDigest(mapObj);
+
+  assert.ok(/^sha256:[a-f0-9]{64}$/.test(d1));
+  assert.equal(d1, d2, "Object and array file representations must yield identical tree digest");
+  assert.equal(d1, d3, "Object and Map file representations must yield identical tree digest");
+});
 
 test("createWorkspace: generates internal UUID and ignores caller-supplied options.workspace_id", async (t) => {
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-uuid-"));
@@ -65,18 +106,12 @@ test("materializeSourceSnapshot: throws fail-closed error when workspace is not 
     source_snapshot_id: DUMMY_SNAPSHOT_ID,
   };
 
-  const canonicalSnapshot = {
-    schema_version: 1,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
-    repository_id: "repo-test-123",
-    base_tree_digest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    projection: "workspace",
-    dependency_digests: [],
-  };
+  const filesMap = { "src/index.js": "console.log('hi');\n" };
+  const canonicalSnapshot = makeCanonicalSnapshot("repo-test-123", filesMap);
 
   const workOrder = {
     work_order_id: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+    source_snapshot_id: canonicalSnapshot.source_snapshot_id,
     dependencies: [],
     capsule_inputs: ["src/index.js"],
     allowed_paths: ["src/**"],
@@ -85,7 +120,7 @@ test("materializeSourceSnapshot: throws fail-closed error when workspace is not 
   await assert.rejects(
     async () => {
       await materializeSourceSnapshot(fakeDescriptor, workOrder, canonicalSnapshot, {
-        files: { "src/index.js": "console.log('hi');\n" },
+        files: filesMap,
       });
     },
     /unrecorded|not found|registered/i
@@ -93,31 +128,89 @@ test("materializeSourceSnapshot: throws fail-closed error when workspace is not 
   assert.equal(fs.existsSync(path.join(fakeDir, "src", "index.js")), false, "Must not write files to unrecorded workspace");
 });
 
-test("materializeSourceSnapshot: preserves baseline file contents in workspace record for diffing", async (t) => {
-  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-baseline-"));
+test("materializeSourceSnapshot: throws cryptographic verification error when candidate file bytes do not match base_tree_digest", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-tree-mismatch-"));
   t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
 
   const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  const realFiles = { "src/index.js": "console.log('real');\n" };
+  const canonicalSnapshot = makeCanonicalSnapshot("repo-test-123", realFiles);
+
+  const workOrder = {
+    work_order_id: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    source_snapshot_id: canonicalSnapshot.source_snapshot_id,
+    dependencies: [],
+    capsule_inputs: ["src/index.js"],
+    allowed_paths: ["src/**"],
+  };
+
+  // Provide tampered files that do not match canonicalSnapshot.base_tree_digest
+  const tamperedFiles = { "src/index.js": "console.log('tampered bytes');\n" };
+
+  await assert.rejects(
+    async () => {
+      await materializeSourceSnapshot(ws, workOrder, canonicalSnapshot, {
+        files: tamperedFiles,
+      });
+    },
+    /base_tree_digest mismatch/i
+  );
+
+  assert.equal(fs.existsSync(path.join(ws.root_path, "src", "index.js")), false, "Must not write files to disk on digest mismatch");
+});
+
+test("materializeSourceSnapshot: throws cryptographic verification error when source_snapshot_id does not match computeSourceSnapshotId", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-snap-mismatch-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  const filesMap = { "src/index.js": "console.log('snap id check');\n" };
   const canonicalSnapshot = {
     schema_version: 1,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+    source_snapshot_id: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", // forged/tampered ID
     repository_id: "repo-test-123",
-    base_tree_digest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    base_tree_digest: computeTreeDigest(filesMap),
     projection: "workspace",
     dependency_digests: [],
   };
 
   const workOrder = {
     work_order_id: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+    source_snapshot_id: canonicalSnapshot.source_snapshot_id,
     dependencies: [],
-    capsule_inputs: ["src/app.js", "README.md"],
-    allowed_paths: ["src/**", "README.md"],
+    capsule_inputs: ["src/index.js"],
+    allowed_paths: ["src/**"],
   };
+
+  await assert.rejects(
+    async () => {
+      await materializeSourceSnapshot(ws, workOrder, canonicalSnapshot, {
+        files: filesMap,
+      });
+    },
+    /source_snapshot_id mismatch/i
+  );
+
+  assert.equal(fs.existsSync(path.join(ws.root_path, "src", "index.js")), false, "Must not write files to disk on source_snapshot_id mismatch");
+});
+
+test("materializeSourceSnapshot: preserves baseline file contents in workspace record for diffing", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-baseline-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
 
   const filesMap = {
     "src/app.js": "const version = 1;\n",
     "README.md": "# Sample Project\n",
+  };
+  const canonicalSnapshot = makeCanonicalSnapshot("repo-test-123", filesMap);
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: canonicalSnapshot.source_snapshot_id });
+
+  const workOrder = {
+    work_order_id: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    source_snapshot_id: canonicalSnapshot.source_snapshot_id,
+    dependencies: [],
+    capsule_inputs: ["src/app.js", "README.md"],
+    allowed_paths: ["src/**", "README.md"],
   };
 
   await materializeSourceSnapshot(ws, workOrder, canonicalSnapshot, {
@@ -154,33 +247,23 @@ test("materializeSourceSnapshot: materializes canonical SourceSnapshot v1 with d
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-canonical-"));
   t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
 
-  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
-
-  // Canonical SourceSnapshot v1 (NO synthetic .files map!)
-  const canonicalSnapshot = {
-    schema_version: 1,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
-    repository_id: "repo-test-123",
-    base_tree_digest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    projection: "workspace",
-    dependency_digests: [],
+  const filesMap = {
+    "src/index.js": "console.log('canonical index');\n",
+    "package.json": '{"name": "canonical-test"}\n',
+    "unused/file.js": "not requested\n",
   };
+  const canonicalSnapshot = makeCanonicalSnapshot("repo-test-123", filesMap);
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: canonicalSnapshot.source_snapshot_id });
 
   // WorkOrder v2 with DAG SHA-256 dependencies and decoupled capsule_inputs
   const workOrder = {
     schema_version: 2,
     work_order_id: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+    source_snapshot_id: canonicalSnapshot.source_snapshot_id,
     dependencies: ["sha256:1111111111111111111111111111111111111111111111111111111111111111"],
     capsule_inputs: ["src/index.js", "package.json"],
     allowed_paths: ["src/**"],
     environment: { NODE_ENV: "test" },
-  };
-
-  const filesMap = {
-    "src/index.js": "console.log('canonical index');\n",
-    "package.json": '{"name": "canonical-test"}\n',
-    "unused/file.js": "not requested\n",
   };
 
   const capsule = await materializeSourceSnapshot(ws, workOrder, canonicalSnapshot, {
@@ -204,19 +287,13 @@ test("materializeSourceSnapshot: fails closed when declared capsule_input is mis
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-missing-input-"));
   t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
 
-  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
-  const canonicalSnapshot = {
-    schema_version: 1,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
-    repository_id: "repo-test-123",
-    base_tree_digest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    projection: "workspace",
-    dependency_digests: [],
-  };
+  const filesMap = { "src/present.js": "const ok = true;\n" };
+  const canonicalSnapshot = makeCanonicalSnapshot("repo-test-123", filesMap);
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: canonicalSnapshot.source_snapshot_id });
 
   const workOrder = {
     work_order_id: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+    source_snapshot_id: canonicalSnapshot.source_snapshot_id,
     dependencies: [],
     capsule_inputs: ["missing/input.js"],
     allowed_paths: ["src/**"],
@@ -229,7 +306,6 @@ test("materializeSourceSnapshot: fails closed when declared capsule_input is mis
     /missing.*input/i
   );
 });
-
 
 test("createWorkspace: allocates dedicated directory and returns valid descriptor", async (t) => {
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-create-"));
@@ -281,23 +357,15 @@ test("materializeSourceSnapshot: projects declared dependencies and yields deter
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-mat-"));
   t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
 
-  const ws1 = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
-  const ws2 = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
-
-  const canonicalSnapshot = {
-    schema_version: 1,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
-    repository_id: "repo-test-123",
-    base_tree_digest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    projection: "workspace",
-    dependency_digests: [],
-  };
-
   const filesMap = {
     "src/index.js": "console.log('hello world');\n",
     "package.json": '{"name": "test-pkg"}\n',
     "unrelated/repo-artifact.txt": "ignored data\n",
   };
+  const canonicalSnapshot = makeCanonicalSnapshot("repo-test-123", filesMap);
+
+  const ws1 = await createWorkspace({ baseDir, source_snapshot_id: canonicalSnapshot.source_snapshot_id });
+  const ws2 = await createWorkspace({ baseDir, source_snapshot_id: canonicalSnapshot.source_snapshot_id });
 
   const workOrder = {
     work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
@@ -333,19 +401,13 @@ test("materializeSourceSnapshot: supports array-based options.files format", asy
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-mat-array-"));
   t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
 
-  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
-  const canonicalSnapshot = {
-    schema_version: 1,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
-    repository_id: "repo-test-123",
-    base_tree_digest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    projection: "workspace",
-    dependency_digests: [],
-  };
   const filesArray = [
     { path: "src/main.js", content: "export const ok = 1;\n" },
     { path: "README.md", content: "# Hello\n" },
   ];
+  const canonicalSnapshot = makeCanonicalSnapshot("repo-test-123", filesArray);
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: canonicalSnapshot.source_snapshot_id });
+
   const workOrder = {
     work_order_id: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
     dependencies: ["sha256:5555555555555555555555555555555555555555555555555555555555555555"],
@@ -395,16 +457,9 @@ test("materializeSourceSnapshot: rejects dependency paths containing traversal s
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-traversal-"));
   t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
 
-  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
-
-  const canonicalSnapshot = {
-    schema_version: 1,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
-    repository_id: "repo-test-123",
-    base_tree_digest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    projection: "workspace",
-    dependency_digests: [],
-  };
+  const filesMap = { "src/app.js": "const ok = 1;\n" };
+  const canonicalSnapshot = makeCanonicalSnapshot("repo-test-123", filesMap);
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: canonicalSnapshot.source_snapshot_id });
 
   const workOrder = {
     work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",

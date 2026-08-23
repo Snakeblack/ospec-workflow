@@ -11,6 +11,7 @@ const {
   disposeWorkspace,
   materializeSourceSnapshot,
   inspectWorkspace,
+  computeTreeDigest,
 } = require("./lib/worker-workspace.js");
 const {
   executeWorkOrder,
@@ -19,12 +20,72 @@ const {
   validateWorkResultBinding,
   computeWorkResultId,
 } = require("./lib/worker-executor.js");
-const { computeWorkOrderId } = require("./lib/execution-identities/index.js");
+const { computeWorkOrderId, computeSourceSnapshotId } = require("./lib/execution-identities/index.js");
 const { validateAllowedPaths } = require("./lib/allowed-paths-validator.js");
 const { createEvidenceDigest, createProbeDigest } = require("./lib/capability-proof/index.js");
 
 const ROOT = path.resolve(__dirname, "..");
-const DUMMY_SNAPSHOT_ID = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+function applyPatch(baseFiles = new Map(), patch = "") {
+  const result = new Map(baseFiles);
+  if (!patch || typeof patch !== "string") return result;
+
+  const chunks = patch.split(/(?=^--- )/m).filter(Boolean);
+  for (const chunk of chunks) {
+    const lines = chunk.split("\n");
+    if (lines.length < 2) continue;
+    const oldHeader = lines[0];
+    const newHeader = lines[1];
+
+    if (oldHeader.startsWith("--- /dev/null") && newHeader.startsWith("+++ b/")) {
+      const filePath = newHeader.slice(6);
+      const contentLines = [];
+      let noNewlineAtEnd = false;
+      for (let i = 2; i < lines.length; i++) {
+        const l = lines[i];
+        if (l.startsWith("@@")) continue;
+        if (l === "\\ No newline at end of file") {
+          noNewlineAtEnd = true;
+          continue;
+        }
+        if (l.startsWith("+")) {
+          contentLines.push(l.slice(1));
+        }
+      }
+      let content = contentLines.join("\n");
+      if (!noNewlineAtEnd && contentLines.length > 0) {
+        content += "\n";
+      }
+      result.set(filePath, content);
+    } else if (oldHeader.startsWith("--- a/") && newHeader.startsWith("+++ /dev/null")) {
+      const filePath = oldHeader.slice(6);
+      result.delete(filePath);
+    } else if (oldHeader.startsWith("--- a/") && newHeader.startsWith("+++ b/")) {
+      const filePath = newHeader.slice(6);
+      const newFileLines = [];
+      let noNewlineAtEnd = false;
+      for (let i = 2; i < lines.length; i++) {
+        const l = lines[i];
+        if (l.startsWith("@@")) continue;
+        if (l === "\\ No newline at end of file") {
+          noNewlineAtEnd = true;
+          continue;
+        }
+        if (l.startsWith(" ")) {
+          newFileLines.push(l.slice(1));
+        } else if (l.startsWith("+")) {
+          newFileLines.push(l.slice(1));
+        }
+      }
+      let content = newFileLines.join("\n");
+      if (!noNewlineAtEnd && newFileLines.length > 0) {
+        content += "\n";
+      }
+      result.set(filePath, content);
+    }
+  }
+  return result;
+}
 
 test("K6a E2E Happy Path: Full workspace lifecycle, capsule materialization, execution, containment, and disposal", async (t) => {
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-e2e-happy-"));
@@ -34,27 +95,29 @@ test("K6a E2E Happy Path: Full workspace lifecycle, capsule materialization, exe
     } catch {}
   });
 
-  // 1. Create Workspace
-  const workspace = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
-  assert.equal(workspace.status, "active");
-  assert.ok(fs.existsSync(workspace.root_path));
-
-  // 2. Canonical SourceSnapshot v1 and WorkOrder v2
-  const canonicalSnapshot = {
-    schema_version: 1,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
-    repository_id: "repo-e2e-calc",
-    base_tree_digest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    projection: "workspace",
-    dependency_digests: [],
-  };
-
   const files = {
     "src/calculator.js": "function add(a, b) { return a + b; }\nmodule.exports = { add };\n",
     "test/calculator.test.js": "const assert = require('assert'); const { add } = require('../src/calculator.js'); assert.equal(add(2, 3), 5); console.log('All tests passed!');\n",
     "package.json": '{"name": "calc-app"}\n',
     "unrelated/leak.txt": "should not be materialized",
   };
+
+  const treeDigest = computeTreeDigest(files);
+
+  // 1. Canonical SourceSnapshot v1 and WorkOrder v2
+  const canonicalSnapshot = {
+    schema_version: 1,
+    repository_id: "repo-e2e-calc",
+    base_tree_digest: treeDigest,
+    projection: "workspace",
+    dependency_digests: [],
+  };
+  canonicalSnapshot.source_snapshot_id = computeSourceSnapshotId(canonicalSnapshot);
+
+  // 2. Create Workspace
+  const workspace = await createWorkspace({ baseDir, source_snapshot_id: canonicalSnapshot.source_snapshot_id });
+  assert.equal(workspace.status, "active");
+  assert.ok(fs.existsSync(workspace.root_path));
 
   const workOrder = {
     schema_version: 2,
@@ -64,7 +127,7 @@ test("K6a E2E Happy Path: Full workspace lifecycle, capsule materialization, exe
     status: "pending",
     operation: "apply",
     objective: "Run calculator test suite",
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+    source_snapshot_id: canonicalSnapshot.source_snapshot_id,
     dependencies: ["sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"],
     ownership: { owner: "agent-e2e", mode: "exclusive" },
     allowed_paths: ["src/**", "test/**", "dist/**", "package.json"],
@@ -113,11 +176,59 @@ test("K6a E2E Happy Path: Full workspace lifecycle, capsule materialization, exe
   const binding = validateWorkResultBinding(workOrder, execResult.workResult);
   assert.equal(binding.ok, true, "WorkResult must be cryptographically bound to WorkOrder");
 
-  // 5. Dispose Workspace
+  // 5. Validate Patch Round-trip Reconstruction (K3 validation)
+  const baseFilesMap = new Map([
+    ["src/calculator.js", files["src/calculator.js"]],
+    ["test/calculator.test.js", files["test/calculator.test.js"]],
+    ["package.json", files["package.json"]],
+  ]);
+  const reconstructed = applyPatch(baseFilesMap, execResult.workResult.patch);
+  assert.equal(reconstructed.get("dist/bundle.js"), "console.log(5);\n");
+
+  // 6. Dispose Workspace
   const disposeResult = await disposeWorkspace(workspace);
   assert.equal(disposeResult.ok, true);
   assert.equal(disposeResult.status, "disposed");
   assert.equal(fs.existsSync(workspace.root_path), false, "Workspace directory must be deleted on teardown");
+});
+
+test("K6a Negative E2E: Base tree digest mismatch fails closed pre-materialization", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-e2e-tree-mismatch-"));
+  t.after(() => {
+    try {
+      fs.rmSync(baseDir, { recursive: true, force: true });
+    } catch {}
+  });
+
+  const files = { "src/main.js": "console.log('original');\n" };
+  const canonicalSnapshot = {
+    schema_version: 1,
+    repository_id: "repo-tree-test",
+    base_tree_digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    projection: "workspace",
+    dependency_digests: [],
+  };
+  canonicalSnapshot.source_snapshot_id = computeSourceSnapshotId(canonicalSnapshot);
+
+  const workspace = await createWorkspace({ baseDir, source_snapshot_id: canonicalSnapshot.source_snapshot_id });
+  t.after(() => disposeWorkspace(workspace));
+
+  const workOrder = {
+    schema_version: 2,
+    work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    source_snapshot_id: canonicalSnapshot.source_snapshot_id,
+    dependencies: [],
+    capsule_inputs: ["src/main.js"],
+    allowed_paths: ["src/**"],
+  };
+
+  await assert.rejects(
+    async () => {
+      await materializeSourceSnapshot(workspace, workOrder, canonicalSnapshot, { files });
+    },
+    /base_tree_digest mismatch/i
+  );
+  assert.equal(fs.existsSync(path.join(workspace.root_path, "src", "main.js")), false);
 });
 
 test("K6a Negative E2E: Traversal escape attempt halts fail-closed with containment violation", async (t) => {
@@ -128,12 +239,12 @@ test("K6a Negative E2E: Traversal escape attempt halts fail-closed with containm
     } catch {}
   });
 
-  const workspace = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  const workspace = await createWorkspace({ baseDir, source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" });
   t.after(() => disposeWorkspace(workspace));
 
   const workOrder = {
     work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+    source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     allowed_paths: ["src/**"],
   };
 
@@ -161,12 +272,12 @@ test("K6a Negative E2E: Undeclared write attempt halts fail-closed with containm
     } catch {}
   });
 
-  const workspace = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  const workspace = await createWorkspace({ baseDir, source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" });
   t.after(() => disposeWorkspace(workspace));
 
   const workOrder = {
     work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+    source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     allowed_paths: ["allowed/**"],
   };
 
@@ -190,7 +301,7 @@ test("K6a Negative E2E: Undeclared write attempt halts fail-closed with containm
 test("K6a Negative E2E: Non-aliasing guarantees WorkResult cannot be substituted as Candidate v2", async () => {
   const workResult = await captureWorkResult({
     work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+    source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     patch: "--- a/src/app.js\n+++ b/src/app.js\n",
     commands: [],
     logs: ["completed"],
@@ -211,12 +322,12 @@ test("K6a Host Isolation Fallback: Reports truthful capability without silent pr
     } catch {}
   });
 
-  const workspace = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  const workspace = await createWorkspace({ baseDir, source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" });
   t.after(() => disposeWorkspace(workspace));
 
   const workOrder = {
     work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+    source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     allowed_paths: ["**"],
   };
 
@@ -261,6 +372,8 @@ test("K6a Host Isolation Fallback: Reports truthful capability without silent pr
   const mockWorkerTransport = {
     port_id: "port-claude-worker",
     kind: "worker-transport",
+    adapter_id: "claude",
+    probe_digest,
     run: async () => ({
       ok: true,
       exit_code: 0,
