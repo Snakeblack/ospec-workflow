@@ -76,8 +76,8 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **`k3-readiness-remediation`** | Relación/successor/dist packaging reconciliado; archivado y publicado |
 | `done` | **K4a** | Graph compiler + Obligation Manifest + deterministic replay (sin worker autoritativo); verificado y reconciliado en v2.45.7 |
 | `done` | **K5** | Budgets (incl. autoridad/efectos), failures y recovery; remediaciones v2.45.7→v2.45.13 (authoritative enforcement, authority boundary/CAS concurrency, reconciliación, remediación técnica del núcleo y blindaje de concurrencia); archivado y publicado en v2.45.13 |
-| `next-eligible` | K6a | Worker isolation / work-order capsule |
-| `pending` | K4b | Repair shadow execution (WO→WR→integrate→Candidate) |
+| `done` | **K6a** | Worker isolation y work-order capsule; primitivas de ejecución aislada, contención de filesystem y captura de WorkResult sin CandidateId; archivado y publicado en v2.46.0 |
+| `next-eligible` | K4b | Repair shadow execution (WO→WR→integrate→Candidate) |
 | `pending` | K6b–K8 | Verifier + provenance, challenges, complexity, review authority, **Evaluation Attestation** |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
 | `pending` | K10-delivery | `DeliveryAuthorization` **acotada al profile K9**; relación Candidate por etapas; fixed/deferred para el resto |
@@ -182,11 +182,11 @@ Campo canónico de binding al candidato: **`candidate_id`** (no `candidate_diges
 
 ```text
 Entregado:
-G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2 → K2.1 → K2a → K3 → K4a → K5
-                                                                                   ↓
-Next eligible:                                                                    K6a
-                                                                                   ↓
-Pending:     K6a → K4b → K6b → K6c → K6d → K7 → K8
+G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2 → K2.1 → K2a → K3 → K4a → K5 → K6a
+                                                                                               ↓
+Next eligible:                                                                                K4b
+                                                                                               ↓
+Pending:     K4b → K6b → K6c → K6d → K7 → K8
                                                                    ↓
 Promoción:                                                       K9
                                                                    ↓
@@ -898,7 +898,7 @@ K6 no se ejecuta como un change transversal. Cada slice tiene output terminal y 
 
 <a id="k6--isolated-worker-independent-verifier-y-evidence-strategies--pending"></a>
 
-### K6a — worker isolation y work-order capsule — **next-eligible**
+### K6a — worker isolation y work-order capsule — **done** (v2.46.0)
 
 **Dependencias:** K4a + K5 + K2a (`WorkerTransport` / aislamiento del host de referencia) + K3 (identidades como IDs opacos/shapes).
 
@@ -952,7 +952,7 @@ K6a ✕ K4b   (K6a no depende de K4b)
 
 **Gate terminal:** primitivas de ejecución conformes; ningún `CandidateId` emitido; desbloquea K4b como consumidor.
 
-### K4b — Repair shadow execution — **pending**
+### K4b — Repair shadow execution — **next-eligible**
 
 **Dependencias:** K4a + K5 + K6a + K3 + K2a.
 

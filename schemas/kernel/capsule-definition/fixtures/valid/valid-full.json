@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "capsule_id": "capsule-full-test-12345",
+  "fingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "source_snapshot_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "dependencies": ["lib/core.js", "lib/utils.js", "package.json"],
+  "allowed_paths": ["lib/**", "tests/**"],
+  "environment": {
+    "NODE_ENV": "production",
+    "CI": "true"
+  }
+}

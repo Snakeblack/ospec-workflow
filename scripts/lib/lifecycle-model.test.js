@@ -11,6 +11,7 @@ const {
   K2A_EXECUTABLE_INVARIANTS,
   K4A_EXECUTABLE_INVARIANTS,
   K5_EXECUTABLE_INVARIANTS,
+  K6A_EXECUTABLE_INVARIANTS,
   DEFERRED_INVARIANTS,
   exploreModel,
   checkInvariant,
@@ -52,7 +53,8 @@ test("every executable invariant has a non-optional checker", async () => {
       K21B_EXECUTABLE_INVARIANTS.length +
       K2A_EXECUTABLE_INVARIANTS.length +
       K4A_EXECUTABLE_INVARIANTS.length +
-      K5_EXECUTABLE_INVARIANTS.length
+      K5_EXECUTABLE_INVARIANTS.length +
+      K6A_EXECUTABLE_INVARIANTS.length
   );
   assert.equal(all.enforced_count, enforced.length);
   assert.equal(all.ok, true);
@@ -85,8 +87,20 @@ test("deferred invariants are listed but do not count as K2 enforcement", async 
       K21B_EXECUTABLE_INVARIANTS.length +
       K2A_EXECUTABLE_INVARIANTS.length +
       K4A_EXECUTABLE_INVARIANTS.length +
-      K5_EXECUTABLE_INVARIANTS.length
+      K5_EXECUTABLE_INVARIANTS.length +
+      K6A_EXECUTABLE_INVARIANTS.length
   );
+});
+
+test("K6a manifest lists six executable invariants not on deferred list", async () => {
+  assert.equal(K6A_EXECUTABLE_INVARIANTS.length, 6);
+  const deferredIds = new Set(DEFERRED_INVARIANTS.map((d) => d.id));
+  for (const inv of K6A_EXECUTABLE_INVARIANTS) {
+    assert.equal(deferredIds.has(inv.id), false);
+    assert.equal(inv.optional, false);
+    const result = await checkInvariant(inv.id);
+    assert.equal(result.ok, true, inv.id);
+  }
 });
 
 test("K5 manifest lists seven executable invariants not on deferred list", async () => {

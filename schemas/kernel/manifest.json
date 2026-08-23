@@ -185,6 +185,26 @@
       "path": "schemas/kernel/failure-recovery-transition/v1.schema.json",
       "$id": "ospec://schemas/kernel/failure-recovery-transition/v1",
       "schema_version": 1
+    },
+    "workspace-descriptor": {
+      "path": "schemas/kernel/workspace-descriptor/v1.schema.json",
+      "$id": "ospec://schemas/kernel/workspace-descriptor/v1",
+      "schema_version": 1
+    },
+    "capsule-definition": {
+      "path": "schemas/kernel/capsule-definition/v1.schema.json",
+      "$id": "ospec://schemas/kernel/capsule-definition/v1",
+      "schema_version": 1
+    },
+    "work-result-execution-payload": {
+      "path": "schemas/kernel/work-result-execution-payload/v1.schema.json",
+      "$id": "ospec://schemas/kernel/work-result-execution-payload/v1",
+      "schema_version": 1
+    },
+    "containment-violation": {
+      "path": "schemas/kernel/containment-violation/v1.schema.json",
+      "$id": "ospec://schemas/kernel/containment-violation/v1",
+      "schema_version": 1
     }
   }
 }
