@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { normalizeRelativePath } = require("./allowed-paths-validator.js");
+const { sha256Fingerprint } = require("./canonical-json.js");
 
 /**
  * Normalizes line endings to LF for deterministic hashing.
@@ -30,6 +31,43 @@ function normalizeToBuffer(content) {
 function sha256(content) {
   const buf = normalizeToBuffer(content);
   return `sha256:${crypto.createHash("sha256").update(buf).digest("hex")}`;
+}
+
+/**
+ * Computes a deterministic SHA-256 Merkle tree digest over a collection of files.
+ *
+ * @param {Record<string, string|Buffer>|Map<string, string|Buffer>|Array<{ path: string, content?: string|Buffer, sha256?: string }>} files
+ * @returns {string} sha256:...
+ */
+function computeTreeDigest(files) {
+  const entries = [];
+  if (files instanceof Map) {
+    for (const [filePath, content] of files.entries()) {
+      const normalizedPath = normalizeRelativePath(filePath);
+      if (normalizedPath) {
+        const digest = sha256(content);
+        entries.push({ path: normalizedPath, sha256: digest });
+      }
+    }
+  } else if (Array.isArray(files)) {
+    for (const item of files) {
+      if (!item || !item.path) continue;
+      const normalizedPath = normalizeRelativePath(item.path);
+      if (normalizedPath) {
+        const digest = item.sha256 || sha256(item.content || "");
+        entries.push({ path: normalizedPath, sha256: digest });
+      }
+    }
+  } else if (files && typeof files === "object") {
+    for (const [filePath, content] of Object.entries(files)) {
+      const normalizedPath = normalizeRelativePath(filePath);
+      if (normalizedPath) {
+        entries.push({ path: normalizedPath, sha256: sha256(content) });
+      }
+    }
+  }
+  entries.sort((a, b) => a.path.localeCompare(b.path));
+  return sha256Fingerprint("source-tree/v1", entries);
 }
 
 /**
@@ -143,6 +181,7 @@ async function disposeWorkspace(workspaceDescriptorOrId) {
  * Materializes declared inputs into the workspace and calculates deterministic fingerprint.
  * FAILS CLOSED (throws) if workspaceDescriptor.workspace_id is not found in private registry.
  * Preserves baseline file contents in workspace record for subsequent diff generation.
+ * Cryptographically verifies candidate file bytes against sourceSnapshot.base_tree_digest pre-materialization.
  *
  * @param {Object} workspaceDescriptor
  * @param {Object} workOrder
@@ -151,6 +190,9 @@ async function disposeWorkspace(workspaceDescriptorOrId) {
  * @returns {Promise<Object>}
  */
 async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceSnapshot, options = {}) {
+  if (!workOrder || typeof workOrder !== "object") {
+    throw new Error("workOrder must be a valid object");
+  }
   const workspaceId = workspaceDescriptor ? workspaceDescriptor.workspace_id : "";
   const record = workspaceRegistry.get(workspaceId);
 
@@ -177,11 +219,8 @@ async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceS
   const resolveFileFn = typeof options.resolveFile === "function" ? options.resolveFile : null;
   const repositoryDir = options.repositoryDir || options.repositoryPath;
 
-  const materializedList = [];
-  if (!record.baselineContents) {
-    record.baselineContents = new Map();
-  }
-
+  // Gather candidate files in memory BEFORE writing anything to disk
+  const candidateFiles = new Map();
   for (const inputPath of declaredInputs) {
     const normalizedInput = normalizeRelativePath(inputPath);
     if (!normalizedInput) {
@@ -212,6 +251,42 @@ async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceS
       throw new Error(`Missing required capsule input file: ${inputPath}`);
     }
 
+    candidateFiles.set(normalizedInput, content);
+  }
+
+  // Cryptographic verification pre-materialization against base_tree_digest
+  if (sourceSnapshot && sourceSnapshot.base_tree_digest) {
+    const candidateTreeSource = filesSource && typeof filesSource === "object" ? filesSource : candidateFiles;
+    const calculatedTreeDigest = computeTreeDigest(candidateTreeSource);
+    if (calculatedTreeDigest !== sourceSnapshot.base_tree_digest) {
+      throw new Error(
+        `Cryptographic verification failed: base_tree_digest mismatch (expected ${sourceSnapshot.base_tree_digest}, calculated ${calculatedTreeDigest})`
+      );
+    }
+  }
+
+  // Cryptographic verification pre-materialization against source_snapshot_id
+  if (
+    sourceSnapshot &&
+    sourceSnapshot.source_snapshot_id &&
+    sourceSnapshot.repository_id &&
+    sourceSnapshot.base_tree_digest
+  ) {
+    const { computeSourceSnapshotId } = require("./execution-identities/index.js");
+    const recomputedSnapshotId = computeSourceSnapshotId(sourceSnapshot);
+    if (sourceSnapshot.source_snapshot_id !== recomputedSnapshotId) {
+      throw new Error(
+        `Cryptographic verification failed: source_snapshot_id mismatch (declared ${sourceSnapshot.source_snapshot_id}, recomputed ${recomputedSnapshotId})`
+      );
+    }
+  }
+
+  if (!record.baselineContents) {
+    record.baselineContents = new Map();
+  }
+
+  const materializedList = [];
+  for (const [normalizedInput, content] of candidateFiles.entries()) {
     const destPath = path.join(rootPath, normalizedInput);
     fs.mkdirSync(path.dirname(destPath), { recursive: true });
     fs.writeFileSync(destPath, content);
@@ -304,5 +379,6 @@ module.exports = {
   materializeSourceSnapshot,
   inspectWorkspace,
   getWorkspaceRecord,
+  computeTreeDigest,
   sha256,
 };

@@ -1197,32 +1197,34 @@ async function checkK6aWorkspaceLifecycle() {
 }
 
 async function checkK6aCapsuleDeterminism() {
-  const { createWorkspace, disposeWorkspace, materializeSourceSnapshot } = require("./worker-workspace.js");
+  const { createWorkspace, disposeWorkspace, materializeSourceSnapshot, computeTreeDigest } = require("./worker-workspace.js");
+  const { computeSourceSnapshotId } = require("./execution-identities/index.js");
   const fs = require("node:fs");
   const os = require("node:os");
   const path = require("node:path");
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-inv-cap-"));
   try {
-    const ws1 = await createWorkspace({ baseDir });
-    const ws2 = await createWorkspace({ baseDir });
+    const files = { "src/a.js": "const a = 1;\n", "package.json": '{"name":"a"}\n' };
+    const treeDigest = computeTreeDigest(files);
     const snapshot = {
       schema_version: 1,
-      source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       repository_id: "repo-inv-test",
-      base_tree_digest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      base_tree_digest: treeDigest,
       projection: "workspace",
       dependency_digests: [],
     };
+    snapshot.source_snapshot_id = computeSourceSnapshotId(snapshot);
+    const ws1 = await createWorkspace({ baseDir, source_snapshot_id: snapshot.source_snapshot_id });
+    const ws2 = await createWorkspace({ baseDir, source_snapshot_id: snapshot.source_snapshot_id });
     const workOrder = {
       schema_version: 2,
       kind: "work-order/v2",
       work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-      source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      source_snapshot_id: snapshot.source_snapshot_id,
       dependencies: ["sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"],
       capsule_inputs: ["src/a.js", "package.json"],
       allowed_paths: ["src/**"],
     };
-    const files = { "src/a.js": "const a = 1;\n", "package.json": '{"name":"a"}\n' };
     const c1 = await materializeSourceSnapshot(ws1, workOrder, snapshot, { files });
     const c2 = await materializeSourceSnapshot(ws2, workOrder, snapshot, { files });
     await disposeWorkspace(ws1);

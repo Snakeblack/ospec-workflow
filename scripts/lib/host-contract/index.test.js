@@ -321,6 +321,36 @@ test("invokeTransportAsync: AbortSignal and deadline classify as cancel/timeout 
   assert.equal(timedOut.requestId, "dl-1");
 });
 
+test("invokeTransportAsync: actively invokes port.cancel() or port.terminate() on abort and deadline", async () => {
+  const { invokeTransportAsync } = require("./index.js");
+
+  let cancelCalled = false;
+  let terminateCalled = false;
+
+  const cancelPort = {
+    invoke: () => new Promise((resolve) => setTimeout(resolve, 200)),
+    cancel: () => { cancelCalled = true; },
+  };
+
+  const ac = new AbortController();
+  const cancelPromise = invokeTransportAsync(cancelPort, { signal: ac.signal, input: {} });
+  ac.abort();
+  const cancelRes = await cancelPromise;
+  assert.equal(cancelRes.ok, false);
+  assert.equal(cancelRes.failure_class, "cancel");
+  assert.equal(cancelCalled, true, "port.cancel() must be actively called on abort");
+
+  const termPort = {
+    invoke: () => new Promise((resolve) => setTimeout(resolve, 200)),
+    terminate: () => { terminateCalled = true; },
+  };
+
+  const termRes = await invokeTransportAsync(termPort, { deadlineMs: 5, input: {} });
+  assert.equal(termRes.ok, false);
+  assert.equal(termRes.failure_class, "timeout");
+  assert.equal(terminateCalled, true, "port.terminate() must be actively called on deadline");
+});
+
 test("F-ea52b9c672375e23: late invoke rejection after timeout does not unhandledReject", async () => {
   const { invokeTransportAsync } = require("./index.js");
   const unhandled = [];

@@ -10,6 +10,7 @@ const { invokeTransportAsync, resolveCapabilityState } = require("./host-contrac
 
 /**
  * Computes mutation delta (created, modified, deleted) against baselineInventory.
+ * Detects content changes (sha256 mismatch) and permission mode changes (baseline.mode !== post.mode).
  *
  * @param {Array} baselineInventory
  * @param {Array} postInventory
@@ -26,8 +27,16 @@ function computeMutationDelta(baselineInventory = [], postInventory = []) {
   for (const [p, postEntry] of postMap.entries()) {
     if (!baselineMap.has(p)) {
       created.push(p);
-    } else if (baselineMap.get(p).sha256 !== postEntry.sha256) {
-      modified.push(p);
+    } else {
+      const baseEntry = baselineMap.get(p);
+      const contentChanged = baseEntry.sha256 !== postEntry.sha256;
+      const modeChanged =
+        baseEntry.mode !== undefined &&
+        postEntry.mode !== undefined &&
+        baseEntry.mode !== postEntry.mode;
+      if (contentChanged || modeChanged) {
+        modified.push(p);
+      }
     }
   }
 
@@ -46,20 +55,32 @@ function computeMutationDelta(baselineInventory = [], postInventory = []) {
 }
 
 /**
+ * Analyzes string content to split into lines and retain trailing newline status.
+ *
+ * @param {string|Buffer} content
+ * @returns {{ lines: string[], hasTrailingNewline: boolean }}
+ */
+function analyzeLines(content) {
+  if (content === null || content === undefined || content === "") {
+    return { lines: [], hasTrailingNewline: true };
+  }
+  const normalized = String(content).replace(/\r\n/g, "\n");
+  const hasTrailingNewline = normalized.endsWith("\n");
+  const lines = normalized.split("\n");
+  if (hasTrailingNewline && lines[lines.length - 1] === "") {
+    lines.pop();
+  }
+  return { lines, hasTrailingNewline };
+}
+
+/**
  * Splits text into an array of lines without carriage returns and removes trailing empty line.
  *
  * @param {string|Buffer} text
  * @returns {string[]}
  */
 function splitLines(text) {
-  if (text === null || text === undefined) return [];
-  const normalized = String(text).replace(/\r\n/g, "\n");
-  if (normalized === "") return [];
-  const lines = normalized.split("\n");
-  if (lines.length > 0 && lines[lines.length - 1] === "") {
-    lines.pop();
-  }
-  return lines;
+  return analyzeLines(text).lines;
 }
 
 /**
@@ -106,6 +127,7 @@ function computeLineDiff(oldLines, newLines) {
 
 /**
  * Generates an applicable standard unified diff patch representing exact modifications.
+ * Preserves trailing newline distinctions and emits standard EOF markers (\ No newline at end of file).
  *
  * @param {string} workspaceRoot
  * @param {Array} baselineInventory
@@ -139,28 +161,73 @@ function generateUnifiedDiff(workspaceRoot, baselineInventory = [], postInventor
 
     if (!baselineMap.has(p)) {
       // Created file
-      const lines = splitLines(newContent);
+      const { lines, hasTrailingNewline } = analyzeLines(newContent);
       const header = `--- /dev/null\n+++ b/${p}\n@@ -0,0 +1,${lines.length} @@\n`;
-      const body = lines.map((l) => `+${l}\n`).join("");
+      let body = "";
+      for (let i = 0; i < lines.length; i++) {
+        body += `+${lines[i]}\n`;
+        if (i === lines.length - 1 && !hasTrailingNewline) {
+          body += "\\ No newline at end of file\n";
+        }
+      }
       chunks.push(header + body);
     } else {
       const baseEntry = baselineMap.get(p);
       if (baseEntry.sha256 !== postEntry.sha256) {
         // Modified file
         const oldContent = contentsMap.get(p) !== undefined ? contentsMap.get(p) : "";
-        const oldLines = splitLines(oldContent);
-        const newLines = splitLines(newContent);
+        const oldAnalysis = analyzeLines(oldContent);
+        const newAnalysis = analyzeLines(newContent);
+        const oldLines = oldAnalysis.lines;
+        const newLines = newAnalysis.lines;
+
+        let edits = computeLineDiff(oldLines, newLines);
+
+        if (oldAnalysis.hasTrailingNewline !== newAnalysis.hasTrailingNewline) {
+          if (edits.length > 0 && edits[edits.length - 1].type === "keep") {
+            const lastKeep = edits.pop();
+            edits.push({ type: "delete", line: lastKeep.line });
+            edits.push({ type: "insert", line: lastKeep.line });
+          }
+        }
 
         const header = `--- a/${p}\n+++ b/${p}\n@@ -1,${oldLines.length} +1,${newLines.length} @@\n`;
-        const edits = computeLineDiff(oldLines, newLines);
+
+        let lastOldIndex = -1;
+        let lastNewIndex = -1;
+        for (let i = edits.length - 1; i >= 0; i--) {
+          if (lastOldIndex === -1 && (edits[i].type === "keep" || edits[i].type === "delete")) {
+            lastOldIndex = i;
+          }
+          if (lastNewIndex === -1 && (edits[i].type === "keep" || edits[i].type === "insert")) {
+            lastNewIndex = i;
+          }
+          if (lastOldIndex !== -1 && lastNewIndex !== -1) break;
+        }
+
         let body = "";
-        for (const edit of edits) {
+        for (let i = 0; i < edits.length; i++) {
+          const edit = edits[i];
           if (edit.type === "keep") {
             body += ` ${edit.line}\n`;
+            if (
+              i === lastOldIndex &&
+              !oldAnalysis.hasTrailingNewline &&
+              i === lastNewIndex &&
+              !newAnalysis.hasTrailingNewline
+            ) {
+              body += "\\ No newline at end of file\n";
+            }
           } else if (edit.type === "delete") {
             body += `-${edit.line}\n`;
+            if (i === lastOldIndex && !oldAnalysis.hasTrailingNewline) {
+              body += "\\ No newline at end of file\n";
+            }
           } else if (edit.type === "insert") {
             body += `+${edit.line}\n`;
+            if (i === lastNewIndex && !newAnalysis.hasTrailingNewline) {
+              body += "\\ No newline at end of file\n";
+            }
           }
         }
         chunks.push(header + body);
@@ -172,9 +239,15 @@ function generateUnifiedDiff(workspaceRoot, baselineInventory = [], postInventor
   for (const [p] of baselineMap.entries()) {
     if (!postMap.has(p)) {
       const oldContent = contentsMap.get(p) !== undefined ? contentsMap.get(p) : "";
-      const oldLines = splitLines(oldContent);
-      const header = `--- a/${p}\n+++ /dev/null\n@@ -1,${oldLines.length} +0,0 @@\n`;
-      const body = oldLines.map((l) => `-${l}\n`).join("");
+      const { lines, hasTrailingNewline } = analyzeLines(oldContent);
+      const header = `--- a/${p}\n+++ /dev/null\n@@ -1,${lines.length} +0,0 @@\n`;
+      let body = "";
+      for (let i = 0; i < lines.length; i++) {
+        body += `-${lines[i]}\n`;
+        if (i === lines.length - 1 && !hasTrailingNewline) {
+          body += "\\ No newline at end of file\n";
+        }
+      }
       chunks.push(header + body);
     }
   }
@@ -252,9 +325,24 @@ async function recoverInterruptedExecution(options = {}) {
 async function executeWorkOrder(options = {}) {
   const workOrder = options.workOrder || {};
   const workspace = options.workspace;
-  if (!workspace || !workspace.root_path) {
-    throw new Error("executeWorkOrder requires a valid workspace descriptor");
+  const workspaceId = workspace ? workspace.workspace_id : "";
+  const record = getWorkspaceRecord(workspaceId);
+
+  if (!record || !record.rootPath || !fs.existsSync(record.rootPath)) {
+    return {
+      ok: false,
+      reason: "workspace-not-registered",
+      error: `Workspace ${workspaceId || "unspecified"} is not registered in runtime registry`,
+    };
   }
+
+  const authoritativeRootPath = record.rootPath;
+  const authoritativeWorkspace = {
+    ...workspace,
+    workspace_id: (record.descriptor && record.descriptor.workspace_id) || workspaceId,
+    root_path: authoritativeRootPath,
+    source_snapshot_id: (record.descriptor && record.descriptor.source_snapshot_id) || (workspace && workspace.source_snapshot_id),
+  };
 
   const workerTransport = options.transports?.worker || options.workerTransport || options.transport;
 
@@ -274,13 +362,23 @@ async function executeWorkOrder(options = {}) {
       expectedProbeDigest: options.expectedProbeDigest,
     });
     if (capRes.ok && capRes.effective_state === "enforced") {
-      if (workerTransport) {
+      const transportAdapterId = workerTransport?.adapter_id || workerTransport?.adapterId;
+      const transportProbeDigest = workerTransport?.probe_digest || workerTransport?.probeDigest;
+      const matchesProof =
+        Boolean(workerTransport) &&
+        (!options.capabilityProof ||
+          (Boolean(transportAdapterId) &&
+           transportAdapterId === options.capabilityProof.adapter_id &&
+           Boolean(transportProbeDigest) &&
+           transportProbeDigest === options.capabilityProof.probe_digest));
+
+      if (matchesProof) {
         isolationReported = "enforced";
       } else {
         return {
           ok: false,
           isolationReported: "unavailable",
-          error: "Enforced isolation capability requires verified WorkerTransport port",
+          error: "Enforced isolation capability requires verified WorkerTransport matching capability proof",
         };
       }
     } else {
@@ -299,13 +397,22 @@ async function executeWorkOrder(options = {}) {
     isolationReported = "unavailable";
   }
 
+  const requiresStrict = options.strictIsolation === true || workOrder.strict_isolation === true;
+  if (requiresStrict && isolationReported !== "enforced") {
+    return {
+      ok: false,
+      reason: "strict-isolation-unfulfilled",
+      error: "Commands require verified host isolation; fallback execution rejected",
+    };
+  }
+
   const allowedPaths = Array.isArray(workOrder.allowed_paths) ? workOrder.allowed_paths : ["**"];
 
   // Pre-flight containment check on declared write targets (if supplied)
   if (Array.isArray(options.declaredTargets)) {
     const preFlight = validateAllowedPaths(options.declaredTargets, allowedPaths, {
-      workspaceRoot: workspace.root_path,
-      workspace_id: workspace.workspace_id,
+      workspaceRoot: authoritativeRootPath,
+      workspace_id: authoritativeWorkspace.workspace_id,
       work_order_id: workOrder.work_order_id,
     });
     if (!preFlight.ok) {
@@ -313,8 +420,7 @@ async function executeWorkOrder(options = {}) {
     }
   }
 
-  const record = getWorkspaceRecord(workspace.workspace_id);
-  const baselineInventory = (record && record.baselineInventory) || options.baselineInventory || (await inspectWorkspace(workspace));
+  const baselineInventory = (record && record.baselineInventory) || options.baselineInventory || (await inspectWorkspace(authoritativeWorkspace));
 
   const budget = options.budget || (options.options && options.options.budget) || workOrder.budget || {};
   const timeoutMs = budget.wall_time_ms !== undefined
@@ -333,8 +439,9 @@ async function executeWorkOrder(options = {}) {
   }
 
   if (commandList.length > maxCommands) {
+    if (workspace) workspace.status = "interrupted";
     const recovery = await recoverInterruptedExecution({
-      workspace,
+      workspace: workspace || authoritativeWorkspace,
       workOrder,
       partialLogs: [`error: budget.commands quota exceeded (${commandList.length} > ${maxCommands})`],
       reason: "budget_commands_exceeded",
@@ -352,8 +459,9 @@ async function executeWorkOrder(options = {}) {
 
   for (const cmdItem of commandList) {
     if (signal && signal.aborted) {
+      if (workspace) workspace.status = "interrupted";
       const recovery = await recoverInterruptedExecution({
-        workspace,
+        workspace: workspace || authoritativeWorkspace,
         workOrder,
         partialLogs: logs,
         reason: "abort",
@@ -380,7 +488,7 @@ async function executeWorkOrder(options = {}) {
         input: {
           command: cmdBinary,
           args: cmdArgs,
-          cwd: workspace.root_path,
+          cwd: authoritativeRootPath,
           env: workOrder.environment || options.environment || {},
         },
       });
@@ -476,9 +584,18 @@ async function executeWorkOrder(options = {}) {
         }
 
         try {
+          const safeEnv = {
+            PATH: process.env.PATH || "",
+            SystemRoot: process.env.SystemRoot || "",
+            TEMP: process.env.TEMP || "",
+            TMP: process.env.TMP || "",
+            HOME: process.env.HOME || "",
+            USERPROFILE: process.env.USERPROFILE || "",
+            ...(workOrder.environment || options.environment || {}),
+          };
           child = spawn(cmdBinary, cmdArgs, {
-            cwd: workspace.root_path,
-            env: { ...process.env, ...(workOrder.environment || options.environment || {}) },
+            cwd: authoritativeRootPath,
+            env: safeEnv,
           });
 
           child.stdout?.on("data", (data) => { outChunks += data.toString("utf8"); });
@@ -525,8 +642,9 @@ async function executeWorkOrder(options = {}) {
     }
 
     if (aborted || (signal && signal.aborted)) {
+      if (workspace) workspace.status = "interrupted";
       const recovery = await recoverInterruptedExecution({
-        workspace,
+        workspace: workspace || authoritativeWorkspace,
         workOrder,
         partialLogs: logs,
         reason: "abort",
@@ -536,8 +654,9 @@ async function executeWorkOrder(options = {}) {
     }
 
     if (timedOut) {
+      if (workspace) workspace.status = "interrupted";
       const recovery = await recoverInterruptedExecution({
-        workspace,
+        workspace: workspace || authoritativeWorkspace,
         workOrder,
         partialLogs: logs,
         reason: "timeout",
@@ -548,13 +667,13 @@ async function executeWorkOrder(options = {}) {
   }
 
   // Post-flight inventory & mutation delta calculation
-  const postInventory = await inspectWorkspace(workspace);
+  const postInventory = await inspectWorkspace(authoritativeWorkspace);
   const mutationDelta = computeMutationDelta(baselineInventory, postInventory);
 
   // Validate containment strictly on the mutation delta
   const containment = validateAllowedPaths(mutationDelta, allowedPaths, {
-    workspaceRoot: workspace.root_path,
-    workspace_id: workspace.workspace_id,
+    workspaceRoot: authoritativeRootPath,
+    workspace_id: authoritativeWorkspace.workspace_id,
     work_order_id: workOrder.work_order_id,
   });
 
@@ -564,11 +683,11 @@ async function executeWorkOrder(options = {}) {
 
   const duration = Date.now() - startTime;
   const baselineContents = (record && record.baselineContents) || options.baselineContents || new Map();
-  const patch = generateUnifiedDiff(workspace.root_path, baselineInventory, postInventory, baselineContents);
+  const patch = generateUnifiedDiff(authoritativeRootPath, baselineInventory, postInventory, baselineContents);
 
   const workResult = await captureWorkResult({
     work_order_id: workOrder.work_order_id,
-    source_snapshot_id: workOrder.source_snapshot_id || workspace.source_snapshot_id,
+    source_snapshot_id: workOrder.source_snapshot_id || authoritativeWorkspace.source_snapshot_id,
     patch,
     commands: commandOutcomes,
     logs,

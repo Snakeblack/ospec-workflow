@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.46.3] - 2026-08-24
+
+### Fixed
+- **Cierre Integral de Fronteras y Autoridad de Runtime K6a (`k6a-runtime-boundary-closure`)**:
+  - **Autoridad Física Estricta de Workspace**: `executeWorkOrder` resuelve `root_path`, `baselineInventory` y metadata exclusivamente desde `workspaceRegistry.get(workspace_id)` (`record.rootPath`), rechazando de forma fail-closed (`reason: "workspace-not-registered"`) cualquier descriptor externo no registrado o con ruta suplantada.
+  - **Ligadura Criptográfica de Bytes Materializados**: `materializeSourceSnapshot` valida criptográficamente los bytes en memoria contra `base_tree_digest` mediante Merkle tree SHA-256 (`computeTreeDigest`) antes de escribir en disco, evitando discrepancias de procedencia entre `SourceSnapshot` y contenido físico.
+  - **Vinculación Estricta `CapabilityProof` ↔ `WorkerTransport`**: `isolationReported = "enforced"` exige obligatoriamente que `workerTransport` provisto coincida de forma exacta con `adapter_id` y `probe_digest` verificados en el `CapabilityProof`.
+  - **Cancelación Activa e In-flight Termination**: `invokeTransportAsync` pasa `{ input, signal, deadlineMs }` y ejecuta cancelación activa (`port.cancel()` / `port.terminate()`) ante timeout/abort para detener físicamente los procesos worker en ejecución.
+  - **Contención Fail-Closed en Fallback**: Comandos con efectos que requieran aislamiento estricto (`strict_isolation: true`) sin `WorkerTransport` verificado fallan cerrado (`reason: "strict-isolation-unfulfilled"`).
+  - **Detección de Cambios de Modo (`mode`) en `computeMutationDelta`**: Detección de alteraciones de permisos en archivos (`baseline.mode !== post.mode`) incluyéndolos en `modified` aun cuando el hash SHA-256 permanezca idéntico.
+  - **Diffing Exacto con Preservación de EOF y Reversibilidad de Árbol**: `generateUnifiedDiff` implementa `analyzeLines` con emisión de marcadores estándar `\ No newline at end of file` y garantiza la reconstrucción del árbol idéntica byte a byte.
+  - **Auditoría Estática Recursiva REQ-contract-lint-018**: `k6a-canonical-contracts` escanea recursivamente todos los archivos JS y tests bajo `scripts/` detectando accesos no canónicos a `.files` o dependencias no SHA-256.
+  - **Suite E2E de Composición Canónica Real K3 -> K4a -> K6a -> K3**: Pipeline integral en `scripts/k6a-e2e-worker-isolation.test.js` importando y ejecutando `computeSourceSnapshotId`, `compileExecutionGraph`, `compileWorkOrdersV2`, `validateWorkOrderBinding`, `materializeSourceSnapshot`, `executeWorkOrder`, `apply patch` y `validateWorkResultBinding`.
+  - **Promoción de ADRs**: Formalizados y promovidos `adr-20260823-018` a `023` en `docs/adr/`.
+
 ## [2.46.2] - 2026-08-23
 
 ### Fixed

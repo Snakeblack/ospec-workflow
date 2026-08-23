@@ -111,3 +111,38 @@ test("contract-lint aggregator: DEFAULT_REGISTRY includes k6a-canonical-contract
     "DEFAULT_REGISTRY must include checkCanonicalContracts"
   );
 });
+
+test("k6a-canonical-contracts: scans nested directories under scripts/** recursively and ignores node_modules, .git, .ospec, dist", () => {
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-lint-nested-"));
+
+  try {
+    // Nested script with legacy sourceSnapshot.files
+    const nestedDir = path.join(tempRoot, "scripts", "nested", "deep");
+    fs.mkdirSync(nestedDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(nestedDir, "legacy-tool.js"),
+      "function getFiles(sourceSnapshot) { return sourceSnapshot.files; }\n"
+    );
+
+    // Ignored directory with legacy pattern
+    const ignoredDir = path.join(tempRoot, "scripts", "node_modules", "some-pkg");
+    fs.mkdirSync(ignoredDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(ignoredDir, "ignored.js"),
+      "const f = sourceSnapshot.files;\n"
+    );
+
+    const offenders = checkCanonicalContracts({ root: tempRoot });
+    assert.ok(offenders.length >= 1, "Must report offender in nested deep directory");
+    assert.ok(offenders.some((o) => o.path.replace(/\\/g, "/").includes("scripts/nested/deep/legacy-tool.js")));
+    assert.equal(
+      offenders.some((o) => o.path.replace(/\\/g, "/").includes("node_modules")),
+      false,
+      "Must not report offenders in node_modules"
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});

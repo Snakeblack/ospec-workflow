@@ -6,6 +6,34 @@ const { computeWorkResultId } = require("../execution-identities/index.js");
 
 const CHECKER_NAME = "k6a-canonical-contracts";
 const SHA256_REGEX = /^sha256:[a-f0-9]{64}$/;
+const IGNORED_DIRS = new Set(["node_modules", ".git", ".ospec", "dist"]);
+
+/**
+ * Recursively scans directory for JavaScript files, skipping ignored directories.
+ *
+ * @param {string} currentDir
+ * @param {string} baseDir
+ * @param {Array<{ fullPath: string, relPath: string }>} [fileList]
+ * @returns {Array<{ fullPath: string, relPath: string }>}
+ */
+function scanDirectoryRecursive(currentDir, baseDir, fileList = []) {
+  if (!fs.existsSync(currentDir)) return fileList;
+  const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (IGNORED_DIRS.has(entry.name)) continue;
+    const fullPath = path.join(currentDir, entry.name);
+    if (entry.isDirectory()) {
+      scanDirectoryRecursive(fullPath, baseDir, fileList);
+    } else if (
+      entry.isFile() &&
+      (entry.name.endsWith(".js") || entry.name.endsWith(".cjs") || entry.name.endsWith(".mjs"))
+    ) {
+      const relPath = path.relative(baseDir, fullPath).replace(/\\/g, "/");
+      fileList.push({ fullPath, relPath });
+    }
+  }
+  return fileList;
+}
 
 /**
  * Validates canonical contracts:
@@ -293,20 +321,31 @@ function check(ctx) {
     }
   }
 
-  // 5. Check runtime JS sources for non-canonical .files references
-  const runtimeFiles = ["scripts/lib/worker-workspace.js", "scripts/lib/worker-executor.js"];
-  for (const relPath of runtimeFiles) {
-    const absPath = path.join(root, relPath);
-    if (fs.existsSync(absPath)) {
-      const code = fs.readFileSync(absPath, "utf8");
-      if (/sourceSnapshot\.files|source_snapshot\.files/.test(code)) {
-        offenders.push({
-          checker: CHECKER_NAME,
-          path: relPath,
-          expected: "runtime code must not access non-canonical sourceSnapshot.files",
-          actual: "found sourceSnapshot.files access",
-          message: `Runtime file '${relPath}' contains legacy non-canonical sourceSnapshot.files fallback`,
-        });
+  // 5. Scan scripts/** recursively for prohibited .files access on SourceSnapshot
+  const scriptsDir = path.join(root, "scripts");
+  if (fs.existsSync(scriptsDir)) {
+    const jsFiles = scanDirectoryRecursive(scriptsDir, root);
+    const legacyFilesRegex = /(?:sourceSnapshot|source_snapshot)\.files/;
+    for (const { fullPath, relPath } of jsFiles) {
+      if (
+        relPath === "scripts/lib/contract-checkers/k6a-canonical-contracts.js" ||
+        relPath === "scripts/lib/contract-checkers/k6a-canonical-contracts.test.js"
+      ) {
+        continue;
+      }
+      try {
+        const code = fs.readFileSync(fullPath, "utf8");
+        if (legacyFilesRegex.test(code)) {
+          offenders.push({
+            checker: CHECKER_NAME,
+            path: relPath,
+            expected: "runtime and test code must not access non-canonical sourceSnapshot.files",
+            actual: "found sourceSnapshot.files access",
+            message: `Source file '${relPath}' contains legacy non-canonical sourceSnapshot.files access`,
+          });
+        }
+      } catch {
+        // Skip unreadable files
       }
     }
   }
@@ -314,4 +353,4 @@ function check(ctx) {
   return offenders;
 }
 
-module.exports = { check };
+module.exports = { check, scanDirectoryRecursive };

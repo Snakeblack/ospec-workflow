@@ -402,7 +402,20 @@ async function invokeTransportAsync(port, request) {
   const deadlineMs = request && typeof request.deadlineMs === "number" ? request.deadlineMs : null;
   const input = request && Object.prototype.hasOwnProperty.call(request, "input") ? request.input : request || {};
 
+  const cancelPort = () => {
+    try {
+      if (isRecord(port)) {
+        if (typeof port.cancel === "function") port.cancel();
+        if (typeof port.terminate === "function") port.terminate();
+        if (typeof port.abort === "function") port.abort();
+      }
+    } catch {
+      // Best effort cancellation
+    }
+  };
+
   if (signal && signal.aborted) {
+    cancelPort();
     return classifyTransportFailure(
       Object.assign(new Error("aborted"), { name: "AbortError", code: "host-fault-cancel" }),
       { requestId }
@@ -429,6 +442,7 @@ async function invokeTransportAsync(port, request) {
     guards.push(
       new Promise((_, reject) => {
         abortHandler = () => {
+          cancelPort();
           reject(Object.assign(new Error("aborted"), { name: "AbortError", code: "host-fault-cancel" }));
         };
         signal.addEventListener("abort", abortHandler, { once: true });
@@ -440,6 +454,7 @@ async function invokeTransportAsync(port, request) {
     guards.push(
       new Promise((_, reject) => {
         timeoutId = setTimeout(() => {
+          cancelPort();
           reject(Object.assign(new Error("deadline exceeded"), { name: "TimeoutError", code: "host-fault-timeout" }));
         }, deadlineMs);
       })
