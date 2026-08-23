@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "change": "k6a-worker-isolation",
+  "source_fingerprint": "sha256:d6c81c56577ad67b6ea81701d458502f1b8e269161e3751c64df6fba8cb63804",
+  "spec_writes": [
+    {
+      "domain": "worker-isolation",
+      "source_delta": "prepared-specs/worker-isolation/spec.md",
+      "target": "openspec/specs/worker-isolation/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:e7d27446586ec26f0b476bd4938908bfba55263fa2dae5031150b2cf3308cdb9"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "prepared-specs/kernel-contract-schemas/spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:6790fc47d7793b16f52f3d9adf339acfef280d511ada56936d9bd57656955f9e",
+      "content_sha256": "sha256:cc3b6cc9d94ce3d5345c417eeb3da41ed8f6c4c0678d5ed9825e340e28accf07"
+    },
+    {
+      "domain": "contract-lint",
+      "source_delta": "prepared-specs/contract-lint/spec.md",
+      "target": "openspec/specs/contract-lint/spec.md",
+      "target_before_sha256": "sha256:2ca416873f843f1f6bd9f4982cd6b13ce460e7bcf161fcc9e0699778d113cc15",
+      "content_sha256": "sha256:74c64a54c5b3964ed59aaff0afa3aeba0739fa985f457d54faed43d284300a66"
+    },
+    {
+      "domain": "lifecycle-model-conformance",
+      "source_delta": "prepared-specs/lifecycle-model-conformance/spec.md",
+      "target": "openspec/specs/lifecycle-model-conformance/spec.md",
+      "target_before_sha256": "sha256:cfc409297eef734c5bf547f82fd2c5f38f8b54d332f01f027decc8e133c81d8e",
+      "content_sha256": "sha256:ae742ae45f33d50cfd96d17f97cbc5c2c4da26ddc554b729ad0dc26f97fffede"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260823-003-strict-k3-identity-separation-workresult-without-candidateid.md",
+      "content_sha256": "sha256:0713d9da243635d6d61b9310fd8afa41cbe6d3c0d9ff14cc6d4b476eb8aba3da"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260823-004-dual-phase-fail-closed-filesystem-containment.md",
+      "content_sha256": "sha256:fac1d507c5696dbf6af7b45143f33354eeffdba7706a194784d1d4da01c649c7"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260823-005-explicit-host-isolation-degradation-fallback.md",
+      "content_sha256": "sha256:55119bfcf2d1a6827c917b0036a9be0286029a28678e154b314c85dce579c9f3"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260823-006-deterministic-capsule-construction-and-interruption-preservation.md",
+      "content_sha256": "sha256:0d0524350142d8c780d28d527f87c1a235546c46f8e580042837d05e81e9c1e4"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "design.md",
+    "prepared-specs/contract-lint/spec.md",
+    "prepared-specs/kernel-contract-schemas/spec.md",
+    "prepared-specs/lifecycle-model-conformance/spec.md",
+    "prepared-specs/worker-isolation/spec.md",
+    "proposal.md",
+    "specs/contract-lint/spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "specs/lifecycle-model-conformance/spec.md",
+    "specs/worker-isolation/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

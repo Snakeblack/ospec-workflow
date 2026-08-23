@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.46.0] - 2026-08-23
+
+### Added
+- **Worker Isolation y Work-Order Capsule K6a (`k6a-worker-isolation`)**:
+  - **Primitivas de Ejecución en Aislamiento**: Implementadas las funciones `createWorkspace`, `materializeSourceSnapshot`, `executeWorkOrder`, `captureWorkResult`, `validateAllowedPaths`, `recoverInterruptedExecution` y `disposeWorkspace` en `scripts/lib/`.
+  - **Contención Estricta de Filesystem (`allowed_paths`)**: Validador dual-phase (pre-flight y post-flight) fail-closed contra traversals (`../`), caracteres nulos y escapes por symlinks (`allowed-paths-validator.js`).
+  - **Cápsula Determinista y Snapshot**: Proyección exacta de dependencias declaradas con huella SHA-256 determinista libre de artefactos ajenos (`worker-workspace.js`).
+  - **Frontera de Identidad K3**: El worker opera sobre `SourceSnapshot`, recibe `WorkOrder` y emite `WorkResult` con enlace criptográfico sin generar ni asumir `CandidateId`. APIs públicas desacopladas de Repair y compilación de grafos.
+  - **Esquemas JSON de Kernel y Fixtures**: Registradas 4 nuevas familias en `schemas/kernel/` (`workspace-descriptor`, `capsule-definition`, `work-result-execution-payload` y `containment-violation`) con fixtures positivos y negativos de no-aliasing con Candidate.
+  - **Checkers de Contract-Lint**: Implementados `k6a-candidate-prohibition.js` y `k6a-capsule-path-containment.js` registrados en `contract-lint.js`.
+  - **Invariantes de Modelo de Ciclo de Vida**: Agregados 6 invariantes ejecutables para K6a en `lifecycle-model.js`.
+  - **Integración con WorkerTransport de K2a y Fallback**: Ejecución segura vía transporte de host con degradación explícita ante capacidades de aislamiento `partial` o `unavailable`.
+  - **Promoción de ADRs**: Formalizados y promovidos `adr-20260823-003` a `006` en `docs/adr/`.
+
 ## [2.45.16] - 2026-08-23
 
 ### Fixed

@@ -164,6 +164,11 @@ function listK1SchemaFiles(rootDir) {
     "schemas/kernel/authority-effect-budget/",
     "schemas/kernel/causal-failure/",
     "schemas/kernel/failure-recovery-transition/",
+    // K6a Worker Isolation families
+    "schemas/kernel/workspace-descriptor/",
+    "schemas/kernel/capsule-definition/",
+    "schemas/kernel/work-result-execution-payload/",
+    "schemas/kernel/containment-violation/",
     // Evolutionary catalog registries (excluded from K1 frozen baseline pin)
     "schemas/kernel/manifest.json",
     "schemas/kernel/contract-claims.json",

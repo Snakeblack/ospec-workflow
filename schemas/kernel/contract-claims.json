@@ -551,6 +551,74 @@
         ]
       },
       "command_shapes": []
+    },
+    "workspace-descriptor": {
+      "required_fields": [
+        "schema_version",
+        "workspace_id",
+        "root_path",
+        "source_snapshot_id",
+        "status",
+        "created_at"
+      ],
+      "enum_values": {
+        "status": [
+          "active",
+          "disposed",
+          "interrupted"
+        ]
+      },
+      "command_shapes": []
+    },
+    "capsule-definition": {
+      "required_fields": [
+        "schema_version",
+        "capsule_id",
+        "fingerprint",
+        "source_snapshot_id",
+        "dependencies",
+        "allowed_paths",
+        "environment"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "work-result-execution-payload": {
+      "required_fields": [
+        "schema_version",
+        "work_result_id",
+        "work_order_id",
+        "source_snapshot_id",
+        "patch",
+        "commands",
+        "logs",
+        "exit_code",
+        "filesystem_inventory",
+        "execution_usage"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "containment-violation": {
+      "required_fields": [
+        "schema_version",
+        "violation_id",
+        "workspace_id",
+        "work_order_id",
+        "attempted_path",
+        "allowed_paths",
+        "violation_type",
+        "timestamp"
+      ],
+      "enum_values": {
+        "violation_type": [
+          "traversal",
+          "symlink_escape",
+          "undeclared_write",
+          "permission_denied"
+        ]
+      },
+      "command_shapes": []
     }
   }
 }

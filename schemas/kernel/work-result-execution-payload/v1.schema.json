@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/work-result-execution-payload/v1",
+  "title": "WorkResultExecutionPayloadV1",
+  "description": "Raw unapproved worker execution payload v1 bound to WorkOrderId and SourceSnapshotId, prohibiting CandidateId.",
+  "type": "object",
+  "schema_version": 1,
+  "required": [
+    "schema_version",
+    "work_result_id",
+    "work_order_id",
+    "source_snapshot_id",
+    "patch",
+    "commands",
+    "logs",
+    "exit_code",
+    "filesystem_inventory",
+    "execution_usage"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "work_result_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "work_order_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "source_snapshot_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "patch": {
+      "type": "string"
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "logs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "exit_code": {
+      "type": "integer"
+    },
+    "filesystem_inventory": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "execution_usage": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

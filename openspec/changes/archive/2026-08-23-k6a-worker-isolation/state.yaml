@@ -1,0 +1,59 @@
+change: "k6a-worker-isolation"
+status: "archived"
+last_updated: "2026-08-23T12:14:00Z"
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k6a-worker-isolation/proposal.md"
+    summary: "Primitivas de ejecución aislada (CreateWorkspace...DisposeWorkspace), capsule acotada a allowed_paths y captura de WorkResult sin emitir CandidateId."
+    key_decisions:
+      - "Worker opera sobre SourceSnapshot y emite WorkResult; CandidateId reservado a K4b vía K3."
+      - "Aislamiento consume WorkerTransport del host de referencia (K2a) con fallback explícito."
+      - "Raw evidence ligada estrictamente a WorkOrderId / WorkResultId."
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k6a-worker-isolation/specs/worker-isolation/spec.md"
+      - "openspec/changes/k6a-worker-isolation/specs/kernel-contract-schemas/spec.md"
+      - "openspec/changes/k6a-worker-isolation/specs/contract-lint/spec.md"
+      - "openspec/changes/k6a-worker-isolation/specs/lifecycle-model-conformance/spec.md"
+    summary: "Especificación completa de worker-isolation y deltas para kernel-contract-schemas, contract-lint y lifecycle-model-conformance."
+    key_decisions:
+      - "Primitivas K6a emiten WorkResult y prohíben estrictamente CandidateId."
+      - "Contención fail-closed en allowed_paths y fallback explícito de aislamiento."
+  design:
+    status: "done"
+    artifact: "openspec/changes/k6a-worker-isolation/design.md"
+    summary: "Diseño técnico modular: worker-workspace, allowed-paths-validator, worker-executor, 4 schemas, 2 contract-lints y 6 invariants."
+    key_decisions:
+      - "K6a emite WorkResult y prohíbe CandidateId (ADR-001)"
+      - "Contención dual-phase fail-closed en allowed_paths (ADR-002)"
+      - "Fallback explícito de WorkerTransport sin promoción silenciosa (ADR-003)"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k6a-worker-isolation/tasks.md"
+    summary: "Plan de 7 fases en TDD estricto (RED-GREEN-REFACTOR) con 32 tareas atómicas, forecast de revisión y cobertura integral de 16 REQs."
+    key_decisions:
+      - "Desglose por capas TDD estricto: schemas, containment, workspace, executor, lint, conformance."
+      - "Single-PR con tamaño de excepción recomendado debido a volumen estimado >400 líneas."
+  apply:
+    status: "done"
+    artifact: "openspec/changes/k6a-worker-isolation/apply-progress.md"
+    summary: "Implementación completa de worker isolation bajo Strict TDD: 4 schemas, allowed-paths-validator, worker-workspace, worker-executor, 2 contract checkers y 6 lifecycle invariants con 100% test pass."
+  verify:
+    status: "done"
+    verdict: "PASS"
+    artifact: "openspec/changes/k6a-worker-isolation/verify-report.md"
+    summary: "Verificación completa PASS: 42/42 escenarios con runtime-test, 46 tests en 7 suites pasando, 0 regresiones en suite global (2460+ tests)."
+    key_decisions:
+      - "K3 identity boundary verificado: 0 emisiones de CandidateId."
+      - "Contención fail-closed en allowed_paths probada en pre/post-flight."
+      - "Fallback explícito de WorkerTransport verificado en 4 estados."
+  archive:
+    status: "done"
+    artifact: "openspec/changes/k6a-worker-isolation/archive-report.md"
+    summary: "Plan-and-Report emitido: 4 spec_writes (1 nuevo, 3 modificados), 4 ADR promotions y validación de inventario completada."
+    key_decisions:
+      - "Worker isolation especificado con WorkResult sin CandidateId."
+      - "Dual-phase containment fail-closed y fallback explícito de WorkerTransport."

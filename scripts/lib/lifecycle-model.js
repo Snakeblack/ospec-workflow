@@ -207,6 +207,39 @@ const K5_EXECUTABLE_INVARIANTS = Object.freeze([
   }),
 ]);
 
+const K6A_EXECUTABLE_INVARIANTS = Object.freeze([
+  Object.freeze({
+    id: "inv-k6a-workspace-lifecycle",
+    name: "Workspace is tracked with status active and cleanly disposed with status disposed without leaks",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k6a-capsule-determinism",
+    name: "Identical source snapshot and dependency inputs produce byte-identical capsule fingerprints",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k6a-containment-fail-closed",
+    name: "File operation targeting path outside allowed_paths halts execution fail-closed with containment-violation/v1",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k6a-work-result-binding",
+    name: "CaptureWorkResult produces canonical WorkResult bound to WorkOrderId/SourceSnapshotId without CandidateId",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k6a-interrupted-recovery-preservation",
+    name: "Execution timeouts or abort signals preserve partial logs and modified file inventory with status interrupted",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k6a-host-isolation-fallback",
+    name: "Host transport with partial/unavailable isolation executes fallback without silent promotion to enforced",
+    optional: false,
+  }),
+]);
+
 function initialModelState() {
   return {
     schema_version: 1,
@@ -431,6 +464,12 @@ const CHECKERS = {
   "inv-k5-budget-exhaustion-terminal": () => checkK5BudgetExhaustionTerminal(),
   "inv-k5-honest-recovery-advancement": () => checkK5HonestRecoveryAdvancement(),
   "inv-k5-telemetry-isolation": () => checkK5TelemetryIsolation(),
+  "inv-k6a-workspace-lifecycle": () => checkK6aWorkspaceLifecycle(),
+  "inv-k6a-capsule-determinism": () => checkK6aCapsuleDeterminism(),
+  "inv-k6a-containment-fail-closed": () => checkK6aContainmentFailClosed(),
+  "inv-k6a-work-result-binding": () => checkK6aWorkResultBinding(),
+  "inv-k6a-interrupted-recovery-preservation": () => checkK6aInterruptedRecoveryPreservation(),
+  "inv-k6a-host-isolation-fallback": () => checkK6aHostIsolationFallback(),
 };
 
 function checkK2aZeroConcreteHostImports() {
@@ -1137,6 +1176,149 @@ async function checkK5TelemetryIsolation() {
   return { ok, invariant_id: "inv-k5-telemetry-isolation", runtime_composed: composition.runtime_composed };
 }
 
+async function checkK6aWorkspaceLifecycle() {
+  const { createWorkspace, disposeWorkspace } = require("./worker-workspace.js");
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-inv-ws-"));
+  try {
+    const ws = await createWorkspace({ baseDir });
+    const createdOk = ws && ws.status === "active" && fs.existsSync(ws.root_path);
+    const d1 = await disposeWorkspace(ws);
+    const disposedOk = d1.ok && ws.status === "disposed" && !fs.existsSync(ws.root_path);
+    const d2 = await disposeWorkspace(ws);
+    const idempotentOk = d2.ok && ws.status === "disposed";
+    const ok = createdOk && disposedOk && idempotentOk;
+    return { ok, invariant_id: "inv-k6a-workspace-lifecycle", runtime_composed: true };
+  } finally {
+    fs.rmSync(baseDir, { recursive: true, force: true });
+  }
+}
+
+async function checkK6aCapsuleDeterminism() {
+  const { createWorkspace, disposeWorkspace, materializeSourceSnapshot } = require("./worker-workspace.js");
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-inv-cap-"));
+  try {
+    const ws1 = await createWorkspace({ baseDir });
+    const ws2 = await createWorkspace({ baseDir });
+    const snapshot = {
+      source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      files: { "src/a.js": "const a = 1;\n", "package.json": '{"name":"a"}\n' },
+    };
+    const workOrder = {
+      work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      dependencies: ["src/a.js", "package.json"],
+      allowed_paths: ["src/**"],
+    };
+    const c1 = await materializeSourceSnapshot(ws1, workOrder, snapshot);
+    const c2 = await materializeSourceSnapshot(ws2, workOrder, snapshot);
+    await disposeWorkspace(ws1);
+    await disposeWorkspace(ws2);
+    const ok = c1.fingerprint === c2.fingerprint && /^sha256:[a-f0-9]{64}$/.test(c1.fingerprint);
+    return { ok, invariant_id: "inv-k6a-capsule-determinism", runtime_composed: true };
+  } finally {
+    fs.rmSync(baseDir, { recursive: true, force: true });
+  }
+}
+
+async function checkK6aContainmentFailClosed() {
+  const { validateAllowedPaths } = require("./allowed-paths-validator.js");
+  const trav = validateAllowedPaths(["../escape"], ["src/**"]);
+  const undeclared = validateAllowedPaths(["secret/file.txt"], ["src/**"]);
+  const valid = validateAllowedPaths(["src/app.js"], ["src/**"]);
+  const ok = !trav.ok && trav.violation.violation_type === "traversal" &&
+             !undeclared.ok && undeclared.violation.violation_type === "undeclared_write" &&
+             valid.ok;
+  return { ok, invariant_id: "inv-k6a-containment-fail-closed", runtime_composed: true };
+}
+
+async function checkK6aWorkResultBinding() {
+  const { captureWorkResult, validateWorkResultBinding, computeWorkResultId } = require("./worker-executor.js");
+  const orderId = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+  const snapId = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const workResult = await captureWorkResult({
+    work_order_id: orderId,
+    source_snapshot_id: snapId,
+    patch: "--- a/x\n+++ b/x\n",
+    commands: [],
+    logs: ["ok"],
+    exit_code: 0,
+    filesystem_inventory: [],
+    execution_usage: {},
+  });
+  const workOrder = { work_order_id: orderId, source_snapshot_id: snapId };
+  const validBinding = validateWorkResultBinding(workOrder, workResult);
+  const badOrder = { work_order_id: "sha256:2222222222222222222222222222222222222222222222222222222222222222", source_snapshot_id: snapId };
+  const invalidBinding = validateWorkResultBinding(badOrder, workResult);
+  const zeroCandidate = workResult.candidate_id === undefined && workResult.candidateId === undefined;
+  const ok = validBinding.ok && !invalidBinding.ok && zeroCandidate && workResult.work_result_id === computeWorkResultId(workResult);
+  return { ok, invariant_id: "inv-k6a-work-result-binding", runtime_composed: true };
+}
+
+async function checkK6aInterruptedRecoveryPreservation() {
+  const { createWorkspace, disposeWorkspace } = require("./worker-workspace.js");
+  const { recoverInterruptedExecution } = require("./worker-executor.js");
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-inv-rec-"));
+  try {
+    const ws = await createWorkspace({ baseDir });
+    fs.writeFileSync(path.join(ws.root_path, "partial.txt"), "partial data");
+    const workOrder = {
+      work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    };
+    const recovery = await recoverInterruptedExecution({
+      workspace: ws,
+      workOrder,
+      partialLogs: ["timeout after 1000ms"],
+      reason: "timeout",
+    });
+    const ok = recovery.status === "interrupted" &&
+               ws.status === "interrupted" &&
+               recovery.partial_logs.length === 1 &&
+               recovery.modified_inventory.some((f) => f.path === "partial.txt");
+    await disposeWorkspace(ws);
+    return { ok, invariant_id: "inv-k6a-interrupted-recovery-preservation", runtime_composed: true };
+  } finally {
+    fs.rmSync(baseDir, { recursive: true, force: true });
+  }
+}
+
+async function checkK6aHostIsolationFallback() {
+  const { createWorkspace, disposeWorkspace } = require("./worker-workspace.js");
+  const { executeWorkOrder } = require("./worker-executor.js");
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-inv-iso-"));
+  try {
+    const ws = await createWorkspace({ baseDir });
+    const workOrder = {
+      work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      allowed_paths: ["**"],
+    };
+    const result = await executeWorkOrder({
+      workOrder,
+      workspace: ws,
+      command: process.execPath,
+      args: ["-e", "console.log('iso ok');"],
+      isolationCapability: "unavailable",
+    });
+    const ok = result.ok && result.isolationReported === "unavailable" && result.isolationReported !== "enforced";
+    await disposeWorkspace(ws);
+    return { ok, invariant_id: "inv-k6a-host-isolation-fallback", runtime_composed: true };
+  } finally {
+    fs.rmSync(baseDir, { recursive: true, force: true });
+  }
+}
+
 function checkK21NoMutationWithoutCas() {
   const { createMemoryStore } = require("./lifecycle-kernel/memory-store.js");
   const { createKernelRuntime } = require("./lifecycle-kernel/index.js");
@@ -1427,6 +1609,7 @@ async function runAllInvariantCheckers(context = {}) {
     ...K2A_EXECUTABLE_INVARIANTS,
     ...K4A_EXECUTABLE_INVARIANTS,
     ...K5_EXECUTABLE_INVARIANTS,
+    ...K6A_EXECUTABLE_INVARIANTS,
   ];
   const results = [];
   for (const inv of allInvariants) {
@@ -1447,7 +1630,7 @@ async function runAllInvariantCheckers(context = {}) {
     counts_as_enforced: false,
     enforced_in_k2: false,
   }));
-  // CAS/permit/retry, K2.1b, K2a host, K4a graph, and K5 budget/recovery invariants must not appear on deferred list.
+  // CAS/permit/retry, K2.1b, K2a host, K4a graph, K5 budget/recovery, and K6a worker isolation invariants must not appear on deferred list.
   const deferredIds = new Set(deferred.map((d) => d.invariant_id));
   for (const inv of [
     ...K21_EXECUTABLE_INVARIANTS,
@@ -1455,6 +1638,7 @@ async function runAllInvariantCheckers(context = {}) {
     ...K2A_EXECUTABLE_INVARIANTS,
     ...K4A_EXECUTABLE_INVARIANTS,
     ...K5_EXECUTABLE_INVARIANTS,
+    ...K6A_EXECUTABLE_INVARIANTS,
   ]) {
     if (deferredIds.has(inv.id)) {
       return {
@@ -1474,6 +1658,7 @@ async function runAllInvariantCheckers(context = {}) {
     k2a_count: K2A_EXECUTABLE_INVARIANTS.length,
     k4a_count: K4A_EXECUTABLE_INVARIANTS.length,
     k5_count: K5_EXECUTABLE_INVARIANTS.length,
+    k6a_count: K6A_EXECUTABLE_INVARIANTS.length,
   };
 }
 
@@ -1655,6 +1840,7 @@ module.exports = {
   K2A_EXECUTABLE_INVARIANTS,
   K4A_EXECUTABLE_INVARIANTS,
   K5_EXECUTABLE_INVARIANTS,
+  K6A_EXECUTABLE_INVARIANTS,
   DEFERRED_INVARIANTS,
   exploreModel,
   checkInvariant,
