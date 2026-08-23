@@ -1,13 +1,6 @@
-# worker-isolation Specification
+# Delta for worker-isolation
 
-## Purpose
-
-Define the execution runtime primitives, minimal work-order capsule materialization,
-filesystem containment enforcement, raw work result capture, interrupted execution
-recovery, host transport integration, and strict identity boundary enforcement
-without emitting or assuming CandidateId.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Workspace Lifecycle Primitives {#REQ-worker-isolation-001}
 
@@ -127,46 +120,3 @@ The execution runtime MUST provide `RecoverInterruptedExecution` to handle timeo
 - GIVEN an interrupted execution state
 - WHEN the recovery descriptor is inspected
 - THEN partial stderr/stdout streams and modified paths MUST be present and non-empty
-
----
-
-### Requirement: Strict Identity Boundary And CandidateId Prohibition {#REQ-worker-isolation-007}
-
-K6a execution primitives, schemas, fixtures, and output payloads MUST NOT emit, accept, return, or assume
-`CandidateId` or Candidate schema structures. `WorkResult` MUST remain raw unapproved execution evidence.
-The workspace filesystem inventory MUST NOT be accepted or aliased as an approved candidate tree.
-Public APIs of K6a MUST NOT expose Repair domain concepts, graph compilation terms, or shadow orchestration controls.
-
-#### Scenario: WorkResult output contains zero CandidateId fields
-
-- GIVEN any `WorkResult` payload produced by K6a primitives
-- WHEN inspected for candidate identifiers
-- THEN no `candidate_id` or Candidate schema discriminator property MAY be present
-
-#### Scenario: K6a public API surface contains no Repair or Candidate terminology
-
-- GIVEN the exported API signatures and schema definitions of K6a
-- WHEN inspected for domain leaks
-- THEN terms including `freezeCandidate`, `RepairShadow`, and `CandidateEvaluationAttestation` MUST be absent
-
----
-
-### Requirement: Host Isolation Capability Fallback {#REQ-worker-isolation-008}
-
-When the host adapter indicates capability state `enforced`, the runtime MUST execute inside host-level
-sandboxing. When the host adapter indicates `partial` or `instructional`, the runtime MUST execute with
-software boundary enforcement and log the capability state. When the host adapter indicates `unavailable`,
-the runtime MUST execute explicit fallback handling or fail closed, and MUST NOT silently promote the state to `enforced`.
-
-#### Scenario: Enforced capability executes with sandbox
-
-- GIVEN a host adapter declaring `isolation: enforced` with valid `CapabilityProof`
-- WHEN `ExecuteWorkOrder` is executed
-- THEN execution MUST utilize host-enforced sandboxing
-
-#### Scenario: Partial or unavailable capability triggers documented fallback without silent promotion
-
-- GIVEN a host adapter declaring `isolation: unavailable` or `isolation: partial`
-- WHEN `ExecuteWorkOrder` is executed
-- THEN the runtime MUST execute documented fallback path and record capability status
-- AND MUST NOT assert or record `enforced` status

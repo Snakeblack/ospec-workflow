@@ -128,16 +128,36 @@ test("K6a workspace-descriptor schema: validates valid and rejects invalid fixtu
   assert.equal(extraRes.valid, false, "Extra property must fail validation");
 });
 
+const { computeWorkResultId } = require("./execution-identities/index.js");
+
 test("K6a capsule-definition schema: validates valid and rejects invalid fixtures", () => {
   const schema = loadSchemaById("ospec://schemas/kernel/capsule-definition/v1", { rootDir: ROOT });
 
   const minimal = readJson("schemas/kernel/capsule-definition/fixtures/valid/valid-minimal.json");
+  assert.ok(Array.isArray(minimal.capsule_inputs), "valid-minimal must define capsule_inputs array");
+  assert.ok(minimal.dependencies.every(d => /^sha256:[a-f0-9]{64}$/.test(d)), "valid-minimal dependencies must be sha256 WorkOrder IDs");
   const minRes = validateInstance(schema, minimal);
   assert.equal(minRes.valid, true, `valid-minimal must pass: ${JSON.stringify(minRes.errors)}`);
 
   const full = readJson("schemas/kernel/capsule-definition/fixtures/valid/valid-full.json");
+  assert.ok(Array.isArray(full.capsule_inputs), "valid-full must define capsule_inputs array");
+  assert.ok(full.dependencies.every(d => /^sha256:[a-f0-9]{64}$/.test(d)), "valid-full dependencies must be sha256 WorkOrder IDs");
   const fullRes = validateInstance(schema, full);
   assert.equal(fullRes.valid, true, `valid-full must pass: ${JSON.stringify(fullRes.errors)}`);
+
+  const withInputs = {
+    ...minimal,
+    capsule_inputs: ["src/index.js", "package.json"]
+  };
+  const withInputsRes = validateInstance(schema, withInputs);
+  assert.equal(withInputsRes.valid, true, `capsule_inputs must be accepted by schema: ${JSON.stringify(withInputsRes.errors)}`);
+
+  const invalidInputs = {
+    ...minimal,
+    capsule_inputs: "not-an-array"
+  };
+  const invalidInputsRes = validateInstance(schema, invalidInputs);
+  assert.equal(invalidInputsRes.valid, false, "Invalid non-array capsule_inputs must fail validation");
 
   const missingAllowed = readJson("schemas/kernel/capsule-definition/fixtures/invalid/invalid-missing-allowed-paths.json");
   const allowRes = validateInstance(schema, missingAllowed);
@@ -158,10 +178,12 @@ test("K6a work-result-execution-payload schema: validates valid, rejects invalid
   const minimal = readJson("schemas/kernel/work-result-execution-payload/fixtures/valid/valid-minimal.json");
   const minRes = validateInstance(schema, minimal);
   assert.equal(minRes.valid, true, `valid-minimal must pass: ${JSON.stringify(minRes.errors)}`);
+  assert.equal(minimal.work_result_id, computeWorkResultId(minimal), "valid-minimal work_result_id must match canonical computeWorkResultId");
 
   const full = readJson("schemas/kernel/work-result-execution-payload/fixtures/valid/valid-full.json");
   const fullRes = validateInstance(schema, full);
   assert.equal(fullRes.valid, true, `valid-full must pass: ${JSON.stringify(fullRes.errors)}`);
+  assert.equal(fullRes.work_result_id || full.work_result_id, computeWorkResultId(full), "valid-full work_result_id must match canonical computeWorkResultId");
 
   const withCandidate = readJson("schemas/kernel/work-result-execution-payload/fixtures/invalid/invalid-with-candidate-id.json");
   const candRes = validateInstance(schema, withCandidate);

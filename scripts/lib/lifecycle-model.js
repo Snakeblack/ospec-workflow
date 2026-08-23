@@ -1206,19 +1206,32 @@ async function checkK6aCapsuleDeterminism() {
     const ws1 = await createWorkspace({ baseDir });
     const ws2 = await createWorkspace({ baseDir });
     const snapshot = {
+      schema_version: 1,
       source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      files: { "src/a.js": "const a = 1;\n", "package.json": '{"name":"a"}\n' },
+      repository_id: "repo-inv-test",
+      base_tree_digest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      projection: "workspace",
+      dependency_digests: [],
     };
     const workOrder = {
+      schema_version: 2,
+      kind: "work-order/v2",
       work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-      dependencies: ["src/a.js", "package.json"],
+      source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      dependencies: ["sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"],
+      capsule_inputs: ["src/a.js", "package.json"],
       allowed_paths: ["src/**"],
     };
-    const c1 = await materializeSourceSnapshot(ws1, workOrder, snapshot);
-    const c2 = await materializeSourceSnapshot(ws2, workOrder, snapshot);
+    const files = { "src/a.js": "const a = 1;\n", "package.json": '{"name":"a"}\n' };
+    const c1 = await materializeSourceSnapshot(ws1, workOrder, snapshot, { files });
+    const c2 = await materializeSourceSnapshot(ws2, workOrder, snapshot, { files });
     await disposeWorkspace(ws1);
     await disposeWorkspace(ws2);
-    const ok = c1.fingerprint === c2.fingerprint && /^sha256:[a-f0-9]{64}$/.test(c1.fingerprint);
+    const ok =
+      c1.fingerprint === c2.fingerprint &&
+      /^sha256:[a-f0-9]{64}$/.test(c1.fingerprint) &&
+      Array.isArray(c1.capsule_inputs) &&
+      c1.capsule_inputs.length === 2;
     return { ok, invariant_id: "inv-k6a-capsule-determinism", runtime_composed: true };
   } finally {
     fs.rmSync(baseDir, { recursive: true, force: true });
@@ -1238,21 +1251,42 @@ async function checkK6aContainmentFailClosed() {
 
 async function checkK6aWorkResultBinding() {
   const { captureWorkResult, validateWorkResultBinding, computeWorkResultId } = require("./worker-executor.js");
-  const orderId = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+  const { computeWorkOrderId } = require("./execution-identities/index.js");
   const snapId = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+  const workOrder = {
+    schema_version: 2,
+    kind: "work-order/v2",
+    node_id: "node-inv-1",
+    role: "executor",
+    status: "pending",
+    operation: "apply",
+    objective: "Verify binding",
+    source_snapshot_id: snapId,
+    dependencies: [],
+    ownership: { owner: "agent-1", mode: "exclusive" },
+    allowed_paths: ["src/**"],
+    invariants: ["inv-1"],
+    required_evidence: ["ev-1"],
+    budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
+  };
+  workOrder.work_order_id = computeWorkOrderId(workOrder);
+
   const workResult = await captureWorkResult({
-    work_order_id: orderId,
+    work_order_id: workOrder.work_order_id,
     source_snapshot_id: snapId,
     patch: "--- a/x\n+++ b/x\n",
     commands: [],
     logs: ["ok"],
     exit_code: 0,
     filesystem_inventory: [],
-    execution_usage: {},
   });
-  const workOrder = { work_order_id: orderId, source_snapshot_id: snapId };
+
   const validBinding = validateWorkResultBinding(workOrder, workResult);
-  const badOrder = { work_order_id: "sha256:2222222222222222222222222222222222222222222222222222222222222222", source_snapshot_id: snapId };
+  const badOrder = {
+    ...workOrder,
+    work_order_id: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  };
   const invalidBinding = validateWorkResultBinding(badOrder, workResult);
   const zeroCandidate = workResult.candidate_id === undefined && workResult.candidateId === undefined;
   const ok = validBinding.ok && !invalidBinding.ok && zeroCandidate && workResult.work_result_id === computeWorkResultId(workResult);

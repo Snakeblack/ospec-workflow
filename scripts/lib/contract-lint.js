@@ -22,6 +22,7 @@ const { check: checkK5FailureTransitionMatrix } = require("./contract-checkers/k
 const { check: checkK5BudgetStructure } = require("./contract-checkers/k5-budget-structure.js");
 const { check: checkCandidateProhibition } = require("./contract-checkers/k6a-candidate-prohibition.js");
 const { check: checkCapsulePathContainment } = require("./contract-checkers/k6a-capsule-path-containment.js");
+const { check: checkCanonicalContracts } = require("./contract-checkers/k6a-canonical-contracts.js");
 
 /**
  * @typedef {Object} Offender
@@ -64,6 +65,7 @@ const DEFAULT_REGISTRY = [
   checkK5BudgetStructure,
   checkCandidateProhibition,
   checkCapsulePathContainment,
+  checkCanonicalContracts,
 ];
 
 /**

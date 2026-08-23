@@ -3,7 +3,8 @@
   "capsule_id": "capsule-550e8400-e29b-41d4-a716-446655440000",
   "fingerprint": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
   "source_snapshot_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "dependencies": ["src/index.js", "package.json"],
+  "dependencies": ["sha256:1111111111111111111111111111111111111111111111111111111111111111"],
+  "capsule_inputs": ["src/index.js", "package.json"],
   "allowed_paths": ["src/**", "dist/**"],
   "environment": {
     "NODE_ENV": "test"

@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "change": "k6a-contract-runtime-integration-remediation",
+  "source_fingerprint": "sha256:4ce9b466a13e57492315c4214d08cebf87a2e990369b24deb2f11afb31967e30",
+  "spec_writes": [
+    {
+      "domain": "worker-isolation",
+      "source_delta": "prepared-specs/worker-isolation/spec.md",
+      "target": "openspec/specs/worker-isolation/spec.md",
+      "target_before_sha256": "sha256:809754d8decf17ff4efa7c686886190d6f33d8a91f5cde82f1d7bc67a67bf856",
+      "content_sha256": "sha256:55ae826d01b182ae258ea4b9cd6b206b328a947f692e12938603114768832d71"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "prepared-specs/kernel-contract-schemas/spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:ea2b621bbdc33a70ceeaa857905bf560809d51aa2628c44b1e3b768df70f8967",
+      "content_sha256": "sha256:88d5441e01940be1cc711cbbd1f1dbba07bc2b7078f55a40cf51cacc7198d1a3"
+    },
+    {
+      "domain": "contract-lint",
+      "source_delta": "prepared-specs/contract-lint/spec.md",
+      "target": "openspec/specs/contract-lint/spec.md",
+      "target_before_sha256": "sha256:ef842f70d9ff3ccacbb9664b51fb9c074de6b413f0afdd88d475f18dab236048",
+      "content_sha256": "sha256:6e41362a00a5f345eb84f397b73978062b8715ebe4c64eacb04937413ccfc6e5"
+    },
+    {
+      "domain": "lifecycle-model-conformance",
+      "source_delta": "prepared-specs/lifecycle-model-conformance/spec.md",
+      "target": "openspec/specs/lifecycle-model-conformance/spec.md",
+      "target_before_sha256": "sha256:673c3ca5f1ea9544a976878908526dfeb6092e456451e28ad52b7ebfcf3c621d",
+      "content_sha256": "sha256:454111e431f0744f5fcc0dce7b4c0b1a77aa81ffd7ec29936f03aa6b87eaf1ab"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260823-007-desacoplamiento-de-capsule-inputs-de-dependencias-dag-y-materializacion-canonica.md",
+      "content_sha256": "sha256:7d669f47c0f102b190f4861f8d8cb7e123a01a350cd7c2842a5b3c5692cb84f0"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260823-008-delegacion-estricta-de-identidad-criptografica-de-workresult-en-execution-identities.md",
+      "content_sha256": "sha256:744141ac75b5ed95bd912a7c5cf53772cecc29225d5cbf56cd45c87fc14947b8"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260823-009-integracion-asincrona-con-workertransport-y-resolvecapabilitystate-con-fallback-seguro.md",
+      "content_sha256": "sha256:81518f7ead5e0da100d0b37ce9c2e85dc0d6271b29a7ec7217e9e5af52b3a57e"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260823-010-registro-privado-de-workspaces-y-blindaje-de-symlinks-en-jerarquias-no-instanciadas.md",
+      "content_sha256": "sha256:f2b314b33ec489b1f21e52d6764efe277e859fa5eb575cf24ca015a041406729"
+    },
+    {
+      "source": "decisions/adr-005.md",
+      "target": "docs/adr/adr-20260823-011-captura-de-baselineinventory-validacion-sobre-mutation-delta-y-diff-unified-verificable.md",
+      "content_sha256": "sha256:10aa57f4de0327b077a8dbd88ee537285531d48458730c649d119b66646accef"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "decisions/adr-005.md",
+    "design.md",
+    "prepared-specs/contract-lint/spec.md",
+    "prepared-specs/kernel-contract-schemas/spec.md",
+    "prepared-specs/lifecycle-model-conformance/spec.md",
+    "prepared-specs/worker-isolation/spec.md",
+    "proposal.md",
+    "specs/contract-lint/spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "specs/lifecycle-model-conformance/spec.md",
+    "specs/worker-isolation/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}
