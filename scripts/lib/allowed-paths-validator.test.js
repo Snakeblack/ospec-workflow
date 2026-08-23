@@ -145,3 +145,72 @@ test("validateAllowedPaths: detects symlink escapes when workspaceRoot is provid
   const schemaRes = validateInstance(schema, result.violation);
   assert.equal(schemaRes.valid, true);
 });
+
+test("validateAllowedPaths: detects symlink escape in intermediate non-instantiated hierarchies", (t) => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-validator-ancestor-"));
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-validator-outdir-"));
+  t.after(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+    fs.rmSync(outsideDir, { recursive: true, force: true });
+  });
+
+  const symlinkDir = path.join(tempDir, "symlink-dir");
+  try {
+    fs.symlinkSync(outsideDir, symlinkDir, "junction");
+  } catch (err) {
+    if (err.code === "EPERM") return;
+    throw err;
+  }
+
+  // Target file does NOT exist yet under symlinkDir
+  const targetPath = "symlink-dir/non-existent-sub/file.txt";
+  const result = validateAllowedPaths(
+    [targetPath],
+    ["**"],
+    {
+      workspaceRoot: tempDir,
+      workspace_id: "ws-symlink-ancestor-test",
+      work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    }
+  );
+
+  assert.equal(result.ok, false, "Must fail closed on symlink ancestor escape");
+  assert.ok(result.violation, "Must emit violation");
+  assert.equal(result.violation.violation_type, "symlink_escape");
+});
+
+test("validateAllowedPaths: validates structured mutation delta object", () => {
+  const mutationDelta = {
+    created: ["src/feature/new.js"],
+    modified: ["src/index.js"],
+    deleted: ["src/legacy.js"],
+  };
+
+  const successResult = validateAllowedPaths(
+    mutationDelta,
+    ["src/**"],
+    {
+      workspace_id: "ws-delta-test",
+      work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    }
+  );
+  assert.equal(successResult.ok, true);
+
+  const violationDelta = {
+    created: ["src/feature/new.js"],
+    modified: ["config/secret.env"],
+    deleted: [],
+  };
+  const failResult = validateAllowedPaths(
+    violationDelta,
+    ["src/**"],
+    {
+      workspace_id: "ws-delta-test",
+      work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    }
+  );
+  assert.equal(failResult.ok, false);
+  assert.equal(failResult.violation.violation_type, "undeclared_write");
+  assert.equal(failResult.violation.attempted_path, "config/secret.env");
+});
+

@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.46.1] - 2026-08-23
+
+### Fixed
+- **Integración Canónica de Contratos y Runtime K6a (`k6a-contract-runtime-integration-remediation`)**:
+  - **Contratos Canónicos K3/K4a y Snapshot**: Desacopladas las dependencias DAG SHA-256 (`WorkOrderId`) de los inputs de filesystem de la cápsula (`capsule_inputs: string[]`). `materializeSourceSnapshot` consume `SourceSnapshot v1` canónico (sin propiedad sintética `.files`) y falla cerrado ante dependencias faltantes.
+  - **Identidad Criptográfica de WorkResult**: `captureWorkResult` emite estrictamente `work-result/v1` canónico delegando el cálculo de `work_result_id` en `computeWorkResultId` de `execution-identities`, enlazando `execution_usage` como metadatos/evidencia externa.
+  - **Integración Real con WorkerTransport (K2a)**: `executeWorkOrder` opera de forma asíncrona mediante `invokeTransportAsync`, comprueba `CapabilityProof` con `resolveCapabilityState` (con degradación segura a `partial`/`unavailable`), y respeta `AbortSignal` y presupuestos de tiempo de K5 (`wall_time_minutes`, `commands`).
+  - **Contención de Filesystem y Symlinks**: Validación preventiva de symlinks en jerarquías intermedias no instanciadas y evaluación estricta de `allowed_paths` sobre el mutation delta (`created`, `modified`, `deleted`) respecto al `baselineInventory`.
+  - **Registro Privado de Workspaces**: Ciclo de vida gestionado internamente (`workspace_id -> internal descriptor`), impidiendo ejecuciones destructivas sobre rutas suministradas por el llamador en `disposeWorkspace`.
+  - **Generación de Parche Unified Diff Real**: Generación de un diff aplicable con contenido antes y después, con verificación de reconstrucción de árbol de filesystem.
+  - **Promoción de ADRs**: Formalizados y promovidos `adr-20260823-007` a `011` en `docs/adr/`.
+
 ## [2.46.0] - 2026-08-23
 
 ### Added

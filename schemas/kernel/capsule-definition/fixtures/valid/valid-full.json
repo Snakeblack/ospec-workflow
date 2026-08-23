@@ -3,7 +3,11 @@
   "capsule_id": "capsule-full-test-12345",
   "fingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
   "source_snapshot_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-  "dependencies": ["lib/core.js", "lib/utils.js", "package.json"],
+  "dependencies": [
+    "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+  ],
+  "capsule_inputs": ["lib/core.js", "lib/utils.js", "package.json"],
   "allowed_paths": ["lib/**", "tests/**"],
   "environment": {
     "NODE_ENV": "production",

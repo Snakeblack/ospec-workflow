@@ -19,46 +19,71 @@ const {
   validateWorkResultBinding,
   computeWorkResultId,
 } = require("./lib/worker-executor.js");
+const { computeWorkOrderId } = require("./lib/execution-identities/index.js");
 const { validateAllowedPaths } = require("./lib/allowed-paths-validator.js");
+const { createEvidenceDigest, createProbeDigest } = require("./lib/capability-proof/index.js");
 
 const ROOT = path.resolve(__dirname, "..");
 const DUMMY_SNAPSHOT_ID = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-const DUMMY_WORK_ORDER_ID = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
 
 test("K6a E2E Happy Path: Full workspace lifecycle, capsule materialization, execution, containment, and disposal", async (t) => {
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-e2e-happy-"));
-  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+  t.after(() => {
+    try {
+      fs.rmSync(baseDir, { recursive: true, force: true });
+    } catch {}
+  });
 
   // 1. Create Workspace
   const workspace = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
   assert.equal(workspace.status, "active");
   assert.ok(fs.existsSync(workspace.root_path));
 
-  // 2. Materialize Capsule
-  const snapshot = {
+  // 2. Canonical SourceSnapshot v1 and WorkOrder v2
+  const canonicalSnapshot = {
+    schema_version: 1,
     source_snapshot_id: DUMMY_SNAPSHOT_ID,
-    files: {
-      "src/calculator.js": "function add(a, b) { return a + b; }\nmodule.exports = { add };\n",
-      "test/calculator.test.js": "const assert = require('assert'); const { add } = require('../src/calculator.js'); assert.equal(add(2, 3), 5); console.log('All tests passed!');\n",
-      "package.json": '{"name": "calc-app"}\n',
-      "unrelated/leak.txt": "should not be materialized",
-    },
+    repository_id: "repo-e2e-calc",
+    base_tree_digest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    projection: "workspace",
+    dependency_digests: [],
+  };
+
+  const files = {
+    "src/calculator.js": "function add(a, b) { return a + b; }\nmodule.exports = { add };\n",
+    "test/calculator.test.js": "const assert = require('assert'); const { add } = require('../src/calculator.js'); assert.equal(add(2, 3), 5); console.log('All tests passed!');\n",
+    "package.json": '{"name": "calc-app"}\n',
+    "unrelated/leak.txt": "should not be materialized",
   };
 
   const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
+    schema_version: 2,
+    kind: "work-order/v2",
+    node_id: "node-e2e-1",
+    role: "executor",
+    status: "pending",
+    operation: "apply",
+    objective: "Run calculator test suite",
     source_snapshot_id: DUMMY_SNAPSHOT_ID,
-    dependencies: ["src/calculator.js", "test/calculator.test.js", "package.json"],
+    dependencies: ["sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"],
+    ownership: { owner: "agent-e2e", mode: "exclusive" },
     allowed_paths: ["src/**", "test/**", "dist/**", "package.json"],
+    invariants: ["inv-1"],
+    required_evidence: ["ev-1"],
+    budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
   };
+  workOrder.work_order_id = computeWorkOrderId(workOrder);
 
-  const capsule = await materializeSourceSnapshot(workspace, workOrder, snapshot);
+  const capsule = await materializeSourceSnapshot(workspace, workOrder, canonicalSnapshot, {
+    capsule_inputs: ["src/calculator.js", "test/calculator.test.js", "package.json"],
+    files,
+  });
   assert.ok(/^sha256:[a-f0-9]{64}$/.test(capsule.fingerprint));
   assert.ok(fs.existsSync(path.join(workspace.root_path, "src", "calculator.js")));
   assert.equal(fs.existsSync(path.join(workspace.root_path, "unrelated", "leak.txt")), false);
 
   // 3. Execute Work Order Commands
-  const buildScript = "const fs = require('fs'); fs.mkdirSync('dist', { recursive: true }); fs.writeFileSync('dist/bundle.js', 'console.log(5);');";
+  const buildScript = "const fs = require('fs'); fs.mkdirSync('dist', { recursive: true }); fs.writeFileSync('dist/bundle.js', 'console.log(5);\\n');";
   const execResult = await executeWorkOrder({
     workOrder,
     workspace,
@@ -66,7 +91,6 @@ test("K6a E2E Happy Path: Full workspace lifecycle, capsule materialization, exe
       { command: process.execPath, args: ["-e", buildScript] },
       { command: process.execPath, args: [path.join(workspace.root_path, "test", "calculator.test.js")] },
     ],
-    isolationCapability: "enforced",
   });
 
   assert.equal(execResult.ok, true);
@@ -74,12 +98,17 @@ test("K6a E2E Happy Path: Full workspace lifecycle, capsule materialization, exe
   assert.equal(execResult.workResult.exit_code, 0);
   assert.ok(execResult.workResult.logs.some((l) => l.includes("All tests passed!")));
   assert.ok(execResult.workResult.filesystem_inventory.some((f) => f.path === "dist/bundle.js"));
+  assert.ok(execResult.workResult.patch.includes("+++ b/dist/bundle.js"));
   assert.equal(execResult.workResult.candidate_id, undefined, "Strict prohibition of CandidateId in WorkResult");
 
   // 4. Validate WorkResult schema & cryptographic binding
-  const workResultSchema = loadSchemaById("ospec://schemas/kernel/work-result-execution-payload/v1", { rootDir: ROOT });
+  const workResultSchema = loadSchemaById("ospec://schemas/kernel/work-result/v1", { rootDir: ROOT });
   const schemaRes = validateInstance(workResultSchema, execResult.workResult);
   assert.equal(schemaRes.valid, true, `WorkResult must pass schema validation: ${JSON.stringify(schemaRes.errors)}`);
+
+  const payloadSchema = loadSchemaById("ospec://schemas/kernel/work-result-execution-payload/v1", { rootDir: ROOT });
+  const payloadRes = validateInstance(payloadSchema, { ...execResult.workResult, execution_usage: execResult.execution_usage });
+  assert.equal(payloadRes.valid, true, `Payload must pass schema validation: ${JSON.stringify(payloadRes.errors)}`);
 
   const binding = validateWorkResultBinding(workOrder, execResult.workResult);
   assert.equal(binding.ok, true, "WorkResult must be cryptographically bound to WorkOrder");
@@ -93,13 +122,17 @@ test("K6a E2E Happy Path: Full workspace lifecycle, capsule materialization, exe
 
 test("K6a Negative E2E: Traversal escape attempt halts fail-closed with containment violation", async (t) => {
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-e2e-trav-"));
-  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+  t.after(() => {
+    try {
+      fs.rmSync(baseDir, { recursive: true, force: true });
+    } catch {}
+  });
 
   const workspace = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
   t.after(() => disposeWorkspace(workspace));
 
   const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
+    work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
     source_snapshot_id: DUMMY_SNAPSHOT_ID,
     allowed_paths: ["src/**"],
   };
@@ -122,13 +155,17 @@ test("K6a Negative E2E: Traversal escape attempt halts fail-closed with containm
 
 test("K6a Negative E2E: Undeclared write attempt halts fail-closed with containment violation", async (t) => {
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-e2e-undec-"));
-  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+  t.after(() => {
+    try {
+      fs.rmSync(baseDir, { recursive: true, force: true });
+    } catch {}
+  });
 
   const workspace = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
   t.after(() => disposeWorkspace(workspace));
 
   const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
+    work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
     source_snapshot_id: DUMMY_SNAPSHOT_ID,
     allowed_paths: ["allowed/**"],
   };
@@ -152,14 +189,13 @@ test("K6a Negative E2E: Undeclared write attempt halts fail-closed with containm
 
 test("K6a Negative E2E: Non-aliasing guarantees WorkResult cannot be substituted as Candidate v2", async () => {
   const workResult = await captureWorkResult({
-    work_order_id: DUMMY_WORK_ORDER_ID,
+    work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
     source_snapshot_id: DUMMY_SNAPSHOT_ID,
     patch: "--- a/src/app.js\n+++ b/src/app.js\n",
     commands: [],
     logs: ["completed"],
     exit_code: 0,
     filesystem_inventory: [],
-    execution_usage: {},
   });
 
   const candidateSchema = loadSchemaById("ospec://schemas/kernel/candidate/v2", { rootDir: ROOT });
@@ -169,27 +205,72 @@ test("K6a Negative E2E: Non-aliasing guarantees WorkResult cannot be substituted
 
 test("K6a Host Isolation Fallback: Reports truthful capability without silent promotion", async (t) => {
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-e2e-iso-"));
-  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+  t.after(() => {
+    try {
+      fs.rmSync(baseDir, { recursive: true, force: true });
+    } catch {}
+  });
 
   const workspace = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
   t.after(() => disposeWorkspace(workspace));
 
   const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
+    work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
     source_snapshot_id: DUMMY_SNAPSHOT_ID,
     allowed_paths: ["**"],
   };
 
-  const capabilities = ["enforced", "partial", "instructional", "unavailable"];
-  for (const cap of capabilities) {
-    const result = await executeWorkOrder({
-      workOrder,
-      workspace,
-      command: process.execPath,
-      args: ["-e", "console.log('check capability');"],
-      isolationCapability: cap,
-    });
-    assert.equal(result.ok, true);
-    assert.equal(result.isolationReported, cap, `Must report exact capability '${cap}' without silent promotion`);
-  }
+  // Without proof, declared enforced must downgrade to unavailable
+  const resNoProof = await executeWorkOrder({
+    workOrder,
+    workspace,
+    command: process.execPath,
+    args: ["-e", "console.log('no proof');"],
+    isolationCapability: "enforced",
+  });
+  assert.equal(resNoProof.isolationReported, "unavailable");
+
+  // With verified proof
+  const evidence = { surface: "worker", headless: true };
+  const fixture = "fixtures/WorkerTransport.json";
+  const evidence_digest = createEvidenceDigest({
+    capability_id: "WorkerTransport",
+    adapter_version: "1.0.0",
+    host_version: "1.0.0",
+    fixture,
+    evidence,
+  });
+  const probe_digest = createProbeDigest({
+    capability_id: "WorkerTransport",
+    adapter_id: "claude",
+    adapter_version: "1.0.0",
+    host_version: "1.0.0",
+    probe: { surface: "live", ok: true },
+  });
+  const capabilityProof = {
+    schema_version: 1,
+    kind: "capability-proof/v1",
+    adapter_id: "claude",
+    adapter_version: "1.0.0",
+    host_version: "1.0.0",
+    fixture,
+    evidence_digest,
+    probe_digest,
+  };
+
+  const resWithProof = await executeWorkOrder({
+    workOrder,
+    workspace,
+    command: process.execPath,
+    args: ["-e", "console.log('with proof');"],
+    isolationCapability: "enforced",
+    capabilityProof,
+    semantic_evidence: evidence,
+    expectedAdapterId: "claude",
+    expectedAdapterVersion: "1.0.0",
+    expectedHostRuntimeVersion: "1.0.0",
+    expectedProbeDigest: probe_digest,
+  });
+  assert.equal(resWithProof.isolationReported, "enforced");
 });
+

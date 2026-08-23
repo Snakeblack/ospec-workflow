@@ -33,6 +33,48 @@ function normalizeRelativePath(p) {
 }
 
 /**
+ * Inspects all existing ancestor directories of targetPath to ensure no symlinks escape workspaceRoot.
+ *
+ * @param {string} targetPath
+ * @param {string} workspaceRoot
+ * @returns {{ isEscape: boolean, offendingPath?: string }}
+ */
+function checkSymlinkEscape(targetPath, workspaceRoot) {
+  if (!workspaceRoot || typeof workspaceRoot !== "string") {
+    return { isEscape: false };
+  }
+  try {
+    const absRoot = path.resolve(workspaceRoot);
+    const realRoot = fs.realpathSync(absRoot);
+    const normalized = normalizeRelativePath(targetPath);
+    if (!normalized) return { isEscape: false };
+
+    const segments = normalized.split("/");
+    let currentRelative = "";
+    for (const segment of segments) {
+      currentRelative = currentRelative ? `${currentRelative}/${segment}` : segment;
+      const currentAbs = path.resolve(absRoot, currentRelative);
+      if (fs.existsSync(currentAbs)) {
+        try {
+          const lstat = fs.lstatSync(currentAbs);
+          if (lstat.isSymbolicLink()) {
+            const realPath = fs.realpathSync(currentAbs);
+            if (!realPath.startsWith(realRoot + path.sep) && realPath !== realRoot) {
+              return { isEscape: true, offendingPath: currentRelative };
+            }
+          }
+        } catch {
+          // ignore stat errors on intermediate checks
+        }
+      }
+    }
+  } catch {
+    // If root does not exist or realpath fails
+  }
+  return { isEscape: false };
+}
+
+/**
  * Checks if a target path is contained within declared allowed paths.
  *
  * @param {string} targetPath
@@ -51,18 +93,9 @@ function isPathContained(targetPath, allowedPaths, workspaceRoot) {
 
   // If workspaceRoot is provided, verify symlinks do not escape root
   if (workspaceRoot && typeof workspaceRoot === "string") {
-    try {
-      const absRoot = path.resolve(workspaceRoot);
-      const absTarget = path.resolve(absRoot, targetPath);
-      const realRoot = fs.realpathSync(absRoot);
-      if (fs.existsSync(absTarget)) {
-        const realTarget = fs.realpathSync(absTarget);
-        if (!realTarget.startsWith(realRoot + path.sep) && realTarget !== realRoot) {
-          return false; // Symlink escape
-        }
-      }
-    } catch {
-      // If path resolution fails, fall back to declarative check
+    const escapeCheck = checkSymlinkEscape(targetPath, workspaceRoot);
+    if (escapeCheck.isEscape) {
+      return false;
     }
   }
 
@@ -102,9 +135,9 @@ function isPathContained(targetPath, allowedPaths, workspaceRoot) {
 }
 
 /**
- * Validates target paths against allowed paths, emitting a structured containment violation on boundary failures.
+ * Validates target paths or mutation deltas against allowed paths, emitting a structured containment violation on boundary failures.
  *
- * @param {string[]} targetPaths
+ * @param {string[]|{ created?: string[], modified?: string[], deleted?: string[], allMutations?: string[] }} targetPaths
  * @param {string[]} allowedPaths
  * @param {Object} [options]
  * @param {string} [options.workspaceRoot]
@@ -130,11 +163,21 @@ function validateAllowedPaths(targetPaths, allowedPaths, options = {}) {
     };
   }
 
-  if (!Array.isArray(targetPaths)) {
+  let pathList = [];
+  if (Array.isArray(targetPaths)) {
+    pathList = targetPaths;
+  } else if (targetPaths && typeof targetPaths === "object") {
+    const set = new Set();
+    if (Array.isArray(targetPaths.created)) targetPaths.created.forEach(p => set.add(p));
+    if (Array.isArray(targetPaths.modified)) targetPaths.modified.forEach(p => set.add(p));
+    if (Array.isArray(targetPaths.deleted)) targetPaths.deleted.forEach(p => set.add(p));
+    if (Array.isArray(targetPaths.allMutations)) targetPaths.allMutations.forEach(p => set.add(p));
+    pathList = Array.from(set);
+  } else {
     return { ok: false, violation: makeViolation("", "undeclared_write") };
   }
 
-  for (const target of targetPaths) {
+  for (const target of pathList) {
     if (typeof target !== "string" || !target.trim()) {
       return { ok: false, violation: makeViolation(String(target), "traversal") };
     }
@@ -144,23 +187,11 @@ function validateAllowedPaths(targetPaths, allowedPaths, options = {}) {
       return { ok: false, violation: makeViolation(target, "traversal") };
     }
 
-    // Check for symlink escapes if workspaceRoot is present and target exists
+    // Check for symlink escapes across intermediate non-instantiated hierarchies
     if (workspaceRoot && typeof workspaceRoot === "string") {
-      try {
-        const absRoot = path.resolve(workspaceRoot);
-        const absTarget = path.resolve(absRoot, target);
-        if (fs.existsSync(absTarget)) {
-          const lstat = fs.lstatSync(absTarget);
-          if (lstat.isSymbolicLink()) {
-            const realTarget = fs.realpathSync(absTarget);
-            const realRoot = fs.realpathSync(absRoot);
-            if (!realTarget.startsWith(realRoot + path.sep) && realTarget !== realRoot) {
-              return { ok: false, violation: makeViolation(target, "symlink_escape") };
-            }
-          }
-        }
-      } catch {
-        // If filesystem probe fails, fallback to containment check
+      const escapeCheck = checkSymlinkEscape(target, workspaceRoot);
+      if (escapeCheck.isEscape) {
+        return { ok: false, violation: makeViolation(target, "symlink_escape") };
       }
     }
 
@@ -173,6 +204,7 @@ function validateAllowedPaths(targetPaths, allowedPaths, options = {}) {
 }
 
 module.exports = {
+  checkSymlinkEscape,
   isPathContained,
   validateAllowedPaths,
   normalizeRelativePath,

@@ -1,0 +1,64 @@
+change: "k6a-contract-runtime-integration-remediation"
+status: "archived"
+last_updated: "2026-08-23T14:52:00Z"
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k6a-contract-runtime-integration-remediation/proposal.md"
+    summary: "Remediación de integración de contratos canónicos K3/K4a/K2a en K6a (worker-isolation)."
+    key_decisions:
+      - "Desacoplar WorkOrder dependencies (DAG SHA-256) de inputs de materialización."
+      - "Adoptar computeWorkResultId canónico y WorkerTransport async con AbortSignal."
+      - "Calcular deltas de mutación sobre baselineInventory y generar unified diff real."
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k6a-contract-runtime-integration-remediation/specs/worker-isolation/spec.md"
+      - "openspec/changes/k6a-contract-runtime-integration-remediation/specs/kernel-contract-schemas/spec.md"
+      - "openspec/changes/k6a-contract-runtime-integration-remediation/specs/contract-lint/spec.md"
+      - "openspec/changes/k6a-contract-runtime-integration-remediation/specs/lifecycle-model-conformance/spec.md"
+    summary: "Especificaciones delta para contratos canónicos K3/K4a, WorkerTransport async, delta de inventario y lint."
+    key_decisions:
+      - "Desacoplar capsule_inputs de dependencias de grafo WorkOrderId."
+      - "Validar allowed_paths sobre mutation delta vs baselineInventory."
+      - "Integrar WorkerTransport asíncrono con AbortSignal y WorkResultId canónico."
+  design:
+    status: "done"
+    artifact: "openspec/changes/k6a-contract-runtime-integration-remediation/design.md"
+    summary: "Diseño de materialización canónica, WorkResultId con execution-identities, WorkerTransport async, delta de inventario y registro privado."
+    key_decisions:
+      - "Desacoplar capsule_inputs de WorkOrder dependencies y consumir SourceSnapshot v1 canónico."
+      - "Delegar computeWorkResultId en execution-identities y conectar con WorkerTransport async."
+      - "Validar allowed_paths sobre mutation delta vs baselineInventory y generar unified diff real."
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k6a-contract-runtime-integration-remediation/tasks.md"
+    summary: "Plan de 7 fases con Strict TDD cubriendo reconciliación 100% MUST, schemas, 3 módulos runtime, linter, modelo y composición E2E."
+    key_decisions:
+      - "Estructurar 26 tareas atómicas organizadas en ciclo RED -> GREEN -> REFACTOR."
+      - "Pronosticar 450-650 líneas bajo excepción size:exception aprobada."
+  apply:
+    status: "done"
+    artifact: "openspec/changes/k6a-contract-runtime-integration-remediation/apply-progress.md"
+    summary: "Implementación completa de las 7 fases bajo Strict TDD. Todos los 1,846 tests pasan sin regresiones."
+    key_decisions:
+      - "Registro privado Map para aislamiento de ciclo de vida de workspaces."
+      - "Materialización canónica por capsule_inputs desacoplada de dependencias DAG."
+      - "WorkerTransport asíncrono, capability proofs y resolución criptográfica canónica."
+      - "Cálculo de delta de mutación vs baselineInventory y generación de diff unified."
+  verify:
+    status: "done"
+    verdict: "PASS"
+    artifact: "openspec/changes/k6a-contract-runtime-integration-remediation/verify-report.md"
+    summary: "Verificación 100% PASS: 20/20 escenarios normativos, 26 tareas Strict TDD y 2,472 tests pasando sin regresiones."
+    key_decisions:
+      - "Validación formal de los 6 invariantes K6a y checkers de contract-lint."
+      - "Comprobación de composición canónica E2E K3 -> K4a -> K6a -> K3."
+  archive:
+    status: "done"
+    artifact: "openspec/changes/k6a-contract-runtime-integration-remediation/archive-report.md"
+    summary: "Plan-and-Report emitido: 4 prepared specs, 5 ADRs promovidos, plan validado para runner transaccional."
+    key_decisions:
+      - "Preparar 4 specs mergeadas en prepared-specs/ con hashes exactos."
+      - "Promover 5 ADRs a docs/adr/ comenzando en sufijo 007."

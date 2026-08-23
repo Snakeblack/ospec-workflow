@@ -33,6 +33,23 @@ function sha256(content) {
 }
 
 /**
+ * Private in-memory workspace registry tracking active workspaces.
+ * Map<workspace_id, { descriptor: Object, rootPath: string, baselineInventory: Array, createdAt: number }>
+ */
+const workspaceRegistry = new Map();
+
+/**
+ * Returns internal workspace record for a workspace ID if tracked.
+ *
+ * @param {string} workspaceId
+ * @returns {Object|null}
+ */
+function getWorkspaceRecord(workspaceId) {
+  if (!workspaceId || typeof workspaceId !== "string") return null;
+  return workspaceRegistry.get(workspaceId) || null;
+}
+
+/**
  * Creates a fresh isolated workspace directory and returns its descriptor.
  *
  * @param {Object} [options]
@@ -64,36 +81,56 @@ async function createWorkspace(options = {}) {
     created_at: new Date().toISOString(),
   };
 
+  const initialInventory = await inspectWorkspace({ root_path: rootPath });
+
+  workspaceRegistry.set(workspaceId, {
+    descriptor,
+    rootPath,
+    baselineInventory: initialInventory,
+    createdAt: Date.now(),
+  });
+
   return descriptor;
 }
 
 /**
- * Idempotently cleans up an allocated workspace directory.
+ * Idempotently cleans up an allocated workspace directory resolved strictly from the private registry.
  *
- * @param {Object} workspaceDescriptor
+ * @param {Object|string} workspaceDescriptorOrId
  * @returns {Promise<{ ok: boolean, workspace_id: string, status: string }>}
  */
-async function disposeWorkspace(workspaceDescriptor) {
-  if (workspaceDescriptor && workspaceDescriptor.root_path) {
+async function disposeWorkspace(workspaceDescriptorOrId) {
+  const workspaceId =
+    typeof workspaceDescriptorOrId === "string"
+      ? workspaceDescriptorOrId
+      : (workspaceDescriptorOrId && workspaceDescriptorOrId.workspace_id);
+
+  if (workspaceId && workspaceRegistry.has(workspaceId)) {
+    const record = workspaceRegistry.get(workspaceId);
     try {
-      if (fs.existsSync(workspaceDescriptor.root_path)) {
-        fs.rmSync(workspaceDescriptor.root_path, { recursive: true, force: true });
+      if (fs.existsSync(record.rootPath)) {
+        fs.rmSync(record.rootPath, { recursive: true, force: true });
       }
     } catch {
       // Cleanup best-effort
     }
-    workspaceDescriptor.status = "disposed";
+    record.descriptor.status = "disposed";
+    workspaceRegistry.delete(workspaceId);
+  }
+
+  if (workspaceDescriptorOrId && typeof workspaceDescriptorOrId === "object") {
+    workspaceDescriptorOrId.status = "disposed";
   }
 
   return {
     ok: true,
-    workspace_id: workspaceDescriptor ? workspaceDescriptor.workspace_id : "",
+    workspace_id: workspaceId || "",
     status: "disposed",
   };
 }
 
 /**
- * Materializes declared dependencies into the workspace and calculates deterministic fingerprint.
+ * Materializes declared inputs into the workspace and calculates deterministic fingerprint.
  *
  * @param {Object} workspaceDescriptor
  * @param {Object} workOrder
@@ -102,62 +139,104 @@ async function disposeWorkspace(workspaceDescriptor) {
  * @returns {Promise<Object>}
  */
 async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceSnapshot, options = {}) {
-  const rootPath = workspaceDescriptor.root_path;
+  const workspaceId = workspaceDescriptor ? workspaceDescriptor.workspace_id : "";
+  const record = workspaceRegistry.get(workspaceId);
+  const rootPath = (record && record.rootPath) || (workspaceDescriptor && workspaceDescriptor.root_path);
+
+  if (!rootPath) {
+    throw new Error("Cannot materialize into workspace: missing workspace root path");
+  }
+
   const dependencies = Array.isArray(workOrder.dependencies) ? workOrder.dependencies : [];
   const allowedPaths = Array.isArray(workOrder.allowed_paths) ? workOrder.allowed_paths : ["**"];
   const environment = workOrder.environment || options.environment || {};
 
-  const snapshotFiles = sourceSnapshot && (sourceSnapshot.files || sourceSnapshot);
+  // Resolve capsule inputs
+  let declaredInputs = [];
+  if (Array.isArray(options.capsule_inputs)) {
+    declaredInputs = options.capsule_inputs;
+  } else if (Array.isArray(workOrder.capsule_inputs)) {
+    declaredInputs = workOrder.capsule_inputs;
+  } else if (Array.isArray(options.inputs)) {
+    declaredInputs = options.inputs;
+  } else if (dependencies.length > 0 && !dependencies.some((d) => typeof d === "string" && d.startsWith("sha256:"))) {
+    // Legacy support where dependencies were file paths
+    declaredInputs = dependencies;
+  }
+
+  const filesSource = options.files || (sourceSnapshot && sourceSnapshot.files);
+  const resolveFileFn = typeof options.resolveFile === "function" ? options.resolveFile : null;
+  const repositoryDir = options.repositoryDir || options.repositoryPath;
+
   const materializedList = [];
 
-  for (const depPath of dependencies) {
-    const normalizedDep = normalizeRelativePath(depPath);
-    if (!normalizedDep) {
-      throw new Error(`Invalid dependency path or traversal attempt: ${depPath}`);
+  for (const inputPath of declaredInputs) {
+    const normalizedInput = normalizeRelativePath(inputPath);
+    if (!normalizedInput) {
+      throw new Error(`Invalid capsule input path or traversal attempt: ${inputPath}`);
     }
 
     let content = null;
-    if (snapshotFiles && typeof snapshotFiles === "object") {
-      if (typeof snapshotFiles[depPath] === "string" || Buffer.isBuffer(snapshotFiles[depPath])) {
-        content = snapshotFiles[depPath];
-      } else if (typeof snapshotFiles[normalizedDep] === "string" || Buffer.isBuffer(snapshotFiles[normalizedDep])) {
-        content = snapshotFiles[normalizedDep];
-      } else if (Array.isArray(snapshotFiles)) {
-        const found = snapshotFiles.find((f) => f && (f.path === depPath || f.path === normalizedDep));
+
+    if (resolveFileFn) {
+      content = resolveFileFn(normalizedInput);
+    } else if (filesSource && typeof filesSource === "object") {
+      if (typeof filesSource[inputPath] === "string" || Buffer.isBuffer(filesSource[inputPath])) {
+        content = filesSource[inputPath];
+      } else if (typeof filesSource[normalizedInput] === "string" || Buffer.isBuffer(filesSource[normalizedInput])) {
+        content = filesSource[normalizedInput];
+      } else if (Array.isArray(filesSource)) {
+        const found = filesSource.find((f) => f && (f.path === inputPath || f.path === normalizedInput));
         if (found) content = found.content;
+      }
+    } else if (repositoryDir && typeof repositoryDir === "string") {
+      const srcFile = path.resolve(repositoryDir, normalizedInput);
+      if (fs.existsSync(srcFile)) {
+        content = fs.readFileSync(srcFile);
       }
     }
 
-    if (content !== null) {
-      const destPath = path.join(rootPath, normalizedDep);
-      fs.mkdirSync(path.dirname(destPath), { recursive: true });
-      fs.writeFileSync(destPath, content);
-      materializedList.push({
-        path: normalizedDep,
-        digest: sha256(content),
-      });
+    if (content === null || content === undefined) {
+      throw new Error(`Missing required capsule input file: ${inputPath}`);
     }
+
+    const destPath = path.join(rootPath, normalizedInput);
+    fs.mkdirSync(path.dirname(destPath), { recursive: true });
+    fs.writeFileSync(destPath, content);
+    materializedList.push({
+      path: normalizedInput,
+      digest: sha256(content),
+    });
   }
 
   materializedList.sort((a, b) => a.path.localeCompare(b.path));
-  const sortedDeps = [...dependencies].map((d) => d.replace(/\\/g, "/")).sort();
+  const sortedInputs = [...new Set(materializedList.map((f) => f.path))].sort();
+  const sortedDeps = [...dependencies].map((d) => String(d).replace(/\\/g, "/")).sort();
 
   const fingerprintPayload = JSON.stringify({
+    capsule_inputs: sortedInputs,
     dependencies: sortedDeps,
     files: materializedList,
-    source_snapshot_id: sourceSnapshot.source_snapshot_id || workspaceDescriptor.source_snapshot_id,
+    source_snapshot_id: (sourceSnapshot && sourceSnapshot.source_snapshot_id) || (workspaceDescriptor && workspaceDescriptor.source_snapshot_id),
   });
 
   const fingerprint = sha256(fingerprintPayload);
   const uuid = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 10);
   const capsuleId = `capsule-${uuid}`;
 
+  // Update baseline inventory after materialization
+  const currentInventory = await inspectWorkspace({ root_path: rootPath });
+  if (record) {
+    record.baselineInventory = currentInventory;
+  }
+
   const capsule = {
     schema_version: 1,
     capsule_id: capsuleId,
     fingerprint,
-    source_snapshot_id: sourceSnapshot.source_snapshot_id || workspaceDescriptor.source_snapshot_id,
+    source_snapshot_id: (sourceSnapshot && sourceSnapshot.source_snapshot_id) || (workspaceDescriptor && workspaceDescriptor.source_snapshot_id),
     dependencies,
+    capsule_inputs: sortedInputs,
     allowed_paths: allowedPaths,
     environment,
   };
@@ -172,7 +251,8 @@ async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceS
  * @returns {Promise<Array<{ path: string, sha256: string, mode: number }>>}
  */
 async function inspectWorkspace(workspaceDescriptor) {
-  const rootPath = workspaceDescriptor.root_path;
+  const rootPath = workspaceDescriptor ? workspaceDescriptor.root_path : null;
+  if (!rootPath || !fs.existsSync(rootPath)) return [];
   const inventory = [];
 
   function scanDir(currentDir, relPrefix) {
@@ -209,5 +289,6 @@ module.exports = {
   disposeWorkspace,
   materializeSourceSnapshot,
   inspectWorkspace,
+  getWorkspaceRecord,
   sha256,
 };

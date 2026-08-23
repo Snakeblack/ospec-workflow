@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "work_result_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "work_result_id": "sha256:f75623abca9069464d521283a6ecd512fa47a7a6f4f25de1df32387f8947002b",
   "work_order_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
   "source_snapshot_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "patch": "--- a/src/index.js\n+++ b/src/index.js\n@@ -1 +1 @@\n-old\n+new\n",

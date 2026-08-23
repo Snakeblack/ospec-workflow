@@ -21,7 +21,7 @@ function markdownFiles(dir = ROOT, acc = []) {
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
   } catch (err) {
-    if (err.code === "ENOENT") return acc;
+    if (err.code === "ENOENT" || err.code === "EPERM" || err.code === "EACCES") return acc;
     throw err;
   }
   for (const entry of entries) {
