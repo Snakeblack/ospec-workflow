@@ -34,15 +34,17 @@ function normalizeRelativePath(p) {
 
 /**
  * Inspects all existing ancestor directories of targetPath to ensure no symlinks escape workspaceRoot.
+ * FAILS CLOSED: Returns isEscape = true on any fs.realpathSync error or filesystem exception.
  *
  * @param {string} targetPath
  * @param {string} workspaceRoot
- * @returns {{ isEscape: boolean, offendingPath?: string }}
+ * @returns {{ isEscape: boolean, offendingPath?: string, error?: string }}
  */
 function checkSymlinkEscape(targetPath, workspaceRoot) {
   if (!workspaceRoot || typeof workspaceRoot !== "string") {
     return { isEscape: false };
   }
+  let currentRelative = "";
   try {
     const absRoot = path.resolve(workspaceRoot);
     const realRoot = fs.realpathSync(absRoot);
@@ -50,11 +52,16 @@ function checkSymlinkEscape(targetPath, workspaceRoot) {
     if (!normalized) return { isEscape: false };
 
     const segments = normalized.split("/");
-    let currentRelative = "";
     for (const segment of segments) {
       currentRelative = currentRelative ? `${currentRelative}/${segment}` : segment;
       const currentAbs = path.resolve(absRoot, currentRelative);
-      if (fs.existsSync(currentAbs)) {
+      let exists = false;
+      try {
+        exists = fs.existsSync(currentAbs);
+      } catch (err) {
+        return { isEscape: true, offendingPath: currentRelative, error: err.message };
+      }
+      if (exists) {
         try {
           const lstat = fs.lstatSync(currentAbs);
           if (lstat.isSymbolicLink()) {
@@ -62,14 +69,19 @@ function checkSymlinkEscape(targetPath, workspaceRoot) {
             if (!realPath.startsWith(realRoot + path.sep) && realPath !== realRoot) {
               return { isEscape: true, offendingPath: currentRelative };
             }
+          } else if (lstat.isDirectory()) {
+            const realPath = fs.realpathSync(currentAbs);
+            if (!realPath.startsWith(realRoot + path.sep) && realPath !== realRoot) {
+              return { isEscape: true, offendingPath: currentRelative };
+            }
           }
-        } catch {
-          // ignore stat errors on intermediate checks
+        } catch (err) {
+          return { isEscape: true, offendingPath: currentRelative, error: err.message };
         }
       }
     }
-  } catch {
-    // If root does not exist or realpath fails
+  } catch (err) {
+    return { isEscape: true, offendingPath: currentRelative || targetPath, error: err.message };
   }
   return { isEscape: false };
 }

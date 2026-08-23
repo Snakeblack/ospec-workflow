@@ -53,6 +53,53 @@ test("k6a-canonical-contracts: reports offender if work-result fixture contains 
   assert.ok(offenders.some((o) => o.checker === "k6a-canonical-contracts" && o.message.includes("candidate_id")));
 });
 
+test("k6a-canonical-contracts: reports offender if source-snapshot payload defines synthetic .files property", () => {
+  const badSnapshot = {
+    schema_version: 1,
+    source_snapshot_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    repository_id: "repo-test",
+    base_tree_digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+    projection: "workspace",
+    files: { "src/index.js": "console.log(1);" },
+  };
+
+  const offenders = checkCanonicalContracts({
+    root: ROOT,
+    payloads: [
+      {
+        path: "schemas/kernel/source-snapshot/fixtures/valid/bad-snapshot.json",
+        data: badSnapshot,
+      },
+    ],
+  });
+
+  assert.ok(offenders.length >= 1, "Must report offender for synthetic .files on SourceSnapshot");
+  assert.ok(offenders.some((o) => o.checker === "k6a-canonical-contracts" && o.message.includes(".files")));
+});
+
+test("k6a-canonical-contracts: reports offender if work-order payload has non-SHA256 dependencies", () => {
+  const badWorkOrder = {
+    schema_version: 2,
+    work_order_id: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    source_snapshot_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    dependencies: ["src/legacy-path.js"],
+    allowed_paths: ["src/**"],
+  };
+
+  const offenders = checkCanonicalContracts({
+    root: ROOT,
+    payloads: [
+      {
+        path: "schemas/kernel/work-order/fixtures/valid/bad-wo.json",
+        data: badWorkOrder,
+      },
+    ],
+  });
+
+  assert.ok(offenders.length >= 1, "Must report offender for non-SHA-256 dependencies on WorkOrder");
+  assert.ok(offenders.some((o) => o.checker === "k6a-canonical-contracts" && o.message.includes("dependencies")));
+});
+
 test("k6a-canonical-contracts: reports zero offenders on clean repository", () => {
   const offenders = checkCanonicalContracts({ root: ROOT });
   assert.deepEqual(offenders, []);

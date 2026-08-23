@@ -34,29 +34,38 @@ function sha256(content) {
 
 /**
  * Private in-memory workspace registry tracking active workspaces.
- * Map<workspace_id, { descriptor: Object, rootPath: string, baselineInventory: Array, createdAt: number }>
+ * Map<workspace_id, { descriptor: Object, rootPath: string, baselineInventory: Array, baselineContents: Map<string, string>, createdAt: number }>
  */
 const workspaceRegistry = new Map();
 
 /**
  * Returns internal workspace record for a workspace ID if tracked.
+ * Returns a defensive copy to prevent external mutation of internal registry.
  *
  * @param {string} workspaceId
  * @returns {Object|null}
  */
 function getWorkspaceRecord(workspaceId) {
   if (!workspaceId || typeof workspaceId !== "string") return null;
-  return workspaceRegistry.get(workspaceId) || null;
+  const record = workspaceRegistry.get(workspaceId);
+  if (!record) return null;
+  return {
+    descriptor: { ...record.descriptor },
+    rootPath: record.rootPath,
+    baselineInventory: record.baselineInventory ? record.baselineInventory.map((item) => ({ ...item })) : [],
+    baselineContents: record.baselineContents ? new Map(record.baselineContents) : new Map(),
+    createdAt: record.createdAt,
+  };
 }
 
 /**
  * Creates a fresh isolated workspace directory and returns its descriptor.
+ * Always generates an internal UUID, ignoring any caller-supplied workspace_id.
  *
  * @param {Object} [options]
  * @param {string} [options.baseDir]
  * @param {string} [options.source_snapshot_id]
  * @param {string} [options.sourceSnapshotId]
- * @param {string} [options.workspace_id]
  * @returns {Promise<Object>}
  */
 async function createWorkspace(options = {}) {
@@ -66,7 +75,7 @@ async function createWorkspace(options = {}) {
     "sha256:0000000000000000000000000000000000000000000000000000000000000000";
 
   const uuid = crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + "-" + Math.random().toString(36).slice(2));
-  const workspaceId = options.workspace_id || `ws-${uuid}`;
+  const workspaceId = `ws-${uuid}`;
   const baseDir = options.baseDir || path.join(os.tmpdir(), "ospec-workspaces");
   const rootPath = path.resolve(baseDir, workspaceId);
 
@@ -87,6 +96,7 @@ async function createWorkspace(options = {}) {
     descriptor,
     rootPath,
     baselineInventory: initialInventory,
+    baselineContents: new Map(),
     createdAt: Date.now(),
   });
 
@@ -131,6 +141,8 @@ async function disposeWorkspace(workspaceDescriptorOrId) {
 
 /**
  * Materializes declared inputs into the workspace and calculates deterministic fingerprint.
+ * FAILS CLOSED (throws) if workspaceDescriptor.workspace_id is not found in private registry.
+ * Preserves baseline file contents in workspace record for subsequent diff generation.
  *
  * @param {Object} workspaceDescriptor
  * @param {Object} workOrder
@@ -141,17 +153,17 @@ async function disposeWorkspace(workspaceDescriptorOrId) {
 async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceSnapshot, options = {}) {
   const workspaceId = workspaceDescriptor ? workspaceDescriptor.workspace_id : "";
   const record = workspaceRegistry.get(workspaceId);
-  const rootPath = (record && record.rootPath) || (workspaceDescriptor && workspaceDescriptor.root_path);
 
-  if (!rootPath) {
-    throw new Error("Cannot materialize into workspace: missing workspace root path");
+  if (!record || !record.rootPath) {
+    throw new Error(`Cannot materialize into unrecorded workspace: ${workspaceId || "missing"}`);
   }
 
+  const rootPath = record.rootPath;
   const dependencies = Array.isArray(workOrder.dependencies) ? workOrder.dependencies : [];
   const allowedPaths = Array.isArray(workOrder.allowed_paths) ? workOrder.allowed_paths : ["**"];
   const environment = workOrder.environment || options.environment || {};
 
-  // Resolve capsule inputs
+  // Resolve capsule inputs strictly from declared capsule_inputs or inputs options
   let declaredInputs = [];
   if (Array.isArray(options.capsule_inputs)) {
     declaredInputs = options.capsule_inputs;
@@ -159,16 +171,16 @@ async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceS
     declaredInputs = workOrder.capsule_inputs;
   } else if (Array.isArray(options.inputs)) {
     declaredInputs = options.inputs;
-  } else if (dependencies.length > 0 && !dependencies.some((d) => typeof d === "string" && d.startsWith("sha256:"))) {
-    // Legacy support where dependencies were file paths
-    declaredInputs = dependencies;
   }
 
-  const filesSource = options.files || (sourceSnapshot && sourceSnapshot.files);
+  const filesSource = options.files;
   const resolveFileFn = typeof options.resolveFile === "function" ? options.resolveFile : null;
   const repositoryDir = options.repositoryDir || options.repositoryPath;
 
   const materializedList = [];
+  if (!record.baselineContents) {
+    record.baselineContents = new Map();
+  }
 
   for (const inputPath of declaredInputs) {
     const normalizedInput = normalizeRelativePath(inputPath);
@@ -203,6 +215,10 @@ async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceS
     const destPath = path.join(rootPath, normalizedInput);
     fs.mkdirSync(path.dirname(destPath), { recursive: true });
     fs.writeFileSync(destPath, content);
+
+    const textContent = typeof content === "string" ? content : content.toString("utf8");
+    record.baselineContents.set(normalizedInput, textContent);
+
     materializedList.push({
       path: normalizedInput,
       digest: sha256(content),
@@ -226,9 +242,7 @@ async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceS
 
   // Update baseline inventory after materialization
   const currentInventory = await inspectWorkspace({ root_path: rootPath });
-  if (record) {
-    record.baselineInventory = currentInventory;
-  }
+  record.baselineInventory = currentInventory;
 
   const capsule = {
     schema_version: 1,

@@ -13,6 +13,7 @@ const {
   recoverInterruptedExecution,
   validateWorkResultBinding,
   computeWorkResultId,
+  generateUnifiedDiff,
 } = require("./worker-executor.js");
 
 const { computeWorkOrderId, computeWorkResultId: canonicalComputeWorkResultId } = require("./execution-identities/index.js");
@@ -21,6 +22,53 @@ const { createEvidenceDigest, createProbeDigest } = require("./capability-proof/
 const ROOT = path.resolve(__dirname, "..", "..");
 const DUMMY_SNAPSHOT_ID = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const DUMMY_WORK_ORDER_ID = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+
+test("generateUnifiedDiff: generates standard applicable diff hunks comparing modified file against baselineContents", (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-diff-mod-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const filePath = path.join(baseDir, "src", "hello.js");
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, "function hello() {\n  return 2;\n}\n");
+
+  const baselineInventory = [{ path: "src/hello.js", sha256: "sha256:old-hash", mode: 420 }];
+  const postInventory = [{ path: "src/hello.js", sha256: "sha256:new-hash", mode: 420 }];
+  const baselineContents = new Map([
+    ["src/hello.js", "function hello() {\n  return 1;\n}\n"],
+  ]);
+
+  const patch = generateUnifiedDiff(baseDir, baselineInventory, postInventory, baselineContents);
+
+  assert.ok(patch.includes("--- a/src/hello.js"), "Must include standard --- a/ header");
+  assert.ok(patch.includes("+++ b/src/hello.js"), "Must include standard +++ b/ header");
+  assert.match(patch, /@@ -\d+(,\d+)? \+\d+(,\d+)? @@/);
+  assert.ok(patch.includes("-  return 1;"), "Must include exact baseline line deletion");
+  assert.ok(patch.includes("+  return 2;"), "Must include exact post line addition");
+  assert.equal(patch.includes("-old"), false, "Must NOT contain synthetic -old");
+  assert.equal(patch.includes("+new"), false, "Must NOT contain synthetic +new");
+});
+
+test("generateUnifiedDiff: uses standard headers for created and deleted files", (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-diff-create-del-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const createdFile = path.join(baseDir, "created.txt");
+  fs.writeFileSync(createdFile, "first created line\nsecond line\n");
+
+  const baselineInventory = [{ path: "deleted.txt", sha256: "sha256:del-hash", mode: 420 }];
+  const postInventory = [{ path: "created.txt", sha256: "sha256:create-hash", mode: 420 }];
+  const baselineContents = new Map([
+    ["deleted.txt", "deleted line one\ndeleted line two\n"],
+  ]);
+
+  const patch = generateUnifiedDiff(baseDir, baselineInventory, postInventory, baselineContents);
+
+  // Created file headers & content
+  assert.ok(patch.includes("--- /dev/null\n+++ b/created.txt\n@@ -0,0 +1,2 @@\n+first created line\n+second line\n"));
+  // Deleted file headers & content
+  assert.ok(patch.includes("--- a/deleted.txt\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-deleted line one\n-deleted line two\n"));
+  assert.equal(patch.includes("-deleted\n"), false, "Must not contain synthetic -deleted placeholder");
+});
 
 test("executeWorkOrder: executes via WorkerTransport async port when provided", async (t) => {
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-exec-transport-"));
@@ -85,7 +133,7 @@ test("executeWorkOrder: executes command in workspace and captures WorkResult te
     workspace: ws,
     command: process.execPath,
     args: ["-e", "const fs = require('fs'); fs.mkdirSync('output', {recursive: true}); fs.writeFileSync('output/result.txt', 'hello'); console.log('done');"],
-    isolationCapability: "enforced",
+    isolationCapability: "partial",
   });
 
   assert.equal(result.ok, true);
@@ -180,11 +228,23 @@ test("executeWorkOrder: enforces capability proof before reporting enforced isol
     probe_digest,
   };
 
-  const resWithProof = await executeWorkOrder({
+  // Enforced with verified capability state and verified WorkerTransport port
+  const mockEnforcedTransport = {
+    port_id: "port-enforced-worker",
+    kind: "worker-transport",
+    run: async () => ({
+      ok: true,
+      exit_code: 0,
+      stdout: "with proof and transport\n",
+      stderr: "",
+    }),
+  };
+
+  const resWithProofAndTransport = await executeWorkOrder({
     workOrder,
     workspace: ws,
-    command: process.execPath,
-    args: ["-e", "console.log('with proof');"],
+    transports: { worker: mockEnforcedTransport },
+    command: "runner",
     isolationCapability: "enforced",
     capabilityProof,
     semantic_evidence: evidence,
@@ -193,7 +253,64 @@ test("executeWorkOrder: enforces capability proof before reporting enforced isol
     expectedHostRuntimeVersion: "1.0.0",
     expectedProbeDigest: probe_digest,
   });
-  assert.equal(resWithProof.isolationReported, "enforced");
+  assert.equal(resWithProofAndTransport.isolationReported, "enforced");
+  assert.equal(resWithProofAndTransport.ok, true);
+
+  // Enforced with proof but MISSING WorkerTransport must fail closed
+  const resMissingTransport = await executeWorkOrder({
+    workOrder,
+    workspace: ws,
+    command: process.execPath,
+    args: ["-e", "console.log('missing transport');"],
+    isolationCapability: "enforced",
+    capabilityProof,
+    semantic_evidence: evidence,
+    expectedAdapterId: "adapter-test",
+    expectedAdapterVersion: "1.0.0",
+    expectedHostRuntimeVersion: "1.0.0",
+    expectedProbeDigest: probe_digest,
+  });
+  assert.equal(resMissingTransport.ok, false, "Must fail closed when enforced requested without WorkerTransport");
+  assert.notEqual(resMissingTransport.isolationReported, "enforced");
+});
+
+test("executeWorkOrder: passes signal and deadlineMs to invokeTransportAsync with canonical 2-arg signature", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-exec-2arg-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  t.after(() => disposeWorkspace(ws));
+
+  let receivedRequest = null;
+  const mockTransport = {
+    port_id: "port-mock",
+    invoke: async (request) => {
+      receivedRequest = request;
+      return { ok: true, exit_code: 0, stdout: "ok", stderr: "" };
+    },
+  };
+
+  const workOrder = {
+    work_order_id: DUMMY_WORK_ORDER_ID,
+    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+    allowed_paths: ["**"],
+  };
+
+  const controller = new AbortController();
+
+  await executeWorkOrder({
+    workOrder,
+    workspace: ws,
+    transports: { worker: mockTransport },
+    command: "check-tool",
+    args: ["--flag"],
+    signal: controller.signal,
+    budget: { wall_time_ms: 12000 },
+  });
+
+  assert.ok(receivedRequest, "Transport must receive request object");
+  assert.equal(receivedRequest.command, "check-tool");
+  assert.deepEqual(receivedRequest.args, ["--flag"]);
 });
 
 test("executeWorkOrder: handles host capability fallback without silent promotion", async (t) => {

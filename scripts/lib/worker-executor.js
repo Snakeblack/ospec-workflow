@@ -46,16 +46,82 @@ function computeMutationDelta(baselineInventory = [], postInventory = []) {
 }
 
 /**
- * Generates an applicable unified diff patch representing exact modifications.
+ * Splits text into an array of lines without carriage returns and removes trailing empty line.
+ *
+ * @param {string|Buffer} text
+ * @returns {string[]}
+ */
+function splitLines(text) {
+  if (text === null || text === undefined) return [];
+  const normalized = String(text).replace(/\r\n/g, "\n");
+  if (normalized === "") return [];
+  const lines = normalized.split("\n");
+  if (lines.length > 0 && lines[lines.length - 1] === "") {
+    lines.pop();
+  }
+  return lines;
+}
+
+/**
+ * Computes longest common subsequence line-by-line diff edits.
+ *
+ * @param {string[]} oldLines
+ * @param {string[]} newLines
+ * @returns {Array<{ type: "keep"|"delete"|"insert", line: string }>}
+ */
+function computeLineDiff(oldLines, newLines) {
+  const m = oldLines.length;
+  const n = newLines.length;
+
+  const dp = Array.from({ length: m + 1 }, () => new Uint32Array(n + 1));
+  for (let i = 0; i < m; i++) {
+    for (let j = 0; j < n; j++) {
+      if (oldLines[i] === newLines[j]) {
+        dp[i + 1][j + 1] = dp[i][j] + 1;
+      } else {
+        dp[i + 1][j + 1] = Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+  }
+
+  let i = m;
+  let j = n;
+  const edits = [];
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+      edits.push({ type: "keep", line: oldLines[i - 1] });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      edits.push({ type: "insert", line: newLines[j - 1] });
+      j--;
+    } else if (i > 0 && (j === 0 || dp[i][j - 1] < dp[i - 1][j])) {
+      edits.push({ type: "delete", line: oldLines[i - 1] });
+      i--;
+    }
+  }
+  edits.reverse();
+  return edits;
+}
+
+/**
+ * Generates an applicable standard unified diff patch representing exact modifications.
  *
  * @param {string} workspaceRoot
  * @param {Array} baselineInventory
  * @param {Array} postInventory
+ * @param {Map<string, string>|Object} [baselineContents]
  * @returns {string}
  */
-function generateUnifiedDiff(workspaceRoot, baselineInventory = [], postInventory = []) {
+function generateUnifiedDiff(workspaceRoot, baselineInventory = [], postInventory = [], baselineContents = new Map()) {
   const baselineMap = new Map((baselineInventory || []).map((f) => [f.path, f]));
   const postMap = new Map((postInventory || []).map((f) => [f.path, f]));
+  const contentsMap =
+    baselineContents instanceof Map
+      ? baselineContents
+      : (baselineContents && typeof baselineContents === "object"
+          ? new Map(Object.entries(baselineContents))
+          : new Map());
 
   const chunks = [];
 
@@ -72,25 +138,31 @@ function generateUnifiedDiff(workspaceRoot, baselineInventory = [], postInventor
     }
 
     if (!baselineMap.has(p)) {
-      // Created
-      const lines = newContent ? newContent.replace(/\r\n/g, "\n").split("\n") : [];
-      if (lines.length > 0 && lines[lines.length - 1] === "") {
-        lines.pop();
-      }
-      const lineCount = lines.length;
-      const header = `--- /dev/null\n+++ b/${p}\n@@ -0,0 +1,${lineCount} @@\n`;
-      const body = lines.map((l) => `+${l}`).join("\n") + "\n";
+      // Created file
+      const lines = splitLines(newContent);
+      const header = `--- /dev/null\n+++ b/${p}\n@@ -0,0 +1,${lines.length} @@\n`;
+      const body = lines.map((l) => `+${l}\n`).join("");
       chunks.push(header + body);
     } else {
       const baseEntry = baselineMap.get(p);
       if (baseEntry.sha256 !== postEntry.sha256) {
-        // Modified
-        const lines = newContent ? newContent.replace(/\r\n/g, "\n").split("\n") : [];
-        if (lines.length > 0 && lines[lines.length - 1] === "") {
-          lines.pop();
+        // Modified file
+        const oldContent = contentsMap.get(p) !== undefined ? contentsMap.get(p) : "";
+        const oldLines = splitLines(oldContent);
+        const newLines = splitLines(newContent);
+
+        const header = `--- a/${p}\n+++ b/${p}\n@@ -1,${oldLines.length} +1,${newLines.length} @@\n`;
+        const edits = computeLineDiff(oldLines, newLines);
+        let body = "";
+        for (const edit of edits) {
+          if (edit.type === "keep") {
+            body += ` ${edit.line}\n`;
+          } else if (edit.type === "delete") {
+            body += `-${edit.line}\n`;
+          } else if (edit.type === "insert") {
+            body += `+${edit.line}\n`;
+          }
         }
-        const header = `--- a/${p}\n+++ b/${p}\n@@ -1 +1,${lines.length} @@\n`;
-        const body = `-old\n` + lines.map((l) => `+${l}`).join("\n") + "\n";
         chunks.push(header + body);
       }
     }
@@ -99,8 +171,11 @@ function generateUnifiedDiff(workspaceRoot, baselineInventory = [], postInventor
   // Deleted files
   for (const [p] of baselineMap.entries()) {
     if (!postMap.has(p)) {
-      const header = `--- a/${p}\n+++ /dev/null\n@@ -1 +0,0 @@\n-deleted\n`;
-      chunks.push(header);
+      const oldContent = contentsMap.get(p) !== undefined ? contentsMap.get(p) : "";
+      const oldLines = splitLines(oldContent);
+      const header = `--- a/${p}\n+++ /dev/null\n@@ -1,${oldLines.length} +0,0 @@\n`;
+      const body = oldLines.map((l) => `-${l}\n`).join("");
+      chunks.push(header + body);
     }
   }
 
@@ -181,6 +256,8 @@ async function executeWorkOrder(options = {}) {
     throw new Error("executeWorkOrder requires a valid workspace descriptor");
   }
 
+  const workerTransport = options.transports?.worker || options.workerTransport || options.transport;
+
   // Capability resolution via resolveCapabilityState
   let isolationReported = "unavailable";
   const declaredCap = options.isolationCapability || "unavailable";
@@ -197,8 +274,23 @@ async function executeWorkOrder(options = {}) {
       expectedProbeDigest: options.expectedProbeDigest,
     });
     if (capRes.ok && capRes.effective_state === "enforced") {
-      isolationReported = "enforced";
+      if (workerTransport) {
+        isolationReported = "enforced";
+      } else {
+        return {
+          ok: false,
+          isolationReported: "unavailable",
+          error: "Enforced isolation capability requires verified WorkerTransport port",
+        };
+      }
     } else {
+      if (declaredCap === "enforced") {
+        return {
+          ok: false,
+          isolationReported: capRes.effective_state || "unavailable",
+          error: "Enforced isolation capability proof failed",
+        };
+      }
       isolationReported = capRes.effective_state || "unavailable";
     }
   } else if (declaredCap === "partial") {
@@ -256,7 +348,6 @@ async function executeWorkOrder(options = {}) {
   let overallExitCode = 0;
   const startTime = Date.now();
 
-  const workerTransport = options.transports?.worker || options.workerTransport || options.transport;
   const signal = options.signal;
 
   for (const cmdItem of commandList) {
@@ -283,21 +374,16 @@ async function executeWorkOrder(options = {}) {
     let aborted = false;
 
     if (workerTransport) {
-      const transportOutcome = await invokeTransportAsync(
-        workerTransport,
-        {
-          input: {
-            command: cmdBinary,
-            args: cmdArgs,
-            cwd: workspace.root_path,
-            env: workOrder.environment || options.environment || {},
-          },
+      const transportOutcome = await invokeTransportAsync(workerTransport, {
+        signal,
+        deadlineMs: timeoutMs,
+        input: {
+          command: cmdBinary,
+          args: cmdArgs,
+          cwd: workspace.root_path,
+          env: workOrder.environment || options.environment || {},
         },
-        {
-          signal,
-          deadlineMs: timeoutMs,
-        }
-      );
+      });
 
       const cmdDuration = Date.now() - cmdStart;
 
@@ -329,24 +415,46 @@ async function executeWorkOrder(options = {}) {
     } else {
       const outcome = await new Promise((resolve) => {
         let timer = null;
+        let killTimer = null;
         let child = null;
         let isDone = false;
+        let wasAborted = false;
+        let wasTimedOut = false;
         let outChunks = "";
         let errChunks = "";
+
+        const cleanup = () => {
+          if (timer) clearTimeout(timer);
+          if (killTimer) clearTimeout(killTimer);
+          if (signal && onAbort) signal.removeEventListener("abort", onAbort);
+        };
 
         const finish = (res) => {
           if (isDone) return;
           isDone = true;
-          if (timer) clearTimeout(timer);
-          if (signal && onAbort) signal.removeEventListener("abort", onAbort);
+          cleanup();
           resolve(res);
         };
 
+        const terminateChild = () => {
+          if (!child || child.killed) return;
+          try {
+            child.kill("SIGTERM");
+          } catch {}
+          killTimer = setTimeout(() => {
+            if (child && !isDone) {
+              try { child.kill("SIGKILL"); } catch {}
+            }
+          }, 500);
+        };
+
         const onAbort = () => {
+          wasAborted = true;
           if (child) {
-            try { child.kill("SIGTERM"); } catch {}
+            terminateChild();
+          } else {
+            finish({ aborted: true, exitCode: 1, stdout: outChunks, stderr: errChunks });
           }
-          finish({ aborted: true, exitCode: 1, stdout: outChunks, stderr: errChunks });
         };
 
         if (signal) {
@@ -358,10 +466,12 @@ async function executeWorkOrder(options = {}) {
 
         if (timeoutMs != null && timeoutMs > 0) {
           timer = setTimeout(() => {
+            wasTimedOut = true;
             if (child) {
-              try { child.kill("SIGTERM"); } catch {}
+              terminateChild();
+            } else {
+              finish({ timedOut: true, exitCode: 1, stdout: outChunks, stderr: "ETIMEDOUT" });
             }
-            finish({ timedOut: true, exitCode: 1, stdout: outChunks, stderr: "ETIMEDOUT" });
           }, timeoutMs);
         }
 
@@ -379,7 +489,13 @@ async function executeWorkOrder(options = {}) {
           });
 
           child.on("close", (code) => {
-            finish({ exitCode: typeof code === "number" ? code : 0, stdout: outChunks, stderr: errChunks });
+            finish({
+              aborted: wasAborted,
+              timedOut: wasTimedOut,
+              exitCode: typeof code === "number" ? code : (wasAborted || wasTimedOut ? 1 : 0),
+              stdout: outChunks,
+              stderr: wasTimedOut && !errChunks.includes("ETIMEDOUT") ? (errChunks ? `${errChunks}\nETIMEDOUT` : "ETIMEDOUT") : errChunks,
+            });
           });
         } catch (err) {
           finish({ error: err, exitCode: 1, stdout: "", stderr: err.message || "" });
@@ -447,7 +563,8 @@ async function executeWorkOrder(options = {}) {
   }
 
   const duration = Date.now() - startTime;
-  const patch = generateUnifiedDiff(workspace.root_path, baselineInventory, postInventory);
+  const baselineContents = (record && record.baselineContents) || options.baselineContents || new Map();
+  const patch = generateUnifiedDiff(workspace.root_path, baselineInventory, postInventory, baselineContents);
 
   const workResult = await captureWorkResult({
     work_order_id: workOrder.work_order_id,

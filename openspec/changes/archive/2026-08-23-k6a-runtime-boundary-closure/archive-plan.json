@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "change": "k6a-runtime-boundary-closure",
+  "source_fingerprint": "sha256:a3e5578cb29de3663c44d16b0b3d8211aae5eae9c0ca4c3c471ce08378581499",
+  "spec_writes": [
+    {
+      "domain": "worker-isolation",
+      "source_delta": "prepared-specs/worker-isolation/spec.md",
+      "target": "openspec/specs/worker-isolation/spec.md",
+      "target_before_sha256": "sha256:cd3651a1f9998c243cf9cdc4d6af0299fef164b55e8cfca0680219dadc34df54",
+      "content_sha256": "sha256:ea33ce28f2cc2810ef3a3ec09d0ca7e7282a30ec7bb46dc28be09145cb6b6f5f"
+    },
+    {
+      "domain": "contract-lint",
+      "source_delta": "prepared-specs/contract-lint/spec.md",
+      "target": "openspec/specs/contract-lint/spec.md",
+      "target_before_sha256": "sha256:4e3f353ee1eccf1d474c5eea037addbaaf622bc75d53161c6a1eeb867a9dd6fc",
+      "content_sha256": "sha256:634c12ccc3912d197fa139a60a05666fffcbf19e0664baa956a65ab78f9a7823"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260823-012-baseline-content-storage-and-authentic-standard-unified-diff-generation.md",
+      "content_sha256": "sha256:9aacb3e9e501d6b12ea70af0237b221a32e0525a3035bc90542df616590c61f2"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260823-013-strict-verified-workertransport-requirement-for-enforced-isolation-state.md",
+      "content_sha256": "sha256:a46ff65422aa97dcf29727e5b6cab0e8aad6fa39b999db03433e5a97646c73af"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260823-014-asynchronous-subprocess-synchronization-and-close-event-settlement-barrier.md",
+      "content_sha256": "sha256:0777fb34fa0a6f9cbc558299c9e757057f00d1d5dba64870c172c1328830788f"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260823-015-private-immutable-workspace-registry-encapsulation-and-fail-closed-materialization.md",
+      "content_sha256": "sha256:1d070916e2eaa66a31d073a872530cc88c7b45d3bc3b3edd74f3a66fb8064e78"
+    },
+    {
+      "source": "decisions/adr-005.md",
+      "target": "docs/adr/adr-20260823-016-fail-closed-symlink-validation-on-filesystem-exceptions-and-legacy-pathway-elimination.md",
+      "content_sha256": "sha256:760a411a5edf8d53c4774c7d1ff92a3bfc543b936ef41e1c8a0493938b92ffed"
+    },
+    {
+      "source": "decisions/adr-006.md",
+      "target": "docs/adr/adr-20260823-017-canonical-end-to-end-composition-pipeline-k3-k4a-k6a-k3.md",
+      "content_sha256": "sha256:1fe4caeb1ce235bca4ab1c74c184e88df8de9fd6dfebc934934463a9db83ab6d"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "decisions/adr-005.md",
+    "decisions/adr-006.md",
+    "design.md",
+    "prepared-specs/contract-lint/spec.md",
+    "prepared-specs/worker-isolation/spec.md",
+    "proposal.md",
+    "specs/contract-lint/spec.md",
+    "specs/worker-isolation/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

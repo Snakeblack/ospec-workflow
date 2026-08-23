@@ -214,3 +214,38 @@ test("validateAllowedPaths: validates structured mutation delta object", () => {
   assert.equal(failResult.violation.attempted_path, "config/secret.env");
 });
 
+test("checkSymlinkEscape: fails closed when fs.realpathSync throws an error during inspection", (t) => {
+  const { checkSymlinkEscape } = require("./allowed-paths-validator.js");
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-validator-err-"));
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }));
+
+  // Create real existing directory
+  const subDir = path.join(tempDir, "sub");
+  fs.mkdirSync(subDir, { recursive: true });
+
+  // Temporarily stub fs.realpathSync to throw an error on specific path
+  const originalRealpathSync = fs.realpathSync;
+  t.after(() => { fs.realpathSync = originalRealpathSync; });
+
+  fs.realpathSync = (p, options) => {
+    if (String(p).includes("sub")) {
+      const err = new Error("EACCES: permission denied, realpath");
+      err.code = "EACCES";
+      throw err;
+    }
+    return originalRealpathSync(p, options);
+  };
+
+  const escapeResult = checkSymlinkEscape("sub/file.txt", tempDir);
+  assert.equal(escapeResult.isEscape, true, "Must fail closed when realpath throws exception");
+
+  const validation = validateAllowedPaths(["sub/file.txt"], ["**"], {
+    workspaceRoot: tempDir,
+    workspace_id: "ws-err-test",
+    work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  });
+  assert.equal(validation.ok, false);
+  assert.ok(validation.violation);
+  assert.equal(validation.violation.violation_type, "symlink_escape");
+});
+
