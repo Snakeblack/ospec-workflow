@@ -41,68 +41,14 @@ const {
   HOST_VERSION,
 } = require("./lib/host-adapters/claude.js");
 
-/**
- * Primitiva worker real: ejecuta el comando solicitado vía subprocess y
- * devuelve el resultado en forma de TransportOutcome.
- */
-function makeRealWorkerCommandPrimitive() {
-  return async (input) => {
-    // Challenge de identidad del probe WorkerTransport.
-    if (input && input.probe === true && input.parallel === true) {
-      return { ok: true, value: { worker_id: `worker-${process.pid}`, parallel: true } };
-    }
-    return await new Promise((resolve) => {
-      const child = spawn(input.command, input.args || [], {
-        cwd: input.cwd,
-        env: { ...process.env, ...(input.env || {}) },
-      });
-      let stdout = "";
-      let stderr = "";
-      child.stdout.on("data", (d) => (stdout += d));
-      child.stderr.on("data", (d) => (stderr += d));
-      child.on("error", (err) => resolve({ ok: false, exit_code: 1, stdout: "", stderr: String(err.message) }));
-      child.on("close", (code) => resolve({ ok: code === 0, exit_code: code === null ? 1 : code, stdout, stderr }));
-    });
-  };
-}
+const {
+  makeSandboxedWorkerPrimitive,
+  makeSandboxedIsolationPrimitive,
+  makeRogueIsolationPrimitive,
+  executeSandboxedCommand,
+} = require("./lib/worker-sandbox.js");
 
-/**
- * Primitiva de aislamiento real con frontera de sandbox que solo permite
- * escrituras dentro de `allowed/` (el host mide el resultado).
- */
-function makeSandboxedIsolationPrimitive() {
-  return async (input) => {
-    if (!input || input.isolation !== true || !Array.isArray(input.attempts)) {
-      return { ok: false };
-    }
-    const attempts = [];
-    for (const attempt of input.attempts) {
-      const allowedRoot = path.join(input.workspace_root, "allowed") + path.sep;
-      if (attempt.path.startsWith(allowedRoot)) {
-        fs.mkdirSync(path.dirname(attempt.path), { recursive: true });
-        fs.writeFileSync(attempt.path, attempt.content);
-        attempts.push({ id: attempt.id, wrote: true });
-      } else {
-        attempts.push({ id: attempt.id, wrote: false, blocked: true });
-      }
-    }
-    return { ok: true, value: { attempts } };
-  };
-}
-
-/** Primitiva de aislamiento adversarial sin sandbox: escribe donde sea. */
-function makeRogueIsolationPrimitive() {
-  return async (input) => {
-    if (!input || input.isolation !== true || !Array.isArray(input.attempts)) {
-      return { ok: false };
-    }
-    for (const attempt of input.attempts) {
-      fs.mkdirSync(path.dirname(attempt.path), { recursive: true });
-      fs.writeFileSync(attempt.path, attempt.content);
-    }
-    return { ok: true, value: { escaped: true } };
-  };
-}
+const makeRealWorkerCommandPrimitive = makeSandboxedWorkerPrimitive;
 
 /**
  * Compone las opciones de executeWorkOrder a partir del material canónico del
@@ -1213,4 +1159,149 @@ test("K2a→K6a Real E2E adversarial: worker sin sandbox nunca alcanza enforced 
   assert.equal(result.reason, "containment-proof-required");
   assert.equal(result.isolationReported, "unavailable");
   assert.equal(fs.existsSync(externalTarget), false, "external write must never be attempted without isolation proof");
+});
+
+test("K2a→K6a Real E2E adversarial: execution attempt outside workspace with valid enforced isolation is physically prevented from existing on host disk", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-k2a-adv-ext-"));
+  const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-k2a-adv-ext-out-"));
+  const externalTarget = path.join(externalDir, "k6a-escape.txt");
+  t.after(() => {
+    try { fs.rmSync(baseDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(externalDir, { recursive: true, force: true }); } catch {}
+  });
+
+  const files = { "src/app.js": "console.log('app');\n" };
+  const snapshot = {
+    schema_version: 1,
+    kind: "source-snapshot/v1",
+    repository_id: "repo-k2a-adv-ext",
+    base_tree_digest: computeTreeDigest(files),
+    projection: "workspace",
+    dependency_digests: [],
+  };
+  snapshot.source_snapshot_id = computeSourceSnapshotId(snapshot);
+
+  const workOrder = makeCanonicalWorkOrder(snapshot.source_snapshot_id, {
+    node_id: "k2a-adv-ext-apply",
+    operation: "apply_implementation",
+    ownership: { owner: "agent-k2a", mode: "exclusive" },
+    allowed_paths: ["dist/**"],
+  });
+
+  const workspace = await createWorkspace({ baseDir, source_snapshot_id: snapshot.source_snapshot_id });
+  t.after(() => disposeWorkspace(workspace));
+
+  await materializeSourceSnapshot(workspace, workOrder, snapshot, {
+    capsule_inputs: ["src/app.js"],
+    files,
+  });
+
+  // MISMAS primitivas sandboxed válidas que en el happy path
+  const primitives = {
+    worker: makeSandboxedWorkerPrimitive(),
+    workerIsolation: makeSandboxedIsolationPrimitive(),
+  };
+  const adapter = await createClaudeHostAdapter({ primitives });
+  assert.equal(adapter.capabilities.WorkerTransport, "enforced");
+  assert.equal(adapter.capabilities.WorkerIsolation, "enforced");
+
+  const material = await getClaudeProofMaterial({ primitives });
+
+  const result = await executeWorkOrder({
+    workOrder,
+    workspace,
+    transports: { worker: adapter.transports.WorkerTransport },
+    command: process.execPath,
+    args: ["-e", `require('node:fs').writeFileSync(${JSON.stringify(externalTarget)}, 'escaped');`],
+    ...buildExecutionOptionsFromMaterial(material),
+  });
+
+  // La ejecución debe fallar (proceso abortado por sandbox EACCES)
+  assert.equal(result.ok, false, "Execution attempting external write must fail");
+  // Y el fichero externo NUNCA debe haber llegado a existir en el host
+  assert.equal(fs.existsSync(externalTarget), false, "External target file MUST NOT exist on host filesystem");
+});
+
+test("K2a→K6a Real E2E adversarial: multi-target execution with valid isolation physically enforces boundaries (dist/ok.txt EXISTS, unauthorized/leak.txt NOT EXISTS, external-leak.txt NOT EXISTS)", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-k2a-adv-multi-"));
+  const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-k2a-adv-multi-out-"));
+  const externalTarget = path.join(externalDir, "external-leak.txt");
+  t.after(() => {
+    try { fs.rmSync(baseDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(externalDir, { recursive: true, force: true }); } catch {}
+  });
+
+  const files = { "src/app.js": "console.log('app');\n" };
+  const snapshot = {
+    schema_version: 1,
+    kind: "source-snapshot/v1",
+    repository_id: "repo-k2a-adv-multi",
+    base_tree_digest: computeTreeDigest(files),
+    projection: "workspace",
+    dependency_digests: [],
+  };
+  snapshot.source_snapshot_id = computeSourceSnapshotId(snapshot);
+
+  const workOrder = makeCanonicalWorkOrder(snapshot.source_snapshot_id, {
+    node_id: "k2a-adv-multi-apply",
+    operation: "apply_implementation",
+    ownership: { owner: "agent-k2a", mode: "exclusive" },
+    allowed_paths: ["dist/**"],
+  });
+
+  const workspace = await createWorkspace({ baseDir, source_snapshot_id: snapshot.source_snapshot_id });
+  t.after(() => disposeWorkspace(workspace));
+
+  await materializeSourceSnapshot(workspace, workOrder, snapshot, {
+    capsule_inputs: ["src/app.js"],
+    files,
+  });
+
+  // MISMAS primitivas sandboxed válidas que en el happy path
+  const primitives = {
+    worker: makeSandboxedWorkerPrimitive(),
+    workerIsolation: makeSandboxedIsolationPrimitive(),
+  };
+  const adapter = await createClaudeHostAdapter({ primitives });
+  assert.equal(adapter.capabilities.WorkerTransport, "enforced");
+  assert.equal(adapter.capabilities.WorkerIsolation, "enforced");
+
+  const material = await getClaudeProofMaterial({ primitives });
+
+  const multiScript = `
+    const fs = require('node:fs');
+    fs.mkdirSync('dist', { recursive: true });
+    fs.writeFileSync('dist/ok.txt', 'ok');
+    try {
+      fs.mkdirSync('unauthorized', { recursive: true });
+      fs.writeFileSync('unauthorized/leak.txt', 'leak');
+    } catch (e) {}
+    try {
+      fs.writeFileSync(${JSON.stringify(externalTarget)}, 'external leak');
+    } catch (e) {}
+  `;
+
+  const result = await executeWorkOrder({
+    workOrder,
+    workspace,
+    transports: { worker: adapter.transports.WorkerTransport },
+    command: process.execPath,
+    args: ["-e", multiScript],
+    ...buildExecutionOptionsFromMaterial(material),
+  });
+
+  // 1. dist/ok.txt dentro de allowed_paths DEBE existir
+  const okFile = path.join(workspace.root_path, "dist", "ok.txt");
+  assert.ok(fs.existsSync(okFile), "dist/ok.txt must exist inside allowed_paths");
+
+  // 2. unauthorized/leak.txt fuera de allowed_paths NO DEBE existir
+  const leakFile = path.join(workspace.root_path, "unauthorized", "leak.txt");
+  assert.equal(fs.existsSync(leakFile), false, "unauthorized/leak.txt must NOT exist on disk");
+
+  // 3. external-leak.txt fuera del workspace NO DEBE existir
+  assert.equal(fs.existsSync(externalTarget), false, "external-leak.txt must NOT exist on host filesystem");
+
+  // El resultado general de executeWorkOrder debe ser exitoso porque el script manejó las excepciones
+  // y solo dist/ok.txt quedó mutado según allowed_paths
+  assert.equal(result.ok, true, `execution must succeed for contained mutations: ${result.reason || result.error || ""}`);
 });

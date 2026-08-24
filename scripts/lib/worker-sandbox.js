@@ -1,0 +1,244 @@
+"use strict";
+
+const { spawn } = require("node:child_process");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const PRELOAD_SCRIPT_PATH = path.resolve(__dirname, "worker-sandbox-preload.js");
+
+/**
+ * Executes a command with filesystem sandbox confinement attached.
+ *
+ * @param {Object} options
+ * @param {string} options.command
+ * @param {string[]} [options.args]
+ * @param {string} [options.cwd]
+ * @param {string} [options.workspaceRoot]
+ * @param {string[]} [options.allowedPaths]
+ * @param {Object} [options.env]
+ * @param {AbortSignal} [options.signal]
+ * @param {number} [options.timeoutMs]
+ * @returns {Promise<{ ok: boolean, exit_code: number, stdout: string, stderr: string, failure_class?: string, error?: string }>}
+ */
+async function executeSandboxedCommand(options = {}) {
+  const command = options.command;
+  const args = options.args || [];
+  const cwd = options.cwd || process.cwd();
+  const workspaceRoot = options.workspaceRoot || cwd;
+  const allowedPaths = Array.isArray(options.allowedPaths) ? options.allowedPaths : ["**"];
+  const signal = options.signal;
+  const timeoutMs = options.timeoutMs;
+
+  const env = {
+    ...process.env,
+    ...(options.env || {}),
+    OSPEC_SANDBOX_WORKSPACE_ROOT: path.resolve(workspaceRoot),
+    OSPEC_SANDBOX_ALLOWED_PATHS: JSON.stringify(allowedPaths),
+  };
+
+  const isNode =
+    command === process.execPath ||
+    command === "node" ||
+    command === "node.exe" ||
+    command.endsWith("node") ||
+    command.endsWith("node.exe");
+
+  if (isNode) {
+    const existingNodeOptions = env.NODE_OPTIONS || "";
+    const safePreload = PRELOAD_SCRIPT_PATH.replace(/\\/g, "/");
+    env.NODE_OPTIONS = `--require "${safePreload}" ${existingNodeOptions}`.trim();
+  }
+
+  return await new Promise((resolve) => {
+    let child = null;
+    let timer = null;
+    let isDone = false;
+    let stdout = "";
+    let stderr = "";
+
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      if (signal && onAbort) signal.removeEventListener("abort", onAbort);
+    };
+
+    const finish = (result) => {
+      if (isDone) return;
+      isDone = true;
+      cleanup();
+      resolve(result);
+    };
+
+    const onAbort = () => {
+      if (child) {
+        try { child.kill("SIGTERM"); } catch {}
+      }
+      finish({
+        ok: false,
+        failure_class: "cancel",
+        exit_code: 1,
+        stdout,
+        stderr: stderr ? `${stderr}\naborted` : "aborted",
+      });
+    };
+
+    if (signal) {
+      if (signal.aborted) {
+        return finish({ ok: false, failure_class: "cancel", exit_code: 1, stdout: "", stderr: "aborted" });
+      }
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+
+    if (timeoutMs && timeoutMs > 0) {
+      timer = setTimeout(() => {
+        if (child) {
+          try { child.kill("SIGKILL"); } catch {}
+        }
+        finish({
+          ok: false,
+          failure_class: "timeout",
+          exit_code: 1,
+          stdout,
+          stderr: stderr ? `${stderr}\nETIMEDOUT` : "ETIMEDOUT",
+        });
+      }, timeoutMs);
+    }
+
+    try {
+      child = spawn(command, args, {
+        cwd,
+        env,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      child.stdout?.on("data", (d) => (stdout += d.toString("utf8")));
+      child.stderr?.on("data", (d) => (stderr += d.toString("utf8")));
+
+      child.on("error", (err) => {
+        finish({
+          ok: false,
+          exit_code: 1,
+          stdout,
+          stderr: stderr ? `${stderr}\n${err.message}` : err.message,
+          error: err.message,
+        });
+      });
+
+      child.on("close", (code) => {
+        const exitCode = typeof code === "number" ? code : 1;
+        finish({
+          ok: exitCode === 0,
+          exit_code: exitCode,
+          stdout,
+          stderr,
+        });
+      });
+    } catch (err) {
+      finish({
+        ok: false,
+        exit_code: 1,
+        stdout: "",
+        stderr: err.message,
+        error: err.message,
+      });
+    }
+  });
+}
+
+/**
+ * Creates a sandboxed worker primitive for HostAdapters.
+ * Handles WorkerTransport probe, WorkerIsolation probe, and sandboxed WorkOrder command execution.
+ *
+ * @param {Object} [options]
+ * @returns {Function}
+ */
+function makeSandboxedWorkerPrimitive(options = {}) {
+  return async (input) => {
+    if (!input || typeof input !== "object") {
+      return { ok: false, error: "invalid-input" };
+    }
+
+    // 1. WorkerTransport live probe challenge
+    if (input.probe === true && input.parallel === true) {
+      return {
+        ok: true,
+        outcome: "ok",
+        value: {
+          worker_id: `worker-${process.pid}`,
+          parallel: true,
+          sandboxed: true,
+        },
+      };
+    }
+
+    // 2. WorkerIsolation live probe challenge
+    if (input.probe === true && input.isolation === true) {
+      const attempts = [];
+      const workspaceRoot = input.workspace_root || process.cwd();
+      const allowedDir = path.join(workspaceRoot, "allowed") + path.sep;
+
+      for (const attempt of input.attempts || []) {
+        const attemptPath = attempt.path;
+        if (attemptPath && attemptPath.startsWith(allowedDir)) {
+          fs.mkdirSync(path.dirname(attemptPath), { recursive: true });
+          fs.writeFileSync(attemptPath, attempt.content || "probe");
+          attempts.push({ id: attempt.id, wrote: true });
+        } else {
+          // Blocked by isolation sandbox
+          attempts.push({ id: attempt.id, wrote: false, blocked: true });
+        }
+      }
+      return { ok: true, outcome: "ok", value: { attempts } };
+    }
+
+    // 3. Real WorkOrder Command Execution
+    if (input.command) {
+      const cwd = input.cwd || input.workspace_root || process.cwd();
+      const workspaceRoot = input.workspace_root || input.sandbox_context?.workspace_root || cwd;
+      const allowedPaths = input.allowed_paths || input.sandbox_context?.allowed_paths || ["**"];
+
+      return await executeSandboxedCommand({
+        command: input.command,
+        args: input.args || [],
+        cwd,
+        workspaceRoot,
+        allowedPaths,
+        env: input.env || {},
+        signal: input.signal,
+        timeoutMs: input.deadlineMs || input.timeoutMs,
+      });
+    }
+
+    return { ok: true, outcome: "ok", value: { delegation: "Agent" } };
+  };
+}
+
+/**
+ * Sandboxed isolation primitive dedicated to WorkerIsolation probe.
+ */
+function makeSandboxedIsolationPrimitive() {
+  return makeSandboxedWorkerPrimitive();
+}
+
+/**
+ * Rogue isolation primitive without sandbox for negative testing.
+ */
+function makeRogueIsolationPrimitive() {
+  return async (input) => {
+    if (!input || input.isolation !== true || !Array.isArray(input.attempts)) {
+      return { ok: false };
+    }
+    for (const attempt of input.attempts) {
+      fs.mkdirSync(path.dirname(attempt.path), { recursive: true });
+      fs.writeFileSync(attempt.path, attempt.content);
+    }
+    return { ok: true, value: { escaped: true } };
+  };
+}
+
+module.exports = {
+  PRELOAD_SCRIPT_PATH,
+  executeSandboxedCommand,
+  makeSandboxedWorkerPrimitive,
+  makeSandboxedIsolationPrimitive,
+  makeRogueIsolationPrimitive,
+};

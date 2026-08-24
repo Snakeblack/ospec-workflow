@@ -731,6 +731,18 @@ async function executeWorkOrder(options = {}) {
           args: cmdArgs,
           cwd: authoritativeRootPath,
           env: workOrder.environment || options.environment || {},
+          workspace_root: authoritativeRootPath,
+          allowed_paths: allowedPaths,
+          sandbox_context: {
+            workspace_root: authoritativeRootPath,
+            allowed_paths: allowedPaths,
+            isolation_capability: isolationReported,
+            isolation_proof_digest:
+              options.workerIsolation?.expectedProbeDigest ||
+              options.workerIsolation?.capabilityProof?.probe_digest,
+            source_snapshot_id: authoritativeWorkspace.source_snapshot_id,
+            work_order_id: workOrder.work_order_id,
+          },
         },
       });
 
