@@ -4,9 +4,35 @@ const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 const { validateAllowedPaths } = require("./allowed-paths-validator.js");
-const { inspectWorkspace, getWorkspaceRecord, updateWorkspaceStatus } = require("./worker-workspace.js");
-const { computeWorkResultId, validateWorkResultBinding } = require("./execution-identities/index.js");
+const { inspectWorkspace, getWorkspaceRecord, markWorkspaceInterrupted } = require("./worker-workspace.js");
+const { computeWorkResultId, validateWorkResultBinding, computeWorkOrderId, isWorkOrderV2 } = require("./execution-identities/index.js");
 const { invokeTransportAsync, resolveCapabilityState } = require("./host-contract/index.js");
+const { validateInstance, loadSchemaById } = require("./kernel-schema-validator.js");
+
+const WORK_ORDER_V2_SCHEMA_ID = "ospec://schemas/kernel/work-order/v2";
+const WORK_ORDER_V1_SCHEMA_ID = "ospec://schemas/kernel/work-order/v1";
+const DEFAULT_SCHEMA_ROOT = path.resolve(__dirname, "../..");
+
+let cachedWorkOrderV2Schema = null;
+let cachedWorkOrderV1Schema = null;
+
+function getWorkOrderV2Schema() {
+  if (!cachedWorkOrderV2Schema) {
+    cachedWorkOrderV2Schema = loadSchemaById(WORK_ORDER_V2_SCHEMA_ID, {
+      rootDir: DEFAULT_SCHEMA_ROOT,
+    });
+  }
+  return cachedWorkOrderV2Schema;
+}
+
+function getWorkOrderV1Schema() {
+  if (!cachedWorkOrderV1Schema) {
+    cachedWorkOrderV1Schema = loadSchemaById(WORK_ORDER_V1_SCHEMA_ID, {
+      rootDir: DEFAULT_SCHEMA_ROOT,
+    });
+  }
+  return cachedWorkOrderV1Schema;
+}
 
 /**
  * Computes mutation delta (created, modified, deleted) against baselineInventory.
@@ -219,7 +245,12 @@ function generateUnifiedDiff(workspaceRoot, baselineInventory = [], postInventor
             }
           }
 
-          const header = `--- a/${p}\n+++ b/${p}\n${modeHeader}@@ -1,${oldLines.length} +1,${newLines.length} @@\n`;
+          let header;
+          if (modeChanged) {
+            header = `diff --git a/${p} b/${p}\n${modeHeader}--- a/${p}\n+++ b/${p}\n@@ -1,${oldLines.length} +1,${newLines.length} @@\n`;
+          } else {
+            header = `--- a/${p}\n+++ b/${p}\n@@ -1,${oldLines.length} +1,${newLines.length} @@\n`;
+          }
 
           let lastOldIndex = -1;
           let lastNewIndex = -1;
@@ -260,9 +291,8 @@ function generateUnifiedDiff(workspaceRoot, baselineInventory = [], postInventor
           }
           chunks.push(header + body);
         } else if (modeChanged) {
-          // File with only permission mode change
-          const header = `--- a/${p}\n+++ b/${p}\n${modeHeader}`;
-          chunks.push(header);
+          // File with only permission mode change (Git diff format)
+          chunks.push(`diff --git a/${p} b/${p}\n${modeHeader.trimEnd()}\n`);
         }
       }
     }
@@ -334,7 +364,7 @@ async function recoverInterruptedExecution(options = {}) {
   const reason = options.reason || "timeout";
 
   if (workspaceId) {
-    updateWorkspaceStatus(workspaceId, "interrupted");
+    markWorkspaceInterrupted(workspaceId, reason);
   }
   if (record && record.descriptor) {
     record.descriptor.status = "interrupted";
@@ -367,7 +397,59 @@ async function recoverInterruptedExecution(options = {}) {
  * @returns {Promise<Object>}
  */
 async function executeWorkOrder(options = {}) {
-  const workOrder = options.workOrder || {};
+  const workOrder = options.workOrder;
+  if (!workOrder || typeof workOrder !== "object") {
+    return {
+      ok: false,
+      reason: "invalid-work-order",
+      error: "executeWorkOrder requires a valid workOrder object",
+    };
+  }
+
+  // 1. WorkOrder Schema Validation
+  const isV2 = isWorkOrderV2(workOrder);
+  const woSchema = isV2 ? getWorkOrderV2Schema() : getWorkOrderV1Schema();
+  const schemaValidation = validateInstance(woSchema, workOrder);
+  if (!schemaValidation.valid) {
+    return {
+      ok: false,
+      reason: "invalid-work-order-schema",
+      error: `WorkOrder failed schema validation: ${schemaValidation.errors.map((e) => e.message).join("; ")}`,
+    };
+  }
+
+  // 2. Recompute WorkOrderId and verify exact match
+  let recomputedWorkOrderId;
+  try {
+    recomputedWorkOrderId = computeWorkOrderId(workOrder);
+  } catch (err) {
+    return {
+      ok: false,
+      reason: "work-order-id-computation-failed",
+      error: `Failed to compute WorkOrderId: ${err.message}`,
+    };
+  }
+
+  const declaredWorkOrderId = workOrder.work_order_id || workOrder.workOrderId;
+  if (declaredWorkOrderId !== recomputedWorkOrderId) {
+    return {
+      ok: false,
+      reason: "work-order-id-mismatch",
+      error: `WorkOrder declared ID (${declaredWorkOrderId}) does not match recomputed WorkOrderId (${recomputedWorkOrderId})`,
+    };
+  }
+
+  // 3. Fail closed on missing/empty allowed_paths (never fallback to ["**"])
+  const rawAllowedPaths = workOrder.allowed_paths || workOrder.allowedPaths;
+  if (!Array.isArray(rawAllowedPaths) || rawAllowedPaths.length === 0) {
+    return {
+      ok: false,
+      reason: "missing-allowed-paths",
+      error: "WorkOrder must declare non-empty allowed_paths array",
+    };
+  }
+  const allowedPaths = rawAllowedPaths;
+
   const workspace = options.workspace;
   const workspaceId = typeof workspace === "string" ? workspace : (workspace ? workspace.workspace_id : "");
   const record = getWorkspaceRecord(workspaceId);
@@ -463,18 +545,34 @@ async function executeWorkOrder(options = {}) {
     };
   }
 
-  // Containment enforcement: Mutating operations (e.g. apply) require verified enforced WorkerTransport
-  const isMutatingOperation = workOrder.operation === "apply";
-  if (isMutatingOperation && isolationReported !== "enforced" && !options.allowUnsafeFallbackMutation) {
+  // Structural Effect Classification & Containment Enforcement
+  const isExplicitReadOnly =
+    workOrder.ownership?.mode === "read-only" ||
+    workOrder.ownership?.mode === "shared-read" ||
+    workOrder.effect_class === "pure" ||
+    workOrder.effect_class === "read_only" ||
+    ["verify", "probe", "read_only", "inspect_baseline", "check", "test_readonly", "benchmark_readonly"].includes(workOrder.operation);
+
+  const isMutatingExecution =
+    !isExplicitReadOnly ||
+    workOrder.ownership?.mode === "exclusive" ||
+    workOrder.effect_class === "workspace_mutation" ||
+    workOrder.effect_class === "irreversible" ||
+    workOrder.operation.includes("apply") ||
+    workOrder.operation.includes("mutate") ||
+    workOrder.operation.includes("build") ||
+    workOrder.operation.includes("generate") ||
+    workOrder.operation.includes("install") ||
+    workOrder.operation.includes("compile");
+
+  if (isMutatingExecution && isolationReported !== "enforced") {
     return {
       ok: false,
       reason: "mutation-requires-enforced-isolation",
-      error: `Mutating work order operation '${workOrder.operation}' requires verified enforced WorkerTransport isolation; fallback execution rejected`,
+      error: `Mutating work order operations (operation: "${workOrder.operation}", ownership.mode: "${workOrder.ownership?.mode}") require verified enforced WorkerTransport isolation; fallback execution rejected`,
       isolationReported,
     };
   }
-
-  const allowedPaths = Array.isArray(workOrder.allowed_paths) ? workOrder.allowed_paths : ["**"];
 
   // Pre-flight containment check on declared write targets (if supplied)
   if (Array.isArray(options.declaredTargets)) {
@@ -508,7 +606,7 @@ async function executeWorkOrder(options = {}) {
 
   if (commandList.length > maxCommands) {
     if (workspace) workspace.status = "interrupted";
-    if (workspaceId) updateWorkspaceStatus(workspaceId, "interrupted");
+    if (workspaceId) markWorkspaceInterrupted(workspaceId, "budget_commands_exceeded");
     const recovery = await recoverInterruptedExecution({
       workspace: authoritativeWorkspace,
       workOrder,
@@ -529,7 +627,7 @@ async function executeWorkOrder(options = {}) {
   for (const cmdItem of commandList) {
     if (signal && signal.aborted) {
       if (workspace) workspace.status = "interrupted";
-      if (workspaceId) updateWorkspaceStatus(workspaceId, "interrupted");
+      if (workspaceId) markWorkspaceInterrupted(workspaceId, "abort");
       const recovery = await recoverInterruptedExecution({
         workspace: authoritativeWorkspace,
         workOrder,
@@ -715,7 +813,7 @@ async function executeWorkOrder(options = {}) {
 
     if (aborted || (signal && signal.aborted)) {
       if (workspace) workspace.status = "interrupted";
-      if (workspaceId) updateWorkspaceStatus(workspaceId, "interrupted");
+      if (workspaceId) markWorkspaceInterrupted(workspaceId, "abort");
       const recovery = await recoverInterruptedExecution({
         workspace: authoritativeWorkspace,
         workOrder,
@@ -728,7 +826,7 @@ async function executeWorkOrder(options = {}) {
 
     if (timedOut) {
       if (workspace) workspace.status = "interrupted";
-      if (workspaceId) updateWorkspaceStatus(workspaceId, "interrupted");
+      if (workspaceId) markWorkspaceInterrupted(workspaceId, "timeout");
       const recovery = await recoverInterruptedExecution({
         workspace: authoritativeWorkspace,
         workOrder,

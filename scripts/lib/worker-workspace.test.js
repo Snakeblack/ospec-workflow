@@ -13,6 +13,7 @@ const {
   inspectWorkspace,
   getWorkspaceRecord,
   computeTreeDigest,
+  sha256,
 } = require("./worker-workspace.js");
 const { computeSourceSnapshotId, computeWorkOrderId } = require("./execution-identities/index.js");
 
@@ -593,6 +594,7 @@ test("materializeSourceSnapshot: enforces zero-trust byte hashing over candidate
 
   const authenticContent = "const x = 42;\n";
   const forgedContent = "const x = 999;\n"; // Different bytes!
+  const authenticFileSha = sha256(authenticContent);
 
   const authenticFiles = { "src/main.js": authenticContent };
   const canonicalSnapshot = makeCanonicalSnapshot("repo-zt", authenticFiles);
@@ -603,34 +605,47 @@ test("materializeSourceSnapshot: enforces zero-trust byte hashing over candidate
     allowed_paths: ["src/**"],
   });
 
-  // Caller passes metadata filesSource with authentic sha256 declared, but resolveFile returns forged bytes
-  const declaredMetadata = [{ path: "src/main.js", sha256: computeTreeDigest(authenticFiles) }];
+  // Positive case: Declared file sha256 matches authentic candidate bytes -> PASS
+  const validDeclaredMetadata = [{ path: "src/main.js", sha256: authenticFileSha }];
+  const capsule = await materializeSourceSnapshot(ws, workOrder, canonicalSnapshot, {
+    capsule_inputs: ["src/main.js"],
+    files: validDeclaredMetadata,
+    resolveFile: () => authenticContent,
+  });
+  assert.ok(capsule.fingerprint);
 
+  // Negative case: Declared file sha256 matches authentic hash, but resolveFile returns forged bytes -> FAIL CLOSED
   await assert.rejects(
     async () => {
       await materializeSourceSnapshot(ws, workOrder, canonicalSnapshot, {
         capsule_inputs: ["src/main.js"],
-        files: declaredMetadata,
+        files: validDeclaredMetadata,
         resolveFile: () => forgedContent,
       });
     },
-    /mismatch/i
+    /Declared sha256 mismatch/i
   );
 });
 
-test("updateWorkspaceStatus: updates authoritative private registry and getWorkspaceRecord reflects changes", async (t) => {
-  const { updateWorkspaceStatus } = require("./worker-workspace.js");
+test("markWorkspaceInterrupted: transitions active workspace to interrupted with reason and rejects invalid transitions", async (t) => {
+  const { markWorkspaceInterrupted } = require("./worker-workspace.js");
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-reg-update-"));
   t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
 
   const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
   assert.equal(getWorkspaceRecord(ws.workspace_id).descriptor.status, "active");
 
-  const updated = updateWorkspaceStatus(ws.workspace_id, "interrupted");
+  const updated = markWorkspaceInterrupted(ws.workspace_id, "timeout_exceeded");
   assert.equal(updated, true);
-  assert.equal(getWorkspaceRecord(ws.workspace_id).descriptor.status, "interrupted");
+  const rec = getWorkspaceRecord(ws.workspace_id);
+  assert.equal(rec.descriptor.status, "interrupted");
+  assert.equal(rec.descriptor.interrupted_reason, "timeout_exceeded");
 
-  const nonExistent = updateWorkspaceStatus("ws-non-existent", "interrupted");
+  // Re-transitioning already interrupted workspace must return false
+  const repeat = markWorkspaceInterrupted(ws.workspace_id, "another_reason");
+  assert.equal(repeat, false);
+
+  const nonExistent = markWorkspaceInterrupted("ws-non-existent", "interrupted");
   assert.equal(nonExistent, false);
 });
 
@@ -650,8 +665,9 @@ test("inspectWorkspace: throws fail-closed error when encountering escaping syml
   // Create an escaping symlink inside workspace pointing to outsideDir
   try {
     fs.symlinkSync(outsideDir, path.join(ws.root_path, "escaped_link"), "junction");
-  } catch {
-    return; // Skip on platforms where symlink permissions require elevation
+  } catch (err) {
+    t.skip(`Symlink creation not permitted in this environment: ${err.message}`);
+    return;
   }
 
   await assert.rejects(
@@ -670,8 +686,9 @@ test("inspectWorkspace: throws fail-closed error on dangling symlink", async (t)
 
   try {
     fs.symlinkSync(path.join(ws.root_path, "non_existent_target.txt"), path.join(ws.root_path, "dangling.txt"));
-  } catch {
-    return; // Skip if symlink not permitted
+  } catch (err) {
+    t.skip(`Symlink creation not permitted in this environment: ${err.message}`);
+    return;
   }
 
   await assert.rejects(

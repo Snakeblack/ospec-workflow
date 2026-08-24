@@ -86,17 +86,20 @@ function computeTreeDigest(files) {
 const workspaceRegistry = new Map();
 
 /**
- * Updates status of a tracked workspace in the private registry.
+ * Transitions a tracked active workspace to 'interrupted' status with reason.
+ * Validates transition strictly (only 'active' -> 'interrupted' permitted).
  *
  * @param {string} workspaceId
- * @param {string} status
- * @returns {boolean} true if workspace was found and updated
+ * @param {string} [reason="interrupted"]
+ * @returns {boolean} true if transition succeeded
  */
-function updateWorkspaceStatus(workspaceId, status) {
+function markWorkspaceInterrupted(workspaceId, reason = "interrupted") {
   if (!workspaceId || typeof workspaceId !== "string") return false;
   const record = workspaceRegistry.get(workspaceId);
   if (!record || !record.descriptor) return false;
-  record.descriptor.status = status;
+  if (record.descriptor.status !== "active") return false;
+  record.descriptor.status = "interrupted";
+  record.descriptor.interrupted_reason = String(reason);
   return true;
 }
 
@@ -509,7 +512,7 @@ module.exports = {
   materializeSourceSnapshot,
   inspectWorkspace,
   getWorkspaceRecord,
-  updateWorkspaceStatus,
+  markWorkspaceInterrupted,
   computeTreeDigest,
   sha256,
 };

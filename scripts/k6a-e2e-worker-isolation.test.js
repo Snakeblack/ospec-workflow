@@ -102,6 +102,78 @@ function applyPatch(baseFiles = new Map(), patch = "") {
   return result;
 }
 
+function makeCanonicalWorkOrder(sourceSnapshotId = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", overrides = {}) {
+  const payload = {
+    schema_version: 2,
+    kind: "work-order/v2",
+    source_snapshot_id: sourceSnapshotId,
+    node_id: overrides.node_id || "node-test-1",
+    role: overrides.role || "repair-worker",
+    operation: overrides.operation || "verify",
+    objective: overrides.objective || "Execute test command",
+    dependencies: overrides.dependencies || [],
+    ownership: overrides.ownership || { owner: "agent-test", mode: "shared" },
+    allowed_paths: overrides.allowed_paths || ["**"],
+    invariants: overrides.invariants || [],
+    required_evidence: overrides.required_evidence || [],
+    budget: overrides.budget || {
+      model_turns: 5,
+      patches: 3,
+      commands: 5,
+      wall_time_minutes: 10,
+      changed_lines: 100,
+    },
+    status: overrides.status || "pending",
+  };
+  if (overrides.clarification_context) {
+    payload.clarification_context = overrides.clarification_context;
+  }
+  const workOrderId = overrides.work_order_id !== undefined ? overrides.work_order_id : computeWorkOrderId(payload);
+  return {
+    ...payload,
+    work_order_id: workOrderId,
+  };
+}
+
+function makeEnforcedProof(adapterId = "adapter-test") {
+  const evidence = { surface: "worker", headless: true };
+  const fixture = "fixtures/WorkerTransport.json";
+  const evidence_digest = createEvidenceDigest({
+    capability_id: "WorkerTransport",
+    adapter_version: "1.0.0",
+    host_version: "1.0.0",
+    fixture,
+    evidence,
+  });
+  const probe_digest = createProbeDigest({
+    capability_id: "WorkerTransport",
+    adapter_id: adapterId,
+    adapter_version: "1.0.0",
+    host_version: "1.0.0",
+    probe: { surface: "live", ok: true },
+  });
+  const capabilityProof = {
+    schema_version: 1,
+    kind: "capability-proof/v1",
+    adapter_id: adapterId,
+    adapter_version: "1.0.0",
+    host_version: "1.0.0",
+    fixture,
+    evidence_digest,
+    probe_digest,
+  };
+  return {
+    isolationCapability: "enforced",
+    capabilityProof,
+    semantic_evidence: evidence,
+    expectedAdapterId: adapterId,
+    expectedAdapterVersion: "1.0.0",
+    expectedHostRuntimeVersion: "1.0.0",
+    expectedProbeDigest: probe_digest,
+    probe_digest,
+  };
+}
+
 test("K6a E2E Happy Path: True K3 -> K4a -> K6a -> K3 Pipeline with full workspace lifecycle, execution, containment, and disposal", async (t) => {
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-e2e-happy-"));
   t.after(() => {
@@ -122,6 +194,7 @@ test("K6a E2E Happy Path: True K3 -> K4a -> K6a -> K3 Pipeline with full workspa
   // 1. K3 SourceSnapshot v1
   const canonicalSnapshot = {
     schema_version: 1,
+    kind: "source-snapshot/v1",
     repository_id: "repo-e2e-calc",
     base_tree_digest: treeDigest,
     projection: "workspace",
@@ -182,6 +255,8 @@ test("K6a E2E Happy Path: True K3 -> K4a -> K6a -> K3 Pipeline with full workspa
   });
   assert.equal(workOrders.length, 1);
   const workOrder = workOrders[0];
+  assert.equal(workOrder.node_id, "calc-apply");
+  assert.equal(workOrder.work_order_id, computeWorkOrderId(workOrder));
 
   // Validate K3 <-> K4a WorkOrder Binding
   const woBinding = validateWorkOrderBinding(canonicalSnapshot, workOrder);
@@ -201,11 +276,34 @@ test("K6a E2E Happy Path: True K3 -> K4a -> K6a -> K3 Pipeline with full workspa
   assert.ok(fs.existsSync(path.join(workspace.root_path, "src", "calculator.js")));
   assert.equal(fs.existsSync(path.join(workspace.root_path, "unrelated", "leak.txt")), false);
 
-  // 5. K6a Execute Work Order Commands
+  // 5. K6a Execute Work Order Commands via Enforced WorkerTransport
   const buildScript = "const fs = require('fs'); fs.mkdirSync('dist', { recursive: true }); fs.writeFileSync('dist/bundle.js', 'console.log(5);\\n');";
+  const enforcedProof = makeEnforcedProof("adapter-e2e-sandbox");
+  const workerTransport = {
+    adapter_id: "adapter-e2e-sandbox",
+    probe_digest: enforcedProof.probe_digest,
+    kind: "worker-transport",
+    run: async (opts) => {
+      const { spawnSync } = require("node:child_process");
+      const res = spawnSync(opts.command, opts.args, {
+        cwd: opts.cwd,
+        env: { ...process.env, ...(opts.env || {}) },
+        encoding: "utf8",
+      });
+      return {
+        ok: res.status === 0,
+        exit_code: res.status !== null ? res.status : 1,
+        stdout: res.stdout || "",
+        stderr: res.stderr || "",
+      };
+    },
+  };
+
   const execResult = await executeWorkOrder({
     workOrder,
     workspace,
+    transports: { worker: workerTransport },
+    ...enforcedProof,
     commands: [
       { command: process.execPath, args: ["-e", buildScript] },
       { command: process.execPath, args: [path.join(workspace.root_path, "test", "calculator.test.js")] },
@@ -232,7 +330,7 @@ test("K6a E2E Happy Path: True K3 -> K4a -> K6a -> K3 Pipeline with full workspa
   const binding = validateWorkResultBinding(workOrder, execResult.workResult);
   assert.equal(binding.ok, true, "WorkResult must be cryptographically bound to WorkOrder");
 
-  // 7. K3 Patch Round-trip Reconstruction
+  // 7. K3 Patch Round-trip Reconstruction & Git Apply Verification
   const baseFilesMap = new Map([
     ["src/calculator.js", files["src/calculator.js"]],
     ["test/calculator.test.js", files["test/calculator.test.js"]],
@@ -240,6 +338,41 @@ test("K6a E2E Happy Path: True K3 -> K4a -> K6a -> K3 Pipeline with full workspa
   ]);
   const reconstructed = applyPatch(baseFilesMap, execResult.workResult.patch);
   assert.equal(reconstructed.get("dist/bundle.js"), "console.log(5);\n");
+
+  const { execSync } = require("node:child_process");
+  const gitDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-e2e-git-"));
+  t.after(() => {
+    try { fs.rmSync(gitDir, { recursive: true, force: true }); } catch {}
+  });
+
+  try {
+    execSync("git init", { cwd: gitDir, stdio: "ignore" });
+    execSync("git config user.name 'E2E'", { cwd: gitDir, stdio: "ignore" });
+    execSync("git config user.email 'e2e@example.com'", { cwd: gitDir, stdio: "ignore" });
+
+    for (const [p, content] of Object.entries(files)) {
+      if (p !== "unrelated/leak.txt") {
+        const full = path.join(gitDir, p);
+        fs.mkdirSync(path.dirname(full), { recursive: true });
+        fs.writeFileSync(full, content);
+      }
+    }
+    execSync("git add .", { cwd: gitDir, stdio: "ignore" });
+    execSync("git commit -m 'init'", { cwd: gitDir, stdio: "ignore" });
+
+    const patchFile = path.join(gitDir, "work-result.patch");
+    fs.writeFileSync(patchFile, execResult.workResult.patch);
+    execSync("git apply --check work-result.patch", { cwd: gitDir, stdio: "pipe" });
+    execSync("git apply work-result.patch", { cwd: gitDir, stdio: "pipe" });
+
+    assert.equal(fs.readFileSync(path.join(gitDir, "dist", "bundle.js"), "utf8").replace(/\r\n/g, "\n"), "console.log(5);\n");
+  } catch (err) {
+    if (err.message && err.message.includes("git")) {
+      t.skip(`Git CLI not available: ${err.message}`);
+    } else {
+      throw err;
+    }
+  }
 
   // 8. Dispose Workspace
   const disposeResult = await disposeWorkspace(workspace);
@@ -398,11 +531,9 @@ test("K6a Negative E2E: Undeclared write attempt halts fail-closed with containm
   const workspace = await createWorkspace({ baseDir, source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" });
   t.after(() => disposeWorkspace(workspace));
 
-  const workOrder = {
-    work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  const workOrder = makeCanonicalWorkOrder("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {
     allowed_paths: ["allowed/**"],
-  };
+  });
 
   const result = await executeWorkOrder({
     workOrder,
@@ -448,11 +579,9 @@ test("K6a Host Isolation Fallback: Reports truthful capability without silent pr
   const workspace = await createWorkspace({ baseDir, source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" });
   t.after(() => disposeWorkspace(workspace));
 
-  const workOrder = {
-    work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  const workOrder = makeCanonicalWorkOrder("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {
     allowed_paths: ["**"],
-  };
+  });
 
   // Without proof, declared enforced must downgrade to unavailable
   const resNoProof = await executeWorkOrder({
@@ -537,5 +666,125 @@ test("K6a Host Isolation Fallback: Reports truthful capability without silent pr
   });
   assert.equal(resMissingTransport.ok, false, "Must fail closed when enforced requested without WorkerTransport");
   assert.notEqual(resMissingTransport.isolationReported, "enforced");
+});
+
+test("K6a Negative E2E: Mutating operation (apply_implementation) fails closed when executed in fallback without enforced WorkerTransport", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-e2e-fallback-mut-"));
+  t.after(() => {
+    try { fs.rmSync(baseDir, { recursive: true, force: true }); } catch {}
+  });
+
+  const files = { "src/calculator.js": "function add(a, b) { return a + b; }\nmodule.exports = { add };\n" };
+  const snapshot = {
+    schema_version: 1,
+    kind: "source-snapshot/v1",
+    repository_id: "repo-mut-fallback",
+    base_tree_digest: computeTreeDigest(files),
+    projection: "workspace",
+    dependency_digests: [],
+  };
+  snapshot.source_snapshot_id = computeSourceSnapshotId(snapshot);
+
+  const workOrder = makeCanonicalWorkOrder(snapshot.source_snapshot_id, {
+    node_id: "apply-mut",
+    operation: "apply_implementation",
+    ownership: { owner: "agent-e2e", mode: "exclusive" },
+    allowed_paths: ["src/**"],
+  });
+
+  const workspace = await createWorkspace({ baseDir, source_snapshot_id: snapshot.source_snapshot_id });
+  t.after(() => disposeWorkspace(workspace));
+
+  await materializeSourceSnapshot(workspace, workOrder, snapshot, {
+    capsule_inputs: ["src/calculator.js"],
+    files,
+  });
+
+  const result = await executeWorkOrder({
+    workOrder,
+    workspace,
+    command: process.execPath,
+    args: ["-e", "console.log('must be rejected');"],
+    isolationCapability: "unavailable",
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "mutation-requires-enforced-isolation");
+});
+
+test("K6a Adversarial E2E: Mutating work order attempting write outside allowed_paths is rejected by containment", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-e2e-adv-write-"));
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-e2e-adv-outside-"));
+  t.after(() => {
+    try {
+      fs.rmSync(baseDir, { recursive: true, force: true });
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    } catch {}
+  });
+
+  const files = { "src/app.js": "console.log('app');\n" };
+  const snapshot = {
+    schema_version: 1,
+    kind: "source-snapshot/v1",
+    repository_id: "repo-adv-write",
+    base_tree_digest: computeTreeDigest(files),
+    projection: "workspace",
+    dependency_digests: [],
+  };
+  snapshot.source_snapshot_id = computeSourceSnapshotId(snapshot);
+
+  const workOrder = makeCanonicalWorkOrder(snapshot.source_snapshot_id, {
+    node_id: "adv-apply",
+    operation: "apply_implementation",
+    ownership: { owner: "agent-e2e", mode: "exclusive" },
+    allowed_paths: ["src/**"],
+  });
+
+  const workspace = await createWorkspace({ baseDir, source_snapshot_id: snapshot.source_snapshot_id });
+  t.after(() => disposeWorkspace(workspace));
+
+  await materializeSourceSnapshot(workspace, workOrder, snapshot, {
+    capsule_inputs: ["src/app.js"],
+    files,
+  });
+
+  const enforcedProof = makeEnforcedProof("adapter-e2e-sandbox");
+  const mockTransport = {
+    adapter_id: "adapter-e2e-sandbox",
+    probe_digest: enforcedProof.probe_digest,
+    kind: "worker-transport",
+    run: async (opts) => {
+      const { spawnSync } = require("node:child_process");
+      const res = spawnSync(opts.command, opts.args, {
+        cwd: opts.cwd,
+        env: { ...process.env, ...(opts.env || {}) },
+        encoding: "utf8",
+      });
+      return {
+        ok: res.status === 0,
+        exit_code: res.status !== null ? res.status : 1,
+        stdout: res.stdout || "",
+        stderr: res.stderr || "",
+      };
+    },
+  };
+
+  const result = await executeWorkOrder({
+    workOrder,
+    workspace,
+    transports: { worker: mockTransport },
+    ...enforcedProof,
+    commands: [
+      {
+        command: process.execPath,
+        args: ["-e", "const fs = require('fs'); fs.mkdirSync('unauthorized', { recursive: true }); fs.writeFileSync('unauthorized/leak.txt', 'pwned');"],
+      },
+    ],
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.violation);
+  assert.equal(result.violation.violation_type, "undeclared_write");
+  assert.equal(result.violation.attempted_path, "unauthorized/leak.txt");
 });
 

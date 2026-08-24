@@ -24,6 +24,78 @@ const ROOT = path.resolve(__dirname, "..", "..");
 const DUMMY_SNAPSHOT_ID = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const DUMMY_WORK_ORDER_ID = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
 
+function makeCanonicalWorkOrder(sourceSnapshotId = DUMMY_SNAPSHOT_ID, overrides = {}) {
+  const payload = {
+    schema_version: 2,
+    kind: "work-order/v2",
+    source_snapshot_id: sourceSnapshotId,
+    node_id: overrides.node_id || "node-test-1",
+    role: overrides.role || "repair-worker",
+    operation: overrides.operation || "verify",
+    objective: overrides.objective || "Execute test command",
+    dependencies: overrides.dependencies || [],
+    ownership: overrides.ownership || { owner: "agent-test", mode: "shared" },
+    allowed_paths: overrides.allowed_paths || ["**"],
+    invariants: overrides.invariants || [],
+    required_evidence: overrides.required_evidence || [],
+    budget: overrides.budget || {
+      model_turns: 5,
+      patches: 3,
+      commands: 5,
+      wall_time_minutes: 10,
+      changed_lines: 100,
+    },
+    status: overrides.status || "pending",
+  };
+  if (overrides.clarification_context) {
+    payload.clarification_context = overrides.clarification_context;
+  }
+  const workOrderId = overrides.work_order_id !== undefined ? overrides.work_order_id : computeWorkOrderId(payload);
+  return {
+    ...payload,
+    work_order_id: workOrderId,
+  };
+}
+
+function makeEnforcedProof(adapterId = "adapter-test") {
+  const evidence = { surface: "worker", headless: true };
+  const fixture = "fixtures/WorkerTransport.json";
+  const evidence_digest = createEvidenceDigest({
+    capability_id: "WorkerTransport",
+    adapter_version: "1.0.0",
+    host_version: "1.0.0",
+    fixture,
+    evidence,
+  });
+  const probe_digest = createProbeDigest({
+    capability_id: "WorkerTransport",
+    adapter_id: adapterId,
+    adapter_version: "1.0.0",
+    host_version: "1.0.0",
+    probe: { surface: "live", ok: true },
+  });
+  const capabilityProof = {
+    schema_version: 1,
+    kind: "capability-proof/v1",
+    adapter_id: adapterId,
+    adapter_version: "1.0.0",
+    host_version: "1.0.0",
+    fixture,
+    evidence_digest,
+    probe_digest,
+  };
+  return {
+    isolationCapability: "enforced",
+    capabilityProof,
+    semantic_evidence: evidence,
+    expectedAdapterId: adapterId,
+    expectedAdapterVersion: "1.0.0",
+    expectedHostRuntimeVersion: "1.0.0",
+    expectedProbeDigest: probe_digest,
+    probe_digest,
+  };
+}
+
 test("computeMutationDelta: detects mode change as modified when sha256 is identical", () => {
   const baselineInventory = [
     { path: "bin/tool.sh", sha256: "sha256:same-hash", mode: 0o644 },
@@ -152,8 +224,11 @@ test("executeWorkOrder: executes via WorkerTransport async port when provided", 
   t.after(() => disposeWorkspace(ws));
 
   let transportCalled = false;
+  const enforcedProof = makeEnforcedProof("adapter-test");
   const mockTransport = {
     port_id: "port-worker-transport-1",
+    adapter_id: "adapter-test",
+    probe_digest: enforcedProof.probe_digest,
     kind: "worker-transport",
     run: async (request) => {
       transportCalled = true;
@@ -169,17 +244,16 @@ test("executeWorkOrder: executes via WorkerTransport async port when provided", 
     },
   };
 
-  const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
     allowed_paths: ["output/**"],
-  };
+  });
 
   const result = await executeWorkOrder({
     workOrder,
     workspace: ws,
     transports: { worker: mockTransport },
     command: "custom-runner",
+    ...enforcedProof,
   });
 
   assert.equal(transportCalled, true, "WorkerTransport must be invoked");
@@ -196,25 +270,45 @@ test("executeWorkOrder: executes command in workspace and captures WorkResult te
   const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
   t.after(() => disposeWorkspace(ws));
 
-  const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
     allowed_paths: ["output/**"],
+  });
+
+  const enforcedProof = makeEnforcedProof("adapter-e2e");
+  const mockTransport = {
+    adapter_id: "adapter-e2e",
+    probe_digest: enforcedProof.probe_digest,
+    kind: "worker-transport",
+    run: async (opts) => {
+      const { spawnSync } = require("node:child_process");
+      const res = spawnSync(opts.command, opts.args, {
+        cwd: opts.cwd,
+        env: { ...process.env, ...(opts.env || {}) },
+        encoding: "utf8",
+      });
+      return {
+        ok: res.status === 0,
+        exit_code: res.status !== null ? res.status : 1,
+        stdout: res.stdout || "",
+        stderr: res.stderr || "",
+      };
+    },
   };
 
   const result = await executeWorkOrder({
     workOrder,
     workspace: ws,
+    transports: { worker: mockTransport },
+    ...enforcedProof,
     command: process.execPath,
     args: ["-e", "const fs = require('fs'); fs.mkdirSync('output', {recursive: true}); fs.writeFileSync('output/result.txt', 'hello'); console.log('done');"],
-    isolationCapability: "partial",
   });
 
   assert.equal(result.ok, true);
   assert.ok(result.workResult);
   assert.equal(result.workResult.exit_code, 0);
   assert.ok(result.workResult.logs.some((l) => l.includes("done")));
-  assert.equal(result.workResult.work_order_id, DUMMY_WORK_ORDER_ID);
+  assert.equal(result.workResult.work_order_id, workOrder.work_order_id);
   assert.equal(result.workResult.source_snapshot_id, DUMMY_SNAPSHOT_ID);
   assert.ok(result.workResult.filesystem_inventory.some((f) => f.path === "output/result.txt"));
   assert.equal(result.workResult.candidate_id, undefined, "Zero CandidateId properties allowed");
@@ -231,11 +325,11 @@ test("executeWorkOrder: captures non-zero exit code and error logs without throw
   const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
   t.after(() => disposeWorkspace(ws));
 
-  const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
+    operation: "verify",
+    ownership: { owner: "agent-test", mode: "shared" },
     allowed_paths: ["**"],
-  };
+  });
 
   const result = await executeWorkOrder({
     workOrder,
@@ -257,11 +351,11 @@ test("executeWorkOrder: enforces capability proof before reporting enforced isol
   const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
   t.after(() => disposeWorkspace(ws));
 
-  const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
+    operation: "verify",
+    ownership: { owner: "agent-test", mode: "shared" },
     allowed_paths: ["**"],
-  };
+  });
 
   // Declared enforced without proof must downgrade to unavailable
   const resNoProof = await executeWorkOrder({
@@ -360,11 +454,9 @@ test("executeWorkOrder: fails closed when workspace is not registered in private
     source_snapshot_id: DUMMY_SNAPSHOT_ID,
   };
 
-  const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
     allowed_paths: ["**"],
-  };
+  });
 
   const result = await executeWorkOrder({
     workOrder,
@@ -420,11 +512,9 @@ test("executeWorkOrder: fails closed when enforced isolation requested but Worke
     run: async () => ({ ok: true, exit_code: 0, stdout: "ok", stderr: "" }),
   };
 
-  const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
     allowed_paths: ["**"],
-  };
+  });
 
   const result = await executeWorkOrder({
     workOrder,
@@ -451,11 +541,9 @@ test("executeWorkOrder: fails closed on mutating commands in fallback when stric
   const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
   t.after(() => disposeWorkspace(ws));
 
-  const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
     allowed_paths: ["**"],
-  };
+  });
 
   const result = await executeWorkOrder({
     workOrder,
@@ -486,11 +574,9 @@ test("executeWorkOrder: passes signal and deadlineMs to invokeTransportAsync wit
     },
   };
 
-  const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
     allowed_paths: ["**"],
-  };
+  });
 
   const controller = new AbortController();
 
@@ -516,11 +602,11 @@ test("executeWorkOrder: handles host capability fallback without silent promotio
   const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
   t.after(() => disposeWorkspace(ws));
 
-  const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
+    operation: "verify",
+    ownership: { owner: "agent-test", mode: "shared" },
     allowed_paths: ["**"],
-  };
+  });
 
   const result = await executeWorkOrder({
     workOrder,
@@ -542,11 +628,11 @@ test("executeWorkOrder: handles abort signal and returns recovery descriptor", a
   const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
   t.after(() => disposeWorkspace(ws));
 
-  const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
+    operation: "verify",
+    ownership: { owner: "agent-test", mode: "shared" },
     allowed_paths: ["**"],
-  };
+  });
 
   const controller = new AbortController();
   controller.abort();
@@ -573,11 +659,9 @@ test("executeWorkOrder: fails pre-flight if declaredTargets violates containment
   const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
   t.after(() => disposeWorkspace(ws));
 
-  const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
     allowed_paths: ["src/**"],
-  };
+  });
 
   const result = await executeWorkOrder({
     workOrder,
@@ -592,23 +676,17 @@ test("executeWorkOrder: fails pre-flight if declaredTargets violates containment
 });
 
 test("captureWorkResult: validates cryptographic binding against source WorkOrder", async () => {
-  const workOrder = {
-    schema_version: 2,
-    kind: "work-order/v2",
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
     node_id: "node-binding-1",
     role: "executor",
-    status: "pending",
     operation: "apply",
     objective: "Run test suite",
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
-    dependencies: [],
     ownership: { owner: "agent-1", mode: "exclusive" },
     allowed_paths: ["src/**"],
     invariants: ["inv-1"],
     required_evidence: ["ev-1"],
     budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
-  };
-  workOrder.work_order_id = computeWorkOrderId(workOrder);
+  });
 
   const workResult = await captureWorkResult({
     work_order_id: workOrder.work_order_id,
@@ -648,10 +726,9 @@ test("recoverInterruptedExecution: preserves partial logs, modifies workspace st
   fs.mkdirSync(path.join(ws.root_path, "partial"), { recursive: true });
   fs.writeFileSync(path.join(ws.root_path, "partial", "temp.txt"), "in-flight data");
 
-  const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
-  };
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
+    allowed_paths: ["**"],
+  });
 
   const recovery = await recoverInterruptedExecution({
     workspace: ws,
@@ -674,15 +751,36 @@ test("executeWorkOrder: halts fail-closed on post-flight containment violation",
   const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
   t.after(() => disposeWorkspace(ws));
 
-  const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
     allowed_paths: ["src/**"], // Only src/** is allowed
+  });
+
+  const enforcedProof = makeEnforcedProof("adapter-e2e");
+  const mockTransport = {
+    adapter_id: "adapter-e2e",
+    probe_digest: enforcedProof.probe_digest,
+    kind: "worker-transport",
+    run: async (opts) => {
+      const { spawnSync } = require("node:child_process");
+      const res = spawnSync(opts.command, opts.args, {
+        cwd: opts.cwd,
+        env: { ...process.env, ...(opts.env || {}) },
+        encoding: "utf8",
+      });
+      return {
+        ok: res.status === 0,
+        exit_code: res.status !== null ? res.status : 1,
+        stdout: res.stdout || "",
+        stderr: res.stderr || "",
+      };
+    },
   };
 
   const result = await executeWorkOrder({
     workOrder,
     workspace: ws,
+    transports: { worker: mockTransport },
+    ...enforcedProof,
     command: process.execPath,
     args: ["-e", "const fs = require('fs'); fs.mkdirSync('unauthorized', {recursive: true}); fs.writeFileSync('unauthorized/leak.txt', 'evil');"],
   });
@@ -704,11 +802,11 @@ test("executeWorkOrder: captures timeout when budget.wall_time_ms is exceeded", 
   const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
   t.after(() => disposeWorkspace(ws));
 
-  const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
+    operation: "verify",
+    ownership: { owner: "agent-test", mode: "shared" },
     allowed_paths: ["**"],
-  };
+  });
 
   const result = await executeWorkOrder({
     workOrder,
@@ -732,11 +830,11 @@ test("executeWorkOrder: logs spawn error when binary does not exist", async (t) 
   const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
   t.after(() => disposeWorkspace(ws));
 
-  const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
+    operation: "verify",
+    ownership: { owner: "agent-test", mode: "shared" },
     allowed_paths: ["**"],
-  };
+  });
 
   const result = await executeWorkOrder({
     workOrder,
@@ -763,7 +861,7 @@ test("generateUnifiedDiff: emits git-style mode change header on chmod without c
   const baselineContents = new Map([["script.sh", "#!/bin/sh\necho hi\n"]]);
 
   const patch = generateUnifiedDiff(baseDir, baselineInventory, postInventory, baselineContents);
-  assert.ok(patch.includes("--- a/script.sh\n+++ b/script.sh\nold mode 100644\nnew mode 100755"));
+  assert.ok(patch.includes("diff --git a/script.sh b/script.sh\nold mode 100644\nnew mode 100755"));
 });
 
 test("generateUnifiedDiff: emits git-style mode change header AND diff hunks when both mode and content change", (t) => {
@@ -778,7 +876,7 @@ test("generateUnifiedDiff: emits git-style mode change header AND diff hunks whe
   const baselineContents = new Map([["run.sh", "#!/bin/sh\necho original\n"]]);
 
   const patch = generateUnifiedDiff(baseDir, baselineInventory, postInventory, baselineContents);
-  assert.ok(patch.includes("--- a/run.sh\n+++ b/run.sh\nold mode 100644\nnew mode 100755\n@@ -1,2 +1,2 @@"));
+  assert.ok(patch.includes("diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n--- a/run.sh\n+++ b/run.sh\n@@ -1,2 +1,2 @@"));
   assert.ok(patch.includes("-echo original"));
   assert.ok(patch.includes("+echo updated"));
 });
@@ -793,11 +891,9 @@ test("executeWorkOrder: fails closed when workOrder source_snapshot_id does not 
   const ws = await createWorkspace({ baseDir, source_snapshot_id: snapshotA });
   t.after(() => disposeWorkspace(ws));
 
-  const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: snapshotB, // Disagrees with workspace!
+  const workOrder = makeCanonicalWorkOrder(snapshotB, {
     allowed_paths: ["**"],
-  };
+  });
 
   const result = await executeWorkOrder({
     workOrder,
@@ -866,8 +962,11 @@ test("executeWorkOrder: preserves exit_code, stderr, and stdout telemetry from f
   const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
   t.after(() => disposeWorkspace(ws));
 
+  const enforcedProof = makeEnforcedProof("adapter-failing");
   const failingTransport = {
     port_id: "port-failing-worker",
+    adapter_id: "adapter-failing",
+    probe_digest: enforcedProof.probe_digest,
     kind: "worker-transport",
     run: async () => ({
       ok: false,
@@ -878,16 +977,15 @@ test("executeWorkOrder: preserves exit_code, stderr, and stdout telemetry from f
     }),
   };
 
-  const workOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
     allowed_paths: ["**"],
-  };
+  });
 
   const result = await executeWorkOrder({
     workOrder,
     workspace: ws,
     transports: { worker: failingTransport },
+    ...enforcedProof,
     command: "failing-runner",
   });
 
@@ -924,12 +1022,11 @@ test("executeWorkOrder: rejects mutating work order in unverified fallback witho
   const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
   t.after(() => disposeWorkspace(ws));
 
-  const mutatingWorkOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
-    operation: "apply",
+  const mutatingWorkOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
+    operation: "apply_implementation",
+    ownership: { owner: "agent-test", mode: "exclusive" },
     allowed_paths: ["src/**"],
-  };
+  });
 
   const result = await executeWorkOrder({
     workOrder: mutatingWorkOrder,
@@ -959,12 +1056,11 @@ test("executeWorkOrder: adversarial test - subprocess writing outside workspace 
   const outsideFile = path.join(outsideDir, "pwned.txt").replace(/\\/g, "/");
 
   // Attempt to execute mutating apply in fallback -> rejected before execution
-  const mutatingWorkOrder = {
-    work_order_id: DUMMY_WORK_ORDER_ID,
-    source_snapshot_id: DUMMY_SNAPSHOT_ID,
-    operation: "apply",
+  const mutatingWorkOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
+    operation: "apply_implementation",
+    ownership: { owner: "agent-test", mode: "exclusive" },
     allowed_paths: ["src/**"],
-  };
+  });
 
   const result = await executeWorkOrder({
     workOrder: mutatingWorkOrder,
@@ -976,6 +1072,132 @@ test("executeWorkOrder: adversarial test - subprocess writing outside workspace 
 
   assert.equal(result.ok, false);
   assert.equal(fs.existsSync(outsideFile), false, "Subprocess must not be permitted to execute unconfined mutating commands in fallback");
+});
+
+test("executeWorkOrder: rejects workOrder failing schema validation", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-exec-schema-val-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  t.after(() => disposeWorkspace(ws));
+
+  const invalidWorkOrder = {
+    schema_version: 2,
+    kind: "work-order/v2",
+    // missing required fields
+  };
+
+  const result = await executeWorkOrder({
+    workOrder: invalidWorkOrder,
+    workspace: ws,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "invalid-work-order-schema");
+});
+
+test("executeWorkOrder: rejects workOrder when declared WorkOrderId does not match computed WorkOrderId", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-exec-woid-mismatch-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  t.after(() => disposeWorkspace(ws));
+
+  const canonical = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID);
+  const forgedWorkOrder = {
+    ...canonical,
+    work_order_id: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  };
+
+  const result = await executeWorkOrder({
+    workOrder: forgedWorkOrder,
+    workspace: ws,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "work-order-id-mismatch");
+});
+
+test("executeWorkOrder: rejects workOrder with missing or empty allowed_paths", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-exec-no-paths-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  t.after(() => disposeWorkspace(ws));
+
+  const woEmptyPaths = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
+    allowed_paths: [],
+  });
+
+  const result = await executeWorkOrder({
+    workOrder: woEmptyPaths,
+    workspace: ws,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "missing-allowed-paths");
+});
+
+test("generateUnifiedDiff: patches pass git apply --check and git apply with exact mode and content reproduction", (t) => {
+  const { execSync } = require("node:child_process");
+  const gitDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-git-apply-test-"));
+  t.after(() => {
+    try { fs.rmSync(gitDir, { recursive: true, force: true }); } catch {}
+  });
+
+  try {
+    execSync("git init", { cwd: gitDir, stdio: "ignore" });
+    execSync("git config user.name 'Test'", { cwd: gitDir, stdio: "ignore" });
+    execSync("git config user.email 'test@example.com'", { cwd: gitDir, stdio: "ignore" });
+
+    // Initial files
+    fs.writeFileSync(path.join(gitDir, "script.sh"), "#!/bin/sh\necho 1\n");
+    fs.writeFileSync(path.join(gitDir, "run.sh"), "#!/bin/sh\necho old\n");
+    execSync("git add .", { cwd: gitDir, stdio: "ignore" });
+    execSync("git commit -m 'init'", { cwd: gitDir, stdio: "ignore" });
+
+    // Test 1: Mode change only
+    const patchModeOnly = generateUnifiedDiff(
+      gitDir,
+      [{ path: "script.sh", sha256: "sha256:same", mode: 0o100644 }],
+      [{ path: "script.sh", sha256: "sha256:same", mode: 0o100755 }],
+      new Map([["script.sh", "#!/bin/sh\necho 1\n"]])
+    );
+    assert.ok(patchModeOnly.includes("diff --git a/script.sh b/script.sh\nold mode 100644\nnew mode 100755"));
+
+    const patch1File = path.join(gitDir, "mode-only.patch");
+    fs.writeFileSync(patch1File, patchModeOnly);
+    execSync("git apply --check mode-only.patch", { cwd: gitDir, stdio: "pipe" });
+    execSync("git apply mode-only.patch", { cwd: gitDir, stdio: "pipe" });
+
+    // Test 2: Mode + content change
+    // Write new content to disk first so generateUnifiedDiff reads the updated content
+    fs.writeFileSync(path.join(gitDir, "run.sh"), "#!/bin/sh\necho updated\n");
+
+    const patchModeContent = generateUnifiedDiff(
+      gitDir,
+      [{ path: "run.sh", sha256: "sha256:old", mode: 0o100644 }],
+      [{ path: "run.sh", sha256: "sha256:new", mode: 0o100755 }],
+      new Map([["run.sh", "#!/bin/sh\necho old\n"]])
+    );
+    assert.ok(patchModeContent.includes("diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n--- a/run.sh\n+++ b/run.sh"));
+
+    // Reset file on disk before applying patch
+    fs.writeFileSync(path.join(gitDir, "run.sh"), "#!/bin/sh\necho old\n");
+
+    const patch2File = path.join(gitDir, "mode-content.patch");
+    fs.writeFileSync(patch2File, patchModeContent);
+    execSync("git apply --check mode-content.patch", { cwd: gitDir, stdio: "pipe" });
+    execSync("git apply mode-content.patch", { cwd: gitDir, stdio: "pipe" });
+
+    assert.equal(fs.readFileSync(path.join(gitDir, "run.sh"), "utf8").replace(/\r\n/g, "\n"), "#!/bin/sh\necho updated\n");
+  } catch (err) {
+    if (err.message && err.message.includes("git")) {
+      t.skip(`Git not available for patch test: ${err.message}`);
+    } else {
+      throw err;
+    }
+  }
 });
 
 

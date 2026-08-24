@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.46.6] - 2026-08-24
+
+### Fixed
+- **Cierre Terminal de Aislamiento de Workers, Contención Estructural de Mutaciones y Formato Git Apply K6a**:
+  - **Contención Estricta de Mutaciones por Clasificación Estructural**: Sustituida la comprobación superficial de strings (`operation === "apply"`) por clasificación estructural completa basada en `ownership.mode === "exclusive"`, `effect_class === "workspace_mutation"|"irreversible"`, o verbos mutantes (`apply|mutate|build|generate|install|compile`), protegiendo órdenes canónicas como `apply_implementation` de K4a y forzando rechazo fail-closed (`mutation-requires-enforced-isolation`) en fallbacks sin transporte con aislamiento `enforced` verificado. Eliminado `allowUnsafeFallbackMutation`.
+  - **Pre-validación Rigurosa de WorkOrder v2 con Schema y Hash Canónico**: `executeWorkOrder` valida de forma estricta las órdenes contra el esquema JSON Schema Draft 2020-12 `work-order/v2`, verifica la coincidencia exacta entre el `work_order_id` declarado y el recomputado mediante `computeWorkOrderId`, y rechaza sin excepción listas de `allowed_paths` vacías (`missing-allowed-paths`).
+  - **Formato de Diff Git Real y Aplicable (`git apply` compliant)**: `generateUnifiedDiff` emite cabeceras Git conformes (`diff --git a/{p} b/{p}\nold mode ...\nnew mode ...`), omitiendo hunks vacíos en cambios de solo modo y produciendo diffs válidos verificados directamente mediante `git apply --check` y `git apply`.
+  - **Encapsulación y Transiciones de Estado en Registro Privado**: Reemplazado el setter genérico público `updateWorkspaceStatus` por la primitiva restringida `markWorkspaceInterrupted(workspaceId, reason)`, validando la máquina de estados (`active` -> `interrupted`) y blindando el registro privado frente a mutaciones externas arbitrarias.
+  - **Triangulación Zero-Trust y Manejo Conforme de Symlinks en Tests**: Corregido el test zero-trust en `worker-workspace.test.js` calculando hashes SHA-256 por archivo con triangulación positiva y negativa; los tests de symlink reportan `t.skip` en entornos sin privilegios de creación de enlaces.
+  - **Suite E2E Adversarial y Verificación Canónica K3 -> K4a -> K6a -> K3**: Pipeline E2E en `scripts/k6a-e2e-worker-isolation.test.js` ejecutando órdenes de trabajo mutantes sobre `WorkerTransport` con `CapabilityProof` válido, verificando la aplicación real de patches con `git apply --check` y `git apply` en repositorio temporal, y validando contención ante intentos de escape fuera de `allowed_paths` y ejecuciones mutantes no aisladas.
+
 ## [2.46.5] - 2026-08-24
 
 ### Fixed
