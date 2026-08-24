@@ -69,6 +69,22 @@ if (workspaceRootEnv) {
     return false;
   }
 
+  function resolveRealTargetPath(absTarget) {
+    let curr = absTarget;
+    const suffix = [];
+    while (curr && curr !== path.dirname(curr)) {
+      try {
+        if (fs.existsSync(curr) || fs.lstatSync(curr)) {
+          const realCurr = fs.realpathSync(curr);
+          return suffix.length > 0 ? path.join(realCurr, ...suffix) : realCurr;
+        }
+      } catch {}
+      suffix.unshift(path.basename(curr));
+      curr = path.dirname(curr);
+    }
+    return absTarget;
+  }
+
   function assertWriteAllowed(rawPath, opName) {
     if (rawPath === undefined || rawPath === null) return;
     let targetStr = rawPath;
@@ -85,17 +101,7 @@ if (workspaceRootEnv) {
     if (typeof targetStr !== "string") return;
 
     const absTarget = path.normalize(path.resolve(process.cwd(), targetStr));
-    let realTarget = absTarget;
-    try {
-      if (fs.existsSync(absTarget)) {
-        realTarget = fs.realpathSync(absTarget);
-      } else {
-        const parent = path.dirname(absTarget);
-        if (fs.existsSync(parent)) {
-          realTarget = path.join(fs.realpathSync(parent), path.basename(absTarget));
-        }
-      }
-    } catch {}
+    const realTarget = resolveRealTargetPath(absTarget);
 
     const relNorm = path.relative(normWorkspaceRoot, absTarget);
     const isOutsideNorm = relNorm.startsWith("..") || path.isAbsolute(relNorm);
@@ -103,9 +109,8 @@ if (workspaceRootEnv) {
     const relReal = path.relative(realWorkspaceRoot, realTarget);
     const isOutsideReal = relReal.startsWith("..") || path.isAbsolute(relReal);
 
-    const isOutside = isOutsideNorm && isOutsideReal;
-
-    if (isOutside) {
+    // If EITHER the normalized path or real resolved target is outside workspace root, IT IS OUTSIDE!
+    if (isOutsideNorm || isOutsideReal) {
       const err = new Error(`EACCES: permission denied by worker sandbox (external write blocked): ${targetStr} [operation: ${opName || "write"}]`);
       err.code = "EACCES";
       err.errno = -13;
@@ -114,14 +119,36 @@ if (workspaceRootEnv) {
       throw err;
     }
 
-    const activeRel = !isOutsideNorm ? relNorm : relReal;
-    const relPosix = activeRel.replace(/\\/g, "/");
-    if (!isPathAllowed(relPosix, allowedPaths)) {
-      const err = new Error(`EACCES: permission denied by worker sandbox (undeclared write blocked): ${targetStr} -> ${relPosix} [operation: ${opName || "write"}]`);
+    const relPosixNorm = relNorm.replace(/\\/g, "/");
+    const relPosixReal = relReal.replace(/\\/g, "/");
+
+    if (!isPathAllowed(relPosixNorm, allowedPaths) || !isPathAllowed(relPosixReal, allowedPaths)) {
+      const err = new Error(`EACCES: permission denied by worker sandbox (undeclared write blocked): ${targetStr} -> ${relPosixNorm} [operation: ${opName || "write"}]`);
       err.code = "EACCES";
       err.errno = -13;
       err.syscall = opName || "write";
       err.path = targetStr;
+      throw err;
+    }
+  }
+
+  function assertSymlinkTargetAllowed(targetPath, linkPath, opName) {
+    assertWriteAllowed(linkPath, opName || "symlink");
+    if (typeof targetPath !== "string") return;
+    const absLink = path.normalize(path.resolve(process.cwd(), String(linkPath)));
+    const absTarget = path.isAbsolute(targetPath)
+      ? path.normalize(targetPath)
+      : path.normalize(path.resolve(path.dirname(absLink), targetPath));
+    const realTarget = resolveRealTargetPath(absTarget);
+
+    const relNorm = path.relative(normWorkspaceRoot, absTarget);
+    const relReal = path.relative(realWorkspaceRoot, realTarget);
+
+    if (relNorm.startsWith("..") || path.isAbsolute(relNorm) || relReal.startsWith("..") || path.isAbsolute(relReal)) {
+      const err = new Error(`EACCES: permission denied by worker sandbox (symlink destination outside workspace blocked): ${targetPath} -> ${linkPath}`);
+      err.code = "EACCES";
+      err.errno = -13;
+      err.syscall = opName || "symlink";
       throw err;
     }
   }
@@ -141,6 +168,78 @@ if (workspaceRootEnv) {
     }
     return true;
   }
+
+  // Intercept child_process
+  try {
+    const cp = require("node:child_process");
+
+    function isNodeCommand(file) {
+      if (typeof file !== "string") return false;
+      const base = path.basename(file).toLowerCase();
+      return (
+        file === process.execPath ||
+        base === "node" ||
+        base === "node.exe"
+      );
+    }
+
+    function checkChildProcess(file, opName) {
+      if (!isNodeCommand(file)) {
+        const err = new Error(`EACCES: permission denied by worker sandbox (child_process execution of unconfined binary blocked): ${file} [operation: ${opName}]`);
+        err.code = "EACCES";
+        err.errno = -13;
+        err.syscall = opName;
+        throw err;
+      }
+    }
+
+    const origSpawn = cp.spawn;
+    cp.spawn = function (file, args, options) {
+      checkChildProcess(file, "spawn");
+      return origSpawn.apply(this, arguments);
+    };
+
+    const origSpawnSync = cp.spawnSync;
+    cp.spawnSync = function (file, args, options) {
+      checkChildProcess(file, "spawnSync");
+      return origSpawnSync.apply(this, arguments);
+    };
+
+    const origExecFile = cp.execFile;
+    cp.execFile = function (file, args, options, callback) {
+      checkChildProcess(file, "execFile");
+      return origExecFile.apply(this, arguments);
+    };
+
+    const origExecFileSync = cp.execFileSync;
+    cp.execFileSync = function (file, args, options) {
+      checkChildProcess(file, "execFileSync");
+      return origExecFileSync.apply(this, arguments);
+    };
+
+    const origExec = cp.exec;
+    cp.exec = function (cmd, options, callback) {
+      const cb = typeof options === "function" ? options : callback;
+      const err = new Error(`EACCES: permission denied by worker sandbox (shell execution blocked): ${cmd} [operation: exec]`);
+      err.code = "EACCES";
+      err.errno = -13;
+      err.syscall = "exec";
+      if (typeof cb === "function") {
+        process.nextTick(() => cb(err, "", err.message));
+        return null;
+      }
+      throw err;
+    };
+
+    const origExecSync = cp.execSync;
+    cp.execSync = function (cmd, options) {
+      const err = new Error(`EACCES: permission denied by worker sandbox (shell execution blocked): ${cmd} [operation: execSync]`);
+      err.code = "EACCES";
+      err.errno = -13;
+      err.syscall = "execSync";
+      throw err;
+    };
+  } catch {}
 
   // Patch sync fs methods
   const origWriteFileSync = fs.writeFileSync;
@@ -172,7 +271,10 @@ if (workspaceRootEnv) {
   const origCreateWriteStream = fs.createWriteStream;
   fs.createWriteStream = function (filePath, options) {
     if (typeof filePath !== "number") {
-      assertWriteAllowed(filePath, "createWriteStream");
+      const flags = options && typeof options === "object" ? options.flags : undefined;
+      if (isWriteFlag(flags)) {
+        assertWriteAllowed(filePath, "createWriteStream");
+      }
     }
     return origCreateWriteStream.apply(this, arguments);
   };
@@ -199,10 +301,12 @@ if (workspaceRootEnv) {
   }
 
   const origRmdirSync = fs.rmdirSync;
-  fs.rmdirSync = function (p, options) {
-    assertWriteAllowed(p, "rmdirSync");
-    return origRmdirSync.apply(this, arguments);
-  };
+  if (origRmdirSync) {
+    fs.rmdirSync = function (p, options) {
+      assertWriteAllowed(p, "rmdirSync");
+      return origRmdirSync.apply(this, arguments);
+    };
+  }
 
   const origUnlinkSync = fs.unlinkSync;
   fs.unlinkSync = function (p) {
@@ -211,10 +315,12 @@ if (workspaceRootEnv) {
   };
 
   const origTruncateSync = fs.truncateSync;
-  fs.truncateSync = function (p, len) {
-    if (typeof p !== "number") assertWriteAllowed(p, "truncateSync");
-    return origTruncateSync.apply(this, arguments);
-  };
+  if (origTruncateSync) {
+    fs.truncateSync = function (p, len) {
+      if (typeof p !== "number") assertWriteAllowed(p, "truncateSync");
+      return origTruncateSync.apply(this, arguments);
+    };
+  }
 
   if (fs.cpSync) {
     const origCpSync = fs.cpSync;
@@ -224,17 +330,33 @@ if (workspaceRootEnv) {
     };
   }
 
+  const origSymlinkSync = fs.symlinkSync;
+  if (origSymlinkSync) {
+    fs.symlinkSync = function (target, p, type) {
+      assertSymlinkTargetAllowed(target, p, "symlinkSync");
+      return origSymlinkSync.apply(this, arguments);
+    };
+  }
+
+  const origLinkSync = fs.linkSync;
+  if (origLinkSync) {
+    fs.linkSync = function (existingPath, newPath) {
+      assertWriteAllowed(newPath, "linkSync:dest");
+      return origLinkSync.apply(this, arguments);
+    };
+  }
+
   // Patch async callback fs methods
   const origWriteFile = fs.writeFile;
   fs.writeFile = function (file, data, options, callback) {
     const cb = typeof options === "function" ? options : callback;
-    if (typeof file !== "number") {
-      try {
-        assertWriteAllowed(file, "writeFile");
-      } catch (err) {
-        if (typeof cb === "function") return process.nextTick(() => cb(err));
-        throw err;
+    try {
+      if (typeof file !== "number") assertWriteAllowed(file, "writeFile");
+    } catch (err) {
+      if (typeof cb === "function") {
+        return process.nextTick(() => cb(err));
       }
+      throw err;
     }
     return origWriteFile.apply(this, arguments);
   };
@@ -242,13 +364,13 @@ if (workspaceRootEnv) {
   const origAppendFile = fs.appendFile;
   fs.appendFile = function (file, data, options, callback) {
     const cb = typeof options === "function" ? options : callback;
-    if (typeof file !== "number") {
-      try {
-        assertWriteAllowed(file, "appendFile");
-      } catch (err) {
-        if (typeof cb === "function") return process.nextTick(() => cb(err));
-        throw err;
+    try {
+      if (typeof file !== "number") assertWriteAllowed(file, "appendFile");
+    } catch (err) {
+      if (typeof cb === "function") {
+        return process.nextTick(() => cb(err));
       }
+      throw err;
     }
     return origAppendFile.apply(this, arguments);
   };
@@ -259,7 +381,9 @@ if (workspaceRootEnv) {
     try {
       assertWriteAllowed(dirPath, "mkdir");
     } catch (err) {
-      if (typeof cb === "function") return process.nextTick(() => cb(err));
+      if (typeof cb === "function") {
+        return process.nextTick(() => cb(err));
+      }
       throw err;
     }
     return origMkdir.apply(this, arguments);
@@ -267,16 +391,16 @@ if (workspaceRootEnv) {
 
   const origOpen = fs.open;
   fs.open = function (filePath, flags, mode, callback) {
-    let cb = callback;
-    if (typeof mode === "function") cb = mode;
-    else if (typeof flags === "function") cb = flags;
-    if (typeof filePath !== "number" && isWriteFlag(flags)) {
-      try {
+    const cb = typeof mode === "function" ? mode : (typeof flags === "function" ? flags : callback);
+    try {
+      if (typeof filePath !== "number" && isWriteFlag(flags)) {
         assertWriteAllowed(filePath, "open");
-      } catch (err) {
-        if (typeof cb === "function") return process.nextTick(() => cb(err));
-        throw err;
       }
+    } catch (err) {
+      if (typeof cb === "function") {
+        return process.nextTick(() => cb(err));
+      }
+      throw err;
     }
     return origOpen.apply(this, arguments);
   };
@@ -287,7 +411,9 @@ if (workspaceRootEnv) {
     try {
       assertWriteAllowed(dest, "copyFile");
     } catch (err) {
-      if (typeof cb === "function") return process.nextTick(() => cb(err));
+      if (typeof cb === "function") {
+        return process.nextTick(() => cb(err));
+      }
       throw err;
     }
     return origCopyFile.apply(this, arguments);
@@ -299,7 +425,9 @@ if (workspaceRootEnv) {
       assertWriteAllowed(oldPath, "rename:src");
       assertWriteAllowed(newPath, "rename:dest");
     } catch (err) {
-      if (typeof callback === "function") return process.nextTick(() => callback(err));
+      if (typeof callback === "function") {
+        return process.nextTick(() => callback(err));
+      }
       throw err;
     }
     return origRename.apply(this, arguments);
@@ -312,7 +440,9 @@ if (workspaceRootEnv) {
       try {
         assertWriteAllowed(p, "rm");
       } catch (err) {
-        if (typeof cb === "function") return process.nextTick(() => cb(err));
+        if (typeof cb === "function") {
+          return process.nextTick(() => cb(err));
+        }
         throw err;
       }
       return origRm.apply(this, arguments);
@@ -320,29 +450,98 @@ if (workspaceRootEnv) {
   }
 
   const origRmdir = fs.rmdir;
-  fs.rmdir = function (p, options, callback) {
-    const cb = typeof options === "function" ? options : callback;
-    try {
-      assertWriteAllowed(p, "rmdir");
-    } catch (err) {
-      if (typeof cb === "function") return process.nextTick(() => cb(err));
-      throw err;
-    }
-    return origRmdir.apply(this, arguments);
-  };
+  if (origRmdir) {
+    fs.rmdir = function (p, options, callback) {
+      const cb = typeof options === "function" ? options : callback;
+      try {
+        assertWriteAllowed(p, "rmdir");
+      } catch (err) {
+        if (typeof cb === "function") {
+          return process.nextTick(() => cb(err));
+        }
+        throw err;
+      }
+      return origRmdir.apply(this, arguments);
+    };
+  }
 
   const origUnlink = fs.unlink;
   fs.unlink = function (p, callback) {
     try {
       assertWriteAllowed(p, "unlink");
     } catch (err) {
-      if (typeof callback === "function") return process.nextTick(() => callback(err));
+      if (typeof callback === "function") {
+        return process.nextTick(() => callback(err));
+      }
       throw err;
     }
     return origUnlink.apply(this, arguments);
   };
 
-  // Patch fs.promises
+  const origTruncate = fs.truncate;
+  if (origTruncate) {
+    fs.truncate = function (p, len, callback) {
+      const cb = typeof len === "function" ? len : callback;
+      try {
+        if (typeof p !== "number") assertWriteAllowed(p, "truncate");
+      } catch (err) {
+        if (typeof cb === "function") {
+          return process.nextTick(() => cb(err));
+        }
+        throw err;
+      }
+      return origTruncate.apply(this, arguments);
+    };
+  }
+
+  if (fs.cp) {
+    const origCp = fs.cp;
+    fs.cp = function (src, dest, options, callback) {
+      const cb = typeof options === "function" ? options : callback;
+      try {
+        assertWriteAllowed(dest, "cp");
+      } catch (err) {
+        if (typeof cb === "function") {
+          return process.nextTick(() => cb(err));
+        }
+        throw err;
+      }
+      return origCp.apply(this, arguments);
+    };
+  }
+
+  const origSymlink = fs.symlink;
+  if (origSymlink) {
+    fs.symlink = function (target, p, type, callback) {
+      const cb = typeof type === "function" ? type : callback;
+      try {
+        assertSymlinkTargetAllowed(target, p, "symlink");
+      } catch (err) {
+        if (typeof cb === "function") {
+          return process.nextTick(() => cb(err));
+        }
+        throw err;
+      }
+      return origSymlink.apply(this, arguments);
+    };
+  }
+
+  const origLink = fs.link;
+  if (origLink) {
+    fs.link = function (existingPath, newPath, callback) {
+      try {
+        assertWriteAllowed(newPath, "link:dest");
+      } catch (err) {
+        if (typeof callback === "function") {
+          return process.nextTick(() => callback(err));
+        }
+        throw err;
+      }
+      return origLink.apply(this, arguments);
+    };
+  }
+
+  // Patch fs.promises methods
   if (fs.promises) {
     const origPromWriteFile = fs.promises.writeFile;
     fs.promises.writeFile = async function (file, data, options) {
@@ -418,6 +617,22 @@ if (workspaceRootEnv) {
       fs.promises.cp = async function (src, dest, options) {
         assertWriteAllowed(dest, "promises.cp");
         return origPromCp.apply(this, arguments);
+      };
+    }
+
+    if (fs.promises.symlink) {
+      const origPromSymlink = fs.promises.symlink;
+      fs.promises.symlink = async function (target, p, type) {
+        assertSymlinkTargetAllowed(target, p, "promises.symlink");
+        return origPromSymlink.apply(this, arguments);
+      };
+    }
+
+    if (fs.promises.link) {
+      const origPromLink = fs.promises.link;
+      fs.promises.link = async function (existingPath, newPath) {
+        assertWriteAllowed(newPath, "promises.link");
+        return origPromLink.apply(this, arguments);
       };
     }
   }

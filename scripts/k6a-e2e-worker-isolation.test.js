@@ -1305,3 +1305,197 @@ test("K2a→K6a Real E2E adversarial: multi-target execution with valid isolatio
   // y solo dist/ok.txt quedó mutado según allowed_paths
   assert.equal(result.ok, true, `execution must succeed for contained mutations: ${result.reason || result.error || ""}`);
 });
+
+test("K2a→K6a Real E2E adversarial: enforced + non-Node/shell command is rejected fail-closed without external write", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-k2a-adv-shell-"));
+  const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-k2a-adv-shell-out-"));
+  const externalTarget = path.join(externalDir, "shell-escape.txt");
+  t.after(() => {
+    try { fs.rmSync(baseDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(externalDir, { recursive: true, force: true }); } catch {}
+  });
+
+  const files = { "src/app.js": "console.log('app');\n" };
+  const snapshot = {
+    schema_version: 1,
+    kind: "source-snapshot/v1",
+    repository_id: "repo-k2a-adv-shell",
+    base_tree_digest: computeTreeDigest(files),
+    projection: "workspace",
+    dependency_digests: [],
+  };
+  snapshot.source_snapshot_id = computeSourceSnapshotId(snapshot);
+
+  const workOrder = makeCanonicalWorkOrder(snapshot.source_snapshot_id, {
+    node_id: "k2a-adv-shell-apply",
+    operation: "apply_implementation",
+    ownership: { owner: "agent-k2a", mode: "exclusive" },
+    allowed_paths: ["dist/**"],
+  });
+
+  const workspace = await createWorkspace({ baseDir, source_snapshot_id: snapshot.source_snapshot_id });
+  t.after(() => disposeWorkspace(workspace));
+
+  await materializeSourceSnapshot(workspace, workOrder, snapshot, {
+    capsule_inputs: ["src/app.js"],
+    files,
+  });
+
+  const primitives = {
+    worker: makeSandboxedWorkerPrimitive(),
+    workerIsolation: makeSandboxedIsolationPrimitive(),
+  };
+  const adapter = await createClaudeHostAdapter({ primitives });
+  const material = await getClaudeProofMaterial({ primitives });
+
+  const shellCommand = process.platform === "win32" ? "cmd.exe" : "/bin/sh";
+  const shellArgs = process.platform === "win32" ? ["/c", `echo escaped > "${externalTarget}"`] : ["-c", `echo escaped > "${externalTarget}"`];
+
+  const result = await executeWorkOrder({
+    workOrder,
+    workspace,
+    transports: { worker: adapter.transports.WorkerTransport },
+    command: shellCommand,
+    args: shellArgs,
+    ...buildExecutionOptionsFromMaterial(material),
+  });
+
+  // Ejecución no-Node sin sandbox nativo debe ser rechazada fail-closed
+  assert.equal(result.ok, false, "Non-Node unconfined execution must fail closed");
+  // Y el fichero externo nunca debe llegar a existir
+  assert.equal(fs.existsSync(externalTarget), false, "External target file MUST NOT exist after shell attempt");
+});
+
+test("K2a→K6a Real E2E adversarial: enforced Node command attempting child_process shell escape is blocked without external write", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-k2a-adv-cp-"));
+  const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-k2a-adv-cp-out-"));
+  const externalTarget = path.join(externalDir, "cp-escape.txt");
+  t.after(() => {
+    try { fs.rmSync(baseDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(externalDir, { recursive: true, force: true }); } catch {}
+  });
+
+  const files = { "src/app.js": "console.log('app');\n" };
+  const snapshot = {
+    schema_version: 1,
+    kind: "source-snapshot/v1",
+    repository_id: "repo-k2a-adv-cp",
+    base_tree_digest: computeTreeDigest(files),
+    projection: "workspace",
+    dependency_digests: [],
+  };
+  snapshot.source_snapshot_id = computeSourceSnapshotId(snapshot);
+
+  const workOrder = makeCanonicalWorkOrder(snapshot.source_snapshot_id, {
+    node_id: "k2a-adv-cp-apply",
+    operation: "apply_implementation",
+    ownership: { owner: "agent-k2a", mode: "exclusive" },
+    allowed_paths: ["dist/**"],
+  });
+
+  const workspace = await createWorkspace({ baseDir, source_snapshot_id: snapshot.source_snapshot_id });
+  t.after(() => disposeWorkspace(workspace));
+
+  await materializeSourceSnapshot(workspace, workOrder, snapshot, {
+    capsule_inputs: ["src/app.js"],
+    files,
+  });
+
+  const primitives = {
+    worker: makeSandboxedWorkerPrimitive(),
+    workerIsolation: makeSandboxedIsolationPrimitive(),
+  };
+  const adapter = await createClaudeHostAdapter({ primitives });
+  const material = await getClaudeProofMaterial({ primitives });
+
+  const escapeScript = `
+    const cp = require('node:child_process');
+    const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
+    const arg = process.platform === 'win32' ? ['/c', 'echo leak > "${externalTarget.replace(/\\/g, "/")}"'] : ['-c', 'echo leak > "${externalTarget}"'];
+    cp.execFileSync(shell, arg);
+  `;
+
+  const result = await executeWorkOrder({
+    workOrder,
+    workspace,
+    transports: { worker: adapter.transports.WorkerTransport },
+    command: process.execPath,
+    args: ["-e", escapeScript],
+    ...buildExecutionOptionsFromMaterial(material),
+  });
+
+  // Ejecución que intenta child_process shell escape debe fallar
+  assert.equal(result.ok, false, "child_process escape attempt must fail");
+  // Y el fichero externo nunca debe llegar a existir
+  assert.equal(fs.existsSync(externalTarget), false, "External target file MUST NOT exist after child_process attempt");
+});
+
+test("K2a→K6a Real E2E adversarial: allowed path symlink pointing outside is blocked from writing external target", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-k2a-adv-sym-"));
+  const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-k2a-adv-sym-out-"));
+  const externalTarget = path.join(externalDir, "sym-escape.txt");
+  t.after(() => {
+    try { fs.rmSync(baseDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(externalDir, { recursive: true, force: true }); } catch {}
+  });
+
+  const files = { "src/app.js": "console.log('app');\n" };
+  const snapshot = {
+    schema_version: 1,
+    kind: "source-snapshot/v1",
+    repository_id: "repo-k2a-adv-sym",
+    base_tree_digest: computeTreeDigest(files),
+    projection: "workspace",
+    dependency_digests: [],
+  };
+  snapshot.source_snapshot_id = computeSourceSnapshotId(snapshot);
+
+  const workOrder = makeCanonicalWorkOrder(snapshot.source_snapshot_id, {
+    node_id: "k2a-adv-sym-apply",
+    operation: "apply_implementation",
+    ownership: { owner: "agent-k2a", mode: "exclusive" },
+    allowed_paths: ["dist/**"],
+  });
+
+  const workspace = await createWorkspace({ baseDir, source_snapshot_id: snapshot.source_snapshot_id });
+  t.after(() => disposeWorkspace(workspace));
+
+  await materializeSourceSnapshot(workspace, workOrder, snapshot, {
+    capsule_inputs: ["src/app.js"],
+    files,
+  });
+
+  const primitives = {
+    worker: makeSandboxedWorkerPrimitive(),
+    workerIsolation: makeSandboxedIsolationPrimitive(),
+  };
+  const adapter = await createClaudeHostAdapter({ primitives });
+  const material = await getClaudeProofMaterial({ primitives });
+
+  const symlinkScript = `
+    const fs = require('node:fs');
+    fs.mkdirSync('dist', { recursive: true });
+    try {
+      fs.symlinkSync(${JSON.stringify(externalDir)}, 'dist/leak_link', 'dir');
+    } catch (e) {
+      // Bloqueado en creación de symlink
+    }
+    // Si la creación fue ignorada o simulada, la escritura a través del enlace DEBE ser bloqueada
+    try {
+      fs.writeFileSync('dist/leak_link/sym-escape.txt', 'leak');
+    } catch (e) {}
+  `;
+
+  const result = await executeWorkOrder({
+    workOrder,
+    workspace,
+    transports: { worker: adapter.transports.WorkerTransport },
+    command: process.execPath,
+    args: ["-e", symlinkScript],
+    ...buildExecutionOptionsFromMaterial(material),
+  });
+
+  // El fichero externo NUNCA debe haber llegado a existir
+  assert.equal(fs.existsSync(externalTarget), false, "External target file MUST NOT exist via symlink escape");
+});
+

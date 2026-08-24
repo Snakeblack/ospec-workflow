@@ -47,14 +47,25 @@ async function executeSandboxedCommand(options = {}) {
     command === process.execPath ||
     command === "node" ||
     command === "node.exe" ||
-    command.endsWith("node") ||
-    command.endsWith("node.exe");
+    (typeof command === "string" && (
+      path.basename(command).toLowerCase() === "node" ||
+      path.basename(command).toLowerCase() === "node.exe"
+    ));
 
-  if (isNode) {
-    const existingNodeOptions = env.NODE_OPTIONS || "";
-    const safePreload = PRELOAD_SCRIPT_PATH.replace(/\\/g, "/");
-    env.NODE_OPTIONS = `--require "${safePreload}" ${existingNodeOptions}`.trim();
+  if (!isNode) {
+    return {
+      ok: false,
+      exit_code: 126,
+      stdout: "",
+      stderr: `EACCES: permission denied by worker sandbox (unconfined command rejected: ${command})`,
+      failure_class: "sandbox_rejection",
+      error: `Command '${command}' cannot be confined by worker sandbox; execution rejected fail-closed`,
+    };
   }
+
+  const existingNodeOptions = env.NODE_OPTIONS || "";
+  const safePreload = PRELOAD_SCRIPT_PATH.replace(/\\/g, "/");
+  env.NODE_OPTIONS = `--require "${safePreload}" ${existingNodeOptions}`.trim();
 
   return await new Promise((resolve) => {
     let child = null;
