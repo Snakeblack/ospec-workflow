@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.46.9] - 2026-08-24
+
+### Fixed
+- **Blindaje de Frontera Genérica de Proceso, Restricción de Subprocesos y Contención de Symlinks (K6a / REQ-008)**:
+  - **Rechazo Fail-Closed de Binarios No-Node sin Sandbox**: `executeSandboxedCommand` rechaza de forma determinista cualquier comando no-Node (`/bin/sh`, `cmd.exe`, `python`, etc.) cuando no cuenta con sandbox nativo verificado, evitando la ejecución de subprocesos no confinados en el host.
+  - **Restricción de `child_process` en Procesos Node Sandboxed**: `worker-sandbox-preload.js` intercepta llamadas de creación de subprocesos (`spawn`, `spawnSync`, `exec`, `execSync`, `execFile`, `execFileSync`), bloqueando intentos de invocar shells o binarios arbitrarios con `EACCES: permission denied by worker sandbox`.
+  - **Blindaje Estricto de `assertWriteAllowed` y Symlinks**: Validación con `isOutsideNorm || isOutsideReal`, resolución ascendente de ancestros mediante `realpath` para detectar enlaces simbólicos externos antes de cualquier escritura e intercepción de `fs.symlink` / `promises.symlink` impidiendo la creación de enlaces con destino fuera de la raíz del workspace.
+  - **Tests Adversariales E2E Completos**: Verificación física de los 3 vectores de contención (ejecución no-Node fail-closed, bloqueo de escape vía `child_process` a shell y bloqueo de escrituras a través de enlaces simbólicos externos).
+
 ## [2.46.8] - 2026-08-24
 
 ### Fixed
