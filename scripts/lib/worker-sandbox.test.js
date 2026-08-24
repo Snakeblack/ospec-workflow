@@ -82,6 +82,91 @@ test("worker-sandbox: physically blocks undeclared writes inside workspace", asy
   assert.equal(fs.existsSync(undeclaredFile), false, "Undeclared file must not be created");
 });
 
+test("worker-sandbox: rejects non-Node unconfined commands fail-closed without execution", async (t) => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "ws-sandbox-non-node-"));
+  const extDir = fs.mkdtempSync(path.join(os.tmpdir(), "ws-sandbox-non-node-ext-"));
+  const extTarget = path.join(extDir, "non-node-escape.txt");
+  t.after(() => {
+    try { fs.rmSync(ws, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(extDir, { recursive: true, force: true }); } catch {}
+  });
+
+  const result = await executeSandboxedCommand({
+    command: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
+    args: process.platform === "win32" ? ["/c", `echo escaped > "${extTarget}"`] : ["-c", `echo escaped > "${extTarget}"`],
+    cwd: ws,
+    workspaceRoot: ws,
+    allowedPaths: ["dist/**"],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.failure_class, "sandbox_rejection");
+  assert.equal(fs.existsSync(extTarget), false, "External target must NOT be created");
+});
+
+test("worker-sandbox: blocks child_process shell/unconfined execution from inside Node process", async (t) => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "ws-sandbox-cp-"));
+  const extDir = fs.mkdtempSync(path.join(os.tmpdir(), "ws-sandbox-cp-ext-"));
+  const extTarget = path.join(extDir, "cp-escape.txt");
+  t.after(() => {
+    try { fs.rmSync(ws, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(extDir, { recursive: true, force: true }); } catch {}
+  });
+
+  const script = `
+    const cp = require('node:child_process');
+    const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
+    const arg = process.platform === 'win32' ? ['/c', 'echo leak > "${extTarget.replace(/\\/g, "/")}"'] : ['-c', 'echo leak > "${extTarget}"'];
+    cp.execFileSync(shell, arg);
+  `;
+
+  const result = await executeSandboxedCommand({
+    command: process.execPath,
+    args: ["-e", script],
+    cwd: ws,
+    workspaceRoot: ws,
+    allowedPaths: ["dist/**"],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(fs.existsSync(extTarget), false, "External target must NOT exist after child_process attempt");
+});
+
+test("worker-sandbox: blocks symlink escaping destination and write through escaping symlink", async (t) => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "ws-sandbox-sym-"));
+  const extDir = fs.mkdtempSync(path.join(os.tmpdir(), "ws-sandbox-sym-ext-"));
+  const extTarget = path.join(extDir, "sym-escape.txt");
+  t.after(() => {
+    try { fs.rmSync(ws, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(extDir, { recursive: true, force: true }); } catch {}
+  });
+
+  // Attempt 1: create symlink inside dist pointing outside workspace
+  const symlinkScript = `
+    const fs = require('node:fs');
+    const path = require('node:path');
+    fs.mkdirSync('dist', { recursive: true });
+    try {
+      fs.symlinkSync(${JSON.stringify(extDir)}, 'dist/external_link', 'dir');
+    } catch (e) {
+      // If symlink creation was blocked, test is passed
+      process.exit(0);
+    }
+    // If symlink somehow succeeded, write through it MUST be blocked
+    fs.writeFileSync('dist/external_link/sym-escape.txt', 'leak');
+  `;
+
+  const result = await executeSandboxedCommand({
+    command: process.execPath,
+    args: ["-e", symlinkScript],
+    cwd: ws,
+    workspaceRoot: ws,
+    allowedPaths: ["dist/**"],
+  });
+
+  assert.equal(fs.existsSync(extTarget), false, "External target must NOT exist via escaping symlink");
+});
+
 test("makeSandboxedWorkerPrimitive: handles probe challenges and command execution", async (t) => {
   const primitive = makeSandboxedWorkerPrimitive();
 
