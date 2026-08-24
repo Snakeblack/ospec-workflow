@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.46.8] - 2026-08-24
+
+### Fixed
+- **Aislamiento Físico y Acoplamiento Real de WorkerTransport al Sandbox de WorkerIsolation (K6a / REQ-008)**:
+  - **Sandbox Interceptor en Tiempo de Ejecución**: Implementado `scripts/lib/worker-sandbox-preload.js` y `scripts/lib/worker-sandbox.js` para interceptar llamadas mutantes de filesystem (`writeFileSync`, `mkdirSync`, `openSync`, `promises.*`, etc.) e impedir físicamente cualquier escritura fuera de `allowed_paths` o de la raíz del workspace, lanzando `EACCES: permission denied by worker sandbox` antes de que el archivo toque el disco del host.
+  - **Resolución Canónica con Realpath y Compatibilidad con macOS**: Soportada la resolución canónica de rutas mediante `fs.realpathSync` tanto en el workspace root como en los paths objetivo para compatibilidad total con enlaces simbólicos (`/var` -> `/private/var`) en macOS, Linux y Windows.
+  - **Acoplamiento Físico de Transports y Primitivas en el Adapter**: `WorkerTransport` y `WorkerIsolation` en `scripts/lib/host-adapters/claude.js` quedan unificados y gobernados por la misma frontera física de ejecución sandbox (`makeSandboxedWorkerPrimitive`).
+  - **Inyección de `sandbox_context` en Invocación de Transporte**: `executeWorkOrder` propaga `workspace_root`, `allowed_paths` y `sandbox_context` en la llamada a `WorkerTransport`.
+  - **Separación Canónica de Capabilities y Probe Observado**: `WorkerTransport` y `WorkerIsolation` se evalúan independientemente en capability-proof/v1 sin mutar schemas, exigiendo prueba de contención observada por el host (`allowed_write: "PASS"`, `undeclared_workspace_write: "BLOCKED"`, `external_root_write: "BLOCKED"`).
+  - **Tests Adversariales E2E Obligatorios**: Verificación física de que intentos de escritura fuera del workspace (`/tmp/...`) o en rutas no declaradas son prevenidos y los archivos nunca llegan a existir en el filesystem del host.
+
 ## [2.46.7] - 2026-08-24
 
 ### Fixed
