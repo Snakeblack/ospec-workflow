@@ -8,22 +8,20 @@ const { normalizeRelativePath } = require("./allowed-paths-validator.js");
 const { sha256Fingerprint } = require("./canonical-json.js");
 
 /**
- * Normalizes line endings to LF for deterministic hashing.
+ * Normalizes content to Buffer preserving exact byte representation.
  *
  * @param {string|Buffer} content
  * @returns {Buffer}
  */
 function normalizeToBuffer(content) {
   if (Buffer.isBuffer(content)) {
-    const text = content.toString("utf8").replace(/\r\n/g, "\n");
-    return Buffer.from(text, "utf8");
+    return content;
   }
-  const text = String(content || "").replace(/\r\n/g, "\n");
-  return Buffer.from(text, "utf8");
+  return Buffer.from(String(content !== undefined && content !== null ? content : ""), "utf8");
 }
 
 /**
- * Computes SHA-256 digest with sha256: prefix.
+ * Computes SHA-256 digest with sha256: prefix over exact bytes.
  *
  * @param {string|Buffer} content
  * @returns {string}
@@ -35,6 +33,7 @@ function sha256(content) {
 
 /**
  * Computes a deterministic SHA-256 Merkle tree digest over a collection of files.
+ * Always recomputes digests from actual file bytes and rejects mismatching declared digests.
  *
  * @param {Record<string, string|Buffer>|Map<string, string|Buffer>|Array<{ path: string, content?: string|Buffer, sha256?: string }>} files
  * @returns {string} sha256:...
@@ -54,7 +53,19 @@ function computeTreeDigest(files) {
       if (!item || !item.path) continue;
       const normalizedPath = normalizeRelativePath(item.path);
       if (normalizedPath) {
-        const digest = item.sha256 || sha256(item.content || "");
+        let digest;
+        if (item.content !== undefined && item.content !== null) {
+          digest = sha256(item.content);
+          if (item.sha256 && item.sha256 !== digest) {
+            throw new Error(
+              `Declared sha256 mismatch for ${item.path}: declared ${item.sha256}, calculated from bytes ${digest}`
+            );
+          }
+        } else if (item.sha256) {
+          digest = item.sha256;
+        } else {
+          digest = sha256("");
+        }
         entries.push({ path: normalizedPath, sha256: digest });
       }
     }
@@ -128,15 +139,19 @@ async function createWorkspace(options = {}) {
     created_at: new Date().toISOString(),
   };
 
-  const initialInventory = await inspectWorkspace({ root_path: rootPath });
-
   workspaceRegistry.set(workspaceId, {
     descriptor,
     rootPath,
-    baselineInventory: initialInventory,
+    baselineInventory: [],
     baselineContents: new Map(),
     createdAt: Date.now(),
   });
+
+  const initialInventory = await inspectWorkspace(workspaceId);
+  const registeredRecord = workspaceRegistry.get(workspaceId);
+  if (registeredRecord) {
+    registeredRecord.baselineInventory = initialInventory;
+  }
 
   return descriptor;
 }
@@ -182,6 +197,7 @@ async function disposeWorkspace(workspaceDescriptorOrId) {
  * FAILS CLOSED (throws) if workspaceDescriptor.workspace_id is not found in private registry.
  * Preserves baseline file contents in workspace record for subsequent diff generation.
  * Cryptographically verifies candidate file bytes against sourceSnapshot.base_tree_digest pre-materialization.
+ * Enforces 3-way binding: Workspace == WorkOrder == SourceSnapshot.
  *
  * @param {Object} workspaceDescriptor
  * @param {Object} workOrder
@@ -193,11 +209,28 @@ async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceS
   if (!workOrder || typeof workOrder !== "object") {
     throw new Error("workOrder must be a valid object");
   }
+  if (!sourceSnapshot || typeof sourceSnapshot !== "object") {
+    throw new Error("sourceSnapshot must be a valid object");
+  }
   const workspaceId = workspaceDescriptor ? workspaceDescriptor.workspace_id : "";
   const record = workspaceRegistry.get(workspaceId);
 
   if (!record || !record.rootPath) {
     throw new Error(`Cannot materialize into unrecorded workspace: ${workspaceId || "missing"}`);
+  }
+
+  // 3-Way binding validation
+  const workspaceSnapshotId = record.descriptor && record.descriptor.source_snapshot_id;
+  if (workspaceSnapshotId && workspaceSnapshotId !== sourceSnapshot.source_snapshot_id) {
+    throw new Error(
+      `Workspace source_snapshot_id binding mismatch: workspace registered for ${workspaceSnapshotId}, snapshot is ${sourceSnapshot.source_snapshot_id}`
+    );
+  }
+
+  const { validateWorkOrderBinding } = require("./execution-identities/index.js");
+  const bindingRes = validateWorkOrderBinding(sourceSnapshot, workOrder);
+  if (!bindingRes.ok) {
+    throw new Error(`WorkOrder binding validation failed: ${bindingRes.reason_code || bindingRes.error || "mismatch"}`);
   }
 
   const rootPath = record.rootPath;
@@ -213,6 +246,10 @@ async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceS
     declaredInputs = workOrder.capsule_inputs;
   } else if (Array.isArray(options.inputs)) {
     declaredInputs = options.inputs;
+  } else if (options.files && typeof options.files === "object" && !Array.isArray(options.files)) {
+    declaredInputs = Object.keys(options.files);
+  } else if (Array.isArray(options.files)) {
+    declaredInputs = options.files.map((f) => f && f.path).filter(Boolean);
   }
 
   const filesSource = options.files;
@@ -316,7 +353,7 @@ async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceS
   const capsuleId = `capsule-${uuid}`;
 
   // Update baseline inventory after materialization
-  const currentInventory = await inspectWorkspace({ root_path: rootPath });
+  const currentInventory = await inspectWorkspace(workspaceId);
   record.baselineInventory = currentInventory;
 
   const capsule = {
@@ -334,13 +371,25 @@ async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceS
 }
 
 /**
- * Computes sorted filesystem inventory with digests and modes for a workspace.
+ * Computes sorted filesystem inventory with digests and modes for a workspace resolved strictly from the registry.
  *
- * @param {Object} workspaceDescriptor
+ * @param {Object|string} workspaceDescriptorOrId
  * @returns {Promise<Array<{ path: string, sha256: string, mode: number }>>}
  */
-async function inspectWorkspace(workspaceDescriptor) {
-  const rootPath = workspaceDescriptor ? workspaceDescriptor.root_path : null;
+async function inspectWorkspace(workspaceDescriptorOrId) {
+  const workspaceId =
+    typeof workspaceDescriptorOrId === "string"
+      ? workspaceDescriptorOrId
+      : (workspaceDescriptorOrId && workspaceDescriptorOrId.workspace_id);
+
+  let rootPath = null;
+  if (workspaceId && workspaceRegistry.has(workspaceId)) {
+    rootPath = workspaceRegistry.get(workspaceId).rootPath;
+  } else if (workspaceDescriptorOrId && typeof workspaceDescriptorOrId === "object" && workspaceDescriptorOrId.root_path) {
+    // If not tracked in private registry, fail closed by returning empty inventory
+    return [];
+  }
+
   if (!rootPath || !fs.existsSync(rootPath)) return [];
   const inventory = [];
 

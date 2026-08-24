@@ -20,7 +20,16 @@ const {
   validateWorkResultBinding,
   computeWorkResultId,
 } = require("./lib/worker-executor.js");
-const { computeWorkOrderId, computeSourceSnapshotId } = require("./lib/execution-identities/index.js");
+const {
+  compileExecutionGraph,
+  compileWorkOrdersV2,
+  createPolicySnapshot,
+} = require("./lib/execution-graph/index.js");
+const {
+  validateWorkOrderBinding,
+  computeWorkOrderId,
+  computeSourceSnapshotId,
+} = require("./lib/execution-identities/index.js");
 const { validateAllowedPaths } = require("./lib/allowed-paths-validator.js");
 const { createEvidenceDigest, createProbeDigest } = require("./lib/capability-proof/index.js");
 
@@ -43,7 +52,7 @@ function applyPatch(baseFiles = new Map(), patch = "") {
       let noNewlineAtEnd = false;
       for (let i = 2; i < lines.length; i++) {
         const l = lines[i];
-        if (l.startsWith("@@")) continue;
+        if (l.startsWith("@@") || l.startsWith("old mode") || l.startsWith("new mode")) continue;
         if (l === "\\ No newline at end of file") {
           noNewlineAtEnd = true;
           continue;
@@ -64,9 +73,13 @@ function applyPatch(baseFiles = new Map(), patch = "") {
       const filePath = newHeader.slice(6);
       const newFileLines = [];
       let noNewlineAtEnd = false;
+      let hasContentDiff = false;
       for (let i = 2; i < lines.length; i++) {
         const l = lines[i];
-        if (l.startsWith("@@")) continue;
+        if (l.startsWith("@@") || l.startsWith("old mode") || l.startsWith("new mode")) {
+          if (l.startsWith("@@")) hasContentDiff = true;
+          continue;
+        }
         if (l === "\\ No newline at end of file") {
           noNewlineAtEnd = true;
           continue;
@@ -77,17 +90,19 @@ function applyPatch(baseFiles = new Map(), patch = "") {
           newFileLines.push(l.slice(1));
         }
       }
-      let content = newFileLines.join("\n");
-      if (!noNewlineAtEnd && newFileLines.length > 0) {
-        content += "\n";
+      if (hasContentDiff) {
+        let content = newFileLines.join("\n");
+        if (!noNewlineAtEnd && newFileLines.length > 0) {
+          content += "\n";
+        }
+        result.set(filePath, content);
       }
-      result.set(filePath, content);
     }
   }
   return result;
 }
 
-test("K6a E2E Happy Path: Full workspace lifecycle, capsule materialization, execution, containment, and disposal", async (t) => {
+test("K6a E2E Happy Path: True K3 -> K4a -> K6a -> K3 Pipeline with full workspace lifecycle, execution, containment, and disposal", async (t) => {
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-e2e-happy-"));
   t.after(() => {
     try {
@@ -104,7 +119,7 @@ test("K6a E2E Happy Path: Full workspace lifecycle, capsule materialization, exe
 
   const treeDigest = computeTreeDigest(files);
 
-  // 1. Canonical SourceSnapshot v1 and WorkOrder v2
+  // 1. K3 SourceSnapshot v1
   const canonicalSnapshot = {
     schema_version: 1,
     repository_id: "repo-e2e-calc",
@@ -114,29 +129,70 @@ test("K6a E2E Happy Path: Full workspace lifecycle, capsule materialization, exe
   };
   canonicalSnapshot.source_snapshot_id = computeSourceSnapshotId(canonicalSnapshot);
 
-  // 2. Create Workspace
+  // 2. K4a ExecutionGraph Compilation & WorkOrders Compilation
+  const policySnapshot = createPolicySnapshot({
+    policy_id: "pol-e2e-1",
+    version: "1.0.0",
+    rules: { allowed_operations: ["apply"] },
+  });
+
+  const contract = {
+    schema_version: 1,
+    contract_id: "contract:k6a-e2e-001",
+    family: "implementation",
+    version: 1,
+    contract_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    source_snapshot_id: canonicalSnapshot.source_snapshot_id,
+    nodes: [
+      {
+        node_id: "calc-apply",
+        kind: "implementation-action/v1",
+        operation: "apply_implementation",
+        objective: "Run calculator test suite and produce dist bundle",
+        dependencies: [],
+        ownership: { owner: "agent-e2e", mode: "exclusive" },
+        allowed_paths: ["src/**", "test/**", "dist/**", "package.json"],
+        invariants: ["inv-1"],
+        required_evidence: ["ev-1"],
+        budget_ref: "budget:default",
+      },
+    ],
+    obligations: [
+      {
+        id: "req-calc-001",
+        criticality: "must",
+        implemented_by: ["calc-apply"],
+        required_evidence: ["ev-1"],
+      },
+    ],
+  };
+
+  const graph = compileExecutionGraph({
+    changeId: "change-e2e-calc",
+    contract,
+    policySnapshot,
+    sourceSnapshotId: canonicalSnapshot.source_snapshot_id,
+    nodes: contract.nodes,
+    obligations: contract.obligations,
+  });
+
+  const workOrders = compileWorkOrdersV2(graph, {
+    sourceSnapshot: canonicalSnapshot,
+    sourceSnapshotId: canonicalSnapshot.source_snapshot_id,
+  });
+  assert.equal(workOrders.length, 1);
+  const workOrder = workOrders[0];
+
+  // Validate K3 <-> K4a WorkOrder Binding
+  const woBinding = validateWorkOrderBinding(canonicalSnapshot, workOrder);
+  assert.equal(woBinding.ok, true, `WorkOrder binding must pass: ${woBinding.error}`);
+
+  // 3. K6a Create Workspace
   const workspace = await createWorkspace({ baseDir, source_snapshot_id: canonicalSnapshot.source_snapshot_id });
   assert.equal(workspace.status, "active");
   assert.ok(fs.existsSync(workspace.root_path));
 
-  const workOrder = {
-    schema_version: 2,
-    kind: "work-order/v2",
-    node_id: "node-e2e-1",
-    role: "executor",
-    status: "pending",
-    operation: "apply",
-    objective: "Run calculator test suite",
-    source_snapshot_id: canonicalSnapshot.source_snapshot_id,
-    dependencies: ["sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"],
-    ownership: { owner: "agent-e2e", mode: "exclusive" },
-    allowed_paths: ["src/**", "test/**", "dist/**", "package.json"],
-    invariants: ["inv-1"],
-    required_evidence: ["ev-1"],
-    budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
-  };
-  workOrder.work_order_id = computeWorkOrderId(workOrder);
-
+  // 4. K6a Materialize Capsule
   const capsule = await materializeSourceSnapshot(workspace, workOrder, canonicalSnapshot, {
     capsule_inputs: ["src/calculator.js", "test/calculator.test.js", "package.json"],
     files,
@@ -145,7 +201,7 @@ test("K6a E2E Happy Path: Full workspace lifecycle, capsule materialization, exe
   assert.ok(fs.existsSync(path.join(workspace.root_path, "src", "calculator.js")));
   assert.equal(fs.existsSync(path.join(workspace.root_path, "unrelated", "leak.txt")), false);
 
-  // 3. Execute Work Order Commands
+  // 5. K6a Execute Work Order Commands
   const buildScript = "const fs = require('fs'); fs.mkdirSync('dist', { recursive: true }); fs.writeFileSync('dist/bundle.js', 'console.log(5);\\n');";
   const execResult = await executeWorkOrder({
     workOrder,
@@ -164,7 +220,7 @@ test("K6a E2E Happy Path: Full workspace lifecycle, capsule materialization, exe
   assert.ok(execResult.workResult.patch.includes("+++ b/dist/bundle.js"));
   assert.equal(execResult.workResult.candidate_id, undefined, "Strict prohibition of CandidateId in WorkResult");
 
-  // 4. Validate WorkResult schema & cryptographic binding
+  // 6. Validate WorkResult schema & cryptographic binding
   const workResultSchema = loadSchemaById("ospec://schemas/kernel/work-result/v1", { rootDir: ROOT });
   const schemaRes = validateInstance(workResultSchema, execResult.workResult);
   assert.equal(schemaRes.valid, true, `WorkResult must pass schema validation: ${JSON.stringify(schemaRes.errors)}`);
@@ -176,7 +232,7 @@ test("K6a E2E Happy Path: Full workspace lifecycle, capsule materialization, exe
   const binding = validateWorkResultBinding(workOrder, execResult.workResult);
   assert.equal(binding.ok, true, "WorkResult must be cryptographically bound to WorkOrder");
 
-  // 5. Validate Patch Round-trip Reconstruction (K3 validation)
+  // 7. K3 Patch Round-trip Reconstruction
   const baseFilesMap = new Map([
     ["src/calculator.js", files["src/calculator.js"]],
     ["test/calculator.test.js", files["test/calculator.test.js"]],
@@ -185,11 +241,69 @@ test("K6a E2E Happy Path: Full workspace lifecycle, capsule materialization, exe
   const reconstructed = applyPatch(baseFilesMap, execResult.workResult.patch);
   assert.equal(reconstructed.get("dist/bundle.js"), "console.log(5);\n");
 
-  // 6. Dispose Workspace
+  // 8. Dispose Workspace
   const disposeResult = await disposeWorkspace(workspace);
   assert.equal(disposeResult.ok, true);
   assert.equal(disposeResult.status, "disposed");
   assert.equal(fs.existsSync(workspace.root_path), false, "Workspace directory must be deleted on teardown");
+});
+
+test("K6a Negative E2E: 3-Way binding mismatch fails closed when Workspace was created for Snapshot A but WorkOrder has Snapshot B", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-e2e-3way-"));
+  t.after(() => {
+    try {
+      fs.rmSync(baseDir, { recursive: true, force: true });
+    } catch {}
+  });
+
+  const filesA = { "src/a.js": "const a = 1;\n" };
+  const filesB = { "src/b.js": "const b = 2;\n" };
+  const snapA = {
+    schema_version: 1,
+    repository_id: "repo-a",
+    base_tree_digest: computeTreeDigest(filesA),
+    projection: "workspace",
+    dependency_digests: [],
+  };
+  snapA.source_snapshot_id = computeSourceSnapshotId(snapA);
+
+  const snapB = {
+    schema_version: 1,
+    repository_id: "repo-b",
+    base_tree_digest: computeTreeDigest(filesB),
+    projection: "workspace",
+    dependency_digests: [],
+  };
+  snapB.source_snapshot_id = computeSourceSnapshotId(snapB);
+
+  const workspaceA = await createWorkspace({ baseDir, source_snapshot_id: snapA.source_snapshot_id });
+  t.after(() => disposeWorkspace(workspaceA));
+
+  const workOrderB = {
+    schema_version: 2,
+    kind: "work-order/v2",
+    node_id: "node-b",
+    role: "executor",
+    status: "pending",
+    operation: "apply",
+    objective: "Test B",
+    source_snapshot_id: snapB.source_snapshot_id,
+    dependencies: [],
+    ownership: { owner: "agent", mode: "exclusive" },
+    allowed_paths: ["src/**"],
+    invariants: [],
+    required_evidence: [],
+    budget: { model_turns: 1, patches: 1, commands: 1, wall_time_minutes: 1, changed_lines: 10 },
+  };
+  workOrderB.work_order_id = computeWorkOrderId(workOrderB);
+
+  // Attempt to materialize Snapshot B into Workspace A -> FAILS CLOSED
+  await assert.rejects(
+    async () => {
+      await materializeSourceSnapshot(workspaceA, workOrderB, snapB, { files: filesB });
+    },
+    /Workspace source_snapshot_id binding mismatch/i
+  );
 });
 
 test("K6a Negative E2E: Base tree digest mismatch fails closed pre-materialization", async (t) => {
@@ -215,12 +329,21 @@ test("K6a Negative E2E: Base tree digest mismatch fails closed pre-materializati
 
   const workOrder = {
     schema_version: 2,
-    work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    kind: "work-order/v2",
+    node_id: "node-tree",
+    role: "executor",
+    status: "pending",
+    operation: "apply",
+    objective: "Test tree mismatch",
     source_snapshot_id: canonicalSnapshot.source_snapshot_id,
     dependencies: [],
-    capsule_inputs: ["src/main.js"],
+    ownership: { owner: "agent", mode: "exclusive" },
     allowed_paths: ["src/**"],
+    invariants: [],
+    required_evidence: [],
+    budget: { model_turns: 1, patches: 1, commands: 1, wall_time_minutes: 1, changed_lines: 10 },
   };
+  workOrder.work_order_id = computeWorkOrderId(workOrder);
 
   await assert.rejects(
     async () => {

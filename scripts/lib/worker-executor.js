@@ -126,8 +126,24 @@ function computeLineDiff(oldLines, newLines) {
 }
 
 /**
+ * Formats a numeric or string mode into standard 6-digit octal representation (e.g. 100644, 100755).
+ *
+ * @param {number|string} mode
+ * @returns {string}
+ */
+function formatOctalMode(mode) {
+  if (typeof mode === "string") {
+    return mode.length <= 6 ? mode.padStart(6, "0") : mode;
+  }
+  if (typeof mode === "number") {
+    return (mode & 0o777777).toString(8).padStart(6, "0");
+  }
+  return "100644";
+}
+
+/**
  * Generates an applicable standard unified diff patch representing exact modifications.
- * Preserves trailing newline distinctions and emits standard EOF markers (\ No newline at end of file).
+ * Preserves trailing newline distinctions, emits standard EOF markers, and includes git mode change headers.
  *
  * @param {string} workspaceRoot
  * @param {Array} baselineInventory
@@ -173,64 +189,81 @@ function generateUnifiedDiff(workspaceRoot, baselineInventory = [], postInventor
       chunks.push(header + body);
     } else {
       const baseEntry = baselineMap.get(p);
-      if (baseEntry.sha256 !== postEntry.sha256) {
-        // Modified file
-        const oldContent = contentsMap.get(p) !== undefined ? contentsMap.get(p) : "";
-        const oldAnalysis = analyzeLines(oldContent);
-        const newAnalysis = analyzeLines(newContent);
-        const oldLines = oldAnalysis.lines;
-        const newLines = newAnalysis.lines;
+      const contentChanged = baseEntry.sha256 !== postEntry.sha256;
+      const modeChanged =
+        baseEntry.mode !== undefined &&
+        postEntry.mode !== undefined &&
+        baseEntry.mode !== postEntry.mode;
 
-        let edits = computeLineDiff(oldLines, newLines);
-
-        if (oldAnalysis.hasTrailingNewline !== newAnalysis.hasTrailingNewline) {
-          if (edits.length > 0 && edits[edits.length - 1].type === "keep") {
-            const lastKeep = edits.pop();
-            edits.push({ type: "delete", line: lastKeep.line });
-            edits.push({ type: "insert", line: lastKeep.line });
-          }
+      if (contentChanged || modeChanged) {
+        let modeHeader = "";
+        if (modeChanged) {
+          modeHeader = `old mode ${formatOctalMode(baseEntry.mode)}\nnew mode ${formatOctalMode(postEntry.mode)}\n`;
         }
 
-        const header = `--- a/${p}\n+++ b/${p}\n@@ -1,${oldLines.length} +1,${newLines.length} @@\n`;
+        if (contentChanged) {
+          // Modified file with content changes
+          const oldContent = contentsMap.get(p) !== undefined ? contentsMap.get(p) : "";
+          const oldAnalysis = analyzeLines(oldContent);
+          const newAnalysis = analyzeLines(newContent);
+          const oldLines = oldAnalysis.lines;
+          const newLines = newAnalysis.lines;
 
-        let lastOldIndex = -1;
-        let lastNewIndex = -1;
-        for (let i = edits.length - 1; i >= 0; i--) {
-          if (lastOldIndex === -1 && (edits[i].type === "keep" || edits[i].type === "delete")) {
-            lastOldIndex = i;
-          }
-          if (lastNewIndex === -1 && (edits[i].type === "keep" || edits[i].type === "insert")) {
-            lastNewIndex = i;
-          }
-          if (lastOldIndex !== -1 && lastNewIndex !== -1) break;
-        }
+          let edits = computeLineDiff(oldLines, newLines);
 
-        let body = "";
-        for (let i = 0; i < edits.length; i++) {
-          const edit = edits[i];
-          if (edit.type === "keep") {
-            body += ` ${edit.line}\n`;
-            if (
-              i === lastOldIndex &&
-              !oldAnalysis.hasTrailingNewline &&
-              i === lastNewIndex &&
-              !newAnalysis.hasTrailingNewline
-            ) {
-              body += "\\ No newline at end of file\n";
-            }
-          } else if (edit.type === "delete") {
-            body += `-${edit.line}\n`;
-            if (i === lastOldIndex && !oldAnalysis.hasTrailingNewline) {
-              body += "\\ No newline at end of file\n";
-            }
-          } else if (edit.type === "insert") {
-            body += `+${edit.line}\n`;
-            if (i === lastNewIndex && !newAnalysis.hasTrailingNewline) {
-              body += "\\ No newline at end of file\n";
+          if (oldAnalysis.hasTrailingNewline !== newAnalysis.hasTrailingNewline) {
+            if (edits.length > 0 && edits[edits.length - 1].type === "keep") {
+              const lastKeep = edits.pop();
+              edits.push({ type: "delete", line: lastKeep.line });
+              edits.push({ type: "insert", line: lastKeep.line });
             }
           }
+
+          const header = `--- a/${p}\n+++ b/${p}\n${modeHeader}@@ -1,${oldLines.length} +1,${newLines.length} @@\n`;
+
+          let lastOldIndex = -1;
+          let lastNewIndex = -1;
+          for (let i = edits.length - 1; i >= 0; i--) {
+            if (lastOldIndex === -1 && (edits[i].type === "keep" || edits[i].type === "delete")) {
+              lastOldIndex = i;
+            }
+            if (lastNewIndex === -1 && (edits[i].type === "keep" || edits[i].type === "insert")) {
+              lastNewIndex = i;
+            }
+            if (lastOldIndex !== -1 && lastNewIndex !== -1) break;
+          }
+
+          let body = "";
+          for (let i = 0; i < edits.length; i++) {
+            const edit = edits[i];
+            if (edit.type === "keep") {
+              body += ` ${edit.line}\n`;
+              if (
+                i === lastOldIndex &&
+                !oldAnalysis.hasTrailingNewline &&
+                i === lastNewIndex &&
+                !newAnalysis.hasTrailingNewline
+              ) {
+                body += "\\ No newline at end of file\n";
+              }
+            } else if (edit.type === "delete") {
+              body += `-${edit.line}\n`;
+              if (i === lastOldIndex && !oldAnalysis.hasTrailingNewline) {
+                body += "\\ No newline at end of file\n";
+              }
+            } else if (edit.type === "insert") {
+              body += `+${edit.line}\n`;
+              if (i === lastNewIndex && !newAnalysis.hasTrailingNewline) {
+                body += "\\ No newline at end of file\n";
+              }
+            }
+          }
+          chunks.push(header + body);
+        } else if (modeChanged) {
+          // File with only permission mode change
+          const header = `--- a/${p}\n+++ b/${p}\n${modeHeader}`;
+          chunks.push(header);
         }
-        chunks.push(header + body);
       }
     }
   }
@@ -280,12 +313,18 @@ async function captureWorkResult(options = {}) {
 
 /**
  * Handles interrupted execution on timeouts or abort signals, preserving partial state.
+ * Resolves workspace strictly from the private registry.
  *
  * @param {Object} options
  * @returns {Promise<Object>}
  */
 async function recoverInterruptedExecution(options = {}) {
-  const workspace = options.workspace;
+  const workspaceId =
+    typeof options.workspace === "string"
+      ? options.workspace
+      : (options.workspace?.workspace_id || options.workspace_id);
+
+  const record = getWorkspaceRecord(workspaceId);
   const workOrder = options.workOrder || {};
   const partialLogs = Array.isArray(options.partialLogs)
     ? options.partialLogs
@@ -294,21 +333,23 @@ async function recoverInterruptedExecution(options = {}) {
     : [];
   const reason = options.reason || "timeout";
 
-  if (workspace) {
-    workspace.status = "interrupted";
+  if (record && record.descriptor) {
+    record.descriptor.status = "interrupted";
+  }
+  if (options.workspace && typeof options.workspace === "object") {
+    options.workspace.status = "interrupted";
   }
 
-  const inventory = workspace ? await inspectWorkspace(workspace) : [];
-  const record = workspace ? getWorkspaceRecord(workspace.workspace_id) : null;
+  const inventory = workspaceId ? await inspectWorkspace(workspaceId) : [];
   const baselineInventory = (record && record.baselineInventory) || options.baselineInventory || [];
   const delta = computeMutationDelta(baselineInventory, inventory);
 
   return {
     status: "interrupted",
     reason,
-    workspace_id: workspace ? workspace.workspace_id : "",
+    workspace_id: workspaceId || "",
     work_order_id: workOrder.work_order_id || "",
-    source_snapshot_id: workOrder.source_snapshot_id || (workspace ? workspace.source_snapshot_id : ""),
+    source_snapshot_id: (record && record.descriptor && record.descriptor.source_snapshot_id) || workOrder.source_snapshot_id || "",
     partial_logs: partialLogs,
     modified_inventory: inventory,
     mutation_delta: delta,
@@ -325,7 +366,7 @@ async function recoverInterruptedExecution(options = {}) {
 async function executeWorkOrder(options = {}) {
   const workOrder = options.workOrder || {};
   const workspace = options.workspace;
-  const workspaceId = workspace ? workspace.workspace_id : "";
+  const workspaceId = typeof workspace === "string" ? workspace : (workspace ? workspace.workspace_id : "");
   const record = getWorkspaceRecord(workspaceId);
 
   if (!record || !record.rootPath || !fs.existsSync(record.rootPath)) {
@@ -338,11 +379,24 @@ async function executeWorkOrder(options = {}) {
 
   const authoritativeRootPath = record.rootPath;
   const authoritativeWorkspace = {
-    ...workspace,
+    ...(typeof workspace === "object" ? workspace : {}),
     workspace_id: (record.descriptor && record.descriptor.workspace_id) || workspaceId,
     root_path: authoritativeRootPath,
-    source_snapshot_id: (record.descriptor && record.descriptor.source_snapshot_id) || (workspace && workspace.source_snapshot_id),
+    source_snapshot_id: (record.descriptor && record.descriptor.source_snapshot_id) || (typeof workspace === "object" ? workspace.source_snapshot_id : undefined),
   };
+
+  // 3-Way binding check between workOrder and workspace
+  if (
+    workOrder.source_snapshot_id &&
+    authoritativeWorkspace.source_snapshot_id &&
+    workOrder.source_snapshot_id !== authoritativeWorkspace.source_snapshot_id
+  ) {
+    return {
+      ok: false,
+      reason: "source-snapshot-mismatch",
+      error: `WorkOrder source_snapshot_id (${workOrder.source_snapshot_id}) does not match workspace source_snapshot_id (${authoritativeWorkspace.source_snapshot_id})`,
+    };
+  }
 
   const workerTransport = options.transports?.worker || options.workerTransport || options.transport;
 
@@ -397,7 +451,7 @@ async function executeWorkOrder(options = {}) {
     isolationReported = "unavailable";
   }
 
-  const requiresStrict = options.strictIsolation === true || workOrder.strict_isolation === true;
+  const requiresStrict = options.strictIsolation === true;
   if (requiresStrict && isolationReported !== "enforced") {
     return {
       ok: false,
@@ -441,7 +495,7 @@ async function executeWorkOrder(options = {}) {
   if (commandList.length > maxCommands) {
     if (workspace) workspace.status = "interrupted";
     const recovery = await recoverInterruptedExecution({
-      workspace: workspace || authoritativeWorkspace,
+      workspace: authoritativeWorkspace,
       workOrder,
       partialLogs: [`error: budget.commands quota exceeded (${commandList.length} > ${maxCommands})`],
       reason: "budget_commands_exceeded",
@@ -461,7 +515,7 @@ async function executeWorkOrder(options = {}) {
     if (signal && signal.aborted) {
       if (workspace) workspace.status = "interrupted";
       const recovery = await recoverInterruptedExecution({
-        workspace: workspace || authoritativeWorkspace,
+        workspace: authoritativeWorkspace,
         workOrder,
         partialLogs: logs,
         reason: "abort",
@@ -644,7 +698,7 @@ async function executeWorkOrder(options = {}) {
     if (aborted || (signal && signal.aborted)) {
       if (workspace) workspace.status = "interrupted";
       const recovery = await recoverInterruptedExecution({
-        workspace: workspace || authoritativeWorkspace,
+        workspace: authoritativeWorkspace,
         workOrder,
         partialLogs: logs,
         reason: "abort",
@@ -656,7 +710,7 @@ async function executeWorkOrder(options = {}) {
     if (timedOut) {
       if (workspace) workspace.status = "interrupted";
       const recovery = await recoverInterruptedExecution({
-        workspace: workspace || authoritativeWorkspace,
+        workspace: authoritativeWorkspace,
         workOrder,
         partialLogs: logs,
         reason: "timeout",

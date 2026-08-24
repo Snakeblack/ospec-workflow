@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.46.4] - 2026-08-24
+
+### Fixed
+- **Remediación de Fronteras Criptográficas, Contratos y Runtime K6a (`k6a-runtime-boundary-remediation`)**:
+  - **Vinculación Tripartita Estricta (3-Way Binding)**: `materializeSourceSnapshot` y `executeWorkOrder` exigen igualdad criptográfica entre `workspace.source_snapshot_id`, `workOrder.source_snapshot_id` y `sourceSnapshot.source_snapshot_id`, abortando fail-closed antes de la creación física de archivos o ejecución de comandos si hay discrepancias de procedencia.
+  - **Merkle Tree Digest Byte-Exact y Zero-Trust**: `computeTreeDigest` calcula hashes SHA-256 directamente sobre los buffers binarios crudos sin normalización CRLF/LF ni decodificaciones intermedias, asegurando digests Merkle distintos para saltos de línea diferentes y recalculando siempre los bytes reales ante hashes declarados.
+  - **Barrera de Asentamiento Asíncrona (Settlement Barrier)**: `invokeTransportAsync` aguarda asíncronamente la finalización de cancelación/terminación del worker (`port.cancel()`, `port.terminate()`, `port.abort()`) antes de retornar o rechazar ante timeout/abort, eliminando condiciones de carrera y escrituras huérfanas.
+  - **Cabeceras Git Mode en Diff Unificado**: `generateUnifiedDiff` emite cabeceras de permisos estándar tipo git (`old mode 100644\nnew mode 100755`) tanto para modificaciones de chmod puro como para cambios combinados de permisos y contenido.
+  - **Conformidad Estricta de Esquema WorkOrder v2**: Eliminado el campo no estándar `strict_isolation` del payload `work-order/v2` (preservando `additionalProperties: false`), gestionando el aislamiento estricto vía opciones de ejecución (`options.strictIsolation`).
+  - **Autoridad Exclusiva del Registry en Inspección y Recuperación**: `inspectWorkspace` y `recoverInterruptedExecution` resuelven la ruta de trabajo exclusivamente desde el `workspaceRegistry` privado, ignorando descriptores no registrados o con rutas suplantadas.
+  - **Pipeline Canónico E2E K3 -> K4a -> K6a -> K3**: Reescrita la suite de integración en `scripts/k6a-e2e-worker-isolation.test.js` utilizando compiladores reales de K4a (`compileExecutionGraph`, `compileWorkOrdersV2`) y validadores de ligadura (`validateWorkOrderBinding`).
+  - **Especificación OpenSpec**: Añadidos requisitos `REQ-worker-isolation-009` (3-Way Cryptographic Binding and Byte-Exact Merkle Tree Digest) y `REQ-worker-isolation-010` (Transport Capability Binding, Async Settlement Barrier, and Git Mode Diffing) en `openspec/specs/worker-isolation/spec.md`.
+
 ## [2.46.3] - 2026-08-24
 
 ### Fixed

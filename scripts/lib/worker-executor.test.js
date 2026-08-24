@@ -455,7 +455,6 @@ test("executeWorkOrder: fails closed on mutating commands in fallback when stric
     work_order_id: DUMMY_WORK_ORDER_ID,
     source_snapshot_id: DUMMY_SNAPSHOT_ID,
     allowed_paths: ["**"],
-    strict_isolation: true,
   };
 
   const result = await executeWorkOrder({
@@ -464,6 +463,7 @@ test("executeWorkOrder: fails closed on mutating commands in fallback when stric
     command: process.execPath,
     args: ["-e", "console.log('must not run in fallback');"],
     isolationCapability: "unavailable",
+    strictIsolation: true,
   });
 
   assert.equal(result.ok, false);
@@ -749,5 +749,112 @@ test("executeWorkOrder: logs spawn error when binary does not exist", async (t) 
   assert.ok(result.workResult);
   assert.equal(result.workResult.exit_code, 1);
   assert.ok(result.workResult.logs.some((l) => l.includes("error:") || l.includes("non_existent")));
+});
+
+test("generateUnifiedDiff: emits git-style mode change header on chmod without content changes", (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-diff-mode-only-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const filePath = path.join(baseDir, "script.sh");
+  fs.writeFileSync(filePath, "#!/bin/sh\necho hi\n");
+
+  const baselineInventory = [{ path: "script.sh", sha256: "sha256:same", mode: 0o100644 }];
+  const postInventory = [{ path: "script.sh", sha256: "sha256:same", mode: 0o100755 }];
+  const baselineContents = new Map([["script.sh", "#!/bin/sh\necho hi\n"]]);
+
+  const patch = generateUnifiedDiff(baseDir, baselineInventory, postInventory, baselineContents);
+  assert.ok(patch.includes("--- a/script.sh\n+++ b/script.sh\nold mode 100644\nnew mode 100755"));
+});
+
+test("generateUnifiedDiff: emits git-style mode change header AND diff hunks when both mode and content change", (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-diff-mode-content-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const filePath = path.join(baseDir, "run.sh");
+  fs.writeFileSync(filePath, "#!/bin/sh\necho updated\n");
+
+  const baselineInventory = [{ path: "run.sh", sha256: "sha256:old", mode: 0o100644 }];
+  const postInventory = [{ path: "run.sh", sha256: "sha256:new", mode: 0o100755 }];
+  const baselineContents = new Map([["run.sh", "#!/bin/sh\necho original\n"]]);
+
+  const patch = generateUnifiedDiff(baseDir, baselineInventory, postInventory, baselineContents);
+  assert.ok(patch.includes("--- a/run.sh\n+++ b/run.sh\nold mode 100644\nnew mode 100755\n@@ -1,2 +1,2 @@"));
+  assert.ok(patch.includes("-echo original"));
+  assert.ok(patch.includes("+echo updated"));
+});
+
+test("executeWorkOrder: fails closed when workOrder source_snapshot_id does not match workspace source_snapshot_id", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-exec-snap-mismatch-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const snapshotA = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const snapshotB = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: snapshotA });
+  t.after(() => disposeWorkspace(ws));
+
+  const workOrder = {
+    work_order_id: DUMMY_WORK_ORDER_ID,
+    source_snapshot_id: snapshotB, // Disagrees with workspace!
+    allowed_paths: ["**"],
+  };
+
+  const result = await executeWorkOrder({
+    workOrder,
+    workspace: ws,
+    command: process.execPath,
+    args: ["-v"],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "source-snapshot-mismatch");
+});
+
+test("recoverInterruptedExecution: resolves authoritative workspace from registry ignoring forged root_path", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-recover-auth-"));
+  const forgedDir = path.join(baseDir, "forged-dir");
+  fs.mkdirSync(forgedDir, { recursive: true });
+  fs.writeFileSync(path.join(forgedDir, "leak.txt"), "should not be inspected");
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  t.after(() => disposeWorkspace(ws));
+
+  // Caller provides legitimate workspace_id but forged root_path
+  const forgedDescriptor = {
+    workspace_id: ws.workspace_id,
+    root_path: forgedDir,
+    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+  };
+
+  const recovery = await recoverInterruptedExecution({
+    workspace: forgedDescriptor,
+    reason: "abort",
+  });
+
+  assert.equal(recovery.status, "interrupted");
+  assert.equal(recovery.modified_inventory.some((f) => f.path === "leak.txt"), false, "Must not inspect forged root_path");
+});
+
+test("invokeTransportAsync: awaits cancelPort settlement barrier before returning failure", async () => {
+  const { invokeTransportAsync } = require("./host-contract/index.js");
+  let terminationAcknowledged = false;
+
+  const mockPort = {
+    port_id: "port-settlement-test",
+    run: () => new Promise((resolve) => setTimeout(() => resolve({ ok: true, exit_code: 0 }), 500)),
+    cancel: async () => {
+      await new Promise((r) => setTimeout(r, 50));
+      terminationAcknowledged = true;
+    },
+  };
+
+  const outcome = await invokeTransportAsync(mockPort, {
+    deadlineMs: 20,
+  });
+
+  assert.equal(outcome.ok, false);
+  assert.equal(outcome.failure_class, "timeout");
+  assert.equal(terminationAcknowledged, true, "Must await async cancellation settlement before returning");
 });
 
