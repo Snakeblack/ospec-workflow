@@ -35,9 +35,9 @@ se leen exclusivamente del YAML y no se vuelven a fijar en el validador.
 
 | Tier | `claude` (alias) | `vscode` (orden de fallback) | `opencode` (`provider/model`) |
 | --- | --- | --- | --- |
-| `premium` | `opus` | `Claude Opus 4.8 (copilot)`, `GPT-5.5 (copilot)` | `anthropic/claude-opus-4-8` |
-| `default` | `sonnet` | `Claude Sonnet 4.6 (copilot)`, `GPT-5.3-Codex (copilot)` | `anthropic/claude-sonnet-4-6` |
-| `cheap` | `haiku` | `Qwen 3.6 MSC1 (customendpoint)`, `GPT-5.4-mini (copilot)` | `anthropic/claude-haiku-4-6` |
+| `premium` | `opus` | `GPT-5.6 Sol (copilot)` | `anthropic/claude-opus-4-8` |
+| `default` | `sonnet` | `GPT-5.6 Terra (copilot)` | `anthropic/claude-sonnet-4-6` |
+| `cheap` | `haiku` | `GPT-5.6 Luna (copilot)` | `anthropic/claude-haiku-4-6` |
 
 El target `github-copilot` no inyecta `model:` (el origen lo omite y no hay columna `github-copilot`
 en `tiers`): los agentes generados heredan el modelo de la sesión de Copilot.

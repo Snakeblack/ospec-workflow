@@ -11,8 +11,9 @@
 //   - "tool.execute.before"       -> ospec-hooks pre-tool-use   (safety policy)
 //
 // The binary is resolved in priority order:
-//   1. {plugin_dir}/../../release/dist/ospec-hooks[.exe]  (CI build artifact)
-//   2. ospec-hooks on $PATH  (developer global install)
+//   1. {global_plugin_dir}/../release/dist/ospec-hooks[.exe]
+//   2. {local_plugin_dir}/../../release/dist/ospec-hooks[.exe]
+//   3. ospec-hooks on $PATH
 //
 // Fail-open: if the binary is absent, errors, or returns unparseable output
 // the hook is silently skipped (allow). opencode has no native "ask" surface
@@ -31,14 +32,18 @@ const here = dirname(fileURLToPath(import.meta.url));
 const isWin = process.platform === "win32";
 const EXE = isWin ? ".exe" : "";
 
-function resolveBinary() {
-  // Priority 1: known dist path produced by the CI build step.
-  const distBin = resolve(join(here, "..", "..", "release", "dist", "ospec-hooks" + EXE));
-  if (existsSync(distBin)) {
-    return distBin;
+export function resolveBinary({ here: pluginDir = here, extension = EXE, exists = existsSync } = {}) {
+  // Global plugins live at ~/.config/opencode/plugins; project plugins use .opencode/plugins.
+  const globalDistBin = resolve(join(pluginDir, "..", "release", "dist", "ospec-hooks" + extension));
+  if (exists(globalDistBin)) {
+    return globalDistBin;
   }
-  // Priority 2: ospec-hooks on $PATH (developer environments with global install).
-  return "ospec-hooks" + EXE;
+  const localDistBin = resolve(join(pluginDir, "..", "..", "release", "dist", "ospec-hooks" + extension));
+  if (exists(localDistBin)) {
+    return localDistBin;
+  }
+  // PATH is a developer fallback, never the managed installation source.
+  return "ospec-hooks" + extension;
 }
 
 export const OspecWorkflowPlugin = async ({ directory }) => {

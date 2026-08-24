@@ -15,7 +15,7 @@ Fuente de mapeo de tools: `scripts/lib/target-profiles/*.js` (`toolMap`).
 | Sub-agentes delegados | ✅ (`Task`/agents) | ✅ (`agent`) | parcial (sesión única) | ✅ (`task`) | ✅ (spawn) | ✅ (`Task`) |
 | Sub-agentes en paralelo | ✅ | ❌ (secuencial) | ❌ | ❌ | ❌ | parcial (Task async) |
 | Background tasks | ✅ (`run_in_background`) | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Lifecycle hooks del plugin | ✅ (los 5) | ❌ | ❌ | parcial (plugin JS propio) | ✅ (bridge) | ✅ (camelCase map) |
+| Lifecycle hooks del plugin | ✅ (los 5) | ❌ | ❌ | parcial (`SessionStart`, `PreToolUse`) | ✅ (bridge) | ✅ (camelCase map) |
 | Fallback de modelos por tier | vía `models.yaml` | ✅ (orden declarado) | ❌ | ✅ | ✅ | vía `models.yaml` `cursor:` |
 
 Regla de generación: los prompts de un target NO deben instruir tools o
@@ -42,7 +42,7 @@ agente alucine o se trabe. Ante la duda, el prompt generado usa el mínimo comú
 | Git collaboration guard | hook `PreToolUse` | ✅ | ❌ | ❌ | parcial | ✅ | ✅ | git hooks locales (`pre-commit`) |
 | No-model-attribution | 3 capas | ✅ (hook+git+regla) | git hook + regla | git hook + regla | git hook + regla | git hook + regla | git hook + regla | git hook cubre TODOS los targets |
 | Strict TDD guard | git hook + regla | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — (git hook, host-agnóstico) |
-| Registry fresh / session state | `SessionStart`/`Stop` | ✅ | ❌ (registro por comando) | ❌ | parcial | ✅ | ✅ | `sdd-init` regenera el registry on-demand |
+| Registry fresh / session state | `SessionStart`/`Stop` | ✅ | ❌ (registro por comando) | ❌ | parcial (`SessionStart`; sin `Stop`) | ✅ | ✅ | `sdd-init` regenera el registry on-demand |
 
 Lectura correcta de esta tabla: **los git hooks locales son la única capa que
 corre igual en los seis targets**; las protecciones de lifecycle hooks son

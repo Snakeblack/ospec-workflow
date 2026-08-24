@@ -422,6 +422,8 @@ Este instalador idempotente realiza los siguientes pasos:
    - **Linux/macOS**: `~/.config/opencode/`
 4. Fusiona dinámicamente las configuraciones del archivo `opencode.json` (incluyendo servidores MCP como `context7` y `markitdown`) con el archivo `opencode.json` global ya existente, y añade el patrón global `instructions/*.md` para registrar las instrucciones.
 
+El plugin resuelve `ospec-hooks` primero desde `release/dist/` junto a la instalación global, después desde el layout local del proyecto y solo como último recurso desde `PATH`. No hace falta añadir el directorio del binario a `PATH` para una instalación gestionada.
+
 Esto permite que `ospec-workflow` y todos sus comandos/skills estén disponibles al presionar **Tab** en cualquier repositorio abierto en OpenCode.
 
 ### Cursor IDE
