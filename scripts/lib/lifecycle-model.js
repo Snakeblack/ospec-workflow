@@ -1338,6 +1338,7 @@ async function checkK6aInterruptedRecoveryPreservation() {
 async function checkK6aHostIsolationFallback() {
   const { createWorkspace, disposeWorkspace } = require("./worker-workspace.js");
   const { executeWorkOrder } = require("./worker-executor.js");
+  const { computeWorkOrderId } = require("./execution-identities/index.js");
   const fs = require("node:fs");
   const os = require("node:os");
   const path = require("node:path");
@@ -1346,10 +1347,22 @@ async function checkK6aHostIsolationFallback() {
   try {
     const ws = await createWorkspace({ baseDir, source_snapshot_id: snapId });
     const workOrder = {
-      work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      schema_version: 2,
+      kind: "work-order/v2",
+      node_id: "node-inv-iso",
+      role: "executor",
+      status: "pending",
+      operation: "verify",
+      objective: "Host isolation fallback test",
       source_snapshot_id: snapId,
+      dependencies: [],
+      ownership: { owner: "agent-1", mode: "shared" },
       allowed_paths: ["**"],
+      invariants: ["inv-1"],
+      required_evidence: ["ev-1"],
+      budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
     };
+    workOrder.work_order_id = computeWorkOrderId(workOrder);
     const result = await executeWorkOrder({
       workOrder,
       workspace: ws,

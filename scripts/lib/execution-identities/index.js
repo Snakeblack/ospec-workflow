@@ -1166,6 +1166,7 @@ function validateExecutionGraphBinding(graph, options) {
 module.exports = {
   EXPECTED_KINDS,
   validateCandidateV2,
+  isWorkOrderV2,
   computeSourceSnapshotId,
   computeWorkOrderId,
   computeWorkResultId,
