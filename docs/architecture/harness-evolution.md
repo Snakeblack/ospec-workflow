@@ -178,7 +178,7 @@ El programa no cambia defaults por el solo hecho de cerrar O2B/K1/K2/K2.1/K2a: c
 - No hay CandidateEvaluationAttestation ni DeliveryAuthorization productivos (K8 / K10-delivery).
 - No hay selector de estrategia de evidencia por tipo de cambio, provenance ni Assurance Graph (K6b).
 - ChallengePlan / challenges proporcionales y `complexity_delta` no son gates reutilizables (K6c/K6d).
-- Worker isolation genérica pendiente (K6a); host contract K2a ya entrega ports opacos.
+- Worker isolation genérica y work-order capsule entregados y conformes (K6a); host contract K2a entrega ports opacos.
 - K1/K2/K2.1/K2a runtime surfaces published or in-flight; corpus longitudinal y fricción permanecen en K12.
 
 ## Cadena canónica del change

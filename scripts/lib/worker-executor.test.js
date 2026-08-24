@@ -858,3 +858,124 @@ test("invokeTransportAsync: awaits cancelPort settlement barrier before returnin
   assert.equal(terminationAcknowledged, true, "Must await async cancellation settlement before returning");
 });
 
+test("executeWorkOrder: preserves exit_code, stderr, and stdout telemetry from failing WorkerTransport", async (t) => {
+  const { getWorkspaceRecord } = require("./worker-workspace.js");
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-exec-tel-fail-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  t.after(() => disposeWorkspace(ws));
+
+  const failingTransport = {
+    port_id: "port-failing-worker",
+    kind: "worker-transport",
+    run: async () => ({
+      ok: false,
+      failure_class: "worker-fail",
+      exit_code: 2,
+      stderr: "compilation error in module foo\n",
+      stdout: "parsing step 1 complete\n",
+    }),
+  };
+
+  const workOrder = {
+    work_order_id: DUMMY_WORK_ORDER_ID,
+    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+    allowed_paths: ["**"],
+  };
+
+  const result = await executeWorkOrder({
+    workOrder,
+    workspace: ws,
+    transports: { worker: failingTransport },
+    command: "failing-runner",
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.workResult);
+  assert.equal(result.workResult.exit_code, 2, "Exit code 2 from WorkerTransport must be preserved");
+  assert.ok(result.workResult.logs.some((l) => l.includes("compilation error in module foo")), "stderr must be preserved in logs");
+  assert.ok(result.workResult.logs.some((l) => l.includes("parsing step 1 complete")), "stdout must be preserved in logs");
+});
+
+test("recoverInterruptedExecution: updates authoritative status in private registry", async (t) => {
+  const { getWorkspaceRecord } = require("./worker-workspace.js");
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-exec-rec-auth-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  t.after(() => disposeWorkspace(ws));
+
+  assert.equal(getWorkspaceRecord(ws.workspace_id).descriptor.status, "active");
+
+  const recovery = await recoverInterruptedExecution({
+    workspace: ws,
+    reason: "timeout",
+  });
+
+  assert.equal(recovery.status, "interrupted");
+  assert.equal(getWorkspaceRecord(ws.workspace_id).descriptor.status, "interrupted", "Authoritative registry descriptor must be marked interrupted");
+});
+
+test("executeWorkOrder: rejects mutating work order in unverified fallback without enforced WorkerTransport", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-exec-mut-fallback-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  t.after(() => disposeWorkspace(ws));
+
+  const mutatingWorkOrder = {
+    work_order_id: DUMMY_WORK_ORDER_ID,
+    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+    operation: "apply",
+    allowed_paths: ["src/**"],
+  };
+
+  const result = await executeWorkOrder({
+    workOrder: mutatingWorkOrder,
+    workspace: ws,
+    command: process.execPath,
+    args: ["-e", "console.log('mutating');"],
+    isolationCapability: "partial",
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "mutation-requires-enforced-isolation");
+});
+
+test("executeWorkOrder: adversarial test - subprocess writing outside workspace root is contained", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-exec-adv-"));
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-exec-outside-"));
+  t.after(() => {
+    try {
+      fs.rmSync(baseDir, { recursive: true, force: true });
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    } catch {}
+  });
+
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  t.after(() => disposeWorkspace(ws));
+
+  const outsideFile = path.join(outsideDir, "pwned.txt").replace(/\\/g, "/");
+
+  // Attempt to execute mutating apply in fallback -> rejected before execution
+  const mutatingWorkOrder = {
+    work_order_id: DUMMY_WORK_ORDER_ID,
+    source_snapshot_id: DUMMY_SNAPSHOT_ID,
+    operation: "apply",
+    allowed_paths: ["src/**"],
+  };
+
+  const result = await executeWorkOrder({
+    workOrder: mutatingWorkOrder,
+    workspace: ws,
+    command: process.execPath,
+    args: ["-e", `require('fs').writeFileSync('${outsideFile}', 'evil');`],
+    isolationCapability: "unavailable",
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(fs.existsSync(outsideFile), false, "Subprocess must not be permitted to execute unconfined mutating commands in fallback");
+});
+
+

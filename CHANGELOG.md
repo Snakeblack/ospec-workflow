@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.46.5] - 2026-08-24
+
+### Fixed
+- **Hardening Integral de Aislamiento de Workers, Zero-Trust Criptográfico y Preservación de Telemetría K6a**:
+  - **Zero-Trust Criptográfico en Merkle Tree**: `computeTreeDigest` exige contenido de bytes real para cada archivo en colecciones tipo Array, eliminando la aceptación ciega de hashes declarados sin bytes; `materializeSourceSnapshot` hidrata y valida siempre los bytes candidatos (`candidateFiles`) contra `base_tree_digest` y comprueba que los hashes declarados en `filesSource` coincidan byte a byte.
+  - **Transición Autoritativa en el Registro Privado**: Añadida y exportada la primitiva `updateWorkspaceStatus` en `worker-workspace.js`, sincronizando el estado real del registro privado `workspaceRegistry` en recuperaciones e interrupciones (`recoverInterruptedExecution` y handlers de cuota/abort/timeout en `executeWorkOrder` marcan `descriptor.status = "interrupted"`).
+  - **Preservación Íntegra de Telemetría en WorkerTransport**: `classifyTransportFailure` en `host-contract/index.js` y `executeWorkOrder` capturan y preservan `exit_code`, `stderr`, `stdout`, `error`, `message` y `reason` ante fallos (`ok: false`) del transporte.
+  - **Contención de Subprocesos y Aislamiento en Mutaciones**: Restringida la ejecución de órdenes de trabajo mutantes (`operation: "apply"`) en fallback exclusivamente a transportes con aislamiento verificado `enforced`, garantizando frontera fail-closed ante escrituras no contenidas.
+  - **Inspección de Workspace Fail-Closed y Blindaje de Symlinks**: `inspectWorkspace` utiliza `lstatSync` y `checkSymlinkEscape` antes de seguir symlinks, fallando cerrado ante symlinks con escape fuera de la raíz de trabajo, enlaces rotos o archivos ilegibles.
+  - **Reconciliación Documental**: Actualizado `docs/architecture/harness-evolution.md` reflejando la entrega y conformidad estricta de las primitivas de aislamiento K6a.
+
 ## [2.46.4] - 2026-08-24
 
 ### Fixed

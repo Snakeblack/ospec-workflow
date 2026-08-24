@@ -53,18 +53,16 @@ function computeTreeDigest(files) {
       if (!item || !item.path) continue;
       const normalizedPath = normalizeRelativePath(item.path);
       if (normalizedPath) {
-        let digest;
-        if (item.content !== undefined && item.content !== null) {
-          digest = sha256(item.content);
-          if (item.sha256 && item.sha256 !== digest) {
-            throw new Error(
-              `Declared sha256 mismatch for ${item.path}: declared ${item.sha256}, calculated from bytes ${digest}`
-            );
-          }
-        } else if (item.sha256) {
-          digest = item.sha256;
-        } else {
-          digest = sha256("");
+        if (item.content === undefined || item.content === null) {
+          throw new Error(
+            `computeTreeDigest requires content for each file to ensure byte-level zero-trust verification: ${item.path}`
+          );
+        }
+        const digest = sha256(item.content);
+        if (item.sha256 && item.sha256 !== digest) {
+          throw new Error(
+            `Declared sha256 mismatch for ${item.path}: declared ${item.sha256}, calculated from bytes ${digest}`
+          );
         }
         entries.push({ path: normalizedPath, sha256: digest });
       }
@@ -86,6 +84,21 @@ function computeTreeDigest(files) {
  * Map<workspace_id, { descriptor: Object, rootPath: string, baselineInventory: Array, baselineContents: Map<string, string>, createdAt: number }>
  */
 const workspaceRegistry = new Map();
+
+/**
+ * Updates status of a tracked workspace in the private registry.
+ *
+ * @param {string} workspaceId
+ * @param {string} status
+ * @returns {boolean} true if workspace was found and updated
+ */
+function updateWorkspaceStatus(workspaceId, status) {
+  if (!workspaceId || typeof workspaceId !== "string") return false;
+  const record = workspaceRegistry.get(workspaceId);
+  if (!record || !record.descriptor) return false;
+  record.descriptor.status = status;
+  return true;
+}
 
 /**
  * Returns internal workspace record for a workspace ID if tracked.
@@ -293,12 +306,50 @@ async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceS
 
   // Cryptographic verification pre-materialization against base_tree_digest
   if (sourceSnapshot && sourceSnapshot.base_tree_digest) {
-    const candidateTreeSource = filesSource && typeof filesSource === "object" ? filesSource : candidateFiles;
-    const calculatedTreeDigest = computeTreeDigest(candidateTreeSource);
+    let treeSource = candidateFiles;
+    if (filesSource && typeof filesSource === "object") {
+      if (Array.isArray(filesSource)) {
+        const hydratedArray = filesSource.map((f) => {
+          if (!f || !f.path) return f;
+          const norm = normalizeRelativePath(f.path);
+          if (f.content !== undefined && f.content !== null) return f;
+          if (candidateFiles.has(norm)) {
+            return { ...f, content: candidateFiles.get(norm) };
+          }
+          if (resolveFileFn) {
+            const content = resolveFileFn(norm);
+            if (content !== undefined && content !== null) return { ...f, content };
+          }
+          return f;
+        });
+        treeSource = hydratedArray;
+      } else {
+        treeSource = filesSource;
+      }
+    }
+    const calculatedTreeDigest = computeTreeDigest(treeSource);
     if (calculatedTreeDigest !== sourceSnapshot.base_tree_digest) {
       throw new Error(
         `Cryptographic verification failed: base_tree_digest mismatch (expected ${sourceSnapshot.base_tree_digest}, calculated ${calculatedTreeDigest})`
       );
+    }
+  }
+
+  // If filesSource declares per-file sha256 digests, verify them against actual candidate bytes
+  if (Array.isArray(filesSource)) {
+    for (const f of filesSource) {
+      if (f && f.path && f.sha256) {
+        const norm = normalizeRelativePath(f.path);
+        const actualContent = candidateFiles.get(norm);
+        if (actualContent !== undefined) {
+          const actualSha = sha256(actualContent);
+          if (actualSha !== f.sha256) {
+            throw new Error(
+              `Declared sha256 mismatch for ${f.path}: declared ${f.sha256}, calculated from candidate bytes ${actualSha}`
+            );
+          }
+        }
+      }
     }
   }
 
@@ -392,6 +443,7 @@ async function inspectWorkspace(workspaceDescriptorOrId) {
 
   if (!rootPath || !fs.existsSync(rootPath)) return [];
   const inventory = [];
+  const { checkSymlinkEscape } = require("./allowed-paths-validator.js");
 
   function scanDir(currentDir, relPrefix) {
     if (!fs.existsSync(currentDir)) return;
@@ -399,20 +451,49 @@ async function inspectWorkspace(workspaceDescriptorOrId) {
     for (const entry of entries) {
       const fullPath = path.join(currentDir, entry.name);
       const relPath = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) {
-        scanDir(fullPath, relPath);
-      } else if (entry.isFile() || entry.isSymbolicLink()) {
-        try {
-          const stat = fs.statSync(fullPath);
-          const content = fs.readFileSync(fullPath);
-          inventory.push({
-            path: relPath.replace(/\\/g, "/"),
-            sha256: sha256(content),
-            mode: stat.mode,
-          });
-        } catch {
-          // ignore unreadable/transient file
+      const normalizedRelPath = relPath.replace(/\\/g, "/");
+
+      let lstat;
+      try {
+        lstat = fs.lstatSync(fullPath);
+      } catch (err) {
+        throw new Error(`Failed to lstat file during workspace inspection: ${relPath} (${err.message})`);
+      }
+
+      if (lstat.isSymbolicLink()) {
+        const escapeCheck = checkSymlinkEscape(normalizedRelPath, rootPath);
+        if (escapeCheck.isEscape) {
+          throw new Error(`Symlink escape detected during workspace inspection: ${relPath}`);
         }
+        let stat;
+        let content;
+        try {
+          stat = fs.statSync(fullPath);
+          content = fs.readFileSync(fullPath);
+        } catch (err) {
+          throw new Error(`Unreadable or dangling symlink in workspace: ${relPath} (${err.message})`);
+        }
+        inventory.push({
+          path: normalizedRelPath,
+          sha256: sha256(content),
+          mode: stat.mode,
+        });
+      } else if (lstat.isDirectory()) {
+        scanDir(fullPath, relPath);
+      } else if (lstat.isFile()) {
+        let stat;
+        let content;
+        try {
+          stat = fs.statSync(fullPath);
+          content = fs.readFileSync(fullPath);
+        } catch (err) {
+          throw new Error(`Unreadable file in workspace: ${relPath} (${err.message})`);
+        }
+        inventory.push({
+          path: normalizedRelPath,
+          sha256: sha256(content),
+          mode: stat.mode,
+        });
       }
     }
   }
@@ -428,6 +509,7 @@ module.exports = {
   materializeSourceSnapshot,
   inspectWorkspace,
   getWorkspaceRecord,
+  updateWorkspaceStatus,
   computeTreeDigest,
   sha256,
 };
