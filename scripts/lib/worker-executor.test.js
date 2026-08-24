@@ -57,8 +57,14 @@ function makeCanonicalWorkOrder(sourceSnapshotId = DUMMY_SNAPSHOT_ID, overrides 
   };
 }
 
-function makeEnforcedProof(adapterId = "adapter-test") {
-  const evidence = { surface: "worker", headless: true };
+function makeEnforcedProof(adapterId = "adapter-test", containmentOverrides = {}) {
+  const containment = {
+    allowed_write: "PASS",
+    undeclared_workspace_write: "BLOCKED",
+    external_root_write: "BLOCKED",
+    ...containmentOverrides,
+  };
+  const evidence = { surface: "worker", headless: true, containment };
   const fixture = "fixtures/WorkerTransport.json";
   const evidence_digest = createEvidenceDigest({
     capability_id: "WorkerTransport",
@@ -72,7 +78,7 @@ function makeEnforcedProof(adapterId = "adapter-test") {
     adapter_id: adapterId,
     adapter_version: "1.0.0",
     host_version: "1.0.0",
-    probe: { surface: "live", ok: true },
+    probe: { surface: "live", ok: true, containment },
   });
   const capabilityProof = {
     schema_version: 1,
@@ -83,6 +89,7 @@ function makeEnforcedProof(adapterId = "adapter-test") {
     fixture,
     evidence_digest,
     probe_digest,
+    containment,
   };
   return {
     isolationCapability: "enforced",
@@ -331,11 +338,26 @@ test("executeWorkOrder: captures non-zero exit code and error logs without throw
     allowed_paths: ["**"],
   });
 
+  const enforcedProof = makeEnforcedProof("adapter-test");
+  const mockTransport = {
+    port_id: "port-failing-worker",
+    kind: "worker-transport",
+    adapter_id: "adapter-test",
+    probe_digest: enforcedProof.probe_digest,
+    run: async () => ({
+      ok: false,
+      exit_code: 2,
+      stdout: "",
+      stderr: "fatal error\n",
+    }),
+  };
+
   const result = await executeWorkOrder({
     workOrder,
     workspace: ws,
-    command: process.execPath,
-    args: ["-e", "console.error('fatal error'); process.exit(2);"],
+    transports: { worker: mockTransport },
+    command: "failing-tool",
+    ...enforcedProof,
   });
 
   assert.equal(result.ok, false);
@@ -357,7 +379,7 @@ test("executeWorkOrder: enforces capability proof before reporting enforced isol
     allowed_paths: ["**"],
   });
 
-  // Declared enforced without proof must downgrade to unavailable
+  // Declared enforced without proof must fail and report unavailable
   const resNoProof = await executeWorkOrder({
     workOrder,
     workspace: ws,
@@ -365,43 +387,18 @@ test("executeWorkOrder: enforces capability proof before reporting enforced isol
     args: ["-e", "console.log('no proof');"],
     isolationCapability: "enforced",
   });
+  assert.equal(resNoProof.ok, false);
   assert.equal(resNoProof.isolationReported, "unavailable");
 
   // With verified capability state
-  const evidence = { surface: "worker", headless: true };
-  const fixture = "fixtures/WorkerTransport.json";
-  const evidence_digest = createEvidenceDigest({
-    capability_id: "WorkerTransport",
-    adapter_version: "1.0.0",
-    host_version: "1.0.0",
-    fixture,
-    evidence,
-  });
-  const probe_digest = createProbeDigest({
-    capability_id: "WorkerTransport",
-    adapter_id: "adapter-test",
-    adapter_version: "1.0.0",
-    host_version: "1.0.0",
-    probe: { surface: "live", ok: true },
-  });
-
-  const capabilityProof = {
-    schema_version: 1,
-    kind: "capability-proof/v1",
-    adapter_id: "adapter-test",
-    adapter_version: "1.0.0",
-    host_version: "1.0.0",
-    fixture,
-    evidence_digest,
-    probe_digest,
-  };
+  const enforcedProof = makeEnforcedProof("adapter-test");
 
   // Enforced with verified capability state and verified WorkerTransport port
   const mockEnforcedTransport = {
     port_id: "port-enforced-worker",
     kind: "worker-transport",
     adapter_id: "adapter-test",
-    probe_digest,
+    probe_digest: enforcedProof.probe_digest,
     run: async () => ({
       ok: true,
       exit_code: 0,
@@ -415,13 +412,7 @@ test("executeWorkOrder: enforces capability proof before reporting enforced isol
     workspace: ws,
     transports: { worker: mockEnforcedTransport },
     command: "runner",
-    isolationCapability: "enforced",
-    capabilityProof,
-    semantic_evidence: evidence,
-    expectedAdapterId: "adapter-test",
-    expectedAdapterVersion: "1.0.0",
-    expectedHostRuntimeVersion: "1.0.0",
-    expectedProbeDigest: probe_digest,
+    ...enforcedProof,
   });
   assert.equal(resWithProofAndTransport.isolationReported, "enforced");
   assert.equal(resWithProofAndTransport.ok, true);
@@ -432,16 +423,26 @@ test("executeWorkOrder: enforces capability proof before reporting enforced isol
     workspace: ws,
     command: process.execPath,
     args: ["-e", "console.log('missing transport');"],
-    isolationCapability: "enforced",
-    capabilityProof,
-    semantic_evidence: evidence,
-    expectedAdapterId: "adapter-test",
-    expectedAdapterVersion: "1.0.0",
-    expectedHostRuntimeVersion: "1.0.0",
-    expectedProbeDigest: probe_digest,
+    ...enforcedProof,
   });
   assert.equal(resMissingTransport.ok, false, "Must fail closed when enforced requested without WorkerTransport");
   assert.notEqual(resMissingTransport.isolationReported, "enforced");
+
+  // Proof with broken containment probe must fail closed
+  const brokenContainmentProof = makeEnforcedProof("adapter-test", { external_root_write: "LEAKED" });
+  const mockBrokenTransport = {
+    ...mockEnforcedTransport,
+    probe_digest: brokenContainmentProof.probe_digest,
+  };
+  const resBrokenContainment = await executeWorkOrder({
+    workOrder,
+    workspace: ws,
+    transports: { worker: mockBrokenTransport },
+    command: "runner",
+    ...brokenContainmentProof,
+  });
+  assert.equal(resBrokenContainment.ok, false);
+  assert.equal(resBrokenContainment.reason, "containment-probe-unfulfilled");
 });
 
 test("executeWorkOrder: fails closed when workspace is not registered in private registry", async (t) => {
@@ -566,8 +567,12 @@ test("executeWorkOrder: passes signal and deadlineMs to invokeTransportAsync wit
   t.after(() => disposeWorkspace(ws));
 
   let receivedRequest = null;
+  const enforcedProof = makeEnforcedProof("adapter-test");
   const mockTransport = {
     port_id: "port-mock",
+    adapter_id: "adapter-test",
+    probe_digest: enforcedProof.probe_digest,
+    kind: "worker-transport",
     invoke: async (request) => {
       receivedRequest = request;
       return { ok: true, exit_code: 0, stdout: "ok", stderr: "" };
@@ -588,6 +593,7 @@ test("executeWorkOrder: passes signal and deadlineMs to invokeTransportAsync wit
     args: ["--flag"],
     signal: controller.signal,
     budget: { wall_time_ms: 12000 },
+    ...enforcedProof,
   });
 
   assert.ok(receivedRequest, "Transport must receive request object");
@@ -608,7 +614,19 @@ test("executeWorkOrder: handles host capability fallback without silent promotio
     allowed_paths: ["**"],
   });
 
+  // Pure internal evaluation (no external subprocess) executes and truthfully reports unavailable without silent promotion
   const result = await executeWorkOrder({
+    workOrder,
+    workspace: ws,
+    isolationCapability: "unavailable",
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.isolationReported, "unavailable");
+  assert.notEqual(result.isolationReported, "enforced");
+
+  // Attempting to run external command via subprocess without enforced isolation fails closed
+  const cmdResult = await executeWorkOrder({
     workOrder,
     workspace: ws,
     command: process.execPath,
@@ -616,9 +634,8 @@ test("executeWorkOrder: handles host capability fallback without silent promotio
     isolationCapability: "unavailable",
   });
 
-  assert.equal(result.ok, true);
-  assert.equal(result.isolationReported, "unavailable");
-  assert.notEqual(result.isolationReported, "enforced");
+  assert.equal(cmdResult.ok, false);
+  assert.equal(cmdResult.reason, "subprocess-requires-enforced-isolation");
 });
 
 test("executeWorkOrder: handles abort signal and returns recovery descriptor", async (t) => {
@@ -637,12 +654,28 @@ test("executeWorkOrder: handles abort signal and returns recovery descriptor", a
   const controller = new AbortController();
   controller.abort();
 
+  const enforcedProof = makeEnforcedProof("adapter-test");
+  const mockTransport = {
+    port_id: "port-abort-worker",
+    kind: "worker-transport",
+    adapter_id: "adapter-test",
+    probe_digest: enforcedProof.probe_digest,
+    run: async () => ({
+      ok: false,
+      failure_class: "cancel",
+      exit_code: 1,
+      stdout: "",
+      stderr: "aborted",
+    }),
+  };
+
   const result = await executeWorkOrder({
     workOrder,
     workspace: ws,
-    command: process.execPath,
-    args: ["-e", "console.log('aborted immediately');"],
+    transports: { worker: mockTransport },
+    command: "tool",
     signal: controller.signal,
+    ...enforcedProof,
   });
 
   assert.equal(result.ok, false);
@@ -663,11 +696,22 @@ test("executeWorkOrder: fails pre-flight if declaredTargets violates containment
     allowed_paths: ["src/**"],
   });
 
+  const enforcedProof = makeEnforcedProof("adapter-test");
+  const mockTransport = {
+    port_id: "port-pf-worker",
+    kind: "worker-transport",
+    adapter_id: "adapter-test",
+    probe_digest: enforcedProof.probe_digest,
+    run: async () => ({ ok: true, exit_code: 0 }),
+  };
+
   const result = await executeWorkOrder({
     workOrder,
     workspace: ws,
-    command: process.execPath,
+    transports: { worker: mockTransport },
+    command: "tool",
     declaredTargets: ["unauthorized/file.txt"],
+    ...enforcedProof,
   });
 
   assert.equal(result.ok, false);
@@ -808,12 +852,28 @@ test("executeWorkOrder: captures timeout when budget.wall_time_ms is exceeded", 
     allowed_paths: ["**"],
   });
 
+  const enforcedProof = makeEnforcedProof("adapter-test");
+  const mockTransport = {
+    port_id: "port-timeout-worker",
+    kind: "worker-transport",
+    adapter_id: "adapter-test",
+    probe_digest: enforcedProof.probe_digest,
+    run: async () => ({
+      ok: false,
+      failure_class: "timeout",
+      exit_code: 1,
+      stdout: "",
+      stderr: "timed out",
+    }),
+  };
+
   const result = await executeWorkOrder({
     workOrder,
     workspace: ws,
-    command: process.execPath,
-    args: ["-e", "setTimeout(() => {}, 2000);"],
+    transports: { worker: mockTransport },
+    command: "tool",
     budget: { wall_time_ms: 100 },
+    ...enforcedProof,
   });
 
   assert.equal(result.ok, false);
@@ -823,7 +883,7 @@ test("executeWorkOrder: captures timeout when budget.wall_time_ms is exceeded", 
   assert.equal(ws.status, "interrupted");
 });
 
-test("executeWorkOrder: logs spawn error when binary does not exist", async (t) => {
+test("executeWorkOrder: logs error when transport reports execution error", async (t) => {
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-exec-enoent-"));
   t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
 
@@ -836,11 +896,27 @@ test("executeWorkOrder: logs spawn error when binary does not exist", async (t) 
     allowed_paths: ["**"],
   });
 
+  const enforcedProof = makeEnforcedProof("adapter-test");
+  const mockTransport = {
+    port_id: "port-enoent-worker",
+    kind: "worker-transport",
+    adapter_id: "adapter-test",
+    probe_digest: enforcedProof.probe_digest,
+    run: async () => ({
+      ok: false,
+      exit_code: 1,
+      stdout: "",
+      stderr: "error: non_existent_binary_xyz_123 not found",
+    }),
+  };
+
   const result = await executeWorkOrder({
     workOrder,
     workspace: ws,
+    transports: { worker: mockTransport },
     command: "non_existent_binary_xyz_123",
     args: [],
+    ...enforcedProof,
   });
 
   assert.equal(result.ok, false);
@@ -1055,14 +1131,14 @@ test("executeWorkOrder: adversarial test - subprocess writing outside workspace 
 
   const outsideFile = path.join(outsideDir, "pwned.txt").replace(/\\/g, "/");
 
-  // Attempt to execute mutating apply in fallback -> rejected before execution
+  // Attempt 1: Execute mutating apply in fallback -> rejected before execution
   const mutatingWorkOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
     operation: "apply_implementation",
     ownership: { owner: "agent-test", mode: "exclusive" },
     allowed_paths: ["src/**"],
   });
 
-  const result = await executeWorkOrder({
+  const mutResult = await executeWorkOrder({
     workOrder: mutatingWorkOrder,
     workspace: ws,
     command: process.execPath,
@@ -1070,8 +1146,28 @@ test("executeWorkOrder: adversarial test - subprocess writing outside workspace 
     isolationCapability: "unavailable",
   });
 
-  assert.equal(result.ok, false);
-  assert.equal(fs.existsSync(outsideFile), false, "Subprocess must not be permitted to execute unconfined mutating commands in fallback");
+  assert.equal(mutResult.ok, false);
+  assert.equal(mutResult.reason, "mutation-requires-enforced-isolation");
+  assert.equal(fs.existsSync(outsideFile), false, "Subprocess must not execute unconfined mutating commands in fallback");
+
+  // Attempt 2: Execute read-only verify in fallback trying to write outside -> rejected before execution
+  const verifyWorkOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
+    operation: "verify",
+    ownership: { owner: "agent-test", mode: "shared" },
+    allowed_paths: ["**"],
+  });
+
+  const verifyResult = await executeWorkOrder({
+    workOrder: verifyWorkOrder,
+    workspace: ws,
+    command: process.execPath,
+    args: ["-e", `require('fs').writeFileSync('${outsideFile}', 'evil');`],
+    isolationCapability: "unavailable",
+  });
+
+  assert.equal(verifyResult.ok, false);
+  assert.equal(verifyResult.reason, "subprocess-requires-enforced-isolation");
+  assert.equal(fs.existsSync(outsideFile), false, "Subprocess must not execute unconfined verify commands in fallback");
 });
 
 test("executeWorkOrder: rejects workOrder failing schema validation", async (t) => {
@@ -1145,59 +1241,62 @@ test("generateUnifiedDiff: patches pass git apply --check and git apply with exa
     try { fs.rmSync(gitDir, { recursive: true, force: true }); } catch {}
   });
 
+  let gitAvailable = false;
   try {
-    execSync("git init", { cwd: gitDir, stdio: "ignore" });
-    execSync("git config user.name 'Test'", { cwd: gitDir, stdio: "ignore" });
-    execSync("git config user.email 'test@example.com'", { cwd: gitDir, stdio: "ignore" });
+    execSync("git --version", { stdio: "ignore" });
+    gitAvailable = true;
+  } catch {}
 
-    // Initial files
-    fs.writeFileSync(path.join(gitDir, "script.sh"), "#!/bin/sh\necho 1\n");
-    fs.writeFileSync(path.join(gitDir, "run.sh"), "#!/bin/sh\necho old\n");
-    execSync("git add .", { cwd: gitDir, stdio: "ignore" });
-    execSync("git commit -m 'init'", { cwd: gitDir, stdio: "ignore" });
-
-    // Test 1: Mode change only
-    const patchModeOnly = generateUnifiedDiff(
-      gitDir,
-      [{ path: "script.sh", sha256: "sha256:same", mode: 0o100644 }],
-      [{ path: "script.sh", sha256: "sha256:same", mode: 0o100755 }],
-      new Map([["script.sh", "#!/bin/sh\necho 1\n"]])
-    );
-    assert.ok(patchModeOnly.includes("diff --git a/script.sh b/script.sh\nold mode 100644\nnew mode 100755"));
-
-    const patch1File = path.join(gitDir, "mode-only.patch");
-    fs.writeFileSync(patch1File, patchModeOnly);
-    execSync("git apply --check mode-only.patch", { cwd: gitDir, stdio: "pipe" });
-    execSync("git apply mode-only.patch", { cwd: gitDir, stdio: "pipe" });
-
-    // Test 2: Mode + content change
-    // Write new content to disk first so generateUnifiedDiff reads the updated content
-    fs.writeFileSync(path.join(gitDir, "run.sh"), "#!/bin/sh\necho updated\n");
-
-    const patchModeContent = generateUnifiedDiff(
-      gitDir,
-      [{ path: "run.sh", sha256: "sha256:old", mode: 0o100644 }],
-      [{ path: "run.sh", sha256: "sha256:new", mode: 0o100755 }],
-      new Map([["run.sh", "#!/bin/sh\necho old\n"]])
-    );
-    assert.ok(patchModeContent.includes("diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n--- a/run.sh\n+++ b/run.sh"));
-
-    // Reset file on disk before applying patch
-    fs.writeFileSync(path.join(gitDir, "run.sh"), "#!/bin/sh\necho old\n");
-
-    const patch2File = path.join(gitDir, "mode-content.patch");
-    fs.writeFileSync(patch2File, patchModeContent);
-    execSync("git apply --check mode-content.patch", { cwd: gitDir, stdio: "pipe" });
-    execSync("git apply mode-content.patch", { cwd: gitDir, stdio: "pipe" });
-
-    assert.equal(fs.readFileSync(path.join(gitDir, "run.sh"), "utf8").replace(/\r\n/g, "\n"), "#!/bin/sh\necho updated\n");
-  } catch (err) {
-    if (err.message && err.message.includes("git")) {
-      t.skip(`Git not available for patch test: ${err.message}`);
-    } else {
-      throw err;
-    }
+  if (!gitAvailable) {
+    t.skip("Git CLI not available for patch test");
+    return;
   }
+
+  execSync("git init", { cwd: gitDir, stdio: "ignore" });
+  execSync("git config user.name 'Test'", { cwd: gitDir, stdio: "ignore" });
+  execSync("git config user.email 'test@example.com'", { cwd: gitDir, stdio: "ignore" });
+
+  // Initial files
+  fs.writeFileSync(path.join(gitDir, "script.sh"), "#!/bin/sh\necho 1\n");
+  fs.writeFileSync(path.join(gitDir, "run.sh"), "#!/bin/sh\necho old\n");
+  execSync("git add .", { cwd: gitDir, stdio: "ignore" });
+  execSync("git commit -m 'init'", { cwd: gitDir, stdio: "ignore" });
+
+  // Test 1: Mode change only
+  const patchModeOnly = generateUnifiedDiff(
+    gitDir,
+    [{ path: "script.sh", sha256: "sha256:same", mode: 0o100644 }],
+    [{ path: "script.sh", sha256: "sha256:same", mode: 0o100755 }],
+    new Map([["script.sh", "#!/bin/sh\necho 1\n"]])
+  );
+  assert.ok(patchModeOnly.includes("diff --git a/script.sh b/script.sh\nold mode 100644\nnew mode 100755"));
+
+  const patch1File = path.join(gitDir, "mode-only.patch");
+  fs.writeFileSync(patch1File, patchModeOnly);
+  execSync("git apply --check mode-only.patch", { cwd: gitDir, stdio: "pipe" });
+  execSync("git apply mode-only.patch", { cwd: gitDir, stdio: "pipe" });
+
+  // Test 2: Mode + content change
+  // Write new content to disk first so generateUnifiedDiff reads the updated content
+  fs.writeFileSync(path.join(gitDir, "run.sh"), "#!/bin/sh\necho updated\n");
+
+  const patchModeContent = generateUnifiedDiff(
+    gitDir,
+    [{ path: "run.sh", sha256: "sha256:old", mode: 0o100644 }],
+    [{ path: "run.sh", sha256: "sha256:new", mode: 0o100755 }],
+    new Map([["run.sh", "#!/bin/sh\necho old\n"]])
+  );
+  assert.ok(patchModeContent.includes("diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n--- a/run.sh\n+++ b/run.sh"));
+
+  // Reset file on disk before applying patch
+  fs.writeFileSync(path.join(gitDir, "run.sh"), "#!/bin/sh\necho old\n");
+
+  const patch2File = path.join(gitDir, "mode-content.patch");
+  fs.writeFileSync(patch2File, patchModeContent);
+  execSync("git apply --check mode-content.patch", { cwd: gitDir, stdio: "pipe" });
+  execSync("git apply mode-content.patch", { cwd: gitDir, stdio: "pipe" });
+
+  assert.equal(fs.readFileSync(path.join(gitDir, "run.sh"), "utf8").replace(/\r\n/g, "\n"), "#!/bin/sh\necho updated\n");
 });
 
 

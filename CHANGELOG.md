@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.46.7] - 2026-08-24
+
+### Fixed
+- **Aislamiento Físico Riguroso, Enforzamiento Fail-Closed de Subprocesos y Probes de Contención K6a**:
+  - **Eliminación Total de Subprocesos Arbitrarios sin Aislamiento**: `executeWorkOrder` rechaza de forma fail-closed (`reason: "subprocess-requires-enforced-isolation"`) cualquier intento de ejecutar comandos o subprocesos externos si el aislamiento no está demostrado y verificado como `enforced`, incluso en órdenes de trabajo etiquetadas como solo lectura (`verify`, `probe`, `read_only`), cerrando cualquier ruta de escape fuera del workspace en entornos no confinados. Las operaciones internas puras del runtime se evalúan en memoria sin subprocesos y reportan honestamente su estado `unavailable`.
+  - **Probe Real de Contención en CapabilityProof**: La promoción a `isolationCapability: "enforced"` requiere la demostración empírica de contención física en el probe (`allowed_write: "PASS"`, `undeclared_workspace_write: "BLOCKED"`, `external_root_write: "BLOCKED"`), rechazando con `reason: "containment-probe-unfulfilled"` cualquier transporte o prueba que carezca de estas garantías de sandbox.
+  - **Validación Estricta y Verificación Upfront de CLI en Tests**: Corregido el chequeo de disponibilidad de herramientas externas (`git --version`) antes de la ejecución de pruebas de parches y diffs, garantizando que fallos en la aplicación de diffs (`git apply --check` y `git apply`) lancen aserciones fallidas en lugar de ser silenciados o enmascarados como skips.
+  - **Reconciliación Histórica de Versiones de Roadmap y Arquitectura**: Reconciliadas las versiones canónicas de entrega en `docs/architecture/harness-evolution.md` alineándolas con el roadmap operativo (K3 en v2.42.3, K4a en v2.45.7, K5 en v2.45.13 y K6a en v2.46.7).
+
 ## [2.46.6] - 2026-08-24
 
 ### Fixed

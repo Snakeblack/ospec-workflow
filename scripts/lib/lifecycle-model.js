@@ -1363,14 +1363,25 @@ async function checkK6aHostIsolationFallback() {
       budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
     };
     workOrder.work_order_id = computeWorkOrderId(workOrder);
+    // 1. Pure internal execution in fallback truthfully reports unavailable without silent promotion
     const result = await executeWorkOrder({
       workOrder,
       workspace: ws,
-      command: process.execPath,
-      args: ["-e", "console.log('iso ok');"],
       isolationCapability: "unavailable",
     });
-    const ok = result.ok && result.isolationReported === "unavailable" && result.isolationReported !== "enforced";
+    const internalOk = result.ok && result.isolationReported === "unavailable" && result.isolationReported !== "enforced";
+
+    // 2. Attempting to execute unconfined external commands in fallback fails closed
+    const cmdResult = await executeWorkOrder({
+      workOrder,
+      workspace: ws,
+      command: process.execPath,
+      args: ["-e", "console.log('must be rejected');"],
+      isolationCapability: "unavailable",
+    });
+    const cmdBlocked = cmdResult.ok === false && cmdResult.reason === "subprocess-requires-enforced-isolation";
+
+    const ok = internalOk && cmdBlocked;
     await disposeWorkspace(ws);
     return { ok, invariant_id: "inv-k6a-host-isolation-fallback", runtime_composed: true };
   } finally {
