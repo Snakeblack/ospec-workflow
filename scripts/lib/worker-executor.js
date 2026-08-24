@@ -512,7 +512,30 @@ async function executeWorkOrder(options = {}) {
            transportProbeDigest === options.capabilityProof.probe_digest));
 
       if (matchesProof) {
-        isolationReported = "enforced";
+        const containment =
+          options.capabilityProof?.containment ||
+          options.capabilityProof?.probe?.containment ||
+          workerTransport?.containment ||
+          workerTransport?.probe?.containment;
+
+        if (containment) {
+          if (
+            containment.allowed_write === "PASS" &&
+            containment.undeclared_workspace_write === "BLOCKED" &&
+            containment.external_root_write === "BLOCKED"
+          ) {
+            isolationReported = "enforced";
+          } else {
+            return {
+              ok: false,
+              isolationReported: "unavailable",
+              reason: "containment-probe-unfulfilled",
+              error: "Enforced isolation capability requires verified containment probe with allowed_write=PASS, undeclared_workspace_write=BLOCKED, external_root_write=BLOCKED",
+            };
+          }
+        } else {
+          isolationReported = "enforced";
+        }
       } else {
         return {
           ok: false,
@@ -600,8 +623,24 @@ async function executeWorkOrder(options = {}) {
     commandList.push(...options.commands);
   } else if (options.command) {
     commandList.push({ command: options.command, args: options.args || [] });
-  } else {
-    commandList.push({ command: process.execPath, args: ["-v"] });
+  }
+
+  // External command execution via subprocess requires verified enforced isolation
+  if (commandList.length > 0 && isolationReported !== "enforced") {
+    if (isMutatingExecution) {
+      return {
+        ok: false,
+        reason: "mutation-requires-enforced-isolation",
+        error: `Mutating work order operations (operation: "${workOrder.operation}", ownership.mode: "${workOrder.ownership?.mode}") require verified enforced WorkerTransport isolation; unisolated subprocess fallback rejected`,
+        isolationReported,
+      };
+    }
+    return {
+      ok: false,
+      reason: "subprocess-requires-enforced-isolation",
+      error: `Executing external commands via subprocess without enforced sandbox isolation is rejected fail-closed to prevent uncontrolled filesystem access`,
+      isolationReported,
+    };
   }
 
   if (commandList.length > maxCommands) {
