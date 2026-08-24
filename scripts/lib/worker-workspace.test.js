@@ -576,3 +576,110 @@ test("materializeSourceSnapshot: rejects dependency paths containing traversal s
   );
 });
 
+test("computeTreeDigest: fails closed when array item content is missing (zero-trust byte verification)", () => {
+  const filesNoContent = [
+    { path: "src/a.js", sha256: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+  ];
+
+  assert.throws(
+    () => computeTreeDigest(filesNoContent),
+    /requires content for each file/i
+  );
+});
+
+test("materializeSourceSnapshot: enforces zero-trust byte hashing over candidateFiles ignoring declared hash bypass", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-zt-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const authenticContent = "const x = 42;\n";
+  const forgedContent = "const x = 999;\n"; // Different bytes!
+
+  const authenticFiles = { "src/main.js": authenticContent };
+  const canonicalSnapshot = makeCanonicalSnapshot("repo-zt", authenticFiles);
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: canonicalSnapshot.source_snapshot_id });
+
+  const workOrder = makeCanonicalWorkOrder(canonicalSnapshot, {
+    capsule_inputs: ["src/main.js"],
+    allowed_paths: ["src/**"],
+  });
+
+  // Caller passes metadata filesSource with authentic sha256 declared, but resolveFile returns forged bytes
+  const declaredMetadata = [{ path: "src/main.js", sha256: computeTreeDigest(authenticFiles) }];
+
+  await assert.rejects(
+    async () => {
+      await materializeSourceSnapshot(ws, workOrder, canonicalSnapshot, {
+        capsule_inputs: ["src/main.js"],
+        files: declaredMetadata,
+        resolveFile: () => forgedContent,
+      });
+    },
+    /mismatch/i
+  );
+});
+
+test("updateWorkspaceStatus: updates authoritative private registry and getWorkspaceRecord reflects changes", async (t) => {
+  const { updateWorkspaceStatus } = require("./worker-workspace.js");
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-reg-update-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  assert.equal(getWorkspaceRecord(ws.workspace_id).descriptor.status, "active");
+
+  const updated = updateWorkspaceStatus(ws.workspace_id, "interrupted");
+  assert.equal(updated, true);
+  assert.equal(getWorkspaceRecord(ws.workspace_id).descriptor.status, "interrupted");
+
+  const nonExistent = updateWorkspaceStatus("ws-non-existent", "interrupted");
+  assert.equal(nonExistent, false);
+});
+
+test("inspectWorkspace: throws fail-closed error when encountering escaping symlink", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-sym-esc-"));
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-outside-"));
+  t.after(() => {
+    try {
+      fs.rmSync(baseDir, { recursive: true, force: true });
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    } catch {}
+  });
+
+  fs.writeFileSync(path.join(outsideDir, "secret.txt"), "classified data");
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+
+  // Create an escaping symlink inside workspace pointing to outsideDir
+  try {
+    fs.symlinkSync(outsideDir, path.join(ws.root_path, "escaped_link"), "junction");
+  } catch {
+    return; // Skip on platforms where symlink permissions require elevation
+  }
+
+  await assert.rejects(
+    async () => {
+      await inspectWorkspace(ws);
+    },
+    /Symlink escape detected/i
+  );
+});
+
+test("inspectWorkspace: throws fail-closed error on dangling symlink", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-sym-dang-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+
+  try {
+    fs.symlinkSync(path.join(ws.root_path, "non_existent_target.txt"), path.join(ws.root_path, "dangling.txt"));
+  } catch {
+    return; // Skip if symlink not permitted
+  }
+
+  await assert.rejects(
+    async () => {
+      await inspectWorkspace(ws);
+    },
+    /Unreadable or dangling symlink/i
+  );
+});
+
+

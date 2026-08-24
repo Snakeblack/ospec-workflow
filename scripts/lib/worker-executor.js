@@ -4,7 +4,7 @@ const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 const { validateAllowedPaths } = require("./allowed-paths-validator.js");
-const { inspectWorkspace, getWorkspaceRecord } = require("./worker-workspace.js");
+const { inspectWorkspace, getWorkspaceRecord, updateWorkspaceStatus } = require("./worker-workspace.js");
 const { computeWorkResultId, validateWorkResultBinding } = require("./execution-identities/index.js");
 const { invokeTransportAsync, resolveCapabilityState } = require("./host-contract/index.js");
 
@@ -333,6 +333,9 @@ async function recoverInterruptedExecution(options = {}) {
     : [];
   const reason = options.reason || "timeout";
 
+  if (workspaceId) {
+    updateWorkspaceStatus(workspaceId, "interrupted");
+  }
   if (record && record.descriptor) {
     record.descriptor.status = "interrupted";
   }
@@ -460,6 +463,17 @@ async function executeWorkOrder(options = {}) {
     };
   }
 
+  // Containment enforcement: Mutating operations (e.g. apply) require verified enforced WorkerTransport
+  const isMutatingOperation = workOrder.operation === "apply";
+  if (isMutatingOperation && isolationReported !== "enforced" && !options.allowUnsafeFallbackMutation) {
+    return {
+      ok: false,
+      reason: "mutation-requires-enforced-isolation",
+      error: `Mutating work order operation '${workOrder.operation}' requires verified enforced WorkerTransport isolation; fallback execution rejected`,
+      isolationReported,
+    };
+  }
+
   const allowedPaths = Array.isArray(workOrder.allowed_paths) ? workOrder.allowed_paths : ["**"];
 
   // Pre-flight containment check on declared write targets (if supplied)
@@ -494,6 +508,7 @@ async function executeWorkOrder(options = {}) {
 
   if (commandList.length > maxCommands) {
     if (workspace) workspace.status = "interrupted";
+    if (workspaceId) updateWorkspaceStatus(workspaceId, "interrupted");
     const recovery = await recoverInterruptedExecution({
       workspace: authoritativeWorkspace,
       workOrder,
@@ -514,6 +529,7 @@ async function executeWorkOrder(options = {}) {
   for (const cmdItem of commandList) {
     if (signal && signal.aborted) {
       if (workspace) workspace.status = "interrupted";
+      if (workspaceId) updateWorkspaceStatus(workspaceId, "interrupted");
       const recovery = await recoverInterruptedExecution({
         workspace: authoritativeWorkspace,
         workOrder,
@@ -554,10 +570,12 @@ async function executeWorkOrder(options = {}) {
           timedOut = true;
         } else if (transportOutcome.failure_class === "cancel") {
           aborted = true;
-        } else {
-          exitCode = typeof transportOutcome.exit_code === "number" ? transportOutcome.exit_code : 1;
         }
-        stderr = transportOutcome.error || transportOutcome.reason || "";
+        exitCode = typeof transportOutcome.exit_code === "number"
+          ? transportOutcome.exit_code
+          : (transportOutcome.value && typeof transportOutcome.value.exit_code === "number" ? transportOutcome.value.exit_code : 1);
+        stdout = transportOutcome.stdout || (transportOutcome.value && transportOutcome.value.stdout) || "";
+        stderr = transportOutcome.stderr || (transportOutcome.value && transportOutcome.value.stderr) || transportOutcome.error || transportOutcome.reason || "";
       } else {
         exitCode = typeof transportOutcome.exit_code === "number"
           ? transportOutcome.exit_code
@@ -697,6 +715,7 @@ async function executeWorkOrder(options = {}) {
 
     if (aborted || (signal && signal.aborted)) {
       if (workspace) workspace.status = "interrupted";
+      if (workspaceId) updateWorkspaceStatus(workspaceId, "interrupted");
       const recovery = await recoverInterruptedExecution({
         workspace: authoritativeWorkspace,
         workOrder,
@@ -709,6 +728,7 @@ async function executeWorkOrder(options = {}) {
 
     if (timedOut) {
       if (workspace) workspace.status = "interrupted";
+      if (workspaceId) updateWorkspaceStatus(workspaceId, "interrupted");
       const recovery = await recoverInterruptedExecution({
         workspace: authoritativeWorkspace,
         workOrder,

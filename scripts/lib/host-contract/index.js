@@ -374,6 +374,12 @@ function classifyTransportFailure(errOrOutcome, opts = {}) {
     code,
   };
   if (errOrOutcome && typeof errOrOutcome === "object") {
+    if (errOrOutcome.stdout !== undefined) result.stdout = errOrOutcome.stdout;
+    if (errOrOutcome.stderr !== undefined) result.stderr = errOrOutcome.stderr;
+    if (errOrOutcome.exit_code !== undefined) result.exit_code = errOrOutcome.exit_code;
+    if (errOrOutcome.error !== undefined) result.error = errOrOutcome.error;
+    if (errOrOutcome.message !== undefined && !result.error) result.error = errOrOutcome.message;
+    if (errOrOutcome.reason !== undefined) result.reason = errOrOutcome.reason;
     if (errOrOutcome.failures) result.failures = errOrOutcome.failures;
     if (errOrOutcome.failure) result.failure = errOrOutcome.failure;
     if (errOrOutcome.primary_failure) result.primary_failure = errOrOutcome.primary_failure;
