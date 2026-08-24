@@ -1198,13 +1198,13 @@ async function checkK6aWorkspaceLifecycle() {
 
 async function checkK6aCapsuleDeterminism() {
   const { createWorkspace, disposeWorkspace, materializeSourceSnapshot, computeTreeDigest } = require("./worker-workspace.js");
-  const { computeSourceSnapshotId } = require("./execution-identities/index.js");
+  const { computeSourceSnapshotId, computeWorkOrderId } = require("./execution-identities/index.js");
   const fs = require("node:fs");
   const os = require("node:os");
   const path = require("node:path");
-  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-inv-cap-"));
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-inv-det-"));
   try {
-    const files = { "src/a.js": "const a = 1;\n", "package.json": '{"name":"a"}\n' };
+    const files = { "src/a.js": "const a = 1;\n", "package.json": "{}\n" };
     const treeDigest = computeTreeDigest(files);
     const snapshot = {
       schema_version: 1,
@@ -1219,14 +1219,22 @@ async function checkK6aCapsuleDeterminism() {
     const workOrder = {
       schema_version: 2,
       kind: "work-order/v2",
-      work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      node_id: "node-inv-det",
+      role: "executor",
+      status: "pending",
+      operation: "apply",
+      objective: "Determinism check",
       source_snapshot_id: snapshot.source_snapshot_id,
       dependencies: ["sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"],
-      capsule_inputs: ["src/a.js", "package.json"],
-      allowed_paths: ["src/**"],
+      ownership: { owner: "agent-1", mode: "exclusive" },
+      allowed_paths: ["src/**", "package.json"],
+      invariants: ["inv-1"],
+      required_evidence: ["ev-1"],
+      budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
     };
-    const c1 = await materializeSourceSnapshot(ws1, workOrder, snapshot, { files });
-    const c2 = await materializeSourceSnapshot(ws2, workOrder, snapshot, { files });
+    workOrder.work_order_id = computeWorkOrderId(workOrder);
+    const c1 = await materializeSourceSnapshot(ws1, workOrder, snapshot, { capsule_inputs: ["src/a.js", "package.json"], files });
+    const c2 = await materializeSourceSnapshot(ws2, workOrder, snapshot, { capsule_inputs: ["src/a.js", "package.json"], files });
     await disposeWorkspace(ws1);
     await disposeWorkspace(ws2);
     const ok =
@@ -1302,12 +1310,13 @@ async function checkK6aInterruptedRecoveryPreservation() {
   const os = require("node:os");
   const path = require("node:path");
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-inv-rec-"));
+  const snapId = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   try {
-    const ws = await createWorkspace({ baseDir });
+    const ws = await createWorkspace({ baseDir, source_snapshot_id: snapId });
     fs.writeFileSync(path.join(ws.root_path, "partial.txt"), "partial data");
     const workOrder = {
       work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-      source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      source_snapshot_id: snapId,
     };
     const recovery = await recoverInterruptedExecution({
       workspace: ws,
@@ -1333,11 +1342,12 @@ async function checkK6aHostIsolationFallback() {
   const os = require("node:os");
   const path = require("node:path");
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-inv-iso-"));
+  const snapId = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   try {
-    const ws = await createWorkspace({ baseDir });
+    const ws = await createWorkspace({ baseDir, source_snapshot_id: snapId });
     const workOrder = {
       work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-      source_snapshot_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      source_snapshot_id: snapId,
       allowed_paths: ["**"],
     };
     const result = await executeWorkOrder({

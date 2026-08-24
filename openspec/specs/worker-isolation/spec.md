@@ -199,3 +199,46 @@ Reporting `isolationReported = "enforced"` MUST strictly require a verified acti
 - WHEN `ExecuteWorkOrder` executes via local subprocess
 - THEN the runtime MUST record `isolationReported` as `partial` or `unavailable`
 - AND MUST NOT assert or record `enforced` status
+
+---
+
+### Requirement: 3-Way Cryptographic Binding and Byte-Exact Merkle Tree Digest {#REQ-worker-isolation-009}
+
+`MaterializeSourceSnapshot` MUST enforce 3-way equality binding between the workspace record, the `workOrder`, and the `sourceSnapshot` (`record.descriptor.source_snapshot_id === workOrder.source_snapshot_id === sourceSnapshot.source_snapshot_id`) before creating any file on disk. `computeTreeDigest` MUST compute deterministic SHA-256 digests over exact raw bytes without newline substitution or UTF-8 decoding of binary buffers, ensuring distinct Merkle digests for CRLF vs LF line endings. When file entries declare a SHA-256 digest, `computeTreeDigest` MUST recompute the digest over candidate bytes and fail closed if the declared hash does not match.
+
+#### Scenario: 3-Way binding validation prevents snapshot mismatch execution
+- GIVEN a workspace registered for SourceSnapshot A and a WorkOrder compiled for SourceSnapshot B
+- WHEN `MaterializeSourceSnapshot` is invoked
+- THEN it MUST reject materialization and throw a 3-way binding mismatch error
+
+#### Scenario: Byte-exact hashing distinguishes CRLF and LF byte streams
+- GIVEN two identical file buffers differing only by CRLF vs LF line endings
+- WHEN `computeTreeDigest` is evaluated on each
+- THEN it MUST produce distinct SHA-256 Merkle root tree digests
+
+#### Scenario: Declared SHA-256 mismatch halts fail-closed
+- GIVEN a file item declaring a mismatched SHA-256 digest compared to its candidate bytes
+- WHEN `computeTreeDigest` processes the item
+- THEN it MUST throw a cryptographic verification error and fail closed
+
+---
+
+### Requirement: Transport Capability Binding, Async Settlement Barrier, and Git Mode Diffing {#REQ-worker-isolation-010}
+
+`invokeTransportAsync` MUST enforce an asynchronous cancellation settlement barrier by awaiting `port.cancel()`, `port.terminate()`, or `port.abort()` before resolving or rejecting on timeout or abort signals. `generateUnifiedDiff` MUST include git-style mode change headers (`old mode 100644\nnew mode 100755`) whenever file permissions change, both for content-modified files and mode-only modified files. `recoverInterruptedExecution` and `inspectWorkspace` MUST resolve workspace roots exclusively from the private workspace registry.
+
+#### Scenario: Async cancellation settlement barrier settles before returning failure
+- GIVEN an active transport port whose cancellation/termination method returns a Promise
+- WHEN execution is aborted or exceeds deadline
+- THEN `invokeTransportAsync` MUST await the completion of the cancellation before returning the failure outcome
+
+#### Scenario: Mode changes emit standard git diff mode headers
+- GIVEN a file whose mode was changed from `100644` to `100755`
+- WHEN `generateUnifiedDiff` constructs the patch
+- THEN the patch MUST contain `old mode 100644\nnew mode 100755` headers
+
+#### Scenario: Workspace recovery resolves root path strictly via private registry
+- GIVEN a recovery request containing a forged or external `root_path` on an unrecorded or mismatched descriptor
+- WHEN `RecoverInterruptedExecution` is invoked
+- THEN it MUST inspect only the authoritative directory registered in the private workspace registry
+
