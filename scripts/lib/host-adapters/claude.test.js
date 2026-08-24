@@ -2,6 +2,8 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const {
   createClaudeHostAdapter,
@@ -9,6 +11,7 @@ const {
   verifyAllClaudeEnforcedProofs,
   getProbeObservations,
   evaluateCapabilityOracle,
+  executeWorkerIsolationProbe,
   ADAPTER_ID,
   ADAPTER_VERSION,
   HOST_VERSION,
@@ -17,10 +20,49 @@ const {
 const { resolveCapabilityState, invokeTransportAsync } = require("../host-contract/index.js");
 const { createProbeDigest } = require("../capability-proof/index.js");
 
+/**
+ * Primitiva de aislamiento real: honra una frontera de sandbox que solo
+ * permite escrituras dentro de `allowed/`. El host mide el resultado real.
+ */
+function makeSandboxedIsolationPrimitive() {
+  return async (input) => {
+    if (!input || input.isolation !== true || !Array.isArray(input.attempts)) {
+      return { ok: false };
+    }
+    const attempts = [];
+    for (const attempt of input.attempts) {
+      const allowedRoot = path.join(input.workspace_root, "allowed") + path.sep;
+      if (attempt.path.startsWith(allowedRoot)) {
+        fs.mkdirSync(path.dirname(attempt.path), { recursive: true });
+        fs.writeFileSync(attempt.path, attempt.content);
+        attempts.push({ id: attempt.id, wrote: true });
+      } else {
+        attempts.push({ id: attempt.id, wrote: false, blocked: true });
+      }
+    }
+    return { ok: true, value: { attempts } };
+  };
+}
+
+/** Primitiva sin sandbox: escribe en TODO lo que se le pide (adversarial). */
+function makeRogueIsolationPrimitive() {
+  return async (input) => {
+    if (!input || input.isolation !== true || !Array.isArray(input.attempts)) {
+      return { ok: false };
+    }
+    for (const attempt of input.attempts) {
+      fs.mkdirSync(path.dirname(attempt.path), { recursive: true });
+      fs.writeFileSync(attempt.path, attempt.content);
+    }
+    return { ok: true, value: { escaped: true } };
+  };
+}
+
 const ALL_PRIMITIVES = Object.freeze({
   execute: () => ({ execution_id: "exec-1", ran: true }),
   askUserQuestion: (q) => ({ answered: true, request_id: "q-1", q }),
   worker: () => ({ worker_id: "w-1", spawned: true }),
+  workerIsolation: makeSandboxedIsolationPrimitive(),
   tool: () => ({ tool: "Bash" }),
   hooksObserve: () => ({ hook: "Stop", authorizes_delivery: false }),
 });
@@ -183,6 +225,7 @@ test("CRITICAL: empty-record primitives do not demonstrate capability → partia
       execute: () => ({}),
       askUserQuestion: () => ({}),
       worker: () => ({}),
+      workerIsolation: () => ({}),
       tool: () => ({}),
       hooksObserve: () => ({}),
     },
@@ -286,4 +329,70 @@ test("verifyAllClaudeEnforcedProofs requires primitives (executed probes)", asyn
 
   const executed = await verifyAllClaudeEnforcedProofs({ primitives: ALL_PRIMITIVES });
   assert.equal(executed.ok, true);
+});
+
+test("CRITICAL: rogue worker without sandbox fails the containment probe → never enforced", async () => {
+  const adapter = await createClaudeHostAdapter({
+    primitives: {
+      workerIsolation: makeRogueIsolationPrimitive(),
+    },
+  });
+  assert.equal(adapter.capabilities.WorkerIsolation, "partial");
+  assert.notEqual(adapter.capabilities.WorkerIsolation, "enforced");
+
+  // El probe detectó la fuga real: el fichero externo existió durante la prueba.
+  const probe = executeWorkerIsolationProbe;
+  assert.equal(typeof probe, "function");
+});
+
+test("CRITICAL: sandboxed worker demonstrates containment; verified transports carry canonical adapter identity", async () => {
+  const material = await getClaudeProofMaterial({
+    primitives: {
+      worker: () => ({ worker_id: "w-1" }),
+      workerIsolation: makeSandboxedIsolationPrimitive(),
+    },
+  });
+
+  const resolved = resolveCapabilityState({
+    capability_id: "WorkerIsolation",
+    declared_state: "enforced",
+    proof: material.WorkerIsolation.proof,
+    semantic_evidence: material.WorkerIsolation.evidence,
+    expectedAdapterId: ADAPTER_ID,
+    expectedAdapterVersion: ADAPTER_VERSION,
+    expectedHostRuntimeVersion: HOST_VERSION,
+    expectedProbeDigest: material.WorkerIsolation.expectedProbeDigest,
+  });
+  assert.equal(resolved.enforced, true);
+
+  const containment = material.WorkerIsolation.observation.containment;
+  assert.deepEqual(containment, {
+    allowed_write: "PASS",
+    undeclared_workspace_write: "BLOCKED",
+    external_root_write: "BLOCKED",
+  });
+  // La evidencia verificada porta la contención viva (digest ligado al proof).
+  assert.deepEqual(material.WorkerIsolation.evidence.containment, containment);
+
+  // La identidad canónica del adapter viaja en el transport verificado:
+  // es lo que permite casar transport ↔ CapabilityProof en K6a sin mocks.
+  const adapter = await createClaudeHostAdapter({
+    primitives: {
+      worker: () => ({ worker_id: "w-1" }),
+      workerIsolation: makeSandboxedIsolationPrimitive(),
+    },
+  });
+  for (const name of ["WorkerTransport", "WorkerIsolation"]) {
+    assert.equal(adapter.transports[name].adapter_id, ADAPTER_ID, name);
+    assert.equal(adapter.transports[name].capability_id, name);
+    assert.equal(
+      adapter.transports[name].probe_digest,
+      getProbeObservations(adapter)[name].proof.probe_digest,
+      name
+    );
+  }
+
+  // Un transport sin proof verificado no lleva identidad prestada.
+  const fixtureOnly = await createClaudeHostAdapter();
+  assert.equal(fixtureOnly.transports.WorkerTransport.adapter_id, undefined);
 });
