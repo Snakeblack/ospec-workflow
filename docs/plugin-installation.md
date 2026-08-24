@@ -189,7 +189,15 @@ Esta variante escribe solo:
 <repo>/.codex/agents/*.toml
 ```
 
-El instalador no crea ni modifica `.codex/config.toml`. Si una instalación anterior dejó claves no compatibles, elimínalas manualmente según el mensaje de Codex.
+Sin flags adicionales, el instalador no crea ni modifica `.codex/config.toml`. Si Codex rechaza la clave heredada exacta `service_tier = "default"`, la instalación global ofrece una reparación explícita:
+
+```powershell
+npm run setup:codex:repair
+```
+
+En Windows PowerShell, este script dedicado evita depender del forwarding de flags de npm. Si necesitas invocar el instalador directamente, usa `node scripts/configure/install-codex.js --repair-config`; para previsualizar sin escribir, usa `node scripts/configure/install-codex.js --dry-run --repair-config`.
+
+La reparación elimina solo esa asignación top-level, preserva BOM, saltos de línea, comentarios y el modo del resto del archivo, y crea un backup único byte a byte. La escritura se publica de forma transaccional y se valida con el CLI de Codex; ante un fallo de escritura, rename o validación se ejecuta rollback al original y se conserva evidencia recuperable. Otras claves no compatibles quedan intactas y producen un diagnóstico. `auth.json`, otras claves y los MCP propiedad del usuario quedan fuera de alcance. La variante local con `<repo>` rechaza el flag y nunca muta configuración global.
 
 ### Claude Code: prueba temporal de una sesion
 

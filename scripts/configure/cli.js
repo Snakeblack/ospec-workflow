@@ -483,12 +483,43 @@ function acquireDestinationLock(outDir) {
   return { destination, parent, lockPath };
 }
 
-function removeOwned(pathname, operationObserver = () => {}) {
-  observe(operationObserver, { phase: "cleanup", operation: "cleanup", path: pathname });
-  if (pathname && fs.existsSync(pathname)) fs.rmSync(pathname, { recursive: true, force: true });
+const TRANSIENT_WINDOWS_FS_CODES = new Set(["EPERM", "EACCES", "EBUSY"]);
+
+function sleepSync(milliseconds) {
+  if (milliseconds <= 0) return;
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
 
-function publishTransaction({ outDir, output, profile, validate, runValidator, operationObserver, requireK3Closure }) {
+function withTransientFsRetries(operation, retryOptions = {}) {
+  const maxRetries = Math.min(3, Math.max(0, retryOptions.maxRetries ?? 3));
+  const retryDelay = Math.max(1, retryOptions.retryDelay ?? 10);
+  const sleep = retryOptions.sleep || sleepSync;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return operation();
+    } catch (error) {
+      if (!TRANSIENT_WINDOWS_FS_CODES.has(error?.code) || attempt >= maxRetries) throw error;
+      sleep(retryDelay * (attempt + 1));
+    }
+  }
+}
+
+function removeOwned(pathname, operationObserver = () => {}, retryOptions = {}) {
+  if (!pathname) return;
+  withTransientFsRetries(() => {
+    observe(operationObserver, { phase: "cleanup", operation: "cleanup", path: pathname });
+    if (fs.existsSync(pathname)) {
+      fs.rmSync(pathname, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 10,
+      });
+    }
+  }, retryOptions);
+}
+
+function publishTransaction({ outDir, output, profile, validate, runValidator, operationObserver, requireK3Closure, retryOptions }) {
   const lock = acquireDestinationLock(outDir);
   let stage;
   let backup;
@@ -506,18 +537,24 @@ function publishTransaction({ outDir, output, profile, validate, runValidator, o
     if (fs.existsSync(lock.destination)) {
       backup = fs.mkdtempSync(path.join(lock.parent, `.${path.basename(lock.destination)}.configure-backup-`));
       fs.rmdirSync(backup);
-      observe(operationObserver, { phase: "backup", operation: "rename", from: lock.destination, to: backup });
-      fs.renameSync(lock.destination, backup);
+      withTransientFsRetries(() => {
+        observe(operationObserver, { phase: "backup", operation: "rename", from: lock.destination, to: backup });
+        fs.renameSync(lock.destination, backup);
+      }, retryOptions);
     }
     try {
-      observe(operationObserver, { phase: "publish", operation: "rename", from: stage, to: lock.destination });
-      fs.renameSync(stage, lock.destination);
+      withTransientFsRetries(() => {
+        observe(operationObserver, { phase: "publish", operation: "rename", from: stage, to: lock.destination });
+        fs.renameSync(stage, lock.destination);
+      }, retryOptions);
       stage = null;
     } catch (error) {
       if (backup) {
         try {
-          observe(operationObserver, { phase: "restore", operation: "rename", from: backup, to: lock.destination });
-          fs.renameSync(backup, lock.destination);
+          withTransientFsRetries(() => {
+            observe(operationObserver, { phase: "restore", operation: "rename", from: backup, to: lock.destination });
+            fs.renameSync(backup, lock.destination);
+          }, retryOptions);
           backup = null;
         } catch (restoreError) {
           retainBackup = true;
@@ -530,7 +567,7 @@ function publishTransaction({ outDir, output, profile, validate, runValidator, o
   } finally {
     const cleanupErrors = [];
     for (const pathname of [stage, retainBackup ? null : backup, lock.lockPath]) {
-      try { removeOwned(pathname, operationObserver); } catch (error) { cleanupErrors.push(error); }
+      try { removeOwned(pathname, operationObserver, retryOptions); } catch (error) { cleanupErrors.push(error); }
     }
     if (cleanupErrors.length) {
       const retained = [stage, retainBackup ? backup : null, lock.lockPath].filter(pathname => pathname && fs.existsSync(pathname));
@@ -539,7 +576,7 @@ function publishTransaction({ outDir, output, profile, validate, runValidator, o
   }
 }
 
-function runConfigure({ sourceDir, target, outDir, validate = true, runValidator = defaultRunValidator, operationObserver = () => {} }) {
+function runConfigure({ sourceDir, target, outDir, validate = true, runValidator = defaultRunValidator, operationObserver = () => {}, retryOptions = {} }) {
   const profile = PROFILES[target];
   if (!profile) {
     throw new Error(`unknown target: ${target}`);
@@ -561,6 +598,7 @@ function runConfigure({ sourceDir, target, outDir, validate = true, runValidator
     validate,
     runValidator,
     operationObserver,
+    retryOptions,
     requireK3Closure: fs.existsSync(path.join(sourceDir, "schemas", "kernel", "manifest.json")),
   });
   return { files: output.files, summary, exitCode: publication.exitCode, validation: publication.validation };
@@ -627,6 +665,7 @@ module.exports = {
   parseModels,
   defaultRunValidator,
   resolveClaudeBin,
+  withTransientFsRetries,
   runConfigure,
   main,
   PROFILES,

@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const { runConfigure } = require("./cli.js");
+const { runConfigure, withTransientFsRetries } = require("./cli.js");
 const { assertSafeDest } = require("./install-target.js");
 const {
   readOwnershipManifest,
@@ -17,17 +17,19 @@ const {
 
 function usage() {
   return (
-    "usage: install-codex [<destRepo>] [--dry-run] [--no-validate] [--source <sourceRepo>]\n" +
+    "usage: install-codex [<destRepo>] [--dry-run] [--repair-config] [--no-validate] [--source <sourceRepo>]\n" +
+    "  --repair-config  global setup only: remove the exact legacy top-level service_tier = \"default\" assignment, with backup and rollback\n" +
     "  e.g. npm run install:codex -- ../my-project\n"
   );
 }
 
 function parseArgs(argv) {
-  const args = { dryRun: false, validate: true, source: undefined, destRepo: undefined };
+  const args = { dryRun: false, repairConfig: false, validate: true, source: undefined, destRepo: undefined };
   const positional = [];
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--dry-run") args.dryRun = true;
+    else if (arg === "--repair-config") args.repairConfig = true;
     else if (arg === "--no-validate") args.validate = false;
     else if (arg === "--source") {
       const next = argv[i + 1];
@@ -38,7 +40,15 @@ function parseArgs(argv) {
       args.source = next;
       i += 1;
     }
+    else if (arg.startsWith("-")) {
+      args.error = `unknown option: ${arg}`;
+      return args;
+    }
     else positional.push(arg);
+  }
+  if (positional.length > 1) {
+    args.error = "only one destination repository may be provided";
+    return args;
   }
   [args.destRepo] = positional;
   return args;
@@ -380,6 +390,11 @@ function ensureCodexMcps(codexBin, definitions, deps = {}) {
   const listExitCode = listed.status === null || listed.status === undefined ? 1 : listed.status;
   if (listExitCode !== 0) {
     stderr.write("codex command failed while listing MCP servers; no MCP configuration was changed\n");
+    if (/unknown variant [`'"]?default[`'"]?/i.test(listed.stderr || "") && /service_tier/i.test(listed.stderr || "")) {
+      stderr.write(
+        "Codex rejected the legacy service_tier value. Re-run explicitly with: npm run setup:codex:repair\n",
+      );
+    }
     return listExitCode;
   }
 
@@ -498,6 +513,317 @@ function defaultRunCodexCommand(bin, args, deps = {}) {
     };
   }
   return result;
+}
+
+function scanTomlLine(line, initialState) {
+  const content = line.replace(/(?:\r\n|\n)$/, "");
+  let state = initialState;
+  let index = 0;
+  while (index < content.length) {
+    if (state === "multiline-basic") {
+      if (content.startsWith('"""', index)) {
+        state = "normal";
+        index += 3;
+      } else if (content[index] === "\\") {
+        index += 2;
+      } else {
+        index += 1;
+      }
+      continue;
+    }
+    if (state === "multiline-literal") {
+      if (content.startsWith("'''", index)) {
+        state = "normal";
+        index += 3;
+      } else {
+        index += 1;
+      }
+      continue;
+    }
+
+    const character = content[index];
+    if (character === "#") break;
+    if (content.startsWith('"""', index)) {
+      state = "multiline-basic";
+      index += 3;
+      continue;
+    }
+    if (content.startsWith("'''", index)) {
+      state = "multiline-literal";
+      index += 3;
+      continue;
+    }
+    if (character === '"') {
+      index += 1;
+      let closed = false;
+      while (index < content.length) {
+        if (content[index] === "\\") index += 2;
+        else if (content[index] === '"') { index += 1; closed = true; break; }
+        else index += 1;
+      }
+      if (!closed) return { state, valid: false };
+      continue;
+    }
+    if (character === "'") {
+      const closing = content.indexOf("'", index + 1);
+      if (closing < 0) return { state, valid: false };
+      index = closing + 1;
+      continue;
+    }
+    index += 1;
+  }
+  return { state, valid: true };
+}
+
+function transformLegacyServiceTier(input) {
+  const bytes = Buffer.isBuffer(input) ? input : Buffer.from(input);
+  const text = bytes.toString("utf8");
+  if (!Buffer.from(text, "utf8").equals(bytes)) return { matched: false, bytes };
+
+  const hasBom = text.startsWith("\uFEFF");
+  const body = hasBom ? text.slice(1) : text;
+  const lines = body.match(/[^\r\n]*(?:\r\n|\n|$)/g)?.filter((line) => line.length > 0) || [];
+  let topLevel = true;
+  let state = "normal";
+  let matches = 0;
+  const kept = [];
+  for (const line of lines) {
+    const content = line.replace(/(?:\r\n|\n)$/, "");
+    const startsInNormalState = state === "normal";
+    if (startsInNormalState && /^[ \t]*\[/.test(content)) topLevel = false;
+    const isLegacyAssignment = startsInNormalState && topLevel &&
+      /^[ \t]*service_tier[ \t]+=[ \t]+"default"[ \t]*(?:\r\n|\n|$)$/.test(line);
+    const scanned = scanTomlLine(line, state);
+    if (!scanned.valid) return { matched: false, bytes };
+    state = scanned.state;
+    if (isLegacyAssignment) {
+      matches += 1;
+    } else {
+      kept.push(line);
+    }
+  }
+  if (state !== "normal" || matches !== 1) return { matched: false, bytes };
+  return { matched: true, bytes: Buffer.from((hasBom ? "\uFEFF" : "") + kept.join(""), "utf8") };
+}
+
+function allocateUniqueBackup(configPath, originalMode, fsImpl) {
+  for (let index = 0; index < 1000; index += 1) {
+    const candidate = `${configPath}.ospec-backup${index === 0 ? "" : `.${index}`}`;
+    try {
+      fsImpl.copyFileSync(configPath, candidate, fs.constants.COPYFILE_EXCL);
+      fsImpl.chmodSync(candidate, originalMode);
+      return candidate;
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error;
+    }
+  }
+  throw new Error("could not allocate a unique Codex config backup path");
+}
+
+function allocateUniqueTemporary(configPath, originalMode, fsImpl) {
+  for (let index = 0; index < 1000; index += 1) {
+    const candidate = `${configPath}.ospec-repair-${process.pid}${index === 0 ? "" : `-${index}`}`;
+    try {
+      const fd = fsImpl.openSync(candidate, "wx", originalMode);
+      fsImpl.closeSync(fd);
+      return candidate;
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error;
+    }
+  }
+  throw new Error("could not allocate a unique Codex config repair path");
+}
+
+function findUniqueRecoveryPath(configPath, fsImpl) {
+  for (let index = 0; index < 1000; index += 1) {
+    const candidate = `${configPath}.ospec-original${index === 0 ? "" : `.${index}`}`;
+    if (!fsImpl.existsSync(candidate)) return candidate;
+  }
+  throw new Error("could not allocate a unique Codex config recovery path");
+}
+
+function removeRepairArtifact(targetPath, fsImpl) {
+  if (!targetPath) return;
+  try {
+    fsImpl.rmSync(targetPath, { force: true, maxRetries: 3, retryDelay: 10 });
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+}
+
+function acquireConfigRepairLock(configPath, mode, fsImpl) {
+  const lockPath = `${configPath}.ospec-repair.lock`;
+  let fd;
+  try {
+    fd = fsImpl.openSync(lockPath, "wx", mode);
+    fsImpl.closeSync(fd);
+    return lockPath;
+  } catch (error) {
+    if (fd !== undefined) {
+      try { fsImpl.closeSync(fd); } catch {}
+    }
+    if (error?.code === "EEXIST") {
+      throw new Error(`Codex config repair is already locked: ${lockPath}`);
+    }
+    throw error;
+  }
+}
+
+function configMatchesSnapshot(configPath, expectedStat, expectedBytes, fsImpl) {
+  const currentStat = lstatIfExists(configPath, fsImpl);
+  if (!currentStat || !currentStat.isFile() || currentStat.isSymbolicLink() ||
+      currentStat.dev !== expectedStat.dev || currentStat.ino !== expectedStat.ino ||
+      currentStat.size !== expectedStat.size || currentStat.mtimeMs !== expectedStat.mtimeMs ||
+      currentStat.mode !== expectedStat.mode) {
+    return false;
+  }
+  try {
+    return fsImpl.readFileSync(configPath).equals(expectedBytes);
+  } catch (error) {
+    if (error?.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+function concurrentConfigError(message = "Codex config changed concurrently; repair stopped without overwriting the newer file") {
+  const error = new Error(message);
+  error.code = "CODEX_CONFIG_CHANGED_CONCURRENTLY";
+  return error;
+}
+
+function assertConfigIdentityUnchanged(configPath, expectedStat, expectedBytes, fsImpl) {
+  if (!configMatchesSnapshot(configPath, expectedStat, expectedBytes, fsImpl)) {
+    throw concurrentConfigError();
+  }
+}
+
+function sanitizeCodexDiagnostic(value) {
+  return String(value || "")
+    .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 500);
+}
+
+function validationFailureMessage(validation) {
+  const details = [];
+  const stderr = sanitizeCodexDiagnostic(validation?.stderr);
+  const stdout = sanitizeCodexDiagnostic(validation?.stdout);
+  if (stderr) details.push(`stderr: ${stderr}`);
+  if (stdout) details.push(`stdout: ${stdout}`);
+  const suffix = details.length > 0 ? ` (${details.join("; ")})` : "";
+  return `Codex config validation failed after repair${suffix}; the original configuration will be restored`;
+}
+
+function repairCodexConfig(configPath, codexBin, deps = {}) {
+  const fsImpl = deps.fs || fs;
+  const dryRun = deps.dryRun || false;
+  const runCodexCommand = deps.runCodexCommand || defaultRunCodexCommand;
+  const stat = lstatIfExists(configPath, fsImpl);
+  if (!stat) return { status: "no-match" };
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    throw new Error(`Codex config repair requires a regular non-symlink file: ${configPath}`);
+  }
+  assertManagedPathSafe(path.dirname(configPath), configPath, "Codex config repair target", fsImpl);
+
+  const originalBytes = fsImpl.readFileSync(configPath);
+  const transformed = transformLegacyServiceTier(originalBytes);
+  if (!transformed.matched) return { status: "no-match" };
+  if (dryRun) return { status: "would-repair" };
+  if (!codexBin) throw new Error("Codex CLI is required to validate --repair-config");
+
+  const originalMode = stat.mode;
+  const retryOptions = deps.retryOptions || {};
+  const lockPath = acquireConfigRepairLock(configPath, originalMode, fsImpl);
+  try {
+    assertConfigIdentityUnchanged(configPath, stat, originalBytes, fsImpl);
+    const backupPath = allocateUniqueBackup(configPath, originalMode, fsImpl);
+    let temporaryPath;
+    let recoveryPath;
+    let originalMoved = false;
+    let transformedStat;
+    try {
+      temporaryPath = allocateUniqueTemporary(configPath, originalMode, fsImpl);
+      fsImpl.writeFileSync(temporaryPath, transformed.bytes);
+      fsImpl.chmodSync(temporaryPath, originalMode);
+      transformedStat = fsImpl.lstatSync(temporaryPath);
+      assertConfigIdentityUnchanged(configPath, stat, originalBytes, fsImpl);
+
+      recoveryPath = findUniqueRecoveryPath(configPath, fsImpl);
+      withTransientFsRetries(() => {
+        assertConfigIdentityUnchanged(configPath, stat, originalBytes, fsImpl);
+        fsImpl.renameSync(configPath, recoveryPath);
+      }, retryOptions);
+      originalMoved = true;
+      if (!configMatchesSnapshot(recoveryPath, stat, originalBytes, fsImpl)) {
+        throw concurrentConfigError(
+          "Codex config changed concurrently during publication; the captured bytes will be restored without publishing the stale repair",
+        );
+      }
+      withTransientFsRetries(() => fsImpl.renameSync(temporaryPath, configPath), retryOptions);
+      temporaryPath = undefined;
+      if (!configMatchesSnapshot(configPath, transformedStat, transformed.bytes, fsImpl)) {
+        throw concurrentConfigError();
+      }
+
+      const validation = runCodexCommand(codexBin, ["mcp", "list", "--json"], deps);
+      const validationExitCode = validation?.status === null || validation?.status === undefined
+        ? 1
+        : validation.status;
+      if (validationExitCode !== 0) {
+        const error = new Error(validationFailureMessage(validation));
+        error.code = "CODEX_CONFIG_VALIDATION_FAILED";
+        throw error;
+      }
+      if (!configMatchesSnapshot(configPath, transformedStat, transformed.bytes, fsImpl)) {
+        throw concurrentConfigError();
+      }
+      if (!configMatchesSnapshot(recoveryPath, stat, originalBytes, fsImpl)) {
+        throw concurrentConfigError(
+          "Codex config recovery changed concurrently; it will not be deleted",
+        );
+      }
+
+      removeRepairArtifact(recoveryPath, fsImpl);
+      recoveryPath = undefined;
+      return { status: "repaired", backupPath };
+    } catch (error) {
+      const rollbackErrors = [];
+      if (originalMoved) {
+        try {
+          const currentConfig = lstatIfExists(configPath, fsImpl);
+          if (currentConfig && (!transformedStat ||
+              !configMatchesSnapshot(configPath, transformedStat, transformed.bytes, fsImpl))) {
+            throw concurrentConfigError(
+              "Codex config changed concurrently during rollback; the newer file was preserved",
+            );
+          }
+          if (currentConfig) removeRepairArtifact(configPath, fsImpl);
+          if (recoveryPath && fsImpl.existsSync(recoveryPath)) {
+            withTransientFsRetries(() => fsImpl.renameSync(recoveryPath, configPath), retryOptions);
+            recoveryPath = undefined;
+          } else {
+            fsImpl.copyFileSync(backupPath, configPath);
+            fsImpl.chmodSync(configPath, originalMode);
+          }
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError);
+        }
+      }
+      try { removeRepairArtifact(temporaryPath, fsImpl); } catch (cleanupError) { rollbackErrors.push(cleanupError); }
+      if (rollbackErrors.length > 0) {
+        const evidence = [backupPath, recoveryPath].filter(Boolean).join(", ");
+        throw new AggregateError(
+          [error, ...rollbackErrors],
+          `Codex config repair failed and rollback was incomplete; recovery evidence retained at ${evidence}`,
+        );
+      }
+      throw error;
+    }
+  } finally {
+    removeRepairArtifact(lockPath, fsImpl);
+  }
 }
 
 function lstatIfExists(targetPath, fsImpl = fs) {
@@ -743,6 +1069,16 @@ function gatherCodexSkillsFiles(outDir, fsImpl = fs) {
   return owned;
 }
 
+function reportConfigRepair(repair, stdout) {
+  if (repair.status === "would-repair") {
+    stdout.write('[dry-run] Would remove the exact top-level service_tier = "default" assignment; no files were written.\n');
+  } else if (repair.status === "repaired") {
+    stdout.write(`Repaired legacy Codex service_tier configuration; backup retained at ${repair.backupPath}.\n`);
+  } else {
+    stdout.write("No exact top-level service_tier = \"default\" assignment was found; config.toml was not changed.\n");
+  }
+}
+
 function main(argv, deps = {}) {
   const args = parseArgs(argv);
   const cwd = deps.cwd || process.cwd();
@@ -763,6 +1099,10 @@ function main(argv, deps = {}) {
 
   const sourceDir = path.resolve(args.source || cwd);
   const isRepoInstall = Boolean(args.destRepo);
+  if (isRepoInstall && args.repairConfig) {
+    stderr.write("--repair-config is available only for global setup and cannot be combined with a repo-local destination\n");
+    return 2;
+  }
   try {
     let codexRoot;
     if (isRepoInstall) {
@@ -775,6 +1115,16 @@ function main(argv, deps = {}) {
       codexRoot = path.join(destRepo, ".codex");
     } else {
       codexRoot = path.join(homedir(), ".codex");
+    }
+
+    if (args.dryRun && args.repairConfig) {
+      const repair = repairCodexConfig(path.join(codexRoot, "config.toml"), null, {
+        ...deps,
+        fs: fsImpl,
+        dryRun: true,
+      });
+      reportConfigRepair(repair, stdout);
+      return 0;
     }
 
     // Callers embedding the installer (notably concurrent integration tests)
@@ -793,8 +1143,18 @@ function main(argv, deps = {}) {
       ? path.join(path.dirname(codexRoot), "AGENTS.md")
       : path.join(codexRoot, "AGENTS.md");
 
+    let codexBin;
+    if (!isRepoInstall && args.repairConfig) {
+      codexBin = findCodexBinImpl();
+      const repair = repairCodexConfig(path.join(codexRoot, "config.toml"), codexBin, {
+        ...deps,
+        fs: fsImpl,
+      });
+      reportConfigRepair(repair, stdout);
+    }
+
     if (!args.dryRun && !isRepoInstall) {
-      const codexBin = findCodexBinImpl();
+      codexBin = codexBin || findCodexBinImpl();
       const mcpDefinitions = readCodexMcpDefinitions(sourceDir, fsImpl);
       if (!codexBin) {
         stdout.write(
@@ -927,6 +1287,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  usage,
   parseArgs,
   resolveBinFromPath,
   findCodexBin,
@@ -939,5 +1300,7 @@ module.exports = {
   ensureCodexMcps,
   assertManagedPathSafe,
   gatherCodexOwnedFiles,
+  transformLegacyServiceTier,
+  repairCodexConfig,
   main,
 };

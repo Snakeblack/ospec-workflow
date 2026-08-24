@@ -111,7 +111,13 @@ Una vez cargado el plugin en tu agente de chat:
   ```
   *(Copia solo `.codex/agents/*.toml` al repo destino y no modifica `.codex/config.toml`.)*
 
-  Si una instalación previa dejó claves no compatibles en `.codex/config.toml`, elimínalas manualmente según el mensaje de Codex; este instalador no altera configuraciones propiedad del usuario.
+  Por defecto el instalador no altera `.codex/config.toml`. Si Codex rechaza la clave heredada exacta `service_tier = "default"`, la reparación es un opt-in explícito:
+  ```powershell
+  npm run setup:codex:repair
+  ```
+  El script dedicado es la ruta recomendada en Windows PowerShell porque no depende del forwarding de flags de npm. Como fallback puede ejecutarse `node scripts/configure/install-codex.js --repair-config`; para previsualizar sin escribir, usa `node scripts/configure/install-codex.js --dry-run --repair-config`.
+
+  La reparación elimina únicamente esa asignación top-level, conserva un backup único byte a byte y restaura el original si falla la escritura, el rename o la validación con Codex. Otras claves no compatibles quedan intactas y producen un diagnóstico. No toca `auth.json`, otras claves ni entradas MCP; la instalación local por repositorio nunca repara configuración global.
 
 ### 🖱️ Cursor
 - **Instalación Global**:

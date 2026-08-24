@@ -141,6 +141,18 @@ npm run setup:codex        # === npm run install:codex
 
 Re-ejecutar `npm run setup:codex` en cualquier momento es seguro: todos los canales convergen al mismo estado final (mismos archivos TOML, hooks registrados y una sola instancia por identidad MCP).
 
+#### Reparación opt-in de `config.toml`
+
+El flujo normal preserva `~/.codex/config.toml`. Solo cuando Codex rechaza la asignación heredada exacta top-level `service_tier = "default"`, el usuario puede solicitar explícitamente:
+
+```powershell
+npm run setup:codex:repair
+```
+
+La reparación elimina esa línea sin elegir `fast` ni `flex`, preserva los bytes no afectados (incluidos BOM, CRLF y comentarios), conserva el modo y crea un backup único byte a byte. Publica el archivo de forma transaccional y ejecuta `codex mcp list --json` para validarlo; si falla la escritura, el rename o la validación, restaura el original y retiene el backup o la ruta de recuperación necesaria. Una coincidencia distinta o anidada no se toca y produce un diagnóstico. Es idempotente y no modifica `auth.json`, otras claves ni servidores MCP propiedad del usuario.
+
+En Windows PowerShell, usa el script dedicado para evitar que npm interprete el flag como configuración propia. El fallback directo es `node scripts/configure/install-codex.js --repair-config`. Para previsualizar sin escribir, ejecuta `node scripts/configure/install-codex.js --dry-run --repair-config`. La instalación local por repositorio no acepta `--repair-config` y no modifica configuración global ni el `.codex/config.toml` local.
+
 ### Instalación local a un repositorio destino (solo canal de agentes)
 
 ```powershell
@@ -204,9 +216,9 @@ la verificación con el binario `codex` real sigue siendo manual (ver
 
 ## Rollback
 
-El instalador nunca modifica `.codex/config.toml`, así que revertir una
-instalación de `ospec-workflow` no requiere restaurar configuración de
-usuario:
+Sin `--repair-config`, el instalador nunca modifica `.codex/config.toml`. Si se
+usó el opt-in, informa la ruta del backup único y ya habrá restaurado el original
+automáticamente ante cualquier fallo de escritura, rename o validación:
 
 1. Recuperar (o reconstruir con `git checkout <commit-anterior> -- .` seguido
    de `npm run build:codex`) la versión anterior válida del payload publicado.
@@ -214,5 +226,6 @@ usuario:
    `npm run install:codex -- <repo-destino>` (instalación local) apuntando al
    payload anterior. Ambos canales son idempotentes: la reinstalación
    sobrescribe `~/.codex/agents/*.toml` (o `<repo-destino>/.codex/agents/`), `AGENTS.md` y el runtime, sin dejar residuos de la versión más nueva.
-3. `.codex/config.toml` no requiere ninguna acción: nunca fue escrito por el
-   instalador en ninguna de las dos versiones.
+3. Si se desea deshacer una reparación exitosa, reemplazar
+   `~/.codex/config.toml` por el backup indicado por el instalador. Las
+   instalaciones locales no requieren esta acción porque nunca reparan config.

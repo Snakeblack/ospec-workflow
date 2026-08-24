@@ -124,6 +124,138 @@ test("RED: cleanup failure still attempts later lock cleanup and reports the ret
   assert.equal(siblingArtifacts(parent, "claude").includes(".claude.configure.lock"), false);
 });
 
+test("Windows transient rename failures retry with bounded deterministic backoff and converge", t => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "k3-retry-converges-"));
+  const out = path.join(parent, "codex");
+  fs.mkdirSync(out, { recursive: true });
+  fs.writeFileSync(path.join(out, "NOTES.md"), "old\n");
+  t.after(() => fs.rmSync(parent, { recursive: true, force: true }));
+  let attempts = 0;
+  const delays = [];
+
+  const result = runConfigure({
+    sourceDir: SOURCE,
+    target: "codex",
+    outDir: out,
+    validate: false,
+    retryOptions: { sleep: delay => delays.push(delay) },
+    operationObserver: event => {
+      if (event.operation === "rename" && event.phase === "backup" && attempts++ < 2) {
+        const error = new Error("temporarily locked");
+        error.code = "EPERM";
+        throw error;
+      }
+    },
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(attempts, 3);
+  assert.deepEqual(delays, [10, 20]);
+  assert.deepEqual(siblingArtifacts(parent, "codex"), []);
+});
+
+test("transient publish retries exhaust at the bound and restore the previous destination", t => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "k3-retry-exhausted-"));
+  const out = path.join(parent, "codex");
+  fs.mkdirSync(out, { recursive: true });
+  fs.writeFileSync(path.join(out, "NOTES.md"), "old\n");
+  const before = tree(out);
+  t.after(() => fs.rmSync(parent, { recursive: true, force: true }));
+  let attempts = 0;
+  const delays = [];
+
+  assert.throws(() => runConfigure({
+    sourceDir: SOURCE,
+    target: "codex",
+    outDir: out,
+    validate: false,
+    retryOptions: { sleep: delay => delays.push(delay) },
+    operationObserver: event => {
+      if (event.operation === "rename" && event.phase === "publish") {
+        attempts += 1;
+        const error = new Error("still locked");
+        error.code = "EBUSY";
+        throw error;
+      }
+    },
+  }), error => error.code === "EBUSY");
+
+  assert.equal(attempts, 4);
+  assert.deepEqual(delays, [10, 20, 30]);
+  assert.deepEqual(tree(out), before);
+  assert.deepEqual(siblingArtifacts(parent, "codex"), []);
+});
+
+test("logical rename errors are not retried", t => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "k3-no-logical-retry-"));
+  const out = path.join(parent, "codex");
+  fs.mkdirSync(out, { recursive: true });
+  fs.writeFileSync(path.join(out, "NOTES.md"), "old\n");
+  t.after(() => fs.rmSync(parent, { recursive: true, force: true }));
+  let attempts = 0;
+  const delays = [];
+
+  assert.throws(() => runConfigure({
+    sourceDir: SOURCE,
+    target: "codex",
+    outDir: out,
+    validate: false,
+    retryOptions: { sleep: delay => delays.push(delay) },
+    operationObserver: event => {
+      if (event.operation === "rename" && event.phase === "backup") {
+        attempts += 1;
+        const error = new Error("logical collision");
+        error.code = "EEXIST";
+        throw error;
+      }
+    },
+  }), error => error.code === "EEXIST");
+
+  assert.equal(attempts, 1);
+  assert.deepEqual(delays, []);
+});
+
+test("restore and cleanup tolerate transient Windows locks", t => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "k3-restore-retry-"));
+  const out = path.join(parent, "codex");
+  fs.mkdirSync(out, { recursive: true });
+  fs.writeFileSync(path.join(out, "NOTES.md"), "old\n");
+  const before = tree(out);
+  t.after(() => fs.rmSync(parent, { recursive: true, force: true }));
+  let restoreAttempts = 0;
+  let cleanupAttempts = 0;
+
+  assert.throws(() => runConfigure({
+    sourceDir: SOURCE,
+    target: "codex",
+    outDir: out,
+    validate: false,
+    retryOptions: { sleep() {} },
+    operationObserver: event => {
+      if (event.operation === "rename" && event.phase === "publish") {
+        const error = new Error("publish failed");
+        error.code = "EIO";
+        throw error;
+      }
+      if (event.operation === "rename" && event.phase === "restore" && restoreAttempts++ < 2) {
+        const error = new Error("restore locked");
+        error.code = "EACCES";
+        throw error;
+      }
+      if (event.operation === "cleanup" && event.path.includes("configure-stage") && cleanupAttempts++ < 1) {
+        const error = new Error("cleanup locked");
+        error.code = "EPERM";
+        throw error;
+      }
+    },
+  }), error => error.code === "EIO");
+
+  assert.equal(restoreAttempts, 3);
+  assert.equal(cleanupAttempts, 2);
+  assert.deepEqual(tree(out), before);
+  assert.deepEqual(siblingArtifacts(parent, "codex"), []);
+});
+
 test("transactional publication runs independently for all six configured destinations", t => {
   const parent = fs.mkdtempSync(path.join(os.tmpdir(), "k3-six-target-"));
   t.after(() => fs.rmSync(parent, { recursive: true, force: true }));

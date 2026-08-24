@@ -7,6 +7,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const {
+  usage,
   parseArgs,
   findCodexBin,
   resolveCodexInvocation,
@@ -18,6 +19,8 @@ const {
   ensureCodexMcps,
   assertManagedPathSafe,
   gatherCodexOwnedFiles,
+  transformLegacyServiceTier,
+  repairCodexConfig,
   main,
 } = require("./install-codex.js");
 
@@ -102,6 +105,7 @@ function writeGeneratedCodexTree(root) {
 test("parseArgs parses global setup defaults and repo install flags", () => {
   assert.deepEqual(parseArgs([]), {
     dryRun: false,
+    repairConfig: false,
     validate: true,
     source: undefined,
     destRepo: undefined,
@@ -109,10 +113,510 @@ test("parseArgs parses global setup defaults and repo install flags", () => {
 
   assert.deepEqual(parseArgs(["../repo", "--dry-run", "--no-validate", "--source", "../src"]), {
     dryRun: true,
+    repairConfig: false,
     validate: false,
     source: "../src",
     destRepo: "../repo",
   });
+
+  assert.equal(parseArgs(["--repair-config"]).repairConfig, true);
+  assert.match(parseArgs(["--unknown"]).error, /unknown option.*--unknown/i);
+  assert.match(parseArgs(["repo-a", "repo-b"]).error, /only one destination/i);
+  assert.match(usage(), /--repair-config/);
+});
+
+test("legacy service tier transformation is allowlisted, top-level only, and byte preserving otherwise", () => {
+  const valid = Buffer.from('model = "gpt-5"\r\nservice_tier = "fast"\r\n');
+  const nested = Buffer.from('[profile]\nservice_tier = "default"\n');
+  const lookalikes = Buffer.from('service_tier="default" # comment\nservice_tier = \'default\'\n');
+
+  assert.deepEqual(transformLegacyServiceTier(valid), { matched: false, bytes: valid });
+  assert.deepEqual(transformLegacyServiceTier(nested), { matched: false, bytes: nested });
+  assert.deepEqual(transformLegacyServiceTier(lookalikes), { matched: false, bytes: lookalikes });
+});
+
+test("legacy service tier transformation ignores assignments embedded in multiline TOML strings", () => {
+  const input = Buffer.from([
+    "literal = '''",
+    '# this is string content, not a TOML comment',
+    'service_tier = "default"',
+    "'''",
+    'basic = """prefix \\""" still string',
+    '# still string content',
+    'service_tier = "default"',
+    '"""',
+    '# actual top-level legacy assignment follows',
+    'service_tier = "default"',
+    'model = "gpt-5"',
+    "",
+  ].join("\r\n"));
+  const expected = Buffer.from([
+    "literal = '''",
+    '# this is string content, not a TOML comment',
+    'service_tier = "default"',
+    "'''",
+    'basic = """prefix \\""" still string',
+    '# still string content',
+    'service_tier = "default"',
+    '"""',
+    '# actual top-level legacy assignment follows',
+    'model = "gpt-5"',
+    "",
+  ].join("\r\n"));
+
+  const transformed = transformLegacyServiceTier(input);
+
+  assert.equal(transformed.matched, true);
+  assert.deepEqual(transformed.bytes, expected);
+});
+
+test("legacy service tier transformation fails closed when a multiline TOML string is unterminated", () => {
+  const ambiguous = Buffer.from([
+    'description = """',
+    'service_tier = "default"',
+    "",
+  ].join("\n"));
+
+  assert.deepEqual(transformLegacyServiceTier(ambiguous), { matched: false, bytes: ambiguous });
+});
+
+test("repairCodexConfig removes only the exact top-level legacy assignment and preserves BOM, CRLF, comments, mode, auth, and MCP state", (t) => {
+  const homeDir = makeTempDir(t, "codex-config-repair-");
+  const codexRoot = path.join(homeDir, ".codex");
+  const configPath = path.join(codexRoot, "config.toml");
+  const authPath = path.join(codexRoot, "auth.json");
+  fs.mkdirSync(codexRoot, { recursive: true });
+  const before = Buffer.from('\uFEFF# user comment\r\nservice_tier = "default"\r\nmodel = "gpt-5"\r\n');
+  const expected = Buffer.from('\uFEFF# user comment\r\nmodel = "gpt-5"\r\n');
+  fs.writeFileSync(configPath, before);
+  fs.chmodSync(configPath, 0o600);
+  const originalMode = fs.statSync(configPath).mode & 0o777;
+  fs.writeFileSync(authPath, '{"token":"user-owned"}\n');
+  const mcpState = [{ name: "user-owned" }];
+  const calls = [];
+
+  const result = repairCodexConfig(configPath, "codex", {
+    fs,
+    runCodexCommand(bin, args) {
+      calls.push([bin, ...args]);
+      return { status: 0, stdout: JSON.stringify(mcpState), stderr: "" };
+    },
+  });
+
+  assert.equal(result.status, "repaired");
+  assert.deepEqual(fs.readFileSync(configPath), expected);
+  assert.equal(fs.statSync(configPath).mode & 0o777, originalMode);
+  assert.deepEqual(fs.readFileSync(result.backupPath), before);
+  assert.equal(fs.statSync(result.backupPath).mode & 0o777, originalMode);
+  assert.equal(fs.readFileSync(authPath, "utf8"), '{"token":"user-owned"}\n');
+  assert.deepEqual(mcpState, [{ name: "user-owned" }]);
+  assert.deepEqual(calls, [["codex", "mcp", "list", "--json"]]);
+});
+
+test("repairCodexConfig is a no-op for no-match, dry-run, and a second idempotent run", (t) => {
+  const root = makeTempDir(t, "codex-config-noop-");
+  const configPath = path.join(root, "config.toml");
+  const valid = Buffer.from('service_tier = "fast"\n');
+  fs.writeFileSync(configPath, valid);
+  let validationCalls = 0;
+  assert.equal(repairCodexConfig(configPath, "codex", {
+    runCodexCommand() { validationCalls += 1; },
+  }).status, "no-match");
+  assert.deepEqual(fs.readFileSync(configPath), valid);
+
+  const legacy = Buffer.from('service_tier = "default"\nmodel = "gpt-5"\n');
+  fs.writeFileSync(configPath, legacy);
+  assert.equal(repairCodexConfig(configPath, "codex", {
+    dryRun: true,
+    runCodexCommand() { validationCalls += 1; },
+  }).status, "would-repair");
+  assert.deepEqual(fs.readFileSync(configPath), legacy);
+  assert.equal(fs.readdirSync(root).length, 1);
+
+  const first = repairCodexConfig(configPath, "codex", {
+    runCodexCommand() { validationCalls += 1; return { status: 0, stdout: "[]", stderr: "" }; },
+  });
+  const second = repairCodexConfig(configPath, "codex", {
+    runCodexCommand() { validationCalls += 1; return { status: 0, stdout: "[]", stderr: "" }; },
+  });
+  assert.equal(first.status, "repaired");
+  assert.equal(second.status, "no-match");
+  assert.equal(validationCalls, 1);
+});
+
+test("repairCodexConfig allocates a unique backup without overwriting a collision", (t) => {
+  const root = makeTempDir(t, "codex-config-backup-collision-");
+  const configPath = path.join(root, "config.toml");
+  const collision = `${configPath}.ospec-backup`;
+  fs.writeFileSync(configPath, 'service_tier = "default"\n');
+  fs.writeFileSync(collision, "keep-existing\n");
+
+  const result = repairCodexConfig(configPath, "codex", {
+    runCodexCommand() { return { status: 0, stdout: "[]", stderr: "" }; },
+  });
+
+  assert.equal(result.status, "repaired");
+  assert.notEqual(result.backupPath, collision);
+  assert.equal(fs.readFileSync(collision, "utf8"), "keep-existing\n");
+  assert.equal(fs.readFileSync(result.backupPath, "utf8"), 'service_tier = "default"\n');
+});
+
+test("repairCodexConfig restores original bytes and mode when write, rename, or Codex validation fails", (t) => {
+  for (const failure of ["write", "rename", "validation"]) {
+    const root = makeTempDir(t, `codex-config-rollback-${failure}-`);
+    const configPath = path.join(root, "config.toml");
+    const before = Buffer.from('# keep\nservice_tier = "default"\n');
+    fs.writeFileSync(configPath, before);
+    fs.chmodSync(configPath, 0o600);
+    const originalMode = fs.statSync(configPath).mode & 0o777;
+    let failed = false;
+    const failingFs = new Proxy(fs, {
+      get(target, property) {
+        if (failure === "write" && property === "writeFileSync") {
+          return (targetPath, ...args) => {
+            if (!failed && String(targetPath).includes("ospec-repair")) {
+              failed = true;
+              const error = new Error("injected write failure"); error.code = "EIO"; throw error;
+            }
+            return target.writeFileSync(targetPath, ...args);
+          };
+        }
+        if (failure === "rename" && property === "renameSync") {
+          return (from, to) => {
+            if (!failed && String(from).includes("ospec-repair") && to === configPath) {
+              failed = true;
+              const error = new Error("injected rename failure"); error.code = "EIO"; throw error;
+            }
+            return target.renameSync(from, to);
+          };
+        }
+        return target[property];
+      },
+    });
+
+    assert.throws(() => repairCodexConfig(configPath, "codex", {
+      fs: failingFs,
+      runCodexCommand() {
+        return failure === "validation"
+          ? { status: 1, stdout: "", stderr: "invalid config" }
+          : { status: 0, stdout: "[]", stderr: "" };
+      },
+    }), new RegExp(failure === "validation" ? "validation" : failure, "i"));
+    assert.deepEqual(fs.readFileSync(configPath), before, failure);
+    assert.equal(fs.statSync(configPath).mode & 0o777, originalMode, failure);
+    assert.ok(fs.readdirSync(root).some(name => name.includes("ospec-backup")), failure);
+    assert.ok(!fs.readdirSync(root).some(name => name.includes("ospec-repair")), failure);
+  }
+});
+
+test("repairCodexConfig retries transient publish renames with deterministic backoff and converges", (t) => {
+  const root = makeTempDir(t, "codex-config-publish-retry-");
+  const configPath = path.join(root, "config.toml");
+  fs.writeFileSync(configPath, 'service_tier = "default"\nmodel = "gpt-5"\n');
+  let publishAttempts = 0;
+  const delays = [];
+  const transientFs = new Proxy(fs, {
+    get(target, property) {
+      if (property !== "renameSync") return target[property];
+      return (from, to) => {
+        if (String(from).includes("ospec-repair") && to === configPath && publishAttempts++ < 2) {
+          const error = new Error("publish locked"); error.code = "EPERM"; throw error;
+        }
+        return target.renameSync(from, to);
+      };
+    },
+  });
+
+  const result = repairCodexConfig(configPath, "codex", {
+    fs: transientFs,
+    retryOptions: { sleep: delay => delays.push(delay) },
+    runCodexCommand() { return { status: 0, stdout: "[]", stderr: "" }; },
+  });
+
+  assert.equal(result.status, "repaired");
+  assert.equal(publishAttempts, 3);
+  assert.deepEqual(delays, [10, 20]);
+  assert.equal(fs.readFileSync(configPath, "utf8"), 'model = "gpt-5"\n');
+});
+
+test("repairCodexConfig exhausts transient publish retries, then restores the original", (t) => {
+  const root = makeTempDir(t, "codex-config-publish-exhaust-");
+  const configPath = path.join(root, "config.toml");
+  const before = Buffer.from('service_tier = "default"\nmodel = "gpt-5"\n');
+  fs.writeFileSync(configPath, before);
+  let publishAttempts = 0;
+  const delays = [];
+  const transientFs = new Proxy(fs, {
+    get(target, property) {
+      if (property !== "renameSync") return target[property];
+      return (from, to) => {
+        if (String(from).includes("ospec-repair") && to === configPath) {
+          publishAttempts += 1;
+          const error = new Error("publish still locked"); error.code = "EBUSY"; throw error;
+        }
+        return target.renameSync(from, to);
+      };
+    },
+  });
+
+  assert.throws(() => repairCodexConfig(configPath, "codex", {
+    fs: transientFs,
+    retryOptions: { sleep: delay => delays.push(delay) },
+    runCodexCommand() { throw new Error("validation must not run"); },
+  }), error => error.code === "EBUSY");
+
+  assert.equal(publishAttempts, 4);
+  assert.deepEqual(delays, [10, 20, 30]);
+  assert.deepEqual(fs.readFileSync(configPath), before);
+  assert.ok(fs.readdirSync(root).some(name => name.includes("ospec-backup")));
+});
+
+test("repairCodexConfig retries transient rollback renames and restores after validation failure", (t) => {
+  const root = makeTempDir(t, "codex-config-restore-retry-");
+  const configPath = path.join(root, "config.toml");
+  const before = Buffer.from('service_tier = "default"\nmodel = "gpt-5"\n');
+  fs.writeFileSync(configPath, before);
+  let restoreAttempts = 0;
+  const delays = [];
+  const transientFs = new Proxy(fs, {
+    get(target, property) {
+      if (property !== "renameSync") return target[property];
+      return (from, to) => {
+        if (String(from).includes("ospec-original") && to === configPath && restoreAttempts++ < 2) {
+          const error = new Error("restore locked"); error.code = "EACCES"; throw error;
+        }
+        return target.renameSync(from, to);
+      };
+    },
+  });
+
+  assert.throws(() => repairCodexConfig(configPath, "codex", {
+    fs: transientFs,
+    retryOptions: { sleep: delay => delays.push(delay) },
+    runCodexCommand() { return { status: 1, stdout: "", stderr: "invalid" }; },
+  }), /validation failed/i);
+
+  assert.equal(restoreAttempts, 3);
+  assert.deepEqual(delays, [10, 20]);
+  assert.deepEqual(fs.readFileSync(configPath), before);
+});
+
+test("repairCodexConfig reports sanitized Codex validation diagnostics", (t) => {
+  const root = makeTempDir(t, "codex-config-diagnostics-");
+  const configPath = path.join(root, "config.toml");
+  fs.writeFileSync(configPath, 'service_tier = "default"\n');
+
+  assert.throws(() => repairCodexConfig(configPath, "codex", {
+    runCodexCommand() {
+      return {
+        status: 7,
+        stdout: "  validation context\u0000  \n",
+        stderr: "  invalid config at line 6\r\n  ",
+      };
+    },
+  }), (error) => {
+    assert.match(error.message, /stderr: invalid config at line 6/i);
+    assert.match(error.message, /stdout: validation context/i);
+    assert.doesNotMatch(error.message, /\u0000/);
+    return true;
+  });
+});
+
+test("repairCodexConfig fails closed without overwriting a concurrent config change", (t) => {
+  const root = makeTempDir(t, "codex-config-concurrent-");
+  const configPath = path.join(root, "config.toml");
+  const initial = 'service_tier = "default"\nmodel = "gpt-5"\n';
+  const concurrent = 'service_tier = "flex"\nmodel = "gpt-5.1"\n';
+  fs.writeFileSync(configPath, initial);
+  let mutated = false;
+  const concurrentFs = new Proxy(fs, {
+    get(target, property) {
+      if (property !== "writeFileSync") return target[property];
+      return (targetPath, ...args) => {
+        const result = target.writeFileSync(targetPath, ...args);
+        if (!mutated && String(targetPath).includes("ospec-repair")) {
+          mutated = true;
+          target.writeFileSync(configPath, concurrent);
+        }
+        return result;
+      };
+    },
+  });
+  let validations = 0;
+
+  assert.throws(() => repairCodexConfig(configPath, "codex", {
+    fs: concurrentFs,
+    runCodexCommand() { validations += 1; return { status: 0, stdout: "[]", stderr: "" }; },
+  }), /changed concurrently/i);
+
+  assert.equal(validations, 0);
+  assert.equal(fs.readFileSync(configPath, "utf8"), concurrent);
+  assert.ok(fs.readdirSync(root).some(name => name.includes("ospec-backup")));
+  assert.ok(!fs.readdirSync(root).some(name => name.includes("ospec-repair")));
+});
+
+test("repairCodexConfig detects bytes changed inside the config-to-recovery rename and restores them without publishing", (t) => {
+  const root = makeTempDir(t, "codex-config-rename-race-");
+  const configPath = path.join(root, "config.toml");
+  const initial = Buffer.from('service_tier = "default"\nmodel = "gpt-5"\n');
+  const concurrent = Buffer.from('service_tier = "flex"\nmodel = "gpt-5.2"\n');
+  fs.writeFileSync(configPath, initial);
+  let injected = false;
+  let validations = 0;
+  const concurrentFs = new Proxy(fs, {
+    get(target, property) {
+      if (property !== "renameSync") return target[property];
+      return (from, to) => {
+        if (!injected && from === configPath && String(to).includes("ospec-original")) {
+          injected = true;
+          target.writeFileSync(configPath, concurrent);
+        }
+        return target.renameSync(from, to);
+      };
+    },
+  });
+
+  assert.throws(() => repairCodexConfig(configPath, "codex", {
+    fs: concurrentFs,
+    runCodexCommand() { validations += 1; return { status: 0, stdout: "[]", stderr: "" }; },
+  }), /changed concurrently/i);
+
+  assert.equal(injected, true);
+  assert.equal(validations, 0);
+  assert.deepEqual(fs.readFileSync(configPath), concurrent);
+  assert.ok(fs.readdirSync(root).some(name => name.includes("ospec-backup")));
+});
+
+test("repairCodexConfig preserves a concurrent config written inside the publish rename", (t) => {
+  const root = makeTempDir(t, "codex-config-publish-race-");
+  const configPath = path.join(root, "config.toml");
+  const initial = Buffer.from('service_tier = "default"\nmodel = "gpt-5"\n');
+  const concurrent = Buffer.from('service_tier = "flex"\nmodel = "gpt-5.2"\n');
+  fs.writeFileSync(configPath, initial);
+  let injected = false;
+  let validations = 0;
+  const concurrentFs = new Proxy(fs, {
+    get(target, property) {
+      if (property !== "renameSync") return target[property];
+      return (from, to) => {
+        const result = target.renameSync(from, to);
+        if (!injected && String(from).includes("ospec-repair") && to === configPath) {
+          injected = true;
+          target.writeFileSync(configPath, concurrent);
+        }
+        return result;
+      };
+    },
+  });
+
+  assert.throws(() => repairCodexConfig(configPath, "codex", {
+    fs: concurrentFs,
+    runCodexCommand() { validations += 1; return { status: 0, stdout: "[]", stderr: "" }; },
+  }), /changed concurrently|evidence retained/i);
+
+  assert.equal(injected, true);
+  assert.equal(validations, 0);
+  assert.deepEqual(fs.readFileSync(configPath), concurrent);
+  const evidence = fs.readdirSync(root);
+  assert.ok(evidence.some(name => name.includes("ospec-backup")));
+  assert.ok(evidence.some(name => name.includes("ospec-original")));
+});
+
+test("repairCodexConfig preserves a concurrent config written while Codex validates", (t) => {
+  const root = makeTempDir(t, "codex-config-validation-race-");
+  const configPath = path.join(root, "config.toml");
+  const initial = Buffer.from('service_tier = "default"\nmodel = "gpt-5"\n');
+  const concurrent = Buffer.from('service_tier = "flex"\nmodel = "gpt-5.2"\n');
+  fs.writeFileSync(configPath, initial);
+
+  assert.throws(() => repairCodexConfig(configPath, "codex", {
+    runCodexCommand() {
+      fs.writeFileSync(configPath, concurrent);
+      return { status: 0, stdout: "[]", stderr: "" };
+    },
+  }), /changed concurrently|evidence retained/i);
+
+  assert.deepEqual(fs.readFileSync(configPath), concurrent);
+  const evidence = fs.readdirSync(root);
+  assert.ok(evidence.some(name => name.includes("ospec-backup")));
+  assert.ok(evidence.some(name => name.includes("ospec-original")));
+});
+
+test("repairCodexConfig detects a same-byte config replacement by filesystem identity", (t) => {
+  const root = makeTempDir(t, "codex-config-identity-race-");
+  const configPath = path.join(root, "config.toml");
+  const replacementPath = path.join(root, "concurrent-replacement.toml");
+  const initial = Buffer.from('service_tier = "default"\nmodel = "gpt-5"\n');
+  const transformed = Buffer.from('model = "gpt-5"\n');
+  fs.writeFileSync(configPath, initial);
+
+  assert.throws(() => repairCodexConfig(configPath, "codex", {
+    runCodexCommand() {
+      fs.writeFileSync(replacementPath, transformed);
+      fs.rmSync(configPath);
+      fs.renameSync(replacementPath, configPath);
+      return { status: 0, stdout: "[]", stderr: "" };
+    },
+  }), /changed concurrently|evidence retained/i);
+
+  assert.deepEqual(fs.readFileSync(configPath), transformed);
+  const evidence = fs.readdirSync(root);
+  assert.ok(evidence.some(name => name.includes("ospec-backup")));
+  assert.ok(evidence.some(name => name.includes("ospec-original")));
+});
+
+test("repairCodexConfig never deletes a recovery changed while Codex validates", (t) => {
+  const root = makeTempDir(t, "codex-config-recovery-race-");
+  const configPath = path.join(root, "config.toml");
+  const initial = Buffer.from('service_tier = "default"\nmodel = "gpt-5"\n');
+  const concurrent = Buffer.from('service_tier = "flex"\nmodel = "gpt-5.2"\n');
+  fs.writeFileSync(configPath, initial);
+
+  assert.throws(() => repairCodexConfig(configPath, "codex", {
+    runCodexCommand() {
+      const recoveryName = fs.readdirSync(root).find(name => name.includes("ospec-original"));
+      assert.ok(recoveryName);
+      fs.writeFileSync(path.join(root, recoveryName), concurrent);
+      return { status: 0, stdout: "[]", stderr: "" };
+    },
+  }), /changed concurrently/i);
+
+  assert.deepEqual(fs.readFileSync(configPath), concurrent);
+  assert.ok(fs.readdirSync(root).some(name => name.includes("ospec-backup")));
+});
+
+test("repairCodexConfig retains both backup and recovery evidence when rollback itself cannot rename", (t) => {
+  const root = makeTempDir(t, "codex-config-retained-evidence-");
+  const configPath = path.join(root, "config.toml");
+  const before = Buffer.from('service_tier = "default"\nmodel = "gpt-5"\n');
+  fs.writeFileSync(configPath, before);
+  let restoreAttempts = 0;
+  const delays = [];
+  const failingFs = new Proxy(fs, {
+    get(target, property) {
+      if (property !== "renameSync") return target[property];
+      return (from, to) => {
+        if (String(from).includes("ospec-original") && to === configPath) {
+          restoreAttempts += 1;
+          const error = new Error("injected restore rename failure"); error.code = "EBUSY"; throw error;
+        }
+        return target.renameSync(from, to);
+      };
+    },
+  });
+
+  assert.throws(() => repairCodexConfig(configPath, "codex", {
+    fs: failingFs,
+    retryOptions: { sleep: delay => delays.push(delay) },
+    runCodexCommand() { return { status: 1, stdout: "", stderr: "invalid config" }; },
+  }), error => error instanceof AggregateError && /recovery evidence retained/i.test(error.message));
+
+  assert.equal(restoreAttempts, 4);
+  assert.deepEqual(delays, [10, 20, 30]);
+  const evidence = fs.readdirSync(root);
+  assert.ok(evidence.some(name => name.includes("ospec-backup")));
+  assert.ok(evidence.some(name => name.includes("ospec-original")));
+  assert.ok(!fs.existsSync(configPath));
 });
 
 test("findCodexBin returns the first working codex executable", () => {
@@ -638,6 +1142,139 @@ test("main dry-run previews actions without writing files or invoking codex", (t
   assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "agents", "apply.toml")));
 });
 
+test("main dry-run with --repair-config previews the global repair without writing or validating", (t) => {
+  const sourceDir = makeTempDir(t, "codex-repair-dry-source-");
+  const homeDir = makeTempDir(t, "codex-repair-dry-home-");
+  const configPath = path.join(homeDir, ".codex", "config.toml");
+  const stdout = [];
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, 'service_tier = "default"\n');
+  const before = snapshotTree(homeDir);
+  let codexInvocations = 0;
+  let builds = 0;
+
+  const exitCode = main(["--dry-run", "--repair-config"], {
+    cwd: sourceDir,
+    homedir: () => homeDir,
+    stdout: { write: chunk => stdout.push(chunk) },
+    stderr: { write() {} },
+    runConfigure() { builds += 1; throw new Error("preview must not build or publish dist"); },
+    findCodexBin: () => "codex",
+    runCodexCommand() { codexInvocations += 1; return { status: 0, stdout: "[]", stderr: "" }; },
+  });
+
+  assert.equal(exitCode, 0);
+  assert.equal(builds, 0);
+  assert.equal(codexInvocations, 0);
+  assert.deepEqual(snapshotTree(homeDir), before);
+  assert.equal(fs.readFileSync(configPath, "utf8"), 'service_tier = "default"\n');
+  assert.match(stdout.join(""), /would remove.*service_tier/i);
+});
+
+test("main global --repair-config repairs before installation and retains user-owned auth", (t) => {
+  const sourceDir = makeTempDir(t, "codex-repair-main-source-");
+  const homeDir = makeTempDir(t, "codex-repair-main-home-");
+  const codexRoot = path.join(homeDir, ".codex");
+  const configPath = path.join(codexRoot, "config.toml");
+  const authPath = path.join(codexRoot, "auth.json");
+  fs.mkdirSync(codexRoot, { recursive: true });
+  fs.writeFileSync(configPath, 'service_tier = "default"\nmodel = "gpt-5"\n');
+  fs.writeFileSync(authPath, '{"token":"user-owned"}\n');
+  const calls = [];
+  const stdout = [];
+
+  const exitCode = main(["--repair-config"], {
+    cwd: sourceDir,
+    homedir: () => homeDir,
+    stdout: { write: chunk => stdout.push(chunk) },
+    stderr: { write() {} },
+    runConfigure({ outDir }) {
+      writeGeneratedCodexTree(outDir);
+      return { exitCode: 0, validation: null };
+    },
+    findCodexBin: () => "codex",
+    runCodexCommand(bin, args) {
+      calls.push([bin, ...args]);
+      return { status: 0, stdout: "[]", stderr: "" };
+    },
+  });
+
+  assert.equal(exitCode, 0);
+  assert.equal(fs.readFileSync(configPath, "utf8"), 'model = "gpt-5"\n');
+  assert.equal(fs.readFileSync(authPath, "utf8"), '{"token":"user-owned"}\n');
+  assert.ok(fs.readdirSync(codexRoot).some(name => name.startsWith("config.toml.ospec-backup")));
+  assert.deepEqual(calls, [["codex", "mcp", "list", "--json"]]);
+  assert.match(stdout.join(""), /backup retained/i);
+});
+
+test("main rejects --repair-config for repo-local installation before any global or repo mutation", (t) => {
+  const sourceDir = makeTempDir(t, "codex-repair-repo-source-");
+  const destRepo = makeTempDir(t, "codex-repair-repo-dest-");
+  const homeDir = makeTempDir(t, "codex-repair-repo-home-");
+  const globalConfig = path.join(homeDir, ".codex", "config.toml");
+  fs.mkdirSync(path.dirname(globalConfig), { recursive: true });
+  fs.writeFileSync(globalConfig, 'service_tier = "default"\n');
+  let builds = 0;
+  const stderr = [];
+
+  const exitCode = main([destRepo, "--repair-config"], {
+    cwd: sourceDir,
+    homedir: () => homeDir,
+    stdout: { write() {} },
+    stderr: { write: chunk => stderr.push(chunk) },
+    runConfigure() { builds += 1; throw new Error("must not build"); },
+  });
+
+  assert.equal(exitCode, 2);
+  assert.equal(builds, 0);
+  assert.equal(fs.readFileSync(globalConfig, "utf8"), 'service_tier = "default"\n');
+  assert.ok(!fs.existsSync(path.join(destRepo, ".codex")));
+  assert.match(stderr.join(""), /only.*global/i);
+});
+
+test("main advises explicit --repair-config when Codex rejects legacy service_tier without mutating config, auth, or MCPs", (t) => {
+  const sourceDir = makeTempDir(t, "codex-repair-advice-source-");
+  const homeDir = makeTempDir(t, "codex-repair-advice-home-");
+  const codexRoot = path.join(homeDir, ".codex");
+  const configPath = path.join(codexRoot, "config.toml");
+  const authPath = path.join(codexRoot, "auth.json");
+  fs.mkdirSync(codexRoot, { recursive: true });
+  fs.writeFileSync(configPath, 'service_tier = "default"\n');
+  fs.writeFileSync(authPath, '{"token":"user-owned"}\n');
+  fs.writeFileSync(path.join(sourceDir, ".mcp.json"), JSON.stringify({
+    mcpServers: { context7: { command: "npx", args: ["context7"] } },
+  }));
+  const stderr = [];
+  const calls = [];
+
+  const exitCode = main([], {
+    cwd: sourceDir,
+    homedir: () => homeDir,
+    stdout: { write() {} },
+    stderr: { write: chunk => stderr.push(chunk) },
+    runConfigure({ outDir }) {
+      writeGeneratedCodexTree(outDir);
+      return { exitCode: 0, validation: null };
+    },
+    findCodexBin: () => "codex",
+    runCodexCommand(bin, args) {
+      calls.push([bin, ...args]);
+      return {
+        status: 1,
+        stdout: "",
+        stderr: 'unknown variant `default`, expected `fast` or `flex` in `service_tier`\n',
+      };
+    },
+  });
+
+  assert.equal(exitCode, 1);
+  assert.deepEqual(calls, [["codex", "mcp", "list", "--json"]]);
+  assert.equal(fs.readFileSync(configPath, "utf8"), 'service_tier = "default"\n');
+  assert.equal(fs.readFileSync(authPath, "utf8"), '{"token":"user-owned"}\n');
+  assert.match(stderr.join(""), /npm run setup:codex:repair/i);
+  assert.doesNotMatch(stderr.join(""), /npm run setup:codex -- --repair-config/i);
+});
+
 test("main rejects incomplete --source usage before build side effects", () => {
   const stderr = [];
   let runConfigureCalls = 0;
@@ -744,6 +1381,7 @@ test("package.json exposes Codex build and install scripts", () => {
 
   assert.equal(pkg.scripts["build:codex"], "node scripts/configure/cli.js --target codex --out dist/codex");
   assert.equal(pkg.scripts["setup:codex"], "node scripts/configure/install-codex.js");
+  assert.equal(pkg.scripts["setup:codex:repair"], "node scripts/configure/install-codex.js --repair-config");
   assert.equal(pkg.scripts["install:codex"], "node scripts/configure/install-codex.js");
 });
 
@@ -758,7 +1396,11 @@ test("README documents the native global Codex installation", () => {
   assert.doesNotMatch(readme, /codex plugin marketplace add/i);
   assert.doesNotMatch(readme, /fusiona `.codex\/config\.toml`/);
   assert.match(readme, /claves no compatibles/i);
-  assert.match(readme, /manualmente/i);
+  assert.match(readme, /--repair-config/i);
+  assert.match(readme, /npm run setup:codex:repair/i);
+  assert.doesNotMatch(readme, /npm run setup:codex -- --repair-config/i);
+  assert.match(readme, /backup/i);
+  assert.match(readme, /opt-in|explícit/i);
 });
 
 test("plugin-installation guide documents native global Codex hooks and runtime", () => {
@@ -769,7 +1411,23 @@ test("plugin-installation guide documents native global Codex hooks and runtime"
   assert.match(doc, /ospec-workflow/);
   assert.doesNotMatch(doc, /fusiona.*\.codex\/config\.toml/i);
   assert.match(doc, /claves no compatibles/i);
-  assert.match(doc, /manualmente/i);
+  assert.match(doc, /--repair-config/i);
+  assert.match(doc, /npm run setup:codex:repair/i);
+  assert.doesNotMatch(doc, /npm run setup:codex -- --repair-config/i);
+  assert.match(doc, /backup/i);
+  assert.match(doc, /rollback|restaur/i);
+});
+
+test("Codex maintenance guide documents scoped opt-in config repair", () => {
+  const doc = readRepoFile("docs", "codex", "README.md");
+
+  assert.match(doc, /--repair-config/i);
+  assert.match(doc, /npm run setup:codex:repair/i);
+  assert.doesNotMatch(doc, /npm run setup:codex -- --repair-config/i);
+  assert.match(doc, /service_tier = ["`]*default/i);
+  assert.match(doc, /backup/i);
+  assert.match(doc, /no.*auth\.json|auth\.json.*no/i);
+  assert.match(doc, /local.*no.*config|config.*local.*no/i);
 });
 
 test("install baseline specifies the native global Codex contract", () => {
