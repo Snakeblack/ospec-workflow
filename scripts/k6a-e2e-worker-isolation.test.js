@@ -32,6 +32,108 @@ const {
 } = require("./lib/execution-identities/index.js");
 const { validateAllowedPaths } = require("./lib/allowed-paths-validator.js");
 const { createEvidenceDigest, createProbeDigest } = require("./lib/capability-proof/index.js");
+const { spawn } = require("node:child_process");
+const {
+  createClaudeHostAdapter,
+  getClaudeProofMaterial,
+  ADAPTER_ID,
+  ADAPTER_VERSION,
+  HOST_VERSION,
+} = require("./lib/host-adapters/claude.js");
+
+/**
+ * Primitiva worker real: ejecuta el comando solicitado vía subprocess y
+ * devuelve el resultado en forma de TransportOutcome.
+ */
+function makeRealWorkerCommandPrimitive() {
+  return async (input) => {
+    // Challenge de identidad del probe WorkerTransport.
+    if (input && input.probe === true && input.parallel === true) {
+      return { ok: true, value: { worker_id: `worker-${process.pid}`, parallel: true } };
+    }
+    return await new Promise((resolve) => {
+      const child = spawn(input.command, input.args || [], {
+        cwd: input.cwd,
+        env: { ...process.env, ...(input.env || {}) },
+      });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (d) => (stdout += d));
+      child.stderr.on("data", (d) => (stderr += d));
+      child.on("error", (err) => resolve({ ok: false, exit_code: 1, stdout: "", stderr: String(err.message) }));
+      child.on("close", (code) => resolve({ ok: code === 0, exit_code: code === null ? 1 : code, stdout, stderr }));
+    });
+  };
+}
+
+/**
+ * Primitiva de aislamiento real con frontera de sandbox que solo permite
+ * escrituras dentro de `allowed/` (el host mide el resultado).
+ */
+function makeSandboxedIsolationPrimitive() {
+  return async (input) => {
+    if (!input || input.isolation !== true || !Array.isArray(input.attempts)) {
+      return { ok: false };
+    }
+    const attempts = [];
+    for (const attempt of input.attempts) {
+      const allowedRoot = path.join(input.workspace_root, "allowed") + path.sep;
+      if (attempt.path.startsWith(allowedRoot)) {
+        fs.mkdirSync(path.dirname(attempt.path), { recursive: true });
+        fs.writeFileSync(attempt.path, attempt.content);
+        attempts.push({ id: attempt.id, wrote: true });
+      } else {
+        attempts.push({ id: attempt.id, wrote: false, blocked: true });
+      }
+    }
+    return { ok: true, value: { attempts } };
+  };
+}
+
+/** Primitiva de aislamiento adversarial sin sandbox: escribe donde sea. */
+function makeRogueIsolationPrimitive() {
+  return async (input) => {
+    if (!input || input.isolation !== true || !Array.isArray(input.attempts)) {
+      return { ok: false };
+    }
+    for (const attempt of input.attempts) {
+      fs.mkdirSync(path.dirname(attempt.path), { recursive: true });
+      fs.writeFileSync(attempt.path, attempt.content);
+    }
+    return { ok: true, value: { escaped: true } };
+  };
+}
+
+/**
+ * Compone las opciones de executeWorkOrder a partir del material canónico del
+ * adapter real — sin inyección manual de adapter_id/probe_digest/containment.
+ */
+function buildExecutionOptionsFromMaterial(material) {
+  const tMat = material.WorkerTransport;
+  const isoMat = material.WorkerIsolation;
+  const options = {
+    isolationCapability: "enforced",
+    capabilityProof: tMat.proof,
+    semantic_evidence: tMat.evidence,
+    expectedAdapterId: ADAPTER_ID,
+    expectedAdapterVersion: ADAPTER_VERSION,
+    expectedHostRuntimeVersion: HOST_VERSION,
+    expectedProbeDigest: tMat.expectedProbeDigest,
+    probe_digest: tMat.proof.probe_digest,
+  };
+  if (isoMat && isoMat.expectedProbeDigest) {
+    options.workerIsolation = {
+      declared_state: "enforced",
+      capabilityProof: isoMat.proof,
+      semantic_evidence: isoMat.evidence,
+      expectedAdapterId: ADAPTER_ID,
+      expectedAdapterVersion: ADAPTER_VERSION,
+      expectedHostRuntimeVersion: HOST_VERSION,
+      expectedProbeDigest: isoMat.expectedProbeDigest,
+    };
+  }
+  return options;
+}
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -135,14 +237,52 @@ function makeCanonicalWorkOrder(sourceSnapshotId = "sha256:aaaaaaaaaaaaaaaaaaaaa
   };
 }
 
-function makeEnforcedProof(adapterId = "adapter-test", containmentOverrides = {}) {
+function makeIsolationProof(adapterId = "adapter-test", containmentOverrides = {}) {
   const containment = {
     allowed_write: "PASS",
     undeclared_workspace_write: "BLOCKED",
     external_root_write: "BLOCKED",
     ...containmentOverrides,
   };
-  const evidence = { surface: "worker", headless: true, containment };
+  const semantic_evidence = { surface: "worker-isolation", host_observed: true, containment };
+  const fixture = "fixtures/WorkerIsolation.json";
+  const evidence_digest = createEvidenceDigest({
+    capability_id: "WorkerIsolation",
+    adapter_version: "1.0.0",
+    host_version: "1.0.0",
+    fixture,
+    evidence: semantic_evidence,
+  });
+  const probe_digest = createProbeDigest({
+    capability_id: "WorkerIsolation",
+    adapter_id: adapterId,
+    adapter_version: "1.0.0",
+    host_version: "1.0.0",
+    probe: { surface: "live", ok: true, host_observed: true, containment },
+  });
+  const capabilityProof = {
+    schema_version: 1,
+    kind: "capability-proof/v1",
+    adapter_id: adapterId,
+    adapter_version: "1.0.0",
+    host_version: "1.0.0",
+    fixture,
+    evidence_digest,
+    probe_digest,
+  };
+  return {
+    declared_state: "enforced",
+    capabilityProof,
+    semantic_evidence,
+    expectedAdapterId: adapterId,
+    expectedAdapterVersion: "1.0.0",
+    expectedHostRuntimeVersion: "1.0.0",
+    expectedProbeDigest: probe_digest,
+  };
+}
+
+function makeEnforcedProof(adapterId = "adapter-test", containmentOverrides = {}) {
+  const evidence = { surface: "worker", headless: true };
   const fixture = "fixtures/WorkerTransport.json";
   const evidence_digest = createEvidenceDigest({
     capability_id: "WorkerTransport",
@@ -156,7 +296,7 @@ function makeEnforcedProof(adapterId = "adapter-test", containmentOverrides = {}
     adapter_id: adapterId,
     adapter_version: "1.0.0",
     host_version: "1.0.0",
-    probe: { surface: "live", ok: true, containment },
+    probe: { surface: "live", ok: true },
   });
   const capabilityProof = {
     schema_version: 1,
@@ -167,7 +307,6 @@ function makeEnforcedProof(adapterId = "adapter-test", containmentOverrides = {}
     fixture,
     evidence_digest,
     probe_digest,
-    containment,
   };
   return {
     isolationCapability: "enforced",
@@ -178,6 +317,7 @@ function makeEnforcedProof(adapterId = "adapter-test", containmentOverrides = {}
     expectedHostRuntimeVersion: "1.0.0",
     expectedProbeDigest: probe_digest,
     probe_digest,
+    workerIsolation: makeIsolationProof(adapterId, containmentOverrides),
   };
 }
 
@@ -625,39 +765,14 @@ test("K6a Host Isolation Fallback: Reports truthful capability without silent pr
   });
   assert.equal(resNoProof.isolationReported, "unavailable");
 
-  // With verified proof
-  const evidence = { surface: "worker", headless: true };
-  const fixture = "fixtures/WorkerTransport.json";
-  const evidence_digest = createEvidenceDigest({
-    capability_id: "WorkerTransport",
-    adapter_version: "1.0.0",
-    host_version: "1.0.0",
-    fixture,
-    evidence,
-  });
-  const probe_digest = createProbeDigest({
-    capability_id: "WorkerTransport",
-    adapter_id: "claude",
-    adapter_version: "1.0.0",
-    host_version: "1.0.0",
-    probe: { surface: "live", ok: true },
-  });
-  const capabilityProof = {
-    schema_version: 1,
-    kind: "capability-proof/v1",
-    adapter_id: "claude",
-    adapter_version: "1.0.0",
-    host_version: "1.0.0",
-    fixture,
-    evidence_digest,
-    probe_digest,
-  };
+  // With verified proof + verified WorkerIsolation containment proof
+  const enforcedProof = makeEnforcedProof("claude");
 
   const mockWorkerTransport = {
     port_id: "port-claude-worker",
     kind: "worker-transport",
     adapter_id: "claude",
-    probe_digest,
+    probe_digest: enforcedProof.probe_digest,
     run: async () => ({
       ok: true,
       exit_code: 0,
@@ -671,16 +786,22 @@ test("K6a Host Isolation Fallback: Reports truthful capability without silent pr
     workspace,
     transports: { worker: mockWorkerTransport },
     command: "runner",
-    isolationCapability: "enforced",
-    capabilityProof,
-    semantic_evidence: evidence,
-    expectedAdapterId: "claude",
-    expectedAdapterVersion: "1.0.0",
-    expectedHostRuntimeVersion: "1.0.0",
-    expectedProbeDigest: probe_digest,
+    ...enforcedProof,
   });
   assert.equal(resWithProofAndTransport.isolationReported, "enforced");
   assert.equal(resWithProofAndTransport.ok, true);
+
+  // Enforced WorkerTransport WITHOUT WorkerIsolation must fail closed
+  const { workerIsolation: _omitted, ...transportOnly } = enforcedProof;
+  const resMissingIsolation = await executeWorkOrder({
+    workOrder,
+    workspace,
+    transports: { worker: mockWorkerTransport },
+    command: "runner",
+    ...transportOnly,
+  });
+  assert.equal(resMissingIsolation.ok, false, "Enforced transport without isolation proof must fail closed");
+  assert.equal(resMissingIsolation.reason, "containment-proof-required");
 
   // Without active WorkerTransport, enforced isolation fails closed
   const resMissingTransport = await executeWorkOrder({
@@ -688,13 +809,7 @@ test("K6a Host Isolation Fallback: Reports truthful capability without silent pr
     workspace,
     command: process.execPath,
     args: ["-e", "console.log('missing transport');"],
-    isolationCapability: "enforced",
-    capabilityProof,
-    semantic_evidence: evidence,
-    expectedAdapterId: "claude",
-    expectedAdapterVersion: "1.0.0",
-    expectedHostRuntimeVersion: "1.0.0",
-    expectedProbeDigest: probe_digest,
+    ...enforcedProof,
   });
   assert.equal(resMissingTransport.ok, false, "Must fail closed when enforced requested without WorkerTransport");
   assert.notEqual(resMissingTransport.isolationReported, "enforced");
@@ -955,3 +1070,147 @@ test("K6a Adversarial E2E: WorkerTransport failing containment probe cannot achi
   assert.equal(result.reason, "containment-probe-unfulfilled");
 });
 
+
+// ---------------------------------------------------------------------------
+// E2E real K2a → K6a: adapter Claude de referencia sin mocks intermedios.
+// Ningún test de este bloque inyecta manualmente adapter_id, probe_digest ni
+// containment: todo el material proviene de createClaudeHostAdapter() y
+// getClaudeProofMaterial().
+// ---------------------------------------------------------------------------
+
+test("K2a→K6a Real E2E: adapter Claude real ejecuta mutación contenida vía executeWorkOrder", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-k2a-real-"));
+  t.after(() => {
+    try { fs.rmSync(baseDir, { recursive: true, force: true }); } catch {}
+  });
+
+  const files = { "src/app.js": "console.log('app');\n" };
+  const snapshot = {
+    schema_version: 1,
+    kind: "source-snapshot/v1",
+    repository_id: "repo-k2a-k6a-real",
+    base_tree_digest: computeTreeDigest(files),
+    projection: "workspace",
+    dependency_digests: [],
+  };
+  snapshot.source_snapshot_id = computeSourceSnapshotId(snapshot);
+
+  const workOrder = makeCanonicalWorkOrder(snapshot.source_snapshot_id, {
+    node_id: "k2a-real-apply",
+    operation: "apply_implementation",
+    ownership: { owner: "agent-k2a", mode: "exclusive" },
+    allowed_paths: ["dist/**"],
+  });
+
+  const workspace = await createWorkspace({ baseDir, source_snapshot_id: snapshot.source_snapshot_id });
+  t.after(() => disposeWorkspace(workspace));
+
+  await materializeSourceSnapshot(workspace, workOrder, snapshot, {
+    capsule_inputs: ["src/app.js"],
+    files,
+  });
+
+  // Adapter real con primitivas reales: worker subprocess + sandbox de aislamiento.
+  const primitives = {
+    worker: makeRealWorkerCommandPrimitive(),
+    workerIsolation: makeSandboxedIsolationPrimitive(),
+  };
+  const adapter = await createClaudeHostAdapter({ primitives });
+  assert.equal(adapter.capabilities.WorkerTransport, "enforced");
+  assert.equal(adapter.capabilities.WorkerIsolation, "enforced");
+
+  // El transport real del adapter lleva identidad canónica decorada.
+  const material = await getClaudeProofMaterial({ primitives });
+  assert.equal(adapter.transports.WorkerTransport.adapter_id, ADAPTER_ID);
+  assert.equal(
+    adapter.transports.WorkerTransport.probe_digest,
+    material.WorkerTransport.proof.probe_digest
+  );
+
+  const result = await executeWorkOrder({
+    workOrder,
+    workspace,
+    transports: { worker: adapter.transports.WorkerTransport },
+    command: process.execPath,
+    args: ["-e", "require('node:fs').mkdirSync('dist', { recursive: true }); require('node:fs').writeFileSync('dist/generated.txt', 'contained');"],
+    ...buildExecutionOptionsFromMaterial(material),
+  });
+
+  assert.equal(result.ok, true, `execution must succeed: ${result.reason || result.error || ""}`);
+  assert.equal(result.isolationReported, "enforced");
+
+  // La mutación contenida existe dentro del workspace.
+  const generated = path.join(workspace.root_path, "dist", "generated.txt");
+  assert.ok(fs.existsSync(generated), "generated file must exist inside allowed_paths");
+});
+
+test("K2a→K6a Real E2E adversarial: worker sin sandbox nunca alcanza enforced y no ejecuta nada", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-k2a-rogue-"));
+  const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-k2a-rogue-outside-"));
+  const externalTarget = path.join(externalDir, "escape.txt");
+  t.after(() => {
+    try { fs.rmSync(baseDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(externalDir, { recursive: true, force: true }); } catch {}
+  });
+
+  const files = { "src/app.js": "console.log('app');\n" };
+  const snapshot = {
+    schema_version: 1,
+    kind: "source-snapshot/v1",
+    repository_id: "repo-k2a-rogue",
+    base_tree_digest: computeTreeDigest(files),
+    projection: "workspace",
+    dependency_digests: [],
+  };
+  snapshot.source_snapshot_id = computeSourceSnapshotId(snapshot);
+
+  const workOrder = makeCanonicalWorkOrder(snapshot.source_snapshot_id, {
+    node_id: "k2a-rogue-apply",
+    operation: "apply_implementation",
+    ownership: { owner: "agent-k2a", mode: "exclusive" },
+    allowed_paths: ["dist/**"],
+  });
+
+  const workspace = await createWorkspace({ baseDir, source_snapshot_id: snapshot.source_snapshot_id });
+  t.after(() => disposeWorkspace(workspace));
+
+  await materializeSourceSnapshot(workspace, workOrder, snapshot, {
+    capsule_inputs: ["src/app.js"],
+    files,
+  });
+
+  // Worker real + primitiva de aislamiento ADVERSARIAL sin sandbox: el probe
+  // del adapter detecta la fuga física y la capability queda en partial.
+  const primitives = {
+    worker: makeRealWorkerCommandPrimitive(),
+    workerIsolation: makeRogueIsolationPrimitive(),
+  };
+  const adapter = await createClaudeHostAdapter({ primitives });
+  assert.notEqual(adapter.capabilities.WorkerIsolation, "enforced");
+  assert.equal(adapter.capabilities.WorkerIsolation, "partial");
+
+  const material = await getClaudeProofMaterial({ primitives });
+  assert.equal(material.WorkerIsolation.expectedProbeDigest, undefined);
+
+  // Intento de escritura fuera del workspace root. Sin prueba canónica de
+  // aislamiento, executeWorkOrder debe fallar ANTES de ejecutar cualquier cosa.
+  const options = buildExecutionOptionsFromMaterial({
+    WorkerTransport: material.WorkerTransport,
+    // Sin material verificado de WorkerIsolation (probe adversarial falló).
+    WorkerIsolation: null,
+  });
+
+  const result = await executeWorkOrder({
+    workOrder,
+    workspace,
+    transports: { worker: adapter.transports.WorkerTransport },
+    command: process.execPath,
+    args: ["-e", `require('node:fs').writeFileSync(${JSON.stringify(externalTarget)}, 'escaped');`],
+    ...options,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "containment-proof-required");
+  assert.equal(result.isolationReported, "unavailable");
+  assert.equal(fs.existsSync(externalTarget), false, "external write must never be attempted without isolation proof");
+});

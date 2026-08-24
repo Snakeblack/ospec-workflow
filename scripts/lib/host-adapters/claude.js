@@ -2,6 +2,7 @@
 
 const path = require("node:path");
 const fs = require("node:fs");
+const os = require("node:os");
 const { createHostAdapter, invokeTransportAsync } = require("../host-contract/index.js");
 const {
   createEvidenceDigest,
@@ -21,6 +22,7 @@ const TRANSPORT_CAPABILITIES = Object.freeze([
   "ExecutionTransport",
   "QuestionTransport",
   "WorkerTransport",
+  "WorkerIsolation",
   "ToolExecutionTransport",
   "DeliveryGateTransport",
 ]);
@@ -32,6 +34,7 @@ const PRIMITIVE_FOR_CAPABILITY = Object.freeze({
   ExecutionTransport: "execute",
   QuestionTransport: "askUserQuestion",
   WorkerTransport: "worker",
+  WorkerIsolation: "workerIsolation",
   ToolExecutionTransport: "tool",
   DeliveryGateTransport: "hooksObserve",
 });
@@ -40,6 +43,7 @@ const PROBE_CHALLENGES = Object.freeze({
   ExecutionTransport: Object.freeze({ probe: true, capability: "ExecutionTransport" }),
   QuestionTransport: Object.freeze({ prompt: "probe?", probe: true }),
   WorkerTransport: Object.freeze({ probe: true, parallel: true }),
+  WorkerIsolation: Object.freeze({ probe: true, isolation: true }),
   ToolExecutionTransport: Object.freeze({ probe: true, tool: "probe" }),
   DeliveryGateTransport: Object.freeze({ probe: true, hook: "Stop" }),
 });
@@ -61,6 +65,7 @@ function fixtureMap(capabilityId) {
     ExecutionTransport: "execution-transport.json",
     QuestionTransport: "question-transport.json",
     WorkerTransport: "worker-transport.json",
+    WorkerIsolation: "worker-isolation.json",
     ToolExecutionTransport: "tool-execution-transport.json",
     DeliveryGateTransport: "delivery-gate-transport.json",
   };
@@ -83,6 +88,7 @@ const ORACLE_REASON = Object.freeze({
   QUESTION_NOT_ANSWERED: "oracle-question-not-answered",
   MISSING_CORRELATION_ID: "oracle-missing-correlation-id",
   MISSING_WORKER_ID: "oracle-missing-worker-id",
+  CONTAINMENT_NOT_DEMONSTRATED: "oracle-containment-not-demonstrated",
   MISSING_TOOL_IDENTITY: "oracle-missing-tool-identity",
   DELIVERY_AUTHORIZATION_CLAIMED: "oracle-delivery-authorization-claimed",
 });
@@ -107,6 +113,19 @@ const CAPABILITY_ORACLES = Object.freeze({
     return nonEmptyString(value.worker_id)
       ? { ok: true }
       : { ok: false, reason_code: ORACLE_REASON.MISSING_WORKER_ID };
+  },
+  // La contención solo se acepta si el host la observó: un payload declarativo
+  // del propio worker nunca demuestra aislamiento (transport ≠ isolation).
+  WorkerIsolation(value) {
+    const containment = value && value.containment;
+    const contained =
+      isRecord(containment) &&
+      containment.allowed_write === "PASS" &&
+      containment.undeclared_workspace_write === "BLOCKED" &&
+      containment.external_root_write === "BLOCKED";
+    return contained && value.host_observed === true
+      ? { ok: true }
+      : { ok: false, reason_code: ORACLE_REASON.CONTAINMENT_NOT_DEMONSTRATED };
   },
   ToolExecutionTransport(value) {
     return nonEmptyString(value.tool)
@@ -261,6 +280,17 @@ function buildTransports(primitives) {
       }
       return { ok: true, outcome: "ok", value: { delegation: "Agent" } };
     }),
+    WorkerIsolation: makePort("claude-worker-isolation", async (input) => {
+      if (typeof primitives.workerIsolation === "function") {
+        return settlePrimitiveOutcome(primitives.workerIsolation(input));
+      }
+      // Sin primitiva de aislamiento no hay demostración posible: fallo honesto.
+      return {
+        ok: false,
+        outcome: "error",
+        value: { reason: "no-worker-isolation-primitive" },
+      };
+    }),
     ToolExecutionTransport: makePort("claude-tool", async (input) => {
       if (typeof primitives.tool === "function") {
         return settlePrimitiveOutcome(primitives.tool(input));
@@ -317,6 +347,85 @@ async function executeLiveProbe(port, capabilityId) {
 }
 
 /**
+ * Ejecuta una prueba REAL de contención de filesystem con observación del host.
+ *
+ * El protocolo crea un workspace temporal con un subdirectorio `allowed/` y un
+ * directorio externo hermano (fuera de la raíz del workspace). El worker recibe
+ * tres intentos de escritura y debe honrar su frontera de sandbox; la autoridad
+ * de la observación es siempre del HOST, que comprueba la existencia real de
+ * los ficheros — nunca una declaración del propio worker:
+ *
+ *   write en ruta permitida (allowed/)              → PASS requerido
+ *   write en ruta no declarada dentro del workspace → BLOCKED requerido
+ *   write fuera de la raíz del workspace            → BLOCKED requerido
+ *
+ * @param {object} port puerto WorkerIsolation del adapter
+ * @returns {Promise<{ok:boolean, reason_code?:string, probe?:object}>}
+ */
+async function executeWorkerIsolationProbe(port) {
+  const externalRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-iso-external-"));
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-iso-ws-"));
+  try {
+    const allowedDir = path.join(workspaceRoot, "allowed");
+    fs.mkdirSync(allowedDir, { recursive: true });
+    const attempts = [
+      { id: "allowed_write", path: path.join(allowedDir, "probe-allowed.txt"), content: "probe" },
+      { id: "undeclared_workspace_write", path: path.join(workspaceRoot, "undeclared.txt"), content: "probe" },
+      { id: "external_root_write", path: path.join(externalRoot, "escape.txt"), content: "probe" },
+    ];
+
+    const outcome = await invokeTransportAsync(port, {
+      requestId: "probe:WorkerIsolation",
+      input: {
+        probe: true,
+        isolation: true,
+        workspace_root: workspaceRoot,
+        attempts,
+      },
+    });
+    if (!outcome || outcome.ok !== true) {
+      return { ok: false, reason_code: ORACLE_REASON.PROBE_NOT_OK };
+    }
+
+    // Observación autoritativa del host: existencia real de los ficheros.
+    const containment = {
+      allowed_write: fs.existsSync(attempts[0].path) ? "PASS" : "FAIL",
+      undeclared_workspace_write: fs.existsSync(attempts[1].path) ? "LEAKED" : "BLOCKED",
+      external_root_write: fs.existsSync(attempts[2].path) ? "LEAKED" : "BLOCKED",
+    };
+    const contained =
+      containment.allowed_write === "PASS" &&
+      containment.undeclared_workspace_write === "BLOCKED" &&
+      containment.external_root_write === "BLOCKED";
+
+    if (!contained) {
+      return {
+        ok: false,
+        reason_code: ORACLE_REASON.CONTAINMENT_NOT_DEMONSTRATED,
+        probe: { capability_id: "WorkerIsolation", observed: true, host_observed: true, containment },
+      };
+    }
+
+    const probe = {
+      capability_id: "WorkerIsolation",
+      observed: true,
+      host_observed: true,
+      outcome: outcome.outcome || "ok",
+      semantic_oracle: "pass",
+      containment,
+      value_digest: sha256Fingerprint("probe:observation-value", {
+        value: outcome.value === undefined ? null : outcome.value,
+      }),
+      requestId: outcome.requestId || "probe:WorkerIsolation",
+    };
+    return { ok: true, probe };
+  } finally {
+    try { fs.rmSync(workspaceRoot, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(externalRoot, { recursive: true, force: true }); } catch {}
+  }
+}
+
+/**
  * Compose Claude HostAdapter from target profile + injected host primitives.
  *
  * `enforced` requires ALL of: (1) a real host primitive, (2) a successfully
@@ -345,7 +454,10 @@ async function createClaudeHostAdapter(options = {}) {
 
     // Probe failure or an unmet semantic oracle both stop at partial: the
     // primitive exists but the capability was never demonstrated.
-    const observation = await executeLiveProbe(transports[id], id);
+    const observation =
+      id === "WorkerIsolation"
+        ? await executeWorkerIsolationProbe(transports[id])
+        : await executeLiveProbe(transports[id], id);
     if (!observation.ok) {
       capabilities[id] = "partial";
       continue;
@@ -353,6 +465,26 @@ async function createClaudeHostAdapter(options = {}) {
 
     const expectedProbeDigest = independentExpectedProbeDigest(id, observation.probe);
     const material = buildEvidence(id, observation.probe);
+    if (id === "WorkerIsolation") {
+      // La evidencia verificada es la observación VIVA del host, no el fixture:
+      // así el mismo objeto que pasa verificación de digest es el que K6a lee
+      // para extraer la contención demostrada (sin propiedades ad-hoc).
+      material.evidence = {
+        surface: "worker-isolation",
+        host_observed: true,
+        containment: observation.probe.containment,
+      };
+      material.proof = {
+        ...material.proof,
+        evidence_digest: createEvidenceDigest({
+          capability_id: id,
+          adapter_version: ADAPTER_VERSION,
+          host_version: HOST_VERSION,
+          fixture: material.fixture,
+          evidence: material.evidence,
+        }),
+      };
+    }
     const verification = verifyCapabilityProof({
       capabilityId: id,
       expectedAdapterId: ADAPTER_ID,
@@ -369,6 +501,18 @@ async function createClaudeHostAdapter(options = {}) {
         expectedProbeDigest,
         observation: observation.probe,
       };
+    }
+  }
+
+  // Identidad canónica del adapter sobre los transports verificados: permite a
+  // K6a casar transport ↔ CapabilityProof sin mocks intermedios (integración
+  // K2a real → K6a). Los transports no verificados quedan sin identidad.
+  for (const id of TRANSPORT_CAPABILITIES) {
+    const obs = probeObservations[id];
+    if (obs && obs.proof) {
+      transports[id].adapter_id = ADAPTER_ID;
+      transports[id].capability_id = id;
+      transports[id].probe_digest = obs.proof.probe_digest;
     }
   }
 
@@ -476,6 +620,7 @@ module.exports = {
   verifyAllClaudeEnforcedProofs,
   buildEvidence,
   executeLiveProbe,
+  executeWorkerIsolationProbe,
   getProbeObservations,
   invokeTransportAsync,
 };

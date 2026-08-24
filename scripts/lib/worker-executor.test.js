@@ -57,14 +57,54 @@ function makeCanonicalWorkOrder(sourceSnapshotId = DUMMY_SNAPSHOT_ID, overrides 
   };
 }
 
-function makeEnforcedProof(adapterId = "adapter-test", containmentOverrides = {}) {
+function makeIsolationProof(adapterId = "adapter-test", containmentOverrides = {}) {
   const containment = {
     allowed_write: "PASS",
     undeclared_workspace_write: "BLOCKED",
     external_root_write: "BLOCKED",
     ...containmentOverrides,
   };
-  const evidence = { surface: "worker", headless: true, containment };
+  const semantic_evidence = { surface: "worker-isolation", host_observed: true, containment };
+  const fixture = "fixtures/WorkerIsolation.json";
+  const evidence_digest = createEvidenceDigest({
+    capability_id: "WorkerIsolation",
+    adapter_version: "1.0.0",
+    host_version: "1.0.0",
+    fixture,
+    evidence: semantic_evidence,
+  });
+  const probe_digest = createProbeDigest({
+    capability_id: "WorkerIsolation",
+    adapter_id: adapterId,
+    adapter_version: "1.0.0",
+    host_version: "1.0.0",
+    probe: { surface: "live", ok: true, host_observed: true, containment },
+  });
+  // Prueba canónica capability-proof/v1: la contención vive en la evidencia y
+  // en el probe (ligados por digest), nunca como propiedad ad-hoc del proof.
+  const capabilityProof = {
+    schema_version: 1,
+    kind: "capability-proof/v1",
+    adapter_id: adapterId,
+    adapter_version: "1.0.0",
+    host_version: "1.0.0",
+    fixture,
+    evidence_digest,
+    probe_digest,
+  };
+  return {
+    declared_state: "enforced",
+    capabilityProof,
+    semantic_evidence,
+    expectedAdapterId: adapterId,
+    expectedAdapterVersion: "1.0.0",
+    expectedHostRuntimeVersion: "1.0.0",
+    expectedProbeDigest: probe_digest,
+  };
+}
+
+function makeEnforcedProof(adapterId = "adapter-test", containmentOverrides = {}) {
+  const evidence = { surface: "worker", headless: true };
   const fixture = "fixtures/WorkerTransport.json";
   const evidence_digest = createEvidenceDigest({
     capability_id: "WorkerTransport",
@@ -78,7 +118,7 @@ function makeEnforcedProof(adapterId = "adapter-test", containmentOverrides = {}
     adapter_id: adapterId,
     adapter_version: "1.0.0",
     host_version: "1.0.0",
-    probe: { surface: "live", ok: true, containment },
+    probe: { surface: "live", ok: true },
   });
   const capabilityProof = {
     schema_version: 1,
@@ -89,7 +129,6 @@ function makeEnforcedProof(adapterId = "adapter-test", containmentOverrides = {}
     fixture,
     evidence_digest,
     probe_digest,
-    containment,
   };
   return {
     isolationCapability: "enforced",
@@ -100,6 +139,7 @@ function makeEnforcedProof(adapterId = "adapter-test", containmentOverrides = {}
     expectedHostRuntimeVersion: "1.0.0",
     expectedProbeDigest: probe_digest,
     probe_digest,
+    workerIsolation: makeIsolationProof(adapterId, containmentOverrides),
   };
 }
 
@@ -443,6 +483,89 @@ test("executeWorkOrder: enforces capability proof before reporting enforced isol
   });
   assert.equal(resBrokenContainment.ok, false);
   assert.equal(resBrokenContainment.reason, "containment-probe-unfulfilled");
+});
+
+test("executeWorkOrder: enforced WorkerTransport WITHOUT WorkerIsolation proof fails closed (containment-proof-required)", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-exec-iso-required-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  t.after(() => disposeWorkspace(ws));
+
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
+    operation: "verify",
+    ownership: { owner: "agent-test", mode: "shared" },
+    allowed_paths: ["**"],
+  });
+
+  const { workerIsolation: _omitted, ...transportOnlyProof } = makeEnforcedProof("adapter-test");
+  const mockTransport = {
+    port_id: "port-no-isolation",
+    kind: "worker-transport",
+    adapter_id: "adapter-test",
+    probe_digest: transportOnlyProof.probe_digest,
+    run: async () => ({ ok: true, exit_code: 0, stdout: "must not run", stderr: "" }),
+  };
+
+  const result = await executeWorkOrder({
+    workOrder,
+    workspace: ws,
+    transports: { worker: mockTransport },
+    command: "runner",
+    ...transportOnlyProof,
+  });
+
+  assert.equal(result.ok, false, "Legacy fallback without isolation proof must not reach enforced");
+  assert.equal(result.reason, "containment-proof-required");
+  assert.equal(result.isolationReported, "unavailable");
+});
+
+test("executeWorkOrder: tampered WorkerIsolation evidence fails verification (worker-isolation-proof-invalid)", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-exec-iso-tamper-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  t.after(() => disposeWorkspace(ws));
+
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
+    operation: "verify",
+    ownership: { owner: "agent-test", mode: "shared" },
+    allowed_paths: ["**"],
+  });
+
+  const enforcedProof = makeEnforcedProof("adapter-test");
+  // Evidencia manipulada tras emitir el proof: el digest deja de cuadrar.
+  const tamperedIsolation = {
+    ...enforcedProof.workerIsolation,
+    semantic_evidence: {
+      ...enforcedProof.workerIsolation.semantic_evidence,
+      containment: {
+        allowed_write: "PASS",
+        undeclared_workspace_write: "BLOCKED",
+        external_root_write: "LEAKED",
+      },
+    },
+  };
+  const mockTransport = {
+    port_id: "port-tampered-iso",
+    kind: "worker-transport",
+    adapter_id: "adapter-test",
+    probe_digest: enforcedProof.probe_digest,
+    run: async () => ({ ok: true, exit_code: 0, stdout: "must not run", stderr: "" }),
+  };
+
+  const result = await executeWorkOrder({
+    workOrder,
+    workspace: ws,
+    transports: { worker: mockTransport },
+    command: "runner",
+    ...enforcedProof,
+    workerIsolation: tamperedIsolation,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "worker-isolation-proof-invalid");
+  assert.equal(result.isolationReported, "unavailable");
 });
 
 test("executeWorkOrder: fails closed when workspace is not registered in private registry", async (t) => {

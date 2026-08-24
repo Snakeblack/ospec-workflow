@@ -1,0 +1,15 @@
+{
+  "capability": "WorkerIsolation",
+  "profile": "claude",
+  "mapping": {
+    "Agent": "WorkerIsolation"
+  },
+  "semantic": {
+    "host_observed_containment": true,
+    "containment_probe": {
+      "allowed_write": "PASS",
+      "undeclared_workspace_write": "BLOCKED",
+      "external_root_write": "BLOCKED"
+    }
+  }
+}

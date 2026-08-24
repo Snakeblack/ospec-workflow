@@ -11,6 +11,9 @@ const { validateInstance, loadSchemaById } = require("./kernel-schema-validator.
 
 const WORK_ORDER_V2_SCHEMA_ID = "ospec://schemas/kernel/work-order/v2";
 const WORK_ORDER_V1_SCHEMA_ID = "ospec://schemas/kernel/work-order/v1";
+// Capability canónica de aislamiento: distinta de WorkerTransport. K6a exige
+// ambas en `enforced` para ejecutar subprocess (can execute AND can contain).
+const ISOLATION_CAPABILITY_ID = "WorkerIsolation";
 const DEFAULT_SCHEMA_ROOT = path.resolve(__dirname, "../..");
 
 let cachedWorkOrderV2Schema = null;
@@ -512,29 +515,60 @@ async function executeWorkOrder(options = {}) {
            transportProbeDigest === options.capabilityProof.probe_digest));
 
       if (matchesProof) {
-        const containment =
-          options.capabilityProof?.containment ||
-          options.capabilityProof?.probe?.containment ||
-          workerTransport?.containment ||
-          workerTransport?.probe?.containment;
+        // REQ-008: la capacidad de transporte no equivale a la capacidad de
+        // aislamiento. Alcanzar `enforced` exige una prueba canónica y
+        // verificada de WorkerIsolation con contención demostrada por el host.
+        const isolationBundle = options.workerIsolation;
+        if (!isolationBundle || typeof isolationBundle !== "object" || Array.isArray(isolationBundle)) {
+          return {
+            ok: false,
+            reason: "containment-proof-required",
+            isolationReported: "unavailable",
+            error: "Enforced WorkerTransport requires a verified WorkerIsolation capability proof; transport capability does not imply filesystem containment",
+          };
+        }
 
-        if (containment) {
-          if (
-            containment.allowed_write === "PASS" &&
-            containment.undeclared_workspace_write === "BLOCKED" &&
-            containment.external_root_write === "BLOCKED"
-          ) {
-            isolationReported = "enforced";
-          } else {
-            return {
-              ok: false,
-              isolationReported: "unavailable",
-              reason: "containment-probe-unfulfilled",
-              error: "Enforced isolation capability requires verified containment probe with allowed_write=PASS, undeclared_workspace_write=BLOCKED, external_root_write=BLOCKED",
-            };
-          }
-        } else {
+        const isoRes = resolveCapabilityState({
+          capability_id: ISOLATION_CAPABILITY_ID,
+          declared_state: isolationBundle.declared_state || "enforced",
+          proof: isolationBundle.capabilityProof,
+          semantic_evidence: isolationBundle.semantic_evidence,
+          expectedAdapterId: isolationBundle.expectedAdapterId,
+          expectedAdapterVersion: isolationBundle.expectedAdapterVersion,
+          expectedHostRuntimeVersion: isolationBundle.expectedHostRuntimeVersion,
+          expectedProbeDigest: isolationBundle.expectedProbeDigest,
+        });
+        if (!isoRes.ok || isoRes.effective_state !== "enforced") {
+          return {
+            ok: false,
+            reason: "worker-isolation-proof-invalid",
+            isolationReported: "unavailable",
+            error: `WorkerIsolation capability proof failed verification (${isoRes.reason_code || "unknown"}); enforced isolation refused`,
+          };
+        }
+
+        const containment = isolationBundle.semantic_evidence?.containment;
+        if (!containment) {
+          return {
+            ok: false,
+            reason: "containment-proof-required",
+            isolationReported: "unavailable",
+            error: "WorkerIsolation semantic evidence must carry host-observed containment results",
+          };
+        }
+        if (
+          containment.allowed_write === "PASS" &&
+          containment.undeclared_workspace_write === "BLOCKED" &&
+          containment.external_root_write === "BLOCKED"
+        ) {
           isolationReported = "enforced";
+        } else {
+          return {
+            ok: false,
+            isolationReported: "unavailable",
+            reason: "containment-probe-unfulfilled",
+            error: "Enforced isolation capability requires verified containment probe with allowed_write=PASS, undeclared_workspace_write=BLOCKED, external_root_write=BLOCKED",
+          };
         }
       } else {
         return {
@@ -931,4 +965,5 @@ module.exports = {
   computeWorkResultId,
   computeMutationDelta,
   generateUnifiedDiff,
+  ISOLATION_CAPABILITY_ID,
 };
