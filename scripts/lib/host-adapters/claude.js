@@ -276,7 +276,10 @@ function buildTransports(primitives) {
     }),
     WorkerTransport: makePort("claude-worker", async (input) => {
       if (typeof primitives.worker === "function") {
-        return settlePrimitiveOutcome(primitives.worker(input));
+        return settlePrimitiveOutcome(primitives.worker(input, { workerIsolation: primitives.workerIsolation }));
+      }
+      if (typeof primitives.workerIsolation === "function" && input && (input.command || input.attempts)) {
+        return settlePrimitiveOutcome(primitives.workerIsolation(input));
       }
       return { ok: true, outcome: "ok", value: { delegation: "Agent" } };
     }),
