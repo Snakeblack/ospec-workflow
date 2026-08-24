@@ -1,0 +1,516 @@
+# Instalacion del plugin de agentes de VS Code
+
+> [🌐 English](./plugin-installation.md) · **Español**
+
+Este repositorio se instala como un VS Code Agent Plugin. No es un flujo de extension de VS Code.
+
+Los Agent Plugins estan en vista previa. Antes de instalar, revisa el contenido del plugin porque puede incluir hooks y servidores MCP que ejecutan codigo localmente.
+
+## Que proporciona este plugin
+
+El repositorio mantiene dos manifiestos sincronizados: `.plugin.json` es el manifiesto canonico para VS Code/direct-load y `.claude-plugin/plugin.json` conserva la forma esperada por la distribucion Claude generada (y es la fuente que lee el generador). Edita siempre el canonico primero; ambos deben coincidir y `scripts/manifest-sync.test.js` lo verifica en CI.
+
+| Area | Fuente | Que proporciona |
+| --- | --- | --- |
+| Agentes | `agents/` | Orquestacion SDD y agentes de fase. |
+| Archivos prompt | `commands/*.prompt.md` | Archivos prompt visibles para el usuario, como `/sdd-new`, `/sdd-apply` y `/sdd-verify`. |
+| Skills | `skills/` | Reglas reutilizables para fases SDD, revisiones, commits, documentacion y flujos relacionados. |
+| Instrucciones | `rules/` | Archivos de instrucciones incluidos en el plugin y generados por el flujo de creacion de plugins de VS Code. |
+| Servidores MCP | `.mcp.json` | Configuracion de los servidores MCP: Context7 (docs de librerias, usa `CONTEXT7_API_KEY`) y MarkItDown (conversion de documentos). |
+| Hooks | `hooks/hooks.json` y `scripts/hooks/` | Scripts locales de Node.js para persistencia de sesion, validacion de uso de herramientas y comprobaciones de artefactos OpenSpec. |
+
+El directorio `.github/instructions/` es solo un espejo del workspace para archivos de instruccion. Las reglas incluidas en el plugin viven en `rules/`.
+
+## Como instalar desde el origen
+
+Usa esta via cuando quieras que VS Code gestione el plugin desde un repositorio fuente.
+
+1. Abre una version de VS Code que soporte la vista previa de Agent Plugins.
+2. Abre el flujo de instalacion de Agent Plugins.
+3. Elige la opcion de instalar desde una URL de repositorio Git.
+4. Introduce la URL del repositorio de este proyecto.
+5. Revisa el manifiesto del plugin, los hooks, la configuracion del servidor MCP y los scripts antes de aceptar la instalacion.
+6. Habilita el plugin cuando VS Code lo pida.
+7. Recarga VS Code si el plugin no aparece de inmediato.
+
+Lista de comprobacion de confianza antes de aceptar:
+
+- Confirma que `.plugin.json` y `.claude-plugin/plugin.json` apuntan solo a los activos esperados del plugin.
+- Revisa `hooks/hooks.json` porque inicia scripts locales de Node.js.
+- Revisa `scripts/hooks/` porque esos scripts se ejecutan en eventos de hook.
+- Revisa `.mcp.json` porque puede iniciar procesos locales para servidores MCP.
+- Confirma que estas comodo proporcionando `CONTEXT7_API_KEY` cuando necesites acceso a MCP.
+
+El soporte de plugins puede estar deshabilitado por la politica de la organizacion. Si la UI de Agent Plugins o los ajustes no aparecen, revisa tu version de VS Code y la configuracion administrada por tu organizacion.
+
+## Como habilitarlo localmente con `chat.pluginLocations`
+
+Usa esta via cuando estes desarrollando o probando este repositorio directamente desde disco en VS Code. Admite dos modalidades:
+
+### Opción A: Sin ruteo de modelos (Uso directo del source)
+1. Clona el repositorio en local.
+2. Abre la configuracion de VS Code en formato JSON.
+3. Agrega la raiz de este repositorio a `chat.pluginLocations`.
+4. Recarga VS Code.
+
+### Opción B: Con ruteo de modelos de `models.yaml` (Recomendado)
+1. Clona el repositorio en local.
+2. Ejecuta el script de configuración automática para VS Code:
+   ```powershell
+   npm run setup:vscode
+   ```
+   *(Esto compila el target VS Code a `dist/vscode` y lo añade automáticamente a `chat.pluginLocations` en tu configuración).*
+3. Si realizas cambios en el código y quieres recargar el plugin, ejecuta:
+   ```powershell
+   npm run reload:vscode
+   ```
+4. Recarga VS Code.
+
+En ambos casos, abre la vista de Agent Plugins y confirma que `ospec-workflow` esta habilitado.
+
+Ejemplo minimo de `settings.json`:
+
+```json
+{
+  "chat.pluginLocations": [
+    "C:\\dev\\Hiberus\\ospec-workflow"
+  ]
+}
+```
+
+Si guardas el repositorio en otra ruta, sustituye el valor por la ruta local de tu clon.
+
+
+## Generar para otros targets con configure
+
+El repositorio usa VS Code Agent Plugin como formato canonico. El target `vscode` es identidad: VS Code puede cargar el repositorio directamente, sin generar `dist/`. Para Claude Code y GitHub Copilot CLI, el generador produce arboles nativos en `dist/` sin modificar el origen.
+
+```powershell
+# Claude Code: carga temporal de una sesion
+node scripts/configure/cli.js --target claude --out dist/claude
+
+# Claude Code: instalacion persistente con marketplace local
+node scripts/configure/claude-marketplace.js
+
+# Codex CLI (construcción local)
+node scripts/configure/cli.js --target codex --out dist/codex
+
+# Codex CLI (instalación global)
+npm run setup:codex
+
+# GitHub Copilot CLI (construcción local)
+node scripts/configure/cli.js --target github-copilot --out dist/github-copilot
+
+# GitHub Copilot CLI (instalación global)
+npm run setup:copilot
+
+# opencode (construcción local)
+node scripts/configure/cli.js --target opencode --out dist/opencode
+
+# opencode (instalación global)
+npm run setup:opencode
+
+# Cursor IDE (construcción local)
+npm run build:cursor
+# equivalente: node scripts/configure/cli.js --target cursor --out dist/cursor
+
+# Cursor IDE (instalación global en ~/.cursor)
+npm run setup:cursor
+
+# Omitir validacion para inspeccion rapida
+node scripts/configure/cli.js --target claude --out dist/claude --no-validate
+```
+
+| Target | Salida | Validacion |
+| --- | --- | --- |
+| `vscode` | Carga directa del repositorio fuente con `.plugin.json`; no genera salida. | `node scripts/check.js` |
+| `claude` | Renombra `*.agent.md`/`*.prompt.md` a `*.md`, reestructura el manifiesto y los hooks, sustituye nombres de herramientas, reescribe variables de comando (`${input}` -> `$ARGUMENTS`; `${input:name}` -> `$name` + `arguments:`), incorpora `rules/` y emite el orquestador como **skill** (`skills/sdd-orchestrator/SKILL.md`). Genera `dist/claude/`, pensado para carga temporal con `claude --plugin-dir`. | `claude plugin validate --strict dist/claude` |
+| `claude-marketplace` | Envuelve el arbol Claude en un marketplace local instalable. Genera `dist/claude-marketplace/.claude-plugin/marketplace.json` y coloca el plugin en `dist/claude-marketplace/plugins/ospec-workflow/`. | `claude plugin validate dist/claude-marketplace` y `claude plugin validate --strict dist/claude-marketplace/plugins/ospec-workflow` |
+| `codex` | Genera `agent.md`, `.codex/agents/*.toml`, `skills/`, runtime `scripts/` y `hooks.json` nativo. `setup:codex` los instala globalmente sin usar plugins ni marketplace. | `scripts/configure/validate-codex.js`, ejecutado por la validacion de perfiles y por `node scripts/check.js`. |
+| `github-copilot` | Genera layout `.github/` con instrucciones, prompts, chatmodes, MCP y runtime de hooks para GitHub Copilot CLI / coding agent. | `scripts/configure/validate-github-copilot.js`, ejecutado por la validacion de perfiles y por `node scripts/check.js`. |
+| `opencode` | Genera layout `.opencode/` (`agents/`, `commands/`, `instructions/`, `plugins/ospec.js`) mas `opencode.json` (schema + `mcp` + `instructions`) para opencode. Renombra el agente principal `sdd-orchestrator` a `ospec-workflow` para su visualización nativa. Sin hooks de shell: el runtime se puentea con un plugin JS. | `scripts/configure/validate-opencode.js`, ejecutado por la validacion de perfiles y por `node scripts/check.js`. |
+| `cursor` | Genera `agents/*.md`, `commands/*.md`, `rules/*.mdc` (incl. `agents-protocol.mdc` desde `AGENTS.md`), `hooks.json` camelCase y runtime. `build:cursor` / `setup:cursor` son el flujo soportado: genera `dist/cursor/` y lo sincroniza en `~/.cursor` expandiendo `__OSPEC_CURSOR_ROOT__`. | `scripts/configure/validate-cursor.js`, ejecutado por la validacion de perfiles y por `node scripts/check.js`. |
+
+Cada arbol generado es **autocontenido**: el generador sigue los `require` desde los hooks e incluye su runtime (`scripts/hooks/` + sus dependencias de `scripts/lib/`), sin tests ni el propio generador.
+
+Validacion local recomendada antes de publicar cambios:
+
+```powershell
+node scripts/check.js
+```
+
+En Claude Code hay dos salidas distintas:
+
+- `dist/claude`: sirve para carga temporal con `--plugin-dir`.
+- `dist/claude-marketplace`: envuelve el plugin Claude en un marketplace local para instalacion persistente entre sesiones.
+
+## Instalar el arbol generado por herramienta
+
+- **VS Code**: usa el repositorio directamente (`chat.pluginLocations`), sin generar.
+- **Claude Code temporal**: genera `dist/claude/` y cárgalo con `claude --plugin-dir dist/claude`. Esta vía solo aplica a la sesión actual.
+- **Claude Code persistente**: genera `dist/claude-marketplace/`, registra ese marketplace local y despues instala `ospec-workflow@ospec-tools`.
+- **GitHub Copilot CLI (Local/Proyecto)**: genera `dist/github-copilot/` y copia su contenido (`.github/`, `.mcp.json` y `scripts/`) en la raiz del repo destino.
+- **GitHub Copilot CLI (Global)**: compila, copia y registra todos los agentes, prompts, instrucciones, hooks y skills en el directorio global del usuario (`~/.copilot/`), fusionando la configuración de MCP en `mcp-config.json` de manera automática y permanente para cualquier proyecto.
+- **Codex CLI (Global)**: compila `dist/codex/`, instala `AGENTS.md`, agentes, skills y runtime en `~/.codex/`, fusiona sus hooks nativos en `~/.codex/hooks.json` y reutiliza MCPs equivalentes o añade únicamente los ausentes mediante `codex mcp`.
+- **Codex CLI (Local/Proyecto)**: `npm run install:codex -- ../mi-proyecto` copia únicamente `.codex/agents/*.toml` a `<repo>/.codex/agents/`; preserva cualquier `config.toml` existente y no copia `.codex-plugin/plugin.json` dentro del repo destino.
+- **opencode (Local/Proyecto)**: genera `dist/opencode/` y copia su contenido (`.opencode/`, `opencode.json`, `skills/` y `scripts/`) en la raiz del repo destino. opencode descubre agentes/comandos/instrucciones bajo `.opencode/` y lee `opencode.json` (MCP + instructions); el plugin `.opencode/plugins/ospec.js` puentea el runtime de hooks.
+- **opencode (Global)**: compila, copia y registra todos los agentes, comandos, instrucciones y plugins en el directorio global del usuario (`~/.config/opencode/`), fusionando la configuración de MCP en `opencode.json` de manera automática y permanente para cualquier proyecto. En ambos casos de opencode, el agente principal es renombrado a `ospec-workflow`.
+- **Cursor IDE (Global)**: `npm run build:cursor` genera `dist/cursor/`; `npm run setup:cursor` valida y sincroniza ese árbol en `~/.cursor`, expandiendo `__OSPEC_CURSOR_ROOT__` en `hooks.json` a la ruta absoluta (con comillas solo si el `$HOME` tiene espacios) y copiando el binario `ospec-hooks` al runtime gestionado.
+
+### Codex CLI
+
+> **Evidencia de instalación real:** consulta
+> [Target Codex: punto de entrada para mantenimiento](codex/README.md) y su
+> [informe de campo](codex/field-report-2026-07-10.md)
+> para los fallos observados con Codex CLI 0.144.1, el contrato vigente de
+> manifiesto/hooks/MCP, la instalación separada de agentes y el smoke test que
+> debe superar `codex-target-phase-2`.
+
+#### Instalación global nativa
+
+```powershell
+npm run setup:codex
+```
+
+Este instalador:
+1. Compila y valida `dist/codex/`.
+2. Copia el runtime autocontenido a `~/.codex/ospec-workflow/` y sincroniza las skills de los agentes en `~/.agents/skills/` por contenido.
+3. Fusiona los cinco eventos de OSpec en `~/.codex/hooks.json`, conservando hooks ajenos.
+4. Ejecuta `codex mcp list --json`; deduplica por `command` + `args`, conserva colisiones de nombre y añade solo los servidores ausentes con IDs válidos.
+5. No instala ni registra un plugin o marketplace de Codex.
+
+#### Instalación local por repositorio
+
+```powershell
+npm run install:codex -- ../mi-proyecto
+```
+
+Esta variante escribe solo:
+
+```text
+<repo>/.codex/agents/*.toml
+```
+
+Sin flags adicionales, el instalador no crea ni modifica `.codex/config.toml`. Si Codex rechaza la clave heredada exacta `service_tier = "default"`, la instalación global ofrece una reparación explícita:
+
+```powershell
+npm run setup:codex:repair
+```
+
+En Windows PowerShell, este script dedicado evita depender del forwarding de flags de npm. Si necesitas invocar el instalador directamente, usa `node scripts/configure/install-codex.js --repair-config`; para previsualizar sin escribir, usa `node scripts/configure/install-codex.js --dry-run --repair-config`.
+
+La reparación elimina solo esa asignación top-level, preserva BOM, saltos de línea, comentarios y el modo del resto del archivo, y crea un backup único byte a byte. La escritura se publica de forma transaccional y se valida con el CLI de Codex; ante un fallo de escritura, rename o validación se ejecuta rollback al original y se conserva evidencia recuperable. Otras claves no compatibles quedan intactas y producen un diagnóstico. `auth.json`, otras claves y los MCP propiedad del usuario quedan fuera de alcance. La variante local con `<repo>` rechaza el flag y nunca muta configuración global.
+
+### Claude Code: prueba temporal de una sesion
+
+Usa esta via para validar el plugin generado sin tocar la configuracion global de Claude Code:
+
+```powershell
+node scripts/configure/cli.js --target claude --out dist/claude
+claude plugin validate --strict dist/claude
+claude --plugin-dir dist/claude
+```
+
+Verificacion dentro de Claude Code:
+
+```text
+/plugin
+/sdd-new
+/sdd-verify
+```
+
+Resultado esperado:
+
+- `ospec-workflow` aparece habilitado durante esa sesion.
+- Los comandos `/sdd-new`, `/sdd-lite`, `/sdd-continue`, `/sdd-apply`, `/sdd-verify` y `/sdd-archive` estan disponibles.
+- El orquestador aparece como skill namespaced del plugin.
+
+### Claude Code: instalacion persistente con marketplace local
+
+Usa esta via cuando quieras que Claude Code recuerde el plugin entre sesiones.
+
+Primero genera el marketplace local:
+
+```powershell
+node scripts/configure/claude-marketplace.js
+```
+
+Valida el marketplace y el plugin incluido:
+
+```powershell
+claude plugin validate dist/claude-marketplace
+claude plugin validate --strict dist/claude-marketplace/plugins/ospec-workflow
+```
+
+Añade el marketplace con una ruta local explicita:
+
+```powershell
+$marketplace = (Resolve-Path ".\dist\claude-marketplace").ProviderPath
+claude plugin marketplace add "$marketplace" --scope user
+```
+
+Instala el plugin desde ese marketplace:
+
+```powershell
+claude plugin install ospec-workflow@ospec-tools
+```
+
+Abre Claude Code normalmente:
+
+```powershell
+claude
+```
+
+Verifica dentro de la sesion:
+
+```text
+/plugin
+/reload-plugins
+```
+
+Resultado esperado:
+
+- El marketplace `ospec-tools` aparece registrado.
+- El plugin `ospec-workflow@ospec-tools` aparece instalado y habilitado.
+- Los comandos SDD y el skill del orquestador estan disponibles sin usar `--plugin-dir`.
+
+#### Nota para PowerShell
+
+No uses esta forma:
+
+```powershell
+claude plugin marketplace add dist/claude-marketplace --scope user
+```
+
+En Windows/PowerShell puede interpretarse como un origen Git/GitHub en lugar de como una ruta local, provocando errores de clonacion SSH como:
+
+```text
+Failed to clone marketplace repository
+SSH host key is not in your known_hosts file
+```
+
+Usa una ruta local explicita:
+
+```powershell
+claude plugin marketplace add .\dist\claude-marketplace --scope user
+```
+
+O, preferiblemente:
+
+```powershell
+$marketplace = (Resolve-Path ".\dist\claude-marketplace").ProviderPath
+claude plugin marketplace add "$marketplace" --scope user
+```
+
+La estructura esperada del marketplace generado es:
+
+```text
+dist/claude-marketplace/
+  .claude-plugin/
+    marketplace.json
+  plugins/
+    ospec-workflow/
+      .claude-plugin/
+        plugin.json
+      agents/
+      commands/
+      skills/
+      hooks/
+      scripts/
+      .mcp.json
+```
+
+### GitHub Copilot CLI / coding agent
+
+El target `github-copilot` admite dos modalidades de instalación: local (por proyecto) y global (para toda la máquina del usuario).
+
+#### Instalación local (por proyecto)
+
+Genera el árbol nativo:
+
+```powershell
+node scripts/configure/cli.js --target github-copilot --out dist/github-copilot
+```
+
+Copia el contenido generado en la raíz del repositorio destino:
+
+```text
+dist/github-copilot/
+  .github/
+  .mcp.json
+  scripts/
+```
+
+O usa el instalador directo de targets:
+
+```powershell
+npm run install:copilot -- ../mi-proyecto
+```
+
+Verifica que los archivos `.github/` generados quedan en la raíz del repo destino y que los scripts de hooks viajan junto al runtime necesario.
+
+#### Instalación global (para cualquier proyecto)
+
+Instala el plugin de forma permanente a nivel de usuario:
+
+```powershell
+npm run setup:copilot
+```
+
+*(Si realizas modificaciones y necesitas actualizar la instalación global, puedes re-ejecutar `npm run reload:copilot` o `npm run setup:copilot` indistintamente).*
+
+Este instalador idempotente realiza los siguientes pasos:
+1. Compila el target `github-copilot` en `dist/github-copilot/`.
+2. Copia el binario compiler hook `ospec-hooks` apropiado para la arquitectura en `scripts/hooks/` (si existe).
+3. Copia todas las carpetas generadas (`agents/`, `prompts/`, `instructions/`, `hooks/`, `skills/`, y `scripts/`) al directorio global de configuración de Copilot CLI:
+   - **Windows**: `C:\Users\<Usuario>\.copilot\`
+   - **Linux/macOS**: `~/.copilot/`
+4. Fusiona dinámicamente las configuraciones de servidores MCP de `.mcp.json` con el archivo `mcp-config.json` global de Copilot.
+
+### Codex CLI
+
+El target `codex` permite dos modalidades de instalación: local (por proyecto) y global (para toda la máquina del usuario).
+
+#### Instalación local (por proyecto)
+
+Construye y sincroniza los agentes TOML directamente en la raíz de tu proyecto de destino:
+
+```powershell
+npm run install:codex -- ../mi-proyecto
+```
+
+Esto copiará los agentes TOML en `.codex/agents/` y no modifica `.codex/config.toml` del proyecto.
+
+#### Instalación global (para cualquier proyecto)
+
+Instala la configuración nativa de Codex de forma permanente a nivel de usuario:
+
+```powershell
+npm run setup:codex
+```
+
+*(Para actualizarla, vuelve a ejecutar `npm run setup:codex`.)*
+
+Este instalador idempotente realiza los siguientes pasos:
+1. Compila el target `codex` en `dist/codex/`.
+2. Copia `AGENTS.md`, todos los agentes TOML, las skills y el runtime de hooks al directorio global de Codex:
+   - **Windows**: `C:\Users\<Usuario>\.codex\agents\`
+   - **Linux/macOS**: `~/.codex/agents/`
+3. Fusiona los hooks nativos de OSpec en `~/.codex/hooks.json` sin sobrescribir hooks ajenos.
+4. Registra Context7 y MarkItDown una sola vez mediante el CLI nativo de Codex, sin sobrescribir entradas preexistentes.
+5. No instala ni registra plugins o marketplaces de Codex.
+
+### opencode
+
+El target `opencode` permite dos modalidades de instalación: local (por proyecto) y global (para toda la máquina del usuario). En ambas modalidades, el agente principal `sdd-orchestrator` se renombra automáticamente a `ospec-workflow` para integrarse con la interfaz de OpenCode y permitir el autocompletado con la tecla Tab.
+
+#### Instalación local (por proyecto)
+
+Construye y sincroniza la carpeta del plugin directamente en la raíz de tu proyecto de destino:
+
+```powershell
+npm run install:opencode -- ../mi-proyecto
+```
+
+Esto copiará el árbol `.opencode/`, `opencode.json`, `skills/` y `scripts/` (incluyendo los scripts de los hooks y el binario compiler hook `ospec-hooks.exe` o `ospec-hooks` si estuviera compilado en `release/dist/`).
+
+#### Instalación global (para cualquier proyecto)
+
+Instala el plugin de forma permanente a nivel de usuario:
+
+```powershell
+npm run setup:opencode
+```
+
+*(Si realizas modificaciones y necesitas actualizar la instalación global, puedes re-ejecutar `npm run reload:opencode` o `npm run setup:opencode` indistintamente).*
+
+Este instalador idempotente realiza los siguientes pasos:
+1. Compila el target `opencode` en `dist/opencode/`.
+2. Copia el binario compiler hook `ospec-hooks` apropiado para la arquitectura en `release/dist/` (si existe).
+3. Copia todas las carpetas generadas (`agents/`, `commands/`, `instructions/`, `plugins/`, `skills/`, `scripts/`, y `release/`) al directorio global de configuración de OpenCode:
+   - **Windows**: `C:\Users\<Usuario>\.config\opencode\`
+   - **Linux/macOS**: `~/.config/opencode/`
+4. Fusiona dinámicamente las configuraciones del archivo `opencode.json` (incluyendo servidores MCP como `context7` y `markitdown`) con el archivo `opencode.json` global ya existente, y añade el patrón global `instructions/*.md` para registrar las instrucciones.
+
+El plugin resuelve `ospec-hooks` primero desde `release/dist/` junto a la instalación global, después desde el layout local del proyecto y solo como último recurso desde `PATH`. No hace falta añadir el directorio del binario a `PATH` para una instalación gestionada.
+
+Esto permite que `ospec-workflow` y todos sus comandos/skills estén disponibles al presionar **Tab** en cualquier repositorio abierto en OpenCode.
+
+### Cursor IDE
+
+El target `cursor` instala de forma nativa en el home global de Cursor (`~/.cursor`). No hay instalación repo-local `.cursor/` en este cambio.
+
+```powershell
+npm run build:cursor
+npm run setup:cursor
+```
+
+*(Para actualizar, vuelve a ejecutar `npm run setup:cursor` o `npm run reload:cursor`.)*
+
+Este instalador idempotente:
+1. Compila y valida `dist/cursor/` con `runConfigure({ target: "cursor", validate: true })`.
+2. Aplica `assertCursorPathSafe` sobre `~/.cursor` (permite `$HOME/.cursor`; rechaza raíz del FS, symlinks y escapes canónicos).
+3. Sincroniza el árbol generado por comparación de contenido (preserva archivos de usuario ajenos).
+4. Escribe `hooks.json` con `__OSPEC_CURSOR_ROOT__` ya expandido a la ruta absoluta en slashes POSIX (comillas solo si el path tiene espacios).
+5. Copia el binario `ospec-hooks` a `~/.cursor/scripts/hooks/` cuando existe en `release/dist/`.
+6. `--dry-run` valida y no escribe nada bajo `~/.cursor`.
+
+## Como verificar que cargaron los agentes y los skills
+
+Empieza por los puntos de entrada visibles y luego inspecciona mas detalle solo si falta algo.
+
+| Entorno | Comprobacion |
+| --- | --- |
+| VS Code | El plugin aparece en la vista de Agent Plugins y expone los comandos/chatmodes esperados. |
+| Claude Code temporal | Al lanzar con `claude --plugin-dir dist/claude`, `ospec-workflow` aparece en `/plugin` durante esa sesion. |
+| Claude Code persistente | Al instalar desde `ospec-workflow@ospec-tools`, el plugin aparece en `/plugin` sin usar `--plugin-dir`. |
+| GitHub Copilot CLI (Local) | El repo destino contiene `.github/`, `.mcp.json` y `scripts/` generados. |
+| GitHub Copilot CLI (Global) | La carpeta global (`~/.copilot/`) contiene `agents/`, `prompts/`, `instructions/`, `hooks/`, `skills/` y `scripts/` copiados, y `mcp-config.json` tiene la configuración fusionada. |
+| opencode (Local) | El repo destino contiene `.opencode/`, `opencode.json`, `skills/` y `scripts/`. Al presionar Tab o escribir su nombre, el agente `ospec-workflow` aparece en la interfaz. |
+| opencode (Global) | La carpeta global (`~/.config/opencode/`) contiene `agents/`, `commands/`, `instructions/`, `plugins/`, `skills/` y `scripts/`, y `opencode.json` tiene la configuración fusionada. En cualquier repo, al presionar Tab, el agente `ospec-workflow` aparece en la interfaz. |
+| Cursor IDE (Global) | `~/.cursor/` contiene `agents/`, `commands/`, `rules/*.mdc`, `hooks.json` (sin `__OSPEC_CURSOR_ROOT__` sin expandir), `skills/` y `scripts/`. |
+
+En Claude Code, si algo no aparece despues de instalar el plugin persistente, ejecuta:
+
+```text
+/reload-plugins
+```
+
+Y vuelve a revisar:
+
+```text
+/plugin
+```
+
+## Solucion de problemas
+
+| Sintoma | Causa probable | Que revisar |
+| --- | --- | --- |
+| Faltan la UI de Agent Plugins | La vista previa de Agent Plugins no esta disponible o la politica la deshabilita. | Confirma que tu version de VS Code soporta Agent Plugins y revisa la politica de tu organizacion. |
+| El plugin no aparece desde `chat.pluginLocations` | La ruta apunta a la carpeta equivocada o VS Code no se ha recargado. | Apunta a la raiz del repositorio que contiene `.plugin.json` y luego recarga VS Code. |
+| Faltan los archivos prompt | El plugin esta deshabilitado o no se cargaron los activos prompt. | Confirma que `.plugin.json` referencia `commands/` y que el plugin esta habilitado. |
+| Falta `sdd-orchestrator` | No se cargaron los activos de agentes. | Confirma que `.plugin.json` referencia `agents/` y que la vista de Agent Plugins no muestra errores. |
+| Los skills parecen no estar disponibles | No se cargaron los activos de skills o la peticion no activo un skill. | Confirma que `.plugin.json` referencia `skills/` y vuelve a probar con una peticion SDD. |
+| Falta el servidor MCP | MCP esta deshabilitado, bloqueado por la politica o no esta disponible en la version actual. | Revisa los ajustes de MCP/herramientas, la politica de la organizacion, Node.js/`npx` (Context7) y `uv`/`uvx` (MarkItDown). |
+| Context7 pide una clave | Hace falta `CONTEXT7_API_KEY`. | Proporcionala desde el prompt de VS Code cuando confies en la ejecucion del servidor. |
+| Falla la ejecucion del hook | Problema con Node.js, resolucion de rutas o politica de scripts. | Confirma que Node.js esta en `PATH`, revisa `hooks/hooks.json`, la resolucion de `${PLUGIN_ROOT}` y los scripts de `scripts/hooks/`. |
+| No deben ejecutarse hooks | No se permite ejecucion local de codigo en este entorno. | Desactiva el plugin o usa una copia local sin hooks. |
+
+## Politica de versionado
+
+Trata la version del manifiesto del plugin como la version del paquete instalado.
+
+| Tipo de cambio | Guia de version | Ejemplos |
+| --- | --- | --- |
+| Patch | Correcciones o docs que no cambian el comportamiento del plugin. | Aclarar la instalacion, corregir erratas, mejorar la solucion de problemas. |
+| Minor | Cambios de capacidad del plugin compatibles hacia atras. | Agregar un comando, agregar un skill, agregar un hook nuevo con valores seguros por defecto, actualizar la configuracion MCP sin romper el uso existente. |
+| Major | Cambios que rompen el comportamiento o la superficie de confianza. | Renombrar comandos, eliminar agentes, cambiar entradas MCP requeridas, sustituir el comportamiento de hooks o cambiar contratos de fases SDD de forma incompatible. |
+
+Flujo de actualizacion para usuarios ya instalados:
+
+1. Revisa el changelog o el diff antes de actualizar, especialmente si cambian `.plugin.json`, `.claude-plugin/plugin.json`, `.mcp.json`, `hooks/hooks.json` o `scripts/hooks/`.
+2. Haz pull o reinstala desde la URL del repositorio Git.
+3. Recarga VS Code.
+4. Vuelve a ejecutar las comprobaciones de agente, comandos, MCP y hooks de este documento.
+
+Cuando una version cambie hooks o servidores MCP, indicalo de forma explicita porque cambia la superficie local de ejecucion y confianza.

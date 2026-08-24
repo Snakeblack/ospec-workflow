@@ -1,75 +1,75 @@
-# Metodologia SDD
+# SDD Methodology
 
-Spec-Driven Development (SDD) es la capa de disciplina que este plugin pone delante de la implementacion. La idea es simple: antes de tocar codigo, el equipo acuerda el comportamiento esperado, el enfoque tecnico, las tareas y la forma de verificarlo.
+Spec-Driven Development (SDD) is the discipline layer this plugin puts in front of implementation. The idea is simple: before touching code, the team agrees on the expected behavior, the technical approach, the tasks, and how to verify it.
 
-Esto no va de ir mas lento. Va de no construir a ciegas. La inmediatez sin contrato parece productividad durante diez minutos y deuda tecnica durante meses. Ahi es donde hay que ponerse serio.
+This is not about going slower. It is about not building blind. Immediacy without a contract looks like productivity for ten minutes and becomes technical debt for months. That is where you have to get serious.
 
-## Problema que resuelve
+## Problem it solves
 
-Cuando se usa IA sin estructura suelen aparecer los mismos fallos:
+When AI is used without structure, the same failures keep showing up:
 
-| Fallo | Consecuencia |
+| Failure | Consequence |
 | --- | --- |
-| Se implementa antes de entender el dominio. | El codigo resuelve una version inventada del problema. |
-| El contexto vive solo en la conversacion. | Se pierde con compaction, sesiones nuevas o cambio de agente. |
-| No hay specs testables. | Verificar se convierte en "parece que funciona". |
-| Los cambios son enormes. | La review se vuelve cara, lenta y superficial. |
-| Los tests se escriben al final o son humo. | Dan confianza falsa y no protegen comportamiento real. |
+| Implementation starts before understanding the domain. | The code solves an invented version of the problem. |
+| Context lives only in the conversation. | It is lost to compaction, new sessions, or agent switches. |
+| There are no testable specs. | Verification becomes "looks like it works". |
+| Changes are enormous. | Review becomes expensive, slow, and superficial. |
+| Tests are written at the end or are smoke. | They give false confidence and protect no real behavior. |
 
-SDD ataca esos puntos con artefactos persistidos, fases separadas y gates explicitos.
+SDD attacks these points with persisted artifacts, separated phases, and explicit gates.
 
 ## Roles
 
-| Rol | Responsabilidad |
+| Role | Responsibility |
 | --- | --- |
-| Humano | Decide el objetivo, valida tradeoffs y acepta riesgos. La IA no lidera el producto. |
-| `sdd-orchestrator` | Coordina fases, aplica guards y delega a agentes especializados. |
-| Agentes de fase | Ejecutan una fase concreta del ciclo (init, foundation, workspace, explore, propose, spec, clarify, design, tasks, apply, verify, archive, baseline u onboard). |
-| OpenSpec | Guarda el estado compartible: config, cambios activos, specs principales y archivo. |
-| Skills | Inyectan reglas compactas segun contexto: PRs, testing, commits, documentacion, etc. |
+| Human | Decides the goal, validates tradeoffs, and accepts risk. AI does not lead the product. |
+| `sdd-orchestrator` | Coordinates phases, applies guards, and delegates to specialized agents. |
+| Phase agents | Execute one specific phase of the cycle (init, foundation, workspace, explore, propose, spec, clarify, design, tasks, apply, verify, archive, baseline, or onboard). |
+| OpenSpec | Stores the shareable state: config, active changes, main specs, and archive. |
+| Skills | Inject compact rules based on context: PRs, testing, commits, documentation, etc. |
 
-La separacion importa. Un orquestador que implementa se llena de contexto y pierde control. Un ejecutor que orquesta rompe el flujo. Cada pieza hace su trabajo.
+The separation matters. An orchestrator that implements fills up with context and loses control. An executor that orchestrates breaks the flow. Each piece does its job.
 
-## Principios
+## Principles
 
-| Principio | Traduccion practica |
+| Principle | Practical translation |
 | --- | --- |
-| Contrato antes que codigo | Primero propuesta, specs y diseno; despues implementacion. |
-| Evidencia antes que opinion | Verify exige tests reales, comandos y matriz de cumplimiento. |
-| Persistencia antes que memoria | El estado importante vive en `openspec/`, no solo en el chat. |
-| Revisiones pequenas | 400 lineas cambiadas es el presupuesto base de revision. |
-| TDD cuando hay runner | Si Strict TDD esta activo, se trabaja RED/GREEN/TRIANGULATE/REFACTOR. |
-| Un agente, una responsabilidad | El orquestador coordina; los ejecutores ejecutan. |
+| Contract before code | First proposal, specs, and design; then implementation. |
+| Evidence before opinion | Verify requires real tests, commands, and a compliance matrix. |
+| Persistence before memory | Important state lives in `openspec/`, not only in chat. |
+| Small reviews | 400 changed lines is the base review budget. |
+| TDD when there is a runner | If Strict TDD is active, work follows RED/GREEN/TRIANGULATE/REFACTOR. |
+| One agent, one responsibility | The orchestrator coordinates; executors execute. |
 
-## Fuente de verdad
+## Source of truth
 
-Hay tres niveles de verdad:
+There are three levels of truth:
 
-| Nivel | Donde vive | Que representa |
+| Level | Where it lives | What it represents |
 | --- | --- | --- |
-| Contexto del proyecto | `openspec/config.yaml` | Stack, comandos, testing, Strict TDD y reglas. |
-| Cambio activo | `openspec/changes/{change-name}/` | Propuesta, specs delta, diseno, tareas, progreso y verificacion. |
-| Comportamiento vigente | `openspec/specs/{domain}/spec.md` | Specs principales despues de archivar cambios verificados. |
+| Project context | `openspec/config.yaml` | Stack, commands, testing, Strict TDD, and rules. |
+| Active change | `openspec/changes/{change-name}/` | Proposal, delta specs, design, tasks, progress, and verification. |
+| Current behavior | `openspec/specs/{domain}/spec.md` | Main specs after archiving verified changes. |
 
-La diferencia entre cambio activo y spec principal es CLAVE. El cambio activo dice "esto queremos modificar". La spec principal dice "asi funciona el sistema ahora".
+The difference between an active change and a main spec is KEY. The active change says "this is what we want to modify". The main spec says "this is how the system works now".
 
-## Cuando usar SDD
+## When to use SDD
 
-Usa SDD para:
+Use SDD for:
 
-- Features con comportamiento observable.
-- APIs, flujos de UI, reglas de negocio o integraciones.
-- Refactors con riesgo o impacto amplio.
-- Cambios que necesitan acuerdo antes de implementar.
-- Trabajo con IA donde quieres trazabilidad y rollback.
+- Features with observable behavior.
+- APIs, UI flows, business rules, or integrations.
+- Refactors with broad risk or impact.
+- Changes that need agreement before implementation.
+- AI-driven work where you want traceability and rollback.
 
-No hace falta SDD completo para:
+Full SDD is not needed for:
 
 - Typos.
-- Cambios mecanicos muy pequenos.
-- Ajustes triviales de documentacion.
-- Experimentos desechables.
+- Very small mechanical changes.
+- Trivial documentation adjustments.
+- Disposable experiments.
 
-Para ese espacio intermedio entre "una errata" y "un cambio normal" existe `/sdd-lite`: usa `proposal-lite.md -> tasks.md -> apply -> verify` para cambios `trivial` o `small` sin abrir specs/diseno completos. Si durante el trabajo deja de ser pequeno, se escala al flujo estandar.
+For that intermediate space between "a typo" and "a normal change" there is `/sdd-lite`: it uses `proposal-lite.md -> tasks.md -> apply -> verify` for `trivial` or `small` changes without opening full specs/design. If the work stops being small along the way, it escalates to the standard flow.
 
-La regla sana: si alguien tendria que revisar el "que", el "por que" o el "como", usa SDD. Si el cambio es acotado pero aun quieres trazabilidad y gates, usa lite. Si solo hay que corregir una errata, no montes una catedral.
+The healthy rule: if someone would have to review the "what", the "why", or the "how", use SDD. If the change is bounded but you still want traceability and gates, use lite. If it is just fixing a typo, don't build a cathedral.

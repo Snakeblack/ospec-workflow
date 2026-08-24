@@ -1395,7 +1395,7 @@ test("README documents the native global Codex installation", () => {
   assert.match(readme, /ospec-workflow/);
   assert.doesNotMatch(readme, /codex plugin marketplace add/i);
   assert.doesNotMatch(readme, /fusiona `.codex\/config\.toml`/);
-  assert.match(readme, /claves no compatibles/i);
+  assert.match(readme, /claves no compatibles|incompatible keys/i);
   assert.match(readme, /--repair-config/i);
   assert.match(readme, /npm run setup:codex:repair/i);
   assert.doesNotMatch(readme, /npm run setup:codex -- --repair-config/i);
@@ -1406,16 +1406,16 @@ test("README documents the native global Codex installation", () => {
 test("plugin-installation guide documents native global Codex hooks and runtime", () => {
   const doc = readRepoFile("docs", "plugin-installation.md");
 
-  assert.match(doc, /Instalación global nativa/i);
+  assert.match(doc, /Instalación global nativa|Native global installation/i);
   assert.match(doc, /hooks\.json/);
   assert.match(doc, /ospec-workflow/);
   assert.doesNotMatch(doc, /fusiona.*\.codex\/config\.toml/i);
-  assert.match(doc, /claves no compatibles/i);
+  assert.match(doc, /claves no compatibles|unsupported keys/i);
   assert.match(doc, /--repair-config/i);
   assert.match(doc, /npm run setup:codex:repair/i);
   assert.doesNotMatch(doc, /npm run setup:codex -- --repair-config/i);
   assert.match(doc, /backup/i);
-  assert.match(doc, /rollback|restaur/i);
+  assert.match(doc, /rollback|rolls back|restaur/i);
 });
 
 test("Codex maintenance guide documents scoped opt-in config repair", () => {
