@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.46.8] - 2026-08-24
+
+### Fixed
+- **Autoridad de Aislamiento `enforced`: Separación Canónica entre Transporte y Contención K6a**:
+  - **Fail-Closed sin Prueba de Contención**: Eliminado el fallback legacy en `executeWorkOrder` que promocionaba `isolationReported = "enforced"` sin prueba de contención; la ausencia de prueba canónica de aislamiento ahora es fail-closed (`reason: "containment-proof-required"`) y nunca alcanza `enforced`.
+  - **Nueva Capability Canónica `WorkerIsolation` (Split Transporte/Aislamiento)**: El aislamiento deja de ser una propiedad ad-hoc de `WorkerTransport`. `executeWorkOrder` exige ambas capabilities verificadas para ejecutar subprocesos (`WorkerTransport` = can execute, `WorkerIsolation` = can contain) vía `resolveCapabilityState` con `capability_id` dedicado y bundle canónico `options.workerIsolation`; proofs inválidos o evidencia manipulada fallan con `worker-isolation-proof-invalid` sin ejecutar nada.
+  - **Schema `capability-proof/v1` Intacto**: La contención vive en la evidencia viva del probe ligada criptográficamente por `evidence_digest` y `probe_digest`, no como propiedad clandestina del proof (`additionalProperties: false` se preserva).
+  - **Probe Físico de Contención Observado por el Host en el Adapter de Referencia**: Nuevo probe de `WorkerIsolation` que ejecuta tres intentos reales de escritura (ruta permitida `allowed/`, ruta no declarada dentro del workspace, fuera del workspace root); la autoridad de la observación es siempre del host (existencia real de ficheros), nunca una declaración del worker. Un worker sin sandbox falla el probe y queda honestamente en `partial`.
+  - **Identidad Canónica Decorada en Transports Verificados**: Los transports con proof verificado llevan `adapter_id`, `capability_id` y `probe_digest` del adapter, permitiendo casar transport ↔ CapabilityProof en K6a sin mocks intermedios.
+  - **E2E Real K2a → K6a sin Mocks**: Nueva suite que compone `createClaudeHostAdapter()` → transports reales → material canónico → `executeWorkOrder()`: mutación contenida exitosa dentro de `allowed_paths` y negativo adversarial donde un worker sin sandbox nunca alcanza `enforced` ni intenta la escritura externa.
+
 ## [2.46.7] - 2026-08-24
 
 ### Fixed
