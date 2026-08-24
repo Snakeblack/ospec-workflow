@@ -29,10 +29,17 @@ async function executeSandboxedCommand(options = {}) {
   const signal = options.signal;
   const timeoutMs = options.timeoutMs;
 
+  let realWorkspaceRoot = path.resolve(workspaceRoot);
+  try {
+    if (fs.existsSync(realWorkspaceRoot)) {
+      realWorkspaceRoot = fs.realpathSync(realWorkspaceRoot);
+    }
+  } catch {}
+
   const env = {
     ...process.env,
     ...(options.env || {}),
-    OSPEC_SANDBOX_WORKSPACE_ROOT: path.resolve(workspaceRoot),
+    OSPEC_SANDBOX_WORKSPACE_ROOT: realWorkspaceRoot,
     OSPEC_SANDBOX_ALLOWED_PATHS: JSON.stringify(allowedPaths),
   };
 

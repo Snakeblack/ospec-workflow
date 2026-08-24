@@ -18,6 +18,10 @@ if (workspaceRootEnv) {
   } catch {}
 
   const normWorkspaceRoot = path.normalize(path.resolve(workspaceRootEnv));
+  let realWorkspaceRoot = normWorkspaceRoot;
+  try {
+    realWorkspaceRoot = fs.realpathSync(normWorkspaceRoot);
+  } catch {}
 
   function normalizeRelativePath(p) {
     if (typeof p !== "string" || !p.trim() || p.includes("\0")) {
@@ -81,8 +85,25 @@ if (workspaceRootEnv) {
     if (typeof targetStr !== "string") return;
 
     const absTarget = path.normalize(path.resolve(process.cwd(), targetStr));
-    const rel = path.relative(normWorkspaceRoot, absTarget);
-    const isOutside = rel.startsWith("..") || path.isAbsolute(rel);
+    let realTarget = absTarget;
+    try {
+      if (fs.existsSync(absTarget)) {
+        realTarget = fs.realpathSync(absTarget);
+      } else {
+        const parent = path.dirname(absTarget);
+        if (fs.existsSync(parent)) {
+          realTarget = path.join(fs.realpathSync(parent), path.basename(absTarget));
+        }
+      }
+    } catch {}
+
+    const relNorm = path.relative(normWorkspaceRoot, absTarget);
+    const isOutsideNorm = relNorm.startsWith("..") || path.isAbsolute(relNorm);
+
+    const relReal = path.relative(realWorkspaceRoot, realTarget);
+    const isOutsideReal = relReal.startsWith("..") || path.isAbsolute(relReal);
+
+    const isOutside = isOutsideNorm && isOutsideReal;
 
     if (isOutside) {
       const err = new Error(`EACCES: permission denied by worker sandbox (external write blocked): ${targetStr} [operation: ${opName || "write"}]`);
@@ -93,7 +114,8 @@ if (workspaceRootEnv) {
       throw err;
     }
 
-    const relPosix = rel.replace(/\\/g, "/");
+    const activeRel = !isOutsideNorm ? relNorm : relReal;
+    const relPosix = activeRel.replace(/\\/g, "/");
     if (!isPathAllowed(relPosix, allowedPaths)) {
       const err = new Error(`EACCES: permission denied by worker sandbox (undeclared write blocked): ${targetStr} -> ${relPosix} [operation: ${opName || "write"}]`);
       err.code = "EACCES";
