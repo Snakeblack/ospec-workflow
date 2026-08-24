@@ -1,6 +1,6 @@
 # Instalación de Objetivos
 
-La instalación de plataformas objetivo se encarga de la distribución del plugin `ospec-workflow` a cada herramienta soportada (Claude Code, GitHub Copilot, OpenCode y Codex). Gestiona cómo cada plataforma recibe su árbol de archivos generado, los comandos npm utilizados, y las validaciones de seguridad e idempotencia que previenen escrituras destructivas o corrupción de repositorios.
+La instalación de plataformas objetivo se encarga de la distribución del plugin `ospec-workflow` a cada herramienta soportada (Claude Code, GitHub Copilot, OpenCode, Codex, Cursor y Antigravity). Gestiona cómo cada plataforma recibe su árbol de archivos generado, los comandos npm utilizados, y las validaciones de seguridad e idempotencia que previenen escrituras destructivas o corrupción de repositorios. La matriz completa de transformaciones por target vive en [architecture/overview.md](../architecture/overview.md).
 
 ## Flujo principal
 
@@ -8,6 +8,8 @@ La instalación de plataformas objetivo se encarga de la distribución del plugi
 2. **GitHub Copilot y OpenCode**: Operan mediante sincronización en el sistema de archivos hacia el repositorio destino. `npm run install:copilot -- <destRepo>` y `npm run install:opencode -- <destRepo>` generan el árbol y lo copian recursivamente en la raíz del proyecto para su auto-descubrimiento.
 3. **Codex**: Utiliza instalación global nativa. `npm run setup:codex` instala agentes TOML, el runtime nativo y registra servidores MCP a nivel global en `~/.codex/`. Alternativamente, su versión local copia la configuración al repositorio destino sin sobrescribir el archivo `config.toml`.
 4. **VSCode**: No dispone de un comando público de instalación. El árbol se genera exclusivamente para pruebas de regresión en tiempo de ejecución.
+5. **Cursor**: `npm run setup:cursor` compila `dist/cursor`, sincroniza a `~/.cursor/`, traduce `.mcp.json` al CLI nativo y preserva los hooks de usuario en `hooks.json`; `npm run reload:cursor` reconstruye rápido en desarrollo.
+6. **Antigravity**: `npm run setup:antigravity` compila `dist/antigravity` con perfiles y validación, y despliega skills, agentes y hooks adaptados en `~/.gemini/config/` mediante manifiesto transaccional; `npm run reload:antigravity` reconstruye rápido.
 
 ## Detalles técnicos
 
@@ -41,3 +43,5 @@ La instalación de plataformas objetivo se encarga de la distribución del plugi
 - `/scripts/configure/install-claude.js` - Script que orquesta la compilación y ejecución de comandos en el CLI de `claude`.
 - `/scripts/configure/install-target.js` - Lógica de sincronización en sistema de ficheros para GitHub Copilot y OpenCode.
 - `/scripts/configure/install-codex.js` - Instalador global y local estructurado para el ecosistema descentralizado de Codex.
+- `/scripts/configure/install-cursor.js` - Instalador global para el layout `.cursor` (`~/.cursor/`) con preservación de hooks.
+- `/scripts/configure/install-antigravity.js` - Instalador global para `~/.gemini/config/` con manifiesto transaccional.

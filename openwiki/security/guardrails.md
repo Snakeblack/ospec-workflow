@@ -45,7 +45,7 @@ estándar:
 
 Si el costo estimado de un archivo supera **50.000 tokens**, el advisor
 retorna `ask` con una advertencia explícita del costo antes de continuar.
-También rastrea el acumulado de la sesión contra un límite de **220.000
+También rastrea el acumulado de la sesión contra un límite de **150.000
 tokens**. Se desactiva con `DISABLE_TOKEN_ADVISOR=true`.
 
 ## git-collaboration-guard

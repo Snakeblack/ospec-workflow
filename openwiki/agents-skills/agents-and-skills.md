@@ -13,6 +13,7 @@ Este dominio define el núcleo de ejecución de tareas y capacidades del sistema
 - **Skills (`/skills/`)**: Directorios que contienen un archivo `SKILL.md` principal con metadatos (YAML frontmatter con nombre y triggers) e instrucciones detalladas.
 - **Skill Resolver (`/skills/_shared/skill-resolver.md`)**: Protocolo universal que define el orden de resolución (contexto > caché > fallback) y cómo filtrar un máximo de 5 bloques de skills para evitar sobrecargar el prompt.
 - **Skill Registry (`/skills/skill-registry/SKILL.md`)**: Es una skill especial encargada de escanear todas las skills globales y del proyecto, omitiendo aquellas de la arquitectura base (`sdd-*`, `_shared`), para generar un archivo JSON con reglas pre-digeridas y listas para inyectar.
+- **Ciclo de vida de la caché (hook `SessionStart`)**: El hook `SessionStart` (`scripts/hooks/session-start.js`) calcula un fingerprint SHA-256 sobre las rutas y contenidos ordenados de todos los archivos de skills y reglas (`scripts/lib/skill-registry.js`). Si la caché existente en `.ospec/cache/skill-registry.cache.json` coincide en versión y fingerprint, se **reutiliza** sin escritura; si cambió algún archivo de entrada, se **regenera**. Así se evita releer decenas de `SKILL.md` en cada sesión, controlando el presupuesto de tokens.
 
 ## Decisiones de diseño (Por qué es así)
 - **Aislamiento sin pérdida de contexto**: Los sub-agentes nacen "en blanco" para ahorrar tokens y mantener el foco, recibiendo sólo el conocimiento técnico estrictamente necesario mediante las reglas compactas.
@@ -32,4 +33,9 @@ Este dominio define el núcleo de ejecución de tareas y capacidades del sistema
 - `/agents/`: Directorio que contiene los prompts y contratos de cada fase (ej. `sdd-apply.agent.md`, `sdd-verify.agent.md`).
 - `/skills/_shared/skill-resolver.md`: Protocolo que dicta cómo se descubren e inyectan las reglas en los prompts de los sub-agentes.
 - `/skills/skill-registry/SKILL.md`: Instrucciones para compilar y actualizar el caché de habilidades.
+- `/scripts/lib/skill-registry.js`: Descubre skills y calcula el fingerprint SHA-256 de la caché.
+- `/scripts/hooks/session-start.js`: Hook que decide si la caché se reutiliza (fingerprint coincidente) o se regenera.
 - `/.ospec/cache/skill-registry.cache.json`: Archivo generado automáticamente que contiene los triggers y las reglas compactas listas para consumo.
+
+## Ver también
+- [Orquestación de fases SDD](../orchestration/routing.md) — cómo el orquestador despacha las fases que consumen estos agentes y skills.

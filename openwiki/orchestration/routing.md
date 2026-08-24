@@ -59,7 +59,8 @@ para eso existen los gates o las opciones de fase.
 
 ## Agentes y skills: dos capas de la misma unidad de trabajo
 
-Cada fase SDD tiene dos artefactos fuente:
+Cada fase SDD tiene dos artefactos fuente (el detalle completo del dominio
+vive en [Agentes y Skills](../agents-skills/agents-and-skills.md)):
 
 - `agents/{phase}.agent.md` — definición del agente (frontmatter + comportamiento).
 - `skills/{phase}/SKILL.md` — el procedimiento detallado que el agente ejecutor debe seguir al pie de la letra.
@@ -88,10 +89,9 @@ sub-agente ejecutor sigue su propia skill sin lanzar más sub-agentes.
 
 El árbol `skills/` se compila en un artefacto JSON compacto
 (`.ospec/cache/skill-registry.cache.json`) que agentes y hooks leen sin
-reescanear el sistema de archivos. El hook `SessionStart` gestiona el ciclo de
-vida de esta caché: reutiliza la existente si el fingerprint coincide, o la
-regenera si algún archivo de entrada cambió. Esto evita releer decenas de
-`SKILL.md` en cada sesión, controlando el presupuesto de tokens.
+reescanear el sistema de archivos. El detalle de su compilación, su ciclo de
+vida y el mecanismo de fingerprint que gestiona `SessionStart` vive en
+[Agentes y Skills](../agents-skills/agents-and-skills.md).
 
 ## Por qué la arquitectura está diseñada así
 

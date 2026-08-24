@@ -30,7 +30,7 @@ validate`.
 ```mermaid
 flowchart TD
     A[npm test] --> B[node scripts/check.js]
-    B --> C[Suite de tests\nnode --test scripts/**/*.test.js]
+    B --> C["Suite de tests<br/>node --test scripts/**/*.test.js"]
     B --> D[Genera dist/claude, dist/github-copilot, dist/opencode]
     D --> E{claude CLI disponible?}
     E -->|sí| F[claude plugin validate --strict]
@@ -90,6 +90,8 @@ El sistema de revisión introduce tres módulos puros (sin IO) testeados bajo St
 | `review-lineage.js` | Congela el linaje de revisión: candidato inmutable, genesis paths, IDs de findings, presupuesto de líneas (`min(200, ceil(changed_lines/2))`). Cada lente se ejecuta una sola vez; tres validaciones fallidas agotan el linaje. |
 
 Tres tests suite contratos en: `scripts/review-dimensions.test.js`, `scripts/review-gate-state.test.js`, `scripts/review-lineage.test.js`, `scripts/selective-4r-parity.test.js`.
+
+Ver también [Lint de Contratos y Reglas de Validación](../contract-lint/validation-rules.md), que resume cómo este pipeline se aplica como regla de validación dentro del contract lint.
 
 ## Por qué la arquitectura está diseñada así
 

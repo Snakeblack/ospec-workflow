@@ -14,7 +14,7 @@ lista los cinco eventos, cada uno de tipo `"command"`, invocando
 
 | Evento | Script Node | Timeout | Responsabilidad |
 | --- | --- | --- | --- |
-| `SessionStart` | `session-start.js` | (ninguno) | Valida OpenSpec, refresca la caché de skills, ejecuta escaneos AgentShield. |
+| `SessionStart` | `session-start.js` | 5s | Valida OpenSpec, refresca la caché de skills, ejecuta escaneos AgentShield. |
 | `PreToolUse` | `pre-tool-use.js` | 5s | Bloquea/pregunta ante comandos peligrosos, evalúa Token Budget Advisor y AgentShield. |
 | `PreCompact` | `pre-compact.js` | 5s | Persiste un resumen recuperable antes de compactar contexto. |
 | `SubagentStop` | `subagent-stop.js` | 5s | Detecta degradación en la resolución de skills. |
@@ -27,7 +27,8 @@ válida igual.
 
 ## Doble implementación: Node.js y Go
 
-Cada hook existe dos veces:
+Cada hook existe dos veces (la arquitectura interna del binario Go se detalla
+en [Runtime de Hooks (Implementación en Go)](go-implementation.md)):
 
 - **Node.js** (`scripts/hooks/*.js`) — CommonJS, Node 22+, referencia original.
 - **Go** (`internal/hooks/*.go`, compilado como `cmd/ospec-hooks/main.go` →
