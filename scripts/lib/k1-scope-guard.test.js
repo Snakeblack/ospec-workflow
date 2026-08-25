@@ -132,6 +132,7 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/worker-workspace.test.js",
   "scripts/lib/worker-executor.js",
   "scripts/lib/worker-executor.test.js",
+  "scripts/lib/worker-sandbox-confine.js",
   "scripts/lib/worker-sandbox.js",
   "scripts/lib/worker-sandbox.test.js",
   "scripts/lib/worker-sandbox-preload.js",

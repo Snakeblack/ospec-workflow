@@ -12,6 +12,10 @@ const {
   makeSandboxedIsolationPrimitive,
   makeRogueIsolationPrimitive,
 } = require("./worker-sandbox.js");
+const {
+  isAuthorizedNodeRuntime,
+  confineChildEnv,
+} = require("./worker-sandbox-confine.js");
 
 test("worker-sandbox: executes allowed writes inside allowed_paths within workspace", async (t) => {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), "ws-sandbox-allowed-"));
@@ -205,4 +209,195 @@ test("makeSandboxedWorkerPrimitive: handles probe challenges and command executi
   });
   assert.equal(cmdRes.ok, true);
   assert.ok(fs.existsSync(path.join(ws, "allowed", "run.txt")));
+});
+
+function makeEscapeHarness(t, label) {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), `ws-sandbox-${label}-`));
+  const extDir = fs.mkdtempSync(path.join(os.tmpdir(), `ws-sandbox-${label}-out-`));
+  const extTarget = path.join(extDir, `${label}.txt`);
+  t.after(() => {
+    try { fs.rmSync(ws, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(extDir, { recursive: true, force: true }); } catch {}
+  });
+  return { ws, extDir, extTarget };
+}
+
+test("worker-sandbox: nested Node spawnSync with empty env cannot write outside workspace", async (t) => {
+  const { ws, extTarget } = makeEscapeHarness(t, "env-empty");
+  const inner = `require("fs").writeFileSync(${JSON.stringify(extTarget)}, "escaped")`;
+  const script = `
+    const { spawnSync } = require("node:child_process");
+    spawnSync(process.execPath, ${JSON.stringify(["-e", inner])}, { env: {} });
+  `;
+
+  await executeSandboxedCommand({
+    command: process.execPath,
+    args: ["-e", script],
+    cwd: ws,
+    workspaceRoot: ws,
+    allowedPaths: ["dist/**"],
+  });
+
+  assert.equal(fs.existsSync(extTarget), false, "Nested Node with env:{} must not create the external file");
+});
+
+test("worker-sandbox: nested execFileSync with stripped sandbox env cannot write outside workspace", async (t) => {
+  const { ws, extTarget } = makeEscapeHarness(t, "env-stripped");
+  const inner = `require("fs").writeFileSync(${JSON.stringify(extTarget)}, "escaped")`;
+  const script = `
+    const { execFileSync, spawnSync } = require("node:child_process");
+    const stripped = {
+      PATH: process.env.PATH,
+      NODE_OPTIONS: "",
+      OSPEC_SANDBOX_WORKSPACE_ROOT: "",
+      OSPEC_SANDBOX_ALLOWED_PATHS: "",
+    };
+    try { execFileSync(process.execPath, ${JSON.stringify(["-e", inner])}, { env: stripped }); } catch {}
+    spawnSync(process.execPath, ${JSON.stringify(["-e", inner])}, { env: { NODE_OPTIONS: "" } });
+  `;
+
+  await executeSandboxedCommand({
+    command: process.execPath,
+    args: ["-e", script],
+    cwd: ws,
+    workspaceRoot: ws,
+    allowedPaths: ["dist/**"],
+  });
+
+  assert.equal(fs.existsSync(extTarget), false, "Stripping NODE_OPTIONS / sandbox env must not allow an external write");
+});
+
+test("worker-sandbox: nested fork with empty env cannot write outside workspace", async (t) => {
+  const { ws, extTarget } = makeEscapeHarness(t, "fork-empty");
+  const childScript = path.join(ws, "dist", "fork-child.js");
+  fs.mkdirSync(path.dirname(childScript), { recursive: true });
+  fs.writeFileSync(childScript, `require("fs").writeFileSync(${JSON.stringify(extTarget)}, "escaped");`);
+  const script = `
+    const { fork } = require("node:child_process");
+    const child = fork(${JSON.stringify(childScript)}, [], { env: {}, stdio: "ignore" });
+    child.on("error", () => {});
+    setTimeout(() => process.exit(0), 250);
+  `;
+
+  await executeSandboxedCommand({
+    command: process.execPath,
+    args: ["-e", script],
+    cwd: ws,
+    workspaceRoot: ws,
+    allowedPaths: ["dist/**"],
+    timeoutMs: 5000,
+  });
+
+  assert.equal(fs.existsSync(extTarget), false, "fork() with env:{} must not create the external file");
+});
+
+test("worker-sandbox: rejects a fake executable whose basename is node", async (t) => {
+  const { ws, extTarget } = makeEscapeHarness(t, "fake-node");
+  const fakeDir = path.join(ws, "tmp");
+  fs.mkdirSync(fakeDir, { recursive: true });
+  const fakeNode = path.join(fakeDir, process.platform === "win32" ? "node.exe" : "node");
+  const payload = process.platform === "win32"
+    ? `@echo escaped> "${extTarget}"\r\n`
+    : `#!/bin/sh\necho escaped > ${JSON.stringify(extTarget)}\n`;
+  fs.writeFileSync(fakeNode, payload);
+  if (process.platform !== "win32") {
+    fs.chmodSync(fakeNode, 0o755);
+  }
+
+  const result = await executeSandboxedCommand({
+    command: fakeNode,
+    args: [],
+    cwd: ws,
+    workspaceRoot: ws,
+    allowedPaths: ["tmp/**", "dist/**"],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.failure_class, "sandbox_rejection");
+  assert.equal(fs.existsSync(extTarget), false, "Fake node binary must not execute");
+});
+
+test("worker-sandbox: sandboxed process cannot spawn a fake node by basename", async (t) => {
+  const { ws, extTarget } = makeEscapeHarness(t, "spawn-fake-node");
+  const fakeDir = path.join(ws, "tmp");
+  fs.mkdirSync(fakeDir, { recursive: true });
+  const fakeNode = path.join(fakeDir, "node");
+  const payload = process.platform === "win32"
+    ? `@echo escaped> "${extTarget}"\r\n`
+    : `#!/bin/sh\necho escaped > ${JSON.stringify(extTarget)}\n`;
+  fs.writeFileSync(fakeNode, payload);
+  if (process.platform !== "win32") {
+    fs.chmodSync(fakeNode, 0o755);
+  }
+
+  const script = `
+    const { spawnSync } = require("node:child_process");
+    spawnSync(${JSON.stringify(fakeNode)}, []);
+  `;
+
+  const result = await executeSandboxedCommand({
+    command: process.execPath,
+    args: ["-e", script],
+    cwd: ws,
+    workspaceRoot: ws,
+    allowedPaths: ["tmp/**", "dist/**"],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(fs.existsSync(extTarget), false, "In-sandbox spawn of ./node must not execute the fake binary");
+});
+
+test("worker-sandbox: bare node alias still runs the authorized runtime inside the sandbox", async (t) => {
+  const { ws } = makeEscapeHarness(t, "bare-node-alias");
+  const targetFile = path.join(ws, "dist", "alias.txt");
+  const result = await executeSandboxedCommand({
+    command: process.platform === "win32" ? "node.exe" : "node",
+    args: ["-e", "const fs = require('fs'); fs.mkdirSync('dist', { recursive: true }); fs.writeFileSync('dist/alias.txt', 'ok');"],
+    cwd: ws,
+    workspaceRoot: ws,
+    allowedPaths: ["dist/**"],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(fs.readFileSync(targetFile, "utf8"), "ok");
+});
+
+test("worker-sandbox-confine: Node identity is the authorized runtime realpath, not basename", (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ws-confine-id-"));
+  t.after(() => {
+    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
+  });
+  const fakeNode = path.join(tmp, "node");
+  fs.writeFileSync(fakeNode, "#!/bin/sh\n");
+
+  assert.equal(isAuthorizedNodeRuntime(process.execPath), true);
+  assert.equal(isAuthorizedNodeRuntime("node"), true);
+  assert.equal(isAuthorizedNodeRuntime("node.exe"), true);
+  assert.equal(isAuthorizedNodeRuntime(fakeNode), false);
+  assert.equal(isAuthorizedNodeRuntime(path.join(tmp, "node.exe")), false);
+});
+
+test("worker-sandbox-confine: child env cannot drop or replace sandbox keys", () => {
+  const parent = {
+    OSPEC_SANDBOX_WORKSPACE_ROOT: "/ws",
+    OSPEC_SANDBOX_ALLOWED_PATHS: '["dist/**"]',
+    NODE_OPTIONS: "--max-old-space-size=64",
+    PATH: "/usr/bin",
+  };
+  const preload = path.join("scripts", "lib", "worker-sandbox-preload.js");
+  const confined = confineChildEnv({
+    NODE_OPTIONS: "",
+    OSPEC_SANDBOX_WORKSPACE_ROOT: "/tmp/evil",
+    OSPEC_SANDBOX_ALLOWED_PATHS: '["**"]',
+  }, parent, preload);
+
+  assert.equal(confined.OSPEC_SANDBOX_WORKSPACE_ROOT, "/ws");
+  assert.equal(confined.OSPEC_SANDBOX_ALLOWED_PATHS, '["dist/**"]');
+  assert.match(confined.NODE_OPTIONS, /--require /);
+  assert.match(confined.NODE_OPTIONS, /worker-sandbox-preload\.js/);
+  assert.doesNotMatch(confined.NODE_OPTIONS, /max-old-space-size/);
+
+  const fromEmpty = confineChildEnv({}, parent, preload);
+  assert.equal(fromEmpty.OSPEC_SANDBOX_WORKSPACE_ROOT, "/ws");
+  assert.match(fromEmpty.NODE_OPTIONS, /--require /);
 });
