@@ -221,6 +221,24 @@ test("makeSandboxedWorkerPrimitive: handles probe challenges and command executi
   assert.ok(fs.existsSync(path.join(ws, "allowed", "run.txt")));
 });
 
+test("worker-sandbox: allowed write succeeds when workspace path is a tmpdir alias", async (t) => {
+  const { ws } = makeEscapeHarness(t, "tmpdir-alias");
+  const target = path.join(ws, "allowed", "ok.txt");
+  const result = await executeSandboxedCommand({
+    command: process.execPath,
+    args: [
+      "-e",
+      `const fs=require("fs"); const path=require("path"); const t=${JSON.stringify(target)}; fs.mkdirSync(path.dirname(t),{recursive:true}); fs.writeFileSync(t,"ok");`,
+    ],
+    cwd: ws,
+    workspaceRoot: ws,
+    allowedPaths: ["allowed/**"],
+    timeoutMs: 5000,
+  });
+  assert.equal(result.ok, true, result.stderr || "absolute write via tmpdir alias must succeed inside allowed_paths");
+  assert.equal(fs.existsSync(target), true);
+});
+
 function makeEscapeHarness(t, label) {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), `ws-sandbox-${label}-`));
   const extDir = fs.mkdtempSync(path.join(os.tmpdir(), `ws-sandbox-${label}-out-`));

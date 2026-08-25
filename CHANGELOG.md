@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - WorkerIsolation ligada a la identidad viva del `WorkerTransport` que ejecuta (`port_id` + fingerprint SHA-256); el probe de contención son tres escrituras reales (PASS / BLOCKED / BLOCKED) y `{blocked:true}` vacuo no autoriza `enforced`.
   - Comandos fail-closed salvo `isolationReported=enforced` (REQ-008 alineado al runtime); K4b y jail de OS siguen fuera de alcance.
   - Interceptación de `worker_threads.Worker` en el preload: `execArgv: []` no puede soltar `--require`; `SHARE_ENV` falla cerrado.
+  - Escrituras permitidas bajo alias de `tmpdir` (p. ej. `/var` → `/private/var` en macOS) se juzgan por `realpath`, no por `path.relative` de la forma no canónica.
   - Ciclo SDD completo (ruta standard, high-risk, 4R approved, finding `F-a93a0811da865770` resuelto). Verificación: PASS (35/35 MUST). Tras la corrección 4R, `node --test scripts/lib/worker-sandbox.test.js` 20/20.
 
 ## [2.47.1] - 2026-08-25

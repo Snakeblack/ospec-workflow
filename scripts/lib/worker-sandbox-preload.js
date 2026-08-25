@@ -177,8 +177,11 @@ if (workspaceRootEnv) {
     const relReal = path.relative(realWorkspaceRoot, realTarget);
     const isOutsideReal = relReal.startsWith("..") || path.isAbsolute(relReal);
 
-    // If EITHER the normalized path or real resolved target is outside workspace root, IT IS OUTSIDE!
-    if (isOutsideNorm || isOutsideReal) {
+    // Canonical location is authoritative. String-form aliases such as macOS
+    // `/var` → `/private/var` look "outside" via path.relative but realpath
+    // stays inside the workspace; blocking on isOutsideNorm would fail closed
+    // on every allowed probe write under os.tmpdir().
+    if (isOutsideReal) {
       const err = new Error(`EACCES: permission denied by worker sandbox (external write blocked): ${targetStr} [operation: ${opName || "write"}]`);
       err.code = "EACCES";
       err.errno = -13;
@@ -190,7 +193,9 @@ if (workspaceRootEnv) {
     const relPosixNorm = relNorm.replace(/\\/g, "/");
     const relPosixReal = relReal.replace(/\\/g, "/");
 
-    if (!isPathAllowed(relPosixNorm, allowedPaths) || !isPathAllowed(relPosixReal, allowedPaths)) {
+    const realAllowed = isPathAllowed(relPosixReal, allowedPaths);
+    const normAllowed = isOutsideNorm ? realAllowed : isPathAllowed(relPosixNorm, allowedPaths);
+    if (!realAllowed || !normAllowed) {
       const err = new Error(`EACCES: permission denied by worker sandbox (undeclared write blocked): ${targetStr} -> ${relPosixNorm} [operation: ${opName || "write"}]`);
       err.code = "EACCES";
       err.errno = -13;
@@ -212,7 +217,7 @@ if (workspaceRootEnv) {
     const relNorm = path.relative(normWorkspaceRoot, absTarget);
     const relReal = path.relative(realWorkspaceRoot, realTarget);
 
-    if (relNorm.startsWith("..") || path.isAbsolute(relNorm) || relReal.startsWith("..") || path.isAbsolute(relReal)) {
+    if (relReal.startsWith("..") || path.isAbsolute(relReal)) {
       const err = new Error(`EACCES: permission denied by worker sandbox (symlink destination outside workspace blocked): ${targetPath} -> ${linkPath}`);
       err.code = "EACCES";
       err.errno = -13;
