@@ -32,6 +32,7 @@ const {
 } = require("./lib/execution-identities/index.js");
 const { validateAllowedPaths } = require("./lib/allowed-paths-validator.js");
 const { createEvidenceDigest, createProbeDigest } = require("./lib/capability-proof/index.js");
+const { sha256Fingerprint } = require("./lib/canonical-json.js");
 const { spawn } = require("node:child_process");
 const {
   createClaudeHostAdapter,
@@ -183,14 +184,54 @@ function makeCanonicalWorkOrder(sourceSnapshotId = "sha256:aaaaaaaaaaaaaaaaaaaaa
   };
 }
 
-function makeIsolationProof(adapterId = "adapter-test", containmentOverrides = {}) {
+const DEFAULT_WT_PORT_ID = "port-enforced-worker";
+
+function workerTransportLiveFingerprint(adapterId, portId, probeDigest) {
+  return sha256Fingerprint("worker-transport-live-identity/v1", {
+    adapter_id: adapterId,
+    port_id: portId,
+    probe_digest: probeDigest,
+  });
+}
+
+async function confinedTransportRun(opts) {
+  return executeSandboxedCommand({
+    command: opts.command,
+    args: opts.args || [],
+    cwd: opts.cwd,
+    workspaceRoot: opts.workspace_root || opts.cwd,
+    allowedPaths: opts.allowed_paths || ["**"],
+    env: opts.env,
+    signal: opts.signal,
+    timeoutMs: opts.deadlineMs,
+  });
+}
+
+function makeIsolationProof(adapterId = "adapter-test", containmentOverrides = {}, transport = {}) {
   const containment = {
     allowed_write: "PASS",
     undeclared_workspace_write: "BLOCKED",
     external_root_write: "BLOCKED",
     ...containmentOverrides,
   };
-  const semantic_evidence = { surface: "worker-isolation", host_observed: true, containment };
+  const port_id = transport.port_id || DEFAULT_WT_PORT_ID;
+  const fingerprint = transport.fingerprint || workerTransportLiveFingerprint(
+    adapterId,
+    port_id,
+    transport.probe_digest || "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  );
+  const attempts = [
+    { id: "allowed_write", attempted: true, wrote: true },
+    { id: "undeclared_workspace_write", attempted: true, wrote: false },
+    { id: "external_root_write", attempted: true, wrote: false },
+  ];
+  const semantic_evidence = {
+    surface: "worker-isolation",
+    host_observed: true,
+    containment,
+    transport: { port_id, fingerprint },
+    attempts,
+  };
   const fixture = "fixtures/WorkerIsolation.json";
   const evidence_digest = createEvidenceDigest({
     capability_id: "WorkerIsolation",
@@ -224,6 +265,8 @@ function makeIsolationProof(adapterId = "adapter-test", containmentOverrides = {
     expectedAdapterVersion: "1.0.0",
     expectedHostRuntimeVersion: "1.0.0",
     expectedProbeDigest: probe_digest,
+    expectedPortId: port_id,
+    expectedFingerprint: fingerprint,
   };
 }
 
@@ -263,7 +306,10 @@ function makeEnforcedProof(adapterId = "adapter-test", containmentOverrides = {}
     expectedHostRuntimeVersion: "1.0.0",
     expectedProbeDigest: probe_digest,
     probe_digest,
-    workerIsolation: makeIsolationProof(adapterId, containmentOverrides),
+    workerIsolation: makeIsolationProof(adapterId, containmentOverrides, {
+      port_id: DEFAULT_WT_PORT_ID,
+      probe_digest,
+    }),
   };
 }
 
@@ -373,23 +419,11 @@ test("K6a E2E Happy Path: True K3 -> K4a -> K6a -> K3 Pipeline with full workspa
   const buildScript = "const fs = require('fs'); fs.mkdirSync('dist', { recursive: true }); fs.writeFileSync('dist/bundle.js', 'console.log(5);\\n');";
   const enforcedProof = makeEnforcedProof("adapter-e2e-sandbox");
   const workerTransport = {
+    port_id: DEFAULT_WT_PORT_ID,
     adapter_id: "adapter-e2e-sandbox",
     probe_digest: enforcedProof.probe_digest,
     kind: "worker-transport",
-    run: async (opts) => {
-      const { spawnSync } = require("node:child_process");
-      const res = spawnSync(opts.command, opts.args, {
-        cwd: opts.cwd,
-        env: { ...process.env, ...(opts.env || {}) },
-        encoding: "utf8",
-      });
-      return {
-        ok: res.status === 0,
-        exit_code: res.status !== null ? res.status : 1,
-        stdout: res.stdout || "",
-        stderr: res.stderr || "",
-      };
-    },
+    run: async (opts) => confinedTransportRun(opts),
   };
 
   const execResult = await executeWorkOrder({
@@ -632,23 +666,11 @@ test("K6a Negative E2E: Undeclared write attempt halts fail-closed with containm
 
   const enforcedProof = makeEnforcedProof("adapter-e2e-sandbox");
   const mockTransport = {
+    port_id: DEFAULT_WT_PORT_ID,
     adapter_id: "adapter-e2e-sandbox",
     probe_digest: enforcedProof.probe_digest,
     kind: "worker-transport",
-    run: async (opts) => {
-      const { spawnSync } = require("node:child_process");
-      const res = spawnSync(opts.command, opts.args, {
-        cwd: opts.cwd,
-        env: { ...process.env, ...(opts.env || {}) },
-        encoding: "utf8",
-      });
-      return {
-        ok: res.status === 0,
-        exit_code: res.status !== null ? res.status : 1,
-        stdout: res.stdout || "",
-        stderr: res.stderr || "",
-      };
-    },
+    run: async (opts) => confinedTransportRun(opts),
   };
 
   const result = await executeWorkOrder({
@@ -663,7 +685,12 @@ test("K6a Negative E2E: Undeclared write attempt halts fail-closed with containm
   assert.equal(result.ok, false);
   assert.ok(result.violation);
   assert.equal(result.violation.violation_type, "undeclared_write");
-  assert.equal(result.violation.attempted_path, "unauthorized/pwn.txt");
+  const attemptedPwn = String(result.violation.attempted_path).replace(/\\/g, "/");
+  assert.ok(
+    attemptedPwn === "unauthorized" || attemptedPwn === "unauthorized/pwn.txt" || attemptedPwn.startsWith("unauthorized/"),
+    `expected unauthorized path, got ${attemptedPwn}`
+  );
+  assert.equal(fs.existsSync(path.join(workspace.root_path, "unauthorized", "pwn.txt")), false);
 
   const violSchema = loadSchemaById("ospec://schemas/kernel/containment-violation/v1", { rootDir: ROOT });
   const schemaRes = validateInstance(violSchema, result.violation);
@@ -715,7 +742,7 @@ test("K6a Host Isolation Fallback: Reports truthful capability without silent pr
   const enforcedProof = makeEnforcedProof("claude");
 
   const mockWorkerTransport = {
-    port_id: "port-claude-worker",
+    port_id: DEFAULT_WT_PORT_ID,
     kind: "worker-transport",
     adapter_id: "claude",
     probe_digest: enforcedProof.probe_digest,
@@ -843,23 +870,11 @@ test("K6a Adversarial E2E: Mutating work order attempting write outside allowed_
 
   const enforcedProof = makeEnforcedProof("adapter-e2e-sandbox");
   const mockTransport = {
+    port_id: DEFAULT_WT_PORT_ID,
     adapter_id: "adapter-e2e-sandbox",
     probe_digest: enforcedProof.probe_digest,
     kind: "worker-transport",
-    run: async (opts) => {
-      const { spawnSync } = require("node:child_process");
-      const res = spawnSync(opts.command, opts.args, {
-        cwd: opts.cwd,
-        env: { ...process.env, ...(opts.env || {}) },
-        encoding: "utf8",
-      });
-      return {
-        ok: res.status === 0,
-        exit_code: res.status !== null ? res.status : 1,
-        stdout: res.stdout || "",
-        stderr: res.stderr || "",
-      };
-    },
+    run: async (opts) => confinedTransportRun(opts),
   };
 
   const result = await executeWorkOrder({
@@ -878,7 +893,12 @@ test("K6a Adversarial E2E: Mutating work order attempting write outside allowed_
   assert.equal(result.ok, false);
   assert.ok(result.violation);
   assert.equal(result.violation.violation_type, "undeclared_write");
-  assert.equal(result.violation.attempted_path, "unauthorized/leak.txt");
+  const attemptedLeak = String(result.violation.attempted_path).replace(/\\/g, "/");
+  assert.ok(
+    attemptedLeak === "unauthorized" || attemptedLeak === "unauthorized/leak.txt" || attemptedLeak.startsWith("unauthorized/"),
+    `expected unauthorized path, got ${attemptedLeak}`
+  );
+  assert.equal(fs.existsSync(path.join(workspace.root_path, "unauthorized", "leak.txt")), false);
 });
 
 test("K6a Adversarial E2E: Read-only work order attempting subprocess execution in unisolated fallback is rejected fail-closed", async (t) => {
@@ -998,6 +1018,7 @@ test("K6a Adversarial E2E: WorkerTransport failing containment probe cannot achi
   });
 
   const mockTransport = {
+    port_id: DEFAULT_WT_PORT_ID,
     adapter_id: "adapter-broken-probe",
     probe_digest: brokenProof.probe_digest,
     kind: "worker-transport",

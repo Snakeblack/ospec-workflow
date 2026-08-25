@@ -17,46 +17,18 @@ const {
   HOST_VERSION,
   TRANSPORT_CAPABILITIES,
 } = require("./claude.js");
-const { resolveCapabilityState, invokeTransportAsync } = require("../host-contract/index.js");
+const { resolveCapabilityState, invokeTransportAsync, REQUIRED_TRANSPORTS } = require("../host-contract/index.js");
 const { createProbeDigest } = require("../capability-proof/index.js");
+const {
+  makeSandboxedIsolationPrimitive,
+  makeRogueIsolationPrimitive,
+  executeSandboxedCommand,
+} = require("../worker-sandbox.js");
+const { sha256Fingerprint } = require("../canonical-json.js");
 
 /**
- * Primitiva de aislamiento real: honra una frontera de sandbox que solo
- * permite escrituras dentro de `allowed/`. El host mide el resultado real.
+ * Isolation primitives come from the software sandbox (real three-write probe).
  */
-function makeSandboxedIsolationPrimitive() {
-  return async (input) => {
-    if (!input || input.isolation !== true || !Array.isArray(input.attempts)) {
-      return { ok: false };
-    }
-    const attempts = [];
-    for (const attempt of input.attempts) {
-      const allowedRoot = path.join(input.workspace_root, "allowed") + path.sep;
-      if (attempt.path.startsWith(allowedRoot)) {
-        fs.mkdirSync(path.dirname(attempt.path), { recursive: true });
-        fs.writeFileSync(attempt.path, attempt.content);
-        attempts.push({ id: attempt.id, wrote: true });
-      } else {
-        attempts.push({ id: attempt.id, wrote: false, blocked: true });
-      }
-    }
-    return { ok: true, value: { attempts } };
-  };
-}
-
-/** Primitiva sin sandbox: escribe en TODO lo que se le pide (adversarial). */
-function makeRogueIsolationPrimitive() {
-  return async (input) => {
-    if (!input || input.isolation !== true || !Array.isArray(input.attempts)) {
-      return { ok: false };
-    }
-    for (const attempt of input.attempts) {
-      fs.mkdirSync(path.dirname(attempt.path), { recursive: true });
-      fs.writeFileSync(attempt.path, attempt.content);
-    }
-    return { ok: true, value: { escaped: true } };
-  };
-}
 
 const ALL_PRIMITIVES = Object.freeze({
   execute: () => ({ execution_id: "exec-1", ran: true }),
@@ -69,8 +41,11 @@ const ALL_PRIMITIVES = Object.freeze({
 
 test("missing primitive degrades honestly — never enforced", async () => {
   const adapter = await createClaudeHostAdapter();
-  for (const name of TRANSPORT_CAPABILITIES) {
+  for (const name of REQUIRED_TRANSPORTS) {
     assert.ok(adapter.transports[name]);
+  }
+  assert.equal(adapter.transports.WorkerIsolation, undefined);
+  for (const name of TRANSPORT_CAPABILITIES) {
     assert.notEqual(adapter.capabilities[name], "enforced", name);
     assert.ok(
       ["unavailable", "instructional", "partial"].includes(adapter.capabilities[name]),
@@ -362,6 +337,8 @@ test("CRITICAL: sandboxed worker demonstrates containment; verified transports c
     expectedAdapterVersion: ADAPTER_VERSION,
     expectedHostRuntimeVersion: HOST_VERSION,
     expectedProbeDigest: material.WorkerIsolation.expectedProbeDigest,
+    expectedPortId: material.WorkerIsolation.expectedPortId,
+    expectedFingerprint: material.WorkerIsolation.expectedFingerprint,
   });
   assert.equal(resolved.enforced, true);
 
@@ -382,17 +359,59 @@ test("CRITICAL: sandboxed worker demonstrates containment; verified transports c
       workerIsolation: makeSandboxedIsolationPrimitive(),
     },
   });
-  for (const name of ["WorkerTransport", "WorkerIsolation"]) {
-    assert.equal(adapter.transports[name].adapter_id, ADAPTER_ID, name);
-    assert.equal(adapter.transports[name].capability_id, name);
-    assert.equal(
-      adapter.transports[name].probe_digest,
-      getProbeObservations(adapter)[name].proof.probe_digest,
-      name
-    );
-  }
+  const wt = adapter.transports.WorkerTransport;
+  assert.equal(wt.adapter_id, ADAPTER_ID);
+  assert.equal(wt.capability_id, "WorkerTransport");
+  assert.equal(wt.probe_digest, getProbeObservations(adapter).WorkerTransport.proof.probe_digest);
+  assert.ok(/^sha256:[a-f0-9]{64}$/.test(wt.fingerprint));
+  assert.equal(wt.fingerprint, sha256Fingerprint("worker-transport-live-identity/v1", {
+    adapter_id: ADAPTER_ID,
+    port_id: wt.port_id,
+    probe_digest: wt.probe_digest,
+  }));
+  assert.equal(adapter.transports.WorkerIsolation, undefined);
+  assert.equal(getProbeObservations(adapter).WorkerIsolation.expectedPortId, wt.port_id);
+  assert.equal(getProbeObservations(adapter).WorkerIsolation.expectedFingerprint, wt.fingerprint);
 
   // Un transport sin proof verificado no lleva identidad prestada.
   const fixtureOnly = await createClaudeHostAdapter();
   assert.equal(fixtureOnly.transports.WorkerTransport.adapter_id, undefined);
 });
+
+test("probe and commands share WorkerTransport fingerprint; unconfined spawnSync cannot mark enforced", async () => {
+  const adapter = await createClaudeHostAdapter({
+    primitives: {
+      worker: () => ({ worker_id: "w-1" }),
+      workerIsolation: makeSandboxedIsolationPrimitive(),
+    },
+  });
+  const obs = getProbeObservations(adapter);
+  assert.equal(adapter.capabilities.WorkerIsolation, "enforced");
+  assert.equal(obs.WorkerIsolation.evidence.transport.port_id, adapter.transports.WorkerTransport.port_id);
+  assert.equal(obs.WorkerIsolation.evidence.transport.fingerprint, adapter.transports.WorkerTransport.fingerprint);
+
+  const cmd = await invokeTransportAsync(adapter.transports.WorkerTransport, {
+    requestId: "cmd-shared-f",
+    input: {
+      command: process.execPath,
+      args: ["-e", "process.stdout.write('ok')"],
+      workspace_root: osTmpWorkspace(),
+      allowed_paths: ["**"],
+    },
+  });
+  assert.equal(cmd.ok, true);
+
+  const vacuous = await createClaudeHostAdapter({
+    primitives: {
+      worker: () => ({ worker_id: "w-1" }),
+      workerIsolation: async () => ({ ok: true, value: { blocked: true } }),
+    },
+  });
+  assert.notEqual(vacuous.capabilities.WorkerIsolation, "enforced");
+  assert.equal(vacuous.capabilities.WorkerIsolation, "partial");
+});
+
+function osTmpWorkspace() {
+  const dir = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "claude-cmd-"));
+  return dir;
+}

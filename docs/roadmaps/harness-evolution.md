@@ -76,7 +76,7 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **`k3-readiness-remediation`** | Relación/successor/dist packaging reconciliado; archivado y publicado |
 | `done` | **K4a** | Graph compiler + Obligation Manifest + deterministic replay (sin worker autoritativo); verificado y reconciliado en v2.45.7 |
 | `done` | **K5** | Budgets (incl. autoridad/efectos), failures y recovery; remediaciones v2.45.7→v2.45.13 (authoritative enforcement, authority boundary/CAS concurrency, reconciliación, remediación técnica del núcleo y blindaje de concurrencia); archivado y publicado en v2.45.13 |
-| `done` | **K6a** | Worker isolation y work-order capsule; primitivas de ejecución aislada, integración con WorkerTransport, contención de filesystem y WorkResult canónico; archivado en v2.46.0 y frontera de procesos cerrada en v2.47.1 |
+| `done` | **K6a** | Worker isolation y work-order capsule; primitivas de ejecución aislada, integración con WorkerTransport, contención de filesystem y WorkResult canónico; archivado en v2.46.0, frontera de procesos cerrada en v2.47.1 y endurecida en v2.47.2 |
 | `next-eligible` | K4b | Repair shadow execution (WO→WR→integrate→Candidate) |
 | `pending` | K6b–K8 | Verifier + provenance, challenges, complexity, review authority, **Evaluation Attestation** |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
@@ -898,7 +898,7 @@ K6 no se ejecuta como un change transversal. Cada slice tiene output terminal y 
 
 <a id="k6--isolated-worker-independent-verifier-y-evidence-strategies--pending"></a>
 
-### K6a — worker isolation y work-order capsule — **done** (v2.46.0; frontera de procesos cerrada en v2.47.1)
+### K6a — worker isolation y work-order capsule — **done** (v2.46.0; frontera de procesos cerrada en v2.47.1; endurecida en v2.47.2)
 
 **Dependencias:** K4a + K5 + K2a (`WorkerTransport` / aislamiento del host de referencia) + K3 (identidades como IDs opacos/shapes).
 

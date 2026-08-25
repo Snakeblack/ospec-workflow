@@ -46,9 +46,13 @@ function isAuthorizedNodeRuntime(file, cwd) {
   return realCandidate === getAuthorizedExecRealpath();
 }
 
-function confineChildEnv(userEnv, parentEnv, preloadPath) {
-  const parent = parentEnv && typeof parentEnv === "object" ? parentEnv : {};
-  if (!parent.OSPEC_SANDBOX_WORKSPACE_ROOT || !parent.OSPEC_SANDBOX_ALLOWED_PATHS) {
+function confineChildEnv(userEnv, capturedPolicy, preloadPath) {
+  const policy = capturedPolicy && typeof capturedPolicy === "object" && !Array.isArray(capturedPolicy)
+    ? capturedPolicy
+    : {};
+  const workspaceRoot = policy.workspaceRoot;
+  const allowedPaths = policy.allowedPaths;
+  if (!workspaceRoot || !Array.isArray(allowedPaths)) {
     throw createSandboxDenial("sandbox env missing; child spawn rejected fail-closed", "env");
   }
   if (!preloadPath) {
@@ -57,10 +61,10 @@ function confineChildEnv(userEnv, parentEnv, preloadPath) {
 
   const confined = userEnv && typeof userEnv === "object" && !Array.isArray(userEnv)
     ? { ...userEnv }
-    : { ...parent };
+    : { ...process.env };
 
-  confined.OSPEC_SANDBOX_WORKSPACE_ROOT = parent.OSPEC_SANDBOX_WORKSPACE_ROOT;
-  confined.OSPEC_SANDBOX_ALLOWED_PATHS = parent.OSPEC_SANDBOX_ALLOWED_PATHS;
+  confined.OSPEC_SANDBOX_WORKSPACE_ROOT = workspaceRoot;
+  confined.OSPEC_SANDBOX_ALLOWED_PATHS = JSON.stringify(allowedPaths);
   const safePreload = String(preloadPath).replace(/\\/g, "/");
   confined.NODE_OPTIONS = `--require "${safePreload}"`;
   return confined;

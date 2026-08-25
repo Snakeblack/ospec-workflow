@@ -5,6 +5,36 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { isAuthorizedNodeRuntime, confineChildEnv } = require("./worker-sandbox-confine.js");
 
+function isLiveIsolationProbeEvidence(evidence) {
+  if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) return false;
+  if (evidence.blocked === true && evidence.attempted !== true && !Array.isArray(evidence.attempts)) {
+    return false;
+  }
+  const attempts = evidence.attempts;
+  if (!Array.isArray(attempts) || attempts.length < 3) return false;
+  if (!attempts.every((a) => a && a.attempted === true && typeof a.wrote === "boolean")) return false;
+  const containment = evidence.containment;
+  if (!containment || typeof containment !== "object") return true;
+  return (
+    containment.allowed_write === "PASS" &&
+    containment.undeclared_workspace_write === "BLOCKED" &&
+    containment.external_root_write === "BLOCKED"
+  );
+}
+
+function isLiveIsolationAttemptTriple(records, planned) {
+  if (!Array.isArray(records) || !Array.isArray(planned) || records.length !== planned.length) {
+    return false;
+  }
+  for (let i = 0; i < planned.length; i++) {
+    const rec = records[i];
+    if (!rec || rec.id !== planned[i].id || rec.attempted !== true || typeof rec.wrote !== "boolean") {
+      return false;
+    }
+  }
+  return true;
+}
+
 const PRELOAD_SCRIPT_PATH = path.resolve(__dirname, "worker-sandbox-preload.js");
 
 /**
@@ -48,13 +78,14 @@ async function executeSandboxedCommand(options = {}) {
     };
   }
 
-  const parentSandboxEnv = {
+  const capturedPolicy = {
+    workspaceRoot: realWorkspaceRoot,
+    allowedPaths,
+  };
+  const env = confineChildEnv({
     ...process.env,
     ...(options.env || {}),
-    OSPEC_SANDBOX_WORKSPACE_ROOT: realWorkspaceRoot,
-    OSPEC_SANDBOX_ALLOWED_PATHS: JSON.stringify(allowedPaths),
-  };
-  const env = confineChildEnv(parentSandboxEnv, parentSandboxEnv, PRELOAD_SCRIPT_PATH);
+  }, capturedPolicy, PRELOAD_SCRIPT_PATH);
 
   return await new Promise((resolve) => {
     let child = null;
@@ -177,22 +208,39 @@ function makeSandboxedWorkerPrimitive(options = {}) {
       };
     }
 
-    // 2. WorkerIsolation live probe challenge
+    // 2. WorkerIsolation live probe: three real writes through the confined executor.
     if (input.probe === true && input.isolation === true) {
-      const attempts = [];
       const workspaceRoot = input.workspace_root || process.cwd();
-      const allowedDir = path.join(workspaceRoot, "allowed") + path.sep;
-
-      for (const attempt of input.attempts || []) {
-        const attemptPath = attempt.path;
-        if (attemptPath && attemptPath.startsWith(allowedDir)) {
-          fs.mkdirSync(path.dirname(attemptPath), { recursive: true });
-          fs.writeFileSync(attemptPath, attempt.content || "probe");
-          attempts.push({ id: attempt.id, wrote: true });
-        } else {
-          // Blocked by isolation sandbox
-          attempts.push({ id: attempt.id, wrote: false, blocked: true });
+      const allowedPaths = Array.isArray(input.allowed_paths) ? input.allowed_paths : ["allowed/**"];
+      const planned = Array.isArray(input.attempts) ? input.attempts : [];
+      const attempts = [];
+      for (const attempt of planned) {
+        const attemptPath = attempt && attempt.path;
+        const content = attempt && attempt.content != null ? String(attempt.content) : "probe";
+        if (typeof attemptPath !== "string" || !attemptPath) {
+          attempts.push({ id: attempt && attempt.id, attempted: false, wrote: false });
+          continue;
         }
+        const script = [
+          "const fs = require('node:fs');",
+          "const path = require('node:path');",
+          `const target = ${JSON.stringify(attemptPath)};`,
+          "fs.mkdirSync(path.dirname(target), { recursive: true });",
+          `fs.writeFileSync(target, ${JSON.stringify(content)});`,
+        ].join("");
+        await executeSandboxedCommand({
+          command: process.execPath,
+          args: ["-e", script],
+          cwd: workspaceRoot,
+          workspaceRoot,
+          allowedPaths,
+          timeoutMs: input.timeoutMs || 8000,
+        });
+        attempts.push({
+          id: attempt.id,
+          attempted: true,
+          wrote: fs.existsSync(attemptPath),
+        });
       }
       return { ok: true, outcome: "ok", value: { attempts } };
     }
@@ -248,4 +296,6 @@ module.exports = {
   makeSandboxedWorkerPrimitive,
   makeSandboxedIsolationPrimitive,
   makeRogueIsolationPrimitive,
+  isLiveIsolationProbeEvidence,
+  isLiveIsolationAttemptTriple,
 };

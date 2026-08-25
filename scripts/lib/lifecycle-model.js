@@ -235,7 +235,27 @@ const K6A_EXECUTABLE_INVARIANTS = Object.freeze([
   }),
   Object.freeze({
     id: "inv-k6a-host-isolation-fallback",
-    name: "Host transport with partial/unavailable isolation executes fallback without silent promotion to enforced",
+    name: "Command execution without enforced isolation fails closed; non-command software-boundary paths MAY complete",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k6a-sandbox-policy-immutability",
+    name: "Captured sandbox policy is immutable after OSPEC_SANDBOX_* mutation",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k6a-transport-binding",
+    name: "WorkerIsolation enforced is bound to executing WorkerTransport identity",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k6a-real-containment-probe",
+    name: "Isolation probe attempts allowed, undeclared, and external writes with PASS/BLOCKED/BLOCKED",
+    optional: false,
+  }),
+  Object.freeze({
+    id: "inv-k6a-mutating-fs-surface",
+    name: "Remaining mutating fs APIs fail closed at the wrapper",
     optional: false,
   }),
 ]);
@@ -470,6 +490,10 @@ const CHECKERS = {
   "inv-k6a-work-result-binding": () => checkK6aWorkResultBinding(),
   "inv-k6a-interrupted-recovery-preservation": () => checkK6aInterruptedRecoveryPreservation(),
   "inv-k6a-host-isolation-fallback": () => checkK6aHostIsolationFallback(),
+  "inv-k6a-sandbox-policy-immutability": () => checkK6aSandboxPolicyImmutability(),
+  "inv-k6a-transport-binding": () => checkK6aTransportBinding(),
+  "inv-k6a-real-containment-probe": () => checkK6aRealContainmentProbe(),
+  "inv-k6a-mutating-fs-surface": () => checkK6aMutatingFsSurface(),
 };
 
 function checkK2aZeroConcreteHostImports() {
@@ -1386,6 +1410,261 @@ async function checkK6aHostIsolationFallback() {
     return { ok, invariant_id: "inv-k6a-host-isolation-fallback", runtime_composed: true };
   } finally {
     fs.rmSync(baseDir, { recursive: true, force: true });
+  }
+}
+
+async function checkK6aSandboxPolicyImmutability() {
+  const { executeSandboxedCommand } = require("./worker-sandbox.js");
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-inv-policy-"));
+  try {
+    const leak = path.join(ws, "unauthorized", "leak.txt");
+    const inner = `require("fs").mkdirSync("unauthorized",{recursive:true});require("fs").writeFileSync("unauthorized/leak.txt","pwn");`;
+    const script = `
+      process.env.OSPEC_SANDBOX_ALLOWED_PATHS = JSON.stringify(["**"]);
+      const { spawnSync } = require("node:child_process");
+      try { spawnSync(process.execPath, ["-e", ${JSON.stringify(inner)}], { encoding: "utf8" }); } catch {}
+    `;
+    await executeSandboxedCommand({
+      command: process.execPath,
+      args: ["-e", script],
+      cwd: ws,
+      workspaceRoot: ws,
+      allowedPaths: ["dist/**"],
+    });
+    const ok = fs.existsSync(leak) === false;
+    return { ok, invariant_id: "inv-k6a-sandbox-policy-immutability", runtime_composed: true };
+  } finally {
+    fs.rmSync(ws, { recursive: true, force: true });
+  }
+}
+
+async function checkK6aTransportBinding() {
+  const { createWorkspace, disposeWorkspace } = require("./worker-workspace.js");
+  const { executeWorkOrder } = require("./worker-executor.js");
+  const { computeWorkOrderId } = require("./execution-identities/index.js");
+  const { createEvidenceDigest, createProbeDigest } = require("./capability-proof/index.js");
+  const { sha256Fingerprint } = require("./canonical-json.js");
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-inv-bind-"));
+  const snapId = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  try {
+    const ws = await createWorkspace({ baseDir, source_snapshot_id: snapId });
+    const workOrder = {
+      schema_version: 2,
+      kind: "work-order/v2",
+      node_id: "node-inv-bind",
+      role: "executor",
+      status: "pending",
+      operation: "verify",
+      objective: "Transport binding",
+      source_snapshot_id: snapId,
+      dependencies: [],
+      ownership: { owner: "agent-1", mode: "shared" },
+      allowed_paths: ["**"],
+      invariants: ["inv-1"],
+      required_evidence: ["ev-1"],
+      budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
+    };
+    workOrder.work_order_id = computeWorkOrderId(workOrder);
+    const adapterId = "adapter-bind";
+    const portF = "port-F";
+    const wtEvidence = { surface: "worker", headless: true };
+    const wtFixture = "fixtures/WorkerTransport.json";
+    const wtProbe = createProbeDigest({
+      capability_id: "WorkerTransport",
+      adapter_id: adapterId,
+      adapter_version: "1.0.0",
+      host_version: "1.0.0",
+      probe: { surface: "live", ok: true },
+    });
+    const fingerprintF = sha256Fingerprint("worker-transport-live-identity/v1", {
+      adapter_id: adapterId,
+      port_id: portF,
+      probe_digest: wtProbe,
+    });
+    const containment = {
+      allowed_write: "PASS",
+      undeclared_workspace_write: "BLOCKED",
+      external_root_write: "BLOCKED",
+    };
+    const attempts = [
+      { id: "allowed_write", attempted: true, wrote: true },
+      { id: "undeclared_workspace_write", attempted: true, wrote: false },
+      { id: "external_root_write", attempted: true, wrote: false },
+    ];
+    const isoEvidence = {
+      surface: "worker-isolation",
+      host_observed: true,
+      containment,
+      transport: { port_id: portF, fingerprint: fingerprintF },
+      attempts,
+    };
+    const isoFixture = "fixtures/WorkerIsolation.json";
+    const workerIsolation = {
+      declared_state: "enforced",
+      capabilityProof: {
+        schema_version: 1,
+        kind: "capability-proof/v1",
+        adapter_id: adapterId,
+        adapter_version: "1.0.0",
+        host_version: "1.0.0",
+        fixture: isoFixture,
+        evidence_digest: createEvidenceDigest({
+          capability_id: "WorkerIsolation",
+          adapter_version: "1.0.0",
+          host_version: "1.0.0",
+          fixture: isoFixture,
+          evidence: isoEvidence,
+        }),
+        probe_digest: createProbeDigest({
+          capability_id: "WorkerIsolation",
+          adapter_id: adapterId,
+          adapter_version: "1.0.0",
+          host_version: "1.0.0",
+          probe: { surface: "live", ok: true, host_observed: true, containment },
+        }),
+      },
+      semantic_evidence: isoEvidence,
+      expectedAdapterId: adapterId,
+      expectedAdapterVersion: "1.0.0",
+      expectedHostRuntimeVersion: "1.0.0",
+      expectedProbeDigest: createProbeDigest({
+        capability_id: "WorkerIsolation",
+        adapter_id: adapterId,
+        adapter_version: "1.0.0",
+        host_version: "1.0.0",
+        probe: { surface: "live", ok: true, host_observed: true, containment },
+      }),
+    };
+    const result = await executeWorkOrder({
+      workOrder,
+      workspace: ws,
+      command: "runner",
+      isolationCapability: "enforced",
+      capabilityProof: {
+        schema_version: 1,
+        kind: "capability-proof/v1",
+        adapter_id: adapterId,
+        adapter_version: "1.0.0",
+        host_version: "1.0.0",
+        fixture: wtFixture,
+        evidence_digest: createEvidenceDigest({
+          capability_id: "WorkerTransport",
+          adapter_version: "1.0.0",
+          host_version: "1.0.0",
+          fixture: wtFixture,
+          evidence: wtEvidence,
+        }),
+        probe_digest: wtProbe,
+      },
+      semantic_evidence: wtEvidence,
+      expectedAdapterId: adapterId,
+      expectedAdapterVersion: "1.0.0",
+      expectedHostRuntimeVersion: "1.0.0",
+      expectedProbeDigest: wtProbe,
+      probe_digest: wtProbe,
+      workerIsolation,
+      transports: {
+        worker: {
+          port_id: "port-G",
+          adapter_id: adapterId,
+          probe_digest: wtProbe,
+          run: async () => ({ ok: true, exit_code: 0, stdout: "no", stderr: "" }),
+        },
+      },
+    });
+    const ok = result.ok === false && result.isolationReported !== "enforced";
+    await disposeWorkspace(ws);
+    return { ok, invariant_id: "inv-k6a-transport-binding", runtime_composed: true };
+  } finally {
+    fs.rmSync(baseDir, { recursive: true, force: true });
+  }
+}
+
+async function checkK6aRealContainmentProbe() {
+  const { makeSandboxedWorkerPrimitive, isLiveIsolationProbeEvidence } = require("./worker-sandbox.js");
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-inv-probe-"));
+  const ext = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-inv-probe-out-"));
+  try {
+    fs.mkdirSync(path.join(ws, "allowed"), { recursive: true });
+    const attempts = [
+      { id: "allowed_write", path: path.join(ws, "allowed", "ok.txt"), content: "ok" },
+      { id: "undeclared_workspace_write", path: path.join(ws, "leak.txt"), content: "leak" },
+      { id: "external_root_write", path: path.join(ext, "ext.txt"), content: "ext" },
+    ];
+    const primitive = makeSandboxedWorkerPrimitive();
+    const isoProbe = await primitive({
+      probe: true,
+      isolation: true,
+      workspace_root: ws,
+      allowed_paths: ["allowed/**"],
+      attempts,
+    });
+    const recorded = isoProbe.value && isoProbe.value.attempts;
+    const containment = {
+      allowed_write: fs.existsSync(attempts[0].path) ? "PASS" : "FAIL",
+      undeclared_workspace_write: fs.existsSync(attempts[1].path) ? "LEAKED" : "BLOCKED",
+      external_root_write: fs.existsSync(attempts[2].path) ? "LEAKED" : "BLOCKED",
+    };
+    const ok =
+      isoProbe.ok === true &&
+      containment.allowed_write === "PASS" &&
+      containment.undeclared_workspace_write === "BLOCKED" &&
+      containment.external_root_write === "BLOCKED" &&
+      isLiveIsolationProbeEvidence({ containment, attempts: recorded }) &&
+      isLiveIsolationProbeEvidence({ blocked: true }) === false;
+    return { ok, invariant_id: "inv-k6a-real-containment-probe", runtime_composed: true };
+  } finally {
+    fs.rmSync(ws, { recursive: true, force: true });
+    fs.rmSync(ext, { recursive: true, force: true });
+  }
+}
+
+async function checkK6aMutatingFsSurface() {
+  const { executeSandboxedCommand } = require("./worker-sandbox.js");
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-inv-fs-"));
+  try {
+    const script = `
+      const fs = require("node:fs");
+      const path = require("node:path");
+      const target = path.join(${JSON.stringify(ws)}, "unauthorized", "probe");
+      const results = {};
+      const deny = (label, fn) => {
+        try { fn(); results[label] = "ran"; } catch (err) {
+          results[label] = err && err.code === "EACCES" ? "denied" : String(err && err.code || err);
+        }
+      };
+      deny("mkdtempSync", () => fs.mkdtempSync(target + "-"));
+      deny("chmodSync", () => fs.chmodSync(target, 0o644));
+      deny("chownSync", () => fs.chownSync(target, 0, 0));
+      deny("utimesSync", () => fs.utimesSync(target, new Date(), new Date()));
+      if (typeof fs.lutimesSync === "function") deny("lutimesSync", () => fs.lutimesSync(target, new Date(), new Date()));
+      if (typeof fs.mkdtempDisposableSync === "function") deny("mkdtempDisposableSync", () => fs.mkdtempDisposableSync(target + "-d-"));
+      process.stdout.write(JSON.stringify(results));
+    `;
+    const result = await executeSandboxedCommand({
+      command: process.execPath,
+      args: ["-e", script],
+      cwd: ws,
+      workspaceRoot: ws,
+      allowedPaths: ["dist/**"],
+    });
+    const results = result.ok ? JSON.parse(result.stdout || "{}") : {};
+    const ok = Object.keys(results).length > 0 && Object.values(results).every((v) => v === "denied");
+    return { ok, invariant_id: "inv-k6a-mutating-fs-surface", runtime_composed: true };
+  } finally {
+    fs.rmSync(ws, { recursive: true, force: true });
   }
 }
 

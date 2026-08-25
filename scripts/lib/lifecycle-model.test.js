@@ -92,8 +92,8 @@ test("deferred invariants are listed but do not count as K2 enforcement", async 
   );
 });
 
-test("K6a manifest lists six executable invariants not on deferred list", async () => {
-  assert.equal(K6A_EXECUTABLE_INVARIANTS.length, 6);
+test("K6a manifest lists ten executable invariants not on deferred list", async () => {
+  assert.equal(K6A_EXECUTABLE_INVARIANTS.length, 10);
   const deferredIds = new Set(DEFERRED_INVARIANTS.map((d) => d.id));
   for (const inv of K6A_EXECUTABLE_INVARIANTS) {
     assert.equal(deferredIds.has(inv.id), false);

@@ -9,9 +9,9 @@ const {
   runAllInvariantCheckers,
 } = require("./lifecycle-model.js");
 
-test("REQ-lifecycle-model-conformance-012: K6a manifest lists 6 executable invariants", async () => {
+test("REQ-lifecycle-model-conformance-012: K6a manifest lists 10 executable invariants", async () => {
   assert.ok(Array.isArray(K6A_EXECUTABLE_INVARIANTS), "K6A_EXECUTABLE_INVARIANTS must be exported");
-  assert.equal(K6A_EXECUTABLE_INVARIANTS.length, 6);
+  assert.equal(K6A_EXECUTABLE_INVARIANTS.length, 10);
 
   const deferredIds = new Set(DEFERRED_INVARIANTS.map((d) => d.id));
   for (const inv of K6A_EXECUTABLE_INVARIANTS) {
@@ -24,7 +24,7 @@ test("REQ-lifecycle-model-conformance-012: K6a manifest lists 6 executable invar
   }
 
   const all = await runAllInvariantCheckers();
-  assert.equal(all.k6a_count, 6);
+  assert.equal(all.k6a_count, 10);
   assert.equal(all.ok, true);
 });
 
@@ -58,8 +58,32 @@ test("K6a Invariant 5: Execution timeouts or abort signals preserve partial logs
   assert.equal(result.invariant_id, "inv-k6a-interrupted-recovery-preservation");
 });
 
-test("K6a Invariant 6: Host transport with partial/unavailable isolation executes fallback without silent promotion to enforced", async () => {
+test("K6a Invariant 6: Command execution without enforced isolation fails closed", async () => {
   const result = await checkInvariant("inv-k6a-host-isolation-fallback");
   assert.equal(result.ok, true);
   assert.equal(result.invariant_id, "inv-k6a-host-isolation-fallback");
+});
+
+test("K6a Invariant 7: Captured sandbox policy is immutable", async () => {
+  const result = await checkInvariant("inv-k6a-sandbox-policy-immutability");
+  assert.equal(result.ok, true);
+  assert.equal(result.invariant_id, "inv-k6a-sandbox-policy-immutability");
+});
+
+test("K6a Invariant 8: WorkerIsolation binds executing transport", async () => {
+  const result = await checkInvariant("inv-k6a-transport-binding");
+  assert.equal(result.ok, true);
+  assert.equal(result.invariant_id, "inv-k6a-transport-binding");
+});
+
+test("K6a Invariant 9: Three-way containment probe is real", async () => {
+  const result = await checkInvariant("inv-k6a-real-containment-probe");
+  assert.equal(result.ok, true);
+  assert.equal(result.invariant_id, "inv-k6a-real-containment-probe");
+});
+
+test("K6a Invariant 10: Mutating fs wrap is exhaustive", async () => {
+  const result = await checkInvariant("inv-k6a-mutating-fs-surface");
+  assert.equal(result.ok, true);
+  assert.equal(result.invariant_id, "inv-k6a-mutating-fs-surface");
 });

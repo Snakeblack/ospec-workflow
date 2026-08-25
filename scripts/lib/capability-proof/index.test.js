@@ -278,3 +278,51 @@ test("failed/absent proof does not promote partial/unavailable/instructional to 
     );
   }
 });
+
+test("WorkerIsolation live-identity: match, mismatch, and missing expected fields", () => {
+  const transportF = { port_id: "claude-worker", fingerprint: "sha256:ffff" };
+  const { expected, proof } = makeLiveMaterial("WorkerIsolation", {
+    surface: "worker-isolation",
+    host_observed: true,
+    containment: {
+      allowed_write: "PASS",
+      undeclared_workspace_write: "BLOCKED",
+      external_root_write: "BLOCKED",
+    },
+    transport: transportF,
+  });
+
+  const match = verifyCapabilityProof({
+    ...expected,
+    expectedPortId: transportF.port_id,
+    expectedFingerprint: transportF.fingerprint,
+  });
+  assert.equal(match.ok, true);
+  assert.equal(proof.kind, "capability-proof/v1");
+  assert.equal(proof.port_id, undefined);
+  assert.equal(proof.fingerprint, undefined);
+
+  const mismatch = verifyCapabilityProof({
+    ...expected,
+    expectedPortId: "other-worker",
+    expectedFingerprint: "sha256:gggg",
+  });
+  assert.equal(mismatch.ok, false);
+  assert.equal(mismatch.reason_code, REASON.TRANSPORT_IDENTITY_MISMATCH);
+
+  const missingPort = verifyCapabilityProof({
+    ...expected,
+    expectedFingerprint: transportF.fingerprint,
+  });
+  assert.equal(missingPort.ok, false);
+  assert.equal(missingPort.reason_code, REASON.EXPECTED_FIELD_MISSING);
+  assert.equal(missingPort.path, "/expectedPortId");
+
+  const missingFp = verifyCapabilityProof({
+    ...expected,
+    expectedPortId: transportF.port_id,
+  });
+  assert.equal(missingFp.ok, false);
+  assert.equal(missingFp.reason_code, REASON.EXPECTED_FIELD_MISSING);
+  assert.equal(missingFp.path, "/expectedFingerprint");
+});

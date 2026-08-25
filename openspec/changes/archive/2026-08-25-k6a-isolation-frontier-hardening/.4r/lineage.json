@@ -1,0 +1,436 @@
+{
+  "schema_version": 1,
+  "lineage_id": "sha256:976c7edf481a4cb370e80778117d7d2c0a247498915415204026f22223b5b675",
+  "generation": 1,
+  "predecessor_lineage_id": null,
+  "recovery": null,
+  "revision": 12,
+  "status": "approved",
+  "genesis": {
+    "candidate": {
+      "projection": "workspace",
+      "base_tree": "a62266c929319bc16b91b07c9333d193b7bf1376",
+      "candidate_tree": "workspace-uncommitted",
+      "paths": [
+        "scripts/k6a-e2e-worker-isolation.test.js",
+        "scripts/lib/capability-proof/index.js",
+        "scripts/lib/capability-proof/index.test.js",
+        "scripts/lib/host-adapters/claude.js",
+        "scripts/lib/host-adapters/claude.test.js",
+        "scripts/lib/host-adapters/registry.test.js",
+        "scripts/lib/host-contract/index.js",
+        "scripts/lib/host-contract/index.test.js",
+        "scripts/lib/k6a-lifecycle-model.test.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/lifecycle-model.test.js",
+        "scripts/lib/worker-executor.js",
+        "scripts/lib/worker-executor.test.js",
+        "scripts/lib/worker-sandbox-confine.js",
+        "scripts/lib/worker-sandbox-preload.js",
+        "scripts/lib/worker-sandbox.js",
+        "scripts/lib/worker-sandbox.test.js"
+      ],
+      "diff_hash": "sha256:f54dc99e9ff141805114c4c317c9322f86d99cef089d21d5a9834f4bc0ede437",
+      "paths_digest": "sha256:4624e63b31cf8d3b0ced4878aa0db33373b7769977d5523a1e2e4e5ef0b318cf",
+      "authored_lines": 1314,
+      "original_changed_lines": 1524
+    },
+    "candidate_id": "sha256:9e61f545b96dbe8bb2cc791b165d542201a195568dd3b42b17dc5837693bde45",
+    "paths": [
+      "scripts/k6a-e2e-worker-isolation.test.js",
+      "scripts/lib/capability-proof/index.js",
+      "scripts/lib/capability-proof/index.test.js",
+      "scripts/lib/host-adapters/claude.js",
+      "scripts/lib/host-adapters/claude.test.js",
+      "scripts/lib/host-adapters/registry.test.js",
+      "scripts/lib/host-contract/index.js",
+      "scripts/lib/host-contract/index.test.js",
+      "scripts/lib/k6a-lifecycle-model.test.js",
+      "scripts/lib/lifecycle-model.js",
+      "scripts/lib/lifecycle-model.test.js",
+      "scripts/lib/worker-executor.js",
+      "scripts/lib/worker-executor.test.js",
+      "scripts/lib/worker-sandbox-confine.js",
+      "scripts/lib/worker-sandbox-preload.js",
+      "scripts/lib/worker-sandbox.js",
+      "scripts/lib/worker-sandbox.test.js"
+    ],
+    "classification": "high-risk",
+    "selected_dimensions": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "evidence_fingerprint": "sha256:8bf2452d8e5447a9c4ccf96d3d218dda41a8e70474663a251591e0b8f8596b34",
+    "original_changed_lines": 1524,
+    "authored_lines": 1314
+  },
+  "current_candidate_id": "sha256:50f15c0ed9485de31c94cc0ff4e1b5815ddc0416d80f42ce1049a84074a2b432",
+  "current_candidate": {
+    "projection": "workspace",
+    "base_tree": "a62266c929319bc16b91b07c9333d193b7bf1376",
+    "candidate_tree": "sha256:7bf44a6bcded1e65bde1af50db31486a67d3914bae128af2793082c4edd0004e",
+    "paths": [
+      "scripts/k6a-e2e-worker-isolation.test.js",
+      "scripts/lib/capability-proof/index.js",
+      "scripts/lib/capability-proof/index.test.js",
+      "scripts/lib/host-adapters/claude.js",
+      "scripts/lib/host-adapters/claude.test.js",
+      "scripts/lib/host-adapters/registry.test.js",
+      "scripts/lib/host-contract/index.js",
+      "scripts/lib/host-contract/index.test.js",
+      "scripts/lib/k6a-lifecycle-model.test.js",
+      "scripts/lib/lifecycle-model.js",
+      "scripts/lib/lifecycle-model.test.js",
+      "scripts/lib/worker-executor.js",
+      "scripts/lib/worker-executor.test.js",
+      "scripts/lib/worker-sandbox-confine.js",
+      "scripts/lib/worker-sandbox-preload.js",
+      "scripts/lib/worker-sandbox.js",
+      "scripts/lib/worker-sandbox.test.js"
+    ],
+    "diff_hash": "sha256:5f0e12dab3332c6a8dc1388167e6bc10ad48ac1cb085fbf08ffa3c432a7d157f",
+    "paths_digest": "sha256:4624e63b31cf8d3b0ced4878aa0db33373b7769977d5523a1e2e4e5ef0b318cf",
+    "authored_lines": 1314,
+    "original_changed_lines": 1524
+  },
+  "lenses": {
+    "risk": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "4r-lens-risk-001",
+      "result_digest": "sha256:e68f1db4cf03629f1826c4d470d363332df4146ef0bf499148bedbbcda953f88",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "worker_threads is not confined; a Worker isolate can drop the preload and write outside allowed_paths.",
+            "acceptance_criteria": "Preload MUST intercept worker_threads.Worker so nested isolates inherit capturedPolicy confinement or construction is fail-closed. RED: sandboxed Worker({eval:true, execArgv:[]}) write outside workspace MUST be blocked or rejected."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "fs.link* only authorizes newPath; a hardlink to an outside inode can be mutated via an inside name.",
+            "acceptance_criteria": "link/linkSync/promises.link MUST fail closed unless both existingPath and newPath resolve inside captured allowed_paths. Adversarial test: link(outside, allowedRel) then write(allowedRel) MUST NOT mutate the outside inode."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "4r-lens-risk-001"
+    },
+    "reliability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "4r-lens-reliability-001",
+      "result_digest": "sha256:addb8d421eb611d2ffdb7412f067445dad42fa7df600304023c97e6f8a75564d",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "fd/FileHandle mutating APIs (fchmod/fchown/futimes) are wrapped but not exercised by tests.",
+            "acceptance_criteria": "Runtime test: openSync(undeclared, r) then fchmodSync(fd) MUST throw EACCES. Mutation-surface inventory MUST invoke those wrappers."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "4r-lens-reliability-001"
+    },
+    "resilience": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "4r-lens-resilience-001",
+      "result_digest": "sha256:69ae7eb258314b45645de5bb998bce879822b19354db4c8d39d3f354ba359cda",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "Malformed OSPEC_SANDBOX_ALLOWED_PATHS fail-opens to ** and capturedPolicy freezes that policy.",
+            "acceptance_criteria": "If rawAllowedPaths is missing, unparseable, or not an array, preload MUST fail closed (no default **)."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Empty catch around fileURLToPath can skip assertWriteAllowed and still run original fs.",
+            "acceptance_criteria": "If path conversion fails, the wrapper MUST throw EACCES fail-closed rather than return and invoke the original method."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "executeSandboxedCommand abort sends SIGTERM only and finishes immediately; no SIGKILL escalation.",
+            "acceptance_criteria": "Abort MUST escalate to SIGKILL after a bounded wait, matching the local spawn path in worker-executor.js."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Isolation probe mkdtemp pair runs before try; second failure leaks externalRoot.",
+            "acceptance_criteria": "Both temp dirs MUST be created inside a try/finally that rmSyncs any successfully created path."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "4r-lens-resilience-001"
+    },
+    "readability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "4r-lens-readability-001",
+      "result_digest": "sha256:5fc77157a1bc27db84a0e1c078c2afa27995c2731469fa70c58f19c4416fdf5b",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "isolationReported assignment in executeWorkOrder is nested four levels deep.",
+            "acceptance_criteria": "Extract a named helper that returns isolationReported or a fail-closed result so the enforced assignment is a single obvious path."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "isolationCapability names WorkerTransport state but error strings say isolation; easy to misread as WorkerIsolation.",
+            "acceptance_criteria": "Comment or rename the declared transport capability vs WorkerIsolation bundle so isolationReported cannot inherit the wrong proof."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "capturedPolicy is passed next to a process.env spread without stating that OSPEC_SANDBOX_* are rebuilt from the snapshot.",
+            "acceptance_criteria": "Comment confineChildEnv call sites that live process.env is not the sandbox policy authority (ADR-001)."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "isLiveIsolationProbeEvidence returns true when containment is missing; executor re-checks PASS/BLOCKED/BLOCKED.",
+            "acceptance_criteria": "Either require containment in the probe predicate or document why it is optional and keep a single authority for the triple."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "JSDoc still says puerto WorkerIsolation while the call site passes WorkerTransport.",
+            "acceptance_criteria": "Correct JSDoc so WorkerIsolation is a capability on WorkerTransport, not a sixth port."
+          },
+          {
+            "severity": "SUGGESTION",
+            "summary": "WorkerTransport handler fallback order between primitives.worker and workerIsolation is uncommented.",
+            "acceptance_criteria": "Comment the fallback so probe and command share the executing transport fingerprint."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "4r-lens-readability-001"
+    }
+  },
+  "findings": [
+    {
+      "id": "F-a93a0811da865770",
+      "owner": "risk",
+      "severity": "CRITICAL",
+      "summary": "worker_threads is not confined; a Worker isolate can drop the preload and write outside allowed_paths.",
+      "acceptance_criteria": "Preload MUST intercept worker_threads.Worker so nested isolates inherit capturedPolicy confinement or construction is fail-closed. RED: sandboxed Worker({eval:true, execArgv:[]}) write outside workspace MUST be blocked or rejected.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-4f89ecce967aa993",
+      "owner": "risk",
+      "severity": "WARNING",
+      "summary": "fs.link* only authorizes newPath; a hardlink to an outside inode can be mutated via an inside name.",
+      "acceptance_criteria": "link/linkSync/promises.link MUST fail closed unless both existingPath and newPath resolve inside captured allowed_paths. Adversarial test: link(outside, allowedRel) then write(allowedRel) MUST NOT mutate the outside inode.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-956aa4533c88d985",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "fd/FileHandle mutating APIs (fchmod/fchown/futimes) are wrapped but not exercised by tests.",
+      "acceptance_criteria": "Runtime test: openSync(undeclared, r) then fchmodSync(fd) MUST throw EACCES. Mutation-surface inventory MUST invoke those wrappers.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-cd22bfb794ae6173",
+      "owner": "resilience",
+      "severity": "WARNING",
+      "summary": "Malformed OSPEC_SANDBOX_ALLOWED_PATHS fail-opens to ** and capturedPolicy freezes that policy.",
+      "acceptance_criteria": "If rawAllowedPaths is missing, unparseable, or not an array, preload MUST fail closed (no default **).",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-015f72a49b73bdaf",
+      "owner": "resilience",
+      "severity": "WARNING",
+      "summary": "Empty catch around fileURLToPath can skip assertWriteAllowed and still run original fs.",
+      "acceptance_criteria": "If path conversion fails, the wrapper MUST throw EACCES fail-closed rather than return and invoke the original method.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-eec865b59d1098e4",
+      "owner": "resilience",
+      "severity": "WARNING",
+      "summary": "executeSandboxedCommand abort sends SIGTERM only and finishes immediately; no SIGKILL escalation.",
+      "acceptance_criteria": "Abort MUST escalate to SIGKILL after a bounded wait, matching the local spawn path in worker-executor.js.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-c0b0cfd093a0d17b",
+      "owner": "resilience",
+      "severity": "WARNING",
+      "summary": "Isolation probe mkdtemp pair runs before try; second failure leaks externalRoot.",
+      "acceptance_criteria": "Both temp dirs MUST be created inside a try/finally that rmSyncs any successfully created path.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-cb1726a6d1c79759",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "isolationReported assignment in executeWorkOrder is nested four levels deep.",
+      "acceptance_criteria": "Extract a named helper that returns isolationReported or a fail-closed result so the enforced assignment is a single obvious path.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-aea254cde5ff50d5",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "isolationCapability names WorkerTransport state but error strings say isolation; easy to misread as WorkerIsolation.",
+      "acceptance_criteria": "Comment or rename the declared transport capability vs WorkerIsolation bundle so isolationReported cannot inherit the wrong proof.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-de955dda19a29573",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "capturedPolicy is passed next to a process.env spread without stating that OSPEC_SANDBOX_* are rebuilt from the snapshot.",
+      "acceptance_criteria": "Comment confineChildEnv call sites that live process.env is not the sandbox policy authority (ADR-001).",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-ca103c157d4b59b1",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "isLiveIsolationProbeEvidence returns true when containment is missing; executor re-checks PASS/BLOCKED/BLOCKED.",
+      "acceptance_criteria": "Either require containment in the probe predicate or document why it is optional and keep a single authority for the triple.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-59bf1c394018a548",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "JSDoc still says puerto WorkerIsolation while the call site passes WorkerTransport.",
+      "acceptance_criteria": "Correct JSDoc so WorkerIsolation is a capability on WorkerTransport, not a sixth port.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-f1212234c3ba4b00",
+      "owner": "readability",
+      "severity": "SUGGESTION",
+      "summary": "WorkerTransport handler fallback order between primitives.worker and workerIsolation is uncommented.",
+      "acceptance_criteria": "Comment the fallback so probe and command share the executing transport fingerprint.",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ],
+  "findings_digest": "sha256:461e0d82563bdd46e7e4c3389757765e31d69ade874fc756c336581ae99b74c8",
+  "correction_budget": {
+    "limit_lines": 200,
+    "used_lines": 0,
+    "failed_attempts": 0,
+    "max_failed_attempts": 3
+  },
+  "correction_history": [],
+  "validation_history": [],
+  "follow_ups": [],
+  "pending_operation": null,
+  "pending_correction": null,
+  "terminal_reason": "all-remediation-slices-passed",
+  "remediation_schema_version": 2,
+  "remediation_migration": {
+    "source_digest": "sha256:3f04a2519827ce99cfe60a6938ad942a383f4c7dec00c76f33215f8821f53f82",
+    "manifest_digest": "sha256:ac342e4386c2d3e9f20035fc0a7133fbe29bc72b42b54836ab8e2bf4d69758eb",
+    "legacy_used_lines": 0,
+    "legacy_failed_attempts": 0,
+    "migrated_at": "deterministic"
+  },
+  "slice_order": [
+    "S-2331116459080264"
+  ],
+  "active_slice_id": null,
+  "correction_slices": {
+    "S-2331116459080264": {
+      "slice_id": "S-2331116459080264",
+      "root_cause_key": "F-a93a0811da865770",
+      "finding_ids": [
+        "F-a93a0811da865770"
+      ],
+      "evidence_digests": [
+        "sha256:be9678c537a09ec13addf49c9ed17ff8ee5fbacab32c5a6bfb722ea3f1641c29"
+      ],
+      "permitted_paths": [
+        "scripts/k6a-e2e-worker-isolation.test.js",
+        "scripts/lib/capability-proof/index.js",
+        "scripts/lib/capability-proof/index.test.js",
+        "scripts/lib/host-adapters/claude.js",
+        "scripts/lib/host-adapters/claude.test.js",
+        "scripts/lib/host-adapters/registry.test.js",
+        "scripts/lib/host-contract/index.js",
+        "scripts/lib/host-contract/index.test.js",
+        "scripts/lib/k6a-lifecycle-model.test.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/lifecycle-model.test.js",
+        "scripts/lib/worker-executor.js",
+        "scripts/lib/worker-executor.test.js",
+        "scripts/lib/worker-sandbox-confine.js",
+        "scripts/lib/worker-sandbox-preload.js",
+        "scripts/lib/worker-sandbox.js",
+        "scripts/lib/worker-sandbox.test.js"
+      ],
+      "resolutions": {
+        "F-a93a0811da865770": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 47,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-2331116459080264",
+          "request_id": "4r-correct-S-2331116459080264-001",
+          "finding_ids": [
+            "F-a93a0811da865770"
+          ],
+          "paths": [
+            "scripts/lib/worker-sandbox-preload.js",
+            "scripts/lib/worker-sandbox.test.js"
+          ],
+          "base_candidate_id": "sha256:9e61f545b96dbe8bb2cc791b165d542201a195568dd3b42b17dc5837693bde45",
+          "forecast_lines": 120,
+          "actual_changed_lines": 47,
+          "record_request_id": "4r-record-S-2331116459080264-001",
+          "corrected_candidate_id": "sha256:50f15c0ed9485de31c94cc0ff4e1b5815ddc0416d80f42ce1049a84074a2b432"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "4r-validate-S-2331116459080264-001",
+          "outcomes": [
+            {
+              "id": "F-a93a0811da865770",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "node --test scripts/lib/worker-sandbox.test.js → 20 pass / 0 fail"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    }
+  }
+}
