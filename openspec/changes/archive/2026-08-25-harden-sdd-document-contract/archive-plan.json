@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "change": "harden-sdd-document-contract",
+  "source_fingerprint": "sha256:2c7976d5b1d2974ef92609e8102ec3aba59a7652efe0bc030d03b59741f8a369",
+  "spec_writes": [
+    {
+      "domain": "sdd-document",
+      "source_delta": "prepared-specs/sdd-document/spec.md",
+      "target": "openspec/specs/sdd-document/spec.md",
+      "target_before_sha256": "sha256:ac8c3daa00b1873dc44321b9d7423c3cba9ed0c1b0f269114d4a9bb5e0522d9f",
+      "content_sha256": "sha256:7502bb6041630767d212a3742defd862931c521a558b1dc955a35aad29c58d33"
+    },
+    {
+      "domain": "agents",
+      "source_delta": "prepared-specs/agents/spec.md",
+      "target": "openspec/specs/agents/spec.md",
+      "target_before_sha256": "sha256:fea1cf0634409436d168fbae47242b0b069a6b1d986691c7e3545f79aecddea5",
+      "content_sha256": "sha256:424ecb7c2655392550462d411096c797756075140f33ea199311c25810804409"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260825-001-qa-contenido-post-run-inline-orchestrator-owned-j6.md",
+      "content_sha256": "sha256:5566d1f85e273b43961958ba62ee24e042682284448ab616ac845943dddfd8e0"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260825-002-automatizacion-checklist-p4-p6-contrato-estatico-especificacion-ejecutable-in-test.md",
+      "content_sha256": "sha256:db4892fb5f2f7bb5d8089c6523a69e0aced9d8c8573e800d89eaf3d22a82e44c"
+    }
+  ],
+  "archive_inventory": [
+    ".4r/build-evidence.js",
+    ".4r/derived.json",
+    ".4r/diff.unified.patch",
+    ".4r/evidence-input.json",
+    ".4r/evidence.json",
+    ".4r/freeze-lineage.js",
+    ".4r/gate.json",
+    ".4r/generalist.json",
+    ".4r/lineage.json",
+    ".4r/meta.json",
+    ".4r/paths.json",
+    ".4r/persist-pending-lens.js",
+    ".4r/planned-gate.json",
+    ".4r/planned-lineage.json",
+    ".4r/record-and-freeze.js",
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "design.md",
+    "prepared-specs/agents/spec.md",
+    "prepared-specs/sdd-document/spec.md",
+    "proposal.md",
+    "specs/agents/spec.md",
+    "specs/sdd-document/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

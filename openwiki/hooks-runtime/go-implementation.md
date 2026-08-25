@@ -24,6 +24,8 @@ El ejecutable único `ospec-hooks` actúa como un despachador. El nombre del hoo
 - **Degradación segura**: En lugar de hacer *panic*, los errores se capturan y se devuelven como JSON para que el agente reciba información estructurada y pueda continuar o abortar ordenadamente.
 - **Paridad estricta**: Las validaciones (como en `resultenvelope`) usan estructuras ordenadas (slices) para garantizar que los mensajes de error coincidan byte por byte con los de JS (donde iterar un `Set` preserva el orden).
 
+Ambas implementaciones son paritarias dentro del mismo runtime de hooks: el binding de eventos, timeouts y responsabilidades de cada hook vive en [Runtime de hooks de ciclo de vida](lifecycle.md), junto al launcher que decide cuándo usar este binario Go o el fallback Node.js.
+
 ## Puntos de extensión principales
 
 - **Nuevos Hooks**: Para añadir un nuevo hook, basta con crear un archivo `<nombre>.go` en `internal/hooks/` que implemente la interfaz `Handler` y llame a `hooks.Register(h)` dentro de su función `init()`.

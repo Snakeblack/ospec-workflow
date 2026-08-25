@@ -1,0 +1,16 @@
+[
+  "openspec/changes/harden-sdd-document-contract/apply-progress.md",
+  "openspec/changes/harden-sdd-document-contract/decisions/adr-001.md",
+  "openspec/changes/harden-sdd-document-contract/decisions/adr-002.md",
+  "openspec/changes/harden-sdd-document-contract/design.md",
+  "openspec/changes/harden-sdd-document-contract/proposal.md",
+  "openspec/changes/harden-sdd-document-contract/specs/agents/spec.md",
+  "openspec/changes/harden-sdd-document-contract/specs/sdd-document/spec.md",
+  "openspec/changes/harden-sdd-document-contract/tasks.md",
+  "openspec/changes/harden-sdd-document-contract/verify-report.md",
+  "scripts/sdd-document.test.js",
+  "scripts/starlight-web-doc-contract.test.js",
+  "skills/_shared/route-document.md",
+  "skills/sdd-document/SKILL.md",
+  "skills/sdd-document/references/option-d-starlight.md"
+]

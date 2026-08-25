@@ -13,7 +13,7 @@ Adicionalmente, se activan validadores dinámicos y compuertas de revisión depe
 - **Contract Lint Aggregator:** Un registro de validadores puros (checker functions) en `/scripts/lib/contract-lint.js`. Cada validador reporta una lista de infractores indicando qué se esperaba, qué se encontró y un mensaje de diagnóstico humano.
 - **Git Collaboration Guards:** Integrados en los pre-commit hooks, impiden commits que rompan la base del proyecto. 
 - **Strict TDD:** Si está activado, el sistema analiza el output de git diff. Si hay archivos de producción listos para commit pero no vienen acompañados de su archivo de test correspondiente o de un `tasks.md`, bloquea la acción.
-- **Revisiones Selectivas 4R:** Un clasificador estático extrae "facts" de los diffs (ignorando comentarios o documentación) y decide el nivel de revisión (Readability, Risk, Reliability, Resilience). Si hay señales de alto riesgo (ej. tocando rutas de auth/security) o el cambio supera cierto presupuesto de líneas (>= 400), se escala a la revisión completa (Strict Full 4R). El ciclo de revisión está confinado a un número máximo de intentos (3) y presupuesto de corrección (200 líneas) para prevenir bucles de coste infinito.
+- **Revisiones Selectivas 4R:** Un clasificador estático extrae "facts" de los diffs y decide qué dimensiones de revisión (Readability, Risk, Reliability, Resilience) aplican; la escalación se dispara por señales del diff o por clasificación `high-risk`, y el ciclo de revisión está confinado a un presupuesto cíclico de 3 intentos / 200 líneas. El detalle canónico del pipeline vive en [Testing y calidad](../testing-quality/verification.md), sección §Módulos de revisión 4R selectiva.
 
 ## Razones del diseño (Decisiones de arquitectura)
 

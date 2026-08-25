@@ -57,6 +57,7 @@ mediante un generador puro.
 - [Sistema de Reglas de Agentes](rules-system/agent-rules.md) — restricciones e instrucciones inyectables de TDD y atribución de IA.
 - [Guardrails de seguridad](security/guardrails.md) — AgentShield, Token Budget Advisor, git-collaboration-guard, pre-commit/commit-msg.
 - [Persistencia y estado](state-management/persistence.md) — OpenSpec como fuente de verdad, artifact-store, memoria operativa.
+- [Runtime del kernel](kernel-runtime/kernel-runtime.md) — Authority Store CAS, permisos/receipts de operación y presupuestos de ejecución.
 - [Testing y calidad](testing-quality/verification.md) — Strict TDD, `sdd-verify`, quality gates declarativos.
 - [Federación de workspaces multi-repo](workspace-federation/multi-repo.md) — atlas, baseline federado, markers.
 
@@ -95,6 +96,7 @@ mediante un generador puro.
 - [rules-system/agent-rules.md](rules-system/agent-rules.md)
 - [security/guardrails.md](security/guardrails.md)
 - [state-management/persistence.md](state-management/persistence.md)
+- [kernel-runtime/kernel-runtime.md](kernel-runtime/kernel-runtime.md)
 - [testing-quality/verification.md](testing-quality/verification.md)
 - [workspace-federation/multi-repo.md](workspace-federation/multi-repo.md)
 

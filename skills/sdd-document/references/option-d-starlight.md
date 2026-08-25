@@ -62,7 +62,7 @@ file write once (same retry-once pattern as the approval-ledger write in
 fail the whole run over it — report the failure explicitly in the return
 envelope as a WARNING (same non-fatal degraded-write reporting pattern as
 the `.last-update.json` write-failure behavior in `skills/sdd-document/SKILL.md`
-Step 6.4) and continue with the remaining scaffold files and `openwiki/`
+Step 6.6) and continue with the remaining scaffold files and `openwiki/`
 generation. A file's mere presence at a scaffold slot is never proof that it
 is complete or valid — the copy-if-missing rule above only checks presence
 to decide whether to WRITE it, and never re-validates content on an
@@ -75,7 +75,7 @@ untouched, per the uniform copy-if-missing rule).
 When the resolved scope is D, write `.last-update.json` under
 `openwiki/.last-update.json` — the source-of-truth directory. `web-doc/`
 does NOT carry its own separate `.last-update.json`. Set `scope_choice:
-"D"` in that file, per Step 6.4 of `SKILL.md`.
+"D"` in that file, per Step 6.6 of `SKILL.md`.
 
 ## 5. Report
 

@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "lineage_id": "sha256:7be5c1cabf71500bd3d6c272103a45ba8f1326cdbb43b1da59fa831c1a686152",
+  "generation": 1,
+  "predecessor_lineage_id": null,
+  "recovery": null,
+  "revision": 3,
+  "status": "approved",
+  "genesis": {
+    "candidate": {
+      "projection": "workspace",
+      "base_tree": "9855a1fac91536491e761d9fbd47e091e8dc97d1",
+      "candidate_tree": "WORKING-TREE-harden-sdd-document-contract",
+      "paths": [
+        "openspec/changes/harden-sdd-document-contract/apply-progress.md",
+        "openspec/changes/harden-sdd-document-contract/decisions/adr-001.md",
+        "openspec/changes/harden-sdd-document-contract/decisions/adr-002.md",
+        "openspec/changes/harden-sdd-document-contract/design.md",
+        "openspec/changes/harden-sdd-document-contract/proposal.md",
+        "openspec/changes/harden-sdd-document-contract/specs/agents/spec.md",
+        "openspec/changes/harden-sdd-document-contract/specs/sdd-document/spec.md",
+        "openspec/changes/harden-sdd-document-contract/tasks.md",
+        "openspec/changes/harden-sdd-document-contract/verify-report.md",
+        "scripts/sdd-document.test.js",
+        "scripts/starlight-web-doc-contract.test.js",
+        "skills/_shared/route-document.md",
+        "skills/sdd-document/SKILL.md",
+        "skills/sdd-document/references/option-d-starlight.md"
+      ],
+      "diff_hash": "sha256:052aaf1e0985cc9526374850afaca9ad50726a7a8f5305695fa91d13dd2c7260",
+      "paths_digest": "sha256:907d5e41f685445959b8c453a554120d9162b54ae1e24736332982f3ebd77962",
+      "authored_lines": 1617,
+      "original_changed_lines": 1617
+    },
+    "candidate_id": "sha256:4af5ce8d25e9ea3471736f6d72a7571398197209ed4a64c42426917fba5c8964",
+    "paths": [
+      "openspec/changes/harden-sdd-document-contract/apply-progress.md",
+      "openspec/changes/harden-sdd-document-contract/decisions/adr-001.md",
+      "openspec/changes/harden-sdd-document-contract/decisions/adr-002.md",
+      "openspec/changes/harden-sdd-document-contract/design.md",
+      "openspec/changes/harden-sdd-document-contract/proposal.md",
+      "openspec/changes/harden-sdd-document-contract/specs/agents/spec.md",
+      "openspec/changes/harden-sdd-document-contract/specs/sdd-document/spec.md",
+      "openspec/changes/harden-sdd-document-contract/tasks.md",
+      "openspec/changes/harden-sdd-document-contract/verify-report.md",
+      "scripts/sdd-document.test.js",
+      "scripts/starlight-web-doc-contract.test.js",
+      "skills/_shared/route-document.md",
+      "skills/sdd-document/SKILL.md",
+      "skills/sdd-document/references/option-d-starlight.md"
+    ],
+    "classification": "normal",
+    "selected_dimensions": [
+      "risk"
+    ],
+    "evidence_fingerprint": "sha256:7663eb9a9d63dda2d10a26dd9d034fbb2222c66262c3dd82b9fbc2a63ba37e1b",
+    "original_changed_lines": 1617,
+    "authored_lines": 1617
+  },
+  "current_candidate_id": "sha256:4af5ce8d25e9ea3471736f6d72a7571398197209ed4a64c42426917fba5c8964",
+  "current_candidate": {
+    "projection": "workspace",
+    "base_tree": "9855a1fac91536491e761d9fbd47e091e8dc97d1",
+    "candidate_tree": "WORKING-TREE-harden-sdd-document-contract",
+    "paths": [
+      "openspec/changes/harden-sdd-document-contract/apply-progress.md",
+      "openspec/changes/harden-sdd-document-contract/decisions/adr-001.md",
+      "openspec/changes/harden-sdd-document-contract/decisions/adr-002.md",
+      "openspec/changes/harden-sdd-document-contract/design.md",
+      "openspec/changes/harden-sdd-document-contract/proposal.md",
+      "openspec/changes/harden-sdd-document-contract/specs/agents/spec.md",
+      "openspec/changes/harden-sdd-document-contract/specs/sdd-document/spec.md",
+      "openspec/changes/harden-sdd-document-contract/tasks.md",
+      "openspec/changes/harden-sdd-document-contract/verify-report.md",
+      "scripts/sdd-document.test.js",
+      "scripts/starlight-web-doc-contract.test.js",
+      "skills/_shared/route-document.md",
+      "skills/sdd-document/SKILL.md",
+      "skills/sdd-document/references/option-d-starlight.md"
+    ],
+    "diff_hash": "sha256:052aaf1e0985cc9526374850afaca9ad50726a7a8f5305695fa91d13dd2c7260",
+    "paths_digest": "sha256:907d5e41f685445959b8c453a554120d9162b54ae1e24736332982f3ebd77962",
+    "authored_lines": 1617,
+    "original_changed_lines": 1617
+  },
+  "lenses": {
+    "risk": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-risk-harden-sdd-document-contract",
+      "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+      "result": {
+        "findings": []
+      },
+      "operation": null,
+      "result_request_id": "result-risk-harden-sdd-document-contract"
+    },
+    "reliability": {
+      "selected": false,
+      "status": "skipped",
+      "request_id": null,
+      "result_digest": null,
+      "result": null,
+      "operation": null
+    },
+    "resilience": {
+      "selected": false,
+      "status": "skipped",
+      "request_id": null,
+      "result_digest": null,
+      "result": null,
+      "operation": null
+    },
+    "readability": {
+      "selected": false,
+      "status": "skipped",
+      "request_id": null,
+      "result_digest": null,
+      "result": null,
+      "operation": null
+    }
+  },
+  "findings": [],
+  "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+  "correction_budget": {
+    "limit_lines": 200,
+    "used_lines": 0,
+    "failed_attempts": 0,
+    "max_failed_attempts": 3
+  },
+  "correction_history": [],
+  "validation_history": [],
+  "follow_ups": [],
+  "pending_operation": null,
+  "pending_correction": null,
+  "terminal_reason": "no-unresolved-blocking-findings"
+}

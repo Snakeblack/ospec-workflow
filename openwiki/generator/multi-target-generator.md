@@ -2,6 +2,8 @@
 
 El generador multi-target es el núcleo responsable de compilar el árbol fuente canónico de OSpec (agentes, comandos, reglas, skills) hacia múltiples plataformas de asistentes de IA (VS Code, Claude Code, GitHub Copilot, OpenCode, Codex). Su rol es garantizar que una única base de código genere artefactos nativos para cada asistente, aplicando las adaptaciones estructurales necesarias.
 
+> **Orientación:** la matriz completa por target y los flujos de instalación viven en las páginas canónicas [Arquitectura y generador multi-target](../architecture/overview.md) e [Instalación de Objetivos](../installation/target-installation.md). Esta página se centra en el **motor de transformación**: pureza funcional, perfiles declarativos, IO segura y compuerta de validación.
+
 ## Flujo principal
 
 El proceso inicia mediante los scripts definidos en `package.json` (ej. `npm run build:claude`, `build:codex`).
@@ -17,6 +19,8 @@ El resultado en memoria se escribe de forma determinista y segura en `dist/<targ
   - **copilot:** Reestructura los hooks al formato de proyecto de Copilot (`.github/hooks/hooks.json`).
   - **opencode:** Sintetiza la configuración en `opencode.json` (instrucciones, mcp, schema). Variables de comandos pasan a ser posicionales.
   - **codex:** Convierte agentes a formato `.toml`, consolida reglas en un `AGENTS.md` sintetizado, y transforma comandos en skills invocables (`skills/commands/`).
+  - **cursor:** Layout `.cursor`: agentes `.agent.md` → `.md`, comandos `.prompt.md` → `.md`, reglas a `.mdc` con `alwaysApply: true`, y sintetiza un `agents-protocol.mdc` desde `AGENTS.md`. Modelos en formato alias; los agentes de revisión se emiten como readonly.
+  - **antigravity:** Conserva las extensiones `.agent.md`/`.prompt.md`. Hooks en formato nativo antigravity con placeholder `__OSPEC_ANTIGRAVITY_ROOT__`, y tool map renombrado (`ask_question`, `view_file`, `run_command`). Reglas convertidas a instructions con `applyTo: "**"`.
 - **Validación:** Se ejecuta tras la compilación mediante comandos CLI nativos o scripts (ej. `validate-codex.js`). Cualquier error o advertencia en la salida falla la compilación de forma estricta (a menos que se omita con `--no-validate`).
 
 ## Decisiones de diseño (Por qué es así)

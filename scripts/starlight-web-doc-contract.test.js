@@ -227,12 +227,38 @@ test("skills/_shared/route-document.md documents Option D, dual-dir resolution, 
     "§3 must resolve scope D to the dual-directory pair {openwiki/, web-doc/}"
   );
 
-  const j5Section = content.match(/#### 6\. J5[\s\S]*$/);
+  const j5Section = content.match(/#### 6\. J5[\s\S]*?(?=\r?\n#### 7\.|$)/);
   assert.ok(j5Section, "route-document.md must contain the '#### 6. J5' section");
   assert.match(
     j5Section[0],
     /web-doc\//,
     "route-document.md §6 J5 must scope the sandbox inventory check to web-doc/ as well as openwiki/ for scope D"
+  );
+  assert.doesNotMatch(
+    j5Section[0],
+    /#### 7\./,
+    "J5 matcher must stop at #### 7. so J6 is not coupled into the J5 contract"
+  );
+});
+
+test("skills/_shared/route-document.md §7 J6 exists with content-qa and the two-option halt gate", () => {
+  const content = fs.readFileSync(ROUTE_DOCUMENT_PATH, "utf8");
+  const j6Section = content.match(/#### 7\. J6[\s\S]*$/);
+  assert.ok(j6Section, "route-document.md must contain the '#### 7. J6' section");
+  assert.match(
+    j6Section[0],
+    /content-qa/,
+    "§7 J6 must register gates.content-qa"
+  );
+  assert.match(
+    j6Section[0],
+    /Re-dispatch the generator to correct the affected pages/,
+    "§7 J6 halt gate must label the re-dispatch option"
+  );
+  assert.match(
+    j6Section[0],
+    /Acknowledge and close the route anyway \(accepted risk\)/,
+    "§7 J6 halt gate must label the accepted-risk option"
   );
 });
 

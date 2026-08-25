@@ -1,0 +1,148 @@
+change: "harden-sdd-document-contract"
+status: "archived"
+owner:
+  author: "Manuel Retamozo"
+  branch: "docs/english-docs-wiki-remediation"
+created_at: "2026-08-24T20:15:54Z"
+last_updated: "2026-08-25T00:40:00Z"
+blocking_questions: []
+session:
+  execution_mode: automatic
+  delivery_strategy: exception-ok
+  reply_language: Spanish
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Primera coincidencia en tabla declarativa: project.status=active satisface la ruta standard; clasificación normal (cambio de contrato del generador documental con beneficio de specs/design explícitos)."
+  validated: true
+  validation_errors: []
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/harden-sdd-document-contract/proposal.md"
+    summary: "Propuesta standard para P1-P7: enforcement verificable del contrato sdd-document; capacidades modificadas sdd-document y agents."
+    key_decisions:
+      - "P7 se normaliza como requisito orchestrator-owned en el dominio agents, hermano de REQ-agents-006."
+      - "Remediacion del wiki vivo openwiki/ queda fuera de alcance (cambio separado)."
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/harden-sdd-document-contract/specs/sdd-document/spec.md"
+      - "openspec/changes/harden-sdd-document-contract/specs/agents/spec.md"
+    summary: "Deltas P1-P7: MODIFIED REQ-sdd-document-007/-008/-011; ADDED -020/-021/-022 y REQ-agents-018 (QA de contenido orchestrator-owned)."
+    key_decisions:
+      - "Ids nuevos continuan desde el maximo del baseline: sdd-document hasta -019, agents hasta -017."
+      - "Scenario 'Update mode with no changes' se ajusta para re-verificar hechos volatiles antes del no-op (coherencia con P5)."
+  clarify:
+    status: skipped
+    note: "Predicato shouldRunClarify=false: residual_ambiguity=false y arrays de ambiguedad vacios en el envelope de sdd-spec."
+  design:
+    status: done
+    artifact: "openspec/changes/harden-sdd-document-contract/design.md"
+    summary: "Renumeración de pasos con ripple enumerado, mapa P1-P7 a hogares normativos únicos, checklist determinista, esquema .last-update.json y J6 orchestrator-owned (ADR-001/002)."
+    key_decisions:
+      - "QA P7 como pass inline orchestrator-owned (J6) con registro gates.content-qa; sin sub-agente dedicado ni lineage 4R."
+      - "Automatización P4/P6 como contrato estático + especificación ejecutable in-test; sin librería runtime ni escenario golden nuevo."
+  tasks:
+    status: done
+    artifact: "openspec/changes/harden-sdd-document-contract/tasks.md"
+    summary: "7 fases, 22 tareas: L1 RED→SKILL P1-P6→route J6→ripple→L2 helpers→npm test; size-exception pre-aprobado."
+    key_decisions:
+      - "Single PR bajo size-exception (delivery-001); sin PRs encadenados."
+      - "L2 helpers solo in-test (ADR-002); J6 golden eval diferido (sdd-design-003)."
+  apply:
+    status: done
+    artifact: "openspec/changes/harden-sdd-document-contract/apply-progress.md"
+    summary: "P1-P7 contract hardening applied: L1/L2 tests, SKILL 5b/6.4-6.8/7, route J6; npm test 2588 pass; dist skipped (install-time)."
+    key_decisions:
+      - "Skipped committed dist regeneration because dist/ is gitignored (install-time only)."
+      - "L2 helpers remain in-test only (ADR-002); no runtime library and no new golden eval."
+  verify:
+    status: done
+    verdict: "PASS"
+    artifact: "openspec/changes/harden-sdd-document-contract/verify-report.md"
+    summary: "PASS: 23/23 tasks, 25/25 MUST scenarios, npm test 2588 pass/0 fail/2 skipped; J6 L3 deferred per sdd-design-003."
+    key_decisions:
+      - "static-lint of SKILL/route is accepted proof for agent/orchestrator MUST procedures; L2 runtime-tests cover checklist and metadata oracles."
+      - "sdd-design-003 (no J6 golden eval) honored; not CRITICAL because the spec does not require a new eval in this change."
+  archive:
+    status: done
+    artifact: "openspec/changes/harden-sdd-document-contract/archive-report.md"
+    summary: "Plan-and-Report emitted: merged sdd-document + agents specs, 2 ADR promotions; runtime move pending."
+    key_decisions:
+      - "REQ-agents-018 inserted after REQ-agents-006; sdd-document ADDED reqs after REQ-019."
+      - "Archive destination 2026-08-25-harden-sdd-document-contract; openwiki/ out of scope per sdd-propose-002."
+approvals:
+  - id: exec-mode-001
+    gate: execution-mode
+    decision: automatic
+    source: vscode/askQuestions
+    accepted_at: "2026-08-25T00:10:00Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: vscode/askQuestions
+    accepted_at: "2026-08-25T00:10:00Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+assumptions:
+  - id: sdd-propose-001
+    phase: sdd-propose
+    statement: "El requisito normativo de P7 (QA de contenido post-run) se aloja en el dominio agents como hermano de REQ-agents-006, no dentro de sdd-document."
+    reversibility: high
+    basis: "Precedente existente: REQ-agents-006 ya normaliza la verificacion orchestrator-owned del sandbox para la misma ruta /sdd-document."
+    recorded_at: "2026-08-24T20:22:00Z"
+    status: unresolved
+  - id: sdd-propose-002
+    phase: sdd-propose
+    statement: "La remediacion del wiki vivo openwiki/ (seccion 6 del analisis) queda fuera del alcance de este change."
+    reversibility: high
+    basis: "El encargo acota este change a las propuestas P1-P7 sobre el contrato del skill; la seccion 6 se declara independiente del skill en el propio analisis. Remediacion ya ejecutada en commit 9855a1f."
+    recorded_at: "2026-08-24T20:22:00Z"
+    status: confirmed
+  - id: sdd-spec-001
+    phase: sdd-spec
+    statement: "Los artefactos delta se redactan en inglés normativo, imitando el estilo del baseline openspec/specs/sdd-document/spec.md y el precedente archivado del mismo dominio."
+    reversibility: high
+    basis: "El baseline openspec/specs/sdd-document/spec.md es íntegramente inglés; el delta archivado 2026-07-06-starlight-web-doc confirma esa convención para ambos dominios."
+    recorded_at: "2026-08-24T23:33:00Z"
+    status: unresolved
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "La renumeración de pasos (metadata 6.4→6.6) es preferible a sufijos 6.4a/6.4b; requiere actualizar la regex '### Step 6\\.4:' del test y cross-refs en route-document.md §4 y option-d-starlight.md."
+    reversibility: high
+    basis: "El test scripts/sdd-document.test.js ya está en Affected Areas; las otras dos referencias son de una línea y quedan enumeradas en design.md."
+    recorded_at: "2026-08-24T23:45:00Z"
+    status: unresolved
+  - id: sdd-design-002
+    phase: sdd-design
+    statement: "En update-mode no-op se refresca SOLO updatedAt/gitHead de .last-update.json (no es una página wiki), avanzando la ventana diff sin violar 'NOT edit any wiki files' (REQ-008)."
+    reversibility: high
+    basis: "Lectura estricta del escenario del delta; evita re-escanear diffs antiguos en runs siguientes."
+    recorded_at: "2026-08-24T23:45:00Z"
+    status: unresolved
+  - id: sdd-design-003
+    phase: sdd-design
+    statement: "No se añaden escenarios golden eval nuevos en este change; la verificación conductual de J6 queda como deuda futura."
+    reversibility: high
+    basis: "Los evals live son manuales y structural-only (scripts/evals/README.md); un escenario no mediría prosa ni factualidad."
+    recorded_at: "2026-08-24T23:45:00Z"
+    status: unresolved
+  - id: sdd-verify-001
+    phase: sdd-verify
+    statement: "Se ejecutó discovery completo sin bloqueo de assumption_resolutions porque todas las entradas unresolved son reversibility high y el orquestador pidió honrarlas, incluida sdd-design-003."
+    reversibility: high
+    basis: "Decision Gates: unresolved high MUST NOT escalate; precedente de verify en este repo; launch prompt Honor assumptions."
+    recorded_at: "2026-08-25T00:25:00Z"
+    status: unresolved
+gates:
+  4r-review-gate: {"status":"approved","schema_version":1,"classification":"normal","evidence":{"schema_version":1,"fingerprint":"sha256:7663eb9a9d63dda2d10a26dd9d034fbb2222c66262c3dd82b9fbc2a63ba37e1b","sources":{"paths":["openspec/changes/harden-sdd-document-contract/apply-progress.md","openspec/changes/harden-sdd-document-contract/decisions/adr-001.md","openspec/changes/harden-sdd-document-contract/decisions/adr-002.md","openspec/changes/harden-sdd-document-contract/design.md","openspec/changes/harden-sdd-document-contract/proposal.md","openspec/changes/harden-sdd-document-contract/specs/agents/spec.md","openspec/changes/harden-sdd-document-contract/specs/sdd-document/spec.md","openspec/changes/harden-sdd-document-contract/tasks.md","openspec/changes/harden-sdd-document-contract/verify-report.md","scripts/sdd-document.test.js","scripts/starlight-web-doc-contract.test.js","skills/_shared/route-document.md","skills/sdd-document/SKILL.md","skills/sdd-document/references/option-d-starlight.md"],"capabilities":["agents","docs","skills","testing"],"operation_types":["add","modify"],"dependencies":[],"facts":[{"code":"design-risk","source":"design","detail":"J6 behavioral golden eval deferred (sdd-design-003); no live orchestrator QA proof in this change."},{"code":"design-risk","source":"design","detail":"L2 Mermaid heuristic may accept invalid blocks; deep render delegated to J6."}]}},"generalist":{"status":"clear","specialists":[],"reason":"signals=none;dimensions=none"},"depth":{"review":"targeted"},"escalation_reason":null,"dimensions":{"risk":{"selected":true,"reasons":[{"code":"design-risk","source":"design","detail":"J6 behavioral golden eval deferred (sdd-design-003); no live orchestrator QA proof in this change.","precedence":4},{"code":"design-risk","source":"design","detail":"L2 Mermaid heuristic may accept invalid blocks; deep render delegated to J6.","precedence":4}]},"reliability":{"selected":false,"reasons":[{"code":"no-reliability-signal","source":"classifier","detail":"No positive signal","precedence":5}]},"resilience":{"selected":false,"reasons":[{"code":"no-resilience-signal","source":"classifier","detail":"No positive signal","precedence":5}]},"readability":{"selected":false,"reasons":[{"code":"no-readability-signal","source":"classifier","detail":"No positive signal","precedence":5}]}},"lineage":{"schema_version":1,"lineage_id":"sha256:7be5c1cabf71500bd3d6c272103a45ba8f1326cdbb43b1da59fa831c1a686152","generation":1,"predecessor_lineage_id":null,"recovery":null,"revision":3,"status":"approved","genesis":{"candidate":{"projection":"workspace","base_tree":"9855a1fac91536491e761d9fbd47e091e8dc97d1","candidate_tree":"WORKING-TREE-harden-sdd-document-contract","paths":["openspec/changes/harden-sdd-document-contract/apply-progress.md","openspec/changes/harden-sdd-document-contract/decisions/adr-001.md","openspec/changes/harden-sdd-document-contract/decisions/adr-002.md","openspec/changes/harden-sdd-document-contract/design.md","openspec/changes/harden-sdd-document-contract/proposal.md","openspec/changes/harden-sdd-document-contract/specs/agents/spec.md","openspec/changes/harden-sdd-document-contract/specs/sdd-document/spec.md","openspec/changes/harden-sdd-document-contract/tasks.md","openspec/changes/harden-sdd-document-contract/verify-report.md","scripts/sdd-document.test.js","scripts/starlight-web-doc-contract.test.js","skills/_shared/route-document.md","skills/sdd-document/SKILL.md","skills/sdd-document/references/option-d-starlight.md"],"diff_hash":"sha256:052aaf1e0985cc9526374850afaca9ad50726a7a8f5305695fa91d13dd2c7260","paths_digest":"sha256:907d5e41f685445959b8c453a554120d9162b54ae1e24736332982f3ebd77962","authored_lines":1617,"original_changed_lines":1617},"candidate_id":"sha256:4af5ce8d25e9ea3471736f6d72a7571398197209ed4a64c42426917fba5c8964","paths":["openspec/changes/harden-sdd-document-contract/apply-progress.md","openspec/changes/harden-sdd-document-contract/decisions/adr-001.md","openspec/changes/harden-sdd-document-contract/decisions/adr-002.md","openspec/changes/harden-sdd-document-contract/design.md","openspec/changes/harden-sdd-document-contract/proposal.md","openspec/changes/harden-sdd-document-contract/specs/agents/spec.md","openspec/changes/harden-sdd-document-contract/specs/sdd-document/spec.md","openspec/changes/harden-sdd-document-contract/tasks.md","openspec/changes/harden-sdd-document-contract/verify-report.md","scripts/sdd-document.test.js","scripts/starlight-web-doc-contract.test.js","skills/_shared/route-document.md","skills/sdd-document/SKILL.md","skills/sdd-document/references/option-d-starlight.md"],"classification":"normal","selected_dimensions":["risk"],"evidence_fingerprint":"sha256:7663eb9a9d63dda2d10a26dd9d034fbb2222c66262c3dd82b9fbc2a63ba37e1b","original_changed_lines":1617,"authored_lines":1617},"current_candidate_id":"sha256:4af5ce8d25e9ea3471736f6d72a7571398197209ed4a64c42426917fba5c8964","current_candidate":{"projection":"workspace","base_tree":"9855a1fac91536491e761d9fbd47e091e8dc97d1","candidate_tree":"WORKING-TREE-harden-sdd-document-contract","paths":["openspec/changes/harden-sdd-document-contract/apply-progress.md","openspec/changes/harden-sdd-document-contract/decisions/adr-001.md","openspec/changes/harden-sdd-document-contract/decisions/adr-002.md","openspec/changes/harden-sdd-document-contract/design.md","openspec/changes/harden-sdd-document-contract/proposal.md","openspec/changes/harden-sdd-document-contract/specs/agents/spec.md","openspec/changes/harden-sdd-document-contract/specs/sdd-document/spec.md","openspec/changes/harden-sdd-document-contract/tasks.md","openspec/changes/harden-sdd-document-contract/verify-report.md","scripts/sdd-document.test.js","scripts/starlight-web-doc-contract.test.js","skills/_shared/route-document.md","skills/sdd-document/SKILL.md","skills/sdd-document/references/option-d-starlight.md"],"diff_hash":"sha256:052aaf1e0985cc9526374850afaca9ad50726a7a8f5305695fa91d13dd2c7260","paths_digest":"sha256:907d5e41f685445959b8c453a554120d9162b54ae1e24736332982f3ebd77962","authored_lines":1617,"original_changed_lines":1617},"lenses":{"risk":{"selected":true,"status":"completed","request_id":"start-risk-harden-sdd-document-contract","result_digest":"sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc","result":{"findings":[]},"operation":null,"result_request_id":"result-risk-harden-sdd-document-contract"},"reliability":{"selected":false,"status":"skipped","request_id":null,"result_digest":null,"result":null,"operation":null},"resilience":{"selected":false,"status":"skipped","request_id":null,"result_digest":null,"result":null,"operation":null},"readability":{"selected":false,"status":"skipped","request_id":null,"result_digest":null,"result":null,"operation":null}},"findings":[],"findings_digest":"sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f","correction_budget":{"limit_lines":200,"used_lines":0,"failed_attempts":0,"max_failed_attempts":3},"correction_history":[],"validation_history":[],"follow_ups":[],"pending_operation":null,"pending_correction":null,"terminal_reason":"no-unresolved-blocking-findings"},"selected_reviewers":["review-risk"],"selection_rationale":"Classifier selected targeted risk from two design-risk facts; generalist clear; other dimensions skipped (no-signal).","findings_summary":"0 BLOCKER, 0 CRITICAL, 0 WARNING, 0 SUGGESTION","lineage_status":"approved","terminal_reason":"no-unresolved-blocking-findings","archive_allowed":true,"blocking_finding_ids":[]}
+baseline_fingerprints:
+  sdd-document: "ac8c3daa00b1873dc44321b9d7423c3cba9ed0c1b0f269114d4a9bb5e0522d9f"
+  agents: "fea1cf0634409436d168fbae47242b0b069a6b1d986691c7e3545f79aecddea5"

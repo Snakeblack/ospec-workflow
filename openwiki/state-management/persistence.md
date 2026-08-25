@@ -18,6 +18,21 @@ artifact-store que las resuelve.
 Las entradas de memoria NUNCA deben repetir contenido de specs o foundation
 docs — deben enlazar a la fuente autoritativa en vez de duplicarla.
 
+### Capa autoritativa (CAS)
+
+Sobre esos almacenes, el kernel añade una capa autoritativa cuyo contrato de
+mutación es compare-and-swap: toda mutación de sujetos autoritativos pasa por
+`AuthorityStore.compareAndSwap(...)`, que solo avanza la cabeza si la revisión
+esperada coincide, y graba estado, journal, bag de permisos y presupuestos como
+un único registro atómico. La autorización la emite el runtime
+(`OperationPermit` de un solo uso ligado a la revisión) y la finalización se
+acredita con un `OperationReceipt` en la misma revisión ganadora. El journal
+sigue siendo el registro durable de efectos (merge por `effect_id`) y el
+historial existente permanece intacto: el CAS no sustituye estos almacenes,
+los protege frente a writers concurrentes y mutaciones sin autorización. El
+ciclo completo está documentado en
+[kernel-runtime](../kernel-runtime/kernel-runtime.md).
+
 ## Memoria operativa (`openspec/memory/`)
 
 Exactamente tres archivos Markdown, cada uno con frontmatter YAML
@@ -109,6 +124,7 @@ backend federado sin reescribir cada hook que toca rutas de OpenSpec.
 
 - `/openspec/specs/project-memory/spec.md`
 - `/scripts/lib/artifact-store.js`, `/scripts/lib/artifact-store-modes.js`
+- `/openspec/specs/authority-store/spec.md`, `/scripts/lib/authority-store/index.js` (capa autoritativa CAS)
 - `/scripts/lib/ospec-state.js` — `git log`: `09960ac`, `07e1000` (escrituras atómicas)
 - `/skills/_shared/sdd-phase-common.md` (Sección C: Artifact Persistence)
 - `/openspec/memory/` (cuando existe)
