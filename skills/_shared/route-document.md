@@ -81,7 +81,7 @@ Before dispatching:
    update-mode keep/change pre-question (§2).
 2. The resolved `doc_language` and `scope_choice` are written into
    `.last-update.json` in the resolved output directory by the `sdd-document`
-   executor itself (Step 6.4 of its SKILL); the orchestrator does not write
+   executor itself (Step 6.6 of its SKILL); the orchestrator does not write
    that file directly. For scope D, "the resolved output directory" here
    means `openwiki/` ONLY — `.last-update.json` is never written under
    `web-doc/`, even though scope D's approved output is the dual-directory
@@ -136,3 +136,59 @@ independent and authoritative.
    options. A pre-existing unrelated untracked path outside the approved
    output directory (predating this run) is excluded by the scoping in step 2
    and MUST NOT trigger this halt.
+
+#### 7. J6 — orchestrator-owned post-run content QA (MANDATORY)
+
+After `sdd-document` returns `status: success` (following any number of
+`blocked`/resume cycles), perform an independent post-run CONTENT quality
+assurance pass before considering the route complete. This is the content
+sibling of J5 (sandbox inventory). The executor's own completion report is
+NOT sufficient evidence of content quality — this check is independent and
+authoritative. The reviewer MUST be distinct from the generator dispatch
+that produced the content: the orchestrator performs this pass inline and
+MUST NOT treat the generator's self-report as satisfying this requirement.
+
+1. Determine the wiki pages touched by this run (created or updated) from
+   the approved output directory (or, for scope D, `openwiki/` as the
+   source-of-truth wiki). Do not trust the generator's self-report of which
+   pages were touched; derive it from the run's artifacts / `git status`
+   scoped to the wiki output.
+2. **Readability review**: inspect ALL touched pages for structure, clarity,
+   duplication, and stub/thin-page detection.
+3. **Factual spot-check**: sample `max(3, ceil(0.2 * claims))` quantitative
+   claims and cited identifiers from the published pages and contrast each
+   against the repository via search/read.
+4. **If the QA check itself fails** (tools unavailable, search/read error,
+   or any other execution error), treat content QA as INCONCLUSIVE — never
+   treat a failed check as an automatic pass. Halt and present the same
+   `question_gate` as step 7 below (verification-inconclusive halts use the
+   same gate shape as a confirmed defect, matching J5 step 3), except the
+   `executive_summary` MUST state that content QA could not be completed
+   (naming the failure) rather than describing a confirmed defect.
+5. Record the outcome in the route `state.yaml` under `gates.content-qa`
+   before closing:
+
+```yaml
+gates:
+  content-qa:
+    status: "pass"   # pass | findings
+    summary: "<one line>"
+```
+
+   The route MUST NOT close as success without this `gates.content-qa`
+   record for the run. Absence of the record means the route cannot close
+   as success until the QA pass runs and its outcome is documented.
+
+6. If the QA pass reports no confirmed defects, record `status: pass` and
+   close the route silently — no additional user interaction.
+7. If the QA pass finds a confirmed factual error or a severe content
+   defect in the touched pages, record `status: findings` and halt. Present
+   a `question_gate` describing the finding before closing the route. The
+   gate MUST offer exactly two options:
+   - "Re-dispatch the generator to correct the affected pages"
+     (default/recommended).
+   - "Acknowledge and close the route anyway (accepted risk)".
+   Never close the route without an explicit choice between these two
+   options. A re-dispatch is surgical (only the affected pages) and MUST
+   be followed by a fresh J6 pass over those pages.
+

@@ -1,0 +1,13 @@
+{
+  "plus": 1591,
+  "minus": 26,
+  "changed": 1617,
+  "path_count": 14,
+  "head": "9855a1fac91536491e761d9fbd47e091e8dc97d1",
+  "base_tree": "9855a1fac91536491e761d9fbd47e091e8dc97d1",
+  "candidate_tree": "WORKING-TREE-harden-sdd-document-contract",
+  "branch": "docs/english-docs-wiki-remediation",
+  "diff_hash": "sha256:052aaf1e0985cc9526374850afaca9ad50726a7a8f5305695fa91d13dd2c7260",
+  "paths_digest": "sha256:907d5e41f685445959b8c453a554120d9162b54ae1e24736332982f3ebd77962",
+  "evidence_fingerprint": "sha256:7663eb9a9d63dda2d10a26dd9d034fbb2222c66262c3dd82b9fbc2a63ba37e1b"
+}

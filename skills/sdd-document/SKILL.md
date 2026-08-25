@@ -156,22 +156,32 @@ below.
    - Option C -> `<validated custom path>`
    - Option D -> the SET `{openwiki/, web-doc/}` — you MAY write to either directory; see `references/option-d-starlight.md` for the full procedure.
 2. **Hard Gate**: You are strictly restricted from editing or writing to any files outside the approved output directory (or, for scope D, outside both directories of the SET), with the sole exception of the repository's top-level `/AGENTS.md` and `/CLAUDE.md` files (and only to append or update the OpenWiki reference section).
-3. If any task or write operation targets a file outside this path (with the exception of `/AGENTS.md` and `/CLAUDE.md` under the rules of Step 6.6), you MUST halt execution, throw a warning/error in the logs, and return `status: blocked` with `blocker_type: design-mismatch` (or throw an execution boundary violation error).
+3. If any task or write operation targets a file outside this path (with the exception of `/AGENTS.md` and `/CLAUDE.md` under the rules of Step 6.7), you MUST halt execution, throw a warning/error in the logs, and return `status: blocked` with `blocker_type: design-mismatch` (or throw an execution boundary violation error).
 4. **No self-certification**: this pre-write self-check is NOT sufficient evidence of overall sandbox compliance and MUST NOT be presented as such in the return envelope. The authoritative, independent verification that no write landed outside the approved sandbox is an orchestrator-owned post-run step (see `openspec/specs/agents/spec.md`, Orchestrator-Owned Post-Run Sandbox Inventory Verification, and `skills/_shared/route-document.md` §6 J5). Do NOT claim final sandbox compliance in the return envelope as a substitute for that check.
 
 ### Step 5b: Planning (REQ-sdd-document-007)
 
-Before writing any wiki files, create a temporary plan file at `{output_dir}/_plan.md`:
+Before writing any wiki files, create a temporary plan file at `{output_dir}/_plan.md`.
 
-1. List every wiki page you intend to create, with:
-   - File path relative to output directory.
-   - Primary source evidence (files/directories that justify this page).
-   - Estimated substance level (high / medium / low).
+The plan MUST include a table with these columns: `page`, `category`, `evidence`, `substance`, `canonical for`.
+
+```markdown
+| page | category | evidence | substance | canonical for |
+|---|---|---|---|---|
+| workflows/route-handlers.md | flow | skills/_shared/*.md | high | route handlers |
+```
+
+- `category`: domain class from Step 6.1. Use `flow` for flow/architecture-oriented pages — that value is the deterministic oracle for the Step 6.4 Mermaid check and is independent of `doc_language`.
+- `canonical for`: canonicity-map column. One concept MUST have primary content on exactly one planned page.
+
+1. List every wiki page you intend to create, with file path, category, primary source evidence, estimated substance (high / medium / low), and the concept(s) it is canonical for.
 2. Review the plan for anti-patterns:
    - Any page estimated as "low" → merge into a broader page or quickstart.
    - Any single-file directory → justify or flatten.
    - Total page count exceeds the max-pages guard (see Step 6) → consolidate.
-3. The plan file is internal scaffolding. **Delete `{output_dir}/_plan.md` after all wiki files are written** (Step 6 completion). Never include it in the final output.
+3. **Canonicity-map dedup (MUST, before any page write)**: if two planned pages would carry the same concept as primary content, designate one as canonical and reduce the other to a short summary that links to it. Do not write until every overlapping concept is resolved.
+4. **Update-mode `coverage proposals`**: when `mode` is update, `_plan.md` MUST contain a `coverage proposals` section (new-page or merge proposals from re-discovery) BEFORE the first edit of any existing page. Re-discovery only extends coverage; it does not license broad rewrites of unaffected pages.
+5. The plan file is internal scaffolding. **Delete `{output_dir}/_plan.md` after all wiki files, checks, and metadata writes complete** (Step 6.8 cleanup). Never include it in the final output.
 
 ### Step 6: Document Generation
 
@@ -184,7 +194,7 @@ Generate all files strictly inside the approved output directory (resolved in St
 #### Max-Pages Guard
 
 - **init mode**: generate at most **16 wiki pages** (quickstart + up to 15 domain pages). If the repository has more domains, consolidate related domains into broader pages.
-- **update mode**: touch only pages whose source evidence changed since the last run. Use the `gitHead` from `.last-update.json` to scope the diff window.
+- **update mode**: prefer surgical edits on pages whose source evidence changed since the last run. Use the `gitHead` from `.last-update.json` to scope the diff window. Still re-run discovery and re-verify volatile facts as specified below.
 
 #### Update Mode Behavior
 
@@ -192,9 +202,11 @@ When `mode` is **update**:
 1. Read the existing `.last-update.json` to get the previous `gitHead`.
 2. Run `git diff --name-only <previous-gitHead>..HEAD` to identify changed source files.
 3. Map changed files to affected wiki pages using the domain discovery from Step 6.1.
-4. **Surgical edits only**: preserve accurate existing content. Replace stale sentences rather than rewriting entire sections. Do not make formatting-only edits.
-5. If no source files changed that affect documentation, report a no-op: do not edit any wiki files.
-6. Use a soft diff budget: if fewer than ~5 source files changed, update at most 1-2 wiki pages. If you believe more than 3 wiki pages need edits, justify each before proceeding.
+4. **After the diff window**, re-run domain discovery over the CURRENT repository state — not only over files inside the window. A newly added source module or spec domain that maps to no existing page MUST trigger a coverage evaluation. Register any resulting new-page or merge proposal in `{output_dir}/_plan.md` under `coverage proposals` BEFORE editing existing pages. Re-discovery only extends coverage proposals; it MUST NOT license broad rewrites of unaffected pages.
+5. **Re-verify volatile facts** (frequently changing counters, target lists, thresholds, versions) on EVERY update run, even when their mapped source file did not change inside the diff window.
+6. **Surgical edits only**: preserve accurate existing content. Replace stale sentences rather than rewriting entire sections. Do not make formatting-only edits.
+7. **No-op path**: if no source files changed that affect documentation AND no coverage proposal requires a write AND no volatile fact has drifted, report a no-op. Do NOT edit any wiki files. Still re-verify volatile facts first, then refresh ONLY `updatedAt` and `gitHead` in `.last-update.json` (this metadata file is not a wiki page; refreshing it advances the next diff window). If a volatile fact drifted, degrade to a surgical edit of the affected page(s) instead of no-op.
+8. Use a soft diff budget: if fewer than ~5 source files changed, update at most 1-2 wiki pages. If you believe more than 3 wiki pages need edits, justify each before proceeding.
 
 #### 6.1: Domain Discovery
 
@@ -267,9 +279,33 @@ Each domain page MUST follow this structure:
 - Modify `/AGENTS.md` and `/CLAUDE.md` strictly to add or update the OpenWiki reference block; do not modify any other parts of these files
 - All links to repository source files in tables, lists, and maps MUST use relative paths starting with a forward slash (e.g., `/package.json`, `/openspec/config.yaml`). Never use absolute host-level file URLs (e.g., `file:///c:/...`).
 
-### Step 6.4: Generate `.last-update.json`
+### Step 6.4: Measurable Output Checklist (REQ-sdd-document-021)
 
-After all wiki files are written, generate (or update) a `.last-update.json` metadata file in the output directory root:
+After all wiki pages are written (and before metadata, root-instruction updates, and cleanup), evaluate a measurable exit checklist for every page in the output. Do not rely on declarative style rules alone.
+
+Operational definitions (language-independent):
+
+| Check | Threshold | Definition |
+|---|---|---|
+| Substantive content | >= 30 substantive lines per page | A substantive line is non-empty, is not a heading (`^#{1,6} `), and does not belong to the "Source map" section. |
+| Link graph | >= 1 outgoing AND >= 1 incoming wiki-internal link per page | Outgoing = relative internal link to another output page (`./x.md`, `../y/z.md`). Incoming = the reciprocal from any other page (quickstart included). Exclude http(s), anchors, and self-links. |
+| Flow diagrams | >= 1 non-empty fenced Mermaid block | Applies to every page whose `_plan.md` `category` is `flow`. |
+| Diagram syntax heuristic | every Mermaid block is valid under the heuristic | First effective line is a known diagram type (`graph\|flowchart\|sequenceDiagram\|stateDiagram\|classDiagram\|erDiagram\|journey\|gantt\|pie\|mindmap`). Special characters `[ ] ( ) { } *` in labels MUST be inside double quotes. Deep render checks are delegated to orchestrator J6. |
+
+A failing check MUST be remediated before continuing (merge the thin page, add links, add the diagram, quote the label) unless an explicit justification is recorded in the return envelope as `checklist.justifiedExceptions[]` (`{page, check, reason}`) — the channel for a legitimate orphan with no incoming link. An unjustified failing check MUST NOT ship.
+
+### Step 6.5: Factual Verification Pass (REQ-sdd-document-020)
+
+After Step 6.4 and before cleanup, run a factual verification pass over every generated or updated page:
+
+1. Contrast every quantitative claim (counts, thresholds, limits, sizes, versions) and every cited identifier (file path, command name, function or config key) against the repository via search/read. Do not publish a figure or identifier from memory without this contrast.
+2. Record per-claim outcomes in the run worklog (transcripts/tool traces). NEVER persist outcomes in published wiki pages or in a new on-disk artifact.
+3. A claim that fails verification MUST be corrected to match the repository or removed. Do not leave a known-stale value in the published page. Unresolvable identifiers MUST be corrected or removed.
+4. In update mode, include volatile facts even when their mapped source is outside the diff window. On a no-op path, still re-verify volatiles; if drift is detected, degrade to surgical edit instead of no-op. Summarize only those failures that required correction in the envelope `risks`.
+
+### Step 6.6: Generate `.last-update.json`
+
+After all wiki files are written and Steps 6.4–6.5 have finished, generate (or update) a `.last-update.json` metadata file in the output directory root:
 
 ```json
 {
@@ -278,16 +314,20 @@ After all wiki files are written, generate (or update) a `.last-update.json` met
   "gitHead": "current HEAD short commit hash via git rev-parse --short HEAD",
   "generator": "sdd-document",
   "version": "2.0",
-  "sections": ["list of generated page paths relative to output dir"],
+  "sections": ["complete list of every existing *.md page path relative to output dir"],
   "stats": {
     "filesGenerated": 0,
     "filesUpdated": 0,
-    "filesSkipped": 0
+    "filesSkipped": [{ "file": "<path relative to output dir>", "reason": "<why skipped>" }]
   },
   "doc_language": "resolved language code from the batched gate (e.g. en, es)",
   "scope_choice": "resolved scope option: A | B | C | D"
 }
 ```
+
+`sections` MUST list every existing wiki page in the output directory after the run (the complete list, including pages carried over unchanged from prior runs — not only pages written by this run). The invariant is `sections` == the recursive set of `*.md` files under the output dir (excluding `_plan.md` if it has not yet been deleted).
+
+`stats.filesSkipped` MUST be an array of objects `[{ "file": "<path>", "reason": "<reason>" }]` identifying each skipped file and why. A bare numeric count without identities or reasons does NOT satisfy this field.
 
 `doc_language` and `scope_choice` exist so a subsequent update-mode run can
 skip the batched gate (Step 3) by reading these persisted values instead of
@@ -299,6 +339,10 @@ When the resolved scope is D, write `.last-update.json` under `openwiki/`
 (the source-of-truth directory) — `web-doc/` does not carry its own separate
 metadata file. See `references/option-d-starlight.md`.
 
+On an update-mode no-op (Step Update Mode Behavior), refresh ONLY `updatedAt`
+and `gitHead`; leave other fields intact unless `sections` would otherwise
+drift from the real `*.md` set.
+
 **Write-failure behavior**: if writing `.last-update.json` fails (e.g. a
 permissions or disk error), do NOT fail the whole run over it. Report the
 failure explicitly in the return envelope as a WARNING (in `risks` and
@@ -308,12 +352,7 @@ the NEXT run will find no persisted `doc_language`/`scope_choice` and will
 fall back to init mode, re-asking the batched gate in Step 3, since those
 values live only in this file.
 
-### Step 6.5: Cleanup
-
-1. Delete `{output_dir}/_plan.md` if it still exists.
-2. Verify no files were written outside the approved output directory (except `/AGENTS.md` and `/CLAUDE.md` modified under Step 6.6).
-
-### Step 6.6: Update Root Agent Instruction Files (REQ-sdd-document-013)
+### Step 6.7: Update Root Agent Instruction Files (REQ-sdd-document-013)
 
 Unless the user explicitly asks you not to, always make sure the repository's top-level agent instruction files reference the OpenWiki quickstart:
 1. Only consider top-level `/AGENTS.md` and `/CLAUDE.md`. Do not edit nested AGENTS.md or CLAUDE.md files.
@@ -337,6 +376,11 @@ OpenWiki includes repository overview, architecture notes, workflows, domain con
 When working in this repository, read the OpenWiki quickstart first, then follow its links to the relevant architecture, workflow, domain, operation, and testing notes.
 ```
 
+### Step 6.8: Cleanup
+
+1. Delete `{output_dir}/_plan.md` if it still exists. Cleanup runs after all writes and checks (Steps 6.4–6.7) so the plan is never left in the published output.
+2. Verify no files were written outside the approved output directory (except `/AGENTS.md` and `/CLAUDE.md` modified under Step 6.7).
+
 ### Step 7: Return Summary
 
 Upon successful generation, return the standard result envelope:
@@ -344,7 +388,24 @@ Upon successful generation, return the standard result envelope:
 - **executive_summary**: "Successfully generated repository wiki pages under the approved directory." (include mode: init/update, page count, and any skipped sections)
 - **artifacts**: List of all files created/modified during this batch.
 - **next_recommended**: "sdd-verify" (or "none")
-- **risks**: List any sections that could not be fully generated, with reasons.
+- **risks**: List any sections that could not be fully generated, with reasons. Include factual-verification failures that required correction.
 - **skill_resolution**: "injected"
+
+Include a mechanical `checklist` self-report in the `json:result-envelope` (counts and graph metrics only):
+
+```json
+{
+  "checklist": {
+    "results": [
+      { "page": "...", "substantiveLines": 42, "outgoingLinks": 3, "incomingLinks": 2, "mermaid": true }
+    ],
+    "justifiedExceptions": []
+  }
+}
+```
+
+`justifiedExceptions` items are `{page, check, reason}` — the only channel for a legitimate failing mechanical check (for example a justified orphan).
+
+**No self-certification of content quality (REQ-sdd-document-022)**: the generator's own assessment is NOT sufficient evidence of content quality. The envelope MUST NOT claim final, authoritative content-quality certification ("readability OK", "facts verified" as a closing verdict). That authority belongs to the orchestrator-owned post-run content QA pass (J6 in `skills/_shared/route-document.md` §7; REQ-agents-018). Mechanical checklist self-report is allowed; content-quality self-certification is not.
 
 Ensure to output the parsed json:result-envelope block as well.

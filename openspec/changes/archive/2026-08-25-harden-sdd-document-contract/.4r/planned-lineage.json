@@ -1,0 +1,9 @@
+{
+  "status": "approved",
+  "next_action": {
+    "type": "stop",
+    "reason": "no-unresolved-blocking-findings"
+  },
+  "dispatch": [],
+  "archive_allowed": true
+}

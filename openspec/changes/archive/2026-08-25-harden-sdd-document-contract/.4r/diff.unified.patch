@@ -1,0 +1,1829 @@
+diff --git a/scripts/sdd-document.test.js b/scripts/sdd-document.test.js
+index 24f3bc3..946ed43 100644
+--- a/scripts/sdd-document.test.js
++++ b/scripts/sdd-document.test.js
+@@ -29,6 +29,153 @@ function tmpOut(t) {
+   return dir;
+ }
+ 
++const POSIX = path.posix;
++const MERMAID_DIAGRAM_TYPES =
++  /^(graph|flowchart|sequenceDiagram|stateDiagram|classDiagram|erDiagram|journey|gantt|pie|mindmap)\b/;
++
++function posixRel(p) {
++  return p.replace(/\\/g, "/").replace(/^\.\//, "");
++}
++
++function countSubstantiveLines(markdown) {
++  const lines = String(markdown).split(/\r?\n/);
++  let inSourceMap = false;
++  let count = 0;
++  for (const line of lines) {
++    const heading = line.match(/^(#{1,6})\s+(.*)$/);
++    if (heading) {
++      const title = heading[2].replace(/[*_`"']/g, "").trim();
++      inSourceMap = /^Source map\b/i.test(title);
++      continue;
++    }
++    if (inSourceMap) continue;
++    if (line.trim() === "") continue;
++    count += 1;
++  }
++  return count;
++}
++
++function extractMermaidBlocks(markdown) {
++  const blocks = [];
++  const re = /```mermaid[^\n]*\n([\s\S]*?)```/gi;
++  let match;
++  while ((match = re.exec(String(markdown))) !== null) {
++    blocks.push(match[1]);
++  }
++  return blocks;
++}
++
++function detectFlowMermaid(markdown) {
++  return extractMermaidBlocks(markdown).some((body) => body.trim().length > 0);
++}
++
++function validateMermaidHeuristic(markdown) {
++  const blocks = extractMermaidBlocks(markdown);
++  for (const body of blocks) {
++    const effective = body
++      .split(/\r?\n/)
++      .map((line) => line.trim())
++      .filter((line) => line && !line.startsWith("%%"));
++    if (effective.length === 0) {
++      return { valid: false, reason: "empty-block" };
++    }
++    if (!MERMAID_DIAGRAM_TYPES.test(effective[0])) {
++      return { valid: false, reason: "unknown-diagram-type" };
++    }
++    const nodeLabelRe = /[\[({](?:"([^"]*)"|([^\]})]*))[\])}]/g;
++    let labelMatch;
++    while ((labelMatch = nodeLabelRe.exec(body)) !== null) {
++      const unquoted = labelMatch[2];
++      if (unquoted !== undefined && /[\[\](){}*]/.test(unquoted)) {
++        return { valid: false, reason: "unquoted-special-in-label" };
++      }
++    }
++  }
++  return { valid: true };
++}
++
++function evaluateLinkGraph(pages) {
++  const normalized = pages.map((page) => ({
++    path: posixRel(page.path),
++    content: String(page.content),
++  }));
++  const byPath = new Map(normalized.map((page) => [page.path, page]));
++  const result = {};
++  for (const page of normalized) {
++    result[page.path] = { outgoing: 0, incoming: 0 };
++  }
++  const linkRe = /\[[^\]]*\]\(([^)]+)\)/g;
++  for (const page of normalized) {
++    const dir = POSIX.dirname(page.path);
++    let match;
++    while ((match = linkRe.exec(page.content)) !== null) {
++      let href = match[1].trim().split(/\s+/)[0];
++      href = href.replace(/\\/g, "/");
++      if (/^https?:\/\//i.test(href) || href.startsWith("mailto:")) continue;
++      const hash = href.indexOf("#");
++      if (hash === 0) continue;
++      if (hash !== -1) href = href.slice(0, hash);
++      if (!href.endsWith(".md")) continue;
++      const resolved = posixRel(POSIX.normalize(dir === "." ? href : POSIX.join(dir, href)));
++      if (resolved === page.path) continue;
++      if (!byPath.has(resolved)) continue;
++      result[page.path].outgoing += 1;
++      result[resolved].incoming += 1;
++    }
++  }
++  return result;
++}
++
++function validateLastUpdateSchema(metadata, existingMdRelPaths) {
++  const errors = [];
++  const expected = [...existingMdRelPaths].map(posixRel).sort();
++  if (!Array.isArray(metadata && metadata.sections)) {
++    errors.push("sections-not-array");
++  } else {
++    const actual = metadata.sections.map(posixRel).sort();
++    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
++      errors.push("sections-mismatch");
++    }
++  }
++  const skipped = metadata && metadata.stats && metadata.stats.filesSkipped;
++  if (!Array.isArray(skipped)) {
++    errors.push("filesSkipped-not-array");
++  } else {
++    const badItem = skipped.some(
++      (item) =>
++        !item ||
++        typeof item !== "object" ||
++        typeof item.file !== "string" ||
++        typeof item.reason !== "string"
++    );
++    if (badItem) errors.push("filesSkipped-invalid-item");
++  }
++  return { valid: errors.length === 0, errors };
++}
++
++function listMdRelPaths(rootDir) {
++  const found = [];
++  function walk(dir) {
++    for (const entry of fsSync.readdirSync(dir, { withFileTypes: true })) {
++      const abs = path.join(dir, entry.name);
++      if (entry.isDirectory()) walk(abs);
++      else if (entry.isFile() && entry.name.endsWith(".md")) {
++        found.push(posixRel(path.relative(rootDir, abs)));
++      }
++    }
++  }
++  walk(rootDir);
++  return found.sort();
++}
++
++function padSubstantive(count, extras = []) {
++  const lines = extras.slice();
++  for (let i = 0; i < count; i += 1) {
++    lines.push(`Substantive body line ${i + 1} describing repository behavior.`);
++  }
++  return lines.join("\n");
++}
++
+ // --- Static Contract / Schema Tests ---
+ 
+ test("sdd-document.agent.md has correct frontmatter and no model field", async () => {
+@@ -155,8 +302,8 @@ test("skills/sdd-document/SKILL.md defines the official metadata format", async
+ 
+ test("skills/sdd-document/SKILL.md .last-update.json schema includes doc_language and scope_choice", async () => {
+   const content = await fs.readFile(SKILL_PATH, "utf8");
+-  const stepMatch = content.match(/### Step 6\.4:[\s\S]*?```json([\s\S]*?)```/);
+-  assert.ok(stepMatch, "SKILL.md must contain a fenced JSON block in Step 6.4 documenting .last-update.json");
++  const stepMatch = content.match(/### Step 6\.6:[\s\S]*?```json([\s\S]*?)```/);
++  assert.ok(stepMatch, "SKILL.md must contain a fenced JSON block in Step 6.6 documenting .last-update.json");
+   const schemaBlock = stepMatch[1];
+   assert.ok(schemaBlock.includes("doc_language"), "SKILL.md .last-update.json schema block must document doc_language");
+   assert.ok(schemaBlock.includes("scope_choice"), "SKILL.md .last-update.json schema block must document scope_choice");
+@@ -209,6 +356,158 @@ test("skills/_shared/route-document.md is present under all four dist targets",
+ 
+ // --- starlight-web-doc (Option D scaffold assets ship in dist) ---
+ 
++// --- harden-sdd-document-contract L1: static contract (P1–P7) ---
++
++function sectionBetween(content, startRe, endRe) {
++  const start = content.search(startRe);
++  if (start === -1) return null;
++  const fromStart = content.slice(start);
++  const endMatch = fromStart.slice(1).search(endRe);
++  return endMatch === -1 ? fromStart : fromStart.slice(0, endMatch + 1);
++}
++
++test("skills/sdd-document/SKILL.md Step 5b documents a canonicity map and coverage proposals", async () => {
++  const content = await fs.readFile(SKILL_PATH, "utf8");
++  const step5b = sectionBetween(content, /### Step 5b: Planning/, /\n### Step 6:/);
++  assert.ok(step5b, "SKILL.md must contain Step 5b: Planning");
++  assert.match(step5b, /canonical for/, "Step 5b must document a canonicity map with a 'canonical for' column");
++  assert.match(step5b, /\bcategory\b/, "Step 5b plan table must include a category column");
++  assert.match(
++    step5b,
++    /coverage proposals/i,
++    "Step 5b must require an update-mode coverage proposals section before editing existing pages"
++  );
++  assert.match(
++    step5b,
++    /canonical/i,
++    "Step 5b must document canonicity-map dedup (one canonical page per concept)"
++  );
++});
++
++test("skills/sdd-document/SKILL.md Update Mode Behavior documents re-discovery and volatile-fact re-verification", async () => {
++  const content = await fs.readFile(SKILL_PATH, "utf8");
++  const updateMode = sectionBetween(content, /#### Update Mode Behavior/, /\n#### 6\.1:/);
++  assert.ok(updateMode, "SKILL.md must contain Update Mode Behavior");
++  assert.match(
++    updateMode,
++    /re-run domain discovery|re-discover/i,
++    "Update Mode Behavior must document post-window re-discovery over the current repository state"
++  );
++  assert.match(
++    updateMode,
++    /volatile facts?/i,
++    "Update Mode Behavior must document volatile-fact re-verification on every run"
++  );
++  assert.match(
++    updateMode,
++    /ONLY\s+`?updatedAt`?\s+and\s+`?gitHead/i,
++    "no-op path must refresh ONLY updatedAt and gitHead in .last-update.json"
++  );
++});
++
++test("skills/sdd-document/SKILL.md Step 6.4 is the measurable output checklist", async () => {
++  const content = await fs.readFile(SKILL_PATH, "utf8");
++  const step64 = sectionBetween(content, /### Step 6\.4:/, /\n### Step 6\.5:/);
++  assert.ok(step64, "SKILL.md must contain Step 6.4");
++  assert.match(step64, /Measurable Output Checklist/i, "Step 6.4 must be the Measurable Output Checklist");
++  assert.match(step64, /30/, "checklist must require >=30 substantive lines");
++  assert.match(step64, /substantive lines?/i, "checklist must define substantive lines");
++  assert.match(step64, /outgoing/i, "checklist must require outgoing wiki-internal links");
++  assert.match(step64, /incoming/i, "checklist must require incoming wiki-internal links");
++  assert.match(step64, /[Mm]ermaid/, "checklist must require Mermaid on flow pages");
++  assert.match(step64, /heuristic|quoted|special.character/i, "checklist must document the Mermaid syntax heuristic");
++  assert.match(step64, /justifiedExceptions/, "checklist must document justifiedExceptions for orphans");
++});
++
++test("skills/sdd-document/SKILL.md Step 6.5 is the factual verification pass before cleanup", async () => {
++  const content = await fs.readFile(SKILL_PATH, "utf8");
++  const step65 = sectionBetween(content, /### Step 6\.5:/, /\n### Step 6\.6:/);
++  assert.ok(step65, "SKILL.md must contain Step 6.5");
++  assert.match(step65, /Factual Verification Pass/i, "Step 6.5 must be the Factual Verification Pass");
++  assert.match(step65, /search\/read|search and read/i, "Step 6.5 must contrast claims via search/read");
++  assert.match(step65, /correct(?:ed)? or remov/i, "failed claims must be corrected or removed");
++  assert.match(step65, /worklog|during the run|never in the (?:final |published )?output|not published/i,
++    "per-claim outcomes must be recorded in the run worklog, not published pages");
++});
++
++test("skills/sdd-document/SKILL.md Step 6.6 schema lists complete sections and object filesSkipped", async () => {
++  const content = await fs.readFile(SKILL_PATH, "utf8");
++  const step66 = sectionBetween(content, /### Step 6\.6:/, /\n### Step 6\.7:/);
++  assert.ok(step66, "SKILL.md must contain Step 6.6 (metadata)");
++  const jsonMatch = step66.match(/```json([\s\S]*?)```/);
++  assert.ok(jsonMatch, "Step 6.6 must contain a fenced JSON schema block");
++  const schemaBlock = jsonMatch[1];
++  assert.match(schemaBlock, /"filesSkipped"\s*:\s*\[/, "filesSkipped must be an array, not a numeric count");
++  assert.match(schemaBlock, /"file"/, "filesSkipped items must identify the file");
++  assert.match(schemaBlock, /"reason"/, "filesSkipped items must state the skip reason");
++  assert.match(
++    step66,
++    /every existing|all .*pages|complete list|including pages (?:carried over|unchanged)/i,
++    "sections must list every existing wiki page after the run, including untouched pages"
++  );
++});
++
++test("skills/sdd-document/SKILL.md Step 7 forbids content-quality self-certification and documents checklist", async () => {
++  const content = await fs.readFile(SKILL_PATH, "utf8");
++  const step7 = sectionBetween(content, /### Step 7: Return Summary/, /$/);
++  assert.ok(step7, "SKILL.md must contain Step 7: Return Summary");
++  assert.match(step7, /checklist/, "Step 7 must document the checklist envelope shape");
++  assert.match(step7, /justifiedExceptions/, "Step 7 checklist must include justifiedExceptions");
++  assert.match(
++    step7,
++    /MUST NOT.{0,80}(self-certif|authoritative content-quality)|not self-certif|NOT sufficient evidence of content quality/i,
++    "Step 7 must forbid content-quality self-certification"
++  );
++  assert.match(
++    step7,
++    /J6|REQ-agents-018|content QA/i,
++    "Step 7 must reference orchestrator-owned J6 / REQ-agents-018"
++  );
++});
++
++test("skills/_shared/route-document.md §4 points .last-update.json writer to Step 6.6", async () => {
++  const content = await fs.readFile(ROUTE_DOCUMENT_PATH, "utf8");
++  const persistence = sectionBetween(content, /#### 4\. Persistence/, /\n#### 5\./);
++  assert.ok(persistence, "route-document.md must contain §4 Persistence");
++  assert.match(persistence, /Step 6\.6/, "§4 point 2 must reference Step 6.6 of the SKILL for .last-update.json");
++  assert.doesNotMatch(
++    persistence,
++    /Step 6\.4/,
++    "§4 must not still point at the pre-renumber Step 6.4 metadata writer"
++  );
++});
++
++test("skills/_shared/route-document.md §7 J6 documents orchestrator-owned content QA", async () => {
++  const content = await fs.readFile(ROUTE_DOCUMENT_PATH, "utf8");
++  const j6 = sectionBetween(content, /#### 7\. J6/, /$/);
++  assert.ok(j6, "route-document.md must contain #### 7. J6");
++  assert.match(j6, /orchestrator-owned/i, "J6 must be orchestrator-owned");
++  assert.match(j6, /distinct from the generator/i, "reviewer must be distinct from the generator dispatch");
++  assert.match(j6, /gates\.content-qa|content-qa/, "J6 must register gates.content-qa");
++  assert.match(j6, /\bpass\b/, "gates.content-qa status must include pass");
++  assert.match(j6, /\bfindings\b/, "gates.content-qa status must include findings");
++  assert.match(
++    j6,
++    /Re-dispatch the generator to correct the affected pages/,
++    "halt gate default must be re-dispatch"
++  );
++  assert.match(
++    j6,
++    /Acknowledge and close the route anyway \(accepted risk\)/,
++    "halt gate alternative must be accepted risk"
++  );
++  assert.match(
++    j6,
++    /INCONCLUSIVE|inconclusiv/i,
++    "J6 must treat a failed check as inconclusive, mirroring J5"
++  );
++  assert.match(
++    j6,
++    /MUST NOT close.{0,60}success|never closes as success|without.{0,40}documented/i,
++    "route must not close success without a documented QA pass"
++  );
++});
++
+ test("skills/sdd-document/assets/web-doc-template/scripts/sync-openwiki.mjs is present under all four dist targets", (t) => {
+   const { runConfigure } = require("./configure/cli.js");
+   const relPath = "skills/sdd-document/assets/web-doc-template/scripts/sync-openwiki.mjs";
+@@ -223,3 +522,114 @@ test("skills/sdd-document/assets/web-doc-template/scripts/sync-openwiki.mjs is p
+   }
+ });
+ 
++// --- harden-sdd-document-contract L2: executable checklist/schema helpers ---
++
++const VALID_MERMAID = [
++  "```mermaid",
++  "flowchart TD",
++  '  A["Start * here"] --> B[Next]',
++  "```",
++].join("\n");
++
++const UNQUOTED_MERMAID = [
++  "```mermaid",
++  "flowchart TD",
++  "  A[Start * here] --> B[Next]",
++  "```",
++].join("\n");
++
++test("L2 helpers: valid mini-wiki passes substantive, link-graph, mermaid, and metadata checks", (t) => {
++  const out = tmpOut(t);
++  const quickstart = [
++    "# Quickstart",
++    "",
++    padSubstantive(30),
++    "",
++    "See the [route handlers](./workflows/routes.md) page.",
++    "",
++    "## Source map",
++    "- /skills/_shared/route-document.md",
++  ].join("\n");
++  const flowPage = [
++    "# Route handlers",
++    "",
++    padSubstantive(30),
++    "",
++    "Back to [quickstart](../quickstart.md).",
++    "",
++    VALID_MERMAID,
++    "",
++    "## Source map",
++    "- /skills/_shared/route-document.md",
++  ].join("\n");
++  fsSync.mkdirSync(path.join(out, "workflows"));
++  fsSync.writeFileSync(path.join(out, "quickstart.md"), quickstart);
++  fsSync.writeFileSync(path.join(out, "workflows", "routes.md"), flowPage);
++  const metadata = {
++    sections: ["quickstart.md", "workflows/routes.md"],
++    stats: { filesGenerated: 2, filesUpdated: 0, filesSkipped: [] },
++  };
++  fsSync.writeFileSync(path.join(out, ".last-update.json"), JSON.stringify(metadata));
++
++  assert.ok(countSubstantiveLines(quickstart) >= 30);
++  assert.ok(countSubstantiveLines(flowPage) >= 30);
++  const graph = evaluateLinkGraph([
++    { path: "quickstart.md", content: quickstart },
++    { path: "workflows/routes.md", content: flowPage },
++  ]);
++  assert.ok(graph["quickstart.md"].outgoing >= 1 && graph["quickstart.md"].incoming >= 1);
++  assert.ok(graph["workflows/routes.md"].outgoing >= 1 && graph["workflows/routes.md"].incoming >= 1);
++  assert.equal(detectFlowMermaid(flowPage), true);
++  assert.equal(validateMermaidHeuristic(flowPage).valid, true);
++  assert.equal(validateLastUpdateSchema(metadata, listMdRelPaths(out)).valid, true);
++});
++
++test("L2 helpers: thin page counts below 30 substantive lines", () => {
++  const thin = ["# Thin", "", "Only a handful of lines.", "", "## Source map", "- /a.js"].join("\n");
++  assert.ok(countSubstantiveLines(thin) < 30);
++});
++
++test("L2 helpers: orphan page has no incoming wiki-internal link", () => {
++  const orphan = ["# Orphan", "", padSubstantive(30), "", "See [quickstart](./quickstart.md)."].join("\n");
++  const quickstart = ["# Quickstart", "", padSubstantive(30)].join("\n");
++  const graph = evaluateLinkGraph([
++    { path: "quickstart.md", content: quickstart },
++    { path: "orphan.md", content: orphan },
++  ]);
++  assert.equal(graph["orphan.md"].incoming, 0);
++  assert.ok(graph["orphan.md"].outgoing >= 1);
++});
++
++test("L2 helpers: flow page without Mermaid is detected", () => {
++  const flowNoDiagram = ["# Flow", "", padSubstantive(30)].join("\n");
++  assert.equal(detectFlowMermaid(flowNoDiagram), false);
++});
++
++test("L2 helpers: Mermaid with unquoted special characters fails the heuristic", () => {
++  const quoted = ["# Flow", "", padSubstantive(5), "", VALID_MERMAID].join("\n");
++  const unquoted = ["# Flow", "", padSubstantive(5), "", UNQUOTED_MERMAID].join("\n");
++  assert.equal(validateMermaidHeuristic(quoted).valid, true);
++  assert.equal(validateMermaidHeuristic(unquoted).valid, false);
++});
++
++test("L2 helpers: metadata with partial sections or numeric filesSkipped fails schema", (t) => {
++  const out = tmpOut(t);
++  fsSync.writeFileSync(path.join(out, "quickstart.md"), "# Q\n");
++  fsSync.mkdirSync(path.join(out, "domain"));
++  fsSync.writeFileSync(path.join(out, "domain", "page.md"), "# P\n");
++  const mdPaths = listMdRelPaths(out);
++
++  const partialSections = {
++    sections: ["quickstart.md"],
++    stats: { filesSkipped: [] },
++  };
++  const numericSkipped = {
++    sections: mdPaths,
++    stats: { filesSkipped: 0 },
++  };
++  assert.equal(validateLastUpdateSchema(partialSections, mdPaths).valid, false);
++  assert.ok(validateLastUpdateSchema(partialSections, mdPaths).errors.includes("sections-mismatch"));
++  assert.equal(validateLastUpdateSchema(numericSkipped, mdPaths).valid, false);
++  assert.ok(validateLastUpdateSchema(numericSkipped, mdPaths).errors.includes("filesSkipped-not-array"));
++});
++
+diff --git a/scripts/starlight-web-doc-contract.test.js b/scripts/starlight-web-doc-contract.test.js
+index dfb53cc..5617c6d 100644
+--- a/scripts/starlight-web-doc-contract.test.js
++++ b/scripts/starlight-web-doc-contract.test.js
+@@ -227,13 +227,39 @@ test("skills/_shared/route-document.md documents Option D, dual-dir resolution,
+     "§3 must resolve scope D to the dual-directory pair {openwiki/, web-doc/}"
+   );
+ 
+-  const j5Section = content.match(/#### 6\. J5[\s\S]*$/);
++  const j5Section = content.match(/#### 6\. J5[\s\S]*?(?=\r?\n#### 7\.|$)/);
+   assert.ok(j5Section, "route-document.md must contain the '#### 6. J5' section");
+   assert.match(
+     j5Section[0],
+     /web-doc\//,
+     "route-document.md §6 J5 must scope the sandbox inventory check to web-doc/ as well as openwiki/ for scope D"
+   );
++  assert.doesNotMatch(
++    j5Section[0],
++    /#### 7\./,
++    "J5 matcher must stop at #### 7. so J6 is not coupled into the J5 contract"
++  );
++});
++
++test("skills/_shared/route-document.md §7 J6 exists with content-qa and the two-option halt gate", () => {
++  const content = fs.readFileSync(ROUTE_DOCUMENT_PATH, "utf8");
++  const j6Section = content.match(/#### 7\. J6[\s\S]*$/);
++  assert.ok(j6Section, "route-document.md must contain the '#### 7. J6' section");
++  assert.match(
++    j6Section[0],
++    /content-qa/,
++    "§7 J6 must register gates.content-qa"
++  );
++  assert.match(
++    j6Section[0],
++    /Re-dispatch the generator to correct the affected pages/,
++    "§7 J6 halt gate must label the re-dispatch option"
++  );
++  assert.match(
++    j6Section[0],
++    /Acknowledge and close the route anyway \(accepted risk\)/,
++    "§7 J6 halt gate must label the accepted-risk option"
++  );
+ });
+ 
+ test("skills/_shared/route-document.md §4 point 2 clarifies .last-update.json is openwiki/-only for scope D (4R remediation #9)", () => {
+diff --git a/skills/_shared/route-document.md b/skills/_shared/route-document.md
+index 02a5666..638bc0b 100644
+--- a/skills/_shared/route-document.md
++++ b/skills/_shared/route-document.md
+@@ -81,7 +81,7 @@ Before dispatching:
+    update-mode keep/change pre-question (§2).
+ 2. The resolved `doc_language` and `scope_choice` are written into
+    `.last-update.json` in the resolved output directory by the `sdd-document`
+-   executor itself (Step 6.4 of its SKILL); the orchestrator does not write
++   executor itself (Step 6.6 of its SKILL); the orchestrator does not write
+    that file directly. For scope D, "the resolved output directory" here
+    means `openwiki/` ONLY — `.last-update.json` is never written under
+    `web-doc/`, even though scope D's approved output is the dual-directory
+@@ -136,3 +136,59 @@ independent and authoritative.
+    options. A pre-existing unrelated untracked path outside the approved
+    output directory (predating this run) is excluded by the scoping in step 2
+    and MUST NOT trigger this halt.
++
++#### 7. J6 — orchestrator-owned post-run content QA (MANDATORY)
++
++After `sdd-document` returns `status: success` (following any number of
++`blocked`/resume cycles), perform an independent post-run CONTENT quality
++assurance pass before considering the route complete. This is the content
++sibling of J5 (sandbox inventory). The executor's own completion report is
++NOT sufficient evidence of content quality — this check is independent and
++authoritative. The reviewer MUST be distinct from the generator dispatch
++that produced the content: the orchestrator performs this pass inline and
++MUST NOT treat the generator's self-report as satisfying this requirement.
++
++1. Determine the wiki pages touched by this run (created or updated) from
++   the approved output directory (or, for scope D, `openwiki/` as the
++   source-of-truth wiki). Do not trust the generator's self-report of which
++   pages were touched; derive it from the run's artifacts / `git status`
++   scoped to the wiki output.
++2. **Readability review**: inspect ALL touched pages for structure, clarity,
++   duplication, and stub/thin-page detection.
++3. **Factual spot-check**: sample `max(3, ceil(0.2 * claims))` quantitative
++   claims and cited identifiers from the published pages and contrast each
++   against the repository via search/read.
++4. **If the QA check itself fails** (tools unavailable, search/read error,
++   or any other execution error), treat content QA as INCONCLUSIVE — never
++   treat a failed check as an automatic pass. Halt and present the same
++   `question_gate` as step 7 below (verification-inconclusive halts use the
++   same gate shape as a confirmed defect, matching J5 step 3), except the
++   `executive_summary` MUST state that content QA could not be completed
++   (naming the failure) rather than describing a confirmed defect.
++5. Record the outcome in the route `state.yaml` under `gates.content-qa`
++   before closing:
++
++```yaml
++gates:
++  content-qa:
++    status: "pass"   # pass | findings
++    summary: "<one line>"
++```
++
++   The route MUST NOT close as success without this `gates.content-qa`
++   record for the run. Absence of the record means the route cannot close
++   as success until the QA pass runs and its outcome is documented.
++
++6. If the QA pass reports no confirmed defects, record `status: pass` and
++   close the route silently — no additional user interaction.
++7. If the QA pass finds a confirmed factual error or a severe content
++   defect in the touched pages, record `status: findings` and halt. Present
++   a `question_gate` describing the finding before closing the route. The
++   gate MUST offer exactly two options:
++   - "Re-dispatch the generator to correct the affected pages"
++     (default/recommended).
++   - "Acknowledge and close the route anyway (accepted risk)".
++   Never close the route without an explicit choice between these two
++   options. A re-dispatch is surgical (only the affected pages) and MUST
++   be followed by a fresh J6 pass over those pages.
++
+diff --git a/skills/sdd-document/SKILL.md b/skills/sdd-document/SKILL.md
+index 925c841..e033d21 100644
+--- a/skills/sdd-document/SKILL.md
++++ b/skills/sdd-document/SKILL.md
+@@ -156,22 +156,32 @@ below.
+    - Option C -> `<validated custom path>`
+    - Option D -> the SET `{openwiki/, web-doc/}` — you MAY write to either directory; see `references/option-d-starlight.md` for the full procedure.
+ 2. **Hard Gate**: You are strictly restricted from editing or writing to any files outside the approved output directory (or, for scope D, outside both directories of the SET), with the sole exception of the repository's top-level `/AGENTS.md` and `/CLAUDE.md` files (and only to append or update the OpenWiki reference section).
+-3. If any task or write operation targets a file outside this path (with the exception of `/AGENTS.md` and `/CLAUDE.md` under the rules of Step 6.6), you MUST halt execution, throw a warning/error in the logs, and return `status: blocked` with `blocker_type: design-mismatch` (or throw an execution boundary violation error).
++3. If any task or write operation targets a file outside this path (with the exception of `/AGENTS.md` and `/CLAUDE.md` under the rules of Step 6.7), you MUST halt execution, throw a warning/error in the logs, and return `status: blocked` with `blocker_type: design-mismatch` (or throw an execution boundary violation error).
+ 4. **No self-certification**: this pre-write self-check is NOT sufficient evidence of overall sandbox compliance and MUST NOT be presented as such in the return envelope. The authoritative, independent verification that no write landed outside the approved sandbox is an orchestrator-owned post-run step (see `openspec/specs/agents/spec.md`, Orchestrator-Owned Post-Run Sandbox Inventory Verification, and `skills/_shared/route-document.md` §6 J5). Do NOT claim final sandbox compliance in the return envelope as a substitute for that check.
+ 
+ ### Step 5b: Planning (REQ-sdd-document-007)
+ 
+-Before writing any wiki files, create a temporary plan file at `{output_dir}/_plan.md`:
++Before writing any wiki files, create a temporary plan file at `{output_dir}/_plan.md`.
+ 
+-1. List every wiki page you intend to create, with:
+-   - File path relative to output directory.
+-   - Primary source evidence (files/directories that justify this page).
+-   - Estimated substance level (high / medium / low).
++The plan MUST include a table with these columns: `page`, `category`, `evidence`, `substance`, `canonical for`.
++
++```markdown
++| page | category | evidence | substance | canonical for |
++|---|---|---|---|---|
++| workflows/route-handlers.md | flow | skills/_shared/*.md | high | route handlers |
++```
++
++- `category`: domain class from Step 6.1. Use `flow` for flow/architecture-oriented pages — that value is the deterministic oracle for the Step 6.4 Mermaid check and is independent of `doc_language`.
++- `canonical for`: canonicity-map column. One concept MUST have primary content on exactly one planned page.
++
++1. List every wiki page you intend to create, with file path, category, primary source evidence, estimated substance (high / medium / low), and the concept(s) it is canonical for.
+ 2. Review the plan for anti-patterns:
+    - Any page estimated as "low" → merge into a broader page or quickstart.
+    - Any single-file directory → justify or flatten.
+    - Total page count exceeds the max-pages guard (see Step 6) → consolidate.
+-3. The plan file is internal scaffolding. **Delete `{output_dir}/_plan.md` after all wiki files are written** (Step 6 completion). Never include it in the final output.
++3. **Canonicity-map dedup (MUST, before any page write)**: if two planned pages would carry the same concept as primary content, designate one as canonical and reduce the other to a short summary that links to it. Do not write until every overlapping concept is resolved.
++4. **Update-mode `coverage proposals`**: when `mode` is update, `_plan.md` MUST contain a `coverage proposals` section (new-page or merge proposals from re-discovery) BEFORE the first edit of any existing page. Re-discovery only extends coverage; it does not license broad rewrites of unaffected pages.
++5. The plan file is internal scaffolding. **Delete `{output_dir}/_plan.md` after all wiki files, checks, and metadata writes complete** (Step 6.8 cleanup). Never include it in the final output.
+ 
+ ### Step 6: Document Generation
+ 
+@@ -184,7 +194,7 @@ Generate all files strictly inside the approved output directory (resolved in St
+ #### Max-Pages Guard
+ 
+ - **init mode**: generate at most **16 wiki pages** (quickstart + up to 15 domain pages). If the repository has more domains, consolidate related domains into broader pages.
+-- **update mode**: touch only pages whose source evidence changed since the last run. Use the `gitHead` from `.last-update.json` to scope the diff window.
++- **update mode**: prefer surgical edits on pages whose source evidence changed since the last run. Use the `gitHead` from `.last-update.json` to scope the diff window. Still re-run discovery and re-verify volatile facts as specified below.
+ 
+ #### Update Mode Behavior
+ 
+@@ -192,9 +202,11 @@ When `mode` is **update**:
+ 1. Read the existing `.last-update.json` to get the previous `gitHead`.
+ 2. Run `git diff --name-only <previous-gitHead>..HEAD` to identify changed source files.
+ 3. Map changed files to affected wiki pages using the domain discovery from Step 6.1.
+-4. **Surgical edits only**: preserve accurate existing content. Replace stale sentences rather than rewriting entire sections. Do not make formatting-only edits.
+-5. If no source files changed that affect documentation, report a no-op: do not edit any wiki files.
+-6. Use a soft diff budget: if fewer than ~5 source files changed, update at most 1-2 wiki pages. If you believe more than 3 wiki pages need edits, justify each before proceeding.
++4. **After the diff window**, re-run domain discovery over the CURRENT repository state — not only over files inside the window. A newly added source module or spec domain that maps to no existing page MUST trigger a coverage evaluation. Register any resulting new-page or merge proposal in `{output_dir}/_plan.md` under `coverage proposals` BEFORE editing existing pages. Re-discovery only extends coverage proposals; it MUST NOT license broad rewrites of unaffected pages.
++5. **Re-verify volatile facts** (frequently changing counters, target lists, thresholds, versions) on EVERY update run, even when their mapped source file did not change inside the diff window.
++6. **Surgical edits only**: preserve accurate existing content. Replace stale sentences rather than rewriting entire sections. Do not make formatting-only edits.
++7. **No-op path**: if no source files changed that affect documentation AND no coverage proposal requires a write AND no volatile fact has drifted, report a no-op. Do NOT edit any wiki files. Still re-verify volatile facts first, then refresh ONLY `updatedAt` and `gitHead` in `.last-update.json` (this metadata file is not a wiki page; refreshing it advances the next diff window). If a volatile fact drifted, degrade to a surgical edit of the affected page(s) instead of no-op.
++8. Use a soft diff budget: if fewer than ~5 source files changed, update at most 1-2 wiki pages. If you believe more than 3 wiki pages need edits, justify each before proceeding.
+ 
+ #### 6.1: Domain Discovery
+ 
+@@ -267,9 +279,33 @@ Each domain page MUST follow this structure:
+ - Modify `/AGENTS.md` and `/CLAUDE.md` strictly to add or update the OpenWiki reference block; do not modify any other parts of these files
+ - All links to repository source files in tables, lists, and maps MUST use relative paths starting with a forward slash (e.g., `/package.json`, `/openspec/config.yaml`). Never use absolute host-level file URLs (e.g., `file:///c:/...`).
+ 
+-### Step 6.4: Generate `.last-update.json`
++### Step 6.4: Measurable Output Checklist (REQ-sdd-document-021)
++
++After all wiki pages are written (and before metadata, root-instruction updates, and cleanup), evaluate a measurable exit checklist for every page in the output. Do not rely on declarative style rules alone.
++
++Operational definitions (language-independent):
+ 
+-After all wiki files are written, generate (or update) a `.last-update.json` metadata file in the output directory root:
++| Check | Threshold | Definition |
++|---|---|---|
++| Substantive content | >= 30 substantive lines per page | A substantive line is non-empty, is not a heading (`^#{1,6} `), and does not belong to the "Source map" section. |
++| Link graph | >= 1 outgoing AND >= 1 incoming wiki-internal link per page | Outgoing = relative internal link to another output page (`./x.md`, `../y/z.md`). Incoming = the reciprocal from any other page (quickstart included). Exclude http(s), anchors, and self-links. |
++| Flow diagrams | >= 1 non-empty fenced Mermaid block | Applies to every page whose `_plan.md` `category` is `flow`. |
++| Diagram syntax heuristic | every Mermaid block is valid under the heuristic | First effective line is a known diagram type (`graph\|flowchart\|sequenceDiagram\|stateDiagram\|classDiagram\|erDiagram\|journey\|gantt\|pie\|mindmap`). Special characters `[ ] ( ) { } *` in labels MUST be inside double quotes. Deep render checks are delegated to orchestrator J6. |
++
++A failing check MUST be remediated before continuing (merge the thin page, add links, add the diagram, quote the label) unless an explicit justification is recorded in the return envelope as `checklist.justifiedExceptions[]` (`{page, check, reason}`) — the channel for a legitimate orphan with no incoming link. An unjustified failing check MUST NOT ship.
++
++### Step 6.5: Factual Verification Pass (REQ-sdd-document-020)
++
++After Step 6.4 and before cleanup, run a factual verification pass over every generated or updated page:
++
++1. Contrast every quantitative claim (counts, thresholds, limits, sizes, versions) and every cited identifier (file path, command name, function or config key) against the repository via search/read. Do not publish a figure or identifier from memory without this contrast.
++2. Record per-claim outcomes in the run worklog (transcripts/tool traces). NEVER persist outcomes in published wiki pages or in a new on-disk artifact.
++3. A claim that fails verification MUST be corrected to match the repository or removed. Do not leave a known-stale value in the published page. Unresolvable identifiers MUST be corrected or removed.
++4. In update mode, include volatile facts even when their mapped source is outside the diff window. On a no-op path, still re-verify volatiles; if drift is detected, degrade to surgical edit instead of no-op. Summarize only those failures that required correction in the envelope `risks`.
++
++### Step 6.6: Generate `.last-update.json`
++
++After all wiki files are written and Steps 6.4–6.5 have finished, generate (or update) a `.last-update.json` metadata file in the output directory root:
+ 
+ ```json
+ {
+@@ -278,17 +314,21 @@ After all wiki files are written, generate (or update) a `.last-update.json` met
+   "gitHead": "current HEAD short commit hash via git rev-parse --short HEAD",
+   "generator": "sdd-document",
+   "version": "2.0",
+-  "sections": ["list of generated page paths relative to output dir"],
++  "sections": ["complete list of every existing *.md page path relative to output dir"],
+   "stats": {
+     "filesGenerated": 0,
+     "filesUpdated": 0,
+-    "filesSkipped": 0
++    "filesSkipped": [{ "file": "<path relative to output dir>", "reason": "<why skipped>" }]
+   },
+   "doc_language": "resolved language code from the batched gate (e.g. en, es)",
+   "scope_choice": "resolved scope option: A | B | C | D"
+ }
+ ```
+ 
++`sections` MUST list every existing wiki page in the output directory after the run (the complete list, including pages carried over unchanged from prior runs — not only pages written by this run). The invariant is `sections` == the recursive set of `*.md` files under the output dir (excluding `_plan.md` if it has not yet been deleted).
++
++`stats.filesSkipped` MUST be an array of objects `[{ "file": "<path>", "reason": "<reason>" }]` identifying each skipped file and why. A bare numeric count without identities or reasons does NOT satisfy this field.
++
+ `doc_language` and `scope_choice` exist so a subsequent update-mode run can
+ skip the batched gate (Step 3) by reading these persisted values instead of
+ re-asking.
+@@ -299,6 +339,10 @@ When the resolved scope is D, write `.last-update.json` under `openwiki/`
+ (the source-of-truth directory) — `web-doc/` does not carry its own separate
+ metadata file. See `references/option-d-starlight.md`.
+ 
++On an update-mode no-op (Step Update Mode Behavior), refresh ONLY `updatedAt`
++and `gitHead`; leave other fields intact unless `sections` would otherwise
++drift from the real `*.md` set.
++
+ **Write-failure behavior**: if writing `.last-update.json` fails (e.g. a
+ permissions or disk error), do NOT fail the whole run over it. Report the
+ failure explicitly in the return envelope as a WARNING (in `risks` and
+@@ -308,12 +352,7 @@ the NEXT run will find no persisted `doc_language`/`scope_choice` and will
+ fall back to init mode, re-asking the batched gate in Step 3, since those
+ values live only in this file.
+ 
+-### Step 6.5: Cleanup
+-
+-1. Delete `{output_dir}/_plan.md` if it still exists.
+-2. Verify no files were written outside the approved output directory (except `/AGENTS.md` and `/CLAUDE.md` modified under Step 6.6).
+-
+-### Step 6.6: Update Root Agent Instruction Files (REQ-sdd-document-013)
++### Step 6.7: Update Root Agent Instruction Files (REQ-sdd-document-013)
+ 
+ Unless the user explicitly asks you not to, always make sure the repository's top-level agent instruction files reference the OpenWiki quickstart:
+ 1. Only consider top-level `/AGENTS.md` and `/CLAUDE.md`. Do not edit nested AGENTS.md or CLAUDE.md files.
+@@ -337,6 +376,11 @@ OpenWiki includes repository overview, architecture notes, workflows, domain con
+ When working in this repository, read the OpenWiki quickstart first, then follow its links to the relevant architecture, workflow, domain, operation, and testing notes.
+ ```
+ 
++### Step 6.8: Cleanup
++
++1. Delete `{output_dir}/_plan.md` if it still exists. Cleanup runs after all writes and checks (Steps 6.4–6.7) so the plan is never left in the published output.
++2. Verify no files were written outside the approved output directory (except `/AGENTS.md` and `/CLAUDE.md` modified under Step 6.7).
++
+ ### Step 7: Return Summary
+ 
+ Upon successful generation, return the standard result envelope:
+@@ -344,7 +388,24 @@ Upon successful generation, return the standard result envelope:
+ - **executive_summary**: "Successfully generated repository wiki pages under the approved directory." (include mode: init/update, page count, and any skipped sections)
+ - **artifacts**: List of all files created/modified during this batch.
+ - **next_recommended**: "sdd-verify" (or "none")
+-- **risks**: List any sections that could not be fully generated, with reasons.
++- **risks**: List any sections that could not be fully generated, with reasons. Include factual-verification failures that required correction.
+ - **skill_resolution**: "injected"
+ 
++Include a mechanical `checklist` self-report in the `json:result-envelope` (counts and graph metrics only):
++
++```json
++{
++  "checklist": {
++    "results": [
++      { "page": "...", "substantiveLines": 42, "outgoingLinks": 3, "incomingLinks": 2, "mermaid": true }
++    ],
++    "justifiedExceptions": []
++  }
++}
++```
++
++`justifiedExceptions` items are `{page, check, reason}` — the only channel for a legitimate failing mechanical check (for example a justified orphan).
++
++**No self-certification of content quality (REQ-sdd-document-022)**: the generator's own assessment is NOT sufficient evidence of content quality. The envelope MUST NOT claim final, authoritative content-quality certification ("readability OK", "facts verified" as a closing verdict). That authority belongs to the orchestrator-owned post-run content QA pass (J6 in `skills/_shared/route-document.md` §7; REQ-agents-018). Mechanical checklist self-report is allowed; content-quality self-certification is not.
++
+ Ensure to output the parsed json:result-envelope block as well.
+diff --git a/skills/sdd-document/references/option-d-starlight.md b/skills/sdd-document/references/option-d-starlight.md
+index 6ffeae5..8f82094 100644
+--- a/skills/sdd-document/references/option-d-starlight.md
++++ b/skills/sdd-document/references/option-d-starlight.md
+@@ -62,7 +62,7 @@ file write once (same retry-once pattern as the approval-ledger write in
+ fail the whole run over it — report the failure explicitly in the return
+ envelope as a WARNING (same non-fatal degraded-write reporting pattern as
+ the `.last-update.json` write-failure behavior in `skills/sdd-document/SKILL.md`
+-Step 6.4) and continue with the remaining scaffold files and `openwiki/`
++Step 6.6) and continue with the remaining scaffold files and `openwiki/`
+ generation. A file's mere presence at a scaffold slot is never proof that it
+ is complete or valid — the copy-if-missing rule above only checks presence
+ to decide whether to WRITE it, and never re-validates content on an
+@@ -75,7 +75,7 @@ untouched, per the uniform copy-if-missing rule).
+ When the resolved scope is D, write `.last-update.json` under
+ `openwiki/.last-update.json` — the source-of-truth directory. `web-doc/`
+ does NOT carry its own separate `.last-update.json`. Set `scope_choice:
+-"D"` in that file, per Step 6.4 of `SKILL.md`.
++"D"` in that file, per Step 6.6 of `SKILL.md`.
+ 
+ ## 5. Report
+ 
+diff --git a/openspec/changes/harden-sdd-document-contract/apply-progress.md b/openspec/changes/harden-sdd-document-contract/apply-progress.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/harden-sdd-document-contract/apply-progress.md
+@@ -0,0 +1,72 @@
++# Apply Progress: harden-sdd-document-contract
++
++**Mode**: Focused TDD
++**Delivery**: size:exception (delivery-001)
++**Working branch**: `docs/english-docs-wiki-remediation`
++**Batch**: 1 (single work unit, tasks 1.1–7.2)
++
++## Batch 1
++
++### Phase 1 RED — Static contract tests
++
++- [x] 1.1 L1 assertions added to `scripts/sdd-document.test.js` (schema regex 6.4→6.6; Step 5b canonicity; Update Mode re-discovery/volatiles/no-op; Steps 6.4–6.6; Step 7 checklist + no self-certify)
++- [x] 1.2 L1 assertions for `route-document.md` §4 Step 6.6 + §7 J6
++- [x] 1.3 J5 matcher tightened to stop at `#### 7.`; J6 RED assertion added in `scripts/starlight-web-doc-contract.test.js`
++- [x] 1.4 Confirm RED: `node --test scripts/sdd-document.test.js scripts/starlight-web-doc-contract.test.js` — 10 new assertions failed as intended; 32 pre-existing tests passed (42 total, 10 fail / 32 pass)
++
++### Phase 2–4 GREEN — SKILL, route handler, ripple
++
++- [x] 2.1–2.7 `skills/sdd-document/SKILL.md`: Step 5b canonicity map + coverage proposals; Update Mode re-discovery / volatile re-verify / no-op ONLY `updatedAt`+`gitHead`; new Steps 6.4 checklist and 6.5 factual pass; metadata moved to 6.6 with complete `sections` and object `filesSkipped`; 6.7 root instructions; 6.8 cleanup deletes `_plan.md`; Step 7 mechanical `checklist` + REQ-022 no self-certify
++- [x] 3.1–3.2 `skills/_shared/route-document.md`: §4 Step 6.6; new §7 J6 with `gates.content-qa`, distinct reviewer, two-option halt (re-dispatch default), inconclusive policy mirroring J5
++- [x] 4.1–4.2 `option-d-starlight.md` Step 6.4→6.6 (two refs). Grep of live sources: no remaining stale metadata refs (archives and this change's tasks/design left untouched)
++
++### Phase 5 L2 — in-test helpers (ADR-002)
++
++- [x] 5.1 Helpers in `scripts/sdd-document.test.js` only: `countSubstantiveLines`, `evaluateLinkGraph`, `detectFlowMermaid`, `validateMermaidHeuristic`, `validateLastUpdateSchema` (no `scripts/lib/document-checklist.js`)
++- [x] 5.2 Fixtures: valid mini-wiki; thin page; orphan; flow without Mermaid; unquoted Mermaid special chars; partial `sections` / numeric `filesSkipped`
++- [x] 5.3 `node --test scripts/sdd-document.test.js` — 33/33 pass (L1 + L2)
++
++### Phase 6 Integration
++
++- [x] 6.1 `npm test` — Native Node tests 2588 pass / 0 fail / 2 skipped; generate+validate vscode, github-copilot, opencode, codex, cursor, antigravity; claude generated without CLI validator. "All checks passed."
++- [x] 6.2 Consistency: Step 5b `category: flow` is the Mermaid oracle; Update Mode no-op vs volatile-drift (degrade to surgical edit) do not contradict Step 6.5; J6 halt uses the same two-option `question_gate` shape as J5 (default recommended vs accepted risk); envelope `checklist` is mechanical-only and Step 7 forbids content-quality self-certification (REQ-022)
++- [x] 6.3 Dist bundles skipped: `dist/` is in `.gitignore` (install-time only). `npm test` already generated targets into temp dirs via `check.js`. Did not run `npm run build:vscode` or siblings against a committed `dist/`.
++
++### Phase 7 Handoff
++
++- [x] 7.1 All 22 tasks marked `[x]` in `tasks.md`. Focused TDD (not Strict TDD): RED batch then GREEN batch; no formal Strict TDD evidence table.
++- [x] 7.2 Single work unit under `size:exception` (delivery-001). Ready for `sdd-verify`.
++
++### Focused TDD batches
++
++| Batch | Layer | RED | GREEN | Notes |
++| ----- | ----- | --- | ----- | ----- |
++| L1 static contract | `sdd-document.test.js` + `starlight-web-doc-contract.test.js` | 10 new asserts failed; 32 pre-existing passed | Same files after SKILL/route/ripple GREEN: 42/42 | Regex `### Step 6.4:` → `### Step 6.6:`; J5 matcher stops at `#### 7.` |
++| L2 executable helpers | in-test helpers + `tmpOut` fixtures | Helpers+fixtures added in one focused cycle | 33/33 including 6 L2 cases | ADR-002: no runtime library; no new golden eval (sdd-design-003) |
++
++### Files changed
++
++| File | Action | What Was Done |
++|------|--------|---------------|
++| `scripts/sdd-document.test.js` | Modified | L1 contract asserts + L2 helpers/fixtures |
++| `scripts/starlight-web-doc-contract.test.js` | Modified | J5 matcher bound; J6 RED/GREEN assert |
++| `skills/sdd-document/SKILL.md` | Modified | P1–P6 executor contract (5b, Update Mode, 6.4–6.8, Step 7) |
++| `skills/_shared/route-document.md` | Modified | §4 Step 6.6; new §7 J6 |
++| `skills/sdd-document/references/option-d-starlight.md` | Modified | Two Step 6.4→6.6 ripples |
++| `openspec/changes/harden-sdd-document-contract/tasks.md` | Modified | All 22 tasks `[x]` |
++| `openspec/changes/harden-sdd-document-contract/apply-progress.md` | Created | This file |
++
++### Workload
++
++- Mode: size:exception (delivery-001, user-approved)
++- Current work unit: Full contract hardening (tasks 1.1–7.2)
++- Live diff (tracked sources): 581 insertions / 28 deletions (~609 changed lines) — within tasks forecast ~480–620 and below the ~650 escalation cap
++- `openwiki/` not touched (sdd-propose-002)
++
++### Deviations from Design
++
++None — implementation matches design.md. Dist regeneration skipped because `dist/` is gitignored (documented under 6.3).
++
++### Issues Found
++
++None.
+diff --git a/openspec/changes/harden-sdd-document-contract/decisions/adr-001.md b/openspec/changes/harden-sdd-document-contract/decisions/adr-001.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/harden-sdd-document-contract/decisions/adr-001.md
+@@ -0,0 +1,44 @@
++# ADR-001: QA de contenido post-run como pass inline orchestrator-owned (J6)
++
++- Status: proposed
++- Change: harden-sdd-document-contract
++- Date: 2026-08-25
++
++## Context
++
++La propuesta P7 exige que la calidad de contenido del wiki (readability + spot-check factual)
++sea verificada por un revisor DISTINTO de la ejecución del generador, y que el generador no
++pueda auto-certificarla (hermano de REQ-agents-006, que ya normaliza la verificación
++orchestrator-owned del sandbox como J5). Hay tres mecanismos candidatos para materializar ese
++revisor independiente.
++
++## Decision
++
++El QA de contenido lo ejecuta el PROPIO orquestador, inline, como nueva sección §7 ("J6") del
++route handler `skills/_shared/route-document.md`, con procedimiento documentado: readability
++sobre todas las páginas tocadas + spot-check factual muestreado (`max(3, ceil(0.2 * claims))`) contrastado contra el repo), veredicto `pass|findings` registrado en `state.yaml` bajo
++`gates.content-qa` (mínimo `status` + `summary`), y halt con `question_gate` de dos opciones
++ante hallazgo confirmado. La independencia se satisface estructuralmente: el orquestador es una
++delegación distinta del dispatch del sub-agente `sdd-document` que produjo el contenido.
++
++## Alternatives
++
++- *Sub-agente revisor dedicado* (nuevo `sdd-content-reviewer`): rechazado. Exige superficie de
++  registro nueva (agents catalog, models.yaml tier, command roster, transforms de los cuatro
++  targets) fuera de proporción para un pass post-run; J5 demuestra que el patrón
++  orchestrator-owned es suficiente para esta ruta.
++- *Reutilizar `review-change` / lineage 4R*: rechazado. Ese contrato está acoplado a revisiones
++  de diffs de código con finding IDs inmutables y presupuesto de corrección; instrumento
++  equivocado para prosa de wiki y acoplamiento innecesario entre la ruta documental y el
++  ciclo de review selectivo.
++
++## Consequences
++
++- Cero superficies nuevas: solo prosa contractual en route-document.md y un requisito en el
++  dominio agents.
++- El QA comparte contexto con el orquestador del run (posible sesgo de contexto); se mitiga con
++  registro obligatorio del veredicto en `state.yaml` y con el gate explícito ante hallazgos,
++  igual que el riesgo aceptado en J5.
++- El bucle hallazgo → re-despacho quirúrgico → nuevo J6 queda acotado por la exigencia de
++  elección de usuario en cada halt, sin maquinaria de lineage adicional.
++- Reversible con revert de los commits del change.
+diff --git a/openspec/changes/harden-sdd-document-contract/decisions/adr-002.md b/openspec/changes/harden-sdd-document-contract/decisions/adr-002.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/harden-sdd-document-contract/decisions/adr-002.md
+@@ -0,0 +1,50 @@
++# ADR-002: Automatización del checklist P4/P6 como contrato estático más especificación ejecutable in-test
++
++- Status: proposed
++- Change: harden-sdd-document-contract
++- Date: 2026-08-25
++
++## Context
++
++Los success criteria exigen que los checks del checklist de salida (P4: >=30 líneas
++sustanciales, grafo de enlaces in/out, Mermaid en páginas de flujo, sintaxis citada) y los de
++metadata (P6: `sections` completo, `filesSkipped` con identidad y motivo) sean "verificables
++automáticamente en `scripts/sdd-document.test.js`". El executor es un LLM siguiendo prosa:
++ninguna función de producción invoca estos checks, y la suite eval live es manual y solo
++estructural. Hay que decidir dónde vive la lógica verificable.
++
++## Decision
++
++Dos capas dentro de `scripts/sdd-document.test.js`, sin código runtime nuevo:
++
++1. **L1 — contrato estático**: asserts `includes`/regex sobre `skills/sdd-document/SKILL.md` y
++   `skills/_shared/route-document.md` que fijan que la prosa contractual documenta umbrales,
++   orden de pasos, esquema de metadata y el procedimiento J6 (estilo ya establecido en ese
++   archivo para el batched gate y la §3 rel-3).
++2. **L2 — especificación ejecutable**: helpers puros definidos DENTRO del propio test file
++   (conteo de líneas sustanciales excluyendo headings/blancos/source maps, grafo de enlaces
++   internos relativos, detección de fences mermaid + heurística de labels citados, validación
++   del schema `.last-update.json` contra el set real de `*.md`) ejercitados sobre mini-wikis
++   construidos en tmpdir, con una variante válida y una variante violadora por regla.
++
++## Alternatives
++
++- *Librería runtime compartida* (`scripts/lib/document-checklist.js`): rechazada. Ningún camino
++  de producción la invocaría (el enforcement real lo hace el LLM leyendo SKILL.md), convirtiéndola
++  en superficie muerta con coste de mantenimiento; si en el futuro aparece un consumidor real,
++  extraerla desde los helpers del test es mecánico.
++- *Escenario golden eval nuevo* (`document-content-qa-*`): rechazado por ahora. Los evals son
++  manuales/host-authorized y estructurales; no medirían prosa ni calidad factual, y ampliarían
++  la superficie de mantenimiento live. Queda registrado como deuda futura en design.md.
++- *Solo capa L1*: rechazada. Sin L2, los umbrales ("~30 líneas", "al menos 1 enlace") quedan con
++  semántica ambigua y cada implementación futura podría interpretarlos distinto; L2 fija el
++  significado exacto de "línea sustancial", "enlace interno" y "schema completo".
++
++## Consequences
++
++- El archivo de tests crece (~150-250 líneas) pero queda autocontenido y en CI (`npm test`),
++  cumpliendo el success criterion sin dependencias nuevas.
++- La heurística Mermaid de L2 es deliberadamente superficial (tipo de diagrama + labels citados);
++  la validación profunda de renderizado se delega al spot-check J6, y esa limitación queda
++  documentada en ambos sitios.
++- Cero footprint en producción: reversible con revert de los commits del change.
+diff --git a/openspec/changes/harden-sdd-document-contract/design.md b/openspec/changes/harden-sdd-document-contract/design.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/harden-sdd-document-contract/design.md
+@@ -0,0 +1,260 @@
++# Design: harden-sdd-document-contract
++
++## Technical Approach
++
++El cambio convierte las propuestas P1–P7 del análisis del 2026-08-22 en mecanismos de
++enforcement dentro de dos superficies normativas ya existentes, sin crear superficies nuevas:
++
++1. **`skills/sdd-document/SKILL.md`** (contrato del executor): cinco puntos de inserción que
++   cubren P1–P6 y la parte prohibitoria de P7.
++2. **`skills/_shared/route-document.md`** (contrato del orquestador): una nueva sección `§7`
++   con el procedimiento J6 de QA de contenido orchestrator-owned (P7), hermano de J5.
++
++Cada regla tiene UN único hogar normativo: las obligaciones del generador viven en el SKILL,
++las obligaciones de verificación post-run del orquestador viven en el dominio `agents`
++(REQ-agents-018) y su procedimiento operativo en el route handler. El SKILL solo recibe la
++cláusula prohibitoria correspondiente (no auto-certificación, REQ-sdd-document-022).
++
++### Numeración de pasos en SKILL.md
++
++Los nuevos pasos se insertan entre la redacción de páginas y los metadatos, porque el orden
++de ejecución importa: la remediación del checklist puede fusionar páginas (cambia el conjunto
++`sections`) y la verificación factual puede corregir cifras; `.last-update.json` debe escribirse
++solo después de que ambos concluyan. Se adopta renumeración explícita (no sufijos `6.4a/6.4b`,
++que dejan un orden de lectura ambiguo):
++
++| Paso actual | Paso final | Contenido | Requisito |
++|---|---|---|---|
++| Step 5b | Step 5b (ampliado) | Plan con mapa de canonicidad + propuestas de cobertura en update mode | REQ-007 / P2, P1 |
++| Update Mode Behavior | ídem (ampliado) | Re-descubrimiento tras la ventana diff + re-verificación de hechos volátiles | REQ-008 / P1, P5 |
++| — | **Step 6.4 (nuevo)** | Measurable Output Checklist | REQ-021 / P4 |
++| — | **Step 6.5 (nuevo)** | Factual Verification Pass | REQ-020 / P3 |
++| Step 6.4 | **Step 6.6** | `.last-update.json` (esquema completado) | REQ-011 / P6 |
++| Step 6.6 | **Step 6.7** | Root agent instruction files | REQ-013 |
++| Step 6.5 | **Step 6.8** | Cleanup | REQ-007 |
++
++Ondas de la renumeración (todas internas a archivos ya afectados o de una línea):
++
++- Cross-references internas del propio SKILL.md ("rules of Step 6.6" → "Step 6.7", dos sitios).
++- `skills/_shared/route-document.md` §4 punto 2: "Step 6.4 of its SKILL" → "Step 6.6".
++- `skills/sdd-document/references/option-d-starlight.md` líneas 65 y 78: referencia textual a
++  "Step 6.4" → "Step 6.6" (actualización de referencia de una línea; no está en la tabla
++  Affected Areas de la propuesta, se registra aquí como onda de diseño).
++- Regex del test `### Step 6\.4:` en `scripts/sdd-document.test.js` → apuntará al bloque JSON
++  bajo el nuevo encabezado "Step 6.6".
++
++### Hogar normativo por propuesta
++
++| Propuesta | Mecanismo | Ubicación contractual |
++|---|---|---|
++| P1 | Re-descubrimiento sobre estado ACTUAL del repo tras calcular la ventana; propuestas de página nueva/fusión registradas en `_plan.md` antes de editar páginas existentes; no autoriza reescrituras amplias | SKILL Step 5b + Update Mode Behavior (REQ-008) |
++| P2 | Tabla de canonicidad `concepto -> pagina canonica` dentro de `_plan.md`; solapamiento se resuelve ANTES de escribir (una canónica, el resto summary+link) | SKILL Step 5b (REQ-007) |
++| P3 | Paso obligatorio de contraste por cifra e identificador citado, con registro de outcome por claim durante la ejecución (nunca en la salida publicada); claim fallido = corregir o eliminar | SKILL nuevo Step 6.5 (REQ-020) |
++| P4 | Checklist medible con umbrales fijos y canal de justificación explícita en el envelope | SKILL nuevo Step 6.4 (REQ-021) |
++| P5 | Re-verificación de hechos volátiles en CADA update, fuera de la ventana incluida; en update no-op reduce el alcance del paso de verificación factual a solo hechos volátiles | SKILL Update Mode Behavior + Step 6.5 (REQ-008) |
++| P6 | `sections` = TODAS las páginas existentes tras el run; `filesSkipped` = lista `{file, reason}` | SKILL Step 6.6 (REQ-011) |
++| P7 | QA de contenido orchestrator-owned: readability sobre páginas tocadas + spot-check factual muestreado; revisor distinto del dispatch generador; registro `gates.content-qa` en `state.yaml`; gate de dos opciones ante hallazgo confirmado | route-document §7 nuevo + agents REQ-agents-018; cláusula de no-auto-certificación en SKILL (REQ-022) |
++
++## Execution Flow
++
++```mermaid
++sequenceDiagram
++    autonumber
++    actor User
++    participant O as Orchestrator
++    participant G as sdd-document executor
++    participant W as Wiki output dir
++    participant R as Repository
++
++    User->>O: /sdd-document
++    O->>O: gate idioma+alcance (init) o pre-question keep/change (update)
++    O->>G: dispatch(doc_language, scope_choice)
++    G->>W: detecta modo (quickstart.md / .last-update.json)
++    G->>R: discovery (+ ventana gitHead..HEAD si update)
++    Note over G,R: update: re-discovery sobre estado actual,<br/>propuestas de cobertura registradas antes de editar
++    G->>W: escribe _plan.md (paginas + mapa de canonicidad)
++    G->>W: redacta quickstart + paginas de dominio
++    Note over G,W: Step 6.4 checklist medible:<br/>30 lineas sustanciales, grafo de enlaces,<br/>Mermaid en paginas de flujo, sintaxis citada
++    G->>R: Step 6.5 verificacion factual por cifra/identificador citado<br/>(update: incluye hechos volatiles fuera de ventana)
++    G->>W: corrige o elimina claims fallidos
++    G->>W: Step 6.6 .last-update.json completo (sections todas las paginas,<br/>filesSkipped [{file, reason}])
++    G->>W: Step 6.8 cleanup (_plan.md eliminado)
++    G-->>O: envelope success + checklist mecanico self-report
++    O->>R: J6 QA de contenido (readability tocadas + spot-check factual muestreado)
++    alt QA sin defectos confirmados
++        O->>O: state.yaml gates.content-qa status pass
++        O-->>User: ruta cerrada como success
++    else hallazgo confirmado
++        O-->>User: question_gate (re-despachar generador | aceptar riesgo)
++    end
++```
++
++## Decisions
++
++| Decision | Chosen Option | Trade-off / Rejected Alternative | Rationale |
++|---|---|---|---|
++| **ADR-001: Ejecutor del QA de contenido P7** | Pass inline orchestrator-owned documentado en route-document §7 (J6), mismo patrón que J5 | Sub-agente revisor dedicado / reutilizar el skill review-change (lineage 4R) | Sin superficie de registro nueva; el orquestador es estructuralmente distinto del dispatch generador; precedente REQ-agents-006 |
++| **ADR-002: Automatización del checklist P4/P6** | Dos capas en `scripts/sdd-document.test.js`: L1 contrato estático sobre la prosa + L2 especificación ejecutable (helpers puros in-test sobre mini-wikis tmp) | Librería runtime `scripts/lib/document-checklist.js` / escenario golden eval nuevo | El executor es un LLM siguiendo prosa: nada en producción invocaría la librería; los evals live son manuales y estructurales, no miden prosa |
++
++### Detailed ADR References
++
++- [ADR-001: QA de contenido post-run como pass inline orchestrator-owned (J6)](decisions/adr-001.md)
++- [ADR-002: Automatización del checklist P4/P6 como contrato estático más especificación ejecutable in-test](decisions/adr-002.md)
++
++Decisiones menores NO elevadas a ADR (registradas aquí por trazabilidad):
++
++- **Renumeración vs sufijos**: se renumera (tabla superior) para mantener monotonicidad de
++  lectura; el ripple está enumerado y acotado.
++- **Registro de outcomes de verificación factual**: se registra en la bitácora de trabajo del
++  run (transcripciones/herramientas), nunca en artefacto persistido nuevo ni en las páginas;
++  coherente con el rollback plan ("sin formato persistido nuevo"). Solo los fallos que exigieron
++  corrección se resumen en `risks` del envelope.
++- **No-op en update mode**: cuando no hay drift y ningún hecho volátil derivó, el run reporta
++  no-op sin tocar páginas wiki, pero refresca SOLO `gitHead` y `updatedAt` en
++  `.last-update.json` (avanza la ventana; el metadata no es una página wiki). Si un hecho
++  volátil derivó, el run degrada a edición quirúrgica normal.
++
++## File Changes
++
++| File | Action | Description |
++|---|---|---|
++| `skills/sdd-document/SKILL.md` | Modify | Steps 5b (mapa de canonicidad + cobertura en update), Update Mode Behavior (re-descubrimiento + hechos volátiles), nuevos Steps 6.4/6.5 (checklist, verificación factual), Step 6.6 (metadata completa), renumeración 6.7/6.8, cláusula de no-auto-certificación en Step 7 |
++| `skills/_shared/route-document.md` | Modify | Nueva §7 "J6 — orchestrator-owned post-run content QA"; fix de cross-ref "Step 6.4"→"Step 6.6" en §4 |
++| `skills/sdd-document/references/option-d-starlight.md` | Modify | Dos referencias textuales "Step 6.4"→"Step 6.6" (onda de renumeración) |
++| `scripts/sdd-document.test.js` | Modify | Capa L1 (asserts estáticos sobre nueva prosa contractual) + capa L2 (helpers ejecutables del checklist y del schema de metadata sobre fixtures tmp) |
++| `openspec/specs/sdd-document/spec.md`, `openspec/specs/agents/spec.md` | Modify (en archive) | Sync de deltas al archivar (fase archive, no apply) |
++
++## Interfaces / Contracts
++
++### 1. `_plan.md` ampliado (Step 5b)
++
++```markdown
++| page | category | evidence | substance | canonical for |
++|---|---|---|---|---|
++| workflows/route-handlers.md | flow | skills/_shared/*.md | high | route handlers |
++```
++
++- `category`: clasificación del dominio descubierta en 6.1 (`flow` marca páginas orientadas a
++  flujo/arquitectura). Es el oráculo determinista del check de Mermaid, independiente del
++  `doc_language`.
++- `canonical for`: columna del mapa de canonicidad; un concepto con contenido primario en más
++  de una página planificada bloquea la escritura hasta designar canónica y reducir la otra a
++  summary+link.
++- Update mode añade una sección `coverage proposals` (páginas nuevas/fusiones propuestas por el
++  re-descubrimiento) que debe existir antes de la primera edición de una página existente.
++
++### 2. Semántica determinista del checklist (REQ-021)
++
++Definiciones operativas que la capa L2 de tests fija como especificación ejecutable:
++
++- **Línea sustancial**: línea no vacía, que no sea heading (`^#{1,6} `) y que no pertenezca a la
++  sección "Source map". Umbral: >= 30 por página.
++- **Grafo de enlaces**: enlace saliente = link relativo interno a otra página del output
++  (`./x.md`, `../y/z.md`); entrante = el reciproco desde cualquier otra página (quickstart
++  incluido). Se excluyen links externos http(s), anclas y auto-links. Umbral: >= 1 saliente Y
++  >= 1 entrante por página.
++- **Mermaid en páginas de flujo**: toda página marcada `category: flow` en `_plan.md` debe
++  contener >= 1 bloque cercado de mermaid no vacío.
++- **Sintaxis Mermaid (heurística)**: primera línea efectiva con tipo de diagrama conocido
++  (`graph|flowchart|sequenceDiagram|stateDiagram|classDiagram|erDiagram|journey|gantt|pie|mindmap`);
++  caracteres especiales `[ ] ( ) { } *` en labels FUERA de comillas dobles => inválido. La
++  validación profunda de renderizado queda delegada al spot-check del QA (J6).
++- **Canal de justificación**: excepciones justificadas viajan en el `json:result-envelope` bajo
++  `checklist.justifiedExceptions[]` (`{page, check, reason}`). Los checks mecánicos SÍ se
++  auto-reportan; la calidad de contenido NO (ver punto 4).
++
++### 3. `.last-update.json` (Step 6.6, REQ-011)
++
++Cambios sobre el esquema vigente:
++
++- `sections`: lista COMPLETA de páginas existentes en el directorio de salida tras el run
++  (incluye páginas heredadas sin cambios). Invariante verificable: `sections` == conjunto real
++  de `*.md` recursivos del output dir.
++- `stats.filesSkipped`: deja de ser count numérico; pasa a lista de objetos
++  `[{ "file": "<ruta>", "reason": "<motivo>" }]`. Los lectores previos que ignoran campos extra
++  no se rompen (rollback plan de la propuesta).
++- No-op update: solo cambian `updatedAt` y `gitHead`.
++
++### 4. Envelope del generador (Step 7)
++
++```json
++{
++  "checklist": {
++    "results": [
++      { "page": "...", "substantiveLines": 42, "outgoingLinks": 3, "incomingLinks": 2, "mermaid": true }
++    ],
++    "justifiedExceptions": []
++  }
++}
++```
++
++Cláusula REQ-022: el envelope NO debe contener certificación de calidad de contenido
++("readability OK", "facts verified" como veredicto final); esa autoridad es del QA
++orchestrator-owned. El self-report queda limitado a los checks mecánicos.
++
++### 5. route-document §7 — J6 procedure
++
++- Disparo: tras `status: success` del generador (tras cualquier ciclo blocked/resume), antes de
++  cerrar la ruta.
++- Alcance readability: TODAS las páginas tocadas por el run (estructura, claridad, duplicación,
++  stubs). Alcance spot-check factual: muestra de `max(3, ceil(0.2 * claims))` sobre los
++  claims cuantitativos e identificadores publicados, contrastada contra el repo vía
++  search/read.
++- Veredictos: `pass` | `findings`. Registro obligatorio en `state.yaml`:
++
++```yaml
++gates:
++  content-qa:
++    status: "pass"   # pass | findings
++    summary: "<una linea>"
++```
++
++- Hallazgo confirmado => halt con `question_gate` de exactamente dos opciones, default
++  recomendado: "Re-dispatch the generator to correct the affected pages"; alternativa:
++  "Acknowledge and close the route anyway (accepted risk)". El re-despacho es quirúrgico (solo
++  páginas afectadas) y va seguido de un nuevo pase J6 sobre esas páginas; cada halt exige
++  elección explícita del usuario, lo que acota el bucle sin maquinaria de lineage adicional.
++- Fallo del propio chequeo (tools indisponibles) se trata como inconcluso => mismo gate con
++  executive_summary explicando la inconclusión (estilo J5 paso 3).
++- Sin registro `gates.content-qa` para el run => la ruta no cierra como success (scenario 4 del
++  delta agents).
++
++## Testing Strategy
++
++Tres capas, alineadas con los precedentes del repo (tests estáticos de contrato +
++fixtures eval live manuales):
++
++| Layer | Objetivo | Mecanismo |
++|---|---|---|
++| L1 — contrato estático | La prosa contractual existe y es completa | Asserts `includes`/regex sobre SKILL.md y route-document.md, estilo existente del archivo (precedentes: tests de batched gate y de §3 rel-3): umbrales 30 líneas/in-out links, sección checklist, paso de verificación factual entre escritura y cleanup, esquema completo de metadata (incluye `filesSkipped` con identidad+reason), cláusula de no-auto-certificación, presencia de §7 J6 con `gates.content-qa`, gate de dos opciones con label default, requisito de revisor distinto |
++| L2 — especificación ejecutable | Los umbrales tienen semántica exacta y reproducible | Helpers puros DENTRO de `scripts/sdd-document.test.js` (sin módulo runtime nuevo, ADR-002): conteo de líneas sustanciales, grafo de enlaces, detección+heurística Mermaid, validación de schema `.last-update.json` (sections == set real de *.md; filesSkipped objetos). Se ejercitan sobre mini-wikis construidos en tmpdir (`tmpOut` ya existe): wiki válida (pass), página thin (<30), huérfana sin entrantes, flujo sin diagrama, mermaid con label sin citar, metadata incompleta (sections parcial, filesSkipped numérico). Cada variante violadora assertion-falla |
++| L3 — evals live (existente) | Comportamiento end-to-end del orquestador | SIN escenarios nuevos en este cambio: los 7 golden scenarios permanecen intactos (los fixtures `document-*` no cambian de forma; `fileTreeUnchanged` sigue válido). La verificación conductual de J6 queda como limitación documentada (mismo tratamiento que J5 hoy); escenario golden dedicado = deuda futura |
++
++Mapeo requisito → verificación:
++
++- REQ-007/-008/-011, -020/-021/-022 → L1 (prosa) + L2 (semántica de umbrales y schema).
++- REQ-agents-018 → L1 (procedimiento J6, registro, gate) ; L3 diferida.
++- Success criteria "npm test en verde" → suite completa tras apply.
++
++## Migration / Rollout
++
++- Todo es aditivo/sustitutivo sobre prosa contractual y tests: sin migración de datos ni
++  formatos persistidos nuevos. `.last-update.json` cambia la forma de `filesSkipped`
++  (count → lista) pero lectores previos toleran la diferencia.
++- `dist/` se regenera con el pipeline de build/configure existente durante apply (nunca a mano).
++- Rollback: `git revert` de los commits del change y `npm test`. Sin pasos intermedios.
++
++## Risks
++
++| Risk | Likelihood | Mitigation |
++|---|---|---|
++| Renumeración rompe forks o referencias no detectadas | Low | Ripple enumerado en este documento; grep de "Step 6.x" en apply como checklist |
++| Heurística Mermaid deja pasar bloques inválidos | Medium | Delegación explícita del render-check al spot-check J6; limitación documentada |
++| J6 en contexto del orquestador arrastra sesgo del run | Medium | Aceptado por precedente J5; summary obligatorio en state.yaml hace auditable el veredicto |
++| Coste de re-verificar hechos volátiles en wikis grandes | Medium | Alcance limitado a cifras/identificadores efectivamente citados en páginas tocadas + volátiles mapeados |
++| Falsos positivos del grafo de enlaces | Low | Canal de justificación explícita en envelope (checklist.justifiedExceptions) |
++
++## Open Questions
++
++- None. Las decisiones significativas quedan capturadas en ADR-001 y ADR-002; las menores, en
++  la sección Decisions de este documento.
+diff --git a/openspec/changes/harden-sdd-document-contract/proposal.md b/openspec/changes/harden-sdd-document-contract/proposal.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/harden-sdd-document-contract/proposal.md
+@@ -0,0 +1,68 @@
++# Proposal: Endurecer el contrato de `sdd-document` con enforcement verificable
++
++## Intent
++
++El generador de wiki (`skills/sdd-document/SKILL.md`) produce buena materia prima, pero sus reglas de calidad son declarativas: carecen de mecanismo de cumplimiento. La auditoría del 2026-08-22 (`docs/analysis/2026-08-22-openwiki-sdd-document-analysis.md`) evidenció obsolescencia sistémica en update mode (H1/M4), conceptos duplicados sin canonicidad (H2), errores factuales publicados (H3), páginas stub y metadatos incompletos (L8). Este cambio convierte las propuestas P1–P7 del análisis en requisitos normativos verificables del contrato.
++
++## Scope
++
++### In Scope
++- P1: re-descubrimiento de dominios en update mode tras la ventana diff, registrado en `_plan.md`.
++- P2: mapa de canonicidad `concepto -> pagina canonica` como parte obligatoria del plan (REQ-sdd-document-007).
++- P3: paso de verificación factual obligatorio (grep/read de contraste por cifra e identificador citado) antes del cleanup.
++- P4: checklist de salida medible en Step 6.5: sustancia >=30 líneas, grafo de enlaces, Mermaid en páginas de flujo, sintaxis Mermaid válida.
++- P5: re-verificación de hechos volátiles (contadores, umbrales, versiones) en cada update aunque su fuente no cambie en la ventana.
++- P6: `.last-update.json` completo: `sections` lista todas las páginas existentes; `filesSkipped` identifica cuáles y por qué (REQ-sdd-document-011).
++- P7: QA de contenido post-generación orchestrator-owned (readability + fact-spot-check por revisor distinto del generador), análoga a la verificación de sandbox de REQ-agents-006; el generador no puede auto-certificar calidad de contenido.
++
++### Out of Scope
++- Remediación del wiki vivo `openwiki/` (§6 del análisis: errores H3, página kernel, targets nuevos, clústeres de duplicación); cambio separado.
++- Modificaciones al scaffold/sync Starlight (REQ-sdd-document-014 a -019).
++- Nuevos bloques `quality_gates:` u otros cambios en `openspec/config.yaml`.
++
++## Capabilities
++
++### New Capabilities
++None
++
++### Modified Capabilities
++- `sdd-document`: deltas en REQ-sdd-document-007 (mapa de canonicidad), -008 (re-descubrimiento y frescura en update mode), -011 (metadatos completos) más nuevos requisitos de verificación factual, checklist verificable y no-auto-certificación de calidad.
++- `agents`: nuevo requisito de verificación orchestrator-owned de contenido post-run para la ruta `/sdd-document`, hermano de REQ-agents-006.
++
++## Approach
++
++Modificar el contrato del executor en cinco puntos del SKILL.md: Step 5b (plan con canonicidad), sección Update Mode Behavior (re-descubrimiento + hechos volátiles), un nuevo paso entre redacción y cleanup (verificación factual), Step 6.5 (checklist medible) y Step 6.4/Return Summary (metadatos completos, sin auto-certificación). El punto orquestador de P7 vive en `skills/_shared/route-document.md` junto a J5, con su requisito normativo en el dominio `agents`. Los checks de P4/P6 deben ser automatizables en `scripts/sdd-document.test.js`.
++
++## Affected Areas
++
++| Area | Impact | Description |
++|------|--------|-------------|
++| `skills/sdd-document/SKILL.md` | Modified | Steps 5b, 6.x, update mode, cleanup y return summary |
++| `openspec/specs/sdd-document/spec.md` | Modified | Deltas REQ-007/-008/-011 y nuevos requisitos |
++| `openspec/specs/agents/spec.md` | Modified | Requisito P7 de QA de contenido post-run |
++| `skills/_shared/route-document.md` | Modified | Dispatch del QA antes de cerrar la ruta como success |
++| `scripts/sdd-document.test.js` | Modified | Tests de contrato para checks medibles |
++
++## Risks
++
++| Risk | Likelihood | Mitigation |
++|------|------------|------------|
++| El re-descubrimiento en update dispara regeneraciones amplias contrarias al espíritu quirúrgico | Med | P1 solo propone páginas nuevas/fusiones en `_plan.md`; presupuesto de diff se mantiene |
++| La verificación factual encarece cada run | Med | Alcance limitado a cifras e identificadores efectivamente citados; agente en tier cheap |
++| Falsos positivos del checklist (página legítima sin enlace entrante) | Low | Se admite justificación explícita registrada en el envelope |
++
++## Rollback Plan
++
++Revertir los commits del change (git revert). Todo es aditivo sobre SKILL.md, specs, handler y tests: sin migración de datos ni formato persistido nuevo; lectores previos ignoran campos extra de `.last-update.json`. Tras revertir, ejecutar `npm test`.
++
++## Dependencies
++
++- Fuente: `docs/analysis/2026-08-22-openwiki-sdd-document-analysis.md` (P1–P7).
++- Sin dependencias externas ni de otros changes activos.
++
++## Success Criteria
++
++- [ ] Cada propuesta P1–P7 tiene requisito RFC 2119 con escenario Given/When/Then en los delta specs.
++- [ ] Los checks de P4 y P6 son verificables automáticamente en `scripts/sdd-document.test.js`.
++- [ ] La ruta `/sdd-document` no cierra como success sin pasada QA independiente documentada (P7).
++- [ ] `npm test` en verde tras apply.
+diff --git a/openspec/changes/harden-sdd-document-contract/specs/agents/spec.md b/openspec/changes/harden-sdd-document-contract/specs/agents/spec.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/harden-sdd-document-contract/specs/agents/spec.md
+@@ -0,0 +1,62 @@
++# Delta for agents
++
++## ADDED Requirements
++
++### Requirement: Orchestrator-Owned Post-Run Content QA for sdd-document {#REQ-agents-018}
++
++After the `sdd-document` agent returns `status: success` (following any number of
++`blocked`/resume cycles), the orchestrator MUST perform an independent post-run
++CONTENT quality assurance pass before considering the `/sdd-document` route
++complete — the content sibling of the sandbox inventory check
++(Orchestrator-Owned Post-Run Sandbox Inventory Verification for sdd-document,
++REQ-agents-006). The QA pass MUST cover the wiki pages produced or updated by
++the run (under the approved output directory/directories resolved as in
++REQ-agents-006) and MUST combine:
++
++1. A readability review of the touched pages (structure, clarity, duplication, stub detection).
++2. A factual spot-check contrasting a sample of published figures and identifiers against the repository.
++
++The QA pass MUST be delegated to a reviewer DISTINCT from the generator execution
++that produced the content — a dispatch MUST NOT review its own output. The
++generator's self-report MUST NOT be treated as sufficient evidence of content
++quality.
++
++If the QA pass finds a confirmed factual error or a severe content defect in the
++touched pages, the orchestrator MUST halt and surface a `question_gate`
++describing the findings before closing the route. The gate MUST offer exactly two
++options: "Re-dispatch the generator to correct the affected pages" (the default/
++recommended option) and "Acknowledge and close the route anyway (accepted risk)".
++The orchestrator MUST NOT close the route without an explicit user choice between
++these two options.
++
++The orchestrator MUST document every QA pass in `state.yaml` under
++`gates.content-qa` (at minimum `status`: `pass` | `findings`, plus a short
++`summary`), so the route never closes as success without a documented independent
++QA pass.
++
++#### Scenario: Clean QA — route closes silently
++
++- GIVEN `sdd-document` returned `status: success` and the QA pass reports no confirmed defects
++- WHEN the orchestrator evaluates the QA outcome
++- THEN it records `gates.content-qa` with status `pass`
++- AND it closes the route without additional user interaction
++
++#### Scenario: Confirmed factual error halts route closure
++
++- GIVEN the QA spot-check confirms a published figure contradicting the repository
++- WHEN the orchestrator evaluates the QA outcome
++- THEN it MUST halt and present a `question_gate` describing the finding before closing the route
++- AND the gate MUST offer exactly "Re-dispatch the generator to correct the affected pages" (default) and "Acknowledge and close the route anyway (accepted risk)"
++
++#### Scenario: Reviewer is distinct from the generator
++
++- GIVEN the generator dispatch completed successfully
++- WHEN the orchestrator selects the QA reviewer
++- THEN the reviewer MUST be a delegation distinct from the generator execution that produced the content
++- AND the generator's own quality claims MUST NOT satisfy this requirement by themselves
++
++#### Scenario: No QA record — route cannot close as success
++
++- GIVEN a `/sdd-document` route reaches closure
++- WHEN no `gates.content-qa` record exists for the run
++- THEN the route MUST NOT close as success until the QA pass runs and its outcome is documented
+diff --git a/openspec/changes/harden-sdd-document-contract/specs/sdd-document/spec.md b/openspec/changes/harden-sdd-document-contract/specs/sdd-document/spec.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/harden-sdd-document-contract/specs/sdd-document/spec.md
+@@ -0,0 +1,213 @@
++# Delta for sdd-document
++
++## ADDED Requirements
++
++### Requirement: Factual Verification Pass {#REQ-sdd-document-020}
++
++Between writing all wiki pages and the cleanup step, the agent MUST run a factual verification pass over every generated or updated page: each quantitative claim (counts, thresholds, limits, sizes, versions) and each cited code identifier (file path, command name, function or config key) MUST be contrasted against the repository using search/read tools, and the per-claim outcome MUST be recorded during the run (never in the final output). The agent MUST NOT publish a figure or identifier from memory without this contrast.
++
++A claim that fails verification MUST be corrected to match the repository or removed; the agent MUST NOT leave a known-stale value in the published page.
++
++#### Scenario: Cited figure contrasted before publication
++
++- GIVEN a generated page states a numeric limit attributed to the codebase
++- WHEN the factual verification pass runs
++- THEN the agent MUST have located the defining source via search/read and contrasted the figure against it
++- AND the published figure MUST match the current source value
++
++#### Scenario: Failed verification corrects or removes the claim
++
++- GIVEN the pass finds a cited figure or identifier that does not match the repository
++- WHEN the agent resolves the finding before cleanup
++- THEN it MUST update the claim to the verified value or delete the claim entirely
++- AND the published page MUST NOT retain the stale value
++
++#### Scenario: Cited identifiers resolve
++
++- GIVEN a page references commands, scripts, functions, or config keys
++- WHEN the pass verifies that page
++- THEN every referenced identifier MUST resolve to an existing definition or declaration in the repository
++- AND an unresolvable reference MUST be corrected or removed
++
++---
++
++### Requirement: Measurable Output Checklist {#REQ-sdd-document-021}
++
++After all wiki files are written, the agent MUST evaluate a measurable exit checklist instead of relying on declarative style rules. The checklist MUST cover, for every page in the run's output:
++
++| Check | Threshold |
++|---|---|
++| Substantive content | every page has at least 30 substantive lines |
++| Link graph | every page has at least 1 outgoing wiki-internal link AND at least 1 incoming link |
++| Flow diagrams | every flow/architecture-oriented page embeds at least 1 Mermaid diagram |
++| Diagram syntax | every Mermaid block is syntactically valid, with special-character labels quoted |
++
++A check that fails without an explicit justification recorded in the return envelope MUST be remediated before the run completes (merge the thin page, add links, add the diagram, fix the syntax); the agent MUST NOT finish with an unjustified failing check.
++
++#### Scenario: Thin page merged before close
++
++- GIVEN post-write inspection finds a page with fewer than 30 substantive lines
++- WHEN the checklist runs
++- THEN the agent MUST merge the page into a broader page or quickstart before completing the run
++- AND no standalone thin page remains in the output
++
++#### Scenario: Justified orphan page does not block completion
++
++- GIVEN a legitimate page has no incoming wiki link
++- WHEN the checklist evaluates the link graph
++- THEN the run MAY complete only if the envelope records an explicit justification for that page
++- AND an unjustified orphan MUST be linked or merged instead
++
++#### Scenario: Mermaid labels render safely
++
++- GIVEN a diagram label contains special characters (for example `*`)
++- WHEN the checklist validates Mermaid syntax
++- THEN such labels MUST be quoted so the block renders correctly
++- AND an invalid block MUST be fixed before completion
++
++---
++
++### Requirement: No Self-Certification of Content Quality {#REQ-sdd-document-022}
++
++The generator's own assessment is NOT sufficient evidence of content quality and MUST NOT be presented as such: the authoritative readability review and factual spot-check of generated content are an orchestrator-owned post-run step performed by a reviewer distinct from the generator (see `openspec/specs/agents/spec.md`, Orchestrator-Owned Post-Run Content QA for sdd-document). The agent MUST NOT self-certify content quality in its return envelope as a substitute for that independent pass.
++
++#### Scenario: Generator does not self-certify content quality
++
++- GIVEN the `sdd-document` agent finishes a run whose self-evaluated checks all passed
++- WHEN it composes its return envelope
++- THEN it MUST NOT claim final, authoritative content-quality certification in place of the orchestrator's independent post-run QA pass
++- AND the orchestrator still performs that pass before closing the route
++
++## MODIFIED Requirements
++
++### Requirement: Planning Step {#REQ-sdd-document-007}
++
++Before writing any wiki files, the agent MUST create a temporary plan file at `{output_dir}/_plan.md` listing every intended wiki page with its source evidence and estimated substance level. The plan MUST be reviewed for anti-patterns (thin pages, single-file directories, exceeding max-pages guard) before proceeding with generation.
++
++The plan MUST additionally include a canonicity map: a table mapping every recurring domain concept to its single canonical wiki page. Before any page is written, the agent MUST use this map to verify that no concept appears as primary content on more than one planned page; when an overlap exists, the agent MUST designate one page as canonical and reduce the other to a short summary linking to it.
++
++The plan file MUST be deleted after all wiki files are written. It MUST NOT appear in the final output.
++
++(Previously: the plan listed pages, evidence, and substance levels only — there was no canonicity map and no deduplication decision step, so duplicate concepts shipped with no compliance mechanism.)
++
++#### Scenario: Plan file lifecycle
++
++- GIVEN the agent has resolved scope and language
++- WHEN it begins document generation
++- THEN it MUST create `{output_dir}/_plan.md` before writing any wiki pages
++- AND it MUST delete `{output_dir}/_plan.md` after all wiki pages are written
++
++#### Scenario: Thin page detected in plan
++
++- GIVEN the plan lists a page with estimated substance level "low"
++- WHEN the agent reviews the plan
++- THEN it MUST merge that page into a broader page or quickstart
++- AND it MUST NOT create a standalone page for the thin domain
++
++#### Scenario: Overlapping concept resolved through the canonicity map
++
++- GIVEN two planned pages would carry the same concept as primary content
++- WHEN the plan is reviewed against the canonicity map
++- THEN the agent MUST designate one of them as the canonical page for that concept
++- AND it MUST reduce the other page to a summary that links to the canonical page
++
++---
++
++### Requirement: Init and Update Mode Detection {#REQ-sdd-document-008}
++
++The agent MUST detect whether the approved output directory already contains wiki content (`quickstart.md` and/or `.last-update.json`) and operate in the appropriate mode:
++
++- **init mode**: Output directory is empty or does not exist. Generate all pages from scratch. Maximum 16 wiki pages (quickstart + up to 15 domain pages).
++- **update mode**: Output directory already contains wiki files. Use the `gitHead` from `.last-update.json` to scope the diff window. Apply surgical edits only — preserve accurate existing content, replace stale sentences rather than rewriting entire sections. Do not make formatting-only edits.
++
++In update mode, after computing the diff window the agent MUST re-run domain discovery over the CURRENT repository state — not only over the files inside the window: a newly added source module or spec domain that maps to no existing page MUST trigger a coverage evaluation, and any resulting new-page or merge proposal MUST be registered in `{output_dir}/_plan.md` BEFORE editing existing pages. Re-discovery only extends coverage proposals; it MUST NOT license broad rewrites of unaffected pages.
++
++In update mode, the agent MUST also re-verify volatile facts (frequently changing counters, target lists, thresholds, versions) on EVERY run, even when their mapped source file did not change inside the diff window, because drift can originate outside the page-to-source mapping.
++
++(Previously: update mode scoped all work to pages whose mapped source files changed within the diff window and never re-ran domain discovery or re-checked facts sourced outside the window, so newly added domains never gained a page.)
++
++#### Scenario: Init mode on empty directory
++
++- GIVEN the approved output directory does not contain `quickstart.md`
++- WHEN the agent detects mode
++- THEN it MUST operate in init mode
++- AND it MUST NOT generate more than 16 wiki pages
++
++#### Scenario: Update mode with no changes
++
++- GIVEN the approved output directory contains wiki files and `.last-update.json`
++- AND no source files have changed since the recorded `gitHead`
++- WHEN the agent runs in update mode
++- THEN it MUST still re-verify volatile facts against the current repository state
++- AND when none has drifted, it MUST report a no-op and NOT edit any wiki files
++
++#### Scenario: Update mode with limited changes
++
++- GIVEN fewer than 5 source files changed since the last run
++- WHEN the agent runs in update mode
++- THEN it MUST update at most 1-2 wiki pages
++
++#### Scenario: New unmapped module triggers coverage evaluation
++
++- GIVEN update mode and a new source module exists that maps to no existing wiki page
++- WHEN domain discovery re-runs after the diff window
++- THEN the agent MUST register a new-page or merge proposal for it in `_plan.md` before editing any existing page
++- AND the proposal MUST respect the maximum-pages guard
++
++#### Scenario: Volatile fact re-verified outside the diff window
++
++- GIVEN a page cites a volatile fact whose mapped source file did not change within the diff window
++- WHEN update mode runs
++- THEN the agent MUST re-verify that fact against the current repository state
++- AND it MUST update or confirm it before publishing the page
++
++---
++
++### Requirement: `.last-update.json` Metadata {#REQ-sdd-document-011}
++
++After all wiki files are written, the agent MUST generate (or update) a `.last-update.json` metadata file in the output directory root containing: `updatedAt` (ISO-8601 UTC), `command` (init/update), `gitHead` (current HEAD short commit hash), `generator` (sdd-document), `version`, `sections` (complete list of every wiki page existing in the output directory after the run — including pages carried over unchanged from prior runs, not only pages written by this run), `stats` (filesGenerated, filesUpdated, and `filesSkipped` identifying each skipped file together with its skip reason), `doc_language` (the resolved language code from the batched gate), and `scope_choice` (the resolved scope option, `A`/`B`/`C`/`D`).
++
++When the resolved scope is D, `.last-update.json` MUST be written under `openwiki/` (the source-of-truth directory); `web-doc/` does not carry its own separate `.last-update.json`.
++
++The `doc_language` and `scope_choice` fields exist so that a subsequent update-mode run can skip the batched gate (per the Batched Language and Scope Selection Gate requirement above) by reading these persisted values instead of re-asking.
++
++(Previously: `sections` listed only the pages generated by the current run and `filesSkipped` was a bare count with neither file identities nor reasons.)
++
++#### Scenario: Metadata file generated on init
++
++- GIVEN the agent completes an init run
++- WHEN writing the `.last-update.json`
++- THEN `command` MUST be `init`
++- AND `gitHead` MUST match the current `git rev-parse --short HEAD`
++
++#### Scenario: Metadata carries doc_language and scope_choice
++
++- GIVEN the agent completes any run (init or update)
++- WHEN writing the `.last-update.json`
++- THEN it MUST include `doc_language` and `scope_choice` reflecting the values resolved for that run
++
++#### Scenario: Update-mode run reads persisted fields to skip the gate
++
++- GIVEN `.last-update.json` from a prior run contains `doc_language` and `scope_choice`
++- WHEN a later update-mode run starts with no explicit parameter override
++- THEN it reads those persisted fields and skips the batched gate, per the Batched Language and Scope Selection Gate requirement
++
++#### Scenario: scope_choice D metadata lives under openwiki/
++
++- GIVEN the resolved scope is D
++- WHEN the agent writes `.last-update.json`
++- THEN it MUST write it under `openwiki/.last-update.json`
++- AND `scope_choice` MUST be `"D"`
++
++#### Scenario: sections lists every existing page after an update
++
++- GIVEN the output directory holds 10 pages before an update that writes 2 new pages
++- WHEN the metadata file is written
++- THEN `sections` MUST contain all 12 page paths, including the 10 untouched pages
++
++#### Scenario: filesSkipped identifies files and reasons
++
++- GIVEN the run skips one or more files
++- WHEN the metadata file is written
++- THEN `filesSkipped` MUST identify each skipped file and state why it was skipped
++- AND a bare count without identities or reasons MUST NOT satisfy this field
+diff --git a/openspec/changes/harden-sdd-document-contract/tasks.md b/openspec/changes/harden-sdd-document-contract/tasks.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/harden-sdd-document-contract/tasks.md
+@@ -0,0 +1,108 @@
++# Tasks: Harden sdd-document Contract (P1–P7)
++
++## Spec/Design Reconciliation
++
++| Requirement / Scenario | Priority | Design Allocation | Status | Notes |
++|------------------------|----------|-------------------|--------|-------|
++| REQ-sdd-document-007 / Plan file lifecycle | MUST | `skills/sdd-document/SKILL.md` Step 5b | covered-by-design | Delete `_plan.md` in Step 6.8 cleanup |
++| REQ-sdd-document-007 / Thin page detected in plan | MUST | Step 5b anti-pattern review | covered-by-design | Existing merge rule retained |
++| REQ-sdd-document-007 / Overlapping concept resolved | MUST | Step 5b canonicity map (`canonical for` column) | covered-by-design | Blocks write until dedup |
++| REQ-sdd-document-008 / Init mode on empty directory | MUST | Step 6 Max-Pages Guard | covered-by-design | Unchanged guard |
++| REQ-sdd-document-008 / Update mode with no changes | MUST | Update Mode Behavior + Step 6.5 + Step 6.6 no-op metadata | covered-by-design | Re-verify volatiles; refresh only `updatedAt`/`gitHead` |
++| REQ-sdd-document-008 / Update mode with limited changes | MUST | Update Mode Behavior soft budget | covered-by-design | Existing rule |
++| REQ-sdd-document-008 / New unmapped module triggers coverage | MUST | Update Mode re-discovery + Step 5b `coverage proposals` | covered-by-design | Before editing existing pages |
++| REQ-sdd-document-008 / Volatile fact re-verified outside window | MUST | Update Mode Behavior + Step 6.5 | covered-by-design | Every update run |
++| REQ-sdd-document-011 / Metadata generated on init | MUST | Step 6.6 `.last-update.json` | covered-by-design | Renumbered from 6.4 |
++| REQ-sdd-document-011 / doc_language and scope_choice | MUST | Step 6.6 schema | covered-by-design | Existing fields retained |
++| REQ-sdd-document-011 / Update reads persisted fields | MUST | Step 3 skip gate | covered-by-design | Pre-existing |
++| REQ-sdd-document-011 / scope D metadata under openwiki/ | MUST | Step 6.6 placement rule | covered-by-design | Pre-existing |
++| REQ-sdd-document-011 / sections lists every existing page | MUST | Step 6.6 complete `sections` invariant | covered-by-design | Includes untouched pages |
++| REQ-sdd-document-011 / filesSkipped identifies files and reasons | MUST | Step 6.6 `stats.filesSkipped` as `[{file, reason}]` | covered-by-design | Replaces numeric count |
++| REQ-sdd-document-020 / Cited figure contrasted | MUST | New Step 6.5 Factual Verification Pass | covered-by-design | Per-claim search/read |
++| REQ-sdd-document-020 / Failed verification corrects or removes | MUST | Step 6.5 remediation before cleanup | covered-by-design | No stale values published |
++| REQ-sdd-document-020 / Cited identifiers resolve | MUST | Step 6.5 identifier checks | covered-by-design | Unresolvable → fix/remove |
++| REQ-sdd-document-021 / Thin page merged | MUST | New Step 6.4 Measurable Output Checklist | covered-by-design | ≥30 substantive lines |
++| REQ-sdd-document-021 / Justified orphan page | MUST | Step 6.4 + Step 7 envelope `checklist.justifiedExceptions` | covered-by-design | Explicit justification channel |
++| REQ-sdd-document-021 / Mermaid labels render safely | MUST | Step 6.4 Mermaid syntax heuristic | covered-by-design | Quoted special chars |
++| REQ-sdd-document-022 / Generator does not self-certify | MUST | Step 7 envelope + cross-ref REQ-agents-018 | covered-by-design | Mechanical self-report only |
++| REQ-agents-018 / Clean QA — route closes silently | MUST | `route-document.md` §7 J6 + `gates.content-qa` | covered-by-design | ADR-001 |
++| REQ-agents-018 / Confirmed factual error halts | MUST | `route-document.md` §7 two-option gate | covered-by-design | Default: re-dispatch |
++| REQ-agents-018 / Reviewer distinct from generator | MUST | `route-document.md` §7 inline orchestrator pass | covered-by-design | No self-review |
++| REQ-agents-018 / No QA record — cannot close success | MUST | `route-document.md` §7 mandatory registration | covered-by-design | `gates.content-qa` required |
++
++### Reconciliation Verdict
++- MUST coverage: complete
++- SHOULD/MAY gaps: none
++- Ambiguities to track: none (J6 behavioral golden eval deferred per `sdd-design-003`)
++
++## Review Workload Forecast
++
++| Field | Value |
++|-------|-------|
++| Estimated changed lines | ~480–620 (`SKILL.md` ~180–220; `route-document.md` ~50–70; `sdd-document.test.js` ~250–320; ripple ~10–15; optional `starlight-web-doc-contract.test.js` ~15–25) |
++| 400-line budget risk | Medium |
++| Chained PRs recommended | No |
++| Suggested split | Single PR under maintainer `size:exception` |
++| Delivery strategy | exception-ok |
++| Chain strategy | size-exception |
++
++Decision needed before apply: No
++Chained PRs recommended: No
++Chain strategy: size-exception
++400-line budget risk: Medium
++
++### Suggested Work Units
++
++| Unit | Goal | Likely PR | Notes |
++|------|------|-----------|-------|
++| 1 | Full contract hardening (RED tests → SKILL + route handler → L2 helpers → verify) | PR 1 (single) | `exception-ok` pre-approved (`delivery-001`); escalate via `workload-escalation` only if live diff exceeds ~650 lines |
++
++### Checklist Status Legend
++
++- `[ ]` Not implemented yet
++- `[~]` Implemented but not yet verified locally
++- `[x]` Implemented and verified locally
++
++## Phase 1: RED — Static Contract Tests (L1)
++
++- [x] 1.1 Extend `scripts/sdd-document.test.js`: update the `.last-update.json` schema test regex from `### Step 6\.4:` to `### Step 6\.6:` (renumber ripple); add RED assertions that fail today — Step 5b documents a canonicity map (`canonical for` column); Update Mode Behavior documents post-window re-discovery and volatile-fact re-verification; new Step 6.4 checklist section with ≥30 substantive lines, link-graph in+out, flow Mermaid, syntax heuristic; new Step 6.5 factual verification pass between page write and cleanup; Step 6.6 schema shows complete `sections` and `filesSkipped` as `[{file, reason}]`; Step 7 forbids content-quality self-certification and documents `checklist` envelope shape. [REQ-sdd-document-007, REQ-sdd-document-008, REQ-sdd-document-011, REQ-sdd-document-020, REQ-sdd-document-021, REQ-sdd-document-022]
++- [x] 1.2 Extend `scripts/sdd-document.test.js`: add RED assertions for `route-document.md` — §4 cross-ref points to Step 6.6 (not 6.4); new `#### 7. J6` section with orchestrator-owned content QA, distinct reviewer, `gates.content-qa` registration (`pass`|`findings`), two-option halt gate with re-dispatch default, inconclusive-check policy mirroring J5. [REQ-agents-018]
++- [x] 1.3 Extend `scripts/starlight-web-doc-contract.test.js`: tighten the J5 section matcher so it stops at `#### 7.` (not `$`), preventing false coupling when §7 is appended; add RED assertion that §7 J6 exists with `content-qa` and the re-dispatch/accepted-risk gate labels. [REQ-agents-018]
++- [x] 1.4 Confirm RED: run `node --test scripts/sdd-document.test.js scripts/starlight-web-doc-contract.test.js` — new assertions fail; pre-existing tests still pass or fail only on intended contract gaps. [REQ-sdd-document-007 through -022, REQ-agents-018]
++
++## Phase 2: GREEN — Executor Contract (`SKILL.md` P1–P6)
++
++- [x] 2.1 Expand Step 5b in `skills/sdd-document/SKILL.md`: add plan table columns `category` and `canonical for`; document canonicity-map dedup rule (one canonical page per concept, others summary+link); add update-mode `coverage proposals` section required before first edit of existing pages. [REQ-sdd-document-007, REQ-sdd-document-008]
++- [x] 2.2 Expand **Update Mode Behavior**: after diff window, re-run domain discovery on CURRENT repo state; register new-page/merge proposals in `_plan.md` before editing existing pages; re-verify volatile facts (counters, thresholds, versions) every run even outside the window; no-op path re-verifies volatiles then reports no-op without editing wiki pages but refreshes ONLY `updatedAt` and `gitHead` in `.last-update.json`. [REQ-sdd-document-008]
++- [x] 2.3 Insert **Step 6.4: Measurable Output Checklist** after domain page generation: operational definitions from design (substantive line, link graph, flow-category Mermaid, syntax heuristic); remediation before continue; `checklist.justifiedExceptions[]` in envelope for orphans. [REQ-sdd-document-021]
++- [x] 2.4 Insert **Step 6.5: Factual Verification Pass** after Step 6.4: contrast every cited figure/identifier via search/read; record per-claim outcomes in run worklog (not published pages); correct or remove failures; update-mode includes volatile facts even on no-op when drift detected. [REQ-sdd-document-020, REQ-sdd-document-008]
++- [x] 2.5 Renumber and expand metadata step to **Step 6.6**: move `.last-update.json` block here; `sections` = all `*.md` pages in output dir after run; `stats.filesSkipped` = `[{ "file", "reason" }]`; retain write-failure WARNING behavior; update internal cross-ref in Step 5 sandbox rule from Step 6.6 → Step 6.7 for AGENTS/CLAUDE exception. [REQ-sdd-document-011]
++- [x] 2.6 Renumber **Step 6.6 → 6.7** (Root Agent Instruction Files) and **Step 6.5 Cleanup → 6.8**; ensure cleanup deletes `_plan.md` after all writes/checks complete. [REQ-sdd-document-007]
++- [x] 2.7 Expand **Step 7: Return Summary**: add `json:result-envelope` `checklist` block (mechanical self-report only); explicit REQ-022 clause — no authoritative content-quality certification; reference orchestrator J6 / REQ-agents-018. [REQ-sdd-document-022]
++
++## Phase 3: GREEN — Orchestrator Route Handler (P7 / J6)
++
++- [x] 3.1 Fix `skills/_shared/route-document.md` §4 point 2: change "Step 6.4" → "Step 6.6" for `.last-update.json` writer reference. [REQ-sdd-document-011]
++- [x] 3.2 Add `#### 7. J6 — orchestrator-owned post-run content QA (MANDATORY)` after §6 J5: trigger after generator `status: success`; readability on touched pages; factual spot-check sample `max(3, ceil(0.2 * claims))`; reviewer distinct from generator dispatch; record `gates.content-qa` (`status`, `summary`) in route `state.yaml`; confirmed defect or inconclusive check → two-option `question_gate` (re-dispatch default vs accepted risk); route MUST NOT close success without documented QA pass. [REQ-agents-018]
++
++## Phase 4: Ripple — Cross-References and References
++
++- [x] 4.1 Update `skills/sdd-document/references/option-d-starlight.md` lines referencing "Step 6.4" → "Step 6.6" (two occurrences per design ripple). [REQ-sdd-document-011]
++- [x] 4.2 Grep repo for stale `Step 6\.4` references tied to `.last-update.json` or metadata (exclude archived changes); fix any remaining live references in affected source files. [REQ-sdd-document-011]
++
++## Phase 5: RED/GREEN — Executable Spec Helpers (L2)
++
++- [x] 5.1 Add pure helper functions inside `scripts/sdd-document.test.js` (no new runtime module per ADR-002): `countSubstantiveLines`, `evaluateLinkGraph`, `detectFlowMermaid`, `validateMermaidHeuristic`, `validateLastUpdateSchema` — semantics exactly as design §Interfaces. [REQ-sdd-document-021, REQ-sdd-document-011]
++- [x] 5.2 Add L2 fixture tests using existing `tmpOut(t)`: valid mini-wiki (pass); thin page (<30 lines); orphan without incoming link; flow page without Mermaid; Mermaid with unquoted special chars; metadata with partial `sections` or numeric `filesSkipped` (fail). [REQ-sdd-document-021, REQ-sdd-document-011]
++- [x] 5.3 Run `node --test scripts/sdd-document.test.js` — all L1 + L2 tests green. [REQ-sdd-document-020, REQ-sdd-document-021, REQ-sdd-document-011]
++
++## Phase 6: Integration Verification
++
++- [x] 6.1 Run full `npm test`; confirm no regressions in configure/dist-parity tests (`route-document.md` and `SKILL.md` present under claude/vscode/github-copilot/opencode/codex/cursor outputs via existing `runConfigure` checks). [REQ-agents-005, REQ-agents-018]
++- [x] 6.2 Cross-check wording consistency: Step 5b `_plan.md` columns align with checklist oracles; Update Mode no-op vs volatile drift paths do not contradict; J6 gate labels match J5 halt style; envelope `checklist` vs REQ-022 prohibition are consistent. [REQ-sdd-document-007 through -022, REQ-agents-018]
++- [x] 6.3 Regenerate target bundles if project convention requires committed `dist/` (`npm run build:vscode` and siblings); skip if dist is install-time only — document choice in `apply-progress.md`. [design Migration/Rollout]
++
++## Phase 7: Handoff
++
++- [x] 7.1 Mark all tasks `[x]` in this file during apply; write `apply-progress.md` with TDD evidence table (focused mode: note RED/GREEN per test batch). [openspec convention]
++- [x] 7.2 Ready for `sdd-apply` batch 1 (single unit under `size:exception`).
+diff --git a/openspec/changes/harden-sdd-document-contract/verify-report.md b/openspec/changes/harden-sdd-document-contract/verify-report.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/harden-sdd-document-contract/verify-report.md
+@@ -0,0 +1,133 @@
++## Verification Report
++
++**Change**: harden-sdd-document-contract
++**Version**: N/A (delta against sdd-document / agents baselines)
++**Mode**: Standard (testing.tdd_mode: focused)
++
++### Completeness
++| Metric | Value |
++|--------|-------|
++| Tasks total | 23 |
++| Tasks complete | 23 |
++| Tasks incomplete | 0 |
++
++All checklist items in `tasks.md` are `[x]`. Header prose that says "22 tareas" under-counts the 23 numbered items (1.1–7.2); every item is complete.
++
++### Build & Tests Execution
++**Build**: ➖ Not configured (`rules.verify.build_command` empty)
++
++**Tests**: ✅ 2588 passed / ❌ 0 failed / ⚠️ 2 skipped
++```text
++Command: npm test  (scripts/check.js → node --test + target generate/validate)
++ℹ tests 2590
++ℹ pass 2588
++ℹ fail 0
++ℹ skipped 2
++ℹ duration_ms 49938.6764
++
++(note) claude CLI not found — generating the claude target without its validator.
++validate-antigravity: target output is valid
++All checks passed.
++```
++
++Target generation during the same command: vscode, github-copilot, opencode, codex, cursor, antigravity validated; claude generated without CLI validator. Confirms `SKILL.md` and `route-document.md` still flow through configure.
++
++**Manual verification**: not performed
++```text
++Not required. Contract is prose + in-test oracles; no live /sdd-document wiki run in this change.
++```
++
++**Coverage**: ➖ Not available / threshold: 0% → ➖ Not available (`testing.coverage.available: false`)
++
++### Spec Compliance Matrix
++| Requirement | Scenario | Evidence Level | Source | Result | Notes |
++|-------------|----------|----------------|--------|--------|-------|
++| REQ-sdd-document-007 | Plan file lifecycle | `static-lint` | `scripts/sdd-document.test.js` > Step 5b / Step 6.8 cleanup prose | PASS | Production artifact is SKILL procedure; Step 5b deletes `_plan.md` in Step 6.8 |
++| REQ-sdd-document-007 | Thin page detected in plan | `static-lint` | `sdd-document.test.js` > Step 5b canonicity/coverage test + SKILL anti-pattern review | PASS | Merge-if-low retained in Step 5b |
++| REQ-sdd-document-007 | Overlapping concept resolved through the canonicity map | `static-lint` | `sdd-document.test.js` > Step 5b `canonical for` | PASS | Dedup blocks write until one canonical page |
++| REQ-sdd-document-008 | Init mode on empty directory | `inspection-proof` | `skills/sdd-document/SKILL.md` Max-Pages Guard (16 pages) | PASS | Pre-existing guard unchanged; MUST structural rule in SKILL |
++| REQ-sdd-document-008 | Update mode with no changes | `static-lint` | `sdd-document.test.js` > Update Mode Behavior (ONLY updatedAt and gitHead) | PASS | Re-verify volatiles then no-op wiki edits |
++| REQ-sdd-document-008 | Update mode with limited changes | `inspection-proof` | SKILL Update Mode Behavior soft budget (~5 files → 1–2 pages) | PASS | Pre-existing rule retained |
++| REQ-sdd-document-008 | New unmapped module triggers coverage evaluation | `static-lint` | `sdd-document.test.js` > Step 5b `coverage proposals` + Update Mode re-discovery | PASS | Proposals registered before editing existing pages |
++| REQ-sdd-document-008 | Volatile fact re-verified outside the diff window | `static-lint` | `sdd-document.test.js` > Update Mode `volatile facts` + Step 6.5 | PASS | Every update run; drift degrades no-op to surgical edit |
++| REQ-sdd-document-011 | Metadata file generated on init | `static-lint` | `sdd-document.test.js` > Step 6.6 schema (`command` / `gitHead`) | PASS | Renumbered from 6.4; fenced JSON under Step 6.6 |
++| REQ-sdd-document-011 | Metadata carries doc_language and scope_choice | `static-lint` | SKILL Step 6.6 schema block | PASS | Fields retained; skip-gate owned by route-document §2 |
++| REQ-sdd-document-011 | Update-mode run reads persisted fields to skip the gate | `inspection-proof` | `route-document.md` §2 Keep path; SKILL Step 3 skip ownership | PASS | Pre-existing orchestrator keep/change |
++| REQ-sdd-document-011 | scope_choice D metadata lives under openwiki/ | `inspection-proof` | SKILL Step 6.6 placement + `option-d-starlight.md` Step 6.6 refs | PASS | Ripple 4.1 applied (two refs) |
++| REQ-sdd-document-011 | sections lists every existing page after an update | `runtime-test` | `sdd-document.test.js` > `validateLastUpdateSchema` / L2 valid mini-wiki + partial sections fail | PASS | `sections` == recursive `*.md` set |
++| REQ-sdd-document-011 | filesSkipped identifies files and reasons | `runtime-test` | `sdd-document.test.js` > numeric `filesSkipped` fails `filesSkipped-not-array` | PASS | Array of `{file, reason}` |
++| REQ-sdd-document-020 | Cited figure contrasted before publication | `static-lint` | `sdd-document.test.js` > Step 6.5 search/read | PASS | Agent procedure; L1 is the allocated proof (design L1, no L2 helper) |
++| REQ-sdd-document-020 | Failed verification corrects or removes the claim | `static-lint` | `sdd-document.test.js` > Step 6.5 correct or remove | PASS | No stale value in published page |
++| REQ-sdd-document-020 | Cited identifiers resolve | `static-lint` | SKILL Step 6.5 unresolvable → fix/remove | PASS | Same L1 block |
++| REQ-sdd-document-021 | Thin page merged before close | `runtime-test` | `sdd-document.test.js` > L2 thin page < 30 + Step 6.4 L1 | PASS | Oracle + remediation instruction |
++| REQ-sdd-document-021 | Justified orphan page does not block completion | `runtime-test` | L2 orphan incoming=0 + SKILL `justifiedExceptions` | PASS | Unjustified orphan must be linked/merged |
++| REQ-sdd-document-021 | Mermaid labels render safely | `runtime-test` | L2 quoted vs unquoted special chars + `detectFlowMermaid` | PASS | Heuristic only; deep render delegated to J6 (design risk) |
++| REQ-sdd-document-022 | Generator does not self-certify content quality | `static-lint` | `sdd-document.test.js` > Step 7 no self-certify + J6/REQ-agents-018 ref | PASS | Mechanical `checklist` self-report allowed |
++| REQ-agents-018 | Clean QA — route closes silently | `static-lint` | `sdd-document.test.js` > §7 J6 `gates.content-qa` pass; `starlight-web-doc-contract.test.js` J6 | PASS | L3 golden eval deferred (`sdd-design-003`); spec does not require a new eval in this change |
++| REQ-agents-018 | Confirmed factual error halts route closure | `static-lint` | §7 two-option gate: re-dispatch default vs accepted risk | PASS | Labels match J5 halt style |
++| REQ-agents-018 | Reviewer is distinct from the generator | `static-lint` | §7 "distinct from the generator dispatch"; inline orchestrator pass (ADR-001) | PASS | No dedicated reviewer sub-agent |
++| REQ-agents-018 | No QA record — route cannot close as success | `static-lint` | §7 MUST NOT close success without `gates.content-qa` | PASS | Inconclusive-check policy mirrors J5 |
++
++**Compliance summary**: 25/25 scenarios satisfied at acceptable evidence levels
++
++L1 tests inspect contract documents (skill/route prose). That is the production implementation of this change, so `static-lint` of those files is an accepted structural proof for MUST agent/orchestrator procedures. L2 helpers add `runtime-test` for checklist oracles and `.last-update.json` schema. J6 live orchestrator behavior remains deferred debt per `sdd-design-003` and is not a CRITICAL for this change.
++
++### Correctness (Static Evidence)
++| Requirement | Status | Notes |
++|------------|--------|-------|
++| REQ-sdd-document-007 canonicity + plan lifecycle | ✅ Implemented | Step 5b table + Step 6.8 deletes `_plan.md` |
++| REQ-sdd-document-008 re-discovery + volatiles | ✅ Implemented | Update Mode Behavior steps 4–7 |
++| REQ-sdd-document-011 complete metadata | ✅ Implemented | Step 6.6; §4 points at 6.6 not 6.4 |
++| REQ-sdd-document-020 factual pass | ✅ Implemented | Step 6.5 between 6.4 and cleanup |
++| REQ-sdd-document-021 measurable checklist | ✅ Implemented | Step 6.4 + L2 oracles |
++| REQ-sdd-document-022 no content self-certify | ✅ Implemented | Step 7 clause |
++| REQ-agents-018 J6 content QA | ✅ Implemented | `route-document.md` §7 |
++
++### Coherence (Design)
++| Decision | Followed? | Notes |
++|----------|-----------|-------|
++| ADR-001 J6 inline orchestrator-owned (not 4R / not a dedicated reviewer agent) | ✅ Yes | §7 procedure + `gates.content-qa` |
++| ADR-002 L1 static contract + L2 in-test helpers; no `scripts/lib/document-checklist.js` | ✅ Yes | Helpers only in `sdd-document.test.js` |
++| Step renumber 6.4 checklist / 6.5 factual / 6.6 metadata / 6.7 root / 6.8 cleanup | ✅ Yes | Live `Step 6.4` hits are the new checklist, not stale metadata |
++| No new golden eval (sdd-design-003) | ✅ Yes | Seven existing eval fixtures unchanged |
++| Dist regeneration during apply | ✅ Yes (documented skip) | `dist/` gitignored; task 6.3 allowed skip; `npm test` generate/validate covers targets |
++| No-op refreshes ONLY `updatedAt`/`gitHead` (sdd-design-002) | ✅ Yes | SKILL Update Mode Behavior item 7 |
++| File change set | ✅ Yes | SKILL, route-document, option-d-starlight, two test files; specs stay change-local until archive |
++
++Working-tree diff of production sources: 581 insertions / 28 deletions (~609 lines), inside the tasks forecast (~480–620) and below the ~650 escalation cap.
++
++### Issues Found
++**CRITICAL**: None
++**WARNING**: None
++**SUGGESTION**:
++- S1 — J6 behavioral golden eval remains deferred (`sdd-design-003`). A future change could add a structural eval fixture that asserts `gates.content-qa` is recorded; it still would not measure readability or factuality.
++- S2 — `tasks.md` header says "22 tareas" while 23 checklist items exist (1.1–7.2). Cosmetic; all items are `[x]`.
++
++### Traceability Matrix
++| REQ | Tasks | Commits | Tests | Status |
++|-----|-------|---------|-------|--------|
++| REQ-sdd-document-007 | 1.1, 2.1, 2.6 | (working tree; no Ospec-Task commit yet) | `sdd-document.test.js` > Step 5b | OK |
++| REQ-sdd-document-008 | 1.1, 2.1, 2.2, 2.4 | (working tree) | `sdd-document.test.js` > Update Mode Behavior | OK |
++| REQ-sdd-document-011 | 1.1, 2.5, 3.1, 4.1, 4.2, 5.1, 5.2 | (working tree) | L1 Step 6.6 + L2 `validateLastUpdateSchema` | OK |
++| REQ-sdd-document-020 | 1.1, 2.4, 5.3 | (working tree) | L1 Step 6.5 | OK |
++| REQ-sdd-document-021 | 1.1, 2.3, 5.1, 5.2, 5.3 | (working tree) | L1 Step 6.4 + L2 helpers | OK |
++| REQ-sdd-document-022 | 1.1, 2.7 | (working tree) | L1 Step 7 | OK |
++| REQ-agents-018 | 1.2, 1.3, 3.2, 6.1 | (working tree) | `sdd-document.test.js` §7 J6; `starlight-web-doc-contract.test.js` J6 | OK |
++
++No MUST requirement lacks a linked test. Commit trailers are absent because apply output is still uncommitted working-tree; that is not a spec defect.
++
++### Assumption Reconciliation
++| id | statement | reversibility | outcome |
++|----|-----------|----------------|---------|
++| sdd-propose-001 | P7 normative home is agents (sibling of REQ-agents-006), not sdd-document | high | unresolved (no escalation) — audited CORRECT: REQ-agents-018 + route J6 |
++| sdd-propose-002 | Live `openwiki/` remediation is out of scope | high | confirmed (prior) — `openwiki/` untouched |
++| sdd-spec-001 | Delta artifacts in English matching baseline style | high | unresolved (no escalation) — audited CORRECT |
++| sdd-design-001 | Renumber steps rather than 6.4a/6.4b suffixes | high | unresolved (no escalation) — audited CORRECT |
++| sdd-design-002 | No-op refreshes only `updatedAt`/`gitHead` | high | unresolved (no escalation) — audited CORRECT |
++| sdd-design-003 | No new golden eval; J6 behavioral QA is future debt | high | unresolved (no escalation) — audited CORRECT; not CRITICAL |
++
++Launch prompt had no `assumption_resolutions` block. All unresolved entries are `reversibility: high`. Per Decision Gates they MUST NOT escalate. Orchestrator directed to honor them (including sdd-design-003). Full discovery proceeded; ledger statuses were not rewritten.
++
++### Verdict
++PASS
++All 23 tasks complete, 25/25 MUST scenarios evidenced, `npm test` 2588 pass / 0 fail / 2 skipped, design ADRs followed, no CRITICAL or WARNING findings.

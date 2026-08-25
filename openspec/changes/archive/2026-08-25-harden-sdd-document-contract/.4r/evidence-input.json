@@ -1,0 +1,45 @@
+{
+  "classification": "normal",
+  "verify": {
+    "status": "success",
+    "findings": []
+  },
+  "paths": [
+    "openspec/changes/harden-sdd-document-contract/apply-progress.md",
+    "openspec/changes/harden-sdd-document-contract/decisions/adr-001.md",
+    "openspec/changes/harden-sdd-document-contract/decisions/adr-002.md",
+    "openspec/changes/harden-sdd-document-contract/design.md",
+    "openspec/changes/harden-sdd-document-contract/proposal.md",
+    "openspec/changes/harden-sdd-document-contract/specs/agents/spec.md",
+    "openspec/changes/harden-sdd-document-contract/specs/sdd-document/spec.md",
+    "openspec/changes/harden-sdd-document-contract/tasks.md",
+    "openspec/changes/harden-sdd-document-contract/verify-report.md",
+    "scripts/sdd-document.test.js",
+    "scripts/starlight-web-doc-contract.test.js",
+    "skills/_shared/route-document.md",
+    "skills/sdd-document/SKILL.md",
+    "skills/sdd-document/references/option-d-starlight.md"
+  ],
+  "capabilities": [
+    "skills",
+    "agents",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "operationTypes": [
+    "add",
+    "modify"
+  ],
+  "designRisks": [
+    {
+      "code": "design-risk",
+      "detail": "L2 Mermaid heuristic may accept invalid blocks; deep render delegated to J6."
+    },
+    {
+      "code": "design-risk",
+      "detail": "J6 behavioral golden eval deferred (sdd-design-003); no live orchestrator QA proof in this change."
+    }
+  ],
+  "diff_path": "openspec/changes/harden-sdd-document-contract/.4r/diff.unified.patch"
+}
