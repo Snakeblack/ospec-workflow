@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.47.0] - 2026-08-25
+
+### Added
+- **Contrato verificable de `sdd-document` (P1–P7, `harden-sdd-document-contract`)**:
+  - **Canonicidad y cobertura en el plan**: Step 5b exige mapa `canonical for` y propuestas de cobertura en update mode antes de editar páginas existentes.
+  - **Re-descubrimiento y hechos volátiles**: Update Mode re-escanea el repo actual y re-verifica contadores, umbrales y versiones en cada run; el no-op solo refresca `updatedAt`/`gitHead` en `.last-update.json`.
+  - **Checklist medible (Step 6.4) y pase factual (Step 6.5)**: umbrales de densidad, grafo de enlaces, heurística Mermaid y contraste de cifras/identificadores citados; el generador no auto-certifica calidad de contenido.
+  - **Metadatos completos (Step 6.6)**: `sections` lista todas las páginas; `filesSkipped` pasa a `{file, reason}[]`.
+  - **QA J6 orchestrator-owned**: `route-document.md` §7 registra `gates.content-qa` y detiene el cierre ante hallazgos confirmados (re-dispatch por defecto). Tests L1 de contrato y oráculos L2 in-test; eval golden conductual de J6 queda como deuda documentada.
+
 ## [2.46.9] - 2026-08-24
 
 ### Fixed
