@@ -179,6 +179,22 @@ El programa no cambia defaults por el solo hecho de cerrar O2B/K1/K2/K2.1/K2a: c
 - No hay selector de estrategia de evidencia por tipo de cambio, provenance ni Assurance Graph (K6b).
 - ChallengePlan / challenges proporcionales y `complexity_delta` no son gates reutilizables (K6c/K6d).
 - Worker isolation genérica y work-order capsule entregados y conformes (K6a); host contract K2a entrega ports opacos.
+
+### Frontera de aislamiento y Threat Model de K6a
+
+K6a define una **frontera de integridad de ejecución** (*execution-integrity boundary*), no un sandbox de seguridad contra código hostil (*hostile-code security sandbox*).
+
+`isolationReported = "enforced"` significa que un `WorkerTransport` conforme ejecuta un `WorkOrder` bajo los controles de runtime definidos por la especificación `worker-isolation`, incluyendo:
+
+- Captura inmutable de la política del sandbox al cargar el preload;
+- Confinamiento de mutaciones estrictamente dentro de las `allowed_paths` declaradas;
+- Confinamiento forzado de procesos Node descendientes (`spawn`, `execFile`, `fork`) y `worker_threads.Worker`;
+- Vinculación viva entre la prueba de `WorkerIsolation` y el `WorkerTransport` exacto usado para la ejecución;
+- Probes de contención end-to-end (tres operaciones reales PASS / BLOCKED / BLOCKED) a través de dicho transporte;
+- Ejecución de comandos fail-closed salvo cuando el aislamiento `enforced` está verificado;
+- Validación postflight del inventario de mutaciones y captura fidedigna de evidencia.
+
+K6a no pretende ofrecer contención frente a código nativo hostil (e.g. C++ addons maliciosos), explotación del runtime V8, compromiso del kernel del sistema operativo o bypasses arbitrarios del runtime del host. Dichos escenarios quedan fuera del threat model de K6a y requieren aislamiento a nivel de host u OS fuera del alcance del harness de referencia.
 - K1/K2/K2.1/K2a runtime surfaces published or in-flight; corpus longitudinal y fricción permanecen en K12.
 
 ## Cadena canónica del change

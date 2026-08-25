@@ -603,6 +603,46 @@ test("executeWorkOrder: tampered WorkerIsolation evidence fails verification (wo
   assert.equal(result.isolationReported, "unavailable");
 });
 
+test("executeWorkOrder: transport identity mismatch between WorkerIsolation proof and executing transport fails closed (mismatched transport identity)", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-exec-iso-id-mismatch-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  t.after(() => disposeWorkspace(ws));
+
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
+    operation: "verify",
+    ownership: { owner: "agent-test", mode: "shared" },
+    allowed_paths: ["**"],
+  });
+
+  // Proof emitida y ligada a transport F ("port-enforced-worker")
+  const enforcedProof = makeEnforcedProof("adapter-test");
+
+  // Al ejecutar, se sustituye el transport por transport G ("other-worker-port")
+  const rogueTransport = {
+    port_id: "other-worker-port",
+    kind: "worker-transport",
+    adapter_id: "adapter-test",
+    probe_digest: enforcedProof.probe_digest,
+    fingerprint: "sha256:different-fingerprint",
+    run: async () => ({ ok: true, exit_code: 0, stdout: "must not run", stderr: "" }),
+  };
+
+  const result = await executeWorkOrder({
+    workOrder,
+    workspace: ws,
+    transports: { worker: rogueTransport },
+    command: "runner",
+    ...enforcedProof,
+  });
+
+  assert.equal(result.ok, false, "Execution on a transport different from the probed WorkerIsolation transport must fail");
+  assert.equal(result.reason, "worker-isolation-proof-invalid");
+  assert.equal(result.isolationReported, "unavailable");
+});
+
+
 test("executeWorkOrder: fails closed when workspace is not registered in private registry", async (t) => {
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-exec-unrecorded-"));
   t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));

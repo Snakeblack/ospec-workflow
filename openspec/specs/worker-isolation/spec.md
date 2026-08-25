@@ -7,6 +7,14 @@ filesystem containment enforcement, raw work result capture, interrupted executi
 recovery, host transport integration, and strict identity boundary enforcement
 without emitting or assuming CandidateId.
 
+## Threat Model
+
+The `worker-isolation` specification defines a runtime execution-integrity boundary for conforming OSPEC worker execution. It does not define a hostile-code security sandbox.
+
+A conforming runtime MUST enforce the controls defined by this specification, but is not required to contain arbitrary hostile native code, runtime exploitation, host compromise, or kernel-level attacks.
+
+A conforming `WorkOrder` executed through an `enforced` `WorkerTransport` cannot mutate paths outside its declared `allowed_paths` through the supported K6a execution boundary.
+
 ## Requirements
 
 ### Requirement: Workspace Lifecycle Primitives {#REQ-worker-isolation-001}

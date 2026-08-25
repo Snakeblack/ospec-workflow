@@ -941,7 +941,7 @@ K6a ✕ K4b   (K6a no depende de K4b)
 #### Done criteria
 
 - capsule fingerprint estable y sin artefactos no dependientes;
-- worker no puede escribir fuera de `allowed_paths`;
+- ejecución conforme de `WorkOrder` a través de un `WorkerTransport` con aislamiento `enforced` no puede mutar rutas fuera de declared `allowed_paths` mediante la frontera soportada de K6a;
 - interruption conserva raw evidence y recovery ejecutable;
 - hand-off usa patch/commit identificado (`WorkResultId`), no conversación;
 - fixture demuestra ejecución aislada sin verificar ni aprobar;

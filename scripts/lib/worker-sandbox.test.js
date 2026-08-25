@@ -658,3 +658,31 @@ test("worker-sandbox: isolation probe attempts three writes; vacuous blocked is 
     attempts: isoProbe.value.attempts,
   }), true);
 });
+
+test("worker-sandbox: ESM import of node:fs cannot write outside declared allowed_paths", async (t) => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "ws-sandbox-esm-"));
+  const ext = fs.mkdtempSync(path.join(os.tmpdir(), "ws-sandbox-esm-ext-"));
+  t.after(() => {
+    try { fs.rmSync(ws, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(ext, { recursive: true, force: true }); } catch {}
+  });
+
+  const mjsFile = path.join(ws, "test-esm.mjs");
+  const extTarget = path.join(ext, "escape-esm.txt");
+  fs.writeFileSync(
+    mjsFile,
+    `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(extTarget)}, "escaped");\n`
+  );
+
+  const result = await executeSandboxedCommand({
+    command: process.execPath,
+    args: [mjsFile],
+    cwd: ws,
+    workspaceRoot: ws,
+    allowedPaths: ["dist/**"],
+  });
+
+  assert.equal(result.ok, false, "ESM external write must fail");
+  assert.equal(fs.existsSync(extTarget), false, "External file must not be created via ESM import");
+});
+
