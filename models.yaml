@@ -59,7 +59,7 @@ tiers:
       model: gpt-5.6-sol
       model_reasoning_effort: high
       model_verbosity: medium
-    cursor: grok-4.6[fast=false]
+    cursor: gpt-5.6-sol
 
   # Default:
   # Defaults for frequent semantic work.
