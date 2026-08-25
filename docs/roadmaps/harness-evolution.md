@@ -77,8 +77,9 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **K4a** | Graph compiler + Obligation Manifest + deterministic replay (sin worker autoritativo); verificado y reconciliado en v2.45.7 |
 | `done` | **K5** | Budgets (incl. autoridad/efectos), failures y recovery; remediaciones v2.45.7→v2.45.13 (authoritative enforcement, authority boundary/CAS concurrency, reconciliación, remediación técnica del núcleo y blindaje de concurrencia); archivado y publicado en v2.45.13 |
 | `done` | **K6a** | Worker isolation y work-order capsule; primitivas de ejecución aislada, integración con WorkerTransport, contención de filesystem y WorkResult canónico; archivado en v2.46.0, frontera de procesos cerrada en v2.47.1 y endurecida en v2.47.2 |
-| `next-eligible` | K4b | Repair shadow execution (WO→WR→integrate→Candidate) |
-| `pending` | K6b–K8 | Verifier + provenance, challenges, complexity, review authority, **Evaluation Attestation** |
+| `done` | **K4b** | Repair shadow execution (WO→WR→integrate→Candidate); orquestador de grafo K4a, despacho exclusivo K6a con workspaces efímeros bajo aislamiento enforced, integración determinista de diffs, freeze de Candidate v2 en K3 y comparación shadow vs baseline sin mutar producción |
+| `next-eligible` | K6b | Verifier independiente, evidence strategies y Assurance Graph |
+| `pending` | K6c–K8 | Challenges, complexity, review authority, **Evaluation Attestation** |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
 | `pending` | K10-delivery | `DeliveryAuthorization` **acotada al profile K9**; relación Candidate por etapas; fixed/deferred para el resto |
 | `pending` | K10–K12 | Expansión adaptativa; K11a = multi-target; K12 = corpus/longitudinal (no el primer runner) |

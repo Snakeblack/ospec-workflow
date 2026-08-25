@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.48.0] - 2026-08-25
+
+### Added
+- **Orquestación de Repair Shadow K4b (`k4b-repair-shadow-execution`)**:
+  - **Orquestador Repair Shadow (`scripts/lib/repair-shadow/orchestrator.js`)**: Consumo del `ExecutionGraph` compilado por K4a (`compileExecutionGraph`), validación de vinculación con `SourceSnapshot` y despacho determinista de `WorkOrder` v2 en orden topológico.
+  - **Despacho Exclusivo y Workspaces Efímeros vía K6a**: Ejecución aislada nodo a nodo mediante `createWorkspace`, `materializeSourceSnapshot`, `executeWorkOrder`, `captureWorkResult` y `disposeWorkspace`, exigiendo `isolationReported: "enforced"` sin fallbacks locales no confinados.
+  - **Integración Determinista de Parches y Freeze de Candidate v2 (`patch-integrator.js`)**: Aplicación de unified diffs sobre la base autorizada con contención estricta de `allowed_paths`, cálculo del árbol candidato y congelación exclusiva de `CandidateId` mediante `freezeCandidate` de K3.
+  - **Cadena Criptográfica de 4 Identidades E2E**: Verificación estricta de proveniencia `SourceSnapshotId` → `WorkOrderId` → `WorkResultId` → `CandidateId` con validación y recomputación fail-closed.
+  - **Comparador Shadow Pasivo vs Baseline Fixed (`shadow-comparator.js`)**: Evaluación dimensional (steps, diffs, obligaciones, invariantes, inventario) y telemetría estructurada sin mutar el flujo activo, branches ni defaults de producción.
+  - **Frontera Arquitectónica Unidireccional K4b → K6a**: Consumo de primitivas K6a con verificación estática de cero referencias o acoplamiento inverso hacia Repair en K6a.
+  - **Especificación y ADRs Normativos**: Publicada capacidad `repair-shadow-orchestration` en `openspec/specs/` y promovidos ADRs 20260825-006 a 20260825-009 en `docs/adr/`.
+
 ## [2.47.2] - 2026-08-25
 
 ### Fixed

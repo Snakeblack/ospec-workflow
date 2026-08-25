@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "change": "k4b-repair-shadow-execution",
+  "source_fingerprint": "sha256:306bbf71c05c8e8c3e4c1639b23978c705f32d5d263d4d3c6d8e7e0f9060be46",
+  "spec_writes": [
+    {
+      "domain": "repair-shadow-orchestration",
+      "source_delta": "specs/repair-shadow-orchestration/spec.md",
+      "target": "openspec/specs/repair-shadow-orchestration/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:27210d5cfb8595de3dd669d20b6da44a521a7a36328b5d7a6acab1a6f87715e3"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260825-006-topological-dispatch-and-ephemeral-k6a-workspace-lifecycle.md",
+      "content_sha256": "sha256:87e3ebdc4baff61bda18b0b5275d23db3d7d1ca52816839a447a1cbfb0cab9d7"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260825-007-workresult-candidate-separation-and-deterministic-patch-integration.md",
+      "content_sha256": "sha256:6d658951b1bdb7f8d7b83fb448645ac0dede58199264af09287ed454c6d53c3f"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260825-008-non-mutating-shadow-comparator-with-structured-telemetry.md",
+      "content_sha256": "sha256:945f5f4a7735f7d1f9c92577eec00883a911de5cf5697365f3f650b98872faf5"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260825-009-unidirectional-architectural-boundary-k4b-to-k6a.md",
+      "content_sha256": "sha256:e4b39fe69cf24690ba10dc1e95b51aaf2f22be860324bd6d95f88577ae07ba96"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "design.md",
+    "proposal.md",
+    "specs/repair-shadow-orchestration/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

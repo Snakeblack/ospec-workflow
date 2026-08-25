@@ -142,9 +142,11 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/k6a-schema-fixtures.test.js",
   "scripts/lib/k6a-lifecycle-model.test.js",
   "scripts/k6a-e2e-worker-isolation.test.js",
+  "scripts/k4b-repair-shadow-e2e.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [
+  "scripts/lib/repair-shadow/",
   "scripts/lib/target-profiles/",
   "scripts/lib/lifecycle-kernel/",
   "scripts/lib/authority-store/",
