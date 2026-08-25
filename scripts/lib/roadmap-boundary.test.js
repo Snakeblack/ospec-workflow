@@ -34,3 +34,41 @@ test("Phase 9: verify-lineage.js contains zero forbidden K4a/K4b primitives", ()
   // 9.7 Candidate remains K3 primitive reused
   assert.equal(source.includes("resolveCanonicalCandidateId"), true, "Must reuse Candidate/v2 identity helper");
 });
+
+test("REQ-repair-shadow-007: K6a worker primitives contain zero references to K4b or Repair domain", () => {
+  const k6aFiles = [
+    path.resolve(__dirname, "worker-executor.js"),
+    path.resolve(__dirname, "worker-workspace.js"),
+    path.resolve(__dirname, "worker-sandbox.js"),
+    path.resolve(__dirname, "worker-sandbox-confine.js"),
+    path.resolve(__dirname, "worker-sandbox-preload.js"),
+  ];
+
+  for (const file of k6aFiles) {
+    if (!fs.existsSync(file)) continue;
+    const source = fs.readFileSync(file, "utf8");
+    const basename = path.basename(file);
+
+    assert.equal(
+      source.includes("repair-shadow"),
+      false,
+      `K6a file ${basename} must not import or reference repair-shadow`
+    );
+    assert.equal(
+      source.includes("orchestrateRepairShadow"),
+      false,
+      `K6a file ${basename} must not reference orchestrateRepairShadow`
+    );
+    assert.equal(
+      source.includes("freezeCandidate"),
+      false,
+      `K6a file ${basename} must not reference freezeCandidate`
+    );
+    assert.equal(
+      source.includes("compileExecutionGraph"),
+      false,
+      `K6a file ${basename} must not reference compileExecutionGraph`
+    );
+  }
+});
+

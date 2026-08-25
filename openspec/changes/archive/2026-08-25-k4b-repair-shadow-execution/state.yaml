@@ -1,0 +1,55 @@
+change: "k4b-repair-shadow-execution"
+status: "archived"
+last_updated: "2026-08-25T18:44:00Z"
+blocking_questions: []
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/k4b-repair-shadow-execution/proposal.md"
+    summary: "Orquestación de Repair shadow: consumo de K4a, despacho exclusivo K6a, freeze Candidate K3 y comparación con baseline de control."
+    key_decisions:
+      - "K4b orquesta la vertical shadow sin reimplementar primitivas de K6a"
+      - "Integración determinista sobre SourceSnapshot previo a freezeCandidate"
+      - "Comparación shadow multi-dimensional no muta defaults de producción"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/k4b-repair-shadow-execution/specs/repair-shadow-orchestration/spec.md"
+    summary: "Especificación formal de repair-shadow-orchestration con 7 requisitos y 20 escenarios normativos."
+    key_decisions:
+      - "Despacho topológico exclusivo K6a bajo aislamiento enforced verificado"
+      - "Cadena 4-identidades y freeze Candidate K3 previo a evaluación"
+      - "Invariante estricto de no-mutación de producción y comparación shadow pura"
+  design:
+    status: done
+    artifact: "openspec/changes/k4b-repair-shadow-execution/design.md"
+    summary: "Arquitectura modular en scripts/lib/repair-shadow/: despacho K6a efímero, integración determinista previa a freeze K3 y comparación shadow pasiva."
+    key_decisions:
+      - "Workspace efímero por nodo vía K6a bajo aislamiento enforced"
+      - "Separación WorkResult != Candidate y freeze exclusivo en K3"
+      - "Comparador pasivo read-only con telemetría no bloqueante"
+  tasks:
+    status: done
+    artifact: "openspec/changes/k4b-repair-shadow-execution/tasks.md"
+    summary: "Desglose de 6 fases TDD (26 tareas) reconciliando 7 REQs con forecast de revisión size-exception."
+    key_decisions:
+      - "TDD estricto Red-Green-Refactor por componente"
+      - "Entrega single PR bajo delivery strategy exception-ok"
+  apply:
+    status: done
+    artifact: "openspec/changes/k4b-repair-shadow-execution/apply-progress.md"
+  verify:
+    status: done
+    verdict: PASS
+    artifact: "openspec/changes/k4b-repair-shadow-execution/verify-report.md"
+    summary: "Verificación PASS: 7/7 REQs, 18/18 escenarios cubiertos con runtime-test/static-proof, 35/35 tareas completadas y cero regresiones."
+    key_decisions:
+      - "100% de cumplimiento en pruebas unitarias, E2E y guards estáticos"
+      - "Invariante de frontera K4b -> K6a verificado sin referencias reversas"
+  archive:
+    status: done
+    artifact: "openspec/changes/k4b-repair-shadow-execution/archive-report.md"
+    summary: "Plan de archivo emitido con nueva spec repair-shadow-orchestration y 4 promociones ADR (006 a 009)."
+    key_decisions:
+      - "Promoción de nueva spec repair-shadow-orchestration"
+      - "Promoción de ADR-001 a ADR-004 hacia docs/adr/"
