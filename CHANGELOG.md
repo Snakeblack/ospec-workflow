@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.47.1] - 2026-08-25
+
+### Fixed
+- **Cierre de escapes de proceso en el sandbox K6a**:
+  - La confianza en Node se liga al `realpath(process.execPath)` autorizado; ejecutables arbitrarios llamados `node` o `node.exe` se rechazan fail-closed.
+  - `spawn`, `spawnSync`, `execFile`, `execFileSync` y `fork` reconstruyen el entorno de cada Node hijo y fuerzan el preload y las variables de contención, aunque el caller pase `env: {}` o intente vaciarlas.
+  - Tests adversariales verifican ambos bypasses, variantes sync/async de entorno y `fork`, además de conservar el alias legítimo del runtime.
+
 ## [2.47.0] - 2026-08-25
 
 ### Added

@@ -3,6 +3,7 @@
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
+const { isAuthorizedNodeRuntime, confineChildEnv } = require("./worker-sandbox-confine.js");
 
 const PRELOAD_SCRIPT_PATH = path.resolve(__dirname, "worker-sandbox-preload.js");
 
@@ -36,23 +37,7 @@ async function executeSandboxedCommand(options = {}) {
     }
   } catch {}
 
-  const env = {
-    ...process.env,
-    ...(options.env || {}),
-    OSPEC_SANDBOX_WORKSPACE_ROOT: realWorkspaceRoot,
-    OSPEC_SANDBOX_ALLOWED_PATHS: JSON.stringify(allowedPaths),
-  };
-
-  const isNode =
-    command === process.execPath ||
-    command === "node" ||
-    command === "node.exe" ||
-    (typeof command === "string" && (
-      path.basename(command).toLowerCase() === "node" ||
-      path.basename(command).toLowerCase() === "node.exe"
-    ));
-
-  if (!isNode) {
+  if (!isAuthorizedNodeRuntime(command, cwd)) {
     return {
       ok: false,
       exit_code: 126,
@@ -63,9 +48,13 @@ async function executeSandboxedCommand(options = {}) {
     };
   }
 
-  const existingNodeOptions = env.NODE_OPTIONS || "";
-  const safePreload = PRELOAD_SCRIPT_PATH.replace(/\\/g, "/");
-  env.NODE_OPTIONS = `--require "${safePreload}" ${existingNodeOptions}`.trim();
+  const parentSandboxEnv = {
+    ...process.env,
+    ...(options.env || {}),
+    OSPEC_SANDBOX_WORKSPACE_ROOT: realWorkspaceRoot,
+    OSPEC_SANDBOX_ALLOWED_PATHS: JSON.stringify(allowedPaths),
+  };
+  const env = confineChildEnv(parentSandboxEnv, parentSandboxEnv, PRELOAD_SCRIPT_PATH);
 
   return await new Promise((resolve) => {
     let child = null;
@@ -122,7 +111,7 @@ async function executeSandboxedCommand(options = {}) {
     }
 
     try {
-      child = spawn(command, args, {
+      child = spawn(process.execPath, args, {
         cwd,
         env,
         stdio: ["ignore", "pipe", "pipe"],

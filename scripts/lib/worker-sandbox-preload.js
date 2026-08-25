@@ -2,6 +2,15 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const {
+  confineChildEnv,
+  normalizeSpawnArgs,
+  normalizeExecFileArgs,
+  assertAuthorizedNodeOrThrow,
+  assertNoShellOrThrow,
+} = require("./worker-sandbox-confine.js");
+
+const PRELOAD_SCRIPT_PATH = path.resolve(__dirname, "worker-sandbox-preload.js");
 
 const workspaceRootEnv = process.env.OSPEC_SANDBOX_WORKSPACE_ROOT;
 const rawAllowedPaths = process.env.OSPEC_SANDBOX_ALLOWED_PATHS;
@@ -169,77 +178,81 @@ if (workspaceRootEnv) {
     return true;
   }
 
-  // Intercept child_process
-  try {
-    const cp = require("node:child_process");
+  // Intercept child_process. Fail closed: do not swallow patch errors.
+  const cp = require("node:child_process");
 
-    function isNodeCommand(file) {
-      if (typeof file !== "string") return false;
-      const base = path.basename(file).toLowerCase();
-      return (
-        file === process.execPath ||
-        base === "node" ||
-        base === "node.exe"
-      );
+  function confinedOptions(options) {
+    assertNoShellOrThrow(options, "spawn");
+    return {
+      ...options,
+      env: confineChildEnv(options && options.env, process.env, PRELOAD_SCRIPT_PATH),
+    };
+  }
+
+  const origSpawn = cp.spawn;
+  cp.spawn = function (file, args, options) {
+    const inv = normalizeSpawnArgs(file, args, options);
+    assertAuthorizedNodeOrThrow(inv.file, "spawn", inv.options.cwd);
+    return origSpawn.call(this, process.execPath, inv.args, confinedOptions(inv.options));
+  };
+
+  const origSpawnSync = cp.spawnSync;
+  cp.spawnSync = function (file, args, options) {
+    const inv = normalizeSpawnArgs(file, args, options);
+    assertAuthorizedNodeOrThrow(inv.file, "spawnSync", inv.options.cwd);
+    return origSpawnSync.call(this, process.execPath, inv.args, confinedOptions(inv.options));
+  };
+
+  const origExecFile = cp.execFile;
+  cp.execFile = function (file, args, options, callback) {
+    const inv = normalizeExecFileArgs(file, args, options, callback);
+    assertAuthorizedNodeOrThrow(inv.file, "execFile", inv.options.cwd);
+    const nextOptions = confinedOptions(inv.options);
+    if (typeof inv.callback === "function") {
+      return origExecFile.call(this, process.execPath, inv.args, nextOptions, inv.callback);
     }
+    return origExecFile.call(this, process.execPath, inv.args, nextOptions);
+  };
 
-    function checkChildProcess(file, opName) {
-      if (!isNodeCommand(file)) {
-        const err = new Error(`EACCES: permission denied by worker sandbox (child_process execution of unconfined binary blocked): ${file} [operation: ${opName}]`);
-        err.code = "EACCES";
-        err.errno = -13;
-        err.syscall = opName;
-        throw err;
-      }
+  const origExecFileSync = cp.execFileSync;
+  cp.execFileSync = function (file, args, options) {
+    const inv = normalizeExecFileArgs(file, args, options);
+    assertAuthorizedNodeOrThrow(inv.file, "execFileSync", inv.options.cwd);
+    return origExecFileSync.call(this, process.execPath, inv.args, confinedOptions(inv.options));
+  };
+
+  const origFork = cp.fork;
+  if (typeof origFork === "function") {
+    cp.fork = function (modulePath, args, options) {
+      const inv = normalizeSpawnArgs(modulePath, args, options);
+      const nextOptions = {
+        ...confinedOptions(inv.options),
+        execPath: process.execPath,
+      };
+      return origFork.call(this, inv.file, inv.args, nextOptions);
+    };
+  }
+
+  cp.exec = function (cmd, options, callback) {
+    const cb = typeof options === "function" ? options : callback;
+    const err = new Error(`EACCES: permission denied by worker sandbox (shell execution blocked): ${cmd} [operation: exec]`);
+    err.code = "EACCES";
+    err.errno = -13;
+    err.syscall = "exec";
+    if (typeof cb === "function") {
+      process.nextTick(() => cb(err, "", err.message));
+      return null;
     }
+    throw err;
+  };
 
-    const origSpawn = cp.spawn;
-    cp.spawn = function (file, args, options) {
-      checkChildProcess(file, "spawn");
-      return origSpawn.apply(this, arguments);
-    };
-
-    const origSpawnSync = cp.spawnSync;
-    cp.spawnSync = function (file, args, options) {
-      checkChildProcess(file, "spawnSync");
-      return origSpawnSync.apply(this, arguments);
-    };
-
-    const origExecFile = cp.execFile;
-    cp.execFile = function (file, args, options, callback) {
-      checkChildProcess(file, "execFile");
-      return origExecFile.apply(this, arguments);
-    };
-
-    const origExecFileSync = cp.execFileSync;
-    cp.execFileSync = function (file, args, options) {
-      checkChildProcess(file, "execFileSync");
-      return origExecFileSync.apply(this, arguments);
-    };
-
-    const origExec = cp.exec;
-    cp.exec = function (cmd, options, callback) {
-      const cb = typeof options === "function" ? options : callback;
-      const err = new Error(`EACCES: permission denied by worker sandbox (shell execution blocked): ${cmd} [operation: exec]`);
-      err.code = "EACCES";
-      err.errno = -13;
-      err.syscall = "exec";
-      if (typeof cb === "function") {
-        process.nextTick(() => cb(err, "", err.message));
-        return null;
-      }
-      throw err;
-    };
-
-    const origExecSync = cp.execSync;
-    cp.execSync = function (cmd, options) {
-      const err = new Error(`EACCES: permission denied by worker sandbox (shell execution blocked): ${cmd} [operation: execSync]`);
-      err.code = "EACCES";
-      err.errno = -13;
-      err.syscall = "execSync";
-      throw err;
-    };
-  } catch {}
+  cp.execSync = function (cmd) {
+    const err = new Error(`EACCES: permission denied by worker sandbox (shell execution blocked): ${cmd} [operation: execSync]`);
+    err.code = "EACCES";
+    err.errno = -13;
+    err.syscall = "execSync";
+    throw err;
+  };
 
   // Patch sync fs methods
   const origWriteFileSync = fs.writeFileSync;
