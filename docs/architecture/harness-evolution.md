@@ -819,7 +819,7 @@ Repositorios fixture reciben 10–30 cambios consecutivos. Se miden duplicación
 6. ~~K3: cuatro identidades + Candidate freeze + relación básica (`exact`/`changed`/`ambiguous`/`unknown`)~~ — hecho: archivado y publicado en v2.42.3 (baseline estable congelada).
 7. ~~K4a: Execution Graph compiler + Obligation Manifest + replay (sin worker autoritativo)~~ — hecho: verificado y reconciliado en v2.45.7.
 8. ~~K5: budgets (incl. autoridad/efectos) / failure / recovery~~ — hecho: archivado y publicado en v2.45.13 (remediaciones v2.45.7→v2.45.13).
-9. ~~K6a: primitivas de ejecución aislada (`CreateWorkspace`…`DisposeWorkspace`); no conoce Repair~~ — hecho: archivado y publicado en v2.46.7 (cadena de remediación v2.46.0–v2.46.7 con contención estricta de mutaciones por clasificación estructural de efectos, pre-validación rigurosa de WorkOrder v2 con schema y hash canónico, diff en formato Git aplicable con preservación de modos, encapsulación privada de transiciones de estado, probe de contención física en CapabilityProof y rechazo fail-closed de subprocesos no aislados).
+9. ~~K6a: primitivas de ejecución aislada (`CreateWorkspace`…`DisposeWorkspace`); no conoce Repair~~ — hecho: archivado y publicado en v2.46.7; frontera de procesos cerrada en v2.47.1 mediante identidad canónica del runtime Node, herencia obligatoria del preload y rechazo fail-closed de ejecutables homónimos.
 10. K4b: orquesta Repair shadow (consume K6a; freeze Candidate vía K3) — siguiente iniciativa elegible.
 11. K6b: verifier + provenance + Assurance Graph; K6c: ChallengePlan policy-selected; K6d: complexity delta.
 12. K7: ReviewAdapter + ReviewReducer + lineage; K8: CandidateEvaluationAttestation (emisión CAS).
