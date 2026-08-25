@@ -404,3 +404,36 @@ test("createHostAdapter deep-freezes ports and capabilities (post-create mutatio
   });
   assert.equal(adapter.transports.ExecutionTransport.port_id, "e");
 });
+
+test("exactly five required transports; missing WorkerIsolation is not missing-transport-port", () => {
+  assert.equal(REQUIRED_TRANSPORTS.length, 5);
+  assert.deepEqual([...REQUIRED_TRANSPORTS], [
+    "ExecutionTransport",
+    "QuestionTransport",
+    "WorkerTransport",
+    "ToolExecutionTransport",
+    "DeliveryGateTransport",
+  ]);
+  assert.equal(REQUIRED_TRANSPORTS.includes("WorkerIsolation"), false);
+
+  const adapter = createHostAdapter({
+    adapter_id: "claude",
+    adapter_version: "1.0.0",
+    host_version: "k2a-host/1",
+    capabilities: { WorkerIsolation: "partial" },
+    transports: baseTransports(),
+  });
+  assert.equal(adapter.transports.WorkerIsolation, undefined);
+  assert.equal(adapter.capabilities.WorkerIsolation, "partial");
+  for (const name of REQUIRED_TRANSPORTS) {
+    assert.ok(adapter.transports[name], name);
+  }
+
+  const unresolved = resolveCapabilityState({
+    capability_id: "WorkerIsolation",
+    declared_state: "partial",
+  });
+  assert.equal(unresolved.ok, true);
+  assert.equal(unresolved.effective_state, "partial");
+  assert.notEqual(unresolved.reason_code, REASON.MISSING_TRANSPORT_PORT);
+});

@@ -18,6 +18,7 @@ const REASON = Object.freeze({
   PROBE_DIGEST_MISMATCH: "probe-digest-mismatch",
   PROOF_VERIFICATION_FAILED: "proof-verification-failed",
   SILENT_PROMOTION_REFUSED: "silent-promotion-refused",
+  TRANSPORT_IDENTITY_MISMATCH: "transport-identity-mismatch",
 });
 
 function nonEmptyString(value) {
@@ -137,6 +138,8 @@ function verifyCapabilityProof(opts) {
     expectedAdapterVersion,
     expectedHostRuntimeVersion,
     expectedProbeDigest,
+    expectedPortId,
+    expectedFingerprint,
     proof,
     evidence: semanticEvidence,
   } = opts;
@@ -154,6 +157,15 @@ function verifyCapabilityProof(opts) {
   for (const [name, value] of expectedFields) {
     if (!nonEmptyString(value)) {
       return { ok: false, reason_code: REASON.EXPECTED_FIELD_MISSING, path: `/${name}` };
+    }
+  }
+
+  if (capabilityId === "WorkerIsolation") {
+    if (!nonEmptyString(expectedPortId)) {
+      return { ok: false, reason_code: REASON.EXPECTED_FIELD_MISSING, path: "/expectedPortId" };
+    }
+    if (!nonEmptyString(expectedFingerprint)) {
+      return { ok: false, reason_code: REASON.EXPECTED_FIELD_MISSING, path: "/expectedFingerprint" };
     }
   }
 
@@ -223,6 +235,17 @@ function verifyCapabilityProof(opts) {
     return { ok: false, reason_code: REASON.DIGEST_MISMATCH, path: "/evidence_digest" };
   }
 
+  if (capabilityId === "WorkerIsolation") {
+    const transport = semanticEvidence && typeof semanticEvidence === "object" && !Array.isArray(semanticEvidence)
+      ? semanticEvidence.transport
+      : null;
+    const evidencePortId = transport && transport.port_id;
+    const evidenceFingerprint = transport && transport.fingerprint;
+    if (evidencePortId !== expectedPortId || evidenceFingerprint !== expectedFingerprint) {
+      return { ok: false, reason_code: REASON.TRANSPORT_IDENTITY_MISMATCH };
+    }
+  }
+
   return {
     ok: true,
     evidence_digest: expectedEvidence,
@@ -271,6 +294,8 @@ function evaluateEnforcementEligibility(input) {
     expectedAdapterVersion: input.expectedAdapterVersion,
     expectedHostRuntimeVersion: input.expectedHostRuntimeVersion,
     expectedProbeDigest: input.expectedProbeDigest,
+    expectedPortId: input.expectedPortId,
+    expectedFingerprint: input.expectedFingerprint,
     proof: input.proof,
     evidence: input.semantic_evidence,
   });

@@ -1,0 +1,175 @@
+change: "k6a-isolation-frontier-hardening"
+status: "archived"
+classification: high-risk
+owner:
+  author: "Manuel Retamozo"
+  branch: "fix/k6a-isolation-frontier-hardening"
+created_at: "2026-08-25T09:42:00Z"
+last_updated: "2026-08-25T13:15:00Z"
+blocking_questions: []
+session:
+  execution_mode: auto
+  delivery_strategy: ask-on-risk
+  reply_language: Spanish
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Primera coincidencia en tabla declarativa: project.status=active satisface la ruta standard; clasificación high-risk (frontera de aislamiento de K6a, contratos de kernel y proofs de capability)."
+  validated: true
+  validation_errors: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k6a-isolation-frontier-hardening/proposal.md"
+    summary: "Software-surface K6a frontier: immutable policy, transport-bound WorkerIsolation, real probe, exhaustive fs wrap, REQ-008 fail-closed for commands. K4b out."
+    key_decisions:
+      - "enforced remains software-boundary; OS jail not required (architecture-001)"
+      - "REQ-008 follows runtime: refuse commands unless isolationReported=enforced"
+      - "WorkerIsolation is a capability on WorkerTransport, not a sixth required port"
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k6a-isolation-frontier-hardening/specs/worker-isolation/spec.md"
+      - "openspec/changes/k6a-isolation-frontier-hardening/specs/capability-proof/spec.md"
+      - "openspec/changes/k6a-isolation-frontier-hardening/specs/host-capabilities-contract/spec.md"
+      - "openspec/changes/k6a-isolation-frontier-hardening/specs/reference-host-adapter/spec.md"
+      - "openspec/changes/k6a-isolation-frontier-hardening/specs/lifecycle-model-conformance/spec.md"
+    summary: "Deltas: REQ-008 commands fail-closed; captured policy; exhaustive fs wrap; live 3-way probe; WorkerIsolation live-identity on WorkerTransport. No schema field."
+    key_decisions:
+      - "Transport binding is live-identity (port_id/fingerprint), not a new CapabilityProof schema field (confirms sdd-propose-001)"
+      - "inv-k6a-host-isolation-fallback refuses commands unless enforced; four frontier checkers added"
+  design:
+    status: "done"
+    artifact: "openspec/changes/k6a-isolation-frontier-hardening/design.md"
+    summary: "Snapshot confineChildEnv; WorkerIsolation live-identity on WorkerTransport; real 3-way probe; exhaustive fs wrap; commands fail-closed unless enforced."
+    key_decisions:
+      - "confineChildEnv rebuilds OSPEC_SANDBOX_* and NODE_OPTIONS from captured snapshot, never live process.env"
+      - "verifyCapabilityProof expectedPortId/expectedFingerprint; CapabilityProof schema unchanged"
+      - "Commands refuse unless isolationReported=enforced; non-command primitives may use software boundary"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k6a-isolation-frontier-hardening/tasks.md"
+    summary: "39 tasks in 7 phases; ~1,450–1,900 lines; High budget; 4 chained PRs; Decision needed before apply."
+    key_decisions:
+      - "PR1 policy → PR2 fs wrap → PR3 identity/host → PR4 probe/executor/E2E/lifecycle (forecast); apply proceeds as single PR under size:exception"
+      - "Focused TDD RED→GREEN per phase; chain strategy size-exception approved"
+  apply:
+    status: "done"
+    artifact: "openspec/changes/k6a-isolation-frontier-hardening/apply-progress.md"
+    summary: "Full backlog under size:exception. P0-1 captured policy; P0-2 mutating fs wrap; P0-3 live-identity on WorkerTransport; real 3-write probe; REQ-008 fail-closed; ten K6a checkers. npm test 2608/2610 pass (2 skipped)."
+    key_decisions:
+      - "confineChildEnv never reads live process.env for OSPEC_SANDBOX_*"
+      - "WorkerIsolation is a capability on executing WorkerTransport, not a sixth port"
+      - "Vacuous {blocked:true} rejected; wrapper denials map to containment-violation/v1"
+  verify:
+    status: "done"
+    verdict: PASS
+    artifact: "openspec/changes/k6a-isolation-frontier-hardening/verify-report.md"
+    summary: "PASS: 35/35 MUST scenarios at runtime-test; npm test 2608/2610 pass (2 skipped). Frontier claims 1–7 proved."
+    key_decisions:
+      - "sdd-design-001/002 confirmed; live-identity hashed into evidence_digest"
+      - "enforced remains software_surface; no OS jail; no CandidateId/K4b"
+  archive:
+    status: "done"
+    artifact: "openspec/changes/k6a-isolation-frontier-hardening/archive-report.md"
+    summary: "Plan emitted: 5 spec merges, 3 ADR promotions; archive-plan.json ready for runtime transaction on branch fix/k6a-isolation-frontier-hardening."
+    key_decisions:
+      - "prepared-specs carry merged bytes; live openspec/specs writes are runtime-owned"
+      - "ADR targets 20260825-003..005 (collision bump past existing 001-002)"
+      - "4R terminal candidate sha256:50f15c0… revalidated read-only; no new review"
+  clarify:
+    status: skipped
+    note: "Predicado shouldRunClarify=false: residual_ambiguity=false y arrays de ambigüedad vacíos en el envelope de sdd-spec."
+baseline_fingerprints:
+  worker-isolation: "aaf04ddd593c5b66662ea8bb02c0dee9a4c4549f3ef51695aae87c32d69a3490"
+  capability-proof: "6cdbffcdf1b628f0c7b759bc5527a56464bac94ae524ec20978cbecbd608b050"
+  host-capabilities-contract: "149d12d1ff7a89bc55587e7b1954cf335bace43e85c173d4f7a33b6ca4c35a40"
+  reference-host-adapter: "41c46d053e7f401e0ff4fec5753bea600d21f7fd93b97c6c43c611f50514bcff"
+  lifecycle-model-conformance: "8cb913e0ee8d233900ee681cdd3544ac05dd2986f94646d72470311be8263648"
+approvals:
+  - id: exec-mode-001
+    gate: execution-mode
+    decision: auto
+    source: vscode/askQuestions
+    accepted_at: "2026-08-25T09:42:00Z"
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-001
+    gate: delivery-strategy
+    decision: ask-on-risk
+    source: vscode/askQuestions
+    accepted_at: "2026-08-25T09:42:00Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: review-workload-001
+    gate: review-workload
+    decision: "size:exception"
+    source: vscode/askQuestions
+    accepted_at: "2026-08-25T10:30:00Z"
+    applies_to:
+      - sdd-apply
+  - id: assumption-reconciliation-001
+    gate: testing
+    decision: "confirm sdd-design-001; confirm sdd-design-002"
+    source: vscode/askQuestions
+    accepted_at: "2026-08-25T10:45:00Z"
+    applies_to:
+      - sdd-verify
+  - id: 4r-correction-001
+    gate: review-workload
+    decision: "remediate CRITICAL F-a93a0811da865770 worker_threads confinement in slice S-2331116459080264"
+    source: vscode/askQuestions
+    accepted_at: "2026-08-25T12:10:00Z"
+    applies_to:
+      - sdd-apply
+      - review-correction
+  - id: architecture-001
+    gate: architecture
+    decision: "software_surface: policy inmutable, binding WorkerIsolation↔WorkerTransport, probe adversarial real, cobertura exhaustiva de APIs fs mutantes, REQ-008 fail-closed para comandos. No exigir jail de OS como condición de enforced. K4b fuera de alcance."
+    source: vscode/askQuestions
+    accepted_at: "2026-08-25T09:42:00Z"
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+assumptions:
+  - id: sdd-propose-001
+    phase: sdd-propose
+    statement: "Transport binding is specified as a live-identity extension of capability-proof REQ-005 (port_id/fingerprint) rather than freezing a new required CapabilityProof schema field in this proposal."
+    reversibility: high
+    basis: "architecture-001 and user intent already require WorkerIsolation bound to the executing WorkerTransport; REQ-005 already owns live identity/probe binding, so field shape is a spec-phase schema detail."
+    recorded_at: "2026-08-25T09:50:00Z"
+    status: confirmed
+  - id: sdd-spec-001
+    phase: sdd-spec
+    statement: "WorkerIsolation transport binding is live-identity only: verifyCapabilityProof expected inputs for WorkerIsolation MUST include the executing WorkerTransport port_id and fingerprint; CapabilityProof document schema gains no new required field."
+    reversibility: high
+    basis: "Confirms unresolved sdd-propose-001; REQ-005 already owns live identity/probe binding; architecture-001 forbids a sixth host port."
+    recorded_at: "2026-08-25T10:00:00Z"
+    status: confirmed
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "WorkerIsolation semantic evidence carries transport.port_id and transport.fingerprint so identity is hashed into the existing evidence_digest without a new proof-document field."
+    reversibility: high
+    basis: "sdd-spec-001 forbids a new required CapabilityProof field; evidence is already a verifyCapabilityProof input hashed by createEvidenceDigest."
+    recorded_at: "2026-08-25T10:15:00Z"
+    status: confirmed
+  - id: sdd-design-002
+    phase: sdd-design
+    statement: "WorkerTransport.fingerprint is sha256Fingerprint of adapter_id, port_id, and the WorkerTransport live probe_digest under domain worker-transport-live-identity/v1."
+    reversibility: high
+    basis: "Spec requires a fingerprint distinct from port_id; existing ports already stamp probe_digest after live probe."
+    recorded_at: "2026-08-25T10:15:00Z"
+    status: confirmed
+gates:
+  4r-review-gate: {"status":"approved","schema_version":1,"classification":"high-risk","evidence":{"schema_version":1,"fingerprint":"sha256:8bf2452d8e5447a9c4ccf96d3d218dda41a8e70474663a251591e0b8f8596b34","sources":{"paths":["scripts/k6a-e2e-worker-isolation.test.js","scripts/lib/capability-proof/index.js","scripts/lib/capability-proof/index.test.js","scripts/lib/host-adapters/claude.js","scripts/lib/host-adapters/claude.test.js","scripts/lib/host-adapters/registry.test.js","scripts/lib/host-contract/index.js","scripts/lib/host-contract/index.test.js","scripts/lib/k6a-lifecycle-model.test.js","scripts/lib/lifecycle-model.js","scripts/lib/lifecycle-model.test.js","scripts/lib/worker-executor.js","scripts/lib/worker-executor.test.js","scripts/lib/worker-sandbox-confine.js","scripts/lib/worker-sandbox-preload.js","scripts/lib/worker-sandbox.js","scripts/lib/worker-sandbox.test.js"],"capabilities":["runtime"],"operation_types":["modify"],"dependencies":[],"facts":[{"code":"design-risk","source":"design","detail":"isolation-frontier-software-boundary"},{"code":"metadata-runtime","source":"metadata","detail":"runtime"},{"code":"diff-auth-permission","source":"real-diff","detail":"scripts/lib/lifecycle-model.js"},{"code":"diff-error-flow","source":"real-diff","detail":"scripts/lib/worker-sandbox-preload.js"}]}},"generalist":{"status":"needs-specialist","specialists":["risk","reliability","resilience","readability"],"reason":"signals=design-risk,diff-auth-permission,diff-error-flow,diff-process-execution,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability"},"depth":{"review":"strict"},"escalation_reason":null,"dimensions":{"risk":{"selected":true,"reasons":[{"code":"high-risk-override","source":"override","detail":"Classification requires full 4R","precedence":0},{"code":"diff-auth-permission","source":"real-diff","detail":"scripts/lib/lifecycle-model.js","precedence":2},{"code":"generalist-escalation","source":"generalist","detail":"signals=design-risk,diff-auth-permission,diff-error-flow,diff-process-execution,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability","precedence":3},{"code":"design-risk","source":"design","detail":"isolation-frontier-software-boundary","precedence":4}]},"reliability":{"selected":true,"reasons":[{"code":"high-risk-override","source":"override","detail":"Classification requires full 4R","precedence":0},{"code":"diff-error-flow","source":"real-diff","detail":"scripts/lib/worker-sandbox-preload.js","precedence":2},{"code":"generalist-escalation","source":"generalist","detail":"signals=design-risk,diff-auth-permission,diff-error-flow,diff-process-execution,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability","precedence":3},{"code":"metadata-runtime","source":"metadata","detail":"runtime","precedence":5}]},"resilience":{"selected":true,"reasons":[{"code":"high-risk-override","source":"override","detail":"Classification requires full 4R","precedence":0},{"code":"diff-error-flow","source":"real-diff","detail":"scripts/lib/worker-sandbox-preload.js","precedence":2},{"code":"generalist-escalation","source":"generalist","detail":"signals=design-risk,diff-auth-permission,diff-error-flow,diff-process-execution,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability","precedence":3}]},"readability":{"selected":true,"reasons":[{"code":"high-risk-override","source":"override","detail":"Classification requires full 4R","precedence":0},{"code":"generalist-escalation","source":"generalist","detail":"signals=design-risk,diff-auth-permission,diff-error-flow,diff-process-execution,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability","precedence":3}]}},"lineage":{"schema_version":1,"lineage_id":"sha256:976c7edf481a4cb370e80778117d7d2c0a247498915415204026f22223b5b675","generation":1,"predecessor_lineage_id":null,"recovery":null,"revision":12,"status":"approved","genesis":{"candidate":{"projection":"workspace","base_tree":"a62266c929319bc16b91b07c9333d193b7bf1376","candidate_tree":"workspace-uncommitted","paths":["scripts/k6a-e2e-worker-isolation.test.js","scripts/lib/capability-proof/index.js","scripts/lib/capability-proof/index.test.js","scripts/lib/host-adapters/claude.js","scripts/lib/host-adapters/claude.test.js","scripts/lib/host-adapters/registry.test.js","scripts/lib/host-contract/index.js","scripts/lib/host-contract/index.test.js","scripts/lib/k6a-lifecycle-model.test.js","scripts/lib/lifecycle-model.js","scripts/lib/lifecycle-model.test.js","scripts/lib/worker-executor.js","scripts/lib/worker-executor.test.js","scripts/lib/worker-sandbox-confine.js","scripts/lib/worker-sandbox-preload.js","scripts/lib/worker-sandbox.js","scripts/lib/worker-sandbox.test.js"],"diff_hash":"sha256:f54dc99e9ff141805114c4c317c9322f86d99cef089d21d5a9834f4bc0ede437","paths_digest":"sha256:4624e63b31cf8d3b0ced4878aa0db33373b7769977d5523a1e2e4e5ef0b318cf","authored_lines":1314,"original_changed_lines":1524},"candidate_id":"sha256:9e61f545b96dbe8bb2cc791b165d542201a195568dd3b42b17dc5837693bde45","paths":["scripts/k6a-e2e-worker-isolation.test.js","scripts/lib/capability-proof/index.js","scripts/lib/capability-proof/index.test.js","scripts/lib/host-adapters/claude.js","scripts/lib/host-adapters/claude.test.js","scripts/lib/host-adapters/registry.test.js","scripts/lib/host-contract/index.js","scripts/lib/host-contract/index.test.js","scripts/lib/k6a-lifecycle-model.test.js","scripts/lib/lifecycle-model.js","scripts/lib/lifecycle-model.test.js","scripts/lib/worker-executor.js","scripts/lib/worker-executor.test.js","scripts/lib/worker-sandbox-confine.js","scripts/lib/worker-sandbox-preload.js","scripts/lib/worker-sandbox.js","scripts/lib/worker-sandbox.test.js"],"classification":"high-risk","selected_dimensions":["risk","reliability","resilience","readability"],"evidence_fingerprint":"sha256:8bf2452d8e5447a9c4ccf96d3d218dda41a8e70474663a251591e0b8f8596b34","original_changed_lines":1524,"authored_lines":1314},"current_candidate_id":"sha256:50f15c0ed9485de31c94cc0ff4e1b5815ddc0416d80f42ce1049a84074a2b432","current_candidate":{"projection":"workspace","base_tree":"a62266c929319bc16b91b07c9333d193b7bf1376","candidate_tree":"sha256:7bf44a6bcded1e65bde1af50db31486a67d3914bae128af2793082c4edd0004e","paths":["scripts/k6a-e2e-worker-isolation.test.js","scripts/lib/capability-proof/index.js","scripts/lib/capability-proof/index.test.js","scripts/lib/host-adapters/claude.js","scripts/lib/host-adapters/claude.test.js","scripts/lib/host-adapters/registry.test.js","scripts/lib/host-contract/index.js","scripts/lib/host-contract/index.test.js","scripts/lib/k6a-lifecycle-model.test.js","scripts/lib/lifecycle-model.js","scripts/lib/lifecycle-model.test.js","scripts/lib/worker-executor.js","scripts/lib/worker-executor.test.js","scripts/lib/worker-sandbox-confine.js","scripts/lib/worker-sandbox-preload.js","scripts/lib/worker-sandbox.js","scripts/lib/worker-sandbox.test.js"],"diff_hash":"sha256:5f0e12dab3332c6a8dc1388167e6bc10ad48ac1cb085fbf08ffa3c432a7d157f","paths_digest":"sha256:4624e63b31cf8d3b0ced4878aa0db33373b7769977d5523a1e2e4e5ef0b318cf","authored_lines":1314,"original_changed_lines":1524},"lenses":{"risk":{"selected":true,"status":"completed","request_id":"4r-lens-risk-001","result_digest":"sha256:e68f1db4cf03629f1826c4d470d363332df4146ef0bf499148bedbbcda953f88","result":{"findings":[{"severity":"CRITICAL","summary":"worker_threads is not confined; a Worker isolate can drop the preload and write outside allowed_paths.","acceptance_criteria":"Preload MUST intercept worker_threads.Worker so nested isolates inherit capturedPolicy confinement or construction is fail-closed. RED: sandboxed Worker({eval:true, execArgv:[]}) write outside workspace MUST be blocked or rejected."},{"severity":"WARNING","summary":"fs.link* only authorizes newPath; a hardlink to an outside inode can be mutated via an inside name.","acceptance_criteria":"link/linkSync/promises.link MUST fail closed unless both existingPath and newPath resolve inside captured allowed_paths. Adversarial test: link(outside, allowedRel) then write(allowedRel) MUST NOT mutate the outside inode."}]},"operation":null,"result_request_id":"4r-lens-risk-001"},"reliability":{"selected":true,"status":"completed","request_id":"4r-lens-reliability-001","result_digest":"sha256:addb8d421eb611d2ffdb7412f067445dad42fa7df600304023c97e6f8a75564d","result":{"findings":[{"severity":"WARNING","summary":"fd/FileHandle mutating APIs (fchmod/fchown/futimes) are wrapped but not exercised by tests.","acceptance_criteria":"Runtime test: openSync(undeclared, r) then fchmodSync(fd) MUST throw EACCES. Mutation-surface inventory MUST invoke those wrappers."}]},"operation":null,"result_request_id":"4r-lens-reliability-001"},"resilience":{"selected":true,"status":"completed","request_id":"4r-lens-resilience-001","result_digest":"sha256:69ae7eb258314b45645de5bb998bce879822b19354db4c8d39d3f354ba359cda","result":{"findings":[{"severity":"WARNING","summary":"Malformed OSPEC_SANDBOX_ALLOWED_PATHS fail-opens to ** and capturedPolicy freezes that policy.","acceptance_criteria":"If rawAllowedPaths is missing, unparseable, or not an array, preload MUST fail closed (no default **)."},{"severity":"WARNING","summary":"Empty catch around fileURLToPath can skip assertWriteAllowed and still run original fs.","acceptance_criteria":"If path conversion fails, the wrapper MUST throw EACCES fail-closed rather than return and invoke the original method."},{"severity":"WARNING","summary":"executeSandboxedCommand abort sends SIGTERM only and finishes immediately; no SIGKILL escalation.","acceptance_criteria":"Abort MUST escalate to SIGKILL after a bounded wait, matching the local spawn path in worker-executor.js."},{"severity":"WARNING","summary":"Isolation probe mkdtemp pair runs before try; second failure leaks externalRoot.","acceptance_criteria":"Both temp dirs MUST be created inside a try/finally that rmSyncs any successfully created path."}]},"operation":null,"result_request_id":"4r-lens-resilience-001"},"readability":{"selected":true,"status":"completed","request_id":"4r-lens-readability-001","result_digest":"sha256:5fc77157a1bc27db84a0e1c078c2afa27995c2731469fa70c58f19c4416fdf5b","result":{"findings":[{"severity":"WARNING","summary":"isolationReported assignment in executeWorkOrder is nested four levels deep.","acceptance_criteria":"Extract a named helper that returns isolationReported or a fail-closed result so the enforced assignment is a single obvious path."},{"severity":"WARNING","summary":"isolationCapability names WorkerTransport state but error strings say isolation; easy to misread as WorkerIsolation.","acceptance_criteria":"Comment or rename the declared transport capability vs WorkerIsolation bundle so isolationReported cannot inherit the wrong proof."},{"severity":"WARNING","summary":"capturedPolicy is passed next to a process.env spread without stating that OSPEC_SANDBOX_* are rebuilt from the snapshot.","acceptance_criteria":"Comment confineChildEnv call sites that live process.env is not the sandbox policy authority (ADR-001)."},{"severity":"WARNING","summary":"isLiveIsolationProbeEvidence returns true when containment is missing; executor re-checks PASS/BLOCKED/BLOCKED.","acceptance_criteria":"Either require containment in the probe predicate or document why it is optional and keep a single authority for the triple."},{"severity":"WARNING","summary":"JSDoc still says puerto WorkerIsolation while the call site passes WorkerTransport.","acceptance_criteria":"Correct JSDoc so WorkerIsolation is a capability on WorkerTransport, not a sixth port."},{"severity":"SUGGESTION","summary":"WorkerTransport handler fallback order between primitives.worker and workerIsolation is uncommented.","acceptance_criteria":"Comment the fallback so probe and command share the executing transport fingerprint."}]},"operation":null,"result_request_id":"4r-lens-readability-001"}},"findings":[{"id":"F-a93a0811da865770","owner":"risk","severity":"CRITICAL","summary":"worker_threads is not confined; a Worker isolate can drop the preload and write outside allowed_paths.","acceptance_criteria":"Preload MUST intercept worker_threads.Worker so nested isolates inherit capturedPolicy confinement or construction is fail-closed. RED: sandboxed Worker({eval:true, execArgv:[]}) write outside workspace MUST be blocked or rejected.","blocking":true,"resolution":"resolved"},{"id":"F-4f89ecce967aa993","owner":"risk","severity":"WARNING","summary":"fs.link* only authorizes newPath; a hardlink to an outside inode can be mutated via an inside name.","acceptance_criteria":"link/linkSync/promises.link MUST fail closed unless both existingPath and newPath resolve inside captured allowed_paths. Adversarial test: link(outside, allowedRel) then write(allowedRel) MUST NOT mutate the outside inode.","blocking":false,"resolution":"advisory"},{"id":"F-956aa4533c88d985","owner":"reliability","severity":"WARNING","summary":"fd/FileHandle mutating APIs (fchmod/fchown/futimes) are wrapped but not exercised by tests.","acceptance_criteria":"Runtime test: openSync(undeclared, r) then fchmodSync(fd) MUST throw EACCES. Mutation-surface inventory MUST invoke those wrappers.","blocking":false,"resolution":"advisory"},{"id":"F-cd22bfb794ae6173","owner":"resilience","severity":"WARNING","summary":"Malformed OSPEC_SANDBOX_ALLOWED_PATHS fail-opens to ** and capturedPolicy freezes that policy.","acceptance_criteria":"If rawAllowedPaths is missing, unparseable, or not an array, preload MUST fail closed (no default **).","blocking":false,"resolution":"advisory"},{"id":"F-015f72a49b73bdaf","owner":"resilience","severity":"WARNING","summary":"Empty catch around fileURLToPath can skip assertWriteAllowed and still run original fs.","acceptance_criteria":"If path conversion fails, the wrapper MUST throw EACCES fail-closed rather than return and invoke the original method.","blocking":false,"resolution":"advisory"},{"id":"F-eec865b59d1098e4","owner":"resilience","severity":"WARNING","summary":"executeSandboxedCommand abort sends SIGTERM only and finishes immediately; no SIGKILL escalation.","acceptance_criteria":"Abort MUST escalate to SIGKILL after a bounded wait, matching the local spawn path in worker-executor.js.","blocking":false,"resolution":"advisory"},{"id":"F-c0b0cfd093a0d17b","owner":"resilience","severity":"WARNING","summary":"Isolation probe mkdtemp pair runs before try; second failure leaks externalRoot.","acceptance_criteria":"Both temp dirs MUST be created inside a try/finally that rmSyncs any successfully created path.","blocking":false,"resolution":"advisory"},{"id":"F-cb1726a6d1c79759","owner":"readability","severity":"WARNING","summary":"isolationReported assignment in executeWorkOrder is nested four levels deep.","acceptance_criteria":"Extract a named helper that returns isolationReported or a fail-closed result so the enforced assignment is a single obvious path.","blocking":false,"resolution":"advisory"},{"id":"F-aea254cde5ff50d5","owner":"readability","severity":"WARNING","summary":"isolationCapability names WorkerTransport state but error strings say isolation; easy to misread as WorkerIsolation.","acceptance_criteria":"Comment or rename the declared transport capability vs WorkerIsolation bundle so isolationReported cannot inherit the wrong proof.","blocking":false,"resolution":"advisory"},{"id":"F-de955dda19a29573","owner":"readability","severity":"WARNING","summary":"capturedPolicy is passed next to a process.env spread without stating that OSPEC_SANDBOX_* are rebuilt from the snapshot.","acceptance_criteria":"Comment confineChildEnv call sites that live process.env is not the sandbox policy authority (ADR-001).","blocking":false,"resolution":"advisory"},{"id":"F-ca103c157d4b59b1","owner":"readability","severity":"WARNING","summary":"isLiveIsolationProbeEvidence returns true when containment is missing; executor re-checks PASS/BLOCKED/BLOCKED.","acceptance_criteria":"Either require containment in the probe predicate or document why it is optional and keep a single authority for the triple.","blocking":false,"resolution":"advisory"},{"id":"F-59bf1c394018a548","owner":"readability","severity":"WARNING","summary":"JSDoc still says puerto WorkerIsolation while the call site passes WorkerTransport.","acceptance_criteria":"Correct JSDoc so WorkerIsolation is a capability on WorkerTransport, not a sixth port.","blocking":false,"resolution":"advisory"},{"id":"F-f1212234c3ba4b00","owner":"readability","severity":"SUGGESTION","summary":"WorkerTransport handler fallback order between primitives.worker and workerIsolation is uncommented.","acceptance_criteria":"Comment the fallback so probe and command share the executing transport fingerprint.","blocking":false,"resolution":"advisory"}],"findings_digest":"sha256:461e0d82563bdd46e7e4c3389757765e31d69ade874fc756c336581ae99b74c8","correction_budget":{"limit_lines":200,"used_lines":0,"failed_attempts":0,"max_failed_attempts":3},"correction_history":[],"validation_history":[],"follow_ups":[],"pending_operation":null,"pending_correction":null,"terminal_reason":"all-remediation-slices-passed","remediation_schema_version":2,"remediation_migration":{"source_digest":"sha256:3f04a2519827ce99cfe60a6938ad942a383f4c7dec00c76f33215f8821f53f82","manifest_digest":"sha256:ac342e4386c2d3e9f20035fc0a7133fbe29bc72b42b54836ab8e2bf4d69758eb","legacy_used_lines":0,"legacy_failed_attempts":0,"migrated_at":"deterministic"},"slice_order":["S-2331116459080264"],"active_slice_id":null,"correction_slices":{"S-2331116459080264":{"slice_id":"S-2331116459080264","root_cause_key":"F-a93a0811da865770","finding_ids":["F-a93a0811da865770"],"evidence_digests":["sha256:be9678c537a09ec13addf49c9ed17ff8ee5fbacab32c5a6bfb722ea3f1641c29"],"permitted_paths":["scripts/k6a-e2e-worker-isolation.test.js","scripts/lib/capability-proof/index.js","scripts/lib/capability-proof/index.test.js","scripts/lib/host-adapters/claude.js","scripts/lib/host-adapters/claude.test.js","scripts/lib/host-adapters/registry.test.js","scripts/lib/host-contract/index.js","scripts/lib/host-contract/index.test.js","scripts/lib/k6a-lifecycle-model.test.js","scripts/lib/lifecycle-model.js","scripts/lib/lifecycle-model.test.js","scripts/lib/worker-executor.js","scripts/lib/worker-executor.test.js","scripts/lib/worker-sandbox-confine.js","scripts/lib/worker-sandbox-preload.js","scripts/lib/worker-sandbox.js","scripts/lib/worker-sandbox.test.js"],"resolutions":{"F-a93a0811da865770":"unresolved"},"status":"passed","used_lines":47,"failed_attempts":0,"limit_lines":200,"max_failed_attempts":3,"correction_history":[{"slice_id":"S-2331116459080264","request_id":"4r-correct-S-2331116459080264-001","finding_ids":["F-a93a0811da865770"],"paths":["scripts/lib/worker-sandbox-preload.js","scripts/lib/worker-sandbox.test.js"],"base_candidate_id":"sha256:9e61f545b96dbe8bb2cc791b165d542201a195568dd3b42b17dc5837693bde45","forecast_lines":120,"actual_changed_lines":47,"record_request_id":"4r-record-S-2331116459080264-001","corrected_candidate_id":"sha256:50f15c0ed9485de31c94cc0ff4e1b5815ddc0416d80f42ce1049a84074a2b432"}],"validation_history":[{"request_id":"4r-validate-S-2331116459080264-001","outcomes":[{"id":"F-a93a0811da865770","status":"resolved"}],"regression":{"detected":false,"evidence":["node --test scripts/lib/worker-sandbox.test.js → 20 pass / 0 fail"],"impacted_slices":[]},"result":"passed"}],"regression_history":[],"legacy_correction_refs":[],"legacy_validation_refs":[]}}},"next_action":{"type":"stop","reason":"all-remediation-slices-passed"},"archive_allowed":true}
+

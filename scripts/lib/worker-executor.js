@@ -8,12 +8,15 @@ const { inspectWorkspace, getWorkspaceRecord, markWorkspaceInterrupted } = requi
 const { computeWorkResultId, validateWorkResultBinding, computeWorkOrderId, isWorkOrderV2 } = require("./execution-identities/index.js");
 const { invokeTransportAsync, resolveCapabilityState } = require("./host-contract/index.js");
 const { validateInstance, loadSchemaById } = require("./kernel-schema-validator.js");
+const { sha256Fingerprint } = require("./canonical-json.js");
+const { isLiveIsolationProbeEvidence } = require("./worker-sandbox.js");
 
 const WORK_ORDER_V2_SCHEMA_ID = "ospec://schemas/kernel/work-order/v2";
 const WORK_ORDER_V1_SCHEMA_ID = "ospec://schemas/kernel/work-order/v1";
 // Capability canónica de aislamiento: distinta de WorkerTransport. K6a exige
 // ambas en `enforced` para ejecutar subprocess (can execute AND can contain).
 const ISOLATION_CAPABILITY_ID = "WorkerIsolation";
+const WORKER_TRANSPORT_IDENTITY_DOMAIN = "worker-transport-live-identity/v1";
 const DEFAULT_SCHEMA_ROOT = path.resolve(__dirname, "../..");
 
 let cachedWorkOrderV2Schema = null;
@@ -35,6 +38,61 @@ function getWorkOrderV1Schema() {
     });
   }
   return cachedWorkOrderV1Schema;
+}
+
+function executingWorkerTransportIdentity(transport) {
+  if (!transport || typeof transport !== "object") {
+    return { portId: undefined, fingerprint: undefined };
+  }
+  const portId = transport.port_id;
+  if (typeof transport.fingerprint === "string" && transport.fingerprint.trim() !== "") {
+    return { portId, fingerprint: transport.fingerprint };
+  }
+  const adapterId = transport.adapter_id || transport.adapterId;
+  const probeDigest = transport.probe_digest || transport.probeDigest;
+  if (!adapterId || !portId || !probeDigest) {
+    return { portId, fingerprint: undefined };
+  }
+  return {
+    portId,
+    fingerprint: sha256Fingerprint(WORKER_TRANSPORT_IDENTITY_DOMAIN, {
+      adapter_id: adapterId,
+      port_id: portId,
+      probe_digest: probeDigest,
+    }),
+  };
+}
+
+const SANDBOX_UNDECLARED_WRITE_RE = /undeclared write blocked\): .+? -> ([^\s\[]+)/;
+const SANDBOX_EXTERNAL_WRITE_RE = /external write blocked\):/;
+const SANDBOX_SYMLINK_BLOCK_RE = /symlink destination outside workspace blocked\):/;
+
+/**
+ * Maps a sandbox-wrapper denial on stderr into containment-violation/v1.
+ * Wrapper fail-closed is the containment check; post-flight inventory is not
+ * the sole authority (REQ-worker-isolation-012).
+ *
+ * @param {string} stderr
+ * @param {string[]} allowedPaths
+ * @param {Object} options
+ * @returns {Object|null}
+ */
+function containmentFromSandboxStderr(stderr, allowedPaths, options) {
+  if (typeof stderr !== "string" || !stderr.includes("permission denied by worker sandbox")) {
+    return null;
+  }
+  const undeclared = stderr.match(SANDBOX_UNDECLARED_WRITE_RE);
+  if (undeclared) {
+    const rel = String(undeclared[1] || "").replace(/\\/g, "/").replace(/\/+$/, "");
+    if (!rel) return null;
+    const result = validateAllowedPaths([rel], allowedPaths, options);
+    return result.ok ? null : result.violation;
+  }
+  if (SANDBOX_EXTERNAL_WRITE_RE.test(stderr) || SANDBOX_SYMLINK_BLOCK_RE.test(stderr)) {
+    const result = validateAllowedPaths(["../external-blocked"], allowedPaths, options);
+    return result.ok ? null : result.violation;
+  }
+  return null;
 }
 
 /**
@@ -528,6 +586,7 @@ async function executeWorkOrder(options = {}) {
           };
         }
 
+        const executing = executingWorkerTransportIdentity(workerTransport);
         const isoRes = resolveCapabilityState({
           capability_id: ISOLATION_CAPABILITY_ID,
           declared_state: isolationBundle.declared_state || "enforced",
@@ -537,6 +596,8 @@ async function executeWorkOrder(options = {}) {
           expectedAdapterVersion: isolationBundle.expectedAdapterVersion,
           expectedHostRuntimeVersion: isolationBundle.expectedHostRuntimeVersion,
           expectedProbeDigest: isolationBundle.expectedProbeDigest,
+          expectedPortId: executing.portId,
+          expectedFingerprint: executing.fingerprint,
         });
         if (!isoRes.ok || isoRes.effective_state !== "enforced") {
           return {
@@ -554,6 +615,14 @@ async function executeWorkOrder(options = {}) {
             reason: "containment-proof-required",
             isolationReported: "unavailable",
             error: "WorkerIsolation semantic evidence must carry host-observed containment results",
+          };
+        }
+        if (!isLiveIsolationProbeEvidence(isolationBundle.semantic_evidence)) {
+          return {
+            ok: false,
+            isolationReported: "unavailable",
+            reason: "containment-probe-unfulfilled",
+            error: "Vacuous blocked flags cannot authorize enforced isolation; live attempted writes are required",
           };
         }
         if (
@@ -775,7 +844,26 @@ async function executeWorkOrder(options = {}) {
         exit_code: exitCode,
         duration_ms: cmdDuration,
       });
+
+      if (exitCode !== 0 && !timedOut && !aborted) {
+        const sandboxViolation = containmentFromSandboxStderr(String(stderr), allowedPaths, {
+          workspaceRoot: authoritativeRootPath,
+          workspace_id: authoritativeWorkspace.workspace_id,
+          work_order_id: workOrder.work_order_id,
+        });
+        if (sandboxViolation) {
+          return { ok: false, violation: sandboxViolation, isolationReported };
+        }
+      }
     } else {
+      if (isolationReported === "enforced") {
+        return {
+          ok: false,
+          reason: "unconfined-spawn-refused",
+          isolationReported: "unavailable",
+          error: "enforced isolation cannot execute via unconfined local spawn",
+        };
+      }
       const outcome = await new Promise((resolve) => {
         let timer = null;
         let killTimer = null;

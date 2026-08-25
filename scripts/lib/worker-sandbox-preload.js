@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {
   confineChildEnv,
+  createSandboxDenial,
   normalizeSpawnArgs,
   normalizeExecFileArgs,
   assertAuthorizedNodeOrThrow,
@@ -92,6 +93,64 @@ if (workspaceRootEnv) {
       curr = path.dirname(curr);
     }
     return absTarget;
+  }
+
+  const capturedPolicy = Object.freeze({
+    workspaceRoot: realWorkspaceRoot,
+    allowedPaths: Object.freeze(allowedPaths.slice()),
+  });
+
+  const fdPathRegistry = new Map();
+
+  function registerFd(fd, rawPath) {
+    if (typeof fd !== "number") return;
+    if (rawPath === undefined || rawPath === null) return;
+    let targetStr = rawPath;
+    if (typeof rawPath === "object" && rawPath !== null) {
+      if (typeof rawPath.href === "string" && rawPath.protocol === "file:") {
+        try {
+          const { fileURLToPath } = require("node:url");
+          targetStr = fileURLToPath(rawPath);
+        } catch {}
+      } else if (Buffer.isBuffer(rawPath)) {
+        targetStr = rawPath.toString("utf8");
+      } else {
+        return;
+      }
+    }
+    if (typeof targetStr === "string") {
+      fdPathRegistry.set(fd, targetStr);
+    }
+  }
+
+  function unregisterFd(fd) {
+    if (typeof fd === "number") fdPathRegistry.delete(fd);
+  }
+
+  function assertFdWriteAllowed(fd, opName) {
+    if (typeof fd !== "number") return;
+    const mapped = fdPathRegistry.get(fd);
+    if (mapped === undefined) {
+      const err = new Error(`EACCES: permission denied by worker sandbox (unknown fd blocked): ${fd} [operation: ${opName || "fd"}]`);
+      err.code = "EACCES";
+      err.errno = -13;
+      err.syscall = opName || "fd";
+      throw err;
+    }
+    assertWriteAllowed(mapped, opName);
+  }
+
+  function assertMutationTargetAllowed(target, opName) {
+    if (target === undefined || target === null) return;
+    if (typeof target === "number") {
+      assertFdWriteAllowed(target, opName);
+      return;
+    }
+    if (typeof target === "object" && typeof target.fd === "number") {
+      assertFdWriteAllowed(target.fd, opName);
+      return;
+    }
+    assertWriteAllowed(target, opName);
   }
 
   function assertWriteAllowed(rawPath, opName) {
@@ -185,7 +244,7 @@ if (workspaceRootEnv) {
     assertNoShellOrThrow(options, "spawn");
     return {
       ...options,
-      env: confineChildEnv(options && options.env, process.env, PRELOAD_SCRIPT_PATH),
+      env: confineChildEnv(options && options.env, capturedPolicy, PRELOAD_SCRIPT_PATH),
     };
   }
 
@@ -254,16 +313,41 @@ if (workspaceRootEnv) {
     throw err;
   };
 
+  // Intercept worker_threads. Fail closed: do not swallow patch errors.
+  const wt = require("node:worker_threads");
+  const OrigWorker = wt.Worker;
+  const SHARE_ENV = wt.SHARE_ENV;
+
+  function confinedWorkerOptions(options) {
+    const opts = options && typeof options === "object" && !Array.isArray(options)
+      ? { ...options }
+      : {};
+    if (SHARE_ENV !== undefined && opts.env === SHARE_ENV) {
+      throw createSandboxDenial("worker SHARE_ENV blocked; live parent env is not an escape hatch", "Worker");
+    }
+    opts.env = confineChildEnv(opts.env, capturedPolicy, PRELOAD_SCRIPT_PATH);
+    const rest = Array.isArray(opts.execArgv) ? opts.execArgv : [];
+    opts.execArgv = ["--require", PRELOAD_SCRIPT_PATH, ...rest];
+    return opts;
+  }
+
+  class ConfinedWorker extends OrigWorker {
+    constructor(filename, options) {
+      super(filename, confinedWorkerOptions(options));
+    }
+  }
+  wt.Worker = ConfinedWorker;
+
   // Patch sync fs methods
   const origWriteFileSync = fs.writeFileSync;
   fs.writeFileSync = function (file, data, options) {
-    if (typeof file !== "number") assertWriteAllowed(file, "writeFileSync");
+    assertMutationTargetAllowed(file, "writeFileSync");
     return origWriteFileSync.apply(this, arguments);
   };
 
   const origAppendFileSync = fs.appendFileSync;
   fs.appendFileSync = function (file, data, options) {
-    if (typeof file !== "number") assertWriteAllowed(file, "appendFileSync");
+    assertMutationTargetAllowed(file, "appendFileSync");
     return origAppendFileSync.apply(this, arguments);
   };
 
@@ -278,7 +362,9 @@ if (workspaceRootEnv) {
     if (typeof filePath !== "number" && isWriteFlag(flags)) {
       assertWriteAllowed(filePath, "openSync");
     }
-    return origOpenSync.apply(this, arguments);
+    const fd = origOpenSync.apply(this, arguments);
+    if (typeof filePath !== "number") registerFd(fd, filePath);
+    return fd;
   };
 
   const origCreateWriteStream = fs.createWriteStream;
@@ -330,7 +416,7 @@ if (workspaceRootEnv) {
   const origTruncateSync = fs.truncateSync;
   if (origTruncateSync) {
     fs.truncateSync = function (p, len) {
-      if (typeof p !== "number") assertWriteAllowed(p, "truncateSync");
+      assertMutationTargetAllowed(p, "truncateSync");
       return origTruncateSync.apply(this, arguments);
     };
   }
@@ -364,7 +450,7 @@ if (workspaceRootEnv) {
   fs.writeFile = function (file, data, options, callback) {
     const cb = typeof options === "function" ? options : callback;
     try {
-      if (typeof file !== "number") assertWriteAllowed(file, "writeFile");
+      assertMutationTargetAllowed(file, "writeFile");
     } catch (err) {
       if (typeof cb === "function") {
         return process.nextTick(() => cb(err));
@@ -378,7 +464,7 @@ if (workspaceRootEnv) {
   fs.appendFile = function (file, data, options, callback) {
     const cb = typeof options === "function" ? options : callback;
     try {
-      if (typeof file !== "number") assertWriteAllowed(file, "appendFile");
+      assertMutationTargetAllowed(file, "appendFile");
     } catch (err) {
       if (typeof cb === "function") {
         return process.nextTick(() => cb(err));
@@ -414,6 +500,14 @@ if (workspaceRootEnv) {
         return process.nextTick(() => cb(err));
       }
       throw err;
+    }
+    if (typeof cb === "function") {
+      const args = [...arguments];
+      args[args.length - 1] = function (err, fd) {
+        if (!err && typeof filePath !== "number") registerFd(fd, filePath);
+        return cb(err, fd);
+      };
+      return origOpen.apply(this, args);
     }
     return origOpen.apply(this, arguments);
   };
@@ -496,7 +590,7 @@ if (workspaceRootEnv) {
     fs.truncate = function (p, len, callback) {
       const cb = typeof len === "function" ? len : callback;
       try {
-        if (typeof p !== "number") assertWriteAllowed(p, "truncate");
+        assertMutationTargetAllowed(p, "truncate");
       } catch (err) {
         if (typeof cb === "function") {
           return process.nextTick(() => cb(err));
@@ -558,13 +652,13 @@ if (workspaceRootEnv) {
   if (fs.promises) {
     const origPromWriteFile = fs.promises.writeFile;
     fs.promises.writeFile = async function (file, data, options) {
-      if (typeof file !== "number") assertWriteAllowed(file, "promises.writeFile");
+      assertMutationTargetAllowed(file, "promises.writeFile");
       return origPromWriteFile.apply(this, arguments);
     };
 
     const origPromAppendFile = fs.promises.appendFile;
     fs.promises.appendFile = async function (file, data, options) {
-      if (typeof file !== "number") assertWriteAllowed(file, "promises.appendFile");
+      assertMutationTargetAllowed(file, "promises.appendFile");
       return origPromAppendFile.apply(this, arguments);
     };
 
@@ -579,7 +673,8 @@ if (workspaceRootEnv) {
       if (typeof filePath !== "number" && isWriteFlag(flags)) {
         assertWriteAllowed(filePath, "promises.open");
       }
-      return origPromOpen.apply(this, arguments);
+      const handle = await origPromOpen.apply(this, arguments);
+      return wrapFileHandle(handle, filePath);
     };
 
     const origPromCopyFile = fs.promises.copyFile;
@@ -620,7 +715,7 @@ if (workspaceRootEnv) {
     const origPromTruncate = fs.promises.truncate;
     if (origPromTruncate) {
       fs.promises.truncate = async function (p, len) {
-        if (typeof p !== "number") assertWriteAllowed(p, "promises.truncate");
+        assertMutationTargetAllowed(p, "promises.truncate");
         return origPromTruncate.apply(this, arguments);
       };
     }
@@ -648,5 +743,133 @@ if (workspaceRootEnv) {
         return origPromLink.apply(this, arguments);
       };
     }
+
+    wrapPromisePathFn(fs.promises, "mkdtemp", 0);
+    wrapPromisePathFn(fs.promises, "chmod", 0);
+    wrapPromisePathFn(fs.promises, "lchmod", 0);
+    wrapPromisePathFn(fs.promises, "chown", 0);
+    wrapPromisePathFn(fs.promises, "lchown", 0);
+    wrapPromisePathFn(fs.promises, "utimes", 0);
+    wrapPromisePathFn(fs.promises, "lutimes", 0);
+    wrapPromisePathFn(fs.promises, "mkdtempDisposable", 0);
+  }
+
+  function wrapFileHandle(handle, openedPath) {
+    if (!handle || typeof handle !== "object") return handle;
+    if (typeof handle.fd === "number" && openedPath != null && typeof openedPath !== "number") {
+      registerFd(handle.fd, openedPath);
+    }
+    const wrapMethod = (name) => {
+      const orig = handle[name];
+      if (typeof orig !== "function") return;
+      try {
+        handle[name] = function (...args) {
+          assertFdWriteAllowed(handle.fd, `FileHandle.${name}`);
+          return orig.apply(handle, args);
+        };
+      } catch {
+        // Non-writable prototype method — fail closed on later fd ops via registry.
+      }
+    };
+    for (const name of ["chmod", "chown", "utimes", "truncate", "write", "writev", "writeFile", "appendFile", "createWriteStream"]) {
+      wrapMethod(name);
+    }
+    if (typeof handle.close === "function") {
+      const origClose = handle.close.bind(handle);
+      const fd = handle.fd;
+      try {
+        handle.close = function (...args) {
+          return Promise.resolve(origClose(...args)).finally(() => unregisterFd(fd));
+        };
+      } catch {}
+    }
+    return handle;
+  }
+
+  function wrapSyncPathFn(obj, name, pathIndex) {
+    const orig = obj[name];
+    if (typeof orig !== "function") return;
+    obj[name] = function (...args) {
+      assertMutationTargetAllowed(args[pathIndex], name);
+      return orig.apply(this, args);
+    };
+  }
+
+  function wrapCallbackPathFn(obj, name, pathIndex) {
+    const orig = obj[name];
+    if (typeof orig !== "function") return;
+    obj[name] = function (...args) {
+      const cb = typeof args[args.length - 1] === "function" ? args[args.length - 1] : null;
+      try {
+        assertMutationTargetAllowed(args[pathIndex], name);
+      } catch (err) {
+        if (cb) return process.nextTick(() => cb(err));
+        throw err;
+      }
+      return orig.apply(this, args);
+    };
+  }
+
+  function wrapPromisePathFn(obj, name, pathIndex) {
+    const orig = obj[name];
+    if (typeof orig !== "function") return;
+    obj[name] = async function (...args) {
+      assertMutationTargetAllowed(args[pathIndex], name);
+      return orig.apply(this, args);
+    };
+  }
+
+  wrapSyncPathFn(fs, "mkdtempSync", 0);
+  wrapSyncPathFn(fs, "chmodSync", 0);
+  wrapSyncPathFn(fs, "lchmodSync", 0);
+  wrapSyncPathFn(fs, "chownSync", 0);
+  wrapSyncPathFn(fs, "lchownSync", 0);
+  wrapSyncPathFn(fs, "utimesSync", 0);
+  wrapSyncPathFn(fs, "lutimesSync", 0);
+  wrapSyncPathFn(fs, "mkdtempDisposableSync", 0);
+  wrapSyncPathFn(fs, "fchmodSync", 0);
+  wrapSyncPathFn(fs, "fchownSync", 0);
+  wrapSyncPathFn(fs, "futimesSync", 0);
+  wrapSyncPathFn(fs, "ftruncateSync", 0);
+  wrapSyncPathFn(fs, "writeSync", 0);
+  wrapSyncPathFn(fs, "writevSync", 0);
+
+  wrapCallbackPathFn(fs, "mkdtemp", 0);
+  wrapCallbackPathFn(fs, "chmod", 0);
+  wrapCallbackPathFn(fs, "lchmod", 0);
+  wrapCallbackPathFn(fs, "chown", 0);
+  wrapCallbackPathFn(fs, "lchown", 0);
+  wrapCallbackPathFn(fs, "utimes", 0);
+  wrapCallbackPathFn(fs, "lutimes", 0);
+  wrapCallbackPathFn(fs, "fchmod", 0);
+  wrapCallbackPathFn(fs, "fchown", 0);
+  wrapCallbackPathFn(fs, "futimes", 0);
+  wrapCallbackPathFn(fs, "ftruncate", 0);
+  wrapCallbackPathFn(fs, "write", 0);
+  wrapCallbackPathFn(fs, "writev", 0);
+
+  const origCloseSync = fs.closeSync;
+  if (typeof origCloseSync === "function") {
+    fs.closeSync = function (fd) {
+      const result = origCloseSync.apply(this, arguments);
+      unregisterFd(fd);
+      return result;
+    };
+  }
+  const origClose = fs.close;
+  if (typeof origClose === "function") {
+    fs.close = function (fd, callback) {
+      const cb = typeof fd === "function" ? fd : callback;
+      const realFd = typeof fd === "function" ? undefined : fd;
+      if (typeof cb === "function") {
+        return origClose.call(this, realFd, function (err) {
+          if (!err) unregisterFd(realFd);
+          return cb(err);
+        });
+      }
+      const result = origClose.apply(this, arguments);
+      unregisterFd(realFd);
+      return result;
+    };
   }
 }

@@ -259,6 +259,8 @@ function resolveCapabilityState(input) {
     expectedAdapterVersion: input.expectedAdapterVersion,
     expectedHostRuntimeVersion: input.expectedHostRuntimeVersion,
     expectedProbeDigest: input.expectedProbeDigest,
+    expectedPortId: input.expectedPortId,
+    expectedFingerprint: input.expectedFingerprint,
     proof: input.proof,
     evidence: input.semantic_evidence,
   });

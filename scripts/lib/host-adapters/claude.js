@@ -10,6 +10,7 @@ const {
   verifyCapabilityProof,
 } = require("../capability-proof/index.js");
 const { sha256Fingerprint } = require("../canonical-json.js");
+const { isLiveIsolationAttemptTriple } = require("../worker-sandbox.js");
 const profile = require("../target-profiles/claude.js");
 
 const ADAPTER_ID = "claude";
@@ -216,6 +217,20 @@ function buildEvidence(capabilityId, probePayload) {
   };
 }
 
+const WORKER_TRANSPORT_IDENTITY_DOMAIN = "worker-transport-live-identity/v1";
+
+function stampWorkerTransportLiveIdentity(port, probeDigest) {
+  if (!port || typeof port !== "object") return;
+  port.adapter_id = ADAPTER_ID;
+  port.capability_id = "WorkerTransport";
+  port.probe_digest = probeDigest;
+  port.fingerprint = sha256Fingerprint(WORKER_TRANSPORT_IDENTITY_DOMAIN, {
+    adapter_id: ADAPTER_ID,
+    port_id: port.port_id,
+    probe_digest: probeDigest,
+  });
+}
+
 function makePort(portId, handler) {
   return {
     port_id: portId,
@@ -275,24 +290,18 @@ function buildTransports(primitives) {
       };
     }),
     WorkerTransport: makePort("claude-worker", async (input) => {
+      const isIsolation = input && (input.isolation === true || (input.probe === true && Array.isArray(input.attempts)));
+      const isCommand = input && input.command;
+      if (isIsolation && typeof primitives.workerIsolation === "function") {
+        return settlePrimitiveOutcome(primitives.workerIsolation(input));
+      }
       if (typeof primitives.worker === "function") {
         return settlePrimitiveOutcome(primitives.worker(input, { workerIsolation: primitives.workerIsolation }));
       }
-      if (typeof primitives.workerIsolation === "function" && input && (input.command || input.attempts)) {
+      if ((isIsolation || isCommand) && typeof primitives.workerIsolation === "function") {
         return settlePrimitiveOutcome(primitives.workerIsolation(input));
       }
       return { ok: true, outcome: "ok", value: { delegation: "Agent" } };
-    }),
-    WorkerIsolation: makePort("claude-worker-isolation", async (input) => {
-      if (typeof primitives.workerIsolation === "function") {
-        return settlePrimitiveOutcome(primitives.workerIsolation(input));
-      }
-      // Sin primitiva de aislamiento no hay demostración posible: fallo honesto.
-      return {
-        ok: false,
-        outcome: "error",
-        value: { reason: "no-worker-isolation-primitive" },
-      };
     }),
     ToolExecutionTransport: makePort("claude-tool", async (input) => {
       if (typeof primitives.tool === "function") {
@@ -383,11 +392,17 @@ async function executeWorkerIsolationProbe(port) {
         probe: true,
         isolation: true,
         workspace_root: workspaceRoot,
+        allowed_paths: ["allowed/**"],
         attempts,
       },
     });
     if (!outcome || outcome.ok !== true) {
       return { ok: false, reason_code: ORACLE_REASON.PROBE_NOT_OK };
+    }
+
+    const recordedAttempts = outcome.value && outcome.value.attempts;
+    if (!isLiveIsolationAttemptTriple(recordedAttempts, attempts)) {
+      return { ok: false, reason_code: ORACLE_REASON.CONTAINMENT_NOT_DEMONSTRATED };
     }
 
     // Observación autoritativa del host: existencia real de los ficheros.
@@ -405,7 +420,7 @@ async function executeWorkerIsolationProbe(port) {
       return {
         ok: false,
         reason_code: ORACLE_REASON.CONTAINMENT_NOT_DEMONSTRATED,
-        probe: { capability_id: "WorkerIsolation", observed: true, host_observed: true, containment },
+        probe: { capability_id: "WorkerIsolation", observed: true, host_observed: true, containment, attempts: recordedAttempts },
       };
     }
 
@@ -416,6 +431,7 @@ async function executeWorkerIsolationProbe(port) {
       outcome: outcome.outcome || "ok",
       semantic_oracle: "pass",
       containment,
+      attempts: recordedAttempts,
       value_digest: sha256Fingerprint("probe:observation-value", {
         value: outcome.value === undefined ? null : outcome.value,
       }),
@@ -459,7 +475,7 @@ async function createClaudeHostAdapter(options = {}) {
     // primitive exists but the capability was never demonstrated.
     const observation =
       id === "WorkerIsolation"
-        ? await executeWorkerIsolationProbe(transports[id])
+        ? await executeWorkerIsolationProbe(transports.WorkerTransport)
         : await executeLiveProbe(transports[id], id);
     if (!observation.ok) {
       capabilities[id] = "partial";
@@ -469,13 +485,16 @@ async function createClaudeHostAdapter(options = {}) {
     const expectedProbeDigest = independentExpectedProbeDigest(id, observation.probe);
     const material = buildEvidence(id, observation.probe);
     if (id === "WorkerIsolation") {
-      // La evidencia verificada es la observación VIVA del host, no el fixture:
-      // así el mismo objeto que pasa verificación de digest es el que K6a lee
-      // para extraer la contención demostrada (sin propiedades ad-hoc).
+      const wt = transports.WorkerTransport;
       material.evidence = {
         surface: "worker-isolation",
         host_observed: true,
         containment: observation.probe.containment,
+        transport: {
+          port_id: wt.port_id,
+          fingerprint: wt.fingerprint,
+        },
+        attempts: observation.probe.attempts,
       };
       material.proof = {
         ...material.proof,
@@ -494,6 +513,8 @@ async function createClaudeHostAdapter(options = {}) {
       expectedAdapterVersion: ADAPTER_VERSION,
       expectedHostRuntimeVersion: HOST_VERSION,
       expectedProbeDigest,
+      expectedPortId: id === "WorkerIsolation" ? transports.WorkerTransport.port_id : undefined,
+      expectedFingerprint: id === "WorkerIsolation" ? transports.WorkerTransport.fingerprint : undefined,
       proof: material.proof,
       evidence: material.evidence,
     });
@@ -503,7 +524,12 @@ async function createClaudeHostAdapter(options = {}) {
         ...material,
         expectedProbeDigest,
         observation: observation.probe,
+        expectedPortId: id === "WorkerIsolation" ? transports.WorkerTransport.port_id : undefined,
+        expectedFingerprint: id === "WorkerIsolation" ? transports.WorkerTransport.fingerprint : undefined,
       };
+      if (id === "WorkerTransport") {
+        stampWorkerTransportLiveIdentity(transports.WorkerTransport, material.proof.probe_digest);
+      }
     }
   }
 
@@ -512,10 +538,14 @@ async function createClaudeHostAdapter(options = {}) {
   // K2a real → K6a). Los transports no verificados quedan sin identidad.
   for (const id of TRANSPORT_CAPABILITIES) {
     const obs = probeObservations[id];
-    if (obs && obs.proof) {
-      transports[id].adapter_id = ADAPTER_ID;
-      transports[id].capability_id = id;
-      transports[id].probe_digest = obs.proof.probe_digest;
+    const port = transports[id];
+    if (obs && obs.proof && port) {
+      port.adapter_id = ADAPTER_ID;
+      port.capability_id = id;
+      port.probe_digest = obs.proof.probe_digest;
+      if (id === "WorkerTransport" && !port.fingerprint) {
+        stampWorkerTransportLiveIdentity(port, obs.proof.probe_digest);
+      }
     }
   }
 
@@ -599,6 +629,8 @@ async function verifyAllClaudeEnforcedProofs(options = {}) {
       expectedAdapterVersion: ADAPTER_VERSION,
       expectedHostRuntimeVersion: HOST_VERSION,
       expectedProbeDigest: entry.expectedProbeDigest,
+      expectedPortId: entry.expectedPortId,
+      expectedFingerprint: entry.expectedFingerprint,
       proof: entry.proof,
       evidence: entry.evidence,
     });

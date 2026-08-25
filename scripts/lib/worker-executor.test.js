@@ -19,6 +19,7 @@ const {
 
 const { computeWorkOrderId, computeWorkResultId: canonicalComputeWorkResultId } = require("./execution-identities/index.js");
 const { createEvidenceDigest, createProbeDigest } = require("./capability-proof/index.js");
+const { sha256Fingerprint } = require("./canonical-json.js");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 const DUMMY_SNAPSHOT_ID = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -57,14 +58,42 @@ function makeCanonicalWorkOrder(sourceSnapshotId = DUMMY_SNAPSHOT_ID, overrides 
   };
 }
 
-function makeIsolationProof(adapterId = "adapter-test", containmentOverrides = {}) {
+const DEFAULT_WT_PORT_ID = "port-enforced-worker";
+
+function workerTransportLiveFingerprint(adapterId, portId, probeDigest) {
+  return sha256Fingerprint("worker-transport-live-identity/v1", {
+    adapter_id: adapterId,
+    port_id: portId,
+    probe_digest: probeDigest,
+  });
+}
+
+function makeIsolationProof(adapterId = "adapter-test", containmentOverrides = {}, transport = {}) {
   const containment = {
     allowed_write: "PASS",
     undeclared_workspace_write: "BLOCKED",
     external_root_write: "BLOCKED",
     ...containmentOverrides,
   };
-  const semantic_evidence = { surface: "worker-isolation", host_observed: true, containment };
+  const port_id = transport.port_id || DEFAULT_WT_PORT_ID;
+  const probe_digest_for_fp = transport.probe_digest;
+  const fingerprint = transport.fingerprint || workerTransportLiveFingerprint(
+    adapterId,
+    port_id,
+    probe_digest_for_fp || "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  );
+  const attempts = [
+    { id: "allowed_write", attempted: true, wrote: true },
+    { id: "undeclared_workspace_write", attempted: true, wrote: false },
+    { id: "external_root_write", attempted: true, wrote: false },
+  ];
+  const semantic_evidence = {
+    surface: "worker-isolation",
+    host_observed: true,
+    containment,
+    transport: { port_id, fingerprint },
+    attempts,
+  };
   const fixture = "fixtures/WorkerIsolation.json";
   const evidence_digest = createEvidenceDigest({
     capability_id: "WorkerIsolation",
@@ -100,6 +129,8 @@ function makeIsolationProof(adapterId = "adapter-test", containmentOverrides = {
     expectedAdapterVersion: "1.0.0",
     expectedHostRuntimeVersion: "1.0.0",
     expectedProbeDigest: probe_digest,
+    expectedPortId: port_id,
+    expectedFingerprint: fingerprint,
   };
 }
 
@@ -139,7 +170,10 @@ function makeEnforcedProof(adapterId = "adapter-test", containmentOverrides = {}
     expectedHostRuntimeVersion: "1.0.0",
     expectedProbeDigest: probe_digest,
     probe_digest,
-    workerIsolation: makeIsolationProof(adapterId, containmentOverrides),
+    workerIsolation: makeIsolationProof(adapterId, containmentOverrides, {
+      port_id: DEFAULT_WT_PORT_ID,
+      probe_digest,
+    }),
   };
 }
 
@@ -273,7 +307,7 @@ test("executeWorkOrder: executes via WorkerTransport async port when provided", 
   let transportCalled = false;
   const enforcedProof = makeEnforcedProof("adapter-test");
   const mockTransport = {
-    port_id: "port-worker-transport-1",
+    port_id: "port-enforced-worker",
     adapter_id: "adapter-test",
     probe_digest: enforcedProof.probe_digest,
     kind: "worker-transport",
@@ -323,6 +357,7 @@ test("executeWorkOrder: executes command in workspace and captures WorkResult te
 
   const enforcedProof = makeEnforcedProof("adapter-e2e");
   const mockTransport = {
+    port_id: DEFAULT_WT_PORT_ID,
     adapter_id: "adapter-e2e",
     probe_digest: enforcedProof.probe_digest,
     kind: "worker-transport",
@@ -380,7 +415,7 @@ test("executeWorkOrder: captures non-zero exit code and error logs without throw
 
   const enforcedProof = makeEnforcedProof("adapter-test");
   const mockTransport = {
-    port_id: "port-failing-worker",
+    port_id: "port-enforced-worker",
     kind: "worker-transport",
     adapter_id: "adapter-test",
     probe_digest: enforcedProof.probe_digest,
@@ -500,7 +535,7 @@ test("executeWorkOrder: enforced WorkerTransport WITHOUT WorkerIsolation proof f
 
   const { workerIsolation: _omitted, ...transportOnlyProof } = makeEnforcedProof("adapter-test");
   const mockTransport = {
-    port_id: "port-no-isolation",
+    port_id: "port-enforced-worker",
     kind: "worker-transport",
     adapter_id: "adapter-test",
     probe_digest: transportOnlyProof.probe_digest,
@@ -547,7 +582,7 @@ test("executeWorkOrder: tampered WorkerIsolation evidence fails verification (wo
     },
   };
   const mockTransport = {
-    port_id: "port-tampered-iso",
+    port_id: "port-enforced-worker",
     kind: "worker-transport",
     adapter_id: "adapter-test",
     probe_digest: enforcedProof.probe_digest,
@@ -630,7 +665,7 @@ test("executeWorkOrder: fails closed when enforced isolation requested but Worke
 
   // Mismatched adapter_id on transport
   const mismatchedTransport = {
-    port_id: "port-mismatched",
+    port_id: "port-enforced-worker",
     adapter_id: "adapter-different",
     probe_digest,
     run: async () => ({ ok: true, exit_code: 0, stdout: "ok", stderr: "" }),
@@ -692,7 +727,7 @@ test("executeWorkOrder: passes signal and deadlineMs to invokeTransportAsync wit
   let receivedRequest = null;
   const enforcedProof = makeEnforcedProof("adapter-test");
   const mockTransport = {
-    port_id: "port-mock",
+    port_id: "port-enforced-worker",
     adapter_id: "adapter-test",
     probe_digest: enforcedProof.probe_digest,
     kind: "worker-transport",
@@ -779,7 +814,7 @@ test("executeWorkOrder: handles abort signal and returns recovery descriptor", a
 
   const enforcedProof = makeEnforcedProof("adapter-test");
   const mockTransport = {
-    port_id: "port-abort-worker",
+    port_id: "port-enforced-worker",
     kind: "worker-transport",
     adapter_id: "adapter-test",
     probe_digest: enforcedProof.probe_digest,
@@ -821,7 +856,7 @@ test("executeWorkOrder: fails pre-flight if declaredTargets violates containment
 
   const enforcedProof = makeEnforcedProof("adapter-test");
   const mockTransport = {
-    port_id: "port-pf-worker",
+    port_id: "port-enforced-worker",
     kind: "worker-transport",
     adapter_id: "adapter-test",
     probe_digest: enforcedProof.probe_digest,
@@ -924,6 +959,7 @@ test("executeWorkOrder: halts fail-closed on post-flight containment violation",
 
   const enforcedProof = makeEnforcedProof("adapter-e2e");
   const mockTransport = {
+    port_id: DEFAULT_WT_PORT_ID,
     adapter_id: "adapter-e2e",
     probe_digest: enforcedProof.probe_digest,
     kind: "worker-transport",
@@ -977,7 +1013,7 @@ test("executeWorkOrder: captures timeout when budget.wall_time_ms is exceeded", 
 
   const enforcedProof = makeEnforcedProof("adapter-test");
   const mockTransport = {
-    port_id: "port-timeout-worker",
+    port_id: "port-enforced-worker",
     kind: "worker-transport",
     adapter_id: "adapter-test",
     probe_digest: enforcedProof.probe_digest,
@@ -1021,7 +1057,7 @@ test("executeWorkOrder: logs error when transport reports execution error", asyn
 
   const enforcedProof = makeEnforcedProof("adapter-test");
   const mockTransport = {
-    port_id: "port-enoent-worker",
+    port_id: "port-enforced-worker",
     kind: "worker-transport",
     adapter_id: "adapter-test",
     probe_digest: enforcedProof.probe_digest,
@@ -1136,7 +1172,7 @@ test("invokeTransportAsync: awaits cancelPort settlement barrier before returnin
   let terminationAcknowledged = false;
 
   const mockPort = {
-    port_id: "port-settlement-test",
+    port_id: "port-enforced-worker",
     run: () => new Promise((resolve) => setTimeout(() => resolve({ ok: true, exit_code: 0 }), 500)),
     cancel: async () => {
       await new Promise((r) => setTimeout(r, 50));
@@ -1163,7 +1199,7 @@ test("executeWorkOrder: preserves exit_code, stderr, and stdout telemetry from f
 
   const enforcedProof = makeEnforcedProof("adapter-failing");
   const failingTransport = {
-    port_id: "port-failing-worker",
+    port_id: "port-enforced-worker",
     adapter_id: "adapter-failing",
     probe_digest: enforcedProof.probe_digest,
     kind: "worker-transport",
@@ -1420,6 +1456,61 @@ test("generateUnifiedDiff: patches pass git apply --check and git apply with exa
   execSync("git apply mode-content.patch", { cwd: gitDir, stdio: "pipe" });
 
   assert.equal(fs.readFileSync(path.join(gitDir, "run.sh"), "utf8").replace(/\r\n/g, "\n"), "#!/bin/sh\necho updated\n");
+});
+
+test("executeWorkOrder: commands refuse unless isolationReported=enforced; G≠F invalidates; non-command MAY complete", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-exec-req008-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: DUMMY_SNAPSHOT_ID });
+  t.after(() => disposeWorkspace(ws));
+  const workOrder = makeCanonicalWorkOrder(DUMMY_SNAPSHOT_ID, {
+    operation: "verify",
+    ownership: { owner: "agent-test", mode: "shared" },
+    allowed_paths: ["**"],
+  });
+
+  for (const state of ["partial", "instructional", "unavailable"]) {
+    const refused = await executeWorkOrder({
+      workOrder,
+      workspace: ws,
+      command: process.execPath,
+      args: ["-e", "console.log('no')"],
+      isolationCapability: state,
+    });
+    assert.equal(refused.ok, false, state);
+    assert.notEqual(refused.isolationReported, "enforced", state);
+    assert.ok(
+      refused.reason === "subprocess-requires-enforced-isolation" ||
+        refused.reason === "strict-isolation-unfulfilled",
+      state
+    );
+  }
+
+  const nonCommand = await executeWorkOrder({
+    workOrder,
+    workspace: ws,
+    isolationCapability: "partial",
+  });
+  assert.equal(nonCommand.ok, true);
+  assert.notEqual(nonCommand.isolationReported, "enforced");
+
+  const enforcedProof = makeEnforcedProof("adapter-test");
+  const otherPort = {
+    port_id: "port-G",
+    kind: "worker-transport",
+    adapter_id: "adapter-test",
+    probe_digest: enforcedProof.probe_digest,
+    run: async () => ({ ok: true, exit_code: 0, stdout: "must not run", stderr: "" }),
+  };
+  const mismatch = await executeWorkOrder({
+    workOrder,
+    workspace: ws,
+    transports: { worker: otherPort },
+    command: "runner",
+    ...enforcedProof,
+  });
+  assert.equal(mismatch.ok, false);
+  assert.notEqual(mismatch.isolationReported, "enforced");
 });
 
 

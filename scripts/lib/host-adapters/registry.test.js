@@ -2,8 +2,6 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const fs = require("node:fs");
-const path = require("node:path");
 
 const {
   listActivatedRealAdapters,
@@ -21,30 +19,7 @@ const {
   ADAPTER_ID,
   TRANSPORT_CAPABILITIES,
 } = require("./claude.js");
-
-/**
- * Primitiva de aislamiento real: honra una frontera de sandbox que solo
- * permite escrituras dentro de `allowed/` (igual que en claude.test.js).
- */
-function makeSandboxedIsolationPrimitive() {
-  return async (input) => {
-    if (!input || input.isolation !== true || !Array.isArray(input.attempts)) {
-      return { ok: false };
-    }
-    const attempts = [];
-    for (const attempt of input.attempts) {
-      const allowedRoot = path.join(input.workspace_root, "allowed") + path.sep;
-      if (attempt.path.startsWith(allowedRoot)) {
-        fs.mkdirSync(path.dirname(attempt.path), { recursive: true });
-        fs.writeFileSync(attempt.path, attempt.content);
-        attempts.push({ id: attempt.id, wrote: true });
-      } else {
-        attempts.push({ id: attempt.id, wrote: false, blocked: true });
-      }
-    }
-    return { ok: true, value: { attempts } };
-  };
-}
+const { makeSandboxedIsolationPrimitive } = require("../worker-sandbox.js");
 
 test("activated real adapters list contains exactly claude; others inactive; conformance host not counted", () => {
   assert.deepEqual(listActivatedRealAdapters(), ["claude"]);
