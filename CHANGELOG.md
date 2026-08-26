@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.48.3] - 2026-08-26
+
+### Fixed
+- **Cierre de invariantes K4b (`k4b-mode-only-and-baseline-projection`)**:
+  - **Mode-only fail-closed**: un diff solo-modo sobre un path ausente aborta con `MALFORMED_UNIFIED_DIFF`; si el `old mode` no coincide con el de la base autorizada (default `100644`) aborta con `INVALID_FILE_MODE`. No se congela Candidate ni se materializan archivos fantasma.
+  - **Baseline graph-bound**: el orchestrator ya no rellena `baseline.executionGraph` con el Graph shadow. Una baseline no canónica y sin artefactos propios produce `INVALID_COMPARISON_PROJECTION` en telemetría; la orquestación sigue `ok: true` (REQ-006). El E2E usa una proyección canónica de siete dimensiones.
+  - Ciclo SDD completo (ruta bugfix, 4R approved, 0 hallazgos). Verify: 49/49 focales y `npm test` en verde. Archivado en `openspec/changes/archive/2026-08-26-k4b-mode-only-and-baseline-projection/`.
+
 ## [2.48.2] - 2026-08-26
 
 ### Fixed
