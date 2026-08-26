@@ -1818,6 +1818,40 @@ new mode 100755
   assert.notEqual(result.candidate.candidate_id, unchanged.candidate.candidate_id);
 });
 
+test("REQ-repair-shadow-010: mode-only patch on nonexistent path rejects MALFORMED_UNIFIED_DIFF", async () => {
+  const { integrateWorkResultPatches } = require("./patch-integrator.js");
+  const files = { "src/app.js": "const a = 1;\n" };
+  const sourceSnapshot = makePhase1Snapshot(files);
+  const modeOnly = `diff --git a/src/ghost.js b/src/ghost.js
+old mode 100644
+new mode 100755
+`;
+  const result = await integrateWorkResultPatches(sourceSnapshot, [makePhase2WorkResult(sourceSnapshot, modeOnly)], {
+    files,
+    freeze: true,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "MALFORMED_UNIFIED_DIFF");
+  assert.equal(result.candidate, undefined, "freezeCandidate must not be invoked");
+});
+
+test("REQ-repair-shadow-010: mode-only patch with mismatched old mode rejects INVALID_FILE_MODE", async () => {
+  const { integrateWorkResultPatches } = require("./patch-integrator.js");
+  const files = { "src/app.js": "const a = 1;\n" };
+  const sourceSnapshot = makePhase1Snapshot(files);
+  const modeOnly = `diff --git a/src/app.js b/src/app.js
+old mode 100755
+new mode 100755
+`;
+  const result = await integrateWorkResultPatches(sourceSnapshot, [makePhase2WorkResult(sourceSnapshot, modeOnly)], {
+    files,
+    freeze: true,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "INVALID_FILE_MODE");
+  assert.equal(result.candidate, undefined, "freezeCandidate must not be invoked");
+});
+
 test("REQ-repair-shadow-011: ancestor-descendant overlap is permitted; incomparable diamond fails", async (t) => {
   const { orchestrateRepairShadow } = require("./orchestrator.js");
   const { createPolicySnapshot } = require("../execution-graph/index.js");
@@ -1979,6 +2013,27 @@ test("REQ-repair-shadow-006: projection uses topological node_id and rejects non
   );
   assert.equal(invalid.reason_code, "INVALID_COMPARISON_PROJECTION");
   assert.equal(invalid.match, false);
+});
+
+test("REQ-repair-shadow-006: orchestrator does not substitute live graph for partial baseline stub", async (t) => {
+  const { orchestrateRepairShadow } = require("./orchestrator.js");
+  const { createPolicySnapshot } = require("../execution-graph/index.js");
+  const files = { "src/app.js": "const a = 1;\n" };
+  const sourceSnapshot = makePhase1Snapshot(files);
+  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-baseline-authority"] });
+  const graph = compileRepairGraph(sourceSnapshot, [makeRepairNode("n1", [], ["src/app.js"], "ev-1")], policySnapshot);
+  mockSuccessfulExecute(t, sourceSnapshot, { n1: "" });
+  const result = await orchestrateRepairShadow(graph, {
+    sourceSnapshot,
+    files,
+    isolationCapability: "enforced",
+    policySnapshot,
+    store: makeTempFileStore(t),
+    baselineResult: { steps: ["n1"], diff_hash: "sha256:dummy" },
+  });
+  assert.equal(result.ok, true, result.error);
+  assert.equal(result.shadow_comparison.reason_code, "INVALID_COMPARISON_PROJECTION");
+  assert.equal(result.shadow_comparison.match, false);
 });
 
 test("REQ-repair-shadow-009: one Candidate persists N records; byte-identical persist is idempotent; legacy layout rejected", async (t) => {

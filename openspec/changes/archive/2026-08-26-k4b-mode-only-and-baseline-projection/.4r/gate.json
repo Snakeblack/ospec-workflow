@@ -1,0 +1,200 @@
+{
+  "status": "approved",
+  "schema_version": 1,
+  "classification": "normal",
+  "evidence": {
+    "schema_version": 1,
+    "fingerprint": "sha256:924438b71d6bc180244df3d291cec6c0e7687eca7c70e3157beddf0a154d5cec",
+    "sources": {
+      "paths": [
+        "scripts/k4b-repair-shadow-e2e.test.js",
+        "scripts/lib/repair-shadow/index.test.js",
+        "scripts/lib/repair-shadow/orchestrator.js",
+        "scripts/lib/repair-shadow/patch-integrator.js"
+      ],
+      "capabilities": [
+        "runtime"
+      ],
+      "operation_types": [
+        "modify"
+      ],
+      "dependencies": [],
+      "facts": [
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime"
+        }
+      ]
+    }
+  },
+  "generalist": {
+    "status": "needs-specialist",
+    "specialists": [
+      "resilience"
+    ],
+    "reason": "signals=diff-error-flow;dimensions=resilience"
+  },
+  "depth": {
+    "review": "targeted"
+  },
+  "escalation_reason": null,
+  "dimensions": {
+    "risk": {
+      "selected": false,
+      "reasons": [
+        {
+          "code": "no-risk-signal",
+          "source": "classifier",
+          "detail": "No positive signal",
+          "precedence": 5
+        }
+      ]
+    },
+    "reliability": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime",
+          "precedence": 5
+        }
+      ]
+    },
+    "resilience": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=diff-error-flow;dimensions=resilience",
+          "precedence": 3
+        }
+      ]
+    },
+    "readability": {
+      "selected": false,
+      "reasons": [
+        {
+          "code": "no-readability-signal",
+          "source": "classifier",
+          "detail": "No positive signal",
+          "precedence": 5
+        }
+      ]
+    }
+  },
+  "lineage": {
+    "schema_version": 1,
+    "lineage_id": "sha256:a9bb5b4f7ecc7a801e17a3b515e116a1f2046ef78ff93224499b86b7845d90d8",
+    "generation": 1,
+    "predecessor_lineage_id": null,
+    "recovery": null,
+    "revision": 5,
+    "status": "approved",
+    "genesis": {
+      "candidate": {
+        "projection": "workspace",
+        "base_tree": "8d32a4c9f168d0db0011dba03a4600d6f79b571c",
+        "candidate_tree": "workspace-uncommitted",
+        "paths": [
+          "scripts/k4b-repair-shadow-e2e.test.js",
+          "scripts/lib/repair-shadow/index.test.js",
+          "scripts/lib/repair-shadow/orchestrator.js",
+          "scripts/lib/repair-shadow/patch-integrator.js"
+        ],
+        "diff_hash": "sha256:a3fa60bbe7999f623c8f61b94209bb9f5f47c5d45350276055abf019f51af734",
+        "paths_digest": "sha256:10e63cefadb17e5734c658f9f03fedcb2e3bda391a7f7f62503172f06e68d692",
+        "authored_lines": 120,
+        "original_changed_lines": 139
+      },
+      "candidate_id": "sha256:b4d2088a33e3656552d1fded5700d7b601e815f4fe70239b3164056038093dac",
+      "paths": [
+        "scripts/k4b-repair-shadow-e2e.test.js",
+        "scripts/lib/repair-shadow/index.test.js",
+        "scripts/lib/repair-shadow/orchestrator.js",
+        "scripts/lib/repair-shadow/patch-integrator.js"
+      ],
+      "classification": "normal",
+      "selected_dimensions": [
+        "reliability",
+        "resilience"
+      ],
+      "evidence_fingerprint": "sha256:924438b71d6bc180244df3d291cec6c0e7687eca7c70e3157beddf0a154d5cec",
+      "original_changed_lines": 139,
+      "authored_lines": 120
+    },
+    "current_candidate_id": "sha256:b4d2088a33e3656552d1fded5700d7b601e815f4fe70239b3164056038093dac",
+    "current_candidate": {
+      "projection": "workspace",
+      "base_tree": "8d32a4c9f168d0db0011dba03a4600d6f79b571c",
+      "candidate_tree": "workspace-uncommitted",
+      "paths": [
+        "scripts/k4b-repair-shadow-e2e.test.js",
+        "scripts/lib/repair-shadow/index.test.js",
+        "scripts/lib/repair-shadow/orchestrator.js",
+        "scripts/lib/repair-shadow/patch-integrator.js"
+      ],
+      "diff_hash": "sha256:a3fa60bbe7999f623c8f61b94209bb9f5f47c5d45350276055abf019f51af734",
+      "paths_digest": "sha256:10e63cefadb17e5734c658f9f03fedcb2e3bda391a7f7f62503172f06e68d692",
+      "authored_lines": 120,
+      "original_changed_lines": 139
+    },
+    "lenses": {
+      "risk": {
+        "selected": false,
+        "status": "skipped",
+        "request_id": null,
+        "result_digest": null,
+        "result": null,
+        "operation": null
+      },
+      "reliability": {
+        "selected": true,
+        "status": "completed",
+        "request_id": "lens-reliability-b9aff526c8710555",
+        "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+        "result": {
+          "findings": []
+        },
+        "operation": null,
+        "result_request_id": "lens-reliability-b9aff526c8710555"
+      },
+      "resilience": {
+        "selected": true,
+        "status": "completed",
+        "request_id": "lens-resilience-e76fb7891faa345b",
+        "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+        "result": {
+          "findings": []
+        },
+        "operation": null,
+        "result_request_id": "lens-resilience-e76fb7891faa345b"
+      },
+      "readability": {
+        "selected": false,
+        "status": "skipped",
+        "request_id": null,
+        "result_digest": null,
+        "result": null,
+        "operation": null
+      }
+    },
+    "findings": [],
+    "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+    "correction_budget": {
+      "limit_lines": 70,
+      "used_lines": 0,
+      "failed_attempts": 0,
+      "max_failed_attempts": 3
+    },
+    "correction_history": [],
+    "validation_history": [],
+    "follow_ups": [],
+    "pending_operation": null,
+    "pending_correction": null,
+    "terminal_reason": "no-unresolved-blocking-findings"
+  },
+  "findings_summary": "0 BLOCKER, 0 CRITICAL, 0 WARNING, 0 SUGGESTION"
+}

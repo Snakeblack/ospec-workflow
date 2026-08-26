@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "change": "k4b-mode-only-and-baseline-projection",
+  "source_fingerprint": "sha256:cdc10766960e66f962addb9cb69c038c211c499bdf05bf53e67544b01da39f1c",
+  "spec_writes": [],
+  "adr_promotions": [],
+  "archive_inventory": [
+    ".4r/build-evidence.js",
+    ".4r/decision.json",
+    ".4r/diff.tracked.patch",
+    ".4r/evidence.json",
+    ".4r/findings-summary.json",
+    ".4r/freeze-lineage.js",
+    ".4r/gate.json",
+    ".4r/lens-reliability.json",
+    ".4r/lens-resilience.json",
+    ".4r/lineage.json",
+    ".4r/record-lenses.js",
+    ".4r/request-ids.json",
+    "apply-progress.md",
+    "archive-report.md",
+    "exploration.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

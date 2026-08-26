@@ -199,13 +199,28 @@ test("E2E: N1 multiply() propagates to N2 through real K6a workspaces", async (t
     return originalMaterialize.apply(this, args);
   });
 
-  const fixedBaseline = {
-    steps: ["n1-helper", "n2-index"],
-    diff_hash: "sha256:dummy",
-    obligations: ["ob1", "ob2"],
-    invariants: ["inv-log-output", "inv-pure-math"],
-    inventory: ["src/helper.js", "src/index.js"],
-  };
+  const fixedBaseline = buildComparisonProjection({
+    executionGraph: graph,
+    candidate: {},
+    workResults: [],
+    graphTelemetry: {},
+  });
+  assert.equal(fixedBaseline.kind, "repair-shadow-comparison-projection/v1");
+  const requiredDimensions = [
+    "steps",
+    "dependencies",
+    "diffs",
+    "inventory",
+    "obligations",
+    "invariants",
+    "execution_metrics",
+  ];
+  for (const dim of requiredDimensions) {
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(fixedBaseline, dim),
+      `canonical baseline projection must include ${dim}`
+    );
+  }
 
   const store = makeTempFileStore(t, tmpBase);
   const beforeProduction = snapshotProductionSurfaces(REPO_ROOT, tmpBase);
@@ -263,6 +278,11 @@ test("E2E: N1 multiply() propagates to N2 through real K6a workspaces", async (t
   assert.equal(result.candidate.candidate_id, computeCandidateId(result.candidate));
   assert.equal(result.candidate.base_tree, baseTreeDigest, "freeze must stay anchored to original SourceSnapshot");
   assert.ok(result.shadow_comparison);
+  assert.notEqual(
+    result.shadow_comparison.reason_code,
+    "INVALID_COMPARISON_PROJECTION",
+    "graph-bound canonical baseline must not yield INVALID_COMPARISON_PROJECTION"
+  );
   const shiftedTelemetry = Object.fromEntries(
     Object.entries(result.graph_telemetry || {}).map(([id, tel]) => [
       id,

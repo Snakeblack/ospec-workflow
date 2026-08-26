@@ -1,0 +1,44 @@
+{
+  "evidence": {
+    "schema_version": 1,
+    "classification": "normal",
+    "fingerprint": "sha256:924438b71d6bc180244df3d291cec6c0e7687eca7c70e3157beddf0a154d5cec",
+    "sources": {
+      "paths": [
+        "scripts/k4b-repair-shadow-e2e.test.js",
+        "scripts/lib/repair-shadow/index.test.js",
+        "scripts/lib/repair-shadow/orchestrator.js",
+        "scripts/lib/repair-shadow/patch-integrator.js"
+      ],
+      "capabilities": [
+        "runtime"
+      ],
+      "operation_types": [
+        "modify"
+      ],
+      "dependencies": [],
+      "facts": [
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime"
+        }
+      ]
+    }
+  },
+  "candidate": {
+    "projection": "workspace",
+    "base_tree": "8d32a4c9f168d0db0011dba03a4600d6f79b571c",
+    "candidate_tree": "workspace-uncommitted",
+    "paths": [
+      "scripts/k4b-repair-shadow-e2e.test.js",
+      "scripts/lib/repair-shadow/index.test.js",
+      "scripts/lib/repair-shadow/orchestrator.js",
+      "scripts/lib/repair-shadow/patch-integrator.js"
+    ],
+    "diff_hash": "sha256:a3fa60bbe7999f623c8f61b94209bb9f5f47c5d45350276055abf019f51af734",
+    "paths_digest": "sha256:10e63cefadb17e5734c658f9f03fedcb2e3bda391a7f7f62503172f06e68d692",
+    "authored_lines": 120,
+    "original_changed_lines": 139
+  }
+}

@@ -568,6 +568,27 @@ async function integrateWorkResultPatches(sourceSnapshot, workResults = [], opti
       const countOverlap = validateHunkCountsAndOverlaps(fd);
       if (!countOverlap.ok) return countOverlap;
 
+      const isCreate = fd.oldPath === "/dev/null" || Boolean(fd.newFileMode);
+      const isDelete = fd.newPath === "/dev/null" || Boolean(fd.deletedFileMode);
+      const isModeOnly = fd.hunks.length === 0 && fd.oldMode && fd.newMode && !isCreate && !isDelete;
+      if (isModeOnly) {
+        if (!candidateFiles.has(normTarget)) {
+          return {
+            ok: false,
+            error: `Mode-only patch targets nonexistent path: ${normTarget}`,
+            reason_code: "MALFORMED_UNIFIED_DIFF",
+          };
+        }
+        const effectiveMode = fileModes[normTarget] ?? "100644";
+        if (fd.oldMode !== effectiveMode) {
+          return {
+            ok: false,
+            error: `Mode-only patch old mode ${fd.oldMode} does not match authorized base mode ${effectiveMode}`,
+            reason_code: "INVALID_FILE_MODE",
+          };
+        }
+      }
+
       const oldContent = candidateFiles.has(fd.targetPath) ? candidateFiles.get(fd.targetPath) : "";
       const contextDeletion = validateContextAndDeletion(oldContent, fd);
       if (!contextDeletion.ok) return contextDeletion;
