@@ -38,6 +38,7 @@ const {
   compileWorkOrders,
   compileWorkOrdersV1,
   compileWorkOrdersV2,
+  defaultPathInventory,
 } = require("./work-order-compiler.js");
 
 const {
@@ -78,6 +79,7 @@ module.exports = {
   compileWorkOrders,
   compileWorkOrdersV1,
   compileWorkOrdersV2,
+  defaultPathInventory,
 
   // Replay
   topologicalSort,

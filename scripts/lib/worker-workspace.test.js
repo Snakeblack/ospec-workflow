@@ -37,7 +37,7 @@ function makeCanonicalSnapshot(repository_id, files, overrides = {}) {
 }
 
 function makeCanonicalWorkOrder(snapshot, overrides = {}) {
-  const { capsule_inputs, environment, ...validOverrides } = overrides;
+  const { environment, ...validOverrides } = overrides;
   const wo = {
     schema_version: 2,
     kind: "work-order/v2",
@@ -50,6 +50,7 @@ function makeCanonicalWorkOrder(snapshot, overrides = {}) {
     dependencies: [],
     ownership: { owner: "agent-test", mode: "exclusive" },
     allowed_paths: ["src/**"],
+    capsule_inputs: ["src/index.js"],
     invariants: ["inv-1"],
     required_evidence: ["ev-1"],
     budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
@@ -354,7 +355,6 @@ test("materializeSourceSnapshot: materializes canonical SourceSnapshot v1 with d
   });
 
   const capsule = await materializeSourceSnapshot(ws, workOrder, canonicalSnapshot, {
-    capsule_inputs: ["src/index.js", "package.json"],
     files: filesMap,
   });
 
@@ -386,7 +386,6 @@ test("materializeSourceSnapshot: fails closed when declared capsule_input is mis
   await assert.rejects(
     async () => {
       await materializeSourceSnapshot(ws, workOrder, canonicalSnapshot, {
-        capsule_inputs: ["missing/input.js"],
         files: {},
       });
     },
@@ -457,15 +456,14 @@ test("materializeSourceSnapshot: projects declared dependencies and yields deter
   const workOrder = makeCanonicalWorkOrder(canonicalSnapshot, {
     dependencies: ["sha256:4444444444444444444444444444444444444444444444444444444444444444"],
     allowed_paths: ["src/**"],
+    capsule_inputs: ["src/index.js", "package.json"],
     environment: { TEST_ENV: "true" },
   });
 
   const capsule1 = await materializeSourceSnapshot(ws1, workOrder, canonicalSnapshot, {
-    capsule_inputs: ["src/index.js", "package.json"],
     files: filesMap,
   });
   const capsule2 = await materializeSourceSnapshot(ws2, workOrder, canonicalSnapshot, {
-    capsule_inputs: ["src/index.js", "package.json"],
     files: filesMap,
   });
 
@@ -497,10 +495,10 @@ test("materializeSourceSnapshot: supports array-based options.files format", asy
   const workOrder = makeCanonicalWorkOrder(canonicalSnapshot, {
     dependencies: ["sha256:5555555555555555555555555555555555555555555555555555555555555555"],
     allowed_paths: ["src/**"],
+    capsule_inputs: ["src/main.js"],
   });
 
   const capsule = await materializeSourceSnapshot(ws, workOrder, canonicalSnapshot, {
-    capsule_inputs: ["src/main.js"],
     files: filesArray,
   });
   assert.ok(fs.existsSync(path.join(ws.root_path, "src", "main.js")));
@@ -564,16 +562,16 @@ test("materializeSourceSnapshot: rejects dependency paths containing traversal s
   const workOrder = makeCanonicalWorkOrder(canonicalSnapshot, {
     capsule_inputs: ["../escaped.txt"],
     allowed_paths: ["src/**"],
+    work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
   });
 
   await assert.rejects(
     async () => {
       await materializeSourceSnapshot(ws, workOrder, canonicalSnapshot, {
-        capsule_inputs: ["../escaped.txt"],
         files: { "../escaped.txt": "evil content" },
       });
     },
-    /traversal/i
+    /traversal|INVALID_SCHEMA|invalid path|capsule/i
   );
 });
 
@@ -697,6 +695,60 @@ test("inspectWorkspace: throws fail-closed error on dangling symlink", async (t)
     },
     /Unreadable or dangling symlink/i
   );
+});
+
+test("REQ-worker-isolation-002: derived file map is intersected with capsule_inputs", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-intersect-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const original = { "src/app.js": "const a = 1;\n", "README.md": "# original\n" };
+  const derived = { "src/app.js": "const a = 2;\n", "README.md": "# derived\n" };
+  const snapshot = makeCanonicalSnapshot("repo-intersect", original);
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: snapshot.source_snapshot_id });
+  const workOrder = makeCanonicalWorkOrder(snapshot, {
+    capsule_inputs: ["src/app.js"],
+    allowed_paths: ["src/**"],
+  });
+
+  const capsule = await materializeSourceSnapshot(ws, workOrder, snapshot, {
+    effectiveBase: {
+      source_snapshot_id: snapshot.source_snapshot_id,
+      tree_digest: computeTreeDigest(derived),
+      files: derived,
+    },
+    capsule_inputs: ["src/app.js", "README.md"],
+    inputs: ["README.md"],
+  });
+
+  assert.equal(fs.readFileSync(path.join(ws.root_path, "src", "app.js"), "utf8"), "const a = 2;\n");
+  assert.equal(fs.existsSync(path.join(ws.root_path, "README.md")), false);
+  assert.deepEqual(capsule.capsule_inputs, ["src/app.js"]);
+});
+
+test("REQ-worker-isolation-002: capsule input missing from derived map fails closed before writes", async (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-missing-derived-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+
+  const original = { "src/app.js": "const a = 1;\n" };
+  const derived = { "src/app.js": "const a = 2;\n" };
+  const snapshot = makeCanonicalSnapshot("repo-missing-derived", original);
+  const ws = await createWorkspace({ baseDir, source_snapshot_id: snapshot.source_snapshot_id });
+  const workOrder = makeCanonicalWorkOrder(snapshot, {
+    capsule_inputs: ["src/app.js", "lib/absent.js"],
+    allowed_paths: ["src/**", "lib/**"],
+  });
+
+  await assert.rejects(
+    () => materializeSourceSnapshot(ws, workOrder, snapshot, {
+      effectiveBase: {
+        source_snapshot_id: snapshot.source_snapshot_id,
+        tree_digest: computeTreeDigest(derived),
+        files: derived,
+      },
+    }),
+    /missing.*input/i
+  );
+  assert.equal(fs.existsSync(path.join(ws.root_path, "src", "app.js")), false);
 });
 
 

@@ -187,6 +187,45 @@ function assertPlainObjectField(value, fieldName) {
   return value;
 }
 
+const CAPSULE_GLOB_META = /[*?\[]/;
+
+function isConcreteRelativeCapsulePath(value) {
+  if (typeof value !== "string" || value.length < 1) return false;
+  if (value.includes("..")) return false;
+  if (value.startsWith("/") || value.startsWith("\\") || /^[A-Za-z]:/.test(value)) return false;
+  if (value.includes("\\")) return false;
+  if (CAPSULE_GLOB_META.test(value)) return false;
+  return true;
+}
+
+function normalizeCapsuleInputs(raw, fieldName = "capsule_inputs") {
+  if (raw === undefined) {
+    const err = new Error(`computeWorkOrderId requires ${fieldName} array`);
+    err.code = "empty-capsule-inputs";
+    throw err;
+  }
+  if (!Array.isArray(raw)) {
+    const err = new Error(`${fieldName} must be an array`);
+    err.code = "invalid-capsule-inputs";
+    throw err;
+  }
+  if (raw.length === 0) {
+    const err = new Error(`${fieldName} must contain at least one concrete relative path`);
+    err.code = "empty-capsule-inputs";
+    throw err;
+  }
+  const unique = new Set();
+  for (const item of raw) {
+    if (!isConcreteRelativeCapsulePath(item)) {
+      const err = new Error(`${fieldName} contains an invalid path: ${item}`);
+      err.code = "invalid-capsule-inputs";
+      throw err;
+    }
+    unique.add(item.replace(/\\/g, "/"));
+  }
+  return [...unique].sort();
+}
+
 function isRelationSelector(value) {
   return (
     value &&
@@ -401,6 +440,12 @@ function computeWorkOrderId(workOrder) {
     };
   }
 
+  let capsuleInputs;
+  if (isV2) {
+    const rawCapsule = workOrder.capsuleInputs !== undefined ? workOrder.capsuleInputs : workOrder.capsule_inputs;
+    capsuleInputs = normalizeCapsuleInputs(rawCapsule, "capsule_inputs");
+  }
+
   const canonicalPayload = {
     source_snapshot_id: sourceSnapshotId,
     node_id: nodeId,
@@ -413,6 +458,7 @@ function computeWorkOrderId(workOrder) {
     invariants: [...invariants].sort(),
     required_evidence: [...requiredEvidence].sort(),
     budget: budget,
+    ...(capsuleInputs !== undefined ? { capsule_inputs: capsuleInputs } : {}),
     ...(clarificationContext !== undefined ? { clarification_context: clarificationContext } : {})
   };
 
@@ -1167,6 +1213,8 @@ module.exports = {
   EXPECTED_KINDS,
   validateCandidateV2,
   isWorkOrderV2,
+  isConcreteRelativeCapsulePath,
+  normalizeCapsuleInputs,
   computeSourceSnapshotId,
   computeWorkOrderId,
   computeWorkResultId,

@@ -250,6 +250,36 @@ test("work-order versions validate only their own fixture families and reject au
   assert.equal(sourceSnapshotPattern.test(uppercaseProvenance.source_snapshot_id), false);
 });
 
+test("REQ-kernel-contract-schemas-023: WorkOrder v2 requires closed concrete capsule_inputs", () => {
+  const schemaV2 = loadWorkOrderSchema(2);
+  const valid = JSON.parse(
+    fs.readFileSync(path.join(ROOT, "schemas", "kernel", "work-order", "fixtures", "valid", "v2-minimal.json"), "utf8")
+  );
+  const validResult = validateInstance(schemaV2, valid);
+  assert.equal(validResult.valid, true, `valid v2 capsule_inputs must pass: ${JSON.stringify(validResult.errors)}`);
+  assert.deepEqual(valid.capsule_inputs, ["src/app.js"]);
+
+  const negatives = [
+    ["v2-missing-capsule-inputs.json", "required"],
+    ["v2-empty-capsule-inputs.json", "minItems"],
+    ["v2-non-array-capsule-inputs.json", "type"],
+    ["v2-glob-capsule-inputs.json", "pattern"],
+    ["v2-traversal-capsule-inputs.json", "pattern"],
+    ["v2-absolute-capsule-inputs.json", "pattern"],
+  ];
+  for (const [name, expectedRule] of negatives) {
+    const fixture = JSON.parse(
+      fs.readFileSync(path.join(ROOT, "schemas", "kernel", "work-order", "fixtures", "invalid", name), "utf8")
+    );
+    const result = validateInstance(schemaV2, fixture);
+    assert.equal(result.valid, false, `${name} must fail closed`);
+    assert.ok(
+      result.errors.some((error) => String(error.path).includes("capsule_inputs") && error.rule === expectedRule),
+      `${name} must identify capsule_inputs via ${expectedRule}: ${JSON.stringify(result.errors)}`
+    );
+  }
+});
+
 test("work-order v1 historical schema and fixture snapshot remain pinned", () => {
   const v1Paths = [
     "schemas/kernel/work-order/v1.schema.json",

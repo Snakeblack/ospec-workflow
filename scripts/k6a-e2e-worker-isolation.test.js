@@ -133,6 +133,7 @@ function makeCanonicalWorkOrder(sourceSnapshotId = "sha256:aaaaaaaaaaaaaaaaaaaaa
     allowed_paths: overrides.allowed_paths || ["**"],
     invariants: overrides.invariants || [],
     required_evidence: overrides.required_evidence || [],
+    capsule_inputs: overrides.capsule_inputs || ["src/app.js"],
     budget: overrides.budget || {
       model_turns: 5,
       patches: 3,
@@ -359,6 +360,10 @@ test("K6a E2E Happy Path: True K3 -> K4a -> K6a -> K3 Pipeline with full workspa
   const workOrders = compileWorkOrdersV2(graph, {
     sourceSnapshot: canonicalSnapshot,
     sourceSnapshotId: canonicalSnapshot.source_snapshot_id,
+    pathInventory: {
+      source_snapshot_id: canonicalSnapshot.source_snapshot_id,
+      paths: Object.keys(files),
+    },
   });
   assert.equal(workOrders.length, 1);
   const workOrder = workOrders[0];
@@ -376,7 +381,6 @@ test("K6a E2E Happy Path: True K3 -> K4a -> K6a -> K3 Pipeline with full workspa
 
   // 4. K6a Materialize Capsule
   const capsule = await materializeSourceSnapshot(workspace, workOrder, canonicalSnapshot, {
-    capsule_inputs: ["src/calculator.js", "test/calculator.test.js", "package.json"],
     files,
   });
   assert.ok(/^sha256:[a-f0-9]{64}$/.test(capsule.fingerprint));
@@ -524,6 +528,7 @@ test("K6a Negative E2E: 3-Way binding mismatch fails closed when Workspace was c
     invariants: [],
     required_evidence: [],
     budget: { model_turns: 1, patches: 1, commands: 1, wall_time_minutes: 1, changed_lines: 10 },
+    capsule_inputs: ["src/b.js"],
   };
   workOrderB.work_order_id = computeWorkOrderId(workOrderB);
 
@@ -572,6 +577,7 @@ test("K6a Negative E2E: Base tree digest mismatch fails closed pre-materializati
     invariants: [],
     required_evidence: [],
     budget: { model_turns: 1, patches: 1, commands: 1, wall_time_minutes: 1, changed_lines: 10 },
+    capsule_inputs: ["src/main.js"],
   };
   workOrder.work_order_id = computeWorkOrderId(workOrder);
 
@@ -778,13 +784,13 @@ test("K6a Negative E2E: Mutating operation (apply_implementation) fails closed w
     operation: "apply_implementation",
     ownership: { owner: "agent-e2e", mode: "exclusive" },
     allowed_paths: ["src/**"],
+    capsule_inputs: ["src/calculator.js"],
   });
 
   const workspace = await createWorkspace({ baseDir, source_snapshot_id: snapshot.source_snapshot_id });
   t.after(() => disposeWorkspace(workspace));
 
   await materializeSourceSnapshot(workspace, workOrder, snapshot, {
-    capsule_inputs: ["src/calculator.js"],
     files,
   });
 
@@ -832,7 +838,6 @@ test("K6a Adversarial E2E: Mutating work order attempting write outside allowed_
   t.after(() => disposeWorkspace(workspace));
 
   await materializeSourceSnapshot(workspace, workOrder, snapshot, {
-    capsule_inputs: ["src/app.js"],
     files,
   });
 
@@ -1041,7 +1046,6 @@ test("K2a→K6a Real E2E: adapter Claude real ejecuta mutación contenida vía e
   t.after(() => disposeWorkspace(workspace));
 
   await materializeSourceSnapshot(workspace, workOrder, snapshot, {
-    capsule_inputs: ["src/app.js"],
     files,
   });
 
@@ -1110,7 +1114,6 @@ test("K2a→K6a Real E2E adversarial: worker sin sandbox nunca alcanza enforced 
   t.after(() => disposeWorkspace(workspace));
 
   await materializeSourceSnapshot(workspace, workOrder, snapshot, {
-    capsule_inputs: ["src/app.js"],
     files,
   });
 
@@ -1181,7 +1184,6 @@ test("K2a→K6a Real E2E adversarial: execution attempt outside workspace with v
   t.after(() => disposeWorkspace(workspace));
 
   await materializeSourceSnapshot(workspace, workOrder, snapshot, {
-    capsule_inputs: ["src/app.js"],
     files,
   });
 
@@ -1242,7 +1244,6 @@ test("K2a→K6a Real E2E adversarial: multi-target execution with valid isolatio
   t.after(() => disposeWorkspace(workspace));
 
   await materializeSourceSnapshot(workspace, workOrder, snapshot, {
-    capsule_inputs: ["src/app.js"],
     files,
   });
 
@@ -1326,7 +1327,6 @@ test("K2a→K6a Real E2E adversarial: enforced + non-Node/shell command is rejec
   t.after(() => disposeWorkspace(workspace));
 
   await materializeSourceSnapshot(workspace, workOrder, snapshot, {
-    capsule_inputs: ["src/app.js"],
     files,
   });
 
@@ -1386,7 +1386,6 @@ test("K2a→K6a Real E2E adversarial: enforced Node command attempting child_pro
   t.after(() => disposeWorkspace(workspace));
 
   await materializeSourceSnapshot(workspace, workOrder, snapshot, {
-    capsule_inputs: ["src/app.js"],
     files,
   });
 
@@ -1450,7 +1449,6 @@ test("K2a→K6a Real E2E adversarial: allowed path symlink pointing outside is b
   t.after(() => disposeWorkspace(workspace));
 
   await materializeSourceSnapshot(workspace, workOrder, snapshot, {
-    capsule_inputs: ["src/app.js"],
     files,
   });
 

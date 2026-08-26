@@ -1,7 +1,7 @@
 # Roadmap general — kernel, grafo y evidencia
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.48.1, 2026-08-26.
+> **Versión de referencia:** v2.48.2, 2026-08-26.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
 > **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md).
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
@@ -77,7 +77,7 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **K4a** | Graph compiler + Obligation Manifest + deterministic replay (sin worker autoritativo); verificado y reconciliado en v2.45.7 |
 | `done` | **K5** | Budgets (incl. autoridad/efectos), failures y recovery; remediaciones v2.45.7→v2.45.13 (authoritative enforcement, authority boundary/CAS concurrency, reconciliación, remediación técnica del núcleo y blindaje de concurrencia); archivado y publicado en v2.45.13 |
 | `done` | **K6a** | Worker isolation y work-order capsule; primitivas de ejecución aislada, integración con WorkerTransport, contención de filesystem y WorkResult canónico; archivado en v2.46.0, frontera de procesos cerrada en v2.47.1 y endurecida en v2.47.2 |
-| `done` | **K4b** | Repair shadow execution (WO→WR→integrate→Candidate); despacho exclusivo K6a, integración estricta, base derivada y registro auditable; archivado `2026-08-25-k4b-correctness-remediation` y publicado en v2.48.1 |
+| `done` | **K4b** | Repair shadow execution (WO→WR→integrate→Candidate); despacho exclusivo K6a, integración estricta, cápsula mínima, base derivada y registro 1:N; remediación de invariantes archivada `2026-08-26-k4b-integration-invariants-remediation` y publicada en v2.48.2 |
 | `next-eligible` | **K6b** | Verifier independiente, evidence strategies y Assurance Graph |
 | `pending` | K6c–K8 | Challenges, complexity, review authority, **Evaluation Attestation** |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
@@ -953,11 +953,11 @@ K6a ✕ K4b   (K6a no depende de K4b)
 
 **Gate terminal:** primitivas de ejecución conformes; ningún `CandidateId` emitido; desbloquea K4b como consumidor.
 
-### K4b — Repair shadow execution — **done** (v2.48.0; remediación de corrección en v2.48.1)
+### K4b — Repair shadow execution — **done** (v2.48.0; corrección en v2.48.1; invariantes en v2.48.2)
 
 **Dependencias:** K4a + K5 + K6a + K3 + K2a.
 
-**Estado:** `done`. Archivado `openspec/changes/archive/2026-08-25-k4b-correctness-remediation/` y publicado en v2.48.1.
+**Estado:** `done`. Archivado `openspec/changes/archive/2026-08-26-k4b-integration-invariants-remediation/` y publicado en v2.48.2.
 
 **Absorbe/rebasa:** O20A (parte ejecución shadow); cierre del MVP Repair compile→execute.
 
@@ -1004,7 +1004,7 @@ Take compiled Repair Execution Graph (K4a)
 
 #### Gate
 
-Vertical Repair shadow produce Candidate congelado. Gate cerrado en v2.48.1: despacho exclusivo vía K6a, integración fail-closed sobre la base autorizada, dependencias materiales, comparación de siete dimensiones y registro `repair-shadow-execution/v1`. Desbloquea K6b. El resultado de O20A decide **promover, revisar o rechazar** el kernel común solo tras K9; rechazo conserva fixed.
+Vertical Repair shadow produce Candidate congelado. Gate de invariantes cerrado en v2.48.2: patches malformados fail-closed, cápsula mínima (`EffectiveShadowBase ∩ capsule_inputs`), conflictos solo entre predecesores DAG incomparables, N registros de ejecución por Candidate y proyección canónica del comparador. Desbloquea K6b. El resultado de O20A decide **promover, revisar o rechazar** el kernel común solo tras K9; rechazo conserva fixed.
 
 ### K6b — verifier independiente, evidence strategies y Assurance Graph — **next-eligible**
 
@@ -2037,3 +2037,4 @@ Cada child conserva clasificación, Candidate ID y receipt propios.
 - 2026-08-05: k2a-1 (`k2a-1-live-capability-probes-async-transports`) cierra con verify PASS WITH WARNINGS, 4R approved (4 CRITICAL remediados); plan archive emitido; K3 queda next-eligible; transacción runtime pendiente.
 - 2026-08-25: K4b (`k4b-correctness-remediation`) permanece `in-progress` hasta archive; **no está `done`**. Tabla ejecutiva y sección detallada reconciliadas (antes: tabla `done` / sección `next-eligible`). K6b pasa a `blocked` y no es next-eligible.
 - 2026-08-26: K4b (`k4b-correctness-remediation`) cierra con verify PASS WITH WARNINGS, 4R approved, archive transaccional y v2.48.1; K6b queda next-eligible.
+- 2026-08-26: K4b (`k4b-integration-invariants-remediation`) cierra invariantes de integración (malformed diffs, cápsula mínima, DAG, store 1:N, proyección) con verify PASS, 4R approved y v2.48.2. K6b permanece next-eligible.

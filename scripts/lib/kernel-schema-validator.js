@@ -6,7 +6,7 @@
  * Supported keywords (only):
  *   - type (string|number|integer|boolean|object|array|null)
  *   - properties, required, additionalProperties (boolean or schema)
- *   - items (single schema)
+ *   - items (single schema), minItems, uniqueItems
  *   - enum, const
  *   - oneOf
  *   - local $ref (#/... only)
@@ -176,9 +176,34 @@ function validate(schema, instance, instancePath, rootSchema, errors) {
     validateObjectInstance(schema, instance, instancePath, rootSchema, errors);
   }
 
-  if ((schema.type === "array" || schema.items) && Array.isArray(instance) && schema.items) {
-    for (let i = 0; i < instance.length; i += 1) {
-      validate(schema.items, instance[i], `${instancePath}/${i}`, rootSchema, errors);
+  if (Array.isArray(instance)) {
+    if (typeof schema.minItems === "number" && instance.length < schema.minItems) {
+      errors.push({
+        path: instancePath || "/",
+        rule: "minItems",
+        message: `array length ${instance.length} is less than minItems ${schema.minItems}`,
+      });
+    }
+    if (schema.uniqueItems === true) {
+      let hasDuplicate = false;
+      for (let i = 0; i < instance.length && !hasDuplicate; i += 1) {
+        for (let j = i + 1; j < instance.length; j += 1) {
+          if (deepEqual(instance[i], instance[j])) {
+            errors.push({
+              path: instancePath || "/",
+              rule: "uniqueItems",
+              message: "array items must be unique",
+            });
+            hasDuplicate = true;
+            break;
+          }
+        }
+      }
+    }
+    if ((schema.type === "array" || schema.items) && schema.items) {
+      for (let i = 0; i < instance.length; i += 1) {
+        validate(schema.items, instance[i], `${instancePath}/${i}`, rootSchema, errors);
+      }
     }
   }
 

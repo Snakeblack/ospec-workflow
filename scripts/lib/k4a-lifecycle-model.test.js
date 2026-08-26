@@ -8,7 +8,7 @@ const {
   checkInvariant,
   runAllInvariantCheckers,
 } = require("./lifecycle-model.js");
-const { compileWorkOrders } = require("./execution-graph/index.js");
+const { compileWorkOrders, defaultPathInventory } = require("./execution-graph/index.js");
 const { createSampleExecutionGraph, createSampleSourceSnapshot } = require("./test-support/execution-graph-fixtures.js");
 
 test("K4a Model Conformance: K4a manifest lists 7 executable invariants", async () => {
@@ -73,7 +73,11 @@ test("K4a Invariant 7: Compilation and replay operate without issuing live worke
 test("K4a lifecycle consumer: public compiler binds every order to the exact SourceSnapshot ID", () => {
   const sourceSnapshot = createSampleSourceSnapshot();
   const sourceSnapshotId = sourceSnapshot.source_snapshot_id;
-  const workOrders = compileWorkOrders(createSampleExecutionGraph(), { sourceSnapshot, sourceSnapshotId });
+  const workOrders = compileWorkOrders(createSampleExecutionGraph(), {
+    sourceSnapshot,
+    sourceSnapshotId,
+    pathInventory: defaultPathInventory(sourceSnapshotId),
+  });
 
   assert.ok(workOrders.length > 0);
   assert.ok(workOrders.every((workOrder) =>

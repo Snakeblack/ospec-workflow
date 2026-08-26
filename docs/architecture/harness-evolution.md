@@ -836,7 +836,7 @@ Repositorios fixture reciben 10–30 cambios consecutivos. Se miden duplicación
 7. ~~K4a: Execution Graph compiler + Obligation Manifest + replay (sin worker autoritativo)~~ — hecho: verificado y reconciliado en v2.45.7.
 8. ~~K5: budgets (incl. autoridad/efectos) / failure / recovery~~ — hecho: archivado y publicado en v2.45.13 (remediaciones v2.45.7→v2.45.13).
 9. ~~K6a: primitivas de ejecución aislada (`CreateWorkspace`…`DisposeWorkspace`); no conoce Repair~~ — hecho: archivado y publicado en v2.46.7; frontera de procesos cerrada en v2.47.1; endurecimiento de frontera (política inmutable, fs mutante, live-identity, `worker_threads`) en v2.47.2.
-10. ~~K4b: orquesta Repair shadow (consume K6a; freeze Candidate vía K3)~~ — hecho: publicado en v2.48.0; remediación de corrección archivada y publicada en v2.48.1.
+10. ~~K4b: orquesta Repair shadow (consume K6a; freeze Candidate vía K3)~~ — hecho: publicado en v2.48.0; corrección en v2.48.1; invariantes de integración en v2.48.2.
 11. K6b: verifier + provenance + Assurance Graph — siguiente iniciativa elegible; K6c: ChallengePlan policy-selected; K6d: complexity delta.
 12. K7: ReviewAdapter + ReviewReducer + lineage; K8: CandidateEvaluationAttestation (emisión CAS).
 13. K9: shadow/replay/A-B; promoción de **un** profile (checkpoints intermedios ya validados).

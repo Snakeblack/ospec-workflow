@@ -39,6 +39,7 @@ function makeCanonicalWorkOrder(sourceSnapshotId = DUMMY_SNAPSHOT_ID, overrides 
     allowed_paths: overrides.allowed_paths || ["**"],
     invariants: overrides.invariants || [],
     required_evidence: overrides.required_evidence || [],
+    capsule_inputs: overrides.capsule_inputs || ["src/app.js"],
     budget: overrides.budget || {
       model_turns: 5,
       patches: 3,

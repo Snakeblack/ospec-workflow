@@ -1,0 +1,3115 @@
+diff --git a/schemas/kernel/work-order/fixtures/valid/v2-minimal.json b/schemas/kernel/work-order/fixtures/valid/v2-minimal.json
+index 2480e37..ea8e46e 100644
+--- a/schemas/kernel/work-order/fixtures/valid/v2-minimal.json
++++ b/schemas/kernel/work-order/fixtures/valid/v2-minimal.json
+@@ -17,6 +17,9 @@
+   "allowed_paths": [
+     "src/"
+   ],
++  "capsule_inputs": [
++    "src/app.js"
++  ],
+   "invariants": [],
+   "required_evidence": [
+     "log.txt"
+diff --git a/schemas/kernel/work-order/v2.schema.json b/schemas/kernel/work-order/v2.schema.json
+index f5bb0cd..c40d035 100644
+--- a/schemas/kernel/work-order/v2.schema.json
++++ b/schemas/kernel/work-order/v2.schema.json
+@@ -18,6 +18,7 @@
+     "dependencies",
+     "ownership",
+     "allowed_paths",
++    "capsule_inputs",
+     "invariants",
+     "required_evidence",
+     "budget"
+@@ -100,6 +101,16 @@
+         "minLength": 1
+       }
+     },
++    "capsule_inputs": {
++      "type": "array",
++      "minItems": 1,
++      "uniqueItems": true,
++      "items": {
++        "type": "string",
++        "minLength": 1,
++        "pattern": "^(?!.*\\.\\.)(?![/\\\\]|[A-Za-z]:)[^*?\\[\\\\]+$"
++      }
++    },
+     "invariants": {
+       "type": "array",
+       "items": {
+diff --git a/scripts/k4b-repair-shadow-e2e.test.js b/scripts/k4b-repair-shadow-e2e.test.js
+index 09ef054..9579c88 100644
+--- a/scripts/k4b-repair-shadow-e2e.test.js
++++ b/scripts/k4b-repair-shadow-e2e.test.js
+@@ -46,7 +46,7 @@ function assertProductionSurfacesByteIdentical(before, after) {
+   }
+ }
+ 
+-const { orchestrateRepairShadow, compareShadowExecution } = require("./lib/repair-shadow/index.js");
++const { orchestrateRepairShadow, compareShadowExecution, buildComparisonProjection } = require("./lib/repair-shadow/index.js");
+ const { compileExecutionGraph, createPolicySnapshot } = require("./lib/execution-graph/index.js");
+ const workerWorkspace = require("./lib/worker-workspace.js");
+ const { computeTreeDigest } = require("./lib/worker-workspace.js");
+@@ -62,7 +62,7 @@ const {
+ } = require("./lib/worker-sandbox.js");
+ const { buildExecutionOptionsFromMaterial } = require("./lib/test-support/k6a-worker-fixtures.js");
+ const { createFileSystemStore } = require("./lib/filesystem-store.js");
+-const { loadRepairShadowExecution } = require("./lib/repair-shadow/execution-record-store.js");
++const { loadRepairShadowExecutions } = require("./lib/repair-shadow/execution-record-store.js");
+ 
+ function makeTempFileStore(t, dir) {
+   const filePath = path.join(dir || os.tmpdir(), `k4b-e2e-exec-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
+@@ -181,8 +181,10 @@ test("E2E: N1 multiply() propagates to N2 through real K6a workspaces", async (t
+ 
+   const created = [];
+   const disposed = [];
++  const materializedInputs = [];
+   const originalCreate = workerWorkspace.createWorkspace;
+   const originalDispose = workerWorkspace.disposeWorkspace;
++  const originalMaterialize = workerWorkspace.materializeSourceSnapshot;
+   t.mock.method(workerWorkspace, "createWorkspace", async function mockedCreate(...args) {
+     const ws = await originalCreate.apply(this, args);
+     created.push(ws.workspace_id);
+@@ -192,6 +194,10 @@ test("E2E: N1 multiply() propagates to N2 through real K6a workspaces", async (t
+     disposed.push(descriptor && descriptor.workspace_id);
+     return originalDispose.apply(this, arguments);
+   });
++  t.mock.method(workerWorkspace, "materializeSourceSnapshot", async function mockedMaterialize(...args) {
++    materializedInputs.push((args[1] && args[1].capsule_inputs) || []);
++    return originalMaterialize.apply(this, args);
++  });
+ 
+   const fixedBaseline = {
+     steps: ["n1-helper", "n2-index"],
+@@ -246,6 +252,9 @@ test("E2E: N1 multiply() propagates to N2 through real K6a workspaces", async (t
+   assert.equal(created.length, 2, "each node must receive a fresh workspace");
+   assert.notEqual(created[0], created[1], "N1 and N2 must not share a workspace");
+   assert.deepEqual(disposed.slice().sort(), created.slice().sort(), "every workspace must be disposed");
++  assert.deepEqual(materializedInputs[0], ["src/helper.js"]);
++  assert.deepEqual(materializedInputs[1], ["src/helper.js", "src/index.js"]);
++  assert.equal(materializedInputs.some((inputs) => inputs.includes("src/config.json")), false);
+ 
+   assert.equal(result.lineage_verification.ok, true);
+   assert.equal(result.lineage_verification.lineage.length, 6);
+@@ -267,17 +276,30 @@ test("E2E: N1 multiply() propagates to N2 through real K6a workspaces", async (t
+     ])
+   );
+   const clockStable = compareShadowExecution(
+-    { candidate: result.candidate, workResults: result.workResults, graph_telemetry: result.graph_telemetry },
+-    { candidate: result.candidate, workResults: result.workResults, graph_telemetry: shiftedTelemetry }
++    buildComparisonProjection({
++      executionGraph: graph,
++      candidate: result.candidate,
++      workResults: result.workResults,
++      graphTelemetry: result.graph_telemetry,
++    }),
++    buildComparisonProjection({
++      executionGraph: graph,
++      candidate: result.candidate,
++      workResults: result.workResults,
++      graphTelemetry: shiftedTelemetry,
++    })
+   );
+   assert.equal(clockStable.dimension_match_rates.execution_metrics, 1);
+   assert.equal(clockStable.match, true);
+   assert.equal(clockStable.discrepancy_classification, "full-match");
+-  assert.equal(result.execution_record_id, result.candidate.candidate_id);
+-  const loaded = await loadRepairShadowExecution(store, result.candidate.candidate_id);
++  assert.match(result.execution_record_id, /^sha256:[a-f0-9]{64}$/);
++  assert.notEqual(result.execution_record_id, result.candidate.candidate_id);
++  const loaded = await loadRepairShadowExecutions(store, result.candidate.candidate_id);
+   assert.equal(loaded.ok, true);
+-  assert.equal(loaded.record.kind, "repair-shadow-execution/v1");
+-  assert.equal(loaded.record.policy_snapshot.snapshot_id, policySnapshot.snapshot_id);
++  assert.equal(loaded.records.length, 1);
++  assert.equal(loaded.records[0].kind, "repair-shadow-execution/v1");
++  assert.equal(loaded.records[0].policy_snapshot.snapshot_id, policySnapshot.snapshot_id);
++  assert.equal(Object.prototype.hasOwnProperty.call(loaded.records[0], "fingerprint"), false);
+ });
+ 
+ test("E2E Fault Injection: Interrupted node halts downstream and cleans up workspaces fail-closed", async (t) => {
+diff --git a/scripts/k6a-e2e-worker-isolation.test.js b/scripts/k6a-e2e-worker-isolation.test.js
+index 28fc475..976a1cf 100644
+--- a/scripts/k6a-e2e-worker-isolation.test.js
++++ b/scripts/k6a-e2e-worker-isolation.test.js
+@@ -133,6 +133,7 @@ function makeCanonicalWorkOrder(sourceSnapshotId = "sha256:aaaaaaaaaaaaaaaaaaaaa
+     allowed_paths: overrides.allowed_paths || ["**"],
+     invariants: overrides.invariants || [],
+     required_evidence: overrides.required_evidence || [],
++    capsule_inputs: overrides.capsule_inputs || ["src/app.js"],
+     budget: overrides.budget || {
+       model_turns: 5,
+       patches: 3,
+@@ -359,6 +360,10 @@ test("K6a E2E Happy Path: True K3 -> K4a -> K6a -> K3 Pipeline with full workspa
+   const workOrders = compileWorkOrdersV2(graph, {
+     sourceSnapshot: canonicalSnapshot,
+     sourceSnapshotId: canonicalSnapshot.source_snapshot_id,
++    pathInventory: {
++      source_snapshot_id: canonicalSnapshot.source_snapshot_id,
++      paths: Object.keys(files),
++    },
+   });
+   assert.equal(workOrders.length, 1);
+   const workOrder = workOrders[0];
+@@ -376,7 +381,6 @@ test("K6a E2E Happy Path: True K3 -> K4a -> K6a -> K3 Pipeline with full workspa
+ 
+   // 4. K6a Materialize Capsule
+   const capsule = await materializeSourceSnapshot(workspace, workOrder, canonicalSnapshot, {
+-    capsule_inputs: ["src/calculator.js", "test/calculator.test.js", "package.json"],
+     files,
+   });
+   assert.ok(/^sha256:[a-f0-9]{64}$/.test(capsule.fingerprint));
+@@ -524,6 +528,7 @@ test("K6a Negative E2E: 3-Way binding mismatch fails closed when Workspace was c
+     invariants: [],
+     required_evidence: [],
+     budget: { model_turns: 1, patches: 1, commands: 1, wall_time_minutes: 1, changed_lines: 10 },
++    capsule_inputs: ["src/b.js"],
+   };
+   workOrderB.work_order_id = computeWorkOrderId(workOrderB);
+ 
+@@ -572,6 +577,7 @@ test("K6a Negative E2E: Base tree digest mismatch fails closed pre-materializati
+     invariants: [],
+     required_evidence: [],
+     budget: { model_turns: 1, patches: 1, commands: 1, wall_time_minutes: 1, changed_lines: 10 },
++    capsule_inputs: ["src/main.js"],
+   };
+   workOrder.work_order_id = computeWorkOrderId(workOrder);
+ 
+@@ -778,13 +784,13 @@ test("K6a Negative E2E: Mutating operation (apply_implementation) fails closed w
+     operation: "apply_implementation",
+     ownership: { owner: "agent-e2e", mode: "exclusive" },
+     allowed_paths: ["src/**"],
++    capsule_inputs: ["src/calculator.js"],
+   });
+ 
+   const workspace = await createWorkspace({ baseDir, source_snapshot_id: snapshot.source_snapshot_id });
+   t.after(() => disposeWorkspace(workspace));
+ 
+   await materializeSourceSnapshot(workspace, workOrder, snapshot, {
+-    capsule_inputs: ["src/calculator.js"],
+     files,
+   });
+ 
+@@ -832,7 +838,6 @@ test("K6a Adversarial E2E: Mutating work order attempting write outside allowed_
+   t.after(() => disposeWorkspace(workspace));
+ 
+   await materializeSourceSnapshot(workspace, workOrder, snapshot, {
+-    capsule_inputs: ["src/app.js"],
+     files,
+   });
+ 
+@@ -1041,7 +1046,6 @@ test("K2a→K6a Real E2E: adapter Claude real ejecuta mutación contenida vía e
+   t.after(() => disposeWorkspace(workspace));
+ 
+   await materializeSourceSnapshot(workspace, workOrder, snapshot, {
+-    capsule_inputs: ["src/app.js"],
+     files,
+   });
+ 
+@@ -1110,7 +1114,6 @@ test("K2a→K6a Real E2E adversarial: worker sin sandbox nunca alcanza enforced
+   t.after(() => disposeWorkspace(workspace));
+ 
+   await materializeSourceSnapshot(workspace, workOrder, snapshot, {
+-    capsule_inputs: ["src/app.js"],
+     files,
+   });
+ 
+@@ -1181,7 +1184,6 @@ test("K2a→K6a Real E2E adversarial: execution attempt outside workspace with v
+   t.after(() => disposeWorkspace(workspace));
+ 
+   await materializeSourceSnapshot(workspace, workOrder, snapshot, {
+-    capsule_inputs: ["src/app.js"],
+     files,
+   });
+ 
+@@ -1242,7 +1244,6 @@ test("K2a→K6a Real E2E adversarial: multi-target execution with valid isolatio
+   t.after(() => disposeWorkspace(workspace));
+ 
+   await materializeSourceSnapshot(workspace, workOrder, snapshot, {
+-    capsule_inputs: ["src/app.js"],
+     files,
+   });
+ 
+@@ -1326,7 +1327,6 @@ test("K2a→K6a Real E2E adversarial: enforced + non-Node/shell command is rejec
+   t.after(() => disposeWorkspace(workspace));
+ 
+   await materializeSourceSnapshot(workspace, workOrder, snapshot, {
+-    capsule_inputs: ["src/app.js"],
+     files,
+   });
+ 
+@@ -1386,7 +1386,6 @@ test("K2a→K6a Real E2E adversarial: enforced Node command attempting child_pro
+   t.after(() => disposeWorkspace(workspace));
+ 
+   await materializeSourceSnapshot(workspace, workOrder, snapshot, {
+-    capsule_inputs: ["src/app.js"],
+     files,
+   });
+ 
+@@ -1450,7 +1449,6 @@ test("K2a→K6a Real E2E adversarial: allowed path symlink pointing outside is b
+   t.after(() => disposeWorkspace(workspace));
+ 
+   await materializeSourceSnapshot(workspace, workOrder, snapshot, {
+-    capsule_inputs: ["src/app.js"],
+     files,
+   });
+ 
+diff --git a/scripts/lib/execution-graph/index.js b/scripts/lib/execution-graph/index.js
+index a05b51b..4867bb4 100644
+--- a/scripts/lib/execution-graph/index.js
++++ b/scripts/lib/execution-graph/index.js
+@@ -38,6 +38,7 @@ const {
+   compileWorkOrders,
+   compileWorkOrdersV1,
+   compileWorkOrdersV2,
++  defaultPathInventory,
+ } = require("./work-order-compiler.js");
+ 
+ const {
+@@ -78,6 +79,7 @@ module.exports = {
+   compileWorkOrders,
+   compileWorkOrdersV1,
+   compileWorkOrdersV2,
++  defaultPathInventory,
+ 
+   // Replay
+   topologicalSort,
+diff --git a/scripts/lib/execution-graph/replay-engine.js b/scripts/lib/execution-graph/replay-engine.js
+index 62bbe13..606ea91 100644
+--- a/scripts/lib/execution-graph/replay-engine.js
++++ b/scripts/lib/execution-graph/replay-engine.js
+@@ -48,10 +48,12 @@ function _executeReplay(graph, fixtureResults = {}, options = {}, isLegacyMode =
+ 
+   const sortedNodes = topologicalSort(graph.nodes);
+ 
+-  const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
++  const { compileWorkOrdersV2, defaultPathInventory } = require("./work-order-compiler.js");
+   let compiledWorkOrders;
+   try {
+-    compiledWorkOrders = compileWorkOrdersV2(graph);
++    compiledWorkOrders = compileWorkOrdersV2(graph, {
++      pathInventory: options.pathInventory || defaultPathInventory(graph.source_snapshot_id),
++    });
+   } catch (e) {
+     const err = new Error(`Failed to compile WorkOrders for ExecutionGraph replay: ${e.message}`);
+     err.code = e.code || "work-order-compilation-failed";
+diff --git a/scripts/lib/execution-graph/replay-engine.test.js b/scripts/lib/execution-graph/replay-engine.test.js
+index cca0766..66ec90d 100644
+--- a/scripts/lib/execution-graph/replay-engine.test.js
++++ b/scripts/lib/execution-graph/replay-engine.test.js
+@@ -3,6 +3,7 @@
+ const assert = require("node:assert/strict");
+ const test = require("node:test");
+ const { replayExecutionGraph } = require("./replay-engine.js");
++const { defaultPathInventory } = require("./work-order-compiler.js");
+ const {
+   createSampleExecutionGraph,
+   createSampleFixtureResults,
+@@ -308,7 +309,7 @@ test("ReplayEngine: canonical replayExecutionGraph ignores allowLegacyFixtures o
+ test("ReplayEngine: Replay accepts every canonical WorkOrder emitted by supported K4a compilation", () => {
+   const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+   const graph = createSampleExecutionGraph();
+-  const workOrders = compileWorkOrdersV2(graph);
++  const workOrders = compileWorkOrdersV2(graph, { pathInventory: defaultPathInventory(graph.source_snapshot_id) });
+ 
+   const fixtures = {};
+   for (const wo of workOrders) {
+@@ -328,7 +329,7 @@ test("ReplayEngine: Replay accepts every canonical WorkOrder emitted by supporte
+ test("ReplayEngine: rejects incomplete fixture claiming completed without evidence object fail-closed", () => {
+   const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+   const graph = createSampleExecutionGraph();
+-  const workOrders = compileWorkOrdersV2(graph);
++  const workOrders = compileWorkOrdersV2(graph, { pathInventory: defaultPathInventory(graph.source_snapshot_id) });
+   const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
+ 
+   const incompleteFixtures = {
+@@ -356,7 +357,7 @@ test("ReplayEngine: rejects incomplete fixture claiming completed without eviden
+ test("ReplayEngine: rejects completed status when exit_code is non-zero fail-closed", () => {
+   const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+   const graph = createSampleExecutionGraph();
+-  const workOrders = compileWorkOrdersV2(graph);
++  const workOrders = compileWorkOrdersV2(graph, { pathInventory: defaultPathInventory(graph.source_snapshot_id) });
+   const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
+ 
+   const contradictoryExitCodeFixtures = {
+@@ -386,7 +387,7 @@ test("ReplayEngine: rejects completed status when exit_code is non-zero fail-clo
+ test("ReplayEngine (Dimension 1): rejects empty, null, or non-string graph_id or work_order_id fail-closed", () => {
+   const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+   const graph = createSampleExecutionGraph();
+-  const workOrders = compileWorkOrdersV2(graph);
++  const workOrders = compileWorkOrdersV2(graph, { pathInventory: defaultPathInventory(graph.source_snapshot_id) });
+   const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
+ 
+   const invalidProvenanceCases = [
+@@ -425,7 +426,7 @@ test("ReplayEngine (Dimension 1): rejects empty, null, or non-string graph_id or
+ test("ReplayEngine (Dimension 2): accepts status or outcome completed independently", () => {
+   const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+   const graph = createSampleExecutionGraph();
+-  const workOrders = compileWorkOrdersV2(graph);
++  const workOrders = compileWorkOrdersV2(graph, { pathInventory: defaultPathInventory(graph.source_snapshot_id) });
+   const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
+ 
+   // Status completed only
+@@ -468,7 +469,7 @@ test("ReplayEngine (Dimension 2): accepts status or outcome completed independen
+ test("ReplayEngine (Dimension 2): rejects contradictory status and outcome combinations", () => {
+   const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+   const graph = createSampleExecutionGraph();
+-  const workOrders = compileWorkOrdersV2(graph);
++  const workOrders = compileWorkOrdersV2(graph, { pathInventory: defaultPathInventory(graph.source_snapshot_id) });
+   const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
+ 
+   const contradictoryCombos = [
+@@ -506,7 +507,7 @@ test("ReplayEngine (Dimension 2): rejects contradictory status and outcome combi
+ test("ReplayEngine (Dimension 3): exit_code validation rules", () => {
+   const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+   const graph = createSampleExecutionGraph();
+-  const workOrders = compileWorkOrdersV2(graph);
++  const workOrders = compileWorkOrdersV2(graph, { pathInventory: defaultPathInventory(graph.source_snapshot_id) });
+   const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
+ 
+   // Exit code 0 is valid
+@@ -573,7 +574,7 @@ test("ReplayEngine (Dimension 3): exit_code validation rules", () => {
+ test("ReplayEngine (Dimension 4): malformed evidence types fail closed", () => {
+   const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+   const graph = createSampleExecutionGraph();
+-  const workOrders = compileWorkOrdersV2(graph);
++  const workOrders = compileWorkOrdersV2(graph, { pathInventory: defaultPathInventory(graph.source_snapshot_id) });
+   const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
+ 
+   const malformedEvidenceValues = [
+@@ -619,7 +620,7 @@ test("ReplayEngine (Dimension 5): multi-item required evidence failure", () => {
+         objective: "Apply repair code modifications",
+         dependencies: [],
+         ownership: { owner: "agent:repair", mode: "exclusive" },
+-        allowed_paths: ["src/**"],
++        allowed_paths: ["src/index.js"],
+         invariants: ["inv-fail-closed"],
+         required_evidence: ["ev:patch-proof", "ev:lint-attestation"],
+         budget_ref: "budget:default",
+@@ -631,7 +632,7 @@ test("ReplayEngine (Dimension 5): multi-item required evidence failure", () => {
+         objective: "Run automated verification on repair modifications",
+         dependencies: ["repair-patch"],
+         ownership: { owner: "agent:verify", mode: "shared" },
+-        allowed_paths: ["src/**", "tests/**"],
++        allowed_paths: ["src/index.js", "tests/index.js"],
+         invariants: ["inv-no-direct-mutation"],
+         required_evidence: ["ev:test-pass"],
+         budget_ref: "budget:default",
+@@ -669,7 +670,7 @@ test("ReplayEngine (Dimension 5): multi-item required evidence failure", () => {
+     },
+   });
+ 
+-  const workOrders = compileWorkOrdersV2(graph);
++  const workOrders = compileWorkOrdersV2(graph, { pathInventory: defaultPathInventory(graph.source_snapshot_id) });
+   const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
+ 
+   // Fixture provides only 1 of 2 required evidence keys
+@@ -777,7 +778,9 @@ test("ReplayEngine (Dimension 6): obligation satisfaction and approved deferrals
+     },
+   });
+ 
+-  const workOrders = compileWorkOrdersV2(graphWithDeferred);
++  const workOrders = compileWorkOrdersV2(graphWithDeferred, {
++    pathInventory: defaultPathInventory(graphWithDeferred.source_snapshot_id),
++  });
+   const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
+ 
+   const fixtures = {
+@@ -845,7 +848,9 @@ test("ReplayEngine (Dimension 6): obligation satisfaction and approved deferrals
+     },
+   });
+ 
+-  const woMapNoDef = new Map(compileWorkOrdersV2(graphWithoutDeferred).map((w) => [w.node_id, w.work_order_id]));
++  const woMapNoDef = new Map(compileWorkOrdersV2(graphWithoutDeferred, {
++    pathInventory: defaultPathInventory(graphWithoutDeferred.source_snapshot_id),
++  }).map((w) => [w.node_id, w.work_order_id]));
+   const resFailingObl = replayExecutionGraph(graphWithoutDeferred, {
+     "repair-patch": {
+       graph_id: graphWithoutDeferred.graph_id,
+diff --git a/scripts/lib/execution-graph/work-order-compiler.js b/scripts/lib/execution-graph/work-order-compiler.js
+index c9c0a9e..de1f2ce 100644
+--- a/scripts/lib/execution-graph/work-order-compiler.js
++++ b/scripts/lib/execution-graph/work-order-compiler.js
+@@ -7,11 +7,13 @@ const {
+   computeSourceSnapshotId,
+   computeWorkOrderId,
+   validateIdentityKind,
++  isConcreteRelativeCapsulePath,
+ } = require("../execution-identities/index.js");
+ const { FORBIDDEN_OPERATIONS } = require("./compiler.js");
+ const { hasCycle, topologicalSort } = require("./dag.js");
+ const { validateObligationManifest } = require("./obligation-manifest.js");
+ const { validateExecutionGraphBinding } = require("./binding.js");
++const { isPathContained, normalizeRelativePath } = require("../allowed-paths-validator.js");
+ 
+ const DEFAULT_WORK_ORDER_BUDGET = Object.freeze({
+   model_turns: 5,
+@@ -85,6 +87,72 @@ function resolveVerifiedSourceSnapshotId(graph, context = {}) {
+   return graphSnapshotId;
+ }
+ 
++function isDirectoryOrGlobRule(rule) {
++  if (typeof rule !== "string" || rule.length < 1) return true;
++  const normalized = rule.replace(/\\/g, "/");
++  if (/[*?\[]/.test(normalized) || normalized.endsWith("/")) return true;
++  return !isConcreteRelativeCapsulePath(normalized);
++}
++
++function resolvePathInventory(pathInventory, sourceSnapshotId) {
++  if (pathInventory === undefined || pathInventory === null) return null;
++  if (typeof pathInventory !== "object" || Array.isArray(pathInventory)) {
++    const err = new Error("pathInventory must be a snapshot-bound object");
++    err.code = "invalid-capsule-inputs";
++    throw err;
++  }
++  if (pathInventory.source_snapshot_id !== sourceSnapshotId) {
++    const err = new Error(
++      `pathInventory source_snapshot_id "${pathInventory.source_snapshot_id}" does not match graph source_snapshot_id "${sourceSnapshotId}"`
++    );
++    err.code = "provenance-mismatch";
++    throw err;
++  }
++  if (!Array.isArray(pathInventory.paths)) {
++    const err = new Error("pathInventory.paths must be an array");
++    err.code = "invalid-capsule-inputs";
++    throw err;
++  }
++  return pathInventory;
++}
++
++function resolveCapsuleInputsForNode(node, pathInventory) {
++  const allowed = Array.isArray(node.allowed_paths) ? node.allowed_paths : [];
++  const resolved = new Set();
++  const inventoryPaths = pathInventory && Array.isArray(pathInventory.paths) ? pathInventory.paths : [];
++
++  for (const rule of allowed) {
++    if (typeof rule !== "string" || rule.length < 1) {
++      const err = new Error(`invalid allowed_paths entry for node ${node.node_id}`);
++      err.code = "invalid-capsule-inputs";
++      throw err;
++    }
++    if (!isDirectoryOrGlobRule(rule) && isConcreteRelativeCapsulePath(rule)) {
++      resolved.add(normalizeRelativePath(rule) || rule);
++      continue;
++    }
++    for (const inventoryPath of inventoryPaths) {
++      if (typeof inventoryPath !== "string") continue;
++      if (!isPathContained(inventoryPath, [rule])) continue;
++      const normalized = normalizeRelativePath(inventoryPath);
++      if (!normalized || !isConcreteRelativeCapsulePath(normalized)) {
++        const err = new Error(`invalid capsule path resolved from inventory: ${inventoryPath}`);
++        err.code = "invalid-capsule-inputs";
++        throw err;
++      }
++      resolved.add(normalized);
++    }
++  }
++
++  const sorted = [...resolved].sort();
++  if (sorted.length === 0) {
++    const err = new Error(`empty capsule_inputs for node ${node.node_id}`);
++    err.code = "empty-capsule-inputs";
++    throw err;
++  }
++  return sorted;
++}
++
+ /**
+  * Compiles coarse semantic graph nodes into declarative WorkOrder v1 shapes.
+  * Operates purely on declarative structure with ZERO execution authority tokens.
+@@ -292,6 +360,12 @@ function compileWorkOrdersV2(graph, context = {}) {
+     changed_lines: DEFAULT_WORK_ORDER_BUDGET.changed_lines,
+   };
+ 
++  const pathInventory = resolvePathInventory(context.pathInventory, sourceSnapshotId);
++  const capsuleByNode = new Map();
++  for (const node of sortedNodes) {
++    capsuleByNode.set(node.node_id, resolveCapsuleInputsForNode(node, pathInventory));
++  }
++
+   for (const node of sortedNodes) {
+     const rawDeps = Array.isArray(node.dependencies) ? node.dependencies : [];
+     const resolvedDeps = rawDeps.map((depNodeId) => {
+@@ -319,6 +393,7 @@ function compileWorkOrdersV2(graph, context = {}) {
+         ? { owner: String(node.ownership.owner), mode: String(node.ownership.mode) }
+         : { owner: "agent:repair", mode: "exclusive" },
+       allowed_paths: Array.isArray(node.allowed_paths) ? [...node.allowed_paths] : [],
++      capsule_inputs: capsuleByNode.get(node.node_id),
+       invariants: Array.isArray(node.invariants) ? [...node.invariants] : [],
+       required_evidence: Array.isArray(node.required_evidence) ? [...node.required_evidence] : [],
+       budget: normalizedBudget,
+@@ -359,8 +434,27 @@ function compileWorkOrdersV2(graph, context = {}) {
+ 
+ const compileWorkOrders = compileWorkOrdersV2;
+ 
++const DEFAULT_CAPSULE_INVENTORY_PATHS = Object.freeze([
++  "src/index.js",
++  "src/app.js",
++  "src/auth/controller.js",
++  "src/auth/index.js",
++  "src/auth/session.js",
++  "tests/index.js",
++  "tests/auth.test.js",
++]);
++
++function defaultPathInventory(sourceSnapshotId) {
++  return {
++    source_snapshot_id: sourceSnapshotId,
++    paths: [...DEFAULT_CAPSULE_INVENTORY_PATHS],
++  };
++}
++
+ module.exports = {
+   DEFAULT_WORK_ORDER_BUDGET,
++  DEFAULT_CAPSULE_INVENTORY_PATHS,
++  defaultPathInventory,
+   compileWorkOrders,
+   compileWorkOrdersV1,
+   compileWorkOrdersV2,
+diff --git a/scripts/lib/execution-graph/work-order-compiler.test.js b/scripts/lib/execution-graph/work-order-compiler.test.js
+index 27b8117..b5ca1c4 100644
+--- a/scripts/lib/execution-graph/work-order-compiler.test.js
++++ b/scripts/lib/execution-graph/work-order-compiler.test.js
+@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
+ const path = require("node:path");
+ const test = require("node:test");
+ const { validateInstance, loadSchemaById } = require("../kernel-schema-validator.js");
+-const { computeSourceSnapshotId } = require("../execution-identities/index.js");
++const { computeSourceSnapshotId, computeWorkOrderId } = require("../execution-identities/index.js");
+ const { computeGraphId } = require("./compiler.js");
+ const {
+   compileWorkOrders,
+@@ -90,6 +90,25 @@ const sampleGraph = {
+   obligations: sampleGraphObligations,
+ };
+ 
++const samplePathInventory = {
++  source_snapshot_id: sampleSnapshotId,
++  paths: [
++    "src/auth/session.js",
++    "src/auth/index.js",
++    "tests/auth.test.js",
++    "tests/conformance.test.js",
++  ],
++};
++
++function v2Context(extra = {}) {
++  return {
++    sourceSnapshot: extra.sourceSnapshot || sampleSnapshot,
++    sourceSnapshotId: extra.sourceSnapshotId || sampleSnapshotId,
++    pathInventory: extra.pathInventory || samplePathInventory,
++    ...extra,
++  };
++}
++
+ test("WorkOrderCompiler: explicit legacy v1 surface preserves the frozen v1 shape", () => {
+   const sourceSnapshotId = "sha256:4444444444444444444444444444444444444444444444444444444444444444";
+   const workOrders = compileWorkOrdersV1(sampleGraph, { sourceSnapshotId });
+@@ -127,8 +146,8 @@ test("WorkOrderCompiler: legacy v1 output does not acquire v2 provenance semanti
+ test("WorkOrderCompiler: public v2 surface preserves valid provenance and semantic dependencies as sha256 digests", () => {
+   const sourceSnapshot = createValidatedSourceSnapshot();
+   const sourceSnapshotId = sourceSnapshot.source_snapshot_id;
+-  const workOrders = compileWorkOrders(sampleGraph, { sourceSnapshot, sourceSnapshotId });
+-  const v2Orders = compileWorkOrdersV2(sampleGraph, { sourceSnapshot, sourceSnapshotId });
++  const workOrders = compileWorkOrders(sampleGraph, v2Context());
++  const v2Orders = compileWorkOrdersV2(sampleGraph, v2Context());
+   const v1Orders = compileWorkOrdersV1(sampleGraph, { sourceSnapshotId });
+   const schema = loadSchemaById("ospec://schemas/kernel/work-order/v2", { rootDir: ROOT });
+ 
+@@ -195,10 +214,10 @@ test("WorkOrder v1 schema has no v2 provenance field", () => {
+ 
+ test("WorkOrderCompiler: zero execution authority and zero worker process invocation", () => {
+   const sourceSnapshot = createValidatedSourceSnapshot();
+-  const workOrders = compileWorkOrders(sampleGraph, {
++  const workOrders = compileWorkOrders(sampleGraph, v2Context({
+     sourceSnapshot,
+     sourceSnapshotId: sourceSnapshot.source_snapshot_id,
+-  });
++  }));
+ 
+   for (const wo of workOrders) {
+     // Assert strictly no permit, execution token, or secret
+@@ -328,7 +347,7 @@ test("WorkOrderCompiler: atomic validation fails closed on missing/malformed gra
+ });
+ 
+ test("WorkOrderCompiler: compiles WorkOrder v2 successfully from clarified graph with distinct work_order_id", () => {
+-  const unclarifiedOrders = compileWorkOrdersV2(sampleGraph);
++  const unclarifiedOrders = compileWorkOrdersV2(sampleGraph, v2Context());
+ 
+   const clarifiedNodes = structuredClone(sampleGraphNodes);
+   clarifiedNodes[0].clarification_context = {
+@@ -349,7 +368,7 @@ test("WorkOrderCompiler: compiles WorkOrder v2 successfully from clarified graph
+     nodes: clarifiedNodes,
+   };
+ 
+-  const workOrders = compileWorkOrdersV2(clarifiedGraph);
++  const workOrders = compileWorkOrdersV2(clarifiedGraph, v2Context());
+   assert.equal(workOrders.length, 2);
+   assert.equal(workOrders[0].node_id, "repair-node-1");
+   assert.equal(workOrders[1].node_id, "verify-node-1");
+@@ -435,3 +454,107 @@ test("WorkOrderCompiler: rejects unlinked variable budgets or defaultBudget in K
+   );
+ });
+ 
++test("REQ-execution-graph-compiler-009: identical graphs emit byte-identical sorted capsule_inputs", () => {
++  const first = compileWorkOrdersV2(sampleGraph, v2Context());
++  const second = compileWorkOrdersV2(sampleGraph, v2Context());
++  assert.equal(first.length, 2);
++  for (let i = 0; i < first.length; i += 1) {
++    assert.deepEqual(first[i].capsule_inputs, second[i].capsule_inputs);
++    assert.deepEqual(first[i].capsule_inputs, [...first[i].capsule_inputs].sort());
++    assert.equal(new Set(first[i].capsule_inputs).size, first[i].capsule_inputs.length);
++    for (const input of first[i].capsule_inputs) {
++      assert.equal(/[*?\[]/.test(input), false);
++      assert.equal(input.includes(".."), false);
++    }
++  }
++  assert.deepEqual(first[0].capsule_inputs, ["src/auth/index.js", "src/auth/session.js"]);
++  assert.deepEqual(first[1].capsule_inputs, [
++    "src/auth/index.js",
++    "src/auth/session.js",
++    "tests/auth.test.js",
++    "tests/conformance.test.js",
++  ]);
++});
++
++test("REQ-execution-graph-compiler-009: emitted WorkOrders validate against work-order/v2", () => {
++  const schema = loadSchemaById("ospec://schemas/kernel/work-order/v2", { rootDir: ROOT });
++  const workOrders = compileWorkOrdersV2(sampleGraph, v2Context());
++  for (const wo of workOrders) {
++    const result = validateInstance(schema, wo);
++    assert.equal(result.valid, true, JSON.stringify(result.errors));
++    assert.ok(Array.isArray(wo.capsule_inputs) && wo.capsule_inputs.length >= 1);
++  }
++});
++
++test("REQ-execution-graph-compiler-009: empty or glob capsule_inputs fail atomically with zero WorkOrders", () => {
++  const globOnlyNodes = [
++    {
++      ...sampleGraphNodes[0],
++      allowed_paths: ["src/missing/**"],
++    },
++  ];
++  const globOnlyObligations = [sampleGraphObligations[0]];
++  const globGraph = {
++    schema_version: 1,
++    graph_id: computeGraphId(
++      sampleContractDigest,
++      samplePolicySnapshotId,
++      samplePolicyBundleDigest,
++      sampleSnapshotId,
++      globOnlyNodes,
++      globOnlyObligations
++    ),
++    contract_digest: sampleContractDigest,
++    policy_bundle_digest: samplePolicyBundleDigest,
++    policy_snapshot_id: samplePolicySnapshotId,
++    source_snapshot_id: sampleSnapshotId,
++    nodes: globOnlyNodes,
++    obligations: globOnlyObligations,
++  };
++
++  let emitted = null;
++  assert.throws(
++    () => {
++      emitted = compileWorkOrdersV2(globGraph, v2Context());
++    },
++    (err) => err.code === "empty-capsule-inputs" || err.code === "invalid-capsule-inputs"
++  );
++  assert.equal(emitted, null);
++
++  const noInventoryEmitted = [];
++  assert.throws(
++    () => {
++      const result = compileWorkOrdersV2(sampleGraph);
++      noInventoryEmitted.push(...result);
++    },
++    (err) => err.code === "empty-capsule-inputs" || err.code === "invalid-capsule-inputs"
++  );
++  assert.equal(noInventoryEmitted.length, 0);
++});
++
++test("REQ-execution-graph-compiler-009: WorkOrderId includes capsule_inputs", () => {
++  const base = {
++    schema_version: 2,
++    kind: "work-order/v2",
++    source_snapshot_id: sampleSnapshotId,
++    node_id: "repair-node-1",
++    role: "repair-worker",
++    operation: "apply_repair_patch",
++    objective: "Apply repair changes to src/auth",
++    dependencies: [],
++    ownership: { owner: "agent:repair", mode: "exclusive" },
++    allowed_paths: ["src/auth/**"],
++    invariants: ["inv-fail-closed"],
++    required_evidence: ["ev:auth-tests"],
++    budget: { ...DEFAULT_WORK_ORDER_BUDGET },
++  };
++  const idA = computeWorkOrderId({ ...base, capsule_inputs: ["src/auth/session.js"] });
++  const idB = computeWorkOrderId({ ...base, capsule_inputs: ["src/auth/index.js"] });
++  assert.notEqual(idA, idB);
++
++  const compiled = compileWorkOrdersV2(sampleGraph, v2Context());
++  const recomputed = computeWorkOrderId(compiled[0]);
++  assert.equal(compiled[0].work_order_id, recomputed);
++});
++
++
+diff --git a/scripts/lib/execution-identities/index.js b/scripts/lib/execution-identities/index.js
+index 7808421..28d17b3 100644
+--- a/scripts/lib/execution-identities/index.js
++++ b/scripts/lib/execution-identities/index.js
+@@ -187,6 +187,45 @@ function assertPlainObjectField(value, fieldName) {
+   return value;
+ }
+ 
++const CAPSULE_GLOB_META = /[*?\[]/;
++
++function isConcreteRelativeCapsulePath(value) {
++  if (typeof value !== "string" || value.length < 1) return false;
++  if (value.includes("..")) return false;
++  if (value.startsWith("/") || value.startsWith("\\") || /^[A-Za-z]:/.test(value)) return false;
++  if (value.includes("\\")) return false;
++  if (CAPSULE_GLOB_META.test(value)) return false;
++  return true;
++}
++
++function normalizeCapsuleInputs(raw, fieldName = "capsule_inputs") {
++  if (raw === undefined) {
++    const err = new Error(`computeWorkOrderId requires ${fieldName} array`);
++    err.code = "empty-capsule-inputs";
++    throw err;
++  }
++  if (!Array.isArray(raw)) {
++    const err = new Error(`${fieldName} must be an array`);
++    err.code = "invalid-capsule-inputs";
++    throw err;
++  }
++  if (raw.length === 0) {
++    const err = new Error(`${fieldName} must contain at least one concrete relative path`);
++    err.code = "empty-capsule-inputs";
++    throw err;
++  }
++  const unique = new Set();
++  for (const item of raw) {
++    if (!isConcreteRelativeCapsulePath(item)) {
++      const err = new Error(`${fieldName} contains an invalid path: ${item}`);
++      err.code = "invalid-capsule-inputs";
++      throw err;
++    }
++    unique.add(item.replace(/\\/g, "/"));
++  }
++  return [...unique].sort();
++}
++
+ function isRelationSelector(value) {
+   return (
+     value &&
+@@ -401,6 +440,12 @@ function computeWorkOrderId(workOrder) {
+     };
+   }
+ 
++  let capsuleInputs;
++  if (isV2) {
++    const rawCapsule = workOrder.capsuleInputs !== undefined ? workOrder.capsuleInputs : workOrder.capsule_inputs;
++    capsuleInputs = normalizeCapsuleInputs(rawCapsule, "capsule_inputs");
++  }
++
+   const canonicalPayload = {
+     source_snapshot_id: sourceSnapshotId,
+     node_id: nodeId,
+@@ -413,6 +458,7 @@ function computeWorkOrderId(workOrder) {
+     invariants: [...invariants].sort(),
+     required_evidence: [...requiredEvidence].sort(),
+     budget: budget,
++    ...(capsuleInputs !== undefined ? { capsule_inputs: capsuleInputs } : {}),
+     ...(clarificationContext !== undefined ? { clarification_context: clarificationContext } : {})
+   };
+ 
+@@ -1167,6 +1213,8 @@ module.exports = {
+   EXPECTED_KINDS,
+   validateCandidateV2,
+   isWorkOrderV2,
++  isConcreteRelativeCapsulePath,
++  normalizeCapsuleInputs,
+   computeSourceSnapshotId,
+   computeWorkOrderId,
+   computeWorkResultId,
+diff --git a/scripts/lib/execution-identities/index.test.js b/scripts/lib/execution-identities/index.test.js
+index 0f919fe..acfd634 100644
+--- a/scripts/lib/execution-identities/index.test.js
++++ b/scripts/lib/execution-identities/index.test.js
+@@ -36,6 +36,7 @@ test("REQ-execution-identities-001: Distinct digests with domain prefixes for fo
+     dependencies: [],
+     ownership: { owner: "worker" },
+     allowedPaths: ["src/"],
++    capsuleInputs: ["src/index.js"],
+     invariants: [],
+     requiredEvidence: [],
+     budget: { model_turns: 5, patches: 2, commands: 10, wall_time_minutes: 5, changed_lines: 50 }
+@@ -338,6 +339,7 @@ test("REQ-execution-identities-003: computeWorkOrderId canonical payload include
+     dependencies: [],
+     ownership: { owner: "worker" },
+     allowedPaths: ["src/"],
++    capsuleInputs: ["src/index.js"],
+     invariants: [],
+     requiredEvidence: [],
+     budget: { model_turns: 5, patches: 2, commands: 10, wall_time_minutes: 5, changed_lines: 50 }
+@@ -466,6 +468,7 @@ test("REQ-execution-identities-003: validateWorkOrderBinding and validateWorkRes
+     dependencies: [],
+     ownership: { owner: "worker", mode: "exclusive" },
+     allowed_paths: ["src/"],
++    capsule_inputs: ["src/index.js"],
+     invariants: [],
+     required_evidence: ["log"],
+     budget: { model_turns: 1, patches: 1, commands: 1, wall_time_minutes: 1, changed_lines: 1 }
+@@ -574,6 +577,7 @@ test("Adversarial Scenario 2: WorkOrder work_order_id copied + ownership altered
+     dependencies: [],
+     ownership: { owner: "team-1", mode: "exclusive" },
+     allowedPaths: ["src/"],
++    capsuleInputs: ["src/index.js"],
+     invariants: [],
+     requiredEvidence: [],
+     budget: { model_turns: 1 }
+@@ -599,6 +603,7 @@ test("Adversarial Scenario 3: WorkOrder work_order_id copied + required_evidence
+     dependencies: [],
+     ownership: { owner: "team-1" },
+     allowedPaths: ["src/"],
++    capsuleInputs: ["src/index.js"],
+     invariants: [],
+     requiredEvidence: ["proof-1"],
+     budget: { model_turns: 1 }
+@@ -624,6 +629,7 @@ test("Adversarial Scenario 4: WorkOrder work_order_id copied + dependencies alte
+     dependencies: ["sha256:aaaaa11111111111111111111111111111111111111111111111111111111111"],
+     ownership: { owner: "team-1" },
+     allowedPaths: ["src/"],
++    capsuleInputs: ["src/index.js"],
+     invariants: [],
+     requiredEvidence: [],
+     budget: { model_turns: 1 }
+@@ -655,6 +661,7 @@ test("Adversarial Scenario 5: WorkOrder(S1) + WorkResult(S2) yields REJECT SOURC
+     dependencies: [],
+     ownership: { owner: "w", mode: "exclusive" },
+     allowed_paths: [],
++    capsule_inputs: ["src/index.js"],
+     invariants: [],
+     required_evidence: [],
+     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
+@@ -896,6 +903,7 @@ test("K3-2.6: binding spoof — declared IDs string-equal but payload mutated 
+     dependencies: [],
+     ownership: { owner: "worker", mode: "exclusive" },
+     allowed_paths: ["src/"],
++    capsule_inputs: ["src/index.js"],
+     invariants: [],
+     required_evidence: ["log"],
+     budget: { model_turns: 1, patches: 1, commands: 1, wall_time_minutes: 1, changed_lines: 1 }
+@@ -960,6 +968,7 @@ test("K3-2.8: dependencies null / non-array → computeWorkOrderId throws (no []
+     objective: "compile",
+     ownership: { owner: "dev" },
+     allowed_paths: ["src/"],
++    capsule_inputs: ["src/index.js"],
+     invariants: [],
+     required_evidence: [],
+     budget: { model_turns: 1 }
+@@ -1026,6 +1035,7 @@ test("K3-2.12: same WorkOrder payload v1 vs v2 → distinct digests; v2 domain i
+     dependencies: [],
+     ownership: { owner: "w", mode: "exclusive" },
+     allowed_paths: ["src/"],
++    capsule_inputs: ["src/index.js"],
+     invariants: [],
+     required_evidence: [],
+     budget: { model_turns: 1 }
+@@ -1036,7 +1046,7 @@ test("K3-2.12: same WorkOrder payload v1 vs v2 → distinct digests; v2 domain i
+ 
+   // Prove domain string by recomputing with sha256Fingerprint
+   const { sha256Fingerprint } = require("../canonical-json.js");
+-  const canonical = {
++  const canonicalV1 = {
+     source_snapshot_id: DIGEST_A,
+     node_id: "node-1",
+     role: "worker",
+@@ -1049,8 +1059,12 @@ test("K3-2.12: same WorkOrder payload v1 vs v2 → distinct digests; v2 domain i
+     required_evidence: [],
+     budget: { model_turns: 1 }
+   };
+-  assert.equal(v2Id, sha256Fingerprint("work-order/v2", canonical));
+-  assert.equal(v1Id, sha256Fingerprint("work-order/v1", canonical));
++  const canonicalV2 = {
++    ...canonicalV1,
++    capsule_inputs: ["src/index.js"],
++  };
++  assert.equal(v2Id, sha256Fingerprint("work-order/v2", canonicalV2));
++  assert.equal(v1Id, sha256Fingerprint("work-order/v1", canonicalV1));
+ });
+ 
+ test("K3 GO: DECLARED_ID_MISMATCH still fires after freeze gate on schema-valid tamper", () => {
+@@ -1123,6 +1137,7 @@ test("4R-R2b: consistent work-order/v2 + schema_version 2 uses v2 domain", () =>
+     dependencies: [],
+     ownership: { owner: "team" },
+     allowed_paths: ["src/"],
++    capsule_inputs: ["src/index.js"],
+     invariants: [],
+     required_evidence: [],
+     budget: { model_turns: 1 },
+@@ -1139,6 +1154,7 @@ test("4R-R2b: consistent work-order/v2 + schema_version 2 uses v2 domain", () =>
+     dependencies: [],
+     ownership: { owner: "team" },
+     allowed_paths: ["src/"],
++    capsule_inputs: ["src/index.js"],
+     invariants: [],
+     required_evidence: [],
+     budget: { model_turns: 1 }
+@@ -1155,6 +1171,7 @@ test("4R-R3: ownership null / non-object → computeWorkOrderId throws (no {} co
+     objective: "x",
+     dependencies: [],
+     allowed_paths: ["src/"],
++    capsule_inputs: ["src/index.js"],
+     invariants: [],
+     required_evidence: [],
+     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
+@@ -1215,6 +1232,7 @@ test("4R-R6: ill-formed declared snapshot id uses ILL_FORMED_SNAPSHOT_ID or INVA
+     dependencies: [],
+     ownership: { owner: "team", mode: "exclusive" },
+     allowed_paths: ["src/"],
++    capsule_inputs: ["src/index.js"],
+     invariants: [],
+     required_evidence: [],
+     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
+@@ -1235,6 +1253,7 @@ test("4R-R6: ill-formed declared snapshot id uses ILL_FORMED_SNAPSHOT_ID or INVA
+     dependencies: [],
+     ownership: { owner: "team", mode: "exclusive" },
+     allowed_paths: ["src/"],
++    capsule_inputs: ["src/index.js"],
+     invariants: [],
+     required_evidence: [],
+     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
+@@ -1273,6 +1292,7 @@ test("REQ-execution-identities-007: computeWorkOrderId fails closed on missing r
+     dependencies: [],
+     ownership: { owner: "dev", mode: "exclusive" },
+     allowed_paths: ["src/"],
++    capsule_inputs: ["src/index.js"],
+     invariants: ["inv-1"],
+     required_evidence: ["ev-1"],
+     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
+@@ -1299,6 +1319,9 @@ test("REQ-execution-identities-007: computeWorkOrderId fails closed on missing r
+ 
+   const missingBudget = { ...validOrder }; delete missingBudget.budget;
+   assert.throws(() => computeWorkOrderId(missingBudget), /budget/i);
++
++  const missingCapsule = { ...validOrder }; delete missingCapsule.capsule_inputs;
++  assert.throws(() => computeWorkOrderId(missingCapsule), /capsule_inputs/i);
+ });
+ 
+ test("REQ-execution-identities-007: computeWorkResultId fails closed on missing required array fields without defaulting to []", () => {
+@@ -1358,6 +1381,7 @@ test("REQ-execution-identities-003: validateWorkResultBinding fails closed on sc
+     dependencies: [],
+     ownership: { owner: "dev", mode: "exclusive" },
+     allowed_paths: ["src/"],
++    capsule_inputs: ["src/index.js"],
+     invariants: [],
+     required_evidence: [],
+     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
+@@ -1419,6 +1443,7 @@ test("K3 Remediation: Deep compute shape validation rejects malformed nested fie
+     dependencies: [],
+     ownership: { owner: "dev", mode: "exclusive" },
+     allowed_paths: ["src/"],
++    capsule_inputs: ["src/index.js"],
+     invariants: [],
+     required_evidence: [],
+     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
+@@ -1502,6 +1527,7 @@ test("K3 Remediation: unmutated raw payloads missing required schema fields fail
+     dependencies: [],
+     ownership: { owner: "dev", mode: "exclusive" },
+     allowed_paths: ["src/"],
++    capsule_inputs: ["src/index.js"],
+     invariants: [],
+     required_evidence: [],
+     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
+@@ -1604,6 +1630,7 @@ test("K3 Remediation: validateIdentityKind enforces JSON Schema validation on pa
+     dependencies: [],
+     ownership: { owner: "dev", mode: "exclusive" },
+     allowed_paths: ["src/"],
++    capsule_inputs: ["src/index.js"],
+     invariants: [],
+     required_evidence: [],
+     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
+@@ -1670,6 +1697,7 @@ test("K3 Remediation: SourceSnapshot own-ID integrity and freezeCandidate schema
+     dependencies: [],
+     ownership: { owner: "dev", mode: "exclusive" },
+     allowed_paths: ["src/"],
++    capsule_inputs: ["src/index.js"],
+     invariants: [],
+     required_evidence: [],
+     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
+diff --git a/scripts/lib/k3-k4a-integration.test.js b/scripts/lib/k3-k4a-integration.test.js
+index 99f4fc8..57113c9 100644
+--- a/scripts/lib/k3-k4a-integration.test.js
++++ b/scripts/lib/k3-k4a-integration.test.js
+@@ -61,7 +61,7 @@ function createIntegrationContract(sourceSnapshotId) {
+           owner: "agent:repair",
+           mode: "exclusive",
+         },
+-        allowed_paths: ["src/auth/**"],
++        allowed_paths: ["src/auth/controller.js"],
+         invariants: ["inv-fail-closed"],
+         required_evidence: ["ev:patch-proof"],
+         budget_ref: "budget:default",
+@@ -76,7 +76,7 @@ function createIntegrationContract(sourceSnapshotId) {
+           owner: "agent:verify",
+           mode: "shared",
+         },
+-        allowed_paths: ["src/auth/**", "tests/**"],
++        allowed_paths: ["src/auth/controller.js", "tests/auth.test.js"],
+         invariants: ["inv-no-direct-mutation"],
+         required_evidence: ["ev:test-pass"],
+         budget_ref: "budget:default",
+diff --git a/scripts/lib/k3-schema-fixtures.test.js b/scripts/lib/k3-schema-fixtures.test.js
+index 3368ffb..928516e 100644
+--- a/scripts/lib/k3-schema-fixtures.test.js
++++ b/scripts/lib/k3-schema-fixtures.test.js
+@@ -85,7 +85,8 @@ test("K3 schemas: WorkOrder v2 schema requires source_snapshot_id for bound work
+     allowed_paths: ["src/"],
+     invariants: [],
+     required_evidence: ["build-log"],
+-    budget: { model_turns: 5, patches: 2, commands: 10, wall_time_minutes: 5, changed_lines: 50 }
++    budget: { model_turns: 5, patches: 2, commands: 10, wall_time_minutes: 5, changed_lines: 50 },
++    capsule_inputs: ["src/app.js"]
+   };
+ 
+   const validRes = validateInstance(schema, validOrder);
+diff --git a/scripts/lib/k4a-lifecycle-model.test.js b/scripts/lib/k4a-lifecycle-model.test.js
+index ffcf317..1536df2 100644
+--- a/scripts/lib/k4a-lifecycle-model.test.js
++++ b/scripts/lib/k4a-lifecycle-model.test.js
+@@ -8,7 +8,7 @@ const {
+   checkInvariant,
+   runAllInvariantCheckers,
+ } = require("./lifecycle-model.js");
+-const { compileWorkOrders } = require("./execution-graph/index.js");
++const { compileWorkOrders, defaultPathInventory } = require("./execution-graph/index.js");
+ const { createSampleExecutionGraph, createSampleSourceSnapshot } = require("./test-support/execution-graph-fixtures.js");
+ 
+ test("K4a Model Conformance: K4a manifest lists 7 executable invariants", async () => {
+@@ -73,7 +73,11 @@ test("K4a Invariant 7: Compilation and replay operate without issuing live worke
+ test("K4a lifecycle consumer: public compiler binds every order to the exact SourceSnapshot ID", () => {
+   const sourceSnapshot = createSampleSourceSnapshot();
+   const sourceSnapshotId = sourceSnapshot.source_snapshot_id;
+-  const workOrders = compileWorkOrders(createSampleExecutionGraph(), { sourceSnapshot, sourceSnapshotId });
++  const workOrders = compileWorkOrders(createSampleExecutionGraph(), {
++    sourceSnapshot,
++    sourceSnapshotId,
++    pathInventory: defaultPathInventory(sourceSnapshotId),
++  });
+ 
+   assert.ok(workOrders.length > 0);
+   assert.ok(workOrders.every((workOrder) =>
+diff --git a/scripts/lib/kernel-schema-fixtures.test.js b/scripts/lib/kernel-schema-fixtures.test.js
+index 96ec035..c483521 100644
+--- a/scripts/lib/kernel-schema-fixtures.test.js
++++ b/scripts/lib/kernel-schema-fixtures.test.js
+@@ -250,6 +250,36 @@ test("work-order versions validate only their own fixture families and reject au
+   assert.equal(sourceSnapshotPattern.test(uppercaseProvenance.source_snapshot_id), false);
+ });
+ 
++test("REQ-kernel-contract-schemas-023: WorkOrder v2 requires closed concrete capsule_inputs", () => {
++  const schemaV2 = loadWorkOrderSchema(2);
++  const valid = JSON.parse(
++    fs.readFileSync(path.join(ROOT, "schemas", "kernel", "work-order", "fixtures", "valid", "v2-minimal.json"), "utf8")
++  );
++  const validResult = validateInstance(schemaV2, valid);
++  assert.equal(validResult.valid, true, `valid v2 capsule_inputs must pass: ${JSON.stringify(validResult.errors)}`);
++  assert.deepEqual(valid.capsule_inputs, ["src/app.js"]);
++
++  const negatives = [
++    ["v2-missing-capsule-inputs.json", "required"],
++    ["v2-empty-capsule-inputs.json", "minItems"],
++    ["v2-non-array-capsule-inputs.json", "type"],
++    ["v2-glob-capsule-inputs.json", "pattern"],
++    ["v2-traversal-capsule-inputs.json", "pattern"],
++    ["v2-absolute-capsule-inputs.json", "pattern"],
++  ];
++  for (const [name, expectedRule] of negatives) {
++    const fixture = JSON.parse(
++      fs.readFileSync(path.join(ROOT, "schemas", "kernel", "work-order", "fixtures", "invalid", name), "utf8")
++    );
++    const result = validateInstance(schemaV2, fixture);
++    assert.equal(result.valid, false, `${name} must fail closed`);
++    assert.ok(
++      result.errors.some((error) => String(error.path).includes("capsule_inputs") && error.rule === expectedRule),
++      `${name} must identify capsule_inputs via ${expectedRule}: ${JSON.stringify(result.errors)}`
++    );
++  }
++});
++
+ test("work-order v1 historical schema and fixture snapshot remain pinned", () => {
+   const v1Paths = [
+     "schemas/kernel/work-order/v1.schema.json",
+diff --git a/scripts/lib/kernel-schema-validator.js b/scripts/lib/kernel-schema-validator.js
+index 5ccf3cd..7fadc80 100644
+--- a/scripts/lib/kernel-schema-validator.js
++++ b/scripts/lib/kernel-schema-validator.js
+@@ -6,7 +6,7 @@
+  * Supported keywords (only):
+  *   - type (string|number|integer|boolean|object|array|null)
+  *   - properties, required, additionalProperties (boolean or schema)
+- *   - items (single schema)
++ *   - items (single schema), minItems, uniqueItems
+  *   - enum, const
+  *   - oneOf
+  *   - local $ref (#/... only)
+@@ -176,9 +176,34 @@ function validate(schema, instance, instancePath, rootSchema, errors) {
+     validateObjectInstance(schema, instance, instancePath, rootSchema, errors);
+   }
+ 
+-  if ((schema.type === "array" || schema.items) && Array.isArray(instance) && schema.items) {
+-    for (let i = 0; i < instance.length; i += 1) {
+-      validate(schema.items, instance[i], `${instancePath}/${i}`, rootSchema, errors);
++  if (Array.isArray(instance)) {
++    if (typeof schema.minItems === "number" && instance.length < schema.minItems) {
++      errors.push({
++        path: instancePath || "/",
++        rule: "minItems",
++        message: `array length ${instance.length} is less than minItems ${schema.minItems}`,
++      });
++    }
++    if (schema.uniqueItems === true) {
++      let hasDuplicate = false;
++      for (let i = 0; i < instance.length && !hasDuplicate; i += 1) {
++        for (let j = i + 1; j < instance.length; j += 1) {
++          if (deepEqual(instance[i], instance[j])) {
++            errors.push({
++              path: instancePath || "/",
++              rule: "uniqueItems",
++              message: "array items must be unique",
++            });
++            hasDuplicate = true;
++            break;
++          }
++        }
++      }
++    }
++    if ((schema.type === "array" || schema.items) && schema.items) {
++      for (let i = 0; i < instance.length; i += 1) {
++        validate(schema.items, instance[i], `${instancePath}/${i}`, rootSchema, errors);
++      }
+     }
+   }
+ 
+diff --git a/scripts/lib/lifecycle-model.js b/scripts/lib/lifecycle-model.js
+index a33049a..bd233e0 100644
+--- a/scripts/lib/lifecycle-model.js
++++ b/scripts/lib/lifecycle-model.js
+@@ -795,7 +795,11 @@ function checkK4aNoLiveAuthority() {
+   const graph = createSampleExecutionGraph();
+   const sourceSnapshot = createSampleSourceSnapshot();
+   const sourceSnapshotId = sourceSnapshot.source_snapshot_id;
+-  const workOrders = compileWorkOrders(graph, { sourceSnapshot, sourceSnapshotId });
++  const workOrders = compileWorkOrders(graph, {
++    sourceSnapshot,
++    sourceSnapshotId,
++    pathInventory: require("./execution-graph/work-order-compiler.js").defaultPathInventory(sourceSnapshotId),
++  });
+   const ok =
+     workOrders.length > 0 &&
+     workOrders.every(
+@@ -1255,10 +1259,11 @@ async function checkK6aCapsuleDeterminism() {
+       invariants: ["inv-1"],
+       required_evidence: ["ev-1"],
+       budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
++      capsule_inputs: ["src/a.js", "package.json"],
+     };
+     workOrder.work_order_id = computeWorkOrderId(workOrder);
+-    const c1 = await materializeSourceSnapshot(ws1, workOrder, snapshot, { capsule_inputs: ["src/a.js", "package.json"], files });
+-    const c2 = await materializeSourceSnapshot(ws2, workOrder, snapshot, { capsule_inputs: ["src/a.js", "package.json"], files });
++    const c1 = await materializeSourceSnapshot(ws1, workOrder, snapshot, { files });
++    const c2 = await materializeSourceSnapshot(ws2, workOrder, snapshot, { files });
+     await disposeWorkspace(ws1);
+     await disposeWorkspace(ws2);
+     const ok =
+@@ -1303,6 +1308,7 @@ async function checkK6aWorkResultBinding() {
+     invariants: ["inv-1"],
+     required_evidence: ["ev-1"],
+     budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
++    capsule_inputs: ["src/app.js"],
+   };
+   workOrder.work_order_id = computeWorkOrderId(workOrder);
+ 
+@@ -1385,6 +1391,7 @@ async function checkK6aHostIsolationFallback() {
+       invariants: ["inv-1"],
+       required_evidence: ["ev-1"],
+       budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
++      capsule_inputs: ["src/app.js"],
+     };
+     workOrder.work_order_id = computeWorkOrderId(workOrder);
+     // 1. Pure internal execution in fallback truthfully reports unavailable without silent promotion
+@@ -1469,6 +1476,7 @@ async function checkK6aTransportBinding() {
+       invariants: ["inv-1"],
+       required_evidence: ["ev-1"],
+       budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
++      capsule_inputs: ["src/app.js"],
+     };
+     workOrder.work_order_id = computeWorkOrderId(workOrder);
+     const adapterId = "adapter-bind";
+diff --git a/scripts/lib/repair-shadow/execution-record-store.js b/scripts/lib/repair-shadow/execution-record-store.js
+index d34f85c..bde636e 100644
+--- a/scripts/lib/repair-shadow/execution-record-store.js
++++ b/scripts/lib/repair-shadow/execution-record-store.js
+@@ -4,9 +4,11 @@ const { computeGraphId } = require("../execution-graph/compiler.js");
+ const { computePolicySnapshotDigest } = require("../execution-graph/policy-snapshot.js");
+ const { computeCandidateId } = require("../execution-identities/index.js");
+ const { computeRevision } = require("../authority-store/index.js");
++const { sha256Fingerprint } = require("../canonical-json.js");
+ 
+ const RECORD_KIND = "repair-shadow-execution/v1";
+ const RECORD_SCHEMA_VERSION = 1;
++const RECORD_FINGERPRINT_DOMAIN = "repair-shadow-execution-record/v1";
+ 
+ function cloneJson(value) {
+   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+@@ -166,13 +168,47 @@ function isUsableStore(store) {
+   return store && typeof store.load === "function" && typeof store.commit === "function";
+ }
+ 
++function isLegacyCandidateKeyedLayout(index) {
++  if (!isPlainObject(index)) return false;
++  if (Object.prototype.hasOwnProperty.call(index, "records") || Object.prototype.hasOwnProperty.call(index, "by_candidate")) {
++    return false;
++  }
++  return Object.keys(index).length > 0;
++}
++
++function emptyIndex() {
++  return { records: {}, by_candidate: {} };
++}
++
++function readIndex(state) {
++  const raw = state && isPlainObject(state.repair_shadow_executions) ? state.repair_shadow_executions : null;
++  if (!raw) return { ok: true, index: emptyIndex() };
++  if (isLegacyCandidateKeyedLayout(raw)) {
++    return {
++      ok: false,
++      error: "legacy CandidateId-keyed repair_shadow_executions layout is rejected; start from a clean store",
++      reason_code: "LEGACY_LAYOUT_REJECTED",
++    };
++  }
++  return {
++    ok: true,
++    index: {
++      records: isPlainObject(raw.records) ? raw.records : {},
++      by_candidate: isPlainObject(raw.by_candidate) ? raw.by_candidate : {},
++    },
++  };
++}
++
+ /**
+- * Persists a repair-shadow-execution/v1 record via filesystem-store CAS
+- * on state.repair_shadow_executions[candidate_id].
++ * Persists a repair-shadow-execution/v1 record via filesystem-store CAS.
++ * Records are keyed by an internal canonical fingerprint; CandidateId is a secondary index.
++ * Legacy CandidateId-keyed layouts are rejected fail-closed (no implicit migration).
++ * Operators must use a clean store; partial or unarchived CandidateId-keyed records
++ * are never rewritten into the fingerprint index.
+  *
+  * @param {Object} store
+  * @param {Object} record
+- * @returns {Promise<{ ok: boolean, candidate_id?: string, idempotent?: boolean, error?: string, reason_code?: string }>}
++ * @returns {Promise<{ ok: boolean, candidate_id?: string, fingerprint?: string, idempotent?: boolean, error?: string, reason_code?: string }>}
+  */
+ async function persistRepairShadowExecution(store, record) {
+   const validation = validateRepairShadowExecutionRecord(record);
+@@ -192,6 +228,7 @@ async function persistRepairShadowExecution(store, record) {
+   }
+ 
+   const toStore = cloneJson(record);
++  const fingerprint = sha256Fingerprint(RECORD_FINGERPRINT_DOMAIN, toStore);
+   let loaded;
+   try {
+     loaded = await store.load();
+@@ -204,25 +241,38 @@ async function persistRepairShadowExecution(store, record) {
+   }
+ 
+   const state = loaded.state && typeof loaded.state === "object" ? loaded.state : {};
+-  const index = isPlainObject(state.repair_shadow_executions) ? state.repair_shadow_executions : {};
+-  const existing = index[record.candidate_id];
+-  if (existing) {
+-    if (recordsByteIdentical(existing, toStore)) {
+-      return { ok: true, candidate_id: record.candidate_id, idempotent: true };
++  const parsed = readIndex(state);
++  if (!parsed.ok) return parsed;
++  const { records, by_candidate: byCandidate } = parsed.index;
++
++  if (records[fingerprint]) {
++    if (recordsByteIdentical(records[fingerprint], toStore)) {
++      return { ok: true, candidate_id: record.candidate_id, fingerprint, idempotent: true };
+     }
+     return {
+       ok: false,
+-      error: "CAS conflict: divergent record for candidate_id",
++      error: "CAS conflict: fingerprint collision for distinct payload",
+       reason_code: "CAS_CONFLICT",
+     };
+   }
+ 
++  const existingForCandidate = Array.isArray(byCandidate[record.candidate_id])
++    ? [...byCandidate[record.candidate_id]]
++    : [];
++  if (!existingForCandidate.includes(fingerprint)) existingForCandidate.push(fingerprint);
++
+   const expectedRevision = computeRevision(loaded.state, loaded.journal, loaded.authority);
+   const nextState = {
+     ...cloneJson(state),
+     repair_shadow_executions: {
+-      ...cloneJson(index),
+-      [record.candidate_id]: toStore,
++      records: {
++        ...cloneJson(records),
++        [fingerprint]: toStore,
++      },
++      by_candidate: {
++        ...cloneJson(byCandidate),
++        [record.candidate_id]: existingForCandidate,
++      },
+     },
+   };
+ 
+@@ -251,18 +301,19 @@ async function persistRepairShadowExecution(store, record) {
+     };
+   }
+ 
+-  return { ok: true, candidate_id: record.candidate_id };
++  return { ok: true, candidate_id: record.candidate_id, fingerprint };
+ }
+ 
+ /**
+- * Loads a previously persisted repair-shadow-execution/v1 record by CandidateId.
+- * Returns a defensive copy so callers cannot mutate store state in place.
++ * Loads every persisted repair-shadow-execution/v1 record for a CandidateId.
++ * Returns defensive copies. Singular loadRepairShadowExecution is a compatibility
++ * alias that also exposes `record` as the first member of the set.
+  *
+  * @param {Object} store
+  * @param {string} candidateId
+- * @returns {Promise<{ ok: boolean, record?: Object, error?: string, reason_code?: string }>}
++ * @returns {Promise<{ ok: boolean, records?: Object[], record?: Object, error?: string, reason_code?: string }>}
+  */
+-async function loadRepairShadowExecution(store, candidateId) {
++async function loadRepairShadowExecutions(store, candidateId) {
+   if (typeof candidateId !== "string" || candidateId.trim() === "") {
+     return {
+       ok: false,
+@@ -289,23 +340,40 @@ async function loadRepairShadowExecution(store, candidateId) {
+     };
+   }
+ 
+-  const record = loaded && loaded.state && loaded.state.repair_shadow_executions
+-    ? loaded.state.repair_shadow_executions[candidateId]
+-    : undefined;
+-  if (!record) {
++  const parsed = readIndex(loaded && loaded.state);
++  if (!parsed.ok) return parsed;
++  const fingerprints = parsed.index.by_candidate[candidateId];
++  if (!Array.isArray(fingerprints) || fingerprints.length === 0) {
++    return {
++      ok: false,
++      error: "execution record not found",
++      reason_code: "NOT_FOUND",
++    };
++  }
++  const records = fingerprints
++    .map((fp) => parsed.index.records[fp])
++    .filter(Boolean)
++    .map((record) => cloneJson(record));
++  if (records.length === 0) {
+     return {
+       ok: false,
+       error: "execution record not found",
+       reason_code: "NOT_FOUND",
+     };
+   }
+-  return { ok: true, record: cloneJson(record) };
++  return { ok: true, records, record: records[0] };
++}
++
++async function loadRepairShadowExecution(store, candidateId) {
++  return loadRepairShadowExecutions(store, candidateId);
+ }
+ 
+ module.exports = {
+   persistRepairShadowExecution,
+   loadRepairShadowExecution,
++  loadRepairShadowExecutions,
+   validateRepairShadowExecutionRecord,
+   RECORD_KIND,
+   RECORD_SCHEMA_VERSION,
++  RECORD_FINGERPRINT_DOMAIN,
+ };
+diff --git a/scripts/lib/repair-shadow/index.js b/scripts/lib/repair-shadow/index.js
+index 14d208f..57c4cb3 100644
+--- a/scripts/lib/repair-shadow/index.js
++++ b/scripts/lib/repair-shadow/index.js
+@@ -2,18 +2,21 @@
+ 
+ const { orchestrateRepairShadow } = require("./orchestrator.js");
+ const { integrateWorkResultPatches } = require("./patch-integrator.js");
+-const { compareShadowExecution } = require("./shadow-comparator.js");
+ const {
+   persistRepairShadowExecution,
+   loadRepairShadowExecution,
++  loadRepairShadowExecutions,
+   validateRepairShadowExecutionRecord,
+ } = require("./execution-record-store.js");
++const { compareShadowExecution, buildComparisonProjection } = require("./shadow-comparator.js");
+ 
+ module.exports = {
+   orchestrateRepairShadow,
+   integrateWorkResultPatches,
+   compareShadowExecution,
++  buildComparisonProjection,
+   persistRepairShadowExecution,
+   loadRepairShadowExecution,
++  loadRepairShadowExecutions,
+   validateRepairShadowExecutionRecord,
+ };
+diff --git a/scripts/lib/repair-shadow/index.test.js b/scripts/lib/repair-shadow/index.test.js
+index 049a748..0c00495 100644
+--- a/scripts/lib/repair-shadow/index.test.js
++++ b/scripts/lib/repair-shadow/index.test.js
+@@ -16,8 +16,10 @@ test("Phase 1: repair-shadow package exports canonical API", () => {
+   assert.equal(typeof repairShadow.orchestrateRepairShadow, "function", "repair-shadow must export orchestrateRepairShadow");
+   assert.equal(typeof repairShadow.integrateWorkResultPatches, "function", "repair-shadow must export integrateWorkResultPatches");
+   assert.equal(typeof repairShadow.compareShadowExecution, "function", "repair-shadow must export compareShadowExecution");
++  assert.equal(typeof repairShadow.buildComparisonProjection, "function", "repair-shadow must export buildComparisonProjection");
+   assert.equal(typeof repairShadow.persistRepairShadowExecution, "function", "repair-shadow must export persistRepairShadowExecution");
+   assert.equal(typeof repairShadow.loadRepairShadowExecution, "function", "repair-shadow must export loadRepairShadowExecution");
++  assert.equal(typeof repairShadow.loadRepairShadowExecutions, "function", "repair-shadow must export loadRepairShadowExecutions");
+ 
+   assert.equal(typeof orchestrator.orchestrateRepairShadow, "function", "orchestrator must export orchestrateRepairShadow");
+   assert.equal(typeof patchIntegrator.integrateWorkResultPatches, "function", "patch-integrator must export integrateWorkResultPatches");
+@@ -633,34 +635,25 @@ test("Phase 3.9b: orchestrateRepairShadow detects tampered WorkResultId and fail
+   assert.equal(result.reason_code, "LINEAGE_VERIFICATION_FAILED");
+ });
+ 
+-test("Phase 4.1 & 4.2: compareShadowExecution reports full-match when shadow aligns with baseline", () => {
+-  const { compareShadowExecution } = require("./shadow-comparator.js");
+-
+-  const shadowResult = {
++function projectionFixture(overrides = {}) {
++  return {
++    kind: "repair-shadow-comparison-projection/v1",
+     steps: ["patch-app", "verify-app"],
+-    diff_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+-    candidate: {
+-      candidate_id: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+-      diff_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+-      paths: ["src/app.js"],
+-    },
+-    obligations: ["ob1"],
+-    invariants: ["inv1"],
++    dependencies: [],
++    diffs: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+     inventory: ["src/app.js"],
+-  };
+-
+-  const baselineResult = {
+-    steps: ["patch-app", "verify-app"],
+-    diff_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+-    candidate: {
+-      candidate_id: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+-      diff_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+-      paths: ["src/app.js"],
+-    },
+     obligations: ["ob1"],
+     invariants: ["inv1"],
+-    inventory: ["src/app.js"],
++    execution_metrics: [],
++    ...overrides,
+   };
++}
++
++test("Phase 4.1 & 4.2: compareShadowExecution reports full-match when shadow aligns with baseline", () => {
++  const { compareShadowExecution } = require("./shadow-comparator.js");
++
++  const shadowResult = projectionFixture();
++  const baselineResult = projectionFixture();
+ 
+   const comparison = compareShadowExecution(shadowResult, baselineResult);
+ 
+@@ -675,9 +668,13 @@ test("Phase 4.1 & 4.2: compareShadowExecution reports full-match when shadow ali
+ });
+ 
+ test("F-2377c2ac33934a21: production graph_telemetry execution_metrics ignore wall-clock", () => {
+-  const { compareShadowExecution } = require("./shadow-comparator.js");
++  const { compareShadowExecution, buildComparisonProjection } = require("./shadow-comparator.js");
+   const candidate = { candidate_id: "sha256:" + "c".repeat(64), diff_hash: "sha256:" + "1".repeat(64), paths: ["src/app.js"] };
+   const workResults = [{ work_order_id: "wo-n1", work_result_id: "wr-n1" }];
++  const graph = {
++    nodes: [{ node_id: "n1", dependencies: [], invariants: [] }],
++    obligations: [],
++  };
+   const tel = (c) => ({
+     n1: {
+       node_id: "n1", status: "completed", work_order_id: "wo-n1", work_result_id: "wr-n1",
+@@ -686,8 +683,14 @@ test("F-2377c2ac33934a21: production graph_telemetry execution_metrics ignore wa
+     },
+   });
+   const comparison = compareShadowExecution(
+-    { candidate, workResults, graph_telemetry: tel({ start: "2026-08-25T10:00:00Z", finish: "2026-08-25T10:00:01Z", dur: 1000, cmd: 12 }) },
+-    { candidate, workResults, graph_telemetry: tel({ start: "2026-08-26T11:22:33Z", finish: "2026-08-26T11:22:35Z", dur: 2000, cmd: 88 }) }
++    buildComparisonProjection({
++      executionGraph: graph, candidate, workResults,
++      graphTelemetry: tel({ start: "2026-08-25T10:00:00Z", finish: "2026-08-25T10:00:01Z", dur: 1000, cmd: 12 }),
++    }),
++    buildComparisonProjection({
++      executionGraph: graph, candidate, workResults,
++      graphTelemetry: tel({ start: "2026-08-26T11:22:33Z", finish: "2026-08-26T11:22:35Z", dur: 2000, cmd: 88 }),
++    })
+   );
+   assert.equal(comparison.dimension_match_rates.execution_metrics, 1);
+   assert.equal(comparison.match, true);
+@@ -697,21 +700,12 @@ test("F-2377c2ac33934a21: production graph_telemetry execution_metrics ignore wa
+ test("Phase 4.3 & 4.4: compareShadowExecution classifies divergence and emits structured telemetryDiff without throwing", () => {
+   const { compareShadowExecution } = require("./shadow-comparator.js");
+ 
+-  const shadowResult = {
++  const shadowResult = projectionFixture({
+     steps: ["patch-app-alt"],
+-    diff_hash: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+-    obligations: ["ob1"],
+-    invariants: ["inv1"],
++    diffs: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+     inventory: ["src/app-alt.js"],
+-  };
+-
+-  const baselineResult = {
+-    steps: ["patch-app"],
+-    diff_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+-    obligations: ["ob1"],
+-    invariants: ["inv1"],
+-    inventory: ["src/app.js"],
+-  };
++  });
++  const baselineResult = projectionFixture();
+ 
+   const comparison = compareShadowExecution(shadowResult, baselineResult);
+ 
+@@ -725,18 +719,11 @@ test("Phase 4.3 & 4.4: compareShadowExecution classifies divergence and emits st
+ test("Phase 4.5 & 4.6: compareShadowExecution preserves non-mutation invariant", () => {
+   const { compareShadowExecution } = require("./shadow-comparator.js");
+ 
+-  const shadowOriginal = {
+-    steps: ["step1"],
+-    diff_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+-    obligations: ["ob1"],
+-    invariants: ["inv1"],
+-  };
+-  const baselineOriginal = {
++  const shadowOriginal = projectionFixture({ steps: ["step1"] });
++  const baselineOriginal = projectionFixture({
+     steps: ["step2"],
+-    diff_hash: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+-    obligations: ["ob1"],
+-    invariants: ["inv1"],
+-  };
++    diffs: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
++  });
+ 
+   const shadowJsonBefore = JSON.stringify(shadowOriginal);
+   const baselineJsonBefore = JSON.stringify(baselineOriginal);
+@@ -829,6 +816,7 @@ function makePhase1WorkOrder(sourceSnapshot, overrides = {}) {
+     dependencies: [],
+     ownership: { owner: "agent-test", mode: "exclusive" },
+     allowed_paths: ["src/**"],
++    capsule_inputs: ["src/app.js"],
+     invariants: ["inv-1"],
+     required_evidence: ["ev-1"],
+     budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
+@@ -1180,22 +1168,24 @@ test("Phase 2.5: empty dependencies and execution_metrics are evaluated and cann
+   ];
+   assert.deepEqual([...ALL_EVALUATED_DIMENSIONS], REQUIRED);
+ 
+-  const shadowResult = {
++  const shadowResult = projectionFixture({
+     steps: [],
+     dependencies: [],
++    diffs: "",
++    inventory: [],
+     obligations: [],
+     invariants: [],
+-    inventory: [],
+     execution_metrics: [],
+-  };
+-  const baselineResult = {
++  });
++  const baselineResult = projectionFixture({
+     steps: [],
+     dependencies: [],
++    diffs: "",
++    inventory: [],
+     obligations: [],
+     invariants: [],
+-    inventory: [],
+     execution_metrics: [],
+-  };
++  });
+   const comparison = compareShadowExecution(shadowResult, baselineResult);
+ 
+   for (const dim of REQUIRED) {
+@@ -1525,8 +1515,13 @@ test("Phase 3.4: persistRepairShadowExecution CAS, incomplete bindings, and byte
+     ...record,
+     graph_telemetry: { n1: { status: "failed" } },
+   });
+-  assert.equal(divergent.ok, false);
+-  assert.equal(divergent.reason_code, "CAS_CONFLICT");
++  assert.equal(divergent.ok, true, divergent.error);
++  assert.equal(divergent.idempotent, undefined);
++
++  const { loadRepairShadowExecutions } = require("./execution-record-store.js");
++  const loadedSet = await loadRepairShadowExecutions(store, candidate.candidate_id);
++  assert.equal(loadedSet.ok, true);
++  assert.equal(loadedSet.records.length, 2);
+ 
+   const loaded = await loadRepairShadowExecution(store, candidate.candidate_id);
+   assert.equal(loaded.ok, true);
+@@ -1759,4 +1754,292 @@ test("Phase 3.7: node failure skips N2, disposes N1 workspace, and reports faile
+   assert.deepEqual(disposed, created);
+ });
+ 
++test("REQ-repair-shadow-010: header-only create/delete and empty hunk patches fail as MALFORMED_UNIFIED_DIFF", async (t) => {
++  const { orchestrateRepairShadow } = require("./orchestrator.js");
++  const { createPolicySnapshot } = require("../execution-graph/index.js");
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-malformed"] });
++  const graph = compileRepairGraph(sourceSnapshot, [makeRepairNode("n1", [], ["src/app.js"], "ev-1")], policySnapshot);
++
++  const cases = [
++    `diff --git a/src/created.js b/src/created.js
++new file mode 100644
++--- /dev/null
+++++ b/src/created.js
++`,
++    `diff --git a/src/app.js b/src/app.js
++deleted file mode 100644
++--- a/src/app.js
+++++ /dev/null
++`,
++    "this is not a unified diff at all",
++    `--- a/src/app.js
+++++ b/src/app.js
++@@ truncated header
++-const a = 1;
++`,
++  ];
++
++  for (const patch of cases) {
++    mockSuccessfulExecute(t, sourceSnapshot, { n1: patch });
++    const result = await orchestrateRepairShadow(graph, {
++      sourceSnapshot,
++      files,
++      isolationCapability: "enforced",
++      policySnapshot,
++      store: makeTempFileStore(t),
++    });
++    assert.equal(result.ok, false, `expected malformed fail for: ${patch.slice(0, 40)}`);
++    assert.equal(result.reason_code, "MALFORMED_UNIFIED_DIFF");
++    assert.equal(result.candidate, undefined);
++  }
++});
++
++test("REQ-repair-shadow-010: mode-only existing-path diff remains valid and changes Candidate modes", async () => {
++  const { integrateWorkResultPatches } = require("./patch-integrator.js");
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const modeOnly = `diff --git a/src/app.js b/src/app.js
++old mode 100644
++new mode 100755
++`;
++  const unchanged = await integrateWorkResultPatches(sourceSnapshot, [makePhase2WorkResult(sourceSnapshot, "")], {
++    files,
++    freeze: true,
++  });
++  const result = await integrateWorkResultPatches(sourceSnapshot, [makePhase2WorkResult(sourceSnapshot, modeOnly)], {
++    files,
++    freeze: true,
++  });
++  assert.equal(result.ok, true, result.error);
++  assert.ok(result.candidate);
++  assert.notEqual(result.candidate.changed_paths_modes_digest, unchanged.candidate.changed_paths_modes_digest);
++  assert.notEqual(result.candidate.candidate_id, unchanged.candidate.candidate_id);
++});
++
++test("REQ-repair-shadow-011: ancestor-descendant overlap is permitted; incomparable diamond fails", async (t) => {
++  const { orchestrateRepairShadow } = require("./orchestrator.js");
++  const { createPolicySnapshot } = require("../execution-graph/index.js");
++  const files = { "src/app.js": "const a = 1;\nconst b = 2;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-dag"] });
++  const patchN0 = `--- a/src/app.js
+++++ b/src/app.js
++@@ -1,2 +1,2 @@
++-const a = 1;
+++const a = 10;
++ const b = 2;
++`;
++  const patchN1 = `--- a/src/app.js
+++++ b/src/app.js
++@@ -1,2 +1,2 @@
++ const a = 10;
++-const b = 2;
+++const b = 20;
++`;
++  const patchN2 = `--- a/src/app.js
+++++ b/src/app.js
++@@ -2 +2,2 @@
++ const b = 20;
+++module.exports = { a: 10, b: 20 };
++`;
++  const chainGraph = compileRepairGraph(sourceSnapshot, [
++    makeRepairNode("n0", [], ["src/app.js"], "ev-0"),
++    makeRepairNode("n1", ["n0"], ["src/app.js"], "ev-1"),
++    makeRepairNode("n2", ["n1"], ["src/app.js"], "ev-2"),
++  ], policySnapshot);
++  mockSuccessfulExecute(t, sourceSnapshot, { n0: patchN0, n1: patchN1, n2: patchN2 });
++  const chain = await orchestrateRepairShadow(chainGraph, {
++    sourceSnapshot, files, isolationCapability: "enforced", policySnapshot, store: makeTempFileStore(t),
++  });
++  assert.equal(chain.ok, true, chain.error);
++
++  const diamond = compileRepairGraph(sourceSnapshot, [
++    makeRepairNode("n1", [], ["src/app.js"], "ev-1"),
++    makeRepairNode("n2", [], ["src/app.js"], "ev-2"),
++    makeRepairNode("n3", ["n1", "n2"], ["src/app.js"], "ev-3"),
++  ], policySnapshot);
++  mockSuccessfulExecute(t, sourceSnapshot, { n1: patchN0, n2: patchN0 });
++  const diamondResult = await orchestrateRepairShadow(diamond, {
++    sourceSnapshot, files, isolationCapability: "enforced", policySnapshot, store: makeTempFileStore(t),
++  });
++  assert.equal(diamondResult.ok, false);
++  assert.equal(diamondResult.reason_code, "PREDECESSOR_CONTEXT_CONFLICT");
++  assert.equal(diamondResult.candidate, undefined);
++});
++
++test("REQ-repair-shadow-011: later diamond does not contaminate a predecessor subset", async (t) => {
++  const { orchestrateRepairShadow } = require("./orchestrator.js");
++  const { createPolicySnapshot } = require("../execution-graph/index.js");
++  const files = { "src/app.js": "const a = 1;\nconst b = 2;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-subset"] });
++  const patchN0 = `--- a/src/app.js
+++++ b/src/app.js
++@@ -1,2 +1,2 @@
++-const a = 1;
+++const a = 10;
++ const b = 2;
++`;
++  const patchN1 = `--- a/src/app.js
+++++ b/src/app.js
++@@ -1,2 +1,2 @@
++ const a = 10;
++-const b = 2;
+++const b = 20;
++`;
++  const patchN2 = patchN1;
++  const patchN3 = `--- a/src/app.js
+++++ b/src/app.js
++@@ -2 +2,2 @@
++ const b = 20;
+++module.exports = { a: 10, b: 20 };
++`;
++  const graph = compileRepairGraph(sourceSnapshot, [
++    makeRepairNode("n0", [], ["src/app.js"], "ev-0"),
++    makeRepairNode("n1", ["n0"], ["src/app.js"], "ev-1"),
++    makeRepairNode("n2", ["n0"], ["src/app.js"], "ev-2"),
++    makeRepairNode("n3", ["n0", "n1"], ["src/app.js"], "ev-3"),
++  ], policySnapshot);
++  mockSuccessfulExecute(t, sourceSnapshot, { n0: patchN0, n1: patchN1, n2: patchN2, n3: patchN3 });
++  const result = await orchestrateRepairShadow(graph, {
++    sourceSnapshot, files, isolationCapability: "enforced", policySnapshot, store: makeTempFileStore(t),
++  });
++  assert.notEqual(result.reason_code, "PREDECESSOR_CONTEXT_CONFLICT");
++  assert.equal(result.graph_telemetry.n3.status, "completed");
++});
++
++test("REQ-repair-shadow-012: materializer receives WorkOrder capsule_inputs and blocks executeWorkOrder on missing input", async (t) => {
++  const { orchestrateRepairShadow } = require("./orchestrator.js");
++  const { createPolicySnapshot } = require("../execution-graph/index.js");
++  const workerWorkspace = require("../worker-workspace.js");
++  const files = { "src/app.js": "const a = 1;\n", "README.md": "# extra\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-capsule"] });
++  const graph = compileRepairGraph(sourceSnapshot, [makeRepairNode("n1", [], ["src/app.js"], "ev-1")], policySnapshot);
++
++  const executed = mockSuccessfulExecute(t, sourceSnapshot, { n1: "" });
++  const originalMaterialize = workerWorkspace.materializeSourceSnapshot;
++  let seenWorkOrder;
++  t.mock.method(workerWorkspace, "materializeSourceSnapshot", async function mocked(...args) {
++    seenWorkOrder = args[1];
++    return originalMaterialize.apply(this, args);
++  });
++  const ok = await orchestrateRepairShadow(graph, {
++    sourceSnapshot, files, isolationCapability: "enforced", policySnapshot, store: makeTempFileStore(t),
++  });
++  assert.equal(ok.ok, true, ok.error);
++  assert.deepEqual(seenWorkOrder.capsule_inputs, ["src/app.js"]);
++  assert.equal(executed.length, 1);
++
++  const missingGraph = compileRepairGraph(sourceSnapshot, [makeRepairNode("n1", [], ["src/missing.js"], "ev-1")], policySnapshot);
++  const executedMissing = [];
++  t.mock.method(workerExecutor, "executeWorkOrder", async () => {
++    executedMissing.push("called");
++    throw new Error("must not execute");
++  });
++  const missing = await orchestrateRepairShadow(missingGraph, {
++    sourceSnapshot, files, isolationCapability: "enforced", policySnapshot, store: makeTempFileStore(t),
++  });
++  assert.equal(missing.ok, false);
++  assert.equal(executedMissing.length, 0);
++});
++
++test("REQ-repair-shadow-006: projection uses topological node_id and rejects non-graph steps", () => {
++  const { compareShadowExecution, buildComparisonProjection } = require("./shadow-comparator.js");
++  const graph = {
++    nodes: [
++      { node_id: "n2", dependencies: ["n1"], operation: "verify", invariants: [] },
++      { node_id: "n1", dependencies: [], operation: "patch", invariants: [] },
++    ],
++    obligations: [],
++  };
++  const candidate = { paths: [], diff_hash: "sha256:" + "1".repeat(64) };
++  const left = buildComparisonProjection({
++    executionGraph: graph, candidate, workResults: [], graphTelemetry: {},
++  });
++  const right = buildComparisonProjection({
++    executionGraph: {
++      nodes: [
++        { node_id: "n2", dependencies: ["n1"], operation: "other-verify", invariants: [] },
++        { node_id: "n1", dependencies: [], operation: "other-patch", invariants: [] },
++      ],
++      obligations: [],
++    },
++    candidate, workResults: [], graphTelemetry: {},
++  });
++  assert.deepEqual(left.steps, ["n1", "n2"]);
++  const comparison = compareShadowExecution(left, right);
++  assert.equal(comparison.dimension_match_rates.steps, 1);
++
++  const invalid = compareShadowExecution(
++    { steps: ["patch", "verify"], work_order_id: "wo-1" },
++    left
++  );
++  assert.equal(invalid.reason_code, "INVALID_COMPARISON_PROJECTION");
++  assert.equal(invalid.match, false);
++});
++
++test("REQ-repair-shadow-009: one Candidate persists N records; byte-identical persist is idempotent; legacy layout rejected", async (t) => {
++  const {
++    persistRepairShadowExecution,
++    loadRepairShadowExecutions,
++  } = require("./execution-record-store.js");
++  const { freezeCandidate } = require("../execution-identities/index.js");
++  const { createPolicySnapshot } = require("../execution-graph/index.js");
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-n"] });
++  const graph = compileRepairGraph(sourceSnapshot, [makeRepairNode("n1", [], ["src/app.js"], "ev-1")], policySnapshot);
++  const candidate = freezeCandidate({
++    repository_id: sourceSnapshot.repository_id,
++    projection: "workspace",
++    base_tree: sourceSnapshot.base_tree_digest,
++    candidate_tree: sourceSnapshot.base_tree_digest,
++    diffText: "",
++    paths: [],
++  });
++  const base = {
++    kind: "repair-shadow-execution/v1",
++    schema_version: 1,
++    candidate_id: candidate.candidate_id,
++    candidate,
++    source_snapshot_id: sourceSnapshot.source_snapshot_id,
++    execution_graph: graph,
++    policy_snapshot: policySnapshot,
++  };
++  const store = makeTempFileStore(t);
++  const first = await persistRepairShadowExecution(store, { ...base, created_at: "2026-08-26T00:00:00.000Z" });
++  const second = await persistRepairShadowExecution(store, { ...base, created_at: "2026-08-26T01:00:00.000Z" });
++  assert.equal(first.ok, true, first.error);
++  assert.equal(second.ok, true, second.error);
++  const replay = await persistRepairShadowExecution(store, { ...base, created_at: "2026-08-26T00:00:00.000Z" });
++  assert.equal(replay.idempotent, true);
++  const loaded = await loadRepairShadowExecutions(store, candidate.candidate_id);
++  assert.equal(loaded.records.length, 2);
++  loaded.records[0].created_at = "mutated";
++  const reloaded = await loadRepairShadowExecutions(store, candidate.candidate_id);
++  assert.notEqual(reloaded.records[0].created_at, "mutated");
++  assert.equal(Object.prototype.hasOwnProperty.call(reloaded.records[0], "fingerprint"), false);
++
++  const legacyStore = {
++    load: async () => ({
++      state: { repair_shadow_executions: { [candidate.candidate_id]: base } },
++      journal: [],
++      authority: {},
++    }),
++    commit: async () => {
++      throw new Error("legacy layout must not commit");
++    },
++  };
++  const legacyPersist = await persistRepairShadowExecution(legacyStore, { ...base, created_at: "x" });
++  assert.equal(legacyPersist.ok, false);
++  assert.equal(legacyPersist.reason_code, "LEGACY_LAYOUT_REJECTED");
++  const legacyLoad = await loadRepairShadowExecutions(legacyStore, candidate.candidate_id);
++  assert.equal(legacyLoad.ok, false);
++  assert.equal(legacyLoad.reason_code, "LEGACY_LAYOUT_REJECTED");
++});
++
++
+ 
+diff --git a/scripts/lib/repair-shadow/orchestrator.js b/scripts/lib/repair-shadow/orchestrator.js
+index 9f9c38a..64f17ec 100644
+--- a/scripts/lib/repair-shadow/orchestrator.js
++++ b/scripts/lib/repair-shadow/orchestrator.js
+@@ -82,7 +82,7 @@ const {
+   computeCandidateId,
+ } = require("../execution-identities/index.js");
+ const { integrateWorkResultPatches, detectPredecessorContextConflicts } = require("./patch-integrator.js");
+-const { compareShadowExecution } = require("./shadow-comparator.js");
++const { compareShadowExecution, buildComparisonProjection, isValidComparisonProjection } = require("./shadow-comparator.js");
+ const { buildEffectiveShadowBase } = require("./effective-shadow-base.js");
+ const { persistRepairShadowExecution } = require("./execution-record-store.js");
+ 
+@@ -110,6 +110,33 @@ function computePredecessorClosure(nodes, nodeId) {
+   return visited;
+ }
+ 
++function buildAncestorClosureMap(nodes) {
++  const map = new Map();
++  for (const node of nodes) {
++    if (node && node.node_id) {
++      map.set(node.node_id, computePredecessorClosure(nodes, node.node_id));
++    }
++  }
++  return map;
++}
++
++function buildPathInventory(sourceSnapshot, files) {
++  if (!files) return undefined;
++  let paths = [];
++  if (files instanceof Map) {
++    paths = [...files.keys()];
++  } else if (Array.isArray(files)) {
++    paths = files.map((f) => f && f.path).filter(Boolean);
++  } else if (typeof files === "object") {
++    paths = Object.keys(files);
++  }
++  if (paths.length === 0) return undefined;
++  return {
++    source_snapshot_id: sourceSnapshot.source_snapshot_id,
++    paths,
++  };
++}
++
+ /**
+  * Validates 4-identity cryptographic lineage chain:
+  * SourceSnapshotId -> WorkOrderId -> WorkResultId -> CandidateId.
+@@ -244,6 +271,7 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
+     workOrders = compileWorkOrdersV2(executionGraph, {
+       sourceSnapshot,
+       sourceSnapshotId: options.sourceSnapshotId || sourceSnapshot.source_snapshot_id,
++      pathInventory: buildPathInventory(sourceSnapshot, options.files),
+     });
+   } catch (err) {
+     return {
+@@ -307,6 +335,8 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
+   let failedReasonCode = "NODE_EXECUTION_FAILED";
+   let failedError = null;
+ 
++  const ancestorClosure = buildAncestorClosureMap(executionGraph.nodes);
++
+   for (const node of sortedNodes) {
+     const currentStatus = nodeStates.get(node.node_id);
+     if (currentStatus === "blocked") {
+@@ -328,15 +358,24 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
+       let effectiveBase = null;
+ 
+       if (predecessorNodes.length > 0) {
+-        const predResults = predecessorNodes
+-          .map((n) => nodeIntegrations.get(n.node_id)?.workResult)
++        const predecessorEntries = predecessorNodes
++          .map((n) => {
++            const integration = nodeIntegrations.get(n.node_id);
++            if (!integration || !integration.workResult) return null;
++            return { node_id: n.node_id, workResult: integration.workResult };
++          })
+           .filter(Boolean);
+-        const conflict = detectPredecessorContextConflicts(predResults);
++        const conflict = detectPredecessorContextConflicts(
++          { node_id: node.node_id },
++          predecessorEntries,
++          ancestorClosure
++        );
+         if (!conflict.ok) {
+           const err = new Error(conflict.error);
+           err.code = conflict.reason_code;
+           throw err;
+         }
++        const predResults = predecessorEntries.map((entry) => entry.workResult);
+         const derived = await integrateWorkResultPatches(sourceSnapshot, predResults, {
+           files: options.files,
+           file_modes: options.file_modes || options.fileModes,
+@@ -514,10 +553,21 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
+   let shadow_comparison;
+   if (options.baselineResult || typeof options.fixedBaselineFn === "function") {
+     const baseline = options.baselineResult || options.fixedBaselineFn();
+-    shadow_comparison = compareShadowExecution(
+-      { candidate, workResults: capturedWorkResults, graph_telemetry: graphTelemetry },
+-      baseline
+-    );
++    const shadowProjection = buildComparisonProjection({
++      executionGraph,
++      candidate,
++      workResults: capturedWorkResults,
++      graphTelemetry,
++    });
++    const baselineProjection = isValidComparisonProjection(baseline)
++      ? baseline
++      : buildComparisonProjection({
++          executionGraph: baseline.executionGraph || executionGraph,
++          candidate: baseline.candidate || baseline,
++          workResults: baseline.workResults,
++          graphTelemetry: baseline.graph_telemetry || baseline.graphTelemetry,
++        });
++    shadow_comparison = compareShadowExecution(shadowProjection, baselineProjection);
+   }
+ 
+   const successPayload = {
+@@ -577,7 +627,7 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
+       graph_telemetry: graphTelemetry,
+     };
+   }
+-  successPayload.execution_record_id = persistRes.candidate_id;
++  successPayload.execution_record_id = persistRes.fingerprint;
+ 
+   return successPayload;
+ }
+diff --git a/scripts/lib/repair-shadow/patch-integrator.js b/scripts/lib/repair-shadow/patch-integrator.js
+index 34ae4f6..3c96623 100644
+--- a/scripts/lib/repair-shadow/patch-integrator.js
++++ b/scripts/lib/repair-shadow/patch-integrator.js
+@@ -34,12 +34,28 @@ function parseModeToken(raw) {
+ }
+ 
+ function parseUnifiedDiffs(diffText) {
+-  if (!diffText || typeof diffText !== "string") return [];
++  if (diffText === undefined || diffText === null) {
++    return { ok: true, files: [], modeOnly: false };
++  }
++  if (typeof diffText !== "string") {
++    return {
++      ok: false,
++      files: [],
++      reason_code: "MALFORMED_UNIFIED_DIFF",
++      error: "unified diff must be a string",
++    };
++  }
++  if (!diffText.trim()) {
++    return { ok: true, files: [], modeOnly: false };
++  }
++
+   const normalized = diffText.replace(/\r\n/g, "\n");
+   const lines = normalized.split("\n");
+   const fileDiffs = [];
+   let currentFile = null;
+   let currentHunk = null;
++  let malformed = false;
++  let malformedError = "Malformed unified diff";
+ 
+   for (let i = 0; i < lines.length; i++) {
+     const line = lines[i];
+@@ -118,19 +134,28 @@ function parseUnifiedDiffs(diffText) {
+       }
+     }
+ 
+-    if (line.startsWith("@@ ") && currentFile) {
++    if (line.startsWith("@@")) {
++      if (!currentFile) {
++        malformed = true;
++        malformedError = "Hunk header without a file section";
++        continue;
++      }
+       const match = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
+-      if (match) {
+-        currentHunk = {
+-          oldStart: parseInt(match[1], 10),
+-          oldCount: match[2] !== undefined ? parseInt(match[2], 10) : 1,
+-          newStart: parseInt(match[3], 10),
+-          newCount: match[4] !== undefined ? parseInt(match[4], 10) : 1,
+-          lines: [],
+-        };
+-        currentFile.hunks.push(currentHunk);
++      if (!match) {
++        malformed = true;
++        malformedError = `Truncated or unparseable hunk header: ${line}`;
++        currentHunk = null;
+         continue;
+       }
++      currentHunk = {
++        oldStart: parseInt(match[1], 10),
++        oldCount: match[2] !== undefined ? parseInt(match[2], 10) : 1,
++        newStart: parseInt(match[3], 10),
++        newCount: match[4] !== undefined ? parseInt(match[4], 10) : 1,
++        lines: [],
++      };
++      currentFile.hunks.push(currentHunk);
++      continue;
+     }
+ 
+     if (currentHunk) {
+@@ -140,7 +165,42 @@ function parseUnifiedDiffs(diffText) {
+     }
+   }
+ 
+-  return fileDiffs;
++  function isCreate(fileDiff) {
++    return fileDiff.oldPath === "/dev/null" || Boolean(fileDiff.newFileMode);
++  }
++  function isDelete(fileDiff) {
++    return fileDiff.newPath === "/dev/null" || Boolean(fileDiff.deletedFileMode);
++  }
++  function isModeOnly(fileDiff) {
++    return Boolean(fileDiff.oldMode && fileDiff.newMode)
++      && !isCreate(fileDiff)
++      && !isDelete(fileDiff)
++      && fileDiff.hunks.length === 0
++      && fileDiff.targetPath
++      && fileDiff.targetPath !== "/dev/null";
++  }
++
++  const hasValidHunk = fileDiffs.some((fd) => fd.hunks.length > 0);
++  const allModeOnly = fileDiffs.length > 0 && fileDiffs.every(isModeOnly);
++  for (const fd of fileDiffs) {
++    if ((isCreate(fd) || isDelete(fd)) && fd.hunks.length === 0) {
++      malformed = true;
++      malformedError = isCreate(fd)
++        ? "Header-only create is not a valid unified diff"
++        : "Header-only delete is not a valid unified diff";
++    }
++  }
++
++  if (malformed || (!allModeOnly && (!fileDiffs.length || !hasValidHunk))) {
++    return {
++      ok: false,
++      files: fileDiffs,
++      reason_code: "MALFORMED_UNIFIED_DIFF",
++      error: malformedError,
++    };
++  }
++
++  return { ok: true, files: fileDiffs, modeOnly: allModeOnly };
+ }
+ 
+ function countHunkSides(hunk) {
+@@ -342,20 +402,66 @@ function resultingFileMode(fileDiff) {
+ }
+ 
+ /**
+- * Fail-closed when two predecessor WorkResults claim overlapping original hunk
+- * context on the same path. Last-writer-wins is not a legal merge.
++ * Fail-closed when incomparable predecessor WorkResults claim overlapping original
++ * hunk context on the same path. Ancestor→descendant overlaps are permitted.
+  *
+- * @param {Array<Object>} workResults
++ * @param {Array<{node_id: string, workResult: object}>|object} predecessorsOrCurrent
++ * @param {Array<{node_id: string, workResult: object}>} [predecessors]
++ * @param {Map<string, Set<string>>|Record<string, string[]>} [ancestorClosure]
+  * @returns {{ ok: boolean, error?: string, reason_code?: string }}
+  */
+-function detectPredecessorContextConflicts(workResults = []) {
++function detectPredecessorContextConflicts(predecessorsOrCurrent, predecessors, ancestorClosure) {
++  let entries;
++  let closure = ancestorClosure;
++  if (Array.isArray(predecessorsOrCurrent)) {
++    entries = predecessorsOrCurrent;
++    closure = predecessors;
++  } else if (Array.isArray(predecessors)) {
++    entries = predecessors;
++  } else {
++    entries = [];
++  }
++
++  const normalized = [];
++  for (const entry of entries) {
++    if (!entry || typeof entry !== "object") continue;
++    if (entry.workResult) {
++      normalized.push({ node_id: entry.node_id, workResult: entry.workResult });
++    } else {
++      normalized.push({ node_id: entry.node_id || entry.work_order_id, workResult: entry });
++    }
++  }
++
++  function ancestorsOf(nodeId) {
++    if (!closure || !nodeId) return new Set();
++    if (closure instanceof Map) return closure.get(nodeId) || new Set();
++    const raw = closure[nodeId];
++    return new Set(Array.isArray(raw) ? raw : []);
++  }
++
++  function areIncomparable(aId, bId) {
++    if (!aId || !bId || aId === bId) return true;
++    const aAnc = ancestorsOf(aId);
++    const bAnc = ancestorsOf(bId);
++    if (aAnc.has(bId) || bAnc.has(aId)) return false;
++    return true;
++  }
++
+   const byFile = new Map();
+-  for (const wr of workResults) {
++  for (const entry of normalized) {
++    const wr = entry.workResult;
+     if (!wr || typeof wr !== "object") continue;
+     const patch = wr.patch || "";
+     if (!patch.trim()) continue;
+     const parsed = parseUnifiedDiffs(patch);
+-    for (const fd of parsed) {
++    if (!parsed.ok) {
++      return {
++        ok: false,
++        reason_code: parsed.reason_code || "MALFORMED_UNIFIED_DIFF",
++        error: parsed.error,
++      };
++    }
++    for (const fd of parsed.files) {
+       const normTarget = normalizeRelativePath(fd.targetPath);
+       if (!normTarget) continue;
+       if (!byFile.has(normTarget)) byFile.set(normTarget, []);
+@@ -366,7 +472,12 @@ function detectPredecessorContextConflicts(workResults = []) {
+       for (const hunk of hunks) {
+         const range = hunkOldRange(hunk);
+         for (const prev of previous) {
+-          if (prev.work_order_id !== wr.work_order_id && rangesOverlap(prev.range, range)) {
++          const sameAuthor = prev.node_id && entry.node_id
++            ? prev.node_id === entry.node_id
++            : prev.work_order_id === wr.work_order_id;
++          if (sameAuthor) continue;
++          if (!areIncomparable(prev.node_id, entry.node_id)) continue;
++          if (rangesOverlap(prev.range, range)) {
+             return {
+               ok: false,
+               reason_code: "PREDECESSOR_CONTEXT_CONFLICT",
+@@ -374,7 +485,11 @@ function detectPredecessorContextConflicts(workResults = []) {
+             };
+           }
+         }
+-        previous.push({ work_order_id: wr.work_order_id, range });
++        previous.push({
++          node_id: entry.node_id,
++          work_order_id: wr.work_order_id,
++          range,
++        });
+       }
+     }
+   }
+@@ -414,7 +529,14 @@ async function integrateWorkResultPatches(sourceSnapshot, workResults = [], opti
+ 
+     diffTexts.push(patch.trim());
+     const parsed = parseUnifiedDiffs(patch);
+-    for (const fd of parsed) {
++    if (!parsed.ok) {
++      return {
++        ok: false,
++        error: parsed.error || "Malformed unified diff",
++        reason_code: parsed.reason_code || "MALFORMED_UNIFIED_DIFF",
++      };
++    }
++    for (const fd of parsed.files) {
+       if (fd.invalidMode) {
+         return {
+           ok: false,
+diff --git a/scripts/lib/repair-shadow/shadow-comparator.js b/scripts/lib/repair-shadow/shadow-comparator.js
+index f294be2..43afb0b 100644
+--- a/scripts/lib/repair-shadow/shadow-comparator.js
++++ b/scripts/lib/repair-shadow/shadow-comparator.js
+@@ -1,5 +1,7 @@
+ "use strict";
+ 
++const { topologicalSort } = require("../execution-graph/dag.js");
++
+ const REQUIRED_DIMENSIONS = Object.freeze([
+   "steps",
+   "dependencies",
+@@ -11,6 +13,7 @@ const REQUIRED_DIMENSIONS = Object.freeze([
+ ]);
+ 
+ const ALL_EVALUATED_DIMENSIONS = REQUIRED_DIMENSIONS;
++const PROJECTION_KIND = "repair-shadow-comparison-projection/v1";
+ 
+ function canonicalizeValue(value) {
+   if (value === null || value === undefined) return "";
+@@ -19,72 +22,6 @@ function canonicalizeValue(value) {
+   return JSON.stringify(value);
+ }
+ 
+-function extractSteps(route) {
+-  if (!route) return [];
+-  if (Array.isArray(route.steps)) return route.steps.map(canonicalizeValue);
+-  if (Array.isArray(route.nodes)) return route.nodes.map((n) => canonicalizeValue(n.operation));
+-  if (Array.isArray(route.workResults)) {
+-    return route.workResults.map((wr) => canonicalizeValue(wr.work_order_id));
+-  }
+-  return [];
+-}
+-
+-function extractDependencies(route) {
+-  if (!route) return [];
+-  if (Array.isArray(route.dependencies)) {
+-    return route.dependencies.map((d) => canonicalizeValue(d)).sort();
+-  }
+-  if (Array.isArray(route.nodes)) {
+-    return route.nodes
+-      .map((n) =>
+-        canonicalizeValue({
+-          node_id: n.node_id,
+-          dependencies: Array.isArray(n.dependencies) ? [...n.dependencies].sort() : [],
+-        })
+-      )
+-      .sort();
+-  }
+-  return [];
+-}
+-
+-function extractDiffHash(route) {
+-  if (!route) return "";
+-  if (route.diff_hash) return String(route.diff_hash);
+-  if (route.candidate && route.candidate.diff_hash) return String(route.candidate.diff_hash);
+-  if (typeof route.combinedDiffText === "string") return route.combinedDiffText;
+-  if (typeof route.patch === "string") return route.patch;
+-  return "";
+-}
+-
+-function extractInventory(route) {
+-  if (!route) return [];
+-  if (Array.isArray(route.inventory)) return [...route.inventory].map(canonicalizeValue).sort();
+-  if (route.candidate && Array.isArray(route.candidate.paths)) {
+-    return [...route.candidate.paths].map(canonicalizeValue).sort();
+-  }
+-  if (Array.isArray(route.paths)) return [...route.paths].map(canonicalizeValue).sort();
+-  if (Array.isArray(route.filesystem_inventory)) {
+-    return route.filesystem_inventory.map((item) => canonicalizeValue(typeof item === "string" ? item : item.path)).sort();
+-  }
+-  return [];
+-}
+-
+-function extractObligations(route) {
+-  if (!route) return [];
+-  if (Array.isArray(route.obligations)) {
+-    return route.obligations.map((o) => (typeof o === "string" ? o : o.id || o.name || JSON.stringify(o))).sort();
+-  }
+-  return [];
+-}
+-
+-function extractInvariants(route) {
+-  if (!route) return [];
+-  if (Array.isArray(route.invariants)) {
+-    return [...route.invariants].map(canonicalizeValue).sort();
+-  }
+-  return [];
+-}
+-
+ const CLOCK_UNSTABLE_KEYS = new Set(["started_at", "finished_at", "duration_ms"]);
+ 
+ function stripClockFields(value) {
+@@ -99,19 +36,6 @@ function stripClockFields(value) {
+   return value;
+ }
+ 
+-function extractExecutionMetrics(route) {
+-  if (!route) return [];
+-  if (Array.isArray(route.execution_metrics)) {
+-    return route.execution_metrics.map(canonicalizeValue).sort();
+-  }
+-  if (route.graph_telemetry && typeof route.graph_telemetry === "object") {
+-    return Object.keys(route.graph_telemetry)
+-      .sort()
+-      .map((nodeId) => canonicalizeValue({ node_id: nodeId, ...stripClockFields(route.graph_telemetry[nodeId] || {}) }));
+-  }
+-  return [];
+-}
+-
+ function areArraysEqual(a, b) {
+   if (!Array.isArray(a) || !Array.isArray(b)) return false;
+   if (a.length !== b.length) return false;
+@@ -134,66 +58,122 @@ function evaluateDimension(name, shadowValue, baselineValue, comparedEqual, eval
+   }
+ }
+ 
++function invalidProjectionResult() {
++  return {
++    ok: false,
++    match: false,
++    reason_code: "INVALID_COMPARISON_PROJECTION",
++    discrepancy_classification: "diverged",
++    evaluated_dimensions: [],
++    skipped_dimensions: [...REQUIRED_DIMENSIONS],
++    dimension_match_rates: {},
++    telemetryDiff: {
++      divergences: [],
++      dimension_match_rates: {},
++      divergence_count: 0,
++      reason_code: "INVALID_COMPARISON_PROJECTION",
++    },
++    shadowSummary: {},
++    baselineSummary: {},
++  };
++}
++
++function isValidComparisonProjection(value) {
++  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
++  if (value.kind !== PROJECTION_KIND) return false;
++  for (const key of REQUIRED_DIMENSIONS) {
++    if (!Object.prototype.hasOwnProperty.call(value, key)) return false;
++  }
++  if (!Array.isArray(value.steps)) return false;
++  for (const step of value.steps) {
++    if (typeof step !== "string" || step.length < 1) return false;
++  }
++  return true;
++}
++
+ /**
+- * Compares shadow execution outcome against fixed baseline route in a non-mutating, read-only manner.
+- * Always evaluates the seven required dimensions; empty extracted values are still evaluations
+- * and MUST NOT appear in skipped_dimensions. Full-match cannot be claimed if any required
+- * dimension was skipped.
++ * Builds a canonical comparison projection from graph-bound artifacts.
++ * `steps` is the topological node_id sequence and MUST NOT use operation or WorkOrderId.
++ *
++ * @param {{ executionGraph: object, candidate?: object, workResults?: object[], graphTelemetry?: object }} input
++ * @returns {object}
++ */
++function buildComparisonProjection(input = {}) {
++  const executionGraph = input.executionGraph;
++  const candidate = input.candidate || {};
++  const workResults = Array.isArray(input.workResults) ? input.workResults : [];
++  const graphTelemetry = input.graphTelemetry || input.graph_telemetry || {};
++
++  if (!executionGraph || !Array.isArray(executionGraph.nodes)) {
++    const projection = {
++      kind: PROJECTION_KIND,
++    };
++    return projection;
++  }
++
++  const sorted = topologicalSort(executionGraph.nodes);
++  const steps = sorted.map((node) => String(node.node_id));
++  const dependencies = sorted.map((node) => canonicalizeValue({
++    node_id: node.node_id,
++    dependencies: Array.isArray(node.dependencies) ? [...node.dependencies].sort() : [],
++  }));
++  const invariants = sorted.flatMap((node) =>
++    Array.isArray(node.invariants) ? node.invariants.map(canonicalizeValue) : []
++  );
++  const obligations = Array.isArray(executionGraph.obligations)
++    ? executionGraph.obligations.map((o) => (typeof o === "string" ? o : o.id || o.name || JSON.stringify(o))).sort()
++    : [];
++  const inventory = Array.isArray(candidate.paths) ? [...candidate.paths].map(canonicalizeValue).sort() : [];
++  const diffs = candidate.diff_hash
++    ? String(candidate.diff_hash)
++    : workResults.map((wr) => wr && wr.patch ? wr.patch : "").join("\n");
++  const execution_metrics = steps.map((nodeId) =>
++    canonicalizeValue({
++      node_id: nodeId,
++      ...stripClockFields(graphTelemetry[nodeId] || {}),
++    })
++  );
++
++  return {
++    kind: PROJECTION_KIND,
++    steps,
++    dependencies,
++    diffs,
++    inventory,
++    obligations,
++    invariants,
++    execution_metrics,
++  };
++}
++
++/**
++ * Compares shadow and baseline canonical projections. Non-projection inputs fail closed.
+  *
+  * @param {Object} shadowResult
+  * @param {Object} baselineResult
+- * @returns {{
+- *   match: boolean,
+- *   discrepancy_classification: "full-match" | "partial-match" | "diverged",
+- *   evaluated_dimensions: string[],
+- *   skipped_dimensions: string[],
+- *   dimension_match_rates: Record<string, number>,
+- *   telemetryDiff: Object | null,
+- *   shadowSummary: Object,
+- *   baselineSummary: Object
+- * }}
++ * @returns {Object}
+  */
+ function compareShadowExecution(shadowResult, baselineResult) {
+-  const shadow = shadowResult || {};
+-  const baseline = baselineResult || {};
++  if (!isValidComparisonProjection(shadowResult) || !isValidComparisonProjection(baselineResult)) {
++    return invalidProjectionResult();
++  }
+ 
+   const evaluated_dimensions = [];
+   const skipped_dimensions = [];
+   const dimension_match_rates = {};
+   const divergences = [];
+ 
+-  const shadowSteps = extractSteps(shadow);
+-  const baselineSteps = extractSteps(baseline);
+-  evaluateDimension("steps", shadowSteps, baselineSteps, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
+-
+-  const shadowDependencies = extractDependencies(shadow);
+-  const baselineDependencies = extractDependencies(baseline);
+-  evaluateDimension("dependencies", shadowDependencies, baselineDependencies, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
+-
+-  const shadowDiff = extractDiffHash(shadow);
+-  const baselineDiff = extractDiffHash(baseline);
+-  evaluateDimension("diffs", shadowDiff, baselineDiff, (a, b) => a === b, evaluated_dimensions, dimension_match_rates, divergences);
+-
+-  const shadowInventory = extractInventory(shadow);
+-  const baselineInventory = extractInventory(baseline);
+-  evaluateDimension("inventory", shadowInventory, baselineInventory, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
+-
+-  const shadowObligations = extractObligations(shadow);
+-  const baselineObligations = extractObligations(baseline);
+-  evaluateDimension("obligations", shadowObligations, baselineObligations, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
+-
+-  const shadowInvariants = extractInvariants(shadow);
+-  const baselineInvariants = extractInvariants(baseline);
+-  evaluateDimension("invariants", shadowInvariants, baselineInvariants, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
+-
+-  const shadowMetrics = extractExecutionMetrics(shadow);
+-  const baselineMetrics = extractExecutionMetrics(baseline);
+-  evaluateDimension("execution_metrics", shadowMetrics, baselineMetrics, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
++  evaluateDimension("steps", shadowResult.steps, baselineResult.steps, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
++  evaluateDimension("dependencies", shadowResult.dependencies, baselineResult.dependencies, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
++  evaluateDimension("diffs", canonicalizeValue(shadowResult.diffs), canonicalizeValue(baselineResult.diffs), (a, b) => a === b, evaluated_dimensions, dimension_match_rates, divergences);
++  evaluateDimension("inventory", shadowResult.inventory, baselineResult.inventory, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
++  evaluateDimension("obligations", shadowResult.obligations, baselineResult.obligations, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
++  evaluateDimension("invariants", shadowResult.invariants, baselineResult.invariants, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
++  evaluateDimension("execution_metrics", shadowResult.execution_metrics, baselineResult.execution_metrics, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
+ 
+-  const skippedRequired = skipped_dimensions.filter((d) => REQUIRED_DIMENSIONS.includes(d));
+   const allRequiredEvaluated = REQUIRED_DIMENSIONS.every((d) => evaluated_dimensions.includes(d));
+   const allRequiredMatch = REQUIRED_DIMENSIONS.every((d) => dimension_match_rates[d] === 1);
+-  const match = allRequiredEvaluated && skippedRequired.length === 0 && allRequiredMatch;
++  const match = allRequiredEvaluated && skipped_dimensions.length === 0 && allRequiredMatch;
+ 
+   let discrepancy_classification;
+   if (match) {
+@@ -212,6 +192,7 @@ function compareShadowExecution(shadowResult, baselineResult) {
+       };
+ 
+   return {
++    ok: true,
+     match,
+     discrepancy_classification,
+     evaluated_dimensions,
+@@ -219,26 +200,29 @@ function compareShadowExecution(shadowResult, baselineResult) {
+     dimension_match_rates,
+     telemetryDiff,
+     shadowSummary: {
+-      steps_count: shadowSteps.length,
+-      has_diff: !!shadowDiff,
+-      obligations_count: shadowObligations.length,
+-      inventory_count: shadowInventory.length,
+-      dependencies_count: shadowDependencies.length,
+-      execution_metrics_count: shadowMetrics.length,
++      steps_count: shadowResult.steps.length,
++      has_diff: !!shadowResult.diffs,
++      obligations_count: Array.isArray(shadowResult.obligations) ? shadowResult.obligations.length : 0,
++      inventory_count: Array.isArray(shadowResult.inventory) ? shadowResult.inventory.length : 0,
++      dependencies_count: Array.isArray(shadowResult.dependencies) ? shadowResult.dependencies.length : 0,
++      execution_metrics_count: Array.isArray(shadowResult.execution_metrics) ? shadowResult.execution_metrics.length : 0,
+     },
+     baselineSummary: {
+-      steps_count: baselineSteps.length,
+-      has_diff: !!baselineDiff,
+-      obligations_count: baselineObligations.length,
+-      inventory_count: baselineInventory.length,
+-      dependencies_count: baselineDependencies.length,
+-      execution_metrics_count: baselineMetrics.length,
++      steps_count: baselineResult.steps.length,
++      has_diff: !!baselineResult.diffs,
++      obligations_count: Array.isArray(baselineResult.obligations) ? baselineResult.obligations.length : 0,
++      inventory_count: Array.isArray(baselineResult.inventory) ? baselineResult.inventory.length : 0,
++      dependencies_count: Array.isArray(baselineResult.dependencies) ? baselineResult.dependencies.length : 0,
++      execution_metrics_count: Array.isArray(baselineResult.execution_metrics) ? baselineResult.execution_metrics.length : 0,
+     },
+   };
+ }
+ 
+ module.exports = {
+   compareShadowExecution,
++  buildComparisonProjection,
++  isValidComparisonProjection,
+   ALL_EVALUATED_DIMENSIONS,
+   REQUIRED_DIMENSIONS,
++  PROJECTION_KIND,
+ };
+diff --git a/scripts/lib/test-support/execution-graph-fixtures.js b/scripts/lib/test-support/execution-graph-fixtures.js
+index e138d98..a7985ab 100644
+--- a/scripts/lib/test-support/execution-graph-fixtures.js
++++ b/scripts/lib/test-support/execution-graph-fixtures.js
+@@ -109,10 +109,10 @@ function createSampleExecutionGraph(options = {}) {
+  */
+ function createSampleFixtureResults(graph) {
+   const g = graph || createSampleExecutionGraph();
+-  const { compileWorkOrdersV2 } = require("../execution-graph/work-order-compiler.js");
++  const { compileWorkOrdersV2, defaultPathInventory } = require("../execution-graph/work-order-compiler.js");
+   let woMap = new Map();
+   try {
+-    const wos = compileWorkOrdersV2(g);
++    const wos = compileWorkOrdersV2(g, { pathInventory: defaultPathInventory(g.source_snapshot_id) });
+     woMap = new Map(wos.map((w) => [w.node_id, w.work_order_id]));
+   } catch {}
+ 
+diff --git a/scripts/lib/worker-executor.test.js b/scripts/lib/worker-executor.test.js
+index 10b1490..3eb2cf6 100644
+--- a/scripts/lib/worker-executor.test.js
++++ b/scripts/lib/worker-executor.test.js
+@@ -39,6 +39,7 @@ function makeCanonicalWorkOrder(sourceSnapshotId = DUMMY_SNAPSHOT_ID, overrides
+     allowed_paths: overrides.allowed_paths || ["**"],
+     invariants: overrides.invariants || [],
+     required_evidence: overrides.required_evidence || [],
++    capsule_inputs: overrides.capsule_inputs || ["src/app.js"],
+     budget: overrides.budget || {
+       model_turns: 5,
+       patches: 3,
+diff --git a/scripts/lib/worker-workspace.js b/scripts/lib/worker-workspace.js
+index 2f1f259..a44c613 100644
+--- a/scripts/lib/worker-workspace.js
++++ b/scripts/lib/worker-workspace.js
+@@ -330,30 +330,29 @@ async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceS
+   const allowedPaths = Array.isArray(workOrder.allowed_paths) ? workOrder.allowed_paths : ["**"];
+   const environment = workOrder.environment || options.environment || {};
+ 
+-  // Resolve capsule inputs strictly from declared capsule_inputs or inputs options
+-  let declaredInputs = [];
+-  if (Array.isArray(options.capsule_inputs)) {
+-    declaredInputs = options.capsule_inputs;
+-  } else if (Array.isArray(workOrder.capsule_inputs)) {
+-    declaredInputs = workOrder.capsule_inputs;
+-  } else if (Array.isArray(options.inputs)) {
+-    declaredInputs = options.inputs;
+-  } else if (options.files && typeof options.files === "object" && !Array.isArray(options.files)) {
+-    declaredInputs = Object.keys(options.files);
+-  } else if (Array.isArray(options.files)) {
+-    declaredInputs = options.files.map((f) => f && f.path).filter(Boolean);
++  if (!Array.isArray(workOrder.capsule_inputs)) {
++    throw new Error("WorkOrder capsule_inputs must be a non-empty array of concrete relative paths");
+   }
++  const declaredInputs = workOrder.capsule_inputs;
+ 
+   const filesSource = options.files;
+   const resolveFileFn = typeof options.resolveFile === "function" ? options.resolveFile : null;
+   const repositoryDir = options.repositoryDir || options.repositoryPath;
+ 
+-  // Gather candidate files in memory BEFORE writing anything to disk
++  // Gather candidate files in memory BEFORE writing anything to disk.
++  // Derived maps are intersected with capsule_inputs; extras are never written.
+   const candidateFiles = new Map();
+   if (effectiveBase) {
+     const derivedFiles = collectFileMap(effectiveBase.files);
+-    for (const [normalizedInput, content] of derivedFiles.entries()) {
+-      candidateFiles.set(normalizedInput, content);
++    for (const inputPath of declaredInputs) {
++      const normalizedInput = normalizeRelativePath(inputPath);
++      if (!normalizedInput) {
++        throw new Error(`Invalid capsule input path or traversal attempt: ${inputPath}`);
++      }
++      if (!derivedFiles.has(normalizedInput)) {
++        throw new Error(`Missing required capsule input file: ${inputPath}`);
++      }
++      candidateFiles.set(normalizedInput, derivedFiles.get(normalizedInput));
+     }
+   } else {
+     for (const inputPath of declaredInputs) {
+diff --git a/scripts/lib/worker-workspace.test.js b/scripts/lib/worker-workspace.test.js
+index 051feeb..58f199d 100644
+--- a/scripts/lib/worker-workspace.test.js
++++ b/scripts/lib/worker-workspace.test.js
+@@ -37,7 +37,7 @@ function makeCanonicalSnapshot(repository_id, files, overrides = {}) {
+ }
+ 
+ function makeCanonicalWorkOrder(snapshot, overrides = {}) {
+-  const { capsule_inputs, environment, ...validOverrides } = overrides;
++  const { environment, ...validOverrides } = overrides;
+   const wo = {
+     schema_version: 2,
+     kind: "work-order/v2",
+@@ -50,6 +50,7 @@ function makeCanonicalWorkOrder(snapshot, overrides = {}) {
+     dependencies: [],
+     ownership: { owner: "agent-test", mode: "exclusive" },
+     allowed_paths: ["src/**"],
++    capsule_inputs: ["src/index.js"],
+     invariants: ["inv-1"],
+     required_evidence: ["ev-1"],
+     budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
+@@ -354,7 +355,6 @@ test("materializeSourceSnapshot: materializes canonical SourceSnapshot v1 with d
+   });
+ 
+   const capsule = await materializeSourceSnapshot(ws, workOrder, canonicalSnapshot, {
+-    capsule_inputs: ["src/index.js", "package.json"],
+     files: filesMap,
+   });
+ 
+@@ -386,7 +386,6 @@ test("materializeSourceSnapshot: fails closed when declared capsule_input is mis
+   await assert.rejects(
+     async () => {
+       await materializeSourceSnapshot(ws, workOrder, canonicalSnapshot, {
+-        capsule_inputs: ["missing/input.js"],
+         files: {},
+       });
+     },
+@@ -457,15 +456,14 @@ test("materializeSourceSnapshot: projects declared dependencies and yields deter
+   const workOrder = makeCanonicalWorkOrder(canonicalSnapshot, {
+     dependencies: ["sha256:4444444444444444444444444444444444444444444444444444444444444444"],
+     allowed_paths: ["src/**"],
++    capsule_inputs: ["src/index.js", "package.json"],
+     environment: { TEST_ENV: "true" },
+   });
+ 
+   const capsule1 = await materializeSourceSnapshot(ws1, workOrder, canonicalSnapshot, {
+-    capsule_inputs: ["src/index.js", "package.json"],
+     files: filesMap,
+   });
+   const capsule2 = await materializeSourceSnapshot(ws2, workOrder, canonicalSnapshot, {
+-    capsule_inputs: ["src/index.js", "package.json"],
+     files: filesMap,
+   });
+ 
+@@ -497,10 +495,10 @@ test("materializeSourceSnapshot: supports array-based options.files format", asy
+   const workOrder = makeCanonicalWorkOrder(canonicalSnapshot, {
+     dependencies: ["sha256:5555555555555555555555555555555555555555555555555555555555555555"],
+     allowed_paths: ["src/**"],
++    capsule_inputs: ["src/main.js"],
+   });
+ 
+   const capsule = await materializeSourceSnapshot(ws, workOrder, canonicalSnapshot, {
+-    capsule_inputs: ["src/main.js"],
+     files: filesArray,
+   });
+   assert.ok(fs.existsSync(path.join(ws.root_path, "src", "main.js")));
+@@ -564,16 +562,16 @@ test("materializeSourceSnapshot: rejects dependency paths containing traversal s
+   const workOrder = makeCanonicalWorkOrder(canonicalSnapshot, {
+     capsule_inputs: ["../escaped.txt"],
+     allowed_paths: ["src/**"],
++    work_order_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+   });
+ 
+   await assert.rejects(
+     async () => {
+       await materializeSourceSnapshot(ws, workOrder, canonicalSnapshot, {
+-        capsule_inputs: ["../escaped.txt"],
+         files: { "../escaped.txt": "evil content" },
+       });
+     },
+-    /traversal/i
++    /traversal|INVALID_SCHEMA|invalid path|capsule/i
+   );
+ });
+ 
+@@ -699,4 +697,58 @@ test("inspectWorkspace: throws fail-closed error on dangling symlink", async (t)
+   );
+ });
+ 
++test("REQ-worker-isolation-002: derived file map is intersected with capsule_inputs", async (t) => {
++  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-intersect-"));
++  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
++
++  const original = { "src/app.js": "const a = 1;\n", "README.md": "# original\n" };
++  const derived = { "src/app.js": "const a = 2;\n", "README.md": "# derived\n" };
++  const snapshot = makeCanonicalSnapshot("repo-intersect", original);
++  const ws = await createWorkspace({ baseDir, source_snapshot_id: snapshot.source_snapshot_id });
++  const workOrder = makeCanonicalWorkOrder(snapshot, {
++    capsule_inputs: ["src/app.js"],
++    allowed_paths: ["src/**"],
++  });
++
++  const capsule = await materializeSourceSnapshot(ws, workOrder, snapshot, {
++    effectiveBase: {
++      source_snapshot_id: snapshot.source_snapshot_id,
++      tree_digest: computeTreeDigest(derived),
++      files: derived,
++    },
++    capsule_inputs: ["src/app.js", "README.md"],
++    inputs: ["README.md"],
++  });
++
++  assert.equal(fs.readFileSync(path.join(ws.root_path, "src", "app.js"), "utf8"), "const a = 2;\n");
++  assert.equal(fs.existsSync(path.join(ws.root_path, "README.md")), false);
++  assert.deepEqual(capsule.capsule_inputs, ["src/app.js"]);
++});
++
++test("REQ-worker-isolation-002: capsule input missing from derived map fails closed before writes", async (t) => {
++  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-ws-missing-derived-"));
++  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
++
++  const original = { "src/app.js": "const a = 1;\n" };
++  const derived = { "src/app.js": "const a = 2;\n" };
++  const snapshot = makeCanonicalSnapshot("repo-missing-derived", original);
++  const ws = await createWorkspace({ baseDir, source_snapshot_id: snapshot.source_snapshot_id });
++  const workOrder = makeCanonicalWorkOrder(snapshot, {
++    capsule_inputs: ["src/app.js", "lib/absent.js"],
++    allowed_paths: ["src/**", "lib/**"],
++  });
++
++  await assert.rejects(
++    () => materializeSourceSnapshot(ws, workOrder, snapshot, {
++      effectiveBase: {
++        source_snapshot_id: snapshot.source_snapshot_id,
++        tree_digest: computeTreeDigest(derived),
++        files: derived,
++      },
++    }),
++    /missing.*input/i
++  );
++  assert.equal(fs.existsSync(path.join(ws.root_path, "src", "app.js")), false);
++});
++
+ 
+diff --git a/schemas/kernel/work-order/fixtures/invalid/v2-absolute-capsule-inputs.json b/schemas/kernel/work-order/fixtures/invalid/v2-absolute-capsule-inputs.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/work-order/fixtures/invalid/v2-absolute-capsule-inputs.json
+@@ -0,0 +1,35 @@
++{
++  "schema_version": 2,
++  "kind": "work-order/v2",
++  "work_order_id": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
++  "source_snapshot_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
++  "node_id": "node-1",
++  "role": "worker",
++  "operation": "build",
++  "objective": "compile",
++  "dependencies": [
++    "sha256:2222222222222222222222222222222222222222222222222222222222222222"
++  ],
++  "ownership": {
++    "owner": "worker-1",
++    "mode": "exclusive"
++  },
++  "allowed_paths": [
++    "src/"
++  ],
++  "capsule_inputs": [
++    "/abs/path"
++  ],
++  "invariants": [],
++  "required_evidence": [
++    "log.txt"
++  ],
++  "budget": {
++    "model_turns": 5,
++    "patches": 2,
++    "commands": 10,
++    "wall_time_minutes": 5,
++    "changed_lines": 50
++  },
++  "status": "pending"
++}
+diff --git a/schemas/kernel/work-order/fixtures/invalid/v2-empty-capsule-inputs.json b/schemas/kernel/work-order/fixtures/invalid/v2-empty-capsule-inputs.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/work-order/fixtures/invalid/v2-empty-capsule-inputs.json
+@@ -0,0 +1,33 @@
++{
++  "schema_version": 2,
++  "kind": "work-order/v2",
++  "work_order_id": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
++  "source_snapshot_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
++  "node_id": "node-1",
++  "role": "worker",
++  "operation": "build",
++  "objective": "compile",
++  "dependencies": [
++    "sha256:2222222222222222222222222222222222222222222222222222222222222222"
++  ],
++  "ownership": {
++    "owner": "worker-1",
++    "mode": "exclusive"
++  },
++  "allowed_paths": [
++    "src/"
++  ],
++  "capsule_inputs": [],
++  "invariants": [],
++  "required_evidence": [
++    "log.txt"
++  ],
++  "budget": {
++    "model_turns": 5,
++    "patches": 2,
++    "commands": 10,
++    "wall_time_minutes": 5,
++    "changed_lines": 50
++  },
++  "status": "pending"
++}
+diff --git a/schemas/kernel/work-order/fixtures/invalid/v2-glob-capsule-inputs.json b/schemas/kernel/work-order/fixtures/invalid/v2-glob-capsule-inputs.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/work-order/fixtures/invalid/v2-glob-capsule-inputs.json
+@@ -0,0 +1,35 @@
++{
++  "schema_version": 2,
++  "kind": "work-order/v2",
++  "work_order_id": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
++  "source_snapshot_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
++  "node_id": "node-1",
++  "role": "worker",
++  "operation": "build",
++  "objective": "compile",
++  "dependencies": [
++    "sha256:2222222222222222222222222222222222222222222222222222222222222222"
++  ],
++  "ownership": {
++    "owner": "worker-1",
++    "mode": "exclusive"
++  },
++  "allowed_paths": [
++    "src/"
++  ],
++  "capsule_inputs": [
++    "src/**"
++  ],
++  "invariants": [],
++  "required_evidence": [
++    "log.txt"
++  ],
++  "budget": {
++    "model_turns": 5,
++    "patches": 2,
++    "commands": 10,
++    "wall_time_minutes": 5,
++    "changed_lines": 50
++  },
++  "status": "pending"
++}
+diff --git a/schemas/kernel/work-order/fixtures/invalid/v2-missing-capsule-inputs.json b/schemas/kernel/work-order/fixtures/invalid/v2-missing-capsule-inputs.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/work-order/fixtures/invalid/v2-missing-capsule-inputs.json
+@@ -0,0 +1,32 @@
++{
++  "schema_version": 2,
++  "kind": "work-order/v2",
++  "work_order_id": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
++  "source_snapshot_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
++  "node_id": "node-1",
++  "role": "worker",
++  "operation": "build",
++  "objective": "compile",
++  "dependencies": [
++    "sha256:2222222222222222222222222222222222222222222222222222222222222222"
++  ],
++  "ownership": {
++    "owner": "worker-1",
++    "mode": "exclusive"
++  },
++  "allowed_paths": [
++    "src/"
++  ],
++  "invariants": [],
++  "required_evidence": [
++    "log.txt"
++  ],
++  "budget": {
++    "model_turns": 5,
++    "patches": 2,
++    "commands": 10,
++    "wall_time_minutes": 5,
++    "changed_lines": 50
++  },
++  "status": "pending"
++}
+diff --git a/schemas/kernel/work-order/fixtures/invalid/v2-non-array-capsule-inputs.json b/schemas/kernel/work-order/fixtures/invalid/v2-non-array-capsule-inputs.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/work-order/fixtures/invalid/v2-non-array-capsule-inputs.json
+@@ -0,0 +1,33 @@
++{
++  "schema_version": 2,
++  "kind": "work-order/v2",
++  "work_order_id": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
++  "source_snapshot_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
++  "node_id": "node-1",
++  "role": "worker",
++  "operation": "build",
++  "objective": "compile",
++  "dependencies": [
++    "sha256:2222222222222222222222222222222222222222222222222222222222222222"
++  ],
++  "ownership": {
++    "owner": "worker-1",
++    "mode": "exclusive"
++  },
++  "allowed_paths": [
++    "src/"
++  ],
++  "capsule_inputs": "src/app.js",
++  "invariants": [],
++  "required_evidence": [
++    "log.txt"
++  ],
++  "budget": {
++    "model_turns": 5,
++    "patches": 2,
++    "commands": 10,
++    "wall_time_minutes": 5,
++    "changed_lines": 50
++  },
++  "status": "pending"
++}
+diff --git a/schemas/kernel/work-order/fixtures/invalid/v2-traversal-capsule-inputs.json b/schemas/kernel/work-order/fixtures/invalid/v2-traversal-capsule-inputs.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/work-order/fixtures/invalid/v2-traversal-capsule-inputs.json
+@@ -0,0 +1,35 @@
++{
++  "schema_version": 2,
++  "kind": "work-order/v2",
++  "work_order_id": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
++  "source_snapshot_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
++  "node_id": "node-1",
++  "role": "worker",
++  "operation": "build",
++  "objective": "compile",
++  "dependencies": [
++    "sha256:2222222222222222222222222222222222222222222222222222222222222222"
++  ],
++  "ownership": {
++    "owner": "worker-1",
++    "mode": "exclusive"
++  },
++  "allowed_paths": [
++    "src/"
++  ],
++  "capsule_inputs": [
++    "../secret"
++  ],
++  "invariants": [],
++  "required_evidence": [
++    "log.txt"
++  ],
++  "budget": {
++    "model_turns": 5,
++    "patches": 2,
++    "commands": 10,
++    "wall_time_minutes": 5,
++    "changed_lines": 50
++  },
++  "status": "pending"
++}

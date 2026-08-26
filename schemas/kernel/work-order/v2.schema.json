@@ -18,6 +18,7 @@
     "dependencies",
     "ownership",
     "allowed_paths",
+    "capsule_inputs",
     "invariants",
     "required_evidence",
     "budget"
@@ -98,6 +99,16 @@
       "items": {
         "type": "string",
         "minLength": 1
+      }
+    },
+    "capsule_inputs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^(?!.*\\.\\.)(?![/\\\\]|[A-Za-z]:)[^*?\\[\\\\]+$"
       }
     },
     "invariants": {

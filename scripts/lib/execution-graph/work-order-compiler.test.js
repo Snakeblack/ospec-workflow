@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const test = require("node:test");
 const { validateInstance, loadSchemaById } = require("../kernel-schema-validator.js");
-const { computeSourceSnapshotId } = require("../execution-identities/index.js");
+const { computeSourceSnapshotId, computeWorkOrderId } = require("../execution-identities/index.js");
 const { computeGraphId } = require("./compiler.js");
 const {
   compileWorkOrders,
@@ -90,6 +90,25 @@ const sampleGraph = {
   obligations: sampleGraphObligations,
 };
 
+const samplePathInventory = {
+  source_snapshot_id: sampleSnapshotId,
+  paths: [
+    "src/auth/session.js",
+    "src/auth/index.js",
+    "tests/auth.test.js",
+    "tests/conformance.test.js",
+  ],
+};
+
+function v2Context(extra = {}) {
+  return {
+    sourceSnapshot: extra.sourceSnapshot || sampleSnapshot,
+    sourceSnapshotId: extra.sourceSnapshotId || sampleSnapshotId,
+    pathInventory: extra.pathInventory || samplePathInventory,
+    ...extra,
+  };
+}
+
 test("WorkOrderCompiler: explicit legacy v1 surface preserves the frozen v1 shape", () => {
   const sourceSnapshotId = "sha256:4444444444444444444444444444444444444444444444444444444444444444";
   const workOrders = compileWorkOrdersV1(sampleGraph, { sourceSnapshotId });
@@ -127,8 +146,8 @@ test("WorkOrderCompiler: legacy v1 output does not acquire v2 provenance semanti
 test("WorkOrderCompiler: public v2 surface preserves valid provenance and semantic dependencies as sha256 digests", () => {
   const sourceSnapshot = createValidatedSourceSnapshot();
   const sourceSnapshotId = sourceSnapshot.source_snapshot_id;
-  const workOrders = compileWorkOrders(sampleGraph, { sourceSnapshot, sourceSnapshotId });
-  const v2Orders = compileWorkOrdersV2(sampleGraph, { sourceSnapshot, sourceSnapshotId });
+  const workOrders = compileWorkOrders(sampleGraph, v2Context());
+  const v2Orders = compileWorkOrdersV2(sampleGraph, v2Context());
   const v1Orders = compileWorkOrdersV1(sampleGraph, { sourceSnapshotId });
   const schema = loadSchemaById("ospec://schemas/kernel/work-order/v2", { rootDir: ROOT });
 
@@ -195,10 +214,10 @@ test("WorkOrder v1 schema has no v2 provenance field", () => {
 
 test("WorkOrderCompiler: zero execution authority and zero worker process invocation", () => {
   const sourceSnapshot = createValidatedSourceSnapshot();
-  const workOrders = compileWorkOrders(sampleGraph, {
+  const workOrders = compileWorkOrders(sampleGraph, v2Context({
     sourceSnapshot,
     sourceSnapshotId: sourceSnapshot.source_snapshot_id,
-  });
+  }));
 
   for (const wo of workOrders) {
     // Assert strictly no permit, execution token, or secret
@@ -328,7 +347,7 @@ test("WorkOrderCompiler: atomic validation fails closed on missing/malformed gra
 });
 
 test("WorkOrderCompiler: compiles WorkOrder v2 successfully from clarified graph with distinct work_order_id", () => {
-  const unclarifiedOrders = compileWorkOrdersV2(sampleGraph);
+  const unclarifiedOrders = compileWorkOrdersV2(sampleGraph, v2Context());
 
   const clarifiedNodes = structuredClone(sampleGraphNodes);
   clarifiedNodes[0].clarification_context = {
@@ -349,7 +368,7 @@ test("WorkOrderCompiler: compiles WorkOrder v2 successfully from clarified graph
     nodes: clarifiedNodes,
   };
 
-  const workOrders = compileWorkOrdersV2(clarifiedGraph);
+  const workOrders = compileWorkOrdersV2(clarifiedGraph, v2Context());
   assert.equal(workOrders.length, 2);
   assert.equal(workOrders[0].node_id, "repair-node-1");
   assert.equal(workOrders[1].node_id, "verify-node-1");
@@ -434,4 +453,108 @@ test("WorkOrderCompiler: rejects unlinked variable budgets or defaultBudget in K
     (err) => err.code === "unsupported-compilation-context"
   );
 });
+
+test("REQ-execution-graph-compiler-009: identical graphs emit byte-identical sorted capsule_inputs", () => {
+  const first = compileWorkOrdersV2(sampleGraph, v2Context());
+  const second = compileWorkOrdersV2(sampleGraph, v2Context());
+  assert.equal(first.length, 2);
+  for (let i = 0; i < first.length; i += 1) {
+    assert.deepEqual(first[i].capsule_inputs, second[i].capsule_inputs);
+    assert.deepEqual(first[i].capsule_inputs, [...first[i].capsule_inputs].sort());
+    assert.equal(new Set(first[i].capsule_inputs).size, first[i].capsule_inputs.length);
+    for (const input of first[i].capsule_inputs) {
+      assert.equal(/[*?\[]/.test(input), false);
+      assert.equal(input.includes(".."), false);
+    }
+  }
+  assert.deepEqual(first[0].capsule_inputs, ["src/auth/index.js", "src/auth/session.js"]);
+  assert.deepEqual(first[1].capsule_inputs, [
+    "src/auth/index.js",
+    "src/auth/session.js",
+    "tests/auth.test.js",
+    "tests/conformance.test.js",
+  ]);
+});
+
+test("REQ-execution-graph-compiler-009: emitted WorkOrders validate against work-order/v2", () => {
+  const schema = loadSchemaById("ospec://schemas/kernel/work-order/v2", { rootDir: ROOT });
+  const workOrders = compileWorkOrdersV2(sampleGraph, v2Context());
+  for (const wo of workOrders) {
+    const result = validateInstance(schema, wo);
+    assert.equal(result.valid, true, JSON.stringify(result.errors));
+    assert.ok(Array.isArray(wo.capsule_inputs) && wo.capsule_inputs.length >= 1);
+  }
+});
+
+test("REQ-execution-graph-compiler-009: empty or glob capsule_inputs fail atomically with zero WorkOrders", () => {
+  const globOnlyNodes = [
+    {
+      ...sampleGraphNodes[0],
+      allowed_paths: ["src/missing/**"],
+    },
+  ];
+  const globOnlyObligations = [sampleGraphObligations[0]];
+  const globGraph = {
+    schema_version: 1,
+    graph_id: computeGraphId(
+      sampleContractDigest,
+      samplePolicySnapshotId,
+      samplePolicyBundleDigest,
+      sampleSnapshotId,
+      globOnlyNodes,
+      globOnlyObligations
+    ),
+    contract_digest: sampleContractDigest,
+    policy_bundle_digest: samplePolicyBundleDigest,
+    policy_snapshot_id: samplePolicySnapshotId,
+    source_snapshot_id: sampleSnapshotId,
+    nodes: globOnlyNodes,
+    obligations: globOnlyObligations,
+  };
+
+  let emitted = null;
+  assert.throws(
+    () => {
+      emitted = compileWorkOrdersV2(globGraph, v2Context());
+    },
+    (err) => err.code === "empty-capsule-inputs" || err.code === "invalid-capsule-inputs"
+  );
+  assert.equal(emitted, null);
+
+  const noInventoryEmitted = [];
+  assert.throws(
+    () => {
+      const result = compileWorkOrdersV2(sampleGraph);
+      noInventoryEmitted.push(...result);
+    },
+    (err) => err.code === "empty-capsule-inputs" || err.code === "invalid-capsule-inputs"
+  );
+  assert.equal(noInventoryEmitted.length, 0);
+});
+
+test("REQ-execution-graph-compiler-009: WorkOrderId includes capsule_inputs", () => {
+  const base = {
+    schema_version: 2,
+    kind: "work-order/v2",
+    source_snapshot_id: sampleSnapshotId,
+    node_id: "repair-node-1",
+    role: "repair-worker",
+    operation: "apply_repair_patch",
+    objective: "Apply repair changes to src/auth",
+    dependencies: [],
+    ownership: { owner: "agent:repair", mode: "exclusive" },
+    allowed_paths: ["src/auth/**"],
+    invariants: ["inv-fail-closed"],
+    required_evidence: ["ev:auth-tests"],
+    budget: { ...DEFAULT_WORK_ORDER_BUDGET },
+  };
+  const idA = computeWorkOrderId({ ...base, capsule_inputs: ["src/auth/session.js"] });
+  const idB = computeWorkOrderId({ ...base, capsule_inputs: ["src/auth/index.js"] });
+  assert.notEqual(idA, idB);
+
+  const compiled = compileWorkOrdersV2(sampleGraph, v2Context());
+  const recomputed = computeWorkOrderId(compiled[0]);
+  assert.equal(compiled[0].work_order_id, recomputed);
+});
+
 

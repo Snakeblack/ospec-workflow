@@ -46,7 +46,7 @@ function assertProductionSurfacesByteIdentical(before, after) {
   }
 }
 
-const { orchestrateRepairShadow, compareShadowExecution } = require("./lib/repair-shadow/index.js");
+const { orchestrateRepairShadow, compareShadowExecution, buildComparisonProjection } = require("./lib/repair-shadow/index.js");
 const { compileExecutionGraph, createPolicySnapshot } = require("./lib/execution-graph/index.js");
 const workerWorkspace = require("./lib/worker-workspace.js");
 const { computeTreeDigest } = require("./lib/worker-workspace.js");
@@ -62,7 +62,7 @@ const {
 } = require("./lib/worker-sandbox.js");
 const { buildExecutionOptionsFromMaterial } = require("./lib/test-support/k6a-worker-fixtures.js");
 const { createFileSystemStore } = require("./lib/filesystem-store.js");
-const { loadRepairShadowExecution } = require("./lib/repair-shadow/execution-record-store.js");
+const { loadRepairShadowExecutions } = require("./lib/repair-shadow/execution-record-store.js");
 
 function makeTempFileStore(t, dir) {
   const filePath = path.join(dir || os.tmpdir(), `k4b-e2e-exec-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
@@ -181,8 +181,10 @@ test("E2E: N1 multiply() propagates to N2 through real K6a workspaces", async (t
 
   const created = [];
   const disposed = [];
+  const materializedInputs = [];
   const originalCreate = workerWorkspace.createWorkspace;
   const originalDispose = workerWorkspace.disposeWorkspace;
+  const originalMaterialize = workerWorkspace.materializeSourceSnapshot;
   t.mock.method(workerWorkspace, "createWorkspace", async function mockedCreate(...args) {
     const ws = await originalCreate.apply(this, args);
     created.push(ws.workspace_id);
@@ -191,6 +193,10 @@ test("E2E: N1 multiply() propagates to N2 through real K6a workspaces", async (t
   t.mock.method(workerWorkspace, "disposeWorkspace", async function mockedDispose(descriptor) {
     disposed.push(descriptor && descriptor.workspace_id);
     return originalDispose.apply(this, arguments);
+  });
+  t.mock.method(workerWorkspace, "materializeSourceSnapshot", async function mockedMaterialize(...args) {
+    materializedInputs.push((args[1] && args[1].capsule_inputs) || []);
+    return originalMaterialize.apply(this, args);
   });
 
   const fixedBaseline = {
@@ -246,6 +252,9 @@ test("E2E: N1 multiply() propagates to N2 through real K6a workspaces", async (t
   assert.equal(created.length, 2, "each node must receive a fresh workspace");
   assert.notEqual(created[0], created[1], "N1 and N2 must not share a workspace");
   assert.deepEqual(disposed.slice().sort(), created.slice().sort(), "every workspace must be disposed");
+  assert.deepEqual(materializedInputs[0], ["src/helper.js"]);
+  assert.deepEqual(materializedInputs[1], ["src/helper.js", "src/index.js"]);
+  assert.equal(materializedInputs.some((inputs) => inputs.includes("src/config.json")), false);
 
   assert.equal(result.lineage_verification.ok, true);
   assert.equal(result.lineage_verification.lineage.length, 6);
@@ -267,17 +276,30 @@ test("E2E: N1 multiply() propagates to N2 through real K6a workspaces", async (t
     ])
   );
   const clockStable = compareShadowExecution(
-    { candidate: result.candidate, workResults: result.workResults, graph_telemetry: result.graph_telemetry },
-    { candidate: result.candidate, workResults: result.workResults, graph_telemetry: shiftedTelemetry }
+    buildComparisonProjection({
+      executionGraph: graph,
+      candidate: result.candidate,
+      workResults: result.workResults,
+      graphTelemetry: result.graph_telemetry,
+    }),
+    buildComparisonProjection({
+      executionGraph: graph,
+      candidate: result.candidate,
+      workResults: result.workResults,
+      graphTelemetry: shiftedTelemetry,
+    })
   );
   assert.equal(clockStable.dimension_match_rates.execution_metrics, 1);
   assert.equal(clockStable.match, true);
   assert.equal(clockStable.discrepancy_classification, "full-match");
-  assert.equal(result.execution_record_id, result.candidate.candidate_id);
-  const loaded = await loadRepairShadowExecution(store, result.candidate.candidate_id);
+  assert.match(result.execution_record_id, /^sha256:[a-f0-9]{64}$/);
+  assert.notEqual(result.execution_record_id, result.candidate.candidate_id);
+  const loaded = await loadRepairShadowExecutions(store, result.candidate.candidate_id);
   assert.equal(loaded.ok, true);
-  assert.equal(loaded.record.kind, "repair-shadow-execution/v1");
-  assert.equal(loaded.record.policy_snapshot.snapshot_id, policySnapshot.snapshot_id);
+  assert.equal(loaded.records.length, 1);
+  assert.equal(loaded.records[0].kind, "repair-shadow-execution/v1");
+  assert.equal(loaded.records[0].policy_snapshot.snapshot_id, policySnapshot.snapshot_id);
+  assert.equal(Object.prototype.hasOwnProperty.call(loaded.records[0], "fingerprint"), false);
 });
 
 test("E2E Fault Injection: Interrupted node halts downstream and cleans up workspaces fail-closed", async (t) => {

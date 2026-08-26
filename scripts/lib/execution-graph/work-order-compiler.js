@@ -7,11 +7,13 @@ const {
   computeSourceSnapshotId,
   computeWorkOrderId,
   validateIdentityKind,
+  isConcreteRelativeCapsulePath,
 } = require("../execution-identities/index.js");
 const { FORBIDDEN_OPERATIONS } = require("./compiler.js");
 const { hasCycle, topologicalSort } = require("./dag.js");
 const { validateObligationManifest } = require("./obligation-manifest.js");
 const { validateExecutionGraphBinding } = require("./binding.js");
+const { isPathContained, normalizeRelativePath } = require("../allowed-paths-validator.js");
 
 const DEFAULT_WORK_ORDER_BUDGET = Object.freeze({
   model_turns: 5,
@@ -83,6 +85,72 @@ function resolveVerifiedSourceSnapshotId(graph, context = {}) {
   }
 
   return graphSnapshotId;
+}
+
+function isDirectoryOrGlobRule(rule) {
+  if (typeof rule !== "string" || rule.length < 1) return true;
+  const normalized = rule.replace(/\\/g, "/");
+  if (/[*?\[]/.test(normalized) || normalized.endsWith("/")) return true;
+  return !isConcreteRelativeCapsulePath(normalized);
+}
+
+function resolvePathInventory(pathInventory, sourceSnapshotId) {
+  if (pathInventory === undefined || pathInventory === null) return null;
+  if (typeof pathInventory !== "object" || Array.isArray(pathInventory)) {
+    const err = new Error("pathInventory must be a snapshot-bound object");
+    err.code = "invalid-capsule-inputs";
+    throw err;
+  }
+  if (pathInventory.source_snapshot_id !== sourceSnapshotId) {
+    const err = new Error(
+      `pathInventory source_snapshot_id "${pathInventory.source_snapshot_id}" does not match graph source_snapshot_id "${sourceSnapshotId}"`
+    );
+    err.code = "provenance-mismatch";
+    throw err;
+  }
+  if (!Array.isArray(pathInventory.paths)) {
+    const err = new Error("pathInventory.paths must be an array");
+    err.code = "invalid-capsule-inputs";
+    throw err;
+  }
+  return pathInventory;
+}
+
+function resolveCapsuleInputsForNode(node, pathInventory) {
+  const allowed = Array.isArray(node.allowed_paths) ? node.allowed_paths : [];
+  const resolved = new Set();
+  const inventoryPaths = pathInventory && Array.isArray(pathInventory.paths) ? pathInventory.paths : [];
+
+  for (const rule of allowed) {
+    if (typeof rule !== "string" || rule.length < 1) {
+      const err = new Error(`invalid allowed_paths entry for node ${node.node_id}`);
+      err.code = "invalid-capsule-inputs";
+      throw err;
+    }
+    if (!isDirectoryOrGlobRule(rule) && isConcreteRelativeCapsulePath(rule)) {
+      resolved.add(normalizeRelativePath(rule) || rule);
+      continue;
+    }
+    for (const inventoryPath of inventoryPaths) {
+      if (typeof inventoryPath !== "string") continue;
+      if (!isPathContained(inventoryPath, [rule])) continue;
+      const normalized = normalizeRelativePath(inventoryPath);
+      if (!normalized || !isConcreteRelativeCapsulePath(normalized)) {
+        const err = new Error(`invalid capsule path resolved from inventory: ${inventoryPath}`);
+        err.code = "invalid-capsule-inputs";
+        throw err;
+      }
+      resolved.add(normalized);
+    }
+  }
+
+  const sorted = [...resolved].sort();
+  if (sorted.length === 0) {
+    const err = new Error(`empty capsule_inputs for node ${node.node_id}`);
+    err.code = "empty-capsule-inputs";
+    throw err;
+  }
+  return sorted;
 }
 
 /**
@@ -292,6 +360,12 @@ function compileWorkOrdersV2(graph, context = {}) {
     changed_lines: DEFAULT_WORK_ORDER_BUDGET.changed_lines,
   };
 
+  const pathInventory = resolvePathInventory(context.pathInventory, sourceSnapshotId);
+  const capsuleByNode = new Map();
+  for (const node of sortedNodes) {
+    capsuleByNode.set(node.node_id, resolveCapsuleInputsForNode(node, pathInventory));
+  }
+
   for (const node of sortedNodes) {
     const rawDeps = Array.isArray(node.dependencies) ? node.dependencies : [];
     const resolvedDeps = rawDeps.map((depNodeId) => {
@@ -319,6 +393,7 @@ function compileWorkOrdersV2(graph, context = {}) {
         ? { owner: String(node.ownership.owner), mode: String(node.ownership.mode) }
         : { owner: "agent:repair", mode: "exclusive" },
       allowed_paths: Array.isArray(node.allowed_paths) ? [...node.allowed_paths] : [],
+      capsule_inputs: capsuleByNode.get(node.node_id),
       invariants: Array.isArray(node.invariants) ? [...node.invariants] : [],
       required_evidence: Array.isArray(node.required_evidence) ? [...node.required_evidence] : [],
       budget: normalizedBudget,
@@ -359,8 +434,27 @@ function compileWorkOrdersV2(graph, context = {}) {
 
 const compileWorkOrders = compileWorkOrdersV2;
 
+const DEFAULT_CAPSULE_INVENTORY_PATHS = Object.freeze([
+  "src/index.js",
+  "src/app.js",
+  "src/auth/controller.js",
+  "src/auth/index.js",
+  "src/auth/session.js",
+  "tests/index.js",
+  "tests/auth.test.js",
+]);
+
+function defaultPathInventory(sourceSnapshotId) {
+  return {
+    source_snapshot_id: sourceSnapshotId,
+    paths: [...DEFAULT_CAPSULE_INVENTORY_PATHS],
+  };
+}
+
 module.exports = {
   DEFAULT_WORK_ORDER_BUDGET,
+  DEFAULT_CAPSULE_INVENTORY_PATHS,
+  defaultPathInventory,
   compileWorkOrders,
   compileWorkOrdersV1,
   compileWorkOrdersV2,
