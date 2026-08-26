@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.48.2] - 2026-08-26
+
+### Fixed
+- **Invariantes de integración K4b (`k4b-integration-invariants-remediation`)**:
+  - **Patches malformados fail-closed**: un `WorkResult.patch` no vacío que no parsea, create/delete solo-cabecera o `@@` inválido aborta con `MALFORMED_UNIFIED_DIFF` y no congela Candidate; los diffs solo-modo siguen siendo válidos.
+  - **Cápsula mínima Option A**: `WorkOrder` v2 exige `capsule_inputs` concretos; K4a los emite (inventario opcional ligado a `source_snapshot_id`); K6a materializa `EffectiveShadowBase ∩ capsule_inputs`, no el árbol derivado completo.
+  - **Conflictos DAG**: `detectPredecessorContextConflicts` solo rechaza predecesores incomparables; el refinamiento secuencial sobre el mismo contexto lo valida el apply estricto.
+  - **Store 1:N**: `repair-shadow-execution/v1` se indexa por fingerprint interno; un Candidate admite varias ejecuciones; `CandidateId` queda como índice secundario, no como quinta identidad.
+  - **Comparador canónico**: la proyección del ExecutionGraph entrega las siete dimensiones con `steps = node_id` topológico.
+  - Ciclo SDD completo (ruta standard, high-risk, 4R approved). Verify: 2667 pass, 0 fail. Archivado en `openspec/changes/archive/2026-08-26-k4b-integration-invariants-remediation/`.
+
 ## [2.48.1] - 2026-08-26
 
 ### Fixed
