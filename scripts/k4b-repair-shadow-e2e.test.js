@@ -1,170 +1,286 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 
+const REPO_ROOT = path.resolve(__dirname, "..");
+
+function snapshotProductionSurfaces(repoRoot, e2eWorkspace) {
+  const head = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: repoRoot,
+    encoding: "buffer",
+  });
+  const branches = execFileSync("git", ["branch", "-a", "--no-color"], {
+    cwd: repoRoot,
+    encoding: "buffer",
+  });
+  const configYaml = fs.readFileSync(path.join(repoRoot, "openspec", "config.yaml"));
+  const surfaces = { head, branches, configYaml };
+  const workspacePackage = e2eWorkspace ? path.join(e2eWorkspace, "package.json") : null;
+  if (workspacePackage && fs.existsSync(workspacePackage)) {
+    const pkg = JSON.parse(fs.readFileSync(workspacePackage, "utf8"));
+    surfaces.packageVersion = Buffer.from(String(pkg.version ?? ""), "utf8");
+  }
+  return surfaces;
+}
+
+function assertProductionSurfacesByteIdentical(before, after) {
+  assert.equal(Buffer.compare(before.head, after.head), 0, "production git HEAD must remain byte-identical");
+  assert.equal(Buffer.compare(before.branches, after.branches), 0, "production branch list must remain byte-identical");
+  assert.equal(
+    Buffer.compare(before.configYaml, after.configYaml),
+    0,
+    "openspec/config.yaml defaults must remain byte-identical"
+  );
+  if (before.packageVersion || after.packageVersion) {
+    assert.ok(before.packageVersion && after.packageVersion, "package.json version snapshot must exist on both sides");
+    assert.equal(
+      Buffer.compare(before.packageVersion, after.packageVersion),
+      0,
+      "E2E workspace package.json version must remain byte-identical"
+    );
+  }
+}
+
 const { orchestrateRepairShadow, compareShadowExecution } = require("./lib/repair-shadow/index.js");
 const { compileExecutionGraph, createPolicySnapshot } = require("./lib/execution-graph/index.js");
+const workerWorkspace = require("./lib/worker-workspace.js");
 const { computeTreeDigest } = require("./lib/worker-workspace.js");
 const { computeSourceSnapshotId, computeCandidateId, validateCandidateV2, computeWorkResultId } = require("./lib/execution-identities/index.js");
+const workerExecutor = require("./lib/worker-executor.js");
+const {
+  createClaudeHostAdapter,
+  getClaudeProofMaterial,
+} = require("./lib/host-adapters/claude.js");
+const {
+  makeSandboxedWorkerPrimitive,
+  makeSandboxedIsolationPrimitive,
+} = require("./lib/worker-sandbox.js");
+const { buildExecutionOptionsFromMaterial } = require("./lib/test-support/k6a-worker-fixtures.js");
+const { createFileSystemStore } = require("./lib/filesystem-store.js");
+const { loadRepairShadowExecution } = require("./lib/repair-shadow/execution-record-store.js");
 
-test("E2E: Complete vertical pipeline (K4a -> K4b -> K6a -> K3 -> Shadow Compare)", async () => {
+function makeTempFileStore(t, dir) {
+  const filePath = path.join(dir || os.tmpdir(), `k4b-e2e-exec-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
+  t.after(() => {
+    for (const extra of ["", ".lock", ".bak"]) {
+      try { fs.unlinkSync(filePath + extra); } catch { /* ignore */ }
+    }
+  });
+  return createFileSystemStore({ filePath, initializeIfMissing: true });
+}
+
+test("E2E: N1 multiply() propagates to N2 through real K6a workspaces", async (t) => {
   const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), "k4b-e2e-"));
+  t.after(() => {
+    try { fs.rmSync(tmpBase, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
 
-  try {
-    const baseFiles = {
-      "src/helper.js": "function add(a, b) { return a + b; }\nmodule.exports = { add };\n",
-      "src/index.js": "const { add } = require('./helper.js');\nconsole.log(add(1, 2));\n",
-      "src/config.json": '{"version": "1.0.0"}\n',
-    };
-    const baseTreeDigest = computeTreeDigest(baseFiles);
-    const sourceSnapshot = {
-      schema_version: 1,
-      kind: "source-snapshot/v1",
-      repository_id: "e2e-repo",
-      base_tree_digest: baseTreeDigest,
-      projection: "workspace",
-      dependency_digests: [],
-    };
-    sourceSnapshot.source_snapshot_id = computeSourceSnapshotId(sourceSnapshot);
+  const baseFiles = {
+    "src/helper.js": "function add(a, b) { return a + b; }\nmodule.exports = { add };\n",
+    "src/index.js": "const { add } = require('./helper.js');\nconsole.log(add(1, 2));\n",
+    "src/config.json": '{"version": "1.0.0"}\n',
+  };
+  const baseTreeDigest = computeTreeDigest(baseFiles);
+  const sourceSnapshot = {
+    schema_version: 1,
+    kind: "source-snapshot/v1",
+    repository_id: "e2e-repo",
+    base_tree_digest: baseTreeDigest,
+    projection: "workspace",
+    dependency_digests: [],
+  };
+  sourceSnapshot.source_snapshot_id = computeSourceSnapshotId(sourceSnapshot);
 
-    const nodes = [
-      {
-        node_id: "n1-helper",
-        kind: "repair-action/v1",
-        operation: "repair_helper",
-        objective: "Add multiply function to helper.js",
-        ownership: { owner: "agent:repair", mode: "exclusive" },
-        dependencies: [],
-        allowed_paths: ["src/helper.js"],
-        invariants: ["inv-pure-math"],
-        budget_ref: "budget:default",
-        required_evidence: ["ev:helper-test"],
+  const nodes = [
+    {
+      node_id: "n1-helper",
+      kind: "repair-action/v1",
+      operation: "repair_helper",
+      objective: "Add multiply function to helper.js",
+      ownership: { owner: "agent:repair", mode: "exclusive" },
+      dependencies: [],
+      allowed_paths: ["src/helper.js"],
+      invariants: ["inv-pure-math"],
+      budget_ref: "budget:default",
+      required_evidence: ["ev:helper-test"],
+    },
+    {
+      node_id: "n2-index",
+      kind: "repair-action/v1",
+      operation: "repair_index",
+      objective: "Import and execute multiply from N1's derived base",
+      ownership: { owner: "agent:repair", mode: "exclusive" },
+      dependencies: ["n1-helper"],
+      allowed_paths: ["src/index.js", "src/helper.js"],
+      invariants: ["inv-log-output"],
+      budget_ref: "budget:default",
+      required_evidence: ["ev:index-test"],
+    },
+  ];
+
+  const obligations = [
+    { id: "ob1", criticality: "must", implemented_by: ["n1-helper"], required_evidence: ["ev:helper-test"] },
+    { id: "ob2", criticality: "must", implemented_by: ["n2-index"], required_evidence: ["ev:index-test"] },
+  ];
+
+  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-fail-closed"] });
+  const contract = {
+    schema_version: 1,
+    contract_id: "contract:e2e-repair-001",
+    family: "repair",
+    version: 1,
+    contract_digest: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    source_snapshot_id: sourceSnapshot.source_snapshot_id,
+    obligations,
+  };
+  const graph = compileExecutionGraph({
+    contract,
+    policySnapshot,
+    nodes,
+    obligations,
+  });
+
+  const primitives = {
+    worker: makeSandboxedWorkerPrimitive(),
+    workerIsolation: makeSandboxedIsolationPrimitive(),
+  };
+  const adapter = await createClaudeHostAdapter({ primitives });
+  const material = await getClaudeProofMaterial({ primitives });
+  const execOpts = buildExecutionOptionsFromMaterial(material);
+
+  const n1Script = `
+    const fs = require("node:fs");
+    fs.writeFileSync("src/helper.js", [
+      "function add(a, b) { return a + b; }",
+      "function multiply(a, b) { return a * b; }",
+      "module.exports = { add, multiply };",
+      ""
+    ].join("\\n"));
+  `;
+  const n2Script = `
+    const fs = require("node:fs");
+    const { multiply } = require("./src/helper.js");
+    const product = multiply(2, 3);
+    if (product !== 6) {
+      console.error("multiply(2,3)=" + product);
+      process.exit(1);
+    }
+    console.log("multiply_ok=" + product);
+    fs.writeFileSync("src/index.js", [
+      "const { add, multiply } = require('./helper.js');",
+      "console.log(add(1, 2));",
+      "console.log(multiply(2, 3));",
+      ""
+    ].join("\\n"));
+  `;
+
+  const created = [];
+  const disposed = [];
+  const originalCreate = workerWorkspace.createWorkspace;
+  const originalDispose = workerWorkspace.disposeWorkspace;
+  t.mock.method(workerWorkspace, "createWorkspace", async function mockedCreate(...args) {
+    const ws = await originalCreate.apply(this, args);
+    created.push(ws.workspace_id);
+    return ws;
+  });
+  t.mock.method(workerWorkspace, "disposeWorkspace", async function mockedDispose(descriptor) {
+    disposed.push(descriptor && descriptor.workspace_id);
+    return originalDispose.apply(this, arguments);
+  });
+
+  const fixedBaseline = {
+    steps: ["n1-helper", "n2-index"],
+    diff_hash: "sha256:dummy",
+    obligations: ["ob1", "ob2"],
+    invariants: ["inv-log-output", "inv-pure-math"],
+    inventory: ["src/helper.js", "src/index.js"],
+  };
+
+  const store = makeTempFileStore(t, tmpBase);
+  const beforeProduction = snapshotProductionSurfaces(REPO_ROOT, tmpBase);
+  const result = await orchestrateRepairShadow(graph, {
+    sourceSnapshot,
+    files: baseFiles,
+    baseDir: tmpBase,
+    isolationCapability: "enforced",
+    policySnapshot,
+    store,
+    workerTransport: adapter.transports.WorkerTransport,
+    capabilityProof: execOpts.capabilityProof,
+    semantic_evidence: execOpts.semantic_evidence,
+    expectedAdapterId: execOpts.expectedAdapterId,
+    expectedAdapterVersion: execOpts.expectedAdapterVersion,
+    expectedHostRuntimeVersion: execOpts.expectedHostRuntimeVersion,
+    expectedProbeDigest: execOpts.expectedProbeDigest,
+    workerIsolation: execOpts.workerIsolation,
+    executorOptionsByNode: {
+      "n1-helper": {
+        commands: [{ command: process.execPath, args: ["-e", n1Script] }],
       },
-      {
-        node_id: "n2-index",
-        kind: "repair-action/v1",
-        operation: "repair_index",
-        objective: "Use multiply function in index.js",
-        ownership: { owner: "agent:repair", mode: "exclusive" },
-        dependencies: ["n1-helper"],
-        allowed_paths: ["src/index.js"],
-        invariants: ["inv-log-output"],
-        budget_ref: "budget:default",
-        required_evidence: ["ev:index-test"],
+      "n2-index": {
+        commands: [{ command: process.execPath, args: ["-e", n2Script] }],
       },
-    ];
+    },
+    baselineResult: fixedBaseline,
+  });
+  const afterProduction = snapshotProductionSurfaces(REPO_ROOT, tmpBase);
+  assertProductionSurfacesByteIdentical(beforeProduction, afterProduction);
 
-    const obligations = [
-      { id: "ob1", criticality: "must", implemented_by: ["n1-helper"], required_evidence: ["ev:helper-test"] },
-      { id: "ob2", criticality: "must", implemented_by: ["n2-index"], required_evidence: ["ev:index-test"] },
-    ];
+  assert.equal(result.ok, true, result.error || "E2E orchestration must succeed");
+  assert.equal(result.graph_telemetry["n1-helper"].status, "completed");
+  assert.equal(result.graph_telemetry["n2-index"].status, "completed");
+  assert.ok(
+    (result.workResults[1].logs || []).some((line) => String(line).includes("multiply_ok=6")),
+    "N2 must import and execute multiply(2,3) === 6 on the derived base"
+  );
+  assert.ok(
+    String(result.workResults[0].patch || "").includes("multiply"),
+    "N1 WorkResult patch must add multiply()"
+  );
 
-    const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-fail-closed"] });
-    const contract = {
-      schema_version: 1,
-      contract_id: "contract:e2e-repair-001",
-      family: "repair",
-      version: 1,
-      contract_digest: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-      source_snapshot_id: sourceSnapshot.source_snapshot_id,
-      obligations,
-    };
+  assert.equal(created.length, 2, "each node must receive a fresh workspace");
+  assert.notEqual(created[0], created[1], "N1 and N2 must not share a workspace");
+  assert.deepEqual(disposed.slice().sort(), created.slice().sort(), "every workspace must be disposed");
 
-    const graph = compileExecutionGraph({
-      contract,
-      policySnapshot,
-      nodes,
-      obligations,
-    });
-
-    const patchHelper = `--- a/src/helper.js
-+++ b/src/helper.js
-@@ -1,2 +1,3 @@
- function add(a, b) { return a + b; }
--module.exports = { add };
-+function multiply(a, b) { return a * b; }
-+module.exports = { add, multiply };
-`;
-
-    const patchIndex = `--- a/src/index.js
-+++ b/src/index.js
-@@ -1,2 +1,3 @@
--const { add } = require('./helper.js');
-+const { add, multiply } = require('./helper.js');
- console.log(add(1, 2));
-+console.log(multiply(2, 3));
-`;
-
-    const executedOrder = [];
-    const mockExecutor = async (workOrder, workspaceDescriptor) => {
-      executedOrder.push(workOrder.node_id);
-      const patch = workOrder.node_id === "n1-helper" ? patchHelper : patchIndex;
-      const wr = {
-        kind: "work-result/v1",
-        schema_version: 1,
-        work_order_id: workOrder.work_order_id,
-        source_snapshot_id: sourceSnapshot.source_snapshot_id,
-        patch,
-        commands: [{ command: `test-${workOrder.node_id}`, exit_code: 0, duration_ms: 15 }],
-        logs: [`executed ${workOrder.node_id} successfully`],
-        exit_code: 0,
-        filesystem_inventory: [],
-      };
-      wr.work_result_id = computeWorkResultId(wr);
-      return {
-        ok: true,
-        isolationReported: "enforced",
-        workResult: wr,
-      };
-    };
-
-    const fixedBaseline = {
-      steps: ["n1-helper", "n2-index"],
-      diff_hash: "sha256:dummy",
-      obligations: ["ob1", "ob2"],
-      invariants: ["inv-log-output", "inv-pure-math"],
-      inventory: ["src/helper.js", "src/index.js"],
-    };
-
-    const result = await orchestrateRepairShadow(graph, {
-      sourceSnapshot,
-      files: baseFiles,
-      baseDir: tmpBase,
-      isolationCapability: "enforced",
-      executorFn: mockExecutor,
-      baselineResult: fixedBaseline,
-    });
-
-    assert.equal(result.ok, true, "E2E orchestration must succeed");
-    assert.deepEqual(executedOrder, ["n1-helper", "n2-index"], "Nodes must execute in topological sequence");
-
-    // Lineage verification
-    assert.equal(result.lineage_verification.ok, true, "Lineage verification must succeed");
-    assert.equal(result.lineage_verification.lineage.length, 6, "Lineage must contain SourceSnapshot, 2 WorkOrders, 2 WorkResults, and Candidate");
-
-    // Candidate validation
-    assert.ok(result.candidate);
-    assert.equal(validateCandidateV2(result.candidate), true);
-    assert.equal(result.candidate.candidate_id, computeCandidateId(result.candidate));
-    assert.equal(result.candidate.base_tree, baseTreeDigest);
-
-    // Telemetry validation
-    assert.equal(result.graph_telemetry["n1-helper"].status, "completed");
-    assert.equal(result.graph_telemetry["n2-index"].status, "completed");
-
-    // Shadow comparison validation
-    assert.ok(result.shadow_comparison);
-    assert.equal(typeof result.shadow_comparison.match, "boolean");
-  } finally {
-    fs.rmSync(tmpBase, { recursive: true, force: true });
-  }
+  assert.equal(result.lineage_verification.ok, true);
+  assert.equal(result.lineage_verification.lineage.length, 6);
+  assert.ok(result.candidate);
+  assert.equal(validateCandidateV2(result.candidate), true);
+  assert.equal(result.candidate.candidate_id, computeCandidateId(result.candidate));
+  assert.equal(result.candidate.base_tree, baseTreeDigest, "freeze must stay anchored to original SourceSnapshot");
+  assert.ok(result.shadow_comparison);
+  const shiftedTelemetry = Object.fromEntries(
+    Object.entries(result.graph_telemetry || {}).map(([id, tel]) => [
+      id,
+      {
+        ...tel,
+        started_at: "1999-01-01T00:00:00.000Z",
+        finished_at: "1999-01-01T00:00:01.000Z",
+        duration_ms: 1,
+        commands: (tel.commands || []).map((c) => ({ ...c, duration_ms: 1 })),
+      },
+    ])
+  );
+  const clockStable = compareShadowExecution(
+    { candidate: result.candidate, workResults: result.workResults, graph_telemetry: result.graph_telemetry },
+    { candidate: result.candidate, workResults: result.workResults, graph_telemetry: shiftedTelemetry }
+  );
+  assert.equal(clockStable.dimension_match_rates.execution_metrics, 1);
+  assert.equal(clockStable.match, true);
+  assert.equal(clockStable.discrepancy_classification, "full-match");
+  assert.equal(result.execution_record_id, result.candidate.candidate_id);
+  const loaded = await loadRepairShadowExecution(store, result.candidate.candidate_id);
+  assert.equal(loaded.ok, true);
+  assert.equal(loaded.record.kind, "repair-shadow-execution/v1");
+  assert.equal(loaded.record.policy_snapshot.snapshot_id, policySnapshot.snapshot_id);
 });
 
-test("E2E Fault Injection: Interrupted node halts downstream and cleans up workspaces fail-closed", async () => {
+test("E2E Fault Injection: Interrupted node halts downstream and cleans up workspaces fail-closed", async (t) => {
   const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), "k4b-fault-"));
 
   try {
@@ -242,7 +358,8 @@ test("E2E Fault Injection: Interrupted node halts downstream and cleans up works
       obligations,
     });
 
-    const mockFailingAtN2 = async (workOrder, workspaceDescriptor) => {
+    t.mock.method(workerExecutor, "executeWorkOrder", async (callOptions) => {
+      const workOrder = callOptions.workOrder;
       if (workOrder.node_id === "n1-root") {
         const wr = {
           kind: "work-result/v1",
@@ -266,14 +383,13 @@ test("E2E Fault Injection: Interrupted node halts downstream and cleans up works
         };
       }
       throw new Error("n3-grandchild must not be executed!");
-    };
+    });
 
     const result = await orchestrateRepairShadow(graph, {
       sourceSnapshot,
       files: baseFiles,
       baseDir: tmpBase,
       isolationCapability: "enforced",
-      executorFn: mockFailingAtN2,
     });
 
     assert.equal(result.ok, false, "Pipeline must fail closed when node fails");

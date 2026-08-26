@@ -1,7 +1,7 @@
 # Roadmap general — kernel, grafo y evidencia
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.40.0, 2026-08-05.
+> **Versión de referencia:** v2.48.1, 2026-08-26.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
 > **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md).
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
@@ -77,8 +77,8 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **K4a** | Graph compiler + Obligation Manifest + deterministic replay (sin worker autoritativo); verificado y reconciliado en v2.45.7 |
 | `done` | **K5** | Budgets (incl. autoridad/efectos), failures y recovery; remediaciones v2.45.7→v2.45.13 (authoritative enforcement, authority boundary/CAS concurrency, reconciliación, remediación técnica del núcleo y blindaje de concurrencia); archivado y publicado en v2.45.13 |
 | `done` | **K6a** | Worker isolation y work-order capsule; primitivas de ejecución aislada, integración con WorkerTransport, contención de filesystem y WorkResult canónico; archivado en v2.46.0, frontera de procesos cerrada en v2.47.1 y endurecida en v2.47.2 |
-| `done` | **K4b** | Repair shadow execution (WO→WR→integrate→Candidate); orquestador de grafo K4a, despacho exclusivo K6a con workspaces efímeros bajo aislamiento enforced, integración determinista de diffs, freeze de Candidate v2 en K3 y comparación shadow vs baseline sin mutar producción |
-| `next-eligible` | K6b | Verifier independiente, evidence strategies y Assurance Graph |
+| `done` | **K4b** | Repair shadow execution (WO→WR→integrate→Candidate); despacho exclusivo K6a, integración estricta, base derivada y registro auditable; archivado `2026-08-25-k4b-correctness-remediation` y publicado en v2.48.1 |
+| `next-eligible` | **K6b** | Verifier independiente, evidence strategies y Assurance Graph |
 | `pending` | K6c–K8 | Challenges, complexity, review authority, **Evaluation Attestation** |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
 | `pending` | K10-delivery | `DeliveryAuthorization` **acotada al profile K9**; relación Candidate por etapas; fixed/deferred para el resto |
@@ -183,11 +183,11 @@ Campo canónico de binding al candidato: **`candidate_id`** (no `candidate_diges
 
 ```text
 Entregado:
-G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2 → K2.1 → K2a → K3 → K4a → K5 → K6a
-                                                                                               ↓
-Next eligible:                                                                                K4b
-                                                                                               ↓
-Pending:     K4b → K6b → K6c → K6d → K7 → K8
+G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2 → K2.1 → K2a → K3 → K4a → K5 → K6a → K4b
+                                                                                                      ↓
+Next-eligible:                                                                                       K6b
+                                                                                                      ↓
+Pending:     K6c → K6d → K7 → K8
                                                                    ↓
 Promoción:                                                       K9
                                                                    ↓
@@ -953,9 +953,11 @@ K6a ✕ K4b   (K6a no depende de K4b)
 
 **Gate terminal:** primitivas de ejecución conformes; ningún `CandidateId` emitido; desbloquea K4b como consumidor.
 
-### K4b — Repair shadow execution — **next-eligible**
+### K4b — Repair shadow execution — **done** (v2.48.0; remediación de corrección en v2.48.1)
 
 **Dependencias:** K4a + K5 + K6a + K3 + K2a.
+
+**Estado:** `done`. Archivado `openspec/changes/archive/2026-08-25-k4b-correctness-remediation/` y publicado en v2.48.1.
 
 **Absorbe/rebasa:** O20A (parte ejecución shadow); cierre del MVP Repair compile→execute.
 
@@ -1002,11 +1004,13 @@ Take compiled Repair Execution Graph (K4a)
 
 #### Gate
 
-Vertical Repair shadow produce Candidate congelado. Desbloquea K6b. El resultado de O20A decide **promover, revisar o rechazar** el kernel común solo tras K9; rechazo conserva fixed.
+Vertical Repair shadow produce Candidate congelado. Gate cerrado en v2.48.1: despacho exclusivo vía K6a, integración fail-closed sobre la base autorizada, dependencias materiales, comparación de siete dimensiones y registro `repair-shadow-execution/v1`. Desbloquea K6b. El resultado de O20A decide **promover, revisar o rechazar** el kernel común solo tras K9; rechazo conserva fixed.
 
-### K6b — verifier independiente, evidence strategies y Assurance Graph — **pending**
+### K6b — verifier independiente, evidence strategies y Assurance Graph — **next-eligible**
 
 **Dependencias:** K4b + K6a + K3.
+
+**Estado:** `pending` (etiqueta operativa `next-eligible`). K4b está archivado; no abrir K6b hasta crear su change OpenSpec.
 
 **Absorbe/rebasa:** P12/P16; O15; separación apply/verify vigente.
 
@@ -2031,3 +2035,5 @@ Cada child conserva clasificación, Candidate ID y receipt propios.
 - 2026-08-04: K2.1 (`k2-1-authority-store-permits`) cierra con verify PASS, 4R approved (8 bloqueantes remediados), archive y v2.39.0; K2a queda next-eligible; versión de referencia alineada a v2.39.0.
 - 2026-08-05: K2a (`k2a-headless-conformance-host`) cierra con verify PASS WITH WARNINGS, 4R approved (4 CRITICAL remediados), archive y v2.40.0; versión de referencia alineada a v2.40.0.
 - 2026-08-05: k2a-1 (`k2a-1-live-capability-probes-async-transports`) cierra con verify PASS WITH WARNINGS, 4R approved (4 CRITICAL remediados); plan archive emitido; K3 queda next-eligible; transacción runtime pendiente.
+- 2026-08-25: K4b (`k4b-correctness-remediation`) permanece `in-progress` hasta archive; **no está `done`**. Tabla ejecutiva y sección detallada reconciliadas (antes: tabla `done` / sección `next-eligible`). K6b pasa a `blocked` y no es next-eligible.
+- 2026-08-26: K4b (`k4b-correctness-remediation`) cierra con verify PASS WITH WARNINGS, 4R approved, archive transaccional y v2.48.1; K6b queda next-eligible.

@@ -1553,4 +1553,55 @@ test("executeWorkOrder: commands refuse unless isolationReported=enforced; G≠F
   assert.notEqual(mismatch.isolationReported, "enforced");
 });
 
+test("K4b Phase 1.3: object-signature executeWorkOrder rejects positional calls and non-allowlisted node options", async () => {
+  const {
+    pickAllowedNodeExecutionInputs,
+    EXECUTE_WORK_ORDER_OPTION_ALLOWLIST,
+    buildExecuteWorkOrderInvocation,
+  } = require("./repair-shadow/orchestrator.js");
+
+  assert.deepEqual([...EXECUTE_WORK_ORDER_OPTION_ALLOWLIST], [
+    "commands",
+    "command",
+    "args",
+    "signal",
+    "declaredTargets",
+  ]);
+
+  const workOrder = makeCanonicalWorkOrder();
+  const positional = await executeWorkOrder(workOrder, { workspace_id: "ws-positional" }, {
+    workerTransport: { hijack: true },
+  });
+  assert.equal(positional.ok, false);
+  assert.equal(positional.reason, "invalid-work-order");
+
+  assert.throws(
+    () => pickAllowedNodeExecutionInputs({ workerTransport: { hijack: true }, command: "node" }),
+    (err) => err && err.code === "UNSAFE_EXECUTOR_OPTION"
+  );
+
+  const workspace = { workspace_id: "ws-auth", root_path: "/tmp/ws-auth" };
+  const authorizedTransport = { port_id: "authorized-worker" };
+  const invocation = buildExecuteWorkOrderInvocation({
+    workOrder,
+    workspace,
+    nodeOptions: { command: "node", args: ["-e", "1"], declaredTargets: ["src/app.js"] },
+    authorizedWorkerTransport: authorizedTransport,
+    capabilityProof: { adapter_id: "adapter-test" },
+    workerIsolation: { declared_state: "enforced" },
+  });
+
+  assert.equal(invocation.workOrder, workOrder);
+  assert.equal(invocation.workspace, workspace);
+  assert.equal(invocation.transports.worker, authorizedTransport);
+  assert.equal(invocation.isolationCapability, "enforced");
+  assert.equal(invocation.capabilityId, "WorkerTransport");
+  assert.equal(invocation.strictIsolation, true);
+  assert.equal(invocation.command, "node");
+  assert.deepEqual(invocation.args, ["-e", "1"]);
+  assert.equal(Object.hasOwn(invocation, "workerTransport"), false);
+  assert.equal(Object.hasOwn(invocation, "budget"), false);
+  assert.equal(Object.isFrozen(invocation), true);
+});
+
 

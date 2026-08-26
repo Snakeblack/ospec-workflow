@@ -1,0 +1,91 @@
+{
+  "evidence": {
+    "schema_version": 1,
+    "classification": "high-risk",
+    "fingerprint": "sha256:8893d378ab7d22975b978d9d9b3c7ddaad36ffe9eae45f06d37b1d9c6a17231b",
+    "sources": {
+      "paths": [
+        "docs/adr/adr-20260825-006-topological-dispatch-and-ephemeral-k6a-workspace-lifecycle.md",
+        "docs/adr/adr-20260825-007-workresult-candidate-separation-and-deterministic-patch-integration.md",
+        "docs/roadmaps/harness-evolution.md",
+        "scripts/k4b-repair-shadow-e2e.test.js",
+        "scripts/k6a-e2e-worker-isolation.test.js",
+        "scripts/lib/k2a-maturity-docs.test.js",
+        "scripts/lib/repair-shadow/effective-shadow-base.js",
+        "scripts/lib/repair-shadow/execution-record-store.js",
+        "scripts/lib/repair-shadow/index.js",
+        "scripts/lib/repair-shadow/index.test.js",
+        "scripts/lib/repair-shadow/orchestrator.js",
+        "scripts/lib/repair-shadow/patch-integrator.js",
+        "scripts/lib/repair-shadow/shadow-comparator.js",
+        "scripts/lib/roadmap-boundary.test.js",
+        "scripts/lib/test-support/k6a-worker-fixtures.js",
+        "scripts/lib/worker-executor.test.js",
+        "scripts/lib/worker-workspace.js"
+      ],
+      "capabilities": [
+        "runtime"
+      ],
+      "operation_types": [
+        "add",
+        "modify"
+      ],
+      "dependencies": [],
+      "facts": [
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "k4b-k6a-exclusive-dispatch-and-material-deps"
+        },
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime"
+        },
+        {
+          "code": "diff-auth-permission",
+          "source": "real-diff",
+          "detail": "scripts/lib/repair-shadow/execution-record-store.js"
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/repair-shadow/execution-record-store.js,scripts/lib/repair-shadow/orchestrator.js,scripts/lib/worker-workspace.js"
+        },
+        {
+          "code": "verify-reliability",
+          "source": "verify",
+          "detail": "K4B-W001 architecture-doc-stale"
+        }
+      ]
+    }
+  },
+  "candidate": {
+    "projection": "workspace",
+    "base_tree": "2dc1657ea0664d0244418fd740e63b335ce02e3b",
+    "candidate_tree": "workspace-uncommitted",
+    "paths": [
+      "docs/adr/adr-20260825-006-topological-dispatch-and-ephemeral-k6a-workspace-lifecycle.md",
+      "docs/adr/adr-20260825-007-workresult-candidate-separation-and-deterministic-patch-integration.md",
+      "docs/roadmaps/harness-evolution.md",
+      "scripts/k4b-repair-shadow-e2e.test.js",
+      "scripts/k6a-e2e-worker-isolation.test.js",
+      "scripts/lib/k2a-maturity-docs.test.js",
+      "scripts/lib/repair-shadow/effective-shadow-base.js",
+      "scripts/lib/repair-shadow/execution-record-store.js",
+      "scripts/lib/repair-shadow/index.js",
+      "scripts/lib/repair-shadow/index.test.js",
+      "scripts/lib/repair-shadow/orchestrator.js",
+      "scripts/lib/repair-shadow/patch-integrator.js",
+      "scripts/lib/repair-shadow/shadow-comparator.js",
+      "scripts/lib/roadmap-boundary.test.js",
+      "scripts/lib/test-support/k6a-worker-fixtures.js",
+      "scripts/lib/worker-executor.test.js",
+      "scripts/lib/worker-workspace.js"
+    ],
+    "diff_hash": "sha256:296b287bc18c0c72ba02a0fa2a56f43eb969efa911d8773c33f68122765532d3",
+    "paths_digest": "sha256:9a35fec192426f202892658ced434444f3b17d2df7d6da1686912ac4fa418798",
+    "authored_lines": 2541,
+    "original_changed_lines": 2975
+  }
+}

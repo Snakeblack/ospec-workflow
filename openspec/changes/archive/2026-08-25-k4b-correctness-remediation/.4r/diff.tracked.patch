@@ -1,0 +1,3797 @@
+diff --git a/docs/adr/adr-20260825-006-topological-dispatch-and-ephemeral-k6a-workspace-lifecycle.md b/docs/adr/adr-20260825-006-topological-dispatch-and-ephemeral-k6a-workspace-lifecycle.md
+index d68ba55..b121515 100644
+--- a/docs/adr/adr-20260825-006-topological-dispatch-and-ephemeral-k6a-workspace-lifecycle.md
++++ b/docs/adr/adr-20260825-006-topological-dispatch-and-ephemeral-k6a-workspace-lifecycle.md
+@@ -1,22 +1,27 @@
+-# ADR-001: Despacho topológico y ciclo de vida de workspace efímero por nodo vía K6a
++# ADR-006: Despacho topológico y ciclo de vida de workspace efímero por nodo vía K6a
+ 
+-- Status: proposed
++- Status: accepted
++- Number: 006 (matches filename `adr-20260825-006-*.md`; not change-local ADR-001)
+ - Change: k4b-repair-shadow-execution
++- Refined-by: k4b-correctness-remediation (local ADR-001, ADR-002)
+ - Date: 2026-08-25
+ 
+ ## Context
+ 
+-La orquestación shadow de Repair necesita ejecutar órdenes de trabajo (`WorkOrder` v2) derivadas de un `ExecutionGraph` compilado. Para garantizar reproducibilidad y prevenir fugas de estado entre nodos dependientes o independientes, se debe definir el ciclo de vida y aislamiento del espacio de trabajo.
++La orquestación shadow de Repair necesita ejecutar órdenes de trabajo (`WorkOrder` v2) derivadas de un `ExecutionGraph` compilado. Para garantizar reproducibilidad y prevenir fugas de estado entre nodos dependientes o independientes, se debe definir el ciclo de vida y aislamiento del espacio de trabajo. El spread de `executorOptions` y un `executorFn` inyectable permiten reemplazar autoridad del orquestador o eludir K6a.
+ 
+ ## Decision
+ 
+-Despachar las órdenes de trabajo en orden topológico estricto asignando a cada nodo un workspace aislado efímero gestionado exclusivamente a través de las primitivas de K6a (`createWorkspace`, `materializeSourceSnapshot`, `disposeWorkspace`). La ejecución de comandos se delega a `executeWorkOrder` bajo aislamiento verificado (`isolationReported === "enforced"`).
++Despachar las órdenes de trabajo en orden topológico estricto asignando a cada nodo un workspace aislado efímero gestionado exclusivamente a través de las primitivas de K6a (`createWorkspace`, `materializeSourceSnapshot`, `disposeWorkspace`). La ejecución se invoca con `executeWorkOrder({ ... })` construido campo a campo: `executorOptionsByNode` solo admite `commands`, `command`, `args`, `signal` y `declaredTargets`; cualquier otra clave falla con `UNSAFE_EXECUTOR_OPTION` antes del despacho; `executorFn` nunca se invoca. Los nodos dependientes materializan un `EffectiveShadowBase` derivado (bytes + digest) sin emitir un `SourceSnapshotId` sintético; cada nodo recibe un workspace nuevo. El aislamiento reportado debe ser `enforced`.
+ 
+ ## Alternatives
+ 
+ - Reutilizar un único workspace compartido entre todos los nodos: descartado por riesgo de contaminación cruzada y falta de aislamiento.
+ - Ejecución directa sobre el filesystem de producción: descartado porque violaría la no-mutación de la ejecución shadow.
++- Spread abierto de opciones o lista de denegación: descartado porque permite sobrescribir autoridad o admite nuevas claves K6a por defecto.
++- Executor inyectable para tests: descartado porque no demuestra K6a real.
++- SourceSnapshot sintético por nodo: descartado porque rompe WorkOrderId y el anclaje de Candidate.
+ 
+ ## Consequences
+ 
+-Mayor robustez, contención garantizada y limpieza automática fail-closed ante cualquier error. Introduce coste I/O de materialización por nodo, mitigable mediante cápsulas mínimas de entrada. Reversible mediante refactor de orquestación.
++Mayor robustez, contención garantizada y limpieza automática fail-closed ante cualquier error. El contrato de despacho es auditable; añadir un input de ejecución exige actualizar la allowlist. Introduce coste I/O de materialización por nodo, mitigable mediante cápsulas mínimas de entrada. Reversible mediante refactor de orquestación.
+diff --git a/docs/adr/adr-20260825-007-workresult-candidate-separation-and-deterministic-patch-integration.md b/docs/adr/adr-20260825-007-workresult-candidate-separation-and-deterministic-patch-integration.md
+index 8be4cf9..575cc7a 100644
+--- a/docs/adr/adr-20260825-007-workresult-candidate-separation-and-deterministic-patch-integration.md
++++ b/docs/adr/adr-20260825-007-workresult-candidate-separation-and-deterministic-patch-integration.md
+@@ -1,22 +1,27 @@
+-# ADR-002: Separación estricta WorkResult != Candidate con integración previa a freezeCandidate
++# ADR-007: Separación estricta WorkResult != Candidate con integración previa a freezeCandidate
+ 
+-- Status: proposed
++- Status: accepted
++- Number: 007 (matches filename `adr-20260825-007-*.md`; not change-local ADR-002)
+ - Change: k4b-repair-shadow-execution
++- Refined-by: k4b-correctness-remediation (local ADR-003)
+ - Date: 2026-08-25
+ 
+ ## Context
+ 
+-La capa K6a produce `WorkResult` como evidencia cruda del worker (diffs, inventario, logs). Para conformar la cadena criptográfica de identidades, se debe consolidar el estado sobre la base autorizada `SourceSnapshot` y emitir un `Candidate` v2 inmutable.
++La capa K6a produce `WorkResult` como evidencia cruda del worker (diffs, inventario, logs). Para conformar la cadena criptográfica de identidades, se debe consolidar el estado sobre la base autorizada `SourceSnapshot` y emitir un `Candidate` v2 inmutable. Integrar todos los WorkResults al final impide que un dependiente ejecute el resultado material de su predecesor; congelar por nodo confundiría bases intermedias con Candidates promovibles.
+ 
+ ## Decision
+ 
+-Establecer que `WorkResult` es evidencia cruda y nunca un `Candidate`. `patch-integrator.js` valida que los diffs pertenezcan a `allowed_paths`, aplica los parches deterministamente sobre el árbol base en memoria, y delega la emisión de `CandidateId` exclusivamente a `freezeCandidate()` de K3.
++Establecer que `WorkResult` es evidencia cruda y nunca un `Candidate`. `patch-integrator.js` valida hunks (contexto, deletion, counts, overlaps), modos de archivo y que los diffs pertenezcan a `WorkOrder.allowed_paths` del productor, aplica cada parche de forma incremental sobre la base efectiva del nodo, y conserva árbol/modos/diff canónico para dependientes. Invocar `freezeCandidate()` de K3 una sola vez al completar el grafo, con el árbol final, modos reenviados y `base_tree` del SourceSnapshot original. Conflictos de predecesores sobre el mismo contexto fallan cerrados.
+ 
+ ## Alternatives
+ 
+ - Que K6a emita directamente el CandidateId: descartado porque acopla la capa de worker con la semántica de Candidate v2 y rompe la separación de responsabilidades.
+ - Tratar WorkResult como candidato evaluable: descartado por falta de consolidación con la base autorizada y digest Merkle global.
++- Integración diferida de todos los parches al final: descartada porque no propaga material a dependientes.
++- Candidate por nodo: descartado porque expone identidades intermedias sin autoridad de promoción.
++- Aplicación tolerante de hunks: descartada porque oculta divergencias de contexto.
+ 
+ ## Consequences
+ 
+-Garantiza la trazabilidad criptográfica de 4 identidades (`SourceSnapshotId` → `WorkOrderId` → `WorkResultId` → `CandidateId`) y reproducibilidad estricta. Reversible vía `git revert`.
++Garantiza la trazabilidad criptográfica de 4 identidades (`SourceSnapshotId` → `WorkOrderId` → `WorkResultId` → `CandidateId`) y reproducibilidad estricta. Los errores de contexto, eliminación, modo, containment o conflicto aparecen antes de ejecutar dependientes. K3 conserva la responsabilidad exclusiva de CandidateId. Reversible vía `git revert`.
+diff --git a/docs/roadmaps/harness-evolution.md b/docs/roadmaps/harness-evolution.md
+index 108fd52..1296958 100644
+--- a/docs/roadmaps/harness-evolution.md
++++ b/docs/roadmaps/harness-evolution.md
+@@ -77,8 +77,8 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
+ | `done` | **K4a** | Graph compiler + Obligation Manifest + deterministic replay (sin worker autoritativo); verificado y reconciliado en v2.45.7 |
+ | `done` | **K5** | Budgets (incl. autoridad/efectos), failures y recovery; remediaciones v2.45.7→v2.45.13 (authoritative enforcement, authority boundary/CAS concurrency, reconciliación, remediación técnica del núcleo y blindaje de concurrencia); archivado y publicado en v2.45.13 |
+ | `done` | **K6a** | Worker isolation y work-order capsule; primitivas de ejecución aislada, integración con WorkerTransport, contención de filesystem y WorkResult canónico; archivado en v2.46.0, frontera de procesos cerrada en v2.47.1 y endurecida en v2.47.2 |
+-| `done` | **K4b** | Repair shadow execution (WO→WR→integrate→Candidate); orquestador de grafo K4a, despacho exclusivo K6a con workspaces efímeros bajo aislamiento enforced, integración determinista de diffs, freeze de Candidate v2 en K3 y comparación shadow vs baseline sin mutar producción |
+-| `next-eligible` | K6b | Verifier independiente, evidence strategies y Assurance Graph |
++| `in-progress` | **K4b** | Repair shadow execution (WO→WR→integrate→Candidate); change abierto `k4b-correctness-remediation`. **No está `done`** hasta que ese change archive; no usar `next-eligible` mientras el change exista |
++| `blocked` | K6b | Verifier independiente, evidence strategies y Assurance Graph; **no es next-eligible** mientras K4b permanezca incompleto |
+ | `pending` | K6c–K8 | Challenges, complexity, review authority, **Evaluation Attestation** |
+ | `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
+ | `pending` | K10-delivery | `DeliveryAuthorization` **acotada al profile K9**; relación Candidate por etapas; fixed/deferred para el resto |
+@@ -185,9 +185,11 @@ Campo canónico de binding al candidato: **`candidate_id`** (no `candidate_diges
+ Entregado:
+ G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2 → K2.1 → K2a → K3 → K4a → K5 → K6a
+                                                                                                ↓
+-Next eligible:                                                                                K4b
++In-progress:                                                                                  K4b
+                                                                                                ↓
+-Pending:     K4b → K6b → K6c → K6d → K7 → K8
++Blocked:                                                                                      K6b
++                                                                                               ↓
++Pending:     K6c → K6d → K7 → K8
+                                                                    ↓
+ Promoción:                                                       K9
+                                                                    ↓
+@@ -953,10 +955,12 @@ K6a ✕ K4b   (K6a no depende de K4b)
+ 
+ **Gate terminal:** primitivas de ejecución conformes; ningún `CandidateId` emitido; desbloquea K4b como consumidor.
+ 
+-### K4b — Repair shadow execution — **next-eligible**
++### K4b — Repair shadow execution — **in-progress** (`k4b-correctness-remediation`)
+ 
+ **Dependencias:** K4a + K5 + K6a + K3 + K2a.
+ 
++**Estado:** `in-progress` (no `done`, no `next-eligible`). El change abierto `k4b-correctness-remediation` debe verificar y archivarse antes de marcar K4b como terminado.
++
+ **Absorbe/rebasa:** O20A (parte ejecución shadow); cierre del MVP Repair compile→execute.
+ 
+ **Rol:** **orquestador de dominio Repair**. Consumidor de K6a; no reimplementa aislamiento.
+@@ -1002,12 +1006,14 @@ Take compiled Repair Execution Graph (K4a)
+ 
+ #### Gate
+ 
+-Vertical Repair shadow produce Candidate congelado. Desbloquea K6b. El resultado de O20A decide **promover, revisar o rechazar** el kernel común solo tras K9; rechazo conserva fixed.
++Vertical Repair shadow produce Candidate congelado. **Este gate no está cerrado:** K4b permanece no terminado hasta archive de `k4b-correctness-remediation`. El cierre, cuando ocurra, desbloquea K6b. El resultado de O20A decide **promover, revisar o rechazar** el kernel común solo tras K9; rechazo conserva fixed.
+ 
+-### K6b — verifier independiente, evidence strategies y Assurance Graph — **pending**
++### K6b — verifier independiente, evidence strategies y Assurance Graph — **blocked**
+ 
+ **Dependencias:** K4b + K6a + K3.
+ 
++**Estado:** `blocked` (no `next-eligible`). K4b tiene un change OpenSpec abierto (`k4b-correctness-remediation`); K6b no se abre hasta que esa remediación archive.
++
+ **Absorbe/rebasa:** P12/P16; O15; separación apply/verify vigente.
+ 
+ **Assurance Graph (proyección, no autoridad):** evidence refs con origin/hash/node son necesarias pero insuficientes para revalidación incremental. K6b materializa un **Assurance Graph** content-addressed y derivado del estado canónico (contract, Execution Graph, identidades, evidencia, verify). No concede lifecycle ni sustituye OpenSpec/Git.
+@@ -2031,3 +2037,4 @@ Cada child conserva clasificación, Candidate ID y receipt propios.
+ - 2026-08-04: K2.1 (`k2-1-authority-store-permits`) cierra con verify PASS, 4R approved (8 bloqueantes remediados), archive y v2.39.0; K2a queda next-eligible; versión de referencia alineada a v2.39.0.
+ - 2026-08-05: K2a (`k2a-headless-conformance-host`) cierra con verify PASS WITH WARNINGS, 4R approved (4 CRITICAL remediados), archive y v2.40.0; versión de referencia alineada a v2.40.0.
+ - 2026-08-05: k2a-1 (`k2a-1-live-capability-probes-async-transports`) cierra con verify PASS WITH WARNINGS, 4R approved (4 CRITICAL remediados); plan archive emitido; K3 queda next-eligible; transacción runtime pendiente.
++- 2026-08-25: K4b (`k4b-correctness-remediation`) permanece `in-progress` hasta archive; **no está `done`**. Tabla ejecutiva y sección detallada reconciliadas (antes: tabla `done` / sección `next-eligible`). K6b pasa a `blocked` y no es next-eligible.
+diff --git a/scripts/k4b-repair-shadow-e2e.test.js b/scripts/k4b-repair-shadow-e2e.test.js
+index a028061..09ef054 100644
+--- a/scripts/k4b-repair-shadow-e2e.test.js
++++ b/scripts/k4b-repair-shadow-e2e.test.js
+@@ -1,170 +1,286 @@
+ "use strict";
+ 
+ const assert = require("node:assert/strict");
++const { execFileSync } = require("node:child_process");
+ const fs = require("node:fs");
+ const os = require("node:os");
+ const path = require("node:path");
+ const test = require("node:test");
+ 
++const REPO_ROOT = path.resolve(__dirname, "..");
++
++function snapshotProductionSurfaces(repoRoot, e2eWorkspace) {
++  const head = execFileSync("git", ["rev-parse", "HEAD"], {
++    cwd: repoRoot,
++    encoding: "buffer",
++  });
++  const branches = execFileSync("git", ["branch", "-a", "--no-color"], {
++    cwd: repoRoot,
++    encoding: "buffer",
++  });
++  const configYaml = fs.readFileSync(path.join(repoRoot, "openspec", "config.yaml"));
++  const surfaces = { head, branches, configYaml };
++  const workspacePackage = e2eWorkspace ? path.join(e2eWorkspace, "package.json") : null;
++  if (workspacePackage && fs.existsSync(workspacePackage)) {
++    const pkg = JSON.parse(fs.readFileSync(workspacePackage, "utf8"));
++    surfaces.packageVersion = Buffer.from(String(pkg.version ?? ""), "utf8");
++  }
++  return surfaces;
++}
++
++function assertProductionSurfacesByteIdentical(before, after) {
++  assert.equal(Buffer.compare(before.head, after.head), 0, "production git HEAD must remain byte-identical");
++  assert.equal(Buffer.compare(before.branches, after.branches), 0, "production branch list must remain byte-identical");
++  assert.equal(
++    Buffer.compare(before.configYaml, after.configYaml),
++    0,
++    "openspec/config.yaml defaults must remain byte-identical"
++  );
++  if (before.packageVersion || after.packageVersion) {
++    assert.ok(before.packageVersion && after.packageVersion, "package.json version snapshot must exist on both sides");
++    assert.equal(
++      Buffer.compare(before.packageVersion, after.packageVersion),
++      0,
++      "E2E workspace package.json version must remain byte-identical"
++    );
++  }
++}
++
+ const { orchestrateRepairShadow, compareShadowExecution } = require("./lib/repair-shadow/index.js");
+ const { compileExecutionGraph, createPolicySnapshot } = require("./lib/execution-graph/index.js");
++const workerWorkspace = require("./lib/worker-workspace.js");
+ const { computeTreeDigest } = require("./lib/worker-workspace.js");
+ const { computeSourceSnapshotId, computeCandidateId, validateCandidateV2, computeWorkResultId } = require("./lib/execution-identities/index.js");
++const workerExecutor = require("./lib/worker-executor.js");
++const {
++  createClaudeHostAdapter,
++  getClaudeProofMaterial,
++} = require("./lib/host-adapters/claude.js");
++const {
++  makeSandboxedWorkerPrimitive,
++  makeSandboxedIsolationPrimitive,
++} = require("./lib/worker-sandbox.js");
++const { buildExecutionOptionsFromMaterial } = require("./lib/test-support/k6a-worker-fixtures.js");
++const { createFileSystemStore } = require("./lib/filesystem-store.js");
++const { loadRepairShadowExecution } = require("./lib/repair-shadow/execution-record-store.js");
+ 
+-test("E2E: Complete vertical pipeline (K4a -> K4b -> K6a -> K3 -> Shadow Compare)", async () => {
+-  const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), "k4b-e2e-"));
++function makeTempFileStore(t, dir) {
++  const filePath = path.join(dir || os.tmpdir(), `k4b-e2e-exec-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
++  t.after(() => {
++    for (const extra of ["", ".lock", ".bak"]) {
++      try { fs.unlinkSync(filePath + extra); } catch { /* ignore */ }
++    }
++  });
++  return createFileSystemStore({ filePath, initializeIfMissing: true });
++}
+ 
+-  try {
+-    const baseFiles = {
+-      "src/helper.js": "function add(a, b) { return a + b; }\nmodule.exports = { add };\n",
+-      "src/index.js": "const { add } = require('./helper.js');\nconsole.log(add(1, 2));\n",
+-      "src/config.json": '{"version": "1.0.0"}\n',
+-    };
+-    const baseTreeDigest = computeTreeDigest(baseFiles);
+-    const sourceSnapshot = {
+-      schema_version: 1,
+-      kind: "source-snapshot/v1",
+-      repository_id: "e2e-repo",
+-      base_tree_digest: baseTreeDigest,
+-      projection: "workspace",
+-      dependency_digests: [],
+-    };
+-    sourceSnapshot.source_snapshot_id = computeSourceSnapshotId(sourceSnapshot);
++test("E2E: N1 multiply() propagates to N2 through real K6a workspaces", async (t) => {
++  const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), "k4b-e2e-"));
++  t.after(() => {
++    try { fs.rmSync(tmpBase, { recursive: true, force: true }); } catch { /* ignore */ }
++  });
+ 
+-    const nodes = [
+-      {
+-        node_id: "n1-helper",
+-        kind: "repair-action/v1",
+-        operation: "repair_helper",
+-        objective: "Add multiply function to helper.js",
+-        ownership: { owner: "agent:repair", mode: "exclusive" },
+-        dependencies: [],
+-        allowed_paths: ["src/helper.js"],
+-        invariants: ["inv-pure-math"],
+-        budget_ref: "budget:default",
+-        required_evidence: ["ev:helper-test"],
+-      },
+-      {
+-        node_id: "n2-index",
+-        kind: "repair-action/v1",
+-        operation: "repair_index",
+-        objective: "Use multiply function in index.js",
+-        ownership: { owner: "agent:repair", mode: "exclusive" },
+-        dependencies: ["n1-helper"],
+-        allowed_paths: ["src/index.js"],
+-        invariants: ["inv-log-output"],
+-        budget_ref: "budget:default",
+-        required_evidence: ["ev:index-test"],
+-      },
+-    ];
++  const baseFiles = {
++    "src/helper.js": "function add(a, b) { return a + b; }\nmodule.exports = { add };\n",
++    "src/index.js": "const { add } = require('./helper.js');\nconsole.log(add(1, 2));\n",
++    "src/config.json": '{"version": "1.0.0"}\n',
++  };
++  const baseTreeDigest = computeTreeDigest(baseFiles);
++  const sourceSnapshot = {
++    schema_version: 1,
++    kind: "source-snapshot/v1",
++    repository_id: "e2e-repo",
++    base_tree_digest: baseTreeDigest,
++    projection: "workspace",
++    dependency_digests: [],
++  };
++  sourceSnapshot.source_snapshot_id = computeSourceSnapshotId(sourceSnapshot);
+ 
+-    const obligations = [
+-      { id: "ob1", criticality: "must", implemented_by: ["n1-helper"], required_evidence: ["ev:helper-test"] },
+-      { id: "ob2", criticality: "must", implemented_by: ["n2-index"], required_evidence: ["ev:index-test"] },
+-    ];
++  const nodes = [
++    {
++      node_id: "n1-helper",
++      kind: "repair-action/v1",
++      operation: "repair_helper",
++      objective: "Add multiply function to helper.js",
++      ownership: { owner: "agent:repair", mode: "exclusive" },
++      dependencies: [],
++      allowed_paths: ["src/helper.js"],
++      invariants: ["inv-pure-math"],
++      budget_ref: "budget:default",
++      required_evidence: ["ev:helper-test"],
++    },
++    {
++      node_id: "n2-index",
++      kind: "repair-action/v1",
++      operation: "repair_index",
++      objective: "Import and execute multiply from N1's derived base",
++      ownership: { owner: "agent:repair", mode: "exclusive" },
++      dependencies: ["n1-helper"],
++      allowed_paths: ["src/index.js", "src/helper.js"],
++      invariants: ["inv-log-output"],
++      budget_ref: "budget:default",
++      required_evidence: ["ev:index-test"],
++    },
++  ];
+ 
+-    const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-fail-closed"] });
+-    const contract = {
+-      schema_version: 1,
+-      contract_id: "contract:e2e-repair-001",
+-      family: "repair",
+-      version: 1,
+-      contract_digest: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+-      source_snapshot_id: sourceSnapshot.source_snapshot_id,
+-      obligations,
+-    };
++  const obligations = [
++    { id: "ob1", criticality: "must", implemented_by: ["n1-helper"], required_evidence: ["ev:helper-test"] },
++    { id: "ob2", criticality: "must", implemented_by: ["n2-index"], required_evidence: ["ev:index-test"] },
++  ];
+ 
+-    const graph = compileExecutionGraph({
+-      contract,
+-      policySnapshot,
+-      nodes,
+-      obligations,
+-    });
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-fail-closed"] });
++  const contract = {
++    schema_version: 1,
++    contract_id: "contract:e2e-repair-001",
++    family: "repair",
++    version: 1,
++    contract_digest: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
++    source_snapshot_id: sourceSnapshot.source_snapshot_id,
++    obligations,
++  };
++  const graph = compileExecutionGraph({
++    contract,
++    policySnapshot,
++    nodes,
++    obligations,
++  });
+ 
+-    const patchHelper = `--- a/src/helper.js
+-+++ b/src/helper.js
+-@@ -1,2 +1,3 @@
+- function add(a, b) { return a + b; }
+--module.exports = { add };
+-+function multiply(a, b) { return a * b; }
+-+module.exports = { add, multiply };
+-`;
+-
+-    const patchIndex = `--- a/src/index.js
+-+++ b/src/index.js
+-@@ -1,2 +1,3 @@
+--const { add } = require('./helper.js');
+-+const { add, multiply } = require('./helper.js');
+- console.log(add(1, 2));
+-+console.log(multiply(2, 3));
+-`;
+-
+-    const executedOrder = [];
+-    const mockExecutor = async (workOrder, workspaceDescriptor) => {
+-      executedOrder.push(workOrder.node_id);
+-      const patch = workOrder.node_id === "n1-helper" ? patchHelper : patchIndex;
+-      const wr = {
+-        kind: "work-result/v1",
+-        schema_version: 1,
+-        work_order_id: workOrder.work_order_id,
+-        source_snapshot_id: sourceSnapshot.source_snapshot_id,
+-        patch,
+-        commands: [{ command: `test-${workOrder.node_id}`, exit_code: 0, duration_ms: 15 }],
+-        logs: [`executed ${workOrder.node_id} successfully`],
+-        exit_code: 0,
+-        filesystem_inventory: [],
+-      };
+-      wr.work_result_id = computeWorkResultId(wr);
+-      return {
+-        ok: true,
+-        isolationReported: "enforced",
+-        workResult: wr,
+-      };
+-    };
++  const primitives = {
++    worker: makeSandboxedWorkerPrimitive(),
++    workerIsolation: makeSandboxedIsolationPrimitive(),
++  };
++  const adapter = await createClaudeHostAdapter({ primitives });
++  const material = await getClaudeProofMaterial({ primitives });
++  const execOpts = buildExecutionOptionsFromMaterial(material);
+ 
+-    const fixedBaseline = {
+-      steps: ["n1-helper", "n2-index"],
+-      diff_hash: "sha256:dummy",
+-      obligations: ["ob1", "ob2"],
+-      invariants: ["inv-log-output", "inv-pure-math"],
+-      inventory: ["src/helper.js", "src/index.js"],
+-    };
++  const n1Script = `
++    const fs = require("node:fs");
++    fs.writeFileSync("src/helper.js", [
++      "function add(a, b) { return a + b; }",
++      "function multiply(a, b) { return a * b; }",
++      "module.exports = { add, multiply };",
++      ""
++    ].join("\\n"));
++  `;
++  const n2Script = `
++    const fs = require("node:fs");
++    const { multiply } = require("./src/helper.js");
++    const product = multiply(2, 3);
++    if (product !== 6) {
++      console.error("multiply(2,3)=" + product);
++      process.exit(1);
++    }
++    console.log("multiply_ok=" + product);
++    fs.writeFileSync("src/index.js", [
++      "const { add, multiply } = require('./helper.js');",
++      "console.log(add(1, 2));",
++      "console.log(multiply(2, 3));",
++      ""
++    ].join("\\n"));
++  `;
+ 
+-    const result = await orchestrateRepairShadow(graph, {
+-      sourceSnapshot,
+-      files: baseFiles,
+-      baseDir: tmpBase,
+-      isolationCapability: "enforced",
+-      executorFn: mockExecutor,
+-      baselineResult: fixedBaseline,
+-    });
++  const created = [];
++  const disposed = [];
++  const originalCreate = workerWorkspace.createWorkspace;
++  const originalDispose = workerWorkspace.disposeWorkspace;
++  t.mock.method(workerWorkspace, "createWorkspace", async function mockedCreate(...args) {
++    const ws = await originalCreate.apply(this, args);
++    created.push(ws.workspace_id);
++    return ws;
++  });
++  t.mock.method(workerWorkspace, "disposeWorkspace", async function mockedDispose(descriptor) {
++    disposed.push(descriptor && descriptor.workspace_id);
++    return originalDispose.apply(this, arguments);
++  });
+ 
+-    assert.equal(result.ok, true, "E2E orchestration must succeed");
+-    assert.deepEqual(executedOrder, ["n1-helper", "n2-index"], "Nodes must execute in topological sequence");
++  const fixedBaseline = {
++    steps: ["n1-helper", "n2-index"],
++    diff_hash: "sha256:dummy",
++    obligations: ["ob1", "ob2"],
++    invariants: ["inv-log-output", "inv-pure-math"],
++    inventory: ["src/helper.js", "src/index.js"],
++  };
+ 
+-    // Lineage verification
+-    assert.equal(result.lineage_verification.ok, true, "Lineage verification must succeed");
+-    assert.equal(result.lineage_verification.lineage.length, 6, "Lineage must contain SourceSnapshot, 2 WorkOrders, 2 WorkResults, and Candidate");
++  const store = makeTempFileStore(t, tmpBase);
++  const beforeProduction = snapshotProductionSurfaces(REPO_ROOT, tmpBase);
++  const result = await orchestrateRepairShadow(graph, {
++    sourceSnapshot,
++    files: baseFiles,
++    baseDir: tmpBase,
++    isolationCapability: "enforced",
++    policySnapshot,
++    store,
++    workerTransport: adapter.transports.WorkerTransport,
++    capabilityProof: execOpts.capabilityProof,
++    semantic_evidence: execOpts.semantic_evidence,
++    expectedAdapterId: execOpts.expectedAdapterId,
++    expectedAdapterVersion: execOpts.expectedAdapterVersion,
++    expectedHostRuntimeVersion: execOpts.expectedHostRuntimeVersion,
++    expectedProbeDigest: execOpts.expectedProbeDigest,
++    workerIsolation: execOpts.workerIsolation,
++    executorOptionsByNode: {
++      "n1-helper": {
++        commands: [{ command: process.execPath, args: ["-e", n1Script] }],
++      },
++      "n2-index": {
++        commands: [{ command: process.execPath, args: ["-e", n2Script] }],
++      },
++    },
++    baselineResult: fixedBaseline,
++  });
++  const afterProduction = snapshotProductionSurfaces(REPO_ROOT, tmpBase);
++  assertProductionSurfacesByteIdentical(beforeProduction, afterProduction);
+ 
+-    // Candidate validation
+-    assert.ok(result.candidate);
+-    assert.equal(validateCandidateV2(result.candidate), true);
+-    assert.equal(result.candidate.candidate_id, computeCandidateId(result.candidate));
+-    assert.equal(result.candidate.base_tree, baseTreeDigest);
++  assert.equal(result.ok, true, result.error || "E2E orchestration must succeed");
++  assert.equal(result.graph_telemetry["n1-helper"].status, "completed");
++  assert.equal(result.graph_telemetry["n2-index"].status, "completed");
++  assert.ok(
++    (result.workResults[1].logs || []).some((line) => String(line).includes("multiply_ok=6")),
++    "N2 must import and execute multiply(2,3) === 6 on the derived base"
++  );
++  assert.ok(
++    String(result.workResults[0].patch || "").includes("multiply"),
++    "N1 WorkResult patch must add multiply()"
++  );
+ 
+-    // Telemetry validation
+-    assert.equal(result.graph_telemetry["n1-helper"].status, "completed");
+-    assert.equal(result.graph_telemetry["n2-index"].status, "completed");
++  assert.equal(created.length, 2, "each node must receive a fresh workspace");
++  assert.notEqual(created[0], created[1], "N1 and N2 must not share a workspace");
++  assert.deepEqual(disposed.slice().sort(), created.slice().sort(), "every workspace must be disposed");
+ 
+-    // Shadow comparison validation
+-    assert.ok(result.shadow_comparison);
+-    assert.equal(typeof result.shadow_comparison.match, "boolean");
+-  } finally {
+-    fs.rmSync(tmpBase, { recursive: true, force: true });
+-  }
++  assert.equal(result.lineage_verification.ok, true);
++  assert.equal(result.lineage_verification.lineage.length, 6);
++  assert.ok(result.candidate);
++  assert.equal(validateCandidateV2(result.candidate), true);
++  assert.equal(result.candidate.candidate_id, computeCandidateId(result.candidate));
++  assert.equal(result.candidate.base_tree, baseTreeDigest, "freeze must stay anchored to original SourceSnapshot");
++  assert.ok(result.shadow_comparison);
++  const shiftedTelemetry = Object.fromEntries(
++    Object.entries(result.graph_telemetry || {}).map(([id, tel]) => [
++      id,
++      {
++        ...tel,
++        started_at: "1999-01-01T00:00:00.000Z",
++        finished_at: "1999-01-01T00:00:01.000Z",
++        duration_ms: 1,
++        commands: (tel.commands || []).map((c) => ({ ...c, duration_ms: 1 })),
++      },
++    ])
++  );
++  const clockStable = compareShadowExecution(
++    { candidate: result.candidate, workResults: result.workResults, graph_telemetry: result.graph_telemetry },
++    { candidate: result.candidate, workResults: result.workResults, graph_telemetry: shiftedTelemetry }
++  );
++  assert.equal(clockStable.dimension_match_rates.execution_metrics, 1);
++  assert.equal(clockStable.match, true);
++  assert.equal(clockStable.discrepancy_classification, "full-match");
++  assert.equal(result.execution_record_id, result.candidate.candidate_id);
++  const loaded = await loadRepairShadowExecution(store, result.candidate.candidate_id);
++  assert.equal(loaded.ok, true);
++  assert.equal(loaded.record.kind, "repair-shadow-execution/v1");
++  assert.equal(loaded.record.policy_snapshot.snapshot_id, policySnapshot.snapshot_id);
+ });
+ 
+-test("E2E Fault Injection: Interrupted node halts downstream and cleans up workspaces fail-closed", async () => {
++test("E2E Fault Injection: Interrupted node halts downstream and cleans up workspaces fail-closed", async (t) => {
+   const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), "k4b-fault-"));
+ 
+   try {
+@@ -242,7 +358,8 @@ test("E2E Fault Injection: Interrupted node halts downstream and cleans up works
+       obligations,
+     });
+ 
+-    const mockFailingAtN2 = async (workOrder, workspaceDescriptor) => {
++    t.mock.method(workerExecutor, "executeWorkOrder", async (callOptions) => {
++      const workOrder = callOptions.workOrder;
+       if (workOrder.node_id === "n1-root") {
+         const wr = {
+           kind: "work-result/v1",
+@@ -266,14 +383,13 @@ test("E2E Fault Injection: Interrupted node halts downstream and cleans up works
+         };
+       }
+       throw new Error("n3-grandchild must not be executed!");
+-    };
++    });
+ 
+     const result = await orchestrateRepairShadow(graph, {
+       sourceSnapshot,
+       files: baseFiles,
+       baseDir: tmpBase,
+       isolationCapability: "enforced",
+-      executorFn: mockFailingAtN2,
+     });
+ 
+     assert.equal(result.ok, false, "Pipeline must fail closed when node fails");
+diff --git a/scripts/k6a-e2e-worker-isolation.test.js b/scripts/k6a-e2e-worker-isolation.test.js
+index 41059ac..28fc475 100644
+--- a/scripts/k6a-e2e-worker-isolation.test.js
++++ b/scripts/k6a-e2e-worker-isolation.test.js
+@@ -38,8 +38,6 @@ const {
+   createClaudeHostAdapter,
+   getClaudeProofMaterial,
+   ADAPTER_ID,
+-  ADAPTER_VERSION,
+-  HOST_VERSION,
+ } = require("./lib/host-adapters/claude.js");
+ 
+ const {
+@@ -48,40 +46,10 @@ const {
+   makeRogueIsolationPrimitive,
+   executeSandboxedCommand,
+ } = require("./lib/worker-sandbox.js");
++const { buildExecutionOptionsFromMaterial } = require("./lib/test-support/k6a-worker-fixtures.js");
+ 
+ const makeRealWorkerCommandPrimitive = makeSandboxedWorkerPrimitive;
+ 
+-/**
+- * Compone las opciones de executeWorkOrder a partir del material canónico del
+- * adapter real — sin inyección manual de adapter_id/probe_digest/containment.
+- */
+-function buildExecutionOptionsFromMaterial(material) {
+-  const tMat = material.WorkerTransport;
+-  const isoMat = material.WorkerIsolation;
+-  const options = {
+-    isolationCapability: "enforced",
+-    capabilityProof: tMat.proof,
+-    semantic_evidence: tMat.evidence,
+-    expectedAdapterId: ADAPTER_ID,
+-    expectedAdapterVersion: ADAPTER_VERSION,
+-    expectedHostRuntimeVersion: HOST_VERSION,
+-    expectedProbeDigest: tMat.expectedProbeDigest,
+-    probe_digest: tMat.proof.probe_digest,
+-  };
+-  if (isoMat && isoMat.expectedProbeDigest) {
+-    options.workerIsolation = {
+-      declared_state: "enforced",
+-      capabilityProof: isoMat.proof,
+-      semantic_evidence: isoMat.evidence,
+-      expectedAdapterId: ADAPTER_ID,
+-      expectedAdapterVersion: ADAPTER_VERSION,
+-      expectedHostRuntimeVersion: HOST_VERSION,
+-      expectedProbeDigest: isoMat.expectedProbeDigest,
+-    };
+-  }
+-  return options;
+-}
+-
+ const ROOT = path.resolve(__dirname, "..");
+ 
+ function applyPatch(baseFiles = new Map(), patch = "") {
+diff --git a/scripts/lib/k2a-maturity-docs.test.js b/scripts/lib/k2a-maturity-docs.test.js
+index 3c62ce4..d8c19a4 100644
+--- a/scripts/lib/k2a-maturity-docs.test.js
++++ b/scripts/lib/k2a-maturity-docs.test.js
+@@ -28,5 +28,8 @@ test("K2a maturity docs tag host surfaces implemented; Candidate/attestation/del
+   assert.doesNotMatch(arch, /\{target\} Headless Conformance Host \+ adapter real \+ CapabilityProof \(K2a\)/);
+ 
+   assert.match(roadmap, /K2a.*\*\*done\*\*|Headless Conformance Host.*implemented/i);
+-  assert.match(roadmap, /Next eligible:.*K3/s);
++  assert.match(roadmap, /\|\s*`done`\s*\|\s*\*\*K3\*\*/);
++  assert.match(roadmap, /\|\s*`in-progress`\s*\|\s*\*\*K4b\*\*/);
++  assert.match(roadmap, /\|\s*`blocked`\s*\|\s*K6b\b/);
++  assert.doesNotMatch(roadmap, /\|\s*`next-eligible`\s*\|\s*K6b\b/);
+ });
+diff --git a/scripts/lib/repair-shadow/index.js b/scripts/lib/repair-shadow/index.js
+index 65ce564..14d208f 100644
+--- a/scripts/lib/repair-shadow/index.js
++++ b/scripts/lib/repair-shadow/index.js
+@@ -3,9 +3,17 @@
+ const { orchestrateRepairShadow } = require("./orchestrator.js");
+ const { integrateWorkResultPatches } = require("./patch-integrator.js");
+ const { compareShadowExecution } = require("./shadow-comparator.js");
++const {
++  persistRepairShadowExecution,
++  loadRepairShadowExecution,
++  validateRepairShadowExecutionRecord,
++} = require("./execution-record-store.js");
+ 
+ module.exports = {
+   orchestrateRepairShadow,
+   integrateWorkResultPatches,
+   compareShadowExecution,
++  persistRepairShadowExecution,
++  loadRepairShadowExecution,
++  validateRepairShadowExecutionRecord,
+ };
+diff --git a/scripts/lib/repair-shadow/index.test.js b/scripts/lib/repair-shadow/index.test.js
+index 3dce51e..049a748 100644
+--- a/scripts/lib/repair-shadow/index.test.js
++++ b/scripts/lib/repair-shadow/index.test.js
+@@ -1,7 +1,11 @@
+ "use strict";
+ 
+ const assert = require("node:assert/strict");
++const fs = require("node:fs");
++const os = require("node:os");
++const path = require("node:path");
+ const test = require("node:test");
++const workerExecutor = require("../worker-executor.js");
+ 
+ test("Phase 1: repair-shadow package exports canonical API", () => {
+   const repairShadow = require("./index.js");
+@@ -12,6 +16,8 @@ test("Phase 1: repair-shadow package exports canonical API", () => {
+   assert.equal(typeof repairShadow.orchestrateRepairShadow, "function", "repair-shadow must export orchestrateRepairShadow");
+   assert.equal(typeof repairShadow.integrateWorkResultPatches, "function", "repair-shadow must export integrateWorkResultPatches");
+   assert.equal(typeof repairShadow.compareShadowExecution, "function", "repair-shadow must export compareShadowExecution");
++  assert.equal(typeof repairShadow.persistRepairShadowExecution, "function", "repair-shadow must export persistRepairShadowExecution");
++  assert.equal(typeof repairShadow.loadRepairShadowExecution, "function", "repair-shadow must export loadRepairShadowExecution");
+ 
+   assert.equal(typeof orchestrator.orchestrateRepairShadow, "function", "orchestrator must export orchestrateRepairShadow");
+   assert.equal(typeof patchIntegrator.integrateWorkResultPatches, "function", "patch-integrator must export integrateWorkResultPatches");
+@@ -351,7 +357,7 @@ test("Phase 3.3: orchestrateRepairShadow fails closed when isolationCapability i
+   assert.equal(res.reason_code, "ISOLATION_NOT_ENFORCED");
+ });
+ 
+-test("Phase 3.5, 3.7 & 3.9: orchestrateRepairShadow executes DAG in topological order with telemetry, full 4-identity lineage", async () => {
++test("Phase 3.5, 3.7 & 3.9: orchestrateRepairShadow executes DAG in topological order with telemetry, full 4-identity lineage", async (t) => {
+   const { orchestrateRepairShadow } = require("./orchestrator.js");
+   const { computeTreeDigest } = require("../worker-workspace.js");
+   const { computeSourceSnapshotId, computeWorkResultId } = require("../execution-identities/index.js");
+@@ -420,7 +426,10 @@ test("Phase 3.5, 3.7 & 3.9: orchestrateRepairShadow executes DAG in topological
+   const patchN2 = `--- a/src/util.js\n+++ b/src/util.js\n@@ -1 +1,2 @@\n const u = 1;\n+const extraU = 2;\n`;
+ 
+   const orderOfExecution = [];
+-  const mockExecutor = async (workOrder, workspace) => {
++  t.mock.method(workerExecutor, "executeWorkOrder", async (callOptions) => {
++    assert.equal(typeof callOptions, "object");
++    assert.ok(callOptions && callOptions.workOrder, "executeWorkOrder must use object signature");
++    const workOrder = callOptions.workOrder;
+     orderOfExecution.push(workOrder.node_id);
+     const patch = workOrder.node_id === "n1" ? patchN1 : patchN2;
+     const wr = {
+@@ -440,13 +449,14 @@ test("Phase 3.5, 3.7 & 3.9: orchestrateRepairShadow executes DAG in topological
+       isolationReported: "enforced",
+       workResult: wr,
+     };
+-  };
++  });
+ 
+   const result = await orchestrateRepairShadow(graph, {
+     sourceSnapshot,
+     files,
+     isolationCapability: "enforced",
+-    executorFn: mockExecutor,
++    policySnapshot,
++    store: makeTempFileStore(t),
+   });
+ 
+   assert.equal(result.ok, true, "Orchestration must succeed");
+@@ -458,7 +468,7 @@ test("Phase 3.5, 3.7 & 3.9: orchestrateRepairShadow executes DAG in topological
+   assert.equal(result.lineage_verification.ok, true, "4-identity lineage must validate");
+ });
+ 
+-test("Phase 3.7b: orchestrateRepairShadow marks downstream nodes as blocked when a node fails", async () => {
++test("Phase 3.7b: orchestrateRepairShadow marks downstream nodes as blocked when a node fails", async (t) => {
+   const { orchestrateRepairShadow } = require("./orchestrator.js");
+   const { computeTreeDigest } = require("../worker-workspace.js");
+   const { computeSourceSnapshotId } = require("../execution-identities/index.js");
+@@ -522,19 +532,18 @@ test("Phase 3.7b: orchestrateRepairShadow marks downstream nodes as blocked when
+     obligations,
+   });
+ 
+-  const mockFailingExecutor = async (workOrder) => {
++  t.mock.method(workerExecutor, "executeWorkOrder", async () => {
+     return {
+       ok: false,
+       isolationReported: "enforced",
+       workResult: { exit_code: 1, commands: [], logs: [] },
+     };
+-  };
++  });
+ 
+   const result = await orchestrateRepairShadow(graph, {
+     sourceSnapshot,
+     files,
+     isolationCapability: "enforced",
+-    executorFn: mockFailingExecutor,
+   });
+ 
+   assert.equal(result.ok, false);
+@@ -544,7 +553,7 @@ test("Phase 3.7b: orchestrateRepairShadow marks downstream nodes as blocked when
+   assert.equal(result.graph_telemetry.n2.status, "blocked");
+ });
+ 
+-test("Phase 3.9b: orchestrateRepairShadow detects tampered WorkResultId and fails closed", async () => {
++test("Phase 3.9b: orchestrateRepairShadow detects tampered WorkResultId and fails closed", async (t) => {
+   const { orchestrateRepairShadow } = require("./orchestrator.js");
+   const { computeTreeDigest } = require("../worker-workspace.js");
+   const { computeSourceSnapshotId } = require("../execution-identities/index.js");
+@@ -595,14 +604,14 @@ test("Phase 3.9b: orchestrateRepairShadow detects tampered WorkResultId and fail
+     obligations,
+   });
+ 
+-  const mockTamperedExecutor = async (workOrder) => {
++  t.mock.method(workerExecutor, "executeWorkOrder", async (callOptions) => {
+     return {
+       ok: true,
+       isolationReported: "enforced",
+       workResult: {
+         kind: "work-result/v1",
+         schema_version: 1,
+-        work_order_id: workOrder.work_order_id,
++        work_order_id: callOptions.workOrder.work_order_id,
+         source_snapshot_id: sourceSnapshot.source_snapshot_id,
+         work_result_id: "sha256:0000000000000000000000000000000000000000000000000000000000000000", // Tampered!
+         patch: "",
+@@ -612,13 +621,12 @@ test("Phase 3.9b: orchestrateRepairShadow detects tampered WorkResultId and fail
+         filesystem_inventory: [],
+       },
+     };
+-  };
++  });
+ 
+   const result = await orchestrateRepairShadow(graph, {
+     sourceSnapshot,
+     files,
+     isolationCapability: "enforced",
+-    executorFn: mockTamperedExecutor,
+   });
+ 
+   assert.equal(result.ok, false);
+@@ -666,6 +674,26 @@ test("Phase 4.1 & 4.2: compareShadowExecution reports full-match when shadow ali
+   assert.equal(comparison.dimension_match_rates.inventory, 1);
+ });
+ 
++test("F-2377c2ac33934a21: production graph_telemetry execution_metrics ignore wall-clock", () => {
++  const { compareShadowExecution } = require("./shadow-comparator.js");
++  const candidate = { candidate_id: "sha256:" + "c".repeat(64), diff_hash: "sha256:" + "1".repeat(64), paths: ["src/app.js"] };
++  const workResults = [{ work_order_id: "wo-n1", work_result_id: "wr-n1" }];
++  const tel = (c) => ({
++    n1: {
++      node_id: "n1", status: "completed", work_order_id: "wo-n1", work_result_id: "wr-n1",
++      commands: [{ command: "node", exit_code: 0, duration_ms: c.cmd }], logs: ["ok"],
++      started_at: c.start, finished_at: c.finish, duration_ms: c.dur,
++    },
++  });
++  const comparison = compareShadowExecution(
++    { candidate, workResults, graph_telemetry: tel({ start: "2026-08-25T10:00:00Z", finish: "2026-08-25T10:00:01Z", dur: 1000, cmd: 12 }) },
++    { candidate, workResults, graph_telemetry: tel({ start: "2026-08-26T11:22:33Z", finish: "2026-08-26T11:22:35Z", dur: 2000, cmd: 88 }) }
++  );
++  assert.equal(comparison.dimension_match_rates.execution_metrics, 1);
++  assert.equal(comparison.match, true);
++  assert.equal(comparison.discrepancy_classification, "full-match");
++});
++
+ test("Phase 4.3 & 4.4: compareShadowExecution classifies divergence and emits structured telemetryDiff without throwing", () => {
+   const { compareShadowExecution } = require("./shadow-comparator.js");
+ 
+@@ -719,4 +747,1016 @@ test("Phase 4.5 & 4.6: compareShadowExecution preserves non-mutation invariant",
+   assert.equal(JSON.stringify(baselineOriginal), baselineJsonBefore, "baselineResult must not be mutated");
+ });
+ 
++const FORBIDDEN_EXECUTOR_OPTION_KEYS = Object.freeze([
++  "budget",
++  "environment",
++  "baselineInventory",
++  "baselineContents",
++  "transports",
++  "workerTransport",
++  "transport",
++  "isolationCapability",
++  "workerIsolation",
++  "capabilityProof",
++  "capabilityId",
++  "workOrder",
++  "workspace",
++  "files",
++  "executorFn",
++]);
++
++function makePhase1Snapshot(files) {
++  const { computeTreeDigest } = require("../worker-workspace.js");
++  const { computeSourceSnapshotId } = require("../execution-identities/index.js");
++  const sourceSnapshot = {
++    schema_version: 1,
++    kind: "source-snapshot/v1",
++    repository_id: "repo-k4b-phase1",
++    base_tree_digest: computeTreeDigest(files),
++    projection: "workspace",
++    dependency_digests: [],
++  };
++  sourceSnapshot.source_snapshot_id = computeSourceSnapshotId(sourceSnapshot);
++  return sourceSnapshot;
++}
++
++function makePhase1Graph(sourceSnapshot) {
++  const { compileExecutionGraph, createPolicySnapshot } = require("../execution-graph/index.js");
++  const nodes = [
++    {
++      node_id: "n1",
++      kind: "repair-action/v1",
++      operation: "step-1",
++      objective: "step 1",
++      ownership: { owner: "agent:repair", mode: "exclusive" },
++      dependencies: [],
++      allowed_paths: ["src/**"],
++      invariants: [],
++      budget_ref: "budget:default",
++      required_evidence: ["ev-1"],
++    },
++  ];
++  const obligations = [
++    { id: "ob1", criticality: "must", implemented_by: ["n1"], required_evidence: ["ev-1"] },
++  ];
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-1"] });
++  const contract = {
++    schema_version: 1,
++    contract_id: "contract:k4b-phase1",
++    family: "repair",
++    version: 1,
++    contract_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++    source_snapshot_id: sourceSnapshot.source_snapshot_id,
++    obligations,
++  };
++  return {
++    graph: compileExecutionGraph({ contract, policySnapshot, nodes, obligations }),
++    policySnapshot,
++  };
++}
++
++function makePhase1WorkOrder(sourceSnapshot, overrides = {}) {
++  const { computeWorkOrderId } = require("../execution-identities/index.js");
++  const workOrder = {
++    schema_version: 2,
++    kind: "work-order/v2",
++    node_id: "n1",
++    role: "executor",
++    status: "pending",
++    operation: "apply",
++    objective: "Phase 1 materialization",
++    source_snapshot_id: sourceSnapshot.source_snapshot_id,
++    dependencies: [],
++    ownership: { owner: "agent-test", mode: "exclusive" },
++    allowed_paths: ["src/**"],
++    invariants: ["inv-1"],
++    required_evidence: ["ev-1"],
++    budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
++    ...overrides,
++  };
++  workOrder.work_order_id = computeWorkOrderId(workOrder);
++  return workOrder;
++}
++
++test("Phase 1.1: executorOptionsByNode rejects each forbidden key with UNSAFE_EXECUTOR_OPTION before dispatch", async () => {
++  const { orchestrateRepairShadow, pickAllowedNodeExecutionInputs } = require("./orchestrator.js");
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const { graph } = makePhase1Graph(sourceSnapshot);
++
++  for (const forbiddenKey of FORBIDDEN_EXECUTOR_OPTION_KEYS) {
++    assert.throws(
++      () => pickAllowedNodeExecutionInputs({ [forbiddenKey]: forbiddenKey === "executorFn" ? () => {} : { hijack: true } }),
++      (err) => err && err.code === "UNSAFE_EXECUTOR_OPTION",
++      `pickAllowedNodeExecutionInputs must reject ${forbiddenKey}`
++    );
++
++    const result = await orchestrateRepairShadow(graph, {
++      sourceSnapshot,
++      files,
++      isolationCapability: "enforced",
++      executorOptionsByNode: {
++        n1: { [forbiddenKey]: forbiddenKey === "files" ? files : { hijack: true } },
++      },
++    });
++    assert.equal(result.ok, false, `Must fail closed for forbidden key ${forbiddenKey}`);
++    assert.equal(result.reason_code, "UNSAFE_EXECUTOR_OPTION", `reason_code for ${forbiddenKey}`);
++  }
++
++  assert.throws(
++    () => pickAllowedNodeExecutionInputs({ command: () => "node" }),
++    (err) => err && err.code === "UNSAFE_EXECUTOR_OPTION",
++    "function values are forbidden even on allowlisted keys"
++  );
++});
++
++test("Phase 1.4: caller-supplied executorFn is never invoked and executeWorkOrder uses object signature", async (t) => {
++  const { orchestrateRepairShadow } = require("./orchestrator.js");
++  const { computeWorkResultId } = require("../execution-identities/index.js");
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const { graph, policySnapshot } = makePhase1Graph(sourceSnapshot);
++
++  let executorFnCalls = 0;
++  const executorFn = async () => {
++    executorFnCalls += 1;
++    throw new Error("executorFn must not be invoked");
++  };
++
++  const executeCalls = [];
++  t.mock.method(workerExecutor, "executeWorkOrder", async (callOptions, ...rest) => {
++    executeCalls.push({ callOptions, rest });
++    const wr = {
++      kind: "work-result/v1",
++      schema_version: 1,
++      work_order_id: callOptions.workOrder.work_order_id,
++      source_snapshot_id: sourceSnapshot.source_snapshot_id,
++      patch: "",
++      commands: [],
++      logs: [],
++      exit_code: 0,
++      filesystem_inventory: [],
++    };
++    wr.work_result_id = computeWorkResultId(wr);
++    return { ok: true, isolationReported: "enforced", workResult: wr };
++  });
++
++  const result = await orchestrateRepairShadow(graph, {
++    sourceSnapshot,
++    files,
++    isolationCapability: "enforced",
++    executorFn,
++    policySnapshot,
++    store: makeTempFileStore(t),
++  });
++
++  assert.equal(result.ok, true);
++  assert.equal(executorFnCalls, 0, "executorFn must be ignored");
++  assert.equal(executeCalls.length, 1);
++  assert.equal(executeCalls[0].rest.length, 0, "executeWorkOrder must not receive positional extras");
++  assert.equal(typeof executeCalls[0].callOptions, "object");
++  assert.ok(executeCalls[0].callOptions.workOrder);
++  assert.ok(executeCalls[0].callOptions.workspace);
++  assert.equal(executeCalls[0].callOptions.isolationCapability, "enforced");
++  assert.deepEqual(executeCalls[0].callOptions.transports, { worker: undefined });
++});
++
++test("Phase 1.5: materializeSourceSnapshot fails when effectiveBase digest does not match bytes", async (t) => {
++  const {
++    createWorkspace,
++    disposeWorkspace,
++    materializeSourceSnapshot,
++    computeTreeDigest,
++  } = require("../worker-workspace.js");
++
++  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k4b-effective-base-"));
++  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
++
++  const originalFiles = { "src/app.js": "const a = 1;\n" };
++  const derivedFiles = { "src/app.js": "const a = 2;\nfunction multiply(x, y) { return x * y; }\n" };
++  const sourceSnapshot = makePhase1Snapshot(originalFiles);
++  const ws = await createWorkspace({ baseDir, source_snapshot_id: sourceSnapshot.source_snapshot_id });
++  t.after(() => disposeWorkspace(ws));
++  const workOrder = makePhase1WorkOrder(sourceSnapshot);
++
++  const effectiveBase = {
++    kind: "effective-shadow-base/v1",
++    source_snapshot_id: sourceSnapshot.source_snapshot_id,
++    predecessor_node_ids: ["n1"],
++    tree_digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
++    files: derivedFiles,
++  };
++
++  await assert.rejects(
++    () => materializeSourceSnapshot(ws, workOrder, sourceSnapshot, { effectiveBase }),
++    (err) => /tree_digest mismatch/i.test(err.message)
++  );
++
++  const matchingBase = {
++    kind: "effective-shadow-base/v1",
++    source_snapshot_id: sourceSnapshot.source_snapshot_id,
++    predecessor_node_ids: ["n1"],
++    tree_digest: computeTreeDigest(derivedFiles),
++    files: derivedFiles,
++  };
++  const capsule = await materializeSourceSnapshot(ws, workOrder, sourceSnapshot, { effectiveBase: matchingBase });
++  assert.equal(capsule.source_snapshot_id, sourceSnapshot.source_snapshot_id);
++  assert.equal(fs.readFileSync(path.join(ws.root_path, "src", "app.js"), "utf8"), derivedFiles["src/app.js"]);
++});
++
++test("Phase 1.7: persistRepairShadowExecution / loadRepairShadowExecution skeleton fail-closed on incomplete bindings", async () => {
++  const {
++    persistRepairShadowExecution,
++    loadRepairShadowExecution,
++  } = require("./execution-record-store.js");
++
++  assert.equal(typeof persistRepairShadowExecution, "function");
++  assert.equal(typeof loadRepairShadowExecution, "function");
++
++  const incomplete = await persistRepairShadowExecution({}, {
++    kind: "repair-shadow-execution/v1",
++    schema_version: 1,
++  });
++  assert.equal(incomplete.ok, false);
++  assert.equal(incomplete.reason_code, "INCOMPLETE_BINDINGS");
++
++  const missingGraph = await persistRepairShadowExecution({}, {
++    kind: "repair-shadow-execution/v1",
++    schema_version: 1,
++    candidate_id: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
++    policy_snapshot: { policy_snapshot_id: "sha256:pppp" },
++  });
++  assert.equal(missingGraph.ok, false);
++  assert.equal(missingGraph.reason_code, "INCOMPLETE_BINDINGS");
++
++  const missingCandidateObject = await persistRepairShadowExecution({}, {
++    kind: "repair-shadow-execution/v1",
++    schema_version: 1,
++    candidate_id: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
++    source_snapshot_id: "sha256:ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss",
++    execution_graph: { graph_id: "sha256:gggg" },
++    policy_snapshot: { policy_snapshot_id: "sha256:pppp" },
++  });
++  assert.equal(missingCandidateObject.ok, false);
++
++  const loaded = await loadRepairShadowExecution({}, "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc");
++  assert.equal(typeof loaded.ok, "boolean");
++  assert.equal(loaded.ok, false);
++});
++
++const PHASE2_WO_ID = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
++
++function makePhase2WorkResult(sourceSnapshot, patch, overrides = {}) {
++  return {
++    work_order_id: PHASE2_WO_ID,
++    source_snapshot_id: sourceSnapshot.source_snapshot_id,
++    patch,
++    commands: [],
++    logs: [],
++    exit_code: 0,
++    filesystem_inventory: [],
++    ...overrides,
++  };
++}
++
++test("Phase 2.1: mismatched hunk context lines fail closed before freeze", async () => {
++  const { integrateWorkResultPatches } = require("./patch-integrator.js");
++  const files = { "src/app.js": "const a = 1;\nconst b = 2;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const patch = `--- a/src/app.js
+++++ b/src/app.js
++@@ -1,2 +1,2 @@
++ const a = WRONG;
++ const b = 2;
++`;
++  const result = await integrateWorkResultPatches(sourceSnapshot, [makePhase2WorkResult(sourceSnapshot, patch)], {
++    files,
++    workOrders: [{ work_order_id: PHASE2_WO_ID, allowed_paths: ["src/**"] }],
++  });
++  assert.equal(result.ok, false);
++  assert.equal(result.reason_code, "HUNK_CONTEXT_MISMATCH");
++  assert.equal(result.candidate, undefined, "freezeCandidate must not be invoked");
++});
++
++test("Phase 2.1: mismatched hunk deletion lines fail closed before freeze", async () => {
++  const { integrateWorkResultPatches } = require("./patch-integrator.js");
++  const files = { "src/app.js": "const a = 1;\nconst b = 2;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const patch = `--- a/src/app.js
+++++ b/src/app.js
++@@ -1,1 +0,0 @@
++-not the actual content
++`;
++  const result = await integrateWorkResultPatches(sourceSnapshot, [makePhase2WorkResult(sourceSnapshot, patch)], {
++    files,
++    workOrders: [{ work_order_id: PHASE2_WO_ID, allowed_paths: ["src/**"] }],
++  });
++  assert.equal(result.ok, false);
++  assert.equal(result.reason_code, "HUNK_DELETION_MISMATCH");
++  assert.equal(result.candidate, undefined);
++});
++
++test("Phase 2.1: invalid unified-diff file mode fails closed before freeze", async () => {
++  const { integrateWorkResultPatches } = require("./patch-integrator.js");
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const patch = `diff --git a/src/app.js b/src/app.js
++old mode 100644
++new mode 199999
++--- a/src/app.js
+++++ b/src/app.js
++@@ -1 +1 @@
++-const a = 1;
+++const a = 2;
++`;
++  const result = await integrateWorkResultPatches(sourceSnapshot, [makePhase2WorkResult(sourceSnapshot, patch)], {
++    files,
++    workOrders: [{ work_order_id: PHASE2_WO_ID, allowed_paths: ["src/**"] }],
++  });
++  assert.equal(result.ok, false);
++  assert.equal(result.reason_code, "INVALID_FILE_MODE");
++  assert.equal(result.candidate, undefined);
++});
++
++test("Phase 2.1: path outside WorkOrder.allowed_paths bound via work_order_id fails closed", async () => {
++  const { integrateWorkResultPatches } = require("./patch-integrator.js");
++  const files = { "src/app.js": "const a = 1;\n", "etc/secret.conf": "old\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const patch = `--- a/etc/secret.conf
+++++ b/etc/secret.conf
++@@ -1 +1 @@
++-old
+++new
++`;
++  const result = await integrateWorkResultPatches(sourceSnapshot, [makePhase2WorkResult(sourceSnapshot, patch)], {
++    files,
++    allowed_paths: ["etc/**"],
++    workOrders: [{ work_order_id: PHASE2_WO_ID, allowed_paths: ["src/**"] }],
++  });
++  assert.equal(result.ok, false, "WorkOrder.allowed_paths must win over options.allowed_paths");
++  assert.equal(result.reason_code, "CONTAINMENT_VIOLATION");
++  assert.equal(result.candidate, undefined);
++});
++
++test("Phase 2.2: hunk count mismatch and overlapping hunks fail closed", async () => {
++  const { integrateWorkResultPatches } = require("./patch-integrator.js");
++  const files = { "src/app.js": "const a = 1;\nconst b = 2;\nconst c = 3;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const countPatch = `--- a/src/app.js
+++++ b/src/app.js
++@@ -1,5 +1,1 @@
++ const a = 1;
++`;
++  const countResult = await integrateWorkResultPatches(
++    sourceSnapshot,
++    [makePhase2WorkResult(sourceSnapshot, countPatch)],
++    { files, workOrders: [{ work_order_id: PHASE2_WO_ID, allowed_paths: ["src/**"] }] }
++  );
++  assert.equal(countResult.ok, false);
++  assert.equal(countResult.reason_code, "HUNK_COUNT_MISMATCH");
++  assert.equal(countResult.candidate, undefined);
++
++  const overlapPatch = `--- a/src/app.js
+++++ b/src/app.js
++@@ -1,2 +1,2 @@
++-const a = 1;
++-const b = 2;
+++const a = 10;
+++const b = 20;
++@@ -1,1 +1,1 @@
++-const a = 1;
+++const a = 99;
++`;
++  const overlapResult = await integrateWorkResultPatches(
++    sourceSnapshot,
++    [makePhase2WorkResult(sourceSnapshot, overlapPatch)],
++    { files, workOrders: [{ work_order_id: PHASE2_WO_ID, allowed_paths: ["src/**"] }] }
++  );
++  assert.equal(overlapResult.ok, false);
++  assert.equal(overlapResult.reason_code, "HUNK_OVERLAP");
++  assert.equal(overlapResult.candidate, undefined);
++});
++
++test("Phase 2.3: identical WorkResults differing only by file mode produce distinct CandidateId", async () => {
++  const { integrateWorkResultPatches } = require("./patch-integrator.js");
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const patch644 = `diff --git a/src/app.js b/src/app.js
++old mode 100644
++new mode 100644
++`;
++  const patch755 = `diff --git a/src/app.js b/src/app.js
++old mode 100644
++new mode 100755
++`;
++  const opts = {
++    files,
++    workOrders: [{ work_order_id: PHASE2_WO_ID, allowed_paths: ["src/**"] }],
++  };
++  const result644 = await integrateWorkResultPatches(sourceSnapshot, [makePhase2WorkResult(sourceSnapshot, patch644)], opts);
++  const result755 = await integrateWorkResultPatches(sourceSnapshot, [makePhase2WorkResult(sourceSnapshot, patch755)], opts);
++  assert.equal(result644.ok, true);
++  assert.equal(result755.ok, true);
++  assert.equal(result644.candidate.base_tree, sourceSnapshot.base_tree_digest);
++  assert.equal(result755.candidate.base_tree, sourceSnapshot.base_tree_digest);
++  assert.notEqual(
++    result644.candidate.changed_paths_modes_digest,
++    result755.candidate.changed_paths_modes_digest,
++    "file modes must be forwarded to freezeCandidate"
++  );
++  assert.notEqual(result644.candidate.candidate_id, result755.candidate.candidate_id);
++});
++
++test("Phase 2.5: empty dependencies and execution_metrics are evaluated and cannot be skipped for full-match", () => {
++  const { compareShadowExecution, ALL_EVALUATED_DIMENSIONS } = require("./shadow-comparator.js");
++  const REQUIRED = [
++    "steps",
++    "dependencies",
++    "diffs",
++    "inventory",
++    "obligations",
++    "invariants",
++    "execution_metrics",
++  ];
++  assert.deepEqual([...ALL_EVALUATED_DIMENSIONS], REQUIRED);
++
++  const shadowResult = {
++    steps: [],
++    dependencies: [],
++    obligations: [],
++    invariants: [],
++    inventory: [],
++    execution_metrics: [],
++  };
++  const baselineResult = {
++    steps: [],
++    dependencies: [],
++    obligations: [],
++    invariants: [],
++    inventory: [],
++    execution_metrics: [],
++  };
++  const comparison = compareShadowExecution(shadowResult, baselineResult);
++
++  for (const dim of REQUIRED) {
++    assert.ok(comparison.evaluated_dimensions.includes(dim), `${dim} must be evaluated when empty`);
++    assert.equal(comparison.skipped_dimensions.includes(dim), false, `${dim} must not be skipped when empty`);
++    assert.equal(comparison.dimension_match_rates[dim], 1);
++  }
++  assert.deepEqual(comparison.skipped_dimensions, []);
++  assert.equal(comparison.match, true);
++  assert.equal(comparison.discrepancy_classification, "full-match");
++});
++
++test("Phase 2.7: integrator and orchestrator share deterministic EffectiveShadowBase helpers", async () => {
++  const { integrateWorkResultPatches } = require("./patch-integrator.js");
++  const { buildEffectiveShadowBase } = require("./effective-shadow-base.js");
++  const { computeTreeDigest } = require("../worker-workspace.js");
++
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const patch = `--- a/src/app.js
+++++ b/src/app.js
++@@ -1 +1 @@
++-const a = 1;
+++const a = 2;
++`;
++  const result = await integrateWorkResultPatches(sourceSnapshot, [makePhase2WorkResult(sourceSnapshot, patch)], {
++    files,
++    workOrders: [{ work_order_id: PHASE2_WO_ID, allowed_paths: ["src/**"] }],
++  });
++  assert.equal(result.ok, true);
++  assert.equal(result.effectiveBase.kind, "effective-shadow-base/v1");
++  assert.equal(result.effectiveBase.source_snapshot_id, sourceSnapshot.source_snapshot_id);
++  assert.equal(result.effectiveBase.tree_digest, computeTreeDigest(result.candidateFiles));
++
++  const rebuilt = buildEffectiveShadowBase({
++    sourceSnapshot,
++    files: result.candidateFiles,
++    file_modes: result.fileModes,
++  });
++  assert.equal(rebuilt.tree_digest, result.effectiveBase.tree_digest);
++  assert.equal(result.candidate.base_tree, sourceSnapshot.base_tree_digest);
++});
++
++function makeRepairNode(nodeId, dependencies, allowedPaths, evidence) {
++  return {
++    node_id: nodeId,
++    kind: "repair-action/v1",
++    operation: `step-${nodeId}`,
++    objective: `step ${nodeId}`,
++    ownership: { owner: "agent:repair", mode: "exclusive" },
++    dependencies,
++    allowed_paths: allowedPaths,
++    invariants: [],
++    budget_ref: "budget:default",
++    required_evidence: [evidence],
++  };
++}
++
++function compileRepairGraph(sourceSnapshot, nodes, policySnapshot) {
++  const { compileExecutionGraph } = require("../execution-graph/index.js");
++  const obligations = nodes.map((node) => ({
++    id: `ob-${node.node_id}`,
++    criticality: "must",
++    implemented_by: [node.node_id],
++    required_evidence: node.required_evidence,
++  }));
++  const contract = {
++    schema_version: 1,
++    contract_id: "contract:k4b-phase3",
++    family: "repair",
++    version: 1,
++    contract_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++    source_snapshot_id: sourceSnapshot.source_snapshot_id,
++    obligations,
++  };
++  return compileExecutionGraph({ contract, policySnapshot, nodes, obligations });
++}
++
++function mockSuccessfulExecute(t, sourceSnapshot, patchesByNode) {
++  const { computeWorkResultId } = require("../execution-identities/index.js");
++  const executed = [];
++  t.mock.method(workerExecutor, "executeWorkOrder", async (callOptions) => {
++    const nodeId = callOptions.workOrder.node_id;
++    executed.push({
++      nodeId,
++      workspaceId: callOptions.workspace && callOptions.workspace.workspace_id,
++    });
++    const wr = {
++      kind: "work-result/v1",
++      schema_version: 1,
++      work_order_id: callOptions.workOrder.work_order_id,
++      source_snapshot_id: sourceSnapshot.source_snapshot_id,
++      patch: patchesByNode[nodeId] || "",
++      commands: [{ command: `run-${nodeId}`, exit_code: 0, duration_ms: 5 }],
++      logs: ["stdout: ok"],
++      exit_code: 0,
++      filesystem_inventory: [],
++    };
++    wr.work_result_id = computeWorkResultId(wr);
++    return { ok: true, isolationReported: "enforced", workResult: wr };
++  });
++  return executed;
++}
++
++function makeTempFileStore(t) {
++  const { createFileSystemStore } = require("../filesystem-store.js");
++  const filePath = path.join(os.tmpdir(), `k4b-exec-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
++  t.after(() => {
++    for (const extra of ["", ".lock", ".bak"]) {
++      try { fs.unlinkSync(filePath + extra); } catch { /* ignore */ }
++    }
++  });
++  return createFileSystemStore({ filePath, initializeIfMissing: true });
++}
++
++test("Phase 3.1: multi-predecessor incompatible diffs on the same context abort before N3 executes", async (t) => {
++  const { orchestrateRepairShadow } = require("./orchestrator.js");
++  const { createPolicySnapshot } = require("../execution-graph/index.js");
++
++  const files = { "src/app.js": "const a = 1;\nconst b = 2;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-1"] });
++  const graph = compileRepairGraph(sourceSnapshot, [
++    makeRepairNode("n1", [], ["src/app.js"], "ev-1"),
++    makeRepairNode("n2", [], ["src/app.js"], "ev-2"),
++    makeRepairNode("n3", ["n1", "n2"], ["src/app.js"], "ev-3"),
++  ], policySnapshot);
++
++  const patchN1 = `--- a/src/app.js
+++++ b/src/app.js
++@@ -1,2 +1,2 @@
++-const a = 1;
+++const a = 10;
++ const b = 2;
++`;
++  const patchN2 = `--- a/src/app.js
+++++ b/src/app.js
++@@ -1,2 +1,2 @@
++-const a = 1;
+++const a = 20;
++ const b = 2;
++`;
++  const executed = mockSuccessfulExecute(t, sourceSnapshot, {
++    n1: patchN1,
++    n2: patchN2,
++    n3: `--- a/src/app.js
+++++ b/src/app.js
++@@ -2 +2,2 @@
++ const b = 2;
+++const c = 3;
++`,
++  });
++
++  const result = await orchestrateRepairShadow(graph, {
++    sourceSnapshot,
++    files,
++    isolationCapability: "enforced",
++    policySnapshot,
++  });
++
++  assert.equal(result.ok, false, "incompatible predecessor diffs must fail closed");
++  assert.ok(
++    result.reason_code === "PREDECESSOR_CONTEXT_CONFLICT" || result.reason_code === "HUNK_CONTEXT_MISMATCH",
++    `expected predecessor conflict, got ${result.reason_code}`
++  );
++  assert.equal(result.candidate, undefined, "freezeCandidate must not run after predecessor conflict");
++  assert.equal(executed.some((entry) => entry.nodeId === "n3"), false, "N3 must not execute");
++});
++
++test("Phase 3.3: N2 materializes derived shadow base from N1 in a fresh workspace; freeze stays on S0", async (t) => {
++  const { orchestrateRepairShadow } = require("./orchestrator.js");
++  const { createPolicySnapshot } = require("../execution-graph/index.js");
++  const workerWorkspace = require("../worker-workspace.js");
++  const { computeTreeDigest } = require("../worker-workspace.js");
++
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-1"] });
++  const graph = compileRepairGraph(sourceSnapshot, [
++    makeRepairNode("n1", [], ["src/**"], "ev-1"),
++    makeRepairNode("n2", ["n1"], ["src/**"], "ev-2"),
++  ], policySnapshot);
++
++  const patchN1 = `--- a/src/app.js
+++++ b/src/app.js
++@@ -1 +1,2 @@
++ const a = 1;
+++function multiply(x, y) { return x * y; }
++`;
++  const patchN2 = `--- a/src/app.js
+++++ b/src/app.js
++@@ -2 +2,2 @@
++ function multiply(x, y) { return x * y; }
+++module.exports = { multiply };
++`;
++
++  const executed = mockSuccessfulExecute(t, sourceSnapshot, { n1: patchN1, n2: patchN2 });
++  const materializeCalls = [];
++  const originalMaterialize = workerWorkspace.materializeSourceSnapshot;
++  t.mock.method(workerWorkspace, "materializeSourceSnapshot", async function mockedMaterialize(...args) {
++    materializeCalls.push(args);
++    return originalMaterialize.apply(this, args);
++  });
++
++  const result = await orchestrateRepairShadow(graph, {
++    sourceSnapshot,
++    files,
++    isolationCapability: "enforced",
++    policySnapshot,
++    store: makeTempFileStore(t),
++  });
++
++  assert.equal(result.ok, true, result.error);
++  assert.deepEqual(executed.map((entry) => entry.nodeId), ["n1", "n2"]);
++  assert.notEqual(executed[0].workspaceId, executed[1].workspaceId, "N1 and N2 must use distinct workspaces");
++  assert.equal(materializeCalls.length, 2);
++  const n2Options = materializeCalls[1][3] || {};
++  assert.ok(n2Options.effectiveBase, "N2 must materialize a derived effectiveBase");
++  assert.equal(n2Options.effectiveBase.source_snapshot_id, sourceSnapshot.source_snapshot_id);
++  assert.match(n2Options.effectiveBase.files.get("src/app.js"), /function multiply/);
++  assert.equal(n2Options.effectiveBase.tree_digest, computeTreeDigest(n2Options.effectiveBase.files));
++  assert.equal(result.candidate.base_tree, sourceSnapshot.base_tree_digest);
++  assert.match(result.candidateFiles ? result.candidateFiles.get("src/app.js") : "", /module\.exports/);
++});
++
++test("Phase 3.3b: identical predecessors yield a byte-identical derived-base digest", async (t) => {
++  const { orchestrateRepairShadow } = require("./orchestrator.js");
++  const { createPolicySnapshot } = require("../execution-graph/index.js");
++  const workerWorkspace = require("../worker-workspace.js");
++
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-1"] });
++  const nodes = [
++    makeRepairNode("n1", [], ["src/**"], "ev-1"),
++    makeRepairNode("n2", ["n1"], ["src/**"], "ev-2"),
++  ];
++  const graph = compileRepairGraph(sourceSnapshot, nodes, policySnapshot);
++  const patchN1 = `--- a/src/app.js
+++++ b/src/app.js
++@@ -1 +1,2 @@
++ const a = 1;
+++const extra = true;
++`;
++
++  mockSuccessfulExecute(t, sourceSnapshot, { n1: patchN1, n2: "" });
++  const digests = [];
++  const originalMaterialize = workerWorkspace.materializeSourceSnapshot;
++  t.mock.method(workerWorkspace, "materializeSourceSnapshot", async function mockedMaterialize(...args) {
++    const options = args[3] || {};
++    if (options.effectiveBase) digests.push(options.effectiveBase.tree_digest);
++    return originalMaterialize.apply(this, args);
++  });
++
++  const first = await orchestrateRepairShadow(graph, {
++    sourceSnapshot,
++    files,
++    isolationCapability: "enforced",
++    policySnapshot,
++    store: makeTempFileStore(t),
++  });
++  const second = await orchestrateRepairShadow(graph, {
++    sourceSnapshot,
++    files,
++    isolationCapability: "enforced",
++    policySnapshot,
++    store: makeTempFileStore(t),
++  });
++  assert.equal(first.ok, true, first.error);
++  assert.equal(second.ok, true, second.error);
++  assert.equal(digests.length, 2);
++  assert.equal(digests[0], digests[1]);
++});
++
++test("Phase 3.4: persistRepairShadowExecution CAS, incomplete bindings, and byte-identical retry", async (t) => {
++  const {
++    persistRepairShadowExecution,
++    loadRepairShadowExecution,
++  } = require("./execution-record-store.js");
++  const { freezeCandidate } = require("../execution-identities/index.js");
++  const { createPolicySnapshot } = require("../execution-graph/index.js");
++
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-store"] });
++  const graph = compileRepairGraph(sourceSnapshot, [makeRepairNode("n1", [], ["src/**"], "ev-1")], policySnapshot);
++  const candidate = freezeCandidate({
++    repository_id: sourceSnapshot.repository_id,
++    projection: "workspace",
++    base_tree: sourceSnapshot.base_tree_digest,
++    candidate_tree: sourceSnapshot.base_tree_digest,
++    diffText: "",
++    paths: [],
++  });
++
++  const record = {
++    kind: "repair-shadow-execution/v1",
++    schema_version: 1,
++    candidate_id: candidate.candidate_id,
++    candidate,
++    source_snapshot_id: sourceSnapshot.source_snapshot_id,
++    execution_graph: graph,
++    policy_snapshot: policySnapshot,
++    work_order_ids: ["wo-1"],
++    work_result_ids: ["wr-1"],
++    graph_telemetry: { n1: { status: "completed" } },
++    created_at: "2026-08-25T00:00:00.000Z",
++  };
++
++  const incomplete = await persistRepairShadowExecution(makeTempFileStore(t), {
++    kind: "repair-shadow-execution/v1",
++    schema_version: 1,
++    candidate_id: candidate.candidate_id,
++  });
++  assert.equal(incomplete.ok, false);
++  assert.equal(incomplete.reason_code, "INCOMPLETE_BINDINGS");
++
++  const store = makeTempFileStore(t);
++  const first = await persistRepairShadowExecution(store, record);
++  assert.equal(first.ok, true, first.error);
++
++  const replay = await persistRepairShadowExecution(store, record);
++  assert.equal(replay.ok, true, replay.error);
++  assert.equal(replay.idempotent, true);
++
++  const divergent = await persistRepairShadowExecution(store, {
++    ...record,
++    graph_telemetry: { n1: { status: "failed" } },
++  });
++  assert.equal(divergent.ok, false);
++  assert.equal(divergent.reason_code, "CAS_CONFLICT");
++
++  const loaded = await loadRepairShadowExecution(store, candidate.candidate_id);
++  assert.equal(loaded.ok, true);
++  assert.equal(loaded.record.candidate_id, candidate.candidate_id);
++  assert.equal(loaded.record.execution_graph.graph_id, graph.graph_id);
++  assert.equal(loaded.record.policy_snapshot.snapshot_id, policySnapshot.snapshot_id);
++  loaded.record.graph_telemetry.n1.status = "mutated";
++  const reloaded = await loadRepairShadowExecution(store, candidate.candidate_id);
++  assert.equal(reloaded.record.graph_telemetry.n1.status, "completed", "load must return a defensive copy");
++});
++
++const DIVERGENT_BINDING_ID = `sha256:${"0".repeat(64)}`;
++
++function makeOtherwiseValidExecutionRecord() {
++  const { freezeCandidate } = require("../execution-identities/index.js");
++  const { createPolicySnapshot } = require("../execution-graph/index.js");
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-binding-mismatch"] });
++  const graph = compileRepairGraph(sourceSnapshot, [makeRepairNode("n1", [], ["src/**"], "ev-1")], policySnapshot);
++  const candidate = freezeCandidate({
++    repository_id: sourceSnapshot.repository_id, projection: "workspace",
++    base_tree: sourceSnapshot.base_tree_digest, candidate_tree: sourceSnapshot.base_tree_digest,
++    diffText: "", paths: [],
++  });
++  return {
++    kind: "repair-shadow-execution/v1", schema_version: 1, candidate_id: candidate.candidate_id,
++    candidate, source_snapshot_id: sourceSnapshot.source_snapshot_id,
++    execution_graph: graph, policy_snapshot: policySnapshot,
++  };
++}
++
++async function persistDivergentBinding(t, mutate) {
++  const { persistRepairShadowExecution, loadRepairShadowExecution } = require("./execution-record-store.js");
++  const record = makeOtherwiseValidExecutionRecord();
++  const originalId = record.candidate_id;
++  mutate(record);
++  const store = makeTempFileStore(t);
++  let commits = 0;
++  const orig = store.commit.bind(store);
++  store.commit = async (payload) => { commits += 1; return orig(payload); };
++  const result = await persistRepairShadowExecution(store, record);
++  return { result, commits, loaded: await loadRepairShadowExecution(store, originalId), store };
++}
++
++test("F-b15e4b7f34049858: persistRepairShadowExecution BINDING_MISMATCH when graph.graph_id diverges", async (t) => {
++  const { result, commits, loaded } = await persistDivergentBinding(t, (record) => {
++    record.execution_graph = { ...record.execution_graph, graph_id: DIVERGENT_BINDING_ID };
++  });
++  assert.equal(result.ok, false);
++  assert.equal(result.reason_code, "BINDING_MISMATCH");
++  assert.equal(result.mismatched_identity, "graph_id");
++  assert.equal(commits, 0);
++  assert.equal(loaded.ok, false);
++});
++
++test("F-b15e4b7f34049858: persistRepairShadowExecution BINDING_MISMATCH when policy.snapshot_id diverges", async (t) => {
++  const { result, commits, loaded } = await persistDivergentBinding(t, (record) => {
++    record.policy_snapshot = { ...record.policy_snapshot, snapshot_id: DIVERGENT_BINDING_ID };
++  });
++  assert.equal(result.ok, false);
++  assert.equal(result.reason_code, "BINDING_MISMATCH");
++  assert.equal(result.mismatched_identity, "snapshot_id");
++  assert.equal(commits, 0);
++  assert.equal(loaded.ok, false);
++});
++
++test("F-b15e4b7f34049858: persistRepairShadowExecution BINDING_MISMATCH when candidate_id diverges", async (t) => {
++  const { loadRepairShadowExecution } = require("./execution-record-store.js");
++  const { result, commits, loaded, store } = await persistDivergentBinding(t, (record) => {
++    record.candidate_id = DIVERGENT_BINDING_ID;
++  });
++  assert.equal(result.ok, false);
++  assert.equal(result.reason_code, "BINDING_MISMATCH");
++  assert.equal(result.mismatched_identity, "candidate_id");
++  assert.equal(commits, 0);
++  assert.equal(loaded.ok, false);
++  assert.equal((await loadRepairShadowExecution(store, DIVERGENT_BINDING_ID)).ok, false);
++});
++
++test("Phase 3.6: orchestrateRepairShadow persists a queryable v1 record with CandidateId/graph/policy bindings", async (t) => {
++  const { orchestrateRepairShadow } = require("./orchestrator.js");
++  const { loadRepairShadowExecution } = require("./execution-record-store.js");
++  const { createPolicySnapshot } = require("../execution-graph/index.js");
++
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-1"] });
++  const graph = compileRepairGraph(sourceSnapshot, [makeRepairNode("n1", [], ["src/**"], "ev-1")], policySnapshot);
++  mockSuccessfulExecute(t, sourceSnapshot, {
++    n1: `--- a/src/app.js
+++++ b/src/app.js
++@@ -1 +1 @@
++-const a = 1;
+++const a = 2;
++`,
++  });
++
++  const store = makeTempFileStore(t);
++  const result = await orchestrateRepairShadow(graph, {
++    sourceSnapshot,
++    files,
++    isolationCapability: "enforced",
++    policySnapshot,
++    store,
++  });
++
++  assert.equal(result.ok, true, result.error);
++  assert.equal(result.promoted, false);
++  const loaded = await loadRepairShadowExecution(store, result.candidate.candidate_id);
++  assert.equal(loaded.ok, true);
++  assert.equal(loaded.record.kind, "repair-shadow-execution/v1");
++  assert.equal(loaded.record.candidate_id, result.candidate.candidate_id);
++  assert.equal(loaded.record.execution_graph.graph_id, graph.graph_id);
++  assert.equal(loaded.record.policy_snapshot.snapshot_id, policySnapshot.snapshot_id);
++  assert.equal(loaded.record.source_snapshot_id, sourceSnapshot.source_snapshot_id);
++  assert.deepEqual(loaded.record.graph_telemetry.n1.status, "completed");
++});
++
++test("Phase 3.8: missing store after freeze fails closed with MISSING_EXECUTION_STORE and does not promote", async (t) => {
++  const { orchestrateRepairShadow } = require("./orchestrator.js");
++  const { createPolicySnapshot } = require("../execution-graph/index.js");
++
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-1"] });
++  const graph = compileRepairGraph(sourceSnapshot, [makeRepairNode("n1", [], ["src/**"], "ev-1")], policySnapshot);
++  mockSuccessfulExecute(t, sourceSnapshot, {
++    n1: `--- a/src/app.js
+++++ b/src/app.js
++@@ -1 +1 @@
++-const a = 1;
+++const a = 2;
++`,
++  });
++
++  const result = await orchestrateRepairShadow(graph, {
++    sourceSnapshot,
++    files,
++    isolationCapability: "enforced",
++    policySnapshot,
++  });
++
++  assert.equal(result.ok, false, "successful freeze without a store must not complete K4b execution");
++  assert.equal(result.promoted, false, "candidate must not be promoted when persist is skipped");
++  assert.equal(result.reason_code, "MISSING_EXECUTION_STORE");
++  assert.ok(result.candidate, "candidate may freeze before persist fail-closed");
++});
++
++test("Phase 3.8: persist failure after freeze fails closed and does not promote", async (t) => {
++  const { orchestrateRepairShadow } = require("./orchestrator.js");
++  const { createPolicySnapshot } = require("../execution-graph/index.js");
++
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-1"] });
++  const graph = compileRepairGraph(sourceSnapshot, [makeRepairNode("n1", [], ["src/**"], "ev-1")], policySnapshot);
++  mockSuccessfulExecute(t, sourceSnapshot, {
++    n1: `--- a/src/app.js
+++++ b/src/app.js
++@@ -1 +1 @@
++-const a = 1;
+++const a = 2;
++`,
++  });
++
++  const result = await orchestrateRepairShadow(graph, {
++    sourceSnapshot,
++    files,
++    isolationCapability: "enforced",
++    policySnapshot,
++    store: {},
++  });
++
++  assert.equal(result.ok, false, "persist failure must fail closed");
++  assert.equal(result.promoted, false, "candidate must not be promoted when persist fails");
++  assert.equal(result.reason_code, "STORE_UNAVAILABLE");
++});
++
++test("Phase 3.7: node failure skips N2, disposes N1 workspace, and reports failed_node_id", async (t) => {
++  const { orchestrateRepairShadow } = require("./orchestrator.js");
++  const { createPolicySnapshot } = require("../execution-graph/index.js");
++  const workerWorkspace = require("../worker-workspace.js");
++
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-1"] });
++  const graph = compileRepairGraph(sourceSnapshot, [
++    makeRepairNode("n1", [], ["src/**"], "ev-1"),
++    makeRepairNode("n2", ["n1"], ["src/**"], "ev-2"),
++  ], policySnapshot);
++
++  const executed = [];
++  t.mock.method(workerExecutor, "executeWorkOrder", async (callOptions) => {
++    executed.push(callOptions.workOrder.node_id);
++    return {
++      ok: false,
++      isolationReported: "enforced",
++      workResult: { exit_code: 1, commands: [], logs: [] },
++    };
++  });
++
++  const created = [];
++  const disposed = [];
++  const originalCreate = workerWorkspace.createWorkspace;
++  const originalDispose = workerWorkspace.disposeWorkspace;
++  t.mock.method(workerWorkspace, "createWorkspace", async function mockedCreate(...args) {
++    const ws = await originalCreate.apply(this, args);
++    created.push(ws.workspace_id);
++    return ws;
++  });
++  t.mock.method(workerWorkspace, "disposeWorkspace", async function mockedDispose(descriptor) {
++    disposed.push(descriptor && descriptor.workspace_id);
++    return originalDispose.apply(this, arguments);
++  });
++
++  const result = await orchestrateRepairShadow(graph, {
++    sourceSnapshot,
++    files,
++    isolationCapability: "enforced",
++    policySnapshot,
++  });
++
++  assert.equal(result.ok, false);
++  assert.equal(result.reason_code, "NODE_EXECUTION_FAILED");
++  assert.equal(result.failed_node_id, "n1");
++  assert.deepEqual(executed, ["n1"]);
++  assert.equal(result.graph_telemetry.n2.status, "blocked");
++  assert.equal(created.length, 1);
++  assert.deepEqual(disposed, created);
++});
++
+ 
+diff --git a/scripts/lib/repair-shadow/orchestrator.js b/scripts/lib/repair-shadow/orchestrator.js
+index c7af3c4..9f9c38a 100644
+--- a/scripts/lib/repair-shadow/orchestrator.js
++++ b/scripts/lib/repair-shadow/orchestrator.js
+@@ -3,14 +3,76 @@
+ const { validateExecutionGraphBinding } = require("../execution-graph/binding.js");
+ const { hasCycle, topologicalSort, computeDescendantClosure } = require("../execution-graph/dag.js");
+ const { compileWorkOrdersV2 } = require("../execution-graph/work-order-compiler.js");
+-const {
+-  createWorkspace,
+-  disposeWorkspace,
+-  materializeSourceSnapshot,
+-} = require("../worker-workspace.js");
+-const {
+-  executeWorkOrder,
+-} = require("../worker-executor.js");
++const workerWorkspace = require("../worker-workspace.js");
++const workerExecutor = require("../worker-executor.js");
++
++const EXECUTE_WORK_ORDER_OPTION_ALLOWLIST = Object.freeze([
++  "commands",
++  "command",
++  "args",
++  "signal",
++  "declaredTargets",
++]);
++
++function isPlainObject(value) {
++  return value !== null && typeof value === "object" && !Array.isArray(value);
++}
++
++/**
++ * Picks caller-supplied per-node execution inputs that cannot override K6a authority.
++ * Any non-allowlisted key or function value fails closed with UNSAFE_EXECUTOR_OPTION.
++ *
++ * @param {Object|null|undefined} nodeOptions
++ * @returns {Object}
++ */
++function pickAllowedNodeExecutionInputs(nodeOptions) {
++  if (nodeOptions === undefined || nodeOptions === null) {
++    return {};
++  }
++  if (!isPlainObject(nodeOptions)) {
++    const err = new Error("executorOptionsByNode values must be plain objects");
++    err.code = "UNSAFE_EXECUTOR_OPTION";
++    throw err;
++  }
++  const picked = {};
++  for (const key of Object.keys(nodeOptions)) {
++    if (!EXECUTE_WORK_ORDER_OPTION_ALLOWLIST.includes(key) || typeof nodeOptions[key] === "function") {
++      const err = new Error(`Unsafe executor option: ${key}`);
++      err.code = "UNSAFE_EXECUTOR_OPTION";
++      throw err;
++    }
++    picked[key] = nodeOptions[key];
++  }
++  return picked;
++}
++
++/**
++ * Builds the frozen object-signature payload for K6a executeWorkOrder.
++ * Allowlisted node inputs are copied first; orchestrator-owned authority is assigned after.
++ *
++ * @param {Object} params
++ * @returns {Object}
++ */
++function buildExecuteWorkOrderInvocation(params = {}) {
++  const allowed = pickAllowedNodeExecutionInputs(params.nodeOptions);
++  return Object.freeze({
++    ...allowed,
++    workOrder: params.workOrder,
++    workspace: params.workspace,
++    transports: { worker: params.authorizedWorkerTransport },
++    isolationCapability: "enforced",
++    capabilityId: "WorkerTransport",
++    capabilityProof: params.capabilityProof,
++    semantic_evidence: params.semantic_evidence,
++    expectedAdapterId: params.expectedAdapterId,
++    expectedAdapterVersion: params.expectedAdapterVersion,
++    expectedHostRuntimeVersion: params.expectedHostRuntimeVersion,
++    expectedProbeDigest: params.expectedProbeDigest,
++    workerIsolation: params.workerIsolation,
++    strictIsolation: true,
++  });
++}
++
+ const {
+   validateWorkOrderBinding,
+   validateWorkResultBinding,
+@@ -19,8 +81,34 @@ const {
+   computeWorkResultId,
+   computeCandidateId,
+ } = require("../execution-identities/index.js");
+-const { integrateWorkResultPatches } = require("./patch-integrator.js");
++const { integrateWorkResultPatches, detectPredecessorContextConflicts } = require("./patch-integrator.js");
+ const { compareShadowExecution } = require("./shadow-comparator.js");
++const { buildEffectiveShadowBase } = require("./effective-shadow-base.js");
++const { persistRepairShadowExecution } = require("./execution-record-store.js");
++
++/**
++ * Transitive predecessor closure of nodeId (does not include nodeId itself).
++ *
++ * @param {Array<Object>} nodes
++ * @param {string} nodeId
++ * @returns {Set<string>}
++ */
++function computePredecessorClosure(nodes, nodeId) {
++  const nodeMap = new Map();
++  for (const node of nodes) {
++    if (node && node.node_id) nodeMap.set(node.node_id, node);
++  }
++  const visited = new Set();
++  const stack = [...(Array.isArray(nodeMap.get(nodeId)?.dependencies) ? nodeMap.get(nodeId).dependencies : [])];
++  while (stack.length > 0) {
++    const current = stack.pop();
++    if (!current || visited.has(current) || !nodeMap.has(current)) continue;
++    visited.add(current);
++    const deps = Array.isArray(nodeMap.get(current).dependencies) ? nodeMap.get(current).dependencies : [];
++    for (const dep of deps) stack.push(dep);
++  }
++  return visited;
++}
+ 
+ /**
+  * Validates 4-identity cryptographic lineage chain:
+@@ -167,6 +255,33 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
+ 
+   const workOrderMap = new Map(workOrders.map((wo) => [wo.node_id, wo]));
+ 
++  if (
++    options.executorOptionsByNode !== undefined &&
++    options.executorOptionsByNode !== null &&
++    !isPlainObject(options.executorOptionsByNode)
++  ) {
++    return {
++      ok: false,
++      error: "executorOptionsByNode must be a plain object keyed by node id",
++      reason_code: "UNSAFE_EXECUTOR_OPTION",
++    };
++  }
++  const executorOptionsByNode = options.executorOptionsByNode || {};
++  try {
++    for (const nodeId of Object.keys(executorOptionsByNode)) {
++      pickAllowedNodeExecutionInputs(executorOptionsByNode[nodeId]);
++    }
++  } catch (err) {
++    if (err.code === "UNSAFE_EXECUTOR_OPTION") {
++      return {
++        ok: false,
++        error: err.message,
++        reason_code: "UNSAFE_EXECUTOR_OPTION",
++      };
++    }
++    throw err;
++  }
++
+   // 5. Sequence DAG in topological order and initialize telemetry
+   const sortedNodes = topologicalSort(executionGraph.nodes);
+   const nodeStates = new Map();
+@@ -186,8 +301,11 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
+ 
+   // 6. Execute nodes in topological order
+   const capturedWorkResults = [];
++  const nodeIntegrations = new Map();
+   let executionFailed = false;
+   let failedNodeId = null;
++  let failedReasonCode = "NODE_EXECUTION_FAILED";
++  let failedError = null;
+ 
+   for (const node of sortedNodes) {
+     const currentStatus = nodeStates.get(node.node_id);
+@@ -205,40 +323,104 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
+     let nodeSuccess = false;
+ 
+     try {
+-      workspaceDescriptor = await createWorkspace({
++      const predecessorIds = computePredecessorClosure(executionGraph.nodes, node.node_id);
++      const predecessorNodes = sortedNodes.filter((n) => predecessorIds.has(n.node_id));
++      let effectiveBase = null;
++
++      if (predecessorNodes.length > 0) {
++        const predResults = predecessorNodes
++          .map((n) => nodeIntegrations.get(n.node_id)?.workResult)
++          .filter(Boolean);
++        const conflict = detectPredecessorContextConflicts(predResults);
++        if (!conflict.ok) {
++          const err = new Error(conflict.error);
++          err.code = conflict.reason_code;
++          throw err;
++        }
++        const derived = await integrateWorkResultPatches(sourceSnapshot, predResults, {
++          files: options.files,
++          file_modes: options.file_modes || options.fileModes,
++          workOrders,
++          freeze: false,
++          predecessor_node_ids: predecessorNodes.map((n) => n.node_id),
++        });
++        if (!derived.ok) {
++          const err = new Error(derived.error);
++          err.code = derived.reason_code;
++          throw err;
++        }
++        effectiveBase = derived.effectiveBase;
++      }
++
++      workspaceDescriptor = await workerWorkspace.createWorkspace({
+         source_snapshot_id: workOrder.source_snapshot_id,
+         baseDir: options.baseDir,
+       });
+ 
+-      await materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceSnapshot, {
++      const materializeOptions = {
+         files: options.files,
+         repositoryDir: options.repositoryDir,
+-      });
+-
+-      let execResult;
+-      if (typeof options.executorFn === "function") {
+-        execResult = await options.executorFn(workOrder, workspaceDescriptor);
+-      } else {
+-        execResult = await executeWorkOrder(workOrder, workspaceDescriptor, {
+-          workerTransport: options.workerTransport,
+-          isolationCapability: declaredIsolation,
+-          workerIsolation: options.workerIsolation,
+-          capabilityProof: options.capabilityProof,
+-          ...(options.executorOptions || {}),
+-        });
++      };
++      if (effectiveBase) {
++        materializeOptions.effectiveBase = effectiveBase;
+       }
++      await workerWorkspace.materializeSourceSnapshot(
++        workspaceDescriptor,
++        workOrder,
++        sourceSnapshot,
++        materializeOptions
++      );
++
++      const invocation = buildExecuteWorkOrderInvocation({
++        workOrder,
++        workspace: workspaceDescriptor,
++        nodeOptions: executorOptionsByNode[node.node_id],
++        authorizedWorkerTransport: options.workerTransport,
++        capabilityProof: options.capabilityProof,
++        semantic_evidence: options.semantic_evidence,
++        expectedAdapterId: options.expectedAdapterId,
++        expectedAdapterVersion: options.expectedAdapterVersion,
++        expectedHostRuntimeVersion: options.expectedHostRuntimeVersion,
++        expectedProbeDigest: options.expectedProbeDigest,
++        workerIsolation: options.workerIsolation,
++      });
++      const execResult = await workerExecutor.executeWorkOrder(invocation);
+ 
+       if (!execResult || execResult.isolationReported !== "enforced") {
+         throw new Error(`Isolation violation: reported "${execResult?.isolationReported}", expected "enforced"`);
+       }
+ 
+       if (!execResult.ok) {
+-        throw new Error(`WorkOrder execution failed with exit code ${execResult.workResult?.exit_code}`);
++        const detail = execResult.error
++          || execResult.reason
++          || (execResult.violation && (execResult.violation.error || execResult.violation.reason_code || JSON.stringify(execResult.violation)))
++          || `exit code ${execResult.workResult?.exit_code}`;
++        const err = new Error(`WorkOrder execution failed: ${detail}`);
++        throw err;
+       }
+ 
+       const workResult = execResult.workResult;
+       capturedWorkResults.push(workResult);
+ 
++      const nodeIntegrate = await integrateWorkResultPatches(sourceSnapshot, [workResult], {
++        files: effectiveBase ? effectiveBase.files : options.files,
++        file_modes: effectiveBase ? effectiveBase.file_modes : (options.file_modes || options.fileModes),
++        workOrders,
++        freeze: false,
++        predecessor_node_ids: predecessorNodes.map((n) => n.node_id),
++      });
++      if (!nodeIntegrate.ok) {
++        const err = new Error(nodeIntegrate.error);
++        err.code = nodeIntegrate.reason_code;
++        throw err;
++      }
++      nodeIntegrations.set(node.node_id, {
++        workResult,
++        effectiveBase: nodeIntegrate.effectiveBase,
++        candidateFiles: nodeIntegrate.candidateFiles,
++        fileModes: nodeIntegrate.fileModes,
++      });
++
+       nodeStates.set(node.node_id, "completed");
+       graphTelemetry[node.node_id].status = "completed";
+       graphTelemetry[node.node_id].work_result_id = workResult.work_result_id;
+@@ -251,6 +433,10 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
+       graphTelemetry[node.node_id].error = err.message;
+       executionFailed = true;
+       failedNodeId = node.node_id;
++      if (err.code && err.code !== "UNSAFE_EXECUTOR_OPTION") {
++        failedReasonCode = err.code;
++        failedError = err.message;
++      }
+ 
+       const descendants = computeDescendantClosure(executionGraph.nodes, [node.node_id]);
+       for (const descId of descendants) {
+@@ -266,7 +452,7 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
+       graphTelemetry[node.node_id].duration_ms = finishTime - startTime;
+ 
+       if (workspaceDescriptor) {
+-        await disposeWorkspace(workspaceDescriptor);
++        await workerWorkspace.disposeWorkspace(workspaceDescriptor);
+       }
+     }
+ 
+@@ -278,18 +464,24 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
+   if (executionFailed) {
+     return {
+       ok: false,
+-      error: `Node ${failedNodeId} execution failed`,
+-      reason_code: "NODE_EXECUTION_FAILED",
++      error: failedError || `Node ${failedNodeId} execution failed`,
++      reason_code: failedReasonCode,
+       failed_node_id: failedNodeId,
+       graph_telemetry: graphTelemetry,
+       workResults: capturedWorkResults,
+     };
+   }
+ 
+-  // 7. Integrate WorkResult patches & freeze Candidate via K3
+-  const patchResult = await integrateWorkResultPatches(sourceSnapshot, capturedWorkResults, {
++  // 7. Integrate WorkResult patches & freeze Candidate via K3 (anchored to original S0)
++  const initialBase = buildEffectiveShadowBase({
++    sourceSnapshot,
+     files: options.files,
+-    allowed_paths: options.allowed_paths,
++    file_modes: options.file_modes || options.fileModes,
++  });
++  const patchResult = await integrateWorkResultPatches(sourceSnapshot, capturedWorkResults, {
++    files: initialBase.files,
++    file_modes: initialBase.file_modes,
++    workOrders,
+     repository_id: sourceSnapshot.repository_id,
+     predecessorCandidate: options.predecessorCandidate,
+   });
+@@ -328,9 +520,11 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
+     );
+   }
+ 
+-  return {
++  const successPayload = {
+     ok: true,
++    promoted: false,
+     candidate,
++    candidateFiles: patchResult.candidateFiles,
+     workResults: capturedWorkResults,
+     graph_telemetry: graphTelemetry,
+     lineage_verification: {
+@@ -344,9 +538,54 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
+     },
+     ...(shadow_comparison ? { shadow_comparison } : {}),
+   };
++
++  // 10. Persist auditable repair-shadow-execution/v1 — mandatory after freeze+lineage.
++  if (!options.store) {
++    return {
++      ok: false,
++      promoted: false,
++      error: "execution store is required to persist repair-shadow-execution/v1",
++      reason_code: "MISSING_EXECUTION_STORE",
++      candidate,
++      workResults: capturedWorkResults,
++      graph_telemetry: graphTelemetry,
++    };
++  }
++
++  const persistRes = await persistRepairShadowExecution(options.store, {
++    kind: "repair-shadow-execution/v1",
++    schema_version: 1,
++    candidate_id: candidate.candidate_id,
++    candidate,
++    source_snapshot_id: sourceSnapshot.source_snapshot_id,
++    execution_graph: executionGraph,
++    policy_snapshot: options.policySnapshot,
++    work_order_ids: workOrders.map((wo) => wo.work_order_id),
++    work_result_ids: capturedWorkResults.map((wr) => wr.work_result_id),
++    graph_telemetry: graphTelemetry,
++    shadow_comparison,
++    created_at: options.createdAt || new Date().toISOString(),
++  });
++  if (!persistRes.ok) {
++    return {
++      ok: false,
++      promoted: false,
++      error: persistRes.error,
++      reason_code: persistRes.reason_code || "EXECUTION_RECORD_PERSIST_FAILED",
++      candidate,
++      workResults: capturedWorkResults,
++      graph_telemetry: graphTelemetry,
++    };
++  }
++  successPayload.execution_record_id = persistRes.candidate_id;
++
++  return successPayload;
+ }
+ 
+ module.exports = {
+   orchestrateRepairShadow,
+   validate4IdentityLineage,
++  pickAllowedNodeExecutionInputs,
++  buildExecuteWorkOrderInvocation,
++  EXECUTE_WORK_ORDER_OPTION_ALLOWLIST,
+ };
+diff --git a/scripts/lib/repair-shadow/patch-integrator.js b/scripts/lib/repair-shadow/patch-integrator.js
+index bee884e..34ae4f6 100644
+--- a/scripts/lib/repair-shadow/patch-integrator.js
++++ b/scripts/lib/repair-shadow/patch-integrator.js
+@@ -3,6 +3,9 @@
+ const { normalizeRelativePath, validateAllowedPaths } = require("../allowed-paths-validator.js");
+ const { computeTreeDigest } = require("../worker-workspace.js");
+ const { freezeCandidate } = require("../execution-identities/index.js");
++const { collectFilesMap, buildEffectiveShadowBase } = require("./effective-shadow-base.js");
++
++const VALID_GIT_FILE_MODES = new Set(["100644", "100755", "100664", "120000", "160000"]);
+ 
+ function analyzeLines(content) {
+   if (content === null || content === undefined || content === "") {
+@@ -17,6 +20,19 @@ function analyzeLines(content) {
+   return { lines, hasTrailingNewline };
+ }
+ 
++function stripGitPath(headerPath) {
++  if (!headerPath || headerPath === "/dev/null") return "/dev/null";
++  return headerPath.replace(/^[ab]\//, "");
++}
++
++function parseModeToken(raw) {
++  const value = String(raw || "").trim();
++  if (!VALID_GIT_FILE_MODES.has(value)) {
++    return { ok: false, value };
++  }
++  return { ok: true, value };
++}
++
+ function parseUnifiedDiffs(diffText) {
+   if (!diffText || typeof diffText !== "string") return [];
+   const normalized = diffText.replace(/\r\n/g, "\n");
+@@ -27,21 +43,76 @@ function parseUnifiedDiffs(diffText) {
+ 
+   for (let i = 0; i < lines.length; i++) {
+     const line = lines[i];
++
++    const gitMatch = line.match(/^diff --git a\/(.*?) b\/(.*)$/);
++    if (gitMatch) {
++      currentFile = {
++        oldPath: gitMatch[1],
++        newPath: gitMatch[2],
++        targetPath: gitMatch[2] !== "/dev/null" ? gitMatch[2] : gitMatch[1],
++        hunks: [],
++        fromGitHeader: true,
++        hasContentHeaders: false,
++      };
++      fileDiffs.push(currentFile);
++      currentHunk = null;
++      continue;
++    }
++
++    const oldModeMatch = line.match(/^old mode\s+(\S+)\s*$/);
++    if (oldModeMatch && currentFile) {
++      const parsed = parseModeToken(oldModeMatch[1]);
++      if (!parsed.ok) currentFile.invalidMode = parsed.value;
++      else currentFile.oldMode = parsed.value;
++      continue;
++    }
++    const newModeMatch = line.match(/^new mode\s+(\S+)\s*$/);
++    if (newModeMatch && currentFile) {
++      const parsed = parseModeToken(newModeMatch[1]);
++      if (!parsed.ok) currentFile.invalidMode = parsed.value;
++      else currentFile.newMode = parsed.value;
++      continue;
++    }
++    const newFileModeMatch = line.match(/^new file mode\s+(\S+)\s*$/);
++    if (newFileModeMatch && currentFile) {
++      const parsed = parseModeToken(newFileModeMatch[1]);
++      if (!parsed.ok) currentFile.invalidMode = parsed.value;
++      else currentFile.newFileMode = parsed.value;
++      continue;
++    }
++    const deletedFileModeMatch = line.match(/^deleted file mode\s+(\S+)\s*$/);
++    if (deletedFileModeMatch && currentFile) {
++      const parsed = parseModeToken(deletedFileModeMatch[1]);
++      if (!parsed.ok) currentFile.invalidMode = parsed.value;
++      else currentFile.deletedFileMode = parsed.value;
++      continue;
++    }
++
+     if (line.startsWith("--- ")) {
+       const oldHeader = line.slice(4).trim();
+       const nextLine = lines[i + 1] || "";
+       if (nextLine.startsWith("+++ ")) {
+         i++;
+         const newHeader = nextLine.slice(4).trim();
+-        const oldPath = oldHeader === "/dev/null" ? "/dev/null" : oldHeader.replace(/^[ab]\//, "");
+-        const newPath = newHeader === "/dev/null" ? "/dev/null" : newHeader.replace(/^[ab]\//, "");
+-        currentFile = {
+-          oldPath,
+-          newPath,
+-          targetPath: newPath !== "/dev/null" ? newPath : oldPath,
+-          hunks: [],
+-        };
+-        fileDiffs.push(currentFile);
++        const oldPath = stripGitPath(oldHeader);
++        const newPath = stripGitPath(newHeader);
++        const canAttach = currentFile && currentFile.fromGitHeader && !currentFile.hasContentHeaders;
++        if (canAttach) {
++          currentFile.oldPath = oldPath;
++          currentFile.newPath = newPath;
++          currentFile.targetPath = newPath !== "/dev/null" ? newPath : oldPath;
++        } else {
++          currentFile = {
++            oldPath,
++            newPath,
++            targetPath: newPath !== "/dev/null" ? newPath : oldPath,
++            hunks: [],
++            fromGitHeader: false,
++            hasContentHeaders: true,
++          };
++          fileDiffs.push(currentFile);
++        }
++        currentFile.hasContentHeaders = true;
+         currentHunk = null;
+         continue;
+       }
+@@ -72,9 +143,103 @@ function parseUnifiedDiffs(diffText) {
+   return fileDiffs;
+ }
+ 
++function countHunkSides(hunk) {
++  let oldLines = 0;
++  let newLines = 0;
++  for (const hLine of hunk.lines) {
++    if (hLine.startsWith("\\")) continue;
++    if (hLine.startsWith(" ")) {
++      oldLines++;
++      newLines++;
++    } else if (hLine.startsWith("-")) {
++      oldLines++;
++    } else if (hLine.startsWith("+")) {
++      newLines++;
++    }
++  }
++  return { oldLines, newLines };
++}
++
++function hunkOldRange(hunk) {
++  if (hunk.oldCount === 0) {
++    return { start: hunk.oldStart, end: hunk.oldStart };
++  }
++  const start = hunk.oldStart > 0 ? hunk.oldStart : 1;
++  return { start, end: start + hunk.oldCount };
++}
++
++function rangesOverlap(a, b) {
++  if (a.end === a.start && b.end === b.start) {
++    return a.start === b.start;
++  }
++  if (a.end === a.start) {
++    return a.start >= b.start && a.start < b.end;
++  }
++  if (b.end === b.start) {
++    return b.start >= a.start && b.start < a.end;
++  }
++  return a.start < b.end && b.start < a.end;
++}
++
++function validateHunkCountsAndOverlaps(fileDiff) {
++  const ranges = [];
++  for (const hunk of fileDiff.hunks) {
++    const counted = countHunkSides(hunk);
++    if (counted.oldLines !== hunk.oldCount || counted.newLines !== hunk.newCount) {
++      return {
++        ok: false,
++        reason_code: "HUNK_COUNT_MISMATCH",
++        error: `Hunk count mismatch on ${fileDiff.targetPath}: expected -${hunk.oldCount}/+${hunk.newCount}, got -${counted.oldLines}/+${counted.newLines}`,
++      };
++    }
++    ranges.push(hunkOldRange(hunk));
++  }
++  for (let i = 0; i < ranges.length; i++) {
++    for (let j = i + 1; j < ranges.length; j++) {
++      if (rangesOverlap(ranges[i], ranges[j])) {
++        return {
++          ok: false,
++          reason_code: "HUNK_OVERLAP",
++          error: `Overlapping hunks on ${fileDiff.targetPath}`,
++        };
++      }
++    }
++  }
++  return { ok: true };
++}
++
++function validateContextAndDeletion(oldContent, fileDiff) {
++  if (fileDiff.oldPath === "/dev/null") {
++    return { ok: true };
++  }
++  const { lines: oldLines } = analyzeLines(oldContent);
++  for (const hunk of fileDiff.hunks) {
++    let oldIdx = hunk.oldStart > 0 ? hunk.oldStart - 1 : 0;
++    for (const hLine of hunk.lines) {
++      if (hLine.startsWith("\\")) continue;
++      if (hLine.startsWith(" ") || hLine.startsWith("-")) {
++        const expected = hLine.slice(1);
++        if (oldIdx >= oldLines.length || oldLines[oldIdx] !== expected) {
++          return {
++            ok: false,
++            reason_code: hLine.startsWith("-") ? "HUNK_DELETION_MISMATCH" : "HUNK_CONTEXT_MISMATCH",
++            error: `Hunk ${hLine.startsWith("-") ? "deletion" : "context"} mismatch on ${fileDiff.targetPath} at line ${oldIdx + 1}`,
++          };
++        }
++        oldIdx++;
++      }
++    }
++  }
++  return { ok: true };
++}
++
+ function applyFileDiff(oldContent, fileDiff) {
++  if (fileDiff.invalidMode) {
++    return { ok: false, reason_code: "INVALID_FILE_MODE", error: `Invalid file mode: ${fileDiff.invalidMode}` };
++  }
++
+   if (fileDiff.newPath === "/dev/null") {
+-    return { deleted: true, content: "" };
++    return { ok: true, deleted: true, content: "" };
+   }
+ 
+   const { lines: oldLines, hasTrailingNewline: oldHasTrailingNewline } = analyzeLines(oldContent);
+@@ -93,7 +258,7 @@ function applyFileDiff(oldContent, fileDiff) {
+     }
+     let res = newLines.join("\n");
+     if (newHasTrailingNewline && newLines.length > 0) res += "\n";
+-    return { deleted: false, content: res };
++    return { ok: true, deleted: false, content: res };
+   }
+ 
+   let oldIdx = 0;
+@@ -140,11 +305,85 @@ function applyFileDiff(oldContent, fileDiff) {
+     finalContent += "\n";
+   }
+ 
+-  return { deleted: false, content: finalContent };
++  return { ok: true, deleted: false, content: finalContent };
++}
++
++function resolveWorkOrderBinding(workResult, options) {
++  const workOrders = Array.isArray(options.workOrders) ? options.workOrders : null;
++  if (workOrders && workOrders.length > 0) {
++    const id = workResult && workResult.work_order_id;
++    if (!id) {
++      return { ok: false, reason_code: "MISSING_WORK_ORDER", error: "WorkResult is missing work_order_id" };
++    }
++    const workOrder = workOrders.find((wo) => wo && wo.work_order_id === id);
++    if (!workOrder) {
++      return {
++        ok: false,
++        reason_code: "MISSING_WORK_ORDER",
++        error: `No WorkOrder bound for work_order_id ${id}`,
++      };
++    }
++    return {
++      ok: true,
++      workOrder,
++      allowed_paths: Array.isArray(workOrder.allowed_paths) ? workOrder.allowed_paths : [],
++    };
++  }
++  return {
++    ok: true,
++    workOrder: null,
++    allowed_paths: Array.isArray(options.allowed_paths) ? options.allowed_paths : null,
++  };
++}
++
++function resultingFileMode(fileDiff) {
++  if (fileDiff.newPath === "/dev/null") return null;
++  return fileDiff.newMode || fileDiff.newFileMode || null;
+ }
+ 
+ /**
+- * Integrates WorkResult patches onto the authorized SourceSnapshot and freezes Candidate via K3.
++ * Fail-closed when two predecessor WorkResults claim overlapping original hunk
++ * context on the same path. Last-writer-wins is not a legal merge.
++ *
++ * @param {Array<Object>} workResults
++ * @returns {{ ok: boolean, error?: string, reason_code?: string }}
++ */
++function detectPredecessorContextConflicts(workResults = []) {
++  const byFile = new Map();
++  for (const wr of workResults) {
++    if (!wr || typeof wr !== "object") continue;
++    const patch = wr.patch || "";
++    if (!patch.trim()) continue;
++    const parsed = parseUnifiedDiffs(patch);
++    for (const fd of parsed) {
++      const normTarget = normalizeRelativePath(fd.targetPath);
++      if (!normTarget) continue;
++      if (!byFile.has(normTarget)) byFile.set(normTarget, []);
++      const previous = byFile.get(normTarget);
++      const hunks = fd.hunks.length > 0
++        ? fd.hunks
++        : [{ oldStart: 0, oldCount: 0 }];
++      for (const hunk of hunks) {
++        const range = hunkOldRange(hunk);
++        for (const prev of previous) {
++          if (prev.work_order_id !== wr.work_order_id && rangesOverlap(prev.range, range)) {
++            return {
++              ok: false,
++              reason_code: "PREDECESSOR_CONTEXT_CONFLICT",
++              error: `Incompatible predecessor diffs overlap on ${normTarget}`,
++            };
++          }
++        }
++        previous.push({ work_order_id: wr.work_order_id, range });
++      }
++    }
++  }
++  return { ok: true };
++}
++
++/**
++ * Integrates WorkResult patches onto the node's effective base and optionally freezes Candidate via K3.
++ * Containment is bound to the producing WorkOrder via work_order_id when workOrders are supplied.
+  *
+  * @param {Object} sourceSnapshot
+  * @param {Array<Object>} workResults
+@@ -159,71 +398,70 @@ async function integrateWorkResultPatches(sourceSnapshot, workResults = [], opti
+     return { ok: false, error: "workResults must be an array", reason_code: "INVALID_WORK_RESULTS" };
+   }
+ 
+-  const baseFilesMap = new Map();
+-  if (options.files instanceof Map) {
+-    for (const [k, v] of options.files.entries()) {
+-      const norm = normalizeRelativePath(k);
+-      if (norm) baseFilesMap.set(norm, typeof v === "string" ? v : (Buffer.isBuffer(v) ? v.toString("utf8") : String(v)));
+-    }
+-  } else if (Array.isArray(options.files)) {
+-    for (const item of options.files) {
+-      if (item && item.path) {
+-        const norm = normalizeRelativePath(item.path);
+-        if (norm) baseFilesMap.set(norm, typeof item.content === "string" ? item.content : (Buffer.isBuffer(item.content) ? item.content.toString("utf8") : String(item.content || "")));
+-      }
+-    }
+-  } else if (options.files && typeof options.files === "object") {
+-    for (const [k, v] of Object.entries(options.files)) {
+-      const norm = normalizeRelativePath(k);
+-      if (norm) baseFilesMap.set(norm, typeof v === "string" ? v : (Buffer.isBuffer(v) ? v.toString("utf8") : String(v)));
+-    }
+-  }
+-
+-  // Parse all diffs and validate path containment against allowed_paths
+-  const allFileDiffs = [];
++  const candidateFiles = collectFilesMap(options.files);
++  const fileModes = { ...(options.file_modes || options.fileModes || {}) };
+   const modifiedPathsSet = new Set();
+   const diffTexts = [];
++  const freeze = options.freeze !== false;
+ 
+   for (const wr of workResults) {
+     if (!wr || typeof wr !== "object") continue;
+     const patch = wr.patch || "";
+-    if (patch.trim()) {
+-      diffTexts.push(patch.trim());
+-      const parsed = parseUnifiedDiffs(patch);
+-      for (const fd of parsed) {
+-        const normTarget = normalizeRelativePath(fd.targetPath);
+-        if (!normTarget) {
+-          return { ok: false, error: `Invalid target path in patch: ${fd.targetPath}`, reason_code: "CONTAINMENT_VIOLATION" };
+-        }
+-        fd.targetPath = normTarget;
++    if (!patch.trim()) continue;
+ 
+-        if (options.allowed_paths && Array.isArray(options.allowed_paths)) {
+-          const containment = validateAllowedPaths([normTarget], options.allowed_paths);
+-          if (!containment.ok) {
+-            return {
+-              ok: false,
+-              error: `Containment violation: path ${normTarget} is outside allowed_paths`,
+-              reason_code: "CONTAINMENT_VIOLATION",
+-              violation: containment.violation,
+-            };
+-          }
+-        }
++    const binding = resolveWorkOrderBinding(wr, options);
++    if (!binding.ok) return binding;
+ 
+-        allFileDiffs.push(fd);
+-        modifiedPathsSet.add(normTarget);
++    diffTexts.push(patch.trim());
++    const parsed = parseUnifiedDiffs(patch);
++    for (const fd of parsed) {
++      if (fd.invalidMode) {
++        return {
++          ok: false,
++          error: `Invalid file mode: ${fd.invalidMode}`,
++          reason_code: "INVALID_FILE_MODE",
++        };
+       }
+-    }
+-  }
+ 
+-  // Apply diffs in memory
+-  const candidateFiles = new Map(baseFilesMap);
+-  for (const fd of allFileDiffs) {
+-    const oldContent = candidateFiles.has(fd.targetPath) ? candidateFiles.get(fd.targetPath) : (baseFilesMap.get(fd.targetPath) || "");
+-    const res = applyFileDiff(oldContent, fd);
+-    if (res.deleted) {
+-      candidateFiles.delete(fd.targetPath);
+-    } else {
+-      candidateFiles.set(fd.targetPath, res.content);
++      const normTarget = normalizeRelativePath(fd.targetPath);
++      if (!normTarget) {
++        return { ok: false, error: `Invalid target path in patch: ${fd.targetPath}`, reason_code: "CONTAINMENT_VIOLATION" };
++      }
++      fd.targetPath = normTarget;
++
++      if (binding.allowed_paths) {
++        const containment = validateAllowedPaths([normTarget], binding.allowed_paths, {
++          work_order_id: wr.work_order_id,
++        });
++        if (!containment.ok) {
++          return {
++            ok: false,
++            error: `Containment violation: path ${normTarget} is outside WorkOrder.allowed_paths`,
++            reason_code: "CONTAINMENT_VIOLATION",
++            violation: containment.violation,
++          };
++        }
++      }
++
++      const countOverlap = validateHunkCountsAndOverlaps(fd);
++      if (!countOverlap.ok) return countOverlap;
++
++      const oldContent = candidateFiles.has(fd.targetPath) ? candidateFiles.get(fd.targetPath) : "";
++      const contextDeletion = validateContextAndDeletion(oldContent, fd);
++      if (!contextDeletion.ok) return contextDeletion;
++
++      const applied = applyFileDiff(oldContent, fd);
++      if (!applied.ok) return applied;
++
++      if (applied.deleted) {
++        candidateFiles.delete(fd.targetPath);
++        delete fileModes[fd.targetPath];
++      } else {
++        candidateFiles.set(fd.targetPath, applied.content);
++        const mode = resultingFileMode(fd);
++        if (mode) fileModes[fd.targetPath] = mode;
++      }
++      modifiedPathsSet.add(fd.targetPath);
+     }
+   }
+ 
+@@ -231,6 +469,23 @@ async function integrateWorkResultPatches(sourceSnapshot, workResults = [], opti
+   const combinedDiffText = diffTexts.join("\n\n");
+   const candidateTreeDigest = computeTreeDigest(candidateFiles);
+   const repositoryId = options.repository_id || sourceSnapshot.repository_id || "workspace";
++  const effectiveBase = buildEffectiveShadowBase({
++    sourceSnapshot,
++    files: candidateFiles,
++    file_modes: fileModes,
++    predecessor_node_ids: options.predecessor_node_ids,
++  });
++
++  if (!freeze) {
++    return {
++      ok: true,
++      candidateFiles,
++      fileModes,
++      combinedDiffText,
++      modifiedPaths,
++      effectiveBase,
++    };
++  }
+ 
+   try {
+     const candidate = freezeCandidate({
+@@ -240,6 +495,7 @@ async function integrateWorkResultPatches(sourceSnapshot, workResults = [], opti
+       candidate_tree: candidateTreeDigest,
+       diffText: combinedDiffText,
+       paths: modifiedPaths,
++      fileModes,
+       predecessorCandidate: options.predecessorCandidate,
+     });
+ 
+@@ -247,8 +503,10 @@ async function integrateWorkResultPatches(sourceSnapshot, workResults = [], opti
+       ok: true,
+       candidate,
+       candidateFiles,
++      fileModes,
+       combinedDiffText,
+       modifiedPaths,
++      effectiveBase,
+     };
+   } catch (err) {
+     return {
+@@ -263,4 +521,6 @@ module.exports = {
+   integrateWorkResultPatches,
+   parseUnifiedDiffs,
+   applyFileDiff,
++  detectPredecessorContextConflicts,
++  VALID_GIT_FILE_MODES,
+ };
+diff --git a/scripts/lib/repair-shadow/shadow-comparator.js b/scripts/lib/repair-shadow/shadow-comparator.js
+index 432f7b6..f294be2 100644
+--- a/scripts/lib/repair-shadow/shadow-comparator.js
++++ b/scripts/lib/repair-shadow/shadow-comparator.js
+@@ -1,30 +1,72 @@
+ "use strict";
+ 
+-const ALL_EVALUATED_DIMENSIONS = Object.freeze([
++const REQUIRED_DIMENSIONS = Object.freeze([
+   "steps",
++  "dependencies",
+   "diffs",
++  "inventory",
+   "obligations",
+   "invariants",
+-  "inventory",
++  "execution_metrics",
+ ]);
+ 
++const ALL_EVALUATED_DIMENSIONS = REQUIRED_DIMENSIONS;
++
++function canonicalizeValue(value) {
++  if (value === null || value === undefined) return "";
++  if (typeof value === "string") return value;
++  if (typeof value === "number" || typeof value === "boolean") return String(value);
++  return JSON.stringify(value);
++}
++
+ function extractSteps(route) {
+   if (!route) return [];
+-  if (Array.isArray(route.steps)) return route.steps;
+-  if (Array.isArray(route.nodes)) return route.nodes.map((n) => n.operation);
++  if (Array.isArray(route.steps)) return route.steps.map(canonicalizeValue);
++  if (Array.isArray(route.nodes)) return route.nodes.map((n) => canonicalizeValue(n.operation));
+   if (Array.isArray(route.workResults)) {
+-    return route.workResults.map((wr) => wr.work_order_id);
++    return route.workResults.map((wr) => canonicalizeValue(wr.work_order_id));
++  }
++  return [];
++}
++
++function extractDependencies(route) {
++  if (!route) return [];
++  if (Array.isArray(route.dependencies)) {
++    return route.dependencies.map((d) => canonicalizeValue(d)).sort();
++  }
++  if (Array.isArray(route.nodes)) {
++    return route.nodes
++      .map((n) =>
++        canonicalizeValue({
++          node_id: n.node_id,
++          dependencies: Array.isArray(n.dependencies) ? [...n.dependencies].sort() : [],
++        })
++      )
++      .sort();
+   }
+   return [];
+ }
+ 
+ function extractDiffHash(route) {
+-  if (!route) return null;
+-  if (route.diff_hash) return route.diff_hash;
+-  if (route.candidate && route.candidate.diff_hash) return route.candidate.diff_hash;
++  if (!route) return "";
++  if (route.diff_hash) return String(route.diff_hash);
++  if (route.candidate && route.candidate.diff_hash) return String(route.candidate.diff_hash);
+   if (typeof route.combinedDiffText === "string") return route.combinedDiffText;
+   if (typeof route.patch === "string") return route.patch;
+-  return null;
++  return "";
++}
++
++function extractInventory(route) {
++  if (!route) return [];
++  if (Array.isArray(route.inventory)) return [...route.inventory].map(canonicalizeValue).sort();
++  if (route.candidate && Array.isArray(route.candidate.paths)) {
++    return [...route.candidate.paths].map(canonicalizeValue).sort();
++  }
++  if (Array.isArray(route.paths)) return [...route.paths].map(canonicalizeValue).sort();
++  if (Array.isArray(route.filesystem_inventory)) {
++    return route.filesystem_inventory.map((item) => canonicalizeValue(typeof item === "string" ? item : item.path)).sort();
++  }
++  return [];
+ }
+ 
+ function extractObligations(route) {
+@@ -38,18 +80,34 @@ function extractObligations(route) {
+ function extractInvariants(route) {
+   if (!route) return [];
+   if (Array.isArray(route.invariants)) {
+-    return [...route.invariants].sort();
++    return [...route.invariants].map(canonicalizeValue).sort();
+   }
+   return [];
+ }
+ 
+-function extractInventory(route) {
++const CLOCK_UNSTABLE_KEYS = new Set(["started_at", "finished_at", "duration_ms"]);
++
++function stripClockFields(value) {
++  if (Array.isArray(value)) return value.map(stripClockFields);
++  if (value && typeof value === "object") {
++    const out = {};
++    for (const [key, nested] of Object.entries(value)) {
++      if (!CLOCK_UNSTABLE_KEYS.has(key)) out[key] = stripClockFields(nested);
++    }
++    return out;
++  }
++  return value;
++}
++
++function extractExecutionMetrics(route) {
+   if (!route) return [];
+-  if (Array.isArray(route.inventory)) return [...route.inventory].sort();
+-  if (route.candidate && Array.isArray(route.candidate.paths)) return [...route.candidate.paths].sort();
+-  if (Array.isArray(route.paths)) return [...route.paths].sort();
+-  if (Array.isArray(route.filesystem_inventory)) {
+-    return route.filesystem_inventory.map((item) => (typeof item === "string" ? item : item.path)).sort();
++  if (Array.isArray(route.execution_metrics)) {
++    return route.execution_metrics.map(canonicalizeValue).sort();
++  }
++  if (route.graph_telemetry && typeof route.graph_telemetry === "object") {
++    return Object.keys(route.graph_telemetry)
++      .sort()
++      .map((nodeId) => canonicalizeValue({ node_id: nodeId, ...stripClockFields(route.graph_telemetry[nodeId] || {}) }));
+   }
+   return [];
+ }
+@@ -63,9 +121,24 @@ function areArraysEqual(a, b) {
+   return true;
+ }
+ 
++function evaluateDimension(name, shadowValue, baselineValue, comparedEqual, evaluated, rates, divergences) {
++  evaluated.push(name);
++  const isMatch = comparedEqual(shadowValue, baselineValue);
++  rates[name] = isMatch ? 1 : 0;
++  if (!isMatch) {
++    divergences.push({
++      dimension: name,
++      shadow: shadowValue,
++      baseline: baselineValue,
++    });
++  }
++}
++
+ /**
+  * Compares shadow execution outcome against fixed baseline route in a non-mutating, read-only manner.
+- * Evaluates steps, diffs, obligations, invariants, and inventory.
++ * Always evaluates the seven required dimensions; empty extracted values are still evaluations
++ * and MUST NOT appear in skipped_dimensions. Full-match cannot be claimed if any required
++ * dimension was skipped.
+  *
+  * @param {Object} shadowResult
+  * @param {Object} baselineResult
+@@ -89,108 +162,45 @@ function compareShadowExecution(shadowResult, baselineResult) {
+   const dimension_match_rates = {};
+   const divergences = [];
+ 
+-  // 1. Steps
+   const shadowSteps = extractSteps(shadow);
+   const baselineSteps = extractSteps(baseline);
+-  if (shadowSteps.length > 0 || baselineSteps.length > 0) {
+-    evaluated_dimensions.push("steps");
+-    const isMatch = areArraysEqual(shadowSteps, baselineSteps);
+-    dimension_match_rates.steps = isMatch ? 1 : 0;
+-    if (!isMatch) {
+-      divergences.push({
+-        dimension: "steps",
+-        shadow: shadowSteps,
+-        baseline: baselineSteps,
+-      });
+-    }
+-  } else {
+-    skipped_dimensions.push("steps");
+-  }
++  evaluateDimension("steps", shadowSteps, baselineSteps, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
++
++  const shadowDependencies = extractDependencies(shadow);
++  const baselineDependencies = extractDependencies(baseline);
++  evaluateDimension("dependencies", shadowDependencies, baselineDependencies, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
+ 
+-  // 2. Diffs
+   const shadowDiff = extractDiffHash(shadow);
+   const baselineDiff = extractDiffHash(baseline);
+-  if (shadowDiff !== null || baselineDiff !== null) {
+-    evaluated_dimensions.push("diffs");
+-    const isMatch = shadowDiff === baselineDiff;
+-    dimension_match_rates.diffs = isMatch ? 1 : 0;
+-    if (!isMatch) {
+-      divergences.push({
+-        dimension: "diffs",
+-        shadow: shadowDiff,
+-        baseline: baselineDiff,
+-      });
+-    }
+-  } else {
+-    skipped_dimensions.push("diffs");
+-  }
++  evaluateDimension("diffs", shadowDiff, baselineDiff, (a, b) => a === b, evaluated_dimensions, dimension_match_rates, divergences);
++
++  const shadowInventory = extractInventory(shadow);
++  const baselineInventory = extractInventory(baseline);
++  evaluateDimension("inventory", shadowInventory, baselineInventory, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
+ 
+-  // 3. Obligations
+   const shadowObligations = extractObligations(shadow);
+   const baselineObligations = extractObligations(baseline);
+-  if (shadowObligations.length > 0 || baselineObligations.length > 0) {
+-    evaluated_dimensions.push("obligations");
+-    const isMatch = areArraysEqual(shadowObligations, baselineObligations);
+-    dimension_match_rates.obligations = isMatch ? 1 : 0;
+-    if (!isMatch) {
+-      divergences.push({
+-        dimension: "obligations",
+-        shadow: shadowObligations,
+-        baseline: baselineObligations,
+-      });
+-    }
+-  } else {
+-    skipped_dimensions.push("obligations");
+-  }
++  evaluateDimension("obligations", shadowObligations, baselineObligations, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
+ 
+-  // 4. Invariants
+   const shadowInvariants = extractInvariants(shadow);
+   const baselineInvariants = extractInvariants(baseline);
+-  if (shadowInvariants.length > 0 || baselineInvariants.length > 0) {
+-    evaluated_dimensions.push("invariants");
+-    const isMatch = areArraysEqual(shadowInvariants, baselineInvariants);
+-    dimension_match_rates.invariants = isMatch ? 1 : 0;
+-    if (!isMatch) {
+-      divergences.push({
+-        dimension: "invariants",
+-        shadow: shadowInvariants,
+-        baseline: baselineInvariants,
+-      });
+-    }
+-  } else {
+-    skipped_dimensions.push("invariants");
+-  }
++  evaluateDimension("invariants", shadowInvariants, baselineInvariants, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
+ 
+-  // 5. Inventory
+-  const shadowInventory = extractInventory(shadow);
+-  const baselineInventory = extractInventory(baseline);
+-  if (shadowInventory.length > 0 || baselineInventory.length > 0) {
+-    evaluated_dimensions.push("inventory");
+-    const isMatch = areArraysEqual(shadowInventory, baselineInventory);
+-    dimension_match_rates.inventory = isMatch ? 1 : 0;
+-    if (!isMatch) {
+-      divergences.push({
+-        dimension: "inventory",
+-        shadow: shadowInventory,
+-        baseline: baselineInventory,
+-      });
+-    }
+-  } else {
+-    skipped_dimensions.push("inventory");
+-  }
++  const shadowMetrics = extractExecutionMetrics(shadow);
++  const baselineMetrics = extractExecutionMetrics(baseline);
++  evaluateDimension("execution_metrics", shadowMetrics, baselineMetrics, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
+ 
+-  // Compute overall match and classification
+-  const totalEvaluated = evaluated_dimensions.length;
+-  const matchCount = Object.values(dimension_match_rates).filter((rate) => rate === 1).length;
+-  const match = totalEvaluated > 0 && matchCount === totalEvaluated;
++  const skippedRequired = skipped_dimensions.filter((d) => REQUIRED_DIMENSIONS.includes(d));
++  const allRequiredEvaluated = REQUIRED_DIMENSIONS.every((d) => evaluated_dimensions.includes(d));
++  const allRequiredMatch = REQUIRED_DIMENSIONS.every((d) => dimension_match_rates[d] === 1);
++  const match = allRequiredEvaluated && skippedRequired.length === 0 && allRequiredMatch;
+ 
+   let discrepancy_classification;
+   if (match) {
+     discrepancy_classification = "full-match";
+-  } else if (matchCount > 0) {
+-    discrepancy_classification = "partial-match";
+   } else {
+-    discrepancy_classification = "diverged";
++    const matchCount = Object.values(dimension_match_rates).filter((rate) => rate === 1).length;
++    discrepancy_classification = matchCount > 0 ? "partial-match" : "diverged";
+   }
+ 
+   const telemetryDiff = match
+@@ -213,12 +223,16 @@ function compareShadowExecution(shadowResult, baselineResult) {
+       has_diff: !!shadowDiff,
+       obligations_count: shadowObligations.length,
+       inventory_count: shadowInventory.length,
++      dependencies_count: shadowDependencies.length,
++      execution_metrics_count: shadowMetrics.length,
+     },
+     baselineSummary: {
+       steps_count: baselineSteps.length,
+       has_diff: !!baselineDiff,
+       obligations_count: baselineObligations.length,
+       inventory_count: baselineInventory.length,
++      dependencies_count: baselineDependencies.length,
++      execution_metrics_count: baselineMetrics.length,
+     },
+   };
+ }
+@@ -226,4 +240,5 @@ function compareShadowExecution(shadowResult, baselineResult) {
+ module.exports = {
+   compareShadowExecution,
+   ALL_EVALUATED_DIMENSIONS,
++  REQUIRED_DIMENSIONS,
+ };
+diff --git a/scripts/lib/roadmap-boundary.test.js b/scripts/lib/roadmap-boundary.test.js
+index aa4195e..e59de8c 100644
+--- a/scripts/lib/roadmap-boundary.test.js
++++ b/scripts/lib/roadmap-boundary.test.js
+@@ -69,6 +69,23 @@ test("REQ-repair-shadow-007: K6a worker primitives contain zero references to K4
+       false,
+       `K6a file ${basename} must not reference compileExecutionGraph`
+     );
++    assert.equal(
++      source.includes("EffectiveShadowBase"),
++      false,
++      `K6a file ${basename} must not reference Repair EffectiveShadowBase`
++    );
++    assert.equal(
++      /repair-action|orchestrateRepair/i.test(source),
++      false,
++      `K6a file ${basename} must not carry Repair-domain identifiers`
++    );
+   }
++
++  const workspaceSource = fs.readFileSync(path.resolve(__dirname, "worker-workspace.js"), "utf8");
++  assert.match(
++    workspaceSource,
++    /effectiveBase/,
++    "K6a materializeSourceSnapshot must accept generic effectiveBase without Repair semantics"
++  );
+ });
+ 
+diff --git a/scripts/lib/worker-executor.test.js b/scripts/lib/worker-executor.test.js
+index 394a906..10b1490 100644
+--- a/scripts/lib/worker-executor.test.js
++++ b/scripts/lib/worker-executor.test.js
+@@ -1553,4 +1553,55 @@ test("executeWorkOrder: commands refuse unless isolationReported=enforced; G≠F
+   assert.notEqual(mismatch.isolationReported, "enforced");
+ });
+ 
++test("K4b Phase 1.3: object-signature executeWorkOrder rejects positional calls and non-allowlisted node options", async () => {
++  const {
++    pickAllowedNodeExecutionInputs,
++    EXECUTE_WORK_ORDER_OPTION_ALLOWLIST,
++    buildExecuteWorkOrderInvocation,
++  } = require("./repair-shadow/orchestrator.js");
++
++  assert.deepEqual([...EXECUTE_WORK_ORDER_OPTION_ALLOWLIST], [
++    "commands",
++    "command",
++    "args",
++    "signal",
++    "declaredTargets",
++  ]);
++
++  const workOrder = makeCanonicalWorkOrder();
++  const positional = await executeWorkOrder(workOrder, { workspace_id: "ws-positional" }, {
++    workerTransport: { hijack: true },
++  });
++  assert.equal(positional.ok, false);
++  assert.equal(positional.reason, "invalid-work-order");
++
++  assert.throws(
++    () => pickAllowedNodeExecutionInputs({ workerTransport: { hijack: true }, command: "node" }),
++    (err) => err && err.code === "UNSAFE_EXECUTOR_OPTION"
++  );
++
++  const workspace = { workspace_id: "ws-auth", root_path: "/tmp/ws-auth" };
++  const authorizedTransport = { port_id: "authorized-worker" };
++  const invocation = buildExecuteWorkOrderInvocation({
++    workOrder,
++    workspace,
++    nodeOptions: { command: "node", args: ["-e", "1"], declaredTargets: ["src/app.js"] },
++    authorizedWorkerTransport: authorizedTransport,
++    capabilityProof: { adapter_id: "adapter-test" },
++    workerIsolation: { declared_state: "enforced" },
++  });
++
++  assert.equal(invocation.workOrder, workOrder);
++  assert.equal(invocation.workspace, workspace);
++  assert.equal(invocation.transports.worker, authorizedTransport);
++  assert.equal(invocation.isolationCapability, "enforced");
++  assert.equal(invocation.capabilityId, "WorkerTransport");
++  assert.equal(invocation.strictIsolation, true);
++  assert.equal(invocation.command, "node");
++  assert.deepEqual(invocation.args, ["-e", "1"]);
++  assert.equal(Object.hasOwn(invocation, "workerTransport"), false);
++  assert.equal(Object.hasOwn(invocation, "budget"), false);
++  assert.equal(Object.isFrozen(invocation), true);
++});
++
+ 
+diff --git a/scripts/lib/worker-workspace.js b/scripts/lib/worker-workspace.js
+index 89a1c59..2f1f259 100644
+--- a/scripts/lib/worker-workspace.js
++++ b/scripts/lib/worker-workspace.js
+@@ -208,12 +208,67 @@ async function disposeWorkspace(workspaceDescriptorOrId) {
+   };
+ }
+ 
++/**
++ * Collects file path/content pairs from a Map, array, or plain object.
++ *
++ * @param {Map|Array|Object} files
++ * @returns {Map<string, string|Buffer>}
++ */
++function collectFileMap(files) {
++  const candidateFiles = new Map();
++  if (files instanceof Map) {
++    for (const [filePath, content] of files.entries()) {
++      const normalizedInput = normalizeRelativePath(filePath);
++      if (!normalizedInput) {
++        throw new Error(`Invalid file path or traversal attempt: ${filePath}`);
++      }
++      if (content === null || content === undefined) {
++        throw new Error(`Missing required file content: ${filePath}`);
++      }
++      candidateFiles.set(normalizedInput, content);
++    }
++    return candidateFiles;
++  }
++  if (Array.isArray(files)) {
++    for (const item of files) {
++      if (!item || !item.path) continue;
++      const normalizedInput = normalizeRelativePath(item.path);
++      if (!normalizedInput) {
++        throw new Error(`Invalid file path or traversal attempt: ${item.path}`);
++      }
++      if (item.content === null || item.content === undefined) {
++        throw new Error(`Missing required file content: ${item.path}`);
++      }
++      candidateFiles.set(normalizedInput, item.content);
++    }
++    return candidateFiles;
++  }
++  if (files && typeof files === "object") {
++    for (const [filePath, content] of Object.entries(files)) {
++      const normalizedInput = normalizeRelativePath(filePath);
++      if (!normalizedInput) {
++        throw new Error(`Invalid file path or traversal attempt: ${filePath}`);
++      }
++      if (content === null || content === undefined) {
++        throw new Error(`Missing required file content: ${filePath}`);
++      }
++      candidateFiles.set(normalizedInput, content);
++    }
++  }
++  return candidateFiles;
++}
++
+ /**
+  * Materializes declared inputs into the workspace and calculates deterministic fingerprint.
+  * FAILS CLOSED (throws) if workspaceDescriptor.workspace_id is not found in private registry.
+  * Preserves baseline file contents in workspace record for subsequent diff generation.
+- * Cryptographically verifies candidate file bytes against sourceSnapshot.base_tree_digest pre-materialization.
+- * Enforces 3-way binding: Workspace == WorkOrder == SourceSnapshot.
++ *
++ * Identity and digest checks are distinct:
++ * (a) Workspace == WorkOrder == SourceSnapshot binding is always enforced.
++ * (b) When options.effectiveBase is present, effectiveBase.tree_digest is verified
++ *     against those derived bytes (not against SourceSnapshot.base_tree_digest).
++ * (c) SourceSnapshot (S0) base_tree_digest is checked against candidate bytes only
++ *     when effectiveBase is absent; the derived path skips that S0 digest check.
+  *
+  * @param {Object} workspaceDescriptor
+  * @param {Object} workOrder
+@@ -249,6 +304,27 @@ async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceS
+     throw new Error(`WorkOrder binding validation failed: ${bindingRes.reason_code || bindingRes.error || "mismatch"}`);
+   }
+ 
++  const effectiveBase = options.effectiveBase;
++  if (effectiveBase) {
++    if (typeof effectiveBase !== "object" || Array.isArray(effectiveBase)) {
++      throw new Error("effectiveBase must be a plain object");
++    }
++    if (effectiveBase.source_snapshot_id !== sourceSnapshot.source_snapshot_id) {
++      throw new Error(
++        `effectiveBase source_snapshot_id mismatch: effectiveBase ${effectiveBase.source_snapshot_id}, snapshot ${sourceSnapshot.source_snapshot_id}`
++      );
++    }
++    if (!effectiveBase.files) {
++      throw new Error("effectiveBase.files is required");
++    }
++    const recomputedDigest = computeTreeDigest(effectiveBase.files);
++    if (effectiveBase.tree_digest !== recomputedDigest) {
++      throw new Error(
++        `effectiveBase tree_digest mismatch (declared ${effectiveBase.tree_digest}, calculated ${recomputedDigest})`
++      );
++    }
++  }
++
+   const rootPath = record.rootPath;
+   const dependencies = Array.isArray(workOrder.dependencies) ? workOrder.dependencies : [];
+   const allowedPaths = Array.isArray(workOrder.allowed_paths) ? workOrder.allowed_paths : ["**"];
+@@ -274,41 +350,49 @@ async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceS
+ 
+   // Gather candidate files in memory BEFORE writing anything to disk
+   const candidateFiles = new Map();
+-  for (const inputPath of declaredInputs) {
+-    const normalizedInput = normalizeRelativePath(inputPath);
+-    if (!normalizedInput) {
+-      throw new Error(`Invalid capsule input path or traversal attempt: ${inputPath}`);
++  if (effectiveBase) {
++    const derivedFiles = collectFileMap(effectiveBase.files);
++    for (const [normalizedInput, content] of derivedFiles.entries()) {
++      candidateFiles.set(normalizedInput, content);
+     }
++  } else {
++    for (const inputPath of declaredInputs) {
++      const normalizedInput = normalizeRelativePath(inputPath);
++      if (!normalizedInput) {
++        throw new Error(`Invalid capsule input path or traversal attempt: ${inputPath}`);
++      }
+ 
+-    let content = null;
+-
+-    if (resolveFileFn) {
+-      content = resolveFileFn(normalizedInput);
+-    } else if (filesSource && typeof filesSource === "object") {
+-      if (typeof filesSource[inputPath] === "string" || Buffer.isBuffer(filesSource[inputPath])) {
+-        content = filesSource[inputPath];
+-      } else if (typeof filesSource[normalizedInput] === "string" || Buffer.isBuffer(filesSource[normalizedInput])) {
+-        content = filesSource[normalizedInput];
+-      } else if (Array.isArray(filesSource)) {
+-        const found = filesSource.find((f) => f && (f.path === inputPath || f.path === normalizedInput));
+-        if (found) content = found.content;
++      let content = null;
++
++      if (resolveFileFn) {
++        content = resolveFileFn(normalizedInput);
++      } else if (filesSource && typeof filesSource === "object") {
++        if (typeof filesSource[inputPath] === "string" || Buffer.isBuffer(filesSource[inputPath])) {
++          content = filesSource[inputPath];
++        } else if (typeof filesSource[normalizedInput] === "string" || Buffer.isBuffer(filesSource[normalizedInput])) {
++          content = filesSource[normalizedInput];
++        } else if (Array.isArray(filesSource)) {
++          const found = filesSource.find((f) => f && (f.path === inputPath || f.path === normalizedInput));
++          if (found) content = found.content;
++        }
++      } else if (repositoryDir && typeof repositoryDir === "string") {
++        const srcFile = path.resolve(repositoryDir, normalizedInput);
++        if (fs.existsSync(srcFile)) {
++          content = fs.readFileSync(srcFile);
++        }
+       }
+-    } else if (repositoryDir && typeof repositoryDir === "string") {
+-      const srcFile = path.resolve(repositoryDir, normalizedInput);
+-      if (fs.existsSync(srcFile)) {
+-        content = fs.readFileSync(srcFile);
++
++      if (content === null || content === undefined) {
++        throw new Error(`Missing required capsule input file: ${inputPath}`);
+       }
+-    }
+ 
+-    if (content === null || content === undefined) {
+-      throw new Error(`Missing required capsule input file: ${inputPath}`);
++      candidateFiles.set(normalizedInput, content);
+     }
+-
+-    candidateFiles.set(normalizedInput, content);
+   }
+ 
+-  // Cryptographic verification pre-materialization against base_tree_digest
+-  if (sourceSnapshot && sourceSnapshot.base_tree_digest) {
++  // Skip S0.base_tree_digest when effectiveBase is present: derived bytes already
++  // matched effectiveBase.tree_digest; S0 identity stays on the binding, not these bytes.
++  if (!effectiveBase && sourceSnapshot && sourceSnapshot.base_tree_digest) {
+     let treeSource = candidateFiles;
+     if (filesSource && typeof filesSource === "object") {
+       if (Array.isArray(filesSource)) {
+diff --git a/scripts/lib/repair-shadow/effective-shadow-base.js b/scripts/lib/repair-shadow/effective-shadow-base.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/repair-shadow/effective-shadow-base.js
+@@ -0,0 +1,79 @@
++"use strict";
++
++const { normalizeRelativePath } = require("../allowed-paths-validator.js");
++const { computeTreeDigest } = require("../worker-workspace.js");
++
++function fileContentToString(value) {
++  if (typeof value === "string") return value;
++  if (Buffer.isBuffer(value)) return value.toString("utf8");
++  if (value === null || value === undefined) return "";
++  return String(value);
++}
++
++/**
++ * Normalizes a files collection into a Map of posix-relative path → utf8 content.
++ *
++ * @param {Map|Array|Object|null|undefined} files
++ * @returns {Map<string, string>}
++ */
++function collectFilesMap(files) {
++  const baseFilesMap = new Map();
++  if (!files) return baseFilesMap;
++
++  if (files instanceof Map) {
++    for (const [k, v] of files.entries()) {
++      const norm = normalizeRelativePath(k);
++      if (norm) baseFilesMap.set(norm, fileContentToString(v));
++    }
++    return baseFilesMap;
++  }
++
++  if (Array.isArray(files)) {
++    for (const item of files) {
++      if (!item || !item.path) continue;
++      const norm = normalizeRelativePath(item.path);
++      if (norm) baseFilesMap.set(norm, fileContentToString(item.content));
++    }
++    return baseFilesMap;
++  }
++
++  if (typeof files === "object") {
++    for (const [k, v] of Object.entries(files)) {
++      const norm = normalizeRelativePath(k);
++      if (norm) baseFilesMap.set(norm, fileContentToString(v));
++    }
++  }
++  return baseFilesMap;
++}
++
++/**
++ * Builds a deterministic EffectiveShadowBase from snapshot identity, files, and modes.
++ * Derived bases are materialization inputs only; they do not change SourceSnapshot identity.
++ *
++ * @param {Object} input
++ * @returns {Object}
++ */
++function buildEffectiveShadowBase(input = {}) {
++  const sourceSnapshot = input.sourceSnapshot;
++  const filesMap = collectFilesMap(input.files);
++  const file_modes = { ...(input.file_modes || {}) };
++  const predecessor_node_ids = Array.isArray(input.predecessor_node_ids)
++    ? [...input.predecessor_node_ids]
++    : [];
++  const source_snapshot_id =
++    (sourceSnapshot && sourceSnapshot.source_snapshot_id) || input.source_snapshot_id || "";
++
++  return {
++    kind: "effective-shadow-base/v1",
++    source_snapshot_id,
++    predecessor_node_ids,
++    tree_digest: computeTreeDigest(filesMap),
++    files: filesMap,
++    file_modes,
++  };
++}
++
++module.exports = {
++  collectFilesMap,
++  buildEffectiveShadowBase,
++};
+diff --git a/scripts/lib/repair-shadow/execution-record-store.js b/scripts/lib/repair-shadow/execution-record-store.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/repair-shadow/execution-record-store.js
+@@ -0,0 +1,311 @@
++"use strict";
++
++const { computeGraphId } = require("../execution-graph/compiler.js");
++const { computePolicySnapshotDigest } = require("../execution-graph/policy-snapshot.js");
++const { computeCandidateId } = require("../execution-identities/index.js");
++const { computeRevision } = require("../authority-store/index.js");
++
++const RECORD_KIND = "repair-shadow-execution/v1";
++const RECORD_SCHEMA_VERSION = 1;
++
++function cloneJson(value) {
++  return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
++}
++
++function isPlainObject(value) {
++  return value !== null && typeof value === "object" && !Array.isArray(value);
++}
++
++function recordsByteIdentical(left, right) {
++  return JSON.stringify(left) === JSON.stringify(right);
++}
++
++/**
++ * Validates the required bindings of a repair-shadow-execution/v1 record.
++ * Incomplete CandidateId / ExecutionGraph / PolicySnapshot bindings fail closed.
++ *
++ * @param {Object} record
++ * @returns {{ ok: boolean, error?: string, reason_code?: string }}
++ */
++function validateRepairShadowExecutionRecord(record) {
++  if (!record || typeof record !== "object" || Array.isArray(record)) {
++    return { ok: false, error: "record must be a plain object", reason_code: "INCOMPLETE_BINDINGS" };
++  }
++  if (record.kind !== RECORD_KIND) {
++    return {
++      ok: false,
++      error: `kind must be ${RECORD_KIND}`,
++      reason_code: "INCOMPLETE_BINDINGS",
++    };
++  }
++  if (record.schema_version !== RECORD_SCHEMA_VERSION) {
++    return {
++      ok: false,
++      error: "schema_version must be 1",
++      reason_code: "INCOMPLETE_BINDINGS",
++    };
++  }
++  if (typeof record.candidate_id !== "string" || record.candidate_id.trim() === "") {
++    return {
++      ok: false,
++      error: "candidate_id binding is required",
++      reason_code: "INCOMPLETE_BINDINGS",
++    };
++  }
++  if (!record.execution_graph || typeof record.execution_graph !== "object" || Array.isArray(record.execution_graph)) {
++    return {
++      ok: false,
++      error: "execution_graph binding is required",
++      reason_code: "INCOMPLETE_BINDINGS",
++    };
++  }
++  if (!record.policy_snapshot || typeof record.policy_snapshot !== "object" || Array.isArray(record.policy_snapshot)) {
++    return {
++      ok: false,
++      error: "policy_snapshot binding is required",
++      reason_code: "INCOMPLETE_BINDINGS",
++    };
++  }
++  return { ok: true };
++}
++
++function recomputeIdentityBindings(record) {
++  const graph = record.execution_graph;
++  const policy = record.policy_snapshot;
++
++  let computedGraphId;
++  try {
++    computedGraphId = computeGraphId(
++      graph.contract_digest,
++      graph.policy_snapshot_id,
++      graph.policy_bundle_digest,
++      graph.source_snapshot_id,
++      graph.nodes,
++      graph.obligations
++    );
++  } catch (err) {
++    return {
++      ok: false,
++      error: `GraphId recompute failed: ${err.message}`,
++      reason_code: "BINDING_MISMATCH",
++    };
++  }
++  if (computedGraphId !== graph.graph_id) {
++    return {
++      ok: false,
++      error: "GraphId recompute mismatch",
++      reason_code: "BINDING_MISMATCH",
++      mismatched_identity: "graph_id",
++    };
++  }
++
++  let computedPolicyId;
++  try {
++    computedPolicyId = computePolicySnapshotDigest(policy);
++  } catch (err) {
++    return {
++      ok: false,
++      error: `PolicySnapshotId recompute failed: ${err.message}`,
++      reason_code: "BINDING_MISMATCH",
++    };
++  }
++  const declaredPolicyId = policy.snapshot_id || policy.policy_snapshot_id;
++  if (computedPolicyId !== declaredPolicyId) {
++    return {
++      ok: false,
++      error: "PolicySnapshotId recompute mismatch",
++      reason_code: "BINDING_MISMATCH",
++      mismatched_identity: "snapshot_id",
++    };
++  }
++  if (graph.policy_snapshot_id !== declaredPolicyId) {
++    return {
++      ok: false,
++      error: "PolicySnapshotId does not match ExecutionGraph binding",
++      reason_code: "BINDING_MISMATCH",
++    };
++  }
++
++  if (!isPlainObject(record.candidate)) {
++    return {
++      ok: false,
++      error: "candidate binding is required to recompute CandidateId",
++      reason_code: "INCOMPLETE_BINDINGS",
++    };
++  }
++  let computedCandidateId;
++  try {
++    computedCandidateId = computeCandidateId(record.candidate);
++  } catch (err) {
++    return {
++      ok: false,
++      error: `CandidateId recompute failed: ${err.message}`,
++      reason_code: "BINDING_MISMATCH",
++    };
++  }
++  if (computedCandidateId !== record.candidate_id) {
++    return {
++      ok: false,
++      error: "CandidateId recompute mismatch",
++      reason_code: "BINDING_MISMATCH",
++      mismatched_identity: "candidate_id",
++    };
++  }
++  if (record.candidate.candidate_id && record.candidate.candidate_id !== record.candidate_id) {
++    return {
++      ok: false,
++      error: "CandidateId does not match bound candidate",
++      reason_code: "BINDING_MISMATCH",
++    };
++  }
++
++  return { ok: true };
++}
++
++function isUsableStore(store) {
++  return store && typeof store.load === "function" && typeof store.commit === "function";
++}
++
++/**
++ * Persists a repair-shadow-execution/v1 record via filesystem-store CAS
++ * on state.repair_shadow_executions[candidate_id].
++ *
++ * @param {Object} store
++ * @param {Object} record
++ * @returns {Promise<{ ok: boolean, candidate_id?: string, idempotent?: boolean, error?: string, reason_code?: string }>}
++ */
++async function persistRepairShadowExecution(store, record) {
++  const validation = validateRepairShadowExecutionRecord(record);
++  if (!validation.ok) {
++    return validation;
++  }
++  const bindings = recomputeIdentityBindings(record);
++  if (!bindings.ok) {
++    return bindings;
++  }
++  if (!isUsableStore(store)) {
++    return {
++      ok: false,
++      error: "filesystem-store with load/commit is required",
++      reason_code: "STORE_UNAVAILABLE",
++    };
++  }
++
++  const toStore = cloneJson(record);
++  let loaded;
++  try {
++    loaded = await store.load();
++  } catch (err) {
++    return {
++      ok: false,
++      error: `store load failed: ${err.message}`,
++      reason_code: "STORE_UNAVAILABLE",
++    };
++  }
++
++  const state = loaded.state && typeof loaded.state === "object" ? loaded.state : {};
++  const index = isPlainObject(state.repair_shadow_executions) ? state.repair_shadow_executions : {};
++  const existing = index[record.candidate_id];
++  if (existing) {
++    if (recordsByteIdentical(existing, toStore)) {
++      return { ok: true, candidate_id: record.candidate_id, idempotent: true };
++    }
++    return {
++      ok: false,
++      error: "CAS conflict: divergent record for candidate_id",
++      reason_code: "CAS_CONFLICT",
++    };
++  }
++
++  const expectedRevision = computeRevision(loaded.state, loaded.journal, loaded.authority);
++  const nextState = {
++    ...cloneJson(state),
++    repair_shadow_executions: {
++      ...cloneJson(index),
++      [record.candidate_id]: toStore,
++    },
++  };
++
++  let committed;
++  try {
++    committed = await store.commit({
++      state: nextState,
++      journal: loaded.journal,
++      authority: loaded.authority,
++      budgets: loaded.budgets,
++      expectedRevision,
++    });
++  } catch (err) {
++    return {
++      ok: false,
++      error: `store commit failed: ${err.message}`,
++      reason_code: "CAS_CONFLICT",
++    };
++  }
++
++  if (committed && committed.ok === false) {
++    return {
++      ok: false,
++      error: "CAS conflict writing repair-shadow-execution/v1",
++      reason_code: "CAS_CONFLICT",
++    };
++  }
++
++  return { ok: true, candidate_id: record.candidate_id };
++}
++
++/**
++ * Loads a previously persisted repair-shadow-execution/v1 record by CandidateId.
++ * Returns a defensive copy so callers cannot mutate store state in place.
++ *
++ * @param {Object} store
++ * @param {string} candidateId
++ * @returns {Promise<{ ok: boolean, record?: Object, error?: string, reason_code?: string }>}
++ */
++async function loadRepairShadowExecution(store, candidateId) {
++  if (typeof candidateId !== "string" || candidateId.trim() === "") {
++    return {
++      ok: false,
++      error: "candidateId is required",
++      reason_code: "INCOMPLETE_BINDINGS",
++    };
++  }
++  if (!isUsableStore(store)) {
++    return {
++      ok: false,
++      error: "filesystem-store with load/commit is required",
++      reason_code: "STORE_UNAVAILABLE",
++    };
++  }
++
++  let loaded;
++  try {
++    loaded = await store.load();
++  } catch (err) {
++    return {
++      ok: false,
++      error: `store load failed: ${err.message}`,
++      reason_code: "STORE_UNAVAILABLE",
++    };
++  }
++
++  const record = loaded && loaded.state && loaded.state.repair_shadow_executions
++    ? loaded.state.repair_shadow_executions[candidateId]
++    : undefined;
++  if (!record) {
++    return {
++      ok: false,
++      error: "execution record not found",
++      reason_code: "NOT_FOUND",
++    };
++  }
++  return { ok: true, record: cloneJson(record) };
++}
++
++module.exports = {
++  persistRepairShadowExecution,
++  loadRepairShadowExecution,
++  validateRepairShadowExecutionRecord,
++  RECORD_KIND,
++  RECORD_SCHEMA_VERSION,
++};
+diff --git a/scripts/lib/test-support/k6a-worker-fixtures.js b/scripts/lib/test-support/k6a-worker-fixtures.js
+new file mode 100644
+--- /dev/null
++++ b/scripts/lib/test-support/k6a-worker-fixtures.js
+@@ -0,0 +1,45 @@
++"use strict";
++
++const {
++  ADAPTER_ID,
++  ADAPTER_VERSION,
++  HOST_VERSION,
++} = require("../host-adapters/claude.js");
++
++/**
++ * Builds executeWorkOrder options from canonical Claude adapter proof material.
++ * Domain-neutral K6a fixture — no Repair / K4b semantics.
++ *
++ * @param {Object} material
++ * @returns {Object}
++ */
++function buildExecutionOptionsFromMaterial(material) {
++  const tMat = material.WorkerTransport;
++  const isoMat = material.WorkerIsolation;
++  const options = {
++    isolationCapability: "enforced",
++    capabilityProof: tMat.proof,
++    semantic_evidence: tMat.evidence,
++    expectedAdapterId: ADAPTER_ID,
++    expectedAdapterVersion: ADAPTER_VERSION,
++    expectedHostRuntimeVersion: HOST_VERSION,
++    expectedProbeDigest: tMat.expectedProbeDigest,
++    probe_digest: tMat.proof.probe_digest,
++  };
++  if (isoMat && isoMat.expectedProbeDigest) {
++    options.workerIsolation = {
++      declared_state: "enforced",
++      capabilityProof: isoMat.proof,
++      semantic_evidence: isoMat.evidence,
++      expectedAdapterId: ADAPTER_ID,
++      expectedAdapterVersion: ADAPTER_VERSION,
++      expectedHostRuntimeVersion: HOST_VERSION,
++      expectedProbeDigest: isoMat.expectedProbeDigest,
++    };
++  }
++  return options;
++}
++
++module.exports = {
++  buildExecutionOptionsFromMaterial,
++};

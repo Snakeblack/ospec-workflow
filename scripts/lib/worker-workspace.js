@@ -209,11 +209,66 @@ async function disposeWorkspace(workspaceDescriptorOrId) {
 }
 
 /**
+ * Collects file path/content pairs from a Map, array, or plain object.
+ *
+ * @param {Map|Array|Object} files
+ * @returns {Map<string, string|Buffer>}
+ */
+function collectFileMap(files) {
+  const candidateFiles = new Map();
+  if (files instanceof Map) {
+    for (const [filePath, content] of files.entries()) {
+      const normalizedInput = normalizeRelativePath(filePath);
+      if (!normalizedInput) {
+        throw new Error(`Invalid file path or traversal attempt: ${filePath}`);
+      }
+      if (content === null || content === undefined) {
+        throw new Error(`Missing required file content: ${filePath}`);
+      }
+      candidateFiles.set(normalizedInput, content);
+    }
+    return candidateFiles;
+  }
+  if (Array.isArray(files)) {
+    for (const item of files) {
+      if (!item || !item.path) continue;
+      const normalizedInput = normalizeRelativePath(item.path);
+      if (!normalizedInput) {
+        throw new Error(`Invalid file path or traversal attempt: ${item.path}`);
+      }
+      if (item.content === null || item.content === undefined) {
+        throw new Error(`Missing required file content: ${item.path}`);
+      }
+      candidateFiles.set(normalizedInput, item.content);
+    }
+    return candidateFiles;
+  }
+  if (files && typeof files === "object") {
+    for (const [filePath, content] of Object.entries(files)) {
+      const normalizedInput = normalizeRelativePath(filePath);
+      if (!normalizedInput) {
+        throw new Error(`Invalid file path or traversal attempt: ${filePath}`);
+      }
+      if (content === null || content === undefined) {
+        throw new Error(`Missing required file content: ${filePath}`);
+      }
+      candidateFiles.set(normalizedInput, content);
+    }
+  }
+  return candidateFiles;
+}
+
+/**
  * Materializes declared inputs into the workspace and calculates deterministic fingerprint.
  * FAILS CLOSED (throws) if workspaceDescriptor.workspace_id is not found in private registry.
  * Preserves baseline file contents in workspace record for subsequent diff generation.
- * Cryptographically verifies candidate file bytes against sourceSnapshot.base_tree_digest pre-materialization.
- * Enforces 3-way binding: Workspace == WorkOrder == SourceSnapshot.
+ *
+ * Identity and digest checks are distinct:
+ * (a) Workspace == WorkOrder == SourceSnapshot binding is always enforced.
+ * (b) When options.effectiveBase is present, effectiveBase.tree_digest is verified
+ *     against those derived bytes (not against SourceSnapshot.base_tree_digest).
+ * (c) SourceSnapshot (S0) base_tree_digest is checked against candidate bytes only
+ *     when effectiveBase is absent; the derived path skips that S0 digest check.
  *
  * @param {Object} workspaceDescriptor
  * @param {Object} workOrder
@@ -249,6 +304,27 @@ async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceS
     throw new Error(`WorkOrder binding validation failed: ${bindingRes.reason_code || bindingRes.error || "mismatch"}`);
   }
 
+  const effectiveBase = options.effectiveBase;
+  if (effectiveBase) {
+    if (typeof effectiveBase !== "object" || Array.isArray(effectiveBase)) {
+      throw new Error("effectiveBase must be a plain object");
+    }
+    if (effectiveBase.source_snapshot_id !== sourceSnapshot.source_snapshot_id) {
+      throw new Error(
+        `effectiveBase source_snapshot_id mismatch: effectiveBase ${effectiveBase.source_snapshot_id}, snapshot ${sourceSnapshot.source_snapshot_id}`
+      );
+    }
+    if (!effectiveBase.files) {
+      throw new Error("effectiveBase.files is required");
+    }
+    const recomputedDigest = computeTreeDigest(effectiveBase.files);
+    if (effectiveBase.tree_digest !== recomputedDigest) {
+      throw new Error(
+        `effectiveBase tree_digest mismatch (declared ${effectiveBase.tree_digest}, calculated ${recomputedDigest})`
+      );
+    }
+  }
+
   const rootPath = record.rootPath;
   const dependencies = Array.isArray(workOrder.dependencies) ? workOrder.dependencies : [];
   const allowedPaths = Array.isArray(workOrder.allowed_paths) ? workOrder.allowed_paths : ["**"];
@@ -274,41 +350,49 @@ async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceS
 
   // Gather candidate files in memory BEFORE writing anything to disk
   const candidateFiles = new Map();
-  for (const inputPath of declaredInputs) {
-    const normalizedInput = normalizeRelativePath(inputPath);
-    if (!normalizedInput) {
-      throw new Error(`Invalid capsule input path or traversal attempt: ${inputPath}`);
+  if (effectiveBase) {
+    const derivedFiles = collectFileMap(effectiveBase.files);
+    for (const [normalizedInput, content] of derivedFiles.entries()) {
+      candidateFiles.set(normalizedInput, content);
     }
-
-    let content = null;
-
-    if (resolveFileFn) {
-      content = resolveFileFn(normalizedInput);
-    } else if (filesSource && typeof filesSource === "object") {
-      if (typeof filesSource[inputPath] === "string" || Buffer.isBuffer(filesSource[inputPath])) {
-        content = filesSource[inputPath];
-      } else if (typeof filesSource[normalizedInput] === "string" || Buffer.isBuffer(filesSource[normalizedInput])) {
-        content = filesSource[normalizedInput];
-      } else if (Array.isArray(filesSource)) {
-        const found = filesSource.find((f) => f && (f.path === inputPath || f.path === normalizedInput));
-        if (found) content = found.content;
+  } else {
+    for (const inputPath of declaredInputs) {
+      const normalizedInput = normalizeRelativePath(inputPath);
+      if (!normalizedInput) {
+        throw new Error(`Invalid capsule input path or traversal attempt: ${inputPath}`);
       }
-    } else if (repositoryDir && typeof repositoryDir === "string") {
-      const srcFile = path.resolve(repositoryDir, normalizedInput);
-      if (fs.existsSync(srcFile)) {
-        content = fs.readFileSync(srcFile);
+
+      let content = null;
+
+      if (resolveFileFn) {
+        content = resolveFileFn(normalizedInput);
+      } else if (filesSource && typeof filesSource === "object") {
+        if (typeof filesSource[inputPath] === "string" || Buffer.isBuffer(filesSource[inputPath])) {
+          content = filesSource[inputPath];
+        } else if (typeof filesSource[normalizedInput] === "string" || Buffer.isBuffer(filesSource[normalizedInput])) {
+          content = filesSource[normalizedInput];
+        } else if (Array.isArray(filesSource)) {
+          const found = filesSource.find((f) => f && (f.path === inputPath || f.path === normalizedInput));
+          if (found) content = found.content;
+        }
+      } else if (repositoryDir && typeof repositoryDir === "string") {
+        const srcFile = path.resolve(repositoryDir, normalizedInput);
+        if (fs.existsSync(srcFile)) {
+          content = fs.readFileSync(srcFile);
+        }
       }
-    }
 
-    if (content === null || content === undefined) {
-      throw new Error(`Missing required capsule input file: ${inputPath}`);
-    }
+      if (content === null || content === undefined) {
+        throw new Error(`Missing required capsule input file: ${inputPath}`);
+      }
 
-    candidateFiles.set(normalizedInput, content);
+      candidateFiles.set(normalizedInput, content);
+    }
   }
 
-  // Cryptographic verification pre-materialization against base_tree_digest
-  if (sourceSnapshot && sourceSnapshot.base_tree_digest) {
+  // Skip S0.base_tree_digest when effectiveBase is present: derived bytes already
+  // matched effectiveBase.tree_digest; S0 identity stays on the binding, not these bytes.
+  if (!effectiveBase && sourceSnapshot && sourceSnapshot.base_tree_digest) {
     let treeSource = candidateFiles;
     if (filesSource && typeof filesSource === "object") {
       if (Array.isArray(filesSource)) {

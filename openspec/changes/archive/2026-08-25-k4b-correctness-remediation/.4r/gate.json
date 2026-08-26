@@ -1,0 +1,462 @@
+{
+  "status": "correction-required",
+  "schema_version": 1,
+  "classification": "high-risk",
+  "evidence": {
+    "schema_version": 1,
+    "fingerprint": "sha256:8893d378ab7d22975b978d9d9b3c7ddaad36ffe9eae45f06d37b1d9c6a17231b",
+    "sources": {
+      "paths": [
+        "docs/adr/adr-20260825-006-topological-dispatch-and-ephemeral-k6a-workspace-lifecycle.md",
+        "docs/adr/adr-20260825-007-workresult-candidate-separation-and-deterministic-patch-integration.md",
+        "docs/roadmaps/harness-evolution.md",
+        "scripts/k4b-repair-shadow-e2e.test.js",
+        "scripts/k6a-e2e-worker-isolation.test.js",
+        "scripts/lib/k2a-maturity-docs.test.js",
+        "scripts/lib/repair-shadow/effective-shadow-base.js",
+        "scripts/lib/repair-shadow/execution-record-store.js",
+        "scripts/lib/repair-shadow/index.js",
+        "scripts/lib/repair-shadow/index.test.js",
+        "scripts/lib/repair-shadow/orchestrator.js",
+        "scripts/lib/repair-shadow/patch-integrator.js",
+        "scripts/lib/repair-shadow/shadow-comparator.js",
+        "scripts/lib/roadmap-boundary.test.js",
+        "scripts/lib/test-support/k6a-worker-fixtures.js",
+        "scripts/lib/worker-executor.test.js",
+        "scripts/lib/worker-workspace.js"
+      ],
+      "capabilities": [
+        "runtime"
+      ],
+      "operation_types": [
+        "add",
+        "modify"
+      ],
+      "dependencies": [],
+      "facts": [
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "k4b-k6a-exclusive-dispatch-and-material-deps"
+        },
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime"
+        },
+        {
+          "code": "diff-auth-permission",
+          "source": "real-diff",
+          "detail": "scripts/lib/repair-shadow/execution-record-store.js"
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/repair-shadow/execution-record-store.js,scripts/lib/repair-shadow/orchestrator.js,scripts/lib/worker-workspace.js"
+        },
+        {
+          "code": "verify-reliability",
+          "source": "verify",
+          "detail": "K4B-W001 architecture-doc-stale"
+        }
+      ]
+    }
+  },
+  "generalist": {
+    "status": "needs-specialist",
+    "specialists": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "reason": "signals=design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability"
+  },
+  "depth": {
+    "review": "strict"
+  },
+  "escalation_reason": null,
+  "dimensions": {
+    "risk": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "diff-auth-permission",
+          "source": "real-diff",
+          "detail": "scripts/lib/repair-shadow/execution-record-store.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability",
+          "precedence": 3
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "k4b-k6a-exclusive-dispatch-and-material-deps",
+          "precedence": 4
+        }
+      ]
+    },
+    "reliability": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "verify-reliability",
+          "source": "verify",
+          "detail": "K4B-W001 architecture-doc-stale",
+          "precedence": 1
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/repair-shadow/execution-record-store.js,scripts/lib/repair-shadow/orchestrator.js,scripts/lib/worker-workspace.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability",
+          "precedence": 3
+        },
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime",
+          "precedence": 5
+        }
+      ]
+    },
+    "resilience": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/repair-shadow/execution-record-store.js,scripts/lib/repair-shadow/orchestrator.js,scripts/lib/worker-workspace.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability",
+          "precedence": 3
+        }
+      ]
+    },
+    "readability": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability",
+          "precedence": 3
+        }
+      ]
+    }
+  },
+  "lineage": {
+    "schema_version": 1,
+    "lineage_id": "sha256:817e20a321a85f150da6df8d86a2acbebfaf416d0316ae6a5e84b4687f72b236",
+    "generation": 1,
+    "predecessor_lineage_id": null,
+    "recovery": null,
+    "revision": 9,
+    "status": "correction-required",
+    "genesis": {
+      "candidate": {
+        "projection": "workspace",
+        "base_tree": "2dc1657ea0664d0244418fd740e63b335ce02e3b",
+        "candidate_tree": "workspace-uncommitted",
+        "paths": [
+          "docs/adr/adr-20260825-006-topological-dispatch-and-ephemeral-k6a-workspace-lifecycle.md",
+          "docs/adr/adr-20260825-007-workresult-candidate-separation-and-deterministic-patch-integration.md",
+          "docs/roadmaps/harness-evolution.md",
+          "scripts/k4b-repair-shadow-e2e.test.js",
+          "scripts/k6a-e2e-worker-isolation.test.js",
+          "scripts/lib/k2a-maturity-docs.test.js",
+          "scripts/lib/repair-shadow/effective-shadow-base.js",
+          "scripts/lib/repair-shadow/execution-record-store.js",
+          "scripts/lib/repair-shadow/index.js",
+          "scripts/lib/repair-shadow/index.test.js",
+          "scripts/lib/repair-shadow/orchestrator.js",
+          "scripts/lib/repair-shadow/patch-integrator.js",
+          "scripts/lib/repair-shadow/shadow-comparator.js",
+          "scripts/lib/roadmap-boundary.test.js",
+          "scripts/lib/test-support/k6a-worker-fixtures.js",
+          "scripts/lib/worker-executor.test.js",
+          "scripts/lib/worker-workspace.js"
+        ],
+        "diff_hash": "sha256:296b287bc18c0c72ba02a0fa2a56f43eb969efa911d8773c33f68122765532d3",
+        "paths_digest": "sha256:9a35fec192426f202892658ced434444f3b17d2df7d6da1686912ac4fa418798",
+        "authored_lines": 2541,
+        "original_changed_lines": 2975
+      },
+      "candidate_id": "sha256:faabf1d8cf0facf4c601e6dcd76905a1ca22b46a04dd7f264bb4479f36b332fa",
+      "paths": [
+        "docs/adr/adr-20260825-006-topological-dispatch-and-ephemeral-k6a-workspace-lifecycle.md",
+        "docs/adr/adr-20260825-007-workresult-candidate-separation-and-deterministic-patch-integration.md",
+        "docs/roadmaps/harness-evolution.md",
+        "scripts/k4b-repair-shadow-e2e.test.js",
+        "scripts/k6a-e2e-worker-isolation.test.js",
+        "scripts/lib/k2a-maturity-docs.test.js",
+        "scripts/lib/repair-shadow/effective-shadow-base.js",
+        "scripts/lib/repair-shadow/execution-record-store.js",
+        "scripts/lib/repair-shadow/index.js",
+        "scripts/lib/repair-shadow/index.test.js",
+        "scripts/lib/repair-shadow/orchestrator.js",
+        "scripts/lib/repair-shadow/patch-integrator.js",
+        "scripts/lib/repair-shadow/shadow-comparator.js",
+        "scripts/lib/roadmap-boundary.test.js",
+        "scripts/lib/test-support/k6a-worker-fixtures.js",
+        "scripts/lib/worker-executor.test.js",
+        "scripts/lib/worker-workspace.js"
+      ],
+      "classification": "high-risk",
+      "selected_dimensions": [
+        "risk",
+        "reliability",
+        "resilience",
+        "readability"
+      ],
+      "evidence_fingerprint": "sha256:8893d378ab7d22975b978d9d9b3c7ddaad36ffe9eae45f06d37b1d9c6a17231b",
+      "original_changed_lines": 2975,
+      "authored_lines": 2541
+    },
+    "current_candidate_id": "sha256:faabf1d8cf0facf4c601e6dcd76905a1ca22b46a04dd7f264bb4479f36b332fa",
+    "current_candidate": {
+      "projection": "workspace",
+      "base_tree": "2dc1657ea0664d0244418fd740e63b335ce02e3b",
+      "candidate_tree": "workspace-uncommitted",
+      "paths": [
+        "docs/adr/adr-20260825-006-topological-dispatch-and-ephemeral-k6a-workspace-lifecycle.md",
+        "docs/adr/adr-20260825-007-workresult-candidate-separation-and-deterministic-patch-integration.md",
+        "docs/roadmaps/harness-evolution.md",
+        "scripts/k4b-repair-shadow-e2e.test.js",
+        "scripts/k6a-e2e-worker-isolation.test.js",
+        "scripts/lib/k2a-maturity-docs.test.js",
+        "scripts/lib/repair-shadow/effective-shadow-base.js",
+        "scripts/lib/repair-shadow/execution-record-store.js",
+        "scripts/lib/repair-shadow/index.js",
+        "scripts/lib/repair-shadow/index.test.js",
+        "scripts/lib/repair-shadow/orchestrator.js",
+        "scripts/lib/repair-shadow/patch-integrator.js",
+        "scripts/lib/repair-shadow/shadow-comparator.js",
+        "scripts/lib/roadmap-boundary.test.js",
+        "scripts/lib/test-support/k6a-worker-fixtures.js",
+        "scripts/lib/worker-executor.test.js",
+        "scripts/lib/worker-workspace.js"
+      ],
+      "diff_hash": "sha256:296b287bc18c0c72ba02a0fa2a56f43eb969efa911d8773c33f68122765532d3",
+      "paths_digest": "sha256:9a35fec192426f202892658ced434444f3b17d2df7d6da1686912ac4fa418798",
+      "authored_lines": 2541,
+      "original_changed_lines": 2975
+    },
+    "lenses": {
+      "risk": {
+        "selected": true,
+        "status": "completed",
+        "request_id": "4r-lens-risk-001",
+        "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+        "result": {
+          "findings": []
+        },
+        "operation": null,
+        "result_request_id": "4r-lens-risk-001"
+      },
+      "reliability": {
+        "selected": true,
+        "status": "completed",
+        "request_id": "4r-lens-reliability-001",
+        "result_digest": "sha256:72d555d0e8c50836ebe674011c3eec2defceaecae6d1fa9b1ba629138056e5c3",
+        "result": {
+          "findings": [
+            {
+              "severity": "CRITICAL",
+              "summary": "El comparador de produccion incluye timestamps de graph_telemetry, asi que execution_metrics es no determinista y el full-match de REQ-006 no puede ocurrir en el camino real.",
+              "acceptance_criteria": "Test que compare el payload real de orchestrateRepairShadow (con graph_telemetry) contra un baseline equivalente y exija dimension_match_rates.execution_metrics === 1 y match coherente con REQ-006, excluyendo campos de reloj o fijandolos; el E2E no puede limitarse a typeof match === boolean."
+            },
+            {
+              "severity": "CRITICAL",
+              "summary": "El fail-closed de bindings divergentes (BINDING_MISMATCH) en persistRepairShadowExecution no tiene ningun test.",
+              "acceptance_criteria": "Tres tests sobre persistRepairShadowExecution con registro de forma valida: graph.graph_id distinto, policy.snapshot_id distinto, candidate_id distinto; cada uno ok:false, reason_code BINDING_MISMATCH, y el store sin escribir el registro."
+            },
+            {
+              "severity": "WARNING",
+              "summary": "persistRepairShadowExecution no cruza record.source_snapshot_id con execution_graph.source_snapshot_id.",
+              "acceptance_criteria": "persistRepairShadowExecution debe fallar cerrado si record.source_snapshot_id esta ausente o no coincide con execution_graph.source_snapshot_id, cubierto por un test de unhappy path."
+            },
+            {
+              "severity": "WARNING",
+              "summary": "El CAS de revision de filesystem-store (commit.ok === false) en persistRepairShadowExecution no esta testado.",
+              "acceptance_criteria": "Test con store doble: load() devuelve un head, commit() devuelve { ok: false, code: cas-conflict }; persistRepairShadowExecution debe devolver ok:false y reason_code CAS_CONFLICT."
+            },
+            {
+              "severity": "WARNING",
+              "summary": "orchestrateRepairShadow no valida policySnapshot antes de ejecutar nodos; no hay unhappy path para omitirlo.",
+              "acceptance_criteria": "Test de orchestrateRepairShadow sin policySnapshot que falle cerrado con reason_code de bindings incompletos y cero llamadas a executeWorkOrder / createWorkspace."
+            }
+          ]
+        },
+        "operation": null,
+        "result_request_id": "4r-lens-reliability-001"
+      },
+      "resilience": {
+        "selected": true,
+        "status": "completed",
+        "request_id": "4r-lens-resilience-001",
+        "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+        "result": {
+          "findings": []
+        },
+        "operation": null,
+        "result_request_id": "4r-lens-resilience-001"
+      },
+      "readability": {
+        "selected": true,
+        "status": "completed",
+        "request_id": "4r-lens-readability-001",
+        "result_digest": "sha256:3767b82709a7066514c1b367fc049bfcbf7accc3ac1339816c061692e865347c",
+        "result": {
+          "findings": [
+            {
+              "severity": "CRITICAL",
+              "summary": "JSDoc y condicion niegan la separacion de identidad effectiveBase vs SourceSnapshot: el JSDoc afirma verificar siempre base_tree_digest, pero la via derived lo omite sin comentario local.",
+              "acceptance_criteria": "Actualizar el JSDoc para distinguir binding de identidad, tree_digest de effectiveBase contra sus bytes, y skip explicito de S0.base_tree_digest cuando hay effectiveBase. Comentario de 1-2 lineas en el skip."
+            },
+            {
+              "severity": "WARNING",
+              "summary": "effectiveBase de entrada y de salida comparten nombre dentro de un bucle anidado a 4 niveles.",
+              "acceptance_criteria": "Renombrar las dos identidades o extraer helpers con <=3 niveles de anidacion. Comentar que los dependientes reaplican diffs del cierre transitivo sobre S0."
+            },
+            {
+              "severity": "WARNING",
+              "summary": "Persist mandatory ensambla ok:true y aliasa execution_record_id a candidate_id antes del gate de persistencia.",
+              "acceptance_criteria": "No construir el objeto ok:true hasta que persistRes.ok. Documentar que execution_record_id es el CandidateId clave del indice, no un id mintado."
+            }
+          ]
+        },
+        "operation": null,
+        "result_request_id": "4r-lens-readability-001"
+      }
+    },
+    "findings": [
+      {
+        "id": "F-2377c2ac33934a21",
+        "owner": "reliability",
+        "severity": "CRITICAL",
+        "summary": "El comparador de produccion incluye timestamps de graph_telemetry, asi que execution_metrics es no determinista y el full-match de REQ-006 no puede ocurrir en el camino real.",
+        "acceptance_criteria": "Test que compare el payload real de orchestrateRepairShadow (con graph_telemetry) contra un baseline equivalente y exija dimension_match_rates.execution_metrics === 1 y match coherente con REQ-006, excluyendo campos de reloj o fijandolos; el E2E no puede limitarse a typeof match === boolean.",
+        "blocking": true,
+        "resolution": "unresolved"
+      },
+      {
+        "id": "F-b15e4b7f34049858",
+        "owner": "reliability",
+        "severity": "CRITICAL",
+        "summary": "El fail-closed de bindings divergentes (BINDING_MISMATCH) en persistRepairShadowExecution no tiene ningun test.",
+        "acceptance_criteria": "Tres tests sobre persistRepairShadowExecution con registro de forma valida: graph.graph_id distinto, policy.snapshot_id distinto, candidate_id distinto; cada uno ok:false, reason_code BINDING_MISMATCH, y el store sin escribir el registro.",
+        "blocking": true,
+        "resolution": "unresolved"
+      },
+      {
+        "id": "F-f639865c7646f326",
+        "owner": "reliability",
+        "severity": "WARNING",
+        "summary": "persistRepairShadowExecution no cruza record.source_snapshot_id con execution_graph.source_snapshot_id.",
+        "acceptance_criteria": "persistRepairShadowExecution debe fallar cerrado si record.source_snapshot_id esta ausente o no coincide con execution_graph.source_snapshot_id, cubierto por un test de unhappy path.",
+        "blocking": false,
+        "resolution": "advisory"
+      },
+      {
+        "id": "F-469f3a8aa694a5b3",
+        "owner": "reliability",
+        "severity": "WARNING",
+        "summary": "El CAS de revision de filesystem-store (commit.ok === false) en persistRepairShadowExecution no esta testado.",
+        "acceptance_criteria": "Test con store doble: load() devuelve un head, commit() devuelve { ok: false, code: cas-conflict }; persistRepairShadowExecution debe devolver ok:false y reason_code CAS_CONFLICT.",
+        "blocking": false,
+        "resolution": "advisory"
+      },
+      {
+        "id": "F-85bb3b64fa314553",
+        "owner": "reliability",
+        "severity": "WARNING",
+        "summary": "orchestrateRepairShadow no valida policySnapshot antes de ejecutar nodos; no hay unhappy path para omitirlo.",
+        "acceptance_criteria": "Test de orchestrateRepairShadow sin policySnapshot que falle cerrado con reason_code de bindings incompletos y cero llamadas a executeWorkOrder / createWorkspace.",
+        "blocking": false,
+        "resolution": "advisory"
+      },
+      {
+        "id": "F-91f2b6125157ea66",
+        "owner": "readability",
+        "severity": "CRITICAL",
+        "summary": "JSDoc y condicion niegan la separacion de identidad effectiveBase vs SourceSnapshot: el JSDoc afirma verificar siempre base_tree_digest, pero la via derived lo omite sin comentario local.",
+        "acceptance_criteria": "Actualizar el JSDoc para distinguir binding de identidad, tree_digest de effectiveBase contra sus bytes, y skip explicito de S0.base_tree_digest cuando hay effectiveBase. Comentario de 1-2 lineas en el skip.",
+        "blocking": true,
+        "resolution": "unresolved"
+      },
+      {
+        "id": "F-58870da314b6dd28",
+        "owner": "readability",
+        "severity": "WARNING",
+        "summary": "effectiveBase de entrada y de salida comparten nombre dentro de un bucle anidado a 4 niveles.",
+        "acceptance_criteria": "Renombrar las dos identidades o extraer helpers con <=3 niveles de anidacion. Comentar que los dependientes reaplican diffs del cierre transitivo sobre S0.",
+        "blocking": false,
+        "resolution": "advisory"
+      },
+      {
+        "id": "F-fa5a5e27e5f3e211",
+        "owner": "readability",
+        "severity": "WARNING",
+        "summary": "Persist mandatory ensambla ok:true y aliasa execution_record_id a candidate_id antes del gate de persistencia.",
+        "acceptance_criteria": "No construir el objeto ok:true hasta que persistRes.ok. Documentar que execution_record_id es el CandidateId clave del indice, no un id mintado.",
+        "blocking": false,
+        "resolution": "advisory"
+      }
+    ],
+    "findings_digest": "sha256:5eb0ed912b87e724f1fb81471cc35b7738146f54690fec89a99657bf7bdebd58",
+    "correction_budget": {
+      "limit_lines": 200,
+      "used_lines": 0,
+      "failed_attempts": 0,
+      "max_failed_attempts": 3
+    },
+    "correction_history": [],
+    "validation_history": [],
+    "follow_ups": [],
+    "pending_operation": null,
+    "pending_correction": null,
+    "terminal_reason": null
+  },
+  "next_action": {
+    "type": "migrate-remediation-v2"
+  },
+  "findings_summary": "migrate-remediation-v2"
+}

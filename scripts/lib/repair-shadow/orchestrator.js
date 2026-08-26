@@ -3,14 +3,76 @@
 const { validateExecutionGraphBinding } = require("../execution-graph/binding.js");
 const { hasCycle, topologicalSort, computeDescendantClosure } = require("../execution-graph/dag.js");
 const { compileWorkOrdersV2 } = require("../execution-graph/work-order-compiler.js");
-const {
-  createWorkspace,
-  disposeWorkspace,
-  materializeSourceSnapshot,
-} = require("../worker-workspace.js");
-const {
-  executeWorkOrder,
-} = require("../worker-executor.js");
+const workerWorkspace = require("../worker-workspace.js");
+const workerExecutor = require("../worker-executor.js");
+
+const EXECUTE_WORK_ORDER_OPTION_ALLOWLIST = Object.freeze([
+  "commands",
+  "command",
+  "args",
+  "signal",
+  "declaredTargets",
+]);
+
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * Picks caller-supplied per-node execution inputs that cannot override K6a authority.
+ * Any non-allowlisted key or function value fails closed with UNSAFE_EXECUTOR_OPTION.
+ *
+ * @param {Object|null|undefined} nodeOptions
+ * @returns {Object}
+ */
+function pickAllowedNodeExecutionInputs(nodeOptions) {
+  if (nodeOptions === undefined || nodeOptions === null) {
+    return {};
+  }
+  if (!isPlainObject(nodeOptions)) {
+    const err = new Error("executorOptionsByNode values must be plain objects");
+    err.code = "UNSAFE_EXECUTOR_OPTION";
+    throw err;
+  }
+  const picked = {};
+  for (const key of Object.keys(nodeOptions)) {
+    if (!EXECUTE_WORK_ORDER_OPTION_ALLOWLIST.includes(key) || typeof nodeOptions[key] === "function") {
+      const err = new Error(`Unsafe executor option: ${key}`);
+      err.code = "UNSAFE_EXECUTOR_OPTION";
+      throw err;
+    }
+    picked[key] = nodeOptions[key];
+  }
+  return picked;
+}
+
+/**
+ * Builds the frozen object-signature payload for K6a executeWorkOrder.
+ * Allowlisted node inputs are copied first; orchestrator-owned authority is assigned after.
+ *
+ * @param {Object} params
+ * @returns {Object}
+ */
+function buildExecuteWorkOrderInvocation(params = {}) {
+  const allowed = pickAllowedNodeExecutionInputs(params.nodeOptions);
+  return Object.freeze({
+    ...allowed,
+    workOrder: params.workOrder,
+    workspace: params.workspace,
+    transports: { worker: params.authorizedWorkerTransport },
+    isolationCapability: "enforced",
+    capabilityId: "WorkerTransport",
+    capabilityProof: params.capabilityProof,
+    semantic_evidence: params.semantic_evidence,
+    expectedAdapterId: params.expectedAdapterId,
+    expectedAdapterVersion: params.expectedAdapterVersion,
+    expectedHostRuntimeVersion: params.expectedHostRuntimeVersion,
+    expectedProbeDigest: params.expectedProbeDigest,
+    workerIsolation: params.workerIsolation,
+    strictIsolation: true,
+  });
+}
+
 const {
   validateWorkOrderBinding,
   validateWorkResultBinding,
@@ -19,8 +81,34 @@ const {
   computeWorkResultId,
   computeCandidateId,
 } = require("../execution-identities/index.js");
-const { integrateWorkResultPatches } = require("./patch-integrator.js");
+const { integrateWorkResultPatches, detectPredecessorContextConflicts } = require("./patch-integrator.js");
 const { compareShadowExecution } = require("./shadow-comparator.js");
+const { buildEffectiveShadowBase } = require("./effective-shadow-base.js");
+const { persistRepairShadowExecution } = require("./execution-record-store.js");
+
+/**
+ * Transitive predecessor closure of nodeId (does not include nodeId itself).
+ *
+ * @param {Array<Object>} nodes
+ * @param {string} nodeId
+ * @returns {Set<string>}
+ */
+function computePredecessorClosure(nodes, nodeId) {
+  const nodeMap = new Map();
+  for (const node of nodes) {
+    if (node && node.node_id) nodeMap.set(node.node_id, node);
+  }
+  const visited = new Set();
+  const stack = [...(Array.isArray(nodeMap.get(nodeId)?.dependencies) ? nodeMap.get(nodeId).dependencies : [])];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current || visited.has(current) || !nodeMap.has(current)) continue;
+    visited.add(current);
+    const deps = Array.isArray(nodeMap.get(current).dependencies) ? nodeMap.get(current).dependencies : [];
+    for (const dep of deps) stack.push(dep);
+  }
+  return visited;
+}
 
 /**
  * Validates 4-identity cryptographic lineage chain:
@@ -167,6 +255,33 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
 
   const workOrderMap = new Map(workOrders.map((wo) => [wo.node_id, wo]));
 
+  if (
+    options.executorOptionsByNode !== undefined &&
+    options.executorOptionsByNode !== null &&
+    !isPlainObject(options.executorOptionsByNode)
+  ) {
+    return {
+      ok: false,
+      error: "executorOptionsByNode must be a plain object keyed by node id",
+      reason_code: "UNSAFE_EXECUTOR_OPTION",
+    };
+  }
+  const executorOptionsByNode = options.executorOptionsByNode || {};
+  try {
+    for (const nodeId of Object.keys(executorOptionsByNode)) {
+      pickAllowedNodeExecutionInputs(executorOptionsByNode[nodeId]);
+    }
+  } catch (err) {
+    if (err.code === "UNSAFE_EXECUTOR_OPTION") {
+      return {
+        ok: false,
+        error: err.message,
+        reason_code: "UNSAFE_EXECUTOR_OPTION",
+      };
+    }
+    throw err;
+  }
+
   // 5. Sequence DAG in topological order and initialize telemetry
   const sortedNodes = topologicalSort(executionGraph.nodes);
   const nodeStates = new Map();
@@ -186,8 +301,11 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
 
   // 6. Execute nodes in topological order
   const capturedWorkResults = [];
+  const nodeIntegrations = new Map();
   let executionFailed = false;
   let failedNodeId = null;
+  let failedReasonCode = "NODE_EXECUTION_FAILED";
+  let failedError = null;
 
   for (const node of sortedNodes) {
     const currentStatus = nodeStates.get(node.node_id);
@@ -205,39 +323,103 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
     let nodeSuccess = false;
 
     try {
-      workspaceDescriptor = await createWorkspace({
+      const predecessorIds = computePredecessorClosure(executionGraph.nodes, node.node_id);
+      const predecessorNodes = sortedNodes.filter((n) => predecessorIds.has(n.node_id));
+      let effectiveBase = null;
+
+      if (predecessorNodes.length > 0) {
+        const predResults = predecessorNodes
+          .map((n) => nodeIntegrations.get(n.node_id)?.workResult)
+          .filter(Boolean);
+        const conflict = detectPredecessorContextConflicts(predResults);
+        if (!conflict.ok) {
+          const err = new Error(conflict.error);
+          err.code = conflict.reason_code;
+          throw err;
+        }
+        const derived = await integrateWorkResultPatches(sourceSnapshot, predResults, {
+          files: options.files,
+          file_modes: options.file_modes || options.fileModes,
+          workOrders,
+          freeze: false,
+          predecessor_node_ids: predecessorNodes.map((n) => n.node_id),
+        });
+        if (!derived.ok) {
+          const err = new Error(derived.error);
+          err.code = derived.reason_code;
+          throw err;
+        }
+        effectiveBase = derived.effectiveBase;
+      }
+
+      workspaceDescriptor = await workerWorkspace.createWorkspace({
         source_snapshot_id: workOrder.source_snapshot_id,
         baseDir: options.baseDir,
       });
 
-      await materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceSnapshot, {
+      const materializeOptions = {
         files: options.files,
         repositoryDir: options.repositoryDir,
-      });
-
-      let execResult;
-      if (typeof options.executorFn === "function") {
-        execResult = await options.executorFn(workOrder, workspaceDescriptor);
-      } else {
-        execResult = await executeWorkOrder(workOrder, workspaceDescriptor, {
-          workerTransport: options.workerTransport,
-          isolationCapability: declaredIsolation,
-          workerIsolation: options.workerIsolation,
-          capabilityProof: options.capabilityProof,
-          ...(options.executorOptions || {}),
-        });
+      };
+      if (effectiveBase) {
+        materializeOptions.effectiveBase = effectiveBase;
       }
+      await workerWorkspace.materializeSourceSnapshot(
+        workspaceDescriptor,
+        workOrder,
+        sourceSnapshot,
+        materializeOptions
+      );
+
+      const invocation = buildExecuteWorkOrderInvocation({
+        workOrder,
+        workspace: workspaceDescriptor,
+        nodeOptions: executorOptionsByNode[node.node_id],
+        authorizedWorkerTransport: options.workerTransport,
+        capabilityProof: options.capabilityProof,
+        semantic_evidence: options.semantic_evidence,
+        expectedAdapterId: options.expectedAdapterId,
+        expectedAdapterVersion: options.expectedAdapterVersion,
+        expectedHostRuntimeVersion: options.expectedHostRuntimeVersion,
+        expectedProbeDigest: options.expectedProbeDigest,
+        workerIsolation: options.workerIsolation,
+      });
+      const execResult = await workerExecutor.executeWorkOrder(invocation);
 
       if (!execResult || execResult.isolationReported !== "enforced") {
         throw new Error(`Isolation violation: reported "${execResult?.isolationReported}", expected "enforced"`);
       }
 
       if (!execResult.ok) {
-        throw new Error(`WorkOrder execution failed with exit code ${execResult.workResult?.exit_code}`);
+        const detail = execResult.error
+          || execResult.reason
+          || (execResult.violation && (execResult.violation.error || execResult.violation.reason_code || JSON.stringify(execResult.violation)))
+          || `exit code ${execResult.workResult?.exit_code}`;
+        const err = new Error(`WorkOrder execution failed: ${detail}`);
+        throw err;
       }
 
       const workResult = execResult.workResult;
       capturedWorkResults.push(workResult);
+
+      const nodeIntegrate = await integrateWorkResultPatches(sourceSnapshot, [workResult], {
+        files: effectiveBase ? effectiveBase.files : options.files,
+        file_modes: effectiveBase ? effectiveBase.file_modes : (options.file_modes || options.fileModes),
+        workOrders,
+        freeze: false,
+        predecessor_node_ids: predecessorNodes.map((n) => n.node_id),
+      });
+      if (!nodeIntegrate.ok) {
+        const err = new Error(nodeIntegrate.error);
+        err.code = nodeIntegrate.reason_code;
+        throw err;
+      }
+      nodeIntegrations.set(node.node_id, {
+        workResult,
+        effectiveBase: nodeIntegrate.effectiveBase,
+        candidateFiles: nodeIntegrate.candidateFiles,
+        fileModes: nodeIntegrate.fileModes,
+      });
 
       nodeStates.set(node.node_id, "completed");
       graphTelemetry[node.node_id].status = "completed";
@@ -251,6 +433,10 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
       graphTelemetry[node.node_id].error = err.message;
       executionFailed = true;
       failedNodeId = node.node_id;
+      if (err.code && err.code !== "UNSAFE_EXECUTOR_OPTION") {
+        failedReasonCode = err.code;
+        failedError = err.message;
+      }
 
       const descendants = computeDescendantClosure(executionGraph.nodes, [node.node_id]);
       for (const descId of descendants) {
@@ -266,7 +452,7 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
       graphTelemetry[node.node_id].duration_ms = finishTime - startTime;
 
       if (workspaceDescriptor) {
-        await disposeWorkspace(workspaceDescriptor);
+        await workerWorkspace.disposeWorkspace(workspaceDescriptor);
       }
     }
 
@@ -278,18 +464,24 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
   if (executionFailed) {
     return {
       ok: false,
-      error: `Node ${failedNodeId} execution failed`,
-      reason_code: "NODE_EXECUTION_FAILED",
+      error: failedError || `Node ${failedNodeId} execution failed`,
+      reason_code: failedReasonCode,
       failed_node_id: failedNodeId,
       graph_telemetry: graphTelemetry,
       workResults: capturedWorkResults,
     };
   }
 
-  // 7. Integrate WorkResult patches & freeze Candidate via K3
-  const patchResult = await integrateWorkResultPatches(sourceSnapshot, capturedWorkResults, {
+  // 7. Integrate WorkResult patches & freeze Candidate via K3 (anchored to original S0)
+  const initialBase = buildEffectiveShadowBase({
+    sourceSnapshot,
     files: options.files,
-    allowed_paths: options.allowed_paths,
+    file_modes: options.file_modes || options.fileModes,
+  });
+  const patchResult = await integrateWorkResultPatches(sourceSnapshot, capturedWorkResults, {
+    files: initialBase.files,
+    file_modes: initialBase.file_modes,
+    workOrders,
     repository_id: sourceSnapshot.repository_id,
     predecessorCandidate: options.predecessorCandidate,
   });
@@ -328,9 +520,11 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
     );
   }
 
-  return {
+  const successPayload = {
     ok: true,
+    promoted: false,
     candidate,
+    candidateFiles: patchResult.candidateFiles,
     workResults: capturedWorkResults,
     graph_telemetry: graphTelemetry,
     lineage_verification: {
@@ -344,9 +538,54 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
     },
     ...(shadow_comparison ? { shadow_comparison } : {}),
   };
+
+  // 10. Persist auditable repair-shadow-execution/v1 — mandatory after freeze+lineage.
+  if (!options.store) {
+    return {
+      ok: false,
+      promoted: false,
+      error: "execution store is required to persist repair-shadow-execution/v1",
+      reason_code: "MISSING_EXECUTION_STORE",
+      candidate,
+      workResults: capturedWorkResults,
+      graph_telemetry: graphTelemetry,
+    };
+  }
+
+  const persistRes = await persistRepairShadowExecution(options.store, {
+    kind: "repair-shadow-execution/v1",
+    schema_version: 1,
+    candidate_id: candidate.candidate_id,
+    candidate,
+    source_snapshot_id: sourceSnapshot.source_snapshot_id,
+    execution_graph: executionGraph,
+    policy_snapshot: options.policySnapshot,
+    work_order_ids: workOrders.map((wo) => wo.work_order_id),
+    work_result_ids: capturedWorkResults.map((wr) => wr.work_result_id),
+    graph_telemetry: graphTelemetry,
+    shadow_comparison,
+    created_at: options.createdAt || new Date().toISOString(),
+  });
+  if (!persistRes.ok) {
+    return {
+      ok: false,
+      promoted: false,
+      error: persistRes.error,
+      reason_code: persistRes.reason_code || "EXECUTION_RECORD_PERSIST_FAILED",
+      candidate,
+      workResults: capturedWorkResults,
+      graph_telemetry: graphTelemetry,
+    };
+  }
+  successPayload.execution_record_id = persistRes.candidate_id;
+
+  return successPayload;
 }
 
 module.exports = {
   orchestrateRepairShadow,
   validate4IdentityLineage,
+  pickAllowedNodeExecutionInputs,
+  buildExecuteWorkOrderInvocation,
+  EXECUTE_WORK_ORDER_OPTION_ALLOWLIST,
 };

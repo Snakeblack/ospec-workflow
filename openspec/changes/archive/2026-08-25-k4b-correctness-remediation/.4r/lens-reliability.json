@@ -1,0 +1,29 @@
+{
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "summary": "El comparador de produccion incluye timestamps de graph_telemetry, asi que execution_metrics es no determinista y el full-match de REQ-006 no puede ocurrir en el camino real.",
+      "acceptance_criteria": "Test que compare el payload real de orchestrateRepairShadow (con graph_telemetry) contra un baseline equivalente y exija dimension_match_rates.execution_metrics === 1 y match coherente con REQ-006, excluyendo campos de reloj o fijandolos; el E2E no puede limitarse a typeof match === boolean."
+    },
+    {
+      "severity": "CRITICAL",
+      "summary": "El fail-closed de bindings divergentes (BINDING_MISMATCH) en persistRepairShadowExecution no tiene ningun test.",
+      "acceptance_criteria": "Tres tests sobre persistRepairShadowExecution con registro de forma valida: graph.graph_id distinto, policy.snapshot_id distinto, candidate_id distinto; cada uno ok:false, reason_code BINDING_MISMATCH, y el store sin escribir el registro."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "persistRepairShadowExecution no cruza record.source_snapshot_id con execution_graph.source_snapshot_id.",
+      "acceptance_criteria": "persistRepairShadowExecution debe fallar cerrado si record.source_snapshot_id esta ausente o no coincide con execution_graph.source_snapshot_id, cubierto por un test de unhappy path."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "El CAS de revision de filesystem-store (commit.ok === false) en persistRepairShadowExecution no esta testado.",
+      "acceptance_criteria": "Test con store doble: load() devuelve un head, commit() devuelve { ok: false, code: cas-conflict }; persistRepairShadowExecution debe devolver ok:false y reason_code CAS_CONFLICT."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "orchestrateRepairShadow no valida policySnapshot antes de ejecutar nodos; no hay unhappy path para omitirlo.",
+      "acceptance_criteria": "Test de orchestrateRepairShadow sin policySnapshot que falle cerrado con reason_code de bindings incompletos y cero llamadas a executeWorkOrder / createWorkspace."
+    }
+  ]
+}
