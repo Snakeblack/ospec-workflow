@@ -559,14 +559,19 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
       workResults: capturedWorkResults,
       graphTelemetry,
     });
-    const baselineProjection = isValidComparisonProjection(baseline)
-      ? baseline
-      : buildComparisonProjection({
-          executionGraph: baseline.executionGraph || executionGraph,
-          candidate: baseline.candidate || baseline,
-          workResults: baseline.workResults,
-          graphTelemetry: baseline.graph_telemetry || baseline.graphTelemetry,
-        });
+    let baselineProjection;
+    if (isValidComparisonProjection(baseline)) {
+      baselineProjection = baseline;
+    } else if (baseline && baseline.executionGraph) {
+      baselineProjection = buildComparisonProjection({
+        executionGraph: baseline.executionGraph,
+        candidate: baseline.candidate,
+        workResults: baseline.workResults,
+        graphTelemetry: baseline.graph_telemetry || baseline.graphTelemetry,
+      });
+    } else {
+      baselineProjection = baseline;
+    }
     shadow_comparison = compareShadowExecution(shadowProjection, baselineProjection);
   }
 

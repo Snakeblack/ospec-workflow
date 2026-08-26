@@ -1,0 +1,189 @@
+diff --git a/scripts/k4b-repair-shadow-e2e.test.js b/scripts/k4b-repair-shadow-e2e.test.js
+index 9579c88..8281d36 100644
+--- a/scripts/k4b-repair-shadow-e2e.test.js
++++ b/scripts/k4b-repair-shadow-e2e.test.js
+@@ -199,13 +199,28 @@ test("E2E: N1 multiply() propagates to N2 through real K6a workspaces", async (t
+     return originalMaterialize.apply(this, args);
+   });
+ 
+-  const fixedBaseline = {
+-    steps: ["n1-helper", "n2-index"],
+-    diff_hash: "sha256:dummy",
+-    obligations: ["ob1", "ob2"],
+-    invariants: ["inv-log-output", "inv-pure-math"],
+-    inventory: ["src/helper.js", "src/index.js"],
+-  };
++  const fixedBaseline = buildComparisonProjection({
++    executionGraph: graph,
++    candidate: {},
++    workResults: [],
++    graphTelemetry: {},
++  });
++  assert.equal(fixedBaseline.kind, "repair-shadow-comparison-projection/v1");
++  const requiredDimensions = [
++    "steps",
++    "dependencies",
++    "diffs",
++    "inventory",
++    "obligations",
++    "invariants",
++    "execution_metrics",
++  ];
++  for (const dim of requiredDimensions) {
++    assert.ok(
++      Object.prototype.hasOwnProperty.call(fixedBaseline, dim),
++      `canonical baseline projection must include ${dim}`
++    );
++  }
+ 
+   const store = makeTempFileStore(t, tmpBase);
+   const beforeProduction = snapshotProductionSurfaces(REPO_ROOT, tmpBase);
+@@ -263,6 +278,11 @@ test("E2E: N1 multiply() propagates to N2 through real K6a workspaces", async (t
+   assert.equal(result.candidate.candidate_id, computeCandidateId(result.candidate));
+   assert.equal(result.candidate.base_tree, baseTreeDigest, "freeze must stay anchored to original SourceSnapshot");
+   assert.ok(result.shadow_comparison);
++  assert.notEqual(
++    result.shadow_comparison.reason_code,
++    "INVALID_COMPARISON_PROJECTION",
++    "graph-bound canonical baseline must not yield INVALID_COMPARISON_PROJECTION"
++  );
+   const shiftedTelemetry = Object.fromEntries(
+     Object.entries(result.graph_telemetry || {}).map(([id, tel]) => [
+       id,
+diff --git a/scripts/lib/repair-shadow/index.test.js b/scripts/lib/repair-shadow/index.test.js
+index 0c00495..c59d774 100644
+--- a/scripts/lib/repair-shadow/index.test.js
++++ b/scripts/lib/repair-shadow/index.test.js
+@@ -1818,6 +1818,40 @@ new mode 100755
+   assert.notEqual(result.candidate.candidate_id, unchanged.candidate.candidate_id);
+ });
+ 
++test("REQ-repair-shadow-010: mode-only patch on nonexistent path rejects MALFORMED_UNIFIED_DIFF", async () => {
++  const { integrateWorkResultPatches } = require("./patch-integrator.js");
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const modeOnly = `diff --git a/src/ghost.js b/src/ghost.js
++old mode 100644
++new mode 100755
++`;
++  const result = await integrateWorkResultPatches(sourceSnapshot, [makePhase2WorkResult(sourceSnapshot, modeOnly)], {
++    files,
++    freeze: true,
++  });
++  assert.equal(result.ok, false);
++  assert.equal(result.reason_code, "MALFORMED_UNIFIED_DIFF");
++  assert.equal(result.candidate, undefined, "freezeCandidate must not be invoked");
++});
++
++test("REQ-repair-shadow-010: mode-only patch with mismatched old mode rejects INVALID_FILE_MODE", async () => {
++  const { integrateWorkResultPatches } = require("./patch-integrator.js");
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const modeOnly = `diff --git a/src/app.js b/src/app.js
++old mode 100755
++new mode 100755
++`;
++  const result = await integrateWorkResultPatches(sourceSnapshot, [makePhase2WorkResult(sourceSnapshot, modeOnly)], {
++    files,
++    freeze: true,
++  });
++  assert.equal(result.ok, false);
++  assert.equal(result.reason_code, "INVALID_FILE_MODE");
++  assert.equal(result.candidate, undefined, "freezeCandidate must not be invoked");
++});
++
+ test("REQ-repair-shadow-011: ancestor-descendant overlap is permitted; incomparable diamond fails", async (t) => {
+   const { orchestrateRepairShadow } = require("./orchestrator.js");
+   const { createPolicySnapshot } = require("../execution-graph/index.js");
+@@ -1981,6 +2015,27 @@ test("REQ-repair-shadow-006: projection uses topological node_id and rejects non
+   assert.equal(invalid.match, false);
+ });
+ 
++test("REQ-repair-shadow-006: orchestrator does not substitute live graph for partial baseline stub", async (t) => {
++  const { orchestrateRepairShadow } = require("./orchestrator.js");
++  const { createPolicySnapshot } = require("../execution-graph/index.js");
++  const files = { "src/app.js": "const a = 1;\n" };
++  const sourceSnapshot = makePhase1Snapshot(files);
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-baseline-authority"] });
++  const graph = compileRepairGraph(sourceSnapshot, [makeRepairNode("n1", [], ["src/app.js"], "ev-1")], policySnapshot);
++  mockSuccessfulExecute(t, sourceSnapshot, { n1: "" });
++  const result = await orchestrateRepairShadow(graph, {
++    sourceSnapshot,
++    files,
++    isolationCapability: "enforced",
++    policySnapshot,
++    store: makeTempFileStore(t),
++    baselineResult: { steps: ["n1"], diff_hash: "sha256:dummy" },
++  });
++  assert.equal(result.ok, true, result.error);
++  assert.equal(result.shadow_comparison.reason_code, "INVALID_COMPARISON_PROJECTION");
++  assert.equal(result.shadow_comparison.match, false);
++});
++
+ test("REQ-repair-shadow-009: one Candidate persists N records; byte-identical persist is idempotent; legacy layout rejected", async (t) => {
+   const {
+     persistRepairShadowExecution,
+diff --git a/scripts/lib/repair-shadow/orchestrator.js b/scripts/lib/repair-shadow/orchestrator.js
+index 64f17ec..30a412a 100644
+--- a/scripts/lib/repair-shadow/orchestrator.js
++++ b/scripts/lib/repair-shadow/orchestrator.js
+@@ -559,14 +559,19 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
+       workResults: capturedWorkResults,
+       graphTelemetry,
+     });
+-    const baselineProjection = isValidComparisonProjection(baseline)
+-      ? baseline
+-      : buildComparisonProjection({
+-          executionGraph: baseline.executionGraph || executionGraph,
+-          candidate: baseline.candidate || baseline,
+-          workResults: baseline.workResults,
+-          graphTelemetry: baseline.graph_telemetry || baseline.graphTelemetry,
+-        });
++    let baselineProjection;
++    if (isValidComparisonProjection(baseline)) {
++      baselineProjection = baseline;
++    } else if (baseline && baseline.executionGraph) {
++      baselineProjection = buildComparisonProjection({
++        executionGraph: baseline.executionGraph,
++        candidate: baseline.candidate,
++        workResults: baseline.workResults,
++        graphTelemetry: baseline.graph_telemetry || baseline.graphTelemetry,
++      });
++    } else {
++      baselineProjection = baseline;
++    }
+     shadow_comparison = compareShadowExecution(shadowProjection, baselineProjection);
+   }
+ 
+diff --git a/scripts/lib/repair-shadow/patch-integrator.js b/scripts/lib/repair-shadow/patch-integrator.js
+index 3c96623..e4232a9 100644
+--- a/scripts/lib/repair-shadow/patch-integrator.js
++++ b/scripts/lib/repair-shadow/patch-integrator.js
+@@ -568,6 +568,27 @@ async function integrateWorkResultPatches(sourceSnapshot, workResults = [], opti
+       const countOverlap = validateHunkCountsAndOverlaps(fd);
+       if (!countOverlap.ok) return countOverlap;
+ 
++      const isCreate = fd.oldPath === "/dev/null" || Boolean(fd.newFileMode);
++      const isDelete = fd.newPath === "/dev/null" || Boolean(fd.deletedFileMode);
++      const isModeOnly = fd.hunks.length === 0 && fd.oldMode && fd.newMode && !isCreate && !isDelete;
++      if (isModeOnly) {
++        if (!candidateFiles.has(normTarget)) {
++          return {
++            ok: false,
++            error: `Mode-only patch targets nonexistent path: ${normTarget}`,
++            reason_code: "MALFORMED_UNIFIED_DIFF",
++          };
++        }
++        const effectiveMode = fileModes[normTarget] ?? "100644";
++        if (fd.oldMode !== effectiveMode) {
++          return {
++            ok: false,
++            error: `Mode-only patch old mode ${fd.oldMode} does not match authorized base mode ${effectiveMode}`,
++            reason_code: "INVALID_FILE_MODE",
++          };
++        }
++      }
++
+       const oldContent = candidateFiles.has(fd.targetPath) ? candidateFiles.get(fd.targetPath) : "";
+       const contextDeletion = validateContextAndDeletion(oldContent, fd);
+       if (!contextDeletion.ok) return contextDeletion;

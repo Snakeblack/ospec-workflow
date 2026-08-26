@@ -1,0 +1,11 @@
+{
+  "findings_summary": "0 BLOCKER, 0 CRITICAL, 0 WARNING, 0 SUGGESTION",
+  "findings": [],
+  "status": "approved",
+  "terminal_reason": "no-unresolved-blocking-findings",
+  "next_action": {
+    "type": "stop",
+    "reason": "no-unresolved-blocking-findings"
+  },
+  "archive_allowed": true
+}

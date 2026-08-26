@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "classification": "normal",
+  "evidence": {
+    "schema_version": 1,
+    "fingerprint": "sha256:924438b71d6bc180244df3d291cec6c0e7687eca7c70e3157beddf0a154d5cec",
+    "sources": {
+      "paths": [
+        "scripts/k4b-repair-shadow-e2e.test.js",
+        "scripts/lib/repair-shadow/index.test.js",
+        "scripts/lib/repair-shadow/orchestrator.js",
+        "scripts/lib/repair-shadow/patch-integrator.js"
+      ],
+      "capabilities": [
+        "runtime"
+      ],
+      "operation_types": [
+        "modify"
+      ],
+      "dependencies": [],
+      "facts": [
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime"
+        }
+      ]
+    }
+  },
+  "generalist": {
+    "status": "needs-specialist",
+    "specialists": [
+      "resilience"
+    ],
+    "reason": "signals=diff-error-flow;dimensions=resilience"
+  },
+  "depth": {
+    "review": "targeted"
+  },
+  "escalation_reason": null,
+  "dimensions": {
+    "risk": {
+      "selected": false,
+      "reasons": [
+        {
+          "code": "no-risk-signal",
+          "source": "classifier",
+          "detail": "No positive signal",
+          "precedence": 5
+        }
+      ]
+    },
+    "reliability": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime",
+          "precedence": 5
+        }
+      ]
+    },
+    "resilience": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=diff-error-flow;dimensions=resilience",
+          "precedence": 3
+        }
+      ]
+    },
+    "readability": {
+      "selected": false,
+      "reasons": [
+        {
+          "code": "no-readability-signal",
+          "source": "classifier",
+          "detail": "No positive signal",
+          "precedence": 5
+        }
+      ]
+    }
+  },
+  "selected_specialists": [
+    "reliability",
+    "resilience"
+  ]
+}
