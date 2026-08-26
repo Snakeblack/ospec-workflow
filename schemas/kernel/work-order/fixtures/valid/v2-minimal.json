@@ -17,6 +17,9 @@
   "allowed_paths": [
     "src/"
   ],
+  "capsule_inputs": [
+    "src/app.js"
+  ],
   "invariants": [],
   "required_evidence": [
     "log.txt"

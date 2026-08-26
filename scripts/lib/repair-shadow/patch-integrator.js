@@ -34,12 +34,28 @@ function parseModeToken(raw) {
 }
 
 function parseUnifiedDiffs(diffText) {
-  if (!diffText || typeof diffText !== "string") return [];
+  if (diffText === undefined || diffText === null) {
+    return { ok: true, files: [], modeOnly: false };
+  }
+  if (typeof diffText !== "string") {
+    return {
+      ok: false,
+      files: [],
+      reason_code: "MALFORMED_UNIFIED_DIFF",
+      error: "unified diff must be a string",
+    };
+  }
+  if (!diffText.trim()) {
+    return { ok: true, files: [], modeOnly: false };
+  }
+
   const normalized = diffText.replace(/\r\n/g, "\n");
   const lines = normalized.split("\n");
   const fileDiffs = [];
   let currentFile = null;
   let currentHunk = null;
+  let malformed = false;
+  let malformedError = "Malformed unified diff";
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -118,19 +134,28 @@ function parseUnifiedDiffs(diffText) {
       }
     }
 
-    if (line.startsWith("@@ ") && currentFile) {
-      const match = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
-      if (match) {
-        currentHunk = {
-          oldStart: parseInt(match[1], 10),
-          oldCount: match[2] !== undefined ? parseInt(match[2], 10) : 1,
-          newStart: parseInt(match[3], 10),
-          newCount: match[4] !== undefined ? parseInt(match[4], 10) : 1,
-          lines: [],
-        };
-        currentFile.hunks.push(currentHunk);
+    if (line.startsWith("@@")) {
+      if (!currentFile) {
+        malformed = true;
+        malformedError = "Hunk header without a file section";
         continue;
       }
+      const match = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
+      if (!match) {
+        malformed = true;
+        malformedError = `Truncated or unparseable hunk header: ${line}`;
+        currentHunk = null;
+        continue;
+      }
+      currentHunk = {
+        oldStart: parseInt(match[1], 10),
+        oldCount: match[2] !== undefined ? parseInt(match[2], 10) : 1,
+        newStart: parseInt(match[3], 10),
+        newCount: match[4] !== undefined ? parseInt(match[4], 10) : 1,
+        lines: [],
+      };
+      currentFile.hunks.push(currentHunk);
+      continue;
     }
 
     if (currentHunk) {
@@ -140,7 +165,42 @@ function parseUnifiedDiffs(diffText) {
     }
   }
 
-  return fileDiffs;
+  function isCreate(fileDiff) {
+    return fileDiff.oldPath === "/dev/null" || Boolean(fileDiff.newFileMode);
+  }
+  function isDelete(fileDiff) {
+    return fileDiff.newPath === "/dev/null" || Boolean(fileDiff.deletedFileMode);
+  }
+  function isModeOnly(fileDiff) {
+    return Boolean(fileDiff.oldMode && fileDiff.newMode)
+      && !isCreate(fileDiff)
+      && !isDelete(fileDiff)
+      && fileDiff.hunks.length === 0
+      && fileDiff.targetPath
+      && fileDiff.targetPath !== "/dev/null";
+  }
+
+  const hasValidHunk = fileDiffs.some((fd) => fd.hunks.length > 0);
+  const allModeOnly = fileDiffs.length > 0 && fileDiffs.every(isModeOnly);
+  for (const fd of fileDiffs) {
+    if ((isCreate(fd) || isDelete(fd)) && fd.hunks.length === 0) {
+      malformed = true;
+      malformedError = isCreate(fd)
+        ? "Header-only create is not a valid unified diff"
+        : "Header-only delete is not a valid unified diff";
+    }
+  }
+
+  if (malformed || (!allModeOnly && (!fileDiffs.length || !hasValidHunk))) {
+    return {
+      ok: false,
+      files: fileDiffs,
+      reason_code: "MALFORMED_UNIFIED_DIFF",
+      error: malformedError,
+    };
+  }
+
+  return { ok: true, files: fileDiffs, modeOnly: allModeOnly };
 }
 
 function countHunkSides(hunk) {
@@ -342,20 +402,66 @@ function resultingFileMode(fileDiff) {
 }
 
 /**
- * Fail-closed when two predecessor WorkResults claim overlapping original hunk
- * context on the same path. Last-writer-wins is not a legal merge.
+ * Fail-closed when incomparable predecessor WorkResults claim overlapping original
+ * hunk context on the same path. Ancestor→descendant overlaps are permitted.
  *
- * @param {Array<Object>} workResults
+ * @param {Array<{node_id: string, workResult: object}>|object} predecessorsOrCurrent
+ * @param {Array<{node_id: string, workResult: object}>} [predecessors]
+ * @param {Map<string, Set<string>>|Record<string, string[]>} [ancestorClosure]
  * @returns {{ ok: boolean, error?: string, reason_code?: string }}
  */
-function detectPredecessorContextConflicts(workResults = []) {
+function detectPredecessorContextConflicts(predecessorsOrCurrent, predecessors, ancestorClosure) {
+  let entries;
+  let closure = ancestorClosure;
+  if (Array.isArray(predecessorsOrCurrent)) {
+    entries = predecessorsOrCurrent;
+    closure = predecessors;
+  } else if (Array.isArray(predecessors)) {
+    entries = predecessors;
+  } else {
+    entries = [];
+  }
+
+  const normalized = [];
+  for (const entry of entries) {
+    if (!entry || typeof entry !== "object") continue;
+    if (entry.workResult) {
+      normalized.push({ node_id: entry.node_id, workResult: entry.workResult });
+    } else {
+      normalized.push({ node_id: entry.node_id || entry.work_order_id, workResult: entry });
+    }
+  }
+
+  function ancestorsOf(nodeId) {
+    if (!closure || !nodeId) return new Set();
+    if (closure instanceof Map) return closure.get(nodeId) || new Set();
+    const raw = closure[nodeId];
+    return new Set(Array.isArray(raw) ? raw : []);
+  }
+
+  function areIncomparable(aId, bId) {
+    if (!aId || !bId || aId === bId) return true;
+    const aAnc = ancestorsOf(aId);
+    const bAnc = ancestorsOf(bId);
+    if (aAnc.has(bId) || bAnc.has(aId)) return false;
+    return true;
+  }
+
   const byFile = new Map();
-  for (const wr of workResults) {
+  for (const entry of normalized) {
+    const wr = entry.workResult;
     if (!wr || typeof wr !== "object") continue;
     const patch = wr.patch || "";
     if (!patch.trim()) continue;
     const parsed = parseUnifiedDiffs(patch);
-    for (const fd of parsed) {
+    if (!parsed.ok) {
+      return {
+        ok: false,
+        reason_code: parsed.reason_code || "MALFORMED_UNIFIED_DIFF",
+        error: parsed.error,
+      };
+    }
+    for (const fd of parsed.files) {
       const normTarget = normalizeRelativePath(fd.targetPath);
       if (!normTarget) continue;
       if (!byFile.has(normTarget)) byFile.set(normTarget, []);
@@ -366,7 +472,12 @@ function detectPredecessorContextConflicts(workResults = []) {
       for (const hunk of hunks) {
         const range = hunkOldRange(hunk);
         for (const prev of previous) {
-          if (prev.work_order_id !== wr.work_order_id && rangesOverlap(prev.range, range)) {
+          const sameAuthor = prev.node_id && entry.node_id
+            ? prev.node_id === entry.node_id
+            : prev.work_order_id === wr.work_order_id;
+          if (sameAuthor) continue;
+          if (!areIncomparable(prev.node_id, entry.node_id)) continue;
+          if (rangesOverlap(prev.range, range)) {
             return {
               ok: false,
               reason_code: "PREDECESSOR_CONTEXT_CONFLICT",
@@ -374,7 +485,11 @@ function detectPredecessorContextConflicts(workResults = []) {
             };
           }
         }
-        previous.push({ work_order_id: wr.work_order_id, range });
+        previous.push({
+          node_id: entry.node_id,
+          work_order_id: wr.work_order_id,
+          range,
+        });
       }
     }
   }
@@ -414,7 +529,14 @@ async function integrateWorkResultPatches(sourceSnapshot, workResults = [], opti
 
     diffTexts.push(patch.trim());
     const parsed = parseUnifiedDiffs(patch);
-    for (const fd of parsed) {
+    if (!parsed.ok) {
+      return {
+        ok: false,
+        error: parsed.error || "Malformed unified diff",
+        reason_code: parsed.reason_code || "MALFORMED_UNIFIED_DIFF",
+      };
+    }
+    for (const fd of parsed.files) {
       if (fd.invalidMode) {
         return {
           ok: false,

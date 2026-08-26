@@ -1,0 +1,153 @@
+{
+  "schema_version": 1,
+  "change": "k4b-integration-invariants-remediation",
+  "source_fingerprint": "sha256:3c9c29896d7f88e63b0421cea7594b2a35750ec90c093b2cf8da83a465066baf",
+  "spec_writes": [
+    {
+      "domain": "repair-shadow-orchestration",
+      "source_delta": "prepared-specs/repair-shadow-orchestration/spec.md",
+      "target": "openspec/specs/repair-shadow-orchestration/spec.md",
+      "target_before_sha256": "sha256:aead5c3d69c1434a5a33a09173b65a47a07c9b4902330552c9d90324eccc33eb",
+      "content_sha256": "sha256:1971325f8a7896664c336a57bac725cfeff3a975f315aa0126d54b23941c3262"
+    },
+    {
+      "domain": "execution-graph-compiler",
+      "source_delta": "prepared-specs/execution-graph-compiler/spec.md",
+      "target": "openspec/specs/execution-graph-compiler/spec.md",
+      "target_before_sha256": "sha256:3b46a149174c3e51f05e7765ca6c9243a9d8874d66ec02a5441772bca587096f",
+      "content_sha256": "sha256:91cf3666ae6c6bdd6d805a819d33d09d22ec159ac3554b77a5bb06875c65261d"
+    },
+    {
+      "domain": "worker-isolation",
+      "source_delta": "prepared-specs/worker-isolation/spec.md",
+      "target": "openspec/specs/worker-isolation/spec.md",
+      "target_before_sha256": "sha256:80f7e2dfd50de9fae1f258836f1fcec9ae38fa5724b974291561f48311ce8e52",
+      "content_sha256": "sha256:be2a4ed2860eec34484c6d3ab0e2ec3da71f546b535c1c63176d9284a7a4cea4"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "prepared-specs/kernel-contract-schemas/spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:d36106d210f979695523587d5e00d175960eb32e4f173665915707f492211cf9",
+      "content_sha256": "sha256:c719bd07ea252ca0f7a1d0cc361d982c86a9991bbdc4bd126efa29c43e52ba24"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260826-004-workorder-capsule-inputs-from-snapshot-bound-inventory.md",
+      "content_sha256": "sha256:e880a5e0be905e070271ea77ee385903ccb615efeec982f97bdd24ef76d0cb91"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260826-005-execution-records-indexed-by-internal-fingerprint.md",
+      "content_sha256": "sha256:705494ce840fc40281b22fc272b6dfa49cff4f8f2957b1a35cea095c925f55fd"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260826-006-canonical-graph-derived-execution-projections.md",
+      "content_sha256": "sha256:c67c28da0226e1e3aca09e5db8d0c0887ca52b813d00743a3d567740ed57e793"
+    }
+  ],
+  "archive_inventory": [
+    ".4r/build-evidence.js",
+    ".4r/diff.tracked.patch",
+    ".4r/evidence.json",
+    ".4r/findings-summary.json",
+    ".4r/freeze-lineage.js",
+    ".4r/gate.json",
+    ".4r/lens-readability.json",
+    ".4r/lens-reliability.json",
+    ".4r/lens-resilience.json",
+    ".4r/lens-risk.json",
+    ".4r/lineage.json",
+    ".4r/record-lenses.js",
+    ".4r/request-ids.json",
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "design.md",
+    "prepared-specs/execution-graph-compiler/spec.md",
+    "prepared-specs/kernel-contract-schemas/spec.md",
+    "prepared-specs/repair-shadow-orchestration/spec.md",
+    "prepared-specs/worker-isolation/spec.md",
+    "proposal.md",
+    "specs/execution-graph-compiler/spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "specs/repair-shadow-orchestration/spec.md",
+    "specs/worker-isolation/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    {
+      "id": "F-8fa19fff5eecb9d0",
+      "severity": "WARNING",
+      "owner": "reliability",
+      "summary": "normalizeCapsuleInputs/computeWorkOrderId rechazan [] , no-array, glob, traversal y absolutos, pero execution-identities/index.test.js solo cubre capsule_inputs omitido.",
+      "disposition": "follow-up"
+    },
+    {
+      "id": "F-0d76867abc05713d",
+      "severity": "WARNING",
+      "owner": "reliability",
+      "summary": "materializeSourceSnapshot solo comprueba Array.isArray(capsule_inputs); [] materializa cero archivos pese al mensaje de array no vacío.",
+      "disposition": "follow-up"
+    },
+    {
+      "id": "F-93617d755411a476",
+      "severity": "WARNING",
+      "owner": "reliability",
+      "summary": "buildComparisonProjection canonicaliza execution_metrics con JSON.stringify tras expandir telemetría; métricas equivalentes con distinto orden de claves pueden false-divergir.",
+      "disposition": "follow-up"
+    },
+    {
+      "id": "F-d03e21b54347bec9",
+      "severity": "SUGGESTION",
+      "owner": "reliability",
+      "summary": "uniqueItems:true de capsule_inputs v2 y la rama uniqueItems del validador no tienen fixture ni test de unidad.",
+      "disposition": "follow-up"
+    },
+    {
+      "id": "F-d435df6b87bb7fd5",
+      "severity": "WARNING",
+      "owner": "readability",
+      "summary": "detectPredecessorContextConflicts mezcla dos firmas: si el primer arg es array, el segundo (predecessors) se usa como ancestorClosure; el {node_id} de la forma de tres args no se lee.",
+      "disposition": "follow-up"
+    },
+    {
+      "id": "F-22474cdcd456548f",
+      "severity": "WARNING",
+      "owner": "readability",
+      "summary": "isDirectoryOrGlobRule no comunica el intent: true también para rutas no concretas (absolutas, travesía, vacías), no solo directorios/globs; resolveCapsuleInputsForNode duplica isConcreteRelativeCapsulePath.",
+      "disposition": "follow-up"
+    },
+    {
+      "id": "F-5fd446549be143e1",
+      "severity": "WARNING",
+      "owner": "readability",
+      "summary": "buildComparisonProjection, sin nodes, devuelve solo {kind}. El fail-closed es la ausencia de claves; steps:[] pasaría isValidComparisonProjection.",
+      "disposition": "follow-up"
+    },
+    {
+      "id": "F-b9a7defad099bc61",
+      "severity": "WARNING",
+      "owner": "readability",
+      "summary": "parseUnifiedDiffs sigue tras hunk malformado y luego acepta diffs solo-modo mientras rechaza create/delete solo-cabecera, sin comentario de la excepción ni de por qué no retorna al primer error.",
+      "disposition": "follow-up"
+    },
+    {
+      "id": "F-944663644dad49bc",
+      "severity": "WARNING",
+      "owner": "readability",
+      "summary": "El orquestador, si el baseline no es proyección, usa baseline.executionGraph || executionGraph y baseline.candidate || baseline, proyectando el baseline sobre el grafo shadow.",
+      "disposition": "follow-up"
+    }
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

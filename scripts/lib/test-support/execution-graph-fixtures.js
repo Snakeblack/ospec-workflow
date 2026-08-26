@@ -109,10 +109,10 @@ function createSampleExecutionGraph(options = {}) {
  */
 function createSampleFixtureResults(graph) {
   const g = graph || createSampleExecutionGraph();
-  const { compileWorkOrdersV2 } = require("../execution-graph/work-order-compiler.js");
+  const { compileWorkOrdersV2, defaultPathInventory } = require("../execution-graph/work-order-compiler.js");
   let woMap = new Map();
   try {
-    const wos = compileWorkOrdersV2(g);
+    const wos = compileWorkOrdersV2(g, { pathInventory: defaultPathInventory(g.source_snapshot_id) });
     woMap = new Map(wos.map((w) => [w.node_id, w.work_order_id]));
   } catch {}
 

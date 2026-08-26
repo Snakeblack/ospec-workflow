@@ -85,7 +85,8 @@ test("K3 schemas: WorkOrder v2 schema requires source_snapshot_id for bound work
     allowed_paths: ["src/"],
     invariants: [],
     required_evidence: ["build-log"],
-    budget: { model_turns: 5, patches: 2, commands: 10, wall_time_minutes: 5, changed_lines: 50 }
+    budget: { model_turns: 5, patches: 2, commands: 10, wall_time_minutes: 5, changed_lines: 50 },
+    capsule_inputs: ["src/app.js"]
   };
 
   const validRes = validateInstance(schema, validOrder);

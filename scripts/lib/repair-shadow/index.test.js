@@ -16,8 +16,10 @@ test("Phase 1: repair-shadow package exports canonical API", () => {
   assert.equal(typeof repairShadow.orchestrateRepairShadow, "function", "repair-shadow must export orchestrateRepairShadow");
   assert.equal(typeof repairShadow.integrateWorkResultPatches, "function", "repair-shadow must export integrateWorkResultPatches");
   assert.equal(typeof repairShadow.compareShadowExecution, "function", "repair-shadow must export compareShadowExecution");
+  assert.equal(typeof repairShadow.buildComparisonProjection, "function", "repair-shadow must export buildComparisonProjection");
   assert.equal(typeof repairShadow.persistRepairShadowExecution, "function", "repair-shadow must export persistRepairShadowExecution");
   assert.equal(typeof repairShadow.loadRepairShadowExecution, "function", "repair-shadow must export loadRepairShadowExecution");
+  assert.equal(typeof repairShadow.loadRepairShadowExecutions, "function", "repair-shadow must export loadRepairShadowExecutions");
 
   assert.equal(typeof orchestrator.orchestrateRepairShadow, "function", "orchestrator must export orchestrateRepairShadow");
   assert.equal(typeof patchIntegrator.integrateWorkResultPatches, "function", "patch-integrator must export integrateWorkResultPatches");
@@ -633,34 +635,25 @@ test("Phase 3.9b: orchestrateRepairShadow detects tampered WorkResultId and fail
   assert.equal(result.reason_code, "LINEAGE_VERIFICATION_FAILED");
 });
 
+function projectionFixture(overrides = {}) {
+  return {
+    kind: "repair-shadow-comparison-projection/v1",
+    steps: ["patch-app", "verify-app"],
+    dependencies: [],
+    diffs: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    inventory: ["src/app.js"],
+    obligations: ["ob1"],
+    invariants: ["inv1"],
+    execution_metrics: [],
+    ...overrides,
+  };
+}
+
 test("Phase 4.1 & 4.2: compareShadowExecution reports full-match when shadow aligns with baseline", () => {
   const { compareShadowExecution } = require("./shadow-comparator.js");
 
-  const shadowResult = {
-    steps: ["patch-app", "verify-app"],
-    diff_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    candidate: {
-      candidate_id: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-      diff_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-      paths: ["src/app.js"],
-    },
-    obligations: ["ob1"],
-    invariants: ["inv1"],
-    inventory: ["src/app.js"],
-  };
-
-  const baselineResult = {
-    steps: ["patch-app", "verify-app"],
-    diff_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    candidate: {
-      candidate_id: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-      diff_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-      paths: ["src/app.js"],
-    },
-    obligations: ["ob1"],
-    invariants: ["inv1"],
-    inventory: ["src/app.js"],
-  };
+  const shadowResult = projectionFixture();
+  const baselineResult = projectionFixture();
 
   const comparison = compareShadowExecution(shadowResult, baselineResult);
 
@@ -675,9 +668,13 @@ test("Phase 4.1 & 4.2: compareShadowExecution reports full-match when shadow ali
 });
 
 test("F-2377c2ac33934a21: production graph_telemetry execution_metrics ignore wall-clock", () => {
-  const { compareShadowExecution } = require("./shadow-comparator.js");
+  const { compareShadowExecution, buildComparisonProjection } = require("./shadow-comparator.js");
   const candidate = { candidate_id: "sha256:" + "c".repeat(64), diff_hash: "sha256:" + "1".repeat(64), paths: ["src/app.js"] };
   const workResults = [{ work_order_id: "wo-n1", work_result_id: "wr-n1" }];
+  const graph = {
+    nodes: [{ node_id: "n1", dependencies: [], invariants: [] }],
+    obligations: [],
+  };
   const tel = (c) => ({
     n1: {
       node_id: "n1", status: "completed", work_order_id: "wo-n1", work_result_id: "wr-n1",
@@ -686,8 +683,14 @@ test("F-2377c2ac33934a21: production graph_telemetry execution_metrics ignore wa
     },
   });
   const comparison = compareShadowExecution(
-    { candidate, workResults, graph_telemetry: tel({ start: "2026-08-25T10:00:00Z", finish: "2026-08-25T10:00:01Z", dur: 1000, cmd: 12 }) },
-    { candidate, workResults, graph_telemetry: tel({ start: "2026-08-26T11:22:33Z", finish: "2026-08-26T11:22:35Z", dur: 2000, cmd: 88 }) }
+    buildComparisonProjection({
+      executionGraph: graph, candidate, workResults,
+      graphTelemetry: tel({ start: "2026-08-25T10:00:00Z", finish: "2026-08-25T10:00:01Z", dur: 1000, cmd: 12 }),
+    }),
+    buildComparisonProjection({
+      executionGraph: graph, candidate, workResults,
+      graphTelemetry: tel({ start: "2026-08-26T11:22:33Z", finish: "2026-08-26T11:22:35Z", dur: 2000, cmd: 88 }),
+    })
   );
   assert.equal(comparison.dimension_match_rates.execution_metrics, 1);
   assert.equal(comparison.match, true);
@@ -697,21 +700,12 @@ test("F-2377c2ac33934a21: production graph_telemetry execution_metrics ignore wa
 test("Phase 4.3 & 4.4: compareShadowExecution classifies divergence and emits structured telemetryDiff without throwing", () => {
   const { compareShadowExecution } = require("./shadow-comparator.js");
 
-  const shadowResult = {
+  const shadowResult = projectionFixture({
     steps: ["patch-app-alt"],
-    diff_hash: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-    obligations: ["ob1"],
-    invariants: ["inv1"],
+    diffs: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
     inventory: ["src/app-alt.js"],
-  };
-
-  const baselineResult = {
-    steps: ["patch-app"],
-    diff_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    obligations: ["ob1"],
-    invariants: ["inv1"],
-    inventory: ["src/app.js"],
-  };
+  });
+  const baselineResult = projectionFixture();
 
   const comparison = compareShadowExecution(shadowResult, baselineResult);
 
@@ -725,18 +719,11 @@ test("Phase 4.3 & 4.4: compareShadowExecution classifies divergence and emits st
 test("Phase 4.5 & 4.6: compareShadowExecution preserves non-mutation invariant", () => {
   const { compareShadowExecution } = require("./shadow-comparator.js");
 
-  const shadowOriginal = {
-    steps: ["step1"],
-    diff_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    obligations: ["ob1"],
-    invariants: ["inv1"],
-  };
-  const baselineOriginal = {
+  const shadowOriginal = projectionFixture({ steps: ["step1"] });
+  const baselineOriginal = projectionFixture({
     steps: ["step2"],
-    diff_hash: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-    obligations: ["ob1"],
-    invariants: ["inv1"],
-  };
+    diffs: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  });
 
   const shadowJsonBefore = JSON.stringify(shadowOriginal);
   const baselineJsonBefore = JSON.stringify(baselineOriginal);
@@ -829,6 +816,7 @@ function makePhase1WorkOrder(sourceSnapshot, overrides = {}) {
     dependencies: [],
     ownership: { owner: "agent-test", mode: "exclusive" },
     allowed_paths: ["src/**"],
+    capsule_inputs: ["src/app.js"],
     invariants: ["inv-1"],
     required_evidence: ["ev-1"],
     budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
@@ -1180,22 +1168,24 @@ test("Phase 2.5: empty dependencies and execution_metrics are evaluated and cann
   ];
   assert.deepEqual([...ALL_EVALUATED_DIMENSIONS], REQUIRED);
 
-  const shadowResult = {
+  const shadowResult = projectionFixture({
     steps: [],
     dependencies: [],
+    diffs: "",
+    inventory: [],
     obligations: [],
     invariants: [],
-    inventory: [],
     execution_metrics: [],
-  };
-  const baselineResult = {
+  });
+  const baselineResult = projectionFixture({
     steps: [],
     dependencies: [],
+    diffs: "",
+    inventory: [],
     obligations: [],
     invariants: [],
-    inventory: [],
     execution_metrics: [],
-  };
+  });
   const comparison = compareShadowExecution(shadowResult, baselineResult);
 
   for (const dim of REQUIRED) {
@@ -1525,8 +1515,13 @@ test("Phase 3.4: persistRepairShadowExecution CAS, incomplete bindings, and byte
     ...record,
     graph_telemetry: { n1: { status: "failed" } },
   });
-  assert.equal(divergent.ok, false);
-  assert.equal(divergent.reason_code, "CAS_CONFLICT");
+  assert.equal(divergent.ok, true, divergent.error);
+  assert.equal(divergent.idempotent, undefined);
+
+  const { loadRepairShadowExecutions } = require("./execution-record-store.js");
+  const loadedSet = await loadRepairShadowExecutions(store, candidate.candidate_id);
+  assert.equal(loadedSet.ok, true);
+  assert.equal(loadedSet.records.length, 2);
 
   const loaded = await loadRepairShadowExecution(store, candidate.candidate_id);
   assert.equal(loaded.ok, true);
@@ -1758,5 +1753,293 @@ test("Phase 3.7: node failure skips N2, disposes N1 workspace, and reports faile
   assert.equal(created.length, 1);
   assert.deepEqual(disposed, created);
 });
+
+test("REQ-repair-shadow-010: header-only create/delete and empty hunk patches fail as MALFORMED_UNIFIED_DIFF", async (t) => {
+  const { orchestrateRepairShadow } = require("./orchestrator.js");
+  const { createPolicySnapshot } = require("../execution-graph/index.js");
+  const files = { "src/app.js": "const a = 1;\n" };
+  const sourceSnapshot = makePhase1Snapshot(files);
+  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-malformed"] });
+  const graph = compileRepairGraph(sourceSnapshot, [makeRepairNode("n1", [], ["src/app.js"], "ev-1")], policySnapshot);
+
+  const cases = [
+    `diff --git a/src/created.js b/src/created.js
+new file mode 100644
+--- /dev/null
++++ b/src/created.js
+`,
+    `diff --git a/src/app.js b/src/app.js
+deleted file mode 100644
+--- a/src/app.js
++++ /dev/null
+`,
+    "this is not a unified diff at all",
+    `--- a/src/app.js
++++ b/src/app.js
+@@ truncated header
+-const a = 1;
+`,
+  ];
+
+  for (const patch of cases) {
+    mockSuccessfulExecute(t, sourceSnapshot, { n1: patch });
+    const result = await orchestrateRepairShadow(graph, {
+      sourceSnapshot,
+      files,
+      isolationCapability: "enforced",
+      policySnapshot,
+      store: makeTempFileStore(t),
+    });
+    assert.equal(result.ok, false, `expected malformed fail for: ${patch.slice(0, 40)}`);
+    assert.equal(result.reason_code, "MALFORMED_UNIFIED_DIFF");
+    assert.equal(result.candidate, undefined);
+  }
+});
+
+test("REQ-repair-shadow-010: mode-only existing-path diff remains valid and changes Candidate modes", async () => {
+  const { integrateWorkResultPatches } = require("./patch-integrator.js");
+  const files = { "src/app.js": "const a = 1;\n" };
+  const sourceSnapshot = makePhase1Snapshot(files);
+  const modeOnly = `diff --git a/src/app.js b/src/app.js
+old mode 100644
+new mode 100755
+`;
+  const unchanged = await integrateWorkResultPatches(sourceSnapshot, [makePhase2WorkResult(sourceSnapshot, "")], {
+    files,
+    freeze: true,
+  });
+  const result = await integrateWorkResultPatches(sourceSnapshot, [makePhase2WorkResult(sourceSnapshot, modeOnly)], {
+    files,
+    freeze: true,
+  });
+  assert.equal(result.ok, true, result.error);
+  assert.ok(result.candidate);
+  assert.notEqual(result.candidate.changed_paths_modes_digest, unchanged.candidate.changed_paths_modes_digest);
+  assert.notEqual(result.candidate.candidate_id, unchanged.candidate.candidate_id);
+});
+
+test("REQ-repair-shadow-011: ancestor-descendant overlap is permitted; incomparable diamond fails", async (t) => {
+  const { orchestrateRepairShadow } = require("./orchestrator.js");
+  const { createPolicySnapshot } = require("../execution-graph/index.js");
+  const files = { "src/app.js": "const a = 1;\nconst b = 2;\n" };
+  const sourceSnapshot = makePhase1Snapshot(files);
+  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-dag"] });
+  const patchN0 = `--- a/src/app.js
++++ b/src/app.js
+@@ -1,2 +1,2 @@
+-const a = 1;
++const a = 10;
+ const b = 2;
+`;
+  const patchN1 = `--- a/src/app.js
++++ b/src/app.js
+@@ -1,2 +1,2 @@
+ const a = 10;
+-const b = 2;
++const b = 20;
+`;
+  const patchN2 = `--- a/src/app.js
++++ b/src/app.js
+@@ -2 +2,2 @@
+ const b = 20;
++module.exports = { a: 10, b: 20 };
+`;
+  const chainGraph = compileRepairGraph(sourceSnapshot, [
+    makeRepairNode("n0", [], ["src/app.js"], "ev-0"),
+    makeRepairNode("n1", ["n0"], ["src/app.js"], "ev-1"),
+    makeRepairNode("n2", ["n1"], ["src/app.js"], "ev-2"),
+  ], policySnapshot);
+  mockSuccessfulExecute(t, sourceSnapshot, { n0: patchN0, n1: patchN1, n2: patchN2 });
+  const chain = await orchestrateRepairShadow(chainGraph, {
+    sourceSnapshot, files, isolationCapability: "enforced", policySnapshot, store: makeTempFileStore(t),
+  });
+  assert.equal(chain.ok, true, chain.error);
+
+  const diamond = compileRepairGraph(sourceSnapshot, [
+    makeRepairNode("n1", [], ["src/app.js"], "ev-1"),
+    makeRepairNode("n2", [], ["src/app.js"], "ev-2"),
+    makeRepairNode("n3", ["n1", "n2"], ["src/app.js"], "ev-3"),
+  ], policySnapshot);
+  mockSuccessfulExecute(t, sourceSnapshot, { n1: patchN0, n2: patchN0 });
+  const diamondResult = await orchestrateRepairShadow(diamond, {
+    sourceSnapshot, files, isolationCapability: "enforced", policySnapshot, store: makeTempFileStore(t),
+  });
+  assert.equal(diamondResult.ok, false);
+  assert.equal(diamondResult.reason_code, "PREDECESSOR_CONTEXT_CONFLICT");
+  assert.equal(diamondResult.candidate, undefined);
+});
+
+test("REQ-repair-shadow-011: later diamond does not contaminate a predecessor subset", async (t) => {
+  const { orchestrateRepairShadow } = require("./orchestrator.js");
+  const { createPolicySnapshot } = require("../execution-graph/index.js");
+  const files = { "src/app.js": "const a = 1;\nconst b = 2;\n" };
+  const sourceSnapshot = makePhase1Snapshot(files);
+  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-subset"] });
+  const patchN0 = `--- a/src/app.js
++++ b/src/app.js
+@@ -1,2 +1,2 @@
+-const a = 1;
++const a = 10;
+ const b = 2;
+`;
+  const patchN1 = `--- a/src/app.js
++++ b/src/app.js
+@@ -1,2 +1,2 @@
+ const a = 10;
+-const b = 2;
++const b = 20;
+`;
+  const patchN2 = patchN1;
+  const patchN3 = `--- a/src/app.js
++++ b/src/app.js
+@@ -2 +2,2 @@
+ const b = 20;
++module.exports = { a: 10, b: 20 };
+`;
+  const graph = compileRepairGraph(sourceSnapshot, [
+    makeRepairNode("n0", [], ["src/app.js"], "ev-0"),
+    makeRepairNode("n1", ["n0"], ["src/app.js"], "ev-1"),
+    makeRepairNode("n2", ["n0"], ["src/app.js"], "ev-2"),
+    makeRepairNode("n3", ["n0", "n1"], ["src/app.js"], "ev-3"),
+  ], policySnapshot);
+  mockSuccessfulExecute(t, sourceSnapshot, { n0: patchN0, n1: patchN1, n2: patchN2, n3: patchN3 });
+  const result = await orchestrateRepairShadow(graph, {
+    sourceSnapshot, files, isolationCapability: "enforced", policySnapshot, store: makeTempFileStore(t),
+  });
+  assert.notEqual(result.reason_code, "PREDECESSOR_CONTEXT_CONFLICT");
+  assert.equal(result.graph_telemetry.n3.status, "completed");
+});
+
+test("REQ-repair-shadow-012: materializer receives WorkOrder capsule_inputs and blocks executeWorkOrder on missing input", async (t) => {
+  const { orchestrateRepairShadow } = require("./orchestrator.js");
+  const { createPolicySnapshot } = require("../execution-graph/index.js");
+  const workerWorkspace = require("../worker-workspace.js");
+  const files = { "src/app.js": "const a = 1;\n", "README.md": "# extra\n" };
+  const sourceSnapshot = makePhase1Snapshot(files);
+  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-capsule"] });
+  const graph = compileRepairGraph(sourceSnapshot, [makeRepairNode("n1", [], ["src/app.js"], "ev-1")], policySnapshot);
+
+  const executed = mockSuccessfulExecute(t, sourceSnapshot, { n1: "" });
+  const originalMaterialize = workerWorkspace.materializeSourceSnapshot;
+  let seenWorkOrder;
+  t.mock.method(workerWorkspace, "materializeSourceSnapshot", async function mocked(...args) {
+    seenWorkOrder = args[1];
+    return originalMaterialize.apply(this, args);
+  });
+  const ok = await orchestrateRepairShadow(graph, {
+    sourceSnapshot, files, isolationCapability: "enforced", policySnapshot, store: makeTempFileStore(t),
+  });
+  assert.equal(ok.ok, true, ok.error);
+  assert.deepEqual(seenWorkOrder.capsule_inputs, ["src/app.js"]);
+  assert.equal(executed.length, 1);
+
+  const missingGraph = compileRepairGraph(sourceSnapshot, [makeRepairNode("n1", [], ["src/missing.js"], "ev-1")], policySnapshot);
+  const executedMissing = [];
+  t.mock.method(workerExecutor, "executeWorkOrder", async () => {
+    executedMissing.push("called");
+    throw new Error("must not execute");
+  });
+  const missing = await orchestrateRepairShadow(missingGraph, {
+    sourceSnapshot, files, isolationCapability: "enforced", policySnapshot, store: makeTempFileStore(t),
+  });
+  assert.equal(missing.ok, false);
+  assert.equal(executedMissing.length, 0);
+});
+
+test("REQ-repair-shadow-006: projection uses topological node_id and rejects non-graph steps", () => {
+  const { compareShadowExecution, buildComparisonProjection } = require("./shadow-comparator.js");
+  const graph = {
+    nodes: [
+      { node_id: "n2", dependencies: ["n1"], operation: "verify", invariants: [] },
+      { node_id: "n1", dependencies: [], operation: "patch", invariants: [] },
+    ],
+    obligations: [],
+  };
+  const candidate = { paths: [], diff_hash: "sha256:" + "1".repeat(64) };
+  const left = buildComparisonProjection({
+    executionGraph: graph, candidate, workResults: [], graphTelemetry: {},
+  });
+  const right = buildComparisonProjection({
+    executionGraph: {
+      nodes: [
+        { node_id: "n2", dependencies: ["n1"], operation: "other-verify", invariants: [] },
+        { node_id: "n1", dependencies: [], operation: "other-patch", invariants: [] },
+      ],
+      obligations: [],
+    },
+    candidate, workResults: [], graphTelemetry: {},
+  });
+  assert.deepEqual(left.steps, ["n1", "n2"]);
+  const comparison = compareShadowExecution(left, right);
+  assert.equal(comparison.dimension_match_rates.steps, 1);
+
+  const invalid = compareShadowExecution(
+    { steps: ["patch", "verify"], work_order_id: "wo-1" },
+    left
+  );
+  assert.equal(invalid.reason_code, "INVALID_COMPARISON_PROJECTION");
+  assert.equal(invalid.match, false);
+});
+
+test("REQ-repair-shadow-009: one Candidate persists N records; byte-identical persist is idempotent; legacy layout rejected", async (t) => {
+  const {
+    persistRepairShadowExecution,
+    loadRepairShadowExecutions,
+  } = require("./execution-record-store.js");
+  const { freezeCandidate } = require("../execution-identities/index.js");
+  const { createPolicySnapshot } = require("../execution-graph/index.js");
+  const files = { "src/app.js": "const a = 1;\n" };
+  const sourceSnapshot = makePhase1Snapshot(files);
+  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-n"] });
+  const graph = compileRepairGraph(sourceSnapshot, [makeRepairNode("n1", [], ["src/app.js"], "ev-1")], policySnapshot);
+  const candidate = freezeCandidate({
+    repository_id: sourceSnapshot.repository_id,
+    projection: "workspace",
+    base_tree: sourceSnapshot.base_tree_digest,
+    candidate_tree: sourceSnapshot.base_tree_digest,
+    diffText: "",
+    paths: [],
+  });
+  const base = {
+    kind: "repair-shadow-execution/v1",
+    schema_version: 1,
+    candidate_id: candidate.candidate_id,
+    candidate,
+    source_snapshot_id: sourceSnapshot.source_snapshot_id,
+    execution_graph: graph,
+    policy_snapshot: policySnapshot,
+  };
+  const store = makeTempFileStore(t);
+  const first = await persistRepairShadowExecution(store, { ...base, created_at: "2026-08-26T00:00:00.000Z" });
+  const second = await persistRepairShadowExecution(store, { ...base, created_at: "2026-08-26T01:00:00.000Z" });
+  assert.equal(first.ok, true, first.error);
+  assert.equal(second.ok, true, second.error);
+  const replay = await persistRepairShadowExecution(store, { ...base, created_at: "2026-08-26T00:00:00.000Z" });
+  assert.equal(replay.idempotent, true);
+  const loaded = await loadRepairShadowExecutions(store, candidate.candidate_id);
+  assert.equal(loaded.records.length, 2);
+  loaded.records[0].created_at = "mutated";
+  const reloaded = await loadRepairShadowExecutions(store, candidate.candidate_id);
+  assert.notEqual(reloaded.records[0].created_at, "mutated");
+  assert.equal(Object.prototype.hasOwnProperty.call(reloaded.records[0], "fingerprint"), false);
+
+  const legacyStore = {
+    load: async () => ({
+      state: { repair_shadow_executions: { [candidate.candidate_id]: base } },
+      journal: [],
+      authority: {},
+    }),
+    commit: async () => {
+      throw new Error("legacy layout must not commit");
+    },
+  };
+  const legacyPersist = await persistRepairShadowExecution(legacyStore, { ...base, created_at: "x" });
+  assert.equal(legacyPersist.ok, false);
+  assert.equal(legacyPersist.reason_code, "LEGACY_LAYOUT_REJECTED");
+  const legacyLoad = await loadRepairShadowExecutions(legacyStore, candidate.candidate_id);
+  assert.equal(legacyLoad.ok, false);
+  assert.equal(legacyLoad.reason_code, "LEGACY_LAYOUT_REJECTED");
+});
+
 
 

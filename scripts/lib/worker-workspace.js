@@ -330,30 +330,29 @@ async function materializeSourceSnapshot(workspaceDescriptor, workOrder, sourceS
   const allowedPaths = Array.isArray(workOrder.allowed_paths) ? workOrder.allowed_paths : ["**"];
   const environment = workOrder.environment || options.environment || {};
 
-  // Resolve capsule inputs strictly from declared capsule_inputs or inputs options
-  let declaredInputs = [];
-  if (Array.isArray(options.capsule_inputs)) {
-    declaredInputs = options.capsule_inputs;
-  } else if (Array.isArray(workOrder.capsule_inputs)) {
-    declaredInputs = workOrder.capsule_inputs;
-  } else if (Array.isArray(options.inputs)) {
-    declaredInputs = options.inputs;
-  } else if (options.files && typeof options.files === "object" && !Array.isArray(options.files)) {
-    declaredInputs = Object.keys(options.files);
-  } else if (Array.isArray(options.files)) {
-    declaredInputs = options.files.map((f) => f && f.path).filter(Boolean);
+  if (!Array.isArray(workOrder.capsule_inputs)) {
+    throw new Error("WorkOrder capsule_inputs must be a non-empty array of concrete relative paths");
   }
+  const declaredInputs = workOrder.capsule_inputs;
 
   const filesSource = options.files;
   const resolveFileFn = typeof options.resolveFile === "function" ? options.resolveFile : null;
   const repositoryDir = options.repositoryDir || options.repositoryPath;
 
-  // Gather candidate files in memory BEFORE writing anything to disk
+  // Gather candidate files in memory BEFORE writing anything to disk.
+  // Derived maps are intersected with capsule_inputs; extras are never written.
   const candidateFiles = new Map();
   if (effectiveBase) {
     const derivedFiles = collectFileMap(effectiveBase.files);
-    for (const [normalizedInput, content] of derivedFiles.entries()) {
-      candidateFiles.set(normalizedInput, content);
+    for (const inputPath of declaredInputs) {
+      const normalizedInput = normalizeRelativePath(inputPath);
+      if (!normalizedInput) {
+        throw new Error(`Invalid capsule input path or traversal attempt: ${inputPath}`);
+      }
+      if (!derivedFiles.has(normalizedInput)) {
+        throw new Error(`Missing required capsule input file: ${inputPath}`);
+      }
+      candidateFiles.set(normalizedInput, derivedFiles.get(normalizedInput));
     }
   } else {
     for (const inputPath of declaredInputs) {

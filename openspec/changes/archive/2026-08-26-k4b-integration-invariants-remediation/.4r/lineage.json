@@ -1,0 +1,335 @@
+{
+  "schema_version": 1,
+  "lineage_id": "sha256:7ae96801ae56101a9dbd71866c6273aa3fe02b4b1f2d247c26eec70e581424bf",
+  "generation": 1,
+  "predecessor_lineage_id": null,
+  "recovery": null,
+  "revision": 9,
+  "status": "approved",
+  "genesis": {
+    "candidate": {
+      "projection": "workspace",
+      "base_tree": "9c9f7523c05d928dc2cab6bed71e847a04308111",
+      "candidate_tree": "workspace-uncommitted",
+      "paths": [
+        "schemas/kernel/work-order/fixtures/invalid/v2-absolute-capsule-inputs.json",
+        "schemas/kernel/work-order/fixtures/invalid/v2-empty-capsule-inputs.json",
+        "schemas/kernel/work-order/fixtures/invalid/v2-glob-capsule-inputs.json",
+        "schemas/kernel/work-order/fixtures/invalid/v2-missing-capsule-inputs.json",
+        "schemas/kernel/work-order/fixtures/invalid/v2-non-array-capsule-inputs.json",
+        "schemas/kernel/work-order/fixtures/invalid/v2-traversal-capsule-inputs.json",
+        "schemas/kernel/work-order/fixtures/valid/v2-minimal.json",
+        "schemas/kernel/work-order/v2.schema.json",
+        "scripts/k4b-repair-shadow-e2e.test.js",
+        "scripts/k6a-e2e-worker-isolation.test.js",
+        "scripts/lib/execution-graph/index.js",
+        "scripts/lib/execution-graph/replay-engine.js",
+        "scripts/lib/execution-graph/replay-engine.test.js",
+        "scripts/lib/execution-graph/work-order-compiler.js",
+        "scripts/lib/execution-graph/work-order-compiler.test.js",
+        "scripts/lib/execution-identities/index.js",
+        "scripts/lib/execution-identities/index.test.js",
+        "scripts/lib/k3-k4a-integration.test.js",
+        "scripts/lib/k3-schema-fixtures.test.js",
+        "scripts/lib/k4a-lifecycle-model.test.js",
+        "scripts/lib/kernel-schema-fixtures.test.js",
+        "scripts/lib/kernel-schema-validator.js",
+        "scripts/lib/lifecycle-model.js",
+        "scripts/lib/repair-shadow/execution-record-store.js",
+        "scripts/lib/repair-shadow/index.js",
+        "scripts/lib/repair-shadow/index.test.js",
+        "scripts/lib/repair-shadow/orchestrator.js",
+        "scripts/lib/repair-shadow/patch-integrator.js",
+        "scripts/lib/repair-shadow/shadow-comparator.js",
+        "scripts/lib/test-support/execution-graph-fixtures.js",
+        "scripts/lib/worker-executor.test.js",
+        "scripts/lib/worker-workspace.js",
+        "scripts/lib/worker-workspace.test.js"
+      ],
+      "diff_hash": "sha256:7787e9f8f5c13c2c21703e85be848f0d2bc3b7ed705d940f47b939684194ef20",
+      "paths_digest": "sha256:5ae345a8b3a6b6f5c65067a68ca78e8a193d6e38856def5c154a7221c40d885a",
+      "authored_lines": 1528,
+      "original_changed_lines": 1887
+    },
+    "candidate_id": "sha256:1ad92db832e2e76d8f753f920b345131f76bd513ecae9dbecc12deb6b2cb2f69",
+    "paths": [
+      "schemas/kernel/work-order/fixtures/invalid/v2-absolute-capsule-inputs.json",
+      "schemas/kernel/work-order/fixtures/invalid/v2-empty-capsule-inputs.json",
+      "schemas/kernel/work-order/fixtures/invalid/v2-glob-capsule-inputs.json",
+      "schemas/kernel/work-order/fixtures/invalid/v2-missing-capsule-inputs.json",
+      "schemas/kernel/work-order/fixtures/invalid/v2-non-array-capsule-inputs.json",
+      "schemas/kernel/work-order/fixtures/invalid/v2-traversal-capsule-inputs.json",
+      "schemas/kernel/work-order/fixtures/valid/v2-minimal.json",
+      "schemas/kernel/work-order/v2.schema.json",
+      "scripts/k4b-repair-shadow-e2e.test.js",
+      "scripts/k6a-e2e-worker-isolation.test.js",
+      "scripts/lib/execution-graph/index.js",
+      "scripts/lib/execution-graph/replay-engine.js",
+      "scripts/lib/execution-graph/replay-engine.test.js",
+      "scripts/lib/execution-graph/work-order-compiler.js",
+      "scripts/lib/execution-graph/work-order-compiler.test.js",
+      "scripts/lib/execution-identities/index.js",
+      "scripts/lib/execution-identities/index.test.js",
+      "scripts/lib/k3-k4a-integration.test.js",
+      "scripts/lib/k3-schema-fixtures.test.js",
+      "scripts/lib/k4a-lifecycle-model.test.js",
+      "scripts/lib/kernel-schema-fixtures.test.js",
+      "scripts/lib/kernel-schema-validator.js",
+      "scripts/lib/lifecycle-model.js",
+      "scripts/lib/repair-shadow/execution-record-store.js",
+      "scripts/lib/repair-shadow/index.js",
+      "scripts/lib/repair-shadow/index.test.js",
+      "scripts/lib/repair-shadow/orchestrator.js",
+      "scripts/lib/repair-shadow/patch-integrator.js",
+      "scripts/lib/repair-shadow/shadow-comparator.js",
+      "scripts/lib/test-support/execution-graph-fixtures.js",
+      "scripts/lib/worker-executor.test.js",
+      "scripts/lib/worker-workspace.js",
+      "scripts/lib/worker-workspace.test.js"
+    ],
+    "classification": "high-risk",
+    "selected_dimensions": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "evidence_fingerprint": "sha256:b6ccffd0762cee30b97ad663b54a1be3a7a0dd0a08a066ccd838aed436cc5029",
+    "original_changed_lines": 1887,
+    "authored_lines": 1528
+  },
+  "current_candidate_id": "sha256:1ad92db832e2e76d8f753f920b345131f76bd513ecae9dbecc12deb6b2cb2f69",
+  "current_candidate": {
+    "projection": "workspace",
+    "base_tree": "9c9f7523c05d928dc2cab6bed71e847a04308111",
+    "candidate_tree": "workspace-uncommitted",
+    "paths": [
+      "schemas/kernel/work-order/fixtures/invalid/v2-absolute-capsule-inputs.json",
+      "schemas/kernel/work-order/fixtures/invalid/v2-empty-capsule-inputs.json",
+      "schemas/kernel/work-order/fixtures/invalid/v2-glob-capsule-inputs.json",
+      "schemas/kernel/work-order/fixtures/invalid/v2-missing-capsule-inputs.json",
+      "schemas/kernel/work-order/fixtures/invalid/v2-non-array-capsule-inputs.json",
+      "schemas/kernel/work-order/fixtures/invalid/v2-traversal-capsule-inputs.json",
+      "schemas/kernel/work-order/fixtures/valid/v2-minimal.json",
+      "schemas/kernel/work-order/v2.schema.json",
+      "scripts/k4b-repair-shadow-e2e.test.js",
+      "scripts/k6a-e2e-worker-isolation.test.js",
+      "scripts/lib/execution-graph/index.js",
+      "scripts/lib/execution-graph/replay-engine.js",
+      "scripts/lib/execution-graph/replay-engine.test.js",
+      "scripts/lib/execution-graph/work-order-compiler.js",
+      "scripts/lib/execution-graph/work-order-compiler.test.js",
+      "scripts/lib/execution-identities/index.js",
+      "scripts/lib/execution-identities/index.test.js",
+      "scripts/lib/k3-k4a-integration.test.js",
+      "scripts/lib/k3-schema-fixtures.test.js",
+      "scripts/lib/k4a-lifecycle-model.test.js",
+      "scripts/lib/kernel-schema-fixtures.test.js",
+      "scripts/lib/kernel-schema-validator.js",
+      "scripts/lib/lifecycle-model.js",
+      "scripts/lib/repair-shadow/execution-record-store.js",
+      "scripts/lib/repair-shadow/index.js",
+      "scripts/lib/repair-shadow/index.test.js",
+      "scripts/lib/repair-shadow/orchestrator.js",
+      "scripts/lib/repair-shadow/patch-integrator.js",
+      "scripts/lib/repair-shadow/shadow-comparator.js",
+      "scripts/lib/test-support/execution-graph-fixtures.js",
+      "scripts/lib/worker-executor.test.js",
+      "scripts/lib/worker-workspace.js",
+      "scripts/lib/worker-workspace.test.js"
+    ],
+    "diff_hash": "sha256:7787e9f8f5c13c2c21703e85be848f0d2bc3b7ed705d940f47b939684194ef20",
+    "paths_digest": "sha256:5ae345a8b3a6b6f5c65067a68ca78e8a193d6e38856def5c154a7221c40d885a",
+    "authored_lines": 1528,
+    "original_changed_lines": 1887
+  },
+  "lenses": {
+    "risk": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "lens-risk-f0b89fb94a0271bc",
+      "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+      "result": {
+        "findings": []
+      },
+      "operation": null,
+      "result_request_id": "lens-risk-f0b89fb94a0271bc"
+    },
+    "reliability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "lens-reliability-9ebabd4c9fe976f0",
+      "result_digest": "sha256:b8e81e004a3d9359ee0946231fccc3ebeb9b1566b1ffa4877469ee04dad0ddd4",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "normalizeCapsuleInputs/computeWorkOrderId rechazan [] , no-array, glob, traversal y absolutos, pero execution-identities/index.test.js solo cubre capsule_inputs omitido.",
+            "acceptance_criteria": "Añadir tests donde computeWorkOrderId lance empty-capsule-inputs para [] e invalid-capsule-inputs para no-array, src/**, ../secret y /abs/path."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "materializeSourceSnapshot solo comprueba Array.isArray(capsule_inputs); [] materializa cero archivos pese al mensaje de array no vacío.",
+            "acceptance_criteria": "Test de que materializeSourceSnapshot lanza antes de escribir cuando capsule_inputs es []."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "buildComparisonProjection canonicaliza execution_metrics con JSON.stringify tras expandir telemetría; métricas equivalentes con distinto orden de claves pueden false-divergir.",
+            "acceptance_criteria": "Test de que compareShadowExecution sigue en match:true con graphTelemetry semánticamente igual y claves en distinto orden, o usar serialización estable."
+          },
+          {
+            "severity": "SUGGESTION",
+            "summary": "uniqueItems:true de capsule_inputs v2 y la rama uniqueItems del validador no tienen fixture ni test de unidad.",
+            "acceptance_criteria": "Fixture o test de validador donde [src/app.js, src/app.js] falle con rule uniqueItems."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "lens-reliability-9ebabd4c9fe976f0"
+    },
+    "resilience": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "lens-resilience-e830505e3443059f",
+      "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+      "result": {
+        "findings": []
+      },
+      "operation": null,
+      "result_request_id": "lens-resilience-e830505e3443059f"
+    },
+    "readability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "lens-readability-82c760f77b0f27d8",
+      "result_digest": "sha256:bbcae5397ea36be1d9a23e1659fef8f859be8584ce095b3e60deaba6b210655d",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "detectPredecessorContextConflicts mezcla dos firmas: si el primer arg es array, el segundo (predecessors) se usa como ancestorClosure; el {node_id} de la forma de tres args no se lee. Bucles a 4+ niveles en el mismo cuerpo.",
+            "acceptance_criteria": "Una sola firma con nombres que coincidan con el uso (entries, ancestorClosure). El nodo actual o no se pasa o se usa. Extraer el cruce hunk/prev para no superar 3 niveles de anidación. Comentario breve del remap legado si se conserva."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "isDirectoryOrGlobRule no comunica el intent: true también para rutas no concretas (absolutas, travesía, vacías), no solo directorios/globs; resolveCapsuleInputsForNode duplica isConcreteRelativeCapsulePath.",
+            "acceptance_criteria": "Renombrar a un predicado de expansión contra inventario (p. ej. requiresInventoryExpansion) o hacer que solo cubra glob/directorio. Quitar la guarda redundante o documentar por qué hace falta."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "buildComparisonProjection, sin nodes, devuelve solo {kind}. El fail-closed es la ausencia de claves; steps:[] pasaría isValidComparisonProjection.",
+            "acceptance_criteria": "Sentinela explícito inválido (o documentar que omitir REQUIRED_DIMENSIONS es el rechazo). No tratar arrays vacíos como proyección válida si el grafo falta."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "parseUnifiedDiffs sigue tras hunk malformado y luego acepta diffs solo-modo mientras rechaza create/delete solo-cabecera, sin comentario de la excepción ni de por qué no retorna al primer error.",
+            "acceptance_criteria": "Comentario (o retorno inmediato) que explique: (1) mode-only sin hunks es válido; (2) create/delete header-only no; (3) si se sigue parseando, el error original no se pisa en silencio."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "El orquestador, si el baseline no es proyección, usa baseline.executionGraph || executionGraph y baseline.candidate || baseline, proyectando el baseline sobre el grafo shadow.",
+            "acceptance_criteria": "No reutilizar el executionGraph shadow salvo decisión documentada. Formas de baseline separadas (proyección vs artefactos) con nombres distintos, sin fallback silencioso de topología."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "lens-readability-82c760f77b0f27d8"
+    }
+  },
+  "findings": [
+    {
+      "id": "F-8fa19fff5eecb9d0",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "normalizeCapsuleInputs/computeWorkOrderId rechazan [] , no-array, glob, traversal y absolutos, pero execution-identities/index.test.js solo cubre capsule_inputs omitido.",
+      "acceptance_criteria": "Añadir tests donde computeWorkOrderId lance empty-capsule-inputs para [] e invalid-capsule-inputs para no-array, src/**, ../secret y /abs/path.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-0d76867abc05713d",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "materializeSourceSnapshot solo comprueba Array.isArray(capsule_inputs); [] materializa cero archivos pese al mensaje de array no vacío.",
+      "acceptance_criteria": "Test de que materializeSourceSnapshot lanza antes de escribir cuando capsule_inputs es [].",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-93617d755411a476",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "buildComparisonProjection canonicaliza execution_metrics con JSON.stringify tras expandir telemetría; métricas equivalentes con distinto orden de claves pueden false-divergir.",
+      "acceptance_criteria": "Test de que compareShadowExecution sigue en match:true con graphTelemetry semánticamente igual y claves en distinto orden, o usar serialización estable.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-d03e21b54347bec9",
+      "owner": "reliability",
+      "severity": "SUGGESTION",
+      "summary": "uniqueItems:true de capsule_inputs v2 y la rama uniqueItems del validador no tienen fixture ni test de unidad.",
+      "acceptance_criteria": "Fixture o test de validador donde [src/app.js, src/app.js] falle con rule uniqueItems.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-d435df6b87bb7fd5",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "detectPredecessorContextConflicts mezcla dos firmas: si el primer arg es array, el segundo (predecessors) se usa como ancestorClosure; el {node_id} de la forma de tres args no se lee. Bucles a 4+ niveles en el mismo cuerpo.",
+      "acceptance_criteria": "Una sola firma con nombres que coincidan con el uso (entries, ancestorClosure). El nodo actual o no se pasa o se usa. Extraer el cruce hunk/prev para no superar 3 niveles de anidación. Comentario breve del remap legado si se conserva.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-22474cdcd456548f",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "isDirectoryOrGlobRule no comunica el intent: true también para rutas no concretas (absolutas, travesía, vacías), no solo directorios/globs; resolveCapsuleInputsForNode duplica isConcreteRelativeCapsulePath.",
+      "acceptance_criteria": "Renombrar a un predicado de expansión contra inventario (p. ej. requiresInventoryExpansion) o hacer que solo cubra glob/directorio. Quitar la guarda redundante o documentar por qué hace falta.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-5fd446549be143e1",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "buildComparisonProjection, sin nodes, devuelve solo {kind}. El fail-closed es la ausencia de claves; steps:[] pasaría isValidComparisonProjection.",
+      "acceptance_criteria": "Sentinela explícito inválido (o documentar que omitir REQUIRED_DIMENSIONS es el rechazo). No tratar arrays vacíos como proyección válida si el grafo falta.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-b9a7defad099bc61",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "parseUnifiedDiffs sigue tras hunk malformado y luego acepta diffs solo-modo mientras rechaza create/delete solo-cabecera, sin comentario de la excepción ni de por qué no retorna al primer error.",
+      "acceptance_criteria": "Comentario (o retorno inmediato) que explique: (1) mode-only sin hunks es válido; (2) create/delete header-only no; (3) si se sigue parseando, el error original no se pisa en silencio.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-944663644dad49bc",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "El orquestador, si el baseline no es proyección, usa baseline.executionGraph || executionGraph y baseline.candidate || baseline, proyectando el baseline sobre el grafo shadow.",
+      "acceptance_criteria": "No reutilizar el executionGraph shadow salvo decisión documentada. Formas de baseline separadas (proyección vs artefactos) con nombres distintos, sin fallback silencioso de topología.",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ],
+  "findings_digest": "sha256:445338d7474111e36bc08ddc5cf42735a1cbece27a6f8a155f2f2ecf2ce30620",
+  "correction_budget": {
+    "limit_lines": 200,
+    "used_lines": 0,
+    "failed_attempts": 0,
+    "max_failed_attempts": 3
+  },
+  "correction_history": [],
+  "validation_history": [],
+  "follow_ups": [],
+  "pending_operation": null,
+  "pending_correction": null,
+  "terminal_reason": "no-unresolved-blocking-findings"
+}

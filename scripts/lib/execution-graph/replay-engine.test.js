@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { replayExecutionGraph } = require("./replay-engine.js");
+const { defaultPathInventory } = require("./work-order-compiler.js");
 const {
   createSampleExecutionGraph,
   createSampleFixtureResults,
@@ -308,7 +309,7 @@ test("ReplayEngine: canonical replayExecutionGraph ignores allowLegacyFixtures o
 test("ReplayEngine: Replay accepts every canonical WorkOrder emitted by supported K4a compilation", () => {
   const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
   const graph = createSampleExecutionGraph();
-  const workOrders = compileWorkOrdersV2(graph);
+  const workOrders = compileWorkOrdersV2(graph, { pathInventory: defaultPathInventory(graph.source_snapshot_id) });
 
   const fixtures = {};
   for (const wo of workOrders) {
@@ -328,7 +329,7 @@ test("ReplayEngine: Replay accepts every canonical WorkOrder emitted by supporte
 test("ReplayEngine: rejects incomplete fixture claiming completed without evidence object fail-closed", () => {
   const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
   const graph = createSampleExecutionGraph();
-  const workOrders = compileWorkOrdersV2(graph);
+  const workOrders = compileWorkOrdersV2(graph, { pathInventory: defaultPathInventory(graph.source_snapshot_id) });
   const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
 
   const incompleteFixtures = {
@@ -356,7 +357,7 @@ test("ReplayEngine: rejects incomplete fixture claiming completed without eviden
 test("ReplayEngine: rejects completed status when exit_code is non-zero fail-closed", () => {
   const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
   const graph = createSampleExecutionGraph();
-  const workOrders = compileWorkOrdersV2(graph);
+  const workOrders = compileWorkOrdersV2(graph, { pathInventory: defaultPathInventory(graph.source_snapshot_id) });
   const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
 
   const contradictoryExitCodeFixtures = {
@@ -386,7 +387,7 @@ test("ReplayEngine: rejects completed status when exit_code is non-zero fail-clo
 test("ReplayEngine (Dimension 1): rejects empty, null, or non-string graph_id or work_order_id fail-closed", () => {
   const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
   const graph = createSampleExecutionGraph();
-  const workOrders = compileWorkOrdersV2(graph);
+  const workOrders = compileWorkOrdersV2(graph, { pathInventory: defaultPathInventory(graph.source_snapshot_id) });
   const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
 
   const invalidProvenanceCases = [
@@ -425,7 +426,7 @@ test("ReplayEngine (Dimension 1): rejects empty, null, or non-string graph_id or
 test("ReplayEngine (Dimension 2): accepts status or outcome completed independently", () => {
   const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
   const graph = createSampleExecutionGraph();
-  const workOrders = compileWorkOrdersV2(graph);
+  const workOrders = compileWorkOrdersV2(graph, { pathInventory: defaultPathInventory(graph.source_snapshot_id) });
   const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
 
   // Status completed only
@@ -468,7 +469,7 @@ test("ReplayEngine (Dimension 2): accepts status or outcome completed independen
 test("ReplayEngine (Dimension 2): rejects contradictory status and outcome combinations", () => {
   const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
   const graph = createSampleExecutionGraph();
-  const workOrders = compileWorkOrdersV2(graph);
+  const workOrders = compileWorkOrdersV2(graph, { pathInventory: defaultPathInventory(graph.source_snapshot_id) });
   const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
 
   const contradictoryCombos = [
@@ -506,7 +507,7 @@ test("ReplayEngine (Dimension 2): rejects contradictory status and outcome combi
 test("ReplayEngine (Dimension 3): exit_code validation rules", () => {
   const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
   const graph = createSampleExecutionGraph();
-  const workOrders = compileWorkOrdersV2(graph);
+  const workOrders = compileWorkOrdersV2(graph, { pathInventory: defaultPathInventory(graph.source_snapshot_id) });
   const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
 
   // Exit code 0 is valid
@@ -573,7 +574,7 @@ test("ReplayEngine (Dimension 3): exit_code validation rules", () => {
 test("ReplayEngine (Dimension 4): malformed evidence types fail closed", () => {
   const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
   const graph = createSampleExecutionGraph();
-  const workOrders = compileWorkOrdersV2(graph);
+  const workOrders = compileWorkOrdersV2(graph, { pathInventory: defaultPathInventory(graph.source_snapshot_id) });
   const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
 
   const malformedEvidenceValues = [
@@ -619,7 +620,7 @@ test("ReplayEngine (Dimension 5): multi-item required evidence failure", () => {
         objective: "Apply repair code modifications",
         dependencies: [],
         ownership: { owner: "agent:repair", mode: "exclusive" },
-        allowed_paths: ["src/**"],
+        allowed_paths: ["src/index.js"],
         invariants: ["inv-fail-closed"],
         required_evidence: ["ev:patch-proof", "ev:lint-attestation"],
         budget_ref: "budget:default",
@@ -631,7 +632,7 @@ test("ReplayEngine (Dimension 5): multi-item required evidence failure", () => {
         objective: "Run automated verification on repair modifications",
         dependencies: ["repair-patch"],
         ownership: { owner: "agent:verify", mode: "shared" },
-        allowed_paths: ["src/**", "tests/**"],
+        allowed_paths: ["src/index.js", "tests/index.js"],
         invariants: ["inv-no-direct-mutation"],
         required_evidence: ["ev:test-pass"],
         budget_ref: "budget:default",
@@ -669,7 +670,7 @@ test("ReplayEngine (Dimension 5): multi-item required evidence failure", () => {
     },
   });
 
-  const workOrders = compileWorkOrdersV2(graph);
+  const workOrders = compileWorkOrdersV2(graph, { pathInventory: defaultPathInventory(graph.source_snapshot_id) });
   const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
 
   // Fixture provides only 1 of 2 required evidence keys
@@ -777,7 +778,9 @@ test("ReplayEngine (Dimension 6): obligation satisfaction and approved deferrals
     },
   });
 
-  const workOrders = compileWorkOrdersV2(graphWithDeferred);
+  const workOrders = compileWorkOrdersV2(graphWithDeferred, {
+    pathInventory: defaultPathInventory(graphWithDeferred.source_snapshot_id),
+  });
   const woMap = new Map(workOrders.map((w) => [w.node_id, w.work_order_id]));
 
   const fixtures = {
@@ -845,7 +848,9 @@ test("ReplayEngine (Dimension 6): obligation satisfaction and approved deferrals
     },
   });
 
-  const woMapNoDef = new Map(compileWorkOrdersV2(graphWithoutDeferred).map((w) => [w.node_id, w.work_order_id]));
+  const woMapNoDef = new Map(compileWorkOrdersV2(graphWithoutDeferred, {
+    pathInventory: defaultPathInventory(graphWithoutDeferred.source_snapshot_id),
+  }).map((w) => [w.node_id, w.work_order_id]));
   const resFailingObl = replayExecutionGraph(graphWithoutDeferred, {
     "repair-patch": {
       graph_id: graphWithoutDeferred.graph_id,

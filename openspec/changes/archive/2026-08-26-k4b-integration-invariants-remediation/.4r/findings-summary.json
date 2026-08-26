@@ -1,0 +1,86 @@
+{
+  "findings_summary": "0 BLOCKER, 0 CRITICAL, 8 WARNING, 1 SUGGESTION",
+  "findings": [
+    {
+      "id": "F-8fa19fff5eecb9d0",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "normalizeCapsuleInputs/computeWorkOrderId rechazan [] , no-array, glob, traversal y absolutos, pero execution-identities/index.test.js solo cubre capsule_inputs omitido.",
+      "acceptance_criteria": "Añadir tests donde computeWorkOrderId lance empty-capsule-inputs para [] e invalid-capsule-inputs para no-array, src/**, ../secret y /abs/path.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-0d76867abc05713d",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "materializeSourceSnapshot solo comprueba Array.isArray(capsule_inputs); [] materializa cero archivos pese al mensaje de array no vacío.",
+      "acceptance_criteria": "Test de que materializeSourceSnapshot lanza antes de escribir cuando capsule_inputs es [].",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-93617d755411a476",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "buildComparisonProjection canonicaliza execution_metrics con JSON.stringify tras expandir telemetría; métricas equivalentes con distinto orden de claves pueden false-divergir.",
+      "acceptance_criteria": "Test de que compareShadowExecution sigue en match:true con graphTelemetry semánticamente igual y claves en distinto orden, o usar serialización estable.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-d03e21b54347bec9",
+      "owner": "reliability",
+      "severity": "SUGGESTION",
+      "summary": "uniqueItems:true de capsule_inputs v2 y la rama uniqueItems del validador no tienen fixture ni test de unidad.",
+      "acceptance_criteria": "Fixture o test de validador donde [src/app.js, src/app.js] falle con rule uniqueItems.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-d435df6b87bb7fd5",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "detectPredecessorContextConflicts mezcla dos firmas: si el primer arg es array, el segundo (predecessors) se usa como ancestorClosure; el {node_id} de la forma de tres args no se lee. Bucles a 4+ niveles en el mismo cuerpo.",
+      "acceptance_criteria": "Una sola firma con nombres que coincidan con el uso (entries, ancestorClosure). El nodo actual o no se pasa o se usa. Extraer el cruce hunk/prev para no superar 3 niveles de anidación. Comentario breve del remap legado si se conserva.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-22474cdcd456548f",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "isDirectoryOrGlobRule no comunica el intent: true también para rutas no concretas (absolutas, travesía, vacías), no solo directorios/globs; resolveCapsuleInputsForNode duplica isConcreteRelativeCapsulePath.",
+      "acceptance_criteria": "Renombrar a un predicado de expansión contra inventario (p. ej. requiresInventoryExpansion) o hacer que solo cubra glob/directorio. Quitar la guarda redundante o documentar por qué hace falta.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-5fd446549be143e1",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "buildComparisonProjection, sin nodes, devuelve solo {kind}. El fail-closed es la ausencia de claves; steps:[] pasaría isValidComparisonProjection.",
+      "acceptance_criteria": "Sentinela explícito inválido (o documentar que omitir REQUIRED_DIMENSIONS es el rechazo). No tratar arrays vacíos como proyección válida si el grafo falta.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-b9a7defad099bc61",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "parseUnifiedDiffs sigue tras hunk malformado y luego acepta diffs solo-modo mientras rechaza create/delete solo-cabecera, sin comentario de la excepción ni de por qué no retorna al primer error.",
+      "acceptance_criteria": "Comentario (o retorno inmediato) que explique: (1) mode-only sin hunks es válido; (2) create/delete header-only no; (3) si se sigue parseando, el error original no se pisa en silencio.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-944663644dad49bc",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "El orquestador, si el baseline no es proyección, usa baseline.executionGraph || executionGraph y baseline.candidate || baseline, proyectando el baseline sobre el grafo shadow.",
+      "acceptance_criteria": "No reutilizar el executionGraph shadow salvo decisión documentada. Formas de baseline separadas (proyección vs artefactos) con nombres distintos, sin fallback silencioso de topología.",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ]
+}

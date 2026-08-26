@@ -1,0 +1,24 @@
+{
+  "findings": [
+    {
+      "severity": "WARNING",
+      "summary": "normalizeCapsuleInputs/computeWorkOrderId rechazan [] , no-array, glob, traversal y absolutos, pero execution-identities/index.test.js solo cubre capsule_inputs omitido.",
+      "acceptance_criteria": "Añadir tests donde computeWorkOrderId lance empty-capsule-inputs para [] e invalid-capsule-inputs para no-array, src/**, ../secret y /abs/path."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "materializeSourceSnapshot solo comprueba Array.isArray(capsule_inputs); [] materializa cero archivos pese al mensaje de array no vacío.",
+      "acceptance_criteria": "Test de que materializeSourceSnapshot lanza antes de escribir cuando capsule_inputs es []."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "buildComparisonProjection canonicaliza execution_metrics con JSON.stringify tras expandir telemetría; métricas equivalentes con distinto orden de claves pueden false-divergir.",
+      "acceptance_criteria": "Test de que compareShadowExecution sigue en match:true con graphTelemetry semánticamente igual y claves en distinto orden, o usar serialización estable."
+    },
+    {
+      "severity": "SUGGESTION",
+      "summary": "uniqueItems:true de capsule_inputs v2 y la rama uniqueItems del validador no tienen fixture ni test de unidad.",
+      "acceptance_criteria": "Fixture o test de validador donde [src/app.js, src/app.js] falle con rule uniqueItems."
+    }
+  ]
+}

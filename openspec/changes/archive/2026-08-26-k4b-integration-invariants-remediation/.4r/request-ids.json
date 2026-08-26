@@ -1,0 +1,9 @@
+{
+  "requestIds": {
+    "risk": "lens-risk-f0b89fb94a0271bc",
+    "reliability": "lens-reliability-9ebabd4c9fe976f0",
+    "resilience": "lens-resilience-e830505e3443059f",
+    "readability": "lens-readability-82c760f77b0f27d8"
+  },
+  "revision": 4
+}

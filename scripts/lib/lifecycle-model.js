@@ -795,7 +795,11 @@ function checkK4aNoLiveAuthority() {
   const graph = createSampleExecutionGraph();
   const sourceSnapshot = createSampleSourceSnapshot();
   const sourceSnapshotId = sourceSnapshot.source_snapshot_id;
-  const workOrders = compileWorkOrders(graph, { sourceSnapshot, sourceSnapshotId });
+  const workOrders = compileWorkOrders(graph, {
+    sourceSnapshot,
+    sourceSnapshotId,
+    pathInventory: require("./execution-graph/work-order-compiler.js").defaultPathInventory(sourceSnapshotId),
+  });
   const ok =
     workOrders.length > 0 &&
     workOrders.every(
@@ -1255,10 +1259,11 @@ async function checkK6aCapsuleDeterminism() {
       invariants: ["inv-1"],
       required_evidence: ["ev-1"],
       budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
+      capsule_inputs: ["src/a.js", "package.json"],
     };
     workOrder.work_order_id = computeWorkOrderId(workOrder);
-    const c1 = await materializeSourceSnapshot(ws1, workOrder, snapshot, { capsule_inputs: ["src/a.js", "package.json"], files });
-    const c2 = await materializeSourceSnapshot(ws2, workOrder, snapshot, { capsule_inputs: ["src/a.js", "package.json"], files });
+    const c1 = await materializeSourceSnapshot(ws1, workOrder, snapshot, { files });
+    const c2 = await materializeSourceSnapshot(ws2, workOrder, snapshot, { files });
     await disposeWorkspace(ws1);
     await disposeWorkspace(ws2);
     const ok =
@@ -1303,6 +1308,7 @@ async function checkK6aWorkResultBinding() {
     invariants: ["inv-1"],
     required_evidence: ["ev-1"],
     budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
+    capsule_inputs: ["src/app.js"],
   };
   workOrder.work_order_id = computeWorkOrderId(workOrder);
 
@@ -1385,6 +1391,7 @@ async function checkK6aHostIsolationFallback() {
       invariants: ["inv-1"],
       required_evidence: ["ev-1"],
       budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
+      capsule_inputs: ["src/app.js"],
     };
     workOrder.work_order_id = computeWorkOrderId(workOrder);
     // 1. Pure internal execution in fallback truthfully reports unavailable without silent promotion
@@ -1469,6 +1476,7 @@ async function checkK6aTransportBinding() {
       invariants: ["inv-1"],
       required_evidence: ["ev-1"],
       budget: { model_turns: 5, patches: 2, commands: 5, wall_time_minutes: 5, changed_lines: 100 },
+      capsule_inputs: ["src/app.js"],
     };
     workOrder.work_order_id = computeWorkOrderId(workOrder);
     const adapterId = "adapter-bind";

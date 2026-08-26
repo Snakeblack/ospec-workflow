@@ -82,7 +82,7 @@ const {
   computeCandidateId,
 } = require("../execution-identities/index.js");
 const { integrateWorkResultPatches, detectPredecessorContextConflicts } = require("./patch-integrator.js");
-const { compareShadowExecution } = require("./shadow-comparator.js");
+const { compareShadowExecution, buildComparisonProjection, isValidComparisonProjection } = require("./shadow-comparator.js");
 const { buildEffectiveShadowBase } = require("./effective-shadow-base.js");
 const { persistRepairShadowExecution } = require("./execution-record-store.js");
 
@@ -108,6 +108,33 @@ function computePredecessorClosure(nodes, nodeId) {
     for (const dep of deps) stack.push(dep);
   }
   return visited;
+}
+
+function buildAncestorClosureMap(nodes) {
+  const map = new Map();
+  for (const node of nodes) {
+    if (node && node.node_id) {
+      map.set(node.node_id, computePredecessorClosure(nodes, node.node_id));
+    }
+  }
+  return map;
+}
+
+function buildPathInventory(sourceSnapshot, files) {
+  if (!files) return undefined;
+  let paths = [];
+  if (files instanceof Map) {
+    paths = [...files.keys()];
+  } else if (Array.isArray(files)) {
+    paths = files.map((f) => f && f.path).filter(Boolean);
+  } else if (typeof files === "object") {
+    paths = Object.keys(files);
+  }
+  if (paths.length === 0) return undefined;
+  return {
+    source_snapshot_id: sourceSnapshot.source_snapshot_id,
+    paths,
+  };
 }
 
 /**
@@ -244,6 +271,7 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
     workOrders = compileWorkOrdersV2(executionGraph, {
       sourceSnapshot,
       sourceSnapshotId: options.sourceSnapshotId || sourceSnapshot.source_snapshot_id,
+      pathInventory: buildPathInventory(sourceSnapshot, options.files),
     });
   } catch (err) {
     return {
@@ -307,6 +335,8 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
   let failedReasonCode = "NODE_EXECUTION_FAILED";
   let failedError = null;
 
+  const ancestorClosure = buildAncestorClosureMap(executionGraph.nodes);
+
   for (const node of sortedNodes) {
     const currentStatus = nodeStates.get(node.node_id);
     if (currentStatus === "blocked") {
@@ -328,15 +358,24 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
       let effectiveBase = null;
 
       if (predecessorNodes.length > 0) {
-        const predResults = predecessorNodes
-          .map((n) => nodeIntegrations.get(n.node_id)?.workResult)
+        const predecessorEntries = predecessorNodes
+          .map((n) => {
+            const integration = nodeIntegrations.get(n.node_id);
+            if (!integration || !integration.workResult) return null;
+            return { node_id: n.node_id, workResult: integration.workResult };
+          })
           .filter(Boolean);
-        const conflict = detectPredecessorContextConflicts(predResults);
+        const conflict = detectPredecessorContextConflicts(
+          { node_id: node.node_id },
+          predecessorEntries,
+          ancestorClosure
+        );
         if (!conflict.ok) {
           const err = new Error(conflict.error);
           err.code = conflict.reason_code;
           throw err;
         }
+        const predResults = predecessorEntries.map((entry) => entry.workResult);
         const derived = await integrateWorkResultPatches(sourceSnapshot, predResults, {
           files: options.files,
           file_modes: options.file_modes || options.fileModes,
@@ -514,10 +553,21 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
   let shadow_comparison;
   if (options.baselineResult || typeof options.fixedBaselineFn === "function") {
     const baseline = options.baselineResult || options.fixedBaselineFn();
-    shadow_comparison = compareShadowExecution(
-      { candidate, workResults: capturedWorkResults, graph_telemetry: graphTelemetry },
-      baseline
-    );
+    const shadowProjection = buildComparisonProjection({
+      executionGraph,
+      candidate,
+      workResults: capturedWorkResults,
+      graphTelemetry,
+    });
+    const baselineProjection = isValidComparisonProjection(baseline)
+      ? baseline
+      : buildComparisonProjection({
+          executionGraph: baseline.executionGraph || executionGraph,
+          candidate: baseline.candidate || baseline,
+          workResults: baseline.workResults,
+          graphTelemetry: baseline.graph_telemetry || baseline.graphTelemetry,
+        });
+    shadow_comparison = compareShadowExecution(shadowProjection, baselineProjection);
   }
 
   const successPayload = {
@@ -577,7 +627,7 @@ async function orchestrateRepairShadow(executionGraph, options = {}) {
       graph_telemetry: graphTelemetry,
     };
   }
-  successPayload.execution_record_id = persistRes.candidate_id;
+  successPayload.execution_record_id = persistRes.fingerprint;
 
   return successPayload;
 }

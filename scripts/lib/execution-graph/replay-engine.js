@@ -48,10 +48,12 @@ function _executeReplay(graph, fixtureResults = {}, options = {}, isLegacyMode =
 
   const sortedNodes = topologicalSort(graph.nodes);
 
-  const { compileWorkOrdersV2 } = require("./work-order-compiler.js");
+  const { compileWorkOrdersV2, defaultPathInventory } = require("./work-order-compiler.js");
   let compiledWorkOrders;
   try {
-    compiledWorkOrders = compileWorkOrdersV2(graph);
+    compiledWorkOrders = compileWorkOrdersV2(graph, {
+      pathInventory: options.pathInventory || defaultPathInventory(graph.source_snapshot_id),
+    });
   } catch (e) {
     const err = new Error(`Failed to compile WorkOrders for ExecutionGraph replay: ${e.message}`);
     err.code = e.code || "work-order-compilation-failed";

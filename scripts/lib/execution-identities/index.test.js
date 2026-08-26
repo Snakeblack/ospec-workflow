@@ -36,6 +36,7 @@ test("REQ-execution-identities-001: Distinct digests with domain prefixes for fo
     dependencies: [],
     ownership: { owner: "worker" },
     allowedPaths: ["src/"],
+    capsuleInputs: ["src/index.js"],
     invariants: [],
     requiredEvidence: [],
     budget: { model_turns: 5, patches: 2, commands: 10, wall_time_minutes: 5, changed_lines: 50 }
@@ -338,6 +339,7 @@ test("REQ-execution-identities-003: computeWorkOrderId canonical payload include
     dependencies: [],
     ownership: { owner: "worker" },
     allowedPaths: ["src/"],
+    capsuleInputs: ["src/index.js"],
     invariants: [],
     requiredEvidence: [],
     budget: { model_turns: 5, patches: 2, commands: 10, wall_time_minutes: 5, changed_lines: 50 }
@@ -466,6 +468,7 @@ test("REQ-execution-identities-003: validateWorkOrderBinding and validateWorkRes
     dependencies: [],
     ownership: { owner: "worker", mode: "exclusive" },
     allowed_paths: ["src/"],
+    capsule_inputs: ["src/index.js"],
     invariants: [],
     required_evidence: ["log"],
     budget: { model_turns: 1, patches: 1, commands: 1, wall_time_minutes: 1, changed_lines: 1 }
@@ -574,6 +577,7 @@ test("Adversarial Scenario 2: WorkOrder work_order_id copied + ownership altered
     dependencies: [],
     ownership: { owner: "team-1", mode: "exclusive" },
     allowedPaths: ["src/"],
+    capsuleInputs: ["src/index.js"],
     invariants: [],
     requiredEvidence: [],
     budget: { model_turns: 1 }
@@ -599,6 +603,7 @@ test("Adversarial Scenario 3: WorkOrder work_order_id copied + required_evidence
     dependencies: [],
     ownership: { owner: "team-1" },
     allowedPaths: ["src/"],
+    capsuleInputs: ["src/index.js"],
     invariants: [],
     requiredEvidence: ["proof-1"],
     budget: { model_turns: 1 }
@@ -624,6 +629,7 @@ test("Adversarial Scenario 4: WorkOrder work_order_id copied + dependencies alte
     dependencies: ["sha256:aaaaa11111111111111111111111111111111111111111111111111111111111"],
     ownership: { owner: "team-1" },
     allowedPaths: ["src/"],
+    capsuleInputs: ["src/index.js"],
     invariants: [],
     requiredEvidence: [],
     budget: { model_turns: 1 }
@@ -655,6 +661,7 @@ test("Adversarial Scenario 5: WorkOrder(S1) + WorkResult(S2) yields REJECT SOURC
     dependencies: [],
     ownership: { owner: "w", mode: "exclusive" },
     allowed_paths: [],
+    capsule_inputs: ["src/index.js"],
     invariants: [],
     required_evidence: [],
     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
@@ -896,6 +903,7 @@ test("K3-2.6: binding spoof — declared IDs string-equal but payload mutated �
     dependencies: [],
     ownership: { owner: "worker", mode: "exclusive" },
     allowed_paths: ["src/"],
+    capsule_inputs: ["src/index.js"],
     invariants: [],
     required_evidence: ["log"],
     budget: { model_turns: 1, patches: 1, commands: 1, wall_time_minutes: 1, changed_lines: 1 }
@@ -960,6 +968,7 @@ test("K3-2.8: dependencies null / non-array → computeWorkOrderId throws (no []
     objective: "compile",
     ownership: { owner: "dev" },
     allowed_paths: ["src/"],
+    capsule_inputs: ["src/index.js"],
     invariants: [],
     required_evidence: [],
     budget: { model_turns: 1 }
@@ -1026,6 +1035,7 @@ test("K3-2.12: same WorkOrder payload v1 vs v2 → distinct digests; v2 domain i
     dependencies: [],
     ownership: { owner: "w", mode: "exclusive" },
     allowed_paths: ["src/"],
+    capsule_inputs: ["src/index.js"],
     invariants: [],
     required_evidence: [],
     budget: { model_turns: 1 }
@@ -1036,7 +1046,7 @@ test("K3-2.12: same WorkOrder payload v1 vs v2 → distinct digests; v2 domain i
 
   // Prove domain string by recomputing with sha256Fingerprint
   const { sha256Fingerprint } = require("../canonical-json.js");
-  const canonical = {
+  const canonicalV1 = {
     source_snapshot_id: DIGEST_A,
     node_id: "node-1",
     role: "worker",
@@ -1049,8 +1059,12 @@ test("K3-2.12: same WorkOrder payload v1 vs v2 → distinct digests; v2 domain i
     required_evidence: [],
     budget: { model_turns: 1 }
   };
-  assert.equal(v2Id, sha256Fingerprint("work-order/v2", canonical));
-  assert.equal(v1Id, sha256Fingerprint("work-order/v1", canonical));
+  const canonicalV2 = {
+    ...canonicalV1,
+    capsule_inputs: ["src/index.js"],
+  };
+  assert.equal(v2Id, sha256Fingerprint("work-order/v2", canonicalV2));
+  assert.equal(v1Id, sha256Fingerprint("work-order/v1", canonicalV1));
 });
 
 test("K3 GO: DECLARED_ID_MISMATCH still fires after freeze gate on schema-valid tamper", () => {
@@ -1123,6 +1137,7 @@ test("4R-R2b: consistent work-order/v2 + schema_version 2 uses v2 domain", () =>
     dependencies: [],
     ownership: { owner: "team" },
     allowed_paths: ["src/"],
+    capsule_inputs: ["src/index.js"],
     invariants: [],
     required_evidence: [],
     budget: { model_turns: 1 },
@@ -1139,6 +1154,7 @@ test("4R-R2b: consistent work-order/v2 + schema_version 2 uses v2 domain", () =>
     dependencies: [],
     ownership: { owner: "team" },
     allowed_paths: ["src/"],
+    capsule_inputs: ["src/index.js"],
     invariants: [],
     required_evidence: [],
     budget: { model_turns: 1 }
@@ -1155,6 +1171,7 @@ test("4R-R3: ownership null / non-object → computeWorkOrderId throws (no {} co
     objective: "x",
     dependencies: [],
     allowed_paths: ["src/"],
+    capsule_inputs: ["src/index.js"],
     invariants: [],
     required_evidence: [],
     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
@@ -1215,6 +1232,7 @@ test("4R-R6: ill-formed declared snapshot id uses ILL_FORMED_SNAPSHOT_ID or INVA
     dependencies: [],
     ownership: { owner: "team", mode: "exclusive" },
     allowed_paths: ["src/"],
+    capsule_inputs: ["src/index.js"],
     invariants: [],
     required_evidence: [],
     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
@@ -1235,6 +1253,7 @@ test("4R-R6: ill-formed declared snapshot id uses ILL_FORMED_SNAPSHOT_ID or INVA
     dependencies: [],
     ownership: { owner: "team", mode: "exclusive" },
     allowed_paths: ["src/"],
+    capsule_inputs: ["src/index.js"],
     invariants: [],
     required_evidence: [],
     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
@@ -1273,6 +1292,7 @@ test("REQ-execution-identities-007: computeWorkOrderId fails closed on missing r
     dependencies: [],
     ownership: { owner: "dev", mode: "exclusive" },
     allowed_paths: ["src/"],
+    capsule_inputs: ["src/index.js"],
     invariants: ["inv-1"],
     required_evidence: ["ev-1"],
     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
@@ -1299,6 +1319,9 @@ test("REQ-execution-identities-007: computeWorkOrderId fails closed on missing r
 
   const missingBudget = { ...validOrder }; delete missingBudget.budget;
   assert.throws(() => computeWorkOrderId(missingBudget), /budget/i);
+
+  const missingCapsule = { ...validOrder }; delete missingCapsule.capsule_inputs;
+  assert.throws(() => computeWorkOrderId(missingCapsule), /capsule_inputs/i);
 });
 
 test("REQ-execution-identities-007: computeWorkResultId fails closed on missing required array fields without defaulting to []", () => {
@@ -1358,6 +1381,7 @@ test("REQ-execution-identities-003: validateWorkResultBinding fails closed on sc
     dependencies: [],
     ownership: { owner: "dev", mode: "exclusive" },
     allowed_paths: ["src/"],
+    capsule_inputs: ["src/index.js"],
     invariants: [],
     required_evidence: [],
     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
@@ -1419,6 +1443,7 @@ test("K3 Remediation: Deep compute shape validation rejects malformed nested fie
     dependencies: [],
     ownership: { owner: "dev", mode: "exclusive" },
     allowed_paths: ["src/"],
+    capsule_inputs: ["src/index.js"],
     invariants: [],
     required_evidence: [],
     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
@@ -1502,6 +1527,7 @@ test("K3 Remediation: unmutated raw payloads missing required schema fields fail
     dependencies: [],
     ownership: { owner: "dev", mode: "exclusive" },
     allowed_paths: ["src/"],
+    capsule_inputs: ["src/index.js"],
     invariants: [],
     required_evidence: [],
     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
@@ -1604,6 +1630,7 @@ test("K3 Remediation: validateIdentityKind enforces JSON Schema validation on pa
     dependencies: [],
     ownership: { owner: "dev", mode: "exclusive" },
     allowed_paths: ["src/"],
+    capsule_inputs: ["src/index.js"],
     invariants: [],
     required_evidence: [],
     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
@@ -1670,6 +1697,7 @@ test("K3 Remediation: SourceSnapshot own-ID integrity and freezeCandidate schema
     dependencies: [],
     ownership: { owner: "dev", mode: "exclusive" },
     allowed_paths: ["src/"],
+    capsule_inputs: ["src/index.js"],
     invariants: [],
     required_evidence: [],
     budget: { model_turns: 1, patches: 0, commands: 0, wall_time_minutes: 1, changed_lines: 1 }
