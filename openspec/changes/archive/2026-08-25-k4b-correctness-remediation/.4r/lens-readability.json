@@ -1,0 +1,19 @@
+{
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "summary": "JSDoc y condicion niegan la separacion de identidad effectiveBase vs SourceSnapshot: el JSDoc afirma verificar siempre base_tree_digest, pero la via derived lo omite sin comentario local.",
+      "acceptance_criteria": "Actualizar el JSDoc para distinguir binding de identidad, tree_digest de effectiveBase contra sus bytes, y skip explicito de S0.base_tree_digest cuando hay effectiveBase. Comentario de 1-2 lineas en el skip."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "effectiveBase de entrada y de salida comparten nombre dentro de un bucle anidado a 4 niveles.",
+      "acceptance_criteria": "Renombrar las dos identidades o extraer helpers con <=3 niveles de anidacion. Comentar que los dependientes reaplican diffs del cierre transitivo sobre S0."
+    },
+    {
+      "severity": "WARNING",
+      "summary": "Persist mandatory ensambla ok:true y aliasa execution_record_id a candidate_id antes del gate de persistencia.",
+      "acceptance_criteria": "No construir el objeto ok:true hasta que persistRes.ok. Documentar que execution_record_id es el CandidateId clave del indice, no un id mintado."
+    }
+  ]
+}

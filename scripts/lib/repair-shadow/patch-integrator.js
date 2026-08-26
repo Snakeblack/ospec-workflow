@@ -3,6 +3,9 @@
 const { normalizeRelativePath, validateAllowedPaths } = require("../allowed-paths-validator.js");
 const { computeTreeDigest } = require("../worker-workspace.js");
 const { freezeCandidate } = require("../execution-identities/index.js");
+const { collectFilesMap, buildEffectiveShadowBase } = require("./effective-shadow-base.js");
+
+const VALID_GIT_FILE_MODES = new Set(["100644", "100755", "100664", "120000", "160000"]);
 
 function analyzeLines(content) {
   if (content === null || content === undefined || content === "") {
@@ -17,6 +20,19 @@ function analyzeLines(content) {
   return { lines, hasTrailingNewline };
 }
 
+function stripGitPath(headerPath) {
+  if (!headerPath || headerPath === "/dev/null") return "/dev/null";
+  return headerPath.replace(/^[ab]\//, "");
+}
+
+function parseModeToken(raw) {
+  const value = String(raw || "").trim();
+  if (!VALID_GIT_FILE_MODES.has(value)) {
+    return { ok: false, value };
+  }
+  return { ok: true, value };
+}
+
 function parseUnifiedDiffs(diffText) {
   if (!diffText || typeof diffText !== "string") return [];
   const normalized = diffText.replace(/\r\n/g, "\n");
@@ -27,21 +43,76 @@ function parseUnifiedDiffs(diffText) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+
+    const gitMatch = line.match(/^diff --git a\/(.*?) b\/(.*)$/);
+    if (gitMatch) {
+      currentFile = {
+        oldPath: gitMatch[1],
+        newPath: gitMatch[2],
+        targetPath: gitMatch[2] !== "/dev/null" ? gitMatch[2] : gitMatch[1],
+        hunks: [],
+        fromGitHeader: true,
+        hasContentHeaders: false,
+      };
+      fileDiffs.push(currentFile);
+      currentHunk = null;
+      continue;
+    }
+
+    const oldModeMatch = line.match(/^old mode\s+(\S+)\s*$/);
+    if (oldModeMatch && currentFile) {
+      const parsed = parseModeToken(oldModeMatch[1]);
+      if (!parsed.ok) currentFile.invalidMode = parsed.value;
+      else currentFile.oldMode = parsed.value;
+      continue;
+    }
+    const newModeMatch = line.match(/^new mode\s+(\S+)\s*$/);
+    if (newModeMatch && currentFile) {
+      const parsed = parseModeToken(newModeMatch[1]);
+      if (!parsed.ok) currentFile.invalidMode = parsed.value;
+      else currentFile.newMode = parsed.value;
+      continue;
+    }
+    const newFileModeMatch = line.match(/^new file mode\s+(\S+)\s*$/);
+    if (newFileModeMatch && currentFile) {
+      const parsed = parseModeToken(newFileModeMatch[1]);
+      if (!parsed.ok) currentFile.invalidMode = parsed.value;
+      else currentFile.newFileMode = parsed.value;
+      continue;
+    }
+    const deletedFileModeMatch = line.match(/^deleted file mode\s+(\S+)\s*$/);
+    if (deletedFileModeMatch && currentFile) {
+      const parsed = parseModeToken(deletedFileModeMatch[1]);
+      if (!parsed.ok) currentFile.invalidMode = parsed.value;
+      else currentFile.deletedFileMode = parsed.value;
+      continue;
+    }
+
     if (line.startsWith("--- ")) {
       const oldHeader = line.slice(4).trim();
       const nextLine = lines[i + 1] || "";
       if (nextLine.startsWith("+++ ")) {
         i++;
         const newHeader = nextLine.slice(4).trim();
-        const oldPath = oldHeader === "/dev/null" ? "/dev/null" : oldHeader.replace(/^[ab]\//, "");
-        const newPath = newHeader === "/dev/null" ? "/dev/null" : newHeader.replace(/^[ab]\//, "");
-        currentFile = {
-          oldPath,
-          newPath,
-          targetPath: newPath !== "/dev/null" ? newPath : oldPath,
-          hunks: [],
-        };
-        fileDiffs.push(currentFile);
+        const oldPath = stripGitPath(oldHeader);
+        const newPath = stripGitPath(newHeader);
+        const canAttach = currentFile && currentFile.fromGitHeader && !currentFile.hasContentHeaders;
+        if (canAttach) {
+          currentFile.oldPath = oldPath;
+          currentFile.newPath = newPath;
+          currentFile.targetPath = newPath !== "/dev/null" ? newPath : oldPath;
+        } else {
+          currentFile = {
+            oldPath,
+            newPath,
+            targetPath: newPath !== "/dev/null" ? newPath : oldPath,
+            hunks: [],
+            fromGitHeader: false,
+            hasContentHeaders: true,
+          };
+          fileDiffs.push(currentFile);
+        }
+        currentFile.hasContentHeaders = true;
         currentHunk = null;
         continue;
       }
@@ -72,9 +143,103 @@ function parseUnifiedDiffs(diffText) {
   return fileDiffs;
 }
 
+function countHunkSides(hunk) {
+  let oldLines = 0;
+  let newLines = 0;
+  for (const hLine of hunk.lines) {
+    if (hLine.startsWith("\\")) continue;
+    if (hLine.startsWith(" ")) {
+      oldLines++;
+      newLines++;
+    } else if (hLine.startsWith("-")) {
+      oldLines++;
+    } else if (hLine.startsWith("+")) {
+      newLines++;
+    }
+  }
+  return { oldLines, newLines };
+}
+
+function hunkOldRange(hunk) {
+  if (hunk.oldCount === 0) {
+    return { start: hunk.oldStart, end: hunk.oldStart };
+  }
+  const start = hunk.oldStart > 0 ? hunk.oldStart : 1;
+  return { start, end: start + hunk.oldCount };
+}
+
+function rangesOverlap(a, b) {
+  if (a.end === a.start && b.end === b.start) {
+    return a.start === b.start;
+  }
+  if (a.end === a.start) {
+    return a.start >= b.start && a.start < b.end;
+  }
+  if (b.end === b.start) {
+    return b.start >= a.start && b.start < a.end;
+  }
+  return a.start < b.end && b.start < a.end;
+}
+
+function validateHunkCountsAndOverlaps(fileDiff) {
+  const ranges = [];
+  for (const hunk of fileDiff.hunks) {
+    const counted = countHunkSides(hunk);
+    if (counted.oldLines !== hunk.oldCount || counted.newLines !== hunk.newCount) {
+      return {
+        ok: false,
+        reason_code: "HUNK_COUNT_MISMATCH",
+        error: `Hunk count mismatch on ${fileDiff.targetPath}: expected -${hunk.oldCount}/+${hunk.newCount}, got -${counted.oldLines}/+${counted.newLines}`,
+      };
+    }
+    ranges.push(hunkOldRange(hunk));
+  }
+  for (let i = 0; i < ranges.length; i++) {
+    for (let j = i + 1; j < ranges.length; j++) {
+      if (rangesOverlap(ranges[i], ranges[j])) {
+        return {
+          ok: false,
+          reason_code: "HUNK_OVERLAP",
+          error: `Overlapping hunks on ${fileDiff.targetPath}`,
+        };
+      }
+    }
+  }
+  return { ok: true };
+}
+
+function validateContextAndDeletion(oldContent, fileDiff) {
+  if (fileDiff.oldPath === "/dev/null") {
+    return { ok: true };
+  }
+  const { lines: oldLines } = analyzeLines(oldContent);
+  for (const hunk of fileDiff.hunks) {
+    let oldIdx = hunk.oldStart > 0 ? hunk.oldStart - 1 : 0;
+    for (const hLine of hunk.lines) {
+      if (hLine.startsWith("\\")) continue;
+      if (hLine.startsWith(" ") || hLine.startsWith("-")) {
+        const expected = hLine.slice(1);
+        if (oldIdx >= oldLines.length || oldLines[oldIdx] !== expected) {
+          return {
+            ok: false,
+            reason_code: hLine.startsWith("-") ? "HUNK_DELETION_MISMATCH" : "HUNK_CONTEXT_MISMATCH",
+            error: `Hunk ${hLine.startsWith("-") ? "deletion" : "context"} mismatch on ${fileDiff.targetPath} at line ${oldIdx + 1}`,
+          };
+        }
+        oldIdx++;
+      }
+    }
+  }
+  return { ok: true };
+}
+
 function applyFileDiff(oldContent, fileDiff) {
+  if (fileDiff.invalidMode) {
+    return { ok: false, reason_code: "INVALID_FILE_MODE", error: `Invalid file mode: ${fileDiff.invalidMode}` };
+  }
+
   if (fileDiff.newPath === "/dev/null") {
-    return { deleted: true, content: "" };
+    return { ok: true, deleted: true, content: "" };
   }
 
   const { lines: oldLines, hasTrailingNewline: oldHasTrailingNewline } = analyzeLines(oldContent);
@@ -93,7 +258,7 @@ function applyFileDiff(oldContent, fileDiff) {
     }
     let res = newLines.join("\n");
     if (newHasTrailingNewline && newLines.length > 0) res += "\n";
-    return { deleted: false, content: res };
+    return { ok: true, deleted: false, content: res };
   }
 
   let oldIdx = 0;
@@ -140,11 +305,85 @@ function applyFileDiff(oldContent, fileDiff) {
     finalContent += "\n";
   }
 
-  return { deleted: false, content: finalContent };
+  return { ok: true, deleted: false, content: finalContent };
+}
+
+function resolveWorkOrderBinding(workResult, options) {
+  const workOrders = Array.isArray(options.workOrders) ? options.workOrders : null;
+  if (workOrders && workOrders.length > 0) {
+    const id = workResult && workResult.work_order_id;
+    if (!id) {
+      return { ok: false, reason_code: "MISSING_WORK_ORDER", error: "WorkResult is missing work_order_id" };
+    }
+    const workOrder = workOrders.find((wo) => wo && wo.work_order_id === id);
+    if (!workOrder) {
+      return {
+        ok: false,
+        reason_code: "MISSING_WORK_ORDER",
+        error: `No WorkOrder bound for work_order_id ${id}`,
+      };
+    }
+    return {
+      ok: true,
+      workOrder,
+      allowed_paths: Array.isArray(workOrder.allowed_paths) ? workOrder.allowed_paths : [],
+    };
+  }
+  return {
+    ok: true,
+    workOrder: null,
+    allowed_paths: Array.isArray(options.allowed_paths) ? options.allowed_paths : null,
+  };
+}
+
+function resultingFileMode(fileDiff) {
+  if (fileDiff.newPath === "/dev/null") return null;
+  return fileDiff.newMode || fileDiff.newFileMode || null;
 }
 
 /**
- * Integrates WorkResult patches onto the authorized SourceSnapshot and freezes Candidate via K3.
+ * Fail-closed when two predecessor WorkResults claim overlapping original hunk
+ * context on the same path. Last-writer-wins is not a legal merge.
+ *
+ * @param {Array<Object>} workResults
+ * @returns {{ ok: boolean, error?: string, reason_code?: string }}
+ */
+function detectPredecessorContextConflicts(workResults = []) {
+  const byFile = new Map();
+  for (const wr of workResults) {
+    if (!wr || typeof wr !== "object") continue;
+    const patch = wr.patch || "";
+    if (!patch.trim()) continue;
+    const parsed = parseUnifiedDiffs(patch);
+    for (const fd of parsed) {
+      const normTarget = normalizeRelativePath(fd.targetPath);
+      if (!normTarget) continue;
+      if (!byFile.has(normTarget)) byFile.set(normTarget, []);
+      const previous = byFile.get(normTarget);
+      const hunks = fd.hunks.length > 0
+        ? fd.hunks
+        : [{ oldStart: 0, oldCount: 0 }];
+      for (const hunk of hunks) {
+        const range = hunkOldRange(hunk);
+        for (const prev of previous) {
+          if (prev.work_order_id !== wr.work_order_id && rangesOverlap(prev.range, range)) {
+            return {
+              ok: false,
+              reason_code: "PREDECESSOR_CONTEXT_CONFLICT",
+              error: `Incompatible predecessor diffs overlap on ${normTarget}`,
+            };
+          }
+        }
+        previous.push({ work_order_id: wr.work_order_id, range });
+      }
+    }
+  }
+  return { ok: true };
+}
+
+/**
+ * Integrates WorkResult patches onto the node's effective base and optionally freezes Candidate via K3.
+ * Containment is bound to the producing WorkOrder via work_order_id when workOrders are supplied.
  *
  * @param {Object} sourceSnapshot
  * @param {Array<Object>} workResults
@@ -159,71 +398,70 @@ async function integrateWorkResultPatches(sourceSnapshot, workResults = [], opti
     return { ok: false, error: "workResults must be an array", reason_code: "INVALID_WORK_RESULTS" };
   }
 
-  const baseFilesMap = new Map();
-  if (options.files instanceof Map) {
-    for (const [k, v] of options.files.entries()) {
-      const norm = normalizeRelativePath(k);
-      if (norm) baseFilesMap.set(norm, typeof v === "string" ? v : (Buffer.isBuffer(v) ? v.toString("utf8") : String(v)));
-    }
-  } else if (Array.isArray(options.files)) {
-    for (const item of options.files) {
-      if (item && item.path) {
-        const norm = normalizeRelativePath(item.path);
-        if (norm) baseFilesMap.set(norm, typeof item.content === "string" ? item.content : (Buffer.isBuffer(item.content) ? item.content.toString("utf8") : String(item.content || "")));
-      }
-    }
-  } else if (options.files && typeof options.files === "object") {
-    for (const [k, v] of Object.entries(options.files)) {
-      const norm = normalizeRelativePath(k);
-      if (norm) baseFilesMap.set(norm, typeof v === "string" ? v : (Buffer.isBuffer(v) ? v.toString("utf8") : String(v)));
-    }
-  }
-
-  // Parse all diffs and validate path containment against allowed_paths
-  const allFileDiffs = [];
+  const candidateFiles = collectFilesMap(options.files);
+  const fileModes = { ...(options.file_modes || options.fileModes || {}) };
   const modifiedPathsSet = new Set();
   const diffTexts = [];
+  const freeze = options.freeze !== false;
 
   for (const wr of workResults) {
     if (!wr || typeof wr !== "object") continue;
     const patch = wr.patch || "";
-    if (patch.trim()) {
-      diffTexts.push(patch.trim());
-      const parsed = parseUnifiedDiffs(patch);
-      for (const fd of parsed) {
-        const normTarget = normalizeRelativePath(fd.targetPath);
-        if (!normTarget) {
-          return { ok: false, error: `Invalid target path in patch: ${fd.targetPath}`, reason_code: "CONTAINMENT_VIOLATION" };
-        }
-        fd.targetPath = normTarget;
+    if (!patch.trim()) continue;
 
-        if (options.allowed_paths && Array.isArray(options.allowed_paths)) {
-          const containment = validateAllowedPaths([normTarget], options.allowed_paths);
-          if (!containment.ok) {
-            return {
-              ok: false,
-              error: `Containment violation: path ${normTarget} is outside allowed_paths`,
-              reason_code: "CONTAINMENT_VIOLATION",
-              violation: containment.violation,
-            };
-          }
-        }
+    const binding = resolveWorkOrderBinding(wr, options);
+    if (!binding.ok) return binding;
 
-        allFileDiffs.push(fd);
-        modifiedPathsSet.add(normTarget);
+    diffTexts.push(patch.trim());
+    const parsed = parseUnifiedDiffs(patch);
+    for (const fd of parsed) {
+      if (fd.invalidMode) {
+        return {
+          ok: false,
+          error: `Invalid file mode: ${fd.invalidMode}`,
+          reason_code: "INVALID_FILE_MODE",
+        };
       }
-    }
-  }
 
-  // Apply diffs in memory
-  const candidateFiles = new Map(baseFilesMap);
-  for (const fd of allFileDiffs) {
-    const oldContent = candidateFiles.has(fd.targetPath) ? candidateFiles.get(fd.targetPath) : (baseFilesMap.get(fd.targetPath) || "");
-    const res = applyFileDiff(oldContent, fd);
-    if (res.deleted) {
-      candidateFiles.delete(fd.targetPath);
-    } else {
-      candidateFiles.set(fd.targetPath, res.content);
+      const normTarget = normalizeRelativePath(fd.targetPath);
+      if (!normTarget) {
+        return { ok: false, error: `Invalid target path in patch: ${fd.targetPath}`, reason_code: "CONTAINMENT_VIOLATION" };
+      }
+      fd.targetPath = normTarget;
+
+      if (binding.allowed_paths) {
+        const containment = validateAllowedPaths([normTarget], binding.allowed_paths, {
+          work_order_id: wr.work_order_id,
+        });
+        if (!containment.ok) {
+          return {
+            ok: false,
+            error: `Containment violation: path ${normTarget} is outside WorkOrder.allowed_paths`,
+            reason_code: "CONTAINMENT_VIOLATION",
+            violation: containment.violation,
+          };
+        }
+      }
+
+      const countOverlap = validateHunkCountsAndOverlaps(fd);
+      if (!countOverlap.ok) return countOverlap;
+
+      const oldContent = candidateFiles.has(fd.targetPath) ? candidateFiles.get(fd.targetPath) : "";
+      const contextDeletion = validateContextAndDeletion(oldContent, fd);
+      if (!contextDeletion.ok) return contextDeletion;
+
+      const applied = applyFileDiff(oldContent, fd);
+      if (!applied.ok) return applied;
+
+      if (applied.deleted) {
+        candidateFiles.delete(fd.targetPath);
+        delete fileModes[fd.targetPath];
+      } else {
+        candidateFiles.set(fd.targetPath, applied.content);
+        const mode = resultingFileMode(fd);
+        if (mode) fileModes[fd.targetPath] = mode;
+      }
+      modifiedPathsSet.add(fd.targetPath);
     }
   }
 
@@ -231,6 +469,23 @@ async function integrateWorkResultPatches(sourceSnapshot, workResults = [], opti
   const combinedDiffText = diffTexts.join("\n\n");
   const candidateTreeDigest = computeTreeDigest(candidateFiles);
   const repositoryId = options.repository_id || sourceSnapshot.repository_id || "workspace";
+  const effectiveBase = buildEffectiveShadowBase({
+    sourceSnapshot,
+    files: candidateFiles,
+    file_modes: fileModes,
+    predecessor_node_ids: options.predecessor_node_ids,
+  });
+
+  if (!freeze) {
+    return {
+      ok: true,
+      candidateFiles,
+      fileModes,
+      combinedDiffText,
+      modifiedPaths,
+      effectiveBase,
+    };
+  }
 
   try {
     const candidate = freezeCandidate({
@@ -240,6 +495,7 @@ async function integrateWorkResultPatches(sourceSnapshot, workResults = [], opti
       candidate_tree: candidateTreeDigest,
       diffText: combinedDiffText,
       paths: modifiedPaths,
+      fileModes,
       predecessorCandidate: options.predecessorCandidate,
     });
 
@@ -247,8 +503,10 @@ async function integrateWorkResultPatches(sourceSnapshot, workResults = [], opti
       ok: true,
       candidate,
       candidateFiles,
+      fileModes,
       combinedDiffText,
       modifiedPaths,
+      effectiveBase,
     };
   } catch (err) {
     return {
@@ -263,4 +521,6 @@ module.exports = {
   integrateWorkResultPatches,
   parseUnifiedDiffs,
   applyFileDiff,
+  detectPredecessorContextConflicts,
+  VALID_GIT_FILE_MODES,
 };

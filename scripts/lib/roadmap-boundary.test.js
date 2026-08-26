@@ -69,6 +69,23 @@ test("REQ-repair-shadow-007: K6a worker primitives contain zero references to K4
       false,
       `K6a file ${basename} must not reference compileExecutionGraph`
     );
+    assert.equal(
+      source.includes("EffectiveShadowBase"),
+      false,
+      `K6a file ${basename} must not reference Repair EffectiveShadowBase`
+    );
+    assert.equal(
+      /repair-action|orchestrateRepair/i.test(source),
+      false,
+      `K6a file ${basename} must not carry Repair-domain identifiers`
+    );
   }
+
+  const workspaceSource = fs.readFileSync(path.resolve(__dirname, "worker-workspace.js"), "utf8");
+  assert.match(
+    workspaceSource,
+    /effectiveBase/,
+    "K6a materializeSourceSnapshot must accept generic effectiveBase without Repair semantics"
+  );
 });
 

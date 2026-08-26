@@ -28,5 +28,9 @@ test("K2a maturity docs tag host surfaces implemented; Candidate/attestation/del
   assert.doesNotMatch(arch, /\{target\} Headless Conformance Host \+ adapter real \+ CapabilityProof \(K2a\)/);
 
   assert.match(roadmap, /K2a.*\*\*done\*\*|Headless Conformance Host.*implemented/i);
-  assert.match(roadmap, /Next eligible:.*K3/s);
+  assert.match(roadmap, /\|\s*`done`\s*\|\s*\*\*K3\*\*/);
+  assert.match(roadmap, /\|\s*`done`\s*\|\s*\*\*K4b\*\*/);
+  assert.match(roadmap, /\|\s*`next-eligible`\s*\|\s*\*\*K6b\*\*/);
+  assert.doesNotMatch(roadmap, /\|\s*`in-progress`\s*\|\s*\*\*K4b\*\*/);
+  assert.doesNotMatch(roadmap, /\|\s*`blocked`\s*\|\s*K6b\b/);
 });

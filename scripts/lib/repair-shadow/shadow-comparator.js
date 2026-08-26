@@ -1,30 +1,72 @@
 "use strict";
 
-const ALL_EVALUATED_DIMENSIONS = Object.freeze([
+const REQUIRED_DIMENSIONS = Object.freeze([
   "steps",
+  "dependencies",
   "diffs",
+  "inventory",
   "obligations",
   "invariants",
-  "inventory",
+  "execution_metrics",
 ]);
+
+const ALL_EVALUATED_DIMENSIONS = REQUIRED_DIMENSIONS;
+
+function canonicalizeValue(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return JSON.stringify(value);
+}
 
 function extractSteps(route) {
   if (!route) return [];
-  if (Array.isArray(route.steps)) return route.steps;
-  if (Array.isArray(route.nodes)) return route.nodes.map((n) => n.operation);
+  if (Array.isArray(route.steps)) return route.steps.map(canonicalizeValue);
+  if (Array.isArray(route.nodes)) return route.nodes.map((n) => canonicalizeValue(n.operation));
   if (Array.isArray(route.workResults)) {
-    return route.workResults.map((wr) => wr.work_order_id);
+    return route.workResults.map((wr) => canonicalizeValue(wr.work_order_id));
+  }
+  return [];
+}
+
+function extractDependencies(route) {
+  if (!route) return [];
+  if (Array.isArray(route.dependencies)) {
+    return route.dependencies.map((d) => canonicalizeValue(d)).sort();
+  }
+  if (Array.isArray(route.nodes)) {
+    return route.nodes
+      .map((n) =>
+        canonicalizeValue({
+          node_id: n.node_id,
+          dependencies: Array.isArray(n.dependencies) ? [...n.dependencies].sort() : [],
+        })
+      )
+      .sort();
   }
   return [];
 }
 
 function extractDiffHash(route) {
-  if (!route) return null;
-  if (route.diff_hash) return route.diff_hash;
-  if (route.candidate && route.candidate.diff_hash) return route.candidate.diff_hash;
+  if (!route) return "";
+  if (route.diff_hash) return String(route.diff_hash);
+  if (route.candidate && route.candidate.diff_hash) return String(route.candidate.diff_hash);
   if (typeof route.combinedDiffText === "string") return route.combinedDiffText;
   if (typeof route.patch === "string") return route.patch;
-  return null;
+  return "";
+}
+
+function extractInventory(route) {
+  if (!route) return [];
+  if (Array.isArray(route.inventory)) return [...route.inventory].map(canonicalizeValue).sort();
+  if (route.candidate && Array.isArray(route.candidate.paths)) {
+    return [...route.candidate.paths].map(canonicalizeValue).sort();
+  }
+  if (Array.isArray(route.paths)) return [...route.paths].map(canonicalizeValue).sort();
+  if (Array.isArray(route.filesystem_inventory)) {
+    return route.filesystem_inventory.map((item) => canonicalizeValue(typeof item === "string" ? item : item.path)).sort();
+  }
+  return [];
 }
 
 function extractObligations(route) {
@@ -38,18 +80,34 @@ function extractObligations(route) {
 function extractInvariants(route) {
   if (!route) return [];
   if (Array.isArray(route.invariants)) {
-    return [...route.invariants].sort();
+    return [...route.invariants].map(canonicalizeValue).sort();
   }
   return [];
 }
 
-function extractInventory(route) {
+const CLOCK_UNSTABLE_KEYS = new Set(["started_at", "finished_at", "duration_ms"]);
+
+function stripClockFields(value) {
+  if (Array.isArray(value)) return value.map(stripClockFields);
+  if (value && typeof value === "object") {
+    const out = {};
+    for (const [key, nested] of Object.entries(value)) {
+      if (!CLOCK_UNSTABLE_KEYS.has(key)) out[key] = stripClockFields(nested);
+    }
+    return out;
+  }
+  return value;
+}
+
+function extractExecutionMetrics(route) {
   if (!route) return [];
-  if (Array.isArray(route.inventory)) return [...route.inventory].sort();
-  if (route.candidate && Array.isArray(route.candidate.paths)) return [...route.candidate.paths].sort();
-  if (Array.isArray(route.paths)) return [...route.paths].sort();
-  if (Array.isArray(route.filesystem_inventory)) {
-    return route.filesystem_inventory.map((item) => (typeof item === "string" ? item : item.path)).sort();
+  if (Array.isArray(route.execution_metrics)) {
+    return route.execution_metrics.map(canonicalizeValue).sort();
+  }
+  if (route.graph_telemetry && typeof route.graph_telemetry === "object") {
+    return Object.keys(route.graph_telemetry)
+      .sort()
+      .map((nodeId) => canonicalizeValue({ node_id: nodeId, ...stripClockFields(route.graph_telemetry[nodeId] || {}) }));
   }
   return [];
 }
@@ -63,9 +121,24 @@ function areArraysEqual(a, b) {
   return true;
 }
 
+function evaluateDimension(name, shadowValue, baselineValue, comparedEqual, evaluated, rates, divergences) {
+  evaluated.push(name);
+  const isMatch = comparedEqual(shadowValue, baselineValue);
+  rates[name] = isMatch ? 1 : 0;
+  if (!isMatch) {
+    divergences.push({
+      dimension: name,
+      shadow: shadowValue,
+      baseline: baselineValue,
+    });
+  }
+}
+
 /**
  * Compares shadow execution outcome against fixed baseline route in a non-mutating, read-only manner.
- * Evaluates steps, diffs, obligations, invariants, and inventory.
+ * Always evaluates the seven required dimensions; empty extracted values are still evaluations
+ * and MUST NOT appear in skipped_dimensions. Full-match cannot be claimed if any required
+ * dimension was skipped.
  *
  * @param {Object} shadowResult
  * @param {Object} baselineResult
@@ -89,108 +162,45 @@ function compareShadowExecution(shadowResult, baselineResult) {
   const dimension_match_rates = {};
   const divergences = [];
 
-  // 1. Steps
   const shadowSteps = extractSteps(shadow);
   const baselineSteps = extractSteps(baseline);
-  if (shadowSteps.length > 0 || baselineSteps.length > 0) {
-    evaluated_dimensions.push("steps");
-    const isMatch = areArraysEqual(shadowSteps, baselineSteps);
-    dimension_match_rates.steps = isMatch ? 1 : 0;
-    if (!isMatch) {
-      divergences.push({
-        dimension: "steps",
-        shadow: shadowSteps,
-        baseline: baselineSteps,
-      });
-    }
-  } else {
-    skipped_dimensions.push("steps");
-  }
+  evaluateDimension("steps", shadowSteps, baselineSteps, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
 
-  // 2. Diffs
+  const shadowDependencies = extractDependencies(shadow);
+  const baselineDependencies = extractDependencies(baseline);
+  evaluateDimension("dependencies", shadowDependencies, baselineDependencies, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
+
   const shadowDiff = extractDiffHash(shadow);
   const baselineDiff = extractDiffHash(baseline);
-  if (shadowDiff !== null || baselineDiff !== null) {
-    evaluated_dimensions.push("diffs");
-    const isMatch = shadowDiff === baselineDiff;
-    dimension_match_rates.diffs = isMatch ? 1 : 0;
-    if (!isMatch) {
-      divergences.push({
-        dimension: "diffs",
-        shadow: shadowDiff,
-        baseline: baselineDiff,
-      });
-    }
-  } else {
-    skipped_dimensions.push("diffs");
-  }
+  evaluateDimension("diffs", shadowDiff, baselineDiff, (a, b) => a === b, evaluated_dimensions, dimension_match_rates, divergences);
 
-  // 3. Obligations
-  const shadowObligations = extractObligations(shadow);
-  const baselineObligations = extractObligations(baseline);
-  if (shadowObligations.length > 0 || baselineObligations.length > 0) {
-    evaluated_dimensions.push("obligations");
-    const isMatch = areArraysEqual(shadowObligations, baselineObligations);
-    dimension_match_rates.obligations = isMatch ? 1 : 0;
-    if (!isMatch) {
-      divergences.push({
-        dimension: "obligations",
-        shadow: shadowObligations,
-        baseline: baselineObligations,
-      });
-    }
-  } else {
-    skipped_dimensions.push("obligations");
-  }
-
-  // 4. Invariants
-  const shadowInvariants = extractInvariants(shadow);
-  const baselineInvariants = extractInvariants(baseline);
-  if (shadowInvariants.length > 0 || baselineInvariants.length > 0) {
-    evaluated_dimensions.push("invariants");
-    const isMatch = areArraysEqual(shadowInvariants, baselineInvariants);
-    dimension_match_rates.invariants = isMatch ? 1 : 0;
-    if (!isMatch) {
-      divergences.push({
-        dimension: "invariants",
-        shadow: shadowInvariants,
-        baseline: baselineInvariants,
-      });
-    }
-  } else {
-    skipped_dimensions.push("invariants");
-  }
-
-  // 5. Inventory
   const shadowInventory = extractInventory(shadow);
   const baselineInventory = extractInventory(baseline);
-  if (shadowInventory.length > 0 || baselineInventory.length > 0) {
-    evaluated_dimensions.push("inventory");
-    const isMatch = areArraysEqual(shadowInventory, baselineInventory);
-    dimension_match_rates.inventory = isMatch ? 1 : 0;
-    if (!isMatch) {
-      divergences.push({
-        dimension: "inventory",
-        shadow: shadowInventory,
-        baseline: baselineInventory,
-      });
-    }
-  } else {
-    skipped_dimensions.push("inventory");
-  }
+  evaluateDimension("inventory", shadowInventory, baselineInventory, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
 
-  // Compute overall match and classification
-  const totalEvaluated = evaluated_dimensions.length;
-  const matchCount = Object.values(dimension_match_rates).filter((rate) => rate === 1).length;
-  const match = totalEvaluated > 0 && matchCount === totalEvaluated;
+  const shadowObligations = extractObligations(shadow);
+  const baselineObligations = extractObligations(baseline);
+  evaluateDimension("obligations", shadowObligations, baselineObligations, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
+
+  const shadowInvariants = extractInvariants(shadow);
+  const baselineInvariants = extractInvariants(baseline);
+  evaluateDimension("invariants", shadowInvariants, baselineInvariants, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
+
+  const shadowMetrics = extractExecutionMetrics(shadow);
+  const baselineMetrics = extractExecutionMetrics(baseline);
+  evaluateDimension("execution_metrics", shadowMetrics, baselineMetrics, areArraysEqual, evaluated_dimensions, dimension_match_rates, divergences);
+
+  const skippedRequired = skipped_dimensions.filter((d) => REQUIRED_DIMENSIONS.includes(d));
+  const allRequiredEvaluated = REQUIRED_DIMENSIONS.every((d) => evaluated_dimensions.includes(d));
+  const allRequiredMatch = REQUIRED_DIMENSIONS.every((d) => dimension_match_rates[d] === 1);
+  const match = allRequiredEvaluated && skippedRequired.length === 0 && allRequiredMatch;
 
   let discrepancy_classification;
   if (match) {
     discrepancy_classification = "full-match";
-  } else if (matchCount > 0) {
-    discrepancy_classification = "partial-match";
   } else {
-    discrepancy_classification = "diverged";
+    const matchCount = Object.values(dimension_match_rates).filter((rate) => rate === 1).length;
+    discrepancy_classification = matchCount > 0 ? "partial-match" : "diverged";
   }
 
   const telemetryDiff = match
@@ -213,12 +223,16 @@ function compareShadowExecution(shadowResult, baselineResult) {
       has_diff: !!shadowDiff,
       obligations_count: shadowObligations.length,
       inventory_count: shadowInventory.length,
+      dependencies_count: shadowDependencies.length,
+      execution_metrics_count: shadowMetrics.length,
     },
     baselineSummary: {
       steps_count: baselineSteps.length,
       has_diff: !!baselineDiff,
       obligations_count: baselineObligations.length,
       inventory_count: baselineInventory.length,
+      dependencies_count: baselineDependencies.length,
+      execution_metrics_count: baselineMetrics.length,
     },
   };
 }
@@ -226,4 +240,5 @@ function compareShadowExecution(shadowResult, baselineResult) {
 module.exports = {
   compareShadowExecution,
   ALL_EVALUATED_DIMENSIONS,
+  REQUIRED_DIMENSIONS,
 };

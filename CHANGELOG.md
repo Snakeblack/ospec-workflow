@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.48.1] - 2026-08-26
+
+### Fixed
+- **Remediación de corrección K4b (`k4b-correctness-remediation`)**:
+  - **Despacho exclusivo vía K6a**: `orchestrateRepairShadow` llama `executeWorkOrder({ workOrder, workspace, ... })` con firma de objeto; `executorFn` queda fuera de la API productiva; `executorOptionsByNode` solo admite `commands`, `command`, `args`, `signal` y `declaredTargets`.
+  - **Propagación material de dependencias**: N2 consume el árbol integrado de N1 mediante `EffectiveShadowBase` derivada y workspace fresco por nodo; el freeze de Candidate sigue anclado al `SourceSnapshot` original.
+  - **Integrador fail-closed**: hunks validan contexto, borrado, counts y solapes; containment usa `WorkOrder.allowed_paths` del productor; los cambios de mode entran en Candidate v2.
+  - **Comparador de siete dimensiones**: steps, dependencies, diffs, inventory, obligations, invariants y execution metrics se evalúan siempre; vacíos no se omiten; métricas estables frente al reloj.
+  - **Registro auditable `repair-shadow-execution/v1`**: persistencia obligatoria sobre `filesystem-store` con bindings Candidate ↔ Graph ↔ PolicySnapshot; sin store no hay promoción.
+  - **E2E real K4a → K4b → K6a → K3**: N1 añade `multiply()` y N2 lo importa y ejecuta (`multiply_ok=6`) con WorkerTransport y WorkerIsolation controlados.
+  - **Cierre de iniciativa**: K4b pasa a `done`; K6b queda `next-eligible`. Archivado en `openspec/changes/archive/2026-08-25-k4b-correctness-remediation/`.
+
 ## [2.48.0] - 2026-08-25
 
 ### Added

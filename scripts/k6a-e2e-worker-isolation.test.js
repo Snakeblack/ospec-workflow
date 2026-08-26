@@ -38,8 +38,6 @@ const {
   createClaudeHostAdapter,
   getClaudeProofMaterial,
   ADAPTER_ID,
-  ADAPTER_VERSION,
-  HOST_VERSION,
 } = require("./lib/host-adapters/claude.js");
 
 const {
@@ -48,39 +46,9 @@ const {
   makeRogueIsolationPrimitive,
   executeSandboxedCommand,
 } = require("./lib/worker-sandbox.js");
+const { buildExecutionOptionsFromMaterial } = require("./lib/test-support/k6a-worker-fixtures.js");
 
 const makeRealWorkerCommandPrimitive = makeSandboxedWorkerPrimitive;
-
-/**
- * Compone las opciones de executeWorkOrder a partir del material canónico del
- * adapter real — sin inyección manual de adapter_id/probe_digest/containment.
- */
-function buildExecutionOptionsFromMaterial(material) {
-  const tMat = material.WorkerTransport;
-  const isoMat = material.WorkerIsolation;
-  const options = {
-    isolationCapability: "enforced",
-    capabilityProof: tMat.proof,
-    semantic_evidence: tMat.evidence,
-    expectedAdapterId: ADAPTER_ID,
-    expectedAdapterVersion: ADAPTER_VERSION,
-    expectedHostRuntimeVersion: HOST_VERSION,
-    expectedProbeDigest: tMat.expectedProbeDigest,
-    probe_digest: tMat.proof.probe_digest,
-  };
-  if (isoMat && isoMat.expectedProbeDigest) {
-    options.workerIsolation = {
-      declared_state: "enforced",
-      capabilityProof: isoMat.proof,
-      semantic_evidence: isoMat.evidence,
-      expectedAdapterId: ADAPTER_ID,
-      expectedAdapterVersion: ADAPTER_VERSION,
-      expectedHostRuntimeVersion: HOST_VERSION,
-      expectedProbeDigest: isoMat.expectedProbeDigest,
-    };
-  }
-  return options;
-}
 
 const ROOT = path.resolve(__dirname, "..");
 

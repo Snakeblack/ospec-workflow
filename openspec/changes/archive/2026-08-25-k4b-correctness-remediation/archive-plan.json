@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "change": "k4b-correctness-remediation",
+  "source_fingerprint": "sha256:6261e252ecbf8316cd9fec871ae983e279b263a9387446708024f013edc67ed1",
+  "spec_writes": [
+    {
+      "domain": "repair-shadow-orchestration",
+      "source_delta": "prepared-specs/repair-shadow-orchestration/spec.md",
+      "target": "openspec/specs/repair-shadow-orchestration/spec.md",
+      "target_before_sha256": "sha256:ddfe382fb56e92758557e4a25d3048aecf9b9e5b4019c158f04e348706bb498d",
+      "content_sha256": "sha256:d50026f5f92df405cfa7e67c5dd99f107e6c32d0622275be80ca362492274b1b"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260826-001-derived-shadow-base-with-stable-origin-identity.md",
+      "content_sha256": "sha256:45d979dce995db2bab1d3ef705447ef5294a6d110fb8f64fb896b4354f5f0dc6"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260826-002-closed-k6a-dispatch-contract.md",
+      "content_sha256": "sha256:801a0d32d224565f9c82c8040e1b56cb647ab3451d914a6fc2f33f3f24acdf5c"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260826-003-incremental-integration-and-single-final-freeze.md",
+      "content_sha256": "sha256:0b1f47f3c315edf29a220eb0a32b2c466055c073649c292fe5bee2578aa1d8cd"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260826-004-repair-shadow-execution-record-on-filesystem-store.md",
+      "content_sha256": "sha256:1c95bfe74cc36326fb124f8d1f60425466426928bde81e4f3795b95e08b334d7"
+    }
+  ],
+  "archive_inventory": [
+    ".4r/candidate.json",
+    ".4r/diff.tracked.patch",
+    ".4r/gate.json",
+    ".4r/lens-readability.json",
+    ".4r/lens-reliability.json",
+    ".4r/lens-resilience.json",
+    ".4r/lens-risk.json",
+    ".4r/lineage.json",
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "design.md",
+    "prepared-specs/repair-shadow-orchestration/spec.md",
+    "proposal.md",
+    "specs/repair-shadow-orchestration/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    {
+      "id": "K4B-W001",
+      "severity": "WARNING",
+      "summary": "docs/architecture/harness-evolution.md remains stale relative to authoritative roadmap",
+      "disposition": "follow-up"
+    }
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}
