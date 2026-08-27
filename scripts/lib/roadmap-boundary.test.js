@@ -89,3 +89,53 @@ test("REQ-repair-shadow-007: K6a worker primitives contain zero references to K4
   );
 });
 
+test("REQ-harness-authority-canon-010: K3/K4a/K4b/K6a do not import K6b modules", () => {
+  const roots = [
+    path.resolve(__dirname, "execution-identities"),
+    path.resolve(__dirname, "execution-graph"),
+    path.resolve(__dirname, "repair-shadow"),
+  ];
+  const k6aFiles = [
+    path.resolve(__dirname, "worker-executor.js"),
+    path.resolve(__dirname, "worker-workspace.js"),
+    path.resolve(__dirname, "worker-sandbox.js"),
+    path.resolve(__dirname, "worker-sandbox-confine.js"),
+    path.resolve(__dirname, "worker-sandbox-preload.js"),
+  ];
+
+  function collectJs(dir) {
+    if (!fs.existsSync(dir)) return [];
+    const stat = fs.statSync(dir);
+    if (stat.isFile()) return dir.endsWith(".js") && !dir.endsWith(".test.js") ? [dir] : [];
+    const out = [];
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...collectJs(abs));
+      else if (entry.isFile() && entry.name.endsWith(".js") && !entry.name.endsWith(".test.js")) out.push(abs);
+    }
+    return out;
+  }
+
+  const files = [...roots.flatMap(collectJs), ...k6aFiles.filter((file) => fs.existsSync(file))];
+  assert.ok(files.length > 0, "upstream kernel modules must exist");
+  for (const file of files) {
+    const source = fs.readFileSync(file, "utf8");
+    const relative = path.relative(path.resolve(__dirname, "../.."), file).replace(/\\/g, "/");
+    assert.equal(
+      source.includes("independent-verifier"),
+      false,
+      `${relative} must not import or reference independent-verifier`
+    );
+    assert.equal(
+      source.includes("assurance-graph"),
+      false,
+      `${relative} must not import or reference assurance-graph`
+    );
+  }
+
+  const { rejectAuthorityMisuse } = require("./assurance-graph/index.js");
+  const misuse = rejectAuthorityMisuse({ operation: "deliver", from_graph_edges_alone: true });
+  assert.equal(misuse.ok, false);
+  assert.equal(misuse.reason_code, "GRAPH_AUTHORITY_MISUSE");
+});
+

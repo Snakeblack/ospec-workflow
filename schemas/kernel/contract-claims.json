@@ -619,6 +619,65 @@
         ]
       },
       "command_shapes": []
+    },
+    "evidence-v2": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "evidence_id",
+        "candidate_id",
+        "provenance",
+        "origin",
+        "digest",
+        "node_id"
+      ],
+      "enum_values": {
+        "provenance": [
+          "runtime-observed",
+          "host-attested",
+          "tool-produced",
+          "model-reported",
+          "human-decision",
+          "external-unverified"
+        ]
+      },
+      "command_shapes": []
+    },
+    "verification-v2": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "verification_id",
+        "candidate_id",
+        "verdict",
+        "evidence_ids"
+      ],
+      "enum_values": {
+        "verdict": [
+          "PASS",
+          "PASS WITH WARNINGS",
+          "FAIL"
+        ]
+      },
+      "command_shapes": []
+    },
+    "assurance-graph": {
+      "required_fields": [
+        "schema_version",
+        "graph_id",
+        "candidate_id",
+        "nodes",
+        "edges"
+      ],
+      "enum_values": {
+        "relation": [
+          "verified-by",
+          "satisfies",
+          "derived-from",
+          "invalidates"
+        ]
+      },
+      "command_shapes": []
     }
   }
 }

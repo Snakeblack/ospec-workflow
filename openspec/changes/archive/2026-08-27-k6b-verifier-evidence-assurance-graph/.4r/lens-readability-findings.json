@@ -1,0 +1,22 @@
+[
+  {
+    "severity": "WARNING",
+    "summary": "isEvidenceTransitivelyInvalidated recorre un grafo distinto a computeInvalidationClosure sin comentario.",
+    "acceptance_criteria": "Añadir JSDoc en isEvidenceTransitivelyInvalidated que deje explícito: (1) las semillas son los destinos (edge.to) de aristas invalidates, no los sujetos cambiados; (2) el BFS sigue todas las relaciones salientes, no el par dependents + invalidatesForward de computeInvalidationClosure."
+  },
+  {
+    "severity": "WARNING",
+    "summary": "rejectForbidden usa el nombre opaco blob y matching por subcadena no documentado.",
+    "acceptance_criteria": "Renombrar blob a un identificador que indique haystack en minúsculas de id+kind, y comentar que FORBIDDEN_NODE_KIND_MARKERS se aplican con includes sobre id o kind (no igualdad exacta de kind; ALLOWED_NODE_KINDS ya cubre el kind exacto)."
+  },
+  {
+    "severity": "WARNING",
+    "summary": "evaluateStrategy anida cuatro niveles de control en el chequeo de provenance de anyOf.",
+    "acceptance_criteria": "Extraer el bucle anyOf/provenance a un helper (p. ej. assertAdmissibleProvenance(policy, items, roles)) de modo que ningún bloque de evaluateStrategy supere 3 niveles de anidamiento."
+  },
+  {
+    "severity": "WARNING",
+    "summary": "resolveSchemaEnum toma el primer enum anidado en items/$ref sin explicar la búsqueda.",
+    "acceptance_criteria": "Comentar que K1 debe resolver enums anidados (p. ej. assurance-graph edges.relation vía #/$defs/edge) y que gana el primer items.properties[field].enum encontrado; o renombrar el helper para que ese contrato se lea en el nombre."
+  }
+]

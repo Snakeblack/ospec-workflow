@@ -1,0 +1,11 @@
+{
+  "base_tree": "153b734bc9925da9937f4ef75eb6e2c7e443fbbd",
+  "candidate_tree": "WORKING-TREE-k6b-verifier-evidence-assurance-graph",
+  "changed_lines": 4137,
+  "plus": 4121,
+  "minus": 16,
+  "paths_count": 53,
+  "evidence_fingerprint": "sha256:028866e57b565d535b9c98b5f9fed4ca15631919ede36d6609bf9f724b1b7bc2",
+  "diff_hash": "sha256:1fc787cb403515c2b05a047d66e4364748a5a59445a0ab02f51a2b946eeb91c9",
+  "paths_digest": "sha256:c26b6b0bff99f34bec1a38811eb0133c9920938eeb7d7ab28750e503a3ea8933"
+}

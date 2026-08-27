@@ -1,0 +1,539 @@
+{
+  "schema_version": 1,
+  "lineage_id": "sha256:a879a836e745c1ad8069ef354bcf1df62fb2fb1535e2585ab7a84ae75145d8e3",
+  "generation": 2,
+  "predecessor_lineage_id": "sha256:34d2a0822ee3986e19130b1b9b418bf8bee195151073d2425e7513c79cad4947",
+  "recovery": {
+    "reason": "WARNING remediations after CRITICAL slices closed change the candidate identity",
+    "approval_reference": "k6b-bounded-review-001"
+  },
+  "revision": 12,
+  "status": "approved",
+  "genesis": {
+    "candidate": {
+      "projection": "workspace",
+      "base_tree": "153b734bc9925da9937f4ef75eb6e2c7e443fbbd",
+      "candidate_tree": "WORKING-TREE-k6b-warning-successor",
+      "paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/derived.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/freeze-lineage.js",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/generalist.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lens-readability-findings.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lens-reliability-findings.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lineage.generation-1.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lineage.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/meta.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/paths.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/planned-gate.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/planned-lineage.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/record-lenses.js",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/apply-progress.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/decisions/adr-001.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/decisions/adr-002.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/decisions/adr-003.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/design.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/proposal.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/assurance-graph/spec.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/harness-authority-canon/spec.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/independent-verification/spec.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/kernel-contract-schemas/spec.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/state.yaml",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/tasks.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/verify-report.md",
+        "schemas/kernel/assurance-graph/fixtures/invalid/v1-attestation-alias.json",
+        "schemas/kernel/assurance-graph/fixtures/invalid/v1-malformed-digest.json",
+        "schemas/kernel/assurance-graph/fixtures/invalid/v1-missing-fields.json",
+        "schemas/kernel/assurance-graph/fixtures/invalid/v1-reviewed-by.json",
+        "schemas/kernel/assurance-graph/fixtures/valid/v1-minimal.json",
+        "schemas/kernel/assurance-graph/fixtures/valid/v1-with-manifest.json",
+        "schemas/kernel/assurance-graph/v1.schema.json",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/evidence/fixtures/invalid/v2-malformed-candidate-id.json",
+        "schemas/kernel/evidence/fixtures/invalid/v2-missing-required.json",
+        "schemas/kernel/evidence/fixtures/invalid/v2-unknown-provenance.json",
+        "schemas/kernel/evidence/fixtures/invalid/v2-verification-alias.json",
+        "schemas/kernel/evidence/fixtures/invalid/v2-with-verdict.json",
+        "schemas/kernel/evidence/fixtures/valid/v2-runtime-observed.json",
+        "schemas/kernel/evidence/v2.schema.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/verification/fixtures/invalid/v2-evidence-alias.json",
+        "schemas/kernel/verification/fixtures/invalid/v2-missing-verdict.json",
+        "schemas/kernel/verification/fixtures/valid/v2-pass.json",
+        "schemas/kernel/verification/v2.schema.json",
+        "scripts/k6b-verifier-assurance-graph-e2e.test.js",
+        "scripts/lib/assurance-graph/index.js",
+        "scripts/lib/assurance-graph/index.test.js",
+        "scripts/lib/assurance-graph/invalidation.js",
+        "scripts/lib/assurance-graph/projector.js",
+        "scripts/lib/contract-checkers/k1-schema-compat.js",
+        "scripts/lib/contract-checkers/k1-schema-compat.test.js",
+        "scripts/lib/independent-verifier/bindings.js",
+        "scripts/lib/independent-verifier/evidence.js",
+        "scripts/lib/independent-verifier/index.js",
+        "scripts/lib/independent-verifier/index.test.js",
+        "scripts/lib/independent-verifier/strategy-policy.js",
+        "scripts/lib/independent-verifier/verdict.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k2a-maturity-docs.test.js",
+        "scripts/lib/k6b-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/roadmap-boundary.test.js"
+      ],
+      "diff_hash": "sha256:13c7e437d9197e55f0563a0deabad4718e14bca895828edee169131bd6d58d80",
+      "paths_digest": "sha256:5bd7690f76c0b4c79669ccf546646f3690ecb0581364ef531c122bae660120a2",
+      "authored_lines": 6610,
+      "original_changed_lines": 6610
+    },
+    "candidate_id": "sha256:1b783fc2138825df04366fcc4a469bd891833a333aac2e8d3fd13a65be9ce6f3",
+    "paths": [
+      "docs/architecture/harness-evolution.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/derived.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/freeze-lineage.js",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/generalist.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lens-readability-findings.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lens-reliability-findings.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lineage.generation-1.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lineage.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/meta.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/paths.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/planned-gate.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/planned-lineage.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/record-lenses.js",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/apply-progress.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/decisions/adr-001.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/decisions/adr-002.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/decisions/adr-003.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/design.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/proposal.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/assurance-graph/spec.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/harness-authority-canon/spec.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/independent-verification/spec.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/kernel-contract-schemas/spec.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/state.yaml",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/tasks.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/verify-report.md",
+      "schemas/kernel/assurance-graph/fixtures/invalid/v1-attestation-alias.json",
+      "schemas/kernel/assurance-graph/fixtures/invalid/v1-malformed-digest.json",
+      "schemas/kernel/assurance-graph/fixtures/invalid/v1-missing-fields.json",
+      "schemas/kernel/assurance-graph/fixtures/invalid/v1-reviewed-by.json",
+      "schemas/kernel/assurance-graph/fixtures/valid/v1-minimal.json",
+      "schemas/kernel/assurance-graph/fixtures/valid/v1-with-manifest.json",
+      "schemas/kernel/assurance-graph/v1.schema.json",
+      "schemas/kernel/contract-claims.json",
+      "schemas/kernel/evidence/fixtures/invalid/v2-malformed-candidate-id.json",
+      "schemas/kernel/evidence/fixtures/invalid/v2-missing-required.json",
+      "schemas/kernel/evidence/fixtures/invalid/v2-unknown-provenance.json",
+      "schemas/kernel/evidence/fixtures/invalid/v2-verification-alias.json",
+      "schemas/kernel/evidence/fixtures/invalid/v2-with-verdict.json",
+      "schemas/kernel/evidence/fixtures/valid/v2-runtime-observed.json",
+      "schemas/kernel/evidence/v2.schema.json",
+      "schemas/kernel/manifest.json",
+      "schemas/kernel/verification/fixtures/invalid/v2-evidence-alias.json",
+      "schemas/kernel/verification/fixtures/invalid/v2-missing-verdict.json",
+      "schemas/kernel/verification/fixtures/valid/v2-pass.json",
+      "schemas/kernel/verification/v2.schema.json",
+      "scripts/k6b-verifier-assurance-graph-e2e.test.js",
+      "scripts/lib/assurance-graph/index.js",
+      "scripts/lib/assurance-graph/index.test.js",
+      "scripts/lib/assurance-graph/invalidation.js",
+      "scripts/lib/assurance-graph/projector.js",
+      "scripts/lib/contract-checkers/k1-schema-compat.js",
+      "scripts/lib/contract-checkers/k1-schema-compat.test.js",
+      "scripts/lib/independent-verifier/bindings.js",
+      "scripts/lib/independent-verifier/evidence.js",
+      "scripts/lib/independent-verifier/index.js",
+      "scripts/lib/independent-verifier/index.test.js",
+      "scripts/lib/independent-verifier/strategy-policy.js",
+      "scripts/lib/independent-verifier/verdict.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/k2a-maturity-docs.test.js",
+      "scripts/lib/k6b-schema-fixtures.test.js",
+      "scripts/lib/lifecycle-kernel/k1-compat.js",
+      "scripts/lib/roadmap-boundary.test.js"
+    ],
+    "classification": "high-risk",
+    "selected_dimensions": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "evidence_fingerprint": "sha256:be917a9a5130734fd746463eb769b27ada4b3d2b04a598917ae546d5aade9d90",
+    "original_changed_lines": 6610,
+    "authored_lines": 6610
+  },
+  "current_candidate_id": "sha256:57c9195cbdbec1d69d35040122a4852be7d946c1c40693588b13048249232e1d",
+  "current_candidate": {
+    "projection": "workspace",
+    "base_tree": "153b734bc9925da9937f4ef75eb6e2c7e443fbbd",
+    "candidate_tree": "WORKING-TREE-k6b-g2-stale-dependent",
+    "paths": [
+      "docs/architecture/harness-evolution.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/derived.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/freeze-lineage.js",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/generalist.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lens-readability-findings.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lens-reliability-findings.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lineage.generation-1.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lineage.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/meta.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/paths.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/planned-gate.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/planned-lineage.json",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/record-lenses.js",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/apply-progress.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/decisions/adr-001.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/decisions/adr-002.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/decisions/adr-003.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/design.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/proposal.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/assurance-graph/spec.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/harness-authority-canon/spec.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/independent-verification/spec.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/kernel-contract-schemas/spec.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/state.yaml",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/tasks.md",
+      "openspec/changes/k6b-verifier-evidence-assurance-graph/verify-report.md",
+      "schemas/kernel/assurance-graph/fixtures/invalid/v1-attestation-alias.json",
+      "schemas/kernel/assurance-graph/fixtures/invalid/v1-malformed-digest.json",
+      "schemas/kernel/assurance-graph/fixtures/invalid/v1-missing-fields.json",
+      "schemas/kernel/assurance-graph/fixtures/invalid/v1-reviewed-by.json",
+      "schemas/kernel/assurance-graph/fixtures/valid/v1-minimal.json",
+      "schemas/kernel/assurance-graph/fixtures/valid/v1-with-manifest.json",
+      "schemas/kernel/assurance-graph/v1.schema.json",
+      "schemas/kernel/contract-claims.json",
+      "schemas/kernel/evidence/fixtures/invalid/v2-malformed-candidate-id.json",
+      "schemas/kernel/evidence/fixtures/invalid/v2-missing-required.json",
+      "schemas/kernel/evidence/fixtures/invalid/v2-unknown-provenance.json",
+      "schemas/kernel/evidence/fixtures/invalid/v2-verification-alias.json",
+      "schemas/kernel/evidence/fixtures/invalid/v2-with-verdict.json",
+      "schemas/kernel/evidence/fixtures/valid/v2-runtime-observed.json",
+      "schemas/kernel/evidence/v2.schema.json",
+      "schemas/kernel/manifest.json",
+      "schemas/kernel/verification/fixtures/invalid/v2-evidence-alias.json",
+      "schemas/kernel/verification/fixtures/invalid/v2-missing-verdict.json",
+      "schemas/kernel/verification/fixtures/valid/v2-pass.json",
+      "schemas/kernel/verification/v2.schema.json",
+      "scripts/k6b-verifier-assurance-graph-e2e.test.js",
+      "scripts/lib/assurance-graph/index.js",
+      "scripts/lib/assurance-graph/index.test.js",
+      "scripts/lib/assurance-graph/invalidation.js",
+      "scripts/lib/assurance-graph/projector.js",
+      "scripts/lib/contract-checkers/k1-schema-compat.js",
+      "scripts/lib/contract-checkers/k1-schema-compat.test.js",
+      "scripts/lib/independent-verifier/bindings.js",
+      "scripts/lib/independent-verifier/evidence.js",
+      "scripts/lib/independent-verifier/index.js",
+      "scripts/lib/independent-verifier/index.test.js",
+      "scripts/lib/independent-verifier/strategy-policy.js",
+      "scripts/lib/independent-verifier/verdict.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/k2a-maturity-docs.test.js",
+      "scripts/lib/k6b-schema-fixtures.test.js",
+      "scripts/lib/lifecycle-kernel/k1-compat.js",
+      "scripts/lib/roadmap-boundary.test.js"
+    ],
+    "diff_hash": "sha256:2bac0369e28da05cdfe690570d4b43a65eda3120a8183a7788daad0f96d406ef",
+    "paths_digest": "sha256:5bd7690f76c0b4c79669ccf546646f3690ecb0581364ef531c122bae660120a2",
+    "authored_lines": 6610,
+    "original_changed_lines": 6610
+  },
+  "lenses": {
+    "risk": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-risk-k6b-g2",
+      "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+      "result": {
+        "findings": []
+      },
+      "operation": null,
+      "result_request_id": "start-risk-k6b-g2"
+    },
+    "reliability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-reliability-k6b-g2",
+      "result_digest": "sha256:0ada0ff4491444051385d9b0a2fe7bedf4237f9d74e4b037ecf5d7178a671826",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "STALE_EVIDENCE no cubre evidencia dependiente de un nodo invalidado; la caminata actual no falla cerrado en ese grafo.",
+            "acceptance_criteria": "verifyCandidate with priorAssuranceGraph A--invalidates-->B and evidence E--derived-from-->B (no direct invalidates to E) returns ok:false, reason_code STALE_EVIDENCE, and omits verification; stale case added to the 003-named test."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "La rama PASS WITH WARNINGS (human-decision/external-unverified extra) no esta testeada.",
+            "acceptance_criteria": "verifyCandidate with runtime strategy minimums plus extra human-decision or external-unverified evidence asserts verification.verdict === PASS WITH WARNINGS."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "El fallo anyOf de feature (ni contract ni integration) no esta testeado.",
+            "acceptance_criteria": "verifyCandidate declaredStrategy feature with only acceptance, invariants, and negative returns ok:false and reason_code MISSING_STRATEGY_MINIMUM."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "Strict TDD no tiene test de rechazo para host-attested/tool-produced.",
+            "acceptance_criteria": "verifyCandidate with no declaredStrategy and red+green host-attested or tool-produced returns ok:false and reason_code INSUFFICIENT_PROVENANCE."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "El mismatch de evidence_id canonico no esta testeado.",
+            "acceptance_criteria": "verifyCandidate/normalizeEvidence with coherent bytes and digest but forged evidence_id returns ok:false, reason_code FABRICATED_EVIDENCE, and omits verification."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "start-reliability-k6b-g2"
+    },
+    "resilience": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-resilience-k6b-g2",
+      "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+      "result": {
+        "findings": []
+      },
+      "operation": null,
+      "result_request_id": "start-resilience-k6b-g2"
+    },
+    "readability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "start-readability-k6b-g2",
+      "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+      "result": {
+        "findings": []
+      },
+      "operation": null,
+      "result_request_id": "start-readability-k6b-g2"
+    }
+  },
+  "findings": [
+    {
+      "id": "F-5726662acf1e1966",
+      "owner": "reliability",
+      "severity": "CRITICAL",
+      "summary": "STALE_EVIDENCE no cubre evidencia dependiente de un nodo invalidado; la caminata actual no falla cerrado en ese grafo.",
+      "acceptance_criteria": "verifyCandidate with priorAssuranceGraph A--invalidates-->B and evidence E--derived-from-->B (no direct invalidates to E) returns ok:false, reason_code STALE_EVIDENCE, and omits verification; stale case added to the 003-named test.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-242548e4849b302e",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "La rama PASS WITH WARNINGS (human-decision/external-unverified extra) no esta testeada.",
+      "acceptance_criteria": "verifyCandidate with runtime strategy minimums plus extra human-decision or external-unverified evidence asserts verification.verdict === PASS WITH WARNINGS.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-52eba8d7d7edf56a",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "El fallo anyOf de feature (ni contract ni integration) no esta testeado.",
+      "acceptance_criteria": "verifyCandidate declaredStrategy feature with only acceptance, invariants, and negative returns ok:false and reason_code MISSING_STRATEGY_MINIMUM.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-a0aa9e1d0cf9cc34",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "Strict TDD no tiene test de rechazo para host-attested/tool-produced.",
+      "acceptance_criteria": "verifyCandidate with no declaredStrategy and red+green host-attested or tool-produced returns ok:false and reason_code INSUFFICIENT_PROVENANCE.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-a80cad3468324e06",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "El mismatch de evidence_id canonico no esta testeado.",
+      "acceptance_criteria": "verifyCandidate/normalizeEvidence with coherent bytes and digest but forged evidence_id returns ok:false, reason_code FABRICATED_EVIDENCE, and omits verification.",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ],
+  "findings_digest": "sha256:40fa1108c3d2ec7e36694c2a28ee27fbb4740837bf77aeb0737b64182759e889",
+  "correction_budget": {
+    "limit_lines": 200,
+    "used_lines": 0,
+    "failed_attempts": 0,
+    "max_failed_attempts": 3
+  },
+  "correction_history": [],
+  "validation_history": [],
+  "follow_ups": [
+    {
+      "owner": "reliability",
+      "summary": "PASS WITH WARNINGS still untested for extra human-decision/external-unverified evidence",
+      "blocking": false
+    },
+    {
+      "owner": "reliability",
+      "summary": "feature anyOf miss (acceptance+invariants+negative, no contract/integration) still untested",
+      "blocking": false
+    },
+    {
+      "owner": "reliability",
+      "summary": "Strict TDD host-attested/tool-produced red+green rejection still untested",
+      "blocking": false
+    },
+    {
+      "owner": "reliability",
+      "summary": "forged canonical evidence_id with coherent bytes+digest still untested",
+      "blocking": false
+    }
+  ],
+  "pending_operation": null,
+  "pending_correction": null,
+  "terminal_reason": "all-remediation-slices-passed",
+  "remediation_schema_version": 2,
+  "remediation_migration": {
+    "source_digest": "sha256:3846df23f55d43bb2899c0d79e6bd4e8a1f6b7bb3043a65dc7e44d709730c5f1",
+    "manifest_digest": "sha256:815257ff0943a6738bf843714dc5faf7338b5ad39cc318128182e6c98bf3d7b2",
+    "legacy_used_lines": 0,
+    "legacy_failed_attempts": 0,
+    "migrated_at": "deterministic"
+  },
+  "slice_order": [
+    "S-914ea5bac704f224"
+  ],
+  "active_slice_id": null,
+  "correction_slices": {
+    "S-914ea5bac704f224": {
+      "slice_id": "S-914ea5bac704f224",
+      "root_cause_key": "F-5726662acf1e1966",
+      "finding_ids": [
+        "F-5726662acf1e1966"
+      ],
+      "evidence_digests": [
+        "sha256:eea54d13d11760d0929549d268cf3a4c46cbb33a6ca2206ce8b7bd0daaaeb8ef"
+      ],
+      "permitted_paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/derived.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/freeze-lineage.js",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/generalist.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lens-readability-findings.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lens-reliability-findings.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lineage.generation-1.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lineage.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/meta.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/paths.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/planned-gate.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/planned-lineage.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/record-lenses.js",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/apply-progress.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/decisions/adr-001.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/decisions/adr-002.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/decisions/adr-003.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/design.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/proposal.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/assurance-graph/spec.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/harness-authority-canon/spec.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/independent-verification/spec.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/kernel-contract-schemas/spec.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/state.yaml",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/tasks.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/verify-report.md",
+        "schemas/kernel/assurance-graph/fixtures/invalid/v1-attestation-alias.json",
+        "schemas/kernel/assurance-graph/fixtures/invalid/v1-malformed-digest.json",
+        "schemas/kernel/assurance-graph/fixtures/invalid/v1-missing-fields.json",
+        "schemas/kernel/assurance-graph/fixtures/invalid/v1-reviewed-by.json",
+        "schemas/kernel/assurance-graph/fixtures/valid/v1-minimal.json",
+        "schemas/kernel/assurance-graph/fixtures/valid/v1-with-manifest.json",
+        "schemas/kernel/assurance-graph/v1.schema.json",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/evidence/fixtures/invalid/v2-malformed-candidate-id.json",
+        "schemas/kernel/evidence/fixtures/invalid/v2-missing-required.json",
+        "schemas/kernel/evidence/fixtures/invalid/v2-unknown-provenance.json",
+        "schemas/kernel/evidence/fixtures/invalid/v2-verification-alias.json",
+        "schemas/kernel/evidence/fixtures/invalid/v2-with-verdict.json",
+        "schemas/kernel/evidence/fixtures/valid/v2-runtime-observed.json",
+        "schemas/kernel/evidence/v2.schema.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/verification/fixtures/invalid/v2-evidence-alias.json",
+        "schemas/kernel/verification/fixtures/invalid/v2-missing-verdict.json",
+        "schemas/kernel/verification/fixtures/valid/v2-pass.json",
+        "schemas/kernel/verification/v2.schema.json",
+        "scripts/k6b-verifier-assurance-graph-e2e.test.js",
+        "scripts/lib/assurance-graph/index.js",
+        "scripts/lib/assurance-graph/index.test.js",
+        "scripts/lib/assurance-graph/invalidation.js",
+        "scripts/lib/assurance-graph/projector.js",
+        "scripts/lib/contract-checkers/k1-schema-compat.js",
+        "scripts/lib/contract-checkers/k1-schema-compat.test.js",
+        "scripts/lib/independent-verifier/bindings.js",
+        "scripts/lib/independent-verifier/evidence.js",
+        "scripts/lib/independent-verifier/index.js",
+        "scripts/lib/independent-verifier/index.test.js",
+        "scripts/lib/independent-verifier/strategy-policy.js",
+        "scripts/lib/independent-verifier/verdict.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k2a-maturity-docs.test.js",
+        "scripts/lib/k6b-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/roadmap-boundary.test.js"
+      ],
+      "resolutions": {
+        "F-5726662acf1e1966": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 72,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-914ea5bac704f224",
+          "request_id": "correct-S-914ea5bac704f224",
+          "finding_ids": [
+            "F-5726662acf1e1966"
+          ],
+          "paths": [
+            "scripts/lib/assurance-graph/index.test.js",
+            "scripts/lib/assurance-graph/invalidation.js",
+            "scripts/lib/independent-verifier/index.test.js"
+          ],
+          "base_candidate_id": "sha256:1b783fc2138825df04366fcc4a469bd891833a333aac2e8d3fd13a65be9ce6f3",
+          "forecast_lines": 80,
+          "actual_changed_lines": 72,
+          "record_request_id": "correct-S-914ea5bac704f224",
+          "corrected_candidate_id": "sha256:57c9195cbdbec1d69d35040122a4852be7d946c1c40693588b13048249232e1d"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "validate-S-914ea5bac704f224",
+          "outcomes": [
+            {
+              "id": "F-5726662acf1e1966",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "node --test scripts/lib/independent-verifier/index.test.js scripts/lib/assurance-graph/index.test.js scripts/k6b-verifier-assurance-graph-e2e.test.js → 26 pass, 0 fail",
+              "REQ-independent-verification-003 dependent stale: A--invalidates-->B E--derived-from-->B STALE_EVIDENCE without verification"
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    }
+  }
+}

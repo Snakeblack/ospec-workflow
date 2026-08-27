@@ -492,3 +492,201 @@ test("state-transition valid fixtures reject missing tokens and commands on coll
   assert.ok(offenders.some((item) => /collect-with-command.*collect forbids command/.test(item.message)));
   assert.ok(offenders.some((item) => /stop-with-command.*stop forbids command/.test(item.message)));
 });
+
+test("hyphenated v2 publication aliases keep shared-directory paths and isolate v2 fixtures from v1", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "k1-schema-compat-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  const evidenceDir = path.join(root, "schemas", "kernel", "evidence");
+  fs.mkdirSync(path.join(evidenceDir, "fixtures", "valid"), { recursive: true });
+  fs.mkdirSync(path.join(evidenceDir, "fixtures", "invalid"), { recursive: true });
+  const v1Schema = {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    $id: "ospec://schemas/kernel/evidence/v1",
+    schema_version: 1,
+    type: "object",
+    properties: {
+      schema_version: { const: 1 },
+      evidence_id: { type: "string" },
+      kind: { type: "string" },
+      digest: { type: "string" },
+    },
+    required: ["schema_version", "evidence_id", "kind", "digest"],
+    additionalProperties: false,
+  };
+  const v2Schema = {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    $id: "ospec://schemas/kernel/evidence/v2",
+    schema_version: 2,
+    type: "object",
+    properties: {
+      schema_version: { const: 2 },
+      kind: { const: "evidence/v2" },
+      evidence_id: { type: "string" },
+      candidate_id: { type: "string" },
+      provenance: { type: "string", enum: ["runtime-observed"] },
+      origin: { type: "string" },
+      digest: { type: "string" },
+      node_id: { type: "string" },
+    },
+    required: ["schema_version", "kind", "evidence_id", "candidate_id", "provenance", "origin", "digest", "node_id"],
+    additionalProperties: false,
+  };
+  fs.writeFileSync(path.join(evidenceDir, "v1.schema.json"), JSON.stringify(v1Schema));
+  fs.writeFileSync(path.join(evidenceDir, "v2.schema.json"), JSON.stringify(v2Schema));
+  fs.writeFileSync(
+    path.join(evidenceDir, "fixtures", "valid", "v1-ok.json"),
+    JSON.stringify({ schema_version: 1, evidence_id: "e1", kind: "test", digest: "d1" })
+  );
+  fs.writeFileSync(
+    path.join(evidenceDir, "fixtures", "invalid", "v1-bad.json"),
+    JSON.stringify({ schema_version: 1 })
+  );
+  fs.writeFileSync(
+    path.join(evidenceDir, "fixtures", "valid", "v2-ok.json"),
+    JSON.stringify({
+      schema_version: 2,
+      kind: "evidence/v2",
+      evidence_id: "e2",
+      candidate_id: "c2",
+      provenance: "runtime-observed",
+      origin: "test",
+      digest: "d2",
+      node_id: "n2",
+    })
+  );
+  fs.writeFileSync(
+    path.join(evidenceDir, "fixtures", "invalid", "v2-bad.json"),
+    JSON.stringify({ schema_version: 2, kind: "evidence/v2" })
+  );
+  fs.mkdirSync(path.join(root, "schemas", "kernel"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, "schemas", "kernel", "manifest.json"),
+    JSON.stringify({
+      schema_version: 1,
+      families: {
+        evidence: {
+          path: "schemas/kernel/evidence/v1.schema.json",
+          $id: "ospec://schemas/kernel/evidence/v1",
+          schema_version: 1,
+        },
+        "evidence-v2": {
+          path: "schemas/kernel/evidence/v2.schema.json",
+          $id: "ospec://schemas/kernel/evidence/v2",
+          schema_version: 2,
+        },
+      },
+    })
+  );
+  fs.writeFileSync(
+    path.join(root, "schemas", "kernel", "contract-claims.json"),
+    JSON.stringify({
+      schema_version: 1,
+      families: {
+        evidence: {
+          required_fields: ["schema_version", "evidence_id", "kind", "digest"],
+          enum_values: {},
+          command_shapes: [],
+        },
+        "evidence-v2": {
+          required_fields: ["schema_version", "kind", "evidence_id", "candidate_id", "provenance", "origin", "digest", "node_id"],
+          enum_values: { provenance: ["runtime-observed"] },
+          command_shapes: [],
+        },
+      },
+    })
+  );
+
+  const offenders = check({ root });
+  assert.ok(
+    !offenders.some((item) => /evidence-v2/.test(item.path + item.message) && /canonical path/.test(item.message)),
+    `evidence-v2 path should be canonical: ${JSON.stringify(offenders.filter((item) => /evidence-v2/.test(item.path + item.message)))}`
+  );
+  assert.ok(
+    !offenders.some((item) => /v2-ok\.json is declared valid but was rejected/.test(item.message)),
+    "v2 valid fixture must not be evaluated as evidence/v1"
+  );
+  assert.ok(
+    !offenders.some((item) => /v2-bad\.json is declared invalid but was accepted/.test(item.message)),
+    "v2 invalid fixture must not be evaluated as evidence/v1"
+  );
+  assert.ok(
+    !offenders.some((item) => /asserts enum values for provenance/.test(item.message)),
+    "evidence-v2 provenance enum must resolve against the v2 schema"
+  );
+});
+
+test("nested $defs item enums satisfy family claims without a top-level property", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "k1-schema-compat-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  writeFamily(root, {
+    family: "assurance-graph",
+    schema: {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      $id: "ospec://schemas/kernel/assurance-graph/v1",
+      schema_version: 1,
+      type: "object",
+      properties: {
+        schema_version: { const: 1 },
+        graph_id: { type: "string" },
+        candidate_id: { type: "string" },
+        nodes: { type: "array" },
+        edges: { type: "array", items: { $ref: "#/$defs/edge" } },
+      },
+      required: ["schema_version", "graph_id", "candidate_id", "nodes", "edges"],
+      additionalProperties: false,
+      $defs: {
+        edge: {
+          type: "object",
+          required: ["from", "relation", "to"],
+          properties: {
+            from: { type: "string" },
+            relation: { type: "string", enum: ["verified-by", "satisfies", "derived-from", "invalidates"] },
+            to: { type: "string" },
+          },
+        },
+      },
+    },
+    claims: {
+      schema_version: 1,
+      families: {
+        "assurance-graph": {
+          required_fields: ["schema_version", "graph_id", "candidate_id", "nodes", "edges"],
+          enum_values: { relation: ["verified-by", "satisfies", "derived-from", "invalidates"] },
+          command_shapes: [],
+        },
+      },
+    },
+  });
+  const schemaDir = path.join(root, "schemas", "kernel", "assurance-graph");
+  const validDir = path.join(schemaDir, "fixtures", "valid");
+  const invalidDir = path.join(schemaDir, "fixtures", "invalid");
+  fs.mkdirSync(validDir, { recursive: true });
+  fs.mkdirSync(invalidDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(validDir, "ok.json"),
+    JSON.stringify({
+      schema_version: 1,
+      graph_id: "g1",
+      candidate_id: "c1",
+      nodes: [],
+      edges: [{ from: "a", relation: "verified-by", to: "b" }],
+    })
+  );
+  fs.writeFileSync(
+    path.join(invalidDir, "bad.json"),
+    JSON.stringify({ schema_version: 1 })
+  );
+
+  const offenders = check({ root });
+  assert.ok(
+    !offenders.some((item) => /asserts enum values for relation/.test(item.message)),
+    `relation enum must resolve from $defs.edge: ${JSON.stringify(offenders.filter((item) => /relation/.test(item.message)))}`
+  );
+  assert.ok(
+    !offenders.some((item) => /assurance-graph/.test(item.path + item.message) && /canonical path/.test(item.message)),
+    "assurance-graph canonical path must remain valid"
+  );
+});
+
