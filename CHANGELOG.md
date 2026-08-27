@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.49.0] - 2026-08-27
+
+### Added
+- **Briefing funcional de intención (`orchestrator-intent-briefing`)**:
+  - `/sdd-new`, `/sdd-ff` y `/sdd-lite` (y equivalentes en lenguaje natural) presentan un resumen funcional de 2–4 líneas antes de clasificar, tanto si la petición es vaga como si es concreta.
+  - Hasta 2 correcciones; después solo se puede confirmar la última síntesis o abortar. Mientras espera no crea `openspec/changes/{name}/`.
+  - Al aceptar, persiste `gate: intent-briefing` (`synthesis`, `scope`) en `state.yaml` y después clasifica. Al abortar, cero artefactos y no hay clasificación.
+  - `/sdd-continue`, fases posteriores con briefing ya aceptado y el trabajo cosmético del Ambient Gate no reabren el gate.
+  - Corpus de evals 7→9 (`specific-request-no-artifact`, `continue-no-rebrief`) y goldens de configure regenerados.
+  - K10 sigue pendiente para generalizar `clarify-intent` como receta de grafo. Follow-up 4R: landmarks de aborto independiente y de síntesis fresca.
+  - Ciclo SDD completo (ruta standard, size:exception, 4R approved). Verify: 41/41, `npm test` 2677 pass. Archivado en `openspec/changes/archive/2026-08-27-orchestrator-intent-briefing/`.
+
 ## [2.48.3] - 2026-08-26
 
 ### Fixed
