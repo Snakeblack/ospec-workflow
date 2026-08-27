@@ -1,0 +1,12 @@
+[
+  {
+    "severity": "WARNING",
+    "summary": "normalizeEvidence no cubre en test las ramas FABRICATED_EVIDENCE de raw no-objeto y de validateInstance (origin ausente o vacío).",
+    "acceptance_criteria": "Un test de verifyCandidate/normalizeEvidence con collector allowlisted debe devolver ok:false, reason_code FABRICATED_EVIDENCE y sin verification tanto si un item de rawEvidence es null o string, como si origin está omitido o es \"\"."
+  },
+  {
+    "severity": "WARNING",
+    "summary": "walkMustObligations no tiene test para el retorno fail-closed de emitAssessment (if (!emitted.ok) return emitted).",
+    "acceptance_criteria": "walkMustObligations con un MUST no diferido, evidencia runtime ligada al nodo implementador, y role ausente/vacío o policySnapshotId no sha256, debe devolver ok:false y reason_code INVALID_ASSESSMENT, sin assessments ni PASS."
+  }
+]

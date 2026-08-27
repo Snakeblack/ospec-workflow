@@ -9,6 +9,8 @@ const { computeTreeDigest } = require("../worker-workspace.js");
 const {
   projectAssuranceGraph,
   reconcileAssuranceGraph,
+  replayAssuranceGraph,
+  rejectForbidden,
   computeInvalidationClosure,
   emitEquivalenceManifest,
   rejectAuthorityMisuse,
@@ -81,6 +83,8 @@ function featureRaw() {
   ];
 }
 
+const HARNESS_COLLECTOR = { id: "node-test", transport: "tool-execution-transport" };
+
 function verifiedProjection() {
   const files = { "src/index.js": "module.exports = 1;\n" };
   const candidate = freezeFromFiles(files);
@@ -90,6 +94,7 @@ function verifiedProjection() {
     executionGraph,
     repository: { files },
     declaredStrategy: "feature",
+    collector: HARNESS_COLLECTOR,
     rawEvidence: featureRaw(),
   });
   assert.equal(verified.ok, true, verified.error || verified.reason_code);
@@ -100,19 +105,20 @@ test("REQ-assurance-graph-002: same inputs yield the same digest and edges despi
   const { candidate, executionGraph, verified } = verifiedProjection();
   const classified = verified.evidence.map((evidence, index) => ({
     evidence,
-    obligation_ids: ["req-repair-001"],
     role: ["acceptance", "invariants", "contract", "negative"][index],
   }));
   const first = projectAssuranceGraph({
     candidate,
     executionGraph,
     evidence: classified,
+    assessments: verified.assessments,
     verification: verified.verification,
   });
   const second = projectAssuranceGraph({
     candidate,
     executionGraph,
     evidence: [...classified].reverse(),
+    assessments: [...verified.assessments].reverse(),
     verification: verified.verification,
     additionalEdges: [...(first.graph.edges || [])].reverse(),
   });
@@ -148,14 +154,16 @@ test("REQ-assurance-graph-001: matching canonical inputs project; divergence fai
   const projected = projectAssuranceGraph({
     candidate,
     executionGraph,
-    evidence: verified.evidence.map((evidence) => ({ evidence, obligation_ids: ["req-repair-001"] })),
+    evidence: verified.evidence,
+    assessments: verified.assessments,
     verification: verified.verification,
   });
   assert.equal(projected.ok, true);
   const reconciled = reconcileAssuranceGraph(projected.graph, {
     candidate,
     executionGraph,
-    evidence: verified.evidence.map((evidence) => ({ evidence, obligation_ids: ["req-repair-001"] })),
+    evidence: verified.evidence,
+    assessments: verified.assessments,
     verification: verified.verification,
   });
   assert.equal(reconciled.ok, true);
@@ -164,7 +172,8 @@ test("REQ-assurance-graph-001: matching canonical inputs project; divergence fai
   const diverged = reconcileAssuranceGraph(mutated, {
     candidate,
     executionGraph,
-    evidence: verified.evidence.map((evidence) => ({ evidence, obligation_ids: ["req-repair-001"] })),
+    evidence: verified.evidence,
+    assessments: verified.assessments,
     verification: verified.verification,
   });
   assert.equal(diverged.ok, false);
@@ -178,7 +187,8 @@ test("REQ-assurance-graph-001: matching canonical inputs project; divergence fai
     {
       candidate,
       executionGraph,
-      evidence: verified.evidence.map((evidence) => ({ evidence, obligation_ids: ["req-repair-001"] })),
+      evidence: verified.evidence,
+      assessments: verified.assessments,
       verification: verified.verification,
     }
   );
@@ -193,7 +203,8 @@ test("REQ-harness-authority-canon-010: APIs return new objects without write-thr
   const projected = projectAssuranceGraph({
     candidate,
     executionGraph,
-    evidence: verified.evidence.map((evidence) => ({ evidence, obligation_ids: ["req-repair-001"] })),
+    evidence: verified.evidence,
+    assessments: verified.assessments,
     verification: verified.verification,
     additionalNodes: nodes,
   });
@@ -291,3 +302,129 @@ test("REQ-harness-authority-canon-010: graph used as approval or delivery author
   assert.equal(result.ok, false);
   assert.equal(result.reason_code, "GRAPH_AUTHORITY_MISUSE");
 });
+
+test("REQ-assurance-graph-002: graph_id changes when canonical inputs change; permutation does not", () => {
+  const { candidate, executionGraph, verified } = verifiedProjection();
+  const baseInput = {
+    candidate,
+    executionGraph,
+    evidence: verified.evidence,
+    assessments: verified.assessments,
+    verification: verified.verification,
+  };
+  const base = projectAssuranceGraph(baseInput);
+  assert.equal(base.ok, true);
+  assert.ok(base.graph.canonical_inputs);
+
+  const flippedContract = projectAssuranceGraph({
+    ...baseInput,
+    canonicalInputs: {
+      ...base.graph.canonical_inputs,
+      contract_digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    },
+  });
+  assert.equal(flippedContract.ok, true);
+  assert.notEqual(base.graph.graph_id, flippedContract.graph.graph_id);
+
+  const flippedPolicy = projectAssuranceGraph({
+    ...baseInput,
+    canonicalInputs: {
+      ...base.graph.canonical_inputs,
+      policy_snapshot_id: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    },
+  });
+  assert.notEqual(base.graph.graph_id, flippedPolicy.graph.graph_id);
+
+  const flippedExec = projectAssuranceGraph({
+    ...baseInput,
+    canonicalInputs: {
+      ...base.graph.canonical_inputs,
+      execution_graph_digest: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    },
+  });
+  assert.notEqual(base.graph.graph_id, flippedExec.graph.graph_id);
+
+  const flippedOpenspec = projectAssuranceGraph({
+    ...baseInput,
+    canonicalInputs: {
+      ...base.graph.canonical_inputs,
+      openspec_input_digest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    },
+  });
+  assert.notEqual(base.graph.graph_id, flippedOpenspec.graph.graph_id);
+
+  const permutedNodes = projectAssuranceGraph({
+    ...baseInput,
+    additionalNodes: [...base.graph.nodes].reverse(),
+  });
+  assert.equal(permutedNodes.ok, true);
+  assert.equal(base.graph.graph_id, permutedNodes.graph.graph_id);
+});
+
+test("REQ-assurance-graph-005: rejectForbidden matches kind/namespace, not id substring", () => {
+  const allowed = rejectForbidden(
+    [{ id: "REQ-add-authorization-header", kind: "requirement" }],
+    []
+  );
+  assert.equal(allowed.ok, true);
+
+  const structured = rejectForbidden([{ id: "authz-1", kind: "authorization" }], []);
+  assert.equal(structured.ok, false);
+  assert.equal(structured.reason_code, "FORBIDDEN_RELATION");
+
+  const namespaced = rejectForbidden(
+    [{ id: "harmless-id", kind: "requirement", namespace: "attestation" }],
+    []
+  );
+  assert.equal(namespaced.ok, false);
+  assert.equal(namespaced.reason_code, "FORBIDDEN_RELATION");
+});
+
+test("REQ-assurance-graph-001: missing candidate is GRAPH_PROJECTION_FAILED", () => {
+  const result = projectAssuranceGraph({});
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "GRAPH_PROJECTION_FAILED");
+});
+
+test("REQ-assurance-graph-006: replay from persistable outputs is byte-identical; contract churn diverges", () => {
+  const { candidate, executionGraph, verified } = verifiedProjection();
+  const persistable = {
+    candidate,
+    executionGraph,
+    evidence: verified.evidence,
+    assessments: verified.assessments,
+    verification: verified.verification,
+    canonical_inputs: verified.assurance_graph.canonical_inputs,
+  };
+  const replayed = replayAssuranceGraph(persistable);
+  assert.equal(replayed.ok, true);
+  assert.equal(replayed.graph.graph_id, verified.assurance_graph.graph_id);
+  assert.deepEqual(replayed.graph.edges, verified.assurance_graph.edges);
+
+  const churned = projectAssuranceGraph({
+    candidate,
+    executionGraph,
+    evidence: verified.evidence,
+    assessments: verified.assessments,
+    verification: verified.verification,
+    canonicalInputs: {
+      ...verified.assurance_graph.canonical_inputs,
+      contract_digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    },
+  });
+  assert.notEqual(churned.graph.graph_id, verified.assurance_graph.graph_id);
+  const diverged = reconcileAssuranceGraph(verified.assurance_graph, {
+    candidate,
+    executionGraph,
+    evidence: verified.evidence,
+    assessments: verified.assessments,
+    verification: verified.verification,
+    canonicalInputs: {
+      ...verified.assurance_graph.canonical_inputs,
+      contract_digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    },
+  });
+  assert.equal(diverged.ok, false);
+  assert.equal(diverged.reason_code, "GRAPH_DIVERGENCE");
+});
+

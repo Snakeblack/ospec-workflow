@@ -67,6 +67,10 @@ const FAMILY_PUBLICATION = Object.freeze({
   verification: Object.freeze({
     fixtureNameFilter: (name) => !name.startsWith("v2-"),
   }),
+  assessment: Object.freeze({
+    // Bundle of four role payloads for identity distinctness; walked by k6b-schema-fixtures.
+    fixtureNameFilter: (name) => name !== "v1-four-roles.json",
+  }),
 });
 
 function toPosix(relativePath) {

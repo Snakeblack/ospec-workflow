@@ -2,16 +2,70 @@
 
 const { validateBindings } = require("./bindings.js");
 const { selectStrategy, evaluateStrategy } = require("./strategy-policy.js");
-const { normalizeEvidence } = require("./evidence.js");
+const { normalizeEvidence, computeEvidenceId } = require("./evidence.js");
+const { resolveEvidenceProvenance } = require("./collector-provenance.js");
 const { emitVerification } = require("./verdict.js");
-const {
-  projectAssuranceGraph,
-  emitEquivalenceManifest,
-  isEvidenceTransitivelyInvalidated,
-} = require("../assurance-graph/index.js");
+const { walkMustObligations } = require("./obligation-coverage.js");
+const assuranceGraph = require("../assurance-graph/index.js");
 
 function fail(reason_code, error) {
   return { ok: false, reason_code, error: error || reason_code };
+}
+
+function channelCollector(input, index) {
+  if (Array.isArray(input.collectors)) return input.collectors[index];
+  return input.collector;
+}
+
+function mapProjectionFailure(projected) {
+  if (projected.reason_code === "GRAPH_DIVERGENCE") {
+    return fail("GRAPH_DIVERGENCE", projected.error);
+  }
+  return fail("GRAPH_PROJECTION_FAILED", projected.error || "GRAPH_PROJECTION_FAILED");
+}
+
+function bindCanonicalInputs(input, bound) {
+  const provided = input.canonicalInputs;
+  if (!provided || typeof provided !== "object") return { ok: true };
+  const graph = bound.executionGraph;
+  const contractDigest = graph.contract_digest || (input.contract && input.contract.contract_digest);
+  const mismatches = [
+    ["contract_digest", provided.contract_digest, contractDigest],
+    ["policy_snapshot_id", provided.policy_snapshot_id, graph.policy_snapshot_id],
+    ["execution_graph_digest", provided.execution_graph_digest, graph.graph_id],
+  ];
+  for (const [name, providedValue, boundValue] of mismatches) {
+    if (typeof providedValue === "string" && boundValue && providedValue !== boundValue) {
+      return fail("GRAPH_DIVERGENCE", `canonicalInputs.${name} does not match the bound graph/contract`);
+    }
+  }
+  return { ok: true };
+}
+
+function rejectStaleEvidence(input, bound, evidence, rawBytes) {
+  const predecessorId = bound.candidate && bound.candidate.predecessor_id;
+  const graph = input.priorAssuranceGraph;
+  if (predecessorId && !graph) {
+    return fail("STALE_EVIDENCE", "predecessor-bound candidate requires prior Assurance Graph");
+  }
+  if (!graph) return { ok: true };
+  if (assuranceGraph.isEvidenceTransitivelyInvalidated(graph, evidence.evidence_id)) {
+    return fail("STALE_EVIDENCE", "evidence is reachable through a transitive invalidates edge");
+  }
+  if (predecessorId) {
+    // Remint the evidence digest under the predecessor CandidateId. A copy of
+    // invalidated predecessor bytes with a successor-bound evidence_id still
+    // hits the prior graph or the invalidates closure and must fail STALE_EVIDENCE.
+    const predecessorBoundId = computeEvidenceId({ ...evidence, candidate_id: predecessorId }, rawBytes);
+    const priorIds = new Set((graph.nodes || []).map((node) => node && node.id));
+    if (
+      priorIds.has(predecessorBoundId) ||
+      assuranceGraph.isEvidenceTransitivelyInvalidated(graph, predecessorBoundId)
+    ) {
+      return fail("STALE_EVIDENCE", "reminted predecessor digest remains stale under invalidates");
+    }
+  }
+  return { ok: true };
 }
 
 /**
@@ -19,29 +73,50 @@ function fail(reason_code, error) {
  * Worker narrative is not authority. Evidence stays distinct from verdict.
  *
  * @param {object} input
- * @returns {{ ok: boolean, strategy?: string, evidence?: object[], verification?: object, reason_code?: string }}
+ * @returns {{ ok: boolean, strategy?: string, evidence?: object[], assessments?: object[], verification?: object, reason_code?: string }}
  */
 function verifyCandidate(input) {
   const bound = validateBindings(input);
   if (!bound.ok) return bound;
 
+  const canonicalBinding = bindCanonicalInputs(input, bound);
+  if (!canonicalBinding.ok) return canonicalBinding;
+
   const strategy = selectStrategy(input.declaredStrategy);
   const rawList = Array.isArray(input.rawEvidence) ? input.rawEvidence : [];
   const classified = [];
 
-  for (const raw of rawList) {
-    const normalized = normalizeEvidence(raw, bound.candidate, bound.executionGraph);
+  for (let index = 0; index < rawList.length; index += 1) {
+    const raw = rawList[index];
+    const channel = channelCollector(input, index);
+    const provenanceGate = resolveEvidenceProvenance(raw, channel);
+    if (!provenanceGate.ok) return provenanceGate;
+    const normalized = normalizeEvidence(raw, bound.candidate, bound.executionGraph, channel);
     if (!normalized.ok) return normalized;
-    if (input.priorAssuranceGraph && isEvidenceTransitivelyInvalidated(input.priorAssuranceGraph, normalized.evidence.evidence_id)) {
-      return fail("STALE_EVIDENCE", "evidence is reachable through a transitive invalidates edge");
-    }
+    const stale = rejectStaleEvidence(
+      input,
+      bound,
+      normalized.evidence,
+      raw.bytes !== undefined ? raw.bytes : raw.rawBytes
+    );
+    if (!stale.ok) return stale;
     classified.push(normalized);
   }
 
   const evaluated = evaluateStrategy(strategy, classified);
   if (!evaluated.ok) return evaluated;
 
+  const coverage = walkMustObligations({
+    classified,
+    executionGraph: bound.executionGraph,
+    candidate: bound.candidate,
+    policySnapshotId: bound.executionGraph.policy_snapshot_id,
+  });
+  if (!coverage.ok) return coverage;
+
   const evidenceRecords = classified.map((item) => item.evidence);
+  // human-decision and external-unverified extras keep a passing verification at
+  // PASS WITH WARNINGS. model-reported is omitted here: it cannot satisfy a runtime MUST.
   const hasNonRuntimeExtra = classified.some(
     (item) => item.evidence.provenance === "external-unverified" || item.evidence.provenance === "human-decision"
   );
@@ -52,7 +127,7 @@ function verifyCandidate(input) {
     verdict,
   });
 
-  const projected = projectAssuranceGraph({
+  const projected = assuranceGraph.projectAssuranceGraph({
     canonicalInputs: input.canonicalInputs || {
       contract: input.contract,
       sourceSnapshot: input.sourceSnapshot,
@@ -60,20 +135,22 @@ function verifyCandidate(input) {
     candidate: bound.candidate,
     executionGraph: bound.executionGraph,
     evidence: classified,
+    assessments: coverage.assessments,
     verification,
   });
+  if (!projected.ok) {
+    return mapProjectionFailure(projected);
+  }
 
-  const result = {
+  return {
     ok: true,
     strategy,
     evidence: evidenceRecords,
+    assessments: coverage.assessments,
     verification,
+    assurance_graph: projected.graph,
+    equivalence_manifest: assuranceGraph.emitEquivalenceManifest(projected.graph),
   };
-  if (projected.ok) {
-    result.assurance_graph = projected.graph;
-    result.equivalence_manifest = emitEquivalenceManifest(projected.graph);
-  }
-  return result;
 }
 
 module.exports = {

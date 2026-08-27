@@ -1,0 +1,34 @@
+{
+  "slices": [
+    {
+      "root_cause_key": "collector-trust-boundary",
+      "finding_ids": [
+        "F-d5739d79237afeb8"
+      ],
+      "permitted_paths": [
+        "openspec/changes/k6b-verification-integrity-remediation/apply-progress.md",
+        "scripts/k6b-verifier-assurance-graph-e2e.test.js",
+        "scripts/lib/assurance-graph/index.js",
+        "scripts/lib/assurance-graph/index.test.js",
+        "scripts/lib/assurance-graph/projector.js",
+        "scripts/lib/independent-verifier/collector-provenance.js",
+        "scripts/lib/independent-verifier/evidence.js",
+        "scripts/lib/independent-verifier/index.js",
+        "scripts/lib/independent-verifier/index.test.js"
+      ]
+    },
+    {
+      "root_cause_key": "must-walk-coverage",
+      "finding_ids": [
+        "F-b3d6518c12aa69fe",
+        "F-00f97ff647d28eea",
+        "F-ef73f7e16cab6436"
+      ],
+      "permitted_paths": [
+        "openspec/changes/k6b-verification-integrity-remediation/apply-progress.md",
+        "scripts/lib/independent-verifier/obligation-coverage.js",
+        "scripts/lib/independent-verifier/obligation-coverage.test.js"
+      ]
+    }
+  ]
+}

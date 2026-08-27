@@ -1,0 +1,178 @@
+{
+  "status": "ready",
+  "run_generalist": true,
+  "dispatch": [
+    "review-risk",
+    "review-reliability",
+    "review-resilience",
+    "review-readability"
+  ],
+  "archive_allowed": false,
+  "gate": {
+    "status": "ready",
+    "schema_version": 1,
+    "classification": "high-risk",
+    "evidence": {
+      "schema_version": 1,
+      "fingerprint": "sha256:66b1b1c10af6adfd036aa014032450b530160d81f05f9dae3af5c1cf09ade779",
+      "sources": {
+        "paths": [
+          "docs/architecture/harness-evolution.md",
+          "docs/roadmaps/harness-evolution.md",
+          "openspec/changes/k6b-verification-integrity-remediation/apply-progress.md",
+          "openspec/changes/k6b-verification-integrity-remediation/decisions/adr-001.md",
+          "openspec/changes/k6b-verification-integrity-remediation/decisions/adr-002.md",
+          "openspec/changes/k6b-verification-integrity-remediation/decisions/adr-003.md",
+          "openspec/changes/k6b-verification-integrity-remediation/decisions/adr-004.md",
+          "openspec/changes/k6b-verification-integrity-remediation/design.md",
+          "openspec/changes/k6b-verification-integrity-remediation/proposal.md",
+          "openspec/changes/k6b-verification-integrity-remediation/specs/assurance-graph/spec.md",
+          "openspec/changes/k6b-verification-integrity-remediation/specs/independent-verification/spec.md",
+          "openspec/changes/k6b-verification-integrity-remediation/specs/kernel-contract-schemas/spec.md",
+          "openspec/changes/k6b-verification-integrity-remediation/state.yaml",
+          "openspec/changes/k6b-verification-integrity-remediation/tasks.md",
+          "openspec/changes/k6b-verification-integrity-remediation/verify-report.md",
+          "schemas/kernel/assessment/fixtures/invalid/v1-evidence-alias.json",
+          "schemas/kernel/assessment/fixtures/invalid/v1-missing-required.json",
+          "schemas/kernel/assessment/fixtures/invalid/v1-with-verdict.json",
+          "schemas/kernel/assessment/fixtures/valid/v1-complete.json",
+          "schemas/kernel/assessment/fixtures/valid/v1-four-roles.json",
+          "schemas/kernel/assessment/v1.schema.json",
+          "schemas/kernel/assurance-graph/v1.schema.json",
+          "schemas/kernel/contract-claims.json",
+          "schemas/kernel/manifest.json",
+          "scripts/k6b-verifier-assurance-graph-e2e.test.js",
+          "scripts/lib/assurance-graph/index.js",
+          "scripts/lib/assurance-graph/index.test.js",
+          "scripts/lib/assurance-graph/projector.js",
+          "scripts/lib/contract-checkers/k1-schema-compat.js",
+          "scripts/lib/independent-verifier/assessment.js",
+          "scripts/lib/independent-verifier/assessment.test.js",
+          "scripts/lib/independent-verifier/collector-provenance.js",
+          "scripts/lib/independent-verifier/evidence.js",
+          "scripts/lib/independent-verifier/index.js",
+          "scripts/lib/independent-verifier/index.test.js",
+          "scripts/lib/independent-verifier/obligation-coverage.js",
+          "scripts/lib/independent-verifier/obligation-coverage.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/k2a-maturity-docs.test.js",
+          "scripts/lib/k6b-schema-fixtures.test.js",
+          "scripts/lib/lifecycle-kernel/k1-compat.js"
+        ],
+        "capabilities": [
+          "runtime"
+        ],
+        "operation_types": [
+          "add",
+          "modify"
+        ],
+        "dependencies": [],
+        "facts": [
+          {
+            "code": "design-risk",
+            "source": "design",
+            "detail": "verification-integrity-trust-boundary"
+          },
+          {
+            "code": "metadata-runtime",
+            "source": "metadata",
+            "detail": "runtime"
+          },
+          {
+            "code": "diff-auth-permission",
+            "source": "real-diff",
+            "detail": "scripts/lib/independent-verifier/assessment.js,scripts/lib/independent-verifier/obligation-coverage.js"
+          }
+        ]
+      }
+    },
+    "generalist": {
+      "status": "needs-specialist",
+      "specialists": [
+        "risk",
+        "reliability"
+      ],
+      "reason": "signals=design-risk,diff-auth-permission,metadata-runtime;dimensions=risk,reliability"
+    },
+    "depth": {
+      "review": "strict"
+    },
+    "escalation_reason": null,
+    "dimensions": {
+      "risk": {
+        "selected": true,
+        "reasons": [
+          {
+            "code": "high-risk-override",
+            "source": "override",
+            "detail": "Classification requires full 4R",
+            "precedence": 0
+          },
+          {
+            "code": "diff-auth-permission",
+            "source": "real-diff",
+            "detail": "scripts/lib/independent-verifier/assessment.js,scripts/lib/independent-verifier/obligation-coverage.js",
+            "precedence": 2
+          },
+          {
+            "code": "generalist-escalation",
+            "source": "generalist",
+            "detail": "signals=design-risk,diff-auth-permission,metadata-runtime;dimensions=risk,reliability",
+            "precedence": 3
+          },
+          {
+            "code": "design-risk",
+            "source": "design",
+            "detail": "verification-integrity-trust-boundary",
+            "precedence": 4
+          }
+        ]
+      },
+      "reliability": {
+        "selected": true,
+        "reasons": [
+          {
+            "code": "high-risk-override",
+            "source": "override",
+            "detail": "Classification requires full 4R",
+            "precedence": 0
+          },
+          {
+            "code": "generalist-escalation",
+            "source": "generalist",
+            "detail": "signals=design-risk,diff-auth-permission,metadata-runtime;dimensions=risk,reliability",
+            "precedence": 3
+          },
+          {
+            "code": "metadata-runtime",
+            "source": "metadata",
+            "detail": "runtime",
+            "precedence": 5
+          }
+        ]
+      },
+      "resilience": {
+        "selected": true,
+        "reasons": [
+          {
+            "code": "high-risk-override",
+            "source": "override",
+            "detail": "Classification requires full 4R",
+            "precedence": 0
+          }
+        ]
+      },
+      "readability": {
+        "selected": true,
+        "reasons": [
+          {
+            "code": "high-risk-override",
+            "source": "override",
+            "detail": "Classification requires full 4R",
+            "precedence": 0
+          }
+        ]
+      }
+    }
+  }
+}

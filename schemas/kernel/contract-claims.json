@@ -678,6 +678,21 @@
         ]
       },
       "command_shapes": []
+    },
+    "assessment": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "assessment_id",
+        "evidence_id",
+        "role",
+        "obligation_id",
+        "node_id",
+        "candidate_id",
+        "policy_snapshot_id"
+      ],
+      "enum_values": {},
+      "command_shapes": []
     }
   }
 }

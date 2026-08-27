@@ -1,0 +1,27 @@
+[
+  {
+    "severity": "WARNING",
+    "summary": "rejectStaleEvidence recomputa evidence_id sustituyendo candidate_id por predecessorId y trata un hit en nodos del grafo previo o en invalidates transitivo como STALE_EVIDENCE. Ese remint-and-lookup no está comentado.",
+    "acceptance_criteria": "Comentar en rejectStaleEvidence (predecessorBoundId) que el digest se recalcula bajo el candidato predecesor para que copias remintadas de evidencia invalidada fallen cerrado como STALE_EVIDENCE."
+  },
+  {
+    "severity": "WARNING",
+    "summary": "resolveEvidenceProvenance falla UNTRUSTED_COLLECTOR si raw tiene la propiedad collector. El JSDoc habla de autoridad de clase, no de por qué un collector en el payload se rechaza en vez de ignorarse.",
+    "acceptance_criteria": "Comentar el hasOwnProperty(raw, \"collector\") indicando que la identidad del collector solo puede venir del argumento de canal del harness; un campo collector del payload se rechaza, no se ignora ni se fusiona."
+  },
+  {
+    "severity": "WARNING",
+    "summary": "El segundo parámetro de evaluateProvenanceSufficiency se llama obligation pero es solo { requireRuntime?: boolean }; los callers pasan un objeto de opciones, no un registro de obligación.",
+    "acceptance_criteria": "Renombrar el parámetro y el JSDoc a un nombre de options bag (p. ej. options o sufficiencyOptions) para que no se busquen campos de obligación."
+  },
+  {
+    "severity": "WARNING",
+    "summary": "walkMustObligations usa hadWeak (matches.length > 0) para elegir INSUFFICIENT_PROVENANCE vs UNFULFILLED_MUST. El nombre no dice «enlazada pero inadmisible» y el split de reason_code no está comentado.",
+    "acceptance_criteria": "Renombrar hadWeak a un nombre que signifique evidencia enlazada que falló el gate de provenance runtime, y comentar que MUST con matches inadmisibles falla INSUFFICIENT_PROVENANCE y sin matches falla UNFULFILLED_MUST."
+  },
+  {
+    "severity": "SUGGESTION",
+    "summary": "hasNonRuntimeExtra baja el veredicto a PASS WITH WARNINGS solo para external-unverified y human-decision. Ni el nombre («Extra») ni un comentario explican por qué esas dos clases advierten y model-reported no entra aquí.",
+    "acceptance_criteria": "Comentar junto a hasNonRuntimeExtra que external-unverified y human-decision mantienen verificación pasante con PASS WITH WARNINGS, y que model-reported se omite porque no puede satisfacer MUST runtime."
+  }
+]

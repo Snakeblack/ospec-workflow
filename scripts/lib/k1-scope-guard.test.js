@@ -204,6 +204,7 @@ const SUCCESSOR_K2_PREFIXES = [
   "schemas/kernel/verification/fixtures/valid/v2-",
   "schemas/kernel/verification/fixtures/invalid/v2-",
   "schemas/kernel/assurance-graph/",
+  "schemas/kernel/assessment/",
 ];
 
 const PROTECTED_BASELINE_PATHS = [

@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "change": "k6b-verification-integrity-remediation",
+  "source_fingerprint": "sha256:e3d7ac6dc6507a643fcf8c96f6e7acaa43cbcefcd7ec385aa00d571cdcd71139",
+  "spec_writes": [
+    {
+      "domain": "independent-verification",
+      "source_delta": "prepared-specs/independent-verification/spec.md",
+      "target": "openspec/specs/independent-verification/spec.md",
+      "target_before_sha256": "sha256:8063703bb9860b0fbff8b49894fa17932c222cb58f1dea028bda57a00330fc6d",
+      "content_sha256": "sha256:3207ce8b5b280472b9b505378cf91df22b1ae22e007adb9dbf8a173405c5b0a0"
+    },
+    {
+      "domain": "assurance-graph",
+      "source_delta": "prepared-specs/assurance-graph/spec.md",
+      "target": "openspec/specs/assurance-graph/spec.md",
+      "target_before_sha256": "sha256:c7d171aab463f80f504aff6706e7847ef44a849ae79a8e06f13a8e4e17a1795d",
+      "content_sha256": "sha256:81f10f2046ae5519aead34f0f945275e99bfefbc03f9a898d80ce8bcbc437f56"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "prepared-specs/kernel-contract-schemas/spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:fabcbc4edb0ab2934414ca9bf5bca0f88c7e5a3759a0c427f739d0475835d25d",
+      "content_sha256": "sha256:0f6c1f85aaff2f9b7a60320a66830bbc23feeb01a29ce4e6a8ef8f5d59ef4cec"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260827-007-additive-assessment-family-id.md",
+      "content_sha256": "sha256:4fce74c687bfda4d3b7cb60ed2faf83d075f7a46606983a1018528086560b109"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260827-008-must-walk-after-strategy-assessment-identity.md",
+      "content_sha256": "sha256:66bbf61c8cc81d825c5080e7c35f410f995c5ea606890bc565d0f4b03b61009c"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260827-009-collector-transport-provenance-allowlist.md",
+      "content_sha256": "sha256:292afdb2da2f9cc6a27de600b8af70cf0fb0f4f42f587cb55de29dc18d34cd72"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260827-010-canonical-graph-id-fail-closed-projection.md",
+      "content_sha256": "sha256:a308aaa6935cc85bdd416ca06b05cc637c14695a52ebb2cc2ee5ab38f16b15d6"
+    }
+  ],
+  "archive_inventory": [
+    ".4r/create-successor.js",
+    ".4r/derived.json",
+    ".4r/evidence.json",
+    ".4r/fail-and-retry-slice1.js",
+    ".4r/freeze-lineage.js",
+    ".4r/generalist.json",
+    ".4r/lens-readability-findings.json",
+    ".4r/lens-reliability-findings.json",
+    ".4r/lens-resilience-findings.json",
+    ".4r/lens-risk-findings.json",
+    ".4r/lineage.json",
+    ".4r/manifest-v2.json",
+    ".4r/migrate-and-begin-slice1.js",
+    ".4r/normalize-evidence.js",
+    ".4r/pass-slice1-begin-slice2.js",
+    ".4r/pass-slice2.js",
+    ".4r/persist-gate.js",
+    ".4r/planned-gate.json",
+    ".4r/planned-lineage.json",
+    ".4r/predecessor-lineage.json",
+    ".4r/record-lenses.js",
+    ".4r/record-slice1-retry2.js",
+    ".4r/record-slice1.js",
+    ".4r/record-slice2.js",
+    ".4r/unified.diff",
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "design.md",
+    "prepared-specs/assurance-graph/spec.md",
+    "prepared-specs/independent-verification/spec.md",
+    "prepared-specs/kernel-contract-schemas/spec.md",
+    "proposal.md",
+    "specs/assurance-graph/spec.md",
+    "specs/independent-verification/spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    "verify-suggestion-001 SUGGESTION: Worker-collector MUST case accepts INSUFFICIENT_PROVENANCE or UNTRUSTED_COLLECTOR; pinning one code would sharpen contract.",
+    "verify-suggestion-002 SUGGESTION: Mismatched canonicalInputs accepts GRAPH_DIVERGENCE or BINDING_MISMATCH; design prefers GRAPH_DIVERGENCE.",
+    "4R advisory WARNINGs (FABRICATED_EVIDENCE tests, INVALID_ASSESSMENT, comments/renames) remain non-blocking; covering runtime tests pass."
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}
