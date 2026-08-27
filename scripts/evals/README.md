@@ -1,7 +1,7 @@
 # Orchestrator Golden Evals
 
 A golden-scenario eval suite that validates the SDD orchestrator's documented
-behavior (routing, gates, blockers) end-to-end against 7 fixture repos, and
+behavior (routing, gates, blockers) end-to-end against 9 fixture repos, and
 produces objective, model-agnostic evidence before bumping a model tier in
 `models.yaml`. Implements capability `orchestrator-evals`
 (see `openspec/specs/orchestrator-evals/spec.md` once archived, or
@@ -13,7 +13,7 @@ before archive).
 The orchestrator (`agents/sdd-orchestrator.agent.md`) is an LLM-plus-tools
 agent, not a pure function. Bumping the model backing it is a behavior change
 that deserves evidence, not vibes. This suite runs the orchestrator live
-against 7 versioned fixture scenarios and scores only **structural**
+against 9 versioned fixture scenarios and scores only **structural**
 outcomes — resolved route, `blocker_type`, artifact presence/absence,
 `state.yaml` fields, and `question_gate` shape (question/option counts,
 `recommended` flags) — never free-text prose. That's what makes the same
@@ -78,7 +78,7 @@ capture.js  ◀── reads workspace fs + .eval-capture ──▶ { state, file
                                           │
                       assertions.js (structural-only) ──▶ per-scenario {pass, failures[]}
                                           │
-                          run.js report ──▶ N/7 passed + failing fields
+                          run.js report ──▶ N/9 passed + failing fields
 ```
 
 | File | Role |
@@ -86,7 +86,7 @@ capture.js  ◀── reads workspace fs + .eval-capture ──▶ { state, file
 | `lib/fixtures.js` | Loads a scenario's `scenario.json`, materializes its `repo/` into an isolated `.runs/<scenario>/` workspace, tears it down |
 | `lib/capture.js` | Snapshots a workspace after a live run: parsed `state.yaml`, file tree, `.eval-capture/gate.json`/`envelope.json` |
 | `lib/assertions.js` | `assertScenario(expect, captured) → { pass, failures[] }` — the structural-only matcher |
-| `__fixtures__/<scenario>/` | 7 golden scenario dirs, each `{ scenario.json, repo/ }` |
+| `__fixtures__/<scenario>/` | 9 golden scenario dirs, each `{ scenario.json, repo/ }` |
 | `run.js` | CLI: `setup` / `assert` / `report` / `run <scenario\|all>` / `teardown` |
 
 ## Running the suite
@@ -111,7 +111,7 @@ node scripts/evals/run.js run all
 node scripts/evals/run.js run all
 
 # Once every scenario has a completed live turn, this prints:
-#   PASS/FAIL per scenario, plus "N/7 passed"
+#   PASS/FAIL per scenario, plus "N/9 passed"
 
 # Run (or re-run) a single scenario:
 node scripts/evals/run.js run high-risk-clarify-route
@@ -152,8 +152,8 @@ in `openspec/changes/prompt-evals-golden-scenarios/design.md`.
    `<workspace>/.eval-capture/envelope.json` (at minimum
    `{ "status": "blocked", "blocker_type": "..." }`).
 5. **Completion marker**: once the turn is over — whether it ended in a gate
-   capture, an envelope capture, or neither (e.g. the vague-request scenario,
-   which expects neither) — always write
+   capture, an envelope capture, or neither (e.g. continue-no-rebrief, which
+   expects no new briefing gate) — always write
    `<workspace>/.eval-capture/done.json`, e.g.
    `{ "completed_at": "<ISO-8601 UTC timestamp>" }`. `run.js run` uses this
    file's presence as the sole signal that a scenario has a completed live
@@ -248,11 +248,15 @@ evaluated by `lib/assertions.js`:
 The matcher never reads `executive_summary` or any question/option wording —
 only counts, flags, and named field values (REQ-orchestrator-evals-002).
 
-## The 7 golden scenarios
+## The 9 golden scenarios
+
+3 core briefing + 6 conserved:
 
 | Scenario | Group | What it proves |
 |----------|-------|-----------------|
-| `vague-request-no-artifact` | orchestrator-core | A genuinely vague request gets an intent-restatement, never a fabricated change |
+| `vague-request-no-artifact` | orchestrator-core | An eligible new SDD request emits an intent-briefing gate; no change artifact while waiting |
+| `specific-request-no-artifact` | orchestrator-core | A specific new SDD request still emits the briefing gate; no change artifact while waiting |
+| `continue-no-rebrief` | orchestrator-core | Continue / later phase of a change with accepted `intent-briefing` does not re-brief |
 | `high-risk-clarify-route` | orchestrator-core | `high-risk` classification resolves a route whose gates include `clarify` |
 | `verify-fail-spec-gap-routes-sdd-spec` | orchestrator-core | A `FAIL`/`spec-gap` verify-report routes to `sdd-spec`, not `sdd-apply` |
 | `apply-design-mismatch-blocked` | orchestrator-core | A `blocker_type: design-mismatch` envelope routes to `sdd-design`, never a silent `sdd-apply` retry |
@@ -263,14 +267,14 @@ only counts, flags, and named field values (REQ-orchestrator-evals-002).
 ## Role as a pre-`models.yaml`-bump gate
 
 Before promoting a model to a higher tier in `models.yaml`, run this suite
-against that model and attach the `N/7 passed` result (plus any failing
+against that model and attach the `N/9 passed` result (plus any failing
 field names) to the change proposing the bump. A model that cannot pass all
-7 structural scenarios has not earned the tier bump regardless of how good
+9 structural scenarios has not earned the tier bump regardless of how good
 its prose looks in casual use.
 
 ## Reference benchmark suite
 
-The benchmark namespace adds nine reference changes without changing the seven
+The benchmark namespace adds nine reference changes without changing the nine
 golden scenarios. The initial experimental set is `docs-one-file`,
 `small-bugfix`, and `security-sensitive-change`: `benchmark all` and
 `benchmark initial` select those three; `benchmark extended` selects the

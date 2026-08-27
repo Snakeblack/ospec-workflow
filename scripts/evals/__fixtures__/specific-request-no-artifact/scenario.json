@@ -1,0 +1,16 @@
+{
+  "id": "specific-request-no-artifact",
+  "group": "orchestrator-core",
+  "input": {
+    "command": "/sdd-new",
+    "text": "Add exponential-backoff retries to scripts/delivery-worker.js; acceptance: three attempts then fail closed; out of scope: changing the queue broker."
+  },
+  "capture": { "gate": true, "envelope": false },
+  "expect": {
+    "artifacts_absent": ["openspec/changes"],
+    "question_gate": {
+      "questions": 1,
+      "options_min": { "0": 3 }
+    }
+  }
+}

@@ -19,10 +19,12 @@ Blocking workflow decisions must be persisted.
 ```yaml
 approvals:
   - id: string
-    gate: execution-mode | delivery-strategy | review-workload | architecture | testing | archive-warning
+    gate: execution-mode | delivery-strategy | review-workload | architecture | testing | archive-warning | intent-briefing
     decision: string
     source: vscode/askQuestions
     accepted_at: ISO-8601
     applies_to:
       - sdd-apply
 ```
+
+`synthesis` and `scope` are obligatory only for `intent-briefing` (agreed functional restatement and in/out-of-scope boundary) and MUST NOT appear on other gates. For `intent-briefing`, `applies_to` MUST include `change-classification`. An `intent-briefing` approval MUST NOT substitute the `confidence: advisory` route-confirmation gate.

@@ -1,0 +1,13 @@
+{
+  "id": "continue-no-rebrief",
+  "group": "orchestrator-core",
+  "input": {
+    "command": "/sdd-continue",
+    "text": "Continue the add-retry-backoff change."
+  },
+  "capture": { "gate": true, "envelope": false },
+  "expect": {
+    "artifacts_present": ["openspec/changes/add-retry-backoff/state.yaml"],
+    "question_gate": null
+  }
+}

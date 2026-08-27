@@ -2,12 +2,15 @@
   "id": "vague-request-no-artifact",
   "group": "orchestrator-core",
   "input": {
-    "command": null,
+    "command": "/sdd-new",
     "text": "puedes mejorar el proyecto un poco"
   },
-  "capture": { "gate": false, "envelope": false },
+  "capture": { "gate": true, "envelope": false },
   "expect": {
     "artifacts_absent": ["openspec/changes"],
-    "question_gate": null
+    "question_gate": {
+      "questions": 1,
+      "options_min": { "0": 3 }
+    }
   }
 }

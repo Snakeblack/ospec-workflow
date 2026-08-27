@@ -1,7 +1,7 @@
 # Roadmap general — kernel, grafo y evidencia
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.48.3, 2026-08-26.
+> **Versión de referencia:** v2.49.0, 2026-08-27.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
 > **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md).
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
@@ -2039,3 +2039,4 @@ Cada child conserva clasificación, Candidate ID y receipt propios.
 - 2026-08-26: K4b (`k4b-correctness-remediation`) cierra con verify PASS WITH WARNINGS, 4R approved, archive transaccional y v2.48.1; K6b queda next-eligible.
 - 2026-08-26: K4b (`k4b-integration-invariants-remediation`) cierra invariantes de integración (malformed diffs, cápsula mínima, DAG, store 1:N, proyección) con verify PASS, 4R approved y v2.48.2. K6b permanece next-eligible.
 - 2026-08-26: K4b (`k4b-mode-only-and-baseline-projection`) cierra mode-only (path/`old mode`) y baseline graph-bound con verify PASS, 4R approved (0 hallazgos) y v2.48.3. K6b permanece next-eligible.
+- 2026-08-27: el orquestador publica el briefing funcional D2 (`orchestrator-intent-briefing`) en v2.49.0; K10 sigue pendiente para generalizar `clarify-intent` como receta. K6b permanece next-eligible.
