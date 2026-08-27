@@ -42,11 +42,12 @@ Usa esta linea cuando el repo ya tiene codigo, tests o arquitectura detectable.
 Que pasa:
 
 1. `sdd-init` prepara contexto y testing. Solo se autoejecuta si el usuario pidio trabajo SDD persistido de forma explicita; para preguntas vagas debe pedir permiso antes de crear `openspec/`.
-2. `sdd-new` normalmente produce exploracion y propuesta.
-3. `sdd-continue` avanza por specs, design y tasks segun dependencias.
-4. `sdd-apply` implementa una tanda de tareas.
-5. `sdd-verify` comprueba cumplimiento real.
-6. `sdd-archive` actualiza specs principales y cierra.
+2. Antes de clasificar, `/sdd-new`, `/sdd-ff` y `/sdd-lite` (y equivalentes en lenguaje natural) presentan un briefing funcional de 2-4 lineas — vago o concreto — y esperan confirmacion. `/sdd-continue` no lo repite.
+3. `sdd-new` normalmente produce exploracion y propuesta.
+4. `sdd-continue` avanza por specs, design y tasks segun dependencias.
+5. `sdd-apply` implementa una tanda de tareas.
+6. `sdd-verify` comprueba cumplimiento real.
+7. `sdd-archive` actualiza specs principales y cierra.
 
 ## 2. Proyecto nuevo o vacio
 
@@ -77,7 +78,7 @@ Equivale a avanzar por:
 proposal -> specs -> design -> tasks
 ```
 
-No salta implementacion ni verificacion. Solo compacta la planificacion. Si aparece un bloqueo, el orquestador debe parar.
+No salta implementacion ni verificacion. Solo compacta la planificacion. El briefing de intencion de D2 sigue disparandose antes de clasificar. Si aparece un bloqueo, el orquestador debe parar.
 
 ## 4. Lite para cambios triviales o small
 

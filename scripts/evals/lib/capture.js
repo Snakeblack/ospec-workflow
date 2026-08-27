@@ -217,7 +217,7 @@ function fileTreeOf(workspaceRoot) {
  * Locates the active (non-archived) change's `state.yaml` under
  * `<workspaceRoot>/openspec/changes/`. Returns null when no change directory
  * (or no state.yaml within it) exists — a valid capture outcome for the
- * vague-request scenario, whose whole point is that no artifact is created.
+ * no-artifact briefing scenarios, whose whole point is that no change directory is created.
  */
 function findActiveStateFile(workspaceRoot) {
   const changesRoot = path.join(workspaceRoot, "openspec", "changes");

@@ -1,17 +1,6 @@
-# Ambiguity Detection Boundaries Specification
+# Delta for ambiguity-detection-boundaries
 
-## Purpose
-
-`sdd-clarify` resolves ambiguity between spec and design, but two other boundaries
-are currently uncaptured: (a) validating functional intent with the user before
-Change Classification runs for every eligible new SDD request — whether vague or
-specific — and (b) existing code contradicting the design during `sdd-apply`. This
-spec defines normative behavior for both boundaries. It does NOT change `sdd-clarify`
-itself and does NOT introduce a third clarify-like phase — both boundaries are
-handled by the orchestrator (a) and `sdd-apply` (b) using the existing
-`question_gate` / `status: blocked` machinery.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Intent Restatement Before Change Classification
 
@@ -124,52 +113,3 @@ specific requests skipped straight to classification.)
 - WHEN the user aborts (on the initial briefing or after the correction cap)
 - THEN the orchestrator MUST NOT create `openspec/changes/{name}/`
 - AND it MUST NOT call `classifyChange`
-
-### Requirement: sdd-apply design-mismatch Blocker
-
-When `sdd-apply`, while implementing an assigned task, discovers that the
-existing codebase contradicts the design (e.g., the design assumes an API
-shape, module, or dependency that does not exist or behaves differently in the
-actual codebase, or the design's approach is incompatible with an established
-existing pattern), it MUST NOT improvise a workaround to reconcile the
-contradiction on its own judgment. It MUST return `status: blocked` with
-`blocker_type: design-mismatch`, describing the concrete contradiction and
-citing the affected `design.md` section.
-
-Upon receiving an envelope with `blocker_type: design-mismatch`, the
-orchestrator MUST route back to `sdd-design` (not `sdd-clarify`, not silent
-retry of `sdd-apply`) so the design can be corrected before implementation
-resumes.
-
-A deviation that does NOT contradict the design's intent — e.g., a cosmetic
-naming difference, or an equivalent existing helper that fulfills the same
-contract the design describes — is NOT a `design-mismatch` and MUST NOT block
-`sdd-apply`; the phase agent proceeds using the existing code.
-
-#### Scenario: Existing code contradicts the design — apply blocks and routes to design
-
-- GIVEN `sdd-apply` is implementing a task whose design section assumes a REST endpoint
-- AND the actual codebase only exposes an equivalent capability via a message queue with a different contract
-- WHEN `sdd-apply` detects this contradiction
-- THEN it returns `status: blocked` with `blocker_type: design-mismatch`, naming the contradiction and the affected design section
-- AND the orchestrator routes the change back to `sdd-design` before resuming `sdd-apply`
-
-#### Scenario: Cosmetic deviation — not a design-mismatch
-
-- GIVEN the design describes a helper function by one name
-- AND the codebase already has an equivalent helper under a different name with the same contract
-- WHEN `sdd-apply` encounters this difference
-- THEN it is NOT a `design-mismatch`; `sdd-apply` proceeds using the existing helper without blocking
-
-#### Scenario: sdd-apply does not improvise around a real contradiction
-
-- GIVEN `sdd-apply` detects that a required dependency assumed by the design does not exist in the codebase
-- WHEN `sdd-apply` evaluates how to proceed
-- THEN it MUST NOT invent a workaround dependency or silently reinterpret the design
-- AND it MUST return `status: blocked` with `blocker_type: design-mismatch` instead
-
-## Cross-References
-
-- `skills/_shared/sdd-phase-common.md` — Blocking Question Envelope (`status: blocked`, `blocker_type`, `question_gate`)
-- `openspec/specs/agents/spec.md` Section 1 (Change Classification), Section 4.3 (Blocking Question Flow), Section 6.1 (envelope contract) — where these obligations are anchored for the orchestrator and `sdd-apply`
-- `skills/sdd-clarify/SKILL.md` — the existing mid-pipeline (spec↔design) ambiguity phase; unchanged by this spec

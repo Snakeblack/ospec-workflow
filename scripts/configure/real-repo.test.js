@@ -440,6 +440,36 @@ test("real repo: all six targets preserve the signal-driven clarify gate", (t) =
   }
 });
 
+test("real repo: all six targets preserve D2 intent-briefing landmarks", (t) => {
+  const orchestratorPaths = {
+    claude: "skills/sdd-orchestrator/SKILL.md",
+    vscode: "agents/sdd-orchestrator.agent.md",
+    "github-copilot": ".github/agents/sdd-orchestrator.agent.md",
+    opencode: ".opencode/agents/ospec-workflow.md",
+    codex: "AGENTS.md",
+    cursor: "agents/sdd-orchestrator.md",
+  };
+
+  for (const [target, relativeOrchestratorPath] of Object.entries(orchestratorPaths)) {
+    const out = tmpOut(t);
+    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+
+    const orchestratorPath = path.join(out, relativeOrchestratorPath);
+    assert.ok(fs.existsSync(orchestratorPath), `${target} orchestrator missing`);
+    const orchestrator = fs.readFileSync(orchestratorPath, "utf8");
+    assert.doesNotMatch(orchestrator, /NOT vague/, `${target}: skip-if-specific 'NOT vague' must be gone`);
+    assert.doesNotMatch(orchestrator, /skip this step/, `${target}: skip-if-specific 'skip this step' must be gone`);
+    assert.doesNotMatch(
+      orchestrator,
+      /proceed directly to Change Classification/,
+      `${target}: skip-if-specific direct classify must be gone`,
+    );
+    assert.match(orchestrator, /cap 2 corrections|2 corrections/i, `${target}: cap 2 missing`);
+    assert.match(orchestrator, /gate:\s*intent-briefing/, `${target}: persist-before-classify gate missing`);
+    assert.match(orchestrator, /BEFORE `classifyChange`/i, `${target}: persist-before-classify order missing`);
+  }
+});
+
 test("real repo: sdd-foundation agent mentions markitdown degradation", (t) => {
   const targetPaths = {
     claude: "agents/sdd-foundation.md",

@@ -1,0 +1,158 @@
+schema: sdd-state
+change: orchestrator-intent-briefing
+status: archived
+owner:
+  author: Manuel Retamozo
+  branch: feat/orchestrator-intent-briefing
+created_at: "2026-08-26T23:25:00Z"
+last_updated: "2026-08-27T00:45:00Z"
+classification: normal
+source_roadmap: "docs/architecture/harness-evolution.md#cadena-canónica-del-change"
+
+session:
+  execution_mode: interactive
+  delivery_strategy: ask-on-risk
+  reply_language: Spanish
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "classifyChange deterministic (classification: normal); first match in routing table: standard (project.status: active). Feature request expands orchestrator pre-classification intent handling; not bugfix/refactor/hotfix/foundation."
+  validated: true
+  validation_errors: []
+
+approvals:
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: interactive
+    source: vscode/askQuestions
+    accepted_at: "2026-08-26T23:20:00Z"
+    applies_to:
+      - session
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: ask-on-risk
+    source: vscode/askQuestions
+    accepted_at: "2026-08-26T23:20:00Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: continue-after-propose-001
+    gate: interactive-continuation
+    decision: continue
+    source: vscode/askQuestions
+    accepted_at: "2026-08-26T23:35:00Z"
+    applies_to:
+      - sdd-spec
+  - id: continue-after-spec-001
+    gate: interactive-continuation
+    decision: continue
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T00:05:00Z"
+    applies_to:
+      - sdd-design
+  - id: continue-after-design-001
+    gate: interactive-continuation
+    decision: continue
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T00:20:00Z"
+    applies_to:
+      - sdd-tasks
+  - id: review-workload-001
+    gate: review-workload
+    decision: size:exception
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T00:55:00Z"
+    applies_to:
+      - sdd-apply
+  - id: continue-after-apply-001
+    gate: interactive-continuation
+    decision: continue
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T01:30:00Z"
+    applies_to:
+      - sdd-verify
+  - id: continue-after-verify-001
+    gate: interactive-continuation
+    decision: continue
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T01:40:00Z"
+    applies_to:
+      - 4r-review-gate
+  - id: continue-after-4r-001
+    gate: interactive-continuation
+    decision: archive
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T02:10:00Z"
+    applies_to:
+      - sdd-archive
+
+blocking_questions: []
+
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/orchestrator-intent-briefing/proposal.md"
+    summary: "Briefing funcional obligatorio para cambios SDD nuevos, con aceptación previa, corrección acotada y exclusiones explícitas."
+    key_decisions:
+      - "Evolucionar el Intent Restatement D2 existente; no crear un gate paralelo."
+      - "Permitir hasta 2 rondas de corrección; luego confirmar la síntesis o abortar."
+      - "No crear artefactos antes de aceptar; persistir la intención acordada antes de clasificar."
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/orchestrator-intent-briefing/specs/ambiguity-detection-boundaries/spec.md"
+      - "openspec/changes/orchestrator-intent-briefing/specs/agents/spec.md"
+      - "openspec/changes/orchestrator-intent-briefing/specs/orchestrator-evals/spec.md"
+    summary: "Briefing for all eligible new SDD; 2-round cap; persist-before-classify; evals 7→9; design-mismatch untouched."
+    key_decisions:
+      - "Specific requests MUST receive the D2 briefing; skip-if-specific is removed."
+      - "Golden corpus 7→9: recast eligible briefing + specific + continue-no-rebrief; keep the other 6."
+      - "Persist uses approvals gate intent-briefing with synthesis and scope; design-mismatch omitted."
+  clarify:
+    status: skipped
+    note: "Predicate shouldRunClarify=false: residual_ambiguity=false and empty ambiguity arrays on the sdd-spec envelope."
+  design:
+    status: done
+    artifact: "openspec/changes/orchestrator-intent-briefing/design.md"
+    summary: "D2 CORE acotado; aceptación bootstrap antes de classifyChange; ledger intent-briefing; goldens 7→9."
+    key_decisions:
+      - "D2 sigue en CORE: briefing funcional para toda solicitud nueva elegible, con máximo 2 correcciones."
+      - "Accept crea state.yaml mínimo con intent-briefing antes de clasificar; abort no crea directorio."
+      - "synthesis/scope son obligatorios solo para intent-briefing y no confirman la route."
+  tasks:
+    status: done
+    artifact: "openspec/changes/orchestrator-intent-briefing/tasks.md"
+    summary: "6 fases, 27 tareas; TDD RED→GREEN; size:exception aceptada; ~520–680 líneas."
+    key_decisions:
+      - "Phase 1 contrato RED antes de editar CORE/ledger; no escribir openspec/specs/ en apply."
+      - "PR1 contrato+CORE+ledger; PR2 configure+goldens; PR3 evals 7→9."
+      - "Purpose baseline solo en sdd-archive (tarea 6.1)."
+  apply:
+    status: done
+    artifact: "openspec/changes/orchestrator-intent-briefing/apply-progress.md"
+    summary: "D2 CORE+ledger GREEN; goldens regenerated; evals 7→9; npm test 2677 pass. 6.1 deferred to archive."
+    key_decisions:
+      - "size:exception single-PR apply for Phases 1–5; 6.1 left for sdd-archive."
+      - "D2 kept under the 500-line orchestrator ratchet (495 lines)."
+      - "Golden orchestrator snapshots regenerated from the source fixture, not hand-edited."
+  verify:
+    status: done
+    artifact: "openspec/changes/orchestrator-intent-briefing/verify-report.md"
+    verdict: "PASS WITH WARNINGS"
+    summary: "PASS WITH WARNINGS: 41/41 scenarios compliant; npm test 2677 pass; task 6.1 remains archive-only."
+  archive:
+    status: done
+    artifact: "openspec/changes/orchestrator-intent-briefing/archive-report.md"
+    summary: "Plan-and-Report emitido: 3 specs preparados, 3 ADR promovidos; runtime move pendiente."
+    key_decisions:
+      - "Purpose baseline actualizado: briefing para toda solicitud elegible; design-mismatch intacto."
+      - "4R WARNINGs F-4afce68492da82c9 y F-93efe4f5072cd173 registrados como follow-up."
+      - "archive-plan.json con fingerprints baseline verificados; live writes runtime-owned."
+
+gates:
+  4r-review-gate: {"status":"approved","schema_version":1,"classification":"normal","evidence":{"schema_version":1,"fingerprint":"sha256:3a498489b16ca32e101d40a5280b5de8e4a23d6c87abe22377545232c0b8f116","sources":{"paths":["agents/sdd-orchestrator.agent.md","openspec/changes/orchestrator-intent-briefing/apply-progress.md","openspec/changes/orchestrator-intent-briefing/decisions/adr-001.md","openspec/changes/orchestrator-intent-briefing/decisions/adr-002.md","openspec/changes/orchestrator-intent-briefing/decisions/adr-003.md","openspec/changes/orchestrator-intent-briefing/design.md","openspec/changes/orchestrator-intent-briefing/proposal.md","openspec/changes/orchestrator-intent-briefing/specs/agents/spec.md","openspec/changes/orchestrator-intent-briefing/specs/ambiguity-detection-boundaries/spec.md","openspec/changes/orchestrator-intent-briefing/specs/orchestrator-evals/spec.md","openspec/changes/orchestrator-intent-briefing/state.yaml","openspec/changes/orchestrator-intent-briefing/tasks.md","openspec/changes/orchestrator-intent-briefing/verify-report.md","scripts/configure/__fixtures__/golden/claude/skills/sdd-orchestrator/SKILL.md","scripts/configure/__fixtures__/golden/codex/AGENTS.md","scripts/configure/__fixtures__/golden/cursor/agents/sdd-orchestrator.md","scripts/configure/__fixtures__/golden/github-copilot/.github/agents/sdd-orchestrator.agent.md","scripts/configure/__fixtures__/golden/opencode/.opencode/agents/ospec-workflow.md","scripts/configure/__fixtures__/source/agents/sdd-orchestrator.agent.md","scripts/configure/real-repo.test.js","scripts/evals/README.md","scripts/evals/__fixtures__/continue-no-rebrief/repo/README.md","scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/changes/add-retry-backoff/proposal.md","scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/changes/add-retry-backoff/state.yaml","scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/changes/add-retry-backoff/tasks.md","scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/config.yaml","scripts/evals/__fixtures__/continue-no-rebrief/repo/package.json","scripts/evals/__fixtures__/continue-no-rebrief/scenario.json","scripts/evals/__fixtures__/specific-request-no-artifact/repo/README.md","scripts/evals/__fixtures__/specific-request-no-artifact/repo/openspec/config.yaml","scripts/evals/__fixtures__/specific-request-no-artifact/repo/package.json","scripts/evals/__fixtures__/specific-request-no-artifact/scenario.json","scripts/evals/__fixtures__/vague-request-no-artifact/repo/README.md","scripts/evals/__fixtures__/vague-request-no-artifact/scenario.json","scripts/evals/lib/capture.js","scripts/evals/run.js","scripts/evals/run.test.js","scripts/recommendation-ambiguity-contract.test.js","skills/_shared/approval-ledger.md"],"capabilities":["agents","docs","skills","testing"],"operation_types":["add","modify"],"dependencies":[],"facts":[]}},"generalist":{"status":"needs-specialist","specialists":["reliability"],"reason":"signals=metadata-runtime;dimensions=reliability"},"depth":{"review":"targeted"},"escalation_reason":null,"dimensions":{"risk":{"selected":false,"reasons":[{"code":"no-risk-signal","source":"classifier","detail":"No positive signal","precedence":5}]},"reliability":{"selected":true,"reasons":[{"code":"generalist-escalation","source":"generalist","detail":"signals=metadata-runtime;dimensions=reliability","precedence":3}]},"resilience":{"selected":false,"reasons":[{"code":"no-resilience-signal","source":"classifier","detail":"No positive signal","precedence":5}]},"readability":{"selected":false,"reasons":[{"code":"no-readability-signal","source":"classifier","detail":"No positive signal","precedence":5}]}},"lineage":{"schema_version":1,"lineage_id":"sha256:31389ac34722bf08fcacb82c560dd1a1179ee94dfcb1ff8e3900d89046f9db16","generation":1,"predecessor_lineage_id":null,"recovery":null,"revision":3,"status":"approved","genesis":{"candidate":{"projection":"workspace","base_tree":"dbb0d109099a1265f27b5c5695a74af9c63dc851","candidate_tree":"WORKING-TREE-orchestrator-intent-briefing","paths":["agents/sdd-orchestrator.agent.md","openspec/changes/orchestrator-intent-briefing/apply-progress.md","openspec/changes/orchestrator-intent-briefing/decisions/adr-001.md","openspec/changes/orchestrator-intent-briefing/decisions/adr-002.md","openspec/changes/orchestrator-intent-briefing/decisions/adr-003.md","openspec/changes/orchestrator-intent-briefing/design.md","openspec/changes/orchestrator-intent-briefing/proposal.md","openspec/changes/orchestrator-intent-briefing/specs/agents/spec.md","openspec/changes/orchestrator-intent-briefing/specs/ambiguity-detection-boundaries/spec.md","openspec/changes/orchestrator-intent-briefing/specs/orchestrator-evals/spec.md","openspec/changes/orchestrator-intent-briefing/state.yaml","openspec/changes/orchestrator-intent-briefing/tasks.md","openspec/changes/orchestrator-intent-briefing/verify-report.md","scripts/configure/__fixtures__/golden/claude/skills/sdd-orchestrator/SKILL.md","scripts/configure/__fixtures__/golden/codex/AGENTS.md","scripts/configure/__fixtures__/golden/cursor/agents/sdd-orchestrator.md","scripts/configure/__fixtures__/golden/github-copilot/.github/agents/sdd-orchestrator.agent.md","scripts/configure/__fixtures__/golden/opencode/.opencode/agents/ospec-workflow.md","scripts/configure/__fixtures__/source/agents/sdd-orchestrator.agent.md","scripts/configure/real-repo.test.js","scripts/evals/README.md","scripts/evals/__fixtures__/continue-no-rebrief/repo/README.md","scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/changes/add-retry-backoff/proposal.md","scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/changes/add-retry-backoff/state.yaml","scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/changes/add-retry-backoff/tasks.md","scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/config.yaml","scripts/evals/__fixtures__/continue-no-rebrief/repo/package.json","scripts/evals/__fixtures__/continue-no-rebrief/scenario.json","scripts/evals/__fixtures__/specific-request-no-artifact/repo/README.md","scripts/evals/__fixtures__/specific-request-no-artifact/repo/openspec/config.yaml","scripts/evals/__fixtures__/specific-request-no-artifact/repo/package.json","scripts/evals/__fixtures__/specific-request-no-artifact/scenario.json","scripts/evals/__fixtures__/vague-request-no-artifact/repo/README.md","scripts/evals/__fixtures__/vague-request-no-artifact/scenario.json","scripts/evals/lib/capture.js","scripts/evals/run.js","scripts/evals/run.test.js","scripts/recommendation-ambiguity-contract.test.js","skills/_shared/approval-ledger.md"],"diff_hash":"sha256:008a72a6b2be8b7f8fb4acd31dfb02244de00f98f3b5337f267f3aff00f71180","paths_digest":"sha256:f669ab8531a0480a01c1a04fee8db8daeec2aa5d13dcdf4e75625535b09293a5","authored_lines":1884,"original_changed_lines":1884},"candidate_id":"sha256:7bb7bd4f8b70a0a4765a396c6688891121c7cc35043a9d6da9517a16222e12dc","paths":["agents/sdd-orchestrator.agent.md","openspec/changes/orchestrator-intent-briefing/apply-progress.md","openspec/changes/orchestrator-intent-briefing/decisions/adr-001.md","openspec/changes/orchestrator-intent-briefing/decisions/adr-002.md","openspec/changes/orchestrator-intent-briefing/decisions/adr-003.md","openspec/changes/orchestrator-intent-briefing/design.md","openspec/changes/orchestrator-intent-briefing/proposal.md","openspec/changes/orchestrator-intent-briefing/specs/agents/spec.md","openspec/changes/orchestrator-intent-briefing/specs/ambiguity-detection-boundaries/spec.md","openspec/changes/orchestrator-intent-briefing/specs/orchestrator-evals/spec.md","openspec/changes/orchestrator-intent-briefing/state.yaml","openspec/changes/orchestrator-intent-briefing/tasks.md","openspec/changes/orchestrator-intent-briefing/verify-report.md","scripts/configure/__fixtures__/golden/claude/skills/sdd-orchestrator/SKILL.md","scripts/configure/__fixtures__/golden/codex/AGENTS.md","scripts/configure/__fixtures__/golden/cursor/agents/sdd-orchestrator.md","scripts/configure/__fixtures__/golden/github-copilot/.github/agents/sdd-orchestrator.agent.md","scripts/configure/__fixtures__/golden/opencode/.opencode/agents/ospec-workflow.md","scripts/configure/__fixtures__/source/agents/sdd-orchestrator.agent.md","scripts/configure/real-repo.test.js","scripts/evals/README.md","scripts/evals/__fixtures__/continue-no-rebrief/repo/README.md","scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/changes/add-retry-backoff/proposal.md","scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/changes/add-retry-backoff/state.yaml","scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/changes/add-retry-backoff/tasks.md","scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/config.yaml","scripts/evals/__fixtures__/continue-no-rebrief/repo/package.json","scripts/evals/__fixtures__/continue-no-rebrief/scenario.json","scripts/evals/__fixtures__/specific-request-no-artifact/repo/README.md","scripts/evals/__fixtures__/specific-request-no-artifact/repo/openspec/config.yaml","scripts/evals/__fixtures__/specific-request-no-artifact/repo/package.json","scripts/evals/__fixtures__/specific-request-no-artifact/scenario.json","scripts/evals/__fixtures__/vague-request-no-artifact/repo/README.md","scripts/evals/__fixtures__/vague-request-no-artifact/scenario.json","scripts/evals/lib/capture.js","scripts/evals/run.js","scripts/evals/run.test.js","scripts/recommendation-ambiguity-contract.test.js","skills/_shared/approval-ledger.md"],"classification":"normal","selected_dimensions":["reliability"],"evidence_fingerprint":"sha256:3a498489b16ca32e101d40a5280b5de8e4a23d6c87abe22377545232c0b8f116","original_changed_lines":1884,"authored_lines":1884},"current_candidate_id":"sha256:7bb7bd4f8b70a0a4765a396c6688891121c7cc35043a9d6da9517a16222e12dc","current_candidate":{"projection":"workspace","base_tree":"dbb0d109099a1265f27b5c5695a74af9c63dc851","candidate_tree":"WORKING-TREE-orchestrator-intent-briefing","paths":["agents/sdd-orchestrator.agent.md","openspec/changes/orchestrator-intent-briefing/apply-progress.md","openspec/changes/orchestrator-intent-briefing/decisions/adr-001.md","openspec/changes/orchestrator-intent-briefing/decisions/adr-002.md","openspec/changes/orchestrator-intent-briefing/decisions/adr-003.md","openspec/changes/orchestrator-intent-briefing/design.md","openspec/changes/orchestrator-intent-briefing/proposal.md","openspec/changes/orchestrator-intent-briefing/specs/agents/spec.md","openspec/changes/orchestrator-intent-briefing/specs/ambiguity-detection-boundaries/spec.md","openspec/changes/orchestrator-intent-briefing/specs/orchestrator-evals/spec.md","openspec/changes/orchestrator-intent-briefing/state.yaml","openspec/changes/orchestrator-intent-briefing/tasks.md","openspec/changes/orchestrator-intent-briefing/verify-report.md","scripts/configure/__fixtures__/golden/claude/skills/sdd-orchestrator/SKILL.md","scripts/configure/__fixtures__/golden/codex/AGENTS.md","scripts/configure/__fixtures__/golden/cursor/agents/sdd-orchestrator.md","scripts/configure/__fixtures__/golden/github-copilot/.github/agents/sdd-orchestrator.agent.md","scripts/configure/__fixtures__/golden/opencode/.opencode/agents/ospec-workflow.md","scripts/configure/__fixtures__/source/agents/sdd-orchestrator.agent.md","scripts/configure/real-repo.test.js","scripts/evals/README.md","scripts/evals/__fixtures__/continue-no-rebrief/repo/README.md","scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/changes/add-retry-backoff/proposal.md","scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/changes/add-retry-backoff/state.yaml","scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/changes/add-retry-backoff/tasks.md","scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/config.yaml","scripts/evals/__fixtures__/continue-no-rebrief/repo/package.json","scripts/evals/__fixtures__/continue-no-rebrief/scenario.json","scripts/evals/__fixtures__/specific-request-no-artifact/repo/README.md","scripts/evals/__fixtures__/specific-request-no-artifact/repo/openspec/config.yaml","scripts/evals/__fixtures__/specific-request-no-artifact/repo/package.json","scripts/evals/__fixtures__/specific-request-no-artifact/scenario.json","scripts/evals/__fixtures__/vague-request-no-artifact/repo/README.md","scripts/evals/__fixtures__/vague-request-no-artifact/scenario.json","scripts/evals/lib/capture.js","scripts/evals/run.js","scripts/evals/run.test.js","scripts/recommendation-ambiguity-contract.test.js","skills/_shared/approval-ledger.md"],"diff_hash":"sha256:008a72a6b2be8b7f8fb4acd31dfb02244de00f98f3b5337f267f3aff00f71180","paths_digest":"sha256:f669ab8531a0480a01c1a04fee8db8daeec2aa5d13dcdf4e75625535b09293a5","authored_lines":1884,"original_changed_lines":1884},"lenses":{"risk":{"selected":false,"status":"skipped","request_id":null,"result_digest":null,"result":null,"operation":null},"reliability":{"selected":true,"status":"completed","request_id":"start-reliability-orchestrator-intent-briefing","result_digest":"sha256:ee0919668900d266a676ea278ea0bd71b9e4462df26526cc0e699fe85e954f3d","result":{"findings":[{"severity":"WARNING","summary":"CORE puede conservar no-artefactos-mientras-espera y aun asi crear openspec/changes/{name}/ al abortar; los tests seguirian verdes y se romperia el fail-closed de aborto.","acceptance_criteria":"Add a contract assertion scoped to On abort that independently requires do NOT create the change directory, not satisfied only by the waiting landmark."},{"severity":"WARNING","summary":"Una regresion puede mantener el tope de 2 y clasificar con la sintesis original tras una correccion; el change quedaria clasificado contra un intent ya rechazado.","acceptance_criteria":"Add a contract landmark that each correction requires a fresh synthesis before classifyChange."}]},"operation":null,"result_request_id":"result-reliability-orchestrator-intent-briefing"},"resilience":{"selected":false,"status":"skipped","request_id":null,"result_digest":null,"result":null,"operation":null},"readability":{"selected":false,"status":"skipped","request_id":null,"result_digest":null,"result":null,"operation":null}},"findings":[{"id":"F-4afce68492da82c9","owner":"reliability","severity":"WARNING","summary":"CORE puede conservar no-artefactos-mientras-espera y aun asi crear openspec/changes/{name}/ al abortar; los tests seguirian verdes y se romperia el fail-closed de aborto.","acceptance_criteria":"Add a contract assertion scoped to On abort that independently requires do NOT create the change directory, not satisfied only by the waiting landmark.","blocking":false,"resolution":"advisory"},{"id":"F-93efe4f5072cd173","owner":"reliability","severity":"WARNING","summary":"Una regresion puede mantener el tope de 2 y clasificar con la sintesis original tras una correccion; el change quedaria clasificado contra un intent ya rechazado.","acceptance_criteria":"Add a contract landmark that each correction requires a fresh synthesis before classifyChange.","blocking":false,"resolution":"advisory"}],"findings_digest":"sha256:96a6de99fc03f67ded0ba7b25fbee7d87a15e8791cfca4e650b597ab58aa585b","correction_budget":{"limit_lines":200,"used_lines":0,"failed_attempts":0,"max_failed_attempts":3},"correction_history":[],"validation_history":[],"follow_ups":[],"pending_operation":null,"pending_correction":null,"terminal_reason":"no-unresolved-blocking-findings"},"selected_reviewers":["review-reliability"],"selection_rationale":"Classifier selected targeted reliability from generalist metadata-runtime; other dimensions skipped (no-signal).","findings_summary":"0 BLOCKER, 0 CRITICAL, 2 WARNING, 0 SUGGESTION","lineage_status":"approved","terminal_reason":"no-unresolved-blocking-findings","archive_allowed":true,"blocking_finding_ids":[]}
+baseline_fingerprints:
+  ambiguity-detection-boundaries: "be860883949c5cc14949a1306641603e8e2db5a831ebeb43fef334598cbe4d14"
+  agents: "fc089ddc36ed1adeb9c9ffd12b4eb57a66aa633e5b3000042e1a41f887620ef5"
+  orchestrator-evals: "7e4e61d725954c76636748a43cd16a26453a77635e84347322e695df0e9ab249"

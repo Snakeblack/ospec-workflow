@@ -96,7 +96,7 @@ function resolveScenarioNames(arg) {
   if (arg === "all" || arg === undefined) {
     if (all.length === 0) {
       throw new Error(
-        `No scenario fixtures found under ${FIXTURES_ROOT}. Expected 7 golden ` +
+        `No scenario fixtures found under ${FIXTURES_ROOT}. Expected 9 golden ` +
           "scenario directories, each with scenario.json + repo/.",
       );
     }

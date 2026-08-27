@@ -1,13 +1,38 @@
-# orchestrator-evals Specification
+# Delta for orchestrator-evals
 
-## Purpose
+## ADDED Requirements
 
-Golden-scenario eval suite that validates the orchestrator's documented behavior
-(routing, gates, blockers) end-to-end against fixture repos, producing objective,
-model-agnostic evidence before a `models.yaml` version bump. Scenarios are versioned
-data; a runner executes them and asserts only structural outcomes, never prose.
+### Requirement: Intent-Briefing Structural Contract Coverage {#REQ-orchestrator-evals-006}
 
-## Requirements
+Prose-landmark contract tests for the orchestrator CORE Intent Restatement
+subsection MUST cover the briefing public contract without asserting user-facing
+briefing wording. Those tests MUST fail closed when CORE text still instructs
+skip-if-not-vague, and MUST assert landmarks for: briefing of eligible specific
+requests; skip for `/sdd-continue` and later phases of an already-accepted change;
+a maximum of 2 correction rounds then confirm-last-synthesis or abort; no OpenSpec
+artifacts during briefing; and persist-accepted-intent before `classifyChange`.
+
+Golden evals that exercise this gate MUST remain structural per
+REQ-orchestrator-evals-002 (gate fired, artifact absence, skip on resume).
+Ledger-entry-after-accept MUST be asserted by the contract tests above and MAY
+be asserted by a golden only when the fixture already contains post-accept
+`state.yaml`; assertions MUST NOT compare synthesis prose.
+
+#### Scenario: Contract tests reject a skip-if-specific CORE regression
+
+- GIVEN the orchestrator CORE Intent Restatement subsection is under contract test
+- WHEN the subsection still tells the orchestrator to skip briefing when the request is not vague
+- THEN the contract tests MUST fail
+- AND they MUST NOT inspect the wording of any user-facing briefing
+
+#### Scenario: Contract tests pin bounded rounds without asserting prose
+
+- GIVEN the same CORE subsection is under contract test
+- WHEN the landmarks for a 2-round correction cap and confirm-or-abort are missing
+- THEN the contract tests MUST fail
+- AND golden evals MUST still be forbidden from comparing briefing free text
+
+## MODIFIED Requirements
 
 ### Requirement: Golden Scenario Corpus {#REQ-orchestrator-evals-001}
 
@@ -98,61 +123,6 @@ corpus.)
 - WHEN the runner materializes that profile
 - THEN it MUST produce an isolated synthetic repository and the declared live request
 - AND its expected route, artifacts and structural outcome MUST come from that catalog
-
-
-### Requirement: Structural-Only Assertion Contract {#REQ-orchestrator-evals-002}
-
-Every scenario assertion MUST target only structural fields: the route/phase taken,
-`blocker_type`, artifact existence/absence (file paths), specific `state.yaml` fields
-(`status`, `blocking_questions`, phase entries), and `question_gate` shape (question
-count, option count/labels present, `recommended` flags). Assertions MUST NOT inspect
-or compare free-text prose (`executive_summary`, question/option wording, rationale
-text), since prose varies between models and would make the suite non-portable.
-
-#### Scenario: Assertion targets a structural field
-
-- GIVEN a scenario's expected outcome names `state.yaml status: blocked`
-- WHEN the assertion library evaluates the captured run
-- THEN it MUST compare only the `status` field value, not any narrative text
-  produced alongside it
-
-#### Scenario: Prose difference does not fail a scenario
-
-- GIVEN two different models produce different wording for the same
-  `question_gate.reason`
-- WHEN the same golden scenario runs against both models
-- THEN both runs MUST pass, provided the structural fields (question/option
-  count, `blocker_type`, artifacts, route) match expectations
-
-### Requirement: Intent-Briefing Structural Contract Coverage {#REQ-orchestrator-evals-006}
-
-Prose-landmark contract tests for the orchestrator CORE Intent Restatement
-subsection MUST cover the briefing public contract without asserting user-facing
-briefing wording. Those tests MUST fail closed when CORE text still instructs
-skip-if-not-vague, and MUST assert landmarks for: briefing of eligible specific
-requests; skip for `/sdd-continue` and later phases of an already-accepted change;
-a maximum of 2 correction rounds then confirm-last-synthesis or abort; no OpenSpec
-artifacts during briefing; and persist-accepted-intent before `classifyChange`.
-
-Golden evals that exercise this gate MUST remain structural per
-REQ-orchestrator-evals-002 (gate fired, artifact absence, skip on resume).
-Ledger-entry-after-accept MUST be asserted by the contract tests above and MAY
-be asserted by a golden only when the fixture already contains post-accept
-`state.yaml`; assertions MUST NOT compare synthesis prose.
-
-#### Scenario: Contract tests reject a skip-if-specific CORE regression
-
-- GIVEN the orchestrator CORE Intent Restatement subsection is under contract test
-- WHEN the subsection still tells the orchestrator to skip briefing when the request is not vague
-- THEN the contract tests MUST fail
-- AND they MUST NOT inspect the wording of any user-facing briefing
-
-#### Scenario: Contract tests pin bounded rounds without asserting prose
-
-- GIVEN the same CORE subsection is under contract test
-- WHEN the landmarks for a 2-round correction cap and confirm-or-abort are missing
-- THEN the contract tests MUST fail
-- AND golden evals MUST still be forbidden from comparing briefing free text
 
 ### Requirement: Eval Runner and Report {#REQ-orchestrator-evals-003}
 
@@ -280,59 +250,3 @@ replay execution model.
 - WHEN the runner describes its assurance
 - THEN it MUST claim correlation and tamper or corruption detection only
 - AND it MUST NOT claim cryptographic authenticity against a non-cooperative producer
-
-
-### Requirement: Fixed-Policy Reference Baseline Contract {#REQ-orchestrator-evals-005}
-
-The extended benchmark MUST execute exactly these nine stable profile identities:
-docs-one-file, small-bugfix, small-feature, cross-module-feature,
-behavior-preserving-refactor, public-api-change, filesystem-sensitive-change,
-security-sensitive-change, and migration-change. It MUST use policy fixed and one
-known, identical harness version, target version, model identity and effort identity
-for every row. Each row MUST retain complete provenance sufficient to establish profile,
-policy, harness, target, model, effort, fixture/synthetic payload and run evidence.
-
-The runner MUST publish the versioned fixed-policy reference baseline only atomically
-after all nine rows are valid, attributable and mutually comparable. It MUST fail closed
-and leave the published baseline unchanged or absent when any row is missing,
-incomplete, incompatible, not attributable to a live invocation, affected by fixture
-drift, or synthesized. It MUST expose per-run quality verdict, cost/tokens, duration,
-question count and verify/4R defect metrics. The documented reproducible command MUST
-be node scripts/evals/live-driver.js extended. This contract MUST NOT enable adaptive
-policy, an adaptive-promotion gate, mandatory CI, dynamic model selection, or changes
-to adaptive defaults.
-
-#### Scenario: Nine compatible fixed rows publish the reference baseline
-
-- GIVEN extended completes live invocations for the nine named profiles under one known fixed policy and shared identities
-- WHEN every row has complete provenance, valid quality evidence and comparable metrics
-- THEN the runner MUST atomically publish one versioned 9/9 reference baseline
-- AND the report MUST expose quality, cost/tokens, duration, questions and verify/4R defects per row
-
-#### Scenario: Missing or incompatible row rejects publication
-
-- GIVEN an extended run has fewer than nine rows or one row differs in required identity, provenance or fixture/payload identity
-- WHEN the runner evaluates publication eligibility
-- THEN it MUST fail closed and MUST NOT publish or mutate the 9/9 reference baseline
-- AND it MUST identify the invalid or non-comparable row without creating a replacement row
-
-#### Scenario: Synthetic or unattributable result is rejected
-
-- GIVEN a result is replayed, fabricated, synthesized or cannot be attributed to its live profile invocation
-- WHEN the runner evaluates the result for the fixed-policy baseline
-- THEN it MUST reject the result
-- AND it MUST NOT count that result toward the nine valid rows
-
-#### Scenario: Smoke remains available for rapid cycles
-
-- GIVEN a contributor runs the smoke suite without requesting extended
-- WHEN the three smoke profiles complete
-- THEN the suite MUST retain its 3/3 rapid-cycle result behavior
-- AND it MUST NOT represent the smoke result as the 9/9 fixed-policy reference baseline
-
-#### Scenario: Reproducible command does not activate adaptive or CI
-
-- GIVEN a contributor follows the documented node scripts/evals/live-driver.js extended command
-- WHEN the fixed-policy reference run starts
-- THEN it MUST run with policy fixed and without mandatory CI or an adaptive-promotion gate
-- AND it MUST NOT select or activate adaptive behavior

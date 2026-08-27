@@ -16,9 +16,21 @@ const SHARED_COMMON_PATH = path.join(ROOT_DIR, "skills", "_shared", "sdd-phase-c
 const ORCHESTRATOR_AGENT_PATH = path.join(ROOT_DIR, "agents", "sdd-orchestrator.agent.md");
 const APPLY_SKILL_PATH = path.join(ROOT_DIR, "skills", "sdd-apply", "SKILL.md");
 const AGENTS_SPEC_PATH = path.join(ROOT_DIR, "openspec", "specs", "agents", "spec.md");
+const APPROVAL_LEDGER_PATH = path.join(ROOT_DIR, "skills", "_shared", "approval-ledger.md");
 
 async function readFile(filePath) {
   return fs.readFile(filePath, "utf8");
+}
+
+function extractIntentRestatement(content) {
+  const heading = "#### Intent Restatement (pre-classification)";
+  const start = content.indexOf(heading);
+  if (start === -1) {
+    return "";
+  }
+  const after = content.slice(start);
+  const nextHeading = after.search(/\n### /);
+  return nextHeading === -1 ? after : after.slice(0, nextHeading);
 }
 
 const BLOCKER_TYPE_VALUES = [
@@ -215,4 +227,76 @@ test("1.4b · sdd-clarify/SKILL.md keeps the pointer to the Recommended Option D
   const content = await readFile(path.join(ROOT_DIR, "skills", "sdd-clarify", "SKILL.md"));
   assert.ok(content.includes("rationale, trade-off, and reversibility"), "must keep the rationale/trade-off/reversibility summary");
   assert.ok(content.includes("Recommended Option Description Contract"), "must keep the pointer to §D's contract");
+});
+
+// ---------------------------------------------------------------------------
+// Intent-briefing D2 contract (orchestrator-intent-briefing)
+// Prose landmarks only — never assert user-facing briefing wording.
+// ---------------------------------------------------------------------------
+
+test("D2 · extractIntentRestatement returns the pre-classification subsection", async () => {
+  const content = await readFile(ORCHESTRATOR_AGENT_PATH);
+  const d2 = extractIntentRestatement(content);
+  assert.ok(d2.startsWith("#### Intent Restatement (pre-classification)"), "helper must start at the D2 heading");
+  assert.ok(!d2.includes("### Change Classification"), "helper must stop before Change Classification");
+  assert.equal(extractIntentRestatement("no heading here"), "", "missing heading must yield empty string");
+});
+
+test("D2 · CORE must not skip briefing when the request is specific", async () => {
+  const d2 = extractIntentRestatement(await readFile(ORCHESTRATOR_AGENT_PATH));
+  assert.ok(d2.length > 0, "Intent Restatement subsection must exist");
+  assert.doesNotMatch(d2, /NOT vague/, "must not keep the 'NOT vague' skip predicate");
+  assert.doesNotMatch(d2, /skip this step/, "must not instruct skipping the step for specific requests");
+  assert.doesNotMatch(d2, /proceed directly to Change Classification/, "must not proceed directly to classifyChange when the request is specific");
+});
+
+test("D2 · eligibility matrix fires for new SDD and skips continue, later-phase, and cosmetic", async () => {
+  const d2 = extractIntentRestatement(await readFile(ORCHESTRATOR_AGENT_PATH));
+  assert.match(d2, /\/sdd-new/, "MUST fire for /sdd-new");
+  assert.match(d2, /\/sdd-ff/, "MUST fire for /sdd-ff");
+  assert.match(d2, /\/sdd-lite/, "MUST fire for /sdd-lite");
+  assert.match(d2, /\/sdd-continue/, "must name /sdd-continue in the skip set");
+  assert.match(d2, /later phase|subsequent phase/i, "MUST skip a later phase of an already-accepted change");
+  assert.match(d2, /cosmetic/i, "MUST skip Ambient SDD Awareness cosmetic work");
+});
+
+test("D2 · cap 2 corrections then confirm-last or abort; no classifyChange until then", async () => {
+  const d2 = extractIntentRestatement(await readFile(ORCHESTRATOR_AGENT_PATH));
+  assert.match(d2, /cap 2 corrections|at most 2 correction|2 corrections/i, "must cap corrections at 2");
+  assert.match(d2, /allowFreeformInput:\s*true/, "rounds 0–1 must allow freeform correction");
+  assert.match(d2, /allowFreeformInput:\s*false/, "confirm-last must set allowFreeformInput: false");
+  assert.match(d2, /Confirmar la última síntesis|confirm(?: the)? last synthesis/i, "must offer confirm-last after the cap");
+  assert.match(d2, /Abortar|abort/i, "must offer abort");
+  assert.match(d2, /do NOT call `classifyChange`|MUST NOT call `classifyChange`/i, "must not classify until confirm or abort");
+});
+
+test("D2 · persist-before-classify, no sdd-* phase ids as the plan, main-thread ownership, explore read-only", async () => {
+  const d2 = extractIntentRestatement(await readFile(ORCHESTRATOR_AGENT_PATH));
+  assert.match(d2, /gate:\s*intent-briefing/, "accept must persist gate intent-briefing");
+  assert.match(d2, /`synthesis`/, "persisted entry must include synthesis");
+  assert.match(d2, /`scope`/, "persisted entry must include scope");
+  assert.match(d2, /applies_to:\s*\[change-classification\]/, "applies_to must include change-classification");
+  assert.match(d2, /BEFORE `classifyChange`|before `classifyChange`/i, "persist must precede classifyChange");
+  assert.match(
+    d2,
+    /MUST NOT present[\s\S]*`sdd-propose`[\s\S]*user-facing plan|MUST NOT present[\s\S]*as the user-facing plan/i,
+    "must prohibit sdd-* phase ids as the user-facing plan",
+  );
+  assert.match(d2, /main thread/i, "briefing question must be owned by the main thread");
+  assert.match(d2, /read-only explore/i, "explore must be read-only");
+  assert.match(d2, /Do NOT (delegate the briefing|self-approve)|do NOT self-approve/i, "must forbid self-approval / delegated ask");
+  assert.match(d2, /do NOT create (the change directory|`openspec\/changes\/\{name\}\/`)/i, "abort/wait must not create the change directory");
+  assert.match(d2, /confidence:\s*advisory/, "intent-briefing must not substitute advisory route confirmation");
+});
+
+test("D2 · approval-ledger.md enum includes intent-briefing with obligatory synthesis/scope for that gate only", async () => {
+  const ledger = await readFile(APPROVAL_LEDGER_PATH);
+  assert.match(ledger, /gate:[^\n]*intent-briefing/, "gate enum must include intent-briefing");
+  assert.match(ledger, /`synthesis`/, "must document synthesis");
+  assert.match(ledger, /`scope`/, "must document scope");
+  assert.match(
+    ledger,
+    /obligator(?:y|ios)[\s\S]{0,80}intent-briefing|intent-briefing[\s\S]{0,120}(obligator|required|MUST)/i,
+    "synthesis/scope must be obligatory only for intent-briefing",
+  );
 });

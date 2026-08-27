@@ -1,9 +1,9 @@
 {
-  "id": "vague-request-no-artifact",
+  "id": "specific-request-no-artifact",
   "group": "orchestrator-core",
   "input": {
     "command": "/sdd-new",
-    "text": "puedes mejorar el proyecto un poco"
+    "text": "Add exponential-backoff retries to scripts/delivery-worker.js; acceptance: three attempts then fail closed; out of scope: changing the queue broker."
   },
   "capture": { "gate": true, "envelope": false },
   "expect": {

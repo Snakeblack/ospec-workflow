@@ -525,7 +525,7 @@ Las rutas no son nuevos orquestadores. Son recetas de compilación con hard floo
 
 ### Capacidades, no fases obligatorias
 
-- `clarify-intent`
+- `clarify-intent` (K10). El briefing funcional D2 del orquestador ya es obligatorio en CORE desde v2.49.0; K10 lo generaliza como receta de grafo, no lo introduce.
 - `discover-system`
 - `define-contract`
 - `analyze-impact`

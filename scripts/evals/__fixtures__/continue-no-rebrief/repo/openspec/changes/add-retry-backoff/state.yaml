@@ -1,0 +1,63 @@
+schema: sdd-state
+change: add-retry-backoff
+status: ready-for-apply
+last_updated: "2026-08-01T12:00:00Z"
+blocking_questions: []
+classification: normal
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "project.status: active matched the standard route (classification: normal)."
+  validated: true
+  validation_errors: []
+
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/add-retry-backoff/proposal.md"
+  spec:
+    status: done
+    artifact: "openspec/changes/add-retry-backoff/specs/delivery/spec.md"
+  design:
+    status: done
+    artifact: "openspec/changes/add-retry-backoff/design.md"
+  tasks:
+    status: done
+    artifact: "openspec/changes/add-retry-backoff/tasks.md"
+  apply:
+    status: pending
+    artifact: "openspec/changes/add-retry-backoff/apply-progress.md"
+
+approvals:
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: vscode/askQuestions
+    accepted_at: "2026-08-01T11:00:00Z"
+    synthesis: "Add bounded retries to the delivery worker and fail closed after three attempts."
+    scope: "In: delivery-worker retry loop. Out: queue broker changes."
+    applies_to:
+      - change-classification
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: interactive
+    source: vscode/askQuestions
+    accepted_at: "2026-08-01T11:05:00Z"
+    applies_to:
+      - session
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: ask-on-risk
+    source: vscode/askQuestions
+    accepted_at: "2026-08-01T11:05:00Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: review-workload-001
+    gate: review-workload
+    decision: size:exception
+    source: vscode/askQuestions
+    accepted_at: "2026-08-01T11:50:00Z"
+    applies_to:
+      - sdd-apply

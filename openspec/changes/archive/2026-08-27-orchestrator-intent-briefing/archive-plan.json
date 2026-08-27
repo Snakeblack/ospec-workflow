@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "change": "orchestrator-intent-briefing",
+  "source_fingerprint": "sha256:1435a8ad423203590439c607734cf7ed3747be54bb68b2c50ea1d24db32b81b0",
+  "spec_writes": [
+    {
+      "domain": "ambiguity-detection-boundaries",
+      "source_delta": "prepared-specs/ambiguity-detection-boundaries/spec.md",
+      "target": "openspec/specs/ambiguity-detection-boundaries/spec.md",
+      "target_before_sha256": "sha256:be860883949c5cc14949a1306641603e8e2db5a831ebeb43fef334598cbe4d14",
+      "content_sha256": "sha256:8b5c09cb4de752670ba2f3b8f3a84b78366395b6f9f9c9a357ef3887e8608f0d"
+    },
+    {
+      "domain": "agents",
+      "source_delta": "prepared-specs/agents/spec.md",
+      "target": "openspec/specs/agents/spec.md",
+      "target_before_sha256": "sha256:fc089ddc36ed1adeb9c9ffd12b4eb57a66aa633e5b3000042e1a41f887620ef5",
+      "content_sha256": "sha256:ea7e448378d1c2ac27e0c4e9c171e14f09a275e99d67ee3f8c21d199b8474692"
+    },
+    {
+      "domain": "orchestrator-evals",
+      "source_delta": "prepared-specs/orchestrator-evals/spec.md",
+      "target": "openspec/specs/orchestrator-evals/spec.md",
+      "target_before_sha256": "sha256:7e4e61d725954c76636748a43cd16a26453a77635e84347322e695df0e9ab249",
+      "content_sha256": "sha256:40fa1af5f7d2f4e5a9a8d4dba77bcf191ed8b63b8f0f30c364b64d5e59dce06a"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260827-001-evolucionar-d2-como-briefing-core-acotado.md",
+      "content_sha256": "sha256:e5223a6e69de297adc862eadbf2a2d42041bbccf51a412dbcc6f20e7326e6fde"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260827-002-persistir-aceptacion-antes-de-clasificar.md",
+      "content_sha256": "sha256:d29aa5e83d0286f6396e520acb5a6c9838db2082c54158728a6a17f82396cd92"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260827-003-especializar-approval-ledger-intent-briefing.md",
+      "content_sha256": "sha256:bc3cf66c03be185f477b53378f23805a6f990409d1c05e661796ce91070d008c"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "design.md",
+    "prepared-specs/agents/spec.md",
+    "prepared-specs/ambiguity-detection-boundaries/spec.md",
+    "prepared-specs/orchestrator-evals/spec.md",
+    "proposal.md",
+    "specs/agents/spec.md",
+    "specs/ambiguity-detection-boundaries/spec.md",
+    "specs/orchestrator-evals/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    {
+      "id": "F-4afce68492da82c9",
+      "source": "4r-review-gate",
+      "severity": "WARNING",
+      "summary": "Abort no-artifact assertion independent of waiting landmark",
+      "disposition": "follow-up"
+    },
+    {
+      "id": "F-93efe4f5072cd173",
+      "source": "4r-review-gate",
+      "severity": "WARNING",
+      "summary": "Correction requires fresh synthesis landmark before classifyChange",
+      "disposition": "follow-up"
+    }
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

@@ -40,8 +40,8 @@ test("Windows Codex npm shim resolves to node without shell execution", (t) => {
   assert.equal(codexVersion({ platform: "win32", execPath: process.execPath, resolveBinFromPath: () => shim }), "codex-cli 9.8.7");
 });
 
-test("suite discovery keeps exactly seven golden scenarios separate from nine benchmarks", () => {
-  assert.equal(listScenarioNames().length, 7);
+test("suite discovery keeps exactly nine golden scenarios separate from nine benchmarks", () => {
+  assert.equal(listScenarioNames().length, 9);
   assert.equal(listBenchmarkNames().length, 9);
   assert.equal(listScenarioNames().includes("benchmark"), false);
 });
