@@ -22,7 +22,8 @@ test("K2a maturity docs tag host surfaces implemented; Candidate/attestation/del
   assert.match(arch, /\{implemented\} CapabilityProof/);
   assert.match(arch, /\{implemented\} Headless Conformance Host/);
   assert.match(arch, /\{implemented\} Claude Code reference adapter|\{implemented\}.*claude.*reference adapter/i);
-  assert.match(arch, /\{target\} Candidate freeze universal/);
+  assert.match(arch, /\{implemented\} K3 cuatro identidades \+ Candidate freeze básico/);
+  assert.match(arch, /\{target\} Candidate freeze gobierna apply/);
   assert.match(arch, /\{target\} CandidateEvaluationAttestation/);
   assert.match(arch, /\{target\}.*DeliveryAuthorization/);
   assert.doesNotMatch(arch, /\{target\} Headless Conformance Host \+ adapter real \+ CapabilityProof \(K2a\)/);

@@ -3,7 +3,7 @@
 > **Autoridad:** única fuente operativa del backlog transversal.
 > **Versión de referencia:** v2.49.0, 2026-08-27.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
-> **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md).
+> **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md) (P0–P27). Proporcionalidad de proceso y Change Program: [`../architecture/research/proportional-process-and-change-program.md`](../architecture/research/proportional-process-and-change-program.md).
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
 
 ## Decisión y ruta crítica
@@ -1083,7 +1083,10 @@ external-unverified
 
 - convertir el Assurance Graph en autoridad de lifecycle, approval o delivery;
 - review lenses / findings (K7 consume y extiende edges `reviewed-by`);
-- receipt binding completo (K8 digiere roots como Evaluation Attestation; no redefine el grafo).
+- receipt binding completo (K8 digiere roots como Evaluation Attestation; no redefine el grafo);
+- arreglar first-match de la tabla de routing de producto (`standard` sombreando `lite`); es compatibilidad viva, no verifier;
+- introducir Change Program / cola de OpenSpec changes concatenados;
+- Quality Attribute identities, gate Architecture Readiness o pipeline de cinco agentes.
 
 #### Done criteria
 
@@ -1551,6 +1554,10 @@ K9 demuestra Repair
 - aliases tienen deprecation y fallback;
 - cada ruta supera fixtures propios y cross-route floors.
 
+#### Compatibilidad con el producto actual
+
+Hasta promover recetas, la tabla `routing:` de `openspec/config.yaml` sigue siendo el default. Un arreglo de first-match (lite alcanzable + clamp de hard floors K1) es **compatibilidad**, no adelanta Direct/Repair ni cambia este slice. `project.status: active` no es clasificación de change.
+
 #### Gate de rollout
 
 Activar una ruta cada vez, empezando Repair. Cada ruta nueva exige promoción (K9 o equivalente) **antes** de que K10-delivery la enforcee. Direct solo después de demostrar que el coste reducido no omite garantías. Ningún hook de un profile promovido bloquea profiles no evaluados.
@@ -1925,6 +1932,8 @@ Es posterior a K4a/K4b/K8/K12 base:
 
 Cada child conserva clasificación, Candidate ID y receipt propios.
 
+Un Change Program (objetivo → children OpenSpec + cursor, ver investigación `proportional-process-and-change-program`) **no es R4** y no adelanta este slice ni crea ruta `epic`. `/sdd-continue` sigue reanudando un change; chained PRs siguen siendo `delivery_strategy` intra-change.
+
 ## Métricas por bloque
 
 - transitions deterministas y contract failures;
@@ -1973,6 +1982,9 @@ Cada child conserva clasificación, Candidate ID y receipt propios.
 | Eventos como autoridad | Store separado y state-derived |
 | Model escalation arbitraria | Cause code + clamp |
 | Métricas como límites ciegos | Architecture delta advisory, riesgo por impacto |
+| First-match `active` = ciclo completo | Tabla viva: clase + hard floors antes que `project.status`; no esperar a Direct K10 ni meterlo en K6b |
+| Objetivo grande = un change + PRs | Change Program (nombrado, sin slice); no R4, no `delivery_strategy`, no segundo orquestador |
+| Compact resetea linaje | Sesión nueva + `/sdd-continue {nombre}`; candidate/budgets/findings persisten |
 
 ## Gotchas vigentes
 
@@ -2000,6 +2012,10 @@ Cada child conserva clasificación, Candidate ID y receipt propios.
 - No duplicar lifecycle en adapters.
 - No mezclar R2 con evidence authority.
 - No crear ruta rígida `epic`; R4 consume Execution Graph.
+- No tratar Change Program como R4, K10 Planned o `delivery_strategy`.
+- No absorber first-match ni Change Program en K6b.
+- No resetear candidate, findings, budgets o attempts al compactar o abrir sesión.
+- No usar `project.status: active` como catch-all permanente frente a lite/hotfix con floors.
 - No atribuir modelos/herramientas en commits o PRs.
 - No reabrir K1 ni mutar `receipt/v1` para expresar Attestation/Authorization; schemas propios en K8/K10-delivery.
 - No inventar `candidate_digest`; el campo canónico es `candidate_id`.
@@ -2040,3 +2056,4 @@ Cada child conserva clasificación, Candidate ID y receipt propios.
 - 2026-08-26: K4b (`k4b-integration-invariants-remediation`) cierra invariantes de integración (malformed diffs, cápsula mínima, DAG, store 1:N, proyección) con verify PASS, 4R approved y v2.48.2. K6b permanece next-eligible.
 - 2026-08-26: K4b (`k4b-mode-only-and-baseline-projection`) cierra mode-only (path/`old mode`) y baseline graph-bound con verify PASS, 4R approved (0 hallazgos) y v2.48.3. K6b permanece next-eligible.
 - 2026-08-27: el orquestador publica el briefing funcional D2 (`orchestrator-intent-briefing`) en v2.49.0; K10 sigue pendiente para generalizar `clarify-intent` como receta. K6b permanece next-eligible.
+- 2026-08-27: reconciliación aditiva (sin mover ruta crítica ni next-eligible): se nombra la distinción proceso intra-change vs Change Program inter-change; first-match de la tabla viva es compatibilidad, no K10; K6b/R4/K10 no absorben ese hueco. Investigación no normativa `docs/architecture/research/proportional-process-and-change-program.md`. Arquitectura: corte conceptual de la misma fecha; deuda stale K3/K4a/K5/K6a/K4b reconciliada.

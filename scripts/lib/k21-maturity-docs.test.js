@@ -20,7 +20,8 @@ test("K2.1 maturity docs tag Authority Store/permits/effects as implemented; lat
   assert.match(arch, /\{implemented\} K2\.1 Authority Store/);
   assert.match(arch, /\{implemented\} HostCapabilities/);
   assert.match(arch, /\{implemented\} Headless Conformance Host \(K2a\)/);
-  assert.match(arch, /\{target\} Candidate freeze universal/);
+  assert.match(arch, /\{implemented\} K3 cuatro identidades \+ Candidate freeze básico/);
+  assert.match(arch, /\{target\} Candidate freeze gobierna apply/);
   assert.match(arch, /\{target\} CandidateEvaluationAttestation/);
   assert.match(arch, /\{target\}.*DeliveryAuthorization/);
 

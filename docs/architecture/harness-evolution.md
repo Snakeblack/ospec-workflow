@@ -1,11 +1,11 @@
 # Arquitectura objetivo — harness gobernado por kernel, grafo y evidencia
 
 > **Autoridad:** fuente conceptual y estratégica del harness (responsabilidades y límites).
-> **Corte documental:** v2.40.0, 2026-08-05.
+> **Corte documental:** v2.49.0, 2026-08-27 (estado alineado al roadmap; la dirección conceptual no cambia).
 > **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a**, **K5**, **K6a** y **K4b** están entregados y archivados. **K6b** es la siguiente iniciativa elegible.
 > **Roadmap:** orden, estado operativo y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
 > **Precedencia documental:** ante diferencias de **orden o estado**, prevalece el roadmap; ante diferencias **conceptuales**, reconciliar antes de iniciar el slice.
-> **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md).
+> **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md). La proporcionalidad de proceso y el programa de changes viven en [`research/proportional-process-and-change-program.md`](research/proportional-process-and-change-program.md).
 
 ## Decisión
 
@@ -39,6 +39,20 @@ Sin duplicar el backlog: solo responsabilidades y límites alineados al roadmap 
 ```text
 Change Contract → Execution Graph → Candidate → Assurance Graph → Attestation / Authorization
 ```
+
+### Corte conceptual 2026-08-27 (proporcionalidad y programa)
+
+Añade límites; **no** mueve next-eligible, no reabre `done` y no crea un slice nuevo. Argumentación en la [investigación no normativa](research/proportional-process-and-change-program.md).
+
+| Tema | Decisión arquitectónica |
+| --- | --- |
+| Dos escalas | **Proceso intra-change** (receta/capacidades) ≠ **descomposición inter-change** (lista de OpenSpec changes). No se resuelven con el mismo mecanismo. |
+| Tabla viva vs K10 | `lite`/`standard`/`hotfix`/… son el producto actual. Direct/Repair/Bounded/Planned/Critical siguen siendo recetas K10. No se fusionan ni se adelanta Direct. |
+| First-match | `project.status: active` no puede impedir evaluar clase. Eso es **compatibilidad del default actual**, no activación de recetas ni cambio de K9. Hard floors K1 clampan: auth/migración/API no bajan a lite. |
+| Change Program | Nombre del hueco: children OpenSpec + `depends_on` + cursor persistido. No es `delivery_strategy`, no es K10 Planned (grafo intra-change) y no es R4 (federación/epic). **Sin slice y sin segundo orquestador.** |
+| K6b | Alcance intacto: verifier, strategies, provenance, Assurance Graph. No absorbe first-match ni Change Program. |
+| Contexto | Prompt de worker/fase efímero; contrato, candidate, budgets, findings y evidencia persistentes. Compact/sesión nueva no resetea linaje. `/sdd-continue {nombre}` reanuda un change; no una cola. |
+| Rechazado | `architect-agent`, fase `architecture`, ruta `epic`, pipeline de cinco agentes, agentes espejo `*-cheap`, milestone paralelo. |
 
 ## Ruta rápida
 
@@ -170,15 +184,18 @@ El programa no cambia defaults por el solo hecho de cerrar O2B/K1/K2/K2.1/K2a: c
 
 ### Deuda real
 
-- No existe Execution Graph semántico común a Repair, planificación, invalidación y federación, ni Obligation Manifest (K4a+).
-- La clasificación no separa completamente impacto, incertidumbre y ejecución ni fija hard floors por evidencia en runtime.
-- Los budgets no son uniformes por nodo ni cubren autoridad/efectos (K5).
-- Failure/recovery no comparten taxonomy y shape universales a escala de grafo (K5).
-- Candidate freeze / cuatro identidades / relación básica no gobiernan todavía apply → verify → review → delivery (K3+).
-- No hay CandidateEvaluationAttestation ni DeliveryAuthorization productivos (K8 / K10-delivery).
-- No hay selector de estrategia de evidencia por tipo de cambio, provenance ni Assurance Graph (K6b).
+**Entregado — no reabrir como si faltara el primitive:** K3 (identidades + freeze básico), K4a (compiler + Obligation Manifest + replay), K5 (budgets/failure/recovery), K6a (isolation/capsule), K4b (Repair shadow).
+
+**Sigue siendo deuda (dueños sin cambio):**
+
+- Hard floors K1 no cablean la tabla de routing de producto; first-match de `standard` por `project.status: active` deja `lite` inalcanzable en repos active (compatibilidad; no es K10).
+- Recetas Direct/Repair/Bounded/Planned/Critical no están activas (K10, una a una, tras K9).
+- No hay selector de estrategia de evidencia por tipo, provenance ni Assurance Graph (K6b).
 - ChallengePlan / challenges proporcionales y `complexity_delta` no son gates reutilizables (K6c/K6d).
-- Worker isolation genérica y work-order capsule entregados y conformes (K6a); host contract K2a entrega ports opacos.
+- ReviewAdapter / Nivel 0 determinista no sustituyen el generalist de O4 (K7).
+- No hay CandidateEvaluationAttestation ni DeliveryAuthorization productivos (K8 / K10-delivery).
+- Model routing por nodo no sustituye el catálogo estático agent → tier (K11b).
+- Change Program (lista concatenada de OpenSpec changes + cursor) está **nombrado** y **sin slice**; no adelanta R4.
 
 ### Frontera de aislamiento y Threat Model de K6a
 
@@ -195,7 +212,6 @@ K6a define una **frontera de integridad de ejecución** (*execution-integrity bo
 - Validación postflight del inventario de mutaciones y captura fidedigna de evidencia.
 
 K6a no pretende ofrecer contención frente a código nativo hostil (e.g. C++ addons maliciosos), explotación del runtime V8, compromiso del kernel del sistema operativo o bypasses arbitrarios del runtime del host. Dichos escenarios quedan fuera del threat model de K6a y requieren aislamiento a nivel de host u OS fuera del alcance del harness de referencia.
-- K1/K2/K2.1/K2a runtime surfaces published or in-flight; corpus longitudinal y fricción permanecen en K12.
 
 ## Cadena canónica del change
 
@@ -522,6 +538,8 @@ La clasificación nombra sus `reasons` y produce fingerprint estable. El tier de
 | Critical | Seguridad, auth, datos, concurrencia, contratos públicos, destrucción | planned + irreversible-decision gates + failure/threat model + rollback + adversarial verify + specialist review |
 
 Las rutas no son nuevos orquestadores. Son recetas de compilación con hard floors, capabilities y evidence strategies.
+
+La tabla `routing:` de `openspec/config.yaml` (foundation, federated, bugfix, brownfield, refactor, hotfix, standard, lite) es el **producto actual**, no esas recetas. Hasta que K10 active una receta promovida, un camino corto válido es lite/hotfix **con clamp de hard floors**. `project.status: active` no es clasificación de change y no debe sombrear esa selección. Eso no autoriza Direct productivo ni degrada auth/API a “small”.
 
 ### Capacidades, no fases obligatorias
 
@@ -881,6 +899,8 @@ R4 epic/federation extiende el mismo Execution Graph:
 
 No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
 
+Un **Change Program** (objetivo humano → children OpenSpec con `depends_on` y cursor) no es R4. R4 no se adelanta para cubrir `/sdd-continue` multi-change; si el programa se materializa, R4 podrá reutilizar children con Candidate/receipt propios. `delivery_strategy` sigue partiendo PRs **dentro** de un change.
+
 ## Registro de madurez
 
 ### Implementado y reusable
@@ -904,6 +924,11 @@ No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
 - {implemented} CapabilityProof (K2a).
 - {implemented} Headless Conformance Host (K2a).
 - {implemented} Claude Code reference adapter (`claude`) (K2a; adapters are not semantic authority).
+- {implemented} K3 cuatro identidades + Candidate freeze básico y relación `exact\|changed\|ambiguous\|unknown` (v2.42.3; gobernar apply→verify→review→delivery completo sigue en slices posteriores).
+- {implemented} K4a Execution Graph compiler + Obligation Manifest + replay determinista (reconciliado v2.45.7).
+- {implemented} K5 budgets (incl. autoridad/efectos), failures y recovery; no se reinician budgets por retry (v2.45.13).
+- {implemented} K6a worker isolation y work-order capsule (v2.46.0–v2.47.2).
+- {implemented} K4b Repair shadow execution (v2.48.0–v2.48.3).
 
 ### Target arquitectónico aceptado
 
@@ -912,13 +937,13 @@ No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
 - {target} `status → next_transition` ejecutable (`execute|collect|decide|stop` con tokens/`command`) más allá del núcleo K2/K2.1.
 - {target} Minimal Kernel Harness + model-based testing (invariantes por madurez adicional).
 - {target} Paridad material entre proyección humana y envelope negociado.
-- {target} Candidate freeze universal con cuatro identidades; relación básica `exact|changed|ambiguous|unknown`; `Candidate.projection` solo `workspace|staged` (`commit` pertenece a `SourceSnapshot`).
-- {target} Execution Graph semántico + Obligation Manifest (derived plan; not independent authority).
+- {target} Candidate freeze gobierna apply → verify → review → delivery (identidades y freeze básico ya en K3; attestation/authorization en K8/K10-delivery).
+- {target} Consumo de Execution Graph + Obligation Manifest por recetas y federación (compiler/replay ya en K4a; no es autoridad independiente).
 - {target} Assurance Graph (proyección de evidencia con provenance; no autoridad ni prueba formal).
-- {target} Clasificación por impacto + incertidumbre; hard floors no degradables por tamaño.
-- {target} Rutas como recetas y fases como capacidades.
+- {target} Clasificación por impacto + incertidumbre; hard floors no degradables por tamaño **y cableados a la ruta efectiva** (schema K1 hecho; enforcement de receta en K10; clamp de la tabla viva es compatibilidad).
+- {target} Rutas como recetas y fases como capacidades (K10). La tabla lite/standard permanece como producto hasta promoción.
 - {target} Clarify con invalidación parcial.
-- {target} Budgets/failure/recovery comunes (incl. autoridad/efectos).
+- {target} Presupuestos/failure/recovery consumidos por recetas y challenges (kernel K5 entregado; no reabrir el primitive).
 - {target} Verifier independiente + ChallengePlan policy-selected.
 - {target} Evidence strategies / provenance / complexity delta.
 - {target} ReviewAdapter + ReviewReducer + reutilización de lineage.
@@ -941,6 +966,8 @@ No se crea una ruta rígida `epic` ni un segundo coordinador de lifecycle.
 - {experimental} Runtime/lenguaje final del kernel.
 - {experimental} Firmas criptográficas o broker de efectos.
 - {experimental} Beneficio neto de model routing por nodo.
+- {experimental} Compact/sesión nueva forzada en frontera de change (sin resetear lineage/budgets).
+- {experimental} Change Program (`program.yaml` + cursor) frente a partición humana de changes.
 - {experimental} Relación `compatible-base-advance` (tras fixtures K9; no default).
 - {experimental} Corrección por closure en review (solo shadow; no default — riesgo de loops).
 - {experimental} `provable-contraction` (diferida hasta evidencia/findings/delivery completos).
@@ -1016,6 +1043,7 @@ La métrica privilegia reducir `dead_end` y `out_of_band`, no “parar menos”.
 13. Elección del host de referencia (K2a) por capacidad reproducible.
 14. ~~CAS / permits / effect semantics~~ — **cerrado en K2.1** (v2.39.0); no reabrir como decisión abierta de diseño.
 15. Cuándo promocionar `compatible-base-advance` tras fixtures K9 (experimental hasta entonces).
+16. Cuándo materializar Change Program (orquestador vs espera a R4) y si el first-match de la tabla viva se corrige como change de compatibilidad **antes** de K10. No bloquea K6b. No es un slice nuevo.
 
 ## Decisiones fuera de alcance
 
@@ -1031,3 +1059,7 @@ La métrica privilegia reducir `dead_end` y `out_of_band`, no “parar menos”.
 - Retirar formatos actuales sin deprecación y fallback.
 - Reabrir K1 o mutar `receipt/v1` para expresar la taxonomía Attestation/Authorization.
 - Sustituir el roadmap por un “OSPEC v3” paralelo.
+- Crear `architect-agent`, fase `architecture`, ruta rígida `epic`, pipeline de cinco agentes u orquestador paralelo para “changes fáciles” o “epics”.
+- Introducir agentes espejo `*-cheap` en lugar de omitir capacidades no obligadas o usar K11b.
+- Meter first-match, Change Program o Quality Attributes como identidades dentro de K6b.
+- Resetear candidate, findings, budgets o attempts al compactar o abrir sesión.
