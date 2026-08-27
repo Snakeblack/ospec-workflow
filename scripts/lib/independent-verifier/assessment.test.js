@@ -13,13 +13,36 @@ const BASE = {
   node_id: "repair-core",
   candidate_id: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
   policy_snapshot_id: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  evidence_requirements_satisfied: ["ev:test-pass"],
 };
 
-test("REQ-independent-verification-006: computeAssessmentId includes role and obligation_id", () => {
+test("REQ-independent-verification-006: computeAssessmentId includes role, obligation_id, and canonical coverage", () => {
   const a = computeAssessmentId({ ...BASE, role: "acceptance" });
   const b = computeAssessmentId({ ...BASE, role: "invariants" });
   assert.match(a, /^sha256:[a-f0-9]{64}$/);
   assert.notEqual(a, b);
+  assert.equal(
+    computeAssessmentId({ ...BASE, role: "acceptance", evidence_requirements_satisfied: ["b", "a", "a"] }),
+    computeAssessmentId({ ...BASE, role: "acceptance", evidence_requirements_satisfied: ["a", "b"] })
+  );
+});
+
+test("REQ-independent-verification-006: evidence_id and obligation_id independently change assessment identity", () => {
+  const baseline = computeAssessmentId({ ...BASE, role: "acceptance" });
+  const differentEvidence = computeAssessmentId({
+    ...BASE,
+    role: "acceptance",
+    evidence_id: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  });
+  const differentObligation = computeAssessmentId({
+    ...BASE,
+    role: "acceptance",
+    obligation_id: "req-repair-002",
+  });
+
+  assert.notEqual(baseline, differentEvidence);
+  assert.notEqual(baseline, differentObligation);
+  assert.notEqual(differentEvidence, differentObligation);
 });
 
 test("REQ-independent-verification-006: emitAssessment validates and rejects verdict", () => {

@@ -11,6 +11,7 @@ const EVIDENCE = {
   evidence_id: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   provenance: "runtime-observed",
   node_id: "repair-core",
+  evidence_requirements_satisfied: ["ev:test-pass"],
 };
 
 function graph(obligations) {
@@ -139,6 +140,31 @@ test("REQ-independent-verification-005: strategy-shaped bindings still emit pers
   assert.equal(result.assessments.length, 1);
   assert.equal(result.assessments[0].obligation_id, "req-repair-001");
   assert.equal(result.assessments[0].role, "acceptance");
+});
+
+test("REQ-independent-verification-005: token subset coverage rejects partial bindings and persists the complete union", () => {
+  const base = {
+    id: "req-repair-001",
+    criticality: "must",
+    implemented_by: ["repair-core"],
+    required_evidence: ["ev:a", "ev:b"],
+  };
+  const partial = walkMustObligations({
+    classified: [{ role: "acceptance", evidence: EVIDENCE, obligation_ids: [base.id], evidence_requirements_satisfied: ["ev:a"] }],
+    executionGraph: graph([base]), candidate: CANDIDATE, policySnapshotId: POLICY,
+  });
+  assert.equal(partial.ok, false);
+  assert.equal(partial.reason_code, "UNFULFILLED_MUST");
+
+  const complete = walkMustObligations({
+    classified: [
+      { role: "acceptance", evidence: EVIDENCE, obligation_ids: [base.id], evidence_requirements_satisfied: ["ev:b"] },
+      { role: "invariants", evidence: { ...EVIDENCE, evidence_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }, obligation_ids: [base.id], evidence_requirements_satisfied: ["ev:a"] },
+    ],
+    executionGraph: graph([base]), candidate: CANDIDATE, policySnapshotId: POLICY,
+  });
+  assert.equal(complete.ok, true, complete.error);
+  assert.deepEqual(complete.assessments.map((assessment) => assessment.evidence_requirements_satisfied), [["ev:b"], ["ev:a"]]);
 });
 
 test("REQ-independent-verification-005: weak provenance on MUST is INSUFFICIENT_PROVENANCE", () => {

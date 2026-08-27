@@ -74,6 +74,14 @@ function validateBindings(input) {
     return fail("BINDING_MISMATCH", graphBinding.error || graphBinding.reason_code);
   }
 
+  const contract = input.contract;
+  if (!contract || typeof contract !== "object" || typeof contract.contract_digest !== "string") {
+    return fail("BINDING_MISMATCH", "input.contract.contract_digest is required");
+  }
+  if (contract.contract_digest !== executionGraph.contract_digest) {
+    return fail("BINDING_MISMATCH", "input.contract.contract_digest does not match executionGraph.contract_digest");
+  }
+
   const repository = input.repository;
   if (!repository || typeof repository !== "object" || !repository.files) {
     return fail("BINDING_MISMATCH", "repository bytes are required");
@@ -88,7 +96,7 @@ function validateBindings(input) {
     return fail("BINDING_MISMATCH", "repository tree does not match candidate_tree");
   }
 
-  return { ok: true, candidate, executionGraph };
+  return { ok: true, candidate, executionGraph, contract };
 }
 
 module.exports = {

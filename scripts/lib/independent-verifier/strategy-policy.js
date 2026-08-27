@@ -114,6 +114,39 @@ function failIfInadmissible(policy, role, items, message) {
   return null;
 }
 
+function assertDistinctRoleEvidence(items) {
+  const rolesByEvidenceId = new Map();
+  for (const item of items || []) {
+    const evidenceId = item && item.evidence && item.evidence.evidence_id;
+    if (typeof evidenceId !== "string" || typeof item.role !== "string") continue;
+    const roles = rolesByEvidenceId.get(evidenceId) || new Set();
+    roles.add(item.role);
+    rolesByEvidenceId.set(evidenceId, roles);
+    if (roles.size > 1) {
+      return fail("STRATEGY_EVIDENCE_ALIAS", `evidence_id ${evidenceId} cannot satisfy distinct strategy roles`);
+    }
+  }
+  return { ok: true };
+}
+
+function assertRoleOrder(strategyName, items) {
+  const positions = new Map();
+  for (let index = 0; index < (items || []).length; index += 1) {
+    const role = items[index] && items[index].role;
+    if (!positions.has(role)) positions.set(role, []);
+    positions.get(role).push(index);
+  }
+  const ordered = strategyName === "bug" ? ["red", "patch", "green"] : strategyName === "strict-tdd" ? ["red", "green"] : [];
+  for (let index = 0; index < ordered.length - 1; index += 1) {
+    const earlier = positions.get(ordered[index]) || [];
+    const later = positions.get(ordered[index + 1]) || [];
+    if (earlier.length > 0 && later.length > 0 && Math.max(...earlier) > Math.min(...later)) {
+      return fail("STRATEGY_SEQUENCE_VIOLATION", `${ordered[index]} evidence must precede ${ordered[index + 1]} evidence`);
+    }
+  }
+  return { ok: true };
+}
+
 /**
  * Check anyOf role groups and their provenance admission.
  * Extracted so evaluateStrategy stays at most three control-flow levels.
@@ -147,6 +180,11 @@ function evaluateStrategy(strategyName, items) {
   const policy = STRATEGY_TABLE[strategyName];
   if (!policy) return fail("MISSING_STRATEGY_MINIMUM", `unknown strategy ${strategyName}`);
   const roles = rolesOf(items);
+
+  const distinctEvidence = assertDistinctRoleEvidence(items);
+  if (!distinctEvidence.ok) return distinctEvidence;
+  const roleOrder = assertRoleOrder(strategyName, items);
+  if (!roleOrder.ok) return roleOrder;
 
   if (strategyName === "feature" && policy.characterizationOnlyRoles) {
     const hasChar = policy.characterizationOnlyRoles.some((role) => roles.has(role));
@@ -210,4 +248,6 @@ module.exports = {
   STRATEGY_TABLE,
   selectStrategy,
   evaluateStrategy,
+  assertDistinctRoleEvidence,
+  assertRoleOrder,
 };

@@ -1,0 +1,271 @@
+{
+  "schema_version": 1,
+  "lineage_id": "sha256:8c6808007fb67e490cfd80cf38a8d40cef42bcf0f0e6b1a87bd73c7ee661906d",
+  "generation": 1,
+  "predecessor_lineage_id": null,
+  "recovery": null,
+  "revision": 9,
+  "status": "approved",
+  "genesis": {
+    "candidate": {
+      "projection": "workspace",
+      "base_tree": "f3d4073d5dadf42db7bc8ab74af72961c3fb3ca0",
+      "candidate_tree": "sha256:2f34dec4f2c0c1ef87d244946c87f4e3e93497ac9b82e56d20bad41c1b26184d",
+      "paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/changes/k6b-semantic-integrity-remediation/apply-progress.md",
+        "openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-001.md",
+        "openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-002.md",
+        "openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-003.md",
+        "openspec/changes/k6b-semantic-integrity-remediation/design.md",
+        "openspec/changes/k6b-semantic-integrity-remediation/proposal.md",
+        "openspec/changes/k6b-semantic-integrity-remediation/specs/assurance-graph/spec.md",
+        "openspec/changes/k6b-semantic-integrity-remediation/specs/independent-verification/spec.md",
+        "openspec/changes/k6b-semantic-integrity-remediation/specs/kernel-contract-schemas/spec.md",
+        "openspec/changes/k6b-semantic-integrity-remediation/state.yaml",
+        "openspec/changes/k6b-semantic-integrity-remediation/tasks.md",
+        "openspec/changes/k6b-semantic-integrity-remediation/verify-report.md",
+        "openspec/memory/known-issues.md",
+        "schemas/kernel/assessment/fixtures/invalid/v1-missing-coverage.json",
+        "schemas/kernel/assessment/fixtures/invalid/v1-with-verdict.json",
+        "schemas/kernel/assessment/fixtures/valid/v1-complete.json",
+        "schemas/kernel/assessment/fixtures/valid/v1-four-roles.json",
+        "schemas/kernel/assessment/v1.schema.json",
+        "schemas/kernel/contract-claims.json",
+        "scripts/k6b-verifier-assurance-graph-e2e.test.js",
+        "scripts/lib/assurance-graph/index.js",
+        "scripts/lib/assurance-graph/index.test.js",
+        "scripts/lib/assurance-graph/projector.js",
+        "scripts/lib/independent-verifier/assessment.js",
+        "scripts/lib/independent-verifier/assessment.test.js",
+        "scripts/lib/independent-verifier/bindings.js",
+        "scripts/lib/independent-verifier/evidence.js",
+        "scripts/lib/independent-verifier/index.test.js",
+        "scripts/lib/independent-verifier/obligation-coverage.js",
+        "scripts/lib/independent-verifier/obligation-coverage.test.js",
+        "scripts/lib/independent-verifier/strategy-policy.js",
+        "scripts/lib/k2a-maturity-docs.test.js",
+        "scripts/lib/k6b-schema-fixtures.test.js"
+      ],
+      "diff_hash": "sha256:2f34dec4f2c0c1ef87d244946c87f4e3e93497ac9b82e56d20bad41c1b26184d",
+      "paths_digest": "sha256:cc512c9dc6f4ccdb570b60ab2d89d885c6a807a68c085dacec84520c3bcc842b",
+      "authored_lines": 1589,
+      "original_changed_lines": 1683
+    },
+    "candidate_id": "sha256:68cb610148f9b58096cda3b1c21bc042b65cbd70f78463d49d82afa42aa053c3",
+    "paths": [
+      "docs/architecture/harness-evolution.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/apply-progress.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-001.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-002.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-003.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/design.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/proposal.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/specs/assurance-graph/spec.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/specs/independent-verification/spec.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/specs/kernel-contract-schemas/spec.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/state.yaml",
+      "openspec/changes/k6b-semantic-integrity-remediation/tasks.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/verify-report.md",
+      "openspec/memory/known-issues.md",
+      "schemas/kernel/assessment/fixtures/invalid/v1-missing-coverage.json",
+      "schemas/kernel/assessment/fixtures/invalid/v1-with-verdict.json",
+      "schemas/kernel/assessment/fixtures/valid/v1-complete.json",
+      "schemas/kernel/assessment/fixtures/valid/v1-four-roles.json",
+      "schemas/kernel/assessment/v1.schema.json",
+      "schemas/kernel/contract-claims.json",
+      "scripts/k6b-verifier-assurance-graph-e2e.test.js",
+      "scripts/lib/assurance-graph/index.js",
+      "scripts/lib/assurance-graph/index.test.js",
+      "scripts/lib/assurance-graph/projector.js",
+      "scripts/lib/independent-verifier/assessment.js",
+      "scripts/lib/independent-verifier/assessment.test.js",
+      "scripts/lib/independent-verifier/bindings.js",
+      "scripts/lib/independent-verifier/evidence.js",
+      "scripts/lib/independent-verifier/index.test.js",
+      "scripts/lib/independent-verifier/obligation-coverage.js",
+      "scripts/lib/independent-verifier/obligation-coverage.test.js",
+      "scripts/lib/independent-verifier/strategy-policy.js",
+      "scripts/lib/k2a-maturity-docs.test.js",
+      "scripts/lib/k6b-schema-fixtures.test.js"
+    ],
+    "classification": "high-risk",
+    "selected_dimensions": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "evidence_fingerprint": "sha256:35db40e519d337da13828b16e042956c911cae1d2f3c0239d1502d8b5c8a59ce",
+    "original_changed_lines": 1683,
+    "authored_lines": 1589
+  },
+  "current_candidate_id": "sha256:68cb610148f9b58096cda3b1c21bc042b65cbd70f78463d49d82afa42aa053c3",
+  "current_candidate": {
+    "projection": "workspace",
+    "base_tree": "f3d4073d5dadf42db7bc8ab74af72961c3fb3ca0",
+    "candidate_tree": "sha256:2f34dec4f2c0c1ef87d244946c87f4e3e93497ac9b82e56d20bad41c1b26184d",
+    "paths": [
+      "docs/architecture/harness-evolution.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/apply-progress.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-001.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-002.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-003.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/design.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/proposal.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/specs/assurance-graph/spec.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/specs/independent-verification/spec.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/specs/kernel-contract-schemas/spec.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/state.yaml",
+      "openspec/changes/k6b-semantic-integrity-remediation/tasks.md",
+      "openspec/changes/k6b-semantic-integrity-remediation/verify-report.md",
+      "openspec/memory/known-issues.md",
+      "schemas/kernel/assessment/fixtures/invalid/v1-missing-coverage.json",
+      "schemas/kernel/assessment/fixtures/invalid/v1-with-verdict.json",
+      "schemas/kernel/assessment/fixtures/valid/v1-complete.json",
+      "schemas/kernel/assessment/fixtures/valid/v1-four-roles.json",
+      "schemas/kernel/assessment/v1.schema.json",
+      "schemas/kernel/contract-claims.json",
+      "scripts/k6b-verifier-assurance-graph-e2e.test.js",
+      "scripts/lib/assurance-graph/index.js",
+      "scripts/lib/assurance-graph/index.test.js",
+      "scripts/lib/assurance-graph/projector.js",
+      "scripts/lib/independent-verifier/assessment.js",
+      "scripts/lib/independent-verifier/assessment.test.js",
+      "scripts/lib/independent-verifier/bindings.js",
+      "scripts/lib/independent-verifier/evidence.js",
+      "scripts/lib/independent-verifier/index.test.js",
+      "scripts/lib/independent-verifier/obligation-coverage.js",
+      "scripts/lib/independent-verifier/obligation-coverage.test.js",
+      "scripts/lib/independent-verifier/strategy-policy.js",
+      "scripts/lib/k2a-maturity-docs.test.js",
+      "scripts/lib/k6b-schema-fixtures.test.js"
+    ],
+    "diff_hash": "sha256:2f34dec4f2c0c1ef87d244946c87f4e3e93497ac9b82e56d20bad41c1b26184d",
+    "paths_digest": "sha256:cc512c9dc6f4ccdb570b60ab2d89d885c6a807a68c085dacec84520c3bcc842b",
+    "authored_lines": 1589,
+    "original_changed_lines": 1683
+  },
+  "lenses": {
+    "risk": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "k6b-sem-4r-risk-1",
+      "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+      "result": {
+        "findings": []
+      },
+      "operation": null,
+      "result_request_id": "k6b-sem-4r-risk-1"
+    },
+    "reliability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "k6b-sem-4r-reliability-1",
+      "result_digest": "sha256:70bb77e2ed7b1d6a02e24d582f70d9994410a137f9ddd976386d34e6e7ca6e05",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "El preflight de replay revalida schema, identidad y bindings de cada assessment, pero no hay test del fallo token-level MUST (assessments vacíos o unión incompleta). Ese camino es código nuevo duplicado respecto de walkMustObligations y puede regresionar en silencio.",
+            "acceptance_criteria": "Añadir un test que construya persistable válido, deje assessments=[] o un assessment que solo satisface token A de required_evidence [A,B] en un MUST no diferido, llame replayAssuranceGraph y afirme ok===false, reason_code==='GRAPH_DIVERGENCE', y que el error identifique la obligación. El happy-path de replay byte-identical debe seguir pasando."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "reconcileAssuranceGraph compara nodes/edges contra la proyección, pero ningún test llega a esa rama con un graph_id autoconsistente. El escenario de nodos adulterados queda cubierto solo por mismatch de digest, que ya existía antes de comparar el payload completo.",
+            "acceptance_criteria": "Añadir un caso withStoredGraphId que altere nodes (nodo extra o propiedad persistible de más) y, aparte, uno equivalente para edges si aplica; reconcileAssuranceGraph debe devolver GRAPH_DIVERGENCE. Quitar «nodes» de fields debe hacer fallar ese test. No basta con añadir un nodo sin recomputar graph_id."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "k6b-sem-4r-reliability-1"
+    },
+    "resilience": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "k6b-sem-4r-resilience-1",
+      "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+      "result": {
+        "findings": []
+      },
+      "operation": null,
+      "result_request_id": "k6b-sem-4r-resilience-1"
+    },
+    "readability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "k6b-sem-4r-readability-1",
+      "result_digest": "sha256:70f57b10ce58fb1038f06cef8b5b2b3118d906fcc1951c8e473dabf95127b0b7",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "assertRoleOrder elige la secuencia con un ternario anidado y falla con max(predecesor) > min(sucesor) sin documentar que todo el rol previo debe terminar antes del primero del siguiente.",
+            "acceptance_criteria": "Extraer las secuencias a un campo nombrado (p. ej. en STRATEGY_TABLE). Comentar que el último índice del rol i debe ser menor que el primero del rol i+1, y que [] omite la comprobación en el resto de estrategias. Sin ternario anidado."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "normalizedCoverage lee cobertura del wrapper o de item.evidence con || y sin comentario sobre cuál forma es canónica.",
+            "acceptance_criteria": "Leer un solo campo (el wrapper clasificado) o documentar en un comentario por qué existe el fallback anidado. No aceptar ambas formas en silencio."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "k6b-sem-4r-readability-1"
+    }
+  },
+  "findings": [
+    {
+      "id": "F-7b201cb9066cda9c",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "El preflight de replay revalida schema, identidad y bindings de cada assessment, pero no hay test del fallo token-level MUST (assessments vacíos o unión incompleta). Ese camino es código nuevo duplicado respecto de walkMustObligations y puede regresionar en silencio.",
+      "acceptance_criteria": "Añadir un test que construya persistable válido, deje assessments=[] o un assessment que solo satisface token A de required_evidence [A,B] en un MUST no diferido, llame replayAssuranceGraph y afirme ok===false, reason_code==='GRAPH_DIVERGENCE', y que el error identifique la obligación. El happy-path de replay byte-identical debe seguir pasando.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-6517eb45a348699b",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "reconcileAssuranceGraph compara nodes/edges contra la proyección, pero ningún test llega a esa rama con un graph_id autoconsistente. El escenario de nodos adulterados queda cubierto solo por mismatch de digest, que ya existía antes de comparar el payload completo.",
+      "acceptance_criteria": "Añadir un caso withStoredGraphId que altere nodes (nodo extra o propiedad persistible de más) y, aparte, uno equivalente para edges si aplica; reconcileAssuranceGraph debe devolver GRAPH_DIVERGENCE. Quitar «nodes» de fields debe hacer fallar ese test. No basta con añadir un nodo sin recomputar graph_id.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-67351c60ec031360",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "assertRoleOrder elige la secuencia con un ternario anidado y falla con max(predecesor) > min(sucesor) sin documentar que todo el rol previo debe terminar antes del primero del siguiente.",
+      "acceptance_criteria": "Extraer las secuencias a un campo nombrado (p. ej. en STRATEGY_TABLE). Comentar que el último índice del rol i debe ser menor que el primero del rol i+1, y que [] omite la comprobación en el resto de estrategias. Sin ternario anidado.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-089aebf42d0e8d12",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "normalizedCoverage lee cobertura del wrapper o de item.evidence con || y sin comentario sobre cuál forma es canónica.",
+      "acceptance_criteria": "Leer un solo campo (el wrapper clasificado) o documentar en un comentario por qué existe el fallback anidado. No aceptar ambas formas en silencio.",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ],
+  "findings_digest": "sha256:c3a1b69119bef49f38c9d8fc9a00af00f3a2d3b09aeb57051c34d325ec09c4aa",
+  "correction_budget": {
+    "limit_lines": 200,
+    "used_lines": 0,
+    "failed_attempts": 0,
+    "max_failed_attempts": 3
+  },
+  "correction_history": [],
+  "validation_history": [],
+  "follow_ups": [],
+  "pending_operation": null,
+  "pending_correction": null,
+  "terminal_reason": "no-unresolved-blocking-findings"
+}

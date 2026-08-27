@@ -116,12 +116,16 @@ function normalizeEvidence(raw, candidate, executionGraph, harnessCollector) {
     : raw.obligation_id
       ? [raw.obligation_id]
       : [];
+  const evidenceRequirementsSatisfied = Array.isArray(raw.evidence_requirements_satisfied)
+    ? [...new Set(raw.evidence_requirements_satisfied.filter((token) => typeof token === "string" && token.length > 0))].sort()
+    : [];
 
   return {
     ok: true,
     evidence: record,
     role: raw.role,
     obligation_ids: obligationIds,
+    evidence_requirements_satisfied: evidenceRequirementsSatisfied,
   };
 }
 

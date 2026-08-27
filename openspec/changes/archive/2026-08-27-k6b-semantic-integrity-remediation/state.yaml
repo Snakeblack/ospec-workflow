@@ -1,0 +1,185 @@
+change: "k6b-semantic-integrity-remediation"
+status: "archived"
+last_updated: "2026-08-27T22:10:00Z"
+classification: high-risk
+blocking_questions: []
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/k6b-semantic-integrity-remediation/proposal.md"
+    summary: "Focal B1–B3/H1–H3: REQ-006 aliasing, required_evidence subset, digest gate, projector/replay/reconcile fail-closed."
+    key_decisions:
+      - "REQ-006 is a spec correction: incompatible roles MUST NOT share one EvidenceId"
+      - "Coverage field is additive on assessment/binding; evidence/v2 and K1 v1 stay frozen"
+      - "Harden projectAssuranceGraph itself, not only verifyCandidate"
+  spec:
+    status: done
+    contract_remediation: resolved
+    artifacts:
+      - "openspec/changes/k6b-semantic-integrity-remediation/specs/independent-verification/spec.md"
+      - "openspec/changes/k6b-semantic-integrity-remediation/specs/assurance-graph/spec.md"
+      - "openspec/changes/k6b-semantic-integrity-remediation/specs/kernel-contract-schemas/spec.md"
+    summary: "Deltas B1–B3/H1–H3: invert REQ-006 aliasing; subset coverage; digest gate; projector/replay/reconcile fail-closed."
+    key_decisions:
+      - "REQ-006 inverted: incompatible roles MUST NOT share one EvidenceId; distinct ids per tuple remain"
+      - "Coverage field additive on assessment/binding; name design-owned; evidence/v2 and K1 v1 frozen"
+      - "H1–H3 bind projectAssuranceGraph, replayAssuranceGraph, and reconcileAssuranceGraph"
+  clarify:
+    status: skipped
+    rationale: "Validated sdd-spec signals reported residual_ambiguity=false with empty public_contract_questions, conflicting_requirements, and missing_acceptance_criteria arrays."
+  design:
+    status: done
+    artifact: "openspec/changes/k6b-semantic-integrity-remediation/design.md"
+    summary: "Token coverage on assessment/v1; ordered non-aliased roles; projector/replay/reconcile full fail-closed integrity."
+    key_decisions:
+      - "Require evidence_requirements_satisfied and include canonical coverage in assessment_id"
+      - "Use rawEvidence order and reject one EvidenceId across distinct strategy roles"
+      - "Validate canonical inputs, persisted assessments, and complete stored graph payloads"
+  tasks:
+    status: ready-for-apply
+    artifact: "openspec/changes/k6b-semantic-integrity-remediation/tasks.md"
+    summary: "Backlog TDD en cinco fases y 26 tareas: 22 históricas preservadas y 4 tareas de remediación runtime pendientes; delta estimado 120–220 líneas, total 970–1,370 con size-exception."
+    key_decisions:
+      - "Delivery strategy exception-ok; chain strategy size-exception"
+      - "Unidades ordenadas: contrato, verifier, Assurance Graph, integración/documentación"
+      - "Remediación focal: tareas 2.8, 3.7, 3.8 y 5.1 añaden únicamente evidencia runtime para los tres hallazgos tasks-gap"
+  apply:
+    status: done
+    artifact: "openspec/changes/k6b-semantic-integrity-remediation/apply-progress.md"
+    summary: "26/26 tareas verificadas: identidad de assessment y matrices runtime de replay/reconcile; sin cambio de producción."
+    key_decisions:
+      - "Legacy assessment/v1 sin cobertura requerida falla cerrada y se regenera; no hay migración"
+      - "models.yaml preexistente se preservó fuera de scope"
+      - "Las mutaciones de replay/reconcile recalculan identidades almacenadas para probar las ramas semánticas"
+  verify:
+    status: done
+    verdict: PASS
+    artifact: "openspec/changes/k6b-semantic-integrity-remediation/verify-report.md"
+    summary: "PASS: 22/22 MUST scenarios at runtime-test; 26/26 tasks evidenced; focused 82/82 and npm test 2762 pass, 0 fail."
+    key_decisions:
+      - "Prior tasks-gap branches now have persistent runtime matrices (2.8, 3.7, 3.8)"
+      - "Focused 82/82 and full npm test pass; frozen evidence/v2, verification/v2, K1 v1 intact"
+      - "Assumptions sdd-propose-001 and sdd-spec-001 remain confirmed"
+  archive:
+    status: done
+    artifact: "openspec/changes/k6b-semantic-integrity-remediation/archive-report.md"
+    summary: "Plan emitido: 3 spec merges, 3 ADR promotions; move pendiente runtime archive-transaction-run.js"
+    key_decisions:
+      - "target_before_sha256 desde baseline_fingerprints; prepared-specs bajo change-local"
+      - "4 WARNING 4R registrados como follow-up no bloqueante en accepted_warnings"
+
+owner:
+  author: Manuel Retamozo
+  branch: fix/k6b-verification-integrity-remediation
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "First match: foundation/federated/bugfix/brownfield/refactor/hotfix conditions not met; project.status=active and classification=high-risk select standard (sdd-propose → sdd-spec → sdd-design → sdd-tasks → sdd-apply → sdd-verify → sdd-archive; gates: clarify, 4r-review-gate)."
+  validated: true
+  validation_errors: []
+
+approvals:
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T20:09:00Z"
+    synthesis: "Remediación focal post-v2.51.0 sobre verifier y Assurance Graph: roles incompatibles no pueden compartir EvidenceId; Strict TDD exige secuencia RED → GREEN (no un Set de etiquetas); cada token de required_evidence queda cubierto y persistido; input.contract.contract_digest === executionGraph.contract_digest antes de strategy; projector, replay y reconcile fallan cerrados ante inputs contradictorios, assessments tampered o stored graphs incompletos. Roadmap: K6b revise, K6c blocked. Fuera de alcance: K6c/K6d/K7/K8, PKI, rediseñar el macro-slice, mutar evidence/v2 o K1 v1 in-place."
+    scope: "In: integrity semántica de strategy (no aliasing de EvidenceId entre roles incompatibles; orden RED→GREEN / before→after); cobertura token a token de required_evidence persistida en el assessment/binding; binding contract_digest ↔ Execution Graph; projector fail-closed ante canonicalInputs contradictorios o digests ausentes; revalidación de assessments en replay; reconciliación completa del stored graph (nodes, edges, canonical inputs, candidate, kind/schema); tests adversariales; corrección de REQ-006; docs K6b revise / K6c blocked. Out: K6c challenges, K6d complexity, K7 review, K8 attestation, PKI, rediseño del macro-slice K6b, mutación in-place de evidence/v2 o contratos K1 v1."
+    applies_to:
+      - change-classification
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: interactive
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T20:26:00Z"
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T20:26:00Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: architecture-001
+    gate: architecture
+    decision: continue-to-sdd-design
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T20:48:37Z"
+    applies_to:
+      - sdd-design
+  - id: architecture-002
+    gate: architecture
+    decision: continue-to-sdd-tasks
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T20:56:40Z"
+    applies_to:
+      - sdd-tasks
+  - id: review-workload-001
+    gate: review-workload
+    decision: apply-with-size-exception
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T21:00:34Z"
+    applies_to:
+      - sdd-apply
+  - id: testing-001
+    gate: testing
+    decision: continue-to-sdd-verify
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T21:20:56Z"
+    applies_to:
+      - sdd-verify
+  - id: testing-002
+    gate: testing
+    decision: remediate-verify-tasks-gap
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T21:31:36Z"
+    applies_to:
+      - sdd-tasks
+  - id: review-workload-002
+    gate: review-workload
+    decision: apply-remediation-with-size-exception
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T21:35:06Z"
+    applies_to:
+      - sdd-apply
+  - id: execution-mode-002
+    gate: execution-mode
+    decision: auto
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T22:04:00Z"
+    applies_to:
+      - sdd-archive
+
+assumptions:
+  - id: sdd-propose-001
+    phase: sdd-propose
+    statement: "The persistable coverage field on assessment/binding is additive and design-owned (working name required_evidence_ref); evidence/v2 and K1 v1 stay frozen."
+    reversibility: high
+    basis: "User intent named required_evidence_ref as an example; predecessor treated assessment schema $id as design-owned; kernel-contract-schemas-027 already owns the additive family."
+    recorded_at: "2026-08-27T20:28:00Z"
+    status: confirmed
+  - id: sdd-spec-001
+    phase: sdd-spec
+    statement: "The additive coverage field on assessment/binding is schema-required; omitting it MUST fail validation."
+    reversibility: high
+    basis: "Proposal requires persisted coverage on assessment/binding; exact field name remains design-owned."
+    recorded_at: "2026-08-27T20:40:00Z"
+    status: confirmed
+
+baseline_fingerprints:
+  independent-verification: "sha256:3207ce8b5b280472b9b505378cf91df22b1ae22e007adb9dbf8a173405c5b0a0"
+  assurance-graph: "sha256:81f10f2046ae5519aead34f0f945275e99bfefbc03f9a898d80ce8bcbc437f56"
+  kernel-contract-schemas: "sha256:0f6c1f85aaff2f9b7a60320a66830bbc23feeb01a29ce4e6a8ef8f5d59ef4cec"
+
+gates:
+  4r-review-gate: {"status":"done","schema_version":1,"classification":"high-risk","depth":{"review":"strict"},"escalation_reason":null,"selected_specialists":["risk","reliability","resilience","readability"],"generalist":{"status":"needs-specialist","specialists":["risk","reliability"],"reason":"signals=design-risk,diff-auth-permission,metadata-runtime;dimensions=risk,reliability"},"evidence":{"schema_version":1,"fingerprint":"sha256:35db40e519d337da13828b16e042956c911cae1d2f3c0239d1502d8b5c8a59ce"},"lineage_status":"approved","lineage_id":"sha256:8c6808007fb67e490cfd80cf38a8d40cef42bcf0f0e6b1a87bd73c7ee661906d","lineage_revision":9,"lineage_artifact":"openspec/changes/k6b-semantic-integrity-remediation/.4r/lineage.json","findings_summary":"0 BLOCKER, 0 CRITICAL, 4 WARNING, 0 SUGGESTION","archive_allowed":true,"correction_budget_limit_lines":200,"terminal_reason":"no-unresolved-blocking-findings"}

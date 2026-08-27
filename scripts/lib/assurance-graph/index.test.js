@@ -17,6 +17,8 @@ const {
   isEvidenceTransitivelyInvalidated,
 } = require("./index.js");
 const { verifyCandidate } = require("../independent-verifier/index.js");
+const { computeAssessmentId } = require("../independent-verifier/assessment.js");
+const { canonicalize, computeGraphId } = require("./projector.js");
 
 const SAMPLE_NODES = [
   {
@@ -76,10 +78,10 @@ function compileGraph() {
 
 function featureRaw() {
   return [
-    { role: "acceptance", bytes: "acceptance", provenance: "runtime-observed", origin: "a", node_id: "repair-core", obligation_ids: ["req-repair-001"] },
-    { role: "invariants", bytes: "invariants", provenance: "runtime-observed", origin: "i", node_id: "repair-core", obligation_ids: ["req-repair-001"] },
-    { role: "contract", bytes: "contract", provenance: "runtime-observed", origin: "c", node_id: "repair-core", obligation_ids: ["req-repair-001"] },
-    { role: "negative", bytes: "negative", provenance: "runtime-observed", origin: "n", node_id: "repair-core", obligation_ids: ["req-repair-001"] },
+    { role: "acceptance", bytes: "acceptance", provenance: "runtime-observed", origin: "a", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
+    { role: "invariants", bytes: "invariants", provenance: "runtime-observed", origin: "i", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
+    { role: "contract", bytes: "contract", provenance: "runtime-observed", origin: "c", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
+    { role: "negative", bytes: "negative", provenance: "runtime-observed", origin: "n", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
   ];
 }
 
@@ -92,6 +94,7 @@ function verifiedProjection() {
   const verified = verifyCandidate({
     candidate,
     executionGraph,
+    contract: { contract_digest: executionGraph.contract_digest },
     repository: { files },
     declaredStrategy: "feature",
     collector: HARNESS_COLLECTOR,
@@ -99,6 +102,26 @@ function verifiedProjection() {
   });
   assert.equal(verified.ok, true, verified.error || verified.reason_code);
   return { files, candidate, executionGraph, verified };
+}
+
+function withAssessmentFields(assessment, fields) {
+  const updated = { ...assessment, ...fields };
+  return { ...updated, assessment_id: computeAssessmentId(updated) };
+}
+
+function withStoredGraphId(stored) {
+  const canonical = canonicalize(stored.nodes, stored.edges);
+  return {
+    ...stored,
+    nodes: canonical.nodes,
+    edges: canonical.edges,
+    graph_id: computeGraphId({
+      candidate_id: stored.candidate_id,
+      canonical_inputs: stored.canonical_inputs,
+      nodes: canonical.nodes,
+      edges: canonical.edges,
+    }),
+  };
 }
 
 test("REQ-assurance-graph-002: same inputs yield the same digest and edges despite permutation", () => {
@@ -194,7 +217,7 @@ test("REQ-assurance-graph-001: matching canonical inputs project; divergence fai
   );
   assert.equal(edgeDiverged.ok, false);
   assert.equal(edgeDiverged.reason_code, "GRAPH_DIVERGENCE");
-  assert.match(edgeDiverged.error, /stored edges diverge from canonical projection/);
+  assert.match(edgeDiverged.error, /stored graph_id does not match its stored payload/);
 });
 
 test("REQ-harness-authority-canon-010: APIs return new objects without write-through", () => {
@@ -303,7 +326,7 @@ test("REQ-harness-authority-canon-010: graph used as approval or delivery author
   assert.equal(result.reason_code, "GRAPH_AUTHORITY_MISUSE");
 });
 
-test("REQ-assurance-graph-002: graph_id changes when canonical inputs change; permutation does not", () => {
+test("REQ-assurance-graph-007: contradictory canonical inputs fail closed; permutation does not", () => {
   const { candidate, executionGraph, verified } = verifiedProjection();
   const baseInput = {
     candidate,
@@ -323,8 +346,8 @@ test("REQ-assurance-graph-002: graph_id changes when canonical inputs change; pe
       contract_digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
     },
   });
-  assert.equal(flippedContract.ok, true);
-  assert.notEqual(base.graph.graph_id, flippedContract.graph.graph_id);
+  assert.equal(flippedContract.ok, false);
+  assert.equal(flippedContract.reason_code, "GRAPH_DIVERGENCE");
 
   const flippedPolicy = projectAssuranceGraph({
     ...baseInput,
@@ -333,7 +356,8 @@ test("REQ-assurance-graph-002: graph_id changes when canonical inputs change; pe
       policy_snapshot_id: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
     },
   });
-  assert.notEqual(base.graph.graph_id, flippedPolicy.graph.graph_id);
+  assert.equal(flippedPolicy.ok, false);
+  assert.equal(flippedPolicy.reason_code, "GRAPH_DIVERGENCE");
 
   const flippedExec = projectAssuranceGraph({
     ...baseInput,
@@ -342,7 +366,8 @@ test("REQ-assurance-graph-002: graph_id changes when canonical inputs change; pe
       execution_graph_digest: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
     },
   });
-  assert.notEqual(base.graph.graph_id, flippedExec.graph.graph_id);
+  assert.equal(flippedExec.ok, false);
+  assert.equal(flippedExec.reason_code, "GRAPH_DIVERGENCE");
 
   const flippedOpenspec = projectAssuranceGraph({
     ...baseInput,
@@ -359,6 +384,15 @@ test("REQ-assurance-graph-002: graph_id changes when canonical inputs change; pe
   });
   assert.equal(permutedNodes.ok, true);
   assert.equal(base.graph.graph_id, permutedNodes.graph.graph_id);
+});
+
+test("REQ-assurance-graph-007: missing required canonical digest is never fingerprinted", () => {
+  const { candidate, executionGraph } = verifiedProjection();
+  const missingPolicy = { ...executionGraph };
+  delete missingPolicy.policy_snapshot_id;
+  const result = projectAssuranceGraph({ candidate, executionGraph: missingPolicy });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "GRAPH_DIVERGENCE");
 });
 
 test("REQ-assurance-graph-005: rejectForbidden matches kind/namespace, not id substring", () => {
@@ -412,7 +446,8 @@ test("REQ-assurance-graph-006: replay from persistable outputs is byte-identical
       contract_digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
     },
   });
-  assert.notEqual(churned.graph.graph_id, verified.assurance_graph.graph_id);
+  assert.equal(churned.ok, false);
+  assert.equal(churned.reason_code, "GRAPH_DIVERGENCE");
   const diverged = reconcileAssuranceGraph(verified.assurance_graph, {
     candidate,
     executionGraph,
@@ -426,5 +461,156 @@ test("REQ-assurance-graph-006: replay from persistable outputs is byte-identical
   });
   assert.equal(diverged.ok, false);
   assert.equal(diverged.reason_code, "GRAPH_DIVERGENCE");
+});
+
+test("REQ-assurance-graph-006/008: replay and reconcile reject assessment and stored-payload tampering", () => {
+  const { candidate, executionGraph, verified } = verifiedProjection();
+  const persistable = {
+    candidate,
+    executionGraph,
+    evidence: verified.evidence,
+    assessments: verified.assessments,
+    verification: verified.verification,
+    canonical_inputs: verified.assurance_graph.canonical_inputs,
+  };
+  const tamperedAssessment = replayAssuranceGraph({
+    ...persistable,
+    assessments: [{ ...verified.assessments[0], assessment_id: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }, ...verified.assessments.slice(1)],
+  });
+  assert.equal(tamperedAssessment.ok, false);
+  assert.equal(tamperedAssessment.reason_code, "GRAPH_DIVERGENCE");
+
+  const tamperedNode = reconcileAssuranceGraph(
+    { ...verified.assurance_graph, nodes: [...verified.assurance_graph.nodes, { id: "extra", kind: "source" }] },
+    { candidate, executionGraph, evidence: verified.evidence, assessments: verified.assessments, verification: verified.verification }
+  );
+  assert.equal(tamperedNode.ok, false);
+  assert.equal(tamperedNode.reason_code, "GRAPH_DIVERGENCE");
+});
+
+test("REQ-assurance-graph-006: replay rejects every persisted assessment binding mutation", () => {
+  const { candidate, executionGraph, verified } = verifiedProjection();
+  const persistable = {
+    candidate,
+    executionGraph,
+    evidence: verified.evidence,
+    assessments: verified.assessments,
+    verification: verified.verification,
+    canonical_inputs: verified.assurance_graph.canonical_inputs,
+  };
+  const assessment = verified.assessments[0];
+  const missingEvidenceId = "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+
+  const cases = [
+    {
+      name: "malformed assessment schema",
+      input: {
+        ...persistable,
+        assessments: [{ ...assessment, kind: "evidence/v2" }, ...verified.assessments.slice(1)],
+      },
+    },
+    {
+      name: "coverage outside the obligation requirements",
+      input: {
+        ...persistable,
+        assessments: [withAssessmentFields(assessment, { evidence_requirements_satisfied: ["ev:unexpected"] }), ...verified.assessments.slice(1)],
+      },
+    },
+    {
+      name: "candidate mismatch",
+      input: {
+        ...persistable,
+        assessments: [withAssessmentFields(assessment, { candidate_id: missingEvidenceId }), ...verified.assessments.slice(1)],
+      },
+    },
+    {
+      name: "policy mismatch",
+      input: {
+        ...persistable,
+        assessments: [withAssessmentFields(assessment, { policy_snapshot_id: missingEvidenceId }), ...verified.assessments.slice(1)],
+      },
+    },
+    {
+      name: "missing evidence",
+      input: {
+        ...persistable,
+        assessments: [withAssessmentFields(assessment, { evidence_id: missingEvidenceId }), ...verified.assessments.slice(1)],
+      },
+    },
+    {
+      name: "unknown obligation",
+      input: {
+        ...persistable,
+        assessments: [withAssessmentFields(assessment, { obligation_id: "req-unknown-001" }), ...verified.assessments.slice(1)],
+      },
+    },
+    {
+      name: "non-implementing node",
+      input: {
+        ...persistable,
+        evidence: [{ ...verified.evidence[0], node_id: "non-implementing-node" }, ...verified.evidence.slice(1)],
+        assessments: [withAssessmentFields(assessment, { node_id: "non-implementing-node" }), ...verified.assessments.slice(1)],
+      },
+    },
+    {
+      name: "node_id mismatch",
+      input: {
+        ...persistable,
+        evidence: [{ ...verified.evidence[0], node_id: "evidence-node-mismatch" }, ...verified.evidence.slice(1)],
+      },
+    },
+  ];
+
+  for (const { name, input } of cases) {
+    const replayed = replayAssuranceGraph(input);
+    assert.equal(replayed.ok, false, name);
+    assert.equal(replayed.reason_code, "GRAPH_DIVERGENCE", name);
+  }
+});
+
+test("REQ-assurance-graph-008: reconcile rejects stored identity mutations after recomputing stored graph_id", () => {
+  const { candidate, executionGraph, verified } = verifiedProjection();
+  const canonicalInput = {
+    candidate,
+    executionGraph,
+    evidence: verified.evidence,
+    assessments: verified.assessments,
+    verification: verified.verification,
+  };
+  const stored = verified.assurance_graph;
+
+  const cases = [
+    {
+      name: "canonical_inputs",
+      graph: withStoredGraphId({
+        ...stored,
+        canonical_inputs: {
+          ...stored.canonical_inputs,
+          openspec_input_digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        },
+      }),
+    },
+    {
+      name: "candidate_id",
+      graph: withStoredGraphId({
+        ...stored,
+        candidate_id: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      }),
+    },
+    {
+      name: "kind",
+      graph: withStoredGraphId({ ...stored, kind: "assurance-graph/v2" }),
+    },
+    {
+      name: "schema_version",
+      graph: withStoredGraphId({ ...stored, schema_version: 2 }),
+    },
+  ];
+
+  for (const { name, graph } of cases) {
+    const reconciled = reconcileAssuranceGraph(graph, canonicalInput);
+    assert.equal(reconciled.ok, false, name);
+    assert.equal(reconciled.reason_code, "GRAPH_DIVERGENCE", name);
+  }
 });
 

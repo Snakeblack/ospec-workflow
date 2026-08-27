@@ -103,6 +103,7 @@ function raw(role, bytes, extra = {}) {
     origin: extra.origin || `role:${role}`,
     node_id: extra.node_id || "repair-core",
     obligation_ids: extra.obligation_ids || ["req-repair-001"],
+    evidence_requirements_satisfied: extra.evidence_requirements_satisfied || ["ev:test-pass"],
   };
   if (Object.prototype.hasOwnProperty.call(extra, "collector") && extra.collector) {
     record.collector = extra.collector;
@@ -179,6 +180,20 @@ test("REQ-independent-verification-001: binding digest mismatch fails closed", (
   });
   assert.equal(result.ok, false);
   assert.equal(result.reason_code, "BINDING_MISMATCH");
+});
+
+test("REQ-independent-verification-008: contract digest mismatch fails before strategy or verdict", () => {
+  const harness = buildHarness();
+  const result = verifyCandidate({
+    ...harness,
+    contract: { ...harness.contract, contract_digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" },
+    declaredStrategy: "feature",
+    rawEvidence: [],
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "BINDING_MISMATCH");
+  assert.equal(Object.prototype.hasOwnProperty.call(result, "verification"), false);
+  assert.doesNotMatch(result.error, /strategy|MUST/i);
 });
 
 test("REQ-independent-verification-001: repository tree_digest without bytes is rejected", () => {
@@ -767,7 +782,7 @@ test("REQ-independent-verification-004: strategy failure short-circuits without 
   assert.notEqual(result.reason_code, "UNFULFILLED_MUST");
 });
 
-test("REQ-independent-verification-006: four roles over one observation yield four assessments and one evidence_id", () => {
+test("REQ-independent-verification-006: one observation cannot satisfy four incompatible roles", () => {
   const harness = buildHarness();
   const shared = { origin: "shared-observation", obligation_ids: ["req-repair-001"] };
   const bytes = "shared-bytes";
@@ -781,29 +796,27 @@ test("REQ-independent-verification-006: four roles over one observation yield fo
       raw("negative", bytes, shared),
     ],
   });
-  assert.equal(result.ok, true, result.error || result.reason_code);
-  assert.equal(result.assessments.length, 4);
-  const evidenceIds = new Set(result.evidence.map((ev) => ev.evidence_id));
-  assert.equal(evidenceIds.size, 1);
-  assert.equal(new Set(result.verification.evidence_ids).size, 1);
-  const assessmentIds = new Set(result.assessments.map((a) => a.assessment_id));
-  assert.equal(assessmentIds.size, 4);
-  const roles = new Set(result.assessments.map((a) => a.role));
-  assert.equal(roles.size, 4);
-  const sample = result.assessments[0];
-  assert.equal(
-    sample.assessment_id,
-    computeAssessmentId({
-      schema_version: 1,
-      kind: "assessment/v1",
-      evidence_id: sample.evidence_id,
-      role: sample.role,
-      obligation_id: sample.obligation_id,
-      node_id: sample.node_id,
-      candidate_id: sample.candidate_id,
-      policy_snapshot_id: sample.policy_snapshot_id,
-    })
-  );
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "STRATEGY_EVIDENCE_ALIAS");
+  assert.equal(Object.prototype.hasOwnProperty.call(result, "verification"), false);
+});
+
+test("REQ-independent-verification-006: strict-tdd and bug role order fail closed", () => {
+  const harness = buildHarness();
+  const strict = verifyCandidate({
+    ...harness,
+    rawEvidence: [raw("green", "green"), raw("red", "red")],
+  });
+  assert.equal(strict.ok, false);
+  assert.equal(strict.reason_code, "STRATEGY_SEQUENCE_VIOLATION");
+
+  const bug = verifyCandidate({
+    ...harness,
+    declaredStrategy: "bug",
+    rawEvidence: [raw("patch", "patch"), raw("red", "red"), raw("green", "green")],
+  });
+  assert.equal(bug.ok, false);
+  assert.equal(bug.reason_code, "STRATEGY_SEQUENCE_VIOLATION");
 });
 
 test("FABRICATED_EVIDENCE: non-object raw and missing origin fail closed", () => {

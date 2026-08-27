@@ -44,10 +44,10 @@ const OBLIGATIONS = [
 
 function featureEvidence() {
   return [
-    { role: "acceptance", bytes: "acceptance ok", provenance: "runtime-observed", origin: "e2e-acceptance", node_id: "repair-core", obligation_ids: ["req-repair-001"] },
-    { role: "invariants", bytes: "invariants ok", provenance: "runtime-observed", origin: "e2e-invariants", node_id: "repair-core", obligation_ids: ["req-repair-001"] },
-    { role: "integration", bytes: "integration ok", provenance: "runtime-observed", origin: "e2e-integration", node_id: "repair-core", obligation_ids: ["req-repair-001"] },
-    { role: "negative", bytes: "negative ok", provenance: "runtime-observed", origin: "e2e-negative", node_id: "repair-core", obligation_ids: ["req-repair-001"] },
+    { role: "acceptance", bytes: "acceptance ok", provenance: "runtime-observed", origin: "e2e-acceptance", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
+    { role: "invariants", bytes: "invariants ok", provenance: "runtime-observed", origin: "e2e-invariants", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
+    { role: "integration", bytes: "integration ok", provenance: "runtime-observed", origin: "e2e-integration", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
+    { role: "negative", bytes: "negative ok", provenance: "runtime-observed", origin: "e2e-negative", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
   ];
 }
 

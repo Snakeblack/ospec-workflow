@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "change": "k6b-semantic-integrity-remediation",
+  "source_fingerprint": "sha256:a3a3f75b46420918f61adb3fda750d8775fd41e414a460eea19508daffcd6d8d",
+  "spec_writes": [
+    {
+      "domain": "independent-verification",
+      "source_delta": "prepared-specs/independent-verification/spec.md",
+      "target": "openspec/specs/independent-verification/spec.md",
+      "target_before_sha256": "sha256:3207ce8b5b280472b9b505378cf91df22b1ae22e007adb9dbf8a173405c5b0a0",
+      "content_sha256": "sha256:4458c5773ceefc0453b0ca5ff73da7bc916aab239e7f5203c748e4a9db519da2"
+    },
+    {
+      "domain": "assurance-graph",
+      "source_delta": "prepared-specs/assurance-graph/spec.md",
+      "target": "openspec/specs/assurance-graph/spec.md",
+      "target_before_sha256": "sha256:81f10f2046ae5519aead34f0f945275e99bfefbc03f9a898d80ce8bcbc437f56",
+      "content_sha256": "sha256:c06f59378d4acb1bfefa17bf02e4df98e423a6a26540d75fdb6bd820b6aed73d"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "prepared-specs/kernel-contract-schemas/spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:0f6c1f85aaff2f9b7a60320a66830bbc23feeb01a29ce4e6a8ef8f5d59ef4cec",
+      "content_sha256": "sha256:0ef263964a2212696ea724c4c3bc51774e8b5d739cf9dbd49b43cdf7e7f2b6d1"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260828-001-persist-token-coverage-on-assessment-v1.md",
+      "content_sha256": "sha256:e6ab50ceb55fa620900d3eaa225fb851ea1cefc4a961d9b54c883d934c89a066"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260828-002-ordered-non-aliased-strategy-evidence.md",
+      "content_sha256": "sha256:70f342f1a10da935769673d1da846b5410730150f2946db49d956eb0543e058c"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260828-003-canonical-integrity-validation-across-graph-operations.md",
+      "content_sha256": "sha256:719bf46846df086500e73ea4cca8ad0fe16ef145a12bd4a5a0a3c117afb2ff20"
+    }
+  ],
+  "archive_inventory": [
+    ".4r/candidate.diff",
+    ".4r/decision.json",
+    ".4r/evidence.json",
+    ".4r/gate-plan.json",
+    ".4r/lineage.json",
+    ".4r/summary.json",
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "design.md",
+    "prepared-specs/assurance-graph/spec.md",
+    "prepared-specs/independent-verification/spec.md",
+    "prepared-specs/kernel-contract-schemas/spec.md",
+    "proposal.md",
+    "specs/assurance-graph/spec.md",
+    "specs/independent-verification/spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    "4r-warning-001 WARNING: Replay MUST-incomplete path (empty/partial assessments) lacks a dedicated runtime test — scripts/lib/assurance-graph/index.js / tests",
+    "4r-warning-002 WARNING: Reconcile nodes/edges comparison is not exercised with a self-consistent stored graph_id",
+    "4r-warning-003 WARNING: assertRoleOrder nested ternary / undocumented last-predecessor-before-first-successor criterion",
+    "4r-warning-004 WARNING: normalizedCoverage silent dual-shape fallback (wrapper || nested evidence)"
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

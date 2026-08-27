@@ -1,0 +1,73 @@
+{
+  "path_count": 35,
+  "paths": [
+    "docs/architecture/harness-evolution.md",
+    "docs/roadmaps/harness-evolution.md",
+    "openspec/changes/k6b-semantic-integrity-remediation/apply-progress.md",
+    "openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-001.md",
+    "openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-002.md",
+    "openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-003.md",
+    "openspec/changes/k6b-semantic-integrity-remediation/design.md",
+    "openspec/changes/k6b-semantic-integrity-remediation/proposal.md",
+    "openspec/changes/k6b-semantic-integrity-remediation/specs/assurance-graph/spec.md",
+    "openspec/changes/k6b-semantic-integrity-remediation/specs/independent-verification/spec.md",
+    "openspec/changes/k6b-semantic-integrity-remediation/specs/kernel-contract-schemas/spec.md",
+    "openspec/changes/k6b-semantic-integrity-remediation/state.yaml",
+    "openspec/changes/k6b-semantic-integrity-remediation/tasks.md",
+    "openspec/changes/k6b-semantic-integrity-remediation/verify-report.md",
+    "openspec/memory/known-issues.md",
+    "schemas/kernel/assessment/fixtures/invalid/v1-missing-coverage.json",
+    "schemas/kernel/assessment/fixtures/invalid/v1-with-verdict.json",
+    "schemas/kernel/assessment/fixtures/valid/v1-complete.json",
+    "schemas/kernel/assessment/fixtures/valid/v1-four-roles.json",
+    "schemas/kernel/assessment/v1.schema.json",
+    "schemas/kernel/contract-claims.json",
+    "scripts/k6b-verifier-assurance-graph-e2e.test.js",
+    "scripts/lib/assurance-graph/index.js",
+    "scripts/lib/assurance-graph/index.test.js",
+    "scripts/lib/assurance-graph/projector.js",
+    "scripts/lib/independent-verifier/assessment.js",
+    "scripts/lib/independent-verifier/assessment.test.js",
+    "scripts/lib/independent-verifier/bindings.js",
+    "scripts/lib/independent-verifier/evidence.js",
+    "scripts/lib/independent-verifier/index.test.js",
+    "scripts/lib/independent-verifier/obligation-coverage.js",
+    "scripts/lib/independent-verifier/obligation-coverage.test.js",
+    "scripts/lib/independent-verifier/strategy-policy.js",
+    "scripts/lib/k2a-maturity-docs.test.js",
+    "scripts/lib/k6b-schema-fixtures.test.js"
+  ],
+  "operation_types": [
+    "add",
+    "modify"
+  ],
+  "facts": [
+    {
+      "code": "design-risk",
+      "source": "design",
+      "detail": "Fail-closed verifier and Assurance Graph public APIs reject aliased roles, partial coverage, and tampered stored graphs."
+    },
+    {
+      "code": "metadata-runtime",
+      "source": "metadata",
+      "detail": "runtime"
+    },
+    {
+      "code": "diff-auth-permission",
+      "source": "real-diff",
+      "detail": "scripts/lib/independent-verifier/strategy-policy.js"
+    }
+  ],
+  "fingerprint": "sha256:35db40e519d337da13828b16e042956c911cae1d2f3c0239d1502d8b5c8a59ce",
+  "counts": {
+    "added": 1589,
+    "removed": 94,
+    "original_changed_lines": 1683,
+    "authored_lines": 1589
+  },
+  "diff_sha256": "sha256:2f34dec4f2c0c1ef87d244946c87f4e3e93497ac9b82e56d20bad41c1b26184d",
+  "paths_digest": "sha256:cc512c9dc6f4ccdb570b60ab2d89d885c6a807a68c085dacec84520c3bcc842b",
+  "head": "f3d4073d5dadf42db7bc8ab74af72961c3fb3ca0",
+  "diff_path": "openspec/changes/k6b-semantic-integrity-remediation/.4r/candidate.diff",
+  "evidence_path": "openspec/changes/k6b-semantic-integrity-remediation/.4r/evidence.json"
+}
