@@ -689,7 +689,8 @@
         "obligation_id",
         "node_id",
         "candidate_id",
-        "policy_snapshot_id"
+        "policy_snapshot_id",
+        "evidence_requirements_satisfied"
       ],
       "enum_values": {},
       "command_shapes": []

@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.52.0] - 2026-08-28
+
+### Changed
+- **Integridad semántica K6b (`k6b-semantic-integrity-remediation`)**:
+  - Roles de estrategia incompatibles no pueden compartir un `EvidenceId`; el orden temporal RED→GREEN / RED→PATCH→GREEN es fail-closed (`STRATEGY_EVIDENCE_ALIAS`, `STRATEGY_SEQUENCE_VIOLATION`).
+  - Cobertura MUST token a token persistida en `assessment/v1` (`evidence_requirements_satisfied`); omisión o subconjunto incompleto falla cerrado.
+  - El digest de contrato se comprueba antes de strategy (`BINDING_MISMATCH` sin verdict).
+  - Projector, replay y reconcile del Assurance Graph fallan cerrados ante inputs canónicos contradictorios, assessments tampered o payload almacenado incompleto (`GRAPH_DIVERGENCE`).
+  - `evidence/v2`, `verification/v2` y K1 v1 permanecen byte-identical. ADRs `docs/adr/adr-20260828-001` a `003`.
+  - K6b queda `done`; K6c pasa a `next-eligible`. Verify: 2762 pass, 0 fail; 4R approved (4 WARNING advisory). Archivado en `openspec/changes/archive/2026-08-27-k6b-semantic-integrity-remediation/`.
+
 ## [2.51.0] - 2026-08-27
 
 ### Added

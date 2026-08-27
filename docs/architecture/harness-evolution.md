@@ -1,8 +1,8 @@
 # Arquitectura objetivo — harness gobernado por kernel, grafo y evidencia
 
 > **Autoridad:** fuente conceptual y estratégica del harness (responsabilidades y límites).
-> **Corte documental:** v2.51.0, 2026-08-27 (estado alineado al roadmap; la dirección conceptual no cambia).
-> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a**, **K5**, **K6a**, **K4b** y **K6b** (archivado v2.50.0; integridad cerrada en v2.51.0). OpenSpec/Git/Candidate siguen siendo la única autoridad semántica; el Assurance Graph es proyección. **K6c** es `next-eligible`.
+> **Corte documental:** v2.52.0, 2026-08-28 (estado alineado al roadmap; la dirección conceptual no cambia).
+> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a**, **K5**, **K6a**, **K4b** y **K6b** están cerrados. OpenSpec/Git/Candidate siguen siendo la única autoridad semántica; el Assurance Graph es proyección. **K6c** queda `next-eligible`.
 > **Roadmap:** orden, estado operativo y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
 > **Precedencia documental:** ante diferencias de **orden o estado**, prevalece el roadmap; ante diferencias **conceptuales**, reconciliar antes de iniciar el slice.
 > **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md). La proporcionalidad de proceso y el programa de changes viven en [`research/proportional-process-and-change-program.md`](research/proportional-process-and-change-program.md).
@@ -855,7 +855,7 @@ Repositorios fixture reciben 10–30 cambios consecutivos. Se miden duplicación
 8. ~~K5: budgets (incl. autoridad/efectos) / failure / recovery~~ — hecho: archivado y publicado en v2.45.13 (remediaciones v2.45.7→v2.45.13).
 9. ~~K6a: primitivas de ejecución aislada (`CreateWorkspace`…`DisposeWorkspace`); no conoce Repair~~ — hecho: archivado y publicado en v2.46.7; frontera de procesos cerrada en v2.47.1; endurecimiento de frontera (política inmutable, fs mutante, live-identity, `worker_threads`) en v2.47.2.
 10. ~~K4b: orquesta Repair shadow (consume K6a; freeze Candidate vía K3)~~ — hecho: publicado en v2.48.0; corrección en v2.48.1; invariantes de integración en v2.48.2; cierre mode-only/baseline en v2.48.3.
-11. ~~K6b: verifier + provenance + Assurance Graph (proyección)~~ — hecho: publicado en v2.50.0; integridad (MUST, assessment/v1, collector, graph_id canónico, proyección fail-closed) cerrada en v2.51.0. K6c ChallengePlan es `next-eligible`; K6d complexity delta sigue pendiente.
+11. ~~K6b: verifier + provenance + Assurance Graph (proyección)~~ — publicado en v2.50.0; integridad semántica B1–B3/H1–H3 cerrada en v2.52.0. K6c ChallengePlan queda `next-eligible`; K6d complexity delta sigue pendiente.
 12. K7: ReviewAdapter + ReviewReducer + lineage; K8: CandidateEvaluationAttestation (emisión CAS).
 13. K9: shadow/replay/A-B; promoción de **un** profile (checkpoints intermedios ya validados).
 14. K10-delivery: DeliveryAuthorization **solo** del profile promovido; relación Candidate por etapas; resto fixed/deferred.

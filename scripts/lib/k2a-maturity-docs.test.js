@@ -42,6 +42,8 @@ test("K2a maturity docs tag host surfaces implemented; Candidate/attestation/del
   assert.doesNotMatch(arch, /\{implemented\}.*CandidateEvaluationAttestation/);
   assert.doesNotMatch(roadmap, /\|\s*`in-progress`\s*\|\s*\*\*K4b\*\*/);
   assert.doesNotMatch(roadmap, /\|\s*`in-progress`\s*\|\s*\*\*K6b\*\*/);
-  assert.doesNotMatch(roadmap, /\|\s*`blocked`\s*\|\s*K6b\b/);
+  assert.doesNotMatch(roadmap, /\|\s*`blocked`\s*\|\s*\*\*K6b\*\*/);
   assert.doesNotMatch(roadmap, /\|\s*`next-eligible`\s*\|\s*\*\*K6b\*\*/);
+  assert.doesNotMatch(roadmap, /\|\s*`revise`\s*\|\s*\*\*K6b\*\*/);
+  assert.doesNotMatch(roadmap, /\|\s*`blocked-by-K6b-remediation`\s*\|\s*\*\*K6c\*\*/);
 });

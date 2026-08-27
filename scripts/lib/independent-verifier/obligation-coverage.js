@@ -23,6 +23,15 @@ function isMust(obligation) {
   return String((obligation && obligation.criticality) || "must").toLowerCase() === "must";
 }
 
+function normalizedCoverage(item, requiredEvidence) {
+  const supplied = item && (item.evidence_requirements_satisfied || (item.evidence && item.evidence.evidence_requirements_satisfied));
+  const satisfied = Array.isArray(supplied)
+    ? supplied.filter((token) => typeof token === "string")
+    : [];
+  const required = new Set(requiredEvidence);
+  return [...new Set(satisfied.filter((token) => required.has(token)))].sort();
+}
+
 /**
  * Walk non-deferred MUST obligations after strategy evaluation.
  * Join key is persistable obligation_id, not K4a evidence tokens.
@@ -96,6 +105,15 @@ function walkMustObligations(input) {
       return fail("UNFULFILLED_MUST", `MUST obligation ${obligation.id} has no admissible evidence`);
     }
 
+    const satisfiedTokens = new Set();
+    for (const item of admissible) {
+      for (const token of normalizedCoverage(item, requiredEvidence)) satisfiedTokens.add(token);
+    }
+    const missingTokens = requiredEvidence.filter((token) => !satisfiedTokens.has(token));
+    if (missingTokens.length > 0) {
+      return fail("UNFULFILLED_MUST", `MUST obligation ${obligation.id} is missing required evidence: ${missingTokens.join(", ")}`);
+    }
+
     for (const item of admissible) {
       const emitted = emitAssessment({
         evidence_id: item.evidence.evidence_id,
@@ -104,6 +122,7 @@ function walkMustObligations(input) {
         node_id: item.evidence.node_id,
         candidate_id: candidate && candidate.candidate_id,
         policy_snapshot_id: policySnapshotId,
+        evidence_requirements_satisfied: normalizedCoverage(item, requiredEvidence),
       });
       if (!emitted.ok) return emitted;
       assessments.push(emitted.assessment);
@@ -115,5 +134,6 @@ function walkMustObligations(input) {
 
 module.exports = {
   isApprovedDeferred,
+  normalizedCoverage,
   walkMustObligations,
 };

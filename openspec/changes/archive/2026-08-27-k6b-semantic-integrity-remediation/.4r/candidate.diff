@@ -1,0 +1,2314 @@
+diff --git a/docs/architecture/harness-evolution.md b/docs/architecture/harness-evolution.md
+index 71cb5aa..3657217 100644
+--- a/docs/architecture/harness-evolution.md
++++ b/docs/architecture/harness-evolution.md
+@@ -2,7 +2,7 @@
+ 
+ > **Autoridad:** fuente conceptual y estratégica del harness (responsabilidades y límites).
+ > **Corte documental:** v2.51.0, 2026-08-27 (estado alineado al roadmap; la dirección conceptual no cambia).
+-> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a**, **K5**, **K6a**, **K4b** y **K6b** (archivado v2.50.0; integridad cerrada en v2.51.0). OpenSpec/Git/Candidate siguen siendo la única autoridad semántica; el Assurance Graph es proyección. **K6c** es `next-eligible`.
++> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a**, **K5**, **K6a** y **K4b** están cerrados; **K6b** está en `revise` por remediación semántica focal. OpenSpec/Git/Candidate siguen siendo la única autoridad semántica; el Assurance Graph es proyección. **K6c** queda `blocked-by-K6b-remediation` hasta archive.
+ > **Roadmap:** orden, estado operativo y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
+ > **Precedencia documental:** ante diferencias de **orden o estado**, prevalece el roadmap; ante diferencias **conceptuales**, reconciliar antes de iniciar el slice.
+ > **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md). La proporcionalidad de proceso y el programa de changes viven en [`research/proportional-process-and-change-program.md`](research/proportional-process-and-change-program.md).
+@@ -21,7 +21,7 @@ Sin duplicar el backlog: solo responsabilidades y límites alineados al roadmap
+ 
+ | Tema | Decisión arquitectónica |
+ | --- | --- |
+-| Estado | K1+K2+K2.1+K2a+K3+`k3-readiness-remediation`+K4a+K5+K6a+K4b+K6b `done`; **K6c** `next-eligible` |
++| Estado | K1+K2+K2.1+K2a+K3+`k3-readiness-remediation`+K4a+K5+K6a+K4b `done`; **K6b** `revise`; **K6c** `blocked-by-K6b-remediation` hasta archive |
+ | Dos grafos | **Execution Graph** (trabajo) ≠ **Assurance Graph** (fiabilidad / evidencia; no “prueba formal”) |
+ | Identidades | `SourceSnapshotId` / `WorkOrderId` / `WorkResultId` / `CandidateId` (sin IDs nuevos por ahora) |
+ | Relación Candidate | Inicial: `exact` / `changed` / `ambiguous` / `unknown`; `compatible-base-advance` experimental hasta K9 |
+@@ -855,7 +855,7 @@ Repositorios fixture reciben 10–30 cambios consecutivos. Se miden duplicación
+ 8. ~~K5: budgets (incl. autoridad/efectos) / failure / recovery~~ — hecho: archivado y publicado en v2.45.13 (remediaciones v2.45.7→v2.45.13).
+ 9. ~~K6a: primitivas de ejecución aislada (`CreateWorkspace`…`DisposeWorkspace`); no conoce Repair~~ — hecho: archivado y publicado en v2.46.7; frontera de procesos cerrada en v2.47.1; endurecimiento de frontera (política inmutable, fs mutante, live-identity, `worker_threads`) en v2.47.2.
+ 10. ~~K4b: orquesta Repair shadow (consume K6a; freeze Candidate vía K3)~~ — hecho: publicado en v2.48.0; corrección en v2.48.1; invariantes de integración en v2.48.2; cierre mode-only/baseline en v2.48.3.
+-11. ~~K6b: verifier + provenance + Assurance Graph (proyección)~~ — hecho: publicado en v2.50.0; integridad (MUST, assessment/v1, collector, graph_id canónico, proyección fail-closed) cerrada en v2.51.0. K6c ChallengePlan es `next-eligible`; K6d complexity delta sigue pendiente.
++11. ~~K6b: verifier + provenance + Assurance Graph (proyección)~~ — publicado en v2.50.0; la remediación semántica focal B1–B3/H1–H3 permanece en `revise` hasta archive. K6c ChallengePlan queda `blocked-by-K6b-remediation`; K6d complexity delta sigue pendiente.
+ 12. K7: ReviewAdapter + ReviewReducer + lineage; K8: CandidateEvaluationAttestation (emisión CAS).
+ 13. K9: shadow/replay/A-B; promoción de **un** profile (checkpoints intermedios ya validados).
+ 14. K10-delivery: DeliveryAuthorization **solo** del profile promovido; relación Candidate por etapas; resto fixed/deferred.
+diff --git a/docs/roadmaps/harness-evolution.md b/docs/roadmaps/harness-evolution.md
+index 57f5adf..3c19dad 100644
+--- a/docs/roadmaps/harness-evolution.md
++++ b/docs/roadmaps/harness-evolution.md
+@@ -78,8 +78,8 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
+ | `done` | **K5** | Budgets (incl. autoridad/efectos), failures y recovery; remediaciones v2.45.7→v2.45.13 (authoritative enforcement, authority boundary/CAS concurrency, reconciliación, remediación técnica del núcleo y blindaje de concurrencia); archivado y publicado en v2.45.13 |
+ | `done` | **K6a** | Worker isolation y work-order capsule; primitivas de ejecución aislada, integración con WorkerTransport, contención de filesystem y WorkResult canónico; archivado en v2.46.0, frontera de procesos cerrada en v2.47.1 y endurecida en v2.47.2 |
+ | `done` | **K4b** | Repair shadow execution (WO→WR→integrate→Candidate); despacho exclusivo K6a, integración estricta, cápsula mínima, base derivada y registro 1:N; remediación de invariantes en v2.48.2 y cierre mode-only/baseline en v2.48.3 (`2026-08-26-k4b-mode-only-and-baseline-projection`) |
+-| `done` | **K6b** | Verifier independiente, evidence strategies/provenance y Assurance Graph; integridad cerrada en v2.51.0 (`k6b-verification-integrity-remediation`) |
+-| `next-eligible` | **K6c** | ChallengePlan policy-selected |
++| `revise` | **K6b** | Remediación semántica focal B1–B3/H1–H3 en curso (`k6b-semantic-integrity-remediation`) |
++| `blocked-by-K6b-remediation` | **K6c** | ChallengePlan policy-selected; bloqueado hasta archive de K6b |
+ | `pending` | K6d–K8 | Complexity delta, review authority, **Evaluation Attestation** |
+ | `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
+ | `pending` | K10-delivery | `DeliveryAuthorization` **acotada al profile K9**; relación Candidate por etapas; fixed/deferred para el resto |
+@@ -186,7 +186,7 @@ Campo canónico de binding al candidato: **`candidate_id`** (no `candidate_diges
+ Entregado:
+ G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2 → K2.1 → K2a → K3 → K4a → K5 → K6a → K4b → K6b
+                                                                                                       ↓
+-Next:                                                                                                K6c  (next-eligible)
++Next:                                                                                                K6c  (blocked-by-K6b-remediation)
+                                                                                                       ↓
+ Pending:     K6d → K7 → K8
+                                                                    ↓
+@@ -1007,11 +1007,11 @@ Take compiled Repair Execution Graph (K4a)
+ 
+ Vertical Repair shadow produce Candidate congelado. Gate de invariantes cerrado en v2.48.3: mode-only exige path existente y `old mode` de la base; la comparación baseline es graph-bound sin préstamo del Graph shadow. Desbloquea K6b. El resultado de O20A decide **promover, revisar o rechazar** el kernel común solo tras K9; rechazo conserva fixed.
+ 
+-### K6b — verifier independiente, evidence strategies y Assurance Graph — **done**
++### K6b — verifier independiente, evidence strategies y Assurance Graph — **revise**
+ 
+ **Dependencias:** K4b + K6a + K3.
+ 
+-**Estado:** `done`. Publicado en v2.50.0 (`k6b-verifier-evidence-assurance-graph`); integridad cerrada en v2.51.0 (`k6b-verification-integrity-remediation`): cobertura MUST del Obligation Manifest, assessments persistibles `assessment/v1`, provenance de collector del harness, `graph_id` canónico y proyección fail-closed. Este change no reabre el macro-slice. OpenSpec/Git/Candidate siguen siendo la única autoridad semántica. El grafo no concede lifecycle, approval ni delivery. **K6c es `next-eligible`.**
++**Estado:** `revise`. Publicado en v2.50.0 (`k6b-verifier-evidence-assurance-graph`); la remediación semántica focal B1–B3/H1–H3 (`k6b-semantic-integrity-remediation`) endurece cobertura MUST, assessments persistibles `assessment/v1`, `graph_id` canónico y proyección/replay/reconciliación fail-closed. Este change no reabre el macro-slice. OpenSpec/Git/Candidate siguen siendo la única autoridad semántica. El grafo no concede lifecycle, approval ni delivery. **K6c queda `blocked-by-K6b-remediation` hasta archive.**
+ 
+ **Absorbe/rebasa:** P12/P16; O15; separación apply/verify vigente.
+ 
+@@ -1105,7 +1105,7 @@ external-unverified
+ 
+ **Gate terminal:** verifier, strategy selector, provenance y Assurance Graph (proyección) conformes; checkpoint evidencia/challenges → `continue` | `revise` | `reject`. Cerrado en v2.51.0. Desbloquea K6c.
+ 
+-### K6c — adversarial challenges (policy-selected) — **next-eligible**
++### K6c — adversarial challenges (policy-selected) — **blocked-by-K6b-remediation**
+ 
+ **Dependencias:** K6b (+ `PolicySnapshot` / strategy de evidencia).
+ 
+@@ -2061,4 +2061,4 @@ Un Change Program (objetivo → children OpenSpec + cursor, ver investigación `
+ - 2026-08-27: K6b (`k6b-verifier-evidence-assurance-graph`) entra en apply: verifier independiente, evidence strategies/provenance y Assurance Graph proyección `implemented`; autoridad independiente del grafo, K6c/K7/K8 permanecen `target`. K6c queda next-eligible.
+ - 2026-08-27: K6b cierra con verify PASS, 4R approved y archive transaccional; publicado en v2.50.0. K6c queda next-eligible.
+ - 2026-08-27: K6b entra en `revise` (`k6b-verification-integrity-remediation`): cobertura MUST, assessments persistibles, provenance de collector, `graph_id` canónico y proyección fail-closed. K6c pasa a `blocked-by-K6b-remediation` hasta archive de esa remediación.
+-- 2026-08-27: K6b (`k6b-verification-integrity-remediation`) cierra integridad con verify PASS, 4R successor approved y archive transaccional; publicado en v2.51.0. K6b queda `done`; K6c queda next-eligible.
++- 2026-08-27: K6b (`k6b-semantic-integrity-remediation`) entra en apply para remediar B1–B3/H1–H3; K6b queda `revise` y K6c `blocked-by-K6b-remediation` hasta archive.
+diff --git a/openspec/changes/k6b-semantic-integrity-remediation/apply-progress.md b/openspec/changes/k6b-semantic-integrity-remediation/apply-progress.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6b-semantic-integrity-remediation/apply-progress.md
+@@ -0,0 +1,43 @@
++# Apply Progress: k6b Semantic Integrity Remediation
++
++## Batch 1 — 2026-08-27
++
++Delivery path: `size:exception` accepted by the maintainer. Scope remained focal to B1–B3/H1–H3; 22/22 checklist tasks are implemented and locally verified. (The task artifact contains 22 items despite the prior forecast referring to 21.)
++
++| Task range | Status | Local verification | Result |
++| --- | --- | --- | --- |
++| 1.1–1.5 | [x] | `node --test ...k6b-schema-fixtures.test.js ...assessment.test.js` | Required canonical coverage is schema-valid, included in assessment identity, and frozen K1/v2 bytes remain pinned. |
++| 2.1–2.7 | [x] | `node --test scripts/lib/independent-verifier/*.test.js` | Contract gate runs before strategy; incompatible evidence roles, invalid order, unknown/wrong bindings, and partial token coverage fail closed. |
++| 3.1–3.6 | [x] | `node --test scripts/lib/assurance-graph/index.test.js` | Project, replay, and reconcile validate canonical digests and complete stored graph payloads fail-closed. |
++| 4.1–4.4 | [x] | Focused suite: 79/79 tests passed; full `npm test` completed with `All checks passed.` | E2E is deterministic; K6b is `revise` and K6c blocked until archive; no legacy assessment migration was introduced. |
++
++## Files changed
++
++- Assessment contract and fixtures: `schemas/kernel/assessment/v1.schema.json`, `schemas/kernel/contract-claims.json`, and assessment fixtures.
++- Verifier: canonical assessment validation, contract binding, evidence coverage normalization, ordered non-aliased strategy checks, and token-subset MUST coverage.
++- Assurance Graph: resolved canonical-input validation, replay assessment revalidation, stored-payload graph-id recomputation, and complete reconciliation comparison.
++- Tests and E2E coverage under `scripts/lib/**` and `scripts/k6b-verifier-assurance-graph-e2e.test.js`.
++- Roadmap and architecture status for the active remediation.
++
++## Migration and rollback
++
++No migration is attempted. Legacy `assessment/v1` records without `evidence_requirements_satisfied` fail closed and must be regenerated from canonical verifier inputs. Roll back schema, verifier, graph hardening, fixtures, tests, and temporary roadmap state together; `evidence/v2`, `verification/v2`, and K1 v1 remain unmodified.
++
++## Deviations and risks
++
++None from the approved design. The repository had a pre-existing `models.yaml` modification; it was preserved and is outside this change scope. The implementation delta is approximately 450 changed lines, below the 850–1,150 forecast, so no workload escalation occurred.
++
++## Batch 2 — 2026-08-27
++
++Delivery path remains the maintainer-approved `size:exception`. This focused remediation completes 4/4 verify-gap tasks (26/26 total) with persistent runtime tests only; no production source, schema, fixture, or contract file changed.
++
++| Task range | Status | Local verification | Result |
++| --- | --- | --- | --- |
++| 2.8 | [x] | `node --test scripts/lib/independent-verifier/assessment.test.js scripts/lib/assurance-graph/index.test.js` (21/21) | Assessment identity changes independently for `evidence_id` and `obligation_id`. |
++| 3.7 | [x] | Focused verifier/Assurance Graph suite (72/72) | Replay rejects malformed schema, invalid coverage, candidate/policy mismatch, missing evidence, unknown obligation, non-implementing node, and `node_id` mismatch with `GRAPH_DIVERGENCE`. |
++| 3.8 | [x] | Focused verifier/Assurance Graph suite (72/72) | Reconcile rejects tampered stored canonical inputs, candidate, kind, and schema after recomputing the stored graph id. |
++| 5.1 | [x] | `npm test` (exit 0); `git diff --check` | Full suite passed; no scoped implementation mismatch was exposed. |
++
++## Batch 2 deviations and risks
++
++None. The new tests exercised the existing fail-closed implementation without requiring a production-code correction. Pre-existing changes, including `models.yaml`, remain preserved and outside this batch.
+diff --git a/openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-001.md b/openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-001.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-001.md
+@@ -0,0 +1,23 @@
++# ADR-001: Persist token coverage on assessment/v1
++
++- Status: proposed
++- Change: k6b-semantic-integrity-remediation
++- Date: 2026-08-27
++
++## Context
++
++Existential evidence binding cannot prove `required_evidence` subset coverage. Coverage belongs to an evaluated evidence/role/obligation tuple, while `evidence/v2` and K1 contracts are frozen.
++
++## Decision
++
++Add required `evidence_requirements_satisfied` to `assessment/v1` as a unique, canonical string array. Include it in the `assessment_id` preimage and in assessment required claims. Omission fails schema validation.
++
++## Alternatives
++
++- Put tokens on `evidence/v2`: rejected; it mutates observation identity.
++- Keep coverage ephemeral: rejected; replay cannot validate it.
++- Publish `assessment/v2`: rejected; the accepted delta evolves the additive v1 family and requires no parallel family.
++
++## Consequences
++
++Old partial assessments fail closed and must be regenerated. Coverage tampering changes identity. Evidence, verification, and K1 schema bytes stay frozen; rollback is a unit revert.
+diff --git a/openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-002.md b/openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-002.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-002.md
+@@ -0,0 +1,23 @@
++# ADR-002: Ordered, non-aliased strategy evidence
++
++- Status: proposed
++- Change: k6b-semantic-integrity-remediation
++- Date: 2026-08-27
++
++## Context
++
++A Set of roles proves neither distinct observations nor temporal order. Adding timestamps to frozen `evidence/v2` would create a new clock contract.
++
++## Decision
++
++Evaluate normalized evidence in `rawEvidence` list order. Within the selected strategy, one EvidenceId may bind repeatedly to one role but not to distinct semantic roles. Require RED before GREEN for Strict TDD and RED before PATCH before GREEN for bug strategy.
++
++## Alternatives
++
++- Keep role-set evaluation: rejected; aliasing and reversed sequences pass.
++- Add persisted timestamps: rejected; mutates the frozen evidence family and introduces clock authority.
++- Infer order from digests: rejected; content hashes carry no chronology.
++
++## Consequences
++
++Callers must provide evidence in observed sequence and use distinct observations for distinct roles. Reordering becomes semantically observable but remains cheap to correct. Schema-only four-role fixtures remain valid; combined verifier use fails closed.
+diff --git a/openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-003.md b/openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-003.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-003.md
+@@ -0,0 +1,23 @@
++# ADR-003: Canonical integrity validation across graph operations
++
++- Status: proposed
++- Change: k6b-semantic-integrity-remediation
++- Date: 2026-08-27
++
++## Context
++
++The projector coalesces contradictory canonical inputs, replay trusts assessments, and reconcile compares only graph id plus edges. Direct callers can therefore bypass facade checks or hide stored-payload tampering.
++
++## Decision
++
++Share deterministic canonical-input and graph-id helpers. Project rejects contradictory or unresolved digests before hashing; replay schema-validates and recomputes every assessment plus graph binding; reconcile recomputes the stored payload identity and compares the complete canonical graph.
++
++## Alternatives
++
++- Harden only `verifyCandidate`: rejected; direct graph APIs remain permissive.
++- Compare graph id and edges only: rejected; nodes, subject, canonical inputs, and kind/schema remain unchecked.
++- Trust a recomputed assessment id alone: rejected; graph/evidence/obligation bindings still need validation.
++
++## Consequences
++
++Project, replay, and reconcile share one fail-closed identity model. Legacy incomplete payloads fail instead of being repaired silently. The change adds validation work but no dependency or migration.
+diff --git a/openspec/changes/k6b-semantic-integrity-remediation/design.md b/openspec/changes/k6b-semantic-integrity-remediation/design.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6b-semantic-integrity-remediation/design.md
+@@ -0,0 +1,147 @@
++# Design: k6b-semantic-integrity-remediation
++
++## Technical Approach
++
++Harden the existing CommonJS verifier and Assurance Graph pipeline in place. The change adds three ordered gates before a successful verdict: canonical contract binding, strategy semantics (non-aliased roles and temporal order), and token-level MUST coverage. Persisted `assessment/v1` records gain the required `evidence_requirements_satisfied` field; the sorted unique value participates in `assessment_id`. `evidence/v2`, `verification/v2`, and all K1 v1 bytes/pins remain unchanged.
++
++The Assurance Graph projector will validate resolved canonical inputs before hashing. Replay will schema-validate and recompute every assessment before projection. Reconcile will validate the entire stored payload and independently recompute its declared `graph_id`, rather than trusting `graph_id` plus edges.
++
++This confirms `sdd-propose-001` and `sdd-spec-001`: coverage stays on `assessment/v1`, the exact field is `evidence_requirements_satisfied`, and it is schema-required.
++
++## Architecture Decisions
++
++### Decision: Required canonical coverage on `assessment/v1` (ADR-001)
++
++**Choice**: Add required `evidence_requirements_satisfied` to `assessment/v1`; canonicalize it and include it in `assessment_id`.
++
++**Alternatives considered**: Mutating frozen `evidence/v2`; keeping coverage ephemeral; publishing a parallel assessment version.
++
++**Rationale**: Coverage belongs to an evidence/role/obligation binding. Persisting it makes partial coverage and tampering replay-verifiable, at the cost of regenerating old partial assessments.
++
++### Decision: Strategy role identity and order are evaluated before MUST coverage (ADR-002)
++
++**Choice**: Use normalized EvidenceIds and `rawEvidence` order. Distinct roles cannot share one id; `bug` requires RED* < PATCH* < GREEN* and `strict-tdd` RED* < GREEN*.
++
++**Alternatives considered**: A role Set, which loses identity/order; timestamps, which mutate frozen evidence and create clock authority; digest ordering, which has no chronology.
++
++**Rationale**: The existing input is ordered and repeated evidence for one role can remain valid. Strategy violations fail before the MUST walk.
++
++### Decision: One canonical integrity path for project, replay, and reconcile (ADR-003)
++
++**Choice**: Share canonical-input and graph-id helpers across project, replay, and reconcile.
++
++**Alternatives considered**: Hardening only `verifyCandidate`; retaining graph-id-plus-edges comparison; trusting recomputed assessment ids without graph binding checks.
++
++**Rationale**: Direct graph APIs are public. Project rejects bad digests, replay validates assessments, and reconcile recomputes and compares the complete stored payload.
++
++## Data Flow
++
++```text
++verifyCandidate
++  -> validateBindings
++       -> input.contract.contract_digest == executionGraph.contract_digest
++  -> normalize rawEvidence in caller-supplied list order
++       -> evidence/v2 (unchanged) + role/obligation/coverage binding metadata
++  -> evaluateStrategy
++       -> one EvidenceId cannot cover distinct strategy roles
++       -> bug: RED* < PATCH* < GREEN*; strict-tdd: RED* < GREEN*
++  -> walkMustObligations
++       -> union evidence_requirements_satisfied per obligation
++       -> required_evidence subset check
++       -> emit assessment/v1 for each contributing tuple
++  -> emit verification/v2
++  -> projectAssuranceGraph
++       -> validate canonical digests -> canonical nodes/edges -> graph_id
++```
++
++```text
++persisted candidate + graph + evidence + assessments + verification
++  -> replayAssuranceGraph
++       -> schema + assessment_id + candidate/policy/evidence/node/obligation checks
++       -> token-level MUST coverage check
++       -> projectAssuranceGraph
++  -> reconcileAssuranceGraph(stored, canonical input)
++       -> recompute stored graph_id from stored payload
++       -> compare full stored payload with current canonical projection
++       -> any mismatch: GRAPH_DIVERGENCE
++```
++
++All four resolved canonical values must be SHA-256 strings; supplied values must equal authoritative Graph/contract bindings. For coverage, the MUST walk intersects each binding's tokens with the obligation requirements, persists relevant sorted tokens, and checks their union. Missing tokens return `UNFULFILLED_MUST`; existing codes remain for unknown obligations, wrong nodes, and provenance failure.
++
++## File Changes
++
++| File | Action | Description |
++| --- | --- | --- |
++| `scripts/lib/independent-verifier/{bindings,evidence,strategy-policy}.js` | Modify | Contract gate; normalized coverage; role identity and sequence. |
++| `scripts/lib/independent-verifier/{assessment,obligation-coverage,index}.js` | Modify | Canonical assessment validation, token-subset walk, ordered facade gates. |
++| `scripts/lib/assurance-graph/{projector,index}.js` | Modify | Strict canonical inputs, assessment replay, full stored-graph reconciliation. |
++| `schemas/kernel/assessment/v1.schema.json` | Modify | Require closed-array field `evidence_requirements_satisfied`. |
++| `schemas/kernel/contract-claims.json` | Modify | Add the field to assessment required claims; leave manifest `$id` unchanged. |
++| `schemas/kernel/assessment/fixtures/{valid,invalid}/*.json` | Modify/Create | Complete/four-role coverage; verdict, cross-family, and missing-coverage failures. |
++| `scripts/lib/independent-verifier/*.test.js` | Modify | Identity, subset, aliasing, digest, and sequence adversaries. |
++| `scripts/lib/assurance-graph/index.test.js` | Modify | Input, assessment, replay, and stored-payload tampering. |
++| `scripts/lib/k6b-schema-fixtures.test.js` | Modify | Claims/fixtures and frozen-contract pins. |
++| `scripts/k6b-verifier-assurance-graph-e2e.test.js` | Modify | Complete verify/project/replay/reconcile path. |
++| `docs/architecture/harness-evolution.md` | Modify | Mark K6b `revise` and K6c blocked until remediation archive. |
++| `docs/roadmaps/harness-evolution.md` | Modify | Apply the same temporary dependency status at roadmap checkpoints. |
++
++## Interfaces / Contracts
++
++```javascript
++// Raw verifier binding metadata; evidence/v2 remains unchanged.
++{
++  role: "acceptance",
++  obligation_ids: ["req-repair-001"],
++  evidence_requirements_satisfied: ["ev:test-pass"],
++  bytes, origin, node_id
++}
++
++// ospec://schemas/kernel/assessment/v1
++{
++  schema_version: 1,
++  kind: "assessment/v1",
++  assessment_id,
++  evidence_id,
++  role,
++  obligation_id,
++  node_id,
++  candidate_id,
++  policy_snapshot_id,
++  evidence_requirements_satisfied: ["ev:test-pass"]
++}
++```
++
++`computeAssessmentId` fingerprints every field above except `assessment_id`, with coverage sorted and deduplicated first. The assessment schema remains `additionalProperties: false` and forbids `verdict`. Direct schema validation of four same-evidence role records remains valid; `verifyCandidate` rejects their combined semantic use because schema validity is not strategy admissibility.
++
++## Requirement Allocation
++
++| Requirement/scenarios | Component allocation |
++| --- | --- |
++| REQ-independent-verification-008 digest mismatch | `bindings.js` before `selectStrategy`; facade test proves no verdict. |
++| REQ-independent-verification-005 unknown obligation/wrong node/partial `[A,B]` coverage | `evidence.js` binding metadata + `obligation-coverage.js` subset walk. |
++| REQ-independent-verification-006 aliasing and order adversaries | `strategy-policy.js`; `assessment.js` retains distinct tuple identities. |
++| REQ-kernel-contract-schemas-027 complete/missing/cross-family/frozen pins | assessment schema/fixtures, contract claims, K6b schema fixture tests. |
++| REQ-assurance-graph-007 contradiction/null digest | `projector.js` canonical binding validator before graph-id construction. |
++| REQ-assurance-graph-006 tampered/schema/candidate/policy/evidence/obligation/node replay | `assessment.js` validator + `assurance-graph/index.js` replay preflight. |
++| REQ-assurance-graph-008 nodes/canonical inputs/candidate/kind/schema/stored-id divergence | stored-payload graph-id recomputation and full canonical comparison in `assurance-graph/index.js`. |
++
++## Testing Strategy
++
++| Layer | What to Test | Approach |
++| --- | --- | --- |
++| Unit | Contract digest gate | C1 graph/C2 contract returns before strategy and emits no PASS. |
++| Unit | Strategy semantics | Same id for distinct roles; GREEN before RED; RED after PATCH; valid ordered distinct ids. |
++| Unit | Coverage and assessment identity | `[A,B]` with A only fails; multiple bindings union to `[A,B]`; coverage mutation changes id. |
++| Contract | `assessment/v1` | Valid complete/four-role fixtures; omitted coverage, verdict, and cross-family fail; frozen pins unchanged. |
++| Unit | Projector | Contradictory provided/authoritative digests and null resolved digest return `GRAPH_DIVERGENCE`. |
++| Integration | Replay | Tamper schema, id, candidate, policy, evidence reference, obligation, node, or coverage and fail closed. |
++| Integration | Reconcile | Tamper nodes, canonical inputs, candidate, kind/schema, or stored graph id and return `GRAPH_DIVERGENCE`. |
++| E2E | Full K6b pipeline | Valid token-complete evidence verifies, projects twice deterministically, replays byte-identically, and rejects stored mutations. |
++
++## Migration / Rollout
++
++No data migration or feature flag. Existing partial `assessment/v1` payloads without coverage are intentionally invalid and must be regenerated from canonical verifier inputs; they are not upgraded in place. Apply schema, verifier, projector/replay/reconcile, fixtures, tests, and temporary roadmap status as one rollback unit. Archive may restore K6b `done` and K6c `next-eligible` only after verification. Frozen `evidence/v2`, `verification/v2`, and K1 baselines must remain byte-identical throughout.
++
++## Open Questions
++
++None.
+diff --git a/openspec/changes/k6b-semantic-integrity-remediation/proposal.md b/openspec/changes/k6b-semantic-integrity-remediation/proposal.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6b-semantic-integrity-remediation/proposal.md
+@@ -0,0 +1,73 @@
++# Proposal: k6b-semantic-integrity-remediation
++
++## Intent
++
++Cerrar seis defectos semánticos post-v2.51.0 (B1–B3, H1–H3) sin reabrir el macro-slice K6b ni iniciar K6c. Un Set de roles no equivale a evidencia no aliasable; `required_evidence.length > 0` no equivale a cobertura token a token; projector, replay y reconcile no fallan cerrados ante inputs contradictorios o payloads tampered.
++
++## Scope
++
++### In Scope
++- **B1 (corrección de REQ-006):** roles incompatibles MUST NOT compartir un EvidenceId; Strict TDD es RED → GREEN (no un Set); GREEN-before-RED y RED-after-PATCH fallan. `assessment_id` distintos por tupla `(evidence, role, obligation)`; la misma observación no satisface roles incompatibles.
++- **B2:** MUST-walk exige `required_evidence ⊆ evidence_requirements_satisfied` (como K4a). Persistir cobertura en assessment/binding (campo aditivo; nombre design-owned).
++- **B3:** Antes de strategy, `input.contract.contract_digest === executionGraph.contract_digest`; divergencia fail-closed.
++- **H1:** `projectAssuranceGraph` fail-closed si canonicalInputs contradicen Graph/contract/policy o si la preimage admite digests null.
++- **H2:** Replay revalida schema y recomputa `assessment_id`/`candidate_id`/`policy_snapshot_id`; evidencia, obligation, nodo implementador y `node_id`.
++- **H3:** Reconcile también nodes, canonical_inputs, candidate_id y kind/schema (o recompute `graph_id` del stored).
++- Tests adversariales. Docs: K6b `revise`; K6c `blocked-by-K6b-remediation` hasta archive.
++
++### Out of Scope
++- Macro-slice K6b; K6c/K6d/K7/K8; PKI; mutar `evidence/v2` o K1 v1; rediseñar K6b; provenance v2.51.0.
++
++## Capabilities
++
++### New Capabilities
++- None.
++
++### Modified Capabilities
++- `independent-verification`: REQ-006 deja de exigir relabeling de cuatro roles sobre el mismo EvidenceId; cobertura token a token; gate de digests contract ↔ Execution Graph antes de strategy.
++- `assurance-graph`: projector, replay y reconcile fail-closed (H1–H3).
++- `kernel-contract-schemas`: campo aditivo de cobertura en assessment/binding; pins `evidence/v2`, `verification/v2` y K1 v1 intactos.
++
++## Approach
++
++Corregir spec y runtime juntos. Strategy exige EvidenceIds distintos para roles incompatibles y orden temporal Strict TDD. MUST-walk consume cada token y persiste refs aditivas. Gate previo a strategy iguala contract digests. El projector público rechaza canonicalInputs contradictorios y preimages con digest null. Replay revalida assessments; reconcile compara el stored payload (o su `graph_id` recompute). Schema solo aditivo.
++
++## Affected Areas
++
++| Area | Impact | Description |
++|------|--------|-------------|
++| `scripts/lib/independent-verifier/` | Modified | B1–B3 + invertir REQ-006 |
++| `scripts/lib/assurance-graph/` | Modified | H1–H3 |
++| `schemas/kernel/assessment/` | Modified (additive) | Coverage field + fixtures |
++| `openspec/specs/{independent-verification,assurance-graph,kernel-contract-schemas}/` | Modified | Deltas |
++| `docs/{architecture,roadmaps}/harness-evolution.md` | Modified | K6b revise; K6c blocked |
++
++## Risks
++
++| Risk | Likelihood | Mitigation |
++|------|------------|------------|
++| Tests/spec v2.51.0 exigen aliasing de cuatro roles | High | Corrección conjunta spec+test+runtime |
++| Campo aditivo leído como mutación de `evidence/v2` | Med | Familia assessment/binding; pins byte-identical |
++| Docs dejan K6c `next-eligible` | Med | Roadmap en este change |
++
++## Rollback Plan
++
++Revertir runtime, schema aditivo, tests y docs como unidad. Conservar `evidence/v2`, `verification/v2` y pins K1. No migrar assessments parciales. K6b queda `revise` y K6c bloqueado hasta archive conforme.
++
++## Dependencies
++
++- Integridad K6b v2.51.0 (`2026-08-27-k6b-verification-integrity-remediation`); Obligation Manifest K4a; schemas `assessment/v1`, `evidence/v2`, `assurance-graph/v1`. Delivery: `exception-ok`.
++
++## Success Criteria
++
++- [ ] Mismo EvidenceId como RED+GREEN ⇒ FAIL.
++- [ ] GREEN before RED ⇒ FAIL.
++- [ ] RED after PATCH ⇒ FAIL.
++- [ ] `required_evidence = [A,B]` y solo A ⇒ FAIL.
++- [ ] Graph.contract=C1 y input.contract=C2 ⇒ FAIL.
++- [ ] Graph=C1 y canonicalInputs=C2 ⇒ `GRAPH_DIVERGENCE`.
++- [ ] `assessment_id` tampered ⇒ `GRAPH_DIVERGENCE` / invalid assessment.
++- [ ] Stored nodes tampered ⇒ `GRAPH_DIVERGENCE`.
++- [ ] Roadmap: K6b `revise`; K6c `blocked-by-K6b-remediation` hasta archive.
++
++> **Branch advisory:** Before `sdd-apply` begins, a feature branch SHOULD be created following the `<tipo>/<descripción>` convention defined in the `branch-pr` skill (e.g. `git checkout -b feat/my-change main`). This note is SHOULD, not MUST — omit it from `status: blocked` envelopes.
+diff --git a/openspec/changes/k6b-semantic-integrity-remediation/specs/assurance-graph/spec.md b/openspec/changes/k6b-semantic-integrity-remediation/specs/assurance-graph/spec.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6b-semantic-integrity-remediation/specs/assurance-graph/spec.md
+@@ -0,0 +1,95 @@
++# Delta for Assurance Graph
++
++## ADDED Requirements
++
++### Requirement: Projector Fail-Closed On Contradictory Canonical Inputs {#REQ-assurance-graph-007}
++
++`projectAssuranceGraph` MUST fail closed with `GRAPH_DIVERGENCE` when supplied
++`canonicalInputs` contradict the Graph, contract, or policy they claim to
++project. Required canonical input digests MUST be present and non-null. The
++projector MUST NOT fingerprint a null or absent digest for any required
++canonical input in the `graph_id` preimage. Contradiction or a null required
++digest MUST NOT yield a successful projection.
++
++#### Scenario: Graph contract contradicts canonicalInputs
++
++- GIVEN an Execution Graph whose contract digest is C1
++- AND `canonicalInputs` whose contract digest is C2, where C1 ≠ C2
++- WHEN `projectAssuranceGraph` runs
++- THEN projection MUST fail closed with `GRAPH_DIVERGENCE`
++- AND MUST NOT emit a graph whose `graph_id` fingerprints the contradictory pair
++
++#### Scenario: Null required canonical digest is not fingerprinted
++
++- GIVEN a required canonical input whose digest is null or absent
++- WHEN `projectAssuranceGraph` runs
++- THEN projection MUST fail closed
++- AND MUST NOT produce a `graph_id` that fingerprints a null digest for that input
++
++### Requirement: Reconcile Stored Payload Divergence {#REQ-assurance-graph-008}
++
++`reconcileAssuranceGraph` MUST detect stored-graph divergence beyond equality
++of `graph_id` and edges. It MUST fail closed with `GRAPH_DIVERGENCE` when
++stored `nodes`, `canonical_inputs`, `candidate_id`, or kind/schema diverge
++from the recomputed projection, or when `graph_id` recomputed from the stored
++payload does not match the stored `graph_id`. Comparing only stored
++`graph_id` plus edges MUST NOT be sufficient to declare reconciliation OK.
++
++#### Scenario: Tampered stored nodes fail closed
++
++- GIVEN a stored Assurance Graph whose `graph_id` and edges match a recomputation
++- AND whose persistable `nodes` have been altered
++- WHEN `reconcileAssuranceGraph` runs
++- THEN validation MUST fail closed with `GRAPH_DIVERGENCE`
++
++#### Scenario: Stored payload or identity fields diverge
++
++- GIVEN a stored Assurance Graph whose `candidate_id`, persistable `canonical_inputs`, or kind/schema differ from the current projection, or whose declared `graph_id` does not equal the digest recomputed from its stored payload
++- WHEN `reconcileAssuranceGraph` runs
++- THEN validation MUST fail closed with `GRAPH_DIVERGENCE`
++
++## MODIFIED Requirements
++
++### Requirement: Replay From Persistable Outputs {#REQ-assurance-graph-006}
++
++The Assurance Graph MUST be reproducible from persistable outputs: canonical
++input digests, projected nodes and edges, evidence records, verification
++records, and assessment/binding records that carry `obligation_id`. Replay
++MUST NOT require ephemeral projector fields. Consumers MUST NOT reinvent
++`obligation_id` values from vanished fields. `satisfies` edges MUST be
++rebuildable from persistable assessments. `replayAssuranceGraph` MUST
++revalidate each persisted assessment before accepting the replay: schema
++validity; recomputed assessment identity; `candidate_id` match; bound
++policy-snapshot identity; referenced evidence exists; `obligation_id` is in
++the graph; the bound node implements that obligation; and persistable
++`node_id` matches the evidence record. Any check failure MUST fail closed
++with `GRAPH_DIVERGENCE` or as an invalid assessment. A tampered
++`assessment_id` MUST NOT replay as valid.
++(Previously: replay compared recomputed graph_id and edges without revalidating persisted assessments.)
++
++#### Scenario: Replay from persisted outputs yields the same graph
++
++- GIVEN a previously projected graph plus persisted evidence, verification, assessments, and canonical input digests
++- AND no ephemeral `obligation_ids` on the original projector call
++- AND every persisted assessment passes revalidation
++- WHEN the graph is replayed from those persistable outputs only
++- THEN the recomputed `graph_id` and edge set MUST be byte-identical to the stored graph
++
++#### Scenario: Tampered assessment_id fails replay
++
++- GIVEN persisted assessments plus a stored graph that would otherwise replay
++- AND one assessment whose `assessment_id` does not match the identity recomputed from its persistable fields
++- WHEN `replayAssuranceGraph` runs
++- THEN replay MUST fail closed with `GRAPH_DIVERGENCE` or as an invalid assessment
++
++#### Scenario: Assessment fails schema, candidate, or policy revalidation
++
++- GIVEN a persisted assessment that fails schema validation, whose `candidate_id` does not match the graph subject, or whose bound policy-snapshot identity does not match the graph
++- WHEN `replayAssuranceGraph` runs
++- THEN replay MUST fail closed with `GRAPH_DIVERGENCE` or as an invalid assessment
++
++#### Scenario: Assessment bound to missing evidence or non-implementing node fails replay
++
++- GIVEN a persisted assessment whose `evidence_id` does not exist, whose `obligation_id` is absent from the graph, whose node does not implement that obligation, or whose `node_id` disagrees with the evidence record
++- WHEN `replayAssuranceGraph` runs
++- THEN replay MUST fail closed with `GRAPH_DIVERGENCE` or as an invalid assessment
+diff --git a/openspec/changes/k6b-semantic-integrity-remediation/specs/independent-verification/spec.md b/openspec/changes/k6b-semantic-integrity-remediation/specs/independent-verification/spec.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6b-semantic-integrity-remediation/specs/independent-verification/spec.md
+@@ -0,0 +1,115 @@
++# Delta for Independent Verification
++
++## ADDED Requirements
++
++### Requirement: Contract Digest Gate Before Strategy {#REQ-independent-verification-008}
++
++Before strategy evaluation, `input.contract.contract_digest` MUST equal
++`executionGraph.contract_digest`. Mismatch MUST fail closed and MUST NOT
++proceed to strategy evaluation.
++
++#### Scenario: Contract digest mismatch with Execution Graph fails closed before strategy
++
++- GIVEN a frozen Candidate whose `input.contract.contract_digest` is C2
++- AND an Execution Graph whose `contract_digest` is C1, where C1 ≠ C2
++- WHEN the verifier validates canonical bindings
++- THEN verification MUST fail closed before strategy evaluation
++- AND MUST NOT emit `PASS` or `PASS WITH WARNINGS`
++
++## MODIFIED Requirements
++
++### Requirement: Obligation Manifest MUST Coverage {#REQ-independent-verification-005}
++
++After strategy evaluation, the verifier MUST walk every Obligation Manifest
++item with criticality `must` that is not an approved `deferred` record
++(`reason` and `approved_by`). For each such obligation, a `PASS` or
++`PASS WITH WARNINGS` verdict MUST require `required_evidence` ⊆ persistable
++satisfied tokens, each persistably bound to that `obligation_id` and to a
++`node_id` listed in `implemented_by`. Coverage MUST be persisted on the
++assessment/binding record (additive field; exact name design-owned). A
++non-empty evidence list, unique-sort of `evidence_ids`, or existential
++binding MUST NOT substitute for that subset. Strategy role shape alone MUST
++NOT satisfy the graph. An `obligation_id` absent from the manifest MUST fail
++closed. Evidence bound to a node that does not implement the obligation MUST
++fail closed. A MUST whose `required_evidence` is not a subset of satisfied
++tokens MUST fail closed and MUST identify the unfulfilled `obligation_id`.
++The verifier MUST consume persistable manifest `obligation_id` values; it
++MUST NOT invent them from vanished fields.
++(Previously: coverage required admissible evidence "covering" required_evidence without subset semantics or persistable satisfied tokens.)
++
++#### Scenario: MUST without admissible evidence fails closed
++
++- GIVEN a compiled Execution Graph with a non-deferred MUST obligation
++- AND strategy role minimums met
++- AND no admissible evidence persistably bound to that `obligation_id`
++- WHEN the verifier evaluates obligation coverage
++- THEN it MUST fail closed identifying that `obligation_id`
++- AND MUST NOT emit `PASS` or `PASS WITH WARNINGS`
++
++#### Scenario: Nonexistent obligation_id fails closed
++
++- GIVEN an assessment or raw binding whose `obligation_id` is not in the Obligation Manifest
++- WHEN the verifier evaluates obligation coverage
++- THEN it MUST fail closed identifying the unknown `obligation_id`
++- AND MUST NOT emit `PASS` or `PASS WITH WARNINGS`
++
++#### Scenario: Evidence bound to the wrong implementing node fails closed
++
++- GIVEN a MUST obligation with `implemented_by` containing node A
++- AND admissible evidence whose persistable `node_id` is B, where B is not in `implemented_by`
++- WHEN the verifier evaluates that binding
++- THEN it MUST fail closed
++- AND MUST NOT treat the evidence as satisfying that obligation
++
++#### Scenario: Partial required_evidence coverage fails closed
++
++- GIVEN a non-deferred MUST obligation with `required_evidence` equal to `[A, B]`
++- AND admissible evidence that satisfies only token A
++- WHEN the verifier evaluates obligation coverage
++- THEN it MUST fail closed identifying that `obligation_id`
++- AND MUST NOT emit `PASS` or `PASS WITH WARNINGS`
++
++### Requirement: Persistable Assessment Binding Distinct From Evidence {#REQ-independent-verification-006}
++
++The verifier MUST persist an additive assessment/binding record for each
++evaluated tuple of `evidence_id`, `role`, `obligation_id`, `node_id`, and bound
++policy-snapshot identity. Assessment identity MUST include `role` and
++`obligation_id` and MUST be distinct per `(evidence_id, role, obligation_id)`.
++`evidence/v2` MUST remain the observation record and MUST NOT be mutated to
++carry `role` or `obligation_id`. Incompatible strategy roles MUST NOT share
++one EvidenceId. The same observation MUST NOT satisfy incompatible roles.
++Strict TDD evidence is a RED → GREEN sequence, not a set of role labels:
++GREEN-before-RED MUST fail closed, and RED-after-PATCH MUST fail closed.
++Unique-sort of `verification.evidence_ids` MUST NOT be the assessment identity
++and MUST NOT hide distinct role or obligation bindings.
++(Previously: the same EvidenceId used as four roles was required to yield four passing assessments.)
++
++#### Scenario: Same EvidenceId as RED and GREEN fails closed
++
++- GIVEN one `evidence/v2` observation whose `evidence_id` is E
++- AND that observation is bound as both RED and GREEN strategy roles
++- WHEN the verifier evaluates strategy evidence
++- THEN verification MUST fail closed
++- AND MUST NOT treat E as satisfying both roles
++
++#### Scenario: GREEN before RED fails closed
++
++- GIVEN Strict TDD or bug-strategy evidence whose GREEN observation precedes RED
++- WHEN the verifier evaluates strategy evidence
++- THEN verification MUST fail closed
++- AND MUST NOT emit `PASS` or `PASS WITH WARNINGS`
++
++#### Scenario: RED after PATCH fails closed
++
++- GIVEN Strict TDD or bug-strategy evidence whose RED observation occurs after PATCH
++- WHEN the verifier evaluates strategy evidence
++- THEN verification MUST fail closed
++- AND MUST NOT emit `PASS` or `PASS WITH WARNINGS`
++
++#### Scenario: Distinct tuples yield distinct assessment identities
++
++- GIVEN two persistable tuples that differ in `evidence_id`, `role`, or `obligation_id`
++- AND neither tuple shares one EvidenceId across incompatible roles
++- WHEN assessments are persisted
++- THEN their assessment identities MUST be distinct
++- AND unique-sort of `verification.evidence_ids` MUST NOT collapse those assessments
+diff --git a/openspec/changes/k6b-semantic-integrity-remediation/specs/kernel-contract-schemas/spec.md b/openspec/changes/k6b-semantic-integrity-remediation/specs/kernel-contract-schemas/spec.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6b-semantic-integrity-remediation/specs/kernel-contract-schemas/spec.md
+@@ -0,0 +1,51 @@
++# Delta for kernel-contract-schemas
++
++## MODIFIED Requirements
++
++### Requirement: Additive Assessment Binding Family Distinct From Evidence And Verification {#REQ-kernel-contract-schemas-027}
++
++The suite MUST publish an additive assessment/binding schema family with a
++distinct `$id` and explicit `schema_version`. Exact `$id` is design-owned.
++Required persistable fields: assessment identity, `evidence_id`, `role`,
++`obligation_id`, `node_id`, `candidate_id` (`^sha256:[a-f0-9]{64}$`), bound
++policy-snapshot identity, and an additive coverage field recording the
++satisfied `required_evidence` tokens (exact field name design-owned).
++Assessment identity MUST incorporate `role` and `obligation_id`. The schema
++MUST enforce `additionalProperties: false` and MUST NOT include `verdict`.
++The family MUST NOT validate as `evidence/v2` or `verification/v2`.
++`evidence/v2`, `verification/v2`, and K1 v1 schema bytes and
++`K1_SCHEMA_BASELINE` pins MUST remain byte-identical. Valid and invalid
++fixtures MUST cover a complete binding including coverage, missing required
++fields, omitted coverage, and cross-family substitution.
++(Previously: assessment/binding required identity fields but no persistable coverage of satisfied required_evidence tokens.)
++
++#### Scenario: Valid assessment fixture passes
++
++- GIVEN a complete assessment/binding payload with role, obligation_id, node_id, evidence_id, policy-snapshot identity, and the additive coverage field
++- WHEN validated against the assessment/binding schema
++- THEN validation MUST succeed
++
++#### Scenario: Cross-family substitution and verdict fail closed
++
++- GIVEN an assessment payload validated as evidence/v2 or verification/v2, or an assessment payload that includes `verdict`
++- WHEN schema validation runs
++- THEN validation MUST fail closed identifying kind or required-field mismatch
++
++#### Scenario: Four-role assessments remain distinct under the schema
++
++- GIVEN four assessment payloads that share one `evidence_id` and differ only by `role`
++- WHEN each is validated and identities are compared
++- THEN all four MUST be schema-valid
++- AND their assessment identities MUST be pairwise distinct
++
++#### Scenario: Assessment fixture without coverage field fails closed
++
++- GIVEN an assessment/binding payload that omits the additive coverage field
++- WHEN validated against the assessment/binding schema
++- THEN validation MUST fail closed identifying the missing coverage field
++
++#### Scenario: Evidence v2, verification v2, and K1 v1 pins remain frozen
++
++- GIVEN `evidence/v2.schema.json`, `verification/v2.schema.json`, K1 v1 schemas, and `K1_SCHEMA_BASELINE`
++- WHEN verified after the additive coverage field is present on assessment/binding
++- THEN those schema and fixture bytes and K1 pins MUST remain byte-identical
+diff --git a/openspec/changes/k6b-semantic-integrity-remediation/state.yaml b/openspec/changes/k6b-semantic-integrity-remediation/state.yaml
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6b-semantic-integrity-remediation/state.yaml
+@@ -0,0 +1,170 @@
++change: "k6b-semantic-integrity-remediation"
++status: "verified"
++last_updated: "2026-08-27T21:49:15Z"
++classification: high-risk
++blocking_questions: []
++phases:
++  proposal:
++    status: done
++    artifact: "openspec/changes/k6b-semantic-integrity-remediation/proposal.md"
++    summary: "Focal B1–B3/H1–H3: REQ-006 aliasing, required_evidence subset, digest gate, projector/replay/reconcile fail-closed."
++    key_decisions:
++      - "REQ-006 is a spec correction: incompatible roles MUST NOT share one EvidenceId"
++      - "Coverage field is additive on assessment/binding; evidence/v2 and K1 v1 stay frozen"
++      - "Harden projectAssuranceGraph itself, not only verifyCandidate"
++  spec:
++    status: done
++    contract_remediation: resolved
++    artifacts:
++      - "openspec/changes/k6b-semantic-integrity-remediation/specs/independent-verification/spec.md"
++      - "openspec/changes/k6b-semantic-integrity-remediation/specs/assurance-graph/spec.md"
++      - "openspec/changes/k6b-semantic-integrity-remediation/specs/kernel-contract-schemas/spec.md"
++    summary: "Deltas B1–B3/H1–H3: invert REQ-006 aliasing; subset coverage; digest gate; projector/replay/reconcile fail-closed."
++    key_decisions:
++      - "REQ-006 inverted: incompatible roles MUST NOT share one EvidenceId; distinct ids per tuple remain"
++      - "Coverage field additive on assessment/binding; name design-owned; evidence/v2 and K1 v1 frozen"
++      - "H1–H3 bind projectAssuranceGraph, replayAssuranceGraph, and reconcileAssuranceGraph"
++  clarify:
++    status: skipped
++    rationale: "Validated sdd-spec signals reported residual_ambiguity=false with empty public_contract_questions, conflicting_requirements, and missing_acceptance_criteria arrays."
++  design:
++    status: done
++    artifact: "openspec/changes/k6b-semantic-integrity-remediation/design.md"
++    summary: "Token coverage on assessment/v1; ordered non-aliased roles; projector/replay/reconcile full fail-closed integrity."
++    key_decisions:
++      - "Require evidence_requirements_satisfied and include canonical coverage in assessment_id"
++      - "Use rawEvidence order and reject one EvidenceId across distinct strategy roles"
++      - "Validate canonical inputs, persisted assessments, and complete stored graph payloads"
++  tasks:
++    status: ready-for-apply
++    artifact: "openspec/changes/k6b-semantic-integrity-remediation/tasks.md"
++    summary: "Backlog TDD en cinco fases y 26 tareas: 22 históricas preservadas y 4 tareas de remediación runtime pendientes; delta estimado 120–220 líneas, total 970–1,370 con size-exception."
++    key_decisions:
++      - "Delivery strategy exception-ok; chain strategy size-exception"
++      - "Unidades ordenadas: contrato, verifier, Assurance Graph, integración/documentación"
++      - "Remediación focal: tareas 2.8, 3.7, 3.8 y 5.1 añaden únicamente evidencia runtime para los tres hallazgos tasks-gap"
++  apply:
++    status: done
++    artifact: "openspec/changes/k6b-semantic-integrity-remediation/apply-progress.md"
++    summary: "26/26 tareas verificadas: identidad de assessment y matrices runtime de replay/reconcile; sin cambio de producción."
++    key_decisions:
++      - "Legacy assessment/v1 sin cobertura requerida falla cerrada y se regenera; no hay migración"
++      - "models.yaml preexistente se preservó fuera de scope"
++      - "Las mutaciones de replay/reconcile recalculan identidades almacenadas para probar las ramas semánticas"
++  verify:
++    status: done
++    artifact: "openspec/changes/k6b-semantic-integrity-remediation/verify-report.md"
++    summary: "PASS: 22/22 MUST scenarios at runtime-test; 26/26 tasks evidenced; focused 82/82 and npm test 2762 pass, 0 fail."
++    key_decisions:
++      - "Prior tasks-gap branches now have persistent runtime matrices (2.8, 3.7, 3.8)"
++      - "Focused 82/82 and full npm test pass; frozen evidence/v2, verification/v2, K1 v1 intact"
++      - "Assumptions sdd-propose-001 and sdd-spec-001 remain confirmed"
++  archive:
++    status: pending
++    artifact: "openspec/changes/k6b-semantic-integrity-remediation/archive-report.md"
++
++owner:
++  author: Manuel Retamozo
++  branch: fix/k6b-verification-integrity-remediation
++
++route:
++  intended_route: standard
++  actual_route: standard
++  route_rationale: "First match: foundation/federated/bugfix/brownfield/refactor/hotfix conditions not met; project.status=active and classification=high-risk select standard (sdd-propose → sdd-spec → sdd-design → sdd-tasks → sdd-apply → sdd-verify → sdd-archive; gates: clarify, 4r-review-gate)."
++  validated: true
++  validation_errors: []
++
++approvals:
++  - id: intent-briefing-001
++    gate: intent-briefing
++    decision: accepted
++    source: vscode/askQuestions
++    accepted_at: "2026-08-27T20:09:00Z"
++    synthesis: "Remediación focal post-v2.51.0 sobre verifier y Assurance Graph: roles incompatibles no pueden compartir EvidenceId; Strict TDD exige secuencia RED → GREEN (no un Set de etiquetas); cada token de required_evidence queda cubierto y persistido; input.contract.contract_digest === executionGraph.contract_digest antes de strategy; projector, replay y reconcile fallan cerrados ante inputs contradictorios, assessments tampered o stored graphs incompletos. Roadmap: K6b revise, K6c blocked. Fuera de alcance: K6c/K6d/K7/K8, PKI, rediseñar el macro-slice, mutar evidence/v2 o K1 v1 in-place."
++    scope: "In: integrity semántica de strategy (no aliasing de EvidenceId entre roles incompatibles; orden RED→GREEN / before→after); cobertura token a token de required_evidence persistida en el assessment/binding; binding contract_digest ↔ Execution Graph; projector fail-closed ante canonicalInputs contradictorios o digests ausentes; revalidación de assessments en replay; reconciliación completa del stored graph (nodes, edges, canonical inputs, candidate, kind/schema); tests adversariales; corrección de REQ-006; docs K6b revise / K6c blocked. Out: K6c challenges, K6d complexity, K7 review, K8 attestation, PKI, rediseño del macro-slice K6b, mutación in-place de evidence/v2 o contratos K1 v1."
++    applies_to:
++      - change-classification
++  - id: execution-mode-001
++    gate: execution-mode
++    decision: interactive
++    source: vscode/askQuestions
++    accepted_at: "2026-08-27T20:26:00Z"
++    applies_to:
++      - sdd-propose
++      - sdd-spec
++      - sdd-design
++      - sdd-tasks
++      - sdd-apply
++      - sdd-verify
++      - sdd-archive
++  - id: delivery-strategy-001
++    gate: delivery-strategy
++    decision: exception-ok
++    source: vscode/askQuestions
++    accepted_at: "2026-08-27T20:26:00Z"
++    applies_to:
++      - sdd-tasks
++      - sdd-apply
++  - id: architecture-001
++    gate: architecture
++    decision: continue-to-sdd-design
++    source: vscode/askQuestions
++    accepted_at: "2026-08-27T20:48:37Z"
++    applies_to:
++      - sdd-design
++  - id: architecture-002
++    gate: architecture
++    decision: continue-to-sdd-tasks
++    source: vscode/askQuestions
++    accepted_at: "2026-08-27T20:56:40Z"
++    applies_to:
++      - sdd-tasks
++  - id: review-workload-001
++    gate: review-workload
++    decision: apply-with-size-exception
++    source: vscode/askQuestions
++    accepted_at: "2026-08-27T21:00:34Z"
++    applies_to:
++      - sdd-apply
++  - id: testing-001
++    gate: testing
++    decision: continue-to-sdd-verify
++    source: vscode/askQuestions
++    accepted_at: "2026-08-27T21:20:56Z"
++    applies_to:
++      - sdd-verify
++  - id: testing-002
++    gate: testing
++    decision: remediate-verify-tasks-gap
++    source: vscode/askQuestions
++    accepted_at: "2026-08-27T21:31:36Z"
++    applies_to:
++      - sdd-tasks
++  - id: review-workload-002
++    gate: review-workload
++    decision: apply-remediation-with-size-exception
++    source: vscode/askQuestions
++    accepted_at: "2026-08-27T21:35:06Z"
++    applies_to:
++      - sdd-apply
++
++assumptions:
++  - id: sdd-propose-001
++    phase: sdd-propose
++    statement: "The persistable coverage field on assessment/binding is additive and design-owned (working name required_evidence_ref); evidence/v2 and K1 v1 stay frozen."
++    reversibility: high
++    basis: "User intent named required_evidence_ref as an example; predecessor treated assessment schema $id as design-owned; kernel-contract-schemas-027 already owns the additive family."
++    recorded_at: "2026-08-27T20:28:00Z"
++    status: confirmed
++  - id: sdd-spec-001
++    phase: sdd-spec
++    statement: "The additive coverage field on assessment/binding is schema-required; omitting it MUST fail validation."
++    reversibility: high
++    basis: "Proposal requires persisted coverage on assessment/binding; exact field name remains design-owned."
++    recorded_at: "2026-08-27T20:40:00Z"
++    status: confirmed
++
++baseline_fingerprints:
++  independent-verification: "sha256:3207ce8b5b280472b9b505378cf91df22b1ae22e007adb9dbf8a173405c5b0a0"
++  assurance-graph: "sha256:81f10f2046ae5519aead34f0f945275e99bfefbc03f9a898d80ce8bcbc437f56"
++  kernel-contract-schemas: "sha256:0f6c1f85aaff2f9b7a60320a66830bbc23feeb01a29ce4e6a8ef8f5d59ef4cec"
+diff --git a/openspec/changes/k6b-semantic-integrity-remediation/tasks.md b/openspec/changes/k6b-semantic-integrity-remediation/tasks.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6b-semantic-integrity-remediation/tasks.md
+@@ -0,0 +1,91 @@
++# Tasks: k6b Semantic Integrity Remediation
++
++## Spec/Design Reconciliation
++
++| Requirement / Scenario | Priority | Design Allocation | Status | Notes |
++|---|---|---|---|---|
++| REQ-independent-verification-008 / contract digest mismatch | MUST | `scripts/lib/independent-verifier/bindings.js`, ordered facade in `index.js`; adversarial verifier test | covered-by-design | Gate runs before strategy and emits no verdict. |
++| REQ-independent-verification-005 / MUST token subset, unknown obligation, wrong node, partial coverage | MUST | `evidence.js`, `obligation-coverage.js`, `assessment.js`; coverage tests | covered-by-design | `required_evidence` is checked against sorted persisted satisfied tokens per binding. |
++| REQ-independent-verification-006 / distinct assessment bindings, no role aliasing, temporal order | MUST | `strategy-policy.js`, `assessment.js`, facade; strategy/identity tests | covered-by-design | Raw evidence order is authoritative; evidence/v2 remains unchanged. |
++| REQ-kernel-contract-schemas-027 / additive schema, coverage, closed family, frozen pins | MUST | `schemas/kernel/assessment/v1.schema.json`, `contract-claims.json`, fixtures and schema tests | covered-by-design | Includes complete, omitted-field, verdict/cross-family, four-role and pin checks. |
++| REQ-assurance-graph-007 / contradictory or null canonical inputs | MUST | `scripts/lib/assurance-graph/projector.js`; projector tests | covered-by-design | Required SHA-256 digests are validated before graph-id construction. |
++| REQ-assurance-graph-006 / replay assessment revalidation | MUST | `assessment.js`, `scripts/lib/assurance-graph/index.js`; replay integration tests | covered-by-design | Revalidates schema, identity, candidate/policy, evidence, obligation and node bindings. |
++| REQ-assurance-graph-008 / complete stored-payload reconciliation | MUST | `scripts/lib/assurance-graph/index.js`; reconcile tamper tests | covered-by-design | Recomputes stored graph id and compares nodes, canonical inputs and identity fields. |
++
++### Reconciliation Verdict
++- MUST coverage: complete
++- SHOULD/MAY gaps: none
++- Ambiguities to track: none
++
++## Review Workload Forecast
++
++| Field | Value |
++|---|---|
++| Estimated changed lines | 970–1,370 (incremental remediation: 120–220) |
++| 400-line budget risk | High |
++| Chained PRs recommended | Yes |
++| Suggested split | Single maintainer-approved PR with explicit `size:exception`; implement in dependency-ordered work units. |
++| Delivery strategy | exception-ok |
++| Chain strategy | size-exception |
++
++Decision needed before apply: No
++Chained PRs recommended: Yes
++Chain strategy: size-exception
++400-line budget risk: High
++
++## Suggested Work Units
++
++| Unit | Goal | Likely PR | Notes |
++|---|---|---|---|
++| 1 | Extend assessment contract and canonical identity | PR 1 (size exception) | Schema, claims, assessment id/validation, fixtures; verify frozen pins. |
++| 2 | Enforce verifier binding, strategy order and MUST token coverage | PR 1 (size exception) | RED tests first, then implementation and refactor; depends on Unit 1. |
++| 3 | Harden projector, replay and reconcile | PR 1 (size exception) | Canonical-input validation and full stored-payload checks; depends on Units 1–2. |
++| 4 | Integrate adversarial/e2e tests and roadmap status | PR 1 (size exception) | Run full `npm test`; docs remain within K6b scope. |
++| 5 | Close verify evidence gaps with persistent runtime tests | PR 1 (size exception) | Depends on existing verifier and Assurance Graph behavior; no production-code or contract changes. |
++
++## Checklist Status Legend
++
++- `[ ]` Not implemented yet
++- `[~]` Implemented but not yet verified locally
++- `[x]` Implemented and verified locally
++
++## Phase 1: Assessment Contract and Fixtures
++
++- [x] 1.1 Update `schemas/kernel/assessment/v1.schema.json` with required closed-array `evidence_requirements_satisfied`, preserving `additionalProperties: false` and excluding `verdict` [REQ-kernel-contract-schemas-027]
++- [x] 1.2 Add the additive assessment claim to `schemas/kernel/contract-claims.json` without changing its manifest `$id` or frozen K1 claims [REQ-kernel-contract-schemas-027]
++- [x] 1.3 Update/create `schemas/kernel/assessment/fixtures/valid/*.json` and `invalid/*.json` for complete coverage, omitted coverage, verdict/cross-family substitution, and four distinct roles [REQ-kernel-contract-schemas-027]
++- [x] 1.4 Write RED tests in `scripts/lib/k6b-schema-fixtures.test.js` for schema identity, required coverage, pairwise assessment ids, and unchanged evidence/v2, verification/v2, and K1 pins [REQ-kernel-contract-schemas-027]
++- [x] 1.5 Implement canonical assessment validation and `computeAssessmentId` coverage sorting/deduplication in `scripts/lib/independent-verifier/assessment.js`; GREEN then REFACTOR the tests from 1.4 [REQ-independent-verification-006, REQ-kernel-contract-schemas-027]
++
++## Phase 2: Verifier Semantics and Coverage
++
++- [x] 2.1 Add RED tests to `scripts/lib/independent-verifier/*.test.js` proving contract C1/C2 mismatch fails before strategy and produces no PASS [REQ-independent-verification-008]
++- [x] 2.2 Implement the canonical contract binding gate in `scripts/lib/independent-verifier/bindings.js` and ordered facade in `scripts/lib/independent-verifier/index.js`; GREEN and REFACTOR [REQ-independent-verification-008]
++- [x] 2.3 Add RED tests for same EvidenceId across incompatible roles, GREEN-before-RED, RED-after-PATCH, and valid ordered distinct ids [REQ-independent-verification-006]
++- [x] 2.4 Implement normalized role identity and temporal policy in `scripts/lib/independent-verifier/strategy-policy.js`, retaining rawEvidence order; GREEN and REFACTOR [REQ-independent-verification-006]
++- [x] 2.5 Add RED tests for unknown obligations, non-implementing nodes, no evidence, and `[A,B]` with only A satisfied [REQ-independent-verification-005]
++- [x] 2.6 Implement binding coverage normalization in `scripts/lib/independent-verifier/evidence.js` and token-subset MUST walk in `obligation-coverage.js`; persist coverage per assessment and GREEN/REFACTOR [REQ-independent-verification-005]
++- [x] 2.7 Update the verifier facade tests to prove gate order (bindings → strategy → MUST walk), distinct tuple assessments, and unchanged `evidence/v2`/`verification/v2` payload shape [REQ-independent-verification-005, REQ-independent-verification-006, REQ-independent-verification-008]
++- [x] 2.8 RED: extend `scripts/lib/independent-verifier/assessment.test.js` to vary `evidence_id` and `obligation_id` independently and assert distinct assessment identities for each tuple; GREEN/REFACTOR only if the focused runtime test exposes an implementation gap [REQ-independent-verification-006]
++
++## Phase 3: Assurance Graph Integrity
++
++- [x] 3.1 Add RED projector tests in `scripts/lib/assurance-graph/index.test.js` for contradictory Graph/contract/policy digests and null/absent required canonical digests [REQ-assurance-graph-007]
++- [x] 3.2 Implement strict resolved canonical-input validation in `scripts/lib/assurance-graph/projector.js` before graph-id preimage construction; GREEN and REFACTOR [REQ-assurance-graph-007]
++- [x] 3.3 Add RED replay cases for malformed/tampered assessment schema, assessment_id, candidate, policy, evidence reference, obligation, node, node_id and coverage [REQ-assurance-graph-006]
++- [x] 3.4 Implement persistable assessment revalidation and token-level coverage checks in `scripts/lib/assurance-graph/index.js`, using shared `assessment.js` helpers; GREEN and REFACTOR [REQ-assurance-graph-006]
++- [x] 3.5 Add RED reconcile cases for tampered nodes, canonical inputs, candidate_id, kind/schema, declared graph_id and stored payload identity [REQ-assurance-graph-008]
++- [x] 3.6 Implement stored-payload graph-id recomputation and full payload comparison in `scripts/lib/assurance-graph/index.js`; GREEN and REFACTOR [REQ-assurance-graph-008]
++- [x] 3.7 RED: extend `scripts/lib/assurance-graph/index.test.js` with persistent replay mutations for malformed assessment schema/coverage, candidate/policy mismatch, missing evidence, unknown obligation, non-implementing node, and `node_id` mismatch; GREEN/REFACTOR only if runtime tests expose an implementation gap [REQ-assurance-graph-006]
++- [x] 3.8 RED: extend `scripts/lib/assurance-graph/index.test.js` with persistent reconcile mutations for stored `canonical_inputs`, `candidate_id`, and kind/schema divergence, asserting `GRAPH_DIVERGENCE`; GREEN/REFACTOR only if runtime tests expose an implementation gap [REQ-assurance-graph-008]
++
++## Phase 4: Integration, Documentation and Verification
++
++- [x] 4.1 Extend `scripts/k6b-verifier-assurance-graph-e2e.test.js` with a valid token-complete verify/project/replay/reconcile path, deterministic second projection, and stored mutation failures [REQ-independent-verification-005, REQ-independent-verification-006, REQ-assurance-graph-006, REQ-assurance-graph-008]
++- [x] 4.2 Update `docs/architecture/harness-evolution.md` and `docs/roadmaps/harness-evolution.md` to mark K6b `revise` and K6c `blocked-by-K6b-remediation` until archive [REQ-assurance-graph-008]
++- [x] 4.3 Run `npm test` and inspect the complete native test output; resolve only failures attributable to the scoped B1–B3/H1–H3 remediation, preserving frozen K1 and v2 bytes [REQ-independent-verification-005, REQ-independent-verification-006, REQ-independent-verification-008, REQ-assurance-graph-006, REQ-assurance-graph-007, REQ-assurance-graph-008, REQ-kernel-contract-schemas-027]
++- [x] 4.4 Confirm no migration is attempted for legacy partial `assessment/v1` records and record regeneration/rollback behavior in apply progress [REQ-kernel-contract-schemas-027]
++
++## Phase 5: Verify-Gap Runtime Evidence
++
++- [x] 5.1 Run the focused verifier and Assurance Graph suites plus `npm test`; record the new runtime evidence and leave any implementation mismatch for the routed phase [REQ-independent-verification-006, REQ-assurance-graph-006, REQ-assurance-graph-008]
+diff --git a/openspec/changes/k6b-semantic-integrity-remediation/verify-report.md b/openspec/changes/k6b-semantic-integrity-remediation/verify-report.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6b-semantic-integrity-remediation/verify-report.md
+@@ -0,0 +1,153 @@
++## Verification Report
++
++**Change**: k6b-semantic-integrity-remediation  
++**Version**: 2.51.0  
++**Mode**: Standard (TDD focused)
++
++Re-verification after the prior FAIL (`origin: tasks-gap`). Authoritative checklist is now 26 tasks (22 historical + remediating 2.8, 3.7, 3.8, and 5.1). Lineage router (`getLineageNextAction`) returned `run-discovery` / `no-active-lineage`; this run executed the full discovery pipeline. No `verify_lineage` was opened because no BLOCKER/CRITICAL findings remain.
++
++### Completeness
++
++| Metric | Value |
++|--------|------:|
++| Tasks total | 26 |
++| Tasks complete | 26 |
++| Tasks incomplete | 0 |
++
++All 26 checklist items in `tasks.md` are marked `[x]`. Independent runtime evidence now covers the three previously overclaimed tasks via 2.8, 3.7, and 3.8; task 5.1 records the focused plus full-suite execution.
++
++### Build & Tests Execution
++
++**Build**: N/A — `rules.verify.build_command` is empty and this CommonJS repository declares no independent type-check/build gate.
++
++**Focused tests**: ✅ 82 passed / 0 failed / 0 skipped
++
++```text
++node --test scripts/lib/k6b-schema-fixtures.test.js scripts/lib/independent-verifier/assessment.test.js scripts/lib/independent-verifier/obligation-coverage.test.js scripts/lib/independent-verifier/index.test.js scripts/lib/assurance-graph/index.test.js scripts/k6b-verifier-assurance-graph-e2e.test.js
++
++exit code: 0
++tests: 82
++pass: 82
++fail: 0
++skipped: 0
++duration_ms: 194.1959
++```
++
++The prior FAIL recorded 79/79 on this command. The +3 tests are the persistent identity and adversarial matrices added by tasks 2.8, 3.7, and 3.8.
++
++**Full regression suite**: ✅ 2762 passed / 0 failed / 2 skipped
++
++```text
++npm test
++(raw: node --test scripts/**/*.test.js, then target generate/validate via scripts/check.js)
++
++exit code: 0
++Native Node tests: tests 2764, pass 2762, fail 0, skipped 2
++terminal result: All checks passed.
++```
++
++**Static repository checks**: ✅ Passed
++
++```text
++git diff --check
++exit code: 0
++
++git diff --quiet -- schemas/kernel/evidence schemas/kernel/verification scripts/lib/lifecycle-kernel/k1-compat.js
++exit code: 0
++```
++
++Git emitted prospective LF/CRLF normalization notices for several modified files, but `git diff --check` found no whitespace error. Frozen `evidence/v2`, `verification/v2`, and K1 v1 bytes are unmodified. `models.yaml` has an independent pre-existing one-line model selection change and is excluded from this change's functional evidence.
++
++**Manual verification**: source/test inspection performed; no separate UI or manual runtime workflow applies.
++
++**Coverage**: ➖ Not available (`testing.coverage.available: false`).
++
++**Quality gates**: no active `quality_gates:` policy is declared; Step 9a is a strict no-op and no `gates.quality-gates` audit block is written.
++
++### Spec Compliance Matrix
++
++| Requirement | Scenario | Evidence Level | Source | Result | Notes |
++|-------------|----------|----------------|--------|--------|-------|
++| REQ-assurance-graph-007 | Graph contract contradicts canonicalInputs | `runtime-test` | `scripts/lib/assurance-graph/index.test.js` > contradictory canonical inputs | PASS | Contract, policy, and Execution Graph digest contradictions return `GRAPH_DIVERGENCE`. |
++| REQ-assurance-graph-007 | Null required canonical digest is not fingerprinted | `runtime-test` | `scripts/lib/assurance-graph/index.test.js` > missing required canonical digest | PASS | Missing policy digest fails before graph-id construction. |
++| REQ-assurance-graph-008 | Tampered stored nodes fail closed | `runtime-test` | `scripts/lib/assurance-graph/index.test.js` > replay and reconcile tampering | PASS | Added stored node returns `GRAPH_DIVERGENCE`. |
++| REQ-assurance-graph-008 | Stored payload or identity fields diverge | `runtime-test` | `scripts/lib/assurance-graph/index.test.js` > stored identity mutations | PASS | Task 3.8 mutates stored `canonical_inputs`, `candidate_id`, `kind`, and `schema_version` after recomputing stored `graph_id`; each returns `GRAPH_DIVERGENCE`. |
++| REQ-assurance-graph-006 | Replay from persisted outputs yields the same graph | `runtime-test` | `scripts/lib/assurance-graph/index.test.js` and K6b E2E | PASS | Replayed `graph_id` and edges are byte-identical. |
++| REQ-assurance-graph-006 | Tampered assessment_id fails replay | `runtime-test` | `scripts/lib/assurance-graph/index.test.js` > assessment tampering | PASS | Tampered identity returns `GRAPH_DIVERGENCE`. |
++| REQ-assurance-graph-006 | Assessment fails schema, candidate, or policy revalidation | `runtime-test` | `scripts/lib/assurance-graph/index.test.js` > replay binding mutations | PASS | Task 3.7 covers malformed schema, coverage outside requirements, candidate mismatch, and policy mismatch; each returns `GRAPH_DIVERGENCE`. |
++| REQ-assurance-graph-006 | Missing evidence or non-implementing node fails replay | `runtime-test` | `scripts/lib/assurance-graph/index.test.js` > replay binding mutations | PASS | Task 3.7 covers missing evidence, unknown obligation, non-implementing node, and `node_id` mismatch; each returns `GRAPH_DIVERGENCE`. |
++| REQ-independent-verification-008 | Contract digest mismatch fails before strategy | `runtime-test` | `scripts/lib/independent-verifier/index.test.js` > contract digest mismatch | PASS | Returns `BINDING_MISMATCH` with no verification verdict. |
++| REQ-independent-verification-005 | MUST without admissible evidence fails closed | `runtime-test` | verifier and obligation-coverage tests | PASS | Returns `UNFULFILLED_MUST` and identifies the obligation. |
++| REQ-independent-verification-005 | Nonexistent obligation_id fails closed | `runtime-test` | verifier and obligation-coverage tests | PASS | Returns `UNKNOWN_OBLIGATION_ID`. |
++| REQ-independent-verification-005 | Wrong implementing node fails closed | `runtime-test` | verifier and obligation-coverage tests | PASS | Returns `WRONG_IMPLEMENTING_NODE`. |
++| REQ-independent-verification-005 | Partial required_evidence coverage fails closed | `runtime-test` | `scripts/lib/independent-verifier/obligation-coverage.test.js` > token subset coverage | PASS | `[A,B]` with only A returns `UNFULFILLED_MUST`; complete union persists per-assessment coverage. |
++| REQ-independent-verification-006 | Same EvidenceId as RED and GREEN fails closed | `runtime-test` | `scripts/lib/independent-verifier/index.test.js` > incompatible role aliasing | PASS | Shared observation across distinct strategy roles returns `STRATEGY_EVIDENCE_ALIAS`. |
++| REQ-independent-verification-006 | GREEN before RED fails closed | `runtime-test` | `scripts/lib/independent-verifier/index.test.js` > strict-tdd role order | PASS | Returns `STRATEGY_SEQUENCE_VIOLATION`. |
++| REQ-independent-verification-006 | RED after PATCH fails closed | `runtime-test` | `scripts/lib/independent-verifier/index.test.js` > bug role order | PASS | Returns `STRATEGY_SEQUENCE_VIOLATION`. |
++| REQ-independent-verification-006 | Distinct tuples yield distinct assessment identities | `runtime-test` | `scripts/lib/independent-verifier/assessment.test.js` > independent `evidence_id`/`obligation_id` | PASS | Task 2.8 varies `evidence_id` and `obligation_id` independently (role held constant) and asserts three pairwise-distinct `assessment_id` values. |
++| REQ-kernel-contract-schemas-027 | Valid assessment fixture passes | `runtime-test` | `scripts/lib/k6b-schema-fixtures.test.js` | PASS | Complete coverage field validates. |
++| REQ-kernel-contract-schemas-027 | Cross-family substitution and verdict fail closed | `runtime-test` | `scripts/lib/k6b-schema-fixtures.test.js` | PASS | Assessment rejects verdict and does not validate as evidence/v2 or verification/v2. |
++| REQ-kernel-contract-schemas-027 | Four-role assessments remain distinct under schema | `runtime-test` | schema fixture and assessment unit tests | PASS | Four role-distinct records remain schema-valid and have pairwise assessment ids. |
++| REQ-kernel-contract-schemas-027 | Assessment without coverage fails closed | `runtime-test` | `scripts/lib/k6b-schema-fixtures.test.js` > missing coverage fixture | PASS | Omission of `evidence_requirements_satisfied` is rejected. |
++| REQ-kernel-contract-schemas-027 | Evidence v2, verification v2, and K1 v1 remain frozen | `runtime-test` + `static-proof` | K6b schema tests; `git diff --quiet` | PASS | Pin assertions pass and relevant schema/fixture/pin paths have no working-tree delta. |
++
++**Compliance summary**: 22/22 scenarios satisfy the required evidence level (`runtime-test`, with frozen-pin `static-proof` on REQ-kernel-contract-schemas-027).
++
++### Correctness (Static Evidence)
++
++| Requirement | Status | Notes |
++|------------|--------|-------|
++| REQ-independent-verification-008 | ✅ Implemented | Contract digest equality is enforced in `validateBindings` before strategy selection. |
++| REQ-independent-verification-005 | ✅ Implemented | Required tokens are unioned per obligation and missing tokens fail closed. |
++| REQ-independent-verification-006 | ✅ Implemented | Role alias/order checks and tuple identity (role, `evidence_id`, `obligation_id`) are now proven at runtime. |
++| REQ-kernel-contract-schemas-027 | ✅ Implemented | Required closed coverage field, claims, fixtures, frozen families. |
++| REQ-assurance-graph-007 | ✅ Implemented | Required digests and contradictions fail before fingerprinting. |
++| REQ-assurance-graph-006 | ✅ Implemented | Replay revalidates schema, identity, candidate/policy, evidence, obligation, and node bindings. |
++| REQ-assurance-graph-008 | ✅ Implemented | Full stored-payload comparison includes nodes, canonical inputs, candidate, and kind/schema. |
++
++### Coherence (Design)
++
++| Decision | Followed? | Notes |
++|----------|-----------|-------|
++| ADR-001: required canonical coverage on assessment/v1 | ✅ Yes | Field is schema-required, canonicalized, and included in assessment identity; legacy omission fails closed. |
++| ADR-002: ordered, non-aliased strategy evidence | ✅ Yes | Raw order drives strict-tdd/bug sequencing and one id cannot cover distinct roles. |
++| ADR-003: canonical integrity across project/replay/reconcile | ✅ Yes | Shared helpers and fail-closed paths are now covered by persistent replay and reconcile adversarial matrices. |
++
++No production-design deviation was found. Remediation tasks added tests only; apply progress records no production-code correction in batch 2.
++
++### Traceability Matrix
++
++| REQ | Tasks | Commits | Tests | Status |
++|-----|-------|---------|-------|--------|
++| REQ-independent-verification-008 | 2.1–2.2, 2.7, 4.3 | none (working tree) | verifier contract-digest test | OK |
++| REQ-independent-verification-005 | 2.5–2.7, 4.1, 4.3 | none (working tree) | verifier, obligation coverage, E2E | OK |
++| REQ-independent-verification-006 | 1.5, 2.3–2.4, 2.7, 2.8, 4.1, 4.3, 5.1 | none (working tree) | assessment identity + verifier strategy tests | OK |
++| REQ-kernel-contract-schemas-027 | 1.1–1.5, 4.3–4.4 | none (working tree) | K6b schema fixtures + assessment tests | OK |
++| REQ-assurance-graph-007 | 3.1–3.2, 4.3 | none (working tree) | projector tests | OK |
++| REQ-assurance-graph-006 | 3.3–3.4, 3.7, 4.1, 4.3, 5.1 | none (working tree) | replay tests + E2E | OK |
++| REQ-assurance-graph-008 | 3.5–3.6, 3.8, 4.1, 4.3, 5.1 | none (working tree) | reconcile tests + E2E | OK |
++
++Traceability trailers are advisory because no active `traceability:` policy is declared. The absence of commits does not itself add a finding in this working-tree verification.
++
++### Assumption Reconciliation
++
++| id | statement | reversibility | outcome |
++|----|-----------|----------------|---------|
++| sdd-propose-001 | Coverage stays additive on assessment/binding; evidence/v2 and K1 v1 remain frozen. | high | confirmed |
++| sdd-spec-001 | Coverage is schema-required and omission fails validation. | high | confirmed |
++
++### Issues Found
++
++**CRITICAL**: None.
++
++**WARNING**: None.
++
++**SUGGESTION**
++
++- Three historical BLOCKER entries for this change remain in `openspec/memory/known-issues.md` from the prior FAIL. Step 10b does not rewrite or close them on PASS; they are an audit trail of the remediated tasks-gap, not active verify findings.
++
++### Verdict
++
++**PASS**
++
++All 26 tasks are complete, all 22 MUST scenarios now have `runtime-test` (or accepted frozen-pin `static-proof`) evidence, focused 82/82 and full `npm test` passed, and frozen evidence/v2, verification/v2, and K1 v1 bytes are unmodified. Route to `sdd-archive`.
+diff --git a/openspec/memory/known-issues.md b/openspec/memory/known-issues.md
+index afd74d0..7b91c78 100644
+--- a/openspec/memory/known-issues.md
++++ b/openspec/memory/known-issues.md
+@@ -1,8 +1,29 @@
+ ---
+ title: Known Issues
+-last_updated: 2026-08-10
++last_updated: 2026-08-27
+ ---
+ 
++## Distinct assessment tuple identity lacks evidence_id and obligation_id runtime coverage
++- severity: BLOCKER
++- area: scripts/lib/independent-verifier/assessment.test.js; scripts/lib/independent-verifier/index.test.js
++- workaround: add persistent tests that vary evidence_id and obligation_id independently, assert distinct assessment_id values, then rerun sdd-verify
++- change: k6b-semantic-integrity-remediation
++- date: 2026-08-27
++
++## Replay adversarial matrix is incomplete despite task 3.3 being marked complete
++- severity: BLOCKER
++- area: scripts/lib/assurance-graph/index.test.js
++- workaround: add replay cases for malformed schema or coverage, candidate and policy mismatch, missing evidence, unknown obligation, non-implementing node, and node_id mismatch; then rerun sdd-verify
++- change: k6b-semantic-integrity-remediation
++- date: 2026-08-27
++
++## Stored-payload reconciliation matrix omits canonical inputs, candidate, and kind/schema divergence
++- severity: BLOCKER
++- area: scripts/lib/assurance-graph/index.test.js
++- workaround: add persistent reconcile cases for stored canonical_inputs, candidate_id, and kind/schema divergence with complete payload identity checks; then rerun sdd-verify
++- change: k6b-semantic-integrity-remediation
++- date: 2026-08-27
++
+ ## npm test exit code 1: scripts/lib/verify-lineage.test.js crashes on load with Error: freezeCandidate requires diffText or diff_hash
+ - severity: BLOCKER
+ - area: scripts/lib/verify-lineage.test.js
+diff --git a/schemas/kernel/assessment/fixtures/invalid/v1-missing-coverage.json b/schemas/kernel/assessment/fixtures/invalid/v1-missing-coverage.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/assessment/fixtures/invalid/v1-missing-coverage.json
+@@ -0,0 +1,11 @@
++{
++  "schema_version": 1,
++  "kind": "assessment/v1",
++  "assessment_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++  "evidence_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
++  "role": "acceptance",
++  "obligation_id": "req-repair-001",
++  "node_id": "repair-core",
++  "candidate_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
++  "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
++}
+diff --git a/schemas/kernel/assessment/fixtures/invalid/v1-with-verdict.json b/schemas/kernel/assessment/fixtures/invalid/v1-with-verdict.json
+index 29caa79..db96f87 100644
+--- a/schemas/kernel/assessment/fixtures/invalid/v1-with-verdict.json
++++ b/schemas/kernel/assessment/fixtures/invalid/v1-with-verdict.json
+@@ -8,5 +8,6 @@
+   "node_id": "repair-core",
+   "candidate_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+   "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
++  "evidence_requirements_satisfied": ["ev:test-pass"],
+   "verdict": "PASS"
+ }
+diff --git a/schemas/kernel/assessment/fixtures/valid/v1-complete.json b/schemas/kernel/assessment/fixtures/valid/v1-complete.json
+index 220455c..c7a494b 100644
+--- a/schemas/kernel/assessment/fixtures/valid/v1-complete.json
++++ b/schemas/kernel/assessment/fixtures/valid/v1-complete.json
+@@ -7,5 +7,6 @@
+   "obligation_id": "req-repair-001",
+   "node_id": "repair-core",
+   "candidate_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+-  "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
++  "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
++  "evidence_requirements_satisfied": ["ev:test-pass"]
+ }
+diff --git a/schemas/kernel/assessment/fixtures/valid/v1-four-roles.json b/schemas/kernel/assessment/fixtures/valid/v1-four-roles.json
+index 66c16f7..bc428d3 100644
+--- a/schemas/kernel/assessment/fixtures/valid/v1-four-roles.json
++++ b/schemas/kernel/assessment/fixtures/valid/v1-four-roles.json
+@@ -8,7 +8,8 @@
+     "obligation_id": "req-repair-001",
+     "node_id": "repair-core",
+     "candidate_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+-    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
++    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
++    "evidence_requirements_satisfied": ["ev:test-pass"]
+   },
+   {
+     "schema_version": 1,
+@@ -19,7 +20,8 @@
+     "obligation_id": "req-repair-001",
+     "node_id": "repair-core",
+     "candidate_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+-    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
++    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
++    "evidence_requirements_satisfied": ["ev:test-pass"]
+   },
+   {
+     "schema_version": 1,
+@@ -30,7 +32,8 @@
+     "obligation_id": "req-repair-001",
+     "node_id": "repair-core",
+     "candidate_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+-    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
++    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
++    "evidence_requirements_satisfied": ["ev:test-pass"]
+   },
+   {
+     "schema_version": 1,
+@@ -41,6 +44,7 @@
+     "obligation_id": "req-repair-001",
+     "node_id": "repair-core",
+     "candidate_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+-    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
++    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
++    "evidence_requirements_satisfied": ["ev:test-pass"]
+   }
+ ]
+diff --git a/schemas/kernel/assessment/v1.schema.json b/schemas/kernel/assessment/v1.schema.json
+index 831bfdf..a97ac5d 100644
+--- a/schemas/kernel/assessment/v1.schema.json
++++ b/schemas/kernel/assessment/v1.schema.json
+@@ -14,7 +14,8 @@
+     "obligation_id",
+     "node_id",
+     "candidate_id",
+-    "policy_snapshot_id"
++    "policy_snapshot_id",
++    "evidence_requirements_satisfied"
+   ],
+   "properties": {
+     "schema_version": {
+@@ -52,6 +53,14 @@
+     "policy_snapshot_id": {
+       "type": "string",
+       "pattern": "^sha256:[a-f0-9]{64}$"
++    },
++    "evidence_requirements_satisfied": {
++      "type": "array",
++      "items": {
++        "type": "string",
++        "minLength": 1
++      },
++      "uniqueItems": true
+     }
+   },
+   "additionalProperties": false
+diff --git a/schemas/kernel/contract-claims.json b/schemas/kernel/contract-claims.json
+index 31d2ecc..076f2e9 100644
+--- a/schemas/kernel/contract-claims.json
++++ b/schemas/kernel/contract-claims.json
+@@ -689,7 +689,8 @@
+         "obligation_id",
+         "node_id",
+         "candidate_id",
+-        "policy_snapshot_id"
++        "policy_snapshot_id",
++        "evidence_requirements_satisfied"
+       ],
+       "enum_values": {},
+       "command_shapes": []
+diff --git a/scripts/k6b-verifier-assurance-graph-e2e.test.js b/scripts/k6b-verifier-assurance-graph-e2e.test.js
+index 5af0192..267c207 100644
+--- a/scripts/k6b-verifier-assurance-graph-e2e.test.js
++++ b/scripts/k6b-verifier-assurance-graph-e2e.test.js
+@@ -44,10 +44,10 @@ const OBLIGATIONS = [
+ 
+ function featureEvidence() {
+   return [
+-    { role: "acceptance", bytes: "acceptance ok", provenance: "runtime-observed", origin: "e2e-acceptance", node_id: "repair-core", obligation_ids: ["req-repair-001"] },
+-    { role: "invariants", bytes: "invariants ok", provenance: "runtime-observed", origin: "e2e-invariants", node_id: "repair-core", obligation_ids: ["req-repair-001"] },
+-    { role: "integration", bytes: "integration ok", provenance: "runtime-observed", origin: "e2e-integration", node_id: "repair-core", obligation_ids: ["req-repair-001"] },
+-    { role: "negative", bytes: "negative ok", provenance: "runtime-observed", origin: "e2e-negative", node_id: "repair-core", obligation_ids: ["req-repair-001"] },
++    { role: "acceptance", bytes: "acceptance ok", provenance: "runtime-observed", origin: "e2e-acceptance", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
++    { role: "invariants", bytes: "invariants ok", provenance: "runtime-observed", origin: "e2e-invariants", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
++    { role: "integration", bytes: "integration ok", provenance: "runtime-observed", origin: "e2e-integration", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
++    { role: "negative", bytes: "negative ok", provenance: "runtime-observed", origin: "e2e-negative", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
+   ];
+ }
+ 
+diff --git a/scripts/lib/assurance-graph/index.js b/scripts/lib/assurance-graph/index.js
+index 400d375..6af4c60 100644
+--- a/scripts/lib/assurance-graph/index.js
++++ b/scripts/lib/assurance-graph/index.js
+@@ -1,7 +1,8 @@
+ "use strict";
+ 
+-const { projectAssuranceGraph, rejectForbidden } = require("./projector.js");
++const { projectAssuranceGraph, rejectForbidden, canonicalize, computeGraphId } = require("./projector.js");
+ const { computeInvalidationClosure, isEvidenceTransitivelyInvalidated } = require("./invalidation.js");
++const { validateAssessment } = require("../independent-verifier/assessment.js");
+ 
+ function fail(reason_code, error) {
+   return { ok: false, reason_code, error: error || reason_code };
+@@ -17,19 +18,82 @@ function fail(reason_code, error) {
+ function reconcileAssuranceGraph(stored, canonicalInput) {
+   const projected = projectAssuranceGraph(canonicalInput);
+   if (!projected.ok) return projected;
+-  if (!stored || typeof stored !== "object" || stored.graph_id !== projected.graph.graph_id) {
++  if (!stored || typeof stored !== "object") {
+     return fail("GRAPH_DIVERGENCE", "stored Assurance Graph does not recompute from canonical inputs");
+   }
+-  const storedEdges = JSON.stringify((stored.edges || []).map((e) => [e.from, e.relation, e.to]).sort());
+-  const projectedEdges = JSON.stringify(
+-    projected.graph.edges.map((e) => [e.from, e.relation, e.to]).sort()
+-  );
+-  if (storedEdges !== projectedEdges) {
+-    return fail("GRAPH_DIVERGENCE", "stored edges diverge from canonical projection");
++  if (stored.kind !== "assurance-graph/v1" || stored.schema_version !== 1) {
++    return fail("GRAPH_DIVERGENCE", "stored graph kind or schema_version diverges");
++  }
++  if (!Array.isArray(stored.nodes) || !Array.isArray(stored.edges) || !stored.canonical_inputs) {
++    return fail("GRAPH_DIVERGENCE", "stored graph payload is incomplete");
++  }
++  const canonicalStored = canonicalize(stored.nodes, stored.edges);
++  const recomputedStoredId = computeGraphId({
++    candidate_id: stored.candidate_id,
++    canonical_inputs: stored.canonical_inputs,
++    nodes: canonicalStored.nodes,
++    edges: canonicalStored.edges,
++  });
++  if (stored.graph_id !== recomputedStoredId) {
++    return fail("GRAPH_DIVERGENCE", "stored graph_id does not match its stored payload");
++  }
++  const fields = ["schema_version", "kind", "candidate_id", "graph_id", "nodes", "edges", "canonical_inputs"];
++  for (const field of fields) {
++    if (JSON.stringify(stored[field]) !== JSON.stringify(projected.graph[field])) {
++      return fail("GRAPH_DIVERGENCE", `stored ${field} diverges from canonical projection`);
++    }
+   }
+   return { ok: true, graph: projected.graph };
+ }
+ 
++function isApprovedDeferred(obligation) {
++  return Boolean(
++    obligation && obligation.deferred && typeof obligation.deferred.reason === "string" && obligation.deferred.reason.trim() &&
++    typeof obligation.deferred.approved_by === "string" && obligation.deferred.approved_by.trim()
++  );
++}
++
++function validateReplayAssessments(persistable) {
++  const assessments = Array.isArray(persistable.assessments) ? persistable.assessments : [];
++  const evidence = Array.isArray(persistable.evidence) ? persistable.evidence : [];
++  const graph = persistable.executionGraph;
++  const candidate = persistable.candidate;
++  if (!graph || !candidate || !Array.isArray(graph.obligations) || !Array.isArray(graph.nodes)) {
++    return fail("GRAPH_DIVERGENCE", "persistable graph, candidate, nodes, and obligations are required for replay");
++  }
++  const evidenceById = new Map(evidence.map((record) => [record && record.evidence_id, record]));
++  const obligations = new Map(graph.obligations.map((obligation) => [obligation && obligation.id, obligation]));
++  const coveredByObligation = new Map();
++  for (const assessment of assessments) {
++    const valid = validateAssessment(assessment);
++    if (!valid.ok) return fail("GRAPH_DIVERGENCE", valid.error);
++    const record = valid.assessment;
++    const obligation = obligations.get(record.obligation_id);
++    const evidenceRecord = evidenceById.get(record.evidence_id);
++    if (!obligation || !evidenceRecord || record.candidate_id !== candidate.candidate_id ||
++      record.policy_snapshot_id !== graph.policy_snapshot_id || record.node_id !== evidenceRecord.node_id ||
++      !Array.isArray(obligation.implemented_by) || !obligation.implemented_by.includes(record.node_id)) {
++      return fail("GRAPH_DIVERGENCE", "persisted assessment binding diverges from evidence, Candidate, policy, or obligation");
++    }
++    const required = new Set(Array.isArray(obligation.required_evidence) ? obligation.required_evidence : []);
++    if (record.evidence_requirements_satisfied.some((token) => !required.has(token))) {
++      return fail("GRAPH_DIVERGENCE", "assessment coverage contains a token outside the obligation requirement");
++    }
++    const coverage = coveredByObligation.get(record.obligation_id) || new Set();
++    for (const token of record.evidence_requirements_satisfied) coverage.add(token);
++    coveredByObligation.set(record.obligation_id, coverage);
++  }
++  for (const obligation of graph.obligations) {
++    if (!obligation || String(obligation.criticality || "must").toLowerCase() !== "must" || isApprovedDeferred(obligation)) continue;
++    const required = Array.isArray(obligation.required_evidence) ? obligation.required_evidence : [];
++    const covered = coveredByObligation.get(obligation.id) || new Set();
++    if (required.length === 0 || required.some((token) => !covered.has(token))) {
++      return fail("GRAPH_DIVERGENCE", `persisted assessments do not satisfy MUST obligation ${obligation.id}`);
++    }
++  }
++  return { ok: true };
++}
++
+ /**
+  * Replay a projection from persistable assessments, evidence, verification, and canonical_inputs.
+  * Never consumes ephemeral projector obligation_ids.
+@@ -38,6 +102,8 @@ function reconcileAssuranceGraph(stored, canonicalInput) {
+  * @returns {{ ok: true, graph: object } | { ok: false, reason_code: string }}
+  */
+ function replayAssuranceGraph(persistable = {}) {
++  const assessmentValidation = validateReplayAssessments(persistable);
++  if (!assessmentValidation.ok) return assessmentValidation;
+   return projectAssuranceGraph({
+     canonicalInputs: persistable.canonical_inputs || persistable.canonicalInputs,
+     candidate: persistable.candidate,
+@@ -76,6 +142,7 @@ module.exports = {
+   projectAssuranceGraph,
+   reconcileAssuranceGraph,
+   replayAssuranceGraph,
++  validateReplayAssessments,
+   rejectForbidden,
+   computeInvalidationClosure,
+   isEvidenceTransitivelyInvalidated,
+diff --git a/scripts/lib/assurance-graph/index.test.js b/scripts/lib/assurance-graph/index.test.js
+index b31bc70..77a0e1a 100644
+--- a/scripts/lib/assurance-graph/index.test.js
++++ b/scripts/lib/assurance-graph/index.test.js
+@@ -17,6 +17,8 @@ const {
+   isEvidenceTransitivelyInvalidated,
+ } = require("./index.js");
+ const { verifyCandidate } = require("../independent-verifier/index.js");
++const { computeAssessmentId } = require("../independent-verifier/assessment.js");
++const { canonicalize, computeGraphId } = require("./projector.js");
+ 
+ const SAMPLE_NODES = [
+   {
+@@ -76,10 +78,10 @@ function compileGraph() {
+ 
+ function featureRaw() {
+   return [
+-    { role: "acceptance", bytes: "acceptance", provenance: "runtime-observed", origin: "a", node_id: "repair-core", obligation_ids: ["req-repair-001"] },
+-    { role: "invariants", bytes: "invariants", provenance: "runtime-observed", origin: "i", node_id: "repair-core", obligation_ids: ["req-repair-001"] },
+-    { role: "contract", bytes: "contract", provenance: "runtime-observed", origin: "c", node_id: "repair-core", obligation_ids: ["req-repair-001"] },
+-    { role: "negative", bytes: "negative", provenance: "runtime-observed", origin: "n", node_id: "repair-core", obligation_ids: ["req-repair-001"] },
++    { role: "acceptance", bytes: "acceptance", provenance: "runtime-observed", origin: "a", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
++    { role: "invariants", bytes: "invariants", provenance: "runtime-observed", origin: "i", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
++    { role: "contract", bytes: "contract", provenance: "runtime-observed", origin: "c", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
++    { role: "negative", bytes: "negative", provenance: "runtime-observed", origin: "n", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
+   ];
+ }
+ 
+@@ -92,6 +94,7 @@ function verifiedProjection() {
+   const verified = verifyCandidate({
+     candidate,
+     executionGraph,
++    contract: { contract_digest: executionGraph.contract_digest },
+     repository: { files },
+     declaredStrategy: "feature",
+     collector: HARNESS_COLLECTOR,
+@@ -101,6 +104,26 @@ function verifiedProjection() {
+   return { files, candidate, executionGraph, verified };
+ }
+ 
++function withAssessmentFields(assessment, fields) {
++  const updated = { ...assessment, ...fields };
++  return { ...updated, assessment_id: computeAssessmentId(updated) };
++}
++
++function withStoredGraphId(stored) {
++  const canonical = canonicalize(stored.nodes, stored.edges);
++  return {
++    ...stored,
++    nodes: canonical.nodes,
++    edges: canonical.edges,
++    graph_id: computeGraphId({
++      candidate_id: stored.candidate_id,
++      canonical_inputs: stored.canonical_inputs,
++      nodes: canonical.nodes,
++      edges: canonical.edges,
++    }),
++  };
++}
++
+ test("REQ-assurance-graph-002: same inputs yield the same digest and edges despite permutation", () => {
+   const { candidate, executionGraph, verified } = verifiedProjection();
+   const classified = verified.evidence.map((evidence, index) => ({
+@@ -194,7 +217,7 @@ test("REQ-assurance-graph-001: matching canonical inputs project; divergence fai
+   );
+   assert.equal(edgeDiverged.ok, false);
+   assert.equal(edgeDiverged.reason_code, "GRAPH_DIVERGENCE");
+-  assert.match(edgeDiverged.error, /stored edges diverge from canonical projection/);
++  assert.match(edgeDiverged.error, /stored graph_id does not match its stored payload/);
+ });
+ 
+ test("REQ-harness-authority-canon-010: APIs return new objects without write-through", () => {
+@@ -303,7 +326,7 @@ test("REQ-harness-authority-canon-010: graph used as approval or delivery author
+   assert.equal(result.reason_code, "GRAPH_AUTHORITY_MISUSE");
+ });
+ 
+-test("REQ-assurance-graph-002: graph_id changes when canonical inputs change; permutation does not", () => {
++test("REQ-assurance-graph-007: contradictory canonical inputs fail closed; permutation does not", () => {
+   const { candidate, executionGraph, verified } = verifiedProjection();
+   const baseInput = {
+     candidate,
+@@ -323,8 +346,8 @@ test("REQ-assurance-graph-002: graph_id changes when canonical inputs change; pe
+       contract_digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+     },
+   });
+-  assert.equal(flippedContract.ok, true);
+-  assert.notEqual(base.graph.graph_id, flippedContract.graph.graph_id);
++  assert.equal(flippedContract.ok, false);
++  assert.equal(flippedContract.reason_code, "GRAPH_DIVERGENCE");
+ 
+   const flippedPolicy = projectAssuranceGraph({
+     ...baseInput,
+@@ -333,7 +356,8 @@ test("REQ-assurance-graph-002: graph_id changes when canonical inputs change; pe
+       policy_snapshot_id: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+     },
+   });
+-  assert.notEqual(base.graph.graph_id, flippedPolicy.graph.graph_id);
++  assert.equal(flippedPolicy.ok, false);
++  assert.equal(flippedPolicy.reason_code, "GRAPH_DIVERGENCE");
+ 
+   const flippedExec = projectAssuranceGraph({
+     ...baseInput,
+@@ -342,7 +366,8 @@ test("REQ-assurance-graph-002: graph_id changes when canonical inputs change; pe
+       execution_graph_digest: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+     },
+   });
+-  assert.notEqual(base.graph.graph_id, flippedExec.graph.graph_id);
++  assert.equal(flippedExec.ok, false);
++  assert.equal(flippedExec.reason_code, "GRAPH_DIVERGENCE");
+ 
+   const flippedOpenspec = projectAssuranceGraph({
+     ...baseInput,
+@@ -361,6 +386,15 @@ test("REQ-assurance-graph-002: graph_id changes when canonical inputs change; pe
+   assert.equal(base.graph.graph_id, permutedNodes.graph.graph_id);
+ });
+ 
++test("REQ-assurance-graph-007: missing required canonical digest is never fingerprinted", () => {
++  const { candidate, executionGraph } = verifiedProjection();
++  const missingPolicy = { ...executionGraph };
++  delete missingPolicy.policy_snapshot_id;
++  const result = projectAssuranceGraph({ candidate, executionGraph: missingPolicy });
++  assert.equal(result.ok, false);
++  assert.equal(result.reason_code, "GRAPH_DIVERGENCE");
++});
++
+ test("REQ-assurance-graph-005: rejectForbidden matches kind/namespace, not id substring", () => {
+   const allowed = rejectForbidden(
+     [{ id: "REQ-add-authorization-header", kind: "requirement" }],
+@@ -412,7 +446,8 @@ test("REQ-assurance-graph-006: replay from persistable outputs is byte-identical
+       contract_digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+     },
+   });
+-  assert.notEqual(churned.graph.graph_id, verified.assurance_graph.graph_id);
++  assert.equal(churned.ok, false);
++  assert.equal(churned.reason_code, "GRAPH_DIVERGENCE");
+   const diverged = reconcileAssuranceGraph(verified.assurance_graph, {
+     candidate,
+     executionGraph,
+@@ -428,3 +463,154 @@ test("REQ-assurance-graph-006: replay from persistable outputs is byte-identical
+   assert.equal(diverged.reason_code, "GRAPH_DIVERGENCE");
+ });
+ 
++test("REQ-assurance-graph-006/008: replay and reconcile reject assessment and stored-payload tampering", () => {
++  const { candidate, executionGraph, verified } = verifiedProjection();
++  const persistable = {
++    candidate,
++    executionGraph,
++    evidence: verified.evidence,
++    assessments: verified.assessments,
++    verification: verified.verification,
++    canonical_inputs: verified.assurance_graph.canonical_inputs,
++  };
++  const tamperedAssessment = replayAssuranceGraph({
++    ...persistable,
++    assessments: [{ ...verified.assessments[0], assessment_id: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }, ...verified.assessments.slice(1)],
++  });
++  assert.equal(tamperedAssessment.ok, false);
++  assert.equal(tamperedAssessment.reason_code, "GRAPH_DIVERGENCE");
++
++  const tamperedNode = reconcileAssuranceGraph(
++    { ...verified.assurance_graph, nodes: [...verified.assurance_graph.nodes, { id: "extra", kind: "source" }] },
++    { candidate, executionGraph, evidence: verified.evidence, assessments: verified.assessments, verification: verified.verification }
++  );
++  assert.equal(tamperedNode.ok, false);
++  assert.equal(tamperedNode.reason_code, "GRAPH_DIVERGENCE");
++});
++
++test("REQ-assurance-graph-006: replay rejects every persisted assessment binding mutation", () => {
++  const { candidate, executionGraph, verified } = verifiedProjection();
++  const persistable = {
++    candidate,
++    executionGraph,
++    evidence: verified.evidence,
++    assessments: verified.assessments,
++    verification: verified.verification,
++    canonical_inputs: verified.assurance_graph.canonical_inputs,
++  };
++  const assessment = verified.assessments[0];
++  const missingEvidenceId = "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
++
++  const cases = [
++    {
++      name: "malformed assessment schema",
++      input: {
++        ...persistable,
++        assessments: [{ ...assessment, kind: "evidence/v2" }, ...verified.assessments.slice(1)],
++      },
++    },
++    {
++      name: "coverage outside the obligation requirements",
++      input: {
++        ...persistable,
++        assessments: [withAssessmentFields(assessment, { evidence_requirements_satisfied: ["ev:unexpected"] }), ...verified.assessments.slice(1)],
++      },
++    },
++    {
++      name: "candidate mismatch",
++      input: {
++        ...persistable,
++        assessments: [withAssessmentFields(assessment, { candidate_id: missingEvidenceId }), ...verified.assessments.slice(1)],
++      },
++    },
++    {
++      name: "policy mismatch",
++      input: {
++        ...persistable,
++        assessments: [withAssessmentFields(assessment, { policy_snapshot_id: missingEvidenceId }), ...verified.assessments.slice(1)],
++      },
++    },
++    {
++      name: "missing evidence",
++      input: {
++        ...persistable,
++        assessments: [withAssessmentFields(assessment, { evidence_id: missingEvidenceId }), ...verified.assessments.slice(1)],
++      },
++    },
++    {
++      name: "unknown obligation",
++      input: {
++        ...persistable,
++        assessments: [withAssessmentFields(assessment, { obligation_id: "req-unknown-001" }), ...verified.assessments.slice(1)],
++      },
++    },
++    {
++      name: "non-implementing node",
++      input: {
++        ...persistable,
++        evidence: [{ ...verified.evidence[0], node_id: "non-implementing-node" }, ...verified.evidence.slice(1)],
++        assessments: [withAssessmentFields(assessment, { node_id: "non-implementing-node" }), ...verified.assessments.slice(1)],
++      },
++    },
++    {
++      name: "node_id mismatch",
++      input: {
++        ...persistable,
++        evidence: [{ ...verified.evidence[0], node_id: "evidence-node-mismatch" }, ...verified.evidence.slice(1)],
++      },
++    },
++  ];
++
++  for (const { name, input } of cases) {
++    const replayed = replayAssuranceGraph(input);
++    assert.equal(replayed.ok, false, name);
++    assert.equal(replayed.reason_code, "GRAPH_DIVERGENCE", name);
++  }
++});
++
++test("REQ-assurance-graph-008: reconcile rejects stored identity mutations after recomputing stored graph_id", () => {
++  const { candidate, executionGraph, verified } = verifiedProjection();
++  const canonicalInput = {
++    candidate,
++    executionGraph,
++    evidence: verified.evidence,
++    assessments: verified.assessments,
++    verification: verified.verification,
++  };
++  const stored = verified.assurance_graph;
++
++  const cases = [
++    {
++      name: "canonical_inputs",
++      graph: withStoredGraphId({
++        ...stored,
++        canonical_inputs: {
++          ...stored.canonical_inputs,
++          openspec_input_digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
++        },
++      }),
++    },
++    {
++      name: "candidate_id",
++      graph: withStoredGraphId({
++        ...stored,
++        candidate_id: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
++      }),
++    },
++    {
++      name: "kind",
++      graph: withStoredGraphId({ ...stored, kind: "assurance-graph/v2" }),
++    },
++    {
++      name: "schema_version",
++      graph: withStoredGraphId({ ...stored, schema_version: 2 }),
++    },
++  ];
++
++  for (const { name, graph } of cases) {
++    const reconciled = reconcileAssuranceGraph(graph, canonicalInput);
++    assert.equal(reconciled.ok, false, name);
++    assert.equal(reconciled.reason_code, "GRAPH_DIVERGENCE", name);
++  }
++});
++
+diff --git a/scripts/lib/assurance-graph/projector.js b/scripts/lib/assurance-graph/projector.js
+index 40ed240..087918f 100644
+--- a/scripts/lib/assurance-graph/projector.js
++++ b/scripts/lib/assurance-graph/projector.js
+@@ -102,6 +102,18 @@ function pushEdge(edges, from, relation, to) {
+   edges.push({ from, relation, to });
+ }
+ 
++function computeGraphId(payload) {
++  return sha256Fingerprint("assurance-graph/v1", {
++    candidate_id: payload.candidate_id,
++    contract_digest: payload.canonical_inputs.contract_digest,
++    policy_snapshot_id: payload.canonical_inputs.policy_snapshot_id,
++    execution_graph_digest: payload.canonical_inputs.execution_graph_digest,
++    openspec_input_digest: payload.canonical_inputs.openspec_input_digest,
++    nodes: payload.nodes,
++    edges: payload.edges,
++  });
++}
++
+ function resolveCanonicalInputDigests(input) {
+   const provided = input.canonicalInputs && typeof input.canonicalInputs === "object" ? input.canonicalInputs : {};
+   const graph = input.executionGraph || {};
+@@ -117,22 +129,28 @@ function resolveCanonicalInputDigests(input) {
+       source_snapshot_id: graph.source_snapshot_id || (provided.sourceSnapshot && provided.sourceSnapshot.source_snapshot_id) || null,
+     });
+ 
+-  return {
++  const digests = {
+     contract_digest: contractDigest,
+     policy_snapshot_id: policySnapshotId,
+     execution_graph_digest: executionGraphDigest,
+     openspec_input_digest: openspecInputDigest,
+   };
+-}
+-
+-function persistableCanonicalInputs(digests) {
+-  const persistable = {};
+-  for (const key of ["contract_digest", "policy_snapshot_id", "execution_graph_digest", "openspec_input_digest"]) {
+-    if (typeof digests[key] === "string" && SHA256.test(digests[key])) {
+-      persistable[key] = digests[key];
++  for (const [key, value] of Object.entries(digests)) {
++    if (typeof value !== "string" || !SHA256.test(value)) {
++      return fail("GRAPH_DIVERGENCE", `canonical input ${key} must be a resolved sha256 digest`);
+     }
+   }
+-  return persistable;
++  const suppliedContract = provided.contract_digest || contract.contract_digest;
++  if (suppliedContract && suppliedContract !== graph.contract_digest) {
++    return fail("GRAPH_DIVERGENCE", "canonical contract digest contradicts Execution Graph");
++  }
++  if (provided.policy_snapshot_id && provided.policy_snapshot_id !== graph.policy_snapshot_id) {
++    return fail("GRAPH_DIVERGENCE", "canonical policy snapshot contradicts Execution Graph");
++  }
++  if (provided.execution_graph_digest && provided.execution_graph_digest !== graph.graph_id) {
++    return fail("GRAPH_DIVERGENCE", "canonical execution graph digest contradicts Execution Graph");
++  }
++  return { ok: true, canonical_inputs: digests };
+ }
+ 
+ /**
+@@ -208,13 +226,12 @@ function projectAssuranceGraph(input = {}) {
+   if (!forbidden.ok) return forbidden;
+ 
+   const canonical = canonicalize(nodes, edges);
+-  const canonicalInputs = resolveCanonicalInputDigests(input);
+-  const graphId = sha256Fingerprint("assurance-graph/v1", {
++  const resolvedInputs = resolveCanonicalInputDigests(input);
++  if (!resolvedInputs.ok) return resolvedInputs;
++  const canonicalInputs = resolvedInputs.canonical_inputs;
++  const graphId = computeGraphId({
+     candidate_id: candidateId,
+-    contract_digest: canonicalInputs.contract_digest,
+-    policy_snapshot_id: canonicalInputs.policy_snapshot_id,
+-    execution_graph_digest: canonicalInputs.execution_graph_digest,
+-    openspec_input_digest: canonicalInputs.openspec_input_digest,
++    canonical_inputs: canonicalInputs,
+     nodes: canonical.nodes,
+     edges: canonical.edges,
+   });
+@@ -227,10 +244,7 @@ function projectAssuranceGraph(input = {}) {
+     nodes: canonical.nodes.map(cloneNode),
+     edges: canonical.edges.map(cloneEdge),
+   };
+-  const persistedInputs = persistableCanonicalInputs(canonicalInputs);
+-  if (Object.keys(persistedInputs).length > 0) {
+-    resultGraph.canonical_inputs = persistedInputs;
+-  }
++  resultGraph.canonical_inputs = canonicalInputs;
+ 
+   return { ok: true, graph: resultGraph };
+ }
+@@ -238,6 +252,8 @@ function projectAssuranceGraph(input = {}) {
+ module.exports = {
+   ALLOWED_RELATIONS,
+   canonicalize,
++  computeGraphId,
++  resolveCanonicalInputDigests,
+   rejectForbidden,
+   projectAssuranceGraph,
+ };
+diff --git a/scripts/lib/independent-verifier/assessment.js b/scripts/lib/independent-verifier/assessment.js
+index 8910bf8..25527b2 100644
+--- a/scripts/lib/independent-verifier/assessment.js
++++ b/scripts/lib/independent-verifier/assessment.js
+@@ -21,7 +21,15 @@ function getAssessmentSchema() {
+   return cachedAssessmentSchema;
+ }
+ 
++function canonicalizeEvidenceRequirements(value) {
++  if (!Array.isArray(value) || value.some((token) => typeof token !== "string" || token.length === 0)) {
++    return null;
++  }
++  return [...new Set(value)].sort();
++}
++
+ function computeAssessmentId(fields) {
++  const coverage = canonicalizeEvidenceRequirements(fields.evidence_requirements_satisfied) || [];
+   return sha256Fingerprint("assessment/v1", {
+     schema_version: fields.schema_version,
+     kind: fields.kind,
+@@ -31,9 +39,33 @@ function computeAssessmentId(fields) {
+     node_id: fields.node_id,
+     candidate_id: fields.candidate_id,
+     policy_snapshot_id: fields.policy_snapshot_id,
++    evidence_requirements_satisfied: coverage,
+   });
+ }
+ 
++function validateAssessment(record) {
++  if (!record || typeof record !== "object") {
++    return fail("INVALID_ASSESSMENT", "assessment must be an object");
++  }
++  if (Object.prototype.hasOwnProperty.call(record, "verdict")) {
++    return fail("MIXED_ASSESSMENT_VERDICT", "assessment must not carry verdict");
++  }
++  const coverage = canonicalizeEvidenceRequirements(record.evidence_requirements_satisfied);
++  if (!coverage) {
++    return fail("INVALID_ASSESSMENT", "evidence_requirements_satisfied must be a string array");
++  }
++  const normalized = { ...record, evidence_requirements_satisfied: coverage };
++  const validation = validateInstance(getAssessmentSchema(), normalized);
++  if (!validation.valid) {
++    return fail("INVALID_ASSESSMENT", validation.errors.map((e) => e.message).join("; "));
++  }
++  const expectedId = computeAssessmentId(normalized);
++  if (normalized.assessment_id !== expectedId) {
++    return fail("INVALID_ASSESSMENT", "assessment_id does not match canonical assessment fields");
++  }
++  return { ok: true, assessment: normalized };
++}
++
+ /**
+  * Emit an assessment/v1 binding. Verdict is forbidden.
+  *
+@@ -57,21 +89,23 @@ function emitAssessment(input) {
+     node_id: input.node_id,
+     candidate_id: input.candidate_id,
+     policy_snapshot_id: input.policy_snapshot_id,
++    evidence_requirements_satisfied: canonicalizeEvidenceRequirements(input.evidence_requirements_satisfied),
+   };
++  if (!record.evidence_requirements_satisfied) {
++    return fail("INVALID_ASSESSMENT", "evidence_requirements_satisfied must be a string array");
++  }
+   record.assessment_id = computeAssessmentId(record);
+ 
+   if (!SHA256.test(record.assessment_id) || !SHA256.test(record.evidence_id) || !SHA256.test(record.candidate_id)) {
+     return fail("INVALID_ASSESSMENT", "assessment digests must be sha256");
+   }
+ 
+-  const validation = validateInstance(getAssessmentSchema(), record);
+-  if (!validation.valid) {
+-    return fail("INVALID_ASSESSMENT", validation.errors.map((e) => e.message).join("; "));
+-  }
+-  return { ok: true, assessment: record };
++  return validateAssessment(record);
+ }
+ 
+ module.exports = {
++  canonicalizeEvidenceRequirements,
+   computeAssessmentId,
+   emitAssessment,
++  validateAssessment,
+ };
+diff --git a/scripts/lib/independent-verifier/assessment.test.js b/scripts/lib/independent-verifier/assessment.test.js
+index 601fd96..2ab8ecc 100644
+--- a/scripts/lib/independent-verifier/assessment.test.js
++++ b/scripts/lib/independent-verifier/assessment.test.js
+@@ -13,13 +13,36 @@ const BASE = {
+   node_id: "repair-core",
+   candidate_id: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+   policy_snapshot_id: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
++  evidence_requirements_satisfied: ["ev:test-pass"],
+ };
+ 
+-test("REQ-independent-verification-006: computeAssessmentId includes role and obligation_id", () => {
++test("REQ-independent-verification-006: computeAssessmentId includes role, obligation_id, and canonical coverage", () => {
+   const a = computeAssessmentId({ ...BASE, role: "acceptance" });
+   const b = computeAssessmentId({ ...BASE, role: "invariants" });
+   assert.match(a, /^sha256:[a-f0-9]{64}$/);
+   assert.notEqual(a, b);
++  assert.equal(
++    computeAssessmentId({ ...BASE, role: "acceptance", evidence_requirements_satisfied: ["b", "a", "a"] }),
++    computeAssessmentId({ ...BASE, role: "acceptance", evidence_requirements_satisfied: ["a", "b"] })
++  );
++});
++
++test("REQ-independent-verification-006: evidence_id and obligation_id independently change assessment identity", () => {
++  const baseline = computeAssessmentId({ ...BASE, role: "acceptance" });
++  const differentEvidence = computeAssessmentId({
++    ...BASE,
++    role: "acceptance",
++    evidence_id: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
++  });
++  const differentObligation = computeAssessmentId({
++    ...BASE,
++    role: "acceptance",
++    obligation_id: "req-repair-002",
++  });
++
++  assert.notEqual(baseline, differentEvidence);
++  assert.notEqual(baseline, differentObligation);
++  assert.notEqual(differentEvidence, differentObligation);
+ });
+ 
+ test("REQ-independent-verification-006: emitAssessment validates and rejects verdict", () => {
+diff --git a/scripts/lib/independent-verifier/bindings.js b/scripts/lib/independent-verifier/bindings.js
+index b6ac476..e8d856a 100644
+--- a/scripts/lib/independent-verifier/bindings.js
++++ b/scripts/lib/independent-verifier/bindings.js
+@@ -74,6 +74,14 @@ function validateBindings(input) {
+     return fail("BINDING_MISMATCH", graphBinding.error || graphBinding.reason_code);
+   }
+ 
++  const contract = input.contract;
++  if (!contract || typeof contract !== "object" || typeof contract.contract_digest !== "string") {
++    return fail("BINDING_MISMATCH", "input.contract.contract_digest is required");
++  }
++  if (contract.contract_digest !== executionGraph.contract_digest) {
++    return fail("BINDING_MISMATCH", "input.contract.contract_digest does not match executionGraph.contract_digest");
++  }
++
+   const repository = input.repository;
+   if (!repository || typeof repository !== "object" || !repository.files) {
+     return fail("BINDING_MISMATCH", "repository bytes are required");
+@@ -88,7 +96,7 @@ function validateBindings(input) {
+     return fail("BINDING_MISMATCH", "repository tree does not match candidate_tree");
+   }
+ 
+-  return { ok: true, candidate, executionGraph };
++  return { ok: true, candidate, executionGraph, contract };
+ }
+ 
+ module.exports = {
+diff --git a/scripts/lib/independent-verifier/evidence.js b/scripts/lib/independent-verifier/evidence.js
+index 9f1aff1..6e444bc 100644
+--- a/scripts/lib/independent-verifier/evidence.js
++++ b/scripts/lib/independent-verifier/evidence.js
+@@ -116,12 +116,16 @@ function normalizeEvidence(raw, candidate, executionGraph, harnessCollector) {
+     : raw.obligation_id
+       ? [raw.obligation_id]
+       : [];
++  const evidenceRequirementsSatisfied = Array.isArray(raw.evidence_requirements_satisfied)
++    ? [...new Set(raw.evidence_requirements_satisfied.filter((token) => typeof token === "string" && token.length > 0))].sort()
++    : [];
+ 
+   return {
+     ok: true,
+     evidence: record,
+     role: raw.role,
+     obligation_ids: obligationIds,
++    evidence_requirements_satisfied: evidenceRequirementsSatisfied,
+   };
+ }
+ 
+diff --git a/scripts/lib/independent-verifier/index.test.js b/scripts/lib/independent-verifier/index.test.js
+index 2b816e3..847ca46 100644
+--- a/scripts/lib/independent-verifier/index.test.js
++++ b/scripts/lib/independent-verifier/index.test.js
+@@ -103,6 +103,7 @@ function raw(role, bytes, extra = {}) {
+     origin: extra.origin || `role:${role}`,
+     node_id: extra.node_id || "repair-core",
+     obligation_ids: extra.obligation_ids || ["req-repair-001"],
++    evidence_requirements_satisfied: extra.evidence_requirements_satisfied || ["ev:test-pass"],
+   };
+   if (Object.prototype.hasOwnProperty.call(extra, "collector") && extra.collector) {
+     record.collector = extra.collector;
+@@ -181,6 +182,20 @@ test("REQ-independent-verification-001: binding digest mismatch fails closed", (
+   assert.equal(result.reason_code, "BINDING_MISMATCH");
+ });
+ 
++test("REQ-independent-verification-008: contract digest mismatch fails before strategy or verdict", () => {
++  const harness = buildHarness();
++  const result = verifyCandidate({
++    ...harness,
++    contract: { ...harness.contract, contract_digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" },
++    declaredStrategy: "feature",
++    rawEvidence: [],
++  });
++  assert.equal(result.ok, false);
++  assert.equal(result.reason_code, "BINDING_MISMATCH");
++  assert.equal(Object.prototype.hasOwnProperty.call(result, "verification"), false);
++  assert.doesNotMatch(result.error, /strategy|MUST/i);
++});
++
+ test("REQ-independent-verification-001: repository tree_digest without bytes is rejected", () => {
+   const harness = buildHarness();
+   const result = verifyCandidate({
+@@ -767,7 +782,7 @@ test("REQ-independent-verification-004: strategy failure short-circuits without
+   assert.notEqual(result.reason_code, "UNFULFILLED_MUST");
+ });
+ 
+-test("REQ-independent-verification-006: four roles over one observation yield four assessments and one evidence_id", () => {
++test("REQ-independent-verification-006: one observation cannot satisfy four incompatible roles", () => {
+   const harness = buildHarness();
+   const shared = { origin: "shared-observation", obligation_ids: ["req-repair-001"] };
+   const bytes = "shared-bytes";
+@@ -781,29 +796,27 @@ test("REQ-independent-verification-006: four roles over one observation yield fo
+       raw("negative", bytes, shared),
+     ],
+   });
+-  assert.equal(result.ok, true, result.error || result.reason_code);
+-  assert.equal(result.assessments.length, 4);
+-  const evidenceIds = new Set(result.evidence.map((ev) => ev.evidence_id));
+-  assert.equal(evidenceIds.size, 1);
+-  assert.equal(new Set(result.verification.evidence_ids).size, 1);
+-  const assessmentIds = new Set(result.assessments.map((a) => a.assessment_id));
+-  assert.equal(assessmentIds.size, 4);
+-  const roles = new Set(result.assessments.map((a) => a.role));
+-  assert.equal(roles.size, 4);
+-  const sample = result.assessments[0];
+-  assert.equal(
+-    sample.assessment_id,
+-    computeAssessmentId({
+-      schema_version: 1,
+-      kind: "assessment/v1",
+-      evidence_id: sample.evidence_id,
+-      role: sample.role,
+-      obligation_id: sample.obligation_id,
+-      node_id: sample.node_id,
+-      candidate_id: sample.candidate_id,
+-      policy_snapshot_id: sample.policy_snapshot_id,
+-    })
+-  );
++  assert.equal(result.ok, false);
++  assert.equal(result.reason_code, "STRATEGY_EVIDENCE_ALIAS");
++  assert.equal(Object.prototype.hasOwnProperty.call(result, "verification"), false);
++});
++
++test("REQ-independent-verification-006: strict-tdd and bug role order fail closed", () => {
++  const harness = buildHarness();
++  const strict = verifyCandidate({
++    ...harness,
++    rawEvidence: [raw("green", "green"), raw("red", "red")],
++  });
++  assert.equal(strict.ok, false);
++  assert.equal(strict.reason_code, "STRATEGY_SEQUENCE_VIOLATION");
++
++  const bug = verifyCandidate({
++    ...harness,
++    declaredStrategy: "bug",
++    rawEvidence: [raw("patch", "patch"), raw("red", "red"), raw("green", "green")],
++  });
++  assert.equal(bug.ok, false);
++  assert.equal(bug.reason_code, "STRATEGY_SEQUENCE_VIOLATION");
+ });
+ 
+ test("FABRICATED_EVIDENCE: non-object raw and missing origin fail closed", () => {
+diff --git a/scripts/lib/independent-verifier/obligation-coverage.js b/scripts/lib/independent-verifier/obligation-coverage.js
+index d57a275..ac0cd18 100644
+--- a/scripts/lib/independent-verifier/obligation-coverage.js
++++ b/scripts/lib/independent-verifier/obligation-coverage.js
+@@ -23,6 +23,15 @@ function isMust(obligation) {
+   return String((obligation && obligation.criticality) || "must").toLowerCase() === "must";
+ }
+ 
++function normalizedCoverage(item, requiredEvidence) {
++  const supplied = item && (item.evidence_requirements_satisfied || (item.evidence && item.evidence.evidence_requirements_satisfied));
++  const satisfied = Array.isArray(supplied)
++    ? supplied.filter((token) => typeof token === "string")
++    : [];
++  const required = new Set(requiredEvidence);
++  return [...new Set(satisfied.filter((token) => required.has(token)))].sort();
++}
++
+ /**
+  * Walk non-deferred MUST obligations after strategy evaluation.
+  * Join key is persistable obligation_id, not K4a evidence tokens.
+@@ -96,6 +105,15 @@ function walkMustObligations(input) {
+       return fail("UNFULFILLED_MUST", `MUST obligation ${obligation.id} has no admissible evidence`);
+     }
+ 
++    const satisfiedTokens = new Set();
++    for (const item of admissible) {
++      for (const token of normalizedCoverage(item, requiredEvidence)) satisfiedTokens.add(token);
++    }
++    const missingTokens = requiredEvidence.filter((token) => !satisfiedTokens.has(token));
++    if (missingTokens.length > 0) {
++      return fail("UNFULFILLED_MUST", `MUST obligation ${obligation.id} is missing required evidence: ${missingTokens.join(", ")}`);
++    }
++
+     for (const item of admissible) {
+       const emitted = emitAssessment({
+         evidence_id: item.evidence.evidence_id,
+@@ -104,6 +122,7 @@ function walkMustObligations(input) {
+         node_id: item.evidence.node_id,
+         candidate_id: candidate && candidate.candidate_id,
+         policy_snapshot_id: policySnapshotId,
++        evidence_requirements_satisfied: normalizedCoverage(item, requiredEvidence),
+       });
+       if (!emitted.ok) return emitted;
+       assessments.push(emitted.assessment);
+@@ -115,5 +134,6 @@ function walkMustObligations(input) {
+ 
+ module.exports = {
+   isApprovedDeferred,
++  normalizedCoverage,
+   walkMustObligations,
+ };
+diff --git a/scripts/lib/independent-verifier/obligation-coverage.test.js b/scripts/lib/independent-verifier/obligation-coverage.test.js
+index df1be52..05a785e 100644
+--- a/scripts/lib/independent-verifier/obligation-coverage.test.js
++++ b/scripts/lib/independent-verifier/obligation-coverage.test.js
+@@ -11,6 +11,7 @@ const EVIDENCE = {
+   evidence_id: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   provenance: "runtime-observed",
+   node_id: "repair-core",
++  evidence_requirements_satisfied: ["ev:test-pass"],
+ };
+ 
+ function graph(obligations) {
+@@ -141,6 +142,31 @@ test("REQ-independent-verification-005: strategy-shaped bindings still emit pers
+   assert.equal(result.assessments[0].role, "acceptance");
+ });
+ 
++test("REQ-independent-verification-005: token subset coverage rejects partial bindings and persists the complete union", () => {
++  const base = {
++    id: "req-repair-001",
++    criticality: "must",
++    implemented_by: ["repair-core"],
++    required_evidence: ["ev:a", "ev:b"],
++  };
++  const partial = walkMustObligations({
++    classified: [{ role: "acceptance", evidence: EVIDENCE, obligation_ids: [base.id], evidence_requirements_satisfied: ["ev:a"] }],
++    executionGraph: graph([base]), candidate: CANDIDATE, policySnapshotId: POLICY,
++  });
++  assert.equal(partial.ok, false);
++  assert.equal(partial.reason_code, "UNFULFILLED_MUST");
++
++  const complete = walkMustObligations({
++    classified: [
++      { role: "acceptance", evidence: EVIDENCE, obligation_ids: [base.id], evidence_requirements_satisfied: ["ev:b"] },
++      { role: "invariants", evidence: { ...EVIDENCE, evidence_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }, obligation_ids: [base.id], evidence_requirements_satisfied: ["ev:a"] },
++    ],
++    executionGraph: graph([base]), candidate: CANDIDATE, policySnapshotId: POLICY,
++  });
++  assert.equal(complete.ok, true, complete.error);
++  assert.deepEqual(complete.assessments.map((assessment) => assessment.evidence_requirements_satisfied), [["ev:b"], ["ev:a"]]);
++});
++
+ test("REQ-independent-verification-005: weak provenance on MUST is INSUFFICIENT_PROVENANCE", () => {
+   const runtimeUnbound = {
+     ...EVIDENCE,
+diff --git a/scripts/lib/independent-verifier/strategy-policy.js b/scripts/lib/independent-verifier/strategy-policy.js
+index b060db6..f83de83 100644
+--- a/scripts/lib/independent-verifier/strategy-policy.js
++++ b/scripts/lib/independent-verifier/strategy-policy.js
+@@ -114,6 +114,39 @@ function failIfInadmissible(policy, role, items, message) {
+   return null;
+ }
+ 
++function assertDistinctRoleEvidence(items) {
++  const rolesByEvidenceId = new Map();
++  for (const item of items || []) {
++    const evidenceId = item && item.evidence && item.evidence.evidence_id;
++    if (typeof evidenceId !== "string" || typeof item.role !== "string") continue;
++    const roles = rolesByEvidenceId.get(evidenceId) || new Set();
++    roles.add(item.role);
++    rolesByEvidenceId.set(evidenceId, roles);
++    if (roles.size > 1) {
++      return fail("STRATEGY_EVIDENCE_ALIAS", `evidence_id ${evidenceId} cannot satisfy distinct strategy roles`);
++    }
++  }
++  return { ok: true };
++}
++
++function assertRoleOrder(strategyName, items) {
++  const positions = new Map();
++  for (let index = 0; index < (items || []).length; index += 1) {
++    const role = items[index] && items[index].role;
++    if (!positions.has(role)) positions.set(role, []);
++    positions.get(role).push(index);
++  }
++  const ordered = strategyName === "bug" ? ["red", "patch", "green"] : strategyName === "strict-tdd" ? ["red", "green"] : [];
++  for (let index = 0; index < ordered.length - 1; index += 1) {
++    const earlier = positions.get(ordered[index]) || [];
++    const later = positions.get(ordered[index + 1]) || [];
++    if (earlier.length > 0 && later.length > 0 && Math.max(...earlier) > Math.min(...later)) {
++      return fail("STRATEGY_SEQUENCE_VIOLATION", `${ordered[index]} evidence must precede ${ordered[index + 1]} evidence`);
++    }
++  }
++  return { ok: true };
++}
++
+ /**
+  * Check anyOf role groups and their provenance admission.
+  * Extracted so evaluateStrategy stays at most three control-flow levels.
+@@ -148,6 +181,11 @@ function evaluateStrategy(strategyName, items) {
+   if (!policy) return fail("MISSING_STRATEGY_MINIMUM", `unknown strategy ${strategyName}`);
+   const roles = rolesOf(items);
+ 
++  const distinctEvidence = assertDistinctRoleEvidence(items);
++  if (!distinctEvidence.ok) return distinctEvidence;
++  const roleOrder = assertRoleOrder(strategyName, items);
++  if (!roleOrder.ok) return roleOrder;
++
+   if (strategyName === "feature" && policy.characterizationOnlyRoles) {
+     const hasChar = policy.characterizationOnlyRoles.some((role) => roles.has(role));
+     const hasFeatureMin = roles.has("acceptance");
+@@ -210,4 +248,6 @@ module.exports = {
+   STRATEGY_TABLE,
+   selectStrategy,
+   evaluateStrategy,
++  assertDistinctRoleEvidence,
++  assertRoleOrder,
+ };
+diff --git a/scripts/lib/k2a-maturity-docs.test.js b/scripts/lib/k2a-maturity-docs.test.js
+index 1586bdb..68426f9 100644
+--- a/scripts/lib/k2a-maturity-docs.test.js
++++ b/scripts/lib/k2a-maturity-docs.test.js
+@@ -31,8 +31,8 @@ test("K2a maturity docs tag host surfaces implemented; Candidate/attestation/del
+   assert.match(roadmap, /K2a.*\*\*done\*\*|Headless Conformance Host.*implemented/i);
+   assert.match(roadmap, /\|\s*`done`\s*\|\s*\*\*K3\*\*/);
+   assert.match(roadmap, /\|\s*`done`\s*\|\s*\*\*K4b\*\*/);
+-  assert.match(roadmap, /\|\s*`done`\s*\|\s*\*\*K6b\*\*/);
+-  assert.match(roadmap, /\|\s*`next-eligible`\s*\|\s*\*\*K6c\*\*/);
++  assert.match(roadmap, /\|\s*`revise`\s*\|\s*\*\*K6b\*\*/);
++  assert.match(roadmap, /\|\s*`blocked-by-K6b-remediation`\s*\|\s*\*\*K6c\*\*/);
+   assert.match(arch, /\{implemented\} Independent verifier over frozen CandidateId \(K6b\)/);
+   assert.match(arch, /\{implemented\} Evidence strategies with provenance and Strict TDD fallback \(K6b\)/);
+   assert.match(arch, /\{implemented\} Assurance Graph as derived content-addressed projection/);
+@@ -42,6 +42,6 @@ test("K2a maturity docs tag host surfaces implemented; Candidate/attestation/del
+   assert.doesNotMatch(arch, /\{implemented\}.*CandidateEvaluationAttestation/);
+   assert.doesNotMatch(roadmap, /\|\s*`in-progress`\s*\|\s*\*\*K4b\*\*/);
+   assert.doesNotMatch(roadmap, /\|\s*`in-progress`\s*\|\s*\*\*K6b\*\*/);
+-  assert.doesNotMatch(roadmap, /\|\s*`blocked`\s*\|\s*K6b\b/);
++  assert.doesNotMatch(roadmap, /\|\s*`blocked`\s*\|\s*\*\*K6b\*\*/);
+   assert.doesNotMatch(roadmap, /\|\s*`next-eligible`\s*\|\s*\*\*K6b\*\*/);
+ });
+diff --git a/scripts/lib/k6b-schema-fixtures.test.js b/scripts/lib/k6b-schema-fixtures.test.js
+index 19ef9e3..2330d18 100644
+--- a/scripts/lib/k6b-schema-fixtures.test.js
++++ b/scripts/lib/k6b-schema-fixtures.test.js
+@@ -105,6 +105,7 @@ test("K6b contract claims: additive families list required fields without replac
+     "node_id",
+     "candidate_id",
+     "policy_snapshot_id",
++    "evidence_requirements_satisfied",
+   ]);
+ });
+ 
+@@ -248,6 +249,8 @@ test("K6b assessment/v1: valid fixture passes; verdict, missing fields, and cros
+ 
+   const missing = readJson("schemas/kernel/assessment/fixtures/invalid/v1-missing-required.json");
+   assert.equal(validateInstance(assessmentSchema, missing).valid, false);
++  const missingCoverage = readJson("schemas/kernel/assessment/fixtures/invalid/v1-missing-coverage.json");
++  assert.equal(validateInstance(assessmentSchema, missingCoverage).valid, false);
+ 
+   const withVerdict = readJson("schemas/kernel/assessment/fixtures/invalid/v1-with-verdict.json");
+   const verdictRes = validateInstance(assessmentSchema, withVerdict);

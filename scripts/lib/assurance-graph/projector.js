@@ -102,6 +102,18 @@ function pushEdge(edges, from, relation, to) {
   edges.push({ from, relation, to });
 }
 
+function computeGraphId(payload) {
+  return sha256Fingerprint("assurance-graph/v1", {
+    candidate_id: payload.candidate_id,
+    contract_digest: payload.canonical_inputs.contract_digest,
+    policy_snapshot_id: payload.canonical_inputs.policy_snapshot_id,
+    execution_graph_digest: payload.canonical_inputs.execution_graph_digest,
+    openspec_input_digest: payload.canonical_inputs.openspec_input_digest,
+    nodes: payload.nodes,
+    edges: payload.edges,
+  });
+}
+
 function resolveCanonicalInputDigests(input) {
   const provided = input.canonicalInputs && typeof input.canonicalInputs === "object" ? input.canonicalInputs : {};
   const graph = input.executionGraph || {};
@@ -117,22 +129,28 @@ function resolveCanonicalInputDigests(input) {
       source_snapshot_id: graph.source_snapshot_id || (provided.sourceSnapshot && provided.sourceSnapshot.source_snapshot_id) || null,
     });
 
-  return {
+  const digests = {
     contract_digest: contractDigest,
     policy_snapshot_id: policySnapshotId,
     execution_graph_digest: executionGraphDigest,
     openspec_input_digest: openspecInputDigest,
   };
-}
-
-function persistableCanonicalInputs(digests) {
-  const persistable = {};
-  for (const key of ["contract_digest", "policy_snapshot_id", "execution_graph_digest", "openspec_input_digest"]) {
-    if (typeof digests[key] === "string" && SHA256.test(digests[key])) {
-      persistable[key] = digests[key];
+  for (const [key, value] of Object.entries(digests)) {
+    if (typeof value !== "string" || !SHA256.test(value)) {
+      return fail("GRAPH_DIVERGENCE", `canonical input ${key} must be a resolved sha256 digest`);
     }
   }
-  return persistable;
+  const suppliedContract = provided.contract_digest || contract.contract_digest;
+  if (suppliedContract && suppliedContract !== graph.contract_digest) {
+    return fail("GRAPH_DIVERGENCE", "canonical contract digest contradicts Execution Graph");
+  }
+  if (provided.policy_snapshot_id && provided.policy_snapshot_id !== graph.policy_snapshot_id) {
+    return fail("GRAPH_DIVERGENCE", "canonical policy snapshot contradicts Execution Graph");
+  }
+  if (provided.execution_graph_digest && provided.execution_graph_digest !== graph.graph_id) {
+    return fail("GRAPH_DIVERGENCE", "canonical execution graph digest contradicts Execution Graph");
+  }
+  return { ok: true, canonical_inputs: digests };
 }
 
 /**
@@ -208,13 +226,12 @@ function projectAssuranceGraph(input = {}) {
   if (!forbidden.ok) return forbidden;
 
   const canonical = canonicalize(nodes, edges);
-  const canonicalInputs = resolveCanonicalInputDigests(input);
-  const graphId = sha256Fingerprint("assurance-graph/v1", {
+  const resolvedInputs = resolveCanonicalInputDigests(input);
+  if (!resolvedInputs.ok) return resolvedInputs;
+  const canonicalInputs = resolvedInputs.canonical_inputs;
+  const graphId = computeGraphId({
     candidate_id: candidateId,
-    contract_digest: canonicalInputs.contract_digest,
-    policy_snapshot_id: canonicalInputs.policy_snapshot_id,
-    execution_graph_digest: canonicalInputs.execution_graph_digest,
-    openspec_input_digest: canonicalInputs.openspec_input_digest,
+    canonical_inputs: canonicalInputs,
     nodes: canonical.nodes,
     edges: canonical.edges,
   });
@@ -227,10 +244,7 @@ function projectAssuranceGraph(input = {}) {
     nodes: canonical.nodes.map(cloneNode),
     edges: canonical.edges.map(cloneEdge),
   };
-  const persistedInputs = persistableCanonicalInputs(canonicalInputs);
-  if (Object.keys(persistedInputs).length > 0) {
-    resultGraph.canonical_inputs = persistedInputs;
-  }
+  resultGraph.canonical_inputs = canonicalInputs;
 
   return { ok: true, graph: resultGraph };
 }
@@ -238,6 +252,8 @@ function projectAssuranceGraph(input = {}) {
 module.exports = {
   ALLOWED_RELATIONS,
   canonicalize,
+  computeGraphId,
+  resolveCanonicalInputDigests,
   rejectForbidden,
   projectAssuranceGraph,
 };

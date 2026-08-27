@@ -1,0 +1,194 @@
+{
+  "planned": {
+    "status": "ready",
+    "run_generalist": true,
+    "dispatch": [
+      "review-risk",
+      "review-reliability",
+      "review-resilience",
+      "review-readability"
+    ],
+    "archive_allowed": false,
+    "gate": {
+      "status": "ready",
+      "schema_version": 1,
+      "classification": "high-risk",
+      "evidence": {
+        "schema_version": 1,
+        "fingerprint": "sha256:35db40e519d337da13828b16e042956c911cae1d2f3c0239d1502d8b5c8a59ce",
+        "sources": {
+          "paths": [
+            "docs/architecture/harness-evolution.md",
+            "docs/roadmaps/harness-evolution.md",
+            "openspec/changes/k6b-semantic-integrity-remediation/apply-progress.md",
+            "openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-001.md",
+            "openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-002.md",
+            "openspec/changes/k6b-semantic-integrity-remediation/decisions/adr-003.md",
+            "openspec/changes/k6b-semantic-integrity-remediation/design.md",
+            "openspec/changes/k6b-semantic-integrity-remediation/proposal.md",
+            "openspec/changes/k6b-semantic-integrity-remediation/specs/assurance-graph/spec.md",
+            "openspec/changes/k6b-semantic-integrity-remediation/specs/independent-verification/spec.md",
+            "openspec/changes/k6b-semantic-integrity-remediation/specs/kernel-contract-schemas/spec.md",
+            "openspec/changes/k6b-semantic-integrity-remediation/state.yaml",
+            "openspec/changes/k6b-semantic-integrity-remediation/tasks.md",
+            "openspec/changes/k6b-semantic-integrity-remediation/verify-report.md",
+            "openspec/memory/known-issues.md",
+            "schemas/kernel/assessment/fixtures/invalid/v1-missing-coverage.json",
+            "schemas/kernel/assessment/fixtures/invalid/v1-with-verdict.json",
+            "schemas/kernel/assessment/fixtures/valid/v1-complete.json",
+            "schemas/kernel/assessment/fixtures/valid/v1-four-roles.json",
+            "schemas/kernel/assessment/v1.schema.json",
+            "schemas/kernel/contract-claims.json",
+            "scripts/k6b-verifier-assurance-graph-e2e.test.js",
+            "scripts/lib/assurance-graph/index.js",
+            "scripts/lib/assurance-graph/index.test.js",
+            "scripts/lib/assurance-graph/projector.js",
+            "scripts/lib/independent-verifier/assessment.js",
+            "scripts/lib/independent-verifier/assessment.test.js",
+            "scripts/lib/independent-verifier/bindings.js",
+            "scripts/lib/independent-verifier/evidence.js",
+            "scripts/lib/independent-verifier/index.test.js",
+            "scripts/lib/independent-verifier/obligation-coverage.js",
+            "scripts/lib/independent-verifier/obligation-coverage.test.js",
+            "scripts/lib/independent-verifier/strategy-policy.js",
+            "scripts/lib/k2a-maturity-docs.test.js",
+            "scripts/lib/k6b-schema-fixtures.test.js"
+          ],
+          "capabilities": [
+            "runtime"
+          ],
+          "operation_types": [
+            "add",
+            "modify"
+          ],
+          "dependencies": [],
+          "facts": [
+            {
+              "code": "design-risk",
+              "source": "design",
+              "detail": "Fail-closed verifier and Assurance Graph public APIs reject aliased roles, partial coverage, and tampered stored graphs."
+            },
+            {
+              "code": "metadata-runtime",
+              "source": "metadata",
+              "detail": "runtime"
+            },
+            {
+              "code": "diff-auth-permission",
+              "source": "real-diff",
+              "detail": "scripts/lib/independent-verifier/strategy-policy.js"
+            }
+          ]
+        }
+      },
+      "generalist": {
+        "status": "needs-specialist",
+        "specialists": [
+          "risk",
+          "reliability"
+        ],
+        "reason": "signals=design-risk,diff-auth-permission,metadata-runtime;dimensions=risk,reliability"
+      },
+      "depth": {
+        "review": "strict"
+      },
+      "escalation_reason": null,
+      "dimensions": {
+        "risk": {
+          "selected": true,
+          "reasons": [
+            {
+              "code": "high-risk-override",
+              "source": "override",
+              "detail": "Classification requires full 4R",
+              "precedence": 0
+            },
+            {
+              "code": "diff-auth-permission",
+              "source": "real-diff",
+              "detail": "scripts/lib/independent-verifier/strategy-policy.js",
+              "precedence": 2
+            },
+            {
+              "code": "generalist-escalation",
+              "source": "generalist",
+              "detail": "signals=design-risk,diff-auth-permission,metadata-runtime;dimensions=risk,reliability",
+              "precedence": 3
+            },
+            {
+              "code": "design-risk",
+              "source": "design",
+              "detail": "Fail-closed verifier and Assurance Graph public APIs reject aliased roles, partial coverage, and tampered stored graphs.",
+              "precedence": 4
+            }
+          ]
+        },
+        "reliability": {
+          "selected": true,
+          "reasons": [
+            {
+              "code": "high-risk-override",
+              "source": "override",
+              "detail": "Classification requires full 4R",
+              "precedence": 0
+            },
+            {
+              "code": "generalist-escalation",
+              "source": "generalist",
+              "detail": "signals=design-risk,diff-auth-permission,metadata-runtime;dimensions=risk,reliability",
+              "precedence": 3
+            },
+            {
+              "code": "metadata-runtime",
+              "source": "metadata",
+              "detail": "runtime",
+              "precedence": 5
+            }
+          ]
+        },
+        "resilience": {
+          "selected": true,
+          "reasons": [
+            {
+              "code": "high-risk-override",
+              "source": "override",
+              "detail": "Classification requires full 4R",
+              "precedence": 0
+            }
+          ]
+        },
+        "readability": {
+          "selected": true,
+          "reasons": [
+            {
+              "code": "high-risk-override",
+              "source": "override",
+              "detail": "Classification requires full 4R",
+              "precedence": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  "plannedLineage": {
+    "status": "reviewing",
+    "next_action": {
+      "type": "await-lenses",
+      "dimensions": [
+        "risk",
+        "reliability",
+        "resilience",
+        "readability"
+      ]
+    },
+    "dispatch": [],
+    "archive_allowed": false
+  },
+  "requestIds": {
+    "risk": "k6b-sem-4r-risk-1",
+    "reliability": "k6b-sem-4r-reliability-1",
+    "resilience": "k6b-sem-4r-resilience-1",
+    "readability": "k6b-sem-4r-readability-1"
+  }
+}

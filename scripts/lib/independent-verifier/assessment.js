@@ -21,7 +21,15 @@ function getAssessmentSchema() {
   return cachedAssessmentSchema;
 }
 
+function canonicalizeEvidenceRequirements(value) {
+  if (!Array.isArray(value) || value.some((token) => typeof token !== "string" || token.length === 0)) {
+    return null;
+  }
+  return [...new Set(value)].sort();
+}
+
 function computeAssessmentId(fields) {
+  const coverage = canonicalizeEvidenceRequirements(fields.evidence_requirements_satisfied) || [];
   return sha256Fingerprint("assessment/v1", {
     schema_version: fields.schema_version,
     kind: fields.kind,
@@ -31,7 +39,31 @@ function computeAssessmentId(fields) {
     node_id: fields.node_id,
     candidate_id: fields.candidate_id,
     policy_snapshot_id: fields.policy_snapshot_id,
+    evidence_requirements_satisfied: coverage,
   });
+}
+
+function validateAssessment(record) {
+  if (!record || typeof record !== "object") {
+    return fail("INVALID_ASSESSMENT", "assessment must be an object");
+  }
+  if (Object.prototype.hasOwnProperty.call(record, "verdict")) {
+    return fail("MIXED_ASSESSMENT_VERDICT", "assessment must not carry verdict");
+  }
+  const coverage = canonicalizeEvidenceRequirements(record.evidence_requirements_satisfied);
+  if (!coverage) {
+    return fail("INVALID_ASSESSMENT", "evidence_requirements_satisfied must be a string array");
+  }
+  const normalized = { ...record, evidence_requirements_satisfied: coverage };
+  const validation = validateInstance(getAssessmentSchema(), normalized);
+  if (!validation.valid) {
+    return fail("INVALID_ASSESSMENT", validation.errors.map((e) => e.message).join("; "));
+  }
+  const expectedId = computeAssessmentId(normalized);
+  if (normalized.assessment_id !== expectedId) {
+    return fail("INVALID_ASSESSMENT", "assessment_id does not match canonical assessment fields");
+  }
+  return { ok: true, assessment: normalized };
 }
 
 /**
@@ -57,21 +89,23 @@ function emitAssessment(input) {
     node_id: input.node_id,
     candidate_id: input.candidate_id,
     policy_snapshot_id: input.policy_snapshot_id,
+    evidence_requirements_satisfied: canonicalizeEvidenceRequirements(input.evidence_requirements_satisfied),
   };
+  if (!record.evidence_requirements_satisfied) {
+    return fail("INVALID_ASSESSMENT", "evidence_requirements_satisfied must be a string array");
+  }
   record.assessment_id = computeAssessmentId(record);
 
   if (!SHA256.test(record.assessment_id) || !SHA256.test(record.evidence_id) || !SHA256.test(record.candidate_id)) {
     return fail("INVALID_ASSESSMENT", "assessment digests must be sha256");
   }
 
-  const validation = validateInstance(getAssessmentSchema(), record);
-  if (!validation.valid) {
-    return fail("INVALID_ASSESSMENT", validation.errors.map((e) => e.message).join("; "));
-  }
-  return { ok: true, assessment: record };
+  return validateAssessment(record);
 }
 
 module.exports = {
+  canonicalizeEvidenceRequirements,
   computeAssessmentId,
   emitAssessment,
+  validateAssessment,
 };

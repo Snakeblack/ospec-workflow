@@ -105,6 +105,7 @@ test("K6b contract claims: additive families list required fields without replac
     "node_id",
     "candidate_id",
     "policy_snapshot_id",
+    "evidence_requirements_satisfied",
   ]);
 });
 
@@ -248,6 +249,8 @@ test("K6b assessment/v1: valid fixture passes; verdict, missing fields, and cros
 
   const missing = readJson("schemas/kernel/assessment/fixtures/invalid/v1-missing-required.json");
   assert.equal(validateInstance(assessmentSchema, missing).valid, false);
+  const missingCoverage = readJson("schemas/kernel/assessment/fixtures/invalid/v1-missing-coverage.json");
+  assert.equal(validateInstance(assessmentSchema, missingCoverage).valid, false);
 
   const withVerdict = readJson("schemas/kernel/assessment/fixtures/invalid/v1-with-verdict.json");
   const verdictRes = validateInstance(assessmentSchema, withVerdict);

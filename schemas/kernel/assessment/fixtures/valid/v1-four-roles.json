@@ -8,7 +8,8 @@
     "obligation_id": "req-repair-001",
     "node_id": "repair-core",
     "candidate_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "evidence_requirements_satisfied": ["ev:test-pass"]
   },
   {
     "schema_version": 1,
@@ -19,7 +20,8 @@
     "obligation_id": "req-repair-001",
     "node_id": "repair-core",
     "candidate_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "evidence_requirements_satisfied": ["ev:test-pass"]
   },
   {
     "schema_version": 1,
@@ -30,7 +32,8 @@
     "obligation_id": "req-repair-001",
     "node_id": "repair-core",
     "candidate_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "evidence_requirements_satisfied": ["ev:test-pass"]
   },
   {
     "schema_version": 1,
@@ -41,6 +44,7 @@
     "obligation_id": "req-repair-001",
     "node_id": "repair-core",
     "candidate_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "evidence_requirements_satisfied": ["ev:test-pass"]
   }
 ]
