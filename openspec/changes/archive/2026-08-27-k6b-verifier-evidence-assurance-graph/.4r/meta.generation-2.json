@@ -1,0 +1,11 @@
+{
+  "base_tree": "153b734bc9925da9937f4ef75eb6e2c7e443fbbd",
+  "candidate_tree": "WORKING-TREE-k6b-warning-successor",
+  "changed_lines": 6610,
+  "plus": 6594,
+  "minus": 16,
+  "paths_count": 65,
+  "evidence_fingerprint": "sha256:be917a9a5130734fd746463eb769b27ada4b3d2b04a598917ae546d5aade9d90",
+  "diff_hash": "sha256:13c7e437d9197e55f0563a0deabad4718e14bca895828edee169131bd6d58d80",
+  "paths_digest": "sha256:5bd7690f76c0b4c79669ccf546646f3690ecb0581364ef531c122bae660120a2"
+}

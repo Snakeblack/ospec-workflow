@@ -1,8 +1,8 @@
 # Arquitectura objetivo — harness gobernado por kernel, grafo y evidencia
 
 > **Autoridad:** fuente conceptual y estratégica del harness (responsabilidades y límites).
-> **Corte documental:** v2.49.0, 2026-08-27 (estado alineado al roadmap; la dirección conceptual no cambia).
-> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a**, **K5**, **K6a** y **K4b** están entregados y archivados. **K6b** es la siguiente iniciativa elegible.
+> **Corte documental:** v2.50.0, 2026-08-27 (estado alineado al roadmap; la dirección conceptual no cambia).
+> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a**, **K5**, **K6a**, **K4b** y **K6b** están entregados y archivados. OpenSpec/Git/Candidate siguen siendo la única autoridad semántica; el Assurance Graph es proyección. **K6c** es la siguiente iniciativa elegible.
 > **Roadmap:** orden, estado operativo y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
 > **Precedencia documental:** ante diferencias de **orden o estado**, prevalece el roadmap; ante diferencias **conceptuales**, reconciliar antes de iniciar el slice.
 > **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md). La proporcionalidad de proceso y el programa de changes viven en [`research/proportional-process-and-change-program.md`](research/proportional-process-and-change-program.md).
@@ -21,7 +21,7 @@ Sin duplicar el backlog: solo responsabilidades y límites alineados al roadmap 
 
 | Tema | Decisión arquitectónica |
 | --- | --- |
-| Estado | K1+K2+K2.1+K2a+K3+`k3-readiness-remediation`+K4a+K5+K6a+K4b `done`; **K6b** `next-eligible` |
+| Estado | K1+K2+K2.1+K2a+K3+`k3-readiness-remediation`+K4a+K5+K6a+K4b+K6b `done`; **K6c** `next-eligible` |
 | Dos grafos | **Execution Graph** (trabajo) ≠ **Assurance Graph** (fiabilidad / evidencia; no “prueba formal”) |
 | Identidades | `SourceSnapshotId` / `WorkOrderId` / `WorkResultId` / `CandidateId` (sin IDs nuevos por ahora) |
 | Relación Candidate | Inicial: `exact` / `changed` / `ambiguous` / `unknown`; `compatible-base-advance` experimental hasta K9 |
@@ -184,14 +184,14 @@ El programa no cambia defaults por el solo hecho de cerrar O2B/K1/K2/K2.1/K2a: c
 
 ### Deuda real
 
-**Entregado — no reabrir como si faltara el primitive:** K3 (identidades + freeze básico), K4a (compiler + Obligation Manifest + replay), K5 (budgets/failure/recovery), K6a (isolation/capsule), K4b (Repair shadow).
+**Entregado — no reabrir como si faltara el primitive:** K3 (identidades + freeze básico), K4a (compiler + Obligation Manifest + replay), K5 (budgets/failure/recovery), K6a (isolation/capsule), K4b (Repair shadow), K6b (verifier independiente, strategies/provenance, Assurance Graph proyección).
 
 **Sigue siendo deuda (dueños sin cambio):**
 
 - Hard floors K1 no cablean la tabla de routing de producto; first-match de `standard` por `project.status: active` deja `lite` inalcanzable en repos active (compatibilidad; no es K10).
 - Recetas Direct/Repair/Bounded/Planned/Critical no están activas (K10, una a una, tras K9).
-- No hay selector de estrategia de evidencia por tipo, provenance ni Assurance Graph (K6b).
 - ChallengePlan / challenges proporcionales y `complexity_delta` no son gates reutilizables (K6c/K6d).
+- El Assurance Graph no es autoridad independiente de lifecycle, approval o delivery (sigue `target`; K6b solo materializa la proyección).
 - ReviewAdapter / Nivel 0 determinista no sustituyen el generalist de O4 (K7).
 - No hay CandidateEvaluationAttestation ni DeliveryAuthorization productivos (K8 / K10-delivery).
 - Model routing por nodo no sustituye el catálogo estático agent → tier (K11b).
@@ -855,7 +855,7 @@ Repositorios fixture reciben 10–30 cambios consecutivos. Se miden duplicación
 8. ~~K5: budgets (incl. autoridad/efectos) / failure / recovery~~ — hecho: archivado y publicado en v2.45.13 (remediaciones v2.45.7→v2.45.13).
 9. ~~K6a: primitivas de ejecución aislada (`CreateWorkspace`…`DisposeWorkspace`); no conoce Repair~~ — hecho: archivado y publicado en v2.46.7; frontera de procesos cerrada en v2.47.1; endurecimiento de frontera (política inmutable, fs mutante, live-identity, `worker_threads`) en v2.47.2.
 10. ~~K4b: orquesta Repair shadow (consume K6a; freeze Candidate vía K3)~~ — hecho: publicado en v2.48.0; corrección en v2.48.1; invariantes de integración en v2.48.2; cierre mode-only/baseline en v2.48.3.
-11. K6b: verifier + provenance + Assurance Graph — siguiente iniciativa elegible; K6c: ChallengePlan policy-selected; K6d: complexity delta.
+11. ~~K6b: verifier + provenance + Assurance Graph (proyección)~~ — verifier, strategies/provenance y proyección implementados; autoridad del grafo, K6c ChallengePlan y K6d complexity delta siguen pendientes.
 12. K7: ReviewAdapter + ReviewReducer + lineage; K8: CandidateEvaluationAttestation (emisión CAS).
 13. K9: shadow/replay/A-B; promoción de **un** profile (checkpoints intermedios ya validados).
 14. K10-delivery: DeliveryAuthorization **solo** del profile promovido; relación Candidate por etapas; resto fixed/deferred.
@@ -929,6 +929,9 @@ Un **Change Program** (objetivo humano → children OpenSpec con `depends_on` y 
 - {implemented} K5 budgets (incl. autoridad/efectos), failures y recovery; no se reinician budgets por retry (v2.45.13).
 - {implemented} K6a worker isolation y work-order capsule (v2.46.0–v2.47.2).
 - {implemented} K4b Repair shadow execution (v2.48.0–v2.48.3).
+- {implemented} Independent verifier over frozen CandidateId (K6b).
+- {implemented} Evidence strategies with provenance and Strict TDD fallback (K6b).
+- {implemented} Assurance Graph as derived content-addressed projection with selective invalidation (K6b); OpenSpec/Git/Candidate remain sole semantic authority.
 
 ### Target arquitectónico aceptado
 
@@ -939,13 +942,13 @@ Un **Change Program** (objetivo humano → children OpenSpec con `depends_on` y 
 - {target} Paridad material entre proyección humana y envelope negociado.
 - {target} Candidate freeze gobierna apply → verify → review → delivery (identidades y freeze básico ya en K3; attestation/authorization en K8/K10-delivery).
 - {target} Consumo de Execution Graph + Obligation Manifest por recetas y federación (compiler/replay ya en K4a; no es autoridad independiente).
-- {target} Assurance Graph (proyección de evidencia con provenance; no autoridad ni prueba formal).
+- {target} Assurance Graph as independent authority (never implemented by K6b; projection only).
 - {target} Clasificación por impacto + incertidumbre; hard floors no degradables por tamaño **y cableados a la ruta efectiva** (schema K1 hecho; enforcement de receta en K10; clamp de la tabla viva es compatibilidad).
 - {target} Rutas como recetas y fases como capacidades (K10). La tabla lite/standard permanece como producto hasta promoción.
 - {target} Clarify con invalidación parcial.
 - {target} Presupuestos/failure/recovery consumidos por recetas y challenges (kernel K5 entregado; no reabrir el primitive).
-- {target} Verifier independiente + ChallengePlan policy-selected.
-- {target} Evidence strategies / provenance / complexity delta.
+- {target} ChallengePlan policy-selected (K6c).
+- {target} Complexity delta (K6d).
 - {target} ReviewAdapter + ReviewReducer + reutilización de lineage.
 - {target} CandidateEvaluationAttestation (emisión CAS) y DeliveryAuthorization (kinds distintos; profile-scoped).
 - {target} Eventos estructurados.

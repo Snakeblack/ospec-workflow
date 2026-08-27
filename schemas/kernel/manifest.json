@@ -205,6 +205,21 @@
       "path": "schemas/kernel/containment-violation/v1.schema.json",
       "$id": "ospec://schemas/kernel/containment-violation/v1",
       "schema_version": 1
+    },
+    "evidence-v2": {
+      "path": "schemas/kernel/evidence/v2.schema.json",
+      "$id": "ospec://schemas/kernel/evidence/v2",
+      "schema_version": 2
+    },
+    "verification-v2": {
+      "path": "schemas/kernel/verification/v2.schema.json",
+      "$id": "ospec://schemas/kernel/verification/v2",
+      "schema_version": 2
+    },
+    "assurance-graph": {
+      "path": "schemas/kernel/assurance-graph/v1.schema.json",
+      "$id": "ospec://schemas/kernel/assurance-graph/v1",
+      "schema_version": 1
     }
   }
 }

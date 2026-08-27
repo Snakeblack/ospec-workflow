@@ -1,0 +1,14 @@
+{
+  "status": "reviewing",
+  "next_action": {
+    "type": "await-lenses",
+    "dimensions": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ]
+  },
+  "dispatch": [],
+  "archive_allowed": false
+}

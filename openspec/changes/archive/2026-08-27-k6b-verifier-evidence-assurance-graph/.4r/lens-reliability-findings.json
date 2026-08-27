@@ -1,0 +1,22 @@
+[
+  {
+    "severity": "CRITICAL",
+    "summary": "El camino BINDING_MISMATCH de evidence.node_id (ausente o fuera del Execution Graph) no tiene test.",
+    "acceptance_criteria": "Añadir un test de verifyCandidate/normalizeEvidence que, con Candidate y grafo válidos, falle con reason_code BINDING_MISMATCH cuando rawEvidence[].node_id falta o no coincide con ningún executionGraph.nodes[].node_id, y que no emita verification."
+  },
+  {
+    "severity": "CRITICAL",
+    "summary": "validateBindings acepta repository.tree_digest sin bytes y no hay test del mismatch de árbol.",
+    "acceptance_criteria": "1) Test que verifyCandidate con repository: { tree_digest: candidate.candidate_tree } y sin files falle BINDING_MISMATCH (bytes requeridos). 2) Test que repository.files cuyo computeTreeDigest no iguale candidate_tree falle BINDING_MISMATCH y no emita verification."
+  },
+  {
+    "severity": "WARNING",
+    "summary": "El fallo anyOf install|consume de la estrategia config-docs no está testeado.",
+    "acceptance_criteria": "Añadir un test de verifyCandidate con declaredStrategy config-docs y roles schema-parser + smoke (runtime-observed) sin install ni consume, y afirmar ok:false y reason_code MISSING_STRATEGY_MINIMUM."
+  },
+  {
+    "severity": "WARNING",
+    "summary": "reconcileAssuranceGraph no tiene test cuando graph_id coincide y las aristas divergen.",
+    "acceptance_criteria": "Añadir un test que pase un stored.graph con el mismo graph_id que la proyección canónica pero edges distintas, y afirmar ok:false y reason_code GRAPH_DIVERGENCE por 'stored edges diverge from canonical projection'."
+  }
+]

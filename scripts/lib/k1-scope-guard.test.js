@@ -143,6 +143,8 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/k6a-lifecycle-model.test.js",
   "scripts/k6a-e2e-worker-isolation.test.js",
   "scripts/k4b-repair-shadow-e2e.test.js",
+  "scripts/lib/k6b-schema-fixtures.test.js",
+  "scripts/k6b-verifier-assurance-graph-e2e.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [
@@ -159,6 +161,8 @@ const SUCCESSOR_K2_PREFIXES = [
   "scripts/lib/contract-checkers/k4a-",
   "scripts/lib/contract-checkers/k5-",
   "scripts/lib/contract-checkers/k6a-",
+  "scripts/lib/independent-verifier/",
+  "scripts/lib/assurance-graph/",
   "schemas/kernel/operation-permit/",
   "schemas/kernel/operation-receipt/",
   "schemas/kernel/effect-class/",
@@ -193,6 +197,13 @@ const SUCCESSOR_K2_PREFIXES = [
   "schemas/kernel/candidate/fixtures/identity/",
   "schemas/kernel/work-order/fixtures/valid/v2-",
   "schemas/kernel/work-order/fixtures/invalid/v2-",
+  "schemas/kernel/evidence/v2.schema.json",
+  "schemas/kernel/evidence/fixtures/valid/v2-",
+  "schemas/kernel/evidence/fixtures/invalid/v2-",
+  "schemas/kernel/verification/v2.schema.json",
+  "schemas/kernel/verification/fixtures/valid/v2-",
+  "schemas/kernel/verification/fixtures/invalid/v2-",
+  "schemas/kernel/assurance-graph/",
 ];
 
 const PROTECTED_BASELINE_PATHS = [

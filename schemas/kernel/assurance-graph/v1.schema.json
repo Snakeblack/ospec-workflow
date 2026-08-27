@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/assurance-graph/v1",
+  "title": "AssuranceGraphV1",
+  "description": "Derived content-addressed Assurance Graph projection. Never attestation or delivery authorization.",
+  "type": "object",
+  "schema_version": 1,
+  "required": [
+    "schema_version",
+    "graph_id",
+    "candidate_id",
+    "nodes",
+    "edges"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "const": "assurance-graph/v1"
+    },
+    "graph_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/edge"
+      }
+    },
+    "equivalence_manifest": {
+      "$ref": "#/$defs/equivalenceManifest"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "node": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "requirement",
+            "graph-node",
+            "work-order",
+            "source",
+            "candidate",
+            "test-evidence",
+            "verification-decision"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "edge": {
+      "type": "object",
+      "required": [
+        "from",
+        "relation",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relation": {
+          "type": "string",
+          "enum": [
+            "verified-by",
+            "satisfies",
+            "derived-from",
+            "invalidates"
+          ]
+        },
+        "to": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "equivalenceManifest": {
+      "type": "object",
+      "required": [
+        "kind",
+        "graph_id",
+        "candidate_id"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "equivalence-manifest/v1"
+        },
+        "graph_id": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "candidate_id": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

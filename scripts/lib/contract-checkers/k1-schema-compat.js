@@ -25,6 +25,7 @@ const REQUIRED_FAMILIES = Object.freeze([
 /**
  * Publication aliases: manifest family key differs from filesystem directory.
  * ADR-001: candidate-v2 / work-order-v2 keys point at candidate/v2 and work-order/v2.
+ * K6b: evidence-v2 / verification-v2 keys point at evidence/v2 and verification/v2.
  */
 const FAMILY_PUBLICATION = Object.freeze({
   "candidate-v2": Object.freeze({
@@ -39,6 +40,18 @@ const FAMILY_PUBLICATION = Object.freeze({
     fixturesDir: "schemas/kernel/work-order/fixtures",
     fixtureNameFilter: (name) => name.startsWith("v2-"),
   }),
+  "evidence-v2": Object.freeze({
+    path: "schemas/kernel/evidence/v2.schema.json",
+    id: "ospec://schemas/kernel/evidence/v2",
+    fixturesDir: "schemas/kernel/evidence/fixtures",
+    fixtureNameFilter: (name) => name.startsWith("v2-"),
+  }),
+  "verification-v2": Object.freeze({
+    path: "schemas/kernel/verification/v2.schema.json",
+    id: "ospec://schemas/kernel/verification/v2",
+    fixturesDir: "schemas/kernel/verification/fixtures",
+    fixtureNameFilter: (name) => name.startsWith("v2-"),
+  }),
   candidate: Object.freeze({
     // k3-frozen.json is a Candidate v2 frozen-shape fixture living under the v1
     // fixtures tree for K3 adversarial tests; exclude it from K1 v1 family publication
@@ -46,6 +59,12 @@ const FAMILY_PUBLICATION = Object.freeze({
     fixtureNameFilter: (name) => !name.startsWith("v2-") && name !== "k3-frozen.json",
   }),
   "work-order": Object.freeze({
+    fixtureNameFilter: (name) => !name.startsWith("v2-"),
+  }),
+  evidence: Object.freeze({
+    fixtureNameFilter: (name) => !name.startsWith("v2-"),
+  }),
+  verification: Object.freeze({
     fixtureNameFilter: (name) => !name.startsWith("v2-"),
   }),
 });
@@ -265,6 +284,45 @@ function validateCommandShape(schema, shape, claimPath, offenders) {
   }
 }
 
+function resolveDef(schema, ref) {
+  if (typeof ref !== "string" || !ref.startsWith("#/$defs/")) return null;
+  const defName = ref.slice("#/$defs/".length);
+  if (!defName || defName.includes("/")) return null;
+  return isRecord(schema.$defs) && isRecord(schema.$defs[defName]) ? schema.$defs[defName] : null;
+}
+
+/**
+ * Resolve a field enum from the schema, including the first nested
+ * `items.properties[field].enum` (following `$ref` into `$defs` when needed).
+ *
+ * K1 must resolve nested enums this way so claims such as assurance-graph
+ * `edges.relation` via `#/$defs/edge` match. The first nested enum found wins;
+ * top-level `properties[field].enum` still takes precedence.
+ *
+ * @param {object} schema
+ * @param {string} field
+ * @returns {Array|null}
+ */
+function resolveSchemaEnum(schema, field) {
+  const properties = isRecord(schema.properties) ? schema.properties : {};
+  if (properties[field] && Array.isArray(properties[field].enum)) {
+    return properties[field].enum;
+  }
+  for (const prop of Object.values(properties)) {
+    if (!isRecord(prop) || !isRecord(prop.items)) continue;
+    let items = prop.items;
+    if (typeof items.$ref === "string") {
+      items = resolveDef(schema, items.$ref);
+      if (!isRecord(items)) continue;
+    }
+    const itemProperties = isRecord(items.properties) ? items.properties : {};
+    if (itemProperties[field] && Array.isArray(itemProperties[field].enum)) {
+      return itemProperties[field].enum;
+    }
+  }
+  return null;
+}
+
 function validateFamilyClaims(family, schema, claim, offenders) {
   const claimPath = `${CLAIMS_REL}#families/${family}`;
   if (!isRecord(claim)) {
@@ -292,7 +350,7 @@ function validateFamilyClaims(family, schema, claim, offenders) {
     for (const [field, values] of Object.entries(claim.enum_values)) {
       const claimedValues = validateStringArray(values, `enum_values.${field}`, claimPath, offenders, { nonEmpty: true });
       if (!claimedValues) continue;
-      const schemaEnum = properties[field] && Array.isArray(properties[field].enum) ? properties[field].enum : null;
+      const schemaEnum = resolveSchemaEnum(schema, field);
       if (!schemaEnum) {
         offenders.push(
           offender(claimPath, `schema enum for ${field}`, "missing", `${claimPath} asserts enum values for ${field}, but schema ${family} has no enum`)

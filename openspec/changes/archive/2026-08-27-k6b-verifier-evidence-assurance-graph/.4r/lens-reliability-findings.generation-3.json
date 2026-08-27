@@ -1,0 +1,17 @@
+[
+  {
+    "severity": "WARNING",
+    "summary": "El rechazo INSUFFICIENT_PROVENANCE de un miembro anyOf presente (contract/integration o install/consume) no esta testeado; solo se cubre anyOf ausente y el fallo en minimumRoles.",
+    "acceptance_criteria": "verifyCandidate with declaredStrategy feature, runtime-observed acceptance+invariants+negative, model-reported contract, and no integration returns ok:false and reason_code INSUFFICIENT_PROVENANCE."
+  },
+  {
+    "severity": "WARNING",
+    "summary": "El rechazo de provenance inadmissible en requiredNegativeRole no esta testeado.",
+    "acceptance_criteria": "verifyCandidate with declaredStrategy feature, runtime-observed acceptance+invariants+contract, and model-reported negative returns ok:false and reason_code INSUFFICIENT_PROVENANCE."
+  },
+  {
+    "severity": "WARNING",
+    "summary": "El cierre de invalidacion no tiene un caso cuyo resultado dependa de satisfies o verified-by.",
+    "acceptance_criteria": "1) Graph A--invalidates-->O and E--satisfies-->O (no derived-from to O) asserts isEvidenceTransitivelyInvalidated(graph, E) === true and E in invalidated_node_ids. 2) Graph with E in the invalidation frontier and V--verified-by-->E asserts V in invalidated_node_ids."
+  }
+]

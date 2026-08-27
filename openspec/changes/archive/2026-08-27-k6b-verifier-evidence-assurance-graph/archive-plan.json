@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "change": "k6b-verifier-evidence-assurance-graph",
+  "source_fingerprint": "sha256:59b898a525f120451abacbe97b115d07673127ef3014aaa6571185809ab0bf9c",
+  "spec_writes": [
+    {
+      "domain": "independent-verification",
+      "source_delta": "prepared-specs/independent-verification/spec.md",
+      "target": "openspec/specs/independent-verification/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:8063703bb9860b0fbff8b49894fa17932c222cb58f1dea028bda57a00330fc6d"
+    },
+    {
+      "domain": "assurance-graph",
+      "source_delta": "prepared-specs/assurance-graph/spec.md",
+      "target": "openspec/specs/assurance-graph/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:c7d171aab463f80f504aff6706e7847ef44a849ae79a8e06f13a8e4e17a1795d"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "prepared-specs/kernel-contract-schemas/spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:b6899abc3e3366925139cfa5d010311ce1b2907f9ba3f443c001a3cd1e68da4e",
+      "content_sha256": "sha256:fabcbc4edb0ab2934414ca9bf5bca0f88c7e5a3759a0c427f739d0475835d25d"
+    },
+    {
+      "domain": "harness-authority-canon",
+      "source_delta": "prepared-specs/harness-authority-canon/spec.md",
+      "target": "openspec/specs/harness-authority-canon/spec.md",
+      "target_before_sha256": "sha256:554942b3b4cbcd86124254f1ad8364be628eec0e9f8cfb59d45383b1a654e8ce",
+      "content_sha256": "sha256:dd46f681af76c7a02ffa6207c934ee62a8e572333895ad1f9e28afd8c4d936d7"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260827-004-additive-evidence-and-verification-v2-contracts.md",
+      "content_sha256": "sha256:4f519f7c39c9bd84c0e713e9ce6b2b9270894bfdba5161b3454778fbf0ccbaef"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260827-005-independent-policy-driven-verifier.md",
+      "content_sha256": "sha256:1f64395958627d5854321b2e96fba825f94d71da785488a75309b228ecf0983d"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260827-006-derived-assurance-graph-with-selective-invalidation.md",
+      "content_sha256": "sha256:c95317bcd4eed4df04c785074614aae59b3de698e689dcc9d8acaabd713c76e7"
+    }
+  ],
+  "archive_inventory": [
+    ".4r/build-diff.js",
+    ".4r/derived.generation-2.json",
+    ".4r/derived.generation-3.json",
+    ".4r/derived.json",
+    ".4r/evidence.json",
+    ".4r/freeze-lineage.js",
+    ".4r/freeze-successor.js",
+    ".4r/generalist.generation-2.json",
+    ".4r/generalist.generation-3.json",
+    ".4r/generalist.json",
+    ".4r/lens-readability-findings.generation-2.json",
+    ".4r/lens-readability-findings.generation-3.json",
+    ".4r/lens-readability-findings.json",
+    ".4r/lens-reliability-findings.generation-2.json",
+    ".4r/lens-reliability-findings.generation-3.json",
+    ".4r/lens-reliability-findings.json",
+    ".4r/lens-resilience-findings.generation-2.json",
+    ".4r/lens-resilience-findings.generation-3.json",
+    ".4r/lens-risk-findings.generation-2.json",
+    ".4r/lens-risk-findings.generation-3.json",
+    ".4r/lineage.generation-1.json",
+    ".4r/lineage.generation-2.json",
+    ".4r/lineage.json",
+    ".4r/meta.generation-2.json",
+    ".4r/meta.generation-3.json",
+    ".4r/meta.json",
+    ".4r/paths.json",
+    ".4r/planned-gate.generation-2.json",
+    ".4r/planned-gate.generation-3.json",
+    ".4r/planned-gate.json",
+    ".4r/planned-lineage.generation-2.json",
+    ".4r/planned-lineage.generation-3.json",
+    ".4r/planned-lineage.json",
+    ".4r/record-lenses.js",
+    ".4r/working.diff",
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "design.md",
+    "prepared-specs/assurance-graph/spec.md",
+    "prepared-specs/harness-authority-canon/spec.md",
+    "prepared-specs/independent-verification/spec.md",
+    "prepared-specs/kernel-contract-schemas/spec.md",
+    "proposal.md",
+    "specs/assurance-graph/spec.md",
+    "specs/harness-authority-canon/spec.md",
+    "specs/independent-verification/spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    "F-0f916054e8ae73dd WARNING: INSUFFICIENT_PROVENANCE rejection for present anyOf member (contract/integration or install/consume) not tested.",
+    "F-69cc792b6e0ffea3 WARNING: requiredNegativeRole inadmissible provenance rejection not tested.",
+    "F-fef962351fabb90b WARNING: Invalidation closure lacks satisfies/verified-by-only dependency cases."
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

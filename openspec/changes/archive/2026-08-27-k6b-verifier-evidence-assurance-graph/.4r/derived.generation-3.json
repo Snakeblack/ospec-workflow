@@ -1,0 +1,238 @@
+{
+  "schema_version": 1,
+  "classification": "high-risk",
+  "evidence": {
+    "schema_version": 1,
+    "fingerprint": "sha256:7f0b2be95af1b861734456cdc58067b8cabf0ab4b58a3a72d9516867dcb60cee",
+    "sources": {
+      "paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/derived.generation-2.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/derived.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/freeze-lineage.js",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/freeze-successor.js",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/generalist.generation-2.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/generalist.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lens-readability-findings.generation-2.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lens-readability-findings.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lens-reliability-findings.generation-2.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lens-reliability-findings.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lens-resilience-findings.generation-2.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lens-risk-findings.generation-2.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lineage.generation-1.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lineage.generation-2.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lineage.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/meta.generation-2.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/meta.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/paths.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/planned-gate.generation-2.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/planned-gate.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/planned-lineage.generation-2.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/planned-lineage.json",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/record-lenses.js",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/apply-progress.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/decisions/adr-001.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/decisions/adr-002.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/decisions/adr-003.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/design.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/proposal.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/assurance-graph/spec.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/harness-authority-canon/spec.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/independent-verification/spec.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/kernel-contract-schemas/spec.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/state.yaml",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/tasks.md",
+        "openspec/changes/k6b-verifier-evidence-assurance-graph/verify-report.md",
+        "schemas/kernel/assurance-graph/fixtures/invalid/v1-attestation-alias.json",
+        "schemas/kernel/assurance-graph/fixtures/invalid/v1-malformed-digest.json",
+        "schemas/kernel/assurance-graph/fixtures/invalid/v1-missing-fields.json",
+        "schemas/kernel/assurance-graph/fixtures/invalid/v1-reviewed-by.json",
+        "schemas/kernel/assurance-graph/fixtures/valid/v1-minimal.json",
+        "schemas/kernel/assurance-graph/fixtures/valid/v1-with-manifest.json",
+        "schemas/kernel/assurance-graph/v1.schema.json",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/evidence/fixtures/invalid/v2-malformed-candidate-id.json",
+        "schemas/kernel/evidence/fixtures/invalid/v2-missing-required.json",
+        "schemas/kernel/evidence/fixtures/invalid/v2-unknown-provenance.json",
+        "schemas/kernel/evidence/fixtures/invalid/v2-verification-alias.json",
+        "schemas/kernel/evidence/fixtures/invalid/v2-with-verdict.json",
+        "schemas/kernel/evidence/fixtures/valid/v2-runtime-observed.json",
+        "schemas/kernel/evidence/v2.schema.json",
+        "schemas/kernel/manifest.json",
+        "schemas/kernel/verification/fixtures/invalid/v2-evidence-alias.json",
+        "schemas/kernel/verification/fixtures/invalid/v2-missing-verdict.json",
+        "schemas/kernel/verification/fixtures/valid/v2-pass.json",
+        "schemas/kernel/verification/v2.schema.json",
+        "scripts/k6b-verifier-assurance-graph-e2e.test.js",
+        "scripts/lib/assurance-graph/index.js",
+        "scripts/lib/assurance-graph/index.test.js",
+        "scripts/lib/assurance-graph/invalidation.js",
+        "scripts/lib/assurance-graph/projector.js",
+        "scripts/lib/contract-checkers/k1-schema-compat.js",
+        "scripts/lib/contract-checkers/k1-schema-compat.test.js",
+        "scripts/lib/independent-verifier/bindings.js",
+        "scripts/lib/independent-verifier/evidence.js",
+        "scripts/lib/independent-verifier/index.js",
+        "scripts/lib/independent-verifier/index.test.js",
+        "scripts/lib/independent-verifier/strategy-policy.js",
+        "scripts/lib/independent-verifier/verdict.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k2a-maturity-docs.test.js",
+        "scripts/lib/k6b-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js",
+        "scripts/lib/roadmap-boundary.test.js"
+      ],
+      "capabilities": [
+        "runtime"
+      ],
+      "operation_types": [
+        "add",
+        "modify"
+      ],
+      "dependencies": [],
+      "facts": [
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "Independent verifier and Assurance Graph are kernel public contracts"
+        },
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime"
+        },
+        {
+          "code": "diff-auth-permission",
+          "source": "real-diff",
+          "detail": "scripts/lib/independent-verifier/evidence.js,scripts/lib/independent-verifier/strategy-policy.js"
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/independent-verifier/bindings.js,scripts/lib/independent-verifier/strategy-policy.js,scripts/lib/independent-verifier/verdict.js"
+        }
+      ]
+    }
+  },
+  "generalist": {
+    "status": "needs-specialist",
+    "specialists": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "reason": "signals=design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability"
+  },
+  "depth": {
+    "review": "strict"
+  },
+  "escalation_reason": null,
+  "dimensions": {
+    "risk": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "diff-auth-permission",
+          "source": "real-diff",
+          "detail": "scripts/lib/independent-verifier/evidence.js,scripts/lib/independent-verifier/strategy-policy.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability",
+          "precedence": 3
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "Independent verifier and Assurance Graph are kernel public contracts",
+          "precedence": 4
+        }
+      ]
+    },
+    "reliability": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/independent-verifier/bindings.js,scripts/lib/independent-verifier/strategy-policy.js,scripts/lib/independent-verifier/verdict.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability",
+          "precedence": 3
+        },
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime",
+          "precedence": 5
+        }
+      ]
+    },
+    "resilience": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/independent-verifier/bindings.js,scripts/lib/independent-verifier/strategy-policy.js,scripts/lib/independent-verifier/verdict.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability",
+          "precedence": 3
+        }
+      ]
+    },
+    "readability": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability",
+          "precedence": 3
+        }
+      ]
+    }
+  },
+  "selected_specialists": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ]
+}

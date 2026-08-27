@@ -1,0 +1,239 @@
+change: "k6b-verifier-evidence-assurance-graph"
+status: "archived"
+last_updated: "2026-08-27T13:15:00Z"
+classification: high-risk
+blocking_questions: []
+
+owner:
+  author: Manuel Retamozo
+  branch: feat/k6b-verifier-evidence-assurance-graph
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "First match: foundation/federated/bugfix/brownfield/refactor/hotfix conditions not met; project.status=active and classification=high-risk select standard (sdd-propose → sdd-spec → sdd-design → sdd-tasks → sdd-apply → sdd-verify → sdd-archive; gates: clarify, 4r-review-gate)."
+  validated: true
+  validation_errors: []
+
+approvals:
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T08:50:00Z"
+    synthesis: "Abrir k6b-verifier-evidence-assurance-graph para un verifier independiente que consume Candidate congelado (CandidateId, no WorkResultId), selecciona estrategias de evidencia (bug/feature/refactor/migration/config-docs) con provenance, y materializa el Assurance Graph como proyección content-addressed con invalidación selectiva ante successor. Strict TDD sigue por defecto."
+    scope: "In: verifier, evidence strategies, provenance, Assurance Graph projection, selective invalidation, Strict TDD fallback. Out: K7 review, K8 attestation, first-match routing, Change Program."
+    applies_to:
+      - change-classification
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T08:50:00Z"
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T08:50:00Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: assumption-sdd-spec-001
+    gate: architecture
+    decision: confirm-sdd-spec-001
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T10:40:00Z"
+    applies_to:
+      - sdd-verify
+  - id: assumption-sdd-apply-001
+    gate: architecture
+    decision: confirm-sdd-apply-001
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T10:40:00Z"
+    applies_to:
+      - sdd-verify
+  - id: 4r-remediation-001
+    gate: review-workload
+    decision: remediate-criticals-and-warnings
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T11:20:00Z"
+    applies_to:
+      - sdd-apply
+      - review-correction
+  - id: k6b-bounded-review-001
+    gate: review-workload
+    decision: new-candidate
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T11:20:00Z"
+    note: "Same user decision as 4r-remediation-001: WARNING remediations after CRITICAL slices closed require a new-candidate successor (approval_reference format)."
+    applies_to:
+      - sdd-apply
+      - sdd-verify
+      - sdd-tasks
+  - id: k6b-bounded-review-002
+    gate: review-workload
+    decision: new-candidate
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T12:57:00Z"
+    note: "User chose option 2: remediate generation-2 advisory reliability WARNINGs then archive."
+    applies_to:
+      - sdd-apply
+      - sdd-verify
+      - sdd-tasks
+
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/k6b-verifier-evidence-assurance-graph/proposal.md"
+    summary: "Verifier independiente, estrategias/provenance y Assurance Graph derivado con invalidación selectiva."
+    key_decisions:
+      - "Evidencia y verdict permanecen contratos separados."
+      - "Assurance Graph es proyección content-addressed, nunca autoridad."
+      - "Successor invalida solo el closure dependiente."
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/independent-verification/spec.md"
+      - "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/assurance-graph/spec.md"
+      - "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/kernel-contract-schemas/spec.md"
+      - "openspec/changes/k6b-verifier-evidence-assurance-graph/specs/harness-authority-canon/spec.md"
+    summary: "Verifier sobre CandidateId congelado; strategies+Strict TDD fallback; AG proyección con closure; evidence/verification v2 aditivos."
+    key_decisions:
+      - "evidence/v1 y verification/v1 de K1 permanecen pinned; el endurecimiento es v2 aditivo."
+      - "Strict TDD es strategy fallback, no reescribe testing.tdd_mode focused."
+      - "K6b edges: verified-by, satisfies, derived-from, invalidates."
+  design:
+    status: done
+    artifact: "openspec/changes/k6b-verifier-evidence-assurance-graph/design.md"
+    summary: "Verifier puro sobre Candidate v2 y Assurance Graph derivado con invalidación selectiva; tres ADRs."
+    key_decisions:
+      - "Evidence/verification v2 son aditivos; v1 y K1 pins quedan byte-identical."
+      - "Verifier independiente aplica policies por strategy y Strict TDD fallback."
+      - "Assurance Graph es proyección reproducible read-only con closure selectivo."
+  tasks:
+    status: done
+    artifact: "openspec/changes/k6b-verifier-evidence-assurance-graph/tasks.md"
+    summary: "7 fases TDD: schemas v2, verifier (bindings/strategy/evidence/verdict), assurance-graph, boundary/E2E, docs; size-exception."
+    key_decisions:
+      - "14 REQs MUST reconciliados; 26 escenarios cubiertos por diseño."
+      - "Apply usa size:exception (~1100–1500 líneas); Decision needed before apply: No."
+      - "Orden: schemas → verifier → graph → boundary/E2E → harness-evolution docs."
+  clarify:
+    status: skipped
+    reason: "residual_ambiguity false and empty public_contract_questions, conflicting_requirements, missing_acceptance_criteria after phase-aware envelope validation."
+  apply:
+    status: done
+    artifact: "openspec/changes/k6b-verifier-evidence-assurance-graph/apply-progress.md"
+    summary: "4R gen3 approved (0 CRITICAL); four requested WARNING tests added; three new advisory WARNINGs left as follow-up."
+    key_decisions:
+      - "Additive v2 schemas and assurance-graph/v1; K1_SCHEMA_BASELINE unchanged."
+      - "verifyCandidate fail-closed over frozen CandidateId; Strict TDD fallback does not rewrite tdd_mode."
+      - "Assurance Graph is a read-only projection with selective invalidation and a non-authoritative K9 manifest."
+  verify:
+    status: done
+    artifact: "openspec/changes/k6b-verifier-evidence-assurance-graph/verify-report.md"
+    summary: "PASS: targeted V001 recheck closed after npm test passed 2708/2708 runnable tests; candidate identity preserved."
+    verdict: PASS
+  archive:
+    status: done
+    artifact: "openspec/changes/k6b-verifier-evidence-assurance-graph/archive-report.md"
+    summary: "Plan v1 emitido: 4 spec_writes (2 nuevos, 2 merge), 3 ADR promotions, 53-path inventory; runtime move pendiente."
+    key_decisions:
+      - "Dominios nuevos independent-verification y assurance-graph promovidos desde delta completo."
+      - "kernel-contract-schemas y harness-authority-canon mergeados con baseline fingerprints intactos."
+      - "3 WARNING 4R advisory aceptados como follow-up en accepted_warnings[]."
+
+assumptions:
+  - id: sdd-spec-001
+    phase: sdd-spec
+    statement: "El endurecimiento de evidence y verification es aditivo en v2; los archivos v1 y los pins K1_SCHEMA_BASELINE permanecen byte-identical."
+    reversibility: low
+    basis: "Proposal approach: extender schemas K1 sin reemplazar familias ni pins; precedente K3 candidate/work-order v2."
+    recorded_at: "2026-08-27T09:05:00Z"
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Confirmed by user."
+      resolved_at: "2026-08-27T09:39:00Z"
+  - id: sdd-apply-001
+    phase: sdd-apply
+    statement: "Evidence strategy role stays on raw verifier input and is omitted from published evidence/v2 to keep additionalProperties: false."
+    reversibility: high
+    basis: "REQ-kernel-contract-schemas-024 lists required evidence/v2 fields without role; verifier policy still classifies raw evidence."
+    recorded_at: "2026-08-27T10:30:00Z"
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Confirmed by user."
+      resolved_at: "2026-08-27T09:39:00Z"
+
+verify_lineage:
+  schema_version: 1
+  lineage_id: "sha256:eb460cfa32e8037356637452830a63f375f75e37a03135b5d9d02cecae1033d7"
+  generation: 1
+  predecessor_id: null
+  status: "closed"
+  genesis_candidate_id: "sha256:695cac5328f049cdd061ef8f77be7b4fc563714bd441484347a6c30c8a65545a"
+  current_candidate_id: "sha256:908b136e18c4eddb602f64666095d3551af6e9a070e97180a8b161ff0e66f503"
+  verified_candidate_id: "sha256:908b136e18c4eddb602f64666095d3551af6e9a070e97180a8b161ff0e66f503"
+  contract_digest: "sha256:36222071b695ded77e6b24af31d80f7f77871a33288e6af52a475172ec1355e8"
+  remediation_attempts: 1
+  max_remediation_attempts: 2
+  findings:
+    - id: "V001"
+      severity: "CRITICAL"
+      summary: "Canonical contract lint rejects the new K6b schema publications"
+      origin: "code-bug"
+      allowed_paths:
+        - "schemas/kernel/assurance-graph/v1.schema.json"
+        - "schemas/kernel/contract-claims.json"
+        - "schemas/kernel/evidence/v2.schema.json"
+        - "schemas/kernel/manifest.json"
+        - "schemas/kernel/verification/v2.schema.json"
+        - "scripts/lib/contract-checkers/k1-schema-compat.js"
+        - "scripts/lib/contract-checkers/k1-schema-compat.test.js"
+      validation:
+        commands:
+          - "npm test"
+        expected_exit: 0
+        test_files:
+          - "scripts/contract-lint.test.js"
+          - "scripts/lib/contract-checkers/k1-schema-compat.test.js"
+          - "scripts/lib/contract-checkers/k6a-checkers.test.js"
+      status: "resolved"
+  late_observations: []
+  terminal_reason: "all-findings-verified"
+
+gates:
+  clarify:
+    status: skipped
+    skip_reason: "residual_ambiguity false; public_contract_questions/conflicting_requirements/missing_acceptance_criteria empty"
+  4r-review-gate:
+    status: approved
+    schema_version: 1
+    classification: high-risk
+    depth:
+      review: strict
+    lineage_status: approved
+    lineage_id: "sha256:d769c1e8387b641641303253879f491080a66772c8b95b23165dccf8ce4ade9a"
+    lineage_revision: 9
+    findings_summary: "0 BLOCKER, 0 CRITICAL, 3 WARNING advisory (anyOf provenance, requiredNegative provenance, satisfies/verified-by closure tests)"
+    lineage_artifact: openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lineage.json
+    predecessor_lineage_artifact: openspec/changes/k6b-verifier-evidence-assurance-graph/.4r/lineage.generation-2.json
+    archive_allowed: true
+    successor:
+      authority_kind: new-candidate
+      approval_reference: k6b-bounded-review-002
+      reason: "generation-2 advisory reliability WARNING remediations change the candidate identity"
+
+baseline_fingerprints:
+  kernel-contract-schemas: "sha256:b6899abc3e3366925139cfa5d010311ce1b2907f9ba3f443c001a3cd1e68da4e"
+  harness-authority-canon: "sha256:554942b3b4cbcd86124254f1ad8364be628eec0e9f8cfb59d45383b1a654e8ce"

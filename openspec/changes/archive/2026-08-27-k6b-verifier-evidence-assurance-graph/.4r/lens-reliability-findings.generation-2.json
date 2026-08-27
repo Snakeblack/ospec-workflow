@@ -1,0 +1,27 @@
+[
+  {
+    "severity": "CRITICAL",
+    "summary": "STALE_EVIDENCE no cubre evidencia dependiente de un nodo invalidado; la caminata actual no falla cerrado en ese grafo.",
+    "acceptance_criteria": "verifyCandidate with priorAssuranceGraph A--invalidates-->B and evidence E--derived-from-->B (no direct invalidates to E) returns ok:false, reason_code STALE_EVIDENCE, and omits verification; stale case added to the 003-named test."
+  },
+  {
+    "severity": "WARNING",
+    "summary": "La rama PASS WITH WARNINGS (human-decision/external-unverified extra) no esta testeada.",
+    "acceptance_criteria": "verifyCandidate with runtime strategy minimums plus extra human-decision or external-unverified evidence asserts verification.verdict === PASS WITH WARNINGS."
+  },
+  {
+    "severity": "WARNING",
+    "summary": "El fallo anyOf de feature (ni contract ni integration) no esta testeado.",
+    "acceptance_criteria": "verifyCandidate declaredStrategy feature with only acceptance, invariants, and negative returns ok:false and reason_code MISSING_STRATEGY_MINIMUM."
+  },
+  {
+    "severity": "WARNING",
+    "summary": "Strict TDD no tiene test de rechazo para host-attested/tool-produced.",
+    "acceptance_criteria": "verifyCandidate with no declaredStrategy and red+green host-attested or tool-produced returns ok:false and reason_code INSUFFICIENT_PROVENANCE."
+  },
+  {
+    "severity": "WARNING",
+    "summary": "El mismatch de evidence_id canonico no esta testeado.",
+    "acceptance_criteria": "verifyCandidate/normalizeEvidence with coherent bytes and digest but forged evidence_id returns ok:false, reason_code FABRICATED_EVIDENCE, and omits verification."
+  }
+]
