@@ -12,6 +12,8 @@ const { verifyCandidate } = require("./lib/independent-verifier/index.js");
 const {
   projectAssuranceGraph,
   computeInvalidationClosure,
+  replayAssuranceGraph,
+  reconcileAssuranceGraph,
 } = require("./lib/assurance-graph/index.js");
 
 const CONFIG_PATH = path.resolve(__dirname, "..", "openspec", "config.yaml");
@@ -48,6 +50,8 @@ function featureEvidence() {
     { role: "negative", bytes: "negative ok", provenance: "runtime-observed", origin: "e2e-negative", node_id: "repair-core", obligation_ids: ["req-repair-001"] },
   ];
 }
+
+const HARNESS_COLLECTOR = { id: "node-test", transport: "tool-execution-transport" };
 
 test("E2E K6b: K4b-frozen Candidate → verify → project twice → successor invalidation rejects stale evidence", () => {
   const configBefore = fs.readFileSync(CONFIG_PATH, "utf8");
@@ -87,30 +91,63 @@ test("E2E K6b: K4b-frozen Candidate → verify → project twice → successor i
     contract,
     repository: { files },
     declaredStrategy: "feature",
+    collector: HARNESS_COLLECTOR,
     rawEvidence: featureEvidence(),
   });
   assert.equal(verified.ok, true, verified.error || verified.reason_code);
   assert.equal(verified.verification.verdict, "PASS");
   assert.equal(verified.evidence.some((ev) => Object.prototype.hasOwnProperty.call(ev, "verdict")), false);
 
-  const classified = verified.evidence.map((evidence) => ({ evidence, obligation_ids: ["req-repair-001"] }));
+  const classified = verified.evidence.map((evidence) => ({ evidence }));
   const firstGraph = projectAssuranceGraph({
     candidate: predecessor,
     executionGraph,
     evidence: classified,
+    assessments: verified.assessments,
     verification: verified.verification,
+    canonicalInputs: verified.assurance_graph.canonical_inputs,
   });
   const secondGraph = projectAssuranceGraph({
     candidate: predecessor,
     executionGraph,
     evidence: [...classified].reverse(),
+    assessments: [...verified.assessments].reverse(),
     verification: verified.verification,
+    canonicalInputs: verified.assurance_graph.canonical_inputs,
   });
   assert.equal(firstGraph.ok, true);
   assert.equal(secondGraph.ok, true);
   assert.equal(firstGraph.graph.graph_id, secondGraph.graph.graph_id);
   assert.deepEqual(firstGraph.graph.edges, secondGraph.graph.edges);
   assert.equal(verified.assurance_graph.graph_id, firstGraph.graph.graph_id);
+  assert.ok(Array.isArray(verified.assessments) && verified.assessments.length >= 1);
+  assert.ok(verified.assurance_graph.canonical_inputs);
+
+  const replayed = replayAssuranceGraph({
+    candidate: predecessor,
+    executionGraph,
+    evidence: verified.evidence,
+    assessments: verified.assessments,
+    verification: verified.verification,
+    canonical_inputs: verified.assurance_graph.canonical_inputs,
+  });
+  assert.equal(replayed.ok, true);
+  assert.equal(replayed.graph.graph_id, verified.assurance_graph.graph_id);
+  assert.deepEqual(replayed.graph.edges, verified.assurance_graph.edges);
+
+  const churned = reconcileAssuranceGraph(verified.assurance_graph, {
+    candidate: predecessor,
+    executionGraph,
+    evidence: verified.evidence,
+    assessments: verified.assessments,
+    verification: verified.verification,
+    canonicalInputs: {
+      ...verified.assurance_graph.canonical_inputs,
+      contract_digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    },
+  });
+  assert.equal(churned.ok, false);
+  assert.equal(churned.reason_code, "GRAPH_DIVERGENCE");
 
   const successorFiles = { "src/index.js": "function add(a, b) { return a + b + 1; }\nmodule.exports = { add };\n" };
   const successorTree = computeTreeDigest(successorFiles);
@@ -156,6 +193,7 @@ test("E2E K6b: K4b-frozen Candidate → verify → project twice → successor i
     contract,
     repository: { files },
     declaredStrategy: "feature",
+    collector: HARNESS_COLLECTOR,
     rawEvidence: featureEvidence(),
     priorAssuranceGraph: graphForClosure,
   });

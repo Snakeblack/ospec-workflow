@@ -1,0 +1,334 @@
+{
+  "schema_version": 1,
+  "lineage_id": "sha256:a051818ce2bb310c5fa3a29c8a7b730a564dd5b44ff1da238a73089fcce94c02",
+  "generation": 2,
+  "predecessor_lineage_id": "sha256:262dda4ab0b3ec0fe60b7db34683c55d3c4d2590fe69282c40197cbc95aacf42",
+  "recovery": {
+    "reason": "new-candidate after harness collector migration and remaining advisory closures",
+    "approval_reference": "k6b-verification-integrity-remediation-bounded-review-001"
+  },
+  "revision": 9,
+  "status": "approved",
+  "genesis": {
+    "candidate": {
+      "projection": "workspace",
+      "base_tree": "e844d66c00f1cdb0f0ca3db871c28fa27af59dea",
+      "candidate_tree": "sha256:74fb5b293aa5c02f58a4e85b1913f7bc67e30f2fb3413d161e64d7b477901143",
+      "paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/changes/k6b-verification-integrity-remediation/apply-progress.md",
+        "openspec/changes/k6b-verification-integrity-remediation/decisions/adr-001.md",
+        "openspec/changes/k6b-verification-integrity-remediation/decisions/adr-002.md",
+        "openspec/changes/k6b-verification-integrity-remediation/decisions/adr-003.md",
+        "openspec/changes/k6b-verification-integrity-remediation/decisions/adr-004.md",
+        "openspec/changes/k6b-verification-integrity-remediation/design.md",
+        "openspec/changes/k6b-verification-integrity-remediation/proposal.md",
+        "openspec/changes/k6b-verification-integrity-remediation/specs/assurance-graph/spec.md",
+        "openspec/changes/k6b-verification-integrity-remediation/specs/independent-verification/spec.md",
+        "openspec/changes/k6b-verification-integrity-remediation/specs/kernel-contract-schemas/spec.md",
+        "openspec/changes/k6b-verification-integrity-remediation/state.yaml",
+        "openspec/changes/k6b-verification-integrity-remediation/tasks.md",
+        "openspec/changes/k6b-verification-integrity-remediation/verify-report.md",
+        "schemas/kernel/assessment/fixtures/invalid/v1-evidence-alias.json",
+        "schemas/kernel/assessment/fixtures/invalid/v1-missing-required.json",
+        "schemas/kernel/assessment/fixtures/invalid/v1-with-verdict.json",
+        "schemas/kernel/assessment/fixtures/valid/v1-complete.json",
+        "schemas/kernel/assessment/fixtures/valid/v1-four-roles.json",
+        "schemas/kernel/assessment/v1.schema.json",
+        "schemas/kernel/assurance-graph/v1.schema.json",
+        "schemas/kernel/contract-claims.json",
+        "schemas/kernel/manifest.json",
+        "scripts/k6b-verifier-assurance-graph-e2e.test.js",
+        "scripts/lib/assurance-graph/index.js",
+        "scripts/lib/assurance-graph/index.test.js",
+        "scripts/lib/assurance-graph/projector.js",
+        "scripts/lib/contract-checkers/k1-schema-compat.js",
+        "scripts/lib/independent-verifier/assessment.js",
+        "scripts/lib/independent-verifier/assessment.test.js",
+        "scripts/lib/independent-verifier/collector-provenance.js",
+        "scripts/lib/independent-verifier/evidence.js",
+        "scripts/lib/independent-verifier/index.js",
+        "scripts/lib/independent-verifier/index.test.js",
+        "scripts/lib/independent-verifier/obligation-coverage.js",
+        "scripts/lib/independent-verifier/obligation-coverage.test.js",
+        "scripts/lib/k1-scope-guard.test.js",
+        "scripts/lib/k2a-maturity-docs.test.js",
+        "scripts/lib/k6b-schema-fixtures.test.js",
+        "scripts/lib/lifecycle-kernel/k1-compat.js"
+      ],
+      "diff_hash": "sha256:c3917621221f275588a92b1895b7f588d48b9f6ce605d68c986d85292d76dbd1",
+      "paths_digest": "sha256:75fb3b54e19f8e9c2cdad0efb1cf77f81e56dc31d5868555fbaaafb0eeb24eb1",
+      "authored_lines": 2892,
+      "original_changed_lines": 3003
+    },
+    "candidate_id": "sha256:e0a36b2ac29cc84cdaf53d31cc9d09c7e54ad5d196238229eb7d379bb358c648",
+    "paths": [
+      "docs/architecture/harness-evolution.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/changes/k6b-verification-integrity-remediation/apply-progress.md",
+      "openspec/changes/k6b-verification-integrity-remediation/decisions/adr-001.md",
+      "openspec/changes/k6b-verification-integrity-remediation/decisions/adr-002.md",
+      "openspec/changes/k6b-verification-integrity-remediation/decisions/adr-003.md",
+      "openspec/changes/k6b-verification-integrity-remediation/decisions/adr-004.md",
+      "openspec/changes/k6b-verification-integrity-remediation/design.md",
+      "openspec/changes/k6b-verification-integrity-remediation/proposal.md",
+      "openspec/changes/k6b-verification-integrity-remediation/specs/assurance-graph/spec.md",
+      "openspec/changes/k6b-verification-integrity-remediation/specs/independent-verification/spec.md",
+      "openspec/changes/k6b-verification-integrity-remediation/specs/kernel-contract-schemas/spec.md",
+      "openspec/changes/k6b-verification-integrity-remediation/state.yaml",
+      "openspec/changes/k6b-verification-integrity-remediation/tasks.md",
+      "openspec/changes/k6b-verification-integrity-remediation/verify-report.md",
+      "schemas/kernel/assessment/fixtures/invalid/v1-evidence-alias.json",
+      "schemas/kernel/assessment/fixtures/invalid/v1-missing-required.json",
+      "schemas/kernel/assessment/fixtures/invalid/v1-with-verdict.json",
+      "schemas/kernel/assessment/fixtures/valid/v1-complete.json",
+      "schemas/kernel/assessment/fixtures/valid/v1-four-roles.json",
+      "schemas/kernel/assessment/v1.schema.json",
+      "schemas/kernel/assurance-graph/v1.schema.json",
+      "schemas/kernel/contract-claims.json",
+      "schemas/kernel/manifest.json",
+      "scripts/k6b-verifier-assurance-graph-e2e.test.js",
+      "scripts/lib/assurance-graph/index.js",
+      "scripts/lib/assurance-graph/index.test.js",
+      "scripts/lib/assurance-graph/projector.js",
+      "scripts/lib/contract-checkers/k1-schema-compat.js",
+      "scripts/lib/independent-verifier/assessment.js",
+      "scripts/lib/independent-verifier/assessment.test.js",
+      "scripts/lib/independent-verifier/collector-provenance.js",
+      "scripts/lib/independent-verifier/evidence.js",
+      "scripts/lib/independent-verifier/index.js",
+      "scripts/lib/independent-verifier/index.test.js",
+      "scripts/lib/independent-verifier/obligation-coverage.js",
+      "scripts/lib/independent-verifier/obligation-coverage.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/k2a-maturity-docs.test.js",
+      "scripts/lib/k6b-schema-fixtures.test.js",
+      "scripts/lib/lifecycle-kernel/k1-compat.js"
+    ],
+    "classification": "high-risk",
+    "selected_dimensions": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "evidence_fingerprint": "sha256:66b1b1c10af6adfd036aa014032450b530160d81f05f9dae3af5c1cf09ade779",
+    "original_changed_lines": 3003,
+    "authored_lines": 2892
+  },
+  "current_candidate_id": "sha256:e0a36b2ac29cc84cdaf53d31cc9d09c7e54ad5d196238229eb7d379bb358c648",
+  "current_candidate": {
+    "projection": "workspace",
+    "base_tree": "e844d66c00f1cdb0f0ca3db871c28fa27af59dea",
+    "candidate_tree": "sha256:74fb5b293aa5c02f58a4e85b1913f7bc67e30f2fb3413d161e64d7b477901143",
+    "paths": [
+      "docs/architecture/harness-evolution.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/changes/k6b-verification-integrity-remediation/apply-progress.md",
+      "openspec/changes/k6b-verification-integrity-remediation/decisions/adr-001.md",
+      "openspec/changes/k6b-verification-integrity-remediation/decisions/adr-002.md",
+      "openspec/changes/k6b-verification-integrity-remediation/decisions/adr-003.md",
+      "openspec/changes/k6b-verification-integrity-remediation/decisions/adr-004.md",
+      "openspec/changes/k6b-verification-integrity-remediation/design.md",
+      "openspec/changes/k6b-verification-integrity-remediation/proposal.md",
+      "openspec/changes/k6b-verification-integrity-remediation/specs/assurance-graph/spec.md",
+      "openspec/changes/k6b-verification-integrity-remediation/specs/independent-verification/spec.md",
+      "openspec/changes/k6b-verification-integrity-remediation/specs/kernel-contract-schemas/spec.md",
+      "openspec/changes/k6b-verification-integrity-remediation/state.yaml",
+      "openspec/changes/k6b-verification-integrity-remediation/tasks.md",
+      "openspec/changes/k6b-verification-integrity-remediation/verify-report.md",
+      "schemas/kernel/assessment/fixtures/invalid/v1-evidence-alias.json",
+      "schemas/kernel/assessment/fixtures/invalid/v1-missing-required.json",
+      "schemas/kernel/assessment/fixtures/invalid/v1-with-verdict.json",
+      "schemas/kernel/assessment/fixtures/valid/v1-complete.json",
+      "schemas/kernel/assessment/fixtures/valid/v1-four-roles.json",
+      "schemas/kernel/assessment/v1.schema.json",
+      "schemas/kernel/assurance-graph/v1.schema.json",
+      "schemas/kernel/contract-claims.json",
+      "schemas/kernel/manifest.json",
+      "scripts/k6b-verifier-assurance-graph-e2e.test.js",
+      "scripts/lib/assurance-graph/index.js",
+      "scripts/lib/assurance-graph/index.test.js",
+      "scripts/lib/assurance-graph/projector.js",
+      "scripts/lib/contract-checkers/k1-schema-compat.js",
+      "scripts/lib/independent-verifier/assessment.js",
+      "scripts/lib/independent-verifier/assessment.test.js",
+      "scripts/lib/independent-verifier/collector-provenance.js",
+      "scripts/lib/independent-verifier/evidence.js",
+      "scripts/lib/independent-verifier/index.js",
+      "scripts/lib/independent-verifier/index.test.js",
+      "scripts/lib/independent-verifier/obligation-coverage.js",
+      "scripts/lib/independent-verifier/obligation-coverage.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/k2a-maturity-docs.test.js",
+      "scripts/lib/k6b-schema-fixtures.test.js",
+      "scripts/lib/lifecycle-kernel/k1-compat.js"
+    ],
+    "diff_hash": "sha256:c3917621221f275588a92b1895b7f588d48b9f6ce605d68c986d85292d76dbd1",
+    "paths_digest": "sha256:75fb3b54e19f8e9c2cdad0efb1cf77f81e56dc31d5868555fbaaafb0eeb24eb1",
+    "authored_lines": 2892,
+    "original_changed_lines": 3003
+  },
+  "lenses": {
+    "risk": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "lens-risk-001",
+      "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+      "result": {
+        "findings": []
+      },
+      "operation": null,
+      "result_request_id": "lens-risk-001"
+    },
+    "reliability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "lens-reliability-001",
+      "result_digest": "sha256:391e5014feee3ef6dbc66b2d97bd67c3059f93d2548b47833a5d34f65593b51e",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "normalizeEvidence no cubre en test las ramas FABRICATED_EVIDENCE de raw no-objeto y de validateInstance (origin ausente o vacío).",
+            "acceptance_criteria": "Un test de verifyCandidate/normalizeEvidence con collector allowlisted debe devolver ok:false, reason_code FABRICATED_EVIDENCE y sin verification tanto si un item de rawEvidence es null o string, como si origin está omitido o es \"\"."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "walkMustObligations no tiene test para el retorno fail-closed de emitAssessment (if (!emitted.ok) return emitted).",
+            "acceptance_criteria": "walkMustObligations con un MUST no diferido, evidencia runtime ligada al nodo implementador, y role ausente/vacío o policySnapshotId no sha256, debe devolver ok:false y reason_code INVALID_ASSESSMENT, sin assessments ni PASS."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "lens-reliability-001"
+    },
+    "resilience": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "lens-resilience-001",
+      "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+      "result": {
+        "findings": []
+      },
+      "operation": null,
+      "result_request_id": "lens-resilience-001"
+    },
+    "readability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "lens-readability-001",
+      "result_digest": "sha256:c2a2a061256e9bc2159165fbf9570e8fd3d51b98f5e87ac14554a306e78c2bcc",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "rejectStaleEvidence recomputa evidence_id sustituyendo candidate_id por predecessorId y trata un hit en nodos del grafo previo o en invalidates transitivo como STALE_EVIDENCE. Ese remint-and-lookup no está comentado.",
+            "acceptance_criteria": "Comentar en rejectStaleEvidence (predecessorBoundId) que el digest se recalcula bajo el candidato predecesor para que copias remintadas de evidencia invalidada fallen cerrado como STALE_EVIDENCE."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "resolveEvidenceProvenance falla UNTRUSTED_COLLECTOR si raw tiene la propiedad collector. El JSDoc habla de autoridad de clase, no de por qué un collector en el payload se rechaza en vez de ignorarse.",
+            "acceptance_criteria": "Comentar el hasOwnProperty(raw, \"collector\") indicando que la identidad del collector solo puede venir del argumento de canal del harness; un campo collector del payload se rechaza, no se ignora ni se fusiona."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "El segundo parámetro de evaluateProvenanceSufficiency se llama obligation pero es solo { requireRuntime?: boolean }; los callers pasan un objeto de opciones, no un registro de obligación.",
+            "acceptance_criteria": "Renombrar el parámetro y el JSDoc a un nombre de options bag (p. ej. options o sufficiencyOptions) para que no se busquen campos de obligación."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "walkMustObligations usa hadWeak (matches.length > 0) para elegir INSUFFICIENT_PROVENANCE vs UNFULFILLED_MUST. El nombre no dice «enlazada pero inadmisible» y el split de reason_code no está comentado.",
+            "acceptance_criteria": "Renombrar hadWeak a un nombre que signifique evidencia enlazada que falló el gate de provenance runtime, y comentar que MUST con matches inadmisibles falla INSUFFICIENT_PROVENANCE y sin matches falla UNFULFILLED_MUST."
+          },
+          {
+            "severity": "SUGGESTION",
+            "summary": "hasNonRuntimeExtra baja el veredicto a PASS WITH WARNINGS solo para external-unverified y human-decision. Ni el nombre («Extra») ni un comentario explican por qué esas dos clases advierten y model-reported no entra aquí.",
+            "acceptance_criteria": "Comentar junto a hasNonRuntimeExtra que external-unverified y human-decision mantienen verificación pasante con PASS WITH WARNINGS, y que model-reported se omite porque no puede satisfacer MUST runtime."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "lens-readability-001"
+    }
+  },
+  "findings": [
+    {
+      "id": "F-3a0bbdfae84c03f9",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "normalizeEvidence no cubre en test las ramas FABRICATED_EVIDENCE de raw no-objeto y de validateInstance (origin ausente o vacío).",
+      "acceptance_criteria": "Un test de verifyCandidate/normalizeEvidence con collector allowlisted debe devolver ok:false, reason_code FABRICATED_EVIDENCE y sin verification tanto si un item de rawEvidence es null o string, como si origin está omitido o es \"\".",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-088ad7080cedccec",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "walkMustObligations no tiene test para el retorno fail-closed de emitAssessment (if (!emitted.ok) return emitted).",
+      "acceptance_criteria": "walkMustObligations con un MUST no diferido, evidencia runtime ligada al nodo implementador, y role ausente/vacío o policySnapshotId no sha256, debe devolver ok:false y reason_code INVALID_ASSESSMENT, sin assessments ni PASS.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-f5fce295fe3508ce",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "rejectStaleEvidence recomputa evidence_id sustituyendo candidate_id por predecessorId y trata un hit en nodos del grafo previo o en invalidates transitivo como STALE_EVIDENCE. Ese remint-and-lookup no está comentado.",
+      "acceptance_criteria": "Comentar en rejectStaleEvidence (predecessorBoundId) que el digest se recalcula bajo el candidato predecesor para que copias remintadas de evidencia invalidada fallen cerrado como STALE_EVIDENCE.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-1533f335412c012a",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "resolveEvidenceProvenance falla UNTRUSTED_COLLECTOR si raw tiene la propiedad collector. El JSDoc habla de autoridad de clase, no de por qué un collector en el payload se rechaza en vez de ignorarse.",
+      "acceptance_criteria": "Comentar el hasOwnProperty(raw, \"collector\") indicando que la identidad del collector solo puede venir del argumento de canal del harness; un campo collector del payload se rechaza, no se ignora ni se fusiona.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-3a01c03d9d2629ba",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "El segundo parámetro de evaluateProvenanceSufficiency se llama obligation pero es solo { requireRuntime?: boolean }; los callers pasan un objeto de opciones, no un registro de obligación.",
+      "acceptance_criteria": "Renombrar el parámetro y el JSDoc a un nombre de options bag (p. ej. options o sufficiencyOptions) para que no se busquen campos de obligación.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-15a83b999026fe5c",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "walkMustObligations usa hadWeak (matches.length > 0) para elegir INSUFFICIENT_PROVENANCE vs UNFULFILLED_MUST. El nombre no dice «enlazada pero inadmisible» y el split de reason_code no está comentado.",
+      "acceptance_criteria": "Renombrar hadWeak a un nombre que signifique evidencia enlazada que falló el gate de provenance runtime, y comentar que MUST con matches inadmisibles falla INSUFFICIENT_PROVENANCE y sin matches falla UNFULFILLED_MUST.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-268a28557abf86de",
+      "owner": "readability",
+      "severity": "SUGGESTION",
+      "summary": "hasNonRuntimeExtra baja el veredicto a PASS WITH WARNINGS solo para external-unverified y human-decision. Ni el nombre («Extra») ni un comentario explican por qué esas dos clases advierten y model-reported no entra aquí.",
+      "acceptance_criteria": "Comentar junto a hasNonRuntimeExtra que external-unverified y human-decision mantienen verificación pasante con PASS WITH WARNINGS, y que model-reported se omite porque no puede satisfacer MUST runtime.",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ],
+  "findings_digest": "sha256:f64e728a7b86e4ac9019e6a4fb9fcfe9c5b8720786c49a5599d8b6f79ffd35cc",
+  "correction_budget": {
+    "limit_lines": 200,
+    "used_lines": 0,
+    "failed_attempts": 0,
+    "max_failed_attempts": 3
+  },
+  "correction_history": [],
+  "validation_history": [],
+  "follow_ups": [],
+  "pending_operation": null,
+  "pending_correction": null,
+  "terminal_reason": "no-unresolved-blocking-findings"
+}

@@ -1,0 +1,170 @@
+change: "k6b-verification-integrity-remediation"
+status: "archived"
+last_updated: "2026-08-27T19:12:00Z"
+classification: high-risk
+blocking_questions: []
+
+owner:
+  author: Manuel Retamozo
+  branch: feat/k6b-verifier-evidence-assurance-graph
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "First match: foundation/federated/bugfix/brownfield/refactor/hotfix conditions not met; project.status=active and classification=high-risk select standard (sdd-propose → sdd-spec → sdd-design → sdd-tasks → sdd-apply → sdd-verify → sdd-archive; gates: clarify, 4r-review-gate)."
+  validated: true
+  validation_errors: []
+
+approvals:
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T13:33:00Z"
+    synthesis: "Remediación focal k6b-verification-integrity-remediation sobre el verifier y el Assurance Graph de K6b, sin reabrir el macro-slice ni tocar K6c/K6d/K7/K8. Un PASS exigirá evidencia admisible para cada obligación MUST del Execution Graph; el binding EvidenceId ↔ role ↔ obligation_id ↔ node_id ↔ policy será persistible y versionado (sin mutar evidence/v2 in-place); la provenance fuerte saldrá del collector/canal, no del payload; la proyección fallará cerrada y su fingerprint ligará los inputs canónicos. El roadmap marcará K6b revise y K6c bloqueado hasta ese cierre."
+    scope: "In: cobertura de obligaciones MUST del Execution Graph; binding persistible EvidenceId↔role↔obligation↔node↔policy (contrato versionado aditivo); provenance fuerte derivada del collector; fingerprint canónico del Assurance Graph; fail-closed si falla la proyección; tests adversariales; actualización de roadmap K6b revise / K6c blocked-by-remediation. Out: K6c challenges, K7 review, K8 attestation, PKI/criptografía de provenance, mutación in-place de evidence/v2 o contratos K1."
+    applies_to:
+      - change-classification
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T13:39:00Z"
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T13:39:30Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: 4r-remediation-001
+    gate: review-workload
+    decision: remediate-criticals-and-warnings
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T15:00:00Z"
+    applies_to:
+      - sdd-apply
+      - review-correction
+  - id: k6b-verification-integrity-remediation-bounded-review-001
+    gate: 4r-review-gate
+    decision: new-candidate
+    source: vscode/askQuestions
+    accepted_at: "2026-08-27T18:45:00Z"
+    reason: "Successor new-candidate: migrate harness collector off worker envelopes, green the verifier suite, and close remaining advisory WARNINGs that fit."
+    applies_to:
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+
+baseline_fingerprints:
+  independent-verification: "sha256:8063703bb9860b0fbff8b49894fa17932c222cb58f1dea028bda57a00330fc6d"
+  assurance-graph: "sha256:c7d171aab463f80f504aff6706e7847ef44a849ae79a8e06f13a8e4e17a1795d"
+  kernel-contract-schemas: "sha256:fabcbc4edb0ab2934414ca9bf5bca0f88c7e5a3759a0c427f739d0475835d25d"
+
+assumptions:
+  - id: sdd-propose-001
+    phase: sdd-propose
+    statement: "The persistable binding is an additive assessment/binding family; the exact schema $id is left to sdd-design."
+    reversibility: high
+    basis: "Accepted intent-briefing forbids in-place evidence/v2 mutation and allows an additive assessment structure or verification-contract evolution; pinning $id in the proposal would pre-empt design."
+    recorded_at: "2026-08-27T13:43:36Z"
+    status: resolved
+    resolved_by: sdd-design
+    resolved_at: "2026-08-27T14:05:00Z"
+    resolution: "ospec://schemas/kernel/assessment/v1 (kind assessment/v1; manifest key assessment; ADR-001)"
+
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/k6b-verification-integrity-remediation/proposal.md"
+    summary: "Cierra 6 defectos K6b: cobertura MUST, binding persistible, provenance de collector, fingerprint canónico, proyección fail-closed y rejectForbidden por kind."
+    key_decisions:
+      - "Familia aditiva de assessment/binding; no mutar evidence/v2 ni K1 v1"
+      - "PASS exige evidencia admisible por cada MUST bound al nodo correcto"
+      - "Roadmap: K6b revise; K6c blocked-by-K6b-remediation hasta archive"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/k6b-verification-integrity-remediation/specs/independent-verification/spec.md"
+      - "openspec/changes/k6b-verification-integrity-remediation/specs/assurance-graph/spec.md"
+      - "openspec/changes/k6b-verification-integrity-remediation/specs/kernel-contract-schemas/spec.md"
+    summary: "Deltas: MUST coverage, persistable assessments, collector provenance, canonical graph_id, fail-closed projection, kind/namespace rejectForbidden."
+    key_decisions:
+      - "PASS requires MUST obligation coverage bound to implementing nodes; strategy shape is insufficient"
+      - "Additive assessment identity includes role+obligation_id; evidence/v2 unchanged"
+      - "graph_id fingerprints canonicalInputs; rejectForbidden by kind/namespace; facade fail-closed"
+  clarify:
+    status: skipped
+  design:
+    status: done
+    artifact: "openspec/changes/k6b-verification-integrity-remediation/design.md"
+    summary: "Additive assessment/v1; MUST walk after strategy; collector allowlist; canonical graph_id; facade fail-closed; kind/namespace rejectForbidden."
+    key_decisions:
+      - "Schema $id ospec://schemas/kernel/assessment/v1; evidence/v2 unchanged (ADR-001)"
+      - "evaluateStrategy then MUST walk; assessment_id includes role+obligation_id (ADR-002)"
+      - "graph_id fingerprints canonicalInputs; projection failure is GRAPH_PROJECTION_FAILED (ADR-004)"
+  tasks:
+    status: done
+    artifact: "openspec/changes/k6b-verification-integrity-remediation/tasks.md"
+    summary: "8 fases, 28 tareas: assessment/v1 schema, MUST walk, collector provenance, facade fail-closed, graph_id canónico, replay, adversariales, roadmap."
+    key_decisions:
+      - "size-exception aprobado (~900–1200 líneas); single PR lógico en 4 work units"
+      - "TDD RED→GREEN→TRIANGULATE por módulo; adversariales como tareas de primera clase"
+      - "Publicación assessment/v1 en Phase 1 (lección K6b V001)"
+  apply:
+    status: done
+    artifact: "openspec/changes/k6b-verification-integrity-remediation/apply-progress.md"
+    summary: "Phases 1–8 done: assessment/v1, MUST walk, collector allowlist, facade fail-closed, canonical graph_id, E2E replay, K6b revise."
+    key_decisions:
+      - "size:exception single batch; v2/K1 pins unchanged"
+      - "satisfies edges rebuild from persistable assessments only"
+      - "payload-only strong provenance is UNTRUSTED_COLLECTOR"
+  verify:
+    status: done
+    verdict: PASS
+    artifact: "openspec/changes/k6b-verification-integrity-remediation/verify-report.md"
+    summary: "Re-verify PASS after 4R successor: 30/30 tasks; 35/35 MUST; npm test 2754 pass, 0 fail; focal 75/75."
+    key_decisions:
+      - "verify_lineage absent → full discovery; 4R advisories not escalated"
+      - "quality_gates policy absent; no known-issues write (no CRITICAL/WARNING)"
+  archive:
+    status: done
+    artifact: "openspec/changes/k6b-verification-integrity-remediation/archive-report.md"
+    summary: "Plan-and-report emitido: 3 spec merges, 4 ADR promotions; runtime archive-transaction pendiente."
+    key_decisions:
+      - "prepared-specs/ bajo change-local; live openspec/specs y docs/adr son runtime-owned"
+      - "models.yaml excluido del candidato; 2 SUGGESTION verify y 4R WARNINGs no bloquean"
+      - "source_fingerprint sha256:6effe8dc40f89da6c44167ebfb0bab853fdfa5babdb12496fd1a7db82bd76234"
+
+gates:
+  4r-review-gate:
+    status: done
+    schema_version: 1
+    classification: high-risk
+    depth:
+      review: strict
+    lineage_status: approved
+    lineage_id: "sha256:a051818ce2bb310c5fa3a29c8a7b730a564dd5b44ff1da238a73089fcce94c02"
+    lineage_revision: 9
+    lineage_artifact: openspec/changes/k6b-verification-integrity-remediation/.4r/lineage.json
+    predecessor_lineage_id: "sha256:262dda4ab0b3ec0fe60b7db34683c55d3c4d2590fe69282c40197cbc95aacf42"
+    findings_summary: "0 BLOCKER, 0 CRITICAL, 6 WARNING, 1 SUGGESTION"
+    archive_allowed: true
+    selected_specialists: [risk, reliability, resilience, readability]
+    evidence:
+      schema_version: 1
+      fingerprint: "sha256:66b1b1c10af6adfd036aa014032450b530160d81f05f9dae3af5c1cf09ade779"
+    generalist:
+      status: needs-specialist
+      specialists: [risk, reliability]
+      reason: "signals=design-risk,diff-auth-permission,metadata-runtime;dimensions=risk,reliability"

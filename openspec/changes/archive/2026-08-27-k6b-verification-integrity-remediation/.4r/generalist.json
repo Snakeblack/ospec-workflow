@@ -1,0 +1,5 @@
+{
+  "status": "needs-specialist",
+  "specialists": ["risk", "reliability"],
+  "reason": "signals=design-risk,diff-auth-permission,metadata-runtime;dimensions=risk,reliability"
+}

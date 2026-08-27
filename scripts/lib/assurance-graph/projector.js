@@ -12,13 +12,19 @@ const ALLOWED_NODE_KINDS = Object.freeze([
   "test-evidence",
   "verification-decision",
 ]);
-const FORBIDDEN_NODE_KIND_MARKERS = Object.freeze([
+const FORBIDDEN_KINDS = Object.freeze([
   "finding",
   "attestation",
   "authorization",
   "evaluation-attestation",
-  "reviewed-by",
 ]);
+const FORBIDDEN_NAMESPACES = Object.freeze([
+  "finding",
+  "attestation",
+  "authorization",
+  "evaluation-attestation",
+]);
+const SHA256 = /^sha256:[a-f0-9]{64}$/;
 
 function fail(reason_code, error) {
   return { ok: false, reason_code, error: error || reason_code };
@@ -56,17 +62,26 @@ function canonicalize(nodes, edges) {
   return { nodes: canonicalNodes, edges: canonicalEdges };
 }
 
+/**
+ * Accept or reject subjects by structured kind/namespace. Never scan id substrings.
+ *
+ * @param {object[]} nodes
+ * @param {object[]} edges
+ * @returns {{ ok: true } | { ok: false, reason_code: string, error?: string }}
+ */
 function rejectForbidden(nodes, edges) {
+  // One reason_code for kind, namespace, and relation; distinguish via error text.
+  // FORBIDDEN_KINDS is defense-in-depth: checked before the allowlist so it is reachable.
   for (const node of nodes || []) {
+    if (FORBIDDEN_KINDS.includes(node.kind)) {
+      return fail("FORBIDDEN_RELATION", `forbidden kind ${node.kind}`);
+    }
     if (!ALLOWED_NODE_KINDS.includes(node.kind)) {
       return fail("FORBIDDEN_RELATION", `forbidden node kind ${node.kind}`);
     }
-    // Substring match on id+kind haystack: markers apply with includes() over
-    // id or kind, not exact kind equality. ALLOWED_NODE_KINDS already covers
-    // the exact kind allow-list above.
-    const idAndKindHaystack = `${node.id} ${node.kind}`.toLowerCase();
-    if (FORBIDDEN_NODE_KIND_MARKERS.some((marker) => idAndKindHaystack.includes(marker))) {
-      return fail("FORBIDDEN_RELATION", `forbidden subject ${node.id}`);
+    const namespace = typeof node.namespace === "string" ? node.namespace.toLowerCase() : "";
+    if (namespace && FORBIDDEN_NAMESPACES.includes(namespace)) {
+      return fail("FORBIDDEN_RELATION", `forbidden namespace ${node.namespace}`);
     }
   }
   for (const edge of edges || []) {
@@ -87,6 +102,39 @@ function pushEdge(edges, from, relation, to) {
   edges.push({ from, relation, to });
 }
 
+function resolveCanonicalInputDigests(input) {
+  const provided = input.canonicalInputs && typeof input.canonicalInputs === "object" ? input.canonicalInputs : {};
+  const graph = input.executionGraph || {};
+  const contract = provided.contract && typeof provided.contract === "object" ? provided.contract : {};
+
+  const contractDigest = provided.contract_digest || contract.contract_digest || graph.contract_digest || null;
+  const policySnapshotId = provided.policy_snapshot_id || graph.policy_snapshot_id || null;
+  const executionGraphDigest = provided.execution_graph_digest || graph.graph_id || null;
+  const openspecInputDigest =
+    provided.openspec_input_digest ||
+    sha256Fingerprint("openspec-input/v1", {
+      contract_digest: contractDigest,
+      source_snapshot_id: graph.source_snapshot_id || (provided.sourceSnapshot && provided.sourceSnapshot.source_snapshot_id) || null,
+    });
+
+  return {
+    contract_digest: contractDigest,
+    policy_snapshot_id: policySnapshotId,
+    execution_graph_digest: executionGraphDigest,
+    openspec_input_digest: openspecInputDigest,
+  };
+}
+
+function persistableCanonicalInputs(digests) {
+  const persistable = {};
+  for (const key of ["contract_digest", "policy_snapshot_id", "execution_graph_digest", "openspec_input_digest"]) {
+    if (typeof digests[key] === "string" && SHA256.test(digests[key])) {
+      persistable[key] = digests[key];
+    }
+  }
+  return persistable;
+}
+
 /**
  * Derive a canonical Assurance Graph projection. Returns a new object.
  *
@@ -96,7 +144,7 @@ function pushEdge(edges, from, relation, to) {
 function projectAssuranceGraph(input = {}) {
   const candidate = input.candidate;
   if (!candidate || typeof candidate.candidate_id !== "string") {
-    return fail("GRAPH_DIVERGENCE", "frozen candidate is required to project");
+    return fail("GRAPH_PROJECTION_FAILED", "frozen candidate is required to project");
   }
 
   const nodes = [];
@@ -128,11 +176,16 @@ function projectAssuranceGraph(input = {}) {
     if (!record || !record.evidence_id) continue;
     pushNode(nodes, record.evidence_id, "test-evidence");
     pushEdge(edges, record.evidence_id, "derived-from", candidateId);
-    const obligationIds = item.obligation_ids || record.obligation_ids || [];
-    for (const obligationId of obligationIds) {
-      pushNode(nodes, obligationId, "requirement");
-      pushEdge(edges, record.evidence_id, "satisfies", obligationId);
-    }
+  }
+
+  // Persistable assessments become evidence→obligation `satisfies` edges.
+  // Assessment is not a node; distinct roles of the same pair collapse via canonicalize.
+  const assessments = Array.isArray(input.assessments) ? input.assessments : [];
+  for (const assessment of assessments) {
+    if (!assessment || !assessment.evidence_id || !assessment.obligation_id) continue;
+    pushNode(nodes, assessment.evidence_id, "test-evidence");
+    pushNode(nodes, assessment.obligation_id, "requirement");
+    pushEdge(edges, assessment.evidence_id, "satisfies", assessment.obligation_id);
   }
 
   const verification = input.verification;
@@ -155,27 +208,36 @@ function projectAssuranceGraph(input = {}) {
   if (!forbidden.ok) return forbidden;
 
   const canonical = canonicalize(nodes, edges);
+  const canonicalInputs = resolveCanonicalInputDigests(input);
   const graphId = sha256Fingerprint("assurance-graph/v1", {
     candidate_id: candidateId,
+    contract_digest: canonicalInputs.contract_digest,
+    policy_snapshot_id: canonicalInputs.policy_snapshot_id,
+    execution_graph_digest: canonicalInputs.execution_graph_digest,
+    openspec_input_digest: canonicalInputs.openspec_input_digest,
     nodes: canonical.nodes,
     edges: canonical.edges,
   });
 
-  return {
-    ok: true,
-    graph: {
-      schema_version: 1,
-      kind: "assurance-graph/v1",
-      graph_id: graphId,
-      candidate_id: candidateId,
-      nodes: canonical.nodes.map(cloneNode),
-      edges: canonical.edges.map(cloneEdge),
-    },
+  const resultGraph = {
+    schema_version: 1,
+    kind: "assurance-graph/v1",
+    graph_id: graphId,
+    candidate_id: candidateId,
+    nodes: canonical.nodes.map(cloneNode),
+    edges: canonical.edges.map(cloneEdge),
   };
+  const persistedInputs = persistableCanonicalInputs(canonicalInputs);
+  if (Object.keys(persistedInputs).length > 0) {
+    resultGraph.canonical_inputs = persistedInputs;
+  }
+
+  return { ok: true, graph: resultGraph };
 }
 
 module.exports = {
   ALLOWED_RELATIONS,
   canonicalize,
+  rejectForbidden,
   projectAssuranceGraph,
 };

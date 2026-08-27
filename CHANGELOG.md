@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.51.0] - 2026-08-27
+
+### Added
+- **Remediación de integridad K6b (`k6b-verification-integrity-remediation`)**:
+  - PASS exige evidencia admisible por cada obligación MUST del Execution Graph; `strategy satisfied ≠ Execution Graph satisfied`.
+  - Contrato aditivo `assessment/v1` (`ospec://schemas/kernel/assessment/v1`): binding persistible EvidenceId ↔ role ↔ obligation_id ↔ node_id ↔ policy, sin mutar `evidence/v2` ni K1 v1.
+  - Provenance fuerte derivada del canal del harness (`input.collector` / `input.collectors[]`); `collector` en el sobre del worker falla cerrado (`UNTRUSTED_COLLECTOR`). Desacuerdo claim↔canal simétrico; weak+allowlist no escala a clase fuerte.
+  - `graph_id` fingerprinta inputs canónicos; proyección fail-closed (`GRAPH_PROJECTION_FAILED` / `GRAPH_DIVERGENCE`); `rejectForbidden` por kind/namespace.
+  - ADRs `docs/adr/adr-20260827-007` a `010`. Specs `independent-verification`, `assurance-graph` y `kernel-contract-schemas`.
+  - K6b queda `done`; K6c pasa a `next-eligible`. Ciclo SDD completo (ruta standard, high-risk, size:exception, 4R successor approved). Verify: 2754 pass, 0 fail. Archivado en `openspec/changes/archive/2026-08-27-k6b-verification-integrity-remediation/`.
+
 ## [2.50.0] - 2026-08-27
 
 ### Added

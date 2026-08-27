@@ -177,6 +177,7 @@ function listK1SchemaFiles(rootDir) {
     "schemas/kernel/verification/fixtures/valid/v2-",
     "schemas/kernel/verification/fixtures/invalid/v2-",
     "schemas/kernel/assurance-graph/",
+    "schemas/kernel/assessment/",
     // Evolutionary catalog registries (excluded from K1 frozen baseline pin)
     "schemas/kernel/manifest.json",
     "schemas/kernel/contract-claims.json",

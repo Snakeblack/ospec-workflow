@@ -1,7 +1,7 @@
 # Roadmap general — kernel, grafo y evidencia
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.50.0, 2026-08-27.
+> **Versión de referencia:** v2.51.0, 2026-08-27.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
 > **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md) (P0–P27). Proporcionalidad de proceso y Change Program: [`../architecture/research/proportional-process-and-change-program.md`](../architecture/research/proportional-process-and-change-program.md).
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
@@ -78,7 +78,7 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **K5** | Budgets (incl. autoridad/efectos), failures y recovery; remediaciones v2.45.7→v2.45.13 (authoritative enforcement, authority boundary/CAS concurrency, reconciliación, remediación técnica del núcleo y blindaje de concurrencia); archivado y publicado en v2.45.13 |
 | `done` | **K6a** | Worker isolation y work-order capsule; primitivas de ejecución aislada, integración con WorkerTransport, contención de filesystem y WorkResult canónico; archivado en v2.46.0, frontera de procesos cerrada en v2.47.1 y endurecida en v2.47.2 |
 | `done` | **K4b** | Repair shadow execution (WO→WR→integrate→Candidate); despacho exclusivo K6a, integración estricta, cápsula mínima, base derivada y registro 1:N; remediación de invariantes en v2.48.2 y cierre mode-only/baseline en v2.48.3 (`2026-08-26-k4b-mode-only-and-baseline-projection`) |
-| `done` | **K6b** | Verifier independiente, evidence strategies/provenance y Assurance Graph como proyección derivada (no autoridad); archivado y publicado en v2.50.0 (`2026-08-27-k6b-verifier-evidence-assurance-graph`) |
+| `done` | **K6b** | Verifier independiente, evidence strategies/provenance y Assurance Graph; integridad cerrada en v2.51.0 (`k6b-verification-integrity-remediation`) |
 | `next-eligible` | **K6c** | ChallengePlan policy-selected |
 | `pending` | K6d–K8 | Complexity delta, review authority, **Evaluation Attestation** |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
@@ -186,7 +186,7 @@ Campo canónico de binding al candidato: **`candidate_id`** (no `candidate_diges
 Entregado:
 G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2 → K2.1 → K2a → K3 → K4a → K5 → K6a → K4b → K6b
                                                                                                       ↓
-Next-eligible:                                                                                       K6c
+Next:                                                                                                K6c  (next-eligible)
                                                                                                       ↓
 Pending:     K6d → K7 → K8
                                                                    ↓
@@ -1011,7 +1011,7 @@ Vertical Repair shadow produce Candidate congelado. Gate de invariantes cerrado 
 
 **Dependencias:** K4b + K6a + K3.
 
-**Estado:** `done`. Change OpenSpec `k6b-verifier-evidence-assurance-graph` archivado y publicado en v2.50.0: verifier independiente, strategies/provenance y Assurance Graph como proyección derivada. OpenSpec/Git/Candidate siguen siendo la única autoridad semántica. El grafo no concede lifecycle, approval ni delivery. K6c es next-eligible.
+**Estado:** `done`. Publicado en v2.50.0 (`k6b-verifier-evidence-assurance-graph`); integridad cerrada en v2.51.0 (`k6b-verification-integrity-remediation`): cobertura MUST del Obligation Manifest, assessments persistibles `assessment/v1`, provenance de collector del harness, `graph_id` canónico y proyección fail-closed. Este change no reabre el macro-slice. OpenSpec/Git/Candidate siguen siendo la única autoridad semántica. El grafo no concede lifecycle, approval ni delivery. **K6c es `next-eligible`.**
 
 **Absorbe/rebasa:** P12/P16; O15; separación apply/verify vigente.
 
@@ -1103,9 +1103,9 @@ external-unverified
 - equivalence manifest queda listo para K9;
 - ningún consumer trata el Assurance Graph como segunda fuente de verdad frente a OpenSpec/Git/Candidate.
 
-**Gate terminal:** verifier, strategy selector, provenance y Assurance Graph (proyección) conformes; checkpoint evidencia/challenges → `continue` | `revise` | `reject`. K6c no empieza antes.
+**Gate terminal:** verifier, strategy selector, provenance y Assurance Graph (proyección) conformes; checkpoint evidencia/challenges → `continue` | `revise` | `reject`. Cerrado en v2.51.0. Desbloquea K6c.
 
-### K6c — adversarial challenges (policy-selected) — **pending**
+### K6c — adversarial challenges (policy-selected) — **next-eligible**
 
 **Dependencias:** K6b (+ `PolicySnapshot` / strategy de evidencia).
 
@@ -2060,3 +2060,5 @@ Un Change Program (objetivo → children OpenSpec + cursor, ver investigación `
 - 2026-08-27: reconciliación aditiva (sin mover ruta crítica ni next-eligible): se nombra la distinción proceso intra-change vs Change Program inter-change; first-match de la tabla viva es compatibilidad, no K10; K6b/R4/K10 no absorben ese hueco. Investigación no normativa `docs/architecture/research/proportional-process-and-change-program.md`. Arquitectura: corte conceptual de la misma fecha; deuda stale K3/K4a/K5/K6a/K4b reconciliada.
 - 2026-08-27: K6b (`k6b-verifier-evidence-assurance-graph`) entra en apply: verifier independiente, evidence strategies/provenance y Assurance Graph proyección `implemented`; autoridad independiente del grafo, K6c/K7/K8 permanecen `target`. K6c queda next-eligible.
 - 2026-08-27: K6b cierra con verify PASS, 4R approved y archive transaccional; publicado en v2.50.0. K6c queda next-eligible.
+- 2026-08-27: K6b entra en `revise` (`k6b-verification-integrity-remediation`): cobertura MUST, assessments persistibles, provenance de collector, `graph_id` canónico y proyección fail-closed. K6c pasa a `blocked-by-K6b-remediation` hasta archive de esa remediación.
+- 2026-08-27: K6b (`k6b-verification-integrity-remediation`) cierra integridad con verify PASS, 4R successor approved y archive transaccional; publicado en v2.51.0. K6b queda `done`; K6c queda next-eligible.

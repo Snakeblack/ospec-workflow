@@ -4,6 +4,7 @@ const crypto = require("node:crypto");
 const path = require("node:path");
 const { sha256Fingerprint } = require("../canonical-json.js");
 const { validateInstance, loadSchemaById } = require("../kernel-schema-validator.js");
+const { resolveEvidenceProvenance } = require("./collector-provenance.js");
 
 const EVIDENCE_V2_ID = "ospec://schemas/kernel/evidence/v2";
 const DEFAULT_SCHEMA_ROOT = path.resolve(__dirname, "../../..");
@@ -55,7 +56,7 @@ function computeEvidenceId(fields, rawBytes) {
  * @param {object} [executionGraph]
  * @returns {{ ok: true, evidence: object, role?: string, obligation_ids: string[] } | { ok: false, reason_code: string }}
  */
-function normalizeEvidence(raw, candidate, executionGraph) {
+function normalizeEvidence(raw, candidate, executionGraph, harnessCollector) {
   if (!raw || typeof raw !== "object") {
     return fail("FABRICATED_EVIDENCE", "raw evidence must be an object");
   }
@@ -85,11 +86,14 @@ function normalizeEvidence(raw, candidate, executionGraph) {
     }
   }
 
+  const resolvedProvenance = resolveEvidenceProvenance(raw, harnessCollector);
+  if (!resolvedProvenance.ok) return resolvedProvenance;
+
   const record = {
     schema_version: 2,
     kind: "evidence/v2",
     candidate_id: candidateId,
-    provenance: raw.provenance,
+    provenance: resolvedProvenance.provenance,
     origin: raw.origin,
     digest,
     node_id: nodeId,
@@ -129,14 +133,14 @@ function isRuntimeClass(provenance) {
  * Model-reported claims cannot satisfy runtime/tool obligations.
  *
  * @param {object} evidence
- * @param {{ requireRuntime?: boolean }} [obligation]
+ * @param {{ requireRuntime?: boolean }} [options]
  * @returns {{ ok: true } | { ok: false, reason_code: string }}
  */
-function evaluateProvenanceSufficiency(evidence, obligation = {}) {
+function evaluateProvenanceSufficiency(evidence, options = {}) {
   if (!evidence || typeof evidence !== "object") {
     return fail("INSUFFICIENT_PROVENANCE");
   }
-  const requireRuntime = obligation.requireRuntime !== false;
+  const requireRuntime = options.requireRuntime !== false;
   if (requireRuntime && !isRuntimeClass(evidence.provenance)) {
     return fail("INSUFFICIENT_PROVENANCE", "model-reported cannot satisfy runtime/tool obligations");
   }

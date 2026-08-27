@@ -41,6 +41,13 @@ test("K6b schema registration: manifest indexes evidence/v2, verification/v2, an
   assert.equal(verificationV2.$id, "ospec://schemas/kernel/verification/v2");
   const graph = loadSchemaById("ospec://schemas/kernel/assurance-graph/v1", { rootDir: ROOT });
   assert.equal(graph.$id, "ospec://schemas/kernel/assurance-graph/v1");
+
+  assert.ok(manifest.families.assessment, "manifest must register assessment");
+  assert.equal(manifest.families.assessment.schema_version, 1);
+  assert.equal(manifest.families.assessment.$id, "ospec://schemas/kernel/assessment/v1");
+  assert.equal(manifest.families.assessment.path, "schemas/kernel/assessment/v1.schema.json");
+  const assessment = loadSchemaById("ospec://schemas/kernel/assessment/v1", { rootDir: ROOT });
+  assert.equal(assessment.$id, "ospec://schemas/kernel/assessment/v1");
 });
 
 test("K6b contract claims: additive families list required fields without replacing v1 claims", () => {
@@ -85,6 +92,19 @@ test("K6b contract claims: additive families list required fields without replac
     "satisfies",
     "derived-from",
     "invalidates",
+  ]);
+
+  assert.ok(claims.families.assessment, "assessment claims must exist");
+  assert.deepEqual(claims.families.assessment.required_fields, [
+    "schema_version",
+    "kind",
+    "assessment_id",
+    "evidence_id",
+    "role",
+    "obligation_id",
+    "node_id",
+    "candidate_id",
+    "policy_snapshot_id",
   ]);
 });
 
@@ -215,4 +235,61 @@ test("K6b: K1 evidence/v1 and verification/v1 files and pins remain byte-identic
 
   const result = assertK1SchemasUnchanged(ROOT);
   assert.equal(result.ok, true, `K1 baseline must be intact: ${JSON.stringify(result)}`);
+});
+
+test("K6b assessment/v1: valid fixture passes; verdict, missing fields, and cross-family fail closed", () => {
+  const assessmentSchema = loadSchemaById("ospec://schemas/kernel/assessment/v1", { rootDir: ROOT });
+  const evidenceSchema = loadSchemaById("ospec://schemas/kernel/evidence/v2", { rootDir: ROOT });
+  const verificationSchema = loadSchemaById("ospec://schemas/kernel/verification/v2", { rootDir: ROOT });
+
+  const complete = readJson("schemas/kernel/assessment/fixtures/valid/v1-complete.json");
+  const completeRes = validateInstance(assessmentSchema, complete);
+  assert.equal(completeRes.valid, true, `valid assessment rejected: ${JSON.stringify(completeRes.errors)}`);
+
+  const missing = readJson("schemas/kernel/assessment/fixtures/invalid/v1-missing-required.json");
+  assert.equal(validateInstance(assessmentSchema, missing).valid, false);
+
+  const withVerdict = readJson("schemas/kernel/assessment/fixtures/invalid/v1-with-verdict.json");
+  const verdictRes = validateInstance(assessmentSchema, withVerdict);
+  assert.equal(verdictRes.valid, false, "assessment/v1 with verdict must fail");
+  assert.ok(verdictRes.errors.some((e) => /verdict|additionalProperties/i.test(e.message + e.path + e.rule)));
+
+  const alias = readJson("schemas/kernel/assessment/fixtures/invalid/v1-evidence-alias.json");
+  assert.equal(validateInstance(assessmentSchema, alias).valid, false, "evidence/v2 must not validate as assessment/v1");
+  assert.equal(validateInstance(evidenceSchema, complete).valid, false, "assessment/v1 must not validate as evidence/v2");
+  assert.equal(validateInstance(verificationSchema, complete).valid, false, "assessment/v1 must not validate as verification/v2");
+});
+
+test("K6b assessment/v1: four roles share one evidence_id and produce distinct assessment_id values", () => {
+  const schema = loadSchemaById("ospec://schemas/kernel/assessment/v1", { rootDir: ROOT });
+  const four = readJson("schemas/kernel/assessment/fixtures/valid/v1-four-roles.json");
+  assert.ok(Array.isArray(four), "v1-four-roles.json must be an array of payloads");
+  assert.equal(four.length, 4);
+
+  const evidenceIds = new Set();
+  const assessmentIds = new Set();
+  const roles = new Set();
+  for (const payload of four) {
+    const result = validateInstance(schema, payload);
+    assert.equal(result.valid, true, `four-role payload rejected: ${JSON.stringify(result.errors)}`);
+    evidenceIds.add(payload.evidence_id);
+    assessmentIds.add(payload.assessment_id);
+    roles.add(payload.role);
+  }
+  assert.equal(evidenceIds.size, 1, "four roles must share one evidence_id");
+  assert.equal(assessmentIds.size, 4, "four roles must produce four assessment_id values");
+  assert.equal(roles.size, 4);
+});
+
+test("K6b: evidence/v2 and verification/v2 schema bytes remain frozen after assessment publication", () => {
+  const V2_PINS = {
+    "schemas/kernel/evidence/v2.schema.json":
+      "sha256:fad66198ac48f47109041e45017e77227268610cddbb929e4dfcc3e0c5ec4910",
+    "schemas/kernel/verification/v2.schema.json":
+      "sha256:441ee351d7c094558818a3af0cfcac8b823818e5562c341d3595f2305cc4396b",
+  };
+  for (const [rel, expected] of Object.entries(V2_PINS)) {
+    const actual = digestFile(path.join(ROOT, ...rel.split("/")));
+    assert.equal(actual, expected, `${rel} bytes must remain frozen`);
+  }
 });

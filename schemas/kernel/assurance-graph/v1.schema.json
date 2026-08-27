@@ -43,6 +43,9 @@
     },
     "equivalence_manifest": {
       "$ref": "#/$defs/equivalenceManifest"
+    },
+    "canonical_inputs": {
+      "$ref": "#/$defs/canonicalInputs"
     }
   },
   "additionalProperties": false,
@@ -123,6 +126,28 @@
         }
       },
       "additionalProperties": false
+    },
+    "canonicalInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "contract_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "policy_snapshot_id": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "execution_graph_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "openspec_input_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      }
     }
   }
 }

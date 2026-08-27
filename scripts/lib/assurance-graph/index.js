@@ -1,6 +1,6 @@
 "use strict";
 
-const { projectAssuranceGraph } = require("./projector.js");
+const { projectAssuranceGraph, rejectForbidden } = require("./projector.js");
 const { computeInvalidationClosure, isEvidenceTransitivelyInvalidated } = require("./invalidation.js");
 
 function fail(reason_code, error) {
@@ -8,7 +8,7 @@ function fail(reason_code, error) {
 }
 
 /**
- * Recompute the projection from canonical inputs and fail closed on divergence.
+ * Recompute the projection from persistable outputs and fail closed on divergence.
  *
  * @param {object} stored
  * @param {object} canonicalInput
@@ -28,6 +28,24 @@ function reconcileAssuranceGraph(stored, canonicalInput) {
     return fail("GRAPH_DIVERGENCE", "stored edges diverge from canonical projection");
   }
   return { ok: true, graph: projected.graph };
+}
+
+/**
+ * Replay a projection from persistable assessments, evidence, verification, and canonical_inputs.
+ * Never consumes ephemeral projector obligation_ids.
+ *
+ * @param {object} persistable
+ * @returns {{ ok: true, graph: object } | { ok: false, reason_code: string }}
+ */
+function replayAssuranceGraph(persistable = {}) {
+  return projectAssuranceGraph({
+    canonicalInputs: persistable.canonical_inputs || persistable.canonicalInputs,
+    candidate: persistable.candidate,
+    executionGraph: persistable.executionGraph,
+    evidence: persistable.evidence,
+    assessments: persistable.assessments,
+    verification: persistable.verification,
+  });
 }
 
 function emitEquivalenceManifest(graph) {
@@ -57,6 +75,8 @@ function rejectAuthorityMisuse(_intent) {
 module.exports = {
   projectAssuranceGraph,
   reconcileAssuranceGraph,
+  replayAssuranceGraph,
+  rejectForbidden,
   computeInvalidationClosure,
   isEvidenceTransitivelyInvalidated,
   emitEquivalenceManifest,
