@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.50.0] - 2026-08-27
+
+### Added
+- **Verifier independiente, evidence v2 y Assurance Graph (K6b, `k6b-verifier-evidence-assurance-graph`)**:
+  - Verifier fail-closed sobre Candidate congelado (`CandidateId`, no `WorkResultId`); estrategias bug/feature/refactor/migration/config-docs con provenance y fallback Strict TDD sin reescribir `tdd_mode`.
+  - Contratos aditivos `evidence/v2` y `verification/v2`; `evidence/v1`, `verification/v1` y pins K1 permanecen byte-identical.
+  - Assurance Graph `v1` como proyección content-addressed (no autoridad): invalidación selectiva del closure dependiente; manifest de equivalencia no promocional.
+  - ADRs `docs/adr/adr-20260827-004` a `006`. Specs `independent-verification` y `assurance-graph`; deltas en `kernel-contract-schemas` y `harness-authority-canon`.
+  - Ciclo SDD completo (ruta standard, high-risk, size:exception, 4R approved). Follow-up 4R: provenance anyOf/negative y casos `satisfies`/`verified-by` del closure. Archivado en `openspec/changes/archive/2026-08-27-k6b-verifier-evidence-assurance-graph/`.
+
 ## [2.49.0] - 2026-08-27
 
 ### Added
