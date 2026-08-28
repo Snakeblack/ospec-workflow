@@ -52,6 +52,12 @@ const FAMILY_PUBLICATION = Object.freeze({
     fixturesDir: "schemas/kernel/verification/fixtures",
     fixtureNameFilter: (name) => name.startsWith("v2-"),
   }),
+  "assessment-v2": Object.freeze({
+    path: "schemas/kernel/assessment/v2.schema.json",
+    id: "ospec://schemas/kernel/assessment/v2",
+    fixturesDir: "schemas/kernel/assessment/fixtures",
+    fixtureNameFilter: (name) => name.startsWith("v2-") && name !== "v2-four-roles.json",
+  }),
   candidate: Object.freeze({
     // k3-frozen.json is a Candidate v2 frozen-shape fixture living under the v1
     // fixtures tree for K3 adversarial tests; exclude it from K1 v1 family publication
@@ -69,7 +75,7 @@ const FAMILY_PUBLICATION = Object.freeze({
   }),
   assessment: Object.freeze({
     // Bundle of four role payloads for identity distinctness; walked by k6b-schema-fixtures.
-    fixtureNameFilter: (name) => name !== "v1-four-roles.json",
+    fixtureNameFilter: (name) => !name.startsWith("v2-") && name !== "v1-four-roles.json",
   }),
 });
 

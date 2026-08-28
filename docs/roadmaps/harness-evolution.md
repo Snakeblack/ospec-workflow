@@ -1,7 +1,7 @@
 # Roadmap general — kernel, grafo y evidencia
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.52.0, 2026-08-28.
+> **Versión de referencia:** v2.53.0, 2026-08-28.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
 > **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md) (P0–P27). Proporcionalidad de proceso y Change Program: [`../architecture/research/proportional-process-and-change-program.md`](../architecture/research/proportional-process-and-change-program.md).
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
@@ -78,8 +78,8 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **K5** | Budgets (incl. autoridad/efectos), failures y recovery; remediaciones v2.45.7→v2.45.13 (authoritative enforcement, authority boundary/CAS concurrency, reconciliación, remediación técnica del núcleo y blindaje de concurrencia); archivado y publicado en v2.45.13 |
 | `done` | **K6a** | Worker isolation y work-order capsule; primitivas de ejecución aislada, integración con WorkerTransport, contención de filesystem y WorkResult canónico; archivado en v2.46.0, frontera de procesos cerrada en v2.47.1 y endurecida en v2.47.2 |
 | `done` | **K4b** | Repair shadow execution (WO→WR→integrate→Candidate); despacho exclusivo K6a, integración estricta, cápsula mínima, base derivada y registro 1:N; remediación de invariantes en v2.48.2 y cierre mode-only/baseline en v2.48.3 (`2026-08-26-k4b-mode-only-and-baseline-projection`) |
-| `done` | **K6b** | Verifier independiente, strategies/provenance y Assurance Graph proyección; integridad semántica B1–B3/H1–H3 cerrada en v2.52.0 (`2026-08-27-k6b-semantic-integrity-remediation`) |
-| `next-eligible` | **K6c** | ChallengePlan policy-selected; desbloqueado tras archive de K6b |
+| `done` | **K6b** | Verifier independiente, strategies/provenance y Assurance Graph proyección; integridad semántica, estabilidad de esquemas (assessment v2/v1), desacoplamiento rawEvidence, matriz de roles y replay cerrados en v2.53.0 (`2026-08-28-k6b-evidence-binding-and-schema-stability-remediation`) |
+| `next-eligible` | **K6c** | ChallengePlan policy-selected; desbloqueado tras archive definitivo de K6b |
 | `pending` | K6d–K8 | Complexity delta, review authority, **Evaluation Attestation** |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
 | `pending` | K10-delivery | `DeliveryAuthorization` **acotada al profile K9**; relación Candidate por etapas; fixed/deferred para el resto |

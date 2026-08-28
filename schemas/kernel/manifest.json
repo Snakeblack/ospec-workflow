@@ -225,6 +225,11 @@
       "path": "schemas/kernel/assessment/v1.schema.json",
       "$id": "ospec://schemas/kernel/assessment/v1",
       "schema_version": 1
+    },
+    "assessment-v2": {
+      "path": "schemas/kernel/assessment/v2.schema.json",
+      "$id": "ospec://schemas/kernel/assessment/v2",
+      "schema_version": 2
     }
   }
 }

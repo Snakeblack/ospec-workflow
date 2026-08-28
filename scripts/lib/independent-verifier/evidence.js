@@ -54,7 +54,8 @@ function computeEvidenceId(fields, rawBytes) {
  * @param {object} raw
  * @param {object} candidate
  * @param {object} [executionGraph]
- * @returns {{ ok: true, evidence: object, role?: string, obligation_ids: string[] } | { ok: false, reason_code: string }}
+ * @param {object} [harnessCollector]
+ * @returns {{ ok: true, evidence: object, execution_sequence?: object, role?: string, obligation_ids: string[], evidence_requirements_satisfied: string[] } | { ok: false, reason_code: string }}
  */
 function normalizeEvidence(raw, candidate, executionGraph, harnessCollector) {
   if (!raw || typeof raw !== "object") {
@@ -120,9 +121,19 @@ function normalizeEvidence(raw, candidate, executionGraph, harnessCollector) {
     ? [...new Set(raw.evidence_requirements_satisfied.filter((token) => typeof token === "string" && token.length > 0))].sort()
     : [];
 
+  const executionSequence = raw.execution_sequence && typeof raw.execution_sequence === "object"
+    ? {
+        run_id: String(raw.execution_sequence.run_id || ""),
+        ordinal: typeof raw.execution_sequence.ordinal === "number" ? raw.execution_sequence.ordinal : 0,
+        previous_evidence_id: raw.execution_sequence.previous_evidence_id || undefined,
+      }
+    : null;
+
   return {
     ok: true,
     evidence: record,
+    execution_sequence: executionSequence,
+    raw,
     role: raw.role,
     obligation_ids: obligationIds,
     evidence_requirements_satisfied: evidenceRequirementsSatisfied,

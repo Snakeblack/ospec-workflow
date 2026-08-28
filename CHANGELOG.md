@@ -5,6 +5,25 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.53.0] - 2026-08-28
+
+### Added
+- **Publicación canónica de `assessment/v2` (`ospec://schemas/kernel/assessment/v2`)**:
+  - `evidence_requirements_satisfied` obligatorio con `minItems: 1` para afirmaciones de satisfacción efectiva.
+  - Restauración retrocompatible de `assessment/v1` (`ospec://schemas/kernel/assessment/v1`) al contrato original sin forzar campos rompientes.
+  - Registro de familia de esquema v2 en `schemas/kernel/manifest.json`, `contract-claims.json` y checkers de compatibilidad.
+
+### Changed
+- **Integridad semántica y frontera de confianza en verificación K6b (`k6b-evidence-binding-and-schema-stability-remediation`)**:
+  - Desacoplamiento estricto de `rawEvidence` (observación física: `bytes`, `provenance`, `origin`, `node_id`, `execution_sequence`) respecto a metadatos de confianza (`role`, `obligation_ids`, `evidence_requirements_satisfied`), derivados autoritativamente por el verifier contra el Execution Graph y runner receipts.
+  - Matriz de incompatibilidad de roles (`red` ↔ `green`, `characterization-before` ↔ `characterization-after`, `negative` ↔ `acceptance`) en lugar de prohibición universal de aliasing, permitiendo compartición no conflictiva (`integration` + `acceptance`).
+  - Validación cronológica causal en refactor (`characterization-before` < `characterization-after`) y TDD (`red` < `green`) basada en `execution_sequence` y `previous_evidence_id`.
+  - Recomputación y validación autoritativa de `openspec_input_digest` en `resolveCanonicalInputDigests()`, fallando con `GRAPH_DIVERGENCE` ante cualquier discordancia.
+  - Revalidación integral en `replayAssuranceGraph` para `evidence/v2`, `verification/v2` y `assessment/v2` contra adulteraciones o desalineaciones de `candidate_id` y procedencia.
+  - Proyección de aristas `satisfies` en el Assurance Graph condicionada a satisfacción no vacía (`evidence_requirements_satisfied.length > 0`).
+  - ADRs `docs/adr/adr-20260828-004` a `006`. Specs `kernel-contract-schemas`, `independent-verification` y `assurance-graph`.
+  - Cierre definitivo de K6b; K6c queda `next-eligible`. Ciclo SDD completo (ruta standard, verify PASS 93 tests focales, 0 issues, 4R approved). Archivado en `openspec/changes/archive/2026-08-28-k6b-evidence-binding-and-schema-stability-remediation/`.
+
 ## [2.52.0] - 2026-08-28
 
 ### Changed

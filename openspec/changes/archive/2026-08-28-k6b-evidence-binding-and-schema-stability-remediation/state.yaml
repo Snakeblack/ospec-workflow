@@ -1,0 +1,53 @@
+change: "k6b-evidence-binding-and-schema-stability-remediation"
+status: "archived"
+last_updated: "2026-08-28T09:55:00Z"
+blocking_questions: []
+baseline_fingerprints:
+  kernel-contract-schemas: "449a9a78e34cbad4f6064aacea9cf36336b231c9e46056bac0f4d9c05c235507"
+  independent-verification: "51360b2f4d6f8a0ed1a79c85b95220b74d9971a62072877bea1f499bca3597ed"
+  assurance-graph: "a4300be7786f696625b4aa105da20191046526d1fe5ee0ea412c442f96728ac8"
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k6b-evidence-binding-and-schema-stability-remediation/proposal.md"
+    summary: "Remediación K6b: esquemas assessment v2/v1, enlace autoritativo de evidencia, replay v2, matriz de roles y Assurance Graph."
+    key_decisions:
+      - "assessment/v2 con evidence_requirements_satisfied obligatorio y restore retrocompatible de v1."
+      - "Derivación autoritativa de metadatos semánticos desde receipts y Execution Graph aislada de rawEvidence."
+      - "Validación fail-closed de openspec_input_digest con GRAPH_DIVERGENCE y matriz de incompatibilidad de roles."
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k6b-evidence-binding-and-schema-stability-remediation/specs/kernel-contract-schemas/spec.md"
+      - "openspec/changes/k6b-evidence-binding-and-schema-stability-remediation/specs/independent-verification/spec.md"
+      - "openspec/changes/k6b-evidence-binding-and-schema-stability-remediation/specs/assurance-graph/spec.md"
+    summary: "Especificadas assessment v2/v1, separación rawEvidence/metadata, replay v2, matriz de roles y validación de digest."
+    key_decisions:
+      - "assessment/v2 exige evidence_requirements_satisfied con minItems: 1 para claims de satisfacción."
+      - "rawEvidence desacoplada de metadatos semánticos derivados autoritativamente por el verifier."
+      - "resolveCanonicalInputDigests valida openspec_input_digest fallando con GRAPH_DIVERGENCE."
+  design:
+    status: "done"
+    artifact: "openspec/changes/k6b-evidence-binding-and-schema-stability-remediation/design.md"
+    summary: "Diseño K6b: esquemas assessment v2/v1, frontera rawEvidence/metadata, replay v2, matriz de roles y Assurance Graph."
+    key_decisions:
+      - "ADR-001: assessment/v2 con evidence_requirements_satisfied obligatorio y restore v1."
+      - "ADR-002: Separación de frontera de confianza entre rawEvidence y metadatos de verifier."
+      - "ADR-003: Validación fail-closed de openspec_input_digest, replay v2 y aristas condicionales."
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k6b-evidence-binding-and-schema-stability-remediation/tasks.md"
+    summary: "Desglose en 5 fases y 18 tareas: esquemas v2/v1, desacoplamiento rawEvidence, matriz de roles, digest canónico y replay."
+  apply:
+    status: "done"
+    artifact: "openspec/changes/k6b-evidence-binding-and-schema-stability-remediation/apply-progress.md"
+    summary: "Implementadas todas las fases 1-5: esquemas assessment v2/v1, desacoplamiento rawEvidence, matriz de roles, validación canónica de digest y replay exhaustivo."
+  verify:
+    status: "done"
+    artifact: "openspec/changes/k6b-evidence-binding-and-schema-stability-remediation/verify-report.md"
+    verdict: "PASS"
+    summary: "Verificación completa PASS: 18/18 tareas y 39/39 escenarios validados con pruebas automatizadas (npm test exit code 0, 0 issues)."
+  archive:
+    status: "done"
+    artifact: "openspec/changes/k6b-evidence-binding-and-schema-stability-remediation/archive-report.md"
+    summary: "Plan de archivo emitido y reporte generado con 3 specs preparadas y 3 ADRs propuestos para commit por runtime."

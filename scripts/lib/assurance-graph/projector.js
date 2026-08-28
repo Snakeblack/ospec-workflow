@@ -70,8 +70,6 @@ function canonicalize(nodes, edges) {
  * @returns {{ ok: true } | { ok: false, reason_code: string, error?: string }}
  */
 function rejectForbidden(nodes, edges) {
-  // One reason_code for kind, namespace, and relation; distinguish via error text.
-  // FORBIDDEN_KINDS is defense-in-depth: checked before the allowlist so it is reachable.
   for (const node of nodes || []) {
     if (FORBIDDEN_KINDS.includes(node.kind)) {
       return fail("FORBIDDEN_RELATION", `forbidden kind ${node.kind}`);
@@ -122,18 +120,21 @@ function resolveCanonicalInputDigests(input) {
   const contractDigest = provided.contract_digest || contract.contract_digest || graph.contract_digest || null;
   const policySnapshotId = provided.policy_snapshot_id || graph.policy_snapshot_id || null;
   const executionGraphDigest = provided.execution_graph_digest || graph.graph_id || null;
-  const openspecInputDigest =
-    provided.openspec_input_digest ||
-    sha256Fingerprint("openspec-input/v1", {
-      contract_digest: contractDigest,
-      source_snapshot_id: graph.source_snapshot_id || (provided.sourceSnapshot && provided.sourceSnapshot.source_snapshot_id) || null,
-    });
+
+  const canonicalOpenspecDigest = sha256Fingerprint("openspec-input/v1", {
+    contract_digest: contractDigest,
+    source_snapshot_id: graph.source_snapshot_id || (provided.sourceSnapshot && provided.sourceSnapshot.source_snapshot_id) || null,
+  });
+
+  if (provided.openspec_input_digest && provided.openspec_input_digest !== canonicalOpenspecDigest) {
+    return fail("GRAPH_DIVERGENCE", "provided openspec_input_digest contradicts canonical derivation");
+  }
 
   const digests = {
     contract_digest: contractDigest,
     policy_snapshot_id: policySnapshotId,
     execution_graph_digest: executionGraphDigest,
-    openspec_input_digest: openspecInputDigest,
+    openspec_input_digest: canonicalOpenspecDigest,
   };
   for (const [key, value] of Object.entries(digests)) {
     if (typeof value !== "string" || !SHA256.test(value)) {
@@ -197,13 +198,16 @@ function projectAssuranceGraph(input = {}) {
   }
 
   // Persistable assessments become evidence→obligation `satisfies` edges.
-  // Assessment is not a node; distinct roles of the same pair collapse via canonicalize.
+  // Conditional projection: satisfies edge emitted ONLY when evidence_requirements_satisfied.length > 0
   const assessments = Array.isArray(input.assessments) ? input.assessments : [];
   for (const assessment of assessments) {
     if (!assessment || !assessment.evidence_id || !assessment.obligation_id) continue;
     pushNode(nodes, assessment.evidence_id, "test-evidence");
     pushNode(nodes, assessment.obligation_id, "requirement");
-    pushEdge(edges, assessment.evidence_id, "satisfies", assessment.obligation_id);
+    const satisfied = assessment.evidence_requirements_satisfied;
+    if (Array.isArray(satisfied) && satisfied.length > 0) {
+      pushEdge(edges, assessment.evidence_id, "satisfies", assessment.obligation_id);
+    }
   }
 
   const verification = input.verification;
