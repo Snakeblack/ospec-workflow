@@ -18,7 +18,8 @@ const {
 } = require("./index.js");
 const { verifyCandidate } = require("../independent-verifier/index.js");
 const { computeAssessmentId } = require("../independent-verifier/assessment.js");
-const { createTestRunnerReceiptChannel } = require("../test-support/k6b-runner-receipt.js");
+const { createTestRunnerReceiptChannel, createTestRunnerReceiptChannelFromReceipts } = require("../test-support/k6b-runner-receipt.js");
+const { readRunnerReceiptChannel } = require("../independent-verifier/runner-receipt.js");
 const { canonicalize, computeGraphId } = require("./projector.js");
 
 const SAMPLE_NODES = [
@@ -866,6 +867,31 @@ test("REQ-assurance-graph-006 [Adversarial]: replay requires trusted runner rece
 test("REQ-assurance-graph-006 [Adversarial]: null replay bundle fails closed", () => {
   const replayed = replayAssuranceGraph(null);
 
+  assert.equal(replayed.ok, false);
+  assert.equal(replayed.reason_code, "GRAPH_DIVERGENCE");
+});
+
+test("REQ-assurance-graph-006 [Adversarial]: missing persisted runner-receipt fails closed", () => {
+  const projection = verifiedProjection();
+  const gate = readRunnerReceiptChannel(projection.runnerReceiptChannel);
+  assert.equal(gate.ok, true);
+  const omitted = createTestRunnerReceiptChannelFromReceipts(gate.receipts.slice(1));
+  const replayed = replayAssuranceGraph(replayBundle(projection, {
+    runnerReceiptChannel: omitted,
+  }));
+  assert.equal(replayed.ok, false);
+  assert.equal(replayed.reason_code, "GRAPH_DIVERGENCE");
+});
+
+test("REQ-assurance-graph-006 [Adversarial]: mutated assessment role with recomputed assessment_id fails closed", () => {
+  const projection = verifiedProjection();
+  const { verified } = projection;
+  const tampered = verified.assessments.map((assessment) => {
+    if (assessment.role !== "acceptance") return assessment;
+    return withAssessmentFields(assessment, { role: "integration" });
+  });
+  assert.ok(tampered.some((assessment) => assessment.role === "integration"));
+  const replayed = replayAssuranceGraph(replayBundle(projection, { assessments: tampered }));
   assert.equal(replayed.ok, false);
   assert.equal(replayed.reason_code, "GRAPH_DIVERGENCE");
 });

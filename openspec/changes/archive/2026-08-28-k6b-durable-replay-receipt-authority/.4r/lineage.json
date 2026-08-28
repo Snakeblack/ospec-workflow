@@ -1,0 +1,401 @@
+{
+  "schema_version": 1,
+  "lineage_id": "sha256:c279cdd93806990f6dd757729ea51cda8b3afd6404308f41070c54b0ac09d721",
+  "generation": 1,
+  "predecessor_lineage_id": null,
+  "recovery": null,
+  "revision": 12,
+  "status": "approved",
+  "genesis": {
+    "candidate": {
+      "projection": "workspace",
+      "base_tree": "6a43aedce1e78c7e77221056fb3fb7d4e2af2ce5",
+      "candidate_tree": "sha256:6ddb4a02c96a0899b55cf98a85da8c5c2db9701cc0023454b731be224d3b5169",
+      "paths": [
+        "docs/architecture/harness-evolution.md",
+        "docs/roadmaps/harness-evolution.md",
+        "openspec/changes/k6b-durable-replay-receipt-authority/apply-progress.md",
+        "openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-001.md",
+        "openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-002.md",
+        "openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-003.md",
+        "openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-004.md",
+        "openspec/changes/k6b-durable-replay-receipt-authority/design.md",
+        "openspec/changes/k6b-durable-replay-receipt-authority/proposal.md",
+        "openspec/changes/k6b-durable-replay-receipt-authority/specs/assurance-graph/spec.md",
+        "openspec/changes/k6b-durable-replay-receipt-authority/specs/authority-store/spec.md",
+        "openspec/changes/k6b-durable-replay-receipt-authority/specs/independent-verification/spec.md",
+        "openspec/changes/k6b-durable-replay-receipt-authority/state.yaml",
+        "openspec/changes/k6b-durable-replay-receipt-authority/tasks.md",
+        "openspec/changes/k6b-durable-replay-receipt-authority/verify-report.md",
+        "openspec/memory/known-issues.md",
+        "scripts/lib/assurance-graph/index.js",
+        "scripts/lib/assurance-graph/index.test.js",
+        "scripts/lib/authority-store/index.js",
+        "scripts/lib/authority-store/index.test.js",
+        "scripts/lib/filesystem-store.js",
+        "scripts/lib/filesystem-store.test.js",
+        "scripts/lib/independent-verifier/runner-receipt-restart.test.js",
+        "scripts/lib/independent-verifier/runner-receipt-store.js",
+        "scripts/lib/independent-verifier/runner-receipt-store.test.js",
+        "scripts/lib/test-support/k6b-runner-receipt.js"
+      ],
+      "diff_hash": "sha256:6ddb4a02c96a0899b55cf98a85da8c5c2db9701cc0023454b731be224d3b5169",
+      "paths_digest": "sha256:079d98e25b1344e48b544c684d1b93b34b65e6bffab9543e2991bbedc552079c",
+      "authored_lines": 1922,
+      "original_changed_lines": 1922
+    },
+    "candidate_id": "sha256:f1592012787c2f6507189f9f257ac5125b48940a09e08fdcea3a47e856fa40e9",
+    "paths": [
+      "docs/architecture/harness-evolution.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/apply-progress.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-001.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-002.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-003.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-004.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/design.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/proposal.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/specs/assurance-graph/spec.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/specs/authority-store/spec.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/specs/independent-verification/spec.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/state.yaml",
+      "openspec/changes/k6b-durable-replay-receipt-authority/tasks.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/verify-report.md",
+      "openspec/memory/known-issues.md",
+      "scripts/lib/assurance-graph/index.js",
+      "scripts/lib/assurance-graph/index.test.js",
+      "scripts/lib/authority-store/index.js",
+      "scripts/lib/authority-store/index.test.js",
+      "scripts/lib/filesystem-store.js",
+      "scripts/lib/filesystem-store.test.js",
+      "scripts/lib/independent-verifier/runner-receipt-restart.test.js",
+      "scripts/lib/independent-verifier/runner-receipt-store.js",
+      "scripts/lib/independent-verifier/runner-receipt-store.test.js",
+      "scripts/lib/test-support/k6b-runner-receipt.js"
+    ],
+    "classification": "high-risk",
+    "selected_dimensions": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "evidence_fingerprint": "sha256:cea24af831a003165c688d200f7c7decf92d919689ca1fb2d430f16e5c99324c",
+    "original_changed_lines": 1922,
+    "authored_lines": 1922
+  },
+  "current_candidate_id": "sha256:9ff9bb2be3cbec477d47f7502458ba13dc83d874e9c4fd5f993199c8a056997d",
+  "current_candidate": {
+    "projection": "workspace",
+    "base_tree": "6a43aedce1e78c7e77221056fb3fb7d4e2af2ce5",
+    "candidate_tree": "sha256:d2854c2c93cf784cfbdcc1d9291cc123eaf3607c2c1086074f13717e606f026e",
+    "paths": [
+      "docs/architecture/harness-evolution.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/apply-progress.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-001.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-002.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-003.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-004.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/design.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/proposal.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/specs/assurance-graph/spec.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/specs/authority-store/spec.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/specs/independent-verification/spec.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/state.yaml",
+      "openspec/changes/k6b-durable-replay-receipt-authority/tasks.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/verify-report.md",
+      "openspec/memory/known-issues.md",
+      "scripts/lib/assurance-graph/index.js",
+      "scripts/lib/assurance-graph/index.test.js",
+      "scripts/lib/authority-store/index.js",
+      "scripts/lib/authority-store/index.test.js",
+      "scripts/lib/filesystem-store.js",
+      "scripts/lib/filesystem-store.test.js",
+      "scripts/lib/independent-verifier/runner-receipt-restart.test.js",
+      "scripts/lib/independent-verifier/runner-receipt-store.js",
+      "scripts/lib/independent-verifier/runner-receipt-store.test.js",
+      "scripts/lib/test-support/k6b-runner-receipt.js"
+    ],
+    "diff_hash": "sha256:d2854c2c93cf784cfbdcc1d9291cc123eaf3607c2c1086074f13717e606f026e",
+    "paths_digest": "sha256:079d98e25b1344e48b544c684d1b93b34b65e6bffab9543e2991bbedc552079c",
+    "authored_lines": 1922,
+    "original_changed_lines": 1922
+  },
+  "lenses": {
+    "risk": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "lens-risk-001",
+      "result_digest": "sha256:de591add53133e62974525b4d7550f661f6678f36b1a4f6fc6cc648bd4e46fb6",
+      "result": {
+        "findings": [
+          {
+            "severity": "CRITICAL",
+            "summary": "Type confusion: array-shaped runner_receipts persist through FileSystemStore, are omitted from revision identity, and are still rehydrated into a trusted runnerReceiptChannel. Silent swap of replay authority without a new CAS head.",
+            "acceptance_criteria": "1) FileSystemStore.load/commit MUST normalize non-map runner_receipts (arrays included) to {} or fail closed, using the same predicate as cloneRunnerReceipts. 2) computeRevision and rehydrateAndIssueRunnerReceiptChannel MUST share that predicate; rehydrate MUST NOT Object.values an array into issueRunnerReceiptChannel. 3) Committing [schema-valid runner-receipt/v1] onto an empty-bag head MUST fail closed or change computeRevision (non-empty bag hashed). 4) A runtime test MUST show: array bag does not yield a trusted channel unless runner_receipts_digest is in the new head; map persist still retags as today."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "lens-risk-001"
+    },
+    "reliability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "lens-reliability-001",
+      "result_digest": "sha256:3efaca958a29f1963aed6b0bac32fad1a16932f563d61854b75201f1871e8055",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "rehydrateAndIssueRunnerReceiptChannel no tiene runtime test del fail-closed homogéneo issuer_id+transport; un bag mixto de dos issuers trusted no está cubierto.",
+            "acceptance_criteria": "Añadir un test en runner-receipt-store.test.js que persista vía commitRunnerReceipts dos records runner-receipt/v1 válidos con issuer_id distintos (node-test y npm-test, mismo transport), llame rehydrateAndIssueRunnerReceiptChannel, y afirme ok:false, reason_code UNTRUSTED_RUNNER_RECEIPT y channel === undefined."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "rehydrateAndIssueRunnerReceiptChannel no tiene test del fail-closed cuando runner_receipts está vacío; sin el guard el código lanza o emite un canal vacío.",
+            "acceptance_criteria": "Añadir un test que llame rehydrateAndIssueRunnerReceiptChannel sobre un AuthorityStore sin runner_receipts (y una variante con identity.issuer_id/transport trusted) y afirme ok:false, reason_code INVALID_RUNNER_RECEIPT y channel === undefined, sin TypeError."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "validatePersistedRecord no tiene test del fallo de schema (kind presente, campos requeridos ausentes); el test existente solo cubre divergencia de receipt_id.",
+            "acceptance_criteria": "Añadir un test que haga commitRunnerReceipts de un objeto con kind runner-receipt/v1 y campos requeridos ausentes, llame rehydrateAndIssueRunnerReceiptChannel, y afirme ok:false, reason_code INVALID_RUNNER_RECEIPT y channel === undefined (sin llegar a emitir canal)."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "persistRunnerReceipts no cubre el unhappy path del store (commitRunnerReceipts/persistViaCommit ok:false); los tests solo rechazan el canal untrusted antes de escribir.",
+            "acceptance_criteria": "Añadir un test con canal trusted donde persistRunnerReceipts reciba {ok:false, code:\"receipt-kind-mismatch\"} o {ok:false, code:\"cas-conflict\"} del store y afirme persist.ok===false, reason_code/code igual al del store, y load().runner_receipts/revision sin el bag nuevo."
+          },
+          {
+            "severity": "SUGGESTION",
+            "summary": "commitRunnerReceipts trata un array como mapa vacío y puede devolver ok:true sin persistir ni fallar cerrado.",
+            "acceptance_criteria": "Añadir un test que llame commitRunnerReceipts con un array de un runner-receipt/v1 válido y afirme ok:false (no no-op) o, si se documenta el contrato como mapa-only, el reason/code explícito y runner_receipts sin cambios."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "lens-reliability-001"
+    },
+    "resilience": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "lens-resilience-001",
+      "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+      "result": {
+        "findings": []
+      },
+      "operation": null,
+      "result_request_id": "lens-resilience-001"
+    },
+    "readability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "lens-readability-001",
+      "result_digest": "sha256:5c9ff540cec18e43056d95fdf1056435206e4abac06b07ca8f5d9f20f6092c96",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "findReceiptKindMismatch returns a boolean and encodes two opposite kind checks without a comment.",
+            "acceptance_criteria": "Rename to a boolean predicate (e.g. hasReceiptKindMismatch) and add a comment that authority.receipts must not contain kind runner-receipt/v1 while every runner_receipts value must be an object with kind runner-receipt/v1 (non-objects also mismatch)."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "store.computeRevision infers the live runner_receipts bag from arguments.length without documenting the 3-arg vs 4-arg contract.",
+            "acceptance_criteria": "Comment (or split helpers) that four explicit args hash that bag as-is (null/empty omits runner_receipts_digest) while three args inject the subject's live runnerReceipts so old callers cannot silently drop the fourth revision component."
+          },
+          {
+            "severity": "SUGGESTION",
+            "summary": "persistRunnerReceipts remaps store {code} failures into {reason_code, error, code} by repeating the same string, with no comment on the dual envelope.",
+            "acceptance_criteria": "Comment that AuthorityStore/FileSystemStore fail with code while this helper's public shape is reason_code, and that rewriting only when committed.code is present preserves passthrough of already-shaped helper errors; or extract a named adapter such as normalizeStoreCommitFailure."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "lens-readability-001"
+    }
+  },
+  "findings": [
+    {
+      "id": "F-e9dfc8f1b40b4940",
+      "owner": "risk",
+      "severity": "CRITICAL",
+      "summary": "Type confusion: array-shaped runner_receipts persist through FileSystemStore, are omitted from revision identity, and are still rehydrated into a trusted runnerReceiptChannel. Silent swap of replay authority without a new CAS head.",
+      "acceptance_criteria": "1) FileSystemStore.load/commit MUST normalize non-map runner_receipts (arrays included) to {} or fail closed, using the same predicate as cloneRunnerReceipts. 2) computeRevision and rehydrateAndIssueRunnerReceiptChannel MUST share that predicate; rehydrate MUST NOT Object.values an array into issueRunnerReceiptChannel. 3) Committing [schema-valid runner-receipt/v1] onto an empty-bag head MUST fail closed or change computeRevision (non-empty bag hashed). 4) A runtime test MUST show: array bag does not yield a trusted channel unless runner_receipts_digest is in the new head; map persist still retags as today.",
+      "blocking": true,
+      "resolution": "resolved"
+    },
+    {
+      "id": "F-7a69369b7476942a",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "rehydrateAndIssueRunnerReceiptChannel no tiene runtime test del fail-closed homogéneo issuer_id+transport; un bag mixto de dos issuers trusted no está cubierto.",
+      "acceptance_criteria": "Añadir un test en runner-receipt-store.test.js que persista vía commitRunnerReceipts dos records runner-receipt/v1 válidos con issuer_id distintos (node-test y npm-test, mismo transport), llame rehydrateAndIssueRunnerReceiptChannel, y afirme ok:false, reason_code UNTRUSTED_RUNNER_RECEIPT y channel === undefined.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-4eb05ca499d4aa79",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "rehydrateAndIssueRunnerReceiptChannel no tiene test del fail-closed cuando runner_receipts está vacío; sin el guard el código lanza o emite un canal vacío.",
+      "acceptance_criteria": "Añadir un test que llame rehydrateAndIssueRunnerReceiptChannel sobre un AuthorityStore sin runner_receipts (y una variante con identity.issuer_id/transport trusted) y afirme ok:false, reason_code INVALID_RUNNER_RECEIPT y channel === undefined, sin TypeError.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-3f53612db2afb43d",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "validatePersistedRecord no tiene test del fallo de schema (kind presente, campos requeridos ausentes); el test existente solo cubre divergencia de receipt_id.",
+      "acceptance_criteria": "Añadir un test que haga commitRunnerReceipts de un objeto con kind runner-receipt/v1 y campos requeridos ausentes, llame rehydrateAndIssueRunnerReceiptChannel, y afirme ok:false, reason_code INVALID_RUNNER_RECEIPT y channel === undefined (sin llegar a emitir canal).",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-bbc4981ad6e8e3e5",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "persistRunnerReceipts no cubre el unhappy path del store (commitRunnerReceipts/persistViaCommit ok:false); los tests solo rechazan el canal untrusted antes de escribir.",
+      "acceptance_criteria": "Añadir un test con canal trusted donde persistRunnerReceipts reciba {ok:false, code:\"receipt-kind-mismatch\"} o {ok:false, code:\"cas-conflict\"} del store y afirme persist.ok===false, reason_code/code igual al del store, y load().runner_receipts/revision sin el bag nuevo.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-b3bfc15018459425",
+      "owner": "reliability",
+      "severity": "SUGGESTION",
+      "summary": "commitRunnerReceipts trata un array como mapa vacío y puede devolver ok:true sin persistir ni fallar cerrado.",
+      "acceptance_criteria": "Añadir un test que llame commitRunnerReceipts con un array de un runner-receipt/v1 válido y afirme ok:false (no no-op) o, si se documenta el contrato como mapa-only, el reason/code explícito y runner_receipts sin cambios.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-fb9d1cf08f2ac3fb",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "findReceiptKindMismatch returns a boolean and encodes two opposite kind checks without a comment.",
+      "acceptance_criteria": "Rename to a boolean predicate (e.g. hasReceiptKindMismatch) and add a comment that authority.receipts must not contain kind runner-receipt/v1 while every runner_receipts value must be an object with kind runner-receipt/v1 (non-objects also mismatch).",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-aee1ce90a3ac8344",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "store.computeRevision infers the live runner_receipts bag from arguments.length without documenting the 3-arg vs 4-arg contract.",
+      "acceptance_criteria": "Comment (or split helpers) that four explicit args hash that bag as-is (null/empty omits runner_receipts_digest) while three args inject the subject's live runnerReceipts so old callers cannot silently drop the fourth revision component.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-67ba8ca5ffa2300e",
+      "owner": "readability",
+      "severity": "SUGGESTION",
+      "summary": "persistRunnerReceipts remaps store {code} failures into {reason_code, error, code} by repeating the same string, with no comment on the dual envelope.",
+      "acceptance_criteria": "Comment that AuthorityStore/FileSystemStore fail with code while this helper's public shape is reason_code, and that rewriting only when committed.code is present preserves passthrough of already-shaped helper errors; or extract a named adapter such as normalizeStoreCommitFailure.",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ],
+  "findings_digest": "sha256:4144d30906e305c751abe46aabfbf396cde63f08332c1260735f4f6c3e294231",
+  "correction_budget": {
+    "limit_lines": 200,
+    "used_lines": 0,
+    "failed_attempts": 0,
+    "max_failed_attempts": 3
+  },
+  "correction_history": [],
+  "validation_history": [],
+  "follow_ups": [],
+  "pending_operation": null,
+  "pending_correction": null,
+  "terminal_reason": "all-remediation-slices-passed",
+  "remediation_schema_version": 2,
+  "remediation_migration": {
+    "source_digest": "sha256:ff015c22288b091ebe9c25ca6a1a82d4568edc42e954bfab891176797da02d8e",
+    "manifest_digest": "sha256:63c8e4265cb40a37d525fbf60b3085e7f1d8553490d8805d3856d8d614e1f4b8",
+    "legacy_used_lines": 0,
+    "legacy_failed_attempts": 0,
+    "migrated_at": "deterministic"
+  },
+  "slice_order": [
+    "S-86a87b84f209fad8"
+  ],
+  "active_slice_id": null,
+  "correction_slices": {
+    "S-86a87b84f209fad8": {
+      "slice_id": "S-86a87b84f209fad8",
+      "root_cause_key": "F-e9dfc8f1b40b4940",
+      "finding_ids": [
+        "F-e9dfc8f1b40b4940"
+      ],
+      "evidence_digests": [
+        "sha256:06aee99487ab514bae88b97c7fa5214d838c3bf88cdaf69d634739b5324ed1e7"
+      ],
+      "permitted_paths": [
+        "scripts/lib/authority-store/index.js",
+        "scripts/lib/authority-store/index.test.js",
+        "scripts/lib/filesystem-store.js",
+        "scripts/lib/filesystem-store.test.js",
+        "scripts/lib/independent-verifier/runner-receipt-restart.test.js",
+        "scripts/lib/independent-verifier/runner-receipt-store.js",
+        "scripts/lib/independent-verifier/runner-receipt-store.test.js"
+      ],
+      "resolutions": {
+        "F-e9dfc8f1b40b4940": "unresolved"
+      },
+      "status": "passed",
+      "used_lines": 140,
+      "failed_attempts": 0,
+      "limit_lines": 200,
+      "max_failed_attempts": 3,
+      "correction_history": [
+        {
+          "slice_id": "S-86a87b84f209fad8",
+          "request_id": "slice-correct-001",
+          "finding_ids": [
+            "F-e9dfc8f1b40b4940"
+          ],
+          "paths": [
+            "scripts/lib/authority-store/index.js",
+            "scripts/lib/authority-store/index.test.js",
+            "scripts/lib/filesystem-store.js",
+            "scripts/lib/filesystem-store.test.js",
+            "scripts/lib/independent-verifier/runner-receipt-restart.test.js",
+            "scripts/lib/independent-verifier/runner-receipt-store.js",
+            "scripts/lib/independent-verifier/runner-receipt-store.test.js"
+          ],
+          "base_candidate_id": "sha256:f1592012787c2f6507189f9f257ac5125b48940a09e08fdcea3a47e856fa40e9",
+          "forecast_lines": 150,
+          "actual_changed_lines": 140,
+          "record_request_id": "slice-correct-001-record",
+          "corrected_candidate_id": "sha256:9ff9bb2be3cbec477d47f7502458ba13dc83d874e9c4fd5f993199c8a056997d"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "slice-validate-001",
+          "outcomes": [
+            {
+              "id": "F-e9dfc8f1b40b4940",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "node --test filesystem-store, authority-store, runner-receipt-store, runner-receipt-restart: 59/59 pass. Array commit fail-closed; load array->{}; rehydrate array yields no channel; map persist retags. No prior passed slices."
+            ],
+            "impacted_slices": []
+          },
+          "result": "passed"
+        }
+      ],
+      "regression_history": [],
+      "legacy_correction_refs": [],
+      "legacy_validation_refs": []
+    }
+  }
+}

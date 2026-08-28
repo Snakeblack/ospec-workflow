@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "change": "k6b-durable-replay-receipt-authority",
+  "source_fingerprint": "sha256:ce4b4c9bd746d7f2d21dc5043d581693f998e055cde6cffc3237176a548120b9",
+  "spec_writes": [
+    {
+      "domain": "assurance-graph",
+      "source_delta": "specs/assurance-graph/spec.md",
+      "target": "openspec/specs/assurance-graph/spec.md",
+      "target_before_sha256": "sha256:6884f1172b948b046d9b07618c7a36c29e696773d09b614e809cc319cc92e68e",
+      "content_sha256": "sha256:e22528346b1679dde0aad4d49d015781b3c11bcb1df80b81e7be994b79f9e8ce"
+    },
+    {
+      "domain": "independent-verification",
+      "source_delta": "specs/independent-verification/spec.md",
+      "target": "openspec/specs/independent-verification/spec.md",
+      "target_before_sha256": "sha256:c6fc5a773c73c34f6f496b45b87f5e8f403fd12e8b9c097089f5b923ff52dc7a",
+      "content_sha256": "sha256:5fc303fe102c98fb4185f7ec3b4f0a9f4ec052ef16eb324368308e648ac90ecc"
+    },
+    {
+      "domain": "authority-store",
+      "source_delta": "specs/authority-store/spec.md",
+      "target": "openspec/specs/authority-store/spec.md",
+      "target_before_sha256": "sha256:bc2b4198e8e14f7cd4fc4c7bf4e98793adff3835bcb236e283692ec3c01fd268",
+      "content_sha256": "sha256:350915cda84d48c0fb091c42776ca62f1e69428527220c1fb0dd5f9852c74193"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260828-015-distinct-cas-collection-field-runner-receipts.md",
+      "content_sha256": "sha256:e37bb046c56eefd7fcb74682a2c242d2caf58d94159dc94c374f6bed60ffcd3e"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260828-016-additive-runner-receipts-digest-compute-revision.md",
+      "content_sha256": "sha256:236208352bab6d78b0310173956fc8e0f23b07df9a42803d63931f0d8653eef9"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260828-017-persist-records-reissue-ephemeral-channel-after-restart.md",
+      "content_sha256": "sha256:fcff7a504bdf3b8d1ddcccf3f836b0fe0396b99fdc9abdf76233a398dc5d0c93"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260828-018-replay-role-bind-independent-assessment-id.md",
+      "content_sha256": "sha256:51692ce62c2622017e5d2de456d306397225e213c90806866ced68ccdfc53479"
+    }
+  ],
+  "archive_inventory": [
+    ".4r/decision.json",
+    ".4r/diff.unified.patch",
+    ".4r/evidence.json",
+    ".4r/freeze-lineage.js",
+    ".4r/lens-results.json",
+    ".4r/lineage.json",
+    ".4r/persist-lenses.js",
+    ".4r/request-ids.json",
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "design.md",
+    "proposal.md",
+    "specs/assurance-graph/spec.md",
+    "specs/authority-store/spec.md",
+    "specs/independent-verification/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    {
+      "id": "ag-006-receipt-token-attestation",
+      "source": "verify-report.md",
+      "summary": "Inherited AG-006 scenario Assessment coverage not attested by the bound receipt lacks dedicated runtime test (tasks-gap)",
+      "disposition": "accepted-residual-risk",
+      "notes": "Does not reopen B1/B2; inspection-proof only; follow-up optional"
+    }
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

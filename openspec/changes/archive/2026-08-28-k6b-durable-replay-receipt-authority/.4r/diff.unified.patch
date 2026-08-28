@@ -1,0 +1,2342 @@
+diff --git a/docs/architecture/harness-evolution.md b/docs/architecture/harness-evolution.md
+index df67685..da99391 100644
+--- a/docs/architecture/harness-evolution.md
++++ b/docs/architecture/harness-evolution.md
+@@ -2,7 +2,7 @@
+ 
+ > **Autoridad:** fuente conceptual y estrat├®gica del harness (responsabilidades y l├¡mites).
+ > **Corte documental:** v2.54.0, 2026-08-28 (estado alineado al roadmap; la direcci├│n conceptual no cambia).
+-> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a**, **K5**, **K6a** y **K4b** est├ín cerrados. **K6b** permanece `revise` con remediaci├│n focal implementada y terminal review pendiente; **K6c** est├í `blocked`. OpenSpec/Git/Candidate siguen siendo la ├║nica autoridad sem├íntica; el Assurance Graph es proyecci├│n.
++> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a**, **K5**, **K6a** y **K4b** est├ín cerrados. **K6b** permanece `revise` (`k6b-durable-replay-receipt-authority`: persist/rehydrate/reissue + role bind); **K6c** est├í `blocked` hasta archive de ese change. OpenSpec/Git/Candidate siguen siendo la ├║nica autoridad sem├íntica; el Assurance Graph es proyecci├│n.
+ > **Roadmap:** orden, estado operativo y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
+ > **Precedencia documental:** ante diferencias de **orden o estado**, prevalece el roadmap; ante diferencias **conceptuales**, reconciliar antes de iniciar el slice.
+ > **Investigaci├│n no normativa:** la trazabilidad completa P0ÔÇôP27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md). La proporcionalidad de proceso y el programa de changes viven en [`research/proportional-process-and-change-program.md`](research/proportional-process-and-change-program.md).
+@@ -66,7 +66,7 @@ El review terminal de v2.53.1 no cambia la direcci├│n del kernel, pero obliga a
+ | Outcome | Un receipt fallido puede probar RED, pero no declarar `satisfied_tokens`. |
+ | Chronology | Un run no vac├¡o, ordinales ├║nicos y cada transici├│n enlaza el EvidenceId inmediatamente anterior. |
+ | Replay | Cada Evidence lleva bytes inline o blob CAS resoluble. Sin material no hay recomputaci├│n criptogr├ífica y el replay falla con `GRAPH_DIVERGENCE`. |
+-| Gate | K6b sigue `revise`; K6c no comienza hasta terminal review objetivo de estas garant├¡as. |
++| Gate | K6b sigue `revise`; K6c no comienza hasta el archive de `k6b-durable-replay-receipt-authority` y un terminal review objetivo de estas garant├¡as. |
+ 
+ ## Ruta r├ípida
+ 
+@@ -869,7 +869,7 @@ Repositorios fixture reciben 10ÔÇô30 cambios consecutivos. Se miden duplicaci├│n
+ 8. ~~K5: budgets (incl. autoridad/efectos) / failure / recovery~~ ÔÇö hecho: archivado y publicado en v2.45.13 (remediaciones v2.45.7ÔåÆv2.45.13).
+ 9. ~~K6a: primitivas de ejecuci├│n aislada (`CreateWorkspace`ÔÇª`DisposeWorkspace`); no conoce Repair~~ ÔÇö hecho: archivado y publicado en v2.46.7; frontera de procesos cerrada en v2.47.1; endurecimiento de frontera (pol├¡tica inmutable, fs mutante, live-identity, `worker_threads`) en v2.47.2.
+ 10. ~~K4b: orquesta Repair shadow (consume K6a; freeze Candidate v├¡a K3)~~ ÔÇö hecho: publicado en v2.48.0; correcci├│n en v2.48.1; invariantes de integraci├│n en v2.48.2; cierre mode-only/baseline en v2.48.3.
+-11. K6b: verifier + provenance + Assurance Graph (proyecci├│n) ÔÇö publicado desde v2.50.0 y endurecido hasta v2.53.1; reabierto como `revise` por receipt authority/binding, causal chain y replay material obligatorio. Remediaci├│n focal implementada; terminal review pendiente. K6c permanece bloqueado.
++11. K6b: verifier + provenance + Assurance Graph (proyecci├│n) ÔÇö publicado desde v2.50.0 y endurecido hasta v2.54.0; `k6b-durable-replay-receipt-authority` persiste `runner-receipt/v1` en CAS, reemite el canal tras restart y ata el role en replay. K6b sigue `revise`; K6c permanece bloqueado hasta archive de ese change.
+ 12. K7: ReviewAdapter + ReviewReducer + lineage; K8: CandidateEvaluationAttestation (emisi├│n CAS).
+ 13. K9: shadow/replay/A-B; promoci├│n de **un** profile (checkpoints intermedios ya validados).
+ 14. K10-delivery: DeliveryAuthorization **solo** del profile promovido; relaci├│n Candidate por etapas; resto fixed/deferred.
+diff --git a/docs/roadmaps/harness-evolution.md b/docs/roadmaps/harness-evolution.md
+index 62c85af..d1d66ca 100644
+--- a/docs/roadmaps/harness-evolution.md
++++ b/docs/roadmaps/harness-evolution.md
+@@ -78,8 +78,8 @@ Las iniciativas anteriores no se descartan. O20A, O13AÔÇôC, O15, O18, O19A/B y R
+ | `done` | **K5** | Budgets (incl. autoridad/efectos), failures y recovery; remediaciones v2.45.7ÔåÆv2.45.13 (authoritative enforcement, authority boundary/CAS concurrency, reconciliaci├│n, remediaci├│n t├®cnica del n├║cleo y blindaje de concurrencia); archivado y publicado en v2.45.13 |
+ | `done` | **K6a** | Worker isolation y work-order capsule; primitivas de ejecuci├│n aislada, integraci├│n con WorkerTransport, contenci├│n de filesystem y WorkResult can├│nico; archivado en v2.46.0, frontera de procesos cerrada en v2.47.1 y endurecida en v2.47.2 |
+ | `done` | **K4b** | Repair shadow execution (WOÔåÆWRÔåÆintegrateÔåÆCandidate); despacho exclusivo K6a, integraci├│n estricta, c├ípsula m├¡nima, base derivada y registro 1:N; remediaci├│n de invariantes en v2.48.2 y cierre mode-only/baseline en v2.48.3 (`2026-08-26-k4b-mode-only-and-baseline-projection`) |
+-| `revise` | **K6b** | v2.53.1 cerr├│ inyecci├│n sem├íntica en `rawEvidence`, blind copy y chronology por array, pero el terminal review reabri├│ receipt authority/binding, causalidad completa y replay criptogr├ífico obligatorio. Remediaci├│n publicada en v2.54.0; pendiente terminal review. |
+-| `blocked-by-K6b-terminal-review` | **K6c** | ChallengePlan policy-selected; no iniciar hasta verdict terminal objetivo de K6b |
++| `revise` | **K6b** | v2.54.0 cerr├│ canal opaco y replay con bytes/blob; `k6b-durable-replay-receipt-authority` persiste `runner-receipt/v1` en CAS `runner_receipts`, rehidrata/reemite el canal y ata `assessment.role` al receipt. K6b sigue `revise` hasta archive de ese change. |
++| `blocked-by-K6b-terminal-review` | **K6c** | ChallengePlan policy-selected; no iniciar hasta archive de `k6b-durable-replay-receipt-authority` y verdict terminal objetivo de K6b |
+ | `pending` | K6dÔÇôK8 | Complexity delta, review authority, **Evaluation Attestation** |
+ | `pending` | K9 | Gate de promoci├│n shadow/replay/A-B (checkpoints intermedios ya validados) |
+ | `pending` | K10-delivery | `DeliveryAuthorization` **acotada al profile K9**; relaci├│n Candidate por etapas; fixed/deferred para el resto |
+@@ -1013,7 +1013,7 @@ Vertical Repair shadow produce Candidate congelado. Gate de invariantes cerrado
+ 
+ **Dependencias:** K4b + K6a + K3.
+ 
+-**Estado:** `revise`. Publicado inicialmente en v2.50.0 y endurecido hasta v2.53.1. El review terminal de v2.53.1 confirm├│ los cierres de metadata caller-owned, blind copy y array chronology, pero detect├│ tres contratos a├║n parciales: receipts sin autoridad/binding exacto, `run_id`/`previous_evidence_id` no obligatorios y replay sin material de observaci├│n. La remediaci├│n focal implementa `runner-receipt/v1` sobre canal opaco, cadena causal completa y replay obligatorio con bytes/blob CAS. K6b permanece `revise` y **K6c `blocked` hasta un terminal review objetivo**. OpenSpec/Git/Candidate siguen siendo la ├║nica autoridad sem├íntica; el grafo no concede lifecycle, approval ni delivery.
++**Estado:** `revise`. Publicado inicialmente en v2.50.0 y endurecido hasta v2.53.1; remediaci├│n focal en v2.54.0. El change `k6b-durable-replay-receipt-authority` persiste records `runner-receipt/v1` en la bolsa CAS `runner_receipts` (distinta de `authority.receipts`), rehidrata y reemite un canal ef├¡mero nuevo tras restart, y exige `normalizeRole(assessment.role) === normalizeRole(receipt.role)` en replay. K6b permanece `revise` y **K6c `blocked` hasta el archive de este change**. OpenSpec/Git/Candidate siguen siendo la ├║nica autoridad sem├íntica; el grafo no concede lifecycle, approval ni delivery.
+ 
+ **Absorbe/rebasa:** P12/P16; O15; separaci├│n apply/verify vigente.
+ 
+@@ -1112,7 +1112,7 @@ external-unverified
+ - equivalence manifest queda listo para K9;
+ - ning├║n consumer trata el Assurance Graph como segunda fuente de verdad frente a OpenSpec/Git/Candidate.
+ 
+-**Gate terminal:** pendiente. Requiere validar objetivamente los findings congelados B1 receipt authority/binding, B2 chronology causal y B3 replay obligatorio, adem├ís de H1 outcome. Solo un verdict terminal `continue` desbloquea K6c.
++**Gate terminal:** pendiente. Requiere validar objetivamente los findings congelados B1 receipt authority/binding (incl. persistencia durable y binding de role en replay), B2 chronology causal y B3 replay obligatorio, adem├ís de H1 outcome. K6c permanece `blocked` hasta el archive de `k6b-durable-replay-receipt-authority` y un verdict terminal `continue`.
+ 
+ ### K6c ÔÇö adversarial challenges (policy-selected) ÔÇö **blocked-by-K6b-terminal-review**
+ 
+@@ -2074,3 +2074,4 @@ Un Change Program (objetivo ÔåÆ children OpenSpec + cursor, ver investigaci├│n `
+ - 2026-08-28: K6b (`k6b-semantic-integrity-remediation`) cierra con verify PASS, 4R approved y archive transaccional; publicado en v2.52.0. K6c queda next-eligible.
+ - 2026-08-28: review terminal del tag v2.53.1 reabre K6b como `revise`: RunnerReceipt no demuestra autoridad ni binding exacto, chronology no exige `run_id`/chain completos y replay permite omitir bytes. K6c vuelve a `blocked-by-K6b-terminal-review`.
+ - 2026-08-28: remediaci├│n focal publicada en v2.54.0: `runner-receipt/v1` por canal opaco con EvidenceId obligatorio y outcome coherente; causal chain completa; replay exige bytes o blob content-addressed. Dominios K6b enrolados y reconciliados. Pendiente terminal review, sin promover a├║n K6b ni iniciar K6c.
++- 2026-08-28: `k6b-durable-replay-receipt-authority` aplica persistencia CAS `runner_receipts`, rehidrataci├│n/reemisi├│n de canal y bind de role en replay. K6b sigue `revise`; K6c permanece `blocked` hasta archive de este change.
+diff --git a/openspec/changes/k6b-durable-replay-receipt-authority/apply-progress.md b/openspec/changes/k6b-durable-replay-receipt-authority/apply-progress.md
+new file mode 100644
+index 0000000..ab00f0a
+--- /dev/null
++++ b/openspec/changes/k6b-durable-replay-receipt-authority/apply-progress.md
+@@ -0,0 +1,90 @@
++# Apply Progress: k6b-durable-replay-receipt-authority
++
++Mode: Focused TDD
++Delivery: size:exception (review-workload-001; exception-ok)
++Branch: `fix/k6b-durable-replay-receipt-authority`
++
++## Batch 1 ÔÇö all 24 tasks
++
++| Task | Status | Local verification |
++| ---- | ------ | ------------------ |
++| 1.1 | [x] | `computeRevision` 4th arg; empty bag Ôëí 3-arg digest |
++| 1.2 | [x] | `load()`/`snapshot()` default `runner_receipts: {}`; `digestAuthority` still `{permits, receipts}` |
++| 1.3 | [x] | `receipt-kind-mismatch`; head unchanged |
++| 1.4 | [x] | live bag on every `inner.commit` / `computeRevision` (CAS, heal, journal, persist) |
++| 1.5 | [x] | RED tests in `scripts/lib/authority-store/index.test.js` |
++| 1.6 | [x] | authority-store suite green |
++| 2.1 | [x] | FileSystemStore `defaultRecord`/`load`/`commit`/`commitJournal` persist field; 4th `computeRevision` arg |
++| 2.2 | [x] | RED restart test without `snapshot()` |
++| 2.3 | [x] | filesystem-store suite green |
++| 3.1 | [x] | `persistRunnerReceipts` reads WeakMap, writes `runner-receipt/v1` keyed by `receipt_id` |
++| 3.2 | [x] | `rehydrateAndIssueRunnerReceiptChannel` schema ÔåÆ recompute id ÔåÆ homogeneous issuer ÔåÆ new channel |
++| 3.3 | [x] | RED tests in `runner-receipt-store.test.js` |
++| 3.4 | [x] | runner-receipt-store suite green |
++| 3.5 | [x] | `persistTestRunnerReceipts` / `rehydrateTestRunnerReceiptChannel` helpers |
++| 4.1 | [x] | `normalizeRole` bind in `validateReplayRecords` |
++| 4.2 | [x] | terminal adversarial #2: missing bound receipt ÔåÆ `GRAPH_DIVERGENCE` |
++| 4.3 | [x] | terminal adversarial #3: `acceptanceÔåÆintegration` + recomputed `assessment_id` ÔåÆ `GRAPH_DIVERGENCE` |
++| 4.4 | [x] | existing replay characterization remains green |
++| 5.1 | [x] | terminal adversarial #1 in `runner-receipt-restart.test.js` |
++| 5.2 | [x] | persist ÔåÆ fresh store ÔåÆ reissue ÔåÆ same `graph_id` |
++| 5.3 | [x] | `independent-verifier/index.test.js` unchanged (53 pass); no `index.js` edits |
++| 5.4 | [x] | `npm test` ÔåÆ 2817 pass, 2 skipped, 0 fail; `All checks passed.` |
++| 6.1 | [x] | roadmap: K6b `revise`; K6c blocked until archive of this change |
++| 6.2 | [x] | architecture mirror of the same gate |
++
++## Runtime evidence
++
++Targeted command:
++
++```
++node --test scripts/lib/authority-store/index.test.js scripts/lib/filesystem-store.test.js scripts/lib/independent-verifier/runner-receipt-store.test.js scripts/lib/independent-verifier/runner-receipt-restart.test.js scripts/lib/assurance-graph/index.test.js
++```
++
++Result: 82 pass, 0 fail.
++
++```
++node --test scripts/lib/independent-verifier/index.test.js scripts/lib/k6b-schema-fixtures.test.js
++```
++
++Result: 66 pass, 0 fail (includes unchanged verifier characterization + K6b schema fixtures / K1 pin check).
++
++```
++npm test
++```
++
++Result: Native Node tests 2817 pass / 2 skipped / 0 fail; `All checks passed.`
++
++## Files changed
++
++| File | Action | What was done |
++|------|--------|---------------|
++| `scripts/lib/authority-store/index.js` | Modified | 4th `computeRevision` arg; `runner_receipts` bag; kind guards; thread bag through CAS |
++| `scripts/lib/authority-store/index.test.js` | Modified | Digest, kind-mismatch, persist-and-keep-bag tests |
++| `scripts/lib/filesystem-store.js` | Modified | Persist `runner_receipts`; 4th revision arg |
++| `scripts/lib/filesystem-store.test.js` | Modified | Restart restores both receipt families without `snapshot()` |
++| `scripts/lib/independent-verifier/runner-receipt-store.js` | Created | persist / rehydrate / reissue helpers |
++| `scripts/lib/independent-verifier/runner-receipt-store.test.js` | Created | Divergent id; DTO untrusted; new channel identity |
++| `scripts/lib/independent-verifier/runner-receipt-restart.test.js` | Created | Terminal #1 same `graph_id`; missing receipt ÔåÆ `GRAPH_DIVERGENCE` |
++| `scripts/lib/assurance-graph/index.js` | Modified | `normalizeRole` bind after bound receipt resolution |
++| `scripts/lib/assurance-graph/index.test.js` | Modified | Terminal #2 and #3 |
++| `scripts/lib/test-support/k6b-runner-receipt.js` | Modified | Persist/rehydrate test helpers |
++| `docs/roadmaps/harness-evolution.md` | Modified | K6b `revise`; K6c blocked until archive |
++| `docs/architecture/harness-evolution.md` | Modified | Same K6b/K6c gate |
++
++Not edited: `scripts/lib/independent-verifier/index.js`, `evidence/v2`, `verification/v2`, K1 schema pins.
++
++## Deviations from Design
++
++None ÔÇö implementation matches design. Persist lives in `runner-receipt-store.js` as a trusted-channel side effect; CAS field is record-root `runner_receipts`.
++
++## Issues Found
++
++None.
++
++## Workload / PR Boundary
++
++- Mode: size:exception
++- Current work unit: all 24 tasks (single PR)
++- Boundary: authority-store ÔåÆ filesystem-store ÔåÆ runner-receipt-store ÔåÆ assurance-graph ÔåÆ integration ÔåÆ docs
++- Estimated review budget impact: High (accepted exception)
+diff --git a/openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-001.md b/openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-001.md
+new file mode 100644
+index 0000000..4a34f6e
+--- /dev/null
++++ b/openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-001.md
+@@ -0,0 +1,21 @@
++# ADR-001: Distinct CAS collection field `runner_receipts`
++
++- Status: proposed
++- Change: k6b-durable-replay-receipt-authority
++- Date: 2026-08-28
++
++## Context
++AS-018 requires a durable bag for `runner-receipt/v1` that MUST NOT overload `authority.receipts` (OperationReceipt). The public field name was design-owned.
++
++## Decision
++Persist runner receipts in additive CAS field `runner_receipts` at the revision-record root (sibling of `authority`, `journal`, `state`, `budgets`). Key by `receipt_id`. Accept only `kind: "runner-receipt/v1"`. `authority.receipts` remains OperationReceipt-only.
++
++## Alternatives
++- Nest `authority.runner_receipts` ÔÇö rejected: mixes families in the authority bag and conflicts with AS-018 restore-together-with-the-authority-bag wording.
++- Overload `authority.receipts` ÔÇö rejected: forbidden by proposal and AS-018.
++- CamelCase `runnerReceipts` ÔÇö rejected: store JSON uses snake_case (`receipts`, `budgets`).
++
++## Consequences
++- Easier: FileSystemStore load/commit can copy one additive field; `digestAuthority` stays OperationReceipt-shaped.
++- Harder: every `inner.commit` / `computeRevision` call site must thread the sibling bag so lifecycle CAS cannot drop it.
++- Reversibility: High for empty heads (field absent Ôëí `{}`); costly once non-empty bags exist on disk.
+diff --git a/openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-002.md b/openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-002.md
+new file mode 100644
+index 0000000..db78bdb
+--- /dev/null
++++ b/openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-002.md
+@@ -0,0 +1,21 @@
++# ADR-002: Additive `runner_receipts_digest` in `computeRevision`
++
++- Status: proposed
++- Change: k6b-durable-replay-receipt-authority
++- Date: 2026-08-28
++
++## Context
++Revision identity currently fingerprints state, journal, and `digestAuthority({permits, receipts})`. Hashing a new bag unconditionally would retag every existing head and violate REQ-013.
++
++## Decision
++Extend `computeRevision(state, journal, authority, runnerReceipts)` with optional `runner_receipts_digest` included only when the map has keys. Empty or absent `runner_receipts` MUST produce the same digest as today's three-component revision. `digestAuthority` MUST NOT gain a third family.
++
++## Alternatives
++- Always hash `runner_receipts: {}` inside the revision payload ÔÇö rejected: every pre-change head would diverge on reload.
++- Fold the bag into `digestAuthority` ÔÇö rejected: changes OperationReceipt root identity and mixes families.
++- Omit the bag from revision entirely ÔÇö rejected: two CAS writers could swap receipts without a new head.
++
++## Consequences
++- Easier: existing FileSystemStore heads keep their revision; lifecycle CAS stays compatible until the first runner-receipt persist.
++- Harder: FileSystemStore expectedRevision checks MUST pass the live bag or post-persist lifecycle commits cas-conflict.
++- Reversibility: Medium; once non-empty bags are committed, removing the fourth component would fork heads.
+diff --git a/openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-003.md b/openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-003.md
+new file mode 100644
+index 0000000..6c351e6
+--- /dev/null
++++ b/openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-003.md
+@@ -0,0 +1,21 @@
++# ADR-003: Persist records; reissue ephemeral channel after restart
++
++- Status: proposed
++- Change: k6b-durable-replay-receipt-authority
++- Date: 2026-08-28
++
++## Context
++ADR-014 made `runnerReceiptChannel` an opaque WeakMap capability. REQ-006 listed that channel as persistable; a restart empties the WeakMap and replay cannot reconstruct authority from public fields.
++
++## Decision
++Persist only `runner-receipt/v1` records via `persistRunnerReceipts` after a trusted `readRunnerReceiptChannel`. Do not serialize the channel or WeakMap. On restart, `rehydrateAndIssueRunnerReceiptChannel` validates schema, recomputes `receipt_id`, fail-closes on divergence, and calls `issueRunnerReceiptChannel` so the new process gets a **new** channel object. `verifyCandidate` consumption, strategy, and MUST-walk stay unchanged. Kind mismatch on CAS fails closed with `receipt-kind-mismatch` and does not advance head.
++
++## Alternatives
++- Serialize WeakMap / channel identity ÔÇö rejected: copies of `kind`/`issuer_id`/`transport` would become authority.
++- Persist inside `verifyCandidate` ÔÇö rejected: remodeled the consumption path and coupled unit tests to the store.
++- Reuse pre-restart channel identity ÔÇö rejected: IV-009 requires a newly issued capability.
++
++## Consequences
++- Easier: unit tests keep issuing in-process channels; restart tests load the bag and reissue.
++- Harder: trusted runtimes MUST call persist after successful verify; omitting the store leaves receipts non-durable.
++- Reversibility: High for the helper module; the WeakMap contract remains ADR-014.
+diff --git a/openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-004.md b/openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-004.md
+new file mode 100644
+index 0000000..03f64b5
+--- /dev/null
++++ b/openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-004.md
+@@ -0,0 +1,21 @@
++# ADR-004: Replay role bind independent of recomputed `assessment_id`
++
++- Status: proposed
++- Change: k6b-durable-replay-receipt-authority
++- Date: 2026-08-28
++
++## Context
++`computeAssessmentId` already includes `normalizeRole(role)`, so mutating `assessment.role` from `acceptance` to `integration` and recomputing `assessment_id` still passes identity validation. Replay did not compare that role to the bound `runner-receipt/v1`.
++
++## Decision
++In `validateReplayRecords`, require `normalizeRole(assessment.role) === normalizeRole(boundReceipt.role)` using `scripts/lib/independent-verifier/assessment.js`. Mismatch MUST fail closed with `GRAPH_DIVERGENCE` even when `assessment_id` matches. The check is independent of token coverage and of Evidence-id binding.
++
++## Alternatives
++- Treat matching `assessment_id` as sufficient ÔÇö rejected: that is the v2.54.0 hole.
++- Bind role only when `evidence_requirements_satisfied` is non-empty ÔÇö rejected: role must agree whenever a receipt is bound.
++- Compare raw strings without `normalizeRole` ÔÇö rejected: aliases (`consume` ÔåÆ `acceptance`) would false-diverge.
++
++## Consequences
++- Easier: adversarial tamper fixtures are a single comparison next to existing token attestation.
++- Harder: assessments and receipts must use roles that canonicalize to the same value.
++- Reversibility: High (localized to the replay assessment loop); removing it reopens the tamper.
+diff --git a/openspec/changes/k6b-durable-replay-receipt-authority/design.md b/openspec/changes/k6b-durable-replay-receipt-authority/design.md
+new file mode 100644
+index 0000000..c24ca9b
+--- /dev/null
++++ b/openspec/changes/k6b-durable-replay-receipt-authority/design.md
+@@ -0,0 +1,130 @@
++# Design: k6b-durable-replay-receipt-authority
++
++## Technical Approach
++
++Replay-only close of the v2.54.0 blockers. Persist `runner-receipt/v1` in additive CAS field **`runner_receipts`** at the revision-record root (sibling of `authority`, not inside `authority.receipts`). After restart, load ÔåÆ schema ÔåÆ `computeRunnerReceiptId` ÔåÆ fail closed on divergence ÔåÆ `issueRunnerReceiptChannel` (new WeakMap identity). Replay still uses `persistable.runnerReceiptChannel` and adds `normalizeRole(assessment.role) === normalizeRole(receipt.role)` independent of `assessment_id`.
++
++AG-006 / IV-009 / AS-018. `verifyCandidate` consumption, strategy, and MUST-walk stay untouched; persist is a trusted-channel helper side effect.
++
++## Architecture Decisions
++
++| Option | Tradeoff | Decision |
++|---|---|---|
++| Record-root `runner_receipts` vs `authority.runner_receipts` | Nesting mixes families and drifts `digestAuthority` | **`runner_receipts` sibling of `authority`** |
++| Fold bag into `digestAuthority` vs additive digest | Unconditional hash retags every head | **`runner_receipts_digest` only when map non-empty** |
++| Persist inside `verifyCandidate` vs helper | Couples strategy tests to the store | **`persistRunnerReceipts` / `rehydrateAndIssueRunnerReceiptChannel`** |
++| Serialize channel vs records-only | Channel identity is ADR-014 trust | **Records only; never persist WeakMap** |
++| Trust recomputed `assessment_id` vs `normalizeRole` bind | Identity already includes role (the hole) | **Independent bind ÔåÆ `GRAPH_DIVERGENCE`** |
++
++### Decision: CAS collection field is `runner_receipts`
++
++**Choice**: Map keyed by `receipt_id` on the FileSystemStore record root. Values MUST be `kind: "runner-receipt/v1"`.
++**Alternatives considered**: `authority.runner_receipts` (mixes families; AS-018 restores the collection *together with* the authority bag); overloading `authority.receipts`; camelCase `runnerReceipts`.
++**Rationale**: `digestAuthority` stays `{permits, receipts}` so OperationReceipt revision identity does not move.
++
++### Decision: Additive revision digest, empty bag omitted
++
++**Choice**: `computeRevision(state, journal, authority, runnerReceipts)` adds `runner_receipts_digest` iff the map has keys. Every `inner.commit`/`load` threads the live bag. Kind mismatch ÔåÆ `receipt-kind-mismatch`, head unchanged.
++**Alternatives considered**: Always hash `{}` (breaks REQ-013); omit bag from revision (writers could swap receipts silently).
++**Rationale**: Absent/`{}` Ôëí today's three-component digest.
++
++### Decision: Ephemeral channel; persist records; reissue after rehydrate
++
++**Choice**: New `scripts/lib/independent-verifier/runner-receipt-store.js`. Persist reads WeakMap via `readRunnerReceiptChannel`. Rehydrate validates, recomputes ids, then `createRunnerReceiptAuthority` + `issueRunnerReceiptChannel`. New object identity; copied public fields still fail. One reissue: homogeneous `issuer_id`+`transport`.
++**Alternatives considered**: Persist inside `verifyCandidate`; serialize WeakMap; reuse pre-restart channel.
++**Rationale**: IV-009 / ADR-014. DTOs remain `UNTRUSTED_RUNNER_RECEIPT`.
++
++### Decision: Replay role bind independent of `assessment_id`
++
++**Choice**: In `validateReplayRecords` (`assurance-graph/index.js`), after the bound receipt is resolved, `normalizeRole(record.role) === normalizeRole(runnerReceipt.role)`. Fail `GRAPH_DIVERGENCE` even when `validateAssessment` succeeds.
++**Alternatives considered**: Trust `assessment_id`; bind only when coverage tokens exist; compare raw strings (aliases false-diverge).
++**Rationale**: Tamper `acceptanceÔåÆintegration` plus recomputed id is still the v2.54.0 hole.
++
++## Data Flow
++
++```mermaid
++sequenceDiagram
++  participant Harness
++  participant Verify as verifyCandidate
++  participant WM as WeakMap
++  participant Disk as runner_receipts
++  participant B as Runtime B
++  participant Replay as replayAssuranceGraph
++
++  Harness->>WM: issueRunnerReceiptChannel
++  Harness->>Verify: opaque channel
++  Verify-->>Harness: ok + runner_receipt_id
++  Harness->>Disk: persistRunnerReceipts(channel)
++  Note over Disk: authority.receipts unchanged
++  B->>Disk: load() no snapshot()
++  B->>B: recompute receipt_id; fail closed if diverge
++  B->>WM: NEW issueRunnerReceiptChannel
++  B->>Replay: bundle + new channel
++  Replay-->>B: same graph_id
++```
++
++Role tamper: `validateAssessment` may pass ÔåÆ token Ôèå `satisfied_tokens` ÔåÆ `normalizeRole` mismatch ÔåÆ `GRAPH_DIVERGENCE`.
++
++## File Changes
++
++| File | Action | Description |
++|------|--------|-------------|
++| `scripts/lib/authority-store/index.js` | Modify | Carry `runner_receipts`; 4th `computeRevision` arg; `persistRunnerReceipts`; kind guards |
++| `scripts/lib/filesystem-store.js` | Modify | load/commit/commitJournal/defaultRecord persist the field; revision uses 4th arg |
++| `scripts/lib/independent-verifier/runner-receipt-store.js` | Create | Persist / rehydrate / reissue |
++| `scripts/lib/independent-verifier/internal/runner-receipt-channel.js` | Unchanged | WeakMap stays in-process; reissue calls existing `issueRunnerReceiptChannel` |
++| `scripts/lib/independent-verifier/index.js` | Unchanged | Consumption / strategy / MUST-walk |
++| `scripts/lib/assurance-graph/index.js` | Modify | `normalizeRole` bind in assessment loop |
++| `scripts/lib/test-support/k6b-runner-receipt.js` | Modify | Persist / rehydrate test helpers |
++| `scripts/lib/authority-store/index.test.js` | Modify | Distinct bag, kind mismatch, snapshot restore |
++| `scripts/lib/filesystem-store.test.js` | Modify | Disk restart without `snapshot()` |
++| `scripts/lib/assurance-graph/index.test.js` | Modify | Role tamper + recomputed id; missing record |
++| `scripts/lib/independent-verifier/runner-receipt-store.test.js` | Create | Divergent id; DTO untrusted; new channel identity |
++| `scripts/lib/independent-verifier/runner-receipt-restart.test.js` | Create | Persist ÔåÆ new process or empty WeakMap ÔåÆ same `graph_id` |
++| `docs/roadmaps/harness-evolution.md` | Modify | K6b `revise`; K6c blocked until archive |
++| `docs/architecture/harness-evolution.md` | Modify | Same gate if duplicated |
++
++No `evidence/v2`, `verification/v2`, `runner-receipt/v1` schema, or K1 pin changes. `runner-receipt.js` reused as-is.
++
++## Interfaces / Contracts
++
++```javascript
++// FileSystemStore record ÔÇö additive
++{ state, journal, budgets, authority: { permits, receipts }, runner_receipts: { [receipt_id]: v1 } }
++
++// computeRevision: add runner_receipts_digest iff Object.keys(runnerReceipts).length > 0
++// persistRunnerReceipts(store, channel, subjectId?): trusted channel; CAS; receipt-kind-mismatch
++// rehydrateAndIssueRunnerReceiptChannel(store, identity?): validate + recompute; issue NEW channel
++```
++
++`replay_evidence[].runner_receipt_id` unchanged. Replay still requires `runnerReceiptChannel`.
++
++## Testing Strategy
++
++| Layer | What to Test | Approach |
++|-------|-------------|----------|
++| Unit | Empty digest Ôëí 3-arg; kind mismatch; role tamper; diverging `receipt_id` | store + assurance-graph + runner-receipt-store tests |
++| Integration | Disk restore without `snapshot()`; A persist ÔåÆ B reissue ÔåÆ same `graph_id` | filesystem-store REQ-013 pattern; `runner-receipt-restart.test.js` (child_process or new store + unused prior channel) |
++| Characterization | strategy / MUST-walk / `replay_evidence` | Existing `independent-verifier/index.test.js` (no store) |
++
++## MUST scenario allocation
++
++| Spec scenario | Allocation |
++|---|---|
++| AG same graph / cross-runtime `graph_id` | `replayAssuranceGraph` + FileSystemStore + reissue |
++| AG observation/blob/ids/schema/provenance/verification/null | Existing `validateReplayRecords` |
++| AG mutated role + recomputed `assessment_id` | New `normalizeRole` check |
++| AG no channel / forged fields | Existing WeakMap; reissue Ôëá prior identity |
++| AG missing persisted record; unbound evidence; tokens | Rehydrate omit + existing maps |
++| IV restart same `graph_id`; channel Ôëá pre-restart | `runner-receipt-store` + restart test |
++| IV missing record; diverging `receipt_id` | Rehydrate fail-closed before issue |
++| IV verifyCandidate unchanged | No consumption-loop edits |
++| AS distinct collection; kind mismatch; restart both families | `runner_receipts` + kind guard + FS load |
++
++## Migration / Rollout
++
++No head migration. Absent field loads as `{}`. Promote ADRs to `docs/adr/` at archive. K6b stays `revise`; K6c blocked until archive. Rollback: revert runtime + bag + tests + docs; keep OperationReceipt, `runner-receipt/v1` schema, WeakMap, K1/v2 pins.
++
++## Open Questions
++
++None. Field name `runner_receipts` resolves AS-018 / `sdd-propose-001`.
+diff --git a/openspec/changes/k6b-durable-replay-receipt-authority/proposal.md b/openspec/changes/k6b-durable-replay-receipt-authority/proposal.md
+new file mode 100644
+index 0000000..f98caf4
+--- /dev/null
++++ b/openspec/changes/k6b-durable-replay-receipt-authority/proposal.md
+@@ -0,0 +1,77 @@
++# Proposal: k6b-durable-replay-receipt-authority
++
++## Intent
++
++Cerrar en replay, y solo ah├¡, los dos blockers de v2.54.0: el canal opaco no sobrevive un restart (REQ-006 lo lista como persistible; el WeakMap es ef├¡mero), y `validateReplayRecords` no ata `assessment.role` al RunnerReceipt ÔÇö un tamper `acceptanceÔåÆintegration` con `assessment_id` recomputado pasa. Reutilizar `runner-receipt/v1` (ADR-014). Sin PKI. K6b sigue `revise`; K6c bloqueado hasta archive.
++
++## Scope
++
++### In Scope
++- Persistir `runner-receipt/v1` en el CAS K2.1, colecci├│n distinta de `authority.receipts` (`OperationReceipt`).
++- Post-restart: rehidratar, recomputar `receipt_id`, reemitir un `runnerReceiptChannel` **nuevo**. Canal ef├¡mero; no serializar WeakMap.
++- Replay: `normalizeRole(assessment.role)` MUST igualar `normalizeRole(runnerReceipt.role)`; mismatch ÔåÆ `GRAPH_DIVERGENCE` aunque `assessment_id` coincida.
++- Corregir REQ-006: persistibles = records `runner-receipt/v1`, no el canal.
++- Adversariales: restart AÔåÆB / mismo `graph_id`; receipt ausente ÔåÆ `GRAPH_DIVERGENCE`; role tampered + id recomputado ÔåÆ `GRAPH_DIVERGENCE`.
++- Docs: K6b `revise`; K6c `blocked` hasta archive.
++
++### Out of Scope
++- `verifyCandidate`, strategy, MUST-walk, cronolog├¡a, seguridad in-process del WeakMap.
++- Serializar WeakMap; PKI; mezclar con `OperationReceipt`.
++- Mutar `evidence/v2`, `verification/v2`, pins K1; nueva familia de schema.
++- Arrancar K6c.
++
++## Capabilities
++
++### New Capabilities
++- None.
++
++### Modified Capabilities
++- `assurance-graph`: REQ-006 deja de tratar el canal como persistible; replay exige records rehidratados + canal reemitido; binding de roles en assessments.
++- `independent-verification`: runtime persiste `runner-receipt/v1` y, post-restart, rehidrata / recomputa `receipt_id` / reemite canal. `replay_evidence` sigue con `runner_receipt_id`. verifyCandidate/strategy/MUST-walk intactos.
++- `authority-store`: bolsa durable aditiva para `runner-receipt/v1` en el CAS; no sobrecargar `authority.receipts`. Restauraci├│n en restart (extiende REQ-013).
++
++## Approach
++
++Delta spec: persistible = records + bundle; canal = capability ef├¡mera reemitida. CAS: bolsa hermana, kind `runner-receipt/v1` only; nombre de campo design-owned. Rehidrataci├│n: load ÔåÆ schema ÔåÆ recompute `receipt_id` ÔåÆ fail-closed si diverge ÔåÆ `issueRunnerReceiptChannel` (WeakMap vac├¡o al arrancar). Replay: canal reemitido; receipt ausente o role mismatch ÔåÆ `GRAPH_DIVERGENCE`. Tests + roadmap.
++
++## Affected Areas
++
++| Area | Impact | Description |
++|------|--------|-------------|
++| `openspec/specs/assurance-graph/` | Modified | REQ-006; role binding |
++| `openspec/specs/independent-verification/` | Modified | persist/rehydrate/reissue |
++| `openspec/specs/authority-store/` | Modified | bolsa distinta de OperationReceipt |
++| `scripts/lib/assurance-graph/index.js` | Modified | check de role en replay |
++| `scripts/lib/independent-verifier/internal/runner-receipt-channel.js` | Modified | rehydrate + reissue |
++| `scripts/lib/authority-store/index.js` | Modified | colecci├│n CAS aditiva |
++| `docs/{architecture,roadmaps}/harness-evolution.md` | Modified | K6b `revise`; K6c blocked |
++
++## Risks
++
++| Risk | Likelihood | Mitigation |
++|------|------------|------------|
++| Mezclar RunnerReceipt en `authority.receipts` | High | Colecci├│n distinta; kind check |
++| Serializar canal / WeakMap | Med | Solo records; canal nuevo post-restart |
++| `assessment_id` oculta tamper de role | High | `normalizeRole` aparte de identity |
++| CAS rompe consumidores K2.1 | Med | Campo aditivo; OperationReceipt intacto |
++
++## Rollback Plan
++
++Revertir runtime, bolsa CAS, deltas, tests y docs como unidad. Conservar `authority.receipts`, schema `runner-receipt/v1`, WeakMap, pins `evidence/v2` / `verification/v2` / K1. Sin migrar receipts parciales. K6b `revise`; K6c bloqueado hasta archive.
++
++## Dependencies
++
++- v2.54.0 `runner-receipt/v1` + canal opaco (ADR-014); CAS K2.1.
++- `normalizeRole` / `computeAssessmentId` ya incluyen role; el hueco es el binding contra el receipt.
++- Delivery: `exception-ok`.
++
++## Success Criteria
++
++- [ ] Verify en A ÔåÆ persistir bundle + RunnerReceipts ÔåÆ destruir A ÔåÆ B rehidrata ÔåÆ reemite capability ÔåÆ replay ÔåÆ mismo `graph_id`.
++- [ ] Receipt persistido ausente ÔåÆ `GRAPH_DIVERGENCE`.
++- [ ] Role tampered (`acceptanceÔåÆintegration`) con `assessment_id` recomputado ÔåÆ `GRAPH_DIVERGENCE`.
++- [ ] Canal post-restart Ôëá pre-restart; copiar campos p├║blicos no reconstruye autoridad.
++- [ ] `authority.receipts` sigue siendo solo `OperationReceipt`.
++- [ ] Roadmap: K6b `revise`; K6c blocked hasta archive.
++
++> **Branch advisory:** Before `sdd-apply` begins, a feature branch SHOULD be created following the `<tipo>/<descripci├│n>` convention defined in the `branch-pr` skill (e.g. `git checkout -b feat/my-change main`). This note is SHOULD, not MUST ÔÇö omit it from `status: blocked` envelopes.
+diff --git a/openspec/changes/k6b-durable-replay-receipt-authority/specs/assurance-graph/spec.md b/openspec/changes/k6b-durable-replay-receipt-authority/specs/assurance-graph/spec.md
+new file mode 100644
+index 0000000..ff976e0
+--- /dev/null
++++ b/openspec/changes/k6b-durable-replay-receipt-authority/specs/assurance-graph/spec.md
+@@ -0,0 +1,138 @@
++# Delta for Assurance Graph
++
++## MODIFIED Requirements
++
++### Requirement: Replay From Persistable Outputs {#REQ-assurance-graph-006}
++
++The Assurance Graph MUST be reproducible from persistable outputs: canonical input digests, projected nodes and edges, replay Evidence bundles containing each `evidence/v2` plus raw observation bytes or a resolvable content-addressed `observation_blob_id` plus a bound `runner_receipt_id`, persistable `runner-receipt/v1` records, verification records (`verification/v2`), and assessment records (`assessment/v2`) that carry `obligation_id`. The opaque `runnerReceiptChannel` is an ephemeral runtime capability and MUST NOT be treated as a persistable output. Replay MUST rehydrate persisted `runner-receipt/v1` records from a trusted store and MUST present a newly issued ephemeral `runnerReceiptChannel`. Replay MUST NOT require ephemeral projector fields. Consumers MUST NOT reinvent `obligation_id` values from vanished fields. `satisfies` edges MUST be rebuildable from persistable assessments where `evidence_requirements_satisfied.length > 0`.
++
++`replayAssuranceGraph` MUST perform comprehensive validation over all replayed records before accepting the replay:
++1. Persistable bundle: the replay argument MUST be a non-null object. Unexpected exceptions during validation MUST fail closed with `GRAPH_DIVERGENCE`.
++2. Trusted runner receipts: persistable receipt authority MUST be `runner-receipt/v1` records, not the channel. Replay MUST rehydrate those records from a trusted store and MUST present an opaque `runnerReceiptChannel` newly issued by runtime authority over the rehydrated records. A missing persisted record, a missing channel, a reconstructed public-field object, reuse of a pre-restart channel identity, or untrusted authority MUST fail closed with `GRAPH_DIVERGENCE`.
++3. `evidence/v2`: schema validity against `evidence/v2.schema.json`; REQUIRED inline raw bytes or a resolvable `observation_blob_id` equal to `record.digest`; `candidate_id` matching graph subject; recomputed content digest via `digestRawBytes` matching `record.digest`; recomputed `evidence_id` via `computeEvidenceId` matching `record.evidence_id`; evaluation of provenance sufficiency via `evaluateProvenanceSufficiency` verifying admissible provenance against trusted collector or transport metadata; strict absence of `verdict`; and exact 1:1 binding of each wrapper `runner_receipt_id` to a trusted receipt whose `candidate_id`, `evidence_id`, and `node_id` match the Evidence record. Duplicate or orphan receipt bindings MUST fail closed.
++4. `verification/v2`: schema validity against `verification/v2.schema.json`; recomputed `verification_id`; `candidate_id` matching graph subject; and `evidence_ids` being a strict subset of replayed evidence IDs.
++5. `assessment/v2`: schema validity against `assessment/v2.schema.json`; recomputed `assessment_id`; `candidate_id` matching graph subject; bound `policy_snapshot_id` matching graph; referenced `evidence_id` existing in replayed evidence; `obligation_id` existing in Execution Graph; bound `node_id` implementing that obligation; persistable `node_id` matching evidence record; non-empty `evidence_requirements_satisfied` for satisfaction claims; those tokens attested by the bound receipt `satisfied_tokens`; and `normalizeRole(assessment.role)` equal to `normalizeRole` of the bound receipt `role`. Role mismatch MUST fail closed with `GRAPH_DIVERGENCE` even when `assessment_id` recomputes identically.
++6. Obligation coverage: verified satisfaction of all non-deferred MUST obligations by the replayed assessments.
++
++Any check failure, missing or unresolvable observation material, missing persisted `runner-receipt/v1` record, missing trusted receipt authority, tampering with `assessment_id`, `evidence_id`, `verification_id`, or `digest`, assessment role disagreeing with the bound receipt after `normalizeRole`, or provenance insufficiency MUST fail closed with `GRAPH_DIVERGENCE` or as an invalid artifact. Cryptographic validation MUST NOT be skipped when bytes are absent. Tampered evidence, assessments, or verification records MUST NOT replay as valid.
++(Previously: persistable outputs listed the opaque `runnerReceiptChannel`; replay did not require rehydrated `runner-receipt/v1` records plus a newly issued channel, and did not bind `assessment.role` to the bound receipt role independently of `assessment_id`.)
++
++#### Scenario: Replay from persisted outputs yields the same graph
++
++- GIVEN a previously projected graph plus persisted evidence, verification, assessments, canonical input digests, and `runner-receipt/v1` records
++- AND no ephemeral `obligation_ids` on the original projector call
++- AND every persisted evidence, verification, and assessment record passes comprehensive revalidation
++- WHEN the graph is replayed from those persistable outputs plus a newly issued ephemeral `runnerReceiptChannel`
++- THEN the recomputed `graph_id` and edge set MUST be byte-identical to the stored graph
++
++#### Scenario: Cross-runtime replay from persisted receipts yields the same graph_id
++
++- GIVEN runtime A verified a candidate and persisted the replay bundle together with `runner-receipt/v1` records in a trusted store
++- AND runtime B loads those records from that store and issues a new ephemeral `runnerReceiptChannel`
++- WHEN `replayAssuranceGraph` runs on B
++- THEN the recomputed `graph_id` MUST be byte-identical to the graph persisted by A
++
++#### Scenario: Replay without observation material fails closed
++
++- GIVEN persisted `evidence/v2` records without inline bytes and without resolvable content-addressed blob references
++- WHEN `replayAssuranceGraph` runs
++- THEN replay MUST fail closed with `GRAPH_DIVERGENCE`
++- AND MUST NOT skip digest or EvidenceId recomputation
++
++#### Scenario: Content-addressed observation blob replays byte-identically
++
++- GIVEN every replay Evidence wrapper carries `observation_blob_id === evidence.digest`
++- AND every reference resolves to bytes whose digest matches that identifier
++- WHEN `replayAssuranceGraph` runs
++- THEN the recomputed `graph_id` and edge set MUST be byte-identical to the original projection
++
++#### Scenario: Tampered assessment_id fails replay
++
++- GIVEN persisted assessments plus a stored graph that would otherwise replay
++- AND one assessment whose `assessment_id` does not match the identity recomputed from its persistable fields
++- WHEN `replayAssuranceGraph` runs
++- THEN replay MUST fail closed with `GRAPH_DIVERGENCE` or as an invalid assessment
++
++#### Scenario: Mutated assessment role with recomputed assessment_id fails closed
++
++- GIVEN a persisted assessment whose `role` is `acceptance` bound to a `runner-receipt/v1` whose `role` is `acceptance`
++- AND the assessment `role` is mutated to `integration` with `assessment_id` recomputed so identity validation would otherwise pass
++- WHEN `replayAssuranceGraph` runs
++- THEN replay MUST fail closed with `GRAPH_DIVERGENCE`
++- AND MUST NOT accept the replay because `assessment_id` recomputes
++
++#### Scenario: Assessment fails schema, candidate, or policy revalidation
++
++- GIVEN a persisted assessment that fails schema validation, whose `candidate_id` does not match the graph subject, or whose bound policy-snapshot identity does not match the graph
++- WHEN `replayAssuranceGraph` runs
++- THEN replay MUST fail closed with `GRAPH_DIVERGENCE` or as an invalid assessment
++
++#### Scenario: Assessment bound to missing evidence or non-implementing node fails replay
++
++- GIVEN a persisted assessment whose `evidence_id` does not exist, whose `obligation_id` is absent from the graph, whose node does not implement that obligation, or whose `node_id` disagrees with the evidence record
++- WHEN `replayAssuranceGraph` runs
++- THEN replay MUST fail closed with `GRAPH_DIVERGENCE` or as an invalid assessment
++
++#### Scenario: Evidence v2 digest mismatch or invalid candidate binding fails replay
++
++- GIVEN an `evidence/v2` record whose declared `digest` does not match recomputed `digestRawBytes`, or whose `candidate_id` differs from the graph subject
++- WHEN `replayAssuranceGraph` runs
++- THEN replay MUST fail closed with `GRAPH_DIVERGENCE`
++
++#### Scenario: Tampered evidence_id or failed computeEvidenceId fails replay
++
++- GIVEN an `evidence/v2` record whose declared `evidence_id` does not match `computeEvidenceId` recomputed from its fields and raw bytes
++- WHEN `replayAssuranceGraph` runs
++- THEN replay MUST fail closed with `GRAPH_DIVERGENCE`
++
++#### Scenario: Insufficient provenance during evidence replay fails replay
++
++- GIVEN an `evidence/v2` record whose provenance fails `evaluateProvenanceSufficiency` or lacks trusted collector metadata
++- WHEN `replayAssuranceGraph` runs
++- THEN replay MUST fail closed with `GRAPH_DIVERGENCE`
++
++#### Scenario: Verification v2 referencing non-existent evidence_id fails replay
++
++- GIVEN a `verification/v2` record whose `evidence_ids` array contains an identifier not present in replayed evidence
++- WHEN `replayAssuranceGraph` runs
++- THEN replay MUST fail closed with `GRAPH_DIVERGENCE`
++
++#### Scenario: Replay without trusted runner receipt authority fails closed
++
++- GIVEN persistable evidence, assessments, verification, and canonical inputs that would otherwise replay
++- AND no opaque runtime-issued `runnerReceiptChannel`
++- WHEN `replayAssuranceGraph` runs
++- THEN replay MUST fail closed with `GRAPH_DIVERGENCE`
++
++#### Scenario: Missing persisted runner-receipt record fails closed
++
++- GIVEN persistable evidence, assessments, verification, and canonical inputs that would otherwise replay
++- AND a bound `runner_receipt_id` whose `runner-receipt/v1` record is absent from the trusted store
++- WHEN `replayAssuranceGraph` runs
++- THEN replay MUST fail closed with `GRAPH_DIVERGENCE`
++
++#### Scenario: Forged runnerReceiptChannel public fields fail closed
++
++- GIVEN a persistable replay bundle whose persistable receipt artifact is the `runner-receipt/v1` record, not the channel
++- AND a caller-constructed object copying `kind`, `issuer_id`, and `transport` without runtime-issued identity
++- WHEN `replayAssuranceGraph` runs
++- THEN replay MUST fail closed with `GRAPH_DIVERGENCE`
++- AND copying those public fields MUST NOT reconstruct channel authority
++
++#### Scenario: Replay Evidence not exactly bound to a trusted receipt fails closed
++
++- GIVEN replay Evidence whose `runner_receipt_id` is missing, reused, or whose receipt `candidate_id`, `evidence_id`, or `node_id` disagrees with the Evidence record
++- WHEN `replayAssuranceGraph` runs
++- THEN replay MUST fail closed with `GRAPH_DIVERGENCE`
++
++#### Scenario: Assessment coverage not attested by the bound receipt fails closed
++
++- GIVEN a persistable assessment whose `evidence_requirements_satisfied` contains a token absent from the bound receipt `satisfied_tokens`
++- WHEN `replayAssuranceGraph` runs
++- THEN replay MUST fail closed with `GRAPH_DIVERGENCE`
++
++#### Scenario: Null or non-object replay bundle fails closed
++
++- GIVEN a `null` or non-object persistable argument
++- WHEN `replayAssuranceGraph` runs
++- THEN replay MUST fail closed with `GRAPH_DIVERGENCE`
+diff --git a/openspec/changes/k6b-durable-replay-receipt-authority/specs/authority-store/spec.md b/openspec/changes/k6b-durable-replay-receipt-authority/specs/authority-store/spec.md
+new file mode 100644
+index 0000000..5292098
+--- /dev/null
++++ b/openspec/changes/k6b-durable-replay-receipt-authority/specs/authority-store/spec.md
+@@ -0,0 +1,31 @@
++# Delta for Authority Store
++
++## ADDED Requirements
++
++### Requirement: Additive Runner Receipt CAS Collection {#REQ-authority-store-018}
++
++The Authority Store MUST persist `runner-receipt/v1` records in an additive CAS collection distinct from OperationReceipt receipts. The public field name of that collection is design-owned. The collection MUST accept only records whose `kind` is `runner-receipt/v1`. A `runner-receipt/v1` record MUST NOT be stored as an OperationReceipt, and an OperationReceipt MUST NOT be stored in the runner-receipt collection. Kind mismatch MUST fail closed and MUST NOT advance the head.
++
++Existing `authority.receipts` OperationReceipt behavior MUST remain unchanged. Reloading the store from disk MUST restore the runner-receipt collection together with the authority bag, journal, and budgets, without manual snapshot extraction. This extends restart preservation; REQ-013 is unchanged.
++
++#### Scenario: Runner-receipt records persist in a distinct CAS collection
++
++- GIVEN a successful CAS that includes schema-valid `runner-receipt/v1` records
++- WHEN the winning revision is stored
++- THEN those records MUST reside in an additive CAS collection distinct from OperationReceipt receipts
++- AND `authority.receipts` MUST still contain only OperationReceipt values
++
++#### Scenario: Kind mismatch with OperationReceipt fails closed
++
++- GIVEN a CAS payload that places a `runner-receipt/v1` record among OperationReceipt receipts, or an OperationReceipt in the runner-receipt collection
++- WHEN `compareAndSwap` is evaluated
++- THEN the call MUST fail closed
++- AND the head revision MUST remain unchanged
++
++#### Scenario: Restart restores runner-receipt records without mixing families
++
++- GIVEN a committed head that stores OperationReceipt receipts and `runner-receipt/v1` records in distinct collections
++- WHEN the process terminates and a new store instance loads from the same disk location
++- THEN both collections MUST be fully restored
++- AND recovery MUST NOT require invoking manual `snapshot()` extraction
++- AND the restored runner-receipt collection MUST NOT contain OperationReceipt values
+diff --git a/openspec/changes/k6b-durable-replay-receipt-authority/specs/independent-verification/spec.md b/openspec/changes/k6b-durable-replay-receipt-authority/specs/independent-verification/spec.md
+new file mode 100644
+index 0000000..c3aa148
+--- /dev/null
++++ b/openspec/changes/k6b-durable-replay-receipt-authority/specs/independent-verification/spec.md
+@@ -0,0 +1,39 @@
++# Delta for Independent Verification
++
++## ADDED Requirements
++
++### Requirement: Durable Runner Receipt Persist Rehydrate And Reissue {#REQ-independent-verification-009}
++
++After a successful verification, the runtime MUST persist each schema-valid `runner-receipt/v1` record used by that verification into the trusted Authority Store, in an additive CAS collection distinct from OperationReceipt receipts. The public field name of that collection is design-owned. Persistable `replay_evidence` MUST continue to carry each bound `runner_receipt_id`. `verifyCandidate`, strategy selection, and MUST-walk coverage MUST remain unchanged.
++
++The opaque `runnerReceiptChannel` MUST remain ephemeral. The runtime MUST NOT persist the channel. After process restart, a trusted runtime MUST load persisted `runner-receipt/v1` records from that store, validate them against `runner-receipt/v1`, recompute `receipt_id` from canonical fields excluding `receipt_id` itself, fail closed when the recomputed identity diverges, and issue a new ephemeral `runnerReceiptChannel` over the rehydrated records. The reissued channel MUST NOT retain the pre-restart channel identity. Copying public channel fields MUST NOT reconstruct authority. Direct caller DTO receipts without a reissued channel MUST still fail closed with `UNTRUSTED_RUNNER_RECEIPT`. A required persisted record that is absent from the trusted store MUST prevent channel issuance for that receipt, and subsequent Assurance Graph replay MUST fail closed with `GRAPH_DIVERGENCE`.
++
++#### Scenario: Restarted runtime reissues a channel and replay matches graph_id
++
++- GIVEN runtime A verified a frozen Candidate and persisted the replay bundle together with `runner-receipt/v1` records in the trusted store
++- AND runtime A is destroyed
++- WHEN runtime B loads those records, recomputes each `receipt_id`, and issues a new ephemeral `runnerReceiptChannel`
++- THEN subsequent replay MUST yield the same `graph_id` as A
++- AND the reissued channel MUST NOT equal the pre-restart channel identity
++
++#### Scenario: Missing persisted runner-receipt prevents reissue and fails replay
++
++- GIVEN a successful verification whose `replay_evidence` names a `runner_receipt_id`
++- AND that `runner-receipt/v1` record is absent from the trusted store after restart
++- WHEN the restarted runtime attempts rehydrate and reissue
++- THEN it MUST NOT issue a trusted channel for that receipt
++- AND subsequent replay MUST fail closed with `GRAPH_DIVERGENCE`
++
++#### Scenario: Rehydrate fails closed when recomputed receipt_id diverges
++
++- GIVEN a persisted payload claiming `kind: runner-receipt/v1` whose declared `receipt_id` does not match the identity recomputed from its canonical fields
++- WHEN the restarted runtime rehydrates that payload
++- THEN rehydrate MUST fail closed
++- AND MUST NOT issue a `runnerReceiptChannel` over the divergent record
++
++#### Scenario: verifyCandidate strategy and MUST-walk remain unchanged
++
++- GIVEN a frozen Candidate that already satisfies strategy selection and MUST-walk coverage
++- WHEN the runtime persists `runner-receipt/v1` records and later reissues a channel
++- THEN `verifyCandidate`, strategy selection, and MUST-walk coverage MUST behave as before this requirement
++- AND `replay_evidence` MUST still carry each bound `runner_receipt_id`
+diff --git a/openspec/changes/k6b-durable-replay-receipt-authority/state.yaml b/openspec/changes/k6b-durable-replay-receipt-authority/state.yaml
+new file mode 100644
+index 0000000..3833d2e
+--- /dev/null
++++ b/openspec/changes/k6b-durable-replay-receipt-authority/state.yaml
+@@ -0,0 +1,142 @@
++change: "k6b-durable-replay-receipt-authority"
++status: "verified"
++last_updated: "2026-08-28T16:40:00Z"
++classification: high-risk
++blocking_questions: []
++
++phases:
++  proposal:
++    status: done
++    artifact: "openspec/changes/k6b-durable-replay-receipt-authority/proposal.md"
++    summary: "Replay-only: persist runner-receipt/v1 in a CAS bag distinct from OperationReceipt; rehydrate and reissue ephemeral channel; assessment.role must match receipt.role."
++    key_decisions:
++      - "Channel stays ephemeral; persist runner-receipt/v1 records, never the WeakMap"
++      - "Do not overload authority.receipts (OperationReceipt); additive CAS collection"
++      - "Replay role binding is independent of recomputed assessment_id"
++  spec:
++    status: done
++    artifacts:
++      - "openspec/changes/k6b-durable-replay-receipt-authority/specs/assurance-graph/spec.md"
++      - "openspec/changes/k6b-durable-replay-receipt-authority/specs/independent-verification/spec.md"
++      - "openspec/changes/k6b-durable-replay-receipt-authority/specs/authority-store/spec.md"
++    summary: "MODIFIED AG-006 persistable records plus reissued channel and role bind; ADDED IV-009 persist/rehydrate/reissue; ADDED AS-018 distinct CAS collection."
++    key_decisions:
++      - "Persistable artifact is runner-receipt/v1 record; channel stays ephemeral and newly issued after rehydrate"
++      - "Replay role binding is independent of recomputed assessment_id"
++      - "Additive CAS collection distinct from OperationReceipt; field name design-owned"
++  clarify:
++    status: skipped
++    rationale: "Validated sdd-spec signals reported residual_ambiguity=false with empty public_contract_questions, conflicting_requirements, and missing_acceptance_criteria arrays."
++  design:
++    status: done
++    artifact: "openspec/changes/k6b-durable-replay-receipt-authority/design.md"
++    summary: "CAS field runner_receipts at record root; additive revision digest; persist records and reissue channel; replay normalizeRole bind."
++    key_decisions:
++      - "CAS collection field is runner_receipts (not authority.receipts)"
++      - "computeRevision adds runner_receipts_digest only when the map is non-empty"
++      - "Persist via trusted-channel helper; WeakMap stays ephemeral; replay role bind independent of assessment_id"
++  tasks:
++    status: done
++    artifact: "openspec/changes/k6b-durable-replay-receipt-authority/tasks.md"
++    summary: "6 phases, 24 tasks; CAS runner_receipts + rehydrate/reissue + normalizeRole bind; 3 terminal adversarial tests; size-exception single PR."
++    key_decisions:
++      - "Apply order: authority-store ÔåÆ filesystem-store ÔåÆ runner-receipt-store ÔåÆ assurance-graph ÔåÆ integration ÔåÆ docs"
++      - "Decision needed before apply: No; chain strategy size-exception (exception-ok)"
++      - "Do not edit independent-verifier/index.js consumption loop"
++  apply:
++    status: done
++    artifact: "openspec/changes/k6b-durable-replay-receipt-authority/apply-progress.md"
++    summary: "24/24 tasks: CAS runner_receipts, persist/rehydrate/reissue, replay role bind; 3 terminal adversarial tests green; npm test 2817 pass."
++    key_decisions:
++      - "Persist is a side-effect helper; independent-verifier/index.js untouched"
++      - "CAS field runner_receipts at record root, distinct from authority.receipts"
++      - "size:exception single PR; Focused TDD"
++  verify:
++    status: done
++    artifact: "openspec/changes/k6b-durable-replay-receipt-authority/verify-report.md"
++    summary: "PASS WITH WARNINGS: B1/B2 runtime-closed; 24/24 tasks; npm test 2817 pass. K6b stays revise until 4R+archive."
++    key_decisions:
++      - "B1 same graph_id after persist/rehydrate/reissue; B2 role tamper with recomputed assessment_id ÔåÆ GRAPH_DIVERGENCE"
++      - "K6b remains revise; K6c blocked until archive of this change"
++      - "Inherited AG-006 receipt-token attestation branch lacks a dedicated runtime test (WARNING, tasks-gap)"
++  archive:
++    status: pending
++    artifact: "openspec/changes/k6b-durable-replay-receipt-authority/archive-report.md"
++
++owner:
++  author: Manuel Retamozo
++  branch: fix/k6b-durable-replay-receipt-authority
++
++route:
++  intended_route: standard
++  actual_route: standard
++  route_rationale: "First match: foundation/federated/bugfix/brownfield/refactor/hotfix conditions not met; project.status=active and classification=high-risk select standard (sdd-propose ÔåÆ sdd-spec ÔåÆ sdd-design ÔåÆ sdd-tasks ÔåÆ sdd-apply ÔåÆ sdd-verify ÔåÆ sdd-archive; gates: clarify, 4r-review-gate)."
++  validated: true
++  validation_errors: []
++
++approvals:
++  - id: intent-briefing-001
++    gate: intent-briefing
++    decision: accepted
++    source: vscode/askQuestions
++    accepted_at: "2026-08-28T14:39:00Z"
++    synthesis: "Cerrar en replay, y solo ah├¡, los dos blockers de v2.54.0. Los records runner-receipt/v1 se persisten en el CAS de K2.1; tras un restart el runtime confiable los rehidrata, recomputa receipt_id y reemite un canal opaco nuevo para un replay byte-identical. En replay, normalizeRole(assessment.role) debe coincidir con el del receipt; si no, GRAPH_DIVERGENCE aunque se haya recalculado assessment_id. El verifier de ejecuci├│n, la cronolog├¡a y el MUST-walk no se tocan. K6b sigue revise y K6c bloqueado hasta el archive."
++    scope: "In: persistencia durable de runner-receipt/v1 en CAS/Authority Store de K2.1; rehidrataci├│n post-restart y reemisi├│n de capability ef├¡mera; binding assessment.role Ôåö RunnerReceipt.role en replay; adversariales restart/same graph_id, receipt ausente ÔåÆ GRAPH_DIVERGENCE, role tampered con assessment_id recomputado ÔåÆ GRAPH_DIVERGENCE; wording de spec (channel no es persistable). Out: serializar WeakMap, PKI, mezclar con OperationReceipt de lifecycle, remodelar verifyCandidate/strategy/MUST-walk, arrancar K6c."
++    applies_to:
++      - change-classification
++  - id: execution-mode-001
++    gate: execution-mode
++    decision: auto
++    source: vscode/askQuestions
++    accepted_at: "2026-08-28T14:45:00Z"
++    applies_to:
++      - sdd-propose
++      - sdd-spec
++      - sdd-design
++      - sdd-tasks
++      - sdd-apply
++      - sdd-verify
++      - sdd-archive
++  - id: delivery-strategy-001
++    gate: delivery-strategy
++    decision: exception-ok
++    source: vscode/askQuestions
++    accepted_at: "2026-08-28T14:45:00Z"
++    applies_to:
++      - sdd-tasks
++      - sdd-apply
++  - id: review-workload-001
++    gate: review-workload
++    decision: apply-with-size-exception
++    source: vscode/askQuestions
++    accepted_at: "2026-08-28T14:45:00Z"
++    applies_to:
++      - sdd-apply
++
++assumptions:
++  - id: sdd-propose-001
++    phase: sdd-propose
++    statement: "Persistir runner-receipt/v1 en una colecci├│n CAS distinta de authority.receipts; el nombre exacto del campo es design-owned."
++    reversibility: high
++    basis: "El briefing proh├¡be mezclar con OperationReceipt; authority.receipts ya es esa familia; el nombre de bolsa no es API p├║blica del verifier."
++    recorded_at: "2026-08-28T14:55:00Z"
++    status: unresolved
++  - id: sdd-design-001
++    phase: sdd-design
++    statement: "Persist and rehydrate live in runner-receipt-store.js as a trusted-channel side effect, not inside the verifyCandidate consumption loop."
++    reversibility: high
++    basis: "IV-009 and the design constraint keep strategy/MUST-walk unchanged; existing independent-verifier/index.test.js must stay green without a store."
++    recorded_at: "2026-08-28T15:25:00Z"
++    status: unresolved
++  - id: sdd-design-002
++    phase: sdd-design
++    statement: "One reissued channel requires homogeneous issuer_id and transport across loaded runner-receipt/v1 records; mixed identities fail closed."
++    reversibility: high
++    basis: "issueRunnerReceiptChannel binds a single authority identity; current verify paths emit one issuer per verification."
++    recorded_at: "2026-08-28T15:25:00Z"
++    status: unresolved
++
++baseline_fingerprints:
++  assurance-graph: "6884f1172b948b046d9b07618c7a36c29e696773d09b614e809cc319cc92e68e"
++  independent-verification: "c6fc5a773c73c34f6f496b45b87f5e8f403fd12e8b9c097089f5b923ff52dc7a"
++  authority-store: "bc2b4198e8e14f7cd4fc4c7bf4e98793adff3835bcb236e283692ec3c01fd268"
+diff --git a/openspec/changes/k6b-durable-replay-receipt-authority/tasks.md b/openspec/changes/k6b-durable-replay-receipt-authority/tasks.md
+new file mode 100644
+index 0000000..e929ee1
+--- /dev/null
++++ b/openspec/changes/k6b-durable-replay-receipt-authority/tasks.md
+@@ -0,0 +1,108 @@
++# Tasks: k6b-durable-replay-receipt-authority
++
++## Spec/Design Reconciliation
++
++| Requirement / Scenario | Priority | Design Allocation | Status | Notes |
++|------------------------|----------|-------------------|--------|-------|
++| REQ-AG-006 / Replay same graph | MUST | `assurance-graph/index.js` + reissued channel | covered-by-design | Existing replay path; channel from rehydrate |
++| REQ-AG-006 / Cross-runtime same graph_id | MUST | `runner-receipt-store.js`, `filesystem-store.js`, restart test | covered-by-design | A persist ÔåÆ B load ÔåÆ reissue |
++| REQ-AG-006 / No observation material | MUST | `validateReplayRecords` (existing) | covered-by-design | No code change |
++| REQ-AG-006 / Content-addressed blob replay | MUST | `validateReplayRecords` (existing) | covered-by-design | No code change |
++| REQ-AG-006 / Tampered assessment_id | MUST | `validateReplayRecords` (existing) | covered-by-design | No code change |
++| REQ-AG-006 / Mutated role + recomputed assessment_id | MUST | `assurance-graph/index.js` `normalizeRole` bind | covered-by-design | ADR-004 |
++| REQ-AG-006 / Assessment schema/candidate/policy | MUST | `validateReplayRecords` (existing) | covered-by-design | No code change |
++| REQ-AG-006 / Missing evidence or bad node bind | MUST | `validateReplayRecords` (existing) | covered-by-design | No code change |
++| REQ-AG-006 / Evidence digest/candidate mismatch | MUST | `validateReplayRecords` (existing) | covered-by-design | No code change |
++| REQ-AG-006 / Tampered evidence_id | MUST | `validateReplayRecords` (existing) | covered-by-design | No code change |
++| REQ-AG-006 / Insufficient provenance | MUST | `validateReplayRecords` (existing) | covered-by-design | No code change |
++| REQ-AG-006 / Verification bad evidence_ids | MUST | `validateReplayRecords` (existing) | covered-by-design | No code change |
++| REQ-AG-006 / No trusted channel | MUST | `runner-receipt-channel.js` WeakMap (existing) | covered-by-design | Reissue Ôëá prior identity |
++| REQ-AG-006 / Missing persisted runner-receipt | MUST | `runner-receipt-store.js` rehydrate omit | covered-by-design | ÔåÆ GRAPH_DIVERGENCE |
++| REQ-AG-006 / Forged channel public fields | MUST | `runner-receipt-channel.js` (existing) | covered-by-design | No serialize WeakMap |
++| REQ-AG-006 / Evidence receipt binding | MUST | `validateReplayRecords` (existing) | covered-by-design | No code change |
++| REQ-AG-006 / Coverage not attested | MUST | `validateReplayRecords` (existing) | covered-by-design | No code change |
++| REQ-AG-006 / Null/non-object bundle | MUST | `validateReplayRecords` (existing) | covered-by-design | No code change |
++| REQ-IV-009 / Restart reissue same graph_id | MUST | `runner-receipt-store.js`, `runner-receipt-restart.test.js` | covered-by-design | Terminal adversarial #1 |
++| REQ-IV-009 / Missing record blocks reissue | MUST | `rehydrateAndIssueRunnerReceiptChannel` fail-closed | covered-by-design | Terminal adversarial #2 |
++| REQ-IV-009 / Diverging receipt_id on rehydrate | MUST | `runner-receipt-store.js` recompute check | covered-by-design | Before channel issue |
++| REQ-IV-009 / verifyCandidate unchanged | MUST | No edits to `independent-verifier/index.js` | covered-by-design | Characterization green |
++| REQ-AS-018 / Distinct CAS collection | MUST | `authority-store/index.js` `runner_receipts` root field | covered-by-design | ADR-001 |
++| REQ-AS-018 / Kind mismatch fail closed | MUST | CAS kind guards in authority-store | covered-by-design | `receipt-kind-mismatch` |
++| REQ-AS-018 / Restart restore both families | MUST | `filesystem-store.js` load/commit threading | covered-by-design | No manual snapshot |
++
++### Reconciliation Verdict
++- MUST coverage: complete
++- SHOULD/MAY gaps: none
++- Ambiguities to track: none (field name `runner_receipts` resolved in design)
++
++## Review Workload Forecast
++
++| Field | Value |
++|-------|-------|
++| Estimated changed lines | 550ÔÇô700 |
++| 400-line budget risk | High |
++| Chained PRs recommended | Yes |
++| Suggested split | Single PR with size-exception (logical units 1ÔåÆ3 for apply order) |
++| Delivery strategy | exception-ok |
++| Chain strategy | size-exception |
++
++Decision needed before apply: No
++Chained PRs recommended: Yes
++Chain strategy: size-exception
++400-line budget risk: High
++
++### Suggested Work Units
++
++| Unit | Goal | Likely PR | Notes |
++|------|------|-----------|-------|
++| 1 | CAS `runner_receipts` + revision digest + FileSystemStore threading | PR 1 (size-exception) | Foundation; all `inner.commit` paths carry live bag |
++| 2 | `runner-receipt-store.js` persist / rehydrate / reissue | PR 1 (continued) | Trusted-channel side effect; no verifyCandidate edits |
++| 3 | Replay role bind + adversarial tests + roadmap docs | PR 1 (continued) | Three terminal scenarios + characterization |
++
++### Checklist Status Legend
++
++- `[ ]` Not implemented yet
++- `[~]` Implemented but not yet verified locally
++- `[x]` Implemented and verified locally
++
++## Phase 1: Authority Store & Revision Foundation
++
++- [x] 1.1 Extend `computeRevision(state, journal, authority, runnerReceipts)` in `scripts/lib/authority-store/index.js`: add `runner_receipts_digest` only when `Object.keys(runnerReceipts).length > 0`; empty/absent bag MUST match today's 3-arg digest [REQ-authority-store-018]
++- [x] 1.2 Add record-root `runner_receipts: {}` default on load; keep `digestAuthority({permits, receipts})` OperationReceipt-only [REQ-authority-store-018]
++- [x] 1.3 Implement kind guards in CAS: reject `runner-receipt/v1` in `authority.receipts` and OperationReceipt in `runner_receipts` with `receipt-kind-mismatch`, head unchanged [REQ-authority-store-018]
++- [x] 1.4 Thread live `runner_receipts` through every `computeRevision` and `entry.inner.commit` call in `authority-store/index.js` (including `commitJournal`, heal, compareAndSwap win path) so lifecycle CAS cannot drop the bag [REQ-authority-store-018]
++- [x] 1.5 RED: `scripts/lib/authority-store/index.test.js` ÔÇö empty digest Ôëí 3-arg; distinct bag; kind mismatch; OperationReceipt-only in `authority.receipts` [REQ-authority-store-018]
++- [x] 1.6 GREEN: make 1.1ÔÇô1.4 pass authority-store tests [REQ-authority-store-018]
++
++## Phase 2: FileSystemStore Persistence
++
++- [x] 2.1 Persist `runner_receipts` in `scripts/lib/filesystem-store.js` `defaultRecord`, `load`, `commit`, and `commitJournal`; pass bag as 4th arg to `computeRevision` [REQ-authority-store-018, REQ-independent-verification-009]
++- [x] 2.2 RED: `scripts/lib/filesystem-store.test.js` ÔÇö committed head restores both `authority.receipts` and `runner_receipts` via fresh `load()` without `snapshot()` [REQ-authority-store-018]
++- [x] 2.3 GREEN: implement 2.1 until filesystem-store restart test passes [REQ-authority-store-018]
++
++## Phase 3: Runner Receipt Store (Persist / Rehydrate / Reissue)
++
++- [x] 3.1 Create `scripts/lib/independent-verifier/runner-receipt-store.js` with `persistRunnerReceipts(store, channel, subjectId?)` reading WeakMap via `readRunnerReceiptChannel`; write schema-valid `runner-receipt/v1` keyed by `receipt_id` into CAS `runner_receipts` [REQ-independent-verification-009, REQ-authority-store-018]
++- [x] 3.2 Implement `rehydrateAndIssueRunnerReceiptChannel(store, identity?)`: load records ÔåÆ schema validate ÔåÆ `computeRunnerReceiptId` ÔåÆ fail closed on divergence ÔåÆ homogeneous `issuer_id`+`transport` check ÔåÆ `createRunnerReceiptAuthority` + `issueRunnerReceiptChannel` (new WeakMap identity) [REQ-independent-verification-009]
++- [x] 3.3 RED: `scripts/lib/independent-verifier/runner-receipt-store.test.js` ÔÇö diverging `receipt_id`; caller DTO without reissued channel ÔåÆ `UNTRUSTED_RUNNER_RECEIPT`; reissued channel Ôëá pre-restart object [REQ-independent-verification-009]
++- [x] 3.4 GREEN: implement 3.1ÔÇô3.2 until runner-receipt-store tests pass [REQ-independent-verification-009]
++- [x] 3.5 Update `scripts/lib/test-support/k6b-runner-receipt.js` with persist / rehydrate helpers for integration fixtures [REQ-independent-verification-009]
++
++## Phase 4: Assurance Graph Replay Role Binding
++
++- [x] 4.1 In `scripts/lib/assurance-graph/index.js` `validateReplayRecords`, after bound receipt resolution, require `normalizeRole(assessment.role) === normalizeRole(runnerReceipt.role)`; mismatch ÔåÆ `GRAPH_DIVERGENCE` even when `assessment_id` validates [REQ-assurance-graph-006]
++- [x] 4.2 RED: `scripts/lib/assurance-graph/index.test.js` ÔÇö **terminal adversarial #2**: bound `runner_receipt_id` absent from store ÔåÆ `GRAPH_DIVERGENCE` [REQ-assurance-graph-006, REQ-independent-verification-009]
++- [x] 4.3 RED: `scripts/lib/assurance-graph/index.test.js` ÔÇö **terminal adversarial #3**: `acceptanceÔåÆintegration` role tamper with recomputed `assessment_id` ÔåÆ `GRAPH_DIVERGENCE` [REQ-assurance-graph-006]
++- [x] 4.4 GREEN: implement 4.1 until 4.2ÔÇô4.3 pass; confirm existing replay characterization scenarios remain green [REQ-assurance-graph-006]
++
++## Phase 5: Cross-Runtime Integration & Characterization
++
++- [x] 5.1 RED: create `scripts/lib/independent-verifier/runner-receipt-restart.test.js` ÔÇö **terminal adversarial #1**: runtime A verify + `persistRunnerReceipts` ÔåÆ destroy A / empty WeakMap ÔåÆ runtime B `rehydrateAndIssueRunnerReceiptChannel` ÔåÆ `replayAssuranceGraph` ÔåÆ same `graph_id`; channel identity MUST differ from A [REQ-independent-verification-009, REQ-assurance-graph-006]
++- [x] 5.2 GREEN: wire persist/rehydrate into restart test path until 5.1 passes [REQ-independent-verification-009]
++- [x] 5.3 Run `scripts/lib/independent-verifier/index.test.js` unchanged ÔÇö confirm `verifyCandidate`, strategy, MUST-walk, and `replay_evidence[].runner_receipt_id` behavior unchanged (no store coupling) [REQ-independent-verification-009]
++- [x] 5.4 Run full `npm test`; fix regressions without mutating `evidence/v2`, `verification/v2`, or K1 pins [REQ-independent-verification-009]
++
++## Phase 6: Documentation
++
++- [x] 6.1 Update `docs/roadmaps/harness-evolution.md`: K6b status `revise`; K6c `blocked` until archive of this change [proposal success criteria]
++- [x] 6.2 Mirror same K6b/K6c gate in `docs/architecture/harness-evolution.md` if that file duplicates the roadmap entry [proposal success criteria]
+diff --git a/openspec/changes/k6b-durable-replay-receipt-authority/verify-report.md b/openspec/changes/k6b-durable-replay-receipt-authority/verify-report.md
+new file mode 100644
+index 0000000..1b1f8f5
+--- /dev/null
++++ b/openspec/changes/k6b-durable-replay-receipt-authority/verify-report.md
+@@ -0,0 +1,130 @@
++## Verification Report
++
++**Change**: k6b-durable-replay-receipt-authority
++**Version**: N/A
++**Mode**: Focused (standard verify; Strict TDD inactive)
++
++### Completeness
++| Metric | Value |
++|--------|-------|
++| Tasks total | 24 |
++| Tasks complete | 24 |
++| Tasks incomplete | 0 |
++
++All tasks in `tasks.md` are `[x]`. Apply progress records the same 24/24 batch. `scripts/lib/independent-verifier/index.js` was not edited (characterization constraint).
++
++### Build & Tests Execution
++**Build**: Ô×û Not configured (`rules.verify.build_command` empty)
++
++**Tests (targeted)**: Ô£à 67 passed / ÔØî 0 failed / ÔÜá´©Å 0 skipped
++```text
++node --test scripts/lib/independent-verifier/runner-receipt-store.test.js scripts/lib/independent-verifier/runner-receipt-restart.test.js scripts/lib/assurance-graph/index.test.js scripts/lib/authority-store/index.test.js
++# tests 67, pass 67, fail 0, skipped 0, duration_ms 142.9179
++```
++
++Terminal blockers in that run:
++- B1: `REQ-independent-verification-009 [Adversarial]: persist, empty WeakMap, reissue, same graph_id` PASS
++- Missing receipt: `REQ-independent-verification-009 [Adversarial]: missing persisted receipt blocks reissue for that id and replay diverges` PASS
++- B2: `REQ-assurance-graph-006 [Adversarial]: mutated assessment role with recomputed assessment_id fails closed` PASS
++- Missing persisted record at replay: `REQ-assurance-graph-006 [Adversarial]: missing persisted runner-receipt fails closed` PASS
++
++**Tests (full)**: Ô£à 2817 passed / ÔØî 0 failed / ÔÜá´©Å 2 skipped
++```text
++npm test
++# (node scripts/check.js)
++# tests 2819, pass 2817, fail 0, skipped 2, duration_ms 56405.2972
++All checks passed.
++```
++
++AS-018 disk restart (`scripts/lib/filesystem-store.test.js` ÔÇö restore both receipt families without `snapshot()`) and unchanged `independent-verifier/index.test.js` characterization ran inside `npm test` and did not fail.
++
++**Manual verification**: not performed
++```text
++Not required; MUST scenarios are allocated to automated runtime tests.
++```
++
++**Coverage**: Ô×û Not available / threshold: 0% (`testing.coverage.available: false`)
++
++### Spec Compliance Matrix
++| Requirement | Scenario | Evidence Level | Source | Result | Notes |
++|-------------|----------|----------------|--------|--------|-------|
++| REQ-assurance-graph-006 | Replay from persisted outputs yields the same graph | `runtime-test` | `assurance-graph/index.test.js` > replay from persistable outputs is byte-identical | PASS | Existing replay path; reissued channel accepted |
++| REQ-assurance-graph-006 | Cross-runtime replay from persisted receipts yields the same graph_id | `runtime-test` | `runner-receipt-restart.test.js` > persist, empty WeakMap, reissue, same graph_id | PASS | **B1**. In-process FS reload + new channel identity (design-allowed; not child_process) |
++| REQ-assurance-graph-006 | Replay without observation material fails closed | `runtime-test` | `assurance-graph/index.test.js` > replay without observation bytes or blob | PASS | Inherited |
++| REQ-assurance-graph-006 | Content-addressed observation blob replays byte-identically | `runtime-test` | `assurance-graph/index.test.js` > resolvable content-addressed observation blobs | PASS | Inherited |
++| REQ-assurance-graph-006 | Tampered assessment_id fails replay | `runtime-test` | `assurance-graph/index.test.js` > replay and reconcile reject assessment tampering | PASS | Inherited |
++| REQ-assurance-graph-006 | Mutated assessment role with recomputed assessment_id fails closed | `runtime-test` | `assurance-graph/index.test.js` > mutated assessment role with recomputed assessment_id | PASS | **B2**. `withAssessmentFields` recomputes `assessment_id` via `computeAssessmentId` |
++| REQ-assurance-graph-006 | Assessment fails schema, candidate, or policy revalidation | `runtime-test` | `assurance-graph/index.test.js` > replay rejects every persisted assessment binding mutation | PASS | malformed / candidate / policy cases |
++| REQ-assurance-graph-006 | Assessment bound to missing evidence or non-implementing node | `runtime-test` | same binding-mutation table | PASS | missing evidence / unknown obligation / non-implementing node |
++| REQ-assurance-graph-006 | Evidence v2 digest mismatch or invalid candidate binding | `runtime-test` | `assurance-graph/index.test.js` > replay rejects evidence and verification mutations | PASS | Inherited |
++| REQ-assurance-graph-006 | Tampered evidence_id or failed computeEvidenceId | `runtime-test` | `assurance-graph/index.test.js` > replay rejects tampered evidence_id | PASS | Inherited |
++| REQ-assurance-graph-006 | Insufficient provenance during evidence replay | `runtime-test` | `assurance-graph/index.test.js` > replay rejects insufficient provenance | PASS | Inherited |
++| REQ-assurance-graph-006 | Verification v2 referencing non-existent evidence_id | `runtime-test` | `assurance-graph/index.test.js` > replay rejects evidence and verification mutations | PASS | Inherited |
++| REQ-assurance-graph-006 | Replay without trusted runner receipt authority | `runtime-test` | `assurance-graph/index.test.js` > replay requires trusted runner receipt authority | PASS | missing channel + forged public fields |
++| REQ-assurance-graph-006 | Missing persisted runner-receipt record | `runtime-test` | `assurance-graph/index.test.js` > missing persisted runner-receipt; `runner-receipt-restart.test.js` omit-from-store | PASS | Channel omit + CAS omit both ÔåÆ `GRAPH_DIVERGENCE` |
++| REQ-assurance-graph-006 | Forged runnerReceiptChannel public fields | `runtime-test` | `assurance-graph/index.test.js` forged authority; `runner-receipt-store.test.js` DTO without reissued channel | PASS | `UNTRUSTED_RUNNER_RECEIPT` / `GRAPH_DIVERGENCE` |
++| REQ-assurance-graph-006 | Replay Evidence not exactly bound to a trusted receipt | `runtime-test` | missing-receipt + node_id mismatch cases | PASS | Fail-closed bind in `validateReplayRecords` |
++| REQ-assurance-graph-006 | Assessment coverage not attested by the bound receipt | `inspection-proof` | `assurance-graph/index.js` `validateReplayRecords` receipt `satisfied_tokens` check | WARNING | MUST; runtime case hits obligation-token mismatch, not receipt-token mismatch. See issues. |
++| REQ-assurance-graph-006 | Null or non-object replay bundle | `runtime-test` | `assurance-graph/index.test.js` > null replay bundle | PASS | Inherited |
++| REQ-independent-verification-009 | Restarted runtime reissues a channel and replay matches graph_id | `runtime-test` | `runner-receipt-restart.test.js` > persist, empty WeakMap, reissue, same graph_id | PASS | **B1**. `assert.notEqual(rehydrated.channel, channelA)` |
++| REQ-independent-verification-009 | Missing persisted runner-receipt prevents reissue and fails replay | `runtime-test` | `runner-receipt-restart.test.js` > missing persisted receipt blocks reissue | PASS | Reissued set omits dropped id; replay `GRAPH_DIVERGENCE` |
++| REQ-independent-verification-009 | Rehydrate fails closed when recomputed receipt_id diverges | `runtime-test` | `runner-receipt-store.test.js` > rehydrate fails closed when recomputed receipt_id diverges | PASS | No channel issued (`channel === undefined`) |
++| REQ-independent-verification-009 | verifyCandidate strategy and MUST-walk remain unchanged | `runtime-test` | `independent-verifier/index.test.js` via `npm test`; working tree has no `index.js` diff | PASS | Persist is a side-effect helper |
++| REQ-authority-store-018 | Runner-receipt records persist in a distinct CAS collection | `runtime-test` | `authority-store/index.test.js` > distinct bag / OperationReceipt-only `authority.receipts` | PASS | Field `runner_receipts` at record root |
++| REQ-authority-store-018 | Kind mismatch with OperationReceipt fails closed | `runtime-test` | `authority-store/index.test.js` > kind mismatch both directions | PASS | `receipt-kind-mismatch`; head unchanged |
++| REQ-authority-store-018 | Restart restores runner-receipt records without mixing families | `runtime-test` | `filesystem-store.test.js` > restart load restores both families without snapshot() | PASS | Covered by `npm test` |
++
++**Compliance summary**: 24/25 scenarios satisfied at acceptable evidence levels (1 MUST WARNING: inherited receipt-token attestation branch)
++
++### Correctness (Static Evidence)
++| Requirement | Status | Notes |
++|------------|--------|-------|
++| AG-006 persistable records + reissued channel | Ô£à Implemented | Persistable artifact is `runner-receipt/v1`; channel stays WeakMap-ephemeral |
++| AG-006 independent `normalizeRole` bind | Ô£à Implemented | After bound receipt resolution; mismatch ÔåÆ `GRAPH_DIVERGENCE` even if `assessment_id` validates |
++| IV-009 persist / rehydrate / reissue | Ô£à Implemented | `runner-receipt-store.js`; fail-closed on id divergence; new `issueRunnerReceiptChannel` |
++| IV-009 verifyCandidate unchanged | Ô£à Implemented | No consumption-loop edits |
++| AS-018 additive CAS `runner_receipts` | Ô£à Implemented | Sibling of `authority`; `runner_receipts_digest` only when map non-empty |
++
++### Coherence (Design)
++| Decision | Followed? | Notes |
++|----------|-----------|-------|
++| CAS field `runner_receipts` at record root | Ô£à Yes | Not nested under `authority`; `digestAuthority` stays `{permits, receipts}` |
++| Additive revision digest; empty bag omitted | Ô£à Yes | `computeRevision` 4th arg; empty Ôëí 3-arg digest (runtime-tested) |
++| Persist as trusted-channel helper, not inside `verifyCandidate` | Ô£à Yes | `persistRunnerReceipts` / `rehydrateAndIssueRunnerReceiptChannel` |
++| Records only; never persist WeakMap | Ô£à Yes | Reissue creates new object identity |
++| Replay role bind independent of `assessment_id` | Ô£à Yes | B2 runtime-tested |
++| Docs: K6b `revise`; K6c blocked until archive | Ô£à Yes | `docs/roadmaps/harness-evolution.md` and architecture mirror |
++
++No design deviation that breaks a spec.
++
++### Issues Found
++**CRITICAL**: None
++
++**WARNING**:
++- Inherited AG-006 scenario "Assessment coverage not attested by the bound receipt" has no dedicated runtime case that places an obligation-legal token outside `receipt.satisfied_tokens`. The live check exists in `validateReplayRecords`; the binding-mutation table exercises `ev:unexpected` (obligation-token mismatch, a different branch). Origin: `tasks-gap` (tasks marked this scenario "existing" / no code change). Does not reopen B1/B2.
++
++**SUGGESTION**:
++- B1 restart is simulated with a second `FileSystemStore` on the same file in-process (design-allowed alternative to `child_process`). A's pre-restart channel remains valid until process death, which the test documents. A child-process probe would be stronger process-isolation evidence, not a spec gap.
++
++### Traceability Matrix
++| REQ | Tasks | Commits | Tests | Status |
++|-----|-------|---------|-------|--------|
++| REQ-assurance-graph-006 | 4.1ÔÇô4.4, 5.1 | uncommitted working tree | `assurance-graph/index.test.js`, `runner-receipt-restart.test.js` | OK (1 scenario WARNING above) |
++| REQ-independent-verification-009 | 2.1, 3.1ÔÇô3.5, 5.1ÔÇô5.4 | uncommitted working tree | `runner-receipt-store.test.js`, `runner-receipt-restart.test.js`, `independent-verifier/index.test.js` | OK |
++| REQ-authority-store-018 | 1.1ÔÇô1.6, 2.1ÔÇô2.3, 3.1 | uncommitted working tree | `authority-store/index.test.js`, `filesystem-store.test.js` | OK |
++
++### Assumption Reconciliation
++| id | statement | reversibility | outcome |
++|----|-----------|----------------|---------|
++| sdd-propose-001 | Persistir runner-receipt/v1 en una colecci├│n CAS distinta de authority.receipts; el nombre exacto del campo es design-owned. | high | unresolved (no escalation) |
++| sdd-design-001 | Persist and rehydrate live in runner-receipt-store.js as a trusted-channel side effect, not inside the verifyCandidate consumption loop. | high | unresolved (no escalation) |
++| sdd-design-002 | One reissued channel requires homogeneous issuer_id and transport across loaded runner-receipt/v1 records; mixed identities fail closed. | high | unresolved (no escalation) |
++
++Launch had no `assumption_resolutions` block. All three entries are `reversibility: high`. Per Decision Gates they MUST NOT escalate. Implementation matches all three statements (`runner_receipts`, helper module, homogeneous issuer check in rehydrate). Left unresolved; not auto-confirmed.
++
++### Residual product risk (K6b slice)
++This change closes the two v2.54.0 replay blockers (durable receipt authority across restart; assessment.role bind vs RunnerReceipt.role). It does **not** finish K6b. Roadmap and architecture keep **K6b `revise`** and **K6c `blocked` until archive of this change plus terminal 4R**. Verify MUST NOT treat K6b as done.
++
++### Verdict
++PASS WITH WARNINGS
++B1 and B2 plus missing-receipt `GRAPH_DIVERGENCE` are closed with runtime tests; 24/24 tasks complete; full `npm test` green. One inherited MUST scenario lacks a dedicated receipt-token runtime case. K6b stays `revise` until 4R + archive.
+diff --git a/openspec/memory/known-issues.md b/openspec/memory/known-issues.md
+index afd74d0..b50b747 100644
+--- a/openspec/memory/known-issues.md
++++ b/openspec/memory/known-issues.md
+@@ -1,8 +1,15 @@
+ ---
+ title: Known Issues
+-last_updated: 2026-08-10
++last_updated: 2026-08-28
+ ---
+ 
++## Inherited AG-006 receipt-token attestation lacks a dedicated runtime test
++- severity: WARNING
++- area: scripts/lib/assurance-graph/index.test.js (validateReplayRecords satisfied_tokens branch)
++- workaround: add a replay case where assessment claims an obligation-legal token absent from receipt.satisfied_tokens
++- change: k6b-durable-replay-receipt-authority
++- date: 2026-08-28
++
+ ## npm test exit code 1: scripts/lib/verify-lineage.test.js crashes on load with Error: freezeCandidate requires diffText or diff_hash
+ - severity: BLOCKER
+ - area: scripts/lib/verify-lineage.test.js
+diff --git a/scripts/lib/assurance-graph/index.js b/scripts/lib/assurance-graph/index.js
+index 4ff8484..0813633 100644
+--- a/scripts/lib/assurance-graph/index.js
++++ b/scripts/lib/assurance-graph/index.js
+@@ -3,7 +3,7 @@
+ const path = require("node:path");
+ const { projectAssuranceGraph, rejectForbidden, canonicalize, computeGraphId } = require("./projector.js");
+ const { computeInvalidationClosure, isEvidenceTransitivelyInvalidated } = require("./invalidation.js");
+-const { validateAssessment } = require("../independent-verifier/assessment.js");
++const { validateAssessment, normalizeRole } = require("../independent-verifier/assessment.js");
+ const { computeVerificationId } = require("../independent-verifier/verdict.js");
+ const {
+   digestRawBytes,
+@@ -225,6 +225,7 @@ function validateReplayRecords(persistable) {
+     if (
+       !obligation ||
+       !evidenceRecord ||
++      !runnerReceipt ||
+       record.candidate_id !== candidate.candidate_id ||
+       record.policy_snapshot_id !== graph.policy_snapshot_id ||
+       record.node_id !== evidenceRecord.node_id ||
+@@ -233,6 +234,9 @@ function validateReplayRecords(persistable) {
+     ) {
+       return fail("GRAPH_DIVERGENCE", "persisted assessment binding diverges from evidence, Candidate, policy, or obligation");
+     }
++    if (normalizeRole(record.role) !== normalizeRole(runnerReceipt.role)) {
++      return fail("GRAPH_DIVERGENCE", "assessment role disagrees with bound runner receipt");
++    }
+     if (Array.isArray(record.evidence_requirements_satisfied)) {
+       if (record.evidence_requirements_satisfied.length === 0) {
+         return fail("GRAPH_DIVERGENCE", "assessment evidence_requirements_satisfied cannot be empty for satisfaction claims");
+diff --git a/scripts/lib/assurance-graph/index.test.js b/scripts/lib/assurance-graph/index.test.js
+index a9b73b0..8cd40dd 100644
+--- a/scripts/lib/assurance-graph/index.test.js
++++ b/scripts/lib/assurance-graph/index.test.js
+@@ -18,7 +18,8 @@ const {
+ } = require("./index.js");
+ const { verifyCandidate } = require("../independent-verifier/index.js");
+ const { computeAssessmentId } = require("../independent-verifier/assessment.js");
+-const { createTestRunnerReceiptChannel } = require("../test-support/k6b-runner-receipt.js");
++const { createTestRunnerReceiptChannel, createTestRunnerReceiptChannelFromReceipts } = require("../test-support/k6b-runner-receipt.js");
++const { readRunnerReceiptChannel } = require("../independent-verifier/runner-receipt.js");
+ const { canonicalize, computeGraphId } = require("./projector.js");
+ 
+ const SAMPLE_NODES = [
+@@ -870,5 +871,30 @@ test("REQ-assurance-graph-006 [Adversarial]: null replay bundle fails closed", (
+   assert.equal(replayed.reason_code, "GRAPH_DIVERGENCE");
+ });
+ 
++test("REQ-assurance-graph-006 [Adversarial]: missing persisted runner-receipt fails closed", () => {
++  const projection = verifiedProjection();
++  const gate = readRunnerReceiptChannel(projection.runnerReceiptChannel);
++  assert.equal(gate.ok, true);
++  const omitted = createTestRunnerReceiptChannelFromReceipts(gate.receipts.slice(1));
++  const replayed = replayAssuranceGraph(replayBundle(projection, {
++    runnerReceiptChannel: omitted,
++  }));
++  assert.equal(replayed.ok, false);
++  assert.equal(replayed.reason_code, "GRAPH_DIVERGENCE");
++});
++
++test("REQ-assurance-graph-006 [Adversarial]: mutated assessment role with recomputed assessment_id fails closed", () => {
++  const projection = verifiedProjection();
++  const { verified } = projection;
++  const tampered = verified.assessments.map((assessment) => {
++    if (assessment.role !== "acceptance") return assessment;
++    return withAssessmentFields(assessment, { role: "integration" });
++  });
++  assert.ok(tampered.some((assessment) => assessment.role === "integration"));
++  const replayed = replayAssuranceGraph(replayBundle(projection, { assessments: tampered }));
++  assert.equal(replayed.ok, false);
++  assert.equal(replayed.reason_code, "GRAPH_DIVERGENCE");
++});
++
+ 
+ 
+diff --git a/scripts/lib/authority-store/index.js b/scripts/lib/authority-store/index.js
+index fa038f4..051cbfb 100644
+--- a/scripts/lib/authority-store/index.js
++++ b/scripts/lib/authority-store/index.js
+@@ -64,12 +64,57 @@ function digestAuthority(authority) {
+   });
+ }
+ 
+-function computeRevision(state, journal, authority = null) {
+-  return sha256Fingerprint("authority-store:revision", {
++function emptyRunnerReceipts() {
++  return {};
++}
++
++function cloneRunnerReceipts(src) {
++  if (!src || typeof src !== "object" || Array.isArray(src)) {
++    return emptyRunnerReceipts();
++  }
++  return JSON.parse(JSON.stringify(src));
++}
++
++function digestRunnerReceipts(runnerReceipts) {
++  return sha256Fingerprint("authority-store:runner-receipts", cloneRunnerReceipts(runnerReceipts));
++}
++
++/**
++ * Revision identity over state, journal, and OperationReceipt authority.
++ * `runner_receipts_digest` is included only when the sibling bag has keys so
++ * empty/absent bags match the historical three-component digest.
++ */
++function computeRevision(state, journal, authority = null, runnerReceipts = null) {
++  const payload = {
+     state_digest: digestLifecycleState(state),
+     journal_digest: digestJournal(journal),
+     authority_root_digest: digestAuthority(authority),
+-  });
++  };
++  const bag = runnerReceipts && typeof runnerReceipts === "object" && !Array.isArray(runnerReceipts)
++    ? runnerReceipts
++    : emptyRunnerReceipts();
++  if (Object.keys(bag).length > 0) {
++    payload.runner_receipts_digest = digestRunnerReceipts(bag);
++  }
++  return sha256Fingerprint("authority-store:revision", payload);
++}
++
++const KIND_RUNNER_RECEIPT = "runner-receipt/v1";
++
++function findReceiptKindMismatch(authority, runnerReceipts) {
++  const opReceipts = authority && typeof authority === "object" ? authority.receipts || {} : {};
++  for (const rec of Object.values(opReceipts)) {
++    if (rec && typeof rec === "object" && rec.kind === KIND_RUNNER_RECEIPT) {
++      return true;
++    }
++  }
++  const bag = runnerReceipts && typeof runnerReceipts === "object" ? runnerReceipts : {};
++  for (const rec of Object.values(bag)) {
++    if (!rec || typeof rec !== "object" || rec.kind !== KIND_RUNNER_RECEIPT) {
++      return true;
++    }
++  }
++  return false;
+ }
+ 
+ function fail(code, extra = {}) {
+@@ -180,6 +225,7 @@ function createAuthorityStore(options = {}) {
+     const entry = {
+       inner,
+       authority: cloneAuthority(seed.authority),
++      runnerReceipts: cloneRunnerReceipts(seed.runner_receipts),
+       budgets: freezeBudgets(options.budgets),
+       baselines: new Map(),
+       midOpTickets: new Map(),
+@@ -199,13 +245,16 @@ function createAuthorityStore(options = {}) {
+     if (loaded.authority) {
+       entry.authority = cloneAuthority(loaded.authority);
+     }
++    if (Object.prototype.hasOwnProperty.call(loaded, "runner_receipts")) {
++      entry.runnerReceipts = cloneRunnerReceipts(loaded.runner_receipts);
++    }
+     if (loaded.budgets) {
+       entry.budgets = freezeBudgets(loaded.budgets);
+     }
+     const state = loaded.state;
+     const journal = loaded.journal;
+     const stateDigest = digestLifecycleState(state);
+-    const revision = computeRevision(state, journal, entry.authority);
++    const revision = computeRevision(state, journal, entry.authority, entry.runnerReceipts);
+     entry.baselines.set(revision, stateDigest);
+     return {
+       ok: true,
+@@ -216,6 +265,7 @@ function createAuthorityStore(options = {}) {
+       state_digest: stateDigest,
+       budgets: cloneBudgets(entry.budgets),
+       authority: cloneAuthority(entry.authority),
++      runner_receipts: cloneRunnerReceipts(entry.runnerReceipts),
+     };
+   }
+ 
+@@ -247,7 +297,15 @@ function createAuthorityStore(options = {}) {
+     return entry.lock(async () => {
+       await entry.inner.commitJournal(nextJournal);
+       const loaded = await entry.inner.load();
+-      const revision = computeRevision(loaded.state, loaded.journal, entry.authority);
++      if (Object.prototype.hasOwnProperty.call(loaded, "runner_receipts")) {
++        entry.runnerReceipts = cloneRunnerReceipts(loaded.runner_receipts);
++      }
++      const revision = computeRevision(
++        loaded.state,
++        loaded.journal,
++        entry.authority,
++        entry.runnerReceipts
++      );
+       let mid_op_ticket = null;
+       if (fromRevision != null && fromRevision !== "") {
+         const stateDigest = digestLifecycleState(loaded.state);
+@@ -324,16 +382,42 @@ function createAuthorityStore(options = {}) {
+     authorityCommit
+   ) {
+     const permitAuthorized = authorityCommit !== undefined;
++    const loadedForGuard = await entry.inner.load();
++    if (
++      permitAuthorized &&
++      authorityCommit &&
++      authorityCommit.receipt &&
++      authorityCommit.receipt.kind === KIND_RUNNER_RECEIPT
++    ) {
++      return fail("receipt-kind-mismatch", {
++        revision: computeRevision(
++          loadedForGuard.state,
++          loadedForGuard.journal,
++          entry.authority,
++          entry.runnerReceipts
++        ),
++        budgets: cloneBudgets(entry.budgets),
++      });
++    }
+     if (permitAuthorized && !isCompleteAuthorityCommit(authorityCommit)) {
+-      const loaded = await entry.inner.load();
+       return fail("authority-commit-incomplete", {
+-        revision: computeRevision(loaded.state, loaded.journal, entry.authority),
++        revision: computeRevision(
++          loadedForGuard.state,
++          loadedForGuard.journal,
++          entry.authority,
++          entry.runnerReceipts
++        ),
+         budgets: cloneBudgets(entry.budgets),
+       });
+     }
+ 
+-    const loaded = await entry.inner.load();
+-    const currentRevision = computeRevision(loaded.state, loaded.journal, entry.authority);
++    const loaded = loadedForGuard;
++    const currentRevision = computeRevision(
++      loaded.state,
++      loaded.journal,
++      entry.authority,
++      entry.runnerReceipts
++    );
+     const currentStateDigest = digestLifecycleState(loaded.state);
+     const budgetsBefore = cloneBudgets(entry.budgets);
+ 
+@@ -390,7 +474,18 @@ function createAuthorityStore(options = {}) {
+         // before returning ok (never ok with null/ephemeral receipt). The bag is part of the
+         // revision, so the healed head advances even though state and journal did not.
+         const nextAuthority = materializeAuthorityCommit(entry.authority, authorityCommit);
+-        const healedRevision = computeRevision(loaded.state, loaded.journal, nextAuthority);
++        if (findReceiptKindMismatch(nextAuthority, entry.runnerReceipts)) {
++          return fail("receipt-kind-mismatch", {
++            revision: currentRevision,
++            budgets: budgetsBefore,
++          });
++        }
++        const healedRevision = computeRevision(
++          loaded.state,
++          loaded.journal,
++          nextAuthority,
++          entry.runnerReceipts
++        );
+         const stored = nextAuthority.receipts[authorityCommit.permit_id];
+         if (stored && (stored.revision === "pending" || stored.revision == null)) {
+           stored.revision = healedRevision;
+@@ -400,6 +495,7 @@ function createAuthorityStore(options = {}) {
+           journal: loaded.journal,
+           authority: nextAuthority,
+           budgets: entry.budgets,
++          runner_receipts: cloneRunnerReceipts(entry.runnerReceipts),
+           expectedRevision: currentRevision,
+         });
+         if (persisted?.ok === false) {
+@@ -433,7 +529,19 @@ function createAuthorityStore(options = {}) {
+       ? materializeAuthorityCommit(entry.authority, authorityCommit)
+       : entry.authority;
+ 
+-    const winningRevision = computeRevision(nextState, journalToCommit, nextAuthority);
++    if (findReceiptKindMismatch(nextAuthority, entry.runnerReceipts)) {
++      return fail("receipt-kind-mismatch", {
++        revision: currentRevision,
++        budgets: budgetsBefore,
++      });
++    }
++
++    const winningRevision = computeRevision(
++      nextState,
++      journalToCommit,
++      nextAuthority,
++      entry.runnerReceipts
++    );
+     if (permitAuthorized) {
+       const stored = nextAuthority.receipts[authorityCommit.permit_id];
+       if (stored && (stored.revision === "pending" || stored.revision == null)) {
+@@ -446,6 +554,7 @@ function createAuthorityStore(options = {}) {
+       state: JSON.parse(JSON.stringify(loaded.state)),
+       journal: JSON.parse(JSON.stringify(loaded.journal)),
+       authority: cloneAuthority(entry.authority),
++      runner_receipts: cloneRunnerReceipts(entry.runnerReceipts),
+     };
+     try {
+       const persisted = await entry.inner.commit({
+@@ -453,6 +562,7 @@ function createAuthorityStore(options = {}) {
+         journal: journalToCommit,
+         authority: nextAuthority,
+         budgets: entry.budgets,
++        runner_receipts: cloneRunnerReceipts(entry.runnerReceipts),
+         expectedRevision: currentRevision,
+       });
+       if (persisted?.ok === false) {
+@@ -471,7 +581,15 @@ function createAuthorityStore(options = {}) {
+     }
+ 
+     const after = await entry.inner.load();
+-    const revision = computeRevision(after.state, after.journal, entry.authority);
++    if (Object.prototype.hasOwnProperty.call(after, "runner_receipts")) {
++      entry.runnerReceipts = cloneRunnerReceipts(after.runner_receipts);
++    }
++    const revision = computeRevision(
++      after.state,
++      after.journal,
++      entry.authority,
++      entry.runnerReceipts
++    );
+     entry.baselines.set(revision, digestLifecycleState(after.state));
+ 
+     return {
+@@ -494,6 +612,7 @@ function createAuthorityStore(options = {}) {
+         state: JSON.parse(JSON.stringify(entry.inflight.state)),
+         journal: JSON.parse(JSON.stringify(entry.inflight.journal)),
+         authority: cloneAuthority(entry.inflight.authority),
++        runner_receipts: cloneRunnerReceipts(entry.inflight.runner_receipts),
+       };
+     }
+     const innerSnap = entry.inner.snapshot();
+@@ -501,16 +620,75 @@ function createAuthorityStore(options = {}) {
+       state: innerSnap.state,
+       journal: innerSnap.journal,
+       authority: cloneAuthority(entry.authority),
++      runner_receipts: cloneRunnerReceipts(entry.runnerReceipts),
+     };
+   }
+ 
++  async function commitRunnerReceipts(incoming, subjectId = defaultSubjectId) {
++    const entry = subjects.get(subjectId);
++    if (!entry) {
++      return fail("subject-not-found", { subject_id: subjectId, revision: null });
++    }
++    return entry.lock(async () => {
++      const nextBag = {
++        ...cloneRunnerReceipts(entry.runnerReceipts),
++        ...cloneRunnerReceipts(incoming),
++      };
++      const loaded = await entry.inner.load();
++      if (Object.prototype.hasOwnProperty.call(loaded, "authority") && loaded.authority) {
++        entry.authority = cloneAuthority(loaded.authority);
++      }
++      const currentRevision = computeRevision(
++        loaded.state,
++        loaded.journal,
++        entry.authority,
++        entry.runnerReceipts
++      );
++      if (findReceiptKindMismatch(entry.authority, nextBag)) {
++        return fail("receipt-kind-mismatch", { revision: currentRevision });
++      }
++      const nextRevision = computeRevision(
++        loaded.state,
++        loaded.journal,
++        entry.authority,
++        nextBag
++      );
++      const persisted = await entry.inner.commit({
++        state: loaded.state,
++        journal: loaded.journal,
++        authority: entry.authority,
++        budgets: entry.budgets,
++        runner_receipts: nextBag,
++        expectedRevision: currentRevision,
++      });
++      if (persisted?.ok === false) {
++        return persisted;
++      }
++      entry.runnerReceipts = nextBag;
++      entry.baselines.set(nextRevision, digestLifecycleState(loaded.state));
++      return { ok: true, revision: nextRevision, runner_receipts: cloneRunnerReceipts(nextBag) };
++    });
++  }
++
+   const storeInstance = {
+     subjectId: defaultSubjectId,
+     load,
+     compareAndSwap,
+     commitJournal,
++    commitRunnerReceipts,
+     snapshot,
+-    computeRevision,
++    computeRevision(state, journal, authority, runnerReceipts) {
++      if (arguments.length >= 4) {
++        return computeRevision(state, journal, authority, runnerReceipts);
++      }
++      const entry = subjects.get(defaultSubjectId);
++      return computeRevision(
++        state,
++        journal,
++        authority,
++        entry ? entry.runnerReceipts : emptyRunnerReceipts()
++      );
++    },
+     getBudgets(subjectId = defaultSubjectId) {
+       const entry = subjects.get(subjectId);
+       return entry ? cloneBudgets(entry.budgets) : null;
+@@ -555,4 +733,6 @@ module.exports = {
+   createAuthorityStore,
+   createAuthorityRuntime,
+   upsertJournalEntries,
++  cloneRunnerReceipts,
++  findReceiptKindMismatch,
+ };
+diff --git a/scripts/lib/authority-store/index.test.js b/scripts/lib/authority-store/index.test.js
+index 49d77d9..59981e2 100644
+--- a/scripts/lib/authority-store/index.test.js
++++ b/scripts/lib/authority-store/index.test.js
+@@ -922,3 +922,122 @@ test("K5: AuthorityStore never degrades completed journal evidence from a stale
+   assert.deepEqual(entry.result, completed.result);
+ });
+ 
++test("REQ-authority-store-018: empty runner_receipts digest matches three-arg revision", () => {
++  const state = pendingState();
++  const journal = [];
++  const authority = { permits: {}, receipts: {} };
++  const threeArg = computeRevision(state, journal, authority);
++  assert.equal(computeRevision(state, journal, authority, {}), threeArg);
++  assert.equal(computeRevision(state, journal, authority, undefined), threeArg);
++  assert.equal(computeRevision(state, journal, authority, null), threeArg);
++});
++
++test("REQ-authority-store-018: distinct runner_receipts bag changes revision without touching digestAuthority", () => {
++  const state = pendingState();
++  const journal = [];
++  const authority = { permits: {}, receipts: {} };
++  const { digestAuthority } = require("./index.js");
++  const bag = {
++    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {
++      schema_version: 1,
++      kind: "runner-receipt/v1",
++      receipt_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++      candidate_id: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
++      evidence_id: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
++      node_id: "n1",
++      role: "acceptance",
++      satisfied_tokens: ["ev:test-pass"],
++      outcome: "passed",
++      issuer_id: "node-test",
++      transport: "tool-execution-transport",
++    },
++  };
++  const empty = computeRevision(state, journal, authority);
++  const withBag = computeRevision(state, journal, authority, bag);
++  assert.notEqual(withBag, empty);
++  assert.equal(
++    digestAuthority({ permits: {}, receipts: {}, runner_receipts: bag }),
++    digestAuthority({ permits: {}, receipts: {} })
++  );
++});
++
++test("REQ-authority-store-018: load defaults runner_receipts to empty map; authority.receipts stay OperationReceipt-only", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const loaded = await store.load();
++  assert.deepEqual(loaded.runner_receipts, {});
++  assert.deepEqual(loaded.authority.receipts, {});
++  const snap = store.snapshot();
++  assert.deepEqual(snap.runner_receipts, {});
++});
++
++test("REQ-authority-store-018: runner-receipt/v1 in authority.receipts fails closed with receipt-kind-mismatch", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  const permitId = "permit:runtime:kind-mismatch-op";
++  const mixed = sampleReceipt(permitId, before.revision);
++  mixed.kind = "runner-receipt/v1";
++  const cas = await store.compareAndSwap(
++    DEFAULT_SUBJECT_ID,
++    before.revision,
++    startedState(),
++    [],
++    null,
++    sampleAuthorityCommit(permitId, mixed)
++  );
++  assert.equal(cas.ok, false);
++  assert.equal(cas.code, "receipt-kind-mismatch");
++  assert.equal(cas.revision, before.revision);
++  const after = await store.load();
++  assert.equal(after.revision, before.revision);
++  assert.equal(after.authority.receipts[permitId], undefined);
++});
++
++test("REQ-authority-store-018: OperationReceipt in runner_receipts fails closed and does not advance head", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  const persisted = await store.commitRunnerReceipts({
++    "sha256:op-in-runner-bag": sampleReceipt("permit:runtime:wrong-bag", before.revision),
++  });
++  assert.equal(persisted.ok, false);
++  assert.equal(persisted.code, "receipt-kind-mismatch");
++  assert.equal(persisted.revision, before.revision);
++  const after = await store.load();
++  assert.equal(after.revision, before.revision);
++  assert.deepEqual(after.runner_receipts, {});
++  assert.deepEqual(after.authority.receipts, {});
++});
++
++test("REQ-authority-store-018: commitRunnerReceipts persists distinct bag and lifecycle CAS keeps it", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  const receiptId = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
++  const runnerReceipt = {
++    schema_version: 1,
++    kind: "runner-receipt/v1",
++    receipt_id: receiptId,
++    candidate_id: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
++    evidence_id: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
++    node_id: "n1",
++    role: "acceptance",
++    satisfied_tokens: ["ev:test-pass"],
++    outcome: "passed",
++    issuer_id: "node-test",
++    transport: "tool-execution-transport",
++  };
++  const committed = await store.commitRunnerReceipts({ [receiptId]: runnerReceipt });
++  assert.equal(committed.ok, true);
++  assert.notEqual(committed.revision, before.revision);
++  const mid = await store.load();
++  assert.equal(mid.runner_receipts[receiptId].kind, "runner-receipt/v1");
++  assert.equal(mid.authority.receipts[receiptId], undefined);
++
++  const cas = await store.compareAndSwap(DEFAULT_SUBJECT_ID, mid.revision, startedState(), []);
++  assert.equal(cas.ok, true);
++  const after = await store.load();
++  assert.equal(after.runner_receipts[receiptId].kind, "runner-receipt/v1");
++  assert.equal(
++    after.revision,
++    computeRevision(after.state, after.journal, after.authority, after.runner_receipts)
++  );
++});
++
+diff --git a/scripts/lib/filesystem-store.js b/scripts/lib/filesystem-store.js
+index ce1dac1..926f590 100644
+--- a/scripts/lib/filesystem-store.js
++++ b/scripts/lib/filesystem-store.js
+@@ -145,6 +145,7 @@ function createFileSystemStore(options = {}) {
+       journal: clone(seed.journal) || [],
+       authority: clone(seed.authority) || { permits: {}, receipts: {} },
+       budgets: clone(seed.budgets) || { attempts: 0, corrections: 0 },
++      runner_receipts: clone(seed.runner_receipts) || {},
+     };
+   }
+ 
+@@ -158,6 +159,9 @@ function createFileSystemStore(options = {}) {
+           journal: Array.isArray(record.journal) ? record.journal : [],
+           authority: record.authority || { permits: {}, receipts: {} },
+           budgets: record.budgets || { attempts: 0, corrections: 0 },
++          runner_receipts: record.runner_receipts && typeof record.runner_receipts === "object"
++            ? record.runner_receipts
++            : {},
+         };
+         return clone(memoryCache);
+       } catch (err) {
+@@ -172,6 +176,9 @@ function createFileSystemStore(options = {}) {
+               journal: Array.isArray(record.journal) ? record.journal : [],
+               authority: record.authority || { permits: {}, receipts: {} },
+               budgets: record.budgets || { attempts: 0, corrections: 0 },
++              runner_receipts: record.runner_receipts && typeof record.runner_receipts === "object"
++                ? record.runner_receipts
++                : {},
+             };
+             return clone(memoryCache);
+           } catch (bakErr) {
+@@ -198,12 +205,13 @@ function createFileSystemStore(options = {}) {
+           journal: mergeJournalEntries(current.journal, clone(nextJournal)),
+           authority: current.authority,
+           budgets: current.budgets,
++          runner_receipts: current.runner_receipts || {},
+         };
+         await writeRecordAtomic(nextRecord);
+         return { journal: nextRecord.journal };
+       });
+     },
+-    async commit({ state, journal, authority, budgets, expectedRevision }) {
++    async commit({ state, journal, authority, budgets, runner_receipts, expectedRevision }) {
+       return withFileLock(filePath, async () => {
+         let currentRecord;
+         try {
+@@ -231,7 +239,8 @@ function createFileSystemStore(options = {}) {
+         const currentRevision = computeRevision(
+           currentRecord.state,
+           currentRecord.journal,
+-          currentRecord.authority
++          currentRecord.authority,
++          currentRecord.runner_receipts
+         );
+ 
+         if (expectedRevision !== undefined && expectedRevision !== null && expectedRevision !== currentRevision) {
+@@ -245,6 +254,11 @@ function createFileSystemStore(options = {}) {
+             : currentRecord.journal,
+           authority: clone(authority !== undefined ? authority : currentRecord.authority),
+           budgets: clone(budgets !== undefined ? budgets : currentRecord.budgets),
++          runner_receipts: clone(
++            runner_receipts !== undefined
++              ? runner_receipts
++              : (currentRecord.runner_receipts || {})
++          ),
+         };
+ 
+         await writeRecordAtomic(nextRecord);
+diff --git a/scripts/lib/filesystem-store.test.js b/scripts/lib/filesystem-store.test.js
+index bf82580..3be734b 100644
+--- a/scripts/lib/filesystem-store.test.js
++++ b/scripts/lib/filesystem-store.test.js
+@@ -497,5 +497,64 @@ test("K5: FileSystemStore preserves completed journal evidence against stale sta
+   }
+ });
+ 
++test("REQ-authority-store-018: restart load restores authority.receipts and runner_receipts without snapshot()", async () => {
++  const filePath = tmpFile();
++  try {
++    const inner1 = createFileSystemStore({
++      filePath,
++      initial: { state: pendingState() },
++      initializeIfMissing: true,
++    });
++    const store1 = createAuthorityStore({ store: inner1 });
++    const runtime1 = createKernelRuntime({ store: store1 });
++
++    const head1 = await store1.load();
++    const issued = runtime1.issuePermitForSelectedTransition({
++      operation: "start",
++      expected_revision: head1.revision,
++      arguments: { node_id: "n1" },
++    });
++    assert.ok(issued.ok);
++    const opResult = await runtime1.runOperation({
++      operation: "start",
++      arguments: { node_id: "n1" },
++      operationPermit: issued.permit,
++      effectExecutor: async () => ({ ok: true, usage: {} }),
++    });
++    assert.equal(opResult.outcome, "advanced");
++    const permitId = issued.permit.permit_id;
++
++    const receiptId = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
++    const runnerReceipt = {
++      schema_version: 1,
++      kind: "runner-receipt/v1",
++      receipt_id: receiptId,
++      candidate_id: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
++      evidence_id: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
++      node_id: "n1",
++      role: "acceptance",
++      satisfied_tokens: ["ev:test-pass"],
++      outcome: "passed",
++      issuer_id: "node-test",
++      transport: "tool-execution-transport",
++    };
++    const persisted = await store1.commitRunnerReceipts({ [receiptId]: runnerReceipt });
++    assert.equal(persisted.ok, true, persisted.code);
++
++    const inner2 = createFileSystemStore({ filePath });
++    const store2 = createAuthorityStore({ store: inner2 });
++    const head2 = await store2.load();
++
++    assert.equal(head2.state.nodes.n1.phase, "started");
++    assert.ok(head2.authority.receipts[permitId]);
++    assert.equal(head2.authority.receipts[permitId].kind, "operation-receipt/v1");
++    assert.equal(head2.runner_receipts[receiptId].kind, "runner-receipt/v1");
++    assert.equal(head2.authority.receipts[receiptId], undefined);
++    assert.notEqual(head2.authority.receipts[permitId].kind, "runner-receipt/v1");
++  } finally {
++    try { await fs.unlink(filePath); } catch (_) {}
++  }
++});
++
+ 
+ 
+diff --git a/scripts/lib/independent-verifier/runner-receipt-restart.test.js b/scripts/lib/independent-verifier/runner-receipt-restart.test.js
+new file mode 100644
+index 0000000..4b08019
+--- /dev/null
++++ b/scripts/lib/independent-verifier/runner-receipt-restart.test.js
+@@ -0,0 +1,229 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const fs = require("node:fs/promises");
++const os = require("node:os");
++const path = require("node:path");
++const test = require("node:test");
++
++const { freezeCandidate } = require("../execution-identities/index.js");
++const { compileExecutionGraph, createPolicySnapshot } = require("../execution-graph/index.js");
++const { computeTreeDigest } = require("../worker-workspace.js");
++const { createFileSystemStore } = require("../filesystem-store.js");
++const { createAuthorityStore } = require("../authority-store/index.js");
++const { verifyCandidate } = require("./index.js");
++const { replayAssuranceGraph } = require("../assurance-graph/index.js");
++const { readRunnerReceiptChannel } = require("./runner-receipt.js");
++const {
++  persistRunnerReceipts,
++  rehydrateAndIssueRunnerReceiptChannel,
++} = require("./runner-receipt-store.js");
++const { createTestRunnerReceiptChannel } = require("../test-support/k6b-runner-receipt.js");
++
++const SAMPLE_NODES = [
++  {
++    node_id: "repair-core",
++    kind: "repair-action/v1",
++    operation: "apply_repair_patch",
++    objective: "Apply repair changes",
++    dependencies: [],
++    ownership: { owner: "agent:repair", mode: "exclusive" },
++    allowed_paths: ["src/index.js"],
++    invariants: ["inv-fail-closed"],
++    required_evidence: ["ev:test-pass"],
++    budget_ref: "budget:default",
++  },
++];
++
++const SAMPLE_OBLIGATIONS = [
++  {
++    id: "req-repair-001",
++    criticality: "must",
++    implemented_by: ["repair-core"],
++    required_evidence: ["ev:test-pass"],
++  },
++];
++
++function freezeFromFiles(files) {
++  const tree = computeTreeDigest(files);
++  return freezeCandidate({
++    repository_id: "k6b-restart-repo",
++    projection: "workspace",
++    base_tree: tree,
++    candidate_tree: tree,
++    diff_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
++    paths: Object.keys(files),
++  });
++}
++
++function compileGraph() {
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["rule-fail-closed"] });
++  const contract = {
++    schema_version: 1,
++    contract_id: "contract:k6b-restart",
++    family: "repair",
++    version: 1,
++    contract_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++    source_snapshot_id: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
++    obligations: SAMPLE_OBLIGATIONS,
++  };
++  return compileExecutionGraph({
++    contract,
++    policySnapshot,
++    nodes: SAMPLE_NODES,
++    obligations: SAMPLE_OBLIGATIONS,
++  });
++}
++
++function featureRaw() {
++  return [
++    { bytes: "acceptance", provenance: "runtime-observed", origin: "a", node_id: "repair-core" },
++    { bytes: "invariants", provenance: "runtime-observed", origin: "i", node_id: "repair-core" },
++    { bytes: "contract", provenance: "runtime-observed", origin: "c", node_id: "repair-core" },
++    { bytes: "negative", provenance: "runtime-observed", origin: "n", node_id: "repair-core" },
++  ];
++}
++
++function featureReceipts() {
++  return [
++    { role: "acceptance", node_id: "repair-core", evidence_requirements_satisfied: ["ev:test-pass"] },
++    { role: "invariants", node_id: "repair-core", evidence_requirements_satisfied: ["ev:test-pass"] },
++    { role: "contract", node_id: "repair-core", evidence_requirements_satisfied: ["ev:test-pass"] },
++    { role: "negative", node_id: "repair-core", evidence_requirements_satisfied: ["ev:test-pass"] },
++  ];
++}
++
++const HARNESS_COLLECTOR = { id: "node-test", transport: "tool-execution-transport" };
++
++async function tmpFile() {
++  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "k6b-restart-"));
++  return path.join(dir, "head.json");
++}
++
++test("REQ-independent-verification-009 [Adversarial]: persist, empty WeakMap, reissue, same graph_id", async () => {
++  const filePath = await tmpFile();
++  try {
++    const files = { "src/index.js": "module.exports = 1;\n" };
++    const candidate = freezeFromFiles(files);
++    const executionGraph = compileGraph();
++    const rawEvidence = featureRaw();
++    const receiptSpecs = featureReceipts();
++    const channelA = createTestRunnerReceiptChannel({
++      candidate,
++      executionGraph,
++      collector: HARNESS_COLLECTOR,
++      rawEvidence,
++      receiptSpecs,
++    });
++    const verified = verifyCandidate({
++      candidate,
++      executionGraph,
++      contract: { contract_digest: executionGraph.contract_digest },
++      repository: { files },
++      declaredStrategy: "feature",
++      collector: HARNESS_COLLECTOR,
++      rawEvidence,
++      runnerReceiptChannel: channelA,
++    });
++    assert.equal(verified.ok, true, verified.error || verified.reason_code);
++    const graphIdA = verified.assurance_graph.graph_id;
++
++    const innerA = createFileSystemStore({ filePath, initializeIfMissing: true });
++    const storeA = createAuthorityStore({ store: innerA });
++    const persisted = await persistRunnerReceipts(storeA, channelA);
++    assert.equal(persisted.ok, true, persisted.error || persisted.code);
++
++    const bundle = {
++      candidate,
++      executionGraph,
++      evidence: verified.replay_evidence,
++      assessments: verified.assessments,
++      verification: verified.verification,
++      canonical_inputs: verified.assurance_graph.canonical_inputs,
++    };
++
++    const innerB = createFileSystemStore({ filePath });
++    const storeB = createAuthorityStore({ store: innerB });
++    const rehydrated = await rehydrateAndIssueRunnerReceiptChannel(storeB);
++    assert.equal(rehydrated.ok, true, rehydrated.error);
++    assert.notEqual(rehydrated.channel, channelA);
++
++    const replayed = replayAssuranceGraph({
++      ...bundle,
++      runnerReceiptChannel: rehydrated.channel,
++    });
++    assert.equal(replayed.ok, true, replayed.error || replayed.reason_code);
++    assert.equal(replayed.graph.graph_id, graphIdA);
++
++    const staleA = replayAssuranceGraph({
++      ...bundle,
++      runnerReceiptChannel: channelA,
++    });
++    assert.equal(staleA.ok, true, "in-process A channel remains valid until process death");
++  } finally {
++    try { await fs.unlink(filePath); } catch (_) {}
++  }
++});
++
++test("REQ-independent-verification-009 [Adversarial]: missing persisted receipt blocks reissue for that id and replay diverges", async () => {
++  const filePath = await tmpFile();
++  try {
++    const files = { "src/index.js": "module.exports = 1;\n" };
++    const candidate = freezeFromFiles(files);
++    const executionGraph = compileGraph();
++    const rawEvidence = featureRaw();
++    const receiptSpecs = featureReceipts();
++    const channelA = createTestRunnerReceiptChannel({
++      candidate,
++      executionGraph,
++      collector: HARNESS_COLLECTOR,
++      rawEvidence,
++      receiptSpecs,
++    });
++    const verified = verifyCandidate({
++      candidate,
++      executionGraph,
++      contract: { contract_digest: executionGraph.contract_digest },
++      repository: { files },
++      declaredStrategy: "feature",
++      collector: HARNESS_COLLECTOR,
++      rawEvidence,
++      runnerReceiptChannel: channelA,
++    });
++    assert.equal(verified.ok, true, verified.error || verified.reason_code);
++
++    const gate = readRunnerReceiptChannel(channelA);
++    const droppedId = gate.receipts[0].receipt_id;
++    const remaining = {};
++    for (const receipt of gate.receipts.slice(1)) {
++      remaining[receipt.receipt_id] = JSON.parse(JSON.stringify(receipt));
++    }
++
++    const innerA = createFileSystemStore({ filePath, initializeIfMissing: true });
++    const storeA = createAuthorityStore({ store: innerA });
++    const seeded = await storeA.commitRunnerReceipts(remaining);
++    assert.equal(seeded.ok, true, seeded.code);
++    assert.equal(storeA.snapshot().runner_receipts[droppedId], undefined);
++
++    const innerB = createFileSystemStore({ filePath });
++    const storeB = createAuthorityStore({ store: innerB });
++    const rehydrated = await rehydrateAndIssueRunnerReceiptChannel(storeB);
++    assert.equal(rehydrated.ok, true, rehydrated.error);
++    const reissuedIds = new Set(rehydrated.receipts.map((receipt) => receipt.receipt_id));
++    assert.equal(reissuedIds.has(droppedId), false);
++
++    const replayed = replayAssuranceGraph({
++      candidate,
++      executionGraph,
++      evidence: verified.replay_evidence,
++      assessments: verified.assessments,
++      verification: verified.verification,
++      canonical_inputs: verified.assurance_graph.canonical_inputs,
++      runnerReceiptChannel: rehydrated.channel,
++    });
++    assert.equal(replayed.ok, false);
++    assert.equal(replayed.reason_code, "GRAPH_DIVERGENCE");
++  } finally {
++    try { await fs.unlink(filePath); } catch (_) {}
++  }
++});
+diff --git a/scripts/lib/independent-verifier/runner-receipt-store.js b/scripts/lib/independent-verifier/runner-receipt-store.js
+new file mode 100644
+index 0000000..ad32708
+--- /dev/null
++++ b/scripts/lib/independent-verifier/runner-receipt-store.js
+@@ -0,0 +1,167 @@
++"use strict";
++
++const path = require("node:path");
++const { computeRevision, findReceiptKindMismatch } = require("../authority-store/index.js");
++const { validateInstance, loadSchemaById } = require("../kernel-schema-validator.js");
++const {
++  computeRunnerReceiptId,
++  readRunnerReceiptChannel,
++} = require("./runner-receipt.js");
++const {
++  createRunnerReceiptAuthority,
++  issueRunnerReceiptChannel,
++} = require("./internal/runner-receipt-channel.js");
++
++const RUNNER_RECEIPT_SCHEMA_ID = "ospec://schemas/kernel/runner-receipt/v1";
++const DEFAULT_SCHEMA_ROOT = path.resolve(__dirname, "../../..");
++
++let cachedSchema = null;
++
++function fail(reason_code, error, extra = {}) {
++  return { ok: false, reason_code, error: error || reason_code, ...extra };
++}
++
++function getSchema() {
++  if (!cachedSchema) {
++    cachedSchema = loadSchemaById(RUNNER_RECEIPT_SCHEMA_ID, { rootDir: DEFAULT_SCHEMA_ROOT });
++  }
++  return cachedSchema;
++}
++
++function cloneReceipt(receipt) {
++  return JSON.parse(JSON.stringify(receipt));
++}
++
++function bagFromReceipts(receipts) {
++  const bag = {};
++  for (const receipt of receipts) {
++    bag[receipt.receipt_id] = cloneReceipt(receipt);
++  }
++  return bag;
++}
++
++async function persistViaCommit(store, bag) {
++  const current = await store.load();
++  if (current && current.ok === false) return current;
++  const nextBag = { ...(current.runner_receipts || {}), ...bag };
++  if (findReceiptKindMismatch(current.authority, nextBag)) {
++    return fail("receipt-kind-mismatch", "runner receipt kind disagrees with CAS collection", {
++      code: "receipt-kind-mismatch",
++    });
++  }
++  const expectedRevision = computeRevision(
++    current.state,
++    current.journal,
++    current.authority,
++    current.runner_receipts
++  );
++  const committed = await store.commit({
++    state: current.state,
++    journal: current.journal,
++    authority: current.authority,
++    budgets: current.budgets,
++    runner_receipts: nextBag,
++    expectedRevision,
++  });
++  if (committed && committed.ok === false) return committed;
++  return { ok: true, runner_receipts: nextBag };
++}
++
++/**
++ * Persist schema-valid runner-receipt/v1 records from a trusted channel into CAS `runner_receipts`.
++ *
++ * @param {object} store AuthorityStore or FileSystemStore
++ * @param {object} channel Opaque runnerReceiptChannel
++ * @param {string} [subjectId]
++ * @returns {Promise<object>}
++ */
++async function persistRunnerReceipts(store, channel, subjectId) {
++  const gate = readRunnerReceiptChannel(channel);
++  if (!gate.ok) return gate;
++  const bag = bagFromReceipts(gate.receipts);
++  if (typeof store.commitRunnerReceipts === "function") {
++    const committed = await store.commitRunnerReceipts(bag, subjectId);
++    if (committed && committed.ok === false) {
++      return committed.code
++        ? fail(committed.code, committed.code, { code: committed.code, revision: committed.revision })
++        : committed;
++    }
++    return { ok: true, ...committed, runner_receipts: committed.runner_receipts || bag };
++  }
++  if (typeof store.commit === "function") {
++    return persistViaCommit(store, bag);
++  }
++  return fail("INVALID_RUNNER_RECEIPT", "store cannot persist runner receipts");
++}
++
++function validatePersistedRecord(record) {
++  if (!record || typeof record !== "object") {
++    return fail("INVALID_RUNNER_RECEIPT", "persisted runner receipt must be an object");
++  }
++  let validation;
++  try {
++    validation = validateInstance(getSchema(), record);
++  } catch (error) {
++    return fail("INVALID_RUNNER_RECEIPT", `runner receipt schema is unavailable: ${error.message}`);
++  }
++  if (!validation.valid) {
++    return fail(
++      "INVALID_RUNNER_RECEIPT",
++      validation.errors.map((error) => `${error.path}: ${error.message}`).join("; ")
++    );
++  }
++  const recomputed = computeRunnerReceiptId(record);
++  if (recomputed !== record.receipt_id) {
++    return fail("INVALID_RUNNER_RECEIPT", "recomputed receipt_id diverges from persisted identity");
++  }
++  return { ok: true, receipt: record };
++}
++
++/**
++ * Load persisted runner-receipt/v1 records, fail closed on identity divergence, and issue a NEW channel.
++ *
++ * @param {object} store AuthorityStore or FileSystemStore
++ * @param {{issuer_id?:string, transport?:string, subjectId?:string}} [identity]
++ * @returns {Promise<object>}
++ */
++async function rehydrateAndIssueRunnerReceiptChannel(store, identity = {}) {
++  const subjectId = identity && identity.subjectId;
++  const loaded = await store.load(subjectId);
++  if (loaded && loaded.ok === false) return loaded;
++  const bag = loaded.runner_receipts && typeof loaded.runner_receipts === "object"
++    ? loaded.runner_receipts
++    : {};
++  const records = Object.values(bag);
++  if (records.length === 0) {
++    return fail("INVALID_RUNNER_RECEIPT", "no persisted runner-receipt/v1 records");
++  }
++
++  const validated = [];
++  for (const record of records) {
++    const checked = validatePersistedRecord(record);
++    if (!checked.ok) return checked;
++    validated.push(checked.receipt);
++  }
++
++  const issuer_id = identity.issuer_id || validated[0].issuer_id;
++  const transport = identity.transport || validated[0].transport;
++  for (const receipt of validated) {
++    if (receipt.issuer_id !== issuer_id || receipt.transport !== transport) {
++      return fail("UNTRUSTED_RUNNER_RECEIPT", "persisted runner receipts are not a homogeneous issuer/transport set");
++    }
++  }
++
++  let authority;
++  try {
++    authority = createRunnerReceiptAuthority({ issuer_id, transport });
++  } catch (error) {
++    return fail(error.code || "UNTRUSTED_RUNNER_RECEIPT", error.message);
++  }
++  const channel = issueRunnerReceiptChannel({ authority, receipts: validated });
++  return { ok: true, channel, receipts: validated };
++}
++
++module.exports = {
++  persistRunnerReceipts,
++  rehydrateAndIssueRunnerReceiptChannel,
++};
+diff --git a/scripts/lib/independent-verifier/runner-receipt-store.test.js b/scripts/lib/independent-verifier/runner-receipt-store.test.js
+new file mode 100644
+index 0000000..6b8de9b
+--- /dev/null
++++ b/scripts/lib/independent-verifier/runner-receipt-store.test.js
+@@ -0,0 +1,91 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const test = require("node:test");
++
++const { createAuthorityStore } = require("../authority-store/index.js");
++const { createRunnerReceipt } = require("./runner-receipt.js");
++const { readRunnerReceiptChannel } = require("./runner-receipt.js");
++const {
++  persistRunnerReceipts,
++  rehydrateAndIssueRunnerReceiptChannel,
++} = require("./runner-receipt-store.js");
++const {
++  createTestRunnerReceiptChannelFromReceipts,
++} = require("../test-support/k6b-runner-receipt.js");
++
++function sampleReceipt(overrides = {}) {
++  return createRunnerReceipt({
++    candidate_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
++    evidence_id: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
++    node_id: "repair-core",
++    role: "acceptance",
++    satisfied_tokens: ["ev:test-pass"],
++    outcome: "passed",
++    issuer_id: "node-test",
++    transport: "tool-execution-transport",
++    ...overrides,
++  });
++}
++
++function pendingState() {
++  return {
++    schema_version: 1,
++    status: "ready",
++    nodes: { n1: { id: "n1", phase: "pending", attempt: 0 } },
++  };
++}
++
++test("REQ-independent-verification-009: rehydrate fails closed when recomputed receipt_id diverges", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const receipt = sampleReceipt();
++  const channel = createTestRunnerReceiptChannelFromReceipts([receipt]);
++  const persisted = await persistRunnerReceipts(store, channel);
++  assert.equal(persisted.ok, true, persisted.error || persisted.code);
++
++  const tampered = { ...JSON.parse(JSON.stringify(receipt)), role: "integration" };
++  const mutated = await store.commitRunnerReceipts({ [receipt.receipt_id]: tampered });
++  assert.equal(mutated.ok, true, mutated.code);
++
++  const rehydrated = await rehydrateAndIssueRunnerReceiptChannel(store);
++  assert.equal(rehydrated.ok, false);
++  assert.equal(rehydrated.reason_code, "INVALID_RUNNER_RECEIPT");
++  assert.equal(rehydrated.channel, undefined);
++});
++
++test("REQ-independent-verification-009: caller DTO without reissued channel is UNTRUSTED_RUNNER_RECEIPT", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const receipt = sampleReceipt();
++  const channelA = createTestRunnerReceiptChannelFromReceipts([receipt]);
++  const persisted = await persistRunnerReceipts(store, channelA);
++  assert.equal(persisted.ok, true);
++
++  const rehydrated = await rehydrateAndIssueRunnerReceiptChannel(store);
++  assert.equal(rehydrated.ok, true, rehydrated.error);
++  assert.notEqual(rehydrated.channel, channelA);
++
++  const forged = Object.freeze({
++    kind: rehydrated.channel.kind,
++    issuer_id: rehydrated.channel.issuer_id,
++    transport: rehydrated.channel.transport,
++  });
++  const gate = readRunnerReceiptChannel(forged);
++  assert.equal(gate.ok, false);
++  assert.equal(gate.reason_code, "UNTRUSTED_RUNNER_RECEIPT");
++});
++
++test("REQ-independent-verification-009: persist without trusted channel does not write the bag", async () => {
++  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
++  const before = await store.load();
++  const forged = Object.freeze({
++    kind: "runner-receipt-channel/v1",
++    issuer_id: "node-test",
++    transport: "tool-execution-transport",
++  });
++  const persisted = await persistRunnerReceipts(store, forged);
++  assert.equal(persisted.ok, false);
++  assert.equal(persisted.reason_code, "UNTRUSTED_RUNNER_RECEIPT");
++  const after = await store.load();
++  assert.deepEqual(after.runner_receipts, {});
++  assert.equal(after.revision, before.revision);
++});
+diff --git a/scripts/lib/test-support/k6b-runner-receipt.js b/scripts/lib/test-support/k6b-runner-receipt.js
+index 54adab1..d4aa3cc 100644
+--- a/scripts/lib/test-support/k6b-runner-receipt.js
++++ b/scripts/lib/test-support/k6b-runner-receipt.js
+@@ -8,6 +8,10 @@ const {
+   createRunnerReceiptAuthority,
+   issueRunnerReceiptChannel,
+ } = require("../independent-verifier/internal/runner-receipt-channel.js");
++const {
++  persistRunnerReceipts,
++  rehydrateAndIssueRunnerReceiptChannel,
++} = require("../independent-verifier/runner-receipt-store.js");
+ 
+ const MISSING_EVIDENCE_ID = "sha256:0000000000000000000000000000000000000000000000000000000000000000";
+ const TEST_RUNNER_AUTHORITY = createRunnerReceiptAuthority({
+@@ -80,4 +84,6 @@ function createTestRunnerReceiptChannel(input) {
+ module.exports = {
+   createTestRunnerReceiptChannel,
+   createTestRunnerReceiptChannelFromReceipts,
++  persistTestRunnerReceipts: persistRunnerReceipts,
++  rehydrateTestRunnerReceiptChannel: rehydrateAndIssueRunnerReceiptChannel,
+ };

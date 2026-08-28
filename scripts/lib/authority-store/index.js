@@ -64,12 +64,62 @@ function digestAuthority(authority) {
   });
 }
 
-function computeRevision(state, journal, authority = null) {
-  return sha256Fingerprint("authority-store:revision", {
+function emptyRunnerReceipts() {
+  return {};
+}
+
+function isRunnerReceiptsMap(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function cloneRunnerReceipts(src) {
+  if (!isRunnerReceiptsMap(src)) {
+    return emptyRunnerReceipts();
+  }
+  return JSON.parse(JSON.stringify(src));
+}
+
+function digestRunnerReceipts(runnerReceipts) {
+  return sha256Fingerprint("authority-store:runner-receipts", cloneRunnerReceipts(runnerReceipts));
+}
+
+/**
+ * Revision identity over state, journal, and OperationReceipt authority.
+ * `runner_receipts_digest` is included only when the sibling bag has keys so
+ * empty/absent bags match the historical three-component digest.
+ */
+function computeRevision(state, journal, authority = null, runnerReceipts = null) {
+  const payload = {
     state_digest: digestLifecycleState(state),
     journal_digest: digestJournal(journal),
     authority_root_digest: digestAuthority(authority),
-  });
+  };
+  const bag = isRunnerReceiptsMap(runnerReceipts) ? runnerReceipts : emptyRunnerReceipts();
+  if (Object.keys(bag).length > 0) {
+    payload.runner_receipts_digest = digestRunnerReceipts(bag);
+  }
+  return sha256Fingerprint("authority-store:revision", payload);
+}
+
+const KIND_RUNNER_RECEIPT = "runner-receipt/v1";
+
+function findReceiptKindMismatch(authority, runnerReceipts) {
+  const opReceipts = authority && typeof authority === "object" ? authority.receipts || {} : {};
+  for (const rec of Object.values(opReceipts)) {
+    if (rec && typeof rec === "object" && rec.kind === KIND_RUNNER_RECEIPT) {
+      return true;
+    }
+  }
+  if (runnerReceipts != null && !isRunnerReceiptsMap(runnerReceipts)) {
+    return true;
+  }
+  const bag = isRunnerReceiptsMap(runnerReceipts) ? runnerReceipts : {};
+  for (const rec of Object.values(bag)) {
+    if (!rec || typeof rec !== "object" || rec.kind !== KIND_RUNNER_RECEIPT) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function fail(code, extra = {}) {
@@ -180,6 +230,7 @@ function createAuthorityStore(options = {}) {
     const entry = {
       inner,
       authority: cloneAuthority(seed.authority),
+      runnerReceipts: cloneRunnerReceipts(seed.runner_receipts),
       budgets: freezeBudgets(options.budgets),
       baselines: new Map(),
       midOpTickets: new Map(),
@@ -199,13 +250,16 @@ function createAuthorityStore(options = {}) {
     if (loaded.authority) {
       entry.authority = cloneAuthority(loaded.authority);
     }
+    if (Object.prototype.hasOwnProperty.call(loaded, "runner_receipts")) {
+      entry.runnerReceipts = cloneRunnerReceipts(loaded.runner_receipts);
+    }
     if (loaded.budgets) {
       entry.budgets = freezeBudgets(loaded.budgets);
     }
     const state = loaded.state;
     const journal = loaded.journal;
     const stateDigest = digestLifecycleState(state);
-    const revision = computeRevision(state, journal, entry.authority);
+    const revision = computeRevision(state, journal, entry.authority, entry.runnerReceipts);
     entry.baselines.set(revision, stateDigest);
     return {
       ok: true,
@@ -216,6 +270,7 @@ function createAuthorityStore(options = {}) {
       state_digest: stateDigest,
       budgets: cloneBudgets(entry.budgets),
       authority: cloneAuthority(entry.authority),
+      runner_receipts: cloneRunnerReceipts(entry.runnerReceipts),
     };
   }
 
@@ -247,7 +302,15 @@ function createAuthorityStore(options = {}) {
     return entry.lock(async () => {
       await entry.inner.commitJournal(nextJournal);
       const loaded = await entry.inner.load();
-      const revision = computeRevision(loaded.state, loaded.journal, entry.authority);
+      if (Object.prototype.hasOwnProperty.call(loaded, "runner_receipts")) {
+        entry.runnerReceipts = cloneRunnerReceipts(loaded.runner_receipts);
+      }
+      const revision = computeRevision(
+        loaded.state,
+        loaded.journal,
+        entry.authority,
+        entry.runnerReceipts
+      );
       let mid_op_ticket = null;
       if (fromRevision != null && fromRevision !== "") {
         const stateDigest = digestLifecycleState(loaded.state);
@@ -324,16 +387,42 @@ function createAuthorityStore(options = {}) {
     authorityCommit
   ) {
     const permitAuthorized = authorityCommit !== undefined;
+    const loadedForGuard = await entry.inner.load();
+    if (
+      permitAuthorized &&
+      authorityCommit &&
+      authorityCommit.receipt &&
+      authorityCommit.receipt.kind === KIND_RUNNER_RECEIPT
+    ) {
+      return fail("receipt-kind-mismatch", {
+        revision: computeRevision(
+          loadedForGuard.state,
+          loadedForGuard.journal,
+          entry.authority,
+          entry.runnerReceipts
+        ),
+        budgets: cloneBudgets(entry.budgets),
+      });
+    }
     if (permitAuthorized && !isCompleteAuthorityCommit(authorityCommit)) {
-      const loaded = await entry.inner.load();
       return fail("authority-commit-incomplete", {
-        revision: computeRevision(loaded.state, loaded.journal, entry.authority),
+        revision: computeRevision(
+          loadedForGuard.state,
+          loadedForGuard.journal,
+          entry.authority,
+          entry.runnerReceipts
+        ),
         budgets: cloneBudgets(entry.budgets),
       });
     }
 
-    const loaded = await entry.inner.load();
-    const currentRevision = computeRevision(loaded.state, loaded.journal, entry.authority);
+    const loaded = loadedForGuard;
+    const currentRevision = computeRevision(
+      loaded.state,
+      loaded.journal,
+      entry.authority,
+      entry.runnerReceipts
+    );
     const currentStateDigest = digestLifecycleState(loaded.state);
     const budgetsBefore = cloneBudgets(entry.budgets);
 
@@ -390,7 +479,18 @@ function createAuthorityStore(options = {}) {
         // before returning ok (never ok with null/ephemeral receipt). The bag is part of the
         // revision, so the healed head advances even though state and journal did not.
         const nextAuthority = materializeAuthorityCommit(entry.authority, authorityCommit);
-        const healedRevision = computeRevision(loaded.state, loaded.journal, nextAuthority);
+        if (findReceiptKindMismatch(nextAuthority, entry.runnerReceipts)) {
+          return fail("receipt-kind-mismatch", {
+            revision: currentRevision,
+            budgets: budgetsBefore,
+          });
+        }
+        const healedRevision = computeRevision(
+          loaded.state,
+          loaded.journal,
+          nextAuthority,
+          entry.runnerReceipts
+        );
         const stored = nextAuthority.receipts[authorityCommit.permit_id];
         if (stored && (stored.revision === "pending" || stored.revision == null)) {
           stored.revision = healedRevision;
@@ -400,6 +500,7 @@ function createAuthorityStore(options = {}) {
           journal: loaded.journal,
           authority: nextAuthority,
           budgets: entry.budgets,
+          runner_receipts: cloneRunnerReceipts(entry.runnerReceipts),
           expectedRevision: currentRevision,
         });
         if (persisted?.ok === false) {
@@ -433,7 +534,19 @@ function createAuthorityStore(options = {}) {
       ? materializeAuthorityCommit(entry.authority, authorityCommit)
       : entry.authority;
 
-    const winningRevision = computeRevision(nextState, journalToCommit, nextAuthority);
+    if (findReceiptKindMismatch(nextAuthority, entry.runnerReceipts)) {
+      return fail("receipt-kind-mismatch", {
+        revision: currentRevision,
+        budgets: budgetsBefore,
+      });
+    }
+
+    const winningRevision = computeRevision(
+      nextState,
+      journalToCommit,
+      nextAuthority,
+      entry.runnerReceipts
+    );
     if (permitAuthorized) {
       const stored = nextAuthority.receipts[authorityCommit.permit_id];
       if (stored && (stored.revision === "pending" || stored.revision == null)) {
@@ -446,6 +559,7 @@ function createAuthorityStore(options = {}) {
       state: JSON.parse(JSON.stringify(loaded.state)),
       journal: JSON.parse(JSON.stringify(loaded.journal)),
       authority: cloneAuthority(entry.authority),
+      runner_receipts: cloneRunnerReceipts(entry.runnerReceipts),
     };
     try {
       const persisted = await entry.inner.commit({
@@ -453,6 +567,7 @@ function createAuthorityStore(options = {}) {
         journal: journalToCommit,
         authority: nextAuthority,
         budgets: entry.budgets,
+        runner_receipts: cloneRunnerReceipts(entry.runnerReceipts),
         expectedRevision: currentRevision,
       });
       if (persisted?.ok === false) {
@@ -471,7 +586,15 @@ function createAuthorityStore(options = {}) {
     }
 
     const after = await entry.inner.load();
-    const revision = computeRevision(after.state, after.journal, entry.authority);
+    if (Object.prototype.hasOwnProperty.call(after, "runner_receipts")) {
+      entry.runnerReceipts = cloneRunnerReceipts(after.runner_receipts);
+    }
+    const revision = computeRevision(
+      after.state,
+      after.journal,
+      entry.authority,
+      entry.runnerReceipts
+    );
     entry.baselines.set(revision, digestLifecycleState(after.state));
 
     return {
@@ -494,6 +617,7 @@ function createAuthorityStore(options = {}) {
         state: JSON.parse(JSON.stringify(entry.inflight.state)),
         journal: JSON.parse(JSON.stringify(entry.inflight.journal)),
         authority: cloneAuthority(entry.inflight.authority),
+        runner_receipts: cloneRunnerReceipts(entry.inflight.runner_receipts),
       };
     }
     const innerSnap = entry.inner.snapshot();
@@ -501,7 +625,57 @@ function createAuthorityStore(options = {}) {
       state: innerSnap.state,
       journal: innerSnap.journal,
       authority: cloneAuthority(entry.authority),
+      runner_receipts: cloneRunnerReceipts(entry.runnerReceipts),
     };
+  }
+
+  async function commitRunnerReceipts(incoming, subjectId = defaultSubjectId) {
+    const entry = subjects.get(subjectId);
+    if (!entry) {
+      return fail("subject-not-found", { subject_id: subjectId, revision: null });
+    }
+    return entry.lock(async () => {
+      const loaded = await entry.inner.load();
+      if (Object.prototype.hasOwnProperty.call(loaded, "authority") && loaded.authority) {
+        entry.authority = cloneAuthority(loaded.authority);
+      }
+      const currentRevision = computeRevision(
+        loaded.state,
+        loaded.journal,
+        entry.authority,
+        entry.runnerReceipts
+      );
+      if (!isRunnerReceiptsMap(incoming)) {
+        return fail("receipt-kind-mismatch", { revision: currentRevision });
+      }
+      const nextBag = {
+        ...cloneRunnerReceipts(entry.runnerReceipts),
+        ...cloneRunnerReceipts(incoming),
+      };
+      if (findReceiptKindMismatch(entry.authority, nextBag)) {
+        return fail("receipt-kind-mismatch", { revision: currentRevision });
+      }
+      const nextRevision = computeRevision(
+        loaded.state,
+        loaded.journal,
+        entry.authority,
+        nextBag
+      );
+      const persisted = await entry.inner.commit({
+        state: loaded.state,
+        journal: loaded.journal,
+        authority: entry.authority,
+        budgets: entry.budgets,
+        runner_receipts: nextBag,
+        expectedRevision: currentRevision,
+      });
+      if (persisted?.ok === false) {
+        return persisted;
+      }
+      entry.runnerReceipts = nextBag;
+      entry.baselines.set(nextRevision, digestLifecycleState(loaded.state));
+      return { ok: true, revision: nextRevision, runner_receipts: cloneRunnerReceipts(nextBag) };
+    });
   }
 
   const storeInstance = {
@@ -509,8 +683,20 @@ function createAuthorityStore(options = {}) {
     load,
     compareAndSwap,
     commitJournal,
+    commitRunnerReceipts,
     snapshot,
-    computeRevision,
+    computeRevision(state, journal, authority, runnerReceipts) {
+      if (arguments.length >= 4) {
+        return computeRevision(state, journal, authority, runnerReceipts);
+      }
+      const entry = subjects.get(defaultSubjectId);
+      return computeRevision(
+        state,
+        journal,
+        authority,
+        entry ? entry.runnerReceipts : emptyRunnerReceipts()
+      );
+    },
     getBudgets(subjectId = defaultSubjectId) {
       const entry = subjects.get(subjectId);
       return entry ? cloneBudgets(entry.budgets) : null;
@@ -555,4 +741,7 @@ module.exports = {
   createAuthorityStore,
   createAuthorityRuntime,
   upsertJournalEntries,
+  cloneRunnerReceipts,
+  isRunnerReceiptsMap,
+  findReceiptKindMismatch,
 };

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.55.0] - 2026-08-28
+
+### Added
+- **Persistencia durable de `runner-receipt/v1` entre procesos**:
+  - Colección CAS aditiva `runner_receipts` en la raíz del registro de Authority Store, distinta de `authority.receipts` (OperationReceipt).
+  - Tras restart: rehidratación, recomputación de `receipt_id` y reemisión de un canal opaco **nuevo** (el WeakMap no se serializa).
+  - Bags con forma de array fallan cerrados (`receipt-kind-mismatch` / `INVALID_RUNNER_RECEIPT`); no emiten canal de confianza ni retaguean en silencio.
+- **Binding de `assessment.role` en replay**: `normalizeRole(assessment.role)` debe coincidir con el del RunnerReceipt; mismatch → `GRAPH_DIVERGENCE` aunque `assessment_id` se recalcule.
+
+### Changed
+- K6b pasa a `done`; K6c queda `next-eligible`.
+- Specs `assurance-graph` (REQ-006), `independent-verification` (REQ-009) y `authority-store` (REQ-018).
+- ADRs `docs/adr/adr-20260828-015` a `018`.
+- Ciclo SDD `k6b-durable-replay-receipt-authority` (verify PASS WITH WARNINGS; 4R approved tras remediación del CRITICAL de type-confusion). Archivado en `openspec/changes/archive/2026-08-28-k6b-durable-replay-receipt-authority/`.
+
 ## [2.54.0] - 2026-08-28
 
 ### Security

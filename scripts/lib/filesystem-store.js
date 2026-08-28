@@ -4,11 +4,15 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { renameWithFallback } = require("./atomic-write.js");
-const { computeRevision } = require("./authority-store/index.js");
+const { computeRevision, isRunnerReceiptsMap } = require("./authority-store/index.js");
 const { mergeJournalEntries } = require("./lifecycle-kernel/journal.js");
 
 function clone(val) {
   return val !== undefined ? JSON.parse(JSON.stringify(val)) : undefined;
+}
+
+function normalizeRunnerReceipts(value) {
+  return isRunnerReceiptsMap(value) ? clone(value) : {};
 }
 
 function isPidAlive(pid) {
@@ -145,6 +149,7 @@ function createFileSystemStore(options = {}) {
       journal: clone(seed.journal) || [],
       authority: clone(seed.authority) || { permits: {}, receipts: {} },
       budgets: clone(seed.budgets) || { attempts: 0, corrections: 0 },
+      runner_receipts: normalizeRunnerReceipts(seed.runner_receipts),
     };
   }
 
@@ -158,6 +163,7 @@ function createFileSystemStore(options = {}) {
           journal: Array.isArray(record.journal) ? record.journal : [],
           authority: record.authority || { permits: {}, receipts: {} },
           budgets: record.budgets || { attempts: 0, corrections: 0 },
+          runner_receipts: normalizeRunnerReceipts(record.runner_receipts),
         };
         return clone(memoryCache);
       } catch (err) {
@@ -172,6 +178,7 @@ function createFileSystemStore(options = {}) {
               journal: Array.isArray(record.journal) ? record.journal : [],
               authority: record.authority || { permits: {}, receipts: {} },
               budgets: record.budgets || { attempts: 0, corrections: 0 },
+              runner_receipts: normalizeRunnerReceipts(record.runner_receipts),
             };
             return clone(memoryCache);
           } catch (bakErr) {
@@ -198,12 +205,13 @@ function createFileSystemStore(options = {}) {
           journal: mergeJournalEntries(current.journal, clone(nextJournal)),
           authority: current.authority,
           budgets: current.budgets,
+          runner_receipts: normalizeRunnerReceipts(current.runner_receipts),
         };
         await writeRecordAtomic(nextRecord);
         return { journal: nextRecord.journal };
       });
     },
-    async commit({ state, journal, authority, budgets, expectedRevision }) {
+    async commit({ state, journal, authority, budgets, runner_receipts, expectedRevision }) {
       return withFileLock(filePath, async () => {
         let currentRecord;
         try {
@@ -231,11 +239,16 @@ function createFileSystemStore(options = {}) {
         const currentRevision = computeRevision(
           currentRecord.state,
           currentRecord.journal,
-          currentRecord.authority
+          currentRecord.authority,
+          currentRecord.runner_receipts
         );
 
         if (expectedRevision !== undefined && expectedRevision !== null && expectedRevision !== currentRevision) {
           return { ok: false, code: "cas-conflict", revision: currentRevision };
+        }
+
+        if (runner_receipts !== undefined && !isRunnerReceiptsMap(runner_receipts)) {
+          return { ok: false, code: "receipt-kind-mismatch", revision: currentRevision };
         }
 
         const nextRecord = {
@@ -245,6 +258,11 @@ function createFileSystemStore(options = {}) {
             : currentRecord.journal,
           authority: clone(authority !== undefined ? authority : currentRecord.authority),
           budgets: clone(budgets !== undefined ? budgets : currentRecord.budgets),
+          runner_receipts: clone(
+            runner_receipts !== undefined
+              ? runner_receipts
+              : normalizeRunnerReceipts(currentRecord.runner_receipts)
+          ),
         };
 
         await writeRecordAtomic(nextRecord);

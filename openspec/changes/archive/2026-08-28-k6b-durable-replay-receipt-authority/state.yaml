@@ -1,0 +1,222 @@
+change: "k6b-durable-replay-receipt-authority"
+status: "archived"
+last_updated: "2026-08-28T17:30:00Z"
+classification: high-risk
+blocking_questions: []
+
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/k6b-durable-replay-receipt-authority/proposal.md"
+    summary: "Replay-only: persist runner-receipt/v1 in a CAS bag distinct from OperationReceipt; rehydrate and reissue ephemeral channel; assessment.role must match receipt.role."
+    key_decisions:
+      - "Channel stays ephemeral; persist runner-receipt/v1 records, never the WeakMap"
+      - "Do not overload authority.receipts (OperationReceipt); additive CAS collection"
+      - "Replay role binding is independent of recomputed assessment_id"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/k6b-durable-replay-receipt-authority/specs/assurance-graph/spec.md"
+      - "openspec/changes/k6b-durable-replay-receipt-authority/specs/independent-verification/spec.md"
+      - "openspec/changes/k6b-durable-replay-receipt-authority/specs/authority-store/spec.md"
+    summary: "MODIFIED AG-006 persistable records plus reissued channel and role bind; ADDED IV-009 persist/rehydrate/reissue; ADDED AS-018 distinct CAS collection."
+    key_decisions:
+      - "Persistable artifact is runner-receipt/v1 record; channel stays ephemeral and newly issued after rehydrate"
+      - "Replay role binding is independent of recomputed assessment_id"
+      - "Additive CAS collection distinct from OperationReceipt; field name design-owned"
+  clarify:
+    status: skipped
+    rationale: "Validated sdd-spec signals reported residual_ambiguity=false with empty public_contract_questions, conflicting_requirements, and missing_acceptance_criteria arrays."
+  design:
+    status: done
+    artifact: "openspec/changes/k6b-durable-replay-receipt-authority/design.md"
+    summary: "CAS field runner_receipts at record root; additive revision digest; persist records and reissue channel; replay normalizeRole bind."
+    key_decisions:
+      - "CAS collection field is runner_receipts (not authority.receipts)"
+      - "computeRevision adds runner_receipts_digest only when the map is non-empty"
+      - "Persist via trusted-channel helper; WeakMap stays ephemeral; replay role bind independent of assessment_id"
+  tasks:
+    status: done
+    artifact: "openspec/changes/k6b-durable-replay-receipt-authority/tasks.md"
+    summary: "6 phases, 24 tasks; CAS runner_receipts + rehydrate/reissue + normalizeRole bind; 3 terminal adversarial tests; size-exception single PR."
+    key_decisions:
+      - "Apply order: authority-store → filesystem-store → runner-receipt-store → assurance-graph → integration → docs"
+      - "Decision needed before apply: No; chain strategy size-exception (exception-ok)"
+      - "Do not edit independent-verifier/index.js consumption loop"
+  apply:
+    status: done
+    artifact: "openspec/changes/k6b-durable-replay-receipt-authority/apply-progress.md"
+    summary: "24/24 tasks: CAS runner_receipts, persist/rehydrate/reissue, replay role bind; 3 terminal adversarial tests green; npm test 2817 pass."
+    key_decisions:
+      - "Persist is a side-effect helper; independent-verifier/index.js untouched"
+      - "CAS field runner_receipts at record root, distinct from authority.receipts"
+      - "size:exception single PR; Focused TDD"
+  verify:
+    status: done
+    artifact: "openspec/changes/k6b-durable-replay-receipt-authority/verify-report.md"
+    verdict: "PASS WITH WARNINGS"
+    summary: "PASS WITH WARNINGS: B1/B2 runtime-closed; 24/24 tasks; npm test 2817 pass. K6b stays revise until 4R+archive."
+    key_decisions:
+      - "B1 same graph_id after persist/rehydrate/reissue; B2 role tamper with recomputed assessment_id → GRAPH_DIVERGENCE"
+      - "K6b remains revise; K6c blocked until archive of this change"
+      - "Inherited AG-006 receipt-token attestation branch lacks a dedicated runtime test (WARNING, tasks-gap)"
+  archive:
+    status: done
+    artifact: "openspec/changes/k6b-durable-replay-receipt-authority/archive-report.md"
+    summary: "Plan-and-Report: 3 spec merges (AG-006 MOD, IV-009 ADD, AS-018 ADD), 4 ADR promotions, accepted AG-006 token attestation WARNING."
+    key_decisions:
+      - "archive-plan.json emitted; runtime owns live spec/ADR writes and folder move"
+      - "K6b product revise persists until post-archive docs update by orchestrator"
+      - "4R approved; CRITICAL F-e9dfc8f1b40b4940 remediated"
+
+owner:
+  author: Manuel Retamozo
+  branch: fix/k6b-durable-replay-receipt-authority
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "First match: foundation/federated/bugfix/brownfield/refactor/hotfix conditions not met; project.status=active and classification=high-risk select standard (sdd-propose → sdd-spec → sdd-design → sdd-tasks → sdd-apply → sdd-verify → sdd-archive; gates: clarify, 4r-review-gate)."
+  validated: true
+  validation_errors: []
+
+approvals:
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: vscode/askQuestions
+    accepted_at: "2026-08-28T14:39:00Z"
+    synthesis: "Cerrar en replay, y solo ahí, los dos blockers de v2.54.0. Los records runner-receipt/v1 se persisten en el CAS de K2.1; tras un restart el runtime confiable los rehidrata, recomputa receipt_id y reemite un canal opaco nuevo para un replay byte-identical. En replay, normalizeRole(assessment.role) debe coincidir con el del receipt; si no, GRAPH_DIVERGENCE aunque se haya recalculado assessment_id. El verifier de ejecución, la cronología y el MUST-walk no se tocan. K6b sigue revise y K6c bloqueado hasta el archive."
+    scope: "In: persistencia durable de runner-receipt/v1 en CAS/Authority Store de K2.1; rehidratación post-restart y reemisión de capability efímera; binding assessment.role ↔ RunnerReceipt.role en replay; adversariales restart/same graph_id, receipt ausente → GRAPH_DIVERGENCE, role tampered con assessment_id recomputado → GRAPH_DIVERGENCE; wording de spec (channel no es persistable). Out: serializar WeakMap, PKI, mezclar con OperationReceipt de lifecycle, remodelar verifyCandidate/strategy/MUST-walk, arrancar K6c."
+    applies_to:
+      - change-classification
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: vscode/askQuestions
+    accepted_at: "2026-08-28T14:45:00Z"
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: vscode/askQuestions
+    accepted_at: "2026-08-28T14:45:00Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: review-workload-001
+    gate: review-workload
+    decision: apply-with-size-exception
+    source: vscode/askQuestions
+    accepted_at: "2026-08-28T14:45:00Z"
+    applies_to:
+      - sdd-apply
+  - id: 4r-correction-001
+    gate: 4r-review-gate
+    decision: remediate-critical
+    source: vscode/askQuestions
+    accepted_at: "2026-08-28T17:19:00Z"
+    finding_ids: ["F-e9dfc8f1b40b4940"]
+    slice_id: "S-86a87b84f209fad8"
+    applies_to:
+      - 4r-review-gate
+
+assumptions:
+  - id: sdd-propose-001
+    phase: sdd-propose
+    statement: "Persistir runner-receipt/v1 en una colección CAS distinta de authority.receipts; el nombre exacto del campo es design-owned."
+    reversibility: high
+    basis: "El briefing prohíbe mezclar con OperationReceipt; authority.receipts ya es esa familia; el nombre de bolsa no es API pública del verifier."
+    recorded_at: "2026-08-28T14:55:00Z"
+    status: unresolved
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "Persist and rehydrate live in runner-receipt-store.js as a trusted-channel side effect, not inside the verifyCandidate consumption loop."
+    reversibility: high
+    basis: "IV-009 and the design constraint keep strategy/MUST-walk unchanged; existing independent-verifier/index.test.js must stay green without a store."
+    recorded_at: "2026-08-28T15:25:00Z"
+    status: unresolved
+  - id: sdd-design-002
+    phase: sdd-design
+    statement: "One reissued channel requires homogeneous issuer_id and transport across loaded runner-receipt/v1 records; mixed identities fail closed."
+    reversibility: high
+    basis: "issueRunnerReceiptChannel binds a single authority identity; current verify paths emit one issuer per verification."
+    recorded_at: "2026-08-28T15:25:00Z"
+    status: unresolved
+
+gates:
+  clarify:
+    status: skipped
+    skip_reason: "residual_ambiguity false; public_contract_questions/conflicting_requirements/missing_acceptance_criteria empty"
+  4r-review-gate:
+    status: done
+    schema_version: 1
+    classification: high-risk
+    depth:
+      review: strict
+    on_blocker: advisory
+    lineage_status: approved
+    lineage_id: "sha256:c279cdd93806990f6dd757729ea51cda8b3afd6404308f41070c54b0ac09d721"
+    lineage_revision: 12
+    lineage_artifact: "openspec/changes/k6b-durable-replay-receipt-authority/.4r/lineage.json"
+    findings_summary: "0 BLOCKER, 1 CRITICAL resolved, 6 WARNING advisory, 2 SUGGESTION advisory"
+    surfaced_to_user: true
+    archive_allowed: true
+    terminal_reason: "all-remediation-slices-passed"
+    blocking_finding_ids: ["F-e9dfc8f1b40b4940"]
+    evidence:
+      schema_version: 1
+      fingerprint: "sha256:cea24af831a003165c688d200f7c7decf92d919689ca1fb2d430f16e5c99324c"
+      sources:
+        capabilities: ["assurance-graph", "authority-store", "independent-verification", "runtime"]
+        operation_types: ["add", "modify"]
+        dependencies: []
+        facts:
+          - { code: "design-risk", source: "design", detail: "durable runner-receipt CAS plus ephemeral channel reissue" }
+          - { code: "metadata-runtime", source: "metadata", detail: "runtime" }
+          - { code: "diff-auth-permission", source: "real-diff", detail: "scripts/lib/authority-store/index.js,scripts/lib/independent-verifier/runner-receipt-store.js" }
+          - { code: "diff-error-flow", source: "real-diff", detail: "scripts/lib/independent-verifier/runner-receipt-store.js" }
+          - { code: "verify-reliability", source: "verify", detail: "PASS WITH WARNINGS inherited token attestation inspection-proof" }
+    generalist:
+      status: needs-specialist
+      specialists: ["risk", "reliability", "resilience", "readability"]
+      reason: "signals=design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability"
+    dimensions:
+      risk:
+        selected: true
+        reasons:
+          - { code: "high-risk-override", source: "override", detail: "Classification requires full 4R", precedence: 0 }
+          - { code: "diff-auth-permission", source: "real-diff", detail: "scripts/lib/authority-store/index.js,scripts/lib/independent-verifier/runner-receipt-store.js", precedence: 2 }
+          - { code: "generalist-escalation", source: "generalist", detail: "signals=design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability", precedence: 3 }
+          - { code: "design-risk", source: "design", detail: "durable runner-receipt CAS plus ephemeral channel reissue", precedence: 4 }
+      reliability:
+        selected: true
+        reasons:
+          - { code: "high-risk-override", source: "override", detail: "Classification requires full 4R", precedence: 0 }
+          - { code: "verify-reliability", source: "verify", detail: "PASS WITH WARNINGS inherited token attestation inspection-proof", precedence: 1 }
+          - { code: "diff-error-flow", source: "real-diff", detail: "scripts/lib/independent-verifier/runner-receipt-store.js", precedence: 2 }
+          - { code: "generalist-escalation", source: "generalist", detail: "signals=design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability", precedence: 3 }
+          - { code: "metadata-runtime", source: "metadata", detail: "runtime", precedence: 5 }
+      resilience:
+        selected: true
+        reasons:
+          - { code: "high-risk-override", source: "override", detail: "Classification requires full 4R", precedence: 0 }
+          - { code: "diff-error-flow", source: "real-diff", detail: "scripts/lib/independent-verifier/runner-receipt-store.js", precedence: 2 }
+          - { code: "generalist-escalation", source: "generalist", detail: "signals=design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability", precedence: 3 }
+      readability:
+        selected: true
+        reasons:
+          - { code: "high-risk-override", source: "override", detail: "Classification requires full 4R", precedence: 0 }
+          - { code: "generalist-escalation", source: "generalist", detail: "signals=design-risk,diff-auth-permission,diff-error-flow,diff-structural-complexity,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience,readability", precedence: 3 }
+
+baseline_fingerprints:
+  assurance-graph: "6884f1172b948b046d9b07618c7a36c29e696773d09b614e809cc319cc92e68e"
+  independent-verification: "c6fc5a773c73c34f6f496b45b87f5e8f403fd12e8b9c097089f5b923ff52dc7a"
+  authority-store: "bc2b4198e8e14f7cd4fc4c7bf4e98793adff3835bcb236e283692ec3c01fd268"

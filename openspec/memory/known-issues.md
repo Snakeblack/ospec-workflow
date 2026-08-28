@@ -1,7 +1,14 @@
 ---
 title: Known Issues
-last_updated: 2026-08-10
+last_updated: 2026-08-28
 ---
+
+## Inherited AG-006 receipt-token attestation lacks a dedicated runtime test
+- severity: WARNING
+- area: scripts/lib/assurance-graph/index.test.js (validateReplayRecords satisfied_tokens branch)
+- workaround: add a replay case where assessment claims an obligation-legal token absent from receipt.satisfied_tokens
+- change: k6b-durable-replay-receipt-authority
+- date: 2026-08-28
 
 ## npm test exit code 1: scripts/lib/verify-lineage.test.js crashes on load with Error: freezeCandidate requires diffText or diff_hash
 - severity: BLOCKER

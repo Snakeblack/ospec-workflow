@@ -922,3 +922,134 @@ test("K5: AuthorityStore never degrades completed journal evidence from a stale 
   assert.deepEqual(entry.result, completed.result);
 });
 
+test("REQ-authority-store-018: empty runner_receipts digest matches three-arg revision", () => {
+  const state = pendingState();
+  const journal = [];
+  const authority = { permits: {}, receipts: {} };
+  const threeArg = computeRevision(state, journal, authority);
+  assert.equal(computeRevision(state, journal, authority, {}), threeArg);
+  assert.equal(computeRevision(state, journal, authority, undefined), threeArg);
+  assert.equal(computeRevision(state, journal, authority, null), threeArg);
+});
+
+test("REQ-authority-store-018: distinct runner_receipts bag changes revision without touching digestAuthority", () => {
+  const state = pendingState();
+  const journal = [];
+  const authority = { permits: {}, receipts: {} };
+  const { digestAuthority } = require("./index.js");
+  const bag = {
+    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {
+      schema_version: 1,
+      kind: "runner-receipt/v1",
+      receipt_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      candidate_id: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      evidence_id: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      node_id: "n1",
+      role: "acceptance",
+      satisfied_tokens: ["ev:test-pass"],
+      outcome: "passed",
+      issuer_id: "node-test",
+      transport: "tool-execution-transport",
+    },
+  };
+  const empty = computeRevision(state, journal, authority);
+  const withBag = computeRevision(state, journal, authority, bag);
+  assert.notEqual(withBag, empty);
+  assert.equal(
+    digestAuthority({ permits: {}, receipts: {}, runner_receipts: bag }),
+    digestAuthority({ permits: {}, receipts: {} })
+  );
+});
+
+test("REQ-authority-store-018: load defaults runner_receipts to empty map; authority.receipts stay OperationReceipt-only", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const loaded = await store.load();
+  assert.deepEqual(loaded.runner_receipts, {});
+  assert.deepEqual(loaded.authority.receipts, {});
+  const snap = store.snapshot();
+  assert.deepEqual(snap.runner_receipts, {});
+});
+
+test("REQ-authority-store-018: runner-receipt/v1 in authority.receipts fails closed with receipt-kind-mismatch", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const before = await store.load();
+  const permitId = "permit:runtime:kind-mismatch-op";
+  const mixed = sampleReceipt(permitId, before.revision);
+  mixed.kind = "runner-receipt/v1";
+  const cas = await store.compareAndSwap(
+    DEFAULT_SUBJECT_ID,
+    before.revision,
+    startedState(),
+    [],
+    null,
+    sampleAuthorityCommit(permitId, mixed)
+  );
+  assert.equal(cas.ok, false);
+  assert.equal(cas.code, "receipt-kind-mismatch");
+  assert.equal(cas.revision, before.revision);
+  const after = await store.load();
+  assert.equal(after.revision, before.revision);
+  assert.equal(after.authority.receipts[permitId], undefined);
+});
+
+test("REQ-authority-store-018: OperationReceipt in runner_receipts fails closed and does not advance head", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const before = await store.load();
+  const persisted = await store.commitRunnerReceipts({
+    "sha256:op-in-runner-bag": sampleReceipt("permit:runtime:wrong-bag", before.revision),
+  });
+  assert.equal(persisted.ok, false);
+  assert.equal(persisted.code, "receipt-kind-mismatch");
+  assert.equal(persisted.revision, before.revision);
+  const after = await store.load();
+  assert.equal(after.revision, before.revision);
+  assert.deepEqual(after.runner_receipts, {});
+  assert.deepEqual(after.authority.receipts, {});
+});
+
+test("REQ-authority-store-018: commitRunnerReceipts persists distinct bag and lifecycle CAS keeps it", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const before = await store.load();
+  const receiptId = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+  const runnerReceipt = {
+    schema_version: 1,
+    kind: "runner-receipt/v1",
+    receipt_id: receiptId,
+    candidate_id: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    evidence_id: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    node_id: "n1",
+    role: "acceptance",
+    satisfied_tokens: ["ev:test-pass"],
+    outcome: "passed",
+    issuer_id: "node-test",
+    transport: "tool-execution-transport",
+  };
+  const committed = await store.commitRunnerReceipts({ [receiptId]: runnerReceipt });
+  assert.equal(committed.ok, true);
+  assert.notEqual(committed.revision, before.revision);
+  const mid = await store.load();
+  assert.equal(mid.runner_receipts[receiptId].kind, "runner-receipt/v1");
+  assert.equal(mid.authority.receipts[receiptId], undefined);
+
+  const cas = await store.compareAndSwap(DEFAULT_SUBJECT_ID, mid.revision, startedState(), []);
+  assert.equal(cas.ok, true);
+  const after = await store.load();
+  assert.equal(after.runner_receipts[receiptId].kind, "runner-receipt/v1");
+  assert.equal(
+    after.revision,
+    computeRevision(after.state, after.journal, after.authority, after.runner_receipts)
+  );
+});
+
+test("REQ-authority-store-018: commitRunnerReceipts rejects array-shaped bags instead of no-op empty merge", async () => {
+  const store = createAuthorityStore({ initial: { state: pendingState(), journal: [] } });
+  const before = await store.load();
+  const committed = await store.commitRunnerReceipts([{ kind: "runner-receipt/v1" }]);
+  assert.equal(committed.ok, false);
+  assert.equal(committed.code, "receipt-kind-mismatch");
+  assert.equal(committed.revision, before.revision);
+  const after = await store.load();
+  assert.equal(after.revision, before.revision);
+  assert.deepEqual(after.runner_receipts, {});
+});
+
