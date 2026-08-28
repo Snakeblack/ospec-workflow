@@ -10,7 +10,7 @@ consumer tags — without executing the lifecycle reducer.
 
 ### Requirement:### Requirement: Versioned Schema Families With Id And Version {#REQ-kernel-contract-schemas-001}
 
-The contract suite MUST publish a versioned JSON Schema for each family: state/transition, classification, contract, graph/node, work order/result, candidate, SourceSnapshot, WorkOrder, WorkResult, Candidate, evidence, verification, finding/review, failure/recovery, receipt, event, OperationPermit, OperationReceipt, effect-class, HostCapabilities, HostAdapter, ExecutionTransport, QuestionTransport, WorkerTransport, ToolExecutionTransport, DeliveryGateTransport, CapabilityProof, transport-request, transport-outcome, transport-failure, execution-graph, policy-snapshot, clarify-event, execution-budget, authority-effect-budget, causal-failure, failure-recovery-transition, workspace-descriptor, capsule-definition, work-result-execution-payload, containment-violation, assurance-graph, and assessment/binding. Every schema MUST declare a stable `$id` and an explicit version field (`schema_version` or equivalent). Consumers MUST be able to pin a schema by `$id`/version.
+The contract suite MUST publish a versioned JSON Schema for each family: state/transition, classification, contract, graph/node, work order/result, candidate, SourceSnapshot, WorkOrder, WorkResult, Candidate, evidence, verification, finding/review, failure/recovery, receipt, event, OperationPermit, OperationReceipt, effect-class, HostCapabilities, HostAdapter, ExecutionTransport, QuestionTransport, WorkerTransport, ToolExecutionTransport, DeliveryGateTransport, CapabilityProof, transport-request, transport-outcome, transport-failure, execution-graph, policy-snapshot, clarify-event, execution-budget, authority-effect-budget, causal-failure, failure-recovery-transition, workspace-descriptor, capsule-definition, work-result-execution-payload, containment-violation, assurance-graph, assessment/binding, and runner-receipt. Every schema MUST declare a stable `$id` and an explicit version field (`schema_version` or equivalent). Consumers MUST be able to pin a schema by `$id`/version.
 (Previously: K6b closed the inventory at assurance-graph; this remediation adds an additive assessment/binding family without mutating evidence/v2, verification/v2, or K1 v1 pins.)
 
 #### Scenario: Every required family has $id and version
@@ -81,6 +81,13 @@ The contract suite MUST publish a versioned JSON Schema for each family: state/t
 
 - GIVEN the required schema family inventory
 - WHEN assessment/binding is checked
+- THEN it MUST be present as a pinned versioned family with a distinct non-empty `$id`
+- AND evidence/v2, verification/v2, and K1 v1 pins MUST remain byte-identical
+
+#### Scenario: Runner-receipt family is included without mutating K6b or K1 pins
+
+- GIVEN the required schema family inventory
+- WHEN runner-receipt is checked
 - THEN it MUST be present as a pinned versioned family with a distinct non-empty `$id`
 - AND evidence/v2, verification/v2, and K1 v1 pins MUST remain byte-identical
 
@@ -858,3 +865,35 @@ The contract suite MUST publish `assessment/v2.schema.json` (`$id: "ospec://sche
 - WHEN assessment schema entries are inspected
 - THEN `assessment/v2.schema.json` MUST be registered with `$id: "ospec://schemas/kernel/assessment/v2"`
 - AND `assessment/v1.schema.json` MUST remain registered with `$id: "ospec://schemas/kernel/assessment/v1"`
+
+### Requirement: Runner Receipt V1 Family With Content-Addressed Identity {#REQ-kernel-contract-schemas-028}
+
+The contract suite MUST publish `runner-receipt/v1.schema.json` (`$id: "ospec://schemas/kernel/runner-receipt/v1"`, `schema_version: 1`, `kind: "runner-receipt/v1"`). Required fields MUST be `schema_version`, `kind`, `receipt_id` (`^sha256:[a-f0-9]{64}$`), `candidate_id` (`^sha256:[a-f0-9]{64}$`), `evidence_id` (`^sha256:[a-f0-9]{64}$`), `node_id` (non-empty string), `role` (closed strategy-role enumeration), `satisfied_tokens` (array of unique non-empty strings), `outcome` (`passed | failed`), `issuer_id` (non-empty string), and `transport` (`tool-execution-transport | execution-transport`). `evidence_id` MUST be required. `receipt_id` MUST be a content-addressed SHA-256 identifier matching `^sha256:[a-f0-9]{64}$`. Optional `execution_sequence` MAY include required `run_id` and `ordinal` (integer ≥ 1) and optional `previous_evidence_id` matching `^sha256:[a-f0-9]{64}$`. The schema MUST enforce `additionalProperties: false`. The family MUST be registered in `schemas/kernel/manifest.json` and `schemas/kernel/contract-claims.json`. `schemas/kernel/runner-receipt/` MUST be excluded from the K1 frozen baseline pin. `evidence/v2`, `verification/v2`, and K1 v1 schema bytes and `K1_SCHEMA_BASELINE` pins MUST remain byte-identical. The family MUST remain distinct from `receipt/v1` and `OperationReceipt`.
+(Previously: the kernel inventory had no runner-receipt/v1 family; receipts were untyped caller DTOs.)
+
+#### Scenario: Valid runner-receipt v1 payload exposes required identity fields
+
+- GIVEN a complete `runner-receipt/v1` payload with `receipt_id`, required `evidence_id`, `candidate_id`, `node_id`, `role`, `satisfied_tokens`, `outcome`, `issuer_id`, and `transport`
+- WHEN validated against `runner-receipt/v1.schema.json`
+- THEN validation MUST succeed
+- AND `$id` MUST be `ospec://schemas/kernel/runner-receipt/v1`
+
+#### Scenario: Runner-receipt missing evidence_id fails closed
+
+- GIVEN a `runner-receipt/v1` payload that omits `evidence_id`
+- WHEN validated against `runner-receipt/v1.schema.json`
+- THEN validation MUST fail closed identifying the missing required `evidence_id`
+
+#### Scenario: Manifest and contract-claims register runner-receipt v1
+
+- GIVEN `schemas/kernel/manifest.json` and `contract-claims.json`
+- WHEN the `runner-receipt` family is inspected
+- THEN it MUST be registered at `schemas/kernel/runner-receipt/v1.schema.json` with `$id: "ospec://schemas/kernel/runner-receipt/v1"`
+- AND `schema_version` MUST be `1`
+
+#### Scenario: Evidence v2, verification v2, and K1 v1 pins remain frozen after runner-receipt publication
+
+- GIVEN `evidence/v2.schema.json`, `verification/v2.schema.json`, K1 v1 schemas, and `K1_SCHEMA_BASELINE`
+- WHEN verified after `runner-receipt/v1.schema.json` publication
+- THEN those schema bytes and K1 pins MUST remain byte-identical
+- AND `schemas/kernel/runner-receipt/` MUST NOT be included in the K1 frozen baseline pin

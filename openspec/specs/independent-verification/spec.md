@@ -82,7 +82,7 @@ The verifier MUST enforce strict physical segregation of raw observations (`rawE
 
 Trusted evidence metadata (`role`, `obligation_ids`, `evidence_requirements_satisfied`) MUST be derived exclusively by the verifier from the Execution Graph and a trusted runtime `runnerReceiptChannel`. Direct caller DTO properties named `receipts` or `runner_receipts` MUST fail closed with `UNTRUSTED_RUNNER_RECEIPT`. The channel MUST be an opaque runtime capability whose identity cannot be reconstructed by copying public fields.
 
-Every receipt obtained from that channel MUST conform to `runner-receipt/v1` and MUST contain a content-addressed `receipt_id`, `candidate_id`, REQUIRED `evidence_id`, `node_id`, `role`, canonical `satisfied_tokens`, `outcome`, `issuer_id`, and `transport`. Temporal receipts MUST also carry `execution_sequence`. The verifier MUST recompute `receipt_id`, validate issuer/transport against the channel, require exact `receipt.evidence_id === evidence.evidence_id`, require matching Candidate and node bindings, and reject orphan, duplicate, positional, or node-only matching with `INVALID_RUNNER_RECEIPT` or `RUNNER_RECEIPT_BINDING_MISMATCH`. `node.kind` MUST NOT substitute for a strategy role. A receipt with `outcome: failed` MUST NOT carry any satisfied token.
+Every receipt obtained from that channel MUST conform to `runner-receipt/v1` and MUST contain a content-addressed `receipt_id`, `candidate_id`, REQUIRED `evidence_id`, `node_id`, `role`, canonical uniquely-sorted `satisfied_tokens`, `outcome`, `issuer_id`, and `transport`. Temporal receipts MUST also carry `execution_sequence`. The verifier MUST recompute `receipt_id` from canonical fields excluding `receipt_id` itself, validate issuer/transport against the channel, require exact `receipt.evidence_id === evidence.evidence_id`, require matching Candidate and node bindings, and reject orphan, duplicate, positional, or node-only matching with `INVALID_RUNNER_RECEIPT` or `RUNNER_RECEIPT_BINDING_MISMATCH`. `node.kind` MUST NOT substitute for a strategy role. When an Execution Graph node declares `role`, that value MUST equal the bound receipt `role` or fail closed with `RUNNER_RECEIPT_BINDING_MISMATCH`. `obligation_ids` MUST be derived from Execution Graph `implemented_by`, never copied from receipt fields. A receipt with `outcome: failed` MUST NOT carry any satisfied token. A receipt whose `role` is `red` MUST have `outcome: failed`; every other role MUST have `outcome: passed`; role/outcome incoherence MUST fail closed with `INVALID_RUNNER_RECEIPT`. The productive `runner-receipt` facade MUST NOT export channel-minting operations; only internal runtime authority MAY issue `runnerReceiptChannel`. On `ok: true`, `verifyCandidate` MUST emit persistable `replay_evidence` items each containing the `evidence/v2` record, raw observation bytes, and the bound `runner_receipt_id`.
 
 The verifier MUST NOT accept a strong class solely because the raw payload string claims it. Payload digest MUST NOT be treated as origin. When collector or transport metadata is absent, untrusted, or disagrees with a claimed strong class, sufficiency MUST fail closed. PKI MUST NOT be required. Evidence that is insufficient, stale relative to the frozen Candidate, bound to a foreign subject, or fabricated MUST fail closed. A worker `model-reported` claim MUST NOT satisfy an obligation that requires a strong class.
 (Previously: raw evidence containing untrusted caller metadata did not trigger an explicit UNTRUSTED_CALLER_METADATA fail-closed rejection.)
@@ -155,6 +155,33 @@ The verifier MUST NOT accept a strong class solely because the raw payload strin
 - AND non-empty `satisfied_tokens`
 - WHEN the verifier validates the receipt
 - THEN verification MUST fail closed with `INVALID_RUNNER_RECEIPT`
+
+#### Scenario: Role and outcome incoherence fails closed
+
+- GIVEN a trusted-channel receipt whose `role` is `red` with `outcome: passed`, or a non-red role with `outcome: failed`
+- WHEN the verifier validates the receipt
+- THEN verification MUST fail closed with `INVALID_RUNNER_RECEIPT`
+
+#### Scenario: Receipt role disagrees with Execution Graph node role
+
+- GIVEN a graph node that declares `role`
+- AND a bound trusted receipt whose `role` differs from that node
+- WHEN the verifier resolves receipt bindings
+- THEN verification MUST fail closed with `RUNNER_RECEIPT_BINDING_MISMATCH`
+
+#### Scenario: Productive facade cannot mint a trusted receipt channel
+
+- GIVEN the public `runner-receipt` module consumed by `verifyCandidate`
+- WHEN a caller inspects exported operations
+- THEN channel-minting operations MUST be absent
+- AND copying public `kind`, `issuer_id`, and `transport` fields MUST NOT reconstruct authority
+
+#### Scenario: Successful verification emits persistable replay_evidence
+
+- GIVEN a frozen Candidate whose strategy, receipt bindings, and MUST coverage pass
+- WHEN `verifyCandidate` returns `ok: true`
+- THEN the result MUST include `replay_evidence`
+- AND each item MUST carry the `evidence/v2` record, raw observation bytes, and the bound `runner_receipt_id`
 
 ### Requirement: Verdict Is Not Evidence {#REQ-independent-verification-004}
 
@@ -254,10 +281,10 @@ Non-conflicting roles (such as `integration` + `acceptance`, `invariant` + `inte
 
 The verifier MUST enforce strict causal chronology validation using the trusted receipt `execution_sequence` for `strict-tdd`, `bug`, and `refactor` strategies:
 - Every temporal receipt in `strict-tdd`, `bug`, and `refactor` MUST provide an `execution_sequence` containing a non-empty consistent `run_id` and a positive integer `ordinal`.
-- The first temporal Evidence is the chain root. Every subsequent temporal Evidence MUST provide `previous_evidence_id` equal to the immediately preceding EvidenceId after sorting by ordinal.
+- The first temporal Evidence is the chain root and MUST NOT declare `previous_evidence_id`. Every subsequent temporal Evidence MUST provide `previous_evidence_id` equal to the immediately preceding EvidenceId after sorting by ordinal.
 - Ordinals MUST be unique and strictly monotonically increasing within that single run.
 - The verifier MUST NOT fall back to JSON array index/position order to determine chronological sequence.
-- For `bug` and `strict-tdd` strategies: RED MUST precede GREEN in `execution_sequence`; GREEN before RED or missing `execution_sequence` MUST fail closed with `STRATEGY_SEQUENCE_VIOLATION`, and RED after PATCH MUST fail closed.
+- For `bug` and `strict-tdd` strategies: RED MUST precede GREEN in `execution_sequence`; GREEN before RED or missing `execution_sequence` MUST fail closed with `STRATEGY_SEQUENCE_VIOLATION`, and RED after PATCH MUST fail closed. For `bug`, RED, PATCH, and GREEN form one causal chain; GREEN `previous_evidence_id` MUST equal the PATCH EvidenceId when PATCH is the immediate predecessor.
 - For `refactor` strategy: `characterization-before` MUST precede `characterization-after` in `execution_sequence` (`run_id`, monotonic `ordinal`, and `previous_evidence_id`). `characterization-after` executing before, concurrently with, or without causal sequence linking to `characterization-before` MUST fail closed with `STRATEGY_SEQUENCE_VIOLATION`.
 
 Unique-sort of `verification.evidence_ids` MUST NOT be the assessment identity and MUST NOT hide distinct role or obligation bindings.
@@ -317,6 +344,19 @@ Unique-sort of `verification.evidence_ids` MUST NOT be the assessment identity a
 
 - GIVEN RED and GREEN or characterization-before and characterization-after in increasing ordinal order
 - AND the later receipt omits `previous_evidence_id`
+- WHEN the verifier evaluates strategy chronology
+- THEN verification MUST fail closed with `STRATEGY_SEQUENCE_VIOLATION`
+
+#### Scenario: Causal chain root declaring previous_evidence_id fails closed
+
+- GIVEN temporal receipts whose lowest ordinal declares `previous_evidence_id`
+- WHEN the verifier evaluates strategy chronology
+- THEN verification MUST fail closed with `STRATEGY_SEQUENCE_VIOLATION`
+
+#### Scenario: Bug GREEN that does not chain to PATCH fails closed
+
+- GIVEN bug-strategy RED, PATCH, and GREEN with increasing ordinals in one `run_id`
+- AND GREEN `previous_evidence_id` does not equal the PATCH EvidenceId
 - WHEN the verifier evaluates strategy chronology
 - THEN verification MUST fail closed with `STRATEGY_SEQUENCE_VIOLATION`
 

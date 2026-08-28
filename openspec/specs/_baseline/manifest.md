@@ -47,4 +47,7 @@
 | independent-verification | skipped | - | 71d5114 | 2026-08-28T12:09:36Z |
 | assurance-graph | skipped | - | 71d5114 | 2026-08-28T12:09:36Z |
 | kernel-contract-schemas | skipped | - | 71d5114 | 2026-08-28T12:09:36Z |
+| independent-verification | reconciled | - | a476b9a | 2026-08-28T12:25:32Z |
+| assurance-graph | reconciled | - | a476b9a | 2026-08-28T12:25:32Z |
+| kernel-contract-schemas | reconciled | - | a476b9a | 2026-08-28T12:25:32Z |
 

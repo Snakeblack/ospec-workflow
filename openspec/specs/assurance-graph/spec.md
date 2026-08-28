@@ -162,15 +162,17 @@ fail closed. Edges whose `relation` is outside
 
 ### Requirement: Replay From Persistable Outputs {#REQ-assurance-graph-006}
 
-The Assurance Graph MUST be reproducible from persistable outputs: canonical input digests, projected nodes and edges, replay Evidence bundles containing each `evidence/v2` plus raw observation bytes or a resolvable content-addressed `observation_blob_id`, verification records (`verification/v2`), and assessment records (`assessment/v2`) that carry `obligation_id`. Replay MUST NOT require ephemeral projector fields. Consumers MUST NOT reinvent `obligation_id` values from vanished fields. `satisfies` edges MUST be rebuildable from persistable assessments where `evidence_requirements_satisfied.length > 0`.
+The Assurance Graph MUST be reproducible from persistable outputs: canonical input digests, projected nodes and edges, replay Evidence bundles containing each `evidence/v2` plus raw observation bytes or a resolvable content-addressed `observation_blob_id` plus a bound `runner_receipt_id`, a trusted opaque `runnerReceiptChannel`, verification records (`verification/v2`), and assessment records (`assessment/v2`) that carry `obligation_id`. Replay MUST NOT require ephemeral projector fields. Consumers MUST NOT reinvent `obligation_id` values from vanished fields. `satisfies` edges MUST be rebuildable from persistable assessments where `evidence_requirements_satisfied.length > 0`.
 
 `replayAssuranceGraph` MUST perform comprehensive validation over all replayed records before accepting the replay:
-1. `evidence/v2`: schema validity against `evidence/v2.schema.json`; REQUIRED inline raw bytes or a resolvable `observation_blob_id` equal to `record.digest`; `candidate_id` matching graph subject; recomputed content digest via `digestRawBytes` matching `record.digest`; recomputed `evidence_id` via `computeEvidenceId` matching `record.evidence_id`; evaluation of provenance sufficiency via `evaluateProvenanceSufficiency` verifying admissible provenance against trusted collector or transport metadata; and strict absence of `verdict`.
-2. `verification/v2`: schema validity against `verification/v2.schema.json`; recomputed `verification_id`; `candidate_id` matching graph subject; and `evidence_ids` being a strict subset of replayed evidence IDs.
-3. `assessment/v2`: schema validity against `assessment/v2.schema.json`; recomputed `assessment_id`; `candidate_id` matching graph subject; bound `policy_snapshot_id` matching graph; referenced `evidence_id` existing in replayed evidence; `obligation_id` existing in Execution Graph; bound `node_id` implementing that obligation; persistable `node_id` matching evidence record; and non-empty `evidence_requirements_satisfied` for satisfaction claims.
-4. Obligation coverage: verified satisfaction of all non-deferred MUST obligations by the replayed assessments.
+1. Persistable bundle: the replay argument MUST be a non-null object. Unexpected exceptions during validation MUST fail closed with `GRAPH_DIVERGENCE`.
+2. Trusted runner receipts: replay MUST present an opaque `runnerReceiptChannel` issued by runtime authority. A missing channel, a reconstructed public-field object, or untrusted authority MUST fail closed with `GRAPH_DIVERGENCE`.
+3. `evidence/v2`: schema validity against `evidence/v2.schema.json`; REQUIRED inline raw bytes or a resolvable `observation_blob_id` equal to `record.digest`; `candidate_id` matching graph subject; recomputed content digest via `digestRawBytes` matching `record.digest`; recomputed `evidence_id` via `computeEvidenceId` matching `record.evidence_id`; evaluation of provenance sufficiency via `evaluateProvenanceSufficiency` verifying admissible provenance against trusted collector or transport metadata; strict absence of `verdict`; and exact 1:1 binding of each wrapper `runner_receipt_id` to a trusted receipt whose `candidate_id`, `evidence_id`, and `node_id` match the Evidence record. Duplicate or orphan receipt bindings MUST fail closed.
+4. `verification/v2`: schema validity against `verification/v2.schema.json`; recomputed `verification_id`; `candidate_id` matching graph subject; and `evidence_ids` being a strict subset of replayed evidence IDs.
+5. `assessment/v2`: schema validity against `assessment/v2.schema.json`; recomputed `assessment_id`; `candidate_id` matching graph subject; bound `policy_snapshot_id` matching graph; referenced `evidence_id` existing in replayed evidence; `obligation_id` existing in Execution Graph; bound `node_id` implementing that obligation; persistable `node_id` matching evidence record; non-empty `evidence_requirements_satisfied` for satisfaction claims; and those tokens attested by the bound receipt `satisfied_tokens`.
+6. Obligation coverage: verified satisfaction of all non-deferred MUST obligations by the replayed assessments.
 
-Any check failure, missing or unresolvable observation material, tampering with `assessment_id`, `evidence_id`, `verification_id`, or `digest`, or provenance insufficiency MUST fail closed with `GRAPH_DIVERGENCE` or as an invalid artifact. Cryptographic validation MUST NOT be skipped when bytes are absent. Tampered evidence, assessments, or verification records MUST NOT replay as valid.
+Any check failure, missing or unresolvable observation material, missing trusted receipt authority, tampering with `assessment_id`, `evidence_id`, `verification_id`, or `digest`, or provenance insufficiency MUST fail closed with `GRAPH_DIVERGENCE` or as an invalid artifact. Cryptographic validation MUST NOT be skipped when bytes are absent. Tampered evidence, assessments, or verification records MUST NOT replay as valid.
 (Previously: replay validation did not explicitly recompute computeEvidenceId or evaluateProvenanceSufficiency during evidence/v2 revalidation.)
 
 #### Scenario: Replay from persisted outputs yields the same graph
@@ -235,6 +237,38 @@ Any check failure, missing or unresolvable observation material, tampering with 
 #### Scenario: Verification v2 referencing non-existent evidence_id fails replay
 
 - GIVEN a `verification/v2` record whose `evidence_ids` array contains an identifier not present in replayed evidence
+- WHEN `replayAssuranceGraph` runs
+- THEN replay MUST fail closed with `GRAPH_DIVERGENCE`
+
+#### Scenario: Replay without trusted runner receipt authority fails closed
+
+- GIVEN persistable evidence, assessments, verification, and canonical inputs that would otherwise replay
+- AND no opaque runtime-issued `runnerReceiptChannel`
+- WHEN `replayAssuranceGraph` runs
+- THEN replay MUST fail closed with `GRAPH_DIVERGENCE`
+
+#### Scenario: Forged runnerReceiptChannel public fields fail closed
+
+- GIVEN a persistable replay bundle
+- AND a caller-constructed object copying `kind`, `issuer_id`, and `transport` without runtime-issued identity
+- WHEN `replayAssuranceGraph` runs
+- THEN replay MUST fail closed with `GRAPH_DIVERGENCE`
+
+#### Scenario: Replay Evidence not exactly bound to a trusted receipt fails closed
+
+- GIVEN replay Evidence whose `runner_receipt_id` is missing, reused, or whose receipt `candidate_id`, `evidence_id`, or `node_id` disagrees with the Evidence record
+- WHEN `replayAssuranceGraph` runs
+- THEN replay MUST fail closed with `GRAPH_DIVERGENCE`
+
+#### Scenario: Assessment coverage not attested by the bound receipt fails closed
+
+- GIVEN a persistable assessment whose `evidence_requirements_satisfied` contains a token absent from the bound receipt `satisfied_tokens`
+- WHEN `replayAssuranceGraph` runs
+- THEN replay MUST fail closed with `GRAPH_DIVERGENCE`
+
+#### Scenario: Null or non-object replay bundle fails closed
+
+- GIVEN a `null` or non-object persistable argument
 - WHEN `replayAssuranceGraph` runs
 - THEN replay MUST fail closed with `GRAPH_DIVERGENCE`
 
