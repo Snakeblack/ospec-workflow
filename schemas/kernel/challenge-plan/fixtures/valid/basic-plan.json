@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "kind": "challenge-plan/v1",
+  "plan_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "candidate_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "policy_snapshot_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "evidence_strategy": "bug",
+  "selected": [
+    "revert",
+    "regression-acceptance"
+  ],
+  "skipped": [
+    {
+      "challenge_type": "focal-mutation",
+      "reason": "STRATEGY_OMISSION_OUT_OF_SCOPE"
+    },
+    {
+      "challenge_type": "independent-acceptance",
+      "reason": "STRATEGY_OMISSION_OUT_OF_SCOPE"
+    },
+    {
+      "challenge_type": "compatibility-acceptance",
+      "reason": "STRATEGY_OMISSION_NOT_APPLICABLE"
+    },
+    {
+      "challenge_type": "test-inspection",
+      "reason": "STRATEGY_OMISSION_COVERED_BY_REVERT"
+    },
+    {
+      "challenge_type": "structural-validation",
+      "reason": "STRATEGY_OMISSION_NOT_APPLICABLE"
+    },
+    {
+      "challenge_type": "behavior-equivalence",
+      "reason": "STRATEGY_OMISSION_NOT_APPLICABLE"
+    },
+    {
+      "challenge_type": "rollback",
+      "reason": "STRATEGY_OMISSION_NOT_APPLICABLE"
+    }
+  ],
+  "reasons": [
+    "STRATEGY_BUG_SELECTED",
+    "STRATEGY_OMISSION_OUT_OF_SCOPE",
+    "STRATEGY_OMISSION_NOT_APPLICABLE"
+  ],
+  "budget": {
+    "max_challenges": 2,
+    "mutation_budget": 5,
+    "timeout_seconds": 60
+  }
+}

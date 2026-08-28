@@ -179,6 +179,9 @@ function listK1SchemaFiles(rootDir) {
     "schemas/kernel/assurance-graph/",
     "schemas/kernel/assessment/",
     "schemas/kernel/runner-receipt/",
+    // K6c additive challenge-plan and challenge-result families
+    "schemas/kernel/challenge-plan/",
+    "schemas/kernel/challenge-result/",
     // Evolutionary catalog registries (excluded from K1 frozen baseline pin)
     "schemas/kernel/manifest.json",
     "schemas/kernel/contract-claims.json",

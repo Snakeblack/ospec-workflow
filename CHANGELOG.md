@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.56.0] - 2026-08-28
+
+### Added
+- **Iniciativa K6c — Adversarial Challenges (Policy-Selected)**:
+  - **Catálogo de Challenges**: Catálogo tipado y cerrado de 9 tipos (`revert`, `focal-mutation`, `independent-acceptance`, `regression-acceptance`, `compatibility-acceptance`, `test-inspection`, `structural-validation`, `behavior-equivalence`, `rollback`) con objetivos normativos y validación fail-closed (`scripts/lib/adversarial-challenges/catalog.js`).
+  - **Planificador determinista proporcional**: Emisión determinista de `ChallengePlan` (`challenge-plan/v1`) con selección proporcional según estrategia de evidencia (`bug`, `refactor`, `migration`, `config-docs`, `feature`, `strict-tdd`) y `PolicySnapshot`, omisiones con razones explícitas y hash SHA-256 (`scripts/lib/adversarial-challenges/planner.js`).
+  - **Control de Presupuesto y Fallo Causal**: Tracker monótono de `ChallengeBudget` con límites (`max_challenges`, `mutation_budget`, `timeout_seconds`) y transición inmediata a `causal-failure/v1` con razón `CHALLENGE_BUDGET_EXHAUSTED` y categoría `validation_gap` (`scripts/lib/adversarial-challenges/budget.js`).
+  - **Mutaciones Focales y Detección de Complacencia**: Inyección de mutaciones focales de operadores acotadas estrictamente a líneas modificadas en el candidato congelado, reversión de patches, e inspección de tests complacientes (`COMPLACENT_TEST_DETECTED`) y aserciones tautológicas (`TAUTOLOGICAL_TEST_DETECTED`) (`scripts/lib/adversarial-challenges/mutator.js`, `runner.js`).
+  - **Nuevos Esquemas Kernel**: `challenge-plan/v1.schema.json` y `challenge-result/v1.schema.json` (JSON Schema 2020-12) con fixtures canónicas válidas e inválidas, registrados en `manifest.json` y `contract-claims.json`.
+  - **Integración con Verifier Independiente**: `verifyCandidate` evalúa `challengePlan` y `challengeResults` como evidencia complementaria de calidad técnica, aplicando fail-closed ante fallos o agotamiento de presupuesto, sin conceder en ningún caso autoridad de entrega o delivery (`REQ-harness-authority-canon-012`, `rejectDeliveryAuthorityMisuse`).
+
+### Changed
+- K6c pasa a `done`; K6d queda `next-eligible`.
+- Specs `adversarial-challenges` (nueva capacidad), `independent-verification` (REQ-010), `kernel-contract-schemas` (REQ-001, REQ-029) y `harness-authority-canon` (REQ-011, REQ-012).
+- ADRs `docs/adr/adr-20260828-019` a `022`.
+- Ciclo SDD completo `k6c-policy-selected-challenges` (verify PASS 29/29 escenarios; 4R approved; archivado en `openspec/changes/archive/2026-08-28-k6c-policy-selected-challenges/`).
+
 ## [2.55.0] - 2026-08-28
 
 ### Added

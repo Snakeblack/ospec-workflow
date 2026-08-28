@@ -1,0 +1,150 @@
+change: "k6c-policy-selected-challenges"
+status: "archived"
+last_updated: "2026-08-28T19:20:00.000Z"
+classification: "high-risk"
+route: "standard"
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k6c-policy-selected-challenges/proposal.md"
+    summary: "Catálogo de challenges adversariales, ChallengePlan proporcional determinista con budget, esquemas e integración verifier."
+    key_decisions:
+      - "ChallengePlan proporcional policy-selected en vez de suite fija universal"
+      - "Exhaustion de budget produce causal failure transition tipada sin reintentos idénticos"
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k6c-policy-selected-challenges/specs/adversarial-challenges/spec.md"
+      - "openspec/changes/k6c-policy-selected-challenges/specs/independent-verification/spec.md"
+      - "openspec/changes/k6c-policy-selected-challenges/specs/kernel-contract-schemas/spec.md"
+      - "openspec/changes/k6c-policy-selected-challenges/specs/harness-authority-canon/spec.md"
+    summary: "Specs K6c para catálogo y plan proporcional de challenges, budget monotonicity, schemas v1 e integración en verifier sin segunda autoridad."
+    key_decisions:
+      - "Selección determinista proporcional según estrategia y PolicySnapshot sin suite fija universal"
+      - "Monotonicidad de ChallengeBudget con transición causal y rechazo de tests complacientes"
+      - "Planes y resultados de challenges como evidencia complementaria sin autoridad de entrega"
+  design:
+    status: "done"
+    artifact: "openspec/changes/k6c-policy-selected-challenges/design.md"
+    summary: "Diseño de catálogo adversarial, planificador proporcional, control de budget con causal failure, schemas v1 y ADRs 001-004."
+    key_decisions:
+      - "Selección proporcional determinista por estrategia y PolicySnapshot sin suite fija (ADR-001)"
+      - "Candidate inmutable y challenges como evidencia complementaria sin autoridad de delivery (ADR-002)"
+      - "Agotamiento de ChallengeBudget produce transición causal inmediata sin reintentos idénticos (ADR-003)"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k6c-policy-selected-challenges/tasks.md"
+    summary: "Desglose TDD en 5 fases para schemas v1, catálogo/planner, budget monótono, runner de mutaciones e integración verifier con size-exception."
+    key_decisions:
+      - "Plan TDD en 5 fases con cobertura completa de requerimientos MUST"
+      - "Estrategia size-exception aprobada para entrega en PR único"
+  apply:
+    status: "done"
+    artifact: "openspec/changes/k6c-policy-selected-challenges/apply-progress.md"
+    summary: "Implementación completa de esquemas v1, catálogo adversarial, planner proporcional, budget monótono, runner de mutaciones e integración en independent verifier."
+    key_decisions:
+      - "9 tipos cerrados validados fail-closed y selección determinista por evidencia"
+      - "Mutador focal restringido a líneas diff y detección de suites complacientes/tautológicas"
+      - "Verificador evalúa challenges como evidencia complementaria sin conferir autoridad de delivery"
+  verify:
+    status: "done"
+    artifact: "openspec/changes/k6c-policy-selected-challenges/verify-report.md"
+    verdict: "PASS"
+    summary: "Verificación completa PASS: 29/29 escenarios cubiertos con runtime-test, 2863 tests pasando, cero regresiones y ADRs validados."
+    key_decisions:
+      - "Veredicto PASS confirmado con 100% de cumplimiento MUST/MAY"
+      - "Preservación estricta de autoridad de delivery y congelación de esquemas K1/K6b"
+  archive:
+    status: "done"
+    artifact: "openspec/changes/k6c-policy-selected-challenges/archive-report.md"
+    summary: "Plan de archivo emitido con 4 specs preparadas localmente, 4 ADRs propuestos para promoción e inventario de 14 artefactos."
+    key_decisions:
+      - "Plan-and-Report emitido con hashing y preparación change-local"
+      - "Commit en live specs/ADRs y traslado atómico delegados a archive-transaction-run"
+baseline_fingerprints:
+  independent-verification: "0a309c69fe0122acc824e4fc3e65de233539752e75a4a3ac1d9161cc4b028ee6"
+  kernel-contract-schemas: "df470f9095fbfee56afc9fda7819c2305f063f02cc221c98238e657ff28b9b27"
+  harness-authority-canon: "083cfd5125bf5584a4f06ced46c53ad54e97b21fa9d15c65516d3c761187377a"
+
+owner:
+  author: Manuel Retamozo
+  branch: feat/k6c-policy-selected-challenges
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "First match: foundation/federated/bugfix/brownfield/refactor/hotfix conditions not met; project.status=active and classification=high-risk select standard (sdd-propose → sdd-spec → sdd-design → sdd-tasks → sdd-apply → sdd-verify → sdd-archive; gates: clarify, 4r-review-gate)."
+  validated: true
+  validation_errors: []
+
+approvals:
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: vscode/askQuestions
+    accepted_at: "2026-08-28T18:50:00Z"
+    synthesis: "K6c — adversarial challenges (policy-selected): catálogo tipado de 9 types, ChallengePlan determinista proporcional con budget, detección de defectos sembrados y rechazo de tests complacientes/tautológicos como evidencia complementaria en el verifier independiente sin segunda autoridad de delivery."
+    scope: "In: catalog, planner, budget tracker, focal mutator, runner, kernel schemas challenge-plan/v1 y challenge-result/v1, independent-verifier integration. Out: universal fixed suites, review findings refutation (K7), complexity delta (K6d), evaluation attestation (K8)."
+    applies_to:
+      - change-classification
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: vscode/askQuestions
+    accepted_at: "2026-08-28T18:50:00Z"
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: vscode/askQuestions
+    accepted_at: "2026-08-28T18:50:00Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+
+gates:
+  clarify:
+    status: skipped
+    skip_reason: "residual_ambiguity false; public_contract_questions/conflicting_requirements/missing_acceptance_criteria empty"
+  4r-review-gate:
+    status: done
+    schema_version: 1
+    classification: high-risk
+    lineage_status: approved
+    findings_summary: "0 BLOCKER, 0 CRITICAL, 0 WARNING, 1 SUGGESTION advisory"
+    surfaced_to_user: true
+    archive_allowed: true
+    terminal_reason: "all-remediation-slices-passed"
+    generalist:
+      status: needs-specialist
+      specialists: ["risk", "reliability", "resilience", "readability"]
+      reason: "signals=verify-risk,verify-reliability,verify-resilience,verify-readability;dimensions=risk,reliability,resilience,readability"
+    dimensions:
+      risk:
+        selected: true
+        status: approved
+        findings: []
+      reliability:
+        selected: true
+        status: approved
+        findings: []
+      resilience:
+        selected: true
+        status: approved
+        findings: []
+      readability:
+        selected: true
+        status: approved
+        findings:
+          - severity: SUGGESTION
+            affected_files: ["scripts/lib/adversarial-challenges/runner.js"]
+            evidence: "focal-mutation nesting depth"
+            why_it_matters: "Cognitive load reduction"

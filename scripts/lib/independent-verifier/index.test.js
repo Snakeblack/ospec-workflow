@@ -1392,3 +1392,141 @@ test("REQ-independent-verification-006 [Adversarial]: bug GREEN must chain to PA
   assert.equal(result.ok, false);
   assert.equal(result.reason_code, "STRATEGY_SEQUENCE_VIOLATION");
 });
+
+test("REQ-independent-verification-010: Successful challenge results satisfy complementary verification", () => {
+  const { createChallengePlan } = require("../adversarial-challenges/planner.js");
+  const { emitChallengeResult } = require("../adversarial-challenges/runner.js");
+  const harness = buildHarness();
+
+  const challengePlan = createChallengePlan({
+    candidateId: harness.candidate.candidate_id,
+    policySnapshotId: harness.executionGraph.policy_snapshot_id,
+    evidenceStrategy: "feature",
+  });
+
+  const challengeResults = challengePlan.selected.map((type) =>
+    emitChallengeResult({
+      planId: challengePlan.plan_id,
+      candidateId: harness.candidate.candidate_id,
+      challengeType: type,
+      outcome: "passed",
+      nodeId: "repair-core",
+    })
+  );
+
+  const result = verifyCandidate({
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence: featureEvidence(),
+    challengePlan,
+    challengeResults,
+  });
+
+  assert.equal(result.ok, true, result.error || result.reason_code);
+  assert.equal(result.verification.verdict, "PASS");
+});
+
+test("REQ-independent-verification-010: Failed challenge result fails closed with CHALLENGE_VERIFICATION_FAILED", () => {
+  const { createChallengePlan } = require("../adversarial-challenges/planner.js");
+  const { emitChallengeResult } = require("../adversarial-challenges/runner.js");
+  const harness = buildHarness();
+
+  const challengePlan = createChallengePlan({
+    candidateId: harness.candidate.candidate_id,
+    policySnapshotId: harness.executionGraph.policy_snapshot_id,
+    evidenceStrategy: "feature",
+  });
+
+  const challengeResults = challengePlan.selected.map((type, index) =>
+    emitChallengeResult({
+      planId: challengePlan.plan_id,
+      candidateId: harness.candidate.candidate_id,
+      challengeType: type,
+      outcome: index === 0 ? "failed" : "passed",
+      nodeId: "repair-core",
+      details: index === 0 ? { reason: "COMPLACENT_TEST_DETECTED" } : {},
+    })
+  );
+
+  const result = verifyCandidate({
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence: featureEvidence(),
+    challengePlan,
+    challengeResults,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "CHALLENGE_VERIFICATION_FAILED");
+  assert.equal(Object.prototype.hasOwnProperty.call(result, "verification"), false);
+});
+
+test("REQ-independent-verification-010: Budget exhaustion during challenges fails closed with CHALLENGE_BUDGET_EXHAUSTED", () => {
+  const { createChallengePlan } = require("../adversarial-challenges/planner.js");
+  const harness = buildHarness();
+
+  const challengePlan = createChallengePlan({
+    candidateId: harness.candidate.candidate_id,
+    policySnapshotId: harness.executionGraph.policy_snapshot_id,
+    evidenceStrategy: "feature",
+  });
+
+  const result = verifyCandidate({
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence: featureEvidence(),
+    challengePlan,
+    challenge_budget_exhausted: true,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "CHALLENGE_BUDGET_EXHAUSTED");
+  assert.equal(Object.prototype.hasOwnProperty.call(result, "verification"), false);
+});
+
+test("REQ-independent-verification-010: Challenge results alone cannot grant PASS without strategy minimums", () => {
+  const { createChallengePlan } = require("../adversarial-challenges/planner.js");
+  const { emitChallengeResult } = require("../adversarial-challenges/runner.js");
+  const harness = buildHarness();
+
+  const challengePlan = createChallengePlan({
+    candidateId: harness.candidate.candidate_id,
+    policySnapshotId: harness.executionGraph.policy_snapshot_id,
+    evidenceStrategy: "feature",
+  });
+
+  const challengeResults = challengePlan.selected.map((type) =>
+    emitChallengeResult({
+      planId: challengePlan.plan_id,
+      candidateId: harness.candidate.candidate_id,
+      challengeType: type,
+      outcome: "passed",
+      nodeId: "repair-core",
+    })
+  );
+
+  // Missing negative evidence for feature strategy
+  const missingNegativeEvidence = [
+    raw("acceptance: ok"),
+    raw("invariants: ok"),
+    raw("contract: ok"),
+  ];
+
+  const result = verifyCandidate({
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence: missingNegativeEvidence,
+    runner_receipts: [
+      sampleReceipt("acceptance"),
+      sampleReceipt("invariants"),
+      sampleReceipt("contract"),
+    ],
+    challengePlan,
+    challengeResults,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "MISSING_NEGATIVE");
+  assert.equal(Object.prototype.hasOwnProperty.call(result, "verification"), false);
+});
+
