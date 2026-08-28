@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "classification": "high-risk",
+  "fingerprint": "sha256:cea24af831a003165c688d200f7c7decf92d919689ca1fb2d430f16e5c99324c",
+  "sources": {
+    "paths": [
+      "docs/architecture/harness-evolution.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/apply-progress.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-001.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-002.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-003.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/decisions/adr-004.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/design.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/proposal.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/specs/assurance-graph/spec.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/specs/authority-store/spec.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/specs/independent-verification/spec.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/state.yaml",
+      "openspec/changes/k6b-durable-replay-receipt-authority/tasks.md",
+      "openspec/changes/k6b-durable-replay-receipt-authority/verify-report.md",
+      "openspec/memory/known-issues.md",
+      "scripts/lib/assurance-graph/index.js",
+      "scripts/lib/assurance-graph/index.test.js",
+      "scripts/lib/authority-store/index.js",
+      "scripts/lib/authority-store/index.test.js",
+      "scripts/lib/filesystem-store.js",
+      "scripts/lib/filesystem-store.test.js",
+      "scripts/lib/independent-verifier/runner-receipt-restart.test.js",
+      "scripts/lib/independent-verifier/runner-receipt-store.js",
+      "scripts/lib/independent-verifier/runner-receipt-store.test.js",
+      "scripts/lib/test-support/k6b-runner-receipt.js"
+    ],
+    "capabilities": [
+      "assurance-graph",
+      "authority-store",
+      "independent-verification",
+      "runtime"
+    ],
+    "operation_types": [
+      "add",
+      "modify"
+    ],
+    "dependencies": [],
+    "facts": [
+      {
+        "code": "design-risk",
+        "source": "design",
+        "detail": "durable runner-receipt CAS plus ephemeral channel reissue"
+      },
+      {
+        "code": "metadata-runtime",
+        "source": "metadata",
+        "detail": "runtime"
+      },
+      {
+        "code": "diff-auth-permission",
+        "source": "real-diff",
+        "detail": "scripts/lib/authority-store/index.js,scripts/lib/independent-verifier/runner-receipt-store.js"
+      },
+      {
+        "code": "diff-error-flow",
+        "source": "real-diff",
+        "detail": "scripts/lib/independent-verifier/runner-receipt-store.js"
+      },
+      {
+        "code": "verify-reliability",
+        "source": "verify",
+        "detail": "PASS WITH WARNINGS inherited token attestation inspection-proof"
+      }
+    ]
+  }
+}

@@ -497,5 +497,134 @@ test("K5: FileSystemStore preserves completed journal evidence against stale sta
   }
 });
 
+test("REQ-authority-store-018: restart load restores authority.receipts and runner_receipts without snapshot()", async () => {
+  const filePath = tmpFile();
+  try {
+    const inner1 = createFileSystemStore({
+      filePath,
+      initial: { state: pendingState() },
+      initializeIfMissing: true,
+    });
+    const store1 = createAuthorityStore({ store: inner1 });
+    const runtime1 = createKernelRuntime({ store: store1 });
+
+    const head1 = await store1.load();
+    const issued = runtime1.issuePermitForSelectedTransition({
+      operation: "start",
+      expected_revision: head1.revision,
+      arguments: { node_id: "n1" },
+    });
+    assert.ok(issued.ok);
+    const opResult = await runtime1.runOperation({
+      operation: "start",
+      arguments: { node_id: "n1" },
+      operationPermit: issued.permit,
+      effectExecutor: async () => ({ ok: true, usage: {} }),
+    });
+    assert.equal(opResult.outcome, "advanced");
+    const permitId = issued.permit.permit_id;
+
+    const receiptId = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const runnerReceipt = {
+      schema_version: 1,
+      kind: "runner-receipt/v1",
+      receipt_id: receiptId,
+      candidate_id: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      evidence_id: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      node_id: "n1",
+      role: "acceptance",
+      satisfied_tokens: ["ev:test-pass"],
+      outcome: "passed",
+      issuer_id: "node-test",
+      transport: "tool-execution-transport",
+    };
+    const persisted = await store1.commitRunnerReceipts({ [receiptId]: runnerReceipt });
+    assert.equal(persisted.ok, true, persisted.code);
+
+    const inner2 = createFileSystemStore({ filePath });
+    const store2 = createAuthorityStore({ store: inner2 });
+    const head2 = await store2.load();
+
+    assert.equal(head2.state.nodes.n1.phase, "started");
+    assert.ok(head2.authority.receipts[permitId]);
+    assert.equal(head2.authority.receipts[permitId].kind, "operation-receipt/v1");
+    assert.equal(head2.runner_receipts[receiptId].kind, "runner-receipt/v1");
+    assert.equal(head2.authority.receipts[receiptId], undefined);
+    assert.notEqual(head2.authority.receipts[permitId].kind, "runner-receipt/v1");
+  } finally {
+    try { await fs.unlink(filePath); } catch (_) {}
+  }
+});
+
+test("REQ-authority-store-018: array-shaped runner_receipts cannot CAS-match an empty-bag head", async () => {
+  const filePath = tmpFile();
+  const { computeRevision } = require("./authority-store/index.js");
+  const receipt = { kind: "runner-receipt/v1", receipt_id: "sha256:aa" };
+  try {
+    const store = createFileSystemStore({ filePath, initializeIfMissing: true });
+    const loaded = await store.load();
+    const emptyRevision = computeRevision(loaded.state, loaded.journal, loaded.authority, {});
+    await store.commit({
+      state: loaded.state,
+      journal: loaded.journal,
+      authority: loaded.authority,
+      budgets: loaded.budgets,
+      runner_receipts: {},
+      expectedRevision: emptyRevision,
+    });
+    assert.equal(
+      computeRevision(loaded.state, loaded.journal, loaded.authority, [receipt]),
+      emptyRevision
+    );
+    const committed = await store.commit({
+      state: loaded.state,
+      journal: loaded.journal,
+      authority: loaded.authority,
+      budgets: loaded.budgets,
+      runner_receipts: [receipt],
+      expectedRevision: emptyRevision,
+    });
+    assert.equal(committed.ok, false);
+    assert.equal(committed.code, "receipt-kind-mismatch");
+    const after = await store.load();
+    assert.deepEqual(after.runner_receipts, {});
+    const onDisk = JSON.parse(await fs.readFile(filePath, "utf8"));
+    assert.ok(!Array.isArray(onDisk.runner_receipts));
+    const mapped = await store.commit({
+      state: loaded.state,
+      journal: loaded.journal,
+      authority: loaded.authority,
+      budgets: loaded.budgets,
+      runner_receipts: { [receipt.receipt_id]: receipt },
+      expectedRevision: emptyRevision,
+    });
+    assert.notEqual(mapped.ok, false, mapped.code);
+    assert.notEqual(
+      computeRevision(mapped.state, mapped.journal, mapped.authority, mapped.runner_receipts),
+      emptyRevision
+    );
+  } finally {
+    try { await fs.unlink(filePath); } catch (_) {}
+    try { await fs.unlink(`${filePath}.lock`); } catch (_) {}
+  }
+});
+
+test("REQ-authority-store-018: load normalizes array-shaped runner_receipts on disk to empty map", async () => {
+  const filePath = tmpFile();
+  try {
+    await fs.writeFile(filePath, JSON.stringify({
+      state: pendingState(),
+      journal: [],
+      authority: { permits: {}, receipts: {} },
+      budgets: { attempts: 0, corrections: 0 },
+      runner_receipts: [{ kind: "runner-receipt/v1", receipt_id: "sha256:aa" }],
+    }), "utf8");
+    const loaded = await createFileSystemStore({ filePath }).load();
+    assert.deepEqual(loaded.runner_receipts, {});
+  } finally {
+    try { await fs.unlink(filePath); } catch (_) {}
+  }
+});
+
 
 

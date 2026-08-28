@@ -1,0 +1,66 @@
+{
+  "risk": {
+    "request_id": "lens-risk-001",
+    "findings": [
+      {
+        "severity": "CRITICAL",
+        "summary": "Type confusion: array-shaped runner_receipts persist through FileSystemStore, are omitted from revision identity, and are still rehydrated into a trusted runnerReceiptChannel. Silent swap of replay authority without a new CAS head.",
+        "acceptance_criteria": "1) FileSystemStore.load/commit MUST normalize non-map runner_receipts (arrays included) to {} or fail closed, using the same predicate as cloneRunnerReceipts. 2) computeRevision and rehydrateAndIssueRunnerReceiptChannel MUST share that predicate; rehydrate MUST NOT Object.values an array into issueRunnerReceiptChannel. 3) Committing [schema-valid runner-receipt/v1] onto an empty-bag head MUST fail closed or change computeRevision (non-empty bag hashed). 4) A runtime test MUST show: array bag does not yield a trusted channel unless runner_receipts_digest is in the new head; map persist still retags as today."
+      }
+    ]
+  },
+  "reliability": {
+    "request_id": "lens-reliability-001",
+    "findings": [
+      {
+        "severity": "WARNING",
+        "summary": "rehydrateAndIssueRunnerReceiptChannel no tiene runtime test del fail-closed homogéneo issuer_id+transport; un bag mixto de dos issuers trusted no está cubierto.",
+        "acceptance_criteria": "Añadir un test en runner-receipt-store.test.js que persista vía commitRunnerReceipts dos records runner-receipt/v1 válidos con issuer_id distintos (node-test y npm-test, mismo transport), llame rehydrateAndIssueRunnerReceiptChannel, y afirme ok:false, reason_code UNTRUSTED_RUNNER_RECEIPT y channel === undefined."
+      },
+      {
+        "severity": "WARNING",
+        "summary": "rehydrateAndIssueRunnerReceiptChannel no tiene test del fail-closed cuando runner_receipts está vacío; sin el guard el código lanza o emite un canal vacío.",
+        "acceptance_criteria": "Añadir un test que llame rehydrateAndIssueRunnerReceiptChannel sobre un AuthorityStore sin runner_receipts (y una variante con identity.issuer_id/transport trusted) y afirme ok:false, reason_code INVALID_RUNNER_RECEIPT y channel === undefined, sin TypeError."
+      },
+      {
+        "severity": "WARNING",
+        "summary": "validatePersistedRecord no tiene test del fallo de schema (kind presente, campos requeridos ausentes); el test existente solo cubre divergencia de receipt_id.",
+        "acceptance_criteria": "Añadir un test que haga commitRunnerReceipts de un objeto con kind runner-receipt/v1 y campos requeridos ausentes, llame rehydrateAndIssueRunnerReceiptChannel, y afirme ok:false, reason_code INVALID_RUNNER_RECEIPT y channel === undefined (sin llegar a emitir canal)."
+      },
+      {
+        "severity": "WARNING",
+        "summary": "persistRunnerReceipts no cubre el unhappy path del store (commitRunnerReceipts/persistViaCommit ok:false); los tests solo rechazan el canal untrusted antes de escribir.",
+        "acceptance_criteria": "Añadir un test con canal trusted donde persistRunnerReceipts reciba {ok:false, code:\"receipt-kind-mismatch\"} o {ok:false, code:\"cas-conflict\"} del store y afirme persist.ok===false, reason_code/code igual al del store, y load().runner_receipts/revision sin el bag nuevo."
+      },
+      {
+        "severity": "SUGGESTION",
+        "summary": "commitRunnerReceipts trata un array como mapa vacío y puede devolver ok:true sin persistir ni fallar cerrado.",
+        "acceptance_criteria": "Añadir un test que llame commitRunnerReceipts con un array de un runner-receipt/v1 válido y afirme ok:false (no no-op) o, si se documenta el contrato como mapa-only, el reason/code explícito y runner_receipts sin cambios."
+      }
+    ]
+  },
+  "resilience": {
+    "request_id": "lens-resilience-001",
+    "findings": []
+  },
+  "readability": {
+    "request_id": "lens-readability-001",
+    "findings": [
+      {
+        "severity": "WARNING",
+        "summary": "findReceiptKindMismatch returns a boolean and encodes two opposite kind checks without a comment.",
+        "acceptance_criteria": "Rename to a boolean predicate (e.g. hasReceiptKindMismatch) and add a comment that authority.receipts must not contain kind runner-receipt/v1 while every runner_receipts value must be an object with kind runner-receipt/v1 (non-objects also mismatch)."
+      },
+      {
+        "severity": "WARNING",
+        "summary": "store.computeRevision infers the live runner_receipts bag from arguments.length without documenting the 3-arg vs 4-arg contract.",
+        "acceptance_criteria": "Comment (or split helpers) that four explicit args hash that bag as-is (null/empty omits runner_receipts_digest) while three args inject the subject's live runnerReceipts so old callers cannot silently drop the fourth revision component."
+      },
+      {
+        "severity": "SUGGESTION",
+        "summary": "persistRunnerReceipts remaps store {code} failures into {reason_code, error, code} by repeating the same string, with no comment on the dual envelope.",
+        "acceptance_criteria": "Comment that AuthorityStore/FileSystemStore fail with code while this helper's public shape is reason_code, and that rewriting only when committed.code is present preserves passthrough of already-shaped helper errors; or extract a named adapter such as normalizeStoreCommitFailure."
+      }
+    ]
+  }
+}

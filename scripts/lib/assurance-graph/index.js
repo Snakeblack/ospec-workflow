@@ -3,7 +3,7 @@
 const path = require("node:path");
 const { projectAssuranceGraph, rejectForbidden, canonicalize, computeGraphId } = require("./projector.js");
 const { computeInvalidationClosure, isEvidenceTransitivelyInvalidated } = require("./invalidation.js");
-const { validateAssessment } = require("../independent-verifier/assessment.js");
+const { validateAssessment, normalizeRole } = require("../independent-verifier/assessment.js");
 const { computeVerificationId } = require("../independent-verifier/verdict.js");
 const {
   digestRawBytes,
@@ -225,6 +225,7 @@ function validateReplayRecords(persistable) {
     if (
       !obligation ||
       !evidenceRecord ||
+      !runnerReceipt ||
       record.candidate_id !== candidate.candidate_id ||
       record.policy_snapshot_id !== graph.policy_snapshot_id ||
       record.node_id !== evidenceRecord.node_id ||
@@ -232,6 +233,9 @@ function validateReplayRecords(persistable) {
       !obligation.implemented_by.includes(record.node_id)
     ) {
       return fail("GRAPH_DIVERGENCE", "persisted assessment binding diverges from evidence, Candidate, policy, or obligation");
+    }
+    if (normalizeRole(record.role) !== normalizeRole(runnerReceipt.role)) {
+      return fail("GRAPH_DIVERGENCE", "assessment role disagrees with bound runner receipt");
     }
     if (Array.isArray(record.evidence_requirements_satisfied)) {
       if (record.evidence_requirements_satisfied.length === 0) {
