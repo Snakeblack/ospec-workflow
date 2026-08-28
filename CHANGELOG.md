@@ -7,19 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.54.0] - 2026-08-28
+
 ### Security
-- **Autoridad y binding exacto de RunnerReceipt**:
-  - Nuevo contrato `runner-receipt/v1` con `receipt_id` content-addressed y `evidence_id` obligatorio.
-  - `verifyCandidate` rechaza DTOs caller-owned `runner_receipts`/`receipts` y solo consume un canal opaco emitido por el runtime.
-  - Se elimina matching por posición/nodo y fallback de role a `node.kind`; Candidate, Evidence y nodo deben coincidir exactamente.
+- **Autoridad y binding exacto de RunnerReceipt (`runner-receipt/v1`)**:
+  - Nuevo contrato kernel `ospec://schemas/kernel/runner-receipt/v1` con `receipt_id` content-addressed y `evidence_id` obligatorio.
+  - `verifyCandidate` rechaza DTOs caller-owned `runner_receipts`/`receipts` (`UNTRUSTED_RUNNER_RECEIPT`) y solo consume un canal opaco `runnerReceiptChannel` emitido por el runtime.
+  - Se elimina matching por posición/nodo y fallback de role a `node.kind`; Candidate, Evidence y nodo deben coincidir exactamente (`INVALID_RUNNER_RECEIPT` / `RUNNER_RECEIPT_BINDING_MISMATCH`).
   - `outcome: failed` con tokens satisfechos falla con `INVALID_RUNNER_RECEIPT`.
 - **Cronología y replay fail-closed completos**:
   - Strategies temporales exigen `run_id` único no vacío, ordinales estrictos y `previous_evidence_id` en cada transición posterior a la raíz.
-  - Replay exige bytes o `observation_blob_id` content-addressed resoluble; sin material de observación retorna `GRAPH_DIVERGENCE`.
+  - Replay exige bytes o `observation_blob_id` content-addressed resoluble, más el canal de receipts; sin material de observación retorna `GRAPH_DIVERGENCE`.
 
 ### Changed
-- K6b permanece `revise` pendiente de terminal review objetivo; K6c vuelve a `blocked-by-K6b-terminal-review`.
-- Verify report de v2.53.1 corregido con errata post-release y guard automático de consistencia entre versión, changelog, roadmap, arquitectura, report y tag.
+- K6b permanece `revise` pendiente de terminal review objetivo; K6c sigue `blocked-by-K6b-terminal-review`.
+- Dominios `independent-verification`, `assurance-graph` y `kernel-contract-schemas` enrolados en el baseline (skip) y reconciliados contra `a476b9a`.
+- ADR `docs/adr/adr-20260828-014-runner-receipt-authority-binding.md`. Specs `independent-verification`, `assurance-graph` y `kernel-contract-schemas`.
+- Remediación directa post-v2.53.1, documentada con `sdd-baseline` (skip) y `sdd-reconcile`. Verificación: focused K6b 115 pass; `npm test` PASS. Archivado en `openspec/changes/archive/2026-08-28-k6b-receipt-binding-and-replay-finalization/`.
 
 ## [2.53.1] - 2026-08-28
 

@@ -1,7 +1,7 @@
 # Roadmap general — kernel, grafo y evidencia
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.53.1, 2026-08-28.
+> **Versión de referencia:** v2.54.0, 2026-08-28.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
 > **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md) (P0–P27). Proporcionalidad de proceso y Change Program: [`../architecture/research/proportional-process-and-change-program.md`](../architecture/research/proportional-process-and-change-program.md).
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
@@ -78,7 +78,7 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **K5** | Budgets (incl. autoridad/efectos), failures y recovery; remediaciones v2.45.7→v2.45.13 (authoritative enforcement, authority boundary/CAS concurrency, reconciliación, remediación técnica del núcleo y blindaje de concurrencia); archivado y publicado en v2.45.13 |
 | `done` | **K6a** | Worker isolation y work-order capsule; primitivas de ejecución aislada, integración con WorkerTransport, contención de filesystem y WorkResult canónico; archivado en v2.46.0, frontera de procesos cerrada en v2.47.1 y endurecida en v2.47.2 |
 | `done` | **K4b** | Repair shadow execution (WO→WR→integrate→Candidate); despacho exclusivo K6a, integración estricta, cápsula mínima, base derivada y registro 1:N; remediación de invariantes en v2.48.2 y cierre mode-only/baseline en v2.48.3 (`2026-08-26-k4b-mode-only-and-baseline-projection`) |
-| `revise` | **K6b** | v2.53.1 cerró inyección semántica en `rawEvidence`, blind copy y chronology por array, pero el terminal review reabrió receipt authority/binding, causalidad completa y replay criptográfico obligatorio. Remediación implementada en working tree; pendiente terminal review. |
+| `revise` | **K6b** | v2.53.1 cerró inyección semántica en `rawEvidence`, blind copy y chronology por array, pero el terminal review reabrió receipt authority/binding, causalidad completa y replay criptográfico obligatorio. Remediación publicada en v2.54.0; pendiente terminal review. |
 | `blocked-by-K6b-terminal-review` | **K6c** | ChallengePlan policy-selected; no iniciar hasta verdict terminal objetivo de K6b |
 | `pending` | K6d–K8 | Complexity delta, review authority, **Evaluation Attestation** |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
@@ -2073,4 +2073,4 @@ Un Change Program (objetivo → children OpenSpec + cursor, ver investigación `
 - 2026-08-27: K6b (`k6b-semantic-integrity-remediation`) entra en apply para remediar B1–B3/H1–H3; K6b queda `revise` y K6c `blocked-by-K6b-remediation` hasta archive.
 - 2026-08-28: K6b (`k6b-semantic-integrity-remediation`) cierra con verify PASS, 4R approved y archive transaccional; publicado en v2.52.0. K6c queda next-eligible.
 - 2026-08-28: review terminal del tag v2.53.1 reabre K6b como `revise`: RunnerReceipt no demuestra autoridad ni binding exacto, chronology no exige `run_id`/chain completos y replay permite omitir bytes. K6c vuelve a `blocked-by-K6b-terminal-review`.
-- 2026-08-28: remediación focal implementada en working tree: `runner-receipt/v1` por canal opaco con EvidenceId obligatorio y outcome coherente; causal chain completa; replay exige bytes o blob content-addressed. Pendiente terminal review, sin promover aún K6b ni iniciar K6c.
+- 2026-08-28: remediación focal publicada en v2.54.0: `runner-receipt/v1` por canal opaco con EvidenceId obligatorio y outcome coherente; causal chain completa; replay exige bytes o blob content-addressed. Dominios K6b enrolados y reconciliados. Pendiente terminal review, sin promover aún K6b ni iniciar K6c.
