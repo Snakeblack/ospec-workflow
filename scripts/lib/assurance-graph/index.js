@@ -1,8 +1,33 @@
 "use strict";
 
+const path = require("node:path");
 const { projectAssuranceGraph, rejectForbidden, canonicalize, computeGraphId } = require("./projector.js");
 const { computeInvalidationClosure, isEvidenceTransitivelyInvalidated } = require("./invalidation.js");
 const { validateAssessment } = require("../independent-verifier/assessment.js");
+const { computeVerificationId } = require("../independent-verifier/verdict.js");
+const { digestRawBytes } = require("../independent-verifier/evidence.js");
+const { validateInstance, loadSchemaById } = require("../kernel-schema-validator.js");
+
+const DEFAULT_SCHEMA_ROOT = path.resolve(__dirname, "../../..");
+const EVIDENCE_V2_ID = "ospec://schemas/kernel/evidence/v2";
+const VERIFICATION_V2_ID = "ospec://schemas/kernel/verification/v2";
+
+let cachedEvidenceSchema = null;
+let cachedVerificationSchema = null;
+
+function getEvidenceSchema() {
+  if (!cachedEvidenceSchema) {
+    cachedEvidenceSchema = loadSchemaById(EVIDENCE_V2_ID, { rootDir: DEFAULT_SCHEMA_ROOT });
+  }
+  return cachedEvidenceSchema;
+}
+
+function getVerificationSchema() {
+  if (!cachedVerificationSchema) {
+    cachedVerificationSchema = loadSchemaById(VERIFICATION_V2_ID, { rootDir: DEFAULT_SCHEMA_ROOT });
+  }
+  return cachedVerificationSchema;
+}
 
 function fail(reason_code, error) {
   return { ok: false, reason_code, error: error || reason_code };
@@ -53,15 +78,74 @@ function isApprovedDeferred(obligation) {
   );
 }
 
-function validateReplayAssessments(persistable) {
+/**
+ * Comprehensive revalidation for replay:
+ * 1. evidence/v2 schema, candidate_id, digest, provenance, no verdict
+ * 2. verification/v2 schema, verification_id, candidate_id, subset of evidence IDs
+ * 3. assessment/v2 schema, assessment_id, candidate_id, policy_snapshot_id, evidence_id, obligation_id, node_id, non-empty coverage
+ */
+function validateReplayRecords(persistable) {
   const assessments = Array.isArray(persistable.assessments) ? persistable.assessments : [];
   const evidence = Array.isArray(persistable.evidence) ? persistable.evidence : [];
   const graph = persistable.executionGraph;
   const candidate = persistable.candidate;
+  const verification = persistable.verification;
+
   if (!graph || !candidate || !Array.isArray(graph.obligations) || !Array.isArray(graph.nodes)) {
     return fail("GRAPH_DIVERGENCE", "persistable graph, candidate, nodes, and obligations are required for replay");
   }
-  const evidenceById = new Map(evidence.map((record) => [record && record.evidence_id, record]));
+
+  // 1. Revalidate evidence/v2 records
+  const evidenceById = new Map();
+  for (const item of evidence) {
+    const record = item && item.evidence ? item.evidence : item;
+    if (!record || typeof record !== "object") {
+      return fail("GRAPH_DIVERGENCE", "persisted evidence must be an object");
+    }
+    if (Object.prototype.hasOwnProperty.call(record, "verdict")) {
+      return fail("GRAPH_DIVERGENCE", "evidence must not carry verdict");
+    }
+    if (record.candidate_id !== candidate.candidate_id) {
+      return fail("GRAPH_DIVERGENCE", "persisted evidence candidate_id does not match graph subject");
+    }
+    const evidenceValidation = validateInstance(getEvidenceSchema(), record);
+    if (!evidenceValidation.valid) {
+      return fail("GRAPH_DIVERGENCE", `evidence failed schema validation: ${evidenceValidation.errors.map((e) => e.message).join("; ")}`);
+    }
+    if (item.rawBytes !== undefined || item.bytes !== undefined) {
+      const computedDigest = digestRawBytes(item.rawBytes !== undefined ? item.rawBytes : item.bytes);
+      if (record.digest !== computedDigest) {
+        return fail("GRAPH_DIVERGENCE", "evidence digest does not match raw bytes");
+      }
+    }
+    evidenceById.set(record.evidence_id, record);
+  }
+
+  // 2. Revalidate verification/v2 record if present
+  if (verification) {
+    if (typeof verification !== "object" || verification.candidate_id !== candidate.candidate_id) {
+      return fail("GRAPH_DIVERGENCE", "persisted verification candidate_id does not match graph subject");
+    }
+    const verificationValidation = validateInstance(getVerificationSchema(), verification);
+    if (!verificationValidation.valid) {
+      return fail("GRAPH_DIVERGENCE", `verification failed schema validation: ${verificationValidation.errors.map((e) => e.message).join("; ")}`);
+    }
+    const expectedVerificationId = computeVerificationId(
+      verification.candidate_id,
+      verification.verdict,
+      verification.evidence_ids || []
+    );
+    if (verification.verification_id !== expectedVerificationId) {
+      return fail("GRAPH_DIVERGENCE", "persisted verification_id does not match recomputed identity");
+    }
+    for (const evId of verification.evidence_ids || []) {
+      if (!evidenceById.has(evId)) {
+        return fail("GRAPH_DIVERGENCE", `verification references non-existent evidence_id ${evId}`);
+      }
+    }
+  }
+
+  // 3. Revalidate assessment/v2 records
   const obligations = new Map(graph.obligations.map((obligation) => [obligation && obligation.id, obligation]));
   const coveredByObligation = new Map();
   for (const assessment of assessments) {
@@ -70,19 +154,32 @@ function validateReplayAssessments(persistable) {
     const record = valid.assessment;
     const obligation = obligations.get(record.obligation_id);
     const evidenceRecord = evidenceById.get(record.evidence_id);
-    if (!obligation || !evidenceRecord || record.candidate_id !== candidate.candidate_id ||
-      record.policy_snapshot_id !== graph.policy_snapshot_id || record.node_id !== evidenceRecord.node_id ||
-      !Array.isArray(obligation.implemented_by) || !obligation.implemented_by.includes(record.node_id)) {
+    if (
+      !obligation ||
+      !evidenceRecord ||
+      record.candidate_id !== candidate.candidate_id ||
+      record.policy_snapshot_id !== graph.policy_snapshot_id ||
+      record.node_id !== evidenceRecord.node_id ||
+      !Array.isArray(obligation.implemented_by) ||
+      !obligation.implemented_by.includes(record.node_id)
+    ) {
       return fail("GRAPH_DIVERGENCE", "persisted assessment binding diverges from evidence, Candidate, policy, or obligation");
     }
-    const required = new Set(Array.isArray(obligation.required_evidence) ? obligation.required_evidence : []);
-    if (record.evidence_requirements_satisfied.some((token) => !required.has(token))) {
-      return fail("GRAPH_DIVERGENCE", "assessment coverage contains a token outside the obligation requirement");
+    if (Array.isArray(record.evidence_requirements_satisfied)) {
+      if (record.evidence_requirements_satisfied.length === 0) {
+        return fail("GRAPH_DIVERGENCE", "assessment evidence_requirements_satisfied cannot be empty for satisfaction claims");
+      }
+      const required = new Set(Array.isArray(obligation.required_evidence) ? obligation.required_evidence : []);
+      if (record.evidence_requirements_satisfied.some((token) => !required.has(token))) {
+        return fail("GRAPH_DIVERGENCE", "assessment coverage contains a token outside the obligation requirement");
+      }
+      const coverage = coveredByObligation.get(record.obligation_id) || new Set();
+      for (const token of record.evidence_requirements_satisfied) coverage.add(token);
+      coveredByObligation.set(record.obligation_id, coverage);
     }
-    const coverage = coveredByObligation.get(record.obligation_id) || new Set();
-    for (const token of record.evidence_requirements_satisfied) coverage.add(token);
-    coveredByObligation.set(record.obligation_id, coverage);
   }
+
+  // 4. Revalidate MUST obligations coverage
   for (const obligation of graph.obligations) {
     if (!obligation || String(obligation.criticality || "must").toLowerCase() !== "must" || isApprovedDeferred(obligation)) continue;
     const required = Array.isArray(obligation.required_evidence) ? obligation.required_evidence : [];
@@ -91,6 +188,7 @@ function validateReplayAssessments(persistable) {
       return fail("GRAPH_DIVERGENCE", `persisted assessments do not satisfy MUST obligation ${obligation.id}`);
     }
   }
+
   return { ok: true };
 }
 
@@ -102,8 +200,8 @@ function validateReplayAssessments(persistable) {
  * @returns {{ ok: true, graph: object } | { ok: false, reason_code: string }}
  */
 function replayAssuranceGraph(persistable = {}) {
-  const assessmentValidation = validateReplayAssessments(persistable);
-  if (!assessmentValidation.ok) return assessmentValidation;
+  const validation = validateReplayRecords(persistable);
+  if (!validation.ok) return validation;
   return projectAssuranceGraph({
     canonicalInputs: persistable.canonical_inputs || persistable.canonicalInputs,
     candidate: persistable.candidate,
@@ -142,7 +240,8 @@ module.exports = {
   projectAssuranceGraph,
   reconcileAssuranceGraph,
   replayAssuranceGraph,
-  validateReplayAssessments,
+  validateReplayAssessments: validateReplayRecords,
+  validateReplayRecords,
   rejectForbidden,
   computeInvalidationClosure,
   isEvidenceTransitivelyInvalidated,

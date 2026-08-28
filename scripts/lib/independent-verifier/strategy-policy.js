@@ -10,6 +10,12 @@ const DECLARED_STRATEGIES = Object.freeze([
 
 const RUNTIME_PROVENANCE = Object.freeze(["runtime-observed", "host-attested", "tool-produced"]);
 
+const INCOMPATIBLE_ROLE_PAIRS = Object.freeze([
+  ["red", "green"],
+  ["characterization-before", "characterization-after"],
+  ["negative", "acceptance"],
+]);
+
 const STRATEGY_TABLE = Object.freeze({
   bug: Object.freeze({
     minimumRoles: Object.freeze(["red", "patch", "green"]),
@@ -28,6 +34,7 @@ const STRATEGY_TABLE = Object.freeze({
     admissible: Object.freeze({
       acceptance: RUNTIME_PROVENANCE,
       invariants: RUNTIME_PROVENANCE,
+      invariant: RUNTIME_PROVENANCE,
       contract: RUNTIME_PROVENANCE,
       integration: RUNTIME_PROVENANCE,
       negative: RUNTIME_PROVENANCE,
@@ -92,15 +99,29 @@ function selectStrategy(declaredStrategy) {
 }
 
 function rolesOf(items) {
-  return new Set((items || []).map((item) => item.role).filter(Boolean));
+  const result = new Set();
+  for (const item of items || []) {
+    if (!item || !item.role) continue;
+    result.add(item.role);
+    if (item.role === "invariants") result.add("invariant");
+    if (item.role === "invariant") result.add("invariants");
+  }
+  return result;
 }
 
 function evidenceForRole(items, role) {
-  return (items || []).filter((item) => item.role === role);
+  return (items || []).filter((item) => {
+    if (!item || !item.role) return false;
+    if (item.role === role) return true;
+    if ((role === "invariants" || role === "invariant") && (item.role === "invariants" || item.role === "invariant")) {
+      return true;
+    }
+    return false;
+  });
 }
 
 function provenanceAdmissible(policy, role, provenance) {
-  const allowed = policy.admissible && policy.admissible[role];
+  const allowed = policy.admissible && (policy.admissible[role] || (role === "invariants" && policy.admissible.invariant) || (role === "invariant" && policy.admissible.invariants));
   if (!allowed) return true;
   return allowed.includes(provenance);
 }
@@ -114,20 +135,37 @@ function failIfInadmissible(policy, role, items, message) {
   return null;
 }
 
-function assertDistinctRoleEvidence(items) {
+/**
+ * Matriz formal de incompatibilidad de roles:
+ * red <-> green, characterization-before <-> characterization-after, negative <-> acceptance
+ * Non-conflicting roles (such as integration + acceptance, invariant + integration, smoke + acceptance) may share evidence_id.
+ */
+function assertCompatibleRoleSharing(items) {
   const rolesByEvidenceId = new Map();
   for (const item of items || []) {
     const evidenceId = item && item.evidence && item.evidence.evidence_id;
-    if (typeof evidenceId !== "string" || typeof item.role !== "string") continue;
+    const role = item && item.role;
+    if (!evidenceId || !role) continue;
     const roles = rolesByEvidenceId.get(evidenceId) || new Set();
-    roles.add(item.role);
+    roles.add(role);
     rolesByEvidenceId.set(evidenceId, roles);
-    if (roles.size > 1) {
-      return fail("STRATEGY_EVIDENCE_ALIAS", `evidence_id ${evidenceId} cannot satisfy distinct strategy roles`);
+  }
+
+  for (const [evidenceId, roles] of rolesByEvidenceId.entries()) {
+    for (const [roleA, roleB] of INCOMPATIBLE_ROLE_PAIRS) {
+      if (roles.has(roleA) && roles.has(roleB)) {
+        return fail(
+          "STRATEGY_EVIDENCE_ALIAS",
+          `evidence_id ${evidenceId} cannot satisfy incompatible roles ${roleA} and ${roleB}`
+        );
+      }
     }
   }
   return { ok: true };
 }
+
+// Preserve alias for existing consumers if any
+const assertDistinctRoleEvidence = assertCompatibleRoleSharing;
 
 function assertRoleOrder(strategyName, items) {
   const positions = new Map();
@@ -144,6 +182,37 @@ function assertRoleOrder(strategyName, items) {
       return fail("STRATEGY_SEQUENCE_VIOLATION", `${ordered[index]} evidence must precede ${ordered[index + 1]} evidence`);
     }
   }
+
+  // Refactor chronological sequence validation (characterization-before -> characterization-after)
+  if (strategyName === "refactor") {
+    const beforeIndices = positions.get("characterization-before") || [];
+    const afterIndices = positions.get("characterization-after") || [];
+    if (beforeIndices.length > 0 && afterIndices.length > 0 && Math.max(...beforeIndices) > Math.min(...afterIndices)) {
+      return fail("STRATEGY_SEQUENCE_VIOLATION", "characterization-before evidence must precede characterization-after evidence");
+    }
+
+    const beforeItems = (items || []).filter((it) => it && it.role === "characterization-before");
+    const afterItems = (items || []).filter((it) => it && it.role === "characterization-after");
+
+    for (const before of beforeItems) {
+      const beforeSeq = before.execution_sequence || (before.raw && before.raw.execution_sequence);
+      const beforeEvidenceId = before.evidence && before.evidence.evidence_id;
+      for (const after of afterItems) {
+        const afterSeq = after.execution_sequence || (after.raw && after.raw.execution_sequence);
+        if (beforeSeq && afterSeq) {
+          if (typeof beforeSeq.ordinal === "number" && typeof afterSeq.ordinal === "number") {
+            if (afterSeq.ordinal <= beforeSeq.ordinal) {
+              return fail("STRATEGY_SEQUENCE_VIOLATION", "characterization-after ordinal must be greater than characterization-before ordinal");
+            }
+          }
+          if (afterSeq.previous_evidence_id && beforeEvidenceId && afterSeq.previous_evidence_id !== beforeEvidenceId) {
+            return fail("STRATEGY_SEQUENCE_VIOLATION", "characterization-after previous_evidence_id does not link to characterization-before");
+          }
+        }
+      }
+    }
+  }
+
   return { ok: true };
 }
 
@@ -181,8 +250,8 @@ function evaluateStrategy(strategyName, items) {
   if (!policy) return fail("MISSING_STRATEGY_MINIMUM", `unknown strategy ${strategyName}`);
   const roles = rolesOf(items);
 
-  const distinctEvidence = assertDistinctRoleEvidence(items);
-  if (!distinctEvidence.ok) return distinctEvidence;
+  const compatibleRoleSharing = assertCompatibleRoleSharing(items);
+  if (!compatibleRoleSharing.ok) return compatibleRoleSharing;
   const roleOrder = assertRoleOrder(strategyName, items);
   if (!roleOrder.ok) return roleOrder;
 
@@ -246,8 +315,10 @@ function evaluateStrategy(strategyName, items) {
 module.exports = {
   DECLARED_STRATEGIES,
   STRATEGY_TABLE,
+  INCOMPATIBLE_ROLE_PAIRS,
   selectStrategy,
   evaluateStrategy,
+  assertCompatibleRoleSharing,
   assertDistinctRoleEvidence,
   assertRoleOrder,
 };

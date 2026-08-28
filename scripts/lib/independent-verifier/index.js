@@ -86,6 +86,9 @@ function verifyCandidate(input) {
   const rawList = Array.isArray(input.rawEvidence) ? input.rawEvidence : [];
   const classified = [];
 
+  const graphNodesById = new Map((bound.executionGraph.nodes || []).map((n) => [n && n.node_id, n]));
+  const graphObligations = bound.executionGraph.obligations || [];
+
   for (let index = 0; index < rawList.length; index += 1) {
     const raw = rawList[index];
     const channel = channelCollector(input, index);
@@ -100,7 +103,37 @@ function verifyCandidate(input) {
       raw.bytes !== undefined ? raw.bytes : raw.rawBytes
     );
     if (!stale.ok) return stale;
-    classified.push(normalized);
+
+    const node = graphNodesById.get(normalized.evidence.node_id);
+    let resolvedRole = normalized.role;
+    if (node && node.role && (!resolvedRole || node.role !== resolvedRole)) {
+      resolvedRole = node.role;
+    }
+
+    let resolvedObligationIds = normalized.obligation_ids;
+    const hasExplicitObligations =
+      Object.prototype.hasOwnProperty.call(raw, "obligation_ids") ||
+      Object.prototype.hasOwnProperty.call(raw, "obligation_id");
+    if (!hasExplicitObligations && node) {
+      resolvedObligationIds = graphObligations
+        .filter((o) => Array.isArray(o.implemented_by) && o.implemented_by.includes(node.node_id))
+        .map((o) => o.id);
+    }
+
+    let resolvedSatisfied = normalized.evidence_requirements_satisfied;
+    const hasExplicitCoverage = Object.prototype.hasOwnProperty.call(raw, "evidence_requirements_satisfied");
+    if (!hasExplicitCoverage && node) {
+      if (Array.isArray(node.required_evidence) && node.required_evidence.length > 0) {
+        resolvedSatisfied = [...node.required_evidence].sort();
+      }
+    }
+
+    classified.push({
+      ...normalized,
+      role: resolvedRole,
+      obligation_ids: resolvedObligationIds,
+      evidence_requirements_satisfied: resolvedSatisfied,
+    });
   }
 
   const evaluated = evaluateStrategy(strategy, classified);

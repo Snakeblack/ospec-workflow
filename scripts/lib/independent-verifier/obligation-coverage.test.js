@@ -296,3 +296,50 @@ test("REQ-independent-verification-005: emitAssessment failure is INVALID_ASSESS
   assert.equal(result.reason_code, "INVALID_ASSESSMENT");
   assert.equal(result.assessments, undefined);
 });
+
+test("REQ-independent-verification-005: empty evidence_requirements_satisfied cannot claim satisfaction", () => {
+  const emptyCovItem = {
+    role: "acceptance",
+    evidence: { ...EVIDENCE, evidence_requirements_satisfied: [] },
+    obligation_ids: ["req-repair-001"],
+    evidence_requirements_satisfied: [],
+  };
+  const result = walkMustObligations({
+    classified: [emptyCovItem],
+    executionGraph: graph([
+      {
+        id: "req-repair-001",
+        criticality: "must",
+        implemented_by: ["repair-core"],
+        required_evidence: ["ev:test-pass"],
+      },
+    ]),
+    candidate: CANDIDATE,
+    policySnapshotId: POLICY,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "UNFULFILLED_MUST");
+});
+
+test("REQ-kernel-contract-schemas-027: emitted assessments are assessment/v2 with non-empty coverage", () => {
+  const result = walkMustObligations({
+    classified: [
+      { role: "acceptance", evidence: EVIDENCE, obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
+    ],
+    executionGraph: graph([
+      {
+        id: "req-repair-001",
+        criticality: "must",
+        implemented_by: ["repair-core"],
+        required_evidence: ["ev:test-pass"],
+      },
+    ]),
+    candidate: CANDIDATE,
+    policySnapshotId: POLICY,
+  });
+  assert.equal(result.ok, true, result.error);
+  assert.equal(result.assessments.length, 1);
+  assert.equal(result.assessments[0].kind, "assessment/v2");
+  assert.equal(result.assessments[0].schema_version, 2);
+  assert.ok(result.assessments[0].evidence_requirements_satisfied.length >= 1);
+});

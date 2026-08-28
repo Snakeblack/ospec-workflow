@@ -108,6 +108,9 @@ function raw(role, bytes, extra = {}) {
   if (Object.prototype.hasOwnProperty.call(extra, "collector") && extra.collector) {
     record.collector = extra.collector;
   }
+  if (extra.execution_sequence) {
+    record.execution_sequence = extra.execution_sequence;
+  }
   return { ...record, ...extra.fields };
 }
 
@@ -838,4 +841,123 @@ test("FABRICATED_EVIDENCE: non-object raw and missing origin fail closed", () =>
   assert.equal(missingOrigin.ok, false);
   assert.equal(missingOrigin.reason_code, "FABRICATED_EVIDENCE");
   assert.equal(Object.prototype.hasOwnProperty.call(missingOrigin, "verification"), false);
+});
+
+test("REQ-independent-verification-003: verifier derives trusted evidence metadata from Execution Graph when omitted", () => {
+  const harness = buildHarness();
+  // Raw observations omit obligation_ids and evidence_requirements_satisfied
+  const rawObservations = [
+    { role: "acceptance", bytes: "acceptance: ok", origin: "node:test", node_id: "repair-core" },
+    { role: "invariants", bytes: "invariants: ok", origin: "node:test", node_id: "repair-core" },
+    { role: "contract", bytes: "contract: ok", origin: "node:test", node_id: "repair-core" },
+    { role: "negative", bytes: "negative: ok", origin: "node:test", node_id: "repair-core" },
+  ];
+  const result = verifyCandidate({
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence: rawObservations,
+  });
+  assert.equal(result.ok, true, result.error || result.reason_code);
+  assert.ok(result.assessments.length > 0);
+  assert.equal(result.assessments[0].obligation_id, "req-repair-001");
+  assert.deepEqual(result.assessments[0].evidence_requirements_satisfied, ["ev:test-pass"]);
+});
+
+test("REQ-independent-verification-006: incompatible roles red ↔ green, char-before ↔ char-after, negative ↔ acceptance fail closed", () => {
+  const harness = buildHarness();
+  const bytes = "shared-bytes";
+  const shared = { origin: "shared", node_id: "repair-core" };
+
+  // red ↔ green
+  const redGreen = verifyCandidate({
+    ...harness,
+    declaredStrategy: "strict-tdd",
+    rawEvidence: [raw("red", bytes, shared), raw("green", bytes, shared)],
+  });
+  assert.equal(redGreen.ok, false);
+  assert.equal(redGreen.reason_code, "STRATEGY_EVIDENCE_ALIAS");
+
+  // negative ↔ acceptance
+  const negAcc = verifyCandidate({
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence: [
+      raw("acceptance", bytes, shared),
+      raw("invariants", "inv-bytes", { origin: "inv", node_id: "repair-core" }),
+      raw("contract", "contract-bytes", { origin: "con", node_id: "repair-core" }),
+      raw("negative", bytes, shared),
+    ],
+  });
+  assert.equal(negAcc.ok, false);
+  assert.equal(negAcc.reason_code, "STRATEGY_EVIDENCE_ALIAS");
+
+  // characterization-before ↔ characterization-after
+  const charBeforeAfter = verifyCandidate({
+    ...harness,
+    declaredStrategy: "refactor",
+    rawEvidence: [
+      raw("characterization-before", bytes, shared),
+      raw("characterization-after", bytes, shared),
+      raw("no-behavior-change", "nbc-bytes", { origin: "nbc", node_id: "repair-core" }),
+    ],
+  });
+  assert.equal(charBeforeAfter.ok, false);
+  assert.equal(charBeforeAfter.reason_code, "STRATEGY_EVIDENCE_ALIAS");
+});
+
+test("REQ-independent-verification-006: non-conflicting shared evidence (integration + acceptance) passes validation", () => {
+  const harness = buildHarness();
+  const bytes = "shared-integration-acceptance";
+  const shared = { origin: "shared", node_id: "repair-core" };
+
+  const result = verifyCandidate({
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence: [
+      raw("acceptance", bytes, shared),
+      raw("invariants", "inv-bytes", { origin: "inv", node_id: "repair-core" }),
+      raw("integration", bytes, shared),
+      raw("negative", "neg-bytes", { origin: "neg", node_id: "repair-core" }),
+    ],
+  });
+  assert.equal(result.ok, true, result.error || result.reason_code);
+  assert.equal(result.verification.verdict, "PASS");
+});
+
+test("REQ-independent-verification-006: refactor chronological sequence via execution_sequence fails closed on bad ordinal or previous_evidence_id", () => {
+  const harness = buildHarness();
+
+  // Bad ordinal: after ordinal <= before ordinal
+  const badOrdinal = verifyCandidate({
+    ...harness,
+    declaredStrategy: "refactor",
+    rawEvidence: [
+      raw("characterization-before", "before-bytes", {
+        execution_sequence: { run_id: "run-1", ordinal: 5 },
+      }),
+      raw("characterization-after", "after-bytes", {
+        execution_sequence: { run_id: "run-1", ordinal: 4 },
+      }),
+      raw("no-behavior-change", "nbc-bytes"),
+    ],
+  });
+  assert.equal(badOrdinal.ok, false);
+  assert.equal(badOrdinal.reason_code, "STRATEGY_SEQUENCE_VIOLATION");
+
+  // Bad previous_evidence_id: after does not link to before
+  const badPrev = verifyCandidate({
+    ...harness,
+    declaredStrategy: "refactor",
+    rawEvidence: [
+      raw("characterization-before", "before-bytes", {
+        execution_sequence: { run_id: "run-1", ordinal: 1 },
+      }),
+      raw("characterization-after", "after-bytes", {
+        execution_sequence: { run_id: "run-1", ordinal: 2, previous_evidence_id: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" },
+      }),
+      raw("no-behavior-change", "nbc-bytes"),
+    ],
+  });
+  assert.equal(badPrev.ok, false);
+  assert.equal(badPrev.reason_code, "STRATEGY_SEQUENCE_VIOLATION");
 });

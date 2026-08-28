@@ -48,6 +48,13 @@ test("K6b schema registration: manifest indexes evidence/v2, verification/v2, an
   assert.equal(manifest.families.assessment.path, "schemas/kernel/assessment/v1.schema.json");
   const assessment = loadSchemaById("ospec://schemas/kernel/assessment/v1", { rootDir: ROOT });
   assert.equal(assessment.$id, "ospec://schemas/kernel/assessment/v1");
+
+  assert.ok(manifest.families["assessment-v2"], "manifest must register assessment-v2");
+  assert.equal(manifest.families["assessment-v2"].schema_version, 2);
+  assert.equal(manifest.families["assessment-v2"].$id, "ospec://schemas/kernel/assessment/v2");
+  assert.equal(manifest.families["assessment-v2"].path, "schemas/kernel/assessment/v2.schema.json");
+  const assessmentV2 = loadSchemaById("ospec://schemas/kernel/assessment/v2", { rootDir: ROOT });
+  assert.equal(assessmentV2.$id, "ospec://schemas/kernel/assessment/v2");
 });
 
 test("K6b contract claims: additive families list required fields without replacing v1 claims", () => {
@@ -105,7 +112,33 @@ test("K6b contract claims: additive families list required fields without replac
     "node_id",
     "candidate_id",
     "policy_snapshot_id",
+  ]);
+
+  assert.ok(claims.families["assessment-v2"], "assessment-v2 claims must exist");
+  assert.deepEqual(claims.families["assessment-v2"].required_fields, [
+    "schema_version",
+    "kind",
+    "assessment_id",
+    "evidence_id",
+    "role",
+    "obligation_id",
+    "node_id",
+    "candidate_id",
+    "policy_snapshot_id",
     "evidence_requirements_satisfied",
+  ]);
+  assert.deepEqual(claims.families["assessment-v2"].enum_values.role, [
+    "red",
+    "green",
+    "characterization-before",
+    "characterization-after",
+    "negative",
+    "acceptance",
+    "integration",
+    "invariant",
+    "smoke",
+    "rollback",
+    "dry-run",
   ]);
 });
 
@@ -249,8 +282,6 @@ test("K6b assessment/v1: valid fixture passes; verdict, missing fields, and cros
 
   const missing = readJson("schemas/kernel/assessment/fixtures/invalid/v1-missing-required.json");
   assert.equal(validateInstance(assessmentSchema, missing).valid, false);
-  const missingCoverage = readJson("schemas/kernel/assessment/fixtures/invalid/v1-missing-coverage.json");
-  assert.equal(validateInstance(assessmentSchema, missingCoverage).valid, false);
 
   const withVerdict = readJson("schemas/kernel/assessment/fixtures/invalid/v1-with-verdict.json");
   const verdictRes = validateInstance(assessmentSchema, withVerdict);
@@ -275,6 +306,54 @@ test("K6b assessment/v1: four roles share one evidence_id and produce distinct a
   for (const payload of four) {
     const result = validateInstance(schema, payload);
     assert.equal(result.valid, true, `four-role payload rejected: ${JSON.stringify(result.errors)}`);
+    evidenceIds.add(payload.evidence_id);
+    assessmentIds.add(payload.assessment_id);
+    roles.add(payload.role);
+  }
+  assert.equal(evidenceIds.size, 1, "four roles must share one evidence_id");
+  assert.equal(assessmentIds.size, 4, "four roles must produce four assessment_id values");
+  assert.equal(roles.size, 4);
+});
+
+test("K6b assessment/v2: valid fixture passes; missing coverage, empty coverage, verdict, and cross-family fail closed", () => {
+  const assessmentSchema = loadSchemaById("ospec://schemas/kernel/assessment/v2", { rootDir: ROOT });
+  const evidenceSchema = loadSchemaById("ospec://schemas/kernel/evidence/v2", { rootDir: ROOT });
+  const verificationSchema = loadSchemaById("ospec://schemas/kernel/verification/v2", { rootDir: ROOT });
+
+  const complete = readJson("schemas/kernel/assessment/fixtures/valid/v2-complete.json");
+  const completeRes = validateInstance(assessmentSchema, complete);
+  assert.equal(completeRes.valid, true, `valid assessment/v2 rejected: ${JSON.stringify(completeRes.errors)}`);
+
+  const emptyCoverage = readJson("schemas/kernel/assessment/fixtures/invalid/v2-empty-coverage.json");
+  const emptyRes = validateInstance(assessmentSchema, emptyCoverage);
+  assert.equal(emptyRes.valid, false, "assessment/v2 with empty evidence_requirements_satisfied must fail");
+
+  const missingCoverage = readJson("schemas/kernel/assessment/fixtures/invalid/v2-missing-coverage.json");
+  assert.equal(validateInstance(assessmentSchema, missingCoverage).valid, false);
+
+  const withVerdict = readJson("schemas/kernel/assessment/fixtures/invalid/v2-with-verdict.json");
+  const verdictRes = validateInstance(assessmentSchema, withVerdict);
+  assert.equal(verdictRes.valid, false, "assessment/v2 with verdict must fail");
+  assert.ok(verdictRes.errors.some((e) => /verdict|additionalProperties/i.test(e.message + e.path + e.rule)));
+
+  const alias = readJson("schemas/kernel/assessment/fixtures/invalid/v1-evidence-alias.json");
+  assert.equal(validateInstance(assessmentSchema, alias).valid, false, "evidence/v2 must not validate as assessment/v2");
+  assert.equal(validateInstance(evidenceSchema, complete).valid, false, "assessment/v2 must not validate as evidence/v2");
+  assert.equal(validateInstance(verificationSchema, complete).valid, false, "assessment/v2 must not validate as verification/v2");
+});
+
+test("K6b assessment/v2: four roles share one evidence_id and produce distinct assessment_id values", () => {
+  const schema = loadSchemaById("ospec://schemas/kernel/assessment/v2", { rootDir: ROOT });
+  const four = readJson("schemas/kernel/assessment/fixtures/valid/v2-four-roles.json");
+  assert.ok(Array.isArray(four), "v2-four-roles.json must be an array of payloads");
+  assert.equal(four.length, 4);
+
+  const evidenceIds = new Set();
+  const assessmentIds = new Set();
+  const roles = new Set();
+  for (const payload of four) {
+    const result = validateInstance(schema, payload);
+    assert.equal(result.valid, true, `four-role v2 payload rejected: ${JSON.stringify(result.errors)}`);
     evidenceIds.add(payload.evidence_id);
     assessmentIds.add(payload.assessment_id);
     roles.add(payload.role);

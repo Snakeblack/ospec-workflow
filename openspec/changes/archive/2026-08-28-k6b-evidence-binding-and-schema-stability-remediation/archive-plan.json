@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "change": "k6b-evidence-binding-and-schema-stability-remediation",
+  "source_fingerprint": "sha256:6107e8c9455f6ae40dd5225696c7d99e317b1f3c54e4624438c2860901c4edf0",
+  "spec_writes": [
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "specs/kernel-contract-schemas/spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:449a9a78e34cbad4f6064aacea9cf36336b231c9e46056bac0f4d9c05c235507",
+      "content_sha256": "sha256:2c8b88918a1096ddf0554f086dd41f711a956897954ce1740641ec86db204b94"
+    },
+    {
+      "domain": "independent-verification",
+      "source_delta": "specs/independent-verification/spec.md",
+      "target": "openspec/specs/independent-verification/spec.md",
+      "target_before_sha256": "sha256:51360b2f4d6f8a0ed1a79c85b95220b74d9971a62072877bea1f499bca3597ed",
+      "content_sha256": "sha256:cd4547799de99cc541d4376ccfe5ec83386ac50ca57b47d122c6f6dc30e0ea29"
+    },
+    {
+      "domain": "assurance-graph",
+      "source_delta": "specs/assurance-graph/spec.md",
+      "target": "openspec/specs/assurance-graph/spec.md",
+      "target_before_sha256": "sha256:a4300be7786f696625b4aa105da20191046526d1fe5ee0ea412c442f96728ac8",
+      "content_sha256": "sha256:31bf582b5a3db8dcec40f3ec1d12205e7ae594a1ba209babb861aea4a8de4092"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260828-004-publicacion-assessment-v2-restauracion-retrocompatible-assessment-v1.md",
+      "content_sha256": "sha256:e8909b917288c5ddb29350a06f63d0adcaf8af7166ab804ba9b5ed71007dee58"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260828-005-separacion-frontera-confianza-observacion-fisica-metadatos-semanticos.md",
+      "content_sha256": "sha256:22c74088cb9a49eaa9c677e47dd34b96214927e2c7926393682a11693513dbfe"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260828-006-validacion-fail-closed-digest-canonico-replay-integral-proyeccion-condicional.md",
+      "content_sha256": "sha256:8cb24bc144cb5f0a0d722e0f2e898af11f77a282a724c71b57fff6f6f6e4afe6"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "design.md",
+    "proposal.md",
+    "specs/assurance-graph/spec.md",
+    "specs/independent-verification/spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

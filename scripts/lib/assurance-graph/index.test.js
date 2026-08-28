@@ -376,7 +376,8 @@ test("REQ-assurance-graph-007: contradictory canonical inputs fail closed; permu
       openspec_input_digest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
     },
   });
-  assert.notEqual(base.graph.graph_id, flippedOpenspec.graph.graph_id);
+  assert.equal(flippedOpenspec.ok, false);
+  assert.equal(flippedOpenspec.reason_code, "GRAPH_DIVERGENCE");
 
   const permutedNodes = projectAssuranceGraph({
     ...baseInput,
@@ -613,4 +614,103 @@ test("REQ-assurance-graph-008: reconcile rejects stored identity mutations after
     assert.equal(reconciled.reason_code, "GRAPH_DIVERGENCE", name);
   }
 });
+
+test("REQ-assurance-graph-002: satisfies edge is emitted only when evidence_requirements_satisfied.length > 0", () => {
+  const { candidate, executionGraph, verified } = verifiedProjection();
+  const withCoverage = projectAssuranceGraph({
+    candidate,
+    executionGraph,
+    evidence: verified.evidence,
+    assessments: [
+      {
+        schema_version: 2,
+        kind: "assessment/v2",
+        assessment_id: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        evidence_id: verified.evidence[0].evidence_id,
+        obligation_id: "req-repair-001",
+        node_id: "repair-core",
+        candidate_id: candidate.candidate_id,
+        policy_snapshot_id: executionGraph.policy_snapshot_id,
+        evidence_requirements_satisfied: ["ev:test-pass"],
+      },
+    ],
+  });
+  assert.equal(withCoverage.ok, true);
+  const satisfiesEdge = withCoverage.graph.edges.find((e) => e.relation === "satisfies");
+  assert.ok(satisfiesEdge, "satisfies edge must be emitted when evidence_requirements_satisfied is non-empty");
+
+  const withoutCoverage = projectAssuranceGraph({
+    candidate,
+    executionGraph,
+    evidence: verified.evidence,
+    assessments: [
+      {
+        schema_version: 2,
+        kind: "assessment/v2",
+        assessment_id: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        evidence_id: verified.evidence[0].evidence_id,
+        obligation_id: "req-repair-001",
+        node_id: "repair-core",
+        candidate_id: candidate.candidate_id,
+        policy_snapshot_id: executionGraph.policy_snapshot_id,
+        evidence_requirements_satisfied: [],
+      },
+    ],
+  });
+  assert.equal(withoutCoverage.ok, true);
+  const noSatisfiesEdge = withoutCoverage.graph.edges.find((e) => e.relation === "satisfies");
+  assert.equal(noSatisfiesEdge, undefined, "satisfies edge must NOT be emitted when evidence_requirements_satisfied is empty");
+});
+
+test("REQ-assurance-graph-006: replay rejects evidence and verification mutations", () => {
+  const { candidate, executionGraph, verified } = verifiedProjection();
+  const persistable = {
+    candidate,
+    executionGraph,
+    evidence: verified.evidence,
+    assessments: verified.assessments,
+    verification: verified.verification,
+    canonical_inputs: verified.assurance_graph.canonical_inputs,
+  };
+  const foreignCandidateId = "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+
+  // Evidence candidate mismatch
+  const badEvidenceCandidate = replayAssuranceGraph({
+    ...persistable,
+    evidence: [{ ...verified.evidence[0], candidate_id: foreignCandidateId }, ...verified.evidence.slice(1)],
+  });
+  assert.equal(badEvidenceCandidate.ok, false);
+  assert.equal(badEvidenceCandidate.reason_code, "GRAPH_DIVERGENCE");
+
+  // Evidence with verdict
+  const evidenceWithVerdict = replayAssuranceGraph({
+    ...persistable,
+    evidence: [{ ...verified.evidence[0], verdict: "PASS" }, ...verified.evidence.slice(1)],
+  });
+  assert.equal(evidenceWithVerdict.ok, false);
+  assert.equal(evidenceWithVerdict.reason_code, "GRAPH_DIVERGENCE");
+
+  // Verification referencing non-existent evidence_id
+  const badVerificationEvidence = replayAssuranceGraph({
+    ...persistable,
+    verification: {
+      ...verified.verification,
+      evidence_ids: ["sha256:0000000000000000000000000000000000000000000000000000000000000000"],
+    },
+  });
+  assert.equal(badVerificationEvidence.ok, false);
+  assert.equal(badVerificationEvidence.reason_code, "GRAPH_DIVERGENCE");
+
+  // Verification candidate mismatch
+  const badVerificationCandidate = replayAssuranceGraph({
+    ...persistable,
+    verification: {
+      ...verified.verification,
+      candidate_id: foreignCandidateId,
+    },
+  });
+  assert.equal(badVerificationCandidate.ok, false);
+  assert.equal(badVerificationCandidate.reason_code, "GRAPH_DIVERGENCE");
+});
+
 

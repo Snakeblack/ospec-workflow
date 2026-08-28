@@ -1,10 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "ospec://schemas/kernel/assessment/v1",
-  "title": "AssessmentV1",
+  "$id": "ospec://schemas/kernel/assessment/v2",
+  "title": "AssessmentV2",
   "description": "Persistable assessment/binding distinct from evidence observation and verification verdict. Verdict is forbidden.",
   "type": "object",
-  "schema_version": 1,
+  "schema_version": 2,
   "required": [
     "schema_version",
     "kind",
@@ -14,16 +14,17 @@
     "obligation_id",
     "node_id",
     "candidate_id",
-    "policy_snapshot_id"
+    "policy_snapshot_id",
+    "evidence_requirements_satisfied"
   ],
   "properties": {
     "schema_version": {
       "type": "integer",
-      "const": 1
+      "const": 2
     },
     "kind": {
       "type": "string",
-      "const": "assessment/v1"
+      "const": "assessment/v2"
     },
     "assessment_id": {
       "type": "string",
@@ -35,7 +36,19 @@
     },
     "role": {
       "type": "string",
-      "minLength": 1
+      "enum": [
+        "red",
+        "green",
+        "characterization-before",
+        "characterization-after",
+        "negative",
+        "acceptance",
+        "integration",
+        "invariant",
+        "smoke",
+        "rollback",
+        "dry-run"
+      ]
     },
     "obligation_id": {
       "type": "string",
@@ -52,6 +65,15 @@
     "policy_snapshot_id": {
       "type": "string",
       "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "evidence_requirements_satisfied": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
     }
   },
   "additionalProperties": false
