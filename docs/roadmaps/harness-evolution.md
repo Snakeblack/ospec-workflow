@@ -1,7 +1,7 @@
 # Roadmap general — kernel, grafo y evidencia
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.53.0, 2026-08-28.
+> **Versión de referencia:** v2.54.0, 2026-08-28.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
 > **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md) (P0–P27). Proporcionalidad de proceso y Change Program: [`../architecture/research/proportional-process-and-change-program.md`](../architecture/research/proportional-process-and-change-program.md).
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
@@ -78,8 +78,8 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **K5** | Budgets (incl. autoridad/efectos), failures y recovery; remediaciones v2.45.7→v2.45.13 (authoritative enforcement, authority boundary/CAS concurrency, reconciliación, remediación técnica del núcleo y blindaje de concurrencia); archivado y publicado en v2.45.13 |
 | `done` | **K6a** | Worker isolation y work-order capsule; primitivas de ejecución aislada, integración con WorkerTransport, contención de filesystem y WorkResult canónico; archivado en v2.46.0, frontera de procesos cerrada en v2.47.1 y endurecida en v2.47.2 |
 | `done` | **K4b** | Repair shadow execution (WO→WR→integrate→Candidate); despacho exclusivo K6a, integración estricta, cápsula mínima, base derivada y registro 1:N; remediación de invariantes en v2.48.2 y cierre mode-only/baseline en v2.48.3 (`2026-08-26-k4b-mode-only-and-baseline-projection`) |
-| `done` | **K6b** | Verifier independiente, strategies/provenance y Assurance Graph proyección; integridad semántica, estabilidad de esquemas (assessment v2/v1), desacoplamiento rawEvidence, matriz de roles y replay cerrados en v2.53.0 (`2026-08-28-k6b-evidence-binding-and-schema-stability-remediation`) |
-| `next-eligible` | **K6c** | ChallengePlan policy-selected; desbloqueado tras archive definitivo de K6b |
+| `revise` | **K6b** | v2.53.1 cerró inyección semántica en `rawEvidence`, blind copy y chronology por array, pero el terminal review reabrió receipt authority/binding, causalidad completa y replay criptográfico obligatorio. Remediación publicada en v2.54.0; pendiente terminal review. |
+| `blocked-by-K6b-terminal-review` | **K6c** | ChallengePlan policy-selected; no iniciar hasta verdict terminal objetivo de K6b |
 | `pending` | K6d–K8 | Complexity delta, review authority, **Evaluation Attestation** |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
 | `pending` | K10-delivery | `DeliveryAuthorization` **acotada al profile K9**; relación Candidate por etapas; fixed/deferred para el resto |
@@ -184,9 +184,11 @@ Campo canónico de binding al candidato: **`candidate_id`** (no `candidate_diges
 
 ```text
 Entregado:
-G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2 → K2.1 → K2a → K3 → K4a → K5 → K6a → K4b → K6b
+G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2 → K2.1 → K2a → K3 → K4a → K5 → K6a → K4b
                                                                                                       ↓
-Next:                                                                                                K6c  (next-eligible)
+Revise:                                                                                              K6b  (terminal review pending)
+                                                                                                      ↓
+Blocked:                                                                                             K6c
                                                                                                       ↓
 Pending:     K6d → K7 → K8
                                                                    ↓
@@ -1007,11 +1009,11 @@ Take compiled Repair Execution Graph (K4a)
 
 Vertical Repair shadow produce Candidate congelado. Gate de invariantes cerrado en v2.48.3: mode-only exige path existente y `old mode` de la base; la comparación baseline es graph-bound sin préstamo del Graph shadow. Desbloquea K6b. El resultado de O20A decide **promover, revisar o rechazar** el kernel común solo tras K9; rechazo conserva fixed.
 
-### K6b — verifier independiente, evidence strategies y Assurance Graph — **done**
+### K6b — verifier independiente, evidence strategies y Assurance Graph — **revise**
 
 **Dependencias:** K4b + K6a + K3.
 
-**Estado:** `done`. Publicado en v2.50.0 (`k6b-verifier-evidence-assurance-graph`); la remediación semántica focal B1–B3/H1–H3 (`k6b-semantic-integrity-remediation`) cierra cobertura MUST, assessments persistibles `assessment/v1`, `graph_id` canónico y proyección/replay/reconciliación fail-closed en v2.52.0. Este change no reabre el macro-slice. OpenSpec/Git/Candidate siguen siendo la única autoridad semántica. El grafo no concede lifecycle, approval ni delivery. **K6c queda `next-eligible`.**
+**Estado:** `revise`. Publicado inicialmente en v2.50.0 y endurecido hasta v2.53.1. El review terminal de v2.53.1 confirmó los cierres de metadata caller-owned, blind copy y array chronology, pero detectó tres contratos aún parciales: receipts sin autoridad/binding exacto, `run_id`/`previous_evidence_id` no obligatorios y replay sin material de observación. La remediación focal implementa `runner-receipt/v1` sobre canal opaco, cadena causal completa y replay obligatorio con bytes/blob CAS. K6b permanece `revise` y **K6c `blocked` hasta un terminal review objetivo**. OpenSpec/Git/Candidate siguen siendo la única autoridad semántica; el grafo no concede lifecycle, approval ni delivery.
 
 **Absorbe/rebasa:** P12/P16; O15; separación apply/verify vigente.
 
@@ -1063,6 +1065,9 @@ No se reejecuta “absolutamente todo” por defecto; tampoco se reutiliza evide
 - verifier consume contract, Execution Graph, **`CandidateId` (no `WorkResultId`)**, repo y raw evidence;
 - strategies bug/feature/refactor/migration/config-docs;
 - evidence refs con origin, hash y node binding **como nodos/edges del Assurance Graph**;
+- `runner-receipt/v1` content-addressed, Evidence-bound y consumido exclusivamente desde una capacidad opaca de runtime;
+- chronology temporal con un único `run_id`, ordinales estrictos y `previous_evidence_id` obligatorio en cada transición;
+- replay Evidence bundle con bytes o `observation_blob_id` resoluble; ausencia de material implica `GRAPH_DIVERGENCE`;
 - **provenance de evidencia** (obligatorio en cada evidence node):
 
 ```text
@@ -1084,7 +1089,7 @@ external-unverified
 
 - convertir el Assurance Graph en autoridad de lifecycle, approval o delivery;
 - review lenses / findings (K7 consume y extiende edges `reviewed-by`);
-- receipt binding completo (K8 digiere roots como Evaluation Attestation; no redefine el grafo);
+- Evaluation Attestation de K8 (digiere roots de K6b, pero no redefine receipt authority ni el grafo);
 - arreglar first-match de la tabla de routing de producto (`standard` sombreando `lite`); es compatibilidad viva, no verifier;
 - introducir Change Program / cola de OpenSpec changes concatenados;
 - Quality Attribute identities, gate Architecture Readiness o pipeline de cinco agentes.
@@ -1100,12 +1105,16 @@ external-unverified
 - fixtures de successor invalidan solo el closure afectado y **conservan** evidencia independiente;
 - fixtures rechazan reusar evidencia bajo un edge `invalidates` transitivo;
 - Strict TDD sigue disponible y por defecto;
+- caller DTOs de receipts y matching posicional fallan cerrados;
+- receipt `outcome: failed` no puede satisfacer tokens;
+- chronology mixta, sin predecessor o con chain incorrecta falla cerrada;
+- replay sin bytes/blob resoluble falla cerrado y el bundle completo conserva `graph_id`;
 - equivalence manifest queda listo para K9;
 - ningún consumer trata el Assurance Graph como segunda fuente de verdad frente a OpenSpec/Git/Candidate.
 
-**Gate terminal:** verifier, strategy selector, provenance y Assurance Graph (proyección) conformes; checkpoint evidencia/challenges → `continue` | `revise` | `reject`. Cerrado en v2.52.0. Desbloquea K6c.
+**Gate terminal:** pendiente. Requiere validar objetivamente los findings congelados B1 receipt authority/binding, B2 chronology causal y B3 replay obligatorio, además de H1 outcome. Solo un verdict terminal `continue` desbloquea K6c.
 
-### K6c — adversarial challenges (policy-selected) — **next-eligible**
+### K6c — adversarial challenges (policy-selected) — **blocked-by-K6b-terminal-review**
 
 **Dependencias:** K6b (+ `PolicySnapshot` / strategy de evidencia).
 
@@ -2063,3 +2072,5 @@ Un Change Program (objetivo → children OpenSpec + cursor, ver investigación `
 - 2026-08-27: K6b entra en `revise` (`k6b-verification-integrity-remediation`): cobertura MUST, assessments persistibles, provenance de collector, `graph_id` canónico y proyección fail-closed. K6c pasa a `blocked-by-K6b-remediation` hasta archive de esa remediación.
 - 2026-08-27: K6b (`k6b-semantic-integrity-remediation`) entra en apply para remediar B1–B3/H1–H3; K6b queda `revise` y K6c `blocked-by-K6b-remediation` hasta archive.
 - 2026-08-28: K6b (`k6b-semantic-integrity-remediation`) cierra con verify PASS, 4R approved y archive transaccional; publicado en v2.52.0. K6c queda next-eligible.
+- 2026-08-28: review terminal del tag v2.53.1 reabre K6b como `revise`: RunnerReceipt no demuestra autoridad ni binding exacto, chronology no exige `run_id`/chain completos y replay permite omitir bytes. K6c vuelve a `blocked-by-K6b-terminal-review`.
+- 2026-08-28: remediación focal publicada en v2.54.0: `runner-receipt/v1` por canal opaco con EvidenceId obligatorio y outcome coherente; causal chain completa; replay exige bytes o blob content-addressed. Dominios K6b enrolados y reconciliados. Pendiente terminal review, sin promover aún K6b ni iniciar K6c.

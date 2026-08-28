@@ -133,6 +133,16 @@ test("REQ-independent-verification-003: valid physical observation returns norma
   assert.equal(result.raw, rawObs);
 });
 
+test("REQ-independent-verification-003: observation without bytes fails closed", () => {
+  const rawObs = validRaw();
+  delete rawObs.bytes;
+  const result = normalizeEvidence(rawObs, CANDIDATE, EXECUTION_GRAPH, COLLECTOR);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "FABRICATED_EVIDENCE");
+  assert.match(result.error, /bytes|rawBytes/);
+});
+
 test("REQ-independent-verification-003: evaluateProvenanceSufficiency requires runtime provenance by default", () => {
   assert.equal(evaluateProvenanceSufficiency({ provenance: "runtime-observed" }).ok, true);
   assert.equal(evaluateProvenanceSufficiency({ provenance: "host-attested" }).ok, true);

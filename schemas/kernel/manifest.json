@@ -230,6 +230,11 @@
       "path": "schemas/kernel/assessment/v2.schema.json",
       "$id": "ospec://schemas/kernel/assessment/v2",
       "schema_version": 2
+    },
+    "runner-receipt": {
+      "path": "schemas/kernel/runner-receipt/v1.schema.json",
+      "$id": "ospec://schemas/kernel/runner-receipt/v1",
+      "schema_version": 1
     }
   }
 }

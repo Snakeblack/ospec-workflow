@@ -8,8 +8,17 @@ const test = require("node:test");
 const { freezeCandidate } = require("../execution-identities/index.js");
 const { compileExecutionGraph, createPolicySnapshot } = require("../execution-graph/index.js");
 const { computeTreeDigest } = require("../worker-workspace.js");
-const { verifyCandidate, selectStrategy } = require("./index.js");
-const { computeEvidenceId, digestRawBytes } = require("./evidence.js");
+const { verifyCandidate: verifyCandidateRuntime, selectStrategy } = require("./index.js");
+const { computeEvidenceId, digestRawBytes, normalizeEvidence } = require("./evidence.js");
+const runnerReceipt = require("./runner-receipt.js");
+const {
+  computeRunnerReceiptId,
+  createRunnerReceipt,
+} = require("./runner-receipt.js");
+const {
+  createTestRunnerReceiptChannel,
+  createTestRunnerReceiptChannelFromReceipts,
+} = require("../test-support/k6b-runner-receipt.js");
 const { computeVerificationId } = require("./verdict.js");
 const { computeAssessmentId } = require("./assessment.js");
 const assuranceGraph = require("../assurance-graph/index.js");
@@ -41,11 +50,13 @@ const SAMPLE_OBLIGATIONS = [
   },
 ];
 
-function sampleReceipt(role, satisfied = ["ev:test-pass"], extra = {}) {
+function sampleReceipt(role, satisfied, extra = {}) {
   return {
     role,
     node_id: extra.node_id || "repair-core",
-    evidence_requirements_satisfied: satisfied,
+    evidence_requirements_satisfied: satisfied === undefined
+      ? (role === "red" ? [] : ["ev:test-pass"])
+      : satisfied,
     ...extra,
   };
 }
@@ -128,6 +139,29 @@ function raw(bytes, extra = {}) {
     record.execution_sequence = extra.execution_sequence;
   }
   return { ...record, ...extra.fields };
+}
+
+function withTrustedRunnerReceipts(input) {
+  if (input.runnerReceiptChannel) return input;
+  const receiptSpecs = Array.isArray(input.runner_receipts)
+    ? input.runner_receipts
+    : (Array.isArray(input.receipts) ? input.receipts : []);
+  const rawEvidence = Array.isArray(input.rawEvidence) ? input.rawEvidence : [];
+  const trustedInput = {
+    ...input,
+    runnerReceiptChannel: createTestRunnerReceiptChannel({
+      ...input,
+      rawEvidence,
+      receiptSpecs,
+    }),
+  };
+  delete trustedInput.runner_receipts;
+  delete trustedInput.receipts;
+  return trustedInput;
+}
+
+function verifyCandidate(input) {
+  return verifyCandidateRuntime(withTrustedRunnerReceipts(input));
 }
 
 function featureEvidence() {
@@ -760,7 +794,7 @@ test("REQ-independent-verification-005: evidence on a non-implementing node fail
     runner_receipts: featureReceipts().map((r) => ({ ...r, node_id: "other-node", obligation_ids: ["req-repair-001"] })),
   });
   assert.equal(result.ok, false);
-  assert.equal(result.reason_code, "WRONG_IMPLEMENTING_NODE");
+  assert.equal(result.reason_code, "UNFULFILLED_MUST");
 });
 
 test("REQ-independent-verification-005: approved deferral skips MUST coverage", () => {
@@ -869,7 +903,7 @@ test("REQ-independent-verification-006: one observation cannot satisfy four inco
     ],
   });
   assert.equal(result.ok, false);
-  assert.equal(result.reason_code, "STRATEGY_EVIDENCE_ALIAS");
+  assert.equal(result.reason_code, "RUNNER_RECEIPT_BINDING_MISMATCH");
   assert.equal(Object.prototype.hasOwnProperty.call(result, "verification"), false);
 });
 
@@ -971,7 +1005,7 @@ test("REQ-independent-verification-006: incompatible roles red ↔ green, char-b
     ],
   });
   assert.equal(redGreen.ok, false);
-  assert.equal(redGreen.reason_code, "STRATEGY_EVIDENCE_ALIAS");
+  assert.equal(redGreen.reason_code, "RUNNER_RECEIPT_BINDING_MISMATCH");
 
   // negative ↔ acceptance
   const negAcc = verifyCandidate({
@@ -991,7 +1025,7 @@ test("REQ-independent-verification-006: incompatible roles red ↔ green, char-b
     ],
   });
   assert.equal(negAcc.ok, false);
-  assert.equal(negAcc.reason_code, "STRATEGY_EVIDENCE_ALIAS");
+  assert.equal(negAcc.reason_code, "RUNNER_RECEIPT_BINDING_MISMATCH");
 
   // characterization-before ↔ characterization-after
   const charBeforeAfter = verifyCandidate({
@@ -1009,7 +1043,7 @@ test("REQ-independent-verification-006: incompatible roles red ↔ green, char-b
     ],
   });
   assert.equal(charBeforeAfter.ok, false);
-  assert.equal(charBeforeAfter.reason_code, "STRATEGY_EVIDENCE_ALIAS");
+  assert.equal(charBeforeAfter.reason_code, "RUNNER_RECEIPT_BINDING_MISMATCH");
 });
 
 test("REQ-independent-verification-006: non-conflicting shared evidence (integration + acceptance) passes validation", () => {
@@ -1184,4 +1218,177 @@ test("REQ-independent-verification-006 [Adversarial]: strict-tdd previous_eviden
   assert.equal(result.ok, false);
   assert.equal(result.reason_code, "STRATEGY_SEQUENCE_VIOLATION");
   assert.match(result.error, /previous_evidence_id/i);
+});
+
+test("REQ-independent-verification-003 [Adversarial]: caller runner_receipts without trusted channel fail closed", () => {
+  const harness = buildHarness();
+  const result = verifyCandidateRuntime({
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence: featureEvidence(),
+    runner_receipts: featureReceipts(),
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "UNTRUSTED_RUNNER_RECEIPT");
+});
+
+test("REQ-independent-verification-003 [Adversarial]: public verifier facade cannot mint a trusted receipt channel", () => {
+  assert.equal(runnerReceipt.createRunnerReceiptChannel, undefined);
+  assert.equal(runnerReceipt.issueRunnerReceiptChannel, undefined);
+});
+
+test("REQ-independent-verification-003 [Adversarial]: failed receipt cannot satisfy evidence tokens", () => {
+  const harness = buildHarness({
+    runner_receipts: featureReceipts().map((receipt, index) => index === 0
+      ? { ...receipt, outcome: "failed" }
+      : receipt),
+  });
+  const result = verifyCandidate({
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence: featureEvidence(),
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "INVALID_RUNNER_RECEIPT");
+});
+
+test("REQ-independent-verification-003 [Adversarial]: failed success role cannot satisfy strategy shape", () => {
+  const harness = buildHarness({
+    runner_receipts: featureReceipts().map((receipt, index) => index === 0
+      ? { ...receipt, evidence_requirements_satisfied: [], outcome: "failed" }
+      : receipt),
+  });
+  const result = verifyCandidate({
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence: featureEvidence(),
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "INVALID_RUNNER_RECEIPT");
+});
+
+test("REQ-independent-verification-006 [Adversarial]: temporal evidence requires one run and complete chaining", () => {
+  const harness = buildHarness();
+  const differentRun = verifyCandidate({
+    ...harness,
+    rawEvidence: [
+      raw("red fail", { execution_sequence: { run_id: "run-a", ordinal: 1 } }),
+      raw("green pass", { execution_sequence: { run_id: "run-b", ordinal: 2 } }),
+    ],
+    runner_receipts: [sampleReceipt("red"), sampleReceipt("green")],
+  });
+  assert.equal(differentRun.ok, false);
+  assert.equal(differentRun.reason_code, "STRATEGY_SEQUENCE_VIOLATION");
+
+  const missingPrevious = verifyCandidate({
+    ...harness,
+    rawEvidence: [
+      raw("red fail", { execution_sequence: { run_id: "run-a", ordinal: 1 } }),
+      raw("green pass", { execution_sequence: { run_id: "run-a", ordinal: 2 } }),
+    ],
+    runner_receipts: [
+      sampleReceipt("red", [], { execution_sequence: { run_id: "run-a", ordinal: 1 } }),
+      sampleReceipt("green", ["ev:test-pass"], { execution_sequence: { run_id: "run-a", ordinal: 2 } }),
+    ],
+  });
+  assert.equal(missingPrevious.ok, false);
+  assert.equal(missingPrevious.reason_code, "STRATEGY_SEQUENCE_VIOLATION");
+  assert.match(missingPrevious.error, /previous_evidence_id/i);
+});
+
+test("REQ-independent-verification-003 [Adversarial]: receipt without evidence_id fails schema validation", () => {
+  const harness = buildHarness();
+  const rawEvidence = featureEvidence();
+  const receipts = featureReceipts().map((spec, index) => {
+    const normalized = normalizeEvidence(rawEvidence[index], harness.candidate, harness.executionGraph, harness.collector);
+    return createRunnerReceipt({
+      candidate_id: harness.candidate.candidate_id,
+      evidence_id: normalized.evidence.evidence_id,
+      node_id: normalized.evidence.node_id,
+      role: spec.role,
+      satisfied_tokens: spec.evidence_requirements_satisfied,
+      outcome: "passed",
+      issuer_id: "node-test",
+      transport: "tool-execution-transport",
+    });
+  });
+  const invalid = { ...receipts[0] };
+  delete invalid.evidence_id;
+  invalid.receipt_id = computeRunnerReceiptId(invalid);
+  const input = {
+    ...harness,
+    rawEvidence,
+    declaredStrategy: "feature",
+    runnerReceiptChannel: createTestRunnerReceiptChannelFromReceipts([invalid, ...receipts.slice(1)]),
+  };
+  delete input.runner_receipts;
+  const result = verifyCandidateRuntime(input);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "INVALID_RUNNER_RECEIPT");
+});
+
+test("REQ-independent-verification-003 [Adversarial]: receipt for E1 cannot bind E2 by position", () => {
+  const harness = buildHarness();
+  const rawEvidence = featureEvidence();
+  const firstEvidence = normalizeEvidence(
+    rawEvidence[0],
+    harness.candidate,
+    harness.executionGraph,
+    harness.collector
+  ).evidence;
+  const receiptSpecs = featureReceipts().map((receipt, index) => index === 1
+    ? { ...receipt, evidence_id: firstEvidence.evidence_id }
+    : receipt);
+  const input = {
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence,
+    runnerReceiptChannel: createTestRunnerReceiptChannel({
+      ...harness,
+      rawEvidence,
+      receiptSpecs,
+    }),
+  };
+  delete input.runner_receipts;
+  const result = verifyCandidateRuntime(input);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "RUNNER_RECEIPT_BINDING_MISMATCH");
+});
+
+test("REQ-independent-verification-006 [Adversarial]: bug GREEN must chain to PATCH EvidenceId", () => {
+  const harness = buildHarness();
+  const rawEvidence = [
+    raw("red", { execution_sequence: { run_id: "bug-run", ordinal: 1 } }),
+    raw("patch", { provenance: "tool-produced", execution_sequence: { run_id: "bug-run", ordinal: 2 } }),
+    raw("green", { execution_sequence: { run_id: "bug-run", ordinal: 3 } }),
+  ];
+  const result = verifyCandidate({
+    ...harness,
+    declaredStrategy: "bug",
+    collectors: [
+      trustedCollector("runtime-observed"),
+      trustedCollector("tool-produced"),
+      trustedCollector("runtime-observed"),
+    ],
+    rawEvidence,
+    runner_receipts: [
+      sampleReceipt("red"),
+      sampleReceipt("patch"),
+      sampleReceipt("green", ["ev:test-pass"], {
+        execution_sequence: {
+          run_id: "bug-run",
+          ordinal: 3,
+          previous_evidence_id: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        },
+      }),
+    ],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "STRATEGY_SEQUENCE_VIOLATION");
 });

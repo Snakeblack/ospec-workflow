@@ -5,6 +5,26 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [2.54.0] - 2026-08-28
+
+### Security
+- **Autoridad y binding exacto de RunnerReceipt (`runner-receipt/v1`)**:
+  - Nuevo contrato kernel `ospec://schemas/kernel/runner-receipt/v1` con `receipt_id` content-addressed y `evidence_id` obligatorio.
+  - `verifyCandidate` rechaza DTOs caller-owned `runner_receipts`/`receipts` (`UNTRUSTED_RUNNER_RECEIPT`) y solo consume un canal opaco `runnerReceiptChannel` emitido por el runtime.
+  - Se elimina matching por posición/nodo y fallback de role a `node.kind`; Candidate, Evidence y nodo deben coincidir exactamente (`INVALID_RUNNER_RECEIPT` / `RUNNER_RECEIPT_BINDING_MISMATCH`).
+  - `outcome: failed` con tokens satisfechos falla con `INVALID_RUNNER_RECEIPT`.
+- **Cronología y replay fail-closed completos**:
+  - Strategies temporales exigen `run_id` único no vacío, ordinales estrictos y `previous_evidence_id` en cada transición posterior a la raíz.
+  - Replay exige bytes o `observation_blob_id` content-addressed resoluble, más el canal de receipts; sin material de observación retorna `GRAPH_DIVERGENCE`.
+
+### Changed
+- K6b permanece `revise` pendiente de terminal review objetivo; K6c sigue `blocked-by-K6b-terminal-review`.
+- Dominios `independent-verification`, `assurance-graph` y `kernel-contract-schemas` enrolados en el baseline (skip) y reconciliados contra `a476b9a`.
+- ADR `docs/adr/adr-20260828-014-runner-receipt-authority-binding.md`. Specs `independent-verification`, `assurance-graph` y `kernel-contract-schemas`.
+- Remediación directa post-v2.53.1, documentada con `sdd-baseline` (skip) y `sdd-reconcile`. Verificación: focused K6b 115 pass; `npm test` PASS. Archivado en `openspec/changes/archive/2026-08-28-k6b-receipt-binding-and-replay-finalization/`.
+
 ## [2.53.1] - 2026-08-28
 
 ### Security
@@ -26,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `validateReplayRecords` recomputa `digestRawBytes` y `computeEvidenceId(record, bytes)` validando igualdad exacta contra `record.digest` y `record.evidence_id`.
   - Revalidación obligatoria de procedencia mediante `evaluateProvenanceSufficiency(record, { requireRuntime: true })`, fallando con `GRAPH_DIVERGENCE` ante adulteración de digest, id o insuficiencia de provenance.
   - ADRs `docs/adr/adr-20260828-010` a `013`. Specs `independent-verification` y `assurance-graph`.
-  - Cierre definitivo de los hallazgos B1, B2, B3 y H1 de K6b. Archivado en `openspec/changes/archive/2026-08-28-k6b-trusted-evidence-replay-closure/`.
+  - Cierre declarado originalmente para B1, B2, B3 y H1. El review terminal post-release reabrió receipt authority/binding, causalidad completa y replay sin material; ver errata del verify report. Archivado en `openspec/changes/archive/2026-08-28-k6b-trusted-evidence-replay-closure/`.
 
 ## [2.53.0] - 2026-08-28
 

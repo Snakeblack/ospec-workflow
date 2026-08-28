@@ -1,6 +1,6 @@
 # ADR-002: Derivación autoritativa de satisfacción desde Runner Receipts
 
-- Status: proposed
+- Status: superseded by ADR-005
 - Change: k6b-trusted-evidence-replay-closure
 - Date: 2026-08-28
 
@@ -8,7 +8,9 @@
 El verificador independiente permitía un fallback de copia ciega de `node.required_evidence` hacia `evidence_requirements_satisfied` cuando el payload no declaraba cobertura, aprobando obligaciones críticas sin que un recibo de ejecución hubiera atestiguado la prueba efectiva.
 
 ## Decision
-Derivar `evidence_requirements_satisfied` en `verifyCandidate` exclusivamente a partir de runner receipts confiables (`receipts` / `runner_receipts`) emitidos por el harness de ejecución. Se prohíbe explícitamente la copia automática o por defecto de `node.required_evidence`; si no hay recibo que lo atestigüe, el conjunto de satisfacción es vacío y la obligación MUST falla con `UNFULFILLED_MUST`.
+Derivar `evidence_requirements_satisfied` en `verifyCandidate` exclusivamente a partir de runner receipts emitidos por el harness de ejecución. Se prohíbe explícitamente la copia automática o por defecto de `node.required_evidence`; si no hay recibo que lo atestigüe, el conjunto de satisfacción es vacío y la obligación MUST falla con `UNFULFILLED_MUST`.
+
+La decisión original no definió cómo demostrar la autoridad del receipt ni su binding exacto a Evidence. ADR-005 sustituye esa parte con `runner-receipt/v1` y un canal opaco; conserva la prohibición de blind copy.
 
 ## Alternatives
 - Mantener la copia por defecto de `node.required_evidence` cuando no se especifica satisfacción — rechazado: genera falsos positivos donde la mera existencia de un archivo da por probada una obligación.

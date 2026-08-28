@@ -723,6 +723,32 @@
         ]
       },
       "command_shapes": []
+    },
+    "runner-receipt": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "receipt_id",
+        "candidate_id",
+        "evidence_id",
+        "node_id",
+        "role",
+        "satisfied_tokens",
+        "outcome",
+        "issuer_id",
+        "transport"
+      ],
+      "enum_values": {
+        "outcome": [
+          "passed",
+          "failed"
+        ],
+        "transport": [
+          "tool-execution-transport",
+          "execution-transport"
+        ]
+      },
+      "command_shapes": []
     }
   }
 }

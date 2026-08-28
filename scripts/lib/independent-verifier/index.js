@@ -6,6 +6,7 @@ const { normalizeEvidence, computeEvidenceId } = require("./evidence.js");
 const { resolveEvidenceProvenance } = require("./collector-provenance.js");
 const { emitVerification } = require("./verdict.js");
 const { walkMustObligations } = require("./obligation-coverage.js");
+const { readRunnerReceiptChannel } = require("./runner-receipt.js");
 const assuranceGraph = require("../assurance-graph/index.js");
 
 function fail(reason_code, error) {
@@ -69,19 +70,25 @@ function rejectStaleEvidence(input, bound, evidence, rawBytes) {
 }
 
 function getRunnerReceipts(input) {
-  const src = input && (input.runner_receipts || input.receipts);
-  if (!src) return [];
-  if (Array.isArray(src)) return src;
-  if (typeof src === "object") return Object.values(src);
-  return [];
+  if (
+    input &&
+    (Object.prototype.hasOwnProperty.call(input, "runner_receipts") ||
+      Object.prototype.hasOwnProperty.call(input, "receipts"))
+  ) {
+    return fail(
+      "UNTRUSTED_RUNNER_RECEIPT",
+      "runner receipt DTOs are untrusted; provide the opaque runnerReceiptChannel"
+    );
+  }
+  return readRunnerReceiptChannel(input && input.runnerReceiptChannel);
 }
 
 /**
- * Independently verify a frozen Candidate v2.
- * Worker narrative is not authority. Evidence stays distinct from verdict.
+ * Verifica de forma independiente un Candidate v2 congelado.
+ * La narrativa del worker no concede autoridad y Evidence permanece separada del veredicto.
  *
- * @param {object} input
- * @returns {{ ok: boolean, strategy?: string, evidence?: object[], assessments?: object[], verification?: object, reason_code?: string }}
+ * @param {object} input Candidate, grafo, observaciones, collector y canal de receipts.
+ * @returns {{ ok: boolean, strategy?: string, evidence?: object[], replay_evidence?: object[], assessments?: object[], verification?: object, reason_code?: string }} Resultado fail-closed y material persistible de replay.
  */
 function verifyCandidate(input) {
   const bound = validateBindings(input);
@@ -96,7 +103,10 @@ function verifyCandidate(input) {
 
   const graphNodesById = new Map((bound.executionGraph.nodes || []).map((n) => [n && n.node_id, n]));
   const graphObligations = bound.executionGraph.obligations || [];
-  const runnerReceipts = getRunnerReceipts(input);
+  const receiptGate = getRunnerReceipts(input);
+  if (!receiptGate.ok) return receiptGate;
+  const runnerReceipts = receiptGate.receipts;
+  const consumedReceiptIds = new Set();
 
   for (let index = 0; index < rawList.length; index += 1) {
     const raw = rawList[index];
@@ -114,68 +124,62 @@ function verifyCandidate(input) {
     if (!stale.ok) return stale;
 
     const node = graphNodesById.get(normalized.evidence.node_id);
-    const matchingReceipts = runnerReceipts.filter((r, rIdx) => {
-      if (!r || typeof r !== "object") return false;
-      if (r.evidence_id) return r.evidence_id === normalized.evidence.evidence_id;
-      if (r.node_id && node) {
-        if (r.node_id !== node.node_id) return false;
-        if (r.role && runnerReceipts.length === rawList.length) {
-          return rIdx === index;
-        }
-        return true;
-      }
-      if (runnerReceipts.length === rawList.length) return rIdx === index;
-      return false;
-    });
+    const matchingReceipts = runnerReceipts.filter(
+      (receipt) => receipt.evidence_id === normalized.evidence.evidence_id
+    );
+    if (matchingReceipts.length !== 1) {
+      return fail(
+        "RUNNER_RECEIPT_BINDING_MISMATCH",
+        `evidence_id ${normalized.evidence.evidence_id} requires exactly one bound runner receipt`
+      );
+    }
+    const receipt = matchingReceipts[0];
+    if (
+      receipt.candidate_id !== bound.candidate.candidate_id ||
+      receipt.node_id !== normalized.evidence.node_id
+    ) {
+      return fail(
+        "RUNNER_RECEIPT_BINDING_MISMATCH",
+        "runner receipt Candidate or node binding disagrees with Evidence"
+      );
+    }
+    consumedReceiptIds.add(receipt.receipt_id);
 
     let resolvedRole;
     if (node && node.role) {
+      if (node.role !== receipt.role) {
+        return fail(
+          "RUNNER_RECEIPT_BINDING_MISMATCH",
+          "runner receipt role disagrees with the Execution Graph node role"
+        );
+      }
       resolvedRole = node.role;
     } else {
-      const receiptWithRole = matchingReceipts.find((r) => r && typeof r.role === "string" && r.role.length > 0);
-      if (receiptWithRole) {
-        resolvedRole = receiptWithRole.role;
-      } else if (node && node.kind) {
-        resolvedRole = node.kind;
-      }
+      resolvedRole = receipt.role;
     }
 
-    let resolvedObligationIds = [];
-    const receiptWithObligations = matchingReceipts.find((r) => r && (r.obligation_ids || r.obligation_id));
-    if (receiptWithObligations) {
-      resolvedObligationIds = Array.isArray(receiptWithObligations.obligation_ids)
-        ? receiptWithObligations.obligation_ids
-        : (receiptWithObligations.obligation_id ? [receiptWithObligations.obligation_id] : []);
-    } else if (node) {
-      resolvedObligationIds = graphObligations
-        .filter((o) => Array.isArray(o.implemented_by) && o.implemented_by.includes(node.node_id))
-        .map((o) => o.id);
-    }
-
-    const satisfiedTokensSet = new Set();
-    for (const receipt of matchingReceipts) {
-      const tokens = receipt.evidence_requirements_satisfied || receipt.satisfied_tokens;
-      if (Array.isArray(tokens)) {
-        for (const token of tokens) {
-          if (typeof token === "string" && token.length > 0) {
-            satisfiedTokensSet.add(token);
-          }
-        }
-      }
-    }
-    const resolvedSatisfied = [...satisfiedTokensSet].sort();
-
-    const executionSequence = normalized.execution_sequence ||
-      (matchingReceipts.find((r) => r && r.execution_sequence) || {}).execution_sequence ||
-      null;
+    const resolvedObligationIds = node
+      ? graphObligations
+        .filter((obligation) => (
+          Array.isArray(obligation.implemented_by) && obligation.implemented_by.includes(node.node_id)
+        ))
+        .map((obligation) => obligation.id)
+      : [];
 
     classified.push({
       ...normalized,
-      execution_sequence: executionSequence,
+      execution_sequence: receipt.execution_sequence || null,
       role: resolvedRole,
       obligation_ids: resolvedObligationIds,
-      evidence_requirements_satisfied: resolvedSatisfied,
+      evidence_requirements_satisfied: receipt.satisfied_tokens,
     });
+  }
+
+  if (consumedReceiptIds.size !== runnerReceipts.length) {
+    return fail(
+      "RUNNER_RECEIPT_BINDING_MISMATCH",
+      "runner receipt set contains an orphan or duplicate Evidence binding"
+    );
   }
 
   const evaluated = evaluateStrategy(strategy, classified);
@@ -190,6 +194,13 @@ function verifyCandidate(input) {
   if (!coverage.ok) return coverage;
 
   const evidenceRecords = classified.map((item) => item.evidence);
+  const replayEvidence = classified.map((item, index) => ({
+    evidence: item.evidence,
+    bytes: item.raw.bytes !== undefined ? item.raw.bytes : item.raw.rawBytes,
+    runner_receipt_id: runnerReceipts.find(
+      (receipt) => receipt.evidence_id === item.evidence.evidence_id
+    ).receipt_id,
+  }));
   // human-decision and external-unverified extras keep a passing verification at
   // PASS WITH WARNINGS. model-reported is omitted here: it cannot satisfy a runtime MUST.
   const hasNonRuntimeExtra = classified.some(
@@ -221,6 +232,7 @@ function verifyCandidate(input) {
     ok: true,
     strategy,
     evidence: evidenceRecords,
+    replay_evidence: replayEvidence,
     assessments: coverage.assessments,
     verification,
     assurance_graph: projected.graph,

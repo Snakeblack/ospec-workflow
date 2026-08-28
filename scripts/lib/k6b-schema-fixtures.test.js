@@ -10,6 +10,7 @@ const {
   digestFile,
   K1_SCHEMA_BASELINE,
 } = require("./lifecycle-kernel/k1-compat.js");
+const { createRunnerReceipt } = require("./independent-verifier/runner-receipt.js");
 
 const ROOT = path.resolve(__dirname, "../..");
 
@@ -17,7 +18,7 @@ function readJson(relPath) {
   return JSON.parse(fs.readFileSync(path.join(ROOT, relPath), "utf8"));
 }
 
-test("K6b schema registration: manifest indexes evidence/v2, verification/v2, and assurance-graph/v1", () => {
+test("K6b schema registration: manifest indexes evidence, verification, graph, assessment, and runner receipt", () => {
   const manifest = readJson("schemas/kernel/manifest.json");
 
   assert.ok(manifest.families["evidence-v2"], "manifest must register evidence-v2");
@@ -55,6 +56,13 @@ test("K6b schema registration: manifest indexes evidence/v2, verification/v2, an
   assert.equal(manifest.families["assessment-v2"].path, "schemas/kernel/assessment/v2.schema.json");
   const assessmentV2 = loadSchemaById("ospec://schemas/kernel/assessment/v2", { rootDir: ROOT });
   assert.equal(assessmentV2.$id, "ospec://schemas/kernel/assessment/v2");
+
+  assert.ok(manifest.families["runner-receipt"], "manifest must register runner-receipt");
+  assert.equal(manifest.families["runner-receipt"].schema_version, 1);
+  assert.equal(manifest.families["runner-receipt"].$id, "ospec://schemas/kernel/runner-receipt/v1");
+  assert.equal(manifest.families["runner-receipt"].path, "schemas/kernel/runner-receipt/v1.schema.json");
+  const runnerReceipt = loadSchemaById("ospec://schemas/kernel/runner-receipt/v1", { rootDir: ROOT });
+  assert.equal(runnerReceipt.$id, "ospec://schemas/kernel/runner-receipt/v1");
 });
 
 test("K6b contract claims: additive families list required fields without replacing v1 claims", () => {
@@ -140,6 +148,44 @@ test("K6b contract claims: additive families list required fields without replac
     "rollback",
     "dry-run",
   ]);
+
+  assert.deepEqual(claims.families["runner-receipt"].required_fields, [
+    "schema_version",
+    "kind",
+    "receipt_id",
+    "candidate_id",
+    "evidence_id",
+    "node_id",
+    "role",
+    "satisfied_tokens",
+    "outcome",
+    "issuer_id",
+    "transport",
+  ]);
+});
+
+test("K6b runner-receipt/v1: exact Evidence binding validates and missing evidence_id fails", () => {
+  const schema = loadSchemaById("ospec://schemas/kernel/runner-receipt/v1", { rootDir: ROOT });
+  const receipt = createRunnerReceipt({
+    candidate_id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    evidence_id: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    node_id: "repair-core",
+    role: "green",
+    satisfied_tokens: ["ev:test-pass"],
+    execution_sequence: {
+      run_id: "run-1",
+      ordinal: 2,
+      previous_evidence_id: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    },
+    outcome: "passed",
+    issuer_id: "node-test",
+    transport: "tool-execution-transport",
+  });
+  assert.equal(validateInstance(schema, receipt).valid, true);
+
+  const missingEvidenceId = { ...receipt };
+  delete missingEvidenceId.evidence_id;
+  assert.equal(validateInstance(schema, missingEvidenceId).valid, false);
 });
 
 test("K6b evidence/v2: valid fixture passes; verdict and unknown provenance fail closed", () => {
