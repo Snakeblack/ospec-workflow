@@ -1,6 +1,6 @@
 # ADR-003: Cronología causal estricta mediante execution_sequence
 
-- Status: proposed
+- Status: accepted
 - Change: k6b-trusted-evidence-replay-closure
 - Date: 2026-08-28
 
@@ -8,7 +8,7 @@
 Las estrategias temporales (`strict-tdd`, `bug`, `refactor`) recurrían al orden posicional de los elementos en el array JSON de `rawEvidence` para evaluar la secuencia cronológica, lo que permitía simular TDD o refactorizaciones invirtiendo el orden de las evidencias en el array sin atestación causal.
 
 ## Decision
-Exigir obligatoriamente en `assertRoleOrder` un objeto `execution_sequence` válido (`run_id` consistente, `ordinal` monotónico creciente y encadenamiento `previous_evidence_id`) para cada evidencia en estrategias `strict-tdd`, `bug` y `refactor`. Se prohíbe de forma tajante el fallback a índices de array JSON, fallando inmediatamente con `STRATEGY_SEQUENCE_VIOLATION` ante ausencia o violación de orden.
+Exigir obligatoriamente en `assertRoleOrder` un `execution_sequence` emitido por el receipt confiable para cada transición temporal de `strict-tdd`, `bug` y `refactor`. Todos los eventos usan un `run_id` no vacío y consistente; los ordinales son enteros positivos, únicos y crecientes; cada evento posterior a la raíz declara `previous_evidence_id` igual al EvidenceId inmediatamente anterior. Se prohíbe el fallback a índices del array JSON y se falla con `STRATEGY_SEQUENCE_VIOLATION` ante ausencia o violación causal.
 
 ## Alternatives
 - Mantener el índice de array como fallback si falta `execution_sequence` — rechazado: la posición en un array JSON no tiene valor criptográfico ni atestación temporal.

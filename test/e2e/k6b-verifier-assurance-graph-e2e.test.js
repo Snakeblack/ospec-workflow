@@ -8,6 +8,7 @@ const { freezeCandidate } = require("../../scripts/lib/execution-identities/inde
 const { compileExecutionGraph, createPolicySnapshot } = require("../../scripts/lib/execution-graph/index.js");
 const { computeTreeDigest } = require("../../scripts/lib/worker-workspace.js");
 const { verifyCandidate } = require("../../scripts/lib/independent-verifier/index.js");
+const { createTestRunnerReceiptChannel } = require("../../scripts/lib/test-support/k6b-runner-receipt.js");
 const {
   reconcileAssuranceGraph,
   replayAssuranceGraph,
@@ -74,6 +75,16 @@ function buildHarness(files = { "src/index.js": "module.exports = 1;\n" }) {
   };
 }
 
+function trustedReceiptChannel(harness, rawEvidence, receiptSpecs) {
+  return createTestRunnerReceiptChannel({
+    candidate: harness.candidate,
+    executionGraph: harness.executionGraph,
+    collector: harness.collector,
+    rawEvidence,
+    receiptSpecs,
+  });
+}
+
 test("E2E: complete lifecycle - verification, projection, reconciliation, and cryptographic replay", () => {
   const harness = buildHarness();
 
@@ -88,13 +99,14 @@ test("E2E: complete lifecycle - verification, projection, reconciliation, and cr
     { role: "red", node_id: "repair-core" },
     { role: "green", node_id: "repair-core", evidence_requirements_satisfied: ["ev:test-pass"] },
   ];
+  const runnerReceiptChannel = trustedReceiptChannel(harness, rawEvidence, runnerReceipts);
 
   // 1. Verification
   const verificationResult = verifyCandidate({
     ...harness,
     declaredStrategy: "strict-tdd",
     rawEvidence,
-    runner_receipts: runnerReceipts,
+    runnerReceiptChannel,
   });
 
   assert.equal(verificationResult.ok, true, verificationResult.error || verificationResult.reason_code);
@@ -128,13 +140,11 @@ test("E2E: complete lifecycle - verification, projection, reconciliation, and cr
     executionGraph: harness.executionGraph,
     contract: harness.contract,
     policySnapshot: harness.policySnapshot,
-    evidence: [
-      { evidence: verificationResult.evidence[0], bytes: rawEvidence[0].bytes },
-      { evidence: verificationResult.evidence[1], bytes: rawEvidence[1].bytes },
-    ],
+    evidence: verificationResult.replay_evidence,
     assessments: verificationResult.assessments,
     verification: verificationResult.verification,
     canonical_inputs: projectedGraph.canonical_inputs,
+    runnerReceiptChannel,
   });
   assert.equal(replayResult.ok, true, replayResult.error || replayResult.reason_code);
   assert.equal(replayResult.graph.graph_id, projectedGraph.graph_id);
@@ -158,7 +168,7 @@ test("E2E Adversarial: caller metadata injection in raw evidence is rejected bef
     ...harness,
     declaredStrategy: "strict-tdd",
     rawEvidence: injectedEvidence,
-    runner_receipts: [{ role: "green", node_id: "repair-core" }],
+    runnerReceiptChannel: trustedReceiptChannel(harness, injectedEvidence, [{ role: "green", node_id: "repair-core" }]),
   });
 
   assert.equal(result.ok, false);
@@ -178,10 +188,10 @@ test("E2E Adversarial: causality tampering (inverted ordinals) fails closed", ()
     ...harness,
     declaredStrategy: "strict-tdd",
     rawEvidence: invertedEvidence,
-    runner_receipts: [
+    runnerReceiptChannel: trustedReceiptChannel(harness, invertedEvidence, [
       { role: "green", node_id: "repair-core" },
       { role: "red", node_id: "repair-core" },
-    ],
+    ]),
   });
 
   assert.equal(result.ok, false);
@@ -206,7 +216,7 @@ test("E2E Adversarial: missing runner receipt leaves MUST unfulfilled", () => {
     ...harness,
     declaredStrategy: "strict-tdd",
     rawEvidence,
-    runner_receipts: ungroundedReceipts,
+    runnerReceiptChannel: trustedReceiptChannel(harness, rawEvidence, ungroundedReceipts),
   });
 
   assert.equal(result.ok, false);
@@ -224,12 +234,13 @@ test("E2E Adversarial: replayed evidence tampering (modified bytes) fails replay
     { role: "red", node_id: "repair-core" },
     { role: "green", node_id: "repair-core", evidence_requirements_satisfied: ["ev:test-pass"] },
   ];
+  const runnerReceiptChannel = trustedReceiptChannel(harness, rawEvidence, runnerReceipts);
 
   const verificationResult = verifyCandidate({
     ...harness,
     declaredStrategy: "strict-tdd",
     rawEvidence,
-    runner_receipts: runnerReceipts,
+    runnerReceiptChannel,
   });
   assert.equal(verificationResult.ok, true);
 
@@ -240,12 +251,13 @@ test("E2E Adversarial: replayed evidence tampering (modified bytes) fails replay
     contract: harness.contract,
     policySnapshot: harness.policySnapshot,
     evidence: [
-      { evidence: verificationResult.evidence[0], bytes: "tampered-red-bytes" },
-      { evidence: verificationResult.evidence[1], bytes: rawEvidence[1].bytes },
+      { ...verificationResult.replay_evidence[0], bytes: "tampered-red-bytes" },
+      verificationResult.replay_evidence[1],
     ],
     assessments: verificationResult.assessments,
     verification: verificationResult.verification,
     canonical_inputs: verificationResult.assurance_graph.canonical_inputs,
+    runnerReceiptChannel,
   });
 
   assert.equal(replayResult.ok, false);

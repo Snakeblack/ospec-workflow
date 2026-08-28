@@ -31,8 +31,8 @@ test("K2a maturity docs tag host surfaces implemented; Candidate/attestation/del
   assert.match(roadmap, /K2a.*\*\*done\*\*|Headless Conformance Host.*implemented/i);
   assert.match(roadmap, /\|\s*`done`\s*\|\s*\*\*K3\*\*/);
   assert.match(roadmap, /\|\s*`done`\s*\|\s*\*\*K4b\*\*/);
-  assert.match(roadmap, /\|\s*`done`\s*\|\s*\*\*K6b\*\*/);
-  assert.match(roadmap, /\|\s*`next-eligible`\s*\|\s*\*\*K6c\*\*/);
+  assert.match(roadmap, /\|\s*`revise`\s*\|\s*\*\*K6b\*\*/);
+  assert.match(roadmap, /\|\s*`blocked-by-K6b-terminal-review`\s*\|\s*\*\*K6c\*\*/);
   assert.match(arch, /\{implemented\} Independent verifier over frozen CandidateId \(K6b\)/);
   assert.match(arch, /\{implemented\} Evidence strategies with provenance and Strict TDD fallback \(K6b\)/);
   assert.match(arch, /\{implemented\} Assurance Graph as derived content-addressed projection/);
@@ -44,6 +44,6 @@ test("K2a maturity docs tag host surfaces implemented; Candidate/attestation/del
   assert.doesNotMatch(roadmap, /\|\s*`in-progress`\s*\|\s*\*\*K6b\*\*/);
   assert.doesNotMatch(roadmap, /\|\s*`blocked`\s*\|\s*\*\*K6b\*\*/);
   assert.doesNotMatch(roadmap, /\|\s*`next-eligible`\s*\|\s*\*\*K6b\*\*/);
-  assert.doesNotMatch(roadmap, /\|\s*`revise`\s*\|\s*\*\*K6b\*\*/);
-  assert.doesNotMatch(roadmap, /\|\s*`blocked-by-K6b-remediation`\s*\|\s*\*\*K6c\*\*/);
+  assert.doesNotMatch(roadmap, /\|\s*`done`\s*\|\s*\*\*K6b\*\*/);
+  assert.doesNotMatch(roadmap, /\|\s*`next-eligible`\s*\|\s*\*\*K6c\*\*/);
 });

@@ -9,6 +9,7 @@ const { freezeCandidate } = require("./lib/execution-identities/index.js");
 const { compileExecutionGraph, createPolicySnapshot } = require("./lib/execution-graph/index.js");
 const { computeTreeDigest } = require("./lib/worker-workspace.js");
 const { verifyCandidate } = require("./lib/independent-verifier/index.js");
+const { createTestRunnerReceiptChannel } = require("./lib/test-support/k6b-runner-receipt.js");
 const {
   projectAssuranceGraph,
   computeInvalidationClosure,
@@ -92,6 +93,15 @@ test("E2E K6b: K4b-frozen Candidate → verify → project twice → successor i
     nodes: NODES,
     obligations: OBLIGATIONS,
   });
+  const rawEvidence = featureEvidence();
+  const receiptSpecs = featureReceipts();
+  const runnerReceiptChannel = createTestRunnerReceiptChannel({
+    candidate: predecessor,
+    executionGraph,
+    collector: HARNESS_COLLECTOR,
+    rawEvidence,
+    receiptSpecs,
+  });
 
   const verified = verifyCandidate({
     candidate: predecessor,
@@ -101,8 +111,8 @@ test("E2E K6b: K4b-frozen Candidate → verify → project twice → successor i
     repository: { files },
     declaredStrategy: "feature",
     collector: HARNESS_COLLECTOR,
-    rawEvidence: featureEvidence(),
-    runner_receipts: featureReceipts(),
+    rawEvidence,
+    runnerReceiptChannel,
   });
   assert.equal(verified.ok, true, verified.error || verified.reason_code);
   assert.equal(verified.verification.verdict, "PASS");
@@ -136,10 +146,11 @@ test("E2E K6b: K4b-frozen Candidate → verify → project twice → successor i
   const replayed = replayAssuranceGraph({
     candidate: predecessor,
     executionGraph,
-    evidence: verified.evidence,
+    evidence: verified.replay_evidence,
     assessments: verified.assessments,
     verification: verified.verification,
     canonical_inputs: verified.assurance_graph.canonical_inputs,
+    runnerReceiptChannel,
   });
   assert.equal(replayed.ok, true);
   assert.equal(replayed.graph.graph_id, verified.assurance_graph.graph_id);
@@ -196,6 +207,7 @@ test("E2E K6b: K4b-frozen Candidate → verify → project twice → successor i
   assert.ok(closure.invalidated_node_ids.includes(dependentId));
   assert.ok(closure.preserved_evidence_ids.includes(independentId));
 
+  const staleRawEvidence = featureEvidence();
   const staleReuse = verifyCandidate({
     candidate: predecessor,
     executionGraph,
@@ -204,8 +216,14 @@ test("E2E K6b: K4b-frozen Candidate → verify → project twice → successor i
     repository: { files },
     declaredStrategy: "feature",
     collector: HARNESS_COLLECTOR,
-    rawEvidence: featureEvidence(),
-    runner_receipts: featureReceipts(),
+    rawEvidence: staleRawEvidence,
+    runnerReceiptChannel: createTestRunnerReceiptChannel({
+      candidate: predecessor,
+      executionGraph,
+      collector: HARNESS_COLLECTOR,
+      rawEvidence: staleRawEvidence,
+      receiptSpecs: featureReceipts(),
+    }),
     priorAssuranceGraph: graphForClosure,
   });
   assert.equal(staleReuse.ok, false);

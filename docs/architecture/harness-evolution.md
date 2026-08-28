@@ -1,8 +1,8 @@
 # Arquitectura objetivo — harness gobernado por kernel, grafo y evidencia
 
 > **Autoridad:** fuente conceptual y estratégica del harness (responsabilidades y límites).
-> **Corte documental:** v2.53.0, 2026-08-28 (estado alineado al roadmap; la dirección conceptual no cambia).
-> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a**, **K5**, **K6a**, **K4b** y **K6b** están cerrados. OpenSpec/Git/Candidate siguen siendo la única autoridad semántica; el Assurance Graph es proyección. **K6c** queda `next-eligible`.
+> **Corte documental:** v2.53.1, 2026-08-28 (estado alineado al roadmap; la dirección conceptual no cambia).
+> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a**, **K5**, **K6a** y **K4b** están cerrados. **K6b** permanece `revise` con remediación focal implementada y terminal review pendiente; **K6c** está `blocked`. OpenSpec/Git/Candidate siguen siendo la única autoridad semántica; el Assurance Graph es proyección.
 > **Roadmap:** orden, estado operativo y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
 > **Precedencia documental:** ante diferencias de **orden o estado**, prevalece el roadmap; ante diferencias **conceptuales**, reconciliar antes de iniciar el slice.
 > **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md). La proporcionalidad de proceso y el programa de changes viven en [`research/proportional-process-and-change-program.md`](research/proportional-process-and-change-program.md).
@@ -21,7 +21,7 @@ Sin duplicar el backlog: solo responsabilidades y límites alineados al roadmap 
 
 | Tema | Decisión arquitectónica |
 | --- | --- |
-| Estado | K1+K2+K2.1+K2a+K3+`k3-readiness-remediation`+K4a+K5+K6a+K4b+K6b `done`; **K6c** `next-eligible` |
+| Estado | K1+K2+K2.1+K2a+K3+`k3-readiness-remediation`+K4a+K5+K6a+K4b `done`; **K6b** `revise`; **K6c** `blocked-by-K6b-terminal-review` |
 | Dos grafos | **Execution Graph** (trabajo) ≠ **Assurance Graph** (fiabilidad / evidencia; no “prueba formal”) |
 | Identidades | `SourceSnapshotId` / `WorkOrderId` / `WorkResultId` / `CandidateId` (sin IDs nuevos por ahora) |
 | Relación Candidate | Inicial: `exact` / `changed` / `ambiguous` / `unknown`; `compatible-base-advance` experimental hasta K9 |
@@ -30,6 +30,7 @@ Sin duplicar el backlog: solo responsabilidades y límites alineados al roadmap 
 | Policy | `PolicySnapshot` digiere bundle/classifier/compiler/runtime/`effectiveRules` |
 | Cierre | `ArchiveTransactionReceipt` ≠ `CandidateEvaluationAttestation` ≠ `DeliveryAuthorization` |
 | Schemas de cierre | `receipt/v1` (K1, envelope legacy genérico) permanece; K8 y K10-delivery introducen schemas propios — no reutilizar `receipt/v1` como contrato canónico |
+| Receipt de ejecución | K6b usa `runner-receipt/v1`, content-addressed y Evidence-bound; solo un canal opaco de runtime concede autoridad. Strings issuer/transport no bastan. |
 | Host | Seis targets; **K2a** = Headless Conformance Host + un adapter real + CapabilityProof; **K11a** expande a los cinco restantes |
 | Obligations | **K4a:** Obligation Manifest como vista determinista del Graph (no tercer grafo) |
 | Compile vs execute | **K4a** compila; **K6a** ejecuta (primitives); **K4b** orquesta Repair shadow; **K3** identifica |
@@ -53,6 +54,19 @@ Añade límites; **no** mueve next-eligible, no reabre `done` y no crea un slice
 | K6b | Alcance intacto: verifier, strategies, provenance, Assurance Graph. No absorbe first-match ni Change Program. |
 | Contexto | Prompt de worker/fase efímero; contrato, candidate, budgets, findings y evidencia persistentes. Compact/sesión nueva no resetea linaje. `/sdd-continue {nombre}` reanuda un change; no una cola. |
 | Rechazado | `architect-agent`, fase `architecture`, ruta `epic`, pipeline de cinco agentes, agentes espejo `*-cheap`, milestone paralelo. |
+
+### Corte correctivo 2026-08-28 (fronteras K6b)
+
+El review terminal de v2.53.1 no cambia la dirección del kernel, pero obliga a materializar dos interfaces que antes eran solo intención arquitectónica.
+
+| Tema | Decisión arquitectónica |
+| --- | --- |
+| RunnerReceipt | DTO caller-owned ≠ autoridad. `runner-receipt/v1` requiere EvidenceId y receipt_id; el verifier solo lo acepta desde una capacidad opaca registrada por el runtime. |
+| Matching | Solo igualdad de `evidence_id`, `candidate_id` y `node_id`; no posición, no nodo como fallback, no `node.kind` como role. |
+| Outcome | Un receipt fallido puede probar RED, pero no declarar `satisfied_tokens`. |
+| Chronology | Un run no vacío, ordinales únicos y cada transición enlaza el EvidenceId inmediatamente anterior. |
+| Replay | Cada Evidence lleva bytes inline o blob CAS resoluble. Sin material no hay recomputación criptográfica y el replay falla con `GRAPH_DIVERGENCE`. |
+| Gate | K6b sigue `revise`; K6c no comienza hasta terminal review objetivo de estas garantías. |
 
 ## Ruta rápida
 
@@ -855,7 +869,7 @@ Repositorios fixture reciben 10–30 cambios consecutivos. Se miden duplicación
 8. ~~K5: budgets (incl. autoridad/efectos) / failure / recovery~~ — hecho: archivado y publicado en v2.45.13 (remediaciones v2.45.7→v2.45.13).
 9. ~~K6a: primitivas de ejecución aislada (`CreateWorkspace`…`DisposeWorkspace`); no conoce Repair~~ — hecho: archivado y publicado en v2.46.7; frontera de procesos cerrada en v2.47.1; endurecimiento de frontera (política inmutable, fs mutante, live-identity, `worker_threads`) en v2.47.2.
 10. ~~K4b: orquesta Repair shadow (consume K6a; freeze Candidate vía K3)~~ — hecho: publicado en v2.48.0; corrección en v2.48.1; invariantes de integración en v2.48.2; cierre mode-only/baseline en v2.48.3.
-11. ~~K6b: verifier + provenance + Assurance Graph (proyección)~~ — publicado en v2.50.0; integridad semántica B1–B3/H1–H3 cerrada en v2.52.0. K6c ChallengePlan queda `next-eligible`; K6d complexity delta sigue pendiente.
+11. K6b: verifier + provenance + Assurance Graph (proyección) — publicado desde v2.50.0 y endurecido hasta v2.53.1; reabierto como `revise` por receipt authority/binding, causal chain y replay material obligatorio. Remediación focal implementada; terminal review pendiente. K6c permanece bloqueado.
 12. K7: ReviewAdapter + ReviewReducer + lineage; K8: CandidateEvaluationAttestation (emisión CAS).
 13. K9: shadow/replay/A-B; promoción de **un** profile (checkpoints intermedios ya validados).
 14. K10-delivery: DeliveryAuthorization **solo** del profile promovido; relación Candidate por etapas; resto fixed/deferred.

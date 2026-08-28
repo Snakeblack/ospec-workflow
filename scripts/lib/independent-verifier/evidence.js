@@ -84,6 +84,12 @@ function normalizeEvidence(raw, candidate, executionGraph, harnessCollector) {
     return fail("FOREIGN_SUBJECT", "evidence candidate_id does not match frozen subject");
   }
 
+  if (
+    !Object.prototype.hasOwnProperty.call(raw, "bytes") &&
+    !Object.prototype.hasOwnProperty.call(raw, "rawBytes")
+  ) {
+    return fail("FABRICATED_EVIDENCE", "raw evidence bytes or rawBytes are required");
+  }
   const bytes = raw.bytes !== undefined ? raw.bytes : raw.rawBytes;
   const digest = digestRawBytes(bytes);
   if (raw.digest && raw.digest !== digest) {

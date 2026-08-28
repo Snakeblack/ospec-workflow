@@ -27,6 +27,9 @@ const CANONICAL = path.join(ROOT, ".plugin.json");
 const CLAUDE_COPY = path.join(ROOT, ".claude-plugin", "plugin.json");
 const PACKAGE_JSON = path.join(ROOT, "package.json");
 const OPENSPEC_CONFIG = path.join(ROOT, "openspec", "config.yaml");
+const CHANGELOG = path.join(ROOT, "CHANGELOG.md");
+const ROADMAP = path.join(ROOT, "docs", "roadmaps", "harness-evolution.md");
+const ARCHITECTURE = path.join(ROOT, "docs", "architecture", "harness-evolution.md");
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -65,4 +68,40 @@ test("openspec/config.yaml version matches the plugin manifest version", () => {
     manifestVersion,
     "openspec/config.yaml version must match .plugin.json (bump both together)",
   );
+});
+
+test("release version matches changelog, roadmap, architecture, verify report, and tag", () => {
+  const packageVersion = readJson(PACKAGE_JSON).version;
+  const changelogText = fs.readFileSync(CHANGELOG, "utf8");
+  const roadmapText = fs.readFileSync(ROADMAP, "utf8");
+  const architectureText = fs.readFileSync(ARCHITECTURE, "utf8");
+  const latestRelease = changelogText.match(/^## \[(\d+\.\d+\.\d+)\].*$/m);
+  assert.ok(latestRelease, "CHANGELOG.md must start with a semantic release section");
+  assert.equal(latestRelease[1], packageVersion, "latest changelog release must match package.json");
+
+  const nextReleaseOffset = changelogText.indexOf("\n## [", latestRelease.index + latestRelease[0].length);
+  const latestSection = changelogText.slice(
+    latestRelease.index,
+    nextReleaseOffset === -1 ? changelogText.length : nextReleaseOffset
+  );
+  const archiveMatch = latestSection.match(/`(openspec\/changes\/archive\/[^`/]+)\/`/);
+  assert.ok(archiveMatch, "latest changelog release must reference its archived change");
+  const verifyReport = fs.readFileSync(
+    path.join(ROOT, ...archiveMatch[1].split("/"), "verify-report.md"),
+    "utf8"
+  );
+  const reportVersion = verifyReport.match(/^\*\*Version\*\*:\s*(\d+\.\d+\.\d+)\s*$/m);
+  assert.ok(reportVersion, "release verify-report must declare Version");
+
+  const roadmapVersion = roadmapText.match(/^> \*\*Versión de referencia:\*\* v(\d+\.\d+\.\d+),/m);
+  const architectureVersion = architectureText.match(/^> \*\*Corte documental:\*\* v(\d+\.\d+\.\d+),/m);
+  assert.ok(roadmapVersion, "roadmap must declare its reference version");
+  assert.ok(architectureVersion, "architecture must declare its document version");
+  assert.equal(reportVersion[1], packageVersion, "release verify-report version must match package.json");
+  assert.equal(roadmapVersion[1], packageVersion, "roadmap reference must match package.json");
+  assert.equal(architectureVersion[1], packageVersion, "architecture cut must match package.json");
+
+  if (process.env.GITHUB_REF_TYPE === "tag") {
+    assert.equal(process.env.GITHUB_REF_NAME, `v${packageVersion}`, "published tag must match package.json");
+  }
 });

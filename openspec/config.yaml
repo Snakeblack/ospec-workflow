@@ -50,8 +50,11 @@ baseline:
     - sdd-document
     - contract-lint
     - orchestrator-evals
+    - independent-verification
+    - assurance-graph
+    - kernel-contract-schemas
   stale_domains: []
-  last_checked: "2026-07-07T03:10:00Z"
+  last_checked: "2026-08-28T12:09:36Z"
 
 rules:
   foundation:

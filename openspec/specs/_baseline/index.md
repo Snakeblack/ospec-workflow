@@ -15,3 +15,6 @@ source: local
 - marker-hygiene: tagging markers with origin: explore to selectively suppress fail-open no-remote warnings in the atlas loader → ../marker-hygiene/spec.md
 - sdd-baseline-federation-contract: parameters and adaptations for sdd-baseline in federated mode including member-local spec write target and aggregated state updates → ../sdd-baseline-federation-contract/spec.md
 - unified-baseline-gate: unified domain-map approval gate (batch-0) covering all brownfield members simultaneously to replace per-member prompts → ../unified-baseline-gate/spec.md
+- independent-verification: Independent verifier over frozen CandidateId; evidence strategies, provenance, runner receipts, MUST coverage → ../independent-verification/spec.md
+- assurance-graph: Content-addressed Assurance Graph projection, replay, and reconcile → ../assurance-graph/spec.md
+- kernel-contract-schemas: Versioned kernel JSON Schema families, manifest, claims, and K1 pins → ../kernel-contract-schemas/spec.md

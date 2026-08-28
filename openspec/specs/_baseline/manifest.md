@@ -9,6 +9,9 @@
 - skill-registry: Skill discovery, fingerprinting, and JSON cache management used at SessionStart | sources: scripts/lib/skill-registry.js, .ospec/cache/
 - install: Per-target installation commands (Claude marketplace, opencode, github-copilot) that build and sync the generated tree into a destination repo | sources: scripts/configure/install-claude.js, scripts/configure/install-target.js
 - sdd-document: Executor agent responsible for generating project technical wikis following cognitive documentation design | sources: skills/sdd-document/SKILL.md, agents/sdd-document.agent.md, commands/sdd-document.prompt.md, scripts/sdd-document.test.js
+- independent-verification: Independent verifier over a frozen CandidateId (evidence strategies, collector provenance, runner-receipt authority, MUST obligation coverage) | sources: scripts/lib/independent-verifier/*.js, scripts/lib/independent-verifier/internal/*.js, scripts/lib/test-support/k6b-runner-receipt.js
+- assurance-graph: Content-addressed Assurance Graph projection, cryptographic replay, and stored-payload reconcile | sources: scripts/lib/assurance-graph/*.js
+- kernel-contract-schemas: Versioned kernel JSON Schema families, manifest, contract-claims, and K1 compatibility pins | sources: schemas/kernel/**/*.schema.json, schemas/kernel/manifest.json, schemas/kernel/contract-claims.json, scripts/lib/lifecycle-kernel/k1-compat.js
 
 ## Entries (append-only log; latest row per domain wins)
 | domain | status | batch | commit | timestamp (UTC) |
@@ -41,4 +44,7 @@
 | agents | reconciled | - | 359deff | 2026-08-03T22:09:11Z |
 | install | reconciled | - | 359deff | 2026-08-03T22:09:11Z |
 | sdd-document | reconciled | - | 359deff | 2026-08-03T22:09:11Z |
+| independent-verification | skipped | - | 71d5114 | 2026-08-28T12:09:36Z |
+| assurance-graph | skipped | - | 71d5114 | 2026-08-28T12:09:36Z |
+| kernel-contract-schemas | skipped | - | 71d5114 | 2026-08-28T12:09:36Z |
 

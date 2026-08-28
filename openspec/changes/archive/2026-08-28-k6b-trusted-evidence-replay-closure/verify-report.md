@@ -1,8 +1,10 @@
 ## Verification Report
 
 **Change**: k6b-trusted-evidence-replay-closure
-**Version**: 2.53.0
+**Version**: 2.53.1
 **Mode**: Standard (focused)
+
+> **Errata post-release (2026-08-28):** este reporte conserva la ejecución histórica del change, pero su conclusión de compliance fue invalidada por el review terminal del tag v2.53.1. Los tests originales pasaron, aunque no demostraban autoridad/binding de RunnerReceipt, cadena causal completa ni replay criptográfico obligatorio sin bytes. El veredicto efectivo de este reporte es `REVISE`; K6c permanece bloqueado.
 
 ### Completeness
 | Metric | Value |
@@ -71,28 +73,28 @@ All checks passed (2790+ unit, integration, schema and scope-guard tests passed)
 | REQ-assurance-graph-006 | Insufficient provenance during evidence replay fails replay | `runtime-test` | `scripts/lib/assurance-graph/index.test.js` > "REQ-assurance-graph-006: replay rejects insufficient provenance (model-reported)" | PASS | Revalidación con evaluateProvenanceSufficiency detecta procedencia no admisible (H1) |
 | REQ-assurance-graph-006 | Verification v2 referencing non-existent evidence_id fails replay | `runtime-test` | `scripts/lib/assurance-graph/index.test.js` > "REQ-assurance-graph-006: replay rejects evidence and verification mutations" | PASS | Falla con GRAPH_DIVERGENCE |
 
-**Compliance summary**: 28/28 scenarios satisfied at acceptable evidence levels (100% runtime-test)
+**Compliance summary**: N/A. La ejecución original obtuvo 28/28 tests verdes, pero el review post-release demostró que la matriz no cubría todas las MUST declaradas y no establece compliance completa.
 
 ### Correctness (Static Evidence)
 | Requirement | Status | Notes |
 |------------|--------|-------|
-| REQ-independent-verification-003 | ✅ Implemented | `normalizeEvidence` en `scripts/lib/independent-verifier/evidence.js` valida ausencia de metadatos semánticos en `rawEvidence` y falla con `UNTRUSTED_CALLER_METADATA`. |
+| REQ-independent-verification-003 | ⚠️ Partial en v2.53.1 | `normalizeEvidence` rechaza metadata semántica, pero el tag aceptaba `runner_receipts` caller-owned y matching sin EvidenceId obligatorio. |
 | REQ-independent-verification-005 | ✅ Implemented | `verifyCandidate` en `scripts/lib/independent-verifier/index.js` y `walkMustObligations` en `obligation-coverage.js` derivan satisfacción exclusivamente desde runner receipts sin copiar `node.required_evidence`. |
-| REQ-independent-verification-006 | ✅ Implemented | `assertRoleOrder` en `scripts/lib/independent-verifier/strategy-policy.js` valida orden monotónico y encadenamiento causal sobre `execution_sequence` para estrategias temporales sin fallback a índices de array. |
-| REQ-assurance-graph-006 | ✅ Implemented | `validateReplayRecords` / `replayAssuranceGraph` en `scripts/lib/assurance-graph/index.js` recomputa `digestRawBytes`, `computeEvidenceId` y valida `evaluateProvenanceSufficiency`, fallando con `GRAPH_DIVERGENCE`. |
+| REQ-independent-verification-006 | ⚠️ Partial en v2.53.1 | El tag eliminó fallback por array, pero no exigía `run_id` no vacío/consistente ni `previous_evidence_id` en cada transición. |
+| REQ-assurance-graph-006 | ⚠️ Partial en v2.53.1 | El tag recomputaba digest/EvidenceId solo cuando recibía bytes; Evidence sin material de observación seguía reproduciéndose como válida. |
 
 ### Coherence (Design)
 | Decision | Followed? | Notes |
 |----------|-----------|-------|
 | Segregación estricta de rawEvidence con rechazo UNTRUSTED_CALLER_METADATA | ✅ Yes | `evidence.js` inspecciona las propiedades del payload `raw` antes de cualquier procesamiento y rechaza fail-closed si contiene `role`, `obligation_ids`, `obligation_id` o `evidence_requirements_satisfied`. |
-| Derivación autoritativa de satisfacción desde Runner Receipts | ✅ Yes | `index.js` deriva satisfacción únicamente de `input.receipts` / `input.runner_receipts`, asignando `[]` si no hay recibo que confirme los tokens requeridos. |
-| Cronología causal estricta mediante execution_sequence | ✅ Yes | `strategy-policy.js` exige `execution_sequence` con `run_id`, `ordinal` y `previous_evidence_id` para `strict-tdd`, `bug` y `refactor`, rechazando de plano el fallback a índices de array. |
-| Replay criptográficamente íntegro en Assurance Graph con computeEvidenceId y provenance sufficiency | ✅ Yes | `assurance-graph/index.js` recomputa ID y digest de bytes y evalúa la procedencia durante la revalidación de registros de replay. |
+| Derivación autoritativa de satisfacción desde Runner Receipts | ❌ No en v2.53.1 | `input.receipts` / `input.runner_receipts` seguían bajo control del caller y no exigían binding exacto a Evidence. |
+| Cronología causal estricta mediante execution_sequence | ❌ No en v2.53.1 | Solo se exigía ordinal; `run_id` y chain eran parciales. |
+| Replay criptográficamente íntegro en Assurance Graph con computeEvidenceId y provenance sufficiency | ❌ No en v2.53.1 | La recomputación era condicional a la presencia opcional de bytes. |
 
 ### Issues Found
-**CRITICAL**: None
-**WARNING**: None
-**SUGGESTION**: None
+**CRITICAL**: 3 findings post-release: RunnerReceipt authority/binding, chronology causal completa y observation material obligatorio en replay.
+**WARNING**: 1 finding post-release: `outcome: failed` no impedía declarar tokens satisfechos.
+**SUGGESTION**: eliminar fallback de role a `node.kind` y añadir guard de consistencia de versión documental.
 
 ### Traceability Matrix
 | REQ | Tasks | Commits | Tests | Status |
@@ -103,5 +105,5 @@ All checks passed (2790+ unit, integration, schema and scope-guard tests passed)
 | REQ-assurance-graph-006 | 4.1, 4.2, 4.3, 5.2, 5.3 | working-tree | `scripts/lib/assurance-graph/index.test.js`, `test/e2e/k6b-verifier-assurance-graph-e2e.test.js` | OK |
 
 ### Verdict
-PASS
-Implementación 100% conforme con las especificaciones y el diseño: segregación física estricta de rawEvidence (B1), derivación autoritativa desde runner receipts sin blind copy (B2), causalidad execution_sequence sin fallback a array (B3), y replay exhaustivo criptográfico con computeEvidenceId y provenance sufficiency (H1); 28/28 escenarios verificados con pruebas automatizadas en runtime-test y suite completa npm test en verde con 0 fallos.
+REVISE
+La ejecución histórica quedó verde, pero no demostró tres MUST del contrato. Este reporte no autoriza el cierre terminal de K6b ni el inicio de K6c. La remediación posterior debe aportar adversariales para canal confiable y binding por EvidenceId, `run_id`/chain obligatorios y replay fail-closed sin bytes/blob resoluble.

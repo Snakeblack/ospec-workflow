@@ -169,7 +169,7 @@ function listK1SchemaFiles(rootDir) {
     "schemas/kernel/capsule-definition/",
     "schemas/kernel/work-result-execution-payload/",
     "schemas/kernel/containment-violation/",
-    // K6b additive evidence/verification v2 and assurance-graph family
+    // K6b additive evidence, verification, receipt, assessment, and assurance-graph families
     "schemas/kernel/evidence/v2.schema.json",
     "schemas/kernel/evidence/fixtures/valid/v2-",
     "schemas/kernel/evidence/fixtures/invalid/v2-",
@@ -178,6 +178,7 @@ function listK1SchemaFiles(rootDir) {
     "schemas/kernel/verification/fixtures/invalid/v2-",
     "schemas/kernel/assurance-graph/",
     "schemas/kernel/assessment/",
+    "schemas/kernel/runner-receipt/",
     // Evolutionary catalog registries (excluded from K1 frozen baseline pin)
     "schemas/kernel/manifest.json",
     "schemas/kernel/contract-claims.json",

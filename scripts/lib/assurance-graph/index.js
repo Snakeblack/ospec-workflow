@@ -11,6 +11,7 @@ const {
   evaluateProvenanceSufficiency,
 } = require("../independent-verifier/evidence.js");
 const { validateInstance, loadSchemaById } = require("../kernel-schema-validator.js");
+const { readRunnerReceiptChannel } = require("../independent-verifier/runner-receipt.js");
 
 const DEFAULT_SCHEMA_ROOT = path.resolve(__dirname, "../../..");
 const EVIDENCE_V2_ID = "ospec://schemas/kernel/evidence/v2";
@@ -82,6 +83,31 @@ function isApprovedDeferred(obligation) {
   );
 }
 
+function resolveObservationBytes(item, record, persistable) {
+  const inlineBytes = item && item.rawBytes !== undefined
+    ? item.rawBytes
+    : (item && item.bytes !== undefined
+      ? item.bytes
+      : (item && item.raw && (item.raw.rawBytes !== undefined ? item.raw.rawBytes : item.raw.bytes)));
+  if (inlineBytes !== undefined) return { ok: true, bytes: inlineBytes };
+
+  const blobId = item && item.observation_blob_id;
+  if (typeof blobId !== "string" || blobId.length === 0) {
+    return fail("GRAPH_DIVERGENCE", "replay evidence requires raw bytes or an observation blob reference");
+  }
+  if (blobId !== record.digest) {
+    return fail("GRAPH_DIVERGENCE", "observation blob reference must equal the Evidence digest");
+  }
+  const blobs = persistable.observation_blobs;
+  const bytes = blobs instanceof Map
+    ? blobs.get(blobId)
+    : (blobs && typeof blobs === "object" ? blobs[blobId] : undefined);
+  if (bytes === undefined) {
+    return fail("GRAPH_DIVERGENCE", `observation blob ${blobId} is not resolvable`);
+  }
+  return { ok: true, bytes };
+}
+
 /**
  * Comprehensive revalidation for replay:
  * 1. evidence/v2 schema, candidate_id, digest, computeEvidenceId, provenance sufficiency, no verdict
@@ -89,6 +115,9 @@ function isApprovedDeferred(obligation) {
  * 3. assessment/v2 schema, assessment_id, candidate_id, policy_snapshot_id, evidence_id, obligation_id, node_id, non-empty coverage
  */
 function validateReplayRecords(persistable) {
+  if (!persistable || typeof persistable !== "object") {
+    return fail("GRAPH_DIVERGENCE", "persistable replay bundle must be an object");
+  }
   const assessments = Array.isArray(persistable.assessments) ? persistable.assessments : [];
   const evidence = Array.isArray(persistable.evidence) ? persistable.evidence : [];
   const graph = persistable.executionGraph;
@@ -99,8 +128,18 @@ function validateReplayRecords(persistable) {
     return fail("GRAPH_DIVERGENCE", "persistable graph, candidate, nodes, and obligations are required for replay");
   }
 
+  const receiptGate = readRunnerReceiptChannel(persistable.runnerReceiptChannel);
+  if (!receiptGate.ok) {
+    return fail("GRAPH_DIVERGENCE", "replay requires trusted runner receipt authority");
+  }
+  const receiptsById = new Map(
+    receiptGate.receipts.map((receipt) => [receipt.receipt_id, receipt])
+  );
+  const consumedReceiptIds = new Set();
+
   // 1. Revalidate evidence/v2 records
   const evidenceById = new Map();
+  const receiptByEvidenceId = new Map();
   for (const item of evidence) {
     const record = item && item.evidence ? item.evidence : item;
     if (!record || typeof record !== "object") {
@@ -116,26 +155,37 @@ function validateReplayRecords(persistable) {
     if (!evidenceValidation.valid) {
       return fail("GRAPH_DIVERGENCE", `evidence failed schema validation: ${evidenceValidation.errors.map((e) => e.message).join("; ")}`);
     }
-    const rawBytes = item.rawBytes !== undefined
-      ? item.rawBytes
-      : (item.bytes !== undefined
-        ? item.bytes
-        : (item.raw && (item.raw.rawBytes !== undefined ? item.raw.rawBytes : item.raw.bytes)));
-    if (rawBytes !== undefined) {
-      const computedDigest = digestRawBytes(rawBytes);
-      if (record.digest !== computedDigest) {
-        return fail("GRAPH_DIVERGENCE", "evidence digest does not match raw bytes");
-      }
-      const recomputedEvidenceId = computeEvidenceId(record, rawBytes);
-      if (record.evidence_id !== recomputedEvidenceId) {
-        return fail("GRAPH_DIVERGENCE", "evidence_id does not match recomputed computeEvidenceId");
-      }
+    const observation = resolveObservationBytes(item, record, persistable);
+    if (!observation.ok) return observation;
+    const computedDigest = digestRawBytes(observation.bytes);
+    if (record.digest !== computedDigest) {
+      return fail("GRAPH_DIVERGENCE", "evidence digest does not match raw bytes");
+    }
+    const recomputedEvidenceId = computeEvidenceId(record, observation.bytes);
+    if (record.evidence_id !== recomputedEvidenceId) {
+      return fail("GRAPH_DIVERGENCE", "evidence_id does not match recomputed computeEvidenceId");
+    }
+    const receiptId = item && item.runner_receipt_id;
+    const receipt = typeof receiptId === "string" ? receiptsById.get(receiptId) : null;
+    if (
+      !receipt ||
+      consumedReceiptIds.has(receiptId) ||
+      receipt.candidate_id !== candidate.candidate_id ||
+      receipt.evidence_id !== record.evidence_id ||
+      receipt.node_id !== record.node_id
+    ) {
+      return fail("GRAPH_DIVERGENCE", "replay evidence is not exactly bound to a trusted runner receipt");
     }
     const sufficiency = evaluateProvenanceSufficiency(record, { requireRuntime: true });
     if (!sufficiency.ok) {
       return fail("GRAPH_DIVERGENCE", sufficiency.error || "insufficient provenance during replay");
     }
+    consumedReceiptIds.add(receiptId);
     evidenceById.set(record.evidence_id, record);
+    receiptByEvidenceId.set(record.evidence_id, receipt);
+  }
+  if (consumedReceiptIds.size !== receiptGate.receipts.length) {
+    return fail("GRAPH_DIVERGENCE", "trusted runner receipt set contains an orphan replay binding");
   }
 
   // 2. Revalidate verification/v2 record if present
@@ -171,6 +221,7 @@ function validateReplayRecords(persistable) {
     const record = valid.assessment;
     const obligation = obligations.get(record.obligation_id);
     const evidenceRecord = evidenceById.get(record.evidence_id);
+    const runnerReceipt = receiptByEvidenceId.get(record.evidence_id);
     if (
       !obligation ||
       !evidenceRecord ||
@@ -189,6 +240,10 @@ function validateReplayRecords(persistable) {
       const required = new Set(Array.isArray(obligation.required_evidence) ? obligation.required_evidence : []);
       if (record.evidence_requirements_satisfied.some((token) => !required.has(token))) {
         return fail("GRAPH_DIVERGENCE", "assessment coverage contains a token outside the obligation requirement");
+      }
+      const receiptTokens = new Set(runnerReceipt.satisfied_tokens);
+      if (record.evidence_requirements_satisfied.some((token) => !receiptTokens.has(token))) {
+        return fail("GRAPH_DIVERGENCE", "assessment coverage is not attested by its trusted runner receipt");
       }
       const coverage = coveredByObligation.get(record.obligation_id) || new Set();
       for (const token of record.evidence_requirements_satisfied) coverage.add(token);
@@ -210,14 +265,19 @@ function validateReplayRecords(persistable) {
 }
 
 /**
- * Replay a projection from persistable assessments, evidence, verification, and canonical_inputs.
- * Never consumes ephemeral projector obligation_ids.
+ * Reproduce una proyección desde assessments, Evidence con material de observación,
+ * Verification e inputs canónicos persistibles. Nunca consume obligation_ids efímeros.
  *
- * @param {object} persistable
- * @returns {{ ok: true, graph: object } | { ok: false, reason_code: string }}
+ * @param {object} persistable Bundle persistible con bytes inline o blobs resolubles.
+ * @returns {{ ok: true, graph: object } | { ok: false, reason_code: string }} Grafo reproducido o divergencia fail-closed.
  */
 function replayAssuranceGraph(persistable = {}) {
-  const validation = validateReplayRecords(persistable);
+  let validation;
+  try {
+    validation = validateReplayRecords(persistable);
+  } catch (error) {
+    return fail("GRAPH_DIVERGENCE", `replay validation failed closed: ${error.message}`);
+  }
   if (!validation.ok) return validation;
   return projectAssuranceGraph({
     canonicalInputs: persistable.canonical_inputs || persistable.canonicalInputs,

@@ -205,6 +205,7 @@ const SUCCESSOR_K2_PREFIXES = [
   "schemas/kernel/verification/fixtures/invalid/v2-",
   "schemas/kernel/assurance-graph/",
   "schemas/kernel/assessment/",
+  "schemas/kernel/runner-receipt/",
 ];
 
 const PROTECTED_BASELINE_PATHS = [
@@ -386,6 +387,8 @@ test("K1 scope guard: fixed routing and phase validation remain byte-equivalent 
           .replace(/^(\s*version:\s*)\S+$/m, "$1<release-version>")
           .replace(/^strict_tdd:\s*true\n?/gm, "")
           .replace(/^\s*tdd_mode:\s*focused\n?/gm, "")
+          .replace(/^  last_checked: ".*"$/m, '  last_checked: "<checked>"')
+          .replace(/(domains_done:\n)(?:    - .+\n)+/, "$1    - <domains>\n")
           .replace(/\n{3,}/g, "\n\n");
       assert.equal(
         normalizeConfig(baseline.stdout),

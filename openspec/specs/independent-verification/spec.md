@@ -78,9 +78,11 @@ fallback.
 
 Every evidence node MUST declare provenance as exactly one of `runtime-observed | host-attested | tool-produced | model-reported | human-decision | external-unverified`. Policy MUST decide which classes MAY satisfy each obligation. Strong classes (`runtime-observed`, `host-attested`, `tool-produced`) MUST be derived from trusted collector or transport channel metadata.
 
-The verifier MUST enforce strict physical segregation of raw observations (`rawEvidence`). `rawEvidence` payloads MUST contain only physical observation fields (`bytes`/`rawBytes`, `provenance`, `origin`, `node_id`, and `execution_sequence` containing `{run_id, ordinal, previous_evidence_id}`). If an untrusted caller payload contains semantic assertions or metadata (`role`, `obligation_ids`, `obligation_id`, or `evidence_requirements_satisfied`), the verifier MUST immediately reject the payload and fail closed with `UNTRUSTED_CALLER_METADATA`.
+The verifier MUST enforce strict physical segregation of raw observations (`rawEvidence`). `rawEvidence` payloads MUST contain `bytes` or `rawBytes` and MAY contain only physical observation fields (`provenance`, `origin`, `node_id`, and `execution_sequence` containing `{run_id, ordinal, previous_evidence_id}`). If observation material is absent, the verifier MUST fail closed with `FABRICATED_EVIDENCE`. If an untrusted caller payload contains semantic assertions or metadata (`role`, `obligation_ids`, `obligation_id`, or `evidence_requirements_satisfied`), the verifier MUST immediately reject the payload and fail closed with `UNTRUSTED_CALLER_METADATA`.
 
-Trusted evidence metadata (`role`, `obligation_ids`, `evidence_requirements_satisfied`) MUST be derived exclusively by the verifier from the Execution Graph and trusted runner execution receipts (`receipts`/`runner_receipts`). The verifier MUST NOT accept semantic claims or trusted metadata directly from untrusted caller payloads or unverified worker narrative.
+Trusted evidence metadata (`role`, `obligation_ids`, `evidence_requirements_satisfied`) MUST be derived exclusively by the verifier from the Execution Graph and a trusted runtime `runnerReceiptChannel`. Direct caller DTO properties named `receipts` or `runner_receipts` MUST fail closed with `UNTRUSTED_RUNNER_RECEIPT`. The channel MUST be an opaque runtime capability whose identity cannot be reconstructed by copying public fields.
+
+Every receipt obtained from that channel MUST conform to `runner-receipt/v1` and MUST contain a content-addressed `receipt_id`, `candidate_id`, REQUIRED `evidence_id`, `node_id`, `role`, canonical `satisfied_tokens`, `outcome`, `issuer_id`, and `transport`. Temporal receipts MUST also carry `execution_sequence`. The verifier MUST recompute `receipt_id`, validate issuer/transport against the channel, require exact `receipt.evidence_id === evidence.evidence_id`, require matching Candidate and node bindings, and reject orphan, duplicate, positional, or node-only matching with `INVALID_RUNNER_RECEIPT` or `RUNNER_RECEIPT_BINDING_MISMATCH`. `node.kind` MUST NOT substitute for a strategy role. A receipt with `outcome: failed` MUST NOT carry any satisfied token.
 
 The verifier MUST NOT accept a strong class solely because the raw payload string claims it. Payload digest MUST NOT be treated as origin. When collector or transport metadata is absent, untrusted, or disagrees with a claimed strong class, sufficiency MUST fail closed. PKI MUST NOT be required. Evidence that is insufficient, stale relative to the frozen Candidate, bound to a foreign subject, or fabricated MUST fail closed. A worker `model-reported` claim MUST NOT satisfy an obligation that requires a strong class.
 (Previously: raw evidence containing untrusted caller metadata did not trigger an explicit UNTRUSTED_CALLER_METADATA fail-closed rejection.)
@@ -132,6 +134,28 @@ The verifier MUST NOT accept a strong class solely because the raw payload strin
 - THEN verification MUST immediately fail closed with `UNTRUSTED_CALLER_METADATA`
 - AND MUST NOT process or accept the untrusted payload
 
+#### Scenario: Caller receipt DTO without trusted runtime channel fails closed
+
+- GIVEN otherwise valid raw Evidence and caller-supplied `runner_receipts` or `receipts`
+- AND no opaque runtime-issued `runnerReceiptChannel`
+- WHEN the verifier resolves semantic bindings
+- THEN verification MUST fail closed with `UNTRUSTED_RUNNER_RECEIPT`
+- AND MUST NOT infer authority from issuer or transport strings in the DTO
+
+#### Scenario: Receipt requires exact Evidence binding
+
+- GIVEN a trusted-channel `runner-receipt/v1` without `evidence_id`, or whose E1 `evidence_id` is presented beside E2
+- WHEN the verifier resolves receipt bindings
+- THEN verification MUST fail closed as an invalid or mismatched receipt
+- AND MUST NOT match by array position or `node_id`
+
+#### Scenario: Failed receipt cannot satisfy tokens
+
+- GIVEN a structurally valid trusted-channel receipt with `outcome: failed`
+- AND non-empty `satisfied_tokens`
+- WHEN the verifier validates the receipt
+- THEN verification MUST fail closed with `INVALID_RUNNER_RECEIPT`
+
 ### Requirement: Verdict Is Not Evidence {#REQ-independent-verification-004}
 
 Verification MUST emit a verification record bound to the frozen `CandidateId`
@@ -163,7 +187,7 @@ fallback.
 
 ### Requirement: Obligation Manifest MUST Coverage {#REQ-independent-verification-005}
 
-The verifier MUST authoritatively derive obligation satisfaction (`evidence_requirements_satisfied`) and role mapping strictly from trusted runner execution receipts and the Execution Graph. The verifier MUST NOT automatically or blindly copy `node.required_evidence` onto assessments or raw evidence without receipt-proven satisfaction.
+The verifier MUST authoritatively derive obligation satisfaction (`evidence_requirements_satisfied`) from `satisfied_tokens` on schema-valid, exact Evidence-bound, successful trusted runner receipts, and derive obligation bindings from the Execution Graph. The verifier MUST NOT automatically or blindly copy `node.required_evidence` onto assessments or raw evidence without receipt-proven satisfaction.
 
 After strategy evaluation, the verifier MUST walk every Obligation Manifest item with criticality `must` that is not an approved `deferred` record (`reason` and `approved_by`). For each such obligation, a `PASS` or `PASS WITH WARNINGS` verdict MUST require `required_evidence` ⊆ persistable satisfied tokens (`evidence_requirements_satisfied` with `minItems: 1` per satisfaction assessment), each persistably bound to that `obligation_id` and to a `node_id` listed in `implemented_by`.
 
@@ -228,8 +252,10 @@ The verifier MUST enforce an incompatible roles matrix. The following role combi
 
 Non-conflicting roles (such as `integration` + `acceptance`, `invariant` + `integration`, or `smoke` + `acceptance`) MAY share the same `evidence_id` when the observation independently satisfies both requirements.
 
-The verifier MUST enforce strict causal chronology validation using `execution_sequence` for `strict-tdd`, `bug`, and `refactor` strategies:
-- Every evidence observation in `strict-tdd`, `bug`, and `refactor` MUST provide an `execution_sequence` containing a consistent `run_id`, a strictly monotonic increasing `ordinal`, and valid `previous_evidence_id` chaining.
+The verifier MUST enforce strict causal chronology validation using the trusted receipt `execution_sequence` for `strict-tdd`, `bug`, and `refactor` strategies:
+- Every temporal receipt in `strict-tdd`, `bug`, and `refactor` MUST provide an `execution_sequence` containing a non-empty consistent `run_id` and a positive integer `ordinal`.
+- The first temporal Evidence is the chain root. Every subsequent temporal Evidence MUST provide `previous_evidence_id` equal to the immediately preceding EvidenceId after sorting by ordinal.
+- Ordinals MUST be unique and strictly monotonically increasing within that single run.
 - The verifier MUST NOT fall back to JSON array index/position order to determine chronological sequence.
 - For `bug` and `strict-tdd` strategies: RED MUST precede GREEN in `execution_sequence`; GREEN before RED or missing `execution_sequence` MUST fail closed with `STRATEGY_SEQUENCE_VIOLATION`, and RED after PATCH MUST fail closed.
 - For `refactor` strategy: `characterization-before` MUST precede `characterization-after` in `execution_sequence` (`run_id`, monotonic `ordinal`, and `previous_evidence_id`). `characterization-after` executing before, concurrently with, or without causal sequence linking to `characterization-before` MUST fail closed with `STRATEGY_SEQUENCE_VIOLATION`.
@@ -280,6 +306,19 @@ Unique-sort of `verification.evidence_ids` MUST NOT be the assessment identity a
 - WHEN the verifier evaluates strategy sequence
 - THEN verification MUST fail closed with `STRATEGY_SEQUENCE_VIOLATION`
 - AND MUST NOT rely on JSON array index order as causal chronology
+
+#### Scenario: Mixed run identifiers fail closed
+
+- GIVEN temporal receipts whose `execution_sequence.run_id` values are empty or differ
+- WHEN the verifier evaluates strategy chronology
+- THEN verification MUST fail closed with `STRATEGY_SEQUENCE_VIOLATION` or as an invalid receipt
+
+#### Scenario: Missing causal predecessor fails closed
+
+- GIVEN RED and GREEN or characterization-before and characterization-after in increasing ordinal order
+- AND the later receipt omits `previous_evidence_id`
+- WHEN the verifier evaluates strategy chronology
+- THEN verification MUST fail closed with `STRATEGY_SEQUENCE_VIOLATION`
 
 #### Scenario: Negative and acceptance sharing same EvidenceId fails closed
 
