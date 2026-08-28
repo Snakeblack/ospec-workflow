@@ -68,6 +68,14 @@ function rejectStaleEvidence(input, bound, evidence, rawBytes) {
   return { ok: true };
 }
 
+function getRunnerReceipts(input) {
+  const src = input && (input.runner_receipts || input.receipts);
+  if (!src) return [];
+  if (Array.isArray(src)) return src;
+  if (typeof src === "object") return Object.values(src);
+  return [];
+}
+
 /**
  * Independently verify a frozen Candidate v2.
  * Worker narrative is not authority. Evidence stays distinct from verdict.
@@ -88,6 +96,7 @@ function verifyCandidate(input) {
 
   const graphNodesById = new Map((bound.executionGraph.nodes || []).map((n) => [n && n.node_id, n]));
   const graphObligations = bound.executionGraph.obligations || [];
+  const runnerReceipts = getRunnerReceipts(input);
 
   for (let index = 0; index < rawList.length; index += 1) {
     const raw = rawList[index];
@@ -105,31 +114,64 @@ function verifyCandidate(input) {
     if (!stale.ok) return stale;
 
     const node = graphNodesById.get(normalized.evidence.node_id);
-    let resolvedRole = normalized.role;
-    if (node && node.role && (!resolvedRole || node.role !== resolvedRole)) {
+    const matchingReceipts = runnerReceipts.filter((r, rIdx) => {
+      if (!r || typeof r !== "object") return false;
+      if (r.evidence_id) return r.evidence_id === normalized.evidence.evidence_id;
+      if (r.node_id && node) {
+        if (r.node_id !== node.node_id) return false;
+        if (r.role && runnerReceipts.length === rawList.length) {
+          return rIdx === index;
+        }
+        return true;
+      }
+      if (runnerReceipts.length === rawList.length) return rIdx === index;
+      return false;
+    });
+
+    let resolvedRole;
+    if (node && node.role) {
       resolvedRole = node.role;
+    } else {
+      const receiptWithRole = matchingReceipts.find((r) => r && typeof r.role === "string" && r.role.length > 0);
+      if (receiptWithRole) {
+        resolvedRole = receiptWithRole.role;
+      } else if (node && node.kind) {
+        resolvedRole = node.kind;
+      }
     }
 
-    let resolvedObligationIds = normalized.obligation_ids;
-    const hasExplicitObligations =
-      Object.prototype.hasOwnProperty.call(raw, "obligation_ids") ||
-      Object.prototype.hasOwnProperty.call(raw, "obligation_id");
-    if (!hasExplicitObligations && node) {
+    let resolvedObligationIds = [];
+    const receiptWithObligations = matchingReceipts.find((r) => r && (r.obligation_ids || r.obligation_id));
+    if (receiptWithObligations) {
+      resolvedObligationIds = Array.isArray(receiptWithObligations.obligation_ids)
+        ? receiptWithObligations.obligation_ids
+        : (receiptWithObligations.obligation_id ? [receiptWithObligations.obligation_id] : []);
+    } else if (node) {
       resolvedObligationIds = graphObligations
         .filter((o) => Array.isArray(o.implemented_by) && o.implemented_by.includes(node.node_id))
         .map((o) => o.id);
     }
 
-    let resolvedSatisfied = normalized.evidence_requirements_satisfied;
-    const hasExplicitCoverage = Object.prototype.hasOwnProperty.call(raw, "evidence_requirements_satisfied");
-    if (!hasExplicitCoverage && node) {
-      if (Array.isArray(node.required_evidence) && node.required_evidence.length > 0) {
-        resolvedSatisfied = [...node.required_evidence].sort();
+    const satisfiedTokensSet = new Set();
+    for (const receipt of matchingReceipts) {
+      const tokens = receipt.evidence_requirements_satisfied || receipt.satisfied_tokens;
+      if (Array.isArray(tokens)) {
+        for (const token of tokens) {
+          if (typeof token === "string" && token.length > 0) {
+            satisfiedTokensSet.add(token);
+          }
+        }
       }
     }
+    const resolvedSatisfied = [...satisfiedTokensSet].sort();
+
+    const executionSequence = normalized.execution_sequence ||
+      (matchingReceipts.find((r) => r && r.execution_sequence) || {}).execution_sequence ||
+      null;
 
     classified.push({
       ...normalized,
+      execution_sequence: executionSequence,
       role: resolvedRole,
       obligation_ids: resolvedObligationIds,
       evidence_requirements_satisfied: resolvedSatisfied,

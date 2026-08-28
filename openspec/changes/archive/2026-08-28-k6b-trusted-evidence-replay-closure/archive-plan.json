@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "change": "k6b-trusted-evidence-replay-closure",
+  "source_fingerprint": "sha256:8288fa2aecb9a4e12a8984ffd80cc7a1100274682bc79817e01b6f07cf2b1aa1",
+  "spec_writes": [
+    {
+      "domain": "independent-verification",
+      "source_delta": "specs/independent-verification/spec.md",
+      "target": "openspec/specs/independent-verification/spec.md",
+      "target_before_sha256": "sha256:9f1a6009b5693407d91da43f8911a2b3bdabeafa6b3a6a339a9b881bb6c75267",
+      "content_sha256": "sha256:e126b0bb2a160602992fe3b4386d86c4da1c6bdbe1d4dd7fb3ccbe94dc517aa4"
+    },
+    {
+      "domain": "assurance-graph",
+      "source_delta": "specs/assurance-graph/spec.md",
+      "target": "openspec/specs/assurance-graph/spec.md",
+      "target_before_sha256": "sha256:5c34c40d7c4020665701e32ddd0df35a97954d83b6d6f413dcbdb38988a723f8",
+      "content_sha256": "sha256:698c734aa1e89729b873ef313368e9e59fdf8cdc90aaa0c78fce6f8709600ccc"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260828-010-untrusted-caller-metadata-rejection.md",
+      "content_sha256": "sha256:a57128d1a63d501af13514d1c34feb61cbecdc1f2408e8c4ff43f86aefa86c02"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260828-011-authoritative-receipt-derivation-no-blind-copy.md",
+      "content_sha256": "sha256:8911c196a45611ddfb295ce1f465ed030a3836c48da35b33acc5e8507de0583c"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260828-012-strict-causal-chronology-execution-sequence.md",
+      "content_sha256": "sha256:6254e66c3a9047c4d64e6eaa50576c4e885be38453118c54d04963ae64faeda5"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260828-013-cryptographic-evidence-replay-integrity.md",
+      "content_sha256": "sha256:22b0797ed6b038d5c3f2e5f8401265d7ac3b59d85cc24fab17c792e71983f59c"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "design.md",
+    "proposal.md",
+    "specs/assurance-graph/spec.md",
+    "specs/independent-verification/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

@@ -167,45 +167,136 @@ function assertCompatibleRoleSharing(items) {
 // Preserve alias for existing consumers if any
 const assertDistinctRoleEvidence = assertCompatibleRoleSharing;
 
+function getExecutionSequence(item) {
+  if (!item) return null;
+  const seq = item.execution_sequence || (item.raw && item.raw.execution_sequence);
+  if (!seq || typeof seq !== "object") return null;
+  if (typeof seq.ordinal !== "number") return null;
+  return seq;
+}
+
 function assertRoleOrder(strategyName, items) {
-  const positions = new Map();
-  for (let index = 0; index < (items || []).length; index += 1) {
-    const role = items[index] && items[index].role;
-    if (!positions.has(role)) positions.set(role, []);
-    positions.get(role).push(index);
-  }
-  const ordered = strategyName === "bug" ? ["red", "patch", "green"] : strategyName === "strict-tdd" ? ["red", "green"] : [];
-  for (let index = 0; index < ordered.length - 1; index += 1) {
-    const earlier = positions.get(ordered[index]) || [];
-    const later = positions.get(ordered[index + 1]) || [];
-    if (earlier.length > 0 && later.length > 0 && Math.max(...earlier) > Math.min(...later)) {
-      return fail("STRATEGY_SEQUENCE_VIOLATION", `${ordered[index]} evidence must precede ${ordered[index + 1]} evidence`);
-    }
+  const temporalStrategies = ["strict-tdd", "bug", "refactor"];
+  if (!temporalStrategies.includes(strategyName)) {
+    return { ok: true };
   }
 
-  // Refactor chronological sequence validation (characterization-before -> characterization-after)
-  if (strategyName === "refactor") {
-    const beforeIndices = positions.get("characterization-before") || [];
-    const afterIndices = positions.get("characterization-after") || [];
-    if (beforeIndices.length > 0 && afterIndices.length > 0 && Math.max(...beforeIndices) > Math.min(...afterIndices)) {
-      return fail("STRATEGY_SEQUENCE_VIOLATION", "characterization-before evidence must precede characterization-after evidence");
-    }
+  const roleItems = (role) => (items || []).filter((it) => it && it.role === role);
 
-    const beforeItems = (items || []).filter((it) => it && it.role === "characterization-before");
-    const afterItems = (items || []).filter((it) => it && it.role === "characterization-after");
+  if (strategyName === "strict-tdd") {
+    const redItems = roleItems("red");
+    const greenItems = roleItems("green");
 
-    for (const before of beforeItems) {
-      const beforeSeq = before.execution_sequence || (before.raw && before.raw.execution_sequence);
-      const beforeEvidenceId = before.evidence && before.evidence.evidence_id;
-      for (const after of afterItems) {
-        const afterSeq = after.execution_sequence || (after.raw && after.raw.execution_sequence);
-        if (beforeSeq && afterSeq) {
-          if (typeof beforeSeq.ordinal === "number" && typeof afterSeq.ordinal === "number") {
-            if (afterSeq.ordinal <= beforeSeq.ordinal) {
-              return fail("STRATEGY_SEQUENCE_VIOLATION", "characterization-after ordinal must be greater than characterization-before ordinal");
-            }
+    if (redItems.length > 0 && greenItems.length > 0) {
+      for (const item of [...redItems, ...greenItems]) {
+        const seq = getExecutionSequence(item);
+        if (!seq) {
+          return fail("STRATEGY_SEQUENCE_VIOLATION", "missing execution_sequence for temporal strategy");
+        }
+      }
+
+      for (const red of redItems) {
+        const redSeq = getExecutionSequence(red);
+        const redId = red.evidence && red.evidence.evidence_id;
+        for (const green of greenItems) {
+          const greenSeq = getExecutionSequence(green);
+          if (greenSeq.ordinal <= redSeq.ordinal) {
+            return fail("STRATEGY_SEQUENCE_VIOLATION", "green evidence ordinal must be greater than red evidence ordinal");
           }
-          if (afterSeq.previous_evidence_id && beforeEvidenceId && afterSeq.previous_evidence_id !== beforeEvidenceId) {
+          if (greenSeq.previous_evidence_id && redId && greenSeq.previous_evidence_id !== redId) {
+            return fail("STRATEGY_SEQUENCE_VIOLATION", "green previous_evidence_id does not link to red evidence");
+          }
+        }
+      }
+    }
+  }
+
+  if (strategyName === "bug") {
+    const redItems = roleItems("red");
+    const patchItems = roleItems("patch");
+    const greenItems = roleItems("green");
+
+    const hasMultipleTemporalRoles =
+      (redItems.length > 0 && patchItems.length > 0) ||
+      (patchItems.length > 0 && greenItems.length > 0) ||
+      (redItems.length > 0 && greenItems.length > 0);
+
+    if (hasMultipleTemporalRoles) {
+      const allBugItems = [...redItems, ...patchItems, ...greenItems];
+      for (const item of allBugItems) {
+        const seq = getExecutionSequence(item);
+        if (!seq) {
+          return fail("STRATEGY_SEQUENCE_VIOLATION", "missing execution_sequence for temporal strategy");
+        }
+      }
+    }
+
+    if (redItems.length > 0 && patchItems.length > 0) {
+      for (const red of redItems) {
+        const redSeq = getExecutionSequence(red);
+        const redId = red.evidence && red.evidence.evidence_id;
+        for (const patch of patchItems) {
+          const patchSeq = getExecutionSequence(patch);
+          if (patchSeq.ordinal <= redSeq.ordinal) {
+            return fail("STRATEGY_SEQUENCE_VIOLATION", "patch evidence ordinal must be greater than red evidence ordinal");
+          }
+          if (patchSeq.previous_evidence_id && redId && patchSeq.previous_evidence_id !== redId) {
+            return fail("STRATEGY_SEQUENCE_VIOLATION", "patch previous_evidence_id does not link to red evidence");
+          }
+        }
+      }
+    }
+
+    if (patchItems.length > 0 && greenItems.length > 0) {
+      for (const patch of patchItems) {
+        const patchSeq = getExecutionSequence(patch);
+        const patchId = patch.evidence && patch.evidence.evidence_id;
+        for (const green of greenItems) {
+          const greenSeq = getExecutionSequence(green);
+          if (greenSeq.ordinal <= patchSeq.ordinal) {
+            return fail("STRATEGY_SEQUENCE_VIOLATION", "green evidence ordinal must be greater than patch evidence ordinal");
+          }
+          if (greenSeq.previous_evidence_id && patchId && greenSeq.previous_evidence_id !== patchId) {
+            return fail("STRATEGY_SEQUENCE_VIOLATION", "green previous_evidence_id does not link to patch evidence");
+          }
+        }
+      }
+    }
+
+    if (redItems.length > 0 && greenItems.length > 0) {
+      for (const red of redItems) {
+        const redSeq = getExecutionSequence(red);
+        for (const green of greenItems) {
+          const greenSeq = getExecutionSequence(green);
+          if (greenSeq.ordinal <= redSeq.ordinal) {
+            return fail("STRATEGY_SEQUENCE_VIOLATION", "green evidence ordinal must be greater than red evidence ordinal");
+          }
+        }
+      }
+    }
+  }
+
+  if (strategyName === "refactor") {
+    const beforeItems = roleItems("characterization-before");
+    const afterItems = roleItems("characterization-after");
+
+    if (beforeItems.length > 0 && afterItems.length > 0) {
+      for (const item of [...beforeItems, ...afterItems]) {
+        const seq = getExecutionSequence(item);
+        if (!seq) {
+          return fail("STRATEGY_SEQUENCE_VIOLATION", "missing execution_sequence for temporal strategy");
+        }
+      }
+
+      for (const before of beforeItems) {
+        const beforeSeq = getExecutionSequence(before);
+        const beforeId = before.evidence && before.evidence.evidence_id;
+        for (const after of afterItems) {
+          const afterSeq = getExecutionSequence(after);
+          if (afterSeq.ordinal <= beforeSeq.ordinal) {
+            return fail("STRATEGY_SEQUENCE_VIOLATION", "characterization-after ordinal must be greater than characterization-before ordinal");
+          }
+          if (afterSeq.previous_evidence_id && beforeId && afterSeq.previous_evidence_id !== beforeId) {
             return fail("STRATEGY_SEQUENCE_VIOLATION", "characterization-after previous_evidence_id does not link to characterization-before");
           }
         }

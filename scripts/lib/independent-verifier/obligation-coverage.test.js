@@ -343,3 +343,62 @@ test("REQ-kernel-contract-schemas-027: emitted assessments are assessment/v2 wit
   assert.equal(result.assessments[0].schema_version, 2);
   assert.ok(result.assessments[0].evidence_requirements_satisfied.length >= 1);
 });
+
+test("REQ-independent-verification-005: absence of receipts causes UNFULFILLED_MUST even if node declares required_evidence", () => {
+  const result = walkMustObligations({
+    classified: [
+      {
+        role: "acceptance",
+        evidence: {
+          evidence_id: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          provenance: "runtime-observed",
+          node_id: "repair-core",
+        },
+        obligation_ids: ["req-repair-001"],
+        evidence_requirements_satisfied: [],
+      },
+    ],
+    executionGraph: graph([
+      {
+        id: "req-repair-001",
+        criticality: "must",
+        implemented_by: ["repair-core"],
+        required_evidence: ["ev:test-pass"],
+      },
+    ]),
+    candidate: CANDIDATE,
+    policySnapshotId: POLICY,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "UNFULFILLED_MUST");
+  assert.match(result.error, /req-repair-001/);
+});
+
+test("REQ-independent-verification-005: blind copying is eliminated; ungrounded MUST fails closed", () => {
+  // Classified item has undefined/empty evidence_requirements_satisfied, node has required_evidence
+  const ungroundedItem = {
+    role: "acceptance",
+    evidence: {
+      evidence_id: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      provenance: "runtime-observed",
+      node_id: "repair-core",
+    },
+    obligation_ids: ["req-repair-001"],
+  };
+  const result = walkMustObligations({
+    classified: [ungroundedItem],
+    executionGraph: graph([
+      {
+        id: "req-repair-001",
+        criticality: "must",
+        implemented_by: ["repair-core"],
+        required_evidence: ["ev:test-pass", "ev:extra"],
+      },
+    ]),
+    candidate: CANDIDATE,
+    policySnapshotId: POLICY,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "UNFULFILLED_MUST");
+});
+

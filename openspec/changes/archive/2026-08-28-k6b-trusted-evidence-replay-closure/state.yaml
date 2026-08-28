@@ -1,0 +1,67 @@
+change: "k6b-trusted-evidence-replay-closure"
+status: "archived"
+last_updated: "2026-08-28T12:06:30Z"
+blocking_questions: []
+baseline_fingerprints:
+  independent-verification: "9f1a6009b5693407d91da43f8911a2b3bdabeafa6b3a6a339a9b881bb6c75267"
+  assurance-graph: "5c34c40d7c4020665701e32ddd0df35a97954d83b6d6f413dcbdb38988a723f8"
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/k6b-trusted-evidence-replay-closure/proposal.md"
+    summary: "Segregación estricta de rawEvidence (UNTRUSTED_CALLER_METADATA), derivación desde receipts, cronología causal y replay íntegro con digest e ID."
+    key_decisions:
+      - "Rechazo explícito de metadatos de caller en rawEvidence"
+      - "Cronología obligatoria por execution_sequence sin fallback a array"
+      - "Replay de Assurance Graph recomputa computeEvidenceId y provenance"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/k6b-trusted-evidence-replay-closure/specs/independent-verification/spec.md"
+      - "openspec/changes/k6b-trusted-evidence-replay-closure/specs/assurance-graph/spec.md"
+    summary: "Deltas normativos para independent-verification y assurance-graph cerrando B1, B2, B3 y H1 con segregación, causalidad y replay exhaustivo."
+    key_decisions:
+      - "Rechazo UNTRUSTED_CALLER_METADATA ante inyección de metadatos"
+      - "Validación causal obligatoria execution_sequence sin fallback a array"
+      - "Replay recomputa digestRawBytes, computeEvidenceId y provenance"
+  design:
+    status: done
+    artifact: "openspec/changes/k6b-trusted-evidence-replay-closure/design.md"
+    summary: "Diseño técnico de segregación de rawEvidence, derivación desde runner receipts, causalidad execution_sequence y replay con computeEvidenceId."
+    key_decisions:
+      - "Rechazo fail-closed UNTRUSTED_CALLER_METADATA"
+      - "Derivación autoritativa desde runner receipts sin blind copy"
+      - "Causalidad por execution_sequence y replay con computeEvidenceId"
+  tasks:
+    status: done
+    artifact: "openspec/changes/k6b-trusted-evidence-replay-closure/tasks.md"
+    summary: "15 tareas desglosadas en 5 fases: segregación rawEvidence, derivación desde receipts, causalidad execution_sequence y replay exhaustivo."
+    key_decisions:
+      - "Segregación y rechazo UNTRUSTED_CALLER_METADATA en Fase 1"
+      - "Derivación autoritativa desde runner receipts en Fase 2"
+      - "Causalidad por execution_sequence en Fase 3 y replay exhaustivo en Fase 4"
+  apply:
+    status: done
+    artifact: "openspec/changes/k6b-trusted-evidence-replay-closure/apply-progress.md"
+    summary: "Implementación completa de las 5 fases (1.1 a 5.3): segregación física de rawEvidence con UNTRUSTED_CALLER_METADATA, derivación desde runner receipts, cronología causal execution_sequence, replay criptográfico completo y suite e2e adversarial."
+    key_decisions:
+      - "normalizeEvidence falla closed ante propiedades semánticas en rawEvidence"
+      - "verifyCandidate deriva roles y cobertura de obligations exclusivamente desde Execution Graph y runner receipts"
+      - "assertRoleOrder exige execution_sequence en estrategias temporales sin fallback a índices de array"
+      - "validateReplayRecords recomputa digestRawBytes, computeEvidenceId y valida evaluateProvenanceSufficiency"
+      - "Suite E2E adversarial cubriendo B1, B2, B3 y H1 con 100% test pass en npm test"
+  verify:
+    status: done
+    artifact: "openspec/changes/k6b-trusted-evidence-replay-closure/verify-report.md"
+    verdict: "PASS"
+    summary: "Verificación formal completada: 28/28 escenarios PASS (100% runtime-test), suites k6b y npm test 100% en verde, mitigando B1, B2, B3 y H1 sin regresiones."
+    key_decisions:
+      - "Veredicto PASS: B1, B2, B3 y H1 completamente cubiertos"
+      - "28/28 escenarios de spec probados con runtime-test"
+  archive:
+    status: done
+    artifact: "openspec/changes/k6b-trusted-evidence-replay-closure/archive-report.md"
+    summary: "Plan de archivo emitido y reporte generado con 2 specs preparadas y 4 ADRs propuestos para commit por runtime."
+    key_decisions:
+      - "Plan-and-Report: specs preparadas localmente y 4 ADRs propuestos para commit por runtime"
+      - "Move completion y commits delegados al orchestrator vía archive-transaction-run"

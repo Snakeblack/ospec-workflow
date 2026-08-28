@@ -78,10 +78,19 @@ function compileGraph() {
 
 function featureRaw() {
   return [
-    { role: "acceptance", bytes: "acceptance", provenance: "runtime-observed", origin: "a", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
-    { role: "invariants", bytes: "invariants", provenance: "runtime-observed", origin: "i", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
-    { role: "contract", bytes: "contract", provenance: "runtime-observed", origin: "c", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
-    { role: "negative", bytes: "negative", provenance: "runtime-observed", origin: "n", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
+    { bytes: "acceptance", provenance: "runtime-observed", origin: "a", node_id: "repair-core" },
+    { bytes: "invariants", provenance: "runtime-observed", origin: "i", node_id: "repair-core" },
+    { bytes: "contract", provenance: "runtime-observed", origin: "c", node_id: "repair-core" },
+    { bytes: "negative", provenance: "runtime-observed", origin: "n", node_id: "repair-core" },
+  ];
+}
+
+function featureReceipts() {
+  return [
+    { role: "acceptance", node_id: "repair-core", evidence_requirements_satisfied: ["ev:test-pass"] },
+    { role: "invariants", node_id: "repair-core", evidence_requirements_satisfied: ["ev:test-pass"] },
+    { role: "contract", node_id: "repair-core", evidence_requirements_satisfied: ["ev:test-pass"] },
+    { role: "negative", node_id: "repair-core", evidence_requirements_satisfied: ["ev:test-pass"] },
   ];
 }
 
@@ -99,6 +108,7 @@ function verifiedProjection() {
     declaredStrategy: "feature",
     collector: HARNESS_COLLECTOR,
     rawEvidence: featureRaw(),
+    runner_receipts: featureReceipts(),
   });
   assert.equal(verified.ok, true, verified.error || verified.reason_code);
   return { files, candidate, executionGraph, verified };
@@ -712,5 +722,74 @@ test("REQ-assurance-graph-006: replay rejects evidence and verification mutation
   assert.equal(badVerificationCandidate.ok, false);
   assert.equal(badVerificationCandidate.reason_code, "GRAPH_DIVERGENCE");
 });
+
+test("REQ-assurance-graph-006: replay rejects tampered evidence_id and mismatched raw bytes", () => {
+  const { candidate, executionGraph, verified } = verifiedProjection();
+  const persistable = {
+    candidate,
+    executionGraph,
+    evidence: verified.evidence.map((ev, idx) => ({
+      evidence: ev,
+      bytes: ["acceptance", "invariants", "contract", "negative"][idx],
+    })),
+    assessments: verified.assessments,
+    verification: verified.verification,
+    canonical_inputs: verified.assurance_graph.canonical_inputs,
+  };
+
+  // Tampered evidence_id on evidence record
+  const tamperedEvId = replayAssuranceGraph({
+    ...persistable,
+    evidence: [
+      {
+        ...persistable.evidence[0],
+        evidence: {
+          ...persistable.evidence[0].evidence,
+          evidence_id: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        },
+      },
+      ...persistable.evidence.slice(1),
+    ],
+  });
+  assert.equal(tamperedEvId.ok, false);
+  assert.equal(tamperedEvId.reason_code, "GRAPH_DIVERGENCE");
+
+  // Tampered raw bytes (bytes do not match record.digest)
+  const tamperedBytes = replayAssuranceGraph({
+    ...persistable,
+    evidence: [
+      {
+        ...persistable.evidence[0],
+        bytes: "tampered-content-bytes",
+      },
+      ...persistable.evidence.slice(1),
+    ],
+  });
+  assert.equal(tamperedBytes.ok, false);
+  assert.equal(tamperedBytes.reason_code, "GRAPH_DIVERGENCE");
+});
+
+test("REQ-assurance-graph-006: replay rejects insufficient provenance (model-reported)", () => {
+  const { candidate, executionGraph, verified } = verifiedProjection();
+  const persistable = {
+    candidate,
+    executionGraph,
+    evidence: [
+      {
+        ...verified.evidence[0],
+        provenance: "model-reported",
+      },
+      ...verified.evidence.slice(1),
+    ],
+    assessments: verified.assessments,
+    verification: verified.verification,
+    canonical_inputs: verified.assurance_graph.canonical_inputs,
+  };
+
+  const insufficient = replayAssuranceGraph(persistable);
+  assert.equal(insufficient.ok, false);
+  assert.equal(insufficient.reason_code, "GRAPH_DIVERGENCE");
+});
+
 
 

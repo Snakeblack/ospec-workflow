@@ -5,7 +5,11 @@ const { projectAssuranceGraph, rejectForbidden, canonicalize, computeGraphId } =
 const { computeInvalidationClosure, isEvidenceTransitivelyInvalidated } = require("./invalidation.js");
 const { validateAssessment } = require("../independent-verifier/assessment.js");
 const { computeVerificationId } = require("../independent-verifier/verdict.js");
-const { digestRawBytes } = require("../independent-verifier/evidence.js");
+const {
+  digestRawBytes,
+  computeEvidenceId,
+  evaluateProvenanceSufficiency,
+} = require("../independent-verifier/evidence.js");
 const { validateInstance, loadSchemaById } = require("../kernel-schema-validator.js");
 
 const DEFAULT_SCHEMA_ROOT = path.resolve(__dirname, "../../..");
@@ -80,7 +84,7 @@ function isApprovedDeferred(obligation) {
 
 /**
  * Comprehensive revalidation for replay:
- * 1. evidence/v2 schema, candidate_id, digest, provenance, no verdict
+ * 1. evidence/v2 schema, candidate_id, digest, computeEvidenceId, provenance sufficiency, no verdict
  * 2. verification/v2 schema, verification_id, candidate_id, subset of evidence IDs
  * 3. assessment/v2 schema, assessment_id, candidate_id, policy_snapshot_id, evidence_id, obligation_id, node_id, non-empty coverage
  */
@@ -112,11 +116,24 @@ function validateReplayRecords(persistable) {
     if (!evidenceValidation.valid) {
       return fail("GRAPH_DIVERGENCE", `evidence failed schema validation: ${evidenceValidation.errors.map((e) => e.message).join("; ")}`);
     }
-    if (item.rawBytes !== undefined || item.bytes !== undefined) {
-      const computedDigest = digestRawBytes(item.rawBytes !== undefined ? item.rawBytes : item.bytes);
+    const rawBytes = item.rawBytes !== undefined
+      ? item.rawBytes
+      : (item.bytes !== undefined
+        ? item.bytes
+        : (item.raw && (item.raw.rawBytes !== undefined ? item.raw.rawBytes : item.raw.bytes)));
+    if (rawBytes !== undefined) {
+      const computedDigest = digestRawBytes(rawBytes);
       if (record.digest !== computedDigest) {
         return fail("GRAPH_DIVERGENCE", "evidence digest does not match raw bytes");
       }
+      const recomputedEvidenceId = computeEvidenceId(record, rawBytes);
+      if (record.evidence_id !== recomputedEvidenceId) {
+        return fail("GRAPH_DIVERGENCE", "evidence_id does not match recomputed computeEvidenceId");
+      }
+    }
+    const sufficiency = evaluateProvenanceSufficiency(record, { requireRuntime: true });
+    if (!sufficiency.ok) {
+      return fail("GRAPH_DIVERGENCE", sufficiency.error || "insufficient provenance during replay");
     }
     evidenceById.set(record.evidence_id, record);
   }

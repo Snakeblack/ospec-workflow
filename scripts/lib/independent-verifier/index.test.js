@@ -41,6 +41,24 @@ const SAMPLE_OBLIGATIONS = [
   },
 ];
 
+function sampleReceipt(role, satisfied = ["ev:test-pass"], extra = {}) {
+  return {
+    role,
+    node_id: extra.node_id || "repair-core",
+    evidence_requirements_satisfied: satisfied,
+    ...extra,
+  };
+}
+
+function featureReceipts() {
+  return [
+    sampleReceipt("acceptance"),
+    sampleReceipt("invariants"),
+    sampleReceipt("contract"),
+    sampleReceipt("negative"),
+  ];
+}
+
 function buildHarness(overrides = {}) {
   const files = overrides.files || { "src/index.js": "module.exports = 1;\n" };
   const tree = computeTreeDigest(files);
@@ -78,6 +96,7 @@ function buildHarness(overrides = {}) {
     collector: Object.prototype.hasOwnProperty.call(overrides, "collector")
       ? overrides.collector
       : trustedCollector("runtime-observed"),
+    runner_receipts: overrides.runner_receipts || featureReceipts(),
   };
 }
 
@@ -94,16 +113,13 @@ function trustedCollector(provenance) {
   return undefined;
 }
 
-function raw(role, bytes, extra = {}) {
+function raw(bytes, extra = {}) {
   const provenance = extra.provenance || "runtime-observed";
   const record = {
-    role,
     bytes,
     provenance,
-    origin: extra.origin || `role:${role}`,
+    origin: extra.origin || "test-runner",
     node_id: extra.node_id || "repair-core",
-    obligation_ids: extra.obligation_ids || ["req-repair-001"],
-    evidence_requirements_satisfied: extra.evidence_requirements_satisfied || ["ev:test-pass"],
   };
   if (Object.prototype.hasOwnProperty.call(extra, "collector") && extra.collector) {
     record.collector = extra.collector;
@@ -116,10 +132,10 @@ function raw(role, bytes, extra = {}) {
 
 function featureEvidence() {
   return [
-    raw("acceptance", "acceptance: ok"),
-    raw("invariants", "invariants: ok"),
-    raw("contract", "contract: ok"),
-    raw("negative", "negative: rejects bad input"),
+    raw("acceptance: ok", { origin: "role:acceptance" }),
+    raw("invariants: ok", { origin: "role:invariants" }),
+    raw("contract: ok", { origin: "role:contract" }),
+    raw("negative: rejects bad input", { origin: "role:negative" }),
   ];
 }
 
@@ -264,9 +280,14 @@ test("REQ-independent-verification-002: feature strategy requires minimums and a
     ...harness,
     declaredStrategy: "feature",
     rawEvidence: [
-      raw("acceptance", "acceptance"),
-      raw("invariants", "invariants"),
-      raw("contract", "contract"),
+      raw("acceptance"),
+      raw("invariants"),
+      raw("contract"),
+    ],
+    runner_receipts: [
+      sampleReceipt("acceptance"),
+      sampleReceipt("invariants"),
+      sampleReceipt("contract"),
     ],
   });
   assert.equal(missingNegative.ok, false);
@@ -276,8 +297,12 @@ test("REQ-independent-verification-002: feature strategy requires minimums and a
     ...harness,
     declaredStrategy: "feature",
     rawEvidence: [
-      raw("characterization-before", "before"),
-      raw("characterization-after", "after"),
+      raw("before"),
+      raw("after"),
+    ],
+    runner_receipts: [
+      sampleReceipt("characterization-before"),
+      sampleReceipt("characterization-after"),
     ],
   });
   assert.equal(characterizationOnly.ok, false);
@@ -292,7 +317,14 @@ test("REQ-independent-verification-002: missing strategy falls back to Strict TD
   const harness = buildHarness();
   const result = verifyCandidate({
     ...harness,
-    rawEvidence: [raw("red", "red fail"), raw("green", "green pass")],
+    rawEvidence: [
+      raw("red fail", { execution_sequence: { run_id: "r1", ordinal: 1 } }),
+      raw("green pass", { execution_sequence: { run_id: "r1", ordinal: 2 } }),
+    ],
+    runner_receipts: [
+      sampleReceipt("red"),
+      sampleReceipt("green"),
+    ],
   });
   assert.equal(result.ok, true, result.error || result.reason_code);
   assert.equal(result.strategy, "strict-tdd");
@@ -308,7 +340,18 @@ test("REQ-independent-verification-002: strategy negatives for bug, refactor, mi
   const greenWithoutRed = verifyCandidate({
     ...harness,
     declaredStrategy: "bug",
-    rawEvidence: [raw("green", "green"), raw("patch", "patch", { provenance: "tool-produced" })],
+    collectors: [
+      trustedCollector("runtime-observed"),
+      trustedCollector("tool-produced"),
+    ],
+    rawEvidence: [
+      raw("green", { execution_sequence: { run_id: "r1", ordinal: 2 } }),
+      raw("patch", { provenance: "tool-produced", execution_sequence: { run_id: "r1", ordinal: 1 } }),
+    ],
+    runner_receipts: [
+      sampleReceipt("green"),
+      sampleReceipt("patch"),
+    ],
   });
   assert.equal(greenWithoutRed.ok, false);
 
@@ -316,10 +359,16 @@ test("REQ-independent-verification-002: strategy negatives for bug, refactor, mi
     ...harness,
     declaredStrategy: "refactor",
     rawEvidence: [
-      raw("characterization-before", "before"),
-      raw("characterization-after", "after"),
-      raw("no-behavior-change", "same"),
-      raw("behavioral-delta", "changed"),
+      raw("before", { execution_sequence: { run_id: "r1", ordinal: 1 } }),
+      raw("after", { execution_sequence: { run_id: "r1", ordinal: 2 } }),
+      raw("same"),
+      raw("changed"),
+    ],
+    runner_receipts: [
+      sampleReceipt("characterization-before"),
+      sampleReceipt("characterization-after"),
+      sampleReceipt("no-behavior-change"),
+      sampleReceipt("behavioral-delta"),
     ],
   });
   assert.equal(behavioralDelta.ok, false);
@@ -329,9 +378,14 @@ test("REQ-independent-verification-002: strategy negatives for bug, refactor, mi
     ...harness,
     declaredStrategy: "migration",
     rawEvidence: [
-      raw("dry-run", "dry"),
-      raw("incompatibility", "incompat"),
-      raw("idempotent-re-run", "idempotent"),
+      raw("dry"),
+      raw("incompat"),
+      raw("idempotent"),
+    ],
+    runner_receipts: [
+      sampleReceipt("dry-run"),
+      sampleReceipt("incompatibility"),
+      sampleReceipt("idempotent-re-run"),
     ],
   });
   assert.equal(skippedRollback.ok, false);
@@ -340,7 +394,8 @@ test("REQ-independent-verification-002: strategy negatives for bug, refactor, mi
   const docsOnly = verifyCandidate({
     ...harness,
     declaredStrategy: "config-docs",
-    rawEvidence: [raw("docs-only", "readme")],
+    rawEvidence: [raw("readme")],
+    runner_receipts: [sampleReceipt("docs-only")],
   });
   assert.equal(docsOnly.ok, false);
 });
@@ -350,7 +405,8 @@ test("REQ-independent-verification-002: config-docs anyOf requires install or co
   const missingInstallOrConsume = verifyCandidate({
     ...harness,
     declaredStrategy: "config-docs",
-    rawEvidence: [raw("schema-parser", "parsed schema"), raw("smoke", "smoke ok")],
+    rawEvidence: [raw("parsed schema"), raw("smoke ok")],
+    runner_receipts: [sampleReceipt("schema-parser"), sampleReceipt("smoke")],
   });
   assert.equal(missingInstallOrConsume.ok, false);
   assert.equal(missingInstallOrConsume.reason_code, "MISSING_STRATEGY_MINIMUM");
@@ -477,7 +533,11 @@ test("REQ-independent-verification-004: extra human-decision evidence yields PAS
     collectors: [...featureEvidence().map(() => nodeTest), undefined],
     rawEvidence: [
       ...featureEvidence(),
-      raw("annotation", "human reviewed", { provenance: "human-decision" }),
+      raw("human reviewed", { origin: "role:annotation", provenance: "human-decision" }),
+    ],
+    runner_receipts: [
+      ...featureReceipts(),
+      sampleReceipt("annotation"),
     ],
   });
   assert.equal(result.ok, true, result.error || result.reason_code);
@@ -490,9 +550,14 @@ test("REQ-independent-verification-002: feature anyOf requires contract or integ
     ...harness,
     declaredStrategy: "feature",
     rawEvidence: [
-      raw("acceptance", "acceptance: ok"),
-      raw("invariants", "invariants: ok"),
-      raw("negative", "negative: rejects bad input"),
+      raw("acceptance: ok"),
+      raw("invariants: ok"),
+      raw("negative: rejects bad input"),
+    ],
+    runner_receipts: [
+      sampleReceipt("acceptance"),
+      sampleReceipt("invariants"),
+      sampleReceipt("negative"),
     ],
   });
   assert.equal(missingAnyOf.ok, false);
@@ -504,8 +569,12 @@ test("REQ-independent-verification-002: Strict TDD rejects host-attested red and
   const result = verifyCandidate({
     ...harness,
     rawEvidence: [
-      raw("red", "red fail", { provenance: "host-attested" }),
-      raw("green", "green pass", { provenance: "host-attested" }),
+      raw("red fail", { provenance: "host-attested", execution_sequence: { run_id: "r1", ordinal: 1 } }),
+      raw("green pass", { provenance: "host-attested", execution_sequence: { run_id: "r1", ordinal: 2 } }),
+    ],
+    runner_receipts: [
+      sampleReceipt("red"),
+      sampleReceipt("green"),
     ],
   });
   assert.equal(result.ok, false);
@@ -532,7 +601,7 @@ test("REQ-independent-verification-004: evidence carrying verdict is rejected", 
   const result = verifyCandidate({
     ...harness,
     declaredStrategy: "feature",
-    rawEvidence: [{ ...raw("acceptance", "x"), verdict: "PASS" }, ...featureEvidence().slice(1)],
+    rawEvidence: [{ ...raw("x"), verdict: "PASS" }, ...featureEvidence().slice(1)],
   });
   assert.equal(result.ok, false);
   assert.equal(result.reason_code, "MIXED_EVIDENCE_VERDICT");
@@ -645,30 +714,18 @@ test("F-d5739d79237afeb8: envelope collector fails closed; harness collector der
   assert.equal(ok.ok && ok.evidence.every((e) => e.provenance === "runtime-observed"), true, ok.reason_code);
 });
 
-test("REQ-independent-verification-005: MUST without bound evidence fails UNFULFILLED_MUST after strategy", () => {
+test("REQ-independent-verification-005: MUST without receipts fails UNFULFILLED_MUST after strategy", () => {
   const harness = buildHarness();
   const result = verifyCandidate({
     ...harness,
     declaredStrategy: "feature",
-    rawEvidence: featureEvidence().map((item) => ({ ...item, obligation_ids: [] })),
+    rawEvidence: featureEvidence(),
+    runner_receipts: featureReceipts().map((r) => ({ ...r, evidence_requirements_satisfied: [] })),
   });
   assert.equal(result.ok, false);
   assert.equal(result.reason_code, "UNFULFILLED_MUST");
   assert.match(result.error || "", /req-repair-001/);
   assert.equal(Object.prototype.hasOwnProperty.call(result, "verification"), false);
-});
-
-test("REQ-independent-verification-005: alien obligation_id fails UNKNOWN_OBLIGATION_ID", () => {
-  const harness = buildHarness();
-  const result = verifyCandidate({
-    ...harness,
-    declaredStrategy: "feature",
-    rawEvidence: featureEvidence().map((item, index) =>
-      index === 0 ? { ...item, obligation_ids: ["not-in-manifest"] } : item
-    ),
-  });
-  assert.equal(result.ok, false);
-  assert.equal(result.reason_code, "UNKNOWN_OBLIGATION_ID");
 });
 
 test("REQ-independent-verification-005: evidence on a non-implementing node fails WRONG_IMPLEMENTING_NODE", () => {
@@ -700,6 +757,7 @@ test("REQ-independent-verification-005: evidence on a non-implementing node fail
     policySnapshot,
     declaredStrategy: "feature",
     rawEvidence: featureEvidence().map((item) => ({ ...item, node_id: "other-node" })),
+    runner_receipts: featureReceipts().map((r) => ({ ...r, node_id: "other-node", obligation_ids: ["req-repair-001"] })),
   });
   assert.equal(result.ok, false);
   assert.equal(result.reason_code, "WRONG_IMPLEMENTING_NODE");
@@ -731,7 +789,8 @@ test("REQ-independent-verification-005: approved deferral skips MUST coverage", 
     executionGraph,
     policySnapshot,
     declaredStrategy: "feature",
-    rawEvidence: featureEvidence().map((item) => ({ ...item, obligation_ids: [] })),
+    rawEvidence: featureEvidence(),
+    runner_receipts: featureReceipts().map((r) => ({ ...r, evidence_requirements_satisfied: [] })),
   });
   assert.equal(result.ok, true, result.error || result.reason_code);
 });
@@ -775,9 +834,14 @@ test("REQ-independent-verification-004: strategy failure short-circuits without 
     ...harness,
     declaredStrategy: "feature",
     rawEvidence: [
-      raw("acceptance", "acceptance"),
-      raw("invariants", "invariants"),
-      raw("contract", "contract"),
+      raw("acceptance"),
+      raw("invariants"),
+      raw("contract"),
+    ],
+    runner_receipts: [
+      sampleReceipt("acceptance"),
+      sampleReceipt("invariants"),
+      sampleReceipt("contract"),
     ],
   });
   assert.equal(result.ok, false);
@@ -787,16 +851,21 @@ test("REQ-independent-verification-004: strategy failure short-circuits without 
 
 test("REQ-independent-verification-006: one observation cannot satisfy four incompatible roles", () => {
   const harness = buildHarness();
-  const shared = { origin: "shared-observation", obligation_ids: ["req-repair-001"] };
   const bytes = "shared-bytes";
   const result = verifyCandidate({
     ...harness,
     declaredStrategy: "feature",
     rawEvidence: [
-      raw("acceptance", bytes, shared),
-      raw("invariants", bytes, shared),
-      raw("contract", bytes, shared),
-      raw("negative", bytes, shared),
+      raw(bytes, { origin: "shared-origin" }),
+      raw(bytes, { origin: "shared-origin" }),
+      raw(bytes, { origin: "shared-origin" }),
+      raw(bytes, { origin: "shared-origin" }),
+    ],
+    runner_receipts: [
+      sampleReceipt("acceptance"),
+      sampleReceipt("invariants"),
+      sampleReceipt("contract"),
+      sampleReceipt("negative"),
     ],
   });
   assert.equal(result.ok, false);
@@ -804,11 +873,18 @@ test("REQ-independent-verification-006: one observation cannot satisfy four inco
   assert.equal(Object.prototype.hasOwnProperty.call(result, "verification"), false);
 });
 
-test("REQ-independent-verification-006: strict-tdd and bug role order fail closed", () => {
+test("REQ-independent-verification-006: strict-tdd and bug role order fail closed on reversed ordinals", () => {
   const harness = buildHarness();
   const strict = verifyCandidate({
     ...harness,
-    rawEvidence: [raw("green", "green"), raw("red", "red")],
+    rawEvidence: [
+      raw("green", { execution_sequence: { run_id: "r1", ordinal: 1 } }),
+      raw("red", { execution_sequence: { run_id: "r1", ordinal: 2 } }),
+    ],
+    runner_receipts: [
+      sampleReceipt("green"),
+      sampleReceipt("red"),
+    ],
   });
   assert.equal(strict.ok, false);
   assert.equal(strict.reason_code, "STRATEGY_SEQUENCE_VIOLATION");
@@ -816,7 +892,21 @@ test("REQ-independent-verification-006: strict-tdd and bug role order fail close
   const bug = verifyCandidate({
     ...harness,
     declaredStrategy: "bug",
-    rawEvidence: [raw("patch", "patch"), raw("red", "red"), raw("green", "green")],
+    collectors: [
+      trustedCollector("tool-produced"),
+      trustedCollector("runtime-observed"),
+      trustedCollector("runtime-observed"),
+    ],
+    rawEvidence: [
+      raw("patch", { provenance: "tool-produced", execution_sequence: { run_id: "r1", ordinal: 1 } }),
+      raw("red", { execution_sequence: { run_id: "r1", ordinal: 2 } }),
+      raw("green", { execution_sequence: { run_id: "r1", ordinal: 3 } }),
+    ],
+    runner_receipts: [
+      sampleReceipt("patch"),
+      sampleReceipt("red"),
+      sampleReceipt("green"),
+    ],
   });
   assert.equal(bug.ok, false);
   assert.equal(bug.reason_code, "STRATEGY_SEQUENCE_VIOLATION");
@@ -843,19 +933,19 @@ test("FABRICATED_EVIDENCE: non-object raw and missing origin fail closed", () =>
   assert.equal(Object.prototype.hasOwnProperty.call(missingOrigin, "verification"), false);
 });
 
-test("REQ-independent-verification-003: verifier derives trusted evidence metadata from Execution Graph when omitted", () => {
+test("REQ-independent-verification-003: verifier derives trusted evidence metadata from Execution Graph and receipts", () => {
   const harness = buildHarness();
-  // Raw observations omit obligation_ids and evidence_requirements_satisfied
   const rawObservations = [
-    { role: "acceptance", bytes: "acceptance: ok", origin: "node:test", node_id: "repair-core" },
-    { role: "invariants", bytes: "invariants: ok", origin: "node:test", node_id: "repair-core" },
-    { role: "contract", bytes: "contract: ok", origin: "node:test", node_id: "repair-core" },
-    { role: "negative", bytes: "negative: ok", origin: "node:test", node_id: "repair-core" },
+    { bytes: "acceptance: ok", origin: "node:test", node_id: "repair-core" },
+    { bytes: "invariants: ok", origin: "node:test", node_id: "repair-core" },
+    { bytes: "contract: ok", origin: "node:test", node_id: "repair-core" },
+    { bytes: "negative: ok", origin: "node:test", node_id: "repair-core" },
   ];
   const result = verifyCandidate({
     ...harness,
     declaredStrategy: "feature",
     rawEvidence: rawObservations,
+    runner_receipts: featureReceipts(),
   });
   assert.equal(result.ok, true, result.error || result.reason_code);
   assert.ok(result.assessments.length > 0);
@@ -866,13 +956,19 @@ test("REQ-independent-verification-003: verifier derives trusted evidence metada
 test("REQ-independent-verification-006: incompatible roles red ↔ green, char-before ↔ char-after, negative ↔ acceptance fail closed", () => {
   const harness = buildHarness();
   const bytes = "shared-bytes";
-  const shared = { origin: "shared", node_id: "repair-core" };
 
   // red ↔ green
   const redGreen = verifyCandidate({
     ...harness,
     declaredStrategy: "strict-tdd",
-    rawEvidence: [raw("red", bytes, shared), raw("green", bytes, shared)],
+    rawEvidence: [
+      raw(bytes, { origin: "shared-rg", execution_sequence: { run_id: "r1", ordinal: 1 } }),
+      raw(bytes, { origin: "shared-rg", execution_sequence: { run_id: "r1", ordinal: 2 } }),
+    ],
+    runner_receipts: [
+      sampleReceipt("red"),
+      sampleReceipt("green"),
+    ],
   });
   assert.equal(redGreen.ok, false);
   assert.equal(redGreen.reason_code, "STRATEGY_EVIDENCE_ALIAS");
@@ -882,10 +978,16 @@ test("REQ-independent-verification-006: incompatible roles red ↔ green, char-b
     ...harness,
     declaredStrategy: "feature",
     rawEvidence: [
-      raw("acceptance", bytes, shared),
-      raw("invariants", "inv-bytes", { origin: "inv", node_id: "repair-core" }),
-      raw("contract", "contract-bytes", { origin: "con", node_id: "repair-core" }),
-      raw("negative", bytes, shared),
+      raw(bytes, { origin: "shared-neg-acc" }),
+      raw("inv-bytes", { origin: "inv" }),
+      raw("contract-bytes", { origin: "con" }),
+      raw(bytes, { origin: "shared-neg-acc" }),
+    ],
+    runner_receipts: [
+      sampleReceipt("acceptance"),
+      sampleReceipt("invariants"),
+      sampleReceipt("contract"),
+      sampleReceipt("negative"),
     ],
   });
   assert.equal(negAcc.ok, false);
@@ -896,9 +998,14 @@ test("REQ-independent-verification-006: incompatible roles red ↔ green, char-b
     ...harness,
     declaredStrategy: "refactor",
     rawEvidence: [
-      raw("characterization-before", bytes, shared),
-      raw("characterization-after", bytes, shared),
-      raw("no-behavior-change", "nbc-bytes", { origin: "nbc", node_id: "repair-core" }),
+      raw(bytes, { origin: "shared-cb-ca", execution_sequence: { run_id: "r1", ordinal: 1 } }),
+      raw(bytes, { origin: "shared-cb-ca", execution_sequence: { run_id: "r1", ordinal: 2 } }),
+      raw("nbc-bytes", { origin: "nbc" }),
+    ],
+    runner_receipts: [
+      sampleReceipt("characterization-before"),
+      sampleReceipt("characterization-after"),
+      sampleReceipt("no-behavior-change"),
     ],
   });
   assert.equal(charBeforeAfter.ok, false);
@@ -908,16 +1015,21 @@ test("REQ-independent-verification-006: incompatible roles red ↔ green, char-b
 test("REQ-independent-verification-006: non-conflicting shared evidence (integration + acceptance) passes validation", () => {
   const harness = buildHarness();
   const bytes = "shared-integration-acceptance";
-  const shared = { origin: "shared", node_id: "repair-core" };
 
   const result = verifyCandidate({
     ...harness,
     declaredStrategy: "feature",
     rawEvidence: [
-      raw("acceptance", bytes, shared),
-      raw("invariants", "inv-bytes", { origin: "inv", node_id: "repair-core" }),
-      raw("integration", bytes, shared),
-      raw("negative", "neg-bytes", { origin: "neg", node_id: "repair-core" }),
+      raw(bytes, { origin: "acc" }),
+      raw("inv-bytes", { origin: "inv" }),
+      raw(bytes, { origin: "integ" }),
+      raw("neg-bytes", { origin: "neg" }),
+    ],
+    runner_receipts: [
+      sampleReceipt("acceptance"),
+      sampleReceipt("invariants"),
+      sampleReceipt("integration"),
+      sampleReceipt("negative"),
     ],
   });
   assert.equal(result.ok, true, result.error || result.reason_code);
@@ -932,13 +1044,20 @@ test("REQ-independent-verification-006: refactor chronological sequence via exec
     ...harness,
     declaredStrategy: "refactor",
     rawEvidence: [
-      raw("characterization-before", "before-bytes", {
+      raw("before-bytes", {
+        origin: "cb",
         execution_sequence: { run_id: "run-1", ordinal: 5 },
       }),
-      raw("characterization-after", "after-bytes", {
+      raw("after-bytes", {
+        origin: "ca",
         execution_sequence: { run_id: "run-1", ordinal: 4 },
       }),
-      raw("no-behavior-change", "nbc-bytes"),
+      raw("nbc-bytes", { origin: "nbc" }),
+    ],
+    runner_receipts: [
+      sampleReceipt("characterization-before"),
+      sampleReceipt("characterization-after"),
+      sampleReceipt("no-behavior-change"),
     ],
   });
   assert.equal(badOrdinal.ok, false);
@@ -949,15 +1068,120 @@ test("REQ-independent-verification-006: refactor chronological sequence via exec
     ...harness,
     declaredStrategy: "refactor",
     rawEvidence: [
-      raw("characterization-before", "before-bytes", {
+      raw("before-bytes", {
+        origin: "cb",
         execution_sequence: { run_id: "run-1", ordinal: 1 },
       }),
-      raw("characterization-after", "after-bytes", {
+      raw("after-bytes", {
+        origin: "ca",
         execution_sequence: { run_id: "run-1", ordinal: 2, previous_evidence_id: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" },
       }),
-      raw("no-behavior-change", "nbc-bytes"),
+      raw("nbc-bytes", { origin: "nbc" }),
+    ],
+    runner_receipts: [
+      sampleReceipt("characterization-before"),
+      sampleReceipt("characterization-after"),
+      sampleReceipt("no-behavior-change"),
     ],
   });
   assert.equal(badPrev.ok, false);
   assert.equal(badPrev.reason_code, "STRATEGY_SEQUENCE_VIOLATION");
+});
+
+// Adversarial tests for B1, B2, B3, H1
+test("REQ-independent-verification-003 [Adversarial B1]: caller semantic metadata injection in rawEvidence fails closed", () => {
+  const harness = buildHarness();
+
+  const injectionCases = [
+    { name: "role injection", item: { ...raw("bytes"), role: "acceptance" } },
+    { name: "obligation_id injection", item: { ...raw("bytes"), obligation_id: "req-repair-001" } },
+    { name: "obligation_ids injection", item: { ...raw("bytes"), obligation_ids: ["req-repair-001"] } },
+    { name: "evidence_requirements_satisfied injection", item: { ...raw("bytes"), evidence_requirements_satisfied: ["ev:test-pass"] } },
+  ];
+
+  for (const { name, item } of injectionCases) {
+    const result = verifyCandidate({
+      ...harness,
+      declaredStrategy: "feature",
+      rawEvidence: [item, ...featureEvidence().slice(1)],
+      runner_receipts: featureReceipts(),
+    });
+    assert.equal(result.ok, false, `Failed to reject ${name}`);
+    assert.equal(result.reason_code, "UNTRUSTED_CALLER_METADATA", name);
+    assert.equal(result.verification, undefined);
+  }
+});
+
+test("REQ-independent-verification-005 [Adversarial B2]: blind copying eliminated; ungrounded MUST fails closed", () => {
+  const harness = buildHarness();
+  // Node has required_evidence: ["ev:test-pass"], but receipts have empty evidence_requirements_satisfied: []
+  const result = verifyCandidate({
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence: featureEvidence(),
+    runner_receipts: featureReceipts().map((r) => ({ ...r, evidence_requirements_satisfied: [] })),
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "UNFULFILLED_MUST");
+  assert.match(result.error, /req-repair-001/);
+});
+
+test("REQ-independent-verification-006 [Adversarial B3]: temporal strategies without execution_sequence fail closed (no array fallback)", () => {
+  const harness = buildHarness();
+
+  // Strict TDD with array order [red, green] but NO execution_sequence
+  const strictNoSeq = verifyCandidate({
+    ...harness,
+    rawEvidence: [raw("red fail"), raw("green pass")],
+    runner_receipts: [sampleReceipt("red"), sampleReceipt("green")],
+  });
+  assert.equal(strictNoSeq.ok, false);
+  assert.equal(strictNoSeq.reason_code, "STRATEGY_SEQUENCE_VIOLATION");
+  assert.match(strictNoSeq.error, /execution_sequence/i);
+
+  // Bug strategy with array order [red, patch, green] but NO execution_sequence
+  const bugNoSeq = verifyCandidate({
+    ...harness,
+    declaredStrategy: "bug",
+    collectors: [
+      trustedCollector("runtime-observed"),
+      trustedCollector("tool-produced"),
+      trustedCollector("runtime-observed"),
+    ],
+    rawEvidence: [
+      raw("red"),
+      raw("patch", { provenance: "tool-produced" }),
+      raw("green"),
+    ],
+    runner_receipts: [
+      sampleReceipt("red"),
+      sampleReceipt("patch"),
+      sampleReceipt("green"),
+    ],
+  });
+  assert.equal(bugNoSeq.ok, false);
+  assert.equal(bugNoSeq.reason_code, "STRATEGY_SEQUENCE_VIOLATION");
+  assert.match(bugNoSeq.error, /execution_sequence/i);
+});
+
+test("REQ-independent-verification-006 [Adversarial]: strict-tdd previous_evidence_id chaining mismatch fails closed", () => {
+  const harness = buildHarness();
+  const redObservation = raw("red fail", {
+    execution_sequence: { run_id: "r1", ordinal: 1 },
+  });
+  const greenObservation = raw("green pass", {
+    execution_sequence: {
+      run_id: "r1",
+      ordinal: 2,
+      previous_evidence_id: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    },
+  });
+  const result = verifyCandidate({
+    ...harness,
+    rawEvidence: [redObservation, greenObservation],
+    runner_receipts: [sampleReceipt("red"), sampleReceipt("green")],
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "STRATEGY_SEQUENCE_VIOLATION");
+  assert.match(result.error, /previous_evidence_id/i);
 });
