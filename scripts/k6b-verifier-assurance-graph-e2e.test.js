@@ -44,10 +44,19 @@ const OBLIGATIONS = [
 
 function featureEvidence() {
   return [
-    { role: "acceptance", bytes: "acceptance ok", provenance: "runtime-observed", origin: "e2e-acceptance", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
-    { role: "invariants", bytes: "invariants ok", provenance: "runtime-observed", origin: "e2e-invariants", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
-    { role: "integration", bytes: "integration ok", provenance: "runtime-observed", origin: "e2e-integration", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
-    { role: "negative", bytes: "negative ok", provenance: "runtime-observed", origin: "e2e-negative", node_id: "repair-core", obligation_ids: ["req-repair-001"], evidence_requirements_satisfied: ["ev:test-pass"] },
+    { bytes: "acceptance ok", provenance: "runtime-observed", origin: "e2e-acceptance", node_id: "repair-core" },
+    { bytes: "invariants ok", provenance: "runtime-observed", origin: "e2e-invariants", node_id: "repair-core" },
+    { bytes: "integration ok", provenance: "runtime-observed", origin: "e2e-integration", node_id: "repair-core" },
+    { bytes: "negative ok", provenance: "runtime-observed", origin: "e2e-negative", node_id: "repair-core" },
+  ];
+}
+
+function featureReceipts() {
+  return [
+    { role: "acceptance", node_id: "repair-core", evidence_requirements_satisfied: ["ev:test-pass"] },
+    { role: "invariants", node_id: "repair-core", evidence_requirements_satisfied: ["ev:test-pass"] },
+    { role: "integration", node_id: "repair-core", evidence_requirements_satisfied: ["ev:test-pass"] },
+    { role: "negative", node_id: "repair-core", evidence_requirements_satisfied: ["ev:test-pass"] },
   ];
 }
 
@@ -93,6 +102,7 @@ test("E2E K6b: K4b-frozen Candidate → verify → project twice → successor i
     declaredStrategy: "feature",
     collector: HARNESS_COLLECTOR,
     rawEvidence: featureEvidence(),
+    runner_receipts: featureReceipts(),
   });
   assert.equal(verified.ok, true, verified.error || verified.reason_code);
   assert.equal(verified.verification.verdict, "PASS");
@@ -195,6 +205,7 @@ test("E2E K6b: K4b-frozen Candidate → verify → project twice → successor i
     declaredStrategy: "feature",
     collector: HARNESS_COLLECTOR,
     rawEvidence: featureEvidence(),
+    runner_receipts: featureReceipts(),
     priorAssuranceGraph: graphForClosure,
   });
   assert.equal(staleReuse.ok, false);

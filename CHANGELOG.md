@@ -5,6 +5,29 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.53.1] - 2026-08-28
+
+### Security
+- **Segregación física de `rawEvidence` y rechazo explícito de metadatos de caller (`UNTRUSTED_CALLER_METADATA`)**:
+  - `normalizeEvidence` rechaza de forma fail-closed (`UNTRUSTED_CALLER_METADATA`) cualquier observación `rawEvidence` que contenga propiedades semánticas (`role`, `obligation_ids`, `obligation_id`, `evidence_requirements_satisfied`).
+  - Las observaciones físicas admiten estrictamente: `bytes` / `rawBytes`, `provenance`, `origin`, `node_id`, `execution_sequence`.
+  - Se eliminan atributos semánticos del payload devuelto por `normalizeEvidence`.
+
+### Changed
+- **Derivación autoritativa desde Runner Receipts y eliminación de copia ciega**:
+  - `verifyCandidate` resuelve `role` y `obligation_ids` consultando el Execution Graph y runner receipts (`node.role`, `node.kind`, `receipt.role`, `graphObligations.implemented_by`).
+  - `evidence_requirements_satisfied` se deriva exclusivamente de los tokens atestiguados en `runner_receipts` o `receipts` del harness; se erradica por completo la copia automática de `node.required_evidence`.
+  - Ausencia de receipts para una obligación MUST produce `UNFULFILLED_MUST` sin generar afirmaciones espurias.
+- **Validación cronológica causal obligatoria por `execution_sequence`**:
+  - `assertRoleOrder` exige la presencia de `execution_sequence` (`run_id`, `ordinal` monotónico creciente y `previous_evidence_id`) en estrategias temporales (`strict-tdd`, `bug`, `refactor`).
+  - Se prohíbe explícitamente el fallback al orden posicional del array JSON.
+  - Verificación causal estricta: `red.ordinal < green.ordinal` (y enlace `previous_evidence_id`) en TDD, `red < patch < green` en `bug`, y `before < after` en `refactor`. Violaciones emiten `STRATEGY_SEQUENCE_VIOLATION`.
+- **Replay criptográficamente íntegro de Evidence en Assurance Graph**:
+  - `validateReplayRecords` recomputa `digestRawBytes` y `computeEvidenceId(record, bytes)` validando igualdad exacta contra `record.digest` y `record.evidence_id`.
+  - Revalidación obligatoria de procedencia mediante `evaluateProvenanceSufficiency(record, { requireRuntime: true })`, fallando con `GRAPH_DIVERGENCE` ante adulteración de digest, id o insuficiencia de provenance.
+  - ADRs `docs/adr/adr-20260828-010` a `013`. Specs `independent-verification` y `assurance-graph`.
+  - Cierre definitivo de los hallazgos B1, B2, B3 y H1 de K6b. Archivado en `openspec/changes/archive/2026-08-28-k6b-trusted-evidence-replay-closure/`.
+
 ## [2.53.0] - 2026-08-28
 
 ### Added

@@ -115,6 +115,8 @@ function walkMustObligations(input) {
     }
 
     for (const item of admissible) {
+      const coverageTokens = normalizedCoverage(item, requiredEvidence);
+      if (coverageTokens.length === 0) continue;
       const emitted = emitAssessment({
         evidence_id: item.evidence.evidence_id,
         role: item.role,
@@ -122,7 +124,7 @@ function walkMustObligations(input) {
         node_id: item.evidence.node_id,
         candidate_id: candidate && candidate.candidate_id,
         policy_snapshot_id: policySnapshotId,
-        evidence_requirements_satisfied: normalizedCoverage(item, requiredEvidence),
+        evidence_requirements_satisfied: coverageTokens,
       });
       if (!emitted.ok) return emitted;
       assessments.push(emitted.assessment);

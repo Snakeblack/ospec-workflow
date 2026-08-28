@@ -48,18 +48,32 @@ function computeEvidenceId(fields, rawBytes) {
 }
 
 /**
- * Normalize raw evidence into evidence/v2. Fail closed on mixed verdict,
- * digest mismatch, foreign subject, or schema violation.
+ * Normalize raw evidence into evidence/v2. Fail closed on untrusted caller metadata,
+ * mixed verdict, digest mismatch, foreign subject, or schema violation.
  *
  * @param {object} raw
  * @param {object} candidate
  * @param {object} [executionGraph]
  * @param {object} [harnessCollector]
- * @returns {{ ok: true, evidence: object, execution_sequence?: object, role?: string, obligation_ids: string[], evidence_requirements_satisfied: string[] } | { ok: false, reason_code: string }}
+ * @returns {{ ok: true, evidence: object, execution_sequence?: object, raw: object } | { ok: false, reason_code: string, error?: string }}
  */
 function normalizeEvidence(raw, candidate, executionGraph, harnessCollector) {
   if (!raw || typeof raw !== "object") {
     return fail("FABRICATED_EVIDENCE", "raw evidence must be an object");
+  }
+  const forbiddenCallerProps = [
+    "role",
+    "obligation_ids",
+    "obligation_id",
+    "evidence_requirements_satisfied",
+  ];
+  for (const prop of forbiddenCallerProps) {
+    if (Object.prototype.hasOwnProperty.call(raw, prop)) {
+      return fail(
+        "UNTRUSTED_CALLER_METADATA",
+        "raw evidence must not contain caller semantic metadata"
+      );
+    }
   }
   if (Object.prototype.hasOwnProperty.call(raw, "verdict")) {
     return fail("MIXED_EVIDENCE_VERDICT", "evidence must not carry verdict");
@@ -112,15 +126,6 @@ function normalizeEvidence(raw, candidate, executionGraph, harnessCollector) {
     return fail("FABRICATED_EVIDENCE", validation.errors.map((e) => e.message).join("; "));
   }
 
-  const obligationIds = Array.isArray(raw.obligation_ids)
-    ? raw.obligation_ids.filter((id) => typeof id === "string")
-    : raw.obligation_id
-      ? [raw.obligation_id]
-      : [];
-  const evidenceRequirementsSatisfied = Array.isArray(raw.evidence_requirements_satisfied)
-    ? [...new Set(raw.evidence_requirements_satisfied.filter((token) => typeof token === "string" && token.length > 0))].sort()
-    : [];
-
   const executionSequence = raw.execution_sequence && typeof raw.execution_sequence === "object"
     ? {
         run_id: String(raw.execution_sequence.run_id || ""),
@@ -134,9 +139,6 @@ function normalizeEvidence(raw, candidate, executionGraph, harnessCollector) {
     evidence: record,
     execution_sequence: executionSequence,
     raw,
-    role: raw.role,
-    obligation_ids: obligationIds,
-    evidence_requirements_satisfied: evidenceRequirementsSatisfied,
   };
 }
 
