@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "kind": "challenge-result/v1",
+  "result_id": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+  "plan_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "candidate_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "challenge_type": "focal-mutation",
+  "outcome": "failed",
+  "node_id": "repair-focal",
+  "evidence_ids": [],
+  "details": {
+    "reason": "COMPLACENT_TEST_DETECTED",
+    "mutations_tested": 2,
+    "defects_detected": 0,
+    "complacent_tests": 2
+  }
+}

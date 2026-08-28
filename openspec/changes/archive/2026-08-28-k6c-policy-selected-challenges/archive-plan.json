@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "change": "k6c-policy-selected-challenges",
+  "source_fingerprint": "sha256:ca017561dccf87bdb7438691c306024be4bd9829b8c7dac82525566e24dc1768",
+  "spec_writes": [
+    {
+      "domain": "adversarial-challenges",
+      "source_delta": "specs/adversarial-challenges/spec.md",
+      "target": "openspec/specs/adversarial-challenges/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:06054202f775d1d504c19164f1d2c6fe533c493f1ae3895051fe7c50376a2762"
+    },
+    {
+      "domain": "independent-verification",
+      "source_delta": "specs/independent-verification/spec.md",
+      "target": "openspec/specs/independent-verification/spec.md",
+      "target_before_sha256": "sha256:0a309c69fe0122acc824e4fc3e65de233539752e75a4a3ac1d9161cc4b028ee6",
+      "content_sha256": "sha256:638d788be027f5a1e91dd3b92686b926b2357566d6c87efdf2927920e84a5750"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "specs/kernel-contract-schemas/spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:df470f9095fbfee56afc9fda7819c2305f063f02cc221c98238e657ff28b9b27",
+      "content_sha256": "sha256:93999eee7d5fddd9e0c67037a3733bccab12b1e1f7e8fd01a3b4a4e1262d36bc"
+    },
+    {
+      "domain": "harness-authority-canon",
+      "source_delta": "specs/harness-authority-canon/spec.md",
+      "target": "openspec/specs/harness-authority-canon/spec.md",
+      "target_before_sha256": "sha256:083cfd5125bf5584a4f06ced46c53ad54e97b21fa9d15c65516d3c761187377a",
+      "content_sha256": "sha256:9c99b26ff43a52d00131f58a4404acc87f178b0a10e2073f381f16ed800b39b4"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260828-019-proportional-policy-selected-challenges.md",
+      "content_sha256": "sha256:6d016209580106a7c2daea29313ddcbda694b3af552f499e44e43e77169a22e4"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260828-020-candidate-immutability-complementary-evidence.md",
+      "content_sha256": "sha256:69afb9a8161408a6d34cdc44f456193282cc00a359123ee5379b770414088b29"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260828-021-causal-failure-transition-budget-exhaustion.md",
+      "content_sha256": "sha256:b7c13c35798bfcc63a580b2d4ffe626d65791eb6788c15ee6f8342d7a95b15f5"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260828-022-focal-seeded-mutations-complacent-test-rejection.md",
+      "content_sha256": "sha256:ce6919f4bd36dca5fd2091b138e72a07b6e595c0a7d225fa1b2d5a3b80e5835c"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "design.md",
+    "proposal.md",
+    "specs/adversarial-challenges/spec.md",
+    "specs/harness-authority-canon/spec.md",
+    "specs/independent-verification/spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

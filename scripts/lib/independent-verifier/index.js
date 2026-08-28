@@ -69,6 +69,52 @@ function rejectStaleEvidence(input, bound, evidence, rawBytes) {
   return { ok: true };
 }
 
+function evaluateChallenges(input, bound) {
+  if (
+    input.challenge_budget_exhausted ||
+    (input.challengeCausalFailure &&
+      input.challengeCausalFailure.code === "CHALLENGE_BUDGET_EXHAUSTED")
+  ) {
+    return fail("CHALLENGE_BUDGET_EXHAUSTED", "challenge budget was exhausted during execution");
+  }
+
+  const plan = input.challengePlan || input.challenge_plan;
+  if (!plan) return { ok: true };
+
+  if (plan.candidate_id !== bound.candidate.candidate_id) {
+    return fail("BINDING_MISMATCH", "challenge plan candidate_id does not match bound candidate");
+  }
+
+  const results = Array.isArray(input.challengeResults)
+    ? input.challengeResults
+    : (Array.isArray(input.challenge_results) ? input.challenge_results : []);
+
+  const resultsMap = new Map();
+  for (const res of results) {
+    if (res && res.challenge_type) {
+      resultsMap.set(res.challenge_type, res);
+    }
+  }
+
+  for (const selectedType of plan.selected || []) {
+    const res = resultsMap.get(selectedType);
+    if (!res) {
+      return fail(
+        "CHALLENGE_VERIFICATION_FAILED",
+        `missing result for selected challenge ${selectedType}`
+      );
+    }
+    if (res.outcome !== "passed") {
+      return fail(
+        "CHALLENGE_VERIFICATION_FAILED",
+        `challenge ${selectedType} failed with outcome ${res.outcome}`
+      );
+    }
+  }
+
+  return { ok: true };
+}
+
 function getRunnerReceipts(input) {
   if (
     input &&
@@ -192,6 +238,9 @@ function verifyCandidate(input) {
     policySnapshotId: bound.executionGraph.policy_snapshot_id,
   });
   if (!coverage.ok) return coverage;
+
+  const challengeGate = evaluateChallenges(input, bound);
+  if (!challengeGate.ok) return challengeGate;
 
   const evidenceRecords = classified.map((item) => item.evidence);
   const replayEvidence = classified.map((item, index) => ({

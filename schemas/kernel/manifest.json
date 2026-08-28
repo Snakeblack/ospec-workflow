@@ -235,6 +235,16 @@
       "path": "schemas/kernel/runner-receipt/v1.schema.json",
       "$id": "ospec://schemas/kernel/runner-receipt/v1",
       "schema_version": 1
+    },
+    "challenge-plan": {
+      "path": "schemas/kernel/challenge-plan/v1.schema.json",
+      "$id": "ospec://schemas/kernel/challenge-plan/v1",
+      "schema_version": 1
+    },
+    "challenge-result": {
+      "path": "schemas/kernel/challenge-result/v1.schema.json",
+      "$id": "ospec://schemas/kernel/challenge-result/v1",
+      "schema_version": 1
     }
   }
 }

@@ -1,8 +1,8 @@
 # Arquitectura objetivo — harness gobernado por kernel, grafo y evidencia
 
 > **Autoridad:** fuente conceptual y estratégica del harness (responsabilidades y límites).
-> **Corte documental:** v2.55.0, 2026-08-28 (estado alineado al roadmap; la dirección conceptual no cambia).
-> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a**, **K5**, **K6a**, **K4b** y **K6b** están cerrados. **K6c** es `next-eligible`. OpenSpec/Git/Candidate siguen siendo la única autoridad semántica; el Assurance Graph es proyección.
+> **Corte documental:** v2.56.0, 2026-08-28 (estado alineado al roadmap; la dirección conceptual no cambia).
+> **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a**, **K5**, **K6a**, **K4b**, **K6b** y **K6c** están cerrados. **K6d** es `next-eligible`. OpenSpec/Git/Candidate siguen siendo la única autoridad semántica; el Assurance Graph es proyección.
 > **Roadmap:** orden, estado operativo y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
 > **Precedencia documental:** ante diferencias de **orden o estado**, prevalece el roadmap; ante diferencias **conceptuales**, reconciliar antes de iniciar el slice.
 > **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md). La proporcionalidad de proceso y el programa de changes viven en [`research/proportional-process-and-change-program.md`](research/proportional-process-and-change-program.md).
@@ -21,7 +21,7 @@ Sin duplicar el backlog: solo responsabilidades y límites alineados al roadmap 
 
 | Tema | Decisión arquitectónica |
 | --- | --- |
-| Estado | K1+K2+K2.1+K2a+K3+`k3-readiness-remediation`+K4a+K5+K6a+K4b+K6b `done`; **K6c** `next-eligible` |
+| Estado | K1+K2+K2.1+K2a+K3+`k3-readiness-remediation`+K4a+K5+K6a+K4b+K6b+**K6c** `done`; **K6d** `next-eligible` |
 | Dos grafos | **Execution Graph** (trabajo) ≠ **Assurance Graph** (fiabilidad / evidencia; no “prueba formal”) |
 | Identidades | `SourceSnapshotId` / `WorkOrderId` / `WorkResultId` / `CandidateId` (sin IDs nuevos por ahora) |
 | Relación Candidate | Inicial: `exact` / `changed` / `ambiguous` / `unknown`; `compatible-base-advance` experimental hasta K9 |
@@ -69,6 +69,16 @@ El review terminal de v2.53.1 no cambia la dirección del kernel, pero obliga a 
 | Persistencia | Records `runner-receipt/v1` viven en CAS `runner_receipts` (raíz del registro). Tras restart se rehidratan y se reemite un canal opaco **nuevo**. El WeakMap no se serializa. |
 | Role en replay | `normalizeRole(assessment.role)` debe coincidir con el del receipt; mismatch → `GRAPH_DIVERGENCE` aunque `assessment_id` se recalcule. |
 | Gate | K6b `done` en v2.55.0 (persistencia durable + bind de role en replay). K6c es next-eligible. |
+
+### Corte conceptual 2026-08-28 (K6c adversarial challenges)
+
+| Tema | Decisión arquitectónica |
+| --- | --- |
+| Selección | `ChallengePlan` proporcional por estrategia y `PolicySnapshot` con fingerprint SHA-256; sin suite universal. |
+| Evidencia | Resultados de challenges (`challenge-result/v1`) como evidencia complementaria en `verifyCandidate`; nunca autoridad de delivery. |
+| Presupuesto | `ChallengeBudget` monótono; agotamiento produce `causal-failure/v1` con `CHALLENGE_BUDGET_EXHAUSTED` (validation_gap) sin reintentos idénticos. |
+| Complacencia | Mutaciones focales y rechazo estricto de tests complacientes (`COMPLACENT_TEST_DETECTED`) y tautológicos (`TAUTOLOGICAL_TEST_DETECTED`). |
+| Gate | K6c `done` en v2.56.0. K6d es `next-eligible`. |
 
 ## Ruta rápida
 
@@ -872,8 +882,9 @@ Repositorios fixture reciben 10–30 cambios consecutivos. Se miden duplicación
 9. ~~K6a: primitivas de ejecución aislada (`CreateWorkspace`…`DisposeWorkspace`); no conoce Repair~~ — hecho: archivado y publicado en v2.46.7; frontera de procesos cerrada en v2.47.1; endurecimiento de frontera (política inmutable, fs mutante, live-identity, `worker_threads`) en v2.47.2.
 10. ~~K4b: orquesta Repair shadow (consume K6a; freeze Candidate vía K3)~~ — hecho: publicado en v2.48.0; corrección en v2.48.1; invariantes de integración en v2.48.2; cierre mode-only/baseline en v2.48.3.
 11. ~~K6b: verifier + provenance + Assurance Graph (proyección)~~ — hecho: publicado desde v2.50.0, endurecido hasta v2.54.0 y cerrado en v2.55.0 (`runner-receipt/v1` durable en CAS, canal reemitido tras restart, bind de role en replay).
-12. K6c: ChallengePlan policy-selected (next-eligible).
-13. K7: ReviewAdapter + ReviewReducer + lineage; K8: CandidateEvaluationAttestation (emisión CAS).
+12. ~~K6c: ChallengePlan policy-selected~~ — hecho: publicado en v2.56.0 (catálogo de 9 tipos, planner determinista, tracker de budget monótono, mutador focal y detección de tests complacientes/tautológicos).
+13. K6d: complexity y architecture delta (next-eligible).
+14. K7: ReviewAdapter + ReviewReducer + lineage; K8: CandidateEvaluationAttestation (emisión CAS).
 14. K9: shadow/replay/A-B; promoción de **un** profile (checkpoints intermedios ya validados).
 15. K10-delivery: DeliveryAuthorization **solo** del profile promovido; relación Candidate por etapas; resto fixed/deferred.
 16. K10: expandir rutas una a una tras promoción.
@@ -949,6 +960,7 @@ Un **Change Program** (objetivo humano → children OpenSpec con `depends_on` y 
 - {implemented} Independent verifier over frozen CandidateId (K6b).
 - {implemented} Evidence strategies with provenance and Strict TDD fallback (K6b).
 - {implemented} Assurance Graph as derived content-addressed projection with selective invalidation (K6b); OpenSpec/Git/Candidate remain sole semantic authority.
+- {implemented} ChallengePlan policy-selected y suite proporcional de challenges adversariales (K6c).
 
 ### Target arquitectónico aceptado
 
@@ -964,7 +976,6 @@ Un **Change Program** (objetivo humano → children OpenSpec con `depends_on` y 
 - {target} Rutas como recetas y fases como capacidades (K10). La tabla lite/standard permanece como producto hasta promoción.
 - {target} Clarify con invalidación parcial.
 - {target} Presupuestos/failure/recovery consumidos por recetas y challenges (kernel K5 entregado; no reabrir el primitive).
-- {target} ChallengePlan policy-selected (K6c).
 - {target} Complexity delta (K6d).
 - {target} ReviewAdapter + ReviewReducer + reutilización de lineage.
 - {target} CandidateEvaluationAttestation (emisión CAS) y DeliveryAuthorization (kinds distintos; profile-scoped).

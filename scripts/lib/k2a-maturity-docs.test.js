@@ -31,14 +31,14 @@ test("K2a maturity docs tag host surfaces implemented; Candidate/attestation/del
   assert.match(roadmap, /K2a.*\*\*done\*\*|Headless Conformance Host.*implemented/i);
   assert.match(roadmap, /\|\s*`done`\s*\|\s*\*\*K3\*\*/);
   assert.match(roadmap, /\|\s*`done`\s*\|\s*\*\*K4b\*\*/);
-  assert.match(roadmap, /\|\s*`done`\s*\|\s*\*\*K6b\*\*/);
-  assert.match(roadmap, /\|\s*`next-eligible`\s*\|\s*\*\*K6c\*\*/);
+  assert.match(roadmap, /\|\s*`done`\s*\|\s*\*\*K6c\*\*/);
+  assert.match(roadmap, /\|\s*`next-eligible`\s*\|\s*\*\*K6d\*\*/);
   assert.match(arch, /\{implemented\} Independent verifier over frozen CandidateId \(K6b\)/);
   assert.match(arch, /\{implemented\} Evidence strategies with provenance and Strict TDD fallback \(K6b\)/);
   assert.match(arch, /\{implemented\} Assurance Graph as derived content-addressed projection/);
   assert.match(arch, /\{target\} Assurance Graph as independent authority/);
-  assert.match(arch, /\{target\} ChallengePlan policy-selected \(K6c\)/);
-  assert.doesNotMatch(arch, /\{implemented\}.*ChallengePlan/);
+  assert.match(arch, /\{implemented\} ChallengePlan policy-selected/);
+  assert.doesNotMatch(arch, /\{target\} ChallengePlan policy-selected \(K6c\)/);
   assert.doesNotMatch(arch, /\{implemented\}.*CandidateEvaluationAttestation/);
   assert.doesNotMatch(roadmap, /\|\s*`in-progress`\s*\|\s*\*\*K4b\*\*/);
   assert.doesNotMatch(roadmap, /\|\s*`in-progress`\s*\|\s*\*\*K6b\*\*/);

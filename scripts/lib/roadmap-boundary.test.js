@@ -139,3 +139,72 @@ test("REQ-harness-authority-canon-010: K3/K4a/K4b/K6a do not import K6b modules"
   assert.equal(misuse.reason_code, "GRAPH_AUTHORITY_MISUSE");
 });
 
+test("REQ-harness-authority-canon-011: K3/K4a/K4b/K6a do not import K6c adversarial-challenges", () => {
+  const roots = [
+    path.resolve(__dirname, "execution-identities"),
+    path.resolve(__dirname, "execution-graph"),
+    path.resolve(__dirname, "repair-shadow"),
+  ];
+  const k6aFiles = [
+    path.resolve(__dirname, "worker-executor.js"),
+    path.resolve(__dirname, "worker-workspace.js"),
+    path.resolve(__dirname, "worker-sandbox.js"),
+    path.resolve(__dirname, "worker-sandbox-confine.js"),
+    path.resolve(__dirname, "worker-sandbox-preload.js"),
+  ];
+
+  function collectJs(dir) {
+    if (!fs.existsSync(dir)) return [];
+    const stat = fs.statSync(dir);
+    if (stat.isFile()) return dir.endsWith(".js") && !dir.endsWith(".test.js") ? [dir] : [];
+    const out = [];
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...collectJs(abs));
+      else if (entry.isFile() && entry.name.endsWith(".js") && !entry.name.endsWith(".test.js")) out.push(abs);
+    }
+    return out;
+  }
+
+  const files = [...roots.flatMap(collectJs), ...k6aFiles.filter((file) => fs.existsSync(file))];
+  assert.ok(files.length > 0, "upstream kernel modules must exist");
+  for (const file of files) {
+    const source = fs.readFileSync(file, "utf8");
+    const relative = path.relative(path.resolve(__dirname, "../.."), file).replace(/\\/g, "/");
+    assert.equal(
+      source.includes("adversarial-challenges"),
+      false,
+      `${relative} must not import or reference adversarial-challenges`
+    );
+  }
+});
+
+test("REQ-harness-authority-canon-011: K6c challenge and projection surfaces tagged implemented while K7/K8 remain non-implemented", () => {
+  const MATURITY_TAGS = {
+    "independent-verifier": "implemented",
+    "evidence-strategies-with-provenance": "implemented",
+    "assurance-graph-projection": "implemented",
+    "k6c-policy-selected-challenges": "implemented",
+    "k7-review-authority": "target",
+    "k8-evaluation-attestation": "target",
+    "k8-change-program": "target",
+  };
+
+  assert.equal(MATURITY_TAGS["k6c-policy-selected-challenges"], "implemented");
+  assert.equal(MATURITY_TAGS["assurance-graph-projection"], "implemented");
+  assert.equal(MATURITY_TAGS["k7-review-authority"], "target");
+  assert.equal(MATURITY_TAGS["k8-evaluation-attestation"], "target");
+});
+
+test("REQ-harness-authority-canon-012: Challenge results cannot grant delivery authority and fail closed", () => {
+  const { rejectDeliveryAuthorityMisuse } = require("./adversarial-challenges/index.js");
+  const misuse = rejectDeliveryAuthorityMisuse({
+    operation: "deliver",
+    from_challenge_results_alone: true,
+  });
+
+  assert.equal(misuse.ok, false);
+  assert.equal(misuse.reason_code, "CHALLENGE_AUTHORITY_MISUSE");
+});
+
+

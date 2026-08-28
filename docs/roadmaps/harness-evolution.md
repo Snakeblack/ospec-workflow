@@ -1,7 +1,7 @@
 # Roadmap general — kernel, grafo y evidencia
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.55.0, 2026-08-28.
+> **Versión de referencia:** v2.56.0, 2026-08-28.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
 > **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md) (P0–P27). Proporcionalidad de proceso y Change Program: [`../architecture/research/proportional-process-and-change-program.md`](../architecture/research/proportional-process-and-change-program.md).
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
@@ -79,8 +79,9 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **K6a** | Worker isolation y work-order capsule; primitivas de ejecución aislada, integración con WorkerTransport, contención de filesystem y WorkResult canónico; archivado en v2.46.0, frontera de procesos cerrada en v2.47.1 y endurecida en v2.47.2 |
 | `done` | **K4b** | Repair shadow execution (WO→WR→integrate→Candidate); despacho exclusivo K6a, integración estricta, cápsula mínima, base derivada y registro 1:N; remediación de invariantes en v2.48.2 y cierre mode-only/baseline en v2.48.3 (`2026-08-26-k4b-mode-only-and-baseline-projection`) |
 | `done` | **K6b** | Verifier + provenance + Assurance Graph; persistencia durable de `runner-receipt/v1` en CAS `runner_receipts`, canal reemitido tras restart y bind de role en replay; archivado y publicado en v2.55.0 |
-| `next-eligible` | **K6c** | ChallengePlan policy-selected; desbloqueado tras archive de `k6b-durable-replay-receipt-authority` |
-| `pending` | K6d–K8 | Complexity delta, review authority, **Evaluation Attestation** |
+| `done` | **K6c** | ChallengePlan policy-selected; catálogo de 9 tipos, mutaciones focales y control de budget; archivado y publicado en v2.56.0 |
+| `next-eligible` | **K6d** | Complexity delta; desbloqueado tras archive de `k6c-policy-selected-challenges` |
+| `pending` | K7–K8 | Review authority, **Evaluation Attestation** |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
 | `pending` | K10-delivery | `DeliveryAuthorization` **acotada al profile K9**; relación Candidate por etapas; fixed/deferred para el resto |
 | `pending` | K10–K12 | Expansión adaptativa; K11a = multi-target; K12 = corpus/longitudinal (no el primer runner) |
@@ -1117,7 +1118,7 @@ external-unverified
 
 **Gate terminal:** cerrado en v2.55.0. B1 persistencia durable + reemisión de canal, B2 chronology causal, B3 replay obligatorio y bind de role, H1 outcome. Residual aceptado: `ag-006-receipt-token-attestation` (WARNING, test dedicado opcional). Desbloquea K6c.
 
-### K6c — adversarial challenges (policy-selected) — **next-eligible**
+### K6c — adversarial challenges (policy-selected) — **done** (v2.56.0)
 
 **Dependencias:** K6b (+ `PolicySnapshot` / strategy de evidencia).
 
@@ -1183,9 +1184,9 @@ K6c ataca la **evidencia/implementación** del candidato. La refutación adversa
 - no se introduce un segundo stack de “refuter de review” paralelo a K7;
 - coste de challenges no crece por “correr todo el catálogo”.
 
-**Gate terminal:** ChallengePlan + suite adversarial proporcional verdes; K6d no empieza antes.
+**Gate terminal:** cerrado en v2.56.0. ChallengePlan determinista proporcional con 9 tipos de challenges, control estricto de ChallengeBudget con fallo causal tipado, mutador focal y rechazo de tests complacientes/tautológicos, integrado en independent-verifier sin autoridad de delivery (`k6c-policy-selected-challenges`). Desbloquea K6d.
 
-### K6d — complexity y architecture delta — **pending**
+### K6d — complexity y architecture delta — **next-eligible**
 
 **Dependencias:** K6b; K6c para promotion evidence.
 

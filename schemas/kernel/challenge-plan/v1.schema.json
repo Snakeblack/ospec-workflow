@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/challenge-plan/v1",
+  "title": "ChallengePlanV1",
+  "description": "Plan de validación adversarial determinista y proporcional vinculado a CandidateId y PolicySnapshot.",
+  "type": "object",
+  "schema_version": 1,
+  "required": [
+    "schema_version",
+    "kind",
+    "plan_id",
+    "candidate_id",
+    "policy_snapshot_id",
+    "evidence_strategy",
+    "selected",
+    "skipped",
+    "reasons",
+    "budget"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "const": "challenge-plan/v1"
+    },
+    "plan_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "policy_snapshot_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "evidence_strategy": {
+      "type": "string",
+      "enum": [
+        "bug",
+        "feature",
+        "refactor",
+        "migration",
+        "config-docs",
+        "strict-tdd"
+      ]
+    },
+    "selected": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "revert",
+          "focal-mutation",
+          "independent-acceptance",
+          "regression-acceptance",
+          "compatibility-acceptance",
+          "test-inspection",
+          "structural-validation",
+          "behavior-equivalence",
+          "rollback"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "skipped": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "challenge_type",
+          "reason"
+        ],
+        "properties": {
+          "challenge_type": {
+            "type": "string",
+            "enum": [
+              "revert",
+              "focal-mutation",
+              "independent-acceptance",
+              "regression-acceptance",
+              "compatibility-acceptance",
+              "test-inspection",
+              "structural-validation",
+              "behavior-equivalence",
+              "rollback"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "budget": {
+      "type": "object",
+      "required": [
+        "max_challenges",
+        "mutation_budget",
+        "timeout_seconds"
+      ],
+      "properties": {
+        "max_challenges": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mutation_budget": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "timeout_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
